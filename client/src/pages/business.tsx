@@ -27,7 +27,7 @@ function Nav() {
     const fn = () => { const y = scrollY; setVisible(y < 60 || y < lastY.current); setBg(y > 30); lastY.current = y; };
     addEventListener("scroll", fn, { passive: true }); return () => removeEventListener("scroll", fn);
   }, []);
-  const pages = [{ label: "Startseite", href: "/", active: false }, { label: "Business", href: "/business", active: true }];
+  const pages = [{ label: "Startseite", href: "/", active: false }, { label: "Privatkunden", href: "/privatkunden", active: false }, { label: "Business", href: "/business", active: true }];
   return (
     <nav className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${visible ? "translate-y-0" : "-translate-y-full"} ${bg ? "bg-white/85 backdrop-blur-2xl border-b border-gray-100/80" : ""}`}>
       <div className="max-w-[1120px] mx-auto px-6 h-[60px] flex items-center justify-between">

@@ -192,6 +192,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const investorLeadRoutes = await import('./routes/investor-lead');
   app.use('/api/investors', investorLeadRoutes.default);
 
+  // 💳 FIAON Antrag Routes — Public (no auth)
+  const fiaonAntragRoutes = await import('./routes/fiaon-antrag');
+  app.use('/api/fiaon', fiaonAntragRoutes.default);
+
   // 🔒 NDA Gate — Public Routes (no auth, cookie-based access)
   const ndaRoutes = await import('./routes/nda');
   app.use('/api/nda', ndaRoutes.default);

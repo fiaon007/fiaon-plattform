@@ -68,11 +68,12 @@ function FCard({ bg, lim, label, className = "" }: { bg: string; lim: string; la
   );
 }
 
-/* ── packages ── */
+/* ── packages (identical to Startseite) ── */
 const PACKS = [
-  { name: "FIAON Restart", tier: "Schneller Aufbau", lim: "Prepaid + Limit-Option", bg: "linear-gradient(135deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats: ["Prepaid-Basis mit sp\u00E4terer Limit-Option", "Idealer Einstieg f\u00FCr den Neustart", "Kontaktlos & Apple Pay / Google Pay", "Sofort nutzbar nach Aktivierung"] },
-  { name: "FIAON Freedom", tier: "Echte Kreditkarte", lim: "Cashflow-basiertes Limit", rec: true, bg: "linear-gradient(135deg,#0b1628,#1a3560,#1e4070)", feats: ["Echte Kreditkarte \u00FCber Auslandspartner", "Limit basierend auf Cashflow, nicht Schufa", "Strategisches Coaching inklusive", "Monatliche Limit-\u00DCberpr\u00FCfung"] },
-  { name: "FIAON Premium", tier: "Volle Struktur", lim: "Individuelle Vereinbarung", bg: "linear-gradient(135deg,#111,#1a1a1a,#2a2a2a)", feats: ["Zus\u00E4tzliche Kontenstrukturen", "Pf\u00E4ndungsschutz-Beratung im Ausland", "VIP Support & pers\u00F6nlicher Berater", "Kompletter Finanz-Neuaufbau"] },
+  { name: "FIAON Starter", fee: "7,99", lim: "500", bg: "linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats: ["Limit bis 500 \u20AC", "E-Mail Support", "NFC kontaktlos", "Online-Banking"] },
+  { name: "FIAON Pro", fee: "59,99", lim: "5.000", rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats: ["Limit bis 5.000 \u20AC", "Priority Support", "Cashback-Programm", "NFC kontaktlos"] },
+  { name: "FIAON Ultra", fee: "79,99", lim: "15.000", bg: "linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats: ["Limit bis 15.000 \u20AC", "Reise-Versicherung", "Lounge-Zugang", "Priority Support"] },
+  { name: "FIAON High End", fee: "99,99", lim: "25.000", bg: "linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats: ["Limit bis 25.000 \u20AC", "24/7 VIP Support", "Concierge-Service", "Premium Lounge"] },
 ];
 
 /* ═══════════════════════════════
@@ -218,45 +219,120 @@ function Solution() {
 }
 
 /* ═══════════════════════════════
-   PACKAGES
+   PACKAGES (same 4 as Startseite)
    ═══════════════════════════════ */
 function Packages() {
   const obs = useReveal(0.05);
   return (
     <section className="py-20 sm:py-28 bg-[#f8faff]" ref={obs.ref}>
-      <div className="max-w-[1120px] mx-auto px-6">
+      <div className="max-w-[1200px] mx-auto px-6">
         <div className="max-w-2xl mb-14">
-          <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Dein Setup</p>
-          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4"><G>Dein neues finanzielles Setup.</G></h2>
-          <p className="text-[15px] text-gray-500 leading-relaxed">W&auml;hle das Paket, das zu deiner Situation passt. Jedes Setup wird individuell auf dich zugeschnitten.</p>
+          <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Pakete</p>
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4"><G>Finde dein passendes Paket</G></h2>
+          <p className="text-[15px] text-gray-500 leading-relaxed">Von Einsteiger bis Premium &ndash; wir beraten dich zum optimalen Kreditkarten-Paket. Das finale Limit wird individuell berechnet.</p>
         </div>
-
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {PACKS.map((p, i) => (
-            <div key={p.name} className={`relative rounded-2xl bg-white border overflow-hidden transition-all duration-700 hover:-translate-y-1.5 hover:shadow-xl ${p.rec ? "border-[#2563eb]/25 shadow-lg shadow-blue-500/8 ring-1 ring-[#2563eb]/10" : "border-gray-100 hover:border-gray-200"} ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`} style={{ transitionDelay: `${i * 100}ms` }}>
-              {p.rec && <div className="absolute top-0 left-0 right-0 h-[2px] bg-[#2563eb]" />}
-              {p.rec && <div className="absolute top-3 right-4 text-[9px] font-bold uppercase tracking-wider text-white bg-[#2563eb] px-2.5 py-1 rounded-full z-10">Empfohlen</div>}
-
-              <div className="p-5 sm:p-6">
-                <FCard bg={p.bg} lim={p.lim} label={p.tier} className="w-full" />
-              </div>
-
+            <div key={p.name} className={`rounded-2xl bg-white border overflow-hidden transition-all duration-700 hover:-translate-y-1.5 hover:shadow-xl ${p.rec ? "border-[#2563eb]/25 shadow-lg shadow-blue-500/8 ring-1 ring-[#2563eb]/10" : "border-gray-100 hover:border-gray-200"} ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`} style={{ transitionDelay: `${i * 90}ms` }}>
+              {p.rec && <div className="h-[2px] bg-[#2563eb]" />}
+              <div className="p-5 sm:p-6"><FCard bg={p.bg} lim={p.lim} label={p.name} className="w-full" /></div>
               <div className="px-5 sm:px-6 pb-6">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">{p.tier}</p>
-                <h3 className="text-[17px] font-semibold text-gray-900 mb-4">{p.name}</h3>
-
+                <div className="flex items-center gap-3 mb-3">
+                  <h3 className="text-[15px] font-semibold text-gray-900">{p.name}</h3>
+                  {p.rec && <span className="text-[9px] font-semibold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-2 py-0.5 rounded">Empfohlen</span>}
+                </div>
+                <div className="flex items-baseline gap-1.5 mb-5">
+                  <span className="text-[28px] font-semibold text-gray-900 tracking-tight">{p.fee}</span>
+                  <span className="text-[13px] text-gray-400">&euro; / Monat</span>
+                </div>
                 <ul className="space-y-2.5 mb-6">
                   {p.feats.map((f, j) => (
-                    <li key={j} className="flex items-start gap-2.5 text-[13px] text-gray-600">
-                      <svg className="shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>
-                      {f}
+                    <li key={j} className="flex items-center gap-2.5 text-[13px] text-gray-600">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>{f}
                     </li>
                   ))}
                 </ul>
+                <a href="#start" className={`block w-full text-center py-3 rounded-xl text-[13px] font-medium transition-all ${p.rec ? "fiaon-btn-gradient text-white" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100"}`}>Antrag starten</a>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
-                <a href="#start" className={`block w-full text-center py-3 rounded-xl text-[13px] font-medium transition-all ${p.rec ? "fiaon-btn-gradient text-white" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100"}`}>
-                  Jetzt starten
-                </a>
+/* ═══════════════════════════════
+   NUMBERS
+   ═══════════════════════════════ */
+function Numbers() {
+  const items = [["12.400+","Beratungen durchgef\u00FChrt"],["25.000 \u20AC","Max. Kreditlimit"],["< 2 Min","Antrag starten"],["4,9 / 5","Kundenbewertung"]];
+  return (
+    <section className="py-10 sm:py-12 border-y border-gray-100">
+      <div className="max-w-[1120px] mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-4">
+        {items.map(([v,l],i) => <div key={i} className="text-center"><div className="text-lg sm:text-xl font-semibold text-gray-900 tracking-tight">{v}</div><div className="text-[11px] sm:text-[12px] text-gray-400 mt-0.5 font-medium">{l}</div></div>)}
+      </div>
+    </section>
+  );
+}
+
+/* ═══════════════════════════════
+   HOW IT WORKS
+   ═══════════════════════════════ */
+function HowItWorks() {
+  const obs = useReveal(0.1);
+  const steps = [
+    { n: "01", t: "Potenzial-Analyse starten", d: "Beantworte ein paar einfache Fragen zu deiner Situation. Dauert unter 2 Minuten. 100% schufaneutral." },
+    { n: "02", t: "Individuelle Strategie", d: "Wir pr\u00FCfen dein Profil und entwickeln eine ma\u00DFgeschneiderte Kreditkarten-Strategie \u2013 basierend auf internationalen M\u00F6glichkeiten." },
+    { n: "03", t: "Karte beantragen", d: "Zufrieden mit dem Angebot? Wir begleiten dich durch den gesamten Antragsprozess beim Partnerinstitut." },
+  ];
+  return (
+    <section className="py-20 sm:py-28" ref={obs.ref}>
+      <div className="max-w-[1120px] mx-auto px-6">
+        <div className="max-w-2xl mb-14">
+          <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Ablauf</p>
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4"><G>In 3 Schritten zur passenden Karte</G></h2>
+          <p className="text-[15px] text-gray-500 leading-relaxed">Kein Papierkram, keine Filiale. Alles digital, alles transparent.</p>
+        </div>
+        <div className="grid md:grid-cols-3 gap-8">
+          {steps.map((s, i) => (
+            <div key={i} className={`transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`} style={{ transitionDelay: `${i * 120}ms` }}>
+              <div className="text-[48px] font-semibold text-blue-50 leading-none mb-3">{s.n}</div>
+              <h3 className="text-[15px] font-semibold text-gray-900 mb-2">{s.t}</h3>
+              <p className="text-[14px] text-gray-500 leading-relaxed">{s.d}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ═══════════════════════════════
+   TESTIMONIALS
+   ═══════════════════════════════ */
+function Reviews() {
+  const obs = useReveal(0.1);
+  const rev = [
+    { n: "Markus T.", r: "Selbstst\u00E4ndiger", t: "Nach 3 Ablehnungen bei deutschen Banken hat FIAON mir innerhalb einer Woche eine L\u00F6sung gebaut. Seri\u00F6s und professionell." },
+    { n: "Julia K.", r: "Angestellte", t: "Ich war skeptisch wegen der Schufa-Thematik. Aber alles war transparent, legal und ohne Vorkasse. Kann ich nur empfehlen." },
+    { n: "Ahmed R.", r: "Gr\u00FCnder", t: "Endlich jemand, der ehrlich sagt, was m\u00F6glich ist und was nicht. Kein Gelaber, nur L\u00F6sungen." },
+  ];
+  return (
+    <section className="py-20 sm:py-28 bg-[#f8faff]" ref={obs.ref}>
+      <div className="max-w-[1120px] mx-auto px-6">
+        <div className="max-w-2xl mb-14">
+          <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Kundenstimmen</p>
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight"><G>Was unsere Kunden sagen</G></h2>
+        </div>
+        <div className="grid md:grid-cols-3 gap-6">
+          {rev.map((r, i) => (
+            <div key={i} className={`p-6 rounded-2xl bg-white border border-gray-100 transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`} style={{ transitionDelay: `${i * 80}ms` }}>
+              <div className="flex gap-1 mb-4">{[...Array(5)].map((_, j) => <svg key={j} width="14" height="14" viewBox="0 0 20 20" fill="#2563eb" opacity=".7"><path d="M10 1l2.47 5.01L18 6.76l-4 3.9.94 5.49L10 13.77l-4.94 2.38L6 10.66l-4-3.9 5.53-.75z"/></svg>)}</div>
+              <p className="text-[14px] text-gray-600 leading-relaxed mb-5">&bdquo;{r.t}&ldquo;</p>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-[#2563eb] flex items-center justify-center text-[11px] font-medium text-white">{r.n[0]}</div>
+                <div><div className="text-[13px] font-medium text-gray-900">{r.n}</div><div className="text-[11px] text-gray-400">{r.r}</div></div>
               </div>
             </div>
           ))}
@@ -362,9 +438,12 @@ export default function PrivatkundenPage() {
     <div className="min-h-screen bg-white text-gray-900 antialiased" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <Nav />
       <Hero />
+      <Numbers />
       <Agitation />
       <Solution />
       <Packages />
+      <HowItWorks />
+      <Reviews />
       <Faq />
       <FinalCta />
       <Foot />

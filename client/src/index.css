@@ -89,44 +89,45 @@ html {
 }
 
 /* ── FIAON Custom Animations ──── */
-.fiaon-gradient-text {
-  background: linear-gradient(135deg, #2563EB, #7C3AFF, #06B6D4);
-  background-size: 200% 200%;
+
+/* Animated heading gradient — subtle black/blue shift */
+.fiaon-heading-gradient {
+  background: linear-gradient(135deg, #111827, #2563EB, #111827, #2563EB);
+  background-size: 300% 300%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: fiaonGrad 6s ease-in-out infinite;
+  animation: headingGrad 8s ease-in-out infinite;
 }
-@keyframes fiaonGrad {
+@keyframes headingGrad {
   0%, 100% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
 }
 
-.fiaon-shimmer {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
-  transform: translateX(-100%);
-  animation: shimmer 3s ease-in-out infinite;
+/* Animated button gradient — blue shimmer */
+.fiaon-btn-gradient {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8, #2563eb);
+  background-size: 200% 200%;
+  animation: btnGrad 3s ease-in-out infinite;
+  transition: box-shadow .2s, transform .15s;
 }
-@keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  50% { transform: translateX(100%); }
-  100% { transform: translateX(100%); }
+.fiaon-btn-gradient:hover {
+  box-shadow: 0 8px 24px rgba(37,99,235,.3);
+  transform: translateY(-1px);
+}
+.fiaon-btn-gradient:active {
+  transform: translateY(0);
+}
+@keyframes btnGrad {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
+/* Card float */
 .fiaon-card-float {
   animation: cardFloat 6s ease-in-out infinite;
 }
 @keyframes cardFloat {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-12px); }
-}
-
-.fiaon-dot-pulse {
-  animation: dotPulse 2.5s ease-in-out infinite;
-}
-@keyframes dotPulse {
-  0%, 100% { box-shadow: 0 0 8px rgba(37,99,235,0.2); }
-  50% { box-shadow: 0 0 18px rgba(37,99,235,0.5); }
+  50% { transform: translateY(-10px); }
 }

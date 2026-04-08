@@ -1,0 +1,329 @@
+/* Clean Background Animation - Single Layer */
+
+/* Matrix Data Stream Animation for Knowledge Base */
+@keyframes arasMatrixDrift {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-60px);
+  }
+}
+
+/* Neural Pulse Animation */
+@keyframes arasNeuralPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.02);
+  }
+}
+
+/* Shimmer Animation for Context Preview Border */
+@keyframes arasShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Data Spine Pulse */
+@keyframes arasSpinePulse {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(255,106,0,0.5);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(255,106,0,0.9);
+  }
+}
+
+/* Respect reduced motion - disable all vault animations */
+@media (prefers-reduced-motion: reduce) {
+  .aras-matrix-bg,
+  [style*="arasMatrixDrift"],
+  [style*="arasNeuralPulse"],
+  [style*="arasShimmer"],
+  [style*="arasSpinePulse"] {
+    animation: none !important;
+  }
+  
+  /* Also disable framer-motion transforms */
+  * {
+    transition: none !important;
+  }
+}
+
+/* ARAS Headline Gradient Animation - Orange to Gold to White */
+@keyframes arasHeadlineGradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.aras-headline-gradient {
+  background: linear-gradient(90deg, #ff6a00, #e9d7c4, #ffffff, #e9d7c4, #ff6a00);
+  background-size: 200% 200%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: arasHeadlineGradient 6s ease infinite;
+}
+
+@keyframes aras-gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes aras-border-run {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes aras-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes subtleGlow {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes gentleFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes rotatingBorder {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Prevent animation flickering on desktop */
+@media (min-width: 1024px) {
+  .ai-message-glow::before,
+  .ai-message-glow::after,
+  .user-message-glow::before,
+  .user-message-glow::after {
+    animation-play-state: paused;
+    opacity: 0.6;
+  }
+  
+  /* Disable background animations on desktop for stability */
+  .aras-bg-animated::before,
+  .aras-bg-animated::after {
+    animation-play-state: paused;
+  }
+  
+  /* Reduce transform operations on desktop */
+  * {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000;
+  }
+}
+
+/* Simple animated background */
+.aras-bg-animated {
+  position: relative;
+  background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 50%, #000000 100%);
+  background-attachment: fixed;
+}
+
+/* Single particle layer that won't conflict */
+.aras-bg-animated::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: -1;
+  background: 
+    radial-gradient(circle 600px at 20% 80%, rgba(255, 106, 0, 0.05) 0%, transparent 50%),
+    radial-gradient(circle 400px at 80% 20%, rgba(255, 106, 0, 0.08) 0%, transparent 50%);
+  animation: subtleGlow 25s ease-in-out infinite;
+}
+
+/* Floating dots that won't interfere */
+.aras-bg-animated::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: -2;
+  background-image: 
+    radial-gradient(2px 2px at 50px 100px, rgba(255, 106, 0, 0.4), transparent),
+    radial-gradient(1px 1px at 200px 200px, rgba(255, 106, 0, 0.3), transparent),
+    radial-gradient(1.5px 1.5px at 300px 50px, rgba(255, 106, 0, 0.35), transparent);
+  background-size: 350px 350px;
+  animation: gentleFloat 20s ease-in-out infinite;
+}
+
+/* AI Message - Transparent with Dual Rotating Orange Border */
+.ai-message-glow {
+  position: relative;
+  background: transparent !important;
+  border-radius: 12px;
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  border: 0.5px solid transparent;
+}
+
+/* Inner border effect */
+.ai-message-glow::before {
+  content: '';
+  position: absolute;
+  top: -0.5px;
+  left: -0.5px;
+  right: -0.5px;
+  bottom: -0.5px;
+  background: conic-gradient(
+    from 0deg,
+    transparent 90%,
+    rgba(255, 140, 0, 0.6) 95%,
+    rgba(255, 165, 0, 1) 97%,
+    rgba(255, 140, 0, 0.6) 100%
+  );
+  border-radius: 13px;
+  animation: rotatingBorder 3s linear infinite;
+  z-index: -1;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: xor;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  padding: 0.5px;
+}
+
+/* Outer border effect */
+.ai-message-glow::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  background: conic-gradient(
+    from 180deg,
+    transparent 92%,
+    rgba(255, 140, 0, 0.3) 96%,
+    rgba(255, 165, 0, 0.7) 98%,
+    rgba(255, 140, 0, 0.3) 100%
+  );
+  border-radius: 16px;
+  animation: rotatingBorder 4s linear infinite reverse;
+  z-index: -2;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: xor;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  padding: 0.5px;
+}
+
+/* User Message - Transparent with Dual Rotating Blue Border */
+.user-message-glow {
+  position: relative;
+  background: transparent !important;
+  border-radius: 12px;
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  border: 0.5px solid transparent;
+}
+
+/* Inner border effect for user messages */
+.user-message-glow::before {
+  content: '';
+  position: absolute;
+  top: -0.5px;
+  left: -0.5px;
+  right: -0.5px;
+  bottom: -0.5px;
+  background: conic-gradient(
+    from 0deg,
+    transparent 90%,
+    rgba(56, 189, 248, 0.6) 95%,
+    rgba(14, 165, 233, 1) 97%,
+    rgba(56, 189, 248, 0.6) 100%
+  );
+  border-radius: 13px;
+  animation: rotatingBorder 3s linear infinite;
+  z-index: -1;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: xor;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  padding: 0.5px;
+}
+
+/* Outer border effect for user messages */
+.user-message-glow::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  background: conic-gradient(
+    from 180deg,
+    transparent 92%,
+    rgba(56, 189, 248, 0.3) 96%,
+    rgba(14, 165, 233, 0.7) 98%,
+    rgba(56, 189, 248, 0.3) 100%
+  );
+  border-radius: 16px;
+  animation: rotatingBorder 4s linear infinite reverse;
+  z-index: -2;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: xor;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  padding: 0.5px;
+}

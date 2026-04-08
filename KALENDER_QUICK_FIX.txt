@@ -1,0 +1,139 @@
+🔧 KALENDER QUICK FIX
+=====================
+
+PROBLEM: Seite geht nicht auf wenn ich drauf klicke
+GRUND: Database Tabelle "calendar_events" fehlt noch!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ LÖSUNG (3 Optionen):
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OPTION 1: Automatisches Script (EMPFOHLEN)
+-------------------------------------------
+1. Terminal öffnen
+2. Zum Projekt navigieren:
+   cd "/Users/Justin/Desktop/ARAS AI Plattform/aras-ai-delivery-20251029_174328"
+
+3. Migration ausführen:
+   npm run migrate:calendar
+
+4. Warten bis "✅ Migration successful!"
+
+5. Browser: https://arasai.onrender.com/app/calendar
+   → Sollte jetzt laden! 🎉
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OPTION 2: Render Dashboard (Am einfachsten!)
+---------------------------------------------
+1. Gehe zu: https://dashboard.render.com
+2. Öffne deine PostgreSQL Database
+3. Klick auf "Connect" → "External Connection"
+4. Kopiere die Connection URL
+5. Öffne "psql" oder "pgAdmin"
+6. Füge SQL ein (siehe db/migrations/add_calendar_features.sql)
+7. Execute!
+
+ODER direkt in Render:
+1. Dashboard → Database → "Connect" Tab
+2. Klick "Open Shell"
+3. Füge SQL ein:
+
+CREATE TABLE IF NOT EXISTS calendar_events (
+  id VARCHAR PRIMARY KEY NOT NULL,
+  user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title VARCHAR NOT NULL,
+  description TEXT,
+  date VARCHAR NOT NULL,
+  time VARCHAR NOT NULL,
+  duration INTEGER NOT NULL DEFAULT 60,
+  location VARCHAR,
+  attendees TEXT,
+  type VARCHAR NOT NULL DEFAULT 'meeting',
+  status VARCHAR NOT NULL DEFAULT 'scheduled',
+  call_id VARCHAR,
+  created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_calendar_events_user_id ON calendar_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_date ON calendar_events(date);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_call_id ON calendar_events(call_id);
+
+ALTER TABLE call_logs 
+  ADD COLUMN IF NOT EXISTS contact_name VARCHAR,
+  ADD COLUMN IF NOT EXISTS processed_for_calendar BOOLEAN DEFAULT FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_call_logs_processed 
+  ON call_logs(processed_for_calendar) 
+  WHERE processed_for_calendar = FALSE;
+
+4. Run!
+5. Browser: https://arasai.onrender.com/app/calendar ✅
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OPTION 3: Bash Script
+----------------------
+1. Terminal öffnen
+2. cd zum Projekt
+3. Setze DATABASE_URL:
+   export DATABASE_URL="postgresql://..."
+4. Run:
+   ./scripts/migrate-calendar.sh
+5. Fertig! ✅
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🧪 VERIFICATION:
+
+Nach Migration testen:
+1. Browser: https://arasai.onrender.com/app/calendar
+2. Seite sollte laden!
+3. Klick "Neuer Termin"
+4. Fülle Felder aus
+5. Klick "Termin erstellen"
+6. Event sollte im Kalender erscheinen! ✅
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❓ PROBLEME?
+
+Seite lädt immer noch nicht:
+→ Check Browser Console (F12)
+→ Suche nach Errors
+→ Screenshot schicken
+
+Migration schlägt fehl:
+→ Check DATABASE_URL korrekt?
+→ Database erreichbar?
+→ User hat CREATE permissions?
+
+Events werden nicht gespeichert:
+→ Check Render Logs
+→ Suche nach [CALENDAR]
+→ API Errors?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 MEHR INFO:
+
+Detaillierte Anleitung: DEPLOY_CALENDAR.md
+Migration Script: scripts/migrate-calendar.js
+SQL Datei: db/migrations/add_calendar_features.sql
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⏱️ GESCHÄTZTE ZEIT: 3-5 Minuten
+📊 SCHWIERIGKEIT: Einfach
+✅ RISIKO: Niedrig (Migration ist idempotent)
+
+🚀 LOS GEHT'S!
+
+Nach Migration hast du:
+✅ Kalender lädt
+✅ Events erstellen funktioniert
+✅ AI Integration bereit
+✅ Alles perfekt! 💎

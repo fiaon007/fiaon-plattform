@@ -1,0 +1,3 @@
+import VoiceTasks from "./pages/voice-tasks";
+// Route hinzufügen:
+<Route path="/app/voice-tasks" component={VoiceTasks} />

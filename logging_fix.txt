@@ -1,0 +1,24 @@
+          
+          logger.info('Calling OpenAI with model: gpt-5');
+          
+          const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': \`Bearer \${process.env.OPENAI_API_KEY}\`
+            },
+            body: JSON.stringify({
+              model: 'gpt-5',
+              messages: openaiMessages,
+              max_completion_tokens: 2000
+            })
+          });
+          
+          logger.info('OpenAI Response Status:', response.status);
+          logger.info('OpenAI Response OK:', response.ok);
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            logger.error('OpenAI Error Response:', JSON.stringify(errorData));
+            throw new Error(\`OpenAI \${response.status}: \${JSON.stringify(errorData)}\`);
+          }

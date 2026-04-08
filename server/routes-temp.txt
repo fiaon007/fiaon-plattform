@@ -1,0 +1,28 @@
+  app.post('/api/voice/retell/call', requireAuth, async (req: any, res) => {
+    try {
+      logger.info('[RETELL] Call request started');
+      const { phoneNumber } = req.body;
+      if (!phoneNumber) {
+        logger.error('[RETELL] Missing phone number');
+        return res.status(400).json({ success: false, message: 'Phone required' });
+      }
+      
+      logger.info('[RETELL] Importing SDK...');
+      const Retell = (await import('retell-sdk')).default;
+      logger.info('[RETELL] Creating client...');
+      const retellClient = new Retell({ apiKey: process.env.RETELL_API_KEY });
+      
+      logger.info('[RETELL] Making call to:', phoneNumber);
+      const call = await retellClient.call.createPhoneCall({
+        from_number: process.env.RETELL_PHONE_NUMBER || '+41445054333',
+        to_number: phoneNumber,
+        override_agent_id: 'agent_757a5e73525f25b5822586e026'
+      });
+      
+      logger.info('[RETELL] Success:', call);
+      res.json({ success: true, call });
+    } catch (error: any) {
+      logger.error('[RETELL] ERROR:', error.message);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });

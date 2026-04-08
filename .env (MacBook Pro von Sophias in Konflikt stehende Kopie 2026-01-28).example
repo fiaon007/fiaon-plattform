@@ -1,0 +1,79 @@
+# Database Configuration
+DATABASE_URL="postgresql://user:password@host:5432/database?sslmode=require"
+
+# Node Environment
+NODE_ENV=production
+
+# OpenAI API Configuration (Legacy - not used anymore)
+OPENAI_API_KEY=sk-proj-your-openai-api-key-here
+
+# Google Gemini API Configuration (ARAS Core Engine)
+GOOGLE_GEMINI_API_KEY=your-google-gemini-api-key-here
+
+# Stripe Configuration (Use LIVE keys for production)
+STRIPE_SECRET_KEY=sk_live_your-stripe-secret-key
+VITE_STRIPE_PUBLIC_KEY=pk_live_your-stripe-public-key
+STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
+
+# Stripe Price IDs for Subscription Plans
+STRIPE_PRICE_ID_PRO=price_xxx_pro_monthly
+STRIPE_PRICE_ID_ULTRA=price_xxx_ultra_monthly
+STRIPE_PRICE_ID_ULTIMATE=price_xxx_ultimate_monthly
+
+# Stripe Product IDs
+STRIPE_PRODUCT_ID_PRO=prod_xxx_pro
+STRIPE_PRODUCT_ID_ULTRA=prod_xxx_ultra
+STRIPE_PRODUCT_ID_ULTIMATE=prod_xxx_ultimate
+
+# Application URL (for Stripe redirect URLs)
+APP_URL=https://your-domain.com
+
+# Session Secret (Generate a random 32-character string)
+# To generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+SESSION_SECRET=your-random-32-character-string-here
+
+# ElevenLabs Configuration (for AI voice calling)
+ELEVENLABS_API_KEY=your-elevenlabs-api-key
+ELEVENLABS_AGENT_ID=your-agent-id
+ELEVENLABS_PHONE_NUMBER_ID=your-phone-number-id
+ELEVENLABS_WEBHOOK_SECRET=wsec_your-webhook-secret
+
+# Optional: Twilio Configuration (for voice calling features)
+TWILIO_ACCOUNT_SID=your-twilio-account-sid
+TWILIO_AUTH_TOKEN=your-twilio-auth-token
+TWILIO_PHONE_NUMBER=+1234567890
+
+# ============================================================================
+# CLIENT PORTAL CONFIGURATION (e.g., Leadely)
+# ============================================================================
+# Session secret for portal auth (min 32 chars)
+# Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+PORTAL_SESSION_SECRET=your-random-64-hex-character-string-here
+
+# Portal users (JSON array) - KEEP SECRET, never expose to frontend!
+# IMPORTANT: Use passwordHash (scrypt) instead of password (deprecated)!
+#
+# To generate a password hash, run:
+#   node -e "const {scryptSync,randomBytes}=require('crypto');const p='YourPassword';const s=randomBytes(32);const h=scryptSync(p,s,64,{N:16384,r:8,p:1});console.log('scrypt\$N=16384\$r=8\$p=1\$salt='+s.toString('base64')+'\$hash='+h.toString('base64'))"
+#
+# Example with passwordHash (recommended):
+# CLIENT_PORTAL_USERS_JSON='[{"portalKey":"leadely","username":"user@example.com","passwordHash":"scrypt$N=16384$r=8$p=1$salt=<base64>$hash=<base64>","displayName":"John Doe","role":"Marketing"}]'
+#
+# DEPRECATED (will be removed): plaintext password
+# CLIENT_PORTAL_USERS_JSON='[{"portalKey":"cust_xxx","username":"user@example.com","password":"SecurePass123!","displayName":"John Doe","role":"Marketing"}]'
+
+# Portal configurations (JSON object keyed by portalKey)
+# Filter modes: userId, voiceAgentId (recommended), metadata.key
+# CLIENT_PORTAL_CONFIG_JSON='{"cust_xxx":{"company":{"name":"Company","ceo":"CEO Name","email":"info@company.com","addressLine":"Street 1","zipCity":"12345 City","vatId":"DE123456789"},"package":{"includedCalls":2000,"label":"Call Package · 2,000","notes":"Details..."},"ui":{"portalTitle":"Client Portal","tooltipMode":"ultra","kpiFocus":"Conversion"},"filter":{"mode":"voiceAgentId","value":123}}}'
+
+# ============================================================================
+# DEV/OPS: SQL snippets to find filter values in call_logs
+# ============================================================================
+# Find voiceAgentId groups:
+#   SELECT "voiceAgentId", COUNT(*) FROM call_logs GROUP BY 1 ORDER BY 2 DESC;
+#
+# Find userId groups:
+#   SELECT "userId", COUNT(*) FROM call_logs GROUP BY 1 ORDER BY 2 DESC;
+#
+# Find metadata.agentId groups (if using jsonb key):
+#   SELECT (metadata->>'agentId') AS agentId, COUNT(*) FROM call_logs GROUP BY 1 ORDER BY 2 DESC;

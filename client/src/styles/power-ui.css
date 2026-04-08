@@ -1,0 +1,469 @@
+/* ============================================
+   ARAS Power UI Kit — Local Design System
+   Only imported by /app/power page
+   Builds on top of aras-tokens.css
+   ============================================ */
+
+/* ─── Power-scoped tokens ────────────────────────────────── */
+.power-root {
+  --pw-bg: var(--aras-bg, #0b0c0f);
+  --pw-text: rgba(245,245,247,.92);
+  --pw-muted: rgba(245,245,247,.56);
+  --pw-soft: rgba(245,245,247,.40);
+
+  --pw-gold: var(--aras-gold, #e9d7c4);
+  --pw-gold-dark: var(--aras-gold-dark, #a34e00);
+  --pw-orange: var(--aras-orange, #ff6a00);
+
+  --pw-stroke: rgba(233,215,196,.12);
+  --pw-stroke-strong: rgba(254,145,0,.22);
+  --pw-stroke-focus: rgba(254,145,0,.55);
+
+  --pw-panel-bg: rgba(255,255,255,.022);
+  --pw-panel-hover: rgba(255,255,255,.035);
+
+  --pw-r-card: 22px;
+  --pw-r-panel: 26px;
+  --pw-r-input: 14px;
+  --pw-r-pill: 999px;
+
+  --pw-shadow-card: 0 18px 70px rgba(0,0,0,.52);
+  --pw-shadow-panel: 0 28px 86px rgba(0,0,0,.62);
+  --pw-shadow-glow: 0 0 0 1px rgba(254,145,0,.12), 0 22px 74px rgba(0,0,0,.60);
+
+  --pw-ease: cubic-bezier(.16,1,.3,1);
+  --pw-dur-fast: 160ms;
+  --pw-dur-normal: 220ms;
+  --pw-dur-slow: 420ms;
+
+  color: var(--pw-text);
+  font-family: var(--aras-font-body, 'Inter', sans-serif);
+}
+
+/* ─── Card ───────────────────────────────────────────────── */
+.pw-card {
+  position: relative;
+  border-radius: var(--pw-r-card);
+  border: 1px solid var(--pw-stroke);
+  background: var(--pw-panel-bg);
+  padding: 24px;
+  box-shadow: var(--pw-shadow-card);
+  transition: border-color var(--pw-dur-normal) var(--pw-ease),
+              box-shadow var(--pw-dur-normal) var(--pw-ease);
+}
+
+.pw-card:hover {
+  border-color: rgba(233,215,196,.16);
+}
+
+/* ─── Panel (larger containers) ──────────────────────────── */
+.pw-panel {
+  position: relative;
+  border-radius: var(--pw-r-panel);
+  border: 1px solid var(--pw-stroke);
+  background: var(--pw-panel-bg);
+  padding: 28px;
+  box-shadow: var(--pw-shadow-panel);
+}
+
+/* ─── Input ──────────────────────────────────────────────── */
+.pw-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: var(--pw-r-input);
+  border: 1px solid var(--pw-stroke);
+  background: rgba(255,255,255,.02);
+  color: var(--pw-gold);
+  font-family: var(--aras-font-body, 'Inter', sans-serif);
+  font-size: 14px;
+  line-height: 1.5;
+  outline: none;
+  transition: border-color var(--pw-dur-fast) var(--pw-ease),
+              box-shadow var(--pw-dur-fast) var(--pw-ease);
+}
+
+.pw-input::placeholder {
+  color: var(--pw-soft);
+}
+
+.pw-input:focus {
+  border-color: var(--pw-stroke-focus);
+  box-shadow: 0 0 0 3px rgba(254,145,0,.08);
+}
+
+.pw-input:focus-visible {
+  outline: 2px solid var(--pw-stroke-focus);
+  outline-offset: 2px;
+}
+
+/* Textarea variant — use class="pw-input" on <textarea> */
+textarea.pw-input {
+  height: auto;
+  min-height: 120px;
+  padding: 12px 16px;
+  resize: none;
+  line-height: 1.6;
+}
+
+/* ─── Label ──────────────────────────────────────────────── */
+.pw-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pw-muted);
+  margin-bottom: 8px;
+}
+
+/* ─── Section title ──────────────────────────────────────── */
+.pw-section-title {
+  font-family: var(--aras-font-display, 'Orbitron', sans-serif);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--pw-gold);
+  margin-bottom: 16px;
+}
+
+/* ─── Button — Primary ───────────────────────────────────── */
+.pw-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 24px;
+  border-radius: var(--pw-r-pill);
+  border: 1px solid rgba(254,145,0,.30);
+  background: linear-gradient(180deg, rgba(254,145,0,.18), rgba(255,255,255,.02));
+  color: rgba(255,255,255,.90);
+  font-family: var(--aras-font-body, 'Inter', sans-serif);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform var(--pw-dur-fast) var(--pw-ease),
+              box-shadow var(--pw-dur-fast) var(--pw-ease),
+              border-color var(--pw-dur-fast) var(--pw-ease);
+}
+
+.pw-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(254,145,0,.18);
+  border-color: rgba(254,145,0,.45);
+}
+
+.pw-btn-primary:active {
+  transform: translateY(0);
+}
+
+.pw-btn-primary:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.pw-btn-primary:focus-visible {
+  outline: 2px solid var(--pw-stroke-focus);
+  outline-offset: 3px;
+}
+
+/* ─── Button — Ghost ─────────────────────────────────────── */
+.pw-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--pw-r-input);
+  border: 1px solid rgba(233,215,196,.12);
+  background: rgba(255,255,255,.02);
+  color: var(--pw-gold);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--pw-dur-fast) var(--pw-ease),
+              border-color var(--pw-dur-fast) var(--pw-ease);
+}
+
+.pw-btn-ghost:hover {
+  background: rgba(255,255,255,.05);
+  border-color: rgba(233,215,196,.20);
+}
+
+.pw-btn-ghost:focus-visible {
+  outline: 2px solid var(--pw-stroke-focus);
+  outline-offset: 3px;
+}
+
+/* ─── Pill / Badge ───────────────────────────────────────── */
+.pw-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--pw-r-pill);
+  border: 1px solid rgba(233,215,196,.14);
+  background: rgba(255,255,255,.02);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ─── Focus ring (keyboard a11y) ─────────────────────────── */
+.pw-focus:focus-visible {
+  outline: 2px solid var(--pw-stroke-focus);
+  outline-offset: 3px;
+}
+
+/* ─── Custom scrollbar (panels only) ─────────────────────── */
+.pw-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(233,215,196,.14) transparent;
+}
+
+.pw-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.pw-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pw-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(233,215,196,.14);
+  border-radius: 999px;
+}
+
+.pw-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(254,145,0,.22);
+}
+
+/* ─── Stepper ────────────────────────────────────────────── */
+.pw-step-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  border: 1px solid var(--pw-stroke);
+  background: rgba(255,255,255,.03);
+  color: var(--pw-muted);
+  transition: all var(--pw-dur-normal) var(--pw-ease);
+  flex-shrink: 0;
+}
+
+.pw-step-dot--active {
+  border-color: rgba(254,145,0,.35);
+  background: linear-gradient(135deg, var(--pw-orange), var(--pw-gold-dark));
+  color: #000;
+  box-shadow: 0 0 16px rgba(254,145,0,.25);
+}
+
+.pw-step-dot--completed {
+  border-color: rgba(233,215,196,.22);
+  background: rgba(233,215,196,.08);
+  color: var(--pw-gold);
+}
+
+.pw-step-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(233,215,196,.10);
+  margin: 0 6px;
+  position: relative;
+  overflow: hidden;
+}
+
+.pw-step-line-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left;
+  background: linear-gradient(90deg, var(--pw-orange), transparent);
+}
+
+.pw-step-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pw-muted);
+  margin-top: 6px;
+  transition: color var(--pw-dur-fast) var(--pw-ease);
+}
+
+.pw-step-label--active {
+  color: var(--pw-gold);
+}
+
+/* ─── Chat bubbles ───────────────────────────────────────── */
+.pw-bubble {
+  border-radius: 16px;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 88%;
+}
+
+.pw-bubble--assistant {
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(233,215,196,.10);
+  color: var(--pw-text);
+}
+
+.pw-bubble--user {
+  background: rgba(254,145,0,.08);
+  border: 1px solid rgba(254,145,0,.18);
+  color: var(--pw-text);
+  margin-left: auto;
+}
+
+.pw-bubble-time {
+  font-size: 11px;
+  color: var(--pw-muted);
+  margin-top: 4px;
+}
+
+/* ─── Drawer ─────────────────────────────────────────────── */
+.pw-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 50;
+}
+
+.pw-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 520px;
+  max-width: 100vw;
+  background: rgba(10,10,12,.98);
+  border-left: 1px solid var(--pw-stroke);
+  box-shadow: var(--pw-shadow-panel);
+  display: flex;
+  flex-direction: column;
+  z-index: 51;
+}
+
+@media (max-width: 639px) {
+  .pw-drawer {
+    width: 100%;
+    top: auto;
+    bottom: 0;
+    height: 85vh;
+    border-left: none;
+    border-top: 1px solid var(--pw-stroke);
+    border-radius: 24px 24px 0 0;
+  }
+}
+
+.pw-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  flex-shrink: 0;
+}
+
+.pw-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+/* ─── Loading spinner (inline, no layout shift) ──────────── */
+.pw-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,.12);
+  border-top-color: var(--pw-orange);
+  border-radius: 50%;
+  animation: pw-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes pw-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Voice section (Step 4 - Stimmwechsel) ──────────────── */
+.pw-voice-card {
+  position: relative;
+  border-radius: var(--pw-r-panel);
+  border: 1px solid var(--pw-stroke);
+  background: linear-gradient(180deg, rgba(255,255,255,.022), rgba(255,255,255,.008));
+  padding: 32px;
+  overflow: hidden;
+}
+
+.pw-voice-locked-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-radius: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.pw-voice-shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(254,145,0,.30), transparent);
+  background-size: 200% 100%;
+  animation: pw-shimmer 6s ease infinite;
+}
+
+@keyframes pw-shimmer {
+  0%, 100% { background-position: -200% 0; }
+  50% { background-position: 200% 0; }
+}
+
+/* ─── Reduced motion ─────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .pw-card,
+  .pw-input,
+  .pw-btn-primary,
+  .pw-btn-ghost,
+  .pw-step-dot {
+    transition: none;
+  }
+
+  .pw-btn-primary:hover {
+    transform: none;
+  }
+
+  .pw-spinner {
+    animation-duration: 1.5s;
+  }
+
+  .pw-voice-shimmer {
+    animation: none;
+    opacity: 0.5;
+  }
+}

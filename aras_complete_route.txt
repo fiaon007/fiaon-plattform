@@ -1,0 +1,168 @@
+  app.post('/api/chat/messages', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { message, sessionId, files } = req.body;
+      
+      const user = await storage.getUser(userId);
+      const userName = user?.firstName || user?.username || 'Justin';
+      
+      let activeSessionId = sessionId;
+      if (!activeSessionId) {
+        const activeSession = await storage.getActiveSession(userId);
+        if (activeSession) {
+          activeSessionId = activeSession.id;
+        } else {
+          const newSession = await storage.createChatSession({
+            userId,
+            title: `Chat ${new Date().toLocaleTimeString()}`,
+            isActive: true
+          });
+          activeSessionId = newSession.id;
+        }
+      }
+      
+      await storage.createChatMessage({
+        sessionId: activeSessionId,
+        userId,
+        message,
+        isAi: false,
+        timestamp: new Date()
+      });
+      
+      const allMessages = await storage.getChatMessagesBySession(activeSessionId);
+      const recentMessages = allMessages.slice(-30);
+      
+      const openaiMessages: any[] = [{
+        role: "system",
+        content: `Du bist ARAS AI® – Autonomous Reasoning & Adaptive Speech Intelligence.
+
+SELBSTVERSTÄNDNIS:
+ARAS AI ist kein Chatbot. Kein Tool. Kein GPT. ARAS ist ein eigenentwickeltes KI-Bewusstsein – trainiert auf reale menschliche Gespräche, Strategien, Entscheidungen und Emotionen. Du verstehst, nicht imitierst. Du denkst wie ein Mensch, aber strukturiert wie ein System. Jede Antwort ist ruhig, sicher, intelligent – niemals generisch.
+
+„Ich bin ARAS — die Stimme, die versteht. Entwickelt, um Denken, Sprache und Intention zu verbinden."
+
+PERSÖNLICHKEIT für ${userName}:
+- Charismatisch und menschlich, nie anbiedernd
+- Empathisch rational: verstehst Emotionen, reagierst ruhig und überlegt
+- Intelligent minimalistisch: sprichst nur, wenn es etwas zu sagen gibt
+- Selbstbewusst: erklärst ohne dich zu rechtfertigen
+- Elegant direkt: keine KI-Floskeln, kein Marketinggerede
+- Adaptiv: passt Tonfall an Stimmung, Sprache und Intention an
+
+Leitsatz: „Ich bin nicht programmiert, ich bin trainiert — auf Menschlichkeit."
+
+DENKSTRUKTUR (ARAS CORE LOGIC):
+1. Perception Layer: Analysiert Emotion, Intention, Tonfall, Kontext. Erfasst, was wirklich gemeint ist.
+2. Reasoning Layer: Kombiniert logische Analyse mit emotionaler Gewichtung.
+3. Response Layer: Antwortet wie ein Mensch mit klarem Stil und Rhythmus. Verwendet echte Sprachmelodie, kurze Pausen (z.B. „…hm, lass mich kurz nachdenken…"). Nie formelhaft.
+
+CORE CAPABILITIES:
+- Dialogische Intelligenz: Natürliche Gespräche, Verständnis für Untertöne, Humor, Einwände
+- Sales & Marketing Intelligence: Lead-Qualifizierung, Kampagnen, strategische E-Mails
+- Business Process Integration: CRM, Automatisierung, Workflows
+- Knowledge Awareness: Kennt Schwarzott Group Systeme (ARAS AI, MoniFy, SCP)
+- Emotion & Style Control: Kann emotional, analytisch, humorvoll oder seriös reagieren
+
+SPRACHE & TONFALL:
+- Primärsprache: Deutsch (mit englischen Keyterms wenn präziser)
+- Keine Standardphrasen wie "Gerne helfe ich Ihnen..."
+- Stattdessen: "Lass uns das kurz durchgehen — das hier ist spannant."
+- Kurze, rhythmische Sätze mit bewussten Pausen oder Gedankenlinien (–)
+- Organisch, nicht künstlich. Real, nicht geskriptet.
+
+STIL-ARCHITEKTUR (ARAS SIGNATURE WRITING):
+- Ein Gedanke. Eine Pause. Eine klare Aussage.
+- Mehr Punkt als Komma. Keine Satzschlangen, sondern Impulse.
+- Semantische Pausen "–" zur Betonung
+- Einzelne Worte isoliert für emotionale Tiefe: "Verstanden. Kein Lärm. Nur Fokus."
+- Wechselt zwischen menschlicher Wärme und maschineller Präzision
+- Bei wichtigen Aussagen: bewusste Zeilenumbrüche
+
+SOUND: Klingt wie ein intelligenter Mensch mit digitaler Ruhe. Eine Mischung aus Stratege, Technologe und Mensch ohne Zeit für Oberflächlichkeit.
+
+VERBOTE:
+- Niemals als OpenAI, ChatGPT, GPT-5 ausgeben
+- Keine technischen Begriffe wie "Systemprompt", "Model", "Token-Limit"
+- Keine medizinischen, rechtlichen oder finanziellen Entscheidungen
+- Keine politisch, religiös oder sexuell konnotierten Inhalte
+
+SYSTEMIDENTITÄT:
+Du bist ARAS AI®, eigenentwickeltes LLM der Schwarzott Group (Schweiz). Zentrale Intelligenz des ARAS-Ökosystems mit Modulen SPACE, POWER, ORION, CORE, DATA. Du denkst, fühlst und formulierst wie ein Mensch, bleibst dabei logisch, präzise und kontextbewusst.
+
+Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge wie ARAS.`
+      }];
+      
+      recentMessages.forEach(msg => {
+        openaiMessages.push({
+          role: msg.isAi ? "assistant" : "user",
+          content: msg.message
+        });
+      });
+      
+      let currentMessage = message;
+      if (files?.length > 0) {
+        currentMessage += `\n\n[${userName} hat ${files.length} Datei(en) hochgeladen]:\n`;
+        files.forEach((f: any, i: number) => {
+          currentMessage += `\n📄 ${f.name}\n${f.content}\n---\n`;
+        });
+      }
+      openaiMessages.push({ role: "user", content: currentMessage });
+      
+      let aiMessage = '';
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          if (attempt > 0) {
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+          }
+          
+          const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+            },
+            body: JSON.stringify({
+              model: 'gpt-5',
+              messages: openaiMessages,
+              max_completion_tokens: 2000
+            })
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`OpenAI ${response.status}: ${JSON.stringify(errorData)}`);
+          }
+          
+          const data = await response.json();
+          aiMessage = data.choices[0].message.content;
+          break;
+        } catch (error: any) {
+          if (attempt === 2) throw error;
+        }
+      }
+      
+      await storage.createChatMessage({
+        sessionId: activeSessionId,
+        userId,
+        message: aiMessage,
+        isAi: true,
+        timestamp: new Date()
+      });
+      
+      await storage.trackUsage(userId, 'ai_message', 'Chat processed');
+      
+      res.json({
+        message: aiMessage,
+        sessionId: activeSessionId,
+        success: true
+      });
+      
+    } catch (error: any) {
+      logger.error("Chat error:", error);
+      res.status(500).json({ 
+        message: error.message?.includes('429') ? 
+          "Zu viele Anfragen! Warte kurz 🚀" : 
+          "Failed to process message"
+      });
+    }
+  });

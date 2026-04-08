@@ -1,0 +1,14 @@
+          const data = await response.json();
+          logger.info('OpenAI Response:', JSON.stringify(data));
+          
+          if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+            throw new Error('Invalid OpenAI response format: ' + JSON.stringify(data));
+          }
+          
+          aiMessage = data.choices[0].message.content || '';
+          
+          if (!aiMessage) {
+            throw new Error('Empty AI response received');
+          }
+          
+          logger.info('AI Message received:', aiMessage.substring(0, 100));

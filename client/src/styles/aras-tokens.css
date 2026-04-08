@@ -1,0 +1,171 @@
+/**
+ * ARAS AI Design System Tokens - 2026 Edition
+ * Deep Black + Orange/Gold + Matrix Green accents
+ */
+
+:root {
+  /* Core Colors */
+  --aras-bg: #0b0c0f;
+  --aras-bg-elevated: #101114;
+  --aras-panel: rgba(255, 255, 255, 0.03);
+  --aras-panel-hover: rgba(255, 255, 255, 0.05);
+  --aras-border: rgba(255, 255, 255, 0.08);
+  --aras-border-focus: rgba(255, 255, 255, 0.15);
+  
+  /* Brand Colors */
+  --aras-orange: #ff6a00;
+  --aras-orange-dim: rgba(255, 106, 0, 0.6);
+  --aras-gold: #e9d7c4;
+  --aras-gold-dim: rgba(233, 215, 196, 0.7);
+  --aras-gold-dark: #a34e00;
+  
+  /* Matrix Terminal Colors (subtle, not retro) */
+  --aras-matrix-green: #00ff9a;
+  --aras-matrix-green-dim: rgba(0, 255, 154, 0.5);
+  --aras-matrix-bg: rgba(0, 255, 154, 0.02);
+  --aras-matrix-border: rgba(0, 255, 154, 0.12);
+  --aras-matrix-glow: 0 0 20px rgba(0, 255, 154, 0.08);
+  
+  /* Status Colors */
+  --aras-status-ok: #22c55e;
+  --aras-status-warn: #f59e0b;
+  --aras-status-bad: #ef4444;
+  --aras-status-info: #3b82f6;
+  
+  /* Glows */
+  --aras-glow-orange: 0 0 0 1px rgba(255, 106, 0, 0.35), 0 0 28px rgba(255, 106, 0, 0.16);
+  --aras-glow-gold: 0 0 0 1px rgba(233, 215, 196, 0.25), 0 0 22px rgba(233, 215, 196, 0.12);
+  --aras-glow-green: 0 0 0 1px rgba(0, 255, 154, 0.2), 0 0 16px rgba(0, 255, 154, 0.08);
+  
+  /* Radii */
+  --aras-r-sm: 8px;
+  --aras-r-md: 12px;
+  --aras-r-lg: 18px;
+  --aras-r-xl: 22px;
+  
+  /* Motion */
+  --aras-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --aras-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --aras-dur-1: 180ms;
+  --aras-dur-2: 260ms;
+  --aras-dur-3: 420ms;
+  
+  /* Typography */
+  --aras-font-display: 'Orbitron', ui-sans-serif, system-ui, sans-serif;
+  --aras-font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --aras-font-mono: ui-monospace, 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
+  
+  /* Shadows */
+  --aras-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --aras-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --aras-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --aras-shadow-xl: 0 16px 64px rgba(0, 0, 0, 0.55);
+}
+
+/* Matrix Panel Scanline Effect (very subtle) */
+.aras-matrix-scanlines {
+  position: relative;
+}
+
+.aras-matrix-scanlines::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 154, 0.015) 2px,
+    rgba(0, 255, 154, 0.015) 4px
+  );
+  z-index: 1;
+}
+
+/* Matrix Panel Phosphor Glow Animation */
+@keyframes aras-phosphor-in {
+  0% {
+    opacity: 0;
+    filter: brightness(1.5) blur(1px);
+  }
+  50% {
+    opacity: 0.8;
+    filter: brightness(1.2) blur(0.5px);
+  }
+  100% {
+    opacity: 1;
+    filter: brightness(1) blur(0);
+  }
+}
+
+.aras-phosphor-enter {
+  animation: aras-phosphor-in var(--aras-dur-3) var(--aras-ease) forwards;
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .aras-phosphor-enter {
+    animation: none;
+    opacity: 1;
+  }
+  
+  :root {
+    --aras-dur-1: 0ms;
+    --aras-dur-2: 0ms;
+    --aras-dur-3: 0ms;
+  }
+}
+
+/* Focus Ring (keyboard accessibility) */
+.aras-focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--aras-bg), 0 0 0 4px var(--aras-orange);
+}
+
+/* Hover Lift */
+.aras-hover-lift {
+  transition: transform var(--aras-dur-2) var(--aras-ease),
+              box-shadow var(--aras-dur-2) var(--aras-ease);
+}
+
+.aras-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--aras-shadow-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aras-hover-lift:hover {
+    transform: none;
+  }
+}
+
+/* Matrix Terminal Text */
+.aras-matrix-text {
+  font-family: var(--aras-font-mono);
+  color: var(--aras-matrix-green);
+  text-shadow: 0 0 8px rgba(0, 255, 154, 0.3);
+}
+
+.aras-matrix-text-dim {
+  font-family: var(--aras-font-mono);
+  color: var(--aras-matrix-green-dim);
+}
+
+/* Glass Panel Base */
+.aras-glass {
+  background: var(--aras-panel);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--aras-border);
+  border-radius: var(--aras-r-lg);
+}
+
+/* Noise Texture Overlay */
+.aras-noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  border-radius: inherit;
+}

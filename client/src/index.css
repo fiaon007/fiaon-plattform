@@ -132,6 +132,76 @@ html {
   50% { transform: translateY(-10px); }
 }
 
+/* Transparent button with animated border */
+.fiaon-btn-outline-animated {
+  position: relative;
+  background: transparent;
+  color: #2563eb;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: color .2s, transform .15s;
+  z-index: 0;
+}
+.fiaon-btn-outline-animated::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  padding: 1.5px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8, #60a5fa, #2563eb);
+  background-size: 300% 300%;
+  animation: borderGrad 4s ease-in-out infinite;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  z-index: -1;
+}
+.fiaon-btn-outline-animated:hover {
+  color: #1d4ed8;
+  transform: translateY(-1px);
+}
+@keyframes borderGrad {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Modal overlay */
+.fiaon-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: modalFadeIn .2s ease;
+}
+.fiaon-modal {
+  background: white;
+  border-radius: 20px;
+  padding: 32px;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 25px 50px rgba(0,0,0,.15);
+  animation: modalSlideIn .3s cubic-bezier(.22,1,.36,1);
+}
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modalSlideIn {
+  from { opacity: 0; transform: translateY(16px) scale(.97); }
+  to { opacity: 1; transform: none; }
+}
+
 /* Card shimmer */
 .fiaon-card-shimmer {
   background: linear-gradient(to right, transparent, rgba(255,255,255,0.04), transparent);

@@ -1226,3 +1226,90 @@ export const ndaAcceptances = pgTable("nda_acceptances", {
 
 export type NdaAcceptance = typeof ndaAcceptances.$inferSelect;
 export type InsertNdaAcceptance = typeof ndaAcceptances.$inferInsert;
+
+// ============================================================================
+// 💳 FIAON APPLICATION SYSTEM — Kreditkarten-Antrag
+// ============================================================================
+
+export const fiaonApplications = pgTable("fiaon_applications", {
+  id: serial("id").primaryKey(),
+  ref: varchar("ref").unique().notNull(),
+  type: varchar("type").notNull().default("private"),
+  status: varchar("status").notNull().default("started"),
+  currentStep: integer("current_step").default(0),
+  packKey: varchar("pack_key"),
+  packName: varchar("pack_name"),
+
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  birthdate: varchar("birthdate"),
+  phone: varchar("phone"),
+  street: varchar("street"),
+  zip: varchar("zip"),
+  city: varchar("city"),
+  country: varchar("country"),
+  nationality: varchar("nationality"),
+
+  employment: varchar("employment"),
+  employer: varchar("employer"),
+  employedSince: varchar("employed_since"),
+  income: integer("income"),
+  rent: integer("rent"),
+  debts: integer("debts"),
+  housing: varchar("housing"),
+
+  wantedLimit: integer("wanted_limit"),
+  purpose: varchar("purpose"),
+  billing: varchar("billing"),
+  addon: varchar("addon"),
+  nfc: varchar("nfc"),
+
+  approvedLimit: integer("approved_limit"),
+  email: varchar("email"),
+  iban: varchar("iban"),
+  billingMethod: varchar("billing_method"),
+
+  consentAgb: boolean("consent_agb").default(false),
+  consentSchufa: boolean("consent_schufa").default(false),
+  consentContract: boolean("consent_contract").default(false),
+
+  paymentStatus: varchar("payment_status").default("pending"),
+  stripeSessionId: varchar("stripe_session_id"),
+
+  ip: varchar("ip"),
+  userAgent: text("user_agent"),
+  utm: jsonb("utm"),
+
+  submittedAt: timestamp("submitted_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("fiaon_app_ref_idx").on(table.ref),
+  index("fiaon_app_email_idx").on(table.email),
+  index("fiaon_app_status_idx").on(table.status),
+  index("fiaon_app_created_idx").on(table.createdAt),
+]);
+
+export type FiaonApplication = typeof fiaonApplications.$inferSelect;
+export type InsertFiaonApplication = typeof fiaonApplications.$inferInsert;
+
+export const fiaonClickEvents = pgTable("fiaon_click_events", {
+  id: serial("id").primaryKey(),
+  applicationRef: varchar("application_ref"),
+  sessionId: varchar("session_id"),
+  event: varchar("event").notNull(),
+  step: integer("step"),
+  data: jsonb("data"),
+  page: varchar("page"),
+  ip: varchar("ip"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("fiaon_click_ref_idx").on(table.applicationRef),
+  index("fiaon_click_session_idx").on(table.sessionId),
+  index("fiaon_click_event_idx").on(table.event),
+]);
+
+export type FiaonClickEvent = typeof fiaonClickEvents.$inferSelect;
+export type InsertFiaonClickEvent = typeof fiaonClickEvents.$inferInsert;

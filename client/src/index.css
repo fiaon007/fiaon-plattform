@@ -131,3 +131,13 @@ html {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }
 }
+
+/* Card shimmer */
+.fiaon-card-shimmer {
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.04), transparent);
+  animation: cardShimmer 5s infinite;
+}
+@keyframes cardShimmer {
+  0% { transform: translateX(-150%); }
+  100% { transform: translateX(150%); }
+}

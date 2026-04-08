@@ -108,7 +108,7 @@ function Nav() {
     return () => window.removeEventListener("scroll", fn);
   }, []);
 
-  const pages = [{ label: "Startseite", href: "/", active: true }];
+  const pages = [{ label: "Startseite", href: "/", active: true }, { label: "Business", href: "/business", active: false }];
 
   return (
     <nav className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${visible ? "translate-y-0" : "-translate-y-full"} ${bg ? "bg-white/85 backdrop-blur-2xl border-b border-gray-100/80" : ""}`}>

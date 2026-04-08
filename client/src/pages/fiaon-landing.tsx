@@ -128,7 +128,7 @@ function Nav() {
               {p.active && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-[#2563eb]" style={{ boxShadow: "0 0 8px rgba(37,99,235,.5)" }} />}
             </a>
           ))}
-          <a href="#start" className="fiaon-btn-gradient px-5 py-2 rounded-lg text-[13px] font-medium text-white">
+          <a href="/antrag" className="fiaon-btn-outline-animated px-5 py-2 text-[13px] font-medium">
             Antrag starten
           </a>
         </div>
@@ -150,9 +150,7 @@ function Nav() {
               {p.active && <span className="w-1.5 h-1.5 rounded-full bg-[#2563eb]" style={{ boxShadow: "0 0 6px rgba(37,99,235,.5)" }} />}
             </a>
           ))}
-          <a href="#start" onClick={() => setMob(false)} className="block text-center py-2.5 rounded-lg text-sm font-medium text-white fiaon-btn-gradient">
-            Antrag starten
-          </a>
+          <a href="/antrag" onClick={() => setMob(false)} className="block w-full text-center py-3.5 rounded-2xl text-base font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600">Antrag starten</a>
         </div>
       </div>
     </nav>

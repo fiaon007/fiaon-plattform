@@ -25,7 +25,7 @@ function Nav() {
         <a href="/" className="flex items-center gap-2"><div className="w-7 h-7 rounded-lg bg-[#2563eb] flex items-center justify-center"><span className="text-white text-xs font-semibold">F</span></div><span className="text-[17px] font-semibold tracking-tight text-gray-900">FIAON</span></a>
         <div className="hidden md:flex items-center gap-8">
           {pages.map(p => <a key={p.label} href={p.href} className="relative text-[13px] font-medium text-gray-900 pb-1">{p.label}{p.active && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-[#2563eb]" style={{ boxShadow: "0 0 8px rgba(37,99,235,.5)" }} />}</a>)}
-          <a href="#start" className="fiaon-btn-gradient px-5 py-2 rounded-lg text-[13px] font-medium text-white">Potenzial-Analyse starten</a>
+          <a href="/antrag" className="fiaon-btn-outline-animated px-5 py-2 text-[13px] font-medium">Antrag starten</a>
         </div>
         <button className="md:hidden" onClick={() => setMob(!mob)}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2" strokeLinecap="round">{mob ? <><path d="M18 6L6 18"/><path d="M6 6l12 12"/></> : <><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></>}</svg></button>
       </div>

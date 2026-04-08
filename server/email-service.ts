@@ -1,7 +1,7 @@
 import { Resend } from 'resend';
 
 // Resend Client initialisieren
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 // Email-Absender (muss deine verifizierte Domain sein)
 const FROM_EMAIL = process.env.FROM_EMAIL || 'ARAS AI <noreply@arasai.com>';
@@ -16,6 +16,11 @@ export async function sendWelcomeEmail(
   verificationToken?: string
 ) {
   try {
+    if (!resend) {
+      console.log('[Email] Email disabled - RESEND_API_KEY not configured');
+      return { success: false, error: 'Email service not configured' };
+    }
+
     const verifyLink = verificationToken 
       ? `${FRONTEND_URL}/verify-email?token=${verificationToken}`
       : null;
@@ -141,6 +146,11 @@ export async function sendPasswordResetEmail(
   resetToken: string
 ) {
   try {
+    if (!resend) {
+      console.log('[Email] Email disabled - RESEND_API_KEY not configured');
+      return { success: false, error: 'Email service not configured' };
+    }
+
     const resetLink = `${FRONTEND_URL}/reset-password?token=${resetToken}`;
 
     const { data, error } = await resend.emails.send({
@@ -267,6 +277,11 @@ export async function sendPasswordChangedEmail(
   userName: string
 ) {
   try {
+    if (!resend) {
+      console.log('[Email] Email disabled - RESEND_API_KEY not configured');
+      return { success: false, error: 'Email service not configured' };
+    }
+
     const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to,

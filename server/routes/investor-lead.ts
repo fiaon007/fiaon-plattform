@@ -4,7 +4,7 @@ import { Resend } from "resend";
 
 const router = Router();
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM_EMAIL = process.env.FROM_EMAIL || "ARAS AI <noreply@arasai.com>";
 const NOTIFY_EMAIL = process.env.INVESTOR_NOTIFY_EMAIL || "info@aras-ai.com";
 
@@ -96,6 +96,14 @@ router.post("/lead", async (req: Request, res: Response) => {
       requestType === "intro_call" ? "Intro Call Request" : "Data Room Request";
 
     // Send notification email
+    if (!resend) {
+      console.log(`[INVESTOR-LEAD] Email disabled - would send ${typeLabel} from ${firm}`);
+      return res.json({
+        ok: true,
+        message: "Thank you. We'll respond within 24–48 hours.",
+      });
+    }
+
     const { error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: NOTIFY_EMAIL,

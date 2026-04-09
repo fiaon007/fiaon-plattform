@@ -5,18 +5,14 @@ interface GlassNavProps {
 }
 
 export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
-  const [visible, setVisible] = useState(true);
   const [scrolled, setScrolled] = useState(false);
-  const lastY = useRef(0);
   const [mob, setMob] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     const fn = () => {
       const y = window.scrollY;
-      setVisible(y < lastY.current);
       setScrolled(y > 10);
-      lastY.current = y;
     };
     window.addEventListener("scroll", fn, { passive: true });
     return () => window.removeEventListener("scroll", fn);
@@ -37,11 +33,9 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
   return (
     <>
       <nav
-        className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ${
-          visible ? "translate-y-0" : "-translate-y-full"
-        }`}
+        className="fixed top-0 inset-x-0 z-50 transition-all duration-500"
       >
-        <div className="max-w-[950px] mx-auto px-4 sm:px-6 py-3">
+        <div className="max-w-[1000px] mx-auto px-4 sm:px-6 py-3">
           {/* Glass pill container */}
           <div
             className={`fiaon-glass-nav rounded-full transition-all duration-500 ${
@@ -83,9 +77,13 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
               <div className="hidden md:flex items-center">
                 <button
                   onClick={handleAntragClick}
-                  className="fiaon-btn-outline-animated px-5 py-2 text-[13px] font-medium"
+                  className="fiaon-btn-outline-animated px-5 py-2 text-[13px] font-medium relative overflow-hidden group"
                 >
-                  Antrag starten
+                  <span className="relative z-10">Antrag starten</span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#2563eb] to-[#3b82f6] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
+                  </div>
                 </button>
               </div>
 

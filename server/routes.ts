@@ -184,6 +184,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const adminEnrichRoutes = await import('./routes/admin-enrich');
   app.use('/api/admin', adminEnrichRoutes.default);
 
+  // 🔧 Setup Admin Database Routes (view all database tables)
+  const adminDatabaseRoutes = await import('./routes/admin-database');
+  app.use('/api/admin', adminDatabaseRoutes.default);
+
   // 🏆 Founding Member Pass — Public Routes (no auth)
   const { publicRouter: foundingPublicRoutes } = await import('./routes/founding');
   app.use('/api/public/founding', foundingPublicRoutes);

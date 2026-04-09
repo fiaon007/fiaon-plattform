@@ -10,6 +10,7 @@ import BusinessAntragPage from "@/pages/business-antrag";
 import Terms from "@/pages/terms";
 import Privacy from "@/pages/privacy";
 import NotFound from "@/pages/not-found";
+import AdminDatabasePage from "@/pages/admin-database";
 
 function Router() {
   return (
@@ -19,6 +20,7 @@ function Router() {
       <Route path="/privatkunden" component={PrivatkundenPage} />
       <Route path="/antrag" component={AntragPage} />
       <Route path="/business-antrag" component={BusinessAntragPage} />
+      <Route path="/admin/database" component={AdminDatabasePage} />
       <Route path="/terms" component={Terms} />
       <Route path="/privacy" component={Privacy} />
       <Route component={NotFound} />

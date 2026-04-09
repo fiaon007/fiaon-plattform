@@ -107,11 +107,11 @@ router.get("/stats", async (req, res) => {
     
     for (const table of tables) {
       const [countResult] = await sql`
-        SELECT COUNT(*) as total FROM ${sql.unsafe(table.table_name)};
+        SELECT COUNT(*) as total FROM ${sql.unsafe(`"${table.table_name}"`)};
       `;
       
       const [sizeResult] = await sql`
-        SELECT pg_size_pretty(pg_total_relation_size(${sql(table.table_name)})) as size;
+        SELECT pg_size_pretty(pg_total_relation_size(${sql.unsafe(`"${table.table_name}"`)})) as size;
       `;
       
       stats.push({

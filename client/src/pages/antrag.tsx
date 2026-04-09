@@ -488,6 +488,136 @@ export default function AntragPage() {
           </div>
         )}
 
+        {/* === BENTO-BOX FEATURES SECTION === */}
+        {step === 0 && (
+          <div className="mt-20 animate-[fadeInUp_.8s_ease]">
+            <div className="max-w-[1400px] mx-auto px-6">
+              {/* Section Badge */}
+              <div className="mb-8">
+                <span className="inline-block px-5 py-2.5 bg-blue-50 backdrop-blur-xl border border-blue-200/50 text-blue-600 text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-blue-500/10">
+                  DIE BENTO-BOX
+                </span>
+              </div>
+
+              {/* Headline */}
+              <div className="text-center mb-12">
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-4 fiaon-gradient-text-animated">
+                  Die Features im Detail
+                </h2>
+                <p className="text-[15px] text-gray-500 max-w-2xl mx-auto leading-relaxed">
+                  Wir brechen die abstrakten Begriffe in messbare Werkzeuge herunter.
+                </p>
+              </div>
+
+              {/* Bento Grid */}
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Tile 1: Score-Simulator (Left, Large) */}
+                <div className="lg:col-span-1 lg:row-span-2">
+                  <div className="fiaon-glass-panel rounded-2xl p-8 h-full border border-white/40 shadow-xl hover:shadow-2xl transition-all duration-300"
+                       style={{ background: "rgba(255, 255, 255, 0.7)", backdropFilter: "blur(20px)" }}>
+                    
+                    {/* Visual: Slider */}
+                    <div className="mb-8 p-6 rounded-xl" style={{ background: "rgba(15, 23, 42, 0.05)" }}>
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Simulieren</span>
+                        <span className="text-2xl font-bold text-blue-600">+14</span>
+                      </div>
+                      {/* Slider Track */}
+                      <div className="relative h-2 rounded-full" style={{ background: "linear-gradient(90deg, #e0e7ff 0%, #3b82f6 100%)" }}>
+                        {/* Slider Thumb */}
+                        <div className="absolute top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white shadow-lg border-2 border-blue-500"
+                             style={{ left: "70%", transform: "translate(-50%, -50%)" }} />
+                      </div>
+                      {/* Glow Path */}
+                      <div className="absolute inset-0 rounded-full opacity-30 blur-sm" style={{
+                        background: "linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.5))",
+                        animation: "glowPulse 2s ease-in-out infinite"
+                      }} />
+                    </div>
+
+                    {/* Headline */}
+                    <h3 className="text-2xl font-bold text-gray-900 mb-4">Der Score-Simulator</h3>
+
+                    {/* Text */}
+                    <p className="text-[15px] text-gray-600 leading-relaxed">
+                      Was passiert, wenn du heute einen Antrag stellst? Was passiert in 90 Tagen? Simuliere die Auswirkungen auf dein Profil, bevor du in der realen Welt handelst. Vermeide fatale Timing-Fehler.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tile 2: Kartenkompass (Right Top, Wide) */}
+                <div className="lg:col-span-1">
+                  <div className="fiaon-glass-panel rounded-2xl p-6 h-full border border-white/40 shadow-xl hover:shadow-2xl transition-all duration-300"
+                       style={{ background: "rgba(255, 255, 255, 0.7)", backdropFilter: "blur(20px)" }}>
+                    
+                    {/* Visual: Overlapping Cards with Scan Line */}
+                    <div className="mb-6 relative h-32">
+                      {/* Card 1 */}
+                      <div className="absolute top-4 left-4 w-32 h-20 rounded-xl bg-gradient-to-br from-blue-100 to-blue-200 opacity-80 blur-sm" />
+                      {/* Card 2 */}
+                      <div className="absolute top-6 left-8 w-32 h-20 rounded-xl bg-gradient-to-br from-violet-100 to-violet-200 opacity-80 blur-sm" />
+                      {/* Scan Line */}
+                      <div className="absolute inset-0 overflow-hidden rounded-xl">
+                        <div className="w-full h-0.5 bg-blue-500 shadow-lg shadow-blue-500/50"
+                             style={{ animation: "scan 2s ease-in-out infinite" }} />
+                      </div>
+                    </div>
+
+                    {/* Headline */}
+                    <h3 className="text-xl font-bold text-gray-900 mb-3">Der Kartenkompass</h3>
+
+                    {/* Text */}
+                    <p className="text-[14px] text-gray-600 leading-relaxed">
+                      Unsere Engine gleicht dein Profil blind mit dem Markt ab. Du siehst sofort, bei welchen Anbietern deine Wahrscheinlichkeiten am höchsten sind. 100 % redaktionell. 0 % Affiliate-getrieben.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tile 3: Coaching-Matrix (Right Bottom, Wide) */}
+                <div className="lg:col-span-1">
+                  <div className="fiaon-glass-panel rounded-2xl p-6 h-full border border-white/40 shadow-xl hover:shadow-2xl transition-all duration-300"
+                       style={{ background: "rgba(255, 255, 255, 0.7)", backdropFilter: "blur(20px)" }}>
+                    
+                    {/* Visual: Timeline */}
+                    <div className="mb-6">
+                      <div className="space-y-3">
+                        {/* Month 1 - Active */}
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 rounded-full bg-blue-500 shadow-lg shadow-blue-500/50" style={{ animation: "pulse 2s ease-in-out infinite" }} />
+                          <span className="text-sm font-semibold text-blue-600">Monat 1</span>
+                        </div>
+                        {/* Month 2 - Inactive */}
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 rounded-full bg-gray-300" />
+                          <span className="text-sm text-gray-400">Monat 2</span>
+                        </div>
+                        {/* Month 3 - Inactive */}
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 rounded-full bg-gray-300" />
+                          <span className="text-sm text-gray-400">Monat 3</span>
+                        </div>
+                        {/* Month 4 - Inactive */}
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 rounded-full bg-gray-300" />
+                          <span className="text-sm text-gray-400">Monat 4</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Headline */}
+                    <h3 className="text-xl font-bold text-gray-900 mb-3">Die Limit-Roadmap</h3>
+
+                    {/* Text */}
+                    <p className="text-[14px] text-gray-600 leading-relaxed">
+                      Das US-amerikanische Credit-Building-System, übersetzt in einen 12-Monats-Plan. Du weißt immer genau, was im aktuellen Monat deine wichtigste Aufgabe ist.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* === APPLICATION PROCESS SECTION === */}
         {step === 0 && (
           <div className="mt-16 animate-[fadeInUp_.6s_ease]">
@@ -957,6 +1087,10 @@ export default function AntragPage() {
         @keyframes dash{
           0%{stroke-dashoffset:200}
           100%{stroke-dashoffset:0}
+        }
+        @keyframes scan{
+          0%{transform:translateY(0)}
+          100%{transform:translateY(100%)}
         }}
         @keyframes scaleIn{0%{opacity:0;transform:scale(0.5)}100%{opacity:1;transform:scale(1)}}
       `}</style>

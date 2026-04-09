@@ -42,17 +42,17 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
           visible ? "translate-y-0" : "-translate-y-full"
         }`}
       >
-        <div className="max-w-[1120px] mx-auto px-4 sm:px-6 py-2.5">
+        <div className="max-w-[800px] mx-auto px-4 sm:px-6 py-3">
           {/* Glass pill container */}
           <div
             className={`fiaon-glass-nav rounded-full transition-all duration-500 ${
               scrolled ? "shadow-lg" : ""
             }`}
           >
-            <div className="relative z-10 h-[44px] px-5 flex items-center justify-between">
+            <div className="relative z-10 h-[52px] px-5 flex items-center justify-between">
               {/* Logo */}
               <a href="/" className="flex items-center shrink-0">
-                <img src={logo} alt="FIAON Logo" className="h-7 w-auto" />
+                <img src={logo} alt="FIAON Logo" className="h-8 w-auto" />
               </a>
 
               {/* Desktop: centered links */}

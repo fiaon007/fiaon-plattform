@@ -210,9 +210,9 @@ export default function AntragPage() {
       </div>
 
       {/* ── Glass Topbar ── */}
-      <div className="sticky top-0 z-50 px-4 sm:px-6 py-2.5">
-        <div className="fiaon-glass-nav rounded-2xl max-w-5xl mx-auto">
-          <div className="relative z-10 h-12 px-5 flex items-center justify-between">
+      <div className="sticky top-0 z-50 px-4 sm:px-6 py-3">
+        <div className="fiaon-glass-nav rounded-full max-w-[800px] mx-auto">
+          <div className="relative z-10 h-[52px] px-5 flex items-center justify-between">
             <a href="/" className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-lg bg-[#2563eb] flex items-center justify-center"><span className="text-white text-[10px] font-semibold">F</span></div>
               <span className="text-[15px] font-semibold tracking-tight text-gray-900">FIAON</span>

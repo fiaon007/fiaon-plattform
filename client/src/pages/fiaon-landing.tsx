@@ -619,19 +619,19 @@ function ProblemSection() {
   
   const painCards = [
     {
-      icon: "✕ ✕ ✕ ✕",
       title: "Ihr Antrag wurde abgelehnt.",
-      description: "Millionen Deutsche werden jedes Jahr von ihrer Hausbank abgelehnt. Nicht weil sie kein Geld haben — sondern weil sie keine Strategie haben."
+      description: "Millionen Deutsche werden jedes Jahr von ihrer Hausbank abgelehnt. Nicht weil sie kein Geld haben — sondern weil sie keine Strategie haben.",
+      highlight: "ABGELEHNT"
     },
     {
-      icon: "?",
       title: "Welche Karte ist die richtige?",
-      description: "Hunderte Angebote. Unverständliche Konditionen. Vergleichsportale, die an deinem Klick verdienen — nicht an deinem Erfolg."
+      description: "Hunderte Angebote. Unverständliche Konditionen. Vergleichsportale, die an deinem Klick verdienen — nicht an deinem Erfolg.",
+      highlight: "VERWIRRT"
     },
     {
-      icon: "↓",
       title: "Mein Limit ist ein Witz.",
-      description: "500 € Limit bei 3.000 € Nettoeinkommen. Kommt dir bekannt vor? Das Problem ist nicht dein Gehalt. Es ist dein Scoring-Profil."
+      description: "500 € Limit bei 3.000 € Nettoeinkommen. Kommt dir bekannt vor? Das Problem ist nicht dein Gehalt. Es ist dein Scoring-Profil.",
+      highlight: "FRUSTRIERT"
     }
   ];
 
@@ -658,11 +658,11 @@ function ProblemSection() {
           </div>
 
           {/* Right side - Pain Cards */}
-          <div className="space-y-4">
+          <div className="space-y-5">
             {painCards.map((card, index) => (
               <div 
                 key={index}
-                className="fiaon-glass-panel rounded-2xl p-6 border border-white/10 hover:border-white/20 transition-all duration-300"
+                className="fiaon-glass-panel rounded-2xl p-8 border border-white/10 hover:border-white/20 transition-all duration-300 relative overflow-hidden"
                 style={{
                   animationDelay: `${index * 150}ms`,
                   animation: obs.v ? "fadeInUp 0.6s ease-out forwards" : "none",
@@ -670,17 +670,30 @@ function ProblemSection() {
                   transform: obs.v ? "translateY(0)" : "translateY(20px)"
                 }}
               >
-                <div className="flex gap-4">
-                  {/* Icon */}
-                  <div className="shrink-0 w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-2xl font-bold text-white/80">
-                    {card.icon}
-                  </div>
-                  
-                  {/* Content */}
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-white mb-2">{card.title}</h3>
-                    <p className="text-[14px] text-gray-300 leading-relaxed">{card.description}</p>
-                  </div>
+                {/* Animated highlight text */}
+                <div className="absolute top-4 right-4 text-[72px] font-bold text-white/5 leading-none select-none"
+                     style={{
+                       animation: `pulse 3s ease-in-out infinite ${index * 0.5}s`
+                     }}>
+                  {card.highlight}
+                </div>
+                
+                {/* Content */}
+                <div className="relative z-10">
+                  <h3 className="text-2xl font-bold text-white mb-3 tracking-tight" 
+                      style={{
+                        animation: obs.v ? `slideIn 0.8s ease-out ${index * 0.2 + 0.3}s forwards` : "none",
+                        opacity: 0
+                      }}>
+                    {card.title}
+                  </h3>
+                  <p className="text-[15px] text-gray-300 leading-relaxed"
+                     style={{
+                       animation: obs.v ? `fadeIn 0.8s ease-out ${index * 0.2 + 0.5}s forwards` : "none",
+                       opacity: 0
+                     }}>
+                    {card.description}
+                  </p>
                 </div>
               </div>
             ))}
@@ -697,6 +710,35 @@ function ProblemSection() {
           to {
             opacity: 1;
             transform: translateY(0);
+          }
+        }
+        
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateX(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+        
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+        
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 0.05;
+          }
+          50% {
+            opacity: 0.08;
           }
         }
       `}</style>

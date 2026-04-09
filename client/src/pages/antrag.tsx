@@ -14,7 +14,7 @@ async function track(event: string, data?: any, ref?: string) {
   try { await fetch("/api/fiaon/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event, data, ref, sessionId: sessionStorage.getItem("fiaon_sid") || "", page: location.pathname }) }); } catch {}
 }
 
-/* ═══ LIVE CREDIT CARD — PREMIUM, LARGER, MORE READABLE ═══ */
+/* === LIVE CREDIT CARD — PREMIUM, LARGER, MORE READABLE === */
 function LiveCard({ bg, name, lim, className = "" }: { bg: string; name: string; lim: string; className?: string }) {
   const displayName = name || "MAX MUSTERMANN";
   const nameLen = displayName.length;
@@ -63,7 +63,7 @@ function LiveCard({ bg, name, lim, className = "" }: { bg: string; name: string;
   );
 }
 
-/* ═══ PREMIUM PROGRESS BAR WITH ANIMATIONS ═══ */
+/* === PREMIUM PROGRESS BAR WITH ANIMATIONS === */
 function Progress({ step, total }: { step: number; total: number }) {
   return (
     <div className="mb-12">
@@ -87,7 +87,7 @@ function Progress({ step, total }: { step: number; total: number }) {
   );
 }
 
-/* ═══ FORM HELPERS ═══ */
+/* === FORM HELPERS === */
 function Field({ label, req, error, hint, children }: { label: string; req?: boolean; error?: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="mb-5">
@@ -107,7 +107,7 @@ function Sel({ value, onChange, children, ...p }: any) {
   return <select value={value} onChange={(e: any) => onChange(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-[15px] text-gray-900 outline-none transition-all focus:border-[#2563eb] focus:ring-4 focus:ring-blue-500/10 appearance-none" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 14px center", paddingRight: "38px" }} {...p}>{children}</select>;
 }
 
-/* ═══ MAIN COMPONENT ═══ */
+/* === MAIN COMPONENT === */
 export default function AntragPage() {
   const [step, setStep] = useState(0);
   const [ref] = useState(mkRef);
@@ -197,7 +197,7 @@ export default function AntragPage() {
       <div className="max-w-5xl mx-auto px-5 py-8 sm:py-12">
         <Progress step={step} total={9} />
 
-        {/* ═══ STEP 0: Paketauswahl ═══ */}
+        {/* === STEP 0: Paketauswahl === */}
         {step === 0 && (
           <div className="animate-[fadeInUp_.4s_ease]">
             <div className="text-center mb-10">
@@ -237,7 +237,7 @@ export default function AntragPage() {
           </div>
         )}
 
-        {/* ═══ STEPS 1-3 & 6: Form Steps ═══ */}
+        {/* === STEPS 1-3 & 6: Form Steps === */}
         {[1, 2, 3, 6].includes(step) && (
           <div className="animate-[fadeInUp_.4s_ease]">
             <div className="grid lg:grid-cols-[1fr,340px] gap-8 items-start">
@@ -373,7 +373,7 @@ export default function AntragPage() {
           </div>
         )}
 
-        {/* ═══ STEP 4: DRAMATIC VERIFICATION EXPERIENCE ═══ */
+        {/* === STEP 4: DRAMATIC VERIFICATION EXPERIENCE === */}
         {step === 4 && (
           <div className="animate-[fadeInUp_.6s_ease] flex flex-col items-center text-center py-12 sm:py-20 px-4">
             {/* Dramatic animated icon */}
@@ -455,7 +455,7 @@ export default function AntragPage() {
           </div>
         )}
 
-        {/* ═══ STEP 5: CELEBRATION RESULT ═══ */
+        {/* === STEP 5: CELEBRATION RESULT === */}
         {step === 5 && (
           <div className="animate-[fadeInUp_.6s_ease] text-center py-12 sm:py-20 px-4">
             {/* Celebration icon with confetti effect */}
@@ -500,7 +500,7 @@ export default function AntragPage() {
           </div>
         )}
 
-        {/* ═══ STEP 7: Processing ═══ */}
+        {/* === STEP 7: Processing === */}
         {step === 7 && (
           <div className="animate-[fadeInUp_.4s_ease] flex flex-col items-center text-center py-16 sm:py-24">
             <div className="w-24 h-24 mb-6 relative">
@@ -512,7 +512,7 @@ export default function AntragPage() {
           </div>
         )}
 
-        {/* ═══ STEP 8: Welcome ═══ */}
+        {/* === STEP 8: Welcome === */}
         {step === 8 && (
           <div className="animate-[fadeInUp_.4s_ease] text-center py-10 sm:py-16">
             <div className="w-24 h-24 mx-auto mb-6 rounded-full relative flex items-center justify-center">

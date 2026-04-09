@@ -307,7 +307,7 @@ export default function AntragPage() {
         {/* === DARK MODE SCORE SECTION === */}
         {step === 0 && (
           <div className="mt-20 animate-[fadeInUp_.6s_ease]">
-            <div className="relative py-24 sm:py-32 px-6 rounded-3xl overflow-hidden" style={{ background: "#0A0F1C" }}>
+            <div className="relative py-24 sm:py-32 px-6 -mx-5 overflow-hidden" style={{ background: "#0A0F1C" }}>
               {/* Mesh Gradient Background */}
               <div className="absolute inset-0 overflow-hidden">
                 <div className="absolute top-0 left-0 w-[1000px] h-[600px] opacity-30" style={{

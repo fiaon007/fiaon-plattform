@@ -31,6 +31,13 @@ function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: stri
         : "0 16px 48px -8px rgba(0,0,0,.25), 0 8px 24px -4px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.2), inset 0 -1px 0 rgba(0,0,0,.12)",
       border: "1px solid rgba(255,255,255,.1)"
     }}>
+      {/* Animated gradient overlay for premium look */}
+      <div className="absolute inset-0 opacity-30 pointer-events-none" style={{
+        background: "linear-gradient(135deg, rgba(255,255,255,0.2), rgba(37,99,235,0.1), rgba(147,197,253,0.15), rgba(37,99,235,0.08), rgba(255,255,255,0.2))",
+        backgroundSize: "300% 300%",
+        animation: "cardGradientAnim 6s ease-in-out infinite"
+      }} />
+      
       <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 30% 20%, rgba(255,255,255,.25), transparent 60%)", mixBlendMode: "overlay" }} />
       <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(255,255,255,.6) 40px, rgba(255,255,255,.6) 41px)" }} />
 
@@ -46,12 +53,20 @@ function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: stri
         </div>
 
         <div className="flex-1 flex items-center justify-center">
-          <div className={`text-center ${compact ? "text-2xl" : "text-3xl"} font-bold tracking-tight`} style={{ 
-            color: "rgba(255,255,255,.95)", 
-            textShadow: "0 2px 8px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.2)",
-            letterSpacing: "0.02em"
-          }}>
-            {lim}
+          <div className="text-center">
+            <div className={`uppercase tracking-[.1em] font-medium ${compact ? "text-[8px]" : "text-[9px]"} mb-1`} style={{ 
+              color: "rgba(255,255,255,.5)", 
+              textShadow: "0 1px 2px rgba(0,0,0,.15)"
+            }}>
+              Limit bis
+            </div>
+            <div className={`${compact ? "text-xl" : "text-2xl"} font-bold tracking-tight`} style={{ 
+              color: "rgba(255,255,255,.95)", 
+              textShadow: "0 2px 8px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.2)",
+              letterSpacing: "0.02em"
+            }}>
+              {lim}€
+            </div>
           </div>
         </div>
 

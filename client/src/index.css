@@ -330,3 +330,13 @@ html {
     opacity: 0.6;
   }
 }
+
+/* Card gradient animation for premium look */
+@keyframes cardGradientAnim {
+  0%, 100% { 
+    background-position: 0% 50%; 
+  }
+  50% { 
+    background-position: 100% 50%; 
+  }
+}

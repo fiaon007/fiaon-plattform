@@ -304,7 +304,7 @@ html {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: headingGrad 6s ease-in-out infinite;
+  animation: headingGrad 10s ease-in-out infinite;
 }
 
 /* Subtle glow animation */

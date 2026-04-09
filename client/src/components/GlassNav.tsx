@@ -50,13 +50,8 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
           >
             <div className="relative z-10 h-[52px] px-5 flex items-center justify-between">
               {/* Logo */}
-              <a href="/" className="flex items-center gap-2 shrink-0">
-                <div className="w-7 h-7 rounded-lg bg-[#2563eb] flex items-center justify-center">
-                  <span className="text-white text-xs font-semibold">F</span>
-                </div>
-                <span className="text-[16px] font-semibold tracking-tight text-gray-900">
-                  FIAON
-                </span>
+              <a href="/" className="flex items-center shrink-0">
+                <img src="/src/assets/LOGO_fiaon.png" alt="FIAON Logo" className="h-8 w-auto" />
               </a>
 
               {/* Desktop: centered links */}

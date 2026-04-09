@@ -241,6 +241,84 @@ export default function PlattformKonzept() {
         </div>
       </section>
 
+      {/* DIE COMPLIANCE-ARCHITEKTUR Section */}
+      <section className="relative z-10 py-20 sm:py-28 px-6">
+        <div className="max-w-[1280px] mx-auto">
+          {/* Section Badge */}
+          <div className="mb-8">
+            <span className="inline-block px-5 py-2.5 bg-white/10 backdrop-blur-xl border border-blue-400/30 text-blue-300 text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-blue-500/20">
+              REGULATORISCH UNANGREIFBAR
+            </span>
+          </div>
+
+          {/* Headline */}
+          <div className="text-center mb-16">
+            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-8 leading-[1.1] fiaon-gradient-text-animated">
+              Gebaut für maximale Datensicherheit.
+            </h2>
+          </div>
+
+          {/* 3-Column Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Tile 1: AES-256 */}
+            <div className="relative p-8 rounded-3xl transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/20"
+                 style={{ background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(10px)" }}>
+              {/* Visual: Large Typography */}
+              <div className="mb-6">
+                <div className="text-6xl font-bold text-white fiaon-gradient-text-animated mb-2">AES-256</div>
+                <div className="h-1 w-16 bg-gradient-to-r from-blue-500 to-blue-600 rounded" />
+              </div>
+              
+              {/* Sub-Headline */}
+              <h3 className="text-xl font-bold text-white mb-4">Militärstandard-Verschlüsselung</h3>
+              
+              {/* Text */}
+              <p className="text-gray-400 leading-relaxed">
+                Deine Finanzdaten sind dein größtes Asset. Sie werden vor der Speicherung lokal verschlüsselt. Nicht einmal unsere Entwickler können deine genauen Einnahmen im Klartext auslesen.
+              </p>
+            </div>
+
+            {/* Tile 2: HTML Tag */}
+            <div className="relative p-8 rounded-3xl transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/20"
+                 style={{ background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(10px)" }}>
+              {/* Visual: Animated HTML Tag */}
+              <div className="mb-6">
+                <div className="text-6xl font-mono text-white fiaon-gradient-text-animated mb-2" style={{ animation: "codeFloat 3s ease-in-out infinite" }}>
+                  &lt;/&gt;
+                </div>
+                <div className="h-1 w-16 bg-gradient-to-r from-blue-500 to-blue-600 rounded" />
+              </div>
+              
+              {/* Sub-Headline */}
+              <h3 className="text-xl font-bold text-white mb-4">Software, keine Finanzdienstleistung</h3>
+              
+              {/* Text */}
+              <p className="text-gray-400 leading-relaxed">
+                FIAON operiert bewusst außerhalb des §34c GewO. Warum? Weil wir Finanz-Technologie (EdTech/SaaS) verkaufen, keine Finanzprodukte. Wir vermitteln keine Darlehen. Wir liefern dir hochkomplexe Analysen und Strategiepapiere.
+              </p>
+            </div>
+
+            {/* Tile 3: EU-ONLY */}
+            <div className="relative p-8 rounded-3xl transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/20"
+                 style={{ background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(10px)" }}>
+              {/* Visual: Large Typography */}
+              <div className="mb-6">
+                <div className="text-6xl font-bold text-white fiaon-gradient-text-animated mb-2">EU-ONLY</div>
+                <div className="h-1 w-16 bg-gradient-to-r from-blue-500 to-blue-600 rounded" />
+              </div>
+              
+              {/* Sub-Headline */}
+              <h3 className="text-xl font-bold text-white mb-4">100 % DSGVO-Hosting</h3>
+              
+              {/* Text */}
+              <p className="text-gray-400 leading-relaxed">
+                Keine Datentransfers in Drittländer. Unsere Server-Architektur steht physisch in Europa. Deine Daten werden niemals an Banken, Werbenetzwerke oder Scoring-Agenturen verkauft.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <style>{`
         @keyframes meshGradient {
           0%, 100% {
@@ -288,6 +366,15 @@ export default function PlattformKonzept() {
           50% {
             opacity: 0.5;
             transform: scale(1.2);
+          }
+        }
+        
+        @keyframes codeFloat {
+          0%, 100% {
+            transform: translateY(0);
+          }
+          50% {
+            transform: translateY(-10px);
           }
         }
       `}</style>

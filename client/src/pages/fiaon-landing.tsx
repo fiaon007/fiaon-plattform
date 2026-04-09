@@ -475,13 +475,6 @@ function Reviews() {
             </div>
           ))}
         </div>
-
-        {/* Review counter */}
-        <div className="text-center mt-8">
-          <p className="text-[12px] text-gray-400">
-            {allReviews.length}+ zufriedene Kunden
-          </p>
-        </div>
       </div>
     </section>
   );

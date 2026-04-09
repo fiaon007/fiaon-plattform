@@ -119,7 +119,7 @@ function Hero() {
 
         {/* CTA */}
         <div className="mb-3">
-          <a href="#start" className="fiaon-btn-gradient inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[15px] font-medium text-white">
+          <a href="/antrag" className="fiaon-btn-gradient inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[15px] font-medium text-white">
             Jetzt mein Limit pr&uuml;fen (Kostenlos)
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           </a>

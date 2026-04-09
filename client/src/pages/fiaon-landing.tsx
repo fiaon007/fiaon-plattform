@@ -95,6 +95,8 @@ function Card({ bg, lim, className = "", size = "normal" }: { bg: string; lim: s
    HERO — centered, like screenshot
    ──────────────────────────────── */
 function Hero() {
+  const [showModal, setShowModal] = useState(false);
+
   return (
     <section className="relative pt-[110px] sm:pt-[130px] pb-12 sm:pb-20 overflow-hidden">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] opacity-30 pointer-events-none" style={{ background: "radial-gradient(ellipse, rgba(37,99,235,.1), transparent 70%)" }} />
@@ -119,10 +121,10 @@ function Hero() {
 
         {/* CTA */}
         <div className="mb-3">
-          <a href="/antrag" className="fiaon-btn-gradient inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[15px] font-medium text-white">
+          <button onClick={() => setShowModal(true)} className="fiaon-btn-gradient inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[15px] font-medium text-white">
             Jetzt mein Limit pr&uuml;fen (Kostenlos)
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </a>
+          </button>
         </div>
         <p className="text-[12px] text-gray-400 font-medium mb-14">Keine SCHUFA-Abfrage</p>
 
@@ -131,6 +133,80 @@ function Hero() {
           <Card bg="linear-gradient(145deg,#0d1b2a,#1a2d44,#0d1b2a)" lim="25.000" size="hero" />
         </div>
       </div>
+
+      {/* Customer Type Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowModal(false)} />
+          <div className="relative w-full max-w-md p-8 rounded-3xl fiaon-glass-panel animate-[scaleIn_.3s_ease]">
+            {/* Animated gradient overlay */}
+            <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
+              <div className="absolute inset-0 opacity-20" style={{
+                background: "linear-gradient(135deg, rgba(37,99,235,0.15), rgba(147,197,253,0.25), rgba(37,99,235,0.12), rgba(147,197,253,0.18))",
+                backgroundSize: "300% 300%",
+                animation: "limitGlow 8s ease-in-out infinite"
+              }} />
+            </div>
+
+            <div className="relative z-10">
+              <h3 className="text-2xl font-semibold tracking-tight mb-2 fiaon-gradient-text-animated">Kundenart wählen</h3>
+              <p className="text-[14px] text-gray-500 mb-8">Für wen möchtest du einen Antrag stellen?</p>
+
+              <div className="space-y-4">
+                <a
+                  href="/antrag"
+                  onClick={() => setShowModal(false)}
+                  className="group relative block p-5 rounded-2xl fiaon-glass-panel hover:scale-[1.02] hover:shadow-xl transition-all duration-300"
+                >
+                  <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+                    <div className="absolute inset-0 opacity-15 group-hover:opacity-25 transition-opacity" style={{
+                      background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.08))",
+                      backgroundSize: "200% 200%",
+                      animation: "limitGlow 6s ease-in-out infinite"
+                    }} />
+                  </div>
+                  <div className="relative z-10 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#2563eb] to-[#3b82f6] flex items-center justify-center text-white">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </div>
+                    <div>
+                      <p className="text-[16px] font-semibold text-gray-900">Privatkunde</p>
+                      <p className="text-[13px] text-gray-500">Für persönliche Anliegen</p>
+                    </div>
+                  </div>
+                </a>
+
+                <a
+                  href="/business-antrag"
+                  onClick={() => setShowModal(false)}
+                  className="group relative block p-5 rounded-2xl fiaon-glass-panel hover:scale-[1.02] hover:shadow-xl transition-all duration-300"
+                >
+                  <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+                    <div className="absolute inset-0 opacity-15 group-hover:opacity-25 transition-opacity" style={{
+                      background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.08))",
+                      backgroundSize: "200% 200%",
+                      animation: "limitGlow 6s ease-in-out infinite"
+                    }} />
+                  </div>
+                  <div className="relative z-10 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1e40af] to-[#2563eb] flex items-center justify-center text-white">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                    </div>
+                    <div>
+                      <p className="text-[16px] font-semibold text-gray-900">Geschäftskunde</p>
+                      <p className="text-[13px] text-gray-500">Für Unternehmen & Firmenkunden</p>
+                    </div>
+                  </div>
+                </a>
+              </div>
+
+              <button onClick={() => setShowModal(false)} className="mt-6 w-full py-3 rounded-xl fiaon-glass-panel text-[13px] font-medium text-gray-600 hover:bg-white/60 transition-all">
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

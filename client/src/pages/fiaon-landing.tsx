@@ -64,7 +64,7 @@ function Card({ bg, lim, className = "", size = "normal" }: { bg: string; lim: s
 
           {/* number */}
           <div>
-            <div className={`font-mono tracking-[.18em] ${isHero ? "text-base sm:text-lg" : "text-[10px] sm:text-xs"}`} style={{ color: "rgba(255,255,255,.5)" }}>
+            <div className={`font-mono tracking-[.15em] ${isHero ? "text-base sm:text-lg" : "text-[8px] sm:text-[10px]"}`} style={{ color: "rgba(255,255,255,.5)" }}>
               5232&nbsp;&nbsp;2702&nbsp;&nbsp;5678&nbsp;&nbsp;9012
             </div>
           </div>

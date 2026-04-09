@@ -47,7 +47,7 @@ export default function AdminDatabasePage() {
 
   const fetchTables = async () => {
     try {
-      const res = await fetch('/api/admin/database/tables');
+      const res = await fetch('/api/database/tables');
       const data = await res.json();
       setTables(data.tables);
     } catch (error) {
@@ -58,7 +58,7 @@ export default function AdminDatabasePage() {
   const fetchTableStructure = async (tableName: string) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/admin/database/tables/${tableName}/structure`);
+      const res = await fetch(`/api/database/tables/${tableName}/structure`);
       const data = await res.json();
       setTableStructure(data.columns);
     } catch (error) {
@@ -71,7 +71,7 @@ export default function AdminDatabasePage() {
   const fetchTableData = async (tableName: string, pageNum: number = 1) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/admin/database/tables/${tableName}/data?page=${pageNum}&limit=50`);
+      const res = await fetch(`/api/database/tables/${tableName}/data?page=${pageNum}&limit=50`);
       const data = await res.json();
       setTableData(data);
     } catch (error) {
@@ -83,7 +83,7 @@ export default function AdminDatabasePage() {
 
   const fetchDbStats = async () => {
     try {
-      const res = await fetch('/api/admin/database/stats');
+      const res = await fetch('/api/database/stats');
       const data = await res.json();
       setDbStats(data.stats);
     } catch (error) {

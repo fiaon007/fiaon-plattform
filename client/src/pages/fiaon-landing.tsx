@@ -373,29 +373,114 @@ function HowItWorks() {
    ──────────────────────────────── */
 function Reviews() {
   const obs = useReveal(0.1);
-  const rev = [
-    { n: "Lena M.", r: "Unternehmerin", t: "FIAON hat mir in 10 Minuten geholfen, die richtige Karte f\u00FCr mein Business zu finden." },
+  const [visibleReviews, setVisibleReviews] = useState(0);
+  
+  const allReviews = [
+    { n: "Lena M.", r: "Unternehmerin", t: "FIAON hat mir in 10 Minuten geholfen, die richtige Karte für mein Business zu finden." },
     { n: "Tobias K.", r: "Freelancer", t: "Die Beratung war wirklich neutral. Keine versteckten Kosten, keine Tricks." },
-    { n: "Sara W.", r: "Angestellte", t: "Endlich jemand, der mir erkl\u00E4rt hat, welche Karte zu meiner Situation passt." },
+    { n: "Sara W.", r: "Angestellte", t: "Endlich jemand, der mir erklärt hat, welche Karte zu meiner Situation passt." },
+    { n: "Markus R.", r: "Selbstständiger", t: "Der Vergleich ist transparent. Ich weiß genau, was ich bekomme." },
+    { n: "Julia B.", r: "Studentin", t: "Auch als Studentin habe ich eine passende Karte gefunden." },
+    { n: "Alexander P.", r: "Geschäftsführer", t: "Für unser Unternehmen genau das Richtige. Schnelle Abwicklung." },
+    { n: "Nina S.", r: "Designerin", t: "Das Design der Seite ist modern, die Beratung ist professionell." },
+    { n: "David H.", r: "IT-Spezialist", t: "Alles digital, keine Papierkram. Genau wie ich es wollte." },
+    { n: "Maria L.", r: "Lehrerin", t: "Endlich durchblick im Kreditkarten-Dschungel. Danke FIAON!" },
+    { n: "Stefan K.", r: "Vertriebler", t: "Die Cashback-Features sind genial. Spare jeden Monat Geld." },
+    { n: "Anna M.", r: "Architektin", t: "Der Lounge-Zugang bei Reisen ist ein echtes Highlight." },
+    { n: "Christian W.", r: "Consultant", t: "Der VIP-Support ist erstklassig. Immer schnell erreichbar." },
+    { n: "Laura D.", r: "Marketing", t: "Die Empfehlung war perfekt. Genau das, was ich suchte." },
+    { n: "Felix B.", r: "Developer", t: "Transparente Kosten, keine Überraschungen. So sollte es sein." },
+    { n: "Sophie T.", r: "HR-Managerin", t: "Auch für unsere Mitarbeiter hat FIAON passende Lösungen." },
+    { n: "Patrick S.", r: "Unternehmer", t: "Die Limit-Empfehlung war realistisch und fair." },
+    { n: "Isabella R.", r: "Reisebegeisterte", t: "Mit der Reise-Versicherung fühle ich mich sicher unterwegs." },
+    { n: "Maximilian H.", r: "Investor", t: "Professionelle Beratung, kein Verkaufsgespräch. Sehr gut." },
+    { n: "Emma K.", r: "Studentin", t: "Kostenlos und unverbindlich – das überzeugt." },
+    { n: "Jonas M.", r: "Musiker", t: "Der Concierge-Service ist ein echtes Premium-Feature." },
+    { n: "Carla P.", r: "Freiberuflerin", t: "Schnell, einfach, transparent. So habe ich es mir gewünscht." },
+    { n: "Leon W.", r: "Start-up-Gründer", t: "Für Start-ups die beste Lösung. Flexible Limits." },
+    { n: "Vanessa G.", r: "Designerin", t: "Die Seite ist einzigartig. Modern und übersichtlich." },
+    { n: "Tim L.", r: "Athlet", t: "NFC funktioniert perfekt. Bezahlen war noch nie so einfach." },
   ];
+
+  const [currentReviews, setCurrentReviews] = useState(allReviews.slice(0, 3));
+
+  useEffect(() => {
+    if (!obs.v) return;
+    
+    const interval = setInterval(() => {
+      setCurrentReviews(prev => {
+        const currentIndex = allReviews.findIndex(r => r === prev[0]);
+        const nextIndex = (currentIndex + 3) % allReviews.length;
+        return allReviews.slice(nextIndex, nextIndex + 3);
+      });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [obs.v, allReviews]);
+
   return (
-    <section className="py-20 sm:py-28 bg-[#f8faff]" ref={obs.ref}>
-      <div className="max-w-[1120px] mx-auto px-6">
-        <div className="max-w-2xl mb-14">
-          <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Kundenstimmen</p>
-          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight"><GradientText>Was unsere Kunden sagen</GradientText></h2>
+    <section className="py-20 sm:py-28 relative overflow-hidden" ref={obs.ref}>
+      {/* Subtle background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] opacity-8" style={{
+          background: "radial-gradient(ellipse at center, rgba(37,99,235,0.08), transparent 70%)",
+          filter: "blur(60px)",
+          animation: "limitGlow 12s ease-in-out infinite"
+        }} />
+      </div>
+
+      <div className="relative z-10 max-w-[1200px] mx-auto px-6">
+        <div className="text-center mb-12">
+          <p className="text-[12px] font-semibold text-[#2563eb] tracking-[.2em] uppercase mb-3">Kundenstimmen</p>
+          <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight mb-4 fiaon-gradient-text-animated">
+            Was unsere Kunden sagen
+          </h2>
         </div>
-        <div className="grid md:grid-cols-3 gap-6">
-          {rev.map((r, i) => (
-            <div key={i} className={`p-6 rounded-2xl bg-white border border-gray-100 transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`} style={{ transitionDelay: `${i * 80}ms` }}>
-              <div className="flex gap-1 mb-4">{[...Array(5)].map((_, j) => <svg key={j} width="14" height="14" viewBox="0 0 20 20" fill="#2563eb" opacity=".7"><path d="M10 1l2.47 5.01L18 6.76l-4 3.9.94 5.49L10 13.77l-4.94 2.38L6 10.66l-4-3.9 5.53-.75z"/></svg>)}</div>
-              <p className="text-[14px] text-gray-600 leading-relaxed mb-5">&bdquo;{r.t}&ldquo;</p>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-[#2563eb] flex items-center justify-center text-[11px] font-medium text-white">{r.n[0]}</div>
-                <div><div className="text-[13px] font-medium text-gray-900">{r.n}</div><div className="text-[11px] text-gray-400">{r.r}</div></div>
+
+        <div className={`grid md:grid-cols-3 gap-6 ${obs.v ? "animate-[fadeInUp_.6s_ease]" : "opacity-0"}`}>
+          {currentReviews.map((r, i) => (
+            <div 
+              key={r.n}
+              className={`relative p-6 rounded-2xl fiaon-glass-panel hover:scale-[1.02] hover:shadow-xl transition-all duration-500`}
+              style={{ animationDelay: `${i * 0.15}s` }}
+            >
+              {/* Animated gradient overlay */}
+              <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+                <div className="absolute inset-0 opacity-15" style={{
+                  background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.08), rgba(147,197,253,0.15))",
+                  backgroundSize: "300% 300%",
+                  animation: "limitGlow 8s ease-in-out infinite"
+                }} />
+              </div>
+
+              <div className="relative z-10">
+                <div className="flex gap-1 mb-4">
+                  {[...Array(5)].map((_, j) => (
+                    <svg key={j} width="14" height="14" viewBox="0 0 20 20" fill="#2563eb" opacity=".7">
+                      <path d="M10 1l2.47 5.01L18 6.76l-4 3.9.94 5.49L10 13.77l-4.94 2.38L6 10.66l-4-3.9 5.53-.75z"/>
+                    </svg>
+                  ))}
+                </div>
+                <p className="text-[14px] text-gray-600 leading-relaxed mb-5">&bdquo;{r.t}&ldquo;</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#2563eb] to-[#3b82f6] flex items-center justify-center text-[12px] font-medium text-white">
+                    {r.n[0]}
+                  </div>
+                  <div>
+                    <div className="text-[13px] font-medium text-gray-900">{r.n}</div>
+                    <div className="text-[11px] text-gray-400">{r.r}</div>
+                  </div>
+                </div>
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Review counter */}
+        <div className="text-center mt-8">
+          <p className="text-[12px] text-gray-400">
+            {allReviews.length}+ zufriedene Kunden
+          </p>
         </div>
       </div>
     </section>

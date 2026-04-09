@@ -1002,9 +1002,19 @@ function FeaturesOverview() {
                     )}
                     {index === 5 && (
                       <div className="relative z-10 w-full h-full flex items-center justify-center">
-                        <div className="grid grid-cols-4 gap-1">
-                          {[1, 2, 3, 4].map((i) => (
-                            <div key={i} className="w-3 h-8 rounded bg-gradient-to-t from-blue-500/60 to-blue-600/80" style={{ height: `${i * 20 + 20}%` }} />
+                        <div className="grid grid-cols-7 gap-1 p-2">
+                          {/* Mini calendar visualization */}
+                          {[1, 2, 3, 4, 5, 6, 7].map((day) => (
+                            <div key={day} className="flex flex-col items-center gap-1">
+                              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold ${
+                                day <= 5 ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                              }`}>
+                                {day}
+                              </div>
+                              {day <= 5 && (
+                                <div className="w-1 h-1 rounded-full bg-green-500" />
+                              )}
+                            </div>
                           ))}
                         </div>
                       </div>

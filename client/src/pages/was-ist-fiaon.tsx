@@ -14,6 +14,10 @@ function useReveal(t = 0.12) {
 }
 
 export default function WasIstFiaonPage() {
+  const heroObs = useReveal(0.1);
+  const paradigmObs = useReveal(0.1);
+  const architectureObs = useReveal(0.1);
+  
   return (
     <div className="min-h-screen text-gray-900 antialiased relative overflow-hidden" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", background: "linear-gradient(180deg, #f8fafc 0%, #e0e7ff 30%, #f8fafc 60%, #e0e7ff 100%)" }}>
       {/* Background mesh gradient with blur */}
@@ -32,7 +36,7 @@ export default function WasIstFiaonPage() {
       
       <div className="relative z-10">
         {/* Hero Section */}
-        <section ref={useReveal(0.1).ref} className="min-h-screen flex flex-col items-center justify-center px-6 py-20">
+        <section ref={heroObs.ref} className="min-h-screen flex flex-col items-center justify-center px-6 py-20">
           {/* Headline */}
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-center tracking-tight mb-8 max-w-5xl leading-[1.2] fiaon-gradient-text-animated">
             Die erste KI-Plattform,<br/>
@@ -135,14 +139,14 @@ export default function WasIstFiaonPage() {
         </section>
 
         {/* Paradigmenwechsel Section */}
-        <section ref={useReveal(0.1).ref} className="py-20 sm:py-28 relative overflow-hidden" style={{ background: "linear-gradient(180deg, #0a1628 0%, #1a3560 50%, #0a1628 100%)" }}>
+        <section ref={paradigmObs.ref} className="py-20 sm:py-28 relative overflow-hidden" style={{ background: "linear-gradient(180deg, #0a1628 0%, #1a3560 50%, #0a1628 100%)" }}>
           {/* Background effects */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div className="absolute top-1/4 left-1/4 w-[800px] h-[500px] opacity-20" style={{ background: "radial-gradient(ellipse, rgba(37,99,235,0.15), transparent 70%)", filter: "blur(100px)" }} />
             <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[400px] opacity-15" style={{ background: "radial-gradient(ellipse, rgba(212,175,55,0.1), transparent 70%)", filter: "blur(80px)" }} />
           </div>
 
-          <div className={`max-w-[1120px] mx-auto px-6 relative z-10 transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+          <div className={`max-w-[1120px] mx-auto px-6 relative z-10 transition-all duration-700 ${paradigmObs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
             {/* Section Badge */}
             <div className="mb-12">
               <span className="inline-block px-5 py-2.5 bg-white/10 backdrop-blur-xl border border-white/20 text-blue-400 text-[13px] font-semibold tracking-widest uppercase rounded-full">
@@ -176,9 +180,9 @@ export default function WasIstFiaonPage() {
             {/* Checkmarks */}
             <div className="grid md:grid-cols-3 gap-8 mt-16">
               <div className="flex items-center gap-3" style={{
-                animation: obs.v ? "fadeInUp 0.6s ease-out forwards 0.3s" : "none",
-                opacity: obs.v ? 1 : 0,
-                transform: obs.v ? "translateY(0)" : "translateY(20px)"
+                animation: paradigmObs.v ? "fadeInUp 0.6s ease-out forwards 0.3s" : "none",
+                opacity: paradigmObs.v ? 1 : 0,
+                transform: paradigmObs.v ? "translateY(0)" : "translateY(20px)"
               }}>
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20">
                   <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -189,9 +193,9 @@ export default function WasIstFiaonPage() {
               </div>
 
               <div className="flex items-center gap-3" style={{
-                animation: obs.v ? "fadeInUp 0.6s ease-out forwards 0.5s" : "none",
-                opacity: obs.v ? 1 : 0,
-                transform: obs.v ? "translateY(0)" : "translateY(20px)"
+                animation: paradigmObs.v ? "fadeInUp 0.6s ease-out forwards 0.5s" : "none",
+                opacity: paradigmObs.v ? 1 : 0,
+                transform: paradigmObs.v ? "translateY(0)" : "translateY(20px)"
               }}>
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20">
                   <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -202,9 +206,9 @@ export default function WasIstFiaonPage() {
               </div>
 
               <div className="flex items-center gap-3" style={{
-                animation: obs.v ? "fadeInUp 0.6s ease-out forwards 0.7s" : "none",
-                opacity: obs.v ? 1 : 0,
-                transform: obs.v ? "translateY(0)" : "translateY(20px)"
+                animation: paradigmObs.v ? "fadeInUp 0.6s ease-out forwards 0.7s" : "none",
+                opacity: paradigmObs.v ? 1 : 0,
+                transform: paradigmObs.v ? "translateY(0)" : "translateY(20px)"
               }}>
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20">
                   <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -212,6 +216,107 @@ export default function WasIstFiaonPage() {
                   </svg>
                 </div>
                 <span className="text-white font-medium">Fokus auf deinen Score, nicht auf Sales</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Die Drei Säulen Section */}
+        <section ref={architectureObs.ref} className="py-20 sm:py-28 relative overflow-hidden" style={{ background: "linear-gradient(180deg, #f8fafc 0%, #ffffff 50%, #f8fafc 100%)" }}>
+          {/* Background effects */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute top-1/4 left-1/4 w-[800px] h-[500px] opacity-20" style={{ background: "radial-gradient(ellipse, rgba(37,99,235,0.08), transparent 70%)", filter: "blur(120px)" }} />
+            <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[400px] opacity-15" style={{ background: "radial-gradient(ellipse, rgba(212,175,55,0.06), transparent 70%)", filter: "blur(100px)" }} />
+          </div>
+
+          <div className={`max-w-[1120px] mx-auto px-6 relative z-10 transition-all duration-700 ${architectureObs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+            {/* Section Badge */}
+            <div className="mb-12">
+              <span className="inline-block px-5 py-2.5 bg-white/60 backdrop-blur-xl border border-blue-200 text-[#2563eb] text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-blue-500/10">
+                DIE ARCHITEKTUR
+              </span>
+            </div>
+
+            {/* Headline */}
+            <div className="text-center mb-16">
+              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900 fiaon-gradient-text-animated mb-4">
+                Nicht nur ein Tool.<br/>
+                Ein komplettes Ökosystem.
+              </h2>
+            </div>
+
+            {/* Bento-Box Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Card 1 - Left, Tall */}
+              <div className="fiaon-glass-panel rounded-3xl p-8 border border-white/60 shadow-xl shadow-blue-900/5 hover:shadow-blue-900/10 transition-all duration-300 md:row-span-2"
+                   style={{
+                     animation: architectureObs.v ? "fadeInUp 0.6s ease-out forwards" : "none",
+                     opacity: architectureObs.v ? 1 : 0,
+                     transform: architectureObs.v ? "translateY(0)" : "translateY(20px)"
+                   }}>
+                {/* Abstract 3D Icon */}
+                <div className="mb-6 relative">
+                  <div className="w-full aspect-square rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-600/20 flex items-center justify-center relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent" />
+                    <div className="relative z-10 text-6xl">
+                      🧠
+                    </div>
+                  </div>
+                </div>
+                
+                <h3 className="text-2xl font-bold text-gray-900 mb-3 fiaon-gradient-text-animated">Die KI-Engine</h3>
+                <p className="text-sm text-blue-500 font-semibold tracking-wide uppercase mb-4">Der Navigator</p>
+                <p className="text-gray-600 leading-relaxed">
+                  Die FIAON-Engine gleicht dein Finanzprofil in Millisekunden mit hunderten Parametern des Marktes ab. Sie zeigt dir blind, wo dein Limit-Potenzial wirklich liegt und warum du bisher unter Wert liegst.
+                </p>
+              </div>
+
+              {/* Card 2 - Right Top, Wide */}
+              <div className="fiaon-glass-panel rounded-3xl p-8 border border-white/60 shadow-xl shadow-blue-900/5 hover:shadow-blue-900/10 transition-all duration-300"
+                   style={{
+                     animation: architectureObs.v ? "fadeInUp 0.6s ease-out forwards 0.2s" : "none",
+                     opacity: architectureObs.v ? 1 : 0,
+                     transform: architectureObs.v ? "translateY(0)" : "translateY(20px)"
+                   }}>
+                {/* Abstract 3D Icon */}
+                <div className="mb-6 relative">
+                  <div className="w-full aspect-[2/1] rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-600/20 flex items-center justify-center relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent" />
+                    <div className="relative z-10 text-5xl">
+                      💪
+                    </div>
+                  </div>
+                </div>
+                
+                <h3 className="text-2xl font-bold text-gray-900 mb-3 fiaon-gradient-text-animated">Das Credit-Building</h3>
+                <p className="text-sm text-purple-500 font-semibold tracking-wide uppercase mb-4">Der Muskel</p>
+                <p className="text-gray-600 leading-relaxed">
+                  Das Herzstück. Wir haben die effektivsten US-Kreditkarten-Strategien für den europäischen Markt adaptiert. Du lernst, wann du Anträge stellst, wie du Limits hebelst und Cashflow durch Karten optimierst.
+                </p>
+              </div>
+
+              {/* Card 3 - Right Bottom, Wide */}
+              <div className="fiaon-glass-panel rounded-3xl p-8 border border-white/60 shadow-xl shadow-blue-900/5 hover:shadow-blue-900/10 transition-all duration-300"
+                   style={{
+                     animation: architectureObs.v ? "fadeInUp 0.6s ease-out forwards 0.4s" : "none",
+                     opacity: architectureObs.v ? 1 : 0,
+                     transform: architectureObs.v ? "translateY(0)" : "translateY(20px)"
+                   }}>
+                {/* Abstract 3D Icon */}
+                <div className="mb-6 relative">
+                  <div className="w-full aspect-[2/1] rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-600/20 flex items-center justify-center relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-transparent" />
+                    <div className="relative z-10 text-5xl">
+                      🎛️
+                    </div>
+                  </div>
+                </div>
+                
+                <h3 className="text-2xl font-bold text-gray-900 mb-3 fiaon-gradient-text-animated">Das Dashboard</h3>
+                <p className="text-sm text-amber-500 font-semibold tracking-wide uppercase mb-4">Das Cockpit</p>
+                <p className="text-gray-600 leading-relaxed">
+                  Deine Fortschritte, deine Timeline, deine nächsten Schritte. Das FIAON-Dashboard ist dein persönlicher Kommando-Stand, der sich jeden Monat mit dir weiterentwickelt.
+                </p>
               </div>
             </div>
           </div>
@@ -243,6 +348,17 @@ export default function WasIstFiaonPage() {
           }
           to {
             width: 80%;
+          }
+        }
+        
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
           }
         }
       `}</style>

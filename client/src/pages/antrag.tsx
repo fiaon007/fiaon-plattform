@@ -226,7 +226,7 @@ export default function AntragPage() {
 
       {/* ── Main Content ── */}
       <div className="max-w-6xl mx-auto px-5 pt-24 sm:pt-28 pb-8 sm:pb-12 relative z-10">
-        <Progress step={step} total={9} />
+        {step > 0 && <Progress step={step} total={9} />}
 
         {/* === STEP 0: Paketauswahl === */}
         {step === 0 && (

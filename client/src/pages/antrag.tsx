@@ -19,8 +19,8 @@ function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: stri
   const displayName = name || "MAX MUSTERMANN";
   const nameLen = displayName.length;
   const nameFontSize = useMemo(() => {
-    if (compact) return Math.max(8, Math.min(12, 160 / Math.max(nameLen, 1)));
-    return Math.max(10, Math.min(18, 280 / Math.max(nameLen, 1)));
+    if (compact) return Math.max(7, Math.min(11, 140 / Math.max(nameLen, 1)));
+    return Math.max(9, Math.min(14, 200 / Math.max(nameLen, 1)));
   }, [nameLen, compact]);
 
   return (
@@ -46,7 +46,7 @@ function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: stri
         <div className="flex justify-between items-end gap-2">
           <div className="min-w-0 flex-1">
             <div className={`uppercase tracking-[.14em] font-medium ${compact ? "text-[6px]" : "text-[8px]"}`} style={{ color: "rgba(255,255,255,.35)" }}>Karteninhaber</div>
-            <div className="font-mono font-semibold" style={{ color: "rgba(255,255,255,.9)", fontSize: `${nameFontSize}px`, lineHeight: 1.3, wordBreak: "break-all" }}>{displayName}</div>
+            <div className="font-mono font-semibold truncate" style={{ color: "rgba(255,255,255,.9)", fontSize: `${nameFontSize}px`, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayName}</div>
           </div>
           <div className="text-right shrink-0">
             <div className={`uppercase tracking-[.14em] font-medium ${compact ? "text-[6px]" : "text-[8px]"}`} style={{ color: "rgba(255,255,255,.35)" }}>Limit</div>
@@ -204,7 +204,7 @@ export default function AntragPage() {
               <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight fiaon-gradient-text-animated mb-4">Wähle dein FIAON Paket</h1>
               <p className="text-[15px] text-gray-400 max-w-lg mx-auto leading-relaxed">Entscheide dich für das passende Paket — du gelangst automatisch zum nächsten Schritt.</p>
             </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 max-w-[1100px] mx-auto">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-[1200px] mx-auto">
               {PACKS.map((p, idx) => (
                 <button 
                   key={p.key} 
@@ -213,22 +213,22 @@ export default function AntragPage() {
                   style={{ animation: `smoothScaleIn 0.5s ease ${idx * 80}ms both` }}
                 >
                   {/* Card area with generous padding */}
-                  <div className="p-5 pb-4">
-                    <LiveCard bg={p.bg} name="" lim={p.lim.toLocaleString("de-DE")} compact />
+                  <div className="p-5 sm:p-6">
+                    <LiveCard bg={p.bg} name="" lim={p.lim.toLocaleString("de-DE")} compact className="w-full" />
                   </div>
-                  <div className="px-5 pb-5">
-                    <div className="flex items-center gap-2 mb-2">
+                  <div className="px-5 sm:px-6 pb-6">
+                    <div className="flex items-center gap-3 mb-3">
                       <span className="text-[15px] font-semibold text-gray-900">{p.name}</span>
-                      {p.rec && <span className="text-[9px] font-semibold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-2 py-0.5 rounded-full">Empfohlen</span>}
+                      {p.rec && <span className="text-[9px] font-semibold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-2 py-0.5 rounded">Empfohlen</span>}
                     </div>
-                    <div className="flex items-baseline gap-1.5 mb-4">
-                      <span className="text-2xl font-semibold text-gray-900 tracking-tight">{p.fee.toLocaleString("de-DE", { minimumFractionDigits: 2 })}</span>
-                      <span className="text-sm text-gray-400">€/Mt.</span>
+                    <div className="flex items-baseline gap-1.5 mb-5">
+                      <span className="text-[28px] font-semibold text-gray-900 tracking-tight">{p.fee.toLocaleString("de-DE", { minimumFractionDigits: 2 })}</span>
+                      <span className="text-[13px] text-gray-400">€/Mt.</span>
                     </div>
-                    <ul className="space-y-2 mb-4">
+                    <ul className="space-y-2.5 mb-6">
                       {p.feats.map((f, i) => (
-                        <li key={i} className="flex items-center gap-2 text-[13px] text-gray-500">
-                          <span className="w-1 h-1 rounded-full bg-[#2563eb] shrink-0" />
+                        <li key={i} className="flex items-center gap-2.5 text-[13px] text-gray-600">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>
                           {f}
                         </li>
                       ))}

@@ -43,7 +43,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
               scrolled ? "shadow-lg" : ""
             }`}
           >
-            <div className="relative z-10 h-[52px] px-5 flex items-center justify-between">
+            <div className="relative z-10 h-[72px] px-5 flex items-center justify-between">
               {/* Logo */}
               <a href="/" className="flex items-center shrink-0">
                 <span className="text-xl font-bold tracking-tight fiaon-gradient-text-animated">FIAON</span>
@@ -80,18 +80,24 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                 ))}
               </div>
 
-              {/* Desktop: CTA button */}
-              <div className="hidden md:flex items-center">
+              {/* Desktop: CTA buttons */}
+              <div className="hidden md:flex items-center gap-3">
                 <button
                   onClick={handleAntragClick}
                   className="fiaon-btn-outline-animated px-5 py-2 text-[13px] font-medium relative overflow-hidden group"
                 >
-                  <span className="relative z-10 group-hover:text-white transition-colors duration-300">Antrag starten</span>
+                  <span className="relative z-10 group-hover:text-white transition-colors duration-300">Konto eröffnen</span>
                   <div className="absolute inset-0 bg-gradient-to-r from-[#2563eb] to-[#3b82f6] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
                   </div>
                 </button>
+                <a
+                  href="/login"
+                  className="px-4 py-2 text-[13px] font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  Login
+                </a>
               </div>
 
               {/* Mobile hamburger */}
@@ -163,8 +169,14 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                   onClick={handleAntragClick}
                   className="block w-full text-center py-3 rounded-xl text-sm font-semibold text-white fiaon-btn-gradient mt-2"
                 >
-                  Antrag starten
+                  Konto eröffnen
                 </button>
+                <a
+                  href="/login"
+                  className="block w-full text-center py-3 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 mt-2"
+                >
+                  Login
+                </a>
               </div>
             </div>
           </div>
@@ -194,7 +206,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
 
             <div className="relative z-10 text-center mb-8">
               <h3 className="text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-2">
-                Antrag starten
+                Konto eröffnen
               </h3>
               <p className="text-[15px] text-gray-500">
                 Wie möchtest du fortfahren?

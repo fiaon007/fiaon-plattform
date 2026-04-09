@@ -752,52 +752,110 @@ function ProblemSection() {
 function WasIstFiaonSection() {
   const obs = useReveal(0.1);
   
+  const features = [
+    {
+      icon: "🤖",
+      title: "KI-Analyse",
+      description: "Intelligente Algorithmen analysieren dein Profil"
+    },
+    {
+      icon: "📊",
+      title: "Finance-Dashboard",
+      description: "Persönliche Übersicht und Kontrolle"
+    },
+    {
+      icon: "🎯",
+      title: "Strategisches Coaching",
+      description: "Insider-Strategien für deinen Erfolg"
+    }
+  ];
+  
   return (
-    <section ref={obs.ref} className="py-20 sm:py-28 relative overflow-hidden" style={{ background: "linear-gradient(180deg, #ffffff 0%, #f8faff 50%, #ffffff 100%)" }}>
+    <section ref={obs.ref} className="py-20 sm:py-28 relative overflow-hidden" style={{ background: "linear-gradient(180deg, #f8fafc 0%, #e0e7ff 50%, #f8fafc 100%)" }}>
+      {/* Background effects */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-[800px] h-[500px] opacity-30" style={{ background: "radial-gradient(ellipse, rgba(37,99,235,0.1), transparent 70%)", filter: "blur(100px)" }} />
+        <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[400px] opacity-20" style={{ background: "radial-gradient(ellipse, rgba(212,175,55,0.08), transparent 70%)", filter: "blur(80px)" }} />
+      </div>
+
       <div className={`max-w-[1120px] mx-auto px-6 relative z-10 transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
         {/* Section Badge */}
-        <div className="text-center mb-8">
-          <span className="inline-block px-4 py-2 bg-blue-50 text-[#2563eb] text-[12px] font-semibold tracking-wide uppercase rounded-full">
+        <div className="mb-12">
+          <span className="inline-block px-5 py-2.5 bg-white/60 backdrop-blur-xl border border-blue-200 text-[#2563eb] text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-blue-500/10">
             DIE PLATTFORM
           </span>
         </div>
 
-        {/* Headline */}
-        <div className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight mb-6 text-gray-900">
-            FIAON ist kein Vergleichsportal.<br/>
-            FIAON ist dein System.
-          </h2>
-        </div>
+        {/* Split Layout */}
+        <div className="grid lg:grid-cols-2 gap-16 items-center mb-16">
+          {/* Left side - Text */}
+          <div>
+            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-8 text-gray-900 fiaon-gradient-text-animated">
+              FIAON ist kein Vergleichsportal.<br/>
+              FIAON ist dein System.
+            </h2>
+            
+            <div className="space-y-6">
+              <p className="text-xl text-gray-700 leading-relaxed">
+                Eine KI-Analyse-Software, ein strategisches Coaching-Programm und ein persönliches Finance-Dashboard — in einer Plattform.
+              </p>
+              <p className="text-xl text-gray-700 leading-relaxed">
+                Wir zeigen dir nicht einfach Karten. Wir zeigen dir, wie du die bekommst, die du wirklich willst.
+              </p>
+              <p className="text-xl text-gray-700 leading-relaxed">
+                Wir verkaufen keine Finanzprodukte. Wir verkaufen das Wissen, die Tools und die Strategie, damit du sie dir selbst holst.
+              </p>
+            </div>
 
-        {/* Text Block */}
-        <div className="max-w-4xl mx-auto mb-12">
-          <p className="text-xl sm:text-2xl text-gray-600 leading-relaxed text-center mb-6">
-            Eine KI-Analyse-Software, ein strategisches Coaching-Programm und ein persönliches Finance-Dashboard — in einer Plattform.
-          </p>
-          <p className="text-xl sm:text-2xl text-gray-600 leading-relaxed text-center mb-6">
-            Wir zeigen dir nicht einfach Karten. Wir zeigen dir, wie du die bekommst, die du wirklich willst.
-          </p>
-          <p className="text-xl sm:text-2xl text-gray-600 leading-relaxed text-center">
-            Wir verkaufen keine Finanzprodukte. Wir verkaufen das Wissen, die Tools und die Strategie, damit du sie dir selbst holst.
-          </p>
-        </div>
+            {/* Button */}
+            <div className="mt-10">
+              <a href="/was-ist-fiaon" className="fiaon-btn-gradient inline-flex items-center gap-3 px-10 py-4 rounded-full text-[17px] font-semibold text-white shadow-xl shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300 transform hover:scale-105">
+                Mehr erfahren
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </a>
+            </div>
+          </div>
 
-        {/* Visual Separator */}
-        <div className="flex items-center justify-center mb-12">
-          <div className="w-24 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
-          <div className="w-2 h-2 mx-4 rounded-full bg-blue-500"></div>
-          <div className="w-24 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
-        </div>
-
-        {/* Button */}
-        <div className="text-center">
-          <a href="/was-ist-fiaon" className="fiaon-btn-gradient inline-flex items-center gap-2 px-8 py-4 rounded-full text-[16px] font-medium text-white">
-            Mehr erfahren
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </a>
+          {/* Right side - Feature Cards */}
+          <div className="space-y-5">
+            {features.map((feature, index) => (
+              <div 
+                key={index}
+                className="fiaon-glass-panel rounded-2xl p-6 border border-white/50 hover:border-blue-200 transition-all duration-300"
+                style={{
+                  animationDelay: `${index * 150}ms`,
+                  animation: obs.v ? `fadeInUp 0.6s ease-out forwards` : "none",
+                  opacity: obs.v ? 1 : 0,
+                  transform: obs.v ? "translateY(0)" : "translateY(20px)"
+                }}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-2xl shadow-lg shadow-blue-500/20">
+                    {feature.icon}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">{feature.title}</h3>
+                    <p className="text-gray-600 leading-relaxed">{feature.description}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </section>
   );
 }

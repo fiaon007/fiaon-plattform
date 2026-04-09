@@ -754,17 +754,14 @@ function WasIstFiaonSection() {
   
   const features = [
     {
-      icon: "🤖",
       title: "KI-Analyse",
       description: "Intelligente Algorithmen analysieren dein Profil"
     },
     {
-      icon: "📊",
       title: "Finance-Dashboard",
       description: "Persönliche Übersicht und Kontrolle"
     },
     {
-      icon: "🎯",
       title: "Strategisches Coaching",
       description: "Insider-Strategien für deinen Erfolg"
     }
@@ -817,11 +814,11 @@ function WasIstFiaonSection() {
           </div>
 
           {/* Right side - Feature Cards */}
-          <div className="space-y-5">
+          <div className="space-y-4">
             {features.map((feature, index) => (
               <div 
                 key={index}
-                className="fiaon-glass-panel rounded-2xl p-6 border border-white/50 hover:border-blue-200 transition-all duration-300"
+                className="fiaon-glass-panel rounded-2xl p-8 border border-white/50 hover:border-blue-200 transition-all duration-300 relative overflow-hidden"
                 style={{
                   animationDelay: `${index * 150}ms`,
                   animation: obs.v ? `fadeInUp 0.6s ease-out forwards` : "none",
@@ -829,14 +826,14 @@ function WasIstFiaonSection() {
                   transform: obs.v ? "translateY(0)" : "translateY(20px)"
                 }}
               >
-                <div className="flex items-start gap-4">
-                  <div className="shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-2xl shadow-lg shadow-blue-500/20">
-                    {feature.icon}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">{feature.title}</h3>
-                    <p className="text-gray-600 leading-relaxed">{feature.description}</p>
-                  </div>
+                {/* Animated gradient background */}
+                <div className="absolute inset-0 opacity-0 hover:opacity-10 transition-opacity duration-300"
+                     style={{ background: "linear-gradient(135deg, rgba(37,99,235,0.3), rgba(147,197,253,0.3))" }}
+                />
+                
+                <div className="relative z-10">
+                  <h3 className="text-2xl font-bold text-gray-900 mb-3 fiaon-gradient-text-animated">{feature.title}</h3>
+                  <p className="text-gray-600 leading-relaxed">{feature.description}</p>
                 </div>
               </div>
             ))}

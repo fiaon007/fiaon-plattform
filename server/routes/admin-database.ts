@@ -108,7 +108,7 @@ router.get("/stats", async (req, res) => {
     for (const table of tables) {
       const tableName = table.table_name;
       const [countResult] = await sql`
-        SELECT COUNT(*) as total FROM ${sql(tableName)};
+        SELECT COUNT(*) as total FROM ${sql.unsafe(`"${tableName}"`)};
       `;
       
       stats.push({

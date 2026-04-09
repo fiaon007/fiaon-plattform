@@ -462,24 +462,131 @@ function Cta() {
 }
 
 /* ────────────────────────────────
+   3-STEP PROCESS SECTION
+   ──────────────────────────────── */
+function ProcessSection() {
+  const obs = useReveal(0.1);
+  const steps = [
+    { n: "01", t: "Antrag starten", d: "Beantworte ein paar einfache Fragen. Dauert unter 2 Minuten." },
+    { n: "02", t: "Angebot erhalten", d: "Wir prüfen dein Profil und empfehlen die passende Kreditkarte." },
+    { n: "03", t: "Karte beantragen", d: "Zufrieden? Wir leiten dich direkt zum Anbieter weiter." },
+  ];
+
+  return (
+    <section className="py-20 sm:py-28 relative overflow-hidden" ref={obs.ref}>
+      <div className="max-w-[1280px] mx-auto px-6">
+        <div className="text-center mb-16">
+          <p className="text-[12px] font-semibold text-[#2563eb] tracking-[.2em] uppercase mb-4">Ablauf</p>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight mb-4 fiaon-gradient-text-animated">
+            In 3 Schritten zur passenden Karte
+          </h2>
+          <p className="text-[16px] sm:text-[17px] text-gray-500">
+            Kein Papierkram, keine Filiale. Alles digital.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-8">
+          {steps.map((s, i) => (
+            <div key={i} className={`relative ${obs.v ? "animate-[fadeInUp_.6s_ease]" : "opacity-0"}`} style={{ animationDelay: `${i * 0.15}s` }}>
+              <div className="relative p-8 rounded-3xl fiaon-glass-panel hover:scale-[1.03] hover:shadow-2xl transition-all duration-500 group">
+                <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
+                  <div className="absolute inset-0 opacity-15" style={{
+                    background: "linear-gradient(135deg, rgba(37,99,235,0.15), rgba(147,197,253,0.25), rgba(37,99,235,0.12), rgba(147,197,253,0.18))",
+                    backgroundSize: "300% 300%",
+                    animation: "limitGlow 8s ease-in-out infinite"
+                  }} />
+                  <div className="absolute inset-0 opacity-10" style={{
+                    background: "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.8), transparent 70%)"
+                  }} />
+                </div>
+
+                <div className="relative z-10">
+                  <div className="text-[48px] font-bold mb-5 tracking-tight" style={{
+                    background: "linear-gradient(135deg, #1e40af, #2563eb, #3b82f6, #60a5fa)",
+                    backgroundClip: "text",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    opacity: 0.25,
+                    letterSpacing: "-0.02em"
+                  }}>
+                    {s.n}
+                  </div>
+
+                  <h3 className="text-[18px] font-semibold text-gray-900 mb-3 tracking-tight">{s.t}</h3>
+                  <p className="text-[14px] text-gray-500 leading-relaxed font-medium">{s.d}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────
    FOOTER
    ──────────────────────────────── */
 function Foot() {
   return (
-    <footer className="border-t border-gray-100 py-10 sm:py-12">
-      <div className="max-w-[1120px] mx-auto px-6">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
+    <footer className="relative py-16 sm:py-20 overflow-hidden">
+      {/* Animated gradient background */}
+      <div className="absolute inset-0" style={{
+        background: "linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(249,250,251,0.8) 50%, rgba(243,244,246,1) 100%)"
+      }} />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] opacity-30" style={{
+          background: "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.1), transparent 70%)",
+          filter: "blur(60px)"
+        }} />
+      </div>
+
+      <div className="relative z-10 max-w-[1280px] mx-auto px-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
+          {/* Logo & Description */}
           <div>
-            <div className="flex items-center gap-2 mb-3"><div className="w-6 h-6 rounded bg-[#2563eb] flex items-center justify-center"><span className="text-white text-[10px] font-semibold">F</span></div><span className="text-[15px] font-semibold text-gray-900">FIAON</span></div>
-            <p className="text-[13px] text-gray-500 leading-relaxed max-w-[240px]">Unabh&auml;ngige Kreditkarten-Beratung f&uuml;r Privatpersonen und Unternehmen.</p>
+            <div className="mb-6">
+              <span className="text-2xl font-bold tracking-tight fiaon-gradient-text-animated">FIAON</span>
+            </div>
+            <p className="text-[14px] text-gray-500 leading-relaxed max-w-[260px]">
+              Unabhängige Kreditkarten-Beratung für Privatpersonen und Unternehmen.
+            </p>
           </div>
-          <div><div className="text-[13px] font-medium text-gray-900 mb-3">Seiten</div><ul className="space-y-2"><li><a href="/" className="text-[13px] text-gray-500 hover:text-gray-900 transition-colors">Startseite</a></li></ul></div>
-          <div><div className="text-[13px] font-medium text-gray-900 mb-3">Rechtliches</div><ul className="space-y-2">{[["/terms","AGB"],["/privacy","Datenschutz"],["#","Impressum"]].map(([h,l]) => <li key={h}><a href={h} className="text-[13px] text-gray-500 hover:text-gray-900 transition-colors">{l}</a></li>)}</ul></div>
-          <div><div className="text-[13px] font-medium text-gray-900 mb-3">Kontakt</div><ul className="space-y-2"><li><a href="mailto:support@fiaon.com" className="text-[13px] text-gray-500 hover:text-gray-900 transition-colors">support@fiaon.com</a></li><li><span className="text-[13px] text-gray-500">Mo&ndash;Fr, 9&ndash;18 Uhr</span></li></ul></div>
+
+          {/* Pages */}
+          <div>
+            <div className="text-[13px] font-semibold text-gray-900 uppercase tracking-[.15em] mb-5">Seiten</div>
+            <ul className="space-y-3">
+              <li><a href="/" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Startseite</a></li>
+              <li><a href="/privatkunden" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Privatkunden</a></li>
+              <li><a href="/business" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Business</a></li>
+            </ul>
+          </div>
+
+          {/* Legal */}
+          <div>
+            <div className="text-[13px] font-semibold text-gray-900 uppercase tracking-[.15em] mb-5">Rechtliches</div>
+            <ul className="space-y-3">
+              <li><a href="/terms" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">AGB</a></li>
+              <li><a href="/privacy" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Datenschutz</a></li>
+              <li><a href="#" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Impressum</a></li>
+            </ul>
+          </div>
+
+          {/* Contact */}
+          <div>
+            <div className="text-[13px] font-semibold text-gray-900 uppercase tracking-[.15em] mb-5">Kontakt</div>
+            <ul className="space-y-3">
+              <li><a href="mailto:support@fiaon.com" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">support@fiaon.com</a></li>
+              <li><span className="text-[14px] text-gray-500">Mo–Fr, 9–18 Uhr</span></li>
+            </ul>
+          </div>
         </div>
-        <div className="pt-8 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span className="text-[12px] text-gray-400">&copy; {new Date().getFullYear()} FIAON. Alle Rechte vorbehalten.</span>
-          <span className="text-[11px] text-gray-400">FIAON ist ein Beratungsservice und kein Kreditinstitut.</span>
+
+        {/* Bottom Bar */}
+        <div className="pt-8 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <span className="text-[13px] text-gray-400">&copy; {new Date().getFullYear()} FIAON. Alle Rechte vorbehalten.</span>
+          <span className="text-[12px] text-gray-400">FIAON ist ein Beratungsservice und kein Kreditinstitut.</span>
         </div>
       </div>
     </footer>
@@ -502,6 +609,7 @@ export default function FiaonLanding() {
       <Reviews />
       <Faq />
       <Cta />
+      <ProcessSection />
       <Foot />
     </div>
   );

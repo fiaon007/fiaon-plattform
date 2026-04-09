@@ -55,12 +55,6 @@ function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: stri
 
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <div className={`uppercase tracking-[.1em] font-medium ${compact ? "text-[8px]" : "text-[9px]"} mb-1`} style={{ 
-              color: "rgba(255,255,255,.5)", 
-              textShadow: "0 1px 2px rgba(0,0,0,.15)"
-            }}>
-              Limit bis
-            </div>
             <div className={`${compact ? "text-xl" : "text-2xl"} font-bold tracking-tight`} style={{ 
               color: "rgba(255,255,255,.95)", 
               textShadow: "0 2px 8px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.2)",
@@ -74,19 +68,8 @@ function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: stri
         <div className="flex justify-between items-end">
           <div className="min-w-0 flex-1">
             <div className={`uppercase tracking-[.12em] font-medium ${compact ? "text-[7px]" : "text-[8px]"} mb-0.5`} style={{ color: "rgba(255,255,255,.4)" }}>
-              {displayName ? "Karteninhaber" : "FIAON Starter"}
+              FIAON
             </div>
-            {displayName && (
-              <div className="font-medium truncate" style={{ 
-                color: "rgba(255,255,255,.9)", 
-                fontSize: `${nameFontSize}px`, 
-                lineHeight: 1.2, 
-                whiteSpace: "nowrap", 
-                overflow: "hidden", 
-                textOverflow: "ellipsis",
-                textShadow: "0 1px 2px rgba(0,0,0,.2)"
-              }}>{displayName}</div>
-            )}
           </div>
         </div>
       </div>
@@ -257,7 +240,7 @@ export default function AntragPage() {
                         animation: "limitGlow 4s ease-in-out infinite"
                       }} />
                       <div className="relative z-10 text-center">
-                        <div className="text-[10px] font-semibold uppercase tracking-[.15em] text-[#2563eb] mb-1.5" style={{ textShadow: "0 1px 2px rgba(37,99,235,0.1)" }}>Kreditlimit</div>
+                        <div className="text-[10px] font-semibold uppercase tracking-[.15em] text-[#2563eb] mb-1.5" style={{ textShadow: "0 1px 2px rgba(37,99,235,0.1)" }}>Wunschlimit bis</div>
                         <div className="text-[22px] sm:text-[24px] font-bold tracking-tight whitespace-nowrap" style={{
                           background: "linear-gradient(135deg, #1e40af, #2563eb, #3b82f6)",
                           backgroundClip: "text",
@@ -265,7 +248,7 @@ export default function AntragPage() {
                           WebkitTextFillColor: "transparent",
                           textShadow: "0 2px 12px rgba(37,99,235,0.15)"
                         }}>
-                          bis {p.lim.toLocaleString("de-DE")} €
+                          {p.lim.toLocaleString("de-DE")} €
                         </div>
                       </div>
                     </div>

@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { db } from "../db";
-import { requireAdmin } from "../middleware/admin";
 import { logger } from "../logger";
 import postgres from "postgres";
 import * as schema from "@shared/schema";
@@ -8,7 +7,7 @@ import * as schema from "@shared/schema";
 const router = Router();
 
 // Get all database tables
-router.get("/database/tables", requireAdmin, async (req, res) => {
+router.get("/database/tables", async (req, res) => {
   try {
     const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
     
@@ -30,7 +29,7 @@ router.get("/database/tables", requireAdmin, async (req, res) => {
 });
 
 // Get table structure
-router.get("/database/tables/:tableName/structure", requireAdmin, async (req, res) => {
+router.get("/database/tables/:tableName/structure", async (req, res) => {
   try {
     const { tableName } = req.params;
     const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
@@ -53,7 +52,7 @@ router.get("/database/tables/:tableName/structure", requireAdmin, async (req, re
 });
 
 // Get table data with pagination
-router.get("/database/tables/:tableName/data", requireAdmin, async (req, res) => {
+router.get("/database/tables/:tableName/data", async (req, res) => {
   try {
     const { tableName } = req.params;
     const page = parseInt(req.query.page as string) || 1;
@@ -92,7 +91,7 @@ router.get("/database/tables/:tableName/data", requireAdmin, async (req, res) =>
 });
 
 // Get database statistics
-router.get("/database/stats", requireAdmin, async (req, res) => {
+router.get("/database/stats", async (req, res) => {
   try {
     const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
     

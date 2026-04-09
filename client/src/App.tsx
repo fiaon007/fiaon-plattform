@@ -6,6 +6,7 @@ import FiaonLanding from "@/pages/fiaon-landing";
 import BusinessPage from "@/pages/business";
 import PrivatkundenPage from "@/pages/privatkunden";
 import AntragPage from "@/pages/antrag";
+import BusinessAntragPage from "@/pages/business-antrag";
 import Terms from "@/pages/terms";
 import Privacy from "@/pages/privacy";
 import NotFound from "@/pages/not-found";
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/business" component={BusinessPage} />
       <Route path="/privatkunden" component={PrivatkundenPage} />
       <Route path="/antrag" component={AntragPage} />
+      <Route path="/business-antrag" component={BusinessAntragPage} />
       <Route path="/terms" component={Terms} />
       <Route path="/privacy" component={Privacy} />
       <Route component={NotFound} />

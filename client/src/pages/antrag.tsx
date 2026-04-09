@@ -214,7 +214,7 @@ export default function AntragPage() {
       <GlassNav activePage="privatkunden" />
 
       {/* ── Main Content ── */}
-      <div className="max-w-6xl mx-auto px-5 py-8 sm:py-12 relative z-10">
+      <div className="max-w-6xl mx-auto px-5 pt-24 sm:pt-28 pb-8 sm:pb-12 relative z-10">
         <Progress step={step} total={9} />
 
         {/* === STEP 0: Paketauswahl === */}

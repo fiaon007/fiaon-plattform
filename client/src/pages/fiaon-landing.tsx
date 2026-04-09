@@ -612,6 +612,99 @@ function Faq() {
 }
 
 /* ────────────────────────────────
+   PROBLEMSTELLUNG
+   ──────────────────────────────── */
+function ProblemSection() {
+  const obs = useReveal(0.1);
+  
+  const painCards = [
+    {
+      icon: "✕ ✕ ✕ ✕",
+      title: "Ihr Antrag wurde abgelehnt.",
+      description: "Millionen Deutsche werden jedes Jahr von ihrer Hausbank abgelehnt. Nicht weil sie kein Geld haben — sondern weil sie keine Strategie haben."
+    },
+    {
+      icon: "?",
+      title: "Welche Karte ist die richtige?",
+      description: "Hunderte Angebote. Unverständliche Konditionen. Vergleichsportale, die an deinem Klick verdienen — nicht an deinem Erfolg."
+    },
+    {
+      icon: "↓",
+      title: "Mein Limit ist ein Witz.",
+      description: "500 € Limit bei 3.000 € Nettoeinkommen. Kommt dir bekannt vor? Das Problem ist nicht dein Gehalt. Es ist dein Scoring-Profil."
+    }
+  ];
+
+  return (
+    <section ref={obs.ref} className="py-20 sm:py-28 relative overflow-hidden" style={{ background: "linear-gradient(180deg, #0a1628 0%, #1a3560 50%, #0a1628 100%)" }}>
+      {/* Background effects */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-[600px] h-[400px] opacity-20" style={{ background: "radial-gradient(ellipse, rgba(37,99,235,0.15), transparent 70%)", filter: "blur(80px)" }} />
+        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[350px] opacity-15" style={{ background: "radial-gradient(ellipse, rgba(212,175,55,0.1), transparent 70%)", filter: "blur(60px)" }} />
+      </div>
+
+      <div className={`max-w-[1120px] mx-auto px-6 relative z-10 transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          {/* Left side - Headline */}
+          <div className="text-white">
+            <div className="mb-6">
+              <span className="text-[13px] font-medium text-blue-400 tracking-wide uppercase">PROBLEMSTELLUNG</span>
+            </div>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold leading-[1.15] tracking-tight mb-6">
+              Du suchst keine Kreditkarte.<br/>
+              Du suchst jemanden, der dir zeigt,<br/>
+              wie du sie bekommst.
+            </h2>
+          </div>
+
+          {/* Right side - Pain Cards */}
+          <div className="space-y-4">
+            {painCards.map((card, index) => (
+              <div 
+                key={index}
+                className="fiaon-glass-panel rounded-2xl p-6 border border-white/10 hover:border-white/20 transition-all duration-300"
+                style={{
+                  animationDelay: `${index * 150}ms`,
+                  animation: obs.v ? "fadeInUp 0.6s ease-out forwards" : "none",
+                  opacity: obs.v ? 1 : 0,
+                  transform: obs.v ? "translateY(0)" : "translateY(20px)"
+                }}
+              >
+                <div className="flex gap-4">
+                  {/* Icon */}
+                  <div className="shrink-0 w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-2xl font-bold text-white/80">
+                    {card.icon}
+                  </div>
+                  
+                  {/* Content */}
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-white mb-2">{card.title}</h3>
+                    <p className="text-[14px] text-gray-300 leading-relaxed">{card.description}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
+    </section>
+  );
+}
+
+/* ────────────────────────────────
    CTA
    ──────────────────────────────── */
 function Cta() {
@@ -967,6 +1060,7 @@ export default function FiaonLanding() {
       <HowItWorks />
       <Reviews />
       <Faq />
+      <ProblemSection />
       <Cta />
       <ProcessSection />
       <Foot />

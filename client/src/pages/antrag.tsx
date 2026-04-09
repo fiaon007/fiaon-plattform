@@ -371,7 +371,7 @@ export default function AntragPage() {
         {/* === EDGE-TO-EDGE DASHBOARD MOCKUP SECTION === */}
         {step === 0 && (
           <div className="mt-20 animate-[fadeInUp_.8s_ease]">
-            <div className="relative w-full overflow-hidden" style={{ background: "linear-gradient(135deg, #0A0F1C 0%, #1a1a2e 50%, #0f0f23 100%)" }}>
+            <div className="relative w-full overflow-hidden" style={{ background: "#ffffff" }}>
               {/* Background Effects */}
               <div className="absolute inset-0 overflow-hidden">
                 <div className="absolute top-0 right-0 w-[800px] h-[600px] opacity-20" style={{
@@ -390,7 +390,7 @@ export default function AntragPage() {
                   <div className="lg:col-span-1">
                     {/* Section Badge */}
                     <div className="mb-8">
-                      <span className="inline-block px-5 py-2.5 bg-white/10 backdrop-blur-xl border border-blue-400/30 text-blue-300 text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-blue-500/20">
+                      <span className="inline-block px-5 py-2.5 bg-blue-50 backdrop-blur-xl border border-blue-200 text-blue-600 text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-blue-500/10">
                         DIE SOFTWARE
                       </span>
                     </div>
@@ -402,7 +402,7 @@ export default function AntragPage() {
                     </h2>
 
                     {/* Text */}
-                    <p className="text-lg text-gray-400 leading-relaxed">
+                    <p className="text-lg text-gray-600 leading-relaxed">
                       Sobald du dein Setup wählst, öffnet sich das FIAON-Dashboard. Keine verstaubten Ratgeber, sondern interaktive Daten. Du siehst deine persönliche Limit-Roadmap, simulierst Entscheidungen, bevor du sie triffst, und trackst deinen monatlichen Fortschritt. Die KI liefert die Insights – du triffst die Entscheidungen.
                     </p>
                   </div>

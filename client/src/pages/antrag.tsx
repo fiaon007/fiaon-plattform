@@ -559,24 +559,10 @@ export default function AntragPage() {
                           </div>
                         )}
                         
-                        {d.income > 0 && (
-                          <div className="flex justify-between items-center py-1.5">
-                            <span className="text-[11px] text-gray-400">Einkommen</span>
-                            <span className="text-[12px] font-semibold text-gray-900">{eur(d.income)}/Mt.</span>
-                          </div>
-                        )}
-                        
                         {d.housing && (
                           <div className="flex justify-between items-center py-1.5">
                             <span className="text-[11px] text-gray-400">Wohnsituation</span>
                             <span className="text-[12px] font-semibold text-gray-900">{d.housing}</span>
-                          </div>
-                        )}
-                        
-                        {d.wantedLimit > 0 && (
-                          <div className="flex justify-between items-center py-1.5">
-                            <span className="text-[11px] text-gray-400">Wunschlimit</span>
-                            <span className="text-[12px] font-semibold text-gray-900">{eur(d.wantedLimit)}</span>
                           </div>
                         )}
                       </div>

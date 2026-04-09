@@ -41,7 +41,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
           visible ? "translate-y-0" : "-translate-y-full"
         }`}
       >
-        <div className="max-w-[900px] mx-auto px-4 sm:px-6 py-3">
+        <div className="max-w-[950px] mx-auto px-4 sm:px-6 py-3">
           {/* Glass pill container */}
           <div
             className={`fiaon-glass-nav rounded-full transition-all duration-500 ${

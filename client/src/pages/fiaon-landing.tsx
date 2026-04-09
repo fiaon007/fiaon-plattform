@@ -472,182 +472,139 @@ function ComparisonSection() {
       fee: "7,99", 
       lim: "500", 
       recommended: false,
-      color: "from-blue-400 to-blue-600",
-      features: [
-        { name: "Kreditlimit", value: "bis 500 €" },
-        { name: "Gebühr", value: "7,99 €/Mt." },
-        { name: "Support", value: "E-Mail" },
-        { name: "NFC", value: true },
-        { name: "Cashback", value: false },
-        { name: "Versicherung", value: false },
-        { name: "Lounge", value: false },
-        { name: "Concierge", value: false },
-      ]
+      features: ["E-Mail Support", "NFC kontaktlos", "Online-Banking", "Limit bis 500€"] 
     },
     { 
       name: "FIAON Pro", 
       fee: "59,99", 
       lim: "5.000", 
       recommended: true,
-      color: "from-[#2563eb] to-[#3b82f6]",
-      features: [
-        { name: "Kreditlimit", value: "bis 5.000 €" },
-        { name: "Gebühr", value: "59,99 €/Mt." },
-        { name: "Support", value: "Priority" },
-        { name: "NFC", value: true },
-        { name: "Cashback", value: true },
-        { name: "Versicherung", value: false },
-        { name: "Lounge", value: false },
-        { name: "Concierge", value: false },
-      ]
+      features: ["Priority Support", "Cashback-Programm", "NFC kontaktlos", "Limit bis 5.000€"] 
     },
     { 
       name: "FIAON Ultra", 
       fee: "79,99", 
       lim: "15.000", 
       recommended: false,
-      color: "from-[#1e40af] to-[#2563eb]",
-      features: [
-        { name: "Kreditlimit", value: "bis 15.000 €" },
-        { name: "Gebühr", value: "79,99 €/Mt." },
-        { name: "Support", value: "Priority" },
-        { name: "NFC", value: true },
-        { name: "Cashback", value: false },
-        { name: "Versicherung", value: true },
-        { name: "Lounge", value: true },
-        { name: "Concierge", value: false },
-      ]
+      features: ["Reise-Versicherung", "Lounge-Zugang", "Priority Support", "Limit bis 15.000€"] 
     },
     { 
       name: "FIAON High End", 
       fee: "99,99", 
       lim: "25.000", 
       recommended: false,
-      color: "from-gray-700 to-gray-900",
-      features: [
-        { name: "Kreditlimit", value: "bis 25.000 €" },
-        { name: "Gebühr", value: "99,99 €/Mt." },
-        { name: "Support", value: "24/7 VIP" },
-        { name: "NFC", value: true },
-        { name: "Cashback", value: false },
-        { name: "Versicherung", value: true },
-        { name: "Lounge", value: true },
-        { name: "Concierge", value: true },
-      ]
+      features: ["24/7 VIP Support", "Concierge-Service", "Premium Lounge", "Limit bis 25.000€"] 
     },
   ];
 
   return (
-    <section className="py-24 sm:py-32 relative overflow-hidden" ref={obs.ref}>
-      {/* Animated background */}
+    <section className="py-16 sm:py-20 relative overflow-hidden" ref={obs.ref}>
+      {/* Subtle background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-[800px] h-[800px] opacity-10" style={{
-          background: "radial-gradient(circle, rgba(37,99,235,0.15), transparent 70%)",
-          filter: "blur(100px)",
-          animation: "limitGlow 15s ease-in-out infinite"
-        }} />
-        <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] opacity-10" style={{
-          background: "radial-gradient(circle, rgba(147,197,253,0.15), transparent 70%)",
-          filter: "blur(80px)",
-          animation: "limitGlow 12s ease-in-out infinite reverse"
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] opacity-8" style={{
+          background: "radial-gradient(ellipse at center, rgba(37,99,235,0.08), transparent 70%)",
+          filter: "blur(60px)",
+          animation: "limitGlow 12s ease-in-out infinite"
         }} />
       </div>
 
-      <div className="relative z-10 max-w-[1400px] mx-auto px-6">
-        <div className="text-center mb-20">
-          <p className="text-[12px] font-semibold text-[#2563eb] tracking-[.2em] uppercase mb-4">Produktvergleich</p>
-          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight mb-6 fiaon-gradient-text-animated">
+      <div className="relative z-10 max-w-[1200px] mx-auto px-6">
+        <div className="text-center mb-12">
+          <p className="text-[11px] font-semibold text-[#2563eb] tracking-[.2em] uppercase mb-3">Produktvergleich</p>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight mb-4 fiaon-gradient-text-animated">
             Finde das perfekte Paket für dich
           </h2>
-          <p className="text-[17px] sm:text-[18px] text-gray-500 leading-relaxed max-w-2xl mx-auto">
+          <p className="text-[15px] sm:text-[16px] text-gray-500 leading-relaxed max-w-xl mx-auto">
             Vergleiche alle Funktionen und wähle das Paket, das am besten zu deinem Lebensstil passt.
           </p>
         </div>
 
-        {/* Product Cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {products.map((p, i) => (
-            <div 
-              key={i} 
-              className={`relative ${obs.v ? "animate-[fadeInUp_.8s_ease]" : "opacity-0"}`}
-              style={{ animationDelay: `${i * 0.15}s` }}
-            >
-              <div className={`relative p-6 rounded-3xl fiaon-glass-panel hover:scale-[1.03] hover:shadow-2xl transition-all duration-500 group ${p.recommended ? "ring-2 ring-[#2563eb]/30" : ""}`}>
-                {/* Animated gradient overlay */}
-                <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
-                  <div className="absolute inset-0 opacity-20" style={{
-                    background: `linear-gradient(135deg, rgba(37,99,235,0.15), rgba(147,197,253,0.25), rgba(37,99,235,0.12), rgba(147,197,253,0.18))`,
-                    backgroundSize: "300% 300%",
-                    animation: "limitGlow 8s ease-in-out infinite"
-                  }} />
-                  <div className="absolute inset-0 opacity-10" style={{
-                    background: "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.9), transparent 70%)"
-                  }} />
-                </div>
-
-                {/* Glow effect on hover */}
-                <div className="absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" style={{
-                  background: "radial-gradient(circle at center, rgba(37,99,235,0.1), transparent 70%)"
-                }} />
-
-                <div className="relative z-10">
-                  {/* Recommended Badge */}
-                  {p.recommended && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-white bg-gradient-to-r from-[#2563eb] to-[#3b82f6] px-4 py-1.5 rounded-full shadow-lg">
-                        Empfohlen
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Product Name */}
-                  <h3 className={`text-[18px] font-bold mb-2 tracking-tight ${p.recommended ? "fiaon-gradient-text-animated" : "text-gray-900"}`}>
-                    {p.name}
-                  </h3>
-
-                  {/* Limit */}
-                  <div className="mb-4">
-                    <p className="text-[11px] text-gray-400 uppercase tracking-[.1em] mb-1">Kreditlimit</p>
-                    <p className="text-[20px] font-bold fiaon-gradient-text-animated">bis {p.lim} €</p>
-                  </div>
-
-                  {/* Fee */}
-                  <div className="mb-6">
-                    <p className="text-[11px] text-gray-400 uppercase tracking-[.1em] mb-1">Gebühr</p>
-                    <p className="text-[18px] font-semibold text-gray-900">{p.fee} €/Mt.</p>
-                  </div>
-
-                  {/* Features */}
-                  <div className="space-y-3 mb-6">
-                    {p.features.map((f, j) => (
-                      <div key={j} className="flex items-center justify-between py-2 border-b border-white/20 last:border-0">
-                        <span className="text-[12px] text-gray-600">{f.name}</span>
-                        {typeof f.value === "boolean" ? (
-                          <span className={`text-[14px] ${f.value ? "text-[#2563eb]" : "text-gray-300"}`}>
-                            {f.value ? "✓" : "−"}
-                          </span>
-                        ) : (
-                          <span className="text-[12px] font-semibold text-gray-900">{f.value}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* CTA Button */}
-                  <a
-                    href="/antrag"
-                    className={`block w-full py-3 rounded-xl text-[13px] font-semibold transition-all duration-300 text-center ${
-                      p.recommended
-                        ? "bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white shadow-lg hover:shadow-xl hover:scale-[1.02]"
-                        : "fiaon-glass-panel text-gray-700 hover:bg-white/60"
-                    }`}
-                  >
-                    {p.name} wählen
-                  </a>
-                </div>
-              </div>
+        {/* Compact comparison table */}
+        <div className={`relative ${obs.v ? "animate-[fadeInUp_.6s_ease]" : "opacity-0"}`}>
+          <div className="relative rounded-2xl fiaon-glass-panel overflow-hidden">
+            {/* Subtle gradient overlay */}
+            <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+              <div className="absolute inset-0 opacity-10" style={{
+                background: "linear-gradient(135deg, rgba(37,99,235,0.08), rgba(147,197,253,0.12), rgba(37,99,235,0.06))",
+                backgroundSize: "200% 200%",
+                animation: "limitGlow 10s ease-in-out infinite"
+              }} />
             </div>
-          ))}
+
+            <div className="relative z-10 overflow-x-auto">
+              <table className="w-full min-w-[700px]">
+                <thead>
+                  <tr className="border-b border-white/20">
+                    <th className="text-left py-4 px-5 text-[12px] font-semibold text-gray-500 uppercase tracking-[.12em]">Paket</th>
+                    {products.map((p, i) => (
+                      <th key={i} className={`py-4 px-4 text-center ${p.recommended ? "relative" : ""}`}>
+                        {p.recommended && (
+                          <div className="absolute -top-2 left-1/2 -translate-x-1/2">
+                            <span className="text-[9px] font-semibold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-3 py-0.5 rounded-full border border-[#2563eb]/20">
+                              Empfohlen
+                            </span>
+                          </div>
+                        )}
+                        <div className={`text-[15px] font-bold ${p.recommended ? "fiaon-gradient-text-animated" : "text-gray-900"}`}>
+                          {p.name}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-white/10">
+                    <td className="py-3 px-5 text-[13px] text-gray-600">Limit</td>
+                    {products.map((p, i) => (
+                      <td key={i} className="py-3 px-4 text-center">
+                        <span className="text-[14px] font-semibold text-gray-900">bis {p.lim} €</span>
+                      </td>
+                    ))}
+                  </tr>
+                  <tr className="border-b border-white/10">
+                    <td className="py-3 px-5 text-[13px] text-gray-600">Gebühr/Mt.</td>
+                    {products.map((p, i) => (
+                      <td key={i} className="py-3 px-4 text-center">
+                        <span className="text-[14px] font-semibold text-gray-900">{p.fee} €</span>
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="py-4 px-5 text-[13px] text-gray-600">Features</td>
+                    {products.map((p, i) => (
+                      <td key={i} className={`py-4 px-4 text-center ${p.recommended ? "bg-blue-50/30" : ""}`}>
+                        <ul className="space-y-1.5 text-left">
+                          {p.features.map((f, j) => (
+                            <li key={j} className="text-[12px] text-gray-600 flex items-center gap-2">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>
+                              {f}
+                            </li>
+                          ))}
+                        </ul>
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* CTA Buttons */}
+            <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-3 p-4 border-t border-white/20">
+              {products.map((p, i) => (
+                <a
+                  key={i}
+                  href="/antrag"
+                  className={`py-2.5 rounded-lg text-[12px] font-semibold transition-all duration-300 text-center ${
+                    p.recommended
+                      ? "bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white shadow-md hover:shadow-lg hover:scale-[1.02]"
+                      : "fiaon-glass-panel text-gray-700 hover:bg-white/50"
+                  }`}
+                >
+                  {p.name} wählen
+                </a>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </section>

@@ -680,14 +680,14 @@ function ProblemSection() {
                 
                 {/* Content */}
                 <div className="relative z-10">
-                  <h3 className="text-2xl font-bold text-white mb-3 tracking-tight" 
+                  <h3 className="text-2xl font-bold mb-3 tracking-tight fiaon-gradient-text-animated" 
                       style={{
                         animation: obs.v ? `slideIn 0.8s ease-out ${index * 0.2 + 0.3}s forwards` : "none",
                         opacity: 0
                       }}>
                     {card.title}
                   </h3>
-                  <p className="text-[15px] text-gray-300 leading-relaxed"
+                  <p className="text-[15px] text-gray-200 leading-relaxed"
                      style={{
                        animation: obs.v ? `fadeIn 0.8s ease-out ${index * 0.2 + 0.5}s forwards` : "none",
                        opacity: 0

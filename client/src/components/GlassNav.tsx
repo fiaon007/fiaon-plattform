@@ -20,7 +20,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
 
   const pages = [
     { label: "Startseite", href: "/", key: "startseite" },
-    { label: "Was ist FIAON", href: "/was-ist-fiaon", key: "was-ist-fiaon" },
+    { label: "Was ist FIAON", href: "/was-ist-fiaon", key: "was-ist-fiaon", hasGradient: true },
     { label: "Privatkunden", href: "/privatkunden", key: "privatkunden" },
     { label: "Business", href: "/business", key: "business" },
   ];
@@ -61,7 +61,13 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                         : "text-gray-500 hover:text-gray-900"
                     }`}
                   >
-                    {p.label}
+                    {p.hasGradient ? (
+                      <>
+                        Was ist <span className="fiaon-gradient-text-animated">FIAON</span>
+                      </>
+                    ) : (
+                      p.label
+                    )}
                     {activePage === p.key && (
                       <span
                         className="absolute -bottom-0.5 left-0 right-0 h-[1.5px] rounded-full bg-[#2563eb]"
@@ -136,7 +142,13 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                         : "text-gray-500"
                     }`}
                   >
-                    {p.label}
+                    {p.hasGradient ? (
+                      <>
+                        Was ist <span className="fiaon-gradient-text-animated">FIAON</span>
+                      </>
+                    ) : (
+                      p.label
+                    )}
                     {activePage === p.key && (
                       <span
                         className="w-1.5 h-1.5 rounded-full bg-[#2563eb]"

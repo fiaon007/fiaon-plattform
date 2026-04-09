@@ -3,6 +3,7 @@ import { db } from "../db";
 import { fiaonApplications, fiaonClickEvents } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import PDFDocument from "pdfkit";
+import postgres from "postgres";
 
 const router = Router();
 
@@ -191,6 +192,60 @@ router.get("/contract/:ref", async (req, res) => {
   } catch (err) {
     console.error('[FIAON-CONTRACT-PDF]', err);
     res.status(500).json({ error: 'PDF-Generierung fehlgeschlagen' });
+  }
+});
+
+// Run migration endpoint (temporary for setup)
+router.post("/run-migration", async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) {
+      return res.status(500).json({ ok: false, error: "DATABASE_URL not set" });
+    }
+    
+    const sql = postgres(process.env.DATABASE_URL, { ssl: 'require' });
+    
+    // Check if columns already exist
+    const columns = await sql`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'fiaon_applications' 
+      AND table_schema = 'public'
+      AND column_name = 'company_name'
+    `;
+    
+    if (columns.length > 0) {
+      await sql.end();
+      return res.json({ ok: true, message: "Migration already run - business fields exist" });
+    }
+    
+    // Run migration
+    await sql`
+      ALTER TABLE fiaon_applications 
+      ADD COLUMN IF NOT EXISTS company_name VARCHAR,
+      ADD COLUMN IF NOT EXISTS legal_form VARCHAR,
+      ADD COLUMN IF NOT EXISTS tax_id VARCHAR,
+      ADD COLUMN IF NOT EXISTS established_year VARCHAR,
+      ADD COLUMN IF NOT EXISTS contact_name VARCHAR,
+      ADD COLUMN IF NOT EXISTS contact_email VARCHAR,
+      ADD COLUMN IF NOT EXISTS contact_phone VARCHAR,
+      ADD COLUMN IF NOT EXISTS business_type VARCHAR,
+      ADD COLUMN IF NOT EXISTS industry VARCHAR,
+      ADD COLUMN IF NOT EXISTS annual_revenue INTEGER,
+      ADD COLUMN IF NOT EXISTS employees INTEGER,
+      ADD COLUMN IF NOT EXISTS monthly_expenses INTEGER,
+      ADD COLUMN IF NOT EXISTS billing_email VARCHAR;
+    `;
+    
+    // Create index
+    await sql`
+      CREATE INDEX IF NOT EXISTS fiaon_app_type_idx ON fiaon_applications(type);
+    `;
+    
+    await sql.end();
+    res.json({ ok: true, message: "Migration completed successfully" });
+  } catch (err) {
+    console.error("[FIAON-MIGRATION]", err);
+    res.status(500).json({ ok: false, error: String(err) });
   }
 });
 

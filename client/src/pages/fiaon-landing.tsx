@@ -793,7 +793,6 @@ export default function FiaonLanding() {
       <WhySection />
       <Packages />
       <ComparisonSection />
-      <ApplicationProcess />
       <HowItWorks />
       <Reviews />
       <Faq />

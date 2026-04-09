@@ -254,12 +254,40 @@ export default function WasIstFiaonPage() {
                      opacity: architectureObs.v ? 1 : 0,
                      transform: architectureObs.v ? "translateY(0)" : "translateY(20px)"
                    }}>
-                {/* Abstract 3D Icon */}
+                {/* Premium Data Visualization */}
                 <div className="mb-6 relative">
-                  <div className="w-full aspect-square rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-600/20 flex items-center justify-center relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent" />
-                    <div className="relative z-10 text-6xl">
-                      🧠
+                  <div className="w-full aspect-square rounded-2xl bg-gradient-to-br from-blue-500/10 to-purple-600/10 flex items-center justify-center relative overflow-hidden p-6">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-purple-600/5" />
+                    {/* Network visualization */}
+                    <div className="relative z-10 w-full h-full">
+                      {/* Center node */}
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 shadow-2xl shadow-blue-500/30 flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm" />
+                      </div>
+                      {/* Orbiting nodes */}
+                      <div className="absolute top-1/4 left-1/4 w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 shadow-lg shadow-blue-500/20" style={{ animation: "orbit 4s linear infinite" }} />
+                      <div className="absolute bottom-1/4 right-1/4 w-6 h-6 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 shadow-lg shadow-purple-500/20" style={{ animation: "orbit 5s linear infinite reverse" }} />
+                      <div className="absolute top-1/3 right-1/3 w-5 h-5 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 shadow-lg shadow-indigo-500/20" style={{ animation: "orbit 6s linear infinite" }} />
+                      {/* Connection lines */}
+                      <svg className="absolute inset-0 w-full h-full opacity-30">
+                        <line x1="50%" y1="50%" x2="25%" y2="25%" stroke="url(#gradient1)" strokeWidth="2" />
+                        <line x1="50%" y1="50%" x2="75%" y2="75%" stroke="url(#gradient2)" strokeWidth="2" />
+                        <line x1="50%" y1="50%" x2="66%" y2="33%" stroke="url(#gradient3)" strokeWidth="2" />
+                        <defs>
+                          <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#3b82f6" />
+                            <stop offset="100%" stopColor="#8b5cf6" />
+                          </linearGradient>
+                          <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#8b5cf6" />
+                            <stop offset="100%" stopColor="#3b82f6" />
+                          </linearGradient>
+                          <linearGradient id="gradient3" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#6366f1" />
+                            <stop offset="100%" stopColor="#3b82f6" />
+                          </linearGradient>
+                        </defs>
+                      </svg>
                     </div>
                   </div>
                 </div>
@@ -278,12 +306,29 @@ export default function WasIstFiaonPage() {
                      opacity: architectureObs.v ? 1 : 0,
                      transform: architectureObs.v ? "translateY(0)" : "translateY(20px)"
                    }}>
-                {/* Abstract 3D Icon */}
+                {/* Premium Growth Chart */}
                 <div className="mb-6 relative">
-                  <div className="w-full aspect-[2/1] rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-600/20 flex items-center justify-center relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent" />
-                    <div className="relative z-10 text-5xl">
-                      💪
+                  <div className="w-full aspect-[2/1] rounded-2xl bg-gradient-to-br from-purple-500/10 to-pink-600/10 flex items-center justify-center relative overflow-hidden p-6">
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-pink-600/5" />
+                    <div className="relative z-10 w-full h-full">
+                      {/* Chart bars */}
+                      <div className="flex items-end justify-between h-full gap-3 px-2">
+                        <div className="flex-1 bg-gradient-to-t from-purple-500/30 to-purple-400/60 rounded-t-lg" style={{ height: "40%" }} />
+                        <div className="flex-1 bg-gradient-to-t from-purple-500/40 to-purple-400/70 rounded-t-lg" style={{ height: "55%" }} />
+                        <div className="flex-1 bg-gradient-to-t from-purple-500/50 to-purple-400/80 rounded-t-lg" style={{ height: "70%" }} />
+                        <div className="flex-1 bg-gradient-to-t from-purple-500/60 to-pink-500/90 rounded-t-lg" style={{ height: "85%" }} />
+                        <div className="flex-1 bg-gradient-to-t from-pink-500/70 to-pink-400/95 rounded-t-lg" style={{ height: "100%" }} />
+                      </div>
+                      {/* Growth line */}
+                      <svg className="absolute inset-0 w-full h-full">
+                        <path d="M 10 80 Q 30 60 50 50 T 90 30 T 130 20" stroke="url(#growthGradient)" strokeWidth="3" fill="none" strokeLinecap="round" />
+                        <defs>
+                          <linearGradient id="growthGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="#8b5cf6" />
+                            <stop offset="100%" stopColor="#ec4899" />
+                          </linearGradient>
+                        </defs>
+                      </svg>
                     </div>
                   </div>
                 </div>
@@ -302,12 +347,31 @@ export default function WasIstFiaonPage() {
                      opacity: architectureObs.v ? 1 : 0,
                      transform: architectureObs.v ? "translateY(0)" : "translateY(20px)"
                    }}>
-                {/* Abstract 3D Icon */}
+                {/* Premium Dashboard UI */}
                 <div className="mb-6 relative">
-                  <div className="w-full aspect-[2/1] rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-600/20 flex items-center justify-center relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-transparent" />
-                    <div className="relative z-10 text-5xl">
-                      🎛️
+                  <div className="w-full aspect-[2/1] rounded-2xl bg-gradient-to-br from-amber-500/10 to-orange-600/10 flex items-center justify-center relative overflow-hidden p-6">
+                    <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-orange-600/5" />
+                    <div className="relative z-10 w-full h-full">
+                      {/* Dashboard mockup */}
+                      <div className="grid grid-cols-2 gap-3 h-full">
+                        {/* Metric card 1 */}
+                        <div className="bg-white/40 rounded-lg p-3 backdrop-blur-sm border border-white/50">
+                          <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Score</div>
+                          <div className="text-lg font-bold text-gray-900">78%</div>
+                        </div>
+                        {/* Metric card 2 */}
+                        <div className="bg-white/40 rounded-lg p-3 backdrop-blur-sm border border-white/50">
+                          <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Limit</div>
+                          <div className="text-lg font-bold text-gray-900">12.5k</div>
+                        </div>
+                        {/* Progress bar */}
+                        <div className="col-span-2 bg-white/40 rounded-lg p-3 backdrop-blur-sm border border-white/50">
+                          <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Fortschritt</div>
+                          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-amber-500 to-orange-600 rounded-full" style={{ width: "75%" }} />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -359,6 +423,15 @@ export default function WasIstFiaonPage() {
           to {
             opacity: 1;
             transform: translateY(0);
+          }
+        }
+        
+        @keyframes orbit {
+          from {
+            transform: rotate(0deg) translateX(30px) rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg) translateX(30px) rotate(-360deg);
           }
         }
       `}</style>

@@ -140,6 +140,89 @@ export default function WasIstFiaonPage() {
             </div>
           </div>
         </section>
+
+        {/* Paradigmenwechsel Section */}
+        <section ref={useReveal(0.1).ref} className="py-20 sm:py-28 relative overflow-hidden" style={{ background: "linear-gradient(180deg, #0a1628 0%, #1a3560 50%, #0a1628 100%)" }}>
+          {/* Background effects */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute top-1/4 left-1/4 w-[800px] h-[500px] opacity-20" style={{ background: "radial-gradient(ellipse, rgba(37,99,235,0.15), transparent 70%)", filter: "blur(100px)" }} />
+            <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[400px] opacity-15" style={{ background: "radial-gradient(ellipse, rgba(212,175,55,0.1), transparent 70%)", filter: "blur(80px)" }} />
+          </div>
+
+          <div className={`max-w-[1120px] mx-auto px-6 relative z-10 transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+            {/* Section Badge */}
+            <div className="mb-12">
+              <span className="inline-block px-5 py-2.5 bg-white/10 backdrop-blur-xl border border-white/20 text-blue-400 text-[13px] font-semibold tracking-widest uppercase rounded-full">
+                DAS PROBLEM MIT DEM MARKT
+              </span>
+            </div>
+
+            {/* Split Layout */}
+            <div className="grid lg:grid-cols-2 gap-16 items-start mb-12">
+              {/* Left side - Massive Headline */}
+              <div className="text-white">
+                <h2 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1] fiaon-gradient-text-animated -ml-4">
+                  Das System war nie<br/>
+                  für dich ausgelegt.<br/>
+                  Wir haben ein neues<br/>
+                  gebaut.
+                </h2>
+              </div>
+
+              {/* Right side - Text Block */}
+              <div className="text-gray-300 text-lg leading-relaxed space-y-6">
+                <p>
+                  Banken verdienen an deinen Zinsen, nicht an deinem Fortschritt. Vergleichsportale verdienen an deinem Klick, egal ob die Karte wirklich zu dir passt oder nicht. Du bist in der Finanzindustrie traditionell das Produkt.
+                </p>
+                <p>
+                  Bei FIAON drehen wir den Spieß um. Du bezahlst unsere Software, damit unsere Software ausschließlich für dich arbeitet. Kein Algorithmus, der von Banken bezahlt wird. Keine versteckten Agenden.
+                </p>
+              </div>
+            </div>
+
+            {/* Checkmarks */}
+            <div className="grid md:grid-cols-3 gap-8 mt-16">
+              <div className="flex items-center gap-3" style={{
+                animation: obs.v ? "fadeInUp 0.6s ease-out forwards 0.3s" : "none",
+                opacity: obs.v ? 1 : 0,
+                transform: obs.v ? "translateY(0)" : "translateY(20px)"
+              }}>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <span className="text-white font-medium">100 % unabhängig von Banken</span>
+              </div>
+
+              <div className="flex items-center gap-3" style={{
+                animation: obs.v ? "fadeInUp 0.6s ease-out forwards 0.5s" : "none",
+                opacity: obs.v ? 1 : 0,
+                transform: obs.v ? "translateY(0)" : "translateY(20px)"
+              }}>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <span className="text-white font-medium">Keine Affiliate-Provisionen</span>
+              </div>
+
+              <div className="flex items-center gap-3" style={{
+                animation: obs.v ? "fadeInUp 0.6s ease-out forwards 0.7s" : "none",
+                opacity: obs.v ? 1 : 0,
+                transform: obs.v ? "translateY(0)" : "translateY(20px)"
+              }}>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <span className="text-white font-medium">Fokus auf deinen Score, nicht auf Sales</span>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
       <style>{`

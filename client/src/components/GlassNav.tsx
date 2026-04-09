@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 
 interface GlassNavProps {
-  activePage?: "startseite" | "privatkunden" | "business";
+  activePage?: "startseite" | "privatkunden" | "business" | "was-ist-fiaon";
 }
 
 export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
@@ -20,6 +20,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
 
   const pages = [
     { label: "Startseite", href: "/", key: "startseite" },
+    { label: "Was ist FIAON", href: "/was-ist-fiaon", key: "was-ist-fiaon" },
     { label: "Privatkunden", href: "/privatkunden", key: "privatkunden" },
     { label: "Business", href: "/business", key: "business" },
   ];

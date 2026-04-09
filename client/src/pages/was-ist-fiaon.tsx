@@ -28,7 +28,7 @@ export default function WasIstFiaonPage() {
         }} />
       </div>
 
-      <GlassNav />
+      <GlassNav activePage="was-ist-fiaon" />
       
       <div className="relative z-10">
         {/* Hero Section */}

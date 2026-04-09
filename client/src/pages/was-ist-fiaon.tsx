@@ -36,7 +36,7 @@ export default function WasIstFiaonPage() {
       
       <div className="relative z-10">
         {/* Hero Section */}
-        <section ref={heroObs.ref} className="min-h-screen flex flex-col items-center justify-center px-6 py-20">
+        <section ref={heroObs.ref} className="min-h-screen flex flex-col items-center justify-center px-6 pt-28 pb-20">
           {/* Headline */}
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-center tracking-tight mb-8 max-w-5xl leading-[1.2] fiaon-gradient-text-animated">
             Die erste KI-Plattform,<br/>
@@ -45,7 +45,7 @@ export default function WasIstFiaonPage() {
           </h1>
 
           {/* Subline */}
-          <p className="text-base sm:text-lg lg:text-xl text-gray-600 text-center max-w-3xl leading-relaxed mb-12">
+          <p className="text-sm sm:text-base lg:text-lg text-gray-600 text-center max-w-3xl leading-relaxed mb-12">
             Du bist es gewohnt, dass Finanz-Tools kostenlos sind, weil sie dich als Lead an Banken verkaufen. FIAON bricht dieses System. Wir sind eine 100 % unabhängige SaaS-Plattform um DIR zu helfen. Keine Affiliate-Links. Keine Provisionen. Nur Technologie, Insider-Strategien und dein direkter Weg zum Wunschlimit.
           </p>
 

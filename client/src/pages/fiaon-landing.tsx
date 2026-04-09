@@ -462,60 +462,95 @@ function Cta() {
 }
 
 /* ────────────────────────────────
-   3-STEP PROCESS SECTION
+   PREMIUM PROCESS SECTION
    ──────────────────────────────── */
 function ProcessSection() {
   const obs = useReveal(0.1);
   const steps = [
-    { n: "01", t: "Antrag starten", d: "Beantworte ein paar einfache Fragen. Dauert unter 2 Minuten." },
-    { n: "02", t: "Angebot erhalten", d: "Wir prüfen dein Profil und empfehlen die passende Kreditkarte." },
-    { n: "03", t: "Karte beantragen", d: "Zufrieden? Wir leiten dich direkt zum Anbieter weiter." },
+    { n: "01", t: "Antrag starten", d: "Beantworte ein paar einfache Fragen. Dauert unter 2 Minuten.", icon: "→" },
+    { n: "02", t: "Angebot erhalten", d: "Wir prüfen dein Profil und empfehlen die passende Kreditkarte.", icon: "✓" },
+    { n: "03", t: "Karte beantragen", d: "Zufrieden? Wir leiten dich direkt zum Anbieter weiter.", icon: "→" },
   ];
 
   return (
-    <section className="py-20 sm:py-28 relative overflow-hidden" ref={obs.ref}>
-      <div className="max-w-[1280px] mx-auto px-6">
-        <div className="text-center mb-16">
+    <section className="py-24 sm:py-32 relative overflow-hidden" ref={obs.ref}>
+      {/* Animated background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[600px] opacity-20" style={{
+          background: "radial-gradient(ellipse at center, rgba(37,99,235,0.15), transparent 70%)",
+          filter: "blur(100px)",
+          animation: "limitGlow 10s ease-in-out infinite"
+        }} />
+      </div>
+
+      <div className="relative z-10 max-w-[1280px] mx-auto px-6">
+        <div className="text-center mb-20">
           <p className="text-[12px] font-semibold text-[#2563eb] tracking-[.2em] uppercase mb-4">Ablauf</p>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight mb-4 fiaon-gradient-text-animated">
+          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight mb-6 fiaon-gradient-text-animated">
             In 3 Schritten zur passenden Karte
           </h2>
-          <p className="text-[16px] sm:text-[17px] text-gray-500">
+          <p className="text-[17px] sm:text-[18px] text-gray-500 leading-relaxed max-w-2xl mx-auto">
             Kein Papierkram, keine Filiale. Alles digital.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid md:grid-cols-3 gap-8 lg:gap-12">
           {steps.map((s, i) => (
-            <div key={i} className={`relative ${obs.v ? "animate-[fadeInUp_.6s_ease]" : "opacity-0"}`} style={{ animationDelay: `${i * 0.15}s` }}>
-              <div className="relative p-8 rounded-3xl fiaon-glass-panel hover:scale-[1.03] hover:shadow-2xl transition-all duration-500 group">
+            <div key={i} className={`relative ${obs.v ? "animate-[fadeInUp_.8s_ease]" : "opacity-0"}`} style={{ animationDelay: `${i * 0.2}s` }}>
+              <div className="relative p-8 lg:p-10 rounded-3xl fiaon-glass-panel hover:scale-[1.04] hover:shadow-2xl transition-all duration-500 group">
+                {/* Animated gradient overlay */}
                 <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
-                  <div className="absolute inset-0 opacity-15" style={{
-                    background: "linear-gradient(135deg, rgba(37,99,235,0.15), rgba(147,197,253,0.25), rgba(37,99,235,0.12), rgba(147,197,253,0.18))",
-                    backgroundSize: "300% 300%",
-                    animation: "limitGlow 8s ease-in-out infinite"
+                  <div className="absolute inset-0 opacity-20" style={{
+                    background: "linear-gradient(135deg, rgba(37,99,235,0.12), rgba(147,197,253,0.22), rgba(37,99,235,0.1), rgba(147,197,253,0.16))",
+                    backgroundSize: "400% 400%",
+                    animation: "limitGlow 10s ease-in-out infinite"
                   }} />
-                  <div className="absolute inset-0 opacity-10" style={{
-                    background: "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.8), transparent 70%)"
+                  <div className="absolute inset-0 opacity-15" style={{
+                    background: "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.9), transparent 70%)"
                   }} />
                 </div>
 
+                {/* Glow effect on hover */}
+                <div className="absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" style={{
+                  background: "radial-gradient(circle at center, rgba(37,99,235,0.1), transparent 70%)"
+                }} />
+
                 <div className="relative z-10">
-                  <div className="text-[48px] font-bold mb-5 tracking-tight" style={{
-                    background: "linear-gradient(135deg, #1e40af, #2563eb, #3b82f6, #60a5fa)",
+                  {/* Step number */}
+                  <div className="text-[56px] font-bold mb-6 tracking-tight" style={{
+                    background: "linear-gradient(135deg, #1e40af, #2563eb, #3b82f6, #60a5fa, #2563eb)",
                     backgroundClip: "text",
                     WebkitBackgroundClip: "text",
                     WebkitTextFillColor: "transparent",
-                    opacity: 0.25,
-                    letterSpacing: "-0.02em"
+                    opacity: 0.3,
+                    letterSpacing: "-0.03em",
+                    backgroundSize: "200% 200%",
+                    animation: "limitGlow 6s ease-in-out infinite"
                   }}>
                     {s.n}
                   </div>
 
-                  <h3 className="text-[18px] font-semibold text-gray-900 mb-3 tracking-tight">{s.t}</h3>
-                  <p className="text-[14px] text-gray-500 leading-relaxed font-medium">{s.d}</p>
+                  <h3 className="text-[19px] lg:text-[20px] font-semibold text-gray-900 mb-4 tracking-tight">{s.t}</h3>
+                  <p className="text-[15px] text-gray-500 leading-relaxed font-medium mb-6">{s.d}</p>
+
+                  {/* Icon indicator */}
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{
+                    background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.15))",
+                    border: "1px solid rgba(37,99,235,0.2)"
+                  }}>
+                    <span style={{ color: "#2563eb" }}>{s.icon}</span>
+                  </div>
                 </div>
               </div>
+
+              {/* Connector line */}
+              {i < 2 && (
+                <div className="hidden md:block absolute top-1/2 -right-4 lg:-right-6 w-8 lg:w-12 h-[2px]" style={{
+                  background: "linear-gradient(90deg, #2563eb, rgba(37,99,235,0.2))",
+                  boxShadow: "0 0 20px rgba(37,99,235,0.4)",
+                  opacity: 0.5
+                }} />
+              )}
             </div>
           ))}
         </div>

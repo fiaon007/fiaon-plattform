@@ -79,7 +79,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                   onClick={handleAntragClick}
                   className="fiaon-btn-outline-animated px-5 py-2 text-[13px] font-medium relative overflow-hidden group"
                 >
-                  <span className="relative z-10">Antrag starten</span>
+                  <span className="relative z-10 group-hover:text-white transition-colors duration-300">Antrag starten</span>
                   <div className="absolute inset-0 bg-gradient-to-r from-[#2563eb] to-[#3b82f6] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />

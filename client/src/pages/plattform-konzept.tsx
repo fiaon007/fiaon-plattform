@@ -319,6 +319,48 @@ export default function PlattformKonzept() {
         </div>
       </section>
 
+      {/* FINAL CALL TO ACTION Section */}
+      <section className="relative z-10 py-32 sm:py-40 px-6">
+        <div className="max-w-4xl mx-auto">
+          {/* Glassmorphism Frame with Sweep Animation */}
+          <div className="relative fiaon-glass-panel rounded-3xl p-12 sm:p-16 border border-white/20 shadow-2xl shadow-blue-500/20 overflow-hidden"
+               style={{ background: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(20px)" }}>
+            
+            {/* Sweep Animation */}
+            <div className="absolute inset-0 pointer-events-none" style={{ animation: "sweep 3s ease-in-out infinite" }}>
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent" style={{ transform: "skewX(-20deg)" }} />
+            </div>
+
+            {/* Content */}
+            <div className="relative z-10 text-center">
+              {/* Headline */}
+              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 leading-[1.1] fiaon-gradient-text-animated">
+                Technologie, die den Markt verändert.
+              </h2>
+
+              {/* Subline */}
+              <p className="text-lg sm:text-xl text-gray-400 mb-12 max-w-2xl mx-auto leading-relaxed">
+                Du kennst jetzt die Maschine. Es ist Zeit, sie für dein eigenes Limit-Ziel arbeiten zu lassen.
+              </p>
+
+              {/* Button with Glow Effect */}
+              <a 
+                href="/antrag"
+                className="inline-block px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold text-lg rounded-xl shadow-2xl shadow-blue-500/30 hover:shadow-blue-500/50 transition-all duration-300 hover:scale-105"
+                style={{ animation: "glow 2s ease-in-out infinite" }}
+              >
+                Software jetzt testen →
+              </a>
+
+              {/* Disclaimer */}
+              <p className="mt-8 text-sm text-gray-500">
+                Keine Schufa-Abfrage. Reine Datenanalyse. Monatlich kündbar.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <style>{`
         @keyframes meshGradient {
           0%, 100% {
@@ -375,6 +417,24 @@ export default function PlattformKonzept() {
           }
           50% {
             transform: translateY(-10px);
+          }
+        }
+        
+        @keyframes sweep {
+          0% {
+            transform: translateX(-100%);
+          }
+          100% {
+            transform: translateX(200%);
+          }
+        }
+        
+        @keyframes glow {
+          0%, 100% {
+            box-shadow: 0 0 20px rgba(37, 99, 235, 0.3);
+          }
+          50% {
+            box-shadow: 0 0 40px rgba(37, 99, 235, 0.5);
           }
         }
       `}</style>

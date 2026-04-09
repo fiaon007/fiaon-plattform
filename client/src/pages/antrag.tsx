@@ -777,6 +777,47 @@ export default function AntragPage() {
           </div>
         )}
 
+        {/* === FINAL CHECKOUT CTA SECTION === */}
+        {step === 0 && (
+          <div className="mt-20 animate-[fadeInUp_.8s_ease]">
+            <div className="relative py-24 sm:py-32 px-6 rounded-3xl overflow-hidden">
+              {/* Animated Gradient Background */}
+              <div className="absolute inset-0" style={{
+                background: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #8b5cf6 100%)",
+                backgroundSize: "200% 200%",
+                animation: "gradientShift 8s ease-in-out infinite"
+              }} />
+              
+              {/* Overlay for depth */}
+              <div className="absolute inset-0 bg-black/20" />
+
+              <div className="relative z-10 max-w-3xl mx-auto text-center">
+                {/* Headline */}
+                <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-white leading-[1.1]">
+                  Die Maschine ist bereit.<br/>
+                  Du auch?
+                </h2>
+
+                {/* Subline */}
+                <p className="text-lg text-white/80 mb-10 max-w-2xl mx-auto leading-relaxed">
+                  Keine Schufa-Abfrage. DSGVO-konformes Hosting. Monatlich kündbar.
+                </p>
+
+                {/* CTA Button */}
+                <button
+                  onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                  className="inline-flex items-center gap-3 px-8 py-4 bg-white text-gray-900 rounded-full text-[15px] font-semibold shadow-2xl hover:shadow-3xl hover:scale-105 transition-all duration-300"
+                >
+                  Setup abschließen & Engine starten
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="animate-pulse">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* === APPLICATION PROCESS SECTION === */}
         {step === 0 && (
           <div className="mt-16 animate-[fadeInUp_.6s_ease]">
@@ -1250,6 +1291,11 @@ export default function AntragPage() {
         @keyframes scan{
           0%{transform:translateY(0)}
           100%{transform:translateY(100%)}
+        }
+        @keyframes gradientShift{
+          0%{background-position:0% 50%}
+          50%{background-position:100% 50%}
+          100%{background-position:0% 50%}
         }}
         @keyframes scaleIn{0%{opacity:0;transform:scale(0.5)}100%{opacity:1;transform:scale(1)}}
       `}</style>

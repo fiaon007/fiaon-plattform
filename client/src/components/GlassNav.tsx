@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import logo from "@/assets/LOGO_fiaon.png";
 
 interface GlassNavProps {
   activePage?: "startseite" | "privatkunden" | "business";
@@ -52,7 +51,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
             <div className="relative z-10 h-[52px] px-5 flex items-center justify-between">
               {/* Logo */}
               <a href="/" className="flex items-center shrink-0">
-                <img src={logo} alt="FIAON Logo" className="h-8 w-auto" />
+                <span className="text-xl font-bold tracking-tight fiaon-gradient-text-animated">FIAON</span>
               </a>
 
               {/* Desktop: centered links */}

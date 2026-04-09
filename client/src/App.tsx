@@ -11,6 +11,7 @@ import Terms from "@/pages/terms";
 import Privacy from "@/pages/privacy";
 import NotFound from "@/pages/not-found";
 import AdminDatabasePage from "@/pages/admin-database";
+import WasIstFiaonPage from "@/pages/was-ist-fiaon";
 
 function Router() {
   return (
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/antrag" component={AntragPage} />
       <Route path="/business-antrag" component={BusinessAntragPage} />
       <Route path="/admin/database" component={AdminDatabasePage} />
+      <Route path="/was-ist-fiaon" component={WasIstFiaonPage} />
       <Route path="/terms" component={Terms} />
       <Route path="/privacy" component={Privacy} />
       <Route component={NotFound} />

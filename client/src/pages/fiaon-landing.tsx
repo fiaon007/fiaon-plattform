@@ -747,6 +747,62 @@ function ProblemSection() {
 }
 
 /* ────────────────────────────────
+   WAS IST FIAON
+   ──────────────────────────────── */
+function WasIstFiaonSection() {
+  const obs = useReveal(0.1);
+  
+  return (
+    <section ref={obs.ref} className="py-20 sm:py-28 relative overflow-hidden" style={{ background: "linear-gradient(180deg, #ffffff 0%, #f8faff 50%, #ffffff 100%)" }}>
+      <div className={`max-w-[1120px] mx-auto px-6 relative z-10 transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+        {/* Section Badge */}
+        <div className="text-center mb-8">
+          <span className="inline-block px-4 py-2 bg-blue-50 text-[#2563eb] text-[12px] font-semibold tracking-wide uppercase rounded-full">
+            DIE PLATTFORM
+          </span>
+        </div>
+
+        {/* Headline */}
+        <div className="text-center mb-12">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight mb-6 text-gray-900">
+            FIAON ist kein Vergleichsportal.<br/>
+            FIAON ist dein System.
+          </h2>
+        </div>
+
+        {/* Text Block */}
+        <div className="max-w-4xl mx-auto mb-12">
+          <p className="text-xl sm:text-2xl text-gray-600 leading-relaxed text-center mb-6">
+            Eine KI-Analyse-Software, ein strategisches Coaching-Programm und ein persönliches Finance-Dashboard — in einer Plattform.
+          </p>
+          <p className="text-xl sm:text-2xl text-gray-600 leading-relaxed text-center mb-6">
+            Wir zeigen dir nicht einfach Karten. Wir zeigen dir, wie du die bekommst, die du wirklich willst.
+          </p>
+          <p className="text-xl sm:text-2xl text-gray-600 leading-relaxed text-center">
+            Wir verkaufen keine Finanzprodukte. Wir verkaufen das Wissen, die Tools und die Strategie, damit du sie dir selbst holst.
+          </p>
+        </div>
+
+        {/* Visual Separator */}
+        <div className="flex items-center justify-center mb-12">
+          <div className="w-24 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+          <div className="w-2 h-2 mx-4 rounded-full bg-blue-500"></div>
+          <div className="w-24 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+        </div>
+
+        {/* Button */}
+        <div className="text-center">
+          <a href="/was-ist-fiaon" className="fiaon-btn-gradient inline-flex items-center gap-2 px-8 py-4 rounded-full text-[16px] font-medium text-white">
+            Mehr erfahren
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────
    CTA
    ──────────────────────────────── */
 function Cta() {
@@ -1103,6 +1159,7 @@ export default function FiaonLanding() {
       <Reviews />
       <Faq />
       <ProblemSection />
+      <WasIstFiaonSection />
       <Cta />
       <ProcessSection />
       <Foot />

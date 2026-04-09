@@ -13,97 +13,163 @@ function useReveal(t = 0.12) {
   return { ref, v };
 }
 
-/* ── animated gradient headline ── */
-function GradientText({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <span className={`fiaon-heading-gradient ${className}`}>{children}</span>;
-}
-
 export default function WasIstFiaonPage() {
   return (
-    <div className="min-h-screen bg-white text-gray-900 antialiased" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+    <div className="min-h-screen text-gray-900 antialiased relative overflow-hidden" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", background: "linear-gradient(180deg, #f8fafc 0%, #e0e7ff 30%, #f8fafc 60%, #e0e7ff 100%)" }}>
+      {/* Background mesh gradient with blur */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[800px] opacity-40" style={{ 
+          background: "radial-gradient(ellipse at center, rgba(37,99,235,0.15), transparent 70%)",
+          filter: "blur(100px)"
+        }} />
+        <div className="absolute bottom-0 right-0 w-[800px] h-[600px] opacity-30" style={{ 
+          background: "radial-gradient(ellipse at center, rgba(15,23,42,0.2), transparent 70%)",
+          filter: "blur(80px)"
+        }} />
+      </div>
+
       <GlassNav />
       
-      <div className="max-w-[1120px] mx-auto px-6 py-20">
-        {/* Header */}
-        <div className="text-center mb-16">
-          <span className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-4 inline-block">ÜBER FIAON</span>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight mb-6">
-            <GradientText>Was ist FIAON?</GradientText>
+      <div className="relative z-10">
+        {/* Hero Section */}
+        <section ref={useReveal(0.1).ref} className="min-h-screen flex flex-col items-center justify-center px-6 py-20">
+          {/* Section Badge */}
+          <div className="mb-8">
+            <span className="inline-block px-6 py-3 bg-white/60 backdrop-blur-xl border border-blue-200 text-[#2563eb] text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-blue-500/10">
+              ● DIE PLATTFORM
+            </span>
+          </div>
+
+          {/* Headline */}
+          <h1 className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-bold text-center tracking-tight mb-8 max-w-6xl leading-[1.1] fiaon-gradient-text-animated">
+            Die erste KI-Plattform,<br/>
+            die für dich arbeitet.<br/>
+            Nicht für die Bank.
           </h1>
-          <p className="text-xl text-gray-500 max-w-3xl mx-auto">
-            Entdecke die Plattform, die deine finanzielle Zukunft verändert
+
+          {/* Subline */}
+          <p className="text-lg sm:text-xl lg:text-2xl text-gray-600 text-center max-w-4xl leading-relaxed mb-12">
+            Du bist es gewohnt, dass Finanz-Tools kostenlos sind, weil sie dich als Lead an Banken verkaufen. FIAON bricht dieses System. Wir sind eine 100 % unabhängige SaaS-Plattform um DIR zu helfen. Keine Affiliate-Links. Keine Provisionen. Nur Technologie, Insider-Strategien und dein direkter Weg zum Wunschlimit.
           </p>
-        </div>
 
-        {/* Main Content */}
-        <div className="space-y-16">
-          {/* Section 1 */}
-          <section ref={useReveal(0.1).ref} className="fiaon-glass-panel rounded-3xl p-8 sm:p-12">
-            <h2 className="text-2xl sm:text-3xl font-semibold mb-6 fiaon-gradient-text-animated">
-              FIAON ist kein Vergleichsportal. FIAON ist dein System.
-            </h2>
-            <p className="text-lg text-gray-600 leading-relaxed mb-8">
-              Eine KI-Analyse-Software, ein strategisches Coaching-Programm und ein persönliches Finance-Dashboard — in einer Plattform. Wir zeigen dir nicht einfach Karten. Wir zeigen dir, wie du die bekommst, die du wirklich willst.
-            </p>
-            <p className="text-lg text-gray-600 leading-relaxed">
-              Wir verkaufen keine Finanzprodukte. Wir verkaufen das Wissen, die Tools und die Strategie, damit du sie dir selbst holst.
-            </p>
-          </section>
+          {/* CTA Button */}
+          <a href="/antrag" className="fiaon-btn-gradient inline-flex items-center gap-3 px-10 py-5 rounded-full text-[17px] font-semibold text-white shadow-2xl shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300 transform hover:scale-105 mb-16">
+            Jetzt starten
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
 
-          {/* Section 2 - Three Pillars */}
-          <section ref={useReveal(0.1).ref} className="grid md:grid-cols-3 gap-8">
-            <div className="fiaon-glass-panel rounded-2xl p-8 text-center">
-              <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
+          {/* 3D Dashboard Mockup */}
+          <div className="relative w-full max-w-5xl mx-auto perspective-1000" style={{ perspective: "1000px" }}>
+            <div className="fiaon-glass-panel rounded-3xl p-8 border border-white/40 shadow-2xl shadow-blue-900/10 transform rotate-x-12 transition-transform duration-700 hover:rotate-x-8" style={{ 
+              background: "linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(248,250,252,0.8) 100%)",
+              transform: "rotateX(12deg) translateY(20px)",
+              animation: "float 6s ease-in-out infinite"
+            }}>
+              {/* Dashboard Header */}
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                  <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                  <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                </div>
+                <div className="text-sm text-gray-500 font-medium">FIAON Dashboard</div>
               </div>
-              <h3 className="text-xl font-semibold mb-3">KI-Analyse</h3>
-              <p className="text-gray-600">
-                Intelligente Algorithmen analysieren dein Profil und zeigen dir den optimalen Weg.
-              </p>
-            </div>
 
-            <div className="fiaon-glass-panel rounded-2xl p-8 text-center">
-              <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
+              {/* Dashboard Content Grid */}
+              <div className="grid grid-cols-3 gap-6">
+                {/* Score Simulator Card */}
+                <div className="bg-white/50 rounded-2xl p-6 border border-gray-200/50 backdrop-blur-sm">
+                  <div className="text-xs text-gray-500 uppercase tracking-wider mb-4">Score Simulator</div>
+                  <div className="relative w-32 h-32 mx-auto mb-4">
+                    <svg className="w-full h-full transform -rotate-90">
+                      <circle cx="64" cy="64" r="56" stroke="#e5e7eb" strokeWidth="8" fill="none" />
+                      <circle cx="64" cy="64" r="56" stroke="#3b82f6" strokeWidth="8" fill="none" 
+                        strokeDasharray="352" 
+                        strokeDashoffset="88"
+                        strokeLinecap="round"
+                        style={{ animation: "progressRing 2s ease-out forwards" }}
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-2xl font-bold text-gray-900">75%</span>
+                    </div>
+                  </div>
+                  <div className="text-center text-sm text-gray-600">Optimiert</div>
+                </div>
+
+                {/* Limit Timeline Card */}
+                <div className="bg-white/50 rounded-2xl p-6 border border-gray-200/50 backdrop-blur-sm">
+                  <div className="text-xs text-gray-500 uppercase tracking-wider mb-4">Limit-Aufbau</div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Start</span>
+                      <div className="flex-1 mx-3 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full" style={{ width: "100%" }}></div>
+                      </div>
+                      <span className="text-xs font-medium text-gray-900">500€</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Ziel</span>
+                      <div className="flex-1 mx-3 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-purple-500 to-purple-600 rounded-full" style={{ width: "80%", animation: "progressGrow 2s ease-out forwards 0.5s" }}></div>
+                      </div>
+                      <span className="text-xs font-medium text-gray-900">20k€</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Strategy Card */}
+                <div className="bg-white/50 rounded-2xl p-6 border border-gray-200/50 backdrop-blur-sm">
+                  <div className="text-xs text-gray-500 uppercase tracking-wider mb-4">Strategie</div>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                      <span className="text-xs text-gray-700">KI-Analyse aktiv</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                      <span className="text-xs text-gray-700">Limit-Optimierung</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                      <span className="text-xs text-gray-700">Scoring-Boost</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-xl font-semibold mb-3">Strategisches Coaching</h3>
-              <p className="text-gray-600">
-                Persönliche Beratung und Strategien, die dich langfristig erfolgreich machen.
-              </p>
             </div>
-
-            <div className="fiaon-glass-panel rounded-2xl p-8 text-center">
-              <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold mb-3">Finance-Dashboard</h3>
-              <p className="text-gray-600">
-                Alles an einem Ort: Übersicht, Analyse und Kontrolle deiner finanziellen Situation.
-              </p>
-            </div>
-          </section>
-
-          {/* Section 3 - Mission */}
-          <section ref={useReveal(0.1).ref} className="fiaon-glass-panel rounded-3xl p-8 sm:p-12 text-center">
-            <h2 className="text-2xl sm:text-3xl font-semibold mb-6 fiaon-gradient-text-animated">
-              Unsere Mission
-            </h2>
-            <p className="text-xl text-gray-600 leading-relaxed max-w-3xl mx-auto mb-8">
-              Wir glauben, dass jeder Zugang zu fairen Finanzprodukten verdient — unabhängig von Scoring, Einkommen oder Vorgeschichte. FIAON gibt dir die Werkzeuge, die du brauchst, um deine Ziele zu erreichen.
-            </p>
-            <a href="/antrag" className="fiaon-btn-gradient inline-flex items-center gap-2 px-8 py-4 rounded-full text-[16px] font-medium text-white">
-              Jetzt starten
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </a>
-          </section>
-        </div>
+          </div>
+        </section>
       </div>
+
+      <style>{`
+        @keyframes float {
+          0%, 100% {
+            transform: rotateX(12deg) translateY(20px);
+          }
+          50% {
+            transform: rotateX(12deg) translateY(10px);
+          }
+        }
+        
+        @keyframes progressRing {
+          from {
+            stroke-dashoffset: 352;
+          }
+          to {
+            stroke-dashoffset: 88;
+          }
+        }
+        
+        @keyframes progressGrow {
+          from {
+            width: 0%;
+          }
+          to {
+            width: 80%;
+          }
+        }
+      `}</style>
     </div>
   );
 }

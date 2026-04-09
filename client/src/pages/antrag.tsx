@@ -14,45 +14,64 @@ async function track(event: string, data?: any, ref?: string) {
   try { await fetch("/api/fiaon/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event, data, ref, sessionId: sessionStorage.getItem("fiaon_sid") || "", page: location.pathname }) }); } catch {}
 }
 
-/* === LIVE CREDIT CARD — PREMIUM GLASS DESIGN === */
+/* === LIVE CREDIT CARD — HYPER-REALISTIC DESIGN === */
 function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: string; name: string; lim: string; className?: string; compact?: boolean }) {
   const displayName = name || "MAX MUSTERMANN";
   const nameLen = displayName.length;
   const nameFontSize = useMemo(() => {
-    if (compact) return Math.max(7, Math.min(11, 140 / Math.max(nameLen, 1)));
-    return Math.max(9, Math.min(14, 200 / Math.max(nameLen, 1)));
+    if (compact) return Math.max(7, Math.min(10, 120 / Math.max(nameLen, 1)));
+    return Math.max(8, Math.min(12, 160 / Math.max(nameLen, 1)));
   }, [nameLen, compact]);
 
   return (
-    <div className={`w-full aspect-[1.586/1] rounded-2xl relative overflow-hidden select-none transition-all duration-500 ${className}`} style={{ background: bg, boxShadow: compact ? "0 12px 32px -6px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.12)" : "0 24px 60px -12px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.15)" }}>
-      <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 25% 15%, rgba(255,255,255,.3), transparent 55%)", mixBlendMode: "overlay" }} />
-      <div className="absolute inset-0 fiaon-card-shimmer pointer-events-none" />
+    <div className={`w-full aspect-[1.586/1] rounded-xl relative overflow-hidden select-none transition-all duration-500 ${className}`} style={{ 
+      background: bg, 
+      boxShadow: compact 
+        ? "0 8px 24px -4px rgba(0,0,0,.2), 0 4px 12px -2px rgba(0,0,0,.15), inset 0 1px 0 rgba(255,255,255,.15), inset 0 -1px 0 rgba(0,0,0,.1)" 
+        : "0 16px 48px -8px rgba(0,0,0,.25), 0 8px 24px -4px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.2), inset 0 -1px 0 rgba(0,0,0,.12)",
+      border: "1px solid rgba(255,255,255,.1)"
+    }}>
+      <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 30% 20%, rgba(255,255,255,.25), transparent 60%)", mixBlendMode: "overlay" }} />
+      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(255,255,255,.6) 40px, rgba(255,255,255,.6) 41px)" }} />
 
-      <div className={`absolute inset-0 flex flex-col justify-between z-10 ${compact ? "p-3 sm:p-4" : "p-5 sm:p-6"}`}>
+      <div className={`absolute inset-0 flex flex-col justify-between z-10 ${compact ? "p-4" : "p-5"}`}>
         <div className="flex justify-between items-start">
-          <div className="flex items-center gap-2">
-            <div className={`rounded ${compact ? "w-8 h-5" : "w-11 h-8"}`} style={{ background: "linear-gradient(135deg,#d4af37,#f0d875,#c9a227)", boxShadow: "0 1px 4px rgba(0,0,0,.3)" }}>
-              <div className="w-full h-full rounded opacity-30" style={{ background: "repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(0,0,0,.15) 3px, rgba(0,0,0,.15) 4px)" }} />
-            </div>
-            <svg width={compact ? "14" : "18"} height={compact ? "14" : "18"} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" strokeWidth="2"><path d="M8.5 16.5a5 5 0 0 1 0-9"/><path d="M5 13.5a1 1 0 0 1 0-3"/><path d="M12 19a9 9 0 0 0 0-14"/></svg>
+          <div className={`rounded ${compact ? "w-9 h-6" : "w-11 h-7"}`} style={{ 
+            background: "linear-gradient(135deg,#d4af37,#f0d875,#c9a227)", 
+            boxShadow: "0 2px 6px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.4)" 
+          }}>
+            <div className="w-full h-full rounded opacity-25" style={{ background: "repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(0,0,0,.2) 3px, rgba(0,0,0,.2) 4px)" }} />
           </div>
-          <span className={`font-medium tracking-wide ${compact ? "text-xs" : "text-sm"}`} style={{ color: "rgba(255,255,255,.6)" }}>fiaon</span>
+          <span className={`font-semibold tracking-[.08em] ${compact ? "text-xs" : "text-sm"}`} style={{ color: "rgba(255,255,255,.75)", textShadow: "0 1px 2px rgba(0,0,0,.2)" }}>FIAON</span>
         </div>
 
-        <div className={`font-mono tracking-[.18em] ${compact ? "text-[10px]" : "text-xs sm:text-sm"}`} style={{ color: "rgba(255,255,255,.5)" }}>
-          5232&nbsp;&nbsp;2702&nbsp;&nbsp;5678&nbsp;&nbsp;9012
+        <div className="flex-1 flex items-center justify-center">
+          <div className={`text-center ${compact ? "text-2xl" : "text-3xl"} font-bold tracking-tight`} style={{ 
+            color: "rgba(255,255,255,.95)", 
+            textShadow: "0 2px 8px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.2)",
+            letterSpacing: "0.02em"
+          }}>
+            {lim}
+          </div>
         </div>
 
-        <div className="flex justify-between items-end gap-2">
+        <div className="flex justify-between items-end">
           <div className="min-w-0 flex-1">
-            <div className={`uppercase tracking-[.14em] font-medium ${compact ? "text-[6px]" : "text-[8px]"}`} style={{ color: "rgba(255,255,255,.35)" }}>Karteninhaber</div>
-            <div className="font-mono font-semibold truncate" style={{ color: "rgba(255,255,255,.9)", fontSize: `${nameFontSize}px`, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayName}</div>
+            <div className={`uppercase tracking-[.12em] font-medium ${compact ? "text-[7px]" : "text-[8px]"} mb-0.5`} style={{ color: "rgba(255,255,255,.4)" }}>
+              {displayName ? "Karteninhaber" : "FIAON Starter"}
+            </div>
+            {displayName && (
+              <div className="font-medium truncate" style={{ 
+                color: "rgba(255,255,255,.9)", 
+                fontSize: `${nameFontSize}px`, 
+                lineHeight: 1.2, 
+                whiteSpace: "nowrap", 
+                overflow: "hidden", 
+                textOverflow: "ellipsis",
+                textShadow: "0 1px 2px rgba(0,0,0,.2)"
+              }}>{displayName}</div>
+            )}
           </div>
-          <div className="text-right shrink-0">
-            <div className={`uppercase tracking-[.14em] font-medium ${compact ? "text-[6px]" : "text-[8px]"}`} style={{ color: "rgba(255,255,255,.35)" }}>Limit</div>
-            <div className={`font-mono font-semibold ${compact ? "text-[10px]" : "text-xs sm:text-sm"}`} style={{ color: "rgba(255,255,255,.9)" }}>bis {lim} €</div>
-          </div>
-          <span className={`font-semibold tracking-[.12em] shrink-0 ${compact ? "text-xs" : "text-sm"}`} style={{ color: "rgba(255,255,255,.4)" }}>VISA</span>
         </div>
       </div>
     </div>
@@ -221,6 +240,34 @@ export default function AntragPage() {
                       <span className="text-[15px] font-semibold text-gray-900">{p.name}</span>
                       {p.rec && <span className="text-[9px] font-semibold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-2 py-0.5 rounded">Empfohlen</span>}
                     </div>
+                    
+                    {/* HIGH END Limit Highlight */}
+                    <div className="relative mb-5 p-4 rounded-xl overflow-hidden" style={{
+                      background: "rgba(255, 255, 255, 0.6)",
+                      backdropFilter: "blur(20px) saturate(180%)",
+                      WebkitBackdropFilter: "blur(20px) saturate(180%)",
+                      border: "1px solid rgba(37, 99, 235, 0.2)",
+                      boxShadow: "0 8px 32px rgba(37, 99, 235, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8)"
+                    }}>
+                      <div className="absolute inset-0 opacity-40 pointer-events-none" style={{
+                        background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.15), rgba(37,99,235,0.1))",
+                        backgroundSize: "200% 200%",
+                        animation: "limitGlow 4s ease-in-out infinite"
+                      }} />
+                      <div className="relative z-10 text-center">
+                        <div className="text-[10px] font-semibold uppercase tracking-[.15em] text-[#2563eb] mb-1.5" style={{ textShadow: "0 1px 2px rgba(37,99,235,0.1)" }}>Kreditlimit</div>
+                        <div className="text-[26px] font-bold tracking-tight" style={{
+                          background: "linear-gradient(135deg, #1e40af, #2563eb, #3b82f6)",
+                          backgroundClip: "text",
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent",
+                          textShadow: "0 2px 12px rgba(37,99,235,0.15)"
+                        }}>
+                          bis {p.lim.toLocaleString("de-DE")} €
+                        </div>
+                      </div>
+                    </div>
+                    
                     <div className="flex items-baseline gap-1.5 mb-5">
                       <span className="text-[28px] font-semibold text-gray-900 tracking-tight">{p.fee.toLocaleString("de-DE", { minimumFractionDigits: 2 })}</span>
                       <span className="text-[13px] text-gray-400">€/Mt.</span>

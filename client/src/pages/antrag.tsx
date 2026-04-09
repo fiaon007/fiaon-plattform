@@ -241,14 +241,14 @@ export default function AntragPage() {
                 <button 
                   key={p.key} 
                   onClick={() => { setPack(p); up("wantedLimit", Math.min(d.wantedLimit, p.lim)); track("pack_select", { pack: p.key }, ref); setTimeout(() => goStep(1), 400); }} 
-                  className={`group text-left rounded-2xl overflow-visible transition-all duration-500 ${pack?.key === p.key ? "fiaon-glass-card-selected scale-[1.02]" : "fiaon-glass-card"}`}
+                  className={`group text-left rounded-2xl overflow-hidden transition-all duration-500 h-full flex flex-col ${pack?.key === p.key ? "fiaon-glass-card-selected scale-[1.02]" : "fiaon-glass-card"}`}
                   style={{ animation: `smoothScaleIn 0.5s ease ${idx * 80}ms both` }}
                 >
                   {/* Card area with generous padding */}
                   <div className="p-5 sm:p-6">
                     <LiveCard bg={p.bg} name="" lim={p.lim.toLocaleString("de-DE")} compact className="w-full" />
                   </div>
-                  <div className="px-5 sm:px-6 pb-6">
+                  <div className="px-5 sm:px-6 pb-6 flex-1 flex flex-col">
                     <div className="flex items-center gap-3 mb-3">
                       <span className="text-[15px] font-semibold text-gray-900">{p.name}</span>
                       {p.rec && <span className="text-[9px] font-semibold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-2 py-0.5 rounded">Empfohlen</span>}
@@ -285,7 +285,7 @@ export default function AntragPage() {
                       <span className="text-[28px] font-semibold text-gray-900 tracking-tight">{p.fee.toLocaleString("de-DE", { minimumFractionDigits: 2 })}</span>
                       <span className="text-[13px] text-gray-400">€/Mt.</span>
                     </div>
-                    <ul className="space-y-2.5 mb-6">
+                    <ul className="space-y-2.5 mb-6 flex-1">
                       {p.feats.map((f, i) => (
                         <li key={i} className="flex items-center gap-2.5 text-[13px] text-gray-600">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>
@@ -294,7 +294,9 @@ export default function AntragPage() {
                       ))}
                     </ul>
                     <div className="pt-3 border-t border-gray-100/80">
-                      <span className="text-[13px] font-semibold text-[#2563eb] group-hover:translate-x-1 transition-transform inline-block">Konto eröffnen</span>
+                      <button className="w-full py-3 px-4 rounded-lg text-[13px] font-semibold text-[#2563eb] border-2 border-[#2563eb] bg-transparent hover:bg-[#2563eb] hover:text-white transition-all duration-300">
+                        Konto eröffnen
+                      </button>
                     </div>
                   </div>
                 </button>

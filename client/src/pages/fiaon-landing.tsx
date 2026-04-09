@@ -27,16 +27,16 @@ const PACKS = [
 ];
 
 const BUSINESS_PACKS = [
-  { name: "FIAON Business Starter", fee: "49,99", lim: "5.000", bg: "linear-gradient(145deg,#2c5282,#3b82f6,#4a90e2)", feats: ["Limit bis 5.000 \u20AC", "Business Support", "Multi-User Access", "Monthly Reports"] },
-  { name: "FIAON Business Pro", fee: "99,99", lim: "25.000", rec: true, bg: "linear-gradient(145deg,#1a365d,#2563eb,#4a8af5)", feats: ["Limit bis 25.000 \u20AC", "Priority Business Support", "Expense Tracking", "Employee Cards"] },
-  { name: "FIAON Business Ultra", fee: "149,99", lim: "75.000", bg: "linear-gradient(145deg,#1e3a5f,#2a5580,#3d7ab8)", feats: ["Limit bis 75.000 \u20AC", "Dedicated Account Manager", "Advanced Analytics", "Custom Limits"] },
-  { name: "FIAON Business Enterprise", fee: "249,99", lim: "250.000", bg: "linear-gradient(145deg,#0f172a,#1e293b,#334155)", feats: ["Limit bis 250.000 \u20AC", "24/7 Enterprise Support", "API Integration", "Unlimited Users"] },
+  { name: "FIAON Starter", tier: "Paket 1", lim: "10.000", bg: "linear-gradient(135deg,#64748b,#94a3b8,#cbd5e1)", feats: ["Physische & virtuelle Karte", "Apple Pay & Google Pay", "Einfache Online-Antragstellung"] },
+  { name: "FIAON Business", tier: "Paket 2", lim: "25.000", bg: "linear-gradient(135deg,#b8923a,#d4af37,#e8d085)", feats: ["Alles aus Starter", "Pers\u00F6nlicher Berater", "Limit-Aufstockung nach 90 Tagen", "Reiseversicherung inklusive"] },
+  { name: "FIAON Executive", tier: "Paket 3", lim: "50.000", rec: true, bg: "linear-gradient(135deg,#0b1628,#1a3560,#1e4070)", feats: ["Alles aus Business", "Priority-Antragspr\u00FCfung", "Cashflow-Strategieberatung", "Lounge-Zugang weltweit", "Multi-Karten-Struktur"] },
+  { name: "FIAON Black", tier: "Paket 4", lim: "100.000", bg: "linear-gradient(135deg,#111,#1a1a1a,#2a2a2a)", feats: ["Alles aus Executive", "Dedizierter Account Manager", "Mehrere Karten & Sub-Accounts", "Premium-Reiseschutz", "Individuelle Limit-Vereinbarung"] },
 ];
 
 /* ────────────────────────────────
    CREDIT CARD
    ──────────────────────────────── */
-function Card({ bg, lim, className = "", size = "normal" }: { bg: string; lim: string; className?: string; size?: "normal" | "hero" }) {
+function Card({ bg, lim, label, className = "", size = "normal" }: { bg: string; lim: string; label?: string; className?: string; size?: "normal" | "hero" }) {
   const ref = useRef<HTMLDivElement>(null);
   const [r, setR] = useState({ x: 0, y: 0 });
   const move = (e: React.MouseEvent) => {
@@ -66,6 +66,7 @@ function Card({ bg, lim, className = "", size = "normal" }: { bg: string; lim: s
               <div className={`rounded ${isHero ? "w-12 h-9" : "w-10 h-7"}`} style={{ background: "linear-gradient(135deg,#d4af37,#f0d875,#c9a227)", boxShadow: "0 1px 4px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.3)" }} />
               <svg width={isHero ? "22" : "18"} height={isHero ? "22" : "18"} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="1.8"><path d="M8.5 16.5a5 5 0 0 1 0-9"/><path d="M5 13.5a1 1 0 0 1 0-3"/><path d="M12 19a9 9 0 0 0 0-14"/></svg>
             </div>
+            {label && <span className="text-sm font-semibold tracking-wide" style={{ color: "rgba(255,255,255,.65)" }}>FIAON</span>}
             <span className={`font-medium tracking-wide ${isHero ? "text-base" : "text-sm"}`} style={{ color: "rgba(255,255,255,.65)" }}>fiaon</span>
           </div>
 
@@ -79,8 +80,8 @@ function Card({ bg, lim, className = "", size = "normal" }: { bg: string; lim: s
           {/* bottom */}
           <div className="flex justify-between items-end">
             <div>
-              <div className={`uppercase tracking-[.16em] font-medium ${isHero ? "text-[9px]" : "text-[7px]"}`} style={{ color: "rgba(255,255,255,.3)" }}>Kreditlimit</div>
-              <div className={`font-mono font-medium whitespace-nowrap ${isHero ? "text-base" : "text-xs sm:text-sm"}`} style={{ color: "rgba(255,255,255,.8)" }}>bis {lim} &euro;</div>
+              <div className={`uppercase tracking-[.16em] font-medium ${isHero ? "text-[9px]" : "text-[7px]"}`} style={{ color: "rgba(255,255,255,.3)" }}>{label || "Kreditlimit"}</div>
+              <div className={`font-mono font-medium whitespace-nowrap ${isHero ? "text-base" : "text-xs sm:text-sm"}`} style={{ color: "rgba(255,255,255,.8)" }}>{label ? `bis ${lim} €` : `bis ${lim} €`}</div>
             </div>
             <div>
               <div className={`uppercase tracking-[.16em] font-medium text-right ${isHero ? "text-[8px]" : "text-[6px]"}`} style={{ color: "rgba(255,255,255,.3)" }}>
@@ -283,8 +284,12 @@ function Packages() {
       <div className="max-w-[1200px] mx-auto px-6">
         <div className="max-w-2xl mb-10">
           <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Pakete</p>
-          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4"><GradientText>Finde dein passendes Paket</GradientText></h2>
-          <p className="text-[15px] text-gray-500 leading-relaxed">Von Einsteiger bis Premium &ndash; wir beraten dich zum optimalen Kreditkarten-Paket. Das finale Limit wird individuell berechnet.</p>
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4">
+            {customerType === "business" ? <GradientText>Wählen Sie Ihr Business-Paket</GradientText> : <GradientText>Finde dein passendes Paket</GradientText>}
+          </h2>
+          <p className="text-[15px] text-gray-500 leading-relaxed">
+            {customerType === "business" ? "Von 10.000 € bis 100.000 € — strukturiert, skalierbar, auf Ihr Unternehmen zugeschnitten." : "Von Einsteiger bis Premium &ndash; wir beraten dich zum optimalen Kreditkarten-Paket. Das finale Limit wird individuell berechnet."}
+          </p>
         </div>
 
         {/* Customer Type Toggle */}
@@ -307,32 +312,38 @@ function Packages() {
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {currentPacks.map((p, i) => (
-            <div key={p.name} className={`rounded-2xl bg-white border overflow-hidden transition-all duration-700 hover:-translate-y-1.5 hover:shadow-xl ${p.rec ? "border-[#2563eb]/25 shadow-lg shadow-blue-500/8 ring-1 ring-[#2563eb]/10" : "border-gray-100 hover:border-gray-200"} ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`} style={{ transitionDelay: `${i * 90}ms` }}>
-              {p.rec && <div className="h-[2px] bg-[#2563eb]" />}
+            <div key={p.name} className={`relative rounded-2xl bg-white border overflow-hidden transition-all duration-700 hover:-translate-y-1.5 hover:shadow-xl ${p.rec ? "border-[#2563eb]/25 shadow-lg shadow-blue-500/8 ring-1 ring-[#2563eb]/10" : "border-gray-100 hover:border-gray-200"} ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`} style={{ transitionDelay: `${i * 90}ms` }}>
+              {p.rec && <div className="absolute -top-0 left-0 right-0 h-[2px] bg-[#2563eb]" />}
+              {p.rec && customerType === "business" && <div className="absolute top-3 right-4 text-[9px] font-bold uppercase tracking-wider text-white bg-[#2563eb] px-2.5 py-1 rounded-full z-10">Beliebt</div>}
 
-              {/* Card — more padding, not squished */}
+              {/* Card */}
               <div className="p-5 sm:p-6">
-                <Card bg={p.bg} lim={p.lim} className="w-full" />
+                <Card bg={p.bg} lim={p.lim} label={customerType === "business" && "tier" in p ? p.tier : undefined} className="w-full" />
               </div>
 
               {/* Content */}
               <div className="px-5 sm:px-6 pb-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <h3 className="text-[15px] font-semibold text-gray-900">{p.name}</h3>
-                  {p.rec && <span className="text-[9px] font-semibold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-2 py-0.5 rounded">Empfohlen</span>}
-                </div>
+                {customerType === "business" && "tier" in p && <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">{p.tier}</p>}
+                <h3 className={`${customerType === "business" ? "text-[17px]" : "text-[15px]"} font-semibold text-gray-900 mb-2`}>{p.name}</h3>
+                {customerType === "business" ? (
+                  <p className="text-[14px] text-gray-500 mb-4 pb-4 border-b border-gray-100">Limits bis zu <span className="text-[#2563eb] font-semibold">{p.lim}&nbsp;€</span></p>
+                ) : (
+                  <div className="flex items-center gap-3 mb-3">
+                    {p.rec && <span className="text-[9px] font-semibold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-2 py-0.5 rounded">Empfohlen</span>}
+                  </div>
+                )}
 
                 <ul className="space-y-2.5 mb-6">
                   {p.feats.map((f, j) => (
-                    <li key={j} className="flex items-center gap-2.5 text-[13px] text-gray-600">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>
+                    <li key={j} className="flex items-start gap-2.5 text-[13px] text-gray-600">
+                      <svg className="shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>
                       {f}
                     </li>
                   ))}
                 </ul>
 
-                <a href={applicationUrl} className={`block w-full text-center py-3 rounded-xl text-[13px] font-medium transition-all ${p.rec ? "fiaon-btn-gradient text-white" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100"}`}>
-                  Antrag starten
+                <a href={applicationUrl} className={`block w-full text-center py-3 rounded-xl text-[13px] font-medium transition-all ${customerType === "business" ? (p.rec ? "fiaon-btn-gradient text-white" : (p.name === "FIAON Business" || p.name === "FIAON Black" ? "bg-[#0b1628] text-white hover:bg-[#142744] hover:shadow-lg" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100")) : (p.rec ? "fiaon-btn-gradient text-white" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100")}`}>
+                  Jetzt beantragen
                 </a>
               </div>
             </div>

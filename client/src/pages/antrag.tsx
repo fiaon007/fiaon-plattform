@@ -95,6 +95,7 @@ function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: stri
 
 /* === PROGRESS BAR === */
 function Progress({ step, total }: { step: number; total: number }) {
+  const progress = ((step + 1) / total) * 100;
   return (
     <div className="mb-10">
       <div className="flex gap-1.5 mb-3">
@@ -107,7 +108,7 @@ function Progress({ step, total }: { step: number; total: number }) {
       </div>
       <div className="flex justify-between text-[11px] font-medium text-gray-400">
         <span>Schritt {step + 1} von {total}</span>
-        <span>{Math.round((step / total) * 100)}% abgeschlossen</span>
+        <span>{Math.round(progress)}% abgeschlossen</span>
       </div>
     </div>
   );
@@ -709,23 +710,42 @@ export default function AntragPage() {
 
             <div className="max-w-[320px] mx-auto mb-8">{sideCard}</div>
 
-            <div className="rounded-2xl fiaon-glass-panel p-6 max-w-sm mx-auto mb-5">
-              <p className="text-sm font-semibold text-gray-900 mb-1">Ihr Vertrag</p>
-              <p className="text-xs text-gray-500 mb-4">Personalisiertes PDF herunterladen</p>
-              <button 
-                onClick={() => { window.open(`/api/fiaon/contract/${ref}`, '_blank'); track("contract_download", { ref }, ref); }} 
-                className="w-full py-3 rounded-xl text-sm font-semibold text-white fiaon-btn-gradient"
-              >
-                Vertrag herunterladen
-              </button>
+            <div className="rounded-2xl fiaon-glass-panel p-4 max-w-sm mx-auto mb-5">
+              <p className="text-xs font-semibold text-gray-600 mb-1">Ihr Vertrag</p>
+              <div className="flex items-center gap-3">
+                <p className="text-[11px] text-gray-400">Personalisiertes PDF herunterladen</p>
+                <button 
+                  onClick={() => { window.open(`/api/fiaon/contract/${ref}`, '_blank'); track("contract_download", { ref }, ref); }} 
+                  className="px-4 py-2 rounded-lg text-[12px] font-semibold text-[#2563eb] border border-[#2563eb]/20 hover:border-[#2563eb]/40 hover:bg-[#2563eb]/5 transition-all"
+                >
+                  Vertrag herunterladen
+                </button>
+              </div>
             </div>
 
-            <div className="rounded-2xl fiaon-glass-panel p-6 max-w-sm mx-auto">
-              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-[.2em] mb-2">Aktivierung abschließen</p>
-              <p className="text-[14px] text-gray-600 mb-5">Schließe die Zahlung für dein {pack?.name} Paket ab.</p>
-              <button onClick={() => { if (pack?.pay) window.open(pack.pay, "_blank"); track("payment_click", { pack: pack?.key }, ref); }} className="w-full py-4 rounded-xl text-[15px] font-semibold text-white fiaon-btn-gradient">
-                Jetzt bezahlen & Karte aktivieren
-              </button>
+            <div className="relative rounded-2xl overflow-hidden max-w-sm mx-auto">
+              {/* Animated gradient background */}
+              <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+                <div className="absolute inset-0 opacity-30" style={{
+                  background: "linear-gradient(135deg, rgba(37,99,235,0.15), rgba(147,197,253,0.25), rgba(37,99,235,0.12), rgba(147,197,253,0.18))",
+                  backgroundSize: "300% 300%",
+                  animation: "limitGlow 8s ease-in-out infinite"
+                }} />
+                <div className="absolute inset-0 opacity-10" style={{
+                  background: "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.8), transparent 70%)"
+                }} />
+              </div>
+
+              <div className="relative z-10 fiaon-glass-panel p-6 rounded-2xl">
+                <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Aktivierung abschließen</p>
+                <p className="text-[14px] text-gray-600 mb-5">Schließe die Zahlung für dein {pack?.name} Paket ab.</p>
+                <button 
+                  onClick={() => { if (pack?.pay) window.open(pack.pay, "_blank"); track("payment_click", { pack: pack?.key }, ref); }} 
+                  className="w-full py-4 rounded-xl text-[15px] font-semibold text-white fiaon-btn-gradient shadow-2xl hover:shadow-3xl hover:scale-[1.02] transition-all duration-300"
+                >
+                  Jetzt bezahlen & Karte aktivieren
+                </button>
+              </div>
             </div>
             <p className="text-[11px] text-gray-400 font-mono mt-6">Referenz: {ref}</p>
           </div>

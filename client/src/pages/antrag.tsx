@@ -511,6 +511,74 @@ export default function AntragPage() {
                       <div className="pt-3 mt-3 border-t border-white/40">
                         <p className="text-[11px] font-mono text-gray-400 tracking-wider">{ref}</p>
                       </div>
+
+                      {/* Real-time data display */}
+                      <div className="pt-4 mt-4 border-t border-white/40 space-y-2">
+                        <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.15em] mb-3">Deine Eingaben</p>
+                        
+                        {d.firstName && d.lastName && (
+                          <div className="flex justify-between items-center py-1.5">
+                            <span className="text-[11px] text-gray-400">Name</span>
+                            <span className="text-[12px] font-semibold text-gray-900">{d.firstName} {d.lastName}</span>
+                          </div>
+                        )}
+                        
+                        {d.birthDay && d.birthMonth && d.birthYear && (
+                          <div className="flex justify-between items-center py-1.5">
+                            <span className="text-[11px] text-gray-400">Geburtsdatum</span>
+                            <span className="text-[12px] font-semibold text-gray-900">{d.birthDay}.{d.birthMonth}.{d.birthYear}</span>
+                          </div>
+                        )}
+                        
+                        {d.phone && (
+                          <div className="flex justify-between items-center py-1.5">
+                            <span className="text-[11px] text-gray-400">Telefon</span>
+                            <span className="text-[12px] font-semibold text-gray-900">{d.phone}</span>
+                          </div>
+                        )}
+                        
+                        {d.street && (
+                          <div className="flex justify-between items-center py-1.5">
+                            <span className="text-[11px] text-gray-400">Adresse</span>
+                            <span className="text-[12px] font-semibold text-gray-900">{d.street}</span>
+                          </div>
+                        )}
+                        
+                        {d.zip && d.city && (
+                          <div className="flex justify-between items-center py-1.5">
+                            <span className="text-[11px] text-gray-400">Ort</span>
+                            <span className="text-[12px] font-semibold text-gray-900">{d.zip} {d.city}</span>
+                          </div>
+                        )}
+                        
+                        {d.employment && (
+                          <div className="flex justify-between items-center py-1.5">
+                            <span className="text-[11px] text-gray-400">Beschäftigung</span>
+                            <span className="text-[12px] font-semibold text-gray-900">{d.employment}</span>
+                          </div>
+                        )}
+                        
+                        {d.income > 0 && (
+                          <div className="flex justify-between items-center py-1.5">
+                            <span className="text-[11px] text-gray-400">Einkommen</span>
+                            <span className="text-[12px] font-semibold text-gray-900">{eur(d.income)}/Mt.</span>
+                          </div>
+                        )}
+                        
+                        {d.housing && (
+                          <div className="flex justify-between items-center py-1.5">
+                            <span className="text-[11px] text-gray-400">Wohnsituation</span>
+                            <span className="text-[12px] font-semibold text-gray-900">{d.housing}</span>
+                          </div>
+                        )}
+                        
+                        {d.wantedLimit > 0 && (
+                          <div className="flex justify-between items-center py-1.5">
+                            <span className="text-[11px] text-gray-400">Wunschlimit</span>
+                            <span className="text-[12px] font-semibold text-gray-900">{eur(d.wantedLimit)}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

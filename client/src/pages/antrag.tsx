@@ -415,15 +415,38 @@ export default function AntragPage() {
               <div className="hidden lg:block">
                 <div className="sticky top-20 space-y-5">
                   {sideCard}
-                  <div className="rounded-2xl fiaon-glass-panel p-5 space-y-3">
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-[.2em]">Dein Paket</p>
-                    <p className="text-[15px] font-semibold text-gray-900">{pack?.name}</p>
-                    <div className="h-px bg-white/50" />
-                    <div className="grid grid-cols-2 gap-2 text-[12px]">
-                      <div><span className="text-gray-400">Gebühr</span><br/><span className="font-semibold">{eur(pack?.fee || 0)}/Mt.</span></div>
-                      <div><span className="text-gray-400">Limit</span><br/><span className="font-semibold">bis {(pack?.lim || 0).toLocaleString("de-DE")} €</span></div>
+                  <div className="rounded-2xl fiaon-glass-panel p-6 space-y-4 relative overflow-hidden">
+                    {/* Animated gradient overlay */}
+                    <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+                      <div className="absolute inset-0 opacity-20" style={{
+                        background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.15), rgba(37,99,235,0.1))",
+                        backgroundSize: "200% 200%",
+                        animation: "limitGlow 6s ease-in-out infinite"
+                      }} />
                     </div>
-                    <p className="text-[10px] font-mono text-gray-300">{ref}</p>
+                    
+                    <div className="relative z-10">
+                      <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-3">DEIN PAKET</p>
+                      <p className="text-[18px] font-semibold text-gray-900 mb-4 tracking-tight">{pack?.name}</p>
+                      
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-[11px] font-medium text-gray-400 uppercase tracking-[.1em] mb-1">Gebühr</p>
+                          <p className="text-[16px] font-bold fiaon-gradient-text-animated">{eur(pack?.fee || 0)}/Mt.</p>
+                        </div>
+                        
+                        <div className="h-px bg-white/50" />
+                        
+                        <div>
+                          <p className="text-[11px] font-medium text-gray-400 uppercase tracking-[.1em] mb-1">Limit</p>
+                          <p className="text-[16px] font-bold fiaon-gradient-text-animated">bis {(pack?.lim || 0).toLocaleString("de-DE")} €</p>
+                        </div>
+                      </div>
+                      
+                      <div className="pt-3 mt-3 border-t border-white/40">
+                        <p className="text-[11px] font-mono text-gray-400 tracking-wider">{ref}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

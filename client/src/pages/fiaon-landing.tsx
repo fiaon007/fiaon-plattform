@@ -73,7 +73,7 @@ function Card({ bg, lim, className = "", size = "normal" }: { bg: string; lim: s
           <div className="flex justify-between items-end">
             <div>
               <div className={`uppercase tracking-[.16em] font-medium ${isHero ? "text-[9px]" : "text-[7px]"}`} style={{ color: "rgba(255,255,255,.3)" }}>Kreditlimit</div>
-              <div className={`font-mono font-medium ${isHero ? "text-base" : "text-xs sm:text-sm"}`} style={{ color: "rgba(255,255,255,.8)" }}>bis {lim} &euro;</div>
+              <div className={`font-mono font-medium whitespace-nowrap ${isHero ? "text-base" : "text-xs sm:text-sm"}`} style={{ color: "rgba(255,255,255,.8)" }}>bis {lim} &euro;</div>
             </div>
             <div>
               <div className={`uppercase tracking-[.16em] font-medium text-right ${isHero ? "text-[9px]" : "text-[7px]"}`} style={{ color: "rgba(255,255,255,.3)" }}>

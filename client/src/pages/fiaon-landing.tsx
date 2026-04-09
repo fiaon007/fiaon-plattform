@@ -244,6 +244,98 @@ function Packages() {
 }
 
 /* ────────────────────────────────
+   APPLICATION PROCESS — HIGH END
+   ──────────────────────────────── */
+function ApplicationProcess() {
+  const obs = useReveal(0.1);
+  const steps = [
+    { n: "01", t: "Paket wählen", d: "Wähle dein gewünschtes FIAON Paket mit passendem Limit.", icon: "🎯" },
+    { n: "02", t: "Daten eingeben", d: "Persönliche Daten, Beruf & Finanzen – verschlüsselt übertragen.", icon: "📝" },
+    { n: "03", t: "Bonitätsprüfung", d: "Echtzeit-Analyse deiner Daten – dauert nur wenige Sekunden.", icon: "⚡" },
+    { n: "04", t: "Limit erhalten", d: "Dein personalisiertes Kreditlimit wird sofort angezeigt.", icon: "✨" },
+    { n: "05", t: "Vertrag annehmen", d: "Unterschrift digital – dein Vertrag ist sofort bereit.", icon: "📋" },
+  ];
+  return (
+    <section className="py-20 sm:py-28 relative overflow-hidden" ref={obs.ref}>
+      {/* Animated background gradient */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] opacity-[0.03]" style={{ 
+          background: "radial-gradient(ellipse, #2563eb, transparent 70%)",
+          animation: "pulse 8s ease-in-out infinite"
+        }} />
+      </div>
+
+      <div className="max-w-[1120px] mx-auto px-6 relative z-10">
+        <div className="max-w-2xl mb-16 text-center">
+          <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Antragprozess</p>
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4">
+            <span className="fiaon-gradient-text-animated">In 5 Schritten zur Karte</span>
+          </h2>
+          <p className="text-[15px] text-gray-500 leading-relaxed">
+            Digital, sicher und in unter 2 Minuten – so einfach geht's.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-6">
+          {steps.map((s, i) => (
+            <div key={i} className={`relative transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`} style={{ transitionDelay: `${i * 100}ms` }}>
+              {/* Animated card */}
+              <div className="relative p-6 rounded-2xl fiaon-glass-panel hover:scale-[1.02] transition-transform duration-300">
+                {/* Animated gradient overlay */}
+                <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+                  <div className="absolute inset-0 opacity-30" style={{
+                    background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.15), rgba(37,99,235,0.1))",
+                    backgroundSize: "200% 200%",
+                    animation: "limitGlow 6s ease-in-out infinite"
+                  }} />
+                </div>
+
+                <div className="relative z-10">
+                  {/* Step number with gradient */}
+                  <div className="text-[42px] font-bold mb-4" style={{
+                    background: "linear-gradient(135deg, #1e40af, #2563eb, #3b82f6)",
+                    backgroundClip: "text",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    opacity: 0.3
+                  }}>
+                    {s.n}
+                  </div>
+
+                  {/* Icon */}
+                  <div className="text-3xl mb-3">{s.icon}</div>
+
+                  {/* Title */}
+                  <h3 className="text-[15px] font-semibold text-gray-900 mb-2">{s.t}</h3>
+
+                  {/* Description */}
+                  <p className="text-[13px] text-gray-500 leading-relaxed">{s.d}</p>
+                </div>
+
+                {/* Connector line */}
+                {i < steps.length - 1 && (
+                  <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-[2px] hidden lg:block" style={{
+                    background: "linear-gradient(90deg, #2563eb, transparent)"
+                  }} />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* CTA */}
+        <div className="mt-16 text-center">
+          <a href="#start" className="fiaon-btn-gradient inline-flex items-center gap-2 px-8 py-4 rounded-full text-[15px] font-medium text-white">
+            Jetzt starten
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────
    HOW IT WORKS
    ──────────────────────────────── */
 function HowItWorks() {
@@ -404,6 +496,7 @@ export default function FiaonLanding() {
       <Numbers />
       <WhySection />
       <Packages />
+      <ApplicationProcess />
       <HowItWorks />
       <Reviews />
       <Faq />

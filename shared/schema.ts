@@ -1240,6 +1240,7 @@ export const fiaonApplications = pgTable("fiaon_applications", {
   packKey: varchar("pack_key"),
   packName: varchar("pack_name"),
 
+  // Private customer fields
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   birthdate: varchar("birthdate"),
@@ -1258,6 +1259,22 @@ export const fiaonApplications = pgTable("fiaon_applications", {
   debts: integer("debts"),
   housing: varchar("housing"),
 
+  // Business customer fields
+  companyName: varchar("company_name"),
+  legalForm: varchar("legal_form"),
+  taxId: varchar("tax_id"),
+  establishedYear: varchar("established_year"),
+  contactName: varchar("contact_name"),
+  contactEmail: varchar("contact_email"),
+  contactPhone: varchar("contact_phone"),
+  businessType: varchar("business_type"),
+  industry: varchar("industry"),
+  annualRevenue: integer("annual_revenue"),
+  employees: integer("employees"),
+  monthlyExpenses: integer("monthly_expenses"),
+  billingEmail: varchar("billing_email"),
+
+  // Common fields
   wantedLimit: integer("wanted_limit"),
   purpose: varchar("purpose"),
   billing: varchar("billing"),
@@ -1288,6 +1305,7 @@ export const fiaonApplications = pgTable("fiaon_applications", {
   index("fiaon_app_ref_idx").on(table.ref),
   index("fiaon_app_email_idx").on(table.email),
   index("fiaon_app_status_idx").on(table.status),
+  index("fiaon_app_type_idx").on(table.type),
   index("fiaon_app_created_idx").on(table.createdAt),
 ]);
 

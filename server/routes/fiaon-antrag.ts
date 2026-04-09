@@ -24,7 +24,15 @@ router.post("/track", async (req, res) => {
 // Save/update application
 router.post("/application", async (req, res) => {
   try {
-    const { ref, type, status, currentStep, packKey, packName, firstName, lastName, birthDay, birthMonth, birthYear, phone, street, zip, city, country, nationality, employment, employer, employedSince, income, rent, debts, housing, wantedLimit, purpose, billing, addon, nfc, approvedLimit, email, iban, billingMethod, ag1, ag2, ag3 } = req.body;
+    const { 
+      ref, type, status, currentStep, packKey, packName, 
+      // Private customer fields
+      firstName, lastName, birthDay, birthMonth, birthYear, phone, street, zip, city, country, nationality, employment, employer, employedSince, income, rent, debts, housing,
+      // Business customer fields
+      companyName, legalForm, taxId, establishedYear, contactName, contactEmail, contactPhone, businessType, industry, annualRevenue, employees, monthlyExpenses, billingEmail,
+      // Common fields
+      wantedLimit, purpose, billing, addon, nfc, approvedLimit, email, iban, billingMethod, ag1, ag2, ag3 
+    } = req.body;
     
     const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
     const birthdate = birthDay && birthMonth && birthYear ? `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}` : null;
@@ -32,10 +40,15 @@ router.post("/application", async (req, res) => {
     // Try update first
     const existing = await db.select().from(fiaonApplications).where(eq(fiaonApplications.ref, ref)).limit(1);
     
-    const values = {
+    const values: any = {
       ref, type: type || "private", status: status || "started", currentStep: currentStep || 0,
-      packKey, packName, firstName, lastName, birthdate, phone, street, zip, city, country, nationality,
+      packKey, packName,
+      // Private customer fields
+      firstName, lastName, birthdate, phone, street, zip, city, country, nationality,
       employment, employer, employedSince, income: income || null, rent: rent || null, debts: debts || null, housing,
+      // Business customer fields
+      companyName, legalForm, taxId, establishedYear, contactName, contactEmail, contactPhone, businessType, industry, annualRevenue: annualRevenue || null, employees: employees || null, monthlyExpenses: monthlyExpenses || null, billingEmail,
+      // Common fields
       wantedLimit: wantedLimit || null, purpose, billing, addon, nfc,
       approvedLimit: approvedLimit || null, email, iban, billingMethod,
       consentAgb: ag1 || false, consentSchufa: ag2 || false, consentContract: ag3 || false,
@@ -46,7 +59,7 @@ router.post("/application", async (req, res) => {
     if (existing.length > 0) {
       await db.update(fiaonApplications).set(values).where(eq(fiaonApplications.ref, ref));
     } else {
-      await db.insert(fiaonApplications).values(values as any);
+      await db.insert(fiaonApplications).values(values);
     }
 
     res.json({ ok: true, ref });

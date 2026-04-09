@@ -129,6 +129,7 @@ export default function AntragPage() {
   const [d, setD] = useState({ firstName: "", lastName: "", birthDay: "", birthMonth: "", birthYear: "1990", phone: "", street: "", zip: "", city: "", country: "", nationality: "", employment: "", employer: "", employedSince: "", income: 2500, rent: 0, debts: 0, housing: "", wantedLimit: 3000, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", email: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false });
   const [approved, setApproved] = useState(0);
   const [verifyDone, setVerifyDone] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   useEffect(() => { if (!sessionStorage.getItem("fiaon_sid")) sessionStorage.setItem("fiaon_sid", Math.random().toString(36).slice(2)); window.scrollTo(0, 0); }, []);
 
@@ -689,6 +690,87 @@ export default function AntragPage() {
                   <div className="w-32 h-1 bg-gradient-to-r from-orange-500 to-red-500 rounded" />
                   <div className="w-4 h-1 bg-white rounded" />
                   <div className="w-48 h-1 bg-gradient-to-r from-blue-500 to-violet-500 rounded" />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* === FAQ SECTION === */}
+        {step === 0 && (
+          <div className="mt-20 animate-[fadeInUp_.8s_ease]">
+            <div className="max-w-3xl mx-auto px-6">
+              {/* Headline */}
+              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-12 text-center fiaon-gradient-text-animated">
+                Fragen zum Setup?
+              </h2>
+
+              {/* FAQ Accordion */}
+              <div className="space-y-0">
+                {/* FAQ 1 */}
+                <div className="border-b border-gray-200">
+                  <button
+                    onClick={() => setOpenFaq(openFaq === 0 ? null : 0)}
+                    className="w-full py-6 text-left flex items-center justify-between group"
+                  >
+                    <span className="text-[15px] font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                      Ist das eine Garantie für mein 25.000 € Limit?
+                    </span>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform duration-300 ${openFaq === 0 ? 'rotate-180' : ''}`}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </div>
+                  </button>
+                  <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openFaq === 0 ? 'max-h-40 opacity-100 pb-6' : 'max-h-0 opacity-0'}`}>
+                    <p className="text-[14px] text-gray-600 leading-relaxed">
+                      Nein. Wer dir in der Finanzwelt Garantien gibt, lügt. Wir liefern dir die präziseste Software, die besten Daten und die erfolgreichsten US-Strategien. Den Weg gehst du selbst. Die Entscheidung trifft die Bank.
+                    </p>
+                  </div>
+                </div>
+
+                {/* FAQ 2 */}
+                <div className="border-b border-gray-200">
+                  <button
+                    onClick={() => setOpenFaq(openFaq === 1 ? null : 1)}
+                    className="w-full py-6 text-left flex items-center justify-between group"
+                  >
+                    <span className="text-[15px] font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                      Kann ich mein Paket später upgraden?
+                    </span>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform duration-300 ${openFaq === 1 ? 'rotate-180' : ''}`}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </div>
+                  </button>
+                  <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openFaq === 1 ? 'max-h-40 opacity-100 pb-6' : 'max-h-0 opacity-0'}`}>
+                    <p className="text-[14px] text-gray-600 leading-relaxed">
+                      Jederzeit. Wenn dein Finanzprofil wächst und du komplexere Multi-Karten-Strategien (z.B. aus dem Ultra-Paket) benötigst, kannst du per One-Click im Dashboard wechseln.
+                    </p>
+                  </div>
+                </div>
+
+                {/* FAQ 3 */}
+                <div className="border-b border-gray-200">
+                  <button
+                    onClick={() => setOpenFaq(openFaq === 2 ? null : 2)}
+                    className="w-full py-6 text-left flex items-center justify-between group"
+                  >
+                    <span className="text-[15px] font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                      Wie schnell habe ich Zugriff?
+                    </span>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform duration-300 ${openFaq === 2 ? 'rotate-180' : ''}`}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </div>
+                  </button>
+                  <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openFaq === 2 ? 'max-h-40 opacity-100 pb-6' : 'max-h-0 opacity-0'}`}>
+                    <p className="text-[14px] text-gray-600 leading-relaxed">
+                      In 60 Sekunden. Nach Abschluss deines Setups wird dein Account generiert, die Engine gestartet und dein initialer Profil-Scan beginnt sofort.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

@@ -41,14 +41,14 @@ export default function WasIstFiaonPage() {
           </div>
 
           {/* Headline */}
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-bold text-center tracking-tight mb-8 max-w-6xl leading-[1.1] fiaon-gradient-text-animated">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-center tracking-tight mb-8 max-w-5xl leading-[1.2] fiaon-gradient-text-animated">
             Die erste KI-Plattform,<br/>
             die für dich arbeitet.<br/>
             Nicht für die Bank.
           </h1>
 
           {/* Subline */}
-          <p className="text-lg sm:text-xl lg:text-2xl text-gray-600 text-center max-w-4xl leading-relaxed mb-12">
+          <p className="text-base sm:text-lg lg:text-xl text-gray-600 text-center max-w-3xl leading-relaxed mb-12">
             Du bist es gewohnt, dass Finanz-Tools kostenlos sind, weil sie dich als Lead an Banken verkaufen. FIAON bricht dieses System. Wir sind eine 100 % unabhängige SaaS-Plattform um DIR zu helfen. Keine Affiliate-Links. Keine Provisionen. Nur Technologie, Insider-Strategien und dein direkter Weg zum Wunschlimit.
           </p>
 

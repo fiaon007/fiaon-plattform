@@ -256,7 +256,7 @@ export default function AntragPage() {
                       }} />
                       <div className="relative z-10 text-center">
                         <div className="text-[10px] font-semibold uppercase tracking-[.15em] text-[#2563eb] mb-1.5" style={{ textShadow: "0 1px 2px rgba(37,99,235,0.1)" }}>Kreditlimit</div>
-                        <div className="text-[26px] font-bold tracking-tight" style={{
+                        <div className="text-[22px] sm:text-[24px] font-bold tracking-tight whitespace-nowrap" style={{
                           background: "linear-gradient(135deg, #1e40af, #2563eb, #3b82f6)",
                           backgroundClip: "text",
                           WebkitBackgroundClip: "text",

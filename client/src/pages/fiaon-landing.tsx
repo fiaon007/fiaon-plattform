@@ -636,7 +636,7 @@ function ProblemSection() {
   ];
 
   return (
-    <section ref={obs.ref} className="py-20 sm:py-28 relative overflow-hidden" style={{ background: "linear-gradient(180deg, #0a1628 0%, #1a3560 50%, #0a1628 100%)" }}>
+    <section id="problem" ref={obs.ref} className="py-20 sm:py-28 relative overflow-hidden" style={{ background: "linear-gradient(180deg, #0a1628 0%, #1a3560 50%, #0a1628 100%)" }}>
       {/* Background effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-[600px] h-[400px] opacity-20" style={{ background: "radial-gradient(ellipse, rgba(37,99,235,0.15), transparent 70%)", filter: "blur(80px)" }} />

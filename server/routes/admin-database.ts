@@ -37,7 +37,7 @@ router.get("/tables/:tableName/structure", async (req, res) => {
     const columns = await sql`
       SELECT column_name, data_type, is_nullable, column_default
       FROM information_schema.columns 
-      WHERE table_name = ${sql(tableName)} 
+      WHERE table_name = ${sql.unsafe(`"${tableName}"`)} 
       AND table_schema = 'public'
       ORDER BY ordinal_position;
     `;
@@ -63,12 +63,12 @@ router.get("/tables/:tableName/data", async (req, res) => {
     
     // Get total count
     const [countResult] = await sql`
-      SELECT COUNT(*) as total FROM ${sql.unsafe(tableName)};
+      SELECT COUNT(*) as total FROM ${sql.unsafe(`"${tableName}"`)};
     `;
     
     // Get data
     const data = await sql`
-      SELECT * FROM ${sql.unsafe(tableName)}
+      SELECT * FROM ${sql.unsafe(`"${tableName}"`)}
       ORDER BY id DESC NULLS LAST
       LIMIT ${limit} OFFSET ${offset};
     `;

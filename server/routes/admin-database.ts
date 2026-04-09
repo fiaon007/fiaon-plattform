@@ -37,7 +37,7 @@ router.get("/tables/:tableName/structure", async (req, res) => {
     const columns = await sql`
       SELECT column_name, data_type, is_nullable, column_default
       FROM information_schema.columns 
-      WHERE table_name = ${sql.unsafe(`"${tableName}"`)} 
+      WHERE table_name = ${tableName}
       AND table_schema = 'public'
       ORDER BY ordinal_position;
     `;

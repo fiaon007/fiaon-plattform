@@ -5,13 +5,8 @@ interface TableStats {
   rows: number;
 }
 
-interface AllTableData {
-  [key: string]: any[];
-}
-
 export default function AdminDatabasePage() {
   const [dbStats, setDbStats] = useState<TableStats[]>([]);
-  const [allData, setAllData] = useState<AllTableData>({});
   const [loading, setLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
@@ -24,29 +19,12 @@ export default function AdminDatabasePage() {
     try {
       setLoading(true);
       
-      // Fetch stats
+      // Fetch stats only (don't preload all table data to avoid slow queries)
       const statsRes = await fetch('/api/database/stats');
       const statsData = await statsRes.json();
       setDbStats(statsData.stats);
       
-      // Fetch data for all tables (first page only)
-      const dataPromises = statsData.stats.map(async (stat: TableStats) => {
-        try {
-          const dataRes = await fetch(`/api/database/tables/${stat.table}/data?page=1&limit=10`);
-          const data = await dataRes.json();
-          return { table: stat.table, data: data.data };
-        } catch (error) {
-          console.error(`Error fetching data for ${stat.table}:`, error);
-          return { table: stat.table, data: [] };
-        }
-      });
-      
-      const results = await Promise.all(dataPromises);
-      const dataMap: AllTableData = {};
-      results.forEach(({ table, data }) => {
-        dataMap[table] = data;
-      });
-      setAllData(dataMap);
+      // Don't preload data - fetch on demand when table is clicked
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -158,38 +136,13 @@ export default function AdminDatabasePage() {
                       onClick={() => handleTableClick(stat.table)}
                       className="text-sm text-blue-400 hover:text-blue-300 font-medium"
                     >
-                      View All →
+                      View Data →
                     </button>
                   </div>
                   
-                  {allData[stat.table] && allData[stat.table].length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b border-white/10">
-                            {Object.keys(allData[stat.table][0]).map((key) => (
-                              <th key={key} className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider py-2 px-3">
-                                {key}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {allData[stat.table].map((row, idx) => (
-                            <tr key={idx} className="border-b border-white/5 hover:bg-white/5">
-                              {Object.values(row).map((value: any, cellIdx) => (
-                                <td key={cellIdx} className="py-2 px-3 text-sm text-gray-300">
-                                  {value === null ? '-' : String(value).substring(0, 50)}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="text-gray-400 text-sm">No data</div>
-                  )}
+                  <div className="text-gray-400 text-sm">
+                    Click "View Data" to see the table contents
+                  </div>
                 </div>
               ))}
             </div>

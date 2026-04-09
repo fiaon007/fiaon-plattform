@@ -33,13 +33,6 @@ export default function WasIstFiaonPage() {
       <div className="relative z-10">
         {/* Hero Section */}
         <section ref={useReveal(0.1).ref} className="min-h-screen flex flex-col items-center justify-center px-6 py-20">
-          {/* Section Badge */}
-          <div className="mb-8">
-            <span className="inline-block px-6 py-3 bg-white/60 backdrop-blur-xl border border-blue-200 text-[#2563eb] text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-blue-500/10">
-              ● DIE PLATTFORM
-            </span>
-          </div>
-
           {/* Headline */}
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-center tracking-tight mb-8 max-w-5xl leading-[1.2] fiaon-gradient-text-animated">
             Die erste KI-Plattform,<br/>

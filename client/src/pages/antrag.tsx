@@ -132,6 +132,32 @@ export default function AntragPage() {
 
   useEffect(() => { if (!sessionStorage.getItem("fiaon_sid")) sessionStorage.setItem("fiaon_sid", Math.random().toString(36).slice(2)); window.scrollTo(0, 0); }, []);
 
+  // Counter animation for score section
+  useEffect(() => {
+    if (step === 0) {
+      const counter = document.getElementById("scoreCounter");
+      if (counter) {
+        let start = 82;
+        const end = 98;
+        const duration = 2000;
+        const increment = (end - start) / (duration / 16);
+        let current = start;
+        
+        const animate = () => {
+          current += increment;
+          if (current < end) {
+            counter.textContent = Math.round(current) + "%";
+            requestAnimationFrame(animate);
+          } else {
+            counter.textContent = end + "%";
+          }
+        };
+        
+        animate();
+      }
+    }
+  }, [step]);
+
   const up = useCallback((k: string, v: any) => setD(p => ({ ...p, [k]: v })), []);
   const cardName = (d.firstName + " " + d.lastName).trim().toUpperCase();
 
@@ -274,6 +300,70 @@ export default function AntragPage() {
               ))}
             </div>
             <p className="text-center text-[11px] text-gray-400 mt-8">Das endgültige Kreditlimit wird individuell festgelegt.</p>
+          </div>
+        )}
+
+        {/* === DARK MODE SCORE SECTION === */}
+        {step === 0 && (
+          <div className="mt-20 animate-[fadeInUp_.6s_ease]">
+            <div className="relative py-24 sm:py-32 px-6 rounded-3xl overflow-hidden" style={{ background: "#0A0F1C" }}>
+              {/* Mesh Gradient Background */}
+              <div className="absolute inset-0 overflow-hidden">
+                <div className="absolute top-0 left-0 w-[1000px] h-[600px] opacity-30" style={{
+                  background: "radial-gradient(ellipse at center, rgba(139, 92, 246, 0.15), rgba(147, 197, 253, 0.1), transparent 70%)",
+                  filter: "blur(80px)",
+                  animation: "meshGradient 15s ease-in-out infinite"
+                }} />
+                <div className="absolute bottom-0 right-0 w-[800px] h-[500px] opacity-25" style={{
+                  background: "radial-gradient(ellipse at center, rgba(147, 197, 253, 0.12), rgba(139, 92, 246, 0.08), transparent 70%)",
+                  filter: "blur(60px)",
+                  animation: "meshGradient 20s ease-in-out infinite reverse"
+                }} />
+              </div>
+
+              {/* Content */}
+              <div className="relative z-10 max-w-4xl mx-auto text-center">
+                {/* Section Badge */}
+                <div className="mb-8">
+                  <span className="inline-block px-5 py-2.5 bg-white/10 backdrop-blur-xl border border-violet-400/30 text-violet-300 text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-violet-500/20">
+                    PRIVATKUNDEN SETUP
+                  </span>
+                </div>
+
+                {/* Headline */}
+                <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 leading-[1.1] fiaon-gradient-text-animated">
+                  Dein Limit ist keine Glückssache.<br/>
+                  Es ist Mathematik.
+                </h2>
+
+                {/* Subline */}
+                <p className="text-lg text-gray-400 mb-16 max-w-2xl mx-auto leading-relaxed">
+                  Die Bank bewertet dich nach einem starren Algorithmus. Es ist Zeit, deinen eigenen zu nutzen. Wähle dein strategisches Setup und erhalte Zugang zur führenden Limit-Building-Software Europas.
+                </p>
+
+                {/* Score Circle Visualization */}
+                <div className="relative flex items-center justify-center">
+                  {/* Glow Effect */}
+                  <div className="absolute w-64 h-64 rounded-full bg-gradient-to-r from-violet-500/20 to-blue-400/20 blur-3xl" style={{ animation: "glowPulse 3s ease-in-out infinite" }} />
+                  
+                  {/* Score Circle */}
+                  <div className="relative w-48 h-48 flex items-center justify-center">
+                    {/* Outer Ring */}
+                    <div className="absolute inset-0 rounded-full border-4 border-violet-500/30" style={{ animation: "spin 8s linear infinite" }} />
+                    {/* Middle Ring */}
+                    <div className="absolute inset-4 rounded-full border border-blue-400/40" style={{ animation: "spin 6s linear infinite reverse" }} />
+                    {/* Inner Ring */}
+                    <div className="absolute inset-8 rounded-full border border-violet-300/50" style={{ animation: "spin 4s linear infinite" }} />
+                    
+                    {/* Score Text */}
+                    <div className="relative z-10 text-center">
+                      <div className="text-5xl font-bold text-white fiaon-gradient-text-animated mb-2" id="scoreCounter">82%</div>
+                      <div className="text-xs text-gray-400 uppercase tracking-wider">Score</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -728,6 +818,21 @@ export default function AntragPage() {
         @keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
         @keyframes shimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
         @keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+        @keyframes scaleIn{0%{opacity:0;transform:scale(0.5)}100%{opacity:1;transform:scale(1)}}
+        @keyframes meshGradient{
+          0%,100%{transform:translate(0,0) scale(1)}
+          25%{transform:translate(30px,-30px) scale(1.1)}
+          50%{transform:translate(-20px,20px) scale(1)}
+          75%{transform:translate(20px,30px) scale(1.05)}
+        }
+        @keyframes glowPulse{
+          0%,100%{opacity:0.5;transform:scale(1)}
+          50%{opacity:0.8;transform:scale(1.2)}
+        }
+        @keyframes spin{
+          from{transform:rotate(0deg)}
+          to{transform:rotate(360deg)}
+        }}
         @keyframes scaleIn{0%{opacity:0;transform:scale(0.5)}100%{opacity:1;transform:scale(1)}}
       `}</style>
     </div>

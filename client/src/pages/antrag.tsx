@@ -14,62 +14,75 @@ async function track(event: string, data?: any, ref?: string) {
   try { await fetch("/api/fiaon/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event, data, ref, sessionId: sessionStorage.getItem("fiaon_sid") || "", page: location.pathname }) }); } catch {}
 }
 
-/* ═══ LIVE CREDIT CARD — realistic, auto-sizing name ═══ */
+/* ═══ LIVE CREDIT CARD — PREMIUM, LARGER, MORE READABLE ═══ */
 function LiveCard({ bg, name, lim, className = "" }: { bg: string; name: string; lim: string; className?: string }) {
   const displayName = name || "MAX MUSTERMANN";
   const nameLen = displayName.length;
-  const nameSize = nameLen > 22 ? "text-[8px]" : nameLen > 16 ? "text-[10px]" : "text-xs";
+  const nameSize = nameLen > 22 ? "text-sm" : nameLen > 16 ? "text-base" : "text-lg";
 
   return (
-    <div className={`w-full aspect-[1.586/1] rounded-2xl relative overflow-hidden select-none ${className}`} style={{ background: bg, boxShadow: "0 25px 60px -12px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.1), inset 0 -1px 0 rgba(0,0,0,.2)" }}>
-      {/* Holographic overlay */}
-      <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 30% 20%, rgba(255,255,255,.3), transparent 50%)", mixBlendMode: "overlay" }} />
-      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(255,255,255,.5) 40px, rgba(255,255,255,.5) 41px)" }} />
+    <div className={`w-full aspect-[1.586/1] rounded-3xl relative overflow-hidden select-none transform transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl ${className}`} style={{ background: bg, boxShadow: "0 30px 80px -15px rgba(0,0,0,.4), inset 0 2px 0 rgba(255,255,255,.15), inset 0 -2px 0 rgba(0,0,0,.25)" }}>
+      {/* Enhanced holographic overlay */}
+      <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 30% 20%, rgba(255,255,255,.4), transparent 60%)", mixBlendMode: "overlay" }} />
+      <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: "repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(255,255,255,.6) 40px, rgba(255,255,255,.6) 41px)" }} />
       <div className="absolute inset-0 fiaon-card-shimmer pointer-events-none" />
+      {/* Animated glow */}
+      <div className="absolute inset-0 opacity-30 animate-pulse" style={{ background: "radial-gradient(circle at 50% 50%, rgba(255,255,255,.1), transparent 70%)" }} />
 
-      <div className="absolute inset-0 p-4 sm:p-5 flex flex-col justify-between z-10">
+      <div className="absolute inset-0 p-6 sm:p-8 flex flex-col justify-between z-10">
         {/* Top row */}
         <div className="flex justify-between items-start">
-          <div className="flex items-center gap-2">
-            {/* Chip */}
-            <div className="w-9 h-6 sm:w-10 sm:h-7 rounded" style={{ background: "linear-gradient(135deg,#d4af37,#f0d875,#c9a227)", boxShadow: "0 1px 3px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.3)" }}>
-              <div className="w-full h-full rounded opacity-30" style={{ background: "repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(0,0,0,.15) 3px, rgba(0,0,0,.15) 4px)" }} />
+          <div className="flex items-center gap-3">
+            {/* Chip - LARGER */}
+            <div className="w-14 h-10 sm:w-16 sm:h-11 rounded-md" style={{ background: "linear-gradient(135deg,#d4af37,#f0d875,#c9a227)", boxShadow: "0 2px 6px rgba(0,0,0,.4), inset 0 2px 0 rgba(255,255,255,.4)" }}>
+              <div className="w-full h-full rounded-md opacity-30" style={{ background: "repeating-linear-gradient(90deg, transparent, transparent 4px, rgba(0,0,0,.2) 4px, rgba(0,0,0,.2) 5px)" }} />
             </div>
-            {/* Contactless */}
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.3)" strokeWidth="1.8"><path d="M8.5 16.5a5 5 0 0 1 0-9"/><path d="M5 13.5a1 1 0 0 1 0-3"/><path d="M12 19a9 9 0 0 0 0-14"/></svg>
+            {/* Contactless - LARGER */}
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.5)" strokeWidth="2.2"><path d="M8.5 16.5a5 5 0 0 1 0-9"/><path d="M5 13.5a1 1 0 0 1 0-3"/><path d="M12 19a9 9 0 0 0 0-14"/></svg>
           </div>
-          <span className="text-[13px] font-medium tracking-wide" style={{ color: "rgba(255,255,255,.6)" }}>fiaon</span>
+          <span className="text-lg font-semibold tracking-wide" style={{ color: "rgba(255,255,255,.7)" }}>fiaon</span>
         </div>
 
-        {/* Card number */}
-        <div className="font-mono text-[11px] sm:text-[13px] tracking-[.18em]" style={{ color: "rgba(255,255,255,.45)" }}>5232 2702 5678 9012</div>
+        {/* Card number - LARGER & MORE READABLE */}
+        <div className="font-mono text-base sm:text-lg tracking-[.2em] font-medium" style={{ color: "rgba(255,255,255,.65)", textShadow: "0 1px 2px rgba(0,0,0,.3)" }}>5232 2702 5678 9012</div>
 
-        {/* Bottom row */}
-        <div className="flex justify-between items-end gap-2">
+        {/* Bottom row - LARGER TEXT */}
+        <div className="flex justify-between items-end gap-3">
           <div className="min-w-0 flex-1">
-            <div className="text-[7px] uppercase tracking-[.14em] font-medium mb-0.5" style={{ color: "rgba(255,255,255,.3)" }}>Karteninhaber</div>
-            <div className={`font-mono font-medium truncate ${nameSize}`} style={{ color: "rgba(255,255,255,.85)" }}>{displayName}</div>
+            <div className="text-[9px] uppercase tracking-[.16em] font-semibold mb-1" style={{ color: "rgba(255,255,255,.4)" }}>Karteninhaber</div>
+            <div className={`font-mono font-semibold truncate ${nameSize}`} style={{ color: "rgba(255,255,255,.95)", textShadow: "0 1px 3px rgba(0,0,0,.4)" }}>{displayName}</div>
           </div>
           <div className="text-right shrink-0">
-            <div className="text-[7px] uppercase tracking-[.14em] font-medium mb-0.5" style={{ color: "rgba(255,255,255,.3)" }}>Limit</div>
-            <div className="font-mono text-[11px] sm:text-xs font-medium" style={{ color: "rgba(255,255,255,.85)" }}>bis {lim} €</div>
+            <div className="text-[9px] uppercase tracking-[.16em] font-semibold mb-1" style={{ color: "rgba(255,255,255,.4)" }}>Limit</div>
+            <div className="font-mono text-sm sm:text-base font-semibold" style={{ color: "rgba(255,255,255,.95)", textShadow: "0 1px 3px rgba(0,0,0,.4)" }}>bis {lim} €</div>
           </div>
-          <span className="text-sm font-semibold tracking-[.12em] shrink-0" style={{ color: "rgba(255,255,255,.35)" }}>VISA</span>
+          <span className="text-lg font-bold tracking-[.14em] shrink-0" style={{ color: "rgba(255,255,255,.5)" }}>VISA</span>
         </div>
       </div>
     </div>
   );
 }
 
-/* ═══ PROGRESS ═══ */
+/* ═══ PREMIUM PROGRESS BAR WITH ANIMATIONS ═══ */
 function Progress({ step, total }: { step: number; total: number }) {
   return (
-    <div className="flex gap-1 mb-8">
-      {Array.from({ length: total }).map((_, i) => (
-        <div key={i} className={`flex-1 h-1 rounded-full transition-all duration-500 ${i < step ? "bg-[#2563eb]" : i === step ? "bg-blue-200" : "bg-gray-100"}`}>
-          {i === step && <div className="h-full rounded-full bg-[#2563eb] animate-pulse" style={{ width: "60%" }} />}
-        </div>
-      ))}
+    <div className="mb-12">
+      <div className="flex gap-2 mb-3">
+        {Array.from({ length: total }).map((_, i) => (
+          <div key={i} className={`flex-1 h-2 rounded-full transition-all duration-700 relative overflow-hidden ${i < step ? "bg-gradient-to-r from-[#2563eb] to-[#1d4ed8]" : i === step ? "bg-blue-100" : "bg-gray-100"}`}>
+            {i === step && (
+              <div className="absolute inset-0 bg-gradient-to-r from-[#2563eb] to-[#3b82f6] animate-[shimmer_1.5s_ease-in-out_infinite]" style={{ width: "100%" }} />
+            )}
+            {i < step && (
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[slide_2s_ease-in-out_infinite]" />
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-between text-xs font-medium text-gray-400">
+        <span>Schritt {step + 1} von {total}</span>
+        <span>{Math.round((step / total) * 100)}% abgeschlossen</span>
+      </div>
     </div>
   );
 }
@@ -149,8 +162,8 @@ export default function AntragPage() {
       let a = Math.round(d.wantedLimit * (1 + (Math.random() > .5 ? 1 : -1) * (0.05 + Math.random() * 0.1)) / 50) * 50;
       if (a > mx) a = mx; if (a < 250) a = 250;
       setApproved(a); setVerifyDone(true);
-      setTimeout(() => goStep(5), 1500);
-    }, 8000);
+      setTimeout(() => goStep(5), 2500);
+    }, 12000);
   }
 
   useEffect(() => {
@@ -192,20 +205,30 @@ export default function AntragPage() {
               <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight fiaon-heading-gradient mb-3">Wähle dein FIAON Paket</h1>
               <p className="text-[15px] text-gray-400 max-w-lg mx-auto">Entscheide dich für das passende Paket — du gelangst automatisch zum nächsten Schritt.</p>
             </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 max-w-4xl mx-auto">
-              {PACKS.map(p => (
-                <button key={p.key} onClick={() => { setPack(p); up("wantedLimit", Math.min(d.wantedLimit, p.lim)); track("pack_select", { pack: p.key }, ref); setTimeout(() => goStep(1), 300); }} className={`text-left rounded-2xl border-2 overflow-hidden transition-all hover:-translate-y-1 hover:shadow-xl ${pack?.key === p.key ? "border-[#2563eb] shadow-lg ring-2 ring-blue-500/20" : "border-gray-100 hover:border-gray-200"} bg-white`}>
-                  <div className="p-4"><LiveCard bg={p.bg} name="" lim={p.lim.toLocaleString("de-DE")} /></div>
-                  <div className="px-4 pb-5">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[14px] font-semibold">{p.name}</span>
-                      {p.rec && <span className="text-[8px] font-bold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-1.5 py-0.5 rounded">Empfohlen</span>}
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+              {PACKS.map((p, idx) => (
+                <button 
+                  key={p.key} 
+                  onClick={() => { setPack(p); up("wantedLimit", Math.min(d.wantedLimit, p.lim)); track("pack_select", { pack: p.key }, ref); setTimeout(() => goStep(1), 400); }} 
+                  className={`group text-left rounded-3xl border-2 overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl ${pack?.key === p.key ? "border-[#2563eb] shadow-xl ring-4 ring-blue-500/30 scale-105" : "border-gray-100 hover:border-blue-200"} bg-white`}
+                  style={{ animationDelay: `${idx * 100}ms` }}
+                >
+                  <div className="p-5 bg-gradient-to-br from-gray-50 to-white">
+                    <LiveCard bg={p.bg} name="" lim={p.lim.toLocaleString("de-DE")} />
+                  </div>
+                  <div className="px-5 pb-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-base font-bold text-gray-900">{p.name}</span>
+                      {p.rec && <span className="text-[9px] font-bold uppercase tracking-wider text-white bg-gradient-to-r from-[#2563eb] to-[#3b82f6] px-2 py-1 rounded-full shadow-sm">Empfohlen</span>}
                     </div>
-                    <div className="flex items-baseline gap-1 mb-3">
-                      <span className="text-xl font-semibold">{p.fee.toLocaleString("de-DE", { minimumFractionDigits: 2 })}</span>
-                      <span className="text-[11px] text-gray-400">€/Mt.</span>
+                    <div className="flex items-baseline gap-1.5 mb-4">
+                      <span className="text-2xl font-bold text-gray-900">{p.fee.toLocaleString("de-DE", { minimumFractionDigits: 2 })}</span>
+                      <span className="text-sm text-gray-500 font-medium">€/Mt.</span>
                     </div>
-                    <ul className="space-y-1">{p.feats.map((f, i) => <li key={i} className="flex items-center gap-1.5 text-[11px] text-gray-500"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="3"><polyline points="6 12 10 16 18 8"/></svg>{f}</li>)}</ul>
+                    <ul className="space-y-2">{p.feats.map((f, i) => <li key={i} className="flex items-center gap-2 text-[13px] text-gray-600 font-medium"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="3" className="shrink-0"><polyline points="6 12 10 16 18 8"/></svg>{f}</li>)}</ul>
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      <div className="text-xs font-semibold text-[#2563eb] group-hover:translate-x-1 transition-transform">Jetzt wählen →</div>
+                    </div>
                   </div>
                 </button>
               ))}
@@ -285,6 +308,21 @@ export default function AntragPage() {
                   <p className="text-[11px] font-bold text-[#2563eb] uppercase tracking-wider mb-2">Schritt 4 von 5</p>
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-heading-gradient mb-1">Vertrag annehmen</h2>
                   <p className="text-[14px] text-gray-400 mb-6">Bestätige deine Daten und nimm den Vertrag an.</p>
+                  
+                  {/* Contract download info box */}
+                  <div className="mb-6 p-5 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center shrink-0">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-gray-900 mb-1">📄 Ihr Kreditkartenvertrag</p>
+                        <p className="text-xs text-gray-600 mb-3">Nach Annahme können Sie Ihren personalisierten Vertrag als PDF herunterladen.</p>
+                        <div className="text-xs font-semibold text-blue-600">✓ Automatisch personalisiert mit Ihren Daten</div>
+                      </div>
+                    </div>
+                  </div>
+                  
                   <Field label="E-Mail-Adresse" req error={errors.email} hint="Vertragsunterlagen werden hierhin gesendet."><Inp type="email" value={d.email} onChange={(v: string) => up("email", v)} placeholder="max@beispiel.de" /></Field>
                   <div className="flex gap-0 border border-gray-200 rounded-xl overflow-hidden mb-5">
                     {[["iban","SEPA-Lastschrift"],["paper","Papierrechnung"]].map(([k,l]) => (
@@ -335,34 +373,130 @@ export default function AntragPage() {
           </div>
         )}
 
-        {/* ═══ STEP 4: Verification ═══ */}
+        {/* ═══ STEP 4: DRAMATIC VERIFICATION EXPERIENCE ═══ */
         {step === 4 && (
-          <div className="animate-[fadeInUp_.4s_ease] flex flex-col items-center text-center py-16 sm:py-24">
-            <div className="w-24 h-24 mb-6 relative">
-              <div className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-[#2563eb] animate-spin" />
-              <div className="absolute inset-4 rounded-full border-[3px] border-transparent border-b-blue-300 animate-[spin_1.5s_linear_infinite_reverse]" />
-              <div className="absolute inset-8 rounded-full border-[3px] border-transparent border-t-blue-200 animate-[spin_2s_linear_infinite]" />
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-[#2563eb] animate-pulse" />
+          <div className="animate-[fadeInUp_.6s_ease] flex flex-col items-center text-center py-12 sm:py-20 px-4">
+            {/* Dramatic animated icon */}
+            <div className="w-40 h-40 mb-8 relative">
+              {/* Outer rotating rings */}
+              <div className="absolute inset-0 rounded-full border-[4px] border-transparent border-t-[#2563eb] animate-spin" style={{ animationDuration: '2s' }} />
+              <div className="absolute inset-3 rounded-full border-[4px] border-transparent border-r-blue-400 animate-[spin_2.5s_linear_infinite_reverse]" />
+              <div className="absolute inset-6 rounded-full border-[3px] border-transparent border-b-blue-300 animate-spin" style={{ animationDuration: '3s' }} />
+              <div className="absolute inset-10 rounded-full border-[3px] border-transparent border-l-blue-200 animate-[spin_3.5s_linear_infinite_reverse]" />
+              
+              {/* Pulsing center */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-gradient-to-br from-[#2563eb] to-[#1d4ed8] animate-pulse shadow-2xl shadow-blue-500/50" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/20 animate-ping" />
+              
+              {/* Checkmark icon (appears when done) */}
+              {verifyDone && (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-[scaleIn_.5s_ease]">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="6 12 10 16 18 8"/></svg>
+                </div>
+              )}
             </div>
-            <h3 className="text-xl font-semibold mb-2">{verifyDone ? "Prüfung abgeschlossen!" : "Daten werden geprüft…"}</h3>
-            <p className="text-[14px] text-gray-400 mb-10">Das dauert nur einen Moment.</p>
-            <div className="w-full max-w-sm h-1.5 rounded-full bg-gray-100 overflow-hidden">
-              <div className={`h-full rounded-full bg-[#2563eb] transition-all ${verifyDone ? "w-full duration-500" : "w-[85%] duration-[8s]"} ease-linear`} />
+
+            {/* Dynamic headline */}
+            <h3 className="text-3xl sm:text-4xl font-bold mb-4 bg-gradient-to-r from-[#2563eb] via-[#3b82f6] to-[#2563eb] bg-clip-text text-transparent animate-[shimmer_2s_ease-in-out_infinite]">
+              {verifyDone ? "✓ Prüfung abgeschlossen!" : "Bonitätsprüfung läuft…"}
+            </h3>
+            
+            {/* Suspenseful messages */}
+            <div className="max-w-md mx-auto mb-8 space-y-3">
+              <p className="text-lg text-gray-600 font-medium">
+                {verifyDone 
+                  ? "Ihre Daten wurden erfolgreich verifiziert." 
+                  : "Wir analysieren Ihre Bonität in Echtzeit…"}
+              </p>
+              <p className="text-sm text-gray-500">
+                {verifyDone 
+                  ? "Gleich erfahren Sie Ihr persönliches Kreditlimit." 
+                  : "SCHUFA-Abfrage • Einkommensvalidierung • Risikobewertung"}
+              </p>
             </div>
+
+            {/* Dramatic progress bar */}
+            <div className="w-full max-w-md mb-6">
+              <div className="h-3 rounded-full bg-gray-100 overflow-hidden shadow-inner">
+                <div 
+                  className={`h-full rounded-full bg-gradient-to-r from-[#2563eb] via-[#3b82f6] to-[#2563eb] transition-all relative overflow-hidden ${verifyDone ? "w-full duration-700" : "w-[92%] duration-[8000ms]"} ease-out`}
+                  style={{ backgroundSize: '200% 100%', animation: 'shimmer 2s linear infinite' }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-[slide_1.5s_ease-in-out_infinite]" />
+                </div>
+              </div>
+              <div className="flex justify-between mt-2 text-xs font-semibold text-gray-500">
+                <span>Wird geprüft...</span>
+                <span>{verifyDone ? "100%" : "92%"}</span>
+              </div>
+            </div>
+
+            {/* Verification steps */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto mt-8">
+              {[
+                { icon: "🔍", label: "SCHUFA-Prüfung", status: verifyDone ? "done" : "active" },
+                { icon: "💰", label: "Einkommenscheck", status: verifyDone ? "done" : "pending" },
+                { icon: "✓", label: "Freigabe", status: verifyDone ? "done" : "pending" }
+              ].map((item, i) => (
+                <div key={i} className={`p-4 rounded-xl border-2 transition-all duration-500 ${item.status === 'done' ? 'border-green-400 bg-green-50' : item.status === 'active' ? 'border-blue-400 bg-blue-50 animate-pulse' : 'border-gray-200 bg-gray-50'}`}>
+                  <div className="text-3xl mb-2">{item.icon}</div>
+                  <div className="text-xs font-bold text-gray-700">{item.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Suspense message */}
+            {!verifyDone && (
+              <div className="mt-10 p-6 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 max-w-md mx-auto">
+                <p className="text-sm font-semibold text-amber-900 mb-1">⏳ Bitte haben Sie einen Moment Geduld</p>
+                <p className="text-xs text-amber-700">Die Prüfung kann bis zu 15 Sekunden dauern. Ihre Daten werden verschlüsselt übertragen.</p>
+              </div>
+            )}
           </div>
         )}
 
-        {/* ═══ STEP 5: Result ═══ */}
+        {/* ═══ STEP 5: CELEBRATION RESULT ═══ */
         {step === 5 && (
-          <div className="animate-[fadeInUp_.4s_ease] text-center py-12 sm:py-20">
-            <div className="w-20 h-20 mx-auto mb-5 rounded-full bg-green-50 border-2 border-green-400 flex items-center justify-center">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5"><polyline points="6 12 10 16 18 8"/></svg>
+          <div className="animate-[fadeInUp_.6s_ease] text-center py-12 sm:py-20 px-4">
+            {/* Celebration icon with confetti effect */}
+            <div className="relative w-32 h-32 mx-auto mb-8">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 animate-[scaleIn_.6s_ease] shadow-2xl shadow-green-500/50" />
+              <div className="absolute inset-2 rounded-full bg-white/20 animate-ping" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" className="animate-[scaleIn_.8s_ease]"><polyline points="6 12 10 16 18 8"/></svg>
+              </div>
+              {/* Confetti particles */}
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="absolute w-2 h-2 rounded-full animate-[confetti_1s_ease-out]" style={{ 
+                  background: ['#2563eb', '#10b981', '#f59e0b', '#ef4444'][i % 4],
+                  top: '50%',
+                  left: '50%',
+                  transform: `rotate(${i * 45}deg) translateY(-60px)`,
+                  animationDelay: `${i * 0.1}s`
+                }} />
+              ))}
             </div>
-            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight fiaon-heading-gradient mb-3">Bonitätsprüfung bestanden!</h2>
-            <p className="text-[15px] text-gray-400 mb-6">Dein bewilligter Kreditrahmen:</p>
-            <p className="text-5xl sm:text-6xl font-bold tracking-tight fiaon-heading-gradient mb-3">{eur(approved)}</p>
-            <p className="text-[15px] text-gray-400 mb-10">mit deinem <strong className="text-gray-900">{pack?.name}</strong> Paket</p>
-            <button onClick={() => goStep(6)} className="fiaon-btn-gradient px-10 py-4 rounded-full text-[15px] font-semibold text-white">Vertrag annehmen & fortfahren →</button>
+            
+            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight mb-4 bg-gradient-to-r from-green-600 via-emerald-500 to-green-600 bg-clip-text text-transparent">🎉 Herzlichen Glückwunsch!</h2>
+            <p className="text-lg text-gray-600 font-medium mb-2">Ihre Bonitätsprüfung war erfolgreich</p>
+            <p className="text-base text-gray-500 mb-8">Ihr bewilligter Kreditrahmen:</p>
+            
+            {/* Dramatic limit reveal */}
+            <div className="relative inline-block mb-8">
+              <div className="absolute inset-0 bg-gradient-to-r from-[#2563eb] to-[#3b82f6] blur-3xl opacity-30 animate-pulse" />
+              <p className="relative text-6xl sm:text-8xl font-black tracking-tight bg-gradient-to-r from-[#2563eb] via-[#3b82f6] to-[#2563eb] bg-clip-text text-transparent animate-[shimmer_2s_ease-in-out_infinite]">{eur(approved)}</p>
+            </div>
+            
+            <div className="max-w-md mx-auto mb-10 p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200">
+              <p className="text-sm font-semibold text-gray-700 mb-1">✓ Genehmigt mit {pack?.name}</p>
+              <p className="text-xs text-gray-600">Monatliche Gebühr: {eur(pack?.fee || 0)} • Maximales Limit: {eur(pack?.lim || 0)}</p>
+            </div>
+            
+            <button onClick={() => goStep(6)} className="group relative px-12 py-5 rounded-2xl text-lg font-bold text-white overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-105">
+              <div className="absolute inset-0 bg-gradient-to-r from-[#2563eb] to-[#3b82f6] group-hover:from-[#1d4ed8] group-hover:to-[#2563eb] transition-all" />
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[slide_2s_ease-in-out_infinite]" />
+              <span className="relative">Vertrag annehmen & fortfahren →</span>
+            </button>
           </div>
         )}
 
@@ -393,6 +527,25 @@ export default function AntragPage() {
 
             <div className="max-w-sm mx-auto mb-8">{sideCard}</div>
 
+            {/* Contract Download */}
+            <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 p-6 max-w-sm mx-auto mb-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center shrink-0">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-bold text-gray-900">📄 Ihr Vertrag</p>
+                  <p className="text-xs text-gray-600">Personalisiertes PDF</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => { window.open(`/api/fiaon/contract/${ref}`, '_blank'); track("contract_download", { ref }, ref); }} 
+                className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl"
+              >
+                Vertrag jetzt herunterladen
+              </button>
+            </div>
+
             <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-200 p-7 max-w-sm mx-auto">
               <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-2">Aktivierung abschließen</p>
               <p className="text-[14px] text-gray-700 mb-5">Schließe die Zahlung für dein {pack?.name} Paket ab.</p>
@@ -405,7 +558,13 @@ export default function AntragPage() {
         )}
       </div>
 
-      <style>{`@keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}`}</style>
+      <style>{`
+        @keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+        @keyframes shimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+        @keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+        @keyframes scaleIn{0%{opacity:0;transform:scale(0.5)}100%{opacity:1;transform:scale(1)}}
+        @keyframes confetti{0%{opacity:1;transform:rotate(0deg) translateY(0)}100%{opacity:0;transform:rotate(720deg) translateY(-120px)}}
+      `}</style>
     </div>
   );
 }

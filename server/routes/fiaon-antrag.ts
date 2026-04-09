@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "../db";
 import { fiaonApplications, fiaonClickEvents } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import PDFDocument from "pdfkit";
 
 const router = Router();
 
@@ -52,6 +53,131 @@ router.post("/application", async (req, res) => {
   } catch (err) {
     console.error("[FIAON-APP]", err);
     res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+// Generate and download contract PDF
+router.get("/contract/:ref", async (req, res) => {
+  try {
+    const { ref } = req.params;
+    
+    // Get application data
+    const apps = await db.select().from(fiaonApplications).where(eq(fiaonApplications.ref, ref)).limit(1);
+    if (apps.length === 0) {
+      return res.status(404).json({ error: "Antrag nicht gefunden" });
+    }
+    
+    const app = apps[0];
+    
+    // Create PDF
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    
+    // Set response headers
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="FIAON_Vertrag_${ref}.pdf"`);
+    
+    // Pipe PDF to response
+    doc.pipe(res);
+    
+    // Header
+    doc.fontSize(24).font('Helvetica-Bold').text('FIAON Kreditkartenvertrag', { align: 'center' });
+    doc.moveDown();
+    doc.fontSize(10).font('Helvetica').text(`Vertragsnummer: ${ref}`, { align: 'center' });
+    doc.text(`Datum: ${new Date().toLocaleDateString('de-DE')}`, { align: 'center' });
+    doc.moveDown(2);
+    
+    // Vertragsparteien
+    doc.fontSize(14).font('Helvetica-Bold').text('§1 Vertragsparteien');
+    doc.moveDown(0.5);
+    doc.fontSize(10).font('Helvetica');
+    doc.text('Kreditgeber:', { continued: true }).font('Helvetica-Bold').text(' FIAON Financial Services GmbH');
+    doc.font('Helvetica').text('Musterstraße 123, 10115 Berlin');
+    doc.moveDown();
+    doc.text('Kreditnehmer:', { continued: true }).font('Helvetica-Bold').text(` ${app.firstName || ''} ${app.lastName || ''}`);
+    if (app.street) doc.font('Helvetica').text(`${app.street}, ${app.zip || ''} ${app.city || ''}`);
+    if (app.birthdate) doc.text(`Geburtsdatum: ${new Date(app.birthdate).toLocaleDateString('de-DE')}`);
+    doc.moveDown(1.5);
+    
+    // Vertragsgegenstand
+    doc.fontSize(14).font('Helvetica-Bold').text('§2 Vertragsgegenstand');
+    doc.moveDown(0.5);
+    doc.fontSize(10).font('Helvetica');
+    doc.text(`Der Kreditgeber stellt dem Kreditnehmer eine ${app.packName || 'FIAON'} Kreditkarte mit folgenden Konditionen zur Verfügung:`);
+    doc.moveDown(0.5);
+    doc.list([
+      `Kreditlimit: bis zu ${app.approvedLimit ? (app.approvedLimit.toLocaleString('de-DE') + ' €') : 'individuell festgelegt'}`,
+      `Monatliche Grundgebühr: gemäß Preisverzeichnis`,
+      `Verwendungszweck: ${app.purpose || 'allgemeine Nutzung'}`,
+      `Abrechnungsart: ${app.billing || 'Vollzahlung'}`,
+      `NFC kontaktlos: ${app.nfc || 'aktiviert'}`
+    ]);
+    doc.moveDown(1.5);
+    
+    // Kreditkonditionen
+    doc.fontSize(14).font('Helvetica-Bold').text('§3 Kreditkonditionen');
+    doc.moveDown(0.5);
+    doc.fontSize(10).font('Helvetica');
+    doc.text('3.1 Der Kreditnehmer kann die Kreditkarte im Rahmen des vereinbarten Kreditlimits nutzen.');
+    doc.text('3.2 Die Abrechnung erfolgt monatlich zum Ende des Abrechnungszeitraums.');
+    doc.text('3.3 Bei Vollzahlung fallen keine Sollzinsen an. Bei Teilzahlung gelten die Konditionen gemäß Preisverzeichnis.');
+    doc.moveDown(1.5);
+    
+    // Zahlungsbedingungen
+    doc.fontSize(14).font('Helvetica-Bold').text('§4 Zahlungsbedingungen');
+    doc.moveDown(0.5);
+    doc.fontSize(10).font('Helvetica');
+    if (app.billingMethod === 'iban' && app.iban) {
+      doc.text(`4.1 Die Abbuchung erfolgt per SEPA-Lastschrift von folgendem Konto:`);
+      doc.text(`IBAN: ${app.iban}`);
+    } else {
+      doc.text('4.1 Die Abrechnung erfolgt per Papierrechnung.');
+    }
+    doc.text('4.2 Die Zahlung ist innerhalb von 14 Tagen nach Rechnungsstellung fällig.');
+    doc.moveDown(1.5);
+    
+    // Kündigungsrecht
+    doc.fontSize(14).font('Helvetica-Bold').text('§5 Kündigungsrecht');
+    doc.moveDown(0.5);
+    doc.fontSize(10).font('Helvetica');
+    doc.text('5.1 Beide Vertragsparteien können diesen Vertrag jederzeit mit einer Frist von 4 Wochen kündigen.');
+    doc.text('5.2 Die Kündigung bedarf der Schriftform.');
+    doc.moveDown(1.5);
+    
+    // Datenschutz
+    doc.fontSize(14).font('Helvetica-Bold').text('§6 Datenschutz');
+    doc.moveDown(0.5);
+    doc.fontSize(10).font('Helvetica');
+    doc.text('6.1 Der Kreditgeber verarbeitet personenbezogene Daten gemäß DSGVO.');
+    doc.text('6.2 Eine Bonitätsprüfung bei der SCHUFA wurde durchgeführt.');
+    doc.moveDown(2);
+    
+    // Unterschriften
+    doc.fontSize(12).font('Helvetica-Bold').text('Vertragsannahme');
+    doc.moveDown(0.5);
+    doc.fontSize(10).font('Helvetica');
+    doc.text(`Der Kreditnehmer ${app.firstName || ''} ${app.lastName || ''} bestätigt hiermit:`);
+    doc.moveDown(0.5);
+    doc.list([
+      app.consentAgb ? '✓ AGB und Datenschutzerklärung akzeptiert' : '☐ AGB und Datenschutzerklärung',
+      app.consentSchufa ? '✓ Einwilligung zur Bonitätsprüfung erteilt' : '☐ Einwilligung zur Bonitätsprüfung',
+      app.consentContract ? '✓ Vertrag verbindlich angenommen' : '☐ Vertrag angenommen'
+    ]);
+    doc.moveDown(2);
+    
+    doc.text(`Ort, Datum: Berlin, ${new Date().toLocaleDateString('de-DE')}`);
+    doc.moveDown(2);
+    doc.text('_'.repeat(40));
+    doc.text('Unterschrift Kreditnehmer (digital bestätigt)');
+    
+    // Footer
+    doc.fontSize(8).text('\n\nFIAON Financial Services GmbH | Musterstraße 123 | 10115 Berlin | info@fiaon.de | www.fiaon.de', { align: 'center' });
+    
+    // Finalize PDF
+    doc.end();
+    
+  } catch (err) {
+    console.error('[FIAON-CONTRACT-PDF]', err);
+    res.status(500).json({ error: 'PDF-Generierung fehlgeschlagen' });
   }
 });
 

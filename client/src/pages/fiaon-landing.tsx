@@ -26,6 +26,13 @@ const PACKS = [
   { name: "FIAON High End", fee: "99,99", lim: "25.000", bg: "linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats: ["Limit bis 25.000 \u20AC", "24/7 VIP Support", "Concierge-Service", "Premium Lounge"] },
 ];
 
+const BUSINESS_PACKS = [
+  { name: "FIAON Business Starter", fee: "49,99", lim: "5.000", bg: "linear-gradient(145deg,#2c5282,#3b82f6,#4a90e2)", feats: ["Limit bis 5.000 \u20AC", "Business Support", "Multi-User Access", "Monthly Reports"] },
+  { name: "FIAON Business Pro", fee: "99,99", lim: "25.000", rec: true, bg: "linear-gradient(145deg,#1a365d,#2563eb,#4a8af5)", feats: ["Limit bis 25.000 \u20AC", "Priority Business Support", "Expense Tracking", "Employee Cards"] },
+  { name: "FIAON Business Ultra", fee: "149,99", lim: "75.000", bg: "linear-gradient(145deg,#1e3a5f,#2a5580,#3d7ab8)", feats: ["Limit bis 75.000 \u20AC", "Dedicated Account Manager", "Advanced Analytics", "Custom Limits"] },
+  { name: "FIAON Business Enterprise", fee: "249,99", lim: "250.000", bg: "linear-gradient(145deg,#0f172a,#1e293b,#334155)", feats: ["Limit bis 250.000 \u20AC", "24/7 Enterprise Support", "API Integration", "Unlimited Users"] },
+];
+
 /* ────────────────────────────────
    CREDIT CARD
    ──────────────────────────────── */
@@ -267,17 +274,39 @@ function WhySection() {
    ──────────────────────────────── */
 function Packages() {
   const obs = useReveal(0.05);
+  const [customerType, setCustomerType] = useState<"private" | "business">("private");
+  const currentPacks = customerType === "private" ? PACKS : BUSINESS_PACKS;
+  const applicationUrl = customerType === "private" ? "/antrag" : "/business-antrag";
+
   return (
     <section id="pakete" className="py-20 sm:py-28 bg-[#f8faff]" ref={obs.ref}>
       <div className="max-w-[1200px] mx-auto px-6">
-        <div className="max-w-2xl mb-14">
+        <div className="max-w-2xl mb-10">
           <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Pakete</p>
           <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4"><GradientText>Finde dein passendes Paket</GradientText></h2>
           <p className="text-[15px] text-gray-500 leading-relaxed">Von Einsteiger bis Premium &ndash; wir beraten dich zum optimalen Kreditkarten-Paket. Das finale Limit wird individuell berechnet.</p>
         </div>
 
+        {/* Customer Type Toggle */}
+        <div className="flex justify-center mb-10">
+          <div className="inline-flex rounded-xl p-1 fiaon-glass-panel">
+            <button
+              onClick={() => setCustomerType("private")}
+              className={`px-6 py-2.5 rounded-lg text-[13px] font-semibold transition-all duration-300 ${customerType === "private" ? "bg-white text-[#2563eb] shadow-md" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              Privatkunde
+            </button>
+            <button
+              onClick={() => setCustomerType("business")}
+              className={`px-6 py-2.5 rounded-lg text-[13px] font-semibold transition-all duration-300 ${customerType === "business" ? "bg-white text-[#2563eb] shadow-md" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              Geschäftskunde
+            </button>
+          </div>
+        </div>
+
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {PACKS.map((p, i) => (
+          {currentPacks.map((p, i) => (
             <div key={p.name} className={`rounded-2xl bg-white border overflow-hidden transition-all duration-700 hover:-translate-y-1.5 hover:shadow-xl ${p.rec ? "border-[#2563eb]/25 shadow-lg shadow-blue-500/8 ring-1 ring-[#2563eb]/10" : "border-gray-100 hover:border-gray-200"} ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`} style={{ transitionDelay: `${i * 90}ms` }}>
               {p.rec && <div className="h-[2px] bg-[#2563eb]" />}
 
@@ -302,7 +331,7 @@ function Packages() {
                   ))}
                 </ul>
 
-                <a href="/antrag" className={`block w-full text-center py-3 rounded-xl text-[13px] font-medium transition-all ${p.rec ? "fiaon-btn-gradient text-white" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100"}`}>
+                <a href={applicationUrl} className={`block w-full text-center py-3 rounded-xl text-[13px] font-medium transition-all ${p.rec ? "fiaon-btn-gradient text-white" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100"}`}>
                   Antrag starten
                 </a>
               </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import GlassNav from "@/components/GlassNav";
+import PremiumFooter from "@/components/PremiumFooter";
 
 function useReveal(t = 0.1) {
   const ref = useRef<HTMLDivElement>(null);
@@ -421,7 +422,7 @@ export default function PrivatkundenPage() {
       <Reviews />
       <Faq />
       <FinalCta />
-      <Foot />
+      <PremiumFooter />
     </div>
   );
 }

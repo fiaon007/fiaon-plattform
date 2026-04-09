@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
+import PremiumFooter from "@/components/PremiumFooter";
 
 export default function Privacy() {
   const sections = [
@@ -110,6 +111,8 @@ export default function Privacy() {
           </Card>
         </motion.div>
       </div>
+
+      <PremiumFooter />
     </div>
   );
 }

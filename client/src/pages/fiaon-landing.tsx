@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import GlassNav from "@/components/GlassNav";
+import PremiumFooter from "@/components/PremiumFooter";
 
 /* ── scroll reveal ── */
 function useReveal(t = 0.12) {
@@ -1423,7 +1424,7 @@ export default function FiaonLanding() {
       <FeaturesOverview />
       <Cta />
       <ProcessSection />
-      <Foot />
+      <PremiumFooter />
     </div>
   );
 }

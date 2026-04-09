@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import GlassNav from "@/components/GlassNav";
+import PremiumFooter from "@/components/PremiumFooter";
 
 /* ── scroll reveal ── */
 function useReveal(t = 0.1) {
@@ -330,7 +331,7 @@ export default function BusinessPage() {
       <Compare />
       <Process />
       <Cta />
-      <Foot />
+      <PremiumFooter />
     </div>
   );
 }

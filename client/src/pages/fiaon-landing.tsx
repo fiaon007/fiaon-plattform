@@ -858,6 +858,122 @@ function WasIstFiaonSection() {
 }
 
 /* ────────────────────────────────
+   FEATURES OVERVIEW
+   ──────────────────────────────── */
+function FeaturesOverview() {
+  const obs = useReveal(0.1);
+  
+  const features = [
+    {
+      icon: "🔍",
+      title: "KI-Profilanalyse",
+      description: "Unsere Software scannt dein Finanzprofil und zeigt dir, wo du stehst — und wo du hinkönntest."
+    },
+    {
+      icon: "📈",
+      title: "Credit-Building-Strategien",
+      description: "Aus dem US-System adaptiert, für den europäischen Markt optimiert. Schritt-für-Schritt-Module, die funktionieren."
+    },
+    {
+      icon: "📊",
+      title: "Limit-Tracker Dashboard",
+      description: "Verfolge deinen Fortschritt in Echtzeit. Sieh, was sich verändert hat und was dein nächster Move ist."
+    },
+    {
+      icon: "🧭",
+      title: "Kartenkompass",
+      description: "Welche Produkte am Markt passen zu deinem Profil? Datenbasierte Übersicht — ohne Affiliate-Links, ohne Werbung."
+    },
+    {
+      icon: "🎯",
+      title: "Score-Simulator",
+      description: "Was passiert mit deiner Bonität, wenn du X machst? Simuliere Szenarien, bevor du handelst."
+    },
+    {
+      icon: "📅",
+      title: "Monats-Coaching",
+      description: "Jeden Monat neue Insights, Aufgaben und Strategieanpassungen. Kein einmaliger Vergleich — ein laufendes Programm."
+    }
+  ];
+  
+  return (
+    <section ref={obs.ref} className="py-20 sm:py-28 relative overflow-hidden" style={{ background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 50%, #ffffff 100%)" }}>
+      {/* Background effects */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-[800px] h-[500px] opacity-20" style={{ background: "radial-gradient(ellipse, rgba(37,99,235,0.08), transparent 70%)", filter: "blur(120px)" }} />
+        <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[400px] opacity-15" style={{ background: "radial-gradient(ellipse, rgba(212,175,55,0.06), transparent 70%)", filter: "blur(100px)" }} />
+      </div>
+
+      <div className={`max-w-[1120px] mx-auto px-6 relative z-10 transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+        {/* Section Badge */}
+        <div className="mb-12">
+          <span className="inline-block px-5 py-2.5 bg-white/60 backdrop-blur-xl border border-blue-200 text-[#2563eb] text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-blue-500/10">
+            ALLES IN EINER PLATTFORM
+          </span>
+        </div>
+
+        {/* Headline */}
+        <div className="text-center mb-16">
+          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900 fiaon-gradient-text-animated mb-4">
+            Software. Coaching. Strategie.<br/>
+            Alles drin.
+          </h2>
+        </div>
+
+        {/* 3x2 Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {features.map((feature, index) => (
+            <div 
+              key={index}
+              className="fiaon-glass-panel rounded-2xl p-6 border border-white/60 hover:border-blue-200 transition-all duration-300 relative overflow-hidden"
+              style={{
+                animationDelay: `${index * 100}ms`,
+                animation: obs.v ? "fadeInUp 0.6s ease-out forwards" : "none",
+                opacity: obs.v ? 1 : 0,
+                transform: obs.v ? "translateY(0)" : "translateY(20px)"
+              }}
+            >
+              {/* Animated gradient background on hover */}
+              <div className="absolute inset-0 opacity-0 hover:opacity-10 transition-opacity duration-300"
+                   style={{ background: "linear-gradient(135deg, rgba(37,99,235,0.3), rgba(147,197,253,0.3))" }}
+              />
+              
+              <div className="relative z-10">
+                {/* Icon */}
+                <div className="mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-2xl shadow-lg shadow-blue-500/20">
+                    {feature.icon}
+                  </div>
+                </div>
+                
+                {/* Title */}
+                <h3 className="text-xl font-bold text-gray-900 mb-3 fiaon-gradient-text-animated">{feature.title}</h3>
+                
+                {/* Description */}
+                <p className="text-gray-600 leading-relaxed text-sm">{feature.description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
+    </section>
+  );
+}
+
+/* ────────────────────────────────
    CTA
    ──────────────────────────────── */
 function Cta() {
@@ -1215,6 +1331,7 @@ export default function FiaonLanding() {
       <Faq />
       <ProblemSection />
       <WasIstFiaonSection />
+      <FeaturesOverview />
       <Cta />
       <ProcessSection />
       <Foot />

@@ -306,6 +306,71 @@ export default function AntragPage() {
           </div>
         )}
 
+        {/* === APPLICATION PROCESS SECTION === */}
+        {step === 0 && (
+          <div className="mt-16 animate-[fadeInUp_.6s_ease]">
+            <div className="max-w-[1280px] mx-auto px-6">
+              <div className="max-w-3xl mb-16 text-center">
+                <p className="text-[12px] font-semibold text-[#2563eb] tracking-[.2em] uppercase mb-4">Antragprozess</p>
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight mb-6 fiaon-gradient-text-animated">
+                  In 5 Schritten zur Karte
+                </h2>
+                <p className="text-[16px] sm:text-[17px] text-gray-500 leading-relaxed max-w-2xl mx-auto">
+                  Digital, sicher und in unter 2 Minuten – so einfach geht's.
+                </p>
+              </div>
+
+              <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-8">
+                {[
+                  { n: "01", t: "Paket wählen", d: "Wähle dein gewünschtes FIAON Paket mit passendem Limit." },
+                  { n: "02", t: "Daten eingeben", d: "Persönliche Daten, Beruf & Finanzen – verschlüsselt übertragen." },
+                  { n: "03", t: "Bonitätsprüfung", d: "Echtzeit-Analyse deiner Daten – dauert nur wenige Sekunden." },
+                  { n: "04", t: "Limit erhalten", d: "Dein personalisiertes Kreditlimit wird sofort angezeigt." },
+                  { n: "05", t: "Vertrag annehmen", d: "Unterschrift digital – dein Vertrag ist sofort bereit." },
+                ].map((s, i) => (
+                  <div key={i} className="relative">
+                    <div className="relative p-8 rounded-3xl fiaon-glass-panel hover:scale-[1.03] hover:shadow-2xl transition-all duration-500 group">
+                      <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
+                        <div className="absolute inset-0 opacity-20" style={{
+                          background: "linear-gradient(135deg, rgba(37,99,235,0.15), rgba(147,197,253,0.25), rgba(37,99,235,0.12), rgba(147,197,253,0.18))",
+                          backgroundSize: "300% 300%",
+                          animation: "limitGlow 8s ease-in-out infinite"
+                        }} />
+                        <div className="absolute inset-0 opacity-10" style={{
+                          background: "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.8), transparent 70%)"
+                        }} />
+                      </div>
+
+                      <div className="relative z-10">
+                        <div className="text-[48px] font-bold mb-5 tracking-tight" style={{
+                          background: "linear-gradient(135deg, #1e40af, #2563eb, #3b82f6, #60a5fa)",
+                          backgroundClip: "text",
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent",
+                          opacity: 0.25,
+                          letterSpacing: "-0.02em"
+                        }}>
+                          {s.n}
+                        </div>
+
+                        <h3 className="text-[16px] font-semibold text-gray-900 mb-3 tracking-tight">{s.t}</h3>
+                        <p className="text-[14px] text-gray-500 leading-relaxed font-medium">{s.d}</p>
+                      </div>
+
+                      {i < 4 && (
+                        <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-8 h-[2px] hidden lg:block" style={{
+                          background: "linear-gradient(90deg, #2563eb, rgba(37,99,235,0.2))",
+                          boxShadow: "0 0 20px rgba(37,99,235,0.3)"
+                        }} />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* === STEPS 1-3 & 6: Form Steps === */}
         {[1, 2, 3, 6].includes(step) && (
           <div className="animate-[fadeInUp_.4s_ease]">

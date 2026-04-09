@@ -361,6 +361,67 @@ export default function PlattformKonzept() {
         </div>
       </section>
 
+      {/* Footer */}
+      <footer className="relative py-16 sm:py-20 overflow-hidden" style={{ background: "linear-gradient(180deg, rgba(10, 22, 40, 0) 0%, rgba(10, 22, 40, 0.8) 50%, rgba(10, 22, 40, 1) 100%)" }}>
+        {/* Background effects */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] opacity-20" style={{
+            background: "radial-gradient(ellipse at 50% 0%, rgba(37, 99, 235, 0.1), transparent 70%)",
+            filter: "blur(60px)"
+          }} />
+        </div>
+
+        <div className="relative z-10 max-w-[1280px] mx-auto px-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
+            {/* Logo & Description */}
+            <div>
+              <div className="mb-6">
+                <span className="text-2xl font-bold tracking-tight fiaon-gradient-text-animated">FIAON</span>
+              </div>
+              <p className="text-[14px] text-gray-400 leading-relaxed max-w-[260px]">
+                Unabhängige Kreditkarten-Beratung für Privatpersonen und Unternehmen.
+              </p>
+            </div>
+
+            {/* Pages */}
+            <div>
+              <div className="text-[13px] font-semibold text-white uppercase tracking-[.15em] mb-5">Seiten</div>
+              <ul className="space-y-3">
+                <li><a href="/" className="text-[14px] text-gray-400 hover:text-white transition-colors">Startseite</a></li>
+                <li><a href="/privatkunden" className="text-[14px] text-gray-400 hover:text-white transition-colors">Privatkunden</a></li>
+                <li><a href="/business" className="text-[14px] text-gray-400 hover:text-white transition-colors">Business</a></li>
+                <li><a href="/plattform-konzept" className="text-[14px] text-gray-400 hover:text-white transition-colors">Plattform-Konzept</a></li>
+              </ul>
+            </div>
+
+            {/* Legal */}
+            <div>
+              <div className="text-[13px] font-semibold text-white uppercase tracking-[.15em] mb-5">Rechtliches</div>
+              <ul className="space-y-3">
+                <li><a href="/terms" className="text-[14px] text-gray-400 hover:text-white transition-colors">AGB</a></li>
+                <li><a href="/privacy" className="text-[14px] text-gray-400 hover:text-white transition-colors">Datenschutz</a></li>
+                <li><a href="#" className="text-[14px] text-gray-400 hover:text-white transition-colors">Impressum</a></li>
+              </ul>
+            </div>
+
+            {/* Contact */}
+            <div>
+              <div className="text-[13px] font-semibold text-white uppercase tracking-[.15em] mb-5">Kontakt</div>
+              <ul className="space-y-3">
+                <li><a href="mailto:support@fiaon.com" className="text-[14px] text-gray-400 hover:text-white transition-colors">support@fiaon.com</a></li>
+                <li><span className="text-[14px] text-gray-400">Mo–Fr, 9–18 Uhr</span></li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Bottom Bar */}
+          <div className="pt-8 border-t border-gray-700 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <span className="text-[13px] text-gray-500">&copy; {new Date().getFullYear()} FIAON. Alle Rechte vorbehalten.</span>
+            <span className="text-[12px] text-gray-500">FIAON ist ein Beratungsservice und kein Kreditinstitut.</span>
+          </div>
+        </div>
+      </footer>
+
       <style>{`
         @keyframes meshGradient {
           0%, 100% {

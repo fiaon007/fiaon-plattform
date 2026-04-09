@@ -129,58 +129,50 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                 </svg>
               </button>
             </div>
+          </div>
+        </div>
 
-            {/* Mobile dropdown */}
-            <div
-              className={`md:hidden overflow-hidden transition-all duration-300 ${
-                mob ? "max-h-[280px]" : "max-h-0"
-              }`}
-            >
-              <div className="px-5 pb-4 pt-1 space-y-1 border-t border-white/30">
-                {pages.map((p) => (
-                  <a
-                    key={p.key}
-                    href={p.href}
-                    onClick={() => setMob(false)}
-                    className={`flex items-center gap-2 text-sm font-medium py-2.5 transition-colors ${
-                      activePage === p.key
-                        ? "text-gray-900"
-                        : "text-gray-500"
-                    }`}
-                  >
-                    {p.hasGradient ? (
-                      <>
-                        Was ist <span className="fiaon-gradient-text-animated">FIAON</span>
-                      </>
-                    ) : (
-                      p.label
-                    )}
-                    {activePage === p.key && (
-                      <span
-                        className="w-1.5 h-1.5 rounded-full bg-[#2563eb]"
-                        style={{
-                          boxShadow: "0 0 6px rgba(37,99,235,.5)",
-                        }}
-                      />
-                    )}
-                  </a>
-                ))}
+        {/* Mobile full-screen menu overlay */}
+        {mob && (
+          <div className="md:hidden fixed inset-0 top-[72px] z-40 bg-white/95 backdrop-blur-xl">
+            <div className="px-6 py-8 space-y-4">
+              {pages.map((p) => (
+                <a
+                  key={p.key}
+                  href={p.href}
+                  onClick={() => setMob(false)}
+                  className={`block py-4 text-lg font-medium transition-colors border-b border-gray-100 ${
+                    activePage === p.key
+                      ? "text-gray-900"
+                      : "text-gray-600"
+                  }`}
+                >
+                  {p.hasGradient ? (
+                    <>
+                      Was ist <span className="fiaon-gradient-text-animated">FIAON</span>
+                    </>
+                  ) : (
+                    p.label
+                  )}
+                </a>
+              ))}
+              <div className="pt-4 space-y-3">
                 <button
                   onClick={handleAntragClick}
-                  className="block w-full text-center py-3 rounded-xl text-sm font-semibold text-white fiaon-btn-gradient mt-2"
+                  className="block w-full py-4 rounded-xl text-base font-semibold text-white fiaon-btn-gradient"
                 >
                   Konto eröffnen
                 </button>
                 <a
                   href="/login"
-                  className="block w-full text-center py-3 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 mt-2"
+                  className="block w-full py-4 rounded-xl text-base font-medium text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 transition-colors"
                 >
                   Login
                 </a>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </nav>
 
       {/* Modal: Privatkunde oder Geschäftskunde */}

@@ -3,10 +3,10 @@ import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 
 const PACKS = [
-  { key:"start", name:"FIAON Starter", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["Limit bis 500 €","E-Mail Support","NFC kontaktlos","Online-Banking"], pay:"https://buy.stripe.com/7sY5kDbfRdT06fagh9bMQ01" },
-  { key:"pro", name:"FIAON Pro", fee:59.99, lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:["Limit bis 5.000 €","Priority Support","Cashback-Programm","NFC kontaktlos"], pay:"https://buy.stripe.com/cNieVdcjVeX4fPK4yrbMQ02" },
-  { key:"ultra", name:"FIAON Ultra", fee:79.99, lim:15000, bg:"linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats:["Limit bis 15.000 €","Reise-Versicherung","Lounge-Zugang","Priority Support"], pay:"https://buy.stripe.com/eVq4gz83F02a5b68OHbMQ03" },
-  { key:"highend", name:"FIAON High End", fee:99.99, lim:25000, bg:"linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats:["Limit bis 25.000 €","24/7 VIP Support","Concierge-Service","Premium Lounge"], pay:"https://buy.stripe.com/7sYdR9abNcOW5b6c0TbMQ04" },
+  { key:"start", name:"FIAON Starter (Das Fundament)", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["KI-Profilanalyse (Basis-Scan)","Kartenkompass: Markt-Matching","Credit-Building Grundmodul","Digitales Strategie-Dashboard"], pay:"https://buy.stripe.com/7sY5kDbfRdT06fagh9bMQ01" },
+  { key:"pro", name:"FIAON Pro (Der Standard – EMPFOHLEN)", fee:59.99, lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:["Vollständiges Credit-Building System","KI-Matching mit Score-Prognose","Dynamischer Score-Simulator","Limit-Hebel-Strategie (12 Monate)","Priority Support-Zugang"], pay:"https://buy.stripe.com/cNieVdcjVeX4fPK4yrbMQ02" },
+  { key:"ultra", name:"FIAON Ultra (Die Elite)", fee:79.99, lim:15000, bg:"linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats:["Premium Coaching (Meilen & Cashback)","Multi-Karten-Portfolio-Struktur","Individueller Optimierungs-Algorithmus","Exklusive Strategie-Sessions"], pay:"https://buy.stripe.com/eVq4gz83F02a5b68OHbMQ03" },
+  { key:"highend", name:"FIAON High End (Das Maximum)", fee:99.99, lim:25000, bg:"linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats:["1-on-1 Strategy-Director (Monatlich)","VIP International Credit Building","24/7 Dedicated Concierge-Support","Individuelle Limit-Roadmap (Hochend)"], pay:"https://buy.stripe.com/7sYdR9abNcOW5b6c0TbMQ04" },
 ];
 
 function mkRef() { return "FIAON-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase(); }
@@ -294,7 +294,7 @@ export default function AntragPage() {
                       ))}
                     </ul>
                     <div className="pt-3 border-t border-gray-100/80">
-                      <span className="text-[13px] font-semibold text-[#2563eb] group-hover:translate-x-1 transition-transform inline-block">Jetzt wählen →</span>
+                      <span className="text-[13px] font-semibold text-[#2563eb] group-hover:translate-x-1 transition-transform inline-block">Konto eröffnen</span>
                     </div>
                   </div>
                 </button>

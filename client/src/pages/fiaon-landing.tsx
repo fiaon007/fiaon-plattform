@@ -527,7 +527,7 @@ function Cta() {
       <div className="max-w-[640px] mx-auto px-6 text-center">
         <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4"><GradientText>Bereit f&uuml;r deine Kreditkarte?</GradientText></h2>
         <p className="text-[15px] text-gray-500 leading-relaxed mb-8">Starte jetzt deinen Antrag &ndash; kostenlos, ohne SCHUFA-Abfrage, in unter 2 Minuten.</p>
-        <a href="#" className="fiaon-btn-gradient inline-flex items-center gap-2 px-8 py-3.5 rounded-full text-[15px] font-medium text-white">
+        <a href="/antrag" className="fiaon-btn-gradient inline-flex items-center gap-2 px-8 py-3.5 rounded-full text-[15px] font-medium text-white">
           Jetzt starten
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
         </a>

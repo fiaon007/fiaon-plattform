@@ -466,8 +466,10 @@ function Cta() {
    ──────────────────────────────── */
 function ComparisonSection() {
   const obs = useReveal(0.1);
+  const [selected, setSelected] = useState(1);
   const products = [
     { 
+      id: 0,
       name: "FIAON Starter", 
       fee: "7,99", 
       lim: "500", 
@@ -475,6 +477,7 @@ function ComparisonSection() {
       features: ["E-Mail Support", "NFC kontaktlos", "Online-Banking", "Limit bis 500€"] 
     },
     { 
+      id: 1,
       name: "FIAON Pro", 
       fee: "59,99", 
       lim: "5.000", 
@@ -482,6 +485,7 @@ function ComparisonSection() {
       features: ["Priority Support", "Cashback-Programm", "NFC kontaktlos", "Limit bis 5.000€"] 
     },
     { 
+      id: 2,
       name: "FIAON Ultra", 
       fee: "79,99", 
       lim: "15.000", 
@@ -489,6 +493,7 @@ function ComparisonSection() {
       features: ["Reise-Versicherung", "Lounge-Zugang", "Priority Support", "Limit bis 15.000€"] 
     },
     { 
+      id: 3,
       name: "FIAON High End", 
       fee: "99,99", 
       lim: "25.000", 
@@ -497,112 +502,110 @@ function ComparisonSection() {
     },
   ];
 
+  const selectedProduct = products[selected];
+
   return (
     <section className="py-16 sm:py-20 relative overflow-hidden" ref={obs.ref}>
       {/* Subtle background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] opacity-8" style={{
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] opacity-8" style={{
           background: "radial-gradient(ellipse at center, rgba(37,99,235,0.08), transparent 70%)",
-          filter: "blur(60px)",
+          filter: "blur(50px)",
           animation: "limitGlow 12s ease-in-out infinite"
         }} />
       </div>
 
-      <div className="relative z-10 max-w-[1200px] mx-auto px-6">
-        <div className="text-center mb-12">
+      <div className="relative z-10 max-w-[1000px] mx-auto px-6">
+        <div className="text-center mb-10">
           <p className="text-[11px] font-semibold text-[#2563eb] tracking-[.2em] uppercase mb-3">Produktvergleich</p>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight mb-4 fiaon-gradient-text-animated">
+          <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight mb-4 fiaon-gradient-text-animated">
             Finde das perfekte Paket für dich
           </h2>
-          <p className="text-[15px] sm:text-[16px] text-gray-500 leading-relaxed max-w-xl mx-auto">
-            Vergleiche alle Funktionen und wähle das Paket, das am besten zu deinem Lebensstil passt.
+          <p className="text-[15px] text-gray-500 leading-relaxed max-w-xl mx-auto">
+            Wähle ein Paket und sieh alle Details.
           </p>
         </div>
 
-        {/* Compact comparison table */}
+        {/* Interactive comparison */}
         <div className={`relative ${obs.v ? "animate-[fadeInUp_.6s_ease]" : "opacity-0"}`}>
-          <div className="relative rounded-2xl fiaon-glass-panel overflow-hidden">
-            {/* Subtle gradient overlay */}
-            <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
-              <div className="absolute inset-0 opacity-10" style={{
-                background: "linear-gradient(135deg, rgba(37,99,235,0.08), rgba(147,197,253,0.12), rgba(37,99,235,0.06))",
-                backgroundSize: "200% 200%",
-                animation: "limitGlow 10s ease-in-out infinite"
-              }} />
-            </div>
-
-            <div className="relative z-10 overflow-x-auto">
-              <table className="w-full min-w-[700px]">
-                <thead>
-                  <tr className="border-b border-white/20">
-                    <th className="text-left py-4 px-5 text-[12px] font-semibold text-gray-500 uppercase tracking-[.12em]">Paket</th>
-                    {products.map((p, i) => (
-                      <th key={i} className={`py-4 px-4 text-center ${p.recommended ? "relative" : ""}`}>
-                        {p.recommended && (
-                          <div className="absolute -top-2 left-1/2 -translate-x-1/2">
-                            <span className="text-[9px] font-semibold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-3 py-0.5 rounded-full border border-[#2563eb]/20">
-                              Empfohlen
-                            </span>
-                          </div>
-                        )}
-                        <div className={`text-[15px] font-bold ${p.recommended ? "fiaon-gradient-text-animated" : "text-gray-900"}`}>
-                          {p.name}
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-white/10">
-                    <td className="py-3 px-5 text-[13px] text-gray-600">Limit</td>
-                    {products.map((p, i) => (
-                      <td key={i} className="py-3 px-4 text-center">
-                        <span className="text-[14px] font-semibold text-gray-900">bis {p.lim} €</span>
-                      </td>
-                    ))}
-                  </tr>
-                  <tr className="border-b border-white/10">
-                    <td className="py-3 px-5 text-[13px] text-gray-600">Gebühr/Mt.</td>
-                    {products.map((p, i) => (
-                      <td key={i} className="py-3 px-4 text-center">
-                        <span className="text-[14px] font-semibold text-gray-900">{p.fee} €</span>
-                      </td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td className="py-4 px-5 text-[13px] text-gray-600">Features</td>
-                    {products.map((p, i) => (
-                      <td key={i} className={`py-4 px-4 text-center ${p.recommended ? "bg-blue-50/30" : ""}`}>
-                        <ul className="space-y-1.5 text-left">
-                          {p.features.map((f, j) => (
-                            <li key={j} className="text-[12px] text-gray-600 flex items-center gap-2">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>
-                              {f}
-                            </li>
-                          ))}
-                        </ul>
-                      </td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* CTA Buttons */}
-            <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-3 p-4 border-t border-white/20">
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Left: Package Selection */}
+            <div className="space-y-3">
               {products.map((p, i) => (
-                <a
-                  key={i}
-                  href="/antrag"
-                  className={`py-2.5 rounded-lg text-[12px] font-semibold transition-all duration-300 text-center ${
-                    p.recommended
-                      ? "bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white shadow-md hover:shadow-lg hover:scale-[1.02]"
-                      : "fiaon-glass-panel text-gray-700 hover:bg-white/50"
+                <button
+                  key={p.id}
+                  onClick={() => setSelected(p.id)}
+                  className={`w-full text-left p-4 rounded-xl transition-all duration-300 ${
+                    selected === p.id
+                      ? "bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white shadow-lg"
+                      : "fiaon-glass-panel text-gray-700 hover:bg-white/60"
                   }`}
                 >
-                  {p.name} wählen
-                </a>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className={`text-[15px] font-semibold mb-1 ${selected === p.id ? "text-white" : ""}`}>
+                        {p.name}
+                      </div>
+                      <div className={`text-[13px] ${selected === p.id ? "text-white/80" : "text-gray-500"}`}>
+                        bis {p.lim} €
+                      </div>
+                    </div>
+                    {p.recommended && (
+                      <span className="text-[9px] font-semibold uppercase tracking-wider bg-white/20 px-2 py-1 rounded">
+                        Empfohlen
+                      </span>
+                    )}
+                  </div>
+                </button>
               ))}
+            </div>
+
+            {/* Right: Package Details */}
+            <div className="fiaon-glass-panel rounded-2xl p-6">
+              <div className="mb-6">
+                <h3 className={`text-[22px] font-bold mb-2 ${selectedProduct.recommended ? "fiaon-gradient-text-animated" : "text-gray-900"}`}>
+                  {selectedProduct.name}
+                </h3>
+                {selectedProduct.recommended && (
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-3 py-1 rounded-full border border-[#2563eb]/20">
+                    Empfohlen
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <div>
+                  <p className="text-[11px] text-gray-400 uppercase tracking-[.1em] mb-1">Kreditlimit</p>
+                  <p className="text-[24px] font-bold fiaon-gradient-text-animated">bis {selectedProduct.lim} €</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-gray-400 uppercase tracking-[.1em] mb-1">Gebühr/Monat</p>
+                  <p className="text-[18px] font-semibold text-gray-900">{selectedProduct.fee} €</p>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <p className="text-[11px] text-gray-400 uppercase tracking-[.1em] mb-3">Features</p>
+                <ul className="space-y-2">
+                  {selectedProduct.features.map((f, j) => (
+                    <li key={j} className="text-[13px] text-gray-600 flex items-center gap-2">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <a
+                href="/antrag"
+                className={`block w-full py-3 rounded-xl text-[13px] font-semibold transition-all duration-300 text-center ${
+                  selectedProduct.recommended
+                    ? "bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white shadow-lg hover:shadow-xl hover:scale-[1.02]"
+                    : "fiaon-glass-panel text-gray-700 hover:bg-white/60"
+                }`}
+              >
+                {selectedProduct.name} wählen
+              </a>
             </div>
           </div>
         </div>

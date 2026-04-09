@@ -38,6 +38,48 @@ router.post("/application", async (req, res) => {
     const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
     const birthdate = birthDay && birthMonth && birthYear ? `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}` : null;
 
+    // Auto-run migration if business fields don't exist
+    if (type === "business" && (companyName || legalForm || taxId)) {
+      try {
+        const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
+        const columns = await sql`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'fiaon_applications' 
+          AND table_schema = 'public'
+          AND column_name = 'company_name'
+        `;
+        
+        if (columns.length === 0) {
+          console.log("[FIAON-APP] Running auto-migration for business fields...");
+          await sql`
+            ALTER TABLE fiaon_applications 
+            ADD COLUMN IF NOT EXISTS company_name VARCHAR,
+            ADD COLUMN IF NOT EXISTS legal_form VARCHAR,
+            ADD COLUMN IF NOT EXISTS tax_id VARCHAR,
+            ADD COLUMN IF NOT EXISTS established_year VARCHAR,
+            ADD COLUMN IF NOT EXISTS contact_name VARCHAR,
+            ADD COLUMN IF NOT EXISTS contact_email VARCHAR,
+            ADD COLUMN IF NOT EXISTS contact_phone VARCHAR,
+            ADD COLUMN IF NOT EXISTS business_type VARCHAR,
+            ADD COLUMN IF NOT EXISTS industry VARCHAR,
+            ADD COLUMN IF NOT EXISTS annual_revenue INTEGER,
+            ADD COLUMN IF NOT EXISTS employees INTEGER,
+            ADD COLUMN IF NOT EXISTS monthly_expenses INTEGER,
+            ADD COLUMN IF NOT EXISTS billing_email VARCHAR;
+          `;
+          await sql`
+            CREATE INDEX IF NOT EXISTS fiaon_app_type_idx ON fiaon_applications(type);
+          `;
+          console.log("[FIAON-APP] Auto-migration completed successfully");
+        }
+        await sql.end();
+      } catch (migrateErr) {
+        console.error("[FIAON-APP] Auto-migration failed:", migrateErr);
+        // Continue with the application save even if migration fails
+      }
+    }
+
     // Try update first
     const existing = await db.select().from(fiaonApplications).where(eq(fiaonApplications.ref, ref)).limit(1);
     

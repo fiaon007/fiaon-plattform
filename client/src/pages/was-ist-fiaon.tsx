@@ -17,6 +17,7 @@ export default function WasIstFiaonPage() {
   const heroObs = useReveal(0.1);
   const paradigmObs = useReveal(0.1);
   const architectureObs = useReveal(0.1);
+  const methodikObs = useReveal(0.1);
   
   return (
     <div className="min-h-screen text-gray-900 antialiased relative overflow-hidden" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", background: "linear-gradient(180deg, #f8fafc 0%, #e0e7ff 30%, #f8fafc 60%, #e0e7ff 100%)" }}>
@@ -381,6 +382,128 @@ export default function WasIstFiaonPage() {
                 <p className="text-gray-600 leading-relaxed">
                   Deine Fortschritte, deine Timeline, deine nächsten Schritte. Das FIAON-Dashboard ist dein persönlicher Kommando-Stand, der sich jeden Monat mit dir weiterentwickelt.
                 </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* DIE METHODIK Section */}
+        <section ref={methodikObs.ref} className="py-20 sm:py-28 relative overflow-hidden" style={{ background: "linear-gradient(180deg, #f8fafc 0%, #ffffff 50%, #f8fafc 100%)" }}>
+          {/* Background effects */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute top-1/4 left-1/4 w-[800px] h-[500px] opacity-20" style={{ background: "radial-gradient(ellipse, rgba(37,99,235,0.08), transparent 70%)", filter: "blur(120px)" }} />
+            <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[400px] opacity-15" style={{ background: "radial-gradient(ellipse, rgba(212,175,55,0.06), transparent 70%)", filter: "blur(100px)" }} />
+          </div>
+
+          <div className="max-w-[1280px] mx-auto px-6 relative z-10">
+            <div className="grid lg:grid-cols-2 gap-12 items-center">
+              {/* Left: Premium Dashboard Mockup */}
+              <div className="relative lg:col-span-1">
+                <div className="relative -ml-6 lg:-ml-12">
+                  {/* Dashboard container with overlapping effect */}
+                  <div className="fiaon-glass-panel rounded-3xl p-8 border border-white/60 shadow-2xl shadow-blue-900/10 relative overflow-hidden"
+                       style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.9) 100%)" }}>
+                    {/* Dashboard Header */}
+                    <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200/50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                        <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                        <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                      </div>
+                      <div className="text-sm text-gray-500 font-medium">FIAON Methodik</div>
+                    </div>
+
+                    {/* Timeline Visualization */}
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-500/20">
+                          01
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm font-semibold text-gray-900 mb-1">US-Systematik</div>
+                          <div className="text-xs text-gray-500">Credit-Building als Wissenschaft</div>
+                        </div>
+                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-purple-500/20">
+                          02
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm font-semibold text-gray-900 mb-1">Europäische Anpassung</div>
+                          <div className="text-xs text-gray-500">Schufa-Mechanismen integriert</div>
+                        </div>
+                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-amber-500/20">
+                          03
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm font-semibold text-gray-900 mb-1">Software-Implementierung</div>
+                          <div className="text-xs text-gray-500">Automatisierte Strategie</div>
+                        </div>
+                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Progress indicator */}
+                    <div className="mt-6 pt-6 border-t border-gray-200/50">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">System-Integration</span>
+                        <span className="text-xs font-bold text-gray-900">100%</span>
+                      </div>
+                      <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-amber-500 rounded-full" style={{ width: "100%" }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Decorative overlapping elements */}
+                  <div className="absolute -bottom-4 -right-4 w-24 h-24 rounded-2xl bg-gradient-to-br from-blue-500/10 to-purple-600/10 backdrop-blur-sm border border-white/60 shadow-xl" />
+                  <div className="absolute -top-4 -left-4 w-16 h-16 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-600/10 backdrop-blur-sm border border-white/60 shadow-lg" />
+                </div>
+              </div>
+
+              {/* Right: Text Block */}
+              <div className="lg:col-span-1">
+                {/* Section Badge */}
+                <div className="mb-8">
+                  <span className="inline-block px-5 py-2.5 bg-white/60 backdrop-blur-xl border border-blue-200 text-[#2563eb] text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-blue-500/10">
+                    UNSERE METHODIK
+                  </span>
+                </div>
+
+                {/* Headline */}
+                <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900 fiaon-gradient-text-animated mb-8 leading-[1.1]">
+                  Credit-Building:<br/>
+                  Der Import eines<br/>
+                  Milliarden-Dollar-Systems.
+                </h2>
+
+                {/* Text */}
+                <div className="text-lg text-gray-600 leading-relaxed space-y-6">
+                  <p>
+                    In den USA ist "Credit-Building" kein Fremdwort, sondern Schulfach. Der strategische Aufbau von Kreditlinien und Bonitäts-Scores ist dort eine systematische Wissenschaft. Wer die Regeln kennt, fliegt First Class und hebelt sein Business. Wer sie nicht kennt, zahlt drauf.
+                  </p>
+                  <p>
+                    Europa hing hier jahrelang zurück. "Kreditkarte beantragen und hoffen" war die Norm. FIAON beendet das. Wir haben die Systematik des US-Marktes entschlüsselt, auf die europäische Scoring-Landschaft (inklusive Schufa-Mechanismen) übertragen und in eine Software gegossen. Du musst die Banken nicht mehr bitten. Du musst sie nur verstehen.
+                  </p>
+                </div>
               </div>
             </div>
           </div>

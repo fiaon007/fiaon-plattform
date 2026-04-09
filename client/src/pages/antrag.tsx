@@ -618,6 +618,83 @@ export default function AntragPage() {
           </div>
         )}
 
+        {/* === ROI CALCULATOR SECTION === */}
+        {step === 0 && (
+          <div className="mt-20 animate-[fadeInUp_.8s_ease]">
+            <div className="relative py-24 sm:py-32 px-6 rounded-3xl overflow-hidden" style={{ background: "linear-gradient(135deg, #0A0F1C 0%, #1a1a2e 50%, #0f0f23 100%)" }}>
+              {/* Background Effects */}
+              <div className="absolute inset-0 overflow-hidden">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] opacity-20" style={{
+                  background: "radial-gradient(ellipse at center, rgba(37, 99, 235, 0.15), transparent 70%)",
+                  filter: "blur(80px)"
+                }} />
+              </div>
+
+              <div className="relative z-10 max-w-4xl mx-auto text-center">
+                {/* Section Badge */}
+                <div className="mb-8">
+                  <span className="inline-block px-5 py-2.5 bg-white/10 backdrop-blur-xl border border-violet-400/30 text-violet-300 text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-violet-500/20">
+                    DER RETURN ON INVESTMENT
+                  </span>
+                </div>
+
+                {/* Headline */}
+                <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-8 leading-[1.1] fiaon-gradient-text-animated">
+                  Eine Investition, die sich selbst refinanziert.
+                </h2>
+
+                {/* Text */}
+                <p className="text-lg text-gray-400 mb-16 max-w-2xl mx-auto leading-relaxed">
+                  Warum 59 Euro im Monat zahlen? Weil dich Unwissenheit ein Vielfaches kostet. Eine optimierte 2-Karten-Strategie spart dir durchschnittlich 300 € Fremdwährungsgebühren im Jahr, generiert Hunderte Euros an Cashback und gibt dir Zugang zu zinsfreien Zahlungszielen, die deine Liquidität massiv erhöhen. FIAON ist kein Kostenpunkt. Es ist dein Hebel.
+                </p>
+
+                {/* Scale Visualization */}
+                <div className="relative flex items-center justify-center gap-8 px-8">
+                  {/* Left Bar: FIAON Setup (Short, Red/Orange) */}
+                  <div className="flex flex-col items-center">
+                    <div className="w-24 h-32 rounded-lg relative overflow-hidden" style={{ background: "linear-gradient(180deg, #f97316 0%, #ef4444 100%)" }}>
+                      {/* Glow Effect */}
+                      <div className="absolute inset-0 opacity-30" style={{
+                        background: "radial-gradient(circle at center, rgba(255, 255, 255, 0.3), transparent)",
+                        animation: "glowPulse 3s ease-in-out infinite"
+                      }} />
+                    </div>
+                    <div className="mt-4 text-center">
+                      <div className="text-3xl font-bold text-orange-400 mb-1">59 €</div>
+                      <div className="text-xs text-gray-400 uppercase tracking-wider">FIAON Setup</div>
+                    </div>
+                  </div>
+
+                  {/* Balance Point */}
+                  <div className="w-4 h-4 rounded-full bg-white shadow-lg shadow-white/50" style={{ animation: "pulse 2s ease-in-out infinite" }} />
+
+                  {/* Right Bar: Potential Value (Long, Blue/Violet) */}
+                  <div className="flex flex-col items-center">
+                    <div className="w-24 h-48 rounded-lg relative overflow-hidden" style={{ background: "linear-gradient(180deg, #8b5cf6 0%, #3b82f6 100%)" }}>
+                      {/* Glow Effect */}
+                      <div className="absolute inset-0 opacity-30" style={{
+                        background: "radial-gradient(circle at center, rgba(255, 255, 255, 0.3), transparent)",
+                        animation: "glowPulse 3s ease-in-out infinite"
+                      }} />
+                    </div>
+                    <div className="mt-4 text-center">
+                      <div className="text-3xl font-bold text-blue-400 mb-1">1.200 €+</div>
+                      <div className="text-xs text-gray-400 uppercase tracking-wider">Jährlicher Wert</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Scale Base */}
+                <div className="mt-8 flex items-center justify-center gap-4">
+                  <div className="w-32 h-1 bg-gradient-to-r from-orange-500 to-red-500 rounded" />
+                  <div className="w-4 h-1 bg-white rounded" />
+                  <div className="w-48 h-1 bg-gradient-to-r from-blue-500 to-violet-500 rounded" />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* === APPLICATION PROCESS SECTION === */}
         {step === 0 && (
           <div className="mt-16 animate-[fadeInUp_.6s_ease]">

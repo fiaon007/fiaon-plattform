@@ -187,51 +187,51 @@ function WhySection() {
 }
 
 /* ────────────────────────────────
-   PACKAGES — more space, bigger cards
+   PACKAGES — premium design, more width
    ──────────────────────────────── */
 function Packages() {
   const obs = useReveal(0.05);
   return (
     <section id="pakete" className="py-20 sm:py-28 bg-[#f8faff]" ref={obs.ref}>
-      <div className="max-w-[1200px] mx-auto px-6">
-        <div className="max-w-2xl mb-14">
+      <div className="max-w-[1400px] mx-auto px-6">
+        <div className="max-w-2xl mb-16">
           <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Pakete</p>
           <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4"><GradientText>Finde dein passendes Paket</GradientText></h2>
           <p className="text-[15px] text-gray-500 leading-relaxed">Von Einsteiger bis Premium &ndash; wir beraten dich zum optimalen Kreditkarten-Paket. Das finale Limit wird individuell berechnet.</p>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {PACKS.map((p, i) => (
-            <div key={p.name} className={`rounded-2xl bg-white border overflow-hidden transition-all duration-700 hover:-translate-y-1.5 hover:shadow-xl ${p.rec ? "border-[#2563eb]/25 shadow-lg shadow-blue-500/8 ring-1 ring-[#2563eb]/10" : "border-gray-100 hover:border-gray-200"} ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`} style={{ transitionDelay: `${i * 90}ms` }}>
-              {p.rec && <div className="h-[2px] bg-[#2563eb]" />}
+            <div key={p.name} className={`rounded-3xl bg-white border overflow-hidden transition-all duration-700 hover:-translate-y-2 hover:shadow-2xl ${p.rec ? "border-[#2563eb]/30 shadow-lg shadow-blue-500/10 ring-1 ring-[#2563eb]/15" : "border-gray-100 hover:border-gray-200"} ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`} style={{ transitionDelay: `${i * 90}ms` }}>
+              {p.rec && <div className="h-[2px] bg-gradient-to-r from-[#2563eb] to-[#3b82f6]" />}
 
-              {/* Card — more padding, not squished */}
-              <div className="p-5 sm:p-6">
+              {/* Card — generous padding */}
+              <div className="p-6 sm:p-8">
                 <Card bg={p.bg} lim={p.lim} className="w-full" />
               </div>
 
               {/* Content */}
-              <div className="px-5 sm:px-6 pb-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <h3 className="text-[15px] font-semibold text-gray-900">{p.name}</h3>
-                  {p.rec && <span className="text-[9px] font-semibold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-2 py-0.5 rounded">Empfohlen</span>}
+              <div className="px-6 sm:px-8 pb-8">
+                <div className="flex items-center gap-3 mb-4">
+                  <h3 className="text-[16px] font-semibold text-gray-900 tracking-tight">{p.name}</h3>
+                  {p.rec && <span className="text-[10px] font-semibold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-2.5 py-1 rounded-full">Empfohlen</span>}
                 </div>
 
-                <div className="flex items-baseline gap-1.5 mb-5">
-                  <span className="text-[28px] font-semibold text-gray-900 tracking-tight">{p.fee}</span>
-                  <span className="text-[13px] text-gray-400">&euro; / Monat</span>
+                <div className="flex items-baseline gap-1.5 mb-6">
+                  <span className="text-[30px] font-semibold fiaon-gradient-text-animated tracking-tight">{p.fee}</span>
+                  <span className="text-[14px] text-gray-400">&euro; / Monat</span>
                 </div>
 
-                <ul className="space-y-2.5 mb-6">
+                <ul className="space-y-3 mb-7">
                   {p.feats.map((f, j) => (
-                    <li key={j} className="flex items-center gap-2.5 text-[13px] text-gray-600">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>
+                    <li key={j} className="flex items-center gap-3 text-[14px] text-gray-600">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>
                       {f}
                     </li>
                   ))}
                 </ul>
 
-                <a href="#start" className={`block w-full text-center py-3 rounded-xl text-[13px] font-medium transition-all ${p.rec ? "fiaon-btn-gradient text-white" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100"}`}>
+                <a href="/antrag" className={`block w-full text-center py-4 rounded-xl text-[14px] font-semibold transition-all ${p.rec ? "fiaon-btn-gradient text-white shadow-lg shadow-blue-500/20" : "fiaon-btn-outline-animated"}`}>
                   Antrag starten
                 </a>
               </div>

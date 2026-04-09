@@ -152,6 +152,95 @@ export default function PlattformKonzept() {
         </div>
       </section>
 
+      {/* DAS BUSINESS-MODELL Section */}
+      <section className="relative z-10 py-20 sm:py-28 px-6" style={{ background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 50%, #ffffff 100%)" }}>
+        <div className="max-w-[1280px] mx-auto">
+          {/* Section Badge */}
+          <div className="mb-8 text-center">
+            <span className="inline-block px-5 py-2.5 bg-white/60 backdrop-blur-xl border border-blue-200 text-[#2563eb] text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-blue-500/10">
+              ZERO CONFLICTS
+            </span>
+          </div>
+
+          {/* Headline */}
+          <div className="text-center mb-16">
+            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900 fiaon-gradient-text-animated mb-4">
+              Warum wir Affiliate-Links hassen.
+            </h2>
+          </div>
+
+          {/* Overlapping Glassmorphism Cards */}
+          <div className="relative max-w-4xl mx-auto">
+            {/* Back Card (Grayed out/Blurred) */}
+            <div className="relative transform translate-x-8 translate-y-8 rotate-2 scale-95 opacity-50"
+                 style={{ filter: "blur(2px)" }}>
+              <div className="fiaon-glass-panel rounded-3xl p-8 border border-gray-200 shadow-2xl"
+                   style={{ background: "rgba(248, 250, 252, 0.8)", backdropFilter: "blur(10px)" }}>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-400 font-mono">Affiliate-Tracking</span>
+                    <span className="text-2xl font-bold text-gray-300 line-through">0%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-400 font-mono">Bank Kickbacks</span>
+                    <span className="text-2xl font-bold text-gray-300 line-through">0€</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-400 font-mono">Provisionen</span>
+                    <span className="text-2xl font-bold text-gray-300 line-through">0€</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Front Card (Clean Invoice Interface) */}
+            <div className="relative">
+              <div className="fiaon-glass-panel rounded-3xl p-8 border border-white/60 shadow-2xl shadow-blue-500/10"
+                   style={{ background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(20px)" }}>
+                {/* Invoice Header */}
+                <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full bg-green-500" style={{ animation: "pulse 2s ease-in-out infinite" }} />
+                    <span className="text-sm font-semibold text-gray-900">Status: Active</span>
+                  </div>
+                  <div className="text-sm text-gray-500">Plan: FIAON Pro</div>
+                </div>
+
+                {/* Invoice Details */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">Subscription</span>
+                    <span className="text-lg font-bold text-gray-900">€49.00/Mo.</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">Billing Cycle</span>
+                    <span className="text-sm text-gray-900">Monthly</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">Payment Method</span>
+                    <span className="text-sm text-gray-900">Stripe</span>
+                  </div>
+                </div>
+
+                {/* Badge */}
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <div className="inline-block px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                    <span className="text-xs font-semibold text-blue-600">SaaS - Pure Software</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Text under cards */}
+          <div className="mt-16 text-center max-w-3xl mx-auto">
+            <p className="text-lg text-gray-600 leading-relaxed">
+              Wer Provisionen von Banken nimmt, arbeitet für Banken. Unser Modell ist reines SaaS (Software as a Service). Du zahlst eine transparente monatliche Gebühr für unsere Technologie und Bildungsmodule. Wir leiten dich nicht per Tracking-Link weiter und erhalten keinen Cent von Finanzinstituten. Das macht FIAON zur einzigen wirklich neutralen Instanz auf dem Markt. Du bist der Kunde, nicht das Produkt.
+            </p>
+          </div>
+        </div>
+      </section>
+
       <style>{`
         @keyframes meshGradient {
           0%, 100% {
@@ -188,6 +277,17 @@ export default function PlattformKonzept() {
           100% {
             transform: translateX(200%);
             opacity: 0;
+          }
+        }
+        
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.5;
+            transform: scale(1.2);
           }
         }
       `}</style>

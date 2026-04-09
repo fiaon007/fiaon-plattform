@@ -874,31 +874,31 @@ function FeaturesOverview() {
       title: "Credit-Building-Strategien",
       subtitle: "Der Aufbau",
       description: "Aus dem US-System adaptiert, für den europäischen Markt optimiert. Schritt-für-Schritt-Module, die funktionieren.",
-      gradient: "from-purple-500 to-purple-600"
+      gradient: "from-blue-600 to-blue-700"
     },
     {
       title: "Limit-Tracker Dashboard",
       subtitle: "Der Monitor",
       description: "Verfolge deinen Fortschritt in Echtzeit. Sieh, was sich verändert hat und was dein nächster Move ist.",
-      gradient: "from-indigo-500 to-indigo-600"
+      gradient: "from-blue-700 to-blue-800"
     },
     {
       title: "Kartenkompass",
       subtitle: "Der Navigator",
       description: "Welche Produkte am Markt passen zu deinem Profil? Datenbasierte Übersicht — ohne Affiliate-Links, ohne Werbung.",
-      gradient: "from-teal-500 to-teal-600"
+      gradient: "from-blue-500 to-blue-600"
     },
     {
       title: "Score-Simulator",
       subtitle: "Der Simulator",
       description: "Was passiert mit deiner Bonität, wenn du X machst? Simuliere Szenarien, bevor du handelst.",
-      gradient: "from-emerald-500 to-emerald-600"
+      gradient: "from-blue-600 to-blue-700"
     },
     {
       title: "Monats-Coaching",
       subtitle: "Der Guide",
       description: "Jeden Monat neue Insights, Aufgaben und Strategieanpassungen. Kein einmaliger Vergleich — ein laufendes Programm.",
-      gradient: "from-amber-500 to-orange-600"
+      gradient: "from-blue-700 to-blue-800"
     }
   ];
   
@@ -964,9 +964,9 @@ function FeaturesOverview() {
                     )}
                     {index === 1 && (
                       <div className="relative z-10 w-full h-full flex items-end justify-center gap-2 px-4">
-                        <div className="flex-1 bg-gradient-to-t from-purple-500/40 to-purple-400/60 rounded-t" style={{ height: "60%" }} />
-                        <div className="flex-1 bg-gradient-to-t from-purple-500/50 to-purple-400/70 rounded-t" style={{ height: "80%" }} />
-                        <div className="flex-1 bg-gradient-to-t from-purple-500/60 to-pink-500/80 rounded-t" style={{ height: "100%" }} />
+                        <div className="flex-1 bg-gradient-to-t from-blue-500/40 to-blue-400/60 rounded-t" style={{ height: "60%" }} />
+                        <div className="flex-1 bg-gradient-to-t from-blue-500/50 to-blue-400/70 rounded-t" style={{ height: "80%" }} />
+                        <div className="flex-1 bg-gradient-to-t from-blue-500/60 to-blue-400/80 rounded-t" style={{ height: "100%" }} />
                       </div>
                     )}
                     {index === 2 && (
@@ -984,18 +984,18 @@ function FeaturesOverview() {
                     {index === 3 && (
                       <div className="relative z-10 w-full h-full flex items-center justify-center">
                         <div className="grid grid-cols-3 gap-2">
-                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-teal-500 to-teal-600 shadow-lg shadow-teal-500/20" />
-                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-teal-400 to-teal-500 shadow-lg shadow-teal-500/20" />
-                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-teal-300 to-teal-400 shadow-lg shadow-teal-500/20" />
+                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/20" />
+                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-blue-500 shadow-lg shadow-blue-500/20" />
+                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-300 to-blue-400 shadow-lg shadow-blue-500/20" />
                         </div>
                       </div>
                     )}
                     {index === 4 && (
                       <div className="relative z-10 w-full h-full flex items-center justify-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-500/20 flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/20 flex items-center justify-center">
                           <div className="text-white text-xs font-bold">85</div>
                         </div>
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-500 shadow-lg shadow-emerald-500/20 flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-blue-500 shadow-lg shadow-blue-500/20 flex items-center justify-center">
                           <div className="text-white text-xs font-bold">92</div>
                         </div>
                       </div>
@@ -1004,7 +1004,7 @@ function FeaturesOverview() {
                       <div className="relative z-10 w-full h-full flex items-center justify-center">
                         <div className="grid grid-cols-4 gap-1">
                           {[1, 2, 3, 4].map((i) => (
-                            <div key={i} className="w-3 h-8 rounded bg-gradient-to-t from-amber-500/60 to-orange-600/80" style={{ height: `${i * 20 + 20}%` }} />
+                            <div key={i} className="w-3 h-8 rounded bg-gradient-to-t from-blue-500/60 to-blue-600/80" style={{ height: `${i * 20 + 20}%` }} />
                           ))}
                         </div>
                       </div>

@@ -106,18 +106,14 @@ router.get("/stats", async (req, res) => {
     const stats = [];
     
     for (const table of tables) {
+      const tableName = table.table_name;
       const [countResult] = await sql`
-        SELECT COUNT(*) as total FROM ${sql.unsafe(`"${table.table_name}"`)};
-      `;
-      
-      const [sizeResult] = await sql`
-        SELECT pg_size_pretty(pg_total_relation_size(${sql.unsafe(`"${table.table_name}"`)})) as size;
+        SELECT COUNT(*) as total FROM "${tableName}";
       `;
       
       stats.push({
         table: table.table_name,
-        rows: parseInt(countResult.total),
-        size: sizeResult.size
+        rows: parseInt(countResult.total)
       });
     }
     

@@ -21,7 +21,6 @@ interface TableData {
 interface TableStats {
   table: string;
   rows: number;
-  size: string;
 }
 
 export default function AdminDatabasePage() {
@@ -119,7 +118,7 @@ export default function AdminDatabasePage() {
               <div key={stat.table} className="bg-white/50 rounded-xl p-4 border border-white/40">
                 <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">{stat.table}</div>
                 <div className="text-2xl font-bold fiaon-gradient-text-animated">{stat.rows.toLocaleString()}</div>
-                <div className="text-xs text-gray-500">{stat.size}</div>
+                <div className="text-xs text-gray-500">{stat.rows.toLocaleString()} rows</div>
               </div>
             ))}
           </div>
@@ -140,7 +139,7 @@ export default function AdminDatabasePage() {
                   >
                     <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{table}</div>
                     <div className="text-lg font-bold fiaon-gradient-text-animated">{stat?.rows.toLocaleString() || '0'}</div>
-                    <div className="text-xs text-gray-500">{stat?.size || 'N/A'}</div>
+                    <div className="text-xs text-gray-500">{stat?.rows.toLocaleString() || '0'} rows</div>
                     <div className="mt-2 text-xs text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">View Data →</div>
                   </button>
                 );

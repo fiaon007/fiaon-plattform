@@ -59,37 +59,14 @@ function Card({ bg, lim, label, className = "", size = "normal" }: { bg: string;
         <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 25% 15%, rgba(255,255,255,.3), transparent 55%)", mixBlendMode: "overlay" }} />
         <div className="absolute inset-0 opacity-[0.02]" style={{ backgroundImage: "repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(255,255,255,.5) 50px, rgba(255,255,255,.5) 51px)" }} />
 
-        <div className={`absolute inset-0 flex flex-col justify-between z-10 ${isHero ? "p-7 sm:p-8" : "p-4 sm:p-5"}`}>
-          {/* top */}
+        <div className={`absolute inset-0 p-5 sm:p-6 flex flex-col justify-between z-10`}>
           <div className="flex justify-between items-start">
-            <div className="flex items-center gap-2.5">
-              <div className={`rounded ${isHero ? "w-12 h-9" : "w-10 h-7"}`} style={{ background: "linear-gradient(135deg,#d4af37,#f0d875,#c9a227)", boxShadow: "0 1px 4px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.3)" }} />
-              <svg width={isHero ? "22" : "18"} height={isHero ? "22" : "18"} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="1.8"><path d="M8.5 16.5a5 5 0 0 1 0-9"/><path d="M5 13.5a1 1 0 0 1 0-3"/><path d="M12 19a9 9 0 0 0 0-14"/></svg>
-            </div>
-            {label && <span className="text-sm font-semibold tracking-wide" style={{ color: "rgba(255,255,255,.65)" }}>FIAON</span>}
-            <span className={`font-medium tracking-wide ${isHero ? "text-base" : "text-sm"}`} style={{ color: "rgba(255,255,255,.65)" }}>fiaon</span>
+            <div className={`rounded ${isHero ? "w-12 h-9" : "w-10 h-7"}`} style={{ background: "linear-gradient(135deg,#d4af37,#f0d875,#c9a227)", boxShadow: "0 1px 4px rgba(0,0,0,.25)" }} />
+            <span className="text-sm font-semibold tracking-wide" style={{ color: "rgba(255,255,255,.65)" }}>FIAON</span>
           </div>
-
-          {/* number */}
           <div>
-            <div className={`font-mono tracking-[.15em] ${isHero ? "text-base sm:text-lg" : "text-[8px] sm:text-[10px]"}`} style={{ color: "rgba(255,255,255,.5)" }}>
-              5232&nbsp;&nbsp;2702&nbsp;&nbsp;5678&nbsp;&nbsp;9012
-            </div>
-          </div>
-
-          {/* bottom */}
-          <div className="flex justify-between items-end">
-            <div>
-              <div className={`uppercase tracking-[.16em] font-medium ${isHero ? "text-[9px]" : "text-[7px]"}`} style={{ color: "rgba(255,255,255,.3)" }}>{label || "Kreditlimit"}</div>
-              <div className={`font-mono font-medium whitespace-nowrap ${isHero ? "text-base" : "text-xs sm:text-sm"}`} style={{ color: "rgba(255,255,255,.8)" }}>{label ? `bis ${lim} €` : `bis ${lim} €`}</div>
-            </div>
-            <div>
-              <div className={`uppercase tracking-[.16em] font-medium text-right ${isHero ? "text-[8px]" : "text-[6px]"}`} style={{ color: "rgba(255,255,255,.3)" }}>
-                <span className="mr-0.5">Valid</span>Thru
-              </div>
-              <div className={`font-mono font-medium ${isHero ? "text-sm" : "text-[10px]"}`} style={{ color: "rgba(255,255,255,.8)" }}>12/28</div>
-            </div>
-            <span className={`font-semibold tracking-[.15em] ${isHero ? "text-xl" : "text-sm"}`} style={{ color: "rgba(255,255,255,.45)" }}>VISA</span>
+            <div className={`text-[8px] uppercase tracking-[.14em] font-medium mb-0.5`} style={{ color: "rgba(255,255,255,.35)" }}>{label || ""}</div>
+            <div className={`font-mono text-lg font-semibold`} style={{ color: "rgba(255,255,255,.9)" }}>bis {lim} €</div>
           </div>
         </div>
       </div>

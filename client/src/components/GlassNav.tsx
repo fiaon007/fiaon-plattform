@@ -169,13 +169,13 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
             if (e.target === e.currentTarget) setShowModal(false);
           }}
         >
-          <div className="fiaon-modal max-w-[480px] relative overflow-hidden">
+          <div className="fiaon-modal max-w-[440px] relative overflow-hidden">
             {/* Animated gradient background */}
             <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
-              <div className="absolute inset-0 opacity-20" style={{
-                background: "linear-gradient(135deg, rgba(37,99,235,0.15), rgba(147,197,253,0.25), rgba(37,99,235,0.12), rgba(147,197,253,0.18))",
-                backgroundSize: "300% 300%",
-                animation: "limitGlow 8s ease-in-out infinite"
+              <div className="absolute inset-0 opacity-15" style={{
+                background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.1))",
+                backgroundSize: "200% 200%",
+                animation: "limitGlow 6s ease-in-out infinite"
               }} />
               <div className="absolute inset-0 opacity-10" style={{
                 background: "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.8), transparent 70%)"
@@ -183,9 +183,6 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
             </div>
 
             <div className="relative z-10 text-center mb-8">
-              <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-[#2563eb] to-[#1d4ed8] flex items-center justify-center mx-auto mb-5 shadow-2xl shadow-blue-500/30">
-                <span className="text-white text-2xl font-bold">F</span>
-              </div>
               <h3 className="text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-2">
                 Antrag starten
               </h3>
@@ -198,31 +195,26 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
               {/* Privatkunde */}
               <a
                 href="/antrag"
-                className="group block w-full p-5 rounded-2xl fiaon-glass-card hover:scale-[1.02] transition-all duration-300"
+                className="group block w-full p-5 rounded-2xl fiaon-glass-panel hover:scale-[1.02] hover:shadow-xl transition-all duration-300"
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#2563eb] to-[#3b82f6] flex items-center justify-center shadow-lg shadow-blue-500/20">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    </div>
-                    <div>
-                      <p className="text-[16px] font-semibold text-gray-900 mb-1 tracking-tight">
-                        Als Privatkunde
-                      </p>
-                      <p className="text-[13px] text-gray-400">
-                        Kreditkarte für persönliche Nutzung
-                      </p>
-                    </div>
+                  <div>
+                    <p className="text-[16px] font-semibold text-gray-900 mb-1">
+                      Als Privatkunde
+                    </p>
+                    <p className="text-[13px] text-gray-400">
+                      Kreditkarte für persönliche Nutzung
+                    </p>
                   </div>
                   <svg
                     width="20"
                     height="20"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke="#9ca3af"
+                    stroke="#2563eb"
                     strokeWidth="2"
                     strokeLinecap="round"
-                    className="group-hover:stroke-[#2563eb] group-hover:translate-x-1 transition-all duration-300"
+                    className="group-hover:translate-x-1 transition-all"
                   >
                     <path d="M9 18l6-6-6-6" />
                   </svg>
@@ -232,20 +224,15 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
               {/* Geschäftskunde */}
               <div className="relative block w-full p-5 rounded-2xl fiaon-glass-panel opacity-60 cursor-not-allowed">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gray-200 flex items-center justify-center">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-                    </div>
-                    <div>
-                      <p className="text-[16px] font-semibold text-gray-900 mb-1 tracking-tight">
-                        Als Geschäftskunde
-                      </p>
-                      <p className="text-[13px] text-gray-400">
-                        Business-Kreditkarte für Unternehmen
-                      </p>
-                    </div>
+                  <div>
+                    <p className="text-[16px] font-semibold text-gray-900 mb-1">
+                      Als Geschäftskunde
+                    </p>
+                    <p className="text-[13px] text-gray-400">
+                      Business-Kreditkarte für Unternehmen
+                    </p>
                   </div>
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-100/80 px-3 py-1.5 rounded-full">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-100 px-3 py-1.5 rounded-full">
                     Bald verfügbar
                   </span>
                 </div>

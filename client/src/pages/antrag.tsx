@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import GlassNav from "@/components/GlassNav";
 
 const PACKS = [
   { key:"start", name:"FIAON Starter", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["Limit bis 500 €","E-Mail Support","NFC kontaktlos","Online-Banking"], pay:"https://buy.stripe.com/7sY5kDbfRdT06fagh9bMQ01" },
@@ -210,22 +211,7 @@ export default function AntragPage() {
         <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full opacity-[0.03]" style={{ background: "radial-gradient(circle, #2563eb, transparent 70%)" }} />
       </div>
 
-      {/* ── Glass Topbar ── */}
-      <div className="sticky top-0 z-50 px-4 sm:px-6 py-3">
-        <div className="fiaon-glass-nav rounded-full max-w-[800px] mx-auto">
-          <div className="relative z-10 h-[52px] px-5 flex items-center justify-between">
-            <a href="/" className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-[#2563eb] flex items-center justify-center"><span className="text-white text-[10px] font-semibold">F</span></div>
-              <span className="text-[15px] font-semibold tracking-tight text-gray-900">FIAON</span>
-              <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider ml-1 hidden sm:inline">Kreditkarten-Antrag</span>
-            </a>
-            <div className="flex items-center gap-2 text-[11px] font-medium text-gray-400">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M7 11V8a5 5 0 0 1 10 0v3"/><rect x="5" y="11" width="14" height="10" rx="2"/></svg>
-              SSL-verschlüsselt
-            </div>
-          </div>
-        </div>
-      </div>
+      <GlassNav activePage="privatkunden" />
 
       {/* ── Main Content ── */}
       <div className="max-w-6xl mx-auto px-5 py-8 sm:py-12 relative z-10">
@@ -559,10 +545,24 @@ export default function AntragPage() {
                           </div>
                         )}
                         
+                        {d.income > 0 && (
+                          <div className="flex justify-between items-center py-1.5">
+                            <span className="text-[11px] text-gray-400">Einkommen</span>
+                            <span className="text-[12px] font-semibold text-gray-900">{eur(d.income)}/Mt.</span>
+                          </div>
+                        )}
+                        
                         {d.housing && (
                           <div className="flex justify-between items-center py-1.5">
                             <span className="text-[11px] text-gray-400">Wohnsituation</span>
                             <span className="text-[12px] font-semibold text-gray-900">{d.housing}</span>
+                          </div>
+                        )}
+                        
+                        {d.wantedLimit > 0 && (
+                          <div className="flex justify-between items-center py-1.5">
+                            <span className="text-[11px] text-gray-400">Wunschlimit</span>
+                            <span className="text-[12px] font-semibold text-gray-900">{eur(d.wantedLimit)}</span>
                           </div>
                         )}
                       </div>
@@ -737,6 +737,63 @@ export default function AntragPage() {
           </div>
         )}
       </div>
+
+      {/* Footer */}
+      <footer className="relative py-16 sm:py-20 overflow-hidden mt-20">
+        <div className="absolute inset-0" style={{
+          background: "linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(249,250,251,0.8) 50%, rgba(243,244,246,1) 100%)"
+        }} />
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] opacity-30" style={{
+            background: "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.1), transparent 70%)",
+            filter: "blur(60px)"
+          }} />
+        </div>
+
+        <div className="relative z-10 max-w-[1280px] mx-auto px-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
+            <div>
+              <div className="mb-6">
+                <span className="text-2xl font-bold tracking-tight fiaon-gradient-text-animated">FIAON</span>
+              </div>
+              <p className="text-[14px] text-gray-500 leading-relaxed max-w-[260px]">
+                Unabhängige Kreditkarten-Beratung für Privatpersonen und Unternehmen.
+              </p>
+            </div>
+
+            <div>
+              <div className="text-[13px] font-semibold text-gray-900 uppercase tracking-[.15em] mb-5">Seiten</div>
+              <ul className="space-y-3">
+                <li><a href="/" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Startseite</a></li>
+                <li><a href="/antrag" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Privatkunden</a></li>
+                <li><a href="/business" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Business</a></li>
+              </ul>
+            </div>
+
+            <div>
+              <div className="text-[13px] font-semibold text-gray-900 uppercase tracking-[.15em] mb-5">Rechtliches</div>
+              <ul className="space-y-3">
+                <li><a href="/terms" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">AGB</a></li>
+                <li><a href="/privacy" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Datenschutz</a></li>
+                <li><a href="#" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Impressum</a></li>
+              </ul>
+            </div>
+
+            <div>
+              <div className="text-[13px] font-semibold text-gray-900 uppercase tracking-[.15em] mb-5">Kontakt</div>
+              <ul className="space-y-3">
+                <li><a href="mailto:support@fiaon.com" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">support@fiaon.com</a></li>
+                <li><span className="text-[14px] text-gray-500">Mo–Fr, 9–18 Uhr</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="pt-8 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <span className="text-[13px] text-gray-400">&copy; {new Date().getFullYear()} FIAON. Alle Rechte vorbehalten.</span>
+            <span className="text-[12px] text-gray-400">FIAON ist ein Beratungsservice und kein Kreditinstitut.</span>
+          </div>
+        </div>
+      </footer>
 
       <style>{`
         @keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}

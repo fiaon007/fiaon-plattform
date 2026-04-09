@@ -367,6 +367,127 @@ export default function AntragPage() {
           </div>
         )}
 
+        {/* === EDGE-TO-EDGE DASHBOARD MOCKUP SECTION === */}
+        {step === 0 && (
+          <div className="mt-20 animate-[fadeInUp_.8s_ease]">
+            <div className="relative w-full overflow-hidden" style={{ background: "linear-gradient(135deg, #0A0F1C 0%, #1a1a2e 50%, #0f0f23 100%)" }}>
+              {/* Background Effects */}
+              <div className="absolute inset-0 overflow-hidden">
+                <div className="absolute top-0 right-0 w-[800px] h-[600px] opacity-20" style={{
+                  background: "radial-gradient(ellipse at center, rgba(37, 99, 235, 0.15), transparent 70%)",
+                  filter: "blur(80px)"
+                }} />
+                <div className="absolute bottom-0 left-0 w-[600px] h-[500px] opacity-15" style={{
+                  background: "radial-gradient(ellipse at center, rgba(139, 92, 246, 0.1), transparent 70%)",
+                  filter: "blur(60px)"
+                }} />
+              </div>
+
+              <div className="max-w-[1600px] mx-auto px-6 py-24 sm:py-32">
+                <div className="grid lg:grid-cols-2 gap-16 items-center">
+                  {/* Left: Text Block */}
+                  <div className="lg:col-span-1">
+                    {/* Section Badge */}
+                    <div className="mb-8">
+                      <span className="inline-block px-5 py-2.5 bg-white/10 backdrop-blur-xl border border-blue-400/30 text-blue-300 text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-blue-500/20">
+                        DIE SOFTWARE
+                      </span>
+                    </div>
+
+                    {/* Headline */}
+                    <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-8 leading-[1.1] fiaon-gradient-text-animated">
+                      Du kaufst keine PDF.<br/>
+                      Du kaufst dein persönliches Finanz-Cockpit.
+                    </h2>
+
+                    {/* Text */}
+                    <p className="text-lg text-gray-400 leading-relaxed">
+                      Sobald du dein Setup wählst, öffnet sich das FIAON-Dashboard. Keine verstaubten Ratgeber, sondern interaktive Daten. Du siehst deine persönliche Limit-Roadmap, simulierst Entscheidungen, bevor du sie triffst, und trackst deinen monatlichen Fortschritt. Die KI liefert die Insights – du triffst die Entscheidungen.
+                    </p>
+                  </div>
+
+                  {/* Right: Dashboard Mockup */}
+                  <div className="lg:col-span-1">
+                    <div className="relative">
+                      {/* Glass Dashboard */}
+                      <div className="fiaon-glass-panel rounded-2xl p-6 border border-white/20 shadow-2xl shadow-blue-500/20 relative overflow-hidden"
+                           style={{ background: "rgba(15, 23, 42, 0.8)", backdropFilter: "blur(20px)" }}>
+                        
+                        {/* Dashboard Header */}
+                        <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
+                          <div className="flex items-center gap-3">
+                            <div className="w-3 h-3 rounded-full bg-green-500" style={{ animation: "pulse 2s ease-in-out infinite" }} />
+                            <span className="text-sm font-semibold text-white">FIAON Dashboard</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-white/10" />
+                            <div className="w-8 h-8 rounded-lg bg-white/10" />
+                          </div>
+                        </div>
+
+                        {/* Score-Simulator Graph */}
+                        <div className="mb-6 p-4 rounded-xl" style={{ background: "rgba(15, 23, 42, 0.6)" }}>
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Score-Simulator</span>
+                            <span className="text-xs text-green-400">+12.5%</span>
+                          </div>
+                          {/* Graph Visualization */}
+                          <div className="relative h-24">
+                            {/* Gradient Fill */}
+                            <div className="absolute inset-0 rounded-lg" style={{
+                              background: "linear-gradient(180deg, rgba(37, 99, 235, 0.3) 0%, rgba(37, 99, 235, 0.05) 100%)"
+                            }} />
+                            {/* Curved Line */}
+                            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 200 80" preserveAspectRatio="none">
+                              <defs>
+                                <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                  <stop offset="0%" stopColor="#2563eb" />
+                                  <stop offset="50%" stopColor="#3b82f6" />
+                                  <stop offset="100%" stopColor="#60a5fa" />
+                                </linearGradient>
+                              </defs>
+                              <path
+                                d="M0,60 Q25,50 50,45 T100,35 T150,25 T200,15"
+                                fill="none"
+                                stroke="url(#lineGradient)"
+                                strokeWidth="3"
+                                style={{ animation: "dash 2s ease-in-out infinite" }}
+                              />
+                            </svg>
+                            {/* Grid Lines */}
+                            <div className="absolute inset-0 flex flex-col justify-between opacity-20">
+                              <div className="w-full h-px bg-white/30" />
+                              <div className="w-full h-px bg-white/30" />
+                              <div className="w-full h-px bg-white/30" />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Next Action Card */}
+                        <div className="p-4 rounded-xl" style={{ background: "rgba(37, 99, 235, 0.1)" }}>
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                              <span className="text-xl font-bold text-white">14</span>
+                            </div>
+                            <div>
+                              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Next Action</div>
+                              <div className="text-sm text-white">Warte 14 Tage bis zur nächsten Anfrage</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Decorative Elements */}
+                      <div className="absolute -bottom-4 -right-4 w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/20 backdrop-blur-sm border border-white/20 shadow-xl" />
+                      <div className="absolute -top-4 -left-4 w-12 h-12 rounded-lg bg-gradient-to-br from-violet-500/20 to-violet-600/20 backdrop-blur-sm border border-white/20 shadow-lg" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* === APPLICATION PROCESS SECTION === */}
         {step === 0 && (
           <div className="mt-16 animate-[fadeInUp_.6s_ease]">
@@ -832,6 +953,10 @@ export default function AntragPage() {
         @keyframes spin{
           from{transform:rotate(0deg)}
           to{transform:rotate(360deg)}
+        }
+        @keyframes dash{
+          0%{stroke-dashoffset:200}
+          100%{stroke-dashoffset:0}
         }}
         @keyframes scaleIn{0%{opacity:0;transform:scale(0.5)}100%{opacity:1;transform:scale(1)}}
       `}</style>

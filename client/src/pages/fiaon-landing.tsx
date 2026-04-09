@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import GlassNav from "@/components/GlassNav";
 
 /* ── scroll reveal ── */
 function useReveal(t = 0.12) {
@@ -88,74 +89,7 @@ function Card({ bg, lim, className = "", size = "normal" }: { bg: string; lim: s
   );
 }
 
-/* ────────────────────────────────
-   NAVBAR — hide on scroll down, show on scroll up
-   ──────────────────────────────── */
-function Nav() {
-  const [visible, setVisible] = useState(true);
-  const [bg, setBg] = useState(false);
-  const lastY = useRef(0);
-  const [mob, setMob] = useState(false);
-
-  useEffect(() => {
-    const fn = () => {
-      const y = window.scrollY;
-      setVisible(y < 60 || y < lastY.current);
-      setBg(y > 30);
-      lastY.current = y;
-    };
-    window.addEventListener("scroll", fn, { passive: true });
-    return () => window.removeEventListener("scroll", fn);
-  }, []);
-
-  const pages = [{ label: "Startseite", href: "/", active: true }, { label: "Privatkunden", href: "/privatkunden", active: false }, { label: "Business", href: "/business", active: false }];
-
-  return (
-    <nav className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${visible ? "translate-y-0" : "-translate-y-full"} ${bg ? "bg-white/85 backdrop-blur-2xl border-b border-gray-100/80" : ""}`}>
-      <div className="max-w-[1120px] mx-auto px-6 h-[60px] flex items-center justify-between">
-        <a href="/" className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-[#2563eb] flex items-center justify-center">
-            <span className="text-white text-xs font-semibold">F</span>
-          </div>
-          <span className="text-[17px] font-semibold tracking-tight text-gray-900">FIAON</span>
-        </a>
-
-        {/* Desktop nav */}
-        <div className="hidden md:flex items-center gap-8">
-          {pages.map(p => (
-            <a key={p.label} href={p.href} className="relative text-[13px] font-medium text-gray-900 pb-1">
-              {p.label}
-              {p.active && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-[#2563eb]" style={{ boxShadow: "0 0 8px rgba(37,99,235,.5)" }} />}
-            </a>
-          ))}
-          <a href="/antrag" className="fiaon-btn-outline-animated px-5 py-2 text-[13px] font-medium">
-            Antrag starten
-          </a>
-        </div>
-
-        {/* Mobile */}
-        <button className="md:hidden" onClick={() => setMob(!mob)}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2" strokeLinecap="round">
-            {mob ? <><path d="M18 6L6 18"/><path d="M6 6l12 12"/></> : <><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></>}
-          </svg>
-        </button>
-      </div>
-
-      {/* Mobile menu */}
-      <div className={`md:hidden overflow-hidden transition-all duration-300 ${mob ? "max-h-[300px]" : "max-h-0"}`}>
-        <div className="bg-white border-t border-gray-100 px-6 py-4 space-y-3">
-          {pages.map(p => (
-            <a key={p.label} href={p.href} onClick={() => setMob(false)} className="flex items-center gap-2 text-sm font-medium text-gray-900 py-1">
-              {p.label}
-              {p.active && <span className="w-1.5 h-1.5 rounded-full bg-[#2563eb]" style={{ boxShadow: "0 0 6px rgba(37,99,235,.5)" }} />}
-            </a>
-          ))}
-          <a href="/antrag" onClick={() => setMob(false)} className="block w-full text-center py-3.5 rounded-2xl text-base font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600">Antrag starten</a>
-        </div>
-      </div>
-    </nav>
-  );
-}
+/* Nav is now the shared GlassNav component */
 
 /* ────────────────────────────────
    HERO — centered, like screenshot
@@ -465,7 +399,7 @@ function Foot() {
 export default function FiaonLanding() {
   return (
     <div className="min-h-screen bg-white text-gray-900 antialiased" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
-      <Nav />
+      <GlassNav activePage="startseite" />
       <Hero />
       <Numbers />
       <WhySection />

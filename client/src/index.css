@@ -211,3 +211,107 @@ html {
   0% { transform: translateX(-150%); }
   100% { transform: translateX(150%); }
 }
+
+/* ── GLASSMORPHISM NAV ──── */
+.fiaon-glass-nav {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 4px 30px rgba(0, 0, 0, 0.04),
+    0 1px 3px rgba(0, 0, 0, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  position: relative;
+  overflow: hidden;
+}
+.fiaon-glass-nav::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255,255,255,0.4), rgba(37,99,235,0.04), rgba(255,255,255,0.3), rgba(37,99,235,0.06));
+  background-size: 400% 400%;
+  animation: glassGrad 12s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes glassGrad {
+  0%, 100% { background-position: 0% 50%; }
+  25% { background-position: 100% 0%; }
+  50% { background-position: 100% 100%; }
+  75% { background-position: 0% 100%; }
+}
+
+/* Glass card effect for antrag */
+.fiaon-glass-card {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.06),
+    0 2px 8px rgba(0, 0, 0, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.fiaon-glass-card:hover {
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow:
+    0 16px 48px rgba(37, 99, 235, 0.1),
+    0 4px 16px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transform: translateY(-4px);
+}
+.fiaon-glass-card-selected {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1.5px solid rgba(37, 99, 235, 0.3);
+  box-shadow:
+    0 16px 48px rgba(37, 99, 235, 0.12),
+    0 4px 16px rgba(37, 99, 235, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Glass form panels */
+.fiaon-glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+/* Premium input style */
+.fiaon-input-glass {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+}
+.fiaon-input-glass:focus {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(37, 99, 235, 0.3);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.06);
+}
+
+/* Animated gradient text for headings */
+.fiaon-gradient-text-animated {
+  background: linear-gradient(135deg, #0f172a, #2563eb, #0f172a, #2563eb);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: headingGrad 6s ease-in-out infinite;
+}
+
+/* Subtle glow animation */
+@keyframes subtleGlow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+}
+
+/* Smooth scale in */
+@keyframes smoothScaleIn {
+  0% { opacity: 0; transform: scale(0.95) translateY(8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}

@@ -7,7 +7,7 @@ import * as schema from "@shared/schema";
 const router = Router();
 
 // Get all database tables
-router.get("/database/tables", async (req, res) => {
+router.get("/tables", async (req, res) => {
   try {
     const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
     
@@ -29,7 +29,7 @@ router.get("/database/tables", async (req, res) => {
 });
 
 // Get table structure
-router.get("/database/tables/:tableName/structure", async (req, res) => {
+router.get("/tables/:tableName/structure", async (req, res) => {
   try {
     const { tableName } = req.params;
     const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
@@ -52,7 +52,7 @@ router.get("/database/tables/:tableName/structure", async (req, res) => {
 });
 
 // Get table data with pagination
-router.get("/database/tables/:tableName/data", async (req, res) => {
+router.get("/tables/:tableName/data", async (req, res) => {
   try {
     const { tableName } = req.params;
     const page = parseInt(req.query.page as string) || 1;
@@ -91,7 +91,7 @@ router.get("/database/tables/:tableName/data", async (req, res) => {
 });
 
 // Get database statistics
-router.get("/database/stats", async (req, res) => {
+router.get("/stats", async (req, res) => {
   try {
     const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
     

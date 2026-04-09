@@ -865,34 +865,40 @@ function FeaturesOverview() {
   
   const features = [
     {
-      icon: "🔍",
       title: "KI-Profilanalyse",
-      description: "Unsere Software scannt dein Finanzprofil und zeigt dir, wo du stehst — und wo du hinkönntest."
+      subtitle: "Der Scanner",
+      description: "Unsere Software scannt dein Finanzprofil und zeigt dir, wo du stehst — und wo du hinkönntest.",
+      gradient: "from-blue-500 to-blue-600"
     },
     {
-      icon: "📈",
       title: "Credit-Building-Strategien",
-      description: "Aus dem US-System adaptiert, für den europäischen Markt optimiert. Schritt-für-Schritt-Module, die funktionieren."
+      subtitle: "Der Aufbau",
+      description: "Aus dem US-System adaptiert, für den europäischen Markt optimiert. Schritt-für-Schritt-Module, die funktionieren.",
+      gradient: "from-purple-500 to-purple-600"
     },
     {
-      icon: "📊",
       title: "Limit-Tracker Dashboard",
-      description: "Verfolge deinen Fortschritt in Echtzeit. Sieh, was sich verändert hat und was dein nächster Move ist."
+      subtitle: "Der Monitor",
+      description: "Verfolge deinen Fortschritt in Echtzeit. Sieh, was sich verändert hat und was dein nächster Move ist.",
+      gradient: "from-indigo-500 to-indigo-600"
     },
     {
-      icon: "🧭",
       title: "Kartenkompass",
-      description: "Welche Produkte am Markt passen zu deinem Profil? Datenbasierte Übersicht — ohne Affiliate-Links, ohne Werbung."
+      subtitle: "Der Navigator",
+      description: "Welche Produkte am Markt passen zu deinem Profil? Datenbasierte Übersicht — ohne Affiliate-Links, ohne Werbung.",
+      gradient: "from-teal-500 to-teal-600"
     },
     {
-      icon: "🎯",
       title: "Score-Simulator",
-      description: "Was passiert mit deiner Bonität, wenn du X machst? Simuliere Szenarien, bevor du handelst."
+      subtitle: "Der Simulator",
+      description: "Was passiert mit deiner Bonität, wenn du X machst? Simuliere Szenarien, bevor du handelst.",
+      gradient: "from-emerald-500 to-emerald-600"
     },
     {
-      icon: "📅",
       title: "Monats-Coaching",
-      description: "Jeden Monat neue Insights, Aufgaben und Strategieanpassungen. Kein einmaliger Vergleich — ein laufendes Programm."
+      subtitle: "Der Guide",
+      description: "Jeden Monat neue Insights, Aufgaben und Strategieanpassungen. Kein einmaliger Vergleich — ein laufendes Programm.",
+      gradient: "from-amber-500 to-orange-600"
     }
   ];
   
@@ -904,7 +910,7 @@ function FeaturesOverview() {
         <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[400px] opacity-15" style={{ background: "radial-gradient(ellipse, rgba(212,175,55,0.06), transparent 70%)", filter: "blur(100px)" }} />
       </div>
 
-      <div className={`max-w-[1120px] mx-auto px-6 relative z-10 transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+      <div className={`max-w-[1280px] mx-auto px-6 relative z-10 transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
         {/* Section Badge */}
         <div className="mb-12">
           <span className="inline-block px-5 py-2.5 bg-white/60 backdrop-blur-xl border border-blue-200 text-[#2563eb] text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-blue-500/10">
@@ -939,15 +945,76 @@ function FeaturesOverview() {
               />
               
               <div className="relative z-10">
-                {/* Icon */}
-                <div className="mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-2xl shadow-lg shadow-blue-500/20">
-                    {feature.icon}
+                {/* Premium Visualization */}
+                <div className="mb-5 relative">
+                  <div className="w-full aspect-[2/1] rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center relative overflow-hidden p-4">
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/50 to-transparent" />
+                    {/* Different visualization for each feature */}
+                    {index === 0 && (
+                      <div className="relative z-10 w-full h-full flex items-center justify-center">
+                        {/* Scanner visualization */}
+                        <div className="relative w-full h-full">
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 shadow-xl shadow-blue-500/30 flex items-center justify-center">
+                            <div className="w-6 h-6 rounded-full bg-white/30 backdrop-blur-sm" />
+                          </div>
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full border-2 border-blue-500/30" style={{ animation: "pulse 2s ease-in-out infinite" }} />
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full border border-blue-500/20" style={{ animation: "pulse 2s ease-in-out infinite 0.5s" }} />
+                        </div>
+                      </div>
+                    )}
+                    {index === 1 && (
+                      <div className="relative z-10 w-full h-full flex items-end justify-center gap-2 px-4">
+                        <div className="flex-1 bg-gradient-to-t from-purple-500/40 to-purple-400/60 rounded-t" style={{ height: "60%" }} />
+                        <div className="flex-1 bg-gradient-to-t from-purple-500/50 to-purple-400/70 rounded-t" style={{ height: "80%" }} />
+                        <div className="flex-1 bg-gradient-to-t from-purple-500/60 to-pink-500/80 rounded-t" style={{ height: "100%" }} />
+                      </div>
+                    )}
+                    {index === 2 && (
+                      <div className="relative z-10 w-full h-full grid grid-cols-2 gap-2 p-2">
+                        <div className="bg-white/60 rounded-lg p-2 border border-white/50">
+                          <div className="text-[8px] text-gray-500 uppercase">Score</div>
+                          <div className="text-sm font-bold text-gray-900">78%</div>
+                        </div>
+                        <div className="bg-white/60 rounded-lg p-2 border border-white/50">
+                          <div className="text-[8px] text-gray-500 uppercase">Limit</div>
+                          <div className="text-sm font-bold text-gray-900">12k</div>
+                        </div>
+                      </div>
+                    )}
+                    {index === 3 && (
+                      <div className="relative z-10 w-full h-full flex items-center justify-center">
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-teal-500 to-teal-600 shadow-lg shadow-teal-500/20" />
+                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-teal-400 to-teal-500 shadow-lg shadow-teal-500/20" />
+                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-teal-300 to-teal-400 shadow-lg shadow-teal-500/20" />
+                        </div>
+                      </div>
+                    )}
+                    {index === 4 && (
+                      <div className="relative z-10 w-full h-full flex items-center justify-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-500/20 flex items-center justify-center">
+                          <div className="text-white text-xs font-bold">85</div>
+                        </div>
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-500 shadow-lg shadow-emerald-500/20 flex items-center justify-center">
+                          <div className="text-white text-xs font-bold">92</div>
+                        </div>
+                      </div>
+                    )}
+                    {index === 5 && (
+                      <div className="relative z-10 w-full h-full flex items-center justify-center">
+                        <div className="grid grid-cols-4 gap-1">
+                          {[1, 2, 3, 4].map((i) => (
+                            <div key={i} className="w-3 h-8 rounded bg-gradient-to-t from-amber-500/60 to-orange-600/80" style={{ height: `${i * 20 + 20}%` }} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 
                 {/* Title */}
-                <h3 className="text-xl font-bold text-gray-900 mb-3 fiaon-gradient-text-animated">{feature.title}</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-1 fiaon-gradient-text-animated">{feature.title}</h3>
+                <p className={`text-sm font-semibold tracking-wide uppercase mb-3 bg-gradient-to-r ${feature.gradient} bg-clip-text text-transparent`}>{feature.subtitle}</p>
                 
                 {/* Description */}
                 <p className="text-gray-600 leading-relaxed text-sm">{feature.description}</p>
@@ -966,6 +1033,17 @@ function FeaturesOverview() {
           to {
             opacity: 1;
             transform: translateY(0);
+          }
+        }
+        
+        @keyframes pulse {
+          0%, 100% {
+            transform: scale(1);
+            opacity: 0.3;
+          }
+          50% {
+            transform: scale(1.1);
+            opacity: 0.5;
           }
         }
       `}</style>

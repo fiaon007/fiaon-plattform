@@ -1359,6 +1359,7 @@ function Foot() {
               <li><a href="/" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Startseite</a></li>
               <li><a href="/privatkunden" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Privatkunden</a></li>
               <li><a href="/business" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Business</a></li>
+              <li><a href="/plattform-konzept" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Plattform-Konzept</a></li>
             </ul>
           </div>
 

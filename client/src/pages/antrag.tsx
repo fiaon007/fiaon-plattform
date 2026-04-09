@@ -227,7 +227,7 @@ export default function AntragPage() {
       </div>
 
       {/* ── Main Content ── */}
-      <div className="max-w-5xl mx-auto px-5 py-8 sm:py-12 relative z-10">
+      <div className="max-w-6xl mx-auto px-5 py-8 sm:py-12 relative z-10">
         <Progress step={step} total={9} />
 
         {/* === STEP 0: Paketauswahl === */}
@@ -238,7 +238,7 @@ export default function AntragPage() {
               <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight fiaon-gradient-text-animated mb-4">Wähle dein FIAON Paket</h1>
               <p className="text-[15px] text-gray-400 max-w-lg mx-auto leading-relaxed">Entscheide dich für das passende Paket — du gelangst automatisch zum nächsten Schritt.</p>
             </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-[1200px] mx-auto">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-[1400px] mx-auto">
               {PACKS.map((p, idx) => (
                 <button 
                   key={p.key} 

@@ -175,41 +175,6 @@ export default function WiderrufsbelehrungPage() {
                 </div>
               </div>
             </div>
-
-            {/* Technischer Implementierungs-Tipp */}
-            <div className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden border-2 border-green-200/50">
-              <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
-                background: "linear-gradient(135deg, rgba(34,197,94,0.1), rgba(74,222,128,0.2), rgba(34,197,94,0.1))",
-                backgroundSize: "200% 200%",
-                animation: "limitGlow 6s ease-in-out infinite"
-              }} />
-              <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                      <path d="M12 9v4" />
-                      <path d="M12 17h.01" />
-                    </svg>
-                  </div>
-                  <h2 className="text-xl font-semibold text-gray-900">💡 Technischer Implementierungs-Tipp für deinen Entwickler (Unerlässlich für die Gültigkeit!)</h2>
-                </div>
-                <p className="text-gray-700 leading-relaxed mb-4">
-                  Damit diese Belehrung euch wirklich schützt und ihr nicht monatelang Geld an Nutzer zurückzahlen müsst, die nach 13 Tagen "plötzlich" kündigen, nachdem sie alle Strategien gelesen haben, MUSS euer Entwickler folgendes im Checkout (bei der Bezahlung über Stripe) einbauen:
-                </p>
-                <p className="text-gray-700 leading-relaxed mb-4">
-                  Direkt über dem Kaufen-Button muss zwingend eine Checkbox sein, die der Nutzer aktiv anklicken muss (darf nicht vorausgewählt sein!):
-                </p>
-                <div className="p-4 bg-green-50 rounded-xl border border-green-200">
-                  <p className="text-sm text-green-900">
-                    [ ] Ich stimme ausdrücklich zu, dass FIAON vor Ablauf der Widerrufsfrist mit der Ausführung des Vertrages (Freischaltung der Software) beginnt. Mir ist bekannt, dass ich durch diese Zustimmung mit Beginn der Ausführung mein Widerrufsrecht verliere.
-                  </p>
-                </div>
-                <p className="text-gray-700 leading-relaxed mt-4">
-                  Nur wenn diese Checkbox beim Kauf abgehakt wird, greift der Abschnitt "Vorzeitiges Erlöschen des Widerrufsrechts" in der Praxis.
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       </div>

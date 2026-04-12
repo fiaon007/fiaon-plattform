@@ -16,6 +16,7 @@ import PlattformKonzeptPage from "@/pages/plattform-konzept";
 import LoginPage from "@/pages/login";
 import ImpressumPage from "@/pages/impressum";
 import AGBPage from "@/pages/agb";
+import WiderrufsbelehrungPage from "@/pages/widerrufsbelehrung";
 
 function Router() {
   return (
@@ -33,6 +34,7 @@ function Router() {
       <Route path="/privacy" component={Privacy} />
       <Route path="/impressum" component={ImpressumPage} />
       <Route path="/agb" component={AGBPage} />
+      <Route path="/widerrufsbelehrung" component={WiderrufsbelehrungPage} />
       <Route component={NotFound} />
     </Switch>
   );

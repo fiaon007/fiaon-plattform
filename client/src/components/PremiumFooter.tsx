@@ -116,7 +116,7 @@ export default function PremiumFooter() {
                 </a>
               </li>
               <li>
-                <a href="#" className="text-[14px] text-gray-400 hover:text-white transition-all duration-200 hover:translate-x-1">
+                <a href="/widerrufsbelehrung" className="text-[14px] text-gray-400 hover:text-white transition-all duration-200 hover:translate-x-1">
                   Widerrufsbelehrung
                 </a>
               </li>

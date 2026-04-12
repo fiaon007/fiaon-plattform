@@ -270,155 +270,114 @@ export default function AdminDatabasePage() {
               </p>
             </div>
 
-            {/* TODO List Section */}
+            {/* TODO List Section - Bento-Luxury Design */}
             <div className="mb-8">
-              <div className="fiaon-glass-panel rounded-2xl p-6 relative overflow-hidden">
-                <div className="absolute inset-0 opacity-15 pointer-events-none" style={{
-                  background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.1))",
-                  backgroundSize: "200% 200%",
-                  animation: "limitGlow 6s ease-in-out infinite"
-                }} />
+              <div className="bg-[#FDFDFD] p-8 rounded-2xl animate-[fadeInUp_.6s_ease]">
+                {/* Overline Label */}
+                <p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold mb-4">TODO ÜBERSICHT</p>
 
-                <div className="relative z-10">
-                  {/* Header */}
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#2563eb] to-[#3b82f6] flex items-center justify-center">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 20h9" />
-                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h2 className="text-xl font-semibold text-gray-900">AI Operations & Task Matrix</h2>
-                        <p className="text-[13px] text-gray-500">
-                          {todos.filter(t => t.status !== 'resolved').length} offen · {todos.filter(t => t.status === 'resolved').length} erledigt
-                        </p>
-                      </div>
-                    </div>
+                {/* Add Todo Input - Glassmorphismus */}
+                <form onSubmit={addTodo} className="mb-6">
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      value={newTodoTitle}
+                      onChange={(e) => setNewTodoTitle(e.target.value)}
+                      placeholder="Neue Aufgabe hinzufügen..."
+                      className="flex-1 px-4 py-3 rounded-lg bg-slate-50/50 backdrop-blur-sm border border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 outline-none transition-all text-sm font-medium text-slate-700 placeholder-slate-400"
+                    />
                     <button
-                      onClick={() => setShowAddTodo(!showAddTodo)}
-                      className="px-4 py-2 rounded-xl text-[13px] font-semibold text-white fiaon-btn-gradient transition-all duration-300 hover:scale-105"
+                      type="submit"
+                      className="px-6 py-3 bg-slate-900 text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-all duration-200 hover:bg-slate-800 hover:scale-105"
                     >
-                      + Neue Aufgabe
+                      Hinzufügen
                     </button>
                   </div>
+                </form>
 
-                  {/* Add Todo Form */}
-                  {showAddTodo && (
-                    <form onSubmit={addTodo} className="mb-6 animate-[fadeInDown_.3s_ease]">
-                      <div className="flex gap-3">
-                        <input
-                          type="text"
-                          value={newTodoTitle}
-                          onChange={(e) => setNewTodoTitle(e.target.value)}
-                          placeholder="Neue Aufgabe hinzufügen..."
-                          className="flex-1 px-4 py-3 rounded-xl bg-white/50 border border-gray-200 focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none transition-all text-[14px]"
-                          autoFocus
-                        />
+                {/* Todo List - Skeuomorphismus 3.0 */}
+                {loading ? (
+                  <div className="text-center py-12 text-slate-400">Laden...</div>
+                ) : todos.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-sm font-medium text-slate-400">Keine Aufgaben vorhanden</p>
+                    <p className="text-xs text-slate-300 mt-1">Füge deine erste Aufgabe hinzu!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-0">
+                    {todos.map((todo, index) => (
+                      <div
+                        key={todo.id}
+                        className={`group flex items-center gap-4 bg-white border border-slate-200 p-4 mb-3 rounded-xl transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${
+                          todo.status === 'resolved' ? 'opacity-50' : ''
+                        }`}
+                        style={{
+                          boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.8), 0 4px 6px -1px rgba(0,0,0,0.02)',
+                          animation: `fadeInUp 0.4s ease ${index * 50}ms both`
+                        }}
+                      >
+                        {/* Custom Checkbox - Premium */}
                         <button
-                          type="submit"
-                          className="px-6 py-3 rounded-xl text-[13px] font-semibold text-white fiaon-btn-gradient transition-all duration-300 hover:scale-105"
+                          onClick={() => toggleTodoStatus(todo)}
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-200 ${
+                            todo.status === 'resolved'
+                              ? 'bg-gradient-to-br from-blue-500 to-blue-700 border-transparent'
+                              : 'border-slate-300 hover:border-slate-400 hover:ring-2 hover:ring-blue-500/20'
+                          }`}
                         >
-                          Hinzufügen
+                          {todo.status === 'resolved' && (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="6 12 10 16 18 8" />
+                            </svg>
+                          )}
+                        </button>
+
+                        {/* Todo Content */}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium transition-all duration-200 ${
+                            todo.status === 'resolved' ? 'line-through text-slate-400' : 'text-slate-700'
+                          }`}>
+                            {todo.clientName || todo.title || 'Unbekannt'}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                              todo.clientPackage === 'Ultra' || todo.clientPackage === 'High End' 
+                                ? 'bg-purple-100 text-purple-700' 
+                                : todo.clientPackage === 'Pro' 
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {todo.clientPackage}
+                            </span>
+                            <p className={`text-xs transition-all duration-200 ${
+                              todo.status === 'resolved' ? 'text-slate-300' : 'text-slate-500'
+                            }`}>
+                              {todo.taskType} · {todo.urgencyScore}/100
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Delete Button */}
+                        <button
+                          onClick={() => deleteTodo(todo.id)}
+                          className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-red-50 transition-all duration-200"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 6h18" />
+                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                          </svg>
                         </button>
                       </div>
-                    </form>
-                  )}
+                    ))}
+                  </div>
+                )}
 
-                  {/* Todo List */}
-                  {loading ? (
-                    <div className="text-center py-12 text-gray-500">Laden...</div>
-                  ) : todos.length === 0 ? (
-                    <div className="text-center py-12">
-                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-[#2563eb]/10 to-[#3b82f6]/10 flex items-center justify-center">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M9 11l3 3L22 4" />
-                          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                        </svg>
-                      </div>
-                      <p className="text-[14px] text-gray-500">Keine Aufgaben vorhanden</p>
-                      <p className="text-[12px] text-gray-400 mt-1">Füge deine erste Aufgabe hinzu!</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {todos.map((todo, index) => (
-                        <div
-                          key={todo.id}
-                          className={`group flex items-center gap-4 p-4 rounded-xl transition-all duration-300 ${
-                            todo.status === 'resolved'
-                              ? 'bg-gray-50/50 opacity-60'
-                              : 'fiaon-glass-panel hover:scale-[1.01]'
-                          }`}
-                          style={{ animation: `fadeInUp 0.4s ease ${index * 50}ms both` }}
-                        >
-                          {/* Urgency Indicator */}
-                          <div className={`w-2 h-2 rounded-full ${getUrgencyColor(todo.urgencyScore)} shrink-0`} />
-
-                          {/* Status Indicator */}
-                          <div className={`w-2 h-2 rounded-full ${getStatusColor(todo.status)} shrink-0`} />
-
-                          {/* Checkbox */}
-                          <button
-                            onClick={() => toggleTodoStatus(todo)}
-                            className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-300 ${
-                              todo.status === 'resolved'
-                                ? 'bg-[#2563eb] border-[#2563eb]'
-                                : 'border-gray-300 hover:border-[#2563eb]'
-                            }`}
-                          >
-                            {todo.status === 'resolved' && (
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="6 12 10 16 18 8" />
-                              </svg>
-                            )}
-                          </button>
-
-                          {/* Todo Content */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className={`text-[14px] font-medium transition-all duration-300 ${
-                                todo.status === 'resolved' ? 'text-gray-400 line-through' : 'text-gray-900'
-                              }`}>
-                                {todo.clientName}
-                              </p>
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                                todo.clientPackage === 'Ultra' || todo.clientPackage === 'High End' 
-                                  ? 'bg-purple-100 text-purple-700' 
-                                  : todo.clientPackage === 'Pro' 
-                                    ? 'bg-blue-100 text-blue-700'
-                                    : 'bg-gray-100 text-gray-700'
-                              }`}>
-                                {todo.clientPackage}
-                              </span>
-                            </div>
-                            <p className={`text-[12px] transition-all duration-300 ${
-                              todo.status === 'resolved' ? 'text-gray-400' : 'text-gray-600'
-                            }`}>
-                              {todo.taskType} · Urgency: {todo.urgencyScore}/100
-                            </p>
-                            {todo.deadline && (
-                              <p className="text-[11px] text-gray-500 mt-0.5">
-                                Deadline: {new Date(todo.deadline).toLocaleDateString('de-DE')}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Delete Button */}
-                          <button
-                            onClick={() => deleteTodo(todo.id)}
-                            className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-red-50 transition-all duration-300"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M3 6h18" />
-                              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                {/* Status Footer */}
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                  <p className="text-xs text-slate-400">
+                    {todos.filter(t => t.status !== 'resolved').length} offen · {todos.filter(t => t.status === 'resolved').length} erledigt
+                  </p>
                 </div>
               </div>
             </div>

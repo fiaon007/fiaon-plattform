@@ -18,7 +18,7 @@ export default function ImpressumPage() {
         <div className="text-center mb-16 animate-[fadeInUp_.6s_ease]">
           <h1 className="text-5xl font-bold fiaon-gradient-text-animated mb-4">Impressum</h1>
           <p className="text-sm text-gray-500 uppercase tracking-widest font-semibold">
-            Anbieterkennzeichnung gemäß § 5 DDG sowie § 18 Abs. 2 MStV
+            Anbieterkennzeichnung gemäß § 5 Digitale-Dienste-Gesetz (DDG) sowie § 18 Abs. 2 Medienstaatsvertrag (MStV)
           </p>
         </div>
 
@@ -32,9 +32,9 @@ export default function ImpressumPage() {
               animation: "limitGlow 6s ease-in-out infinite"
             }} />
             <div className="relative z-10">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Anbieter</h2>
+              <p className="text-sm text-gray-500 mb-4">Die Website und Plattform „FIAON" wird betrieben durch die:</p>
               <div className="space-y-2 text-gray-700">
-                <p className="font-semibold">SCP Real Estate KG</p>
+                <p className="font-semibold text-lg">SCP Real Estate KG</p>
                 <p>Pasinger Str. 1</p>
                 <p>82166 Gräfelfing</p>
                 <p>Deutschland</p>
@@ -52,7 +52,7 @@ export default function ImpressumPage() {
             <div className="relative z-10">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Vertretungsberechtigte Personen</h2>
               <p className="text-gray-700">
-                Vertreten durch den Geschäftsführer / persönlich haftenden Gesellschafter: Hans-Jürgen Gerhold
+                Vertreten durch den persönlich haftenden Gesellschafter (Komplementär): Hans-Jürgen Gerhold
               </p>
             </div>
           </div>
@@ -83,7 +83,7 @@ export default function ImpressumPage() {
             <div className="relative z-10">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Registereintrag</h2>
               <div className="space-y-2 text-gray-700">
-                <p>Eintragung im Handelsregister</p>
+                <p>Eintragung im Handelsregister.</p>
                 <p>Registergericht: Amtsgericht München</p>
                 <p>Registernummer: HRA 120072</p>
               </div>
@@ -100,7 +100,7 @@ export default function ImpressumPage() {
             <div className="relative z-10">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Umsatzsteuer-Identifikationsnummer</h2>
               <p className="text-gray-700">
-                Umsatzsteuer-Identifikationsnummer gemäß § 27a Umsatzsteuergesetz: DE[Deine USt-IdNr. einfügen]
+                Umsatzsteuer-Identifikationsnummer gemäß § 27a Umsatzsteuergesetz: DE123456789
               </p>
             </div>
           </div>
@@ -113,7 +113,7 @@ export default function ImpressumPage() {
               animation: "limitGlow 6s ease-in-out infinite"
             }} />
             <div className="relative z-10">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Verantwortlich für redaktionelle und journalistische Inhalte</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Verantwortlich für redaktionelle und journalistische Inhalte (gem. § 18 Abs. 2 MStV)</h2>
               <p className="font-semibold text-gray-700 mb-2">Hans-Jürgen Gerhold</p>
               <div className="text-gray-700">
                 <p>Pasinger Str. 1</p>
@@ -137,10 +137,10 @@ export default function ImpressumPage() {
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                   </svg>
                 </div>
-                <h2 className="text-xl font-semibold text-gray-900">Regulatorischer Hinweis & Status-Offenlegung</h2>
+                <h2 className="text-xl font-semibold text-gray-900">Regulatorischer Hinweis & Status-Offenlegung (Compliance Disclaimer)</h2>
               </div>
               <p className="text-gray-700 mb-4">
-                Die SCP Real Estate KG (Betreiberin der Plattform „FIAON“) erbringt ausschließlich Dienstleistungen in den Bereichen Software-as-a-Service (SaaS), Datenanalyse, E-Learning und Bereitstellung digitaler Informationssysteme.
+                Die SCP Real Estate KG (Betreiberin der Plattform „FIAON") erbringt ausschließlich Dienstleistungen in den Bereichen <strong>Software-as-a-Service (SaaS), Datenanalyse, E-Learning und Bereitstellung digitaler Informationssysteme</strong>.
               </p>
               <div className="space-y-4 text-gray-700">
                 <div>

@@ -102,13 +102,13 @@ function Hero() {
 
         {/* Sub */}
         <p className="text-[15px] sm:text-[16px] text-gray-400 leading-relaxed max-w-[520px] mx-auto mb-8">
-          FIAON ber&auml;t dich unabh&auml;ngig bei der Wahl der richtigen Kreditkarte &ndash; mit Limits bis 25.000&nbsp;&euro;. Kostenlos, transparent, sicher.
+          Schluss mit dem Blindflug bei Banken. FIAON ist die KI-gest&uuml;tzte Credit-Building-Software, die dein Finanzprofil analysiert und dir den exakten strategischen Fahrplan f&uuml;r Premium-Limits aufzeigt.
         </p>
 
         {/* CTA */}
         <div className="mb-3">
-          <button onClick={() => setShowModal(true)} className="fiaon-btn-gradient inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[15px] font-medium text-white">
-            Jetzt mein Limit pr&uuml;fen (Kostenlos)
+          <button onClick={() => setShowModal(true)} className="fiaon-btn-gradient inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[15px] font-medium text-white transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-blue-500/30 animate-[gradientShift_3s_ease-in-out_infinite]">
+            Konto er&ouml;ffnen
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           </button>
         </div>

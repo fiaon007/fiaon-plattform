@@ -272,23 +272,34 @@ export default function AdminDatabasePage() {
 
             {/* TODO List Section - Bento-Luxury Design */}
             <div className="mb-8">
-              <div className="bg-[#FDFDFD] p-8 rounded-2xl animate-[fadeInUp_.6s_ease]">
+              <div className="bg-gradient-to-br from-[#FEFEFE] to-[#FAFAFA] p-10 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100/50 animate-[fadeInUp_.6s_ease]">
                 {/* Overline Label */}
-                <p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold mb-4">TODO ÜBERSICHT</p>
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-1">TODO ÜBERSICHT</p>
+                    <h3 className="text-lg font-semibold text-slate-800">Aufgaben Management</h3>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full shadow-sm border border-slate-200">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                    <span className="text-xs font-medium text-slate-600">{todos.filter(t => t.status !== 'resolved').length} aktiv</span>
+                  </div>
+                </div>
 
                 {/* Add Todo Input - Glassmorphismus */}
-                <form onSubmit={addTodo} className="mb-6">
+                <form onSubmit={addTodo} className="mb-8">
                   <div className="flex gap-3">
-                    <input
-                      type="text"
-                      value={newTodoTitle}
-                      onChange={(e) => setNewTodoTitle(e.target.value)}
-                      placeholder="Neue Aufgabe hinzufügen..."
-                      className="flex-1 px-4 py-3 rounded-lg bg-slate-50/50 backdrop-blur-sm border border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 outline-none transition-all text-sm font-medium text-slate-700 placeholder-slate-400"
-                    />
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={newTodoTitle}
+                        onChange={(e) => setNewTodoTitle(e.target.value)}
+                        placeholder="Neue Aufgabe hinzufügen..."
+                        className="w-full px-5 py-4 rounded-xl bg-white/80 backdrop-blur-sm border-2 border-slate-200/80 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-sm font-medium text-slate-700 placeholder-slate-400 shadow-sm"
+                      />
+                    </div>
                     <button
                       type="submit"
-                      className="px-6 py-3 bg-slate-900 text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-all duration-200 hover:bg-slate-800 hover:scale-105"
+                      className="px-8 py-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white text-xs font-bold uppercase tracking-[0.15em] rounded-xl transition-all duration-300 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] shadow-lg"
                     >
                       Hinzufügen
                     </button>
@@ -297,36 +308,45 @@ export default function AdminDatabasePage() {
 
                 {/* Todo List - Skeuomorphismus 3.0 */}
                 {loading ? (
-                  <div className="text-center py-12 text-slate-400">Laden...</div>
+                  <div className="text-center py-16">
+                    <div className="inline-block w-8 h-8 border-3 border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
+                    <p className="text-sm text-slate-400 mt-3">Laden...</p>
+                  </div>
                 ) : todos.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-sm font-medium text-slate-400">Keine Aufgaben vorhanden</p>
-                    <p className="text-xs text-slate-300 mt-1">Füge deine erste Aufgabe hinzu!</p>
+                  <div className="text-center py-16 px-4">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center shadow-inner">
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 11l3 3L22 4" />
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                      </svg>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-600">Keine Aufgaben vorhanden</p>
+                    <p className="text-xs text-slate-400 mt-1">Füge deine erste Aufgabe hinzu!</p>
                   </div>
                 ) : (
-                  <div className="space-y-0">
+                  <div className="space-y-2.5">
                     {todos.map((todo, index) => (
                       <div
                         key={todo.id}
-                        className={`group flex items-center gap-4 bg-white border border-slate-200 p-4 mb-3 rounded-xl transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${
-                          todo.status === 'resolved' ? 'opacity-50' : ''
+                        className={`group flex items-center gap-4 bg-white border-2 border-slate-100 p-5 rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_24px_-4px_rgba(0,0,0,0.08)] hover:border-slate-200 ${
+                          todo.status === 'resolved' ? 'opacity-40' : ''
                         }`}
                         style={{
-                          boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.8), 0 4px 6px -1px rgba(0,0,0,0.02)',
-                          animation: `fadeInUp 0.4s ease ${index * 50}ms both`
+                          boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.9), 0 2px 8px -2px rgba(0,0,0,0.04)',
+                          animation: `fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) ${index * 60}ms both`
                         }}
                       >
                         {/* Custom Checkbox - Premium */}
                         <button
                           onClick={() => toggleTodoStatus(todo)}
-                          className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-200 ${
+                          className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-300 shrink-0 ${
                             todo.status === 'resolved'
-                              ? 'bg-gradient-to-br from-blue-500 to-blue-700 border-transparent'
-                              : 'border-slate-300 hover:border-slate-400 hover:ring-2 hover:ring-blue-500/20'
+                              ? 'bg-gradient-to-br from-blue-500 to-blue-600 border-transparent shadow-lg shadow-blue-500/30'
+                              : 'border-slate-300 hover:border-blue-400 hover:ring-4 hover:ring-blue-100 bg-white'
                           }`}
                         >
                           {todo.status === 'resolved' && (
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="6 12 10 16 18 8" />
                             </svg>
                           )}
@@ -334,35 +354,45 @@ export default function AdminDatabasePage() {
 
                         {/* Todo Content */}
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium transition-all duration-200 ${
-                            todo.status === 'resolved' ? 'line-through text-slate-400' : 'text-slate-700'
-                          }`}>
-                            {todo.clientName || todo.title || 'Unbekannt'}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                          <div className="flex items-center gap-2.5 mb-1.5">
+                            <p className={`text-sm font-semibold transition-all duration-300 ${
+                              todo.status === 'resolved' ? 'line-through text-slate-400' : 'text-slate-800'
+                            }`}>
+                              {todo.clientName || todo.title || 'Unbekannt'}
+                            </p>
+                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide shadow-sm ${
                               todo.clientPackage === 'Ultra' || todo.clientPackage === 'High End' 
-                                ? 'bg-purple-100 text-purple-700' 
+                                ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white' 
                                 : todo.clientPackage === 'Pro' 
-                                  ? 'bg-blue-100 text-blue-700'
-                                  : 'bg-slate-100 text-slate-600'
+                                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
+                                  : 'bg-slate-100 text-slate-700'
                             }`}>
                               {todo.clientPackage}
                             </span>
-                            <p className={`text-xs transition-all duration-200 ${
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <p className={`text-xs font-medium transition-all duration-300 ${
                               todo.status === 'resolved' ? 'text-slate-300' : 'text-slate-500'
                             }`}>
-                              {todo.taskType} · {todo.urgencyScore}/100
+                              {todo.taskType}
                             </p>
+                            <div className="flex items-center gap-1.5">
+                              <div className={`w-1.5 h-1.5 rounded-full ${getUrgencyColor(todo.urgencyScore)}`}></div>
+                              <span className={`text-xs font-semibold ${
+                                todo.status === 'resolved' ? 'text-slate-300' : 'text-slate-600'
+                              }`}>
+                                {todo.urgencyScore}/100
+                              </span>
+                            </div>
                           </div>
                         </div>
 
                         {/* Delete Button */}
                         <button
                           onClick={() => deleteTodo(todo.id)}
-                          className="opacity-0 group-hover:opacity-100 p-2 rounded-lg hover:bg-red-50 transition-all duration-200"
+                          className="opacity-0 group-hover:opacity-100 p-2.5 rounded-xl hover:bg-red-50 transition-all duration-300 hover:scale-110"
                         >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M3 6h18" />
                             <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
                             <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
@@ -374,10 +404,23 @@ export default function AdminDatabasePage() {
                 )}
 
                 {/* Status Footer */}
-                <div className="mt-4 pt-4 border-t border-slate-200">
-                  <p className="text-xs text-slate-400">
-                    {todos.filter(t => t.status !== 'resolved').length} offen · {todos.filter(t => t.status === 'resolved').length} erledigt
-                  </p>
+                <div className="mt-6 pt-5 border-t-2 border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                      {todos.filter(t => t.status !== 'resolved').length} offen · {todos.filter(t => t.status === 'resolved').length} erledigt
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500"
+                          style={{ width: `${todos.length > 0 ? (todos.filter(t => t.status === 'resolved').length / todos.length) * 100 : 0}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-xs font-bold text-slate-600">
+                        {todos.length > 0 ? Math.round((todos.filter(t => t.status === 'resolved').length / todos.length) * 100) : 0}%
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

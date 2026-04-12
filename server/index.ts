@@ -353,6 +353,46 @@ async function seedSubscriptionPlans() {
   app.post('/api/admin/delete-old-plans', deleteOldPlansHandler);
   
   // ============================================================================
+  // RUN AI TASKS MIGRATION - Ensure columns exist
+  // ============================================================================
+  try {
+    log('🔄 Running AI Tasks migration...');
+    await client`
+      ALTER TABLE team_todos 
+        ADD COLUMN IF NOT EXISTS client_name VARCHAR,
+        ADD COLUMN IF NOT EXISTS client_package VARCHAR CHECK (client_package IN ('Starter', 'Pro', 'Ultra', 'High End')),
+        ADD COLUMN IF NOT EXISTS task_type VARCHAR CHECK (task_type IN ('Limit-Erhöhung', 'Schufa-Klärung', 'Strategie-Call', 'System')),
+        ADD COLUMN IF NOT EXISTS urgency_score INTEGER DEFAULT 50 CHECK (urgency_score >= 0 AND urgency_score <= 100),
+        ADD COLUMN IF NOT EXISTS assigned_director_id VARCHAR REFERENCES users(id) ON DELETE SET NULL
+    `;
+    
+    // Update status check constraint
+    await client`
+      ALTER TABLE team_todos 
+        DROP CONSTRAINT IF EXISTS team_todos_status_check
+    `;
+    
+    await client`
+      ALTER TABLE team_todos 
+        ADD CONSTRAINT team_todos_status_check 
+        CHECK (status IN ('pending', 'in_progress', 'done', 'cancelled', 'open', 'waiting_for_client', 'resolved'))
+    `;
+    
+    // Add indexes
+    await client`CREATE INDEX IF NOT EXISTS team_todos_urgency_idx ON team_todos(urgency_score DESC)`;
+    await client`CREATE INDEX IF NOT EXISTS team_todos_client_package_idx ON team_todos(client_package)`;
+    await client`CREATE INDEX IF NOT EXISTS team_todos_task_type_idx ON team_todos(task_type)`;
+    
+    log('✅ AI Tasks migration completed');
+  } catch (error: any) {
+    if (error.code === '42701') {
+      log('⚠️ AI Tasks columns already exist, skipping migration');
+    } else {
+      log('❌ AI Tasks migration error:', error.message);
+    }
+  }
+  
+  // ============================================================================
   // CRITICAL: registerRoutes MUST run FIRST (sets up passport session)
   // Internal routes MUST be mounted AFTER so req.isAuthenticated() works
   // ============================================================================

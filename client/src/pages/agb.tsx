@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import GlassNav from "@/components/GlassNav";
+import PremiumFooter from "@/components/PremiumFooter";
 
 export default function AGBPage() {
   useEffect(() => {
@@ -6,14 +8,16 @@ export default function AGBPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white relative overflow-hidden">
-      {/* Ambient background orbs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full opacity-[0.04]" style={{ background: "radial-gradient(circle, #2563eb, transparent 70%)" }} />
-        <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full opacity-[0.03]" style={{ background: "radial-gradient(circle, #2563eb, transparent 70%)" }} />
-      </div>
+    <div className="min-h-screen bg-white text-gray-900 antialiased" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+      <GlassNav />
+      <div className="relative overflow-hidden">
+        {/* Ambient background orbs */}
+        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+          <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full opacity-[0.04]" style={{ background: "radial-gradient(circle, #2563eb, transparent 70%)" }} />
+          <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full opacity-[0.03]" style={{ background: "radial-gradient(circle, #2563eb, transparent 70%)" }} />
+        </div>
 
-      <div className="relative z-10 max-w-4xl mx-auto px-6 py-16">
+        <div className="relative z-10 max-w-4xl mx-auto px-6 py-24">
         {/* Header */}
         <div className="text-center mb-16 animate-[fadeInUp_.6s_ease]">
           <h1 className="text-5xl font-bold fiaon-gradient-text-animated mb-4">Allgemeine Geschäftsbedingungen (AGB)</h1>
@@ -368,6 +372,8 @@ export default function AGBPage() {
           </div>
         </div>
       </div>
+      </div>
+      <PremiumFooter />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Link } from "wouter";
 
 interface GlassNavProps {
   activePage?: "startseite" | "privatkunden" | "business" | "was-ist-fiaon" | "plattform-konzept" | "login";
@@ -236,7 +237,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
               </a>
 
               {/* Geschäftskunde */}
-              <div className="relative block w-full p-5 rounded-2xl fiaon-glass-panel opacity-60 cursor-not-allowed">
+              <Link href="/business" onClick={() => setShowModal(false)} className="relative block w-full p-5 rounded-2xl fiaon-glass-panel group hover:border-blue-300/50 transition-all cursor-pointer">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[16px] font-semibold text-gray-900 mb-1">
@@ -246,11 +247,20 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                       Business-Kreditkarte für Unternehmen
                     </p>
                   </div>
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-100 px-3 py-1.5 rounded-full">
-                    Bald verfügbar
-                  </span>
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#2563eb"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    className="group-hover:translate-x-1 transition-all"
+                  >
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
                 </div>
-              </div>
+              </Link>
             </div>
 
             <button

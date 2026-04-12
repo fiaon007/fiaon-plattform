@@ -14,6 +14,7 @@ import AdminDatabasePage from "@/pages/admin-database";
 import WasIstFiaonPage from "@/pages/was-ist-fiaon";
 import PlattformKonzeptPage from "@/pages/plattform-konzept";
 import LoginPage from "@/pages/login";
+import ImpressumPage from "@/pages/impressum";
 
 function Router() {
   return (
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/plattform-konzept" component={PlattformKonzeptPage} />
       <Route path="/terms" component={Terms} />
       <Route path="/privacy" component={Privacy} />
+      <Route path="/impressum" component={ImpressumPage} />
       <Route component={NotFound} />
     </Switch>
   );

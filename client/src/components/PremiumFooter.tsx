@@ -101,7 +101,7 @@ export default function PremiumFooter() {
             </h3>
             <ul className="space-y-4">
               <li>
-                <a href="#" className="text-[14px] text-gray-400 hover:text-white transition-all duration-200 hover:translate-x-1">
+                <a href="/impressum" className="text-[14px] text-gray-400 hover:text-white transition-all duration-200 hover:translate-x-1">
                   Impressum
                 </a>
               </li>

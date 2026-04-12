@@ -13,6 +13,7 @@ import NotFound from "@/pages/not-found";
 import AdminDatabasePage from "@/pages/admin-database";
 import WasIstFiaonPage from "@/pages/was-ist-fiaon";
 import PlattformKonzeptPage from "@/pages/plattform-konzept";
+import LoginPage from "@/pages/login";
 
 function Router() {
   return (
@@ -22,6 +23,7 @@ function Router() {
       <Route path="/privatkunden" component={PrivatkundenPage} />
       <Route path="/antrag" component={AntragPage} />
       <Route path="/business-antrag" component={BusinessAntragPage} />
+      <Route path="/login" component={LoginPage} />
       <Route path="/admin/database" component={AdminDatabasePage} />
       <Route path="/was-ist-fiaon" component={WasIstFiaonPage} />
       <Route path="/plattform-konzept" component={PlattformKonzeptPage} />

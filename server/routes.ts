@@ -5258,15 +5258,23 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
     try {
       const userId = (req.user as any).id;
       const todos = await client`
-        SELECT * FROM team_todos
+        SELECT 
+          id::text as id,
+          title,
+          description,
+          status,
+          COALESCE(urgency_score, 50) as urgency_score,
+          due_date,
+          COALESCE(client_name, 'Unbekannt') as client_name,
+          COALESCE(client_package, 'Starter') as client_package,
+          COALESCE(task_type, 'System') as task_type,
+          assigned_director_id,
+          created_at,
+          updated_at
+        FROM team_todos
         WHERE created_by_user_id = ${userId}
         ORDER BY 
-          CASE priority
-            WHEN 'urgent' THEN 1
-            WHEN 'high' THEN 2
-            WHEN 'medium' THEN 3
-            WHEN 'low' THEN 4
-          END,
+          COALESCE(urgency_score, 50) DESC,
           created_at DESC
       `;
       res.json(todos);
@@ -5282,13 +5290,43 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
       const userId = (req.user as any).id;
       const todoId = req.params.id;
       const todos = await client`
-        SELECT * FROM team_todos
+        SELECT 
+          id::text as id,
+          title,
+          description,
+          status,
+          COALESCE(urgency_score, 50) as urgency_score,
+          due_date,
+          COALESCE(client_name, 'Unbekannt') as client_name,
+          COALESCE(client_package, 'Starter') as client_package,
+          COALESCE(task_type, 'System') as task_type,
+          assigned_director_id,
+          created_at,
+          updated_at
+        FROM team_todos
         WHERE id = ${todoId} AND created_by_user_id = ${userId}
       `;
       if (todos.length === 0) {
         return res.status(404).json({ error: 'Todo not found' });
       }
-      res.json(todos[0]);
+      
+      // Format response to match AI_Task interface
+      const formattedResult = {
+        id: todos[0].id,
+        clientName: todos[0].client_name || todos[0].title || 'Unbekannt',
+        clientPackage: todos[0].client_package || 'Starter',
+        taskType: todos[0].task_type || 'System',
+        urgencyScore: todos[0].urgency_score || 50,
+        deadline: todos[0].due_date,
+        status: todos[0].status || 'open',
+        assignedDirectorId: todos[0].assigned_director_id,
+        title: todos[0].title,
+        description: todos[0].description,
+        created_at: todos[0].created_at,
+        updated_at: todos[0].updated_at,
+      };
+      
+      res.json(formattedResult);
     } catch (error: any) {
       logger.error('[TODOS] Error fetching todo:', error);
       res.status(500).json({ error: 'Failed to fetch todo' });
@@ -5299,20 +5337,68 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
   app.post("/api/todos", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as any).id;
-      const { title, description, priority, due_date, tags } = req.body;
+      const { 
+        title, 
+        description, 
+        clientName, 
+        clientPackage, 
+        taskType, 
+        urgencyScore, 
+        deadline, 
+        assignedDirectorId 
+      } = req.body;
 
-      if (!title) {
-        return res.status(400).json({ error: 'Title is required' });
+      if (!title && !clientName) {
+        return res.status(400).json({ error: 'Title or clientName is required' });
       }
 
       const result = await client`
-        INSERT INTO team_todos (title, description, priority, due_date, created_by_user_id, tags)
-        VALUES (${title}, ${description || null}, ${priority || 'medium'}, ${due_date || null}, ${userId}, ${JSON.stringify(tags || [])})
+        INSERT INTO team_todos (
+          title, 
+          description, 
+          client_name, 
+          client_package, 
+          task_type, 
+          urgency_score, 
+          due_date, 
+          assigned_director_id,
+          created_by_user_id,
+          status
+        )
+        VALUES (
+          ${title || null}, 
+          ${description || null}, 
+          ${clientName || null}, 
+          ${clientPackage || 'Starter'}, 
+          ${taskType || 'System'}, 
+          ${urgencyScore || 50}, 
+          ${deadline || null}, 
+          ${assignedDirectorId || null},
+          ${userId},
+          'open'
+        )
         RETURNING *
       `;
 
-      logger.info('[TODOS] Created todo:', { id: result[0].id, userId, title });
-      res.json(result[0]);
+      logger.info('[TODOS] Created todo:', { id: result[0].id, userId, clientName: clientName || title });
+      
+      // Format response to match AI_Task interface
+      const formattedResult = {
+        id: result[0].id.toString(),
+        clientName: result[0].client_name || result[0].title || 'Unbekannt',
+        clientPackage: result[0].client_package || 'Starter',
+        taskType: result[0].task_type || 'System',
+        urgencyScore: result[0].urgency_score || 50,
+        deadline: result[0].due_date,
+        status: result[0].status || 'open',
+        assignedDirectorId: result[0].assigned_director_id,
+        title: result[0].title,
+        description: result[0].description,
+        created_at: result[0].created_at,
+        updated_at: result[0].updated_at,
+      };
+      
+      res.json(formattedResult);
     } catch (error: any) {
       logger.error('[TODOS] Error creating todo:', error);
       res.status(500).json({ error: 'Failed to create todo' });
@@ -5324,7 +5410,17 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
     try {
       const userId = (req.user as any).id;
       const todoId = req.params.id;
-      const { title, description, status, priority, due_date, tags } = req.body;
+      const { 
+        title, 
+        description, 
+        status, 
+        clientName, 
+        clientPackage, 
+        taskType, 
+        urgencyScore, 
+        deadline, 
+        assignedDirectorId 
+      } = req.body;
 
       // Check if todo exists and belongs to user
       const existing = await client`
@@ -5340,11 +5436,14 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
       if (description !== undefined) updates.description = description;
       if (status !== undefined) {
         updates.status = status;
-        if (status === 'done') updates.completed_at = new Date();
+        if (status === 'resolved') updates.completed_at = new Date();
       }
-      if (priority !== undefined) updates.priority = priority;
-      if (due_date !== undefined) updates.due_date = due_date;
-      if (tags !== undefined) updates.tags = JSON.stringify(tags);
+      if (clientName !== undefined) updates.client_name = clientName;
+      if (clientPackage !== undefined) updates.client_package = clientPackage;
+      if (taskType !== undefined) updates.task_type = taskType;
+      if (urgencyScore !== undefined) updates.urgency_score = urgencyScore;
+      if (deadline !== undefined) updates.due_date = deadline;
+      if (assignedDirectorId !== undefined) updates.assigned_director_id = assignedDirectorId;
       updates.updated_at = new Date();
 
       const result = await client`
@@ -5355,7 +5454,24 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
       `;
 
       logger.info('[TODOS] Updated todo:', { id: todoId, userId });
-      res.json(result[0]);
+      
+      // Format response to match AI_Task interface
+      const formattedResult = {
+        id: result[0].id.toString(),
+        clientName: result[0].client_name || result[0].title || 'Unbekannt',
+        clientPackage: result[0].client_package || 'Starter',
+        taskType: result[0].task_type || 'System',
+        urgencyScore: result[0].urgency_score || 50,
+        deadline: result[0].due_date,
+        status: result[0].status || 'open',
+        assignedDirectorId: result[0].assigned_director_id,
+        title: result[0].title,
+        description: result[0].description,
+        created_at: result[0].created_at,
+        updated_at: result[0].updated_at,
+      };
+      
+      res.json(formattedResult);
     } catch (error: any) {
       logger.error('[TODOS] Error updating todo:', error);
       res.status(500).json({ error: 'Failed to update todo' });

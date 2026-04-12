@@ -1,22 +1,25 @@
 import { useState, useEffect } from "react";
 
-interface Todo {
-  id: number;
-  title: string;
-  description: string | null;
-  status: 'pending' | 'in_progress' | 'done' | 'cancelled';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  due_date: string | null;
-  tags: any[];
-  created_at: string;
-  updated_at: string;
+interface AI_Task {
+  id: string;
+  clientName: string;
+  clientPackage: "Starter" | "Pro" | "Ultra" | "High End";
+  taskType: "Limit-Erhöhung" | "Schufa-Klärung" | "Strategie-Call" | "System";
+  urgencyScore: number; // 0-100 (KI-generiert)
+  deadline: string; // ISO Date
+  status: "open" | "in_progress" | "waiting_for_client" | "resolved";
+  assignedDirectorId: string | null;
+  title?: string;
+  description?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export default function AdminDatabasePage() {
   const [greeting, setGreeting] = useState("");
   const [typedText, setTypedText] = useState("");
   const [currentTime, setCurrentTime] = useState("");
-  const [todos, setTodos] = useState<Todo[]>([]);
+  const [todos, setTodos] = useState<AI_Task[]>([]);
   const [newTodoTitle, setNewTodoTitle] = useState("");
   const [showAddTodo, setShowAddTodo] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -68,7 +71,9 @@ export default function AdminDatabasePage() {
 
   const fetchTodos = async () => {
     try {
-      const res = await fetch('/api/todos');
+      const res = await fetch('/api/todos', {
+        credentials: 'include',
+      });
       if (res.ok) {
         const data = await res.json();
         setTodos(data);
@@ -88,6 +93,7 @@ export default function AdminDatabasePage() {
       const res = await fetch('/api/todos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ title: newTodoTitle, priority: 'medium' }),
       });
 
@@ -102,12 +108,13 @@ export default function AdminDatabasePage() {
     }
   };
 
-  const toggleTodoStatus = async (todo: Todo) => {
-    const newStatus = todo.status === 'done' ? 'pending' : 'done';
+  const toggleTodoStatus = async (todo: AI_Task) => {
+    const newStatus = todo.status === 'resolved' ? 'open' : 'resolved';
     try {
       const res = await fetch(`/api/todos/${todo.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ status: newStatus }),
       });
 
@@ -119,10 +126,11 @@ export default function AdminDatabasePage() {
     }
   };
 
-  const deleteTodo = async (todoId: number) => {
+  const deleteTodo = async (todoId: string) => {
     try {
       const res = await fetch(`/api/todos/${todoId}`, {
         method: 'DELETE',
+        credentials: 'include',
       });
 
       if (res.ok) {
@@ -133,12 +141,19 @@ export default function AdminDatabasePage() {
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return 'bg-red-500';
-      case 'high': return 'bg-orange-500';
-      case 'medium': return 'bg-yellow-500';
-      case 'low': return 'bg-green-500';
+  const getUrgencyColor = (score: number) => {
+    if (score >= 80) return 'bg-red-500';
+    if (score >= 60) return 'bg-orange-500';
+    if (score >= 40) return 'bg-yellow-500';
+    return 'bg-green-500';
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'resolved': return 'bg-green-500';
+      case 'in_progress': return 'bg-blue-500';
+      case 'waiting_for_client': return 'bg-yellow-500';
+      case 'open': return 'bg-gray-500';
       default: return 'bg-gray-500';
     }
   };
@@ -275,9 +290,9 @@ export default function AdminDatabasePage() {
                         </svg>
                       </div>
                       <div>
-                        <h2 className="text-xl font-semibold text-gray-900">Aufgaben</h2>
+                        <h2 className="text-xl font-semibold text-gray-900">AI Operations & Task Matrix</h2>
                         <p className="text-[13px] text-gray-500">
-                          {todos.filter(t => t.status !== 'done').length} offen · {todos.filter(t => t.status === 'done').length} erledigt
+                          {todos.filter(t => t.status !== 'resolved').length} offen · {todos.filter(t => t.status === 'resolved').length} erledigt
                         </p>
                       </div>
                     </div>
@@ -331,25 +346,28 @@ export default function AdminDatabasePage() {
                         <div
                           key={todo.id}
                           className={`group flex items-center gap-4 p-4 rounded-xl transition-all duration-300 ${
-                            todo.status === 'done'
+                            todo.status === 'resolved'
                               ? 'bg-gray-50/50 opacity-60'
                               : 'fiaon-glass-panel hover:scale-[1.01]'
                           }`}
                           style={{ animation: `fadeInUp 0.4s ease ${index * 50}ms both` }}
                         >
-                          {/* Priority Indicator */}
-                          <div className={`w-2 h-2 rounded-full ${getPriorityColor(todo.priority)} shrink-0`} />
+                          {/* Urgency Indicator */}
+                          <div className={`w-2 h-2 rounded-full ${getUrgencyColor(todo.urgencyScore)} shrink-0`} />
+
+                          {/* Status Indicator */}
+                          <div className={`w-2 h-2 rounded-full ${getStatusColor(todo.status)} shrink-0`} />
 
                           {/* Checkbox */}
                           <button
                             onClick={() => toggleTodoStatus(todo)}
                             className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-300 ${
-                              todo.status === 'done'
+                              todo.status === 'resolved'
                                 ? 'bg-[#2563eb] border-[#2563eb]'
                                 : 'border-gray-300 hover:border-[#2563eb]'
                             }`}
                           >
-                            {todo.status === 'done' && (
+                            {todo.status === 'resolved' && (
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                                 <polyline points="6 12 10 16 18 8" />
                               </svg>
@@ -358,13 +376,31 @@ export default function AdminDatabasePage() {
 
                           {/* Todo Content */}
                           <div className="flex-1 min-w-0">
-                            <p className={`text-[14px] font-medium transition-all duration-300 ${
-                              todo.status === 'done' ? 'text-gray-400 line-through' : 'text-gray-900'
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className={`text-[14px] font-medium transition-all duration-300 ${
+                                todo.status === 'resolved' ? 'text-gray-400 line-through' : 'text-gray-900'
+                              }`}>
+                                {todo.clientName}
+                              </p>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                todo.clientPackage === 'Ultra' || todo.clientPackage === 'High End' 
+                                  ? 'bg-purple-100 text-purple-700' 
+                                  : todo.clientPackage === 'Pro' 
+                                    ? 'bg-blue-100 text-blue-700'
+                                    : 'bg-gray-100 text-gray-700'
+                              }`}>
+                                {todo.clientPackage}
+                              </span>
+                            </div>
+                            <p className={`text-[12px] transition-all duration-300 ${
+                              todo.status === 'resolved' ? 'text-gray-400' : 'text-gray-600'
                             }`}>
-                              {todo.title}
+                              {todo.taskType} · Urgency: {todo.urgencyScore}/100
                             </p>
-                            {todo.description && (
-                              <p className="text-[12px] text-gray-500 mt-0.5">{todo.description}</p>
+                            {todo.deadline && (
+                              <p className="text-[11px] text-gray-500 mt-0.5">
+                                Deadline: {new Date(todo.deadline).toLocaleDateString('de-DE')}
+                              </p>
                             )}
                           </div>
 

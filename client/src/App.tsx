@@ -17,6 +17,7 @@ import LoginPage from "@/pages/login";
 import ImpressumPage from "@/pages/impressum";
 import AGBPage from "@/pages/agb";
 import WiderrufsbelehrungPage from "@/pages/widerrufsbelehrung";
+import CookieEinstellungenPage from "@/pages/cookie-einstellungen";
 
 function Router() {
   return (
@@ -35,6 +36,7 @@ function Router() {
       <Route path="/impressum" component={ImpressumPage} />
       <Route path="/agb" component={AGBPage} />
       <Route path="/widerrufsbelehrung" component={WiderrufsbelehrungPage} />
+      <Route path="/cookie-einstellungen" component={CookieEinstellungenPage} />
       <Route component={NotFound} />
     </Switch>
   );

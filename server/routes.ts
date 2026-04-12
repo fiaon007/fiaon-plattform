@@ -5248,7 +5248,145 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
       res.status(500).json({ error: 'Failed to check recent calls' });
     }
   });
-  
+
+  // ========================================================
+  // TEAM TODOS API ENDPOINTS
+  // ========================================================
+
+  // GET all todos
+  app.get("/api/todos", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const todos = await client`
+        SELECT * FROM team_todos
+        WHERE created_by_user_id = ${userId}
+        ORDER BY 
+          CASE priority
+            WHEN 'urgent' THEN 1
+            WHEN 'high' THEN 2
+            WHEN 'medium' THEN 3
+            WHEN 'low' THEN 4
+          END,
+          created_at DESC
+      `;
+      res.json(todos);
+    } catch (error: any) {
+      logger.error('[TODOS] Error fetching todos:', error);
+      res.status(500).json({ error: 'Failed to fetch todos' });
+    }
+  });
+
+  // GET single todo
+  app.get("/api/todos/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const todoId = req.params.id;
+      const todos = await client`
+        SELECT * FROM team_todos
+        WHERE id = ${todoId} AND created_by_user_id = ${userId}
+      `;
+      if (todos.length === 0) {
+        return res.status(404).json({ error: 'Todo not found' });
+      }
+      res.json(todos[0]);
+    } catch (error: any) {
+      logger.error('[TODOS] Error fetching todo:', error);
+      res.status(500).json({ error: 'Failed to fetch todo' });
+    }
+  });
+
+  // POST create todo
+  app.post("/api/todos", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { title, description, priority, due_date, tags } = req.body;
+
+      if (!title) {
+        return res.status(400).json({ error: 'Title is required' });
+      }
+
+      const result = await client`
+        INSERT INTO team_todos (title, description, priority, due_date, created_by_user_id, tags)
+        VALUES (${title}, ${description || null}, ${priority || 'medium'}, ${due_date || null}, ${userId}, ${JSON.stringify(tags || [])})
+        RETURNING *
+      `;
+
+      logger.info('[TODOS] Created todo:', { id: result[0].id, userId, title });
+      res.json(result[0]);
+    } catch (error: any) {
+      logger.error('[TODOS] Error creating todo:', error);
+      res.status(500).json({ error: 'Failed to create todo' });
+    }
+  });
+
+  // PUT update todo
+  app.put("/api/todos/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const todoId = req.params.id;
+      const { title, description, status, priority, due_date, tags } = req.body;
+
+      // Check if todo exists and belongs to user
+      const existing = await client`
+        SELECT * FROM team_todos
+        WHERE id = ${todoId} AND created_by_user_id = ${userId}
+      `;
+      if (existing.length === 0) {
+        return res.status(404).json({ error: 'Todo not found' });
+      }
+
+      const updates: any = {};
+      if (title !== undefined) updates.title = title;
+      if (description !== undefined) updates.description = description;
+      if (status !== undefined) {
+        updates.status = status;
+        if (status === 'done') updates.completed_at = new Date();
+      }
+      if (priority !== undefined) updates.priority = priority;
+      if (due_date !== undefined) updates.due_date = due_date;
+      if (tags !== undefined) updates.tags = JSON.stringify(tags);
+      updates.updated_at = new Date();
+
+      const result = await client`
+        UPDATE team_todos
+        SET ${client(updates)}
+        WHERE id = ${todoId}
+        RETURNING *
+      `;
+
+      logger.info('[TODOS] Updated todo:', { id: todoId, userId });
+      res.json(result[0]);
+    } catch (error: any) {
+      logger.error('[TODOS] Error updating todo:', error);
+      res.status(500).json({ error: 'Failed to update todo' });
+    }
+  });
+
+  // DELETE todo
+  app.delete("/api/todos/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const todoId = req.params.id;
+
+      // Check if todo exists and belongs to user
+      const existing = await client`
+        SELECT * FROM team_todos
+        WHERE id = ${todoId} AND created_by_user_id = ${userId}
+      `;
+      if (existing.length === 0) {
+        return res.status(404).json({ error: 'Todo not found' });
+      }
+
+      await client`DELETE FROM team_todos WHERE id = ${todoId}`;
+
+      logger.info('[TODOS] Deleted todo:', { id: todoId, userId });
+      res.json({ success: true, message: 'Todo deleted' });
+    } catch (error: any) {
+      logger.error('[TODOS] Error deleting todo:', error);
+      res.status(500).json({ error: 'Failed to delete todo' });
+    }
+  });
+
   // POST bulk import contacts from CSV
   app.post("/api/contacts/bulk", requireAuth, async (req, res) => {
     try {

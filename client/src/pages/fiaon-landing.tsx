@@ -217,20 +217,20 @@ function Numbers() {
 function WhySection() {
   const obs = useReveal();
   const items = [
-    { t: "Unabh\u00E4ngige Beratung", d: "Wir sind kein Kreditkartenanbieter. Wir beraten neutral und finden das beste Angebot f\u00FCr dich." },
-    { t: "Bis 25.000 \u20AC Limit", d: "Durch unser Partner-Netzwerk vermitteln wir Kreditkarten mit Limits, die zu dir passen." },
-    { t: "Keine SCHUFA-Abfrage", d: "Die Erstberatung und Limit-Pr\u00FCfung ist komplett SCHUFA-neutral." },
-    { t: "Weltweit einsetzbar", d: "Die von uns vermittelten Karten sind bei \u00FCber 40 Mio. Akzeptanzstellen nutzbar." },
-    { t: "Schnell & digital", d: "Keine Filiale, kein Papierkram. Antrag in unter 2 Minuten \u2013 alles online." },
-    { t: "DSGVO & Datenschutz", d: "Europ\u00E4ische Server, volle Transparenz, volle Kontrolle \u00FCber deine Daten." },
+    { t: "Radikal unabh&auml;ngig", d: "Wir sind kein Makler und nehmen null Provisionen von Banken. Unsere Engine scannt dein Profil neutral und liefert dir ungesch&ouml;nte, datenbasierte Insights statt versteckter Affiliate-Deals." },
+    { t: "Ziel-Limits bis 25.000 &euro;", d: "Statt auf Gl&uuml;ck zu hoffen, nutzt du unser US-erprobtes Credit-Building-System. Wir zeigen dir den exakten strategischen Fahrplan, um dir Premium-Limits systematisch selbst aufzubauen." },
+    { t: "100 % Schufaneutral", d: "Unsere KI-Profilanalyse und der Score-Simulator arbeiten v&ouml;llig isoliert. Wir holen keine Ausk&uuml;nfte ein &ndash; dein echter SCHUFA-Score bleibt zu 100 % unangetastet und sicher." },
+    { t: "Das globale Premium-Setup", d: "Wir analysieren Kartenstrategien f&uuml;r maximale finanzielle Freiheit. Lerne, wie du dir Portfolios aufbaust, die dir weltweit Akzeptanz, Lounge-Zug&auml;nge und fehlende Fremdw&auml;hrungsgeb&uuml;hren sichern." },
+    { t: "Setup in unter 2 Minuten", d: "Keine Filiale, kein Papierkram, keine Bankberater. Du erstellst dein Profil, und die Software generiert dein pers&ouml;nliches Analyse-Dashboard in unter 120 Sekunden. Alles online." },
+    { t: "Banken-Niveau Sicherheit", d: "Deine Finanzdaten sind dein wertvollstes Asset. AES-256 Verschl&uuml;sselung, ausschlie&szlig;lich europ&auml;ische Server (EU-Hosting) und die jederzeitige One-Click-L&ouml;schung garantieren volle Kontrolle." },
   ];
   return (
     <section className="py-20 sm:py-28" ref={obs.ref}>
       <div className="max-w-[1120px] mx-auto px-6">
         <div className="max-w-2xl mb-14">
-          <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Warum FIAON</p>
-          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4"><GradientText>Wir beraten. Du entscheidest.</GradientText></h2>
-          <p className="text-[15px] text-gray-500 leading-relaxed">FIAON ist dein unabh&auml;ngiger Partner f&uuml;r Kreditkarten-Beratung.</p>
+          <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">DAS FIAON SYSTEM</p>
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4">&gt; <GradientText>Wir liefern die Technologie. Du holst das Limit.</GradientText></h2>
+          <p className="text-[15px] text-gray-500 leading-relaxed">FIAON ist deine unabh&auml;ngige Software-Plattform f&uuml;r datenbasiertes Credit-Building. Keine Bank, kein Makler &ndash; nur reine Strategie.</p>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-10">
           {items.map((f, i) => (

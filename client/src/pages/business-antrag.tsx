@@ -144,7 +144,7 @@ export default function BusinessAntragPage() {
   const [pack, setPack] = useState<typeof BUSINESS_PACKS[0] | null>(null);
 
   const [d, setD] = useState({ 
-    companyName: "", legalForm: "", taxId: "", establishedYear: "2010", contactName: "", contactEmail: "", contactPhone: "", street: "", zip: "", city: "", country: "", businessType: "", industry: "", annualRevenue: 50000, employees: 5, monthlyExpenses: 10000, wantedLimit: 10000, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", billingEmail: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false 
+    companyName: "", legalForm: "", taxId: "", establishedYear: "2010", contactName: "", contactEmail: "", contactPhone: "", street: "", zip: "", city: "", country: "", businessType: "", industry: "", annualRevenue: 0, employees: 0, monthlyExpenses: 0, wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", billingEmail: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false 
   });
   const [approved, setApproved] = useState(0);
   const [verifyDone, setVerifyDone] = useState(false);
@@ -373,13 +373,13 @@ export default function BusinessAntragPage() {
                   <Field label="Branche" req error={errors.industry}><Sel value={d.industry} onChange={(v: string) => up("industry", v)}><option value="">Wählen</option><option>IT & Tech</option><option>Handel</option><option>Dienstleistung</option><option>Produktion</option><option>Finanzdienstleistungen</option><option>Gesundheitswesen</option><option>Bildung</option><option>Sonstiges</option></Sel></Field>
                   <Field label="Gründungsjahr" req error={errors.establishedYear}><Inp type="number" value={d.establishedYear} onChange={(v: string) => up("establishedYear", v)} placeholder="2010" /></Field>
                   <Field label="Jährlicher Umsatz" req>
-                    <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{eur(d.annualRevenue)}</span><span className="text-[12px] text-gray-400">/ Jahr</span></div>
-                    <input type="range" min={10000} max={1000000} step={5000} value={d.annualRevenue} onChange={e => up("annualRevenue", +e.target.value)} className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb]" />
+                    <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{d.annualRevenue > 0 ? eur(d.annualRevenue) : "—"}</span><span className="text-[12px] text-gray-400">/ Jahr</span></div>
+                    <input type="range" min={10000} max={1000000} step={5000} value={d.annualRevenue || 10000} onChange={e => up("annualRevenue", +e.target.value)} className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb]" />
                     <div className="flex justify-between text-[10px] text-gray-400 font-mono mt-1"><span>€ 10.000</span><span>€ 1.000.000</span></div>
                   </Field>
                   <Field label="Anzahl Mitarbeiter" req>
-                    <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{d.employees}</span><span className="text-[12px] text-gray-400">Mitarbeiter</span></div>
-                    <input type="range" min={1} max={500} step={1} value={d.employees} onChange={e => up("employees", +e.target.value)} className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb]" />
+                    <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{d.employees > 0 ? d.employees : "—"}</span><span className="text-[12px] text-gray-400">Mitarbeiter</span></div>
+                    <input type="range" min={1} max={500} step={1} value={d.employees || 1} onChange={e => up("employees", +e.target.value)} className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb]" />
                     <div className="flex justify-between text-[10px] text-gray-400 font-mono mt-1"><span>1</span><span>500</span></div>
                   </Field>
                   <Field label="Monatliche Betriebsausgaben" hint="in EUR"><Inp type="number" value={d.monthlyExpenses || ""} onChange={(v: string) => up("monthlyExpenses", +v || 0)} placeholder="z.B. 10000" /></Field>
@@ -390,8 +390,8 @@ export default function BusinessAntragPage() {
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Karte konfigurieren</h2>
                   <p className="text-[14px] text-gray-400 mb-6">Wähle dein Wunschlimit.</p>
                   <Field label="Wunsch-Kreditlimit" req>
-                    <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{eur(d.wantedLimit)}</span><span className="text-[12px] text-gray-400">max. {eur(pack?.lim || 25000)}</span></div>
-                    <input type="range" min={1000} max={pack?.lim || 25000} step={1000} value={d.wantedLimit} onChange={e => up("wantedLimit", +e.target.value)} className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb]" />
+                    <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{d.wantedLimit > 0 ? eur(d.wantedLimit) : "—"}</span><span className="text-[12px] text-gray-400">max. {eur(pack?.lim || 25000)}</span></div>
+                    <input type="range" min={1000} max={pack?.lim || 25000} step={1000} value={d.wantedLimit || 1000} onChange={e => up("wantedLimit", +e.target.value)} className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb]" />
                   </Field>
                   <Field label="Verwendungszweck" req error={errors.purpose}><Sel value={d.purpose} onChange={(v: string) => up("purpose", v)}><option value="">Wählen</option><option>Geschäftsausgaben</option><option>Reisekosten</option><option>Lieferantenzahlungen</option><option>Mitarbeiterkarten</option><option>Liquiditätsreserve</option></Sel></Field>
                   <div className="grid grid-cols-2 gap-4">

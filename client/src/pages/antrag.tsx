@@ -76,7 +76,7 @@ function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: stri
             }}>
               {displayName}
             </div>
-            <div className={`uppercase tracking-[.12em] font-medium ${compact ? "text-[7px]" : "text-[8px]}`} style={{ color: "rgba(255,255,255,.4)" }}>
+            <div className={`uppercase tracking-[.12em] font-medium ${compact ? "text-[7px]" : "text-[8px]"}`} style={{ color: "rgba(255,255,255,.4)" }}>
               FIAON
             </div>
           </div>

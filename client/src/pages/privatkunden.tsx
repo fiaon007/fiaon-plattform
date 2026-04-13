@@ -46,10 +46,10 @@ function FCard({ bg, lim, label, className = "" }: { bg: string; lim: string; la
 
 /* ── packages (identical to Startseite) ── */
 const PACKS = [
-  { name: "FIAON Starter", fee: "7,99", lim: "500", bg: "linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats: ["Limit bis 500 \u20AC", "E-Mail Support", "NFC kontaktlos", "Online-Banking"] },
-  { name: "FIAON Pro", fee: "59,99", lim: "5.000", rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats: ["Limit bis 5.000 \u20AC", "Priority Support", "Cashback-Programm", "NFC kontaktlos"] },
-  { name: "FIAON Ultra", fee: "79,99", lim: "15.000", bg: "linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats: ["Limit bis 15.000 \u20AC", "Reise-Versicherung", "Lounge-Zugang", "Priority Support"] },
-  { name: "FIAON High End", fee: "99,99", lim: "25.000", bg: "linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats: ["Limit bis 25.000 \u20AC", "24/7 VIP Support", "Concierge-Service", "Premium Lounge"] },
+  { name: "FIAON Starter", fee: "7,99", lim: "500", bg: "linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats: ["KI-Profilanalyse (Basis-Scan)", "Kartenkompass: Markt-Matching", "Credit-Building Grundmodul", "Digitales Strategie-Dashboard"] },
+  { name: "FIAON Pro", fee: "59,99", lim: "5.000", rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats: ["Vollständiges Credit-Building System", "KI-Matching mit Score-Prognose", "Dynamischer Score-Simulator", "Limit-Aufbau-Strategie (12 Monate)"] },
+  { name: "FIAON Ultra", fee: "79,99", lim: "15.000", bg: "linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats: ["Premium Coaching (Meilen & Cashback)", "Multi-Karten-Portfolio-Struktur", "Individueller Optimierungs-Algorithmus", "Exklusive Strategie-Sessions"] },
+  { name: "FIAON High End", fee: "99,99", lim: "25.000", bg: "linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats: ["1-on-1 Strategy-Director (Monatlich)", "VIP International Credit Building", "Individuelle Limit-Roadmap (High-End)", "24/7 Dedicated Concierge-Support"] },
 ];
 
 /* ═══════════════════════════════
@@ -202,7 +202,7 @@ function Packages() {
   return (
     <section className="py-20 sm:py-28 bg-[#f8faff]" ref={obs.ref}>
       <div className="max-w-[1200px] mx-auto px-6">
-        <div className="max-w-2xl mb-14">
+        <div className="max-w-[2xl mb-14">
           <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Pakete</p>
           <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4"><G>Finde dein passendes Paket</G></h2>
           <p className="text-[15px] text-gray-500 leading-relaxed">Von Einsteiger bis Premium &ndash; wir beraten dich zum optimalen Kreditkarten-Paket. Das finale Limit wird individuell berechnet.</p>
@@ -211,15 +211,11 @@ function Packages() {
           {PACKS.map((p, i) => (
             <div key={p.name} className={`rounded-2xl bg-white border overflow-hidden transition-all duration-700 hover:-translate-y-1.5 hover:shadow-xl ${p.rec ? "border-[#2563eb]/25 shadow-lg shadow-blue-500/8 ring-1 ring-[#2563eb]/10" : "border-gray-100 hover:border-gray-200"} ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`} style={{ transitionDelay: `${i * 90}ms` }}>
               {p.rec && <div className="h-[2px] bg-[#2563eb]" />}
-              <div className="p-5 sm:p-6"><FCard bg={p.bg} lim={p.lim} label={p.name} className="w-full" /></div>
+              <div className="p-5 sm:p-6"><FCard bg={p.bg} lim={`ZIEL: ${p.lim} €`} label="" className="w-full" /></div>
               <div className="px-5 sm:px-6 pb-6">
                 <div className="flex items-center gap-3 mb-3">
                   <h3 className="text-[15px] font-semibold text-gray-900">{p.name}</h3>
                   {p.rec && <span className="text-[9px] font-semibold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-2 py-0.5 rounded">Empfohlen</span>}
-                </div>
-                <div className="flex items-baseline gap-1.5 mb-5">
-                  <span className="text-[28px] font-semibold text-gray-900 tracking-tight">{p.fee}</span>
-                  <span className="text-[13px] text-gray-400">&euro; / Monat</span>
                 </div>
                 <ul className="space-y-2.5 mb-6">
                   {p.feats.map((f, j) => (
@@ -228,7 +224,7 @@ function Packages() {
                     </li>
                   ))}
                 </ul>
-                <a href="#start" className={`block w-full text-center py-3 rounded-xl text-[13px] font-medium transition-all ${p.rec ? "fiaon-btn-gradient text-white" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100"}`}>Antrag starten</a>
+                <a href="/antrag" className={`block w-full text-center py-3 rounded-xl text-[13px] font-semibold transition-all ${p.rec ? "fiaon-btn-gradient text-white" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100"}`} style={{ letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 600 }}>Konto er&ouml;ffnen &rarr;</a>
               </div>
             </div>
           ))}

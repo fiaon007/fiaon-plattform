@@ -1096,7 +1096,8 @@ function ComparisonSection() {
       fee: "7,99", 
       lim: "500", 
       recommended: false,
-      features: ["E-Mail Support", "NFC kontaktlos", "Online-Banking", "Limit bis 500€"] 
+      features: ["KI-Profilanalyse (Basis-Scan)", "Kartenkompass: Markt-Matching", "Credit-Building Grundmodul", "Digitales Strategie-Dashboard"],
+      dotColor: "#9ca3af"
     },
     { 
       id: 1,
@@ -1104,7 +1105,8 @@ function ComparisonSection() {
       fee: "59,99", 
       lim: "5.000", 
       recommended: true,
-      features: ["Priority Support", "Cashback-Programm", "NFC kontaktlos", "Limit bis 5.000€"] 
+      features: ["Vollständiges Credit-Building System", "KI-Matching mit Score-Prognose", "Dynamischer Score-Simulator", "Limit-Aufbau-Strategie (12 Monate)"],
+      dotColor: "#2563eb"
     },
     { 
       id: 2,
@@ -1112,7 +1114,8 @@ function ComparisonSection() {
       fee: "79,99", 
       lim: "15.000", 
       recommended: false,
-      features: ["Reise-Versicherung", "Lounge-Zugang", "Priority Support", "Limit bis 15.000€"] 
+      features: ["Premium Coaching (Meilen & Cashback)", "Multi-Karten-Portfolio-Struktur", "Individueller Optimierungs-Algorithmus", "Exklusive Strategie-Sessions"],
+      dotColor: "#1e3a8a"
     },
     { 
       id: 3,
@@ -1120,7 +1123,8 @@ function ComparisonSection() {
       fee: "99,99", 
       lim: "25.000", 
       recommended: false,
-      features: ["24/7 VIP Support", "Concierge-Service", "Premium Lounge", "Limit bis 25.000€"] 
+      features: ["1-on-1 Strategy-Director (Monatlich)", "VIP International Credit Building", "Individuelle Limit-Roadmap (High-End)", "24/7 Dedicated Concierge-Support"],
+      dotColor: "#d4af37"
     },
   ];
 
@@ -1139,12 +1143,12 @@ function ComparisonSection() {
 
       <div className="relative z-10 max-w-[1000px] mx-auto px-6">
         <div className="text-center mb-10">
-          <p className="text-[11px] font-semibold text-[#2563eb] tracking-[.2em] uppercase mb-3">Produktvergleich</p>
+          <p className="text-[11px] font-semibold text-[#2563eb] tracking-[.2em] uppercase mb-3">SYSTEM-VERGLEICH</p>
           <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight mb-4 fiaon-gradient-text-animated">
-            Finde das perfekte Paket für dich
+            Das perfekte Setup f&uuml;r dein Ziel.
           </h2>
           <p className="text-[15px] text-gray-500 leading-relaxed max-w-xl mx-auto">
-            Wähle ein Paket und sieh alle Details.
+            W&auml;hle dein Level und vergleiche die Funktionen unserer Credit-Building-Engine im Detail.
           </p>
         </div>
 
@@ -1157,11 +1161,12 @@ function ComparisonSection() {
                 <button
                   key={p.id}
                   onClick={() => setSelected(p.id)}
-                  className={`w-full text-left p-4 rounded-xl transition-all duration-300 ${
+                  className={`w-full text-left p-4 rounded-xl transition-all duration-300 active:scale-[0.98] ${
                     selected === p.id
-                      ? "bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white shadow-lg"
-                      : "fiaon-glass-panel text-gray-700 hover:bg-white/60"
+                      ? "bg-gradient-to-r from-[#2563eb] to-[#1e3a8a] text-white shadow-lg"
+                      : "fiaon-glass-panel text-gray-700 hover:bg-gray-50/80"
                   }`}
+                  style={selected === p.id ? { boxShadow: "0 10px 20px -5px rgba(37, 99, 235, 0.4)" } : {}}
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -1169,7 +1174,7 @@ function ComparisonSection() {
                         {p.name}
                       </div>
                       <div className={`text-[13px] ${selected === p.id ? "text-white/80" : "text-gray-500"}`}>
-                        bis {p.lim} €
+                        Ziel: {p.lim} €
                       </div>
                     </div>
                     {p.recommended && (
@@ -1183,8 +1188,8 @@ function ComparisonSection() {
             </div>
 
             {/* Right: Package Details */}
-            <div className="fiaon-glass-panel rounded-2xl p-6">
-              <div className="mb-6">
+            <div className="rounded-2xl p-6 relative overflow-hidden" style={{ background: "rgba(255, 255, 255, 0.8)", backdropFilter: "blur(20px)", border: "1px solid rgba(0, 0, 0, 0.05)" }}>
+              <div className="mb-8">
                 <h3 className={`text-[22px] font-bold mb-2 ${selectedProduct.recommended ? "fiaon-gradient-text-animated" : "text-gray-900"}`}>
                   {selectedProduct.name}
                 </h3>
@@ -1195,23 +1200,23 @@ function ComparisonSection() {
                 )}
               </div>
 
-              <div className="space-y-4 mb-6">
+              <div className="space-y-8 mb-8">
                 <div>
-                  <p className="text-[11px] text-gray-400 uppercase tracking-[.1em] mb-1">Kreditlimit</p>
-                  <p className="text-[24px] font-bold fiaon-gradient-text-animated">bis {selectedProduct.lim} €</p>
+                  <p className="text-[11px] text-gray-400 uppercase tracking-[.1em] mb-2">ZIEL-LIMIT</p>
+                  <p className="text-[32px] font-bold fiaon-gradient-text-animated leading-none">bis {selectedProduct.lim} €</p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-gray-400 uppercase tracking-[.1em] mb-1">Gebühr/Monat</p>
-                  <p className="text-[18px] font-semibold text-gray-900">{selectedProduct.fee} €</p>
+                  <p className="text-[11px] text-gray-400 uppercase tracking-[.1em] mb-2">LIZENZGEB&Uuml;HR</p>
+                  <p className="text-[18px] font-semibold text-gray-900">{selectedProduct.fee} € / Monat</p>
                 </div>
               </div>
 
-              <div className="mb-6">
-                <p className="text-[11px] text-gray-400 uppercase tracking-[.1em] mb-3">Features</p>
-                <ul className="space-y-2">
+              <div className="mb-8">
+                <p className="text-[11px] text-gray-400 uppercase tracking-[.1em] mb-4">SOFTWARE-FEATURES</p>
+                <ul className="space-y-3">
                   {selectedProduct.features.map((f, j) => (
-                    <li key={j} className="text-[13px] text-gray-600 flex items-center gap-2">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>
+                    <li key={j} className="text-[13px] text-gray-600 flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: selectedProduct.dotColor, boxShadow: `0 0 8px ${selectedProduct.dotColor}` }} />
                       {f}
                     </li>
                   ))}
@@ -1225,8 +1230,9 @@ function ComparisonSection() {
                     ? "bg-gradient-to-r from-[#2563eb] to-[#3b82f6] text-white shadow-lg hover:shadow-xl hover:scale-[1.02]"
                     : "fiaon-glass-panel text-gray-700 hover:bg-white/60"
                 }`}
+                style={{ letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 600 }}
               >
-                {selectedProduct.name} wählen
+                Konto er&ouml;ffnen &rarr;
               </a>
             </div>
           </div>

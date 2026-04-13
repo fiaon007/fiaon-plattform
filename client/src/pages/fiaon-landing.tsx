@@ -22,15 +22,15 @@ function GradientText({ children, className = "" }: { children: React.ReactNode;
 /* ── packages ── */
 const PACKS = [
   { name: "FIAON Starter", fee: "7,99", lim: "500", bg: "linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats: ["KI-Profilanalyse (Basis-Scan)", "Kartenkompass: Markt-Matching", "Credit-Building Grundmodul", "Digitales Strategie-Dashboard"] },
-  { name: "FIAON Pro", fee: "59,99", lim: "5.000", rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats: ["Vollst&auml;ndiges Credit-Building System", "KI-Matching mit Score-Prognose", "Dynamischer Score-Simulator", "Limit-Aufbau-Strategie (12 Monate)"] },
+  { name: "FIAON Pro", fee: "59,99", lim: "5.000", rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats: ["Vollständiges Credit-Building System", "KI-Matching mit Score-Prognose", "Dynamischer Score-Simulator", "Limit-Aufbau-Strategie (12 Monate)"] },
   { name: "FIAON Ultra", fee: "79,99", lim: "15.000", bg: "linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats: ["Premium Coaching (Meilen & Cashback)", "Multi-Karten-Portfolio-Struktur", "Individueller Optimierungs-Algorithmus", "Exklusive Strategie-Sessions"] },
   { name: "FIAON High End", fee: "99,99", lim: "25.000", bg: "linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats: ["1-on-1 Strategy-Director (Monatlich)", "VIP International Credit Building", "Individuelle Limit-Roadmap (High-End)", "24/7 Dedicated Concierge-Support"] },
 ];
 
 const BUSINESS_PACKS = [
-  { name: "FIAON Starter", tier: "Paket 1", lim: "10.000", bg: "linear-gradient(135deg,#64748b,#94a3b8,#cbd5e1)", feats: ["KI-Unternehmensanalyse (Basis)", "Business-Kartenkompass", "Credit-Building f&uuml;r Gr&uuml;nder", "Digitales Finance-Dashboard"] },
-  { name: "FIAON Business", tier: "Paket 2", lim: "25.000", bg: "linear-gradient(135deg,#b8923a,#d4af37,#e8d085)", feats: ["Erweiterte Cashflow-Analyse", "Strategie f&uuml;r Limit-Aufstockungen", "Strikte Trennung von Privat & Business", "Monatliches Business-Coaching"] },
-  { name: "FIAON Executive", tier: "Paket 3", lim: "50.000", rec: true, bg: "linear-gradient(135deg,#0b1628,#1a3560,#1e4070)", feats: ["Multi-Karten-Struktur (z.B. f&uuml;r GmbHs)", "Cashflow-Strategieberatung", "Meilen- & Reisekosten-Optimierung", "Priority Business Support"] },
+  { name: "FIAON Starter", tier: "Paket 1", lim: "10.000", bg: "linear-gradient(135deg,#64748b,#94a3b8,#cbd5e1)", feats: ["KI-Unternehmensanalyse (Basis)", "Business-Kartenkompass", "Credit-Building für Gründer", "Digitales Finance-Dashboard"] },
+  { name: "FIAON Business", tier: "Paket 2", lim: "25.000", bg: "linear-gradient(135deg,#b8923a,#d4af37,#e8d085)", feats: ["Erweiterte Cashflow-Analyse", "Strategie für Limit-Aufstockungen", "Strikte Trennung von Privat & Business", "Monatliches Business-Coaching"] },
+  { name: "FIAON Executive", tier: "Paket 3", lim: "50.000", rec: true, bg: "linear-gradient(135deg,#0b1628,#1a3560,#1e4070)", feats: ["Multi-Karten-Struktur (z.B. für GmbHs)", "Cashflow-Strategieberatung", "Meilen- & Reisekosten-Optimierung", "Priority Business Support"] },
   { name: "FIAON Black", tier: "Paket 4", lim: "100.000", bg: "linear-gradient(135deg,#111,#1a1a1a,#2a2a2a)", feats: ["Dedizierter Account Manager", "Sub-Account- & Mitarbeiter-Strategie", "Premium-Module (Internationale Limits)", "24/7 VIP Business-Support"] },
 ];
 

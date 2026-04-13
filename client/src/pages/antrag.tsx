@@ -68,7 +68,15 @@ function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: stri
 
         <div className="flex justify-between items-end">
           <div className="min-w-0 flex-1">
-            <div className={`uppercase tracking-[.12em] font-medium ${compact ? "text-[7px]" : "text-[8px]"} mb-0.5`} style={{ color: "rgba(255,255,255,.4)" }}>
+            <div className={`font-medium ${compact ? "text-[8px]" : "text-[9px]"} mb-0.5`} style={{ 
+              color: "rgba(255,255,255,.95)", 
+              textShadow: "0 1px 3px rgba(0,0,0,.3)",
+              letterSpacing: "0.05em",
+              fontSize: `${nameFontSize}px`
+            }}>
+              {displayName}
+            </div>
+            <div className={`uppercase tracking-[.12em] font-medium ${compact ? "text-[7px]" : "text-[8px]}`} style={{ color: "rgba(255,255,255,.4)" }}>
               FIAON
             </div>
           </div>

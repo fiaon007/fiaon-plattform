@@ -21,17 +21,17 @@ function GradientText({ children, className = "" }: { children: React.ReactNode;
 
 /* ── packages ── */
 const PACKS = [
-  { name: "FIAON Starter", fee: "7,99", lim: "500", bg: "linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats: ["Limit bis 500 \u20AC", "E-Mail Support", "NFC kontaktlos", "Online-Banking"] },
-  { name: "FIAON Pro", fee: "59,99", lim: "5.000", rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats: ["Limit bis 5.000 \u20AC", "Priority Support", "Cashback-Programm", "NFC kontaktlos"] },
-  { name: "FIAON Ultra", fee: "79,99", lim: "15.000", bg: "linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats: ["Limit bis 15.000 \u20AC", "Reise-Versicherung", "Lounge-Zugang", "Priority Support"] },
-  { name: "FIAON High End", fee: "99,99", lim: "25.000", bg: "linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats: ["Limit bis 25.000 \u20AC", "24/7 VIP Support", "Concierge-Service", "Premium Lounge"] },
+  { name: "FIAON Starter", fee: "7,99", lim: "500", bg: "linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats: ["KI-Profilanalyse (Basis-Scan)", "Kartenkompass: Markt-Matching", "Credit-Building Grundmodul", "Digitales Strategie-Dashboard"] },
+  { name: "FIAON Pro", fee: "59,99", lim: "5.000", rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats: ["Vollst&auml;ndiges Credit-Building System", "KI-Matching mit Score-Prognose", "Dynamischer Score-Simulator", "Limit-Aufbau-Strategie (12 Monate)"] },
+  { name: "FIAON Ultra", fee: "79,99", lim: "15.000", bg: "linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats: ["Premium Coaching (Meilen & Cashback)", "Multi-Karten-Portfolio-Struktur", "Individueller Optimierungs-Algorithmus", "Exklusive Strategie-Sessions"] },
+  { name: "FIAON High End", fee: "99,99", lim: "25.000", bg: "linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats: ["1-on-1 Strategy-Director (Monatlich)", "VIP International Credit Building", "Individuelle Limit-Roadmap (High-End)", "24/7 Dedicated Concierge-Support"] },
 ];
 
 const BUSINESS_PACKS = [
-  { name: "FIAON Starter", tier: "Paket 1", lim: "10.000", bg: "linear-gradient(135deg,#64748b,#94a3b8,#cbd5e1)", feats: ["Physische & virtuelle Karte", "Apple Pay & Google Pay", "Einfache Online-Antragstellung"] },
-  { name: "FIAON Business", tier: "Paket 2", lim: "25.000", bg: "linear-gradient(135deg,#b8923a,#d4af37,#e8d085)", feats: ["Alles aus Starter", "Pers\u00F6nlicher Berater", "Limit-Aufstockung nach 90 Tagen", "Reiseversicherung inklusive"] },
-  { name: "FIAON Executive", tier: "Paket 3", lim: "50.000", rec: true, bg: "linear-gradient(135deg,#0b1628,#1a3560,#1e4070)", feats: ["Alles aus Business", "Priority-Antragspr\u00FCfung", "Cashflow-Strategieberatung", "Lounge-Zugang weltweit", "Multi-Karten-Struktur"] },
-  { name: "FIAON Black", tier: "Paket 4", lim: "100.000", bg: "linear-gradient(135deg,#111,#1a1a1a,#2a2a2a)", feats: ["Alles aus Executive", "Dedizierter Account Manager", "Mehrere Karten & Sub-Accounts", "Premium-Reiseschutz", "Individuelle Limit-Vereinbarung"] },
+  { name: "FIAON Starter", tier: "Paket 1", lim: "10.000", bg: "linear-gradient(135deg,#64748b,#94a3b8,#cbd5e1)", feats: ["KI-Unternehmensanalyse (Basis)", "Business-Kartenkompass", "Credit-Building f&uuml;r Gr&uuml;nder", "Digitales Finance-Dashboard"] },
+  { name: "FIAON Business", tier: "Paket 2", lim: "25.000", bg: "linear-gradient(135deg,#b8923a,#d4af37,#e8d085)", feats: ["Erweiterte Cashflow-Analyse", "Strategie f&uuml;r Limit-Aufstockungen", "Strikte Trennung von Privat & Business", "Monatliches Business-Coaching"] },
+  { name: "FIAON Executive", tier: "Paket 3", lim: "50.000", rec: true, bg: "linear-gradient(135deg,#0b1628,#1a3560,#1e4070)", feats: ["Multi-Karten-Struktur (z.B. f&uuml;r GmbHs)", "Cashflow-Strategieberatung", "Meilen- & Reisekosten-Optimierung", "Priority Business Support"] },
+  { name: "FIAON Black", tier: "Paket 4", lim: "100.000", bg: "linear-gradient(135deg,#111,#1a1a1a,#2a2a2a)", feats: ["Dedizierter Account Manager", "Sub-Account- & Mitarbeiter-Strategie", "Premium-Module (Internationale Limits)", "24/7 VIP Business-Support"] },
 ];
 
 /* ────────────────────────────────
@@ -67,7 +67,7 @@ function Card({ bg, lim, label, className = "", size = "normal" }: { bg: string;
           </div>
           <div>
             <div className={`text-[8px] uppercase tracking-[.14em] font-medium mb-0.5`} style={{ color: "rgba(255,255,255,.35)" }}>{label || ""}</div>
-            <div className={`font-mono text-lg font-semibold`} style={{ color: "rgba(255,255,255,.9)" }}>bis {lim} €</div>
+            <div className={`font-mono text-lg font-semibold`} style={{ color: "rgba(255,255,255,.9)" }}>ZIEL: {lim} €</div>
           </div>
         </div>
       </div>
@@ -261,12 +261,12 @@ function Packages() {
     <section id="pakete" className="py-20 sm:py-28 bg-[#f8faff]" ref={obs.ref}>
       <div className="max-w-[1200px] mx-auto px-6">
         <div className="max-w-2xl mb-10">
-          <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Pakete</p>
+          <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">{customerType === "business" ? "BUSINESS SETUP" : "DEIN SETUP"}</p>
           <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4">
-            {customerType === "business" ? <GradientText>Wählen Sie Ihr Business-Paket</GradientText> : <GradientText>Finde dein passendes Paket</GradientText>}
+            {customerType === "business" ? <GradientText>Ihre strategische Firmen-Bonit&auml;t</GradientText> : <GradientText>W&auml;hle deine Strategie</GradientText>}
           </h2>
           <p className="text-[15px] text-gray-500 leading-relaxed">
-            {customerType === "business" ? "Von 10.000 € bis 100.000 € — strukturiert, skalierbar, auf Ihr Unternehmen zugeschnitten." : "Von Einsteiger bis Premium &ndash; wir beraten dich zum optimalen Kreditkarten-Paket. Das finale Limit wird individuell berechnet."}
+            {customerType === "business" ? "Von 10.000 &euro; bis 100.000 &euro; Limit-Ziel &mdash; strukturiert, skalierbar und sauber getrennt vom Privatverm&ouml;gen." : "Vom ersten Score-Aufbau bis zum Premium-Portfolio. W&auml;hle das Software-Setup, das zu deinem Limit-Ziel passt."}
           </p>
         </div>
 
@@ -320,8 +320,8 @@ function Packages() {
                   ))}
                 </ul>
 
-                <a href={applicationUrl} className={`block w-full text-center py-3 rounded-xl text-[13px] font-medium transition-all ${customerType === "business" ? (p.rec ? "fiaon-btn-gradient text-white" : (p.name === "FIAON Business" || p.name === "FIAON Black" ? "bg-[#0b1628] text-white hover:bg-[#142744] hover:shadow-lg" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100")) : (p.rec ? "fiaon-btn-gradient text-white" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100")}`}>
-                  Jetzt beantragen
+                <a href={applicationUrl} className={`block w-full text-center py-3 rounded-xl text-[13px] font-semibold transition-all ${customerType === "business" ? (p.rec ? "fiaon-btn-gradient text-white hover:shadow-lg" : (p.name === "FIAON Business" || p.name === "FIAON Black" ? "bg-[#0b1628] text-white hover:bg-[#142744] hover:shadow-lg" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100")) : (p.rec ? "fiaon-btn-gradient text-white hover:shadow-lg" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100")}`} style={{ letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 600 }}>
+                  Konto er&ouml;ffnen &rarr;
                 </a>
               </div>
             </div>

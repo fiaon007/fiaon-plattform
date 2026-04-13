@@ -134,7 +134,7 @@ export default function AntragPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pack, setPack] = useState<typeof PACKS[0] | null>(null);
 
-  const [d, setD] = useState({ firstName: "", lastName: "", birthDay: "", birthMonth: "", birthYear: "1990", phone: "", street: "", zip: "", city: "", country: "", nationality: "", employment: "", employer: "", employedSince: "", income: 2500, rent: 0, debts: 0, housing: "", wantedLimit: 3000, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", email: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false });
+  const [d, setD] = useState({ firstName: "", lastName: "", birthDay: "", birthMonth: "", birthYear: "1990", phone: "", street: "", zip: "", city: "", country: "", nationality: "", employment: "", employer: "", employedSince: "", income: 0, rent: 0, debts: 0, housing: "", wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", email: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false });
   const [approved, setApproved] = useState(0);
   const [verifyDone, setVerifyDone] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -869,8 +869,8 @@ export default function AntragPage() {
                     <Field label="Beschäftigt seit" req error={errors.employedSince}><Sel value={d.employedSince} onChange={(v: string) => up("employedSince", v)}><option value="">Wählen</option><option>{"< 6 Monate"}</option><option>6–12 Monate</option><option>1–3 Jahre</option><option>3–5 Jahre</option><option>{"> 5 Jahre"}</option></Sel></Field>
                   </div>
                   <Field label="Monatliches Nettoeinkommen" req>
-                    <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{eur(d.income)}</span><span className="text-[12px] text-gray-400">/ Monat</span></div>
-                    <input type="range" min={500} max={15000} step={100} value={d.income} onChange={e => up("income", +e.target.value)} className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb]" />
+                    <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{d.income > 0 ? eur(d.income) : "—"}</span><span className="text-[12px] text-gray-400">/ Monat</span></div>
+                    <input type="range" min={500} max={15000} step={100} value={d.income || 500} onChange={e => up("income", +e.target.value)} className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb]" />
                     <div className="flex justify-between text-[10px] text-gray-400 font-mono mt-1"><span>€ 500</span><span>€ 15.000</span></div>
                   </Field>
                   <div className="grid grid-cols-2 gap-4">
@@ -885,8 +885,8 @@ export default function AntragPage() {
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Karte konfigurieren</h2>
                   <p className="text-[14px] text-gray-400 mb-6">Wähle dein Wunschlimit.</p>
                   <Field label="Wunsch-Kreditlimit" req>
-                    <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{eur(d.wantedLimit)}</span><span className="text-[12px] text-gray-400">max. {eur(pack?.lim || 5000)}</span></div>
-                    <input type="range" min={500} max={pack?.lim || 5000} step={500} value={d.wantedLimit} onChange={e => up("wantedLimit", +e.target.value)} className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb]" />
+                    <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{d.wantedLimit > 0 ? eur(d.wantedLimit) : "—"}</span><span className="text-[12px] text-gray-400">max. {eur(pack?.lim || 5000)}</span></div>
+                    <input type="range" min={500} max={pack?.lim || 5000} step={500} value={d.wantedLimit || 500} onChange={e => up("wantedLimit", +e.target.value)} className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb]" />
                   </Field>
                   <Field label="Verwendungszweck" req error={errors.purpose}><Sel value={d.purpose} onChange={(v: string) => up("purpose", v)}><option value="">Wählen</option><option>Tägliche Ausgaben</option><option>Online-Shopping</option><option>Reisen</option><option>Geschäftlich</option><option>Finanzielle Reserve</option></Sel></Field>
                   <div className="grid grid-cols-2 gap-4">

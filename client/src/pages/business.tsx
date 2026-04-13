@@ -41,7 +41,7 @@ function BizCard({ bg, lim, label, className = "" }: { bg: string; lim: string; 
           </div>
           <div>
             <div className="text-[8px] uppercase tracking-[.14em] font-medium mb-0.5" style={{ color: "rgba(255,255,255,.35)" }}>{label}</div>
-            <div className="font-mono text-lg font-semibold" style={{ color: "rgba(255,255,255,.9)" }}>bis {lim} &euro;</div>
+            <div className="font-mono text-lg font-semibold" style={{ color: "rgba(255,255,255,.9)" }}>ZIEL: {lim} &euro;</div>
           </div>
         </div>
         {/* shimmer */}
@@ -53,10 +53,10 @@ function BizCard({ bg, lim, label, className = "" }: { bg: string; lim: string; 
 
 /* ── packages data ── */
 const PACKS = [
-  { name: "FIAON Starter", tier: "Paket 1", lim: "10.000", bg: "linear-gradient(135deg,#64748b,#94a3b8,#cbd5e1)", feats: ["Physische & virtuelle Karte", "Apple Pay & Google Pay", "Einfache Online-Antragstellung"] },
-  { name: "FIAON Business", tier: "Paket 2", lim: "25.000", bg: "linear-gradient(135deg,#b8923a,#d4af37,#e8d085)", dark: true, feats: ["Alles aus Starter", "Pers\u00F6nlicher Berater", "Limit-Aufstockung nach 90 Tagen", "Reiseversicherung inklusive"] },
-  { name: "FIAON Executive", tier: "Paket 3", lim: "50.000", rec: true, bg: "linear-gradient(135deg,#0b1628,#1a3560,#1e4070)", feats: ["Alles aus Business", "Priority-Antragspr\u00FCfung", "Cashflow-Strategieberatung", "Lounge-Zugang weltweit", "Multi-Karten-Struktur"] },
-  { name: "FIAON Black", tier: "Paket 4", lim: "100.000", bg: "linear-gradient(135deg,#111,#1a1a1a,#2a2a2a)", feats: ["Alles aus Executive", "Dedizierter Account Manager", "Mehrere Karten & Sub-Accounts", "Premium-Reiseschutz", "Individuelle Limit-Vereinbarung"] },
+  { name: "FIAON Starter", tier: "Paket 1", lim: "10.000", bg: "linear-gradient(135deg,#64748b,#94a3b8,#cbd5e1)", feats: ["KI-Unternehmensanalyse (Basis)", "Business-Kartenkompass", "Credit-Building für Gründer", "Digitales Finance-Dashboard"] },
+  { name: "FIAON Business", tier: "Paket 2", lim: "25.000", bg: "linear-gradient(135deg,#b8923a,#d4af37,#e8d085)", dark: true, feats: ["Erweiterte Cashflow-Analyse", "Strategie für Limit-Aufstockungen", "Strikte Trennung von Privat & Business", "Monatliches Business-Coaching"] },
+  { name: "FIAON Executive", tier: "Paket 3", lim: "50.000", rec: true, bg: "linear-gradient(135deg,#0b1628,#1a3560,#1e4070)", feats: ["Multi-Karten-Struktur (z.B. für GmbHs)", "Cashflow-Strategieberatung", "Meilen- & Reisekosten-Optimierung", "Priority Business Support"] },
+  { name: "FIAON Black", tier: "Paket 4", lim: "100.000", bg: "linear-gradient(135deg,#111,#1a1a1a,#2a2a2a)", feats: ["Dedizierter Account Manager", "Sub-Account- & Mitarbeiter-Strategie", "Premium-Module (Internationale Limits)", "24/7 VIP Business-Support"] },
 ];
 
 /* ════════════════════════════════════════
@@ -112,7 +112,6 @@ function Packages() {
               <div className="px-5 sm:px-6 pb-6">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">{p.tier}</p>
                 <h3 className="text-[17px] font-semibold text-gray-900 mb-2">{p.name}</h3>
-                <p className="text-[14px] text-gray-500 mb-4 pb-4 border-b border-gray-100">Limits bis zu <span className="text-[#2563eb] font-semibold">{p.lim}&nbsp;&euro;</span></p>
                 <ul className="space-y-2.5 mb-6">
                   {p.feats.map((f, j) => (
                     <li key={j} className="flex items-start gap-2.5 text-[13px] text-gray-600">
@@ -121,8 +120,8 @@ function Packages() {
                     </li>
                   ))}
                 </ul>
-                <a href="#start" className={`block w-full text-center py-3 rounded-xl text-[13px] font-medium transition-all ${p.rec ? "fiaon-btn-gradient text-white" : p.name === "FIAON Business" || p.name === "FIAON Black" ? "bg-[#0b1628] text-white hover:bg-[#142744] hover:shadow-lg" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100"}`}>
-                  Jetzt beantragen
+                <a href="/business-antrag" className={`block w-full text-center py-3 rounded-xl text-[13px] font-semibold transition-all ${p.rec ? "fiaon-btn-gradient text-white" : p.name === "FIAON Business" || p.name === "FIAON Black" ? "bg-[#0b1628] text-white hover:bg-[#142744] hover:shadow-lg" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100"}`} style={{ letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 600 }}>
+                  Konto er&ouml;ffnen &rarr;
                 </a>
               </div>
             </div>

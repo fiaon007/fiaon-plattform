@@ -3,10 +3,10 @@ import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 
 const PACKS = [
-  { key:"start", name:"FIAON Starter (Das Fundament)", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["KI-Profilanalyse (Basis-Scan)","Kartenkompass: Markt-Matching","Credit-Building Grundmodul","Digitales Strategie-Dashboard"], pay:"https://buy.stripe.com/7sY5kDbfRdT06fagh9bMQ01" },
-  { key:"pro", name:"FIAON Pro (Standard – EMPFOHLEN)", fee:59.99, lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:["Vollständiges Credit-Building System","KI-Matching mit Score-Prognose","Dynamischer Score-Simulator","Limit-Hebel-Strategie (12 Monate)","Priority Support-Zugang"], pay:"https://buy.stripe.com/cNieVdcjVeX4fPK4yrbMQ02" },
-  { key:"ultra", name:"FIAON Ultra - Elite Konto", fee:79.99, lim:15000, bg:"linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats:["Premium Coaching (Meilen & Cashback)","Multi-Karten-Portfolio-Struktur","Individueller Optimierungs-Algorithmus","Exklusive Strategie-Sessions"], pay:"https://buy.stripe.com/eVq4gz83F02a5b68OHbMQ03" },
-  { key:"highend", name:"FIAON High End (Das Maximum)", fee:99.99, lim:25000, bg:"linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats:["1-on-1 Strategy-Director (Monatlich)","VIP International Credit Building","24/7 Dedicated Concierge-Support","Individuelle Limit-Roadmap (Hochend)"], pay:"https://buy.stripe.com/7sYdR9abNcOW5b6c0TbMQ04" },
+  { key:"start", name:"FIAON Starter\n(Das Fundament)", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["KI-Profilanalyse (Basis-Scan)","Kartenkompass: Markt-Matching","Credit-Building Grundmodul","Digitales Strategie-Dashboard"], pay:"https://buy.stripe.com/7sY5kDbfRdT06fagh9bMQ01" },
+  { key:"pro", name:"FIAON Pro\n(Standard – EMPFOHLEN)", fee:59.99, lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:["Vollständiges Credit-Building System","KI-Matching mit Score-Prognose","Dynamischer Score-Simulator","Limit-Hebel-Strategie (12 Monate)","Priority Support-Zugang"], pay:"https://buy.stripe.com/cNieVdcjVeX4fPK4yrbMQ02" },
+  { key:"ultra", name:"FIAON Ultra\n(Elite Konto)", fee:79.99, lim:15000, bg:"linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats:["Premium Coaching (Meilen & Cashback)","Multi-Karten-Portfolio-Struktur","Individueller Optimierungs-Algorithmus","Exklusive Strategie-Sessions"], pay:"https://buy.stripe.com/eVq4gz83F02a5b68OHbMQ03" },
+  { key:"highend", name:"FIAON High End\n(Das Maximum)", fee:99.99, lim:25000, bg:"linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats:["1-on-1 Strategy-Director (Monatlich)","VIP International Credit Building","24/7 Dedicated Concierge-Support","Individuelle Limit-Roadmap (Hochend)"], pay:"https://buy.stripe.com/7sYdR9abNcOW5b6c0TbMQ04" },
 ];
 
 function mkRef() { return "FIAON-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase(); }
@@ -250,7 +250,7 @@ export default function AntragPage() {
                   </div>
                   <div className="px-5 sm:px-6 pb-6 flex-1 flex flex-col">
                     <div className="flex items-center gap-3 mb-3">
-                      <span className="text-[15px] font-semibold text-gray-900">{p.name}</span>
+                      <span className="text-[15px] font-semibold text-gray-900" style={{ whiteSpace: "pre-line" }}>{p.name}</span>
                       {p.rec && <span className="text-[9px] font-semibold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-2 py-0.5 rounded">Empfohlen</span>}
                     </div>
                     

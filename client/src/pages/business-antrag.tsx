@@ -900,7 +900,7 @@ export default function BusinessAntragPage() {
                 <p className="text-[14px] text-gray-600 mb-5">Schließe die Zahlung für dein {pack?.name} Paket ab.</p>
                 
                 {clientSecret && pack ? (
-                  <Elements stripe={loadStripe(process.env.VITE_STRIPE_PUBLIC_KEY)} options={{ clientSecret }}>
+                  <Elements stripe={loadStripe(process.env.VITE_STRIPE_PUBLIC_KEY || "")} options={{ clientSecret }}>
                     <PremiumCheckoutForm packageName={pack.name} price={pack.fee} clientSecret={clientSecret} onSuccess={() => window.location.href = '/dashboard'} />
                   </Elements>
                 ) : (

@@ -9,6 +9,14 @@ styleElement.textContent = `
     0%, 100% { transform: scale(1); opacity: 0.8; }
     50% { transform: scale(1.05); opacity: 1; }
   }
+  @keyframes gradient {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .animate-gradient {
+    background-size: 200% 200%;
+    animation: gradient 3s ease infinite;
+  }
 `;
 if (!document.head.querySelector('style[data-pulse-energy]')) {
   styleElement.setAttribute('data-pulse-energy', 'true');
@@ -1374,22 +1382,25 @@ export default function AntragPage() {
         {step === 4 && (
           <div className="animate-[fadeInUp_.6s_ease] flex flex-col items-center text-center py-16 sm:py-24 px-4" style={{ background: "#FDFDFD" }}>
             {/* Premium Spinner */}
-            <div className="relative w-48 h-48 mb-12">
+            <div className="relative w-56 h-56 mb-12">
               {/* Outer Glass Ring */}
-              <div className="absolute inset-0 rounded-full bg-slate-100 border border-slate-200 shadow-sm transition-transform duration-[8000ms] animate-spin" />
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50 border border-slate-200/50 shadow-lg shadow-slate-200/50 transition-transform duration-[8000ms] animate-spin" />
+              
+              {/* Inner Ring */}
+              <div className="absolute inset-4 rounded-full border border-blue-100/30 bg-gradient-to-br from-blue-50/50 to-transparent shadow-sm" />
               
               {/* Haptic Core */}
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative z-10 w-24 h-24 rounded-full bg-blue-600 border-4 border-white shadow-[0_0_15px_rgba(37,99,235,0.3)] animate-pulse" style={{ animation: "pulseEnergy 2s ease-in-out infinite" }}>
-                  <span className="absolute inset-0 flex items-center justify-center font-black tracking-tight text-slate-900 text-5xl">
-                    {verifyDone ? "100" : Math.round(checkProgress)}
+                <div className="relative z-10 w-28 h-28 rounded-full bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 border-4 border-white/90 shadow-[0_0_30px_rgba(37,99,235,0.4),0_0_60px_rgba(37,99,235,0.2)] animate-pulse" style={{ animation: "pulseEnergy 2s ease-in-out infinite" }}>
+                  <span className="absolute inset-0 flex items-center justify-center font-black tracking-tight text-white text-3xl bg-gradient-to-r from-blue-100 via-white to-blue-100 bg-clip-text text-transparent animate-gradient">
+                    {verifyDone ? "100" : Math.round(checkProgress)}%
                   </span>
                 </div>
               </div>
               
               {verifyDone && (
                 <div className="absolute inset-0 flex items-center justify-center animate-[scaleIn_.5s_ease]">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3}><polyline points="6 12 10 16 18 8"/></svg>
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3}><polyline points="6 12 10 16 18 8"/></svg>
                 </div>
               )}
             </div>
@@ -1406,12 +1417,12 @@ export default function AntragPage() {
 
             {/* Progress Bar */}
             <div className="w-full max-w-sm mb-8">
-              <div className="h-3 bg-slate-100 rounded-full overflow-hidden relative mb-4">
+              <div className="h-2 bg-slate-100 rounded-full overflow-hidden relative mb-4 shadow-inner">
                 <div 
-                  className={`h-full rounded-full bg-gradient-to-r from-blue-400 via-blue-600 to-blue-700 transition-all duration-300 ease-out relative overflow-hidden`}
+                  className={`h-full rounded-full bg-gradient-to-r from-blue-400 via-blue-500 via-blue-600 to-blue-700 transition-all duration-300 ease-out relative overflow-hidden shadow-[0_0_20px_rgba(37,99,235,0.3)]`}
                   style={{ width: `${verifyDone ? 100 : checkProgress}%` }}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[slide_1.5s_ease-in-out_infinite]" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-[slide_1.5s_ease-in-out_infinite]" />
                 </div>
               </div>
             </div>
@@ -1423,14 +1434,14 @@ export default function AntragPage() {
                 { label: "Einkommenscheck", status: checkProgress >= 66 ? (verifyDone ? "done" : "done") : (checkProgress >= 33 ? "active" : "pending") },
                 { label: "Freigabe", status: checkProgress >= 100 ? "done" : (checkProgress >= 66 ? "active" : "pending") }
               ].map((item, i) => (
-                <div key={i} className={`bg-white/80 backdrop-blur-xl border rounded-xl p-3 flex flex-col items-center gap-2 w-full transition-all duration-500 ${
-                  item.status === 'done' ? 'border-green-200 bg-green-50/50' : 
-                  item.status === 'active' ? 'border-blue-200 bg-blue-50/50 animate-pulse' : 
-                  'border-slate-200 bg-slate-50/50 opacity-60'
+                <div key={i} className={`bg-white/90 backdrop-blur-xl border rounded-xl p-3 flex flex-col items-center gap-2 w-full transition-all duration-500 shadow-sm ${
+                  item.status === 'done' ? 'border-green-200 bg-gradient-to-br from-green-50 to-white shadow-green-100/50' : 
+                  item.status === 'active' ? 'border-blue-200 bg-gradient-to-br from-blue-50 to-white shadow-blue-100/50 animate-pulse' : 
+                  'border-slate-200 bg-gradient-to-br from-slate-50 to-white opacity-60'
                 }`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    item.status === 'done' ? 'bg-green-500' : 
-                    item.status === 'active' ? 'bg-blue-500 animate-spin' : 
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${
+                    item.status === 'done' ? 'bg-gradient-to-br from-green-400 to-green-500' : 
+                    item.status === 'active' ? 'bg-gradient-to-br from-blue-400 to-blue-500 animate-spin' : 
                     'bg-slate-200'
                   }`}>
                     {item.status === 'done' && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3}><polyline points="6 12 10 16 18 8"/></svg>}

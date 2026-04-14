@@ -154,19 +154,6 @@ function PremiumPhoneInput({ countryCode, phone, onCountryCodeChange, onPhoneCha
           <svg className="w-4 h-4 text-slate-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
-          {isOpen && (
-            <ul className="absolute top-full left-0 w-48 mt-2 bg-white/90 backdrop-blur-xl border border-slate-100 rounded-xl shadow-[0_20px_40px_-15px_rgba(15,23,42,0.1)] max-h-60 overflow-y-auto overflow-x-hidden z-50">
-              {PHONE_CODES.map((item, index) => (
-                <li 
-                  key={index}
-                  className="px-4 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors"
-                  onClick={() => { onCountryCodeChange(item.code); setIsOpen(false); }}
-                >
-                  {item.code} {item.country}
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
         <input
           type="tel"
@@ -176,6 +163,19 @@ function PremiumPhoneInput({ countryCode, phone, onCountryCodeChange, onPhoneCha
           className="flex-1 px-4 py-3 bg-transparent outline-none text-slate-900 font-medium text-base placeholder:text-slate-400"
         />
       </div>
+      {isOpen && (
+        <ul className="absolute top-full left-0 w-48 mt-2 bg-white/90 backdrop-blur-xl border border-slate-100 rounded-xl shadow-[0_20px_40px_-15px_rgba(15,23,42,0.1)] max-h-60 overflow-y-auto overflow-x-hidden z-50">
+          {PHONE_CODES.map((item, index) => (
+            <li 
+              key={index}
+              className="px-4 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors"
+              onClick={() => { onCountryCodeChange(item.code); setIsOpen(false); }}
+            >
+              {item.code} {item.country}
+            </li>
+          ))}
+        </ul>
+      )}
       {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
     </div>
   );

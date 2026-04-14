@@ -983,7 +983,7 @@ export default function AntragPage() {
                         {d.birthDay && d.birthMonth && d.birthYear && (
                           <div className="flex justify-between items-center py-1.5">
                             <span className="text-[11px] text-gray-400">Geburtsdatum</span>
-                            <span className="text-[12px] font-semibold text-gray-900">{d.birthDay}.{d.birthMonth}.{d.birthYear}</span>
+                            <span className="text-[12px] font-semibold text-gray-900">{d.birthDay} {["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"][parseInt(d.birthMonth)-1]} {d.birthYear}</span>
                           </div>
                         )}
                         

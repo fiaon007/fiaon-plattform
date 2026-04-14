@@ -525,6 +525,38 @@ export default function BusinessAntragPage() {
                     <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{d.wantedLimit > 0 ? eur(d.wantedLimit) : "—"}</span><span className="text-[12px] text-gray-400">max. {eur(pack?.lim || 25000)}</span></div>
                     <input type="range" min={1000} max={pack?.lim || 25000} step={1000} value={d.wantedLimit || 1000} onChange={e => up("wantedLimit", +e.target.value)} className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb]" />
                   </Field>
+                  
+                  {/* Package Suggestion when at max limit */}
+                  {d.wantedLimit >= (pack?.lim || 25000) && (() => {
+                    const currentIndex = BUSINESS_PACKS.findIndex(p => p.key === pack?.key);
+                    const nextPack = currentIndex < BUSINESS_PACKS.length - 1 ? BUSINESS_PACKS[currentIndex + 1] : null;
+                    return nextPack ? (
+                      <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 animate-[fadeInUp_.4s_ease]">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-blue-900 mb-1">Upgrade verfügbar</p>
+                            <p className="text-xs text-blue-700 mb-2">Mit dem {nextPack.name} erhältst du ein Limit bis zu {eur(nextPack.lim)}</p>
+                            <button 
+                              onClick={() => {
+                                setPack(nextPack);
+                                // Adjust limit to be within new package range (keep current limit if valid, otherwise set to minimum)
+                                const newLimit = d.wantedLimit > nextPack.lim ? nextPack.lim : d.wantedLimit;
+                                up("wantedLimit", newLimit);
+                              }}
+                              className="text-xs font-semibold text-white bg-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-all"
+                            >
+                              Jetzt wechseln
+                            </button>
+                          </div>
+                          <div className="ml-4 text-right">
+                            <p className="text-lg font-bold text-blue-900">{eur(nextPack.fee)}</p>
+                            <p className="text-[10px] text-blue-600">/ Monat</p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
+                  
                   <Field label="Verwendungszweck" req error={errors.purpose}><Sel value={d.purpose} onChange={(v: string) => up("purpose", v)}><option value="">Wählen</option><option>Geschäftsausgaben</option><option>Reisekosten</option><option>Lieferantenzahlungen</option><option>Mitarbeiterkarten</option><option>Liquiditätsreserve</option></Sel></Field>
                   <div className="grid grid-cols-2 gap-4">
                     <Field label="Abrechnungsart"><Sel value={d.billing} onChange={(v: string) => up("billing", v)}><option>Vollzahlung (100%)</option><option>Teilzahlung</option><option>Revolving</option></Sel></Field>

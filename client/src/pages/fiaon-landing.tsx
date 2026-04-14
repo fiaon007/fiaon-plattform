@@ -263,10 +263,10 @@ function Packages() {
         <div className="max-w-2xl mb-10">
           <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">{customerType === "business" ? "BUSINESS SETUP" : "DEIN SETUP"}</p>
           <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4">
-            {customerType === "business" ? <GradientText>Ihre strategische Firmen-Bonit&auml;t</GradientText> : <GradientText>W&auml;hle deine Strategie</GradientText>}
+            {customerType === "business" ? <GradientText>Ihre strategische Firmen-Bonität</GradientText> : <GradientText>Wähle deine Strategie</GradientText>}
           </h2>
           <p className="text-[15px] text-gray-500 leading-relaxed">
-            {customerType === "business" ? "Von 10.000 &euro; bis 100.000 &euro; Limit-Ziel &mdash; strukturiert, skalierbar und sauber getrennt vom Privatverm&ouml;gen." : "Vom ersten Score-Aufbau bis zum Premium-Portfolio. W&auml;hle das Software-Setup, das zu deinem Limit-Ziel passt."}
+            {customerType === "business" ? "Von 10.000 € bis 100.000 € Limit-Ziel — strukturiert, skalierbar und sauber getrennt vom Privatvermögen." : "Vom ersten Score-Aufbau bis zum Premium-Portfolio. Wähle das Software-Setup, das zu deinem Limit-Ziel passt."}
           </p>
         </div>
 

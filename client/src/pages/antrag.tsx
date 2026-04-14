@@ -1229,7 +1229,7 @@ export default function AntragPage() {
                   <p className="text-[14px] text-gray-400 mb-6">Bestätige deine Daten und nimm den Vertrag an.</p>
                   
                   <Field label="E-Mail-Adresse" req error={errors.email} hint="Vertragsunterlagen werden hierhin gesendet."><Inp type="email" value={d.email} onChange={(v: string) => up("email", v)} placeholder="max@beispiel.de" /></Field>
-                  <Field label="Gehaltseingang (Monat)" req error={errors.salaryReceiptDay} hint="Wann erhalten Sie Ihr Gehalt/Einkommen?"><Sel value={d.salaryReceiptDay} onChange={(v: string) => up("salaryReceiptDay", v)}><option value="">Wählen</option><option>1. Tag im Monat</option><option>15. Tag im Monat</option><option>Letzter Tag im Monat</option><option>Andrer Tag</option></Sel></Field>
+                  <Field label="Gehaltseingang" req error={errors.salaryReceiptDay} hint="An welchem Tag erhalten Sie Ihr Gehalt?"><Sel value={d.salaryReceiptDay} onChange={(v: string) => up("salaryReceiptDay", v)}><option value="">Tag auswählen</option>{Array.from({length: 31}, (_, i) => <option key={i + 1} value={`${i + 1}`}>{i + 1}. Tag im Monat</option>)}<option value="last">Letzter Tag im Monat</option></Sel></Field>
                   <div className="flex gap-0 rounded-xl overflow-hidden mb-5 fiaon-glass-panel">
                     {[["iban","SEPA-Lastschrift"],["paper","Papierrechnung"]].map(([k,l]) => (
                       <button key={k} onClick={() => up("billingMethod", k)} className={`flex-1 py-3 text-center text-[13px] font-semibold transition-all ${d.billingMethod === k ? "bg-white/80 text-[#2563eb]" : "text-gray-400"}`}>{l}</button>

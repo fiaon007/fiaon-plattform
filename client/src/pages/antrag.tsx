@@ -1528,95 +1528,143 @@ export default function AntragPage() {
 
         {/* === STEP 8: Welcome === */}
         {step === 8 && (
-          <div className="animate-[fadeInUp_.4s_ease] text-center py-12 sm:py-20">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-full relative flex items-center justify-center">
-              <div className="absolute inset-[-2px] rounded-full animate-[spin_4s_linear_infinite]" style={{ background: "conic-gradient(#2563eb,#93c5fd,#2563eb)" }} />
-              <div className="w-[72px] h-[72px] rounded-full bg-white flex items-center justify-center relative z-10">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5"><polyline points="6 12 10 16 18 8"/></svg>
+          <div className="animate-[fadeInUp_.4s_ease] max-w-6xl mx-auto w-full py-12 sm:py-20">
+            <div className="text-center mb-12">
+              <div className="w-20 h-20 mx-auto mb-6 rounded-full relative flex items-center justify-center">
+                <div className="absolute inset-[-2px] rounded-full animate-[spin_4s_linear_infinite]" style={{ background: "conic-gradient(#2563eb,#93c5fd,#2563eb)" }} />
+                <div className="w-[72px] h-[72px] rounded-full bg-white flex items-center justify-center relative z-10">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5"><polyline points="6 12 10 16 18 8"/></svg>
+                </div>
               </div>
+              <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight fiaon-gradient-text-animated mb-3">Herzlich Willkommen</h2>
+              <p className="text-[15px] text-gray-500 mb-2 max-w-md mx-auto">Deine FIAON Kreditkarte wird in Kürze aktiviert.</p>
+              <p className="text-[13px] text-gray-400">{d.firstName} {d.lastName} · {pack?.name} · Ref. {ref}</p>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight fiaon-gradient-text-animated mb-3">Herzlich Willkommen</h2>
-            <p className="text-[15px] text-gray-500 mb-2 max-w-md mx-auto">Deine FIAON Kreditkarte wird in Kürze aktiviert.</p>
-            <p className="text-[13px] text-gray-400 mb-10">{d.firstName} {d.lastName} · {pack?.name} · Ref. {ref}</p>
 
-            <div className="max-w-[320px] mx-auto mb-8">{sideCard}</div>
+            {/* Two-Column Bento-Luxury Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+              {/* Left Column: Visual Confirmation (Col-Span-5) */}
+              <div className="lg:col-span-5 space-y-8">
+                {/* LiveCard */}
+                <div className="w-full aspect-[1.586/1]">
+                  {sideCard}
+                </div>
 
-            <div className="relative rounded-2xl overflow-hidden max-w-sm mx-auto mb-8">
-              {/* Animated gradient background */}
-              <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
-                <div className="absolute inset-0 opacity-30" style={{
-                  background: "linear-gradient(135deg, rgba(37,99,235,0.15), rgba(147,197,253,0.25), rgba(37,99,235,0.12), rgba(147,197,253,0.18))",
-                  backgroundSize: "300% 300%",
-                  animation: "limitGlow 8s ease-in-out infinite"
-                }} />
-                <div className="absolute inset-0 opacity-10" style={{
-                  background: "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.8), transparent 70%)"
-                }} />
+                {/* Order Summary (Bento Card) */}
+                <div className="bg-white/80 backdrop-blur-xl border border-slate-100 rounded-2xl p-8 shadow-[0_20px_40px_-15px_rgba(15,23,42,0.05)]">
+                  <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-4">Zusammenfassung</p>
+                  <h3 className="text-2xl font-black tracking-tight text-slate-900 mb-2">{pack?.name}</h3>
+                  <p className="text-3xl font-black text-slate-900 mb-6">{pack?.fee.toFixed(2)} € <span className="text-lg font-medium text-gray-500">/ Monat</span></p>
+                  
+                  <ul className="space-y-3 mb-6">
+                    <li className="flex items-start gap-3">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      <span className="text-sm text-slate-700">Inkl. KI-Profilanalyse</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      <span className="text-sm text-slate-700">Exklusives Premium-Limit</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      <span className="text-sm text-slate-700">24/7 Premium-Support</span>
+                    </li>
+                  </ul>
+
+                  {/* Trust Badges */}
+                  <div className="pt-4 border-t border-slate-100 space-y-2">
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                      </svg>
+                      SSL-Verschlüsselt
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                      </svg>
+                      Powered by Stripe
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="relative z-10 fiaon-glass-panel p-6 rounded-2xl">
-                <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Aktivierung abschließen</p>
-                <p className="text-[14px] text-gray-600 mb-5">Schließe die Zahlung für dein {pack?.name} Paket ab.</p>
-                
-                {clientSecret && pack && stripePromise && (
-                  <Elements 
-                    stripe={stripePromise} 
-                    options={{ 
-                      clientSecret,
-                      appearance: {
-                        theme: 'stripe',
-                        variables: {
-                          fontFamily: 'Inter, system-ui, sans-serif',
-                          borderRadius: '12px',
-                          colorPrimary: '#2563eb',
-                          colorBackground: '#ffffff',
-                          colorText: '#0f172a',
-                          colorDanger: '#ef4444',
-                        },
-                        rules: {
-                          '.Input': {
-                            border: '1px solid #e2e8f0',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+              {/* Right Column: Payment Form (Col-Span-7) */}
+              <div className="lg:col-span-7">
+                <div className="bg-white border border-slate-200 rounded-3xl p-8 lg:p-12 shadow-sm">
+                  <p className="text-[10px] uppercase tracking-widest text-blue-600 font-bold mb-2">AKTIVIERUNG ABSCHLIESSEN</p>
+                  <h3 className="text-3xl font-black tracking-tight text-slate-900 mb-8">Zahlungsmethode</h3>
+                  
+                  {clientSecret && pack && stripePromise && (
+                    <Elements 
+                      stripe={stripePromise} 
+                      options={{ 
+                        clientSecret,
+                        appearance: {
+                          theme: 'stripe',
+                          variables: {
+                            colorPrimary: '#2563eb',
+                            colorBackground: '#ffffff',
+                            colorText: '#0f172a',
+                            colorDanger: '#ef4444',
+                            fontFamily: 'Inter, system-ui, sans-serif',
+                            spacingUnit: '5px',
+                            borderRadius: '12px',
                           },
-                          '.Input:focus': {
-                            boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.2)',
-                            borderColor: '#2563eb',
-                          },
-                        },
-                      },
-                    }}
+                          rules: {
+                            '.Input': {
+                              border: '1px solid #e2e8f0',
+                              boxShadow: 'none',
+                              padding: '12px 16px',
+                            },
+                            '.Input:focus': {
+                              border: '1px solid #93c5fd',
+                              boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.2)',
+                            }
+                          }
+                        }
+                      }}
+                    >
+                      <PremiumCheckoutForm packageName={pack.name} price={pack.fee} clientSecret={clientSecret} onSuccess={() => window.location.href = '/dashboard'} />
+                    </Elements>
+                  )}
+                  {!clientSecret && (
+                    <div className="py-12 text-center">
+                      <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                      <p className="text-sm text-gray-500">Zahlungsseite wird geladen...</p>
+                    </div>
+                  )}
+                  {!stripePromise && (
+                    <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-red-600 text-sm font-medium">
+                      Systemfehler: Das Zahlungssystem konnte nicht initialisiert werden (Public Key fehlt). Bitte laden Sie die Seite neu.
+                    </div>
+                  )}
+                </div>
+
+                {/* Contract Download Link */}
+                <div className="flex items-center justify-center gap-2 mt-6">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                  <button 
+                    onClick={() => { window.open(`/api/fiaon/contract/${ref}`, '_blank'); track("contract_download", { ref }, ref); }} 
+                    className="text-[12px] text-gray-400 hover:text-[#2563eb] transition-colors underline decoration-gray-300 hover:decoration-[#2563eb]"
                   >
-                    <PremiumCheckoutForm packageName={pack.name} price={pack.fee} clientSecret={clientSecret} onSuccess={() => window.location.href = '/dashboard'} />
-                  </Elements>
-                )}
-                {!clientSecret && (
-                  <div className="py-8 text-center">
-                    <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-sm text-gray-500">Zahlungsseite wird geladen...</p>
-                  </div>
-                )}
-                {!stripePromise && (
-                  <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-red-600 text-sm font-medium">
-                    Systemfehler: Das Zahlungssystem konnte nicht initialisiert werden (Public Key fehlt). Bitte laden Sie die Seite neu.
-                  </div>
-                )}
+                    Vertrag herunterladen
+                  </button>
+                </div>
               </div>
             </div>
-
-            {/* Subtle Contract Download Link */}
-            <div className="flex items-center justify-center gap-2 mb-6">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-              <button 
-                onClick={() => { window.open(`/api/fiaon/contract/${ref}`, '_blank'); track("contract_download", { ref }, ref); }} 
-                className="text-[12px] text-gray-400 hover:text-[#2563eb] transition-colors underline decoration-gray-300 hover:decoration-[#2563eb]"
-              >
-                Vertrag herunterladen
-              </button>
-            </div>
-            
-            <p className="text-[11px] text-gray-400 font-mono">Referenz: {ref}</p>
           </div>
         )}
+        <p className="text-[11px] text-gray-400 font-mono">Referenz: {ref}</p>
       </div>
 
       <PremiumFooter />

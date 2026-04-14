@@ -899,14 +899,10 @@ export default function BusinessAntragPage() {
                 <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Aktivierung abschließen</p>
                 <p className="text-[14px] text-gray-600 mb-5">Schließe die Zahlung für dein {pack?.name} Paket ab.</p>
                 
-                {clientSecret && pack ? (
+                {clientSecret && pack && (
                   <Elements stripe={loadStripe(process.env.VITE_STRIPE_PUBLIC_KEY || "")} options={{ clientSecret }}>
                     <PremiumCheckoutForm packageName={pack.name} price={pack.fee} clientSecret={clientSecret} onSuccess={() => window.location.href = '/dashboard'} />
                   </Elements>
-                ) : (
-                  <button onClick={() => { if (pack?.pay) window.open(pack.pay, "_blank"); }} className="w-full py-4 rounded-xl text-[15px] font-semibold text-white fiaon-btn-gradient">
-                    Jetzt bezahlen & Karte aktivieren
-                  </button>
                 )}
               </div>
             </div>

@@ -77,8 +77,8 @@ router.post("/application", async (req, res) => {
     const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
     const birthdate = birthDay && birthMonth && birthYear ? `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}` : null;
 
-    // Auto-run migration if business fields don't exist
-    if (type === "business" && (companyName || legalForm || taxId)) {
+    // Auto-run migration for business fields if type is business
+    if (type === "business") {
       try {
         const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
         const columns = await sql`

@@ -1555,7 +1555,33 @@ export default function AntragPage() {
                 <p className="text-[14px] text-gray-600 mb-5">Schließe die Zahlung für dein {pack?.name} Paket ab.</p>
                 
                 {clientSecret && pack && (
-                  <Elements stripe={loadStripe(process.env.VITE_STRIPE_PUBLIC_KEY || "")} options={{ clientSecret }}>
+                  <Elements 
+                    stripe={loadStripe(process.env.VITE_STRIPE_PUBLIC_KEY || "")} 
+                    options={{ 
+                      clientSecret,
+                      appearance: {
+                        theme: 'stripe',
+                        variables: {
+                          fontFamily: 'Inter, system-ui, sans-serif',
+                          borderRadius: '12px',
+                          colorPrimary: '#2563eb',
+                          colorBackground: '#ffffff',
+                          colorText: '#0f172a',
+                          colorDanger: '#ef4444',
+                        },
+                        rules: {
+                          '.Input': {
+                            border: '1px solid #e2e8f0',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                          },
+                          '.Input:focus': {
+                            boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.2)',
+                            borderColor: '#2563eb',
+                          },
+                        },
+                      },
+                    }}
+                  >
                     <PremiumCheckoutForm packageName={pack.name} price={pack.fee} clientSecret={clientSecret} onSuccess={() => window.location.href = '/dashboard'} />
                   </Elements>
                 )}

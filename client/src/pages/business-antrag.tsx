@@ -901,7 +901,7 @@ export default function BusinessAntragPage() {
                 
                 {clientSecret && pack && (
                   <Elements 
-                    stripe={loadStripe(process.env.VITE_STRIPE_PUBLIC_KEY || "")} 
+                    stripe={loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY || "")} 
                     options={{ 
                       clientSecret,
                       appearance: {

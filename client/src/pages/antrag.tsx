@@ -134,7 +134,7 @@ export default function AntragPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pack, setPack] = useState<typeof PACKS[0] | null>(null);
 
-  const [d, setD] = useState({ firstName: "", lastName: "", birthDay: "", birthMonth: "", birthYear: "1990", phone: "", street: "", zip: "", city: "", country: "", nationality: "", employment: "", employer: "", employedSince: "", income: 0, rent: 0, debts: 0, housing: "", wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", email: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false });
+  const [d, setD] = useState({ firstName: "", lastName: "", birthDay: "", birthMonth: "", birthYear: "1990", phoneCountryCode: "+49", phone: "", street: "", zip: "", city: "", country: "", nationality: "", employment: "", employer: "", employedSince: "", income: 0, rent: 0, debts: 0, housing: "", wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", email: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false });
   const [approved, setApproved] = useState(0);
   const [verifyDone, setVerifyDone] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -179,7 +179,7 @@ export default function AntragPage() {
       if (!d.lastName) e.lastName = "Nachname eingeben";
       if (!d.birthDay || !d.birthMonth || !d.birthYear || d.birthYear.length < 4) e.birth = "Gültiges Datum eingeben";
       else { const age = new Date().getFullYear() - +d.birthYear; if (age < 18) e.birth = "Du musst mind. 18 sein"; }
-      if (!d.phone) e.phone = "Telefonnummer eingeben";
+      if (!d.phoneCountryCode || !d.phone) e.phone = "Telefonnummer eingeben";
       if (!d.street) e.street = "Adresse eingeben";
       if (!d.zip) e.zip = "PLZ eingeben";
       if (!d.city) e.city = "Ort eingeben";
@@ -849,7 +849,58 @@ export default function AntragPage() {
                       <Inp type="number" value={d.birthYear} onChange={(v: string) => up("birthYear", v)} placeholder="1990" />
                     </div>
                   </Field>
-                  <Field label="Telefon" req error={errors.phone}><Inp type="tel" value={d.phone} onChange={(v: string) => up("phone", v)} placeholder="+49 170 1234567" /></Field>
+                  <Field label="Telefon" req error={errors.phone}>
+                    <div className="flex gap-2">
+                      <Sel value={d.phoneCountryCode} onChange={(v: string) => up("phoneCountryCode", v)} className="w-24">
+                        <option value="+49">+49</option>
+                        <option value="+43">+43</option>
+                        <option value="+41">+41</option>
+                        <option value="+31">+31</option>
+                        <option value="+32">+32</option>
+                        <option value="+33">+33</option>
+                        <option value="+34">+34</option>
+                        <option value="+351">+351</option>
+                        <option value="+352">+352</option>
+                        <option value="+353">+353</option>
+                        <option value="+354">+354</option>
+                        <option value="+355">+355</option>
+                        <option value="+356">+356</option>
+                        <option value="+357">+357</option>
+                        <option value="+358">+358</option>
+                        <option value="+359">+359</option>
+                        <option value="+36">+36</option>
+                        <option value="+370">+370</option>
+                        <option value="+371">+371</option>
+                        <option value="+372">+372</option>
+                        <option value="+373">+373</option>
+                        <option value="+374">+374</option>
+                        <option value="+375">+375</option>
+                        <option value="+376">+376</option>
+                        <option value="+377">+377</option>
+                        <option value="+378">+378</option>
+                        <option value="+380">+380</option>
+                        <option value="+381">+381</option>
+                        <option value="+382">+382</option>
+                        <option value="+383">+383</option>
+                        <option value="+385">+385</option>
+                        <option value="+386">+386</option>
+                        <option value="+387">+387</option>
+                        <option value="+389">+389</option>
+                        <option value="+39">+39</option>
+                        <option value="+40">+40</option>
+                        <option value="+420">+420</option>
+                        <option value="+421">+421</option>
+                        <option value="+423">+423</option>
+                        <option value="+44">+44</option>
+                        <option value="+45">+45</option>
+                        <option value="+46">+46</option>
+                        <option value="+47">+47</option>
+                        <option value="+48">+48</option>
+                        <option value="+49">+49</option>
+                      </Sel>
+                      <Inp type="tel" value={d.phone} onChange={(v: string) => up("phone", v)} placeholder="170 1234567" className="flex-1" />
+                    </div>
+                  </Field>
                   <Field label="Straße & Hausnummer" req error={errors.street}><Inp value={d.street} onChange={(v: string) => up("street", v)} placeholder="Musterstraße 12" /></Field>
                   <div className="grid grid-cols-3 gap-3">
                     <Field label="PLZ" req error={errors.zip}><Inp value={d.zip} onChange={(v: string) => up("zip", v)} placeholder="10115" /></Field>
@@ -990,7 +1041,7 @@ export default function AntragPage() {
                         {d.phone && (
                           <div className="flex justify-between items-center py-1.5">
                             <span className="text-[11px] text-gray-400">Telefon</span>
-                            <span className="text-[12px] font-semibold text-gray-900">{d.phone}</span>
+                            <span className="text-[12px] font-semibold text-gray-900">{d.phoneCountryCode} {d.phone}</span>
                           </div>
                         )}
                         

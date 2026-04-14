@@ -1558,7 +1558,7 @@ export default function AntragPage() {
                 <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Aktivierung abschließen</p>
                 <p className="text-[14px] text-gray-600 mb-5">Schließe die Zahlung für dein {pack?.name} Paket ab.</p>
                 
-                {clientSecret && pack && stripePromise ? (
+                {clientSecret && pack && stripePromise && (
                   <Elements 
                     stripe={stripePromise} 
                     options={{ 

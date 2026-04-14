@@ -144,7 +144,7 @@ export default function BusinessAntragPage() {
   const [pack, setPack] = useState<typeof BUSINESS_PACKS[0] | null>(null);
 
   const [d, setD] = useState({ 
-    companyName: "", legalForm: "", taxId: "", establishedYear: "2010", contactName: "", contactEmail: "", contactPhone: "", street: "", zip: "", city: "", country: "", businessType: "", industry: "", annualRevenue: 0, employees: 0, monthlyExpenses: 0, wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", billingEmail: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false 
+    companyName: "", legalForm: "", taxId: "", establishedYear: "2010", contactName: "", contactEmail: "", contactPhoneCountryCode: "+49", contactPhone: "", street: "", zip: "", city: "", country: "", businessType: "", industry: "", annualRevenue: 0, employees: 0, monthlyExpenses: 0, wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", billingEmail: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false 
   });
   const [approved, setApproved] = useState(0);
   const [verifyDone, setVerifyDone] = useState(false);
@@ -164,7 +164,7 @@ export default function BusinessAntragPage() {
       if (!d.taxId) e.taxId = "Steuernummer eingeben";
       if (!d.contactName) e.contactName = "Ansprechpartner eingeben";
       if (!d.contactEmail || !d.contactEmail.includes("@")) e.contactEmail = "Gültige E-Mail eingeben";
-      if (!d.contactPhone) e.contactPhone = "Telefonnummer eingeben";
+      if (!d.contactPhoneCountryCode || !d.contactPhone) e.contactPhone = "Telefonnummer eingeben";
       if (!d.street) e.street = "Adresse eingeben";
       if (!d.zip) e.zip = "PLZ eingeben";
       if (!d.city) e.city = "Ort eingeben";
@@ -356,7 +356,58 @@ export default function BusinessAntragPage() {
                   <Field label="Steuernummer" req error={errors.taxId}><Inp value={d.taxId} onChange={(v: string) => up("taxId", v)} placeholder="DE123456789" /></Field>
                   <Field label="Ansprechpartner" req error={errors.contactName}><Inp value={d.contactName} onChange={(v: string) => up("contactName", v)} placeholder="Max Mustermann" /></Field>
                   <Field label="E-Mail Ansprechpartner" req error={errors.contactEmail}><Inp type="email" value={d.contactEmail} onChange={(v: string) => up("contactEmail", v)} placeholder="max@muster.de" /></Field>
-                  <Field label="Telefon" req error={errors.contactPhone}><Inp type="tel" value={d.contactPhone} onChange={(v: string) => up("contactPhone", v)} placeholder="+49 170 1234567" /></Field>
+                  <Field label="Telefon" req error={errors.contactPhone}>
+                    <div className="flex gap-2">
+                      <Sel value={d.contactPhoneCountryCode} onChange={(v: string) => up("contactPhoneCountryCode", v)} className="w-24">
+                        <option value="+49">+49</option>
+                        <option value="+43">+43</option>
+                        <option value="+41">+41</option>
+                        <option value="+31">+31</option>
+                        <option value="+32">+32</option>
+                        <option value="+33">+33</option>
+                        <option value="+34">+34</option>
+                        <option value="+351">+351</option>
+                        <option value="+352">+352</option>
+                        <option value="+353">+353</option>
+                        <option value="+354">+354</option>
+                        <option value="+355">+355</option>
+                        <option value="+356">+356</option>
+                        <option value="+357">+357</option>
+                        <option value="+358">+358</option>
+                        <option value="+359">+359</option>
+                        <option value="+36">+36</option>
+                        <option value="+370">+370</option>
+                        <option value="+371">+371</option>
+                        <option value="+372">+372</option>
+                        <option value="+373">+373</option>
+                        <option value="+374">+374</option>
+                        <option value="+375">+375</option>
+                        <option value="+376">+376</option>
+                        <option value="+377">+377</option>
+                        <option value="+378">+378</option>
+                        <option value="+380">+380</option>
+                        <option value="+381">+381</option>
+                        <option value="+382">+382</option>
+                        <option value="+383">+383</option>
+                        <option value="+385">+385</option>
+                        <option value="+386">+386</option>
+                        <option value="+387">+387</option>
+                        <option value="+389">+389</option>
+                        <option value="+39">+39</option>
+                        <option value="+40">+40</option>
+                        <option value="+420">+420</option>
+                        <option value="+421">+421</option>
+                        <option value="+423">+423</option>
+                        <option value="+44">+44</option>
+                        <option value="+45">+45</option>
+                        <option value="+46">+46</option>
+                        <option value="+47">+47</option>
+                        <option value="+48">+48</option>
+                        <option value="+49">+49</option>
+                      </Sel>
+                      <Inp type="tel" value={d.contactPhone} onChange={(v: string) => up("contactPhone", v)} placeholder="170 1234567" className="flex-1" />
+                    </div>
+                  </Field>
                   <Field label="Straße & Hausnummer" req error={errors.street}><Inp value={d.street} onChange={(v: string) => up("street", v)} placeholder="Musterstraße 12" /></Field>
                   <div className="grid grid-cols-3 gap-3">
                     <Field label="PLZ" req error={errors.zip}><Inp value={d.zip} onChange={(v: string) => up("zip", v)} placeholder="10115" /></Field>
@@ -494,6 +545,13 @@ export default function BusinessAntragPage() {
                           <div className="flex justify-between items-center py-1.5">
                             <span className="text-[11px] text-gray-400">E-Mail</span>
                             <span className="text-[12px] font-semibold text-gray-900">{d.contactEmail}</span>
+                          </div>
+                        )}
+                        
+                        {d.contactPhone && (
+                          <div className="flex justify-between items-center py-1.5">
+                            <span className="text-[11px] text-gray-400">Telefon</span>
+                            <span className="text-[12px] font-semibold text-gray-900">{d.contactPhoneCountryCode} {d.contactPhone}</span>
                           </div>
                         )}
                         

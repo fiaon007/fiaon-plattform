@@ -5,6 +5,10 @@ import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import PremiumCheckoutForm from "@/components/PremiumCheckoutForm";
 
+// Robust Stripe key retrieval with fallback
+const stripePubKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || import.meta.env.VITE_STRIPE_PUBLIC_KEY;
+const stripePromise = stripePubKey ? loadStripe(stripePubKey) : null;
+
 /* === CUSTOM ANIMATIONS === */
 const styleElement = document.createElement("style");
 styleElement.textContent = `
@@ -1554,9 +1558,9 @@ export default function AntragPage() {
                 <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Aktivierung abschließen</p>
                 <p className="text-[14px] text-gray-600 mb-5">Schließe die Zahlung für dein {pack?.name} Paket ab.</p>
                 
-                {clientSecret && pack && (
+                {clientSecret && pack && stripePromise ? (
                   <Elements 
-                    stripe={loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY || "")} 
+                    stripe={stripePromise} 
                     options={{ 
                       clientSecret,
                       appearance: {
@@ -1589,6 +1593,11 @@ export default function AntragPage() {
                   <div className="py-8 text-center">
                     <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
                     <p className="text-sm text-gray-500">Zahlungsseite wird geladen...</p>
+                  </div>
+                )}
+                {!stripePromise && (
+                  <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-red-600 text-sm font-medium">
+                    Systemfehler: Das Zahlungssystem konnte nicht initialisiert werden (Public Key fehlt). Bitte laden Sie die Seite neu.
                   </div>
                 )}
               </div>

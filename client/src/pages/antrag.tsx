@@ -1067,13 +1067,19 @@ export default function AntragPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                           </svg>
                         </div>
-                        <input
-                          type="number"
-                          value={d.birthYear}
-                          onChange={(e) => up("birthYear", e.target.value)}
-                          placeholder="1990"
-                          className="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-slate-900 font-medium text-base outline-none transition-all duration-300 ease-in-out focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
-                        />
+                        <div className="relative">
+                          <select
+                            value={d.birthYear}
+                            onChange={(e) => up("birthYear", e.target.value)}
+                            className="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-slate-900 font-medium text-base outline-none appearance-none transition-all duration-300 ease-in-out focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+                          >
+                            <option value="">Jahr</option>
+                            {Array.from({length:100},(_,i)=><option key={i} value={String(new Date().getFullYear() - i)}>{new Date().getFullYear() - i}</option>)}
+                          </select>
+                          <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
                       </div>
                       {errors.birth && <p className="mt-1 text-xs text-red-500">{errors.birth}</p>}
                     </div>

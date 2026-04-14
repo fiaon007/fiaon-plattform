@@ -210,6 +210,13 @@ export default function BusinessAntragPage() {
 
   useEffect(() => { if (!sessionStorage.getItem("fiaon_sid")) sessionStorage.setItem("fiaon_sid", Math.random().toString(36).slice(2)); window.scrollTo(0, 0); }, []);
 
+  // Auto-scroll to top on step change
+  useEffect(() => {
+    if (step > 0) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [step]);
+
   const up = useCallback((k: string, v: any) => setD(p => ({ ...p, [k]: v })), []);
   const cardName = d.companyName.trim().toUpperCase();
 

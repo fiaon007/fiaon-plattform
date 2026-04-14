@@ -336,6 +336,13 @@ export default function AntragPage() {
 
   useEffect(() => { if (!sessionStorage.getItem("fiaon_sid")) sessionStorage.setItem("fiaon_sid", Math.random().toString(36).slice(2)); window.scrollTo(0, 0); }, []);
 
+  // Auto-scroll to top on step change
+  useEffect(() => {
+    if (step > 0) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [step]);
+
   // Counter animation for score section
   useEffect(() => {
     if (step === 0) {

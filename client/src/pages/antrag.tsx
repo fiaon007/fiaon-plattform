@@ -65,7 +65,7 @@ function CountryDropdown({ value, onChange, error }: { value: string; onChange: 
 function PremiumInput({ label, value, onChange, placeholder, isValid, error, className = "" }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; isValid?: boolean; error?: string; className?: string }) {
   return (
     <div className={`relative ${className}`}>
-      <label className="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1.5">{label}</label>
+      <label className="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">{label}</label>
       <div className="relative">
         <input
           type="text"
@@ -142,21 +142,20 @@ function PremiumPhoneInput({ countryCode, phone, onCountryCodeChange, onPhoneCha
     { code: "+90", country: "Türkei" },
     { code: "+357", country: "Zypern" },
     { code: "+354", country: "Island" },
-    { code: "+358", country: "Finnland" },
     { code: "+1", country: "USA/Kanada" },
   ];
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <label className="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1.5">Telefon</label>
+      <label className="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">Telefon</label>
       <div className={`flex bg-slate-50/50 border border-slate-200 rounded-xl overflow-hidden transition-all duration-300 ease-in-out focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-300 ${error ? "border-red-500" : ""}`}>
-        <div className="relative flex items-center px-4 py-3 border-r border-slate-200 bg-slate-50/50 cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
+        <div className="relative flex items-center px-4 py-3 border-r border-slate-200 bg-slate-50/50 cursor-pointer w-24 shrink-0" onClick={() => setIsOpen(!isOpen)}>
           <span className="text-slate-900 font-medium text-base">{countryCode}</span>
           <svg className="w-4 h-4 text-slate-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
           {isOpen && (
-            <ul className="absolute top-full left-0 w-full mt-2 bg-white/90 backdrop-blur-xl border border-slate-100 rounded-xl shadow-[0_20px_40px_-15px_rgba(15,23,42,0.1)] max-h-60 overflow-y-auto overflow-x-hidden z-50">
+            <ul className="absolute top-full left-0 w-48 mt-2 bg-white/90 backdrop-blur-xl border border-slate-100 rounded-xl shadow-[0_20px_40px_-15px_rgba(15,23,42,0.1)] max-h-60 overflow-y-auto overflow-x-hidden z-50">
               {PHONE_CODES.map((item, index) => (
                 <li 
                   key={index}
@@ -175,43 +174,6 @@ function PremiumPhoneInput({ countryCode, phone, onCountryCodeChange, onPhoneCha
           onChange={(e) => onPhoneChange(e.target.value)}
           placeholder="170 1234567"
           className="flex-1 px-4 py-3 bg-transparent outline-none text-slate-900 font-medium text-base placeholder:text-slate-400"
-        />
-      </div>
-      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
-    </div>
-  );
-}
-
-/* === PREMIUM DATE INPUT COMPONENT === */
-function PremiumDateInput({ label, value, onChange, error }: { label: string; value: string; onChange: (v: string) => void; error?: string }) {
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let input = e.target.value.replace(/\D/g, '');
-    
-    if (input.length > 8) input = input.slice(0, 8);
-    
-    let formatted = '';
-    if (input.length > 0) {
-      formatted += input.slice(0, 2);
-      if (input.length >= 2) formatted += '.';
-      if (input.length >= 4) formatted += input.slice(2, 4);
-      if (input.length >= 4) formatted += '.';
-      if (input.length >= 6) formatted += input.slice(4, 8);
-    }
-    
-    onChange(formatted);
-  };
-
-  return (
-    <div className="relative">
-      <label className="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1.5">{label}</label>
-      <div className="relative">
-        <input
-          type="text"
-          value={value}
-          onChange={handleChange}
-          placeholder="TT.MM.JJJJ"
-          maxLength={10}
-          className={`w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-slate-900 font-medium text-base outline-none transition-all duration-300 ease-in-out focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 ${error ? "border-red-500" : ""}`}
         />
       </div>
       {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
@@ -1071,24 +1033,59 @@ export default function AntragPage() {
                   <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Schritt 1 von 5</p>
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Persönliche Daten</h2>
                   <p className="text-[14px] text-gray-400 mb-6">Verschlüsselt übertragen und validiert.</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <PremiumInput label="Vorname" value={d.firstName} onChange={(v: string) => up("firstName", v)} placeholder="Max" isValid={!!d.firstName} error={errors.firstName} />
-                    <PremiumInput label="Nachname" value={d.lastName} onChange={(v: string) => up("lastName", v)} placeholder="Mustermann" isValid={!!d.lastName} error={errors.lastName} />
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <PremiumInput label="Vorname" value={d.firstName} onChange={(v: string) => up("firstName", v)} placeholder="Max" isValid={!!d.firstName} error={errors.firstName} />
+                      <PremiumInput label="Nachname" value={d.lastName} onChange={(v: string) => up("lastName", v)} placeholder="Mustermann" isValid={!!d.lastName} error={errors.lastName} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">Geburtsdatum</label>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="relative">
+                          <select
+                            value={d.birthDay}
+                            onChange={(e) => up("birthDay", e.target.value)}
+                            className="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-slate-900 font-medium text-base outline-none appearance-none transition-all duration-300 ease-in-out focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+                          >
+                            <option value="">Tag</option>
+                            {Array.from({length:31},(_,i)=><option key={i+1} value={String(i+1)}>{String(i+1).padStart(2,"0")}</option>)}
+                          </select>
+                          <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                        <div className="relative">
+                          <select
+                            value={d.birthMonth}
+                            onChange={(e) => up("birthMonth", e.target.value)}
+                            className="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-slate-900 font-medium text-base outline-none appearance-none transition-all duration-300 ease-in-out focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+                          >
+                            <option value="">Monat</option>
+                            {["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"].map((m,i)=><option key={i} value={String(i+1)}>{m}</option>)}
+                          </select>
+                          <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                        <input
+                          type="number"
+                          value={d.birthYear}
+                          onChange={(e) => up("birthYear", e.target.value)}
+                          placeholder="1990"
+                          className="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-slate-900 font-medium text-base outline-none transition-all duration-300 ease-in-out focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+                        />
+                      </div>
+                      {errors.birth && <p className="mt-1 text-xs text-red-500">{errors.birth}</p>}
+                    </div>
+                    <PremiumPhoneInput countryCode={d.phoneCountryCode} phone={d.phone} onCountryCodeChange={(v: string) => up("phoneCountryCode", v)} onPhoneChange={(v: string) => up("phone", v)} error={errors.phone} />
+                    <Field label="Land" req error={errors.country}><Sel value={d.country} onChange={(v: string) => up("country", v)}><option value="">Wählen</option><option value="DE">Deutschland</option><option value="AT">Österreich</option><option value="CH">Schweiz</option><option value="AL">Albanien</option><option value="AD">Andorra</option><option value="BY">Belarus</option><option value="BE">Belgien</option><option value="BA">Bosnien und Herzegowina</option><option value="BG">Bulgarien</option><option value="HR">Kroatien</option><option value="CY">Zypern</option><option value="CZ">Tschechien</option><option value="DK">Dänemark</option><option value="EE">Estland</option><option value="FI">Finnland</option><option value="FR">Frankreich</option><option value="GE">Georgien</option><option value="GR">Griechenland</option><option value="HU">Ungarn</option><option value="IS">Island</option><option value="IE">Irland</option><option value="IT">Italien</option><option value="XK">Kosovo</option><option value="LV">Lettland</option><option value="LI">Liechtenstein</option><option value="LT">Litauen</option><option value="LU">Luxemburg</option><option value="MT">Malta</option><option value="MD">Moldawien</option><option value="MC">Monaco</option><option value="ME">Montenegro</option><option value="NL">Niederlande</option><option value="MK">Nordmazedonien</option><option value="NO">Norwegen</option><option value="PL">Polen</option><option value="PT">Portugal</option><option value="RO">Rumänien</option><option value="RU">Russland</option><option value="SM">San Marino</option><option value="RS">Serbien</option><option value="SK">Slowakei</option><option value="SI">Slowenien</option><option value="ES">Spanien</option><option value="SE">Schweden</option><option value="CH">Schweiz</option><option value="TR">Türkei</option><option value="UA">Ukraine</option><option value="GB">Vereinigtes Königreich</option><option value="VA">Vatikanstadt</option></Sel></Field>
+                    <PremiumInput label="Straße & Hausnummer" value={d.street} onChange={(v: string) => up("street", v)} placeholder="Musterstraße 12" isValid={!!d.street} error={errors.street} />
+                    <div className="grid grid-cols-2 gap-3">
+                      <PremiumInput label="PLZ" value={d.zip} onChange={(v: string) => up("zip", v)} placeholder={d.country === "AT" || d.country === "CH" ? "1010" : "10115"} isValid={!!d.zip} error={errors.zip} />
+                      <PremiumInput label="Ort" value={d.city} onChange={(v: string) => up("city", v)} placeholder="Berlin" isValid={!!d.city} error={errors.city} />
+                    </div>
+                    <Field label="Staatsangehörigkeit" req error={errors.nationality}><CountryDropdown value={d.nationality} onChange={(v: string) => up("nationality", v)} error={errors.nationality} /></Field>
                   </div>
-                  <PremiumDateInput label="Geburtsdatum" value={`${d.birthDay}.${d.birthMonth}.${d.birthYear}`} onChange={(v: string) => {
-                    const parts = v.split('.');
-                    if (parts.length >= 1) up("birthDay", parts[0]);
-                    if (parts.length >= 2) up("birthMonth", parts[1]);
-                    if (parts.length >= 3) up("birthYear", parts[2]);
-                  }} error={errors.birth} />
-                  <PremiumPhoneInput countryCode={d.phoneCountryCode} phone={d.phone} onCountryCodeChange={(v: string) => up("phoneCountryCode", v)} onPhoneChange={(v: string) => up("phone", v)} error={errors.phone} />
-                  <Field label="Land" req error={errors.country}><Sel value={d.country} onChange={(v: string) => up("country", v)}><option value="">Wählen</option><option value="DE">Deutschland</option><option value="AT">Österreich</option><option value="CH">Schweiz</option><option value="AL">Albanien</option><option value="AD">Andorra</option><option value="BY">Belarus</option><option value="BE">Belgien</option><option value="BA">Bosnien und Herzegowina</option><option value="BG">Bulgarien</option><option value="HR">Kroatien</option><option value="CY">Zypern</option><option value="CZ">Tschechien</option><option value="DK">Dänemark</option><option value="EE">Estland</option><option value="FI">Finnland</option><option value="FR">Frankreich</option><option value="GE">Georgien</option><option value="GR">Griechenland</option><option value="HU">Ungarn</option><option value="IS">Island</option><option value="IE">Irland</option><option value="IT">Italien</option><option value="XK">Kosovo</option><option value="LV">Lettland</option><option value="LI">Liechtenstein</option><option value="LT">Litauen</option><option value="LU">Luxemburg</option><option value="MT">Malta</option><option value="MD">Moldawien</option><option value="MC">Monaco</option><option value="ME">Montenegro</option><option value="NL">Niederlande</option><option value="MK">Nordmazedonien</option><option value="NO">Norwegen</option><option value="PL">Polen</option><option value="PT">Portugal</option><option value="RO">Rumänien</option><option value="RU">Russland</option><option value="SM">San Marino</option><option value="RS">Serbien</option><option value="SK">Slowakei</option><option value="SI">Slowenien</option><option value="ES">Spanien</option><option value="SE">Schweden</option><option value="CH">Schweiz</option><option value="TR">Türkei</option><option value="UA">Ukraine</option><option value="GB">Vereinigtes Königreich</option><option value="VA">Vatikanstadt</option></Sel></Field>
-                  <PremiumInput label="Straße & Hausnummer" value={d.street} onChange={(v: string) => up("street", v)} placeholder="Musterstraße 12" isValid={!!d.street} error={errors.street} />
-                  <div className="grid grid-cols-2 gap-3">
-                    <PremiumInput label="PLZ" value={d.zip} onChange={(v: string) => up("zip", v)} placeholder={d.country === "AT" || d.country === "CH" ? "1010" : "10115"} isValid={!!d.zip} error={errors.zip} />
-                    <PremiumInput label="Ort" value={d.city} onChange={(v: string) => up("city", v)} placeholder="Berlin" isValid={!!d.city} error={errors.city} />
-                  </div>
-                  <Field label="Staatsangehörigkeit" req error={errors.nationality}><CountryDropdown value={d.nationality} onChange={(v: string) => up("nationality", v)} error={errors.nationality} /></Field>
                 </>}
 
                 {step === 2 && <>
@@ -1157,7 +1154,7 @@ export default function AntragPage() {
                 </>}
 
                 {/* Buttons */}
-                <div className="flex gap-3 mt-6 pt-4 border-t border-white/40">
+                <div className="flex gap-3 mt-8 pt-4 border-t border-white/40">
                   <button onClick={() => goStep(step === 6 ? 5 : step - 1)} className="px-5 py-3 rounded-xl fiaon-glass-panel text-[13px] font-medium text-gray-600 hover:bg-white/80 transition-all">Zurück</button>
                   <PremiumButton onClick={next}>
                     {step === 3 ? "Prüfen lassen" : step === 6 ? "Vertrag annehmen" : "Weiter zu Schritt " + (step + 1)}

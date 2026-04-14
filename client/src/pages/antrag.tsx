@@ -1,6 +1,65 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
+
+const COUNTRIES = [
+  // DACH Region (Priorisiert)
+  "Deutschland",
+  "Österreich",
+  "Schweiz",
+  "---", // Visueller Trenner im UI
+  // Rest der Welt (Alphabetisch)
+  "Afghanistan", "Ägypten", "Albanien", "Algerien", "Andorra", "Angola", "Antigua und Barbuda", "Äquatorialguinea", "Argentinien", "Armenien", "Aserbaidschan", "Äthiopien", "Australien", "Bahamas", "Bahrain", "Bangladesch", "Barbados", "Belarus", "Belgien", "Belize", "Benin", "Bhutan", "Bolivien", "Bosnien und Herzegowina", "Botswana", "Brasilien", "Brunei", "Bulgarien", "Burkina Faso", "Burundi", "Cabo Verde", "Chile", "China", "Costa Rica", "Côte d'Ivoire", "Dänemark", "Dominica", "Dominikanische Republik", "Dschibuti", "Ecuador", "El Salvador", "Eritrea", "Estland", "Eswatini", "Fidschi", "Finnland", "Frankreich", "Gabun", "Gambia", "Georgien", "Ghana", "Grenada", "Griechenland", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Indien", "Indonesien", "Irak", "Iran", "Irland", "Island", "Israel", "Italien", "Jamaika", "Japan", "Jemen", "Jordanien", "Kambodscha", "Kamerun", "Kanada", "Kasachstan", "Katar", "Kenia", "Kirgisistan", "Kiribati", "Kolumbien", "Komoren", "Kongo (Demokratische Republik)", "Kongo (Republik)", "Kroatien", "Kuba", "Kuwait", "Laos", "Lesotho", "Lettland", "Libanon", "Liberia", "Libyen", "Liechtenstein", "Litauen", "Luxemburg", "Madagaskar", "Malawi", "Malaysia", "Malediven", "Mali", "Malta", "Marokko", "Marshallinseln", "Mauretanien", "Mauritius", "Mexiko", "Mikronesien", "Moldau", "Monaco", "Mongolei", "Montenegro", "Mosambik", "Myanmar", "Namibia", "Nauru", "Nepal", "Neuseeland", "Nicaragua", "Niederlande", "Niger", "Nigeria", "Nordkorea", "Nordmazedonien", "Norwegen", "Oman", "Pakistan", "Palau", "Panama", "Papua-Neuguinea", "Paraguay", "Peru", "Philippinen", "Polen", "Portugal", "Ruanda", "Rumänien", "Russland", "Salomonen", "Sambia", "Samoa", "San Marino", "São Tomé und Príncipe", "Saudi-Arabien", "Schweden", "Senegal", "Serbien", "Seychellen", "Sierra Leone", "Simbabwe", "Singapur", "Slowakei", "Slowenien", "Somalia", "Spanien", "Sri Lanka", "St. Kitts und Nevis", "St. Lucia", "St. Vincent und die Grenadinen", "Südafrika", "Sudan", "Südkorea", "Südsudan", "Suriname", "Syrien", "Tadschikistan", "Tansania", "Thailand", "Togo", "Tonga", "Trinidad und Tobago", "Tschad", "Tschechien", "Tunesien", "Türkei", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "Ungarn", "Uruguay", "Usbekistan", "Vanuatu", "Vatikanstadt", "Venezuela", "Vereinigte Arabische Emirate", "Vereinigte Staaten", "Vereinigtes Königreich", "Vietnam", "Zentralafrikanische Republik", "Zypern"
+];
+
+/* === CUSTOM DROPDOWN COMPONENT === */
+function CountryDropdown({ value, onChange, error }: { value: string; onChange: (v: string) => void; error?: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <div 
+        className={`w-full px-4 py-3 bg-white border rounded-xl text-left text-slate-900 font-inter cursor-pointer transition-all ${error ? "border-red-500" : "border-slate-200"}`}
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex justify-between items-center">
+          <span className={value ? "" : "text-slate-400"}>{value || "Wählen"}</span>
+          <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </div>
+      {isOpen && (
+        <ul className="absolute top-full left-0 w-full mt-2 bg-white/90 backdrop-blur-xl border border-slate-100 rounded-xl shadow-[0_20px_40px_-15px_rgba(15,23,42,0.1)] max-h-60 overflow-y-auto overflow-x-hidden z-50">
+          {COUNTRIES.map((country, index) => (
+            country === "---" ? (
+              <div key={index} className="h-px bg-slate-100 my-1 mx-2" />
+            ) : (
+              <li 
+                key={index}
+                className="px-4 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors"
+                onClick={() => { onChange(country); setIsOpen(false); }}
+              >
+                {country}
+              </li>
+            )
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 const PACKS = [
   { key:"start", name:"FIAON Starter\n(Das Fundament)", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["KI-Profilanalyse (Basis-Scan)","Kartenkompass: Markt-Matching","Credit-Building Grundmodul","Digitales Strategie-Dashboard"], pay:"https://buy.stripe.com/7sY5kDbfRdT06fagh9bMQ01" },
@@ -907,7 +966,7 @@ export default function AntragPage() {
                     <Field label="PLZ" req error={errors.zip}><Inp value={d.zip} onChange={(v: string) => up("zip", v)} placeholder={d.country === "AT" || d.country === "CH" ? "1010" : "10115"} /></Field>
                     <Field label="Ort" req error={errors.city}><Inp value={d.city} onChange={(v: string) => up("city", v)} placeholder="Berlin" /></Field>
                   </div>
-                  <Field label="Staatsangehörigkeit" req error={errors.nationality}><Sel value={d.nationality} onChange={(v: string) => up("nationality", v)}><option value="">Wählen</option><option>Deutsch</option><option>Österreichisch</option><option>Schweizerisch</option><option>Andere EU</option><option>Nicht-EU</option></Sel></Field>
+                  <Field label="Staatsangehörigkeit" req error={errors.nationality}><CountryDropdown value={d.nationality} onChange={(v: string) => up("nationality", v)} error={errors.nationality} /></Field>
                 </>}
 
                 {step === 2 && <>

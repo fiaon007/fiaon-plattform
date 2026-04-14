@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import { PaymentElement, ExpressCheckoutElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
 interface PremiumCheckoutFormProps {
   packageName: string;
@@ -39,10 +39,53 @@ export default function PremiumCheckoutForm({ packageName, price, clientSecret, 
     }
   };
 
+  const handleExpressCheckout = async (event: any) => {
+    if (!stripe || !elements) {
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    const { error: submitError } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: window.location.origin + '/dashboard',
+      },
+    });
+
+    if (submitError) {
+      setError(submitError.message || "Ein Fehler ist aufgetreten");
+      setIsLoading(false);
+    } else {
+      onSuccess();
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-3">Zahlungsmethode</p>
+            <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-3">Express Checkout</p>
+            <ExpressCheckoutElement
+              onConfirm={handleExpressCheckout}
+              options={{
+                buttonType: {
+                  applePay: 'buy',
+                  googlePay: 'buy',
+                },
+                buttonTheme: 'dark',
+              }}
+            />
+          </div>
+
+          <div className="flex items-center my-6">
+            <div className="flex-1 border-t border-slate-200"></div>
+            <span className="px-4 text-[10px] uppercase tracking-widest text-slate-400 font-semibold">Oder mit Karte zahlen</span>
+            <div className="flex-1 border-t border-slate-200"></div>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-3">Kreditkarte</p>
             <PaymentElement />
           </div>
 

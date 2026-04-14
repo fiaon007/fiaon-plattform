@@ -61,6 +61,180 @@ function CountryDropdown({ value, onChange, error }: { value: string; onChange: 
   );
 }
 
+/* === PREMIUM INPUT COMPONENT === */
+function PremiumInput({ label, value, onChange, placeholder, isValid, error, className = "" }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; isValid?: boolean; error?: string; className?: string }) {
+  return (
+    <div className={`relative ${className}`}>
+      <label className="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1.5">{label}</label>
+      <div className="relative">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={`w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-slate-900 font-medium text-base outline-none transition-all duration-300 ease-in-out focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 ${error ? "border-red-500" : ""}`}
+        />
+        {isValid && (
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-100 transition">
+            <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+        )}
+      </div>
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+    </div>
+  );
+}
+
+/* === PREMIUM PHONE INPUT COMPONENT === */
+function PremiumPhoneInput({ countryCode, phone, onCountryCodeChange, onPhoneChange, error }: { countryCode: string; phone: string; onCountryCodeChange: (v: string) => void; onPhoneChange: (v: string) => void; error?: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const PHONE_CODES = [
+    { code: "+49", country: "Deutschland" },
+    { code: "+43", country: "Österreich" },
+    { code: "+41", country: "Schweiz" },
+    { code: "+31", country: "Niederlande" },
+    { code: "+32", country: "Belgien" },
+    { code: "+33", country: "Frankreich" },
+    { code: "+34", country: "Spanien" },
+    { code: "+351", country: "Portugal" },
+    { code: "+39", country: "Italien" },
+    { code: "+44", country: "UK" },
+    { code: "+46", country: "Schweden" },
+    { code: "+47", country: "Norwegen" },
+    { code: "+45", country: "Dänemark" },
+    { code: "+358", country: "Finnland" },
+    { code: "+370", country: "Litauen" },
+    { code: "+371", country: "Lettland" },
+    { code: "+372", country: "Estland" },
+    { code: "+48", country: "Polen" },
+    { code: "+420", country: "Tschechien" },
+    { code: "+421", country: "Slowakei" },
+    { code: "+36", country: "Ungarn" },
+    { code: "+40", country: "Rumänien" },
+    { code: "+30", country: "Griechenland" },
+    { code: "+352", country: "Luxemburg" },
+    { code: "+353", country: "Irland" },
+    { code: "+386", country: "Slowenien" },
+    { code: "+385", country: "Kroatien" },
+    { code: "+387", country: "Bosnien" },
+    { code: "+381", country: "Serbien" },
+    { code: "+389", country: "Nordmazedonien" },
+    { code: "+359", country: "Bulgarien" },
+    { code: "+380", country: "Ukraine" },
+    { code: "+375", country: "Belarus" },
+    { code: "+374", country: "Armenien" },
+    { code: "+373", country: "Moldau" },
+    { code: "+995", country: "Georgien" },
+    { code: "+90", country: "Türkei" },
+    { code: "+357", country: "Zypern" },
+    { code: "+354", country: "Island" },
+    { code: "+358", country: "Finnland" },
+    { code: "+1", country: "USA/Kanada" },
+  ];
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <label className="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1.5">Telefon</label>
+      <div className={`flex bg-slate-50/50 border border-slate-200 rounded-xl overflow-hidden transition-all duration-300 ease-in-out focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-300 ${error ? "border-red-500" : ""}`}>
+        <div className="relative flex items-center px-4 py-3 border-r border-slate-200 bg-slate-50/50 cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
+          <span className="text-slate-900 font-medium text-base">{countryCode}</span>
+          <svg className="w-4 h-4 text-slate-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+          {isOpen && (
+            <ul className="absolute top-full left-0 w-full mt-2 bg-white/90 backdrop-blur-xl border border-slate-100 rounded-xl shadow-[0_20px_40px_-15px_rgba(15,23,42,0.1)] max-h-60 overflow-y-auto overflow-x-hidden z-50">
+              {PHONE_CODES.map((item, index) => (
+                <li 
+                  key={index}
+                  className="px-4 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors"
+                  onClick={() => { onCountryCodeChange(item.code); setIsOpen(false); }}
+                >
+                  {item.code} {item.country}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <input
+          type="tel"
+          value={phone}
+          onChange={(e) => onPhoneChange(e.target.value)}
+          placeholder="170 1234567"
+          className="flex-1 px-4 py-3 bg-transparent outline-none text-slate-900 font-medium text-base placeholder:text-slate-400"
+        />
+      </div>
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+    </div>
+  );
+}
+
+/* === PREMIUM DATE INPUT COMPONENT === */
+function PremiumDateInput({ label, value, onChange, error }: { label: string; value: string; onChange: (v: string) => void; error?: string }) {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let input = e.target.value.replace(/\D/g, '');
+    
+    if (input.length > 8) input = input.slice(0, 8);
+    
+    let formatted = '';
+    if (input.length > 0) {
+      formatted += input.slice(0, 2);
+      if (input.length >= 2) formatted += '.';
+      if (input.length >= 4) formatted += input.slice(2, 4);
+      if (input.length >= 4) formatted += '.';
+      if (input.length >= 6) formatted += input.slice(4, 8);
+    }
+    
+    onChange(formatted);
+  };
+
+  return (
+    <div className="relative">
+      <label className="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1.5">{label}</label>
+      <div className="relative">
+        <input
+          type="text"
+          value={value}
+          onChange={handleChange}
+          placeholder="TT.MM.JJJJ"
+          maxLength={10}
+          className={`w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-slate-900 font-medium text-base outline-none transition-all duration-300 ease-in-out focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 ${error ? "border-red-500" : ""}`}
+        />
+      </div>
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+    </div>
+  );
+}
+
+/* === PREMIUM BUTTON COMPONENT === */
+function PremiumButton({ children, onClick, disabled = false }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="relative w-full py-4 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl overflow-hidden group transition-all duration-300 ease-in-out hover:scale-[1.01] hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none"
+    >
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
+      <span className="relative uppercase tracking-wider font-bold text-sm text-white">
+        {children}
+      </span>
+    </button>
+  );
+}
+
 const PACKS = [
   { key:"start", name:"FIAON Starter\n(Das Fundament)", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["KI-Profilanalyse (Basis-Scan)","Kartenkompass: Markt-Matching","Credit-Building Grundmodul","Digitales Strategie-Dashboard"], pay:"https://buy.stripe.com/7sY5kDbfRdT06fagh9bMQ01" },
   { key:"pro", name:"FIAON Pro\n(Standard – EMPFOHLEN)", fee:59.99, lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:["Vollständiges Credit-Building System","KI-Matching mit Score-Prognose","Dynamischer Score-Simulator","Limit-Hebel-Strategie (12 Monate)","Priority Support-Zugang"], pay:"https://buy.stripe.com/cNieVdcjVeX4fPK4yrbMQ02" },
@@ -898,73 +1072,21 @@ export default function AntragPage() {
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Persönliche Daten</h2>
                   <p className="text-[14px] text-gray-400 mb-6">Verschlüsselt übertragen und validiert.</p>
                   <div className="grid grid-cols-2 gap-4">
-                    <Field label="Vorname" req error={errors.firstName}><Inp value={d.firstName} onChange={(v: string) => up("firstName", v)} placeholder="Max" /></Field>
-                    <Field label="Nachname" req error={errors.lastName}><Inp value={d.lastName} onChange={(v: string) => up("lastName", v)} placeholder="Mustermann" /></Field>
+                    <PremiumInput label="Vorname" value={d.firstName} onChange={(v: string) => up("firstName", v)} placeholder="Max" isValid={!!d.firstName} error={errors.firstName} />
+                    <PremiumInput label="Nachname" value={d.lastName} onChange={(v: string) => up("lastName", v)} placeholder="Mustermann" isValid={!!d.lastName} error={errors.lastName} />
                   </div>
-                  <Field label="Geburtsdatum" req error={errors.birth}>
-                    <div className="grid grid-cols-3 gap-2">
-                      <Sel value={d.birthDay} onChange={(v: string) => up("birthDay", v)}><option value="">Tag</option>{Array.from({length:31},(_,i)=><option key={i+1} value={String(i+1)}>{String(i+1).padStart(2,"0")}</option>)}</Sel>
-                      <Sel value={d.birthMonth} onChange={(v: string) => up("birthMonth", v)}><option value="">Monat</option>{["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"].map((m,i)=><option key={i} value={String(i+1)}>{m}</option>)}</Sel>
-                      <Inp type="number" value={d.birthYear} onChange={(v: string) => up("birthYear", v)} placeholder="1990" />
-                    </div>
-                  </Field>
-                  <Field label="Telefon" req error={errors.phone}>
-                    <div className="flex gap-2">
-                      <Sel value={d.phoneCountryCode} onChange={(v: string) => up("phoneCountryCode", v)} className="w-24">
-                        <option value="+49">+49</option>
-                        <option value="+43">+43</option>
-                        <option value="+41">+41</option>
-                        <option value="+31">+31</option>
-                        <option value="+32">+32</option>
-                        <option value="+33">+33</option>
-                        <option value="+34">+34</option>
-                        <option value="+351">+351</option>
-                        <option value="+352">+352</option>
-                        <option value="+353">+353</option>
-                        <option value="+354">+354</option>
-                        <option value="+355">+355</option>
-                        <option value="+356">+356</option>
-                        <option value="+357">+357</option>
-                        <option value="+358">+358</option>
-                        <option value="+359">+359</option>
-                        <option value="+36">+36</option>
-                        <option value="+370">+370</option>
-                        <option value="+371">+371</option>
-                        <option value="+372">+372</option>
-                        <option value="+373">+373</option>
-                        <option value="+374">+374</option>
-                        <option value="+375">+375</option>
-                        <option value="+376">+376</option>
-                        <option value="+377">+377</option>
-                        <option value="+378">+378</option>
-                        <option value="+380">+380</option>
-                        <option value="+381">+381</option>
-                        <option value="+382">+382</option>
-                        <option value="+383">+383</option>
-                        <option value="+385">+385</option>
-                        <option value="+386">+386</option>
-                        <option value="+387">+387</option>
-                        <option value="+389">+389</option>
-                        <option value="+39">+39</option>
-                        <option value="+40">+40</option>
-                        <option value="+420">+420</option>
-                        <option value="+421">+421</option>
-                        <option value="+423">+423</option>
-                        <option value="+44">+44</option>
-                        <option value="+45">+45</option>
-                        <option value="+46">+46</option>
-                        <option value="+47">+47</option>
-                        <option value="+48">+48</option>
-                        <option value="+49">+49</option>
-                      </Sel>
-                      <Inp type="tel" value={d.phone} onChange={(v: string) => up("phone", v)} placeholder="170 1234567" className="flex-1" />
-                    </div>
-                  </Field>
+                  <PremiumDateInput label="Geburtsdatum" value={`${d.birthDay}.${d.birthMonth}.${d.birthYear}`} onChange={(v: string) => {
+                    const parts = v.split('.');
+                    if (parts.length >= 1) up("birthDay", parts[0]);
+                    if (parts.length >= 2) up("birthMonth", parts[1]);
+                    if (parts.length >= 3) up("birthYear", parts[2]);
+                  }} error={errors.birth} />
+                  <PremiumPhoneInput countryCode={d.phoneCountryCode} phone={d.phone} onCountryCodeChange={(v: string) => up("phoneCountryCode", v)} onPhoneChange={(v: string) => up("phone", v)} error={errors.phone} />
                   <Field label="Land" req error={errors.country}><Sel value={d.country} onChange={(v: string) => up("country", v)}><option value="">Wählen</option><option value="DE">Deutschland</option><option value="AT">Österreich</option><option value="CH">Schweiz</option><option value="AL">Albanien</option><option value="AD">Andorra</option><option value="BY">Belarus</option><option value="BE">Belgien</option><option value="BA">Bosnien und Herzegowina</option><option value="BG">Bulgarien</option><option value="HR">Kroatien</option><option value="CY">Zypern</option><option value="CZ">Tschechien</option><option value="DK">Dänemark</option><option value="EE">Estland</option><option value="FI">Finnland</option><option value="FR">Frankreich</option><option value="GE">Georgien</option><option value="GR">Griechenland</option><option value="HU">Ungarn</option><option value="IS">Island</option><option value="IE">Irland</option><option value="IT">Italien</option><option value="XK">Kosovo</option><option value="LV">Lettland</option><option value="LI">Liechtenstein</option><option value="LT">Litauen</option><option value="LU">Luxemburg</option><option value="MT">Malta</option><option value="MD">Moldawien</option><option value="MC">Monaco</option><option value="ME">Montenegro</option><option value="NL">Niederlande</option><option value="MK">Nordmazedonien</option><option value="NO">Norwegen</option><option value="PL">Polen</option><option value="PT">Portugal</option><option value="RO">Rumänien</option><option value="RU">Russland</option><option value="SM">San Marino</option><option value="RS">Serbien</option><option value="SK">Slowakei</option><option value="SI">Slowenien</option><option value="ES">Spanien</option><option value="SE">Schweden</option><option value="CH">Schweiz</option><option value="TR">Türkei</option><option value="UA">Ukraine</option><option value="GB">Vereinigtes Königreich</option><option value="VA">Vatikanstadt</option></Sel></Field>
-                  <Field label="Straße & Hausnummer" req error={errors.street}><Inp value={d.street} onChange={(v: string) => up("street", v)} placeholder="Musterstraße 12" /></Field>
+                  <PremiumInput label="Straße & Hausnummer" value={d.street} onChange={(v: string) => up("street", v)} placeholder="Musterstraße 12" isValid={!!d.street} error={errors.street} />
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="PLZ" req error={errors.zip}><Inp value={d.zip} onChange={(v: string) => up("zip", v)} placeholder={d.country === "AT" || d.country === "CH" ? "1010" : "10115"} /></Field>
-                    <Field label="Ort" req error={errors.city}><Inp value={d.city} onChange={(v: string) => up("city", v)} placeholder="Berlin" /></Field>
+                    <PremiumInput label="PLZ" value={d.zip} onChange={(v: string) => up("zip", v)} placeholder={d.country === "AT" || d.country === "CH" ? "1010" : "10115"} isValid={!!d.zip} error={errors.zip} />
+                    <PremiumInput label="Ort" value={d.city} onChange={(v: string) => up("city", v)} placeholder="Berlin" isValid={!!d.city} error={errors.city} />
                   </div>
                   <Field label="Staatsangehörigkeit" req error={errors.nationality}><CountryDropdown value={d.nationality} onChange={(v: string) => up("nationality", v)} error={errors.nationality} /></Field>
                 </>}
@@ -1037,9 +1159,9 @@ export default function AntragPage() {
                 {/* Buttons */}
                 <div className="flex gap-3 mt-6 pt-4 border-t border-white/40">
                   <button onClick={() => goStep(step === 6 ? 5 : step - 1)} className="px-5 py-3 rounded-xl fiaon-glass-panel text-[13px] font-medium text-gray-600 hover:bg-white/80 transition-all">Zurück</button>
-                  <button onClick={next} className="flex-1 py-3 rounded-xl text-[14px] font-semibold text-white transition-all fiaon-btn-gradient">
-                    {step === 3 ? "Prüfen lassen" : step === 6 ? "Vertrag annehmen" : "Weiter"}
-                  </button>
+                  <PremiumButton onClick={next}>
+                    {step === 3 ? "Prüfen lassen" : step === 6 ? "Vertrag annehmen" : "Weiter zu Schritt " + (step + 1)}
+                  </PremiumButton>
                 </div>
               </div>
 

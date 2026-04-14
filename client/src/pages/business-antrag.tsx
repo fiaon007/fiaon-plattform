@@ -213,6 +213,21 @@ export default function BusinessAntragPage() {
   const up = useCallback((k: string, v: any) => setD(p => ({ ...p, [k]: v })), []);
   const cardName = d.companyName.trim().toUpperCase();
 
+  // Dynamic placeholders based on country
+  const getAddressPlaceholders = (countryCode: string) => {
+    switch (countryCode) {
+      case "DE":
+        return { street: "Musterstraße 12", zip: "10115", city: "Berlin" };
+      case "AT":
+        return { street: "Wienergasse 2", zip: "1010", city: "Wien" };
+      case "CH":
+        return { street: "Löwengasse 20", zip: "8001", city: "Zürich" };
+      default:
+        return { street: "Main Street 1", zip: "1000", city: "Capital City" };
+    }
+  };
+  const addressPlaceholders = getAddressPlaceholders(d.country);
+
   function goStep(n: number) { setStep(n); setErrors({}); track("step_change", { from: step, to: n }, ref); window.scrollTo({ top: 0, behavior: "smooth" }); }
 
   function next() {
@@ -467,11 +482,11 @@ export default function BusinessAntragPage() {
                       <Inp type="tel" value={d.contactPhone} onChange={(v: string) => up("contactPhone", v)} placeholder="170 1234567" className="flex-1" />
                     </div>
                   </Field>
-                  <Field label="Land" req error={errors.country}><Sel value={d.country} onChange={(v: string) => up("country", v)}><option value="">Wählen</option><option value="DE">Deutschland</option><option value="AT">Österreich</option><option value="CH">Schweiz</option><option value="AL">Albanien</option><option value="AD">Andorra</option><option value="BY">Belarus</option><option value="BE">Belgien</option><option value="BA">Bosnien und Herzegowina</option><option value="BG">Bulgarien</option><option value="HR">Kroatien</option><option value="CY">Zypern</option><option value="CZ">Tschechien</option><option value="DK">Dänemark</option><option value="EE">Estland</option><option value="FI">Finnland</option><option value="FR">Frankreich</option><option value="GE">Georgien</option><option value="GR">Griechenland</option><option value="HU">Ungarn</option><option value="IS">Island</option><option value="IE">Irland</option><option value="IT">Italien</option><option value="XK">Kosovo</option><option value="LV">Lettland</option><option value="LI">Liechtenstein</option><option value="LT">Litauen</option><option value="LU">Luxemburg</option><option value="MT">Malta</option><option value="MD">Moldawien</option><option value="MC">Monaco</option><option value="ME">Montenegro</option><option value="NL">Niederlande</option><option value="MK">Nordmazedonien</option><option value="NO">Norwegen</option><option value="PL">Polen</option><option value="PT">Portugal</option><option value="RO">Rumänien</option><option value="RU">Russland</option><option value="SM">San Marino</option><option value="RS">Serbien</option><option value="SK">Slowakei</option><option value="SI">Slowenien</option><option value="ES">Spanien</option><option value="SE">Schweden</option><option value="CH">Schweiz</option><option value="TR">Türkei</option><option value="UA">Ukraine</option><option value="GB">Vereinigtes Königreich</option><option value="VA">Vatikanstadt</option></Sel></Field>
-                  <Field label="Straße & Hausnummer" req error={errors.street}><Inp value={d.street} onChange={(v: string) => up("street", v)} placeholder="Musterstraße 12" /></Field>
+                  <Field label="Wohnsitzland" req error={errors.country}><Sel value={d.country} onChange={(v: string) => up("country", v)}><option value="">Wählen</option><option value="DE">Deutschland</option><option value="AT">Österreich</option><option value="CH">Schweiz</option><option value="AL">Albanien</option><option value="AD">Andorra</option><option value="BY">Belarus</option><option value="BE">Belgien</option><option value="BA">Bosnien und Herzegowina</option><option value="BG">Bulgarien</option><option value="HR">Kroatien</option><option value="CY">Zypern</option><option value="CZ">Tschechien</option><option value="DK">Dänemark</option><option value="EE">Estland</option><option value="FI">Finnland</option><option value="FR">Frankreich</option><option value="GE">Georgien</option><option value="GR">Griechenland</option><option value="HU">Ungarn</option><option value="IS">Island</option><option value="IE">Irland</option><option value="IT">Italien</option><option value="XK">Kosovo</option><option value="LV">Lettland</option><option value="LI">Liechtenstein</option><option value="LT">Litauen</option><option value="LU">Luxemburg</option><option value="MT">Malta</option><option value="MD">Moldawien</option><option value="MC">Monaco</option><option value="ME">Montenegro</option><option value="NL">Niederlande</option><option value="MK">Nordmazedonien</option><option value="NO">Norwegen</option><option value="PL">Polen</option><option value="PT">Portugal</option><option value="RO">Rumänien</option><option value="RU">Russland</option><option value="SM">San Marino</option><option value="RS">Serbien</option><option value="SK">Slowakei</option><option value="SI">Slowenien</option><option value="ES">Spanien</option><option value="SE">Schweden</option><option value="CH">Schweiz</option><option value="TR">Türkei</option><option value="UA">Ukraine</option><option value="GB">Vereinigtes Königreich</option><option value="VA">Vatikanstadt</option></Sel></Field>
+                  <Field label="Straße & Hausnummer" req error={errors.street}><Inp value={d.street} onChange={(v: string) => up("street", v)} placeholder={addressPlaceholders.street} /></Field>
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="PLZ" req error={errors.zip}><Inp value={d.zip} onChange={(v: string) => up("zip", v)} placeholder={d.country === "AT" || d.country === "CH" ? "1010" : "10115"} /></Field>
-                    <Field label="Ort" req error={errors.city}><Inp value={d.city} onChange={(v: string) => up("city", v)} placeholder="Berlin" /></Field>
+                    <Field label="PLZ" req error={errors.zip}><Inp value={d.zip} onChange={(v: string) => up("zip", v)} placeholder={addressPlaceholders.zip} /></Field>
+                    <Field label="Ort" req error={errors.city}><Inp value={d.city} onChange={(v: string) => up("city", v)} placeholder={addressPlaceholders.city} /></Field>
                   </div>
                   <Field label="Unternehmensart" req error={errors.businessType}><Sel value={d.businessType} onChange={(v: string) => up("businessType", v)}><option value="">Wählen</option><option>KMU</option><option>Startup</option><option>Mittelstand</option><option>Unternehmensgruppe</option><option>Einzelfirma</option></Sel></Field>
                 </>}

@@ -572,16 +572,16 @@ export default function AntragPage() {
         {/* === DARK MODE SCORE SECTION === */}
         {step === 0 && (
           <div className="mt-20 animate-[fadeInUp_.6s_ease]">
-            <div className="relative py-24 sm:py-32 px-6 -mx-5 overflow-hidden" style={{ background: "#0A0F1C" }}>
-              {/* Mesh Gradient Background */}
+            <div className="relative py-24 sm:py-32 px-6 -mx-5 overflow-hidden" style={{ background: "transparent" }}>
+              {/* Mesh Gradient Background - Light */}
               <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute top-0 left-0 w-[1000px] h-[600px] opacity-30" style={{
-                  background: "radial-gradient(ellipse at center, rgba(139, 92, 246, 0.15), rgba(147, 197, 253, 0.1), transparent 70%)",
+                <div className="absolute top-0 left-0 w-[1000px] h-[600px] opacity-20" style={{
+                  background: "radial-gradient(ellipse at center, rgba(59, 130, 246, 0.08), rgba(147, 197, 253, 0.05), transparent 70%)",
                   filter: "blur(80px)",
                   animation: "meshGradient 15s ease-in-out infinite"
                 }} />
-                <div className="absolute bottom-0 right-0 w-[800px] h-[500px] opacity-25" style={{
-                  background: "radial-gradient(ellipse at center, rgba(147, 197, 253, 0.12), rgba(139, 92, 246, 0.08), transparent 70%)",
+                <div className="absolute bottom-0 right-0 w-[800px] h-[500px] opacity-15" style={{
+                  background: "radial-gradient(ellipse at center, rgba(147, 197, 253, 0.06), rgba(59, 130, 246, 0.04), transparent 70%)",
                   filter: "blur(60px)",
                   animation: "meshGradient 20s ease-in-out infinite reverse"
                 }} />
@@ -591,7 +591,7 @@ export default function AntragPage() {
               <div className="relative z-10 max-w-4xl mx-auto text-center">
                 {/* Section Badge */}
                 <div className="mb-8">
-                  <span className="inline-block px-5 py-2.5 bg-white/10 backdrop-blur-xl border border-violet-400/30 text-violet-300 text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-violet-500/20">
+                  <span className="inline-block px-5 py-2.5 bg-blue-50 backdrop-blur-xl border border-blue-200 text-blue-700 text-[13px] font-semibold tracking-widest uppercase rounded-full shadow-lg shadow-blue-200/50">
                     PRIVATKUNDEN SETUP
                   </span>
                 </div>
@@ -603,7 +603,7 @@ export default function AntragPage() {
                 </h2>
 
                 {/* Subline */}
-                <p className="text-lg text-gray-400 mb-16 max-w-2xl mx-auto leading-relaxed">
+                <p className="text-lg text-gray-600 mb-16 max-w-2xl mx-auto leading-relaxed">
                   Die Bank bewertet dich nach einem starren Algorithmus. Es ist Zeit, deinen eigenen zu nutzen. Wähle dein strategisches Setup und erhalte Zugang zur führenden Limit-Building-Software Europas.
                 </p>
 

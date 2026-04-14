@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements } from "@stripe/react-stripe-js";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
+import PremiumCheckoutForm from "@/components/PremiumCheckoutForm";
 
 /* === CUSTOM ANIMATIONS === */
 const styleElement = document.createElement("style");
@@ -352,6 +355,7 @@ export default function AntragPage() {
   const [verifyDone, setVerifyDone] = useState(false);
   const [checkProgress, setCheckProgress] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
 
   useEffect(() => { if (!sessionStorage.getItem("fiaon_sid")) sessionStorage.setItem("fiaon_sid", Math.random().toString(36).slice(2)); window.scrollTo(0, 0); }, []);
 
@@ -361,6 +365,32 @@ export default function AntragPage() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [step]);
+
+  // Fetch client secret when reaching payment step
+  useEffect(() => {
+    if (step === 8 && pack && !clientSecret) {
+      const fetchClientSecret = async () => {
+        try {
+          const response = await fetch("/api/fiaon/create-payment-intent", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              amount: pack.fee,
+              packageName: pack.name,
+              ref,
+            }),
+          });
+          const data = await response.json();
+          if (data.clientSecret) {
+            setClientSecret(data.clientSecret);
+          }
+        } catch (error) {
+          console.error("[FIAON] Failed to fetch client secret:", error);
+        }
+      };
+      fetchClientSecret();
+    }
+  }, [step, pack, clientSecret, ref]);
 
   // Synchronized progress for verification screen
   useEffect(() => {
@@ -1524,18 +1554,15 @@ export default function AntragPage() {
                 <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Aktivierung abschließen</p>
                 <p className="text-[14px] text-gray-600 mb-5">Schließe die Zahlung für dein {pack?.name} Paket ab.</p>
                 
-                {/* Premium Payment Button with Animated Gradient Border */}
-                <div className="relative">
-                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-blue-500 animate-gradient" style={{ backgroundSize: "200% 200%" }} />
-                  <div className="absolute inset-[2px] rounded-xl bg-white" />
-                  <button 
-                    onClick={() => { if (pack?.pay) window.open(pack.pay, "_blank"); track("payment_click", { pack: pack?.key }, ref); }} 
-                    className="relative w-full py-4 rounded-xl text-[15px] font-semibold text-[#2563eb] hover:text-blue-700 transition-all duration-300 flex items-center justify-center gap-2"
-                  >
-                    <span>Jetzt bezahlen & Karte aktivieren</span>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                {clientSecret && pack ? (
+                  <Elements stripe={loadStripe(process.env.VITE_STRIPE_PUBLIC_KEY)} options={{ clientSecret }}>
+                    <PremiumCheckoutForm packageName={pack.name} price={pack.fee} clientSecret={clientSecret} onSuccess={() => window.location.href = '/dashboard'} />
+                  </Elements>
+                ) : (
+                  <button onClick={() => { if (pack?.pay) window.open(pack.pay, "_blank"); }} className="w-full py-4 rounded-xl text-[15px] font-semibold text-[#2563eb]">
+                    Jetzt bezahlen & Karte aktivieren
                   </button>
-                </div>
+                )}
               </div>
             </div>
 

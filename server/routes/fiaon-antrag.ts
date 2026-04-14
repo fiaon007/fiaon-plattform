@@ -4,8 +4,47 @@ import { fiaonApplications, fiaonClickEvents } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import PDFDocument from "pdfkit";
 import postgres from "postgres";
+import Stripe from "stripe";
 
 const router = Router();
+
+// Initialize Stripe
+const stripe = process.env.STRIPE_SECRET_KEY 
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' as any })
+  : null;
+
+// Create payment intent for Stripe Elements checkout
+router.post("/create-payment-intent", async (req, res) => {
+  try {
+    const { amount, packageName, ref } = req.body;
+    
+    if (!stripe) {
+      return res.status(500).json({ error: "Stripe not configured" });
+    }
+
+    if (!amount || !packageName) {
+      return res.status(400).json({ error: "Missing required fields: amount, packageName" });
+    }
+
+    // Create payment intent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amount * 100), // Convert to cents
+      currency: 'eur',
+      metadata: {
+        packageName,
+        ref,
+      },
+      automatic_payment_methods: {
+        enabled: true,
+      },
+    });
+
+    res.json({ clientSecret: paymentIntent.client_secret });
+  } catch (err) {
+    console.error("[FIAON-PAYMENT-INTENT]", err);
+    res.status(500).json({ error: "Failed to create payment intent" });
+  }
+});
 
 // Track click events
 router.post("/track", async (req, res) => {

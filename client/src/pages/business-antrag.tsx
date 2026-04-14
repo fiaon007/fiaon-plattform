@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements } from "@stripe/react-stripe-js";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
+import PremiumCheckoutForm from "@/components/PremiumCheckoutForm";
 
 const COUNTRIES = [
   // DACH Region (Priorisiert)
@@ -201,6 +204,7 @@ export default function BusinessAntragPage() {
   const [ref] = useState(mkRef);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pack, setPack] = useState<typeof BUSINESS_PACKS[0] | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
 
   const [d, setD] = useState({ 
     companyName: "", legalForm: "", taxId: "", establishedYear: "2010", contactName: "", contactEmail: "", contactPhoneCountryCode: "+49", contactPhone: "", street: "", zip: "", city: "", country: "", businessType: "", industry: "", annualRevenue: 0, employees: 0, monthlyExpenses: 0, wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", billingEmail: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false 
@@ -216,6 +220,32 @@ export default function BusinessAntragPage() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [step]);
+
+  // Fetch client secret when reaching payment step
+  useEffect(() => {
+    if (step === 6 && pack && !clientSecret) {
+      const fetchClientSecret = async () => {
+        try {
+          const response = await fetch("/api/fiaon/create-payment-intent", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              amount: pack.fee,
+              packageName: pack.name,
+              ref,
+            }),
+          });
+          const data = await response.json();
+          if (data.clientSecret) {
+            setClientSecret(data.clientSecret);
+          }
+        } catch (error) {
+          console.error("[FIAON] Failed to fetch client secret:", error);
+        }
+      };
+      fetchClientSecret();
+    }
+  }, [step, pack, clientSecret, ref]);
 
   const up = useCallback((k: string, v: any) => setD(p => ({ ...p, [k]: v })), []);
   const cardName = d.companyName.trim().toUpperCase();
@@ -868,12 +898,16 @@ export default function BusinessAntragPage() {
               <div className="relative z-10 fiaon-glass-panel p-6 rounded-2xl">
                 <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Aktivierung abschließen</p>
                 <p className="text-[14px] text-gray-600 mb-5">Schließe die Zahlung für dein {pack?.name} Paket ab.</p>
-                <button 
-                  onClick={() => { if (pack?.pay) window.open(pack.pay, "_blank"); track("payment_click", { pack: pack?.key }, ref); }} 
-                  className="w-full py-4 rounded-xl text-[15px] font-semibold text-white fiaon-btn-gradient shadow-2xl hover:shadow-3xl hover:scale-[1.02] transition-all duration-300"
-                >
-                  Jetzt bezahlen & Karte aktivieren
-                </button>
+                
+                {clientSecret && pack ? (
+                  <Elements stripe={loadStripe(process.env.VITE_STRIPE_PUBLIC_KEY)} options={{ clientSecret }}>
+                    <PremiumCheckoutForm packageName={pack.name} price={pack.fee} clientSecret={clientSecret} onSuccess={() => window.location.href = '/dashboard'} />
+                  </Elements>
+                ) : (
+                  <button onClick={() => { if (pack?.pay) window.open(pack.pay, "_blank"); }} className="w-full py-4 rounded-xl text-[15px] font-semibold text-white fiaon-btn-gradient">
+                    Jetzt bezahlen & Karte aktivieren
+                  </button>
+                )}
               </div>
             </div>
             <p className="text-[11px] text-gray-400 font-mono mt-6">Referenz: {ref}</p>

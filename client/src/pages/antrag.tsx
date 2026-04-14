@@ -1507,20 +1507,7 @@ export default function AntragPage() {
 
             <div className="max-w-[320px] mx-auto mb-8">{sideCard}</div>
 
-            <div className="rounded-2xl fiaon-glass-panel p-4 max-w-sm mx-auto mb-5">
-              <p className="text-xs font-semibold text-gray-600 mb-1">Ihr Vertrag</p>
-              <div className="flex items-center gap-3">
-                <p className="text-[11px] text-gray-400">Personalisiertes PDF herunterladen</p>
-                <button 
-                  onClick={() => { window.open(`/api/fiaon/contract/${ref}`, '_blank'); track("contract_download", { ref }, ref); }} 
-                  className="px-4 py-2 rounded-lg text-[12px] font-semibold text-[#2563eb] border border-[#2563eb]/20 hover:border-[#2563eb]/40 hover:bg-[#2563eb]/5 transition-all"
-                >
-                  Vertrag herunterladen
-                </button>
-              </div>
-            </div>
-
-            <div className="relative rounded-2xl overflow-hidden max-w-sm mx-auto">
+            <div className="relative rounded-2xl overflow-hidden max-w-sm mx-auto mb-8">
               {/* Animated gradient background */}
               <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
                 <div className="absolute inset-0 opacity-30" style={{
@@ -1536,15 +1523,34 @@ export default function AntragPage() {
               <div className="relative z-10 fiaon-glass-panel p-6 rounded-2xl">
                 <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Aktivierung abschließen</p>
                 <p className="text-[14px] text-gray-600 mb-5">Schließe die Zahlung für dein {pack?.name} Paket ab.</p>
-                <button 
-                  onClick={() => { if (pack?.pay) window.open(pack.pay, "_blank"); track("payment_click", { pack: pack?.key }, ref); }} 
-                  className="w-full py-4 rounded-xl text-[15px] font-semibold text-white fiaon-btn-gradient shadow-2xl hover:shadow-3xl hover:scale-[1.02] transition-all duration-300"
-                >
-                  Jetzt bezahlen & Karte aktivieren
-                </button>
+                
+                {/* Premium Payment Button with Animated Gradient Border */}
+                <div className="relative">
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-blue-500 animate-gradient" style={{ backgroundSize: "200% 200%" }} />
+                  <div className="absolute inset-[2px] rounded-xl bg-white" />
+                  <button 
+                    onClick={() => { if (pack?.pay) window.open(pack.pay, "_blank"); track("payment_click", { pack: pack?.key }, ref); }} 
+                    className="relative w-full py-4 rounded-xl text-[15px] font-semibold text-[#2563eb] hover:text-blue-700 transition-all duration-300 flex items-center justify-center gap-2"
+                  >
+                    <span>Jetzt bezahlen & Karte aktivieren</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                  </button>
+                </div>
               </div>
             </div>
-            <p className="text-[11px] text-gray-400 font-mono mt-6">Referenz: {ref}</p>
+
+            {/* Subtle Contract Download Link */}
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <button 
+                onClick={() => { window.open(`/api/fiaon/contract/${ref}`, '_blank'); track("contract_download", { ref }, ref); }} 
+                className="text-[12px] text-gray-400 hover:text-[#2563eb] transition-colors underline decoration-gray-300 hover:decoration-[#2563eb]"
+              >
+                Vertrag herunterladen
+              </button>
+            </div>
+            
+            <p className="text-[11px] text-gray-400 font-mono">Referenz: {ref}</p>
           </div>
         )}
       </div>

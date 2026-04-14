@@ -347,7 +347,7 @@ export default function AntragPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pack, setPack] = useState<typeof PACKS[0] | null>(null);
 
-  const [d, setD] = useState({ firstName: "", lastName: "", birthDay: "", birthMonth: "", birthYear: "1990", phoneCountryCode: "+49", phone: "", street: "", zip: "", city: "", country: "", nationality: "", employment: "", employer: "", employedSince: "", income: 0, rent: 0, debts: 0, housing: "", wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", email: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false });
+  const [d, setD] = useState({ firstName: "", lastName: "", birthDay: "", birthMonth: "", birthYear: "1990", phoneCountryCode: "+49", phone: "", street: "", zip: "", city: "", country: "", nationality: "", employment: "", employer: "", employedSince: "", income: 0, rent: 0, debts: 0, housing: "", wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", email: "", salaryReceiptDay: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false });
   const [approved, setApproved] = useState(0);
   const [verifyDone, setVerifyDone] = useState(false);
   const [checkProgress, setCheckProgress] = useState(0);
@@ -448,6 +448,7 @@ export default function AntragPage() {
       if (!d.purpose) e.purpose = "Bitte wählen";
     } else if (step === 6) {
       if (!d.email || !d.email.includes("@")) e.email = "Gültige E-Mail eingeben";
+      if (!d.salaryReceiptDay) e.salaryReceiptDay = "Bitte wählen";
       if (d.billingMethod === "iban" && !d.iban) e.iban = "IBAN eingeben";
       if (!d.ag1 || !d.ag2 || !d.ag3) e.consent = "Bitte allen Bedingungen zustimmen";
     }
@@ -1227,13 +1228,8 @@ export default function AntragPage() {
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Vertrag annehmen</h2>
                   <p className="text-[14px] text-gray-400 mb-6">Bestätige deine Daten und nimm den Vertrag an.</p>
                   
-                  <div className="mb-6 p-5 rounded-xl fiaon-glass-panel">
-                    <p className="text-sm font-semibold text-gray-900 mb-1">Ihr Kreditkartenvertrag</p>
-                    <p className="text-xs text-gray-500 mb-2">Nach Annahme können Sie Ihren personalisierten Vertrag als PDF herunterladen.</p>
-                    <p className="text-xs font-medium text-[#2563eb]">Automatisch personalisiert mit Ihren Daten</p>
-                  </div>
-                  
                   <Field label="E-Mail-Adresse" req error={errors.email} hint="Vertragsunterlagen werden hierhin gesendet."><Inp type="email" value={d.email} onChange={(v: string) => up("email", v)} placeholder="max@beispiel.de" /></Field>
+                  <Field label="Gehaltseingang (Monat)" req error={errors.salaryReceiptDay} hint="Wann erhalten Sie Ihr Gehalt/Einkommen?"><Sel value={d.salaryReceiptDay} onChange={(v: string) => up("salaryReceiptDay", v)}><option value="">Wählen</option><option>1. Tag im Monat</option><option>15. Tag im Monat</option><option>Letzter Tag im Monat</option><option>Andrer Tag</option></Sel></Field>
                   <div className="flex gap-0 rounded-xl overflow-hidden mb-5 fiaon-glass-panel">
                     {[["iban","SEPA-Lastschrift"],["paper","Papierrechnung"]].map(([k,l]) => (
                       <button key={k} onClick={() => up("billingMethod", k)} className={`flex-1 py-3 text-center text-[13px] font-semibold transition-all ${d.billingMethod === k ? "bg-white/80 text-[#2563eb]" : "text-gray-400"}`}>{l}</button>

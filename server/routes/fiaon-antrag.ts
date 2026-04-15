@@ -93,6 +93,8 @@ router.post("/application", async (req, res) => {
       `;
       
       const columnNames = columns.map(c => c.column_name);
+      console.log("[FIAON-APP] Existing columns:", columnNames);
+      
       const needsMigration = !columnNames.includes('phone_country_code') || 
                              !columnNames.includes('salary_receipt_day') || 
                              !columnNames.includes('password');

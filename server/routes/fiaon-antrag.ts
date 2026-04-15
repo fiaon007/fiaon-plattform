@@ -242,8 +242,10 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ ok: false, error: "Email und Passwort erforderlich" });
     }
     
-    // Find application by email
-    const apps = await db.select().from(fiaonApplications).where(eq(fiaonApplications.email, email)).limit(1);
+    // Find application by email using direct SQL to bypass Drizzle ORM issue
+    const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
+    const apps = await sql`SELECT * FROM fiaon_applications WHERE email = ${email} LIMIT 1`;
+    await sql.end();
     
     console.log("[FIAON-LOGIN] Found apps:", apps.length);
     
@@ -269,11 +271,11 @@ router.post("/login", async (req, res) => {
     res.json({ 
       ok: true, 
       ref: app.ref,
-      firstName: app.firstName,
-      lastName: app.lastName,
+      firstName: app.first_name,
+      lastName: app.last_name,
       email: app.email,
-      packName: app.packName,
-      approvedLimit: app.approvedLimit,
+      packName: app.pack_name,
+      approvedLimit: app.approved_limit,
     });
   } catch (err) {
     console.error("[FIAON-LOGIN]", err);

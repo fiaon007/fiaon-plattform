@@ -64,6 +64,8 @@ router.post("/track", async (req, res) => {
 // Save/update application
 router.post("/application", async (req, res) => {
   try {
+    console.log("[FIAON-APP] Received application save request. Body keys:", Object.keys(req.body), "password in body:", 'password' in req.body, "password value:", req.body.password);
+    
     const { 
       ref, type, status, currentStep, packKey, packName, 
       // Private customer fields
@@ -173,6 +175,8 @@ router.post("/application", async (req, res) => {
       ip, userAgent: req.headers["user-agent"] || "",
       updatedAt: new Date(),
     };
+
+    console.log("[FIAON-APP] Saving application with ref:", ref, "status:", status, "password length:", password?.length, "email:", email);
 
     if (existing.length > 0) {
       await db.update(fiaonApplications).set(values).where(eq(fiaonApplications.ref, ref));

@@ -181,27 +181,74 @@ router.post("/application", async (req, res) => {
     console.log("[FIAON-APP] Saving application with ref:", ref, "status:", status, "password length:", password?.length, "email:", email);
 
     if (existing.length > 0) {
-      console.log("[FIAON-APP] Updating existing application, values keys:", Object.keys(values), "password in values:", 'password' in values, "password value:", values.password);
+      console.log("[FIAON-APP] Updating existing application via direct SQL only to prevent password overwrite");
       
-      // Direct SQL update for password FIRST to ensure it's saved
-      if (password) {
-        try {
-          const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
-          const result = await sql`UPDATE fiaon_applications SET password = ${password}, status = ${status}, email = ${email} WHERE ref = ${ref}`;
-          console.log("[FIAON-APP] Password updated via direct SQL FIRST, result:", result);
-          
-          // Verify password was actually saved
-          const verify = await sql`SELECT password, email, status FROM fiaon_applications WHERE ref = ${ref}`;
-          console.log("[FIAON-APP] Password verification query result:", verify);
-          
-          await sql.end();
-        } catch (sqlErr) {
-          console.error("[FIAON-APP] Direct SQL password update failed:", sqlErr);
-        }
-      }
+      // Use direct SQL for ALL fields to prevent Drizzle from overwriting password
+      const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
+      await sql`
+        UPDATE fiaon_applications 
+        SET 
+          type = ${values.type},
+          status = ${values.status},
+          current_step = ${values.currentStep},
+          pack_key = ${values.packKey},
+          pack_name = ${values.packName},
+          first_name = ${values.firstName},
+          last_name = ${values.lastName},
+          birthdate = ${values.birthdate},
+          phone = ${values.phone},
+          phone_country_code = ${values.phoneCountryCode},
+          street = ${values.street},
+          zip = ${values.zip},
+          city = ${values.city},
+          country = ${values.country},
+          nationality = ${values.nationality},
+          employment = ${values.employment},
+          employer = ${values.employer},
+          employed_since = ${values.employedSince},
+          income = ${values.income},
+          rent = ${values.rent},
+          debts = ${values.debts},
+          housing = ${values.housing},
+          password = ${password},
+          company_name = ${values.companyName},
+          legal_form = ${values.legalForm},
+          tax_id = ${values.taxId},
+          established_year = ${values.establishedYear},
+          contact_name = ${values.contactName},
+          contact_email = ${values.contactEmail},
+          contact_phone = ${values.contactPhone},
+          business_type = ${values.businessType},
+          industry = ${values.industry},
+          annual_revenue = ${values.annualRevenue},
+          employees = ${values.employees},
+          monthly_expenses = ${values.monthlyExpenses},
+          billing_email = ${values.billingEmail},
+          wanted_limit = ${values.wantedLimit},
+          purpose = ${values.purpose},
+          billing = ${values.billing},
+          addon = ${values.addon},
+          nfc = ${values.nfc},
+          approved_limit = ${values.approvedLimit},
+          email = ${values.email},
+          iban = ${values.iban},
+          billing_method = ${values.billingMethod},
+          salary_receipt_day = ${values.salaryReceiptDay},
+          consent_agb = ${values.consentAgb},
+          consent_schufa = ${values.consentSchufa},
+          consent_contract = ${values.consentContract},
+          ip = ${values.ip},
+          user_agent = ${values.userAgent},
+          updated_at = ${values.updatedAt}
+        WHERE ref = ${ref}
+      `;
+      console.log("[FIAON-APP] Direct SQL update completed");
       
-      await db.update(fiaonApplications).set(values).where(eq(fiaonApplications.ref, ref));
-      console.log("[FIAON-APP] Drizzle update completed");
+      // Verify password was actually saved
+      const verify = await sql`SELECT password, email, status FROM fiaon_applications WHERE ref = ${ref}`;
+      console.log("[FIAON-APP] Password verification query result:", verify);
+      
+      await sql.end();
     } else {
       console.log("[FIAON-APP] Inserting new application");
       await db.insert(fiaonApplications).values(values);
@@ -209,19 +256,14 @@ router.post("/application", async (req, res) => {
       
       // Direct SQL update for password to ensure it's saved
       if (password) {
-        try {
-          const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
-          const result = await sql`UPDATE fiaon_applications SET password = ${password}, status = ${status}, email = ${email} WHERE ref = ${ref}`;
-          console.log("[FIAON-APP] Password updated via direct SQL, result:", result);
-          
-          // Verify password was actually saved
-          const verify = await sql`SELECT password, email, status FROM fiaon_applications WHERE ref = ${ref}`;
-          console.log("[FIAON-APP] Password verification query result:", verify);
-          
-          await sql.end();
-        } catch (sqlErr) {
-          console.error("[FIAON-APP] Direct SQL password update failed:", sqlErr);
-        }
+        const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
+        await sql`UPDATE fiaon_applications SET password = ${password}, status = ${status}, email = ${email} WHERE ref = ${ref}`;
+        console.log("[FIAON-APP] Password updated via direct SQL after insert");
+        
+        const verify = await sql`SELECT password, email, status FROM fiaon_applications WHERE ref = ${ref}`;
+        console.log("[FIAON-APP] Password verification query result:", verify);
+        
+        await sql.end();
       }
     }
 

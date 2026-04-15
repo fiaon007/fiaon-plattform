@@ -1245,6 +1245,7 @@ export const fiaonApplications = pgTable("fiaon_applications", {
   lastName: varchar("last_name"),
   birthdate: varchar("birthdate"),
   phone: varchar("phone"),
+  phoneCountryCode: varchar("phone_country_code"),
   street: varchar("street"),
   zip: varchar("zip"),
   city: varchar("city"),
@@ -1288,6 +1289,7 @@ export const fiaonApplications = pgTable("fiaon_applications", {
   email: varchar("email"),
   iban: varchar("iban"),
   billingMethod: varchar("billing_method"),
+  salaryReceiptDay: varchar("salary_receipt_day"),
 
   consentAgb: boolean("consent_agb").default(false),
   consentSchufa: boolean("consent_schufa").default(false),

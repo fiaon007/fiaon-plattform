@@ -67,13 +67,13 @@ router.post("/application", async (req, res) => {
     const { 
       ref, type, status, currentStep, packKey, packName, 
       // Private customer fields
-      firstName, lastName, birthDay, birthMonth, birthYear, phone, street, zip, city, country, nationality, employment, employer, employedSince, income, rent, debts, housing,
+      firstName, lastName, birthDay, birthMonth, birthYear, phone, phoneCountryCode, street, zip, city, country, nationality, employment, employer, employedSince, income, rent, debts, housing,
       // Password for login
       password,
       // Business customer fields
       companyName, legalForm, taxId, establishedYear, contactName, contactEmail, contactPhone, businessType, industry, annualRevenue, employees, monthlyExpenses, billingEmail,
       // Common fields
-      wantedLimit, purpose, billing, addon, nfc, approvedLimit, email, iban, billingMethod, ag1, ag2, ag3 
+      wantedLimit, purpose, billing, addon, nfc, approvedLimit, email, iban, billingMethod, salaryReceiptDay, ag1, ag2, ag3 
     } = req.body;
     
     const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
@@ -128,7 +128,7 @@ router.post("/application", async (req, res) => {
       ref, type: type || "private", status: status || "started", currentStep: currentStep || 0,
       packKey, packName,
       // Private customer fields
-      firstName, lastName, birthdate, phone, street, zip, city, country, nationality,
+      firstName, lastName, birthdate, phone, phoneCountryCode, street, zip, city, country, nationality,
       employment, employer, employedSince, income: income || null, rent: rent || null, debts: debts || null, housing,
       // Password for login
       password,
@@ -136,7 +136,7 @@ router.post("/application", async (req, res) => {
       companyName, legalForm, taxId, establishedYear, contactName, contactEmail, contactPhone, businessType, industry, annualRevenue: annualRevenue || null, employees: employees || null, monthlyExpenses: monthlyExpenses || null, billingEmail,
       // Common fields
       wantedLimit: wantedLimit || null, purpose, billing, addon, nfc,
-      approvedLimit: approvedLimit || null, email, iban, billingMethod,
+      approvedLimit: approvedLimit || null, email, iban, billingMethod, salaryReceiptDay,
       consentAgb: ag1 || false, consentSchufa: ag2 || false, consentContract: ag3 || false,
       ip, userAgent: req.headers["user-agent"] || "",
       updatedAt: new Date(),

@@ -68,6 +68,8 @@ router.post("/application", async (req, res) => {
       ref, type, status, currentStep, packKey, packName, 
       // Private customer fields
       firstName, lastName, birthDay, birthMonth, birthYear, phone, street, zip, city, country, nationality, employment, employer, employedSince, income, rent, debts, housing,
+      // Password for login
+      password,
       // Business customer fields
       companyName, legalForm, taxId, establishedYear, contactName, contactEmail, contactPhone, businessType, industry, annualRevenue, employees, monthlyExpenses, billingEmail,
       // Common fields
@@ -128,6 +130,8 @@ router.post("/application", async (req, res) => {
       // Private customer fields
       firstName, lastName, birthdate, phone, street, zip, city, country, nationality,
       employment, employer, employedSince, income: income || null, rent: rent || null, debts: debts || null, housing,
+      // Password for login
+      password,
       // Business customer fields
       companyName, legalForm, taxId, establishedYear, contactName, contactEmail, contactPhone, businessType, industry, annualRevenue: annualRevenue || null, employees: employees || null, monthlyExpenses: monthlyExpenses || null, billingEmail,
       // Common fields
@@ -148,6 +152,50 @@ router.post("/application", async (req, res) => {
   } catch (err) {
     console.error("[FIAON-APP]", err);
     res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+// Login endpoint for fiaon applications
+router.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ ok: false, error: "Email und Passwort erforderlich" });
+    }
+    
+    // Find application by email
+    const apps = await db.select().from(fiaonApplications).where(eq(fiaonApplications.email, email)).limit(1);
+    
+    if (apps.length === 0) {
+      return res.status(401).json({ ok: false, error: "Ungültige Anmeldedaten" });
+    }
+    
+    const app = apps[0];
+    
+    // Check password
+    if (app.password !== password) {
+      return res.status(401).json({ ok: false, error: "Ungültige Anmeldedaten" });
+    }
+    
+    // Check if application is completed
+    if (app.status !== "completed") {
+      return res.status(403).json({ ok: false, error: "Antrag noch nicht abgeschlossen" });
+    }
+    
+    // Return success with application data
+    res.json({ 
+      ok: true, 
+      ref: app.ref,
+      firstName: app.firstName,
+      lastName: app.lastName,
+      email: app.email,
+      packName: app.packName,
+      approvedLimit: app.approvedLimit,
+    });
+  } catch (err) {
+    console.error("[FIAON-LOGIN]", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
 

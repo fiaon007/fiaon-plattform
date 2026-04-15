@@ -226,6 +226,7 @@ function PremiumButton({ children, onClick, disabled = false }: { children: Reac
 }
 
 const PACKS = [
+  { key:"test", name:"FIAON Test\n(1 EUR Test)", fee:1.00, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["Testprodukt für Entwickler","KI-Profilanalyse (Basis-Scan)","Kartenkompass: Markt-Matching","Credit-Building Grundmodul"], pay:"https://buy.stripe.com/7sY5kDbfRdT06fagh9bMQ01" },
   { key:"start", name:"FIAON Starter\n(Das Fundament)", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["KI-Profilanalyse (Basis-Scan)","Kartenkompass: Markt-Matching","Credit-Building Grundmodul","Digitales Strategie-Dashboard"], pay:"https://buy.stripe.com/7sY5kDbfRdT06fagh9bMQ01" },
   { key:"pro", name:"FIAON Pro\n(Standard)", fee:59.99, lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:["Vollständiges Credit-Building System","KI-Matching mit Score-Prognose","Dynamischer Score-Simulator","Limit-Hebel-Strategie (12 Monate)","Priority Support-Zugang"], pay:"https://buy.stripe.com/cNieVdcjVeX4fPK4yrbMQ02" },
   { key:"ultra", name:"FIAON Ultra\n(Elite Konto)", fee:79.99, lim:15000, bg:"linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats:["Premium Coaching (Meilen & Cashback)","Multi-Karten-Portfolio-Struktur","Individueller Optimierungs-Algorithmus","Exklusive Strategie-Sessions"], pay:"https://buy.stripe.com/eVq4gz83F02a5b68OHbMQ03" },
@@ -360,6 +361,9 @@ export default function AntragPage() {
   const [checkProgress, setCheckProgress] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   useEffect(() => { if (!sessionStorage.getItem("fiaon_sid")) sessionStorage.setItem("fiaon_sid", Math.random().toString(36).slice(2)); window.scrollTo(0, 0); }, []);
 
@@ -574,8 +578,8 @@ export default function AntragPage() {
       ag2: true,
       ag3: true,
     });
-    setPack(PACKS[1]);
-    setApproved(5000);
+    setPack(PACKS[0]);
+    setApproved(500);
     setStep(8);
     console.log("🚀 Skipped to payment step");
   }
@@ -594,7 +598,7 @@ export default function AntragPage() {
 
       {/* ── Main Content ── */}
       <div className="max-w-6xl mx-auto px-5 pt-24 sm:pt-28 pb-8 sm:pb-12 relative z-10">
-        {step > 0 && <Progress step={step} total={9} />}
+        {step > 0 && <Progress step={step} total={10} />}
 
         {/* === STEP 0: Paketauswahl === */}
         {step === 0 && (
@@ -1703,7 +1707,7 @@ export default function AntragPage() {
                         }
                       }}
                     >
-                      <PremiumCheckoutForm packageName={pack.name} price={pack.fee} clientSecret={clientSecret} onSuccess={() => window.location.href = '/dashboard'} />
+                      <PremiumCheckoutForm packageName={pack.name} price={pack.fee} clientSecret={clientSecret} onSuccess={() => setStep(9)} />
                     </Elements>
                   )}
                   {!clientSecret && (
@@ -1730,6 +1734,108 @@ export default function AntragPage() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* === STEP 9: Password Selection === */}
+        {step === 9 && (
+          <div className="animate-[fadeInUp_.4s_ease] max-w-md mx-auto py-12 sm:py-20">
+            <div className="text-center mb-12">
+              <div className="w-20 h-20 mx-auto mb-6 rounded-full relative flex items-center justify-center">
+                <div className="absolute inset-[-2px] rounded-full animate-[spin_4s_linear_infinite]" style={{ background: "conic-gradient(#2563eb,#93c5fd,#2563eb)" }} />
+                <div className="w-[72px] h-[72px] rounded-full bg-white flex items-center justify-center relative z-10">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+                </div>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight fiaon-gradient-text-animated mb-3">Passwort wählen</h2>
+              <p className="text-[15px] text-gray-500 mb-2 max-w-md mx-auto">Wähle ein sicheres Passwort für dein FIAON Konto.</p>
+              <p className="text-[13px] text-gray-400">{d.firstName} {d.lastName} · {pack?.name} · Ref. {ref}</p>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm space-y-6">
+              <div>
+                <label className="flex justify-between text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                  Passwort
+                  <span className="text-[#2563eb]">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setPasswordError(null); }}
+                  placeholder="Mindestens 8 Zeichen"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/10 outline-none transition-all text-[15px]"
+                />
+              </div>
+
+              <div>
+                <label className="flex justify-between text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                  Passwort bestätigen
+                  <span className="text-[#2563eb]">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={passwordConfirm}
+                  onChange={(e) => { setPasswordConfirm(e.target.value); setPasswordError(null); }}
+                  placeholder="Passwort wiederholen"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/10 outline-none transition-all text-[15px]"
+                />
+              </div>
+
+              {passwordError && (
+                <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-red-600 text-sm font-medium">
+                  {passwordError}
+                </div>
+              )}
+
+              <button
+                onClick={async () => {
+                  if (password.length < 8) {
+                    setPasswordError("Passwort muss mindestens 8 Zeichen haben");
+                    return;
+                  }
+                  if (password !== passwordConfirm) {
+                    setPasswordError("Passwörter stimmen nicht überein");
+                    return;
+                  }
+                  
+                  // Save password to database
+                  try {
+                    await fetch("/api/fiaon/application", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        ref,
+                        type: "private",
+                        status: "completed",
+                        currentStep: 9,
+                        password,
+                        ...d,
+                        packKey: pack?.key,
+                        packName: pack?.name,
+                        approvedLimit: approved,
+                      }),
+                    });
+                    window.location.href = '/login';
+                  } catch (error) {
+                    setPasswordError("Fehler beim Speichern des Passworts");
+                  }
+                }}
+                className="w-full py-5 rounded-xl text-[15px] font-bold text-white relative overflow-hidden transition-all duration-300 flex items-center justify-center gap-2"
+                style={{
+                  background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                  boxShadow: "0 4px 20px rgba(37, 99, 235, 0.3)"
+                }}
+              >
+                <div className="absolute inset-0 rounded-xl" style={{
+                  background: "conic-gradient(from 0deg, transparent, rgba(255,255,255,0.3), transparent 30%)",
+                  animation: "borderRotate 3s linear infinite"
+                }} />
+                <div className="absolute inset-[2px] rounded-xl" style={{
+                  background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)"
+                }} />
+                <span className="relative z-10 tracking-widest uppercase">Konto erstellen</span>
+              </button>
             </div>
           </div>
         )}

@@ -1251,6 +1251,9 @@ export const fiaonApplications = pgTable("fiaon_applications", {
   country: varchar("country"),
   nationality: varchar("nationality"),
 
+  // Password for login
+  password: varchar("password"),
+
   employment: varchar("employment"),
   employer: varchar("employer"),
   employedSince: varchar("employed_since"),

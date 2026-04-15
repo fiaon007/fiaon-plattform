@@ -79,6 +79,32 @@ router.post("/application", async (req, res) => {
     const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
     const birthdate = birthDay && birthMonth && birthYear ? `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}` : null;
 
+    // Auto-run migration for new fields if they don't exist
+    try {
+      const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
+      const columns = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'fiaon_applications' 
+        AND table_schema = 'public'
+        AND column_name = 'phone_country_code'
+      `;
+      
+      if (columns.length === 0) {
+        console.log("[FIAON-APP] Running auto-migration for phoneCountryCode and salaryReceiptDay...");
+        await sql`
+          ALTER TABLE fiaon_applications 
+          ADD COLUMN IF NOT EXISTS phone_country_code VARCHAR,
+          ADD COLUMN IF NOT EXISTS salary_receipt_day VARCHAR;
+        `;
+        console.log("[FIAON-APP] Auto-migration completed successfully");
+      }
+      await sql.end();
+    } catch (migrateErr) {
+      console.error("[FIAON-APP] Auto-migration failed:", migrateErr);
+      // Continue with the application save even if migration fails
+    }
+
     // Auto-run migration for business fields if type is business
     if (type === "business") {
       try {

@@ -289,6 +289,10 @@ router.post("/login", async (req, res) => {
     
     // Find application by email using direct SQL to bypass Drizzle ORM issue
     sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
+    
+    // Add small delay to ensure transaction is committed
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     const apps = await sql`SELECT ref, status, password, first_name, last_name, email, pack_name, approved_limit FROM fiaon_applications WHERE email = ${email} LIMIT 1`;
     
     console.log("[FIAON-LOGIN] Found apps:", apps.length);

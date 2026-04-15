@@ -87,15 +87,21 @@ router.post("/application", async (req, res) => {
         FROM information_schema.columns 
         WHERE table_name = 'fiaon_applications' 
         AND table_schema = 'public'
-        AND column_name = 'phone_country_code'
+        AND column_name IN ('phone_country_code', 'salary_receipt_day', 'password')
       `;
       
-      if (columns.length === 0) {
-        console.log("[FIAON-APP] Running auto-migration for phoneCountryCode and salaryReceiptDay...");
+      const columnNames = columns.map(c => c.column_name);
+      const needsMigration = !columnNames.includes('phone_country_code') || 
+                             !columnNames.includes('salary_receipt_day') || 
+                             !columnNames.includes('password');
+      
+      if (needsMigration) {
+        console.log("[FIAON-APP] Running auto-migration for phoneCountryCode, salaryReceiptDay, and password...");
         await sql`
           ALTER TABLE fiaon_applications 
           ADD COLUMN IF NOT EXISTS phone_country_code VARCHAR,
-          ADD COLUMN IF NOT EXISTS salary_receipt_day VARCHAR;
+          ADD COLUMN IF NOT EXISTS salary_receipt_day VARCHAR,
+          ADD COLUMN IF NOT EXISTS password VARCHAR;
         `;
         console.log("[FIAON-APP] Auto-migration completed successfully");
       }

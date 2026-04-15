@@ -233,6 +233,7 @@ router.post("/application", async (req, res) => {
 
 // Login endpoint for fiaon applications
 router.post("/login", async (req, res) => {
+  let sql: any = null;
   try {
     const { email, password } = req.body;
     
@@ -243,29 +244,33 @@ router.post("/login", async (req, res) => {
     }
     
     // Find application by email using direct SQL to bypass Drizzle ORM issue
-    const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
-    const apps = await sql`SELECT * FROM fiaon_applications WHERE email = ${email} LIMIT 1`;
-    await sql.end();
+    sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
+    const apps = await sql`SELECT ref, status, password, first_name, last_name, email, pack_name, approved_limit FROM fiaon_applications WHERE email = ${email} LIMIT 1`;
     
     console.log("[FIAON-LOGIN] Found apps:", apps.length);
     
     if (apps.length === 0) {
+      await sql.end();
       return res.status(401).json({ ok: false, error: "Ungültige Anmeldedaten" });
     }
     
     const app = apps[0];
     
-    console.log("[FIAON-LOGIN] App status:", app.status, "App password length:", app.password?.length, "Input password length:", password.length);
+    console.log("[FIAON-LOGIN] App status:", app.status, "App password from DB:", app.password, "Input password:", password, "Match:", app.password === password);
     
     // Check password
-    if (app.password !== password) {
+    if (!app.password || app.password !== password) {
+      await sql.end();
       return res.status(401).json({ ok: false, error: "Ungültige Anmeldedaten" });
     }
     
     // Check if application is completed
     if (app.status !== "completed") {
+      await sql.end();
       return res.status(403).json({ ok: false, error: "Antrag noch nicht abgeschlossen" });
     }
+    
+    await sql.end();
     
     // Return success with application data
     res.json({ 
@@ -279,6 +284,9 @@ router.post("/login", async (req, res) => {
     });
   } catch (err) {
     console.error("[FIAON-LOGIN]", err);
+    if (sql) {
+      try { await sql.end(); } catch (e) { /* ignore */ }
+    }
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

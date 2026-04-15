@@ -535,6 +535,14 @@ export default function AntragPage() {
     }
   }, []);
 
+  // Check for payment success and redirect to password step
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('payment_success') === 'true') {
+      setStep(9);
+    }
+  }, []);
+
   // Development: Console command for skipping
   useEffect(() => {
     (window as any).skipToPayment = skipToPayment;

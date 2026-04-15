@@ -27,7 +27,7 @@ export default function PremiumCheckoutForm({ packageName, price, clientSecret, 
     const { error: submitError } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: window.location.origin + '/dashboard',
+        return_url: window.location.origin + '/antrag?payment_success=true',
       },
     });
 
@@ -50,7 +50,7 @@ export default function PremiumCheckoutForm({ packageName, price, clientSecret, 
     const { error: submitError } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: window.location.origin + '/dashboard',
+        return_url: window.location.origin + '/antrag?payment_success=true',
       },
     });
 

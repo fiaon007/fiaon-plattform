@@ -531,7 +531,13 @@ export default function AntragPage() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('skip') === 'true') {
-      skipToPayment();
+      if (urlParams.get('skipPayment') === 'true') {
+        // Skip payment and go directly to password step
+        skipToPayment();
+        setStep(9);
+      } else {
+        skipToPayment();
+      }
     }
   }, []);
 
@@ -1818,7 +1824,6 @@ export default function AntragPage() {
                         status: "completed",
                         currentStep: 9,
                         password,
-                        email: d.email,
                         ...d,
                         packKey: pack?.key,
                         packName: pack?.name,

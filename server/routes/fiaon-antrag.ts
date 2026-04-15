@@ -245,6 +245,9 @@ router.post("/application", async (req, res) => {
       `;
       console.log("[FIAON-APP] Direct SQL update completed");
       
+      // Explicit commit to ensure transaction is committed
+      await sql`COMMIT`;
+      
       // Verify password was actually saved
       const verify = await sql`SELECT password, email, status FROM fiaon_applications WHERE ref = ${ref}`;
       console.log("[FIAON-APP] Password verification query result:", verify);

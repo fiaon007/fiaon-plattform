@@ -181,9 +181,13 @@ router.post("/application", async (req, res) => {
     console.log("[FIAON-APP] Saving application with ref:", ref, "status:", status, "password length:", password?.length, "email:", email);
 
     if (existing.length > 0) {
+      console.log("[FIAON-APP] Updating existing application, values keys:", Object.keys(values), "password in values:", 'password' in values, "password value:", values.password);
       await db.update(fiaonApplications).set(values).where(eq(fiaonApplications.ref, ref));
+      console.log("[FIAON-APP] Update completed");
     } else {
+      console.log("[FIAON-APP] Inserting new application");
       await db.insert(fiaonApplications).values(values);
+      console.log("[FIAON-APP] Insert completed");
     }
 
     res.json({ ok: true, ref });

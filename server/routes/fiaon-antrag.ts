@@ -8,6 +8,9 @@ import Stripe from "stripe";
 
 const router = Router();
 
+// Create a single postgres connection pool for direct SQL queries
+const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: 'require', max: 10 });
+
 // Initialize Stripe
 const stripe = process.env.STRIPE_SECRET_KEY 
   ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' as any })
@@ -185,8 +188,7 @@ router.post("/application", async (req, res) => {
       
       // Use direct SQL for ALL fields to prevent Drizzle from overwriting password
       // Convert undefined to null to avoid UNDEFINED_VALUE error
-      const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
-      await sql`
+      await sqlPool`
         UPDATE fiaon_applications 
         SET 
           type = ${values.type ?? null},
@@ -245,14 +247,9 @@ router.post("/application", async (req, res) => {
       `;
       console.log("[FIAON-APP] Direct SQL update completed");
       
-      // Explicit commit to ensure transaction is committed
-      await sql`COMMIT`;
-      
       // Verify password was actually saved
-      const verify = await sql`SELECT password, email, status FROM fiaon_applications WHERE ref = ${ref}`;
+      const verify = await sqlPool`SELECT password, email, status FROM fiaon_applications WHERE ref = ${ref}`;
       console.log("[FIAON-APP] Password verification query result:", verify);
-      
-      await sql.end();
     } else {
       console.log("[FIAON-APP] Inserting new application");
       await db.insert(fiaonApplications).values(values);
@@ -260,14 +257,11 @@ router.post("/application", async (req, res) => {
       
       // Direct SQL update for password to ensure it's saved
       if (password) {
-        const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
-        await sql`UPDATE fiaon_applications SET password = ${password}, status = ${status}, email = ${email} WHERE ref = ${ref}`;
+        await sqlPool`UPDATE fiaon_applications SET password = ${password}, status = ${status}, email = ${email} WHERE ref = ${ref}`;
         console.log("[FIAON-APP] Password updated via direct SQL after insert");
         
-        const verify = await sql`SELECT password, email, status FROM fiaon_applications WHERE ref = ${ref}`;
+        const verify = await sqlPool`SELECT password, email, status FROM fiaon_applications WHERE ref = ${ref}`;
         console.log("[FIAON-APP] Password verification query result:", verify);
-        
-        await sql.end();
       }
     }
 
@@ -289,8 +283,8 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ ok: false, error: "Email und Passwort erforderlich" });
     }
     
-    // Find application by email using Drizzle ORM
-    const apps = await db.select().from(fiaonApplications).where(eq(fiaonApplications.email, email)).limit(1);
+    // Find application by email using direct SQL with same pool as save
+    const apps = await sqlPool`SELECT ref, status, password, first_name, last_name, email, pack_name, approved_limit FROM fiaon_applications WHERE email = ${email} LIMIT 1`;
     
     console.log("[FIAON-LOGIN] Found apps:", apps.length);
     
@@ -316,11 +310,11 @@ router.post("/login", async (req, res) => {
     res.json({ 
       ok: true, 
       ref: app.ref,
-      firstName: app.firstName,
-      lastName: app.lastName,
+      firstName: app.first_name,
+      lastName: app.last_name,
       email: app.email,
-      packName: app.packName,
-      approvedLimit: app.approvedLimit,
+      packName: app.pack_name,
+      approvedLimit: app.approved_limit,
     });
   } catch (err) {
     console.error("[FIAON-LOGIN]", err);

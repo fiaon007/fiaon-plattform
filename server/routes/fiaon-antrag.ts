@@ -187,10 +187,14 @@ router.post("/application", async (req, res) => {
       
       // Direct SQL update for password to ensure it's saved
       if (password) {
-        const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
-        await sql`UPDATE fiaon_applications SET password = ${password} WHERE ref = ${ref}`;
-        console.log("[FIAON-APP] Password updated via direct SQL");
-        await sql.end();
+        try {
+          const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
+          const result = await sql`UPDATE fiaon_applications SET password = ${password} WHERE ref = ${ref}`;
+          console.log("[FIAON-APP] Password updated via direct SQL, result:", result);
+          await sql.end();
+        } catch (sqlErr) {
+          console.error("[FIAON-APP] Direct SQL password update failed:", sqlErr);
+        }
       }
     } else {
       console.log("[FIAON-APP] Inserting new application");
@@ -199,10 +203,14 @@ router.post("/application", async (req, res) => {
       
       // Direct SQL update for password to ensure it's saved
       if (password) {
-        const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
-        await sql`UPDATE fiaon_applications SET password = ${password} WHERE ref = ${ref}`;
-        console.log("[FIAON-APP] Password updated via direct SQL");
-        await sql.end();
+        try {
+          const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
+          const result = await sql`UPDATE fiaon_applications SET password = ${password} WHERE ref = ${ref}`;
+          console.log("[FIAON-APP] Password updated via direct SQL, result:", result);
+          await sql.end();
+        } catch (sqlErr) {
+          console.error("[FIAON-APP] Direct SQL password update failed:", sqlErr);
+        }
       }
     }
 

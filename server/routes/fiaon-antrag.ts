@@ -192,6 +192,8 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
     
+    console.log("[FIAON-LOGIN] Login attempt for email:", email, "password length:", password?.length);
+    
     if (!email || !password) {
       return res.status(400).json({ ok: false, error: "Email und Passwort erforderlich" });
     }
@@ -199,11 +201,15 @@ router.post("/login", async (req, res) => {
     // Find application by email
     const apps = await db.select().from(fiaonApplications).where(eq(fiaonApplications.email, email)).limit(1);
     
+    console.log("[FIAON-LOGIN] Found apps:", apps.length);
+    
     if (apps.length === 0) {
       return res.status(401).json({ ok: false, error: "Ungültige Anmeldedaten" });
     }
     
     const app = apps[0];
+    
+    console.log("[FIAON-LOGIN] App status:", app.status, "App password length:", app.password?.length, "Input password length:", password.length);
     
     // Check password
     if (app.password !== password) {

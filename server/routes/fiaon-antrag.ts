@@ -280,7 +280,6 @@ router.post("/application", async (req, res) => {
 
 // Login endpoint for fiaon applications
 router.post("/login", async (req, res) => {
-  let sql: any = null;
   try {
     const { email, password } = req.body;
     
@@ -290,18 +289,12 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ ok: false, error: "Email und Passwort erforderlich" });
     }
     
-    // Find application by email using direct SQL to bypass Drizzle ORM issue
-    sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
-    
-    // Add small delay to ensure transaction is committed
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    const apps = await sql`SELECT ref, status, password, first_name, last_name, email, pack_name, approved_limit FROM fiaon_applications WHERE email = ${email} LIMIT 1`;
+    // Find application by email using Drizzle ORM
+    const apps = await db.select().from(fiaonApplications).where(eq(fiaonApplications.email, email)).limit(1);
     
     console.log("[FIAON-LOGIN] Found apps:", apps.length);
     
     if (apps.length === 0) {
-      await sql.end();
       return res.status(401).json({ ok: false, error: "Ungültige Anmeldedaten" });
     }
     
@@ -311,33 +304,26 @@ router.post("/login", async (req, res) => {
     
     // Check password
     if (!app.password || app.password !== password) {
-      await sql.end();
       return res.status(401).json({ ok: false, error: "Ungültige Anmeldedaten" });
     }
     
     // Check if application is completed
     if (app.status !== "completed") {
-      await sql.end();
       return res.status(403).json({ ok: false, error: "Antrag noch nicht abgeschlossen" });
     }
-    
-    await sql.end();
     
     // Return success with application data
     res.json({ 
       ok: true, 
       ref: app.ref,
-      firstName: app.first_name,
-      lastName: app.last_name,
+      firstName: app.firstName,
+      lastName: app.lastName,
       email: app.email,
-      packName: app.pack_name,
-      approvedLimit: app.approved_limit,
+      packName: app.packName,
+      approvedLimit: app.approvedLimit,
     });
   } catch (err) {
     console.error("[FIAON-LOGIN]", err);
-    if (sql) {
-      try { await sql.end(); } catch (e) { /* ignore */ }
-    }
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

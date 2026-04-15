@@ -1818,6 +1818,7 @@ export default function AntragPage() {
                         status: "completed",
                         currentStep: 9,
                         password,
+                        email: d.email,
                         ...d,
                         packKey: pack?.key,
                         packName: pack?.name,

@@ -73,7 +73,9 @@ export default function PremiumCheckoutForm({ packageName, price, clientSecret, 
                   applePay: 'buy',
                   googlePay: 'buy',
                 },
-                buttonTheme: 'dark',
+                buttonTheme: {
+                  type: 'dark',
+                },
               }}
             />
           </div>

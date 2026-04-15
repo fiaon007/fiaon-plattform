@@ -511,6 +511,50 @@ export default function AntragPage() {
     }
   }, [step]);
 
+  // Development: Skip to payment step with Shift+Alt+P
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.shiftKey && e.altKey && e.key === 'P') {
+        e.preventDefault();
+        // Prefill required data for payment step
+        setD({
+          firstName: "Max",
+          lastName: "Mustermann",
+          birthDay: "1",
+          birthMonth: "1",
+          birthYear: "1990",
+          phone: "01234567890",
+          street: "Musterstraße",
+          zip: "12345",
+          city: "Musterstadt",
+          country: "Deutschland",
+          nationality: "Deutsch",
+          employment: "employed",
+          employer: "Musterfirma",
+          employedSince: "2020",
+          income: "50000",
+          rent: "1000",
+          debts: "0",
+          housing: "rent",
+          purpose: "shopping",
+          email: "max@mustermann.de",
+          salaryReceiptDay: "1",
+          billingMethod: "iban",
+          iban: "DE89370400440532013000",
+          ag1: true,
+          ag2: true,
+          ag3: true,
+        });
+        setPack(PACKS[1]);
+        setApproved(5000);
+        setStep(8);
+        console.log("🚀 Skipped to payment step (Shift+Alt+P)");
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const sideCard = <LiveCard bg={pack?.bg || PACKS[1].bg} name={cardName} lim={(pack?.lim || 5000).toLocaleString("de-DE")} />;
 
   return (

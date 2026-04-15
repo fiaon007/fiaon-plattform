@@ -182,18 +182,16 @@ router.post("/application", async (req, res) => {
 
     if (existing.length > 0) {
       console.log("[FIAON-APP] Updating existing application, values keys:", Object.keys(values), "password in values:", 'password' in values, "password value:", values.password);
-      await db.update(fiaonApplications).set(values).where(eq(fiaonApplications.ref, ref));
-      console.log("[FIAON-APP] Update completed");
       
-      // Direct SQL update for password to ensure it's saved
+      // Direct SQL update for password FIRST to ensure it's saved
       if (password) {
         try {
           const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
-          const result = await sql`UPDATE fiaon_applications SET password = ${password} WHERE ref = ${ref}`;
-          console.log("[FIAON-APP] Password updated via direct SQL, result:", result);
+          const result = await sql`UPDATE fiaon_applications SET password = ${password}, status = ${status}, email = ${email} WHERE ref = ${ref}`;
+          console.log("[FIAON-APP] Password updated via direct SQL FIRST, result:", result);
           
           // Verify password was actually saved
-          const verify = await sql`SELECT password FROM fiaon_applications WHERE ref = ${ref}`;
+          const verify = await sql`SELECT password, email, status FROM fiaon_applications WHERE ref = ${ref}`;
           console.log("[FIAON-APP] Password verification query result:", verify);
           
           await sql.end();
@@ -201,6 +199,9 @@ router.post("/application", async (req, res) => {
           console.error("[FIAON-APP] Direct SQL password update failed:", sqlErr);
         }
       }
+      
+      await db.update(fiaonApplications).set(values).where(eq(fiaonApplications.ref, ref));
+      console.log("[FIAON-APP] Drizzle update completed");
     } else {
       console.log("[FIAON-APP] Inserting new application");
       await db.insert(fiaonApplications).values(values);
@@ -210,11 +211,11 @@ router.post("/application", async (req, res) => {
       if (password) {
         try {
           const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
-          const result = await sql`UPDATE fiaon_applications SET password = ${password} WHERE ref = ${ref}`;
+          const result = await sql`UPDATE fiaon_applications SET password = ${password}, status = ${status}, email = ${email} WHERE ref = ${ref}`;
           console.log("[FIAON-APP] Password updated via direct SQL, result:", result);
           
           // Verify password was actually saved
-          const verify = await sql`SELECT password FROM fiaon_applications WHERE ref = ${ref}`;
+          const verify = await sql`SELECT password, email, status FROM fiaon_applications WHERE ref = ${ref}`;
           console.log("[FIAON-APP] Password verification query result:", verify);
           
           await sql.end();

@@ -184,10 +184,26 @@ router.post("/application", async (req, res) => {
       console.log("[FIAON-APP] Updating existing application, values keys:", Object.keys(values), "password in values:", 'password' in values, "password value:", values.password);
       await db.update(fiaonApplications).set(values).where(eq(fiaonApplications.ref, ref));
       console.log("[FIAON-APP] Update completed");
+      
+      // Direct SQL update for password to ensure it's saved
+      if (password) {
+        const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
+        await sql`UPDATE fiaon_applications SET password = ${password} WHERE ref = ${ref}`;
+        console.log("[FIAON-APP] Password updated via direct SQL");
+        await sql.end();
+      }
     } else {
       console.log("[FIAON-APP] Inserting new application");
       await db.insert(fiaonApplications).values(values);
       console.log("[FIAON-APP] Insert completed");
+      
+      // Direct SQL update for password to ensure it's saved
+      if (password) {
+        const sql = postgres(process.env.DATABASE_URL!, { ssl: 'require' });
+        await sql`UPDATE fiaon_applications SET password = ${password} WHERE ref = ${ref}`;
+        console.log("[FIAON-APP] Password updated via direct SQL");
+        await sql.end();
+      }
     }
 
     res.json({ ok: true, ref });

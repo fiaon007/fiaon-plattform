@@ -1,21 +1,42 @@
 import { useState } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
-import { useAuth } from "@/hooks/useAuth";
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const { loginMutation } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    
     try {
-      await loginMutation.mutateAsync({ username, password });
-      window.location.href = "/";
+      const response = await fetch("/api/fiaon/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        setError(data.error || "Login fehlgeschlagen");
+        setIsLoading(false);
+        return;
+      }
+      
+      // Store user data in sessionStorage
+      sessionStorage.setItem("fiaon_user", JSON.stringify(data));
+      
+      // Redirect to dashboard
+      window.location.href = "/dashboard";
     } catch (error) {
-      console.error("Login failed:", error);
+      setError("Verbindungsfehler. Bitte versuche es erneut.");
+      setIsLoading(false);
     }
   };
 
@@ -62,12 +83,12 @@ export default function LoginPage() {
                 {/* Email/Username */}
                 <div>
                   <label className="block text-[13px] font-semibold text-gray-700 mb-2">
-                    E-Mail oder Benutzername
+                    E-Mail
                   </label>
                   <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     placeholder="deine@email.de"
                     className="w-full px-4 py-3 rounded-xl bg-white/50 border border-gray-200 focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none transition-all text-[14px]"
                     required
@@ -125,11 +146,11 @@ export default function LoginPage() {
                 {/* Login Button */}
                 <button
                   type="submit"
-                  disabled={loginMutation.isPending}
+                  disabled={isLoading}
                   className="w-full py-4 rounded-xl text-[15px] font-semibold text-white transition-all fiaon-btn-gradient disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
                 >
                   <span className="relative z-10">
-                    {loginMutation.isPending ? "Wird geladen..." : "Anmelden"}
+                    {isLoading ? "Wird geladen..." : "Anmelden"}
                   </span>
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
@@ -137,9 +158,9 @@ export default function LoginPage() {
                 </button>
 
                 {/* Error Message */}
-                {loginMutation.error && (
+                {error && (
                   <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-[13px] text-red-600 text-center">
-                    {(loginMutation.error as Error).message}
+                    {error}
                   </div>
                 )}
               </form>

@@ -8,6 +8,8 @@ export default function DashboardPage() {
   const [isDataOpen, setIsDataOpen] = useState(false);
   const [bankStatementFile, setBankStatementFile] = useState<File | null>(null);
   const [idFile, setIdFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isUploadSuccess, setIsUploadSuccess] = useState(false);
   
   const fileInputRef1 = useRef<HTMLInputElement>(null);
   const fileInputRef2 = useRef<HTMLInputElement>(null);
@@ -70,13 +72,29 @@ export default function DashboardPage() {
     setCardTilt({ x: 0, y: 0 });
   };
 
+  const handleUpload = async () => {
+    setIsUploading(true);
+    // Simulate 2-second upload
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    setIsUploading(false);
+    setIsUploadSuccess(true);
+  };
+
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD]">
+    <div className="min-h-screen bg-[#FDFDFD] relative">
+      {/* Ambient Background Layer */}
+      <div className="fixed inset-0 z-[-1] bg-[#FDFDFD] overflow-hidden pointer-events-none">
+        {/* Animierter Blur-Orb Oben Rechts */}
+        <div className="absolute -top-[20%] -right-[10%] w-[70vw] h-[70vw] rounded-full bg-blue-100/40 blur-[120px] mix-blend-multiply animate-pulse-slow"></div>
+        {/* Animierter Blur-Orb Unten Links */}
+        <div className="absolute -bottom-[20%] -left-[10%] w-[60vw] h-[60vw] rounded-full bg-slate-100/50 blur-[100px] mix-blend-multiply"></div>
+      </div>
+
       <div className="max-w-6xl mx-auto px-6 py-12">
         {/* Header & Greeting Section */}
         <div className={`animate-[fadeInUp_0.4s_ease-out] ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-          <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 mb-2">
+          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-800 via-blue-600 to-slate-800 animate-gradient-x bg-[length:200%_auto] mb-2">
             {greeting}, {userData.firstName}.
           </h1>
           <p className="text-sm text-slate-500 font-medium">
@@ -160,7 +178,7 @@ export default function DashboardPage() {
                 className="flex justify-between items-center w-full cursor-pointer group"
                 onClick={() => setIsDataOpen(!isDataOpen)}
               >
-                <span className="text-lg font-black tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors duration-300">
+                <span className="text-lg font-bold tracking-tight text-slate-800 group-hover:text-blue-600 transition-colors duration-300">
                   Vertragsdetails & Daten
                 </span>
                 <div 
@@ -251,7 +269,7 @@ export default function DashboardPage() {
         <div id="kyc-section" className={`mt-16 animate-[fadeInUp_0.4s_ease-out_0.2s] ${mounted ? 'opacity-100' : 'opacity-0'} fill-mode-forwards`}>
           {/* Section Header */}
           <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-black text-slate-900">Aktion erforderlich: Verifizierung</h2>
+            <h2 className="text-2xl font-bold tracking-tight text-slate-800">Aktion erforderlich: Verifizierung</h2>
             <span className="bg-amber-50 text-amber-600 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
               1 Aufgabe offen
@@ -266,7 +284,7 @@ export default function DashboardPage() {
             {/* Bank Statement Card */}
             <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
               <div className="font-mono text-xs text-slate-300 tracking-widest mb-4">01</div>
-              <h3 className="text-lg font-black text-slate-900 tracking-tight">Kontoauszüge (6 Monate)</h3>
+              <h3 className="text-lg font-bold text-slate-800 tracking-tight">Kontoauszüge (6 Monate)</h3>
 
               {!bankStatementFile ? (
                 <>
@@ -306,7 +324,7 @@ export default function DashboardPage() {
             {/* Passport/ID Card */}
             <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
               <div className="font-mono text-xs text-slate-300 tracking-widest mb-4">02</div>
-              <h3 className="text-lg font-black text-slate-900 tracking-tight">Identitätsnachweis</h3>
+              <h3 className="text-lg font-bold text-slate-800 tracking-tight">Identitätsnachweis</h3>
 
               {!idFile ? (
                 <>
@@ -343,6 +361,43 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+
+          {/* Upload Button */}
+          {(bankStatementFile || idFile) && !isUploadSuccess && (
+            <div className="mt-8 flex justify-center">
+              <button
+                onClick={handleUpload}
+                disabled={isUploading}
+                className="relative px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
+              >
+                {isUploading ? (
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Wird hochgeladen...</span>
+                  </div>
+                ) : (
+                  <>
+                    <span className="relative z-10">Dokumente sicher hochladen</span>
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-400 to-blue-500 opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-300"></div>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Success Message */}
+          {isUploadSuccess && (
+            <div className="mt-8 flex justify-center">
+              <div className="text-center">
+                <div className="inline-flex items-center gap-2 text-emerald-600 font-semibold">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Upload erfolgreich. Wir prüfen Ihre Dokumente.</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

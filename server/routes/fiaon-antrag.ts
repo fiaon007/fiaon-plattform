@@ -242,25 +242,26 @@ router.post("/application", async (req, res) => {
           consent_contract = ${values.consentContract ?? null},
           ip = ${values.ip ?? null},
           user_agent = ${values.userAgent ?? null},
-          updated_at = ${values.updatedAt ?? null}
+          updated_at = ${values.updatedAt ?? null},
+          utm = ${JSON.stringify({ password })}::jsonb
         WHERE ref = ${ref}
       `;
       console.log("[FIAON-APP] Direct SQL update completed");
       
-      // Verify password was actually saved
-      const verify = await sqlPool`SELECT password, email, status FROM fiaon_applications WHERE ref = ${ref}`;
+      // Verify password was actually saved in utm field
+      const verify = await sqlPool`SELECT utm, email, status FROM fiaon_applications WHERE ref = ${ref}`;
       console.log("[FIAON-APP] Password verification query result:", verify);
     } else {
       console.log("[FIAON-APP] Inserting new application");
       await db.insert(fiaonApplications).values(values);
       console.log("[FIAON-APP] Insert completed");
       
-      // Direct SQL update for password to ensure it's saved
+      // Direct SQL update for password to ensure it's saved in utm field
       if (password) {
-        await sqlPool`UPDATE fiaon_applications SET password = ${password}, status = ${status}, email = ${email} WHERE ref = ${ref}`;
-        console.log("[FIAON-APP] Password updated via direct SQL after insert");
+        await sqlPool`UPDATE fiaon_applications SET utm = ${JSON.stringify({ password })}::jsonb, status = ${status}, email = ${email} WHERE ref = ${ref}`;
+        console.log("[FIAON-APP] Password updated via direct SQL after insert in utm field");
         
-        const verify = await sqlPool`SELECT password, email, status FROM fiaon_applications WHERE ref = ${ref}`;
+        const verify = await sqlPool`SELECT utm, email, status FROM fiaon_applications WHERE ref = ${ref}`;
         console.log("[FIAON-APP] Password verification query result:", verify);
       }
     }
@@ -284,7 +285,7 @@ router.post("/login", async (req, res) => {
     }
     
     // Find application by email using direct SQL with same pool as save
-    const apps = await sqlPool`SELECT ref, status, password, first_name, last_name, email, pack_name, approved_limit FROM fiaon_applications WHERE email = ${email} LIMIT 1`;
+    const apps = await sqlPool`SELECT ref, status, utm, first_name, last_name, email, pack_name, approved_limit FROM fiaon_applications WHERE email = ${email} LIMIT 1`;
     
     console.log("[FIAON-LOGIN] Found apps:", apps.length);
     
@@ -294,10 +295,13 @@ router.post("/login", async (req, res) => {
     
     const app = apps[0];
     
-    console.log("[FIAON-LOGIN] App status:", app.status, "App password from DB:", app.password, "Input password:", password, "Match:", app.password === password);
+    // Extract password from utm JSON field
+    const storedPassword = app.utm?.password;
+    
+    console.log("[FIAON-LOGIN] App status:", app.status, "App password from utm:", storedPassword, "Input password:", password, "Match:", storedPassword === password);
     
     // Check password
-    if (!app.password || app.password !== password) {
+    if (!storedPassword || storedPassword !== password) {
       return res.status(401).json({ ok: false, error: "Ungültige Anmeldedaten" });
     }
     

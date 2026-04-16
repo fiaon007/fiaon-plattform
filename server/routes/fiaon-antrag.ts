@@ -285,7 +285,7 @@ router.post("/login", async (req, res) => {
     }
     
     // Find application by email using direct SQL with same pool as save
-    const apps = await sqlPool`SELECT ref, status, password, utm, first_name, last_name, email, pack_name, approved_limit FROM fiaon_applications WHERE email = ${email} LIMIT 1`;
+    const apps = await sqlPool`SELECT *, utm::text as utm_string FROM fiaon_applications WHERE email = ${email} ORDER BY created_at DESC LIMIT 1`;
     
     console.log("[FIAON-LOGIN] Found apps:", apps.length);
     
@@ -294,25 +294,28 @@ router.post("/login", async (req, res) => {
     }
     
     const app = apps[0];
+    console.log("[FIAON-LOGIN] RAW DB ROW:", JSON.stringify(app));
     
-    // Extract password from utm JSON field with proper parsing
+    // Extract password from utm JSON field with brute-force parsing
     let storedPassword = null;
 
-    // 1. Fallback: Falls es in der originalen password-Spalte steht
     if (app.password) {
       storedPassword = app.password;
-    }
-    // 2. Hauptlogik: Sicheres Parsen des UTM-Feldes (String oder Object)
-    else if (app.utm) {
-      try {
-        const utmObj = typeof app.utm === 'string' ? JSON.parse(app.utm) : app.utm;
-        storedPassword = utmObj.password;
-      } catch (parseError) {
-        console.error("[FIAON-LOGIN] UTM JSON Parse Error:", parseError);
+    } else {
+      // Nutze den garantierten Text-String aus der DB
+      const rawUtmData = app.utm_string || app.utm;
+
+      if (rawUtmData) {
+        try {
+          const utmObj = typeof rawUtmData === 'string' ? JSON.parse(rawUtmData) : rawUtmData;
+          storedPassword = utmObj.password;
+        } catch (parseError) {
+          console.error("[FIAON-LOGIN] UTM JSON Parse Error:", parseError);
+        }
       }
     }
 
-    console.log(`[FIAON-LOGIN] App status: ${app.status} | Extracted storedPassword: ${storedPassword} | Input password: ${password} | Match: ${storedPassword === password}`);
+    console.log(`[FIAON-LOGIN] Extracted Password: ${storedPassword} | Input: ${password} | Match: ${storedPassword === password}`);
     
     // Check password
     if (!storedPassword || storedPassword !== password) {

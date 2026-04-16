@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { Download } from "lucide-react";
 
 export default function DashboardPage() {
   const [greeting, setGreeting] = useState("");
@@ -9,7 +10,9 @@ export default function DashboardPage() {
   const [bankStatementFile, setBankStatementFile] = useState<File | null>(null);
   const [idFile, setIdFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [isUploadSuccess, setIsUploadSuccess] = useState(false);
+  const [isUploadSuccess, setIsUploadSuccess] = useState(() => 
+    localStorage.getItem('kyc_uploaded') === 'true'
+  );
   
   const fileInputRef1 = useRef<HTMLInputElement>(null);
   const fileInputRef2 = useRef<HTMLInputElement>(null);
@@ -78,6 +81,7 @@ export default function DashboardPage() {
     await new Promise(resolve => setTimeout(resolve, 2000));
     setIsUploading(false);
     setIsUploadSuccess(true);
+    localStorage.setItem('kyc_uploaded', 'true');
   };
 
 
@@ -94,7 +98,7 @@ export default function DashboardPage() {
       <div className="max-w-6xl mx-auto px-6 py-12">
         {/* Header & Greeting Section */}
         <div className={`animate-[fadeInUp_0.4s_ease-out] ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-800 via-blue-600 to-slate-800 animate-gradient-x bg-[length:200%_auto] mb-2">
+          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-blue-600 to-slate-900 animate-gradient-x bg-[length:200%_auto] mb-2">
             {greeting}, {userData.firstName}.
           </h1>
           <p className="text-sm text-slate-500 font-medium">
@@ -227,9 +231,19 @@ export default function DashboardPage() {
                       <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">IBAN</span>
                       <span className="text-sm font-medium text-slate-900 text-right">{userData.iban}</span>
                     </div>
-                    <div className="flex flex-col sm:flex-row sm:justify-between py-3 last:border-0">
+                    <div className="flex flex-col sm:flex-row sm:justify-between py-3 border-b border-slate-50 last:border-0">
                       <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Paket</span>
                       <span className="text-sm font-medium text-slate-900 text-right">{userData.packName}</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between py-3 last:border-0">
+                      <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Vertragsdokument</span>
+                      <a 
+                        href="/api/fiaon/contract/download" 
+                        className="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg cursor-pointer mt-2 sm:mt-0 w-fit"
+                      >
+                        <Download size={16} />
+                        <span>FIAON-Vertrag.pdf</span>
+                      </a>
                     </div>
                   </div>
                 </div>
@@ -267,17 +281,42 @@ export default function DashboardPage() {
 
         {/* KYC Document Upload Section */}
         <div id="kyc-section" className={`mt-16 animate-[fadeInUp_0.4s_ease-out_0.2s] ${mounted ? 'opacity-100' : 'opacity-0'} fill-mode-forwards`}>
-          {/* Section Header */}
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold tracking-tight text-slate-800">Aktion erforderlich: Verifizierung</h2>
-            <span className="bg-amber-50 text-amber-600 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-              1 Aufgabe offen
-            </span>
-          </div>
-          <p className="text-sm text-slate-500 mt-1">
-            Um Ihr Limit freizuschalten, benötigen wir noch folgende Unterlagen. Der Upload ist End-to-End verschlüsselt.
-          </p>
+          {isUploadSuccess ? (
+            /* Success State - Documents Being Reviewed */
+            <div className="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-3xl p-8 shadow-sm">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-slate-800 mb-2">Dokumente erfolgreich hochgeladen</h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    Ihre Dokumente werden aktuell von unserem Team geprüft. Wir melden uns innerhalb von 1-3 Werktagen bei Ihnen.
+                  </p>
+                  <div className="mt-4 flex items-center gap-2 text-xs text-emerald-700 font-medium">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <span>In Bearbeitung</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Section Header */}
+              <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-bold tracking-tight text-slate-800">Aktion erforderlich: Verifizierung</h2>
+                <span className="bg-amber-50 text-amber-600 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                  1 Aufgabe offen
+                </span>
+              </div>
+              <p className="text-sm text-slate-500 mt-1">
+                Um Ihr Limit freizuschalten, benötigen wir noch folgende Unterlagen. Der Upload ist End-to-End verschlüsselt.
+              </p>
 
           {/* Upload Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
@@ -362,41 +401,29 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Upload Button */}
-          {(bankStatementFile || idFile) && !isUploadSuccess && (
-            <div className="mt-8 flex justify-center">
-              <button
-                onClick={handleUpload}
-                disabled={isUploading}
-                className="relative px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
-              >
-                {isUploading ? (
-                  <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Wird hochgeladen...</span>
-                  </div>
-                ) : (
-                  <>
-                    <span className="relative z-10">Dokumente sicher hochladen</span>
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-400 to-blue-500 opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-300"></div>
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-
-          {/* Success Message */}
-          {isUploadSuccess && (
-            <div className="mt-8 flex justify-center">
-              <div className="text-center">
-                <div className="inline-flex items-center gap-2 text-emerald-600 font-semibold">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Upload erfolgreich. Wir prüfen Ihre Dokumente.</span>
+              {/* Upload Button */}
+              {(bankStatementFile || idFile) && (
+                <div className="mt-8 flex justify-center">
+                  <button
+                    onClick={handleUpload}
+                    disabled={isUploading}
+                    className="relative px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
+                  >
+                    {isUploading ? (
+                      <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Wird hochgeladen...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="relative z-10">Dokumente sicher hochladen</span>
+                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-400 to-blue-500 opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-300"></div>
+                      </>
+                    )}
+                  </button>
                 </div>
-              </div>
-            </div>
+              )}
+            </>
           )}
         </div>
       </div>

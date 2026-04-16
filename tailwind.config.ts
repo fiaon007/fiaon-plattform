@@ -97,10 +97,12 @@ export default {
         },
         "gradient-x": {
           "0%, 100%": {
-            "background-position": "0% 50%",
+            "background-size": "200% 200%",
+            "background-position": "left center",
           },
           "50%": {
-            "background-position": "100% 50%",
+            "background-size": "200% 200%",
+            "background-position": "right center",
           },
         },
         "pulse-slow": {
@@ -117,7 +119,7 @@ export default {
         "accordion-up": "accordion-up 0.2s ease-out",
         "spin-slow": "spin-slow 60s linear infinite",
         "spin-slow-reverse": "spin-slow-reverse 60s linear infinite",
-        "gradient-x": "gradient-x 3s ease infinite",
+        "gradient-x": "gradient-x 4s ease infinite",
         "pulse-slow": "pulse-slow 4s ease-in-out infinite",
       },
     },

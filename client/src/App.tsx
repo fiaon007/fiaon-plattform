@@ -14,6 +14,7 @@ import AdminDatabasePage from "@/pages/admin-database";
 import WasIstFiaonPage from "@/pages/was-ist-fiaon";
 import PlattformKonzeptPage from "@/pages/plattform-konzept";
 import LoginPage from "@/pages/login";
+import DashboardPage from "@/pages/dashboard";
 import ImpressumPage from "@/pages/impressum";
 import AGBPage from "@/pages/agb";
 import WiderrufsbelehrungPage from "@/pages/widerrufsbelehrung";
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/antrag" component={AntragPage} />
       <Route path="/business-antrag" component={BusinessAntragPage} />
       <Route path="/login" component={LoginPage} />
+      <Route path="/dashboard" component={DashboardPage} />
       <Route path="/admin/database" component={AdminDatabasePage} />
       <Route path="/was-ist-fiaon" component={WasIstFiaonPage} />
       <Route path="/plattform-konzept" component={PlattformKonzeptPage} />

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { FileText, Shield, CheckCircle, Upload } from "lucide-react";
 
 export default function DashboardPage() {
   const [greeting, setGreeting] = useState("");
@@ -6,6 +7,13 @@ export default function DashboardPage() {
   const [cardTilt, setCardTilt] = useState({ x: 0, y: 0 });
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isDataOpen, setIsDataOpen] = useState(false);
+  const [isBankStatementUploaded, setIsBankStatementUploaded] = useState(false);
+  const [isPassportUploaded, setIsPassportUploaded] = useState(false);
+  const [bankStatementFileName, setBankStatementFileName] = useState("");
+  const [passportFileName, setPassportFileName] = useState("");
+  
+  const bankStatementInputRef = useRef<HTMLInputElement>(null);
+  const passportInputRef = useRef<HTMLInputElement>(null);
 
   // Dynamic greeting based on time of day
   useEffect(() => {
@@ -63,6 +71,22 @@ export default function DashboardPage() {
 
   const handleCardMouseLeave = () => {
     setCardTilt({ x: 0, y: 0 });
+  };
+
+  const handleBankStatementUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setBankStatementFileName(file.name);
+      setIsBankStatementUploaded(true);
+    }
+  };
+
+  const handlePassportUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPassportFileName(file.name);
+      setIsPassportUploaded(true);
+    }
   };
 
   return (
@@ -234,6 +258,126 @@ export default function DashboardPage() {
               <div className="mt-4 text-xs text-slate-400 text-center">
                 Ihre Unterlagen werden geprüft. In der Regel dauert dies 1-3 Werktage.
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* KYC Document Upload Section */}
+        <div className={`mt-16 animate-[fadeInUp_0.4s_ease-out_0.2s] ${mounted ? 'opacity-100' : 'opacity-0'} fill-mode-forwards`}>
+          {/* Section Header */}
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-black text-slate-900">Aktion erforderlich: Verifizierung</h2>
+            <span className="bg-amber-50 text-amber-600 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+              1 Aufgabe offen
+            </span>
+          </div>
+          <p className="text-sm text-slate-500 mt-1">
+            Um Ihr Limit freizuschalten, benötigen wir noch folgende Unterlagen. Der Upload ist End-to-End verschlüsselt.
+          </p>
+
+          {/* Upload Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            {/* Bank Statement Card */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-blue-50 rounded-xl">
+                  <FileText className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900">Kontoauszüge</h3>
+                  <p className="text-sm text-slate-500 mt-1">Lückenlos der letzten 6 Monate als PDF.</p>
+                </div>
+              </div>
+
+              {!isBankStatementUploaded ? (
+                <>
+                  <div 
+                    className="mt-4 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 hover:bg-blue-50 hover:border-blue-300 transition-all duration-300 cursor-pointer p-8 flex flex-col items-center justify-center group"
+                    onClick={() => bankStatementInputRef.current?.click()}
+                  >
+                    <Upload className="w-8 h-8 text-slate-400 group-hover:text-blue-600 mb-3" />
+                    <span className="text-sm font-medium text-slate-600 group-hover:text-blue-600">
+                      PDF hier ablegen oder durchsuchen
+                    </span>
+                    <span className="text-xs text-slate-400 mt-1">Max. 10 MB pro Datei</span>
+                  </div>
+                  <input
+                    ref={bankStatementInputRef}
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={handleBankStatementUpload}
+                  />
+                </>
+              ) : (
+                <div className="mt-4 bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="w-5 h-5 text-emerald-600" />
+                    <span className="text-sm font-medium text-slate-900">{bankStatementFileName}</span>
+                  </div>
+                  <button 
+                    className="text-xs text-slate-500 hover:text-slate-700 underline"
+                    onClick={() => {
+                      setIsBankStatementUploaded(false);
+                      setBankStatementFileName("");
+                    }}
+                  >
+                    Ändern
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Passport/ID Card */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-blue-50 rounded-xl">
+                  <Shield className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900">Identitätsnachweis</h3>
+                  <p className="text-sm text-slate-500 mt-1">Reisepass oder beidseitiger Personalausweis.</p>
+                </div>
+              </div>
+
+              {!isPassportUploaded ? (
+                <>
+                  <div 
+                    className="mt-4 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 hover:bg-blue-50 hover:border-blue-300 transition-all duration-300 cursor-pointer p-8 flex flex-col items-center justify-center group"
+                    onClick={() => passportInputRef.current?.click()}
+                  >
+                    <Upload className="w-8 h-8 text-slate-400 group-hover:text-blue-600 mb-3" />
+                    <span className="text-sm font-medium text-slate-600 group-hover:text-blue-600">
+                      PDF hier ablegen oder durchsuchen
+                    </span>
+                    <span className="text-xs text-slate-400 mt-1">Max. 10 MB pro Datei</span>
+                  </div>
+                  <input
+                    ref={passportInputRef}
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={handlePassportUpload}
+                  />
+                </>
+              ) : (
+                <div className="mt-4 bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="w-5 h-5 text-emerald-600" />
+                    <span className="text-sm font-medium text-slate-900">{passportFileName}</span>
+                  </div>
+                  <button 
+                    className="text-xs text-slate-500 hover:text-slate-700 underline"
+                    onClick={() => {
+                      setIsPassportUploaded(false);
+                      setPassportFileName("");
+                    }}
+                  >
+                    Ändern
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

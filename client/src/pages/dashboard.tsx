@@ -14,26 +14,13 @@ export default function DashboardPage() {
   const [isUploadSuccess, setIsUploadSuccess] = useState(() => 
     localStorage.getItem('kyc_uploaded') === 'true'
   );
+  const [serverDocStatus, setServerDocStatus] = useState<{
+    hasBankStatement: boolean;
+    hasIdCard: boolean;
+  }>({ hasBankStatement: false, hasIdCard: false });
   
   const fileInputRef1 = useRef<HTMLInputElement>(null);
   const fileInputRef2 = useRef<HTMLInputElement>(null);
-
-  // Dynamic greeting based on time of day
-  useEffect(() => {
-    const hour = new Date().getHours();
-    let greetingText = "";
-
-    if (hour >= 5 && hour < 12) {
-      greetingText = "Guten Morgen";
-    } else if (hour >= 12 && hour < 18) {
-      greetingText = "Guten Tag";
-    } else {
-      greetingText = "Guten Abend";
-    }
-
-    setGreeting(greetingText);
-    setMounted(true);
-  }, []);
 
   // Mock data (will be replaced with API data)
   const userData = {
@@ -60,6 +47,48 @@ export default function DashboardPage() {
     iban: "DE89 3704 0044 0532 0130 00",
   };
 
+  // Dynamic greeting based on time of day
+  useEffect(() => {
+    const hour = new Date().getHours();
+    let greetingText = "";
+
+    if (hour >= 5 && hour < 12) {
+      greetingText = "Guten Morgen";
+    } else if (hour >= 12 && hour < 18) {
+      greetingText = "Guten Tag";
+    } else {
+      greetingText = "Guten Abend";
+    }
+
+    setGreeting(greetingText);
+    setMounted(true);
+  }, []);
+
+  // Fetch document status on mount
+  useEffect(() => {
+    const fetchDocStatus = async () => {
+      try {
+        const response = await fetch(`/api/fiaon/kyc-status/${userData.ref}`);
+        if (response.ok) {
+          const data = await response.json();
+          setServerDocStatus({
+            hasBankStatement: data.hasBankStatement,
+            hasIdCard: data.hasIdCard,
+          });
+          // If both documents exist on server, mark as success
+          if (data.hasBankStatement && data.hasIdCard) {
+            setIsUploadSuccess(true);
+            localStorage.setItem('kyc_uploaded', 'true');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch document status:', error);
+      }
+    };
+    
+    fetchDocStatus();
+  }, [userData.ref]);
+
   const handleCardMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -79,11 +108,48 @@ export default function DashboardPage() {
 
   const handleUpload = async () => {
     setIsUploading(true);
-    // Simulate 2-second upload
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsUploading(false);
-    setIsUploadSuccess(true);
-    localStorage.setItem('kyc_uploaded', 'true');
+    
+    try {
+      const formData = new FormData();
+      formData.append('ref', userData.ref);
+      
+      if (bankStatementFile) {
+        formData.append('bankStatement', bankStatementFile);
+      }
+      
+      if (idFile) {
+        formData.append('idCard', idFile);
+      }
+      
+      const response = await fetch('/api/fiaon/upload-kyc', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+      
+      const data = await response.json();
+      
+      // Update server status
+      setServerDocStatus({
+        hasBankStatement: data.hasBankStatement,
+        hasIdCard: data.hasIdCard,
+      });
+      
+      // If both documents uploaded, mark as success
+      if (data.allDocumentsUploaded) {
+        setIsUploadSuccess(true);
+        localStorage.setItem('kyc_uploaded', 'true');
+      }
+      
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Fehler beim Hochladen der Dokumente. Bitte versuchen Sie es erneut.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
 
@@ -256,13 +322,46 @@ export default function DashboardPage() {
 
               {/* Status Badge - Always Visible */}
               <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
-                <span 
-                  className="bg-rose-50 text-rose-600 px-4 py-2 rounded-full text-sm font-semibold cursor-pointer hover:bg-rose-100 transition-colors"
-                  onClick={() => document.getElementById('kyc-section')?.scrollIntoView({ behavior: 'smooth' })}
-                >
-                  Handlung erforderlich
-                </span>
+                {(() => {
+                  const hasBankStatement = serverDocStatus.hasBankStatement || bankStatementFile;
+                  const hasIdCard = serverDocStatus.hasIdCard || idFile;
+                  
+                  if (hasBankStatement && hasIdCard) {
+                    return (
+                      <>
+                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                        <span className="bg-blue-50 text-blue-600 px-4 py-2 rounded-full text-sm font-semibold">
+                          Dokumente in Überprüfung
+                        </span>
+                      </>
+                    );
+                  } else if (hasBankStatement || hasIdCard) {
+                    const missing = !hasBankStatement ? 'Kontoauszüge' : 'Reisepass';
+                    return (
+                      <>
+                        <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
+                        <span 
+                          className="bg-rose-50 text-rose-600 px-4 py-2 rounded-full text-sm font-semibold cursor-pointer hover:bg-rose-100 transition-colors"
+                          onClick={() => document.getElementById('kyc-section')?.scrollIntoView({ behavior: 'smooth' })}
+                        >
+                          Es fehlt: {missing}
+                        </span>
+                      </>
+                    );
+                  } else {
+                    return (
+                      <>
+                        <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
+                        <span 
+                          className="bg-rose-50 text-rose-600 px-4 py-2 rounded-full text-sm font-semibold cursor-pointer hover:bg-rose-100 transition-colors"
+                          onClick={() => document.getElementById('kyc-section')?.scrollIntoView({ behavior: 'smooth' })}
+                        >
+                          Handlung erforderlich
+                        </span>
+                      </>
+                    );
+                  }
+                })()}
               </div>
               
               {/* Progress Bar - Always Visible */}
@@ -327,7 +426,7 @@ export default function DashboardPage() {
               <div className="font-mono text-xs text-slate-300 tracking-widest mb-4">01</div>
               <h3 className="text-lg font-bold text-slate-800 tracking-tight">Kontoauszüge (6 Monate)</h3>
 
-              {!bankStatementFile ? (
+              {!bankStatementFile && !serverDocStatus.hasBankStatement ? (
                 <>
                   <div 
                     className="mt-6 bg-slate-50/50 rounded-2xl p-6 transition-all duration-300 cursor-pointer border border-transparent hover:border-blue-100 hover:bg-blue-50/30 group flex flex-col items-center justify-center h-32"
@@ -349,15 +448,21 @@ export default function DashboardPage() {
               ) : (
                 <div className="mt-6 bg-slate-900 rounded-2xl p-4 flex justify-between items-center">
                   <div className="flex flex-col truncate pr-4">
-                    <span className="text-sm font-medium text-white truncate">{bankStatementFile.name}</span>
-                    <span className="text-xs text-slate-400">Bereit zum Upload</span>
+                    <span className="text-sm font-medium text-white truncate">
+                      {bankStatementFile ? bankStatementFile.name : 'Kontoauszüge.pdf'}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {serverDocStatus.hasBankStatement ? 'Hochgeladen' : 'Bereit zum Upload'}
+                    </span>
                   </div>
-                  <button 
-                    onClick={() => setBankStatementFile(null)} 
-                    className="text-xs text-slate-400 hover:text-white transition-colors uppercase tracking-widest font-semibold"
-                  >
-                    Entfernen
-                  </button>
+                  {bankStatementFile && !serverDocStatus.hasBankStatement && (
+                    <button 
+                      onClick={() => setBankStatementFile(null)} 
+                      className="text-xs text-slate-400 hover:text-white transition-colors uppercase tracking-widest font-semibold"
+                    >
+                      Entfernen
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -367,7 +472,7 @@ export default function DashboardPage() {
               <div className="font-mono text-xs text-slate-300 tracking-widest mb-4">02</div>
               <h3 className="text-lg font-bold text-slate-800 tracking-tight">Identitätsnachweis</h3>
 
-              {!idFile ? (
+              {!idFile && !serverDocStatus.hasIdCard ? (
                 <>
                   <div 
                     className="mt-6 bg-slate-50/50 rounded-2xl p-6 transition-all duration-300 cursor-pointer border border-transparent hover:border-blue-100 hover:bg-blue-50/30 group flex flex-col items-center justify-center h-32"
@@ -389,15 +494,21 @@ export default function DashboardPage() {
               ) : (
                 <div className="mt-6 bg-slate-900 rounded-2xl p-4 flex justify-between items-center">
                   <div className="flex flex-col truncate pr-4">
-                    <span className="text-sm font-medium text-white truncate">{idFile.name}</span>
-                    <span className="text-xs text-slate-400">Bereit zum Upload</span>
+                    <span className="text-sm font-medium text-white truncate">
+                      {idFile ? idFile.name : 'Reisepass.pdf'}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {serverDocStatus.hasIdCard ? 'Hochgeladen' : 'Bereit zum Upload'}
+                    </span>
                   </div>
-                  <button 
-                    onClick={() => setIdFile(null)} 
-                    className="text-xs text-slate-400 hover:text-white transition-colors uppercase tracking-widest font-semibold"
-                  >
-                    Entfernen
-                  </button>
+                  {idFile && !serverDocStatus.hasIdCard && (
+                    <button 
+                      onClick={() => setIdFile(null)} 
+                      className="text-xs text-slate-400 hover:text-white transition-colors uppercase tracking-widest font-semibold"
+                    >
+                      Entfernen
+                    </button>
+                  )}
                 </div>
               )}
             </div>

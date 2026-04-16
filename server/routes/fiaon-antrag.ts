@@ -5,8 +5,24 @@ import { eq } from "drizzle-orm";
 import PDFDocument from "pdfkit";
 import postgres from "postgres";
 import Stripe from "stripe";
+import multer from "multer";
 
 const router = Router();
+
+// Configure multer for KYC document uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max per file
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed'));
+    }
+  },
+});
 
 // Create a single postgres connection pool for direct SQL queries
 const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: 'require', max: 10 });
@@ -340,6 +356,136 @@ router.post("/login", async (req, res) => {
   } catch (err) {
     console.error("[FIAON-LOGIN]", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Upload KYC documents
+router.post("/upload-kyc", upload.fields([
+  { name: 'bankStatement', maxCount: 1 },
+  { name: 'idCard', maxCount: 1 }
+]), async (req, res) => {
+  try {
+    const { ref } = req.body;
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    
+    if (!ref) {
+      return res.status(400).json({ error: "Referenznummer fehlt" });
+    }
+    
+    // Get application
+    const apps = await sqlPool`
+      SELECT * FROM fiaon_applications 
+      WHERE ref = ${ref}
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `;
+    
+    if (apps.length === 0) {
+      return res.status(404).json({ error: "Antrag nicht gefunden" });
+    }
+    
+    // Prepare update values
+    const updates: string[] = [];
+    const values: any = {};
+    
+    if (files.bankStatement && files.bankStatement[0]) {
+      updates.push('bank_statement_pdf = $bankStatementPdf');
+      values.bankStatementPdf = files.bankStatement[0].buffer;
+    }
+    
+    if (files.idCard && files.idCard[0]) {
+      updates.push('id_card_pdf = $idCardPdf');
+      values.idCardPdf = files.idCard[0].buffer;
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ error: "Keine Dokumente hochgeladen" });
+    }
+    
+    // Add timestamp
+    updates.push('documents_uploaded_at = NOW()');
+    
+    // Check if both documents are now present
+    const currentApp = apps[0];
+    const hasBankStatement = files.bankStatement || currentApp.bank_statement_pdf;
+    const hasIdCard = files.idCard || currentApp.id_card_pdf;
+    
+    if (hasBankStatement && hasIdCard) {
+      updates.push("status = 'documents_submitted'");
+    }
+    
+    // Build dynamic SQL update
+    let sql = 'UPDATE fiaon_applications SET ';
+    const params: any[] = [];
+    let paramIndex = 1;
+    
+    if (values.bankStatementPdf) {
+      sql += `bank_statement_pdf = $${paramIndex++}, `;
+      params.push(values.bankStatementPdf);
+    }
+    
+    if (values.idCardPdf) {
+      sql += `id_card_pdf = $${paramIndex++}, `;
+      params.push(values.idCardPdf);
+    }
+    
+    sql += `documents_uploaded_at = NOW()`;
+    
+    if (hasBankStatement && hasIdCard) {
+      sql += `, status = 'documents_submitted'`;
+    }
+    
+    sql += ` WHERE ref = $${paramIndex}`;
+    params.push(ref);
+    
+    // Execute update
+    await sqlPool.unsafe(sql, params);
+    
+    console.log(`[FIAON-KYC] Documents uploaded for ${ref}`);
+    
+    res.json({ 
+      ok: true, 
+      message: "Dokumente erfolgreich hochgeladen",
+      hasBankStatement: !!hasBankStatement,
+      hasIdCard: !!hasIdCard,
+      allDocumentsUploaded: !!(hasBankStatement && hasIdCard)
+    });
+  } catch (err) {
+    console.error("[FIAON-KYC]", err);
+    res.status(500).json({ error: "Fehler beim Hochladen der Dokumente" });
+  }
+});
+
+// Check KYC document status
+router.get("/kyc-status/:ref", async (req, res) => {
+  try {
+    const { ref } = req.params;
+    
+    const apps = await sqlPool`
+      SELECT 
+        CASE WHEN bank_statement_pdf IS NOT NULL THEN true ELSE false END as has_bank_statement,
+        CASE WHEN id_card_pdf IS NOT NULL THEN true ELSE false END as has_id_card,
+        documents_uploaded_at,
+        status
+      FROM fiaon_applications 
+      WHERE ref = ${ref}
+      LIMIT 1
+    `;
+    
+    if (apps.length === 0) {
+      return res.status(404).json({ error: "Antrag nicht gefunden" });
+    }
+    
+    const app = apps[0];
+    res.json({
+      hasBankStatement: app.has_bank_statement,
+      hasIdCard: app.has_id_card,
+      documentsUploadedAt: app.documents_uploaded_at,
+      status: app.status
+    });
+  } catch (err) {
+    console.error("[FIAON-KYC-STATUS]", err);
+    res.status(500).json({ error: "Fehler beim Abrufen des Status" });
   }
 });
 

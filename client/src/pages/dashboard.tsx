@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Download } from "lucide-react";
+import PremiumFooter from "../components/PremiumFooter";
 
 export default function DashboardPage() {
   const [greeting, setGreeting] = useState("");
@@ -36,6 +37,7 @@ export default function DashboardPage() {
 
   // Mock data (will be replaced with API data)
   const userData = {
+    ref: "FIA-2026-001",
     firstName: "Max",
     lastName: "Mustermann",
     packName: "FIAON Ultra",
@@ -238,7 +240,7 @@ export default function DashboardPage() {
                     <div className="flex flex-col sm:flex-row sm:justify-between py-3 last:border-0">
                       <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Vertragsdokument</span>
                       <a 
-                        href="/api/fiaon/contract/download" 
+                        href={`/api/fiaon/contract/${userData.ref}`}
                         className="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg cursor-pointer mt-2 sm:mt-0 w-fit"
                       >
                         <Download size={16} />
@@ -427,6 +429,9 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Footer */}
+      <PremiumFooter />
     </div>
   );
 }

@@ -5,6 +5,7 @@ export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [cardTilt, setCardTilt] = useState({ x: 0, y: 0 });
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isDataOpen, setIsDataOpen] = useState(false);
 
   // Dynamic greeting based on time of day
   useEffect(() => {
@@ -148,55 +149,80 @@ export default function DashboardPage() {
 
             {/* User Data Section */}
             <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
-              <h2 className="text-lg font-semibold text-slate-900 mb-6">Ihre Daten</h2>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                  <span className="text-sm text-slate-500">Name</span>
-                  <span className="text-sm font-medium text-slate-900">{userData.firstName} {userData.lastName}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                  <span className="text-sm text-slate-500">E-Mail</span>
-                  <span className="text-sm font-medium text-slate-900">{userData.email}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                  <span className="text-sm text-slate-500">Telefon</span>
-                  <span className="text-sm font-medium text-slate-900">{userData.phone}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                  <span className="text-sm text-slate-500">Adresse</span>
-                  <span className="text-sm font-medium text-slate-900">{userData.street}, {userData.zip} {userData.city}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                  <span className="text-sm text-slate-500">Geburtsdatum</span>
-                  <span className="text-sm font-medium text-slate-900">{userData.birthdate}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                  <span className="text-sm text-slate-500">Beschäftigung</span>
-                  <span className="text-sm font-medium text-slate-900">{userData.employment} bei {userData.employer}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                  <span className="text-sm text-slate-500">Einkommen</span>
-                  <span className="text-sm font-medium text-slate-900">€{userData.income.toLocaleString('de-DE')}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                  <span className="text-sm text-slate-500">IBAN</span>
-                  <span className="text-sm font-medium text-slate-900">{userData.iban}</span>
-                </div>
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-sm text-slate-500">Paket</span>
-                  <span className="text-sm font-medium text-slate-900">{userData.packName}</span>
+              {/* Accordion Header */}
+              <div 
+                className="flex justify-between items-center w-full cursor-pointer group"
+                onClick={() => setIsDataOpen(!isDataOpen)}
+              >
+                <span className="text-lg font-black tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors duration-300">
+                  Vertragsdetails & Daten
+                </span>
+                <div 
+                  className="transform transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+                  style={{ transform: isDataOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-400 group-hover:text-blue-600 transition-colors duration-300">
+                    <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                 </div>
               </div>
-              
-              {/* Status Badge */}
-              <div className="mt-6 flex items-center gap-3">
+
+              {/* CSS Grid Accordion Animation */}
+              <div className={`grid transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${isDataOpen ? 'grid-rows-[1fr] opacity-100 mt-6' : 'grid-rows-[0fr] opacity-0 mt-0'}`}>
+                <div className="overflow-hidden">
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:justify-between py-3 border-b border-slate-50 last:border-0">
+                      <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Name</span>
+                      <span className="text-sm font-medium text-slate-900 text-right">{userData.firstName} {userData.lastName}</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between py-3 border-b border-slate-50 last:border-0">
+                      <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">E-Mail</span>
+                      <span className="text-sm font-medium text-slate-900 text-right">{userData.email}</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between py-3 border-b border-slate-50 last:border-0">
+                      <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Telefon</span>
+                      <span className="text-sm font-medium text-slate-900 text-right">{userData.phone}</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between py-3 border-b border-slate-50 last:border-0">
+                      <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Adresse</span>
+                      <span className="text-sm font-medium text-slate-900 text-right">{userData.street}, {userData.zip} {userData.city}</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between py-3 border-b border-slate-50 last:border-0">
+                      <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Geburtsdatum</span>
+                      <span className="text-sm font-medium text-slate-900 text-right">{userData.birthdate}</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between py-3 border-b border-slate-50 last:border-0">
+                      <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Beschäftigung</span>
+                      <span className="text-sm font-medium text-slate-900 text-right">{userData.employment} bei {userData.employer}</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between py-3 border-b border-slate-50 last:border-0">
+                      <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Einkommen</span>
+                      <span className="text-sm font-medium text-slate-900 text-right">€{userData.income.toLocaleString('de-DE')}</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between py-3 border-b border-slate-50 last:border-0">
+                      <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">IBAN</span>
+                      <span className="text-sm font-medium text-slate-900 text-right">{userData.iban}</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between py-3 last:border-0">
+                      <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Paket</span>
+                      <span className="text-sm font-medium text-slate-900 text-right">{userData.packName}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Divider when accordion is closed */}
+              {!isDataOpen && <div className="border-t border-slate-100 my-6"></div>}
+
+              {/* Status Badge - Always Visible */}
+              <div className="flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
                 <span className="bg-amber-50 text-amber-600 px-4 py-2 rounded-full text-sm font-semibold">
                   Konto in Bearbeitung
                 </span>
               </div>
               
-              {/* Progress Bar */}
+              {/* Progress Bar - Always Visible */}
               <div className="mt-4 w-full h-1 bg-slate-100 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-1000 ease-out"
@@ -204,7 +230,7 @@ export default function DashboardPage() {
                 ></div>
               </div>
               
-              {/* Tooltip */}
+              {/* Tooltip - Always Visible */}
               <div className="mt-4 text-xs text-slate-400 text-center">
                 Ihre Unterlagen werden geprüft. In der Regel dauert dies 1-3 Werktage.
               </div>

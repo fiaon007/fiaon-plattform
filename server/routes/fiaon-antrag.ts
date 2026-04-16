@@ -295,10 +295,24 @@ router.post("/login", async (req, res) => {
     
     const app = apps[0];
     
-    // Extract password from utm JSON field
-    const storedPassword = app.utm?.password;
-    
-    console.log("[FIAON-LOGIN] App status:", app.status, "App password from utm:", storedPassword, "Input password:", password, "Match:", storedPassword === password);
+    // Extract password from utm JSON field with proper parsing
+    let storedPassword = null;
+
+    // 1. Fallback: Falls es in der originalen password-Spalte steht
+    if (app.password) {
+      storedPassword = app.password;
+    }
+    // 2. Hauptlogik: Sicheres Parsen des UTM-Feldes (String oder Object)
+    else if (app.utm) {
+      try {
+        const utmObj = typeof app.utm === 'string' ? JSON.parse(app.utm) : app.utm;
+        storedPassword = utmObj.password;
+      } catch (parseError) {
+        console.error("[FIAON-LOGIN] UTM JSON Parse Error:", parseError);
+      }
+    }
+
+    console.log(`[FIAON-LOGIN] App status: ${app.status} | Extracted storedPassword: ${storedPassword} | Input password: ${password} | Match: ${storedPassword === password}`);
     
     // Check password
     if (!storedPassword || storedPassword !== password) {

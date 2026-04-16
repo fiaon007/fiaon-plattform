@@ -285,7 +285,7 @@ router.post("/login", async (req, res) => {
     }
     
     // Find application by email using direct SQL with same pool as save
-    const apps = await sqlPool`SELECT ref, status, utm, first_name, last_name, email, pack_name, approved_limit FROM fiaon_applications WHERE email = ${email} LIMIT 1`;
+    const apps = await sqlPool`SELECT ref, status, password, utm, first_name, last_name, email, pack_name, approved_limit FROM fiaon_applications WHERE email = ${email} LIMIT 1`;
     
     console.log("[FIAON-LOGIN] Found apps:", apps.length);
     

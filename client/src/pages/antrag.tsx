@@ -226,7 +226,6 @@ function PremiumButton({ children, onClick, disabled = false }: { children: Reac
 }
 
 const PACKS = [
-  { key:"test", name:"FIAON Test\n(1 EUR Test)", fee:1.00, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["Testprodukt für Entwickler","Monatliches Abo","Gespeicherte Zahlungsmethode","Alle Features zum Testen"], pay:"https://buy.stripe.com/test_placeholder" },
   { key:"start", name:"FIAON Starter\n(Das Fundament)", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["KI-Profilanalyse (Basis-Scan)","Kartenkompass: Markt-Matching","Credit-Building Grundmodul","Digitales Strategie-Dashboard"], pay:"https://buy.stripe.com/7sY5kDbfRdT06fagh9bMQ01" },
   { key:"pro", name:"FIAON Pro\n(Standard)", fee:59.99, lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:["Vollständiges Credit-Building System","KI-Matching mit Score-Prognose","Dynamischer Score-Simulator","Limit-Hebel-Strategie (12 Monate)","Priority Support-Zugang"], pay:"https://buy.stripe.com/cNieVdcjVeX4fPK4yrbMQ02" },
   { key:"ultra", name:"FIAON Ultra\n(Elite Konto)", fee:79.99, lim:15000, bg:"linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats:["Premium Coaching (Meilen & Cashback)","Multi-Karten-Portfolio-Struktur","Individueller Optimierungs-Algorithmus","Exklusive Strategie-Sessions"], pay:"https://buy.stripe.com/eVq4gz83F02a5b68OHbMQ03" },

@@ -237,6 +237,9 @@ export default function BusinessAntragPage() {
               amount: pack.fee,
               packageName: pack.name,
               ref,
+              firstName: d.contactName.split(' ')[0] || d.companyName,
+              lastName: d.contactName.split(' ').slice(1).join(' ') || '',
+              email: d.contactEmail || d.billingEmail,
             }),
           });
           const data = await response.json();

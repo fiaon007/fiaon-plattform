@@ -647,7 +647,10 @@ export default function AntragPage() {
         {/* === STEP 0: Paketauswahl === */}
         {step === 0 && (
           <div className="animate-[fadeInUp_.4s_ease] relative" style={{
-            background: "linear-gradient(180deg, #f0f4ff 0%, #f5f8ff 30%, #ffffff 70%, #f8faff 100%)"
+            background: "linear-gradient(180deg, #f0f4ff 0%, #f5f8ff 30%, #ffffff 70%, #f8faff 100%)",
+            maxWidth: "1400px",
+            margin: "0 auto",
+            padding: "0 32px"
           }}>
             {/* Blur-Orbs im Hintergrund */}
             <div style={{
@@ -706,7 +709,9 @@ export default function AntragPage() {
                 lineHeight: "1.7"
               }}>Entscheide dich für das passende Paket — du gelangst automatisch zum nächsten Schritt.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 max-w-[1200px] mx-auto px-4 items-stretch">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-[1400px] mx-auto px-10 items-stretch" style={{
+              gridTemplateColumns: "repeat(auto-fit, minmax(0, 1fr))"
+            }}>
               {PACKS.map((p, idx) => (
                 <button
                   key={p.key}
@@ -715,7 +720,7 @@ export default function AntragPage() {
                   style={{
                     background: "#ffffff",
                     border: p.key === "pro" ? "1.5px solid rgba(37,99,235,0.35)" : "1.5px solid rgba(37,99,235,0.10)",
-                    borderRadius: "22px",
+                    borderRadius: "24px",
                     padding: "0",
                     overflow: "visible",
                     boxShadow: p.key === "pro" ? "0 8px 40px rgba(37,99,235,0.13)" : "0 4px 24px rgba(37,99,235,0.07)",
@@ -724,6 +729,7 @@ export default function AntragPage() {
                     display: "flex",
                     flexDirection: "column",
                     height: "100%",
+                    minWidth: "0",
                     opacity: hoveredCard !== null && hoveredCard !== idx ? 0.75 : 1,
                     transform: hoveredCard !== null && hoveredCard !== idx ? "scale(0.985)" : hoveredCard === idx ? "translateY(-8px) scale(1.018)" : "",
                     filter: hoveredCard !== null && hoveredCard !== idx ? "brightness(0.97)" : "",
@@ -751,12 +757,12 @@ export default function AntragPage() {
                   )}
 
                   {/* SECTION A: Mini-Kreditkarte */}
-                  <div style={{ padding: "18px 18px 0 18px" }} className="sm:px-[18px] sm:pt-[18px] px-[16px] pt-[16px]">
+                  <div style={{ padding: "20px 20px 0 20px" }} className="sm:px-[20px] sm:pt-[20px] px-[18px] pt-[18px]">
                     <LiveCard bg={p.bg} name="" lim={p.lim.toLocaleString("de-DE")} compact className="w-full" />
                   </div>
 
                   {/* SECTION B: Paket-Name & Untertitel */}
-                  <div style={{ padding: "16px 20px 0 20px" }} className="sm:px-[20px] sm:pt-[16px] px-[16px] pt-[16px]">
+                  <div style={{ padding: "18px 24px 0 24px" }} className="sm:px-[24px] sm:pt-[18px] px-[20px] pt-[16px]">
                     <div style={{
                       fontSize: "17px",
                       fontWeight: "700",
@@ -773,7 +779,7 @@ export default function AntragPage() {
                   </div>
 
                   {/* SECTION C: WUNSCHLIMIT-BOX (Kompakt) */}
-                  <div style={{ margin: "14px 20px 0 20px" }} className="sm:mx-[20px] sm:mt-[14px] mx-[16px] mt-[12px]">
+                  <div style={{ margin: "14px 24px 0 24px" }} className="sm:mx-[24px] sm:mt-[14px] mx-[20px] mt-[12px]">
                     <div style={{
                       background: hoveredCard === idx ? "linear-gradient(135deg, rgba(37,99,235,0.10), rgba(59,130,246,0.15))" : "linear-gradient(135deg, rgba(37,99,235,0.05), rgba(59,130,246,0.08))",
                       border: hoveredCard === idx ? "1px solid rgba(37,99,235,0.30)" : "1px solid rgba(37,99,235,0.14)",
@@ -806,11 +812,11 @@ export default function AntragPage() {
 
                   {/* SECTION D: Preis-Zeile */}
                   <div style={{
-                    padding: "12px 20px 0 20px",
+                    padding: "14px 24px 0 24px",
                     display: "flex",
                     alignItems: "baseline",
                     gap: "4px"
-                  }} className="sm:px-[20px] sm:pt-[12px] px-[16px] pt-[10px]">
+                  }} className="sm:px-[24px] sm:pt-[14px] px-[20px] pt-[12px]">
                     <span style={{
                       fontSize: "28px",
                       fontWeight: "800",
@@ -827,18 +833,18 @@ export default function AntragPage() {
                   <div style={{
                     height: "1px",
                     background: "linear-gradient(90deg, transparent, rgba(37,99,235,0.10), transparent)",
-                    margin: "14px 20px 0 20px"
-                  }} className="sm:mx-[20px] sm:mt-[14px] mx-[16px] mt-[12px]"></div>
+                    margin: "14px 24px 0 24px"
+                  }} className="sm:mx-[24px] sm:mt-[14px] mx-[20px] mt-[12px]"></div>
 
                   {/* SECTION E: Feature-Liste */}
                   <div style={{
-                    padding: "14px 20px 20px 20px",
+                    padding: "14px 24px 22px 24px",
                     flex: "1",
                     display: "flex",
                     flexDirection: "column",
                     gap: "0"
-                  }} className="sm:px-[20px] sm:pt-[14px] sm:pb-[20px] px-[16px] pt-[12px] pb-[16px]">
-                    {/* Erstes Feature - IMMER sichtbar */}
+                  }} className="sm:px-[24px] sm:pt-[14px] sm:pb-[22px] px-[20px] pt-[12px] pb-[18px]">
+                    {/* Feature 1 - IMMER sichtbar */}
                     <div style={{
                       display: "flex",
                       alignItems: "flex-start",
@@ -856,20 +862,40 @@ export default function AntragPage() {
                       }}>{p.feats[0]}</span>
                     </div>
                     
-                    {/* Wrapper für Features 2-5 - kollapierbar */}
+                    {/* Feature 2 - IMMER sichtbar */}
+                    {p.feats[1] && (
+                      <div style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "10px",
+                        padding: "7px 0",
+                        borderBottom: "1px solid rgba(0,0,0,0.04)"
+                      }}>
+                        <CheckIcon isHighEnd={p.key === "highend"} />
+                        <span style={{
+                          fontSize: "13.5px",
+                          color: "#374151",
+                          fontWeight: "500",
+                          lineHeight: "1.5",
+                          textAlign: "left"
+                        }}>{p.feats[1]}</span>
+                      </div>
+                    )}
+                    
+                    {/* Wrapper für Features 3-5 - kollapierbar */}
                     <div style={{
-                      maxHeight: expandedCard === idx ? "300px" : "0",
+                      maxHeight: expandedCard === idx ? "200px" : "0",
                       overflow: "hidden",
                       opacity: expandedCard === idx ? "1" : "0",
-                      transition: "max-height 0.42s cubic-bezier(0.22,1,0.36,1), opacity 0.32s ease 0.05s"
+                      transition: "max-height 0.38s cubic-bezier(0.22,1,0.36,1), opacity 0.28s ease"
                     }}>
-                      {p.feats.slice(1).map((f, i) => (
-                        <div key={i + 1} style={{
+                      {p.feats.slice(2).map((f, i) => (
+                        <div key={i + 2} style={{
                           display: "flex",
                           alignItems: "flex-start",
                           gap: "10px",
                           padding: "7px 0",
-                          borderBottom: i === p.feats.slice(1).length - 1 ? "none" : "1px solid rgba(0,0,0,0.04)"
+                          borderBottom: i === p.feats.slice(2).length - 1 ? "none" : "1px solid rgba(0,0,0,0.04)"
                         }}>
                           <CheckIcon isHighEnd={p.key === "highend"} />
                           <span style={{
@@ -924,7 +950,7 @@ export default function AntragPage() {
                     </button>
 
                     {/* "Konto eröffnen" Button */}
-                    <div style={{ padding: "0 20px 20px 20px", marginTop: "14px" }} className="sm:px-[20px] sm:pb-[20px] sm:mt-[14px] px-[16px] pb-[16px] mt-[12px]">
+                    <div style={{ padding: "0 24px 24px 24px", marginTop: "14px" }} className="sm:px-[24px] sm:pb-[24px] sm:mt-[14px] px-[20px] pb-[20px] mt-[12px]">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

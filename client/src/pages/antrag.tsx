@@ -20,6 +20,18 @@ styleElement.textContent = `
     0%, 100% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
   }
+  @keyframes cardEnter {
+    from {
+      opacity: 0;
+      transform: translateY(32px) scale(0.96);
+      filter: blur(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      filter: blur(0);
+    }
+  }
   .animate-gradient {
     background-size: 200% 200%;
     animation: gradient 3s ease infinite;
@@ -226,11 +238,25 @@ function PremiumButton({ children, onClick, disabled = false }: { children: Reac
 }
 
 const PACKS = [
-  { key:"start", name:"FIAON Starter\n(Das Fundament)", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["KI-Profilanalyse (Basis-Scan)","Kartenkompass: Markt-Matching","Credit-Building Grundmodul","Digitales Strategie-Dashboard"], pay:"https://buy.stripe.com/7sY5kDbfRdT06fagh9bMQ01" },
-  { key:"pro", name:"FIAON Pro\n(Standard)", fee:59.99, lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:["Vollständiges Credit-Building System","KI-Matching mit Score-Prognose","Dynamischer Score-Simulator","Limit-Hebel-Strategie (12 Monate)","Priority Support-Zugang"], pay:"https://buy.stripe.com/cNieVdcjVeX4fPK4yrbMQ02" },
-  { key:"ultra", name:"FIAON Ultra\n(Elite Konto)", fee:79.99, lim:15000, bg:"linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats:["Premium Coaching (Meilen & Cashback)","Multi-Karten-Portfolio-Struktur","Individueller Optimierungs-Algorithmus","Exklusive Strategie-Sessions"], pay:"https://buy.stripe.com/eVq4gz83F02a5b68OHbMQ03" },
-  { key:"highend", name:"FIAON High End\n(Das Maximum)", fee:99.99, lim:25000, bg:"linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats:["1-on-1 Strategy-Director (Monatlich)","VIP International Credit Building","24/7 Dedicated Concierge-Support","Individuelle Limit-Roadmap (Hochend)"], pay:"https://buy.stripe.com/7sYdR9abNcOW5b6c0TbMQ04" },
+  { key:"start", name:"FIAON Starter\n(Das Fundament)", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["Dein 500 € Einstiegs-Setup","Zugang: Basic Karten-Portfolio","Schufaneutrale Profil-Prüfung","Online-Dashboard & Verwaltung"], pay:"https://buy.stripe.com/7sY5kDbfRdT06fagh9bMQ01" },
+  { key:"pro", name:"FIAON Pro\n(Standard)", fee:59.99, lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:["Dein 5.000 € Limit-Protokoll","Zugang: Premium Karten-Netzwerk","Dynamische Limit-Aufstockung","Sofortige Score-Auswertung","Priority-Bearbeitung im System"], pay:"https://buy.stripe.com/cNieVdcjVeX4fPK4yrbMQ02" },
+  { key:"ultra", name:"FIAON Ultra\n(Elite Konto)", fee:79.99, lim:15000, bg:"linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats:["Dein 15.000 € Elite-Portfolio","Zugang: Gold- & Platinum-Karten","Cashback- & Meilen-Aktivierung","Individuelle Freigabe-Roadmap","VIP-Support & Konto-Optimierung"], pay:"https://buy.stripe.com/eVq4gz83F02a5b68OHbMQ03" },
+  { key:"highend", name:"FIAON High End\n(Das Maximum)", fee:99.99, lim:25000, bg:"linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats:["Dein 25.000 € Black-Card Setup","Exklusiver Zugang: Metal- & VIP-Karten","Persönlicher Account Director","Internationale Limit-Strukturen","24/7 Dedicated Concierge-Support"], pay:"https://buy.stripe.com/7sYdR9abNcOW5b6c0TbMQ04" },
 ];
+
+/* === CHECK ICON COMPONENT === */
+const CheckIcon = ({ isHighEnd = false }: { isHighEnd?: boolean }) => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <circle cx="9" cy="9" r="9" fill={isHighEnd ? "rgba(37,99,235,0.15)" : "rgba(37,99,235,0.10)"}/>
+    <path 
+      d="M5.5 9L7.8 11.5L12.5 6.5" 
+      stroke={isHighEnd ? "#3b82f6" : "#2563eb"} 
+      strokeWidth="1.8" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    />
+  </svg>
+);
 
 function mkRef() { return "FIAON-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase(); }
 function eur(n: number) { return "€ " + n.toLocaleString("de-DE", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 }); }
@@ -353,6 +379,7 @@ export default function AntragPage() {
   const [ref] = useState(mkRef);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pack, setPack] = useState<typeof PACKS[0] | null>(null);
+  const [hoveredCard, setHoveredCard] = useState<number | null>(null);
 
   const [d, setD] = useState({ firstName: "", lastName: "", birthDay: "", birthMonth: "", birthYear: "1990", phoneCountryCode: "+49", phone: "", street: "", zip: "", city: "", country: "", nationality: "", employment: "", employer: "", employedSince: "", income: 0, rent: 0, debts: 0, housing: "", wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", email: "", salaryReceiptDay: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false });
   const [approved, setApproved] = useState(0);
@@ -618,78 +645,224 @@ export default function AntragPage() {
 
         {/* === STEP 0: Paketauswahl === */}
         {step === 0 && (
-          <div className="animate-[fadeInUp_.4s_ease]">
-            <div className="text-center mb-12">
-              <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-3">Paket wählen</p>
-              <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight fiaon-gradient-text-animated mb-4">Wähle dein FIAON Paket</h1>
-              <p className="text-[15px] text-gray-400 max-w-lg mx-auto leading-relaxed">Entscheide dich für das passende Paket — du gelangst automatisch zum nächsten Schritt.</p>
+          <div className="animate-[fadeInUp_.4s_ease] relative" style={{
+            background: "linear-gradient(180deg, #f0f4ff 0%, #f5f8ff 30%, #ffffff 70%, #f8faff 100%)"
+          }}>
+            {/* Blur-Orbs im Hintergrund */}
+            <div style={{
+              position: "absolute",
+              width: "500px",
+              height: "500px",
+              background: "radial-gradient(circle, rgba(37,99,235,0.07) 0%, transparent 70%)",
+              top: "-100px",
+              left: "-100px",
+              filter: "blur(60px)",
+              pointerEvents: "none",
+              zIndex: "0",
+              animation: "limitGlow 8s ease-in-out infinite"
+            }}></div>
+            <div style={{
+              position: "absolute",
+              width: "400px",
+              height: "400px",
+              background: "radial-gradient(circle, rgba(139,92,246,0.06) 0%, transparent 70%)",
+              bottom: "-80px",
+              right: "-80px",
+              filter: "blur(50px)",
+              pointerEvents: "none",
+              zIndex: "0",
+              animation: "limitGlow 8s ease-in-out infinite",
+              animationDelay: "4s"
+            }}></div>
+
+            {/* Content-Container mit relativ position und z-index */}
+            <div style={{ position: "relative", zIndex: "1" }}>
+              <div className="text-center mb-12">
+              <span className="inline-block" style={{
+                background: "rgba(37,99,235,0.08)",
+                color: "#2563eb",
+                fontSize: "11px",
+                fontWeight: "700",
+                letterSpacing: "0.13em",
+                textTransform: "uppercase",
+                padding: "5px 14px",
+                borderRadius: "20px",
+                border: "1px solid rgba(37,99,235,0.18)"
+              }}>PAKET WÄHLEN</span>
+              <h1 className="mt-3" style={{
+                fontSize: "clamp(2rem, 4vw, 3rem)",
+                fontWeight: "800",
+                background: "linear-gradient(135deg, #1e40af, #2563eb, #3b82f6)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text"
+              }}>Wähle dein FIAON Paket</h1>
+              <p style={{
+                color: "#6b7280",
+                fontSize: "15px",
+                maxWidth: "480px",
+                margin: "0 auto",
+                lineHeight: "1.7"
+              }}>Entscheide dich für das passende Paket — du gelangst automatisch zum nächsten Schritt.</p>
             </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-[1400px] mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 max-w-[1200px] mx-auto px-4 items-stretch">
               {PACKS.map((p, idx) => (
-                <button 
-                  key={p.key} 
-                  onClick={() => { setPack(p); up("wantedLimit", Math.min(d.wantedLimit, p.lim)); track("pack_select", { pack: p.key }, ref); setTimeout(() => goStep(1), 400); }} 
-                  className={`group text-left rounded-2xl overflow-hidden transition-all duration-500 h-full flex flex-col ${pack?.key === p.key ? "fiaon-glass-card-selected scale-[1.02]" : "fiaon-glass-card"}`}
-                  style={{ animation: `smoothScaleIn 0.5s ease ${idx * 80}ms both` }}
+                <button
+                  key={p.key}
+                  onClick={() => { setPack(p); up("wantedLimit", Math.min(d.wantedLimit, p.lim)); track("pack_select", { pack: p.key }, ref); setTimeout(() => goStep(1), 400); }}
+                  className="relative"
+                  style={{
+                    background: "#ffffff",
+                    border: p.key === "pro" ? "1.5px solid rgba(37,99,235,0.35)" : "1.5px solid rgba(37,99,235,0.10)",
+                    borderRadius: "22px",
+                    padding: "0",
+                    overflow: "visible",
+                    boxShadow: p.key === "pro" ? "0 8px 40px rgba(37,99,235,0.13)" : "0 4px 24px rgba(37,99,235,0.07)",
+                    transition: "transform 0.28s cubic-bezier(0.22,1,0.36,1), box-shadow 0.28s, border-color 0.28s, opacity 0.28s, filter 0.28s",
+                    cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    height: "100%",
+                    opacity: hoveredCard !== null && hoveredCard !== idx ? 0.75 : 1,
+                    transform: hoveredCard !== null && hoveredCard !== idx ? "scale(0.985)" : hoveredCard === idx ? "translateY(-8px) scale(1.018)" : "",
+                    filter: hoveredCard !== null && hoveredCard !== idx ? "brightness(0.97)" : "",
+                    animation: `cardEnter 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards`,
+                    animationDelay: `${idx === 0 ? 0.05 : idx === 1 ? 0.15 : idx === 2 ? 0.25 : 0.35}s`
+                  }}
+                  onMouseEnter={() => setHoveredCard(idx)}
+                  onMouseLeave={() => setHoveredCard(null)}
                 >
-                  {/* Card area with generous padding */}
-                  <div className="p-5 sm:p-6">
+                  {/* Beliebt Badge für Pro */}
+                  {p.key === "pro" && (
+                    <div style={{
+                      position: "absolute",
+                      top: "-1px",
+                      right: "20px",
+                      background: "linear-gradient(135deg, #2563eb, #3b82f6)",
+                      color: "#fff",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      padding: "4px 12px",
+                      borderRadius: "0 0 10px 10px",
+                      boxShadow: "0 4px 12px rgba(37,99,235,0.35)",
+                      zIndex: "10"
+                    }}>✦ Beliebt</div>
+                  )}
+
+                  {/* SECTION A: Mini-Kreditkarte */}
+                  <div style={{ padding: "18px 18px 0 18px" }} className="sm:px-[18px] sm:pt-[18px] px-[16px] pt-[16px]">
                     <LiveCard bg={p.bg} name="" lim={p.lim.toLocaleString("de-DE")} compact className="w-full" />
                   </div>
-                  <div className="px-5 sm:px-6 pb-6 flex-1 flex flex-col">
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className="text-[15px] font-semibold text-gray-900" style={{ whiteSpace: "pre-line" }}>{p.name}</span>
+
+                  {/* SECTION B: Paket-Name & Untertitel */}
+                  <div style={{ padding: "16px 20px 0 20px" }} className="sm:px-[20px] sm:pt-[16px] px-[16px] pt-[16px]">
+                    <div style={{
+                      fontSize: "17px",
+                      fontWeight: "700",
+                      color: "#111827",
+                      lineHeight: "1.3",
+                      whiteSpace: "pre-line"
+                    }}>{p.name}</div>
+                    <div style={{
+                      fontSize: "13px",
+                      color: "#6b7280",
+                      fontWeight: "500",
+                      marginTop: "2px"
+                    }}>{p.key === "start" ? "Das Fundament" : p.key === "pro" ? "Standard" : p.key === "ultra" ? "Elite Konto" : "Das Maximum"}</div>
+                  </div>
+
+                  {/* SECTION C: WUNSCHLIMIT-BOX (Kompakt) */}
+                  <div style={{ margin: "14px 20px 0 20px" }} className="sm:mx-[20px] sm:mt-[14px] mx-[16px] mt-[12px]">
+                    <div style={{
+                      background: hoveredCard === idx ? "linear-gradient(135deg, rgba(37,99,235,0.10), rgba(59,130,246,0.15))" : "linear-gradient(135deg, rgba(37,99,235,0.05), rgba(59,130,246,0.08))",
+                      border: hoveredCard === idx ? "1px solid rgba(37,99,235,0.30)" : "1px solid rgba(37,99,235,0.14)",
+                      borderRadius: "12px",
+                      padding: "10px 16px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      width: "auto",
+                      transition: "background 0.3s, box-shadow 0.3s, border-color 0.3s",
+                      boxShadow: hoveredCard === idx ? "0 0 0 3px rgba(37,99,235,0.08)" : "none"
+                    }} className="sm:py-[10px] sm:px-[16px] py-[8px] px-[14px]">
+                      <span style={{
+                        fontSize: "9px",
+                        fontWeight: "700",
+                        letterSpacing: "0.12em",
+                        color: "rgba(37,99,235,0.7)",
+                        textTransform: "uppercase",
+                        whiteSpace: "nowrap"
+                      }} className="sm:text-[9px] text-[8px]">WUNSCHLIMIT BIS</span>
+                      <span style={{
+                        fontSize: "18px",
+                        fontWeight: "800",
+                        color: hoveredCard === idx ? "#1d4ed8" : "#2563eb",
+                        whiteSpace: "nowrap",
+                        transition: "color 0.3s"
+                      }} className="sm:text-[18px] text-[16px]">{p.lim.toLocaleString("de-DE")} €</span>
                     </div>
-                    
-                    {/* HIGH END Limit Highlight */}
-                    <div className="relative mb-5 p-4 rounded-xl overflow-hidden" style={{
-                      background: "rgba(255, 255, 255, 0.6)",
-                      backdropFilter: "blur(20px) saturate(180%)",
-                      WebkitBackdropFilter: "blur(20px) saturate(180%)",
-                      border: "1px solid rgba(37, 99, 235, 0.2)",
-                      boxShadow: "0 8px 32px rgba(37, 99, 235, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8)"
-                    }}>
-                      <div className="absolute inset-0 opacity-40 pointer-events-none" style={{
-                        background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.15), rgba(37,99,235,0.1))",
-                        backgroundSize: "200% 200%",
-                        animation: "limitGlow 4s ease-in-out infinite"
-                      }} />
-                      <div className="relative z-10 text-center">
-                        <div className="text-[10px] font-semibold uppercase tracking-[.05em] text-[#2563eb] mb-1.5" style={{ textShadow: "0 1px 2px rgba(37,99,235,0.1)" }}>Wunschlimit bis</div>
-                        <div className="text-[22px] sm:text-[24px] font-bold tracking-tight whitespace-nowrap" style={{
-                          background: "linear-gradient(135deg, #1e40af, #2563eb, #3b82f6)",
-                          backgroundClip: "text",
-                          WebkitBackgroundClip: "text",
-                          WebkitTextFillColor: "transparent",
-                          textShadow: "0 2px 12px rgba(37,99,235,0.15)"
-                        }}>
-                          {p.lim.toLocaleString("de-DE")} €
-                        </div>
+                  </div>
+
+                  {/* SECTION D: Preis-Zeile */}
+                  <div style={{
+                    padding: "12px 20px 0 20px",
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: "4px"
+                  }} className="sm:px-[20px] sm:pt-[12px] px-[16px] pt-[10px]">
+                    <span style={{
+                      fontSize: "28px",
+                      fontWeight: "800",
+                      color: "#111827"
+                    }}>{p.fee.toLocaleString("de-DE", { minimumFractionDigits: 2 })}</span>
+                    <span style={{
+                      fontSize: "13px",
+                      color: "#6b7280",
+                      fontWeight: "500"
+                    }}>€/Mt.</span>
+                  </div>
+
+                  {/* Trennlinie zwischen Preis und Features */}
+                  <div style={{
+                    height: "1px",
+                    background: "linear-gradient(90deg, transparent, rgba(37,99,235,0.10), transparent)",
+                    margin: "14px 20px 0 20px"
+                  }} className="sm:mx-[20px] sm:mt-[14px] mx-[16px] mt-[12px]"></div>
+
+                  {/* SECTION E: Feature-Liste */}
+                  <div style={{
+                    padding: "14px 20px 20px 20px",
+                    flex: "1",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0"
+                  }} className="sm:px-[20px] sm:pt-[14px] sm:pb-[20px] px-[16px] pt-[12px] pb-[16px]">
+                    {p.feats.map((f, i) => (
+                      <div key={i} style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "10px",
+                        padding: "7px 0",
+                        borderBottom: i === p.feats.length - 1 ? "none" : "1px solid rgba(0,0,0,0.04)"
+                      }}>
+                        <CheckIcon isHighEnd={p.key === "highend"} />
+                        <span style={{
+                          fontSize: "13.5px",
+                          color: "#374151",
+                          fontWeight: "500",
+                          lineHeight: "1.5",
+                          textAlign: "left"
+                        }}>{f}</span>
                       </div>
-                    </div>
-                    
-                    <div className="flex items-baseline gap-1.5 mb-5">
-                      <span className="text-[28px] font-semibold text-gray-900 tracking-tight">{p.fee.toLocaleString("de-DE", { minimumFractionDigits: 2 })}</span>
-                      <span className="text-[13px] text-gray-400">€/Mt.</span>
-                    </div>
-                    <ul className="space-y-2.5 mb-6 flex-1">
-                      {p.feats.map((f, i) => (
-                        <li key={i} className="flex items-center gap-2.5 text-[13px] text-gray-600">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="pt-3 border-t border-gray-100/80">
-                      <button className="w-full py-3 px-4 rounded-lg text-[13px] font-semibold text-[#2563eb] border-2 border-[#2563eb] bg-transparent hover:bg-[#2563eb] hover:text-white transition-all duration-300">
-                        Konto eröffnen
-                      </button>
-                    </div>
+                    ))}
+                    {/* Unsichtbarer Platzhalter für Starter (4 Features vs 5) */}
+                    {p.key === "start" && <div style={{ height: "28px" }}></div>}
                   </div>
                 </button>
               ))}
             </div>
             <p className="text-center text-[11px] text-gray-400 mt-8">Das endgültige Kreditlimit wird individuell festgelegt.</p>
+            </div>
           </div>
         )}
 

@@ -107,7 +107,7 @@ router.post("/create-payment-intent", async (req, res) => {
       payment_behavior: 'default_incomplete',
       payment_settings: {
         save_default_payment_method: 'on_subscription',
-        payment_method_types: ['card', 'sepa_debit'],
+        payment_method_types: ['card'],
       },
       expand: ['latest_invoice.payment_intent'],
       metadata: {
@@ -133,9 +133,10 @@ router.post("/create-payment-intent", async (req, res) => {
       subscriptionId: subscription.id,
       customerId: customer.id,
     });
-  } catch (err) {
-    console.error("[FIAON-SUBSCRIPTION]", err);
-    res.status(500).json({ error: "Failed to create subscription" });
+  } catch (err: any) {
+    console.error("[FIAON-SUBSCRIPTION] Error:", err.message);
+    console.error("[FIAON-SUBSCRIPTION] Full error:", JSON.stringify(err, null, 2));
+    res.status(500).json({ error: "Failed to create subscription", details: err.message });
   }
 });
 

@@ -77,21 +77,32 @@ router.post("/create-payment-intent", async (req, res) => {
       `;
     }
 
+    // Create product first
+    console.log("[FIAON-SUBSCRIPTION] Creating product:", packageName);
+    const product = await stripe.products.create({
+      name: packageName,
+      metadata: { ref },
+    });
+    console.log("[FIAON-SUBSCRIPTION] Created product:", product.id);
+
+    // Create price for the product
+    console.log("[FIAON-SUBSCRIPTION] Creating price for product:", product.id, "amount:", amount);
+    const price = await stripe.prices.create({
+      product: product.id,
+      currency: 'eur',
+      recurring: {
+        interval: 'month',
+      },
+      unit_amount: Math.round(amount * 100), // Convert to cents
+    });
+    console.log("[FIAON-SUBSCRIPTION] Created price:", price.id);
+
     // Create subscription with setup intent for payment method
+    console.log("[FIAON-SUBSCRIPTION] Creating subscription with price:", price.id, "for customer:", customer.id);
     const subscription = await stripe.subscriptions.create({
       customer: customer.id,
       items: [{
-        price_data: {
-          currency: 'eur',
-          product_data: {
-            name: packageName,
-            metadata: { ref },
-          },
-          recurring: {
-            interval: 'month',
-          },
-          unit_amount: Math.round(amount * 100), // Convert to cents
-        },
+        price: price.id,
       }],
       payment_behavior: 'default_incomplete',
       payment_settings: {

@@ -19,12 +19,33 @@ function GradientText({ children, className = "" }: { children: React.ReactNode;
   return <span className={`fiaon-heading-gradient ${className}`}>{children}</span>;
 }
 
+/* ── cardEnter Animation ── */
+const styleElement = document.createElement("style");
+styleElement.textContent = `
+  @keyframes cardEnter {
+    from {
+      opacity: 0;
+      transform: translateY(28px) scale(0.95);
+      filter: blur(3px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      filter: blur(0);
+    }
+  }
+`;
+if (!document.head.querySelector('style[data-card-enter]')) {
+  styleElement.setAttribute('data-card-enter', 'true');
+  document.head.appendChild(styleElement);
+}
+
 /* ── packages ── */
 const PACKS = [
-  { name: "FIAON Starter", fee: "7,99", lim: "500", bg: "linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats: ["KI-Profilanalyse (Basis-Scan)", "Kartenkompass: Markt-Matching", "Credit-Building Grundmodul", "Digitales Strategie-Dashboard"] },
-  { name: "FIAON Pro", fee: "59,99", lim: "5.000", rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats: ["Vollständiges Credit-Building System", "KI-Matching mit Score-Prognose", "Dynamischer Score-Simulator", "Limit-Aufbau-Strategie (12 Monate)"] },
-  { name: "FIAON Ultra", fee: "79,99", lim: "15.000", bg: "linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats: ["Premium Coaching (Meilen & Cashback)", "Multi-Karten-Portfolio-Struktur", "Individueller Optimierungs-Algorithmus", "Exklusive Strategie-Sessions"] },
-  { name: "FIAON High End", fee: "99,99", lim: "25.000", bg: "linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats: ["1-on-1 Strategy-Director (Monatlich)", "VIP International Credit Building", "Individuelle Limit-Roadmap (High-End)", "24/7 Dedicated Concierge-Support"] },
+  { name: "FIAON Starter\n(Das Fundament)", fee: "7,99", lim: "500", bg: "linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats: ["Dein 500 € Einstiegs-Setup", "Zugang: Basic Karten-Portfolio", "Schufaneutrale Profil-Prüfung", "Online-Dashboard & Verwaltung"] },
+  { name: "FIAON Pro\n(Standard)", fee: "59,99", lim: "5.000", rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats: ["Dein 5.000 € Limit-Protokoll", "Zugang: Premium Karten-Netzwerk", "Dynamische Limit-Aufstockung", "Sofortige Score-Auswertung", "Priority-Bearbeitung im System"] },
+  { name: "FIAON Ultra\n(Elite Konto)", fee: "79,99", lim: "15.000", bg: "linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats: ["Dein 15.000 € Elite-Portfolio", "Zugang: Gold- & Platinum-Karten", "Cashback- & Meilen-Aktivierung", "Individuelle Freigabe-Roadmap", "VIP-Support & Konto-Optimierung"] },
+  { name: "FIAON High End\n(Das Maximum)", fee: "99,99", lim: "25.000", bg: "linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats: ["Dein 25.000 € Black-Card Setup", "Exklusiver Zugang: Metal- & VIP-Karten", "Persönlicher Account Director", "Internationale Limit-Strukturen", "24/7 Dedicated Concierge-Support"] },
 ];
 
 const BUSINESS_PACKS = [
@@ -254,79 +275,423 @@ function WhySection() {
 function Packages() {
   const obs = useReveal(0.05);
   const [customerType, setCustomerType] = useState<"private" | "business">("private");
+  const [hoveredCard, setHoveredCard] = useState<number | null>(null);
   const currentPacks = customerType === "private" ? PACKS : BUSINESS_PACKS;
   const applicationUrl = customerType === "private" ? "/antrag" : "/business-antrag";
 
   return (
-    <section id="pakete" className="py-20 sm:py-28 bg-[#f8faff]" ref={obs.ref}>
-      <div className="max-w-[1200px] mx-auto px-6">
-        <div className="max-w-2xl mb-10">
-          <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">{customerType === "business" ? "BUSINESS SETUP" : "DEIN SETUP"}</p>
-          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4">
-            {customerType === "business" ? <GradientText>Ihre strategische Firmen-Bonität</GradientText> : <GradientText>Wähle deine Strategie</GradientText>}
-          </h2>
-          <p className="text-[15px] text-gray-500 leading-relaxed">
-            {customerType === "business" ? "Von 10.000 € bis 100.000 € Limit-Ziel — strukturiert, skalierbar und sauber getrennt vom Privatvermögen." : "Vom ersten Score-Aufbau bis zum Premium-Portfolio. Wähle das Software-Setup, das zu deinem Limit-Ziel passt."}
-          </p>
-        </div>
+    <section id="pakete" className="py-20 sm:py-28 relative overflow-hidden" style={{
+      background: "linear-gradient(180deg, #f0f4ff 0%, #f6f8ff 25%, #ffffff 60%, #f8faff 100%)",
+      padding: "80px 0 100px"
+    }} ref={obs.ref}>
+      {/* Blur-Orbs im Hintergrund */}
+      <div style={{
+        position: "absolute",
+        width: "600px",
+        height: "600px",
+        background: "radial-gradient(circle, rgba(37,99,235,0.07) 0%, transparent 68%)",
+        top: "-120px",
+        left: "-80px",
+        filter: "blur(70px)",
+        pointerEvents: "none",
+        zIndex: "0",
+        animation: "limitGlow 9s ease-in-out infinite"
+      }}></div>
+      <div style={{
+        position: "absolute",
+        width: "480px",
+        height: "480px",
+        background: "radial-gradient(circle, rgba(139,92,246,0.06) 0%, transparent 68%)",
+        bottom: "-80px",
+        right: "-60px",
+        filter: "blur(60px)",
+        pointerEvents: "none",
+        zIndex: "0",
+        animation: "limitGlow 9s ease-in-out infinite",
+        animationDelay: "4.5s"
+      }}></div>
+      <div style={{
+        position: "absolute",
+        width: "300px",
+        height: "300px",
+        background: "radial-gradient(circle, rgba(37,99,235,0.04) 0%, transparent 70%)",
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%)",
+        filter: "blur(50px)",
+        pointerEvents: "none",
+        zIndex: "0"
+      }}></div>
+
+      {/* Content-Wrapper mit relativ position und z-index */}
+      <div style={{ position: "relative", zIndex: "1" }}>
+        <div className="max-w-[1200px] mx-auto px-6">
+          {customerType === "private" ? (
+            <div className="max-w-2xl mb-10 text-center">
+              <span className="inline-block" style={{
+                background: "rgba(37,99,235,0.08)",
+                border: "1px solid rgba(37,99,235,0.18)",
+                color: "#2563eb",
+                fontSize: "11px",
+                fontWeight: "700",
+                letterSpacing: "0.13em",
+                textTransform: "uppercase",
+                padding: "5px 14px",
+                borderRadius: "20px",
+                marginBottom: "14px"
+              }}>DEIN SETUP</span>
+              <h2 style={{
+                fontSize: "clamp(2rem, 4vw, 2.8rem)",
+                fontWeight: "800",
+                marginBottom: "12px"
+              }}>
+                <GradientText>Wähle deine Strategie</GradientText>
+              </h2>
+              <p style={{
+                color: "#6b7280",
+                fontSize: "15px",
+                lineHeight: "1.7",
+                maxWidth: "520px",
+                margin: "0 auto",
+                textAlign: "center"
+              }}>Vom ersten Score-Aufbau bis zum Premium-Portfolio. Wähle das Software-Setup, das zu deinem Limit-Ziel passt.</p>
+            </div>
+          ) : (
+            <div className="max-w-2xl mb-10">
+              <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">BUSINESS SETUP</p>
+              <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4">
+                <GradientText>Ihre strategische Firmen-Bonität</GradientText>
+              </h2>
+              <p className="text-[15px] text-gray-500 leading-relaxed">
+                Von 10.000 € bis 100.000 € Limit-Ziel — strukturiert, skalierbar und sauber getrennt vom Privatvermögen.
+              </p>
+            </div>
+          )}
 
         {/* Customer Type Toggle */}
         <div className="flex justify-center mb-10">
-          <div className="inline-flex rounded-xl p-1 fiaon-glass-panel">
+          <div className="inline-flex" style={{
+            background: "rgba(37,99,235,0.06)",
+            border: "1px solid rgba(37,99,235,0.14)",
+            borderRadius: "50px",
+            padding: "5px",
+            gap: "4px",
+            boxShadow: "0 2px 12px rgba(37,99,235,0.08)"
+          }}>
             <button
               onClick={() => setCustomerType("private")}
-              className={`px-6 py-2.5 rounded-lg text-[13px] font-semibold transition-all duration-300 ${customerType === "private" ? "bg-white text-[#2563eb] shadow-md" : "text-gray-500 hover:text-gray-700"}`}
+              className="transition-all duration-250"
+              style={{
+                background: customerType === "private" ? "linear-gradient(135deg, #2563eb, #3b82f6)" : "transparent",
+                color: customerType === "private" ? "#fff" : "#6b7280",
+                fontWeight: customerType === "private" ? "600" : "500",
+                fontSize: "14px",
+                padding: "9px 26px",
+                borderRadius: "50px",
+                border: "none",
+                cursor: "pointer",
+                boxShadow: customerType === "private" ? "0 4px 14px rgba(37,99,235,0.30)" : "none"
+              }}
+              onMouseEnter={(e) => {
+                if (customerType !== "private") {
+                  e.currentTarget.style.color = "#2563eb";
+                  e.currentTarget.style.background = "rgba(37,99,235,0.05)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (customerType !== "private") {
+                  e.currentTarget.style.color = "#6b7280";
+                  e.currentTarget.style.background = "transparent";
+                }
+              }}
             >
               Privatkunde
             </button>
             <button
               onClick={() => setCustomerType("business")}
-              className={`px-6 py-2.5 rounded-lg text-[13px] font-semibold transition-all duration-300 ${customerType === "business" ? "bg-white text-[#2563eb] shadow-md" : "text-gray-500 hover:text-gray-700"}`}
+              className="transition-all duration-250"
+              style={{
+                background: customerType === "business" ? "linear-gradient(135deg, #2563eb, #3b82f6)" : "transparent",
+                color: customerType === "business" ? "#fff" : "#6b7280",
+                fontWeight: customerType === "business" ? "600" : "500",
+                fontSize: "14px",
+                padding: "9px 26px",
+                borderRadius: "50px",
+                border: "none",
+                cursor: "pointer",
+                boxShadow: customerType === "business" ? "0 4px 14px rgba(37,99,235,0.30)" : "none"
+              }}
+              onMouseEnter={(e) => {
+                if (customerType !== "business") {
+                  e.currentTarget.style.color = "#2563eb";
+                  e.currentTarget.style.background = "rgba(37,99,235,0.05)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (customerType !== "business") {
+                  e.currentTarget.style.color = "#6b7280";
+                  e.currentTarget.style.background = "transparent";
+                }
+              }}
             >
               Geschäftskunde
             </button>
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {currentPacks.map((p, i) => (
-            <div key={p.name} className={`relative rounded-2xl bg-white border overflow-hidden transition-all duration-700 hover:-translate-y-1.5 hover:shadow-xl ${p.rec ? "border-[#2563eb]/25 shadow-lg shadow-blue-500/8 ring-1 ring-[#2563eb]/10" : "border-gray-100 hover:border-gray-200"} ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`} style={{ transitionDelay: `${i * 90}ms` }}>
-              {p.rec && <div className="absolute -top-0 left-0 right-0 h-[2px] bg-[#2563eb]" />}
-              {p.rec && customerType === "business" && <div className="absolute top-3 right-4 text-[9px] font-bold uppercase tracking-wider text-white bg-[#2563eb] px-2.5 py-1 rounded-full z-10">Beliebt</div>}
-
-              {/* Card */}
-              <div className="p-5 sm:p-6">
-                <Card bg={p.bg} lim={p.lim} label={customerType === "business" && "tier" in p ? p.tier : undefined} className="w-full" />
-              </div>
-
-              {/* Content */}
-              <div className="px-5 sm:px-6 pb-6">
-                {customerType === "business" && "tier" in p && <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">{p.tier}</p>}
-                <h3 className={`${customerType === "business" ? "text-[17px]" : "text-[15px]"} font-semibold text-gray-900 mb-2`}>{p.name}</h3>
-                {customerType === "business" ? (
-                  <p className="text-[14px] text-gray-500 mb-4 pb-4 border-b border-gray-100">Limits bis zu <span className="text-[#2563eb] font-semibold">{p.lim}&nbsp;€</span></p>
-                ) : (
-                  <div className="flex items-center gap-3 mb-3">
-                    {p.rec && <span className="text-[9px] font-semibold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-2 py-0.5 rounded">Empfohlen</span>}
-                  </div>
+        {customerType === "private" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 max-w-[1200px] mx-auto px-4 items-stretch overflow-visible">
+            {PACKS.map((p, i) => (
+              <div
+                key={p.name}
+                className="relative"
+                style={{
+                  background: "#ffffff",
+                  border: p.rec ? "1.5px solid rgba(37,99,235,0.32)" : "1.5px solid rgba(37,99,235,0.10)",
+                  borderRadius: "22px",
+                  padding: "0",
+                  overflow: "visible",
+                  boxShadow: p.rec ? "0 8px 40px rgba(37,99,235,0.14)" : "0 4px 24px rgba(37,99,235,0.07)",
+                  transition: "transform 0.28s cubic-bezier(0.22,1,0.36,1), box-shadow 0.28s, border-color 0.28s, opacity 0.28s, filter 0.28s",
+                  display: "flex",
+                  flexDirection: "column",
+                  height: "100%",
+                  opacity: hoveredCard !== null && hoveredCard !== i ? 0.72 : 1,
+                  transform: hoveredCard !== null && hoveredCard !== i ? "scale(0.983)" : hoveredCard === i ? "translateY(-8px) scale(1.018)" : "",
+                  filter: hoveredCard !== null && hoveredCard !== i ? "brightness(0.97)" : "",
+                  animation: `cardEnter 0.52s cubic-bezier(0.22, 1, 0.36, 1) forwards`,
+                  animationDelay: `${i === 0 ? 0.05 : i === 1 ? 0.13 : i === 2 ? 0.21 : 0.29}s`
+                }}
+                onMouseEnter={() => setHoveredCard(i)}
+                onMouseLeave={() => setHoveredCard(null)}
+              >
+                {/* Beliebt Badge für Pro */}
+                {p.rec && (
+                  <div style={{
+                    position: "absolute",
+                    top: "-1px",
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    background: "linear-gradient(135deg, #2563eb, #3b82f6)",
+                    color: "#fff",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    padding: "5px 18px",
+                    borderRadius: "0 0 12px 12px",
+                    boxShadow: "0 4px 16px rgba(37,99,235,0.38)",
+                    whiteSpace: "nowrap",
+                    letterSpacing: "0.05em",
+                    zIndex: "10"
+                  }}>✦ Beliebt</div>
                 )}
 
-                <ul className="space-y-2.5 mb-6">
-                  {p.feats.map((f, j) => (
-                    <li key={j} className="flex items-start gap-2.5 text-[13px] text-gray-600">
-                      <svg className="shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
+                {/* Inner Content Wrapper mit overflow:hidden */}
+                <div style={{ overflow: "hidden", borderRadius: "22px", display: "flex", flexDirection: "column", height: "100%" }}>
+                  {/* SECTION A: Mini-Kreditkarte */}
+                  <div style={{ padding: "18px 18px 0 18px" }}>
+                    <Card bg={p.bg} lim={p.lim} label={undefined} className="w-full" />
+                  </div>
 
-                <a href={applicationUrl} className={`block w-full text-center py-3 rounded-xl text-[13px] font-semibold transition-all ${customerType === "business" ? (p.rec ? "fiaon-btn-gradient text-white hover:shadow-lg" : (p.name === "FIAON Business" || p.name === "FIAON Black" ? "bg-[#0b1628] text-white hover:bg-[#142744] hover:shadow-lg" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100")) : (p.rec ? "fiaon-btn-gradient text-white hover:shadow-lg" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100")}`} style={{ letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 600 }}>
-                  Konto er&ouml;ffnen &rarr;
-                </a>
+                {/* SECTION B: Paket-Name & Untertitel */}
+                <div style={{ padding: "16px 20px 0 20px" }}>
+                  <div style={{
+                    fontSize: "17px",
+                    fontWeight: "700",
+                    color: "#111827",
+                    lineHeight: "1.3",
+                    whiteSpace: "pre-line"
+                  }}>{p.name}</div>
+                </div>
+
+                {/* SECTION C: WUNSCHLIMIT-BOX */}
+                <div style={{ margin: "14px 20px 0 20px" }}>
+                  <div style={{
+                    background: "linear-gradient(135deg, rgba(37,99,235,0.06), rgba(59,130,246,0.09))",
+                    border: "1px solid rgba(37,99,235,0.15)",
+                    borderRadius: "12px",
+                    padding: "9px 16px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    width: "auto",
+                    transition: "background 0.3s, box-shadow 0.3s, border-color 0.3s"
+                  }}>
+                    <span style={{
+                      fontSize: "9px",
+                      fontWeight: "700",
+                      letterSpacing: "0.13em",
+                      color: "rgba(37,99,235,0.65)",
+                      textTransform: "uppercase",
+                      whiteSpace: "nowrap"
+                    }}>WUNSCHLIMIT BIS</span>
+                    <span style={{
+                      fontSize: "18px",
+                      fontWeight: "800",
+                      color: "#2563eb",
+                      whiteSpace: "nowrap",
+                      lineHeight: "1"
+                    }}>{p.lim} €</span>
+                  </div>
+                </div>
+
+                {/* SECTION D: Preis-Zeile */}
+                <div style={{
+                  padding: "12px 20px 0 20px",
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: "3px"
+                }}>
+                  <span style={{
+                    fontSize: "28px",
+                    fontWeight: "800",
+                    color: "#111827"
+                  }}>{p.fee}</span>
+                  <span style={{
+                    fontSize: "13px",
+                    color: "#9ca3af",
+                    fontWeight: "500"
+                  }}>€/Mt.</span>
+                </div>
+
+                {/* SECTION E: Trennlinie */}
+                <div style={{
+                  height: "1px",
+                  background: "linear-gradient(90deg, transparent, rgba(37,99,235,0.10), transparent)",
+                  margin: "14px 20px 0 20px"
+                }}></div>
+
+                {/* SECTION F: Feature-Liste */}
+                <div style={{
+                  padding: "14px 20px 22px 20px",
+                  flex: "1",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0"
+                }}>
+                  {p.feats.map((f, j) => (
+                    <div key={j} style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "10px",
+                      padding: "7px 0",
+                      borderBottom: j === p.feats.length - 1 ? "none" : "1px solid rgba(0,0,0,0.042)"
+                    }}>
+                      <svg width="18" height="18" style={{ flexShrink: 0, marginTop: "2px" }} viewBox="0 0 18 18" fill="none">
+                        <circle cx="9" cy="9" r="9" fill="rgba(37,99,235,0.10)"/>
+                        <path d="M5.5 9L7.8 11.5L12.5 6.5" stroke="#2563eb" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <span style={{
+                        fontSize: "13.5px",
+                        color: "#374151",
+                        fontWeight: "500",
+                        lineHeight: "1.5"
+                      }}>{f}</span>
+                    </div>
+                  ))}
+                  {/* Platzhalter für Starter (4 Features vs 5) */}
+                  {i === 0 && <div style={{ height: "29px" }}></div>}
+                </div>
+
+                {/* CTA Button */}
+                <div style={{ margin: "0 20px 20px 20px" }}>
+                  <a
+                    href={applicationUrl}
+                    style={{
+                      display: "block",
+                      padding: "13px 0",
+                      width: "calc(100% - 40px)",
+                      background: p.rec ? "linear-gradient(135deg, #1e40af, #2563eb, #3b82f6)" : "transparent",
+                      border: p.rec ? "none" : "1.5px solid rgba(37,99,235,0.25)",
+                      borderRadius: "12px",
+                      color: p.rec ? "#fff" : "#2563eb",
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      letterSpacing: "0.04em",
+                      textTransform: "uppercase",
+                      cursor: "pointer",
+                      transition: "all 0.22s",
+                      textAlign: "center",
+                      boxShadow: p.rec ? "0 6px 20px rgba(37,99,235,0.35)" : "none",
+                      position: "relative",
+                      overflow: "hidden"
+                    }}
+                    onMouseEnter={(e) => {
+                      if (p.rec) {
+                        // Pro button shimmer effect handled via CSS animation
+                      } else {
+                        e.currentTarget.style.background = "rgba(37,99,235,0.06)";
+                        e.currentTarget.style.borderColor = "#2563eb";
+                        e.currentTarget.style.transform = "translateY(-1px)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!p.rec) {
+                        e.currentTarget.style.background = "transparent";
+                        e.currentTarget.style.borderColor = "rgba(37,99,235,0.25)";
+                        e.currentTarget.style.transform = "";
+                      }
+                    }}
+                  >
+                    {p.rec && (
+                      <div style={{
+                        position: "absolute",
+                        top: "0",
+                        left: "-100%",
+                        width: "50%",
+                        height: "100%",
+                        background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
+                        animation: "sweep 2.5s ease-in-out infinite"
+                      }}></div>
+                    )}
+                    Konto eröffnen →
+                  </a>
+                </div>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {currentPacks.map((p, i) => (
+              <div key={p.name} className={`relative rounded-2xl bg-white border overflow-hidden transition-all duration-700 hover:-translate-y-1.5 hover:shadow-xl ${p.rec ? "border-[#2563eb]/25 shadow-lg shadow-blue-500/8 ring-1 ring-[#2563eb]/10" : "border-gray-100 hover:border-gray-200"} ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`} style={{ transitionDelay: `${i * 90}ms` }}>
+                {p.rec && <div className="absolute -top-0 left-0 right-0 h-[2px] bg-[#2563eb]" />}
+                {p.rec && customerType === "business" && <div className="absolute top-3 right-4 text-[9px] font-bold uppercase tracking-wider text-white bg-[#2563eb] px-2.5 py-1 rounded-full z-10">Beliebt</div>}
+
+                {/* Card */}
+                <div className="p-5 sm:p-6">
+                  <Card bg={p.bg} lim={p.lim} label={customerType === "business" && "tier" in p ? p.tier : undefined} className="w-full" />
+                </div>
+
+                {/* Content */}
+                <div className="px-5 sm:px-6 pb-6">
+                  {customerType === "business" && "tier" in p && <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">{p.tier}</p>}
+                  <h3 className={`${customerType === "business" ? "text-[17px]" : "text-[15px]"} font-semibold text-gray-900 mb-2`}>{p.name}</h3>
+                  {customerType === "business" ? (
+                    <p className="text-[14px] text-gray-500 mb-4 pb-4 border-b border-gray-100">Limits bis zu <span className="text-[#2563eb] font-semibold">{p.lim}&nbsp;€</span></p>
+                  ) : (
+                    <div className="flex items-center gap-3 mb-3">
+                      {p.rec && <span className="text-[9px] font-semibold uppercase tracking-wider text-[#2563eb] bg-blue-50 px-2 py-0.5 rounded">Empfohlen</span>}
+                    </div>
+                  )}
+
+                  <ul className="space-y-2.5 mb-6">
+                    {p.feats.map((f, j) => (
+                      <li key={j} className="flex items-start gap-2.5 text-[13px] text-gray-600">
+                        <svg className="shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <a href={applicationUrl} className={`block w-full text-center py-3 rounded-xl text-[13px] font-semibold transition-all ${customerType === "business" ? (p.rec ? "fiaon-btn-gradient text-white hover:shadow-lg" : (p.name === "FIAON Business" || p.name === "FIAON Black" ? "bg-[#0b1628] text-white hover:bg-[#142744] hover:shadow-lg" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100")) : (p.rec ? "fiaon-btn-gradient text-white hover:shadow-lg" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100")}`} style={{ letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 600 }}>
+                    Konto er&ouml;ffnen &rarr;
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       </div>
     </section>
   );

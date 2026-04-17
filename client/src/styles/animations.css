@@ -327,3 +327,25 @@
   -webkit-mask-composite: xor;
   padding: 0.5px;
 }
+
+/* Sweep Animation for Pro Button Shimmer Effect */
+@keyframes sweep {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 200%;
+  }
+}
+
+/* Limit Glow Animation for Background Orbs */
+@keyframes limitGlow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.1);
+  }
+}

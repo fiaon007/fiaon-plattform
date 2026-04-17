@@ -1297,6 +1297,9 @@ export const fiaonApplications = pgTable("fiaon_applications", {
 
   paymentStatus: varchar("payment_status").default("pending"),
   stripeSessionId: varchar("stripe_session_id"),
+  stripeCustomerId: varchar("stripe_customer_id"),
+  stripeSubscriptionId: varchar("stripe_subscription_id"),
+  stripePaymentMethodId: varchar("stripe_payment_method_id"),
 
   ip: varchar("ip"),
   userAgent: text("user_agent"),

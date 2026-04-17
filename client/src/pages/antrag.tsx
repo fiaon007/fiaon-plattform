@@ -385,6 +385,9 @@ export default function AntragPage() {
               amount: pack.fee,
               packageName: pack.name,
               ref,
+              firstName: d.firstName,
+              lastName: d.lastName,
+              email: d.email,
             }),
           });
           const data = await response.json();

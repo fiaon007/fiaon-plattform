@@ -32,36 +32,183 @@ const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' as any })
   : null;
 
-// Create payment intent for Stripe Elements checkout
+// Create subscription with saved payment method
 router.post("/create-payment-intent", async (req, res) => {
   try {
-    const { amount, packageName, ref } = req.body;
+    const { amount, packageName, ref, firstName, lastName, email } = req.body;
     
     if (!stripe) {
       return res.status(500).json({ error: "Stripe not configured" });
     }
 
-    if (!amount || !packageName) {
-      return res.status(400).json({ error: "Missing required fields: amount, packageName" });
+    if (!amount || !packageName || !ref) {
+      return res.status(400).json({ error: "Missing required fields: amount, packageName, ref" });
     }
 
-    // Create payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Convert to cents
-      currency: 'eur',
-      metadata: {
-        packageName,
-        ref,
+    console.log("[FIAON-SUBSCRIPTION] Creating subscription for:", { ref, packageName, amount, email, name: `${firstName} ${lastName}` });
+
+    // Get or create Stripe customer
+    let customer;
+    const existingApp = await db.select().from(fiaonApplications).where(eq(fiaonApplications.ref, ref)).limit(1);
+    
+    if (existingApp.length > 0 && existingApp[0].stripeCustomerId) {
+      // Retrieve existing customer
+      customer = await stripe.customers.retrieve(existingApp[0].stripeCustomerId);
+      console.log("[FIAON-SUBSCRIPTION] Using existing customer:", customer.id);
+    } else {
+      // Create new customer
+      customer = await stripe.customers.create({
+        email: email || undefined,
+        name: firstName && lastName ? `${firstName} ${lastName}` : undefined,
+        metadata: {
+          ref,
+          packageName,
+        },
+      });
+      console.log("[FIAON-SUBSCRIPTION] Created new customer:", customer.id);
+      
+      // Save customer ID to database
+      await sqlPool`
+        UPDATE fiaon_applications 
+        SET stripe_customer_id = ${customer.id}
+        WHERE ref = ${ref}
+      `;
+    }
+
+    // Create subscription with setup intent for payment method
+    const subscription = await stripe.subscriptions.create({
+      customer: customer.id,
+      items: [{
+        price_data: {
+          currency: 'eur',
+          product_data: {
+            name: packageName,
+            metadata: { ref },
+          },
+          recurring: {
+            interval: 'month',
+          },
+          unit_amount: Math.round(amount * 100), // Convert to cents
+        },
+      }],
+      payment_behavior: 'default_incomplete',
+      payment_settings: {
+        save_default_payment_method: 'on_subscription',
+        payment_method_types: ['card', 'sepa_debit'],
       },
-      automatic_payment_methods: {
-        enabled: true,
+      expand: ['latest_invoice.payment_intent'],
+      metadata: {
+        ref,
+        packageName,
       },
     });
 
-    res.json({ clientSecret: paymentIntent.client_secret });
+    console.log("[FIAON-SUBSCRIPTION] Created subscription:", subscription.id);
+
+    // Save subscription ID to database
+    await sqlPool`
+      UPDATE fiaon_applications 
+      SET stripe_subscription_id = ${subscription.id}
+      WHERE ref = ${ref}
+    `;
+
+    const invoice = subscription.latest_invoice as any;
+    const paymentIntent = invoice?.payment_intent;
+
+    res.json({ 
+      clientSecret: paymentIntent?.client_secret,
+      subscriptionId: subscription.id,
+      customerId: customer.id,
+    });
   } catch (err) {
-    console.error("[FIAON-PAYMENT-INTENT]", err);
-    res.status(500).json({ error: "Failed to create payment intent" });
+    console.error("[FIAON-SUBSCRIPTION]", err);
+    res.status(500).json({ error: "Failed to create subscription" });
+  }
+});
+
+// Stripe webhook handler
+router.post("/stripe-webhook", async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: "Stripe not configured" });
+  }
+
+  const sig = req.headers['stripe-signature'] as string;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!webhookSecret) {
+    console.error("[STRIPE-WEBHOOK] No webhook secret configured");
+    return res.status(400).send('Webhook secret not configured');
+  }
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+  } catch (err: any) {
+    console.error("[STRIPE-WEBHOOK] Signature verification failed:", err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  console.log("[STRIPE-WEBHOOK] Received event:", event.type);
+
+  try {
+    switch (event.type) {
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object as any;
+        const subscriptionId = invoice.subscription;
+        const paymentMethodId = invoice.payment_intent?.payment_method;
+        
+        console.log("[STRIPE-WEBHOOK] Payment succeeded for subscription:", subscriptionId, "payment method:", paymentMethodId);
+        
+        if (subscriptionId && paymentMethodId) {
+          // Update payment method in database
+          await sqlPool`
+            UPDATE fiaon_applications 
+            SET 
+              stripe_payment_method_id = ${paymentMethodId},
+              payment_status = 'paid'
+            WHERE stripe_subscription_id = ${subscriptionId}
+          `;
+          console.log("[STRIPE-WEBHOOK] Updated payment method for subscription:", subscriptionId);
+        }
+        break;
+      }
+      
+      case 'customer.subscription.updated':
+      case 'customer.subscription.created': {
+        const subscription = event.data.object as any;
+        const paymentMethodId = subscription.default_payment_method;
+        
+        console.log("[STRIPE-WEBHOOK] Subscription updated:", subscription.id, "payment method:", paymentMethodId);
+        
+        if (paymentMethodId) {
+          await sqlPool`
+            UPDATE fiaon_applications 
+            SET stripe_payment_method_id = ${paymentMethodId}
+            WHERE stripe_subscription_id = ${subscription.id}
+          `;
+          console.log("[STRIPE-WEBHOOK] Updated payment method for subscription:", subscription.id);
+        }
+        break;
+      }
+      
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as any;
+        console.log("[STRIPE-WEBHOOK] Subscription cancelled:", subscription.id);
+        
+        await sqlPool`
+          UPDATE fiaon_applications 
+          SET payment_status = 'cancelled'
+          WHERE stripe_subscription_id = ${subscription.id}
+        `;
+        break;
+      }
+    }
+
+    res.json({ received: true });
+  } catch (err) {
+    console.error("[STRIPE-WEBHOOK] Error processing webhook:", err);
+    res.status(500).json({ error: "Webhook processing failed" });
   }
 });
 

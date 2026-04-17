@@ -710,12 +710,15 @@ export default function AntragPage() {
                 lineHeight: "1.7"
               }}>Entscheide dich für das passende Paket — du gelangst automatisch zum nächsten Schritt.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 items-stretch" style={{
-              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-              width: "100%",
-              maxWidth: "1440px",
-              margin: "0 auto",
-              padding: "0 24px"
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+              gap: '20px',
+              width: '100%',
+              maxWidth: '1380px',
+              margin: '0 auto',
+              padding: '0 20px',
+              boxSizing: 'border-box'
             }}>
               {PACKS.map((p, idx) => (
                 <button
@@ -727,7 +730,6 @@ export default function AntragPage() {
                     border: p.key === "pro" ? "1.5px solid rgba(37,99,235,0.35)" : "1.5px solid rgba(37,99,235,0.10)",
                     borderRadius: "24px",
                     padding: "0",
-                    overflow: "visible",
                     boxShadow: p.key === "pro" ? "0 8px 40px rgba(37,99,235,0.13)" : "0 4px 24px rgba(37,99,235,0.07)",
                     transition: "transform 0.28s cubic-bezier(0.22,1,0.36,1), box-shadow 0.28s, border-color 0.28s, opacity 0.28s, filter 0.28s",
                     cursor: "pointer",
@@ -778,34 +780,38 @@ export default function AntragPage() {
                   </div>
 
                   {/* SECTION C: WUNSCHLIMIT-BOX (Kompakt) */}
-                  <div style={{ margin: "14px 24px 0 24px", display: "flex", alignItems: "flex-start" }} className="sm:mx-[24px] sm:mt-[14px] mx-[20px] mt-[12px]">
+                  <div style={{ display: 'flex', alignItems: 'flex-start', margin: '14px 24px 0 24px' }}>
                     <div style={{
-                      background: hoveredCard === idx ? "linear-gradient(135deg, rgba(37,99,235,0.10), rgba(59,130,246,0.15))" : "linear-gradient(135deg, rgba(37,99,235,0.05), rgba(59,130,246,0.08))",
-                      border: hoveredCard === idx ? "1px solid rgba(37,99,235,0.30)" : "1px solid rgba(37,99,235,0.14)",
-                      borderRadius: "12px",
-                      padding: "9px 16px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      width: "auto",
-                      transition: "background 0.3s, box-shadow 0.3s, border-color 0.3s",
-                      boxShadow: hoveredCard === idx ? "0 0 0 3px rgba(37,99,235,0.08)" : "none"
-                    }} className="sm:py-[9px] sm:px-[16px] py-[8px] px-[14px]">
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 14px',
+                      background: 'linear-gradient(135deg, rgba(37,99,235,0.06), rgba(59,130,246,0.09))',
+                      border: '1px solid rgba(37,99,235,0.15)',
+                      borderRadius: '10px',
+                      flexShrink: 0,
+                      width: 'fit-content',
+                      maxWidth: 'fit-content'
+                    }}>
                       <span style={{
-                        fontSize: "9px",
-                        fontWeight: "700",
-                        letterSpacing: "0.12em",
-                        color: "rgba(37,99,235,0.7)",
-                        textTransform: "uppercase",
-                        whiteSpace: "nowrap"
-                      }} className="sm:text-[9px] text-[8px]">WUNSCHLIMIT BIS</span>
+                        fontSize: '9px',
+                        fontWeight: 700,
+                        letterSpacing: '0.12em',
+                        color: 'rgba(37,99,235,0.65)',
+                        textTransform: 'uppercase',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        WUNSCHLIMIT BIS
+                      </span>
                       <span style={{
-                        fontSize: "18px",
-                        fontWeight: "800",
-                        color: hoveredCard === idx ? "#1d4ed8" : "#2563eb",
-                        whiteSpace: "nowrap",
-                        transition: "color 0.3s"
-                      }} className="sm:text-[18px] text-[16px]">{p.lim.toLocaleString("de-DE")} €</span>
+                        fontSize: '17px',
+                        fontWeight: 800,
+                        color: '#2563eb',
+                        whiteSpace: 'nowrap',
+                        lineHeight: 1
+                      }}>
+                        {p.lim.toLocaleString("de-DE")} €
+                      </span>
                     </div>
                   </div>
 
@@ -949,7 +955,7 @@ export default function AntragPage() {
                     </button>
 
                     {/* "Konto eröffnen" Button */}
-                    <div style={{ padding: "0 24px 24px 24px", marginTop: "14px" }} className="sm:px-[24px] sm:pb-[24px] sm:mt-[14px] px-[20px] pb-[20px] mt-[12px]">
+                    <div style={{ padding: "4px 24px 24px 24px", marginTop: "14px" }} className="sm:px-[24px] sm:py-[4px] sm:pb-[24px] sm:mt-[14px] px-[20px] py-[4px] pb-[20px] mt-[12px]">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

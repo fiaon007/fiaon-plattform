@@ -380,6 +380,7 @@ export default function AntragPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pack, setPack] = useState<typeof PACKS[0] | null>(null);
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
+  const [expandedCard, setExpandedCard] = useState<number | null>(null);
 
   const [d, setD] = useState({ firstName: "", lastName: "", birthDay: "", birthMonth: "", birthYear: "1990", phoneCountryCode: "+49", phone: "", street: "", zip: "", city: "", country: "", nationality: "", employment: "", employer: "", employedSince: "", income: 0, rent: 0, debts: 0, housing: "", wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", email: "", salaryReceiptDay: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false });
   const [approved, setApproved] = useState(0);
@@ -837,26 +838,159 @@ export default function AntragPage() {
                     flexDirection: "column",
                     gap: "0"
                   }} className="sm:px-[20px] sm:pt-[14px] sm:pb-[20px] px-[16px] pt-[12px] pb-[16px]">
-                    {p.feats.map((f, i) => (
-                      <div key={i} style={{
+                    {/* Erstes Feature - IMMER sichtbar */}
+                    <div style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "10px",
+                      padding: "7px 0",
+                      borderBottom: "1px solid rgba(0,0,0,0.04)"
+                    }}>
+                      <CheckIcon isHighEnd={p.key === "highend"} />
+                      <span style={{
+                        fontSize: "13.5px",
+                        color: "#374151",
+                        fontWeight: "500",
+                        lineHeight: "1.5",
+                        textAlign: "left"
+                      }}>{p.feats[0]}</span>
+                    </div>
+                    
+                    {/* Wrapper für Features 2-5 - kollapierbar */}
+                    <div style={{
+                      maxHeight: expandedCard === idx ? "300px" : "0",
+                      overflow: "hidden",
+                      opacity: expandedCard === idx ? "1" : "0",
+                      transition: "max-height 0.42s cubic-bezier(0.22,1,0.36,1), opacity 0.32s ease 0.05s"
+                    }}>
+                      {p.feats.slice(1).map((f, i) => (
+                        <div key={i + 1} style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: "10px",
+                          padding: "7px 0",
+                          borderBottom: i === p.feats.slice(1).length - 1 ? "none" : "1px solid rgba(0,0,0,0.04)"
+                        }}>
+                          <CheckIcon isHighEnd={p.key === "highend"} />
+                          <span style={{
+                            fontSize: "13.5px",
+                            color: "#374151",
+                            fontWeight: "500",
+                            lineHeight: "1.5",
+                            textAlign: "left"
+                          }}>{f}</span>
+                        </div>
+                      ))}
+                      {/* Unsichtbarer Platzhalter für Starter (4 Features vs 5) */}
+                      {p.key === "start" && <div style={{ height: "28px" }}></div>}
+                    </div>
+
+                    {/* Toggle-Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedCard(expandedCard === idx ? null : idx);
+                      }}
+                      style={{
                         display: "flex",
-                        alignItems: "flex-start",
-                        gap: "10px",
-                        padding: "7px 0",
-                        borderBottom: i === p.feats.length - 1 ? "none" : "1px solid rgba(0,0,0,0.04)"
+                        alignItems: "center",
+                        gap: "6px",
+                        marginTop: "8px",
+                        padding: "4px 0",
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "#2563eb",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        transition: "color 0.15s, gap 0.2s"
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = "#1d4ed8";
+                        e.currentTarget.style.gap = "8px";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = "#2563eb";
+                        e.currentTarget.style.gap = "6px";
+                      }}
+                    >
+                      {expandedCard === idx ? "Weniger anzeigen" : "Alle Features anzeigen"}
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{
+                        transition: "transform 0.3s cubic-bezier(0.22,1,0.36,1)",
+                        transform: expandedCard === idx ? "rotate(180deg)" : "rotate(0deg)"
                       }}>
-                        <CheckIcon isHighEnd={p.key === "highend"} />
-                        <span style={{
-                          fontSize: "13.5px",
-                          color: "#374151",
-                          fontWeight: "500",
-                          lineHeight: "1.5",
-                          textAlign: "left"
-                        }}>{f}</span>
-                      </div>
-                    ))}
-                    {/* Unsichtbarer Platzhalter für Starter (4 Features vs 5) */}
-                    {p.key === "start" && <div style={{ height: "28px" }}></div>}
+                        <path d="M2.5 5L7 9.5L11.5 5" stroke="#2563eb" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+
+                    {/* "Konto eröffnen" Button */}
+                    <div style={{ padding: "0 20px 20px 20px", marginTop: "14px" }} className="sm:px-[20px] sm:pb-[20px] sm:mt-[14px] px-[16px] pb-[16px] mt-[12px]">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPack(p);
+                          up("wantedLimit", Math.min(d.wantedLimit, p.lim));
+                          track("pack_select", { pack: p.key }, ref);
+                          setTimeout(() => goStep(1), 400);
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "13px 0",
+                          background: p.key === "pro" 
+                            ? "linear-gradient(135deg, #1e40af, #2563eb, #3b82f6)" 
+                            : "transparent",
+                          backgroundSize: "200% 200%",
+                          animation: p.key === "pro" ? "gradient 3s ease infinite" : "none",
+                          border: p.key === "pro" ? "none" : "1.5px solid rgba(37,99,235,0.25)",
+                          borderRadius: "12px",
+                          color: p.key === "pro" ? "#fff" : "#2563eb",
+                          fontSize: "14px",
+                          fontWeight: "600",
+                          letterSpacing: "0.04em",
+                          textTransform: "uppercase",
+                          cursor: "pointer",
+                          transition: "all 0.22s cubic-bezier(0.22,1,0.36,1)",
+                          position: "relative",
+                          overflow: "hidden",
+                          boxShadow: p.key === "pro" ? "0 6px 24px rgba(37,99,235,0.35)" : "none"
+                        }}
+                        onMouseEnter={(e) => {
+                          if (p.key === "pro") {
+                            e.currentTarget.style.transform = "translateY(-2px) scale(1.01)";
+                            e.currentTarget.style.boxShadow = "0 10px 32px rgba(37,99,235,0.45)";
+                          } else {
+                            e.currentTarget.style.background = "rgba(37,99,235,0.06)";
+                            e.currentTarget.style.borderColor = "#2563eb";
+                            e.currentTarget.style.transform = "translateY(-2px)";
+                            e.currentTarget.style.boxShadow = "0 6px 20px rgba(37,99,235,0.12)";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (p.key === "pro") {
+                            e.currentTarget.style.transform = "translateY(0) scale(1)";
+                            e.currentTarget.style.boxShadow = "0 6px 24px rgba(37,99,235,0.35)";
+                          } else {
+                            e.currentTarget.style.background = "transparent";
+                            e.currentTarget.style.borderColor = "rgba(37,99,235,0.25)";
+                            e.currentTarget.style.transform = "translateY(0)";
+                            e.currentTarget.style.boxShadow = "none";
+                          }
+                        }}
+                      >
+                        {p.key === "pro" && (
+                          <div style={{
+                            position: "absolute",
+                            top: "0",
+                            left: "-100%",
+                            width: "50%",
+                            height: "100%",
+                            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent)",
+                            animation: "sweep 2.5s ease-in-out infinite"
+                          }}></div>
+                        )}
+                        Konto eröffnen →
+                      </button>
+                    </div>
                   </div>
                 </button>
               ))}

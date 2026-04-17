@@ -648,9 +648,10 @@ export default function AntragPage() {
         {step === 0 && (
           <div className="animate-[fadeInUp_.4s_ease] relative" style={{
             background: "linear-gradient(180deg, #f0f4ff 0%, #f5f8ff 30%, #ffffff 70%, #f8faff 100%)",
-            maxWidth: "1400px",
-            margin: "0 auto",
-            padding: "0 32px"
+            maxWidth: "100%",
+            width: "100%",
+            padding: "0 24px",
+            boxSizing: "border-box"
           }}>
             {/* Blur-Orbs im Hintergrund */}
             <div style={{
@@ -709,8 +710,12 @@ export default function AntragPage() {
                 lineHeight: "1.7"
               }}>Entscheide dich für das passende Paket — du gelangst automatisch zum nächsten Schritt.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-[1400px] mx-auto px-10 items-stretch" style={{
-              gridTemplateColumns: "repeat(auto-fit, minmax(0, 1fr))"
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 items-stretch" style={{
+              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+              width: "100%",
+              maxWidth: "1440px",
+              margin: "0 auto",
+              padding: "0 24px"
             }}>
               {PACKS.map((p, idx) => (
                 <button
@@ -770,28 +775,22 @@ export default function AntragPage() {
                       lineHeight: "1.3",
                       whiteSpace: "pre-line"
                     }}>{p.name}</div>
-                    <div style={{
-                      fontSize: "13px",
-                      color: "#6b7280",
-                      fontWeight: "500",
-                      marginTop: "2px"
-                    }}>{p.key === "start" ? "Das Fundament" : p.key === "pro" ? "Standard" : p.key === "ultra" ? "Elite Konto" : "Das Maximum"}</div>
                   </div>
 
                   {/* SECTION C: WUNSCHLIMIT-BOX (Kompakt) */}
-                  <div style={{ margin: "14px 24px 0 24px" }} className="sm:mx-[24px] sm:mt-[14px] mx-[20px] mt-[12px]">
+                  <div style={{ margin: "14px 24px 0 24px", display: "flex", alignItems: "flex-start" }} className="sm:mx-[24px] sm:mt-[14px] mx-[20px] mt-[12px]">
                     <div style={{
                       background: hoveredCard === idx ? "linear-gradient(135deg, rgba(37,99,235,0.10), rgba(59,130,246,0.15))" : "linear-gradient(135deg, rgba(37,99,235,0.05), rgba(59,130,246,0.08))",
                       border: hoveredCard === idx ? "1px solid rgba(37,99,235,0.30)" : "1px solid rgba(37,99,235,0.14)",
                       borderRadius: "12px",
-                      padding: "10px 16px",
+                      padding: "9px 16px",
                       display: "inline-flex",
                       alignItems: "center",
                       gap: "10px",
                       width: "auto",
                       transition: "background 0.3s, box-shadow 0.3s, border-color 0.3s",
                       boxShadow: hoveredCard === idx ? "0 0 0 3px rgba(37,99,235,0.08)" : "none"
-                    }} className="sm:py-[10px] sm:px-[16px] py-[8px] px-[14px]">
+                    }} className="sm:py-[9px] sm:px-[16px] py-[8px] px-[14px]">
                       <span style={{
                         fontSize: "9px",
                         fontWeight: "700",

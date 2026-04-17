@@ -49,11 +49,13 @@ router.post("/create-payment-intent", async (req, res) => {
 
     // Get or create Stripe customer
     let customer;
-    const existingApp = await db.select().from(fiaonApplications).where(eq(fiaonApplications.ref, ref)).limit(1);
+    const existingApp = await sqlPool`
+      SELECT stripe_customer_id FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
+    `;
     
-    if (existingApp.length > 0 && existingApp[0].stripeCustomerId) {
+    if (existingApp.length > 0 && existingApp[0].stripe_customer_id) {
       // Retrieve existing customer
-      customer = await stripe.customers.retrieve(existingApp[0].stripeCustomerId);
+      customer = await stripe.customers.retrieve(existingApp[0].stripe_customer_id);
       console.log("[FIAON-SUBSCRIPTION] Using existing customer:", customer.id);
     } else {
       // Create new customer

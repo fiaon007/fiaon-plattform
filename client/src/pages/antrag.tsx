@@ -37,6 +37,66 @@ styleElement.textContent = `
     background-size: 200% 200%;
     animation: gradient 3s ease infinite;
   }
+
+  /* === FIAON Range Slider === */
+  .fiaon-range {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 8px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #dbeafe 0%, #93c5fd 100%);
+    outline: none;
+    box-shadow: inset 0 1px 2px rgba(15,23,42,0.08);
+    transition: all 0.2s ease;
+  }
+  .fiaon-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 3px solid #2563eb;
+    box-shadow: 0 4px 12px rgba(37,99,235,0.35), 0 0 0 4px rgba(37,99,235,0.10);
+    cursor: grab;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .fiaon-range::-webkit-slider-thumb:hover { transform: scale(1.08); }
+  .fiaon-range::-webkit-slider-thumb:active { cursor: grabbing; transform: scale(1.12); box-shadow: 0 6px 20px rgba(37,99,235,0.5), 0 0 0 6px rgba(37,99,235,0.15); }
+  .fiaon-range::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 3px solid #2563eb;
+    box-shadow: 0 4px 12px rgba(37,99,235,0.35), 0 0 0 4px rgba(37,99,235,0.10);
+    cursor: grab;
+  }
+  .fiaon-range::-moz-range-thumb:active { cursor: grabbing; }
+
+  /* Prominent Variante (Step 3 "Karte konfigurieren") — etwas auffälliger mit sanftem Pulse */
+  .fiaon-range-prominent {
+    height: 10px;
+    background: linear-gradient(90deg, #bfdbfe 0%, #3b82f6 50%, #2563eb 100%);
+  }
+  .fiaon-range-prominent::-webkit-slider-thumb {
+    width: 28px;
+    height: 28px;
+    border: 3px solid #2563eb;
+    box-shadow: 0 6px 16px rgba(37,99,235,0.45), 0 0 0 6px rgba(37,99,235,0.12);
+    animation: rangeThumbPulse 2s ease-in-out infinite;
+  }
+  .fiaon-range-prominent::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+    border: 3px solid #2563eb;
+    box-shadow: 0 6px 16px rgba(37,99,235,0.45), 0 0 0 6px rgba(37,99,235,0.12);
+    animation: rangeThumbPulse 2s ease-in-out infinite;
+  }
+  @keyframes rangeThumbPulse {
+    0%, 100% { box-shadow: 0 6px 16px rgba(37,99,235,0.45), 0 0 0 6px rgba(37,99,235,0.12); }
+    50% { box-shadow: 0 6px 18px rgba(37,99,235,0.55), 0 0 0 10px rgba(37,99,235,0.06); }
+  }
 `;
 if (!document.head.querySelector('style[data-pulse-energy]')) {
   styleElement.setAttribute('data-pulse-energy', 'true');
@@ -394,11 +454,17 @@ export default function AntragPage() {
 
   useEffect(() => { if (!sessionStorage.getItem("fiaon_sid")) sessionStorage.setItem("fiaon_sid", Math.random().toString(36).slice(2)); window.scrollTo(0, 0); }, []);
 
-  // Auto-scroll to top on step change
+  // Auto-scroll to top on step change — robust, instant + smooth fallback
   useEffect(() => {
-    if (step > 0) {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    // Instant, damit es auf mobile nicht vom User unterbrochen werden kann
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    try {
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    } catch {}
+    // Nachziehen (falls Content asynchron rendert)
+    const t = setTimeout(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }), 50);
+    return () => clearTimeout(t);
   }, [step]);
 
   // Weiterleitung zu externem Stripe Payment Link (statt eingebettetem SDK)
@@ -502,7 +568,11 @@ export default function AntragPage() {
   };
   const addressPlaceholders = getAddressPlaceholders(d.country);
 
-  function goStep(n: number) { setStep(n); setErrors({}); track("step_change", { from: step, to: n }, ref); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function goStep(n: number) {
+    setStep(n); setErrors({}); track("step_change", { from: step, to: n }, ref);
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    try { document.documentElement.scrollTop = 0; document.body.scrollTop = 0; } catch {}
+  }
 
   function next() {
     const e: Record<string, string> = {};
@@ -686,16 +756,15 @@ export default function AntragPage() {
       <GlassNav activePage="privatkunden" />
 
       {/* ── Main Content ── */}
-      <div className="max-w-6xl mx-auto px-5 pt-24 sm:pt-28 pb-8 sm:pb-12 relative z-10">
+      <div className="max-w-6xl mx-auto px-4 sm:px-5 pt-24 sm:pt-28 pb-8 sm:pb-12 relative z-10 overflow-x-hidden w-full">
         {step > 0 && <Progress step={step} total={10} />}
 
         {/* === STEP 0: Paketauswahl === */}
         {step === 0 && (
-          <div className="animate-[fadeInUp_.4s_ease] relative" style={{
+          <div className="animate-[fadeInUp_.4s_ease] relative px-0 sm:px-6" style={{
             background: "linear-gradient(180deg, #f0f4ff 0%, #f5f8ff 30%, #ffffff 70%, #f8faff 100%)",
             maxWidth: "100%",
             width: "100%",
-            padding: "0 24px",
             boxSizing: "border-box"
           }}>
             {/* Blur-Orbs im Hintergrund */}
@@ -755,7 +824,7 @@ export default function AntragPage() {
                 lineHeight: "1.7"
               }}>Entscheide dich für das passende Paket — du gelangst automatisch zum nächsten Schritt.</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5 w-full max-w-[1380px] mx-auto px-4 sm:px-5 box-border items-stretch">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5 w-full max-w-[1380px] mx-auto px-0 sm:px-5 box-border items-stretch">
               {PACKS.map((p, idx) => (
                 <button
                   key={p.key}
@@ -1583,10 +1652,10 @@ export default function AntragPage() {
 
         {/* === STEPS 1-3 & 6: Form Steps === */}
         {[1, 2, 3, 6].includes(step) && (
-          <div className="animate-[fadeInUp_.4s_ease]">
-            <div className="grid lg:grid-cols-[1fr,320px] gap-8 items-start">
+          <div className="animate-[fadeInUp_.4s_ease] w-full">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr,320px] gap-6 sm:gap-8 items-start w-full max-w-full">
               {/* Left: Form */}
-              <div className="fiaon-glass-panel rounded-2xl p-6 sm:p-8">
+              <div className="fiaon-glass-panel rounded-2xl p-4 sm:p-6 md:p-8 min-w-0 w-full">
                 {step === 1 && <>
                   <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Schritt 1 von 5</p>
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Persönliche Daten</h2>
@@ -1663,7 +1732,7 @@ export default function AntragPage() {
                   </div>
                   <Field label="Monatliches Nettoeinkommen" req>
                     <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{d.income > 0 ? eur(d.income) : "—"}</span><span className="text-[12px] text-gray-400">/ Monat</span></div>
-                    <input type="range" min={500} max={15000} step={100} value={d.income || 500} onChange={e => up("income", +e.target.value)} className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb]" />
+                    <input type="range" min={500} max={15000} step={100} value={d.income || 500} onChange={e => up("income", +e.target.value)} className="fiaon-range w-full cursor-pointer" />
                     <div className="flex justify-between text-[10px] text-gray-400 font-mono mt-1"><span>€ 500</span><span>€ 15.000</span></div>
                   </Field>
                   <div className="grid grid-cols-2 gap-4">
@@ -1679,7 +1748,7 @@ export default function AntragPage() {
                   <p className="text-[14px] text-gray-400 mb-6">Wähle dein Wunschlimit.</p>
                   <Field label="Wunsch-Kreditlimit" req>
                     <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{d.wantedLimit > 0 ? eur(d.wantedLimit) : "—"}</span><span className="text-[12px] text-gray-400">max. {eur(pack?.lim || 5000)}</span></div>
-                    <input type="range" min={500} max={pack?.lim || 5000} step={500} value={d.wantedLimit || 500} onChange={e => up("wantedLimit", +e.target.value)} className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb]" />
+                    <input type="range" min={500} max={pack?.lim || 5000} step={500} value={d.wantedLimit || 500} onChange={e => up("wantedLimit", +e.target.value)} className="fiaon-range fiaon-range-prominent w-full cursor-pointer" />
                   </Field>
                   
                   {/* Package Suggestion when at max limit */}
@@ -1894,11 +1963,11 @@ export default function AntragPage() {
               )}
             </div>
 
-            <h3 className="text-3xl font-black tracking-tight text-slate-900 mb-2">
+            <h3 className="text-xl sm:text-3xl font-black tracking-tight text-slate-900 mb-2 px-4 text-center">
               {verifyDone ? "Prüfung abgeschlossen" : "Bonitätsprüfung läuft"}
             </h3>
             
-            <p className="text-sm text-slate-500 font-medium leading-relaxed mb-10 max-w-md">
+            <p className="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed mb-8 sm:mb-10 max-w-md text-center px-4">
               {verifyDone 
                 ? "Ihre Daten wurden erfolgreich verifiziert." 
                 : "Wir analysieren Ihre Bonität in Echtzeit."}
@@ -1917,26 +1986,26 @@ export default function AntragPage() {
             </div>
 
             {/* Micro-Milestone Tiles */}
-            <div className="grid grid-cols-3 gap-3 max-w-md mx-auto">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 max-w-md mx-auto w-full px-4">
               {[
                 { label: "SCHUFA-Prüfung", status: checkProgress >= 33 ? (verifyDone ? "done" : "done") : (checkProgress > 0 ? "active" : "pending") },
                 { label: "Einkommenscheck", status: checkProgress >= 66 ? (verifyDone ? "done" : "done") : (checkProgress >= 33 ? "active" : "pending") },
                 { label: "Freigabe", status: checkProgress >= 100 ? "done" : (checkProgress >= 66 ? "active" : "pending") }
               ].map((item, i) => (
-                <div key={i} className={`bg-white/90 backdrop-blur-xl border rounded-xl p-3 flex flex-col items-center gap-2 w-full transition-all duration-500 shadow-sm ${
+                <div key={i} className={`bg-white/90 backdrop-blur-xl border rounded-xl p-2 sm:p-3 flex flex-col items-center gap-1.5 sm:gap-2 w-full min-w-0 transition-all duration-500 shadow-sm ${
                   item.status === 'done' ? 'border-green-200 bg-gradient-to-br from-green-50 to-white shadow-green-100/50' : 
                   item.status === 'active' ? 'border-blue-200 bg-gradient-to-br from-blue-50 to-white shadow-blue-100/50 animate-pulse' : 
                   'border-slate-200 bg-gradient-to-br from-slate-50 to-white opacity-60'
                 }`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${
+                  <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shadow-sm flex-shrink-0 ${
                     item.status === 'done' ? 'bg-gradient-to-br from-green-400 to-green-500' : 
                     item.status === 'active' ? 'bg-gradient-to-br from-blue-400 to-blue-500 animate-spin' : 
                     'bg-slate-200'
                   }`}>
-                    {item.status === 'done' && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3}><polyline points="6 12 10 16 18 8"/></svg>}
-                    {item.status === 'active' && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>}
+                    {item.status === 'done' && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3} className="sm:w-[14px] sm:h-[14px]"><polyline points="6 12 10 16 18 8"/></svg>}
+                    {item.status === 'active' && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} className="sm:w-[14px] sm:h-[14px]"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>}
                   </div>
-                  <div className="text-xs text-slate-600 font-medium leading-relaxed text-center">{item.label}</div>
+                  <div className="text-[9px] sm:text-xs text-slate-600 font-medium leading-tight text-center break-words hyphens-auto w-full" style={{ wordBreak: 'break-word' }}>{item.label}</div>
                 </div>
               ))}
             </div>

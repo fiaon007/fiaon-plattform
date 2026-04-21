@@ -9,9 +9,16 @@ import {
   boolean,
   serial,
   real,
+  customType,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Postgres bytea custom type for storing raw binary data (e.g. KYC PDFs).
+// Without this, drizzle-kit push would treat missing columns as DROPs.
+const bytea = customType<{ data: Buffer; driverData: Buffer; notNull: false }>({
+  dataType: () => "bytea",
+});
 
 // 🔥 ENRICHMENT TYPE CONSTANTS (Single Source of Truth)
 export const ENRICHMENT_STATUSES = ['live_research', 'fallback'] as const;
@@ -973,11 +980,19 @@ export const teamTodos = pgTable("team_todos", {
   title: varchar("title").notNull(),
   description: text("description"),
   dueAt: timestamp("due_at"),
+  dueDate: timestamp("due_date"),
   priority: varchar("priority").default('medium'), // 'low', 'medium', 'high', 'critical'
-  status: varchar("status").default('pending'), // 'pending', 'in_progress', 'done'
+  status: varchar("status").default('pending'),
   assignedToUserId: varchar("assigned_to_user_id").references(() => users.id),
-  createdByUserId: varchar("created_by_user_id").notNull().references(() => users.id),
+  // NOTE: nullable — System/Admin-erstellte Todos haben keinen User (z.B. n8n, AI).
+  createdByUserId: varchar("created_by_user_id").references(() => users.id),
   completedAt: timestamp("completed_at"),
+  // AI-Task Matrix Felder (Migration 009)
+  clientName: varchar("client_name"),
+  clientPackage: varchar("client_package"),
+  taskType: varchar("task_type"),
+  urgencyScore: integer("urgency_score"),
+  assignedDirectorId: varchar("assigned_director_id").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
@@ -1304,6 +1319,12 @@ export const fiaonApplications = pgTable("fiaon_applications", {
   ip: varchar("ip"),
   userAgent: text("user_agent"),
   utm: jsonb("utm"),
+
+  // KYC Document Storage (Migration 016) — raw PDF bytes in Postgres bytea
+  // CRITICAL: These columns MUST be defined here or drizzle-kit push will DROP them.
+  bankStatementPdf: bytea("bank_statement_pdf"),
+  idCardPdf: bytea("id_card_pdf"),
+  documentsUploadedAt: timestamp("documents_uploaded_at"),
 
   submittedAt: timestamp("submitted_at"),
   completedAt: timestamp("completed_at"),

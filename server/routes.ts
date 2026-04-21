@@ -5253,20 +5253,52 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
   // TEAM TODOS API ENDPOINTS
   // ========================================================
 
-  // ---- Helper: erkennt vorhandene Spalten von team_todos (mit Cache) ----
-  let _todoColsCache: { cols: Set<string>; at: number } | null = null;
-  const getTodoCols = async (): Promise<Set<string>> => {
+  // ---- Helper: erkennt vorhandene Spalten + NOT-NULL-Status (mit Cache) ----
+  let _todoColsCache: {
+    cols: Set<string>;
+    notNull: Set<string>;
+    at: number;
+  } | null = null;
+  const getTodoCols = async () => {
     const now = Date.now();
     if (_todoColsCache && now - _todoColsCache.at < 60_000) {
-      return _todoColsCache.cols;
+      return _todoColsCache;
     }
     const rows = await client`
-      SELECT column_name FROM information_schema.columns
+      SELECT column_name, is_nullable
+      FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name = 'team_todos'
     `;
-    const cols = new Set(rows.map((r: any) => r.column_name));
-    _todoColsCache = { cols, at: now };
-    return cols;
+    const cols = new Set<string>();
+    const notNull = new Set<string>();
+    for (const r of rows as any[]) {
+      cols.add(r.column_name);
+      if (r.is_nullable === 'NO') notNull.add(r.column_name);
+    }
+    _todoColsCache = { cols, notNull, at: now };
+    return _todoColsCache;
+  };
+
+  // Liefert eine existierende User-ID als System-Fallback,
+  // falls `created_by_user_id` NOT NULL ist (alte DB ohne Migration 018).
+  let _systemUserIdCache: { id: string | null; at: number } | null = null;
+  const getSystemUserId = async (): Promise<string | null> => {
+    const now = Date.now();
+    if (_systemUserIdCache && now - _systemUserIdCache.at < 60_000) {
+      return _systemUserIdCache.id;
+    }
+    try {
+      const rows = await client`
+        SELECT id FROM users
+        ORDER BY created_at ASC NULLS LAST
+        LIMIT 1
+      `;
+      const id = rows[0]?.id ?? null;
+      _systemUserIdCache = { id, at: now };
+      return id;
+    } catch {
+      return null;
+    }
   };
   // Maps ein formatiertes Todo-Objekt aus einer beliebigen DB-Zeile.
   const formatTodo = (r: any) => ({
@@ -5288,7 +5320,7 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
   app.get("/api/todos", async (req, res) => {
     try {
       const userId = (req.user as any)?.id || (req.session as any)?.userId;
-      const cols = await getTodoCols();
+      const { cols } = await getTodoCols();
       if (cols.size === 0) {
         console.warn('[TODOS] team_todos table not found, returning []');
         return res.json([]);
@@ -5329,7 +5361,7 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
     try {
       const userId = (req.user as any)?.id || (req.session as any)?.userId;
       const todoId = req.params.id;
-      const cols = await getTodoCols();
+      const { cols } = await getTodoCols();
       const rows = await client`
         SELECT * FROM team_todos
         WHERE id = ${todoId}
@@ -5364,7 +5396,7 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
         return res.status(400).json({ error: 'Title or clientName is required' });
       }
 
-      const cols = await getTodoCols();
+      const { cols, notNull } = await getTodoCols();
       if (cols.size === 0) {
         return res.status(503).json({ error: 'team_todos table missing — run migrations' });
       }
@@ -5388,7 +5420,13 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
       put('due_date', 'due_at', deadline ?? null);
       // assigned_director_id (neu) → fallback auf assigned_to_user_id (alt)
       put('assigned_director_id', 'assigned_to_user_id', assignedDirectorId ?? null);
-      put('created_by_user_id', null, userId ?? null);
+      // created_by_user_id: wenn eingeloggt → diesen User; sonst, falls Spalte NOT NULL
+      // ist (Migration 018 noch nicht durch), fallback auf einen existierenden User.
+      let creatorId: string | null = userId || null;
+      if (!creatorId && notNull.has('created_by_user_id')) {
+        creatorId = await getSystemUserId();
+      }
+      if (creatorId) put('created_by_user_id', null, creatorId);
 
       // Nur Spalten einfügen, die auch existieren (put() hat das schon gefiltert)
       const keys = Object.keys(row);
@@ -5426,7 +5464,7 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
         assignedDirectorId 
       } = req.body;
 
-      const cols = await getTodoCols();
+      const { cols } = await getTodoCols();
       // Check if todo exists and belongs to user
       const existing = await client`
         SELECT * FROM team_todos
@@ -5483,7 +5521,7 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
       const userId = (req.user as any)?.id || (req.session as any)?.userId;
       const todoId = req.params.id;
 
-      const cols = await getTodoCols();
+      const { cols } = await getTodoCols();
       // Check if todo exists and belongs to user
       const existing = await client`
         SELECT * FROM team_todos

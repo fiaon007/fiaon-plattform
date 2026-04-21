@@ -5253,19 +5253,43 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
   // TEAM TODOS API ENDPOINTS
   // ========================================================
 
+  // ---- Helper: erkennt vorhandene Spalten von team_todos (mit Cache) ----
+  let _todoColsCache: { cols: Set<string>; at: number } | null = null;
+  const getTodoCols = async (): Promise<Set<string>> => {
+    const now = Date.now();
+    if (_todoColsCache && now - _todoColsCache.at < 60_000) {
+      return _todoColsCache.cols;
+    }
+    const rows = await client`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'team_todos'
+    `;
+    const cols = new Set(rows.map((r: any) => r.column_name));
+    _todoColsCache = { cols, at: now };
+    return cols;
+  };
+  // Maps ein formatiertes Todo-Objekt aus einer beliebigen DB-Zeile.
+  const formatTodo = (r: any) => ({
+    id: String(r.id ?? ''),
+    clientName: r.client_name || r.title || 'Unbekannt',
+    clientPackage: r.client_package || 'Starter',
+    taskType: r.task_type || 'System',
+    urgencyScore: r.urgency_score ?? 50,
+    deadline: r.due_date ?? r.due_at ?? null,
+    status: r.status || 'open',
+    assignedDirectorId: r.assigned_director_id ?? r.assigned_to_user_id ?? null,
+    title: r.title,
+    description: r.description,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  });
+
   // GET all todos — robust gegen fehlende/alternative Spaltennamen
   app.get("/api/todos", async (req, res) => {
     try {
       const userId = (req.user as any)?.id || (req.session as any)?.userId;
-
-      // Welche Spalten existieren wirklich in team_todos?
-      const colsRows = await client`
-        SELECT column_name FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'team_todos'
-      `;
-      const cols = new Set(colsRows.map((r: any) => r.column_name));
+      const cols = await getTodoCols();
       if (cols.size === 0) {
-        // Tabelle existiert gar nicht → leere Liste statt 500
         console.warn('[TODOS] team_todos table not found, returning []');
         return res.json([]);
       }
@@ -5305,116 +5329,80 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
     try {
       const userId = (req.user as any)?.id || (req.session as any)?.userId;
       const todoId = req.params.id;
-      const todos = await client`
-        SELECT 
-          id::text as id,
-          title,
-          description,
-          status,
-          COALESCE(urgency_score, 50) as urgency_score,
-          due_date,
-          COALESCE(client_name, 'Unbekannt') as client_name,
-          COALESCE(client_package, 'Starter') as client_package,
-          COALESCE(task_type, 'System') as task_type,
-          assigned_director_id,
-          created_at,
-          updated_at
-        FROM team_todos
-        WHERE id = ${todoId} ${userId ? client`AND created_by_user_id = ${userId}` : client``}
+      const cols = await getTodoCols();
+      const rows = await client`
+        SELECT * FROM team_todos
+        WHERE id = ${todoId}
+        ${userId && cols.has('created_by_user_id') ? client`AND created_by_user_id = ${userId}` : client``}
       `;
-      if (todos.length === 0) {
+      if (rows.length === 0) {
         return res.status(404).json({ error: 'Todo not found' });
       }
-      
-      // Format response to match AI_Task interface
-      const formattedResult = {
-        id: todos[0].id,
-        clientName: todos[0].client_name || todos[0].title || 'Unbekannt',
-        clientPackage: todos[0].client_package || 'Starter',
-        taskType: todos[0].task_type || 'System',
-        urgencyScore: todos[0].urgency_score || 50,
-        deadline: todos[0].due_date,
-        status: todos[0].status || 'open',
-        assignedDirectorId: todos[0].assigned_director_id,
-        title: todos[0].title,
-        description: todos[0].description,
-        created_at: todos[0].created_at,
-        updated_at: todos[0].updated_at,
-      };
-      
-      res.json(formattedResult);
+      res.json(formatTodo(rows[0]));
     } catch (error: any) {
       logger.error('[TODOS] Error fetching todo:', error);
       res.status(500).json({ error: 'Failed to fetch todo' });
     }
   });
 
-  // POST create todo
+  // POST create todo — dynamic INSERT: baut nur Spalten ein, die es wirklich gibt
   app.post("/api/todos", async (req, res) => {
     try {
       const userId = (req.user as any)?.id || (req.session as any)?.userId;
-      const { 
-        title, 
-        description, 
-        clientName, 
-        clientPackage, 
-        taskType, 
-        urgencyScore, 
-        deadline, 
-        assignedDirectorId 
+      const {
+        title,
+        description,
+        clientName,
+        clientPackage,
+        taskType,
+        urgencyScore,
+        deadline,
+        assignedDirectorId
       } = req.body;
 
       if (!title && !clientName) {
         return res.status(400).json({ error: 'Title or clientName is required' });
       }
 
+      const cols = await getTodoCols();
+      if (cols.size === 0) {
+        return res.status(503).json({ error: 'team_todos table missing — run migrations' });
+      }
+
+      // Kandidaten-Felder → DB-Spaltenname (mit Fallbacks für altes Schema)
+      const row: Record<string, any> = {};
+      const put = (col: string, altCol: string | null, val: any) => {
+        if (val === undefined) return;
+        if (cols.has(col)) row[col] = val;
+        else if (altCol && cols.has(altCol)) row[altCol] = val;
+      };
+
+      put('title', null, title ?? null);
+      put('description', null, description ?? null);
+      put('status', null, 'open');
+      put('client_name', null, clientName ?? null);
+      put('client_package', null, clientPackage ?? 'Starter');
+      put('task_type', null, taskType ?? 'System');
+      put('urgency_score', null, urgencyScore ?? 50);
+      // due_date (neu) → fallback auf due_at (altes Drizzle-Schema)
+      put('due_date', 'due_at', deadline ?? null);
+      // assigned_director_id (neu) → fallback auf assigned_to_user_id (alt)
+      put('assigned_director_id', 'assigned_to_user_id', assignedDirectorId ?? null);
+      put('created_by_user_id', null, userId ?? null);
+
+      // Nur Spalten einfügen, die auch existieren (put() hat das schon gefiltert)
+      const keys = Object.keys(row);
+      if (keys.length === 0) {
+        return res.status(500).json({ error: 'No writable columns found in team_todos' });
+      }
+
       const result = await client`
-        INSERT INTO team_todos (
-          title, 
-          description, 
-          client_name, 
-          client_package, 
-          task_type, 
-          urgency_score, 
-          due_date, 
-          assigned_director_id,
-          created_by_user_id,
-          status
-        )
-        VALUES (
-          ${title || null}, 
-          ${description || null}, 
-          ${clientName || null}, 
-          ${clientPackage || 'Starter'}, 
-          ${taskType || 'System'}, 
-          ${urgencyScore || 50}, 
-          ${deadline || null}, 
-          ${assignedDirectorId || null},
-          ${userId || null},
-          'open'
-        )
+        INSERT INTO team_todos ${client(row, keys as any)}
         RETURNING *
       `;
 
-      logger.info('[TODOS] Created todo:', { id: result[0].id, userId, clientName: clientName || title });
-      
-      // Format response to match AI_Task interface
-      const formattedResult = {
-        id: result[0].id.toString(),
-        clientName: result[0].client_name || result[0].title || 'Unbekannt',
-        clientPackage: result[0].client_package || 'Starter',
-        taskType: result[0].task_type || 'System',
-        urgencyScore: result[0].urgency_score || 50,
-        deadline: result[0].due_date,
-        status: result[0].status || 'open',
-        assignedDirectorId: result[0].assigned_director_id,
-        title: result[0].title,
-        description: result[0].description,
-        created_at: result[0].created_at,
-        updated_at: result[0].updated_at,
-      };
-      
-      res.json(formattedResult);
+      logger.info('[TODOS] Created todo:', { id: result[0].id, userId, usedCols: keys });
+      res.json(formatTodo(result[0]));
     } catch (error: any) {
       logger.error('[TODOS] Error creating todo:', error);
       res.status(500).json({ error: 'Failed to create todo' });
@@ -5438,56 +5426,51 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
         assignedDirectorId 
       } = req.body;
 
+      const cols = await getTodoCols();
       // Check if todo exists and belongs to user
       const existing = await client`
         SELECT * FROM team_todos
-        WHERE id = ${todoId} ${userId ? client`AND created_by_user_id = ${userId}` : client``}
+        WHERE id = ${todoId}
+        ${userId && cols.has('created_by_user_id') ? client`AND created_by_user_id = ${userId}` : client``}
       `;
       if (existing.length === 0) {
         return res.status(404).json({ error: 'Todo not found' });
       }
+      const updates: Record<string, any> = {};
+      const put = (col: string, altCol: string | null, val: any) => {
+        if (val === undefined) return;
+        if (cols.has(col)) updates[col] = val;
+        else if (altCol && cols.has(altCol)) updates[altCol] = val;
+      };
 
-      const updates: any = {};
-      if (title !== undefined) updates.title = title;
-      if (description !== undefined) updates.description = description;
+      put('title', null, title);
+      put('description', null, description);
       if (status !== undefined) {
-        updates.status = status;
-        if (status === 'resolved') updates.completed_at = new Date();
+        put('status', null, status);
+        if (status === 'resolved') put('completed_at', null, new Date());
       }
-      if (clientName !== undefined) updates.client_name = clientName;
-      if (clientPackage !== undefined) updates.client_package = clientPackage;
-      if (taskType !== undefined) updates.task_type = taskType;
-      if (urgencyScore !== undefined) updates.urgency_score = urgencyScore;
-      if (deadline !== undefined) updates.due_date = deadline;
-      if (assignedDirectorId !== undefined) updates.assigned_director_id = assignedDirectorId;
-      updates.updated_at = new Date();
+      put('client_name', null, clientName);
+      put('client_package', null, clientPackage);
+      put('task_type', null, taskType);
+      put('urgency_score', null, urgencyScore);
+      put('due_date', 'due_at', deadline);
+      put('assigned_director_id', 'assigned_to_user_id', assignedDirectorId);
+      if (cols.has('updated_at')) updates.updated_at = new Date();
+
+      const updateKeys = Object.keys(updates);
+      if (updateKeys.length === 0) {
+        return res.json(formatTodo(existing[0]));
+      }
 
       const result = await client`
         UPDATE team_todos
-        SET ${client(updates)}
+        SET ${client(updates, updateKeys as any)}
         WHERE id = ${todoId}
         RETURNING *
       `;
 
-      logger.info('[TODOS] Updated todo:', { id: todoId, userId });
-      
-      // Format response to match AI_Task interface
-      const formattedResult = {
-        id: result[0].id.toString(),
-        clientName: result[0].client_name || result[0].title || 'Unbekannt',
-        clientPackage: result[0].client_package || 'Starter',
-        taskType: result[0].task_type || 'System',
-        urgencyScore: result[0].urgency_score || 50,
-        deadline: result[0].due_date,
-        status: result[0].status || 'open',
-        assignedDirectorId: result[0].assigned_director_id,
-        title: result[0].title,
-        description: result[0].description,
-        created_at: result[0].created_at,
-        updated_at: result[0].updated_at,
-      };
-      
-      res.json(formattedResult);
+      logger.info('[TODOS] Updated todo:', { id: todoId, userId, usedCols: updateKeys });
+      res.json(formatTodo(result[0]));
     } catch (error: any) {
       logger.error('[TODOS] Error updating todo:', error);
       res.status(500).json({ error: 'Failed to update todo' });
@@ -5500,10 +5483,12 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
       const userId = (req.user as any)?.id || (req.session as any)?.userId;
       const todoId = req.params.id;
 
+      const cols = await getTodoCols();
       // Check if todo exists and belongs to user
       const existing = await client`
         SELECT * FROM team_todos
-        WHERE id = ${todoId} ${userId ? client`AND created_by_user_id = ${userId}` : client``}
+        WHERE id = ${todoId}
+        ${userId && cols.has('created_by_user_id') ? client`AND created_by_user_id = ${userId}` : client``}
       `;
       if (existing.length === 0) {
         return res.status(404).json({ error: 'Todo not found' });

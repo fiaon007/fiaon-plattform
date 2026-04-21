@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 interface AI_Task {
   id: string;
@@ -26,6 +26,9 @@ export default function AdminDatabasePage() {
   const [applications, setApplications] = useState<any[]>([]);
   const [loadingApps, setLoadingApps] = useState(true);
   const [selectedApp, setSelectedApp] = useState<any | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [paymentFilter, setPaymentFilter] = useState<string>("all");
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -75,7 +78,7 @@ export default function AdminDatabasePage() {
 
   const fetchApplications = async () => {
     try {
-      const res = await fetch('/api/database/tables/fiaon_applications/data?limit=200', {
+      const res = await fetch('/api/fiaon/admin/applications', {
         credentials: 'include',
       });
       if (res.ok) {
@@ -105,28 +108,64 @@ export default function AdminDatabasePage() {
     return n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
   };
 
-  const getPaymentBadge = (status: string | null | undefined) => {
-    const s = (status || 'pending').toLowerCase();
-    if (s === 'paid') return { label: 'Bezahlt', cls: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
-    if (s === 'cancelled') return { label: 'Storniert', cls: 'bg-slate-100 text-slate-500 border-slate-200' };
-    return { label: 'Ausstehend', cls: 'bg-amber-50 text-amber-600 border-amber-100' };
+  // =====================================================
+  // SMART STATUS LOGIC — Source of truth for the UI
+  // =====================================================
+  // Zahlungsstatus — liest beide Casings (snake_case DB + ggf. camelCase)
+  // und behandelt Stripe-Subscription-IDs als "bezahlt"-Hinweis.
+  const getPaymentStatusKey = (app: any): 'paid' | 'pending' | 'cancelled' => {
+    const raw = String(
+      app?.payment_status ?? app?.paymentStatus ?? ''
+    ).toLowerCase().trim();
+    if (raw === 'paid' || raw === 'succeeded') return 'paid';
+    if (raw === 'cancelled' || raw === 'canceled') return 'cancelled';
+    // Heuristik: wenn Stripe Subscription aktiv ist, ist Zahlung i.d.R. durch
+    if (app?.stripe_subscription_id && raw === '') return 'paid';
+    return 'pending';
   };
 
-  const getAppStatusBadge = (status: string | null | undefined) => {
-    const s = (status || 'started').toLowerCase();
-    if (s === 'completed') return { label: 'Abgeschlossen', cls: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
-    if (s === 'documents_submitted') return { label: 'KYC eingereicht', cls: 'bg-blue-50 text-blue-600 border-blue-100' };
-    if (s === 'started' || s === 'in_progress') return { label: 'In Bearbeitung', cls: 'bg-indigo-50 text-indigo-600 border-indigo-100' };
-    // KYC fehlt / andere
-    return { label: 'KYC fehlt', cls: 'bg-rose-50 text-rose-600 border-rose-100' };
+  // Antragsstatus — nie "Abgeschlossen", solange KYC-Dokumente fehlen.
+  const getAppStatusKey = (app: any):
+    | 'lead'
+    | 'in_progress'
+    | 'kyc_missing'
+    | 'ready_for_review'
+    | 'completed'
+    | 'cancelled' => {
+    const raw = String(app?.status ?? '').toLowerCase().trim();
+    const hasBank = !!(app?.has_bank_statement_pdf ?? app?.bank_statement_pdf);
+    const hasId = !!(app?.has_id_card_pdf ?? app?.id_card_pdf);
+    const allKyc = hasBank && hasId;
+
+    if (raw === 'cancelled' || raw === 'canceled') return 'cancelled';
+
+    if (raw === 'completed' || raw === 'payment_completed') {
+      return allKyc ? 'completed' : 'kyc_missing';
+    }
+    if (raw === 'documents_submitted') {
+      return allKyc ? 'ready_for_review' : 'kyc_missing';
+    }
+    if (raw === 'in_progress' || raw === 'started') return 'in_progress';
+    if (!raw) return 'lead';
+    return 'in_progress';
   };
 
-  const getPackageBadge = (pack: string | null | undefined) => {
-    const p = (pack || '').toLowerCase();
-    if (p.includes('ultra') || p.includes('high')) return 'bg-gradient-to-r from-purple-500 to-purple-600 text-white';
-    if (p.includes('pro')) return 'bg-gradient-to-r from-blue-500 to-blue-600 text-white';
-    if (p.includes('starter')) return 'bg-slate-100 text-slate-700';
-    return 'bg-slate-100 text-slate-700';
+  // =====================================================
+  // UI-Dictionaries — Monochrom & reduziert
+  // =====================================================
+  const PAYMENT_META: Record<string, { label: string; cls: string; dot: string }> = {
+    paid:      { label: 'Bezahlt',    cls: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500' },
+    pending:   { label: 'Ausstehend', cls: 'bg-slate-100 text-slate-600',    dot: 'bg-slate-400' },
+    cancelled: { label: 'Storniert',  cls: 'bg-slate-100 text-slate-500',    dot: 'bg-slate-300' },
+  };
+
+  const STATUS_META: Record<string, { label: string; cls: string; dot: string }> = {
+    lead:              { label: 'Lead',           cls: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' },
+    in_progress:       { label: 'In Bearbeitung', cls: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' },
+    kyc_missing:       { label: 'KYC fehlt',      cls: 'bg-rose-50 text-rose-600',    dot: 'bg-rose-500' },
+    ready_for_review:  { label: 'Prüfbereit',     cls: 'bg-slate-900 text-white',     dot: 'bg-white' },
+    completed:         { label: 'Abgeschlossen',  cls: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500' },
+    cancelled:         { label: 'Storniert',      cls: 'bg-slate-100 text-slate-500', dot: 'bg-slate-300' },
   };
 
   const getFullName = (app: any) => {
@@ -134,6 +173,33 @@ export default function AdminDatabasePage() {
     if (parts) return parts;
     return app?.company_name || app?.contact_name || app?.email || '—';
   };
+
+  // =====================================================
+  // DATA ENGINE — Sort (newest first) + Search + Filter
+  // =====================================================
+  const filteredAndSortedApps = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const tsOf = (app: any) => {
+      const t = app?.updated_at || app?.created_at;
+      const n = t ? new Date(t).getTime() : 0;
+      return Number.isNaN(n) ? 0 : n;
+    };
+
+    return [...applications]
+      .sort((a, b) => tsOf(b) - tsOf(a))
+      .filter((app) => {
+        if (q) {
+          const hay = [
+            app.first_name, app.last_name, app.email, app.ref,
+            app.company_name, app.contact_name, app.phone, app.iban,
+          ].filter(Boolean).join(' ').toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        if (statusFilter !== 'all' && getAppStatusKey(app) !== statusFilter) return false;
+        if (paymentFilter !== 'all' && getPaymentStatusKey(app) !== paymentFilter) return false;
+        return true;
+      });
+  }, [applications, searchQuery, statusFilter, paymentFilter]);
 
   const fetchTodos = async () => {
     try {
@@ -493,63 +559,145 @@ export default function AdminDatabasePage() {
 
             {/* Applications Section - Anträge & Leads */}
             <div className="mt-8">
-              <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 animate-[fadeInUp_.6s_ease]">
+              <div className="bg-white rounded-3xl p-8 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-slate-100 animate-[fadeInUp_.6s_ease]">
                 {/* Section Header */}
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-1">KUNDEN DATENBANK</p>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-1">COMMAND CENTER</p>
                     <h3 className="text-lg font-bold text-slate-900">Aktuelle Anträge & Leads</h3>
                   </div>
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full border border-slate-100">
-                    <span className="text-[11px] font-semibold text-slate-500">Total:</span>
-                    <span className="text-xs font-bold text-slate-800">{applications.length}</span>
+                    <span className="text-[11px] font-semibold text-slate-500">
+                      {filteredAndSortedApps.length}
+                      {filteredAndSortedApps.length !== applications.length && (
+                        <span className="text-slate-400"> / {applications.length}</span>
+                      )}
+                    </span>
                   </div>
+                </div>
+
+                {/* Controls Bar — Search + Filters */}
+                <div className="flex flex-col md:flex-row gap-3 mb-6">
+                  {/* Search */}
+                  <div className="relative flex-1">
+                    <svg
+                      width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                    >
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Name, E-Mail oder Ref-ID suchen..."
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-300 transition-all"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-slate-100 text-slate-400"
+                        aria-label="Suche leeren"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Payment filter */}
+                  <select
+                    value={paymentFilter}
+                    onChange={(e) => setPaymentFilter(e.target.value)}
+                    className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-300 transition-all"
+                  >
+                    <option value="all">Alle Zahlungen</option>
+                    <option value="paid">Bezahlt</option>
+                    <option value="pending">Ausstehend</option>
+                    <option value="cancelled">Storniert</option>
+                  </select>
+
+                  {/* Status filter */}
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-300 transition-all"
+                  >
+                    <option value="all">Alle Status</option>
+                    <option value="lead">Lead</option>
+                    <option value="in_progress">In Bearbeitung</option>
+                    <option value="kyc_missing">KYC fehlt</option>
+                    <option value="ready_for_review">Prüfbereit</option>
+                    <option value="completed">Abgeschlossen</option>
+                    <option value="cancelled">Storniert</option>
+                  </select>
                 </div>
 
                 {/* Applications List */}
                 {loadingApps ? (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {[...Array(5)].map((_, i) => (
-                      <div key={i} className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50/50 animate-pulse">
-                        <div className="w-10 h-10 rounded-full bg-slate-200" />
+                      <div key={i} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50/60 animate-pulse">
+                        <div className="w-9 h-9 rounded-full bg-slate-200" />
                         <div className="flex-1 space-y-2">
                           <div className="h-3 bg-slate-200 rounded w-1/3" />
                           <div className="h-2.5 bg-slate-100 rounded w-1/4" />
                         </div>
-                        <div className="h-6 w-20 bg-slate-200 rounded-full" />
-                        <div className="h-6 w-20 bg-slate-200 rounded-full" />
+                        <div className="h-5 w-20 bg-slate-200 rounded-full" />
+                        <div className="h-5 w-20 bg-slate-200 rounded-full" />
                         <div className="h-3 w-16 bg-slate-100 rounded" />
                       </div>
                     ))}
                   </div>
-                ) : applications.length === 0 ? (
+                ) : filteredAndSortedApps.length === 0 ? (
                   <div className="text-center py-16 px-4">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center shadow-inner">
-                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
+                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
                       </svg>
                     </div>
-                    <p className="text-sm font-semibold text-slate-600">Noch keine Anträge</p>
-                    <p className="text-xs text-slate-400 mt-1">Neue Kunden-Anträge erscheinen hier automatisch.</p>
+                    <p className="text-sm font-semibold text-slate-700">
+                      {applications.length === 0 ? 'Noch keine Anträge' : 'Keine Anträge gefunden'}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {applications.length === 0
+                        ? 'Neue Kunden-Anträge erscheinen hier automatisch.'
+                        : 'Passe Suche oder Filter an, um mehr Ergebnisse zu sehen.'}
+                    </p>
+                    {applications.length > 0 && (searchQuery || statusFilter !== 'all' || paymentFilter !== 'all') && (
+                      <button
+                        onClick={() => { setSearchQuery(''); setStatusFilter('all'); setPaymentFilter('all'); }}
+                        className="mt-4 px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                      >
+                        Filter zurücksetzen
+                      </button>
+                    )}
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto -mx-4">
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-slate-100">
-                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-bold text-slate-400">Ref-ID</th>
-                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-bold text-slate-400">Name</th>
-                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-bold text-slate-400">Paket</th>
-                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-bold text-slate-400">Status</th>
-                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-bold text-slate-400">Zahlung</th>
-                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-bold text-slate-400">Datum</th>
+                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Ref</th>
+                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Name</th>
+                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-slate-400 hidden lg:table-cell">E-Mail</th>
+                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Paket</th>
+                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Status</th>
+                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Zahlung</th>
+                          <th className="text-right py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Datum</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {applications.map((app) => {
-                          const payBadge = getPaymentBadge(app.payment_status);
-                          const stBadge = getAppStatusBadge(app.status);
+                        {filteredAndSortedApps.map((app) => {
+                          const payKey = getPaymentStatusKey(app);
+                          const stKey = getAppStatusKey(app);
+                          const pay = PAYMENT_META[payKey];
+                          const st = STATUS_META[stKey];
                           const fullName = getFullName(app);
                           const initial = (fullName?.[0] || '?').toUpperCase();
                           return (
@@ -559,36 +707,41 @@ export default function AdminDatabasePage() {
                               className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors"
                             >
                               <td className="py-4 px-4">
-                                <span className="text-xs font-mono text-slate-500">{app.ref || '—'}</span>
+                                <span className="text-[11px] font-mono text-slate-500">{app.ref || '—'}</span>
                               </td>
                               <td className="py-4 px-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#2563eb] to-[#3b82f6] flex items-center justify-center text-white text-xs font-semibold shrink-0">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-white text-[11px] font-semibold shrink-0">
                                     {initial}
                                   </div>
                                   <div className="min-w-0">
                                     <p className="text-sm font-semibold text-slate-900 truncate">{fullName}</p>
-                                    <p className="text-[11px] text-slate-400 truncate">{app.email || '—'}</p>
+                                    <p className="text-[11px] text-slate-400 truncate lg:hidden">{app.email || '—'}</p>
                                   </div>
                                 </div>
                               </td>
+                              <td className="py-4 px-4 hidden lg:table-cell">
+                                <span className="text-xs text-slate-600 truncate">{app.email || <span className="text-slate-300">—</span>}</span>
+                              </td>
                               <td className="py-4 px-4">
-                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide shadow-sm ${getPackageBadge(app.pack_name)}`}>
-                                  {app.pack_name || '—'}
+                                <span className="text-xs font-medium text-slate-700">
+                                  {app.pack_name || <span className="text-slate-300">—</span>}
                                 </span>
                               </td>
                               <td className="py-4 px-4">
-                                <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${stBadge.cls}`}>
-                                  {stBadge.label}
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${st.cls}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
+                                  {st.label}
                                 </span>
                               </td>
                               <td className="py-4 px-4">
-                                <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${payBadge.cls}`}>
-                                  {payBadge.label}
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${pay.cls}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${pay.dot}`} />
+                                  {pay.label}
                                 </span>
                               </td>
-                              <td className="py-4 px-4">
-                                <span className="text-xs font-medium text-slate-500">{formatAppDate(app.created_at)}</span>
+                              <td className="py-4 px-4 text-right">
+                                <span className="text-xs font-medium text-slate-500 whitespace-nowrap">{formatAppDate(app.updated_at || app.created_at)}</span>
                               </td>
                             </tr>
                           );
@@ -617,18 +770,30 @@ export default function AdminDatabasePage() {
             style={{ animation: 'slideInRight .35s cubic-bezier(0.16,1,0.3,1)' }}
           >
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-slate-100 px-8 py-6 flex items-start justify-between">
+            <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-md border-b border-slate-100 px-8 py-6 flex items-start justify-between">
               <div className="min-w-0">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-1">Antrag-Details</p>
                 <h2 className="text-xl font-bold text-slate-900 truncate">{getFullName(selectedApp)}</h2>
-                <div className="flex items-center gap-2 mt-2">
+                <div className="flex flex-wrap items-center gap-2 mt-2">
                   <span className="text-xs font-mono text-slate-500">{selectedApp.ref}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getAppStatusBadge(selectedApp.status).cls}`}>
-                    {getAppStatusBadge(selectedApp.status).label}
-                  </span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getPaymentBadge(selectedApp.payment_status).cls}`}>
-                    {getPaymentBadge(selectedApp.payment_status).label}
-                  </span>
+                  {(() => {
+                    const st = STATUS_META[getAppStatusKey(selectedApp)];
+                    return (
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${st.cls}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
+                        {st.label}
+                      </span>
+                    );
+                  })()}
+                  {(() => {
+                    const pay = PAYMENT_META[getPaymentStatusKey(selectedApp)];
+                    return (
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${pay.cls}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${pay.dot}`} />
+                        {pay.label}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
               <button
@@ -643,119 +808,111 @@ export default function AdminDatabasePage() {
               </button>
             </div>
 
-            {/* Body - Bento Sections */}
-            <div className="p-8 space-y-6">
-              {/* Persönliche Daten */}
-              <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-slate-50/50 p-6">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-4">Persönliche Daten</p>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                  <DetailField label="Vorname" value={selectedApp.first_name} />
-                  <DetailField label="Nachname" value={selectedApp.last_name} />
-                  <DetailField label="Geburtsdatum" value={selectedApp.birthdate ? formatAppDate(selectedApp.birthdate) : '—'} />
-                  <DetailField label="Nationalität" value={selectedApp.nationality} />
-                  <DetailField label="Telefon" value={[selectedApp.phone_country_code, selectedApp.phone].filter(Boolean).join(' ')} />
-                  <DetailField label="E-Mail" value={selectedApp.email} />
-                  <DetailField label="Straße" value={selectedApp.street} />
-                  <DetailField label="PLZ / Ort" value={[selectedApp.zip, selectedApp.city].filter(Boolean).join(' ')} />
-                  <DetailField label="Land" value={selectedApp.country} />
-                  <DetailField label="Wohnsituation" value={selectedApp.housing} />
+            {/* Body - Editorial Sections */}
+            <div className="px-8 py-6">
+              {/* Persönliches */}
+              <SectionHeadline>Persönliches</SectionHeadline>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-6 border-b border-slate-100">
+                <DetailField label="Vorname" value={selectedApp.first_name} />
+                <DetailField label="Nachname" value={selectedApp.last_name} />
+                <DetailField label="Geburtsdatum" value={selectedApp.birthdate ? formatAppDate(selectedApp.birthdate) : null} />
+                <DetailField label="Nationalität" value={selectedApp.nationality} />
+                <DetailField label="Telefon" value={[selectedApp.phone_country_code, selectedApp.phone].filter(Boolean).join(' ') || null} />
+                <DetailField label="E-Mail" value={selectedApp.email} />
+                <div className="col-span-2">
+                  <DetailField label="Adresse" value={[selectedApp.street, [selectedApp.zip, selectedApp.city].filter(Boolean).join(' '), selectedApp.country].filter(Boolean).join(', ') || null} />
                 </div>
+                <DetailField label="Wohnsituation" value={selectedApp.housing} />
               </div>
 
               {/* Finanzen */}
-              <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-emerald-50/30 p-6">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-500 font-bold mb-4">Finanzen</p>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                  <DetailField label="Einkommen (netto)" value={formatCurrency(selectedApp.income)} />
-                  <DetailField label="Miete" value={formatCurrency(selectedApp.rent)} />
-                  <DetailField label="Schulden" value={formatCurrency(selectedApp.debts)} />
-                  <DetailField label="Wunschlimit" value={formatCurrency(selectedApp.wanted_limit)} />
-                  <DetailField label="Genehmigtes Limit" value={formatCurrency(selectedApp.approved_limit)} />
-                  <DetailField label="Beschäftigung" value={selectedApp.employment} />
-                  <DetailField label="Arbeitgeber" value={selectedApp.employer} />
-                  <DetailField label="Beschäftigt seit" value={selectedApp.employed_since} />
+              <SectionHeadline>Finanzen</SectionHeadline>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-6 border-b border-slate-100">
+                <DetailField label="Einkommen (netto)" value={selectedApp.income != null ? formatCurrency(selectedApp.income) : null} />
+                <DetailField label="Miete" value={selectedApp.rent != null ? formatCurrency(selectedApp.rent) : null} />
+                <DetailField label="Schulden" value={selectedApp.debts != null ? formatCurrency(selectedApp.debts) : null} />
+                <DetailField label="Wunschlimit" value={selectedApp.wanted_limit != null ? formatCurrency(selectedApp.wanted_limit) : null} />
+                <DetailField label="Genehmigtes Limit" value={selectedApp.approved_limit != null ? formatCurrency(selectedApp.approved_limit) : null} />
+                <DetailField label="Beschäftigung" value={selectedApp.employment} />
+                <DetailField label="Arbeitgeber" value={selectedApp.employer} />
+                <DetailField label="Beschäftigt seit" value={selectedApp.employed_since} />
+              </div>
+
+              {/* Setup / Vertrag */}
+              <SectionHeadline>Setup & Vertrag</SectionHeadline>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-6 border-b border-slate-100">
+                <DetailField label="Paket" value={selectedApp.pack_name} />
+                <DetailField label="Paket-Key" value={selectedApp.pack_key} />
+                <DetailField label="Verwendungszweck" value={selectedApp.purpose} />
+                <DetailField label="Abrechnung" value={selectedApp.billing} />
+                <DetailField label="Zahlungsmethode" value={selectedApp.billing_method} />
+                <DetailField label="Gehaltseingang" value={selectedApp.salary_receipt_day} />
+                <DetailField label="Add-on" value={selectedApp.addon} />
+                <DetailField label="NFC" value={selectedApp.nfc} />
+                <div className="col-span-2">
+                  <DetailField label="IBAN" value={selectedApp.iban} mono />
+                </div>
+                <div className="col-span-2">
+                  <DetailField label="Stripe Customer" value={selectedApp.stripe_customer_id} mono />
+                </div>
+                <div className="col-span-2">
+                  <DetailField label="Stripe Subscription" value={selectedApp.stripe_subscription_id} mono />
                 </div>
               </div>
 
-              {/* Vertragsdaten */}
-              <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-blue-50/30 p-6">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-blue-500 font-bold mb-4">Vertragsdaten</p>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                  <DetailField label="Paket" value={selectedApp.pack_name} />
-                  <DetailField label="Paket-Key" value={selectedApp.pack_key} />
-                  <DetailField label="Verwendungszweck" value={selectedApp.purpose} />
-                  <DetailField label="Abrechnung" value={selectedApp.billing} />
-                  <DetailField label="Zahlungsmethode" value={selectedApp.billing_method} />
-                  <DetailField label="Gehaltseingang" value={selectedApp.salary_receipt_day} />
-                  <DetailField label="Add-on" value={selectedApp.addon} />
-                  <DetailField label="NFC" value={selectedApp.nfc} />
-                  <div className="col-span-2">
-                    <DetailField label="IBAN" value={selectedApp.iban} mono />
-                  </div>
-                  <div className="col-span-2">
-                    <DetailField label="Stripe Customer" value={selectedApp.stripe_customer_id} mono />
-                  </div>
-                  <div className="col-span-2">
-                    <DetailField label="Stripe Subscription" value={selectedApp.stripe_subscription_id} mono />
-                  </div>
-                </div>
-              </div>
-
-              {/* Business (falls vorhanden) */}
+              {/* Business */}
               {(selectedApp.company_name || selectedApp.type === 'business') && (
-                <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-purple-50/30 p-6">
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-purple-500 font-bold mb-4">Unternehmen</p>
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                <>
+                  <SectionHeadline>Unternehmen</SectionHeadline>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-6 border-b border-slate-100">
                     <DetailField label="Firmenname" value={selectedApp.company_name} />
                     <DetailField label="Rechtsform" value={selectedApp.legal_form} />
                     <DetailField label="Steuer-ID" value={selectedApp.tax_id} />
                     <DetailField label="Gegründet" value={selectedApp.established_year} />
                     <DetailField label="Branche" value={selectedApp.industry} />
                     <DetailField label="Geschäftstyp" value={selectedApp.business_type} />
-                    <DetailField label="Jahresumsatz" value={formatCurrency(selectedApp.annual_revenue)} />
+                    <DetailField label="Jahresumsatz" value={selectedApp.annual_revenue != null ? formatCurrency(selectedApp.annual_revenue) : null} />
                     <DetailField label="Mitarbeiter" value={selectedApp.employees} />
-                    <DetailField label="Monatliche Kosten" value={formatCurrency(selectedApp.monthly_expenses)} />
+                    <DetailField label="Monatliche Kosten" value={selectedApp.monthly_expenses != null ? formatCurrency(selectedApp.monthly_expenses) : null} />
                     <DetailField label="Ansprechpartner" value={selectedApp.contact_name} />
                     <DetailField label="Kontakt-Email" value={selectedApp.contact_email} />
                     <DetailField label="Kontakt-Tel." value={selectedApp.contact_phone} />
                   </div>
-                </div>
+                </>
               )}
 
-              {/* KYC */}
-              <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-rose-50/30 p-6">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-rose-500 font-bold mb-4">KYC & Dokumente</p>
-                <div className="space-y-3">
-                  <KycRow
-                    label="Kontoauszug"
-                    available={!!selectedApp.bank_statement_pdf || selectedApp.has_bank_statement}
-                  />
-                  <KycRow
-                    label="Ausweisdokument"
-                    available={!!selectedApp.id_card_pdf || selectedApp.has_id_card}
-                  />
-                  <DetailField label="Hochgeladen am" value={selectedApp.documents_uploaded_at ? formatAppDate(selectedApp.documents_uploaded_at) : '—'} />
-                  <div className="grid grid-cols-3 gap-3 pt-2">
-                    <DetailField label="AGB" value={selectedApp.consent_agb ? '✓ Akzeptiert' : '—'} />
-                    <DetailField label="SCHUFA" value={selectedApp.consent_schufa ? '✓ Akzeptiert' : '—'} />
-                    <DetailField label="Vertrag" value={selectedApp.consent_contract ? '✓ Akzeptiert' : '—'} />
-                  </div>
+              {/* KYC & Dokumente */}
+              <SectionHeadline>KYC & Dokumente</SectionHeadline>
+              <div className="space-y-3 pb-6 border-b border-slate-100">
+                <KycRow
+                  label="Kontoauszug"
+                  available={!!(selectedApp.has_bank_statement_pdf ?? selectedApp.bank_statement_pdf)}
+                  downloadUrl={selectedApp.ref ? `/api/fiaon/admin/applications/${selectedApp.ref}/document/bank_statement` : undefined}
+                />
+                <KycRow
+                  label="Ausweisdokument"
+                  available={!!(selectedApp.has_id_card_pdf ?? selectedApp.id_card_pdf)}
+                  downloadUrl={selectedApp.ref ? `/api/fiaon/admin/applications/${selectedApp.ref}/document/id_card` : undefined}
+                />
+                <div className="grid grid-cols-4 gap-4 pt-2">
+                  <DetailField label="Hochgeladen" value={selectedApp.documents_uploaded_at ? formatAppDate(selectedApp.documents_uploaded_at) : null} />
+                  <DetailField label="AGB" value={selectedApp.consent_agb ? '✓ Akzeptiert' : null} />
+                  <DetailField label="SCHUFA" value={selectedApp.consent_schufa ? '✓ Akzeptiert' : null} />
+                  <DetailField label="Vertrag" value={selectedApp.consent_contract ? '✓ Akzeptiert' : null} />
                 </div>
               </div>
 
               {/* Meta */}
-              <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-4">Meta</p>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                  <DetailField label="Typ" value={selectedApp.type} />
-                  <DetailField label="Aktueller Step" value={selectedApp.current_step} />
-                  <DetailField label="Erstellt" value={formatAppDate(selectedApp.created_at)} />
-                  <DetailField label="Aktualisiert" value={formatAppDate(selectedApp.updated_at)} />
-                  <DetailField label="Eingereicht" value={selectedApp.submitted_at ? formatAppDate(selectedApp.submitted_at) : '—'} />
-                  <DetailField label="Abgeschlossen" value={selectedApp.completed_at ? formatAppDate(selectedApp.completed_at) : '—'} />
-                  <div className="col-span-2">
-                    <DetailField label="IP-Adresse" value={selectedApp.ip} mono />
-                  </div>
+              <SectionHeadline>Meta</SectionHeadline>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-5">
+                <DetailField label="Typ" value={selectedApp.type} />
+                <DetailField label="Aktueller Step" value={selectedApp.current_step} />
+                <DetailField label="Erstellt" value={formatAppDate(selectedApp.created_at)} />
+                <DetailField label="Aktualisiert" value={formatAppDate(selectedApp.updated_at)} />
+                <DetailField label="Eingereicht" value={selectedApp.submitted_at ? formatAppDate(selectedApp.submitted_at) : null} />
+                <DetailField label="Abgeschlossen" value={selectedApp.completed_at ? formatAppDate(selectedApp.completed_at) : null} />
+                <div className="col-span-2">
+                  <DetailField label="IP-Adresse" value={selectedApp.ip} mono />
                 </div>
               </div>
             </div>
@@ -778,31 +935,62 @@ export default function AdminDatabasePage() {
   );
 }
 
+function SectionHeadline({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold mb-4 mt-6 first:mt-0">
+      {children}
+    </p>
+  );
+}
+
 function DetailField({ label, value, mono }: { label: string; value: any; mono?: boolean }) {
-  const display = value === null || value === undefined || value === '' ? '—' : String(value);
+  const isEmpty = value === null || value === undefined || value === '' || value === false;
   return (
     <div className="min-w-0">
-      <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-1">{label}</p>
-      <p className={`text-sm font-medium text-slate-800 break-words ${mono ? 'font-mono text-xs' : ''}`}>{display}</p>
+      <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-1.5">{label}</p>
+      {isEmpty ? (
+        <p className="text-sm italic text-slate-400">Nicht angegeben</p>
+      ) : (
+        <p className={`text-sm font-medium text-slate-800 break-words ${mono ? 'font-mono text-xs' : ''}`}>{String(value)}</p>
+      )}
     </div>
   );
 }
 
-function KycRow({ label, available }: { label: string; available: boolean }) {
+function KycRow({ label, available, downloadUrl }: { label: string; available: boolean; downloadUrl?: string }) {
   return (
     <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-100">
       <div className="flex items-center gap-3">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${available ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${available ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400'}`}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
             <polyline points="14 2 14 8 20 8" />
           </svg>
         </div>
-        <p className="text-sm font-semibold text-slate-800">{label}</p>
+        <div>
+          <p className="text-sm font-semibold text-slate-800">{label}</p>
+          <p className={`text-[11px] ${available ? 'text-emerald-600' : 'text-slate-400'}`}>
+            {available ? 'Vorhanden' : 'Nicht hochgeladen'}
+          </p>
+        </div>
       </div>
-      <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${available ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-        {available ? 'Vorhanden' : 'Fehlt'}
-      </span>
+      {available && downloadUrl ? (
+        <a
+          href={downloadUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Öffnen
+        </a>
+      ) : (
+        <span className="text-[11px] font-medium text-slate-400">—</span>
+      )}
     </div>
   );
 }

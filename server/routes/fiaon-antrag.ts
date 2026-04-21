@@ -870,4 +870,71 @@ router.post("/run-migration", async (req, res) => {
   }
 });
 
+// ============================================================
+// ADMIN ENDPOINTS — Lean list (no bytea PDFs) for Dashboard UI
+// ============================================================
+
+// Admin: list applications, newest first, without heavy bytea columns
+router.get("/admin/applications", async (_req, res) => {
+  try {
+    const apps = await sqlPool`
+      SELECT
+        id, ref, type, status, current_step, pack_key, pack_name,
+        first_name, last_name, birthdate, phone, phone_country_code,
+        street, zip, city, country, nationality,
+        employment, employer, employed_since, income, rent, debts, housing,
+        company_name, legal_form, tax_id, established_year,
+        contact_name, contact_email, contact_phone,
+        business_type, industry, annual_revenue, employees, monthly_expenses, billing_email,
+        wanted_limit, purpose, billing, addon, nfc,
+        approved_limit, email, iban, billing_method, salary_receipt_day,
+        consent_agb, consent_schufa, consent_contract,
+        payment_status,
+        stripe_session_id, stripe_customer_id, stripe_subscription_id, stripe_payment_method_id,
+        ip, user_agent,
+        submitted_at, completed_at, documents_uploaded_at, created_at, updated_at,
+        (bank_statement_pdf IS NOT NULL) AS has_bank_statement_pdf,
+        (id_card_pdf IS NOT NULL) AS has_id_card_pdf
+      FROM fiaon_applications
+      ORDER BY created_at DESC NULLS LAST, id DESC
+      LIMIT 500
+    `;
+    res.json({ data: apps });
+  } catch (err) {
+    console.error("[FIAON-ADMIN-APPS]", err);
+    res.status(500).json({ error: "Failed to fetch applications" });
+  }
+});
+
+// Admin: stream a KYC document PDF inline
+router.get("/admin/applications/:ref/document/:type", async (req, res) => {
+  try {
+    const { ref, type } = req.params;
+    const column =
+      type === "bank_statement" ? "bank_statement_pdf" :
+      type === "id_card" ? "id_card_pdf" : null;
+
+    if (!column) {
+      return res.status(400).json({ error: "Invalid document type" });
+    }
+
+    const rows = await sqlPool`
+      SELECT ${sqlPool.unsafe(column)} AS doc
+      FROM fiaon_applications
+      WHERE ref = ${ref}
+      LIMIT 1
+    `;
+    if (rows.length === 0 || !rows[0].doc) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${ref}_${type}.pdf"`);
+    res.send(rows[0].doc);
+  } catch (err) {
+    console.error("[FIAON-ADMIN-DOC]", err);
+    res.status(500).json({ error: "Failed to fetch document" });
+  }
+});
+
 export default router;

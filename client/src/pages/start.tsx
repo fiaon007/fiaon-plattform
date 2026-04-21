@@ -136,12 +136,12 @@ function ScarcityBar() {
   const [dismiss, setDismiss] = useState(false);
   if (dismiss) return null;
   return (
-    <div className="sticky top-[64px] sm:top-[72px] z-30 border-y border-blue-100/70" style={{
+    <div className="mt-[104px] sm:mt-[112px] border-y border-blue-100/70" style={{
       background: "linear-gradient(90deg, rgba(255,255,255,.82), rgba(240,244,255,.9), rgba(255,255,255,.82))",
       backdropFilter: "blur(12px) saturate(160%)",
       WebkitBackdropFilter: "blur(12px) saturate(160%)",
     }}>
-      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-2 flex items-center gap-3 sm:gap-5">
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-3 sm:gap-5">
         <div className="flex items-center gap-2 shrink-0">
           <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-500" style={{ animation: "startPulseDot 1.8s ease-in-out infinite" }} />
           <span className="text-[11px] sm:text-[12px] font-semibold text-gray-700 uppercase tracking-wider">Live</span>
@@ -173,7 +173,7 @@ function ScarcityBar() {
    ════════════════════════════════════════════ */
 function Hero({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
   return (
-    <section className="relative pt-10 sm:pt-16 pb-14 sm:pb-24 overflow-hidden">
+    <section className="relative pt-16 sm:pt-24 pb-20 sm:pb-28 overflow-hidden">
       {/* Blur orbs */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[min(900px,120vw)] h-[500px] opacity-40 pointer-events-none" style={{ background: "radial-gradient(ellipse, rgba(37,99,235,.14), transparent 70%)" }} />
       <div className="absolute -top-20 -left-20 w-[420px] h-[420px] pointer-events-none start-glow-pulse" style={{ background: "radial-gradient(circle, rgba(37,99,235,.08), transparent 70%)", filter: "blur(60px)", animation: "startGlowPulse 9s ease-in-out infinite" }} />
@@ -181,19 +181,19 @@ function Hero({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
 
       <div className="max-w-[1120px] mx-auto px-5 sm:px-6 text-center relative z-10">
         {/* Trust pill */}
-        <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-gray-200 bg-white/80 backdrop-blur shadow-sm mb-7">
+        <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-gray-200 bg-white/80 backdrop-blur shadow-sm mb-9 sm:mb-10">
           <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-500" style={{ animation: "startPulseDot 1.8s ease-in-out infinite" }} />
           <span className="text-[12px] sm:text-[13px] font-semibold text-gray-600">Aktive April-Slots · Live-Bearbeitung</span>
         </div>
 
         {/* Headline */}
-        <h1 className="text-[2.4rem] sm:text-[3.2rem] md:text-[3.8rem] lg:text-[4.3rem] font-semibold leading-[1.04] tracking-tight mb-6">
+        <h1 className="text-[2.4rem] sm:text-[3.2rem] md:text-[3.8rem] lg:text-[4.3rem] font-semibold leading-[1.04] tracking-tight mb-7 sm:mb-8">
           <G>25.000 € Sofort-Limit.</G><br />
           <G>Ohne SCHUFA.</G>{" "}
           <span className="text-gray-400">Ohne Warten.</span>
         </h1>
 
-        <p className="text-[15px] sm:text-[17px] text-gray-500 leading-relaxed max-w-[580px] mx-auto mb-8">
+        <p className="text-[15px] sm:text-[17px] text-gray-500 leading-relaxed max-w-[580px] mx-auto mb-10 sm:mb-12">
           Dein internationaler Zugang zu Premium-Kreditkarten. Während deutsche Banken noch Formulare drucken, hast du dein Limit bereits aktiviert. <b className="text-gray-700">Digital. Diskret. Kompromisslos.</b>
         </p>
 
@@ -217,7 +217,7 @@ function Hero({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
         </div>
 
         {/* Hero card */}
-        <div className="relative max-w-[440px] sm:max-w-[500px] mx-auto mt-12 sm:mt-16">
+        <div className="relative max-w-[440px] sm:max-w-[500px] mx-auto mt-20 sm:mt-24">
           <div className="absolute inset-0 blur-3xl opacity-60 pointer-events-none" style={{ background: "radial-gradient(ellipse at center, rgba(37,99,235,.28), transparent 60%)" }} />
           <div className="relative fiaon-card-float">
             <Card bg="linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)" lim="25.000" hero label="Black Edition" />

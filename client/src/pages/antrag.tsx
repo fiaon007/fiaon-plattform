@@ -451,6 +451,22 @@ export default function AntragPage() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [showPackSwitcher, setShowPackSwitcher] = useState(false);
+
+  // Paket wechseln während Antragsprozess (Up- oder Downgrade)
+  const switchPack = useCallback((newPack: typeof PACKS[0]) => {
+    if (!newPack) return;
+    const currentIdx = pack ? PACKS.findIndex((p) => p.key === pack.key) : -1;
+    const newIdx = PACKS.findIndex((p) => p.key === newPack.key);
+    setPack(newPack);
+    // Limit in neue Paket-Range anpassen
+    setD((prev) => ({
+      ...prev,
+      wantedLimit: prev.wantedLimit > newPack.lim ? newPack.lim : prev.wantedLimit,
+    }));
+    track("pack_switch", { from: pack?.key, to: newPack.key, direction: newIdx > currentIdx ? "upgrade" : "downgrade" }, ref);
+    setShowPackSwitcher(false);
+  }, [pack, ref]);
 
   useEffect(() => { if (!sessionStorage.getItem("fiaon_sid")) sessionStorage.setItem("fiaon_sid", Math.random().toString(36).slice(2)); window.scrollTo(0, 0); }, []);
 
@@ -1673,6 +1689,25 @@ export default function AntragPage() {
             <div className="grid grid-cols-1 lg:grid-cols-[1fr,320px] gap-6 sm:gap-8 items-start w-full max-w-full">
               {/* Left: Form */}
               <div className="fiaon-glass-panel rounded-2xl p-4 sm:p-6 md:p-8 min-w-0 w-full">
+                {/* Paket-Chip — Trigger für Paket-Wechsler (mobile + desktop) */}
+                {pack && (
+                  <div className="flex justify-end mb-3 -mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowPackSwitcher(true)}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-semibold text-[#2563eb] bg-blue-50/70 hover:bg-blue-100 border border-blue-200/60 transition-all"
+                      aria-label="Paket ändern"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="2" y="7" width="20" height="12" rx="2"/>
+                        <path d="M2 11h20"/>
+                      </svg>
+                      <span className="truncate max-w-[160px] sm:max-w-none">{pack.name.replace(/\n/g, " ")}</span>
+                      <span className="text-blue-400">·</span>
+                      <span>ändern</span>
+                    </button>
+                  </div>
+                )}
                 {step === 1 && <>
                   <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Schritt 1 von 5</p>
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Persönliche Daten</h2>
@@ -1871,8 +1906,15 @@ export default function AntragPage() {
                         </div>
                       </div>
                       
-                      <div className="pt-3 mt-3 border-t border-white/40">
+                      <div className="pt-3 mt-3 border-t border-white/40 flex items-center justify-between gap-2">
                         <p className="text-[11px] font-mono text-gray-400 tracking-wider">{ref}</p>
+                        <button
+                          type="button"
+                          onClick={() => setShowPackSwitcher(true)}
+                          className="text-[11px] font-semibold text-[#2563eb] hover:text-[#1e40af] underline decoration-dotted decoration-[#2563eb]/40 underline-offset-4 transition-colors"
+                        >
+                          Paket ändern
+                        </button>
                       </div>
 
                       {/* Real-time data display */}
@@ -2295,6 +2337,107 @@ export default function AntragPage() {
         )}
         <p className="text-[11px] text-gray-400 font-mono">Referenz: {ref}</p>
       </div>
+
+      {/* === Paket-Switcher Modal === */}
+      {showPackSwitcher && (
+        <div
+          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
+          style={{ background: "rgba(15,23,42,0.55)", backdropFilter: "blur(6px)" }}
+          onClick={() => setShowPackSwitcher(false)}
+        >
+          <div
+            className="bg-white w-full sm:w-auto sm:max-w-3xl rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] overflow-y-auto animate-[fadeInUp_.3s_ease]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 bg-white/95 backdrop-blur-xl border-b border-slate-100 px-5 sm:px-8 py-4 sm:py-5 flex items-center justify-between z-10">
+              <div>
+                <p className="text-[10px] uppercase tracking-[.2em] font-bold text-[#2563eb] mb-1">Paket wechseln</p>
+                <h3 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900">Wähle dein neues Paket</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPackSwitcher(false)}
+                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all flex-shrink-0"
+                aria-label="Schließen"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Paket-Liste */}
+            <div className="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              {PACKS.map((p) => {
+                const isCurrent = pack?.key === p.key;
+                const currentIdx = pack ? PACKS.findIndex((x) => x.key === pack.key) : -1;
+                const thisIdx = PACKS.findIndex((x) => x.key === p.key);
+                const isUpgrade = currentIdx >= 0 && thisIdx > currentIdx;
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => !isCurrent && switchPack(p)}
+                    disabled={isCurrent}
+                    className={`relative text-left p-4 sm:p-5 rounded-2xl border-2 transition-all duration-200 ${
+                      isCurrent
+                        ? "border-[#2563eb] bg-blue-50/50 cursor-default"
+                        : "border-slate-200 bg-white hover:border-[#2563eb] hover:shadow-lg hover:-translate-y-0.5 cursor-pointer"
+                    }`}
+                  >
+                    {/* Status-Badge */}
+                    {isCurrent && (
+                      <span className="absolute top-3 right-3 text-[9px] font-bold uppercase tracking-wider text-[#2563eb] bg-white border border-blue-200 px-2 py-0.5 rounded-full">
+                        Aktuell
+                      </span>
+                    )}
+                    {!isCurrent && isUpgrade && (
+                      <span className="absolute top-3 right-3 text-[9px] font-bold uppercase tracking-wider text-white bg-gradient-to-r from-blue-600 to-blue-500 px-2 py-0.5 rounded-full shadow">
+                        Upgrade
+                      </span>
+                    )}
+
+                    <div className="mb-3">
+                      <p className="text-[14px] sm:text-[15px] font-bold text-slate-900 leading-tight whitespace-pre-line">{p.name}</p>
+                    </div>
+
+                    <div className="flex items-baseline gap-1 mb-3">
+                      <span className="text-2xl sm:text-3xl font-black text-slate-900">{p.fee.toFixed(2).replace(".", ",")}</span>
+                      <span className="text-[12px] text-slate-500 font-medium">€/Mt.</span>
+                    </div>
+
+                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-100">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-blue-600/70">Limit bis</span>
+                      <span className="text-[13px] font-black text-[#2563eb]">{p.lim.toLocaleString("de-DE")} €</span>
+                    </div>
+
+                    {!isCurrent && (
+                      <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          {isUpgrade ? "Jetzt upgraden" : "Zu diesem Paket wechseln"}
+                        </span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="5" y1="12" x2="19" y2="12"/>
+                          <polyline points="12 5 19 12 12 19"/>
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Footer Info */}
+            <div className="px-5 sm:px-8 py-4 border-t border-slate-100 bg-slate-50/50">
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Dein Wunschlimit wird automatisch an das neue Paket angepasst. Eingaben bleiben erhalten.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <PremiumFooter />
 

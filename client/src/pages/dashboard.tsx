@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Download } from "lucide-react";
+import Clarity from "@microsoft/clarity";
 import PremiumFooter from "../components/PremiumFooter";
 
 export default function DashboardPage() {
@@ -63,6 +64,17 @@ export default function DashboardPage() {
     setGreeting(greetingText);
     setMounted(true);
   }, []);
+
+  // Identify user in Microsoft Clarity once user data is available
+  useEffect(() => {
+    if (userData?.email) {
+      try {
+        Clarity.identify(userData.email);
+      } catch (err) {
+        console.warn("Clarity identify failed", err);
+      }
+    }
+  }, [userData?.email]);
 
   // Fetch document status on mount
   useEffect(() => {

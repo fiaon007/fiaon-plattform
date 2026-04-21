@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { loadStripe } from "@stripe/stripe-js";
-import { Elements } from "@stripe/react-stripe-js";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
-import PremiumCheckoutForm from "@/components/PremiumCheckoutForm";
 
-// Robust Stripe key retrieval with fallback
-const stripePubKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || import.meta.env.VITE_STRIPE_PUBLIC_KEY;
-const stripePromise = stripePubKey ? loadStripe(stripePubKey) : null;
+// Stripe Payment Links (externes Checkout — ersetzt das eingebettete Stripe SDK)
+const STRIPE_PAYMENT_LINKS: Record<string, string> = {
+  start: "https://buy.stripe.com/14AaEZ65h4Pkb6z0wifnO01",
+  pro: "https://buy.stripe.com/4gM4gB51d4Pk2A3baWfnO02",
+  ultra: "https://buy.stripe.com/6oU28t0KX81wfmP0wifnO03",
+  highend: "https://buy.stripe.com/dRmeVf51dftYdeHcf0fnO04",
+};
 
 /* === CUSTOM ANIMATIONS === */
 const styleElement = document.createElement("style");
@@ -387,7 +388,6 @@ export default function AntragPage() {
   const [verifyDone, setVerifyDone] = useState(false);
   const [checkProgress, setCheckProgress] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -401,34 +401,43 @@ export default function AntragPage() {
     }
   }, [step]);
 
-  // Fetch client secret when reaching payment step
-  useEffect(() => {
-    if (step === 8 && pack && !clientSecret) {
-      const fetchClientSecret = async () => {
-        try {
-          const response = await fetch("/api/fiaon/create-payment-intent", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              amount: pack.fee,
-              packageName: pack.name,
-              ref,
-              firstName: d.firstName,
-              lastName: d.lastName,
-              email: d.email,
-            }),
-          });
-          const data = await response.json();
-          if (data.clientSecret) {
-            setClientSecret(data.clientSecret);
-          }
-        } catch (error) {
-          console.error("[FIAON] Failed to fetch client secret:", error);
-        }
-      };
-      fetchClientSecret();
+  // Weiterleitung zu externem Stripe Payment Link (statt eingebettetem SDK)
+  const handleProceedToStripe = useCallback(async () => {
+    if (!pack) return;
+    try {
+      // Antrag vor Redirect in DB speichern (Status: pending_payment)
+      await fetch("/api/fiaon/application", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ref,
+          type: "private",
+          status: "pending_payment",
+          currentStep: 8,
+          ...d,
+          packKey: pack.key,
+          packName: pack.name,
+          approvedLimit: approved,
+        }),
+      }).catch(() => {});
+
+      // Daten im localStorage sichern für Wiedererkennung nach Stripe-Return
+      try {
+        localStorage.setItem("fiaon_pending_ref", ref);
+        localStorage.setItem("fiaon_pending_email", d.email || "");
+        localStorage.setItem("fiaon_pending_packKey", pack.key);
+        localStorage.setItem("fiaon_pending_data", JSON.stringify({ ...d, approved, packKey: pack.key, packName: pack.name }));
+      } catch {}
+
+      track("checkout_redirect_stripe", { ref, packKey: pack.key }, ref);
+
+      const link = STRIPE_PAYMENT_LINKS[pack.key] || STRIPE_PAYMENT_LINKS.ultra;
+      const url = `${link}?client_reference_id=${encodeURIComponent(ref)}&prefilled_email=${encodeURIComponent(d.email || "")}`;
+      window.location.href = url;
+    } catch (err) {
+      console.error("[FIAON] handleProceedToStripe failed:", err);
     }
-  }, [step, pack, clientSecret, ref]);
+  }, [pack, ref, d, approved]);
 
   // Synchronized progress for verification screen
   useEffect(() => {
@@ -571,10 +580,46 @@ export default function AntragPage() {
     }
   }, []);
 
-  // Check for payment success and redirect to password step
+  // Check for payment success and redirect to password step (Stripe Return)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('payment_success') === 'true') {
+      try {
+        const pendingRef = localStorage.getItem("fiaon_pending_ref");
+        const pendingDataRaw = localStorage.getItem("fiaon_pending_data");
+        const pendingPackKey = localStorage.getItem("fiaon_pending_packKey");
+
+        if (pendingDataRaw) {
+          const parsed = JSON.parse(pendingDataRaw);
+          // Stelle Formulardaten (d) wieder her
+          setD((prev) => ({ ...prev, ...parsed }));
+          if (typeof parsed.approved === "number") setApproved(parsed.approved);
+        }
+
+        // Pack-State aus pendingPackKey wiederherstellen
+        if (pendingPackKey) {
+          const matchedPack = PACKS.find((p) => p.key === pendingPackKey);
+          if (matchedPack) setPack(matchedPack);
+        }
+
+        if (pendingRef) {
+          // Referenz-State bleibt (ref ist stabil via useState-initializer)
+          // Markiere Antrag in DB als bezahlt
+          fetch("/api/fiaon/application", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ref: pendingRef,
+              type: "private",
+              status: "payment_completed",
+              currentStep: 9,
+            }),
+          }).catch(() => {});
+          track("payment_success", { ref: pendingRef }, pendingRef);
+        }
+      } catch (err) {
+        console.error("[FIAON] Failed to restore pending data:", err);
+      }
       setStep(9);
     }
   }, []);
@@ -2031,48 +2076,83 @@ export default function AntragPage() {
                   <p className="text-[10px] uppercase tracking-widest text-blue-600 font-bold mb-2">AKTIVIERUNG ABSCHLIESSEN</p>
                   <h3 className="text-3xl font-black tracking-tight text-slate-900 mb-8">Zahlungsmethode</h3>
                   
-                  {clientSecret && pack && stripePromise && (
-                    <Elements 
-                      stripe={stripePromise} 
-                      options={{ 
-                        clientSecret,
-                        appearance: {
-                          theme: 'stripe',
-                          variables: {
-                            colorPrimary: '#2563eb',
-                            colorBackground: '#ffffff',
-                            colorText: '#0f172a',
-                            colorDanger: '#ef4444',
-                            fontFamily: 'Inter, system-ui, sans-serif',
-                            spacingUnit: '5px',
-                            borderRadius: '12px',
-                          },
-                          rules: {
-                            '.Input': {
-                              border: '1px solid #e2e8f0',
-                              boxShadow: 'none',
-                              padding: '12px 16px',
-                            },
-                            '.Input:focus': {
-                              border: '1px solid #93c5fd',
-                              boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.2)',
-                            }
-                          }
-                        }
-                      }}
-                    >
-                      <PremiumCheckoutForm packageName={pack.name} price={pack.fee} clientSecret={clientSecret} onSuccess={() => setStep(9)} />
-                    </Elements>
-                  )}
-                  {!clientSecret && (
-                    <div className="py-12 text-center">
-                      <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                      <p className="text-sm text-gray-500">Zahlungsseite wird geladen...</p>
-                    </div>
-                  )}
-                  {!stripePromise && (
-                    <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-red-600 text-sm font-medium">
-                      Systemfehler: Das Zahlungssystem konnte nicht initialisiert werden (Public Key fehlt). Bitte laden Sie die Seite neu.
+                  {pack && (
+                    <div className="space-y-7">
+                      {/* Heading Bento-Box */}
+                      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-blue-50/40 p-7">
+                        <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
+                        <div className="relative flex items-start gap-5">
+                          <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-xl font-black tracking-tight text-slate-900 mb-2">Sichere Zahlungsabwicklung</h4>
+                            <p className="text-[14px] leading-relaxed text-slate-600">
+                              Sie werden nun zu unserem Zahlungsdienstleister <span className="font-semibold text-slate-900">Stripe</span> weitergeleitet, um die Aktivierung Ihres <span className="font-semibold text-blue-700">{pack.name.replace(/\n/g, " ")}</span> Pakets sicher abzuschließen. Nach der Zahlung werden Sie automatisch zurückgeleitet, um Ihr Passwort festzulegen.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Feature-Mini-Grid */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="rounded-xl border border-slate-100 bg-white p-4 text-center">
+                          <div className="w-8 h-8 mx-auto mb-2 rounded-lg bg-blue-50 flex items-center justify-center">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                          </div>
+                          <div className="text-[11px] font-semibold text-slate-700">SSL + 3D Secure</div>
+                        </div>
+                        <div className="rounded-xl border border-slate-100 bg-white p-4 text-center">
+                          <div className="w-8 h-8 mx-auto mb-2 rounded-lg bg-blue-50 flex items-center justify-center">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2"><path d="M20 6L9 17l-5-5"/></svg>
+                          </div>
+                          <div className="text-[11px] font-semibold text-slate-700">Sofortige Aktivierung</div>
+                        </div>
+                        <div className="rounded-xl border border-slate-100 bg-white p-4 text-center">
+                          <div className="w-8 h-8 mx-auto mb-2 rounded-lg bg-blue-50 flex items-center justify-center">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg>
+                          </div>
+                          <div className="text-[11px] font-semibold text-slate-700">Powered by Stripe</div>
+                        </div>
+                      </div>
+
+                      {/* CTA Button */}
+                      <button
+                        type="button"
+                        onClick={handleProceedToStripe}
+                        className="relative w-full overflow-hidden rounded-2xl py-5 px-6 text-white font-black tracking-wider text-[15px] uppercase shadow-xl shadow-blue-500/40 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-600/50 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-4 focus:ring-blue-300"
+                        style={{
+                          background: "linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%)",
+                          backgroundSize: "200% 200%",
+                          animation: "gradient 3s ease infinite",
+                        }}
+                      >
+                        <span className="absolute inset-0 pointer-events-none" style={{
+                          background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent)",
+                          transform: "translateX(-100%)",
+                          animation: "sweep 2.8s ease-in-out infinite",
+                          width: "60%",
+                        }} />
+                        <span className="relative flex items-center justify-center gap-3">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                          </svg>
+                          Weiter zu Stripe
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                            <polyline points="12 5 19 12 12 19"/>
+                          </svg>
+                        </span>
+                      </button>
+
+                      {/* Hint unter Button */}
+                      <p className="text-center text-[12px] text-slate-400">
+                        Durch Klicken bestätigen Sie den Abschluss Ihres Antrags mit der Referenz <span className="font-mono text-slate-600">{ref}</span>.
+                      </p>
                     </div>
                   )}
                 </div>

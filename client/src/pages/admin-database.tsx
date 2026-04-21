@@ -23,6 +23,9 @@ export default function AdminDatabasePage() {
   const [newTodoTitle, setNewTodoTitle] = useState("");
   const [showAddTodo, setShowAddTodo] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [applications, setApplications] = useState<any[]>([]);
+  const [loadingApps, setLoadingApps] = useState(true);
+  const [selectedApp, setSelectedApp] = useState<any | null>(null);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -67,7 +70,70 @@ export default function AdminDatabasePage() {
 
   useEffect(() => {
     fetchTodos();
+    fetchApplications();
   }, []);
+
+  const fetchApplications = async () => {
+    try {
+      const res = await fetch('/api/database/tables/fiaon_applications/data?limit=200', {
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setApplications(Array.isArray(json?.data) ? json.data : []);
+      }
+    } catch (error) {
+      console.error('Error fetching applications:', error);
+    } finally {
+      setLoadingApps(false);
+    }
+  };
+
+  const formatAppDate = (value: any) => {
+    if (!value) return '—';
+    try {
+      return new Date(value).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    } catch {
+      return '—';
+    }
+  };
+
+  const formatCurrency = (value: any) => {
+    if (value === null || value === undefined || value === '') return '—';
+    const n = typeof value === 'number' ? value : parseFloat(value);
+    if (Number.isNaN(n)) return '—';
+    return n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+  };
+
+  const getPaymentBadge = (status: string | null | undefined) => {
+    const s = (status || 'pending').toLowerCase();
+    if (s === 'paid') return { label: 'Bezahlt', cls: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
+    if (s === 'cancelled') return { label: 'Storniert', cls: 'bg-slate-100 text-slate-500 border-slate-200' };
+    return { label: 'Ausstehend', cls: 'bg-amber-50 text-amber-600 border-amber-100' };
+  };
+
+  const getAppStatusBadge = (status: string | null | undefined) => {
+    const s = (status || 'started').toLowerCase();
+    if (s === 'completed') return { label: 'Abgeschlossen', cls: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
+    if (s === 'documents_submitted') return { label: 'KYC eingereicht', cls: 'bg-blue-50 text-blue-600 border-blue-100' };
+    if (s === 'started' || s === 'in_progress') return { label: 'In Bearbeitung', cls: 'bg-indigo-50 text-indigo-600 border-indigo-100' };
+    // KYC fehlt / andere
+    return { label: 'KYC fehlt', cls: 'bg-rose-50 text-rose-600 border-rose-100' };
+  };
+
+  const getPackageBadge = (pack: string | null | undefined) => {
+    const p = (pack || '').toLowerCase();
+    if (p.includes('ultra') || p.includes('high')) return 'bg-gradient-to-r from-purple-500 to-purple-600 text-white';
+    if (p.includes('pro')) return 'bg-gradient-to-r from-blue-500 to-blue-600 text-white';
+    if (p.includes('starter')) return 'bg-slate-100 text-slate-700';
+    return 'bg-slate-100 text-slate-700';
+  };
+
+  const getFullName = (app: any) => {
+    const parts = [app?.first_name, app?.last_name].filter(Boolean).join(' ').trim();
+    if (parts) return parts;
+    return app?.company_name || app?.contact_name || app?.email || '—';
+  };
 
   const fetchTodos = async () => {
     try {
@@ -424,9 +490,319 @@ export default function AdminDatabasePage() {
                 </div>
               </div>
             </div>
+
+            {/* Applications Section - Anträge & Leads */}
+            <div className="mt-8">
+              <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 animate-[fadeInUp_.6s_ease]">
+                {/* Section Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-1">KUNDEN DATENBANK</p>
+                    <h3 className="text-lg font-bold text-slate-900">Aktuelle Anträge & Leads</h3>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full border border-slate-100">
+                    <span className="text-[11px] font-semibold text-slate-500">Total:</span>
+                    <span className="text-xs font-bold text-slate-800">{applications.length}</span>
+                  </div>
+                </div>
+
+                {/* Applications List */}
+                {loadingApps ? (
+                  <div className="space-y-3">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50/50 animate-pulse">
+                        <div className="w-10 h-10 rounded-full bg-slate-200" />
+                        <div className="flex-1 space-y-2">
+                          <div className="h-3 bg-slate-200 rounded w-1/3" />
+                          <div className="h-2.5 bg-slate-100 rounded w-1/4" />
+                        </div>
+                        <div className="h-6 w-20 bg-slate-200 rounded-full" />
+                        <div className="h-6 w-20 bg-slate-200 rounded-full" />
+                        <div className="h-3 w-16 bg-slate-100 rounded" />
+                      </div>
+                    ))}
+                  </div>
+                ) : applications.length === 0 ? (
+                  <div className="text-center py-16 px-4">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center shadow-inner">
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                      </svg>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-600">Noch keine Anträge</p>
+                    <p className="text-xs text-slate-400 mt-1">Neue Kunden-Anträge erscheinen hier automatisch.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-slate-100">
+                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-bold text-slate-400">Ref-ID</th>
+                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-bold text-slate-400">Name</th>
+                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-bold text-slate-400">Paket</th>
+                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-bold text-slate-400">Status</th>
+                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-bold text-slate-400">Zahlung</th>
+                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-bold text-slate-400">Datum</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {applications.map((app) => {
+                          const payBadge = getPaymentBadge(app.payment_status);
+                          const stBadge = getAppStatusBadge(app.status);
+                          const fullName = getFullName(app);
+                          const initial = (fullName?.[0] || '?').toUpperCase();
+                          return (
+                            <tr
+                              key={app.id || app.ref}
+                              onClick={() => setSelectedApp(app)}
+                              className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors"
+                            >
+                              <td className="py-4 px-4">
+                                <span className="text-xs font-mono text-slate-500">{app.ref || '—'}</span>
+                              </td>
+                              <td className="py-4 px-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#2563eb] to-[#3b82f6] flex items-center justify-center text-white text-xs font-semibold shrink-0">
+                                    {initial}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-slate-900 truncate">{fullName}</p>
+                                    <p className="text-[11px] text-slate-400 truncate">{app.email || '—'}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-4 px-4">
+                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide shadow-sm ${getPackageBadge(app.pack_name)}`}>
+                                  {app.pack_name || '—'}
+                                </span>
+                              </td>
+                              <td className="py-4 px-4">
+                                <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${stBadge.cls}`}>
+                                  {stBadge.label}
+                                </span>
+                              </td>
+                              <td className="py-4 px-4">
+                                <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${payBadge.cls}`}>
+                                  {payBadge.label}
+                                </span>
+                              </td>
+                              <td className="py-4 px-4">
+                                <span className="text-xs font-medium text-slate-500">{formatAppDate(app.created_at)}</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Slide-Over Detail Panel */}
+      {selectedApp && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-slate-900/30 backdrop-blur-sm animate-[fadeIn_.2s_ease]"
+            onClick={() => setSelectedApp(null)}
+          />
+          {/* Panel */}
+          <div
+            className="relative ml-auto w-full max-w-xl h-full bg-white shadow-2xl overflow-y-auto animate-[slideInRight_.35s_cubic-bezier(0.16,1,0.3,1)]"
+            style={{ animation: 'slideInRight .35s cubic-bezier(0.16,1,0.3,1)' }}
+          >
+            {/* Header */}
+            <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-slate-100 px-8 py-6 flex items-start justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-1">Antrag-Details</p>
+                <h2 className="text-xl font-bold text-slate-900 truncate">{getFullName(selectedApp)}</h2>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-xs font-mono text-slate-500">{selectedApp.ref}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getAppStatusBadge(selectedApp.status).cls}`}>
+                    {getAppStatusBadge(selectedApp.status).label}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getPaymentBadge(selectedApp.payment_status).cls}`}>
+                    {getPaymentBadge(selectedApp.payment_status).label}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedApp(null)}
+                className="p-2 rounded-xl hover:bg-slate-100 transition-colors shrink-0"
+                aria-label="Schließen"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Body - Bento Sections */}
+            <div className="p-8 space-y-6">
+              {/* Persönliche Daten */}
+              <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-slate-50/50 p-6">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-4">Persönliche Daten</p>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                  <DetailField label="Vorname" value={selectedApp.first_name} />
+                  <DetailField label="Nachname" value={selectedApp.last_name} />
+                  <DetailField label="Geburtsdatum" value={selectedApp.birthdate ? formatAppDate(selectedApp.birthdate) : '—'} />
+                  <DetailField label="Nationalität" value={selectedApp.nationality} />
+                  <DetailField label="Telefon" value={[selectedApp.phone_country_code, selectedApp.phone].filter(Boolean).join(' ')} />
+                  <DetailField label="E-Mail" value={selectedApp.email} />
+                  <DetailField label="Straße" value={selectedApp.street} />
+                  <DetailField label="PLZ / Ort" value={[selectedApp.zip, selectedApp.city].filter(Boolean).join(' ')} />
+                  <DetailField label="Land" value={selectedApp.country} />
+                  <DetailField label="Wohnsituation" value={selectedApp.housing} />
+                </div>
+              </div>
+
+              {/* Finanzen */}
+              <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-emerald-50/30 p-6">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-500 font-bold mb-4">Finanzen</p>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                  <DetailField label="Einkommen (netto)" value={formatCurrency(selectedApp.income)} />
+                  <DetailField label="Miete" value={formatCurrency(selectedApp.rent)} />
+                  <DetailField label="Schulden" value={formatCurrency(selectedApp.debts)} />
+                  <DetailField label="Wunschlimit" value={formatCurrency(selectedApp.wanted_limit)} />
+                  <DetailField label="Genehmigtes Limit" value={formatCurrency(selectedApp.approved_limit)} />
+                  <DetailField label="Beschäftigung" value={selectedApp.employment} />
+                  <DetailField label="Arbeitgeber" value={selectedApp.employer} />
+                  <DetailField label="Beschäftigt seit" value={selectedApp.employed_since} />
+                </div>
+              </div>
+
+              {/* Vertragsdaten */}
+              <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-blue-50/30 p-6">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-blue-500 font-bold mb-4">Vertragsdaten</p>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                  <DetailField label="Paket" value={selectedApp.pack_name} />
+                  <DetailField label="Paket-Key" value={selectedApp.pack_key} />
+                  <DetailField label="Verwendungszweck" value={selectedApp.purpose} />
+                  <DetailField label="Abrechnung" value={selectedApp.billing} />
+                  <DetailField label="Zahlungsmethode" value={selectedApp.billing_method} />
+                  <DetailField label="Gehaltseingang" value={selectedApp.salary_receipt_day} />
+                  <DetailField label="Add-on" value={selectedApp.addon} />
+                  <DetailField label="NFC" value={selectedApp.nfc} />
+                  <div className="col-span-2">
+                    <DetailField label="IBAN" value={selectedApp.iban} mono />
+                  </div>
+                  <div className="col-span-2">
+                    <DetailField label="Stripe Customer" value={selectedApp.stripe_customer_id} mono />
+                  </div>
+                  <div className="col-span-2">
+                    <DetailField label="Stripe Subscription" value={selectedApp.stripe_subscription_id} mono />
+                  </div>
+                </div>
+              </div>
+
+              {/* Business (falls vorhanden) */}
+              {(selectedApp.company_name || selectedApp.type === 'business') && (
+                <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-purple-50/30 p-6">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-purple-500 font-bold mb-4">Unternehmen</p>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                    <DetailField label="Firmenname" value={selectedApp.company_name} />
+                    <DetailField label="Rechtsform" value={selectedApp.legal_form} />
+                    <DetailField label="Steuer-ID" value={selectedApp.tax_id} />
+                    <DetailField label="Gegründet" value={selectedApp.established_year} />
+                    <DetailField label="Branche" value={selectedApp.industry} />
+                    <DetailField label="Geschäftstyp" value={selectedApp.business_type} />
+                    <DetailField label="Jahresumsatz" value={formatCurrency(selectedApp.annual_revenue)} />
+                    <DetailField label="Mitarbeiter" value={selectedApp.employees} />
+                    <DetailField label="Monatliche Kosten" value={formatCurrency(selectedApp.monthly_expenses)} />
+                    <DetailField label="Ansprechpartner" value={selectedApp.contact_name} />
+                    <DetailField label="Kontakt-Email" value={selectedApp.contact_email} />
+                    <DetailField label="Kontakt-Tel." value={selectedApp.contact_phone} />
+                  </div>
+                </div>
+              )}
+
+              {/* KYC */}
+              <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-rose-50/30 p-6">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-rose-500 font-bold mb-4">KYC & Dokumente</p>
+                <div className="space-y-3">
+                  <KycRow
+                    label="Kontoauszug"
+                    available={!!selectedApp.bank_statement_pdf || selectedApp.has_bank_statement}
+                  />
+                  <KycRow
+                    label="Ausweisdokument"
+                    available={!!selectedApp.id_card_pdf || selectedApp.has_id_card}
+                  />
+                  <DetailField label="Hochgeladen am" value={selectedApp.documents_uploaded_at ? formatAppDate(selectedApp.documents_uploaded_at) : '—'} />
+                  <div className="grid grid-cols-3 gap-3 pt-2">
+                    <DetailField label="AGB" value={selectedApp.consent_agb ? '✓ Akzeptiert' : '—'} />
+                    <DetailField label="SCHUFA" value={selectedApp.consent_schufa ? '✓ Akzeptiert' : '—'} />
+                    <DetailField label="Vertrag" value={selectedApp.consent_contract ? '✓ Akzeptiert' : '—'} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Meta */}
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-4">Meta</p>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                  <DetailField label="Typ" value={selectedApp.type} />
+                  <DetailField label="Aktueller Step" value={selectedApp.current_step} />
+                  <DetailField label="Erstellt" value={formatAppDate(selectedApp.created_at)} />
+                  <DetailField label="Aktualisiert" value={formatAppDate(selectedApp.updated_at)} />
+                  <DetailField label="Eingereicht" value={selectedApp.submitted_at ? formatAppDate(selectedApp.submitted_at) : '—'} />
+                  <DetailField label="Abgeschlossen" value={selectedApp.completed_at ? formatAppDate(selectedApp.completed_at) : '—'} />
+                  <div className="col-span-2">
+                    <DetailField label="IP-Adresse" value={selectedApp.ip} mono />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Slide-in animation keyframes */}
+      <style>{`
+        @keyframes slideInRight {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function DetailField({ label, value, mono }: { label: string; value: any; mono?: boolean }) {
+  const display = value === null || value === undefined || value === '' ? '—' : String(value);
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-1">{label}</p>
+      <p className={`text-sm font-medium text-slate-800 break-words ${mono ? 'font-mono text-xs' : ''}`}>{display}</p>
+    </div>
+  );
+}
+
+function KycRow({ label, available }: { label: string; available: boolean }) {
+  return (
+    <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-100">
+      <div className="flex items-center gap-3">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${available ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+          </svg>
+        </div>
+        <p className="text-sm font-semibold text-slate-800">{label}</p>
+      </div>
+      <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${available ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+        {available ? 'Vorhanden' : 'Fehlt'}
+      </span>
     </div>
   );
 }

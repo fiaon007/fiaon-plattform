@@ -167,6 +167,47 @@ router.post("/stripe-webhook", async (req, res) => {
 
   try {
     switch (event.type) {
+      case 'checkout.session.completed': {
+        // Handles external Stripe Payment Links where the application ref
+        // is provided via client_reference_id on the hosted checkout.
+        const session = event.data.object as any;
+        const clientReferenceId: string | null = session?.client_reference_id || null;
+        const customerId: string | null = session?.customer || null;
+        const subscriptionId: string | null = session?.subscription || null;
+        const paymentIntentId: string | null = session?.payment_intent || null;
+
+        console.log(
+          "[STRIPE-WEBHOOK] checkout.session.completed:",
+          { sessionId: session?.id, clientReferenceId, customerId, subscriptionId }
+        );
+
+        if (!clientReferenceId) {
+          console.warn("[STRIPE-WEBHOOK] checkout.session.completed ohne client_reference_id - skip DB update");
+          break;
+        }
+
+        try {
+          await sqlPool`
+            UPDATE fiaon_applications
+            SET
+              payment_status = 'paid',
+              status = 'payment_completed',
+              stripe_customer_id = COALESCE(${customerId}, stripe_customer_id),
+              stripe_subscription_id = COALESCE(${subscriptionId}, stripe_subscription_id),
+              stripe_session_id = COALESCE(${session?.id ?? null}, stripe_session_id),
+              updated_at = NOW()
+            WHERE ref = ${clientReferenceId}
+          `;
+          console.log(`[STRIPE] Zahlung für Ref ${clientReferenceId} erfolgreich verbucht.`);
+        } catch (dbErr) {
+          console.error(
+            `[STRIPE-WEBHOOK] DB-Update fehlgeschlagen für Ref ${clientReferenceId}:`,
+            dbErr
+          );
+        }
+        break;
+      }
+
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object as any;
         const subscriptionId = invoice.subscription;

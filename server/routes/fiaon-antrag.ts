@@ -875,34 +875,39 @@ router.post("/run-migration", async (req, res) => {
 // ============================================================
 
 // Admin: list applications, newest first, without heavy bytea columns
+// Robust: uses SELECT * and strips bytea client-side, so it works even if
+// individual migrations (KYC / stripe fields) haven't been run in this env.
 router.get("/admin/applications", async (_req, res) => {
   try {
-    const apps = await sqlPool`
-      SELECT
-        id, ref, type, status, current_step, pack_key, pack_name,
-        first_name, last_name, birthdate, phone, phone_country_code,
-        street, zip, city, country, nationality,
-        employment, employer, employed_since, income, rent, debts, housing,
-        company_name, legal_form, tax_id, established_year,
-        contact_name, contact_email, contact_phone,
-        business_type, industry, annual_revenue, employees, monthly_expenses, billing_email,
-        wanted_limit, purpose, billing, addon, nfc,
-        approved_limit, email, iban, billing_method, salary_receipt_day,
-        consent_agb, consent_schufa, consent_contract,
-        payment_status,
-        stripe_session_id, stripe_customer_id, stripe_subscription_id, stripe_payment_method_id,
-        ip, user_agent,
-        submitted_at, completed_at, documents_uploaded_at, created_at, updated_at,
-        (bank_statement_pdf IS NOT NULL) AS has_bank_statement_pdf,
-        (id_card_pdf IS NOT NULL) AS has_id_card_pdf
+    const rows = await sqlPool`
+      SELECT *
       FROM fiaon_applications
       ORDER BY created_at DESC NULLS LAST, id DESC
       LIMIT 500
     `;
-    res.json({ data: apps });
-  } catch (err) {
-    console.error("[FIAON-ADMIN-APPS]", err);
-    res.status(500).json({ error: "Failed to fetch applications" });
+
+    const HEAVY_COLS = new Set(["bank_statement_pdf", "id_card_pdf"]);
+    const data = rows.map((row: any) => {
+      const out: any = {};
+      for (const [k, v] of Object.entries(row)) {
+        if (HEAVY_COLS.has(k)) continue;
+        out[k] = v;
+      }
+      // Add boolean presence flags without shipping the bytea
+      out.has_bank_statement_pdf = row.bank_statement_pdf != null;
+      out.has_id_card_pdf = row.id_card_pdf != null;
+      return out;
+    });
+
+    console.log(`[FIAON-ADMIN-APPS] returning ${data.length} applications`);
+    res.json({ ok: true, data, count: data.length });
+  } catch (err: any) {
+    console.error("[FIAON-ADMIN-APPS] ERROR:", err?.message || err);
+    res.status(500).json({
+      ok: false,
+      error: "Failed to fetch applications",
+      detail: String(err?.message || err),
+    });
   }
 });
 

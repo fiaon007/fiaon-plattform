@@ -29,6 +29,7 @@ export default function AdminDatabasePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
+  const [appsError, setAppsError] = useState<string | null>(null);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -76,17 +77,69 @@ export default function AdminDatabasePage() {
     fetchApplications();
   }, []);
 
+  // Normalisiert Response-Shapes: Array, {data:[]}, {ok,data:[]}, {data:{data:[]}}
+  const extractApps = (json: any): any[] => {
+    if (Array.isArray(json)) return json;
+    if (Array.isArray(json?.data)) return json.data;
+    if (Array.isArray(json?.data?.data)) return json.data.data;
+    if (Array.isArray(json?.rows)) return json.rows;
+    return [];
+  };
+
   const fetchApplications = async () => {
+    setAppsError(null);
+    setLoadingApps(true);
+
+    // 1) Primär: Lean Admin-Endpoint
     try {
       const res = await fetch('/api/fiaon/admin/applications', {
         credentials: 'include',
       });
-      if (res.ok) {
-        const json = await res.json();
-        setApplications(Array.isArray(json?.data) ? json.data : []);
+      const rawText = await res.text();
+      let json: any = null;
+      try { json = JSON.parse(rawText); } catch { /* non-json */ }
+
+      console.log('[ADMIN-FETCH] /api/fiaon/admin/applications', {
+        status: res.status,
+        ok: res.ok,
+        jsonKeys: json && typeof json === 'object' ? Object.keys(json) : null,
+        count: Array.isArray(json) ? json.length : json?.count ?? json?.data?.length,
+      });
+
+      if (res.ok && json) {
+        const apps = extractApps(json);
+        if (apps.length > 0 || (json?.ok !== false)) {
+          setApplications(apps);
+          setLoadingApps(false);
+          return;
+        }
+      } else {
+        console.warn('[ADMIN-FETCH] primary endpoint failed:', res.status, json?.detail || rawText?.slice(0, 200));
       }
-    } catch (error) {
-      console.error('Error fetching applications:', error);
+    } catch (err) {
+      console.error('[ADMIN-FETCH] primary endpoint network error:', err);
+    }
+
+    // 2) Fallback: alter Generic-DB-Endpoint
+    try {
+      const res = await fetch('/api/database/tables/fiaon_applications/data?limit=500', {
+        credentials: 'include',
+      });
+      const json = await res.json().catch(() => null);
+      console.log('[ADMIN-FETCH] fallback /api/database/tables/...', {
+        status: res.status,
+        ok: res.ok,
+        count: Array.isArray(json?.data) ? json.data.length : null,
+      });
+      if (res.ok && json) {
+        setApplications(extractApps(json));
+        setLoadingApps(false);
+        return;
+      }
+      setAppsError(`Backend-Fehler (${res.status}): Anträge konnten nicht geladen werden.`);
+    } catch (err: any) {
+      console.error('[ADMIN-FETCH] fallback network error:', err);
+      setAppsError(`Netzwerkfehler: ${err?.message || 'Unbekannt'}`);
     } finally {
       setLoadingApps(false);
     }
@@ -636,6 +689,28 @@ export default function AdminDatabasePage() {
                     <option value="cancelled">Storniert</option>
                   </select>
                 </div>
+
+                {/* Error Box */}
+                {appsError && (
+                  <div className="mb-4 flex items-start gap-3 p-4 rounded-xl bg-rose-50 border border-rose-100">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-rose-700">Anträge konnten nicht geladen werden</p>
+                      <p className="text-xs text-rose-600 mt-0.5 break-words">{appsError}</p>
+                      <p className="text-[11px] text-rose-500/80 mt-1">Details in der Browser-Konsole (F12).</p>
+                    </div>
+                    <button
+                      onClick={fetchApplications}
+                      className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-white border border-rose-200 hover:bg-rose-50 transition-colors"
+                    >
+                      Erneut versuchen
+                    </button>
+                  </div>
+                )}
 
                 {/* Applications List */}
                 {loadingApps ? (

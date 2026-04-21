@@ -636,6 +636,23 @@ export default function AntragPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Pre-select package from URL (?pack=start|pro|ultra|highend) — WhatsApp/landing traffic
+  useEffect(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const packKey = urlParams.get('pack');
+      if (packKey) {
+        const matched = PACKS.find((p) => p.key === packKey);
+        if (matched) {
+          setPack(matched);
+          setD((prev) => ({ ...prev, wantedLimit: Math.min(prev.wantedLimit || matched.lim, matched.lim) }));
+          if (step === 0) setTimeout(() => setStep(1), 250);
+        }
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Development: Check URL parameter for skip
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);

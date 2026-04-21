@@ -3,6 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import FiaonLanding from "@/pages/fiaon-landing";
+import StartPage from "@/pages/start";
 import BusinessPage from "@/pages/business";
 import PrivatkundenPage from "@/pages/privatkunden";
 import AntragPage from "@/pages/antrag";
@@ -24,6 +25,8 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={FiaonLanding} />
+      <Route path="/start" component={StartPage} />
+      <Route path="/karte-sichern" component={StartPage} />
       <Route path="/business" component={BusinessPage} />
       <Route path="/privatkunden" component={PrivatkundenPage} />
       <Route path="/antrag" component={AntragPage} />

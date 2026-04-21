@@ -5253,34 +5253,50 @@ Deine Aufgabe: Antworte wie ein denkender Mensch. Handle wie ein System. Klinge 
   // TEAM TODOS API ENDPOINTS
   // ========================================================
 
-  // GET all todos
+  // GET all todos — robust gegen fehlende/alternative Spaltennamen
   app.get("/api/todos", async (req, res) => {
     try {
       const userId = (req.user as any)?.id || (req.session as any)?.userId;
-      const todos = await client`
-        SELECT 
-          id::text as id,
-          title,
-          description,
-          status,
-          COALESCE(urgency_score, 50) as urgency_score,
-          due_date,
-          COALESCE(client_name, 'Unbekannt') as client_name,
-          COALESCE(client_package, 'Starter') as client_package,
-          COALESCE(task_type, 'System') as task_type,
-          assigned_director_id,
-          created_at,
-          updated_at
-        FROM team_todos
-        ${userId ? client`WHERE created_by_user_id = ${userId}` : client``}
-        ORDER BY 
-          COALESCE(urgency_score, 50) DESC,
-          created_at DESC
+
+      // Welche Spalten existieren wirklich in team_todos?
+      const colsRows = await client`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'team_todos'
       `;
+      const cols = new Set(colsRows.map((r: any) => r.column_name));
+      if (cols.size === 0) {
+        // Tabelle existiert gar nicht → leere Liste statt 500
+        console.warn('[TODOS] team_todos table not found, returning []');
+        return res.json([]);
+      }
+
+      const rows: any[] = await client`
+        SELECT * FROM team_todos
+        ${userId && cols.has('created_by_user_id') ? client`WHERE created_by_user_id = ${userId}` : client``}
+        ORDER BY created_at DESC
+        LIMIT 500
+      `;
+
+      const todos = rows.map((r: any) => ({
+        id: String(r.id ?? ''),
+        title: r.title ?? '',
+        description: r.description ?? null,
+        status: r.status ?? 'pending',
+        urgency_score: r.urgency_score ?? 50,
+        due_date: r.due_date ?? r.due_at ?? null,
+        client_name: r.client_name ?? 'Unbekannt',
+        client_package: r.client_package ?? 'Starter',
+        task_type: r.task_type ?? 'System',
+        assigned_director_id: r.assigned_director_id ?? r.assigned_to_user_id ?? null,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+      }));
+
+      todos.sort((a: any, b: any) => (b.urgency_score ?? 0) - (a.urgency_score ?? 0));
       res.json(todos);
     } catch (error: any) {
-      logger.error('[TODOS] Error fetching todos:', error);
-      res.status(500).json({ error: 'Failed to fetch todos' });
+      logger.error('[TODOS] Error fetching todos:', error?.message || error);
+      res.status(500).json({ error: 'Failed to fetch todos', detail: String(error?.message || error) });
     }
   });
 

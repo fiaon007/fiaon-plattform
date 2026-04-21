@@ -755,16 +755,7 @@ export default function AntragPage() {
                 lineHeight: "1.7"
               }}>Entscheide dich für das passende Paket — du gelangst automatisch zum nächsten Schritt.</p>
             </div>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-              gap: '20px',
-              width: '100%',
-              maxWidth: '1380px',
-              margin: '0 auto',
-              padding: '0 20px',
-              boxSizing: 'border-box'
-            }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5 w-full max-w-[1380px] mx-auto px-4 sm:px-5 box-border items-stretch">
               {PACKS.map((p, idx) => (
                 <button
                   key={p.key}
@@ -1998,176 +1989,119 @@ export default function AntragPage() {
           </div>
         )}
 
-        {/* === STEP 8: Welcome === */}
+        {/* === STEP 8: Welcome + Konto aktivieren === */}
         {step === 8 && (
-          <div className="animate-[fadeInUp_.4s_ease] max-w-6xl mx-auto w-full py-12 sm:py-20">
-            <div className="text-center mb-12">
-              <div className="w-20 h-20 mx-auto mb-6 rounded-full relative flex items-center justify-center">
+          <div className="animate-[fadeInUp_.4s_ease] max-w-2xl mx-auto w-full px-4 sm:px-6 py-8 sm:py-16">
+            {/* HERO: Checkmark + Heading + Namen */}
+            <div className="text-center mb-8 sm:mb-10">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-5 sm:mb-6 rounded-full relative flex items-center justify-center">
                 <div className="absolute inset-[-2px] rounded-full animate-[spin_4s_linear_infinite]" style={{ background: "conic-gradient(#2563eb,#93c5fd,#2563eb)" }} />
-                <div className="w-[72px] h-[72px] rounded-full bg-white flex items-center justify-center relative z-10">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5"><polyline points="6 12 10 16 18 8"/></svg>
+                <div className="w-[56px] h-[56px] sm:w-[72px] sm:h-[72px] rounded-full bg-white flex items-center justify-center relative z-10">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5" className="sm:w-8 sm:h-8"><polyline points="6 12 10 16 18 8"/></svg>
                 </div>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight fiaon-gradient-text-animated mb-3">Herzlich Willkommen</h2>
-              <p className="text-[15px] text-gray-500 mb-2 max-w-md mx-auto">Deine FIAON Kreditkarte wird in Kürze aktiviert.</p>
-              <p className="text-[13px] text-gray-400">{d.firstName} {d.lastName} · {pack?.name} · Ref. {ref}</p>
+              <h2 className="text-2xl sm:text-4xl font-bold tracking-tight fiaon-gradient-text-animated mb-3 leading-tight">Herzlich Willkommen</h2>
+              <p className="text-[14px] sm:text-[16px] text-gray-500 leading-relaxed max-w-md mx-auto">
+                Deine FIAON Kreditkarte wird in Kürze aktiviert.
+              </p>
+              <p className="text-[12px] sm:text-[13px] text-gray-400 mt-2 break-words px-2">
+                {d.firstName} {d.lastName} · {pack?.name?.replace(/\n/g, " ")} · Ref. {ref}
+              </p>
             </div>
 
-            {/* Two-Column Bento-Luxury Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-              {/* Left Column: Visual Confirmation (Col-Span-5) */}
-              <div className="lg:col-span-5 space-y-8">
-                {/* LiveCard */}
-                <div className="w-full aspect-[1.586/1]">
-                  {sideCard}
+            {/* PRIMARY CTA — direkt unter Welcome */}
+            {pack && (
+              <div className="mb-6 sm:mb-8">
+                <button
+                  type="button"
+                  onClick={handleProceedToStripe}
+                  className="relative w-full overflow-hidden rounded-2xl py-4 sm:py-5 px-5 sm:px-6 text-white font-bold tracking-wide text-[15px] sm:text-[16px] uppercase shadow-xl shadow-blue-500/40 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-600/50 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-4 focus:ring-blue-300"
+                  style={{
+                    background: "linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%)",
+                    backgroundSize: "200% 200%",
+                    animation: "gradient 3s ease infinite",
+                  }}
+                >
+                  <span className="absolute inset-0 pointer-events-none" style={{
+                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent)",
+                    transform: "translateX(-100%)",
+                    animation: "sweep 2.8s ease-in-out infinite",
+                    width: "60%",
+                  }} />
+                  <span className="relative flex items-center justify-center gap-2 sm:gap-3">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <span>Konto aktivieren</span>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                      <line x1="5" y1="12" x2="19" y2="12"/>
+                      <polyline points="12 5 19 12 12 19"/>
+                    </svg>
+                  </span>
+                </button>
+
+                {/* Preis direkt unter Button */}
+                <p className="text-center text-[13px] sm:text-[14px] text-slate-500 mt-3">
+                  <span className="font-bold text-slate-900">{pack.fee.toFixed(2)} €</span>
+                  <span className="mx-1.5 text-slate-300">·</span>
+                  <span>monatlich</span>
+                </p>
+              </div>
+            )}
+
+            {/* Dezente Info: Sichere Zahlungsabwicklung */}
+            <div className="rounded-xl bg-slate-50/70 border border-slate-100 p-4 sm:p-5 mb-6">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
                 </div>
-
-                {/* Order Summary (Bento Card) */}
-                <div className="bg-white/80 backdrop-blur-xl border border-slate-100 rounded-2xl p-8 shadow-[0_20px_40px_-15px_rgba(15,23,42,0.05)]">
-                  <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-4">Zusammenfassung</p>
-                  <h3 className="text-2xl font-black tracking-tight text-slate-900 mb-2">{pack?.name}</h3>
-                  <p className="text-3xl font-black text-slate-900 mb-6">{pack?.fee.toFixed(2)} € <span className="text-lg font-medium text-gray-500">/ Monat</span></p>
-                  
-                  <ul className="space-y-3 mb-6">
-                    <li className="flex items-start gap-3">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" className="flex-shrink-0 mt-0.5">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                      <span className="text-sm text-slate-700">Inkl. KI-Profilanalyse</span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" className="flex-shrink-0 mt-0.5">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                      <span className="text-sm text-slate-700">Exklusives Premium-Limit</span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" className="flex-shrink-0 mt-0.5">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                      <span className="text-sm text-slate-700">24/7 Premium-Support</span>
-                    </li>
-                  </ul>
-
-                  {/* Trust Badges */}
-                  <div className="pt-4 border-t border-slate-100 space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-slate-400">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                      </svg>
-                      SSL-Verschlüsselt
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-slate-400">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                        <path d="M2 17l10 5 10-5"/>
-                        <path d="M2 12l10 5 10-5"/>
-                      </svg>
-                      Powered by Stripe
-                    </div>
-                  </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] sm:text-[13px] font-semibold text-slate-700 mb-0.5">Sichere Zahlungsabwicklung</p>
+                  <p className="text-[11px] sm:text-[12px] text-slate-500 leading-relaxed">
+                    Weiterleitung zu Stripe · SSL-verschlüsselt · 3D Secure · nach der Zahlung geht's zurück zum Passwort-Setup.
+                  </p>
                 </div>
               </div>
+            </div>
 
-              {/* Right Column: Payment Form (Col-Span-7) */}
-              <div className="lg:col-span-7">
-                <div className="bg-white border border-slate-200 rounded-3xl p-8 lg:p-12 shadow-sm">
-                  <p className="text-[10px] uppercase tracking-widest text-blue-600 font-bold mb-2">AKTIVIERUNG ABSCHLIESSEN</p>
-                  <h3 className="text-3xl font-black tracking-tight text-slate-900 mb-8">Zahlungsmethode</h3>
-                  
-                  {pack && (
-                    <div className="space-y-7">
-                      {/* Heading Bento-Box */}
-                      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-blue-50/40 p-7">
-                        <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
-                        <div className="relative flex items-start gap-5">
-                          <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                            </svg>
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="text-xl font-black tracking-tight text-slate-900 mb-2">Sichere Zahlungsabwicklung</h4>
-                            <p className="text-[14px] leading-relaxed text-slate-600">
-                              Sie werden nun zu unserem Zahlungsdienstleister <span className="font-semibold text-slate-900">Stripe</span> weitergeleitet, um die Aktivierung Ihres <span className="font-semibold text-blue-700">{pack.name.replace(/\n/g, " ")}</span> Pakets sicher abzuschließen. Nach der Zahlung werden Sie automatisch zurückgeleitet, um Ihr Passwort festzulegen.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Feature-Mini-Grid */}
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="rounded-xl border border-slate-100 bg-white p-4 text-center">
-                          <div className="w-8 h-8 mx-auto mb-2 rounded-lg bg-blue-50 flex items-center justify-center">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                          </div>
-                          <div className="text-[11px] font-semibold text-slate-700">SSL + 3D Secure</div>
-                        </div>
-                        <div className="rounded-xl border border-slate-100 bg-white p-4 text-center">
-                          <div className="w-8 h-8 mx-auto mb-2 rounded-lg bg-blue-50 flex items-center justify-center">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2"><path d="M20 6L9 17l-5-5"/></svg>
-                          </div>
-                          <div className="text-[11px] font-semibold text-slate-700">Sofortige Aktivierung</div>
-                        </div>
-                        <div className="rounded-xl border border-slate-100 bg-white p-4 text-center">
-                          <div className="w-8 h-8 mx-auto mb-2 rounded-lg bg-blue-50 flex items-center justify-center">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg>
-                          </div>
-                          <div className="text-[11px] font-semibold text-slate-700">Powered by Stripe</div>
-                        </div>
-                      </div>
-
-                      {/* CTA Button */}
-                      <button
-                        type="button"
-                        onClick={handleProceedToStripe}
-                        className="relative w-full overflow-hidden rounded-2xl py-5 px-6 text-white font-black tracking-wider text-[15px] uppercase shadow-xl shadow-blue-500/40 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-600/50 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-4 focus:ring-blue-300"
-                        style={{
-                          background: "linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%)",
-                          backgroundSize: "200% 200%",
-                          animation: "gradient 3s ease infinite",
-                        }}
-                      >
-                        <span className="absolute inset-0 pointer-events-none" style={{
-                          background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent)",
-                          transform: "translateX(-100%)",
-                          animation: "sweep 2.8s ease-in-out infinite",
-                          width: "60%",
-                        }} />
-                        <span className="relative flex items-center justify-center gap-3">
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                          </svg>
-                          Weiter zu Stripe
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="5" y1="12" x2="19" y2="12"/>
-                            <polyline points="12 5 19 12 12 19"/>
-                          </svg>
-                        </span>
-                      </button>
-
-                      {/* Hint unter Button */}
-                      <p className="text-center text-[12px] text-slate-400">
-                        Durch Klicken bestätigen Sie den Abschluss Ihres Antrags mit der Referenz <span className="font-mono text-slate-600">{ref}</span>.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Contract Download Link */}
-                <div className="flex items-center justify-center gap-2 mt-6">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                  <button 
-                    onClick={() => { window.open(`/api/fiaon/contract/${ref}`, '_blank'); track("contract_download", { ref }, ref); }} 
-                    className="text-[12px] text-gray-400 hover:text-[#2563eb] transition-colors underline decoration-gray-300 hover:decoration-[#2563eb]"
-                  >
-                    Vertrag herunterladen
-                  </button>
-                </div>
+            {/* Trust-Badges Mini-Row */}
+            <div className="flex items-center justify-center gap-4 sm:gap-6 flex-wrap mb-6">
+              <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-400 font-medium">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                SSL-Verschlüsselt
               </div>
+              <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-400 font-medium">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                  <path d="M2 17l10 5 10-5"/>
+                  <path d="M2 12l10 5 10-5"/>
+                </svg>
+                Powered by Stripe
+              </div>
+              <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-400 font-medium">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Sofortige Aktivierung
+              </div>
+            </div>
+
+            {/* Contract Download Link */}
+            <div className="flex items-center justify-center gap-2">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" className="flex-shrink-0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <button 
+                onClick={() => { window.open(`/api/fiaon/contract/${ref}`, '_blank'); track("contract_download", { ref }, ref); }} 
+                className="text-[11px] sm:text-[12px] text-gray-400 hover:text-[#2563eb] transition-colors underline decoration-gray-300 hover:decoration-[#2563eb]"
+              >
+                Vertrag herunterladen
+              </button>
             </div>
           </div>
         )}

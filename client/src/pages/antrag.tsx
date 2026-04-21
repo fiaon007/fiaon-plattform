@@ -3,6 +3,40 @@ import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 
 // Stripe Payment Links (externes Checkout — ersetzt das eingebettete Stripe SDK)
+/**
+ * Hart nach oben scrollen — umgeht das globale `html { scroll-behavior: smooth }`
+ * aus index.css, das sonst `window.scrollTo({ behavior: "auto" })` ignoriert.
+ * Funktioniert auch zuverlässig auf iOS Safari und Mobile Chrome.
+ */
+function scrollToTopHard() {
+  if (typeof window === "undefined") return;
+  const html = document.documentElement;
+  const body = document.body;
+  const prev = html.style.scrollBehavior;
+  // 1) CSS-Smooth-Scroll deaktivieren
+  html.style.scrollBehavior = "auto";
+  try { (window as any).history.scrollRestoration = "manual"; } catch {}
+
+  const doScroll = () => {
+    try { window.scrollTo(0, 0); } catch {}
+    try { html.scrollTop = 0; } catch {}
+    try { body.scrollTop = 0; } catch {}
+  };
+
+  // 2) Sofort scrollen
+  doScroll();
+  // 3) Nach Paint nochmal (falls React noch rendert / Layout shiftet)
+  requestAnimationFrame(() => {
+    doScroll();
+    requestAnimationFrame(doScroll);
+  });
+  // 4) Nach 100ms nachziehen + CSS-Verhalten wiederherstellen
+  setTimeout(() => {
+    doScroll();
+    html.style.scrollBehavior = prev;
+  }, 120);
+}
+
 const STRIPE_PAYMENT_LINKS: Record<string, string> = {
   start: "https://buy.stripe.com/14AaEZ65h4Pkb6z0wifnO01",
   pro: "https://buy.stripe.com/4gM4gB51d4Pk2A3baWfnO02",
@@ -470,17 +504,9 @@ export default function AntragPage() {
 
   useEffect(() => { if (!sessionStorage.getItem("fiaon_sid")) sessionStorage.setItem("fiaon_sid", Math.random().toString(36).slice(2)); window.scrollTo(0, 0); }, []);
 
-  // Auto-scroll to top on step change — robust, instant + smooth fallback
+  // Auto-scroll to top on step change — HART: umgeht CSS `scroll-behavior: smooth`
   useEffect(() => {
-    // Instant, damit es auf mobile nicht vom User unterbrochen werden kann
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    try {
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-    } catch {}
-    // Nachziehen (falls Content asynchron rendert)
-    const t = setTimeout(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }), 50);
-    return () => clearTimeout(t);
+    scrollToTopHard();
   }, [step]);
 
   // Weiterleitung zu externem Stripe Payment Link (statt eingebettetem SDK)
@@ -586,8 +612,7 @@ export default function AntragPage() {
 
   function goStep(n: number) {
     setStep(n); setErrors({}); track("step_change", { from: step, to: n }, ref);
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    try { document.documentElement.scrollTop = 0; document.body.scrollTop = 0; } catch {}
+    scrollToTopHard();
   }
 
   function next() {

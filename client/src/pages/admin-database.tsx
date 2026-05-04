@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import CeoMindOS from "@/components/admin/CeoMindOS";
 import LiveRadar from "@/components/admin/LiveRadar";
 import KnowledgeBase from "@/components/admin/KnowledgeBase";
-import GlassCarouselSidebar from "@/components/layout/GlassCarouselSidebar";
+import MinimalistGlassLauncher from "@/components/layout/MinimalistGlassLauncher";
 
 interface AI_Task {
   id: string;
@@ -363,12 +363,12 @@ export default function AdminDatabasePage() {
         <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full opacity-[0.03]" style={{ background: "radial-gradient(circle, #2563eb, transparent 70%)" }} />
       </div>
 
-      {/* 3D Glass Carousel Sidebar */}
-      <GlassCarouselSidebar />
+      {/* Minimalist Glass Launcher */}
+      <MinimalistGlassLauncher />
 
       <div className="flex min-h-screen relative z-10">
-        {/* Main Content - adjusted for carousel sidebar */}
-        <div className="flex-1 p-8 ml-40">
+        {/* Main Content - no margin needed for minimalist launcher */}
+        <div className="flex-1 p-8">
           <div className="animate-[fadeInUp_.6s_ease]">
             {/* Time Display */}
             <div className="mb-4">

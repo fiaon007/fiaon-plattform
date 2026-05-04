@@ -25,7 +25,7 @@ import {
   Calendar,
   FileText,
   Settings,
-  Sparkles,
+  Menu,
 } from 'lucide-react';
 
 // ============================================================================
@@ -68,52 +68,53 @@ export default function MinimalistGlassLauncher() {
   return (
     <>
       {/* ================================================================
-          TRIGGER ICON (Vertically Centered, Left Edge)
+          TRIGGER ICON (Vertically Centered, Apple Glass Style)
           ================================================================ */}
       <motion.div
-        className="fixed left-4 top-1/2 -translate-y-1/2 z-50"
-        initial={{ opacity: 0, x: -20 }}
+        className="fixed left-8 top-1/2 -translate-y-1/2 z-50"
+        initial={{ opacity: 0, x: -30 }}
         animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }}
+        transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
       >
         <motion.button
           onClick={() => setIsOpen(!isOpen)}
-          className="relative w-12 h-12 rounded-full cursor-pointer group"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+          className="relative w-16 h-16 rounded-2xl cursor-pointer group"
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.92 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 25 }}
         >
-          {/* Glass Background */}
-          <div className="absolute inset-0 bg-white/40 backdrop-blur-xl border border-white/50 rounded-full shadow-lg" />
+          {/* Apple Glass Background */}
+          <div className="absolute inset-0 bg-white/20 backdrop-blur-2xl border border-white/40 rounded-2xl shadow-2xl" />
           
-          {/* Breathing Blue Glow Ring */}
+          {/* Enhanced Breathing Blue Glow Ring */}
           <motion.div
-            className="absolute inset-0 rounded-full"
+            className="absolute -inset-1 rounded-2xl"
             style={{
-              background: 'radial-gradient(circle, rgba(37, 99, 235, 0.3) 0%, transparent 70%)',
+              background: 'radial-gradient(circle, rgba(37, 99, 235, 0.4) 0%, rgba(59, 130, 246, 0.2) 50%, transparent 80%)',
+              filter: 'blur(8px)',
             }}
             animate={{
-              opacity: [0.4, 0.8, 0.4],
-              scale: [1, 1.1, 1],
+              opacity: [0.5, 1, 0.5],
+              scale: [0.95, 1.05, 0.95],
             }}
             transition={{
-              duration: 3,
+              duration: 4,
               repeat: Infinity,
               ease: 'easeInOut',
             }}
           />
 
-          {/* Icon */}
+          {/* Menu Icon */}
           <div className="relative z-10 flex items-center justify-center w-full h-full">
-            <Sparkles className="w-6 h-6 text-blue-600" />
+            <Menu className="w-7 h-7 text-blue-600" strokeWidth={2.5} />
           </div>
 
           {/* Hover Glow */}
           <motion.div
-            className="absolute inset-0 rounded-full bg-blue-500/20"
+            className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500/30 to-blue-600/20"
             initial={{ opacity: 0 }}
             whileHover={{ opacity: 1 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.3 }}
           />
         </motion.button>
       </motion.div>
@@ -133,22 +134,22 @@ export default function MinimalistGlassLauncher() {
               onClick={() => setIsOpen(false)}
             />
 
-            {/* Menu Panel */}
+            {/* Menu Panel (Apple Glass Style) */}
             <motion.div
-              className="fixed left-20 top-1/2 -translate-y-1/2 z-50"
-              initial={{ opacity: 0, x: -20, scale: 0.9 }}
+              className="fixed left-28 top-1/2 -translate-y-1/2 z-50"
+              initial={{ opacity: 0, x: -30, scale: 0.85 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: -20, scale: 0.9 }}
+              exit={{ opacity: 0, x: -30, scale: 0.85 }}
               transition={{
                 type: 'spring',
-                stiffness: 300,
-                damping: 25,
+                stiffness: 400,
+                damping: 30,
               }}
             >
-              {/* Glass Container */}
-              <div className="bg-white/30 backdrop-blur-2xl border border-white/40 rounded-2xl shadow-2xl p-3">
-                {/* 2-Column Grid */}
-                <div className="grid grid-cols-2 gap-2">
+              {/* Apple Glass Container */}
+              <div className="w-80 bg-white/25 backdrop-blur-3xl border border-white/30 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] p-6">
+                {/* 2-Column Grid with Better Spacing */}
+                <div className="grid grid-cols-2 gap-4">
                   {APP_ITEMS.map((item) => {
                     const Icon = item.icon;
                     const isActive = item.id === activeApp.id;
@@ -158,30 +159,31 @@ export default function MinimalistGlassLauncher() {
                         <a onClick={() => setIsOpen(false)}>
                           <motion.div
                             className={`
-                              relative w-[60px] h-[60px] rounded-xl cursor-pointer
-                              flex flex-col items-center justify-center gap-1
-                              transition-all duration-200
+                              relative w-full aspect-square rounded-2xl cursor-pointer
+                              flex flex-col items-center justify-center gap-2
+                              transition-all duration-300
                               ${isActive 
-                                ? 'bg-blue-500/20 border border-blue-400/50' 
-                                : 'bg-white/20 border border-white/30 hover:bg-blue-500/10 hover:border-blue-400/30'
+                                ? 'bg-gradient-to-br from-blue-500/30 to-blue-600/20 border-2 border-blue-400/60 shadow-lg' 
+                                : 'bg-white/15 border border-white/25 hover:bg-gradient-to-br hover:from-blue-500/15 hover:to-blue-600/10 hover:border-blue-400/40 hover:shadow-md'
                               }
                             `}
-                            whileHover={{ scale: 1.05, y: -2 }}
-                            whileTap={{ scale: 0.95 }}
-                            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                            whileHover={{ scale: 1.08, y: -4 }}
+                            whileTap={{ scale: 0.92 }}
+                            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
                           >
                             {/* Icon */}
                             <Icon 
                               className={`
-                                w-5 h-5 
-                                ${isActive ? 'text-blue-600' : 'text-gray-700'}
-                              `} 
+                                w-7 h-7 
+                                ${isActive ? 'text-blue-600' : 'text-gray-600'}
+                              `}
+                              strokeWidth={2}
                             />
                             
                             {/* Label */}
                             <span 
                               className={`
-                                text-[9px] font-medium 
+                                text-[10px] font-semibold tracking-wide
                                 ${isActive ? 'text-blue-600' : 'text-gray-600'}
                               `}
                             >
@@ -191,9 +193,9 @@ export default function MinimalistGlassLauncher() {
                             {/* Active Indicator */}
                             {isActive && (
                               <motion.div
-                                className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-blue-500 rounded-full"
+                                className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-1 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full shadow-lg"
                                 layoutId="activeIndicator"
-                                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                               />
                             )}
                           </motion.div>

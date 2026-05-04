@@ -530,6 +530,13 @@ async function seedSubscriptionPlans() {
   await bootstrapFirstAdmin();
   
   // ============================================================================
+  // 🗄️ DATABASE DIMENSION FIX - Force knowledge_base to 384 dimensions
+  // ============================================================================
+  const { forceKnowledgeBaseDimensionFix, verifyKnowledgeBaseDimension } = await import('./scripts/force-db-reset');
+  await forceKnowledgeBaseDimensionFix();
+  await verifyKnowledgeBaseDimension();
+  
+  // ============================================================================
   // 🎯 ARAS COMMAND CENTER - INTERNAL CRM ROUTES
   // ============================================================================
   // MUST be AFTER registerRoutes (passport session must be initialized first)

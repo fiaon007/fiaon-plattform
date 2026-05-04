@@ -1,20 +1,19 @@
 /**
  * ============================================================================
- * CEO MIND-OS "IRON MAN HUD" — Vollendetes JARVIS-Erlebnis
+ * CEO MIND-OS — PREMIUM HIGH-END DASHBOARD
  * ============================================================================
- * Features:
- *   - Pulsing Neural Core (Arc Reactor) als Ladeanzeige
- *   - Glassmorphism 3.0 mit Iridescent-Glow Effekt
- *   - Smooth Layout Transitions (Framer Motion AnimatePresence)
- *   - Voice-to-Strategy mit Web Speech API + Whisper
- *   - Ripple-Effekt am Voice-Button im Rhythmus der Stimme
- *   - Proactive Polling für neue E-Mails (60s Intervall)
- *   - Glühender Notification-Punkt am Brain-Icon
+ * Design Philosophy: LUXUS, EDEL, CLEAN - WOW-Moment beim Öffnen
+ * - Dark Premium Theme mit animierten Farbverläufen
+ * - Morning Briefing: Prominent, eigenes Luxus-Design
+ * - Keine bunten Icons, monochrome Eleganz
+ * - Glassmorphism 4.0: Noch subtiler, noch edler
+ * - Auto-Expand neue Strategien (Bug Fix)
+ * - Perfekt responsive: Mobile & Desktop
  * ============================================================================
  */
 
 import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence, useMotionValue, useTransform } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain,
   Send,
@@ -23,12 +22,13 @@ import {
   AlertCircle,
   Sparkles,
   Mail,
-  TrendingUp,
   X,
   ChevronDown,
   ChevronUp,
   Mic,
   MicOff,
+  Clock,
+  Target,
 } from "lucide-react";
 
 // ============================================================================
@@ -118,9 +118,9 @@ export default function CeoMindOS() {
     loadInbox();
     loadMorningBriefing();
 
-    // Proactive Polling: Prüfe alle 60s auf neue Mails
     const pollInterval = setInterval(() => {
       loadInbox();
+      loadMorningBriefing();
     }, 60000);
 
     return () => clearInterval(pollInterval);
@@ -131,7 +131,7 @@ export default function CeoMindOS() {
       const res = await fetch("/api/ceo-mind-os", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
-        setStrategies(data.strategies || []);
+        setStrategies(data || []);
       }
     } catch (err) {
       console.error("[CEO-MIND-OS] Load strategies error:", err);
@@ -167,15 +167,13 @@ export default function CeoMindOS() {
   };
 
   // ============================================================================
-  // VOICE RECORDING (WEB SPEECH API + WHISPER)
+  // VOICE RECORDING
   // ============================================================================
 
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: "audio/webm",
-      });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
 
       audioChunksRef.current = [];
 
@@ -210,13 +208,11 @@ export default function CeoMindOS() {
 
   const processVoiceInput = async (audioBlob: Blob) => {
     try {
-      // Convert Blob to Base64
       const reader = new FileReader();
       reader.readAsDataURL(audioBlob);
       reader.onloadend = async () => {
         const base64Audio = reader.result as string;
 
-        // Send to backend
         const res = await fetch("/api/ceo-mind-os/voice-input", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -229,10 +225,12 @@ export default function CeoMindOS() {
 
         if (res.ok) {
           const data = await res.json();
-          // Reload strategies nach Voice-Input
           await loadStrategies();
+          // Auto-expand voice strategy
+          if (data.strategyId) {
+            setExpandedCards((prev) => ({ ...prev, [data.strategyId]: true }));
+          }
           setThought("");
-          alert(`✅ Voice-Strategie erstellt: "${data.transcription.slice(0, 60)}..."`);
         } else {
           const error = await res.json();
           alert(`❌ Voice-Fehler: ${error.detail || "Unbekannter Fehler"}`);
@@ -266,9 +264,10 @@ export default function CeoMindOS() {
 
       if (res.ok) {
         const data = await res.json();
-        // API returns strategy directly (not wrapped)
         if (data && data.id) {
           setStrategies((prev) => [data, ...prev]);
+          // AUTO-EXPAND die neue Strategie (FIX!)
+          setExpandedCards((prev) => ({ ...prev, [data.id]: true }));
           setThought("");
           if (textareaRef.current) {
             textareaRef.current.style.height = "auto";
@@ -384,10 +383,6 @@ export default function CeoMindOS() {
     }
   };
 
-  // ============================================================================
-  // AUTO-GROW TEXTAREA
-  // ============================================================================
-
   const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setThought(e.target.value);
     e.target.style.height = "auto";
@@ -399,451 +394,375 @@ export default function CeoMindOS() {
   };
 
   // ============================================================================
-  // RENDER
+  // RENDER — PREMIUM LUXUS DESIGN
   // ============================================================================
 
   return (
-    <div className="space-y-6 font-['Inter_Variable',_system-ui,_sans-serif]">
-      {/* MORNING BRIEFING — JARVIS MODE */}
-      {morningBriefing && morningBriefing.stats.newMails > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative overflow-hidden rounded-2xl p-6 glass-iridescent"
-        >
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-5 h-5 text-violet-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Priority One</h3>
-              </div>
-              <p className="text-gray-700 leading-relaxed">{morningBriefing.briefing}</p>
-              <div className="flex gap-4 mt-3 text-sm text-gray-600">
-                <span>📧 {morningBriefing.stats.newMails} Mails</span>
-                <span>🎯 {morningBriefing.stats.openStrategies} Tasks</span>
-                {morningBriefing.stats.criticalMails > 0 && (
-                  <span className="text-red-600 font-medium">
-                    ⚠️ {morningBriefing.stats.criticalMails} Critical
-                  </span>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={() => setShowInboxModal(true)}
-              className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-all font-medium shadow-lg hover:shadow-xl"
-            >
-              Zeigen
-            </button>
-          </div>
-        </motion.div>
-      )}
-
-      {/* SHADOW INBOX — Daten-Fragmente */}
-      {inboxMails.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
-          {inboxMails.slice(0, 3).map((mail) => (
-            <motion.button
-              key={mail.id}
-              initial={{ scale: 0, rotate: -10 }}
-              animate={{ scale: 1, rotate: 0 }}
-              whileHover={{ scale: 1.05, y: -2 }}
-              onClick={() => setShowInboxModal(true)}
-              className="relative px-4 py-2 rounded-full text-sm font-medium transition-all data-fragment"
-              style={{
-                background:
-                  mail.priorityLevel === "critical"
-                    ? "linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.2))"
-                    : "linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.2))",
-                backdropFilter: "blur(15px)",
-                border:
-                  mail.priorityLevel === "critical"
-                    ? "1px solid rgba(239, 68, 68, 0.5)"
-                    : "1px solid rgba(59, 130, 246, 0.5)",
-              }}
-            >
-              <Mail className="w-3 h-3 inline mr-1" />
-              {mail.sender.split(" ")[0]}
-            </motion.button>
-          ))}
-          {inboxMails.length > 3 && (
-            <button
-              onClick={() => setShowInboxModal(true)}
-              className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium"
-            >
-              +{inboxMails.length - 3} mehr
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* INPUT AREA — Glassmorphism 3.0 + Voice Button */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative rounded-2xl p-6 glass-iridescent"
-      >
-        <div className="flex items-start gap-3">
-          <div className="mt-3 relative">
-            <Brain className="w-6 h-6 text-violet-600" />
-            {/* Notification Dot für neue Mails */}
-            {hasNewMails && (
-              <motion.div
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"
-              />
-            )}
-          </div>
-          <div className="flex-1">
-            <textarea
-              ref={textareaRef}
-              value={thought}
-              onChange={handleTextareaInput}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault();
-                  handleAnalyze();
-                }
-              }}
-              placeholder="Was beschäftigt dich gerade? Schreib oder sprich deine Gedanken..."
-              className="w-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-500 text-base leading-relaxed"
-              style={{ minHeight: "60px", maxHeight: "300px" }}
-              disabled={analyzing || isRecording || isTranscribing}
-            />
-            <div className="flex items-center justify-between mt-4">
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-500">
-                  {isRecording
-                    ? "🎤 Aufnahme läuft..."
-                    : isTranscribing
-                    ? "🔄 Transkribiere..."
-                    : analyzing
-                    ? "KI denkt nach..."
-                    : "⌘+Enter zum Analysieren"}
-                </span>
-                {/* Voice Button */}
-                <button
-                  onClick={isRecording ? stopRecording : startRecording}
-                  disabled={analyzing || isTranscribing}
-                  className={`relative p-2 rounded-full transition-all ${
-                    isRecording
-                      ? "bg-red-500 text-white"
-                      : "bg-gradient-to-r from-violet-600 to-blue-600 text-white hover:shadow-lg"
-                  } disabled:opacity-40`}
-                >
-                  {isRecording ? (
-                    <MicOff className="w-5 h-5" />
-                  ) : (
-                    <Mic className="w-5 h-5" />
-                  )}
-                  {/* Ripple Effect bei Recording */}
-                  {isRecording && (
-                    <>
-                      <motion.div
-                        animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
-                        transition={{ duration: 1.5, repeat: Infinity }}
-                        className="absolute inset-0 rounded-full bg-red-500"
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 2, 1], opacity: [0.3, 0, 0.3] }}
-                        transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
-                        className="absolute inset-0 rounded-full bg-red-500"
-                      />
-                    </>
-                  )}
-                </button>
-              </div>
-              <button
-                onClick={handleAnalyze}
-                disabled={!thought.trim() || analyzing || isRecording || isTranscribing}
-                className="px-6 py-2.5 bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-xl font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-2xl transition-all flex items-center gap-2 hover:-translate-y-0.5"
-              >
-                {analyzing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Analysiere...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    Analysieren
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* PULSING NEURAL CORE (Arc Reactor) */}
-        {analyzing && (
-          <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
-            <div className="neural-core" />
-            <div className="neural-beam" />
-          </div>
-        )}
-      </motion.div>
-
-      {/* STRATEGIES — Layout Transitions */}
-      <AnimatePresence mode="popLayout">
-        {strategies.map((strategy, idx) => (
-          <MindCard
-            key={strategy.id}
-            strategy={strategy}
-            index={idx}
-            expanded={expandedCards[strategy.id] || false}
-            onToggleExpand={() => toggleCardExpansion(strategy.id)}
-            onMarkDone={() => handleMarkDone(strategy.id)}
-            onOpenFailure={() => handleOpenFailureModal(strategy)}
-            onGenerateTemplate={() => handleGenerateTemplate(strategy)}
-          />
-        ))}
-      </AnimatePresence>
-
-      {/* MODALS */}
-      <AnimatePresence>
-        {showFailureModal && (
-          <Modal onClose={() => setShowFailureModal(false)}>
-            <div className="p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <AlertCircle className="w-6 h-6 text-red-600" />
-                Warum nicht umgesetzt?
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Die KI erstellt eine Opportunitätskosten-Rechnung basierend auf deinem Grund.
-              </p>
-              <textarea
-                value={failureReason}
-                onChange={(e) => setFailureReason(e.target.value)}
-                placeholder="z.B. Zu teuer, kein ROI erkennbar, andere Priorität..."
-                className="w-full border border-gray-300 rounded-lg p-3 text-gray-900 min-h-[100px]"
-              />
-              <div className="flex gap-3 mt-4">
-                <button
-                  onClick={handleSubmitFailure}
-                  disabled={!failureReason.trim() || loading}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-40"
-                >
-                  {loading ? "Analysiere..." : "Analysieren"}
-                </button>
-                <button
-                  onClick={() => setShowFailureModal(false)}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300"
-                >
-                  Abbrechen
-                </button>
-              </div>
-            </div>
-          </Modal>
-        )}
-
-        {showTemplateModal && (
-          <Modal onClose={() => setShowTemplateModal(false)}>
-            <div className="p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <Sparkles className="w-6 h-6 text-violet-600" />
-                Magic Template
-              </h3>
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
-                </div>
-              ) : (
-                <>
-                  <div className="bg-gray-50 rounded-lg p-4 mb-4 max-h-96 overflow-y-auto">
-                    <pre className="whitespace-pre-wrap text-sm text-gray-800 font-mono">
-                      {generatedTemplate}
-                    </pre>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 p-4 md:p-8">
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* MORNING BRIEFING — PREMIUM HERO SECTION */}
+        {morningBriefing && (
+          <motion.div
+            initial={{ opacity: 0, y: -30 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative group"
+          >
+            {/* Animated Gradient Background */}
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-violet-600/20 to-blue-600/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-700 animate-gradient"></div>
+            
+            <div className="relative premium-glass rounded-3xl p-8 md:p-10">
+              <div className="flex items-start justify-between gap-6 mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                    <Sparkles className="w-6 h-6 text-white" />
                   </div>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(generatedTemplate);
-                      alert("Template in Zwischenablage kopiert!");
-                    }}
-                    className="w-full px-4 py-2 bg-violet-600 text-white rounded-lg font-medium hover:bg-violet-700"
-                  >
-                    In Zwischenablage kopieren
-                  </button>
-                </>
+                  <div>
+                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-1">
+                      Executive Briefing
+                    </h2>
+                    <p className="text-sm text-slate-400 flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      {new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-lg text-slate-200 leading-relaxed mb-6 font-light">
+                {morningBriefing.briefing}
+              </p>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="premium-card-dark p-4 rounded-2xl">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Mail className="w-4 h-4 text-blue-400" />
+                    <span className="text-xs text-slate-400 uppercase tracking-wider">Inbox</span>
+                  </div>
+                  <p className="text-3xl font-bold text-white">{morningBriefing.stats.newMails}</p>
+                  {morningBriefing.stats.criticalMails > 0 && (
+                    <p className="text-xs text-red-400 mt-1">{morningBriefing.stats.criticalMails} critical</p>
+                  )}
+                </div>
+
+                <div className="premium-card-dark p-4 rounded-2xl">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Target className="w-4 h-4 text-violet-400" />
+                    <span className="text-xs text-slate-400 uppercase tracking-wider">Active</span>
+                  </div>
+                  <p className="text-3xl font-bold text-white">{morningBriefing.stats.openStrategies}</p>
+                </div>
+
+                <div className="premium-card-dark p-4 rounded-2xl">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Brain className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs text-slate-400 uppercase tracking-wider">Status</span>
+                  </div>
+                  <p className="text-3xl font-bold text-emerald-400">Active</p>
+                </div>
+              </div>
+
+              {/* Inbox Button */}
+              {inboxMails.length > 0 && (
+                <button
+                  onClick={() => setShowInboxModal(true)}
+                  className="mt-6 w-full premium-button py-4 rounded-2xl font-semibold text-white flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
+                >
+                  <Mail className="w-5 h-5" />
+                  {inboxMails.length} Neue Nachrichten ansehen
+                </button>
               )}
             </div>
-          </Modal>
+          </motion.div>
         )}
 
-        {showInboxModal && (
-          <Modal onClose={() => setShowInboxModal(false)}>
-            <div className="p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <Mail className="w-6 h-6 text-blue-600" />
-                Shadow Inbox
-              </h3>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {inboxMails.map((mail) => (
+        {/* INPUT AREA — MINIMALIST LUXURY */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative group"
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-violet-600/10 via-blue-600/10 to-violet-600/10 rounded-3xl blur-xl"></div>
+          
+          <div className="relative premium-glass rounded-3xl p-6 md:p-8">
+            <div className="flex items-start gap-4">
+              <div className="mt-2 relative">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-violet-600/20 flex items-center justify-center">
+                  <Brain className="w-5 h-5 text-blue-400" />
+                </div>
+                {hasNewMails && (
                   <motion.div
-                    key={mail.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    className="p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span
-                            className={`px-2 py-0.5 rounded text-xs font-medium ${
-                              mail.priorityLevel === "critical"
-                                ? "bg-red-100 text-red-700"
-                                : mail.priorityLevel === "high"
-                                ? "bg-orange-100 text-orange-700"
-                                : "bg-blue-100 text-blue-700"
-                            }`}
-                          >
-                            {mail.priorityLevel.toUpperCase()}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {mail.aiActionTaken}
-                          </span>
-                        </div>
-                        <p className="font-semibold text-gray-900">{mail.sender}</p>
-                        <p className="text-sm text-gray-700 mt-1">{mail.subject}</p>
-                        <p className="text-xs text-gray-600 mt-2">
-                          {mail.contentSummary}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleMarkMailRead(mail.id)}
-                        className="p-1 hover:bg-gray-200 rounded"
-                      >
-                        <CheckCircle2 className="w-5 h-5 text-green-600" />
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
-                {inboxMails.length === 0 && (
-                  <p className="text-gray-500 text-center py-8">Keine neuen Mails</p>
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-slate-900"
+                  />
                 )}
               </div>
+
+              <div className="flex-1">
+                <textarea
+                  ref={textareaRef}
+                  value={thought}
+                  onChange={handleTextareaInput}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      handleAnalyze();
+                    }
+                  }}
+                  placeholder="Was beschäftigt dich? Deine Gedanken, Ideen, Strategien..."
+                  className="w-full bg-transparent border-none outline-none resize-none text-white placeholder-slate-500 text-lg leading-relaxed"
+                  style={{ minHeight: "80px", maxHeight: "300px" }}
+                  disabled={analyzing || isRecording || isTranscribing}
+                />
+
+                <div className="flex items-center justify-between mt-6">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-slate-500">
+                      {isRecording
+                        ? "🎤 Aufnahme..."
+                        : isTranscribing
+                        ? "🔄 Transkribiere..."
+                        : analyzing
+                        ? "⚡ KI analysiert..."
+                        : "⌘+Enter zum Analysieren"}
+                    </span>
+
+                    {/* Voice Button */}
+                    <button
+                      onClick={isRecording ? stopRecording : startRecording}
+                      disabled={analyzing || isTranscribing}
+                      className={`relative p-3 rounded-xl transition-all ${
+                        isRecording
+                          ? "bg-red-500/20 text-red-400"
+                          : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
+                      } disabled:opacity-40`}
+                    >
+                      {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                      {isRecording && (
+                        <motion.div
+                          animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
+                          transition={{ duration: 1, repeat: Infinity }}
+                          className="absolute inset-0 rounded-xl bg-red-500"
+                        />
+                      )}
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={handleAnalyze}
+                    disabled={!thought.trim() || analyzing || isRecording || isTranscribing}
+                    className="premium-button px-8 py-3 rounded-xl font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 transition-transform flex items-center gap-2"
+                  >
+                    {analyzing ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Analysiere...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-5 h-5" />
+                        Analysieren
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
-          </Modal>
-        )}
-      </AnimatePresence>
 
-      {/* STYLES */}
+            {/* Analyzing Animation */}
+            {analyzing && (
+              <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
+                <motion.div
+                  animate={{ x: ["-100%", "400%"] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  className="absolute top-0 left-0 w-1/3 h-full bg-gradient-to-r from-transparent via-blue-500/20 to-transparent"
+                />
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* STRATEGIES — PREMIUM CARDS */}
+        <AnimatePresence mode="popLayout">
+          {strategies.map((strategy, idx) => (
+            <MindCard
+              key={strategy.id}
+              strategy={strategy}
+              index={idx}
+              expanded={expandedCards[strategy.id] || false}
+              onToggleExpand={() => toggleCardExpansion(strategy.id)}
+              onMarkDone={() => handleMarkDone(strategy.id)}
+              onOpenFailure={() => handleOpenFailureModal(strategy)}
+              onGenerateTemplate={() => handleGenerateTemplate(strategy)}
+            />
+          ))}
+        </AnimatePresence>
+
+        {/* MODALS */}
+        <AnimatePresence>
+          {showInboxModal && (
+            <Modal onClose={() => setShowInboxModal(false)}>
+              <div className="p-8">
+                <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                    <Mail className="w-5 h-5 text-blue-400" />
+                  </div>
+                  Inbox
+                </h3>
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                  {inboxMails.map((mail) => (
+                    <motion.div
+                      key={mail.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      className="premium-card-dark p-6 rounded-2xl hover:bg-slate-800/60 transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                mail.priorityLevel === "critical"
+                                  ? "bg-red-500/20 text-red-400"
+                                  : mail.priorityLevel === "high"
+                                  ? "bg-orange-500/20 text-orange-400"
+                                  : "bg-blue-500/20 text-blue-400"
+                              }`}
+                            >
+                              {mail.priorityLevel.toUpperCase()}
+                            </span>
+                          </div>
+                          <p className="font-semibold text-white mb-1">{mail.sender}</p>
+                          <p className="text-sm text-slate-300 mb-2">{mail.subject}</p>
+                          <p className="text-xs text-slate-500">{mail.contentSummary}</p>
+                        </div>
+                        <button
+                          onClick={() => handleMarkMailRead(mail.id)}
+                          className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
+                        >
+                          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                  {inboxMails.length === 0 && (
+                    <p className="text-slate-500 text-center py-12">Keine neuen Nachrichten</p>
+                  )}
+                </div>
+              </div>
+            </Modal>
+          )}
+
+          {showFailureModal && (
+            <Modal onClose={() => setShowFailureModal(false)}>
+              <div className="p-8">
+                <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
+                    <AlertCircle className="w-5 h-5 text-red-400" />
+                  </div>
+                  Warum nicht umgesetzt?
+                </h3>
+                <p className="text-slate-400 mb-6">
+                  Die KI erstellt eine Opportunitätskosten-Rechnung basierend auf deinem Grund.
+                </p>
+                <textarea
+                  value={failureReason}
+                  onChange={(e) => setFailureReason(e.target.value)}
+                  placeholder="z.B. Zu teuer, kein ROI erkennbar, andere Priorität..."
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl p-4 text-white placeholder-slate-500 min-h-[120px] focus:border-blue-500 focus:outline-none transition-colors"
+                />
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={handleSubmitFailure}
+                    disabled={!failureReason.trim() || loading}
+                    className="flex-1 premium-button py-3 rounded-xl font-semibold text-white disabled:opacity-40"
+                  >
+                    {loading ? "Analysiere..." : "Analysieren"}
+                  </button>
+                  <button
+                    onClick={() => setShowFailureModal(false)}
+                    className="px-6 py-3 bg-slate-800 text-slate-300 rounded-xl font-semibold hover:bg-slate-700 transition-colors"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
+              </div>
+            </Modal>
+          )}
+
+          {showTemplateModal && (
+            <Modal onClose={() => setShowTemplateModal(false)}>
+              <div className="p-8">
+                <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-violet-400" />
+                  </div>
+                  Magic Template
+                </h3>
+                {loading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="w-10 h-10 animate-spin text-blue-400" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-slate-900/50 rounded-xl p-6 mb-6 max-h-[50vh] overflow-y-auto">
+                      <pre className="whitespace-pre-wrap text-sm text-slate-300 font-mono">
+                        {generatedTemplate}
+                      </pre>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedTemplate);
+                        alert("Template in Zwischenablage kopiert!");
+                      }}
+                      className="w-full premium-button py-3 rounded-xl font-semibold text-white"
+                    >
+                      In Zwischenablage kopieren
+                    </button>
+                  </>
+                )}
+              </div>
+            </Modal>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* PREMIUM STYLES */}
       <style>{`
-        /* Glassmorphism 3.0 mit Iridescent-Glow */
-        .glass-iridescent {
-          background: rgba(255, 255, 255, 0.4);
-          backdrop-filter: blur(30px);
-          border: 1px solid rgba(255, 255, 255, 0.5);
+        @keyframes gradient {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+
+        .animate-gradient {
+          background-size: 200% 200%;
+          animation: gradient 8s ease infinite;
+        }
+
+        .premium-glass {
+          background: rgba(15, 23, 42, 0.6);
+          backdrop-filter: blur(20px) saturate(180%);
+          border: 1px solid rgba(59, 130, 246, 0.2);
           box-shadow: 
-            0 20px 50px rgba(0, 0, 0, 0.05),
-            inset 0 0 20px rgba(255, 255, 255, 0.1),
-            0 0 40px rgba(139, 92, 246, 0.1);
+            0 20px 60px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
 
-        .glass-iridescent::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          border-radius: inherit;
-          padding: 1px;
-          background: linear-gradient(135deg, 
-            rgba(255, 107, 107, 0.2),
-            rgba(255, 200, 87, 0.2),
-            rgba(119, 221, 119, 0.2),
-            rgba(79, 172, 254, 0.2),
-            rgba(186, 104, 200, 0.2)
-          );
-          -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-          -webkit-mask-composite: xor;
-          mask-composite: exclude;
-          pointer-events: none;
-          opacity: 0.3;
+        .premium-card-dark {
+          background: rgba(15, 23, 42, 0.8);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(51, 65, 85, 0.5);
         }
 
-        /* Pulsing Neural Core (Arc Reactor) */
-        @keyframes coreGlow {
-          0%, 100% { 
-            transform: scale(1);
-            opacity: 0.3;
-            box-shadow: 0 0 40px rgba(139, 92, 246, 0.5);
-          }
-          50% { 
-            transform: scale(1.2);
-            opacity: 0.6;
-            box-shadow: 0 0 80px rgba(139, 92, 246, 0.8);
-          }
+        .premium-button {
+          background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+          box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
         }
 
-        .neural-core {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          width: 120px;
-          height: 120px;
-          border-radius: 50%;
-          background: radial-gradient(circle, 
-            rgba(139, 92, 246, 0.6),
-            rgba(59, 130, 246, 0.4),
-            transparent
-          );
-          animation: coreGlow 3s ease-in-out infinite;
-        }
-
-        .neural-core::after {
-          content: '';
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          width: 60px;
-          height: 60px;
-          border-radius: 50%;
-          background: radial-gradient(circle,
-            rgba(255, 255, 255, 0.8),
-            rgba(139, 92, 246, 0.6),
-            transparent
-          );
-          animation: coreGlow 1.5s ease-in-out infinite reverse;
-        }
-
-        /* Neural Processing Beam */
-        @keyframes beam {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(400%); }
-        }
-
-        .neural-beam {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 30%;
-          height: 100%;
-          background: linear-gradient(90deg, 
-            transparent,
-            rgba(139, 92, 246, 0.4),
-            rgba(59, 130, 246, 0.4),
-            transparent
-          );
-          animation: beam 2s ease-in-out infinite;
-        }
-
-        /* Data Fragment Glow */
-        .data-fragment {
-          box-shadow: 0 0 20px currentColor;
-        }
-
-        @keyframes fragmentPulse {
-          0%, 100% { box-shadow: 0 0 20px currentColor; }
-          50% { box-shadow: 0 0 40px currentColor; }
-        }
-
-        .data-fragment:hover {
-          animation: fragmentPulse 1s ease-in-out infinite;
+        .premium-button:hover {
+          box-shadow: 0 15px 40px rgba(59, 130, 246, 0.4);
         }
       `}</style>
     </div>
@@ -851,7 +770,7 @@ export default function CeoMindOS() {
 }
 
 // ============================================================================
-// MIND CARD — 3D Tilt + Layout Transitions
+// MIND CARD — PREMIUM EDITION
 // ============================================================================
 
 interface MindCardProps {
@@ -873,237 +792,196 @@ function MindCard({
   onOpenFailure,
   onGenerateTemplate,
 }: MindCardProps) {
-  const cardRef = useRef<HTMLDivElement>(null);
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-
-  const rotateX = useTransform(mouseY, [-300, 300], [5, -5]);
-  const rotateY = useTransform(mouseX, [-300, 300], [-5, 5]);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    mouseX.set(e.clientX - centerX);
-    mouseY.set(e.clientY - centerY);
-  };
-
-  const handleMouseLeave = () => {
-    mouseX.set(0);
-    mouseY.set(0);
-  };
-
   const analysis = strategy.aiAnalysis;
   const isDone = strategy.status === "done";
   const isFailed = strategy.status === "failed";
 
   return (
     <motion.div
-      ref={cardRef}
       layout
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ 
-        layout: { duration: 0.3, type: "spring", stiffness: 100 },
+        layout: { duration: 0.3, type: "spring", stiffness: 80 },
         delay: index * 0.05 
       }}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      style={{
-        rotateX,
-        rotateY,
-        transformStyle: "preserve-3d",
-      }}
-      className={`rounded-2xl p-6 cursor-pointer transition-all hover:shadow-2xl glass-iridescent ${
-        isFailed ? "opacity-70" : isDone ? "opacity-80" : ""
-      }`}
+      className={`relative group ${isDone ? "opacity-60" : ""}`}
     >
-      {/* HEADER */}
-      <div className="flex items-start justify-between gap-4 mb-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            {isFailed && <AlertCircle className="w-5 h-5 text-red-600" />}
-            {isDone && <CheckCircle2 className="w-5 h-5 text-green-600" />}
-            {!isFailed && !isDone && <TrendingUp className="w-5 h-5 text-violet-600" />}
-            <span className="text-xs font-medium text-gray-600">
-              {strategy.category || "Strategie"}
-            </span>
-            {analysis?.confidence && (
-              <span className="text-xs text-gray-500">
-                {Math.round(analysis.confidence * 100)}% Confidence
-              </span>
-            )}
-          </div>
-          <p className="text-gray-900 font-medium leading-relaxed">
-            {strategy.userThought}
-          </p>
-        </div>
-        <button onClick={onToggleExpand} className="p-1 hover:bg-gray-100 rounded">
-          {expanded ? (
-            <ChevronUp className="w-5 h-5 text-gray-600" />
-          ) : (
-            <ChevronDown className="w-5 h-5 text-gray-600" />
-          )}
-        </button>
-      </div>
-
-      {/* ANALYSIS (Expandable with Layout Animation) */}
-      <AnimatePresence>
-        {expanded && analysis && (
-          <motion.div
-            layout
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3 }}
-            className="space-y-4"
-          >
-            <div>
-              <h4 className="text-sm font-bold text-gray-900 mb-1">Zusammenfassung</h4>
-              <p className="text-sm text-gray-700">{analysis.summary || "Keine Zusammenfassung verfügbar"}</p>
-            </div>
-
-            <div>
-              <h4 className="text-sm font-bold text-gray-900 mb-1">Rückfrage</h4>
-              <p className="text-sm text-gray-700">{analysis.followUpQuestion || "Keine Rückfrage"}</p>
-            </div>
-
-            <div>
-              <h4 className="text-sm font-bold text-gray-900 mb-1">ROI-Check</h4>
-              <p className="text-sm text-gray-700">{analysis.roiCheck || "Keine ROI-Analyse verfügbar"}</p>
-            </div>
-
-            {analysis.nextSteps && analysis.nextSteps.length > 0 && (
-              <div>
-                <h4 className="text-sm font-bold text-gray-900 mb-2">Next Steps</h4>
-                <ul className="space-y-1">
-                  {analysis.nextSteps.map((step, i) => (
-                    <motion.li
-                      key={i}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.1 }}
-                      className="text-sm text-gray-700 flex items-start gap-2"
-                    >
-                      <span className="text-violet-600 font-bold">→</span>
-                      {step}
-                    </motion.li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {analysis.resources && analysis.resources.length > 0 && (
-              <div>
-                <h4 className="text-sm font-bold text-gray-900 mb-2">Ressourcen</h4>
-                <div className="flex flex-wrap gap-2">
-                  {analysis.resources.map((res, i) => (
-                    <motion.a
-                      key={i}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: i * 0.05 }}
-                      href={res.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-200 transition-colors"
-                    >
-                      {res.label}
-                    </motion.a>
-                  ))}
+      <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 via-violet-600/5 to-blue-600/5 rounded-3xl blur-lg"></div>
+      
+      <div className="relative premium-glass rounded-3xl p-6 md:p-8 cursor-pointer hover:border-blue-500/40 transition-all"
+        onClick={onToggleExpand}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-3">
+              {isFailed && (
+                <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
+                  <AlertCircle className="w-4 h-4 text-red-400" />
                 </div>
-              </div>
+              )}
+              {isDone && (
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                </div>
+              )}
+              {!isFailed && !isDone && (
+                <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <Target className="w-4 h-4 text-blue-400" />
+                </div>
+              )}
+              <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
+                {strategy.category || "Strategie"}
+              </span>
+              {analysis?.confidence && (
+                <span className="text-xs text-slate-500">
+                  {Math.round(analysis.confidence * 100)}%
+                </span>
+              )}
+            </div>
+            <p className="text-lg text-white font-medium leading-relaxed">
+              {strategy.userThought}
+            </p>
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleExpand();
+            }}
+            className="p-2 hover:bg-slate-800/50 rounded-lg transition-colors"
+          >
+            {expanded ? (
+              <ChevronUp className="w-5 h-5 text-slate-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-slate-400" />
             )}
+          </button>
+        </div>
 
-            {isFailed && strategy.failureReason && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="p-4 bg-red-50 rounded-lg border border-red-200"
-              >
-                <h4 className="text-sm font-bold text-red-900 mb-1">
-                  Opportunitätskosten-Analyse
-                </h4>
-                <p className="text-sm text-red-800">{strategy.failureReason}</p>
-              </motion.div>
-            )}
-
-            {/* ACTION BUTTONS */}
+        {/* Analysis (Expandable) */}
+        <AnimatePresence>
+          {expanded && analysis && (
             <motion.div
               layout
-              className="flex gap-2 pt-2"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6 pt-6 border-t border-slate-800"
+              onClick={(e) => e.stopPropagation()}
             >
-              {!isDone && !isFailed && (
-                <>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={onMarkDone}
-                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-all shadow-md hover:shadow-lg"
-                  >
-                    Erledigt
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={onOpenFailure}
-                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-all shadow-md hover:shadow-lg"
-                  >
-                    Nicht umgesetzt
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.05, rotate: 5 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={onGenerateTemplate}
-                    className="px-4 py-2 bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-lg font-medium hover:shadow-lg transition-all"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                  </motion.button>
-                </>
+              <div>
+                <h4 className="text-sm font-semibold text-blue-400 mb-2 uppercase tracking-wider">Zusammenfassung</h4>
+                <p className="text-slate-300 leading-relaxed">{analysis.summary || "Keine Zusammenfassung verfügbar"}</p>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-semibold text-violet-400 mb-2 uppercase tracking-wider">Rückfrage</h4>
+                <p className="text-slate-300 leading-relaxed">{analysis.followUpQuestion || "Keine Rückfrage"}</p>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-semibold text-emerald-400 mb-2 uppercase tracking-wider">ROI-Check</h4>
+                <p className="text-slate-300 leading-relaxed">{analysis.roiCheck || "Keine ROI-Analyse verfügbar"}</p>
+              </div>
+
+              {analysis.nextSteps && analysis.nextSteps.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-blue-400 mb-3 uppercase tracking-wider">Next Steps</h4>
+                  <ul className="space-y-2">
+                    {analysis.nextSteps.map((step, i) => (
+                      <motion.li
+                        key={i}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.1 }}
+                        className="text-slate-300 flex items-start gap-3"
+                      >
+                        <span className="text-blue-400 font-bold mt-1">→</span>
+                        {step}
+                      </motion.li>
+                    ))}
+                  </ul>
+                </div>
               )}
+
+              {/* Actions */}
+              <div className="flex flex-wrap gap-3 pt-4">
+                {!isDone && !isFailed && (
+                  <button
+                    onClick={onMarkDone}
+                    className="px-4 py-2 bg-emerald-500/20 text-emerald-400 rounded-lg font-semibold hover:bg-emerald-500/30 transition-all flex items-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Erledigt
+                  </button>
+                )}
+                {!isDone && !isFailed && (
+                  <button
+                    onClick={onOpenFailure}
+                    className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg font-semibold hover:bg-red-500/30 transition-all flex items-center gap-2"
+                  >
+                    <AlertCircle className="w-4 h-4" />
+                    Nicht umgesetzt
+                  </button>
+                )}
+                <button
+                  onClick={onGenerateTemplate}
+                  className="px-4 py-2 bg-violet-500/20 text-violet-400 rounded-lg font-semibold hover:bg-violet-500/30 transition-all flex items-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Template
+                </button>
+              </div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
+      </div>
     </motion.div>
   );
 }
 
 // ============================================================================
-// MODAL COMPONENT
+// MODAL — PREMIUM OVERLAY
 // ============================================================================
 
 interface ModalProps {
-  onClose: () => void;
   children: React.ReactNode;
+  onClose: () => void;
 }
 
-function Modal({ onClose, children }: ModalProps) {
+function Modal({ children, onClose }: ModalProps) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0, 0, 0, 0.5)", backdropFilter: "blur(10px)" }}
       onClick={onClose}
+      className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
     >
       <motion.div
-        initial={{ scale: 0.9, y: 20 }}
+        initial={{ scale: 0.95, y: 20 }}
         animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.9, y: 20 }}
+        exit={{ scale: 0.95, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
+        className="relative w-full max-w-2xl"
       >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors z-10"
-        >
-          <X className="w-5 h-5 text-gray-600" />
-        </button>
-        {children}
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-violet-600/20 to-blue-600/20 rounded-3xl blur-xl"></div>
+        
+        <div className="relative bg-slate-900 rounded-3xl border border-slate-700 shadow-2xl max-h-[90vh] overflow-hidden">
+          <button
+            onClick={onClose}
+            className="absolute top-6 right-6 p-2 hover:bg-slate-800 rounded-lg transition-colors z-10"
+          >
+            <X className="w-6 h-6 text-slate-400" />
+          </button>
+          
+          <div className="overflow-y-auto max-h-[90vh]">
+            {children}
+          </div>
+        </div>
       </motion.div>
     </motion.div>
   );

@@ -473,7 +473,19 @@ export default function KnowledgeBase() {
         <Brain className="kb-header-icon" />
         <div>
           <h2 className="kb-header-title">JARVIS Brain-Link</h2>
-          <p className="kb-header-subtitle">Langzeitgedächtnis & Semantische Suche</p>
+          <p className="kb-header-subtitle">
+            Langzeitgedächtnis & Semantische Suche
+            <span style={{ 
+              display: 'block', 
+              fontSize: '11px', 
+              color: '#6366f1', 
+              marginTop: '4px',
+              fontWeight: 600,
+              letterSpacing: '0.05em'
+            }}>
+              ⚡ Powered by Open-Source Neural Embeddings
+            </span>
+          </p>
         </div>
       </div>
 

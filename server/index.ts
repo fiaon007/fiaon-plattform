@@ -433,12 +433,12 @@ async function seedSubscriptionPlans() {
     // Enable pgvector extension
     await client`CREATE EXTENSION IF NOT EXISTS vector`;
     
-    // Create knowledge_base table
+    // Create knowledge_base table (384 dimensions for all-MiniLM-L6-v2)
     await client`
       CREATE TABLE IF NOT EXISTS knowledge_base (
         id SERIAL PRIMARY KEY,
         content TEXT NOT NULL,
-        embedding vector(1536),
+        embedding vector(384),
         metadata JSONB DEFAULT '{}',
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()

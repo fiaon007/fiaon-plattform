@@ -4,19 +4,11 @@
 
 JARVIS Brain-Link ist dein **Langzeitgedächtnis** für CEO Mind-OS. Du kannst massives Wissen (Chat-Logs, Strategien, Dokumente) hochladen, und JARVIS erinnert sich semantisch daran.
 
-## ⚡ 3-Schritte-Setup
+**⚡ 100% Open-Source** — Keine API-Keys, keine Kosten, läuft lokal!
 
-### 1. OpenAI API Key holen
+## ⚡ 2-Schritte-Setup
 
-1. Gehe zu: https://platform.openai.com/api-keys
-2. Erstelle einen neuen API Key
-3. Füge ihn zu `.env` hinzu:
-
-```bash
-OPENAI_EMBEDDING_API_KEY=sk-proj-dein-key-hier
-```
-
-### 2. Server starten
+### 1. Server starten
 
 ```bash
 npm run dev
@@ -24,7 +16,7 @@ npm run dev
 
 Die Datenbank-Migration läuft automatisch. ✅
 
-### 3. Wissen hochladen
+### 2. Wissen hochladen
 
 1. Öffne: http://localhost:5000/admin/database
 2. Scrolle zu **JARVIS Brain-Link**
@@ -39,9 +31,11 @@ Die Datenbank-Migration läuft automatisch. ✅
 
 ## 💰 Kosten
 
-**Praktisch kostenlos:**
-- 10.000 Zeichen hochladen = ~$0.0001
-- 1 Million Zeichen = ~$0.01
+**100% KOSTENLOS:**
+- ✅ Keine API-Kosten
+- ✅ Unbegrenzte Nutzung
+- ✅ Läuft auf deinem Server
+- ✅ Open-Source (all-MiniLM-L6-v2)
 
 ## 🔍 Testen
 

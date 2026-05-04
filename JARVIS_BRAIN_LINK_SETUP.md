@@ -2,21 +2,22 @@
 
 ## Übersicht
 
-JARVIS Brain-Link ist dein Langzeitgedächtnis für CEO Mind-OS. Es nutzt **pgvector** für semantische Suche und **OpenAI Embeddings** zur Vektorisierung von Wissen.
+JARVIS Brain-Link ist dein Langzeitgedächtnis für CEO Mind-OS. Es nutzt **pgvector** für semantische Suche und **100% Open-Source Embeddings** (all-MiniLM-L6-v2) zur Vektorisierung von Wissen.
+
+**Keine API-Keys erforderlich** — läuft komplett lokal auf deinem Server!
 
 ## 🔧 Setup-Schritte
 
 ### 1. Umgebungsvariablen
 
-Füge zu deiner `.env` Datei hinzu:
+**Keine Konfiguration erforderlich!** 🎉
 
-```bash
-# JARVIS Brain-Link — OpenAI Embeddings (text-embedding-3-small)
-# OpenAI console: https://platform.openai.com/api-keys
-OPENAI_EMBEDDING_API_KEY=sk-proj-your-openai-api-key-here
-```
-
-**Wichtig:** Du brauchst einen OpenAI API Key für die Embeddings. Das ist **nicht** der alte `OPENAI_API_KEY` für Chat, sondern ein separater Key speziell für Embeddings.
+Das System nutzt **@xenova/transformers** mit dem **all-MiniLM-L6-v2** Modell:
+- ✅ 100% Open-Source
+- ✅ Läuft lokal auf deinem Server
+- ✅ Keine API-Keys
+- ✅ Keine externen Abhängigkeiten
+- ✅ Keine Kosten
 
 ### 2. Datenbank-Migration
 
@@ -48,7 +49,7 @@ Der Server führt die Migration automatisch aus. Du siehst:
 CREATE TABLE knowledge_base (
   id SERIAL PRIMARY KEY,
   content TEXT NOT NULL,
-  embedding vector(1536),  -- OpenAI text-embedding-3-small
+  embedding vector(384),  -- all-MiniLM-L6-v2 (open-source)
   metadata JSONB DEFAULT '{}',
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
@@ -142,10 +143,11 @@ Der Service teilt automatisch lange Texte in **2000-Zeichen-Chunks** mit **200-Z
 
 ### Kosten
 
-**OpenAI text-embedding-3-small:**
-- $0.02 per 1M tokens
-- ~1.500 Zeichen = ~500 tokens
-- **10.000 Zeichen Wissen = ~$0.0001** (praktisch kostenlos)
+**100% KOSTENLOS:**
+- ✅ Keine API-Kosten
+- ✅ Keine externen Abhängigkeiten
+- ✅ Läuft auf deinem Server
+- ✅ Unbegrenzte Nutzung
 
 ## 🛠️ Troubleshooting
 
@@ -156,11 +158,12 @@ Der Service teilt automatisch lange Texte in **2000-Zeichen-Chunks** mit **200-Z
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-### "Embedding API error"
+### "Embedding model loading error"
 
-- Prüfe `OPENAI_EMBEDDING_API_KEY` in `.env`
-- Stelle sicher, dass der Key gültig ist
-- Prüfe OpenAI API Limits: https://platform.openai.com/account/limits
+- Stelle sicher, dass `@xenova/transformers` installiert ist: `npm install @xenova/transformers`
+- Beim ersten Start lädt das Modell (~25MB) automatisch herunter
+- Prüfe Internetverbindung für initialen Download
+- Modell wird lokal gecacht für schnellere zukünftige Nutzung
 
 ### "No results found"
 

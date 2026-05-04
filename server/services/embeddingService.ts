@@ -1,16 +1,31 @@
-import OpenAI from "openai";
+import { pipeline, env } from '@xenova/transformers';
 import { logger } from "../logger";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_EMBEDDING_API_KEY || process.env.OPENAI_API_KEY,
-});
+// Configure Xenova to use local cache and disable remote models in production
+env.allowLocalModels = true;
+env.allowRemoteModels = true;
 
-const EMBEDDING_MODEL = "text-embedding-3-small";
-const EMBEDDING_DIMENSION = 1536;
-const MAX_CHUNK_SIZE = 8000; // tokens (safe limit for embedding model)
+// Use all-MiniLM-L6-v2 model (384 dimensions, fast, good quality)
+const EMBEDDING_MODEL = "Xenova/all-MiniLM-L6-v2";
+const EMBEDDING_DIMENSION = 384;
+const MAX_CHUNK_SIZE = 512; // tokens (safe limit for transformer model)
+
+// Lazy-load the embedding pipeline
+let embeddingPipeline: any = null;
+
+async function getEmbeddingPipeline() {
+  if (!embeddingPipeline) {
+    logger.info('[EMBEDDING] Loading open-source embedding model (all-MiniLM-L6-v2)...');
+    embeddingPipeline = await pipeline('feature-extraction', EMBEDDING_MODEL);
+    logger.info('[EMBEDDING] Model loaded successfully');
+  }
+  return embeddingPipeline;
+}
 
 /**
- * Generate embedding vector for a given text
+ * Generate embedding vector for a given text using open-source transformer model
+ * Model: all-MiniLM-L6-v2 (384 dimensions)
+ * 100% local, no API keys required
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
   try {
@@ -18,17 +33,16 @@ export async function generateEmbedding(text: string): Promise<number[]> {
       throw new Error("Text cannot be empty");
     }
 
-    const response = await openai.embeddings.create({
-      model: EMBEDDING_MODEL,
-      input: text.trim(),
-      encoding_format: "float",
+    const extractor = await getEmbeddingPipeline();
+    
+    // Generate embedding
+    const output = await extractor(text.trim(), {
+      pooling: 'mean',
+      normalize: true,
     });
 
-    if (!response.data || response.data.length === 0) {
-      throw new Error("No embedding returned from OpenAI");
-    }
-
-    const embedding = response.data[0].embedding;
+    // Extract the embedding array from the output tensor
+    const embedding = Array.from(output.data) as number[];
     
     if (embedding.length !== EMBEDDING_DIMENSION) {
       throw new Error(`Expected ${EMBEDDING_DIMENSION} dimensions, got ${embedding.length}`);
@@ -73,13 +87,16 @@ export function chunkText(text: string, chunkSize: number = 2000, overlap: numbe
 
 /**
  * Generate embeddings for multiple texts in batch
- * Handles rate limiting and retries
+ * Local processing, no rate limits needed
  */
 export async function generateEmbeddingsBatch(
   texts: string[],
   onProgress?: (current: number, total: number) => void
 ): Promise<number[][]> {
   const embeddings: number[][] = [];
+  
+  // Pre-load the model once for all texts
+  await getEmbeddingPipeline();
   
   for (let i = 0; i < texts.length; i++) {
     try {
@@ -88,11 +105,6 @@ export async function generateEmbeddingsBatch(
       
       if (onProgress) {
         onProgress(i + 1, texts.length);
-      }
-
-      // Rate limiting: small delay between requests
-      if (i < texts.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 100));
       }
     } catch (error: any) {
       logger.error(`[EMBEDDING] Failed to generate embedding for chunk ${i + 1}:`, error?.message);

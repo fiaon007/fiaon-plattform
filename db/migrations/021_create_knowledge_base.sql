@@ -1,5 +1,6 @@
 -- Migration: Create Knowledge Base with pgvector for JARVIS Brain-Link
 -- Description: Enables semantic search and long-term memory for CEO Mind-OS
+-- Model: all-MiniLM-L6-v2 (384 dimensions, open-source)
 
 -- Enable pgvector extension
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -8,7 +9,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE IF NOT EXISTS knowledge_base (
   id SERIAL PRIMARY KEY,
   content TEXT NOT NULL,
-  embedding vector(1536),
+  embedding vector(384),
   metadata JSONB DEFAULT '{}',
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()

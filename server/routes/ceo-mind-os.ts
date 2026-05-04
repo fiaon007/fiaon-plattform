@@ -208,9 +208,36 @@ router.patch('/inbox/:id', async (req, res) => {
 
 /**
  * GET /api/ceo-mind-os/morning-briefing
+ * RATE LIMIT PROTECTION: Caches briefing for 60 minutes
  */
 router.get('/morning-briefing', async (req, res) => {
   try {
+    const userId = (req.user as any)?.id || 1; // Default to admin user
+
+    // Check cache first (60 minute TTL)
+    const [cachedBriefing] = await client`
+      SELECT last_briefing, briefing_timestamp
+      FROM users
+      WHERE id = ${userId}
+    `;
+
+    const now = new Date();
+    const cacheAge = cachedBriefing?.briefing_timestamp 
+      ? (now.getTime() - new Date(cachedBriefing.briefing_timestamp).getTime()) / 1000 / 60 
+      : 999;
+
+    // Return cached briefing if less than 60 minutes old
+    if (cacheAge < 60 && cachedBriefing?.last_briefing) {
+      logger.info(`[CEO-MIND-OS] Returning cached briefing (${Math.round(cacheAge)}min old)`);
+      const cached = JSON.parse(cachedBriefing.last_briefing);
+      return res.json({
+        ...cached,
+        cached: true,
+        cacheAge: Math.round(cacheAge),
+      });
+    }
+
+    // Generate fresh briefing
     const [newMailsCount] = await client`
       SELECT COUNT(*) as count FROM ceo_inbound_mails WHERE status = 'new'
     `;
@@ -244,14 +271,27 @@ router.get('/morning-briefing', async (req, res) => {
       recentEmails
     );
 
-    res.json({
+    const response = {
       briefing,
       stats: {
         newMails: Number(newMailsCount.count) || 0,
         criticalMails: Number(criticalMailsCount.count) || 0,
         openStrategies: Number(openStrategiesCount.count) || 0,
       },
-    });
+      cached: false,
+    };
+
+    // Cache the briefing
+    await client`
+      UPDATE users
+      SET 
+        last_briefing = ${JSON.stringify(response)},
+        briefing_timestamp = NOW()
+      WHERE id = ${userId}
+    `;
+
+    logger.info('[CEO-MIND-OS] Generated and cached fresh briefing');
+    res.json(response);
   } catch (err: any) {
     logger.error(`[CEO-MIND-OS] GET /morning-briefing error: ${err?.message || err}`);
     res.status(500).json({ error: 'briefing_failed', detail: String(err?.message || err) });

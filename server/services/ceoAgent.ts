@@ -25,7 +25,10 @@ import { searchEmbedding } from './embeddingService';
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY || '';
-const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+
+// Model selection: Use smaller model for briefings, large model for analysis
+const GROQ_MODEL_LARGE = 'llama-3.3-70b-versatile';  // For analyzeThought
+const GROQ_MODEL_FAST = 'llama-3.1-8b-instant';      // For briefings & summaries
 
 const groq: Groq | null = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
 
@@ -411,7 +414,7 @@ Analysiere das jetzt. Nutze das Wissen aus JARVIS Brain-Link, falls relevant. An
 
   try {
     const completion = await groq.chat.completions.create({
-      model: GROQ_MODEL,
+      model: GROQ_MODEL_LARGE,  // Use large model for strategic analysis
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userPrompt },
@@ -461,7 +464,7 @@ Analysiere das jetzt. Nutze das Wissen aus JARVIS Brain-Link, falls relevant. An
       resources: merged.slice(0, 6),
       confidence,
       meta: {
-        model: GROQ_MODEL,
+        model: GROQ_MODEL_LARGE,
         usedWebSearch: search && tavilyResults.length > 0,
         searchQuery: search ? query : undefined,
         durationMs: Date.now() - start,
@@ -530,7 +533,7 @@ Rechne ihm die Opportunitätskosten vor und gib eine ehrliche Empfehlung.`;
 
   try {
     const completion = await groq.chat.completions.create({
-      model: GROQ_MODEL,
+      model: GROQ_MODEL_LARGE,  // Use large model for failure analysis
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: userPrompt },
@@ -550,7 +553,7 @@ Rechne ihm die Opportunitätskosten vor und gib eine ehrliche Empfehlung.`;
         ? parsed.alternatives.map((s: any) => String(s).trim()).filter(Boolean).slice(0, 5)
         : [],
       recommendation: String(parsed.recommendation || '').trim(),
-      meta: { model: GROQ_MODEL, durationMs: Date.now() - start },
+      meta: { model: GROQ_MODEL_LARGE, durationMs: Date.now() - start },
     };
   } catch (err: any) {
     logger.error(`[CEO-AGENT] Groq failure-analysis error: ${err?.message || err}`);
@@ -614,7 +617,7 @@ Liefere jetzt die Vorlage.`;
 
   try {
     const completion = await groq.chat.completions.create({
-      model: GROQ_MODEL,
+      model: GROQ_MODEL_LARGE,  // Use large model for template generation
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: userPrompt },
@@ -769,7 +772,7 @@ Antworte NUR mit einem JSON-Objekt:
 
     const completion = await groq.chat.completions.create({
       messages: [{ role: 'user', content: prompt }],
-      model: GROQ_MODEL,
+      model: GROQ_MODEL_FAST,  // Use fast model for briefings (rate limit protection)
       temperature: 0.3,
       max_tokens: 800,
     });
@@ -868,7 +871,7 @@ Antworte NUR mit dem Briefing-Text (kein JSON):`;
 
     const completion = await groq.chat.completions.create({
       messages: [{ role: 'user', content: prompt }],
-      model: GROQ_MODEL,
+      model: GROQ_MODEL_FAST,  // Use fast model for email analysis (rate limit protection)
       temperature: 0.7,
       max_tokens: 200,
     });

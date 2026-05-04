@@ -16,6 +16,8 @@
 
 import Groq from 'groq-sdk';
 import { logger } from '../logger';
+import { client } from '../db';
+import { searchEmbedding } from './embeddingService';
 
 // ============================================================================
 // CONFIGURATION
@@ -152,6 +154,38 @@ async function tavilySearch(query: string, maxResults = 5): Promise<TavilyResult
     }));
   } catch (err: any) {
     logger.warn(`[CEO-AGENT][TAVILY] Error: ${err?.message || err}`);
+    return [];
+  }
+}
+
+// ============================================================================
+// JARVIS BRAIN-LINK — Semantic Knowledge Search
+// ============================================================================
+
+async function searchKnowledgeBase(query: string, limit = 3): Promise<string[]> {
+  try {
+    if (!query || query.trim().length === 0) return [];
+
+    // Generate embedding for the query
+    const queryEmbedding = await searchEmbedding(query);
+
+    // Search in knowledge base
+    const results = await client`
+      SELECT
+        content,
+        1 - (embedding <=> ${JSON.stringify(queryEmbedding)}::vector) as similarity
+      FROM knowledge_base
+      WHERE embedding IS NOT NULL
+      ORDER BY embedding <=> ${JSON.stringify(queryEmbedding)}::vector
+      LIMIT ${limit}
+    `;
+
+    // Filter results with similarity > 0.7 (70% match)
+    return results
+      .filter((r: any) => parseFloat(r.similarity || 0) > 0.7)
+      .map((r: any) => r.content);
+  } catch (err: any) {
+    logger.warn(`[CEO-AGENT][KNOWLEDGE] Search error: ${err?.message || err}`);
     return [];
   }
 }
@@ -339,7 +373,16 @@ export async function analyzeThought(
     return fallbackAnalysis(thoughtTrim, start);
   }
 
-  // Step 1: decide whether we need web research
+  // Step 1: Search JARVIS knowledge base for relevant context
+  const knowledgeContext = await searchKnowledgeBase(thoughtTrim, 3);
+  const knowledgeBlock =
+    knowledgeContext.length > 0
+      ? `\n\n### KONTEXT AUS DEINEM WISSEN (JARVIS Brain-Link) ###\n` +
+        knowledgeContext.map((k, i) => `[${i + 1}] ${k}`).join('\n---\n') +
+        `\n### ENDE WISSEN ###\n`
+      : '';
+
+  // Step 2: decide whether we need web research
   const { search, query } = shouldSearch(thoughtTrim);
   let tavilyResults: TavilyResult[] = [];
   if (search && TAVILY_API_KEY) {
@@ -362,9 +405,9 @@ export async function analyzeThought(
   const userPrompt = `Justin schreibt dir folgenden Brain-Dump:
 """
 ${thoughtTrim}
-"""${historyBlock}${webContext}
+"""${knowledgeBlock}${historyBlock}${webContext}
 
-Analysiere das jetzt. Antworte NUR im geforderten JSON-Schema.`;
+Analysiere das jetzt. Nutze das Wissen aus JARVIS Brain-Link, falls relevant. Antworte NUR im geforderten JSON-Schema.`;
 
   try {
     const completion = await groq.chat.completions.create({

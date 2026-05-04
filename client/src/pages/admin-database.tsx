@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import CeoMindOS from "@/components/admin/CeoMindOS";
 import LiveRadar from "@/components/admin/LiveRadar";
+import KnowledgeBase from "@/components/admin/KnowledgeBase";
 
 interface AI_Task {
   id: string;
@@ -451,6 +452,11 @@ export default function AdminDatabasePage() {
 
             {/* Live Radar — System-Auslastung & Daten-Eingänge (STARK EDITION) */}
             <LiveRadar />
+
+            {/* JARVIS Brain-Link — Knowledge Base & Semantic Search */}
+            <div className="mb-8">
+              <KnowledgeBase />
+            </div>
 
             {/* TODO List Section - Bento-Luxury Design */}
             <div className="mb-8">

@@ -13,6 +13,12 @@
  *   POST   /:id/failure           — analyze failure + save failure_reason
  *   POST   /:id/template          — (re)generate a magic template for a strategy
  *   GET    /health                — health / config status
+ *
+ *   JARVIS BRAIN-LINK (Knowledge Base):
+ *   POST   /knowledge/feed        — upload knowledge (text → chunks → embeddings → DB)
+ *   GET    /knowledge             — list recent knowledge entries
+ *   POST   /knowledge/search      — semantic search in knowledge base
+ *   DELETE /knowledge/:id         — delete knowledge entry
  * ============================================================================
  */
 
@@ -29,6 +35,12 @@ import {
   type CeoAnalysis,
   type TemplateKind,
 } from '../services/ceoAgent';
+import {
+  generateEmbedding,
+  generateEmbeddingsBatch,
+  chunkText,
+  searchEmbedding,
+} from '../services/embeddingService';
 
 const router = Router();
 
@@ -739,6 +751,190 @@ router.post('/:id/template', async (req, res) => {
   } catch (err: any) {
     logger.error(`[CEO-MIND-OS] POST /:id/template error: ${err?.message || err}`);
     res.status(500).json({ error: 'template_failed', detail: String(err?.message || err) });
+  }
+});
+
+// ============================================================================
+// JARVIS BRAIN-LINK — KNOWLEDGE BASE
+// ============================================================================
+
+/**
+ * POST /knowledge/feed
+ * Upload knowledge: text → chunks → embeddings → DB
+ */
+router.post('/knowledge/feed', async (req, res) => {
+  try {
+    const { content, metadata = {} } = req.body;
+
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
+      return res.status(400).json({ error: 'content_required', detail: 'Content must be a non-empty string' });
+    }
+
+    // Split into chunks
+    const chunks = chunkText(content, 2000, 200);
+    
+    if (chunks.length === 0) {
+      return res.status(400).json({ error: 'no_chunks', detail: 'Content could not be chunked' });
+    }
+
+    logger.info(`[KNOWLEDGE] Processing ${chunks.length} chunks...`);
+
+    // Generate embeddings for all chunks
+    const embeddings = await generateEmbeddingsBatch(chunks, (current, total) => {
+      logger.info(`[KNOWLEDGE] Embedding progress: ${current}/${total}`);
+    });
+
+    // Insert into database
+    const insertedIds: number[] = [];
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      const embedding = embeddings[i];
+
+      const enrichedMetadata = {
+        ...metadata,
+        chunk_index: i,
+        total_chunks: chunks.length,
+        original_length: content.length,
+        chunk_length: chunk.length,
+      };
+
+      const result = await client`
+        INSERT INTO knowledge_base (content, embedding, metadata)
+        VALUES (
+          ${chunk},
+          ${JSON.stringify(embedding)}::vector,
+          ${JSON.stringify(enrichedMetadata)}::jsonb
+        )
+        RETURNING id
+      `;
+
+      if (result[0]?.id) {
+        insertedIds.push(result[0].id);
+      }
+    }
+
+    logger.info(`[KNOWLEDGE] Successfully stored ${insertedIds.length} knowledge chunks`);
+
+    res.json({
+      success: true,
+      chunks_processed: chunks.length,
+      ids: insertedIds,
+      message: `${chunks.length} Wissens-Chunks erfolgreich gespeichert`,
+    });
+  } catch (err: any) {
+    logger.error(`[KNOWLEDGE] POST /knowledge/feed error: ${err?.message || err}`);
+    res.status(500).json({ error: 'feed_failed', detail: String(err?.message || err) });
+  }
+});
+
+/**
+ * GET /knowledge
+ * List recent knowledge entries
+ */
+router.get('/knowledge', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    const rows = await client`
+      SELECT id, content, metadata, created_at
+      FROM knowledge_base
+      ORDER BY created_at DESC
+      LIMIT ${limit}
+      OFFSET ${offset}
+    `;
+
+    const countResult = await client`SELECT COUNT(*) as total FROM knowledge_base`;
+    const total = parseInt(countResult[0]?.total || '0');
+
+    res.json({
+      entries: rows.map((r: any) => ({
+        id: r.id,
+        content: r.content,
+        metadata: r.metadata || {},
+        created_at: r.created_at,
+      })),
+      total,
+      limit,
+      offset,
+    });
+  } catch (err: any) {
+    logger.error(`[KNOWLEDGE] GET /knowledge error: ${err?.message || err}`);
+    res.status(500).json({ error: 'list_failed', detail: String(err?.message || err) });
+  }
+});
+
+/**
+ * POST /knowledge/search
+ * Semantic search in knowledge base
+ */
+router.post('/knowledge/search', async (req, res) => {
+  try {
+    const { query, limit = 5 } = req.body;
+
+    if (!query || typeof query !== 'string' || query.trim().length === 0) {
+      return res.status(400).json({ error: 'query_required', detail: 'Query must be a non-empty string' });
+    }
+
+    // Generate embedding for search query
+    const queryEmbedding = await searchEmbedding(query);
+
+    // Perform vector similarity search
+    const results = await client`
+      SELECT
+        id,
+        content,
+        metadata,
+        created_at,
+        1 - (embedding <=> ${JSON.stringify(queryEmbedding)}::vector) as similarity
+      FROM knowledge_base
+      WHERE embedding IS NOT NULL
+      ORDER BY embedding <=> ${JSON.stringify(queryEmbedding)}::vector
+      LIMIT ${Math.min(parseInt(limit) || 5, 20)}
+    `;
+
+    res.json({
+      query,
+      results: results.map((r: any) => ({
+        id: r.id,
+        content: r.content,
+        metadata: r.metadata || {},
+        created_at: r.created_at,
+        similarity: parseFloat(r.similarity || 0),
+      })),
+    });
+  } catch (err: any) {
+    logger.error(`[KNOWLEDGE] POST /knowledge/search error: ${err?.message || err}`);
+    res.status(500).json({ error: 'search_failed', detail: String(err?.message || err) });
+  }
+});
+
+/**
+ * DELETE /knowledge/:id
+ * Delete knowledge entry
+ */
+router.delete('/knowledge/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'invalid_id' });
+    }
+
+    const result = await client`
+      DELETE FROM knowledge_base
+      WHERE id = ${id}
+      RETURNING id
+    `;
+
+    if (result.length === 0) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+
+    res.json({ success: true, id });
+  } catch (err: any) {
+    logger.error(`[KNOWLEDGE] DELETE /knowledge/:id error: ${err?.message || err}`);
+    res.status(500).json({ error: 'delete_failed', detail: String(err?.message || err) });
   }
 });
 

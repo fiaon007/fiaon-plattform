@@ -425,6 +425,66 @@ async function seedSubscriptionPlans() {
   }
 
   // ============================================================================
+  // JARVIS BRAIN-LINK — Knowledge Base with pgvector
+  // ============================================================================
+  try {
+    log('🧠 Running JARVIS Brain-Link migration...');
+    
+    // Enable pgvector extension
+    await client`CREATE EXTENSION IF NOT EXISTS vector`;
+    
+    // Create knowledge_base table
+    await client`
+      CREATE TABLE IF NOT EXISTS knowledge_base (
+        id SERIAL PRIMARY KEY,
+        content TEXT NOT NULL,
+        embedding vector(1536),
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+    
+    // Create indexes
+    await client`CREATE INDEX IF NOT EXISTS knowledge_base_created_at_idx ON knowledge_base(created_at DESC)`;
+    await client`CREATE INDEX IF NOT EXISTS knowledge_base_metadata_idx ON knowledge_base USING gin(metadata)`;
+    
+    // Create vector index (ivfflat for cosine similarity)
+    try {
+      await client`CREATE INDEX IF NOT EXISTS knowledge_base_embedding_idx ON knowledge_base USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)`;
+    } catch (vecError: any) {
+      // Vector index might fail if table is empty, that's ok
+      if (vecError.code !== '42P17') { // ignore "index already exists"
+        log('⚠️ Vector index creation skipped (will be created after first insert)');
+      }
+    }
+    
+    // Create trigger function for updated_at
+    await client`
+      CREATE OR REPLACE FUNCTION update_knowledge_base_updated_at()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        NEW.updated_at = NOW();
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `;
+    
+    // Create trigger
+    await client`DROP TRIGGER IF EXISTS knowledge_base_updated_at_trigger ON knowledge_base`;
+    await client`
+      CREATE TRIGGER knowledge_base_updated_at_trigger
+        BEFORE UPDATE ON knowledge_base
+        FOR EACH ROW
+        EXECUTE FUNCTION update_knowledge_base_updated_at()
+    `;
+    
+    log('✅ JARVIS Brain-Link migration completed');
+  } catch (error: any) {
+    log('⚠️ JARVIS Brain-Link migration error:', error?.message || String(error));
+  }
+
+  // ============================================================================
   // CEO MIND-OS "STARK EDITION" — Shadow Inbox (E-Mail Inbound Processing)
   // ============================================================================
   try {

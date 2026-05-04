@@ -388,15 +388,15 @@ export default function CeoMindOS() {
             </defs>
             <rect
               className="neural-pill-rect"
-              x="1"
-              y="1"
-              width="calc(100% - 2px)"
-              height="calc(100% - 2px)"
+              x="0.5"
+              y="0.5"
+              width="calc(100% - 1px)"
+              height="calc(100% - 1px)"
               rx="999"
               ry="999"
               fill="none"
               stroke="url(#ceoBeamGrad)"
-              strokeWidth="1.5"
+              strokeWidth="1"
               pathLength="100"
             />
           </svg>
@@ -820,18 +820,17 @@ const hudStyles = `
     background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.8);
     box-shadow:
       0 8px 32px 0 rgba(31, 38, 135, 0.08),
       inset 0 1px 0 rgba(255, 255, 255, 0.9);
-    overflow: visible; /* allow beam to sit exactly on border */
+    overflow: visible;
   }
 
   .neural-pill-beam {
     position: absolute;
-    inset: -1px; /* extend to sit exactly on the 1px border */
-    width: calc(100% + 2px);
-    height: calc(100% + 2px);
+    inset: 0;
+    width: 100%;
+    height: 100%;
     pointer-events: none;
     z-index: 1;
   }
@@ -871,11 +870,11 @@ const hudStyles = `
     outline: none;
     resize: none;
     font-family: inherit;
-    font-size: 16px;
-    line-height: 1.55;
+    font-size: 14px;
+    line-height: 1.5;
     color: #0f172a;
     padding: 11px 0;
-    min-height: 26px;
+    min-height: 24px;
     max-height: 180px;
   }
 

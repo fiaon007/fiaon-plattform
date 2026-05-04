@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import CeoMindOS from "@/components/admin/CeoMindOS";
+import LiveRadar from "@/components/admin/LiveRadar";
 
 interface AI_Task {
   id: string;
@@ -458,6 +459,9 @@ export default function AdminDatabasePage() {
 
             {/* CEO Mind-OS — Strategisches Notizbuch (Groq + Tavily) */}
             <CeoMindOS />
+
+            {/* Live Radar — System-Auslastung & Daten-Eingänge (STARK EDITION) */}
+            <LiveRadar />
 
             {/* TODO List Section - Bento-Luxury Design */}
             <div className="mb-8">

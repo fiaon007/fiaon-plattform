@@ -651,3 +651,205 @@ function fallbackAnalysis(
     },
   };
 }
+
+// ============================================================================
+// SHADOW INBOX — E-Mail Intelligence (STARK EDITION)
+// ============================================================================
+
+export interface EmailAnalysis {
+  actionType: 'invoice' | 'lead' | 'info' | 'todo_created' | 'strategy_created' | 'archived';
+  priorityLevel: 'low' | 'normal' | 'high' | 'critical';
+  summary: string;
+  suggestedResponse?: string;
+  shouldCreateTodo: boolean;
+  shouldCreateStrategy: boolean;
+  todoTitle?: string;
+  strategyThought?: string;
+  confidence: number;
+}
+
+/**
+ * Analysiert eine eingehende E-Mail und entscheidet, welche Action die KI nehmen soll.
+ * Nutzt Context-Awareness: Hat Zugriff auf die letzten Inbound-Mails.
+ */
+export async function analyzeEmail(
+  sender: string,
+  subject: string,
+  body: string,
+  recentEmails: Array<{ sender: string; subject: string; content_summary?: string }> = []
+): Promise<EmailAnalysis> {
+  const start = Date.now();
+
+  if (!groq) {
+    return fallbackEmailAnalysis(sender, subject, body);
+  }
+
+  try {
+    // Context-Awareness: Letzte 10 E-Mails als Kontext
+    const contextBlock = recentEmails.length > 0
+      ? `\n\nRECENT EMAIL CONTEXT (for pattern detection):\n${recentEmails.map((e, i) => 
+          `${i + 1}. From: ${e.sender} | Subject: ${e.subject}${e.content_summary ? ` | Summary: ${e.content_summary}` : ''}`
+        ).join('\n')}`
+      : '';
+
+    const prompt = `Du bist JARVIS für den CEO Justin. Analysiere diese eingehende E-Mail und entscheide die optimale Action.
+
+FROM: ${sender}
+SUBJECT: ${subject}
+BODY: ${body.slice(0, 2000)}${contextBlock}
+
+CLASSIFICATION RULES:
+- INVOICE: Enthält Rechnung, Zahlungsaufforderung, Abo-Kosten, Subscription
+- LEAD: Neue Business-Anfrage, Kooperationsvorschlag, Sales-Opportunity
+- INFO: Newsletter, Update, FYI ohne Action
+- TODO_CREATED: Dringender Task (z.B. "bitte Feedback bis Freitag", "Dokument unterschreiben")
+- STRATEGY_CREATED: Strategische Entscheidung nötig (z.B. "Sollen wir diese Plattform nutzen?", "Was hältst du von diesem Ansatz?")
+
+PRIORITY RULES:
+- CRITICAL: Zahlungsfrist läuft ab, dringender Kunde-Request, rechtliche Deadline
+- HIGH: Lead mit Budget, strategische Chance, wichtiger Partner
+- NORMAL: Standard-Info, Newsletter, Routine-Updates
+- LOW: Spam-verdächtig, irrelevant
+
+Antworte NUR mit einem JSON-Objekt:
+{
+  "actionType": "invoice" | "lead" | "info" | "todo_created" | "strategy_created" | "archived",
+  "priorityLevel": "low" | "normal" | "high" | "critical",
+  "summary": "1-Satz-Zusammenfassung",
+  "suggestedResponse": "Optionaler Response-Entwurf (falls Lead/Todo)",
+  "shouldCreateTodo": true/false,
+  "shouldCreateStrategy": true/false,
+  "todoTitle": "Optional: Todo-Titel",
+  "strategyThought": "Optional: Strategie-Gedanke",
+  "confidence": 0.0-1.0
+}`;
+
+    const completion = await groq.chat.completions.create({
+      messages: [{ role: 'user', content: prompt }],
+      model: GROQ_MODEL,
+      temperature: 0.3,
+      max_tokens: 800,
+    });
+
+    const rawResponse = completion.choices[0]?.message?.content || '{}';
+    const parsed = parseJSONResponse<EmailAnalysis>(rawResponse);
+
+    logger.info(`[CEO-AGENT] Email analyzed: ${parsed.actionType} (${parsed.priorityLevel}) in ${Date.now() - start}ms`);
+    return parsed;
+  } catch (error: any) {
+    logger.error('[CEO-AGENT] Email analysis error:', error?.message || error);
+    return fallbackEmailAnalysis(sender, subject, body);
+  }
+}
+
+function fallbackEmailAnalysis(sender: string, subject: string, body: string): EmailAnalysis {
+  const lc = `${subject} ${body}`.toLowerCase();
+  
+  let actionType: EmailAnalysis['actionType'] = 'info';
+  let priorityLevel: EmailAnalysis['priorityLevel'] = 'normal';
+  let shouldCreateTodo = false;
+  let shouldCreateStrategy = false;
+
+  // Rechnung?
+  if (/rechnung|invoice|zahlung|payment|abo|subscription|fällig|due/.test(lc)) {
+    actionType = 'invoice';
+    priorityLevel = 'high';
+    shouldCreateTodo = true;
+  }
+  // Lead?
+  else if (/anfrage|kooperation|partnership|zusammenarbeit|interesse|gespräch|call/.test(lc)) {
+    actionType = 'lead';
+    priorityLevel = 'high';
+    shouldCreateStrategy = true;
+  }
+  // Todo?
+  else if (/bitte|deadline|bis|frist|unterschreiben|freigabe|approval/.test(lc)) {
+    actionType = 'todo_created';
+    shouldCreateTodo = true;
+  }
+  // Strategie?
+  else if (/meinung|feedback|empfehlung|was hältst du|sollen wir/.test(lc)) {
+    actionType = 'strategy_created';
+    shouldCreateStrategy = true;
+  }
+
+  return {
+    actionType,
+    priorityLevel,
+    summary: `${sender}: ${subject.slice(0, 60)}`,
+    shouldCreateTodo,
+    shouldCreateStrategy,
+    todoTitle: shouldCreateTodo ? subject : undefined,
+    strategyThought: shouldCreateStrategy ? `Email-Anfrage von ${sender}: ${subject}` : undefined,
+    confidence: 0.4,
+  };
+}
+
+/**
+ * Generiert ein Morning Briefing basierend auf neuen E-Mails und offenen Strategien.
+ */
+export async function generateMorningBriefing(
+  newEmailsCount: number,
+  criticalEmailsCount: number,
+  openStrategiesCount: number,
+  recentEmails: Array<{ sender: string; subject: string; priority_level: string }> = []
+): Promise<string> {
+  if (!groq) {
+    return fallbackMorningBriefing(newEmailsCount, criticalEmailsCount, openStrategiesCount);
+  }
+
+  try {
+    const emailSummary = recentEmails.slice(0, 5).map((e, i) => 
+      `${i + 1}. [${e.priority_level.toUpperCase()}] ${e.sender}: ${e.subject}`
+    ).join('\n');
+
+    const prompt = `Du bist JARVIS. Erstelle ein kurzes, prägnantes Morning Briefing für CEO Justin.
+
+DATEN:
+- ${newEmailsCount} neue E-Mails (${criticalEmailsCount} kritisch)
+- ${openStrategiesCount} offene Strategie-Tasks
+
+TOP EMAILS:
+${emailSummary || 'Keine neuen E-Mails'}
+
+STYLE: Direkt, knapp, handlungsorientiert. Max 3 Sätze. Nutze Emojis sparsam (max 2).
+
+Beispiel: "Guten Morgen Justin. 3 kritische Mails erhalten — 1 Rechnung fällig (PayPal), 2 neue Leads. 1 Strategie-Task offen. Soll ich die Entwürfe zeigen?"
+
+Antworte NUR mit dem Briefing-Text (kein JSON):`;
+
+    const completion = await groq.chat.completions.create({
+      messages: [{ role: 'user', content: prompt }],
+      model: GROQ_MODEL,
+      temperature: 0.7,
+      max_tokens: 200,
+    });
+
+    return completion.choices[0]?.message?.content?.trim() || fallbackMorningBriefing(newEmailsCount, criticalEmailsCount, openStrategiesCount);
+  } catch (error: any) {
+    logger.error('[CEO-AGENT] Morning briefing error:', error?.message || error);
+    return fallbackMorningBriefing(newEmailsCount, criticalEmailsCount, openStrategiesCount);
+  }
+}
+
+function fallbackMorningBriefing(newEmailsCount: number, criticalEmailsCount: number, openStrategiesCount: number): string {
+  if (newEmailsCount === 0 && openStrategiesCount === 0) {
+    return '☀️ Guten Morgen Justin. Inbox sauber, keine offenen Tasks. Du kannst proaktiv arbeiten.';
+  }
+  
+  const parts: string[] = ['Guten Morgen Justin.'];
+  
+  if (criticalEmailsCount > 0) {
+    parts.push(`${criticalEmailsCount} kritische Mail${criticalEmailsCount > 1 ? 's' : ''} erhalten.`);
+  } else if (newEmailsCount > 0) {
+    parts.push(`${newEmailsCount} neue Mail${newEmailsCount > 1 ? 's' : ''}.`);
+  }
+  
+  if (openStrategiesCount > 0) {
+    parts.push(`${openStrategiesCount} Strategie-Task${openStrategiesCount > 1 ? 's' : ''} offen.`);
+  }
+  
+  parts.push('Soll ich die Details zeigen?');
+  
+  return parts.join(' ');
+}

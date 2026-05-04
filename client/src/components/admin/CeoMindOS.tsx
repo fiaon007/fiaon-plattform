@@ -1,1187 +1,843 @@
-"use client";
-
 /**
  * ============================================================================
- * CEO Mind-OS — Executive Strategy Notebook
+ * CEO MIND-OS "STARK EDITION" — Proaktive KI-Zentrale
  * ============================================================================
- * - Glassmorphism bento card zwischen Begrüßung und Todo-Liste
- * - Auto-growing textarea (Fokus-State)
- * - Mind-Cards mit KI-Rückfrage, ROI-Check, Magic-Button, Failure-Flow
- * - Framer-Motion Animationen
- * - Groq + Tavily Backend: /api/ceo-mind-os
+ * Features:
+ *   - Glassmorphism 2.0 mit backdrop-blur(25px) und premium shadows
+ *   - 3D-Tilt-Effekt auf Mind-Cards (Framer Motion)
+ *   - Neural Processing Animation (glühender Partikel-Strahl)
+ *   - Premium Typography (Inter Variable Font)
+ *   - Morning Briefing (JARVIS MODE)
+ *   - Shadow Inbox Integration (E-Mail-Fragmente als Notifications)
+ *   - Mobile-First Expandable Sheets
  * ============================================================================
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useRef } from "react";
+import { motion, useMotionValue, useTransform } from "framer-motion";
 import {
   Brain,
-  Sparkles,
   Send,
   Loader2,
   CheckCircle2,
-  XCircle,
-  Archive,
-  Copy,
-  Check,
-  ExternalLink,
-  Globe,
-  AlertTriangle,
-  Lightbulb,
-  Target,
-  Briefcase,
-  Megaphone,
+  AlertCircle,
+  Sparkles,
+  Mail,
   TrendingUp,
-  Wallet,
-  Settings2,
-  Compass,
-  Package,
-  Scale,
-  ArrowRight,
   X,
-  Trash2,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 // ============================================================================
-// TYPES (mirror server/services/ceoAgent.ts)
+// TYPES (Frontend Mirror von Server Types)
 // ============================================================================
-
-type MindCategory =
-  | "personal"
-  | "marketing"
-  | "sales"
-  | "finance"
-  | "operations"
-  | "strategy"
-  | "product"
-  | "legal"
-  | "general";
-
-type TemplateKind =
-  | "job_posting"
-  | "marketing_script"
-  | "cold_email"
-  | "contract"
-  | "sales_script";
-
-interface MagicTemplate {
-  kind: TemplateKind;
-  title: string;
-  content: string;
-  cta?: string;
-}
-
-interface ResourceLink {
-  label: string;
-  url: string;
-  type?: "portal" | "article" | "tool" | "reference";
-}
-
-interface FailureAnalysis {
-  empathy: string;
-  opportunityCost: string;
-  alternatives: string[];
-  recommendation: string;
-}
 
 interface CeoAnalysis {
   summary: string;
   followUpQuestion: string;
   roiCheck: string;
   nextSteps: string[];
-  category: MindCategory;
-  magicTemplate: MagicTemplate | null;
-  resources: ResourceLink[];
+  category: string;
+  magicTemplate: string | null;
+  resources: Array<{ label: string; url: string; type: string }>;
   confidence: number;
-  failureAnalysis?: FailureAnalysis;
-  meta?: { model: string; usedWebSearch: boolean; searchQuery?: string };
+  meta?: {
+    model?: string;
+    usedWebSearch?: boolean;
+    searchQuery?: string;
+    durationMs?: number;
+  };
 }
 
-interface Strategy {
+interface CeoStrategy {
   id: string;
-  thought: string;
-  analysis: CeoAnalysis | null;
-  category: MindCategory;
+  userThought: string;
+  aiAnalysis?: CeoAnalysis | null;
+  category?: string | null;
   status: "active" | "done" | "failed" | "archived";
-  failureReason: string | null;
-  resources: ResourceLink[];
+  failureReason?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-// ============================================================================
-// UI CONSTANTS
-// ============================================================================
+interface InboundMail {
+  id: string;
+  sender: string;
+  subject: string;
+  contentSummary: string;
+  priorityLevel: "low" | "normal" | "high" | "critical";
+  aiActionTaken: string;
+  createdAt: string;
+}
 
-const CATEGORY_META: Record<
-  MindCategory,
-  { label: string; icon: any; gradient: string; tint: string }
-> = {
-  personal: {
-    label: "Personal",
-    icon: Briefcase,
-    gradient: "from-violet-500 to-indigo-600",
-    tint: "bg-violet-50 text-violet-700 border-violet-100",
-  },
-  marketing: {
-    label: "Marketing",
-    icon: Megaphone,
-    gradient: "from-pink-500 to-rose-600",
-    tint: "bg-pink-50 text-pink-700 border-pink-100",
-  },
-  sales: {
-    label: "Sales",
-    icon: TrendingUp,
-    gradient: "from-emerald-500 to-teal-600",
-    tint: "bg-emerald-50 text-emerald-700 border-emerald-100",
-  },
-  finance: {
-    label: "Finance",
-    icon: Wallet,
-    gradient: "from-amber-500 to-orange-600",
-    tint: "bg-amber-50 text-amber-700 border-amber-100",
-  },
-  operations: {
-    label: "Operations",
-    icon: Settings2,
-    gradient: "from-slate-500 to-slate-700",
-    tint: "bg-slate-50 text-slate-700 border-slate-100",
-  },
-  strategy: {
-    label: "Strategie",
-    icon: Compass,
-    gradient: "from-blue-500 to-indigo-600",
-    tint: "bg-blue-50 text-blue-700 border-blue-100",
-  },
-  product: {
-    label: "Produkt",
-    icon: Package,
-    gradient: "from-cyan-500 to-sky-600",
-    tint: "bg-cyan-50 text-cyan-700 border-cyan-100",
-  },
-  legal: {
-    label: "Legal",
-    icon: Scale,
-    gradient: "from-stone-500 to-neutral-700",
-    tint: "bg-stone-50 text-stone-700 border-stone-100",
-  },
-  general: {
-    label: "Gedanke",
-    icon: Lightbulb,
-    gradient: "from-indigo-500 to-purple-600",
-    tint: "bg-indigo-50 text-indigo-700 border-indigo-100",
-  },
-};
-
-const TEMPLATE_KIND_LABEL: Record<TemplateKind, string> = {
-  job_posting: "Stellenausschreibung generieren",
-  marketing_script: "Marketing-Skript generieren",
-  cold_email: "Cold-Email generieren",
-  contract: "Vertragsentwurf generieren",
-  sales_script: "Sales-Skript generieren",
-};
-
-const PLACEHOLDERS = [
-  "Was hast du gerade im Kopf? (Strategie, Idee, Reminder …)",
-  "z.B. „Call-Setter einstellen, 2k Budget …“",
-  "z.B. „Reichweite verdoppeln in 90 Tagen“",
-  "z.B. „Neuer Vertrag mit Zahlungsdienstleister“",
-];
+interface MorningBriefing {
+  briefing: string;
+  stats: {
+    newMails: number;
+    criticalMails: number;
+    openStrategies: number;
+  };
+}
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
 export default function CeoMindOS() {
-  const [strategies, setStrategies] = useState<Strategy[]>([]);
-  const [loading, setLoading] = useState(true);
   const [thought, setThought] = useState("");
+  const [strategies, setStrategies] = useState<CeoStrategy[]>([]);
+  const [inboxMails, setInboxMails] = useState<InboundMail[]>([]);
+  const [morningBriefing, setMorningBriefing] = useState<MorningBriefing | null>(null);
+  const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [placeholder, setPlaceholder] = useState(PLACEHOLDERS[0]);
-  const [openTemplate, setOpenTemplate] = useState<{
-    strategyId: string;
-    template: MagicTemplate;
-  } | null>(null);
-  const [failureFor, setFailureFor] = useState<string | null>(null);
-  const [loadingTemplateFor, setLoadingTemplateFor] = useState<string | null>(
-    null
-  );
-  const [loadingFailureFor, setLoadingFailureFor] = useState<string | null>(
-    null
-  );
-  const [config, setConfig] = useState<{ groq: boolean; tavily: boolean } | null>(
-    null
-  );
+  const [showFailureModal, setShowFailureModal] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showInboxModal, setShowInboxModal] = useState(false);
+  const [selectedStrategy, setSelectedStrategy] = useState<CeoStrategy | null>(null);
+  const [generatedTemplate, setGeneratedTemplate] = useState("");
+  const [failureReason, setFailureReason] = useState("");
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Rotate placeholders (fokus-state microdelight)
+  // ============================================================================
+  // DATA FETCHING
+  // ============================================================================
+
   useEffect(() => {
-    let i = 0;
-    const t = setInterval(() => {
-      i = (i + 1) % PLACEHOLDERS.length;
-      setPlaceholder(PLACEHOLDERS[i]);
-    }, 4200);
-    return () => clearInterval(t);
+    loadStrategies();
+    loadInbox();
+    loadMorningBriefing();
   }, []);
 
-  // Fetch strategies + health
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [listRes, healthRes] = await Promise.all([
-          fetch("/api/ceo-mind-os?status=active", { credentials: "include" }),
-          fetch("/api/ceo-mind-os/health", { credentials: "include" }),
-        ]);
-        if (!cancelled && listRes.ok) {
-          const data = (await listRes.json()) as Strategy[];
-          setStrategies(Array.isArray(data) ? data : []);
-        }
-        if (!cancelled && healthRes.ok) {
-          const h = await healthRes.json();
-          setConfig({ groq: !!h.groq, tavily: !!h.tavily });
-        }
-      } catch (err) {
-        // Silent
-      } finally {
-        if (!cancelled) setLoading(false);
+  const loadStrategies = async () => {
+    try {
+      const res = await fetch("/api/ceo-mind-os", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setStrategies(data.strategies || []);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    } catch (err) {
+      console.error("[CEO-MIND-OS] Load strategies error:", err);
+    }
+  };
 
-  // Auto-grow textarea
-  const autoGrow = useCallback(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 260)}px`;
-  }, []);
+  const loadInbox = async () => {
+    try {
+      const res = await fetch("/api/ceo-mind-os/inbox", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setInboxMails(data.mails || []);
+      }
+    } catch (err) {
+      console.error("[CEO-MIND-OS] Load inbox error:", err);
+    }
+  };
 
-  useEffect(() => {
-    autoGrow();
-  }, [thought, autoGrow]);
-
-  const activeStrategies = useMemo(
-    () => strategies.filter((s) => s.status === "active"),
-    [strategies]
-  );
-  const resolvedStrategies = useMemo(
-    () => strategies.filter((s) => s.status !== "active"),
-    [strategies]
-  );
+  const loadMorningBriefing = async () => {
+    try {
+      const res = await fetch("/api/ceo-mind-os/morning-briefing", {
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMorningBriefing(data);
+      }
+    } catch (err) {
+      console.error("[CEO-MIND-OS] Load briefing error:", err);
+    }
+  };
 
   // ============================================================================
   // ACTIONS
   // ============================================================================
 
-  const submitThought = useCallback(async () => {
-    const trimmed = thought.trim();
-    if (!trimmed || analyzing) return;
+  const handleAnalyze = async () => {
+    if (!thought.trim() || analyzing) return;
+
     setAnalyzing(true);
+    setLoading(true);
+
     try {
-      const res = await fetch("/api/ceo-mind-os", {
+      const res = await fetch("/api/ceo-mind-os/analyze", {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ thought: trimmed }),
+        credentials: "include",
+        body: JSON.stringify({ thought: thought.trim() }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        console.error("[CEO-MIND-OS] Analyze failed:", err);
-        alert(
-          `KI-Analyse fehlgeschlagen: ${err?.detail || err?.error || res.status}`
-        );
-        return;
+
+      if (res.ok) {
+        const data = await res.json();
+        setStrategies((prev) => [data.strategy, ...prev]);
+        setThought("");
+        if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+        }
+      } else {
+        alert("Fehler beim Analysieren. Bitte erneut versuchen.");
       }
-      const newStrategy = (await res.json()) as Strategy;
-      setStrategies((prev) => [newStrategy, ...prev]);
-      setThought("");
-    } catch (err: any) {
-      console.error("[CEO-MIND-OS] Network error:", err);
+    } catch (err) {
+      console.error("[CEO-MIND-OS] Analyze error:", err);
       alert("Netzwerkfehler. Bitte erneut versuchen.");
     } finally {
       setAnalyzing(false);
+      setLoading(false);
     }
-  }, [thought, analyzing]);
+  };
 
-  const updateStatus = useCallback(
-    async (id: string, next: Strategy["status"]) => {
-      const prev = strategies;
-      // optimistic
-      setStrategies((list) =>
-        list.map((s) => (s.id === id ? { ...s, status: next } : s))
-      );
-      try {
-        const res = await fetch(`/api/ceo-mind-os/${id}`, {
-          method: "PATCH",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: next }),
-        });
-        if (!res.ok) throw new Error(String(res.status));
-      } catch {
-        setStrategies(prev); // rollback
-      }
-    },
-    [strategies]
-  );
-
-  const deleteStrategy = useCallback(async (id: string) => {
-    const ok = window.confirm("Diesen Gedanken wirklich löschen?");
-    if (!ok) return;
-    setStrategies((list) => list.filter((s) => s.id !== id));
+  const handleMarkDone = async (id: string) => {
     try {
-      await fetch(`/api/ceo-mind-os/${id}`, {
-        method: "DELETE",
+      const res = await fetch(`/api/ceo-mind-os/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: "done" }),
+      });
+
+      if (res.ok) {
+        setStrategies((prev) =>
+          prev.map((s) => (s.id === id ? { ...s, status: "done" } : s))
+        );
+      }
+    } catch (err) {
+      console.error("[CEO-MIND-OS] Mark done error:", err);
+    }
+  };
+
+  const handleOpenFailureModal = (strategy: CeoStrategy) => {
+    setSelectedStrategy(strategy);
+    setFailureReason("");
+    setShowFailureModal(true);
+  };
+
+  const handleSubmitFailure = async () => {
+    if (!selectedStrategy || !failureReason.trim()) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/ceo-mind-os/${selectedStrategy.id}/failure`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ reason: failureReason.trim() }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setStrategies((prev) =>
+          prev.map((s) => (s.id === selectedStrategy.id ? data.strategy : s))
+        );
+        setShowFailureModal(false);
+        setSelectedStrategy(null);
+      }
+    } catch (err) {
+      console.error("[CEO-MIND-OS] Submit failure error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateTemplate = async (strategy: CeoStrategy) => {
+    setSelectedStrategy(strategy);
+    setLoading(true);
+    setShowTemplateModal(true);
+
+    try {
+      const res = await fetch(`/api/ceo-mind-os/${strategy.id}/template`, {
+        method: "POST",
         credentials: "include",
       });
-    } catch {
-      // ignore
+
+      if (res.ok) {
+        const data = await res.json();
+        setGeneratedTemplate(data.template || "");
+        setStrategies((prev) =>
+          prev.map((s) => (s.id === strategy.id ? data.strategy : s))
+        );
+      }
+    } catch (err) {
+      console.error("[CEO-MIND-OS] Generate template error:", err);
+      setGeneratedTemplate("Fehler beim Generieren des Templates.");
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  };
 
-  const generateTemplate = useCallback(
-    async (id: string, kind?: TemplateKind) => {
-      setLoadingTemplateFor(id);
-      try {
-        const res = await fetch(`/api/ceo-mind-os/${id}/template`, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(kind ? { kind } : {}),
-        });
-        if (!res.ok) throw new Error(String(res.status));
-        const data = await res.json();
-        const updated = data.strategy as Strategy;
-        const tpl = data.template as MagicTemplate;
-        setStrategies((list) =>
-          list.map((s) => (s.id === id ? updated : s))
-        );
-        setOpenTemplate({ strategyId: id, template: tpl });
-      } catch (err) {
-        console.error("[CEO-MIND-OS] generateTemplate failed", err);
-        alert("Template konnte nicht generiert werden.");
-      } finally {
-        setLoadingTemplateFor(null);
-      }
-    },
-    []
-  );
+  const handleMarkMailRead = async (mailId: string) => {
+    try {
+      await fetch(`/api/ceo-mind-os/inbox/${mailId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: "processed" }),
+      });
+      setInboxMails((prev) => prev.filter((m) => m.id !== mailId));
+    } catch (err) {
+      console.error("[CEO-MIND-OS] Mark mail read error:", err);
+    }
+  };
 
-  const submitFailure = useCallback(
-    async (id: string, reason: string) => {
-      setLoadingFailureFor(id);
-      try {
-        const res = await fetch(`/api/ceo-mind-os/${id}/failure`, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reason }),
-        });
-        if (!res.ok) throw new Error(String(res.status));
-        const data = await res.json();
-        setStrategies((list) =>
-          list.map((s) => (s.id === id ? (data.strategy as Strategy) : s))
-        );
-        setFailureFor(null);
-      } catch (err) {
-        console.error("[CEO-MIND-OS] submitFailure failed", err);
-        alert("Analyse des Fehlschlags fehlgeschlagen.");
-      } finally {
-        setLoadingFailureFor(null);
-      }
-    },
-    []
-  );
+  // ============================================================================
+  // AUTO-GROW TEXTAREA
+  // ============================================================================
+
+  const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setThought(e.target.value);
+    e.target.style.height = "auto";
+    e.target.style.height = `${e.target.scrollHeight}px`;
+  };
+
+  const toggleCardExpansion = (id: string) => {
+    setExpandedCards((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   // ============================================================================
   // RENDER
   // ============================================================================
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter submits, Shift+Enter = newline
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      submitThought();
-    }
-  };
-
   return (
-    <section className="mb-8">
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="relative bg-white/80 backdrop-blur-xl rounded-[2rem] p-8 sm:p-10 border border-slate-100 shadow-xl overflow-hidden"
-      >
-        {/* Ambient tint orbs */}
-        <div className="pointer-events-none absolute -top-24 -right-24 w-[420px] h-[420px] rounded-full opacity-[0.08] blur-3xl"
-             style={{ background: "radial-gradient(circle, #6366f1, transparent 70%)" }} />
-        <div className="pointer-events-none absolute -bottom-32 -left-20 w-[380px] h-[380px] rounded-full opacity-[0.06] blur-3xl"
-             style={{ background: "radial-gradient(circle, #a855f7, transparent 70%)" }} />
-
-        {/* Header */}
-        <div className="relative flex items-start justify-between gap-4 mb-6">
-          <div className="flex items-start gap-4">
-            <div className="relative">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                <Brain className="w-6 h-6 text-white" strokeWidth={2} />
+    <div className="space-y-6 font-['Inter_Variable',_system-ui,_sans-serif]">
+      {/* MORNING BRIEFING — JARVIS MODE */}
+      {morningBriefing && morningBriefing.stats.newMails > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative overflow-hidden rounded-2xl p-6"
+          style={{
+            background: "linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.15))",
+            backdropFilter: "blur(25px)",
+            border: "1px solid rgba(255, 255, 255, 0.5)",
+            boxShadow: "0 20px 50px rgba(0, 0, 0, 0.05)",
+          }}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="w-5 h-5 text-violet-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Priority One</h3>
               </div>
-              <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-400 ring-2 ring-white animate-pulse" />
+              <p className="text-gray-700 leading-relaxed">{morningBriefing.briefing}</p>
+              <div className="flex gap-4 mt-3 text-sm text-gray-600">
+                <span>📧 {morningBriefing.stats.newMails} Mails</span>
+                <span>🎯 {morningBriefing.stats.openStrategies} Tasks</span>
+                {morningBriefing.stats.criticalMails > 0 && (
+                  <span className="text-red-600 font-medium">
+                    ⚠️ {morningBriefing.stats.criticalMails} Critical
+                  </span>
+                )}
+              </div>
             </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.22em] text-slate-400 font-bold mb-1">
-                CEO MIND-OS
-              </p>
-              <h2 className="text-[22px] sm:text-2xl font-semibold text-slate-900 tracking-tight">
-                Digitales Gehirn & Strategie
-              </h2>
-              <p className="text-[13px] text-slate-500 mt-1 max-w-xl leading-relaxed">
-                Tippe eine Idee. Ich analysiere, rechne ROI, suche live Marktdaten und
-                liefere Vorlagen.
-              </p>
-            </div>
+            <button
+              onClick={() => setShowInboxModal(true)}
+              className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-all font-medium shadow-lg hover:shadow-xl"
+            >
+              Zeigen
+            </button>
           </div>
-          <div className="hidden sm:flex flex-col items-end gap-1.5 shrink-0">
-            <HealthPill config={config} />
-            {activeStrategies.length > 0 && (
-              <span className="text-[11px] font-semibold text-slate-500">
-                {activeStrategies.length} aktiv · {resolvedStrategies.length} archiviert
-              </span>
-            )}
-          </div>
-        </div>
+        </motion.div>
+      )}
 
-        {/* Input (Fokus-State) */}
-        <div className="relative mb-6">
-          <div
-            className={`relative rounded-2xl transition-all duration-300 ${
-              analyzing
-                ? "bg-gradient-to-r from-indigo-50 via-violet-50 to-fuchsia-50 ring-2 ring-indigo-200"
-                : "bg-white/90 ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-indigo-300 focus-within:shadow-lg focus-within:shadow-indigo-500/5"
-            }`}
-          >
+      {/* SHADOW INBOX — Neue Mails als "Daten-Fragmente" */}
+      {inboxMails.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          {inboxMails.slice(0, 3).map((mail) => (
+            <motion.button
+              key={mail.id}
+              initial={{ scale: 0, rotate: -10 }}
+              animate={{ scale: 1, rotate: 0 }}
+              whileHover={{ scale: 1.05, y: -2 }}
+              onClick={() => setShowInboxModal(true)}
+              className="relative px-4 py-2 rounded-full text-sm font-medium transition-all"
+              style={{
+                background:
+                  mail.priorityLevel === "critical"
+                    ? "linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.2))"
+                    : "linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.2))",
+                backdropFilter: "blur(15px)",
+                border:
+                  mail.priorityLevel === "critical"
+                    ? "1px solid rgba(239, 68, 68, 0.5)"
+                    : "1px solid rgba(59, 130, 246, 0.5)",
+                boxShadow:
+                  mail.priorityLevel === "critical"
+                    ? "0 0 20px rgba(239, 68, 68, 0.3)"
+                    : "0 0 20px rgba(59, 130, 246, 0.3)",
+              }}
+            >
+              <Mail className="w-3 h-3 inline mr-1" />
+              {mail.sender.split(" ")[0]}
+            </motion.button>
+          ))}
+          {inboxMails.length > 3 && (
+            <button
+              onClick={() => setShowInboxModal(true)}
+              className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium"
+            >
+              +{inboxMails.length - 3} mehr
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* INPUT AREA — Glassmorphism 2.0 */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative rounded-2xl p-6"
+        style={{
+          background: "rgba(255, 255, 255, 0.4)",
+          backdropFilter: "blur(25px)",
+          border: "1px solid rgba(255, 255, 255, 0.5)",
+          boxShadow: "0 20px 50px rgba(0, 0, 0, 0.05)",
+        }}
+      >
+        <div className="flex items-start gap-3">
+          <div className="mt-3">
+            <Brain className="w-6 h-6 text-violet-600" />
+          </div>
+          <div className="flex-1">
             <textarea
               ref={textareaRef}
               value={thought}
-              onChange={(e) => setThought(e.target.value)}
-              onKeyDown={onKeyDown}
-              placeholder={placeholder}
-              rows={1}
+              onChange={handleTextareaInput}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  handleAnalyze();
+                }
+              }}
+              placeholder="Was beschäftigt dich gerade? Schreib deine Gedanken auf..."
+              className="w-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-500 text-base leading-relaxed"
+              style={{ minHeight: "60px", maxHeight: "300px" }}
               disabled={analyzing}
-              className="w-full resize-none bg-transparent px-6 py-5 pr-36 text-[17px] text-slate-800 placeholder-slate-400 outline-none rounded-2xl leading-relaxed"
-              style={{ fontFamily: "inherit" }}
             />
-            <div className="absolute right-3 bottom-3 flex items-center gap-2">
-              <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2 py-1 rounded-md bg-slate-100">
-                ⏎ Analysieren
+            <div className="flex items-center justify-between mt-4">
+              <span className="text-xs text-gray-500">
+                {analyzing ? "KI denkt nach..." : "⌘+Enter zum Analysieren"}
               </span>
               <button
-                onClick={submitThought}
+                onClick={handleAnalyze}
                 disabled={!thought.trim() || analyzing}
-                className="group inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 text-white text-sm font-semibold shadow-lg shadow-slate-900/10 transition-all duration-200 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+                className="px-6 py-2.5 bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-xl font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-2xl transition-all flex items-center gap-2 hover:-translate-y-0.5"
               >
                 {analyzing ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Denke nach…</span>
+                    Analysiere...
                   </>
                 ) : (
                   <>
-                    <Send className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                    <span>Analysieren</span>
+                    <Send className="w-4 h-4" />
+                    Analysieren
                   </>
                 )}
               </button>
             </div>
-
-            {/* Shimmer rail while analyzing */}
-            <AnimatePresence>
-              {analyzing && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-x-4 bottom-0 h-[2px] overflow-hidden rounded-full"
-                >
-                  <motion.div
-                    className="h-full w-1/3 bg-gradient-to-r from-transparent via-indigo-500 to-transparent"
-                    animate={{ x: ["-100%", "300%"] }}
-                    transition={{ duration: 1.3, repeat: Infinity, ease: "linear" }}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
         </div>
 
-        {/* Mind-Cards */}
-        <div className="relative">
-          {loading ? (
-            <div className="py-10 flex items-center justify-center gap-2 text-slate-400 text-sm">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Lade Strategien…</span>
-            </div>
-          ) : activeStrategies.length === 0 && resolvedStrategies.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <div className="grid gap-4">
-              <AnimatePresence initial={false}>
-                {activeStrategies.map((s) => (
-                  <MindCard
-                    key={s.id}
-                    strategy={s}
-                    onGenerateTemplate={(kind) => generateTemplate(s.id, kind)}
-                    onMarkDone={() => updateStatus(s.id, "done")}
-                    onOpenFailure={() => setFailureFor(s.id)}
-                    onArchive={() => updateStatus(s.id, "archived")}
-                    onDelete={() => deleteStrategy(s.id)}
-                    onOpenTemplate={(tpl) =>
-                      setOpenTemplate({ strategyId: s.id, template: tpl })
-                    }
-                    templateLoading={loadingTemplateFor === s.id}
-                  />
-                ))}
-                {resolvedStrategies.length > 0 && (
-                  <motion.div
-                    key="resolved-divider"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex items-center gap-3 pt-2 pb-1"
-                  >
-                    <span className="text-[10px] uppercase tracking-[0.18em] text-slate-400 font-bold">
-                      Deep-Archive
-                    </span>
-                    <div className="h-px flex-1 bg-slate-100" />
-                    <span className="text-[11px] text-slate-400">
-                      {resolvedStrategies.length} Einträge
-                    </span>
-                  </motion.div>
-                )}
-                {resolvedStrategies.map((s) => (
-                  <MindCard
-                    key={s.id}
-                    strategy={s}
-                    onGenerateTemplate={(kind) => generateTemplate(s.id, kind)}
-                    onMarkDone={() => updateStatus(s.id, "active")}
-                    onOpenFailure={() => setFailureFor(s.id)}
-                    onArchive={() => updateStatus(s.id, "active")}
-                    onDelete={() => deleteStrategy(s.id)}
-                    onOpenTemplate={(tpl) =>
-                      setOpenTemplate({ strategyId: s.id, template: tpl })
-                    }
-                    templateLoading={loadingTemplateFor === s.id}
-                  />
-                ))}
-              </AnimatePresence>
-            </div>
-          )}
-        </div>
+        {/* NEURAL PROCESSING ANIMATION */}
+        {analyzing && (
+          <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+            <div className="neural-beam" />
+            <style>{`
+              @keyframes beam {
+                0% { transform: translateX(-100%); }
+                100% { transform: translateX(400%); }
+              }
+              .neural-beam {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 30%;
+                height: 100%;
+                background: linear-gradient(90deg, 
+                  transparent,
+                  rgba(139, 92, 246, 0.4),
+                  rgba(59, 130, 246, 0.4),
+                  transparent
+                );
+                animation: beam 2s ease-in-out infinite;
+              }
+            `}</style>
+          </div>
+        )}
       </motion.div>
 
-      {/* Failure Modal */}
-      <AnimatePresence>
-        {failureFor && (
-          <FailureModal
-            strategy={strategies.find((s) => s.id === failureFor) || null}
-            onClose={() => setFailureFor(null)}
-            onSubmit={(reason) => submitFailure(failureFor, reason)}
-            loading={loadingFailureFor === failureFor}
+      {/* STRATEGIES — 3D Tilt Cards */}
+      <div className="space-y-4">
+        {strategies.map((strategy, idx) => (
+          <MindCard
+            key={strategy.id}
+            strategy={strategy}
+            index={idx}
+            expanded={expandedCards[strategy.id] || false}
+            onToggleExpand={() => toggleCardExpansion(strategy.id)}
+            onMarkDone={() => handleMarkDone(strategy.id)}
+            onOpenFailure={() => handleOpenFailureModal(strategy)}
+            onGenerateTemplate={() => handleGenerateTemplate(strategy)}
           />
-        )}
-      </AnimatePresence>
-
-      {/* Template Modal */}
-      <AnimatePresence>
-        {openTemplate && (
-          <TemplateModal
-            template={openTemplate.template}
-            onClose={() => setOpenTemplate(null)}
-          />
-        )}
-      </AnimatePresence>
-    </section>
-  );
-}
-
-// ============================================================================
-// HEALTH PILL
-// ============================================================================
-
-function HealthPill({ config }: { config: { groq: boolean; tavily: boolean } | null }) {
-  if (!config) return null;
-  const ok = config.groq;
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
-        ok
-          ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-          : "bg-amber-50 text-amber-700 border-amber-100"
-      }`}
-      title={
-        ok
-          ? `Groq aktiv${config.tavily ? " · Tavily Research an" : " · Tavily aus"}`
-          : "GROQ_API_KEY fehlt — Fallback-Modus aktiv"
-      }
-    >
-      <span className={`w-1.5 h-1.5 rounded-full ${ok ? "bg-emerald-500" : "bg-amber-500"}`} />
-      {ok ? "Llama 3.3 70B" : "Fallback-Modus"}
-      {ok && config.tavily && <Globe className="w-3 h-3 opacity-70" />}
-    </span>
-  );
-}
-
-// ============================================================================
-// EMPTY STATE
-// ============================================================================
-
-function EmptyState() {
-  return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 px-6 py-10 text-center">
-      <div className="w-12 h-12 mx-auto rounded-2xl bg-white flex items-center justify-center shadow-sm mb-3">
-        <Sparkles className="w-5 h-5 text-indigo-500" />
+        ))}
       </div>
-      <p className="text-sm font-semibold text-slate-700">Noch kein Gedanke erfasst</p>
-      <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto leading-relaxed">
-        Tippe einfach deine nächste Idee, Strategie oder dein Bauchgefühl ein —
-        ich analysiere und gebe dir eine ehrliche Einschätzung zurück.
-      </p>
+
+      {/* MODALS */}
+      {showFailureModal && (
+        <Modal onClose={() => setShowFailureModal(false)}>
+          <div className="p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <AlertCircle className="w-6 h-6 text-red-600" />
+              Warum nicht umgesetzt?
+            </h3>
+            <p className="text-gray-600 mb-4">
+              Die KI erstellt eine Opportunitätskosten-Rechnung basierend auf deinem Grund.
+            </p>
+            <textarea
+              value={failureReason}
+              onChange={(e) => setFailureReason(e.target.value)}
+              placeholder="z.B. Zu teuer, kein ROI erkennbar, andere Priorität..."
+              className="w-full border border-gray-300 rounded-lg p-3 text-gray-900 min-h-[100px]"
+            />
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={handleSubmitFailure}
+                disabled={!failureReason.trim() || loading}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-40"
+              >
+                {loading ? "Analysiere..." : "Analysieren"}
+              </button>
+              <button
+                onClick={() => setShowFailureModal(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showTemplateModal && (
+        <Modal onClose={() => setShowTemplateModal(false)}>
+          <div className="p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <Sparkles className="w-6 h-6 text-violet-600" />
+              Magic Template
+            </h3>
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
+              </div>
+            ) : (
+              <>
+                <div className="bg-gray-50 rounded-lg p-4 mb-4 max-h-96 overflow-y-auto">
+                  <pre className="whitespace-pre-wrap text-sm text-gray-800 font-mono">
+                    {generatedTemplate}
+                  </pre>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(generatedTemplate);
+                    alert("Template in Zwischenablage kopiert!");
+                  }}
+                  className="w-full px-4 py-2 bg-violet-600 text-white rounded-lg font-medium hover:bg-violet-700"
+                >
+                  In Zwischenablage kopieren
+                </button>
+              </>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {showInboxModal && (
+        <Modal onClose={() => setShowInboxModal(false)}>
+          <div className="p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <Mail className="w-6 h-6 text-blue-600" />
+              Shadow Inbox
+            </h3>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {inboxMails.map((mail) => (
+                <div
+                  key={mail.id}
+                  className="p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span
+                          className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            mail.priorityLevel === "critical"
+                              ? "bg-red-100 text-red-700"
+                              : mail.priorityLevel === "high"
+                              ? "bg-orange-100 text-orange-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
+                        >
+                          {mail.priorityLevel.toUpperCase()}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {mail.aiActionTaken}
+                        </span>
+                      </div>
+                      <p className="font-semibold text-gray-900">{mail.sender}</p>
+                      <p className="text-sm text-gray-700 mt-1">{mail.subject}</p>
+                      <p className="text-xs text-gray-600 mt-2">{mail.contentSummary}</p>
+                    </div>
+                    <button
+                      onClick={() => handleMarkMailRead(mail.id)}
+                      className="p-1 hover:bg-gray-200 rounded"
+                    >
+                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {inboxMails.length === 0 && (
+                <p className="text-gray-500 text-center py-8">Keine neuen Mails</p>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
 
 // ============================================================================
-// MIND CARD
+// MIND CARD — 3D Tilt Effect
 // ============================================================================
 
-function MindCard(props: {
-  strategy: Strategy;
-  onGenerateTemplate: (kind?: TemplateKind) => void;
-  onOpenTemplate: (tpl: MagicTemplate) => void;
+interface MindCardProps {
+  strategy: CeoStrategy;
+  index: number;
+  expanded: boolean;
+  onToggleExpand: () => void;
   onMarkDone: () => void;
   onOpenFailure: () => void;
-  onArchive: () => void;
-  onDelete: () => void;
-  templateLoading: boolean;
-}) {
-  const {
-    strategy,
-    onGenerateTemplate,
-    onOpenTemplate,
-    onMarkDone,
-    onOpenFailure,
-    onArchive,
-    onDelete,
-    templateLoading,
-  } = props;
-
-  const a = strategy.analysis;
-  const cat = CATEGORY_META[strategy.category] || CATEGORY_META.general;
-  const Icon = cat.icon;
-  const isFailed = strategy.status === "failed";
-  const isDone = strategy.status === "done";
-  const isArchived = strategy.status === "archived";
-  const isResolved = isFailed || isDone || isArchived;
-
-  const templateKind =
-    a?.magicTemplate?.kind ||
-    (strategy.category === "personal"
-      ? "job_posting"
-      : strategy.category === "marketing"
-      ? "marketing_script"
-      : strategy.category === "sales"
-      ? "sales_script"
-      : strategy.category === "legal"
-      ? "contract"
-      : null);
-
-  const magicLabel = templateKind
-    ? a?.magicTemplate
-      ? "Vorlage anzeigen"
-      : TEMPLATE_KIND_LABEL[templateKind]
-    : null;
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 12, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.2 } }}
-      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      className={`relative rounded-2xl border bg-white p-5 sm:p-6 transition-all ${
-        isResolved
-          ? "border-slate-100 opacity-70 hover:opacity-100"
-          : "border-slate-100 shadow-sm hover:shadow-md hover:border-slate-200"
-      }`}
-    >
-      {/* Category accent */}
-      <div
-        aria-hidden
-        className={`absolute left-0 top-6 bottom-6 w-1 rounded-r-full bg-gradient-to-b ${cat.gradient}`}
-      />
-
-      <div className="flex items-start gap-4 pl-2">
-        <div
-          className={`hidden sm:flex w-10 h-10 rounded-xl items-center justify-center bg-gradient-to-br ${cat.gradient} shadow-sm shrink-0`}
-        >
-          <Icon className="w-5 h-5 text-white" strokeWidth={2.2} />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          {/* Meta row */}
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <span
-              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${cat.tint}`}
-            >
-              <Icon className="w-3 h-3" />
-              {cat.label}
-            </span>
-            {a?.meta?.usedWebSearch && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700 bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-full">
-                <Globe className="w-3 h-3" />
-                Live-Research
-              </span>
-            )}
-            {isFailed && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-rose-700 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-full">
-                <XCircle className="w-3 h-3" />
-                Nicht erledigt
-              </span>
-            )}
-            {isDone && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
-                <CheckCircle2 className="w-3 h-3" />
-                Erledigt
-              </span>
-            )}
-            {isArchived && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
-                <Archive className="w-3 h-3" />
-                Archiv
-              </span>
-            )}
-            {typeof a?.confidence === "number" && (
-              <span className="ml-auto text-[10px] font-semibold text-slate-400">
-                Confidence {Math.round((a.confidence || 0) * 100)}%
-              </span>
-            )}
-          </div>
-
-          {/* Thought */}
-          <p className="text-[15px] font-semibold text-slate-900 leading-snug mb-3">
-            {strategy.thought}
-          </p>
-
-          {/* Insight: followUpQuestion */}
-          {a?.followUpQuestion && (
-            <div className="mb-3 flex items-start gap-2.5 text-[13.5px] text-indigo-700 bg-indigo-50/70 border border-indigo-100 rounded-xl px-3.5 py-2.5">
-              <Target className="w-4 h-4 mt-0.5 shrink-0" />
-              <span className="leading-relaxed">{a.followUpQuestion}</span>
-            </div>
-          )}
-
-          {/* ROI Check */}
-          {a?.roiCheck && (
-            <div className="mb-3 flex items-start gap-2.5 text-[13px] text-slate-700 bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5">
-              <TrendingUp className="w-4 h-4 mt-0.5 text-slate-500 shrink-0" />
-              <span className="leading-relaxed whitespace-pre-wrap">{a.roiCheck}</span>
-            </div>
-          )}
-
-          {/* Next steps */}
-          {a?.nextSteps && a.nextSteps.length > 0 && (
-            <ul className="mb-3 space-y-1.5">
-              {a.nextSteps.map((step, i) => (
-                <li
-                  key={i}
-                  className="flex items-start gap-2 text-[13px] text-slate-600"
-                >
-                  <ArrowRight className="w-3.5 h-3.5 mt-1 text-slate-400 shrink-0" />
-                  <span className="leading-relaxed">{step}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {/* Failure analysis (if present) */}
-          {isFailed && a?.failureAnalysis && (
-            <div className="mb-3 rounded-xl border border-rose-100 bg-rose-50/50 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle className="w-4 h-4 text-rose-600" />
-                <span className="text-[11px] uppercase tracking-wider font-bold text-rose-700">
-                  Realitäts-Check
-                </span>
-              </div>
-              {a.failureAnalysis.empathy && (
-                <p className="text-[13px] text-slate-700 mb-2 leading-relaxed">
-                  {a.failureAnalysis.empathy}
-                </p>
-              )}
-              {a.failureAnalysis.opportunityCost && (
-                <p className="text-[13px] font-semibold text-rose-900 mb-2 leading-relaxed">
-                  {a.failureAnalysis.opportunityCost}
-                </p>
-              )}
-              {a.failureAnalysis.alternatives?.length > 0 && (
-                <ul className="space-y-1 mb-2">
-                  {a.failureAnalysis.alternatives.map((alt, i) => (
-                    <li
-                      key={i}
-                      className="flex items-start gap-2 text-[13px] text-slate-700"
-                    >
-                      <Lightbulb className="w-3.5 h-3.5 mt-1 text-amber-500 shrink-0" />
-                      <span>{alt}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {a.failureAnalysis.recommendation && (
-                <div className="text-[13px] text-slate-800 font-medium bg-white/60 border border-rose-100 rounded-lg px-3 py-2 mt-2">
-                  <span className="text-[10px] uppercase tracking-wider text-rose-600 font-bold block mb-0.5">
-                    Empfehlung
-                  </span>
-                  {a.failureAnalysis.recommendation}
-                </div>
-              )}
-              {strategy.failureReason && (
-                <p className="text-[11px] text-slate-500 mt-3 italic">
-                  Grund: „{strategy.failureReason}“
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Resources */}
-          {strategy.resources && strategy.resources.length > 0 && (
-            <div className="mb-4 flex flex-wrap gap-1.5">
-              {strategy.resources.slice(0, 6).map((r, i) => (
-                <a
-                  key={i}
-                  href={r.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-white border border-slate-200 rounded-full px-2.5 py-1 hover:bg-slate-50 hover:border-slate-300 transition-colors"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  {r.label}
-                </a>
-              ))}
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            {magicLabel && (
-              <MagicButton
-                onClick={() =>
-                  a?.magicTemplate
-                    ? onOpenTemplate(a.magicTemplate)
-                    : onGenerateTemplate(templateKind as TemplateKind)
-                }
-                loading={templateLoading}
-                label={magicLabel}
-              />
-            )}
-
-            {!isDone && !isFailed && (
-              <button
-                onClick={onMarkDone}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 transition-colors"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Erledigt
-              </button>
-            )}
-
-            {!isFailed && !isDone && (
-              <button
-                onClick={onOpenFailure}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100 transition-colors"
-              >
-                <XCircle className="w-3.5 h-3.5" />
-                Nicht erledigt
-              </button>
-            )}
-
-            {!isArchived && (
-              <button
-                onClick={onArchive}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-slate-600 bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors"
-              >
-                <Archive className="w-3.5 h-3.5" />
-                Archivieren
-              </button>
-            )}
-
-            <button
-              onClick={onDelete}
-              title="Löschen"
-              className="ml-auto inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
+  onGenerateTemplate: () => void;
 }
 
-// ============================================================================
-// MAGIC BUTTON (shimmering gradient)
-// ============================================================================
-
-function MagicButton({
-  onClick,
-  loading,
-  label,
-}: {
-  onClick: () => void;
-  loading: boolean;
-  label: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={loading}
-      className="relative inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[12px] font-bold text-white overflow-hidden disabled:opacity-60 disabled:cursor-not-allowed"
-      style={{
-        background:
-          "linear-gradient(120deg, #6366f1 0%, #a855f7 45%, #ec4899 100%)",
-        backgroundSize: "200% 200%",
-      }}
-    >
-      <motion.span
-        aria-hidden
-        className="absolute inset-0 opacity-60"
-        animate={{ backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"] }}
-        transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-        style={{
-          background:
-            "linear-gradient(120deg, #6366f1 0%, #a855f7 45%, #ec4899 100%)",
-          backgroundSize: "200% 200%",
-        }}
-      />
-      <motion.span
-        aria-hidden
-        className="absolute inset-y-0 -left-1/2 w-1/3 bg-white/25 blur-sm skew-x-12"
-        animate={{ x: ["-30%", "260%"] }}
-        transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <span className="relative flex items-center gap-1.5">
-        {loading ? (
-          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-        ) : (
-          <Sparkles className="w-3.5 h-3.5" />
-        )}
-        {loading ? "Generiere…" : label}
-      </span>
-    </button>
-  );
-}
-
-// ============================================================================
-// FAILURE MODAL — "Warum gescheitert?"
-// ============================================================================
-
-function FailureModal({
+function MindCard({
   strategy,
-  onClose,
-  onSubmit,
-  loading,
-}: {
-  strategy: Strategy | null;
-  onClose: () => void;
-  onSubmit: (reason: string) => void;
-  loading: boolean;
-}) {
-  const [reason, setReason] = useState("");
-  if (!strategy) return null;
+  index,
+  expanded,
+  onToggleExpand,
+  onMarkDone,
+  onOpenFailure,
+  onGenerateTemplate,
+}: MindCardProps) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
 
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ opacity: 0, y: 16, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 8, scale: 0.98 }}
-        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-lg bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100"
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
-        >
-          <X className="w-4 h-4" />
-        </button>
+  const rotateX = useTransform(mouseY, [-300, 300], [5, -5]);
+  const rotateY = useTransform(mouseX, [-300, 300], [-5, 5]);
 
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-11 h-11 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center">
-            <AlertTriangle className="w-5 h-5 text-rose-600" />
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-rose-500 font-bold">
-              Realitäts-Check
-            </p>
-            <h3 className="text-lg font-semibold text-slate-900">
-              Warum gescheitert?
-            </h3>
-          </div>
-        </div>
-
-        <p className="text-[13px] text-slate-500 mb-4 italic border-l-2 border-slate-200 pl-3">
-          „{strategy.thought}“
-        </p>
-
-        <textarea
-          autoFocus
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder="z.B. „Zu teuer“, „Kein Bock“, „Timing passt nicht“ …"
-          rows={4}
-          disabled={loading}
-          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 resize-none"
-        />
-
-        <p className="text-[12px] text-slate-500 mt-2">
-          Die KI rechnet dir Opportunitätskosten vor und schlägt Alternativen vor.
-        </p>
-
-        <div className="flex items-center justify-end gap-2 mt-5">
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 transition-colors disabled:opacity-50"
-          >
-            Abbrechen
-          </button>
-          <button
-            onClick={() => reason.trim() && onSubmit(reason.trim())}
-            disabled={!reason.trim() || loading}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-rose-500 to-rose-600 hover:shadow-lg hover:shadow-rose-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Analysiere…
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" />
-                Gegenrechnung erstellen
-              </>
-            )}
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-// ============================================================================
-// TEMPLATE MODAL — Stellenanzeige / Skript / Vertrag
-// ============================================================================
-
-function TemplateModal({
-  template,
-  onClose,
-}: {
-  template: MagicTemplate;
-  onClose: () => void;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(template.content);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      // silent
-    }
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    mouseX.set(e.clientX - centerX);
+    mouseY.set(e.clientY - centerY);
   };
 
+  const handleMouseLeave = () => {
+    mouseX.set(0);
+    mouseY.set(0);
+  };
+
+  const analysis = strategy.aiAnalysis;
+  const isDone = strategy.status === "done";
+  const isFailed = strategy.status === "failed";
+
+  return (
+    <motion.div
+      ref={cardRef}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.1 }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{
+        rotateX,
+        rotateY,
+        transformStyle: "preserve-3d",
+        background: isFailed
+          ? "rgba(254, 226, 226, 0.4)"
+          : isDone
+          ? "rgba(220, 252, 231, 0.4)"
+          : "rgba(255, 255, 255, 0.4)",
+        backdropFilter: "blur(25px)",
+        border: isFailed
+          ? "1px solid rgba(239, 68, 68, 0.5)"
+          : isDone
+          ? "1px solid rgba(34, 197, 94, 0.5)"
+          : "1px solid rgba(255, 255, 255, 0.5)",
+        boxShadow: "0 20px 50px rgba(0, 0, 0, 0.05)",
+      }}
+      className="rounded-2xl p-6 cursor-pointer transition-all hover:shadow-2xl"
+    >
+      {/* HEADER */}
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            {isFailed && <AlertCircle className="w-5 h-5 text-red-600" />}
+            {isDone && <CheckCircle2 className="w-5 h-5 text-green-600" />}
+            {!isFailed && !isDone && <TrendingUp className="w-5 h-5 text-violet-600" />}
+            <span className="text-xs font-medium text-gray-600">
+              {strategy.category || "Strategie"}
+            </span>
+            {analysis?.confidence && (
+              <span className="text-xs text-gray-500">
+                {Math.round(analysis.confidence * 100)}% Confidence
+              </span>
+            )}
+          </div>
+          <p className="text-gray-900 font-medium leading-relaxed">
+            {strategy.userThought}
+          </p>
+        </div>
+        <button onClick={onToggleExpand} className="p-1 hover:bg-gray-100 rounded">
+          {expanded ? (
+            <ChevronUp className="w-5 h-5 text-gray-600" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-gray-600" />
+          )}
+        </button>
+      </div>
+
+      {/* ANALYSIS (Expandable) */}
+      {expanded && analysis && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          className="space-y-4"
+        >
+          <div>
+            <h4 className="text-sm font-bold text-gray-900 mb-1">Zusammenfassung</h4>
+            <p className="text-sm text-gray-700">{analysis.summary}</p>
+          </div>
+
+          <div>
+            <h4 className="text-sm font-bold text-gray-900 mb-1">Rückfrage</h4>
+            <p className="text-sm text-gray-700">{analysis.followUpQuestion}</p>
+          </div>
+
+          <div>
+            <h4 className="text-sm font-bold text-gray-900 mb-1">ROI-Check</h4>
+            <p className="text-sm text-gray-700">{analysis.roiCheck}</p>
+          </div>
+
+          {analysis.nextSteps && analysis.nextSteps.length > 0 && (
+            <div>
+              <h4 className="text-sm font-bold text-gray-900 mb-2">Next Steps</h4>
+              <ul className="space-y-1">
+                {analysis.nextSteps.map((step, i) => (
+                  <li key={i} className="text-sm text-gray-700 flex items-start gap-2">
+                    <span className="text-violet-600 font-bold">→</span>
+                    {step}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {analysis.resources && analysis.resources.length > 0 && (
+            <div>
+              <h4 className="text-sm font-bold text-gray-900 mb-2">Ressourcen</h4>
+              <div className="flex flex-wrap gap-2">
+                {analysis.resources.map((res, i) => (
+                  <a
+                    key={i}
+                    href={res.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-200 transition-colors"
+                  >
+                    {res.label}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {isFailed && strategy.failureReason && (
+            <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+              <h4 className="text-sm font-bold text-red-900 mb-1">
+                Opportunitätskosten-Analyse
+              </h4>
+              <p className="text-sm text-red-800">{strategy.failureReason}</p>
+            </div>
+          )}
+
+          {/* ACTION BUTTONS */}
+          <div className="flex gap-2 pt-2">
+            {!isDone && !isFailed && (
+              <>
+                <button
+                  onClick={onMarkDone}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-all shadow-md hover:shadow-lg"
+                >
+                  Erledigt
+                </button>
+                <button
+                  onClick={onOpenFailure}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-all shadow-md hover:shadow-lg"
+                >
+                  Nicht umgesetzt
+                </button>
+                <button
+                  onClick={onGenerateTemplate}
+                  className="px-4 py-2 bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-lg font-medium hover:shadow-lg transition-all"
+                >
+                  <Sparkles className="w-4 h-4" />
+                </button>
+              </>
+            )}
+          </div>
+        </motion.div>
+      )}
+    </motion.div>
+  );
+}
+
+// ============================================================================
+// MODAL COMPONENT
+// ============================================================================
+
+interface ModalProps {
+  onClose: () => void;
+  children: React.ReactNode;
+}
+
+function Modal({ onClose, children }: ModalProps) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0, 0, 0, 0.5)", backdropFilter: "blur(10px)" }}
       onClick={onClose}
     >
       <motion.div
-        initial={{ opacity: 0, y: 16, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 8, scale: 0.98 }}
-        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-2xl max-h-[85vh] bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 overflow-hidden flex flex-col"
+        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 z-10"
+          className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
         >
-          <X className="w-4 h-4" />
+          <X className="w-5 h-5 text-gray-600" />
         </button>
-
-        <div className="flex items-center gap-3 mb-4 shrink-0">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-md shadow-indigo-500/20">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-indigo-500 font-bold">
-              Magic Template
-            </p>
-            <h3 className="text-lg font-semibold text-slate-900 leading-tight">
-              {template.title}
-            </h3>
-          </div>
-        </div>
-
-        <div className="flex-1 min-h-0 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/60 p-4 text-[13.5px] text-slate-800 font-mono whitespace-pre-wrap leading-relaxed">
-          {template.content}
-        </div>
-
-        {template.cta && (
-          <p className="text-[12px] text-slate-500 mt-3 italic shrink-0">
-            {template.cta}
-          </p>
-        )}
-
-        <div className="flex items-center justify-end gap-2 mt-4 shrink-0">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 transition-colors"
-          >
-            Schließen
-          </button>
-          <button
-            onClick={handleCopy}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:shadow-lg hover:shadow-indigo-500/20 transition-all"
-          >
-            {copied ? (
-              <>
-                <Check className="w-4 h-4" />
-                Kopiert
-              </>
-            ) : (
-              <>
-                <Copy className="w-4 h-4" />
-                Kopieren
-              </>
-            )}
-          </button>
-        </div>
+        {children}
       </motion.div>
     </motion.div>
   );

@@ -1,20 +1,20 @@
 /**
  * ============================================================================
- * CEO MIND-OS "STARK EDITION" — Proaktive KI-Zentrale
+ * CEO MIND-OS "IRON MAN HUD" — Vollendetes JARVIS-Erlebnis
  * ============================================================================
  * Features:
- *   - Glassmorphism 2.0 mit backdrop-blur(25px) und premium shadows
- *   - 3D-Tilt-Effekt auf Mind-Cards (Framer Motion)
- *   - Neural Processing Animation (glühender Partikel-Strahl)
- *   - Premium Typography (Inter Variable Font)
- *   - Morning Briefing (JARVIS MODE)
- *   - Shadow Inbox Integration (E-Mail-Fragmente als Notifications)
- *   - Mobile-First Expandable Sheets
+ *   - Pulsing Neural Core (Arc Reactor) als Ladeanzeige
+ *   - Glassmorphism 3.0 mit Iridescent-Glow Effekt
+ *   - Smooth Layout Transitions (Framer Motion AnimatePresence)
+ *   - Voice-to-Strategy mit Web Speech API + Whisper
+ *   - Ripple-Effekt am Voice-Button im Rhythmus der Stimme
+ *   - Proactive Polling für neue E-Mails (60s Intervall)
+ *   - Glühender Notification-Punkt am Brain-Icon
  * ============================================================================
  */
 
 import { useState, useEffect, useRef } from "react";
-import { motion, useMotionValue, useTransform } from "framer-motion";
+import { motion, AnimatePresence, useMotionValue, useTransform } from "framer-motion";
 import {
   Brain,
   Send,
@@ -27,10 +27,12 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Mic,
+  MicOff,
 } from "lucide-react";
 
 // ============================================================================
-// TYPES (Frontend Mirror von Server Types)
+// TYPES
 // ============================================================================
 
 interface CeoAnalysis {
@@ -98,7 +100,13 @@ export default function CeoMindOS() {
   const [generatedTemplate, setGeneratedTemplate] = useState("");
   const [failureReason, setFailureReason] = useState("");
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+  const [hasNewMails, setHasNewMails] = useState(false);
 
+  // Voice Recording State
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // ============================================================================
@@ -109,6 +117,13 @@ export default function CeoMindOS() {
     loadStrategies();
     loadInbox();
     loadMorningBriefing();
+
+    // Proactive Polling: Prüfe alle 60s auf neue Mails
+    const pollInterval = setInterval(() => {
+      loadInbox();
+    }, 60000);
+
+    return () => clearInterval(pollInterval);
   }, []);
 
   const loadStrategies = async () => {
@@ -128,7 +143,9 @@ export default function CeoMindOS() {
       const res = await fetch("/api/ceo-mind-os/inbox", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
-        setInboxMails(data.mails || []);
+        const newMails = data.mails || [];
+        setInboxMails(newMails);
+        setHasNewMails(newMails.length > 0);
       }
     } catch (err) {
       console.error("[CEO-MIND-OS] Load inbox error:", err);
@@ -146,6 +163,86 @@ export default function CeoMindOS() {
       }
     } catch (err) {
       console.error("[CEO-MIND-OS] Load briefing error:", err);
+    }
+  };
+
+  // ============================================================================
+  // VOICE RECORDING (WEB SPEECH API + WHISPER)
+  // ============================================================================
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm",
+      });
+
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        await processVoiceInput(audioBlob);
+        stream.getTracks().forEach((track) => track.stop());
+      };
+
+      mediaRecorder.start();
+      mediaRecorderRef.current = mediaRecorder;
+      setIsRecording(true);
+    } catch (err) {
+      console.error("[CEO-MIND-OS] Voice recording error:", err);
+      alert("Mikrofon-Zugriff verweigert. Bitte Berechtigungen prüfen.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      setIsTranscribing(true);
+    }
+  };
+
+  const processVoiceInput = async (audioBlob: Blob) => {
+    try {
+      // Convert Blob to Base64
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      reader.onloadend = async () => {
+        const base64Audio = reader.result as string;
+
+        // Send to backend
+        const res = await fetch("/api/ceo-mind-os/voice-input", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            audioData: base64Audio,
+            audioFormat: "webm",
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          // Reload strategies nach Voice-Input
+          await loadStrategies();
+          setThought("");
+          alert(`✅ Voice-Strategie erstellt: "${data.transcription.slice(0, 60)}..."`);
+        } else {
+          const error = await res.json();
+          alert(`❌ Voice-Fehler: ${error.detail || "Unbekannter Fehler"}`);
+        }
+      };
+    } catch (err) {
+      console.error("[CEO-MIND-OS] Voice processing error:", err);
+      alert("Voice-Verarbeitung fehlgeschlagen.");
+    } finally {
+      setIsTranscribing(false);
     }
   };
 
@@ -273,6 +370,7 @@ export default function CeoMindOS() {
         body: JSON.stringify({ status: "processed" }),
       });
       setInboxMails((prev) => prev.filter((m) => m.id !== mailId));
+      setHasNewMails(inboxMails.length - 1 > 0);
     } catch (err) {
       console.error("[CEO-MIND-OS] Mark mail read error:", err);
     }
@@ -303,13 +401,7 @@ export default function CeoMindOS() {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative overflow-hidden rounded-2xl p-6"
-          style={{
-            background: "linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.15))",
-            backdropFilter: "blur(25px)",
-            border: "1px solid rgba(255, 255, 255, 0.5)",
-            boxShadow: "0 20px 50px rgba(0, 0, 0, 0.05)",
-          }}
+          className="relative overflow-hidden rounded-2xl p-6 glass-iridescent"
         >
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
@@ -338,7 +430,7 @@ export default function CeoMindOS() {
         </motion.div>
       )}
 
-      {/* SHADOW INBOX — Neue Mails als "Daten-Fragmente" */}
+      {/* SHADOW INBOX — Daten-Fragmente */}
       {inboxMails.length > 0 && (
         <div className="flex gap-2 flex-wrap">
           {inboxMails.slice(0, 3).map((mail) => (
@@ -348,7 +440,7 @@ export default function CeoMindOS() {
               animate={{ scale: 1, rotate: 0 }}
               whileHover={{ scale: 1.05, y: -2 }}
               onClick={() => setShowInboxModal(true)}
-              className="relative px-4 py-2 rounded-full text-sm font-medium transition-all"
+              className="relative px-4 py-2 rounded-full text-sm font-medium transition-all data-fragment"
               style={{
                 background:
                   mail.priorityLevel === "critical"
@@ -359,10 +451,6 @@ export default function CeoMindOS() {
                   mail.priorityLevel === "critical"
                     ? "1px solid rgba(239, 68, 68, 0.5)"
                     : "1px solid rgba(59, 130, 246, 0.5)",
-                boxShadow:
-                  mail.priorityLevel === "critical"
-                    ? "0 0 20px rgba(239, 68, 68, 0.3)"
-                    : "0 0 20px rgba(59, 130, 246, 0.3)",
               }}
             >
               <Mail className="w-3 h-3 inline mr-1" />
@@ -380,21 +468,23 @@ export default function CeoMindOS() {
         </div>
       )}
 
-      {/* INPUT AREA — Glassmorphism 2.0 */}
+      {/* INPUT AREA — Glassmorphism 3.0 + Voice Button */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative rounded-2xl p-6"
-        style={{
-          background: "rgba(255, 255, 255, 0.4)",
-          backdropFilter: "blur(25px)",
-          border: "1px solid rgba(255, 255, 255, 0.5)",
-          boxShadow: "0 20px 50px rgba(0, 0, 0, 0.05)",
-        }}
+        className="relative rounded-2xl p-6 glass-iridescent"
       >
         <div className="flex items-start gap-3">
-          <div className="mt-3">
+          <div className="mt-3 relative">
             <Brain className="w-6 h-6 text-violet-600" />
+            {/* Notification Dot für neue Mails */}
+            {hasNewMails && (
+              <motion.div
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"
+              />
+            )}
           </div>
           <div className="flex-1">
             <textarea
@@ -407,18 +497,57 @@ export default function CeoMindOS() {
                   handleAnalyze();
                 }
               }}
-              placeholder="Was beschäftigt dich gerade? Schreib deine Gedanken auf..."
+              placeholder="Was beschäftigt dich gerade? Schreib oder sprich deine Gedanken..."
               className="w-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-500 text-base leading-relaxed"
               style={{ minHeight: "60px", maxHeight: "300px" }}
-              disabled={analyzing}
+              disabled={analyzing || isRecording || isTranscribing}
             />
             <div className="flex items-center justify-between mt-4">
-              <span className="text-xs text-gray-500">
-                {analyzing ? "KI denkt nach..." : "⌘+Enter zum Analysieren"}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-500">
+                  {isRecording
+                    ? "🎤 Aufnahme läuft..."
+                    : isTranscribing
+                    ? "🔄 Transkribiere..."
+                    : analyzing
+                    ? "KI denkt nach..."
+                    : "⌘+Enter zum Analysieren"}
+                </span>
+                {/* Voice Button */}
+                <button
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={analyzing || isTranscribing}
+                  className={`relative p-2 rounded-full transition-all ${
+                    isRecording
+                      ? "bg-red-500 text-white"
+                      : "bg-gradient-to-r from-violet-600 to-blue-600 text-white hover:shadow-lg"
+                  } disabled:opacity-40`}
+                >
+                  {isRecording ? (
+                    <MicOff className="w-5 h-5" />
+                  ) : (
+                    <Mic className="w-5 h-5" />
+                  )}
+                  {/* Ripple Effect bei Recording */}
+                  {isRecording && (
+                    <>
+                      <motion.div
+                        animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                        className="absolute inset-0 rounded-full bg-red-500"
+                      />
+                      <motion.div
+                        animate={{ scale: [1, 2, 1], opacity: [0.3, 0, 0.3] }}
+                        transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
+                        className="absolute inset-0 rounded-full bg-red-500"
+                      />
+                    </>
+                  )}
+                </button>
+              </div>
               <button
                 onClick={handleAnalyze}
-                disabled={!thought.trim() || analyzing}
+                disabled={!thought.trim() || analyzing || isRecording || isTranscribing}
                 className="px-6 py-2.5 bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-xl font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-2xl transition-all flex items-center gap-2 hover:-translate-y-0.5"
               >
                 {analyzing ? (
@@ -437,36 +566,17 @@ export default function CeoMindOS() {
           </div>
         </div>
 
-        {/* NEURAL PROCESSING ANIMATION */}
+        {/* PULSING NEURAL CORE (Arc Reactor) */}
         {analyzing && (
           <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+            <div className="neural-core" />
             <div className="neural-beam" />
-            <style>{`
-              @keyframes beam {
-                0% { transform: translateX(-100%); }
-                100% { transform: translateX(400%); }
-              }
-              .neural-beam {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 30%;
-                height: 100%;
-                background: linear-gradient(90deg, 
-                  transparent,
-                  rgba(139, 92, 246, 0.4),
-                  rgba(59, 130, 246, 0.4),
-                  transparent
-                );
-                animation: beam 2s ease-in-out infinite;
-              }
-            `}</style>
           </div>
         )}
       </motion.div>
 
-      {/* STRATEGIES — 3D Tilt Cards */}
-      <div className="space-y-4">
+      {/* STRATEGIES — Layout Transitions */}
+      <AnimatePresence mode="popLayout">
         {strategies.map((strategy, idx) => (
           <MindCard
             key={strategy.id}
@@ -479,134 +589,261 @@ export default function CeoMindOS() {
             onGenerateTemplate={() => handleGenerateTemplate(strategy)}
           />
         ))}
-      </div>
+      </AnimatePresence>
 
       {/* MODALS */}
-      {showFailureModal && (
-        <Modal onClose={() => setShowFailureModal(false)}>
-          <div className="p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <AlertCircle className="w-6 h-6 text-red-600" />
-              Warum nicht umgesetzt?
-            </h3>
-            <p className="text-gray-600 mb-4">
-              Die KI erstellt eine Opportunitätskosten-Rechnung basierend auf deinem Grund.
-            </p>
-            <textarea
-              value={failureReason}
-              onChange={(e) => setFailureReason(e.target.value)}
-              placeholder="z.B. Zu teuer, kein ROI erkennbar, andere Priorität..."
-              className="w-full border border-gray-300 rounded-lg p-3 text-gray-900 min-h-[100px]"
-            />
-            <div className="flex gap-3 mt-4">
-              <button
-                onClick={handleSubmitFailure}
-                disabled={!failureReason.trim() || loading}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-40"
-              >
-                {loading ? "Analysiere..." : "Analysieren"}
-              </button>
-              <button
-                onClick={() => setShowFailureModal(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300"
-              >
-                Abbrechen
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {showTemplateModal && (
-        <Modal onClose={() => setShowTemplateModal(false)}>
-          <div className="p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <Sparkles className="w-6 h-6 text-violet-600" />
-              Magic Template
-            </h3>
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
-              </div>
-            ) : (
-              <>
-                <div className="bg-gray-50 rounded-lg p-4 mb-4 max-h-96 overflow-y-auto">
-                  <pre className="whitespace-pre-wrap text-sm text-gray-800 font-mono">
-                    {generatedTemplate}
-                  </pre>
-                </div>
+      <AnimatePresence>
+        {showFailureModal && (
+          <Modal onClose={() => setShowFailureModal(false)}>
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <AlertCircle className="w-6 h-6 text-red-600" />
+                Warum nicht umgesetzt?
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Die KI erstellt eine Opportunitätskosten-Rechnung basierend auf deinem Grund.
+              </p>
+              <textarea
+                value={failureReason}
+                onChange={(e) => setFailureReason(e.target.value)}
+                placeholder="z.B. Zu teuer, kein ROI erkennbar, andere Priorität..."
+                className="w-full border border-gray-300 rounded-lg p-3 text-gray-900 min-h-[100px]"
+              />
+              <div className="flex gap-3 mt-4">
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(generatedTemplate);
-                    alert("Template in Zwischenablage kopiert!");
-                  }}
-                  className="w-full px-4 py-2 bg-violet-600 text-white rounded-lg font-medium hover:bg-violet-700"
+                  onClick={handleSubmitFailure}
+                  disabled={!failureReason.trim() || loading}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-40"
                 >
-                  In Zwischenablage kopieren
+                  {loading ? "Analysiere..." : "Analysieren"}
                 </button>
-              </>
-            )}
-          </div>
-        </Modal>
-      )}
-
-      {showInboxModal && (
-        <Modal onClose={() => setShowInboxModal(false)}>
-          <div className="p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <Mail className="w-6 h-6 text-blue-600" />
-              Shadow Inbox
-            </h3>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {inboxMails.map((mail) => (
-                <div
-                  key={mail.id}
-                  className="p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                <button
+                  onClick={() => setShowFailureModal(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300"
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span
-                          className={`px-2 py-0.5 rounded text-xs font-medium ${
-                            mail.priorityLevel === "critical"
-                              ? "bg-red-100 text-red-700"
-                              : mail.priorityLevel === "high"
-                              ? "bg-orange-100 text-orange-700"
-                              : "bg-blue-100 text-blue-700"
-                          }`}
-                        >
-                          {mail.priorityLevel.toUpperCase()}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {mail.aiActionTaken}
-                        </span>
-                      </div>
-                      <p className="font-semibold text-gray-900">{mail.sender}</p>
-                      <p className="text-sm text-gray-700 mt-1">{mail.subject}</p>
-                      <p className="text-xs text-gray-600 mt-2">{mail.contentSummary}</p>
-                    </div>
-                    <button
-                      onClick={() => handleMarkMailRead(mail.id)}
-                      className="p-1 hover:bg-gray-200 rounded"
-                    >
-                      <CheckCircle2 className="w-5 h-5 text-green-600" />
-                    </button>
-                  </div>
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+
+        {showTemplateModal && (
+          <Modal onClose={() => setShowTemplateModal(false)}>
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <Sparkles className="w-6 h-6 text-violet-600" />
+                Magic Template
+              </h3>
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
                 </div>
-              ))}
-              {inboxMails.length === 0 && (
-                <p className="text-gray-500 text-center py-8">Keine neuen Mails</p>
+              ) : (
+                <>
+                  <div className="bg-gray-50 rounded-lg p-4 mb-4 max-h-96 overflow-y-auto">
+                    <pre className="whitespace-pre-wrap text-sm text-gray-800 font-mono">
+                      {generatedTemplate}
+                    </pre>
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedTemplate);
+                      alert("Template in Zwischenablage kopiert!");
+                    }}
+                    className="w-full px-4 py-2 bg-violet-600 text-white rounded-lg font-medium hover:bg-violet-700"
+                  >
+                    In Zwischenablage kopieren
+                  </button>
+                </>
               )}
             </div>
-          </div>
-        </Modal>
-      )}
+          </Modal>
+        )}
+
+        {showInboxModal && (
+          <Modal onClose={() => setShowInboxModal(false)}>
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <Mail className="w-6 h-6 text-blue-600" />
+                Shadow Inbox
+              </h3>
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {inboxMails.map((mail) => (
+                  <motion.div
+                    key={mail.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    className="p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span
+                            className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              mail.priorityLevel === "critical"
+                                ? "bg-red-100 text-red-700"
+                                : mail.priorityLevel === "high"
+                                ? "bg-orange-100 text-orange-700"
+                                : "bg-blue-100 text-blue-700"
+                            }`}
+                          >
+                            {mail.priorityLevel.toUpperCase()}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {mail.aiActionTaken}
+                          </span>
+                        </div>
+                        <p className="font-semibold text-gray-900">{mail.sender}</p>
+                        <p className="text-sm text-gray-700 mt-1">{mail.subject}</p>
+                        <p className="text-xs text-gray-600 mt-2">
+                          {mail.contentSummary}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleMarkMailRead(mail.id)}
+                        className="p-1 hover:bg-gray-200 rounded"
+                      >
+                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+                {inboxMails.length === 0 && (
+                  <p className="text-gray-500 text-center py-8">Keine neuen Mails</p>
+                )}
+              </div>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
+
+      {/* STYLES */}
+      <style>{`
+        /* Glassmorphism 3.0 mit Iridescent-Glow */
+        .glass-iridescent {
+          background: rgba(255, 255, 255, 0.4);
+          backdrop-filter: blur(30px);
+          border: 1px solid rgba(255, 255, 255, 0.5);
+          box-shadow: 
+            0 20px 50px rgba(0, 0, 0, 0.05),
+            inset 0 0 20px rgba(255, 255, 255, 0.1),
+            0 0 40px rgba(139, 92, 246, 0.1);
+        }
+
+        .glass-iridescent::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          border-radius: inherit;
+          padding: 1px;
+          background: linear-gradient(135deg, 
+            rgba(255, 107, 107, 0.2),
+            rgba(255, 200, 87, 0.2),
+            rgba(119, 221, 119, 0.2),
+            rgba(79, 172, 254, 0.2),
+            rgba(186, 104, 200, 0.2)
+          );
+          -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+          pointer-events: none;
+          opacity: 0.3;
+        }
+
+        /* Pulsing Neural Core (Arc Reactor) */
+        @keyframes coreGlow {
+          0%, 100% { 
+            transform: scale(1);
+            opacity: 0.3;
+            box-shadow: 0 0 40px rgba(139, 92, 246, 0.5);
+          }
+          50% { 
+            transform: scale(1.2);
+            opacity: 0.6;
+            box-shadow: 0 0 80px rgba(139, 92, 246, 0.8);
+          }
+        }
+
+        .neural-core {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 120px;
+          height: 120px;
+          border-radius: 50%;
+          background: radial-gradient(circle, 
+            rgba(139, 92, 246, 0.6),
+            rgba(59, 130, 246, 0.4),
+            transparent
+          );
+          animation: coreGlow 3s ease-in-out infinite;
+        }
+
+        .neural-core::after {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 60px;
+          height: 60px;
+          border-radius: 50%;
+          background: radial-gradient(circle,
+            rgba(255, 255, 255, 0.8),
+            rgba(139, 92, 246, 0.6),
+            transparent
+          );
+          animation: coreGlow 1.5s ease-in-out infinite reverse;
+        }
+
+        /* Neural Processing Beam */
+        @keyframes beam {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(400%); }
+        }
+
+        .neural-beam {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 30%;
+          height: 100%;
+          background: linear-gradient(90deg, 
+            transparent,
+            rgba(139, 92, 246, 0.4),
+            rgba(59, 130, 246, 0.4),
+            transparent
+          );
+          animation: beam 2s ease-in-out infinite;
+        }
+
+        /* Data Fragment Glow */
+        .data-fragment {
+          box-shadow: 0 0 20px currentColor;
+        }
+
+        @keyframes fragmentPulse {
+          0%, 100% { box-shadow: 0 0 20px currentColor; }
+          50% { box-shadow: 0 0 40px currentColor; }
+        }
+
+        .data-fragment:hover {
+          animation: fragmentPulse 1s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 }
 
 // ============================================================================
-// MIND CARD — 3D Tilt Effect
+// MIND CARD — 3D Tilt + Layout Transitions
 // ============================================================================
 
 interface MindCardProps {
@@ -656,29 +893,24 @@ function MindCard({
   return (
     <motion.div
       ref={cardRef}
+      layout
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.1 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ 
+        layout: { duration: 0.3, type: "spring", stiffness: 100 },
+        delay: index * 0.05 
+      }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       style={{
         rotateX,
         rotateY,
         transformStyle: "preserve-3d",
-        background: isFailed
-          ? "rgba(254, 226, 226, 0.4)"
-          : isDone
-          ? "rgba(220, 252, 231, 0.4)"
-          : "rgba(255, 255, 255, 0.4)",
-        backdropFilter: "blur(25px)",
-        border: isFailed
-          ? "1px solid rgba(239, 68, 68, 0.5)"
-          : isDone
-          ? "1px solid rgba(34, 197, 94, 0.5)"
-          : "1px solid rgba(255, 255, 255, 0.5)",
-        boxShadow: "0 20px 50px rgba(0, 0, 0, 0.05)",
       }}
-      className="rounded-2xl p-6 cursor-pointer transition-all hover:shadow-2xl"
+      className={`rounded-2xl p-6 cursor-pointer transition-all hover:shadow-2xl glass-iridescent ${
+        isFailed ? "opacity-70" : isDone ? "opacity-80" : ""
+      }`}
     >
       {/* HEADER */}
       <div className="flex items-start justify-between gap-4 mb-4">
@@ -709,98 +941,124 @@ function MindCard({
         </button>
       </div>
 
-      {/* ANALYSIS (Expandable) */}
-      {expanded && analysis && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
-          className="space-y-4"
-        >
-          <div>
-            <h4 className="text-sm font-bold text-gray-900 mb-1">Zusammenfassung</h4>
-            <p className="text-sm text-gray-700">{analysis.summary}</p>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-bold text-gray-900 mb-1">Rückfrage</h4>
-            <p className="text-sm text-gray-700">{analysis.followUpQuestion}</p>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-bold text-gray-900 mb-1">ROI-Check</h4>
-            <p className="text-sm text-gray-700">{analysis.roiCheck}</p>
-          </div>
-
-          {analysis.nextSteps && analysis.nextSteps.length > 0 && (
+      {/* ANALYSIS (Expandable with Layout Animation) */}
+      <AnimatePresence>
+        {expanded && analysis && (
+          <motion.div
+            layout
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-4"
+          >
             <div>
-              <h4 className="text-sm font-bold text-gray-900 mb-2">Next Steps</h4>
-              <ul className="space-y-1">
-                {analysis.nextSteps.map((step, i) => (
-                  <li key={i} className="text-sm text-gray-700 flex items-start gap-2">
-                    <span className="text-violet-600 font-bold">→</span>
-                    {step}
-                  </li>
-                ))}
-              </ul>
+              <h4 className="text-sm font-bold text-gray-900 mb-1">Zusammenfassung</h4>
+              <p className="text-sm text-gray-700">{analysis.summary}</p>
             </div>
-          )}
 
-          {analysis.resources && analysis.resources.length > 0 && (
             <div>
-              <h4 className="text-sm font-bold text-gray-900 mb-2">Ressourcen</h4>
-              <div className="flex flex-wrap gap-2">
-                {analysis.resources.map((res, i) => (
-                  <a
-                    key={i}
-                    href={res.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-200 transition-colors"
-                  >
-                    {res.label}
-                  </a>
-                ))}
+              <h4 className="text-sm font-bold text-gray-900 mb-1">Rückfrage</h4>
+              <p className="text-sm text-gray-700">{analysis.followUpQuestion}</p>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-bold text-gray-900 mb-1">ROI-Check</h4>
+              <p className="text-sm text-gray-700">{analysis.roiCheck}</p>
+            </div>
+
+            {analysis.nextSteps && analysis.nextSteps.length > 0 && (
+              <div>
+                <h4 className="text-sm font-bold text-gray-900 mb-2">Next Steps</h4>
+                <ul className="space-y-1">
+                  {analysis.nextSteps.map((step, i) => (
+                    <motion.li
+                      key={i}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.1 }}
+                      className="text-sm text-gray-700 flex items-start gap-2"
+                    >
+                      <span className="text-violet-600 font-bold">→</span>
+                      {step}
+                    </motion.li>
+                  ))}
+                </ul>
               </div>
-            </div>
-          )}
-
-          {isFailed && strategy.failureReason && (
-            <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-              <h4 className="text-sm font-bold text-red-900 mb-1">
-                Opportunitätskosten-Analyse
-              </h4>
-              <p className="text-sm text-red-800">{strategy.failureReason}</p>
-            </div>
-          )}
-
-          {/* ACTION BUTTONS */}
-          <div className="flex gap-2 pt-2">
-            {!isDone && !isFailed && (
-              <>
-                <button
-                  onClick={onMarkDone}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-all shadow-md hover:shadow-lg"
-                >
-                  Erledigt
-                </button>
-                <button
-                  onClick={onOpenFailure}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-all shadow-md hover:shadow-lg"
-                >
-                  Nicht umgesetzt
-                </button>
-                <button
-                  onClick={onGenerateTemplate}
-                  className="px-4 py-2 bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-lg font-medium hover:shadow-lg transition-all"
-                >
-                  <Sparkles className="w-4 h-4" />
-                </button>
-              </>
             )}
-          </div>
-        </motion.div>
-      )}
+
+            {analysis.resources && analysis.resources.length > 0 && (
+              <div>
+                <h4 className="text-sm font-bold text-gray-900 mb-2">Ressourcen</h4>
+                <div className="flex flex-wrap gap-2">
+                  {analysis.resources.map((res, i) => (
+                    <motion.a
+                      key={i}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: i * 0.05 }}
+                      href={res.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-200 transition-colors"
+                    >
+                      {res.label}
+                    </motion.a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {isFailed && strategy.failureReason && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="p-4 bg-red-50 rounded-lg border border-red-200"
+              >
+                <h4 className="text-sm font-bold text-red-900 mb-1">
+                  Opportunitätskosten-Analyse
+                </h4>
+                <p className="text-sm text-red-800">{strategy.failureReason}</p>
+              </motion.div>
+            )}
+
+            {/* ACTION BUTTONS */}
+            <motion.div
+              layout
+              className="flex gap-2 pt-2"
+            >
+              {!isDone && !isFailed && (
+                <>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={onMarkDone}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-all shadow-md hover:shadow-lg"
+                  >
+                    Erledigt
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={onOpenFailure}
+                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-all shadow-md hover:shadow-lg"
+                  >
+                    Nicht umgesetzt
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05, rotate: 5 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={onGenerateTemplate}
+                    className="px-4 py-2 bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-lg font-medium hover:shadow-lg transition-all"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                  </motion.button>
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -829,11 +1087,11 @@ function Modal({ onClose, children }: ModalProps) {
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
+          className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors z-10"
         >
           <X className="w-5 h-5 text-gray-600" />
         </button>

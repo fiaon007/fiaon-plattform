@@ -732,7 +732,12 @@ Antworte NUR mit einem JSON-Objekt:
     });
 
     const rawResponse = completion.choices[0]?.message?.content || '{}';
-    const parsed = parseJSONResponse<EmailAnalysis>(rawResponse);
+    const parsed = safeParseJson(rawResponse) as EmailAnalysis | null;
+
+    if (!parsed || !parsed.actionType) {
+      logger.warn('[CEO-AGENT] Email analysis parsing failed, using fallback');
+      return fallbackEmailAnalysis(sender, subject, body);
+    }
 
     logger.info(`[CEO-AGENT] Email analyzed: ${parsed.actionType} (${parsed.priorityLevel}) in ${Date.now() - start}ms`);
     return parsed;
@@ -852,4 +857,67 @@ function fallbackMorningBriefing(newEmailsCount: number, criticalEmailsCount: nu
   parts.push('Soll ich die Details zeigen?');
   
   return parts.join(' ');
+}
+
+// ============================================================================
+// VOICE-TO-STRATEGY — Whisper Speech-to-Text (IRON MAN HUD)
+// ============================================================================
+
+/**
+ * Transkribiert Audio-Daten mittels Groq Whisper (whisper-large-v3-turbo).
+ * @param audioData Base64-encoded Audio oder Buffer
+ * @param format Audio-Format (webm, mp3, wav, etc.)
+ * @returns Transkribierter Text
+ */
+export async function transcribeAudio(audioData: string, format: string = 'webm'): Promise<string> {
+  if (!groq) {
+    logger.warn('[CEO-AGENT] Groq not configured, cannot transcribe audio');
+    return '';
+  }
+
+  try {
+    // Konvertiere Base64 zu Buffer falls nötig
+    let audioBuffer: Buffer;
+    if (typeof audioData === 'string' && audioData.startsWith('data:')) {
+      // Data URL Format: data:audio/webm;base64,<data>
+      const base64Data = audioData.split(',')[1];
+      audioBuffer = Buffer.from(base64Data, 'base64');
+    } else if (typeof audioData === 'string') {
+      // Pure Base64
+      audioBuffer = Buffer.from(audioData, 'base64');
+    } else {
+      audioBuffer = audioData as any;
+    }
+
+    // Erstelle temporäre Datei für Groq API (benötigt File-Object)
+    const fs = await import('fs');
+    const path = await import('path');
+    const os = await import('os');
+    
+    const tmpDir = os.tmpdir();
+    const tmpFile = path.join(tmpDir, `voice_${Date.now()}.${format}`);
+    fs.writeFileSync(tmpFile, audioBuffer);
+
+    logger.info(`[CEO-AGENT] Transcribing audio file (${format}, ${audioBuffer.length} bytes)...`);
+
+    // Groq Whisper API Call
+    const transcription = await groq.audio.transcriptions.create({
+      file: fs.createReadStream(tmpFile) as any,
+      model: 'whisper-large-v3-turbo',
+      language: 'de', // Deutsch
+      response_format: 'text',
+      temperature: 0.0,
+    });
+
+    // Cleanup
+    fs.unlinkSync(tmpFile);
+
+    const text = typeof transcription === 'string' ? transcription : (transcription as any).text || '';
+    logger.info(`[CEO-AGENT] Transcription successful: "${text.slice(0, 80)}..."`);
+
+    return text.trim();
+  } catch (error: any) {
+    logger.error('[CEO-AGENT] Transcription error:', error?.message || error);
+    throw new Error(`Whisper transcription failed: ${error?.message || 'Unknown error'}`);
+  }
 }

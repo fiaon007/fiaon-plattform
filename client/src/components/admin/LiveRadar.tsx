@@ -1,16 +1,17 @@
 /**
  * ============================================================================
- * LIVE RADAR WIDGET — System-Auslastung & Neue Daten-Eingänge
+ * LIVE RADAR WIDGET — System-Auslastung & Neue Daten-Eingänge (IRON MAN HUD)
  * ============================================================================
  * Visualisiert:
  *   - Groq API Speed (ms)
  *   - Neue E-Mails (letzte 24h)
  *   - Offene Strategien
  *   - System Health
+ *   - Rotierende Radar-Animation mit "Daten-Einschlägen"
  * ============================================================================
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Activity, Mail, Brain, Zap } from "lucide-react";
 
@@ -21,6 +22,13 @@ interface SystemStats {
   systemHealth: "excellent" | "good" | "degraded" | "offline";
 }
 
+interface DataImpact {
+  angle: number;
+  distance: number;
+  opacity: number;
+  size: number;
+}
+
 export default function LiveRadar() {
   const [stats, setStats] = useState<SystemStats>({
     groqSpeed: null,
@@ -28,12 +36,103 @@ export default function LiveRadar() {
     openStrategies: 0,
     systemHealth: "good",
   });
+  const [impacts, setImpacts] = useState<DataImpact[]>([]);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const angleRef = useRef(0);
+  const animationFrameRef = useRef<number>();
 
   useEffect(() => {
     loadStats();
     const interval = setInterval(loadStats, 30000); // Update alle 30s
     return () => clearInterval(interval);
   }, []);
+
+  // Radar Animation
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const width = canvas.width;
+    const height = canvas.height;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const radius = Math.min(width, height) / 2 - 10;
+
+    const animate = () => {
+      ctx.clearRect(0, 0, width, height);
+
+      // Radar Circles
+      ctx.strokeStyle = "rgba(139, 92, 246, 0.2)";
+      ctx.lineWidth = 1;
+      for (let i = 1; i <= 3; i++) {
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, (radius / 3) * i, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // Rotating Sweep Line
+      angleRef.current += 0.02;
+      const gradient = ctx.createLinearGradient(
+        centerX,
+        centerY,
+        centerX + Math.cos(angleRef.current) * radius,
+        centerY + Math.sin(angleRef.current) * radius
+      );
+      gradient.addColorStop(0, "rgba(139, 92, 246, 0)");
+      gradient.addColorStop(0.5, "rgba(139, 92, 246, 0.3)");
+      gradient.addColorStop(1, "rgba(139, 92, 246, 0.6)");
+
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(
+        centerX + Math.cos(angleRef.current) * radius,
+        centerY + Math.sin(angleRef.current) * radius
+      );
+      ctx.stroke();
+
+      // Data Impacts (Blips)
+      impacts.forEach((impact) => {
+        const x = centerX + Math.cos(impact.angle) * impact.distance;
+        const y = centerY + Math.sin(impact.angle) * impact.distance;
+
+        ctx.fillStyle = `rgba(59, 130, 246, ${impact.opacity})`;
+        ctx.beginPath();
+        ctx.arc(x, y, impact.size, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = `rgba(59, 130, 246, ${impact.opacity * 0.5})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, impact.size * 2, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+
+      // Fade out impacts
+      setImpacts((prev) =>
+        prev
+          .map((impact) => ({
+            ...impact,
+            opacity: impact.opacity - 0.01,
+          }))
+          .filter((impact) => impact.opacity > 0)
+      );
+
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [impacts]);
 
   const loadStats = async () => {
     try {
@@ -46,7 +145,7 @@ export default function LiveRadar() {
 
       if (briefingRes.ok) {
         const data = await briefingRes.json();
-        setStats({
+        const newStats = {
           groqSpeed: groqDuration,
           newMailsToday: data.stats?.newMails || 0,
           openStrategies: data.stats?.openStrategies || 0,
@@ -56,12 +155,29 @@ export default function LiveRadar() {
               : groqDuration < 2000
               ? "good"
               : "degraded",
-        });
+        } as SystemStats;
+
+        // Add data impacts wenn neue Daten erkannt werden
+        if (newStats.newMailsToday > stats.newMailsToday) {
+          addDataImpact();
+        }
+
+        setStats(newStats);
       }
     } catch (err) {
       console.error("[LIVE-RADAR] Load stats error:", err);
       setStats((prev) => ({ ...prev, systemHealth: "offline" }));
     }
+  };
+
+  const addDataImpact = () => {
+    const newImpact: DataImpact = {
+      angle: Math.random() * Math.PI * 2,
+      distance: Math.random() * 80 + 20,
+      opacity: 1,
+      size: 4,
+    };
+    setImpacts((prev) => [...prev, newImpact]);
   };
 
   const getHealthColor = () => {
@@ -102,16 +218,13 @@ export default function LiveRadar() {
         boxShadow: "0 20px 50px rgba(0, 0, 0, 0.05)",
       }}
     >
-      {/* RADAR ANIMATION */}
-      <div className="absolute top-0 right-0 w-32 h-32 opacity-10">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-          className="w-full h-full rounded-full border-4 border-violet-600"
-          style={{
-            borderRightColor: "transparent",
-            borderBottomColor: "transparent",
-          }}
+      {/* CANVAS RADAR ANIMATION */}
+      <div className="absolute top-0 right-0 w-48 h-48 opacity-30 pointer-events-none">
+        <canvas
+          ref={canvasRef}
+          width={192}
+          height={192}
+          className="w-full h-full"
         />
       </div>
 

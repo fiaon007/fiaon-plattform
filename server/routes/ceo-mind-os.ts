@@ -586,4 +586,60 @@ router.get('/morning-briefing', async (req, res) => {
   }
 });
 
+// ============================================================================
+// VOICE-TO-STRATEGY — IRON MAN HUD (STARK OHREN)
+// ============================================================================
+
+/**
+ * POST /api/ceo-mind-os/voice-input
+ * Nimmt Audio auf, nutzt Whisper (Groq) für Transkription und analysiert sofort.
+ */
+router.post('/voice-input', async (req, res) => {
+  try {
+    // Audio als Base64 oder direkt als Buffer
+    const { audioData, audioFormat } = req.body;
+
+    if (!audioData) {
+      return res.status(400).json({ error: 'audioData required' });
+    }
+
+    // Whisper-Transkription via Groq
+    const { transcribeAudio } = await import('../services/ceoAgent');
+    const transcription = await transcribeAudio(audioData, audioFormat || 'webm');
+
+    if (!transcription || !transcription.trim()) {
+      return res.status(400).json({ 
+        error: 'transcription_empty', 
+        detail: 'Keine Sprache erkannt. Bitte erneut versuchen.' 
+      });
+    }
+
+    // Sofort durch Analyse-Engine
+    const analysis = await analyzeThought(transcription);
+
+    // Optional: Strategie direkt speichern
+    const strategyId = `strat_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    await client`
+      INSERT INTO ceo_strategies (
+        id, user_thought, ai_analysis, category, status, created_at, updated_at
+      )
+      VALUES (
+        ${strategyId}, ${transcription}, ${JSON.stringify(analysis)}::jsonb,
+        ${analysis.category || null}, 'active', NOW(), NOW()
+      )
+    `;
+
+    logger.info(`[CEO-MIND-OS] Voice input processed: "${transcription.slice(0, 50)}..."`);
+
+    res.json({
+      transcription,
+      analysis,
+      strategyId,
+    });
+  } catch (err: any) {
+    logger.error(`[CEO-MIND-OS] POST /voice-input error: ${err?.message || err}`);
+    res.status(500).json({ error: 'voice_input_failed', detail: String(err?.message || err) });
+  }
+});
+
 export default router;

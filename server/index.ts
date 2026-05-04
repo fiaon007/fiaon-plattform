@@ -394,7 +394,36 @@ async function seedSubscriptionPlans() {
       log('❌ AI Tasks migration error:', error.message);
     }
   }
-  
+
+  // ============================================================================
+  // CEO MIND-OS — ceo_strategies table (idempotent, safe in dev & prod)
+  // ============================================================================
+  try {
+    log('🧠 Running CEO Mind-OS migration...');
+    await client`
+      CREATE TABLE IF NOT EXISTS ceo_strategies (
+        id              VARCHAR PRIMARY KEY,
+        user_id         VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+        user_thought    TEXT NOT NULL,
+        ai_analysis     JSONB,
+        category        VARCHAR,
+        status          VARCHAR NOT NULL DEFAULT 'active'
+                          CHECK (status IN ('active','done','failed','archived')),
+        failure_reason  TEXT,
+        resources       JSONB,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS ceo_strategies_status_idx      ON ceo_strategies(status)`;
+    await client`CREATE INDEX IF NOT EXISTS ceo_strategies_category_idx    ON ceo_strategies(category)`;
+    await client`CREATE INDEX IF NOT EXISTS ceo_strategies_created_at_idx  ON ceo_strategies(created_at DESC)`;
+    await client`CREATE INDEX IF NOT EXISTS ceo_strategies_user_id_idx     ON ceo_strategies(user_id)`;
+    log('✅ CEO Mind-OS migration completed');
+  } catch (error: any) {
+    log('⚠️ CEO Mind-OS migration error:', error?.message || String(error));
+  }
+
   // ============================================================================
   // CRITICAL: registerRoutes MUST run FIRST (sets up passport session)
   // Internal routes MUST be mounted AFTER so req.isAuthenticated() works

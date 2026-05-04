@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import CeoMindOS from "@/components/admin/CeoMindOS";
 
 interface AI_Task {
   id: string;
@@ -454,6 +455,9 @@ export default function AdminDatabasePage() {
                 Willkommen zurück in deinem Admin Dashboard. Alles läuft reibungslos.
               </p>
             </div>
+
+            {/* CEO Mind-OS — Strategisches Notizbuch (Groq + Tavily) */}
+            <CeoMindOS />
 
             {/* TODO List Section - Bento-Luxury Design */}
             <div className="mb-8">

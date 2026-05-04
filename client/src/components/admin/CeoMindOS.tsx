@@ -1,24 +1,17 @@
 /**
  * ============================================================================
- * FIAON COMMAND CENTER — STARK EDITION (Ultra-Luxury)
+ * CEO MIND-OS — ULTRA-CLEAN EXECUTIVE HUD
  * ============================================================================
- * The Iron Man Dashboard - Richard Mille meets High-Tech
+ * Clean. White. Blue. Transparent. High-End (ChatGPT/Gemini style).
  *
- * CRITICAL FIXES:
- * - FIX: Backend returns { thought, analysis } - NOT { userThought, aiAnalysis }
- * - FIX: Border-Beam now ACTUALLY rotates around the input border (SVG)
- * - FIX: Auto-expand + auto-scroll for new strategies
- * - FIX: Strict dark theme (Slate-950 ONLY, no white mixing)
+ * Layout:
+ *   1. Greeting (Guten Morgen, Justin!)
+ *   2. Neural Pill Input (white + animated blue border-glow)
+ *   3. Three-Pillar Overview: Inbox | Brain | Tasks
  *
- * FEATURES:
- * - Full-bleed dark theme (covers parent page)
- * - Hero Morning Briefing with Violet→Blue gradient text
- * - Border-Beam Pill Input (rotating gold glow on rim)
- * - Intelligent Inbox: 4 categories (Priority/Partners/Clients/Filtered)
- * - Action Steps Generator (Top 3 daily actions)
- * - Monochrome + Gold/Silver accents only
- * - Bottom-sheets on mobile, modals on desktop
- * - Shimmer loading effects
+ * Backend mapping (CRITICAL — do not change):
+ *   Backend returns: { id, thought, analysis, status, ... }
+ *   NOT: { userThought, aiAnalysis }
  * ============================================================================
  */
 
@@ -27,23 +20,20 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Send,
   Loader2,
-  AlertCircle,
   Mail,
   X,
-  ChevronDown,
-  ChevronUp,
+  ChevronRight,
   Mic,
   MicOff,
-  Sparkles,
-  ArrowRight,
-  Users,
-  Shield,
-  Filter,
+  Inbox,
+  Brain,
   CheckCircle2,
+  ArrowUpRight,
+  Sparkles,
 } from "lucide-react";
 
 // ============================================================================
-// TYPES — Matching BACKEND format (formatStrategy in routes/ceo-mind-os.ts)
+// TYPES
 // ============================================================================
 
 interface CeoAnalysis {
@@ -52,21 +42,16 @@ interface CeoAnalysis {
   roiCheck?: string;
   nextSteps?: string[];
   category?: string;
-  magicTemplate?: string | null;
   resources?: Array<{ label: string; url: string; type: string }>;
   confidence?: number;
 }
 
-// IMPORTANT: Backend returns these EXACT field names!
 interface CeoStrategy {
   id: string;
-  userId?: string | null;
-  thought: string;            // ← Backend field: "thought" (NOT userThought!)
-  analysis?: CeoAnalysis | null; // ← Backend field: "analysis" (NOT aiAnalysis!)
+  thought: string;
+  analysis?: CeoAnalysis | null;
   category?: string | null;
   status: "active" | "done" | "failed" | "archived";
-  failureReason?: string | null;
-  resources?: any[];
   createdAt: string;
   updatedAt: string;
 }
@@ -82,20 +67,39 @@ interface InboundMail {
   createdAt: string;
 }
 
-interface MorningBriefing {
-  briefing: string;
-  stats: {
-    newMails: number;
-    criticalMails: number;
-    openStrategies: number;
-  };
+interface TeamTodo {
+  id: string;
+  title: string;
+  status: string;
+  urgency_score?: number;
+  due_date?: string | null;
 }
 
-interface ActionStep {
-  id: string;
-  text: string;
-  type: "email" | "todo" | "strategy";
-  urgency: "high" | "medium" | "low";
+interface MorningBriefing {
+  briefing: string;
+  stats: { newMails: number; criticalMails: number; openStrategies: number };
+}
+
+// ============================================================================
+// UTIL
+// ============================================================================
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 5) return "Gute Nacht";
+  if (h < 11) return "Guten Morgen";
+  if (h < 17) return "Guten Tag";
+  if (h < 22) return "Guten Abend";
+  return "Gute Nacht";
+}
+
+function formatDate(): string {
+  return new Date().toLocaleDateString("de-DE", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 // ============================================================================
@@ -106,13 +110,15 @@ export default function CeoMindOS() {
   const [thought, setThought] = useState("");
   const [strategies, setStrategies] = useState<CeoStrategy[]>([]);
   const [inboxMails, setInboxMails] = useState<InboundMail[]>([]);
-  const [morningBriefing, setMorningBriefing] = useState<MorningBriefing | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [loadingStrategies, setLoadingStrategies] = useState(true);
-  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+  const [todos, setTodos] = useState<TeamTodo[]>([]);
+  const [briefing, setBriefing] = useState<MorningBriefing | null>(null);
 
-  // Modals
-  const [showReplyModal, setShowReplyModal] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
+
+  const [selectedStrategy, setSelectedStrategy] = useState<CeoStrategy | null>(null);
+
+  // Reply modal
   const [selectedMail, setSelectedMail] = useState<InboundMail | null>(null);
   const [replyDraft, setReplyDraft] = useState("");
   const [generatingReply, setGeneratingReply] = useState(false);
@@ -124,38 +130,31 @@ export default function CeoMindOS() {
   const audioChunksRef = useRef<Blob[]>([]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const newStrategyRef = useRef<HTMLDivElement>(null);
 
   // ============================================================================
-  // DATA FETCHING
+  // DATA LOAD
   // ============================================================================
 
   useEffect(() => {
     loadAll();
-    const pollInterval = setInterval(loadAll, 60000);
-    return () => clearInterval(pollInterval);
+    const t = setInterval(loadAll, 60000);
+    return () => clearInterval(t);
   }, []);
 
-  const loadAll = () => {
-    loadStrategies();
-    loadInbox();
-    loadMorningBriefing();
+  const loadAll = async () => {
+    await Promise.all([loadStrategies(), loadInbox(), loadTodos(), loadBriefing()]);
+    setLoadingData(false);
   };
 
   const loadStrategies = async () => {
-    setLoadingStrategies(true);
     try {
       const res = await fetch("/api/ceo-mind-os", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
-        // Backend returns array directly
-        const list = Array.isArray(data) ? data : data?.strategies || [];
-        setStrategies(list);
+        setStrategies(Array.isArray(data) ? data : data?.strategies || []);
       }
-    } catch (err) {
-      console.error("[CMD-CENTER] Load strategies error:", err);
-    } finally {
-      setLoadingStrategies(false);
+    } catch (e) {
+      console.error("[CEO-HUD] strategies:", e);
     }
   };
 
@@ -166,68 +165,31 @@ export default function CeoMindOS() {
         const data = await res.json();
         setInboxMails(data.mails || []);
       }
-    } catch (err) {
-      console.error("[CMD-CENTER] Load inbox error:", err);
+    } catch (e) {
+      console.error("[CEO-HUD] inbox:", e);
     }
   };
 
-  const loadMorningBriefing = async () => {
+  const loadTodos = async () => {
     try {
-      const res = await fetch("/api/ceo-mind-os/morning-briefing", { credentials: "include" });
+      const res = await fetch("/api/todos", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
-        setMorningBriefing(data);
+        setTodos(Array.isArray(data) ? data : []);
       }
-    } catch (err) {
-      console.error("[CMD-CENTER] Load briefing error:", err);
+    } catch (e) {
+      console.error("[CEO-HUD] todos:", e);
     }
   };
 
-  // ============================================================================
-  // INBOX CATEGORIZATION
-  // ============================================================================
-
-  const categorizedInbox = {
-    priority: inboxMails.filter((m) => m.priorityLevel === "critical"),
-    partners: inboxMails.filter((m) => {
-      const s = (m.sender || "").toLowerCase();
-      const a = (m.aiActionTaken || "").toLowerCase();
-      return s.includes("partner") || s.includes("investor") || a.includes("partner") || a.includes("investor");
-    }),
-    clients: inboxMails.filter((m) => {
-      const s = (m.sender || "").toLowerCase();
-      const a = (m.aiActionTaken || "").toLowerCase();
-      return s.includes("kunde") || s.includes("client") || a.includes("client") || a.includes("kunde");
-    }),
-    filtered: inboxMails.filter(
-      (m) =>
-        m.priorityLevel === "low" ||
-        (m.aiActionTaken || "").toLowerCase().includes("spam") ||
-        (m.aiActionTaken || "").toLowerCase().includes("info")
-    ),
+  const loadBriefing = async () => {
+    try {
+      const res = await fetch("/api/ceo-mind-os/morning-briefing", { credentials: "include" });
+      if (res.ok) setBriefing(await res.json());
+    } catch (e) {
+      console.error("[CEO-HUD] briefing:", e);
+    }
   };
-
-  // Action Steps from inbox + strategies
-  const actionSteps: ActionStep[] = [
-    ...inboxMails
-      .filter((m) => m.priorityLevel === "critical" || m.priorityLevel === "high")
-      .slice(0, 2)
-      .map((mail, idx) => ({
-        id: `mail-${idx}`,
-        text: `Antworte auf "${mail.subject}" von ${mail.sender}`,
-        type: "email" as const,
-        urgency: mail.priorityLevel === "critical" ? ("high" as const) : ("medium" as const),
-      })),
-    ...strategies
-      .filter((s) => s.status === "active")
-      .slice(0, 1)
-      .map((s) => ({
-        id: `strat-${s.id}`,
-        text: s.analysis?.nextSteps?.[0] || `Strategie umsetzen: ${(s.thought || "").slice(0, 50)}...`,
-        type: "strategy" as const,
-        urgency: "medium" as const,
-      })),
-  ].slice(0, 3);
 
   // ============================================================================
   // VOICE RECORDING
@@ -236,19 +198,19 @@ export default function CeoMindOS() {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
       audioChunksRef.current = [];
-      mediaRecorder.ondataavailable = (e) => e.data.size > 0 && audioChunksRef.current.push(e.data);
-      mediaRecorder.onstop = async () => {
+      mr.ondataavailable = (e) => e.data.size > 0 && audioChunksRef.current.push(e.data);
+      mr.onstop = async () => {
         const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        await processVoiceInput(blob);
+        await processVoice(blob);
         stream.getTracks().forEach((t) => t.stop());
       };
-      mediaRecorder.start();
-      mediaRecorderRef.current = mediaRecorder;
+      mr.start();
+      mediaRecorderRef.current = mr;
       setIsRecording(true);
     } catch (err) {
-      console.error("[CMD-CENTER] Voice recording error:", err);
+      console.error("[CEO-HUD] recording:", err);
     }
   };
 
@@ -260,7 +222,7 @@ export default function CeoMindOS() {
     }
   };
 
-  const processVoiceInput = async (audioBlob: Blob) => {
+  const processVoice = async (audioBlob: Blob) => {
     try {
       const reader = new FileReader();
       reader.readAsDataURL(audioBlob);
@@ -272,24 +234,22 @@ export default function CeoMindOS() {
           credentials: "include",
           body: JSON.stringify({ audioData: base64Audio, audioFormat: "webm" }),
         });
-        if (res.ok) {
-          await loadStrategies();
-          setThought("");
-        }
+        if (res.ok) await loadStrategies();
       };
     } catch (err) {
-      console.error("[CMD-CENTER] Voice processing error:", err);
+      console.error("[CEO-HUD] voice processing:", err);
     } finally {
       setIsTranscribing(false);
     }
   };
 
   // ============================================================================
-  // ACTIONS
+  // EXECUTE / ANALYZE
   // ============================================================================
 
-  const handleAnalyze = async () => {
-    if (!thought.trim() || analyzing) return;
+  const handleExecute = async () => {
+    const txt = thought.trim();
+    if (!txt || analyzing) return;
     setAnalyzing(true);
 
     try {
@@ -297,30 +257,25 @@ export default function CeoMindOS() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ thought: thought.trim() }),
+        body: JSON.stringify({ thought: txt }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        // Backend returns formatStrategy() directly: { id, thought, analysis, ... }
         if (data && data.id) {
+          // PERSISTENCE GUARANTEE: new card appears at top instantly
           setStrategies((prev) => [data, ...prev]);
-          // AUTO-EXPAND so user sees the new card
-          setExpandedCards((prev) => ({ ...prev, [data.id]: true }));
+          setSelectedStrategy(data); // auto-open detail pane
           setThought("");
           if (textareaRef.current) textareaRef.current.style.height = "auto";
-          // AUTO-SCROLL to new card
-          setTimeout(() => {
-            newStrategyRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-          }, 200);
         }
       } else {
         const err = await res.json().catch(() => ({}));
-        console.error("[CMD-CENTER] Save error:", err);
+        console.error("[CEO-HUD] save error:", err);
         alert(`Fehler: ${err.detail || err.error || "Unbekannt"}`);
       }
     } catch (err) {
-      console.error("[CMD-CENTER] Analyze error:", err);
+      console.error("[CEO-HUD] execute:", err);
       alert("Netzwerkfehler. Bitte erneut versuchen.");
     } finally {
       setAnalyzing(false);
@@ -329,7 +284,6 @@ export default function CeoMindOS() {
 
   const handleGenerateReply = async (mail: InboundMail) => {
     setSelectedMail(mail);
-    setShowReplyModal(true);
     setGeneratingReply(true);
     setReplyDraft("");
 
@@ -345,810 +299,532 @@ export default function CeoMindOS() {
           content: mail.contentSummary,
         }),
       });
-
       if (res.ok) {
-        const data = await res.json();
-        setReplyDraft(data.reply || "");
+        const d = await res.json();
+        setReplyDraft(d.reply || "");
       } else {
-        setReplyDraft("Fehler beim Generieren. Bitte manuell schreiben.");
+        setReplyDraft("Fehler beim Generieren. Bitte manuell formulieren.");
       }
     } catch (err) {
-      console.error("[CMD-CENTER] Generate reply error:", err);
+      console.error("[CEO-HUD] reply:", err);
       setReplyDraft("Netzwerkfehler.");
     } finally {
       setGeneratingReply(false);
     }
   };
 
-  const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const onTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setThought(e.target.value);
     e.target.style.height = "auto";
-    e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
-  };
-
-  const toggleCard = (id: string) => {
-    setExpandedCards((prev) => ({ ...prev, [id]: !prev[id] }));
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 180)}px`;
   };
 
   // ============================================================================
-  // RENDER — STARK EDITION
+  // DERIVED DATA
+  // ============================================================================
+
+  const topInbox = inboxMails
+    .slice()
+    .sort((a, b) => {
+      const r = { critical: 0, high: 1, normal: 2, low: 3 } as const;
+      return (r[a.priorityLevel] ?? 4) - (r[b.priorityLevel] ?? 4);
+    })
+    .slice(0, 3);
+
+  const topStrategies = strategies.filter((s) => s.status === "active").slice(0, 3);
+
+  const topTodos = todos
+    .filter((t) => t.status !== "done" && t.status !== "resolved")
+    .slice()
+    .sort((a, b) => (b.urgency_score ?? 50) - (a.urgency_score ?? 50))
+    .slice(0, 3);
+
+  // ============================================================================
+  // RENDER
   // ============================================================================
 
   return (
-    <div className="stark-root">
-      {/* ANIMATED ATMOSPHERE BACKGROUND */}
-      <div className="stark-atmosphere" aria-hidden="true">
-        <div className="atmosphere-orb atmosphere-orb-1" />
-        <div className="atmosphere-orb atmosphere-orb-2" />
-        <div className="atmosphere-grid" />
-      </div>
+    <div className="ceo-hud">
+      {/* === GREETING === */}
+      <motion.div
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="ceo-hud-greeting"
+      >
+        <h2 className="ceo-hud-title">
+          {getGreeting()}, <span className="ceo-hud-title-accent">Justin</span>
+        </h2>
+        <p className="ceo-hud-date">{formatDate()}</p>
 
-      <div className="stark-container">
-        {/* ====== HERO: EXECUTIVE BRIEFING ====== */}
-        <motion.section
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="stark-hero"
-        >
-          <div className="stark-hero-meta">
-            <span className="stark-overline">FIAON COMMAND CENTER</span>
-            <span className="stark-overline-divider">·</span>
-            <span className="stark-overline-time">
-              {new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" })}
-            </span>
-          </div>
-
-          <h1 className="stark-hero-title">
-            <span className="stark-gradient-text">Executive Briefing</span>
-          </h1>
-
-          {morningBriefing?.briefing ? (
-            <p className="stark-hero-briefing">{morningBriefing.briefing}</p>
-          ) : (
-            <p className="stark-hero-briefing stark-hero-briefing-muted">
-              System bereit. Keine kritischen Vorgänge.
-            </p>
-          )}
-
-          {/* GOLD STATS */}
-          <div className="stark-stats-row">
-            <div className="stark-stat">
-              <div className="stark-stat-value-gold">
-                {morningBriefing?.stats.newMails ?? inboxMails.length}
-              </div>
-              <div className="stark-stat-label">Inbox</div>
-            </div>
-            <div className="stark-stat-divider" />
-            <div className="stark-stat">
-              <div className="stark-stat-value-gold">
-                {morningBriefing?.stats.criticalMails ?? categorizedInbox.priority.length}
-              </div>
-              <div className="stark-stat-label">Critical</div>
-            </div>
-            <div className="stark-stat-divider" />
-            <div className="stark-stat">
-              <div className="stark-stat-value-gold">
-                {morningBriefing?.stats.openStrategies ??
-                  strategies.filter((s) => s.status === "active").length}
-              </div>
-              <div className="stark-stat-label">Active</div>
-            </div>
-          </div>
-
-          {/* ACTION STEPS */}
-          {actionSteps.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="stark-action-steps"
-            >
-              <div className="stark-action-header">
-                <Sparkles className="w-4 h-4 text-amber-300" />
-                <span>Today's Priorities</span>
-              </div>
-              <div className="stark-action-list">
-                {actionSteps.map((step, idx) => (
-                  <motion.div
-                    key={step.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.4 + idx * 0.1 }}
-                    className="stark-action-item"
-                  >
-                    <div className="stark-action-number">0{idx + 1}</div>
-                    <div className="stark-action-text">{step.text}</div>
-                    <ArrowRight className="w-4 h-4 text-slate-500 stark-action-arrow" />
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </motion.section>
-
-        {/* ====== BORDER-BEAM PILL INPUT ====== */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="stark-input-section"
-        >
-          <div className="border-beam-wrapper">
-            {/* SVG-based Border Beam — ROTATES AROUND THE ACTUAL BORDER */}
-            <svg className="border-beam-svg" preserveAspectRatio="none" aria-hidden="true">
-              <defs>
-                <linearGradient id="beamGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="rgba(251, 191, 36, 0)" />
-                  <stop offset="50%" stopColor="rgba(251, 191, 36, 0.9)" />
-                  <stop offset="100%" stopColor="rgba(251, 191, 36, 0)" />
-                </linearGradient>
-              </defs>
-              <rect
-                className="border-beam-rect"
-                x="1"
-                y="1"
-                width="calc(100% - 2px)"
-                height="calc(100% - 2px)"
-                rx="999"
-                ry="999"
-                fill="none"
-                stroke="url(#beamGradient)"
-                strokeWidth="2"
-                pathLength="100"
-              />
-            </svg>
-
-            <div className="stark-pill">
-              <textarea
-                ref={textareaRef}
-                value={thought}
-                onChange={handleTextareaInput}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                    e.preventDefault();
-                    handleAnalyze();
-                  }
-                }}
-                placeholder="Command Center ready. What's on your mind?"
-                className="stark-textarea"
-                disabled={analyzing || isRecording || isTranscribing}
-                rows={1}
-              />
-
-              <div className="stark-pill-actions">
-                <button
-                  onClick={isRecording ? stopRecording : startRecording}
-                  disabled={analyzing || isTranscribing}
-                  className={`stark-icon-button ${isRecording ? "is-recording" : ""}`}
-                  aria-label={isRecording ? "Stop recording" : "Start recording"}
-                >
-                  {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                </button>
-
-                <button
-                  onClick={handleAnalyze}
-                  disabled={!thought.trim() || analyzing || isRecording || isTranscribing}
-                  className="stark-execute-button"
-                >
-                  {analyzing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Processing</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4" />
-                      <span>Execute</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <p className="stark-input-hint">
-            {isRecording
-              ? "● Recording..."
-              : isTranscribing
-              ? "○ Transcribing..."
-              : analyzing
-              ? "○ Analyzing..."
-              : "⌘ + Enter to execute"}
-          </p>
-        </motion.section>
-
-        {/* ====== INTELLIGENT INBOX (4 CATEGORIES) ====== */}
-        {inboxMails.length > 0 && (
-          <motion.section
+        {briefing?.briefing && (
+          <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="stark-inbox-grid"
+            transition={{ delay: 0.2 }}
+            className="ceo-hud-briefing"
           >
-            <InboxCategory
-              title="PRIORITY"
-              icon={<AlertCircle className="w-4 h-4" />}
-              count={categorizedInbox.priority.length}
-              accent="red"
-              mails={categorizedInbox.priority}
-              onMailClick={handleGenerateReply}
-            />
-            <InboxCategory
-              title="PARTNERS"
-              icon={<Shield className="w-4 h-4" />}
-              count={categorizedInbox.partners.length}
-              accent="silver"
-              mails={categorizedInbox.partners}
-              onMailClick={handleGenerateReply}
-            />
-            <InboxCategory
-              title="CLIENTS"
-              icon={<Users className="w-4 h-4" />}
-              count={categorizedInbox.clients.length}
-              accent="silver"
-              mails={categorizedInbox.clients}
-              onMailClick={handleGenerateReply}
-            />
-            <InboxCategory
-              title="FILTERED"
-              icon={<Filter className="w-4 h-4" />}
-              count={categorizedInbox.filtered.length}
-              accent="muted"
-              mails={categorizedInbox.filtered}
-              onMailClick={handleGenerateReply}
-            />
-          </motion.section>
+            {briefing.briefing}
+          </motion.p>
         )}
+      </motion.div>
 
-        {/* ====== STRATEGIES TIMELINE ====== */}
-        <section className="stark-timeline">
-          {strategies.length > 0 && (
-            <div className="stark-section-header">
-              <span className="stark-overline">Timeline</span>
-              <h2 className="stark-section-title">Strategien & Gedanken</h2>
-            </div>
-          )}
+      {/* === NEURAL PILL INPUT === */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.15 }}
+        className="ceo-hud-input-wrap"
+      >
+        <div className="neural-pill">
+          {/* SVG border beam that follows the actual pill border */}
+          <svg className="neural-pill-beam" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="ceoBeamGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="rgba(37, 99, 235, 0)" />
+                <stop offset="50%" stopColor="rgba(37, 99, 235, 0.9)" />
+                <stop offset="100%" stopColor="rgba(37, 99, 235, 0)" />
+              </linearGradient>
+            </defs>
+            <rect
+              className="neural-pill-rect"
+              x="1"
+              y="1"
+              width="calc(100% - 2px)"
+              height="calc(100% - 2px)"
+              rx="999"
+              ry="999"
+              fill="none"
+              stroke="url(#ceoBeamGrad)"
+              strokeWidth="1.5"
+              pathLength="100"
+            />
+          </svg>
 
-          {loadingStrategies && strategies.length === 0 ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="stark-shimmer h-32 rounded-2xl" />
-              ))}
-            </div>
-          ) : (
-            <AnimatePresence mode="popLayout">
-              {strategies.map((strategy, idx) => (
-                <div ref={idx === 0 ? newStrategyRef : undefined} key={strategy.id}>
-                  <StrategyCard
-                    strategy={strategy}
-                    expanded={expandedCards[strategy.id] || false}
-                    onToggle={() => toggleCard(strategy.id)}
-                  />
-                </div>
-              ))}
-            </AnimatePresence>
-          )}
+          <div className="neural-pill-inner">
+            <Sparkles className="neural-pill-spark" />
+            <textarea
+              ref={textareaRef}
+              value={thought}
+              onChange={onTextareaInput}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  handleExecute();
+                }
+              }}
+              placeholder="Was beschäftigt dich strategisch? Tippe oder sprich deinen Gedanken ein…"
+              className="neural-pill-input"
+              disabled={analyzing || isRecording || isTranscribing}
+              rows={1}
+            />
 
-          {!loadingStrategies && strategies.length === 0 && (
-            <div className="stark-empty">
-              <p className="text-slate-500 text-center text-sm">
-                Noch keine Strategien. Beginne mit deinem ersten Gedanken oben.
-              </p>
+            <div className="neural-pill-actions">
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={analyzing || isTranscribing}
+                className={`neural-icon-btn ${isRecording ? "is-recording" : ""}`}
+                aria-label={isRecording ? "Stop recording" : "Start recording"}
+              >
+                {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              </button>
+
+              <button
+                onClick={handleExecute}
+                disabled={!thought.trim() || analyzing || isRecording || isTranscribing}
+                className="neural-execute-btn"
+              >
+                {analyzing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+                <span>{analyzing ? "Denke nach…" : "Execute"}</span>
+              </button>
             </div>
-          )}
-        </section>
+          </div>
+        </div>
+
+        <p className="neural-hint">
+          {isRecording
+            ? "● Aufnahme läuft…"
+            : isTranscribing
+            ? "○ Transkribiere…"
+            : analyzing
+            ? "○ KI analysiert…"
+            : "⌘ + Enter zum Ausführen"}
+        </p>
+      </motion.div>
+
+      {/* === THREE-PILLAR OVERVIEW === */}
+      <div className="ceo-hud-pillars">
+        {/* INBOX */}
+        <PillarCard
+          title="Postfach"
+          subtitle="Top 3 priorisiert"
+          accent="blue"
+          icon={<Inbox className="w-4 h-4" />}
+          count={inboxMails.length}
+          loading={loadingData}
+          empty={topInbox.length === 0 ? "Keine Mails" : undefined}
+        >
+          {topInbox.map((mail) => (
+            <button
+              key={mail.id}
+              onClick={() => handleGenerateReply(mail)}
+              className="pillar-item"
+            >
+              <div className="pillar-item-row">
+                <span className="pillar-item-title">{mail.sender}</span>
+                {mail.priorityLevel === "critical" && (
+                  <span className="pillar-badge pillar-badge-red">KRITISCH</span>
+                )}
+                {mail.priorityLevel === "high" && (
+                  <span className="pillar-badge pillar-badge-amber">WICHTIG</span>
+                )}
+              </div>
+              <p className="pillar-item-sub">{mail.subject}</p>
+              <div className="pillar-item-cta">
+                Draft erstellen <ArrowUpRight className="w-3 h-3" />
+              </div>
+            </button>
+          ))}
+        </PillarCard>
+
+        {/* BRAIN */}
+        <PillarCard
+          title="Gedanken"
+          subtitle="Letzte Strategien"
+          accent="indigo"
+          icon={<Brain className="w-4 h-4" />}
+          count={strategies.filter((s) => s.status === "active").length}
+          loading={loadingData}
+          empty={topStrategies.length === 0 ? "Noch keine Gedanken" : undefined}
+        >
+          {topStrategies.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setSelectedStrategy(s)}
+              className="pillar-item"
+            >
+              <div className="pillar-item-row">
+                <span className="pillar-item-title pillar-item-title-clamp">
+                  {s.thought || "(kein Inhalt)"}
+                </span>
+              </div>
+              {s.analysis?.summary && (
+                <p className="pillar-item-sub">{s.analysis.summary}</p>
+              )}
+              <div className="pillar-item-cta">
+                Details öffnen <ArrowUpRight className="w-3 h-3" />
+              </div>
+            </button>
+          ))}
+        </PillarCard>
+
+        {/* TODOS */}
+        <PillarCard
+          title="Aufgaben"
+          subtitle="Dringlichste Todos"
+          accent="emerald"
+          icon={<CheckCircle2 className="w-4 h-4" />}
+          count={todos.filter((t) => t.status !== "done" && t.status !== "resolved").length}
+          loading={loadingData}
+          empty={topTodos.length === 0 ? "Alles erledigt" : undefined}
+        >
+          {topTodos.map((t) => (
+            <div key={t.id} className="pillar-item">
+              <div className="pillar-item-row">
+                <span className="pillar-item-title pillar-item-title-clamp">{t.title}</span>
+                {(t.urgency_score ?? 0) >= 80 && (
+                  <span className="pillar-badge pillar-badge-red">HIGH</span>
+                )}
+              </div>
+              {t.due_date && (
+                <p className="pillar-item-sub">
+                  Fällig: {new Date(t.due_date).toLocaleDateString("de-DE")}
+                </p>
+              )}
+            </div>
+          ))}
+        </PillarCard>
       </div>
 
-      {/* ====== REPLY MODAL ====== */}
+      {/* === STRATEGY DETAIL MODAL === */}
       <AnimatePresence>
-        {showReplyModal && selectedMail && (
-          <BottomSheetModal onClose={() => setShowReplyModal(false)}>
-            <div className="p-8">
-              <div className="stark-overline mb-2">REPLY DRAFT</div>
-              <h3 className="text-2xl font-semibold text-white mb-1">{selectedMail.sender}</h3>
-              <p className="text-sm text-slate-400 mb-6">Re: {selectedMail.subject}</p>
+        {selectedStrategy && (
+          <CleanModal onClose={() => setSelectedStrategy(null)}>
+            <div className="p-8 sm:p-10">
+              <span className="ceo-hud-overline ceo-hud-overline-blue">
+                {selectedStrategy.category || "STRATEGIE"}
+              </span>
+              <p className="text-xl text-slate-900 font-semibold mt-3 mb-6 leading-snug">
+                {selectedStrategy.thought}
+              </p>
+
+              {!selectedStrategy.analysis && (
+                <div className="clean-shimmer h-28 rounded-xl" />
+              )}
+
+              {selectedStrategy.analysis?.summary && (
+                <AnalysisBlock label="Analyse">
+                  {selectedStrategy.analysis.summary}
+                </AnalysisBlock>
+              )}
+
+              {selectedStrategy.analysis?.followUpQuestion && (
+                <AnalysisBlock label="Rückfrage">
+                  <em className="text-slate-700">
+                    {selectedStrategy.analysis.followUpQuestion}
+                  </em>
+                </AnalysisBlock>
+              )}
+
+              {selectedStrategy.analysis?.roiCheck && (
+                <AnalysisBlock label="ROI">
+                  {selectedStrategy.analysis.roiCheck}
+                </AnalysisBlock>
+              )}
+
+              {selectedStrategy.analysis?.nextSteps &&
+                selectedStrategy.analysis.nextSteps.length > 0 && (
+                  <AnalysisBlock label="Next Steps">
+                    <ol className="space-y-2.5 mt-1">
+                      {selectedStrategy.analysis.nextSteps.map((step, i) => (
+                        <li key={i} className="flex gap-3 items-start text-slate-700 text-sm leading-relaxed">
+                          <span className="font-mono text-xs text-blue-600 font-semibold pt-0.5 min-w-[20px]">
+                            {String(i + 1).padStart(2, "0")}
+                          </span>
+                          <span>{step}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </AnalysisBlock>
+                )}
+            </div>
+          </CleanModal>
+        )}
+      </AnimatePresence>
+
+      {/* === REPLY DRAFT MODAL === */}
+      <AnimatePresence>
+        {selectedMail && (
+          <CleanModal onClose={() => setSelectedMail(null)}>
+            <div className="p-8 sm:p-10">
+              <span className="ceo-hud-overline ceo-hud-overline-blue">REPLY DRAFT</span>
+              <h3 className="text-xl font-semibold text-slate-900 mt-3 mb-1">
+                {selectedMail.sender}
+              </h3>
+              <p className="text-sm text-slate-500 mb-6">Re: {selectedMail.subject}</p>
 
               {generatingReply ? (
-                <div className="stark-shimmer h-48 rounded-xl mb-6" />
+                <div className="clean-shimmer h-44 rounded-xl mb-6" />
               ) : (
                 <textarea
                   value={replyDraft}
                   onChange={(e) => setReplyDraft(e.target.value)}
-                  className="w-full bg-slate-900/60 border border-slate-700 rounded-xl p-4 text-white text-sm leading-relaxed min-h-[220px] focus:border-amber-400 focus:outline-none resize-none mb-6"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-slate-800 text-sm leading-relaxed min-h-[200px] focus:border-blue-400 focus:ring-4 focus:ring-blue-50 focus:outline-none resize-none mb-6"
                 />
               )}
 
               <div className="flex gap-3">
-                <button className="stark-execute-button flex-1 justify-center">
+                <button className="neural-execute-btn flex-1 justify-center">
                   <Mail className="w-4 h-4" />
                   <span>Senden</span>
                 </button>
                 <button
-                  onClick={() => setShowReplyModal(false)}
-                  className="px-6 py-3 bg-white/5 text-slate-300 rounded-full font-medium hover:bg-white/10 transition-colors"
+                  onClick={() => setSelectedMail(null)}
+                  className="px-6 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-full text-sm font-medium hover:bg-slate-50 transition-colors"
                 >
                   Abbrechen
                 </button>
               </div>
             </div>
-          </BottomSheetModal>
+          </CleanModal>
         )}
       </AnimatePresence>
 
-      {/* ====== STARK EDITION STYLES ====== */}
-      <style>{starkStyles}</style>
+      <style>{hudStyles}</style>
     </div>
   );
 }
 
 // ============================================================================
-// INBOX CATEGORY WIDGET
+// PILLAR CARD
 // ============================================================================
 
-interface InboxCategoryProps {
+interface PillarCardProps {
   title: string;
+  subtitle: string;
+  accent: "blue" | "indigo" | "emerald";
   icon: React.ReactNode;
   count: number;
-  accent: "red" | "silver" | "muted";
-  mails: InboundMail[];
-  onMailClick: (m: InboundMail) => void;
+  loading?: boolean;
+  empty?: string;
+  children?: React.ReactNode;
 }
 
-function InboxCategory({ title, icon, count, accent, mails, onMailClick }: InboxCategoryProps) {
-  const [open, setOpen] = useState(false);
-
+function PillarCard({ title, subtitle, accent, icon, count, loading, empty, children }: PillarCardProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`stark-inbox-card stark-inbox-${accent}`}
-      onClick={() => mails.length > 0 && setOpen(!open)}
+      transition={{ type: "spring", damping: 22, stiffness: 180 }}
+      className={`pillar-card pillar-card-${accent}`}
     >
-      <div className="stark-inbox-head">
-        <div className="stark-inbox-icon">{icon}</div>
-        <div className="stark-inbox-count">{count}</div>
-      </div>
-      <div className="stark-inbox-title">{title}</div>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="stark-inbox-list"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {mails.slice(0, 4).map((mail) => (
-              <button
-                key={mail.id}
-                onClick={() => onMailClick(mail)}
-                className="stark-inbox-mail"
-              >
-                <div className="stark-inbox-mail-sender">{mail.sender}</div>
-                <div className="stark-inbox-mail-subject">{mail.subject}</div>
-              </button>
-            ))}
-            {mails.length === 0 && (
-              <p className="text-xs text-slate-600 text-center py-3">Leer</p>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-}
-
-// ============================================================================
-// STRATEGY CARD
-// ============================================================================
-
-interface StrategyCardProps {
-  strategy: CeoStrategy;
-  expanded: boolean;
-  onToggle: () => void;
-}
-
-function StrategyCard({ strategy, expanded, onToggle }: StrategyCardProps) {
-  // CRITICAL: Backend returns "thought" and "analysis" - NOT "userThought"/"aiAnalysis"
-  const thoughtText = strategy.thought || "(kein Inhalt)";
-  const analysis = strategy.analysis;
-  const isDone = strategy.status === "done";
-  const isFailed = strategy.status === "failed";
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 20, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -10, scale: 0.98 }}
-      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      className={`stark-strategy-card ${isDone ? "is-done" : ""} ${isFailed ? "is-failed" : ""}`}
-    >
-      <div className="stark-strategy-header" onClick={onToggle}>
+      <div className="pillar-head">
+        <div className={`pillar-icon pillar-icon-${accent}`}>{icon}</div>
         <div className="flex-1 min-w-0">
-          <div className="stark-strategy-meta">
-            <span className="stark-overline">
-              {strategy.category || "Strategie"}
-            </span>
-            {analysis?.confidence !== undefined && (
-              <span className="text-[10px] text-amber-300/60 tracking-widest">
-                {Math.round((analysis.confidence || 0) * 100)}% CONFIDENCE
-              </span>
-            )}
-          </div>
-          <p className="stark-strategy-thought">{thoughtText}</p>
+          <h3 className="pillar-title">{title}</h3>
+          <p className="pillar-subtitle">{subtitle}</p>
         </div>
-        <button className="stark-icon-button-plain" onClick={(e) => { e.stopPropagation(); onToggle(); }}>
-          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
+        <div className={`pillar-count pillar-count-${accent}`}>{count}</div>
       </div>
 
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3 }}
-            className="stark-strategy-body"
-          >
-            {analysis?.summary && (
-              <div className="stark-analysis-block">
-                <div className="stark-overline mb-2">Analyse</div>
-                <p className="stark-analysis-text">{analysis.summary}</p>
-              </div>
-            )}
-
-            {analysis?.followUpQuestion && (
-              <div className="stark-analysis-block">
-                <div className="stark-overline mb-2">Rückfrage</div>
-                <p className="stark-analysis-text italic">{analysis.followUpQuestion}</p>
-              </div>
-            )}
-
-            {analysis?.roiCheck && (
-              <div className="stark-analysis-block">
-                <div className="stark-overline mb-2">ROI</div>
-                <p className="stark-analysis-text">{analysis.roiCheck}</p>
-              </div>
-            )}
-
-            {analysis?.nextSteps && analysis.nextSteps.length > 0 && (
-              <div className="stark-analysis-block">
-                <div className="stark-overline mb-3">Next Steps</div>
-                <ul className="space-y-2">
-                  {analysis.nextSteps.map((step, i) => (
-                    <li key={i} className="stark-step-item">
-                      <span className="stark-step-bullet">{String(i + 1).padStart(2, "0")}</span>
-                      <span>{step}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {!analysis && (
-              <p className="text-sm text-slate-500 italic">
-                Analyse wird verarbeitet...
-              </p>
-            )}
-          </motion.div>
+      <div className="pillar-body">
+        {loading ? (
+          <div className="space-y-2">
+            <div className="clean-shimmer h-14 rounded-lg" />
+            <div className="clean-shimmer h-14 rounded-lg" />
+          </div>
+        ) : empty ? (
+          <p className="pillar-empty">{empty}</p>
+        ) : (
+          <div className="space-y-2">{children}</div>
         )}
-      </AnimatePresence>
+      </div>
     </motion.div>
   );
 }
 
 // ============================================================================
-// BOTTOM-SHEET MODAL (mobile) / CENTERED MODAL (desktop)
+// ANALYSIS BLOCK
 // ============================================================================
 
-function BottomSheetModal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+function AnalysisBlock({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-6">
+      <div className="ceo-hud-overline ceo-hud-overline-blue mb-2">{label}</div>
+      <div className="text-sm text-slate-700 leading-relaxed">{children}</div>
+    </div>
+  );
+}
+
+// ============================================================================
+// CLEAN MODAL
+// ============================================================================
+
+function CleanModal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-end md:items-center justify-center"
+      className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-end sm:items-center justify-center"
     >
       <motion.div
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 250 }}
+        initial={{ y: "100%", opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: "100%", opacity: 0 }}
+        transition={{ type: "spring", damping: 28, stiffness: 260 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full md:max-w-2xl md:mx-4 stark-modal-shell"
+        className="relative w-full sm:max-w-2xl sm:mx-4 bg-white/95 backdrop-blur-2xl border border-white/60 rounded-t-[28px] sm:rounded-[28px] shadow-[0_20px_60px_-15px_rgba(31,38,135,0.25)] max-h-[90vh] overflow-hidden"
       >
-        <button onClick={onClose} className="absolute top-5 right-5 stark-icon-button-plain z-10">
-          <X className="w-5 h-5" />
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors z-10"
+        >
+          <X className="w-4 h-4" />
         </button>
-        <div className="stark-modal-grip md:hidden" />
-        <div className="overflow-y-auto max-h-[85vh]">{children}</div>
+        <div className="sm:hidden w-10 h-1 bg-slate-200 rounded-full mx-auto mt-3" />
+        <div className="overflow-y-auto max-h-[90vh]">{children}</div>
       </motion.div>
     </motion.div>
   );
 }
 
 // ============================================================================
-// STARK EDITION STYLESHEET
+// STYLES
 // ============================================================================
 
-const starkStyles = `
-  /* === ROOT === */
-  .stark-root {
+const hudStyles = `
+  .ceo-hud {
     position: relative;
-    min-height: 100vh;
     width: 100%;
-    margin-left: calc(-1 * (100vw - 100%) / 2);
-    margin-right: calc(-1 * (100vw - 100%) / 2);
-    width: 100vw;
-    background: #020617;
-    color: #f1f5f9;
+    padding: 0;
+    margin: 0 0 56px;
     font-family: 'Inter', 'Inter Variable', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-feature-settings: 'cv11', 'ss01';
-    overflow: hidden;
-    isolation: isolate;
   }
 
-  .stark-container {
-    position: relative;
-    z-index: 1;
-    max-width: 1280px;
-    margin: 0 auto;
-    padding: 48px 24px 96px;
+  /* === GREETING === */
+  .ceo-hud-greeting {
+    margin-bottom: 36px;
   }
 
-  @media (min-width: 768px) {
-    .stark-container { padding: 80px 48px 120px; }
-  }
-
-  /* === ATMOSPHERE BACKGROUND === */
-  .stark-atmosphere {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  .atmosphere-orb {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(120px);
-    opacity: 0.5;
-  }
-
-  .atmosphere-orb-1 {
-    top: -10%;
-    left: -10%;
-    width: 700px;
-    height: 700px;
-    background: radial-gradient(circle, rgba(30, 58, 138, 0.45), transparent 65%);
-    animation: orbFloat1 18s ease-in-out infinite;
-  }
-
-  .atmosphere-orb-2 {
-    bottom: -20%;
-    right: -10%;
-    width: 600px;
-    height: 600px;
-    background: radial-gradient(circle, rgba(76, 29, 149, 0.35), transparent 65%);
-    animation: orbFloat2 22s ease-in-out infinite;
-  }
-
-  @keyframes orbFloat1 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(60px, 80px) scale(1.15); }
-  }
-
-  @keyframes orbFloat2 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(-80px, -60px) scale(1.1); }
-  }
-
-  .atmosphere-grid {
-    position: absolute;
-    inset: 0;
-    background-image:
-      linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
-    background-size: 64px 64px;
-    mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
-    -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
-  }
-
-  /* === HERO === */
-  .stark-hero {
-    margin-bottom: 48px;
-  }
-
-  .stark-hero-meta {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 24px;
-  }
-
-  .stark-overline {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: #64748b;
-  }
-
-  .stark-overline-divider {
-    color: #334155;
-  }
-
-  .stark-overline-time {
-    font-size: 10px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: #94a3b8;
-  }
-
-  .stark-hero-title {
-    font-size: clamp(2.5rem, 6vw, 4.5rem);
+  .ceo-hud-title {
+    font-size: clamp(2.25rem, 5vw, 3.5rem);
     font-weight: 700;
     line-height: 1.05;
-    letter-spacing: -0.04em;
-    margin-bottom: 24px;
+    letter-spacing: -0.035em;
+    color: #0f172a;
+    margin-bottom: 10px;
   }
 
-  .stark-gradient-text {
-    background: linear-gradient(135deg, #c4b5fd 0%, #93c5fd 45%, #67e8f9 100%);
+  .ceo-hud-title-accent {
+    background: linear-gradient(135deg, #2563eb 0%, #6366f1 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
     color: transparent;
-    filter: drop-shadow(0 0 40px rgba(147, 197, 253, 0.15));
   }
 
-  .stark-hero-briefing {
-    font-size: clamp(1rem, 1.5vw, 1.125rem);
-    line-height: 1.7;
-    color: #cbd5e1;
-    max-width: 720px;
-    margin-bottom: 40px;
-    font-weight: 400;
-  }
-
-  .stark-hero-briefing-muted {
-    color: #64748b;
-    font-style: italic;
-  }
-
-  /* === STATS ROW === */
-  .stark-stats-row {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    padding: 24px 0;
-    border-top: 1px solid rgba(148, 163, 184, 0.08);
-    border-bottom: 1px solid rgba(148, 163, 184, 0.08);
-    margin-bottom: 32px;
-  }
-
-  .stark-stat {
-    flex: 1;
-  }
-
-  .stark-stat-divider {
-    width: 1px;
-    height: 40px;
-    background: linear-gradient(to bottom, transparent, rgba(148, 163, 184, 0.2), transparent);
-  }
-
-  .stark-stat-value-gold {
-    font-size: clamp(2rem, 4vw, 2.75rem);
-    font-weight: 700;
-    line-height: 1;
-    background: linear-gradient(135deg, #fde68a 0%, #fbbf24 50%, #d97706 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-    letter-spacing: -0.03em;
-    margin-bottom: 6px;
-  }
-
-  .stark-stat-label {
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: #64748b;
-  }
-
-  /* === ACTION STEPS === */
-  .stark-action-steps {
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.6), rgba(15, 23, 42, 0.3));
-    border: 1px solid rgba(251, 191, 36, 0.12);
-    border-radius: 20px;
-    padding: 24px;
-    backdrop-filter: blur(20px);
-  }
-
-  .stark-action-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: #fcd34d;
-    margin-bottom: 16px;
-  }
-
-  .stark-action-list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .stark-action-item {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 14px 12px;
-    border-radius: 12px;
-    transition: background 0.2s ease;
-    cursor: pointer;
-  }
-
-  .stark-action-item:hover {
-    background: rgba(251, 191, 36, 0.04);
-  }
-
-  .stark-action-item:hover .stark-action-arrow {
-    color: #fcd34d;
-    transform: translateX(2px);
-  }
-
-  .stark-action-number {
-    font-family: 'JetBrains Mono', 'SF Mono', monospace;
-    font-size: 12px;
-    font-weight: 600;
-    color: #fbbf24;
-    letter-spacing: 0.05em;
-    min-width: 24px;
-  }
-
-  .stark-action-text {
-    flex: 1;
+  .ceo-hud-date {
     font-size: 14px;
-    color: #e2e8f0;
+    color: #2563eb;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    text-transform: capitalize;
+    margin-bottom: 20px;
+  }
+
+  .ceo-hud-briefing {
+    font-size: 15px;
+    line-height: 1.7;
+    color: #475569;
+    max-width: 760px;
     font-weight: 400;
   }
 
-  .stark-action-arrow {
-    transition: all 0.2s ease;
+  .ceo-hud-overline {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #64748b;
   }
 
-  /* === BORDER-BEAM PILL INPUT === */
-  .stark-input-section {
-    margin-bottom: 56px;
+  .ceo-hud-overline-blue { color: #2563eb; }
+
+  /* === NEURAL PILL INPUT === */
+  .ceo-hud-input-wrap {
+    margin-bottom: 40px;
   }
 
-  .border-beam-wrapper {
+  .neural-pill {
     position: relative;
     border-radius: 9999px;
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.7));
-    backdrop-filter: blur(40px) saturate(180%);
-    border: 1px solid rgba(148, 163, 184, 0.1);
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.8);
     box-shadow:
-      0 24px 60px -20px rgba(0, 0, 0, 0.5),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      0 8px 32px 0 rgba(31, 38, 135, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
     overflow: hidden;
   }
 
-  /* SVG-based Border Beam — actually rotates on the rim! */
-  .border-beam-svg {
+  .neural-pill-beam {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -1157,407 +833,305 @@ const starkStyles = `
     z-index: 1;
   }
 
-  @keyframes beamRotate {
-    0% { stroke-dasharray: 25 75; stroke-dashoffset: 100; }
-    100% { stroke-dasharray: 25 75; stroke-dashoffset: 0; }
+  @keyframes neuralBeamRotate {
+    0%   { stroke-dasharray: 22 78; stroke-dashoffset: 100; }
+    100% { stroke-dasharray: 22 78; stroke-dashoffset: 0; }
   }
 
-  .border-beam-rect {
-    animation: beamRotate 4s linear infinite;
-    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.6));
+  .neural-pill-rect {
+    animation: neuralBeamRotate 5s linear infinite;
+    filter: drop-shadow(0 0 4px rgba(37, 99, 235, 0.5));
   }
 
-  .stark-pill {
+  .neural-pill-inner {
     position: relative;
     z-index: 2;
     display: flex;
     align-items: flex-end;
-    gap: 16px;
-    padding: 14px 14px 14px 28px;
+    gap: 12px;
+    padding: 12px 12px 12px 22px;
   }
 
-  .stark-textarea {
+  .neural-pill-spark {
+    width: 18px;
+    height: 18px;
+    color: #6366f1;
+    flex-shrink: 0;
+    margin-bottom: 13px;
+    opacity: 0.6;
+  }
+
+  .neural-pill-input {
     flex: 1;
     background: transparent;
     border: none;
     outline: none;
     resize: none;
-    color: #f1f5f9;
-    font-size: 16px;
-    line-height: 1.6;
     font-family: inherit;
-    padding: 12px 0;
-    min-height: 28px;
-    max-height: 200px;
+    font-size: 16px;
+    line-height: 1.55;
+    color: #0f172a;
+    padding: 11px 0;
+    min-height: 26px;
+    max-height: 180px;
   }
 
-  .stark-textarea::placeholder {
-    color: #64748b;
+  .neural-pill-input::placeholder {
+    color: #94a3b8;
     font-weight: 400;
   }
 
-  .stark-pill-actions {
+  .neural-pill-actions {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
   }
 
-  .stark-icon-button {
-    width: 40px;
-    height: 40px;
+  .neural-icon-btn {
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    color: #cbd5e1;
+    background: #f1f5f9;
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    color: #475569;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s ease;
+    transition: all 0.18s ease;
     cursor: pointer;
   }
 
-  .stark-icon-button:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
+  .neural-icon-btn:hover:not(:disabled) {
+    background: #e2e8f0;
+    color: #0f172a;
   }
 
-  .stark-icon-button.is-recording {
-    background: rgba(239, 68, 68, 0.15);
-    color: #fca5a5;
-    border-color: rgba(239, 68, 68, 0.3);
-    animation: recordPulse 1.5s ease-in-out infinite;
+  .neural-icon-btn.is-recording {
+    background: #fee2e2;
+    color: #dc2626;
+    border-color: rgba(220, 38, 38, 0.2);
+    animation: neuralRecPulse 1.4s ease-in-out infinite;
   }
 
-  @keyframes recordPulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-    50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  @keyframes neuralRecPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.3); }
+    50%      { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
   }
 
-  .stark-icon-button:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
+  .neural-icon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-  .stark-icon-button-plain {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    background: transparent;
-    border: none;
-    color: #94a3b8;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    cursor: pointer;
-  }
-
-  .stark-icon-button-plain:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: #f1f5f9;
-  }
-
-  .stark-execute-button {
-    height: 40px;
-    padding: 0 22px;
+  .neural-execute-btn {
+    height: 38px;
+    padding: 0 20px;
     border-radius: 9999px;
-    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-    border: 1px solid rgba(251, 191, 36, 0.4);
-    color: #fde68a;
+    background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+    border: none;
+    color: #fff;
     font-size: 13px;
     font-weight: 600;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.01em;
     display: flex;
     align-items: center;
-    gap: 8px;
-    transition: all 0.25s ease;
+    gap: 7px;
     cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 14px -2px rgba(37, 99, 235, 0.35);
     white-space: nowrap;
-    box-shadow: 0 0 20px rgba(251, 191, 36, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
-  .stark-execute-button:hover:not(:disabled) {
-    background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
-    color: #0f172a;
-    border-color: #fbbf24;
-    box-shadow: 0 0 30px rgba(251, 191, 36, 0.4);
+  .neural-execute-btn:hover:not(:disabled) {
     transform: translateY(-1px);
+    box-shadow: 0 8px 22px -4px rgba(37, 99, 235, 0.5);
   }
 
-  .stark-execute-button:disabled {
-    opacity: 0.4;
+  .neural-execute-btn:disabled {
+    opacity: 0.45;
     cursor: not-allowed;
+    box-shadow: none;
   }
 
-  .stark-input-hint {
+  .neural-hint {
     font-size: 11px;
-    letter-spacing: 0.15em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #475569;
+    color: #94a3b8;
     text-align: center;
-    margin-top: 14px;
+    margin-top: 12px;
     font-family: 'JetBrains Mono', 'SF Mono', monospace;
   }
 
-  /* === INTELLIGENT INBOX === */
-  .stark-inbox-grid {
+  /* === THREE PILLARS === */
+  .ceo-hud-pillars {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-    margin-bottom: 56px;
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
 
-  @media (min-width: 768px) {
-    .stark-inbox-grid {
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
+  @media (min-width: 1024px) {
+    .ceo-hud-pillars {
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
     }
   }
 
-  .stark-inbox-card {
-    background: rgba(15, 23, 42, 0.5);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(148, 163, 184, 0.08);
-    border-radius: 18px;
-    padding: 20px;
-    transition: all 0.3s ease;
-    cursor: pointer;
+  .pillar-card {
+    position: relative;
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-radius: 24px;
+    padding: 24px;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.06);
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
   }
 
-  .stark-inbox-card:hover {
-    border-color: rgba(148, 163, 184, 0.15);
-    background: rgba(15, 23, 42, 0.7);
+  .pillar-card:hover {
+    box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.1);
     transform: translateY(-2px);
   }
 
-  .stark-inbox-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-  }
-
-  .stark-inbox-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.04);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .stark-inbox-red .stark-inbox-icon { color: #fca5a5; background: rgba(239, 68, 68, 0.08); }
-  .stark-inbox-silver .stark-inbox-icon { color: #cbd5e1; }
-  .stark-inbox-muted .stark-inbox-icon { color: #64748b; }
-
-  .stark-inbox-count {
-    font-size: 28px;
-    font-weight: 700;
-    color: #f1f5f9;
-    letter-spacing: -0.03em;
-    line-height: 1;
-  }
-
-  .stark-inbox-red .stark-inbox-count {
-    background: linear-gradient(135deg, #fca5a5, #ef4444);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
-  .stark-inbox-title {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: #64748b;
-  }
-
-  .stark-inbox-list {
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid rgba(148, 163, 184, 0.08);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .stark-inbox-mail {
-    width: 100%;
-    text-align: left;
-    padding: 8px 10px;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    transition: background 0.2s ease;
-    cursor: pointer;
-  }
-
-  .stark-inbox-mail:hover {
-    background: rgba(255, 255, 255, 0.04);
-  }
-
-  .stark-inbox-mail-sender {
-    font-size: 12px;
-    font-weight: 600;
-    color: #e2e8f0;
-    margin-bottom: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .stark-inbox-mail-subject {
-    font-size: 11px;
-    color: #64748b;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  /* === TIMELINE === */
-  .stark-timeline {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .stark-section-header {
-    margin-bottom: 8px;
-  }
-
-  .stark-section-title {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #f1f5f9;
-    letter-spacing: -0.02em;
-    margin-top: 4px;
-  }
-
-  /* === STRATEGY CARD === */
-  .stark-strategy-card {
-    background: rgba(15, 23, 42, 0.55);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(148, 163, 184, 0.08);
-    border-radius: 20px;
-    overflow: hidden;
-    transition: all 0.3s ease;
-  }
-
-  .stark-strategy-card:hover {
-    border-color: rgba(251, 191, 36, 0.15);
-    box-shadow: 0 0 40px rgba(251, 191, 36, 0.04);
-  }
-
-  .stark-strategy-card.is-done {
-    opacity: 0.55;
-  }
-
-  .stark-strategy-header {
-    display: flex;
-    align-items: flex-start;
-    gap: 16px;
-    padding: 24px 24px 20px;
-    cursor: pointer;
-  }
-
-  .stark-strategy-meta {
+  .pillar-head {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 10px;
+    margin-bottom: 18px;
   }
 
-  .stark-strategy-thought {
-    font-size: 16px;
-    line-height: 1.6;
-    color: #f1f5f9;
-    font-weight: 400;
-  }
-
-  .stark-strategy-body {
-    padding: 0 24px 24px;
-    border-top: 1px solid rgba(148, 163, 184, 0.06);
-    margin-top: 4px;
-  }
-
-  .stark-analysis-block {
-    padding-top: 20px;
-  }
-
-  .stark-analysis-text {
-    font-size: 14px;
-    line-height: 1.65;
-    color: #cbd5e1;
-  }
-
-  .stark-step-item {
+  .pillar-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
     display: flex;
-    align-items: flex-start;
-    gap: 14px;
-    font-size: 14px;
-    color: #cbd5e1;
-    line-height: 1.55;
-  }
-
-  .stark-step-bullet {
-    font-family: 'JetBrains Mono', 'SF Mono', monospace;
-    font-size: 11px;
-    color: #fbbf24;
-    letter-spacing: 0.05em;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
-    padding-top: 2px;
-    min-width: 22px;
   }
 
-  /* === EMPTY STATE === */
-  .stark-empty {
-    padding: 40px 20px;
-    background: rgba(15, 23, 42, 0.3);
-    border: 1px dashed rgba(148, 163, 184, 0.12);
-    border-radius: 16px;
+  .pillar-icon-blue    { background: #eff6ff; color: #2563eb; }
+  .pillar-icon-indigo  { background: #eef2ff; color: #4f46e5; }
+  .pillar-icon-emerald { background: #ecfdf5; color: #059669; }
+
+  .pillar-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #0f172a;
+    letter-spacing: -0.01em;
+  }
+
+  .pillar-subtitle {
+    font-size: 11px;
+    color: #94a3b8;
+    letter-spacing: 0.02em;
+    margin-top: 2px;
+  }
+
+  .pillar-count {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+
+  .pillar-count-blue    { color: #2563eb; }
+  .pillar-count-indigo  { color: #4f46e5; }
+  .pillar-count-emerald { color: #059669; }
+
+  .pillar-body { min-height: 60px; }
+
+  .pillar-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    border-radius: 12px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+
+  .pillar-item:hover {
+    background: #fff;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px -4px rgba(15, 23, 42, 0.08);
+  }
+
+  .pillar-item-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .pillar-item-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f172a;
+    letter-spacing: -0.005em;
+  }
+
+  .pillar-item-title-clamp {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: normal;
+  }
+
+  .pillar-item-sub {
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .pillar-item-cta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #2563eb;
+    margin-top: 6px;
+    letter-spacing: 0.01em;
+  }
+
+  .pillar-badge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 3px 7px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+
+  .pillar-badge-red   { background: #fef2f2; color: #dc2626; }
+  .pillar-badge-amber { background: #fffbeb; color: #d97706; }
+
+  .pillar-empty {
+    font-size: 13px;
+    color: #94a3b8;
+    text-align: center;
+    padding: 20px 0;
+    font-style: italic;
   }
 
   /* === SHIMMER === */
-  @keyframes shimmer {
-    0% { background-position: -1000px 0; }
-    100% { background-position: 1000px 0; }
+  @keyframes cleanShimmer {
+    0%   { background-position: -800px 0; }
+    100% { background-position: 800px 0; }
   }
 
-  .stark-shimmer {
-    background: linear-gradient(
-      90deg,
-      rgba(15, 23, 42, 0.6) 0%,
-      rgba(30, 41, 59, 0.8) 50%,
-      rgba(15, 23, 42, 0.6) 100%
-    );
-    background-size: 1000px 100%;
-    animation: shimmer 2.5s infinite;
-  }
-
-  /* === MODAL === */
-  .stark-modal-shell {
-    position: relative;
-    background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
-    border-top: 1px solid rgba(251, 191, 36, 0.15);
-    border-radius: 24px 24px 0 0;
-    box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.6);
-  }
-
-  @media (min-width: 768px) {
-    .stark-modal-shell {
-      border-radius: 24px;
-      border: 1px solid rgba(148, 163, 184, 0.12);
-    }
-  }
-
-  .stark-modal-grip {
-    width: 40px;
-    height: 4px;
-    background: rgba(148, 163, 184, 0.3);
-    border-radius: 999px;
-    margin: 12px auto 0;
+  .clean-shimmer {
+    background: linear-gradient(90deg, #f1f5f9 0%, #f8fafc 50%, #f1f5f9 100%);
+    background-size: 800px 100%;
+    animation: cleanShimmer 2.2s infinite linear;
   }
 `;

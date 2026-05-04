@@ -446,18 +446,7 @@ export default function AdminDatabasePage() {
               </div>
             </div>
 
-            {/* Animated Greeting */}
-            <div className="mb-8">
-              <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight text-gray-900 mb-4">
-                {typedText}
-                <span className="inline-block w-0.5 h-12 bg-[#2563eb] ml-2 animate-pulse" />
-              </h1>
-              <p className="text-[15px] text-gray-500 max-w-lg leading-relaxed">
-                Willkommen zurück in deinem Admin Dashboard. Alles läuft reibungslos.
-              </p>
-            </div>
-
-            {/* CEO Mind-OS — Strategisches Notizbuch (Groq + Tavily) */}
+            {/* CEO Mind-OS — Executive Command Center (Greeting, Pill Input, Three Pillars) */}
             <CeoMindOS />
 
             {/* Live Radar — System-Auslastung & Daten-Eingänge (STARK EDITION) */}

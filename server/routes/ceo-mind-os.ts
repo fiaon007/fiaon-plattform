@@ -247,94 +247,162 @@ router.get('/morning-briefing', async (req, res) => {
 
 /**
  * POST /api/ceo-mind-os/inbound-mail
+ * CloudMailin Webhook - EXTREMELY TOLERANT (accepts all formats)
  */
 router.post('/inbound-mail', async (req, res) => {
-  try {
-    console.log('[CEO-MIND-OS] RAW INBOUND MAIL:', req.body);
-    
-    const { sender, senderEmail, subject, body } = req.body;
+  // ============================================================================
+  // TEIL 1: DEBUG LOGGING (BEFORE ANYTHING ELSE)
+  // ============================================================================
+  console.log('\n========== [JARVIS-MAIL] INCOMING WEBHOOK ==========');
+  console.log('[JARVIS-MAIL] Headers:', JSON.stringify(req.headers, null, 2));
+  console.log('[JARVIS-MAIL] Received Body:', JSON.stringify(req.body, null, 2));
+  console.log('====================================================\n');
 
-    if (!sender || !subject) {
-      return res.status(400).json({ error: 'sender and subject required' });
-    }
+  // ============================================================================
+  // TEIL 2: IMMEDIATE 200 OK (CloudMailin needs fast response)
+  // ============================================================================
+  res.status(200).send('OK');
 
-    const mailId = `mail_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  // ============================================================================
+  // TEIL 3: ASYNC PROCESSING (after response sent)
+  // ============================================================================
+  setImmediate(async () => {
+    try {
+      // Tolerant parsing for CloudMailin formats
+      const body = req.body;
+      
+      // Extract subject (multiple possible locations)
+      let subject = 
+        body.subject || 
+        body.Subject ||
+        body.headers?.Subject || 
+        body.headers?.subject ||
+        body.envelope?.to ||
+        'Kein Betreff';
 
-    const recentRows = await client`
-      SELECT sender, subject, content_summary
-      FROM ceo_inbound_mails
-      ORDER BY created_at DESC
-      LIMIT 10
-    `;
-    const recentEmails = recentRows.map((r: any) => ({
-      sender: r.sender || '',
-      subject: r.subject || '',
-      content_summary: r.content_summary || '',
-    }));
+      // Extract sender (multiple possible locations)
+      let sender = 
+        body.from || 
+        body.From ||
+        body.headers?.From || 
+        body.headers?.from ||
+        body.envelope?.from ||
+        'Unknown Sender';
 
-    const { analyzeEmail } = await import('../services/ceoAgent');
-    const analysis = await analyzeEmail(sender, subject, body || '', recentEmails);
+      // Extract sender email
+      let senderEmail = sender;
+      // If sender is in format "Name <email@example.com>", extract email
+      const emailMatch = sender.match(/<(.+?)>/);
+      if (emailMatch) {
+        senderEmail = emailMatch[1];
+      }
 
-    await client`
-      INSERT INTO ceo_inbound_mails (
-        id, sender, sender_email, subject, content_summary, full_body,
-        ai_action_taken, priority_level, status, created_at
-      )
-      VALUES (
-        ${mailId}, ${sender}, ${senderEmail || null}, ${subject},
-        ${analysis.summary}, ${body || null}, ${analysis.actionType},
-        ${analysis.priorityLevel}, 'new', NOW()
-      )
-    `;
+      // Extract body content (multiple possible locations)
+      let content = 
+        body.plain || 
+        body.text ||
+        body.body ||
+        body.html ||
+        body['body-plain'] ||
+        body['body-html'] ||
+        '';
 
-    let linkedStrategyId: string | null = null;
-    let linkedTodoId: string | null = null;
+      // If content is still empty, try to extract from nested structures
+      if (!content && typeof body === 'object') {
+        // CloudMailin sometimes nests content
+        content = JSON.stringify(body).slice(0, 500);
+      }
 
-    if (analysis.shouldCreateTodo && analysis.todoTitle) {
-      const todoId = `todo_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      console.log('[JARVIS-MAIL] Parsed:');
+      console.log('  Subject:', subject);
+      console.log('  Sender:', sender);
+      console.log('  Email:', senderEmail);
+      console.log('  Content length:', content.length);
+
+      // Skip processing if no meaningful data
+      if (!subject || subject === 'Kein Betreff') {
+        logger.warn('[JARVIS-MAIL] Skipped: No valid subject found');
+        return;
+      }
+
+      const mailId = `mail_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+      // Context-Awareness: Get recent emails
+      const recentRows = await client`
+        SELECT sender, subject, content_summary
+        FROM ceo_inbound_mails
+        ORDER BY created_at DESC
+        LIMIT 10
+      `;
+      const recentEmails = recentRows.map((r: any) => ({
+        sender: r.sender || '',
+        subject: r.subject || '',
+        content_summary: r.content_summary || '',
+      }));
+
+      // AI Analysis
+      const { analyzeEmail } = await import('../services/ceoAgent');
+      const analysis = await analyzeEmail(sender, subject, content, recentEmails);
+
+      // Save to database
       await client`
-        INSERT INTO team_todos (id, title, description, status, urgency_score, created_at)
+        INSERT INTO ceo_inbound_mails (
+          id, sender, sender_email, subject, content_summary, full_body,
+          ai_action_taken, priority_level, status, created_at
+        )
         VALUES (
-          ${todoId}, ${analysis.todoTitle},
-          ${'E-Mail von ' + sender + ': ' + subject}, 'pending',
-          ${analysis.priorityLevel === 'critical' ? 95 : analysis.priorityLevel === 'high' ? 80 : 60},
-          NOW()
+          ${mailId}, ${sender}, ${senderEmail}, ${subject},
+          ${analysis.summary}, ${content}, ${analysis.actionType},
+          ${analysis.priorityLevel}, 'new', NOW()
         )
       `;
-      linkedTodoId = todoId;
+
+      let linkedStrategyId: string | null = null;
+      let linkedTodoId: string | null = null;
+
+      // Auto-create TODO if needed
+      if (analysis.shouldCreateTodo && analysis.todoTitle) {
+        const todoId = `todo_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+        await client`
+          INSERT INTO team_todos (id, title, description, status, urgency_score, created_at)
+          VALUES (
+            ${todoId}, ${analysis.todoTitle},
+            ${'E-Mail von ' + sender + ': ' + subject}, 'pending',
+            ${analysis.priorityLevel === 'critical' ? 95 : analysis.priorityLevel === 'high' ? 80 : 60},
+            NOW()
+          )
+        `;
+        linkedTodoId = todoId;
+      }
+
+      // Auto-create STRATEGY if needed
+      if (analysis.shouldCreateStrategy && analysis.strategyThought) {
+        const strategyId = `strat_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+        await client`
+          INSERT INTO ceo_strategies (id, user_thought, status, created_at, updated_at)
+          VALUES (${strategyId}, ${analysis.strategyThought}, 'active', NOW(), NOW())
+        `;
+        linkedStrategyId = strategyId;
+      }
+
+      // Update links
+      if (linkedStrategyId || linkedTodoId) {
+        await client`
+          UPDATE ceo_inbound_mails
+          SET
+            linked_strategy_id = ${linkedStrategyId},
+            linked_todo_id = ${linkedTodoId}
+          WHERE id = ${mailId}
+        `;
+      }
+
+      logger.info(`[JARVIS-MAIL] ✅ Processed: ${analysis.actionType} (${analysis.priorityLevel}) - "${subject.slice(0, 50)}"`);
+      
+    } catch (err: any) {
+      logger.error(`[JARVIS-MAIL] ❌ Async processing error: ${err?.message || err}`);
+      logger.error(err.stack);
     }
-
-    if (analysis.shouldCreateStrategy && analysis.strategyThought) {
-      const strategyId = `strat_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-      await client`
-        INSERT INTO ceo_strategies (id, user_thought, status, created_at, updated_at)
-        VALUES (${strategyId}, ${analysis.strategyThought}, 'active', NOW(), NOW())
-      `;
-      linkedStrategyId = strategyId;
-    }
-
-    if (linkedStrategyId || linkedTodoId) {
-      await client`
-        UPDATE ceo_inbound_mails
-        SET
-          linked_strategy_id = ${linkedStrategyId},
-          linked_todo_id = ${linkedTodoId}
-        WHERE id = ${mailId}
-      `;
-    }
-
-    logger.info(`[CEO-MIND-OS] Inbound mail processed: ${analysis.actionType} (${analysis.priorityLevel})`);
-
-    res.json({
-      mailId,
-      analysis,
-      linkedStrategyId,
-      linkedTodoId,
-    });
-  } catch (err: any) {
-    logger.error(`[CEO-MIND-OS] POST /inbound-mail error: ${err?.message || err}`);
-    res.status(500).json({ error: 'inbound_mail_failed', detail: String(err?.message || err) });
-  }
+  });
 });
 
 /**

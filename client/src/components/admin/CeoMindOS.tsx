@@ -257,7 +257,7 @@ export default function CeoMindOS() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/ceo-mind-os/analyze", {
+      const res = await fetch("/api/ceo-mind-os", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -266,12 +266,20 @@ export default function CeoMindOS() {
 
       if (res.ok) {
         const data = await res.json();
-        setStrategies((prev) => [data.strategy, ...prev]);
-        setThought("");
-        if (textareaRef.current) {
-          textareaRef.current.style.height = "auto";
+        // API returns strategy directly (not wrapped)
+        if (data && data.id) {
+          setStrategies((prev) => [data, ...prev]);
+          setThought("");
+          if (textareaRef.current) {
+            textareaRef.current.style.height = "auto";
+          }
+        } else {
+          console.error("[CEO-MIND-OS] Invalid response format:", data);
+          alert("Ungültige Antwort vom Server.");
         }
       } else {
+        const error = await res.json().catch(() => ({}));
+        console.error("[CEO-MIND-OS] API error:", error);
         alert("Fehler beim Analysieren. Bitte erneut versuchen.");
       }
     } catch (err) {
@@ -954,17 +962,17 @@ function MindCard({
           >
             <div>
               <h4 className="text-sm font-bold text-gray-900 mb-1">Zusammenfassung</h4>
-              <p className="text-sm text-gray-700">{analysis.summary}</p>
+              <p className="text-sm text-gray-700">{analysis.summary || "Keine Zusammenfassung verfügbar"}</p>
             </div>
 
             <div>
               <h4 className="text-sm font-bold text-gray-900 mb-1">Rückfrage</h4>
-              <p className="text-sm text-gray-700">{analysis.followUpQuestion}</p>
+              <p className="text-sm text-gray-700">{analysis.followUpQuestion || "Keine Rückfrage"}</p>
             </div>
 
             <div>
               <h4 className="text-sm font-bold text-gray-900 mb-1">ROI-Check</h4>
-              <p className="text-sm text-gray-700">{analysis.roiCheck}</p>
+              <p className="text-sm text-gray-700">{analysis.roiCheck || "Keine ROI-Analyse verfügbar"}</p>
             </div>
 
             {analysis.nextSteps && analysis.nextSteps.length > 0 && (

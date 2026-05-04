@@ -122,6 +122,269 @@ router.post('/analyze', async (req, res) => {
 });
 
 // ============================================================================
+// SPECIFIC ROUTES (must be before /:id parameterized routes)
+// ============================================================================
+
+/**
+ * GET /api/ceo-mind-os/inbox
+ */
+router.get('/inbox', async (req, res) => {
+  try {
+    const rows = await client`
+      SELECT * FROM ceo_inbound_mails
+      WHERE status = 'new'
+      ORDER BY 
+        CASE priority_level
+          WHEN 'critical' THEN 1
+          WHEN 'high' THEN 2
+          WHEN 'normal' THEN 3
+          WHEN 'low' THEN 4
+        END,
+        created_at DESC
+      LIMIT 50
+    `;
+
+    const mails = rows.map((r: any) => ({
+      id: r.id,
+      sender: r.sender,
+      senderEmail: r.sender_email,
+      subject: r.subject,
+      contentSummary: r.content_summary,
+      aiActionTaken: r.ai_action_taken,
+      priorityLevel: r.priority_level,
+      status: r.status,
+      linkedStrategyId: r.linked_strategy_id,
+      linkedTodoId: r.linked_todo_id,
+      createdAt: r.created_at,
+    }));
+
+    res.json({ mails, count: mails.length });
+  } catch (err: any) {
+    logger.error(`[CEO-MIND-OS] GET /inbox error: ${err?.message || err}`);
+    res.status(500).json({ error: 'inbox_fetch_failed', detail: String(err?.message || err) });
+  }
+});
+
+/**
+ * PATCH /api/ceo-mind-os/inbox/:id
+ */
+router.patch('/inbox/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const validStatus =
+      typeof status === 'string' && ['new', 'processing', 'processed', 'archived'].includes(status)
+        ? status
+        : 'processed';
+
+    await client`
+      UPDATE ceo_inbound_mails
+      SET
+        status = ${validStatus},
+        processed_at = ${validStatus === 'processed' ? new Date() : null}
+      WHERE id = ${id}
+    `;
+
+    res.json({ success: true, id, status: validStatus });
+  } catch (err: any) {
+    logger.error(`[CEO-MIND-OS] PATCH /inbox/:id error: ${err?.message || err}`);
+    res.status(500).json({ error: 'inbox_update_failed', detail: String(err?.message || err) });
+  }
+});
+
+/**
+ * GET /api/ceo-mind-os/morning-briefing
+ */
+router.get('/morning-briefing', async (req, res) => {
+  try {
+    const [newMailsCount] = await client`
+      SELECT COUNT(*) as count FROM ceo_inbound_mails WHERE status = 'new'
+    `;
+    const [criticalMailsCount] = await client`
+      SELECT COUNT(*) as count FROM ceo_inbound_mails 
+      WHERE status = 'new' AND priority_level = 'critical'
+    `;
+    const [openStrategiesCount] = await client`
+      SELECT COUNT(*) as count FROM ceo_strategies WHERE status = 'active'
+    `;
+
+    const recentEmailRows = await client`
+      SELECT sender, subject, priority_level
+      FROM ceo_inbound_mails
+      WHERE status = 'new'
+      ORDER BY created_at DESC
+      LIMIT 5
+    `;
+
+    const recentEmails = recentEmailRows.map((r: any) => ({
+      sender: r.sender || 'Unknown',
+      subject: r.subject || '',
+      priority_level: r.priority_level || 'normal',
+    }));
+
+    const { generateMorningBriefing } = await import('../services/ceoAgent');
+    const briefing = await generateMorningBriefing(
+      Number(newMailsCount.count) || 0,
+      Number(criticalMailsCount.count) || 0,
+      Number(openStrategiesCount.count) || 0,
+      recentEmails
+    );
+
+    res.json({
+      briefing,
+      stats: {
+        newMails: Number(newMailsCount.count) || 0,
+        criticalMails: Number(criticalMailsCount.count) || 0,
+        openStrategies: Number(openStrategiesCount.count) || 0,
+      },
+    });
+  } catch (err: any) {
+    logger.error(`[CEO-MIND-OS] GET /morning-briefing error: ${err?.message || err}`);
+    res.status(500).json({ error: 'briefing_failed', detail: String(err?.message || err) });
+  }
+});
+
+/**
+ * POST /api/ceo-mind-os/inbound-mail
+ */
+router.post('/inbound-mail', async (req, res) => {
+  try {
+    console.log('[CEO-MIND-OS] RAW INBOUND MAIL:', req.body);
+    
+    const { sender, senderEmail, subject, body } = req.body;
+
+    if (!sender || !subject) {
+      return res.status(400).json({ error: 'sender and subject required' });
+    }
+
+    const mailId = `mail_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+    const recentRows = await client`
+      SELECT sender, subject, content_summary
+      FROM ceo_inbound_mails
+      ORDER BY created_at DESC
+      LIMIT 10
+    `;
+    const recentEmails = recentRows.map((r: any) => ({
+      sender: r.sender || '',
+      subject: r.subject || '',
+      content_summary: r.content_summary || '',
+    }));
+
+    const { analyzeEmail } = await import('../services/ceoAgent');
+    const analysis = await analyzeEmail(sender, subject, body || '', recentEmails);
+
+    await client`
+      INSERT INTO ceo_inbound_mails (
+        id, sender, sender_email, subject, content_summary, full_body,
+        ai_action_taken, priority_level, status, created_at
+      )
+      VALUES (
+        ${mailId}, ${sender}, ${senderEmail || null}, ${subject},
+        ${analysis.summary}, ${body || null}, ${analysis.actionType},
+        ${analysis.priorityLevel}, 'new', NOW()
+      )
+    `;
+
+    let linkedStrategyId: string | null = null;
+    let linkedTodoId: string | null = null;
+
+    if (analysis.shouldCreateTodo && analysis.todoTitle) {
+      const todoId = `todo_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      await client`
+        INSERT INTO team_todos (id, title, description, status, urgency_score, created_at)
+        VALUES (
+          ${todoId}, ${analysis.todoTitle},
+          ${'E-Mail von ' + sender + ': ' + subject}, 'pending',
+          ${analysis.priorityLevel === 'critical' ? 95 : analysis.priorityLevel === 'high' ? 80 : 60},
+          NOW()
+        )
+      `;
+      linkedTodoId = todoId;
+    }
+
+    if (analysis.shouldCreateStrategy && analysis.strategyThought) {
+      const strategyId = `strat_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      await client`
+        INSERT INTO ceo_strategies (id, user_thought, status, created_at, updated_at)
+        VALUES (${strategyId}, ${analysis.strategyThought}, 'active', NOW(), NOW())
+      `;
+      linkedStrategyId = strategyId;
+    }
+
+    if (linkedStrategyId || linkedTodoId) {
+      await client`
+        UPDATE ceo_inbound_mails
+        SET
+          linked_strategy_id = ${linkedStrategyId},
+          linked_todo_id = ${linkedTodoId}
+        WHERE id = ${mailId}
+      `;
+    }
+
+    logger.info(`[CEO-MIND-OS] Inbound mail processed: ${analysis.actionType} (${analysis.priorityLevel})`);
+
+    res.json({
+      mailId,
+      analysis,
+      linkedStrategyId,
+      linkedTodoId,
+    });
+  } catch (err: any) {
+    logger.error(`[CEO-MIND-OS] POST /inbound-mail error: ${err?.message || err}`);
+    res.status(500).json({ error: 'inbound_mail_failed', detail: String(err?.message || err) });
+  }
+});
+
+/**
+ * POST /api/ceo-mind-os/voice-input
+ */
+router.post('/voice-input', async (req, res) => {
+  try {
+    const { audioData, audioFormat } = req.body;
+
+    if (!audioData) {
+      return res.status(400).json({ error: 'audioData required' });
+    }
+
+    const { transcribeAudio } = await import('../services/ceoAgent');
+    const transcription = await transcribeAudio(audioData, audioFormat || 'webm');
+
+    if (!transcription || !transcription.trim()) {
+      return res.status(400).json({ 
+        error: 'transcription_empty', 
+        detail: 'Keine Sprache erkannt. Bitte erneut versuchen.' 
+      });
+    }
+
+    const analysis = await analyzeThought(transcription);
+
+    const strategyId = `strat_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    await client`
+      INSERT INTO ceo_strategies (
+        id, user_thought, ai_analysis, category, status, created_at, updated_at
+      )
+      VALUES (
+        ${strategyId}, ${transcription}, ${JSON.stringify(analysis)}::jsonb,
+        ${analysis.category || null}, 'active', NOW(), NOW()
+      )
+    `;
+
+    logger.info(`[CEO-MIND-OS] Voice input processed: "${transcription.slice(0, 50)}..."`);
+
+    res.json({
+      transcription,
+      analysis,
+      strategyId,
+    });
+  } catch (err: any) {
+    logger.error(`[CEO-MIND-OS] POST /voice-input error: ${err?.message || err}`);
+    res.status(500).json({ error: 'voice_input_failed', detail: String(err?.message || err) });
+  }
+});
+
+// ============================================================================
 // CREATE (analyze + persist)
 // ============================================================================
 
@@ -359,286 +622,6 @@ router.post('/:id/template', async (req, res) => {
   } catch (err: any) {
     logger.error(`[CEO-MIND-OS] POST /:id/template error: ${err?.message || err}`);
     res.status(500).json({ error: 'template_failed', detail: String(err?.message || err) });
-  }
-});
-
-// ============================================================================
-// SHADOW INBOX — E-Mail Inbound Processing (STARK EDITION)
-// ============================================================================
-
-/**
- * POST /api/ceo-mind-os/inbound-mail
- * Webhook-Endpoint für eingehende E-Mails. Die KI analysiert und erstellt automatisch Todos/Strategien.
- */
-router.post('/inbound-mail', async (req, res) => {
-  try {
-    const { sender, senderEmail, subject, body } = req.body;
-
-    if (!sender || !subject) {
-      return res.status(400).json({ error: 'sender and subject required' });
-    }
-
-    const mailId = `mail_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-
-    // Context-Awareness: Hole letzte 10 E-Mails für Pattern-Detection
-    const recentRows = await client`
-      SELECT sender, subject, content_summary
-      FROM ceo_inbound_mails
-      ORDER BY created_at DESC
-      LIMIT 10
-    `;
-    const recentEmails = recentRows.map((r: any) => ({
-      sender: r.sender || '',
-      subject: r.subject || '',
-      content_summary: r.content_summary || '',
-    }));
-
-    // KI-Analyse
-    const { analyzeEmail } = await import('../services/ceoAgent');
-    const analysis = await analyzeEmail(sender, subject, body || '', recentEmails);
-
-    // Speichere E-Mail
-    await client`
-      INSERT INTO ceo_inbound_mails (
-        id, sender, sender_email, subject, content_summary, full_body,
-        ai_action_taken, priority_level, status, created_at
-      )
-      VALUES (
-        ${mailId}, ${sender}, ${senderEmail || null}, ${subject},
-        ${analysis.summary}, ${body || null}, ${analysis.actionType},
-        ${analysis.priorityLevel}, 'new', NOW()
-      )
-    `;
-
-    let linkedStrategyId: string | null = null;
-    let linkedTodoId: string | null = null;
-
-    // Automatisch Todo erstellen?
-    if (analysis.shouldCreateTodo && analysis.todoTitle) {
-      const todoId = `todo_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-      await client`
-        INSERT INTO team_todos (id, title, description, status, urgency_score, created_at)
-        VALUES (
-          ${todoId}, ${analysis.todoTitle},
-          ${'E-Mail von ' + sender + ': ' + subject}, 'pending',
-          ${analysis.priorityLevel === 'critical' ? 95 : analysis.priorityLevel === 'high' ? 80 : 60},
-          NOW()
-        )
-      `;
-      linkedTodoId = todoId;
-    }
-
-    // Automatisch Strategie erstellen?
-    if (analysis.shouldCreateStrategy && analysis.strategyThought) {
-      const strategyId = `strat_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-      await client`
-        INSERT INTO ceo_strategies (id, user_thought, status, created_at, updated_at)
-        VALUES (${strategyId}, ${analysis.strategyThought}, 'active', NOW(), NOW())
-      `;
-      linkedStrategyId = strategyId;
-    }
-
-    // Update Links
-    if (linkedStrategyId || linkedTodoId) {
-      await client`
-        UPDATE ceo_inbound_mails
-        SET
-          linked_strategy_id = ${linkedStrategyId},
-          linked_todo_id = ${linkedTodoId}
-        WHERE id = ${mailId}
-      `;
-    }
-
-    logger.info(`[CEO-MIND-OS] Inbound mail processed: ${analysis.actionType} (${analysis.priorityLevel})`);
-
-    res.json({
-      mailId,
-      analysis,
-      linkedStrategyId,
-      linkedTodoId,
-    });
-  } catch (err: any) {
-    logger.error(`[CEO-MIND-OS] POST /inbound-mail error: ${err?.message || err}`);
-    res.status(500).json({ error: 'inbound_mail_failed', detail: String(err?.message || err) });
-  }
-});
-
-/**
- * GET /api/ceo-mind-os/inbox
- * Liefert alle neuen E-Mails (status=new) sortiert nach Priorität.
- */
-router.get('/inbox', async (req, res) => {
-  try {
-    const rows = await client`
-      SELECT * FROM ceo_inbound_mails
-      WHERE status = 'new'
-      ORDER BY 
-        CASE priority_level
-          WHEN 'critical' THEN 1
-          WHEN 'high' THEN 2
-          WHEN 'normal' THEN 3
-          WHEN 'low' THEN 4
-        END,
-        created_at DESC
-      LIMIT 50
-    `;
-
-    const mails = rows.map((r: any) => ({
-      id: r.id,
-      sender: r.sender,
-      senderEmail: r.sender_email,
-      subject: r.subject,
-      contentSummary: r.content_summary,
-      aiActionTaken: r.ai_action_taken,
-      priorityLevel: r.priority_level,
-      status: r.status,
-      linkedStrategyId: r.linked_strategy_id,
-      linkedTodoId: r.linked_todo_id,
-      createdAt: r.created_at,
-    }));
-
-    res.json({ mails, count: mails.length });
-  } catch (err: any) {
-    logger.error(`[CEO-MIND-OS] GET /inbox error: ${err?.message || err}`);
-    res.status(500).json({ error: 'inbox_fetch_failed', detail: String(err?.message || err) });
-  }
-});
-
-/**
- * PATCH /api/ceo-mind-os/inbox/:id
- * Markiert eine E-Mail als gelesen/processed.
- */
-router.patch('/inbox/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-
-    const validStatus =
-      typeof status === 'string' && ['new', 'processing', 'processed', 'archived'].includes(status)
-        ? status
-        : 'processed';
-
-    await client`
-      UPDATE ceo_inbound_mails
-      SET
-        status = ${validStatus},
-        processed_at = ${validStatus === 'processed' ? new Date() : null}
-      WHERE id = ${id}
-    `;
-
-    res.json({ success: true, id, status: validStatus });
-  } catch (err: any) {
-    logger.error(`[CEO-MIND-OS] PATCH /inbox/:id error: ${err?.message || err}`);
-    res.status(500).json({ error: 'inbox_update_failed', detail: String(err?.message || err) });
-  }
-});
-
-/**
- * GET /api/ceo-mind-os/morning-briefing
- * Generiert ein AI-basiertes Morning Briefing (JARVIS MODE).
- */
-router.get('/morning-briefing', async (req, res) => {
-  try {
-    const [newMailsCount] = await client`
-      SELECT COUNT(*) as count FROM ceo_inbound_mails WHERE status = 'new'
-    `;
-    const [criticalMailsCount] = await client`
-      SELECT COUNT(*) as count FROM ceo_inbound_mails 
-      WHERE status = 'new' AND priority_level = 'critical'
-    `;
-    const [openStrategiesCount] = await client`
-      SELECT COUNT(*) as count FROM ceo_strategies WHERE status = 'active'
-    `;
-
-    const recentEmailRows = await client`
-      SELECT sender, subject, priority_level
-      FROM ceo_inbound_mails
-      WHERE status = 'new'
-      ORDER BY created_at DESC
-      LIMIT 5
-    `;
-
-    const recentEmails = recentEmailRows.map((r: any) => ({
-      sender: r.sender || 'Unknown',
-      subject: r.subject || '',
-      priority_level: r.priority_level || 'normal',
-    }));
-
-    const { generateMorningBriefing } = await import('../services/ceoAgent');
-    const briefing = await generateMorningBriefing(
-      Number(newMailsCount.count) || 0,
-      Number(criticalMailsCount.count) || 0,
-      Number(openStrategiesCount.count) || 0,
-      recentEmails
-    );
-
-    res.json({
-      briefing,
-      stats: {
-        newMails: Number(newMailsCount.count) || 0,
-        criticalMails: Number(criticalMailsCount.count) || 0,
-        openStrategies: Number(openStrategiesCount.count) || 0,
-      },
-    });
-  } catch (err: any) {
-    logger.error(`[CEO-MIND-OS] GET /morning-briefing error: ${err?.message || err}`);
-    res.status(500).json({ error: 'briefing_failed', detail: String(err?.message || err) });
-  }
-});
-
-// ============================================================================
-// VOICE-TO-STRATEGY — IRON MAN HUD (STARK OHREN)
-// ============================================================================
-
-/**
- * POST /api/ceo-mind-os/voice-input
- * Nimmt Audio auf, nutzt Whisper (Groq) für Transkription und analysiert sofort.
- */
-router.post('/voice-input', async (req, res) => {
-  try {
-    // Audio als Base64 oder direkt als Buffer
-    const { audioData, audioFormat } = req.body;
-
-    if (!audioData) {
-      return res.status(400).json({ error: 'audioData required' });
-    }
-
-    // Whisper-Transkription via Groq
-    const { transcribeAudio } = await import('../services/ceoAgent');
-    const transcription = await transcribeAudio(audioData, audioFormat || 'webm');
-
-    if (!transcription || !transcription.trim()) {
-      return res.status(400).json({ 
-        error: 'transcription_empty', 
-        detail: 'Keine Sprache erkannt. Bitte erneut versuchen.' 
-      });
-    }
-
-    // Sofort durch Analyse-Engine
-    const analysis = await analyzeThought(transcription);
-
-    // Optional: Strategie direkt speichern
-    const strategyId = `strat_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    await client`
-      INSERT INTO ceo_strategies (
-        id, user_thought, ai_analysis, category, status, created_at, updated_at
-      )
-      VALUES (
-        ${strategyId}, ${transcription}, ${JSON.stringify(analysis)}::jsonb,
-        ${analysis.category || null}, 'active', NOW(), NOW()
-      )
-    `;
-
-    logger.info(`[CEO-MIND-OS] Voice input processed: "${transcription.slice(0, 50)}..."`);
-
-    res.json({
-      transcription,
-      analysis,
-      strategyId,
-    });
-  } catch (err: any) {
-    logger.error(`[CEO-MIND-OS] POST /voice-input error: ${err?.message || err}`);
-    res.status(500).json({ error: 'voice_input_failed', detail: String(err?.message || err) });
   }
 });
 

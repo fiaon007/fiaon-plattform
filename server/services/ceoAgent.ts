@@ -878,7 +878,12 @@ Antworte NUR mit dem Briefing-Text (kein JSON):`;
 
     return completion.choices[0]?.message?.content?.trim() || fallbackMorningBriefing(newEmailsCount, criticalEmailsCount, openStrategiesCount);
   } catch (error: any) {
-    logger.error('[CEO-AGENT] Morning briefing error:', error?.message || error);
+    // Check for rate limit (429) error
+    if (error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('rate limit')) {
+      logger.warn('[CEO-AGENT] Rate limit hit (429), returning fallback briefing');
+    } else {
+      logger.error('[CEO-AGENT] Morning briefing error:', error?.message || error);
+    }
     return fallbackMorningBriefing(newEmailsCount, criticalEmailsCount, openStrategiesCount);
   }
 }

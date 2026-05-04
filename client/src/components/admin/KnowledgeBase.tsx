@@ -568,7 +568,7 @@ export default function KnowledgeBase() {
             {searching ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Suche...
+                JARVIS sucht...
               </>
             ) : (
               <>
@@ -578,28 +578,50 @@ export default function KnowledgeBase() {
             )}
           </button>
 
-          {searchResults.length > 0 && (
+          {/* Search Results or Empty State */}
+          {searchQuery && !searching && (
             <div className="kb-results">
-              {searchResults.map((result) => (
-                <div key={result.id} className="kb-result-item">
-                  <div className="kb-result-header">
-                    <span className="kb-result-similarity">
-                      {(result.similarity * 100).toFixed(1)}% Match
-                    </span>
-                    <button
-                      className="kb-delete-btn"
-                      onClick={() => handleDelete(result.id)}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+              {searchResults.length > 0 ? (
+                searchResults.map((result) => (
+                  <div key={result.id} className="kb-result-item">
+                    <div className="kb-result-header">
+                      <span className="kb-result-similarity">
+                        Übereinstimmung: {(result.similarity * 100).toFixed(0)}%
+                      </span>
+                      <button
+                        className="kb-delete-btn"
+                        onClick={() => handleDelete(result.id)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="kb-result-content">{result.content}</div>
+                    <div className="kb-result-meta">
+                      {new Date(result.created_at).toLocaleDateString("de-DE")}
+                      {result.metadata.source && ` • ${result.metadata.source}`}
+                    </div>
                   </div>
-                  <div className="kb-result-content">{result.content}</div>
-                  <div className="kb-result-meta">
-                    {new Date(result.created_at).toLocaleDateString("de-DE")}
-                    {result.metadata.source && ` • ${result.metadata.source}`}
+                ))
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="kb-empty"
+                  style={{
+                    background: 'rgba(99, 102, 241, 0.05)',
+                    border: '1px solid rgba(99, 102, 241, 0.15)',
+                    borderRadius: '8px',
+                    padding: '16px',
+                    marginTop: '16px',
+                  }}
+                >
+                  <AlertCircle className="w-5 h-5 mx-auto mb-2" style={{ color: '#6366f1' }} />
+                  <div style={{ fontSize: '13px', color: '#64748b', lineHeight: '1.6' }}>
+                    Kein direktes Wissen gefunden.<br />
+                    Versuche es mit anderen Schlagworten.
                   </div>
-                </div>
-              ))}
+                </motion.div>
+              )}
             </div>
           )}
         </div>

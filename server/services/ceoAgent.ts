@@ -172,21 +172,27 @@ async function searchKnowledgeBase(query: string, limit = 3): Promise<string[]> 
     // Generate embedding for the query
     const queryEmbedding = await searchEmbedding(query);
 
-    // Search in knowledge base
+    // Search in knowledge base with lowered threshold for 384-dim embeddings
+    const SIMILARITY_THRESHOLD = 0.35; // Lowered from 0.7 for all-MiniLM-L6-v2
+    
     const results = await client`
       SELECT
         content,
         1 - (embedding <=> ${JSON.stringify(queryEmbedding)}::vector) as similarity
       FROM knowledge_base
       WHERE embedding IS NOT NULL
+        AND (1 - (embedding <=> ${JSON.stringify(queryEmbedding)}::vector)) >= ${SIMILARITY_THRESHOLD}
       ORDER BY embedding <=> ${JSON.stringify(queryEmbedding)}::vector
       LIMIT ${limit}
     `;
 
-    // Filter results with similarity > 0.7 (70% match)
-    return results
-      .filter((r: any) => parseFloat(r.similarity || 0) > 0.7)
-      .map((r: any) => r.content);
+    logger.info(`[CEO-AGENT][KNOWLEDGE] Query: "${query.slice(0, 50)}...", Results: ${results.length}`);
+    
+    if (results.length > 0) {
+      logger.info(`[CEO-AGENT][KNOWLEDGE] Top similarity: ${parseFloat(results[0].similarity || 0).toFixed(3)}`);
+    }
+
+    return results.map((r: any) => r.content);
   } catch (err: any) {
     logger.warn(`[CEO-AGENT][KNOWLEDGE] Search error: ${err?.message || err}`);
     return [];

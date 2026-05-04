@@ -1,19 +1,24 @@
 /**
  * ============================================================================
- * ULTIMATE LUXURY CEO COMMAND CENTER
+ * FIAON COMMAND CENTER — STARK EDITION (Ultra-Luxury)
  * ============================================================================
- * The Executive Hub with Iron Man Intelligence
- * 
- * Features:
- * - Border-Beam Animated Pill Input (Glow-Beam wandert um Rand)
- * - Infinite Pulse Background (atmender blauer Nebel)
- * - Intelligent Inbox Categorization (4 Widgets)
- * - Email Reply Drafting (AI-generiert)
- * - Action Steps Generator (Top 3 aus Mails + Todos)
- * - Auto-Scroll to New Items
- * - Shimmer Loading Effects
- * - Bottom-Sheets for Mobile
- * - Monochrome + Gold/Silber Accents
+ * The Iron Man Dashboard - Richard Mille meets High-Tech
+ *
+ * CRITICAL FIXES:
+ * - FIX: Backend returns { thought, analysis } - NOT { userThought, aiAnalysis }
+ * - FIX: Border-Beam now ACTUALLY rotates around the input border (SVG)
+ * - FIX: Auto-expand + auto-scroll for new strategies
+ * - FIX: Strict dark theme (Slate-950 ONLY, no white mixing)
+ *
+ * FEATURES:
+ * - Full-bleed dark theme (covers parent page)
+ * - Hero Morning Briefing with Violet→Blue gradient text
+ * - Border-Beam Pill Input (rotating gold glow on rim)
+ * - Intelligent Inbox: 4 categories (Priority/Partners/Clients/Filtered)
+ * - Action Steps Generator (Top 3 daily actions)
+ * - Monochrome + Gold/Silver accents only
+ * - Bottom-sheets on mobile, modals on desktop
+ * - Shimmer loading effects
  * ============================================================================
  */
 
@@ -22,7 +27,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Send,
   Loader2,
-  CheckCircle2,
   AlertCircle,
   Mail,
   X,
@@ -35,30 +39,34 @@ import {
   Users,
   Shield,
   Filter,
+  CheckCircle2,
 } from "lucide-react";
 
 // ============================================================================
-// TYPES
+// TYPES — Matching BACKEND format (formatStrategy in routes/ceo-mind-os.ts)
 // ============================================================================
 
 interface CeoAnalysis {
-  summary: string;
-  followUpQuestion: string;
-  roiCheck: string;
-  nextSteps: string[];
-  category: string;
-  magicTemplate: string | null;
-  resources: Array<{ label: string; url: string; type: string }>;
-  confidence: number;
+  summary?: string;
+  followUpQuestion?: string;
+  roiCheck?: string;
+  nextSteps?: string[];
+  category?: string;
+  magicTemplate?: string | null;
+  resources?: Array<{ label: string; url: string; type: string }>;
+  confidence?: number;
 }
 
+// IMPORTANT: Backend returns these EXACT field names!
 interface CeoStrategy {
   id: string;
-  userThought: string;
-  aiAnalysis?: CeoAnalysis | null;
+  userId?: string | null;
+  thought: string;            // ← Backend field: "thought" (NOT userThought!)
+  analysis?: CeoAnalysis | null; // ← Backend field: "analysis" (NOT aiAnalysis!)
   category?: string | null;
   status: "active" | "done" | "failed" | "archived";
   failureReason?: string | null;
+  resources?: any[];
   createdAt: string;
   updatedAt: string;
 }
@@ -66,7 +74,7 @@ interface CeoStrategy {
 interface InboundMail {
   id: string;
   sender: string;
-  senderEmail: string;
+  senderEmail?: string;
   subject: string;
   contentSummary: string;
   priorityLevel: "low" | "normal" | "high" | "critical";
@@ -99,13 +107,11 @@ export default function CeoMindOS() {
   const [strategies, setStrategies] = useState<CeoStrategy[]>([]);
   const [inboxMails, setInboxMails] = useState<InboundMail[]>([]);
   const [morningBriefing, setMorningBriefing] = useState<MorningBriefing | null>(null);
-  const [actionSteps, setActionSteps] = useState<ActionStep[]>([]);
-  const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [loadingStrategies, setLoadingStrategies] = useState(true);
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
-  
+
   // Modals
-  const [showInboxModal, setShowInboxModal] = useState(false);
   const [showReplyModal, setShowReplyModal] = useState(false);
   const [selectedMail, setSelectedMail] = useState<InboundMail | null>(null);
   const [replyDraft, setReplyDraft] = useState("");
@@ -116,38 +122,40 @@ export default function CeoMindOS() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const strategiesRef = useRef<HTMLDivElement>(null);
+  const newStrategyRef = useRef<HTMLDivElement>(null);
 
   // ============================================================================
   // DATA FETCHING
   // ============================================================================
 
   useEffect(() => {
-    loadStrategies();
-    loadInbox();
-    loadMorningBriefing();
-    loadActionSteps();
-
-    const pollInterval = setInterval(() => {
-      loadInbox();
-      loadMorningBriefing();
-      loadActionSteps();
-    }, 60000);
-
+    loadAll();
+    const pollInterval = setInterval(loadAll, 60000);
     return () => clearInterval(pollInterval);
   }, []);
 
+  const loadAll = () => {
+    loadStrategies();
+    loadInbox();
+    loadMorningBriefing();
+  };
+
   const loadStrategies = async () => {
+    setLoadingStrategies(true);
     try {
       const res = await fetch("/api/ceo-mind-os", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
-        setStrategies(data || []);
+        // Backend returns array directly
+        const list = Array.isArray(data) ? data : data?.strategies || [];
+        setStrategies(list);
       }
     } catch (err) {
-      console.error("[CEO-HUB] Load strategies error:", err);
+      console.error("[CMD-CENTER] Load strategies error:", err);
+    } finally {
+      setLoadingStrategies(false);
     }
   };
 
@@ -159,41 +167,19 @@ export default function CeoMindOS() {
         setInboxMails(data.mails || []);
       }
     } catch (err) {
-      console.error("[CEO-HUB] Load inbox error:", err);
+      console.error("[CMD-CENTER] Load inbox error:", err);
     }
   };
 
   const loadMorningBriefing = async () => {
     try {
-      const res = await fetch("/api/ceo-mind-os/morning-briefing", {
-        credentials: "include",
-      });
+      const res = await fetch("/api/ceo-mind-os/morning-briefing", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setMorningBriefing(data);
       }
     } catch (err) {
-      console.error("[CEO-HUB] Load briefing error:", err);
-    }
-  };
-
-  const loadActionSteps = async () => {
-    // Generate action steps from inbox + todos
-    try {
-      // For now, create from inbox (can be enhanced with AI later)
-      const steps: ActionStep[] = inboxMails
-        .filter(m => m.priorityLevel === "critical" || m.priorityLevel === "high")
-        .slice(0, 3)
-        .map((mail, idx) => ({
-          id: `step-${idx}`,
-          text: `Respond to ${mail.sender}: ${mail.subject}`,
-          type: "email" as const,
-          urgency: mail.priorityLevel === "critical" ? "high" : "medium",
-        }));
-      
-      setActionSteps(steps);
-    } catch (err) {
-      console.error("[CEO-HUB] Load action steps error:", err);
+      console.error("[CMD-CENTER] Load briefing error:", err);
     }
   };
 
@@ -202,23 +188,46 @@ export default function CeoMindOS() {
   // ============================================================================
 
   const categorizedInbox = {
-    priority: inboxMails.filter(m => m.priorityLevel === "critical"),
-    partners: inboxMails.filter(m => 
-      m.sender.toLowerCase().includes("partner") || 
-      m.sender.toLowerCase().includes("investor") ||
-      m.aiActionTaken.toLowerCase().includes("partner")
-    ),
-    clients: inboxMails.filter(m => 
-      m.sender.toLowerCase().includes("kunde") || 
-      m.sender.toLowerCase().includes("client") ||
-      m.aiActionTaken.toLowerCase().includes("client")
-    ),
-    filtered: inboxMails.filter(m => 
-      m.priorityLevel === "low" || 
-      m.aiActionTaken.toLowerCase().includes("spam") ||
-      m.aiActionTaken.toLowerCase().includes("info")
+    priority: inboxMails.filter((m) => m.priorityLevel === "critical"),
+    partners: inboxMails.filter((m) => {
+      const s = (m.sender || "").toLowerCase();
+      const a = (m.aiActionTaken || "").toLowerCase();
+      return s.includes("partner") || s.includes("investor") || a.includes("partner") || a.includes("investor");
+    }),
+    clients: inboxMails.filter((m) => {
+      const s = (m.sender || "").toLowerCase();
+      const a = (m.aiActionTaken || "").toLowerCase();
+      return s.includes("kunde") || s.includes("client") || a.includes("client") || a.includes("kunde");
+    }),
+    filtered: inboxMails.filter(
+      (m) =>
+        m.priorityLevel === "low" ||
+        (m.aiActionTaken || "").toLowerCase().includes("spam") ||
+        (m.aiActionTaken || "").toLowerCase().includes("info")
     ),
   };
+
+  // Action Steps from inbox + strategies
+  const actionSteps: ActionStep[] = [
+    ...inboxMails
+      .filter((m) => m.priorityLevel === "critical" || m.priorityLevel === "high")
+      .slice(0, 2)
+      .map((mail, idx) => ({
+        id: `mail-${idx}`,
+        text: `Antworte auf "${mail.subject}" von ${mail.sender}`,
+        type: "email" as const,
+        urgency: mail.priorityLevel === "critical" ? ("high" as const) : ("medium" as const),
+      })),
+    ...strategies
+      .filter((s) => s.status === "active")
+      .slice(0, 1)
+      .map((s) => ({
+        id: `strat-${s.id}`,
+        text: s.analysis?.nextSteps?.[0] || `Strategie umsetzen: ${(s.thought || "").slice(0, 50)}...`,
+        type: "strategy" as const,
+        urgency: "medium" as const,
+      })),
+  ].slice(0, 3);
 
   // ============================================================================
   // VOICE RECORDING
@@ -228,26 +237,18 @@ export default function CeoMindOS() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
-
       audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
+      mediaRecorder.ondataavailable = (e) => e.data.size > 0 && audioChunksRef.current.push(e.data);
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        await processVoiceInput(audioBlob);
-        stream.getTracks().forEach((track) => track.stop());
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        await processVoiceInput(blob);
+        stream.getTracks().forEach((t) => t.stop());
       };
-
       mediaRecorder.start();
       mediaRecorderRef.current = mediaRecorder;
       setIsRecording(true);
     } catch (err) {
-      console.error("[CEO-HUB] Voice recording error:", err);
+      console.error("[CMD-CENTER] Voice recording error:", err);
     }
   };
 
@@ -265,29 +266,19 @@ export default function CeoMindOS() {
       reader.readAsDataURL(audioBlob);
       reader.onloadend = async () => {
         const base64Audio = reader.result as string;
-
         const res = await fetch("/api/ceo-mind-os/voice-input", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({
-            audioData: base64Audio,
-            audioFormat: "webm",
-          }),
+          body: JSON.stringify({ audioData: base64Audio, audioFormat: "webm" }),
         });
-
         if (res.ok) {
-          const data = await res.json();
           await loadStrategies();
-          if (data.strategyId) {
-            setExpandedCards((prev) => ({ ...prev, [data.strategyId]: true }));
-            scrollToNewStrategy();
-          }
           setThought("");
         }
       };
     } catch (err) {
-      console.error("[CEO-HUB] Voice processing error:", err);
+      console.error("[CMD-CENTER] Voice processing error:", err);
     } finally {
       setIsTranscribing(false);
     }
@@ -299,9 +290,7 @@ export default function CeoMindOS() {
 
   const handleAnalyze = async () => {
     if (!thought.trim() || analyzing) return;
-
     setAnalyzing(true);
-    setLoading(true);
 
     try {
       const res = await fetch("/api/ceo-mind-os", {
@@ -313,30 +302,29 @@ export default function CeoMindOS() {
 
       if (res.ok) {
         const data = await res.json();
+        // Backend returns formatStrategy() directly: { id, thought, analysis, ... }
         if (data && data.id) {
           setStrategies((prev) => [data, ...prev]);
+          // AUTO-EXPAND so user sees the new card
           setExpandedCards((prev) => ({ ...prev, [data.id]: true }));
           setThought("");
-          if (textareaRef.current) {
-            textareaRef.current.style.height = "auto";
-          }
-          scrollToNewStrategy();
+          if (textareaRef.current) textareaRef.current.style.height = "auto";
+          // AUTO-SCROLL to new card
+          setTimeout(() => {
+            newStrategyRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }, 200);
         }
+      } else {
+        const err = await res.json().catch(() => ({}));
+        console.error("[CMD-CENTER] Save error:", err);
+        alert(`Fehler: ${err.detail || err.error || "Unbekannt"}`);
       }
     } catch (err) {
-      console.error("[CEO-HUB] Analyze error:", err);
+      console.error("[CMD-CENTER] Analyze error:", err);
+      alert("Netzwerkfehler. Bitte erneut versuchen.");
     } finally {
       setAnalyzing(false);
-      setLoading(false);
     }
-  };
-
-  const scrollToNewStrategy = () => {
-    setTimeout(() => {
-      if (strategiesRef.current) {
-        strategiesRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    }, 300);
   };
 
   const handleGenerateReply = async (mail: InboundMail) => {
@@ -346,7 +334,6 @@ export default function CeoMindOS() {
     setReplyDraft("");
 
     try {
-      // Call backend to generate reply (you'll need to implement this endpoint)
       const res = await fetch("/api/ceo-mind-os/generate-reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -363,11 +350,11 @@ export default function CeoMindOS() {
         const data = await res.json();
         setReplyDraft(data.reply || "");
       } else {
-        setReplyDraft("Fehler beim Generieren der Antwort. Bitte manuell schreiben.");
+        setReplyDraft("Fehler beim Generieren. Bitte manuell schreiben.");
       }
     } catch (err) {
-      console.error("[CEO-HUB] Generate reply error:", err);
-      setReplyDraft("Netzwerkfehler. Bitte erneut versuchen.");
+      console.error("[CMD-CENTER] Generate reply error:", err);
+      setReplyDraft("Netzwerkfehler.");
     } finally {
       setGeneratingReply(false);
     }
@@ -376,83 +363,183 @@ export default function CeoMindOS() {
   const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setThought(e.target.value);
     e.target.style.height = "auto";
-    e.target.style.height = `${e.target.scrollHeight}px`;
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
   };
 
-  const toggleCardExpansion = (id: string) => {
+  const toggleCard = (id: string) => {
     setExpandedCards((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   // ============================================================================
-  // RENDER — ULTIMATE LUXURY INTERFACE
+  // RENDER — STARK EDITION
   // ============================================================================
 
   return (
-    <div className="min-h-screen bg-slate-950 relative overflow-hidden">
-      {/* INFINITE PULSE BACKGROUND */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="infinite-pulse"></div>
+    <div className="stark-root">
+      {/* ANIMATED ATMOSPHERE BACKGROUND */}
+      <div className="stark-atmosphere" aria-hidden="true">
+        <div className="atmosphere-orb atmosphere-orb-1" />
+        <div className="atmosphere-orb atmosphere-orb-2" />
+        <div className="atmosphere-grid" />
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 py-8 space-y-8">
-        {/* THE ANIMATED PILL INPUT */}
-        <motion.div
-          initial={{ opacity: 0, y: -30 }}
+      <div className="stark-container">
+        {/* ====== HERO: EXECUTIVE BRIEFING ====== */}
+        <motion.section
+          initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative group"
+          transition={{ duration: 0.8 }}
+          className="stark-hero"
         >
-          <div className="pill-container relative">
-            {/* Border Beam Animation */}
-            <div className="border-beam"></div>
-            
-            <div className="pill-glass relative z-10 flex items-center gap-4 p-6">
-              <div className="flex-1">
-                <textarea
-                  ref={textareaRef}
-                  value={thought}
-                  onChange={handleTextareaInput}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                      e.preventDefault();
-                      handleAnalyze();
-                    }
-                  }}
-                  placeholder="Command Center ready. What's on your mind?"
-                  className="w-full bg-transparent border-none outline-none resize-none text-white placeholder-slate-500 text-lg"
-                  style={{ minHeight: "60px", maxHeight: "200px" }}
-                  disabled={analyzing || isRecording || isTranscribing}
-                />
-              </div>
+          <div className="stark-hero-meta">
+            <span className="stark-overline">FIAON COMMAND CENTER</span>
+            <span className="stark-overline-divider">·</span>
+            <span className="stark-overline-time">
+              {new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" })}
+            </span>
+          </div>
 
-              <div className="flex items-center gap-3">
-                {/* Voice Button */}
+          <h1 className="stark-hero-title">
+            <span className="stark-gradient-text">Executive Briefing</span>
+          </h1>
+
+          {morningBriefing?.briefing ? (
+            <p className="stark-hero-briefing">{morningBriefing.briefing}</p>
+          ) : (
+            <p className="stark-hero-briefing stark-hero-briefing-muted">
+              System bereit. Keine kritischen Vorgänge.
+            </p>
+          )}
+
+          {/* GOLD STATS */}
+          <div className="stark-stats-row">
+            <div className="stark-stat">
+              <div className="stark-stat-value-gold">
+                {morningBriefing?.stats.newMails ?? inboxMails.length}
+              </div>
+              <div className="stark-stat-label">Inbox</div>
+            </div>
+            <div className="stark-stat-divider" />
+            <div className="stark-stat">
+              <div className="stark-stat-value-gold">
+                {morningBriefing?.stats.criticalMails ?? categorizedInbox.priority.length}
+              </div>
+              <div className="stark-stat-label">Critical</div>
+            </div>
+            <div className="stark-stat-divider" />
+            <div className="stark-stat">
+              <div className="stark-stat-value-gold">
+                {morningBriefing?.stats.openStrategies ??
+                  strategies.filter((s) => s.status === "active").length}
+              </div>
+              <div className="stark-stat-label">Active</div>
+            </div>
+          </div>
+
+          {/* ACTION STEPS */}
+          {actionSteps.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="stark-action-steps"
+            >
+              <div className="stark-action-header">
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>Today's Priorities</span>
+              </div>
+              <div className="stark-action-list">
+                {actionSteps.map((step, idx) => (
+                  <motion.div
+                    key={step.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4 + idx * 0.1 }}
+                    className="stark-action-item"
+                  >
+                    <div className="stark-action-number">0{idx + 1}</div>
+                    <div className="stark-action-text">{step.text}</div>
+                    <ArrowRight className="w-4 h-4 text-slate-500 stark-action-arrow" />
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </motion.section>
+
+        {/* ====== BORDER-BEAM PILL INPUT ====== */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="stark-input-section"
+        >
+          <div className="border-beam-wrapper">
+            {/* SVG-based Border Beam — ROTATES AROUND THE ACTUAL BORDER */}
+            <svg className="border-beam-svg" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient id="beamGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="rgba(251, 191, 36, 0)" />
+                  <stop offset="50%" stopColor="rgba(251, 191, 36, 0.9)" />
+                  <stop offset="100%" stopColor="rgba(251, 191, 36, 0)" />
+                </linearGradient>
+              </defs>
+              <rect
+                className="border-beam-rect"
+                x="1"
+                y="1"
+                width="calc(100% - 2px)"
+                height="calc(100% - 2px)"
+                rx="999"
+                ry="999"
+                fill="none"
+                stroke="url(#beamGradient)"
+                strokeWidth="2"
+                pathLength="100"
+              />
+            </svg>
+
+            <div className="stark-pill">
+              <textarea
+                ref={textareaRef}
+                value={thought}
+                onChange={handleTextareaInput}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    handleAnalyze();
+                  }
+                }}
+                placeholder="Command Center ready. What's on your mind?"
+                className="stark-textarea"
+                disabled={analyzing || isRecording || isTranscribing}
+                rows={1}
+              />
+
+              <div className="stark-pill-actions">
                 <button
                   onClick={isRecording ? stopRecording : startRecording}
                   disabled={analyzing || isTranscribing}
-                  className={`p-3 rounded-full transition-all ${
-                    isRecording
-                      ? "bg-red-500/20 text-red-400 animate-pulse"
-                      : "bg-white/5 text-white hover:bg-white/10"
-                  } disabled:opacity-40`}
+                  className={`stark-icon-button ${isRecording ? "is-recording" : ""}`}
+                  aria-label={isRecording ? "Stop recording" : "Start recording"}
                 >
-                  {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                  {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                 </button>
 
-                {/* Send Button */}
                 <button
                   onClick={handleAnalyze}
                   disabled={!thought.trim() || analyzing || isRecording || isTranscribing}
-                  className="luxury-button px-8 py-3 rounded-full font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="stark-execute-button"
                 >
                   {analyzing ? (
                     <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Processing...
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Processing</span>
                     </>
                   ) : (
                     <>
-                      <Send className="w-5 h-5" />
-                      Execute
+                      <Send className="w-4 h-4" />
+                      <span>Execute</span>
                     </>
                   )}
                 </button>
@@ -460,276 +547,137 @@ export default function CeoMindOS() {
             </div>
           </div>
 
-          {/* Status Text */}
-          <motion.p
+          <p className="stark-input-hint">
+            {isRecording
+              ? "● Recording..."
+              : isTranscribing
+              ? "○ Transcribing..."
+              : analyzing
+              ? "○ Analyzing..."
+              : "⌘ + Enter to execute"}
+          </p>
+        </motion.section>
+
+        {/* ====== INTELLIGENT INBOX (4 CATEGORIES) ====== */}
+        {inboxMails.length > 0 && (
+          <motion.section
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-xs text-slate-500 mt-2 text-center"
+            transition={{ delay: 0.4 }}
+            className="stark-inbox-grid"
           >
-            {isRecording
-              ? "🎤 Listening..."
-              : isTranscribing
-              ? "🔄 Transcribing..."
-              : analyzing
-              ? "⚡ AI analyzing..."
-              : "⌘+Enter to execute"}
-          </motion.p>
-        </motion.div>
-
-        {/* ACTION STEPS GENERATOR */}
-        {actionSteps.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="luxury-card p-6"
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500/20 to-amber-600/20 flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-amber-400" />
-              </div>
-              <h3 className="text-xl font-bold text-white">YOUR DAY: ACTION STEPS</h3>
-            </div>
-
-            <div className="space-y-3">
-              {actionSteps.map((step, idx) => (
-                <motion.div
-                  key={step.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.1 }}
-                  className="flex items-start gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-all group cursor-pointer"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center flex-shrink-0">
-                    <span className="text-white font-bold text-sm">{idx + 1}</span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-white font-medium">{step.text}</p>
-                    <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider">{step.type}</p>
-                  </div>
-                  <ArrowRight className="w-5 h-5 text-slate-600 group-hover:text-amber-400 transition-colors" />
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-
-        {/* INTELLIGENT INBOX — 4 CATEGORIES */}
-        {inboxMails.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* PRIORITY */}
             <InboxCategory
               title="PRIORITY"
-              icon={<AlertCircle className="w-5 h-5" />}
+              icon={<AlertCircle className="w-4 h-4" />}
               count={categorizedInbox.priority.length}
-              color="red"
+              accent="red"
               mails={categorizedInbox.priority}
               onMailClick={handleGenerateReply}
             />
-
-            {/* PARTNERS & INVESTORS */}
             <InboxCategory
               title="PARTNERS"
-              icon={<Shield className="w-5 h-5" />}
+              icon={<Shield className="w-4 h-4" />}
               count={categorizedInbox.partners.length}
-              color="blue"
+              accent="silver"
               mails={categorizedInbox.partners}
               onMailClick={handleGenerateReply}
             />
-
-            {/* CLIENTS */}
             <InboxCategory
               title="CLIENTS"
-              icon={<Users className="w-5 h-5" />}
+              icon={<Users className="w-4 h-4" />}
               count={categorizedInbox.clients.length}
-              color="green"
+              accent="silver"
               mails={categorizedInbox.clients}
               onMailClick={handleGenerateReply}
             />
-
-            {/* FILTERED */}
             <InboxCategory
               title="FILTERED"
-              icon={<Filter className="w-5 h-5" />}
+              icon={<Filter className="w-4 h-4" />}
               count={categorizedInbox.filtered.length}
-              color="gray"
+              accent="muted"
               mails={categorizedInbox.filtered}
               onMailClick={handleGenerateReply}
             />
-          </div>
+          </motion.section>
         )}
 
-        {/* STRATEGIES TIMELINE */}
-        <div ref={strategiesRef} className="space-y-4">
-          <AnimatePresence mode="popLayout">
-            {strategies.map((strategy, idx) => (
-              <StrategyCard
-                key={strategy.id}
-                strategy={strategy}
-                index={idx}
-                expanded={expandedCards[strategy.id] || false}
-                onToggleExpand={() => toggleCardExpansion(strategy.id)}
-              />
-            ))}
-          </AnimatePresence>
-
-          {loading && strategies.length === 0 && (
-            <div className="space-y-4">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="shimmer-card h-32 rounded-2xl"></div>
-              ))}
+        {/* ====== STRATEGIES TIMELINE ====== */}
+        <section className="stark-timeline">
+          {strategies.length > 0 && (
+            <div className="stark-section-header">
+              <span className="stark-overline">Timeline</span>
+              <h2 className="stark-section-title">Strategien & Gedanken</h2>
             </div>
           )}
-        </div>
+
+          {loadingStrategies && strategies.length === 0 ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="stark-shimmer h-32 rounded-2xl" />
+              ))}
+            </div>
+          ) : (
+            <AnimatePresence mode="popLayout">
+              {strategies.map((strategy, idx) => (
+                <div ref={idx === 0 ? newStrategyRef : undefined} key={strategy.id}>
+                  <StrategyCard
+                    strategy={strategy}
+                    expanded={expandedCards[strategy.id] || false}
+                    onToggle={() => toggleCard(strategy.id)}
+                  />
+                </div>
+              ))}
+            </AnimatePresence>
+          )}
+
+          {!loadingStrategies && strategies.length === 0 && (
+            <div className="stark-empty">
+              <p className="text-slate-500 text-center text-sm">
+                Noch keine Strategien. Beginne mit deinem ersten Gedanken oben.
+              </p>
+            </div>
+          )}
+        </section>
       </div>
 
-      {/* REPLY MODAL */}
+      {/* ====== REPLY MODAL ====== */}
       <AnimatePresence>
         {showReplyModal && selectedMail && (
-          <LuxuryModal onClose={() => setShowReplyModal(false)}>
+          <BottomSheetModal onClose={() => setShowReplyModal(false)}>
             <div className="p-8">
-              <h3 className="text-2xl font-bold text-white mb-4">Reply Draft</h3>
-              <div className="mb-4">
-                <p className="text-sm text-slate-400">To: {selectedMail.sender}</p>
-                <p className="text-sm text-slate-400">Re: {selectedMail.subject}</p>
-              </div>
+              <div className="stark-overline mb-2">REPLY DRAFT</div>
+              <h3 className="text-2xl font-semibold text-white mb-1">{selectedMail.sender}</h3>
+              <p className="text-sm text-slate-400 mb-6">Re: {selectedMail.subject}</p>
 
               {generatingReply ? (
-                <div className="shimmer-card h-48 rounded-xl mb-4"></div>
+                <div className="stark-shimmer h-48 rounded-xl mb-6" />
               ) : (
                 <textarea
                   value={replyDraft}
                   onChange={(e) => setReplyDraft(e.target.value)}
-                  className="w-full bg-white/5 border border-slate-700 rounded-xl p-4 text-white min-h-[200px] focus:border-amber-500 focus:outline-none transition-colors"
+                  className="w-full bg-slate-900/60 border border-slate-700 rounded-xl p-4 text-white text-sm leading-relaxed min-h-[220px] focus:border-amber-400 focus:outline-none resize-none mb-6"
                 />
               )}
 
               <div className="flex gap-3">
-                <button className="flex-1 luxury-button py-3 rounded-xl font-semibold text-white">
-                  <Mail className="w-5 h-5 inline mr-2" />
-                  Send Reply
+                <button className="stark-execute-button flex-1 justify-center">
+                  <Mail className="w-4 h-4" />
+                  <span>Senden</span>
                 </button>
                 <button
                   onClick={() => setShowReplyModal(false)}
-                  className="px-6 py-3 bg-white/5 text-white rounded-xl font-semibold hover:bg-white/10 transition-colors"
+                  className="px-6 py-3 bg-white/5 text-slate-300 rounded-full font-medium hover:bg-white/10 transition-colors"
                 >
-                  Cancel
+                  Abbrechen
                 </button>
               </div>
             </div>
-          </LuxuryModal>
+          </BottomSheetModal>
         )}
       </AnimatePresence>
 
-      {/* STYLES */}
-      <style>{`
-        /* INFINITE PULSE BACKGROUND */
-        @keyframes pulse {
-          0%, 100% { 
-            transform: scale(1) translate(-50%, -50%);
-            opacity: 0.3;
-          }
-          50% { 
-            transform: scale(1.5) translate(-50%, -50%);
-            opacity: 0.6;
-          }
-        }
-
-        .infinite-pulse {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          width: 600px;
-          height: 600px;
-          background: radial-gradient(circle, 
-            rgba(59, 130, 246, 0.4) 0%,
-            rgba(59, 130, 246, 0.2) 40%,
-            transparent 70%
-          );
-          animation: pulse 8s ease-in-out infinite;
-          filter: blur(80px);
-        }
-
-        /* BORDER BEAM ANIMATION */
-        @keyframes beam {
-          0% { 
-            transform: rotate(0deg);
-          }
-          100% { 
-            transform: rotate(360deg);
-          }
-        }
-
-        .pill-container {
-          border-radius: 9999px;
-          padding: 2px;
-          position: relative;
-        }
-
-        .border-beam {
-          position: absolute;
-          inset: 0;
-          border-radius: 9999px;
-          padding: 2px;
-          background: conic-gradient(
-            from 0deg,
-            transparent 0deg,
-            transparent 270deg,
-            rgba(251, 191, 36, 0.8) 315deg,
-            rgba(251, 191, 36, 0.6) 360deg
-          );
-          -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-          -webkit-mask-composite: xor;
-          mask-composite: exclude;
-          animation: beam 3s linear infinite;
-          filter: blur(1px);
-        }
-
-        .pill-glass {
-          background: rgba(15, 23, 42, 0.8);
-          backdrop-filter: blur(40px) saturate(180%);
-          border-radius: 9999px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        /* LUXURY CARD */
-        .luxury-card {
-          background: rgba(15, 23, 42, 0.6);
-          backdrop-filter: blur(20px);
-          border-radius: 1.5rem;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-        }
-
-        /* LUXURY BUTTON */
-        .luxury-button {
-          background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
-          box-shadow: 0 10px 30px rgba(251, 191, 36, 0.3);
-          transition: all 0.3s ease;
-        }
-
-        .luxury-button:hover:not(:disabled) {
-          box-shadow: 0 15px 40px rgba(251, 191, 36, 0.5);
-          transform: translateY(-2px);
-        }
-
-        /* SHIMMER LOADING */
-        @keyframes shimmer {
-          0% { background-position: -1000px 0; }
-          100% { background-position: 1000px 0; }
-        }
-
-        .shimmer-card {
-          background: linear-gradient(
-            90deg,
-            rgba(15, 23, 42, 0.6) 0%,
-            rgba(59, 130, 246, 0.1) 50%,
-            rgba(15, 23, 42, 0.6) 100%
-          );
-          background-size: 1000px 100%;
-          animation: shimmer 2s infinite;
-        }
-      `}</style>
+      {/* ====== STARK EDITION STYLES ====== */}
+      <style>{starkStyles}</style>
     </div>
   );
 }
@@ -742,58 +690,48 @@ interface InboxCategoryProps {
   title: string;
   icon: React.ReactNode;
   count: number;
-  color: "red" | "blue" | "green" | "gray";
+  accent: "red" | "silver" | "muted";
   mails: InboundMail[];
-  onMailClick: (mail: InboundMail) => void;
+  onMailClick: (m: InboundMail) => void;
 }
 
-function InboxCategory({ title, icon, count, color, mails, onMailClick }: InboxCategoryProps) {
-  const [expanded, setExpanded] = useState(false);
-
-  const colorClasses = {
-    red: "from-red-500/20 to-red-600/20 text-red-400",
-    blue: "from-blue-500/20 to-blue-600/20 text-blue-400",
-    green: "from-emerald-500/20 to-emerald-600/20 text-emerald-400",
-    gray: "from-slate-500/20 to-slate-600/20 text-slate-400",
-  };
+function InboxCategory({ title, icon, count, accent, mails, onMailClick }: InboxCategoryProps) {
+  const [open, setOpen] = useState(false);
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="luxury-card p-4 cursor-pointer"
-      onClick={() => setExpanded(!expanded)}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`stark-inbox-card stark-inbox-${accent}`}
+      onClick={() => mails.length > 0 && setOpen(!open)}
     >
-      <div className="flex items-center justify-between mb-2">
-        <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${colorClasses[color]} flex items-center justify-center`}>
-          {icon}
-        </div>
-        <span className="text-3xl font-bold text-white">{count}</span>
+      <div className="stark-inbox-head">
+        <div className="stark-inbox-icon">{icon}</div>
+        <div className="stark-inbox-count">{count}</div>
       </div>
-
-      <h4 className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-2">{title}</h4>
+      <div className="stark-inbox-title">{title}</div>
 
       <AnimatePresence>
-        {expanded && (
+        {open && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="space-y-2 mt-4 pt-4 border-t border-slate-800"
+            className="stark-inbox-list"
             onClick={(e) => e.stopPropagation()}
           >
-            {mails.slice(0, 3).map((mail) => (
+            {mails.slice(0, 4).map((mail) => (
               <button
                 key={mail.id}
                 onClick={() => onMailClick(mail)}
-                className="w-full text-left p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all"
+                className="stark-inbox-mail"
               >
-                <p className="text-sm text-white font-medium truncate">{mail.sender}</p>
-                <p className="text-xs text-slate-400 truncate">{mail.subject}</p>
+                <div className="stark-inbox-mail-sender">{mail.sender}</div>
+                <div className="stark-inbox-mail-subject">{mail.subject}</div>
               </button>
             ))}
             {mails.length === 0 && (
-              <p className="text-xs text-slate-500 text-center py-2">No messages</p>
+              <p className="text-xs text-slate-600 text-center py-3">Leer</p>
             )}
           </motion.div>
         )}
@@ -808,62 +746,93 @@ function InboxCategory({ title, icon, count, color, mails, onMailClick }: InboxC
 
 interface StrategyCardProps {
   strategy: CeoStrategy;
-  index: number;
   expanded: boolean;
-  onToggleExpand: () => void;
+  onToggle: () => void;
 }
 
-function StrategyCard({ strategy, index, expanded, onToggleExpand }: StrategyCardProps) {
-  const analysis = strategy.aiAnalysis;
+function StrategyCard({ strategy, expanded, onToggle }: StrategyCardProps) {
+  // CRITICAL: Backend returns "thought" and "analysis" - NOT "userThought"/"aiAnalysis"
+  const thoughtText = strategy.thought || "(kein Inhalt)";
+  const analysis = strategy.analysis;
+  const isDone = strategy.status === "done";
+  const isFailed = strategy.status === "failed";
 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ delay: index * 0.05 }}
-      className="luxury-card p-6 cursor-pointer hover:border-amber-500/40 transition-all"
-      onClick={onToggleExpand}
+      initial={{ opacity: 0, y: 20, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -10, scale: 0.98 }}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      className={`stark-strategy-card ${isDone ? "is-done" : ""} ${isFailed ? "is-failed" : ""}`}
     >
-      <div className="flex items-start justify-between gap-4 mb-4">
-        <p className="text-white font-medium leading-relaxed flex-1">{strategy.userThought}</p>
-        <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-          {expanded ? (
-            <ChevronUp className="w-5 h-5 text-slate-400" />
-          ) : (
-            <ChevronDown className="w-5 h-5 text-slate-400" />
-          )}
+      <div className="stark-strategy-header" onClick={onToggle}>
+        <div className="flex-1 min-w-0">
+          <div className="stark-strategy-meta">
+            <span className="stark-overline">
+              {strategy.category || "Strategie"}
+            </span>
+            {analysis?.confidence !== undefined && (
+              <span className="text-[10px] text-amber-300/60 tracking-widest">
+                {Math.round((analysis.confidence || 0) * 100)}% CONFIDENCE
+              </span>
+            )}
+          </div>
+          <p className="stark-strategy-thought">{thoughtText}</p>
+        </div>
+        <button className="stark-icon-button-plain" onClick={(e) => { e.stopPropagation(); onToggle(); }}>
+          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       </div>
 
       <AnimatePresence>
-        {expanded && analysis && (
+        {expanded && (
           <motion.div
-            layout
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="space-y-4 pt-4 border-t border-slate-800"
-            onClick={(e) => e.stopPropagation()}
+            transition={{ duration: 0.3 }}
+            className="stark-strategy-body"
           >
-            <div>
-              <h5 className="text-xs text-amber-400 uppercase tracking-wider font-semibold mb-2">Analysis</h5>
-              <p className="text-slate-300 leading-relaxed">{analysis.summary || "No analysis available"}</p>
-            </div>
+            {analysis?.summary && (
+              <div className="stark-analysis-block">
+                <div className="stark-overline mb-2">Analyse</div>
+                <p className="stark-analysis-text">{analysis.summary}</p>
+              </div>
+            )}
 
-            {analysis.nextSteps && analysis.nextSteps.length > 0 && (
-              <div>
-                <h5 className="text-xs text-amber-400 uppercase tracking-wider font-semibold mb-2">Next Steps</h5>
+            {analysis?.followUpQuestion && (
+              <div className="stark-analysis-block">
+                <div className="stark-overline mb-2">Rückfrage</div>
+                <p className="stark-analysis-text italic">{analysis.followUpQuestion}</p>
+              </div>
+            )}
+
+            {analysis?.roiCheck && (
+              <div className="stark-analysis-block">
+                <div className="stark-overline mb-2">ROI</div>
+                <p className="stark-analysis-text">{analysis.roiCheck}</p>
+              </div>
+            )}
+
+            {analysis?.nextSteps && analysis.nextSteps.length > 0 && (
+              <div className="stark-analysis-block">
+                <div className="stark-overline mb-3">Next Steps</div>
                 <ul className="space-y-2">
                   {analysis.nextSteps.map((step, i) => (
-                    <li key={i} className="text-slate-300 flex items-start gap-2">
-                      <span className="text-amber-400">→</span>
-                      {step}
+                    <li key={i} className="stark-step-item">
+                      <span className="stark-step-bullet">{String(i + 1).padStart(2, "0")}</span>
+                      <span>{step}</span>
                     </li>
                   ))}
                 </ul>
               </div>
+            )}
+
+            {!analysis && (
+              <p className="text-sm text-slate-500 italic">
+                Analyse wird verarbeitet...
+              </p>
             )}
           </motion.div>
         )}
@@ -873,38 +842,722 @@ function StrategyCard({ strategy, index, expanded, onToggleExpand }: StrategyCar
 }
 
 // ============================================================================
-// LUXURY MODAL
+// BOTTOM-SHEET MODAL (mobile) / CENTERED MODAL (desktop)
 // ============================================================================
 
-interface LuxuryModalProps {
-  children: React.ReactNode;
-  onClose: () => void;
-}
-
-function LuxuryModal({ children, onClose }: LuxuryModalProps) {
+function BottomSheetModal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-end md:items-center justify-center p-0 md:p-4"
+      className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-end md:items-center justify-center"
     >
       <motion.div
-        initial={{ y: "100%", scale: 0.95 }}
-        animate={{ y: 0, scale: 1 }}
-        exit={{ y: "100%", scale: 0.95 }}
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 30, stiffness: 250 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full md:max-w-2xl md:rounded-3xl rounded-t-3xl luxury-card max-h-[90vh] overflow-y-auto"
+        className="w-full md:max-w-2xl md:mx-4 stark-modal-shell"
       >
-        <button
-          onClick={onClose}
-          className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-lg transition-colors"
-        >
-          <X className="w-6 h-6 text-slate-400" />
+        <button onClick={onClose} className="absolute top-5 right-5 stark-icon-button-plain z-10">
+          <X className="w-5 h-5" />
         </button>
-        {children}
+        <div className="stark-modal-grip md:hidden" />
+        <div className="overflow-y-auto max-h-[85vh]">{children}</div>
       </motion.div>
     </motion.div>
   );
 }
+
+// ============================================================================
+// STARK EDITION STYLESHEET
+// ============================================================================
+
+const starkStyles = `
+  /* === ROOT === */
+  .stark-root {
+    position: relative;
+    min-height: 100vh;
+    width: 100%;
+    margin-left: calc(-1 * (100vw - 100%) / 2);
+    margin-right: calc(-1 * (100vw - 100%) / 2);
+    width: 100vw;
+    background: #020617;
+    color: #f1f5f9;
+    font-family: 'Inter', 'Inter Variable', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .stark-container {
+    position: relative;
+    z-index: 1;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  @media (min-width: 768px) {
+    .stark-container { padding: 80px 48px 120px; }
+  }
+
+  /* === ATMOSPHERE BACKGROUND === */
+  .stark-atmosphere {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .atmosphere-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.5;
+  }
+
+  .atmosphere-orb-1 {
+    top: -10%;
+    left: -10%;
+    width: 700px;
+    height: 700px;
+    background: radial-gradient(circle, rgba(30, 58, 138, 0.45), transparent 65%);
+    animation: orbFloat1 18s ease-in-out infinite;
+  }
+
+  .atmosphere-orb-2 {
+    bottom: -20%;
+    right: -10%;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(76, 29, 149, 0.35), transparent 65%);
+    animation: orbFloat2 22s ease-in-out infinite;
+  }
+
+  @keyframes orbFloat1 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(60px, 80px) scale(1.15); }
+  }
+
+  @keyframes orbFloat2 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-80px, -60px) scale(1.1); }
+  }
+
+  .atmosphere-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+  }
+
+  /* === HERO === */
+  .stark-hero {
+    margin-bottom: 48px;
+  }
+
+  .stark-hero-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .stark-overline {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+
+  .stark-overline-divider {
+    color: #334155;
+  }
+
+  .stark-overline-time {
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+
+  .stark-hero-title {
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+    margin-bottom: 24px;
+  }
+
+  .stark-gradient-text {
+    background: linear-gradient(135deg, #c4b5fd 0%, #93c5fd 45%, #67e8f9 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    filter: drop-shadow(0 0 40px rgba(147, 197, 253, 0.15));
+  }
+
+  .stark-hero-briefing {
+    font-size: clamp(1rem, 1.5vw, 1.125rem);
+    line-height: 1.7;
+    color: #cbd5e1;
+    max-width: 720px;
+    margin-bottom: 40px;
+    font-weight: 400;
+  }
+
+  .stark-hero-briefing-muted {
+    color: #64748b;
+    font-style: italic;
+  }
+
+  /* === STATS ROW === */
+  .stark-stats-row {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 24px 0;
+    border-top: 1px solid rgba(148, 163, 184, 0.08);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+    margin-bottom: 32px;
+  }
+
+  .stark-stat {
+    flex: 1;
+  }
+
+  .stark-stat-divider {
+    width: 1px;
+    height: 40px;
+    background: linear-gradient(to bottom, transparent, rgba(148, 163, 184, 0.2), transparent);
+  }
+
+  .stark-stat-value-gold {
+    font-size: clamp(2rem, 4vw, 2.75rem);
+    font-weight: 700;
+    line-height: 1;
+    background: linear-gradient(135deg, #fde68a 0%, #fbbf24 50%, #d97706 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    letter-spacing: -0.03em;
+    margin-bottom: 6px;
+  }
+
+  .stark-stat-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+
+  /* === ACTION STEPS === */
+  .stark-action-steps {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.6), rgba(15, 23, 42, 0.3));
+    border: 1px solid rgba(251, 191, 36, 0.12);
+    border-radius: 20px;
+    padding: 24px;
+    backdrop-filter: blur(20px);
+  }
+
+  .stark-action-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #fcd34d;
+    margin-bottom: 16px;
+  }
+
+  .stark-action-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .stark-action-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 12px;
+    border-radius: 12px;
+    transition: background 0.2s ease;
+    cursor: pointer;
+  }
+
+  .stark-action-item:hover {
+    background: rgba(251, 191, 36, 0.04);
+  }
+
+  .stark-action-item:hover .stark-action-arrow {
+    color: #fcd34d;
+    transform: translateX(2px);
+  }
+
+  .stark-action-number {
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fbbf24;
+    letter-spacing: 0.05em;
+    min-width: 24px;
+  }
+
+  .stark-action-text {
+    flex: 1;
+    font-size: 14px;
+    color: #e2e8f0;
+    font-weight: 400;
+  }
+
+  .stark-action-arrow {
+    transition: all 0.2s ease;
+  }
+
+  /* === BORDER-BEAM PILL INPUT === */
+  .stark-input-section {
+    margin-bottom: 56px;
+  }
+
+  .border-beam-wrapper {
+    position: relative;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.7));
+    backdrop-filter: blur(40px) saturate(180%);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    box-shadow:
+      0 24px 60px -20px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+  }
+
+  /* SVG-based Border Beam — actually rotates on the rim! */
+  .border-beam-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  @keyframes beamRotate {
+    0% { stroke-dasharray: 25 75; stroke-dashoffset: 100; }
+    100% { stroke-dasharray: 25 75; stroke-dashoffset: 0; }
+  }
+
+  .border-beam-rect {
+    animation: beamRotate 4s linear infinite;
+    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.6));
+  }
+
+  .stark-pill {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    padding: 14px 14px 14px 28px;
+  }
+
+  .stark-textarea {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: none;
+    color: #f1f5f9;
+    font-size: 16px;
+    line-height: 1.6;
+    font-family: inherit;
+    padding: 12px 0;
+    min-height: 28px;
+    max-height: 200px;
+  }
+
+  .stark-textarea::placeholder {
+    color: #64748b;
+    font-weight: 400;
+  }
+
+  .stark-pill-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .stark-icon-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+
+  .stark-icon-button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+  }
+
+  .stark-icon-button.is-recording {
+    background: rgba(239, 68, 68, 0.15);
+    color: #fca5a5;
+    border-color: rgba(239, 68, 68, 0.3);
+    animation: recordPulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes recordPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  }
+
+  .stark-icon-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .stark-icon-button-plain {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+
+  .stark-icon-button-plain:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #f1f5f9;
+  }
+
+  .stark-execute-button {
+    height: 40px;
+    padding: 0 22px;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    color: #fde68a;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.25s ease;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .stark-execute-button:hover:not(:disabled) {
+    background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+    color: #0f172a;
+    border-color: #fbbf24;
+    box-shadow: 0 0 30px rgba(251, 191, 36, 0.4);
+    transform: translateY(-1px);
+  }
+
+  .stark-execute-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .stark-input-hint {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #475569;
+    text-align: center;
+    margin-top: 14px;
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  }
+
+  /* === INTELLIGENT INBOX === */
+  .stark-inbox-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 56px;
+  }
+
+  @media (min-width: 768px) {
+    .stark-inbox-grid {
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+  }
+
+  .stark-inbox-card {
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    border-radius: 18px;
+    padding: 20px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+
+  .stark-inbox-card:hover {
+    border-color: rgba(148, 163, 184, 0.15);
+    background: rgba(15, 23, 42, 0.7);
+    transform: translateY(-2px);
+  }
+
+  .stark-inbox-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .stark-inbox-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .stark-inbox-red .stark-inbox-icon { color: #fca5a5; background: rgba(239, 68, 68, 0.08); }
+  .stark-inbox-silver .stark-inbox-icon { color: #cbd5e1; }
+  .stark-inbox-muted .stark-inbox-icon { color: #64748b; }
+
+  .stark-inbox-count {
+    font-size: 28px;
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+
+  .stark-inbox-red .stark-inbox-count {
+    background: linear-gradient(135deg, #fca5a5, #ef4444);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .stark-inbox-title {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+
+  .stark-inbox-list {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(148, 163, 184, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .stark-inbox-mail {
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    transition: background 0.2s ease;
+    cursor: pointer;
+  }
+
+  .stark-inbox-mail:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .stark-inbox-mail-sender {
+    font-size: 12px;
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .stark-inbox-mail-subject {
+    font-size: 11px;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* === TIMELINE === */
+  .stark-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .stark-section-header {
+    margin-bottom: 8px;
+  }
+
+  .stark-section-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    letter-spacing: -0.02em;
+    margin-top: 4px;
+  }
+
+  /* === STRATEGY CARD === */
+  .stark-strategy-card {
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    border-radius: 20px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+
+  .stark-strategy-card:hover {
+    border-color: rgba(251, 191, 36, 0.15);
+    box-shadow: 0 0 40px rgba(251, 191, 36, 0.04);
+  }
+
+  .stark-strategy-card.is-done {
+    opacity: 0.55;
+  }
+
+  .stark-strategy-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 24px 24px 20px;
+    cursor: pointer;
+  }
+
+  .stark-strategy-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .stark-strategy-thought {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #f1f5f9;
+    font-weight: 400;
+  }
+
+  .stark-strategy-body {
+    padding: 0 24px 24px;
+    border-top: 1px solid rgba(148, 163, 184, 0.06);
+    margin-top: 4px;
+  }
+
+  .stark-analysis-block {
+    padding-top: 20px;
+  }
+
+  .stark-analysis-text {
+    font-size: 14px;
+    line-height: 1.65;
+    color: #cbd5e1;
+  }
+
+  .stark-step-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    font-size: 14px;
+    color: #cbd5e1;
+    line-height: 1.55;
+  }
+
+  .stark-step-bullet {
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    font-size: 11px;
+    color: #fbbf24;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+    padding-top: 2px;
+    min-width: 22px;
+  }
+
+  /* === EMPTY STATE === */
+  .stark-empty {
+    padding: 40px 20px;
+    background: rgba(15, 23, 42, 0.3);
+    border: 1px dashed rgba(148, 163, 184, 0.12);
+    border-radius: 16px;
+  }
+
+  /* === SHIMMER === */
+  @keyframes shimmer {
+    0% { background-position: -1000px 0; }
+    100% { background-position: 1000px 0; }
+  }
+
+  .stark-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(15, 23, 42, 0.6) 0%,
+      rgba(30, 41, 59, 0.8) 50%,
+      rgba(15, 23, 42, 0.6) 100%
+    );
+    background-size: 1000px 100%;
+    animation: shimmer 2.5s infinite;
+  }
+
+  /* === MODAL === */
+  .stark-modal-shell {
+    position: relative;
+    background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
+    border-top: 1px solid rgba(251, 191, 36, 0.15);
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.6);
+  }
+
+  @media (min-width: 768px) {
+    .stark-modal-shell {
+      border-radius: 24px;
+      border: 1px solid rgba(148, 163, 184, 0.12);
+    }
+  }
+
+  .stark-modal-grip {
+    width: 40px;
+    height: 4px;
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 999px;
+    margin: 12px auto 0;
+  }
+`;

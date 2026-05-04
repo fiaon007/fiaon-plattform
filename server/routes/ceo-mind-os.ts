@@ -19,6 +19,7 @@
 import { Router } from 'express';
 import { client } from '../db';
 import { logger } from '../logger';
+import Groq from 'groq-sdk';
 import {
   analyzeThought,
   analyzeFailure,
@@ -403,6 +404,54 @@ router.post('/inbound-mail', async (req, res) => {
       logger.error(err.stack);
     }
   });
+});
+
+/**
+ * POST /api/ceo-mind-os/generate-reply
+ * Generates AI draft reply for an email
+ */
+router.post('/generate-reply', async (req, res) => {
+  try {
+    const { mailId, sender, subject, content } = req.body;
+
+    if (!mailId || !sender || !subject) {
+      return res.status(400).json({ error: 'mailId, sender, and subject required' });
+    }
+
+    // Generate reply using Groq
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || '' });
+    
+    const prompt = `You are a professional executive assistant. Generate a polite, professional email reply.
+
+Original Email:
+From: ${sender}
+Subject: ${subject}
+Content: ${content}
+
+Generate a professional German reply that:
+- Addresses the sender's concerns
+- Is polite and executive-level professional
+- Keeps it concise (2-3 paragraphs max)
+- Uses "Sehr geehrte/r" greeting and "Mit freundlichen Grüßen" closing
+
+Reply:`;
+
+    const completion = await groq.chat.completions.create({
+      messages: [{ role: 'user', content: prompt }],
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.7,
+      max_tokens: 500,
+    });
+
+    const reply = completion.choices[0]?.message?.content || 'Sehr geehrte/r ' + sender + ',\n\nvielen Dank für Ihre Nachricht.\n\nMit freundlichen Grüßen';
+
+    logger.info(`[CEO-HUB] Generated reply for: ${mailId}`);
+
+    res.json({ reply });
+  } catch (err: any) {
+    logger.error(`[CEO-HUB] Generate reply error: ${err?.message || err}`);
+    res.status(500).json({ error: 'reply_generation_failed', detail: String(err?.message || err) });
+  }
 });
 
 /**

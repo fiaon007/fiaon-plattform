@@ -809,6 +809,9 @@ const hudStyles = `
   /* === NEURAL PILL INPUT === */
   .ceo-hud-input-wrap {
     margin-bottom: 40px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   .neural-pill {
@@ -821,14 +824,14 @@ const hudStyles = `
     box-shadow:
       0 8px 32px 0 rgba(31, 38, 135, 0.08),
       inset 0 1px 0 rgba(255, 255, 255, 0.9);
-    overflow: hidden;
+    overflow: visible; /* allow beam to sit exactly on border */
   }
 
   .neural-pill-beam {
     position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
+    inset: -1px; /* extend to sit exactly on the 1px border */
+    width: calc(100% + 2px);
+    height: calc(100% + 2px);
     pointer-events: none;
     z-index: 1;
   }
@@ -840,7 +843,7 @@ const hudStyles = `
 
   .neural-pill-rect {
     animation: neuralBeamRotate 5s linear infinite;
-    filter: drop-shadow(0 0 4px rgba(37, 99, 235, 0.5));
+    filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.6));
   }
 
   .neural-pill-inner {

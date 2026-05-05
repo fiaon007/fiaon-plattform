@@ -16,6 +16,11 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  type?: "text" | "whatsapp-template" | "context-selection";
+  contextSelection?: {
+    options: string[];
+    selected?: string;
+  };
 }
 
 interface ChatSession {
@@ -37,6 +42,7 @@ export default function JarvisChat({ isOpen, onClose }: JarvisChatProps) {
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [pendingContextSelection, setPendingContextSelection] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Scroll to bottom when new message arrives
@@ -54,12 +60,39 @@ export default function JarvisChat({ isOpen, onClose }: JarvisChatProps) {
       timestamp: new Date(),
     };
 
+    // Detect WhatsApp template request
+    const isWhatsAppRequest = /schreib(e)? mir für \w+ eine whatsapp nachricht/i.test(inputText);
+    
+    let assistantMessage: ChatMessage;
+
+    if (isWhatsAppRequest) {
+      // Show context selection
+      assistantMessage = {
+        id: `msg-${Date.now() + 1}`,
+        role: "assistant",
+        content: "Welchen Verlauf soll ich nutzen?",
+        timestamp: new Date(),
+        type: "context-selection",
+        contextSelection: {
+          options: ["Letzter Verlauf", "Neuer Verlauf", "Konversation ist aktuell"],
+        },
+      };
+    } else {
+      // Normal response
+      assistantMessage = {
+        id: `msg-${Date.now() + 1}`,
+        role: "assistant",
+        content: "Ich verarbeite deine Anfrage mit dem Wissen aus deiner Datenbank...",
+        timestamp: new Date(),
+      };
+    }
+
     // Create or update session
     let updatedSession: ChatSession;
     if (currentSession) {
       updatedSession = {
         ...currentSession,
-        messages: [...currentSession.messages, userMessage],
+        messages: [...currentSession.messages, userMessage, assistantMessage],
         preview: inputText.slice(0, 30),
         timestamp: new Date(),
       };
@@ -71,32 +104,46 @@ export default function JarvisChat({ isOpen, onClose }: JarvisChatProps) {
         title: inputText.slice(0, 30),
         preview: inputText.slice(0, 30),
         timestamp: new Date(),
-        messages: [userMessage],
+        messages: [userMessage, assistantMessage],
       };
       setCurrentSession(updatedSession);
       setSessions([updatedSession, ...sessions]);
     }
 
     setInputText("");
+    setIsTyping(false);
+  };
+
+  const handleContextSelection = async (selection: string) => {
+    setPendingContextSelection(selection);
     setIsTyping(true);
 
-    // Simulate AI response (replace with actual API call)
+    // Simulate template generation
     setTimeout(() => {
-      const assistantMessage: ChatMessage = {
+      const templateMessage: ChatMessage = {
         id: `msg-${Date.now()}`,
         role: "assistant",
-        content: "Ich verarbeite deine Anfrage mit dem Wissen aus deiner Datenbank...",
+        content: "Hier deine Antwort für Martin:\n\n\"Hey Martin, ich wollte mich kurz bei dir melden. Wie läuft's bei dir? Lass uns bald mal quatschen!\"",
         timestamp: new Date(),
+        type: "whatsapp-template",
       };
 
-      updatedSession = {
-        ...updatedSession,
-        messages: [...updatedSession.messages, assistantMessage],
-      };
-      setCurrentSession(updatedSession);
-      setSessions(sessions.map(s => s.id === updatedSession.id ? updatedSession : s));
+      if (currentSession) {
+        const updatedSession = {
+          ...currentSession,
+          messages: [...currentSession.messages, templateMessage],
+        };
+        setCurrentSession(updatedSession);
+        setSessions(sessions.map(s => s.id === currentSession.id ? updatedSession : s));
+      }
+
       setIsTyping(false);
+      setPendingContextSelection(null);
     }, 1500);
+  };
+
+  const handleCopyTemplate = (content: string) => {
+    navigator.clipboard.writeText(content);
   };
 
   const handleNewChat = () => {
@@ -290,6 +337,129 @@ export default function JarvisChat({ isOpen, onClose }: JarvisChatProps) {
                     }}>
                       {message.content}
                     </div>
+
+                    {/* Context Selection Buttons */}
+                    {message.type === "context-selection" && message.contextSelection && (
+                      <div style={{
+                        display: "flex",
+                        gap: "12px",
+                        marginTop: "12px",
+                      }}>
+                        {message.contextSelection.options.map((option) => (
+                          <button
+                            key={option}
+                            onClick={() => handleContextSelection(option)}
+                            style={{
+                              padding: "10px 20px",
+                              borderRadius: "50px",
+                              background: "#F1F5F9",
+                              border: "1px solid #E2E8F0",
+                              color: "#475569",
+                              cursor: "pointer",
+                              transition: "all 0.2s",
+                              fontSize: "14px",
+                              fontWeight: "500",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = "#6366f1";
+                              e.currentTarget.style.color = "#FFFFFF";
+                              e.currentTarget.style.borderColor = "#6366f1";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = "#F1F5F9";
+                              e.currentTarget.style.color = "#475569";
+                              e.currentTarget.style.borderColor = "#E2E8F0";
+                            }}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* WhatsApp Template with Copy Button */}
+                    {message.type === "whatsapp-template" && (
+                      <div style={{
+                        marginTop: "12px",
+                      }}>
+                        <div style={{
+                          background: "#F8FAFC",
+                          border: "1px solid #E2E8F0",
+                          borderRadius: "12px",
+                          padding: "16px",
+                          position: "relative",
+                        }}>
+                          <button
+                            onClick={() => handleCopyTemplate(message.content)}
+                            style={{
+                              position: "absolute",
+                              top: "12px",
+                              right: "12px",
+                              padding: "6px 12px",
+                              borderRadius: "8px",
+                              background: "#FFFFFF",
+                              border: "1px solid #E2E8F0",
+                              cursor: "pointer",
+                              fontSize: "12px",
+                              fontWeight: "500",
+                            }}
+                          >
+                            Kopieren
+                          </button>
+                          <div style={{
+                            fontSize: "14px",
+                            lineHeight: "1.6",
+                            color: "#1E293B",
+                            whiteSpace: "pre-wrap",
+                          }}>
+                            {message.content}
+                          </div>
+                        </div>
+
+                        {/* Follow-up Actions */}
+                        <div style={{
+                          marginTop: "12px",
+                          fontSize: "13px",
+                          color: "#475569",
+                        }}>
+                          Kann ich unter erledigt hinterlegen oder sendest du später?
+                          <div style={{
+                            display: "flex",
+                            gap: "8px",
+                            marginTop: "8px",
+                          }}>
+                            <button
+                              style={{
+                                padding: "8px 16px",
+                                borderRadius: "8px",
+                                border: "none",
+                                background: "#6366f1",
+                                color: "#FFFFFF",
+                                fontSize: "13px",
+                                fontWeight: "500",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Erledigt hinterlegen
+                            </button>
+                            <button
+                              style={{
+                                padding: "8px 16px",
+                                borderRadius: "8px",
+                                border: "none",
+                                background: "#F1F5F9",
+                                color: "#475569",
+                                fontSize: "13px",
+                                fontWeight: "500",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Später senden
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </motion.div>
                 ))}
                 {isTyping && (

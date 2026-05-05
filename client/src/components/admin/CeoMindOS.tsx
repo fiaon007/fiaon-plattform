@@ -687,12 +687,24 @@ export default function CeoMindOS() {
               <p className="text-sm text-slate-500 mb-6">Re: {selectedMail.subject}</p>
 
               {generatingReply ? (
-                <div className="clean-shimmer h-44 rounded-xl mb-6" />
+                <LuxuryShimmer width="100%" height="200px" borderRadius="12px" />
               ) : (
                 <textarea
                   value={replyDraft}
                   onChange={(e) => setReplyDraft(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-slate-800 text-sm leading-relaxed min-h-[200px] focus:border-blue-400 focus:ring-4 focus:ring-blue-50 focus:outline-none resize-none mb-6"
+                  style={{
+                    width: "100%",
+                    background: "rgba(255, 255, 255, 0.05)",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    borderRadius: "12px",
+                    padding: "16px",
+                    color: "#F8FAFC",
+                    fontSize: "14px",
+                    lineHeight: "1.6",
+                    minHeight: "200px",
+                    outline: "none",
+                    resize: "none",
+                  }}
                 />
               )}
 

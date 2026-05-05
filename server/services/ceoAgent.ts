@@ -18,6 +18,7 @@ import Groq from 'groq-sdk';
 import { logger } from '../logger';
 import { client } from '../db';
 import { searchEmbedding } from './embeddingService';
+import { fullHybridSearch } from './hybridSearch';
 
 // ============================================================================
 // CONFIGURATION
@@ -189,48 +190,27 @@ async function searchKnowledgeBase(query: string, limit = 3): Promise<string[]> 
       return [];
     }
 
-    // Generate embedding for the query
-    const queryEmbedding = await searchEmbedding(query);
-    logger.info(`[CEO-AGENT][KNOWLEDGE] Query embedding generated: ${queryEmbedding.length} dimensions`);
+    // HYBRID SEARCH: Vector + Keyword (no re-ranking for speed)
+    const hybridResults = await fullHybridSearch(query, limit, false);
 
-    // FORCE RETURN ALL - Even without similarity calculation if needed
-    const results = await client`
-      SELECT
-        content,
-        embedding,
-        CASE 
-          WHEN embedding IS NOT NULL 
-          THEN 1 - (embedding <=> ${JSON.stringify(queryEmbedding)}::vector)
-          ELSE -1
-        END as similarity
-      FROM knowledge_base
-      ORDER BY 
-        CASE 
-          WHEN embedding IS NOT NULL 
-          THEN embedding <=> ${JSON.stringify(queryEmbedding)}::vector
-          ELSE 999
-        END
-      LIMIT ${limit}
-    `;
-
-    logger.info(`[CEO-AGENT][KNOWLEDGE] Query: "${query.slice(0, 50)}...", Results: ${results.length}/${totalEntries}`);
+    logger.info(`[CEO-AGENT][HYBRID-SEARCH] Query: "${query.slice(0, 50)}...", Results: ${hybridResults.length}/${totalEntries}`);
     
-    if (results.length > 0) {
-      const topSim = parseFloat(results[0].similarity || 0);
-      const worstSim = parseFloat(results[results.length - 1].similarity || 0);
-      logger.info(`[CEO-AGENT][KNOWLEDGE] Similarity range: ${topSim.toFixed(3)} (best) to ${worstSim.toFixed(3)} (worst)`);
-      
+    if (hybridResults.length > 0) {
       // Log each result with detailed info
-      results.forEach((r: any, i: number) => {
-        const sim = parseFloat(r.similarity || -1);
-        const hasEmbedding = r.embedding !== null;
-        logger.info(`[CEO-AGENT][BRAIN-DEBUG] Result ${i + 1}: Score ${sim.toFixed(3)} | Has Embedding: ${hasEmbedding} | "${r.content.slice(0, 60)}..."`);
+      hybridResults.forEach((r, i) => {
+        logger.info(
+          `[CEO-AGENT][HYBRID-DEBUG] Result ${i + 1}: ` +
+          `Hybrid: ${r.hybridScore.toFixed(3)} ` +
+          `(Vector: ${r.vectorScore.toFixed(3)} + Keyword: ${r.keywordScore.toFixed(3)}) | ` +
+          `Keywords: [${r.keywordMatches.join(', ')}] | ` +
+          `"${r.content.slice(0, 60)}..."`
+        );
       });
     } else {
       logger.error(`[CEO-AGENT][KNOWLEDGE] ZERO results despite ${totalEntries} entries and ${totalWithEmbeddings} embeddings!`);
     }
 
-    return results.map((r: any) => r.content);
+    return hybridResults.map((r) => r.content);
   } catch (err: any) {
     logger.error(`[CEO-AGENT][KNOWLEDGE] Search error: ${err?.message || err}`);
     return [];

@@ -36,6 +36,9 @@ interface KnowledgeEntry {
 
 interface SearchResult extends KnowledgeEntry {
   similarity: number;
+  vectorScore?: number;
+  keywordScore?: number;
+  keywordMatches?: string[];
 }
 
 export default function KnowledgeBase() {
@@ -598,14 +601,32 @@ export default function KnowledgeBase() {
                   
                   {searchResults.map((result, index) => {
                     const score = result.similarity;
+                    const vectorScore = result.vectorScore || 0;
+                    const keywordScore = result.keywordScore || 0;
+                    const keywords = result.keywordMatches || [];
                     const scoreColor = score > 0.7 ? '#16a34a' : score > 0.5 ? '#2563eb' : score > 0.3 ? '#f59e0b' : '#dc2626';
                     
                     return (
                       <div key={result.id} className="kb-result-item">
                         <div className="kb-result-header">
-                          <span className="kb-result-similarity" style={{ color: scoreColor }}>
-                            #{index + 1} • Match: {score.toFixed(3)} ({(score * 100).toFixed(1)}%)
-                          </span>
+                          <div style={{ flex: 1 }}>
+                            <span className="kb-result-similarity" style={{ color: scoreColor, fontWeight: 700 }}>
+                              #{index + 1} • Hybrid: {score.toFixed(3)} ({(score * 100).toFixed(1)}%)
+                            </span>
+                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                              <span style={{ marginRight: '12px' }}>
+                                🔮 Vector: {vectorScore.toFixed(3)}
+                              </span>
+                              <span style={{ marginRight: '12px' }}>
+                                🔑 Keyword: {keywordScore.toFixed(3)}
+                              </span>
+                              {keywords.length > 0 && (
+                                <span style={{ color: '#6366f1', fontWeight: 600 }}>
+                                  Matches: [{keywords.join(', ')}]
+                                </span>
+                              )}
+                            </div>
+                          </div>
                           <button
                             className="kb-delete-btn"
                             onClick={() => handleDelete(result.id)}

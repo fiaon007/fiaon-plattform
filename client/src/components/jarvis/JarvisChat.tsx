@@ -44,6 +44,15 @@ export default function JarvisChat({ isOpen, onClose }: JarvisChatProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [pendingContextSelection, setPendingContextSelection] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   // Scroll to bottom when new message arrives
   useEffect(() => {
@@ -197,9 +206,9 @@ export default function JarvisChat({ isOpen, onClose }: JarvisChatProps) {
           />
 
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
+            initial={isMobile ? { y: "100%" } : { opacity: 0, scale: 0.9 }}
+            animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1 }}
+            exit={isMobile ? { y: "100%" } : { opacity: 0, scale: 0.9 }}
             transition={{ 
               type: "spring",
               stiffness: 300,
@@ -207,25 +216,31 @@ export default function JarvisChat({ isOpen, onClose }: JarvisChatProps) {
             }}
             style={{
               position: "relative",
-              width: "80%",
-              height: "80%",
+              width: isMobile ? "100%" : "80%",
+              height: isMobile ? "90%" : "80%",
               background: "rgba(255, 255, 255, 0.05)",
               backdropFilter: "blur(20px)",
-              borderRadius: "24px",
+              borderRadius: isMobile ? "24px 24px 0 0" : "24px",
               border: "1px solid rgba(255, 255, 255, 0.1)",
               boxShadow: "0 25px 50px rgba(0, 0, 0, 0.5)",
               display: "flex",
-              flexDirection: "row",
+              flexDirection: isMobile ? "column" : "row",
               overflow: "hidden",
+              ...(isMobile ? {
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                right: 0,
+              } : {}),
             }}
           >
             {/* SIDEBAR */}
             <div style={{
-              width: "240px",
+              width: isMobile ? "0" : "240px",
               background: "rgba(15, 23, 42, 0.5)",
-              borderRight: "1px solid rgba(255, 255, 255, 0.05)",
-              padding: "20px",
-              display: "flex",
+              borderRight: isMobile ? "none" : "1px solid rgba(255, 255, 255, 0.05)",
+              padding: isMobile ? "0" : "20px",
+              display: isMobile ? "none" : "flex",
               flexDirection: "column",
             }}>
               {/* 3D Glass Icons - Neumorphismus Style */}

@@ -315,19 +315,41 @@ export default function JarvisChat({ isOpen, onClose }: JarvisChatProps) {
                 gap: "16px",
                 marginBottom: "16px",
               }}>
-                {currentSession?.messages.map((message) => (
+                <style>{`
+                  ::-webkit-scrollbar {
+                    width: 6px;
+                  }
+                  ::-webkit-scrollbar-track {
+                    background: #F1F5F9;
+                    border-radius: 3px;
+                  }
+                  ::-webkit-scrollbar-thumb {
+                    background: #CBD5E1;
+                    border-radius: 3px;
+                  }
+                  ::-webkit-scrollbar-thumb:hover {
+                    background: #94A3B8;
+                  }
+                `}</style>
+                {currentSession?.messages.map((message, index) => (
                   <motion.div
                     key={message.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
+                    transition={{ 
+                      duration: 0.3, 
+                      delay: index * 0.05,
+                      ease: "easeOut"
+                    }}
                     style={{
                       alignSelf: message.role === "user" ? "flex-end" : "flex-start",
                       maxWidth: "70%",
                     }}
                   >
                     <div style={{
-                      background: message.role === "user" ? "#6366f1" : "#FFFFFF",
+                      background: message.role === "user" 
+                        ? "linear-gradient(135deg, #6366f1 0%, #4F46E5 100%)"
+                        : "linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%)",
                       color: message.role === "user" ? "#FFFFFF" : "#1E293B",
                       padding: "12px 16px",
                       borderRadius: message.role === "user" ? "16px 16px 0 16px" : "16px 16px 16px 0",
@@ -340,15 +362,25 @@ export default function JarvisChat({ isOpen, onClose }: JarvisChatProps) {
 
                     {/* Context Selection Buttons */}
                     {message.type === "context-selection" && message.contextSelection && (
-                      <div style={{
-                        display: "flex",
-                        gap: "12px",
-                        marginTop: "12px",
-                      }}>
-                        {message.contextSelection.options.map((option) => (
-                          <button
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.2, delay: 0.1 }}
+                        style={{
+                          display: "flex",
+                          gap: "12px",
+                          marginTop: "12px",
+                        }}
+                      >
+                        {message.contextSelection.options.map((option, i) => (
+                          <motion.button
                             key={option}
                             onClick={() => handleContextSelection(option)}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.2, delay: 0.1 + i * 0.05 }}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
                             style={{
                               padding: "10px 20px",
                               borderRadius: "50px",
@@ -356,9 +388,9 @@ export default function JarvisChat({ isOpen, onClose }: JarvisChatProps) {
                               border: "1px solid #E2E8F0",
                               color: "#475569",
                               cursor: "pointer",
-                              transition: "all 0.2s",
                               fontSize: "14px",
                               fontWeight: "500",
+                              transition: "all 0.2s",
                             }}
                             onMouseEnter={(e) => {
                               e.currentTarget.style.background = "#6366f1";
@@ -372,25 +404,32 @@ export default function JarvisChat({ isOpen, onClose }: JarvisChatProps) {
                             }}
                           >
                             {option}
-                          </button>
+                          </motion.button>
                         ))}
-                      </div>
+                      </motion.div>
                     )}
 
                     {/* WhatsApp Template with Copy Button */}
                     {message.type === "whatsapp-template" && (
-                      <div style={{
-                        marginTop: "12px",
-                      }}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: 0.2 }}
+                        style={{
+                          marginTop: "12px",
+                        }}
+                      >
                         <div style={{
-                          background: "#F8FAFC",
+                          background: "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
                           border: "1px solid #E2E8F0",
                           borderRadius: "12px",
                           padding: "16px",
                           position: "relative",
                         }}>
-                          <button
+                          <motion.button
                             onClick={() => handleCopyTemplate(message.content)}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
                             style={{
                               position: "absolute",
                               top: "12px",
@@ -402,10 +441,11 @@ export default function JarvisChat({ isOpen, onClose }: JarvisChatProps) {
                               cursor: "pointer",
                               fontSize: "12px",
                               fontWeight: "500",
+                              transition: "all 0.2s",
                             }}
                           >
                             Kopieren
-                          </button>
+                          </motion.button>
                           <div style={{
                             fontSize: "14px",
                             lineHeight: "1.6",
@@ -417,18 +457,25 @@ export default function JarvisChat({ isOpen, onClose }: JarvisChatProps) {
                         </div>
 
                         {/* Follow-up Actions */}
-                        <div style={{
-                          marginTop: "12px",
-                          fontSize: "13px",
-                          color: "#475569",
-                        }}>
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.3 }}
+                          style={{
+                            marginTop: "12px",
+                            fontSize: "13px",
+                            color: "#475569",
+                          }}
+                        >
                           Kann ich unter erledigt hinterlegen oder sendest du später?
                           <div style={{
                             display: "flex",
                             gap: "8px",
                             marginTop: "8px",
                           }}>
-                            <button
+                            <motion.button
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
                               style={{
                                 padding: "8px 16px",
                                 borderRadius: "8px",
@@ -441,8 +488,10 @@ export default function JarvisChat({ isOpen, onClose }: JarvisChatProps) {
                               }}
                             >
                               Erledigt hinterlegen
-                            </button>
-                            <button
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
                               style={{
                                 padding: "8px 16px",
                                 borderRadius: "8px",
@@ -455,23 +504,23 @@ export default function JarvisChat({ isOpen, onClose }: JarvisChatProps) {
                               }}
                             >
                               Später senden
-                            </button>
+                            </motion.button>
                           </div>
-                        </div>
-                      </div>
+                        </motion.div>
+                      </motion.div>
                     )}
                   </motion.div>
                 ))}
                 {isTyping && (
                   <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
                     style={{
                       alignSelf: "flex-start",
                     }}
                   >
                     <div style={{
-                      background: "#FFFFFF",
+                      background: "linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%)",
                       padding: "12px 16px",
                       borderRadius: "16px 16px 16px 0",
                       boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
@@ -489,6 +538,7 @@ export default function JarvisChat({ isOpen, onClose }: JarvisChatProps) {
                             duration: 0.6,
                             repeat: Infinity,
                             delay: i * 0.1,
+                            ease: "easeInOut"
                           }}
                           style={{
                             width: "8px",

@@ -345,30 +345,89 @@ export default function CeoMindOS() {
         )}
       </motion.div>
 
-      {/* === CLEAN INPUT FIELD === */}
+      {/* === LUXURY INPUT PILL (Dark Mode + Glassmorphism + Gold Glow) === */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.15 }}
         className="ceo-hud-input-wrap"
+        style={{
+          background: 'linear-gradient(180deg, #020617 0%, #0f172a 100%)',
+          padding: '40px 20px',
+          borderRadius: '24px',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
       >
+        {/* Animated Blue Nebula Background */}
         <motion.div
-          className="jarvis-input-container"
           animate={{
-            borderColor: isInputFocused ? '#6366f1' : 'transparent',
-            boxShadow: isInputFocused ? '0 0 20px rgba(99,102,241,0.2)' : '0 2px 12px rgba(0,0,0,0.04)',
+            opacity: [0.3, 0.5, 0.3],
+            scale: [1, 1.2, 1],
           }}
-          transition={{ duration: 0.3 }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
           style={{
-            background: '#FFFFFF',
-            borderRadius: '16px',
-            border: '1px solid transparent',
-            padding: '16px 20px',
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '300px',
+            height: '300px',
+            background: 'radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, transparent 70%)',
+            filter: 'blur(60px)',
+            pointerEvents: 'none',
+          }}
+        />
+
+        <motion.div
+          className="luxury-input-pill"
+          animate={{
+            borderColor: isInputFocused ? 'rgba(251, 191, 36, 0.8)' : 'rgba(251, 191, 36, 0.3)',
+            boxShadow: isInputFocused 
+              ? '0 0 30px rgba(251, 191, 36, 0.4), 0 0 60px rgba(251, 191, 36, 0.2)'
+              : '0 0 20px rgba(251, 191, 36, 0.15)',
+          }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          style={{
+            background: 'rgba(255, 255, 255, 0.05)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: '50px',
+            border: '1px solid rgba(251, 191, 36, 0.3)',
+            padding: '20px 28px',
             display: 'flex',
-            alignItems: 'flex-end',
-            gap: '12px',
+            alignItems: 'center',
+            gap: '16px',
+            position: 'relative',
+            zIndex: 1,
           }}
         >
+          {/* Animated Gold Glow Beam Border */}
+          <motion.div
+            animate={{
+              rotate: 360,
+            }}
+            transition={{
+              duration: 3,
+              repeat: Infinity,
+              ease: "linear"
+            }}
+            style={{
+              position: 'absolute',
+              inset: '-2px',
+              borderRadius: '50px',
+              padding: '2px',
+              background: 'conic-gradient(from 0deg, transparent 0deg, rgba(251, 191, 36, 0.6) 90deg, transparent 180deg, rgba(251, 191, 36, 0.6) 270deg, transparent 360deg)',
+              WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+              WebkitMaskComposite: 'xor',
+              maskComposite: 'exclude',
+              pointerEvents: 'none',
+            }}
+          />
+
           <textarea
             ref={textareaRef}
             value={thought}
@@ -381,7 +440,7 @@ export default function CeoMindOS() {
                 handleExecute();
               }
             }}
-            placeholder="Was beschäftigt dich strategisch?"
+            placeholder="Command Center ready. What's on your mind?"
             disabled={analyzing || isRecording || isTranscribing}
             rows={1}
             style={{
@@ -389,67 +448,80 @@ export default function CeoMindOS() {
               border: 'none',
               outline: 'none',
               resize: 'none',
-              fontSize: '15px',
-              lineHeight: '1.5',
-              color: '#1E293B',
+              fontSize: '16px',
+              lineHeight: '1.6',
+              color: '#F8FAFC',
               background: 'transparent',
               fontFamily: 'inherit',
+              fontWeight: '400',
             }}
           />
 
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <motion.button
               onClick={isRecording ? stopRecording : startRecording}
               disabled={analyzing || isTranscribing}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 300 }}
               style={{
-                padding: '8px',
-                borderRadius: '8px',
+                padding: '12px',
+                borderRadius: '50%',
                 border: 'none',
-                background: isRecording ? '#EF4444' : 'transparent',
-                color: isRecording ? '#FFFFFF' : '#64748B',
+                background: isRecording ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                color: isRecording ? '#F87171' : '#F8FAFC',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
               }}
               aria-label={isRecording ? "Stop recording" : "Start recording"}
             >
-              {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-            </button>
+              {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            </motion.button>
 
-            <button
+            <motion.button
               onClick={handleExecute}
               disabled={!thought.trim() || analyzing || isRecording || isTranscribing}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 300 }}
               style={{
-                padding: '8px',
-                borderRadius: '8px',
+                padding: '14px 24px',
+                borderRadius: '50px',
                 border: 'none',
-                background: thought.trim() ? '#6366f1' : '#F1F5F9',
-                color: thought.trim() ? '#FFFFFF' : '#94A3B8',
+                background: thought.trim()
+                  ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 50%, #B45309 100%)'
+                  : 'rgba(255, 255, 255, 0.1)',
+                color: thought.trim() ? '#020617' : 'rgba(255, 255, 255, 0.4)',
                 cursor: thought.trim() ? 'pointer' : 'not-allowed',
-                transition: 'all 0.2s',
+                transition: 'all 0.3s',
+                fontWeight: '600',
+                fontSize: '14px',
+                letterSpacing: '0.5px',
               }}
             >
               {analyzing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                <ArrowUpRight className="w-4 h-4" />
+                <span>Execute</span>
               )}
-            </button>
+            </motion.button>
           </div>
         </motion.div>
 
         <p style={{
-          marginTop: '8px',
-          fontSize: '12px',
-          color: '#94A3B8',
+          marginTop: '12px',
+          fontSize: '13px',
+          color: 'rgba(255, 255, 255, 0.5)',
           textAlign: 'center',
+          letterSpacing: '0.5px',
         }}>
           {isRecording
-            ? "● Aufnahme läuft…"
+            ? "● Recording in progress..."
             : isTranscribing
-            ? "○ Transkribiere…"
+            ? "○ Transcribing..."
             : analyzing
-            ? "○ KI analysiert…"
-            : "⌘ + Enter zum Senden"}
+            ? "○ AI analyzing..."
+            : "⌘ + Enter to execute"}
         </p>
       </motion.div>
 

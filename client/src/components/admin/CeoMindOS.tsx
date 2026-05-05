@@ -29,7 +29,6 @@ import {
   Brain,
   CheckCircle2,
   ArrowUpRight,
-  Sparkles,
 } from "lucide-react";
 
 // ============================================================================
@@ -128,8 +127,8 @@ export default function CeoMindOS() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isInputFocused, setIsInputFocused] = useState(false);
 
   // ============================================================================
   // DATA LOAD
@@ -369,90 +368,111 @@ export default function CeoMindOS() {
         )}
       </motion.div>
 
-      {/* === NEURAL PILL INPUT === */}
+      {/* === CLEAN INPUT FIELD === */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.15 }}
         className="ceo-hud-input-wrap"
       >
-        <div className="neural-pill">
-          {/* SVG border beam that follows the actual pill border */}
-          <svg className="neural-pill-beam" preserveAspectRatio="none" aria-hidden="true">
-            <defs>
-              <linearGradient id="ceoBeamGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="rgba(37, 99, 235, 0)" />
-                <stop offset="50%" stopColor="rgba(37, 99, 235, 0.9)" />
-                <stop offset="100%" stopColor="rgba(37, 99, 235, 0)" />
-              </linearGradient>
-            </defs>
-            <rect
-              className="neural-pill-rect"
-              x="0.5"
-              y="0.5"
-              width="calc(100% - 1px)"
-              height="calc(100% - 1px)"
-              rx="999"
-              ry="999"
-              fill="none"
-              stroke="url(#ceoBeamGrad)"
-              strokeWidth="1"
-              pathLength="100"
-            />
-          </svg>
+        <motion.div
+          className="jarvis-input-container"
+          animate={{
+            borderColor: isInputFocused ? '#6366f1' : 'transparent',
+            boxShadow: isInputFocused ? '0 0 20px rgba(99,102,241,0.2)' : '0 2px 12px rgba(0,0,0,0.04)',
+          }}
+          transition={{ duration: 0.3 }}
+          style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            border: '1px solid transparent',
+            padding: '16px 20px',
+            display: 'flex',
+            alignItems: 'flex-end',
+            gap: '12px',
+          }}
+        >
+          <textarea
+            ref={textareaRef}
+            value={thought}
+            onChange={onTextareaInput}
+            onFocus={() => setIsInputFocused(true)}
+            onBlur={() => setIsInputFocused(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                handleExecute();
+              }
+            }}
+            placeholder="Was beschäftigt dich strategisch?"
+            disabled={analyzing || isRecording || isTranscribing}
+            rows={1}
+            style={{
+              flex: 1,
+              border: 'none',
+              outline: 'none',
+              resize: 'none',
+              fontSize: '15px',
+              lineHeight: '1.5',
+              color: '#1E293B',
+              background: 'transparent',
+              fontFamily: 'inherit',
+            }}
+          />
 
-          <div className="neural-pill-inner">
-            <Sparkles className="neural-pill-spark" />
-            <textarea
-              ref={textareaRef}
-              value={thought}
-              onChange={onTextareaInput}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault();
-                  handleExecute();
-                }
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={analyzing || isTranscribing}
+              style={{
+                padding: '8px',
+                borderRadius: '8px',
+                border: 'none',
+                background: isRecording ? '#EF4444' : 'transparent',
+                color: isRecording ? '#FFFFFF' : '#64748B',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
               }}
-              placeholder="Was beschäftigt dich strategisch? Tippe oder sprich deinen Gedanken ein…"
-              className="neural-pill-input"
-              disabled={analyzing || isRecording || isTranscribing}
-              rows={1}
-            />
+              aria-label={isRecording ? "Stop recording" : "Start recording"}
+            >
+              {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
 
-            <div className="neural-pill-actions">
-              <button
-                onClick={isRecording ? stopRecording : startRecording}
-                disabled={analyzing || isTranscribing}
-                className={`neural-icon-btn ${isRecording ? "is-recording" : ""}`}
-                aria-label={isRecording ? "Stop recording" : "Start recording"}
-              >
-                {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-              </button>
-
-              <button
-                onClick={handleExecute}
-                disabled={!thought.trim() || analyzing || isRecording || isTranscribing}
-                className="neural-execute-btn"
-              >
-                {analyzing ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-                <span>{analyzing ? "Denke nach…" : "Execute"}</span>
-              </button>
-            </div>
+            <button
+              onClick={handleExecute}
+              disabled={!thought.trim() || analyzing || isRecording || isTranscribing}
+              style={{
+                padding: '8px',
+                borderRadius: '8px',
+                border: 'none',
+                background: thought.trim() ? '#6366f1' : '#F1F5F9',
+                color: thought.trim() ? '#FFFFFF' : '#94A3B8',
+                cursor: thought.trim() ? 'pointer' : 'not-allowed',
+                transition: 'all 0.2s',
+              }}
+            >
+              {analyzing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <ArrowUpRight className="w-4 h-4" />
+              )}
+            </button>
           </div>
-        </div>
+        </motion.div>
 
-        <p className="neural-hint">
+        <p style={{
+          marginTop: '8px',
+          fontSize: '12px',
+          color: '#94A3B8',
+          textAlign: 'center',
+        }}>
           {isRecording
             ? "● Aufnahme läuft…"
             : isTranscribing
             ? "○ Transkribiere…"
             : analyzing
             ? "○ KI analysiert…"
-            : "⌘ + Enter zum Ausführen"}
+            : "⌘ + Enter zum Senden"}
         </p>
       </motion.div>
 

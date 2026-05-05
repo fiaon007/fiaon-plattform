@@ -687,10 +687,15 @@ router.post('/knowledge/search', async (req, res) => {
       return res.status(400).json({ error: 'query_required', detail: 'Query must be a non-empty string' });
     }
 
-    // DB VERIFICATION: Check total entries
+    // DB VERIFICATION: Check total entries AND embeddings
     const countResult = await client`SELECT COUNT(*) as total FROM knowledge_base`;
     const totalEntries = parseInt(countResult[0]?.total || '0');
     logger.info(`[DB-CHECK] Total entries in knowledge_base: ${totalEntries}`);
+    
+    // Check how many have embeddings
+    const embeddingCount = await client`SELECT COUNT(*) as total FROM knowledge_base WHERE embedding IS NOT NULL`;
+    const totalWithEmbeddings = parseInt(embeddingCount[0]?.total || '0');
+    logger.info(`[DB-CHECK] Entries with embeddings: ${totalWithEmbeddings}/${totalEntries}`);
     
     if (totalEntries === 0) {
       logger.warn(`[BRAIN-SEARCH] Database is EMPTY! Upload process may be broken.`);
@@ -700,32 +705,64 @@ router.post('/knowledge/search', async (req, res) => {
         debug: { totalEntries: 0, message: 'Database is empty' },
       });
     }
+    
+    if (totalWithEmbeddings === 0) {
+      logger.error(`[BRAIN-SEARCH] CRITICAL: ${totalEntries} entries exist but ZERO have embeddings!`);
+      return res.json({
+        query,
+        results: [],
+        debug: { 
+          totalEntries, 
+          totalWithEmbeddings: 0,
+          message: 'Entries exist but no embeddings generated!' 
+        },
+      });
+    }
 
     logger.info(`[BRAIN-SEARCH] Query: "${query}"`);
 
     // Generate embedding for search query
     const queryEmbedding = await searchEmbedding(query);
+    logger.info(`[BRAIN-SEARCH] Query embedding generated: ${queryEmbedding.length} dimensions`);
 
-    // NO THRESHOLD FILTER - Return top results regardless of similarity
+    // FORCE RETURN ALL - Even without similarity calculation if needed
     const results = await client`
       SELECT
         id,
         content,
         metadata,
         created_at,
-        1 - (embedding <=> ${JSON.stringify(queryEmbedding)}::vector) as similarity
+        embedding,
+        CASE 
+          WHEN embedding IS NOT NULL 
+          THEN 1 - (embedding <=> ${JSON.stringify(queryEmbedding)}::vector)
+          ELSE -1
+        END as similarity
       FROM knowledge_base
-      WHERE embedding IS NOT NULL
-      ORDER BY embedding <=> ${JSON.stringify(queryEmbedding)}::vector
+      ORDER BY 
+        CASE 
+          WHEN embedding IS NOT NULL 
+          THEN embedding <=> ${JSON.stringify(queryEmbedding)}::vector
+          ELSE 999
+        END
       LIMIT ${Math.min(parseInt(limit) || 5, 20)}
     `;
 
     logger.info(`[BRAIN-SEARCH] Results found: ${results.length}`);
     
+    // Log EVERY result with detailed info
+    results.forEach((r: any, i: number) => {
+      const sim = parseFloat(r.similarity || -1);
+      const hasEmbedding = r.embedding !== null;
+      logger.info(`[BRAIN-DEBUG] #${i + 1} | Score: ${sim.toFixed(3)} | Has Embedding: ${hasEmbedding} | Content: "${r.content.slice(0, 60)}..."`);
+    });
+    
     if (results.length > 0) {
       const topSim = parseFloat(results[0].similarity || 0);
       const worstSim = parseFloat(results[results.length - 1].similarity || 0);
       logger.info(`[BRAIN-SEARCH] Similarity range: ${topSim.toFixed(3)} (best) to ${worstSim.toFixed(3)} (worst)`);
+    } else {
+      logger.error(`[BRAIN-SEARCH] ZERO results despite ${totalEntries} entries and ${totalWithEmbeddings} embeddings!`);
     }
 
     res.json({

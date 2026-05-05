@@ -722,6 +722,32 @@ export default function CeoMindOS() {
 }
 
 // ============================================================================
+// SHIMMER LOADING COMPONENT (Luxury Edition)
+// ============================================================================
+
+function LuxuryShimmer({ width = "100%", height = "40px", borderRadius = "8px" }: { width?: string; height?: string; borderRadius?: string }) {
+  return (
+    <motion.div
+      animate={{
+        backgroundPosition: ["-200% 0", "200% 0"],
+      }}
+      transition={{
+        duration: 1.5,
+        repeat: Infinity,
+        ease: "linear"
+      }}
+      style={{
+        width,
+        height,
+        borderRadius,
+        background: "linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%)",
+        backgroundSize: "200% 100%",
+      }}
+    />
+  );
+}
+
+// ============================================================================
 // PILLAR CARD
 // ============================================================================
 
@@ -743,28 +769,42 @@ function PillarCard({ title, subtitle, accent, icon, count, loading, empty, chil
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", damping: 22, stiffness: 180 }}
       className={`pillar-card pillar-card-${accent}`}
+      style={{
+        background: "rgba(15, 23, 42, 0.5)",
+        backdropFilter: "blur(20px)",
+        border: "1px solid rgba(255, 255, 255, 0.1)",
+        borderRadius: "16px",
+        padding: "20px",
+      }}
     >
-      <div className="pillar-head">
-        <div className={`pillar-icon pillar-icon-${accent}`}>{icon}</div>
-        <div className="flex-1 min-w-0">
-          <h3 className="pillar-title">{title}</h3>
-          <p className="pillar-subtitle">{subtitle}</p>
-        </div>
-        <div className={`pillar-count pillar-count-${accent}`}>{count}</div>
-      </div>
-
-      <div className="pillar-body">
-        {loading ? (
-          <div className="space-y-2">
-            <div className="clean-shimmer h-14 rounded-lg" />
-            <div className="clean-shimmer h-14 rounded-lg" />
+      {loading ? (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+            <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "rgba(255,255,255,0.05)" }}>
+              <LuxuryShimmer width="100%" height="100%" borderRadius="50%" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <LuxuryShimmer width="60%" height="16px" borderRadius="4px" />
+              <LuxuryShimmer width="40%" height="12px" borderRadius="4px" style={{ marginTop: "8px" }} />
+            </div>
           </div>
-        ) : empty ? (
-          <p className="pillar-empty">{empty}</p>
-        ) : (
-          <div className="space-y-2">{children}</div>
-        )}
-      </div>
+          <LuxuryShimmer width="100%" height="80px" borderRadius="8px" />
+        </>
+      ) : empty ? (
+        <div className="pillar-empty">{empty}</div>
+      ) : (
+        <>
+          <div className="pillar-head">
+            <div className={`pillar-icon pillar-icon-${accent}`}>{icon}</div>
+            <div className="flex-1 min-w-0">
+              <h3 className="pillar-title">{title}</h3>
+              <p className="pillar-subtitle">{subtitle}</p>
+            </div>
+            <div className={`pillar-count pillar-count-${accent}`}>{count}</div>
+          </div>
+          {children}
+        </>
+      )}
     </motion.div>
   );
 }

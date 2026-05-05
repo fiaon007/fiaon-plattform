@@ -30,6 +30,7 @@ import {
   CheckCircle2,
   ArrowUpRight,
 } from "lucide-react";
+import JarvisChat from "../jarvis/JarvisChat";
 
 // ============================================================================
 // TYPES
@@ -129,6 +130,7 @@ export default function CeoMindOS() {
   const audioChunksRef = useRef<Blob[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // ============================================================================
   // DATA LOAD
@@ -249,36 +251,11 @@ export default function CeoMindOS() {
   const handleExecute = async () => {
     const txt = thought.trim();
     if (!txt || analyzing) return;
-    setAnalyzing(true);
-
-    try {
-      const res = await fetch("/api/ceo-mind-os", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ thought: txt }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.id) {
-          // PERSISTENCE GUARANTEE: new card appears at top instantly
-          setStrategies((prev) => [data, ...prev]);
-          setSelectedStrategy(data); // auto-open detail pane
-          setThought("");
-          if (textareaRef.current) textareaRef.current.style.height = "auto";
-        }
-      } else {
-        const err = await res.json().catch(() => ({}));
-        console.error("[CEO-HUD] save error:", err);
-        alert(`Fehler: ${err.detail || err.error || "Unbekannt"}`);
-      }
-    } catch (err) {
-      console.error("[CEO-HUD] execute:", err);
-      alert("Netzwerkfehler. Bitte erneut versuchen.");
-    } finally {
-      setAnalyzing(false);
-    }
+    
+    // Open chat instead of creating strategy card
+    setIsChatOpen(true);
+    setThought("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
   };
 
   const handleGenerateReply = async (mail: InboundMail) => {
@@ -663,6 +640,9 @@ export default function CeoMindOS() {
           </CleanModal>
         )}
       </AnimatePresence>
+
+      {/* === JARVIS CHAT OVERLAY === */}
+      <JarvisChat isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
 
       <style>{hudStyles}</style>
     </div>

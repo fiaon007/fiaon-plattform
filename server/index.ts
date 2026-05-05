@@ -530,10 +530,11 @@ async function seedSubscriptionPlans() {
   await bootstrapFirstAdmin();
   
   // ============================================================================
-  // 🗄️ DATABASE DIMENSION FIX - Force knowledge_base to 384 dimensions
+  // 🗄️ DATABASE DIMENSION CHECK - Verify knowledge_base dimension (NO RESET)
   // ============================================================================
-  const { forceKnowledgeBaseDimensionFix, verifyKnowledgeBaseDimension } = await import('./scripts/force-db-reset');
-  await forceKnowledgeBaseDimensionFix();
+  // IMPORTANT: Only verify, DO NOT reset on every startup!
+  // Knowledge base should persist across deploys
+  const { verifyKnowledgeBaseDimension } = await import('./scripts/force-db-reset');
   await verifyKnowledgeBaseDimension();
   
   // ============================================================================

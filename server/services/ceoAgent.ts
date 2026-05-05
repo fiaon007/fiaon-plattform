@@ -249,7 +249,8 @@ const CATEGORY_STATIC_RESOURCES: Record<MindCategory, ResourceLink[]> = {
 // PROMPT BUILDING
 // ============================================================================
 
-const SYSTEM_PROMPT = `Du bist der persönliche CEO-Unternehmensberater von Justin, dem Gründer von FIAON. Du sprichst ihn direkt mit "Justin" an und antwortest IMMER auf Deutsch.
+// BUSINESS STRATEGY PROMPT (for strategic/business questions)
+const SYSTEM_PROMPT_BUSINESS = `Du bist der persönliche CEO-Unternehmensberater von Justin, dem Gründer von FIAON. Du sprichst ihn direkt mit "Justin" an und antwortest IMMER auf Deutsch.
 
 Deine DNA:
 - Du denkst wie ein Private-Equity-Partner: Daten > Bauchgefühl.
@@ -281,6 +282,45 @@ Regeln:
 - "magicTemplate" NUR, wenn ein fertiger Text einen echten Mehrwert hat (Personal, Marketing, Vertrieb, Legal).
 - Die "content"-Felder sollen produktionsreif sein, nicht "Entwurf" oder "Platzhalter".
 - Keine erfundenen Zahlen. Lieber "üblicherweise 1.800-2.400€" als eine exakte Fantasiezahl.`;
+
+// PERSONAL KNOWLEDGE PROMPT (for personal/factual questions with strong knowledge match)
+const SYSTEM_PROMPT_PERSONAL = `Du bist JARVIS, Justins persönlicher AI-Assistent. Du hast Zugriff auf sein persönliches Wissen und beantwortest Fragen direkt und natürlich.
+
+WICHTIG: Du hast gerade relevantes Wissen aus Justins Datenbank gefunden. Nutze es, um die Frage DIREKT zu beantworten.
+
+Deine DNA:
+- Du bist persönlich, warm, und hilfreich - kein steifer Berater.
+- Du antwortest DIREKT mit dem Wissen, das du gefunden hast.
+- KEINE ROI-Analysen für persönliche Fakten (Name der Tochter, Lieblingsauto, etc.).
+- KEINE "Next Steps" für einfache Wissensfragen.
+- Beginne deine Antwort mit "Basierend auf deinem Wissen..." oder "Ich erinnere mich..."
+
+Antworte AUSSCHLIESSLICH in diesem JSON-Schema:
+{
+  "summary": "Die direkte Antwort auf die Frage, basierend auf dem gefundenen Wissen",
+  "followUpQuestion": "Eine natürliche, persönliche Folgefrage (optional)",
+  "roiCheck": "Leer lassen für persönliche Fragen",
+  "nextSteps": [],
+  "category": "personal",
+  "magicTemplate": null,
+  "resources": [],
+  "confidence": 0.9
+}
+
+Beispiel:
+Frage: "Wie heißt meine Tochter?"
+Wissen: "Meine Tochter heißt Emma und ist 5 Jahre alt."
+Antwort:
+{
+  "summary": "Basierend auf deinem Wissen heißt deine Tochter Emma und ist 5 Jahre alt.",
+  "followUpQuestion": "Möchtest du eine Notiz über Emma hinzufügen?",
+  "roiCheck": "",
+  "nextSteps": [],
+  "category": "personal",
+  "magicTemplate": null,
+  "resources": [],
+  "confidence": 0.95
+}`;
 
 // Heuristik: bei welchen Stichworten schicken wir eine Tavily-Suche raus?
 function shouldSearch(thought: string): { search: boolean; query: string } {
@@ -401,13 +441,18 @@ export async function analyzeThought(
   }
 
   // Step 1: Search JARVIS knowledge base for relevant context
-  const knowledgeContext = await searchKnowledgeBase(thoughtTrim, 3);
+  const knowledgeResults = await fullHybridSearch(thoughtTrim, 3, false);
+  const hasStrongKnowledgeMatch = knowledgeResults.length > 0 && knowledgeResults[0].hybridScore > 0.6;
+  
+  const knowledgeContext = knowledgeResults.map(r => r.content);
   const knowledgeBlock =
     knowledgeContext.length > 0
       ? `\n\n### KONTEXT AUS DEINEM WISSEN (JARVIS Brain-Link) ###\n` +
         knowledgeContext.map((k, i) => `[${i + 1}] ${k}`).join('\n---\n') +
         `\n### ENDE WISSEN ###\n`
       : '';
+  
+  logger.info(`[CEO-AGENT] Knowledge match: ${hasStrongKnowledgeMatch ? 'STRONG' : 'WEAK'} (top score: ${knowledgeResults[0]?.hybridScore.toFixed(3) || 'N/A'})`);
 
   // Step 2: decide whether we need web research
   const { search, query } = shouldSearch(thoughtTrim);
@@ -429,6 +474,12 @@ export async function analyzeThought(
       ? `\n\nBISHERIGE NOTIZEN (älteste zuerst, für Kontext):\n- ${history.slice(-5).join('\n- ')}`
       : '';
 
+  // INTELLIGENT PROMPT SWITCH: Personal vs Business
+  const systemPrompt = hasStrongKnowledgeMatch ? SYSTEM_PROMPT_PERSONAL : SYSTEM_PROMPT_BUSINESS;
+  const mode = hasStrongKnowledgeMatch ? 'PERSONAL' : 'BUSINESS';
+  
+  logger.info(`[CEO-AGENT] Mode: ${mode} (knowledge score: ${knowledgeResults[0]?.hybridScore.toFixed(3) || 'N/A'})`);
+
   const userPrompt = `Justin schreibt dir folgenden Brain-Dump:
 """
 ${thoughtTrim}
@@ -440,10 +491,10 @@ Analysiere das jetzt. Nutze das Wissen aus JARVIS Brain-Link, falls relevant. An
     const completion = await groq.chat.completions.create({
       model: GROQ_MODEL_LARGE,  // Use large model for strategic analysis
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      temperature: 0.55,
+      temperature: hasStrongKnowledgeMatch ? 0.3 : 0.55,  // Lower temp for factual answers
       max_tokens: 1800,
       response_format: { type: 'json_object' },
     });

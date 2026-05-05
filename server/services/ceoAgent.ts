@@ -169,32 +169,48 @@ async function searchKnowledgeBase(query: string, limit = 3): Promise<string[]> 
   try {
     if (!query || query.trim().length === 0) return [];
 
+    // DB VERIFICATION: Check total entries
+    const countResult = await client`SELECT COUNT(*) as total FROM knowledge_base`;
+    const totalEntries = parseInt(countResult[0]?.total || '0');
+    logger.info(`[CEO-AGENT][DB-CHECK] Total entries in knowledge_base: ${totalEntries}`);
+
+    if (totalEntries === 0) {
+      logger.warn(`[CEO-AGENT][KNOWLEDGE] Database is EMPTY! No knowledge to search.`);
+      return [];
+    }
+
     // Generate embedding for the query
     const queryEmbedding = await searchEmbedding(query);
 
-    // Search in knowledge base with lowered threshold for 384-dim embeddings
-    const SIMILARITY_THRESHOLD = 0.35; // Lowered from 0.7 for all-MiniLM-L6-v2
-    
+    // DEBUG MODE: NO THRESHOLD FILTER - Return top results regardless of similarity
     const results = await client`
       SELECT
         content,
         1 - (embedding <=> ${JSON.stringify(queryEmbedding)}::vector) as similarity
       FROM knowledge_base
       WHERE embedding IS NOT NULL
-        AND (1 - (embedding <=> ${JSON.stringify(queryEmbedding)}::vector)) >= ${SIMILARITY_THRESHOLD}
       ORDER BY embedding <=> ${JSON.stringify(queryEmbedding)}::vector
       LIMIT ${limit}
     `;
 
-    logger.info(`[CEO-AGENT][KNOWLEDGE] Query: "${query.slice(0, 50)}...", Results: ${results.length}`);
+    logger.info(`[CEO-AGENT][KNOWLEDGE] Query: "${query.slice(0, 50)}...", Results: ${results.length}/${totalEntries}`);
     
     if (results.length > 0) {
-      logger.info(`[CEO-AGENT][KNOWLEDGE] Top similarity: ${parseFloat(results[0].similarity || 0).toFixed(3)}`);
+      const topSim = parseFloat(results[0].similarity || 0);
+      const worstSim = parseFloat(results[results.length - 1].similarity || 0);
+      logger.info(`[CEO-AGENT][KNOWLEDGE] Similarity range: ${topSim.toFixed(3)} (best) to ${worstSim.toFixed(3)} (worst)`);
+      
+      // Log each result for debugging
+      results.forEach((r: any, i: number) => {
+        logger.info(`[CEO-AGENT][KNOWLEDGE] Result ${i + 1}: ${parseFloat(r.similarity || 0).toFixed(3)} - "${r.content.slice(0, 60)}..."`);
+      });
+    } else {
+      logger.warn(`[CEO-AGENT][KNOWLEDGE] No results found despite ${totalEntries} entries in DB!`);
     }
 
     return results.map((r: any) => r.content);
   } catch (err: any) {
-    logger.warn(`[CEO-AGENT][KNOWLEDGE] Search error: ${err?.message || err}`);
+    logger.error(`[CEO-AGENT][KNOWLEDGE] Search error: ${err?.message || err}`);
     return [];
   }
 }

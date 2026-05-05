@@ -677,22 +677,36 @@ router.get('/knowledge', async (req, res) => {
 /**
  * POST /knowledge/search
  * Semantic search in knowledge base
- * LOWERED THRESHOLD: 0.35 for 384-dim embeddings (all-MiniLM-L6-v2)
+ * DEBUG MODE: NO THRESHOLD FILTER - Returns all results for debugging
  */
 router.post('/knowledge/search', async (req, res) => {
   try {
-    const { query, limit = 5, threshold = 0.35 } = req.body;
+    const { query, limit = 5 } = req.body;
 
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       return res.status(400).json({ error: 'query_required', detail: 'Query must be a non-empty string' });
     }
 
-    logger.info(`[BRAIN-SEARCH] Query: "${query}", Threshold: ${threshold}`);
+    // DB VERIFICATION: Check total entries
+    const countResult = await client`SELECT COUNT(*) as total FROM knowledge_base`;
+    const totalEntries = parseInt(countResult[0]?.total || '0');
+    logger.info(`[DB-CHECK] Total entries in knowledge_base: ${totalEntries}`);
+    
+    if (totalEntries === 0) {
+      logger.warn(`[BRAIN-SEARCH] Database is EMPTY! Upload process may be broken.`);
+      return res.json({
+        query,
+        results: [],
+        debug: { totalEntries: 0, message: 'Database is empty' },
+      });
+    }
+
+    logger.info(`[BRAIN-SEARCH] Query: "${query}"`);
 
     // Generate embedding for search query
     const queryEmbedding = await searchEmbedding(query);
 
-    // Perform vector similarity search with threshold filter
+    // NO THRESHOLD FILTER - Return top results regardless of similarity
     const results = await client`
       SELECT
         id,
@@ -702,7 +716,6 @@ router.post('/knowledge/search', async (req, res) => {
         1 - (embedding <=> ${JSON.stringify(queryEmbedding)}::vector) as similarity
       FROM knowledge_base
       WHERE embedding IS NOT NULL
-        AND (1 - (embedding <=> ${JSON.stringify(queryEmbedding)}::vector)) >= ${threshold}
       ORDER BY embedding <=> ${JSON.stringify(queryEmbedding)}::vector
       LIMIT ${Math.min(parseInt(limit) || 5, 20)}
     `;
@@ -710,12 +723,13 @@ router.post('/knowledge/search', async (req, res) => {
     logger.info(`[BRAIN-SEARCH] Results found: ${results.length}`);
     
     if (results.length > 0) {
-      logger.info(`[BRAIN-SEARCH] Top result similarity: ${parseFloat(results[0].similarity || 0).toFixed(3)}`);
+      const topSim = parseFloat(results[0].similarity || 0);
+      const worstSim = parseFloat(results[results.length - 1].similarity || 0);
+      logger.info(`[BRAIN-SEARCH] Similarity range: ${topSim.toFixed(3)} (best) to ${worstSim.toFixed(3)} (worst)`);
     }
 
     res.json({
       query,
-      threshold,
       results: results.map((r: any) => ({
         id: r.id,
         content: r.content,
@@ -723,6 +737,10 @@ router.post('/knowledge/search', async (req, res) => {
         created_at: r.created_at,
         similarity: parseFloat(r.similarity || 0),
       })),
+      debug: {
+        totalEntries,
+        returnedResults: results.length,
+      },
     });
   } catch (err: any) {
     logger.error(`[BRAIN-SEARCH] POST /knowledge/search error: ${err?.message || err}`);

@@ -578,47 +578,69 @@ export default function KnowledgeBase() {
             )}
           </button>
 
-          {/* Search Results or Empty State */}
+          {/* Search Results - DEBUG MODE: Show ALL results with exact scores */}
           {searchQuery && !searching && (
             <div className="kb-results">
               {searchResults.length > 0 ? (
-                searchResults.map((result) => (
-                  <div key={result.id} className="kb-result-item">
-                    <div className="kb-result-header">
-                      <span className="kb-result-similarity">
-                        Übereinstimmung: {(result.similarity * 100).toFixed(0)}%
-                      </span>
-                      <button
-                        className="kb-delete-btn"
-                        onClick={() => handleDelete(result.id)}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                    <div className="kb-result-content">{result.content}</div>
-                    <div className="kb-result-meta">
-                      {new Date(result.created_at).toLocaleDateString("de-DE")}
-                      {result.metadata.source && ` • ${result.metadata.source}`}
-                    </div>
+                <>
+                  {/* Debug Info */}
+                  <div style={{
+                    fontSize: '11px',
+                    color: '#6366f1',
+                    marginBottom: '8px',
+                    padding: '8px',
+                    background: 'rgba(99, 102, 241, 0.05)',
+                    borderRadius: '6px',
+                    fontWeight: 600,
+                  }}>
+                    🔍 DEBUG MODE: Zeige alle {searchResults.length} Ergebnisse (ohne Filter)
                   </div>
-                ))
+                  
+                  {searchResults.map((result, index) => {
+                    const score = result.similarity;
+                    const scoreColor = score > 0.7 ? '#16a34a' : score > 0.5 ? '#2563eb' : score > 0.3 ? '#f59e0b' : '#dc2626';
+                    
+                    return (
+                      <div key={result.id} className="kb-result-item">
+                        <div className="kb-result-header">
+                          <span className="kb-result-similarity" style={{ color: scoreColor }}>
+                            #{index + 1} • Match: {score.toFixed(3)} ({(score * 100).toFixed(1)}%)
+                          </span>
+                          <button
+                            className="kb-delete-btn"
+                            onClick={() => handleDelete(result.id)}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <div className="kb-result-content">{result.content}</div>
+                        <div className="kb-result-meta">
+                          {new Date(result.created_at).toLocaleDateString("de-DE")}
+                          {result.metadata.source && ` • ${result.metadata.source}`}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
               ) : (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="kb-empty"
                   style={{
-                    background: 'rgba(99, 102, 241, 0.05)',
-                    border: '1px solid rgba(99, 102, 241, 0.15)',
+                    background: 'rgba(239, 68, 68, 0.05)',
+                    border: '1px solid rgba(239, 68, 68, 0.2)',
                     borderRadius: '8px',
                     padding: '16px',
                     marginTop: '16px',
                   }}
                 >
-                  <AlertCircle className="w-5 h-5 mx-auto mb-2" style={{ color: '#6366f1' }} />
-                  <div style={{ fontSize: '13px', color: '#64748b', lineHeight: '1.6' }}>
-                    Kein direktes Wissen gefunden.<br />
-                    Versuche es mit anderen Schlagworten.
+                  <AlertCircle className="w-5 h-5 mx-auto mb-2" style={{ color: '#dc2626' }} />
+                  <div style={{ fontSize: '13px', color: '#dc2626', lineHeight: '1.6', fontWeight: 600 }}>
+                    ⚠️ KEINE ERGEBNISSE GEFUNDEN<br />
+                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 400 }}>
+                      Datenbank könnte leer sein. Prüfe Upload-Prozess!
+                    </span>
                   </div>
                 </motion.div>
               )}

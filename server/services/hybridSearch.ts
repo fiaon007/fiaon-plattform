@@ -33,15 +33,13 @@ interface HybridSearchResult {
 
 /**
  * Extract important keywords from query
- * Removes stop words and focuses on meaningful terms
+ * SIMPLIFIED: Keep more words, less aggressive filtering
  */
 function extractKeywords(query: string): string[] {
+  // Only remove very common stop words
   const stopWords = new Set([
-    'der', 'die', 'das', 'ein', 'eine', 'und', 'oder', 'aber', 'ist', 'sind',
-    'was', 'wie', 'wo', 'wann', 'warum', 'welche', 'welcher', 'welches',
-    'mein', 'meine', 'dein', 'deine', 'sein', 'seine', 'ihr', 'ihre',
-    'the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were',
-    'what', 'how', 'where', 'when', 'why', 'which', 'my', 'your', 'his', 'her'
+    'der', 'die', 'das', 'ein', 'eine', 'und', 'oder', 'aber',
+    'the', 'a', 'an', 'and', 'or', 'but'
   ]);
 
   return query
@@ -80,8 +78,8 @@ function calculateKeywordScore(content: string, keywords: string[]): { score: nu
 }
 
 /**
- * Hybrid Search: Vector + Keyword
- * Combines semantic similarity with keyword matching
+ * Hybrid Search: Vector + Keyword (SIMPLIFIED WEIGHTED SUM)
+ * ALWAYS returns results - no filtering
  */
 export async function hybridSearch(
   query: string,
@@ -99,31 +97,51 @@ export async function hybridSearch(
     const queryEmbedding = await searchEmbedding(query);
     logger.info(`[HYBRID-SEARCH] Query embedding: ${queryEmbedding.length} dimensions`);
 
-    // Perform vector search (get more results for re-ranking)
-    const vectorResults = await client`
+    // Build keyword ILIKE conditions
+    const keywordConditions = keywords.map(kw => `content ILIKE '%${kw}%'`).join(' OR ');
+    const hasKeywords = keywords.length > 0;
+
+    // SIMPLIFIED WEIGHTED SUM QUERY
+    // Vector Score (0-1) + Keyword Boost (0.5 if match, 0 otherwise)
+    const results = await client.unsafe(`
       SELECT
         id,
         content,
         metadata,
         created_at,
-        embedding,
-        1 - (embedding <=> ${JSON.stringify(queryEmbedding)}::vector) as vector_score
+        -- Vector score (0 to 1)
+        (1 - (embedding <=> '${JSON.stringify(queryEmbedding)}'::vector)) as vector_score,
+        -- Keyword boost (0.5 if any keyword matches, 0 otherwise)
+        (CASE 
+          WHEN ${hasKeywords ? keywordConditions : 'FALSE'} 
+          THEN ${keywordBoost} 
+          ELSE 0 
+        END) as keyword_boost,
+        -- Total hybrid score
+        ((1 - (embedding <=> '${JSON.stringify(queryEmbedding)}'::vector)) + 
+         (CASE 
+           WHEN ${hasKeywords ? keywordConditions : 'FALSE'} 
+           THEN ${keywordBoost} 
+           ELSE 0 
+         END)) as hybrid_score
       FROM knowledge_base
       WHERE embedding IS NOT NULL
-      ORDER BY embedding <=> ${JSON.stringify(queryEmbedding)}::vector
-      LIMIT ${limit * 3}
-    `;
+      ORDER BY hybrid_score DESC
+      LIMIT ${limit}
+    `);
 
-    logger.info(`[HYBRID-SEARCH] Vector search returned: ${vectorResults.length} results`);
+    logger.info(`[HYBRID-SEARCH] SQL returned: ${results.length} results`);
 
-    // Calculate hybrid scores
-    const hybridResults: HybridSearchResult[] = vectorResults.map((r: any) => {
+    // Calculate keyword matches for each result
+    const hybridResults: HybridSearchResult[] = results.map((r: any) => {
       const vectorScore = parseFloat(r.vector_score || 0);
-      const { score: keywordScore, matches: keywordMatches } = calculateKeywordScore(r.content, keywords);
+      const keywordBoostValue = parseFloat(r.keyword_boost || 0);
+      const hybridScore = parseFloat(r.hybrid_score || 0);
       
-      // Hybrid score: vector score + keyword boost
-      // If keyword matches, add boost (default 0.5)
-      const hybridScore = vectorScore + (keywordScore * keywordBoost);
+      // Find which keywords matched
+      const keywordMatches = keywords.filter(kw => 
+        r.content.toLowerCase().includes(kw.toLowerCase())
+      );
 
       return {
         id: r.id,
@@ -131,30 +149,24 @@ export async function hybridSearch(
         metadata: r.metadata || {},
         created_at: r.created_at,
         vectorScore,
-        keywordScore,
+        keywordScore: keywordBoostValue,
         hybridScore,
         keywordMatches,
       };
     });
 
-    // Sort by hybrid score (descending)
-    hybridResults.sort((a, b) => b.hybridScore - a.hybridScore);
-
-    // Take top N results
-    const topResults = hybridResults.slice(0, limit);
-
     // Log results
-    topResults.forEach((r, i) => {
+    hybridResults.forEach((r, i) => {
       logger.info(
         `[HYBRID-SEARCH] #${i + 1} | ` +
         `Hybrid: ${r.hybridScore.toFixed(3)} ` +
-        `(Vector: ${r.vectorScore.toFixed(3)} + Keyword: ${r.keywordScore.toFixed(3)}) | ` +
+        `(Vector: ${r.vectorScore.toFixed(3)} + Boost: ${r.keywordScore.toFixed(3)}) | ` +
         `Matches: [${r.keywordMatches.join(', ')}] | ` +
         `"${r.content.slice(0, 60)}..."`
       );
     });
 
-    return topResults;
+    return hybridResults;
   } catch (err: any) {
     logger.error(`[HYBRID-SEARCH] Error: ${err?.message || err}`);
     throw err;

@@ -596,7 +596,7 @@ export default function KnowledgeBase() {
                     borderRadius: '6px',
                     fontWeight: 600,
                   }}>
-                    🔍 DEBUG MODE: Zeige alle {searchResults.length} Ergebnisse (ohne Filter)
+                    🔍 HYBRID SEARCH: Zeige alle {searchResults.length} Ergebnisse (Weighted Sum)
                   </div>
                   
                   {searchResults.map((result, index) => {
@@ -610,20 +610,26 @@ export default function KnowledgeBase() {
                       <div key={result.id} className="kb-result-item">
                         <div className="kb-result-header">
                           <div style={{ flex: 1 }}>
-                            <span className="kb-result-similarity" style={{ color: scoreColor, fontWeight: 700 }}>
-                              #{index + 1} • Hybrid: {score.toFixed(3)} ({(score * 100).toFixed(1)}%)
+                            <span className="kb-result-similarity" style={{ color: scoreColor, fontWeight: 700, fontSize: '13px' }}>
+                              #{index + 1} • Gesamt: {score.toFixed(3)} ({(score * 100).toFixed(1)}%)
                             </span>
-                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                              <span style={{ marginRight: '12px' }}>
-                                🔮 Vector: {vectorScore.toFixed(3)}
-                              </span>
-                              <span style={{ marginRight: '12px' }}>
-                                🔑 Keyword: {keywordScore.toFixed(3)}
-                              </span>
-                              {keywords.length > 0 && (
-                                <span style={{ color: '#6366f1', fontWeight: 600 }}>
-                                  Matches: [{keywords.join(', ')}]
+                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', lineHeight: '1.6' }}>
+                              <div>
+                                <span style={{ marginRight: '16px', color: '#475569' }}>
+                                  Vektor: <strong style={{ color: '#0f172a' }}>{vectorScore.toFixed(3)}</strong>
                                 </span>
+                                <span style={{ marginRight: '16px', color: '#475569' }}>
+                                  Keyword-Boost: <strong style={{ color: keywordScore > 0 ? '#16a34a' : '#94a3b8' }}>
+                                    {keywordScore > 0 ? '+' : ''}{keywordScore.toFixed(3)}
+                                  </strong>
+                                </span>
+                              </div>
+                              {keywords.length > 0 && (
+                                <div style={{ marginTop: '4px' }}>
+                                  <span style={{ color: '#6366f1', fontWeight: 600 }}>
+                                    ✓ Matches: {keywords.map(kw => `"${kw}"`).join(', ')}
+                                  </span>
+                                </div>
                               )}
                             </div>
                           </div>

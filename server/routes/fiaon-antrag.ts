@@ -738,23 +738,14 @@ router.get("/document/:ref/:type", async (req, res) => {
   }
 });
 
-// Create test user (admin only)
+// Create test user (admin only) — always creates a fresh unique user
 router.post("/admin/create-test-user", async (req, res) => {
   try {
-    const testRef = "FIA-2026-TEST-001";
-    const testEmail = "thomas.mueller.test@example.com";
-    const testPassword = "TestSecure123!";
+    const ts = Date.now();
+    const testRef = `FIA-DEV-${ts}`;
+    const testEmail = `dev.test.${ts}@fiaon-internal.dev`;
+    const testPassword = "DevTest123!";
 
-    // Check if test user already exists
-    const existing = await sqlPool`
-      SELECT ref FROM fiaon_applications WHERE email = ${testEmail} LIMIT 1
-    `;
-
-    if (existing.length > 0) {
-      return res.json({ ok: true, message: "Test-User existiert bereits", email: testEmail, password: testPassword });
-    }
-
-    // Insert test user
     await sqlPool`
       INSERT INTO fiaon_applications (
         ref, type, status, current_step, pack_key, pack_name,
@@ -767,7 +758,7 @@ router.post("/admin/create-test-user", async (req, res) => {
         ip, user_agent, utm, created_at, updated_at
       ) VALUES (
         ${testRef}, 'private', 'approved', 5, 'standard', 'FIAON Standard',
-        'Thomas', 'Müller', '1985-03-15', '+491701234567', '+49',
+        'Dev', 'User', '1985-03-15', '+491701234567', '+49',
         'Musterstraße 42', '10115', 'Berlin', 'Deutschland', 'deutsch',
         'Angestellt', 'Tech Solutions GmbH', '2020-01-01', 65000, 1200, 0, 'Miete',
         10000, 'Allgemeine Nutzung', 'Vollzahlung', false, true,
@@ -777,11 +768,11 @@ router.post("/admin/create-test-user", async (req, res) => {
       )
     `;
 
-    console.log("[FIAON-ADMIN] Test-User erstellt:", testEmail);
-    return res.json({ ok: true, message: "Test-User erstellt", email: testEmail, password: testPassword });
+    console.log("[FIAON-ADMIN] Dev-User erstellt:", testEmail);
+    return res.json({ ok: true, ref: testRef, email: testEmail, password: testPassword, firstName: "Dev", lastName: "User", packName: "FIAON Standard", approvedLimit: 10000 });
   } catch (err) {
     console.error("[FIAON-ADMIN]", err);
-    res.status(500).json({ error: "Fehler beim Erstellen des Test-Users" });
+    res.status(500).json({ error: "Fehler beim Erstellen des Dev-Users" });
   }
 });
 

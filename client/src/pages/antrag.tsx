@@ -840,75 +840,28 @@ export default function AntragPage() {
   }
 
   const devModeSkipToDashboard = async () => {
-    const testData = {
-      firstName: "Dev",
-      lastName: "User",
-      birthDay: "1",
-      birthMonth: "1",
-      birthYear: "1990",
-      email: `dev${Date.now()}@fiaon.com`,
-      phoneCountryCode: "+49",
-      phone: "01234567890",
-      street: "Musterstraße",
-      zip: "12345",
-      city: "Musterstadt",
-      country: "Deutschland",
-      nationality: "Deutsch",
-      employment: "employed",
-      employer: "Musterfirma",
-      employedSince: "2020",
-      income: 50000,
-      rent: 1000,
-      debts: 0,
-      housing: "rent",
-      purpose: "shopping",
-      wantedLimit: 5000,
-      salaryReceiptDay: "1",
-      billingMethod: "iban",
-      iban: "DE89370400440532013000",
-      billing: "iban",
-      addon: "Keine",
-      nfc: "Nein",
-      ag1: true,
-      ag2: true,
-      ag3: true,
-      password: "DevTest123!",
-    };
-    setD(testData);
-    setPack(PACKS[0]);
-    setApproved(5000);
-
+    if ((window as any).__devBusy) return;
+    (window as any).__devBusy = true;
     try {
-      const res = await fetch("/api/fiaon/app", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...testData,
-          birthdate: `${testData.birthYear}-${testData.birthMonth}-${testData.birthDay}`,
-          type: "private",
-          status: "approved",
-          currentStep: 5,
-          packKey: PACKS[0].key,
-          packName: PACKS[0].name,
-          approvedLimit: 5000,
-          ip: "127.0.0.1",
-        }),
-      });
+      const res = await fetch("/api/fiaon/admin/create-test-user", { method: "POST" });
       const data = await res.json();
       if (data.ok) {
         sessionStorage.setItem("fiaon_user", JSON.stringify({
           ref: data.ref,
-          firstName: testData.firstName,
-          lastName: testData.lastName,
-          email: testData.email,
-          packName: PACKS[0].name,
-          approvedLimit: 5000,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email,
+          packName: data.packName,
+          approvedLimit: data.approvedLimit,
         }));
         window.location.href = "/dashboard";
+      } else {
+        alert("Dev mode: " + (data.error || "Fehler"));
+        (window as any).__devBusy = false;
       }
     } catch (err) {
       console.error("Dev mode error:", err);
-      alert("Dev mode failed");
+      (window as any).__devBusy = false;
     }
   }
 

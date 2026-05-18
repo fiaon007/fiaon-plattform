@@ -163,7 +163,7 @@ function ScarcityBar() {
           <span className="text-gray-600 hidden sm:inline">Heute bereits</span>
           <span className="px-2 py-1 rounded bg-emerald-500 text-white font-mono tabular-nums">{customerCount}</span>
           <span className="text-gray-600 hidden sm:inline">neue Konten</span>
-          <span className="text-gray-600 sm:hidden">Konten</span>
+          <span className="text-gray-600 sm:hidden">Konten heute eröffnet</span>
         </div>
         <button onClick={() => setDismiss(true)} aria-label="Hinweis schließen" className="shrink-0 text-gray-400 hover:text-gray-700 transition p-1 -mr-1">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -188,7 +188,7 @@ function Hero({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
         {/* Trust pill */}
         <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-gray-200 bg-white/80 backdrop-blur shadow-sm mb-9 sm:mb-10">
           <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-500" style={{ animation: "startPulseDot 1.8s ease-in-out infinite" }} />
-          <span className="text-[12px] sm:text-[13px] font-semibold text-gray-600">Aktive April-Slots · Live-Bearbeitung</span>
+          <span className="text-[12px] sm:text-[13px] font-semibold text-gray-600">Entscheidung in wenigen Sekunden! Kostenlos!</span>
         </div>
 
         {/* Headline */}
@@ -567,19 +567,19 @@ function StickyCTA({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
           boxShadow: "0 20px 50px -10px rgba(10,20,40,.25), 0 8px 24px -8px rgba(37,99,235,.18)",
         }}>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 mb-1">
             <span className="inline-flex w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: "startPulseDot 1.8s ease-in-out infinite" }} />
-            <span className="text-[10.5px] uppercase tracking-wider font-bold text-gray-500">LIVE</span>
+            <span className="text-[10.5px] uppercase tracking-wider font-bold text-gray-700">LIVE</span>
           </div>
-          <div className="text-[11.5px] font-semibold text-gray-800 mt-0.5">
-            Heute <span className="font-mono tabular-nums text-emerald-600">{customerCount}</span> neue Konten
+          <div className="text-[10.5px] leading-snug font-medium text-gray-600">
+            Dein Antrag wird in Echtzeit entschieden. Konto in wenigen Minuten eröffnen.
           </div>
         </div>
         <a href={antragLink("highend")}
-          className="fiaon-btn-gradient shrink-0 inline-flex items-center gap-1.5 px-5 py-3 rounded-full text-[13.5px] font-semibold text-white whitespace-nowrap"
+          className="fiaon-btn-gradient shrink-0 inline-flex items-center gap-1.5 px-4 py-3 rounded-full text-[13px] font-semibold text-white whitespace-nowrap"
           style={{ minHeight: 44 }}
           onClick={() => { try { fetch("/api/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event: "wa_sticky_cta", src: "wa" }) }).catch(() => { }); } catch { } }}>
-          Jetzt sichern
+          Konto eröffnen
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
         </a>
       </div>

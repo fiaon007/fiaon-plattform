@@ -1931,7 +1931,7 @@ export default function AntragPage() {
 
                 {/* Buttons */}
                 <div className="flex gap-3 mt-8 pt-4 border-t border-white/40">
-                  <button onClick={() => goStep(step === 6 ? 5 : step - 1)} className="px-5 py-3 rounded-xl fiaon-glass-panel text-[13px] font-medium text-gray-600 hover:bg-white/80 transition-all">Zurück</button>
+                  <button onClick={() => goStep(step === 6 ? 5 : step - 1)} className="px-5 py-3 rounded-full fiaon-glass-panel text-[13px] font-medium text-gray-600 hover:bg-white/80 transition-all">Zurück</button>
                   <PremiumButton onClick={next}>
                     {step === 3 ? "Prüfen lassen" : step === 6 ? "Vertrag annehmen" : "Weiter zu Schritt " + (step + 1)}
                   </PremiumButton>
@@ -2157,14 +2157,15 @@ export default function AntragPage() {
               <div className="absolute inset-0 bg-[#2563eb] blur-3xl opacity-10" />
               <p className="relative text-5xl sm:text-7xl font-bold tracking-tight fiaon-gradient-text-animated">{eur(approved)}</p>
             </div>
-            
+
             <div className="max-w-sm mx-auto mb-10 p-5 rounded-2xl fiaon-glass-panel">
               <p className="text-sm font-semibold text-gray-800 mb-1">Genehmigt mit {pack?.name}</p>
               <p className="text-xs text-gray-500">Monatliche Gebühr: {eur(pack?.fee || 0)} · Maximales Limit: {eur(pack?.lim || 0)}</p>
             </div>
-            
-            <button onClick={() => goStep(6)} className="group relative px-10 py-4 rounded-2xl text-[15px] font-semibold text-white overflow-hidden transition-all duration-300 hover:scale-[1.02] fiaon-btn-gradient">
-              <span className="relative">Vertrag annehmen & fortfahren</span>
+
+            <button onClick={() => goStep(6)} className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-full fiaon-btn-gradient text-[15px] font-semibold text-white transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)] w-full sm:w-auto" style={{ minHeight: 48 }}>
+              <span>Vertrag annehmen &amp; fortfahren</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
             </button>
           </div>
         )}
@@ -2207,30 +2208,19 @@ export default function AntragPage() {
                 <button
                   type="button"
                   onClick={handleProceedToStripe}
-                  className="relative w-full overflow-hidden rounded-2xl py-4 sm:py-5 px-5 sm:px-6 text-white font-bold tracking-wide text-[15px] sm:text-[16px] uppercase shadow-xl shadow-blue-500/40 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-600/50 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-4 focus:ring-blue-300"
-                  style={{
-                    background: "linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%)",
-                    backgroundSize: "200% 200%",
-                    animation: "gradient 3s ease infinite",
-                  }}
+                  className="relative w-full inline-flex items-center justify-center gap-2.5 overflow-hidden rounded-full fiaon-btn-gradient py-4 sm:py-5 px-6 text-white font-semibold text-[15px] sm:text-[16px] shadow-xl shadow-blue-500/30 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-600/40 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-4 focus:ring-blue-300"
+                  style={{ minHeight: 52 }}
                 >
                   <span className="absolute inset-0 pointer-events-none" style={{
                     background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent)",
-                    transform: "translateX(-100%)",
-                    animation: "sweep 2.8s ease-in-out infinite",
-                    width: "60%",
+                    animation: "startShimmer 2.8s ease-in-out infinite",
                   }} />
-                  <span className="relative flex items-center justify-center gap-2 sm:gap-3">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                    </svg>
-                    <span>Konto aktivieren</span>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
-                      <line x1="5" y1="12" x2="19" y2="12"/>
-                      <polyline points="12 5 19 12 12 19"/>
-                    </svg>
-                  </span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="relative z-10 flex-shrink-0">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                  <span className="relative z-10">Konto aktivieren</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="relative z-10 flex-shrink-0"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                 </button>
 
                 {/* Preis direkt unter Button */}
@@ -2381,20 +2371,11 @@ export default function AntragPage() {
                     setPasswordError("Fehler beim Speichern des Passworts");
                   }
                 }}
-                className="w-full py-5 rounded-xl text-[15px] font-bold text-white relative overflow-hidden transition-all duration-300 flex items-center justify-center gap-2"
-                style={{
-                  background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                  boxShadow: "0 4px 20px rgba(37, 99, 235, 0.3)"
-                }}
+                className="w-full inline-flex items-center justify-center gap-2 py-4 rounded-full fiaon-btn-gradient text-[15px] font-semibold text-white transition-all duration-300 hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)] hover:-translate-y-0.5"
+                style={{ minHeight: 52 }}
               >
-                <div className="absolute inset-0 rounded-xl" style={{
-                  background: "conic-gradient(from 0deg, transparent, rgba(255,255,255,0.3), transparent 30%)",
-                  animation: "borderRotate 3s linear infinite"
-                }} />
-                <div className="absolute inset-[2px] rounded-xl" style={{
-                  background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)"
-                }} />
-                <span className="relative z-10 tracking-widest uppercase">Konto erstellen</span>
+                <span>Konto erstellen</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
               </button>
             </div>
           </div>

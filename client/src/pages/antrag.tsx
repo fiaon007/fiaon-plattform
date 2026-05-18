@@ -709,6 +709,16 @@ export default function AntragPage() {
         skipToPayment();
       }
     }
+    // Direct step jump via URL parameter
+    const stepParam = urlParams.get('step');
+    if (stepParam) {
+      const targetStep = parseInt(stepParam, 10);
+      if (!isNaN(targetStep) && targetStep >= 0 && targetStep <= 9) {
+        if (targetStep > 0) skipToPayment();
+        setStep(targetStep);
+        console.log(`🚀 Dev: Jumped to step ${targetStep}`);
+      }
+    }
   }, []);
 
   // Check for payment success and redirect to password step (Stripe Return)
@@ -755,12 +765,37 @@ export default function AntragPage() {
     }
   }, []);
 
-  // Development: Console command for skipping
+  // Development: Console commands for skipping
   useEffect(() => {
     (window as any).skipToPayment = skipToPayment;
-    console.log("💡 Tip: Type skipToPayment() in console to jump to payment step");
-    console.log("💡 Tip: Add ?skip=true to URL to jump to payment step");
-    console.log("💡 Tip: Press Shift+Alt+P to jump to payment step");
+    (window as any).goToStep = (n: number) => {
+      if (n >= 0 && n <= 9) {
+        if (n > 0) skipToPayment();
+        setStep(n);
+        console.log(`🚀 Dev: Jumped to step ${n}`);
+      } else {
+        console.warn("❌ Dev: Step must be between 0 and 9");
+      }
+    };
+    // Quick step jumps
+    (window as any).s0 = () => setStep(0);
+    (window as any).s1 = () => { skipToPayment(); setStep(1); };
+    (window as any).s2 = () => { skipToPayment(); setStep(2); };
+    (window as any).s3 = () => { skipToPayment(); setStep(3); };
+    (window as any).s4 = () => { skipToPayment(); setStep(4); };
+    (window as any).s5 = () => { skipToPayment(); setStep(5); };
+    (window as any).s6 = () => { skipToPayment(); setStep(6); };
+    (window as any).s7 = () => { skipToPayment(); setStep(7); };
+    (window as any).s8 = () => { skipToPayment(); setStep(8); };
+    (window as any).s9 = () => { skipToPayment(); setStep(9); };
+
+    console.log("💡 Dev Menu:");
+    console.log("   • goToStep(n) - Jump to step 0-9");
+    console.log("   • s0...s9 - Quick jumps (e.g., s9 for password)");
+    console.log("   • skipToPayment() - Fill form & jump to payment");
+    console.log("   • URL: ?step=9 - Direct step jump");
+    console.log("   • URL: ?skip=true - Skip to payment");
+    console.log("   • Shift+Alt+P - Keyboard shortcut");
   }, []);
 
   function skipToPayment() {

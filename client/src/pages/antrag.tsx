@@ -839,6 +839,79 @@ export default function AntragPage() {
     console.log("🚀 Skipped to payment step");
   }
 
+  const devModeSkipToDashboard = async () => {
+    const testData = {
+      firstName: "Dev",
+      lastName: "User",
+      birthDay: "1",
+      birthMonth: "1",
+      birthYear: "1990",
+      email: `dev${Date.now()}@fiaon.com`,
+      phoneCountryCode: "+49",
+      phone: "01234567890",
+      street: "Musterstraße",
+      zip: "12345",
+      city: "Musterstadt",
+      country: "Deutschland",
+      nationality: "Deutsch",
+      employment: "employed",
+      employer: "Musterfirma",
+      employedSince: "2020",
+      income: 50000,
+      rent: 1000,
+      debts: 0,
+      housing: "rent",
+      purpose: "shopping",
+      wantedLimit: 5000,
+      salaryReceiptDay: "1",
+      billingMethod: "iban",
+      iban: "DE89370400440532013000",
+      billing: "iban",
+      addon: "Keine",
+      nfc: "Nein",
+      ag1: true,
+      ag2: true,
+      ag3: true,
+      password: "DevTest123!",
+    };
+    setD(testData);
+    setPack(PACKS[0]);
+    setApproved(5000);
+
+    try {
+      const res = await fetch("/api/fiaon/app", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...testData,
+          birthdate: `${testData.birthYear}-${testData.birthMonth}-${testData.birthDay}`,
+          type: "private",
+          status: "approved",
+          currentStep: 5,
+          packKey: PACKS[0].key,
+          packName: PACKS[0].name,
+          approvedLimit: 5000,
+          ip: "127.0.0.1",
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        sessionStorage.setItem("fiaon_user", JSON.stringify({
+          ref: data.ref,
+          firstName: testData.firstName,
+          lastName: testData.lastName,
+          email: testData.email,
+          packName: PACKS[0].name,
+          approvedLimit: 5000,
+        }));
+        window.location.href = "/dashboard";
+      }
+    } catch (err) {
+      console.error("Dev mode error:", err);
+      alert("Dev mode failed");
+    }
+  }
+
   const sideCard = <LiveCard bg={pack?.bg || PACKS[1].bg} name={cardName} lim={(pack?.lim || 5000).toLocaleString("de-DE")} />;
 
   return (
@@ -850,6 +923,15 @@ export default function AntragPage() {
       </div>
 
       <GlassNav activePage="privatkunden" />
+
+      {/* Dev Mode Button (hidden) */}
+      <button
+        onClick={devModeSkipToDashboard}
+        className="fixed bottom-2 right-2 w-6 h-6 text-[8px] text-slate-200 hover:text-slate-400 opacity-10 hover:opacity-30 transition-opacity z-50"
+        title="Dev Mode: Skip to Dashboard"
+      >
+        ⚡
+      </button>
 
       {/* ── Main Content ── */}
       <div ref={topRef} className="max-w-6xl mx-auto px-4 sm:px-5 pt-24 sm:pt-28 pb-8 sm:pb-12 relative z-10 overflow-x-hidden w-full">

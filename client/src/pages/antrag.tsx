@@ -822,7 +822,7 @@ export default function AntragPage() {
       housing: "rent",
       purpose: "shopping",
       wantedLimit: 5000,
-      email: "max@mustermann.de",
+      email: "test@fiaon.com",
       salaryReceiptDay: "1",
       billingMethod: "iban",
       iban: "DE89370400440532013000",

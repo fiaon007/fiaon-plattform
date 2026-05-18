@@ -738,6 +738,53 @@ router.get("/document/:ref/:type", async (req, res) => {
   }
 });
 
+// Create test user (admin only)
+router.post("/admin/create-test-user", async (req, res) => {
+  try {
+    const testRef = "FIA-2026-TEST-001";
+    const testEmail = "thomas.mueller.test@example.com";
+    const testPassword = "TestSecure123!";
+
+    // Check if test user already exists
+    const existing = await sqlPool`
+      SELECT ref FROM fiaon_applications WHERE email = ${testEmail} LIMIT 1
+    `;
+
+    if (existing.length > 0) {
+      return res.json({ ok: true, message: "Test-User existiert bereits", email: testEmail, password: testPassword });
+    }
+
+    // Insert test user
+    await sqlPool`
+      INSERT INTO fiaon_applications (
+        ref, type, status, current_step, pack_key, pack_name,
+        first_name, last_name, birthdate, phone, phone_country_code,
+        street, zip, city, country, nationality,
+        employment, employer, employed_since, income, rent, debts, housing,
+        wanted_limit, purpose, billing, addon, nfc,
+        approved_limit, email, iban, billing_method, salary_receipt_day,
+        consent_agb, consent_schufa, consent_contract,
+        ip, user_agent, utm, created_at, updated_at
+      ) VALUES (
+        ${testRef}, 'private', 'approved', 5, 'standard', 'FIAON Standard',
+        'Thomas', 'Müller', '1985-03-15', '+491701234567', '+49',
+        'Musterstraße 42', '10115', 'Berlin', 'Deutschland', 'deutsch',
+        'Angestellt', 'Tech Solutions GmbH', '2020-01-01', 65000, 1200, 0, 'Miete',
+        10000, 'Allgemeine Nutzung', 'Vollzahlung', false, true,
+        10000, ${testEmail}, 'DE89 3704 0044 0532 0130 00', 'SEPA', 15,
+        true, true, true,
+        '127.0.0.1', 'Mozilla/5.0 (Test)', ${JSON.stringify({ password: testPassword })}, NOW(), NOW()
+      )
+    `;
+
+    console.log("[FIAON-ADMIN] Test-User erstellt:", testEmail);
+    return res.json({ ok: true, message: "Test-User erstellt", email: testEmail, password: testPassword });
+  } catch (err) {
+    console.error("[FIAON-ADMIN]", err);
+    res.status(500).json({ error: "Fehler beim Erstellen des Test-Users" });
+  }
+});
+
 // Generate and download contract PDF
 router.get("/contract/:ref", async (req, res) => {
   try {

@@ -107,32 +107,39 @@ function Card({ bg, lim, label, className = "", hero = false }: { bg: string; li
 }
 
 /* ════════════════════════════════════════════
-   COUNTDOWN (to midnight)
+   ANIMATED CUSTOMER COUNTER
    ════════════════════════════════════════════ */
-function useMidnightCountdown() {
-  const [t, setT] = useState({ h: "00", m: "00", s: "00" });
+function useCustomerCounter() {
+  const targetCount = 112;
+  const duration = 40000; // 40 seconds
+  const [count, setCount] = useState(0);
+  
   useEffect(() => {
-    const tick = () => {
-      const now = new Date();
-      const end = new Date(now); end.setHours(23, 59, 59, 999);
-      const diff = Math.max(0, end.getTime() - now.getTime());
-      const h = Math.floor(diff / 3_600_000);
-      const m = Math.floor((diff % 3_600_000) / 60_000);
-      const s = Math.floor((diff % 60_000) / 1000);
-      setT({ h: String(h).padStart(2, "0"), m: String(m).padStart(2, "0"), s: String(s).padStart(2, "0") });
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
+    const startTime = Date.now();
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // Easing function for smooth animation
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = Math.floor(eased * targetCount);
+      setCount(current);
+      
+      if (progress >= 1) {
+        clearInterval(interval);
+      }
+    }, 100);
+    
+    return () => clearInterval(interval);
   }, []);
-  return t;
+  
+  return count;
 }
 
 /* ════════════════════════════════════════════
    SCARCITY BAR
    ════════════════════════════════════════════ */
 function ScarcityBar() {
-  const t = useMidnightCountdown();
+  const customerCount = useCustomerCounter();
   const [dismiss, setDismiss] = useState(false);
   if (dismiss) return null;
   return (
@@ -148,17 +155,15 @@ function ScarcityBar() {
         </div>
         <div className="flex-1 min-w-0">
           <div className="hidden sm:flex items-center gap-3">
-            <span className="text-[12px] font-medium text-gray-600 whitespace-nowrap">Noch <b className="text-[#2563eb]">7 von 25</b> Slots für das 25.000 € Setup heute</span>
-            <div className="flex-1 h-1.5 rounded-full bg-blue-50 overflow-hidden max-w-[180px]">
-              <div className="h-full" style={{ width: "72%", background: "linear-gradient(90deg,#2563eb,#3b82f6,#2563eb)", backgroundSize: "200% 100%", animation: "btnGrad 3s ease-in-out infinite" }} />
-            </div>
+            <span className="text-[12px] font-medium text-gray-600 whitespace-nowrap"><b className="text-[#2563eb]">JETZT Konto eröffnen</b> bei FIAON und Wunschlimit auswählen</span>
           </div>
-          <div className="sm:hidden text-[11px] font-medium text-gray-600 truncate">Noch <b className="text-[#2563eb]">7 / 25</b> Slots · Reset um 00:00</div>
+          <div className="sm:hidden text-[11px] font-medium text-gray-600 truncate"><b className="text-[#2563eb]">JETZT</b> Konto eröffnen & Limit wählen</div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0 font-mono text-[12px] sm:text-[13px] font-semibold text-gray-900 tabular-nums">
-          <span className="px-1.5 py-0.5 rounded bg-gray-900 text-white">{t.h}</span>:
-          <span className="px-1.5 py-0.5 rounded bg-gray-900 text-white">{t.m}</span>:
-          <span className="px-1.5 py-0.5 rounded bg-gray-900 text-white">{t.s}</span>
+        <div className="flex items-center gap-1.5 shrink-0 text-[12px] sm:text-[13px] font-semibold text-gray-900">
+          <span className="text-gray-600 hidden sm:inline">Heute bereits</span>
+          <span className="px-2 py-1 rounded bg-emerald-500 text-white font-mono tabular-nums">{customerCount}</span>
+          <span className="text-gray-600 hidden sm:inline">neue Konten</span>
+          <span className="text-gray-600 sm:hidden">Konten</span>
         </div>
         <button onClick={() => setDismiss(true)} aria-label="Hinweis schließen" className="shrink-0 text-gray-400 hover:text-gray-700 transition p-1 -mr-1">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -539,14 +544,15 @@ function Reversal() {
 }
 
 /* ════════════════════════════════════════════
-   STICKY MOBILE CTA
+   STICKY CTA (mobile)
    ════════════════════════════════════════════ */
 function StickyCTA({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
+  const customerCount = useCustomerCounter();
   const [visible, setVisible] = useState(false);
-  const t = useMidnightCountdown();
   useEffect(() => {
-    const el = ctaRef.current; if (!el) return;
-    const io = new IntersectionObserver(([e]) => setVisible(!e.isIntersecting), { threshold: 0 });
+    if (!ctaRef.current) return;
+    const io = new IntersectionObserver(([e]) => { setVisible(!e.isIntersecting); }, { threshold: 0 });
+    const el = ctaRef.current;
     io.observe(el); return () => io.disconnect();
   }, [ctaRef]);
   if (!visible) return null;
@@ -563,9 +569,11 @@ function StickyCTA({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <span className="inline-flex w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: "startPulseDot 1.8s ease-in-out infinite" }} />
-            <span className="text-[10.5px] uppercase tracking-wider font-bold text-gray-500">25.000 € bereit</span>
+            <span className="text-[10.5px] uppercase tracking-wider font-bold text-gray-500">LIVE</span>
           </div>
-          <div className="text-[11.5px] font-mono font-semibold text-gray-800 tabular-nums mt-0.5">Reset in {t.h}:{t.m}:{t.s}</div>
+          <div className="text-[11.5px] font-semibold text-gray-800 mt-0.5">
+            Heute <span className="font-mono tabular-nums text-emerald-600">{customerCount}</span> neue Konten
+          </div>
         </div>
         <a href={antragLink("highend")}
           className="fiaon-btn-gradient shrink-0 inline-flex items-center gap-1.5 px-5 py-3 rounded-full text-[13.5px] font-semibold text-white whitespace-nowrap"

@@ -6,8 +6,16 @@ import PDFDocument from "pdfkit";
 import postgres from "postgres";
 import Stripe from "stripe";
 import multer from "multer";
+import { randomBytes } from "crypto";
 
 const router = Router();
+
+// In-memory store for identity-verify tokens (15 min TTL)
+const verifyTokens = new Map<string, { ref: string; expiresAt: number }>();
+setInterval(() => {
+  const now = Date.now();
+  verifyTokens.forEach((v, k) => { if (v.expiresAt < now) verifyTokens.delete(k); });
+}, 60_000);
 
 // Configure multer for KYC document uploads
 const upload = multer({
@@ -939,6 +947,83 @@ router.get("/admin/applications/:ref/document/:type", async (req, res) => {
   } catch (err) {
     console.error("[FIAON-ADMIN-DOC]", err);
     res.status(500).json({ error: "Failed to fetch document" });
+  }
+});
+
+// POST /api/fiaon/verify-identity — prüft Name + Geb. + Email, gibt Token zurück
+router.post("/verify-identity", async (req, res) => {
+  try {
+    const { firstName, lastName, birthDay, birthMonth, birthYear, email } = req.body;
+    if (!firstName || !lastName || !email || !birthDay || !birthMonth || !birthYear) {
+      return res.status(400).json({ ok: false, error: "Alle Felder ausfüllen" });
+    }
+
+    const trimEmail = email.trim().toLowerCase();
+    const birthdate = `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}`;
+
+    const apps = await sqlPool`
+      SELECT ref, first_name, last_name, email, birthdate, status
+      FROM fiaon_applications
+      WHERE LOWER(TRIM(email)) = ${trimEmail}
+        AND status = 'completed'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+
+    if (apps.length === 0) {
+      return res.status(401).json({ ok: false, error: "Kein Konto mit dieser E-Mail gefunden" });
+    }
+
+    const app = apps[0];
+    const nameMatch =
+      app.first_name?.trim().toLowerCase() === firstName.trim().toLowerCase() &&
+      app.last_name?.trim().toLowerCase() === lastName.trim().toLowerCase();
+    const dateMatch = app.birthdate && app.birthdate.startsWith(birthdate);
+
+    if (!nameMatch || !dateMatch) {
+      return res.status(401).json({ ok: false, error: "Die Angaben stimmen nicht überein" });
+    }
+
+    const token = randomBytes(32).toString("hex");
+    verifyTokens.set(token, { ref: app.ref, expiresAt: Date.now() + 15 * 60 * 1000 });
+
+    console.log("[FIAON-VERIFY-IDENTITY] Identity verified for ref:", app.ref);
+    return res.json({ ok: true, token });
+  } catch (err) {
+    console.error("[FIAON-VERIFY-IDENTITY]", err);
+    return res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// POST /api/fiaon/reset-password-direct — setzt Passwort nach Identity-Verify
+router.post("/reset-password-direct", async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword || newPassword.length < 8) {
+      return res.status(400).json({ ok: false, error: "Ungültige Anfrage oder Passwort zu kurz" });
+    }
+
+    const entry = verifyTokens.get(token);
+    if (!entry || entry.expiresAt < Date.now()) {
+      verifyTokens.delete(token);
+      return res.status(401).json({ ok: false, error: "Sitzung abgelaufen. Bitte erneut verifizieren." });
+    }
+
+    const { ref } = entry;
+    await sqlPool`
+      UPDATE fiaon_applications
+      SET password = ${newPassword},
+          utm = ${JSON.stringify({ password: newPassword })}::jsonb,
+          updated_at = NOW()
+      WHERE ref = ${ref}
+    `;
+
+    verifyTokens.delete(token);
+    console.log("[FIAON-RESET-DIRECT] Password reset for ref:", ref);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-RESET-DIRECT]", err);
+    return res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
 

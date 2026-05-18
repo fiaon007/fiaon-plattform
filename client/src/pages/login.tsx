@@ -138,7 +138,7 @@ export default function LoginPage() {
                     />
                     <span className="text-[13px] text-gray-600">Angemeldet bleiben</span>
                   </label>
-                  <a href="#" className="text-[13px] font-medium text-[#2563eb] hover:underline">
+                  <a href="/passwort-vergessen" className="text-[13px] font-medium text-[#2563eb] hover:underline">
                     Passwort vergessen?
                   </a>
                 </div>

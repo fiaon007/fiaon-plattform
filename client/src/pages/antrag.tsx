@@ -1811,13 +1811,37 @@ export default function AntragPage() {
                     <Field label="Beschäftigt seit" req error={errors.employedSince}><Sel value={d.employedSince} onChange={(v: string) => up("employedSince", v)}><option value="">Wählen</option><option>{"< 6 Monate"}</option><option>6–12 Monate</option><option>1–3 Jahre</option><option>3–5 Jahre</option><option>{"> 5 Jahre"}</option></Sel></Field>
                   </div>
                   <Field label="Monatliches Nettoeinkommen" req>
-                    <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{d.income > 0 ? eur(d.income) : "—"}</span><span className="text-[12px] text-gray-400">/ Monat</span></div>
+                    <div className="relative mb-3">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-[15px] pointer-events-none select-none">€</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        min={500}
+                        max={15000}
+                        value={d.income || ""}
+                        onChange={e => up("income", Math.min(15000, Math.max(0, +e.target.value || 0)))}
+                        placeholder="2.500"
+                        className="w-full pl-9 pr-16 py-3 rounded-xl fiaon-input-glass text-[15px] text-gray-900 outline-none placeholder:text-gray-300"
+                      />
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[12px] text-gray-400 pointer-events-none">/ Monat</span>
+                    </div>
                     <input type="range" min={500} max={15000} step={100} value={d.income || 500} onChange={e => up("income", +e.target.value)} className="fiaon-range w-full cursor-pointer" />
                     <div className="flex justify-between text-[10px] text-gray-400 font-mono mt-1"><span>€ 500</span><span>€ 15.000</span></div>
                   </Field>
                   <div className="grid grid-cols-2 gap-4">
-                    <Field label="Monatliche Miete" hint="Kaltmiete in EUR"><Inp type="number" value={d.rent || ""} onChange={(v: string) => up("rent", +v || 0)} placeholder="z.B. 850" /></Field>
-                    <Field label="Verbindlichkeiten" hint="Ratenkredite etc."><Inp type="number" value={d.debts || ""} onChange={(v: string) => up("debts", +v || 0)} placeholder="z.B. 200" /></Field>
+                    <Field label="Monatliche Miete" hint="Kaltmiete in EUR">
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-[15px] pointer-events-none select-none">€</span>
+                        <input type="number" inputMode="numeric" pattern="[0-9]*" min={0} value={d.rent || ""} onChange={e => up("rent", +e.target.value || 0)} placeholder="850" className="w-full pl-9 pr-4 py-3 rounded-xl fiaon-input-glass text-[15px] text-gray-900 outline-none placeholder:text-gray-300" />
+                      </div>
+                    </Field>
+                    <Field label="Verbindlichkeiten" hint="Ratenkredite etc.">
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-[15px] pointer-events-none select-none">€</span>
+                        <input type="number" inputMode="numeric" pattern="[0-9]*" min={0} value={d.debts || ""} onChange={e => up("debts", +e.target.value || 0)} placeholder="200" className="w-full pl-9 pr-4 py-3 rounded-xl fiaon-input-glass text-[15px] text-gray-900 outline-none placeholder:text-gray-300" />
+                      </div>
+                    </Field>
                   </div>
                   <Field label="Wohnsituation" req error={errors.housing}><Sel value={d.housing} onChange={(v: string) => up("housing", v)}><option value="">Wählen</option><option>Zur Miete</option><option>Eigentum</option><option>Bei Familie</option><option>Sonstiges</option></Sel></Field>
                 </>}
@@ -1827,8 +1851,20 @@ export default function AntragPage() {
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Karte konfigurieren</h2>
                   <p className="text-[14px] text-gray-400 mb-6">Wähle dein Wunschlimit.</p>
                   <Field label="Wunsch-Kreditlimit" req>
-                    <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{d.wantedLimit > 0 ? eur(d.wantedLimit) : "—"}</span><span className="text-[12px] text-gray-400">max. {eur(pack?.lim || 5000)}</span></div>
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="text-2xl font-semibold fiaon-gradient-text-animated">{d.wantedLimit > 0 ? eur(d.wantedLimit) : "—"}</span>
+                      <span className="text-[12px] text-gray-400">max. {eur(pack?.lim || 5000)}</span>
+                      <button
+                        type="button"
+                        onClick={() => up("wantedLimit", pack?.lim || 5000)}
+                        className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-[#2563eb] hover:bg-blue-100 active:scale-95 transition-all border border-blue-100"
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 3h14M5 21h14M12 3v18"/></svg>
+                        Max wählen
+                      </button>
+                    </div>
                     <input type="range" min={500} max={pack?.lim || 5000} step={500} value={d.wantedLimit || 500} onChange={e => up("wantedLimit", +e.target.value)} className="fiaon-range fiaon-range-prominent w-full cursor-pointer" />
+                    <div className="flex justify-between text-[10px] text-gray-400 font-mono mt-1"><span>€ 500</span><span>{eur(pack?.lim || 5000)}</span></div>
                   </Field>
                   
                   {/* Package Suggestion when at max limit */}

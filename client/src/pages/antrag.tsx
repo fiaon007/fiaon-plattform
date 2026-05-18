@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 
@@ -322,12 +322,12 @@ function PremiumButton({ children, onClick, disabled = false }: { children: Reac
     <button
       onClick={onClick}
       disabled={disabled}
-      className="relative w-full py-4 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl overflow-hidden group transition-all duration-300 ease-in-out hover:scale-[1.01] hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none"
+      className="relative flex-1 inline-flex items-center justify-center gap-2 py-3.5 px-6 fiaon-btn-gradient rounded-full text-[15px] font-semibold text-white overflow-hidden group transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none"
+      style={{ minHeight: 48 }}
     >
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
-      <span className="relative uppercase tracking-wider font-bold text-sm text-white">
-        {children}
-      </span>
+      <span className="relative z-10">{children}</span>
+      <svg className="relative z-10 shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+      <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,.25), transparent)", animation: "startShimmer 3.2s ease-in-out infinite" }} />
     </button>
   );
 }
@@ -502,11 +502,14 @@ export default function AntragPage() {
     setShowPackSwitcher(false);
   }, [pack, ref]);
 
+  const topRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => { if (!sessionStorage.getItem("fiaon_sid")) sessionStorage.setItem("fiaon_sid", Math.random().toString(36).slice(2)); window.scrollTo(0, 0); }, []);
 
-  // Auto-scroll to top on step change — HART: umgeht CSS `scroll-behavior: smooth`
-  useEffect(() => {
+  // Auto-scroll to top on step change — useLayoutEffect läuft synchron nach DOM-Mutation, vor Browser-Paint
+  useLayoutEffect(() => {
     scrollToTopHard();
+    topRef.current?.scrollIntoView({ behavior: "instant" as ScrollBehavior, block: "start" });
   }, [step]);
 
   // Weiterleitung zu externem Stripe Payment Link (statt eingebettetem SDK)
@@ -814,7 +817,7 @@ export default function AntragPage() {
       <GlassNav activePage="privatkunden" />
 
       {/* ── Main Content ── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-5 pt-24 sm:pt-28 pb-8 sm:pb-12 relative z-10 overflow-x-hidden w-full">
+      <div ref={topRef} className="max-w-6xl mx-auto px-4 sm:px-5 pt-24 sm:pt-28 pb-8 sm:pb-12 relative z-10 overflow-x-hidden w-full">
         {step > 0 && <Progress step={step} total={10} />}
 
         {/* === STEP 0: Paketauswahl === */}

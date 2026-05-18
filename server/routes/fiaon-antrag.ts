@@ -670,22 +670,22 @@ router.post("/upload-kyc", upload.fields([
 router.get("/kyc-status/:ref", async (req, res) => {
   try {
     const { ref } = req.params;
-    
+
     const apps = await sqlPool`
-      SELECT 
+      SELECT
         CASE WHEN bank_statement_pdf IS NOT NULL THEN true ELSE false END as has_bank_statement,
         CASE WHEN id_card_pdf IS NOT NULL THEN true ELSE false END as has_id_card,
         documents_uploaded_at,
         status
-      FROM fiaon_applications 
+      FROM fiaon_applications
       WHERE ref = ${ref}
       LIMIT 1
     `;
-    
+
     if (apps.length === 0) {
       return res.status(404).json({ error: "Antrag nicht gefunden" });
     }
-    
+
     const app = apps[0];
     res.json({
       hasBankStatement: app.has_bank_statement,
@@ -696,6 +696,45 @@ router.get("/kyc-status/:ref", async (req, res) => {
   } catch (err) {
     console.error("[FIAON-KYC-STATUS]", err);
     res.status(500).json({ error: "Fehler beim Abrufen des Status" });
+  }
+});
+
+// Download KYC document
+router.get("/document/:ref/:type", async (req, res) => {
+  try {
+    const { ref, type } = req.params;
+
+    if (type !== "bank-statement" && type !== "id-card") {
+      return res.status(400).json({ error: "Ungültiger Dokumenttyp" });
+    }
+
+    const apps = await sqlPool`
+      SELECT
+        bank_statement_pdf,
+        id_card_pdf
+      FROM fiaon_applications
+      WHERE ref = ${ref}
+      LIMIT 1
+    `;
+
+    if (apps.length === 0) {
+      return res.status(404).json({ error: "Antrag nicht gefunden" });
+    }
+
+    const app = apps[0];
+    const buffer = type === "bank-statement" ? app.bank_statement_pdf : app.id_card_pdf;
+
+    if (!buffer) {
+      return res.status(404).json({ error: "Dokument nicht gefunden" });
+    }
+
+    const filename = type === "bank-statement" ? "Kontoauszüge.pdf" : "Ausweis.pdf";
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (err) {
+    console.error("[FIAON-DOCUMENT-DOWNLOAD]", err);
+    res.status(500).json({ error: "Fehler beim Herunterladen des Dokuments" });
   }
 });
 

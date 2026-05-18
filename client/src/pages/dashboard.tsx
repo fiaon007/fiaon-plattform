@@ -170,7 +170,7 @@ export default function DashboardPage() {
   const [idFile, setIdFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadSuccess, setIsUploadSuccess] = useState(() => localStorage.getItem("kyc_uploaded") === "true");
-  const [serverDocStatus, setServerDocStatus] = useState({ hasBankStatement: false, hasIdCard: false });
+  const [serverDocStatus, setServerDocStatus] = useState({ hasBankStatement: false, hasIdCard: false, documentsUploadedAt: null as string | null });
   const [bankTabOpen, setBankTabOpen] = useState<string | null>(null);
   const [bankCountry, setBankCountry] = useState<"de" | "at" | "ch">("de");
   const fileInputRef1 = useRef<HTMLInputElement>(null);
@@ -185,7 +185,7 @@ export default function DashboardPage() {
     if (user?.email) { try { Clarity.identify(user.email); } catch {} }
     if (user?.ref) {
       fetch(`/api/fiaon/kyc-status/${user.ref}`).then(r => r.json()).then(d => {
-        setServerDocStatus({ hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard });
+        setServerDocStatus({ hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard, documentsUploadedAt: d.documentsUploadedAt });
         if (d.hasBankStatement && d.hasIdCard) { setIsUploadSuccess(true); localStorage.setItem("kyc_uploaded", "true"); }
       }).catch(() => {});
     }
@@ -202,7 +202,7 @@ export default function DashboardPage() {
       const res = await fetch("/api/fiaon/upload-kyc", { method: "POST", body: fd });
       if (!res.ok) throw new Error();
       const d = await res.json();
-      setServerDocStatus({ hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard });
+      setServerDocStatus({ hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard, documentsUploadedAt: new Date().toISOString() });
       if (d.allDocumentsUploaded) { setIsUploadSuccess(true); localStorage.setItem("kyc_uploaded", "true"); }
     } catch { alert("Fehler beim Upload. Bitte erneut versuchen."); }
     finally { setIsUploading(false); }
@@ -407,17 +407,52 @@ export default function DashboardPage() {
                 </div>
 
                 {docsOk ? (
-                  <div className="fiaon-glass-panel rounded-2xl border border-emerald-200 bg-emerald-50/50 p-6 flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    </div>
-                    <div>
-                      <div className="text-[14px] font-bold text-emerald-800">Dokumente hochgeladen</div>
-                      <div className="text-[12px] text-emerald-700 mt-1">Unser Team prüft deine Unterlagen. Wir melden uns innerhalb von 1–3 Werktagen.</div>
-                      <div className="flex items-center gap-1.5 mt-3">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-[11px] font-semibold text-emerald-600">In Bearbeitung</span>
+                  <div className="space-y-4">
+                    <div className="fiaon-glass-panel rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
                       </div>
+                      <div className="flex-1">
+                        <div className="text-[14px] font-bold text-emerald-800">Dokumente hochgeladen</div>
+                        <div className="text-[12px] text-emerald-700 mt-1">Unser Team prüft deine Unterlagen. Wir melden uns innerhalb von 1–3 Werktagen.</div>
+                        <div className="flex items-center gap-1.5 mt-3">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <span className="text-[11px] font-semibold text-emerald-600">In Bearbeitung</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {serverDocStatus.documentsUploadedAt && (
+                      <div className="text-[11px] text-slate-400 text-center">
+                        Hochgeladen am {new Date(serverDocStatus.documentsUploadedAt).toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {serverDocStatus.hasBankStatement && (
+                        <a href={`/api/fiaon/document/${user.ref}/bank-statement`} className="flex items-center gap-3 p-4 bg-white border border-slate-100 rounded-xl hover:border-blue-200 hover:bg-blue-50/30 transition-all group">
+                          <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[13px] font-semibold text-slate-800 truncate">Kontoauszüge</div>
+                            <div className="text-[11px] text-slate-400">PDF herunterladen</div>
+                          </div>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-slate-300 group-hover:text-[#2563eb] transition-colors"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        </a>
+                      )}
+                      {serverDocStatus.hasIdCard && (
+                        <a href={`/api/fiaon/document/${user.ref}/id-card`} className="flex items-center gap-3 p-4 bg-white border border-slate-100 rounded-xl hover:border-blue-200 hover:bg-blue-50/30 transition-all group">
+                          <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><circle cx="12" cy="13" r="2"/><path d="M8 17c0-1.1 1.8-2 4-2s4 .9 4 2"/></svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[13px] font-semibold text-slate-800 truncate">Identitätsnachweis</div>
+                            <div className="text-[11px] text-slate-400">PDF herunterladen</div>
+                          </div>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-slate-300 group-hover:text-[#2563eb] transition-colors"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        </a>
+                      )}
                     </div>
                   </div>
                 ) : (

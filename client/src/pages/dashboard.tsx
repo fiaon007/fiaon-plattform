@@ -112,8 +112,8 @@ function NavItem({ icon, label, active, onClick, badge }: { icon: React.ReactNod
 }
 
 /* ── Stat Card ── */
-function StatCard({ label, value, sub, icon, color = "blue" }: { label: string; value: string; sub?: string; icon: React.ReactNode; color?: "blue" | "green" | "amber" | "purple" }) {
-  const colors = { blue: "bg-blue-50 text-[#2563eb]", green: "bg-emerald-50 text-emerald-600", amber: "bg-amber-50 text-amber-600", purple: "bg-violet-50 text-violet-600" };
+function StatCard({ label, value, sub, icon, color = "blue" }: { label: string; value: string; sub?: string; icon: React.ReactNode; color?: "blue" | "green" | "amber" | "purple" | "red" }) {
+  const colors = { blue: "bg-blue-50 text-[#2563eb]", green: "bg-emerald-50 text-emerald-600", amber: "bg-amber-50 text-amber-600", purple: "bg-violet-50 text-violet-600", red: "bg-rose-50 text-rose-600" };
   return (
     <div className="bg-white border border-slate-100 rounded-2xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5">
       <div className="flex items-start justify-between mb-3">
@@ -170,7 +170,7 @@ export default function DashboardPage() {
   const [idFile, setIdFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadSuccess, setIsUploadSuccess] = useState(() => localStorage.getItem("kyc_uploaded") === "true");
-  const [serverDocStatus, setServerDocStatus] = useState({ hasBankStatement: false, hasIdCard: false, documentsUploadedAt: null as string | null });
+  const [serverDocStatus, setServerDocStatus] = useState({ hasBankStatement: false, hasIdCard: false, documentsUploadedAt: null as string | null, kycStatus: 'pending' as string, accountStatus: 'pending' as string, adminNote: null as string | null });
   const [bankTabOpen, setBankTabOpen] = useState<string | null>(null);
   const [bankCountry, setBankCountry] = useState<"de" | "at" | "ch">("de");
   const fileInputRef1 = useRef<HTMLInputElement>(null);
@@ -185,7 +185,7 @@ export default function DashboardPage() {
     if (user?.email) { try { Clarity.identify(user.email); } catch {} }
     if (user?.ref) {
       fetch(`/api/fiaon/kyc-status/${user.ref}`).then(r => r.json()).then(d => {
-        setServerDocStatus({ hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard, documentsUploadedAt: d.documentsUploadedAt });
+        setServerDocStatus({ hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard, documentsUploadedAt: d.documentsUploadedAt, kycStatus: d.kycStatus ?? 'pending', accountStatus: d.accountStatus ?? 'pending', adminNote: d.adminNote ?? null });
         if (d.hasBankStatement && d.hasIdCard) { setIsUploadSuccess(true); localStorage.setItem("kyc_uploaded", "true"); }
       }).catch(() => {});
     }
@@ -202,7 +202,7 @@ export default function DashboardPage() {
       const res = await fetch("/api/fiaon/upload-kyc", { method: "POST", body: fd });
       if (!res.ok) throw new Error();
       const d = await res.json();
-      setServerDocStatus({ hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard, documentsUploadedAt: new Date().toISOString() });
+      setServerDocStatus(prev => ({ ...prev, hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard, documentsUploadedAt: new Date().toISOString() }));
       if (d.allDocumentsUploaded) { setIsUploadSuccess(true); localStorage.setItem("kyc_uploaded", "true"); }
     } catch { alert("Fehler beim Upload. Bitte erneut versuchen."); }
     finally { setIsUploading(false); }
@@ -291,8 +291,8 @@ export default function DashboardPage() {
             <span className="text-[13px] font-semibold text-slate-700">{NAV.find(n => n.id === section)?.label}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[11px] text-slate-400 font-medium hidden sm:block">Konto aktiv</span>
+            <div className={`w-1.5 h-1.5 rounded-full ${serverDocStatus.accountStatus === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
+            <span className="text-[11px] text-slate-400 font-medium hidden sm:block">{serverDocStatus.accountStatus === 'active' ? 'Konto aktiv' : 'In Prüfung'}</span>
           </div>
         </header>
 
@@ -312,8 +312,20 @@ export default function DashboardPage() {
                 {/* Stats row */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <StatCard label="Kreditlimit" value={eur(user.approvedLimit || 0)} sub={user.packName} icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>} color="blue" />
-                  <StatCard label="Status" value="Aktiv" sub="Konto freigeschaltet" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>} color="green" />
-                  <StatCard label="Dokumente" value={docsOk ? "Komplett" : "Ausstehend"} sub={docsOk ? "In Prüfung" : "Upload erforderlich"} icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>} color={docsOk ? "green" : "amber"} />
+                  <StatCard
+                    label="Status"
+                    value={serverDocStatus.accountStatus === 'active' ? 'Aktiv' : serverDocStatus.accountStatus === 'suspended' ? 'Gesperrt' : 'In Prüfung'}
+                    sub={serverDocStatus.accountStatus === 'active' ? 'Konto freigeschaltet' : serverDocStatus.accountStatus === 'suspended' ? 'Konto gesperrt' : 'Wird geprüft'}
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                    color={serverDocStatus.accountStatus === 'active' ? 'green' : serverDocStatus.accountStatus === 'suspended' ? 'red' : 'amber'}
+                  />
+                  <StatCard
+                    label="Dokumente"
+                    value={serverDocStatus.kycStatus === 'approved' ? 'Genehmigt' : serverDocStatus.kycStatus === 'changes_requested' ? 'Änderung nötig' : docsOk ? 'In Prüfung' : 'Ausstehend'}
+                    sub={serverDocStatus.kycStatus === 'approved' ? 'Dokumente bestätigt' : serverDocStatus.kycStatus === 'changes_requested' ? 'Bitte prüfen' : docsOk ? 'Wird geprüft' : 'Upload erforderlich'}
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>}
+                    color={serverDocStatus.kycStatus === 'approved' ? 'green' : serverDocStatus.kycStatus === 'changes_requested' ? 'red' : docsOk ? 'amber' : 'amber'}
+                  />
                   <StatCard label="Paket" value={user.packName?.split(" ").pop() || "—"} sub="FIAON Card" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>} color="purple" />
                 </div>
 
@@ -343,8 +355,23 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
+                {/* Admin-Nachricht Banner — Änderung angefordert */}
+                {serverDocStatus.kycStatus === 'changes_requested' && serverDocStatus.adminNote && (
+                  <button onClick={() => setSection("documents")} className="w-full flex items-start gap-4 p-4 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100/80 transition-colors text-left group">
+                    <div className="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center shrink-0 mt-0.5">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-[13px] font-bold text-rose-800">Nachricht von FIAON: Dokument-Änderung erforderlich</div>
+                      <div className="text-[12px] text-rose-700 mt-1 leading-relaxed">„{serverDocStatus.adminNote}"</div>
+                      <div className="text-[11px] text-rose-500 mt-1.5 font-semibold">→ Dokumente neu hochladen</div>
+                    </div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2.5" strokeLinecap="round" className="group-hover:translate-x-1 transition-transform shrink-0 mt-1"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                  </button>
+                )}
+
                 {/* Action banner if docs missing */}
-                {!docsOk && (
+                {!docsOk && serverDocStatus.kycStatus !== 'changes_requested' && (
                   <button onClick={() => setSection("documents")} className="w-full flex items-center gap-4 p-4 rounded-2xl border border-amber-200 bg-amber-50 hover:bg-amber-100/80 transition-colors text-left group">
                     <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -406,7 +433,21 @@ export default function DashboardPage() {
                   <p className="text-[13px] text-slate-500 mt-1">Upload zur Kontofreischaltung. Alle Uploads sind verschlüsselt.</p>
                 </div>
 
-                {docsOk ? (
+                {/* Admin-Nachricht prominent im Dokumente-Bereich */}
+                {serverDocStatus.kycStatus === 'changes_requested' && serverDocStatus.adminNote && (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    </div>
+                    <div>
+                      <div className="text-[13px] font-bold text-rose-800">Nachricht von FIAON</div>
+                      <div className="text-[13px] text-rose-700 mt-1 leading-relaxed">„{serverDocStatus.adminNote}"</div>
+                      <div className="text-[11px] text-rose-500 mt-2">Bitte lade deine Dokumente erneut hoch. Wir prüfen diese umgehend.</div>
+                    </div>
+                  </div>
+                )}
+
+                {docsOk && serverDocStatus.kycStatus !== 'changes_requested' ? (
                   <div className="space-y-4">
                     <div className="fiaon-glass-panel rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 flex items-start gap-4">
                       <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">

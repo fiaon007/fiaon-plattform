@@ -676,7 +676,11 @@ router.get("/kyc-status/:ref", async (req, res) => {
         CASE WHEN bank_statement_pdf IS NOT NULL THEN true ELSE false END as has_bank_statement,
         CASE WHEN id_card_pdf IS NOT NULL THEN true ELSE false END as has_id_card,
         documents_uploaded_at,
-        status
+        status,
+        kyc_status,
+        account_status,
+        admin_note,
+        admin_reviewed_at
       FROM fiaon_applications
       WHERE ref = ${ref}
       LIMIT 1
@@ -691,11 +695,58 @@ router.get("/kyc-status/:ref", async (req, res) => {
       hasBankStatement: app.has_bank_statement,
       hasIdCard: app.has_id_card,
       documentsUploadedAt: app.documents_uploaded_at,
-      status: app.status
+      status: app.status,
+      kycStatus: app.kyc_status ?? 'pending',
+      accountStatus: app.account_status ?? 'pending',
+      adminNote: app.admin_note ?? null,
+      adminReviewedAt: app.admin_reviewed_at ?? null,
     });
   } catch (err) {
     console.error("[FIAON-KYC-STATUS]", err);
     res.status(500).json({ error: "Fehler beim Abrufen des Status" });
+  }
+});
+
+// Admin: review application — set kyc_status, account_status, admin_note
+router.patch("/admin/applications/:ref/review", async (req, res) => {
+  try {
+    const { ref } = req.params;
+    const { kycStatus, accountStatus, adminNote } = req.body;
+
+    const validKyc = ['pending', 'approved', 'changes_requested'];
+    const validAccount = ['pending', 'active', 'suspended'];
+
+    if (kycStatus && !validKyc.includes(kycStatus)) {
+      return res.status(400).json({ error: "Ungültiger kycStatus" });
+    }
+    if (accountStatus && !validAccount.includes(accountStatus)) {
+      return res.status(400).json({ error: "Ungültiger accountStatus" });
+    }
+
+    // Run migration if columns don't exist yet
+    await sqlPool`
+      ALTER TABLE fiaon_applications
+      ADD COLUMN IF NOT EXISTS kyc_status VARCHAR DEFAULT 'pending',
+      ADD COLUMN IF NOT EXISTS account_status VARCHAR DEFAULT 'pending',
+      ADD COLUMN IF NOT EXISTS admin_note TEXT,
+      ADD COLUMN IF NOT EXISTS admin_reviewed_at TIMESTAMP
+    `.catch(() => {});
+
+    await sqlPool`
+      UPDATE fiaon_applications SET
+        kyc_status        = COALESCE(${kycStatus ?? null}, kyc_status),
+        account_status    = COALESCE(${accountStatus ?? null}, account_status),
+        admin_note        = ${adminNote !== undefined ? (adminNote || null) : null},
+        admin_reviewed_at = NOW(),
+        updated_at        = NOW()
+      WHERE ref = ${ref}
+    `;
+
+    console.log(`[FIAON-REVIEW] ${ref} → kycStatus=${kycStatus} accountStatus=${accountStatus} note=${adminNote}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-REVIEW]", err);
+    res.status(500).json({ error: "Fehler beim Review-Update" });
   }
 });
 

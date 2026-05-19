@@ -34,6 +34,36 @@ export default function AdminDatabasePage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [appsError, setAppsError] = useState<string | null>(null);
+  const [reviewNote, setReviewNote] = useState("");
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewSuccess, setReviewSuccess] = useState<string | null>(null);
+
+  const sendReview = async (kycStatus?: string, accountStatus?: string, noteOverride?: string) => {
+    if (!selectedApp?.ref) return;
+    setReviewLoading(true);
+    setReviewSuccess(null);
+    try {
+      const body: any = {};
+      if (kycStatus) body.kycStatus = kycStatus;
+      if (accountStatus) body.accountStatus = accountStatus;
+      if (noteOverride !== undefined) body.adminNote = noteOverride;
+      else if (reviewNote.trim()) body.adminNote = reviewNote.trim();
+      const res = await fetch(`/api/fiaon/admin/applications/${selectedApp.ref}/review`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        setSelectedApp({ ...selectedApp, kyc_status: kycStatus ?? selectedApp.kyc_status, account_status: accountStatus ?? selectedApp.account_status, admin_note: body.adminNote ?? selectedApp.admin_note });
+        setApplications(prev => prev.map(a => a.ref === selectedApp.ref ? { ...a, ...body } : a));
+        setReviewSuccess('Gespeichert');
+        setTimeout(() => setReviewSuccess(null), 2500);
+        if (kycStatus !== 'changes_requested') setReviewNote("");
+      }
+    } catch {}
+    setReviewLoading(false);
+  };
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -907,6 +937,75 @@ export default function AdminDatabasePage() {
                   <DetailField label="AGB" value={selectedApp.consent_agb ? '✓ Akzeptiert' : null} />
                   <DetailField label="SCHUFA" value={selectedApp.consent_schufa ? '✓ Akzeptiert' : null} />
                   <DetailField label="Vertrag" value={selectedApp.consent_contract ? '✓ Akzeptiert' : null} />
+                </div>
+              </div>
+
+              {/* ── ADMIN REVIEW ACTIONS ── */}
+              <SectionHeadline>Admin Entscheidung</SectionHeadline>
+              <div className="space-y-3 pb-6 border-b border-slate-100">
+                {/* Current state badges */}
+                <div className="flex gap-2 flex-wrap">
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold ${
+                    selectedApp.kyc_status === 'approved' ? 'bg-emerald-50 text-emerald-700' :
+                    selectedApp.kyc_status === 'changes_requested' ? 'bg-amber-50 text-amber-700' :
+                    'bg-slate-100 text-slate-500'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      selectedApp.kyc_status === 'approved' ? 'bg-emerald-500' :
+                      selectedApp.kyc_status === 'changes_requested' ? 'bg-amber-500' : 'bg-slate-400'
+                    }`} />
+                    Dokumente: {selectedApp.kyc_status === 'approved' ? 'Genehmigt' : selectedApp.kyc_status === 'changes_requested' ? 'Änderung angefordert' : 'In Prüfung'}
+                  </span>
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold ${
+                    selectedApp.account_status === 'active' ? 'bg-emerald-50 text-emerald-700' :
+                    selectedApp.account_status === 'suspended' ? 'bg-rose-50 text-rose-700' :
+                    'bg-slate-100 text-slate-500'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      selectedApp.account_status === 'active' ? 'bg-emerald-500' :
+                      selectedApp.account_status === 'suspended' ? 'bg-rose-500' : 'bg-slate-400'
+                    }`} />
+                    Konto: {selectedApp.account_status === 'active' ? 'Aktiv' : selectedApp.account_status === 'suspended' ? 'Gesperrt' : 'Ausstehend'}
+                  </span>
+                  {reviewSuccess && <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-900 text-white">{reviewSuccess} ✓</span>}
+                </div>
+
+                {/* KYC actions */}
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={() => sendReview('approved', undefined, '')} disabled={reviewLoading} className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                    ✓ Dokumente genehmigen
+                  </button>
+                  <button onClick={() => sendReview(undefined, 'active', '')} disabled={reviewLoading} className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-50 transition-colors">
+                    ⚡ Konto aktivieren
+                  </button>
+                  <button onClick={() => sendReview(undefined, 'suspended', '')} disabled={reviewLoading} className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-rose-100 text-rose-700 hover:bg-rose-200 disabled:opacity-50 transition-colors">
+                    ✕ Konto sperren
+                  </button>
+                </div>
+
+                {/* Admin note input */}
+                <div className="space-y-2">
+                  <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Nachricht an Kunde (z.B. Dokument zu unscharf)</p>
+                  <textarea
+                    value={reviewNote}
+                    onChange={e => setReviewNote(e.target.value)}
+                    placeholder="z.B. Ihr Kontoauszug ist leider nicht lesbar. Bitte laden Sie ein klareres PDF hoch."
+                    rows={3}
+                    className="w-full text-[12px] border border-slate-200 rounded-xl px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200 text-slate-700 bg-white"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={() => sendReview('changes_requested', undefined)} disabled={reviewLoading || !reviewNote.trim()} className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors">
+                      Änderung anfordern + Nachricht senden
+                    </button>
+                    {selectedApp.admin_note && (
+                      <button onClick={() => sendReview(undefined, undefined, '')} disabled={reviewLoading} className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50 transition-colors">
+                        Nachricht löschen
+                      </button>
+                    )}
+                  </div>
+                  {selectedApp.admin_note && (
+                    <p className="text-[11px] text-slate-500 italic">Aktuelle Nachricht: &ldquo;{selectedApp.admin_note}&rdquo;</p>
+                  )}
                 </div>
               </div>
 

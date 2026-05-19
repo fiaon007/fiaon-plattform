@@ -37,8 +37,10 @@ export default function AdminDatabasePage() {
   const [reviewNote, setReviewNote] = useState("");
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewSuccess, setReviewSuccess] = useState<string | null>(null);
+  const [reuploadBank, setReuploadBank] = useState(false);
+  const [reuploadId, setReuploadId] = useState(false);
 
-  const sendReview = async (kycStatus?: string, accountStatus?: string, noteOverride?: string) => {
+  const sendReview = async (kycStatus?: string, accountStatus?: string, noteOverride?: string, reuploadBankOverride?: boolean, reuploadIdOverride?: boolean) => {
     if (!selectedApp?.ref) return;
     setReviewLoading(true);
     setReviewSuccess(null);
@@ -48,6 +50,10 @@ export default function AdminDatabasePage() {
       if (accountStatus) body.accountStatus = accountStatus;
       if (noteOverride !== undefined) body.adminNote = noteOverride;
       else if (reviewNote.trim()) body.adminNote = reviewNote.trim();
+      if (reuploadBankOverride !== undefined) body.reuploadBankStatement = reuploadBankOverride;
+      else if (kycStatus === 'changes_requested') body.reuploadBankStatement = reuploadBank;
+      if (reuploadIdOverride !== undefined) body.reuploadIdCard = reuploadIdOverride;
+      else if (kycStatus === 'changes_requested') body.reuploadIdCard = reuploadId;
       const res = await fetch(`/api/fiaon/admin/applications/${selectedApp.ref}/review`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -55,11 +61,11 @@ export default function AdminDatabasePage() {
         body: JSON.stringify(body),
       });
       if (res.ok) {
-        setSelectedApp({ ...selectedApp, kyc_status: kycStatus ?? selectedApp.kyc_status, account_status: accountStatus ?? selectedApp.account_status, admin_note: body.adminNote ?? selectedApp.admin_note });
+        setSelectedApp({ ...selectedApp, kyc_status: kycStatus ?? selectedApp.kyc_status, account_status: accountStatus ?? selectedApp.account_status, admin_note: body.adminNote ?? selectedApp.admin_note, reupload_bank_statement: body.reuploadBankStatement ?? selectedApp.reupload_bank_statement, reupload_id_card: body.reuploadIdCard ?? selectedApp.reupload_id_card });
         setApplications(prev => prev.map(a => a.ref === selectedApp.ref ? { ...a, ...body } : a));
         setReviewSuccess('Gespeichert');
         setTimeout(() => setReviewSuccess(null), 2500);
-        if (kycStatus !== 'changes_requested') setReviewNote("");
+        if (kycStatus !== 'changes_requested') { setReviewNote(""); setReuploadBank(false); setReuploadId(false); }
       }
     } catch {}
     setReviewLoading(false);
@@ -983,9 +989,9 @@ export default function AdminDatabasePage() {
                   </button>
                 </div>
 
-                {/* Admin note input */}
+                {/* Admin note + selective reupload */}
                 <div className="space-y-2">
-                  <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Nachricht an Kunde (z.B. Dokument zu unscharf)</p>
+                  <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Nachricht an Kunde + Welches Dokument neu anfordern?</p>
                   <textarea
                     value={reviewNote}
                     onChange={e => setReviewNote(e.target.value)}
@@ -993,18 +999,36 @@ export default function AdminDatabasePage() {
                     rows={3}
                     className="w-full text-[12px] border border-slate-200 rounded-xl px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200 text-slate-700 bg-white"
                   />
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input type="checkbox" checked={reuploadBank} onChange={e => setReuploadBank(e.target.checked)} className="w-3.5 h-3.5 accent-amber-500" />
+                      <span className="text-[12px] text-slate-700 font-medium">Kontoauszug neu anfordern</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input type="checkbox" checked={reuploadId} onChange={e => setReuploadId(e.target.checked)} className="w-3.5 h-3.5 accent-amber-500" />
+                      <span className="text-[12px] text-slate-700 font-medium">Ausweisdokument neu anfordern</span>
+                    </label>
+                  </div>
                   <div className="flex gap-2">
-                    <button onClick={() => sendReview('changes_requested', undefined)} disabled={reviewLoading || !reviewNote.trim()} className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors">
+                    <button
+                      onClick={() => sendReview('changes_requested', undefined)}
+                      disabled={reviewLoading || !reviewNote.trim() || (!reuploadBank && !reuploadId)}
+                      className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors"
+                      title={!reuploadBank && !reuploadId ? 'Bitte mindestens ein Dokument auswählen' : ''}
+                    >
                       Änderung anfordern + Nachricht senden
                     </button>
                     {selectedApp.admin_note && (
-                      <button onClick={() => sendReview(undefined, undefined, '')} disabled={reviewLoading} className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50 transition-colors">
+                      <button onClick={() => sendReview(undefined, undefined, '', false, false)} disabled={reviewLoading} className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50 transition-colors">
                         Nachricht löschen
                       </button>
                     )}
                   </div>
                   {selectedApp.admin_note && (
-                    <p className="text-[11px] text-slate-500 italic">Aktuelle Nachricht: &ldquo;{selectedApp.admin_note}&rdquo;</p>
+                    <div className="text-[11px] text-slate-500 italic space-y-0.5">
+                      <p>Aktuelle Nachricht: &ldquo;{selectedApp.admin_note}&rdquo;</p>
+                      <p>Angefordert: {[selectedApp.reupload_bank_statement && 'Kontoauszug', selectedApp.reupload_id_card && 'Ausweisdokument'].filter(Boolean).join(', ') || '—'}</p>
+                    </div>
                   )}
                 </div>
               </div>

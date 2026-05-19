@@ -13,9 +13,13 @@ if (typeof document !== "undefined" && !document.head.querySelector("style[data-
     @keyframes dbShimmer { 0%{transform:translateX(-150%)} 100%{transform:translateX(150%)} }
     @keyframes dbCardFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
     @keyframes dbPulse { 0%,100%{opacity:.6;transform:scale(1)} 50%{opacity:1;transform:scale(1.04)} }
+    @keyframes dbBannerIn { from{opacity:0;transform:translateY(-100%)} to{opacity:1;transform:translateY(0)} }
+    @keyframes dbBannerShake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-4px)} 40%{transform:translateX(4px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
+    @keyframes dbBannerPulse { 0%,100%{box-shadow:0 0 0 0 rgba(225,29,72,.25)} 50%{box-shadow:0 0 0 8px rgba(225,29,72,0)} }
     .db-enter { animation: dbFadeUp .5s cubic-bezier(.22,1,.36,1) both; }
     .db-slide { animation: dbSlideIn .4s cubic-bezier(.22,1,.36,1) both; }
     .db-card-float { animation: dbCardFloat 6s ease-in-out infinite; }
+    .db-banner { animation: dbBannerIn .4s cubic-bezier(.22,1,.36,1) both, dbBannerPulse 2.5s ease-in-out 0.5s 3; }
   `;
   document.head.appendChild(s);
 }
@@ -170,7 +174,7 @@ export default function DashboardPage() {
   const [idFile, setIdFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadSuccess, setIsUploadSuccess] = useState(() => localStorage.getItem("kyc_uploaded") === "true");
-  const [serverDocStatus, setServerDocStatus] = useState({ hasBankStatement: false, hasIdCard: false, documentsUploadedAt: null as string | null, kycStatus: 'pending' as string, accountStatus: 'pending' as string, adminNote: null as string | null });
+  const [serverDocStatus, setServerDocStatus] = useState({ hasBankStatement: false, hasIdCard: false, documentsUploadedAt: null as string | null, kycStatus: 'pending' as string, accountStatus: 'pending' as string, adminNote: null as string | null, reuploadBankStatement: false, reuploadIdCard: false });
   const [bankTabOpen, setBankTabOpen] = useState<string | null>(null);
   const [bankCountry, setBankCountry] = useState<"de" | "at" | "ch">("de");
   const fileInputRef1 = useRef<HTMLInputElement>(null);
@@ -185,7 +189,7 @@ export default function DashboardPage() {
     if (user?.email) { try { Clarity.identify(user.email); } catch {} }
     if (user?.ref) {
       fetch(`/api/fiaon/kyc-status/${user.ref}`).then(r => r.json()).then(d => {
-        setServerDocStatus({ hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard, documentsUploadedAt: d.documentsUploadedAt, kycStatus: d.kycStatus ?? 'pending', accountStatus: d.accountStatus ?? 'pending', adminNote: d.adminNote ?? null });
+        setServerDocStatus({ hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard, documentsUploadedAt: d.documentsUploadedAt, kycStatus: d.kycStatus ?? 'pending', accountStatus: d.accountStatus ?? 'pending', adminNote: d.adminNote ?? null, reuploadBankStatement: d.reuploadBankStatement ?? false, reuploadIdCard: d.reuploadIdCard ?? false });
         if (d.hasBankStatement && d.hasIdCard) { setIsUploadSuccess(true); localStorage.setItem("kyc_uploaded", "true"); }
       }).catch(() => {});
     }
@@ -295,6 +299,25 @@ export default function DashboardPage() {
             <span className="text-[11px] text-slate-400 font-medium hidden sm:block">{serverDocStatus.accountStatus === 'active' ? 'Konto aktiv' : 'In Prüfung'}</span>
           </div>
         </header>
+
+        {/* ── ADMIN-NACHRICHT STICKY BANNER ── */}
+        {serverDocStatus.kycStatus === 'changes_requested' && serverDocStatus.adminNote && (
+          <div className="db-banner shrink-0 flex items-center gap-3 px-4 sm:px-6 py-3 bg-rose-600 text-white z-10 relative">
+            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-[12px] font-bold">Nachricht von FIAON: </span>
+              <span className="text-[12px]">{serverDocStatus.adminNote}</span>
+            </div>
+            <button
+              onClick={() => setSection("documents")}
+              className="shrink-0 text-[11px] font-bold bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-lg whitespace-nowrap"
+            >
+              Dokumente hochladen →
+            </button>
+          </div>
+        )}
 
         {/* ── SCROLL AREA ── */}
         <main className="flex-1 overflow-y-auto">
@@ -447,18 +470,128 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {docsOk && serverDocStatus.kycStatus !== 'changes_requested' ? (
+                {/* ── CASE 1: changes_requested — selektiver Reupload ── */}
+                {serverDocStatus.kycStatus === 'changes_requested' && (
                   <div className="space-y-4">
-                    <div className="fiaon-glass-panel rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 flex items-start gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Kontoauszug — nur wenn angefordert */}
+                      {serverDocStatus.reuploadBankStatement ? (
+                        <div className="bg-white rounded-2xl border-2 border-rose-200 shadow-sm p-5">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">Neu erforderlich</span>
+                          </div>
+                          <h3 className="text-[14px] font-bold text-slate-800 mb-1">Kontoauszüge</h3>
+                          <p className="text-[11px] text-slate-400 mb-4">Letzten 6 Monate, alle Seiten als PDF</p>
+                          {!bankStatementFile ? (
+                            <>
+                              <div onClick={() => fileInputRef1.current?.click()} className="h-24 rounded-xl border-2 border-dashed border-rose-200 hover:border-rose-400 hover:bg-rose-50/30 flex flex-col items-center justify-center cursor-pointer transition-all group">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="text-rose-300 group-hover:text-rose-500 mb-1.5 transition-colors"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                <span className="text-[12px] font-semibold text-slate-500 group-hover:text-rose-600 transition-colors">Neues PDF auswählen</span>
+                                <span className="text-[10px] text-slate-300 mt-0.5">max. 10 MB</span>
+                              </div>
+                              <input ref={fileInputRef1} type="file" accept=".pdf" className="hidden" onChange={e => e.target.files && setBankStatementFile(e.target.files[0])} />
+                            </>
+                          ) : (
+                            <div className="flex items-center justify-between p-3 bg-slate-900 rounded-xl">
+                              <div className="truncate pr-3">
+                                <div className="text-[12px] font-semibold text-white truncate">{bankStatementFile.name}</div>
+                                <div className="text-[10px] text-emerald-400">Bereit zum Hochladen</div>
+                              </div>
+                              <button onClick={() => setBankStatementFile(null)} className="text-[10px] text-slate-400 hover:text-white uppercase tracking-widest font-bold shrink-0">×</button>
+                            </div>
+                          )}
+                          <button onClick={() => setSection("bank-guide")} className="mt-3 text-[11px] font-semibold text-[#2563eb] hover:underline flex items-center gap-1">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            Anleitung: PDF herunterladen
+                          </button>
+                        </div>
+                      ) : (
+                        /* Kontoauszug wurde NICHT angefordert — als akzeptiert anzeigen */
+                        <div className="bg-white rounded-2xl border border-emerald-200 shadow-sm p-5 flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          </div>
+                          <div>
+                            <div className="text-[13px] font-bold text-slate-800">Kontoauszüge</div>
+                            <div className="text-[11px] text-emerald-600 font-semibold">Akzeptiert ✓</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Ausweis — nur wenn angefordert */}
+                      {serverDocStatus.reuploadIdCard ? (
+                        <div className="bg-white rounded-2xl border-2 border-rose-200 shadow-sm p-5">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">Neu erforderlich</span>
+                          </div>
+                          <h3 className="text-[14px] font-bold text-slate-800 mb-1">Identitätsnachweis</h3>
+                          <p className="text-[11px] text-slate-400 mb-4">Reisepass oder Personalausweis als PDF</p>
+                          {!idFile ? (
+                            <>
+                              <div onClick={() => fileInputRef2.current?.click()} className="h-24 rounded-xl border-2 border-dashed border-rose-200 hover:border-rose-400 hover:bg-rose-50/30 flex flex-col items-center justify-center cursor-pointer transition-all group">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="text-rose-300 group-hover:text-rose-500 mb-1.5 transition-colors"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><circle cx="12" cy="13" r="2"/><path d="M8 17c0-1.1 1.8-2 4-2s4 .9 4 2"/></svg>
+                                <span className="text-[12px] font-semibold text-slate-500 group-hover:text-rose-600 transition-colors">Neues PDF auswählen</span>
+                                <span className="text-[10px] text-slate-300 mt-0.5">max. 10 MB</span>
+                              </div>
+                              <input ref={fileInputRef2} type="file" accept=".pdf" className="hidden" onChange={e => e.target.files && setIdFile(e.target.files[0])} />
+                            </>
+                          ) : (
+                            <div className="flex items-center justify-between p-3 bg-slate-900 rounded-xl">
+                              <div className="truncate pr-3">
+                                <div className="text-[12px] font-semibold text-white truncate">{idFile.name}</div>
+                                <div className="text-[10px] text-emerald-400">Bereit zum Hochladen</div>
+                              </div>
+                              <button onClick={() => setIdFile(null)} className="text-[10px] text-slate-400 hover:text-white uppercase tracking-widest font-bold shrink-0">×</button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        /* Ausweis wurde NICHT angefordert */
+                        <div className="bg-white rounded-2xl border border-emerald-200 shadow-sm p-5 flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          </div>
+                          <div>
+                            <div className="text-[13px] font-bold text-slate-800">Identitätsnachweis</div>
+                            <div className="text-[11px] text-emerald-600 font-semibold">Akzeptiert ✓</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {(bankStatementFile || idFile) && (
+                      <button onClick={handleUpload} disabled={isUploading} className="w-full py-3.5 rounded-xl text-[14px] font-semibold text-white disabled:opacity-50 flex items-center justify-center gap-2" style={{ background: "linear-gradient(135deg,#e11d48,#be123c)" }}>
+                        {isUploading ? <><svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity=".3"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>Hochladen…</> : <>Neue Dokumente hochladen<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></>}
+                      </button>
+                    )}
+                    <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                      Ende-zu-Ende verschlüsselt — deine Daten sind sicher
+                    </div>
+                  </div>
+                )}
+
+                {/* ── CASE 2: Dokumente hochgeladen & in Prüfung / approved ── */}
+                {docsOk && serverDocStatus.kycStatus !== 'changes_requested' && (
+                  <div className="space-y-4">
+                    <div className={`fiaon-glass-panel rounded-2xl p-5 flex items-start gap-4 ${serverDocStatus.kycStatus === 'approved' ? 'border border-emerald-300 bg-emerald-50/50' : 'border border-emerald-200 bg-emerald-50/50'}`}>
                       <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
                       </div>
                       <div className="flex-1">
-                        <div className="text-[14px] font-bold text-emerald-800">Dokumente hochgeladen</div>
-                        <div className="text-[12px] text-emerald-700 mt-1">Unser Team prüft deine Unterlagen. Wir melden uns innerhalb von 1–3 Werktagen.</div>
+                        <div className="text-[14px] font-bold text-emerald-800">
+                          {serverDocStatus.kycStatus === 'approved' ? 'Dokumente genehmigt' : 'Dokumente hochgeladen'}
+                        </div>
+                        <div className="text-[12px] text-emerald-700 mt-1">
+                          {serverDocStatus.kycStatus === 'approved'
+                            ? 'Deine Unterlagen wurden von FIAON geprüft und genehmigt.'
+                            : 'Unser Team prüft deine Unterlagen. Wir melden uns innerhalb von 1–3 Werktagen.'}
+                        </div>
                         <div className="flex items-center gap-1.5 mt-3">
                           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          <span className="text-[11px] font-semibold text-emerald-600">In Bearbeitung</span>
+                          <span className="text-[11px] font-semibold text-emerald-600">
+                            {serverDocStatus.kycStatus === 'approved' ? 'Genehmigt' : 'In Bearbeitung'}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -496,7 +629,10 @@ export default function DashboardPage() {
                       )}
                     </div>
                   </div>
-                ) : (
+                )}
+
+                {/* ── CASE 3: Erstmaliger Upload — noch keine Dokumente ── */}
+                {!docsOk && serverDocStatus.kycStatus !== 'changes_requested' && (
                   <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {/* Bank Statement upload */}

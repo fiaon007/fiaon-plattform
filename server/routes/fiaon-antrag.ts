@@ -623,6 +623,17 @@ router.post("/upload-kyc", upload.fields([
     if (hasBankStatement && hasIdCard) {
       updates.push("status = 'documents_submitted'");
     }
+
+    // If this was a changes_requested re-upload, reset kyc_status to pending
+    // and clear the reupload flag for the uploaded document type(s)
+    if (currentApp.kyc_status === 'changes_requested') {
+      const newBankFlag = files.bankStatement ? false : currentApp.reupload_bank_statement;
+      const newIdFlag   = files.idCard        ? false : currentApp.reupload_id_card;
+      const stillNeedsReupload = newBankFlag || newIdFlag;
+      updates.push(`kyc_status = '${stillNeedsReupload ? 'changes_requested' : 'pending'}'`);
+      updates.push(`reupload_bank_statement = ${newBankFlag}`);
+      updates.push(`reupload_id_card = ${newIdFlag}`);
+    }
     
     // Build dynamic SQL update
     let sql = 'UPDATE fiaon_applications SET ';
@@ -680,7 +691,9 @@ router.get("/kyc-status/:ref", async (req, res) => {
         kyc_status,
         account_status,
         admin_note,
-        admin_reviewed_at
+        admin_reviewed_at,
+        reupload_bank_statement,
+        reupload_id_card
       FROM fiaon_applications
       WHERE ref = ${ref}
       LIMIT 1
@@ -700,6 +713,8 @@ router.get("/kyc-status/:ref", async (req, res) => {
       accountStatus: app.account_status ?? 'pending',
       adminNote: app.admin_note ?? null,
       adminReviewedAt: app.admin_reviewed_at ?? null,
+      reuploadBankStatement: app.reupload_bank_statement ?? false,
+      reuploadIdCard: app.reupload_id_card ?? false,
     });
   } catch (err) {
     console.error("[FIAON-KYC-STATUS]", err);
@@ -711,7 +726,7 @@ router.get("/kyc-status/:ref", async (req, res) => {
 router.patch("/admin/applications/:ref/review", async (req, res) => {
   try {
     const { ref } = req.params;
-    const { kycStatus, accountStatus, adminNote } = req.body;
+    const { kycStatus, accountStatus, adminNote, reuploadBankStatement, reuploadIdCard } = req.body;
 
     const validKyc = ['pending', 'approved', 'changes_requested'];
     const validAccount = ['pending', 'active', 'suspended'];
@@ -723,26 +738,39 @@ router.patch("/admin/applications/:ref/review", async (req, res) => {
       return res.status(400).json({ error: "Ungültiger accountStatus" });
     }
 
-    // Run migration if columns don't exist yet
+    // Ensure all columns exist (idempotent migration)
     await sqlPool`
       ALTER TABLE fiaon_applications
       ADD COLUMN IF NOT EXISTS kyc_status VARCHAR DEFAULT 'pending',
       ADD COLUMN IF NOT EXISTS account_status VARCHAR DEFAULT 'pending',
       ADD COLUMN IF NOT EXISTS admin_note TEXT,
-      ADD COLUMN IF NOT EXISTS admin_reviewed_at TIMESTAMP
+      ADD COLUMN IF NOT EXISTS admin_reviewed_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS reupload_bank_statement BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS reupload_id_card BOOLEAN DEFAULT false
     `.catch(() => {});
+
+    // When approving docs, always clear reupload flags
+    const clearReupload = kycStatus === 'approved';
+    const setReuploadBank = reuploadBankStatement !== undefined
+      ? !!reuploadBankStatement
+      : (clearReupload ? false : null);
+    const setReuploadId = reuploadIdCard !== undefined
+      ? !!reuploadIdCard
+      : (clearReupload ? false : null);
 
     await sqlPool`
       UPDATE fiaon_applications SET
-        kyc_status        = COALESCE(${kycStatus ?? null}, kyc_status),
-        account_status    = COALESCE(${accountStatus ?? null}, account_status),
-        admin_note        = ${adminNote !== undefined ? (adminNote || null) : null},
-        admin_reviewed_at = NOW(),
-        updated_at        = NOW()
+        kyc_status               = COALESCE(${kycStatus ?? null}, kyc_status),
+        account_status           = COALESCE(${accountStatus ?? null}, account_status),
+        admin_note               = ${adminNote !== undefined ? (adminNote || null) : null},
+        admin_reviewed_at        = NOW(),
+        reupload_bank_statement  = COALESCE(${setReuploadBank}, reupload_bank_statement),
+        reupload_id_card         = COALESCE(${setReuploadId}, reupload_id_card),
+        updated_at               = NOW()
       WHERE ref = ${ref}
     `;
 
-    console.log(`[FIAON-REVIEW] ${ref} → kycStatus=${kycStatus} accountStatus=${accountStatus} note=${adminNote}`);
+    console.log(`[FIAON-REVIEW] ${ref} → kycStatus=${kycStatus} accountStatus=${accountStatus} reuploadBank=${setReuploadBank} reuploadId=${setReuploadId}`);
     res.json({ ok: true });
   } catch (err) {
     console.error("[FIAON-REVIEW]", err);

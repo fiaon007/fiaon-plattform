@@ -115,17 +115,38 @@ function NavItem({ icon, label, active, onClick, badge }: { icon: React.ReactNod
   );
 }
 
-/* ── Stat Card ── */
-function StatCard({ label, value, sub, icon, color = "blue" }: { label: string; value: string; sub?: string; icon: React.ReactNode; color?: "blue" | "green" | "amber" | "purple" | "red" }) {
-  const colors = { blue: "bg-blue-50 text-[#2563eb]", green: "bg-emerald-50 text-emerald-600", amber: "bg-amber-50 text-amber-600", purple: "bg-violet-50 text-violet-600", red: "bg-rose-50 text-rose-600" };
+/* ── Premium Glass Stat Card ── */
+function PremiumStatCard({ label, value, sub, icon, bg, glow, badge, onClick }: {
+  label: string; value: string; sub?: string; icon: React.ReactNode;
+  bg: string; glow: string; badge?: React.ReactNode; onClick?: () => void;
+}) {
   return (
-    <div className="bg-white border border-slate-100 rounded-2xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5">
-      <div className="flex items-start justify-between mb-3">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${colors[color]}`}>{icon}</div>
+    <div
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      className={`relative overflow-hidden rounded-2xl p-4 sm:p-5 transition-all duration-300 group select-none ${
+        onClick ? 'cursor-pointer hover:-translate-y-1.5 active:scale-[.98]' : ''
+      }`}
+      style={{ background: bg, boxShadow: `0 8px 32px ${glow}28, 0 1px 0 rgba(255,255,255,.12) inset` }}
+    >
+      {/* top shine line */}
+      <div className="absolute top-0 left-0 right-0 h-px" style={{ background: 'linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent)' }} />
+      {/* hover glow overlay */}
+      {onClick && <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl" style={{ background: 'rgba(255,255,255,.06)' }} />}
+      <div className="relative z-10 flex flex-col h-full">
+        <div className="flex items-start justify-between mb-3">
+          <div className="w-9 h-9 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center text-white/90">{icon}</div>
+          {onClick && (
+            <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 group-hover:translate-x-0 translate-x-1">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          )}
+        </div>
+        <div className="text-[10px] font-bold text-white/50 uppercase tracking-[.15em] mb-1">{label}</div>
+        <div className="text-xl sm:text-2xl font-bold text-white tracking-tight leading-none">{value}</div>
+        {sub && <div className="text-[11px] text-white/50 mt-1">{sub}</div>}
+        {badge}
       </div>
-      <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mb-1">{label}</div>
-      <div className="text-xl font-bold text-slate-900 tracking-tight">{value}</div>
-      {sub && <div className="text-[11px] text-slate-400 mt-0.5">{sub}</div>}
     </div>
   );
 }
@@ -177,6 +198,7 @@ export default function DashboardPage() {
   const [serverDocStatus, setServerDocStatus] = useState({ hasBankStatement: false, hasIdCard: false, documentsUploadedAt: null as string | null, kycStatus: 'pending' as string, accountStatus: 'pending' as string, adminNote: null as string | null, reuploadBankStatement: false, reuploadIdCard: false });
   const [bankTabOpen, setBankTabOpen] = useState<string | null>(null);
   const [bankCountry, setBankCountry] = useState<"de" | "at" | "ch">("de");
+  const [activeModal, setActiveModal] = useState<null | 'limit' | 'status' | 'paket'>(null);
   const fileInputRef1 = useRef<HTMLInputElement>(null);
   const fileInputRef2 = useRef<HTMLInputElement>(null);
   const user: SessionUser = (() => { try { return JSON.parse(sessionStorage.getItem("fiaon_user") || "{}"); } catch { return {} as SessionUser; } })();
@@ -332,24 +354,84 @@ export default function DashboardPage() {
                   <p className="text-[13px] text-slate-500 mt-1">Willkommen in deinem FIAON Banking-Portal.</p>
                 </div>
 
-                {/* Stats row */}
+                {/* ── PREMIUM STATS GRID ── */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <StatCard label="Kreditlimit" value={eur(user.approvedLimit || 0)} sub={user.packName} icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>} color="blue" />
-                  <StatCard
+
+                  {/* Kreditlimit */}
+                  <PremiumStatCard
+                    label="Kreditlimit"
+                    value={eur(user.approvedLimit || 0)}
+                    sub={user.packName || 'FIAON Card'}
+                    bg="linear-gradient(145deg,#0f2d5c 0%,#1a4a8a 50%,#1e56a0 100%)"
+                    glow="#1a4a8a"
+                    onClick={() => setActiveModal('limit')}
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>}
+                  />
+
+                  {/* Status */}
+                  <PremiumStatCard
                     label="Status"
                     value={serverDocStatus.accountStatus === 'active' ? 'Aktiv' : serverDocStatus.accountStatus === 'suspended' ? 'Gesperrt' : 'In Prüfung'}
-                    sub={serverDocStatus.accountStatus === 'active' ? 'Konto freigeschaltet' : serverDocStatus.accountStatus === 'suspended' ? 'Konto gesperrt' : 'Wird geprüft'}
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>}
-                    color={serverDocStatus.accountStatus === 'active' ? 'green' : serverDocStatus.accountStatus === 'suspended' ? 'red' : 'amber'}
+                    sub={serverDocStatus.accountStatus === 'active' ? 'Freigeschaltet' : serverDocStatus.accountStatus === 'suspended' ? 'Konto gesperrt' : 'Wird geprüft'}
+                    bg={
+                      serverDocStatus.accountStatus === 'active'
+                        ? 'linear-gradient(145deg,#064e3b,#065f46,#047857)'
+                        : serverDocStatus.accountStatus === 'suspended'
+                        ? 'linear-gradient(145deg,#4c0519,#7f1d1d,#991b1b)'
+                        : 'linear-gradient(145deg,#451a03,#78350f,#92400e)'
+                    }
+                    glow={
+                      serverDocStatus.accountStatus === 'active' ? '#065f46'
+                      : serverDocStatus.accountStatus === 'suspended' ? '#7f1d1d'
+                      : '#78350f'
+                    }
+                    onClick={() => setActiveModal('status')}
+                    badge={
+                      <div className="flex items-center gap-1.5 mt-2">
+                        <div className={`w-1.5 h-1.5 rounded-full ${
+                          serverDocStatus.accountStatus === 'active' ? 'bg-emerald-400 animate-pulse'
+                          : serverDocStatus.accountStatus === 'suspended' ? 'bg-rose-400'
+                          : 'bg-amber-400 animate-pulse'
+                        }`} />
+                        <span className="text-[10px] font-bold text-white/60">
+                          {serverDocStatus.accountStatus === 'active' ? 'Online' : serverDocStatus.accountStatus === 'suspended' ? 'Blockiert' : 'Ausstehend'}
+                        </span>
+                      </div>
+                    }
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
                   />
-                  <StatCard
+
+                  {/* Dokumente */}
+                  <PremiumStatCard
                     label="Dokumente"
-                    value={serverDocStatus.kycStatus === 'approved' ? 'Genehmigt' : serverDocStatus.kycStatus === 'changes_requested' ? 'Änderung nötig' : docsOk ? 'In Prüfung' : 'Ausstehend'}
-                    sub={serverDocStatus.kycStatus === 'approved' ? 'Dokumente bestätigt' : serverDocStatus.kycStatus === 'changes_requested' ? 'Bitte prüfen' : docsOk ? 'Wird geprüft' : 'Upload erforderlich'}
+                    value={serverDocStatus.kycStatus === 'approved' ? 'Genehmigt' : serverDocStatus.kycStatus === 'changes_requested' ? 'Änderung' : docsOk ? 'Eingereicht' : 'Ausstehend'}
+                    sub={serverDocStatus.kycStatus === 'approved' ? 'KYC bestätigt' : serverDocStatus.kycStatus === 'changes_requested' ? 'Bitte hochladen' : docsOk ? 'In Prüfung' : 'Upload nötig'}
+                    bg={
+                      serverDocStatus.kycStatus === 'approved'
+                        ? 'linear-gradient(145deg,#064e3b,#065f46,#047857)'
+                        : serverDocStatus.kycStatus === 'changes_requested'
+                        ? 'linear-gradient(145deg,#4c0519,#7f1d1d,#991b1b)'
+                        : 'linear-gradient(145deg,#1e1b4b,#312e81,#3730a3)'
+                    }
+                    glow={
+                      serverDocStatus.kycStatus === 'approved' ? '#065f46'
+                      : serverDocStatus.kycStatus === 'changes_requested' ? '#7f1d1d'
+                      : '#312e81'
+                    }
+                    onClick={() => setSection('documents')}
                     icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>}
-                    color={serverDocStatus.kycStatus === 'approved' ? 'green' : serverDocStatus.kycStatus === 'changes_requested' ? 'red' : docsOk ? 'amber' : 'amber'}
                   />
-                  <StatCard label="Paket" value={user.packName?.split(" ").pop() || "—"} sub="FIAON Card" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>} color="purple" />
+
+                  {/* Paket */}
+                  <PremiumStatCard
+                    label="Paket"
+                    value={user.packName?.split(' ').pop() || '—'}
+                    sub="FIAON Card"
+                    bg="linear-gradient(145deg,#1a0533,#2d1065,#3b0764)"
+                    glow="#2d1065"
+                    onClick={() => setActiveModal('paket')}
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>}
+                  />
                 </div>
 
                 {/* Card + quick info */}
@@ -831,6 +913,140 @@ export default function DashboardPage() {
           ))}
         </nav>
       </div>
+
+      {/* ══════════════ PREMIUM MODALS ══════════════ */}
+      {activeModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4"
+          style={{ background: 'rgba(3,7,18,.75)', backdropFilter: 'blur(14px)' }}
+          onClick={() => setActiveModal(null)}
+        >
+          <div
+            className="relative w-full max-w-sm rounded-3xl overflow-hidden db-enter"
+            style={{ background: 'linear-gradient(165deg,#0d1117 0%,#161b27 100%)', border: '1px solid rgba(255,255,255,.08)', boxShadow: '0 32px 80px rgba(0,0,0,.65), 0 1px 0 rgba(255,255,255,.06) inset' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="absolute top-0 left-0 right-0 h-px" style={{ background: 'linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent)' }} />
+
+            {/* ── LIMIT MODAL ── */}
+            {activeModal === 'limit' && (
+              <div className="p-7">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(145deg,#1a4a8a,#2563eb)' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  </div>
+                  <button onClick={() => setActiveModal(null)} className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.5)" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <p className="text-[10px] font-bold text-white/40 uppercase tracking-[.2em] mb-1">Kreditlimit</p>
+                <div className="text-4xl font-bold text-white tracking-tight mb-1">{eur(user.approvedLimit || 0)}</div>
+                <p className="text-[12px] text-white/35 mb-6">{user.packName || 'FIAON Standard'}</p>
+                <div className="space-y-0 mb-6">
+                  {[
+                    ['Genehmigtes Limit', eur(user.approvedLimit || 0)],
+                    ['Paket', user.packName || '—'],
+                    ['Status', 'Genehmigt'],
+                  ].map(([k, v], i) => (
+                    <div key={k} className="flex items-center justify-between py-3 border-b border-white/[.05]">
+                      <span className="text-[12px] text-white/45">{k}</span>
+                      <span className={`text-[13px] font-semibold ${i === 2 ? 'text-emerald-400' : 'text-white/85'}`}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-2xl p-4 mb-5" style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)' }}>
+                  <p className="text-[12px] text-white/55 leading-relaxed">Möchtest du dein Kreditlimit anpassen? Wende dich direkt an unser Team — wir prüfen deinen Wunsch individuell und diskret.</p>
+                </div>
+                <a href="mailto:limit@fiaon.com" className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-bold text-[13px] text-white transition-all hover:opacity-90 active:scale-[.98]" style={{ background: 'linear-gradient(135deg,#1a4a8a,#2563eb)' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  limit@fiaon.com kontaktieren
+                </a>
+              </div>
+            )}
+
+            {/* ── STATUS MODAL ── */}
+            {activeModal === 'status' && (
+              <div className="p-7">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: serverDocStatus.accountStatus === 'active' ? 'linear-gradient(145deg,#065f46,#059669)' : serverDocStatus.accountStatus === 'suspended' ? 'linear-gradient(145deg,#7f1d1d,#dc2626)' : 'linear-gradient(145deg,#78350f,#d97706)' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  </div>
+                  <button onClick={() => setActiveModal(null)} className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.5)" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <p className="text-[10px] font-bold text-white/40 uppercase tracking-[.2em] mb-1">Kontostatus</p>
+                <div className="text-3xl font-bold text-white tracking-tight mb-1">{serverDocStatus.accountStatus === 'active' ? 'Aktiv' : serverDocStatus.accountStatus === 'suspended' ? 'Gesperrt' : 'In Prüfung'}</div>
+                <div className="flex items-center gap-2 mb-7">
+                  <div className={`w-2 h-2 rounded-full ${serverDocStatus.accountStatus === 'active' ? 'bg-emerald-400 animate-pulse' : serverDocStatus.accountStatus === 'suspended' ? 'bg-rose-400' : 'bg-amber-400 animate-pulse'}`} />
+                  <p className="text-[12px] text-white/40">{serverDocStatus.accountStatus === 'active' ? 'Konto vollständig freigeschaltet' : serverDocStatus.accountStatus === 'suspended' ? 'Konto vorübergehend gesperrt' : 'FIAON prüft deinen Antrag'}</p>
+                </div>
+                <div className="space-y-0 mb-6">
+                  {([
+                    { label: 'Antrag eingereicht', done: true },
+                    { label: 'Dokumente hochgeladen', done: docsOk },
+                    { label: 'KYC-Prüfung abgeschlossen', done: serverDocStatus.kycStatus === 'approved' },
+                    { label: 'Konto aktiviert', done: serverDocStatus.accountStatus === 'active' },
+                  ] as { label: string; done: boolean }[]).map((step, i, arr) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${step.done ? 'bg-emerald-500' : 'bg-white/8 border border-white/12'}`}>
+                          {step.done ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> : <div className="w-2 h-2 rounded-full bg-white/20" />}
+                        </div>
+                        {i < arr.length - 1 && <div className={`w-px my-1 ${step.done ? 'bg-emerald-500/40' : 'bg-white/8'}`} style={{ height: '18px' }} />}
+                      </div>
+                      <div className="pb-3 pt-0.5">
+                        <span className={`text-[12px] font-semibold ${step.done ? 'text-white' : 'text-white/30'}`}>{step.label}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {serverDocStatus.accountStatus !== 'active' && (
+                  <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)' }}>
+                    <p className="text-[12px] text-white/55 leading-relaxed">Dein Konto wird nach Prüfung deiner Unterlagen durch FIAON freigeschaltet. Dies dauert in der Regel 1–3 Werktage.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── PAKET MODAL ── */}
+            {activeModal === 'paket' && (
+              <div className="p-7">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(145deg,#2d1065,#7c3aed)' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                  </div>
+                  <button onClick={() => setActiveModal(null)} className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.5)" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <p className="text-[10px] font-bold text-white/40 uppercase tracking-[.2em] mb-1">Ihr Paket</p>
+                <div className="text-3xl font-bold text-white tracking-tight mb-5">{user.packName || '—'}</div>
+                <div className="space-y-0 mb-6">
+                  {([
+                    ['Karteninhaber', `${user.firstName || '—'} ${user.lastName || ''}`],
+                    ['Kreditlimit', eur(user.approvedLimit || 0)],
+                    ['Referenz', user.ref || '—'],
+                    ['E-Mail', user.email || '—'],
+                  ] as [string, string][]).map(([k, v]) => (
+                    <div key={k} className="flex items-center justify-between py-3 border-b border-white/[.05]">
+                      <span className="text-[12px] text-white/45">{k}</span>
+                      <span className="text-[12px] font-semibold text-white/80 max-w-[55%] truncate text-right">{v}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-2xl p-4 mb-5" style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)' }}>
+                  <p className="text-[12px] text-white/55 leading-relaxed">Für Paket-Upgrades oder Änderungen an deinen Konditionen steht dir unser Support jederzeit zur Verfügung.</p>
+                </div>
+                <a href="mailto:support@fiaon.com" className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-bold text-[13px] text-white transition-all hover:opacity-90 active:scale-[.98]" style={{ background: 'linear-gradient(135deg,#2d1065,#7c3aed)' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  support@fiaon.com
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

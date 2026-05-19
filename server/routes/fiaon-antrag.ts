@@ -624,17 +624,6 @@ router.post("/upload-kyc", upload.fields([
       updates.push("status = 'documents_submitted'");
     }
 
-    // If this was a changes_requested re-upload, reset kyc_status to pending
-    // and clear the reupload flag for the uploaded document type(s)
-    if (currentApp.kyc_status === 'changes_requested') {
-      const newBankFlag = files.bankStatement ? false : currentApp.reupload_bank_statement;
-      const newIdFlag   = files.idCard        ? false : currentApp.reupload_id_card;
-      const stillNeedsReupload = newBankFlag || newIdFlag;
-      updates.push(`kyc_status = '${stillNeedsReupload ? 'changes_requested' : 'pending'}'`);
-      updates.push(`reupload_bank_statement = ${newBankFlag}`);
-      updates.push(`reupload_id_card = ${newIdFlag}`);
-    }
-    
     // Build dynamic SQL update
     let sql = 'UPDATE fiaon_applications SET ';
     const params: any[] = [];
@@ -661,15 +650,34 @@ router.post("/upload-kyc", upload.fields([
     
     // Execute update
     await sqlPool.unsafe(sql, params);
-    
-    console.log(`[FIAON-KYC] Documents uploaded for ${ref}`);
+
+    // Reset reupload flags and kycStatus when re-uploading after changes_requested
+    let newKycStatus = currentApp.kyc_status;
+    if (currentApp.kyc_status === 'changes_requested') {
+      const newBankFlag = files.bankStatement ? false : !!(currentApp.reupload_bank_statement);
+      const newIdFlag   = files.idCard        ? false : !!(currentApp.reupload_id_card);
+      newKycStatus = (newBankFlag || newIdFlag) ? 'changes_requested' : 'pending';
+      await sqlPool`
+        UPDATE fiaon_applications SET
+          kyc_status              = ${newKycStatus},
+          reupload_bank_statement = ${newBankFlag},
+          reupload_id_card        = ${newIdFlag},
+          updated_at              = NOW()
+        WHERE ref = ${ref}
+      `.catch(() => {});
+    }
+
+    console.log(`[FIAON-KYC] Documents uploaded for ${ref}, kycStatus=${newKycStatus}`);
     
     res.json({ 
       ok: true, 
       message: "Dokumente erfolgreich hochgeladen",
       hasBankStatement: !!hasBankStatement,
       hasIdCard: !!hasIdCard,
-      allDocumentsUploaded: !!(hasBankStatement && hasIdCard)
+      allDocumentsUploaded: !!(hasBankStatement && hasIdCard),
+      kycStatus: newKycStatus,
+      reuploadBankStatement: files.bankStatement ? false : !!(currentApp.reupload_bank_statement),
+      reuploadIdCard: files.idCard ? false : !!(currentApp.reupload_id_card),
     });
   } catch (err) {
     console.error("[FIAON-KYC]", err);

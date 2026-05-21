@@ -39,6 +39,7 @@ export default function AdminDatabasePage() {
   const [reviewSuccess, setReviewSuccess] = useState<string | null>(null);
   const [reuploadBank, setReuploadBank] = useState(false);
   const [reuploadId, setReuploadId] = useState(false);
+  const [adminSection, setAdminSection] = useState<'overview'|'applications'|'tasks'|'command'|'radar'|'knowledge'>('overview');
 
   const sendReview = async (kycStatus?: string, accountStatus?: string, noteOverride?: string, reuploadBankOverride?: boolean, reuploadIdOverride?: boolean) => {
     if (!selectedApp?.ref) return;
@@ -270,6 +271,15 @@ export default function AdminDatabasePage() {
   // =====================================================
   // DATA ENGINE — Sort (newest first) + Search + Filter
   // =====================================================
+  const stats = useMemo(() => ({
+    total: applications.length,
+    paid: applications.filter(a => getPaymentStatusKey(a) === 'paid').length,
+    readyForReview: applications.filter(a => getAppStatusKey(a) === 'ready_for_review').length,
+    kycMissing: applications.filter(a => getAppStatusKey(a) === 'kyc_missing').length,
+    completed: applications.filter(a => getAppStatusKey(a) === 'completed').length,
+    recent: [...applications].sort((a,b) => new Date(b.updated_at||b.created_at||0).getTime() - new Date(a.updated_at||a.created_at||0).getTime()).slice(0,5),
+  }), [applications]);
+
   const filteredAndSortedApps = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     const tsOf = (app: any) => {
@@ -391,676 +401,413 @@ export default function AdminDatabasePage() {
     { icon: "settings", label: "Einstellungen", active: false },
   ];
 
-  return (
-    <div className="min-h-screen bg-white relative overflow-hidden">
-      {/* Ambient background orbs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full opacity-[0.04]" style={{ background: "radial-gradient(circle, #2563eb, transparent 70%)" }} />
-        <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full opacity-[0.03]" style={{ background: "radial-gradient(circle, #2563eb, transparent 70%)" }} />
-      </div>
+  const NAV_ITEMS = [
+    { id: 'overview'     as const, label: 'Übersicht',   icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> },
+    { id: 'applications' as const, label: 'Anträge',     icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>, badge: loadingApps ? undefined : applications.length > 0 ? String(applications.length) : undefined },
+    { id: 'tasks'        as const, label: 'Aufgaben',    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>, badge: todos.filter(t=>t.status!=='resolved').length > 0 ? String(todos.filter(t=>t.status!=='resolved').length) : undefined },
+    { id: 'command'      as const, label: 'Command OS',  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> },
+    { id: 'radar'        as const, label: 'Live Radar',  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
+    { id: 'knowledge'    as const, label: 'Wissens-DB',  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
+  ];
 
-      {/* Minimalist Glass Launcher */}
+  return (
+    <div className="min-h-screen bg-slate-50 flex overflow-hidden">
       <MinimalistGlassLauncher />
 
-      <div className="flex min-h-screen relative z-10">
-        {/* Main Content - no margin needed for minimalist launcher */}
-        <div className="flex-1 p-8">
-          <div className="animate-[fadeInUp_.6s_ease]">
-            {/* Time Display */}
-            <div className="mb-4">
-              <div className="text-[64px] font-bold fiaon-gradient-text-animated tracking-tight">
-                {currentTime}
+      {/* ═══════════════ SIDEBAR ═══════════════ */}
+      <aside className="w-[220px] shrink-0 h-screen sticky top-0 bg-white border-r border-slate-100 flex flex-col z-20 shadow-sm">
+        <div className="px-5 pt-6 pb-5 border-b border-slate-100">
+          <a href="/" className="flex items-center gap-2.5">
+            <span className="text-lg font-bold fiaon-gradient-text-animated tracking-tight">FIAON</span>
+            <span className="text-[10px] font-bold bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded-md uppercase tracking-wider">Admin</span>
+          </a>
+        </div>
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+          {NAV_ITEMS.map(item => (
+            <button
+              key={item.id}
+              onClick={() => setAdminSection(item.id)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-200 group ${adminSection === item.id ? 'bg-[#2563eb] text-white shadow-[0_4px_14px_rgba(37,99,235,.3)]' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
+            >
+              <span className={`shrink-0 transition-colors ${adminSection === item.id ? 'text-white' : 'text-slate-400 group-hover:text-slate-600'}`}>{item.icon}</span>
+              <span className="text-[13px] font-semibold truncate flex-1">{item.label}</span>
+              {item.badge && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${adminSection === item.id ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-600'}`}>{item.badge}</span>}
+            </button>
+          ))}
+        </nav>
+        <div className="px-5 py-4 border-t border-slate-100">
+          <p className="text-[13px] font-bold text-slate-700 tabular-nums">{currentTime}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5 font-medium uppercase tracking-wider">Admin Panel</p>
+        </div>
+      </aside>
+
+      {/* ═══════════════ MAIN ═══════════════ */}
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-auto">
+
+        {/* Top Bar */}
+        <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 lg:px-8 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] text-[#2563eb] font-bold uppercase tracking-[.18em] mb-0.5">{NAV_ITEMS.find(n=>n.id===adminSection)?.label}</p>
+            <h1 className="text-lg font-bold text-slate-900 fiaon-gradient-text-animated">{typedText || 'Admin Dashboard'}</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            {loadingApps ? (
+              <div className="w-4 h-4 border-2 border-slate-200 border-t-[#2563eb] rounded-full animate-spin" />
+            ) : (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-full border border-slate-100">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[11px] font-semibold text-slate-500">{applications.length} Anträge</span>
               </div>
-            </div>
+            )}
+          </div>
+        </header>
 
-            {/* CEO Mind-OS — Executive Command Center (Greeting, Pill Input, Three Pillars) */}
-            <CeoMindOS />
+        {/* Content */}
+        <main className="flex-1 p-5 lg:p-8 space-y-6">
 
-            {/* Live Radar — System-Auslastung & Daten-Eingänge (STARK EDITION) */}
-            <LiveRadar />
+          {/* ══════════ ÜBERSICHT ══════════ */}
+          {adminSection === 'overview' && (
+            <div className="space-y-6">
+              {/* Stats grid */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { label: 'Gesamt', value: stats.total, color: 'bg-slate-900', sub: 'Alle Anträge' },
+                  { label: 'Bezahlt', value: stats.paid, color: 'bg-emerald-600', sub: 'Zahlungen eingegangen' },
+                  { label: 'Prüfbereit', value: stats.readyForReview, color: 'bg-[#2563eb]', sub: 'Warten auf Review' },
+                  { label: 'KYC fehlt', value: stats.kycMissing, color: 'bg-rose-500', sub: 'Dokumente ausstehend' },
+                ].map(s => (
+                  <div key={s.label} onClick={() => setAdminSection('applications')} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:-translate-y-0.5">
+                    <div className={`w-8 h-8 rounded-xl ${s.color} flex items-center justify-center mb-3`}>
+                      <span className="text-white text-xs font-bold">{s.value}</span>
+                    </div>
+                    <div className="text-2xl font-bold text-slate-900 tabular-nums">{s.value}</div>
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{s.label}</div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">{s.sub}</div>
+                  </div>
+                ))}
+              </div>
 
-            {/* JARVIS Brain-Link — Knowledge Base & Semantic Search */}
-            <div className="mb-8">
-              <KnowledgeBase />
-            </div>
-
-            {/* TODO List Section - Bento-Luxury Design */}
-            <div className="mb-8">
-              <div className="bg-gradient-to-br from-[#FEFEFE] to-[#FAFAFA] p-10 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100/50 animate-[fadeInUp_.6s_ease]">
-                {/* Overline Label */}
-                <div className="flex items-center justify-between mb-6">
+              {/* Recent applications */}
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-1">TODO ÜBERSICHT</p>
-                    <h3 className="text-lg font-semibold text-slate-800">Aufgaben Management</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Zuletzt aktualisiert</p>
+                    <h3 className="text-[14px] font-bold text-slate-900">Aktuelle Anträge</h3>
                   </div>
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full shadow-sm border border-slate-200">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                    <span className="text-xs font-medium text-slate-600">{todos.filter(t => t.status !== 'resolved').length} aktiv</span>
-                  </div>
+                  <button onClick={() => setAdminSection('applications')} className="text-[12px] font-semibold text-[#2563eb] hover:underline">Alle anzeigen →</button>
                 </div>
-
-                {/* Add Todo Input - Glassmorphismus */}
-                <form onSubmit={addTodo} className="mb-8">
-                  <div className="flex gap-3">
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={newTodoTitle}
-                        onChange={(e) => setNewTodoTitle(e.target.value)}
-                        placeholder="Neue Aufgabe hinzufügen..."
-                        className="w-full px-5 py-4 rounded-xl bg-white/80 backdrop-blur-sm border-2 border-slate-200/80 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-sm font-medium text-slate-700 placeholder-slate-400 shadow-sm"
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      className="px-8 py-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white text-xs font-bold uppercase tracking-[0.15em] rounded-xl transition-all duration-300 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] shadow-lg"
-                    >
-                      Hinzufügen
-                    </button>
-                  </div>
-                </form>
-
-                {/* Todo List - Skeuomorphismus 3.0 */}
-                {loading ? (
-                  <div className="text-center py-16">
-                    <div className="inline-block w-8 h-8 border-3 border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
-                    <p className="text-sm text-slate-400 mt-3">Laden...</p>
-                  </div>
-                ) : todos.length === 0 ? (
-                  <div className="text-center py-16 px-4">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center shadow-inner">
-                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M9 11l3 3L22 4" />
-                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                      </svg>
-                    </div>
-                    <p className="text-sm font-semibold text-slate-600">Keine Aufgaben vorhanden</p>
-                    <p className="text-xs text-slate-400 mt-1">Füge deine erste Aufgabe hinzu!</p>
-                  </div>
+                {loadingApps ? (
+                  <div className="p-6 space-y-3">{[...Array(4)].map((_,i) => <div key={i} className="h-12 rounded-xl bg-slate-50 animate-pulse" />)}</div>
+                ) : stats.recent.length === 0 ? (
+                  <div className="py-12 text-center text-sm text-slate-400">Noch keine Anträge vorhanden</div>
                 ) : (
-                  <div className="space-y-2.5">
-                    {todos.map((todo, index) => (
-                      <div
-                        key={todo.id}
-                        className={`group flex items-center gap-4 bg-white border-2 border-slate-100 p-5 rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_24px_-4px_rgba(0,0,0,0.08)] hover:border-slate-200 ${
-                          todo.status === 'resolved' ? 'opacity-40' : ''
-                        }`}
-                        style={{
-                          boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.9), 0 2px 8px -2px rgba(0,0,0,0.04)',
-                          animation: `fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) ${index * 60}ms both`
-                        }}
-                      >
-                        {/* Custom Checkbox - Premium */}
-                        <button
-                          onClick={() => toggleTodoStatus(todo)}
-                          className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-300 shrink-0 ${
-                            todo.status === 'resolved'
-                              ? 'bg-gradient-to-br from-blue-500 to-blue-600 border-transparent shadow-lg shadow-blue-500/30'
-                              : 'border-slate-300 hover:border-blue-400 hover:ring-4 hover:ring-blue-100 bg-white'
-                          }`}
-                        >
-                          {todo.status === 'resolved' && (
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="6 12 10 16 18 8" />
-                            </svg>
-                          )}
-                        </button>
-
-                        {/* Todo Content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2.5 mb-1.5">
-                            <p className={`text-sm font-semibold transition-all duration-300 ${
-                              todo.status === 'resolved' ? 'line-through text-slate-400' : 'text-slate-800'
-                            }`}>
-                              {todo.clientName || todo.title || 'Unbekannt'}
-                            </p>
-                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide shadow-sm ${
-                              todo.clientPackage === 'Ultra' || todo.clientPackage === 'High End' 
-                                ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white' 
-                                : todo.clientPackage === 'Pro' 
-                                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
-                                  : 'bg-slate-100 text-slate-700'
-                            }`}>
-                              {todo.clientPackage}
-                            </span>
+                  <div className="divide-y divide-slate-50">
+                    {stats.recent.map(app => {
+                      const st = STATUS_META[getAppStatusKey(app)];
+                      const pay = PAYMENT_META[getPaymentStatusKey(app)];
+                      const name = getFullName(app);
+                      return (
+                        <div key={app.id||app.ref} onClick={() => { setSelectedApp(app); setAdminSection('applications'); }} className="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 cursor-pointer transition-colors">
+                          <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-white text-[11px] font-bold shrink-0">{(name[0]||'?').toUpperCase()}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold text-slate-900 truncate">{name}</p>
+                            <p className="text-[11px] text-slate-400 truncate">{app.email||app.ref||'—'}</p>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <p className={`text-xs font-medium transition-all duration-300 ${
-                              todo.status === 'resolved' ? 'text-slate-300' : 'text-slate-500'
-                            }`}>
-                              {todo.taskType}
-                            </p>
-                            <div className="flex items-center gap-1.5">
-                              <div className={`w-1.5 h-1.5 rounded-full ${getUrgencyColor(todo.urgencyScore)}`}></div>
-                              <span className={`text-xs font-semibold ${
-                                todo.status === 'resolved' ? 'text-slate-300' : 'text-slate-600'
-                              }`}>
-                                {todo.urgencyScore}/100
-                              </span>
-                            </div>
-                          </div>
+                          <span className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${st.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}/>{st.label}</span>
+                          <span className={`hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${pay.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${pay.dot}`}/>{pay.label}</span>
+                          <span className="text-[11px] text-slate-400 whitespace-nowrap">{formatAppDate(app.updated_at||app.created_at)}</span>
                         </div>
-
-                        {/* Delete Button */}
-                        <button
-                          onClick={() => deleteTodo(todo.id)}
-                          className="opacity-0 group-hover:opacity-100 p-2.5 rounded-xl hover:bg-red-50 transition-all duration-300 hover:scale-110"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M3 6h18" />
-                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
-
-                {/* Status Footer */}
-                <div className="mt-6 pt-5 border-t-2 border-slate-100">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                      {todos.filter(t => t.status !== 'resolved').length} offen · {todos.filter(t => t.status === 'resolved').length} erledigt
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500"
-                          style={{ width: `${todos.length > 0 ? (todos.filter(t => t.status === 'resolved').length / todos.length) * 100 : 0}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-xs font-bold text-slate-600">
-                        {todos.length > 0 ? Math.round((todos.filter(t => t.status === 'resolved').length / todos.length) * 100) : 0}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
+          )}
 
-            {/* Applications Section - Anträge & Leads */}
-            <div className="mt-8">
-              <div className="bg-white rounded-3xl p-8 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-slate-100 animate-[fadeInUp_.6s_ease]">
-                {/* Section Header */}
-                <div className="flex items-center justify-between mb-6">
+          {/* ══════════ ANTRÄGE ══════════ */}
+          {adminSection === 'applications' && (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100">
+                <div className="flex items-center justify-between mb-4">
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-1">COMMAND CENTER</p>
-                    <h3 className="text-lg font-bold text-slate-900">Aktuelle Anträge & Leads</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Datenbank</p>
+                    <h3 className="text-[15px] font-bold text-slate-900">Alle Anträge & Leads</h3>
                   </div>
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full border border-slate-100">
-                    <span className="text-[11px] font-semibold text-slate-500">
-                      {filteredAndSortedApps.length}
-                      {filteredAndSortedApps.length !== applications.length && (
-                        <span className="text-slate-400"> / {applications.length}</span>
-                      )}
-                    </span>
+                    <span className="text-[11px] font-semibold text-slate-500">{filteredAndSortedApps.length}{filteredAndSortedApps.length !== applications.length && <span className="text-slate-400"> / {applications.length}</span>}</span>
                   </div>
                 </div>
-
-                {/* Controls Bar — Search + Filters */}
-                <div className="flex flex-col md:flex-row gap-3 mb-6">
-                  {/* Search */}
+                <div className="flex flex-col sm:flex-row gap-2.5">
                   <div className="relative flex-1">
-                    <svg
-                      width="16" height="16" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
-                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-                    >
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Name, E-Mail oder Ref-ID suchen..."
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-300 transition-all"
-                    />
-                    {searchQuery && (
-                      <button
-                        onClick={() => setSearchQuery('')}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-slate-100 text-slate-400"
-                        aria-label="Suche leeren"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-                          <line x1="18" y1="6" x2="6" y2="18" />
-                          <line x1="6" y1="6" x2="18" y2="18" />
-                        </svg>
-                      </button>
-                    )}
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Name, E-Mail oder Ref-ID…" className="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
+                    {searchQuery && <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
                   </div>
-
-                  {/* Payment filter */}
-                  <select
-                    value={paymentFilter}
-                    onChange={(e) => setPaymentFilter(e.target.value)}
-                    className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-300 transition-all"
-                  >
-                    <option value="all">Alle Zahlungen</option>
-                    <option value="paid">Bezahlt</option>
-                    <option value="pending">Ausstehend</option>
-                    <option value="cancelled">Storniert</option>
+                  <select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)} className="px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all">
+                    <option value="all">Alle Zahlungen</option><option value="paid">Bezahlt</option><option value="pending">Ausstehend</option><option value="cancelled">Storniert</option>
                   </select>
-
-                  {/* Status filter */}
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-300 transition-all"
-                  >
-                    <option value="all">Alle Status</option>
-                    <option value="lead">Lead</option>
-                    <option value="in_progress">In Bearbeitung</option>
-                    <option value="kyc_missing">KYC fehlt</option>
-                    <option value="ready_for_review">Prüfbereit</option>
-                    <option value="completed">Abgeschlossen</option>
-                    <option value="cancelled">Storniert</option>
+                  <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all">
+                    <option value="all">Alle Status</option><option value="lead">Lead</option><option value="in_progress">In Bearbeitung</option><option value="kyc_missing">KYC fehlt</option><option value="ready_for_review">Prüfbereit</option><option value="completed">Abgeschlossen</option><option value="cancelled">Storniert</option>
                   </select>
                 </div>
+              </div>
+              {appsError && (
+                <div className="mx-5 mt-4 flex items-start gap-3 p-4 rounded-xl bg-rose-50 border border-rose-100">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2.2" strokeLinecap="round" className="shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <p className="text-sm text-rose-700 flex-1">{appsError}</p>
+                  <button onClick={fetchApplications} className="shrink-0 px-3 py-1 rounded-lg text-xs font-semibold text-rose-700 bg-white border border-rose-200 hover:bg-rose-50 transition-colors">Retry</button>
+                </div>
+              )}
+              {loadingApps ? (
+                <div className="p-5 space-y-2">{[...Array(6)].map((_,i) => <div key={i} className="h-12 rounded-xl bg-slate-50 animate-pulse" />)}</div>
+              ) : filteredAndSortedApps.length === 0 ? (
+                <div className="py-16 text-center">
+                  <p className="text-sm font-semibold text-slate-600">{applications.length === 0 ? 'Keine Anträge vorhanden' : 'Keine Treffer'}</p>
+                  {(searchQuery || statusFilter !== 'all' || paymentFilter !== 'all') && <button onClick={() => { setSearchQuery(''); setStatusFilter('all'); setPaymentFilter('all'); }} className="mt-3 px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Filter zurücksetzen</button>}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead><tr className="border-b border-slate-100">
+                      <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Ref</th>
+                      <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Name</th>
+                      <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400 hidden lg:table-cell">E-Mail</th>
+                      <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Paket</th>
+                      <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Status</th>
+                      <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Zahlung</th>
+                      <th className="text-right py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Datum</th>
+                    </tr></thead>
+                    <tbody>
+                      {filteredAndSortedApps.map(app => {
+                        const payKey = getPaymentStatusKey(app);
+                        const stKey = getAppStatusKey(app);
+                        const pay = PAYMENT_META[payKey];
+                        const st = STATUS_META[stKey];
+                        const fullName = getFullName(app);
+                        return (
+                          <tr key={app.id||app.ref} onClick={() => setSelectedApp(app)} className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors">
+                            <td className="py-3.5 px-5"><span className="text-[11px] font-mono text-slate-500">{app.ref||'—'}</span></td>
+                            <td className="py-3.5 px-5">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-white text-[11px] font-semibold shrink-0">{(fullName?.[0]||'?').toUpperCase()}</div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-slate-900 truncate">{fullName}</p>
+                                  <p className="text-[11px] text-slate-400 truncate lg:hidden">{app.email||'—'}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-5 hidden lg:table-cell"><span className="text-xs text-slate-600">{app.email||'—'}</span></td>
+                            <td className="py-3.5 px-5"><span className="text-xs font-medium text-slate-700">{app.pack_name||'—'}</span></td>
+                            <td className="py-3.5 px-5"><span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${st.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}/>{st.label}</span></td>
+                            <td className="py-3.5 px-5"><span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${pay.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${pay.dot}`}/>{pay.label}</span></td>
+                            <td className="py-3.5 px-5 text-right"><span className="text-xs text-slate-500 whitespace-nowrap">{formatAppDate(app.updated_at||app.created_at)}</span></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
-                {/* Error Box */}
-                {appsError && (
-                  <div className="mb-4 flex items-start gap-3 p-4 rounded-xl bg-rose-50 border border-rose-100">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5">
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="12" y1="8" x2="12" y2="12" />
-                      <line x1="12" y1="16" x2="12.01" y2="16" />
-                    </svg>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-rose-700">Anträge konnten nicht geladen werden</p>
-                      <p className="text-xs text-rose-600 mt-0.5 break-words">{appsError}</p>
-                      <p className="text-[11px] text-rose-500/80 mt-1">Details in der Browser-Konsole (F12).</p>
-                    </div>
-                    <button
-                      onClick={fetchApplications}
-                      className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-white border border-rose-200 hover:bg-rose-50 transition-colors"
-                    >
-                      Erneut versuchen
-                    </button>
+          {/* ══════════ AUFGABEN ══════════ */}
+          {adminSection === 'tasks' && (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Management</p>
+                  <h3 className="text-[15px] font-bold text-slate-900">Aufgaben</h3>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full border border-slate-100">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[11px] font-semibold text-slate-500">{todos.filter(t=>t.status!=='resolved').length} offen</span>
+                </div>
+              </div>
+              <div className="px-6 py-5">
+                <form onSubmit={addTodo} className="flex gap-2.5 mb-5">
+                  <input type="text" value={newTodoTitle} onChange={e => setNewTodoTitle(e.target.value)} placeholder="Neue Aufgabe hinzufügen…" className="flex-1 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
+                  <button type="submit" className="px-5 py-2.5 bg-slate-900 text-white text-[12px] font-bold rounded-xl hover:bg-slate-800 transition-colors">Hinzufügen</button>
+                </form>
+                {loading ? (
+                  <div className="space-y-2">{[...Array(4)].map((_,i) => <div key={i} className="h-12 rounded-xl bg-slate-50 animate-pulse"/>)}</div>
+                ) : todos.length === 0 ? (
+                  <div className="py-12 text-center">
+                    <p className="text-sm font-semibold text-slate-600">Keine Aufgaben</p>
+                    <p className="text-xs text-slate-400 mt-1">Füge oben eine neue Aufgabe hinzu.</p>
                   </div>
-                )}
-
-                {/* Applications List */}
-                {loadingApps ? (
+                ) : (
                   <div className="space-y-2">
-                    {[...Array(5)].map((_, i) => (
-                      <div key={i} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50/60 animate-pulse">
-                        <div className="w-9 h-9 rounded-full bg-slate-200" />
-                        <div className="flex-1 space-y-2">
-                          <div className="h-3 bg-slate-200 rounded w-1/3" />
-                          <div className="h-2.5 bg-slate-100 rounded w-1/4" />
+                    {todos.map((todo, i) => (
+                      <div key={todo.id} className={`group flex items-center gap-4 bg-white border border-slate-100 p-4 rounded-2xl transition-all hover:border-slate-200 hover:shadow-sm ${todo.status === 'resolved' ? 'opacity-45' : ''}`} style={{ animationDelay: `${i*40}ms` }}>
+                        <button onClick={() => toggleTodoStatus(todo)} className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${todo.status === 'resolved' ? 'bg-[#2563eb] border-[#2563eb]' : 'border-slate-300 hover:border-blue-400 bg-white'}`}>
+                          {todo.status === 'resolved' && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-[13px] font-semibold ${todo.status === 'resolved' ? 'line-through text-slate-400' : 'text-slate-800'}`}>{todo.clientName||todo.title||'—'}</p>
+                          <p className={`text-[11px] mt-0.5 ${todo.status === 'resolved' ? 'text-slate-300' : 'text-slate-500'}`}>{todo.taskType||''}</p>
                         </div>
-                        <div className="h-5 w-20 bg-slate-200 rounded-full" />
-                        <div className="h-5 w-20 bg-slate-200 rounded-full" />
-                        <div className="h-3 w-16 bg-slate-100 rounded" />
+                        {todo.urgencyScore > 0 && <div className={`w-2 h-2 rounded-full shrink-0 ${getUrgencyColor(todo.urgencyScore)}`} title={`Priorität ${todo.urgencyScore}/100`} />}
+                        <button onClick={() => deleteTodo(todo.id)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-rose-50 transition-all shrink-0">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                        </button>
                       </div>
                     ))}
                   </div>
-                ) : filteredAndSortedApps.length === 0 ? (
-                  <div className="text-center py-16 px-4">
-                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100">
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="11" cy="11" r="8" />
-                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                      </svg>
+                )}
+                {todos.length > 0 && (
+                  <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
+                    <p className="text-xs text-slate-500">{todos.filter(t=>t.status!=='resolved').length} offen · {todos.filter(t=>t.status==='resolved').length} erledigt</p>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-[#2563eb] rounded-full transition-all duration-500" style={{ width: `${todos.length>0?(todos.filter(t=>t.status==='resolved').length/todos.length)*100:0}%` }} /></div>
+                      <span className="text-xs font-bold text-slate-500">{todos.length>0?Math.round((todos.filter(t=>t.status==='resolved').length/todos.length)*100):0}%</span>
                     </div>
-                    <p className="text-sm font-semibold text-slate-700">
-                      {applications.length === 0 ? 'Noch keine Anträge' : 'Keine Anträge gefunden'}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      {applications.length === 0
-                        ? 'Neue Kunden-Anträge erscheinen hier automatisch.'
-                        : 'Passe Suche oder Filter an, um mehr Ergebnisse zu sehen.'}
-                    </p>
-                    {applications.length > 0 && (searchQuery || statusFilter !== 'all' || paymentFilter !== 'all') && (
-                      <button
-                        onClick={() => { setSearchQuery(''); setStatusFilter('all'); setPaymentFilter('all'); }}
-                        className="mt-4 px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
-                      >
-                        Filter zurücksetzen
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto -mx-4">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-slate-100">
-                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Ref</th>
-                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Name</th>
-                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-slate-400 hidden lg:table-cell">E-Mail</th>
-                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Paket</th>
-                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Status</th>
-                          <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Zahlung</th>
-                          <th className="text-right py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Datum</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredAndSortedApps.map((app) => {
-                          const payKey = getPaymentStatusKey(app);
-                          const stKey = getAppStatusKey(app);
-                          const pay = PAYMENT_META[payKey];
-                          const st = STATUS_META[stKey];
-                          const fullName = getFullName(app);
-                          const initial = (fullName?.[0] || '?').toUpperCase();
-                          return (
-                            <tr
-                              key={app.id || app.ref}
-                              onClick={() => setSelectedApp(app)}
-                              className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors"
-                            >
-                              <td className="py-4 px-4">
-                                <span className="text-[11px] font-mono text-slate-500">{app.ref || '—'}</span>
-                              </td>
-                              <td className="py-4 px-4">
-                                <div className="flex items-center gap-3 min-w-0">
-                                  <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-white text-[11px] font-semibold shrink-0">
-                                    {initial}
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-slate-900 truncate">{fullName}</p>
-                                    <p className="text-[11px] text-slate-400 truncate lg:hidden">{app.email || '—'}</p>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="py-4 px-4 hidden lg:table-cell">
-                                <span className="text-xs text-slate-600 truncate">{app.email || <span className="text-slate-300">—</span>}</span>
-                              </td>
-                              <td className="py-4 px-4">
-                                <span className="text-xs font-medium text-slate-700">
-                                  {app.pack_name || <span className="text-slate-300">—</span>}
-                                </span>
-                              </td>
-                              <td className="py-4 px-4">
-                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${st.cls}`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
-                                  {st.label}
-                                </span>
-                              </td>
-                              <td className="py-4 px-4">
-                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${pay.cls}`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full ${pay.dot}`} />
-                                  {pay.label}
-                                </span>
-                              </td>
-                              <td className="py-4 px-4 text-right">
-                                <span className="text-xs font-medium text-slate-500 whitespace-nowrap">{formatAppDate(app.updated_at || app.created_at)}</span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
                   </div>
                 )}
               </div>
             </div>
-          </div>
-        </div>
+          )}
+
+          {/* ══════════ COMMAND OS ══════════ */}
+          {adminSection === 'command' && <CeoMindOS />}
+
+          {/* ══════════ LIVE RADAR ══════════ */}
+          {adminSection === 'radar' && <LiveRadar />}
+
+          {/* ══════════ WISSENS-DB ══════════ */}
+          {adminSection === 'knowledge' && <KnowledgeBase />}
+
+        </main>
       </div>
 
-      {/* Slide-Over Detail Panel */}
+      {/* ═══════════════ DETAIL SLIDE-OVER ═══════════════ */}
       {selectedApp && (
         <div className="fixed inset-0 z-50 flex">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-slate-900/30 backdrop-blur-sm animate-[fadeIn_.2s_ease]"
-            onClick={() => setSelectedApp(null)}
-          />
-          {/* Panel */}
-          <div
-            className="relative ml-auto w-full max-w-xl h-full bg-white shadow-2xl overflow-y-auto animate-[slideInRight_.35s_cubic-bezier(0.16,1,0.3,1)]"
-            style={{ animation: 'slideInRight .35s cubic-bezier(0.16,1,0.3,1)' }}
-          >
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" style={{ animation: 'fadeIn .2s ease' }} onClick={() => setSelectedApp(null)} />
+          <div className="relative ml-auto w-full max-w-xl h-full bg-white shadow-2xl overflow-y-auto" style={{ animation: 'slideInRight .3s cubic-bezier(0.16,1,0.3,1)' }}>
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-md border-b border-slate-100 px-8 py-6 flex items-start justify-between">
+            <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-md border-b border-slate-100 px-6 py-5 flex items-start justify-between">
               <div className="min-w-0">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-1">Antrag-Details</p>
-                <h2 className="text-xl font-bold text-slate-900 truncate">{getFullName(selectedApp)}</h2>
-                <div className="flex flex-wrap items-center gap-2 mt-2">
-                  <span className="text-xs font-mono text-slate-500">{selectedApp.ref}</span>
-                  {(() => {
-                    const st = STATUS_META[getAppStatusKey(selectedApp)];
-                    return (
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${st.cls}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
-                        {st.label}
-                      </span>
-                    );
-                  })()}
-                  {(() => {
-                    const pay = PAYMENT_META[getPaymentStatusKey(selectedApp)];
-                    return (
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${pay.cls}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${pay.dot}`} />
-                        {pay.label}
-                      </span>
-                    );
-                  })()}
+                <h2 className="text-lg font-bold text-slate-900 truncate">{getFullName(selectedApp)}</h2>
+                <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                  <span className="text-[11px] font-mono text-slate-400">{selectedApp.ref}</span>
+                  {(() => { const st=STATUS_META[getAppStatusKey(selectedApp)]; return <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${st.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}/>{st.label}</span>; })()}
+                  {(() => { const pay=PAYMENT_META[getPaymentStatusKey(selectedApp)]; return <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${pay.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${pay.dot}`}/>{pay.label}</span>; })()}
                 </div>
               </div>
-              <button
-                onClick={() => setSelectedApp(null)}
-                className="p-2 rounded-xl hover:bg-slate-100 transition-colors shrink-0"
-                aria-label="Schließen"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+              <button onClick={() => setSelectedApp(null)} className="p-2 rounded-xl hover:bg-slate-100 transition-colors shrink-0 ml-4" aria-label="Schließen">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
 
-            {/* Body - Editorial Sections */}
-            <div className="px-8 py-6">
-              {/* Persönliches */}
+            {/* Body */}
+            <div className="px-6 py-5">
               <SectionHeadline>Persönliches</SectionHeadline>
               <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-6 border-b border-slate-100">
-                <DetailField label="Vorname" value={selectedApp.first_name} />
-                <DetailField label="Nachname" value={selectedApp.last_name} />
-                <DetailField label="Geburtsdatum" value={selectedApp.birthdate ? formatAppDate(selectedApp.birthdate) : null} />
-                <DetailField label="Nationalität" value={selectedApp.nationality} />
-                <DetailField label="Telefon" value={[selectedApp.phone_country_code, selectedApp.phone].filter(Boolean).join(' ') || null} />
-                <DetailField label="E-Mail" value={selectedApp.email} />
-                <div className="col-span-2">
-                  <DetailField label="Adresse" value={[selectedApp.street, [selectedApp.zip, selectedApp.city].filter(Boolean).join(' '), selectedApp.country].filter(Boolean).join(', ') || null} />
-                </div>
+                <DetailField label="Vorname" value={selectedApp.first_name} /><DetailField label="Nachname" value={selectedApp.last_name} />
+                <DetailField label="Geburtsdatum" value={selectedApp.birthdate ? formatAppDate(selectedApp.birthdate) : null} /><DetailField label="Nationalität" value={selectedApp.nationality} />
+                <DetailField label="Telefon" value={[selectedApp.phone_country_code, selectedApp.phone].filter(Boolean).join(' ')||null} /><DetailField label="E-Mail" value={selectedApp.email} />
+                <div className="col-span-2"><DetailField label="Adresse" value={[selectedApp.street,[selectedApp.zip,selectedApp.city].filter(Boolean).join(' '),selectedApp.country].filter(Boolean).join(', ')||null} /></div>
                 <DetailField label="Wohnsituation" value={selectedApp.housing} />
               </div>
 
-              {/* Finanzen */}
               <SectionHeadline>Finanzen</SectionHeadline>
               <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-6 border-b border-slate-100">
-                <DetailField label="Einkommen (netto)" value={selectedApp.income != null ? formatCurrency(selectedApp.income) : null} />
-                <DetailField label="Miete" value={selectedApp.rent != null ? formatCurrency(selectedApp.rent) : null} />
-                <DetailField label="Schulden" value={selectedApp.debts != null ? formatCurrency(selectedApp.debts) : null} />
-                <DetailField label="Wunschlimit" value={selectedApp.wanted_limit != null ? formatCurrency(selectedApp.wanted_limit) : null} />
-                <DetailField label="Genehmigtes Limit" value={selectedApp.approved_limit != null ? formatCurrency(selectedApp.approved_limit) : null} />
-                <DetailField label="Beschäftigung" value={selectedApp.employment} />
-                <DetailField label="Arbeitgeber" value={selectedApp.employer} />
-                <DetailField label="Beschäftigt seit" value={selectedApp.employed_since} />
+                <DetailField label="Einkommen (netto)" value={selectedApp.income!=null?formatCurrency(selectedApp.income):null} /><DetailField label="Miete" value={selectedApp.rent!=null?formatCurrency(selectedApp.rent):null} />
+                <DetailField label="Schulden" value={selectedApp.debts!=null?formatCurrency(selectedApp.debts):null} /><DetailField label="Wunschlimit" value={selectedApp.wanted_limit!=null?formatCurrency(selectedApp.wanted_limit):null} />
+                <DetailField label="Genehmigtes Limit" value={selectedApp.approved_limit!=null?formatCurrency(selectedApp.approved_limit):null} /><DetailField label="Beschäftigung" value={selectedApp.employment} />
+                <DetailField label="Arbeitgeber" value={selectedApp.employer} /><DetailField label="Beschäftigt seit" value={selectedApp.employed_since} />
               </div>
 
-              {/* Setup / Vertrag */}
               <SectionHeadline>Setup & Vertrag</SectionHeadline>
               <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-6 border-b border-slate-100">
-                <DetailField label="Paket" value={selectedApp.pack_name} />
-                <DetailField label="Paket-Key" value={selectedApp.pack_key} />
-                <DetailField label="Verwendungszweck" value={selectedApp.purpose} />
-                <DetailField label="Abrechnung" value={selectedApp.billing} />
-                <DetailField label="Zahlungsmethode" value={selectedApp.billing_method} />
-                <DetailField label="Gehaltseingang" value={selectedApp.salary_receipt_day} />
-                <DetailField label="Add-on" value={selectedApp.addon} />
-                <DetailField label="NFC" value={selectedApp.nfc} />
-                <div className="col-span-2">
-                  <DetailField label="IBAN" value={selectedApp.iban} mono />
-                </div>
-                <div className="col-span-2">
-                  <DetailField label="Stripe Customer" value={selectedApp.stripe_customer_id} mono />
-                </div>
-                <div className="col-span-2">
-                  <DetailField label="Stripe Subscription" value={selectedApp.stripe_subscription_id} mono />
-                </div>
+                <DetailField label="Paket" value={selectedApp.pack_name} /><DetailField label="Paket-Key" value={selectedApp.pack_key} />
+                <DetailField label="Verwendungszweck" value={selectedApp.purpose} /><DetailField label="Abrechnung" value={selectedApp.billing} />
+                <DetailField label="Zahlungsmethode" value={selectedApp.billing_method} /><DetailField label="Gehaltseingang" value={selectedApp.salary_receipt_day} />
+                <DetailField label="Add-on" value={selectedApp.addon} /><DetailField label="NFC" value={selectedApp.nfc} />
+                <div className="col-span-2"><DetailField label="IBAN" value={selectedApp.iban} mono /></div>
+                <div className="col-span-2"><DetailField label="Stripe Customer" value={selectedApp.stripe_customer_id} mono /></div>
+                <div className="col-span-2"><DetailField label="Stripe Subscription" value={selectedApp.stripe_subscription_id} mono /></div>
               </div>
 
-              {/* Business */}
-              {(selectedApp.company_name || selectedApp.type === 'business') && (
-                <>
-                  <SectionHeadline>Unternehmen</SectionHeadline>
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-6 border-b border-slate-100">
-                    <DetailField label="Firmenname" value={selectedApp.company_name} />
-                    <DetailField label="Rechtsform" value={selectedApp.legal_form} />
-                    <DetailField label="Steuer-ID" value={selectedApp.tax_id} />
-                    <DetailField label="Gegründet" value={selectedApp.established_year} />
-                    <DetailField label="Branche" value={selectedApp.industry} />
-                    <DetailField label="Geschäftstyp" value={selectedApp.business_type} />
-                    <DetailField label="Jahresumsatz" value={selectedApp.annual_revenue != null ? formatCurrency(selectedApp.annual_revenue) : null} />
-                    <DetailField label="Mitarbeiter" value={selectedApp.employees} />
-                    <DetailField label="Monatliche Kosten" value={selectedApp.monthly_expenses != null ? formatCurrency(selectedApp.monthly_expenses) : null} />
-                    <DetailField label="Ansprechpartner" value={selectedApp.contact_name} />
-                    <DetailField label="Kontakt-Email" value={selectedApp.contact_email} />
-                    <DetailField label="Kontakt-Tel." value={selectedApp.contact_phone} />
-                  </div>
-                </>
-              )}
+              {(selectedApp.company_name || selectedApp.type === 'business') && (<>
+                <SectionHeadline>Unternehmen</SectionHeadline>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-6 border-b border-slate-100">
+                  <DetailField label="Firmenname" value={selectedApp.company_name} /><DetailField label="Rechtsform" value={selectedApp.legal_form} />
+                  <DetailField label="Steuer-ID" value={selectedApp.tax_id} /><DetailField label="Gegründet" value={selectedApp.established_year} />
+                  <DetailField label="Branche" value={selectedApp.industry} /><DetailField label="Geschäftstyp" value={selectedApp.business_type} />
+                  <DetailField label="Jahresumsatz" value={selectedApp.annual_revenue!=null?formatCurrency(selectedApp.annual_revenue):null} /><DetailField label="Mitarbeiter" value={selectedApp.employees} />
+                  <DetailField label="Ansprechpartner" value={selectedApp.contact_name} /><DetailField label="Kontakt-Email" value={selectedApp.contact_email} />
+                </div>
+              </>)}
 
-              {/* KYC & Dokumente */}
               <SectionHeadline>KYC & Dokumente</SectionHeadline>
-              <div className="space-y-3 pb-6 border-b border-slate-100">
-                <KycRow
-                  label="Kontoauszug"
-                  available={!!(selectedApp.has_bank_statement_pdf ?? selectedApp.bank_statement_pdf)}
-                  downloadUrl={selectedApp.ref ? `/api/fiaon/admin/applications/${selectedApp.ref}/document/bank_statement` : undefined}
-                />
-                <KycRow
-                  label="Ausweisdokument"
-                  available={!!(selectedApp.has_id_card_pdf ?? selectedApp.id_card_pdf)}
-                  downloadUrl={selectedApp.ref ? `/api/fiaon/admin/applications/${selectedApp.ref}/document/id_card` : undefined}
-                />
-                <div className="grid grid-cols-4 gap-4 pt-2">
-                  <DetailField label="Hochgeladen" value={selectedApp.documents_uploaded_at ? formatAppDate(selectedApp.documents_uploaded_at) : null} />
-                  <DetailField label="AGB" value={selectedApp.consent_agb ? '✓ Akzeptiert' : null} />
-                  <DetailField label="SCHUFA" value={selectedApp.consent_schufa ? '✓ Akzeptiert' : null} />
-                  <DetailField label="Vertrag" value={selectedApp.consent_contract ? '✓ Akzeptiert' : null} />
+              <div className="space-y-2.5 pb-6 border-b border-slate-100">
+                <KycRow label="Kontoauszug" available={!!(selectedApp.has_bank_statement_pdf??selectedApp.bank_statement_pdf)} downloadUrl={selectedApp.ref?`/api/fiaon/admin/applications/${selectedApp.ref}/document/bank_statement`:undefined} />
+                <KycRow label="Ausweisdokument" available={!!(selectedApp.has_id_card_pdf??selectedApp.id_card_pdf)} downloadUrl={selectedApp.ref?`/api/fiaon/admin/applications/${selectedApp.ref}/document/id_card`:undefined} />
+                <div className="grid grid-cols-4 gap-3 pt-1">
+                  <DetailField label="Hochgeladen" value={selectedApp.documents_uploaded_at?formatAppDate(selectedApp.documents_uploaded_at):null} />
+                  <DetailField label="AGB" value={selectedApp.consent_agb?'✓ Akzeptiert':null} />
+                  <DetailField label="SCHUFA" value={selectedApp.consent_schufa?'✓ Akzeptiert':null} />
+                  <DetailField label="Vertrag" value={selectedApp.consent_contract?'✓ Akzeptiert':null} />
                 </div>
               </div>
 
-              {/* ── ADMIN REVIEW ACTIONS ── */}
               <SectionHeadline>Admin Entscheidung</SectionHeadline>
-              <div className="space-y-3 pb-6 border-b border-slate-100">
-                {/* Current state badges */}
+              <div className="space-y-4 pb-6 border-b border-slate-100">
                 <div className="flex gap-2 flex-wrap">
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold ${
-                    selectedApp.kyc_status === 'approved' ? 'bg-emerald-50 text-emerald-700' :
-                    selectedApp.kyc_status === 'changes_requested' ? 'bg-amber-50 text-amber-700' :
-                    'bg-slate-100 text-slate-500'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${
-                      selectedApp.kyc_status === 'approved' ? 'bg-emerald-500' :
-                      selectedApp.kyc_status === 'changes_requested' ? 'bg-amber-500' : 'bg-slate-400'
-                    }`} />
-                    Dokumente: {selectedApp.kyc_status === 'approved' ? 'Genehmigt' : selectedApp.kyc_status === 'changes_requested' ? 'Änderung angefordert' : 'In Prüfung'}
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold ${selectedApp.kyc_status==='approved'?'bg-emerald-50 text-emerald-700':selectedApp.kyc_status==='changes_requested'?'bg-amber-50 text-amber-700':'bg-slate-100 text-slate-500'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${selectedApp.kyc_status==='approved'?'bg-emerald-500':selectedApp.kyc_status==='changes_requested'?'bg-amber-500':'bg-slate-400'}`}/>
+                    Dokumente: {selectedApp.kyc_status==='approved'?'Genehmigt':selectedApp.kyc_status==='changes_requested'?'Änderung angefordert':'In Prüfung'}
                   </span>
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold ${
-                    selectedApp.account_status === 'active' ? 'bg-emerald-50 text-emerald-700' :
-                    selectedApp.account_status === 'suspended' ? 'bg-rose-50 text-rose-700' :
-                    'bg-slate-100 text-slate-500'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${
-                      selectedApp.account_status === 'active' ? 'bg-emerald-500' :
-                      selectedApp.account_status === 'suspended' ? 'bg-rose-500' : 'bg-slate-400'
-                    }`} />
-                    Konto: {selectedApp.account_status === 'active' ? 'Aktiv' : selectedApp.account_status === 'suspended' ? 'Gesperrt' : 'Ausstehend'}
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold ${selectedApp.account_status==='active'?'bg-emerald-50 text-emerald-700':selectedApp.account_status==='suspended'?'bg-rose-50 text-rose-700':'bg-slate-100 text-slate-500'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${selectedApp.account_status==='active'?'bg-emerald-500':selectedApp.account_status==='suspended'?'bg-rose-500':'bg-slate-400'}`}/>
+                    Konto: {selectedApp.account_status==='active'?'Aktiv':selectedApp.account_status==='suspended'?'Gesperrt':'Ausstehend'}
                   </span>
                   {reviewSuccess && <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-900 text-white">{reviewSuccess} ✓</span>}
                 </div>
-
-                {/* KYC actions */}
                 <div className="flex gap-2 flex-wrap">
-                  <button onClick={() => sendReview('approved', undefined, '')} disabled={reviewLoading} className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors">
-                    ✓ Dokumente genehmigen
-                  </button>
-                  <button onClick={() => sendReview(undefined, 'active', '')} disabled={reviewLoading} className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-50 transition-colors">
-                    ⚡ Konto aktivieren
-                  </button>
-                  <button onClick={() => sendReview(undefined, 'suspended', '')} disabled={reviewLoading} className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-rose-100 text-rose-700 hover:bg-rose-200 disabled:opacity-50 transition-colors">
-                    ✕ Konto sperren
-                  </button>
+                  <button onClick={() => sendReview('approved',undefined,'')} disabled={reviewLoading} className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors">✓ Dokumente genehmigen</button>
+                  <button onClick={() => sendReview(undefined,'active','')} disabled={reviewLoading} className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-50 transition-colors">⚡ Konto aktivieren</button>
+                  <button onClick={() => sendReview(undefined,'suspended','')} disabled={reviewLoading} className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-rose-100 text-rose-700 hover:bg-rose-200 disabled:opacity-50 transition-colors">✕ Konto sperren</button>
                 </div>
-
-                {/* Admin note + selective reupload */}
-                <div className="space-y-2">
-                  <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Nachricht an Kunde + Welches Dokument neu anfordern?</p>
-                  <textarea
-                    value={reviewNote}
-                    onChange={e => setReviewNote(e.target.value)}
-                    placeholder="z.B. Ihr Kontoauszug ist leider nicht lesbar. Bitte laden Sie ein klareres PDF hoch."
-                    rows={3}
-                    className="w-full text-[12px] border border-slate-200 rounded-xl px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200 text-slate-700 bg-white"
-                  />
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input type="checkbox" checked={reuploadBank} onChange={e => setReuploadBank(e.target.checked)} className="w-3.5 h-3.5 accent-amber-500" />
-                      <span className="text-[12px] text-slate-700 font-medium">Kontoauszug neu anfordern</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input type="checkbox" checked={reuploadId} onChange={e => setReuploadId(e.target.checked)} className="w-3.5 h-3.5 accent-amber-500" />
-                      <span className="text-[12px] text-slate-700 font-medium">Ausweisdokument neu anfordern</span>
-                    </label>
+                <div className="space-y-2.5">
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Nachricht an Kunde + Dokument neu anfordern</p>
+                  <textarea value={reviewNote} onChange={e => setReviewNote(e.target.value)} placeholder="z.B. Ihr Kontoauszug ist leider nicht lesbar. Bitte laden Sie ein klareres PDF hoch." rows={3} className="w-full text-[13px] border border-slate-200 rounded-xl px-3.5 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200 text-slate-700 bg-white" />
+                  <div className="flex gap-5">
+                    <label className="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked={reuploadBank} onChange={e => setReuploadBank(e.target.checked)} className="w-3.5 h-3.5 accent-amber-500" /><span className="text-[12px] text-slate-700 font-medium">Kontoauszug</span></label>
+                    <label className="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked={reuploadId} onChange={e => setReuploadId(e.target.checked)} className="w-3.5 h-3.5 accent-amber-500" /><span className="text-[12px] text-slate-700 font-medium">Ausweisdokument</span></label>
                   </div>
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => sendReview('changes_requested', undefined)}
-                      disabled={reviewLoading || !reviewNote.trim() || (!reuploadBank && !reuploadId)}
-                      className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors"
-                      title={!reuploadBank && !reuploadId ? 'Bitte mindestens ein Dokument auswählen' : ''}
-                    >
-                      Änderung anfordern + Nachricht senden
-                    </button>
-                    {selectedApp.admin_note && (
-                      <button onClick={() => sendReview(undefined, undefined, '', false, false)} disabled={reviewLoading} className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50 transition-colors">
-                        Nachricht löschen
-                      </button>
-                    )}
+                    <button onClick={() => sendReview('changes_requested',undefined)} disabled={reviewLoading||!reviewNote.trim()||(!reuploadBank&&!reuploadId)} className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors">Änderung anfordern + Senden</button>
+                    {selectedApp.admin_note && <button onClick={() => sendReview(undefined,undefined,'',false,false)} disabled={reviewLoading} className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50 transition-colors">Nachricht löschen</button>}
                   </div>
                   {selectedApp.admin_note && (
-                    <div className="text-[11px] text-slate-500 italic space-y-0.5">
-                      <p>Aktuelle Nachricht: &ldquo;{selectedApp.admin_note}&rdquo;</p>
-                      <p>Angefordert: {[selectedApp.reupload_bank_statement && 'Kontoauszug', selectedApp.reupload_id_card && 'Ausweisdokument'].filter(Boolean).join(', ') || '—'}</p>
+                    <div className="text-[11px] text-slate-500 bg-slate-50 rounded-xl px-3.5 py-2.5 space-y-0.5">
+                      <p>Nachricht: „{selectedApp.admin_note}"</p>
+                      <p className="text-slate-400">Angefordert: {[selectedApp.reupload_bank_statement&&'Kontoauszug',selectedApp.reupload_id_card&&'Ausweis'].filter(Boolean).join(', ')||'—'}</p>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Meta */}
               <SectionHeadline>Meta</SectionHeadline>
               <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-                <DetailField label="Typ" value={selectedApp.type} />
-                <DetailField label="Aktueller Step" value={selectedApp.current_step} />
-                <DetailField label="Erstellt" value={formatAppDate(selectedApp.created_at)} />
-                <DetailField label="Aktualisiert" value={formatAppDate(selectedApp.updated_at)} />
-                <DetailField label="Eingereicht" value={selectedApp.submitted_at ? formatAppDate(selectedApp.submitted_at) : null} />
-                <DetailField label="Abgeschlossen" value={selectedApp.completed_at ? formatAppDate(selectedApp.completed_at) : null} />
-                <div className="col-span-2">
-                  <DetailField label="IP-Adresse" value={selectedApp.ip} mono />
-                </div>
+                <DetailField label="Typ" value={selectedApp.type} /><DetailField label="Step" value={selectedApp.current_step} />
+                <DetailField label="Erstellt" value={formatAppDate(selectedApp.created_at)} /><DetailField label="Aktualisiert" value={formatAppDate(selectedApp.updated_at)} />
+                <DetailField label="Eingereicht" value={selectedApp.submitted_at?formatAppDate(selectedApp.submitted_at):null} /><DetailField label="Abgeschlossen" value={selectedApp.completed_at?formatAppDate(selectedApp.completed_at):null} />
+                <div className="col-span-2"><DetailField label="IP-Adresse" value={selectedApp.ip} mono /></div>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Slide-in animation keyframes */}
       <style>{`
-        @keyframes slideInRight {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
+        @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
     </div>
   );

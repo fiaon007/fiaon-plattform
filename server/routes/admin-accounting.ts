@@ -1,12 +1,23 @@
 import { Router } from "express";
 import postgres from "postgres";
 import { logger } from "../logger";
+import { requireAdmin } from "../middleware/admin";
 
 const router = Router();
+
+// 🔒 All accounting routes require admin
+router.use(requireAdmin);
 
 // Lazy SQL client (reuses env var like other routes)
 function getSql() {
   return postgres(process.env.DATABASE_URL!, { ssl: "require" });
+}
+
+// Determine if entry type adds to (+) or subtracts from (-) balance
+function balanceDelta(entryType: string, amountCents: number): number {
+  if (["income", "client_payment"].includes(entryType)) return amountCents;
+  if (["expense_recurring", "expense_onetime", "withdrawal", "investment"].includes(entryType)) return -amountCents;
+  return 0;
 }
 
 // ============================================================================
@@ -242,6 +253,7 @@ router.get("/entries", async (req, res) => {
 
 // ============================================================================
 // POST /api/admin/accounting/entries
+// Auto-adjusts balance when status === 'paid'
 // ============================================================================
 router.post("/entries", async (req, res) => {
   const sql = getSql();
@@ -257,18 +269,32 @@ router.post("/entries", async (req, res) => {
       return res.status(400).json({ error: "title, amount_cents, entry_type required" });
     }
 
+    const cents = Number(amount_cents);
+
     const [entry] = await sql`
       INSERT INTO accounting_entries
         (entry_type, category, title, description, amount_cents, currency, entry_date,
          is_recurring, frequency, status, payment_method, payment_reference, vendor, invoice_number, tags)
       VALUES
-        (${entry_type}, ${category ?? "misc"}, ${title}, ${description ?? null}, ${Number(amount_cents)},
+        (${entry_type}, ${category ?? "misc"}, ${title}, ${description ?? null}, ${cents},
          ${currency}, ${entry_date ?? new Date().toISOString().split("T")[0]},
          ${is_recurring}, ${frequency ?? null}, ${status},
          ${payment_method ?? null}, ${payment_reference ?? null}, ${vendor ?? null},
          ${invoice_number ?? null}, ${tags ?? null})
       RETURNING *
     `;
+
+    // Auto-adjust balance if this is a paid transaction
+    if (status === "paid") {
+      const delta = balanceDelta(entry_type, cents);
+      if (delta !== 0) {
+        await sql`
+          UPDATE accounting_balance
+          SET balance_cents = balance_cents + ${delta}, updated_at = NOW()
+          WHERE id = (SELECT id FROM accounting_balance ORDER BY id LIMIT 1)
+        `;
+      }
+    }
 
     res.status(201).json({ entry });
   } catch (err) {
@@ -281,6 +307,7 @@ router.post("/entries", async (req, res) => {
 
 // ============================================================================
 // PATCH /api/admin/accounting/entries/:id
+// Handles balance delta when amount or status changes
 // ============================================================================
 router.patch("/entries/:id", async (req, res) => {
   const sql = getSql();
@@ -291,6 +318,10 @@ router.patch("/entries/:id", async (req, res) => {
       "entry_date","is_recurring","frequency","status","payment_method",
       "payment_reference","vendor","invoice_number","tags",
     ];
+
+    // Fetch current state before update
+    const [old] = await sql`SELECT * FROM accounting_entries WHERE id = ${Number(id)}`;
+    if (!old) return res.status(404).json({ error: "Entry not found" });
 
     const validKeys = Object.keys(req.body).filter(k => allowedFields.includes(k));
     if (validKeys.length === 0) {
@@ -307,7 +338,21 @@ router.patch("/entries/:id", async (req, res) => {
       RETURNING *
     `;
 
-    if (!entry) return res.status(404).json({ error: "Entry not found" });
+    // Compute balance delta: reverse old paid effect, apply new paid effect
+    const wasP = old.status === "paid";
+    const isNowP = entry.status === "paid";
+    const oldDelta = wasP ? balanceDelta(old.entry_type, Number(old.amount_cents)) : 0;
+    const newDelta = isNowP ? balanceDelta(entry.entry_type, Number(entry.amount_cents)) : 0;
+    const netDelta = newDelta - oldDelta;
+
+    if (netDelta !== 0) {
+      await sql`
+        UPDATE accounting_balance
+        SET balance_cents = balance_cents + ${netDelta}, updated_at = NOW()
+        WHERE id = (SELECT id FROM accounting_balance ORDER BY id LIMIT 1)
+      `;
+    }
+
     res.json({ entry });
   } catch (err) {
     logger.error("[ACCOUNTING] update entry error", err);
@@ -319,12 +364,28 @@ router.patch("/entries/:id", async (req, res) => {
 
 // ============================================================================
 // DELETE /api/admin/accounting/entries/:id
+// Reverses balance delta if the entry was paid
 // ============================================================================
 router.delete("/entries/:id", async (req, res) => {
   const sql = getSql();
   try {
     const { id } = req.params;
+    const [old] = await sql`SELECT * FROM accounting_entries WHERE id = ${Number(id)}`;
+
     await sql`DELETE FROM accounting_entries WHERE id = ${Number(id)}`;
+
+    // Reverse balance effect if it was a paid transaction
+    if (old && old.status === "paid") {
+      const reverseDelta = -balanceDelta(old.entry_type, Number(old.amount_cents));
+      if (reverseDelta !== 0) {
+        await sql`
+          UPDATE accounting_balance
+          SET balance_cents = balance_cents + ${reverseDelta}, updated_at = NOW()
+          WHERE id = (SELECT id FROM accounting_balance ORDER BY id LIMIT 1)
+        `;
+      }
+    }
+
     res.json({ ok: true });
   } catch (err) {
     logger.error("[ACCOUNTING] delete entry error", err);
@@ -369,6 +430,119 @@ router.post("/balance", async (req, res) => {
   } catch (err) {
     logger.error("[ACCOUNTING] update balance error", err);
     res.status(500).json({ error: "Failed to update balance" });
+  } finally {
+    await sql.end();
+  }
+});
+
+// ============================================================================
+// GET /api/admin/accounting/prediction
+// AI-driven 30-day income & balance forecast
+// ============================================================================
+router.get("/prediction", async (req, res) => {
+  const sql = getSql();
+  try {
+    await ensureTables(sql);
+
+    const [balRow] = await sql`SELECT balance_cents FROM accounting_balance ORDER BY id LIMIT 1`;
+    const currentBalance = Number(balRow?.balance_cents ?? 5500000);
+
+    // Income entries over the last 60 days (paid only)
+    const incomeRows = await sql`
+      SELECT entry_date::text AS day, SUM(amount_cents) AS total
+      FROM accounting_entries
+      WHERE entry_type IN ('income','client_payment')
+        AND status = 'paid'
+        AND entry_date >= CURRENT_DATE - INTERVAL '60 days'
+      GROUP BY entry_date
+      ORDER BY entry_date ASC
+    `;
+
+    // Monthly burn (recurring costs)
+    const recurringRows = await sql`
+      SELECT amount_cents, frequency FROM accounting_entries
+      WHERE is_recurring = TRUE AND status != 'cancelled'
+    `;
+    let monthlyBurnCents = 0;
+    for (const r of recurringRows) {
+      switch (r.frequency) {
+        case "daily":     monthlyBurnCents += Number(r.amount_cents) * 30; break;
+        case "weekly":    monthlyBurnCents += Number(r.amount_cents) * 4;  break;
+        case "monthly":   monthlyBurnCents += Number(r.amount_cents);      break;
+        case "quarterly": monthlyBurnCents += Math.round(Number(r.amount_cents) / 3); break;
+        case "yearly":    monthlyBurnCents += Math.round(Number(r.amount_cents) / 12); break;
+        default:          monthlyBurnCents += Number(r.amount_cents); break;
+      }
+    }
+
+    if (incomeRows.length === 0) {
+      return res.json({
+        hasData: false,
+        message: "Noch keine Einnahmen erfasst. Trage Einnahmen mit Status 'Bezahlt' ein, um Prognosen zu erhalten.",
+        projectedBalance30d: currentBalance - monthlyBurnCents,
+        monthlyBurnCents,
+      });
+    }
+
+    // Split into last 30 vs prior 30 days
+    const now = Date.now();
+    const ms30 = 30 * 24 * 60 * 60 * 1000;
+    const last30 = incomeRows.filter(r => new Date(r.day).getTime() >= now - ms30);
+    const prev30 = incomeRows.filter(r => new Date(r.day).getTime() < now - ms30);
+
+    const last30Total = last30.reduce((s, r) => s + Number(r.total), 0);
+    const prev30Total = prev30.reduce((s, r) => s + Number(r.total), 0);
+
+    // Growth rate (capped for sanity)
+    let growthRate = 0;
+    if (prev30Total > 0) {
+      growthRate = Math.min(Math.max((last30Total - prev30Total) / prev30Total, -0.9), 5);
+    }
+
+    // Days with income in last 30
+    const incomeDays = last30.length;
+    const avgPerDay = incomeDays > 0 ? last30Total / 30 : 0; // avg over full 30d window
+    const projectedIncome30d = Math.round(last30Total * (1 + growthRate));
+    const projectedBalance30d = currentBalance + projectedIncome30d - monthlyBurnCents;
+
+    // Build trend label
+    let trendLabel = "Stabil";
+    let trendEmoji = "→";
+    if (growthRate > 0.3) { trendLabel = "Stark wachsend"; trendEmoji = "↑↑"; }
+    else if (growthRate > 0.05) { trendLabel = "Wachsend"; trendEmoji = "↑"; }
+    else if (growthRate < -0.3) { trendLabel = "Stark rückläufig"; trendEmoji = "↓↓"; }
+    else if (growthRate < -0.05) { trendLabel = "Leicht rückläufig"; trendEmoji = "↓"; }
+
+    // Smart message
+    const pct = Math.round(Math.abs(growthRate) * 100);
+    let smartMessage = "";
+    if (growthRate > 0.05) {
+      smartMessage = `Einnahmen wachsen ${pct}% vs. Vormonat — bei diesem Tempo erreichst du in 30 Tagen voraussichtlich ${(projectedBalance30d / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} EUR.`;
+    } else if (growthRate < -0.05) {
+      smartMessage = `Einnahmen sinken um ${pct}% vs. Vormonat — prüfe Kundenpipeline. Prognose: ${(projectedBalance30d / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} EUR in 30 Tagen.`;
+    } else {
+      smartMessage = `Stabile Einnahmen. Voraussichtlicher Kontostand in 30 Tagen: ${(projectedBalance30d / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} EUR.`;
+    }
+
+    res.json({
+      hasData: true,
+      currentBalance,
+      last30IncomeCents: last30Total,
+      prev30IncomeCents: prev30Total,
+      growthRate: Math.round(growthRate * 100) / 100,
+      growthPct: Math.round(growthRate * 100),
+      trendLabel,
+      trendEmoji,
+      avgDailyIncomeCents: Math.round(avgPerDay),
+      projectedIncome30d,
+      monthlyBurnCents,
+      projectedBalance30d,
+      smartMessage,
+      incomeDaysLast30: incomeDays,
+    });
+  } catch (err) {
+    logger.error("[ACCOUNTING] prediction error", err);
+    res.status(500).json({ error: "Failed to compute prediction" });
   } finally {
     await sql.end();
   }

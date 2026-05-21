@@ -23,101 +23,104 @@ interface AccountingEntry {
   payment_reference?: string;
   vendor?: string;
   invoice_number?: string;
-  tags?: string[];
   created_at: string;
   updated_at: string;
 }
 
 interface Summary {
   balance: { cents: number; currency: string; note?: string; updatedAt?: string };
-  kpis: {
-    monthlyOutCents: number;
-    monthlyInCents: number;
-    monthlyBurnCents: number;
-    runwayMonths: number;
-    netCents: number;
-  };
+  kpis: { monthlyOutCents: number; monthlyInCents: number; monthlyBurnCents: number; runwayMonths: number; netCents: number };
   categoryBreakdown: { category: string; totalCents: number; count: number }[];
   cashflow: { month: string; outCents: number; inCents: number }[];
   upcoming: AccountingEntry[];
 }
 
+interface Prediction {
+  hasData: boolean;
+  message?: string;
+  smartMessage?: string;
+  trendLabel?: string;
+  trendEmoji?: string;
+  growthPct?: number;
+  projectedBalance30d?: number;
+  projectedIncome30d?: number;
+  monthlyBurnCents?: number;
+  last30IncomeCents?: number;
+  avgDailyIncomeCents?: number;
+}
+
 // ============================================================================
 // Constants
 // ============================================================================
-const ENTRY_TYPE_META: Record<EntryType, { label: string; color: string; bgColor: string; icon: string; sign: "-" | "+" }> = {
-  expense_recurring:  { label: "Laufende Kosten",   color: "#ef4444", bgColor: "#fef2f2", icon: "↻", sign: "-" },
-  expense_onetime:    { label: "Einmalige Ausgabe",  color: "#f97316", bgColor: "#fff7ed", icon: "↓", sign: "-" },
-  income:             { label: "Einnahme",           color: "#22c55e", bgColor: "#f0fdf4", icon: "↑", sign: "+" },
-  client_payment:     { label: "Kundenzahlung",      color: "#10b981", bgColor: "#ecfdf5", icon: "€", sign: "+" },
-  withdrawal:         { label: "Auszahlung",         color: "#8b5cf6", bgColor: "#f5f3ff", icon: "→", sign: "-" },
-  investment:         { label: "Investition",        color: "#2563eb", bgColor: "#eff6ff", icon: "⬆", sign: "-" },
+const TYPE_META: Record<EntryType, { label: string; sign: "+" | "-"; color: string }> = {
+  expense_recurring: { label: "Laufende Kosten",  sign: "-", color: "#dc2626" },
+  expense_onetime:   { label: "Einmalige Ausgabe", sign: "-", color: "#ea580c" },
+  income:            { label: "Einnahme",          sign: "+", color: "#16a34a" },
+  client_payment:    { label: "Kundenzahlung",     sign: "+", color: "#059669" },
+  withdrawal:        { label: "Auszahlung",        sign: "-", color: "#7c3aed" },
+  investment:        { label: "Investition",       sign: "-", color: "#2563eb" },
 };
 
-const CATEGORY_META: Record<string, { label: string; icon: string }> = {
-  software:       { label: "Software",        icon: "💻" },
-  salary:         { label: "Gehalt",          icon: "👤" },
-  marketing:      { label: "Marketing",       icon: "📣" },
-  office:         { label: "Büro",            icon: "🏢" },
-  legal:          { label: "Legal / Steuer",  icon: "⚖️" },
-  infrastructure: { label: "Infrastruktur",   icon: "🖥" },
-  hosting:        { label: "Hosting",         icon: "☁️" },
-  tax:            { label: "Steuern",         icon: "📋" },
-  insurance:      { label: "Versicherung",    icon: "🛡" },
-  consulting:     { label: "Beratung",        icon: "🤝" },
-  misc:           { label: "Sonstiges",       icon: "📦" },
-  revenue:        { label: "Umsatz",          icon: "💰" },
-  client_payment: { label: "Kundenzahlung",   icon: "💳" },
-  investment:     { label: "Investition",     icon: "📈" },
-  other:          { label: "Andere",          icon: "•" },
+const CAT: Record<string, string> = {
+  software: "Software", salary: "Gehalt", marketing: "Marketing", office: "Büro",
+  legal: "Legal / Steuer", infrastructure: "Infrastruktur", hosting: "Hosting",
+  tax: "Steuern", insurance: "Versicherung", consulting: "Beratung",
+  misc: "Sonstiges", revenue: "Umsatz", client_payment: "Kundenzahlung",
+  investment: "Investition", other: "Andere",
 };
 
-const STATUS_META: Record<EntryStatus, { label: string; cls: string; dot: string }> = {
-  planned:   { label: "Geplant",    cls: "bg-amber-50 text-amber-700",    dot: "bg-amber-500" },
-  paid:      { label: "Bezahlt",    cls: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" },
-  cancelled: { label: "Storniert",  cls: "bg-slate-100 text-slate-500",   dot: "bg-slate-400" },
-  overdue:   { label: "Überfällig", cls: "bg-red-50 text-red-700",        dot: "bg-red-500" },
-};
-
-const PAYMENT_METHODS = [
-  { value: "bank_transfer",  label: "Banküberweisung" },
-  { value: "direct_debit",   label: "Lastschrift" },
-  { value: "credit_card",    label: "Kreditkarte" },
-  { value: "paypal",         label: "PayPal" },
-  { value: "stripe",         label: "Stripe" },
-  { value: "cash",           label: "Bar" },
+const PAY_METHODS = [
+  { value: "bank_transfer", label: "Banküberweisung" },
+  { value: "direct_debit",  label: "Lastschrift" },
+  { value: "credit_card",   label: "Kreditkarte" },
+  { value: "paypal",        label: "PayPal" },
+  { value: "stripe",        label: "Stripe" },
+  { value: "cash",          label: "Bar" },
 ];
-
-const ACCENT = "#2563eb";
 
 // ============================================================================
 // Helpers
 // ============================================================================
-const fmt = (cents: number, showSign = false) => {
-  const eur = Math.abs(cents) / 100;
-  const formatted = eur.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (showSign && cents > 0) return `+${formatted} €`;
-  return `${formatted} €`;
+const eur = (cents: number, sign = false, compact = false): string => {
+  const n = Math.abs(cents) / 100;
+  const s = compact && n >= 1000
+    ? n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)} Mio.` : `${(n / 1000).toFixed(1)}k`
+    : n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (sign && cents > 0) return `+${s} €`;
+  return `${s} €`;
 };
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-const fmtMonth = (ym: string) => {
+const fmtMonth = (ym: string): string => {
   const [y, m] = ym.split("-");
   return new Date(Number(y), Number(m) - 1).toLocaleDateString("de-DE", { month: "short", year: "2-digit" });
 };
 
-const isOutflow = (type: EntryType) =>
-  ["expense_recurring", "expense_onetime", "withdrawal", "investment"].includes(type);
+const isOut = (t: EntryType) =>
+  ["expense_recurring", "expense_onetime", "withdrawal", "investment"].includes(t);
+
+// Backward-compat aliases used by legacy component body
+const fmt = eur;
+const isOutflow = isOut;
+const ACCENT = "#1e293b";
+const ENTRY_TYPE_META = TYPE_META as Record<EntryType, { label: string; sign: "+" | "-"; color: string; bgColor: string; icon: string }>;
+const CATEGORY_META: Record<string, { label: string; icon: string }> =
+  Object.fromEntries(Object.entries(CAT).map(([k, v]) => [k, { label: v as string, icon: "" }]));
+const STATUS_META: Record<EntryStatus, { label: string; cls: string; dot: string }> = {
+  planned:   { label: "Geplant",    cls: "bg-amber-50 text-amber-700",    dot: "bg-amber-400" },
+  paid:      { label: "Bezahlt",    cls: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" },
+  cancelled: { label: "Storniert",  cls: "bg-slate-100 text-slate-500",   dot: "bg-slate-400" },
+  overdue:   { label: "Überfällig", cls: "bg-red-50 text-red-700",        dot: "bg-red-400" },
+};
+const PAYMENT_METHODS = PAY_METHODS;
 
 // ============================================================================
-// Modal Component
+// Entry Modal — premium banking form
 // ============================================================================
 function EntryModal({
-  entry,
-  onSave,
-  onClose,
+  entry, onSave, onClose,
 }: {
   entry: Partial<AccountingEntry> | null;
   onSave: (data: Partial<AccountingEntry>) => Promise<void>;
@@ -125,23 +128,15 @@ function EntryModal({
 }) {
   const isEdit = !!entry?.id;
   const [form, setForm] = useState<Partial<AccountingEntry>>({
-    entry_type: "expense_onetime",
-    category: "misc",
-    title: "",
-    description: "",
-    amount_cents: 0,
-    currency: "EUR",
+    entry_type: "income", category: "revenue", title: "", description: "",
+    amount_cents: 0, currency: "EUR",
     entry_date: new Date().toISOString().split("T")[0],
-    is_recurring: false,
-    frequency: "monthly",
-    status: "planned",
-    payment_method: "bank_transfer",
-    vendor: "",
-    invoice_number: "",
-    ...entry,
+    is_recurring: false, frequency: "monthly", status: "paid",
+    payment_method: "bank_transfer", vendor: "", invoice_number: "",
+    payment_reference: "", ...entry,
   });
   const [saving, setSaving] = useState(false);
-  const [amountStr, setAmountStr] = useState(entry?.amount_cents ? String(entry.amount_cents / 100) : "");
+  const [amtStr, setAmtStr] = useState<string>(entry?.amount_cents ? String(entry.amount_cents / 100) : "");
 
   const set = (k: keyof AccountingEntry, v: any) => setForm(f => ({ ...f, [k]: v }));
 
@@ -149,10 +144,8 @@ function EntryModal({
     e.preventDefault();
     setSaving(true);
     try {
-      await onSave({ ...form, amount_cents: Math.round(parseFloat(amountStr.replace(",", ".")) * 100) || 0 });
-    } finally {
-      setSaving(false);
-    }
+      await onSave({ ...form, amount_cents: Math.round(parseFloat(amtStr.replace(",", ".")) * 100) || 0 }); // amtStr
+    } finally { setSaving(false); }
   };
 
   return (
@@ -216,8 +209,8 @@ function EntryModal({
                 type="number"
                 step="0.01"
                 min="0"
-                value={amountStr}
-                onChange={e => setAmountStr(e.target.value)}
+                value={amtStr}
+                onChange={e => setAmtStr(e.target.value)}
                 placeholder="0.00"
                 className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all"
               />
@@ -517,87 +510,137 @@ function OptimizationTips({ summary }: { summary: Summary | null }) {
 }
 
 // ============================================================================
+// Prediction Card
+// ============================================================================
+function PredictionCard({ pred }: { pred: Prediction | null }) {
+  if (!pred) return <div className="h-28 rounded-xl bg-slate-50 animate-pulse border border-slate-100" />;
+  return (
+    <div className="rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-slate-900 px-5 py-3 flex items-center justify-between">
+        <p className="text-[10px] tracking-widest uppercase text-white/50 font-semibold">KI-Prognose · 30 Tage</p>
+        {pred.hasData && <span className="text-[11px] text-white/70 font-semibold">{pred.trendEmoji} {pred.trendLabel}</span>}
+      </div>
+      <div className="bg-white px-5 py-4">
+        {!pred.hasData ? (
+          <p className="text-sm text-slate-500">{pred.message}</p>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-[13px] text-slate-700 leading-relaxed">{pred.smartMessage}</p>
+            <div className="grid grid-cols-3 gap-4 pt-2 border-t border-slate-100">
+              {[
+                { label: "Einnahmen letzte 30T", val: eur(pred.last30IncomeCents ?? 0), col: "#16a34a" },
+                { label: "Prognose Einnahmen",   val: eur(pred.projectedIncome30d ?? 0),  col: "#1e293b" },
+                { label: "Kontostand in 30T",    val: eur(pred.projectedBalance30d ?? 0), col: (pred.projectedBalance30d ?? 0) >= 0 ? "#1e293b" : "#dc2626" },
+              ].map(k => (
+                <div key={k.label}>
+                  <p className="text-[9px] tracking-widest uppercase text-slate-400 font-semibold">{k.label}</p>
+                  <p className="text-[14px] font-bold tabular-nums mt-0.5" style={{ color: k.col }}>{k.val}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Cashflow Bar Chart
+// ============================================================================
+function CashflowBars({ data }: { data: { month: string; outCents: number; inCents: number }[] }) {
+  const max = Math.max(...data.flatMap(d => [d.outCents, d.inCents]), 1);
+  return (
+    <div className="flex items-end gap-3 h-28">
+      {data.map(d => {
+        const net = d.inCents - d.outCents;
+        return (
+          <div key={d.month} className="flex-1 flex flex-col items-center gap-1">
+            <div className="w-full flex items-end justify-center gap-0.5 h-20">
+              <div className="flex-1 rounded-t" style={{ height: `${(d.outCents / max) * 100}%`, minHeight: d.outCents > 0 ? 2 : 0, backgroundColor: "#fca5a5" }} title={`Ausgaben: ${eur(d.outCents)}`} />
+              <div className="flex-1 rounded-t" style={{ height: `${(d.inCents / max) * 100}%`, minHeight: d.inCents > 0 ? 2 : 0, backgroundColor: "#86efac" }} title={`Einnahmen: ${eur(d.inCents)}`} />
+            </div>
+            <div className="text-center">
+              <p className="text-[9px] font-semibold text-slate-400 uppercase">{fmtMonth(d.month)}</p>
+              <p className={`text-[9px] font-bold tabular-nums ${net >= 0 ? "text-emerald-600" : "text-red-500"}`}>{eur(net, true, true)}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================================
 // Main Component
 // ============================================================================
 export default function AccountingDashboard() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [entries, setEntries] = useState<AccountingEntry[]>([]);
+  const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingEntries, setLoadingEntries] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // Filters
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
 
-  // Modals
   const [showEntryModal, setShowEntryModal] = useState(false);
   const [editEntry, setEditEntry] = useState<AccountingEntry | null>(null);
   const [showBalanceModal, setShowBalanceModal] = useState(false);
 
-  // Active tab: overview | entries | breakdown | cashflow
   const [tab, setTab] = useState<"overview" | "entries" | "breakdown" | "cashflow">("overview");
 
-  // ── Fetch ──────────────────────────────────────────────────────────────────
+  // ── Fetch ───────────────────────────────────────────────────────────────────
   const loadSummary = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/accounting/summary", { credentials: "include" });
       if (res.ok) setSummary(await res.json());
-      else setError("Fehler beim Laden der Zusammenfassung");
-    } catch {
-      setError("Netzwerkfehler");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, []);
 
   const loadEntries = useCallback(async () => {
     setLoadingEntries(true);
     try {
-      const params = new URLSearchParams({ limit: "200" });
+      const params = new URLSearchParams({ limit: "300" });
       if (typeFilter !== "all") params.set("type", typeFilter);
       if (statusFilter !== "all") params.set("status", statusFilter);
       const res = await fetch(`/api/admin/accounting/entries?${params}`, { credentials: "include" });
-      if (res.ok) {
-        const data = await res.json();
-        setEntries(data.entries ?? []);
-      }
-    } catch {}
-    setLoadingEntries(false);
+      if (res.ok) setEntries((await res.json()).entries ?? []);
+    } catch {} finally { setLoadingEntries(false); }
   }, [typeFilter, statusFilter]);
 
-  useEffect(() => { loadSummary(); }, [loadSummary]);
+  const loadPrediction = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/accounting/prediction", { credentials: "include" });
+      if (res.ok) setPrediction(await res.json());
+    } catch {}
+  }, []);
+
+  useEffect(() => { loadSummary(); loadPrediction(); }, [loadSummary, loadPrediction]);
   useEffect(() => { loadEntries(); }, [loadEntries]);
 
-  // ── Save entry ─────────────────────────────────────────────────────────────
+  const refresh = () => Promise.all([loadSummary(), loadEntries(), loadPrediction()]);
+
+  // ── Save entry ──────────────────────────────────────────────────────────────
   const handleSaveEntry = async (data: Partial<AccountingEntry>) => {
     const isEdit = !!data.id;
-    const url = isEdit ? `/api/admin/accounting/entries/${data.id}` : "/api/admin/accounting/entries";
-    const method = isEdit ? "PATCH" : "POST";
-
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(data),
-    });
-
-    if (res.ok) {
-      setShowEntryModal(false);
-      setEditEntry(null);
-      await Promise.all([loadSummary(), loadEntries()]);
-    }
+    await fetch(
+      isEdit ? `/api/admin/accounting/entries/${data.id}` : "/api/admin/accounting/entries",
+      { method: isEdit ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) }
+    );
+    setShowEntryModal(false); setEditEntry(null);
+    await refresh();
   };
 
-  // ── Delete entry ───────────────────────────────────────────────────────────
+  // ── Delete ──────────────────────────────────────────────────────────────────
   const handleDelete = async (id: number) => {
     if (!confirm("Eintrag löschen?")) return;
     await fetch(`/api/admin/accounting/entries/${id}`, { method: "DELETE", credentials: "include" });
-    await Promise.all([loadSummary(), loadEntries()]);
+    await refresh();
   };
 
-  // ── Update balance ─────────────────────────────────────────────────────────
+  // ── Update balance ──────────────────────────────────────────────────────────
   const handleUpdateBalance = async (cents: number, note: string) => {
     await fetch("/api/admin/accounting/balance", {
       method: "POST",
@@ -631,77 +674,55 @@ export default function AccountingDashboard() {
   const bal = summary?.balance.cents ?? 5500000;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 pb-20">
 
-      {/* ── Balance Hero ────────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl text-white p-6" style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #3b82f6 100%)" }}>
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white" />
-          <div className="absolute -bottom-10 -left-10 w-32 h-32 rounded-full bg-white" />
-        </div>
-        <div className="relative">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-widest opacity-70 mb-1">FIAON GmbH · Gesamtkontostand</p>
-              <p className="text-4xl font-bold tabular-nums tracking-tight">{fmt(bal)}</p>
-              {summary?.balance.note && (
-                <p className="text-[12px] opacity-60 mt-1">{summary.balance.note}</p>
-              )}
-              {summary?.balance.updatedAt && (
-                <p className="text-[11px] opacity-50 mt-0.5">Aktualisiert: {fmtDate(summary.balance.updatedAt)}</p>
-              )}
-            </div>
-            <button
-              onClick={() => setShowBalanceModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 transition-colors text-sm font-semibold border border-white/20 backdrop-blur-sm"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
-              Aktualisieren
-            </button>
+      {/* ── Balance Hero — dark slate banking */}
+      <div className="bg-slate-900 rounded-xl text-white p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[10px] tracking-widest uppercase font-semibold opacity-40 mb-2">FIAON GmbH · Unternehmenskonto</p>
+            <p className="text-[40px] font-bold tabular-nums leading-none tracking-tight">{fmt(bal)}</p>
+            {summary?.balance.note && <p className="text-[12px] opacity-40 mt-1.5">{summary.balance.note}</p>}
+            {summary?.balance.updatedAt && <p className="text-[11px] opacity-30 mt-0.5">Stand: {fmtDate(summary.balance.updatedAt)}</p>}
           </div>
-
-          {/* KPIs row */}
-          {summary && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
-              {[
-                { label: "Monatl. Burn",  value: fmt(summary.kpis.monthlyBurnCents),     sub: "Wiederk. Kosten",  col: "#fca5a5" },
-                { label: "Monat Ausgaben",value: fmt(summary.kpis.monthlyOutCents),       sub: "Aktueller Monat", col: "#fdba74" },
-                { label: "Monat Einnahmen",value: fmt(summary.kpis.monthlyInCents),       sub: "Aktueller Monat", col: "#86efac" },
-                { label: "Runway",         value: summary.kpis.runwayMonths === 999 ? "∞" : `${summary.kpis.runwayMonths} Mo`, sub: "Monate", col: "#93c5fd" },
-              ].map(k => (
-                <div key={k.label} className="bg-white/10 rounded-xl p-3 border border-white/10 backdrop-blur-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-wider opacity-60">{k.label}</p>
-                  <p className="text-[17px] font-bold tabular-nums mt-0.5" style={{ color: k.col }}>{k.value}</p>
-                  <p className="text-[10px] opacity-50 mt-0.5">{k.sub}</p>
-                </div>
-              ))}
-            </div>
-          )}
+          <button onClick={() => setShowBalanceModal(true)}
+            className="shrink-0 px-4 py-2 rounded-lg border border-white/10 text-[12px] font-medium text-white/60 hover:bg-white/10 transition-colors">
+            Anpassen
+          </button>
         </div>
+        {summary && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-px mt-5 bg-white/10 rounded-lg overflow-hidden">
+            {[
+              { label: "Monatl. Burn",    val: fmt(summary.kpis.monthlyBurnCents), note: "Wiederk. Kosten" },
+              { label: "Monat Ausgaben",  val: fmt(summary.kpis.monthlyOutCents),  note: "Akt. Monat" },
+              { label: "Monat Einnahmen", val: fmt(summary.kpis.monthlyInCents),   note: "Akt. Monat" },
+              { label: "Runway",          val: summary.kpis.runwayMonths >= 999 ? "∞" : `${summary.kpis.runwayMonths} Mo`, note: "Monate" },
+            ].map(k => (
+              <div key={k.label} className="bg-white/5 px-4 py-3">
+                <p className="text-[9px] tracking-widest uppercase opacity-40 font-semibold">{k.label}</p>
+                <p className="text-[15px] font-bold tabular-nums mt-0.5">{k.val}</p>
+                <p className="text-[9px] opacity-30 mt-0.5">{k.note}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* ── Tabs ────────────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-1 bg-white rounded-xl border border-slate-100 shadow-sm p-1">
+      {/* ── AI Prediction Card */}
+      <PredictionCard pred={prediction} />
+
+      {/* ── Tabs */}
+      <div className="flex gap-px bg-slate-100 rounded-lg overflow-hidden p-0.5">
         {([
           { id: "overview",  label: "Übersicht" },
           { id: "entries",   label: "Transaktionen" },
           { id: "breakdown", label: "Kategorien" },
           { id: "cashflow",  label: "Cashflow" },
         ] as { id: typeof tab; label: string }[]).map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex-1 py-2 rounded-lg text-[12px] font-semibold transition-all ${
-              tab === t.id
-                ? "bg-[#2563eb] text-white shadow-sm"
-                : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            {t.label}
-          </button>
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`flex-1 py-2 rounded-md text-[12px] font-semibold transition-all ${
+              tab === t.id ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            }`}>{t.label}</button>
         ))}
       </div>
 
@@ -750,7 +771,7 @@ export default function AccountingDashboard() {
                   <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-emerald-400/70 inline-block" />Einnahmen</span>
                 </div>
               </div>
-              <CashflowChart data={summary.cashflow} />
+              <CashflowBars data={summary.cashflow} />
             </div>
           )}
         </div>
@@ -767,7 +788,7 @@ export default function AccountingDashboard() {
               </div>
               <button
                 onClick={() => { setEditEntry(null); setShowEntryModal(true); }}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2563eb] text-white text-[12px] font-bold hover:bg-blue-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white text-[12px] font-semibold hover:bg-slate-800 transition-colors"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                   <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -1018,8 +1039,7 @@ export default function AccountingDashboard() {
       <div className="fixed bottom-6 right-6 z-40">
         <button
           onClick={() => { setEditEntry(null); setShowEntryModal(true); }}
-          className="flex items-center gap-2.5 px-5 py-3 rounded-2xl text-white text-[13px] font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all"
-          style={{ background: "linear-gradient(135deg, #1d4ed8, #2563eb)" }}
+          className="flex items-center gap-2.5 px-5 py-3 rounded-xl bg-slate-900 text-white text-[13px] font-semibold shadow-md hover:bg-slate-800 hover:shadow-lg hover:-translate-y-0.5 transition-all"
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
             <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />

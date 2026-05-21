@@ -21,11 +21,18 @@ export type UserRole = typeof VALID_ROLES[number];
  */
 export const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (!req.session || !req.session.userId) {
+    // Support both Passport auth (req.user) and legacy session.userId
+    const userId: string | undefined =
+      (req as any).user?.id ?? (req.session as any)?.userId ?? undefined;
+
+    if (!userId) {
       return res.status(401).json({ error: 'Unauthorized', message: 'No session' });
     }
 
-    const userId = req.session.userId as string;
+    // Sync session.userId for consistency downstream
+    if ((req.session as any) && !(req.session as any).userId) {
+      (req.session as any).userId = userId;
+    }
 
     // Fetch user with role from DB
     const [user] = await client`
@@ -69,11 +76,16 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
  */
 export const requireStaffOrAdmin = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (!req.session || !req.session.userId) {
+    const userId: string | undefined =
+      (req as any).user?.id ?? (req.session as any)?.userId ?? undefined;
+
+    if (!userId) {
       return res.status(401).json({ error: 'Unauthorized', message: 'No session' });
     }
 
-    const userId = req.session.userId as string;
+    if ((req.session as any) && !(req.session as any).userId) {
+      (req.session as any).userId = userId;
+    }
 
     const [user] = await client`
       SELECT id, username, user_role FROM users WHERE id = ${userId}

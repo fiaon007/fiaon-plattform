@@ -188,6 +188,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const adminDatabaseRoutes = await import('./routes/admin-database');
   app.use('/api/database', adminDatabaseRoutes.default);
 
+  // 💰 Setup Admin Accounting Routes (company financial management)
+  const adminAccountingRoutes = await import('./routes/admin-accounting');
+  app.use('/api/admin/accounting', adminAccountingRoutes.default);
+
   // 🧠 CEO Mind-OS — Strategie-Notizbuch mit Groq + Tavily
   const ceoMindOsRoutes = await import('./routes/ceo-mind-os');
   app.use('/api/ceo-mind-os', ceoMindOsRoutes.default);

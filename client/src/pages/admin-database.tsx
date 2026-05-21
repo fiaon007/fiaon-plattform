@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import CeoMindOS from "@/components/admin/CeoMindOS";
 import LiveRadar from "@/components/admin/LiveRadar";
 import KnowledgeBase from "@/components/admin/KnowledgeBase";
+import AccountingDashboard from "@/components/admin/AccountingDashboard";
 import MinimalistGlassLauncher from "@/components/layout/MinimalistGlassLauncher";
 
 interface AI_Task {
@@ -40,7 +41,7 @@ export default function AdminDatabasePage() {
   const [reuploadBank, setReuploadBank] = useState(false);
   const [reuploadId, setReuploadId] = useState(false);
   const [profileNote, setProfileNote] = useState('');
-  const [adminSection, setAdminSection] = useState<'overview'|'applications'|'tasks'|'command'|'radar'|'knowledge'>('overview');
+  const [adminSection, setAdminSection] = useState<'overview'|'applications'|'tasks'|'command'|'radar'|'knowledge'|'accounting'>('overview');
 
   const sendReview = async (kycStatus?: string, accountStatus?: string, noteOverride?: string, reuploadBankOverride?: boolean, reuploadIdOverride?: boolean) => {
     if (!selectedApp?.ref) return;
@@ -409,6 +410,7 @@ export default function AdminDatabasePage() {
     { id: 'command'      as const, label: 'Command OS',  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> },
     { id: 'radar'        as const, label: 'Live Radar',  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
     { id: 'knowledge'    as const, label: 'Wissens-DB',  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
+    { id: 'accounting'   as const, label: 'Buchhaltung', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>, badge: 'neu' },
   ];
 
   return (
@@ -678,6 +680,9 @@ export default function AdminDatabasePage() {
 
           {/* ══════════ WISSENS-DB ══════════ */}
           {adminSection === 'knowledge' && <KnowledgeBase />}
+
+          {/* ══════════ BUCHHALTUNG ══════════ */}
+          {adminSection === 'accounting' && <AccountingDashboard />}
 
         </main>
       </div>

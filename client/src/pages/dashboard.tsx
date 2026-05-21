@@ -226,7 +226,10 @@ export default function DashboardPage() {
       if (bankStatementFile) fd.append("bankStatement", bankStatementFile);
       if (idFile) fd.append("idCard", idFile);
       const res = await fetch("/api/fiaon/upload-kyc", { method: "POST", body: fd });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Upload fehlgeschlagen");
+      }
       const d = await res.json();
       setServerDocStatus(prev => ({
         ...prev,
@@ -242,7 +245,7 @@ export default function DashboardPage() {
       if (fileInputRef1.current) fileInputRef1.current.value = "";
       if (fileInputRef2.current) fileInputRef2.current.value = "";
       if (d.allDocumentsUploaded) { setIsUploadSuccess(true); localStorage.setItem("kyc_uploaded", "true"); }
-    } catch { alert("Fehler beim Upload. Bitte erneut versuchen."); }
+    } catch (err: any) { alert(err?.message || "Fehler beim Upload. Bitte erneut versuchen."); }
     finally { setIsUploading(false); }
   }, [bankStatementFile, idFile, user.ref]);
 

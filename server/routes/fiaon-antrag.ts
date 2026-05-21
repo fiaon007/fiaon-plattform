@@ -21,7 +21,7 @@ setInterval(() => {
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max per file
+    fileSize: 25 * 1024 * 1024, // 25MB max per file
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype === 'application/pdf') {
@@ -570,10 +570,20 @@ router.post("/login", async (req, res) => {
 });
 
 // Upload KYC documents
-router.post("/upload-kyc", upload.fields([
-  { name: 'bankStatement', maxCount: 1 },
-  { name: 'idCard', maxCount: 1 }
-]), async (req, res) => {
+router.post("/upload-kyc", (req, res, next) => {
+  upload.fields([
+    { name: 'bankStatement', maxCount: 1 },
+    { name: 'idCard', maxCount: 1 },
+  ])(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: "Datei zu groß. Bitte laden Sie eine PDF unter 25 MB hoch." });
+      }
+      return res.status(400).json({ error: err.message || "Upload-Fehler" });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     const { ref } = req.body;
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };

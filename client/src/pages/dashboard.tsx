@@ -1392,29 +1392,104 @@ export default function DashboardPage() {
                   <div className={`w-2 h-2 rounded-full ${serverDocStatus.accountStatus === 'active' ? 'bg-emerald-400 animate-pulse' : serverDocStatus.accountStatus === 'suspended' ? 'bg-rose-400' : 'bg-amber-400 animate-pulse'}`} />
                   <p className="text-[12px] text-white/40">{serverDocStatus.accountStatus === 'active' ? 'Konto vollständig freigeschaltet' : serverDocStatus.accountStatus === 'suspended' ? 'Konto vorübergehend gesperrt' : 'FIAON prüft deinen Antrag'}</p>
                 </div>
-                <div className="space-y-0 mb-6">
+                <div className="space-y-0 mb-5">
                   {([
-                    { label: 'Antrag eingereicht', done: true },
-                    { label: 'Dokumente hochgeladen', done: docsOk },
-                    { label: 'KYC-Prüfung abgeschlossen', done: serverDocStatus.kycStatus === 'approved' },
-                    { label: 'Konto aktiviert', done: serverDocStatus.accountStatus === 'active' },
-                  ] as { label: string; done: boolean }[]).map((step, i, arr) => (
+                    {
+                      label: 'Antrag eingereicht',
+                      sub: 'Kreditantrag vollständig übermittelt',
+                      done: true, urgent: false,
+                    },
+                    {
+                      label: 'Identitätsdokumente hochgeladen',
+                      sub: serverDocStatus.kycStatus === 'changes_requested'
+                        ? 'Neue Dokumente angefordert'
+                        : docsOk ? 'Kontoauszug & Ausweis vorhanden'
+                        : 'Kontoauszug & Personalausweis/Reisepass ausstehend',
+                      done: docsOk && serverDocStatus.kycStatus !== 'changes_requested',
+                      urgent: serverDocStatus.kycStatus === 'changes_requested',
+                    },
+                    {
+                      label: 'Profil vervollständigt',
+                      sub: serverDocStatus.profileChangesRequested
+                        ? 'Rückfrage von FIAON ausstehend'
+                        : serverDocStatus.profileCompletedAt ? 'Alle Pflichtangaben ausgefüllt'
+                        : 'Reisepass, Ausgaben & weitere Angaben ausstehend',
+                      done: !!serverDocStatus.profileCompletedAt && !serverDocStatus.profileChangesRequested,
+                      urgent: serverDocStatus.profileChangesRequested,
+                    },
+                    {
+                      label: 'Unterlagen geprüft',
+                      sub: serverDocStatus.kycStatus === 'approved'
+                        ? 'Identität & Bonität erfolgreich verifiziert'
+                        : 'FIAON prüft Dokumente und Profilangaben',
+                      done: serverDocStatus.kycStatus === 'approved',
+                      urgent: false,
+                    },
+                    {
+                      label: 'Konto aktiviert',
+                      sub: serverDocStatus.accountStatus === 'active'
+                        ? 'Ihr FIAON-Konto ist vollständig freigeschaltet'
+                        : 'Erfolgt nach abgeschlossener Prüfung',
+                      done: serverDocStatus.accountStatus === 'active',
+                      urgent: false,
+                    },
+                  ].map((step, i, arr) => (
                     <div key={i} className="flex items-start gap-3">
                       <div className="flex flex-col items-center">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${step.done ? 'bg-emerald-500' : 'bg-white/8 border border-white/12'}`}>
-                          {step.done ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> : <div className="w-2 h-2 rounded-full bg-white/20" />}
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${step.done ? 'bg-emerald-500' : step.urgent ? 'bg-amber-500 animate-pulse' : 'border border-white/12'}`} style={!step.done && !step.urgent ? { background: 'rgba(255,255,255,0.05)' } : {}}>
+                          {step.done
+                            ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                            : step.urgent
+                              ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                              : <div className="w-2 h-2 rounded-full bg-white/20" />}
                         </div>
-                        {i < arr.length - 1 && <div className={`w-px my-1 ${step.done ? 'bg-emerald-500/40' : 'bg-white/8'}`} style={{ height: '18px' }} />}
+                        {i < arr.length - 1 && <div className={`w-px my-1 ${step.done ? 'bg-emerald-500/40' : 'bg-white/8'}`} style={{ height: '20px' }} />}
                       </div>
-                      <div className="pb-3 pt-0.5">
-                        <span className={`text-[12px] font-semibold ${step.done ? 'text-white' : 'text-white/30'}`}>{step.label}</span>
+                      <div className="pb-2.5 pt-0.5">
+                        <div className={`text-[12px] font-semibold ${step.done ? 'text-white' : step.urgent ? 'text-amber-300' : 'text-white/35'}`}>{step.label}</div>
+                        <div className={`text-[10px] mt-0.5 ${step.urgent ? 'text-amber-400' : step.done ? 'text-white/30' : 'text-white/20'}`}>{step.sub}</div>
                       </div>
                     </div>
-                  ))}
+                  )))}
                 </div>
+
+                {/* Context-specific action boxes */}
                 {serverDocStatus.accountStatus !== 'active' && (
-                  <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)' }}>
-                    <p className="text-[12px] text-white/55 leading-relaxed">Dein Konto wird nach Prüfung deiner Unterlagen durch FIAON freigeschaltet. Dies dauert in der Regel 1–3 Werktage.</p>
+                  <div className="space-y-2">
+                    {serverDocStatus.kycStatus === 'changes_requested' && serverDocStatus.adminNote && (
+                      <button onClick={() => { setActiveModal(null); setSection('documents'); }} className="w-full text-left rounded-xl p-3.5 transition-colors" style={{ background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.2)' }}>
+                        <div className="text-[11px] font-bold text-rose-300 mb-0.5">Dokumente erneut hochladen</div>
+                        <div className="text-[11px] text-rose-400/80">„{serverDocStatus.adminNote}"</div>
+                        <div className="text-[10px] text-rose-400 mt-1.5 font-semibold">→ Jetzt hochladen</div>
+                      </button>
+                    )}
+                    {!docsOk && serverDocStatus.kycStatus !== 'changes_requested' && (
+                      <button onClick={() => { setActiveModal(null); setSection('documents'); }} className="w-full text-left rounded-xl p-3.5 transition-colors" style={{ background: 'rgba(251,191,36,.08)', border: '1px solid rgba(251,191,36,.15)' }}>
+                        <div className="text-[11px] font-bold text-amber-300 mb-0.5">Schritt ausstehend: Dokumente hochladen</div>
+                        <div className="text-[11px] text-amber-400/70">Kontoauszug und Personalausweis/Reisepass erforderlich</div>
+                        <div className="text-[10px] text-amber-400 mt-1.5 font-semibold">→ Jetzt hochladen</div>
+                      </button>
+                    )}
+                    {serverDocStatus.profileChangesRequested && serverDocStatus.adminProfileNote && (
+                      <button onClick={() => { setActiveModal(null); setSection('account'); }} className="w-full text-left rounded-xl p-3.5 transition-colors" style={{ background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.2)' }}>
+                        <div className="text-[11px] font-bold text-amber-300 mb-0.5">Rückfrage zu Ihren Profilangaben</div>
+                        <div className="text-[11px] text-amber-400/80">„{serverDocStatus.adminProfileNote}"</div>
+                        <div className="text-[10px] text-amber-400 mt-1.5 font-semibold">→ Jetzt beantworten</div>
+                      </button>
+                    )}
+                    {!serverDocStatus.profileCompletedAt && !serverDocStatus.profileChangesRequested && (
+                      <button onClick={() => { setActiveModal(null); setSection('account'); }} className="w-full text-left rounded-xl p-3.5 transition-colors" style={{ background: 'rgba(99,102,241,.1)', border: '1px solid rgba(99,102,241,.18)' }}>
+                        <div className="text-[11px] font-bold text-indigo-300 mb-0.5">Schritt ausstehend: Profil vervollständigen</div>
+                        <div className="text-[11px] text-indigo-400/70">Reisepass-Daten, monatliche Ausgaben & weitere Pflichtangaben</div>
+                        <div className="text-[10px] text-indigo-400 mt-1.5 font-semibold">→ Jetzt ausfüllen</div>
+                      </button>
+                    )}
+                    {docsOk && !!serverDocStatus.profileCompletedAt && !serverDocStatus.profileChangesRequested && serverDocStatus.kycStatus !== 'changes_requested' && (
+                      <div className="rounded-xl p-3.5" style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)' }}>
+                        <div className="text-[11px] font-bold text-white/50 mb-0.5">Unterlagen werden geprüft</div>
+                        <p className="text-[11px] text-white/30 leading-relaxed">Alle Unterlagen und Angaben wurden eingereicht. FIAON prüft Ihre Dokumente und Profildaten — dies dauert in der Regel 1–3 Werktage.</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

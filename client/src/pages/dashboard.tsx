@@ -392,14 +392,14 @@ export default function DashboardPage() {
         </header>
 
         {/* ── PROFIL-RÜCKFRAGE STICKY BANNER (höchste Prio) ── */}
-        {statusLoaded && serverDocStatus.profileChangesRequested && serverDocStatus.adminProfileNote && (
+        {statusLoaded && serverDocStatus.profileChangesRequested && (
           <div className="db-banner shrink-0 flex items-center gap-3 px-4 sm:px-6 py-3 bg-amber-500 text-white z-10 relative">
             <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0 animate-pulse">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 overflow-hidden">
               <span className="text-[12px] font-bold">Rückfrage von FIAON: </span>
-              <span className="text-[12px] truncate">{serverDocStatus.adminProfileNote}</span>
+              <span className="text-[12px] truncate">{serverDocStatus.adminProfileNote || 'Bitte prüfen Sie Ihre Profilangaben unter Mein Konto.'}</span>
             </div>
             <button onClick={() => setSection("account")} className="shrink-0 text-[11px] font-bold bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-lg whitespace-nowrap">
               Jetzt beantworten →
@@ -590,79 +590,104 @@ export default function DashboardPage() {
                   </button>
                 )}
 
-                {/* ── Offene Aufgaben Checkliste ── */}
+                {/* ── Kontoaktivierung Tracker ── */}
                 {(() => {
-                  const tasks = [
+                  const docsDone = docsOk && serverDocStatus.kycStatus !== 'changes_requested';
+                  const profileDone = !!serverDocStatus.profileCompletedAt && !serverDocStatus.profileChangesRequested;
+                  const kycDone = serverDocStatus.kycStatus === 'approved';
+                  const accountDone = serverDocStatus.accountStatus === 'active';
+                  if (docsDone && profileDone && kycDone && accountDone) return null;
+
+                  const steps = [
                     {
-                      done: docsOk,
-                      urgent: serverDocStatus.kycStatus === 'changes_requested',
-                      label: 'Identitätsdokumente hochgeladen',
-                      sub: serverDocStatus.kycStatus === 'changes_requested' ? 'Neue Dokumente angefordert — bitte erneut hochladen' : docsOk ? 'Kontoauszug & Ausweis vorhanden' : 'Kontoauszug und Personalausweis/Reisepass erforderlich',
-                      onClick: () => setSection('documents'),
-                      cta: serverDocStatus.kycStatus === 'changes_requested' ? 'Jetzt hochladen' : 'Dokumente →',
+                      n: 1, done: true, urgent: false, locked: false,
+                      label: 'Antrag eingereicht',
+                      detail: 'Ihr Kreditantrag wurde erfolgreich übermittelt.',
+                      action: null as null | (() => void), cta: null as null | string,
                     },
                     {
-                      done: !!serverDocStatus.profileCompletedAt,
-                      urgent: serverDocStatus.profileChangesRequested,
-                      label: 'Profil vervollständigt',
-                      sub: (serverDocStatus.profileChangesRequested && serverDocStatus.adminProfileNote) ? `Rückfrage: „${serverDocStatus.adminProfileNote}"` : serverDocStatus.profileChangesRequested ? 'Rückfrage von FIAON — Bitte prüfen' : serverDocStatus.profileCompletedAt ? 'Alle Pflichtangaben ausgefüllt' : 'Reisepass, Ausgaben & weitere Angaben ausstehend',
-                      onClick: () => setSection('account'),
-                      cta: serverDocStatus.profileChangesRequested ? 'Jetzt beantworten' : 'Ausfüllen →',
+                      n: 2, done: docsDone, urgent: serverDocStatus.kycStatus === 'changes_requested', locked: false,
+                      label: serverDocStatus.kycStatus === 'changes_requested' ? 'Dokumente erneut einreichen' : docsDone ? 'Dokumente hochgeladen' : 'Dokumente hochladen',
+                      detail: serverDocStatus.kycStatus === 'changes_requested'
+                        ? (serverDocStatus.adminNote ? `FIAON: „${serverDocStatus.adminNote}"` : 'FIAON hat neue Dokumente angefordert.')
+                        : docsDone ? 'Kontoauszug und Lichtbildausweis liegen vor.'
+                        : 'Bitte laden Sie Ihren aktuellen Kontoauszug und einen gültigen Lichtbildausweis hoch.',
+                      action: () => setSection('documents'), cta: serverDocStatus.kycStatus === 'changes_requested' ? 'Jetzt hochladen' : 'Dokumente hochladen',
                     },
                     {
-                      done: serverDocStatus.kycStatus === 'approved',
-                      urgent: false,
-                      label: 'KYC-Prüfung abgeschlossen',
-                      sub: serverDocStatus.kycStatus === 'approved' ? 'Identität erfolgreich verifiziert' : 'Wird nach Eingang Ihrer Unterlagen bearbeitet',
-                      onClick: undefined as (() => void) | undefined,
-                      cta: null,
+                      n: 3, done: profileDone, urgent: serverDocStatus.profileChangesRequested, locked: false,
+                      label: serverDocStatus.profileChangesRequested ? 'Rückfrage beantworten' : profileDone ? 'Profil vollständig' : 'Profil vervollständigen',
+                      detail: serverDocStatus.profileChangesRequested
+                        ? (serverDocStatus.adminProfileNote ? `FIAON: „${serverDocStatus.adminProfileNote}"` : 'FIAON hat eine Rückfrage zu Ihren Profilangaben.')
+                        : profileDone ? 'Alle Pflichtangaben wurden gespeichert.'
+                        : 'Reisepass-Daten, monatliche Ausgaben und weitere Angaben sind noch ausstehend.',
+                      action: () => setSection('account'), cta: serverDocStatus.profileChangesRequested ? 'Jetzt beantworten' : 'Profil ausfüllen',
                     },
                     {
-                      done: serverDocStatus.accountStatus === 'active',
-                      urgent: false,
-                      label: 'Konto freigeschaltet',
-                      sub: serverDocStatus.accountStatus === 'active' ? 'Ihr FIAON-Konto ist aktiv' : 'Erfolgt nach abgeschlossener KYC-Prüfung',
-                      onClick: undefined as (() => void) | undefined,
-                      cta: null,
+                      n: 4, done: kycDone || accountDone, urgent: false, locked: !docsDone || !profileDone,
+                      label: accountDone ? 'Konto aktiviert' : kycDone ? 'Konto wird aktiviert' : 'Prüfung & Aktivierung',
+                      detail: accountDone ? 'Ihr FIAON-Konto ist vollständig freigeschaltet.'
+                        : kycDone ? 'Ihre Unterlagen wurden geprüft — Aktivierung folgt.'
+                        : 'FIAON prüft Ihre Dokumente und Profilangaben nach vollständiger Einreichung.',
+                      action: null, cta: null,
                     },
                   ];
-                  const doneCount = tasks.filter(t => t.done).length;
-                  const hasOpen = doneCount < tasks.length;
-                  if (!hasOpen) return null;
+                  const doneCount = steps.filter(s => s.done).length;
                   return (
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #e2e8f0', background: '#fff' }}>
+                      <div className="px-5 pt-5 pb-4 flex items-center justify-between" style={{ borderBottom: '1px solid #f1f5f9' }}>
                         <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Aktivierungsstatus</p>
-                          <h3 className="text-[14px] font-bold text-slate-900">Offene Aufgaben</h3>
+                          <p className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400 mb-0.5">Kontoaktivierung</p>
+                          <h3 className="text-[15px] font-bold text-slate-900 tracking-tight">Ihre nächsten Schritte</h3>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <div className="text-[11px] font-bold text-slate-500">{doneCount}/{tasks.length}</div>
-                          <div className="w-20 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                            <div className="h-full rounded-full bg-[#2563eb] transition-all" style={{ width: `${(doneCount/tasks.length)*100}%` }} />
+                        <div className="text-right">
+                          <p className="text-[11px] font-bold text-slate-500">{doneCount} <span className="font-normal text-slate-300">von</span> {steps.length}</p>
+                          <div className="flex gap-1 mt-1.5">
+                            {steps.map((s, i) => (
+                              <div key={i} className={`h-1 w-7 rounded-full ${s.done ? 'bg-emerald-500' : s.urgent ? 'bg-amber-400' : 'bg-slate-100'}`} />
+                            ))}
                           </div>
                         </div>
                       </div>
-                      <div className="divide-y divide-slate-50">
-                        {tasks.map((t, i) => (
-                          <div key={i} className={`flex items-center gap-4 px-5 py-3.5 ${t.urgent ? 'bg-amber-50/60' : ''}`}>
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${t.done ? 'bg-emerald-100' : t.urgent ? 'bg-amber-100 animate-pulse' : 'bg-slate-100'}`}>
-                              {t.done
-                                ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                                : t.urgent
-                                  ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                                  : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/></svg>
-                              }
+                      <div>
+                        {steps.map((step, i) => {
+                          const isActionable = !step.done && !step.locked && step.action;
+                          return (
+                            <div key={i}
+                              className={`px-5 py-4 flex items-start gap-4 ${i < steps.length - 1 ? 'border-b border-slate-50' : ''} ${step.urgent ? 'bg-amber-50' : isActionable && !step.urgent ? 'bg-blue-50/40' : ''}`}
+                              style={isActionable ? { cursor: 'pointer' } : {}}
+                              onClick={isActionable ? step.action! : undefined}
+                            >
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${step.done ? 'bg-emerald-500' : step.urgent ? 'bg-amber-500' : step.locked ? 'bg-slate-100' : 'bg-[#2563eb]'}`}>
+                                {step.done
+                                  ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                  : step.urgent
+                                    ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="8" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="white"/></svg>
+                                    : step.locked
+                                      ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                      : <span className="text-white text-[11px] font-bold">{step.n}</span>}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-[13px] font-bold leading-tight ${step.done ? 'text-slate-400' : step.urgent ? 'text-amber-900' : step.locked ? 'text-slate-300' : 'text-slate-800'}`}>{step.label}</p>
+                                <p className={`text-[12px] mt-0.5 leading-relaxed ${step.urgent ? 'text-amber-700' : step.done ? 'text-slate-300' : step.locked ? 'text-slate-300' : 'text-slate-500'}`}>{step.detail}</p>
+                                {isActionable && !step.urgent && (
+                                  <div className="inline-flex items-center gap-1.5 mt-2 text-[12px] font-bold text-[#2563eb]">
+                                    {step.cta}
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                  </div>
+                                )}
+                              </div>
+                              {step.urgent && step.action && (
+                                <button
+                                  onClick={e => { e.stopPropagation(); step.action!(); }}
+                                  className="shrink-0 text-[11px] font-bold px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white transition-colors whitespace-nowrap"
+                                >
+                                  {step.cta}
+                                </button>
+                              )}
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className={`text-[13px] font-semibold ${t.done ? 'text-slate-400 line-through' : t.urgent ? 'text-amber-900' : 'text-slate-800'}`}>{t.label}</div>
-                              <div className={`text-[11px] mt-0.5 ${t.urgent ? 'text-amber-700 font-medium' : 'text-slate-400'}`}>{t.sub}</div>
-                            </div>
-                            {t.cta && t.onClick && !t.done && (
-                              <button onClick={t.onClick} className={`shrink-0 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ${t.urgent ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>{t.cta}</button>
-                            )}
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -755,15 +780,17 @@ export default function DashboardPage() {
                 )}
 
                 {/* Admin-Rückfrage Banner */}
-                {serverDocStatus.profileChangesRequested && (serverDocStatus.adminProfileNote || profileData?.adminProfileNote) && (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b45309" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                {serverDocStatus.profileChangesRequested && (
+                  <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #fbbf24', background: '#fffbeb' }}>
+                    <div className="flex items-center gap-3 px-5 py-3.5" style={{ background: '#f59e0b', borderBottom: '1px solid #fbbf24' }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      <span className="text-[12px] font-bold text-white tracking-wide uppercase">Rückfrage von FIAON — Aktion erforderlich</span>
                     </div>
-                    <div>
-                      <div className="text-[13px] font-bold text-amber-900">Rückfrage von FIAON zu Ihren Profilangaben</div>
-                      <div className="text-[13px] text-amber-800 mt-1 leading-relaxed">„{serverDocStatus.adminProfileNote || profileData?.adminProfileNote}"</div>
-                      <div className="text-[11px] text-amber-600 mt-2">Bitte ergänzen Sie die angefragten Angaben im Abschnitt „Profil vervollständigen" und speichern Sie.</div>
+                    <div className="px-5 py-4">
+                      <p className="text-[13px] font-semibold text-amber-900 leading-relaxed">
+                        {(serverDocStatus.adminProfileNote || profileData?.adminProfileNote) || 'FIAON hat eine Rückfrage zu Ihren Profilangaben. Bitte prüfen Sie die nachfolgenden Felder und speichern Sie Ihre aktualisierten Angaben.'}
+                      </p>
+                      <p className="text-[12px] text-amber-700 mt-2">Aktualisieren Sie die entsprechenden Felder im Formular unten und klicken Sie auf <strong>„Angaben speichern"</strong>.</p>
                     </div>
                   </div>
                 )}

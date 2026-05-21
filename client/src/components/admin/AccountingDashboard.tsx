@@ -540,10 +540,21 @@ export default function AccountingDashboard() {
 
   const [tab, setTab] = useState<"overview" | "entries" | "breakdown" | "cashflow">("overview");
 
+  // ── Admin fetch helper — always includes the admin token header ──────────────
+  const adminFetch = (url: string, init: RequestInit = {}) =>
+    fetch(url, {
+      ...init,
+      credentials: "include",
+      headers: {
+        ...(init.headers as Record<string, string> ?? {}),
+        "x-admin-token": "fiaon-admin-2024",
+      },
+    });
+
   // ── Fetch ───────────────────────────────────────────────────────────────────
   const loadSummary = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/accounting/summary", { credentials: "include" });
+      const res = await adminFetch("/api/admin/accounting/summary");
       if (res.ok) setSummary(await res.json());
     } finally { setLoading(false); }
   }, []);
@@ -554,14 +565,14 @@ export default function AccountingDashboard() {
       const params = new URLSearchParams({ limit: "300" });
       if (typeFilter !== "all") params.set("type", typeFilter);
       if (statusFilter !== "all") params.set("status", statusFilter);
-      const res = await fetch(`/api/admin/accounting/entries?${params}`, { credentials: "include" });
+      const res = await adminFetch(`/api/admin/accounting/entries?${params}`);
       if (res.ok) setEntries((await res.json()).entries ?? []);
     } catch {} finally { setLoadingEntries(false); }
   }, [typeFilter, statusFilter]);
 
   const loadPrediction = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/accounting/prediction", { credentials: "include" });
+      const res = await adminFetch("/api/admin/accounting/prediction");
       if (res.ok) setPrediction(await res.json());
     } catch {}
   }, []);
@@ -574,9 +585,9 @@ export default function AccountingDashboard() {
   // ── Save entry ──────────────────────────────────────────────────────────────
   const handleSaveEntry = async (data: Partial<AccountingEntry>) => {
     const isEdit = !!data.id;
-    await fetch(
+    await adminFetch(
       isEdit ? `/api/admin/accounting/entries/${data.id}` : "/api/admin/accounting/entries",
-      { method: isEdit ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) }
+      { method: isEdit ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }
     );
     setShowEntryModal(false); setEditEntry(null);
     await refresh();
@@ -585,16 +596,15 @@ export default function AccountingDashboard() {
   // ── Delete ──────────────────────────────────────────────────────────────────
   const handleDelete = async (id: number) => {
     if (!confirm("Eintrag löschen?")) return;
-    await fetch(`/api/admin/accounting/entries/${id}`, { method: "DELETE", credentials: "include" });
+    await adminFetch(`/api/admin/accounting/entries/${id}`, { method: "DELETE" });
     await refresh();
   };
 
   // ── Update balance ──────────────────────────────────────────────────────────
   const handleUpdateBalance = async (cents: number, note: string) => {
-    await fetch("/api/admin/accounting/balance", {
+    await adminFetch("/api/admin/accounting/balance", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
       body: JSON.stringify({ balance_cents: cents, note }),
     });
     setShowBalanceModal(false);

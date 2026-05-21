@@ -521,6 +521,285 @@ function CashflowBars({ data }: { data: { month: string; outCents: number; inCen
 }
 
 // ============================================================================
+// Kalkulation Tab — Scenario Calculator
+// ============================================================================
+type KalkRow = { id: number; label: string; amount: string; type: "income" | "expense" };
+
+function KalkulationTab({ startBalance }: { startBalance: number }) {
+  const [rows, setRows] = useState<KalkRow[]>([
+    { id: 1, label: "", amount: "", type: "expense" },
+  ]);
+
+  const addRow = () =>
+    setRows(r => [...r, { id: Date.now(), label: "", amount: "", type: "expense" }]);
+  const removeRow = (id: number) => setRows(r => r.filter(x => x.id !== id));
+  const upd = (id: number, key: keyof KalkRow, val: any) =>
+    setRows(r => r.map(x => (x.id === id ? { ...x, [key]: val } : x)));
+
+  let running = startBalance;
+  const rowsCalc = rows.map(row => {
+    const amt = Math.round((parseFloat(row.amount.replace(",", ".")) || 0) * 100);
+    const delta = row.type === "income" ? amt : -amt;
+    running += delta;
+    return { ...row, amt, delta, runningBalance: running };
+  });
+  const totalChange = running - startBalance;
+
+  return (
+    <div className="space-y-4">
+      {/* Header info */}
+      <div className="bg-slate-900 text-white rounded-2xl p-5">
+        <p className="text-[10px] tracking-widest uppercase font-semibold opacity-40 mb-1">Startsaldo</p>
+        <p className="text-[28px] font-bold tabular-nums">{eur(startBalance)}</p>
+        <p className="text-[11px] opacity-40 mt-1">Gib Szenarien ein um den Effekt auf deinen Kontostand zu sehen</p>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="grid grid-cols-[1fr_2fr_1.4fr_1.2fr_28px] text-[10px] font-bold uppercase tracking-wider text-slate-400 px-4 py-2.5 border-b border-slate-100 bg-slate-50">
+          <span>Typ</span><span>Bezeichnung</span><span>Betrag (€)</span><span>Kontostand</span><span></span>
+        </div>
+        {/* Startzeile */}
+        <div className="grid grid-cols-[1fr_2fr_1.4fr_1.2fr_28px] items-center px-4 py-2.5 border-b border-slate-50 bg-emerald-50/40">
+          <span className="text-[11px] font-semibold text-slate-400">Start</span>
+          <span className="text-[12px] text-slate-500">Aktueller Kontostand</span>
+          <span></span>
+          <span className="text-[13px] font-bold tabular-nums text-slate-900">{eur(startBalance)}</span>
+          <span></span>
+        </div>
+        {rowsCalc.map((row, idx) => (
+          <div key={row.id} className="grid grid-cols-[1fr_2fr_1.4fr_1.2fr_28px] items-center px-4 py-2 border-b border-slate-50 hover:bg-slate-50 transition-colors">
+            {/* Type toggle */}
+            <div className="flex rounded-lg overflow-hidden border border-slate-200 text-[10px] font-bold w-fit">
+              <button onClick={() => upd(row.id, "type", "income")}
+                className={`px-2 py-1 transition-colors ${row.type === "income" ? "bg-emerald-500 text-white" : "bg-white text-slate-400"}`}>+</button>
+              <button onClick={() => upd(row.id, "type", "expense")}
+                className={`px-2 py-1 transition-colors ${row.type === "expense" ? "bg-red-400 text-white" : "bg-white text-slate-400"}`}>−</button>
+            </div>
+            {/* Label */}
+            <input
+              value={row.label}
+              onChange={e => upd(row.id, "label", e.target.value)}
+              placeholder={`Position ${idx + 1}`}
+              className="mx-2 px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[12px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-300 w-full"
+            />
+            {/* Amount */}
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={row.amount}
+              onChange={e => upd(row.id, "amount", e.target.value)}
+              placeholder="0,00"
+              className="px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[12px] tabular-nums text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-300 w-full"
+            />
+            {/* Running balance */}
+            <span className={`text-[12px] font-bold tabular-nums ml-2 ${
+              row.runningBalance < startBalance ? "text-red-500" : "text-emerald-600"
+            }`}>{eur(row.runningBalance)}</span>
+            {/* Delete */}
+            <button onClick={() => removeRow(row.id)} className="text-slate-300 hover:text-red-400 transition-colors text-[14px] font-bold ml-1">×</button>
+          </div>
+        ))}
+        {/* Add row */}
+        <div className="px-4 py-2.5">
+          <button onClick={addRow}
+            className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-400 hover:text-slate-700 transition-colors">
+            <span className="text-[16px] font-bold leading-none">+</span> Zeile hinzufügen
+          </button>
+        </div>
+      </div>
+
+      {/* Result summary */}
+      <div className={`rounded-2xl p-5 ${totalChange >= 0 ? "bg-emerald-50 border border-emerald-200" : "bg-red-50 border border-red-200"}`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Ergebnis nach Szenario</p>
+            <p className={`text-[26px] font-bold tabular-nums ${totalChange >= 0 ? "text-emerald-700" : "text-red-600"}`}>{eur(running)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-semibold text-slate-400 mb-1">Veränderung</p>
+            <p className={`text-[18px] font-bold tabular-nums ${totalChange >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+              {totalChange >= 0 ? "+" : ""}{eur(totalChange)}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Kalender Tab
+// ============================================================================
+const MONTHS_DE = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+const DAYS_DE = ["Mo","Di","Mi","Do","Fr","Sa","So"];
+
+function KalenderTab({ entries }: { entries: AccountingEntry[] }) {
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth());
+  const [year, setYear]   = useState(now.getFullYear());
+  const [selected, setSelected] = useState<number | null>(null);
+
+  const prev = () => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); };
+  const next = () => { if (month === 11) { setMonth(0);  setYear(y => y + 1); } else setMonth(m => m + 1); };
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDow    = new Date(year, month, 1).getDay(); // 0=Sun
+  const startOffset = firstDow === 0 ? 6 : firstDow - 1; // convert to Mon=0
+
+  // Group entries by day number for this month/year
+  const byDay = useMemo(() => {
+    const map: Record<number, AccountingEntry[]> = {};
+    entries.forEach(e => {
+      const raw = e.entry_date?.split("T")[0];
+      if (!raw) return;
+      const [ey, em, ed] = raw.split("-").map(Number);
+      if (ey === year && em === month + 1) {
+        if (!map[ed]) map[ed] = [];
+        map[ed].push(e);
+      }
+    });
+    return map;
+  }, [entries, month, year]);
+
+  const todayDay = now.getMonth() === month && now.getFullYear() === year ? now.getDate() : -1;
+  const selectedEntries = selected != null ? (byDay[selected] ?? []) : [];
+
+  const cells: (number | null)[] = [
+    ...Array(startOffset).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  // Pad to full weeks
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return (
+    <div className="space-y-4">
+      {/* Month navigation */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <button onClick={prev} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors text-slate-500 font-bold">‹</button>
+          <p className="text-[14px] font-bold text-slate-900">{MONTHS_DE[month]} {year}</p>
+          <button onClick={next} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors text-slate-500 font-bold">›</button>
+        </div>
+
+        {/* Day headers */}
+        <div className="grid grid-cols-7 border-b border-slate-100">
+          {DAYS_DE.map(d => (
+            <div key={d} className="py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-400">{d}</div>
+          ))}
+        </div>
+
+        {/* Calendar grid */}
+        <div className="grid grid-cols-7">
+          {cells.map((day, idx) => {
+            const dayEntries = day ? (byDay[day] ?? []) : [];
+            const inCents  = dayEntries.filter(e => ["income","client_payment"].includes(e.entry_type)).reduce((s,e) => s + e.amount_cents, 0);
+            const outCents = dayEntries.filter(e => !["income","client_payment"].includes(e.entry_type)).reduce((s,e) => s + e.amount_cents, 0);
+            const isToday   = day === todayDay;
+            const isSel     = day === selected;
+            const hasItems  = dayEntries.length > 0;
+
+            return (
+              <div
+                key={idx}
+                onClick={() => day && setSelected(isSel ? null : day)}
+                className={`min-h-[64px] p-1.5 border-b border-r border-slate-50 transition-colors ${
+                  !day ? "bg-slate-50/50" :
+                  isSel ? "bg-slate-900 cursor-pointer" :
+                  hasItems ? "cursor-pointer hover:bg-slate-50" :
+                  "hover:bg-slate-50 cursor-default"
+                }`}
+              >
+                {day && (
+                  <>
+                    <div className={`w-6 h-6 flex items-center justify-center rounded-full text-[12px] font-semibold mb-1 ${
+                      isSel ? "bg-white text-slate-900" :
+                      isToday ? "bg-slate-900 text-white" :
+                      "text-slate-600"
+                    }`}>{day}</div>
+                    {inCents > 0 && (
+                      <div className={`text-[9px] font-bold tabular-nums truncate rounded px-1 py-0.5 ${isSel ? "bg-emerald-500/20 text-emerald-300" : "bg-emerald-50 text-emerald-700"}`}>
+                        +{eur(inCents)}
+                      </div>
+                    )}
+                    {outCents > 0 && (
+                      <div className={`text-[9px] font-bold tabular-nums truncate rounded px-1 py-0.5 mt-0.5 ${isSel ? "bg-red-500/20 text-red-300" : "bg-red-50 text-red-600"}`}>
+                        −{eur(outCents)}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Selected day detail */}
+      {selected !== null && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">
+            {selected}. {MONTHS_DE[month]} {year} · {selectedEntries.length} Einträge
+          </p>
+          {selectedEntries.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-3">Keine Einträge an diesem Tag</p>
+          ) : (
+            <div className="space-y-2">
+              {selectedEntries.map(e => {
+                const isIn = ["income","client_payment"].includes(e.entry_type);
+                return (
+                  <div key={e.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+                    <div>
+                      <p className="text-[13px] font-semibold text-slate-800">{e.title}</p>
+                      {e.vendor && <p className="text-[11px] text-slate-400">{e.vendor}</p>}
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-[13px] font-bold tabular-nums ${isIn ? "text-emerald-600" : "text-red-500"}`}>
+                        {isIn ? "+" : "−"}{eur(e.amount_cents)}
+                      </p>
+                      <p className="text-[10px] text-slate-400">{TYPE_META[e.entry_type]?.label ?? e.entry_type}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Monthly summary */}
+      {(() => {
+        const monthEntries = entries.filter(e => {
+          const raw = e.entry_date?.split("T")[0];
+          if (!raw) return false;
+          const [ey, em] = raw.split("-").map(Number);
+          return ey === year && em === month + 1;
+        });
+        const totalIn  = monthEntries.filter(e => ["income","client_payment"].includes(e.entry_type)).reduce((s,e) => s + e.amount_cents, 0);
+        const totalOut = monthEntries.filter(e => !["income","client_payment"].includes(e.entry_type)).reduce((s,e) => s + e.amount_cents, 0);
+        const net      = totalIn - totalOut;
+        if (monthEntries.length === 0) return null;
+        return (
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "Einnahmen",  val: eur(totalIn),  cls: "text-emerald-600" },
+              { label: "Ausgaben",   val: eur(totalOut), cls: "text-red-500" },
+              { label: "Netto",      val: (net >= 0 ? "+" : "") + eur(net), cls: net >= 0 ? "text-emerald-700" : "text-red-600" },
+            ].map(k => (
+              <div key={k.label} className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 text-center">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{k.label}</p>
+                <p className={`text-[15px] font-bold tabular-nums mt-1 ${k.cls}`}>{k.val}</p>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ============================================================================
 // Main Component
 // ============================================================================
 export default function AccountingDashboard() {
@@ -538,7 +817,7 @@ export default function AccountingDashboard() {
   const [editEntry, setEditEntry] = useState<AccountingEntry | null>(null);
   const [showBalanceModal, setShowBalanceModal] = useState(false);
 
-  const [tab, setTab] = useState<"overview" | "entries" | "breakdown" | "cashflow">("overview");
+  const [tab, setTab] = useState<"overview" | "entries" | "breakdown" | "cashflow" | "kalkulation" | "kalender">("overview");
 
   // ── Admin fetch helper — always includes the admin token header ──────────────
   const adminFetch = (url: string, init: RequestInit = {}) =>
@@ -671,15 +950,17 @@ export default function AccountingDashboard() {
       <PredictionCard pred={prediction} />
 
       {/* ── Tabs */}
-      <div className="flex gap-px bg-slate-100 rounded-lg overflow-hidden p-0.5">
+      <div className="flex flex-wrap gap-px bg-slate-100 rounded-lg overflow-hidden p-0.5">
         {([
-          { id: "overview",  label: "Übersicht" },
-          { id: "entries",   label: "Transaktionen" },
-          { id: "breakdown", label: "Kategorien" },
-          { id: "cashflow",  label: "Cashflow" },
+          { id: "overview",     label: "Übersicht" },
+          { id: "entries",      label: "Transaktionen" },
+          { id: "breakdown",    label: "Kategorien" },
+          { id: "cashflow",     label: "Cashflow" },
+          { id: "kalkulation",  label: "Kalkulation" },
+          { id: "kalender",     label: "Kalender" },
         ] as { id: typeof tab; label: string }[]).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex-1 py-2 rounded-md text-[12px] font-semibold transition-all ${
+            className={`flex-1 min-w-[80px] py-2 rounded-md text-[11px] font-semibold transition-all ${
               tab === t.id ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
             }`}>{t.label}</button>
         ))}
@@ -992,6 +1273,16 @@ export default function AccountingDashboard() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ══════════ TAB: KALKULATION ══════════ */}
+      {tab === "kalkulation" && (
+        <KalkulationTab startBalance={summary?.balance?.cents ?? 0} />
+      )}
+
+      {/* ══════════ TAB: KALENDER ══════════ */}
+      {tab === "kalender" && (
+        <KalenderTab entries={entries} />
       )}
 
       {/* Floating Add Button */}

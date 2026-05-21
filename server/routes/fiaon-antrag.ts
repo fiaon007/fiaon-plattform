@@ -700,6 +700,9 @@ router.get("/kyc-status/:ref", async (req, res) => {
   try {
     const { ref } = req.params;
 
+    // Ensure profile columns exist
+    await sqlPool`ALTER TABLE fiaon_applications ADD COLUMN IF NOT EXISTS profile_completed_at TIMESTAMP, ADD COLUMN IF NOT EXISTS admin_profile_note TEXT, ADD COLUMN IF NOT EXISTS profile_changes_requested BOOLEAN DEFAULT FALSE`.catch(() => {});
+
     const apps = await sqlPool`
       SELECT
         CASE WHEN bank_statement_pdf IS NOT NULL THEN true ELSE false END as has_bank_statement,
@@ -711,7 +714,10 @@ router.get("/kyc-status/:ref", async (req, res) => {
         admin_note,
         admin_reviewed_at,
         reupload_bank_statement,
-        reupload_id_card
+        reupload_id_card,
+        admin_profile_note,
+        profile_changes_requested,
+        profile_completed_at
       FROM fiaon_applications
       WHERE ref = ${ref}
       LIMIT 1
@@ -735,6 +741,7 @@ router.get("/kyc-status/:ref", async (req, res) => {
       reuploadIdCard: app.reupload_id_card ?? false,
       adminProfileNote: app.admin_profile_note ?? null,
       profileChangesRequested: app.profile_changes_requested ?? false,
+      profileCompletedAt: app.profile_completed_at ?? null,
     });
   } catch (err) {
     console.error("[FIAON-KYC-STATUS]", err);

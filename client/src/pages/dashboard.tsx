@@ -195,7 +195,7 @@ export default function DashboardPage() {
   const [idFile, setIdFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadSuccess, setIsUploadSuccess] = useState(() => localStorage.getItem("kyc_uploaded") === "true");
-  const [serverDocStatus, setServerDocStatus] = useState({ hasBankStatement: false, hasIdCard: false, documentsUploadedAt: null as string | null, kycStatus: 'pending' as string, accountStatus: 'pending' as string, adminNote: null as string | null, reuploadBankStatement: false, reuploadIdCard: false, adminProfileNote: null as string | null, profileChangesRequested: false });
+  const [serverDocStatus, setServerDocStatus] = useState({ hasBankStatement: false, hasIdCard: false, documentsUploadedAt: null as string | null, kycStatus: 'pending' as string, accountStatus: 'pending' as string, adminNote: null as string | null, reuploadBankStatement: false, reuploadIdCard: false, adminProfileNote: null as string | null, profileChangesRequested: false, profileCompletedAt: null as string | null });
   const [profileData, setProfileData] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
@@ -222,7 +222,7 @@ export default function DashboardPage() {
     if (user?.email) { try { Clarity.identify(user.email); } catch {} }
     if (user?.ref) {
       fetch(`/api/fiaon/kyc-status/${user.ref}`).then(r => r.json()).then(d => {
-        setServerDocStatus({ hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard, documentsUploadedAt: d.documentsUploadedAt, kycStatus: d.kycStatus ?? 'pending', accountStatus: d.accountStatus ?? 'pending', adminNote: d.adminNote ?? null, reuploadBankStatement: d.reuploadBankStatement ?? false, reuploadIdCard: d.reuploadIdCard ?? false, adminProfileNote: d.adminProfileNote ?? null, profileChangesRequested: d.profileChangesRequested ?? false });
+        setServerDocStatus({ hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard, documentsUploadedAt: d.documentsUploadedAt, kycStatus: d.kycStatus ?? 'pending', accountStatus: d.accountStatus ?? 'pending', adminNote: d.adminNote ?? null, reuploadBankStatement: d.reuploadBankStatement ?? false, reuploadIdCard: d.reuploadIdCard ?? false, adminProfileNote: d.adminProfileNote ?? null, profileChangesRequested: d.profileChangesRequested ?? false, profileCompletedAt: d.profileCompletedAt ?? null });
         if (d.hasBankStatement && d.hasIdCard) { setIsUploadSuccess(true); localStorage.setItem("kyc_uploaded", "true"); }
       }).catch(() => {});
     }
@@ -388,6 +388,38 @@ export default function DashboardPage() {
             <span className="text-[11px] text-slate-400 font-medium hidden sm:block">{serverDocStatus.accountStatus === 'active' ? 'Konto aktiv' : 'In Prüfung'}</span>
           </div>
         </header>
+
+        {/* ── PROFIL-RÜCKFRAGE STICKY BANNER (höchste Prio) ── */}
+        {serverDocStatus.profileChangesRequested && serverDocStatus.adminProfileNote && (
+          <div className="db-banner shrink-0 flex items-center gap-3 px-4 sm:px-6 py-3 bg-amber-500 text-white z-10 relative">
+            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0 animate-pulse">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-[12px] font-bold">Rückfrage von FIAON: </span>
+              <span className="text-[12px] truncate">{serverDocStatus.adminProfileNote}</span>
+            </div>
+            <button onClick={() => setSection("account")} className="shrink-0 text-[11px] font-bold bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-lg whitespace-nowrap">
+              Jetzt beantworten →
+            </button>
+          </div>
+        )}
+
+        {/* ── PROFIL UNVOLLSTÄNDIG BANNER ── */}
+        {!serverDocStatus.profileCompletedAt && !serverDocStatus.profileChangesRequested && mounted && (
+          <div className="db-banner shrink-0 flex items-center gap-3 px-4 sm:px-6 py-3 bg-[#1d4ed8] text-white z-10 relative">
+            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-[12px] font-bold">Profil unvollständig: </span>
+              <span className="text-[12px]">Reisepass, Ausgaben & weitere Angaben für die Kontoaktivierung erforderlich.</span>
+            </div>
+            <button onClick={() => setSection("account")} className="shrink-0 text-[11px] font-bold bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-lg whitespace-nowrap">
+              Jetzt ausfüllen →
+            </button>
+          </div>
+        )}
 
         {/* ── ADMIN-NACHRICHT STICKY BANNER ── */}
         {serverDocStatus.kycStatus === 'changes_requested' && serverDocStatus.adminNote && (
@@ -555,6 +587,84 @@ export default function DashboardPage() {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" className="group-hover:translate-x-1 transition-transform"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                   </button>
                 )}
+
+                {/* ── Offene Aufgaben Checkliste ── */}
+                {(() => {
+                  const tasks = [
+                    {
+                      done: docsOk,
+                      urgent: serverDocStatus.kycStatus === 'changes_requested',
+                      label: 'Identitätsdokumente hochgeladen',
+                      sub: serverDocStatus.kycStatus === 'changes_requested' ? 'Neue Dokumente angefordert — bitte erneut hochladen' : docsOk ? 'Kontoauszug & Ausweis vorhanden' : 'Kontoauszug und Personalausweis/Reisepass erforderlich',
+                      onClick: () => setSection('documents'),
+                      cta: serverDocStatus.kycStatus === 'changes_requested' ? 'Jetzt hochladen' : 'Dokumente →',
+                    },
+                    {
+                      done: !!serverDocStatus.profileCompletedAt,
+                      urgent: serverDocStatus.profileChangesRequested,
+                      label: 'Profil vervollständigt',
+                      sub: serverDocStatus.profileChangesRequested ? `Rückfrage von FIAON: „${serverDocStatus.adminProfileNote}"` : serverDocStatus.profileCompletedAt ? 'Alle Pflichtangaben ausgefüllt' : 'Reisepass, Ausgaben & weitere Angaben ausstehend',
+                      onClick: () => setSection('account'),
+                      cta: serverDocStatus.profileChangesRequested ? 'Jetzt beantworten' : 'Ausfüllen →',
+                    },
+                    {
+                      done: serverDocStatus.kycStatus === 'approved',
+                      urgent: false,
+                      label: 'KYC-Prüfung abgeschlossen',
+                      sub: serverDocStatus.kycStatus === 'approved' ? 'Identität erfolgreich verifiziert' : 'Wird nach Eingang Ihrer Unterlagen bearbeitet',
+                      onClick: undefined as (() => void) | undefined,
+                      cta: null,
+                    },
+                    {
+                      done: serverDocStatus.accountStatus === 'active',
+                      urgent: false,
+                      label: 'Konto freigeschaltet',
+                      sub: serverDocStatus.accountStatus === 'active' ? 'Ihr FIAON-Konto ist aktiv' : 'Erfolgt nach abgeschlossener KYC-Prüfung',
+                      onClick: undefined as (() => void) | undefined,
+                      cta: null,
+                    },
+                  ];
+                  const doneCount = tasks.filter(t => t.done).length;
+                  const hasOpen = doneCount < tasks.length;
+                  if (!hasOpen) return null;
+                  return (
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Aktivierungsstatus</p>
+                          <h3 className="text-[14px] font-bold text-slate-900">Offene Aufgaben</h3>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-[11px] font-bold text-slate-500">{doneCount}/{tasks.length}</div>
+                          <div className="w-20 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                            <div className="h-full rounded-full bg-[#2563eb] transition-all" style={{ width: `${(doneCount/tasks.length)*100}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="divide-y divide-slate-50">
+                        {tasks.map((t, i) => (
+                          <div key={i} className={`flex items-center gap-4 px-5 py-3.5 ${t.urgent ? 'bg-amber-50/60' : ''}`}>
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${t.done ? 'bg-emerald-100' : t.urgent ? 'bg-amber-100 animate-pulse' : 'bg-slate-100'}`}>
+                              {t.done
+                                ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                : t.urgent
+                                  ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                  : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/></svg>
+                              }
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className={`text-[13px] font-semibold ${t.done ? 'text-slate-400 line-through' : t.urgent ? 'text-amber-900' : 'text-slate-800'}`}>{t.label}</div>
+                              <div className={`text-[11px] mt-0.5 ${t.urgent ? 'text-amber-700 font-medium' : 'text-slate-400'}`}>{t.sub}</div>
+                            </div>
+                            {t.cta && t.onClick && !t.done && (
+                              <button onClick={t.onClick} className={`shrink-0 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ${t.urgent ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>{t.cta}</button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 

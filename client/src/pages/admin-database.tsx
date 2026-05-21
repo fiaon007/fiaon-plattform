@@ -39,6 +39,7 @@ export default function AdminDatabasePage() {
   const [reviewSuccess, setReviewSuccess] = useState<string | null>(null);
   const [reuploadBank, setReuploadBank] = useState(false);
   const [reuploadId, setReuploadId] = useState(false);
+  const [profileNote, setProfileNote] = useState('');
   const [adminSection, setAdminSection] = useState<'overview'|'applications'|'tasks'|'command'|'radar'|'knowledge'>('overview');
 
   const sendReview = async (kycStatus?: string, accountStatus?: string, noteOverride?: string, reuploadBankOverride?: boolean, reuploadIdOverride?: boolean) => {
@@ -62,7 +63,7 @@ export default function AdminDatabasePage() {
         body: JSON.stringify(body),
       });
       if (res.ok) {
-        setSelectedApp({ ...selectedApp, kyc_status: kycStatus ?? selectedApp.kyc_status, account_status: accountStatus ?? selectedApp.account_status, admin_note: body.adminNote ?? selectedApp.admin_note, reupload_bank_statement: body.reuploadBankStatement ?? selectedApp.reupload_bank_statement, reupload_id_card: body.reuploadIdCard ?? selectedApp.reupload_id_card });
+        setSelectedApp({ ...selectedApp, kyc_status: kycStatus ?? selectedApp.kyc_status, account_status: accountStatus ?? selectedApp.account_status, admin_note: body.adminNote ?? selectedApp.admin_note, reupload_bank_statement: body.reuploadBankStatement ?? selectedApp.reupload_bank_statement, reupload_id_card: body.reuploadIdCard ?? selectedApp.reupload_id_card, admin_profile_note: body.adminProfileNote ?? selectedApp.admin_profile_note, profile_changes_requested: body.profileChangesRequested ?? selectedApp.profile_changes_requested });
         setApplications(prev => prev.map(a => a.ref === selectedApp.ref ? { ...a, ...body } : a));
         setReviewSuccess('Gespeichert');
         setTimeout(() => setReviewSuccess(null), 2500);
@@ -755,6 +756,32 @@ export default function AdminDatabasePage() {
                 </div>
               </div>
 
+              <SectionHeadline>Profil-Ergänzungen</SectionHeadline>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-6 border-b border-slate-100">
+                <DetailField label="Umgezogen (6 Mo.)" value={selectedApp.moved_recently ? 'Ja' : 'Nein'} />
+                <DetailField label="Frühere Anschrift" value={[selectedApp.previous_street, [selectedApp.previous_zip, selectedApp.previous_city].filter(Boolean).join(' '), selectedApp.previous_country].filter(Boolean).join(', ') || null} />
+                <DetailField label="Reisepass-Nr." value={selectedApp.passport_number} mono />
+                <DetailField label="Pass gültig bis" value={selectedApp.passport_expiry ? new Date(selectedApp.passport_expiry).toLocaleDateString('de-DE') : null} />
+                <DetailField label="Weitere Einkünfte" value={selectedApp.has_additional_income ? 'Ja' : 'Nein'} />
+                <DetailField label="Einkunftsart" value={selectedApp.additional_income_sources} />
+                <DetailField label="Zusatz-Einkommen" value={selectedApp.additional_income_amount != null ? `€ ${selectedApp.additional_income_amount}/mtl.` : null} />
+                <div className="col-span-2">
+                  {selectedApp.expenses_food != null && (
+                    <div className="grid grid-cols-3 gap-2">
+                      {[['Lebensmittel', selectedApp.expenses_food],['Mobilität', selectedApp.expenses_transport],['Versicherungen', selectedApp.expenses_insurance],['Kredite', selectedApp.expenses_loans],['Abonnements', selectedApp.expenses_subscriptions],['Sonstiges', selectedApp.expenses_other]].map(([l,v]) => (
+                        <div key={String(l)} className="text-center">
+                          <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">{l}</div>
+                          <div className="text-[12px] font-bold text-slate-700 mt-0.5">{v != null ? `€ ${v}` : '—'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="col-span-2">
+                  <DetailField label="Profil gespeichert" value={selectedApp.profile_completed_at ? new Date(selectedApp.profile_completed_at).toLocaleDateString('de-DE') : null} />
+                </div>
+              </div>
+
               <SectionHeadline>Admin Entscheidung</SectionHeadline>
               <div className="space-y-4 pb-6 border-b border-slate-100">
                 <div className="flex gap-2 flex-wrap">
@@ -788,6 +815,28 @@ export default function AdminDatabasePage() {
                     <div className="text-[11px] text-slate-500 bg-slate-50 rounded-xl px-3.5 py-2.5 space-y-0.5">
                       <p>Nachricht: „{selectedApp.admin_note}"</p>
                       <p className="text-slate-400">Angefordert: {[selectedApp.reupload_bank_statement&&'Kontoauszug',selectedApp.reupload_id_card&&'Ausweis'].filter(Boolean).join(', ')||'—'}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 space-y-2.5">
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Profil-Rückfrage an Kunde</p>
+                  <textarea value={profileNote} onChange={e => setProfileNote(e.target.value)} placeholder="z. B. Bitte ergänzen Sie Ihre Reisepassnummer und das Ablaufdatum." rows={2} className="w-full text-[13px] border border-slate-200 rounded-xl px-3.5 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-amber-200 text-slate-700 bg-white" />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { const body: any = { adminProfileNote: profileNote.trim(), profileChangesRequested: true }; fetch(`/api/fiaon/admin/applications/${selectedApp.ref}/review`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) }).then(r => r.ok && (setSelectedApp({...selectedApp, admin_profile_note: profileNote.trim(), profile_changes_requested: true}), setProfileNote(''), setReviewSuccess('Profil-Rückfrage gesendet'), setTimeout(() => setReviewSuccess(null), 2500))); }}
+                      disabled={reviewLoading || !profileNote.trim()}
+                      className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors"
+                    >Profil-Rückfrage senden</button>
+                    {selectedApp.admin_profile_note && (
+                      <button onClick={() => { fetch(`/api/fiaon/admin/applications/${selectedApp.ref}/review`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ adminProfileNote: '', profileChangesRequested: false }) }).then(r => r.ok && setSelectedApp({...selectedApp, admin_profile_note: null, profile_changes_requested: false})); }} className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">Rückfrage schließen</button>
+                    )}
+                  </div>
+                  {selectedApp.admin_profile_note && (
+                    <div className="text-[11px] text-slate-500 bg-amber-50 border border-amber-100 rounded-xl px-3.5 py-2.5">
+                      <p className="font-semibold text-amber-700 mb-0.5">Aktive Rückfrage:</p>
+                      <p>„{selectedApp.admin_profile_note}"</p>
+                      <p className="text-amber-500 mt-0.5">{selectedApp.profile_changes_requested ? 'Ausstehend — Kunde wurde benachrichtigt' : 'Beantwortet'}</p>
                     </div>
                   )}
                 </div>

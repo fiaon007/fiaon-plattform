@@ -195,7 +195,18 @@ export default function DashboardPage() {
   const [idFile, setIdFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadSuccess, setIsUploadSuccess] = useState(() => localStorage.getItem("kyc_uploaded") === "true");
-  const [serverDocStatus, setServerDocStatus] = useState({ hasBankStatement: false, hasIdCard: false, documentsUploadedAt: null as string | null, kycStatus: 'pending' as string, accountStatus: 'pending' as string, adminNote: null as string | null, reuploadBankStatement: false, reuploadIdCard: false });
+  const [serverDocStatus, setServerDocStatus] = useState({ hasBankStatement: false, hasIdCard: false, documentsUploadedAt: null as string | null, kycStatus: 'pending' as string, accountStatus: 'pending' as string, adminNote: null as string | null, reuploadBankStatement: false, reuploadIdCard: false, adminProfileNote: null as string | null, profileChangesRequested: false });
+  const [profileData, setProfileData] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [activeTooltip, setActiveTooltip] = useState<string|null>(null);
+  const [profileForm, setProfileForm] = useState({
+    movedRecently: false, previousStreet: '', previousZip: '', previousCity: '', previousCountry: 'Deutschland',
+    passportNumber: '', passportExpiry: '',
+    hasAdditionalIncome: false, additionalIncomeSources: '', additionalIncomeAmount: '',
+    expensesFood: '', expensesTransport: '', expensesInsurance: '', expensesLoans: '', expensesSubscriptions: '', expensesOther: '',
+  });
   const [bankTabOpen, setBankTabOpen] = useState<string | null>(null);
   const [bankCountry, setBankCountry] = useState<"de" | "at" | "ch">("de");
   const [activeModal, setActiveModal] = useState<null | 'limit' | 'status' | 'paket'>(null);
@@ -211,11 +222,52 @@ export default function DashboardPage() {
     if (user?.email) { try { Clarity.identify(user.email); } catch {} }
     if (user?.ref) {
       fetch(`/api/fiaon/kyc-status/${user.ref}`).then(r => r.json()).then(d => {
-        setServerDocStatus({ hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard, documentsUploadedAt: d.documentsUploadedAt, kycStatus: d.kycStatus ?? 'pending', accountStatus: d.accountStatus ?? 'pending', adminNote: d.adminNote ?? null, reuploadBankStatement: d.reuploadBankStatement ?? false, reuploadIdCard: d.reuploadIdCard ?? false });
+        setServerDocStatus({ hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard, documentsUploadedAt: d.documentsUploadedAt, kycStatus: d.kycStatus ?? 'pending', accountStatus: d.accountStatus ?? 'pending', adminNote: d.adminNote ?? null, reuploadBankStatement: d.reuploadBankStatement ?? false, reuploadIdCard: d.reuploadIdCard ?? false, adminProfileNote: d.adminProfileNote ?? null, profileChangesRequested: d.profileChangesRequested ?? false });
         if (d.hasBankStatement && d.hasIdCard) { setIsUploadSuccess(true); localStorage.setItem("kyc_uploaded", "true"); }
       }).catch(() => {});
     }
   }, []);
+
+  useEffect(() => {
+    if (section === 'account' && user?.ref && !profileData && !profileLoading) {
+      setProfileLoading(true);
+      fetch(`/api/fiaon/profile/${user.ref}`).then(r => r.json()).then(d => {
+        if (d.ok) {
+          setProfileData(d);
+          setProfileForm({
+            movedRecently: d.movedRecently ?? false,
+            previousStreet: d.previousStreet ?? '', previousZip: d.previousZip ?? '',
+            previousCity: d.previousCity ?? '', previousCountry: d.previousCountry ?? 'Deutschland',
+            passportNumber: d.passportNumber ?? '', passportExpiry: d.passportExpiry ?? '',
+            hasAdditionalIncome: d.hasAdditionalIncome ?? false,
+            additionalIncomeSources: d.additionalIncomeSources ?? '',
+            additionalIncomeAmount: String(d.additionalIncomeAmount ?? ''),
+            expensesFood: String(d.expensesFood ?? ''), expensesTransport: String(d.expensesTransport ?? ''),
+            expensesInsurance: String(d.expensesInsurance ?? ''), expensesLoans: String(d.expensesLoans ?? ''),
+            expensesSubscriptions: String(d.expensesSubscriptions ?? ''), expensesOther: String(d.expensesOther ?? ''),
+          });
+        }
+      }).catch(() => {}).finally(() => setProfileLoading(false));
+    }
+  }, [section]);
+
+  const handleProfileSave = async () => {
+    if (!user?.ref) return;
+    setProfileSaving(true);
+    try {
+      const res = await fetch(`/api/fiaon/profile/${user.ref}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profileForm),
+      });
+      if (res.ok) {
+        setProfileSaved(true);
+        setProfileData((prev: any) => prev ? { ...prev, ...profileForm, profileChangesRequested: false } : prev);
+        setServerDocStatus(prev => ({ ...prev, profileChangesRequested: false }));
+        setTimeout(() => setProfileSaved(false), 3000);
+      }
+    } catch {}
+    setProfileSaving(false);
+  };
 
   const handleUpload = useCallback(async () => {
     if (!bankStatementFile && !idFile) return;
@@ -252,7 +304,7 @@ export default function DashboardPage() {
   /* ── NAV CONFIG ── */
   const NAV: { id: NavSection; label: string; badge?: string; icon: React.ReactNode }[] = [
     { id: "overview",   label: "Übersicht",      icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> },
-    { id: "account",    label: "Mein Konto",      icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
+    { id: "account",    label: "Mein Konto", badge: serverDocStatus.profileChangesRequested ? "!" : undefined, icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
     { id: "documents",  label: "Dokumente",  badge: kycBadge, icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
     { id: "bank-guide", label: "Kontoauszüge",    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg> },
     { id: "support",    label: "Support",          icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> },
@@ -507,42 +559,276 @@ export default function DashboardPage() {
             )}
 
             {/* ════════════════ ACCOUNT ════════════════ */}
-            {section === "account" && (
-              <div className="space-y-6">
-                <div>
-                  <p className="text-[11px] text-[#2563eb] font-bold uppercase tracking-[.18em] mb-1">Profil</p>
-                  <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Mein Konto</h1>
-                  <p className="text-[13px] text-slate-500 mt-1">Deine persönlichen Daten und Vertragsdetails.</p>
-                </div>
-                <div className="fiaon-glass-panel rounded-2xl border border-white/60 overflow-hidden">
-                  {[
-                    ["Name", `${user.firstName || "—"} ${user.lastName || ""}`],
-                    ["E-Mail", user.email || "—"],
-                    ["Referenznummer", user.ref || "—"],
-                    ["Paket", user.packName || "—"],
-                    ["Kreditlimit", eur(user.approvedLimit || 0)],
-                  ].map(([k, v], i) => (
-                    <div key={k} className={`flex items-center justify-between px-5 py-4 ${i < 4 ? "border-b border-slate-100" : ""}`}>
-                      <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">{k}</span>
-                      <span className="text-[13px] font-semibold text-slate-800">{v}</span>
+            {section === "account" && (() => {
+              const fmtDate = (v: any) => v ? new Date(v).toLocaleDateString('de-DE') : '—';
+              const fmtEur = (v: any) => v != null && v !== '' ? eur(Number(v)) : '—';
+              const tip = (id: string, text: string) => (
+                <div className="relative inline-block ml-1.5">
+                  <button type="button" onClick={() => setActiveTooltip(activeTooltip === id ? null : id)}
+                    className="w-4 h-4 rounded-full bg-slate-100 text-slate-500 text-[9px] font-bold flex items-center justify-center hover:bg-blue-100 hover:text-blue-600 transition-colors align-middle">?</button>
+                  {activeTooltip === id && (
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-6 z-50 w-60 bg-slate-900 text-white text-[11px] rounded-xl px-3 py-2.5 shadow-2xl leading-relaxed pointer-events-none">
+                      {text}
+                      <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-slate-900" />
                     </div>
-                  ))}
+                  )}
+                </div>
+              );
+              const pf = (label: string, value: string) => (
+                <div className="flex items-start justify-between py-3 border-b border-slate-50 last:border-0 gap-4">
+                  <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider shrink-0 mt-0.5">{label}</span>
+                  <span className="text-[13px] font-medium text-slate-800 text-right break-words max-w-[60%]">{value || '—'}</span>
+                </div>
+              );
+              const totalExpenses = ['expensesFood','expensesTransport','expensesInsurance','expensesLoans','expensesSubscriptions','expensesOther']
+                .reduce((s, k) => s + (Number((profileForm as any)[k]) || 0), 0);
+              return (
+              <div className="space-y-5" onClick={() => setActiveTooltip(null)}>
+                <div>
+                  <p className="text-[11px] text-[#2563eb] font-bold uppercase tracking-[.18em] mb-1">Profilverwaltung</p>
+                  <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Mein Konto</h1>
+                  <p className="text-[13px] text-slate-500 mt-1">Ihre persönlichen Daten, Finanzangaben und Vertragsdetails.</p>
+                </div>
+
+                {/* Admin-Rückfrage Banner */}
+                {(serverDocStatus.profileChangesRequested || profileData?.profileChangesRequested) && (serverDocStatus.adminProfileNote || profileData?.adminProfileNote) && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b45309" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    </div>
+                    <div>
+                      <div className="text-[13px] font-bold text-amber-900">Rückfrage von FIAON zu Ihren Profilangaben</div>
+                      <div className="text-[13px] text-amber-800 mt-1 leading-relaxed">„{serverDocStatus.adminProfileNote || profileData?.adminProfileNote}"</div>
+                      <div className="text-[11px] text-amber-600 mt-2">Bitte ergänzen Sie die angefragten Angaben im Abschnitt „Profil vervollständigen" und speichern Sie.</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Block 1: Vertragsübersicht ── */}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Vertragsübersicht</p>
+                  </div>
+                  <div className="px-5 divide-y divide-slate-50">
+                    {pf("Referenznummer", user.ref)}
+                    {pf("Vertragspaket", user.packName)}
+                    {pf("Genehmigtes Kreditlimit", eur(user.approvedLimit || 0))}
+                    {pf("Kontostatus", serverDocStatus.accountStatus === 'active' ? 'Aktiv' : serverDocStatus.accountStatus === 'suspended' ? 'Gesperrt' : 'Ausstehend')}
+                    {pf("KYC-Prüfungsstatus", serverDocStatus.kycStatus === 'approved' ? 'Genehmigt' : serverDocStatus.kycStatus === 'changes_requested' ? 'Änderung angefordert' : 'In Prüfung')}
+                  </div>
                   <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50">
                     <a href={`/api/fiaon/contract/${user.ref}`} className="inline-flex items-center gap-2 text-[13px] font-semibold text-[#2563eb] hover:text-blue-700 transition-colors">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                      FIAON-Vertrag herunterladen (PDF)
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      Kreditkartenvertrag herunterladen (PDF)
                     </a>
                   </div>
                 </div>
-                <div className="fiaon-glass-panel rounded-2xl border border-white/60 p-5">
-                  <h3 className="text-[13px] font-bold text-slate-700 mb-3">Passwort ändern</h3>
-                  <p className="text-[12px] text-slate-500 mb-4">Um dein Passwort zu ändern, nutze die Passwort-Vergessen Funktion.</p>
+
+                {/* ── Block 2: Persönliche Angaben ── */}
+                {profileLoading ? (
+                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-3">{[...Array(6)].map((_,i) => <div key={i} className="h-8 rounded-lg bg-slate-50 animate-pulse" />)}</div>
+                ) : profileData && (
+                  <>
+                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Persönliche Angaben</p>
+                    </div>
+                    <div className="px-5 divide-y divide-slate-50">
+                      {pf("Vollständiger Name", `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim())}
+                      {pf("Geburtsdatum", fmtDate(profileData.birthdate))}
+                      {pf("Staatsangehörigkeit", profileData.nationality)}
+                      {pf("E-Mail-Adresse", profileData.email)}
+                      {pf("Telefonnummer", [profileData.phoneCountryCode, profileData.phone].filter(Boolean).join(' '))}
+                      {pf("Wohnanschrift", [profileData.street, [profileData.zip, profileData.city].filter(Boolean).join(' '), profileData.country].filter(Boolean).join(', '))}
+                      {pf("Wohnsituation", profileData.housing)}
+                    </div>
+                  </div>
+
+                  {/* ── Block 3: Finanzprofil ── */}
+                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Finanzprofil</p>
+                    </div>
+                    <div className="px-5 divide-y divide-slate-50">
+                      {pf("Monatliches Nettoeinkommen", fmtEur(profileData.income))}
+                      {pf("Monatliche Kaltmiete", fmtEur(profileData.rent))}
+                      {pf("Bestehende Verbindlichkeiten", fmtEur(profileData.debts))}
+                      {pf("Beschäftigungsverhältnis", profileData.employment)}
+                      {pf("Arbeitgeber", profileData.employer)}
+                      {pf("Beschäftigt seit", profileData.employedSince)}
+                      {pf("Verwendungszweck", profileData.purpose)}
+                    </div>
+                  </div>
+                  </>
+                )}
+
+                {/* ── Block 4: Profil vervollständigen (Formular) ── */}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Pflichtangaben</p>
+                      <h3 className="text-[14px] font-bold text-slate-900">Profil vervollständigen</h3>
+                    </div>
+                    {profileData?.profileCompletedAt && (
+                      <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">✓ Zuletzt gespeichert {fmtDate(profileData.profileCompletedAt)}</span>
+                    )}
+                  </div>
+                  <div className="px-5 py-6 space-y-8" onClick={e => e.stopPropagation()}>
+
+                    {/* — Frühere Anschrift — */}
+                    <div>
+                      <h4 className="text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-md bg-slate-900 text-white text-[9px] font-bold flex items-center justify-center">1</span>
+                        Frühere Anschrift
+                        {tip('moved', 'Sofern Sie in den letzten 6 Monaten Ihren Hauptwohnsitz gewechselt haben, geben Sie bitte Ihre vorherige Adresse an. Dies ist für die Bonitätsprüfung erforderlich.')}
+                      </h4>
+                      <label className="flex items-start gap-3 cursor-pointer select-none mb-4">
+                        <input type="checkbox" checked={profileForm.movedRecently} onChange={e => setProfileForm(p => ({ ...p, movedRecently: e.target.checked }))} className="mt-0.5 w-4 h-4 accent-[#2563eb]" />
+                        <div>
+                          <span className="text-[13px] font-semibold text-slate-800">Ich bin in den letzten 6 Monaten umgezogen</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Angabe gemäß § 505a BGB erforderlich</p>
+                        </div>
+                      </label>
+                      {profileForm.movedRecently && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-7">
+                          <div className="col-span-2">
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Straße und Hausnummer (frühere Anschrift)</label>
+                            <input type="text" value={profileForm.previousStreet} onChange={e => setProfileForm(p => ({...p, previousStreet: e.target.value}))} placeholder="z. B. Musterstraße 12" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">PLZ</label>
+                            <input type="text" value={profileForm.previousZip} onChange={e => setProfileForm(p => ({...p, previousZip: e.target.value}))} placeholder="z. B. 10115" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Ort</label>
+                            <input type="text" value={profileForm.previousCity} onChange={e => setProfileForm(p => ({...p, previousCity: e.target.value}))} placeholder="z. B. Berlin" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Land</label>
+                            <input type="text" value={profileForm.previousCountry} onChange={e => setProfileForm(p => ({...p, previousCountry: e.target.value}))} placeholder="z. B. Deutschland" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* — Reisedokument — */}
+                    <div>
+                      <h4 className="text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-md bg-slate-900 text-white text-[9px] font-bold flex items-center justify-center">2</span>
+                        Reisedokument
+                        {tip('passport', 'Die Angabe Ihrer Reisedokument-Daten dient der eindeutigen Identifizierung gemäß dem Geldwäschegesetz (GwG).')}
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center">
+                            Reisepass-Nummer
+                            {tip('passNum', 'Ihre Reisepassnummer befindet sich oben rechts auf der Datenseite Ihres Reisepasses. Sie beginnt in Deutschland mit einem Buchstaben gefolgt von 8 Ziffern (z. B. C01X0006).')}
+                          </label>
+                          <input type="text" value={profileForm.passportNumber} onChange={e => setProfileForm(p => ({...p, passportNumber: e.target.value}))} placeholder="z. B. C01X0006" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center">
+                            Gültig bis (Ablaufdatum)
+                            {tip('passExp', 'Das Ablaufdatum Ihres Reisepasses finden Sie auf der Datenseite unter „Gültig bis". Ihr Reisepass muss für die Antragstellung noch gültig sein.')}
+                          </label>
+                          <input type="date" value={profileForm.passportExpiry} onChange={e => setProfileForm(p => ({...p, passportExpiry: e.target.value}))} className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* — Weitere Einkünfte — */}
+                    <div>
+                      <h4 className="text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-md bg-slate-900 text-white text-[9px] font-bold flex items-center justify-center">3</span>
+                        Weitere Einkünfte
+                        {tip('addInc', 'Weitere Einkünfte umfassen z. B. Mieteinnahmen, Kapitalerträge, Nebentätigkeiten, Unterhaltszahlungen oder sonstige regelmäßige Einnahmen neben Ihrem Hauptgehalt.')}
+                      </h4>
+                      <label className="flex items-start gap-3 cursor-pointer select-none mb-4">
+                        <input type="checkbox" checked={profileForm.hasAdditionalIncome} onChange={e => setProfileForm(p => ({...p, hasAdditionalIncome: e.target.checked}))} className="mt-0.5 w-4 h-4 accent-[#2563eb]" />
+                        <div>
+                          <span className="text-[13px] font-semibold text-slate-800">Ich verfüge über weitere Einkünfte neben meinem Haupteinkommen</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">z. B. Mieteinnahmen, Kapitalerträge, Unterhalt</p>
+                        </div>
+                      </label>
+                      {profileForm.hasAdditionalIncome && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-7">
+                          <div className="col-span-2">
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center">
+                              Art der weiteren Einkünfte
+                              {tip('incType', 'Bitte beschreiben Sie die Herkunft Ihrer zusätzlichen Einkünfte, z. B. „Vermietung Eigentumswohnung", „Dividendeneinnahmen" oder „selbstständige Nebentätigkeit".')}
+                            </label>
+                            <textarea value={profileForm.additionalIncomeSources} onChange={e => setProfileForm(p => ({...p, additionalIncomeSources: e.target.value}))} placeholder="z. B. Mieteinnahmen aus Eigentumswohnung, freiberufliche Tätigkeit" rows={2} className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all resize-none" />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center">
+                              Ungefährer Monatsbetrag (€)
+                              {tip('incAmt', 'Geben Sie den durchschnittlichen monatlichen Nettobetrag Ihrer weiteren Einkünfte an.')}
+                            </label>
+                            <input type="number" min="0" value={profileForm.additionalIncomeAmount} onChange={e => setProfileForm(p => ({...p, additionalIncomeAmount: e.target.value}))} placeholder="z. B. 500" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* — Monatliche Ausgaben — */}
+                    <div>
+                      <h4 className="text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-md bg-slate-900 text-white text-[9px] font-bold flex items-center justify-center">4</span>
+                        Monatliche Ausgaben
+                        {tip('expenses', 'Ihre monatlichen Ausgaben werden für die Haushaltsrechnung gemäß § 18a KWG benötigt. Bitte geben Sie Schätzwerte in Euro an. Bereits angegebene Kreditbelastungen müssen nicht erneut aufgeführt werden.')}
+                      </h4>
+                      <p className="text-[11px] text-slate-400 mb-4 pl-7">Angaben gemäß § 18a KWG (Kreditwürdigkeitsprüfung) — bitte in Euro/Monat</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {[
+                          { key: 'expensesFood',          label: 'Lebensmittel & Haushaltsbedarf',     tip: 'expF', tipText: 'Schätzung Ihrer monatlichen Ausgaben für Lebensmittel, Drogerieartikel und sonstige Haushaltswaren.' },
+                          { key: 'expensesTransport',     label: 'Mobilität (Kfz, ÖPNV, Kraftstoff)',  tip: 'expT', tipText: 'Monatliche Kosten für Fahrzeugversicherung, Kraftstoff, ÖPNV-Tickets oder Leasing-/Kreditraten.' },
+                          { key: 'expensesInsurance',     label: 'Versicherungsbeiträge',               tip: 'expI', tipText: 'Summe aller monatlichen Versicherungsbeiträge (Haftpflicht, Hausrat, Berufsunfähigkeit etc.), sofern nicht bereits als Lohnabzug ausgewiesen.' },
+                          { key: 'expensesLoans',         label: 'Laufende Kredit- & Ratenverpflichtungen', tip: 'expL', tipText: 'Monatliche Raten für bestehende Darlehen, Ratenkäufe oder Leasingverträge (sofern nicht bereits unter „Verbindlichkeiten" angegeben).' },
+                          { key: 'expensesSubscriptions', label: 'Abonnements & Mitgliedschaften',      tip: 'expS', tipText: 'Monatliche Ausgaben für Streaming-Dienste, Fitnessstudio, Zeitschriften und vergleichbare wiederkehrende Verpflichtungen.' },
+                          { key: 'expensesOther',         label: 'Sonstige regelmäßige Ausgaben',       tip: 'expO', tipText: 'Alle weiteren monatlichen Ausgaben, die in den obigen Kategorien nicht erfasst sind (z. B. Kinderbetreuung, Unterhaltszahlungen).' },
+                        ].map(f => (
+                          <div key={f.key}>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center">
+                              {f.label}
+                              {tip(f.tip, f.tipText)}
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[13px] font-medium">€</span>
+                              <input type="number" min="0" value={(profileForm as any)[f.key]} onChange={e => setProfileForm(p => ({...p, [f.key]: e.target.value}))} placeholder="0" className="w-full pl-7 pr-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {totalExpenses > 0 && (
+                        <div className="mt-4 flex items-center justify-between px-4 py-3 rounded-xl bg-slate-50 border border-slate-200">
+                          <span className="text-[12px] font-bold text-slate-600 uppercase tracking-wider">Gesamte monatliche Ausgaben</span>
+                          <span className="text-[14px] font-bold text-slate-900">{eur(totalExpenses)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Save Button */}
+                    <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
+                      <button onClick={handleProfileSave} disabled={profileSaving} className="px-6 py-2.5 bg-slate-900 text-white text-[13px] font-bold rounded-xl hover:bg-slate-800 disabled:opacity-50 transition-colors">
+                        {profileSaving ? 'Wird gespeichert…' : 'Angaben speichern'}
+                      </button>
+                      {profileSaved && <span className="text-[12px] font-semibold text-emerald-600 flex items-center gap-1.5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>Erfolgreich gespeichert</span>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Block 5: Sicherheit ── */}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Sicherheit</p>
+                  <h3 className="text-[13px] font-bold text-slate-800 mb-1">Zugangsdaten ändern</h3>
+                  <p className="text-[12px] text-slate-500 mb-3">Nutzen Sie die Passwort-Vergessen-Funktion, um Ihr Kennwort zu erneuern.</p>
                   <a href="/passwort-vergessen" className="inline-flex items-center gap-2 text-[12px] font-semibold text-[#2563eb] hover:underline">
                     Passwort zurücksetzen →
                   </a>
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {/* ════════════════ DOCUMENTS ════════════════ */}
             {section === "documents" && (

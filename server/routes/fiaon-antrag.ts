@@ -733,6 +733,8 @@ router.get("/kyc-status/:ref", async (req, res) => {
       adminReviewedAt: app.admin_reviewed_at ?? null,
       reuploadBankStatement: app.reupload_bank_statement ?? false,
       reuploadIdCard: app.reupload_id_card ?? false,
+      adminProfileNote: app.admin_profile_note ?? null,
+      profileChangesRequested: app.profile_changes_requested ?? false,
     });
   } catch (err) {
     console.error("[FIAON-KYC-STATUS]", err);
@@ -740,11 +742,115 @@ router.get("/kyc-status/:ref", async (req, res) => {
   }
 });
 
+// ── GET /profile/:ref — Vollständiges Kundenprofil ──────────────────────────
+router.get("/profile/:ref", async (req, res) => {
+  try {
+    const { ref } = req.params;
+    // Auto-migrate profile fields
+    await sqlPool`
+      ALTER TABLE fiaon_applications
+      ADD COLUMN IF NOT EXISTS moved_recently BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS previous_street VARCHAR,
+      ADD COLUMN IF NOT EXISTS previous_zip VARCHAR,
+      ADD COLUMN IF NOT EXISTS previous_city VARCHAR,
+      ADD COLUMN IF NOT EXISTS previous_country VARCHAR,
+      ADD COLUMN IF NOT EXISTS passport_number VARCHAR,
+      ADD COLUMN IF NOT EXISTS passport_expiry DATE,
+      ADD COLUMN IF NOT EXISTS has_additional_income BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS additional_income_sources TEXT,
+      ADD COLUMN IF NOT EXISTS additional_income_amount INTEGER,
+      ADD COLUMN IF NOT EXISTS expenses_food INTEGER,
+      ADD COLUMN IF NOT EXISTS expenses_transport INTEGER,
+      ADD COLUMN IF NOT EXISTS expenses_insurance INTEGER,
+      ADD COLUMN IF NOT EXISTS expenses_loans INTEGER,
+      ADD COLUMN IF NOT EXISTS expenses_subscriptions INTEGER,
+      ADD COLUMN IF NOT EXISTS expenses_other INTEGER,
+      ADD COLUMN IF NOT EXISTS profile_completed_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS admin_profile_note TEXT,
+      ADD COLUMN IF NOT EXISTS profile_changes_requested BOOLEAN DEFAULT FALSE
+    `.catch(() => {});
+
+    const apps = await sqlPool`SELECT * FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`;
+    if (apps.length === 0) return res.status(404).json({ ok: false, error: "Antrag nicht gefunden" });
+    const a = apps[0];
+    res.json({
+      ok: true,
+      firstName: a.first_name, lastName: a.last_name,
+      birthdate: a.birthdate, nationality: a.nationality,
+      email: a.email, phone: a.phone, phoneCountryCode: a.phone_country_code,
+      street: a.street, zip: a.zip, city: a.city, country: a.country, housing: a.housing,
+      income: a.income, rent: a.rent, debts: a.debts,
+      employment: a.employment, employer: a.employer, employedSince: a.employed_since,
+      wantedLimit: a.wanted_limit, purpose: a.purpose, billing: a.billing,
+      billingMethod: a.billing_method, salaryReceiptDay: a.salary_receipt_day,
+      iban: a.iban, packName: a.pack_name, packKey: a.pack_key,
+      approvedLimit: a.approved_limit, accountStatus: a.account_status, kycStatus: a.kyc_status,
+      movedRecently: a.moved_recently ?? false,
+      previousStreet: a.previous_street ?? '', previousZip: a.previous_zip ?? '',
+      previousCity: a.previous_city ?? '', previousCountry: a.previous_country ?? 'Deutschland',
+      passportNumber: a.passport_number ?? '', passportExpiry: a.passport_expiry ? String(a.passport_expiry).slice(0,10) : '',
+      hasAdditionalIncome: a.has_additional_income ?? false,
+      additionalIncomeSources: a.additional_income_sources ?? '',
+      additionalIncomeAmount: a.additional_income_amount ?? '',
+      expensesFood: a.expenses_food ?? '', expensesTransport: a.expenses_transport ?? '',
+      expensesInsurance: a.expenses_insurance ?? '', expensesLoans: a.expenses_loans ?? '',
+      expensesSubscriptions: a.expenses_subscriptions ?? '', expensesOther: a.expenses_other ?? '',
+      profileCompletedAt: a.profile_completed_at,
+      adminProfileNote: a.admin_profile_note ?? null,
+      profileChangesRequested: a.profile_changes_requested ?? false,
+    });
+  } catch (err) {
+    console.error("[FIAON-PROFILE-GET]", err);
+    res.status(500).json({ ok: false, error: "Fehler beim Laden" });
+  }
+});
+
+// ── PATCH /profile/:ref — Profil-Ergänzungen speichern ──────────────────────
+router.patch("/profile/:ref", async (req, res) => {
+  try {
+    const { ref } = req.params;
+    const { movedRecently, previousStreet, previousZip, previousCity, previousCountry,
+      passportNumber, passportExpiry, hasAdditionalIncome,
+      additionalIncomeSources, additionalIncomeAmount,
+      expensesFood, expensesTransport, expensesInsurance,
+      expensesLoans, expensesSubscriptions, expensesOther } = req.body;
+    const toInt = (v: any) => (v !== '' && v != null) ? parseInt(String(v)) : null;
+    await sqlPool`
+      UPDATE fiaon_applications SET
+        moved_recently             = ${!!movedRecently},
+        previous_street            = ${previousStreet || null},
+        previous_zip               = ${previousZip || null},
+        previous_city              = ${previousCity || null},
+        previous_country           = ${previousCountry || null},
+        passport_number            = ${passportNumber || null},
+        passport_expiry            = ${passportExpiry || null},
+        has_additional_income      = ${!!hasAdditionalIncome},
+        additional_income_sources  = ${additionalIncomeSources || null},
+        additional_income_amount   = ${toInt(additionalIncomeAmount)},
+        expenses_food              = ${toInt(expensesFood)},
+        expenses_transport         = ${toInt(expensesTransport)},
+        expenses_insurance         = ${toInt(expensesInsurance)},
+        expenses_loans             = ${toInt(expensesLoans)},
+        expenses_subscriptions     = ${toInt(expensesSubscriptions)},
+        expenses_other             = ${toInt(expensesOther)},
+        profile_completed_at       = NOW(),
+        profile_changes_requested  = FALSE,
+        updated_at                 = NOW()
+      WHERE ref = ${ref}
+    `;
+    console.log(`[FIAON-PROFILE-PATCH] ${ref} — Profil aktualisiert`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-PROFILE-PATCH]", err);
+    res.status(500).json({ ok: false, error: "Fehler beim Speichern" });
+  }
+});
+
 // Admin: review application — set kyc_status, account_status, admin_note
 router.patch("/admin/applications/:ref/review", async (req, res) => {
   try {
     const { ref } = req.params;
-    const { kycStatus, accountStatus, adminNote, reuploadBankStatement, reuploadIdCard } = req.body;
+    const { kycStatus, accountStatus, adminNote, reuploadBankStatement, reuploadIdCard, adminProfileNote, profileChangesRequested } = req.body;
 
     const validKyc = ['pending', 'approved', 'changes_requested'];
     const validAccount = ['pending', 'active', 'suspended'];
@@ -776,15 +882,20 @@ router.patch("/admin/applications/:ref/review", async (req, res) => {
       ? !!reuploadIdCard
       : (clearReupload ? false : null);
 
+    // Also migrate profile columns if needed
+    await sqlPool`ALTER TABLE fiaon_applications ADD COLUMN IF NOT EXISTS admin_profile_note TEXT, ADD COLUMN IF NOT EXISTS profile_changes_requested BOOLEAN DEFAULT FALSE`.catch(() => {});
+
     await sqlPool`
       UPDATE fiaon_applications SET
-        kyc_status               = COALESCE(${kycStatus ?? null}, kyc_status),
-        account_status           = COALESCE(${accountStatus ?? null}, account_status),
-        admin_note               = ${adminNote !== undefined ? (adminNote || null) : null},
-        admin_reviewed_at        = NOW(),
-        reupload_bank_statement  = COALESCE(${setReuploadBank}, reupload_bank_statement),
-        reupload_id_card         = COALESCE(${setReuploadId}, reupload_id_card),
-        updated_at               = NOW()
+        kyc_status                 = COALESCE(${kycStatus ?? null}, kyc_status),
+        account_status             = COALESCE(${accountStatus ?? null}, account_status),
+        admin_note                 = ${adminNote !== undefined ? (adminNote || null) : null},
+        admin_reviewed_at          = NOW(),
+        reupload_bank_statement    = COALESCE(${setReuploadBank}, reupload_bank_statement),
+        reupload_id_card           = COALESCE(${setReuploadId}, reupload_id_card),
+        admin_profile_note         = ${adminProfileNote !== undefined ? (adminProfileNote || null) : null},
+        profile_changes_requested  = COALESCE(${profileChangesRequested ?? null}, profile_changes_requested),
+        updated_at                 = NOW()
       WHERE ref = ${ref}
     `;
 

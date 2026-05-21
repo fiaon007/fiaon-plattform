@@ -603,7 +603,7 @@ export default function DashboardPage() {
                       done: !!serverDocStatus.profileCompletedAt,
                       urgent: serverDocStatus.profileChangesRequested,
                       label: 'Profil vervollständigt',
-                      sub: serverDocStatus.profileChangesRequested ? `Rückfrage von FIAON: „${serverDocStatus.adminProfileNote}"` : serverDocStatus.profileCompletedAt ? 'Alle Pflichtangaben ausgefüllt' : 'Reisepass, Ausgaben & weitere Angaben ausstehend',
+                      sub: (serverDocStatus.profileChangesRequested && serverDocStatus.adminProfileNote) ? `Rückfrage: „${serverDocStatus.adminProfileNote}"` : serverDocStatus.profileChangesRequested ? 'Rückfrage von FIAON — Bitte prüfen' : serverDocStatus.profileCompletedAt ? 'Alle Pflichtangaben ausgefüllt' : 'Reisepass, Ausgaben & weitere Angaben ausstehend',
                       onClick: () => setSection('account'),
                       cta: serverDocStatus.profileChangesRequested ? 'Jetzt beantworten' : 'Ausfüllen →',
                     },
@@ -700,8 +700,60 @@ export default function DashboardPage() {
                   <p className="text-[13px] text-slate-500 mt-1">Ihre persönlichen Daten, Finanzangaben und Vertragsdetails.</p>
                 </div>
 
+                {/* ── Was fehlt Guide ── */}
+                {!serverDocStatus.profileCompletedAt && !serverDocStatus.profileChangesRequested && (
+                  <div className="rounded-2xl border border-blue-100 overflow-hidden shadow-sm">
+                    <div className="px-5 py-4 flex items-center gap-3.5" style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
+                      <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      </div>
+                      <div>
+                        <div className="text-[13px] font-bold text-white">Profil vervollständigen — erforderlich für Kontoaktivierung</div>
+                        <div className="text-[11px] text-white/70 mt-0.5">Bitte füllen Sie alle Pflichtangaben im Formular unten aus und speichern Sie.</div>
+                      </div>
+                    </div>
+                    <div className="bg-white px-5 py-4 space-y-2.5">
+                      {[
+                        {
+                          label: 'Reisepass-Nummer & Ablaufdatum',
+                          done: !!(profileForm.passportNumber && profileForm.passportExpiry),
+                          hint: 'Abschnitt 2 — Reisedokument',
+                        },
+                        {
+                          label: 'Monatliche Ausgaben (Haushaltsbuch)',
+                          done: !!(profileForm.expensesFood || profileForm.expensesTransport || profileForm.expensesInsurance || profileForm.expensesLoans || profileForm.expensesSubscriptions || profileForm.expensesOther),
+                          hint: 'Abschnitt 4 — Monatliche Ausgaben',
+                        },
+                        {
+                          label: profileForm.movedRecently ? 'Frühere Anschrift vollständig' : 'Angabe: Umzug in den letzten 6 Monaten',
+                          done: !profileForm.movedRecently || !!(profileForm.previousStreet && profileForm.previousCity),
+                          hint: 'Abschnitt 1 — Frühere Anschrift',
+                        },
+                        {
+                          label: 'Angabe zu weiteren Einkünften',
+                          done: !profileForm.hasAdditionalIncome || !!(profileForm.additionalIncomeSources && profileForm.additionalIncomeAmount),
+                          hint: 'Abschnitt 3 — Weitere Einkünfte',
+                        },
+                      ].map((item, i) => (
+                        <div key={i} className="flex items-center gap-3">
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${item.done ? 'bg-emerald-100' : 'bg-slate-100'}`}>
+                            {item.done
+                              ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                              : <div className="w-2 h-2 rounded-full bg-slate-300" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className={`text-[12px] font-semibold ${item.done ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{item.label}</span>
+                            {!item.done && <span className="text-[11px] text-slate-400 ml-2">↓ {item.hint}</span>}
+                          </div>
+                        </div>
+                      ))}
+                      <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-50 mt-1">Scrollen Sie nach unten zum Abschnitt „Profil vervollständigen" und klicken Sie auf „Angaben speichern".</p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Admin-Rückfrage Banner */}
-                {(serverDocStatus.profileChangesRequested || profileData?.profileChangesRequested) && (serverDocStatus.adminProfileNote || profileData?.adminProfileNote) && (
+                {serverDocStatus.profileChangesRequested && (serverDocStatus.adminProfileNote || profileData?.adminProfileNote) && (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 flex items-start gap-4">
                     <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b45309" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>

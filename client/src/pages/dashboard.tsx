@@ -210,6 +210,7 @@ export default function DashboardPage() {
   const [bankTabOpen, setBankTabOpen] = useState<string | null>(null);
   const [bankCountry, setBankCountry] = useState<"de" | "at" | "ch">("de");
   const [activeModal, setActiveModal] = useState<null | 'limit' | 'status' | 'paket'>(null);
+  const [statusLoaded, setStatusLoaded] = useState(false);
   const fileInputRef1 = useRef<HTMLInputElement>(null);
   const fileInputRef2 = useRef<HTMLInputElement>(null);
   const user: SessionUser = (() => { try { return JSON.parse(sessionStorage.getItem("fiaon_user") || "{}"); } catch { return {} as SessionUser; } })();
@@ -224,7 +225,8 @@ export default function DashboardPage() {
       fetch(`/api/fiaon/kyc-status/${user.ref}`).then(r => r.json()).then(d => {
         setServerDocStatus({ hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard, documentsUploadedAt: d.documentsUploadedAt, kycStatus: d.kycStatus ?? 'pending', accountStatus: d.accountStatus ?? 'pending', adminNote: d.adminNote ?? null, reuploadBankStatement: d.reuploadBankStatement ?? false, reuploadIdCard: d.reuploadIdCard ?? false, adminProfileNote: d.adminProfileNote ?? null, profileChangesRequested: d.profileChangesRequested ?? false, profileCompletedAt: d.profileCompletedAt ?? null });
         if (d.hasBankStatement && d.hasIdCard) { setIsUploadSuccess(true); localStorage.setItem("kyc_uploaded", "true"); }
-      }).catch(() => {});
+        setStatusLoaded(true);
+      }).catch(() => { setStatusLoaded(true); });
     }
   }, []);
 
@@ -390,7 +392,7 @@ export default function DashboardPage() {
         </header>
 
         {/* ── PROFIL-RÜCKFRAGE STICKY BANNER (höchste Prio) ── */}
-        {serverDocStatus.profileChangesRequested && serverDocStatus.adminProfileNote && (
+        {statusLoaded && serverDocStatus.profileChangesRequested && serverDocStatus.adminProfileNote && (
           <div className="db-banner shrink-0 flex items-center gap-3 px-4 sm:px-6 py-3 bg-amber-500 text-white z-10 relative">
             <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0 animate-pulse">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -406,7 +408,7 @@ export default function DashboardPage() {
         )}
 
         {/* ── PROFIL UNVOLLSTÄNDIG BANNER ── */}
-        {!serverDocStatus.profileCompletedAt && !serverDocStatus.profileChangesRequested && mounted && (
+        {statusLoaded && !serverDocStatus.profileCompletedAt && !serverDocStatus.profileChangesRequested && (
           <div className="db-banner shrink-0 flex items-center gap-3 px-4 sm:px-6 py-3 bg-[#1d4ed8] text-white z-10 relative">
             <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>

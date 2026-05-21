@@ -153,14 +153,15 @@ export function setupSimpleAuth(app: Express) {
   // PRODUCTION COOKIE FIX: Domain must include leading dot for www + non-www
   // ============================================================================
   const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-  const COOKIE_DOMAIN = IS_PRODUCTION ? '.plattform-aras.ai' : undefined;
-  
+  // NOTE: Do NOT set a cookie domain — this allows the session cookie to work
+  // for ANY domain (fiaon-plattform.onrender.com, www.fiaon.com, localhost).
+  // Setting domain: '.plattform-aras.ai' would break access via onrender.com.
+
   // SESSION_SECRET must be set in production (Render ENV)
   const SESSION_SECRET = process.env.SESSION_SECRET;
   if (IS_PRODUCTION && !SESSION_SECRET) {
     console.error('[AUTH] ❌ FATAL: SESSION_SECRET env var is required in production!');
     console.error('[AUTH] Set it in Render Environment Variables.');
-    // Use fallback but warn loudly
   }
   
   const sessionSettings: session.SessionOptions = {
@@ -172,13 +173,13 @@ export function setupSimpleAuth(app: Express) {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       httpOnly: true,
       secure: IS_PRODUCTION, // true in production (HTTPS required)
-      sameSite: 'lax', // Prevents CSRF, works with same-site requests
+      sameSite: 'lax',
       path: '/',
-      domain: COOKIE_DOMAIN, // .plattform-aras.ai works for www and non-www
+      // domain intentionally not set — browser uses request domain automatically
     },
   };
   
-  console.log(`[AUTH] Cookie config: secure=${IS_PRODUCTION}, domain=${COOKIE_DOMAIN || 'localhost'}, sameSite=lax`);
+  console.log(`[AUTH] Cookie config: secure=${IS_PRODUCTION}, domain=<auto>, sameSite=lax`);
   console.log(`[AUTH] SESSION_SECRET: ${SESSION_SECRET ? 'SET (from ENV)' : 'NOT SET (using fallback)'}`);
 
   // NOTE: trust proxy and canonical redirect are now in server/index.ts (runs first)
@@ -211,7 +212,7 @@ export function setupSimpleAuth(app: Express) {
         role: (req.user as any).userRole || 'user'
       } : null,
       time: new Date().toISOString(),
-      cookieDomain: COOKIE_DOMAIN || 'not set (localhost)',
+      cookieDomain: 'auto (request domain)',
       sessionSecretSet: !!SESSION_SECRET,
     });
   });

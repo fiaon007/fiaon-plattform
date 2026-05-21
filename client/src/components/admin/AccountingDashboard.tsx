@@ -117,8 +117,17 @@ const STATUS_META: Record<EntryStatus, { label: string; cls: string; dot: string
 const PAYMENT_METHODS = PAY_METHODS;
 
 // ============================================================================
-// Entry Modal — premium banking form
+// Entry Modal — clean minimal form
 // ============================================================================
+const TYPE_OPTS: { value: EntryType; label: string; sign: string }[] = [
+  { value: "income",           label: "Einnahme",      sign: "+" },
+  { value: "client_payment",   label: "Kundenzahlung", sign: "+" },
+  { value: "expense_recurring",label: "Laufende Kosten",sign: "−" },
+  { value: "expense_onetime",  label: "Einmalige Ausgabe",sign: "−" },
+  { value: "withdrawal",       label: "Auszahlung",    sign: "−" },
+  { value: "investment",       label: "Investition",   sign: "−" },
+];
+
 function EntryModal({
   entry, onSave, onClose,
 }: {
@@ -128,245 +137,185 @@ function EntryModal({
 }) {
   const isEdit = !!entry?.id;
   const [form, setForm] = useState<Partial<AccountingEntry>>({
-    entry_type: "income", category: "revenue", title: "", description: "",
-    amount_cents: 0, currency: "EUR",
+    entry_type: "income",
+    category: "revenue",
+    title: "",
+    amount_cents: 0,
+    currency: "EUR",
     entry_date: new Date().toISOString().split("T")[0],
-    is_recurring: false, frequency: "monthly", status: "paid",
-    payment_method: "bank_transfer", vendor: "", invoice_number: "",
-    payment_reference: "", ...entry,
+    is_recurring: false,
+    status: "paid",
+    vendor: "",
+    description: "",
+    ...entry,
   });
   const [saving, setSaving] = useState(false);
-  const [amtStr, setAmtStr] = useState<string>(entry?.amount_cents ? String(entry.amount_cents / 100) : "");
+  const [amtStr, setAmtStr] = useState<string>(
+    entry?.amount_cents ? String(entry.amount_cents / 100) : ""
+  );
 
   const set = (k: keyof AccountingEntry, v: any) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!amtStr || parseFloat(amtStr) <= 0) return;
     setSaving(true);
     try {
-      await onSave({ ...form, amount_cents: Math.round(parseFloat(amtStr.replace(",", ".")) * 100) || 0 }); // amtStr
+      await onSave({
+        ...form,
+        amount_cents: Math.round(parseFloat(amtStr.replace(",", ".")) * 100),
+      });
     } finally { setSaving(false); }
   };
 
+  const selectedType = TYPE_OPTS.find(t => t.value === form.entry_type);
+  const isIncome = ["income", "client_payment"].includes(form.entry_type ?? "");
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-6 py-5 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="relative bg-white w-full sm:max-w-md sm:mx-4 sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100">
           <div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-              {isEdit ? "Eintrag bearbeiten" : "Neuer Eintrag"}
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+              {isEdit ? "Bearbeiten" : "Neue Transaktion"}
             </p>
-            <h3 className="text-[15px] font-bold text-slate-900">
-              {isEdit ? form.title : "Transaktion hinzufügen"}
-            </h3>
+            <p className="text-[15px] font-bold text-slate-900 mt-0.5">
+              {isEdit ? form.title || "Eintrag" : "Transaktion hinzufügen"}
+            </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 transition-colors">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors text-slate-400">
+            ✕
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Type */}
-          <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Typ</label>
-            <div className="grid grid-cols-3 gap-1.5">
-              {(Object.keys(ENTRY_TYPE_META) as EntryType[]).map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => set("entry_type", t)}
-                  className={`py-2 px-2 rounded-xl text-[11px] font-semibold border transition-all text-center ${
-                    form.entry_type === t
-                      ? "border-[#2563eb] bg-blue-50 text-[#2563eb]"
-                      : "border-slate-200 text-slate-600 hover:border-slate-300"
-                  }`}
-                >
-                  {ENTRY_TYPE_META[t].icon} {ENTRY_TYPE_META[t].label}
-                </button>
-              ))}
-            </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+
+          {/* Type selector — 2 columns, clean chips */}
+          <div className="grid grid-cols-2 gap-2">
+            {TYPE_OPTS.map(t => (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => {
+                  set("entry_type", t.value);
+                  set("category", ["income","client_payment"].includes(t.value) ? "revenue" : "software");
+                }}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[12px] font-semibold border transition-all text-left ${
+                  form.entry_type === t.value
+                    ? isIncome
+                      ? "border-emerald-400 bg-emerald-50 text-emerald-700"
+                      : "border-slate-800 bg-slate-900 text-white"
+                    : "border-slate-200 text-slate-500 hover:border-slate-300 bg-white"
+                }`}
+              >
+                <span className={`text-[13px] font-bold ${form.entry_type === t.value ? "" : "opacity-50"}`}>
+                  {t.sign}
+                </span>
+                {t.label}
+              </button>
+            ))}
           </div>
 
-          {/* Title + Amount */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 sm:col-span-1">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Bezeichnung *</label>
-              <input
-                required
-                value={form.title}
-                onChange={e => set("title", e.target.value)}
-                placeholder="z.B. OpenAI API"
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Betrag (EUR) *</label>
+          {/* Amount — prominent */}
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">
+              Betrag (EUR) *
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[18px] font-bold text-slate-300">€</span>
               <input
                 required
                 type="number"
                 step="0.01"
-                min="0"
+                min="0.01"
                 value={amtStr}
                 onChange={e => setAmtStr(e.target.value)}
                 placeholder="0.00"
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all"
+                autoFocus={!isEdit}
+                className="w-full pl-10 pr-4 py-3.5 rounded-xl bg-slate-50 border border-slate-200 text-[20px] font-bold text-slate-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-400 transition-all"
               />
             </div>
           </div>
 
-          {/* Category + Status */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Kategorie</label>
-              <select
-                value={form.category}
-                onChange={e => set("category", e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
-              >
-                {Object.entries(CATEGORY_META).map(([k, v]) => (
-                  <option key={k} value={k}>{v.icon} {v.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Status</label>
-              <select
-                value={form.status}
-                onChange={e => set("status", e.target.value as EntryStatus)}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
-              >
-                <option value="planned">Geplant</option>
-                <option value="paid">Bezahlt</option>
-                <option value="overdue">Überfällig</option>
-                <option value="cancelled">Storniert</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Date */}
+          {/* Title */}
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Datum</label>
+            <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">
+              Bezeichnung *
+            </label>
             <input
-              type="date"
-              value={form.entry_date?.split("T")[0] ?? ""}
-              onChange={e => set("entry_date", e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
+              required
+              value={form.title}
+              onChange={e => set("title", e.target.value)}
+              placeholder={isIncome ? "z.B. Kundenzahlung Mai" : "z.B. OpenAI API"}
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-[14px] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-400 transition-all"
             />
           </div>
 
-          {/* Recurring */}
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
-            <button
-              type="button"
-              onClick={() => set("is_recurring", !form.is_recurring)}
-              className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${
-                form.is_recurring ? "bg-[#2563eb] border-[#2563eb]" : "border-slate-300 bg-white"
-              }`}
-            >
-              {form.is_recurring && (
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round">
-                  <polyline points="6 12 10 16 18 8" />
-                </svg>
-              )}
-            </button>
-            <span className="text-[13px] font-semibold text-slate-700">Wiederkehrend</span>
-            {form.is_recurring && (
-              <select
-                value={form.frequency}
-                onChange={e => set("frequency", e.target.value as Frequency)}
-                className="ml-auto px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-700 focus:outline-none"
-              >
-                <option value="weekly">Wöchentlich</option>
-                <option value="monthly">Monatlich</option>
-                <option value="quarterly">Quartalsweise</option>
-                <option value="yearly">Jährlich</option>
-              </select>
-            )}
-          </div>
-
-          {/* Vendor + Payment */}
+          {/* Date + Status side by side */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Anbieter / Empfänger</label>
+              <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Datum</label>
               <input
-                value={form.vendor ?? ""}
-                onChange={e => set("vendor", e.target.value)}
-                placeholder="z.B. Render"
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
+                type="date"
+                value={form.entry_date?.split("T")[0] ?? ""}
+                onChange={e => set("entry_date", e.target.value)}
+                className="w-full px-3 py-3 rounded-xl bg-slate-50 border border-slate-200 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/20 transition-all"
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Zahlungsmethode</label>
-              <select
-                value={form.payment_method ?? ""}
-                onChange={e => set("payment_method", e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
-              >
-                <option value="">— Wählen —</option>
-                {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-              </select>
+              <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Status</label>
+              <div className="flex rounded-xl border border-slate-200 overflow-hidden">
+                {[
+                  { v: "paid",    l: "Bezahlt" },
+                  { v: "planned", l: "Geplant" },
+                ].map(s => (
+                  <button key={s.v} type="button" onClick={() => set("status", s.v)}
+                    className={`flex-1 py-3 text-[12px] font-semibold transition-colors ${
+                      form.status === s.v ? "bg-slate-900 text-white" : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                    }`}>
+                    {s.l}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Invoice + Ref */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Rechnungsnummer</label>
-              <input
-                value={form.invoice_number ?? ""}
-                onChange={e => set("invoice_number", e.target.value)}
-                placeholder="INV-2024-001"
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Referenz / Ref-ID</label>
-              <input
-                value={form.payment_reference ?? ""}
-                onChange={e => set("payment_reference", e.target.value)}
-                placeholder="pi_3xyz..."
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Description */}
+          {/* Vendor optional */}
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Notiz</label>
-            <textarea
-              value={form.description ?? ""}
-              onChange={e => set("description", e.target.value)}
-              placeholder="Optionale Beschreibung…"
-              rows={2}
-              className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
+            <label className="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">
+              Anbieter <span className="normal-case font-normal">(optional)</span>
+            </label>
+            <input
+              value={form.vendor ?? ""}
+              onChange={e => set("vendor", e.target.value)}
+              placeholder="z.B. Render, Stripe, …"
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20 transition-all"
             />
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-2.5 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-            >
-              Abbrechen
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 py-2.5 rounded-xl bg-[#2563eb] text-white text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-50"
-            >
-              {saving ? "Speichern…" : isEdit ? "Aktualisieren" : "Hinzufügen"}
-            </button>
-          </div>
+          {/* Save button */}
+          <button
+            type="submit"
+            disabled={saving || !amtStr || parseFloat(amtStr) <= 0}
+            className="w-full py-3.5 rounded-xl bg-slate-900 text-white text-[14px] font-bold hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed mt-1"
+          >
+            {saving ? "Wird gespeichert…" : isEdit ? "Aktualisieren" : `${selectedType?.sign} ${amtStr ? `${amtStr} €` : "Speichern"}`}
+          </button>
+
+          {/* Cancel link */}
+          <button type="button" onClick={onClose}
+            className="w-full text-center text-[12px] text-slate-400 hover:text-slate-600 transition-colors pb-1">
+            Abbrechen
+          </button>
         </form>
       </div>
     </div>
   );
 }
+
 
 // ============================================================================
 // Balance Update Modal

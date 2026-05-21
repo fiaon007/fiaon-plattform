@@ -172,6 +172,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🌍 Setup DeepL translation endpoint
   setupTranslationRoute(app);
 
+  // 💰 Accounting FIRST — must be before generic /api/admin to avoid admin.ts requireAdmin intercepting it
+  const adminAccountingRoutes = await import('./routes/admin-accounting');
+  app.use('/api/admin/accounting', adminAccountingRoutes.default);
+
   // 🔧 Setup Admin API Routes
   const adminRoutes = await import('./routes/admin');
   app.use('/api/admin', adminRoutes.default);
@@ -187,10 +191,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🔧 Setup Admin Database Routes (view all database tables)
   const adminDatabaseRoutes = await import('./routes/admin-database');
   app.use('/api/database', adminDatabaseRoutes.default);
-
-  // 💰 Setup Admin Accounting Routes (company financial management)
-  const adminAccountingRoutes = await import('./routes/admin-accounting');
-  app.use('/api/admin/accounting', adminAccountingRoutes.default);
 
   // 🧠 CEO Mind-OS — Strategie-Notizbuch mit Groq + Tavily
   const ceoMindOsRoutes = await import('./routes/ceo-mind-os');

@@ -9,8 +9,9 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
   const [scrolled, setScrolled] = useState(false);
   const [mob, setMob] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [privatHover, setPrivatHover] = useState(false);
+  const [privatOpen, setPrivatOpen] = useState(false);
   const [privatMobileOpen, setPrivatMobileOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fn = () => {
@@ -20,6 +21,19 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
     window.addEventListener("scroll", fn, { passive: true });
     return () => window.removeEventListener("scroll", fn);
   }, []);
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setPrivatOpen(false);
+      }
+    };
+    if (privatOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [privatOpen]);
 
   const pages = [
     { label: "Startseite", href: "/", key: "startseite" },
@@ -58,54 +72,59 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                   <div
                     key={p.key}
                     className="relative"
-                    onMouseEnter={() => p.key === "privatkunden" && setPrivatHover(true)}
-                    onMouseLeave={() => p.key === "privatkunden" && setPrivatHover(false)}
+                    ref={p.key === "privatkunden" ? dropdownRef : null}
                   >
-                    <a
-                      href={p.href}
-                      className={`relative text-[13px] font-medium pb-0.5 transition-colors duration-300 ${
-                        activePage === p.key
-                          ? "text-gray-900"
-                          : "text-gray-500 hover:text-gray-900"
-                      }`}
-                    >
-                      {p.hasGradient ? (
-                        <>
-                          Was ist <span className="fiaon-gradient-text-animated">FIAON</span>
-                        </>
-                      ) : (
-                        p.label
-                      )}
-                      {activePage === p.key && (
-                        <span
-                          className="absolute -bottom-0.5 left-0 right-0 h-[1.5px] rounded-full bg-[#2563eb]"
-                          style={{
-                            boxShadow: "0 0 6px rgba(37,99,235,.4)",
-                          }}
-                        />
-                      )}
-                      {p.key === "privatkunden" && (
+                    {p.key === "privatkunden" ? (
+                      <button
+                        onClick={(e) => { e.preventDefault(); setPrivatOpen(!privatOpen); }}
+                        className={`relative text-[13px] font-medium pb-0.5 transition-colors duration-300 ${
+                          activePage === p.key
+                            ? "text-gray-900"
+                            : "text-gray-500 hover:text-gray-900"
+                        }`}
+                      >
+                        {p.label}
+                        {activePage === p.key && (
+                          <span
+                            className="absolute -bottom-0.5 left-0 right-0 h-[1.5px] rounded-full bg-[#2563eb]"
+                            style={{
+                              boxShadow: "0 0 6px rgba(37,99,235,.4)",
+                            }}
+                          />
+                        )}
                         <svg
                           width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
                           className="inline-block ml-1 transition-transform duration-300"
-                          style={{ transform: privatHover ? "rotate(180deg)" : "rotate(0deg)" }}
+                          style={{ transform: privatOpen ? "rotate(180deg)" : "rotate(0deg)" }}
                         >
                           <path d="M6 9l6 6 6-6" />
                         </svg>
-                      )}
-                    </a>
-                    {/* Dropdown for Privatkunden */}
-                    {p.key === "privatkunden" && privatHover && (
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 pt-2 min-w-[200px] z-[100]">
-                        <div className="fiaon-glass-panel rounded-2xl py-2 shadow-xl border border-gray-100" style={{ backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
-                          <a
-                            href="/bonitaet"
-                            className="block px-5 py-3 text-[13.5px] font-medium text-gray-700 hover:text-gray-900 hover:bg-blue-50/50 transition-colors"
-                          >
-                            Bonitäts-Auszug
-                          </a>
-                        </div>
-                      </div>
+                      </button>
+                    ) : (
+                      <a
+                        href={p.href}
+                        className={`relative text-[13px] font-medium pb-0.5 transition-colors duration-300 ${
+                          activePage === p.key
+                            ? "text-gray-900"
+                            : "text-gray-500 hover:text-gray-900"
+                        }`}
+                      >
+                        {p.hasGradient ? (
+                          <>
+                            Was ist <span className="fiaon-gradient-text-animated">FIAON</span>
+                          </>
+                        ) : (
+                          p.label
+                        )}
+                        {activePage === p.key && (
+                          <span
+                            className="absolute -bottom-0.5 left-0 right-0 h-[1.5px] rounded-full bg-[#2563eb]"
+                            style={{
+                              boxShadow: "0 0 6px rgba(37,99,235,.4)",
+                            }}
+                          />
+                        )}
+                      </a>
                     )}
                   </div>
                 ))}
@@ -162,6 +181,27 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
             </div>
           </div>
         </div>
+
+        {/* Desktop: Privatkunden Dropdown (outside glass container to prevent clipping) */}
+        {privatOpen && (
+          <div className="hidden md:block absolute top-[88px] left-1/2 -translate-x-1/2 z-[100]">
+            <div className="fiaon-glass-panel rounded-2xl py-2 shadow-xl border border-gray-100 min-w-[200px]" 
+              style={{ 
+                backdropFilter: "blur(20px)", 
+                WebkitBackdropFilter: "blur(20px)",
+                background: "rgba(255, 255, 255, 0.85)"
+              }}
+            >
+              <a
+                href="/bonitaet"
+                onClick={() => setPrivatOpen(false)}
+                className="block px-5 py-3 text-[13.5px] font-medium text-gray-700 hover:text-gray-900 hover:bg-blue-50/50 transition-colors rounded-xl"
+              >
+                Bonitäts-Auszug
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* Mobile full-screen menu overlay */}
         {mob && (

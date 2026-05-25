@@ -9,6 +9,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
   const [scrolled, setScrolled] = useState(false);
   const [mob, setMob] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [privatHover, setPrivatHover] = useState(false);
 
   useEffect(() => {
     const fn = () => {
@@ -53,31 +54,59 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
               {/* Desktop: centered links */}
               <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
                 {pages.map((p) => (
-                  <a
+                  <div
                     key={p.key}
-                    href={p.href}
-                    className={`relative text-[13px] font-medium pb-0.5 transition-colors duration-300 ${
-                      activePage === p.key
-                        ? "text-gray-900"
-                        : "text-gray-500 hover:text-gray-900"
-                    }`}
+                    className="relative"
+                    onMouseEnter={() => p.key === "privatkunden" && setPrivatHover(true)}
+                    onMouseLeave={() => p.key === "privatkunden" && setPrivatHover(false)}
                   >
-                    {p.hasGradient ? (
-                      <>
-                        Was ist <span className="fiaon-gradient-text-animated">FIAON</span>
-                      </>
-                    ) : (
-                      p.label
+                    <a
+                      href={p.href}
+                      className={`relative text-[13px] font-medium pb-0.5 transition-colors duration-300 ${
+                        activePage === p.key
+                          ? "text-gray-900"
+                          : "text-gray-500 hover:text-gray-900"
+                      }`}
+                    >
+                      {p.hasGradient ? (
+                        <>
+                          Was ist <span className="fiaon-gradient-text-animated">FIAON</span>
+                        </>
+                      ) : (
+                        p.label
+                      )}
+                      {activePage === p.key && (
+                        <span
+                          className="absolute -bottom-0.5 left-0 right-0 h-[1.5px] rounded-full bg-[#2563eb]"
+                          style={{
+                            boxShadow: "0 0 6px rgba(37,99,235,.4)",
+                          }}
+                        />
+                      )}
+                      {p.key === "privatkunden" && (
+                        <svg
+                          width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+                          className="inline-block ml-1 transition-transform duration-300"
+                          style={{ transform: privatHover ? "rotate(180deg)" : "rotate(0deg)" }}
+                        >
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      )}
+                    </a>
+                    {/* Dropdown for Privatkunden */}
+                    {p.key === "privatkunden" && privatHover && (
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 pt-2 min-w-[200px]">
+                        <div className="fiaon-glass-panel rounded-2xl py-2 shadow-xl border border-gray-100">
+                          <a
+                            href="/bonitaet"
+                            className="block px-5 py-3 text-[13.5px] font-medium text-gray-700 hover:text-gray-900 hover:bg-blue-50/50 transition-colors"
+                          >
+                            Bonitäts-Auszug
+                          </a>
+                        </div>
+                      </div>
                     )}
-                    {activePage === p.key && (
-                      <span
-                        className="absolute -bottom-0.5 left-0 right-0 h-[1.5px] rounded-full bg-[#2563eb]"
-                        style={{
-                          boxShadow: "0 0 6px rgba(37,99,235,.4)",
-                        }}
-                      />
-                    )}
-                  </a>
+                  </div>
                 ))}
               </div>
 
@@ -138,24 +167,37 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
           <div className="md:hidden fixed inset-0 top-[72px] z-40 bg-white/95 backdrop-blur-xl">
             <div className="px-6 py-8 space-y-4">
               {pages.map((p) => (
-                <a
-                  key={p.key}
-                  href={p.href}
-                  onClick={() => setMob(false)}
-                  className={`block py-4 text-lg font-medium transition-colors border-b border-gray-100 ${
-                    activePage === p.key
-                      ? "text-gray-900"
-                      : "text-gray-600"
-                  }`}
-                >
-                  {p.hasGradient ? (
-                    <>
-                      Was ist <span className="fiaon-gradient-text-animated">FIAON</span>
-                    </>
-                  ) : (
-                    p.label
+                <div key={p.key}>
+                  <a
+                    href={p.href}
+                    onClick={() => setMob(false)}
+                    className={`block py-4 text-lg font-medium transition-colors border-b border-gray-100 ${
+                      activePage === p.key
+                        ? "text-gray-900"
+                        : "text-gray-600"
+                    }`}
+                  >
+                    {p.hasGradient ? (
+                      <>
+                        Was ist <span className="fiaon-gradient-text-animated">FIAON</span>
+                      </>
+                    ) : (
+                      p.label
+                    )}
+                  </a>
+                  {/* Mobile submenu for Privatkunden */}
+                  {p.key === "privatkunden" && (
+                    <div className="pl-4 mt-2 space-y-2">
+                      <a
+                        href="/bonitaet"
+                        onClick={() => setMob(false)}
+                        className="block py-3 text-[15px] font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                      >
+                        Bonitäts-Auszug
+                      </a>
+                    </div>
                   )}
-                </a>
+                </div>
               ))}
               <div className="pt-4 space-y-3">
                 <button

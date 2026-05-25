@@ -22,6 +22,7 @@ import WiderrufsbelehrungPage from "@/pages/widerrufsbelehrung";
 import CookieEinstellungenPage from "@/pages/cookie-einstellungen";
 import PasswortVergessenPage from "@/pages/passwort-vergessen";
 import AboKuendigenPage from "@/pages/abo-kuendigen";
+import BonitaetPage from "@/pages/bonitaet";
 
 function Router() {
   return (
@@ -46,6 +47,7 @@ function Router() {
       <Route path="/cookie-einstellungen" component={CookieEinstellungenPage} />
       <Route path="/passwort-vergessen" component={PasswortVergessenPage} />
       <Route path="/abo-kuendigen" component={AboKuendigenPage} />
+      <Route path="/bonitaet" component={BonitaetPage} />
       <Route component={NotFound} />
     </Switch>
   );

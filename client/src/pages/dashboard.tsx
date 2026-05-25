@@ -200,7 +200,9 @@ export default function DashboardPage() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
+  const [profileErrors, setProfileErrors] = useState<Record<string,boolean>>({});
   const [activeTooltip, setActiveTooltip] = useState<string|null>(null);
+  const profileFormRef = useRef<HTMLDivElement>(null);
   const [profileForm, setProfileForm] = useState({
     movedRecently: false, previousStreet: '', previousZip: '', previousCity: '', previousCountry: 'Deutschland',
     passportNumber: '', passportExpiry: '',
@@ -231,6 +233,12 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    if (section === 'account' && statusLoaded && !serverDocStatus.profileCompletedAt) {
+      setTimeout(() => profileFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400);
+    }
+  }, [section, statusLoaded]);
+
+  useEffect(() => {
     if (section === 'account' && user?.ref && !profileData && !profileLoading) {
       setProfileLoading(true);
       fetch(`/api/fiaon/profile/${user.ref}`).then(r => r.json()).then(d => {
@@ -255,6 +263,26 @@ export default function DashboardPage() {
 
   const handleProfileSave = async () => {
     if (!user?.ref) return;
+    // Validate required fields
+    const errs: Record<string,boolean> = {};
+    if (!profileForm.passportNumber.trim()) errs.passportNumber = true;
+    if (!profileForm.passportExpiry) errs.passportExpiry = true;
+    const hasExpense = ['expensesFood','expensesTransport','expensesInsurance','expensesLoans','expensesSubscriptions','expensesOther'].some(k => Number((profileForm as any)[k]) > 0);
+    if (!hasExpense) errs.expenses = true;
+    if (profileForm.movedRecently) {
+      if (!profileForm.previousStreet.trim()) errs.previousStreet = true;
+      if (!profileForm.previousCity.trim()) errs.previousCity = true;
+    }
+    if (profileForm.hasAdditionalIncome) {
+      if (!profileForm.additionalIncomeSources.trim()) errs.additionalIncomeSources = true;
+      if (!profileForm.additionalIncomeAmount) errs.additionalIncomeAmount = true;
+    }
+    if (Object.keys(errs).length > 0) {
+      setProfileErrors(errs);
+      profileFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    setProfileErrors({});
     setProfileSaving(true);
     try {
       const res = await fetch(`/api/fiaon/profile/${user.ref}`, {
@@ -262,9 +290,10 @@ export default function DashboardPage() {
         body: JSON.stringify(profileForm),
       });
       if (res.ok) {
+        const now = new Date().toISOString();
         setProfileSaved(true);
-        setProfileData((prev: any) => prev ? { ...prev, ...profileForm, profileChangesRequested: false } : prev);
-        setServerDocStatus(prev => ({ ...prev, profileChangesRequested: false }));
+        setProfileData((prev: any) => prev ? { ...prev, ...profileForm, profileChangesRequested: false, profileCompletedAt: now } : prev);
+        setServerDocStatus(prev => ({ ...prev, profileChangesRequested: false, profileCompletedAt: now }));
         setTimeout(() => setProfileSaved(false), 3000);
       }
     } catch {}
@@ -859,15 +888,17 @@ export default function DashboardPage() {
                 )}
 
                 {/* ── Block 4: Profil vervollständigen (Formular) ── */}
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                  <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <div ref={profileFormRef} className={`rounded-2xl overflow-hidden shadow-sm ${Object.keys(profileErrors).length > 0 ? 'ring-2 ring-rose-400' : 'border border-slate-100'} bg-white`}>
+                  <div className={`px-5 py-4 border-b flex items-center justify-between ${Object.keys(profileErrors).length > 0 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50/50 border-slate-100'}`}>
                     <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Pflichtangaben</p>
+                      <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${Object.keys(profileErrors).length > 0 ? 'text-rose-500' : 'text-slate-400'}`}>Pflichtangaben</p>
                       <h3 className="text-[14px] font-bold text-slate-900">Profil vervollständigen</h3>
                     </div>
-                    {profileData?.profileCompletedAt && (
-                      <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">✓ Zuletzt gespeichert {fmtDate(profileData.profileCompletedAt)}</span>
-                    )}
+                    {Object.keys(profileErrors).length > 0
+                      ? <span className="text-[11px] text-rose-600 font-semibold bg-rose-100 px-2.5 py-1 rounded-full border border-rose-200 flex items-center gap-1.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>{Object.keys(profileErrors).length} Feld{Object.keys(profileErrors).length > 1 ? 'er' : ''} fehlt</span>
+                      : (serverDocStatus.profileCompletedAt || profileData?.profileCompletedAt) && (
+                        <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">✓ Zuletzt gespeichert {fmtDate(serverDocStatus.profileCompletedAt || profileData?.profileCompletedAt)}</span>
+                      )}
                   </div>
                   <div className="px-5 py-6 space-y-8" onClick={e => e.stopPropagation()}>
 
@@ -888,16 +919,16 @@ export default function DashboardPage() {
                       {profileForm.movedRecently && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-7">
                           <div className="col-span-2">
-                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Straße und Hausnummer (frühere Anschrift)</label>
-                            <input type="text" value={profileForm.previousStreet} onChange={e => setProfileForm(p => ({...p, previousStreet: e.target.value}))} placeholder="z. B. Musterstraße 12" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
+                            <label className="block text-[11px] font-bold uppercase tracking-wider mb-1.5" style={{ color: profileErrors.previousStreet ? '#e11d48' : '#64748b' }}>Straße und Hausnummer (frühere Anschrift){profileErrors.previousStreet && <span className="ml-1 normal-case font-normal">— Pflichtfeld</span>}</label>
+                            <input type="text" value={profileForm.previousStreet} onChange={e => { setProfileForm(p => ({...p, previousStreet: e.target.value})); if (e.target.value.trim()) setProfileErrors(p => ({...p, previousStreet: false})); }} placeholder="z. B. Musterstraße 12" className={`w-full px-3.5 py-2.5 rounded-xl border text-[13px] text-slate-800 focus:outline-none focus:ring-2 transition-all ${profileErrors.previousStreet ? 'border-rose-400 bg-rose-50 focus:ring-rose-100' : 'border-slate-200 bg-slate-50 focus:ring-blue-100 focus:border-blue-300'}`} />
                           </div>
                           <div>
                             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">PLZ</label>
                             <input type="text" value={profileForm.previousZip} onChange={e => setProfileForm(p => ({...p, previousZip: e.target.value}))} placeholder="z. B. 10115" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
                           </div>
                           <div>
-                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Ort</label>
-                            <input type="text" value={profileForm.previousCity} onChange={e => setProfileForm(p => ({...p, previousCity: e.target.value}))} placeholder="z. B. Berlin" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
+                            <label className="block text-[11px] font-bold uppercase tracking-wider mb-1.5" style={{ color: profileErrors.previousCity ? '#e11d48' : '#64748b' }}>Ort{profileErrors.previousCity && <span className="ml-1 normal-case font-normal">— Pflichtfeld</span>}</label>
+                            <input type="text" value={profileForm.previousCity} onChange={e => { setProfileForm(p => ({...p, previousCity: e.target.value})); if (e.target.value.trim()) setProfileErrors(p => ({...p, previousCity: false})); }} placeholder="z. B. Berlin" className={`w-full px-3.5 py-2.5 rounded-xl border text-[13px] text-slate-800 focus:outline-none focus:ring-2 transition-all ${profileErrors.previousCity ? 'border-rose-400 bg-rose-50 focus:ring-rose-100' : 'border-slate-200 bg-slate-50 focus:ring-blue-100 focus:border-blue-300'}`} />
                           </div>
                           <div>
                             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Land</label>
@@ -916,18 +947,18 @@ export default function DashboardPage() {
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center">
-                            Reisepass-Nummer
+                          <label className="block text-[11px] font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1" style={{ color: profileErrors.passportNumber ? '#e11d48' : '#64748b' }}>
+                            Reisepass-Nummer{profileErrors.passportNumber && <span className="font-normal normal-case">— Pflichtfeld</span>}
                             {tip('passNum', 'Ihre Reisepassnummer befindet sich oben rechts auf der Datenseite Ihres Reisepasses. Sie beginnt in Deutschland mit einem Buchstaben gefolgt von 8 Ziffern (z. B. C01X0006).')}
                           </label>
-                          <input type="text" value={profileForm.passportNumber} onChange={e => setProfileForm(p => ({...p, passportNumber: e.target.value}))} placeholder="z. B. C01X0006" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
+                          <input type="text" value={profileForm.passportNumber} onChange={e => { setProfileForm(p => ({...p, passportNumber: e.target.value})); if (e.target.value.trim()) setProfileErrors(p => ({...p, passportNumber: false})); }} placeholder="z. B. C01X0006" className={`w-full px-3.5 py-2.5 rounded-xl border text-[13px] text-slate-800 focus:outline-none focus:ring-2 transition-all ${profileErrors.passportNumber ? 'border-rose-400 bg-rose-50 focus:ring-rose-100' : 'border-slate-200 bg-slate-50 focus:ring-blue-100 focus:border-blue-300'}`} />
                         </div>
                         <div>
-                          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center">
-                            Gültig bis (Ablaufdatum)
+                          <label className="block text-[11px] font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1" style={{ color: profileErrors.passportExpiry ? '#e11d48' : '#64748b' }}>
+                            Gültig bis (Ablaufdatum){profileErrors.passportExpiry && <span className="font-normal normal-case">— Pflichtfeld</span>}
                             {tip('passExp', 'Das Ablaufdatum Ihres Reisepasses finden Sie auf der Datenseite unter „Gültig bis". Ihr Reisepass muss für die Antragstellung noch gültig sein.')}
                           </label>
-                          <input type="date" value={profileForm.passportExpiry} onChange={e => setProfileForm(p => ({...p, passportExpiry: e.target.value}))} className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
+                          <input type="date" value={profileForm.passportExpiry} onChange={e => { setProfileForm(p => ({...p, passportExpiry: e.target.value})); if (e.target.value) setProfileErrors(p => ({...p, passportExpiry: false})); }} className={`w-full px-3.5 py-2.5 rounded-xl border text-[13px] text-slate-800 focus:outline-none focus:ring-2 transition-all ${profileErrors.passportExpiry ? 'border-rose-400 bg-rose-50 focus:ring-rose-100' : 'border-slate-200 bg-slate-50 focus:ring-blue-100 focus:border-blue-300'}`} />
                         </div>
                       </div>
                     </div>
@@ -949,18 +980,18 @@ export default function DashboardPage() {
                       {profileForm.hasAdditionalIncome && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-7">
                           <div className="col-span-2">
-                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center">
-                              Art der weiteren Einkünfte
+                            <label className="block text-[11px] font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1" style={{ color: profileErrors.additionalIncomeSources ? '#e11d48' : '#64748b' }}>
+                              Art der weiteren Einkünfte{profileErrors.additionalIncomeSources && <span className="font-normal normal-case">— Pflichtfeld</span>}
                               {tip('incType', 'Bitte beschreiben Sie die Herkunft Ihrer zusätzlichen Einkünfte, z. B. „Vermietung Eigentumswohnung", „Dividendeneinnahmen" oder „selbstständige Nebentätigkeit".')}
                             </label>
-                            <textarea value={profileForm.additionalIncomeSources} onChange={e => setProfileForm(p => ({...p, additionalIncomeSources: e.target.value}))} placeholder="z. B. Mieteinnahmen aus Eigentumswohnung, freiberufliche Tätigkeit" rows={2} className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all resize-none" />
+                            <textarea value={profileForm.additionalIncomeSources} onChange={e => { setProfileForm(p => ({...p, additionalIncomeSources: e.target.value})); if (e.target.value.trim()) setProfileErrors(p => ({...p, additionalIncomeSources: false})); }} placeholder="z. B. Mieteinnahmen aus Eigentumswohnung, freiberufliche Tätigkeit" rows={2} className={`w-full px-3.5 py-2.5 rounded-xl border text-[13px] text-slate-800 focus:outline-none focus:ring-2 transition-all resize-none ${profileErrors.additionalIncomeSources ? 'border-rose-400 bg-rose-50 focus:ring-rose-100' : 'border-slate-200 bg-slate-50 focus:ring-blue-100 focus:border-blue-300'}`} />
                           </div>
                           <div>
-                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center">
-                              Ungefährer Monatsbetrag (€)
+                            <label className="block text-[11px] font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1" style={{ color: profileErrors.additionalIncomeAmount ? '#e11d48' : '#64748b' }}>
+                              Ungefährer Monatsbetrag (€){profileErrors.additionalIncomeAmount && <span className="font-normal normal-case">— Pflichtfeld</span>}
                               {tip('incAmt', 'Geben Sie den durchschnittlichen monatlichen Nettobetrag Ihrer weiteren Einkünfte an.')}
                             </label>
-                            <input type="number" min="0" value={profileForm.additionalIncomeAmount} onChange={e => setProfileForm(p => ({...p, additionalIncomeAmount: e.target.value}))} placeholder="z. B. 500" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
+                            <input type="number" min="0" value={profileForm.additionalIncomeAmount} onChange={e => { setProfileForm(p => ({...p, additionalIncomeAmount: e.target.value})); if (e.target.value) setProfileErrors(p => ({...p, additionalIncomeAmount: false})); }} placeholder="z. B. 500" className={`w-full px-3.5 py-2.5 rounded-xl border text-[13px] text-slate-800 focus:outline-none focus:ring-2 transition-all ${profileErrors.additionalIncomeAmount ? 'border-rose-400 bg-rose-50 focus:ring-rose-100' : 'border-slate-200 bg-slate-50 focus:ring-blue-100 focus:border-blue-300'}`} />
                           </div>
                         </div>
                       )}
@@ -968,9 +999,10 @@ export default function DashboardPage() {
 
                     {/* — Monatliche Ausgaben — */}
                     <div>
-                      <h4 className="text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-2">
-                        <span className="w-5 h-5 rounded-md bg-slate-900 text-white text-[9px] font-bold flex items-center justify-center">4</span>
+                      <h4 className={`text-[12px] font-bold uppercase tracking-wider mb-1 flex items-center gap-2 ${profileErrors.expenses ? 'text-rose-600' : 'text-slate-700'}`}>
+                        <span className={`w-5 h-5 rounded-md text-white text-[9px] font-bold flex items-center justify-center ${profileErrors.expenses ? 'bg-rose-500' : 'bg-slate-900'}`}>4</span>
                         Monatliche Ausgaben
+                        {profileErrors.expenses && <span className="text-[11px] font-normal normal-case text-rose-500">— Mindestens ein Betrag erforderlich</span>}
                         {tip('expenses', 'Ihre monatlichen Ausgaben werden für die Haushaltsrechnung gemäß § 18a KWG benötigt. Bitte geben Sie Schätzwerte in Euro an. Bereits angegebene Kreditbelastungen müssen nicht erneut aufgeführt werden.')}
                       </h4>
                       <p className="text-[11px] text-slate-400 mb-4 pl-7">Angaben gemäß § 18a KWG (Kreditwürdigkeitsprüfung) — bitte in Euro/Monat</p>
@@ -989,8 +1021,8 @@ export default function DashboardPage() {
                               {tip(f.tip, f.tipText)}
                             </label>
                             <div className="relative">
-                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[13px] font-medium">€</span>
-                              <input type="number" min="0" value={(profileForm as any)[f.key]} onChange={e => setProfileForm(p => ({...p, [f.key]: e.target.value}))} placeholder="0" className="w-full pl-7 pr-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
+                              <span className={`absolute left-3.5 top-1/2 -translate-y-1/2 text-[13px] font-medium ${profileErrors.expenses ? 'text-rose-400' : 'text-slate-400'}`}>€</span>
+                              <input type="number" min="0" value={(profileForm as any)[f.key]} onChange={e => { setProfileForm(p => ({...p, [f.key]: e.target.value})); if (Number(e.target.value) > 0) setProfileErrors(p => ({...p, expenses: false})); }} placeholder="0" className={`w-full pl-7 pr-3.5 py-2.5 rounded-xl border text-[13px] text-slate-800 focus:outline-none focus:ring-2 transition-all ${profileErrors.expenses ? 'border-rose-300 bg-rose-50/50 focus:ring-rose-100' : 'border-slate-200 bg-slate-50 focus:ring-blue-100 focus:border-blue-300'}`} />
                             </div>
                           </div>
                         ))}

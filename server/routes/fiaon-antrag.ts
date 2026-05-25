@@ -872,7 +872,7 @@ router.patch("/profile/:ref", async (req, res) => {
 router.patch("/admin/applications/:ref/review", async (req, res) => {
   try {
     const { ref } = req.params;
-    const { kycStatus, accountStatus, adminNote, reuploadBankStatement, reuploadIdCard, adminProfileNote, profileChangesRequested } = req.body;
+    const { kycStatus, accountStatus, adminNote, reuploadBankStatement, reuploadIdCard, adminProfileNote, profileChangesRequested, schufaStatus, adminSchufaNote } = req.body;
 
     const validKyc = ['pending', 'approved', 'changes_requested'];
     const validAccount = ['pending', 'active', 'suspended'];
@@ -904,8 +904,8 @@ router.patch("/admin/applications/:ref/review", async (req, res) => {
       ? !!reuploadIdCard
       : (clearReupload ? false : null);
 
-    // Also migrate profile columns if needed
-    await sqlPool`ALTER TABLE fiaon_applications ADD COLUMN IF NOT EXISTS admin_profile_note TEXT, ADD COLUMN IF NOT EXISTS profile_changes_requested BOOLEAN DEFAULT FALSE`.catch(() => {});
+    // Also migrate profile + schufa review columns if needed
+    await sqlPool`ALTER TABLE fiaon_applications ADD COLUMN IF NOT EXISTS admin_profile_note TEXT, ADD COLUMN IF NOT EXISTS profile_changes_requested BOOLEAN DEFAULT FALSE, ADD COLUMN IF NOT EXISTS schufa_status VARCHAR DEFAULT 'pending', ADD COLUMN IF NOT EXISTS admin_schufa_note TEXT`.catch(() => {});
 
     await sqlPool`
       UPDATE fiaon_applications SET
@@ -917,6 +917,8 @@ router.patch("/admin/applications/:ref/review", async (req, res) => {
         reupload_id_card           = COALESCE(${setReuploadId}, reupload_id_card),
         admin_profile_note         = ${adminProfileNote !== undefined ? (adminProfileNote || null) : null},
         profile_changes_requested  = COALESCE(${profileChangesRequested ?? null}, profile_changes_requested),
+        schufa_status              = COALESCE(${schufaStatus ?? null}, schufa_status),
+        admin_schufa_note          = ${adminSchufaNote !== undefined ? (adminSchufaNote || null) : null},
         updated_at                 = NOW()
       WHERE ref = ${ref}
     `;
@@ -1201,7 +1203,7 @@ router.get("/admin/applications", async (_req, res) => {
       LIMIT 500
     `;
 
-    const HEAVY_COLS = new Set(["bank_statement_pdf", "id_card_pdf"]);
+    const HEAVY_COLS = new Set(["bank_statement_pdf", "id_card_pdf", "schufa_pdf"]);
     const data = rows.map((row: any) => {
       const out: any = {};
       for (const [k, v] of Object.entries(row)) {
@@ -1211,6 +1213,7 @@ router.get("/admin/applications", async (_req, res) => {
       // Add boolean presence flags without shipping the bytea
       out.has_bank_statement_pdf = row.bank_statement_pdf != null;
       out.has_id_card_pdf = row.id_card_pdf != null;
+      out.has_schufa_pdf = row.schufa_pdf != null;
       return out;
     });
 
@@ -1232,7 +1235,8 @@ router.get("/admin/applications/:ref/document/:type", async (req, res) => {
     const { ref, type } = req.params;
     const column =
       type === "bank_statement" ? "bank_statement_pdf" :
-      type === "id_card" ? "id_card_pdf" : null;
+      type === "id_card" ? "id_card_pdf" :
+      type === "schufa" ? "schufa_pdf" : null;
 
     if (!column) {
       return res.status(400).json({ error: "Invalid document type" });

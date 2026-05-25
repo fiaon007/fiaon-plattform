@@ -41,6 +41,7 @@ export default function AdminDatabasePage() {
   const [reuploadBank, setReuploadBank] = useState(false);
   const [reuploadId, setReuploadId] = useState(false);
   const [profileNote, setProfileNote] = useState('');
+  const [schufaNote, setSchufaNote] = useState('');
   const [adminSection, setAdminSection] = useState<'overview'|'applications'|'tasks'|'command'|'radar'|'knowledge'|'accounting'|'cancellations'>('overview');
 
   const [cancellations, setCancellations] = useState<any[]>([]);
@@ -77,6 +78,31 @@ export default function AdminDatabasePage() {
         setReviewSuccess('Gespeichert');
         setTimeout(() => setReviewSuccess(null), 2500);
         if (kycStatus !== 'changes_requested') { setReviewNote(""); setReuploadBank(false); setReuploadId(false); }
+      }
+    } catch {}
+    setReviewLoading(false);
+  };
+
+  const sendSchufaAction = async (schufaStatus: string, note?: string) => {
+    if (!selectedApp?.ref) return;
+    setReviewLoading(true);
+    setReviewSuccess(null);
+    try {
+      const body: any = { schufaStatus };
+      if (note !== undefined) body.adminSchufaNote = note;
+      const res = await fetch(`/api/fiaon/admin/applications/${selectedApp.ref}/review`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        const updated = { ...selectedApp, schufa_status: schufaStatus, admin_schufa_note: note !== undefined ? (note || null) : selectedApp.admin_schufa_note };
+        setSelectedApp(updated);
+        setApplications(prev => prev.map(a => a.ref === selectedApp.ref ? { ...a, schufa_status: schufaStatus } : a));
+        setReviewSuccess('SCHUFA-Status gespeichert');
+        setTimeout(() => setReviewSuccess(null), 2500);
+        if (note !== undefined) setSchufaNote('');
       }
     } catch {}
     setReviewLoading(false);
@@ -324,6 +350,8 @@ export default function AdminDatabasePage() {
     readyForReview: applications.filter(a => getAppStatusKey(a) === 'ready_for_review').length,
     kycMissing: applications.filter(a => getAppStatusKey(a) === 'kyc_missing').length,
     completed: applications.filter(a => getAppStatusKey(a) === 'completed').length,
+    schufaUploaded: applications.filter(a => !!(a.has_schufa_pdf ?? a.schufa_pdf)).length,
+    schufaApproved: applications.filter(a => a.schufa_status === 'approved').length,
     recent: [...applications].sort((a,b) => new Date(b.updated_at||b.created_at||0).getTime() - new Date(a.updated_at||a.created_at||0).getTime()).slice(0,5),
   }), [applications]);
 
@@ -345,7 +373,10 @@ export default function AdminDatabasePage() {
           ].filter(Boolean).join(' ').toLowerCase();
           if (!hay.includes(q)) return false;
         }
-        if (statusFilter !== 'all' && getAppStatusKey(app) !== statusFilter) return false;
+        if (statusFilter === 'schufa_uploaded') { if (!(app.has_schufa_pdf ?? app.schufa_pdf)) return false; }
+        else if (statusFilter === 'schufa_missing') { if (!!(app.has_schufa_pdf ?? app.schufa_pdf)) return false; }
+        else if (statusFilter === 'schufa_approved') { if (app.schufa_status !== 'approved') return false; }
+        else if (statusFilter !== 'all' && getAppStatusKey(app) !== statusFilter) return false;
         if (paymentFilter !== 'all' && getPaymentStatusKey(app) !== paymentFilter) return false;
         return true;
       });
@@ -518,12 +549,14 @@ export default function AdminDatabasePage() {
           {adminSection === 'overview' && (
             <div className="space-y-6">
               {/* Stats grid */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                 {[
                   { label: 'Gesamt', value: stats.total, color: 'bg-slate-900', sub: 'Alle Anträge' },
                   { label: 'Bezahlt', value: stats.paid, color: 'bg-emerald-600', sub: 'Zahlungen eingegangen' },
                   { label: 'Prüfbereit', value: stats.readyForReview, color: 'bg-[#2563eb]', sub: 'Warten auf Review' },
                   { label: 'KYC fehlt', value: stats.kycMissing, color: 'bg-rose-500', sub: 'Dokumente ausstehend' },
+                  { label: 'SCHUFA hoch.', value: stats.schufaUploaded, color: 'bg-amber-500', sub: 'Nachweis eingereicht' },
+                  { label: 'SCHUFA ✓', value: stats.schufaApproved, color: 'bg-teal-600', sub: 'SCHUFA genehmigt' },
                 ].map(s => (
                   <div key={s.label} onClick={() => setAdminSection('applications')} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:-translate-y-0.5">
                     <div className={`w-8 h-8 rounded-xl ${s.color} flex items-center justify-center mb-3`}>
@@ -599,6 +632,9 @@ export default function AdminDatabasePage() {
                   <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all">
                     <option value="all">Alle Status</option><option value="lead">Lead</option><option value="in_progress">In Bearbeitung</option><option value="kyc_missing">KYC fehlt</option><option value="ready_for_review">Prüfbereit</option><option value="completed">Abgeschlossen</option><option value="cancelled">Storniert</option>
                   </select>
+                  <select value={statusFilter.startsWith('schufa_') ? statusFilter : 'all_schufa'} onChange={e => { if (e.target.value !== 'all_schufa') setStatusFilter(e.target.value); else if (statusFilter.startsWith('schufa_')) setStatusFilter('all'); }} className="px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-sm font-medium text-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-100 transition-all">
+                    <option value="all_schufa">SCHUFA: Alle</option><option value="schufa_uploaded">SCHUFA hochgeladen</option><option value="schufa_missing">SCHUFA fehlt</option><option value="schufa_approved">SCHUFA genehmigt</option>
+                  </select>
                 </div>
               </div>
               {appsError && (
@@ -624,6 +660,7 @@ export default function AdminDatabasePage() {
                       <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400 hidden lg:table-cell">E-Mail</th>
                       <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Paket</th>
                       <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Status</th>
+                      <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400 hidden md:table-cell">SCHUFA</th>
                       <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Zahlung</th>
                       <th className="text-right py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Datum</th>
                     </tr></thead>
@@ -649,6 +686,13 @@ export default function AdminDatabasePage() {
                             <td className="py-3.5 px-5 hidden lg:table-cell"><span className="text-xs text-slate-600">{app.email||'—'}</span></td>
                             <td className="py-3.5 px-5"><span className="text-xs font-medium text-slate-700">{app.pack_name||'—'}</span></td>
                             <td className="py-3.5 px-5"><span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${st.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}/>{st.label}</span></td>
+                            <td className="py-3.5 px-5 hidden md:table-cell">{(() => {
+                              const has = !!(app.has_schufa_pdf ?? app.schufa_pdf);
+                              const approved = app.schufa_status === 'approved';
+                              if (approved) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700"><span className="w-1.5 h-1.5 rounded-full bg-teal-500"/>Geprüft ✓</span>;
+                              if (has) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"/>Hochgeladen</span>;
+                              return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-400"><span className="w-1.5 h-1.5 rounded-full bg-slate-300"/>Fehlt</span>;
+                            })()}</td>
                             <td className="py-3.5 px-5"><span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${pay.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${pay.dot}`}/>{pay.label}</span></td>
                             <td className="py-3.5 px-5 text-right"><span className="text-xs text-slate-500 whitespace-nowrap">{formatAppDate(app.updated_at||app.created_at)}</span></td>
                           </tr>
@@ -971,6 +1015,7 @@ export default function AdminDatabasePage() {
               <div className="space-y-2.5 pb-6 border-b border-slate-100">
                 <KycRow label="Kontoauszug" available={!!(selectedApp.has_bank_statement_pdf??selectedApp.bank_statement_pdf)} downloadUrl={selectedApp.ref?`/api/fiaon/admin/applications/${selectedApp.ref}/document/bank_statement`:undefined} />
                 <KycRow label="Ausweisdokument" available={!!(selectedApp.has_id_card_pdf??selectedApp.id_card_pdf)} downloadUrl={selectedApp.ref?`/api/fiaon/admin/applications/${selectedApp.ref}/document/id_card`:undefined} />
+                <KycRow label="SCHUFA-Nachweis" available={!!(selectedApp.has_schufa_pdf??selectedApp.schufa_pdf)} downloadUrl={selectedApp.ref&&(selectedApp.has_schufa_pdf??selectedApp.schufa_pdf)?`/api/fiaon/admin/applications/${selectedApp.ref}/document/schufa`:undefined} schufaStatus={selectedApp.schufa_status} />
                 <div className="grid grid-cols-4 gap-3 pt-1">
                   <DetailField label="Hochgeladen" value={selectedApp.documents_uploaded_at?formatAppDate(selectedApp.documents_uploaded_at):null} />
                   <DetailField label="AGB" value={selectedApp.consent_agb?'✓ Akzeptiert':null} />
@@ -1065,6 +1110,78 @@ export default function AdminDatabasePage() {
                 </div>
               </div>
 
+              <SectionHeadline>SCHUFA-Nachweis Prüfung</SectionHeadline>
+              <div className="space-y-4 pb-6 border-b border-slate-100">
+                {/* Status-Badge */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(() => {
+                    const has = !!(selectedApp.has_schufa_pdf ?? selectedApp.schufa_pdf);
+                    const s = selectedApp.schufa_status;
+                    if (!has) return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-500"><span className="w-1.5 h-1.5 rounded-full bg-slate-400"/>SCHUFA: Nicht hochgeladen</span>;
+                    if (s === 'approved') return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-teal-50 text-teal-700"><span className="w-1.5 h-1.5 rounded-full bg-teal-500"/>SCHUFA: Genehmigt ✓</span>;
+                    if (s === 'requested') return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-700"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"/>SCHUFA: Neues Dokument angefordert</span>;
+                    if (s === 'rejected') return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-700"><span className="w-1.5 h-1.5 rounded-full bg-rose-500"/>SCHUFA: Abgelehnt</span>;
+                    return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-700"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"/>SCHUFA: Hochgeladen — Ausstehende Prüfung</span>;
+                  })()}
+                  {reviewSuccess && reviewSuccess.startsWith('SCHUFA') && <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-900 text-white">{reviewSuccess}</span>}
+                </div>
+
+                {/* Quick Actions */}
+                {(selectedApp.has_schufa_pdf ?? selectedApp.schufa_pdf) && (
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => sendSchufaAction('approved', '')}
+                      disabled={reviewLoading || selectedApp.schufa_status === 'approved'}
+                      className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40 transition-colors"
+                    >✓ SCHUFA genehmigen</button>
+                    <button
+                      onClick={() => sendSchufaAction('rejected', '')}
+                      disabled={reviewLoading || selectedApp.schufa_status === 'rejected'}
+                      className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-rose-100 text-rose-700 hover:bg-rose-200 disabled:opacity-40 transition-colors"
+                    >✕ SCHUFA ablehnen</button>
+                    {selectedApp.schufa_status === 'approved' && (
+                      <button
+                        onClick={() => sendSchufaAction('pending', '')}
+                        disabled={reviewLoading}
+                        className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40 transition-colors"
+                      >Genehmigung zurücksetzen</button>
+                    )}
+                  </div>
+                )}
+
+                {/* Rückfrage / Neues Dokument anfordern */}
+                <div className="space-y-2.5">
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Nachricht an Kunde (SCHUFA)</p>
+                  <textarea
+                    value={schufaNote}
+                    onChange={e => setSchufaNote(e.target.value)}
+                    placeholder="z. B. Ihre SCHUFA-Auskunft ist nicht lesbar. Bitte laden Sie das Dokument erneut hoch."
+                    rows={2}
+                    className="w-full text-[13px] border border-slate-200 rounded-xl px-3.5 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-amber-200 text-slate-700 bg-white"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => sendSchufaAction('requested', schufaNote.trim())}
+                      disabled={reviewLoading || !schufaNote.trim()}
+                      className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors"
+                    >Neues SCHUFA-Dokument anfordern</button>
+                    {selectedApp.admin_schufa_note && (
+                      <button
+                        onClick={() => sendSchufaAction(selectedApp.schufa_status || 'pending', '')}
+                        disabled={reviewLoading}
+                        className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                      >Nachricht löschen</button>
+                    )}
+                  </div>
+                  {selectedApp.admin_schufa_note && (
+                    <div className="text-[11px] text-slate-500 bg-amber-50 border border-amber-100 rounded-xl px-3.5 py-2.5">
+                      <p className="font-semibold text-amber-700 mb-0.5">Aktive SCHUFA-Nachricht:</p>
+                      <p>„{selectedApp.admin_schufa_note}"</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <SectionHeadline>Meta</SectionHeadline>
               <div className="grid grid-cols-2 gap-x-6 gap-y-5">
                 <DetailField label="Typ" value={selectedApp.type} /><DetailField label="Step" value={selectedApp.current_step} />
@@ -1107,18 +1224,31 @@ function DetailField({ label, value, mono }: { label: string; value: any; mono?:
   );
 }
 
-function KycRow({ label, available, downloadUrl }: { label: string; available: boolean; downloadUrl?: string }) {
+function KycRow({ label, available, downloadUrl, schufaStatus }: { label: string; available: boolean; downloadUrl?: string; schufaStatus?: string }) {
+  const statusBadge = schufaStatus === 'approved'
+    ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">Genehmigt ✓</span>
+    : schufaStatus === 'requested'
+    ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Neu angefordert</span>
+    : schufaStatus === 'rejected'
+    ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">Abgelehnt</span>
+    : available
+    ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">In Prüfung</span>
+    : null;
+
   return (
-    <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-100">
+    <div className={`flex items-center justify-between p-3 rounded-xl bg-white border ${schufaStatus === 'approved' ? 'border-teal-200' : schufaStatus === 'rejected' ? 'border-rose-200' : 'border-slate-100'}`}>
       <div className="flex items-center gap-3">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${available ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400'}`}>
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${available ? (schufaStatus === 'approved' ? 'bg-teal-600 text-white' : 'bg-slate-900 text-white') : 'bg-slate-100 text-slate-400'}`}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
             <polyline points="14 2 14 8 20 8" />
           </svg>
         </div>
         <div>
-          <p className="text-sm font-semibold text-slate-800">{label}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-slate-800">{label}</p>
+            {statusBadge}
+          </div>
           <p className={`text-[11px] ${available ? 'text-emerald-600' : 'text-slate-400'}`}>
             {available ? 'Vorhanden' : 'Nicht hochgeladen'}
           </p>

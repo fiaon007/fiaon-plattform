@@ -1200,7 +1200,6 @@ router.get("/admin/applications", async (_req, res) => {
       SELECT *
       FROM fiaon_applications
       ORDER BY created_at DESC NULLS LAST, id DESC
-      LIMIT 500
     `;
 
     const HEAVY_COLS = new Set(["bank_statement_pdf", "id_card_pdf", "schufa_pdf"]);
@@ -1217,8 +1216,23 @@ router.get("/admin/applications", async (_req, res) => {
       return out;
     });
 
-    console.log(`[FIAON-ADMIN-APPS] returning ${data.length} applications`);
-    res.json({ ok: true, data, count: data.length });
+    // Detect duplicate groups by email (case-insensitive, trimmed)
+    const emailMap = new Map<string, any[]>();
+    for (const app of data) {
+      const email = (app.email || '').trim().toLowerCase();
+      if (!email) continue;
+      if (!emailMap.has(email)) emailMap.set(email, []);
+      emailMap.get(email)!.push(app);
+    }
+    const duplicateGroups: { email: string; count: number; refs: string[] }[] = [];
+    for (const [email, apps] of emailMap) {
+      if (apps.length > 1) {
+        duplicateGroups.push({ email, count: apps.length, refs: apps.map((a: any) => a.ref) });
+      }
+    }
+
+    console.log(`[FIAON-ADMIN-APPS] returning ${data.length} applications, ${duplicateGroups.length} duplicate groups`);
+    res.json({ ok: true, data, count: data.length, duplicateGroups });
   } catch (err: any) {
     console.error("[FIAON-ADMIN-APPS] ERROR:", err?.message || err);
     res.status(500).json({
@@ -1226,6 +1240,84 @@ router.get("/admin/applications", async (_req, res) => {
       error: "Failed to fetch applications",
       detail: String(err?.message || err),
     });
+  }
+});
+
+// Admin: merge duplicate applications into a single record.
+// Keeps the "primary" ref (newest with most data), deletes the others.
+// Requires explicit confirmation from admin (reviewed = true).
+router.post("/admin/applications/merge", async (req, res) => {
+  try {
+    const { primaryRef, duplicateRefs, reviewed } = req.body;
+
+    if (!reviewed) {
+      return res.status(400).json({ ok: false, error: "Zusammenführung muss von einem MA geprüft werden (reviewed=true)" });
+    }
+    if (!primaryRef || !Array.isArray(duplicateRefs) || duplicateRefs.length === 0) {
+      return res.status(400).json({ ok: false, error: "primaryRef und duplicateRefs[] erforderlich" });
+    }
+
+    // Fetch all records
+    const allRefs = [primaryRef, ...duplicateRefs];
+    const rows = await sqlPool`
+      SELECT * FROM fiaon_applications WHERE ref = ANY(${allRefs})
+    `;
+    if (rows.length < 2) {
+      return res.status(404).json({ ok: false, error: "Nicht genug Datensätze zum Zusammenführen gefunden" });
+    }
+
+    const primary = rows.find((r: any) => r.ref === primaryRef);
+    if (!primary) {
+      return res.status(404).json({ ok: false, error: "Primary-Datensatz nicht gefunden" });
+    }
+
+    const SKIP = new Set(["id", "ref", "created_at", "bank_statement_pdf", "id_card_pdf", "schufa_pdf"]);
+    const duplicates = rows.filter((r: any) => r.ref !== primaryRef);
+
+    // Merge: for each column, if primary is null/empty, take the first non-null from duplicates
+    const updates: Record<string, any> = {};
+    for (const dup of duplicates) {
+      for (const [col, val] of Object.entries(dup as Record<string, any>)) {
+        if (SKIP.has(col)) continue;
+        const pVal = (primary as Record<string, any>)[col];
+        const isEmpty = pVal === null || pVal === undefined || pVal === '';
+        if (isEmpty && val !== null && val !== undefined && val !== '') {
+          if (!(col in updates)) updates[col] = val;
+        }
+      }
+    }
+
+    // Also merge KYC docs: if primary has no doc but a dup does, copy it
+    for (const docCol of ["bank_statement_pdf", "id_card_pdf", "schufa_pdf"]) {
+      if ((primary as any)[docCol] == null) {
+        const donor = duplicates.find((d: any) => d[docCol] != null);
+        if (donor) updates[docCol] = (donor as any)[docCol];
+      }
+    }
+
+    // Apply merged fields to primary
+    if (Object.keys(updates).length > 0) {
+      const setClauses = Object.entries(updates)
+        .map(([col], i) => `${col} = $${i + 2}`)
+        .join(", ");
+      const vals = Object.values(updates);
+      await sqlPool.unsafe(
+        `UPDATE fiaon_applications SET ${setClauses}, updated_at = NOW() WHERE ref = $1`,
+        [primaryRef, ...vals]
+      );
+    }
+
+    // Delete duplicates
+    const dupRefs = duplicateRefs.filter((r: string) => r !== primaryRef);
+    if (dupRefs.length > 0) {
+      await sqlPool`DELETE FROM fiaon_applications WHERE ref = ANY(${dupRefs})`;
+    }
+
+    console.log(`[FIAON-MERGE] Merged ${dupRefs.length} duplicates into ${primaryRef}. Fields updated: ${Object.keys(updates).join(', ') || 'none'}`);
+    res.json({ ok: true, mergedInto: primaryRef, deleted: dupRefs, fieldsUpdated: Object.keys(updates) });
+  } catch (err: any) {
+    console.error("[FIAON-MERGE] ERROR:", err?.message || err);
+    res.status(500).json({ ok: false, error: "Merge fehlgeschlagen", detail: String(err?.message || err) });
   }
 });
 

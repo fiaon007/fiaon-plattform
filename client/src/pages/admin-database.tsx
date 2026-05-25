@@ -4,6 +4,7 @@ import LiveRadar from "@/components/admin/LiveRadar";
 import KnowledgeBase from "@/components/admin/KnowledgeBase";
 import AccountingDashboard from "@/components/admin/AccountingDashboard";
 import MinimalistGlassLauncher from "@/components/layout/MinimalistGlassLauncher";
+import AdminApplicationsManager from "@/components/admin/AdminApplicationsManager";
 
 interface AI_Task {
   id: string;
@@ -30,18 +31,6 @@ export default function AdminDatabasePage() {
   const [loading, setLoading] = useState(true);
   const [applications, setApplications] = useState<any[]>([]);
   const [loadingApps, setLoadingApps] = useState(true);
-  const [selectedApp, setSelectedApp] = useState<any | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [paymentFilter, setPaymentFilter] = useState<string>("all");
-  const [appsError, setAppsError] = useState<string | null>(null);
-  const [reviewNote, setReviewNote] = useState("");
-  const [reviewLoading, setReviewLoading] = useState(false);
-  const [reviewSuccess, setReviewSuccess] = useState<string | null>(null);
-  const [reuploadBank, setReuploadBank] = useState(false);
-  const [reuploadId, setReuploadId] = useState(false);
-  const [profileNote, setProfileNote] = useState('');
-  const [schufaNote, setSchufaNote] = useState('');
   const [adminSection, setAdminSection] = useState<'overview'|'applications'|'tasks'|'command'|'radar'|'knowledge'|'accounting'|'cancellations'>('overview');
 
   const [cancellations, setCancellations] = useState<any[]>([]);
@@ -51,62 +40,6 @@ export default function AdminDatabasePage() {
   const [cancellationActionLoading, setCancellationActionLoading] = useState(false);
   const [cancellationSuccess, setCancellationSuccess] = useState<string | null>(null);
   const [cancellationFilter, setCancellationFilter] = useState<'all'|'pending'|'confirmed'|'rejected'>('pending');
-
-  const sendReview = async (kycStatus?: string, accountStatus?: string, noteOverride?: string, reuploadBankOverride?: boolean, reuploadIdOverride?: boolean) => {
-    if (!selectedApp?.ref) return;
-    setReviewLoading(true);
-    setReviewSuccess(null);
-    try {
-      const body: any = {};
-      if (kycStatus) body.kycStatus = kycStatus;
-      if (accountStatus) body.accountStatus = accountStatus;
-      if (noteOverride !== undefined) body.adminNote = noteOverride;
-      else if (reviewNote.trim()) body.adminNote = reviewNote.trim();
-      if (reuploadBankOverride !== undefined) body.reuploadBankStatement = reuploadBankOverride;
-      else if (kycStatus === 'changes_requested') body.reuploadBankStatement = reuploadBank;
-      if (reuploadIdOverride !== undefined) body.reuploadIdCard = reuploadIdOverride;
-      else if (kycStatus === 'changes_requested') body.reuploadIdCard = reuploadId;
-      const res = await fetch(`/api/fiaon/admin/applications/${selectedApp.ref}/review`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body),
-      });
-      if (res.ok) {
-        setSelectedApp({ ...selectedApp, kyc_status: kycStatus ?? selectedApp.kyc_status, account_status: accountStatus ?? selectedApp.account_status, admin_note: body.adminNote ?? selectedApp.admin_note, reupload_bank_statement: body.reuploadBankStatement ?? selectedApp.reupload_bank_statement, reupload_id_card: body.reuploadIdCard ?? selectedApp.reupload_id_card, admin_profile_note: body.adminProfileNote ?? selectedApp.admin_profile_note, profile_changes_requested: body.profileChangesRequested ?? selectedApp.profile_changes_requested });
-        setApplications(prev => prev.map(a => a.ref === selectedApp.ref ? { ...a, ...body } : a));
-        setReviewSuccess('Gespeichert');
-        setTimeout(() => setReviewSuccess(null), 2500);
-        if (kycStatus !== 'changes_requested') { setReviewNote(""); setReuploadBank(false); setReuploadId(false); }
-      }
-    } catch {}
-    setReviewLoading(false);
-  };
-
-  const sendSchufaAction = async (schufaStatus: string, note?: string) => {
-    if (!selectedApp?.ref) return;
-    setReviewLoading(true);
-    setReviewSuccess(null);
-    try {
-      const body: any = { schufaStatus };
-      if (note !== undefined) body.adminSchufaNote = note;
-      const res = await fetch(`/api/fiaon/admin/applications/${selectedApp.ref}/review`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body),
-      });
-      if (res.ok) {
-        const updated = { ...selectedApp, schufa_status: schufaStatus, admin_schufa_note: note !== undefined ? (note || null) : selectedApp.admin_schufa_note };
-        setSelectedApp(updated);
-        setApplications(prev => prev.map(a => a.ref === selectedApp.ref ? { ...a, schufa_status: schufaStatus } : a));
-        setReviewSuccess('SCHUFA-Status gespeichert');
-        setTimeout(() => setReviewSuccess(null), 2500);
-        if (note !== undefined) setSchufaNote('');
-      }
-    } catch {}
-    setReviewLoading(false);
-  };
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -201,59 +134,16 @@ export default function AdminDatabasePage() {
   };
 
   const fetchApplications = async () => {
-    setAppsError(null);
     setLoadingApps(true);
-
-    // 1) Primär: Lean Admin-Endpoint
     try {
-      const res = await fetch('/api/fiaon/admin/applications', {
-        credentials: 'include',
-      });
-      const rawText = await res.text();
-      let json: any = null;
-      try { json = JSON.parse(rawText); } catch { /* non-json */ }
-
-      console.log('[ADMIN-FETCH] /api/fiaon/admin/applications', {
-        status: res.status,
-        ok: res.ok,
-        jsonKeys: json && typeof json === 'object' ? Object.keys(json) : null,
-        count: Array.isArray(json) ? json.length : json?.count ?? json?.data?.length,
-      });
-
+      const res = await fetch('/api/fiaon/admin/applications', { credentials: 'include' });
+      const json = await res.json().catch(() => null);
       if (res.ok && json) {
         const apps = extractApps(json);
-        if (apps.length > 0 || (json?.ok !== false)) {
-          setApplications(apps);
-          setLoadingApps(false);
-          return;
-        }
-      } else {
-        console.warn('[ADMIN-FETCH] primary endpoint failed:', res.status, json?.detail || rawText?.slice(0, 200));
+        setApplications(apps);
       }
     } catch (err) {
-      console.error('[ADMIN-FETCH] primary endpoint network error:', err);
-    }
-
-    // 2) Fallback: alter Generic-DB-Endpoint
-    try {
-      const res = await fetch('/api/database/tables/fiaon_applications/data?limit=500', {
-        credentials: 'include',
-      });
-      const json = await res.json().catch(() => null);
-      console.log('[ADMIN-FETCH] fallback /api/database/tables/...', {
-        status: res.status,
-        ok: res.ok,
-        count: Array.isArray(json?.data) ? json.data.length : null,
-      });
-      if (res.ok && json) {
-        setApplications(extractApps(json));
-        setLoadingApps(false);
-        return;
-      }
-      setAppsError(`Backend-Fehler (${res.status}): Anträge konnten nicht geladen werden.`);
-    } catch (err: any) {
-      console.error('[ADMIN-FETCH] fallback network error:', err);
-      setAppsError(`Netzwerkfehler: ${err?.message || 'Unbekannt'}`);
+      console.error('[ADMIN-FETCH] error:', err);
     } finally {
       setLoadingApps(false);
     }
@@ -354,33 +244,6 @@ export default function AdminDatabasePage() {
     schufaApproved: applications.filter(a => a.schufa_status === 'approved').length,
     recent: [...applications].sort((a,b) => new Date(b.updated_at||b.created_at||0).getTime() - new Date(a.updated_at||a.created_at||0).getTime()).slice(0,5),
   }), [applications]);
-
-  const filteredAndSortedApps = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    const tsOf = (app: any) => {
-      const t = app?.updated_at || app?.created_at;
-      const n = t ? new Date(t).getTime() : 0;
-      return Number.isNaN(n) ? 0 : n;
-    };
-
-    return [...applications]
-      .sort((a, b) => tsOf(b) - tsOf(a))
-      .filter((app) => {
-        if (q) {
-          const hay = [
-            app.first_name, app.last_name, app.email, app.ref,
-            app.company_name, app.contact_name, app.phone, app.iban,
-          ].filter(Boolean).join(' ').toLowerCase();
-          if (!hay.includes(q)) return false;
-        }
-        if (statusFilter === 'schufa_uploaded') { if (!(app.has_schufa_pdf ?? app.schufa_pdf)) return false; }
-        else if (statusFilter === 'schufa_missing') { if (!!(app.has_schufa_pdf ?? app.schufa_pdf)) return false; }
-        else if (statusFilter === 'schufa_approved') { if (app.schufa_status !== 'approved') return false; }
-        else if (statusFilter !== 'all' && getAppStatusKey(app) !== statusFilter) return false;
-        if (paymentFilter !== 'all' && getPaymentStatusKey(app) !== paymentFilter) return false;
-        return true;
-      });
-  }, [applications, searchQuery, statusFilter, paymentFilter]);
 
   const fetchTodos = async () => {
     try {
@@ -589,7 +452,7 @@ export default function AdminDatabasePage() {
                       const pay = PAYMENT_META[getPaymentStatusKey(app)];
                       const name = getFullName(app);
                       return (
-                        <div key={app.id||app.ref} onClick={() => { setSelectedApp(app); setAdminSection('applications'); }} className="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 cursor-pointer transition-colors">
+                        <div key={app.id||app.ref} onClick={() => { setAdminSection('applications'); }} className="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 cursor-pointer transition-colors">
                           <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-white text-[11px] font-bold shrink-0">{(name[0]||'?').toUpperCase()}</div>
                           <div className="flex-1 min-w-0">
                             <p className="text-[13px] font-semibold text-slate-900 truncate">{name}</p>
@@ -608,102 +471,7 @@ export default function AdminDatabasePage() {
           )}
 
           {/* ══════════ ANTRÄGE ══════════ */}
-          {adminSection === 'applications' && (
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="px-6 py-5 border-b border-slate-100">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Datenbank</p>
-                    <h3 className="text-[15px] font-bold text-slate-900">Alle Anträge & Leads</h3>
-                  </div>
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full border border-slate-100">
-                    <span className="text-[11px] font-semibold text-slate-500">{filteredAndSortedApps.length}{filteredAndSortedApps.length !== applications.length && <span className="text-slate-400"> / {applications.length}</span>}</span>
-                  </div>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-2.5">
-                  <div className="relative flex-1">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Name, E-Mail oder Ref-ID…" className="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all" />
-                    {searchQuery && <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
-                  </div>
-                  <select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)} className="px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all">
-                    <option value="all">Alle Zahlungen</option><option value="paid">Bezahlt</option><option value="pending">Ausstehend</option><option value="cancelled">Storniert</option>
-                  </select>
-                  <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all">
-                    <option value="all">Alle Status</option><option value="lead">Lead</option><option value="in_progress">In Bearbeitung</option><option value="kyc_missing">KYC fehlt</option><option value="ready_for_review">Prüfbereit</option><option value="completed">Abgeschlossen</option><option value="cancelled">Storniert</option>
-                  </select>
-                  <select value={statusFilter.startsWith('schufa_') ? statusFilter : 'all_schufa'} onChange={e => { if (e.target.value !== 'all_schufa') setStatusFilter(e.target.value); else if (statusFilter.startsWith('schufa_')) setStatusFilter('all'); }} className="px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-sm font-medium text-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-100 transition-all">
-                    <option value="all_schufa">SCHUFA: Alle</option><option value="schufa_uploaded">SCHUFA hochgeladen</option><option value="schufa_missing">SCHUFA fehlt</option><option value="schufa_approved">SCHUFA genehmigt</option>
-                  </select>
-                </div>
-              </div>
-              {appsError && (
-                <div className="mx-5 mt-4 flex items-start gap-3 p-4 rounded-xl bg-rose-50 border border-rose-100">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2.2" strokeLinecap="round" className="shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                  <p className="text-sm text-rose-700 flex-1">{appsError}</p>
-                  <button onClick={fetchApplications} className="shrink-0 px-3 py-1 rounded-lg text-xs font-semibold text-rose-700 bg-white border border-rose-200 hover:bg-rose-50 transition-colors">Retry</button>
-                </div>
-              )}
-              {loadingApps ? (
-                <div className="p-5 space-y-2">{[...Array(6)].map((_,i) => <div key={i} className="h-12 rounded-xl bg-slate-50 animate-pulse" />)}</div>
-              ) : filteredAndSortedApps.length === 0 ? (
-                <div className="py-16 text-center">
-                  <p className="text-sm font-semibold text-slate-600">{applications.length === 0 ? 'Keine Anträge vorhanden' : 'Keine Treffer'}</p>
-                  {(searchQuery || statusFilter !== 'all' || paymentFilter !== 'all') && <button onClick={() => { setSearchQuery(''); setStatusFilter('all'); setPaymentFilter('all'); }} className="mt-3 px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Filter zurücksetzen</button>}
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead><tr className="border-b border-slate-100">
-                      <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Ref</th>
-                      <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Name</th>
-                      <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400 hidden lg:table-cell">E-Mail</th>
-                      <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Paket</th>
-                      <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Status</th>
-                      <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400 hidden md:table-cell">SCHUFA</th>
-                      <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Zahlung</th>
-                      <th className="text-right py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Datum</th>
-                    </tr></thead>
-                    <tbody>
-                      {filteredAndSortedApps.map(app => {
-                        const payKey = getPaymentStatusKey(app);
-                        const stKey = getAppStatusKey(app);
-                        const pay = PAYMENT_META[payKey];
-                        const st = STATUS_META[stKey];
-                        const fullName = getFullName(app);
-                        return (
-                          <tr key={app.id||app.ref} onClick={() => setSelectedApp(app)} className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors">
-                            <td className="py-3.5 px-5"><span className="text-[11px] font-mono text-slate-500">{app.ref||'—'}</span></td>
-                            <td className="py-3.5 px-5">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-white text-[11px] font-semibold shrink-0">{(fullName?.[0]||'?').toUpperCase()}</div>
-                                <div className="min-w-0">
-                                  <p className="text-sm font-semibold text-slate-900 truncate">{fullName}</p>
-                                  <p className="text-[11px] text-slate-400 truncate lg:hidden">{app.email||'—'}</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-3.5 px-5 hidden lg:table-cell"><span className="text-xs text-slate-600">{app.email||'—'}</span></td>
-                            <td className="py-3.5 px-5"><span className="text-xs font-medium text-slate-700">{app.pack_name||'—'}</span></td>
-                            <td className="py-3.5 px-5"><span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${st.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}/>{st.label}</span></td>
-                            <td className="py-3.5 px-5 hidden md:table-cell">{(() => {
-                              const has = !!(app.has_schufa_pdf ?? app.schufa_pdf);
-                              const approved = app.schufa_status === 'approved';
-                              if (approved) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700"><span className="w-1.5 h-1.5 rounded-full bg-teal-500"/>Geprüft ✓</span>;
-                              if (has) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"/>Hochgeladen</span>;
-                              return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-400"><span className="w-1.5 h-1.5 rounded-full bg-slate-300"/>Fehlt</span>;
-                            })()}</td>
-                            <td className="py-3.5 px-5"><span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${pay.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${pay.dot}`}/>{pay.label}</span></td>
-                            <td className="py-3.5 px-5 text-right"><span className="text-xs text-slate-500 whitespace-nowrap">{formatAppDate(app.updated_at||app.created_at)}</span></td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
+          {adminSection === 'applications' && <AdminApplicationsManager />}
 
           {/* ══════════ AUFGABEN ══════════ */}
           {adminSection === 'tasks' && (
@@ -949,328 +717,9 @@ export default function AdminDatabasePage() {
         </main>
       </div>
 
-      {/* ═══════════════ DETAIL SLIDE-OVER ═══════════════ */}
-      {selectedApp && (
-        <div className="fixed inset-0 z-50 flex">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" style={{ animation: 'fadeIn .2s ease' }} onClick={() => setSelectedApp(null)} />
-          <div className="relative ml-auto w-full max-w-xl h-full bg-white shadow-2xl overflow-y-auto" style={{ animation: 'slideInRight .3s cubic-bezier(0.16,1,0.3,1)' }}>
-            {/* Header */}
-            <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-md border-b border-slate-100 px-6 py-5 flex items-start justify-between">
-              <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold mb-1">Antrag-Details</p>
-                <h2 className="text-lg font-bold text-slate-900 truncate">{getFullName(selectedApp)}</h2>
-                <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                  <span className="text-[11px] font-mono text-slate-400">{selectedApp.ref}</span>
-                  {(() => { const st=STATUS_META[getAppStatusKey(selectedApp)]; return <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${st.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}/>{st.label}</span>; })()}
-                  {(() => { const pay=PAYMENT_META[getPaymentStatusKey(selectedApp)]; return <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${pay.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${pay.dot}`}/>{pay.label}</span>; })()}
-                </div>
-              </div>
-              <button onClick={() => setSelectedApp(null)} className="p-2 rounded-xl hover:bg-slate-100 transition-colors shrink-0 ml-4" aria-label="Schließen">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="px-6 py-5">
-              <SectionHeadline>Persönliches</SectionHeadline>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-6 border-b border-slate-100">
-                <DetailField label="Vorname" value={selectedApp.first_name} /><DetailField label="Nachname" value={selectedApp.last_name} />
-                <DetailField label="Geburtsdatum" value={selectedApp.birthdate ? formatAppDate(selectedApp.birthdate) : null} /><DetailField label="Nationalität" value={selectedApp.nationality} />
-                <DetailField label="Telefon" value={[selectedApp.phone_country_code, selectedApp.phone].filter(Boolean).join(' ')||null} /><DetailField label="E-Mail" value={selectedApp.email} />
-                <div className="col-span-2"><DetailField label="Adresse" value={[selectedApp.street,[selectedApp.zip,selectedApp.city].filter(Boolean).join(' '),selectedApp.country].filter(Boolean).join(', ')||null} /></div>
-                <DetailField label="Wohnsituation" value={selectedApp.housing} />
-              </div>
-
-              <SectionHeadline>Finanzen</SectionHeadline>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-6 border-b border-slate-100">
-                <DetailField label="Einkommen (netto)" value={selectedApp.income!=null?formatCurrency(selectedApp.income):null} /><DetailField label="Miete" value={selectedApp.rent!=null?formatCurrency(selectedApp.rent):null} />
-                <DetailField label="Schulden" value={selectedApp.debts!=null?formatCurrency(selectedApp.debts):null} /><DetailField label="Wunschlimit" value={selectedApp.wanted_limit!=null?formatCurrency(selectedApp.wanted_limit):null} />
-                <DetailField label="Genehmigtes Limit" value={selectedApp.approved_limit!=null?formatCurrency(selectedApp.approved_limit):null} /><DetailField label="Beschäftigung" value={selectedApp.employment} />
-                <DetailField label="Arbeitgeber" value={selectedApp.employer} /><DetailField label="Beschäftigt seit" value={selectedApp.employed_since} />
-              </div>
-
-              <SectionHeadline>Setup & Vertrag</SectionHeadline>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-6 border-b border-slate-100">
-                <DetailField label="Paket" value={selectedApp.pack_name} /><DetailField label="Paket-Key" value={selectedApp.pack_key} />
-                <DetailField label="Verwendungszweck" value={selectedApp.purpose} /><DetailField label="Abrechnung" value={selectedApp.billing} />
-                <DetailField label="Zahlungsmethode" value={selectedApp.billing_method} /><DetailField label="Gehaltseingang" value={selectedApp.salary_receipt_day} />
-                <DetailField label="Add-on" value={selectedApp.addon} /><DetailField label="NFC" value={selectedApp.nfc} />
-                <div className="col-span-2"><DetailField label="IBAN" value={selectedApp.iban} mono /></div>
-                <div className="col-span-2"><DetailField label="Stripe Customer" value={selectedApp.stripe_customer_id} mono /></div>
-                <div className="col-span-2"><DetailField label="Stripe Subscription" value={selectedApp.stripe_subscription_id} mono /></div>
-              </div>
-
-              {(selectedApp.company_name || selectedApp.type === 'business') && (<>
-                <SectionHeadline>Unternehmen</SectionHeadline>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-6 border-b border-slate-100">
-                  <DetailField label="Firmenname" value={selectedApp.company_name} /><DetailField label="Rechtsform" value={selectedApp.legal_form} />
-                  <DetailField label="Steuer-ID" value={selectedApp.tax_id} /><DetailField label="Gegründet" value={selectedApp.established_year} />
-                  <DetailField label="Branche" value={selectedApp.industry} /><DetailField label="Geschäftstyp" value={selectedApp.business_type} />
-                  <DetailField label="Jahresumsatz" value={selectedApp.annual_revenue!=null?formatCurrency(selectedApp.annual_revenue):null} /><DetailField label="Mitarbeiter" value={selectedApp.employees} />
-                  <DetailField label="Ansprechpartner" value={selectedApp.contact_name} /><DetailField label="Kontakt-Email" value={selectedApp.contact_email} />
-                </div>
-              </>)}
-
-              <SectionHeadline>KYC & Dokumente</SectionHeadline>
-              <div className="space-y-2.5 pb-6 border-b border-slate-100">
-                <KycRow label="Kontoauszug" available={!!(selectedApp.has_bank_statement_pdf??selectedApp.bank_statement_pdf)} downloadUrl={selectedApp.ref?`/api/fiaon/admin/applications/${selectedApp.ref}/document/bank_statement`:undefined} />
-                <KycRow label="Ausweisdokument" available={!!(selectedApp.has_id_card_pdf??selectedApp.id_card_pdf)} downloadUrl={selectedApp.ref?`/api/fiaon/admin/applications/${selectedApp.ref}/document/id_card`:undefined} />
-                <KycRow label="SCHUFA-Nachweis" available={!!(selectedApp.has_schufa_pdf??selectedApp.schufa_pdf)} downloadUrl={selectedApp.ref&&(selectedApp.has_schufa_pdf??selectedApp.schufa_pdf)?`/api/fiaon/admin/applications/${selectedApp.ref}/document/schufa`:undefined} schufaStatus={selectedApp.schufa_status} />
-                <div className="grid grid-cols-4 gap-3 pt-1">
-                  <DetailField label="Hochgeladen" value={selectedApp.documents_uploaded_at?formatAppDate(selectedApp.documents_uploaded_at):null} />
-                  <DetailField label="AGB" value={selectedApp.consent_agb?'✓ Akzeptiert':null} />
-                  <DetailField label="SCHUFA" value={selectedApp.consent_schufa?'✓ Akzeptiert':null} />
-                  <DetailField label="Vertrag" value={selectedApp.consent_contract?'✓ Akzeptiert':null} />
-                </div>
-              </div>
-
-              <SectionHeadline>Profil-Ergänzungen</SectionHeadline>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-6 border-b border-slate-100">
-                <DetailField label="Umgezogen (6 Mo.)" value={selectedApp.moved_recently ? 'Ja' : 'Nein'} />
-                <DetailField label="Frühere Anschrift" value={[selectedApp.previous_street, [selectedApp.previous_zip, selectedApp.previous_city].filter(Boolean).join(' '), selectedApp.previous_country].filter(Boolean).join(', ') || null} />
-                <DetailField label="Reisepass-Nr." value={selectedApp.passport_number} mono />
-                <DetailField label="Pass gültig bis" value={selectedApp.passport_expiry ? new Date(selectedApp.passport_expiry).toLocaleDateString('de-DE') : null} />
-                <DetailField label="Weitere Einkünfte" value={selectedApp.has_additional_income ? 'Ja' : 'Nein'} />
-                <DetailField label="Einkunftsart" value={selectedApp.additional_income_sources} />
-                <DetailField label="Zusatz-Einkommen" value={selectedApp.additional_income_amount != null ? `€ ${selectedApp.additional_income_amount}/mtl.` : null} />
-                <div className="col-span-2">
-                  {selectedApp.expenses_food != null && (
-                    <div className="grid grid-cols-3 gap-2">
-                      {[['Lebensmittel', selectedApp.expenses_food],['Mobilität', selectedApp.expenses_transport],['Versicherungen', selectedApp.expenses_insurance],['Kredite', selectedApp.expenses_loans],['Abonnements', selectedApp.expenses_subscriptions],['Sonstiges', selectedApp.expenses_other]].map(([l,v]) => (
-                        <div key={String(l)} className="text-center">
-                          <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">{l}</div>
-                          <div className="text-[12px] font-bold text-slate-700 mt-0.5">{v != null ? `€ ${v}` : '—'}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="col-span-2">
-                  <DetailField label="Profil gespeichert" value={selectedApp.profile_completed_at ? new Date(selectedApp.profile_completed_at).toLocaleDateString('de-DE') : null} />
-                </div>
-              </div>
-
-              <SectionHeadline>Admin Entscheidung</SectionHeadline>
-              <div className="space-y-4 pb-6 border-b border-slate-100">
-                <div className="flex gap-2 flex-wrap">
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold ${selectedApp.kyc_status==='approved'?'bg-emerald-50 text-emerald-700':selectedApp.kyc_status==='changes_requested'?'bg-amber-50 text-amber-700':'bg-slate-100 text-slate-500'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${selectedApp.kyc_status==='approved'?'bg-emerald-500':selectedApp.kyc_status==='changes_requested'?'bg-amber-500':'bg-slate-400'}`}/>
-                    Dokumente: {selectedApp.kyc_status==='approved'?'Genehmigt':selectedApp.kyc_status==='changes_requested'?'Änderung angefordert':'In Prüfung'}
-                  </span>
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold ${selectedApp.account_status==='active'?'bg-emerald-50 text-emerald-700':selectedApp.account_status==='suspended'?'bg-rose-50 text-rose-700':'bg-slate-100 text-slate-500'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${selectedApp.account_status==='active'?'bg-emerald-500':selectedApp.account_status==='suspended'?'bg-rose-500':'bg-slate-400'}`}/>
-                    Konto: {selectedApp.account_status==='active'?'Aktiv':selectedApp.account_status==='suspended'?'Gesperrt':'Ausstehend'}
-                  </span>
-                  {reviewSuccess && <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-900 text-white">{reviewSuccess} ✓</span>}
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  <button onClick={() => sendReview('approved',undefined,'')} disabled={reviewLoading} className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors">✓ Dokumente genehmigen</button>
-                  <button onClick={() => sendReview(undefined,'active','')} disabled={reviewLoading} className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-50 transition-colors">⚡ Konto aktivieren</button>
-                  <button onClick={() => sendReview(undefined,'suspended','')} disabled={reviewLoading} className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-rose-100 text-rose-700 hover:bg-rose-200 disabled:opacity-50 transition-colors">✕ Konto sperren</button>
-                </div>
-                <div className="space-y-2.5">
-                  <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Nachricht an Kunde + Dokument neu anfordern</p>
-                  <textarea value={reviewNote} onChange={e => setReviewNote(e.target.value)} placeholder="z.B. Ihr Kontoauszug ist leider nicht lesbar. Bitte laden Sie ein klareres PDF hoch." rows={3} className="w-full text-[13px] border border-slate-200 rounded-xl px-3.5 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200 text-slate-700 bg-white" />
-                  <div className="flex gap-5">
-                    <label className="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked={reuploadBank} onChange={e => setReuploadBank(e.target.checked)} className="w-3.5 h-3.5 accent-amber-500" /><span className="text-[12px] text-slate-700 font-medium">Kontoauszug</span></label>
-                    <label className="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked={reuploadId} onChange={e => setReuploadId(e.target.checked)} className="w-3.5 h-3.5 accent-amber-500" /><span className="text-[12px] text-slate-700 font-medium">Ausweisdokument</span></label>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => sendReview('changes_requested',undefined)} disabled={reviewLoading||!reviewNote.trim()||(!reuploadBank&&!reuploadId)} className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors">Änderung anfordern + Senden</button>
-                    {selectedApp.admin_note && <button onClick={() => sendReview(undefined,undefined,'',false,false)} disabled={reviewLoading} className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50 transition-colors">Nachricht löschen</button>}
-                  </div>
-                  {selectedApp.admin_note && (
-                    <div className="text-[11px] text-slate-500 bg-slate-50 rounded-xl px-3.5 py-2.5 space-y-0.5">
-                      <p>Nachricht: „{selectedApp.admin_note}"</p>
-                      <p className="text-slate-400">Angefordert: {[selectedApp.reupload_bank_statement&&'Kontoauszug',selectedApp.reupload_id_card&&'Ausweis'].filter(Boolean).join(', ')||'—'}</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="pt-4 border-t border-slate-100 space-y-2.5">
-                  <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Profil-Rückfrage an Kunde</p>
-                  <textarea value={profileNote} onChange={e => setProfileNote(e.target.value)} placeholder="z. B. Bitte ergänzen Sie Ihre Reisepassnummer und das Ablaufdatum." rows={2} className="w-full text-[13px] border border-slate-200 rounded-xl px-3.5 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-amber-200 text-slate-700 bg-white" />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => { const body: any = { adminProfileNote: profileNote.trim(), profileChangesRequested: true }; fetch(`/api/fiaon/admin/applications/${selectedApp.ref}/review`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) }).then(r => r.ok && (setSelectedApp({...selectedApp, admin_profile_note: profileNote.trim(), profile_changes_requested: true}), setProfileNote(''), setReviewSuccess('Profil-Rückfrage gesendet'), setTimeout(() => setReviewSuccess(null), 2500))); }}
-                      disabled={reviewLoading || !profileNote.trim()}
-                      className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors"
-                    >Profil-Rückfrage senden</button>
-                    {selectedApp.admin_profile_note && (
-                      <button onClick={() => { fetch(`/api/fiaon/admin/applications/${selectedApp.ref}/review`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ adminProfileNote: '', profileChangesRequested: false }) }).then(r => r.ok && setSelectedApp({...selectedApp, admin_profile_note: null, profile_changes_requested: false})); }} className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">Rückfrage schließen</button>
-                    )}
-                  </div>
-                  {selectedApp.admin_profile_note && (
-                    <div className="text-[11px] text-slate-500 bg-amber-50 border border-amber-100 rounded-xl px-3.5 py-2.5">
-                      <p className="font-semibold text-amber-700 mb-0.5">Aktive Rückfrage:</p>
-                      <p>„{selectedApp.admin_profile_note}"</p>
-                      <p className="text-amber-500 mt-0.5">{selectedApp.profile_changes_requested ? 'Ausstehend — Kunde wurde benachrichtigt' : 'Beantwortet'}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <SectionHeadline>SCHUFA-Nachweis Prüfung</SectionHeadline>
-              <div className="space-y-4 pb-6 border-b border-slate-100">
-                {/* Status-Badge */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  {(() => {
-                    const has = !!(selectedApp.has_schufa_pdf ?? selectedApp.schufa_pdf);
-                    const s = selectedApp.schufa_status;
-                    if (!has) return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-500"><span className="w-1.5 h-1.5 rounded-full bg-slate-400"/>SCHUFA: Nicht hochgeladen</span>;
-                    if (s === 'approved') return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-teal-50 text-teal-700"><span className="w-1.5 h-1.5 rounded-full bg-teal-500"/>SCHUFA: Genehmigt ✓</span>;
-                    if (s === 'requested') return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-700"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"/>SCHUFA: Neues Dokument angefordert</span>;
-                    if (s === 'rejected') return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-700"><span className="w-1.5 h-1.5 rounded-full bg-rose-500"/>SCHUFA: Abgelehnt</span>;
-                    return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-700"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"/>SCHUFA: Hochgeladen — Ausstehende Prüfung</span>;
-                  })()}
-                  {reviewSuccess && reviewSuccess.startsWith('SCHUFA') && <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-900 text-white">{reviewSuccess}</span>}
-                </div>
-
-                {/* Quick Actions */}
-                {(selectedApp.has_schufa_pdf ?? selectedApp.schufa_pdf) && (
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      onClick={() => sendSchufaAction('approved', '')}
-                      disabled={reviewLoading || selectedApp.schufa_status === 'approved'}
-                      className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40 transition-colors"
-                    >✓ SCHUFA genehmigen</button>
-                    <button
-                      onClick={() => sendSchufaAction('rejected', '')}
-                      disabled={reviewLoading || selectedApp.schufa_status === 'rejected'}
-                      className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-rose-100 text-rose-700 hover:bg-rose-200 disabled:opacity-40 transition-colors"
-                    >✕ SCHUFA ablehnen</button>
-                    {selectedApp.schufa_status === 'approved' && (
-                      <button
-                        onClick={() => sendSchufaAction('pending', '')}
-                        disabled={reviewLoading}
-                        className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40 transition-colors"
-                      >Genehmigung zurücksetzen</button>
-                    )}
-                  </div>
-                )}
-
-                {/* Rückfrage / Neues Dokument anfordern */}
-                <div className="space-y-2.5">
-                  <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Nachricht an Kunde (SCHUFA)</p>
-                  <textarea
-                    value={schufaNote}
-                    onChange={e => setSchufaNote(e.target.value)}
-                    placeholder="z. B. Ihre SCHUFA-Auskunft ist nicht lesbar. Bitte laden Sie das Dokument erneut hoch."
-                    rows={2}
-                    className="w-full text-[13px] border border-slate-200 rounded-xl px-3.5 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-amber-200 text-slate-700 bg-white"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => sendSchufaAction('requested', schufaNote.trim())}
-                      disabled={reviewLoading || !schufaNote.trim()}
-                      className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors"
-                    >Neues SCHUFA-Dokument anfordern</button>
-                    {selectedApp.admin_schufa_note && (
-                      <button
-                        onClick={() => sendSchufaAction(selectedApp.schufa_status || 'pending', '')}
-                        disabled={reviewLoading}
-                        className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-                      >Nachricht löschen</button>
-                    )}
-                  </div>
-                  {selectedApp.admin_schufa_note && (
-                    <div className="text-[11px] text-slate-500 bg-amber-50 border border-amber-100 rounded-xl px-3.5 py-2.5">
-                      <p className="font-semibold text-amber-700 mb-0.5">Aktive SCHUFA-Nachricht:</p>
-                      <p>„{selectedApp.admin_schufa_note}"</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <SectionHeadline>Meta</SectionHeadline>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-                <DetailField label="Typ" value={selectedApp.type} /><DetailField label="Step" value={selectedApp.current_step} />
-                <DetailField label="Erstellt" value={formatAppDate(selectedApp.created_at)} /><DetailField label="Aktualisiert" value={formatAppDate(selectedApp.updated_at)} />
-                <DetailField label="Eingereicht" value={selectedApp.submitted_at?formatAppDate(selectedApp.submitted_at):null} /><DetailField label="Abgeschlossen" value={selectedApp.completed_at?formatAppDate(selectedApp.completed_at):null} />
-                <div className="col-span-2"><DetailField label="IP-Adresse" value={selectedApp.ip} mono /></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       <style>{`
-        @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
-    </div>
-  );
-}
-
-function SectionHeadline({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold mb-4 mt-6 first:mt-0">
-      {children}
-    </p>
-  );
-}
-
-function DetailField({ label, value, mono }: { label: string; value: any; mono?: boolean }) {
-  const isEmpty = value === null || value === undefined || value === '' || value === false;
-  return (
-    <div className="min-w-0">
-      <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-1.5">{label}</p>
-      {isEmpty ? (
-        <p className="text-sm italic text-slate-400">Nicht angegeben</p>
-      ) : (
-        <p className={`text-sm font-medium text-slate-800 break-words ${mono ? 'font-mono text-xs' : ''}`}>{String(value)}</p>
-      )}
-    </div>
-  );
-}
-
-function KycRow({ label, available, downloadUrl, schufaStatus }: { label: string; available: boolean; downloadUrl?: string; schufaStatus?: string }) {
-  const statusBadge = schufaStatus === 'approved'
-    ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">Genehmigt ✓</span>
-    : schufaStatus === 'requested'
-    ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Neu angefordert</span>
-    : schufaStatus === 'rejected'
-    ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">Abgelehnt</span>
-    : available
-    ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">In Prüfung</span>
-    : null;
-
-  return (
-    <div className={`flex items-center justify-between p-3 rounded-xl bg-white border ${schufaStatus === 'approved' ? 'border-teal-200' : schufaStatus === 'rejected' ? 'border-rose-200' : 'border-slate-100'}`}>
-      <div className="flex items-center gap-3">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${available ? (schufaStatus === 'approved' ? 'bg-teal-600 text-white' : 'bg-slate-900 text-white') : 'bg-slate-100 text-slate-400'}`}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-slate-800">{label}</p>
-            {statusBadge}
-          </div>
-          <p className={`text-[11px] ${available ? 'text-emerald-600' : 'text-slate-400'}`}>
-            {available ? 'Vorhanden' : 'Nicht hochgeladen'}
-          </p>
-        </div>
-      </div>
-      {available && downloadUrl ? (
-        <a
-          href={downloadUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          Öffnen
-        </a>
-      ) : (
-        <span className="text-[11px] font-medium text-slate-400">—</span>
-      )}
     </div>
   );
 }

@@ -153,6 +153,41 @@ export default function AdminApplicationsManager() {
     duplicateCount: duplicateGroups.reduce((sum, g) => sum + g.count - 1, 0),
   }), [applications, duplicateGroups]);
 
+  const [batchMode, setBatchMode] = useState(false);
+  const [batchIndex, setBatchIndex] = useState(0);
+  const [batchMerged, setBatchMerged] = useState(0);
+
+  const startBatchMode = () => {
+    setBatchMode(true);
+    setBatchIndex(0);
+    setBatchMerged(0);
+    if (duplicateGroups.length > 0) {
+      setMergeGroup(duplicateGroups[0]);
+      setMergePrimary(duplicateGroups[0].refs[0]);
+      setMergeSuccess(null);
+    }
+  };
+
+  const advanceBatch = () => {
+    const nextIdx = batchIndex + 1;
+    if (nextIdx < duplicateGroups.length) {
+      setBatchIndex(nextIdx);
+      setMergeGroup(duplicateGroups[nextIdx]);
+      setMergePrimary(duplicateGroups[nextIdx].refs[0]);
+      setMergeSuccess(null);
+    } else {
+      // All done
+      setBatchMode(false);
+      setMergeGroup(null);
+      setMergeSuccess(null);
+      fetchApplications();
+    }
+  };
+
+  const skipBatch = () => {
+    advanceBatch();
+  };
+
   const executeMerge = async () => {
     if (!mergeGroup || !mergePrimary) return;
     setMergeLoading(true); setMergeSuccess(null);
@@ -160,8 +195,16 @@ export default function AdminApplicationsManager() {
       const dupRefs = mergeGroup.refs.filter(r => r !== mergePrimary);
       const res = await fetch('/api/fiaon/admin/applications/merge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ primaryRef: mergePrimary, duplicateRefs: dupRefs, reviewed: true }) });
       const json = await res.json();
-      if (res.ok && json.ok) { setMergeSuccess(`${dupRefs.length} Duplikat(e) zusammengeführt`); setTimeout(() => { setMergeGroup(null); setMergeSuccess(null); fetchApplications(); }, 2000); }
-      else { setMergeSuccess(`Fehler: ${json.error || 'Unbekannt'}`); }
+      if (res.ok && json.ok) {
+        setBatchMerged(prev => prev + 1);
+        if (batchMode) {
+          setMergeSuccess(`Zusammengeführt! Weiter…`);
+          setTimeout(() => advanceBatch(), 1200);
+        } else {
+          setMergeSuccess(`${dupRefs.length} Duplikat(e) zusammengeführt`);
+          setTimeout(() => { setMergeGroup(null); setMergeSuccess(null); fetchApplications(); }, 2000);
+        }
+      } else { setMergeSuccess(`Fehler: ${json.error || 'Unbekannt'}`); }
     } catch (err: any) { setMergeSuccess(`Fehler: ${err?.message}`); }
     setMergeLoading(false);
   };
@@ -210,7 +253,10 @@ export default function AdminApplicationsManager() {
               <p className="text-[12px] text-rose-600">{stats.duplicateCount} überflüssige Einträge</p>
             </div>
           </div>
-          <button onClick={() => setShowDuplicates(!showDuplicates)} className="px-4 py-2 rounded-xl text-[13px] font-semibold bg-rose-600 text-white hover:bg-rose-700 transition-colors shrink-0">{showDuplicates ? 'Ausblenden' : 'Duplikate anzeigen'}</button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={startBatchMode} className="px-4 py-2 rounded-xl text-[13px] font-semibold bg-slate-900 text-white hover:bg-slate-700 transition-colors">Alle abarbeiten</button>
+            <button onClick={() => setShowDuplicates(!showDuplicates)} className="px-4 py-2 rounded-xl text-[13px] font-semibold bg-rose-600 text-white hover:bg-rose-700 transition-colors">{showDuplicates ? 'Ausblenden' : 'Details'}</button>
+          </div>
         </div>
       )}
 
@@ -238,42 +284,69 @@ export default function AdminApplicationsManager() {
       {/* Merge Modal */}
       {mergeGroup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => !mergeLoading && setMergeGroup(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in">
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => !mergeLoading && !batchMode && setMergeGroup(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
             <div className="px-6 py-5 border-b border-slate-100">
-              <h3 className="text-[15px] font-bold text-slate-900">Duplikate zusammenführen</h3>
-              <p className="text-[12px] text-slate-500 mt-1">E-Mail: <span className="font-mono font-semibold">{mergeGroup.email}</span></p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-[15px] font-bold text-slate-900">{batchMode ? 'Duplikate abarbeiten' : 'Duplikate zusammenführen'}</h3>
+                  <p className="text-[12px] text-slate-500 mt-1">E-Mail: <span className="font-mono font-semibold">{mergeGroup.email}</span></p>
+                </div>
+                {batchMode && (
+                  <div className="text-right shrink-0 ml-4">
+                    <p className="text-[20px] font-bold text-slate-900 tabular-nums">{batchIndex + 1}<span className="text-slate-300">/{duplicateGroups.length}</span></p>
+                    <p className="text-[10px] font-bold text-emerald-600 uppercase">{batchMerged} erledigt</p>
+                  </div>
+                )}
+              </div>
+              {batchMode && (
+                <div className="mt-3 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${((batchIndex + 1) / duplicateGroups.length) * 100}%` }} />
+                </div>
+              )}
             </div>
             <div className="px-6 py-5 space-y-4">
               <p className="text-[13px] text-slate-700 font-medium">Haupteintrag wählen (wird behalten):</p>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
                 {mergeGroup.refs.map(ref => {
                   const app = applications.find(a => a.ref === ref);
                   const name = app ? getFullName(app) : ref;
                   const st = app ? STATUS_META[getAppStatusKey(app)] : null;
+                  const pay = app ? PAYMENT_META[getPaymentStatusKey(app)] : null;
                   return (
                     <label key={ref} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${mergePrimary === ref ? 'border-blue-300 bg-blue-50' : 'border-slate-100 hover:border-slate-200'}`}>
                       <input type="radio" name="mergePrimary" value={ref} checked={mergePrimary === ref} onChange={() => setMergePrimary(ref)} className="w-4 h-4 accent-blue-600" />
                       <div className="flex-1 min-w-0">
                         <p className="text-[13px] font-semibold text-slate-900 truncate">{name}</p>
-                        <p className="text-[11px] text-slate-500 font-mono">{ref}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-[11px] text-slate-500 font-mono">{ref}</p>
+                          {app?.pack_name && <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{app.pack_name}</span>}
+                        </div>
                       </div>
-                      {st && <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${st.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}/>{st.label}</span>}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {pay && <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${pay.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${pay.dot}`}/>{pay.label}</span>}
+                        {st && <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${st.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}/>{st.label}</span>}
+                      </div>
                     </label>
                   );
                 })}
               </div>
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                <p className="text-[12px] text-amber-800 font-semibold">Prüfung durch MA erforderlich</p>
-                <p className="text-[11px] text-amber-700 mt-0.5">Duplikate werden unwiderruflich gelöscht.</p>
-              </div>
+              {!batchMode && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                  <p className="text-[12px] text-amber-800 font-semibold">Prüfung durch MA erforderlich</p>
+                  <p className="text-[11px] text-amber-700 mt-0.5">Duplikate werden unwiderruflich gelöscht.</p>
+                </div>
+              )}
               {mergeSuccess && <p className={`text-[13px] font-semibold px-3 py-2 rounded-xl ${mergeSuccess.startsWith('Fehler') ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>{mergeSuccess}</p>}
             </div>
-            <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end">
-              <button onClick={() => setMergeGroup(null)} disabled={mergeLoading} className="px-4 py-2.5 rounded-xl text-[13px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Abbrechen</button>
+            <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-between">
+              <div className="flex gap-2">
+                {batchMode && <button onClick={skipBatch} disabled={mergeLoading} className="px-4 py-2.5 rounded-xl text-[13px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Überspringen</button>}
+                <button onClick={() => { setBatchMode(false); setMergeGroup(null); setMergeSuccess(null); if (batchMerged > 0) fetchApplications(); }} disabled={mergeLoading} className="px-4 py-2.5 rounded-xl text-[13px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">{batchMode ? 'Beenden' : 'Abbrechen'}</button>
+              </div>
               <button onClick={executeMerge} disabled={mergeLoading || !mergePrimary} className="px-4 py-2.5 rounded-xl text-[13px] font-semibold bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 transition-colors flex items-center gap-2">
                 {mergeLoading && <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                Zusammenführen bestätigen
+                Zusammenführen
               </button>
             </div>
           </div>

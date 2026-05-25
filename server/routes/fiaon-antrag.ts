@@ -1225,11 +1225,11 @@ router.get("/admin/applications", async (_req, res) => {
       emailMap.get(email)!.push(app);
     }
     const duplicateGroups: { email: string; count: number; refs: string[] }[] = [];
-    for (const [email, apps] of emailMap) {
+    emailMap.forEach((apps, email) => {
       if (apps.length > 1) {
         duplicateGroups.push({ email, count: apps.length, refs: apps.map((a: any) => a.ref) });
       }
-    }
+    });
 
     console.log(`[FIAON-ADMIN-APPS] returning ${data.length} applications, ${duplicateGroups.length} duplicate groups`);
     res.json({ ok: true, data, count: data.length, duplicateGroups });
@@ -1427,6 +1427,260 @@ router.post("/reset-password-direct", async (req, res) => {
   } catch (err) {
     console.error("[FIAON-RESET-DIRECT]", err);
     return res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// STRIPE SYNC: Full revenue & transaction sync
+// ═══════════════════════════════════════════════════════════════════
+
+router.get("/admin/stripe/revenue", async (_req, res) => {
+  try {
+    if (!stripe) return res.status(500).json({ ok: false, error: "Stripe not configured" });
+
+    // Fetch ALL charges from Stripe (paginated)
+    const allCharges: any[] = [];
+    let hasMore = true;
+    let startingAfter: string | undefined;
+    while (hasMore) {
+      const params: any = { limit: 100, expand: ['data.customer'] };
+      if (startingAfter) params.starting_after = startingAfter;
+      const batch = await stripe.charges.list(params);
+      allCharges.push(...batch.data);
+      hasMore = batch.has_more;
+      if (batch.data.length > 0) startingAfter = batch.data[batch.data.length - 1].id;
+    }
+
+    // Fetch ALL subscriptions
+    const allSubs: any[] = [];
+    hasMore = true;
+    startingAfter = undefined;
+    while (hasMore) {
+      const params: any = { limit: 100, status: 'all' };
+      if (startingAfter) params.starting_after = startingAfter;
+      const batch = await stripe.subscriptions.list(params);
+      allSubs.push(...batch.data);
+      hasMore = batch.has_more;
+      if (batch.data.length > 0) startingAfter = batch.data[batch.data.length - 1].id;
+    }
+
+    // Map charges to our applications by stripe_customer_id
+    const apps = await sqlPool`
+      SELECT ref, email, first_name, last_name, stripe_customer_id, stripe_subscription_id, payment_status, pack_name
+      FROM fiaon_applications
+      WHERE stripe_customer_id IS NOT NULL OR email IS NOT NULL
+    `;
+
+    // Build email→ref and customer_id→ref lookup maps
+    const customerToApp: Record<string, any> = {};
+    const emailToApp: Record<string, any> = {};
+    for (const app of apps) {
+      if (app.stripe_customer_id) customerToApp[app.stripe_customer_id] = app;
+      if (app.email) emailToApp[app.email.trim().toLowerCase()] = app;
+    }
+
+    // Process charges into structured data
+    const transactions: any[] = [];
+    let totalRevenue = 0;
+    let totalRefunded = 0;
+    let failedCount = 0;
+    const monthlyRevenue: Record<string, number> = {};
+
+    for (const charge of allCharges) {
+      const custId = typeof charge.customer === 'string' ? charge.customer : charge.customer?.id;
+      const custEmail = charge.billing_details?.email || charge.receipt_email || (typeof charge.customer === 'object' ? charge.customer?.email : null);
+      const matchedApp = (custId && customerToApp[custId]) || (custEmail && emailToApp[custEmail.trim().toLowerCase()]) || null;
+
+      const amountEur = (charge.amount || 0) / 100;
+      const refundedEur = (charge.amount_refunded || 0) / 100;
+      const created = new Date(charge.created * 1000);
+      const monthKey = `${created.getFullYear()}-${String(created.getMonth() + 1).padStart(2, '0')}`;
+
+      if (charge.status === 'succeeded' && !charge.refunded) {
+        totalRevenue += amountEur;
+        monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + amountEur;
+      }
+      if (charge.refunded || charge.amount_refunded > 0) {
+        totalRefunded += refundedEur;
+      }
+      if (charge.status === 'failed') {
+        failedCount++;
+      }
+
+      transactions.push({
+        id: charge.id,
+        amount: amountEur,
+        amountRefunded: refundedEur,
+        currency: charge.currency,
+        status: charge.status,
+        refunded: charge.refunded,
+        paid: charge.paid,
+        failureMessage: charge.failure_message,
+        failureCode: charge.failure_code,
+        description: charge.description,
+        created: created.toISOString(),
+        monthKey,
+        customerEmail: custEmail,
+        customerId: custId,
+        matchedRef: matchedApp?.ref || null,
+        matchedName: matchedApp ? [matchedApp.first_name, matchedApp.last_name].filter(Boolean).join(' ') : null,
+        matchedPackage: matchedApp?.pack_name || null,
+        paymentMethod: charge.payment_method_details?.type || null,
+        receiptUrl: charge.receipt_url,
+      });
+    }
+
+    // Sort monthly revenue
+    const monthlyArr = Object.entries(monthlyRevenue)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, amount]) => ({ month, amount }));
+
+    // Subscription summary
+    const activeSubs = allSubs.filter(s => s.status === 'active' || s.status === 'trialing');
+    const canceledSubs = allSubs.filter(s => s.status === 'canceled');
+    const pastDueSubs = allSubs.filter(s => s.status === 'past_due');
+
+    // MRR calculation (from active subs)
+    let mrr = 0;
+    for (const sub of activeSubs) {
+      const item = sub.items?.data?.[0];
+      if (item?.price?.unit_amount && item?.price?.recurring?.interval === 'month') {
+        mrr += item.price.unit_amount / 100;
+      } else if (item?.price?.unit_amount && item?.price?.recurring?.interval === 'year') {
+        mrr += item.price.unit_amount / 100 / 12;
+      }
+    }
+
+    // Annual target
+    const annualTarget = 100000;
+    const progressPercent = Math.min(100, Math.round((totalRevenue / annualTarget) * 100));
+
+    console.log(`[STRIPE-REVENUE] ${transactions.length} charges, €${totalRevenue.toFixed(2)} total, ${failedCount} failed, MRR €${mrr.toFixed(2)}`);
+
+    res.json({
+      ok: true,
+      summary: {
+        totalRevenue: Math.round(totalRevenue * 100) / 100,
+        totalRefunded: Math.round(totalRefunded * 100) / 100,
+        netRevenue: Math.round((totalRevenue - totalRefunded) * 100) / 100,
+        totalCharges: allCharges.length,
+        successfulCharges: allCharges.filter(c => c.status === 'succeeded').length,
+        failedCharges: failedCount,
+        mrr: Math.round(mrr * 100) / 100,
+        arr: Math.round(mrr * 12 * 100) / 100,
+        annualTarget,
+        progressPercent,
+        activeSubs: activeSubs.length,
+        canceledSubs: canceledSubs.length,
+        pastDueSubs: pastDueSubs.length,
+        totalSubs: allSubs.length,
+      },
+      monthlyRevenue: monthlyArr,
+      transactions: transactions.sort((a, b) => b.created.localeCompare(a.created)),
+      subscriptions: allSubs.map(s => ({
+        id: s.id,
+        status: s.status,
+        customerId: s.customer,
+        currentPeriodStart: s.current_period_start ? new Date(s.current_period_start * 1000).toISOString() : null,
+        currentPeriodEnd: s.current_period_end ? new Date(s.current_period_end * 1000).toISOString() : null,
+        canceledAt: s.canceled_at ? new Date(s.canceled_at * 1000).toISOString() : null,
+        amount: s.items?.data?.[0]?.price?.unit_amount ? s.items.data[0].price.unit_amount / 100 : 0,
+        interval: s.items?.data?.[0]?.price?.recurring?.interval || null,
+        metadata: s.metadata,
+      })),
+    });
+  } catch (err: any) {
+    console.error("[STRIPE-REVENUE] ERROR:", err?.message || err);
+    res.status(500).json({ ok: false, error: "Stripe-Abfrage fehlgeschlagen", detail: String(err?.message || err) });
+  }
+});
+
+// Stripe Sync: Update payment_status for all apps based on actual Stripe data
+router.post("/admin/stripe/sync", async (_req, res) => {
+  try {
+    if (!stripe) return res.status(500).json({ ok: false, error: "Stripe not configured" });
+
+    // Get all apps with stripe_customer_id
+    const apps = await sqlPool`
+      SELECT ref, stripe_customer_id, stripe_subscription_id, payment_status
+      FROM fiaon_applications
+      WHERE stripe_customer_id IS NOT NULL
+    `;
+
+    let updated = 0;
+    let failed = 0;
+
+    for (const app of apps) {
+      try {
+        // Check charges for this customer
+        const charges = await stripe.charges.list({ customer: app.stripe_customer_id, limit: 10 });
+        const hasSuccessful = charges.data.some(c => c.status === 'succeeded' && c.paid);
+        const hasFailed = charges.data.some(c => c.status === 'failed');
+
+        let newStatus = app.payment_status;
+        if (hasSuccessful) {
+          newStatus = 'paid';
+        } else if (hasFailed && !hasSuccessful) {
+          newStatus = 'failed';
+        }
+
+        if (newStatus !== app.payment_status) {
+          await sqlPool`
+            UPDATE fiaon_applications
+            SET payment_status = ${newStatus}, updated_at = NOW()
+            WHERE ref = ${app.ref}
+          `;
+          updated++;
+        }
+      } catch (e) {
+        failed++;
+      }
+    }
+
+    console.log(`[STRIPE-SYNC] Synced ${apps.length} apps: ${updated} updated, ${failed} failed`);
+    res.json({ ok: true, total: apps.length, updated, failed });
+  } catch (err: any) {
+    console.error("[STRIPE-SYNC] ERROR:", err?.message || err);
+    res.status(500).json({ ok: false, error: "Sync fehlgeschlagen", detail: String(err?.message || err) });
+  }
+});
+
+// Per-user Stripe transactions
+router.get("/admin/applications/:ref/transactions", async (req, res) => {
+  try {
+    if (!stripe) return res.status(500).json({ ok: false, error: "Stripe not configured" });
+    const { ref } = req.params;
+
+    const apps = await sqlPool`
+      SELECT stripe_customer_id FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
+    `;
+    if (apps.length === 0 || !apps[0].stripe_customer_id) {
+      return res.json({ ok: true, transactions: [], message: "Kein Stripe-Kunde verknüpft" });
+    }
+
+    const customerId = apps[0].stripe_customer_id;
+    const charges = await stripe.charges.list({ customer: customerId, limit: 100 });
+
+    const transactions = charges.data.map(c => ({
+      id: c.id,
+      amount: (c.amount || 0) / 100,
+      amountRefunded: (c.amount_refunded || 0) / 100,
+      currency: c.currency,
+      status: c.status,
+      paid: c.paid,
+      refunded: c.refunded,
+      failureMessage: c.failure_message,
+      failureCode: c.failure_code,
+      description: c.description,
+      created: new Date(c.created * 1000).toISOString(),
+      receiptUrl: c.receipt_url,
+      paymentMethod: c.payment_method_details?.type || null,
+    }));
+
+    res.json({ ok: true, transactions, customerId });
+  } catch (err: any) {
+    console.error("[STRIPE-USER-TX] ERROR:", err?.message || err);
+    res.status(500).json({ ok: false, error: "Transaktionen konnten nicht geladen werden" });
   }
 });
 

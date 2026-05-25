@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AdminAppSubComponents } from "./AdminAppSubComponents";
 import { getPaymentStatusKey, getAppStatusKey, PAYMENT_META, STATUS_META, getFullName, formatDate, formatDateTime, formatCurrency } from "./AdminApplicationsManager";
 
 const { Field, StatusBadge, KycRow } = AdminAppSubComponents;
 
-type DetailTab = 'personal' | 'finance' | 'setup' | 'kyc' | 'admin' | 'schufa' | 'meta';
+type DetailTab = 'personal' | 'finance' | 'setup' | 'kyc' | 'admin' | 'schufa' | 'transactions' | 'meta';
 
 interface Props {
   app: any;
@@ -15,6 +15,8 @@ interface Props {
 
 export function AdminAppDetail({ app, setApp, applications, setApplications }: Props) {
   const [activeTab, setActiveTab] = useState<DetailTab>('personal');
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [txLoading, setTxLoading] = useState(false);
   const [reviewNote, setReviewNote] = useState("");
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewSuccess, setReviewSuccess] = useState<string | null>(null);
@@ -22,6 +24,17 @@ export function AdminAppDetail({ app, setApp, applications, setApplications }: P
   const [reuploadId, setReuploadId] = useState(false);
   const [profileNote, setProfileNote] = useState('');
   const [schufaNote, setSchufaNote] = useState('');
+
+  useEffect(() => {
+    if (activeTab === 'transactions' && app?.ref && transactions.length === 0) {
+      setTxLoading(true);
+      fetch(`/api/fiaon/admin/applications/${app.ref}/transactions`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(json => { if (json.ok) setTransactions(json.transactions || []); })
+        .catch(() => {})
+        .finally(() => setTxLoading(false));
+    }
+  }, [activeTab, app?.ref]);
 
   const sendReview = async (kycStatus?: string, accountStatus?: string, noteOverride?: string, reuploadBankOverride?: boolean, reuploadIdOverride?: boolean) => {
     if (!app?.ref) return;
@@ -117,6 +130,7 @@ export function AdminAppDetail({ app, setApp, applications, setApplications }: P
             { id: 'kyc' as DetailTab, label: 'KYC & Dokumente' },
             { id: 'admin' as DetailTab, label: 'Admin-Prüfung' },
             { id: 'schufa' as DetailTab, label: 'SCHUFA' },
+            { id: 'transactions' as DetailTab, label: 'Zahlungen' },
             { id: 'meta' as DetailTab, label: 'Meta' },
           ]).map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-4 py-3.5 text-[13px] font-semibold border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-200'}`}>{tab.label}</button>
@@ -305,6 +319,64 @@ export function AdminAppDetail({ app, setApp, applications, setApplications }: P
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {activeTab === 'transactions' && (
+            <div className="space-y-4">
+              {txLoading ? (
+                <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-16 rounded-xl bg-slate-50 animate-pulse" />)}</div>
+              ) : transactions.length === 0 ? (
+                <div className="py-12 text-center">
+                  <p className="text-[13px] text-slate-500 font-medium">{app.stripe_customer_id ? 'Keine Transaktionen gefunden' : 'Kein Stripe-Kunde verknüpft'}</p>
+                  {app.stripe_customer_id && <p className="text-[11px] text-slate-400 mt-1 font-mono">{app.stripe_customer_id}</p>}
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                      <p className="text-[10px] font-bold text-emerald-600 uppercase">Erfolgreich</p>
+                      <p className="text-lg font-bold text-emerald-800">{transactions.filter(t => t.status === 'succeeded').length}x</p>
+                    </div>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                      <p className="text-[10px] font-bold text-emerald-600 uppercase">Gesamt bezahlt</p>
+                      <p className="text-lg font-bold text-emerald-800">{formatCurrency(transactions.filter(t => t.status === 'succeeded').reduce((s, t) => s + t.amount, 0))}</p>
+                    </div>
+                    {transactions.some(t => t.status === 'failed') && (
+                      <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
+                        <p className="text-[10px] font-bold text-rose-600 uppercase">Fehlgeschlagen</p>
+                        <p className="text-lg font-bold text-rose-800">{transactions.filter(t => t.status === 'failed').length}x</p>
+                      </div>
+                    )}
+                    {app.stripe_customer_id && <p className="text-[11px] font-mono text-slate-400">Stripe: {app.stripe_customer_id}</p>}
+                  </div>
+                  <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden">
+                    {transactions.map(tx => (
+                      <div key={tx.id} className={`flex items-center justify-between px-4 py-3 ${tx.status === 'failed' ? 'bg-rose-50/50' : ''}`}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${tx.status === 'succeeded' ? 'bg-emerald-100 text-emerald-600' : tx.status === 'failed' ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-500'}`}>
+                            {tx.status === 'succeeded' ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> : tx.status === 'failed' ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> : <span className="text-[10px] font-bold">?</span>}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-semibold text-slate-800">{formatCurrency(tx.amount)}{tx.refunded ? ' (erstattet)' : ''}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <p className="text-[11px] text-slate-400">{formatDateTime(tx.created)}</p>
+                              {tx.paymentMethod && <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{tx.paymentMethod}</span>}
+                              {tx.failureMessage && <span className="text-[10px] text-rose-600 font-medium">{tx.failureMessage}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${tx.status === 'succeeded' ? 'bg-emerald-50 text-emerald-700' : tx.status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-500'}`}>
+                            {tx.status === 'succeeded' ? 'Bezahlt' : tx.status === 'failed' ? 'Fehlgeschlagen' : tx.status}
+                          </span>
+                          {tx.receiptUrl && <a href={tx.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] text-blue-600 hover:underline">Beleg</a>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 

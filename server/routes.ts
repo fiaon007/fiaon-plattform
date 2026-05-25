@@ -208,6 +208,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonAntragRoutes = await import('./routes/fiaon-antrag');
   app.use('/api/fiaon', fiaonAntragRoutes.default);
 
+  // ❌ FIAON Cancellation Routes — Public submit + Admin review
+  const cancellationRoutes = await import('./routes/cancellation');
+  app.use('/api/fiaon', cancellationRoutes.default);
+
   // 🔒 NDA Gate — Public Routes (no auth, cookie-based access)
   const ndaRoutes = await import('./routes/nda');
   app.use('/api/nda', ndaRoutes.default);

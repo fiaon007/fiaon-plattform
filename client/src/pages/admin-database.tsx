@@ -41,7 +41,15 @@ export default function AdminDatabasePage() {
   const [reuploadBank, setReuploadBank] = useState(false);
   const [reuploadId, setReuploadId] = useState(false);
   const [profileNote, setProfileNote] = useState('');
-  const [adminSection, setAdminSection] = useState<'overview'|'applications'|'tasks'|'command'|'radar'|'knowledge'|'accounting'>('overview');
+  const [adminSection, setAdminSection] = useState<'overview'|'applications'|'tasks'|'command'|'radar'|'knowledge'|'accounting'|'cancellations'>('overview');
+
+  const [cancellations, setCancellations] = useState<any[]>([]);
+  const [cancellationsLoading, setCancellationsLoading] = useState(false);
+  const [selectedCancellation, setSelectedCancellation] = useState<any | null>(null);
+  const [cancellationNote, setCancellationNote] = useState("");
+  const [cancellationActionLoading, setCancellationActionLoading] = useState(false);
+  const [cancellationSuccess, setCancellationSuccess] = useState<string | null>(null);
+  const [cancellationFilter, setCancellationFilter] = useState<'all'|'pending'|'confirmed'|'rejected'>('pending');
 
   const sendReview = async (kycStatus?: string, accountStatus?: string, noteOverride?: string, reuploadBankOverride?: boolean, reuploadIdOverride?: boolean) => {
     if (!selectedApp?.ref) return;
@@ -119,6 +127,43 @@ export default function AdminDatabasePage() {
     fetchTodos();
     fetchApplications();
   }, []);
+
+  useEffect(() => {
+    if (adminSection === 'cancellations') fetchCancellations();
+  }, [adminSection]);
+
+  const fetchCancellations = async () => {
+    setCancellationsLoading(true);
+    try {
+      const res = await fetch('/api/fiaon/admin/cancellations', { credentials: 'include' });
+      const data = await res.json();
+      if (res.ok && data.ok) setCancellations(data.data ?? []);
+    } catch {}
+    finally { setCancellationsLoading(false); }
+  };
+
+  const handleCancellationAction = async (status: 'confirmed' | 'rejected') => {
+    if (!selectedCancellation) return;
+    setCancellationActionLoading(true);
+    setCancellationSuccess(null);
+    try {
+      const res = await fetch(`/api/fiaon/admin/cancellations/${selectedCancellation.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status, adminNote: cancellationNote.trim() || null }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setCancellations(prev => prev.map(c => c.id === selectedCancellation.id ? data.data : c));
+        setSelectedCancellation(data.data);
+        setCancellationNote('');
+        setCancellationSuccess(status === 'confirmed' ? 'Kündigung bestätigt' : 'Kündigung abgelehnt');
+        setTimeout(() => setCancellationSuccess(null), 3000);
+      }
+    } catch {}
+    finally { setCancellationActionLoading(false); }
+  };
 
   // Normalisiert Response-Shapes: Array, {data:[]}, {ok,data:[]}, {data:{data:[]}}
   const extractApps = (json: any): any[] => {
@@ -411,6 +456,7 @@ export default function AdminDatabasePage() {
     { id: 'radar'        as const, label: 'Live Radar',  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
     { id: 'knowledge'    as const, label: 'Wissens-DB',  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
     { id: 'accounting'   as const, label: 'Buchhaltung', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>, badge: 'neu' },
+    { id: 'cancellations' as const, label: 'Kündigungen', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>, badge: cancellations.filter(c=>c.status==='pending').length > 0 ? String(cancellations.filter(c=>c.status==='pending').length) : undefined },
   ];
 
   return (
@@ -683,6 +729,178 @@ export default function AdminDatabasePage() {
 
           {/* ══════════ BUCHHALTUNG ══════════ */}
           {adminSection === 'accounting' && <AccountingDashboard />}
+
+          {/* ══════════ KÜNDIGUNGEN ══════════ */}
+          {adminSection === 'cancellations' && (
+            <div className="space-y-5">
+              {/* Filter bar */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {(['all','pending','confirmed','rejected'] as const).map(f => (
+                  <button key={f} onClick={() => setCancellationFilter(f)}
+                    className={`px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition-all border ${
+                      cancellationFilter === f
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                    }`}>
+                    {f === 'all' ? 'Alle' : f === 'pending' ? 'Ausstehend' : f === 'confirmed' ? 'Bestätigt' : 'Abgelehnt'}
+                    <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                      cancellationFilter === f ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {cancellations.filter(c => f === 'all' || c.status === f).length}
+                    </span>
+                  </button>
+                ))}
+                <button onClick={fetchCancellations} className="ml-auto p-2 rounded-xl hover:bg-slate-100 transition-colors" title="Neu laden">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                </button>
+              </div>
+
+              {/* Table */}
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Workflow</p>
+                    <h3 className="text-[14px] font-bold text-slate-900">Kündigungsanträge</h3>
+                  </div>
+                  {cancellations.filter(c=>c.status==='pending').length > 0 && (
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 border border-rose-100 rounded-full text-[11px] font-bold text-rose-600">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                      {cancellations.filter(c=>c.status==='pending').length} ausstehend
+                    </span>
+                  )}
+                </div>
+
+                {cancellationsLoading ? (
+                  <div className="p-5 space-y-2">{[...Array(5)].map((_,i) => <div key={i} className="h-12 rounded-xl bg-slate-50 animate-pulse" />)}</div>
+                ) : cancellations.filter(c => cancellationFilter === 'all' || c.status === cancellationFilter).length === 0 ? (
+                  <div className="py-14 text-center">
+                    <p className="text-sm font-semibold text-slate-600">Keine Einträge</p>
+                    <p className="text-xs text-slate-400 mt-1">Es liegen keine Kündigungsanträge vor.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead><tr className="border-b border-slate-100">
+                        <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">#</th>
+                        <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Name</th>
+                        <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400 hidden lg:table-cell">E-Mail</th>
+                        <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400 hidden md:table-cell">Ref</th>
+                        <th className="text-left py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Status</th>
+                        <th className="text-right py-3 px-5 text-[10px] uppercase tracking-wider font-semibold text-slate-400">Eingereicht</th>
+                      </tr></thead>
+                      <tbody>
+                        {cancellations
+                          .filter(c => cancellationFilter === 'all' || c.status === cancellationFilter)
+                          .map(c => {
+                            const stMeta = c.status === 'confirmed'
+                              ? { cls: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500', label: 'Bestätigt' }
+                              : c.status === 'rejected'
+                              ? { cls: 'bg-slate-100 text-slate-500', dot: 'bg-slate-400', label: 'Abgelehnt' }
+                              : { cls: 'bg-rose-50 text-rose-600', dot: 'bg-rose-500 animate-pulse', label: 'Ausstehend' };
+                            return (
+                              <tr key={c.id} onClick={() => { setSelectedCancellation(c); setCancellationNote(''); }}
+                                className={`border-b border-slate-50 cursor-pointer transition-colors hover:bg-slate-50 ${
+                                  selectedCancellation?.id === c.id ? 'bg-blue-50/40' : ''
+                                }`}>
+                                <td className="py-3.5 px-5"><span className="text-[11px] font-mono text-slate-400">#{c.id}</span></td>
+                                <td className="py-3.5 px-5">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-white text-[11px] font-bold shrink-0">{((c.first_name||'?')[0]).toUpperCase()}</div>
+                                    <div>
+                                      <p className="text-[13px] font-semibold text-slate-900">{c.first_name} {c.last_name}</p>
+                                      <p className="text-[11px] text-slate-400 lg:hidden">{c.email}</p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-5 hidden lg:table-cell"><span className="text-xs text-slate-600">{c.email}</span></td>
+                                <td className="py-3.5 px-5 hidden md:table-cell"><span className="text-[11px] font-mono text-slate-500">{c.ref}</span></td>
+                                <td className="py-3.5 px-5">
+                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${stMeta.cls}`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${stMeta.dot}`}/>{stMeta.label}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-5 text-right"><span className="text-xs text-slate-500 whitespace-nowrap">{formatAppDate(c.created_at)}</span></td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Detail panel */}
+              {selectedCancellation && (
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between">
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Antrag #{selectedCancellation.id}</p>
+                      <h3 className="text-[15px] font-bold text-slate-900">{selectedCancellation.first_name} {selectedCancellation.last_name}</h3>
+                    </div>
+                    <button onClick={() => setSelectedCancellation(null)} className="p-2 rounded-xl hover:bg-slate-100 transition-colors">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </div>
+                  <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+                    <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">E-Mail</p><p className="text-[13px] text-slate-700">{selectedCancellation.email}</p></div>
+                    <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Referenz</p><p className="text-[13px] font-mono text-slate-700">{selectedCancellation.ref}</p></div>
+                    <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Paket</p><p className="text-[13px] text-slate-700">{selectedCancellation.package_name || '—'}</p></div>
+                    <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Eingegangen</p><p className="text-[13px] text-slate-700">{formatAppDate(selectedCancellation.created_at)}</p></div>
+                    <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Gewünschtes Datum</p><p className="text-[13px] text-slate-700">{selectedCancellation.cancellation_date ? formatAppDate(selectedCancellation.cancellation_date) : '—'}</p></div>
+                    <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Status</p>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                        selectedCancellation.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700'
+                        : selectedCancellation.status === 'rejected' ? 'bg-slate-100 text-slate-500'
+                        : 'bg-rose-50 text-rose-600'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          selectedCancellation.status === 'confirmed' ? 'bg-emerald-500'
+                          : selectedCancellation.status === 'rejected' ? 'bg-slate-400'
+                          : 'bg-rose-500'
+                        }`}/>
+                        {selectedCancellation.status === 'confirmed' ? 'Bestätigt' : selectedCancellation.status === 'rejected' ? 'Abgelehnt' : 'Ausstehend'}
+                      </span>
+                    </div>
+                    <div className="col-span-full"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Kündigungsgrund</p><p className="text-[13px] text-slate-700 leading-relaxed bg-slate-50 rounded-xl px-3.5 py-2.5">{selectedCancellation.reason || '—'}</p></div>
+                    {selectedCancellation.admin_note && (
+                      <div className="col-span-full"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Admin-Notiz</p><p className="text-[13px] text-slate-700 leading-relaxed bg-amber-50 border border-amber-100 rounded-xl px-3.5 py-2.5">{selectedCancellation.admin_note}</p></div>
+                    )}
+                    {selectedCancellation.processed_by && (
+                      <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Bearbeitet von</p><p className="text-[13px] text-slate-700">{selectedCancellation.processed_by} · {formatAppDate(selectedCancellation.processed_at)}</p></div>
+                    )}
+                  </div>
+
+                  {selectedCancellation.status === 'pending' && (
+                    <div className="px-6 pb-6 border-t border-slate-100 pt-5 space-y-4">
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Admin-Entscheidung</p>
+                      <textarea
+                        value={cancellationNote}
+                        onChange={e => setCancellationNote(e.target.value)}
+                        placeholder="Optionale Notiz für interne Zwecke…"
+                        rows={2}
+                        className="w-full text-[13px] border border-slate-200 rounded-xl px-3.5 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200 text-slate-700 bg-white"
+                      />
+                      {cancellationSuccess && (
+                        <p className="text-[12px] font-semibold text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg">{cancellationSuccess}</p>
+                      )}
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => handleCancellationAction('confirmed')}
+                          disabled={cancellationActionLoading}
+                          className="flex-1 py-2.5 rounded-xl text-[13px] font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                        >✓ Kündigung bestätigen</button>
+                        <button
+                          onClick={() => handleCancellationAction('rejected')}
+                          disabled={cancellationActionLoading}
+                          className="flex-1 py-2.5 rounded-xl text-[13px] font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50 transition-colors"
+                        >✕ Ablehnen</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
         </main>
       </div>

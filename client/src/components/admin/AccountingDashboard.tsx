@@ -525,7 +525,17 @@ function CashflowBars({ data }: { data: { month: string; outCents: number; inCen
 // ============================================================================
 type KalkRow = { id: number; label: string; amount: string; type: "income" | "expense" };
 
+function parseEurInput(raw: string): number {
+  // Accept "1000", "1.000", "1000,50", "1000.50" → always returns euros as float
+  const cleaned = raw.replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(cleaned);
+  return isFinite(n) && n >= 0 ? n : 0;
+}
+
 function KalkulationTab({ startBalance }: { startBalance: number }) {
+  // Editable start balance (in EUR as string, e.g. "55000")
+  const defaultStart = (startBalance / 100).toFixed(2);
+  const [startInput, setStartInput] = useState(defaultStart);
   const [rows, setRows] = useState<KalkRow[]>([
     { id: 1, label: "", amount: "", type: "expense" },
   ]);
@@ -533,94 +543,150 @@ function KalkulationTab({ startBalance }: { startBalance: number }) {
   const addRow = () =>
     setRows(r => [...r, { id: Date.now(), label: "", amount: "", type: "expense" }]);
   const removeRow = (id: number) => setRows(r => r.filter(x => x.id !== id));
-  const upd = (id: number, key: keyof KalkRow, val: any) =>
+  const upd = (id: number, key: keyof KalkRow, val: string) =>
     setRows(r => r.map(x => (x.id === id ? { ...x, [key]: val } : x)));
 
-  let running = startBalance;
-  const rowsCalc = rows.map(row => {
-    const amt = Math.round((parseFloat(row.amount.replace(",", ".")) || 0) * 100);
-    const delta = row.type === "income" ? amt : -amt;
-    running += delta;
-    return { ...row, amt, delta, runningBalance: running };
-  });
-  const totalChange = running - startBalance;
+  // Derive computed values purely from state — no mutable variables during render
+  const startEur = parseEurInput(startInput);
+  const startCents = Math.round(startEur * 100);
+
+  const computed = useMemo(() => {
+    let acc = startCents;
+    return rows.map(row => {
+      const amtEur = parseEurInput(row.amount);
+      const amtCents = Math.round(amtEur * 100);
+      const delta = row.type === "income" ? amtCents : -amtCents;
+      acc += delta;
+      return { ...row, amtCents, delta, runningCents: acc };
+    });
+  }, [rows, startCents]);
+
+  const finalCents = computed.length > 0 ? computed[computed.length - 1].runningCents : startCents;
+  const changeCents = finalCents - startCents;
 
   return (
     <div className="space-y-4">
-      {/* Header info */}
+      {/* Editable start balance */}
       <div className="bg-slate-900 text-white rounded-2xl p-5">
-        <p className="text-[10px] tracking-widest uppercase font-semibold opacity-40 mb-1">Startsaldo</p>
-        <p className="text-[28px] font-bold tabular-nums">{eur(startBalance)}</p>
-        <p className="text-[11px] opacity-40 mt-1">Gib Szenarien ein um den Effekt auf deinen Kontostand zu sehen</p>
+        <p className="text-[10px] tracking-widest uppercase font-semibold opacity-40 mb-2">Startsaldo (editierbar)</p>
+        <div className="flex items-center gap-3">
+          <input
+            value={startInput}
+            onChange={e => setStartInput(e.target.value)}
+            placeholder="z.B. 55000"
+            className="w-48 px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-[20px] font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-white/30 placeholder-white/30"
+          />
+          <span className="text-white/50 text-[18px] font-semibold">€</span>
+          <button
+            onClick={() => setStartInput(defaultStart)}
+            className="ml-auto text-[11px] text-white/40 hover:text-white/70 transition-colors underline underline-offset-2"
+          >
+            Aktuellen Kontostand übernehmen
+          </button>
+        </div>
+        <p className="text-[11px] opacity-30 mt-2">Simuliere beliebige Szenarien — nichts wird gespeichert</p>
       </div>
 
-      {/* Table */}
+      {/* Rows table */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="grid grid-cols-[1fr_2fr_1.4fr_1.2fr_28px] text-[10px] font-bold uppercase tracking-wider text-slate-400 px-4 py-2.5 border-b border-slate-100 bg-slate-50">
-          <span>Typ</span><span>Bezeichnung</span><span>Betrag (€)</span><span>Kontostand</span><span></span>
-        </div>
-        {/* Startzeile */}
-        <div className="grid grid-cols-[1fr_2fr_1.4fr_1.2fr_28px] items-center px-4 py-2.5 border-b border-slate-50 bg-emerald-50/40">
-          <span className="text-[11px] font-semibold text-slate-400">Start</span>
-          <span className="text-[12px] text-slate-500">Aktueller Kontostand</span>
-          <span></span>
-          <span className="text-[13px] font-bold tabular-nums text-slate-900">{eur(startBalance)}</span>
+        {/* Header */}
+        <div className="grid grid-cols-[44px_1fr_130px_110px_32px] text-[10px] font-bold uppercase tracking-wider text-slate-400 px-4 py-2.5 border-b border-slate-100 bg-slate-50">
+          <span>Typ</span>
+          <span className="pl-2">Bezeichnung</span>
+          <span>Betrag (€)</span>
+          <span>Saldo danach</span>
           <span></span>
         </div>
-        {rowsCalc.map((row, idx) => (
-          <div key={row.id} className="grid grid-cols-[1fr_2fr_1.4fr_1.2fr_28px] items-center px-4 py-2 border-b border-slate-50 hover:bg-slate-50 transition-colors">
-            {/* Type toggle */}
-            <div className="flex rounded-lg overflow-hidden border border-slate-200 text-[10px] font-bold w-fit">
-              <button onClick={() => upd(row.id, "type", "income")}
-                className={`px-2 py-1 transition-colors ${row.type === "income" ? "bg-emerald-500 text-white" : "bg-white text-slate-400"}`}>+</button>
-              <button onClick={() => upd(row.id, "type", "expense")}
-                className={`px-2 py-1 transition-colors ${row.type === "expense" ? "bg-red-400 text-white" : "bg-white text-slate-400"}`}>−</button>
+
+        {/* Start row */}
+        <div className="grid grid-cols-[44px_1fr_130px_110px_32px] items-center px-4 py-3 border-b border-slate-100 bg-slate-50/60">
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Start</span>
+          <span className="pl-2 text-[12px] text-slate-500">Startguthaben</span>
+          <span></span>
+          <span className="text-[13px] font-bold tabular-nums text-slate-900">{eur(startCents)}</span>
+          <span></span>
+        </div>
+
+        {/* Data rows */}
+        {computed.map((row, idx) => {
+          const isPositive = row.runningCents >= startCents;
+          return (
+            <div key={row.id} className="grid grid-cols-[44px_1fr_130px_110px_32px] items-center px-4 py-2.5 border-b border-slate-50 hover:bg-slate-50/70 transition-colors">
+              {/* +/− toggle */}
+              <div className="flex rounded-md overflow-hidden border border-slate-200 text-[11px] font-bold w-fit">
+                <button
+                  onClick={() => upd(row.id, "type", "income")}
+                  className={`px-2.5 py-1 transition-colors ${row.type === "income" ? "bg-emerald-500 text-white" : "bg-white text-slate-300 hover:text-emerald-500"}`}
+                >+</button>
+                <button
+                  onClick={() => upd(row.id, "type", "expense")}
+                  className={`px-2.5 py-1 transition-colors ${row.type === "expense" ? "bg-red-400 text-white" : "bg-white text-slate-300 hover:text-red-400"}`}
+                >−</button>
+              </div>
+
+              {/* Label */}
+              <input
+                value={row.label}
+                onChange={e => upd(row.id, "label", e.target.value)}
+                placeholder={`Position ${idx + 1}`}
+                className="ml-2 px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[12px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-300 w-full"
+              />
+
+              {/* Amount — text input to avoid browser number quirks */}
+              <div className="flex items-center gap-1 ml-1">
+                <input
+                  value={row.amount}
+                  onChange={e => upd(row.id, "amount", e.target.value)}
+                  placeholder="0,00"
+                  inputMode="decimal"
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[12px] tabular-nums text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-300 w-full"
+                />
+                <span className="text-[11px] text-slate-400 shrink-0">€</span>
+              </div>
+
+              {/* Running balance */}
+              <div className="ml-1">
+                <span className={`text-[12px] font-bold tabular-nums ${isPositive ? "text-emerald-600" : "text-red-500"}`}>
+                  {eur(row.runningCents)}
+                </span>
+                {row.amtCents > 0 && (
+                  <p className={`text-[9px] font-semibold ${row.type === "income" ? "text-emerald-500" : "text-red-400"}`}>
+                    {row.type === "income" ? "+" : "−"}{eur(row.amtCents)}
+                  </p>
+                )}
+              </div>
+
+              {/* Delete */}
+              <button onClick={() => removeRow(row.id)} className="text-slate-200 hover:text-red-400 transition-colors text-[16px] font-bold text-center">×</button>
             </div>
-            {/* Label */}
-            <input
-              value={row.label}
-              onChange={e => upd(row.id, "label", e.target.value)}
-              placeholder={`Position ${idx + 1}`}
-              className="mx-2 px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[12px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-300 w-full"
-            />
-            {/* Amount */}
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={row.amount}
-              onChange={e => upd(row.id, "amount", e.target.value)}
-              placeholder="0,00"
-              className="px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[12px] tabular-nums text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-300 w-full"
-            />
-            {/* Running balance */}
-            <span className={`text-[12px] font-bold tabular-nums ml-2 ${
-              row.runningBalance < startBalance ? "text-red-500" : "text-emerald-600"
-            }`}>{eur(row.runningBalance)}</span>
-            {/* Delete */}
-            <button onClick={() => removeRow(row.id)} className="text-slate-300 hover:text-red-400 transition-colors text-[14px] font-bold ml-1">×</button>
-          </div>
-        ))}
-        {/* Add row */}
-        <div className="px-4 py-2.5">
-          <button onClick={addRow}
-            className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-400 hover:text-slate-700 transition-colors">
-            <span className="text-[16px] font-bold leading-none">+</span> Zeile hinzufügen
+          );
+        })}
+
+        {/* Add row button */}
+        <div className="px-4 py-3">
+          <button onClick={addRow} className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-400 hover:text-slate-700 transition-colors">
+            <span className="w-5 h-5 rounded-full border border-slate-300 flex items-center justify-center text-[14px] font-bold leading-none">+</span>
+            Zeile hinzufügen
           </button>
         </div>
       </div>
 
-      {/* Result summary */}
-      <div className={`rounded-2xl p-5 ${totalChange >= 0 ? "bg-emerald-50 border border-emerald-200" : "bg-red-50 border border-red-200"}`}>
+      {/* Result */}
+      <div className={`rounded-2xl p-5 border ${changeCents >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Ergebnis nach Szenario</p>
-            <p className={`text-[26px] font-bold tabular-nums ${totalChange >= 0 ? "text-emerald-700" : "text-red-600"}`}>{eur(running)}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Endkontostand</p>
+            <p className={`text-[28px] font-bold tabular-nums ${changeCents >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+              {eur(finalCents)}
+            </p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] font-semibold text-slate-400 mb-1">Veränderung</p>
-            <p className={`text-[18px] font-bold tabular-nums ${totalChange >= 0 ? "text-emerald-600" : "text-red-500"}`}>
-              {totalChange >= 0 ? "+" : ""}{eur(totalChange)}
+            <p className="text-[10px] font-semibold text-slate-400 mb-1">Gesamtveränderung</p>
+            <p className={`text-[20px] font-bold tabular-nums ${changeCents >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+              {changeCents >= 0 ? "+" : "−"}{eur(Math.abs(changeCents))}
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              {changeCents >= 0 ? "▲ Zuwachs" : "▼ Verlust"} gegenüber Startguthaben
             </p>
           </div>
         </div>

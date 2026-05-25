@@ -110,8 +110,11 @@ export default function BonitaetAntragPage() {
     if (Object.keys(err).length > 0) { setErrors(err); return; }
 
     setStep("validating");
-    await new Promise(r => setTimeout(r, 2200));
+    window.scrollTo({ top: 0, behavior: "instant" });
+    const delay = 4000 + Math.random() * 6000;
+    await new Promise(r => setTimeout(r, delay));
     setStep("success");
+    window.scrollTo({ top: 0, behavior: "instant" });
   };
 
   /* ── formatted address for summary ── */

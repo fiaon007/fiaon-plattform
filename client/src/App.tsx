@@ -25,6 +25,7 @@ import AboKuendigenPage from "@/pages/abo-kuendigen";
 import BonitaetPage from "@/pages/bonitaet";
 import BonitaetAntragPage from "@/pages/bonitaet-antrag";
 import BonitaetServicePage from "@/pages/bonitaet-service";
+import BonitaetDankePage from "@/pages/bonitaet-danke";
 
 function Router() {
   return (
@@ -52,6 +53,7 @@ function Router() {
       <Route path="/bonitaet" component={BonitaetPage} />
       <Route path="/bonitaet-antrag" component={BonitaetAntragPage} />
       <Route path="/bonitaet-service" component={BonitaetServicePage} />
+      <Route path="/bonitaet-danke" component={BonitaetDankePage} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -1684,4 +1684,161 @@ router.get("/admin/applications/:ref/transactions", async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// STRIPE AI INSIGHTS: KI-gestützte Umsatz-Prognosen & Churn-Analyse
+// ═══════════════════════════════════════════════════════════════════
+
+router.get("/admin/stripe/ai-insights", async (_req, res) => {
+  try {
+    if (!stripe) return res.status(500).json({ ok: false, error: "Stripe not configured" });
+
+    // ── Collect live data ──────────────────────────────────────────
+    const [chargesBatch, subsBatch] = await Promise.all([
+      stripe.charges.list({ limit: 100 }),
+      stripe.subscriptions.list({ limit: 100, status: 'all' }),
+    ]);
+
+    const charges = chargesBatch.data;
+    const subs = subsBatch.data;
+
+    const activeSubs = subs.filter(s => s.status === 'active' || s.status === 'trialing');
+    const pastDueSubs = subs.filter(s => s.status === 'past_due');
+    const canceledSubs = subs.filter(s => s.status === 'canceled');
+
+    // Monthly revenue map
+    const monthly: Record<string, number> = {};
+    let totalRevenue = 0;
+    for (const c of charges) {
+      if (c.status !== 'succeeded' || c.refunded) continue;
+      const d = new Date(c.created * 1000);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthly[key] = (monthly[key] || 0) + (c.amount / 100);
+      totalRevenue += c.amount / 100;
+    }
+    const monthlyArr = Object.entries(monthly).sort(([a], [b]) => a.localeCompare(b)).map(([m, v]) => ({ month: m, revenue: v }));
+
+    // ── Compute statistical forecast ──────────────────────────────
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonthKey = `${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthsThisYear = monthlyArr.filter(m => m.month.startsWith(String(currentYear)));
+    const revenueThisYear = monthsThisYear.reduce((s, m) => s + m.revenue, 0);
+    const monthsElapsed = now.getMonth() + 1;
+    const monthsRemaining = 12 - monthsElapsed;
+    const avgMonthly = monthsElapsed > 0 ? revenueThisYear / monthsElapsed : 0;
+
+    // Growth rate: last 3 months vs 3 months before that
+    const last3 = monthlyArr.slice(-3).reduce((s, m) => s + m.revenue, 0);
+    const prev3 = monthlyArr.slice(-6, -3).reduce((s, m) => s + m.revenue, 0);
+    const growthRate = prev3 > 0 ? ((last3 - prev3) / prev3) * 100 : 0;
+
+    // Linear projection: extrapolate to year end
+    const projectedYearEnd = revenueThisYear + avgMonthly * monthsRemaining;
+    const annualTarget = 100000;
+    const gapToTarget = Math.max(0, annualTarget - revenueThisYear);
+    const neededPerMonth = monthsRemaining > 0 ? gapToTarget / monthsRemaining : 0;
+
+    // MRR
+    let mrr = 0;
+    for (const sub of activeSubs) {
+      const item = sub.items?.data?.[0];
+      if (item?.price?.unit_amount) {
+        if (item.price.recurring?.interval === 'month') mrr += item.price.unit_amount / 100;
+        else if (item.price.recurring?.interval === 'year') mrr += item.price.unit_amount / 100 / 12;
+      }
+    }
+
+    const churnRisk = pastDueSubs.length;
+    const churnedThisYear = canceledSubs.filter(s => s.canceled_at && new Date(s.canceled_at * 1000).getFullYear() === currentYear).length;
+
+    // ── AI narrative (GPT-4 / Gemini) ─────────────────────────────
+    let aiText: string | null = null;
+    let aiError: string | null = null;
+
+    const aiPrompt = `Du bist ein hochpräziser Finanzanalyst für ARAS AI – ein Fintech-Unternehmen.
+
+Analysiere folgende Stripe-Umsatzdaten und gib eine strukturierte Analyse auf Deutsch:
+
+**Umsatz ${currentYear} bisher:** €${revenueThisYear.toFixed(0)}
+**Jahresziel:** €${annualTarget.toLocaleString()}
+**Verbleibende Monate:** ${monthsRemaining}
+**Ø Monatsumsatz:** €${avgMonthly.toFixed(0)}
+**MRR (aktive Abos):** €${mrr.toFixed(0)}
+**Wachstumsrate (letzte 3 vs. vorherige 3 Monate):** ${growthRate.toFixed(1)}%
+**Aktive Abos:** ${activeSubs.length}
+**Überfällige Abos (Churn-Risiko):** ${churnRisk}
+**Gekündigte Abos ${currentYear}:** ${churnedThisYear}
+**Lineare Prognose Jahresende:** €${projectedYearEnd.toFixed(0)}
+**Monatsumsatz je Monat:** ${monthlyArr.map(m => `${m.month}: €${m.revenue.toFixed(0)}`).join(', ')}
+
+Gib deine Analyse als JSON mit folgender Struktur zurück (kein Markdown, nur reines JSON):
+{
+  "headline": "kurzer Executive Summary (1 Satz, prägnant)",
+  "forecast": "Prognose ob Jahresziel erreichbar, mit konkreter Zahl",
+  "churn": "Churn-Risikoanalyse und was zu tun ist",
+  "growth": "Wachstumsanalyse und Trend",
+  "actions": ["Handlungsempfehlung 1", "Handlungsempfehlung 2", "Handlungsempfehlung 3"],
+  "sentiment": "positive" | "neutral" | "negative"
+}`;
+
+    try {
+      const openai = process.env.OPENAI_API_KEY ? new (await import('openai')).default({ apiKey: process.env.OPENAI_API_KEY }) : null;
+      const geminiKey = process.env.GOOGLE_GEMINI_API_KEY;
+
+      if (openai) {
+        const resp = await openai.chat.completions.create({
+          model: 'gpt-4',
+          messages: [
+            { role: 'system', content: 'Du bist ein präziser Finanzanalyst. Antworte immer als reines JSON ohne Markdown-Formatierung.' },
+            { role: 'user', content: aiPrompt }
+          ],
+          temperature: 0.4,
+          max_tokens: 600,
+        });
+        aiText = resp.choices[0]?.message?.content || null;
+      } else if (geminiKey) {
+        const { GoogleGenerativeAI } = await import('@google/generative-ai');
+        const genai = new GoogleGenerativeAI(geminiKey);
+        const model = genai.getGenerativeModel({ model: 'gemini-pro' });
+        const result = await model.generateContent(aiPrompt);
+        aiText = result.response.text() || null;
+      }
+    } catch (e: any) {
+      aiError = e?.message || 'AI nicht verfügbar';
+    }
+
+    let aiInsights: any = null;
+    if (aiText) {
+      try {
+        const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) aiInsights = JSON.parse(jsonMatch[0]);
+      } catch { aiInsights = null; }
+    }
+
+    res.json({
+      ok: true,
+      computed: {
+        revenueThisYear: Math.round(revenueThisYear * 100) / 100,
+        projectedYearEnd: Math.round(projectedYearEnd * 100) / 100,
+        avgMonthly: Math.round(avgMonthly * 100) / 100,
+        growthRate: Math.round(growthRate * 10) / 10,
+        monthsRemaining,
+        gapToTarget: Math.round(gapToTarget * 100) / 100,
+        neededPerMonth: Math.round(neededPerMonth * 100) / 100,
+        mrr: Math.round(mrr * 100) / 100,
+        churnRisk,
+        churnedThisYear,
+        activeSubs: activeSubs.length,
+        canceledSubs: canceledSubs.length,
+        pastDueSubs: pastDueSubs.length,
+      },
+      aiInsights,
+      aiError,
+    });
+  } catch (err: any) {
+    console.error("[STRIPE-AI-INSIGHTS] ERROR:", err?.message || err);
+    res.status(500).json({ ok: false, error: "AI-Analyse fehlgeschlagen", detail: String(err?.message || err) });
+  }
+});
+
 export default router;

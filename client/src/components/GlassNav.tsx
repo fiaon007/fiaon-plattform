@@ -10,6 +10,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
   const [mob, setMob] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [privatHover, setPrivatHover] = useState(false);
+  const [privatMobileOpen, setPrivatMobileOpen] = useState(false);
 
   useEffect(() => {
     const fn = () => {
@@ -95,8 +96,8 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                     </a>
                     {/* Dropdown for Privatkunden */}
                     {p.key === "privatkunden" && privatHover && (
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 pt-2 min-w-[200px]">
-                        <div className="fiaon-glass-panel rounded-2xl py-2 shadow-xl border border-gray-100">
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 pt-2 min-w-[200px] z-[100]">
+                        <div className="fiaon-glass-panel rounded-2xl py-2 shadow-xl border border-gray-100" style={{ backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
                           <a
                             href="/bonitaet"
                             className="block px-5 py-3 text-[13.5px] font-medium text-gray-700 hover:text-gray-900 hover:bg-blue-50/50 transition-colors"
@@ -168,34 +169,56 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
             <div className="px-6 py-8 space-y-4">
               {pages.map((p) => (
                 <div key={p.key}>
-                  <a
-                    href={p.href}
-                    onClick={() => setMob(false)}
-                    className={`block py-4 text-lg font-medium transition-colors border-b border-gray-100 ${
-                      activePage === p.key
-                        ? "text-gray-900"
-                        : "text-gray-600"
-                    }`}
-                  >
-                    {p.hasGradient ? (
-                      <>
-                        Was ist <span className="fiaon-gradient-text-animated">FIAON</span>
-                      </>
-                    ) : (
-                      p.label
-                    )}
-                  </a>
-                  {/* Mobile submenu for Privatkunden */}
-                  {p.key === "privatkunden" && (
-                    <div className="pl-4 mt-2 space-y-2">
-                      <a
-                        href="/bonitaet"
-                        onClick={() => setMob(false)}
-                        className="block py-3 text-[15px] font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                  {p.key === "privatkunden" ? (
+                    <>
+                      <button
+                        onClick={() => setPrivatMobileOpen(!privatMobileOpen)}
+                        className={`w-full text-left flex items-center justify-between py-4 text-lg font-medium transition-colors border-b border-gray-100 ${
+                          activePage === p.key
+                            ? "text-gray-900"
+                            : "text-gray-600"
+                        }`}
                       >
-                        Bonitäts-Auszug
-                      </a>
-                    </div>
+                        <span>{p.label}</span>
+                        <svg
+                          width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+                          className="transition-transform duration-300"
+                          style={{ transform: privatMobileOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+                        >
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </button>
+                      {/* Mobile submenu for Privatkunden */}
+                      {privatMobileOpen && (
+                        <div className="pl-4 mt-2 pb-2 space-y-2">
+                          <a
+                            href="/bonitaet"
+                            onClick={() => { setMob(false); setPrivatMobileOpen(false); }}
+                            className="block py-3 text-[15px] font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                          >
+                            Bonitäts-Auszug
+                          </a>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <a
+                      href={p.href}
+                      onClick={() => setMob(false)}
+                      className={`block py-4 text-lg font-medium transition-colors border-b border-gray-100 ${
+                        activePage === p.key
+                          ? "text-gray-900"
+                          : "text-gray-600"
+                      }`}
+                    >
+                      {p.hasGradient ? (
+                        <>
+                          Was ist <span className="fiaon-gradient-text-animated">FIAON</span>
+                        </>
+                      ) : (
+                        p.label
+                      )}
+                    </a>
                   )}
                 </div>
               ))}

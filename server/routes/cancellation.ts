@@ -32,36 +32,43 @@ ensureTable().catch(err => logger.error("[CANCELLATION] ensureTable error:", err
 
 // ─── POST /api/fiaon/abo-kuendigen ───────────────────────────────────────────
 // Public endpoint — user submits a cancellation request after identity check.
+// Identifies the applicant via first name, last name, email + birthdate.
+// If reason === "__verify_only__" the identity is checked but nothing is inserted.
 router.post("/abo-kuendigen", async (req, res) => {
   try {
-    const { ref, firstName, lastName, email, phone, packageName, reason, cancellationDate } = req.body;
+    const { firstName, lastName, email, birthdate, phone, reason, cancellationDate } = req.body;
 
-    if (!ref || !firstName || !lastName || !email) {
-      return res.status(400).json({ ok: false, error: "Pflichtfelder fehlen (ref, firstName, lastName, email)" });
+    if (!firstName || !lastName || !email || !birthdate) {
+      return res.status(400).json({ ok: false, error: "Pflichtfelder fehlen (firstName, lastName, email, birthdate)" });
     }
 
-    // Verify the applicant actually exists in fiaon_applications
+    // Verify the applicant exists in fiaon_applications via birthdate
     const apps = await sqlPool`
-      SELECT ref, first_name, last_name, email, package_name
+      SELECT ref, first_name, last_name, email, pack_name
       FROM fiaon_applications
-      WHERE ref = ${ref}
-        AND LOWER(email) = LOWER(${email})
+      WHERE LOWER(email)      = LOWER(${email})
         AND LOWER(first_name) = LOWER(${firstName})
         AND LOWER(last_name)  = LOWER(${lastName})
+        AND birthdate::date   = ${birthdate}::date
       LIMIT 1
     `;
 
     if (apps.length === 0) {
       return res.status(404).json({
         ok: false,
-        error: "Kein übereinstimmender Antrag gefunden. Bitte überprüfe deine Angaben.",
+        error: "Keine Übereinstimmung gefunden. Bitte prüfe Vor- und Nachname, E-Mail sowie Geburtsdatum.",
       });
     }
 
-    // Prevent duplicate pending requests
+    // Verify-only mode — just confirm identity without inserting
+    if (reason === "__verify_only__") {
+      return res.json({ ok: true });
+    }
+
+    // Prevent duplicate pending requests (deduplicate by email)
     const existing = await sqlPool`
       SELECT id FROM cancellation_requests
-      WHERE ref = ${ref} AND status = 'pending'
+      WHERE LOWER(email) = LOWER(${email}) AND status = 'pending'
       LIMIT 1
     `;
 
@@ -72,23 +79,25 @@ router.post("/abo-kuendigen", async (req, res) => {
       });
     }
 
+    const appRef = apps[0].ref;
+
     const [row] = await sqlPool`
       INSERT INTO cancellation_requests
         (ref, first_name, last_name, email, phone, package_name, reason, cancellation_date)
       VALUES (
-        ${ref},
+        ${appRef},
         ${firstName},
         ${lastName},
         ${email},
         ${phone ?? null},
-        ${packageName ?? apps[0].package_name ?? null},
+        ${apps[0].pack_name ?? null},
         ${reason ?? null},
         ${cancellationDate ?? null}
       )
       RETURNING id, ref, status, created_at
     `;
 
-    logger.info(`[CANCELLATION] New request #${row.id} for ref=${ref} email=${email}`);
+    logger.info(`[CANCELLATION] New request #${row.id} for ref=${appRef} email=${email}`);
 
     return res.json({ ok: true, id: row.id, ref: row.ref, status: row.status });
   } catch (err: any) {

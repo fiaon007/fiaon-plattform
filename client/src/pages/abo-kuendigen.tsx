@@ -105,10 +105,10 @@ export default function AboKuendigenPage() {
   const topRef = useRef<HTMLDivElement>(null);
 
   /* Verify fields */
-  const [ref, setRef] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [birthdate, setBirthdate] = useState("");
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [verifyLoading, setVerifyLoading] = useState(false);
 
@@ -132,7 +132,7 @@ export default function AboKuendigenPage() {
   /* === STEP 1: Verify identity via existing application === */
   async function handleVerify() {
     setVerifyError(null);
-    if (!ref.trim() || !firstName.trim() || !lastName.trim() || !email.trim()) {
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !birthdate) {
       setVerifyError("Bitte alle Pflichtfelder ausfüllen");
       return;
     }
@@ -146,10 +146,10 @@ export default function AboKuendigenPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ref: ref.trim(),
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           email: email.trim(),
+          birthdate,
           reason: "__verify_only__",
         }),
       });
@@ -158,7 +158,7 @@ export default function AboKuendigenPage() {
         setVerifyError(data.error || "Bereits ein offener Antrag vorhanden.");
       } else if (res.status === 404) {
         setVerifyError(
-          "Kein übereinstimmender Antrag gefunden. Bitte prüfe deine Angaben."
+          "Keine Übereinstimmung gefunden. Bitte prüfe Vor- und Nachname, E-Mail sowie Geburtsdatum."
         );
       } else if (!data.ok) {
         setVerifyError(data.error || "Verifizierung fehlgeschlagen");
@@ -190,10 +190,10 @@ export default function AboKuendigenPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ref: ref.trim(),
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           email: email.trim(),
+          birthdate,
           reason: finalReason,
           cancellationDate: cancellationDate || null,
         }),
@@ -301,20 +301,6 @@ export default function AboKuendigenPage() {
               </div>
 
               <div className="relative z-10">
-                {/* FIAON Reference */}
-                <Field label="FIAON Referenznummer" req error={undefined}>
-                  <input
-                    type="text"
-                    value={ref}
-                    onChange={(e) => {
-                      setRef(e.target.value);
-                      setVerifyError(null);
-                    }}
-                    placeholder="z.B. FIA-2024-XXXX"
-                    className="w-full px-4 py-3 rounded-xl fiaon-input-glass text-[15px] text-gray-900 outline-none placeholder:text-gray-300"
-                  />
-                </Field>
-
                 {/* Name row */}
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Vorname" req>
@@ -361,6 +347,21 @@ export default function AboKuendigenPage() {
                   />
                 </Field>
 
+                {/* Birthdate */}
+                <Field label="Geburtsdatum" req>
+                  <input
+                    type="date"
+                    value={birthdate}
+                    onChange={(e) => {
+                      setBirthdate(e.target.value);
+                      setVerifyError(null);
+                    }}
+                    max={new Date().toISOString().split("T")[0]}
+                    className="w-full px-4 py-3 rounded-xl fiaon-input-glass text-[15px] text-gray-900 outline-none"
+                    autoComplete="bday"
+                  />
+                </Field>
+
                 {/* Error */}
                 {verifyError && (
                   <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-red-50 border border-red-100 mb-4">
@@ -400,8 +401,8 @@ export default function AboKuendigenPage() {
                   </svg>
                   <p className="text-[12px] text-blue-700 leading-relaxed">
                     Deine Kündigung wird von unserem Team geprüft und innerhalb
-                    von 1–2 Werktagen bearbeitet. Die Referenznummer findest du
-                    in deiner ursprünglichen Bestätigungsmail.
+                    von 1–2 Werktagen bearbeitet. Wir gleichen deine Angaben
+                    sicher gegen unsere Daten ab.
                   </p>
                 </div>
 
@@ -518,7 +519,7 @@ export default function AboKuendigenPage() {
                 <p className="text-[13px] font-bold text-slate-800 truncate">
                   {firstName} {lastName}
                 </p>
-                <p className="text-[11px] text-slate-400 truncate">{email} · Ref: {ref}</p>
+                <p className="text-[11px] text-slate-400 truncate">{email} · geb. {birthdate}</p>
               </div>
               <button
                 onClick={() => setPhase("verify")}

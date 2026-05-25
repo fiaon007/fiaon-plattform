@@ -342,8 +342,13 @@ export default function DashboardPage() {
             <div className="text-[11px] text-slate-400 truncate">{user.email}</div>
           </div>
         </div>
+        <a href="/abo-kuendigen"
+          className="w-full mt-1 flex items-center gap-2 px-3.5 py-2 rounded-xl text-[12px] font-semibold text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Abo kündigen
+        </a>
         <button onClick={() => { sessionStorage.removeItem("fiaon_user"); window.location.href = "/login"; }}
-          className="w-full mt-2 flex items-center gap-2 px-3.5 py-2 rounded-xl text-[12px] font-semibold text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors">
+          className="w-full mt-1 flex items-center gap-2 px-3.5 py-2 rounded-xl text-[12px] font-semibold text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           Abmelden
         </button>
@@ -1369,6 +1374,22 @@ export default function DashboardPage() {
                     </a>
                   ))}
                 </div>
+
+                {/* Cancellation */}
+                <a href="/abo-kuendigen" className="flex items-center justify-between gap-4 p-5 bg-white border border-rose-100 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-rose-200 transition-all group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center shrink-0 group-hover:bg-rose-100 transition-colors">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2" strokeLinecap="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="text-[13px] font-bold text-slate-800 group-hover:text-rose-600 transition-colors">Abo kündigen</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">Antrag wird geprüft &amp; bestätigt</div>
+                    </div>
+                  </div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2.5" strokeLinecap="round" className="shrink-0 opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </a>
                 <div className="fiaon-glass-panel rounded-2xl border border-white/60 p-5">
                   <h3 className="text-[13px] font-bold text-slate-700 mb-4">Häufige Fragen</h3>
                   <div className="space-y-3">

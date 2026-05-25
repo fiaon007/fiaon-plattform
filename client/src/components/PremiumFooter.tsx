@@ -125,6 +125,11 @@ export default function PremiumFooter() {
                   Cookie-Einstellungen
                 </a>
               </li>
+              <li>
+                <a href="/abo-kuendigen" className="text-[14px] text-rose-400/80 hover:text-rose-300 transition-all duration-200 hover:translate-x-1">
+                  Abo kündigen
+                </a>
+              </li>
             </ul>
           </div>
         </div>

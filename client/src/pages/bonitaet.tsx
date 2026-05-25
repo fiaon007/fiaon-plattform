@@ -18,6 +18,12 @@ if (typeof document !== "undefined" && !document.head.querySelector('style[data-
     @keyframes bonFadeUp { from{opacity:0;transform:translateY(24px) scale(.97);}to{opacity:1;transform:none;} }
     @keyframes bonCardFloat { 0%,100%{transform:translateY(0) rotate(-2deg);}50%{transform:translateY(-12px) rotate(-2deg);} }
     @keyframes bonDocAppear { from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:none;} }
+    @keyframes ampelFloat   { 0%,100%{transform:translateY(0);}50%{transform:translateY(-10px);} }
+    @keyframes ampelRedGlow { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0);}50%{box-shadow:0 0 28px 8px rgba(239,68,68,0.55);} }
+    @keyframes ampelYelGlow { 0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,0);}50%{box-shadow:0 0 28px 8px rgba(245,158,11,0.55);} }
+    @keyframes ampelGrnGlow { 0%,100%{box-shadow:0 0 12px 4px rgba(16,185,129,0.3);}50%{box-shadow:0 0 32px 12px rgba(16,185,129,0.6);} }
+    @keyframes ampelBadge   { from{opacity:0;transform:scale(.7) translateY(8px);}to{opacity:1;transform:scale(1) translateY(0);} }
+    @keyframes ampelSweep   { 0%{width:0%;}100%{width:100%;} }
     @keyframes bonLockOpen { 0%,60%{transform:rotate(0deg);}80%{transform:rotate(-12deg);}100%{transform:rotate(0deg);} }
     @keyframes bonLineFill { from{width:0;}to{width:100%;} }
     @keyframes bonNeonPulse { 0%,100%{opacity:.6;filter:blur(4px);}50%{opacity:1;filter:blur(2px);} }
@@ -153,6 +159,169 @@ function DocumentVisual() {
   );
 }
 
+/* ── SCHUFA-Ampel visual (Hero) ── */
+function SchufahAmpel() {
+  const [phase, setPhase] = useState<0 | 1 | 2>(0); // 0=rot, 1=gelb, 2=grün
+  const [score, setScore] = useState(285);
+  const targetScores = [285, 541, 847];
+
+  /* Auto-run the sequence */
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase(1), 2400);
+    const t2 = setTimeout(() => setPhase(2), 4800);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+
+  /* Animate score counter when phase changes */
+  useEffect(() => {
+    const target = targetScores[phase];
+    const start = score;
+    const steps = 40;
+    const diff = target - start;
+    let i = 0;
+    const id = setInterval(() => {
+      i++;
+      setScore(Math.round(start + diff * (i / steps)));
+      if (i >= steps) clearInterval(id);
+    }, 22);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  const lights = [
+    { color: "#ef4444", glow: "ampelRedGlow", label: "Kritisch",    active: phase === 0 },
+    { color: "#f59e0b", glow: "ampelYelGlow", label: "Ausreichend", active: phase === 1 },
+    { color: "#10b981", glow: "ampelGrnGlow", label: "Sehr gut",    active: phase === 2 },
+  ];
+
+  const phaseLabel  = ["Kritisch",    "Ausreichend",  "Sehr gut"][phase];
+  const phaseSub    = ["Dringend handeln", "Verbesserung läuft", "Ziel erreicht ✓"][phase];
+  const phaseColor  = ["#ef4444",     "#f59e0b",      "#10b981"][phase];
+  const barWidth    = ["22%",         "54%",          "88%"][phase];
+
+  return (
+    <div className="relative flex items-center justify-center select-none"
+      style={{ animation: "ampelFloat 7s ease-in-out infinite" }}>
+
+      {/* Glow backdrop */}
+      <div className="absolute w-[360px] h-[360px] rounded-full pointer-events-none"
+        style={{
+          background: `radial-gradient(circle, ${phaseColor}28, transparent 65%)`,
+          filter: "blur(55px)",
+          transition: "background 1.2s ease",
+          animation: "bonGlowPulse 5s ease-in-out infinite",
+        }} />
+
+      {/* Card */}
+      <div className="relative z-10 w-[290px] sm:w-[330px] rounded-3xl overflow-hidden"
+        style={{
+          background: "rgba(10,16,30,0.88)",
+          backdropFilter: "blur(24px)",
+          border: `1px solid ${phaseColor}44`,
+          boxShadow: `0 40px 80px -20px rgba(5,10,20,0.6), 0 0 0 1px rgba(255,255,255,0.04) inset`,
+          transition: "border-color 1s ease, box-shadow 1s ease",
+        }}>
+
+        {/* Header */}
+        <div className="px-7 pt-7 pb-4 border-b border-white/[0.07]">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-blue-400">SCHUFA Ampel</span>
+            <span className="text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-full"
+              style={{ background: `${phaseColor}22`, color: phaseColor, transition: "all .8s ease" }}>
+              {phaseSub}
+            </span>
+          </div>
+          <div className="text-white/30 text-[11px] font-medium">Bonitätsstatus · Live-Analyse</div>
+        </div>
+
+        {/* Main content: Ampel + Score */}
+        <div className="px-7 py-6 flex items-center gap-6">
+          {/* Traffic light housing */}
+          <div className="flex-shrink-0 w-14 rounded-[20px] py-3 px-3 flex flex-col gap-3 items-center"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            {lights.map((l) => (
+              <div
+                key={l.label}
+                className="w-8 h-8 rounded-full transition-all duration-700"
+                style={{
+                  background: l.active ? l.color : `${l.color}22`,
+                  animation: l.active ? `${l.glow} 1.4s ease-in-out infinite` : "none",
+                  boxShadow: l.active ? `0 0 18px 4px ${l.color}55` : "none",
+                  transition: "background .7s ease, box-shadow .7s ease",
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Score display */}
+          <div className="flex-1 min-w-0">
+            <div className="text-[11px] font-semibold text-white/35 mb-1 uppercase tracking-wider">SCHUFA-Score</div>
+            <div className="font-mono text-[34px] font-extrabold leading-none transition-colors duration-700 mb-1"
+              style={{ color: phaseColor }}>
+              {score}
+            </div>
+            <div className="text-[11.5px] font-bold transition-colors duration-700"
+              style={{ color: phaseColor }}>{phaseLabel}</div>
+
+            {/* Score bar */}
+            <div className="mt-3 h-1.5 rounded-full bg-white/10 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-[1200ms] ease-out"
+                style={{ width: barWidth, background: `linear-gradient(90deg, ${phaseColor}99, ${phaseColor})` }}
+              />
+            </div>
+            <div className="flex justify-between mt-1">
+              <span className="text-[9px] text-white/25 font-medium">0</span>
+              <span className="text-[9px] text-white/25 font-medium">1.000</span>
+            </div>
+          </div>
+        </div>
+
+        {/* FIAON Effect badge — appears at green phase */}
+        <div className="px-7 pb-7">
+          <div
+            className="w-full py-3 rounded-2xl text-center text-[12px] font-bold tracking-wider transition-all duration-700"
+            style={{
+              background: phase === 2
+                ? "linear-gradient(135deg,#059669,#10b981)"
+                : phase === 1 ? "rgba(245,158,11,0.12)" : "rgba(239,68,68,0.10)",
+              border: phase === 2 ? "none" : `1px solid ${phaseColor}30`,
+              color: phase === 2 ? "white" : phaseColor,
+              boxShadow: phase === 2 ? "0 8px 24px rgba(16,185,129,0.38)" : "none",
+              animation: phase === 2 ? "ampelBadge .5s cubic-bezier(.22,1,.36,1)" : "none",
+            }}>
+            {phase === 2 ? "✓ FIAON ZIEL ERREICHT" : phase === 1 ? "↑ FIAON ANALYSE LÄUFT" : "⚠ HANDLUNGSBEDARF"}
+          </div>
+        </div>
+
+        {/* Shimmer */}
+        <div className="absolute inset-0 pointer-events-none rounded-3xl overflow-hidden">
+          <div className="absolute inset-y-0 w-1/3"
+            style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.03),transparent)", animation: "bonShimmer 5s ease-in-out infinite" }} />
+        </div>
+      </div>
+
+      {/* Floating "+562 Punkte" badge at green phase */}
+      {phase === 2 && (
+        <div className="absolute -top-4 -right-4 z-20 px-3.5 py-1.5 rounded-full font-bold text-[12.5px] text-white"
+          style={{
+            background: "linear-gradient(135deg,#059669,#10b981)",
+            boxShadow: "0 8px 20px rgba(16,185,129,0.45)",
+            animation: "ampelBadge .55s cubic-bezier(.22,1,.36,1)",
+          }}>
+          +562 Punkte
+        </div>
+      )}
+
+      {phase === 0 && (
+        <div className="absolute -bottom-6 text-center w-full">
+          <span className="text-[11px] text-gray-400 font-medium tracking-wider">↑ FIAON analysiert automatisch</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ════════════════════════════════════════════
    SECTION 1 — HERO
    ════════════════════════════════════════════ */
@@ -226,9 +395,9 @@ function Hero() {
             </div>
           </div>
 
-          {/* Right — Document visual */}
+          {/* Right — SCHUFA Ampel */}
           <div className="flex items-center justify-center" style={{ animation: "bonFadeUp 0.85s cubic-bezier(.22,1,.36,1) both", animationDelay: "0.15s" }}>
-            <DocumentVisual />
+            <SchufahAmpel />
           </div>
         </div>
       </div>
@@ -387,49 +556,10 @@ function Solution() {
             ))}
           </div>
 
-          {/* Right: Central visual */}
+          {/* Right: Interactive Document visual */}
           <div className={`flex justify-center transition-all duration-700 ${visible ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}
             style={{ transitionDelay: "0.2s" }}>
-            <div className="relative w-[320px] sm:w-[380px]">
-              {/* Central document */}
-              <div className="rounded-3xl p-8 text-center relative overflow-hidden"
-                style={{
-                  background: "linear-gradient(145deg,#0f172a,#1e3a5f,#0f172a)",
-                  border: "1px solid rgba(37,99,235,0.3)",
-                  boxShadow: "0 40px 80px -20px rgba(10,20,40,0.5), 0 0 0 1px rgba(37,99,235,0.1) inset",
-                }}>
-                <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.2), transparent 60%)" }} />
-                <div className="relative z-10">
-                  <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
-                    style={{ background: "linear-gradient(135deg,rgba(37,99,235,0.3),rgba(59,130,246,0.3))", border: "1px solid rgba(37,99,235,0.4)" }}>
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="1.6" strokeLinecap="round">
-                      <path d="M9 12h6M9 16h6M13 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z" /><path d="M13 4v5h5" />
-                    </svg>
-                  </div>
-                  <div className="text-white font-bold text-[18px] mb-1">FIAON Bonitäts-Akte</div>
-                  <div className="text-blue-400/70 text-[12px] font-medium mb-5">Vollauskunft + Sanierungs-Roadmap</div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { label: "Branchen-Scores", sub: "Alle Sektoren" },
-                      { label: "Banken-Anfragen", sub: "Lückenlos" },
-                      { label: "Lösch-Anleitung", sub: "Sofort umsetzbar" },
-                      { label: "Score-Roadmap", sub: "Individuell" },
-                    ].map((item) => (
-                      <div key={item.label} className="rounded-xl p-3 text-left"
-                        style={{ background: "rgba(37,99,235,0.12)", border: "1px solid rgba(37,99,235,0.2)" }}>
-                        <div className="text-white text-[11.5px] font-semibold">{item.label}</div>
-                        <div className="text-blue-400/60 text-[10.5px] mt-0.5">{item.sub}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-5 py-2.5 rounded-xl text-[12px] font-bold text-white tracking-wider"
-                    style={{ background: "linear-gradient(135deg,#2563eb,#3b82f6)", boxShadow: "0 8px 24px rgba(37,99,235,0.4)" }}>
-                    EXPRESS · 74 €
-                  </div>
-                </div>
-                <div className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.025),transparent)", animation: "bonShimmer 5s ease-in-out infinite" }} />
-              </div>
-            </div>
+            <DocumentVisual />
           </div>
         </div>
       </div>

@@ -574,6 +574,7 @@ router.post("/upload-kyc", (req, res, next) => {
   upload.fields([
     { name: 'bankStatement', maxCount: 1 },
     { name: 'idCard', maxCount: 1 },
+    { name: 'schufaDoc', maxCount: 1 },
   ])(req, res, (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
@@ -617,6 +618,11 @@ router.post("/upload-kyc", (req, res, next) => {
       updates.push('id_card_pdf = $idCardPdf');
       values.idCardPdf = files.idCard[0].buffer;
     }
+
+    if (files.schufaDoc && files.schufaDoc[0]) {
+      updates.push('schufa_pdf = $schufaPdf');
+      values.schufaPdf = files.schufaDoc[0].buffer;
+    }
     
     if (updates.length === 0) {
       return res.status(400).json({ error: "Keine Dokumente hochgeladen" });
@@ -647,6 +653,11 @@ router.post("/upload-kyc", (req, res, next) => {
     if (values.idCardPdf) {
       sql += `id_card_pdf = $${paramIndex++}, `;
       params.push(values.idCardPdf);
+    }
+
+    if (values.schufaPdf) {
+      sql += `schufa_pdf = $${paramIndex++}, `;
+      params.push(values.schufaPdf);
     }
     
     sql += `documents_uploaded_at = NOW()`;
@@ -679,11 +690,13 @@ router.post("/upload-kyc", (req, res, next) => {
 
     console.log(`[FIAON-KYC] Documents uploaded for ${ref}, kycStatus=${newKycStatus}`);
     
+    const hasSchufa = !!(files.schufaDoc || currentApp.schufa_pdf);
     res.json({ 
       ok: true, 
       message: "Dokumente erfolgreich hochgeladen",
       hasBankStatement: !!hasBankStatement,
       hasIdCard: !!hasIdCard,
+      hasSchufa,
       allDocumentsUploaded: !!(hasBankStatement && hasIdCard),
       kycStatus: newKycStatus,
       reuploadBankStatement: files.bankStatement ? false : !!(currentApp.reupload_bank_statement),
@@ -700,13 +713,14 @@ router.get("/kyc-status/:ref", async (req, res) => {
   try {
     const { ref } = req.params;
 
-    // Ensure profile columns exist
-    await sqlPool`ALTER TABLE fiaon_applications ADD COLUMN IF NOT EXISTS profile_completed_at TIMESTAMP, ADD COLUMN IF NOT EXISTS admin_profile_note TEXT, ADD COLUMN IF NOT EXISTS profile_changes_requested BOOLEAN DEFAULT FALSE`.catch(() => {});
+    // Ensure profile + schufa columns exist
+    await sqlPool`ALTER TABLE fiaon_applications ADD COLUMN IF NOT EXISTS profile_completed_at TIMESTAMP, ADD COLUMN IF NOT EXISTS admin_profile_note TEXT, ADD COLUMN IF NOT EXISTS profile_changes_requested BOOLEAN DEFAULT FALSE, ADD COLUMN IF NOT EXISTS schufa_pdf BYTEA`.catch(() => {});
 
     const apps = await sqlPool`
       SELECT
         CASE WHEN bank_statement_pdf IS NOT NULL THEN true ELSE false END as has_bank_statement,
         CASE WHEN id_card_pdf IS NOT NULL THEN true ELSE false END as has_id_card,
+        CASE WHEN schufa_pdf IS NOT NULL THEN true ELSE false END as has_schufa,
         documents_uploaded_at,
         status,
         kyc_status,
@@ -739,6 +753,7 @@ router.get("/kyc-status/:ref", async (req, res) => {
       adminReviewedAt: app.admin_reviewed_at ?? null,
       reuploadBankStatement: app.reupload_bank_statement ?? false,
       reuploadIdCard: app.reupload_id_card ?? false,
+      hasSchufa: app.has_schufa ?? false,
       adminProfileNote: app.admin_profile_note ?? null,
       profileChangesRequested: app.profile_changes_requested ?? false,
       profileCompletedAt: app.profile_completed_at ?? null,

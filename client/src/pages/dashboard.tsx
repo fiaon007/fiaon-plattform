@@ -195,7 +195,7 @@ export default function DashboardPage() {
   const [idFile, setIdFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadSuccess, setIsUploadSuccess] = useState(() => localStorage.getItem("kyc_uploaded") === "true");
-  const [serverDocStatus, setServerDocStatus] = useState({ hasBankStatement: false, hasIdCard: false, documentsUploadedAt: null as string | null, kycStatus: 'pending' as string, accountStatus: 'pending' as string, adminNote: null as string | null, reuploadBankStatement: false, reuploadIdCard: false, adminProfileNote: null as string | null, profileChangesRequested: false, profileCompletedAt: null as string | null });
+  const [serverDocStatus, setServerDocStatus] = useState({ hasBankStatement: false, hasIdCard: false, hasSchufa: false, documentsUploadedAt: null as string | null, kycStatus: 'pending' as string, accountStatus: 'pending' as string, adminNote: null as string | null, reuploadBankStatement: false, reuploadIdCard: false, adminProfileNote: null as string | null, profileChangesRequested: false, profileCompletedAt: null as string | null });
   const [profileData, setProfileData] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
@@ -213,8 +213,13 @@ export default function DashboardPage() {
   const [bankCountry, setBankCountry] = useState<"de" | "at" | "ch">("de");
   const [activeModal, setActiveModal] = useState<null | 'limit' | 'status' | 'paket'>(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
+  const [schufaFile, setSchufaFile] = useState<File | null>(null);
+  const [isSchufaUploading, setIsSchufaUploading] = useState(false);
+  const [schufaModal, setSchufaModal] = useState(false);
+  const [schufaGuideOpen, setSchufaGuideOpen] = useState(false);
   const fileInputRef1 = useRef<HTMLInputElement>(null);
   const fileInputRef2 = useRef<HTMLInputElement>(null);
+  const fileInputRef3 = useRef<HTMLInputElement>(null);
   const user: SessionUser = (() => { try { return JSON.parse(sessionStorage.getItem("fiaon_user") || "{}"); } catch { return {} as SessionUser; } })();
   const greeting = (() => { const h = new Date().getHours(); return h < 12 ? "Guten Morgen" : h < 18 ? "Guten Tag" : "Guten Abend"; })();
   const docsOk = isUploadSuccess || (serverDocStatus.hasBankStatement && serverDocStatus.hasIdCard);
@@ -225,7 +230,7 @@ export default function DashboardPage() {
     if (user?.email) { try { Clarity.identify(user.email); } catch {} }
     if (user?.ref) {
       fetch(`/api/fiaon/kyc-status/${user.ref}`).then(r => r.json()).then(d => {
-        setServerDocStatus({ hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard, documentsUploadedAt: d.documentsUploadedAt, kycStatus: d.kycStatus ?? 'pending', accountStatus: d.accountStatus ?? 'pending', adminNote: d.adminNote ?? null, reuploadBankStatement: d.reuploadBankStatement ?? false, reuploadIdCard: d.reuploadIdCard ?? false, adminProfileNote: d.adminProfileNote ?? null, profileChangesRequested: d.profileChangesRequested ?? false, profileCompletedAt: d.profileCompletedAt ?? null });
+        setServerDocStatus({ hasBankStatement: d.hasBankStatement, hasIdCard: d.hasIdCard, hasSchufa: d.hasSchufa ?? false, documentsUploadedAt: d.documentsUploadedAt, kycStatus: d.kycStatus ?? 'pending', accountStatus: d.accountStatus ?? 'pending', adminNote: d.adminNote ?? null, reuploadBankStatement: d.reuploadBankStatement ?? false, reuploadIdCard: d.reuploadIdCard ?? false, adminProfileNote: d.adminProfileNote ?? null, profileChangesRequested: d.profileChangesRequested ?? false, profileCompletedAt: d.profileCompletedAt ?? null });
         if (d.hasBankStatement && d.hasIdCard) { setIsUploadSuccess(true); localStorage.setItem("kyc_uploaded", "true"); }
         setStatusLoaded(true);
       }).catch(() => { setStatusLoaded(true); });
@@ -298,6 +303,24 @@ export default function DashboardPage() {
       }
     } catch {}
     setProfileSaving(false);
+  };
+
+  const handleSchufaUpload = async () => {
+    if (!schufaFile || !user?.ref) return;
+    setIsSchufaUploading(true);
+    const fd = new FormData();
+    fd.append('ref', user.ref);
+    fd.append('schufaDoc', schufaFile);
+    try {
+      const res = await fetch('/api/fiaon/upload-kyc', { method: 'POST', body: fd });
+      const d = await res.json();
+      if (res.ok && d.ok) {
+        setServerDocStatus(prev => ({ ...prev, hasSchufa: true }));
+        setSchufaFile(null);
+        if (fileInputRef3.current) fileInputRef3.current.value = '';
+      }
+    } catch {}
+    setIsSchufaUploading(false);
   };
 
   const handleUpload = useCallback(async () => {
@@ -626,7 +649,7 @@ export default function DashboardPage() {
 
                 {/* ── Kontoaktivierung Tracker ── */}
                 {(() => {
-                  const docsDone = docsOk && serverDocStatus.kycStatus !== 'changes_requested';
+                  const docsDone = docsOk && serverDocStatus.kycStatus !== 'changes_requested' && serverDocStatus.hasSchufa;
                   const profileDone = !!serverDocStatus.profileCompletedAt && !serverDocStatus.profileChangesRequested;
                   const kycDone = serverDocStatus.kycStatus === 'approved';
                   const accountDone = serverDocStatus.accountStatus === 'active';
@@ -641,12 +664,12 @@ export default function DashboardPage() {
                     },
                     {
                       n: 2, done: docsDone, urgent: serverDocStatus.kycStatus === 'changes_requested', locked: false,
-                      label: serverDocStatus.kycStatus === 'changes_requested' ? 'Dokumente erneut einreichen' : docsDone ? 'Dokumente hochgeladen' : 'Dokumente hochladen',
+                      label: serverDocStatus.kycStatus === 'changes_requested' ? 'Dokumente erneut einreichen' : docsDone ? 'Alle Unterlagen vorhanden' : 'Unterlagen einreichen',
                       detail: serverDocStatus.kycStatus === 'changes_requested'
                         ? (serverDocStatus.adminNote ? `FIAON: „${serverDocStatus.adminNote}"` : 'FIAON hat neue Dokumente angefordert.')
-                        : docsDone ? 'Kontoauszug und Lichtbildausweis liegen vor.'
-                        : 'Bitte laden Sie Ihren aktuellen Kontoauszug und einen gültigen Lichtbildausweis hoch.',
-                      action: () => setSection('documents'), cta: serverDocStatus.kycStatus === 'changes_requested' ? 'Jetzt hochladen' : 'Dokumente hochladen',
+                        : docsDone ? 'Kontoauszug, Lichtbildausweis und SCHUFA-Nachweis liegen vor.'
+                        : [!docsOk && 'Kontoauszug & Ausweis fehlen', docsOk && !serverDocStatus.hasSchufa && 'SCHUFA-Nachweis fehlt noch'].filter(Boolean).join(' · ') || 'Unterlagen ausstehend.',
+                      action: () => setSection('documents'), cta: serverDocStatus.kycStatus === 'changes_requested' ? 'Jetzt hochladen' : 'Zu den Unterlagen',
                     },
                     {
                       n: 3, done: profileDone, urgent: serverDocStatus.profileChangesRequested, locked: false,
@@ -1323,6 +1346,141 @@ export default function DashboardPage() {
                     </div>
                   </>
                 )}
+
+                {/* ── SCHUFA-NACHWEIS SEKTION (immer sichtbar) ── */}
+                <div className={`rounded-2xl overflow-hidden border ${serverDocStatus.hasSchufa ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200 bg-white'} shadow-sm`}>
+                  {/* Header */}
+                  <div className={`px-5 py-4 flex items-center justify-between border-b ${serverDocStatus.hasSchufa ? 'border-emerald-100 bg-emerald-50/50' : 'border-slate-100 bg-slate-50/50'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${serverDocStatus.hasSchufa ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+                        {serverDocStatus.hasSchufa
+                          ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        }
+                      </div>
+                      <div>
+                        <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${serverDocStatus.hasSchufa ? 'text-emerald-500' : 'text-amber-500'}`}>03 — Neu erforderlich</p>
+                        <h3 className="text-[14px] font-bold text-slate-800">SCHUFA-Nachweis</h3>
+                      </div>
+                    </div>
+                    {serverDocStatus.hasSchufa
+                      ? <span className="text-[11px] font-bold text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full">Hochgeladen ✓</span>
+                      : <span className="text-[11px] font-bold text-amber-600 bg-amber-100 px-3 py-1 rounded-full">Ausstehend</span>
+                    }
+                  </div>
+
+                  <div className="px-5 py-5 space-y-5">
+                    {serverDocStatus.hasSchufa ? (
+                      <div className="flex items-center gap-3 py-1">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        <p className="text-[13px] text-emerald-700 font-semibold">Ihr SCHUFA-Nachweis wurde erfolgreich übermittelt. Vielen Dank!</p>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-[12px] text-slate-500 leading-relaxed">
+                          Für die Kontoaktivierung benötigen wir ab sofort auch eine <strong className="text-slate-800">SCHUFA-Auskunft</strong>. Sie haben zwei Möglichkeiten:
+                        </p>
+
+                        {/* Option A: FIAON kaufen */}
+                        <div className="rounded-xl overflow-hidden" style={{ border: '1.5px solid #2563eb', background: 'linear-gradient(135deg, #eff6ff, #f0f4ff)' }}>
+                          <div className="px-4 py-2 flex items-center gap-2" style={{ background: 'linear-gradient(135deg, #1d4ed8, #2563eb)' }}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                            <span className="text-[10px] font-bold text-white uppercase tracking-wider">Empfohlen — Sofort & mit Vorteilen</span>
+                          </div>
+                          <div className="px-4 py-4">
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                              <div>
+                                <p className="text-[13px] font-bold text-slate-900">FIAON Bonitäts-Auskunft</p>
+                                <p className="text-[11px] text-slate-500 mt-0.5">Vollauskunft + Handlungsplan · Lieferung noch heute</p>
+                              </div>
+                              <span className="text-[14px] font-extrabold text-[#2563eb] shrink-0">74 €</span>
+                            </div>
+                            <ul className="space-y-1 mb-4">
+                              {['Tagesaktuelle SCHUFA-Vollauskunft', 'Persönlicher Score-Verbesserungsplan', 'SCHUFA-neutraler Abruf', 'Express — Am selben Werktag'].map(f => (
+                                <li key={f} className="flex items-center gap-2 text-[11px] text-slate-600">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="4 12 10 18 20 6"/></svg>
+                                  {f}
+                                </li>
+                              ))}
+                            </ul>
+                            <button
+                              onClick={() => setSchufaModal(true)}
+                              className="w-full py-2.5 rounded-xl text-[13px] font-bold text-white flex items-center justify-center gap-2"
+                              style={{ background: 'linear-gradient(135deg, #1d4ed8, #2563eb)', boxShadow: '0 6px 20px rgba(37,99,235,0.3)' }}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                              Jetzt bei FIAON bestellen (Daten bereits hinterlegt)
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Option B: Selbst anfordern */}
+                        <div className="rounded-xl border border-slate-200 overflow-hidden">
+                          <button
+                            onClick={() => setSchufaGuideOpen(v => !v)}
+                            className="w-full flex items-center justify-between px-4 py-3.5 bg-slate-50 hover:bg-slate-100 transition-colors"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                              <span className="text-[12px] font-semibold text-slate-700">Selbst bei der SCHUFA anfordern (kostenlos)</span>
+                            </div>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round" className={`transition-transform ${schufaGuideOpen ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
+                          </button>
+                          {schufaGuideOpen && (
+                            <div className="px-4 py-4 space-y-3 border-t border-slate-100">
+                              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 flex items-start gap-2">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" className="mt-0.5 shrink-0"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+                                <p className="text-[11px] text-amber-800 leading-relaxed"><strong>Wichtig:</strong> Die kostenlose Datenkopie nach Art. 15 DSGVO kann <strong>bis zu 4 Wochen</strong> dauern. Die Lieferung erfolgt per Post. Bis zum Eingang wird Ihre Kontoaktivierung pausiert.</p>
+                              </div>
+                              <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">Schritt-für-Schritt Anleitung:</p>
+                              {[
+                                { n: '1', text: 'Gehen Sie zu meineschufa.de → „Meine Schufa" → „Datenkopie nach Art. 15 DSGVO"' },
+                                { n: '2', text: 'Wählen Sie „Online beantragen" und geben Sie Ihre persönlichen Daten ein.' },
+                                { n: '3', text: 'Schicken Sie den Antrag ab. Sie erhalten eine Bestätigung per E-Mail.' },
+                                { n: '4', text: 'Die SCHUFA sendet das Dokument innerhalb von 2–4 Wochen per Post an Ihre Meldeanschrift.' },
+                                { n: '5', text: 'Scannen Sie das Dokument als PDF und laden Sie es hier hoch.' },
+                              ].map(step => (
+                                <div key={step.n} className="flex items-start gap-3">
+                                  <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{step.n}</span>
+                                  <p className="text-[12px] text-slate-600 leading-relaxed">{step.text}</p>
+                                </div>
+                              ))}
+                              <a href="https://www.meineschufa.de" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#2563eb] hover:underline mt-1">
+                                meineschufa.de öffnen →
+                              </a>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* SCHUFA Upload */}
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Erhaltene SCHUFA hier hochladen:</p>
+                          {!schufaFile ? (
+                            <div onClick={() => fileInputRef3.current?.click()} className="h-20 rounded-xl border-2 border-dashed border-slate-200 hover:border-[#2563eb] hover:bg-blue-50/30 flex items-center justify-center gap-3 cursor-pointer transition-all group">
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="text-slate-300 group-hover:text-[#2563eb] transition-colors"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                              <span className="text-[12px] font-semibold text-slate-500 group-hover:text-[#2563eb] transition-colors">SCHUFA-PDF auswählen</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between p-3 bg-slate-900 rounded-xl mb-2">
+                              <div className="truncate pr-3">
+                                <div className="text-[12px] font-semibold text-white truncate">{schufaFile.name}</div>
+                                <div className="text-[10px] text-emerald-400">Bereit zum Hochladen</div>
+                              </div>
+                              <button onClick={() => setSchufaFile(null)} className="text-[10px] text-slate-400 hover:text-white uppercase tracking-widest font-bold shrink-0">×</button>
+                            </div>
+                          )}
+                          <input ref={fileInputRef3} type="file" accept=".pdf,image/*" className="hidden" onChange={e => e.target.files && setSchufaFile(e.target.files[0])} />
+                          {schufaFile && (
+                            <button onClick={handleSchufaUpload} disabled={isSchufaUploading} className="mt-2 w-full py-2.5 rounded-xl text-[13px] font-semibold text-white disabled:opacity-50 flex items-center justify-center gap-2" style={{ background: 'linear-gradient(135deg, #1d4ed8, #2563eb)' }}>
+                              {isSchufaUploading ? <><svg className="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity=".3"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>Wird hochgeladen…</> : <>SCHUFA hochladen<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></>}
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
               </div>
             )}
 
@@ -1458,6 +1616,96 @@ export default function DashboardPage() {
           ))}
         </nav>
       </div>
+
+      {/* ══════════════ SCHUFA KAUF MODAL ══════════════ */}
+      {schufaModal && (
+        <div
+          className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-4"
+          style={{ background: 'rgba(3,7,18,.80)', backdropFilter: 'blur(16px)' }}
+          onClick={() => setSchufaModal(false)}
+        >
+          <div
+            className="relative w-full max-w-md rounded-3xl overflow-hidden db-enter"
+            style={{ background: 'linear-gradient(165deg,#0d1117 0%,#161b27 100%)', border: '1px solid rgba(37,99,235,.25)', boxShadow: '0 32px 80px rgba(0,0,0,.65), 0 0 0 1px rgba(37,99,235,.12) inset' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Top accent */}
+            <div className="h-1 w-full" style={{ background: 'linear-gradient(90deg, #1d4ed8, #3b82f6, #1d4ed8)' }} />
+
+            <div className="p-7">
+              {/* Header */}
+              <div className="flex items-start justify-between mb-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">FIAON Bonitäts-Auskunft</span>
+                  </div>
+                  <h2 className="text-[18px] font-extrabold text-white leading-tight">SCHUFA-Vollauskunft bestellen</h2>
+                  <p className="text-[12px] text-white/40 mt-1">Express-Lieferung noch heute · 74 € einmalig</p>
+                </div>
+                <button onClick={() => setSchufaModal(false)} className="w-8 h-8 rounded-xl bg-white/8 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/12 transition-all">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+
+              {/* Pre-filled data banner */}
+              <div className="rounded-2xl mb-5 overflow-hidden" style={{ border: '1px solid rgba(37,99,235,.2)', background: 'rgba(37,99,235,.08)' }}>
+                <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(37,99,235,.12)', background: 'rgba(37,99,235,.12)' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeLinecap="round"><polyline points="4 12 10 18 20 6"/></svg>
+                  <span className="text-[11px] font-bold text-blue-300 uppercase tracking-wider">Ihre Daten wurden bereits übernommen</span>
+                </div>
+                <div className="px-4 py-3 space-y-2">
+                  {[
+                    { label: 'Name', value: `${user.firstName || ''} ${user.lastName || ''}`.trim() || '—' },
+                    { label: 'E-Mail', value: user.email || '—' },
+                    { label: 'Referenz', value: user.ref || '—' },
+                  ].map(row => (
+                    <div key={row.label} className="flex items-center justify-between">
+                      <span className="text-[11px] text-white/35 font-medium">{row.label}</span>
+                      <span className="text-[12px] text-white/75 font-semibold">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Benefits */}
+              <ul className="space-y-2 mb-6">
+                {[
+                  'Tagesaktuelle SCHUFA-Vollauskunft',
+                  'Persönlicher Score-Verbesserungsplan von FIAON',
+                  'SCHUFA-neutraler Abruf — kein Einfluss auf Score',
+                  'Express: Lieferung per E-Mail am selben Werktag',
+                  'Gilt als offizieller Nachweis für Ihre Kontoaktivierung',
+                ].map(b => (
+                  <li key={b} className="flex items-center gap-2.5 text-[12px] text-white/60">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" className="shrink-0"><polyline points="4 12 10 18 20 6"/></svg>
+                    {b}
+                  </li>
+                ))}
+              </ul>
+
+              {/* CTA */}
+              <a
+                href={`https://buy.stripe.com/3cI7sN51dftYa2v5QCfnO06?prefilled_email=${encodeURIComponent(user.email || '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full text-center py-4 rounded-2xl text-[15px] font-extrabold text-white relative overflow-hidden"
+                style={{ background: 'linear-gradient(135deg, #1d4ed8, #2563eb, #3b82f6)', boxShadow: '0 16px 40px rgba(37,99,235,0.4)', letterSpacing: '0.04em' }}
+                onClick={() => setSchufaModal(false)}
+              >
+                <span className="relative z-10">Jetzt bezahlen &amp; Auskunft erhalten — 74 €</span>
+                <div className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: 'linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent)', animation: 'bonShimmer 3s ease-in-out infinite' }} />
+              </a>
+              <p className="text-[11px] text-white/25 text-center mt-3 flex items-center justify-center gap-1.5">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 3L4 7v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V7z"/></svg>
+                Sichere Zahlung via Stripe · SSL-verschlüsselt · Einmalig
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══════════════ PREMIUM MODALS ══════════════ */}
       {activeModal && (

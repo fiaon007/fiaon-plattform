@@ -24,8 +24,11 @@ if (typeof document !== "undefined" && !document.head.querySelector('style[data-
 
 /* ── helpers ── */
 const validateEmail  = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
-const validatePhone  = (v: string) => /^(\+49|0)[1-9]\d{8,10}$/.test(v.replace(/[\s\-\(\)]/g, ""));
-const validatePLZ    = (v: string) => /^\d{5}$/.test(v.trim());
+const validatePhone  = (v: string) =>
+  /^(\+49|0)[1-9]\d{8,10}$/.test(v.replace(/[\s\-\(\)]/g, "")) ||
+  /^(\+43|0)[1-9]\d{7,11}$/.test(v.replace(/[\s\-\(\)]/g, ""));
+const validatePLZ    = (v: string, country = "DE") =>
+  country === "AT" ? /^\d{4}$/.test(v.trim()) : /^\d{5}$/.test(v.trim());
 const validateDate   = (v: string) => { const d = new Date(v); return !isNaN(d.getTime()) && d < new Date(); };
 
 /* ── input field ── */
@@ -83,7 +86,7 @@ export default function BonitaetAntragPage() {
   const [formData, setFormData] = useState({
     fullName: "", birthDate: "", birthPlace: "",
     street: "", plz: "", city: "",
-    phone: "", email: "",
+    phone: "", email: "", country: "DE",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -105,10 +108,13 @@ export default function BonitaetAntragPage() {
     if (!validateDate(formData.birthDate)) err.birthDate = "Bitte geben Sie ein gültiges Geburtsdatum ein.";
     if (!formData.birthPlace.trim()) err.birthPlace  = "Bitte geben Sie Ihren Geburtsort ein.";
     if (!formData.street.trim())     err.street      = "Bitte geben Sie Ihre Straße ein.";
-    if (!validatePLZ(formData.plz))  err.plz         = "Bitte geben Sie eine gültige 5-stellige PLZ ein.";
+    if (!validatePLZ(formData.plz, formData.country))
+      err.plz = formData.country === "AT"
+        ? "Bitte geben Sie eine gültige 4-stellige PLZ ein."
+        : "Bitte geben Sie eine gültige 5-stellige PLZ ein.";
     if (!formData.city.trim())       err.city        = "Bitte geben Sie Ihren Ort ein.";
     if (!formData.phone.trim())      err.phone       = "Bitte geben Sie Ihre Telefonnummer ein.";
-    else if (!validatePhone(formData.phone)) err.phone = "Bitte geben Sie eine gültige deutsche Telefonnummer ein.";
+    else if (!validatePhone(formData.phone)) err.phone = "Bitte geben Sie eine gültige Telefonnummer ein (+49 oder +43).";
     if (!formData.email.trim())      err.email       = "Bitte geben Sie Ihre E-Mail-Adresse ein.";
     else if (!validateEmail(formData.email)) err.email = "Bitte geben Sie eine gültige E-Mail-Adresse ein.";
 
@@ -121,7 +127,8 @@ export default function BonitaetAntragPage() {
   };
 
   /* ── formatted address for summary ── */
-  const addressFull = `${formData.street}, ${formData.plz} ${formData.city}, Deutschland`;
+  const countryLabel = formData.country === "AT" ? "Österreich" : "Deutschland";
+  const addressFull = `${formData.street}, ${formData.plz} ${formData.city}, ${countryLabel}`;
 
   return (
     <div className="relative min-h-screen" style={{ background: "linear-gradient(180deg,#f0f4ff 0%,#ffffff 40%,#f8faff 100%)" }}>
@@ -235,14 +242,43 @@ export default function BonitaetAntragPage() {
                       <Field label="Ort *" placeholder="Berlin" value={formData.city}
                         onChange={v => set("city", v)} error={errors.city} />
                     </div>
-                    {/* Land — locked to Deutschland */}
+                    {/* Land — DE / AT selector */}
                     <div>
-                      <label className="block text-[13px] font-semibold text-gray-700 mb-2">Land</label>
-                      <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-100 bg-gray-50">
-                        <span className="text-[18px]">🇩🇪</span>
-                        <span className="text-[14.5px] text-gray-500 font-medium">Deutschland</span>
-                        <span className="ml-auto text-[11px] font-semibold text-gray-400 tracking-wider uppercase bg-gray-100 px-2.5 py-1 rounded-full">Aktuell verfügbar</span>
+                      <label className="block text-[13px] font-semibold text-gray-700 mb-2">Land *</label>
+                      <div className="flex gap-3">
+                        {([
+                          { code: "DE", flag: "🇩🇪", label: "Deutschland", sub: "SCHUFA" },
+                          { code: "AT", flag: "🇦🇹", label: "Österreich",  sub: "CRIF · KSV1870" },
+                        ] as const).map(c => (
+                          <button
+                            key={c.code}
+                            type="button"
+                            onClick={() => set("country", c.code)}
+                            className={`flex-1 flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 transition-all ${
+                              formData.country === c.code
+                                ? "border-blue-400 bg-blue-50/60"
+                                : "border-gray-200 bg-white hover:border-gray-300"
+                            }`}
+                          >
+                            <span className="text-[18px] shrink-0">{c.flag}</span>
+                            <div className="text-left flex-1 min-w-0">
+                              <div className="text-[13px] font-semibold text-gray-800 leading-tight">{c.label}</div>
+                              <div className="text-[11px] text-gray-400 mt-0.5">{c.sub}</div>
+                            </div>
+                            {formData.country === c.code && (
+                              <svg className="shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="4 12 10 18 20 6"/></svg>
+                            )}
+                          </button>
+                        ))}
                       </div>
+                      {formData.country === "AT" && (
+                        <div className="mt-2.5 p-3.5 rounded-xl bg-amber-50 border border-amber-200/70 flex gap-2.5 items-start">
+                          <span className="text-[16px] shrink-0 mt-0.5">🇦🇹</span>
+                          <p className="text-[12px] text-amber-800 leading-snug">
+                            Ihre Bonitätsauskunft wird bei <b>CRIF Bürgel GmbH</b> und <b>KSV1870</b> abgerufen. Sie erhalten eine auf Österreich zugeschnittene Handlungsanleitung.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -307,7 +343,8 @@ export default function BonitaetAntragPage() {
               </div>
               <h2 className="text-[1.6rem] font-extrabold text-gray-900 mb-3">Daten werden geprüft…</h2>
               <p className="text-[14.5px] text-gray-500 leading-relaxed max-w-[380px] mx-auto">
-                Wir verifizieren Ihre Angaben sicher und bereiten Ihren Express-Auftrag vor.
+                Wir verifizieren Ihre Angaben sicher und bereiten Ihren Express-Auftrag vor
+                {formData.country === "AT" ? " via CRIF Bürgel & KSV1870" : " via SCHUFA"}.
               </p>
               <div className="mt-7 flex gap-1.5 justify-center">
                 {[0, 0.25, 0.5].map(d => (
@@ -339,7 +376,14 @@ export default function BonitaetAntragPage() {
                 <p className="text-[15.5px] sm:text-[16px] text-gray-600 leading-relaxed mb-3 max-w-[420px] mx-auto">
                   Zahlung abschließen — Sie erhalten Ihre Selbstauskunft inkl. persönlichem Handlungsplan noch am <b className="text-gray-900">selben Werktag</b> per E-Mail.
                 </p>
-                <p className="text-[13px] text-gray-400 mb-8">Lieferung an: <b className="text-gray-700">{formData.email}</b></p>
+                <p className="text-[13px] text-gray-400 mb-8">
+                  Lieferung an: <b className="text-gray-700">{formData.email}</b>
+                  {formData.country === "AT" && (
+                    <span className="block mt-1.5 text-[12px] text-amber-600 font-semibold">
+                      🇦🇹 Abfrage via CRIF Bürgel GmbH &amp; KSV1870
+                    </span>
+                  )}
+                </p>
 
                 {/* CTA */}
                 <a

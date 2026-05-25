@@ -448,45 +448,64 @@ function PainPoints() {
 
   return (
     <section className="py-24 sm:py-32 relative overflow-hidden" ref={ref}
-      style={{ background: "linear-gradient(180deg,#ffffff 0%,#f8faff 100%)" }}>
-      <div className="absolute inset-0 pointer-events-none"
-        style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.05), transparent 60%)" }} />
+      style={{ background: "linear-gradient(160deg,#060e1a 0%,#0b1829 55%,#060e1a 100%)" }}>
+      {/* Ambient center glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[600px] pointer-events-none"
+        style={{ background: "radial-gradient(ellipse, rgba(37,99,235,0.18), transparent 65%)", filter: "blur(80px)", animation: "bonGlowPulse 10s ease-in-out infinite" }} />
+
       <div className="max-w-[1200px] mx-auto px-5 sm:px-8 relative z-10">
         <div className="max-w-2xl mx-auto text-center mb-16">
-          <p className="text-[12px] font-bold text-[#2563eb] tracking-[0.22em] uppercase mb-4">Das Problem</p>
-          <h2 className="text-[2rem] sm:text-[2.6rem] font-extrabold tracking-tight leading-tight">
-            <G>Warum die meisten an ihrer Schufa verzweifeln.</G>
+          <p className="text-[12px] font-bold text-blue-400 tracking-[0.22em] uppercase mb-4">Das Problem</p>
+          <h2 className="text-[2rem] sm:text-[2.6rem] font-extrabold tracking-tight leading-tight text-white">
+            Warum die meisten an ihrer <G>Schufa verzweifeln.</G>
           </h2>
         </div>
 
-        <div className="grid sm:grid-cols-3 gap-6">
+        <div className="grid sm:grid-cols-3 gap-5 sm:gap-6">
           {pains.map((p, i) => (
             <div
               key={p.title}
-              className={`relative p-8 rounded-3xl transition-all duration-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
+              className={`relative p-7 sm:p-8 rounded-3xl transition-all duration-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
               style={{
                 transitionDelay: `${i * 130}ms`,
-                background: "rgba(15,23,42,0.82)",
-                backdropFilter: "blur(20px)",
-                WebkitBackdropFilter: "blur(20px)",
-                border: `1px solid ${p.accent}22`,
-                boxShadow: `0 20px 60px rgba(10,20,40,0.3), 0 0 0 1px rgba(255,255,255,0.04) inset`,
+                background: "rgba(255,255,255,0.04)",
+                backdropFilter: "blur(24px)",
+                WebkitBackdropFilter: "blur(24px)",
+                border: `1px solid ${p.accent}35`,
+                boxShadow: `0 24px 64px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.07)`,
               }}
             >
+              {/* Top accent gradient line */}
+              <div className="absolute top-0 inset-x-0 h-[2px] rounded-t-3xl"
+                style={{ background: `linear-gradient(90deg,transparent,${p.accent},transparent)` }} />
               {/* Glow corner */}
-              <div className="absolute top-0 left-0 w-32 h-32 rounded-3xl pointer-events-none"
-                style={{ background: `radial-gradient(circle at 0% 0%, ${p.accent}18, transparent 70%)` }} />
+              <div className="absolute top-0 left-0 w-44 h-44 rounded-3xl pointer-events-none"
+                style={{ background: `radial-gradient(circle at 0% 0%, ${p.accent}20, transparent 65%)` }} />
 
               <div className="relative z-10">
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5"
-                  style={{ background: p.accentBg, border: `1px solid ${p.accent}30` }}>
+                  style={{ background: p.accentBg, border: `1px solid ${p.accent}40` }}>
                   {p.icon}
                 </div>
                 <h3 className="text-[18px] font-bold text-white mb-3">{p.title}</h3>
-                <p className="text-[14.5px] text-white/55 leading-relaxed">{p.text}</p>
+                <p className="text-[14.5px] text-white/60 leading-relaxed">{p.text}</p>
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Mid-section CTA */}
+        <div className="text-center mt-14">
+          <a
+            href="/bonitaet-antrag"
+            className="fiaon-btn-gradient relative inline-flex items-center gap-2.5 px-9 py-4 rounded-full text-[15px] font-bold text-white overflow-hidden"
+            style={{ boxShadow: "0 12px 32px rgba(37,99,235,0.35)" }}
+          >
+            <span className="relative z-10">Jetzt meine Schufa analysieren lassen</span>
+            <svg className="relative z-10" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent)", animation: "bonShimmer 3s ease-in-out infinite" }} />
+          </a>
+          <p className="mt-3 text-[12.5px] text-white/35 font-medium">Einmalig 74 € · Kein Abo · Schufa-neutral</p>
         </div>
       </div>
     </section>
@@ -554,6 +573,20 @@ function Solution() {
                 </p>
               </div>
             ))}
+          </div>
+
+          {/* Solution inline CTA */}
+          <div className={`transition-all duration-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+            style={{ transitionDelay: "0.42s" }}>
+            <a
+              href="/bonitaet-antrag"
+              className="fiaon-btn-gradient relative inline-flex items-center gap-2.5 px-7 py-3.5 rounded-full text-[14.5px] font-bold text-white overflow-hidden"
+              style={{ boxShadow: "0 10px 28px rgba(37,99,235,0.25)" }}
+            >
+              <span className="relative z-10">Vollauskunft einfordern</span>
+              <svg className="relative z-10" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,.28),transparent)", animation: "bonShimmer 3.5s ease-in-out infinite" }} />
+            </a>
           </div>
 
           {/* Right: Interactive Document visual */}
@@ -804,6 +837,19 @@ function FAQ() {
               </div>
             </div>
           ))}
+        </div>
+        {/* FAQ bottom CTA */}
+        <div className="text-center mt-14">
+          <a
+            href="/bonitaet-antrag"
+            className="fiaon-btn-gradient relative inline-flex items-center gap-2.5 px-9 py-4 rounded-full text-[15px] font-bold text-white overflow-hidden"
+            style={{ boxShadow: "0 12px 32px rgba(37,99,235,0.28)" }}
+          >
+            <span className="relative z-10">Vollauskunft jetzt anfordern (74 €)</span>
+            <svg className="relative z-10" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent)", animation: "bonShimmer 3s ease-in-out infinite" }} />
+          </a>
+          <p className="mt-3 text-[13px] text-gray-400 font-medium">Einmalig · Kein Abo · Express am selben Werktag</p>
         </div>
       </div>
     </section>

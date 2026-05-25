@@ -12,6 +12,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
   const [privatOpen, setPrivatOpen] = useState(false);
   const [privatMobileOpen, setPrivatMobileOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fn = () => {
@@ -25,9 +26,9 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
   // Click outside to close dropdown
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setPrivatOpen(false);
-      }
+      const inButton = dropdownRef.current?.contains(e.target as Node);
+      const inPanel  = dropdownPanelRef.current?.contains(e.target as Node);
+      if (!inButton && !inPanel) setPrivatOpen(false);
     };
     if (privatOpen) {
       document.addEventListener("mousedown", handleClickOutside);
@@ -185,7 +186,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
         {/* Desktop: Privatkunden Dropdown (outside glass container to prevent clipping) */}
         {privatOpen && (
           <div className="hidden md:block absolute top-[88px] left-1/2 -translate-x-1/2 z-[100]">
-            <div className="fiaon-glass-panel rounded-2xl py-2 shadow-xl border border-gray-100 min-w-[200px]" 
+            <div ref={dropdownPanelRef} className="fiaon-glass-panel rounded-2xl py-2 shadow-xl border border-gray-100 min-w-[200px]" 
               style={{ 
                 backdropFilter: "blur(20px)", 
                 WebkitBackdropFilter: "blur(20px)",

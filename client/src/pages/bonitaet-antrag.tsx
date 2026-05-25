@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 
@@ -87,6 +87,11 @@ export default function BonitaetAntragPage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  useEffect(() => {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [step]);
+
   const set = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: "" }));
@@ -110,11 +115,9 @@ export default function BonitaetAntragPage() {
     if (Object.keys(err).length > 0) { setErrors(err); return; }
 
     setStep("validating");
-    window.scrollTo({ top: 0, behavior: "instant" });
     const delay = 4000 + Math.random() * 6000;
     await new Promise(r => setTimeout(r, delay));
     setStep("success");
-    window.scrollTo({ top: 0, behavior: "instant" });
   };
 
   /* ── formatted address for summary ── */

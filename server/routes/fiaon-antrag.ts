@@ -302,13 +302,14 @@ router.post("/application", async (req, res) => {
       // Password for login
       password,
       // Business customer fields
-      companyName, legalForm, taxId, establishedYear, contactName, contactEmail, contactPhone, businessType, industry, annualRevenue, employees, monthlyExpenses, billingEmail,
+      companyName, legalForm, taxId, establishedYear, contactFirstName, contactLastName, contactEmail, contactPhone, businessType, industry, annualRevenue, employees, monthlyExpenses, billingEmail,
       // Common fields
       wantedLimit, purpose, billing, addon, nfc, approvedLimit, email, iban, billingMethod, salaryReceiptDay, ag1, ag2, ag3 
     } = req.body;
     
     const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
     const birthdate = birthDay && birthMonth && birthYear ? `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}` : null;
+    const contactName = contactFirstName && contactLastName ? `${contactFirstName} ${contactLastName}` : contactFirstName || contactLastName || null;
 
     // Auto-run migration for new fields if they don't exist
     try {

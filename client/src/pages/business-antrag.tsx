@@ -493,8 +493,8 @@ export default function BusinessAntragPage() {
               amount: pack.fee,
               packageName: pack.name,
               ref,
-              firstName: d.contactName.split(' ')[0] || d.companyName,
-              lastName: d.contactName.split(' ').slice(1).join(' ') || '',
+              firstName: d.contactFirstName || d.companyName,
+              lastName: d.contactLastName || '',
               email: d.contactEmail || d.billingEmail,
             }),
           });
@@ -586,7 +586,29 @@ export default function BusinessAntragPage() {
       return;
     }
     if (step === 3) { goStep(4); runVerify(); return; }
-    if (step === 6) { goStep(7); setTimeout(() => goStep(8), 6000); return; }
+    if (step === 6) {
+      fetch("/api/fiaon/application", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ref, type: "business", status: "submitted", currentStep: 6,
+          packKey: pack?.tier, packName: pack?.name,
+          companyName: d.companyName, legalForm: d.legalForm, taxId: d.taxId,
+          establishedYear: d.establishedYear,
+          contactFirstName: d.contactFirstName, contactLastName: d.contactLastName,
+          contactEmail: d.contactEmail,
+          contactPhone: `${d.contactPhoneCountryCode}${d.contactPhone}`,
+          industry: d.industry, annualRevenue: d.annualRevenue, employees: d.employees,
+          street: d.street, zip: d.zip, city: d.city, country: d.country,
+          wantedLimit: d.wantedLimit, approvedLimit: approved || d.wantedLimit,
+          purpose: d.purpose, billing: d.billing, nfc: d.nfc,
+          billingEmail: d.billingEmail, billingMethod: d.billingMethod, iban: d.iban,
+          email: d.billingEmail || d.contactEmail,
+          ag1: d.ag1, ag2: d.ag2, ag3: d.ag3,
+        }),
+      }).catch(() => {});
+      goStep(7); setTimeout(() => goStep(8), 6000); return;
+    }
     goStep(step + 1);
   }
 
@@ -610,6 +632,7 @@ export default function BusinessAntragPage() {
           let a = d.wantedLimit;
           if (a > mx) a = mx; if (a < 1000) a = 1000;
           setApproved(a); setVerifyDone(true);
+          setTimeout(() => goStep(5), 2000);
         }, 500);
       }
     };

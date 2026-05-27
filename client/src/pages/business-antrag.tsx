@@ -389,43 +389,52 @@ function CostSimulation({ maxLimit, packName }: { maxLimit: number; packName: st
   const monthly = Math.round(simAmount / 24);
 
   return (
-    <div className="mb-5 p-4 rounded-xl fiaon-glass-panel border border-[#2563eb]/10">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-6 h-6 rounded-full bg-[#2563eb]/10 flex items-center justify-center shrink-0">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        </div>
-        <p className="text-[12px] font-semibold text-gray-800">Kostensimulation</p>
-        <div className="relative ml-auto group">
-          <button className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-400 hover:bg-[#2563eb]/10 hover:text-[#2563eb] transition-all">?</button>
-          <div className="absolute right-0 bottom-full mb-2 w-60 bg-gray-900 text-white text-[11px] rounded-xl p-3 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-50 shadow-2xl">
-            Diese Simulation zeigt, wie hoch Ihre monatliche Teilzahlungsrate wäre, wenn Sie den gewählten Betrag über 24 Monate abbezahlen. Der tatsächliche Betrag kann variieren – Sie werden per E-Mail benachrichtigt.
-            <div className="absolute right-2 bottom-[-5px] w-2.5 h-2.5 bg-gray-900 rotate-45" />
+    <div className="p-5 rounded-2xl fiaon-glass-panel border border-[#2563eb]/10 relative overflow-hidden">
+      <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ background: "linear-gradient(135deg, #2563eb, #93c5fd)" }} />
+      <div className="relative">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-[#2563eb]/10 flex items-center justify-center shrink-0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <p className="text-[13px] font-semibold text-gray-800">Kostensimulation</p>
+          </div>
+          <div className="relative group">
+            <button className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-400 hover:bg-[#2563eb]/10 hover:text-[#2563eb] transition-all">?</button>
+            <div className="absolute right-0 bottom-full mb-2 w-64 bg-gray-900 text-white text-[11px] rounded-xl p-3 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-50 shadow-2xl">
+              Diese Simulation zeigt, wie hoch Ihre monatliche Teilzahlungsrate wäre, wenn Sie den gewählten Betrag über 24 Monate abbezahlen. Der tatsächliche Betrag kann variieren – Sie werden per E-Mail benachrichtigt.
+              <div className="absolute right-2 bottom-[-5px] w-2.5 h-2.5 bg-gray-900 rotate-45" />
+            </div>
           </div>
         </div>
-      </div>
-      <p className="text-[11px] text-gray-400 mb-3">Schieben Sie den Regler, um zu sehen, was Sie monatlich zahlen würden.</p>
-      <input
-        type="range"
-        min={1000}
-        max={maxLimit}
-        step={500}
-        value={simAmount}
-        onChange={(e) => setSimAmount(Number(e.target.value))}
-        className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb] mb-3"
-      />
-      <div className="flex justify-between text-[10px] text-gray-400 font-mono mb-4">
-        <span>€ 1.000</span>
-        <span className="font-semibold text-gray-600">{eur(simAmount)}</span>
-        <span>{eur(maxLimit)}</span>
-      </div>
-      <div className="flex items-end justify-between p-3 rounded-xl bg-gradient-to-r from-[#2563eb]/5 to-[#93c5fd]/5">
-        <div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Monatliche Rate</p>
-          <p className="text-[24px] font-bold fiaon-gradient-text-animated">{eur(monthly)}<span className="text-[12px] font-normal text-gray-400 ml-1">/ Monat</span></p>
+        
+        <p className="text-[12px] text-gray-400 mb-4">Schieben Sie den Regler, um zu sehen, was Sie monatlich zahlen würden.</p>
+        
+        <input
+          type="range"
+          min={1000}
+          max={maxLimit}
+          step={500}
+          value={simAmount}
+          onChange={(e) => setSimAmount(Number(e.target.value))}
+          className="w-full h-2 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb] mb-4"
+        />
+        
+        <div className="flex justify-between text-[11px] text-gray-400 font-mono mb-5">
+          <span>€ 1.000</span>
+          <span className="font-semibold text-gray-700">{eur(simAmount)}</span>
+          <span>{eur(maxLimit)}</span>
         </div>
-        <div className="text-right">
-          <p className="text-[10px] text-gray-400">über 24 Monate</p>
-          <p className="text-[11px] text-gray-500 font-medium">{packName}</p>
+        
+        <div className="flex items-end justify-between p-4 rounded-xl bg-gradient-to-r from-[#2563eb]/8 to-[#93c5fd]/8 border border-[#2563eb]/10">
+          <div>
+            <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-1">Monatliche Rate</p>
+            <p className="text-[28px] font-bold fiaon-gradient-text-animated">{eur(monthly)}<span className="text-[13px] font-normal text-gray-400 ml-1">/ Monat</span></p>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] text-gray-400">über 24 Monate</p>
+            <p className="text-[12px] text-gray-500 font-medium">{packName}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -963,14 +972,6 @@ export default function BusinessAntragPage() {
                     <p className="mt-1 text-[11px] text-gray-400">Rechnungen werden hierhin gesendet.</p>
                   </div>
 
-                  {/* Cost simulation box */}
-                  {(() => {
-                    const maxLimit = approved || d.wantedLimit || 1000;
-                    return (
-                      <CostSimulation maxLimit={maxLimit} packName={pack?.name || ""} />
-                    );
-                  })()}
-
                   <div className="flex gap-0 rounded-xl overflow-hidden mb-5 fiaon-glass-panel">
                     {[["iban","SEPA-Lastschrift"],["paper","Rechnung per E-Mail"]].map(([k,l]) => (
                       <button key={k} onClick={() => up("billingMethod", k)} className={`flex-1 py-3 text-center text-[13px] font-semibold transition-all ${d.billingMethod === k ? "bg-white/80 text-[#2563eb]" : "text-gray-400"}`}>{l}</button>
@@ -1173,6 +1174,15 @@ export default function BusinessAntragPage() {
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>
               </button>
             )}
+
+            {verifyDone && (() => {
+              const maxLimit = approved || d.wantedLimit || 1000;
+              return (
+                <div className="w-full max-w-md mt-8">
+                  <CostSimulation maxLimit={maxLimit} packName={pack?.name || ""} />
+                </div>
+              );
+            })()}
           </div>
         )}
 

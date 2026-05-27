@@ -273,7 +273,7 @@ function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: stri
   }, [nameLen, compact]);
 
   return (
-    <div className={`w-full aspect-[1.586/1] rounded-xl relative overflow-hidden select-none transition-all duration-500 ${className}`} style={{ 
+    <div className={`w-full aspect-[1.586/1] rounded-2xl relative overflow-hidden select-none transition-all duration-500 ${className}`} style={{ 
       background: bg, 
       boxShadow: compact 
         ? "0 8px 24px -4px rgba(0,0,0,.2), 0 4px 12px -2px rgba(0,0,0,.15), inset 0 1px 0 rgba(255,255,255,.15), inset 0 -1px 0 rgba(0,0,0,.1)" 
@@ -292,57 +292,38 @@ function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: stri
 
       <div className={`absolute inset-0 flex flex-col justify-between z-10 ${compact ? "p-4" : "p-5"}`}>
         <div className="flex justify-between items-start">
-          <div className={`rounded ${compact ? "w-9 h-6" : "w-11 h-7"}`} style={{ 
+          <div className={`rounded ${compact ? "w-9 h-6" : "w-10 h-7"}`} style={{ 
             background: "linear-gradient(135deg,#d4af37,#f0d875,#c9a227)", 
-            boxShadow: "0 2px 6px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.4)" 
+            boxShadow: "0 1px 4px rgba(0,0,0,.25)"
           }}>
             <div className="w-full h-full rounded opacity-25" style={{ background: "repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(0,0,0,.2) 3px, rgba(0,0,0,.2) 4px)" }} />
           </div>
-          <span className={`font-semibold tracking-[.08em] ${compact ? "text-xs" : "text-sm"}`} style={{ color: "rgba(255,255,255,.75)", textShadow: "0 1px 2px rgba(0,0,0,.2)" }}>FIAON</span>
+          <span className={`font-semibold tracking-wide ${compact ? "text-xs" : "text-sm"}`} style={{ color: "rgba(255,255,255,.65)" }}>FIAON</span>
         </div>
 
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <div className={`uppercase tracking-[.1em] font-medium ${compact ? "text-[8px]" : "text-[9px]"} mb-1`} style={{ 
-              color: "rgba(255,255,255,.5)", 
-              textShadow: "0 1px 2px rgba(0,0,0,.15)"
+            <div className={`uppercase tracking-[.14em] font-medium ${compact ? "text-[7px]" : "text-[8px]"} mb-0.5`} style={{ 
+              color: "rgba(255,255,255,.35)"
             }}>
-              Limit bis
+              {compact ? "Limit" : "Wunschlimit"}
             </div>
-            <div className={`${compact ? "text-xl" : "text-2xl"} font-bold tracking-tight`} style={{ 
-              color: "rgba(255,255,255,.95)", 
-              textShadow: "0 2px 8px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.2)",
-              letterSpacing: "0.02em"
+            <div className={`font-mono ${compact ? "text-xs" : "text-xs"} font-semibold whitespace-nowrap`} style={{ 
+              color: "rgba(255,255,255,.9)"
             }}>
-              {lim}€
+              {lim} €
             </div>
-          </div>
-        </div>
-
-        <div className="flex justify-between items-end">
-          <div className="min-w-0 flex-1">
-            <div className={`uppercase tracking-[.12em] font-medium ${compact ? "text-[7px]" : "text-[8px]"} mb-0.5`} style={{ color: "rgba(255,255,255,.4)" }}>
-              {displayName ? "Unternehmen" : "FIAON Business"}
-            </div>
-            {displayName && (
-              <div className="font-medium truncate" style={{ 
-                color: "rgba(255,255,255,.9)", 
-                fontSize: `${nameFontSize}px`, 
-                lineHeight: 1.2, 
-                whiteSpace: "nowrap", 
-                overflow: "hidden", 
-                textOverflow: "ellipsis",
-                textShadow: "0 1px 2px rgba(0,0,0,.2)"
-              }}>{displayName}</div>
-            )}
           </div>
         </div>
       </div>
+      
+      {/* shimmer */}
+      <div className="absolute inset-0 fiaon-card-shimmer pointer-events-none" />
     </div>
   );
 }
 
-/* === PROGRESS BAR === */
+/* === MAIN COMPONENT === */
 function Progress({ step, total }: { step: number; total: number }) {
   const progress = ((step + 1) / total) * 100;
   return (

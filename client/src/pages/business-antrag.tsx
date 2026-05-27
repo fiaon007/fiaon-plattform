@@ -4,6 +4,187 @@ import { Elements } from "@stripe/react-stripe-js";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import PremiumCheckoutForm from "@/components/PremiumCheckoutForm";
+import { downloadContract } from "@/utils/contractTemplate";
+
+/* === PREMIUM PHONE INPUT COMPONENT === */
+function PremiumPhoneInput({ countryCode, phone, onCountryCodeChange, onPhoneChange, error }: { countryCode: string; phone: string; onCountryCodeChange: (v: string) => void; onPhoneChange: (v: string) => void; error?: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const PHONE_CODES = [
+    { code: "+49", country: "Deutschland" },
+    { code: "+43", country: "Österreich" },
+    { code: "+41", country: "Schweiz" },
+    { code: "+1", country: "USA" },
+    { code: "+44", country: "UK" },
+    { code: "+33", country: "Frankreich" },
+    { code: "+31", country: "Niederlande" },
+    { code: "+39", country: "Italien" },
+    { code: "+34", country: "Spanien" },
+    { code: "+46", country: "Schweden" },
+    { code: "+47", country: "Norwegen" },
+    { code: "+45", country: "Dänemark" },
+    { code: "+358", country: "Finnland" },
+    { code: "+352", country: "Luxemburg" },
+    { code: "+32", country: "Belgien" },
+    { code: "+48", country: "Polen" },
+    { code: "+420", country: "Tschechien" },
+    { code: "+421", country: "Slowakei" },
+    { code: "+36", country: "Ungarn" },
+    { code: "+40", country: "Rumänien" },
+    { code: "+30", country: "Griechenland" },
+    { code: "+353", country: "Irland" },
+    { code: "+351", country: "Portugal" },
+    { code: "+386", country: "Slowenien" },
+    { code: "+385", country: "Kroatien" },
+    { code: "+381", country: "Serbien" },
+    { code: "+389", country: "Nordmazedonien" },
+    { code: "+359", country: "Bulgarien" },
+    { code: "+380", country: "Ukraine" },
+    { code: "+90", country: "Türkei" },
+    { code: "+357", country: "Zypern" },
+    { code: "+354", country: "Island" },
+  ];
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <div className={`flex bg-slate-50/50 border border-slate-200 rounded-xl overflow-hidden transition-all duration-300 ease-in-out focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-300 ${error ? "border-red-500" : ""}`}>
+        <div className="relative flex items-center px-4 py-3 border-r border-slate-200 bg-slate-50/50 cursor-pointer w-24 shrink-0" onClick={() => setIsOpen(!isOpen)}>
+          <span className="text-slate-900 font-medium text-base">{countryCode}</span>
+          <svg className="w-4 h-4 text-slate-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+        <input
+          type="tel"
+          value={phone}
+          onChange={(e) => onPhoneChange(e.target.value)}
+          placeholder="170 1234567"
+          className="flex-1 px-4 py-3 bg-transparent outline-none text-slate-900 font-medium text-base placeholder:text-slate-400"
+        />
+      </div>
+      {isOpen && (
+        <ul className="absolute top-full left-0 w-48 mt-2 bg-white/90 backdrop-blur-xl border border-slate-100 rounded-xl shadow-[0_20px_40px_-15px_rgba(15,23,42,0.1)] max-h-60 overflow-y-auto overflow-x-hidden z-50">
+          {PHONE_CODES.map((item, index) => (
+            <li
+              key={index}
+              className="px-4 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors"
+              onClick={() => { onCountryCodeChange(item.code); setIsOpen(false); }}
+            >
+              {item.code} {item.country}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/* === PREMIUM COUNTRY SELECT COMPONENT === */
+function PremiumCountrySelect({ value, onChange, error }: { value: string; onChange: (v: string) => void; error?: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const COUNTRIES = [
+    { code: "DE", name: "🇩🇪 Deutschland" },
+    { code: "AT", name: "🇦🇹 Österreich" },
+    { code: "CH", name: "🇨🇭 Schweiz" },
+    { code: "GB", name: "🇬🇧 Vereinigtes Königreich" },
+    { code: "US-FL", name: "🇺🇸 USA - Florida" },
+    { code: "US-CA", name: "🇺🇸 USA - Kalifornien" },
+  ];
+
+  const selectedCountry = COUNTRIES.find(c => c.code === value);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <div className={`flex bg-slate-50/50 border border-slate-200 rounded-xl overflow-hidden transition-all duration-300 ease-in-out focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-300 ${error ? "border-red-500" : ""}`}>
+        <div className="relative flex items-center px-4 py-3 bg-slate-50/50 cursor-pointer flex-1" onClick={() => setIsOpen(!isOpen)}>
+          <span className="text-slate-900 font-medium text-base">{selectedCountry ? selectedCountry.name : "Wählen"}</span>
+          <svg className="w-4 h-4 text-slate-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </div>
+      {isOpen && (
+        <ul className="absolute top-full left-0 w-full mt-2 bg-white/90 backdrop-blur-xl border border-slate-100 rounded-xl shadow-[0_20px_40px_-15px_rgba(15,23,42,0.1)] max-h-60 overflow-y-auto overflow-x-hidden z-50">
+          {COUNTRIES.map((item, index) => (
+            <li
+              key={index}
+              className="px-4 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors"
+              onClick={() => { onChange(item.code); setIsOpen(false); }}
+            >
+              {item.name}
+            </li>
+          ))}
+          <li className="px-4 py-2 text-sm text-gray-400 italic cursor-default">✨ Wir erweitern uns ständig – bald auch in deinem Land</li>
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/* === PREMIUM SELECT COMPONENT === */
+function PremiumSelect({ value, onChange, options, error }: { value: string; onChange: (v: string) => void; options: string[]; error?: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <div className={`flex bg-slate-50/50 border border-slate-200 rounded-xl overflow-hidden transition-all duration-300 ease-in-out focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-300 ${error ? "border-red-500" : ""}`}>
+        <div className="relative flex items-center px-4 py-3 bg-slate-50/50 cursor-pointer flex-1" onClick={() => setIsOpen(!isOpen)}>
+          <span className="text-slate-900 font-medium text-base">{value || "Wählen"}</span>
+          <svg className="w-4 h-4 text-slate-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </div>
+      {isOpen && (
+        <ul className="absolute top-full left-0 w-full mt-2 bg-white/90 backdrop-blur-xl border border-slate-100 rounded-xl shadow-[0_20px_40px_-15px_rgba(15,23,42,0.1)] max-h-60 overflow-y-auto overflow-x-hidden z-50">
+          {options.map((item, index) => (
+            <li
+              key={index}
+              className="px-4 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors"
+              onClick={() => { onChange(item); setIsOpen(false); }}
+            >
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 // Robust Stripe key retrieval with fallback
 const stripePubKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || import.meta.env.VITE_STRIPE_PUBLIC_KEY;
@@ -185,7 +366,7 @@ function Progress({ step, total }: { step: number; total: number }) {
 /* === FORM FIELD === */
 function Field({ label, req, children, error, hint }: { label: string; req?: boolean; children: any; error?: string; hint?: string }) {
   return (
-    <div className="mb-5">
+    <div className="mb-5" data-error={error ? "true" : undefined}>
       <label className="flex justify-between text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">{label}{req && <span className="text-[#2563eb]">*</span>}</label>
       {children}
       {hint && !error && <p className="mt-1 text-[11px] text-gray-400">{hint}</p>}
@@ -202,6 +383,55 @@ function Sel({ value, onChange, children, ...p }: any) {
   return <select value={value} onChange={(e: any) => onChange(e.target.value)} className="w-full px-4 py-3 rounded-xl fiaon-input-glass text-[15px] text-gray-900 outline-none appearance-none" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 14px center", paddingRight: "38px" }} {...p}>{children}</select>;
 }
 
+/* === COST SIMULATION COMPONENT === */
+function CostSimulation({ maxLimit, packName }: { maxLimit: number; packName: string }) {
+  const [simAmount, setSimAmount] = useState(Math.round(maxLimit / 2));
+  const monthly = Math.round(simAmount / 24);
+
+  return (
+    <div className="mb-5 p-4 rounded-xl fiaon-glass-panel border border-[#2563eb]/10">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-6 h-6 rounded-full bg-[#2563eb]/10 flex items-center justify-center shrink-0">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <p className="text-[12px] font-semibold text-gray-800">Kostensimulation</p>
+        <div className="relative ml-auto group">
+          <button className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-400 hover:bg-[#2563eb]/10 hover:text-[#2563eb] transition-all">?</button>
+          <div className="absolute right-0 bottom-full mb-2 w-60 bg-gray-900 text-white text-[11px] rounded-xl p-3 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-50 shadow-2xl">
+            Diese Simulation zeigt, wie hoch Ihre monatliche Teilzahlungsrate wäre, wenn Sie den gewählten Betrag über 24 Monate abbezahlen. Der tatsächliche Betrag kann variieren – Sie werden per E-Mail benachrichtigt.
+            <div className="absolute right-2 bottom-[-5px] w-2.5 h-2.5 bg-gray-900 rotate-45" />
+          </div>
+        </div>
+      </div>
+      <p className="text-[11px] text-gray-400 mb-3">Schieben Sie den Regler, um zu sehen, was Sie monatlich zahlen würden.</p>
+      <input
+        type="range"
+        min={1000}
+        max={maxLimit}
+        step={500}
+        value={simAmount}
+        onChange={(e) => setSimAmount(Number(e.target.value))}
+        className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb] mb-3"
+      />
+      <div className="flex justify-between text-[10px] text-gray-400 font-mono mb-4">
+        <span>€ 1.000</span>
+        <span className="font-semibold text-gray-600">{eur(simAmount)}</span>
+        <span>{eur(maxLimit)}</span>
+      </div>
+      <div className="flex items-end justify-between p-3 rounded-xl bg-gradient-to-r from-[#2563eb]/5 to-[#93c5fd]/5">
+        <div>
+          <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Monatliche Rate</p>
+          <p className="text-[24px] font-bold fiaon-gradient-text-animated">{eur(monthly)}<span className="text-[12px] font-normal text-gray-400 ml-1">/ Monat</span></p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] text-gray-400">über 24 Monate</p>
+          <p className="text-[11px] text-gray-500 font-medium">{packName}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* === MAIN COMPONENT === */
 export default function BusinessAntragPage() {
   const [step, setStep] = useState(0);
@@ -209,14 +439,50 @@ export default function BusinessAntragPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pack, setPack] = useState<typeof BUSINESS_PACKS[0] | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const topRef = useRef<HTMLDivElement>(null);
 
-  const [d, setD] = useState({ 
-    companyName: "", legalForm: "", taxId: "", establishedYear: "2010", contactName: "", contactEmail: "", contactPhoneCountryCode: "+49", contactPhone: "", street: "", zip: "", city: "", country: "", businessType: "", industry: "", annualRevenue: 0, employees: 0, monthlyExpenses: 0, wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", billingEmail: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false 
+  const [d, setD] = useState({
+    companyName: "", legalForm: "", taxId: "", establishedYear: "2010", contactSalutation: "", contactName: "", contactEmail: "", contactPhoneCountryCode: "+49", contactPhone: "", street: "", zip: "", city: "", country: "", businessType: "", industry: "", annualRevenue: 0, employees: 0, monthlyExpenses: 0, wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", billingEmail: "", iban: "", billingMethod: "paper", ag1: false, ag2: false, ag3: false
   });
   const [approved, setApproved] = useState(0);
   const [verifyDone, setVerifyDone] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [useContactEmail, setUseContactEmail] = useState(false);
 
-  useEffect(() => { if (!sessionStorage.getItem("fiaon_sid")) sessionStorage.setItem("fiaon_sid", Math.random().toString(36).slice(2)); window.scrollTo(0, 0); }, []);
+  useEffect(() => { if (!sessionStorage.getItem("fiaon_sid")) sessionStorage.setItem("fiaon_sid", Math.random().toString(36).slice(2)); }, []);
+
+  useEffect(() => {
+    topRef.current?.scrollIntoView({ block: "start" });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [step]);
+
+  // Read package parameter from URL and pre-select
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const packageParam = urlParams.get('package');
+    
+    if (packageParam) {
+      // Map tier names to package keys
+      const packageMap: Record<string, string> = {
+        'paket 1': 'business_starter',
+        'paket 2': 'business_pro',
+        'paket 3': 'business_ultra',
+        'paket 4': 'business_enterprise'
+      };
+      
+      const packageKey = packageMap[packageParam.toLowerCase()] || packageParam;
+      const selectedPack = BUSINESS_PACKS.find(p => p.key === packageKey);
+      
+      if (selectedPack) {
+        setPack(selectedPack);
+        up("wantedLimit", selectedPack.lim);
+        track("pack_select", { pack: selectedPack.key, source: "url_param" }, ref);
+        // Skip to step 1 (company data)
+        setStep(1);
+      }
+    }
+  }, []);
 
   // Auto-scroll to top on step change
   useEffect(() => {
@@ -254,7 +520,14 @@ export default function BusinessAntragPage() {
     }
   }, [step, pack, clientSecret, ref]);
 
-  const up = useCallback((k: string, v: any) => setD(p => ({ ...p, [k]: v })), []);
+  const up = useCallback((k: string, v: any) => {
+    setD(p => ({ ...p, [k]: v }));
+    setErrors(e => {
+      const newErrors = { ...e };
+      delete newErrors[k];
+      return newErrors;
+    });
+  }, []);
   const cardName = d.companyName.trim().toUpperCase();
 
   // Dynamic placeholders based on country
@@ -272,14 +545,22 @@ export default function BusinessAntragPage() {
   };
   const addressPlaceholders = getAddressPlaceholders(d.country);
 
-  function goStep(n: number) { setStep(n); setErrors({}); track("step_change", { from: step, to: n }, ref); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function goStep(n: number) {
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setStep(n);
+      setErrors({});
+      track("step_change", { from: step, to: n }, ref);
+      setTimeout(() => setIsTransitioning(false), 50);
+    }, 200);
+  }
 
   function next() {
     const e: Record<string, string> = {};
     if (step === 1) {
       if (!d.companyName) e.companyName = "Unternehmensname eingeben";
       if (!d.legalForm) e.legalForm = "Rechtsform wählen";
-      if (!d.taxId) e.taxId = "Steuernummer eingeben";
+      if (!d.taxId) e.taxId = "Registernummer eingeben";
       if (!d.contactName) e.contactName = "Ansprechpartner eingeben";
       if (!d.contactEmail || !d.contactEmail.includes("@")) e.contactEmail = "Gültige E-Mail eingeben";
       if (!d.contactPhoneCountryCode || !d.contactPhone) e.contactPhone = "Telefonnummer eingeben";
@@ -287,7 +568,6 @@ export default function BusinessAntragPage() {
       if (!d.zip) e.zip = "PLZ eingeben";
       if (!d.city) e.city = "Ort eingeben";
       if (!d.country) e.country = "Land wählen";
-      if (!d.businessType) e.businessType = "Unternehmensart wählen";
     } else if (step === 2) {
       if (!d.industry) e.industry = "Branche wählen";
       if (!d.establishedYear || d.establishedYear.length < 4) e.establishedYear = "Gültiges Jahr eingeben";
@@ -298,7 +578,15 @@ export default function BusinessAntragPage() {
       if (d.billingMethod === "iban" && !d.iban) e.iban = "IBAN eingeben";
       if (!d.ag1 || !d.ag2 || !d.ag3) e.consent = "Bitte allen Bedingungen zustimmen";
     }
-    if (Object.keys(e).length) { setErrors(e); return; }
+    if (Object.keys(e).length) {
+      setErrors(e);
+      setTimeout(() => {
+        const firstError = document.querySelector('[data-error="true"]');
+        if (firstError) firstError.scrollIntoView({ behavior: "smooth", block: "center" });
+        else { document.documentElement.scrollTop = 0; document.body.scrollTop = 0; }
+      }, 50);
+      return;
+    }
     if (step === 3) { goStep(4); runVerify(); return; }
     if (step === 6) { goStep(7); setTimeout(() => goStep(8), 6000); return; }
     goStep(step + 1);
@@ -308,7 +596,7 @@ export default function BusinessAntragPage() {
     setVerifyDone(false);
     setTimeout(() => {
       const mx = pack?.lim || 25000;
-      let a = Math.round(d.wantedLimit * (1 + (Math.random() > .5 ? 1 : -1) * (0.05 + Math.random() * 0.1)) / 50) * 50;
+      let a = d.wantedLimit;
       if (a > mx) a = mx; if (a < 1000) a = 1000;
       setApproved(a); setVerifyDone(true);
     }, 4000);
@@ -326,13 +614,14 @@ export default function BusinessAntragPage() {
 
       <GlassNav activePage="business" />
 
+      <div ref={topRef} style={{ position: "absolute", top: 0 }} />
+
       {/* ── Main Content ── */}
       <div className="max-w-6xl mx-auto px-5 pt-24 sm:pt-28 pb-8 sm:pb-12 relative z-10">
-        <Progress step={step} total={9} />
-
-        {/* === STEP 0: Paketauswahl === */}
-        {step === 0 && (
-          <div className="animate-[fadeInUp_.4s_ease]">
+        <div className={isTransitioning ? "animate-[slideOutLeft_.2s_ease_forwards]" : "animate-[slideInRight_.3s_ease]"}>
+          {/* === STEP 0: Paketauswahl === */}
+          {step === 0 && (
+            <div className="animate-[fadeInUp_.4s_ease]">
             <div className="text-center mb-12">
               <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-3">Paket wählen</p>
               <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight fiaon-gradient-text-animated mb-4">Wähle dein FIAON Business Paket</h1>
@@ -470,88 +759,93 @@ export default function BusinessAntragPage() {
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Unternehmensdaten</h2>
                   <p className="text-[14px] text-gray-400 mb-6">Verschlüsselt übertragen und validiert.</p>
                   <Field label="Unternehmensname" req error={errors.companyName}><Inp value={d.companyName} onChange={(v: string) => up("companyName", v)} placeholder="Muster GmbH" /></Field>
-                  <Field label="Rechtsform" req error={errors.legalForm}><Sel value={d.legalForm} onChange={(v: string) => up("legalForm", v)}><option value="">Wählen</option><option>GmbH</option><option>AG</option><option>UG (haftungsbeschränkt)</option><option>GbR</option><option>Einzelfirma</option><option>KG</option><option>OHG</option></Sel></Field>
-                  <Field label="Steuernummer" req error={errors.taxId}><Inp value={d.taxId} onChange={(v: string) => up("taxId", v)} placeholder="DE123456789" /></Field>
-                  <Field label="Ansprechpartner" req error={errors.contactName}><Inp value={d.contactName} onChange={(v: string) => up("contactName", v)} placeholder="Max Mustermann" /></Field>
-                  <Field label="E-Mail Ansprechpartner" req error={errors.contactEmail}><Inp type="email" value={d.contactEmail} onChange={(v: string) => up("contactEmail", v)} placeholder="max@muster.de" /></Field>
-                  <Field label="Telefon" req error={errors.contactPhone}>
+                  <Field label="Ansprechpartner/Geschäftsführer" req error={errors.contactName}>
                     <div className="flex gap-2">
-                      <Sel value={d.contactPhoneCountryCode} onChange={(v: string) => up("contactPhoneCountryCode", v)} className="w-24">
-                        <option value="+49">+49</option>
-                        <option value="+43">+43</option>
-                        <option value="+41">+41</option>
-                        <option value="+31">+31</option>
-                        <option value="+32">+32</option>
-                        <option value="+33">+33</option>
-                        <option value="+34">+34</option>
-                        <option value="+351">+351</option>
-                        <option value="+352">+352</option>
-                        <option value="+353">+353</option>
-                        <option value="+354">+354</option>
-                        <option value="+355">+355</option>
-                        <option value="+356">+356</option>
-                        <option value="+357">+357</option>
-                        <option value="+358">+358</option>
-                        <option value="+359">+359</option>
-                        <option value="+36">+36</option>
-                        <option value="+370">+370</option>
-                        <option value="+371">+371</option>
-                        <option value="+372">+372</option>
-                        <option value="+373">+373</option>
-                        <option value="+374">+374</option>
-                        <option value="+375">+375</option>
-                        <option value="+376">+376</option>
-                        <option value="+377">+377</option>
-                        <option value="+378">+378</option>
-                        <option value="+380">+380</option>
-                        <option value="+381">+381</option>
-                        <option value="+382">+382</option>
-                        <option value="+383">+383</option>
-                        <option value="+385">+385</option>
-                        <option value="+386">+386</option>
-                        <option value="+387">+387</option>
-                        <option value="+389">+389</option>
-                        <option value="+39">+39</option>
-                        <option value="+40">+40</option>
-                        <option value="+420">+420</option>
-                        <option value="+421">+421</option>
-                        <option value="+423">+423</option>
-                        <option value="+44">+44</option>
-                        <option value="+45">+45</option>
-                        <option value="+46">+46</option>
-                        <option value="+47">+47</option>
-                        <option value="+48">+48</option>
-                        <option value="+49">+49</option>
-                      </Sel>
-                      <Inp type="tel" value={d.contactPhone} onChange={(v: string) => up("contactPhone", v)} placeholder="170 1234567" className="flex-1" />
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => up("contactSalutation", "Herr")} className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${d.contactSalutation === "Herr" ? "bg-[#2563eb] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>Herr</button>
+                        <button type="button" onClick={() => up("contactSalutation", "Frau")} className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${d.contactSalutation === "Frau" ? "bg-[#2563eb] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>Frau</button>
+                      </div>
+                      <Inp value={d.contactName} onChange={(v: string) => up("contactName", v)} placeholder="Max Mustermann" className="flex-1" />
                     </div>
                   </Field>
-                  <Field label="Wohnsitzland" req error={errors.country}><Sel value={d.country} onChange={(v: string) => up("country", v)}><option value="">Wählen</option><option value="DE">Deutschland</option><option value="AT">Österreich</option><option value="CH">Schweiz</option><option value="AL">Albanien</option><option value="AD">Andorra</option><option value="BY">Belarus</option><option value="BE">Belgien</option><option value="BA">Bosnien und Herzegowina</option><option value="BG">Bulgarien</option><option value="HR">Kroatien</option><option value="CY">Zypern</option><option value="CZ">Tschechien</option><option value="DK">Dänemark</option><option value="EE">Estland</option><option value="FI">Finnland</option><option value="FR">Frankreich</option><option value="GE">Georgien</option><option value="GR">Griechenland</option><option value="HU">Ungarn</option><option value="IS">Island</option><option value="IE">Irland</option><option value="IT">Italien</option><option value="XK">Kosovo</option><option value="LV">Lettland</option><option value="LI">Liechtenstein</option><option value="LT">Litauen</option><option value="LU">Luxemburg</option><option value="MT">Malta</option><option value="MD">Moldawien</option><option value="MC">Monaco</option><option value="ME">Montenegro</option><option value="NL">Niederlande</option><option value="MK">Nordmazedonien</option><option value="NO">Norwegen</option><option value="PL">Polen</option><option value="PT">Portugal</option><option value="RO">Rumänien</option><option value="RU">Russland</option><option value="SM">San Marino</option><option value="RS">Serbien</option><option value="SK">Slowakei</option><option value="SI">Slowenien</option><option value="ES">Spanien</option><option value="SE">Schweden</option><option value="CH">Schweiz</option><option value="TR">Türkei</option><option value="UA">Ukraine</option><option value="GB">Vereinigtes Königreich</option><option value="VA">Vatikanstadt</option></Sel></Field>
+                  <Field label="Rechtsform" req error={errors.legalForm}>
+                    <PremiumSelect
+                      value={d.legalForm}
+                      onChange={(v) => up("legalForm", v)}
+                      options={["GmbH", "AG", "UG (haftungsbeschränkt)", "GbR", "Einzelfirma", "KG", "OHG"]}
+                    />
+                  </Field>
+                  <Field label="Sitz der Gesellschaft" req error={errors.country}>
+                    <PremiumCountrySelect
+                      value={d.country}
+                      onChange={(v) => up("country", v)}
+                    />
+                  </Field>
+                  <Field label="Registernummer (Handelsregister / Firmenbuch)" req error={errors.taxId}><Inp value={d.taxId} onChange={(v: string) => up("taxId", v)} placeholder="z. B. HRB 123456" /></Field>
+                  <Field label="E-Mail Ansprechpartner" req error={errors.contactEmail}><Inp type="email" value={d.contactEmail} onChange={(v: string) => up("contactEmail", v)} placeholder="max@muster.de" /></Field>
+                  <Field label="Telefonnummer" req error={errors.contactPhone}>
+                    <PremiumPhoneInput
+                      countryCode={d.contactPhoneCountryCode}
+                      phone={d.contactPhone}
+                      onCountryCodeChange={(v) => up("contactPhoneCountryCode", v)}
+                      onPhoneChange={(v) => up("contactPhone", v)}
+                    />
+                  </Field>
                   <Field label="Straße & Hausnummer" req error={errors.street}><Inp value={d.street} onChange={(v: string) => up("street", v)} placeholder={addressPlaceholders.street} /></Field>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="PLZ" req error={errors.zip}><Inp value={d.zip} onChange={(v: string) => up("zip", v)} placeholder={addressPlaceholders.zip} /></Field>
                     <Field label="Ort" req error={errors.city}><Inp value={d.city} onChange={(v: string) => up("city", v)} placeholder={addressPlaceholders.city} /></Field>
                   </div>
-                  <Field label="Unternehmensart" req error={errors.businessType}><Sel value={d.businessType} onChange={(v: string) => up("businessType", v)}><option value="">Wählen</option><option>KMU</option><option>Startup</option><option>Mittelstand</option><option>Unternehmensgruppe</option><option>Einzelfirma</option></Sel></Field>
                 </>}
 
                 {step === 2 && <>
                   <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Schritt 2 von 5</p>
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Wirtschaftliche Daten</h2>
                   <p className="text-[14px] text-gray-400 mb-6">Helfen bei der Limit-Berechnung.</p>
-                  <Field label="Branche" req error={errors.industry}><Sel value={d.industry} onChange={(v: string) => up("industry", v)}><option value="">Wählen</option><option>IT & Tech</option><option>Handel</option><option>Dienstleistung</option><option>Produktion</option><option>Finanzdienstleistungen</option><option>Gesundheitswesen</option><option>Bildung</option><option>Sonstiges</option></Sel></Field>
-                  <Field label="Gründungsjahr" req error={errors.establishedYear}><Inp type="number" value={d.establishedYear} onChange={(v: string) => up("establishedYear", v)} placeholder="2010" /></Field>
+                  <Field label="Branche" req error={errors.industry}>
+                    <PremiumSelect
+                      value={d.industry}
+                      onChange={(v) => up("industry", v)}
+                      options={["IT & Tech", "Handel", "Dienstleistung", "Produktion", "Finanzdienstleistungen", "Gesundheitswesen", "Bildung", "Sonstiges"]}
+                    />
+                  </Field>
+                  <Field label="Gründungsjahr" req error={errors.establishedYear}>
+                    <PremiumSelect
+                      value={d.establishedYear}
+                      onChange={(v) => up("establishedYear", v)}
+                      options={Array.from({ length: 2026 - 1910 + 1 }, (_, i) => (2026 - i).toString())}
+                    />
+                  </Field>
                   <Field label="Jährlicher Umsatz" req>
-                    <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{d.annualRevenue > 0 ? eur(d.annualRevenue) : "—"}</span><span className="text-[12px] text-gray-400">/ Jahr</span></div>
-                    <input type="range" min={10000} max={1000000} step={5000} value={d.annualRevenue || 10000} onChange={e => up("annualRevenue", +e.target.value)} className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb]" />
-                    <div className="flex justify-between text-[10px] text-gray-400 font-mono mt-1"><span>€ 10.000</span><span>€ 1.000.000</span></div>
+                    <PremiumSelect
+                      value={d.annualRevenue > 0 ? (d.annualRevenue >= 1000000 ? "mehr als 1.000.000 €" : d.annualRevenue >= 500000 ? "bis zu 1.000.000 €" : d.annualRevenue >= 100000 ? "bis zu 500.000 €" : "bis zu 100.000 €") : ""}
+                      onChange={(v) => {
+                        const revenueMap: Record<string, number> = {
+                          "bis zu 100.000 €": 100000,
+                          "bis zu 500.000 €": 500000,
+                          "bis zu 1.000.000 €": 1000000,
+                          "mehr als 1.000.000 €": 1500000
+                        };
+                        up("annualRevenue", revenueMap[v] || 0);
+                      }}
+                      options={["bis zu 100.000 €", "bis zu 500.000 €", "bis zu 1.000.000 €", "mehr als 1.000.000 €"]}
+                    />
                   </Field>
                   <Field label="Anzahl Mitarbeiter" req>
-                    <div className="flex items-center gap-3 mb-2"><span className="text-2xl font-semibold fiaon-gradient-text-animated">{d.employees > 0 ? d.employees : "—"}</span><span className="text-[12px] text-gray-400">Mitarbeiter</span></div>
-                    <input type="range" min={1} max={500} step={1} value={d.employees || 1} onChange={e => up("employees", +e.target.value)} className="w-full h-1.5 rounded-full bg-gray-100 appearance-none cursor-pointer accent-[#2563eb]" />
-                    <div className="flex justify-between text-[10px] text-gray-400 font-mono mt-1"><span>1</span><span>500</span></div>
+                    <PremiumSelect
+                      value={d.employees > 0 ? (d.employees > 100 ? "mehr als 100+" : d.employees > 50 ? "50-100" : d.employees > 10 ? "10-50" : "1-10") : ""}
+                      onChange={(v) => {
+                        const employeeMap: Record<string, number> = {
+                          "1-10": 10,
+                          "10-50": 50,
+                          "50-100": 100,
+                          "mehr als 100+": 150
+                        };
+                        up("employees", employeeMap[v] || 0);
+                      }}
+                      options={["1-10", "10-50", "50-100", "mehr als 100+"]}
+                    />
                   </Field>
-                  <Field label="Monatliche Betriebsausgaben" hint="in EUR"><Inp type="number" value={d.monthlyExpenses || ""} onChange={(v: string) => up("monthlyExpenses", +v || 0)} placeholder="z.B. 10000" /></Field>
                 </>}
 
                 {step === 3 && <>
@@ -568,7 +862,7 @@ export default function BusinessAntragPage() {
                     const currentIndex = BUSINESS_PACKS.findIndex(p => p.key === pack?.key);
                     const nextPack = currentIndex < BUSINESS_PACKS.length - 1 ? BUSINESS_PACKS[currentIndex + 1] : null;
                     return nextPack ? (
-                      <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 animate-[fadeInUp_.4s_ease]">
+                      <div className="mt-8 mb-8 p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 animate-[fadeInUp_.4s_ease]">
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
                             <p className="text-sm font-semibold text-blue-900 mb-1">Upgrade verfügbar</p>
@@ -594,10 +888,28 @@ export default function BusinessAntragPage() {
                     ) : null;
                   })()}
                   
-                  <Field label="Verwendungszweck" req error={errors.purpose}><Sel value={d.purpose} onChange={(v: string) => up("purpose", v)}><option value="">Wählen</option><option>Geschäftsausgaben</option><option>Reisekosten</option><option>Lieferantenzahlungen</option><option>Mitarbeiterkarten</option><option>Liquiditätsreserve</option></Sel></Field>
+                  <Field label="Verwendungszweck" req error={errors.purpose}>
+                    <PremiumSelect
+                      value={d.purpose}
+                      onChange={(v) => up("purpose", v)}
+                      options={["Geschäftsausgaben", "Reisekosten", "Lieferantenzahlungen", "Mitarbeiterkarten", "Liquiditätsreserve"]}
+                    />
+                  </Field>
                   <div className="grid grid-cols-2 gap-4">
-                    <Field label="Abrechnungsart"><Sel value={d.billing} onChange={(v: string) => up("billing", v)}><option>Vollzahlung (100%)</option><option>Teilzahlung</option><option>Revolving</option></Sel></Field>
-                    <Field label="NFC kontaktlos"><Sel value={d.nfc} onChange={(v: string) => up("nfc", v)}><option>Ja, aktivieren</option><option>Nein</option></Sel></Field>
+                    <Field label="Abrechnungsart">
+                      <PremiumSelect
+                        value={d.billing}
+                        onChange={(v) => up("billing", v)}
+                        options={["Vollzahlung", "Teilzahlung (24 Monate)"]}
+                      />
+                    </Field>
+                    <Field label="NFC kontaktlos">
+                      <PremiumSelect
+                        value={d.nfc}
+                        onChange={(v) => up("nfc", v)}
+                        options={["Ja, aktivieren", "Nein"]}
+                      />
+                    </Field>
                   </div>
                 </>}
 
@@ -607,14 +919,53 @@ export default function BusinessAntragPage() {
                   <p className="text-[14px] text-gray-400 mb-6">Bestätige deine Daten und nimm den Vertrag an.</p>
                   
                   <div className="mb-6 p-5 rounded-xl fiaon-glass-panel">
-                    <p className="text-sm font-semibold text-gray-900 mb-1">Ihr Business-Kreditkartenvertrag</p>
+                    <p className="text-sm font-semibold text-gray-900 mb-1">Ihr Business-Vertrag</p>
                     <p className="text-xs text-gray-500 mb-2">Nach Annahme können Sie Ihren personalisierten Vertrag als PDF herunterladen.</p>
                     <p className="text-xs font-medium text-[#2563eb]">Automatisch personalisiert mit Ihren Unternehmensdaten</p>
                   </div>
                   
-                  <Field label="E-Mail-Adresse für Rechnungen" req error={errors.billingEmail} hint="Rechnungen werden hierhin gesendet."><Inp type="email" value={d.billingEmail} onChange={(v: string) => up("billingEmail", v)} placeholder="billing@muster.de" /></Field>
+                  <div className="mb-5">
+                    <label className="flex justify-between text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">E-Mail-Adresse für Rechnungen<span className="text-[#2563eb]">*</span></label>
+                    <div className="flex items-center gap-3 mb-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={useContactEmail}
+                          onChange={(e) => {
+                            setUseContactEmail(e.target.checked);
+                            if (e.target.checked) {
+                              up("billingEmail", d.contactEmail);
+                            } else {
+                              up("billingEmail", "");
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-[#2563eb] focus:ring-[#2563eb]"
+                        />
+                        <span className="text-[12px] text-gray-600">Gleich wie im Antragsprozess</span>
+                      </label>
+                    </div>
+                    <input
+                      type="email"
+                      value={d.billingEmail}
+                      onChange={(e) => up("billingEmail", e.target.value)}
+                      placeholder="billing@muster.de"
+                      disabled={useContactEmail}
+                      className={`w-full px-4 py-3 rounded-xl fiaon-input-glass text-[15px] text-gray-900 outline-none placeholder:text-gray-300 ${useContactEmail ? "bg-gray-100 cursor-not-allowed" : ""}`}
+                    />
+                    {errors.billingEmail && <p className="mt-1.5 text-[11px] font-semibold text-red-500 bg-red-50/80 px-2.5 py-1 rounded-lg">{errors.billingEmail}</p>}
+                    <p className="mt-1 text-[11px] text-gray-400">Rechnungen werden hierhin gesendet.</p>
+                  </div>
+
+                  {/* Cost simulation box */}
+                  {(() => {
+                    const maxLimit = approved || d.wantedLimit || 1000;
+                    return (
+                      <CostSimulation maxLimit={maxLimit} packName={pack?.name || ""} />
+                    );
+                  })()}
+
                   <div className="flex gap-0 rounded-xl overflow-hidden mb-5 fiaon-glass-panel">
-                    {[["iban","SEPA-Lastschrift"],["paper","Papierrechnung"]].map(([k,l]) => (
+                    {[["iban","SEPA-Lastschrift"],["paper","Rechnung per E-Mail"]].map(([k,l]) => (
                       <button key={k} onClick={() => up("billingMethod", k)} className={`flex-1 py-3 text-center text-[13px] font-semibold transition-all ${d.billingMethod === k ? "bg-white/80 text-[#2563eb]" : "text-gray-400"}`}>{l}</button>
                     ))}
                   </div>
@@ -632,9 +983,10 @@ export default function BusinessAntragPage() {
 
                 {/* Buttons */}
                 <div className="flex gap-3 mt-6 pt-4 border-t border-white/40">
-                  <button onClick={() => goStep(step === 6 ? 5 : step - 1)} className="px-5 py-3 rounded-xl fiaon-glass-panel text-[13px] font-medium text-gray-600 hover:bg-white/80 transition-all">Zurück</button>
-                  <button onClick={next} className="flex-1 py-3 rounded-xl text-[14px] font-semibold text-white transition-all fiaon-btn-gradient">
-                    {step === 3 ? "Prüfen lassen" : step === 6 ? "Vertrag annehmen" : "Weiter"}
+                  <button onClick={() => goStep(step === 6 ? 5 : step - 1)} className="px-5 py-2.5 rounded-xl fiaon-glass-panel text-[13px] font-medium text-gray-600 hover:bg-white/80 transition-all">Zurück</button>
+                  <button onClick={next} className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold text-white transition-all fiaon-btn-gradient hover:scale-[1.02] hover:shadow-[0_8px_24px_rgba(37,99,235,0.4)] relative overflow-hidden">
+                    <span className="relative z-10">{step === 3 ? "Prüfen lassen" : step === 6 ? "Vertrag annehmen" : "Weiter"}</span>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>
                   </button>
                 </div>
               </div>
@@ -719,13 +1071,6 @@ export default function BusinessAntragPage() {
                           </div>
                         )}
                         
-                        {d.businessType && (
-                          <div className="flex justify-between items-center py-1.5">
-                            <span className="text-[11px] text-gray-400">Unternehmensart</span>
-                            <span className="text-[12px] font-semibold text-gray-900">{d.businessType}</span>
-                          </div>
-                        )}
-                        
                         {d.industry && (
                           <div className="flex justify-between items-center py-1.5">
                             <span className="text-[11px] text-gray-400">Branche</span>
@@ -761,61 +1106,65 @@ export default function BusinessAntragPage() {
         {/* === STEP 4: Verification === */}
         {step === 4 && (
           <div className="animate-[fadeInUp_.6s_ease] flex flex-col items-center text-center py-16 sm:py-24 px-4">
-            <div className="w-32 h-32 mb-10 relative">
+            <div className="w-20 h-20 mb-8 relative">
               <div className="absolute inset-0 rounded-full border-[2px] border-transparent border-t-[#2563eb] animate-spin" style={{ animationDuration: '2s' }} />
               <div className="absolute inset-3 rounded-full border-[2px] border-transparent border-r-blue-300 animate-[spin_2.5s_linear_infinite_reverse]" />
               <div className="absolute inset-6 rounded-full border-[1.5px] border-transparent border-b-blue-200 animate-spin" style={{ animationDuration: '3s' }} />
               
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-gradient-to-br from-[#2563eb] to-[#1d4ed8]" style={{ boxShadow: "0 0 40px rgba(37,99,235,.3)" }} />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-gradient-to-br from-[#2563eb] to-[#1d4ed8]" style={{ boxShadow: "0 0 40px rgba(37,99,235,.3)" }} />
               
               {verifyDone && (
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-[scaleIn_.5s_ease]">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><polyline points="6 12 10 16 18 8"/></svg>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><polyline points="6 12 10 16 18 8"/></svg>
                 </div>
               )}
             </div>
 
-            <h3 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-3 fiaon-gradient-text-animated">
-              {verifyDone ? "Prüfung abgeschlossen" : "Bonitätsprüfung läuft"}
+            <h3 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-2 fiaon-gradient-text-animated">
+              {verifyDone ? "Prüfung abgeschlossen" : "Wir prüfen gerade das Unternehmen"}
             </h3>
             
             <p className="text-[15px] text-gray-500 mb-8 max-w-md">
               {verifyDone 
                 ? "Ihre Unternehmensdaten wurden erfolgreich verifiziert." 
-                : "Wir analysieren Ihre Unternehmensbonität in Echtzeit."}
+                : d.companyName}
             </p>
 
-            <div className="w-full max-w-sm mb-8">
-              <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                <div 
-                  className={`h-full rounded-full bg-[#2563eb] transition-all relative overflow-hidden ${verifyDone ? "w-full duration-700" : "w-[92%] duration-[8000ms]"} ease-out`}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[slide_1.5s_ease-in-out_infinite]" />
-                </div>
-              </div>
-              <div className="flex justify-between mt-2 text-[11px] font-medium text-gray-400">
-                <span>Wird geprüft</span>
-                <span>{verifyDone ? "100%" : "92%"}</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 max-w-md mx-auto">
+            <div className="w-full max-w-md space-y-3 mb-8">
               {[
-                { label: "Unternehmensprüfung", status: verifyDone ? "done" : "active" },
-                { label: "Umsatzcheck", status: verifyDone ? "done" : "pending" },
-                { label: "Freigabe", status: verifyDone ? "done" : "pending" }
+                { label: "Adresse", value: `${d.street}, ${d.zip} ${d.city}`, status: verifyDone ? "done" : "active" },
+                { label: "Registernummer", value: d.taxId, status: verifyDone ? "done" : "pending" },
+                { label: "Branche", value: d.industry, status: verifyDone ? "done" : "pending" }
               ].map((item, i) => (
-                <div key={i} className={`p-3 rounded-xl transition-all duration-500 ${item.status === 'done' ? 'fiaon-glass-card-selected' : item.status === 'active' ? 'fiaon-glass-panel animate-pulse' : 'fiaon-glass-panel opacity-50'}`}>
-                  <div className={`w-6 h-6 rounded-full mx-auto mb-2 flex items-center justify-center ${item.status === 'done' ? 'bg-[#2563eb]' : 'bg-gray-200'}`}>
-                    {item.status === 'done' && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="6 12 10 16 18 8"/></svg>}
+                <div key={i} className={`flex items-center justify-between p-4 rounded-xl transition-all duration-500 ${item.status === 'done' ? 'fiaon-glass-card-selected' : item.status === 'active' ? 'fiaon-glass-panel animate-pulse' : 'fiaon-glass-panel opacity-50'}`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${item.status === 'done' ? 'bg-[#2563eb]' : 'bg-gray-200'}`}>
+                      {item.status === 'done' && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="6 12 10 16 18 8"/></svg>}
+                    </div>
+                    <div className="text-left">
+                      <div className="text-[11px] font-medium text-gray-600">{item.label}</div>
+                      <div className="text-[12px] text-gray-400">{item.value}</div>
+                    </div>
                   </div>
-                  <div className="text-[11px] font-medium text-gray-600">{item.label}</div>
+                  <div className="text-[11px] font-medium text-gray-400">
+                    {item.status === 'done' ? 'abgeschlossen' : item.status === 'active' ? 'wird geprüft' : 'wartet'}
+                  </div>
                 </div>
               ))}
             </div>
 
             {!verifyDone && (
               <p className="mt-10 text-[12px] text-gray-400 max-w-sm">Bitte haben Sie einen Moment Geduld. Die Prüfung dauert wenige Sekunden.</p>
+            )}
+
+            {verifyDone && (
+              <button
+                onClick={() => goStep(5)}
+                className="mt-10 py-2.5 px-8 rounded-xl text-[13px] font-semibold text-white transition-all fiaon-btn-gradient hover:scale-[1.02] hover:shadow-[0_8px_24px_rgba(37,99,235,0.4)] relative overflow-hidden"
+              >
+                <span className="relative z-10">Weiter</span>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>
+              </button>
             )}
           </div>
         )}
@@ -831,7 +1180,7 @@ export default function BusinessAntragPage() {
             </div>
             
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight mb-3 fiaon-gradient-text-animated">Herzlichen Glückwunsch</h2>
-            <p className="text-[15px] text-gray-500 mb-2">Ihre Unternehmensbonitätsprüfung war erfolgreich</p>
+            <p className="text-[15px] text-gray-500 mb-2">Ihre Unternehmensprüfung für {d.companyName} war erfolgreich</p>
             <p className="text-[14px] text-gray-400 mb-8">Ihr bewilligter Kreditrahmen:</p>
             
             <div className="relative inline-block mb-10">
@@ -845,7 +1194,7 @@ export default function BusinessAntragPage() {
             </div>
             
             <button onClick={() => goStep(6)} className="group relative px-10 py-4 rounded-2xl text-[15px] font-semibold text-white overflow-hidden transition-all duration-300 hover:scale-[1.02] fiaon-btn-gradient">
-              <span className="relative">Vertrag annehmen & fortfahren</span>
+              <span className="relative">Fortfahren</span>
             </button>
           </div>
         )}
@@ -875,22 +1224,9 @@ export default function BusinessAntragPage() {
             <p className="text-[15px] text-gray-500 mb-2 max-w-md mx-auto">Deine FIAON Business Kreditkarte wird in Kürze aktiviert.</p>
             <p className="text-[13px] text-gray-400 mb-10">{d.companyName} · {pack?.name} · Ref. {ref}</p>
 
-            <div className="max-w-[320px] mx-auto mb-8">{sideCard}</div>
+            <div className="max-w-[320px] mx-auto mb-6">{sideCard}</div>
 
-            <div className="rounded-2xl fiaon-glass-panel p-4 max-w-sm mx-auto mb-5">
-              <p className="text-xs font-semibold text-gray-600 mb-1">Ihr Vertrag</p>
-              <div className="flex items-center gap-3">
-                <p className="text-[11px] text-gray-400">Personalisiertes PDF herunterladen</p>
-                <button 
-                  onClick={() => { window.open(`/api/fiaon/contract/${ref}`, '_blank'); track("contract_download", { ref }, ref); }} 
-                  className="px-4 py-2 rounded-lg text-[12px] font-semibold text-[#2563eb] border border-[#2563eb]/20 hover:border-[#2563eb]/40 hover:bg-[#2563eb]/5 transition-all"
-                >
-                  Vertrag herunterladen
-                </button>
-              </div>
-            </div>
-
-            <div className="relative rounded-2xl overflow-hidden max-w-sm mx-auto">
+            <div className="relative rounded-2xl overflow-hidden max-w-sm mx-auto mb-8">
               <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
                 <div className="absolute inset-0 opacity-30" style={{
                   background: "linear-gradient(135deg, rgba(37,99,235,0.15), rgba(147,197,253,0.25), rgba(37,99,235,0.12), rgba(147,197,253,0.18))",
@@ -905,6 +1241,38 @@ export default function BusinessAntragPage() {
               <div className="relative z-10 fiaon-glass-panel p-6 rounded-2xl">
                 <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Aktivierung abschließen</p>
                 <p className="text-[14px] text-gray-600 mb-5">Schließe die Zahlung für dein {pack?.name} Paket ab.</p>
+
+                <button
+                  onClick={() => {
+                    if (!clientSecret) {
+                      const fetchClientSecret = async () => {
+                        try {
+                          const response = await fetch("/api/fiaon/create-payment-intent", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              amount: pack?.fee,
+                              packageName: pack?.name,
+                              ref,
+                              firstName: d.contactName.split(' ')[0] || d.companyName,
+                              lastName: d.contactName.split(' ').slice(1).join('') || '',
+                              email: d.billingEmail || d.contactEmail,
+                            }),
+                          });
+                          const data = await response.json();
+                          setClientSecret(data.clientSecret);
+                        } catch (err) {
+                          console.error("Payment intent error:", err);
+                        }
+                      };
+                      fetchClientSecret();
+                    }
+                  }}
+                  className="w-full py-3.5 rounded-xl text-[14px] font-semibold text-white transition-all fiaon-btn-gradient hover:scale-[1.02] hover:shadow-[0_8px_32px_rgba(37,99,235,0.5)] relative overflow-hidden"
+                >
+                  <span className="relative z-10">Konto aktivieren und Online Zugang festlegen</span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>
+                </button>
                 
                 {clientSecret && pack && stripePromise && (
                   <Elements 
@@ -944,9 +1312,40 @@ export default function BusinessAntragPage() {
                 )}
               </div>
             </div>
+
+            <div className="rounded-xl fiaon-glass-panel p-4 max-w-sm mx-auto mt-6 opacity-70">
+              <p className="text-[11px] font-semibold text-gray-500 mb-2">Ihr Vertrag</p>
+              <button
+                onClick={() => {
+                  const now = new Date();
+                  const dateStr = now.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                  downloadContract({
+                    contractNumber: `FIAON-${ref}`,
+                    date: dateStr,
+                    companyName: d.companyName,
+                    legalForm: d.legalForm,
+                    address: `${d.street}, ${d.zip} ${d.city}, Deutschland`,
+                    representativeName: d.contactName,
+                    selectedPackage: pack?.name || '',
+                    maximumTargetLimit: (approved || d.wantedLimit).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €',
+                    monthlyFee: (pack?.fee || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                    minimumTerm: '24',
+                    billingMethod: d.billingMethod === 'iban' ? 'SEPA-Lastschrift' : 'Rechnung per E-Mail',
+                    billingEmail: d.billingEmail,
+                    signatureData: `FIAON-SIG-${ref}-${now.getTime()}`,
+                  });
+                  track("contract_download", { ref }, ref);
+                }}
+                className="w-full py-2.5 rounded-lg text-[12px] font-semibold text-gray-500 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all"
+              >
+                Vertrag als PDF herunterladen
+              </button>
+            </div>
+
             <p className="text-[11px] text-gray-400 font-mono mt-6">Referenz: {ref}</p>
           </div>
         )}
+        </div>
       </div>
 
       <PremiumFooter />
@@ -954,8 +1353,11 @@ export default function BusinessAntragPage() {
       <style>{`
         @keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
         @keyframes shimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+        @keyframes shimmer_2s{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
         @keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
         @keyframes scaleIn{0%{opacity:0;transform:scale(0.5)}100%{opacity:1;transform:scale(1)}}
+        @keyframes slideInRight{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:translateX(0)}}
+        @keyframes slideOutLeft{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(-30px)}}
       `}</style>
     </div>
   );

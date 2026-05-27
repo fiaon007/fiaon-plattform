@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
+import SecurityVault from "@/components/business/SecurityVault";
+import CaseStudies from "@/components/business/CaseStudies";
+import Engine3D from "@/components/business/Engine3D";
 
 /* ── scroll reveal ── */
 function useReveal(t = 0.1) {
@@ -41,7 +44,7 @@ function BizCard({ bg, lim, label, className = "" }: { bg: string; lim: string; 
           </div>
           <div>
             <div className="text-[8px] uppercase tracking-[.14em] font-medium mb-0.5" style={{ color: "rgba(255,255,255,.35)" }}>{label}</div>
-            <div className="font-mono text-lg font-semibold" style={{ color: "rgba(255,255,255,.9)" }}>ZIEL: {lim} &euro;</div>
+            <div className="font-mono text-xs font-semibold whitespace-nowrap" style={{ color: "rgba(255,255,255,.9)" }}>Wunschlimit: {lim} &euro;</div>
           </div>
         </div>
         {/* shimmer */}
@@ -53,10 +56,10 @@ function BizCard({ bg, lim, label, className = "" }: { bg: string; lim: string; 
 
 /* ── packages data ── */
 const PACKS = [
-  { name: "FIAON Starter", tier: "Paket 1", lim: "10.000", bg: "linear-gradient(135deg,#64748b,#94a3b8,#cbd5e1)", feats: ["KI-Unternehmensanalyse (Basis)", "Business-Kartenkompass", "Credit-Building für Gründer", "Digitales Finance-Dashboard"] },
-  { name: "FIAON Business", tier: "Paket 2", lim: "25.000", bg: "linear-gradient(135deg,#b8923a,#d4af37,#e8d085)", dark: true, feats: ["Erweiterte Cashflow-Analyse", "Strategie für Limit-Aufstockungen", "Strikte Trennung von Privat & Business", "Monatliches Business-Coaching"] },
-  { name: "FIAON Executive", tier: "Paket 3", lim: "50.000", rec: true, bg: "linear-gradient(135deg,#0b1628,#1a3560,#1e4070)", feats: ["Multi-Karten-Struktur (z.B. für GmbHs)", "Cashflow-Strategieberatung", "Meilen- & Reisekosten-Optimierung", "Priority Business Support"] },
-  { name: "FIAON Black", tier: "Paket 4", lim: "100.000", bg: "linear-gradient(135deg,#111,#1a1a1a,#2a2a2a)", feats: ["Dedizierter Account Manager", "Sub-Account- & Mitarbeiter-Strategie", "Premium-Module (Internationale Limits)", "24/7 VIP Business-Support"] },
+  { name: "FIAON Starter", tier: "Paket 1", lim: "5.000", bg: "linear-gradient(135deg,#64748b,#94a3b8,#cbd5e1)", feats: ["Limit bis zu 5.000 €", "Business-Kartenkompass", "Credit-Building für Gründer", "Digitales Finance-Dashboard"] },
+  { name: "FIAON Business", tier: "Paket 2", lim: "25.000", bg: "linear-gradient(135deg,#b8923a,#d4af37,#e8d085)", dark: true, feats: ["Limit bis zu 25.000 €", "Erweiterte Cashflow-Analyse", "Strategie für Limit-Aufstockungen", "Strikte Trennung von Privat & Business"] },
+  { name: "FIAON Executive", tier: "Paket 3", lim: "75.000", rec: true, bg: "linear-gradient(135deg,#0b1628,#1a3560,#1e4070)", feats: ["Limit bis zu 75.000 €", "Multi-Karten-Struktur (z.B. für GmbHs)", "Strategieberatung für maximalen Karten-Hebel", "Meilen- & Reisekosten-Optimierung"] },
+  { name: "FIAON Black", tier: "Paket 4", lim: "250.000", bg: "linear-gradient(135deg,#111,#1a1a1a,#2a2a2a)", feats: ["Limit bis zu 250.000 €", "Dedizierter Account Manager", "Sub-Account- & Mitarbeiter-Strategie", "Freischaltung internationaler High-Limit-Strukturen"] },
 ];
 
 /* ════════════════════════════════════════
@@ -70,7 +73,7 @@ function Hero() {
         {/* chip */}
         <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-gray-200 bg-white shadow-sm mb-8">
           <span className="w-2 h-2 rounded-full bg-[#2563eb]" style={{ boxShadow: "0 0 8px rgba(37,99,235,.4)" }} />
-          <span className="text-[13px] font-semibold text-gray-500">Jetzt verf&uuml;gbar &middot; Business Kreditkarten</span>
+          <span className="text-[13px] font-semibold text-gray-500">Jetzt live &middot; Das Corporate Credit System</span>
         </div>
 
         <h1 className="text-[2.5rem] sm:text-[3.2rem] md:text-[3.8rem] lg:text-[4.2rem] font-semibold leading-[1.08] tracking-tight mb-6">
@@ -84,6 +87,15 @@ function Hero() {
 
         <div className="max-w-[440px] mx-auto fiaon-card-float">
           <BizCard bg="linear-gradient(135deg,#0b1628,#1a3560,#0b1628)" lim="100.000" label="Business Karte" />
+        </div>
+
+        {/* CTA Button */}
+        <div className="mt-8 flex flex-col items-center">
+          <a href="/business-antrag" className="fiaon-btn-gradient inline-flex items-center gap-2 px-8 py-3.5 rounded-full text-[15px] font-medium text-white shadow-lg shadow-blue-500/20 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5">
+            Jetzt Konto er&ouml;ffnen
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+          <p className="mt-2 text-[12px] text-gray-400 font-medium">(in unter 5 min.)</p>
         </div>
       </div>
     </section>
@@ -114,13 +126,13 @@ function Packages() {
                 <h3 className="text-[17px] font-semibold text-gray-900 mb-2">{p.name}</h3>
                 <ul className="space-y-2.5 mb-6">
                   {p.feats.map((f, j) => (
-                    <li key={j} className="flex items-start gap-2.5 text-[13px] text-gray-600">
+                    <li key={j} className={`flex items-start gap-2.5 text-[13px] ${j === 0 ? "text-[#2563eb] font-semibold" : "text-gray-600"}`}>
                       <svg className="shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 12 10 16 18 8"/></svg>
                       {f}
                     </li>
                   ))}
                 </ul>
-                <a href="/business-antrag" className={`block w-full text-center py-3 rounded-xl text-[13px] font-semibold transition-all ${p.rec ? "fiaon-btn-gradient text-white" : p.name === "FIAON Business" || p.name === "FIAON Black" ? "bg-[#0b1628] text-white hover:bg-[#142744] hover:shadow-lg" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100"}`} style={{ letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 600 }}>
+                <a href={`/business-antrag?package=${p.tier.toLowerCase()}`} className={`block w-full text-center py-3 rounded-xl text-[13px] font-semibold transition-all ${p.rec ? "fiaon-btn-gradient text-white" : p.name === "FIAON Business" || p.name === "FIAON Black" ? "bg-[#0b1628] text-white hover:bg-[#142744] hover:shadow-lg" : "text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-100"}`} style={{ letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 600 }}>
                   Konto er&ouml;ffnen &rarr;
                 </a>
               </div>
@@ -133,57 +145,306 @@ function Packages() {
 }
 
 /* ════════════════════════════════════════
-   COMPARE — Banks vs FIAON
+   TECH ENGINE
    ════════════════════════════════════════ */
-function Compare() {
-  const obs = useReveal();
-  const bankItems = ["Standardisierte Kreditkarten ohne Strategie", "Limits werden einzeln betrachtet, nicht als System", "Keine Abstimmung auf Zahlungszyklen", "Wenig Flexibilit\u00E4t bei Wachstum", "Reaktive statt strategische Betreuung"];
-  const fiaonItems = ["Kreditkarten werden als Gesamtstruktur aufgebaut", "Limits greifen strategisch ineinander", "Zahlungszyklen werden gezielt genutzt", "Modell w\u00E4chst mit Ihrem Unternehmen", "Aktive Begleitung statt passiver Bereitstellung"];
+function TechEngine() {
+  const obs = useReveal(0.05);
+  const advantages = [
+    {
+      title: "Schnittstellen-Optimierung (Real-Time API)",
+      desc: "Wir verknüpfen deine Firmendaten schufaneutral mit den Akzeptanz-Kriterien der größten europäischen und US-Fintech-Netzwerke."
+    },
+    {
+      title: "Automatisierter Limit-Hebel",
+      desc: "Unser System erkennt blockierende Faktoren in deiner Creditreform- oder Banken-Struktur und korrigiert sie digital, bevor der Antrag finalisiert wird."
+    },
+    {
+      title: "Smart Monitoring",
+      desc: "Sobald deine Karte aktiv ist, überwacht die Engine dein Zahlungsverhalten und triggert vollautomatisch die nächste Limit-Erhöhung."
+    }
+  ];
 
   return (
     <section className="py-20 sm:py-28" ref={obs.ref}>
       <div className="max-w-[1120px] mx-auto px-6">
-        <div className="max-w-2xl mb-14">
-          <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Positionierung</p>
-          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4"><G>Warum Unternehmen auf Strukturen setzen.</G></h2>
-          <p className="text-[15px] text-gray-500 leading-relaxed">Klassische Banken bieten Produkte. FIAON entwickelt Systeme. Der Unterschied entscheidet &uuml;ber echten finanziellen Spielraum.</p>
+        <div className="max-w-3xl mb-12">
+          <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Die Engine dahinter</p>
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4"><G>Hinter jedem Premium-Limit steht eine intelligente Engine.</G></h2>
+          <p className="text-[15px] text-gray-500 leading-relaxed">
+Traditionelle Banken prüfen deine Firma mit veralteten Daten von gestern. Das FIAON-System arbeitet in Echtzeit: Unsere Software optimiert deine digitalen Bonitäts-Schnittstellen und steuert den Prozess so, dass internationale Karten-Herausgeber dir sofort die Tore öffnen.
+          </p>
         </div>
 
-        <div className={`grid md:grid-cols-2 gap-5 mb-6 transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
-          {/* Bank */}
-          <div className="rounded-2xl border border-gray-100 bg-gradient-to-b from-white to-gray-50/50 p-6 sm:p-7">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Klassische Banken</p>
-            <h3 className="text-lg font-semibold text-gray-900 mb-5">Produktorientiert</h3>
-            <ul className="space-y-3">
-              {bankItems.map((t, i) => (
-                <li key={i} className="flex items-start gap-3 text-[14px] text-gray-500 leading-relaxed">
-                  <span className="w-2 h-2 rounded-full bg-gray-300 mt-2 shrink-0" />
-                  {t}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* FIAON */}
-          <div className="rounded-2xl border border-blue-100 bg-gradient-to-b from-blue-50/30 to-white p-6 sm:p-7">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#2563eb] mb-2">FIAON Business</p>
-            <h3 className="text-lg font-semibold text-gray-900 mb-5">Systemorientiert</h3>
-            <ul className="space-y-3">
-              {fiaonItems.map((t, i) => (
-                <li key={i} className="flex items-start gap-3 text-[14px] text-gray-600 leading-relaxed">
-                  <span className="w-2 h-2 rounded-full bg-[#2563eb] mt-2 shrink-0" style={{ boxShadow: "0 0 0 4px rgba(37,99,235,.1)" }} />
-                  {t}
-                </li>
-              ))}
-            </ul>
-          </div>
+        {/* 3D Engine Visualization */}
+        <div className="mb-12 rounded-2xl border border-gray-100 bg-gradient-to-b from-gray-50 to-white p-4 shadow-lg">
+          <Engine3D />
         </div>
 
-        {/* Core message */}
-        <div className={`rounded-2xl p-7 sm:p-8 text-white transition-all duration-700 delay-200 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`} style={{ background: "linear-gradient(135deg,#2563eb,#1a4fd4)", boxShadow: "0 18px 40px rgba(37,99,235,.25)" }}>
-          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70 mb-3">Der entscheidende Unterschied</p>
-          <h3 className="text-xl sm:text-2xl font-semibold mb-3 leading-tight">Sie bekommen keine Karte &mdash; Sie bekommen ein System.</h3>
-          <p className="text-[14px] sm:text-[15px] leading-relaxed opacity-90 max-w-[700px]">Der gr&ouml;&szlig;te Hebel liegt nicht in einer einzelnen Kreditkarte, sondern in der Art, wie mehrere Karten, Limits und Zahlungsstr&ouml;me miteinander kombiniert werden. Genau hier setzt FIAON an.</p>
+        <div className="grid md:grid-cols-3 gap-6">
+          {advantages.map((adv, i) => (
+            <div key={i} className={`rounded-2xl border border-gray-100 bg-gradient-to-b from-white to-gray-50/30 p-6 shadow-md hover:-translate-y-1 hover:shadow-lg hover:border-blue-100 transition-all duration-500 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`} style={{ transitionDelay: `${i * 100}ms` }}>
+              <h3 className="text-[16px] font-semibold text-gray-900 mb-2 leading-snug">{adv.title}</h3>
+              <p className="text-[13px] text-gray-500 leading-relaxed">{adv.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* CTA Button */}
+        <div className="mt-10 text-center">
+          <a href="/business-antrag" className="fiaon-btn-gradient inline-flex items-center gap-2 px-8 py-3.5 rounded-full text-[15px] font-medium text-white shadow-lg shadow-blue-500/20 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5">
+            Jetzt Limit-Infrastruktur starten
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ════════════════════════════════════════
+   PROCESS STEPS
+   ════════════════════════════════════════ */
+function ProcessSteps() {
+  const obs = useReveal(0.05);
+  const [activeStep, setActiveStep] = useState(0);
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+
+    const handleScroll = () => {
+      const rect = section.getBoundingClientRect();
+      const windowHeight = window.innerHeight;
+      const progress = Math.max(0, Math.min(1, (windowHeight - rect.top) / (windowHeight + rect.height)));
+      
+      if (progress < 0.33) setActiveStep(0);
+      else if (progress < 0.66) setActiveStep(1);
+      else setActiveStep(2);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const steps = [
+    {
+      num: "01",
+      title: "Das digitale Limit-Briefing",
+      duration: "< 2 Min.",
+      desc: "Du startest unseren smarten /business-antrag. Unser System erfasst schufaneutral die Eckdaten deines Unternehmens und dein gewünschtes Kartenlimit. Kein Hochladen von Aktenordnern, alles voll digital."
+    },
+    {
+      num: "02",
+      title: "Das Algorithmus-Matching & Kartenausgabe",
+      duration: "Sofort",
+      desc: "Die FIAON-Engine gleicht dein Profil in Echtzeit mit den Akzeptanz-Matrixen internationaler Premium-Herausgeber ab. Du erhältst sofort das exakt passende Karten-Setup mit dem maximal möglichen Einstiegs-Limit freigeschaltet."
+    },
+    {
+      num: "03",
+      title: "Die Limit-Rotation & Skalierung",
+      duration: "Laufend",
+      desc: "Jetzt schalten wir den Turbo ein. Sobald deine Karte aktiv ist, implementieren wir das US-erprobte Credit-Building-System in dein Business. Wir zeigen dir und deinem Team exakt, wie ihr Rechnungen, Ad-Spends und Wareneinkäufe strategisch über das Limit rotieren lasst, um den Score künstlich nach oben zu treiben und das Limit im Monatsrhythmus zu vervielfachen."
+    }
+  ];
+
+  return (
+    <section className="py-20 sm:py-28 bg-[#f8faff]" ref={sectionRef}>
+      <div className="max-w-[1120px] mx-auto px-6">
+        <div className="max-w-3xl mb-16">
+          <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Der Prozess</p>
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4"><G>In 3 Phasen zum unlimitierten Firmenkapital.</G></h2>
+          <p className="text-[15px] text-gray-500 leading-relaxed">
+            Kein Papierkram, keine zähen Bankgespräche, keine Wartezeiten. Unser digitaler Prozess ist darauf optimiert, deinem Unternehmen so schnell wie möglich die maximale finanzielle Freiheit zu sichern.
+          </p>
+        </div>
+
+        {/* Steps with SVG Timeline */}
+        <div className="relative">
+          {/* SVG Timeline */}
+          <svg className="absolute top-0 left-0 w-full h-full pointer-events-none z-0" style={{ minHeight: "400px" }}>
+            <defs>
+              <linearGradient id="timelineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#d4af37" />
+                <stop offset="50%" stopColor="#2563eb" />
+                <stop offset="100%" stopColor="#d4af37" />
+              </linearGradient>
+            </defs>
+            {/* Connection line */}
+            <path
+              d="M 100 100 Q 400 100 400 200 Q 400 300 700 300"
+              fill="none"
+              stroke="url(#timelineGradient)"
+              strokeWidth="3"
+              strokeDasharray="1000"
+              strokeDashoffset={1000 - (activeStep + 1) * 333}
+              style={{ transition: "stroke-dashoffset 0.5s ease-out" }}
+              opacity="0.3"
+            />
+            {/* Active line */}
+            <path
+              d="M 100 100 Q 400 100 400 200 Q 400 300 700 300"
+              fill="none"
+              stroke="url(#timelineGradient)"
+              strokeWidth="3"
+              strokeDasharray="1000"
+              strokeDashoffset={1000 - (activeStep + 1) * 333}
+              style={{ transition: "stroke-dashoffset 0.5s ease-out", filter: "drop-shadow(0 0 8px rgba(212,175,55,0.5))" }}
+            />
+          </svg>
+
+          {/* Steps */}
+          <div className="relative z-10 grid md:grid-cols-3 gap-8">
+            {steps.map((step, i) => (
+              <div
+                key={i}
+                className={`relative p-6 rounded-2xl border transition-all duration-500 cursor-pointer ${
+                  activeStep >= i
+                    ? "bg-white border-blue-200 shadow-lg shadow-blue-500/10 opacity-100"
+                    : "bg-white/50 border-gray-200 opacity-50"
+                } hover:scale-[1.03] hover:shadow-xl`}
+                style={{ willChange: "transform, opacity" }}
+                onMouseEnter={() => setActiveStep(i)}
+              >
+                {/* Step number badge */}
+                <div className="absolute -top-3 -left-3 w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold text-white"
+                  style={{
+                    background: activeStep >= i 
+                      ? "linear-gradient(135deg,#2563eb,#1a4fd4)" 
+                      : "linear-gradient(135deg,#94a3b8,#64748b)",
+                    boxShadow: activeStep >= i ? "0 0 20px rgba(37,99,235,0.4)" : "none"
+                  }}
+                >
+                  {step.num}
+                </div>
+
+                {/* Duration badge */}
+                <div className="inline-block px-3 py-1 rounded-full text-[11px] font-semibold mb-3"
+                  style={{
+                    background: activeStep >= i 
+                      ? "rgba(37,99,235,0.1)" 
+                      : "rgba(148,163,184,0.1)",
+                    color: activeStep >= i ? "#2563eb" : "#64748b"
+                  }}
+                >
+                  {step.duration}
+                </div>
+
+                <h3 className="text-[17px] font-semibold text-gray-900 mb-3 leading-snug">{step.title}</h3>
+                <p className="text-[13px] text-gray-600 leading-relaxed">{step.desc}</p>
+
+                {/* Glow effect for active step */}
+                {activeStep === i && (
+                  <div className="absolute inset-0 rounded-2xl pointer-events-none"
+                    style={{
+                      background: "radial-gradient(circle at center, rgba(37,99,235,0.1), transparent 70%)",
+                      animation: "pulse-glow 2s ease-in-out infinite"
+                    }}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* CTA Button */}
+      <div className="mt-12 text-center">
+        <a href="/business-antrag" className="fiaon-btn-gradient inline-flex items-center gap-2 px-8 py-3.5 rounded-full text-[15px] font-medium text-white shadow-lg shadow-blue-500/20 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5">
+          Prozess starten
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+      </div>
+
+      <style>{`
+        @keyframes pulse-glow {
+          0%, 100% { opacity: 0.5; }
+          50% { opacity: 1; }
+        }
+      `}</style>
+    </section>
+  );
+}
+
+/* ════════════════════════════════════════
+   COMPARE — Banks vs FIAON
+   ════════════════════════════════════════ */
+function Compare() {
+  const obs = useReveal();
+  
+  const comparisons = [
+    {
+      criterion: "Limit-Vergabe",
+      bank: "Willkürlich, oft gedeckelt bei 5.000 € – 15.000 € basierend auf starren historischen Bilanzen",
+      fiaon: "Strategisch skaliert. Wunschlimits von 50k bis 100k+ durch gezieltes Credit-Building"
+    },
+    {
+      criterion: "Sicherheiten",
+      bank: "Knallharte Forderungen: Persönliche Bürgschaften der Geschäftsführer oder Cash-Collateral",
+      fiaon: "100 % Schufaneutral. Keine Verwässerung, keine privaten Schufa-Risiken während des Setups"
+    },
+    {
+      criterion: "Das Limit-Leben",
+      bank: "Die Bank hofft, dass du das Limit nicht ausreizt. Bei hoher Nutzung droht System-Sperrung",
+      fiaon: "Aktive Ausreizung. Unser Prozess zeigt dir, wie du das Limit rotierst, um es monatlich zu verdoppeln"
+    },
+    {
+      criterion: "Geschwindigkeit",
+      bank: "Wochenlanger Papierkram, Gremiumsbeschlüsse und zähe Telefonate mit Bankberatern",
+      fiaon: "Schlüsselfertig. Volldigitales Matching und Profil-Optimierung in Echtzeit"
+    }
+  ];
+
+  return (
+    <section className="py-20 sm:py-28" ref={obs.ref}>
+      <div className="max-w-[1120px] mx-auto px-6">
+        <div className="max-w-3xl mb-16">
+          <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Der Vergleich</p>
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4"><G>Warum traditionelle Banken dein Wachstum blockieren — und wie wir es befreien.</G></h2>
+          <p className="text-[15px] text-gray-500 leading-relaxed">
+Wer im B2B-Segment skaliert, braucht keine Verwalter, sondern Beschleuniger. Normale Banken bewerten dein Unternehmen nach starren, veralteten Rastern. FIAON hebelt das System aus, indem wir deine Bonitäts-Infrastruktur von Grund auf auf High-Limit-Akzeptanz polieren.
+          </p>
+        </div>
+
+        {/* Comparison Matrix */}
+        <div className={`space-y-4 transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+          {/* Header */}
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="p-4 rounded-xl bg-gray-100">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Kriterium</p>
+            </div>
+            <div className="p-4 rounded-xl bg-gradient-to-b from-gray-100 to-gray-200">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-600">Die klassische Hausbank / Standard-Fintechs</p>
+            </div>
+            <div className="p-4 rounded-xl bg-gradient-to-b from-blue-50 to-blue-100">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#2563eb]">Das FIAON-System</p>
+            </div>
+          </div>
+
+          {/* Rows */}
+          {comparisons.map((comp, i) => (
+            <div key={i} className="grid grid-cols-3 gap-4" style={{ transitionDelay: `${i * 100}ms` }}>
+              <div className="p-4 rounded-xl bg-white border border-gray-200 flex items-center">
+                <p className="text-[13px] font-semibold text-gray-900">{comp.criterion}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gradient-to-b from-gray-50 to-white border border-gray-200">
+                <p className="text-[13px] text-gray-600 leading-relaxed">{comp.bank}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gradient-to-b from-blue-50/50 to-white border border-blue-200 relative overflow-hidden">
+                <div className="absolute inset-0 opacity-10" style={{ background: "linear-gradient(135deg,#d4af37,#2563eb)" }} />
+                <p className="text-[13px] text-gray-800 leading-relaxed relative z-10 font-medium">{comp.fiaon}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* CTA Button */}
+        <div className="mt-10 text-center">
+          <a href="/business-antrag" className="fiaon-btn-gradient inline-flex items-center gap-2 px-8 py-3.5 rounded-full text-[15px] font-medium text-white shadow-lg shadow-blue-500/20 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5">
+            System-Vorteile nutzen
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
         </div>
       </div>
     </section>
@@ -327,7 +588,11 @@ export default function BusinessPage() {
       <GlassNav activePage="business" />
       <Hero />
       <Packages />
+      <TechEngine />
+      <ProcessSteps />
       <Compare />
+      <CaseStudies />
+      <SecurityVault />
       <Process />
       <Cta />
       <PremiumFooter />

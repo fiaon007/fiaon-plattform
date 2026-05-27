@@ -508,9 +508,16 @@ export default function BusinessAntragPage() {
               email: d.contactEmail || d.billingEmail,
             }),
           });
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error("[FIAON] Payment intent API error:", errorData);
+            return;
+          }
           const data = await response.json();
           if (data.clientSecret) {
             setClientSecret(data.clientSecret);
+          } else {
+            console.error("[FIAON] No client secret in response:", data);
           }
         } catch (error) {
           console.error("[FIAON] Failed to fetch client secret:", error);
@@ -1259,8 +1266,17 @@ export default function BusinessAntragPage() {
                               email: d.billingEmail || d.contactEmail,
                             }),
                           });
+                          if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({}));
+                            console.error("Payment intent API error:", errorData);
+                            return;
+                          }
                           const data = await response.json();
-                          setClientSecret(data.clientSecret);
+                          if (data.clientSecret) {
+                            setClientSecret(data.clientSecret);
+                          } else {
+                            console.error("No client secret in response:", data);
+                          }
                         } catch (err) {
                           console.error("Payment intent error:", err);
                         }

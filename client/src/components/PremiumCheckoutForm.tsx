@@ -125,7 +125,7 @@ export default function PremiumCheckoutForm({ packageName, price, clientSecret, 
                   <span>Verarbeitung...</span>
                 </>
               ) : (
-                "ZAHLUNGSPFLICHTIG BESTELLEN"
+                "Konto aktivieren"
               )}
             </span>
           </button>

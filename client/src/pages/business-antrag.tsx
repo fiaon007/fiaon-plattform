@@ -1227,9 +1227,9 @@ export default function BusinessAntragPage() {
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5"><polyline points="6 12 10 16 18 8"/></svg>
               </div>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight fiaon-gradient-text-animated mb-3">Herzlich Willkommen</h2>
-            <p className="text-[15px] text-gray-500 mb-2 max-w-md mx-auto">Deine FIAON Business Kreditkarte wird in Kürze aktiviert.</p>
-            <p className="text-[13px] text-gray-400 mb-10">{d.companyName} · {pack?.name} · Ref. {ref}</p>
+            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight fiaon-gradient-text-animated mb-3">Herzlichen Glückwunsch!</h2>
+            <p className="text-[15px] text-gray-500 mb-2 max-w-md mx-auto">Das Konto für {d.companyName} wird soeben erstellt. Bitte aktiviere dein Konto indem du deine monatliche Gebühr in Höhe von {(pack?.fee || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € bestätigst.</p>
+            <p className="text-[13px] text-gray-400 mb-10">Ref. {ref}</p>
 
             <div className="max-w-[320px] mx-auto mb-6">{sideCard}</div>
 
@@ -1248,47 +1248,6 @@ export default function BusinessAntragPage() {
               <div className="relative z-10 fiaon-glass-panel p-6 rounded-2xl">
                 <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Aktivierung abschließen</p>
                 <p className="text-[14px] text-gray-600 mb-5">Schließe die Zahlung für dein {pack?.name} Paket ab.</p>
-
-                <button
-                  onClick={() => {
-                    if (!clientSecret) {
-                      const fetchClientSecret = async () => {
-                        try {
-                          const response = await fetch("/api/fiaon/create-payment-intent", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              amount: pack?.fee,
-                              packageName: pack?.name,
-                              ref,
-                              firstName: d.contactName.split(' ')[0] || d.companyName,
-                              lastName: d.contactName.split(' ').slice(1).join('') || '',
-                              email: d.billingEmail || d.contactEmail,
-                            }),
-                          });
-                          if (!response.ok) {
-                            const errorData = await response.json().catch(() => ({}));
-                            console.error("Payment intent API error:", errorData);
-                            return;
-                          }
-                          const data = await response.json();
-                          if (data.clientSecret) {
-                            setClientSecret(data.clientSecret);
-                          } else {
-                            console.error("No client secret in response:", data);
-                          }
-                        } catch (err) {
-                          console.error("Payment intent error:", err);
-                        }
-                      };
-                      fetchClientSecret();
-                    }
-                  }}
-                  className="w-full py-3.5 rounded-xl text-[14px] font-semibold text-white transition-all fiaon-btn-gradient hover:scale-[1.02] hover:shadow-[0_8px_32px_rgba(37,99,235,0.5)] relative overflow-hidden"
-                >
-                  <span className="relative z-10">Konto aktivieren und Online Zugang festlegen</span>
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>
-                </button>
                 
                 {clientSecret && pack && stripePromise && (
                   <Elements 

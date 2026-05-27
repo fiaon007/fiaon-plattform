@@ -721,7 +721,7 @@ export default function BusinessAntragPage() {
                 </p>
               </div>
 
-              <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-8">
+              <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
                 {[
                   { n: "01", t: "Paket wählen", d: "Wähle dein gewünschtes FIAON Business-Paket mit passendem Limit." },
                   { n: "02", t: "Unternehmensdaten", d: "Firmeninformationen, Kontaktdaten – verschlüsselt übertragen." },
@@ -730,28 +730,24 @@ export default function BusinessAntragPage() {
                   { n: "05", t: "Vertrag annehmen", d: "Unterschrift digital – dein Vertrag ist sofort bereit." },
                 ].map((s, i) => (
                   <div key={i} className="relative">
-                    <div className="relative p-8 rounded-3xl fiaon-glass-panel hover:scale-[1.03] hover:shadow-2xl transition-all duration-500 group">
+                    <div className="relative p-6 rounded-2xl fiaon-glass-panel hover:scale-[1.02] hover:shadow-xl hover:border-[#2563eb]/20 transition-all duration-500 group h-full">
 
                       <div className="relative z-10">
-                        <div className="text-[48px] font-bold mb-5 tracking-tight" style={{
-                          background: "linear-gradient(135deg, #1e40af, #2563eb, #3b82f6, #60a5fa)",
-                          backgroundClip: "text",
-                          WebkitBackgroundClip: "text",
-                          WebkitTextFillColor: "transparent",
-                          opacity: 0.25,
-                          letterSpacing: "-0.02em"
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 relative overflow-hidden" style={{
+                          background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+                          boxShadow: "0 4px 12px rgba(37,99,235,0.3)"
                         }}>
-                          {s.n}
+                          <div className="absolute inset-0 opacity-30" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.2), transparent)" }} />
+                          <span className="relative z-10 text-[18px] font-bold text-white tracking-tight">{s.n}</span>
                         </div>
 
-                        <h3 className="text-[16px] font-semibold text-gray-900 mb-3 tracking-tight">{s.t}</h3>
-                        <p className="text-[14px] text-gray-500 leading-relaxed font-medium">{s.d}</p>
+                        <h3 className="text-[15px] font-semibold text-gray-900 mb-2 tracking-tight">{s.t}</h3>
+                        <p className="text-[13px] text-gray-500 leading-relaxed">{s.d}</p>
                       </div>
 
                       {i < 4 && (
-                        <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-8 h-[2px] hidden lg:block" style={{
-                          background: "linear-gradient(90deg, #2563eb, rgba(37,99,235,0.2))",
-                          boxShadow: "0 0 20px rgba(37,99,235,0.3)"
+                        <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-[2px] hidden lg:block opacity-30" style={{
+                          background: "linear-gradient(90deg, #2563eb, rgba(37,99,235,0.1))"
                         }} />
                       )}
                     </div>

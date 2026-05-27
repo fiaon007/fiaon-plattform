@@ -432,7 +432,7 @@ export default function BusinessAntragPage() {
   const topRef = useRef<HTMLDivElement>(null);
 
   const [d, setD] = useState({
-    companyName: "", legalForm: "", taxId: "", establishedYear: "2010", contactSalutation: "", contactName: "", contactEmail: "", contactPhoneCountryCode: "+49", contactPhone: "", street: "", zip: "", city: "", country: "", businessType: "", industry: "", annualRevenue: 0, employees: 0, monthlyExpenses: 0, wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", billingEmail: "", iban: "", billingMethod: "paper", ag1: false, ag2: false, ag3: false
+    companyName: "", legalForm: "", taxId: "", establishedYear: "2010", contactSalutation: "", contactFirstName: "", contactLastName: "", contactEmail: "", contactPhoneCountryCode: "+49", contactPhone: "", street: "", zip: "", city: "", country: "", businessType: "", industry: "", annualRevenue: 0, employees: 0, monthlyExpenses: 0, wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", billingEmail: "", iban: "", billingMethod: "paper", ag1: false, ag2: false, ag3: false
   });
   const [approved, setApproved] = useState(0);
   const [verifyDone, setVerifyDone] = useState(false);
@@ -558,7 +558,8 @@ export default function BusinessAntragPage() {
       if (!d.companyName) e.companyName = "Unternehmensname eingeben";
       if (!d.legalForm) e.legalForm = "Rechtsform wählen";
       if (!d.taxId) e.taxId = "Registernummer eingeben";
-      if (!d.contactName) e.contactName = "Ansprechpartner eingeben";
+      if (!d.contactFirstName) e.contactFirstName = "Vorname eingeben";
+      if (!d.contactLastName) e.contactLastName = "Nachname eingeben";
       if (!d.contactEmail || !d.contactEmail.includes("@")) e.contactEmail = "Gültige E-Mail eingeben";
       if (!d.contactPhoneCountryCode || !d.contactPhone) e.contactPhone = "Telefonnummer eingeben";
       if (!d.street) e.street = "Adresse eingeben";
@@ -769,15 +770,15 @@ export default function BusinessAntragPage() {
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Unternehmensdaten</h2>
                   <p className="text-[14px] text-gray-400 mb-6">Verschlüsselt übertragen und validiert.</p>
                   <Field label="Unternehmensname" req error={errors.companyName}><Inp value={d.companyName} onChange={(v: string) => up("companyName", v)} placeholder="Muster GmbH" /></Field>
-                  <Field label="Ansprechpartner/Geschäftsführer" req error={errors.contactName}>
-                    <div className="flex gap-2">
-                      <div className="flex gap-2">
-                        <button type="button" onClick={() => up("contactSalutation", "Herr")} className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${d.contactSalutation === "Herr" ? "bg-[#2563eb] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>Herr</button>
-                        <button type="button" onClick={() => up("contactSalutation", "Frau")} className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${d.contactSalutation === "Frau" ? "bg-[#2563eb] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>Frau</button>
-                      </div>
-                      <Inp value={d.contactName} onChange={(v: string) => up("contactName", v)} placeholder="Max Mustermann" className="flex-1" />
-                    </div>
+                  <Field label="Anrede" req error={errors.contactSalutation}>
+                    <PremiumSelect
+                      value={d.contactSalutation}
+                      onChange={(v) => up("contactSalutation", v)}
+                      options={["Herr", "Frau"]}
+                    />
                   </Field>
+                  <Field label="Vorname" req error={errors.contactFirstName}><Inp value={d.contactFirstName} onChange={(v: string) => up("contactFirstName", v)} placeholder="Max" /></Field>
+                  <Field label="Nachname" req error={errors.contactLastName}><Inp value={d.contactLastName} onChange={(v: string) => up("contactLastName", v)} placeholder="Mustermann" /></Field>
                   <Field label="Rechtsform" req error={errors.legalForm}>
                     <PremiumSelect
                       value={d.legalForm}
@@ -1315,7 +1316,7 @@ export default function BusinessAntragPage() {
                     companyName: d.companyName,
                     legalForm: d.legalForm,
                     address: `${d.street}, ${d.zip} ${d.city}, Deutschland`,
-                    representativeName: d.contactName,
+                    representativeName: `${d.contactFirstName} ${d.contactLastName}`.trim(),
                     selectedPackage: pack?.name || '',
                     maximumTargetLimit: (approved || d.wantedLimit).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €',
                     monthlyFee: (pack?.fee || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),

@@ -608,14 +608,31 @@ export default function BusinessAntragPage() {
     goStep(step + 1);
   }
 
+  const [verifyStep, setVerifyStep] = useState(0);
+
   function runVerify() {
     setVerifyDone(false);
-    setTimeout(() => {
-      const mx = pack?.lim || 25000;
-      let a = d.wantedLimit;
-      if (a > mx) a = mx; if (a < 1000) a = 1000;
-      setApproved(a); setVerifyDone(true);
-    }, 4000);
+    setVerifyStep(0);
+    const totalSteps = 8;
+    const stepDuration = 1200; // 1.2 seconds per step = ~9.6 seconds total
+
+    const checkNext = (currentStep: number) => {
+      if (currentStep < totalSteps) {
+        setTimeout(() => {
+          setVerifyStep(currentStep + 1);
+          checkNext(currentStep + 1);
+        }, stepDuration);
+      } else {
+        setTimeout(() => {
+          const mx = pack?.lim || 25000;
+          let a = d.wantedLimit;
+          if (a > mx) a = mx; if (a < 1000) a = 1000;
+          setApproved(a); setVerifyDone(true);
+        }, 500);
+      }
+    };
+
+    checkNext(0);
   }
 
   const sideCard = <LiveCard bg={pack?.bg || BUSINESS_PACKS[1].bg} name={cardName} lim={(pack?.lim || 25000).toLocaleString("de-DE")} />;
@@ -1138,31 +1155,42 @@ export default function BusinessAntragPage() {
                 : d.companyName}
             </p>
 
-            <div className="w-full max-w-md space-y-3 mb-8">
+            <div className="w-full max-w-lg space-y-2.5 mb-8">
               {[
-                { label: "Adresse", value: `${d.street}, ${d.zip} ${d.city}`, status: verifyDone ? "done" : "active" },
-                { label: "Registernummer", value: d.taxId, status: verifyDone ? "done" : "pending" },
-                { label: "Branche", value: d.industry, status: verifyDone ? "done" : "pending" }
-              ].map((item, i) => (
-                <div key={i} className={`flex items-center justify-between p-4 rounded-xl transition-all duration-500 ${item.status === 'done' ? 'fiaon-glass-card-selected' : item.status === 'active' ? 'fiaon-glass-panel animate-pulse' : 'fiaon-glass-panel opacity-50'}`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${item.status === 'done' ? 'bg-[#2563eb]' : 'bg-gray-200'}`}>
-                      {item.status === 'done' && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="6 12 10 16 18 8"/></svg>}
+                { label: "Unternehmensname", value: d.companyName, step: 0 },
+                { label: "Rechtsform", value: d.legalForm, step: 1 },
+                { label: "Registernummer", value: d.taxId, step: 2 },
+                { label: "Adresse", value: `${d.street}, ${d.zip} ${d.city}`, step: 3 },
+                { label: "Land", value: d.country, step: 4 },
+                { label: "Branche", value: d.industry, step: 5 },
+                { label: "Gründungsjahr", value: d.establishedYear, step: 6 },
+                { label: "Jährlicher Umsatz", value: eur(d.annualRevenue), step: 7 }
+              ].map((item, i) => {
+                const isDone = verifyDone || verifyStep > item.step;
+                const isActive = verifyStep === item.step;
+                const isPending = verifyStep < item.step;
+                return (
+                  <div key={i} className={`flex items-center justify-between p-3.5 rounded-xl transition-all duration-700 ${isDone ? 'fiaon-glass-card-selected' : isActive ? 'fiaon-glass-panel' : 'fiaon-glass-panel opacity-40'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all duration-700 ${isDone ? 'bg-[#2563eb]' : isActive ? 'bg-[#2563eb]/50' : 'bg-gray-200'}`}>
+                        {isDone && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="6 12 10 16 18 8"/></svg>}
+                        {isActive && <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />}
+                      </div>
+                      <div className="text-left">
+                        <div className="text-[11px] font-medium text-gray-600">{item.label}</div>
+                        <div className="text-[12px] text-gray-400">{item.value}</div>
+                      </div>
                     </div>
-                    <div className="text-left">
-                      <div className="text-[11px] font-medium text-gray-600">{item.label}</div>
-                      <div className="text-[12px] text-gray-400">{item.value}</div>
+                    <div className="text-[11px] font-medium text-gray-400">
+                      {isDone ? 'verifiziert' : isActive ? 'wird geprüft' : 'wartet'}
                     </div>
                   </div>
-                  <div className="text-[11px] font-medium text-gray-400">
-                    {item.status === 'done' ? 'abgeschlossen' : item.status === 'active' ? 'wird geprüft' : 'wartet'}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {!verifyDone && (
-              <p className="mt-10 text-[12px] text-gray-400 max-w-sm">Bitte haben Sie einen Moment Geduld. Die Prüfung dauert wenige Sekunden.</p>
+              <p className="mt-10 text-[12px] text-gray-400 max-w-sm">Bitte haben Sie einen Moment Geduld. Die Prüfung dauert ca. 10 Sekunden.</p>
             )}
 
             {verifyDone && (

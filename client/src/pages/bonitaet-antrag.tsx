@@ -91,8 +91,10 @@ export default function BonitaetAntragPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
+    document.getElementById("root")?.scrollTo(0, 0);
   }, [step]);
 
   const set = (field: string, value: string) => {
@@ -120,6 +122,10 @@ export default function BonitaetAntragPage() {
 
     if (Object.keys(err).length > 0) { setErrors(err); return; }
 
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    document.getElementById("root")?.scrollTo(0, 0);
     setStep("validating");
     const delay = 4000 + Math.random() * 6000;
     await new Promise(r => setTimeout(r, delay));

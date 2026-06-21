@@ -6,6 +6,8 @@ import AccountingDashboard from "@/components/admin/AccountingDashboard";
 import MinimalistGlassLauncher from "@/components/layout/MinimalistGlassLauncher";
 import AdminApplicationsManager from "@/components/admin/AdminApplicationsManager";
 import AdminRevenueDashboard from "@/components/admin/AdminRevenueDashboard";
+import AdminInvestorsManager from "@/components/admin/AdminInvestorsManager";
+import AdminLedgerManager from "@/components/admin/AdminLedgerManager";
 
 interface AI_Task {
   id: string;
@@ -32,7 +34,7 @@ export default function AdminDatabasePage() {
   const [loading, setLoading] = useState(true);
   const [applications, setApplications] = useState<any[]>([]);
   const [loadingApps, setLoadingApps] = useState(true);
-  const [adminSection, setAdminSection] = useState<'overview'|'applications'|'tasks'|'command'|'radar'|'knowledge'|'accounting'|'revenue'|'cancellations'>('overview');
+  const [adminSection, setAdminSection] = useState<'overview'|'applications'|'tasks'|'command'|'radar'|'knowledge'|'accounting'|'revenue'|'investors'|'cancellations'|'ledger'>('overview');
 
   const [cancellations, setCancellations] = useState<any[]>([]);
   const [cancellationsLoading, setCancellationsLoading] = useState(false);
@@ -352,7 +354,9 @@ export default function AdminDatabasePage() {
     { id: 'knowledge'    as const, label: 'Wissens-DB',  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
     { id: 'revenue'      as const, label: 'Umsatz & Stripe', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
     { id: 'accounting'   as const, label: 'Buchhaltung', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> },
+    { id: 'investors'    as const, label: 'Investoren',  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
     { id: 'cancellations' as const, label: 'Kündigungen', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>, badge: cancellations.filter(c=>c.status==='pending').length > 0 ? String(cancellations.filter(c=>c.status==='pending').length) : undefined },
+    { id: 'ledger'        as const, label: 'Ausbuchung',   icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> },
   ];
 
   return (
@@ -546,6 +550,12 @@ export default function AdminDatabasePage() {
 
           {/* ══════════ BUCHHALTUNG ══════════ */}
           {adminSection === 'accounting' && <AccountingDashboard />}
+
+          {/* ══════════ INVESTOREN ══════════ */}
+          {adminSection === 'investors' && <AdminInvestorsManager />}
+
+          {/* ══════════ AUSBUCHUNG / LEDGER ══════════ */}
+          {adminSection === 'ledger' && <AdminLedgerManager />}
 
           {/* ══════════ KÜNDIGUNGEN ══════════ */}
           {adminSection === 'cancellations' && (

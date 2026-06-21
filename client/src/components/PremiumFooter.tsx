@@ -96,6 +96,12 @@ export default function PremiumFooter() {
                   Kontakt & Support
                 </a>
               </li>
+              <li>
+                <a href="/banking" className="inline-flex items-center gap-2 text-[14px] text-gray-300 hover:text-white transition-all duration-200 hover:translate-x-1 font-medium">
+                  Schwarzott Group Banking
+                  <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md" style={{ background: "rgba(37,99,235,0.2)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.3)" }}>Investoren</span>
+                </a>
+              </li>
             </ul>
           </div>
 

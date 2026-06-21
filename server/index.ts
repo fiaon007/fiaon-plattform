@@ -518,6 +518,32 @@ async function seedSubscriptionPlans() {
   }
 
   // ============================================================================
+  // 🏦 SCHWARZOTT GROUP INVESTOR BANKING — ensure tables exist (idempotent)
+  // ============================================================================
+  try {
+    log('🏦 Ensuring Investor Banking tables...');
+    const { ensureInvestorTables } = await import('./routes/investor-auth');
+    await ensureInvestorTables();
+    log('✅ Investor Banking tables ready');
+  } catch (error: any) {
+    log('⚠️ Investor Banking table setup error:', error?.message || String(error));
+  }
+
+  // ============================================================================
+  // 📒 SCHWARZOTT GROUP ACCOUNTING LEDGER — ensure tables + seed
+  // ============================================================================
+  try {
+    log('📒 Ensuring Accounting Ledger tables...');
+    const { ensureLedgerTables } = await import('./routes/admin-ledger');
+    await ensureLedgerTables();
+    const ledgerRouter = (await import('./routes/admin-ledger')).default;
+    app.use('/api/admin/ledger', ledgerRouter);
+    log('✅ Accounting Ledger ready at /api/admin/ledger');
+  } catch (error: any) {
+    log('⚠️ Accounting Ledger setup error:', error?.message || String(error));
+  }
+
+  // ============================================================================
   // CRITICAL: registerRoutes MUST run FIRST (sets up passport session)
   // Internal routes MUST be mounted AFTER so req.isAuthenticated() works
   // ============================================================================
@@ -565,7 +591,7 @@ async function seedSubscriptionPlans() {
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = 5000;
+  const port = parseInt(process.env.PORT || '5000');
   server.listen({
     port,
     host: "0.0.0.0",

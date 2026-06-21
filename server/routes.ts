@@ -176,6 +176,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const adminAccountingRoutes = await import('./routes/admin-accounting');
   app.use('/api/admin/accounting', adminAccountingRoutes.default);
 
+  // 🏦 Investor Banking (Admin) — must be before generic /api/admin (own adminAccess guard)
+  const adminInvestorsRoutes = await import('./routes/admin-investors');
+  app.use('/api/admin/investors', adminInvestorsRoutes.default);
+
   // 🔧 Setup Admin API Routes
   const adminRoutes = await import('./routes/admin');
   app.use('/api/admin', adminRoutes.default);
@@ -203,6 +207,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 💰 Investor Lead Capture — Public Route (no auth)
   const investorLeadRoutes = await import('./routes/investor-lead');
   app.use('/api/investors', investorLeadRoutes.default);
+
+  // 🏦 Investor Banking Portal — Auth + portfolio (cookie session, own guard)
+  const investorAuthRoutes = await import('./routes/investor-auth');
+  app.use('/api/investor', investorAuthRoutes.default);
 
   // 💳 FIAON Antrag Routes — Public (no auth)
   const fiaonAntragRoutes = await import('./routes/fiaon-antrag');

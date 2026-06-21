@@ -26,6 +26,8 @@ import BonitaetPage from "@/pages/bonitaet";
 import BonitaetAntragPage from "@/pages/bonitaet-antrag";
 import BonitaetServicePage from "@/pages/bonitaet-service";
 import BonitaetDankePage from "@/pages/bonitaet-danke";
+import InvestorLoginPage from "@/pages/investor-login";
+import InvestorDashboardPage from "@/pages/investor-dashboard";
 
 function Router() {
   return (
@@ -54,6 +56,8 @@ function Router() {
       <Route path="/bonitaet-antrag" component={BonitaetAntragPage} />
       <Route path="/bonitaet-service" component={BonitaetServicePage} />
       <Route path="/bonitaet-danke" component={BonitaetDankePage} />
+      <Route path="/banking" component={InvestorLoginPage} />
+      <Route path="/banking/dashboard" component={InvestorDashboardPage} />
       <Route component={NotFound} />
     </Switch>
   );

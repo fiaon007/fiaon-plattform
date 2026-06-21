@@ -10,6 +10,8 @@ import {
   serial,
   real,
   customType,
+  bigint,
+  date,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -1360,3 +1362,96 @@ export const fiaonClickEvents = pgTable("fiaon_click_events", {
 
 export type FiaonClickEvent = typeof fiaonClickEvents.$inferSelect;
 export type InsertFiaonClickEvent = typeof fiaonClickEvents.$inferInsert;
+
+// ============================================================================
+// SCHWARZOTT GROUP — INVESTOR BANKING (Migration 031)
+// ============================================================================
+export const investors = pgTable("investors", {
+  id: varchar("id").primaryKey().notNull(),
+  email: varchar("email").unique().notNull(),
+  passwordHash: varchar("password_hash").notNull(),
+
+  salutation: varchar("salutation"),
+  firstName: varchar("first_name").notNull(),
+  lastName: varchar("last_name").notNull(),
+  phone: varchar("phone"),
+  company: varchar("company"),
+
+  investorType: varchar("investor_type").default("private").notNull(), // private | institutional
+  status: varchar("status").default("active").notNull(), // active | inactive | pending
+
+  street: varchar("street"),
+  zip: varchar("zip"),
+  city: varchar("city"),
+  country: varchar("country").default("Deutschland"),
+
+  iban: varchar("iban"),
+  taxId: varchar("tax_id"),
+
+  notes: text("notes"),
+
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("investors_email_idx").on(table.email),
+  index("investors_status_idx").on(table.status),
+]);
+
+export const investorInvestments = pgTable("investor_investments", {
+  id: serial("id").primaryKey(),
+  investorId: varchar("investor_id").notNull(),
+  name: varchar("name").notNull(),
+  investmentType: varchar("investment_type").default("fund").notNull(), // equity | bond | loan | fund | real_estate | other
+  principalCents: bigint("principal_cents", { mode: "number" }).default(0).notNull(),
+  currentValueCents: bigint("current_value_cents", { mode: "number" }),
+  currency: varchar("currency", { length: 3 }).default("EUR").notNull(),
+  interestRate: real("interest_rate"), // annual yield % (Rendite p.a.)
+  status: varchar("status").default("active").notNull(), // active | matured | pending | cancelled
+  startDate: date("start_date"),
+  maturityDate: date("maturity_date"),
+  payoutFrequency: varchar("payout_frequency").default("yearly"), // monthly | quarterly | yearly | on_maturity
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("investor_investments_investor_idx").on(table.investorId),
+  index("investor_investments_status_idx").on(table.status),
+]);
+
+export const investorTransactions = pgTable("investor_transactions", {
+  id: serial("id").primaryKey(),
+  investorId: varchar("investor_id").notNull(),
+  investmentId: integer("investment_id"),
+  transactionType: varchar("transaction_type").default("interest").notNull(), // deposit | payout | interest | fee | withdrawal
+  amountCents: bigint("amount_cents", { mode: "number" }).default(0).notNull(),
+  currency: varchar("currency", { length: 3 }).default("EUR").notNull(),
+  description: varchar("description"),
+  transactionDate: date("transaction_date").defaultNow().notNull(),
+  status: varchar("status").default("completed").notNull(), // completed | pending | scheduled
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("investor_transactions_investor_idx").on(table.investorId),
+  index("investor_transactions_date_idx").on(table.transactionDate),
+]);
+
+export const investorDocuments = pgTable("investor_documents", {
+  id: serial("id").primaryKey(),
+  investorId: varchar("investor_id").notNull(),
+  investmentId: integer("investment_id"),
+  title: varchar("title").notNull(),
+  documentType: varchar("document_type").default("contract").notNull(), // contract | statement | tax | report | other
+  fileName: varchar("file_name"),
+  mimeType: varchar("mime_type"),
+  fileSize: integer("file_size"),
+  fileData: bytea("file_data"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("investor_documents_investor_idx").on(table.investorId),
+]);
+
+export type Investor = typeof investors.$inferSelect;
+export type InsertInvestor = typeof investors.$inferInsert;
+export type InvestorInvestment = typeof investorInvestments.$inferSelect;
+export type InvestorTransaction = typeof investorTransactions.$inferSelect;
+export type InvestorDocument = typeof investorDocuments.$inferSelect;

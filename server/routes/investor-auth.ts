@@ -229,6 +229,42 @@ export function ensureInvestorTables(): Promise<void> {
     `;
     await client`CREATE INDEX IF NOT EXISTS investor_benefits_investor_idx ON investor_benefits(investor_id)`;
 
+    // ---- capital requests (deposit top-up / withdrawal) — all manually reviewed ----
+    await client`
+      CREATE TABLE IF NOT EXISTS investor_requests (
+        id SERIAL PRIMARY KEY,
+        investor_id VARCHAR NOT NULL REFERENCES investors(id) ON DELETE CASCADE,
+        investment_id INTEGER,
+        request_type VARCHAR NOT NULL,
+        amount_cents BIGINT,
+        currency VARCHAR NOT NULL DEFAULT 'EUR',
+        note TEXT,
+        status VARCHAR NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS investor_requests_investor_idx ON investor_requests(investor_id)`;
+
+    // ---- demo flag (clearly marks the showcase / demo account) ----
+    await client`ALTER TABLE investors ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT FALSE`;
+
+    // ---- benefit activity (bookings, consultations, cancellations) — all tracked ----
+    await client`
+      CREATE TABLE IF NOT EXISTS investor_benefit_activity (
+        id SERIAL PRIMARY KEY,
+        investor_id VARCHAR NOT NULL REFERENCES investors(id) ON DELETE CASCADE,
+        benefit_key VARCHAR NOT NULL,
+        kind VARCHAR NOT NULL DEFAULT 'request',
+        title VARCHAR NOT NULL,
+        details TEXT,
+        status VARCHAR NOT NULL DEFAULT 'requested',
+        scheduled_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS investor_benefit_activity_idx ON investor_benefit_activity(investor_id, benefit_key)`;
+
     logger.info?.("[INVESTOR] Tables ready");
   })().catch((err) => {
     tablesReady = null; // allow retry on next call
@@ -320,7 +356,7 @@ router.get("/me", requireInvestor, async (req: InvestorRequest, res: Response) =
     const [investor] = await client`
       SELECT id, email, salutation, first_name, last_name, phone, company,
              investor_type, tier, status, street, zip, city, country, iban, tax_id,
-             last_login_at, created_at
+             is_demo, last_login_at, created_at
       FROM investors WHERE id = ${req.investor!.id} LIMIT 1
     `;
     if (!investor) return res.status(404).json({ ok: false, error: "Nicht gefunden" });
@@ -365,16 +401,23 @@ router.get("/portfolio", requireInvestor, async (req: InvestorRequest, res: Resp
     let weightedYieldDen = 0;
     let activeCount = 0;
 
+    // Only count completed deposit transactions as confirmed capital
+    const confirmedDeposits: Record<number, number> = {};
+    for (const tx of transactions) {
+      if (tx.status !== "completed" || tx.transaction_type !== "deposit" || !tx.investment_id) continue;
+      const invId = Number(tx.investment_id);
+      confirmedDeposits[invId] = (confirmedDeposits[invId] || 0) + (Number(tx.amount_cents) || 0);
+    }
+
     for (const inv of investments) {
-      const principal = Number(inv.principal_cents) || 0;
-      const current = inv.current_value_cents == null ? principal : Number(inv.current_value_cents);
+      const confirmedPrincipal = confirmedDeposits[Number(inv.id)] || 0;
       if (inv.status === "active") {
-        totalInvested += principal;
-        currentValue += current;
+        totalInvested += confirmedPrincipal;
+        currentValue += confirmedPrincipal;
         activeCount += 1;
-        if (inv.interest_rate != null) {
-          weightedYieldNum += Number(inv.interest_rate) * principal;
-          weightedYieldDen += principal;
+        if (inv.interest_rate != null && confirmedPrincipal > 0) {
+          weightedYieldNum += Number(inv.interest_rate) * confirmedPrincipal;
+          weightedYieldDen += confirmedPrincipal;
         }
       }
     }
@@ -531,6 +574,200 @@ router.get("/benefits", requireInvestor, async (req: InvestorRequest, res: Respo
     return res.json({ ok: true, tier: investor?.tier || "standard", benefits });
   } catch (err) {
     logger.error("[INVESTOR-BENEFITS] error", err);
+    return res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ============================================================================
+// PUT /api/investor/profile — update own contact details
+// ============================================================================
+router.put("/profile", requireInvestor, async (req: InvestorRequest, res: Response) => {
+  try {
+    const investorId = req.investor!.id;
+    const { salutation, phone, street, zip, city, country } = req.body ?? {};
+    const [updated] = await client`
+      UPDATE investors SET
+        salutation = COALESCE(${salutation ?? null}, salutation),
+        phone      = ${phone ?? null},
+        street     = ${street ?? null},
+        zip        = ${zip ?? null},
+        city       = ${city ?? null},
+        country    = COALESCE(${country ?? null}, country)
+      WHERE id = ${investorId}
+      RETURNING id, email, salutation, first_name, last_name, phone, company,
+                investor_type, tier, status, street, zip, city, country, iban, tax_id
+    `;
+    if (!updated) return res.status(404).json({ ok: false, error: "Nicht gefunden" });
+    return res.json({ ok: true, investor: updated });
+  } catch (err) {
+    logger.error("[INVESTOR-PROFILE] error", err);
+    return res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ============================================================================
+// POST /api/investor/change-password — change own password
+// ============================================================================
+router.post("/change-password", requireInvestor, async (req: InvestorRequest, res: Response) => {
+  try {
+    const investorId = req.investor!.id;
+    const { currentPassword, newPassword } = req.body ?? {};
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ ok: false, error: "Aktuelles und neues Passwort erforderlich" });
+    }
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({ ok: false, error: "Das neue Passwort muss mindestens 8 Zeichen lang sein" });
+    }
+    const [investor] = await client`SELECT password_hash FROM investors WHERE id = ${investorId} LIMIT 1`;
+    if (!investor) return res.status(404).json({ ok: false, error: "Nicht gefunden" });
+    if (!verifyInvestorPassword(String(currentPassword), investor.password_hash)) {
+      return res.status(403).json({ ok: false, error: "Das aktuelle Passwort ist nicht korrekt" });
+    }
+    const newHash = hashInvestorPassword(String(newPassword));
+    await client`UPDATE investors SET password_hash = ${newHash} WHERE id = ${investorId}`;
+    return res.json({ ok: true });
+  } catch (err) {
+    logger.error("[INVESTOR-CHANGE-PW] error", err);
+    return res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ============================================================================
+// GET /api/investor/requests — list own capital requests
+// ============================================================================
+router.get("/requests", requireInvestor, async (req: InvestorRequest, res: Response) => {
+  try {
+    const rows = await client`
+      SELECT id, investment_id, request_type, amount_cents, currency, note, status, created_at
+      FROM investor_requests WHERE investor_id = ${req.investor!.id}
+      ORDER BY created_at DESC LIMIT 100
+    `;
+    return res.json({ ok: true, requests: rows });
+  } catch (err) {
+    logger.error("[INVESTOR-REQUESTS-LIST] error", err);
+    return res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ============================================================================
+// POST /api/investor/requests — submit a deposit top-up or withdrawal request
+//   Nothing is executed automatically — every request is reviewed by staff.
+// ============================================================================
+router.post("/requests", requireInvestor, async (req: InvestorRequest, res: Response) => {
+  try {
+    const investorId = req.investor!.id;
+    const { requestType, investmentId, amountCents, note } = req.body ?? {};
+    if (requestType !== "deposit" && requestType !== "withdrawal") {
+      return res.status(400).json({ ok: false, error: "Ungültiger Anfragetyp" });
+    }
+    const amount = Number(amountCents);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ ok: false, error: "Bitte einen gültigen Betrag angeben" });
+    }
+    const [request] = await client`
+      INSERT INTO investor_requests (investor_id, investment_id, request_type, amount_cents, currency, note, status)
+      VALUES (
+        ${investorId}, ${investmentId ? Number(investmentId) : null}, ${requestType},
+        ${Math.round(amount)}, 'EUR', ${note ?? null}, 'pending'
+      )
+      RETURNING id, investment_id, request_type, amount_cents, currency, note, status, created_at
+    `;
+    return res.status(201).json({ ok: true, request });
+  } catch (err) {
+    logger.error("[INVESTOR-REQUESTS-CREATE] error", err);
+    return res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ============================================================================
+// BENEFIT ACTIVITY — bookings, consultations, cancellations (all tracked)
+// ============================================================================
+const VALID_BENEFIT_KEYS = [
+  "relationship", "consulting", "card", "flights", "insurance",
+  "legal", "tax", "concierge", "realestate", "events",
+];
+
+// GET /api/investor/benefits/:key/activity — history for one benefit
+router.get("/benefits/:key/activity", requireInvestor, async (req: InvestorRequest, res: Response) => {
+  try {
+    const investorId = req.investor!.id;
+    const key = String(req.params.key);
+    if (!VALID_BENEFIT_KEYS.includes(key)) {
+      return res.status(400).json({ ok: false, error: "Unbekannte Leistung" });
+    }
+    // Must have the benefit enabled
+    const [enabled] = await client`
+      SELECT 1 FROM investor_benefits WHERE investor_id = ${investorId} AND benefit_key = ${key} LIMIT 1
+    `;
+    if (!enabled) {
+      return res.status(403).json({ ok: false, error: "Diese Leistung ist für Sie nicht freigeschaltet" });
+    }
+    const rows = await client`
+      SELECT id, benefit_key, kind, title, details, status, scheduled_at, created_at
+      FROM investor_benefit_activity
+      WHERE investor_id = ${investorId} AND benefit_key = ${key}
+      ORDER BY COALESCE(scheduled_at, created_at) DESC, created_at DESC
+      LIMIT 100
+    `;
+    return res.json({ ok: true, activity: rows });
+  } catch (err) {
+    logger.error("[INVESTOR-BENEFIT-ACTIVITY-LIST] error", err);
+    return res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// POST /api/investor/benefits/:key/activity — create a booking / consultation / request
+//   Nothing is executed automatically — every request is reviewed by staff.
+router.post("/benefits/:key/activity", requireInvestor, async (req: InvestorRequest, res: Response) => {
+  try {
+    const investorId = req.investor!.id;
+    const key = String(req.params.key);
+    if (!VALID_BENEFIT_KEYS.includes(key)) {
+      return res.status(400).json({ ok: false, error: "Unbekannte Leistung" });
+    }
+    const [enabled] = await client`
+      SELECT 1 FROM investor_benefits WHERE investor_id = ${investorId} AND benefit_key = ${key} LIMIT 1
+    `;
+    if (!enabled) {
+      return res.status(403).json({ ok: false, error: "Diese Leistung ist für Sie nicht freigeschaltet" });
+    }
+    const { kind, title, details, scheduledAt } = req.body ?? {};
+    if (!title || String(title).trim().length === 0) {
+      return res.status(400).json({ ok: false, error: "Bitte geben Sie einen Betreff an" });
+    }
+    const [row] = await client`
+      INSERT INTO investor_benefit_activity (investor_id, benefit_key, kind, title, details, status, scheduled_at)
+      VALUES (
+        ${investorId}, ${key}, ${kind ? String(kind) : "request"},
+        ${String(title).trim()}, ${details ? String(details) : null},
+        'requested', ${scheduledAt ? new Date(scheduledAt) : null}
+      )
+      RETURNING id, benefit_key, kind, title, details, status, scheduled_at, created_at
+    `;
+    logger.info?.(`[INVESTOR-BENEFIT-ACTIVITY] ${investorId} requested ${key}: ${title}`);
+    return res.status(201).json({ ok: true, activity: row });
+  } catch (err) {
+    logger.error("[INVESTOR-BENEFIT-ACTIVITY-CREATE] error", err);
+    return res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// POST /api/investor/benefit-activity/:id/cancel — cancel an own request
+router.post("/benefit-activity/:id/cancel", requireInvestor, async (req: InvestorRequest, res: Response) => {
+  try {
+    const investorId = req.investor!.id;
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ ok: false, error: "Ungültige ID" });
+    const [row] = await client`
+      UPDATE investor_benefit_activity
+      SET status = 'cancelled', updated_at = NOW()
+      WHERE id = ${id} AND investor_id = ${investorId} AND status IN ('requested', 'confirmed')
+      RETURNING id, benefit_key, kind, title, details, status, scheduled_at, created_at
+    `;
+    if (!row) return res.status(404).json({ ok: false, error: "Nicht stornierbar" });
+    return res.json({ ok: true, activity: row });
+  } catch (err) {
+    logger.error("[INVESTOR-BENEFIT-ACTIVITY-CANCEL] error", err);
     return res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

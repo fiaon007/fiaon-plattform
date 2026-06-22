@@ -148,8 +148,18 @@ router.get("/:id", async (req, res) => {
       SELECT benefit_key, status, note FROM investor_benefits WHERE investor_id = ${id}
       ORDER BY created_at ASC
     `;
+    const benefitActivity = await client`
+      SELECT id, benefit_key, kind, title, details, status, scheduled_at, created_at
+      FROM investor_benefit_activity WHERE investor_id = ${id}
+      ORDER BY COALESCE(scheduled_at, created_at) DESC, created_at DESC
+    `;
+    const requests = await client`
+      SELECT id, investment_id, request_type, amount_cents, currency, note, status, created_at
+      FROM investor_requests WHERE investor_id = ${id}
+      ORDER BY created_at DESC
+    `;
 
-    res.json({ ok: true, investor, investments, transactions, documents, cardOrders, benefits });
+    res.json({ ok: true, investor, investments, transactions, documents, cardOrders, benefits, benefitActivity, requests });
   } catch (err) {
     logger.error("[ADMIN-INVESTORS] detail error", err);
     res.status(500).json({ ok: false, error: "Failed to load investor" });
@@ -330,6 +340,26 @@ router.post("/:id/transactions", async (req, res) => {
   } catch (err) {
     logger.error("[ADMIN-INVESTORS] create transaction error", err);
     res.status(500).json({ ok: false, error: "Failed to create transaction" });
+  }
+});
+
+router.put("/:id/transactions/:txId", async (req, res) => {
+  try {
+    const { txId } = req.params;
+    const { status, description, transactionDate, amountCents } = req.body ?? {};
+    const [tx] = await client`
+      UPDATE investor_transactions SET
+        status           = COALESCE(${status ?? null}, status),
+        description      = COALESCE(${description ?? null}, description),
+        transaction_date = COALESCE(${transactionDate ?? null}, transaction_date),
+        amount_cents     = COALESCE(${amountCents ?? null}, amount_cents)
+      WHERE id = ${Number(txId)}
+      RETURNING *
+    `;
+    res.json({ ok: true, transaction: tx });
+  } catch (err) {
+    logger.error("[ADMIN-INVESTORS] update transaction error", err);
+    res.status(500).json({ ok: false, error: "Failed to update transaction" });
   }
 });
 

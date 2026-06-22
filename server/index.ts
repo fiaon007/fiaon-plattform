@@ -525,6 +525,9 @@ async function seedSubscriptionPlans() {
     const { ensureInvestorTables } = await import('./routes/investor-auth');
     await ensureInvestorTables();
     log('✅ Investor Banking tables ready');
+    const { ensureDemoInvestor } = await import('./routes/investor-demo-seed');
+    await ensureDemoInvestor();
+    log('✅ Demo investor ready (demo@schwarzott-capital.com)');
   } catch (error: any) {
     log('⚠️ Investor Banking table setup error:', error?.message || String(error));
   }

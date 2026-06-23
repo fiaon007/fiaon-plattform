@@ -13,12 +13,19 @@ interface CardOrder {
   price_cents: number; is_free: boolean; created_at: string;
 }
 interface BenefitRow { benefit_key: string; status: string; note: string | null; }
+interface TokenAllocation { label: string; note?: string; tokens: number; }
+interface TokenMeta {
+  contractRef?: string; signedDate?: string; signedLocation?: string;
+  blockchain?: string; tokenStandard?: string; walletAddress?: string;
+  allocations?: TokenAllocation[];
+}
 interface Investment {
   id: number; name: string; investment_type: string; principal_cents: number;
   current_value_cents: number | null; currency: string; interest_rate: number | null;
   status: string; start_date: string | null; maturity_date: string | null;
   payout_frequency: string | null; description: string | null;
   token_quantity: number | null; token_purchase_price_cents: number | null; token_current_price_cents: number | null;
+  token_meta: TokenMeta | null;
 }
 interface Transaction {
   id: number; investment_id: number | null; transaction_type: string; amount_cents: number;
@@ -28,9 +35,13 @@ interface InvestorDoc {
   id: number; investment_id: number | null; title: string; document_type: string;
   file_name: string | null; file_size: number | null; created_at: string;
 }
+interface CapitalRequest {
+  id: number; investment_id: number | null; request_type: string; amount_cents: number | null;
+  currency: string; note: string | null; status: string; created_at: string;
+}
 interface Detail {
   investor: any; investments: Investment[]; transactions: Transaction[]; documents: InvestorDoc[];
-  cardOrders: CardOrder[]; benefits: BenefitRow[];
+  cardOrders: CardOrder[]; benefits: BenefitRow[]; requests?: CapitalRequest[];
 }
 const CARD_STATUSES = ["requested", "approved", "in_production", "shipped", "active", "cancelled"];
 
@@ -76,9 +87,10 @@ export default function AdminInvestorsManager() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [detailTab, setDetailTab] = useState<"profile" | "investments" | "transactions" | "card" | "benefits" | "documents">("profile");
+  const [detailTab, setDetailTab] = useState<"profile" | "investments" | "transactions" | "requests" | "card" | "benefits" | "documents">("profile");
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState<null | "newInvestor" | "newInvestment" | "newTransaction" | "newDocument" | "password">(null);
+  const [editInv, setEditInv] = useState<Investment | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -141,10 +153,29 @@ export default function AdminInvestorsManager() {
       if (d.ok) { flash("Investment hinzugefügt"); setModal(null); await loadDetail(selectedId); await loadList(); } else flash(d.error || "Fehler");
     } finally { setBusy(false); }
   };
+  const updateInvestment = async (invId: number, form: any) => {
+    if (!selectedId) return; setBusy(true);
+    try {
+      const r = await api(`/api/admin/investors/${selectedId}/investments/${invId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      const d = await r.json();
+      if (d.ok) { flash("Investment aktualisiert"); setEditInv(null); await loadDetail(selectedId); await loadList(); } else flash(d.error || "Fehler");
+    } finally { setBusy(false); }
+  };
   const deleteInvestment = async (invId: number) => {
     if (!selectedId || !confirm("Investment löschen?")) return;
     await api(`/api/admin/investors/${selectedId}/investments/${invId}`, { method: "DELETE" });
     await loadDetail(selectedId); await loadList();
+  };
+  const updateRequest = async (reqId: number, status: string) => {
+    if (!selectedId) return;
+    const r = await api(`/api/admin/investors/${selectedId}/requests/${reqId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+    const d = await r.json();
+    if (d.ok) { flash("Anfrage aktualisiert"); await loadDetail(selectedId); } else flash(d.error || "Fehler");
+  };
+  const deleteRequest = async (reqId: number) => {
+    if (!selectedId || !confirm("Anfrage löschen?")) return;
+    await api(`/api/admin/investors/${selectedId}/requests/${reqId}`, { method: "DELETE" });
+    await loadDetail(selectedId);
   };
   const addTransaction = async (form: any) => {
     if (!selectedId) return; setBusy(true);
@@ -282,10 +313,22 @@ export default function AdminInvestorsManager() {
               </div>
 
               {/* tabs */}
-              <div className="px-6 pt-4 flex items-center gap-1.5 border-b border-slate-100">
-                {[["profile", "Profil"], ["investments", `Investments (${detail.investments.length})`], ["transactions", `Buchungen (${detail.transactions.length})`], ["card", "Karte"], ["benefits", `Leistungen (${detail.benefits.length})`], ["documents", `Dokumente (${detail.documents.length})`]].map(([id, label]) => (
-                  <button key={id} onClick={() => setDetailTab(id as any)} className={`px-3.5 py-2.5 text-[13px] font-semibold rounded-t-lg transition-colors border-b-2 ${detailTab === id ? "text-[#2563eb] border-[#2563eb]" : "text-slate-500 border-transparent hover:text-slate-800"}`}>{label}</button>
-                ))}
+              <div className="px-6 pt-4 flex items-center gap-1.5 border-b border-slate-100 overflow-x-auto">
+                {(() => {
+                  const pendingReqs = (detail.requests || []).filter((r) => r.status === "pending").length;
+                  const tabs: [string, React.ReactNode][] = [
+                    ["profile", "Profil"],
+                    ["investments", `Investments (${detail.investments.length})`],
+                    ["transactions", `Buchungen (${detail.transactions.length})`],
+                    ["requests", <span className="flex items-center gap-1.5">Anfragen {pendingReqs > 0 && <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold">{pendingReqs}</span>}</span>],
+                    ["card", "Karte"],
+                    ["benefits", `Leistungen (${detail.benefits.length})`],
+                    ["documents", `Dokumente (${detail.documents.length})`],
+                  ];
+                  return tabs.map(([id, label]) => (
+                    <button key={id} onClick={() => setDetailTab(id as any)} className={`px-3.5 py-2.5 text-[13px] font-semibold rounded-t-lg transition-colors border-b-2 whitespace-nowrap ${detailTab === id ? "text-[#2563eb] border-[#2563eb]" : "text-slate-500 border-transparent hover:text-slate-800"}`}>{label}</button>
+                  ));
+                })()}
               </div>
 
               <div className="p-6">
@@ -325,8 +368,16 @@ export default function AdminInvestorsManager() {
                                 </p>
                               )}
                             </div>
-                            <button onClick={() => deleteInvestment(inv.id)} className="text-slate-300 hover:text-rose-500 transition-colors px-1 shrink-0">✕</button>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button onClick={() => setEditInv(inv)} className="px-2 py-1 text-[11px] font-semibold text-[#2563eb] bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">Bearbeiten</button>
+                              <button onClick={() => deleteInvestment(inv.id)} className="text-slate-300 hover:text-rose-500 transition-colors px-1">✕</button>
+                            </div>
                           </div>
+                          {isToken && (
+                            <p className="mt-2 pt-2 border-t border-amber-200/60 text-[10.5px] text-amber-700">
+                              Tipp: Über <strong>Bearbeiten</strong> den aktuellen Kurs anpassen — Wert &amp; Gewinn/Verlust beim Investor aktualisieren sich automatisch.
+                            </p>
+                          )}
                         </div>
                       );
                     })}
@@ -345,6 +396,46 @@ export default function AdminInvestorsManager() {
                         <button onClick={() => deleteTransaction(tx.id)} className="text-slate-300 hover:text-rose-500 transition-colors px-1">✕</button>
                       </div>
                     ))}
+                  </div>
+                )}
+                {detailTab === "requests" && (
+                  <div className="space-y-3">
+                    <p className="text-[12px] text-slate-400">Einzahlungs- &amp; Auszahlungsanfragen der Investoren. Nichts wird automatisch ausgeführt — jede Anfrage wird hier manuell geprüft.</p>
+                    {(detail.requests || []).length === 0 ? <p className="py-10 text-center text-[13px] text-slate-400">Keine Anfragen</p> : (detail.requests || []).map((rq) => {
+                      const isDeposit = rq.request_type === "deposit";
+                      const stCls = rq.status === "pending" ? "bg-amber-50 text-amber-700" : rq.status === "approved" || rq.status === "completed" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700";
+                      const stLabel = ({ pending: "Offen", approved: "Genehmigt", rejected: "Abgelehnt", completed: "Erledigt" } as Record<string, string>)[rq.status] || rq.status;
+                      const linkedInv = detail.investments.find((i) => i.id === rq.investment_id);
+                      return (
+                        <div key={rq.id} className={`p-3.5 rounded-xl border ${rq.status === "pending" ? "border-amber-200 bg-amber-50/30" : "border-slate-100"}`}>
+                          <div className="flex items-start gap-3">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[15px] shrink-0 ${isDeposit ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}`}>{isDeposit ? "↓" : "↑"}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-[13px] font-semibold text-slate-900">{isDeposit ? "Einzahlung anfragen" : "Auszahlung anfragen"}</p>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${stCls}`}>{stLabel}</span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 mt-0.5">{fmtDate(rq.created_at)}{linkedInv ? ` · ${linkedInv.name}` : ""}</p>
+                              {rq.note && <p className="text-[12px] text-slate-600 mt-1.5 leading-snug bg-white border border-slate-100 rounded-lg px-2.5 py-1.5">{rq.note}</p>}
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-[15px] font-bold text-slate-900 tabular-nums">{rq.amount_cents != null ? eur(rq.amount_cents) : "—"}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-end gap-1.5 mt-2.5 pt-2.5 border-t border-slate-100">
+                            {rq.status === "pending" ? (
+                              <>
+                                <button onClick={() => updateRequest(rq.id, "approved")} className="px-3 py-1.5 text-[11px] font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors">Genehmigen</button>
+                                <button onClick={() => updateRequest(rq.id, "rejected")} className="px-3 py-1.5 text-[11px] font-bold text-rose-600 bg-rose-50 rounded-lg hover:bg-rose-100 transition-colors">Ablehnen</button>
+                              </>
+                            ) : (
+                              <button onClick={() => updateRequest(rq.id, "pending")} className="px-3 py-1.5 text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors">Zurücksetzen</button>
+                            )}
+                            <button onClick={() => deleteRequest(rq.id)} className="px-2 py-1.5 text-[11px] text-slate-300 hover:text-rose-500 transition-colors">Löschen</button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 {detailTab === "card" && (
@@ -425,6 +516,7 @@ export default function AdminInvestorsManager() {
       {modal === "newInvestor" && <NewInvestorModal onClose={() => setModal(null)} onSubmit={createInvestor} busy={busy} />}
       {modal === "password" && <PasswordModal onClose={() => setModal(null)} onSubmit={resetPassword} busy={busy} />}
       {modal === "newInvestment" && <InvestmentModal onClose={() => setModal(null)} onSubmit={addInvestment} busy={busy} />}
+      {editInv && <InvestmentModal onClose={() => setEditInv(null)} onSubmit={(form) => updateInvestment(editInv.id, form)} busy={busy} initial={editInv} />}
       {modal === "newTransaction" && <TransactionModal onClose={() => setModal(null)} onSubmit={addTransaction} busy={busy} investments={detail?.investments || []} />}
       {modal === "newDocument" && <DocumentModal onClose={() => setModal(null)} onSubmit={uploadDocument} busy={busy} investments={detail?.investments || []} />}
     </div>
@@ -523,29 +615,80 @@ function PasswordModal({ onClose, onSubmit, busy }: { onClose: () => void; onSub
   );
 }
 
-function InvestmentModal({ onClose, onSubmit, busy }: { onClose: () => void; onSubmit: (f: any) => void; busy: boolean }) {
-  const [f, setF] = useState({ name: "ARAS Token", investmentType: "token", principal: "", currentValue: "", interestRate: "", status: "active", startDate: "", maturityDate: "", payoutFrequency: "yearly", description: "", tokenQty: "", tokenBuyPrice: "", tokenCurPrice: "" });
+const fmtNum = (n: number | null | undefined) => (n == null ? "" : String(n));
+const centsToStr = (c: number | null | undefined) => (c == null ? "" : String(c / 100));
+const dateToInput = (d: string | null | undefined) => (d ? String(d).slice(0, 10) : "");
+
+function InvestmentModal({ onClose, onSubmit, busy, initial }: { onClose: () => void; onSubmit: (f: any) => void; busy: boolean; initial?: Investment }) {
+  const isEdit = !!initial;
+  const m = initial?.token_meta || null;
+  const [f, setF] = useState({
+    name: initial?.name ?? "ARAS Token",
+    investmentType: initial?.investment_type ?? "token",
+    principal: isEdit && initial!.investment_type !== "token" ? centsToStr(initial!.principal_cents) : "",
+    currentValue: isEdit && initial!.investment_type !== "token" ? centsToStr(initial!.current_value_cents) : "",
+    interestRate: initial?.interest_rate != null ? String(initial.interest_rate) : "",
+    status: initial?.status ?? "active",
+    startDate: dateToInput(initial?.start_date),
+    maturityDate: dateToInput(initial?.maturity_date),
+    payoutFrequency: initial?.payout_frequency ?? "yearly",
+    description: initial?.description ?? "",
+    tokenQty: fmtNum(initial?.token_quantity),
+    tokenBuyPrice: centsToStr(initial?.token_purchase_price_cents),
+    tokenCurPrice: centsToStr(initial?.token_current_price_cents),
+    investmentAmount: initial?.investment_type === "token" ? centsToStr(initial?.principal_cents) : "",
+    contractRef: m?.contractRef ?? "",
+    signedDate: dateToInput(m?.signedDate),
+    signedLocation: m?.signedLocation ?? "",
+    blockchain: m?.blockchain ?? "Arbitrum One",
+    tokenStandard: m?.tokenStandard ?? "ERC-20",
+    walletAddress: m?.walletAddress ?? "",
+  });
+  const [allocations, setAllocations] = useState<{ label: string; note: string; tokens: string }[]>(
+    m?.allocations?.length ? m.allocations.map((a) => ({ label: a.label ?? "", note: a.note ?? "", tokens: a.tokens != null ? String(a.tokens) : "" })) : []
+  );
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
   const isToken = f.investmentType === "token";
 
-  // For token: auto-compute principal and current value as preview
   const tokenQtyN = parseFloat(f.tokenQty || "0");
   const tokenBuyN = parseFloat(f.tokenBuyPrice || "0");
   const tokenCurN = parseFloat(f.tokenCurPrice || "0");
-  const computedPrincipal = isToken && tokenQtyN > 0 && tokenBuyN > 0 ? tokenQtyN * tokenBuyN : null;
-  const computedCurrent = isToken && tokenQtyN > 0 && tokenCurN > 0 ? tokenQtyN * tokenCurN : null;
-  const pnl = computedPrincipal != null && computedCurrent != null ? computedCurrent - computedPrincipal : null;
-  const pnlPct = computedPrincipal != null && computedPrincipal > 0 && pnl != null ? (pnl / computedPrincipal) * 100 : null;
+  const investN = parseFloat(f.investmentAmount || "0");
+  // Principal = explicit invested capital, else quantity × purchase price
+  const previewPrincipal = isToken ? (investN > 0 ? investN : (tokenQtyN > 0 && tokenBuyN > 0 ? tokenQtyN * tokenBuyN : null)) : null;
+  const previewCurrent = isToken && tokenQtyN > 0 && tokenCurN > 0 ? tokenQtyN * tokenCurN : null;
+  const pnl = previewPrincipal != null && previewCurrent != null ? previewCurrent - previewPrincipal : null;
+  const pnlPct = previewPrincipal != null && previewPrincipal > 0 && pnl != null ? (pnl / previewPrincipal) * 100 : null;
+  const eurF = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2 });
+  const allocSum = allocations.reduce((s, a) => s + (parseFloat(a.tokens || "0") || 0), 0);
+
+  const setAlloc = (i: number, k: string, v: string) => setAllocations((p) => p.map((a, idx) => (idx === i ? { ...a, [k]: v } : a)));
+  const addAlloc = () => setAllocations((p) => [...p, { label: "", note: "", tokens: "" }]);
+  const removeAlloc = (i: number) => setAllocations((p) => p.filter((_, idx) => idx !== i));
 
   const submit = () => {
     if (isToken) {
+      const cleanAllocs = allocations
+        .filter((a) => a.label.trim() && a.tokens.trim())
+        .map((a) => ({ label: a.label.trim(), note: a.note.trim() || undefined, tokens: Math.round(Number(a.tokens)) }));
+      const tokenMeta = {
+        contractRef: f.contractRef.trim() || undefined,
+        signedDate: f.signedDate || undefined,
+        signedLocation: f.signedLocation.trim() || undefined,
+        blockchain: f.blockchain.trim() || undefined,
+        tokenStandard: f.tokenStandard.trim() || undefined,
+        walletAddress: f.walletAddress.trim() || undefined,
+        allocations: cleanAllocs.length ? cleanAllocs : undefined,
+      };
       onSubmit({
         name: f.name, investmentType: f.investmentType, status: f.status, description: f.description,
         startDate: f.startDate || null, maturityDate: f.maturityDate || null, payoutFrequency: f.payoutFrequency,
         tokenQuantity: f.tokenQty === "" ? null : Number(f.tokenQty),
         tokenPurchasePriceCents: f.tokenBuyPrice === "" ? null : Math.round(Number(f.tokenBuyPrice) * 100),
         tokenCurrentPriceCents: f.tokenCurPrice === "" ? null : Math.round(Number(f.tokenCurPrice) * 100),
-        interestRate: pnlPct != null ? parseFloat(pnlPct.toFixed(2)) : null,
+        investmentAmountCents: f.investmentAmount === "" ? null : Math.round(Number(f.investmentAmount) * 100),
+        interestRate: null,
+        tokenMeta,
       });
     } else {
       onSubmit({
@@ -558,48 +701,78 @@ function InvestmentModal({ onClose, onSubmit, busy }: { onClose: () => void; onS
     }
   };
   return (
-    <Modal title="Neues Investment" onClose={onClose}>
+    <Modal title={isEdit ? "Investment bearbeiten" : "Neues Investment"} onClose={onClose}>
       <div className="space-y-4">
         <Field label="Bezeichnung *"><input value={f.name} onChange={(e) => set("name", e.target.value)} className={inputCls} placeholder="z.B. FIAON Wachstums-Fonds I" /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Typ"><select value={f.investmentType} onChange={(e) => { set("investmentType", e.target.value); if (e.target.value === "token") set("name", "ARAS Token"); }} className={inputCls}>{INV_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+          <Field label="Typ"><select value={f.investmentType} onChange={(e) => { set("investmentType", e.target.value); if (e.target.value === "token" && !f.name) set("name", "ARAS Token"); }} className={inputCls}>{INV_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
           <Field label="Status"><select value={f.status} onChange={(e) => set("status", e.target.value)} className={inputCls}>{INV_STATUS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
         </div>
 
         {isToken ? (
           <>
             <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-[12px] text-amber-800 font-medium">
-              🪙 ARAS Token — Einkaufs- und aktueller Kurs werden pro Token angegeben. Gesamtwerte werden automatisch berechnet.
+              🪙 Token-Investment — Anzahl, Zuteilungs- und aktueller Kurs werden pro Token angegeben. Wert &amp; Gewinn/Verlust beim Investor werden automatisch berechnet.
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <Field label="Anzahl Token *"><input type="number" step="1" min="0" value={f.tokenQty} onChange={(e) => set("tokenQty", e.target.value)} className={inputCls} placeholder="z.B. 10000" /></Field>
-              <Field label="Einkaufskurs (€/Token) *"><input type="number" step="0.01" min="0" value={f.tokenBuyPrice} onChange={(e) => set("tokenBuyPrice", e.target.value)} className={inputCls} placeholder="z.B. 1.50" /></Field>
-              <Field label="Aktueller Kurs (€/Token) *"><input type="number" step="0.01" min="0" value={f.tokenCurPrice} onChange={(e) => set("tokenCurPrice", e.target.value)} className={inputCls} placeholder="z.B. 2.10" /></Field>
+              <Field label="Anzahl Token *"><input type="number" step="1" min="0" value={f.tokenQty} onChange={(e) => set("tokenQty", e.target.value)} className={inputCls} placeholder="z.B. 504164" /></Field>
+              <Field label="Zuteilungskurs (€/Token) *"><input type="number" step="0.0001" min="0" value={f.tokenBuyPrice} onChange={(e) => set("tokenBuyPrice", e.target.value)} className={inputCls} placeholder="z.B. 0.12" /></Field>
+              <Field label="Aktueller Kurs (€/Token) *"><input type="number" step="0.0001" min="0" value={f.tokenCurPrice} onChange={(e) => set("tokenCurPrice", e.target.value)} className={inputCls} placeholder="z.B. 0.15" /></Field>
             </div>
-            {computedPrincipal != null && (
+            <Field label="Investitionsbetrag (€) — tatsächlich eingezahltes Kapital">
+              <input type="number" step="0.01" min="0" value={f.investmentAmount} onChange={(e) => set("investmentAmount", e.target.value)} className={inputCls} placeholder="optional – leer = Anzahl × Zuteilungskurs" />
+            </Field>
+            {previewPrincipal != null && (
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-1">
                 <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Berechnung (Vorschau)</p>
-                <div className="flex justify-between text-[13px]">
-                  <span className="text-slate-600">Einkaufswert gesamt</span>
-                  <span className="font-semibold text-slate-900">{new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(computedPrincipal)}</span>
-                </div>
-                {computedCurrent != null && (
-                  <div className="flex justify-between text-[13px]">
-                    <span className="text-slate-600">Aktueller Wert gesamt</span>
-                    <span className="font-semibold text-slate-900">{new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(computedCurrent)}</span>
-                  </div>
-                )}
+                <div className="flex justify-between text-[13px]"><span className="text-slate-600">Investiertes Kapital</span><span className="font-semibold text-slate-900">{eurF.format(previewPrincipal)}</span></div>
+                {previewCurrent != null && <div className="flex justify-between text-[13px]"><span className="text-slate-600">Aktueller Wert ({tokenQtyN.toLocaleString("de-DE")} × {eurF.format(tokenCurN)})</span><span className="font-semibold text-slate-900">{eurF.format(previewCurrent)}</span></div>}
                 {pnl != null && (
-                  <div className="flex justify-between text-[13px]">
-                    <span className="text-slate-600">Gewinn / Verlust</span>
-                    <span className={`font-bold ${pnl >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                      {pnl >= 0 ? "+" : ""}{new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(pnl)}
-                      {pnlPct != null && <> ({pnl >= 0 ? "+" : ""}{pnlPct.toFixed(2)} %)</>}
-                    </span>
+                  <div className="flex justify-between text-[13px] pt-1 border-t border-slate-200"><span className="text-slate-600">Gewinn / Verlust</span>
+                    <span className={`font-bold ${pnl >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{pnl >= 0 ? "+" : ""}{eurF.format(pnl)}{pnlPct != null && <> ({pnl >= 0 ? "+" : ""}{pnlPct.toFixed(2)} %)</>}</span>
                   </div>
                 )}
               </div>
             )}
+
+            {/* Contract metadata */}
+            <div className="rounded-xl border border-slate-200 p-3.5 space-y-3">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Vertragsdetails (optional)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Vertragsreferenz"><input value={f.contractRef} onChange={(e) => set("contractRef", e.target.value)} className={inputCls} placeholder="z.B. O3GU8-SKXPJ-…" /></Field>
+                <Field label="Unterzeichnet am"><input type="date" value={f.signedDate} onChange={(e) => set("signedDate", e.target.value)} className={inputCls} /></Field>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <Field label="Ort"><input value={f.signedLocation} onChange={(e) => set("signedLocation", e.target.value)} className={inputCls} placeholder="z.B. Zürich" /></Field>
+                <Field label="Blockchain"><input value={f.blockchain} onChange={(e) => set("blockchain", e.target.value)} className={inputCls} /></Field>
+                <Field label="Token-Standard"><input value={f.tokenStandard} onChange={(e) => set("tokenStandard", e.target.value)} className={inputCls} /></Field>
+              </div>
+              <Field label="Wallet-Adresse"><input value={f.walletAddress} onChange={(e) => set("walletAddress", e.target.value)} className={inputCls} placeholder="0x…" /></Field>
+            </div>
+
+            {/* Allocation breakdown */}
+            <div className="rounded-xl border border-slate-200 p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Zuteilungs-Aufschlüsselung (optional)</p>
+                <button onClick={addAlloc} className="text-[11px] font-semibold text-[#2563eb] hover:underline">+ Position</button>
+              </div>
+              {allocations.length === 0 && <p className="text-[11px] text-slate-400">Z.B. Basiszuteilung + Bonus-Token. Wird dem Investor als Tabelle angezeigt.</p>}
+              {allocations.map((a, i) => (
+                <div key={i} className="space-y-1.5 pb-2 border-b border-slate-100 last:border-0">
+                  <div className="flex items-center gap-2">
+                    <input value={a.label} onChange={(e) => setAlloc(i, "label", e.target.value)} className={inputCls + " flex-1"} placeholder="Bezeichnung (z.B. Basiszuteilung)" />
+                    <input type="number" value={a.tokens} onChange={(e) => setAlloc(i, "tokens", e.target.value)} className={inputCls + " w-32"} placeholder="Token" />
+                    <button onClick={() => removeAlloc(i)} className="text-slate-300 hover:text-rose-500 px-1 shrink-0">✕</button>
+                  </div>
+                  <input value={a.note} onChange={(e) => setAlloc(i, "note", e.target.value)} className={inputCls + " text-[12px]"} placeholder="Notiz (z.B. EUR 50.000 ÷ EUR 0,12)" />
+                </div>
+              ))}
+              {allocations.length > 0 && (
+                <p className={`text-[11px] font-semibold ${tokenQtyN > 0 && Math.round(allocSum) !== Math.round(tokenQtyN) ? "text-amber-600" : "text-slate-400"}`}>
+                  Summe Positionen: {allocSum.toLocaleString("de-DE")} Token{tokenQtyN > 0 && Math.round(allocSum) !== Math.round(tokenQtyN) ? ` · weicht von Anzahl Token (${tokenQtyN.toLocaleString("de-DE")}) ab` : ""}
+                </p>
+              )}
+            </div>
           </>
         ) : (
           <div className="grid grid-cols-3 gap-3">
@@ -610,12 +783,12 @@ function InvestmentModal({ onClose, onSubmit, busy }: { onClose: () => void; onS
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Start"><input type="date" value={f.startDate} onChange={(e) => set("startDate", e.target.value)} className={inputCls} /></Field>
+          <Field label={isToken ? "Zuteilungsdatum" : "Start"}><input type="date" value={f.startDate} onChange={(e) => set("startDate", e.target.value)} className={inputCls} /></Field>
           <Field label="Fälligkeit"><input type="date" value={f.maturityDate} onChange={(e) => set("maturityDate", e.target.value)} className={inputCls} /></Field>
         </div>
         {!isToken && <Field label="Auszahlung"><select value={f.payoutFrequency} onChange={(e) => set("payoutFrequency", e.target.value)} className={inputCls}><option value="yearly">Jährlich</option><option value="quarterly">Quartalsweise</option><option value="monthly">Monatlich</option><option value="on_maturity">Bei Fälligkeit</option></select></Field>}
         <Field label="Beschreibung"><textarea value={f.description} onChange={(e) => set("description", e.target.value)} rows={2} className={inputCls} /></Field>
-        <button disabled={busy || !f.name || (isToken && (!f.tokenQty || !f.tokenBuyPrice || !f.tokenCurPrice))} onClick={submit} className="w-full py-3 bg-[#2563eb] text-white text-[13px] font-bold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">{busy ? "Speichern…" : "Hinzufügen"}</button>
+        <button disabled={busy || !f.name || (isToken && (!f.tokenQty || !f.tokenBuyPrice || !f.tokenCurPrice))} onClick={submit} className="w-full py-3 bg-[#2563eb] text-white text-[13px] font-bold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">{busy ? "Speichern…" : isEdit ? "Änderungen speichern" : "Hinzufügen"}</button>
       </div>
     </Modal>
   );

@@ -1,7 +1,11 @@
+import "dotenv/config";
 import postgres from 'postgres';
 
 const sql = postgres(process.env.DATABASE_URL, { ssl: 'require' });
 const investorId = 'INV-6F8FFA7424';
+
+// Ensure the token_meta column exists (idempotent — mirrors the app migration)
+await sql`ALTER TABLE investor_investments ADD COLUMN IF NOT EXISTS token_meta JSONB`;
 
 // Idempotent: remove any existing ARAS Token investment for Schwab
 await sql`
@@ -21,13 +25,28 @@ const curPriceCents = 12;     // Aktueller Kurs – Admin kann diesen per UI akt
 const principalCents    = 5_000_000;                        // EUR 50.000,00
 const currentValueCents = Math.round(tokenQty * curPriceCents); // EUR 60.499,68
 
+// token_meta = vertragsspezifische Details (Aufschlüsselung, Referenz, Blockchain).
+// Die Investor-Vertragspartei wird aus dem Investor-Profil (Firma/Name) abgeleitet.
+const tokenMeta = {
+  contractRef: 'O3GU8-SKXPJ-QXGYX-UVXM8',
+  signedDate: '2025-12-15',
+  signedLocation: 'Zürich',
+  blockchain: 'Arbitrum One',
+  tokenStandard: 'ERC-20',
+  allocations: [
+    { label: '01 · Basiszuteilung', note: 'EUR 50.000 Investitionsbetrag ÷ EUR 0,12 Zuteilungspreis', tokens: 416666 },
+    { label: '02 · Investor Campaign Bonus (15 %)', note: '15 % Bonus auf die Basiszuteilung gemäß Investoren-Kampagne', tokens: 62499 },
+    { label: '03 · Zusatzbonus (6 %)', note: 'Weiterer Bonus von 6 % auf die Basiszuteilung', tokens: 24999 },
+  ],
+};
+
 await sql`
   INSERT INTO investor_investments (
     investor_id, name, investment_type,
     principal_cents, current_value_cents, currency,
     interest_rate, status, start_date, maturity_date,
     payout_frequency, description,
-    token_quantity, token_purchase_price_cents, token_current_price_cents,
+    token_quantity, token_purchase_price_cents, token_current_price_cents, token_meta,
     created_at, updated_at
   ) VALUES (
     ${investorId},
@@ -45,6 +64,7 @@ await sql`
     ${tokenQty},
     ${buyPriceCents},
     ${curPriceCents},
+    ${JSON.stringify(tokenMeta)},
     NOW(), NOW()
   )
 `;

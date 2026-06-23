@@ -252,6 +252,8 @@ export function ensureInvestorTables(): Promise<void> {
     await client`ALTER TABLE investor_investments ADD COLUMN IF NOT EXISTS token_quantity NUMERIC(20,6)`;
     await client`ALTER TABLE investor_investments ADD COLUMN IF NOT EXISTS token_purchase_price_cents BIGINT`;
     await client`ALTER TABLE investor_investments ADD COLUMN IF NOT EXISTS token_current_price_cents BIGINT`;
+    // token_meta: per-investment contract metadata (allocation breakdown, contract ref, wallet, blockchain, …)
+    await client`ALTER TABLE investor_investments ADD COLUMN IF NOT EXISTS token_meta JSONB`;
 
     // ---- benefit activity (bookings, consultations, cancellations) — all tracked ----
     await client`
@@ -415,15 +417,25 @@ router.get("/portfolio", requireInvestor, async (req: InvestorRequest, res: Resp
     }
 
     for (const inv of investments) {
+      if (inv.status !== "active") continue;
+      activeCount += 1;
+
+      // Token investments (e.g. ARAS Token) are confirmed by allocation, not by a deposit
+      // booking: use their explicit principal (capital invested) and live market value.
+      if (inv.investment_type === "token") {
+        const tokenPrincipal = Number(inv.principal_cents) || 0;
+        const tokenValue = inv.current_value_cents != null ? Number(inv.current_value_cents) : tokenPrincipal;
+        totalInvested += tokenPrincipal;
+        currentValue += tokenValue;
+        continue;
+      }
+
       const confirmedPrincipal = confirmedDeposits[Number(inv.id)] || 0;
-      if (inv.status === "active") {
-        totalInvested += confirmedPrincipal;
-        currentValue += confirmedPrincipal;
-        activeCount += 1;
-        if (inv.interest_rate != null && confirmedPrincipal > 0) {
-          weightedYieldNum += Number(inv.interest_rate) * confirmedPrincipal;
-          weightedYieldDen += confirmedPrincipal;
-        }
+      totalInvested += confirmedPrincipal;
+      currentValue += confirmedPrincipal;
+      if (inv.interest_rate != null && confirmedPrincipal > 0) {
+        weightedYieldNum += Number(inv.interest_rate) * confirmedPrincipal;
+        weightedYieldDen += confirmedPrincipal;
       }
     }
 

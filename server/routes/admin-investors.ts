@@ -249,31 +249,37 @@ router.post("/:id/investments", async (req, res) => {
       currency = "EUR", interestRate, status = "active",
       startDate, maturityDate, payoutFrequency = "yearly", description,
       tokenQuantity, tokenPurchasePriceCents, tokenCurrentPriceCents,
+      investmentAmountCents, tokenMeta,
     } = req.body ?? {};
     if (!name) return res.status(400).json({ ok: false, error: "Name ist erforderlich" });
 
-    // For token investments, derive principal and current value from quantity × price
     let finalPrincipalCents = Number(principalCents) || 0;
     let finalCurrentValueCents = currentValueCents == null || currentValueCents === "" ? null : Number(currentValueCents);
     const qty = tokenQuantity != null && tokenQuantity !== "" ? Number(tokenQuantity) : null;
     const buyPrice = tokenPurchasePriceCents != null && tokenPurchasePriceCents !== "" ? Number(tokenPurchasePriceCents) : null;
     const curPrice = tokenCurrentPriceCents != null && tokenCurrentPriceCents !== "" ? Number(tokenCurrentPriceCents) : null;
-    if (investmentType === "token" && qty != null && buyPrice != null) {
-      finalPrincipalCents = Math.round(qty * buyPrice);
-      if (curPrice != null) finalCurrentValueCents = Math.round(qty * curPrice);
+    const explicitAmount = investmentAmountCents != null && investmentAmountCents !== "" ? Number(investmentAmountCents) : null;
+
+    // Token investments: principal = capital actually invested (explicit, accounts for bonus tokens);
+    // falls back to quantity × purchase price. Current value always tracks quantity × current price.
+    if (investmentType === "token") {
+      if (explicitAmount != null) finalPrincipalCents = explicitAmount;
+      else if (qty != null && buyPrice != null) finalPrincipalCents = Math.round(qty * buyPrice);
+      if (qty != null && curPrice != null) finalCurrentValueCents = Math.round(qty * curPrice);
     }
+    const metaJson = tokenMeta != null ? JSON.stringify(tokenMeta) : null;
 
     const [investment] = await client`
       INSERT INTO investor_investments (
         investor_id, name, investment_type, principal_cents, current_value_cents,
         currency, interest_rate, status, start_date, maturity_date, payout_frequency, description,
-        token_quantity, token_purchase_price_cents, token_current_price_cents
+        token_quantity, token_purchase_price_cents, token_current_price_cents, token_meta
       ) VALUES (
         ${id}, ${name}, ${investmentType}, ${finalPrincipalCents},
         ${finalCurrentValueCents},
         ${currency}, ${interestRate == null || interestRate === "" ? null : Number(interestRate)},
         ${status}, ${startDate || null}, ${maturityDate || null}, ${payoutFrequency}, ${description ?? null},
-        ${qty}, ${buyPrice}, ${curPrice}
+        ${qty}, ${buyPrice}, ${curPrice}, ${metaJson}
       ) RETURNING *
     `;
     res.status(201).json({ ok: true, investment });
@@ -288,6 +294,7 @@ router.patch("/:id/investments/:invId", async (req, res) => {
     const { invId } = req.params;
     const map: Record<string, string> = {
       name: "name", investmentType: "investment_type", principalCents: "principal_cents",
+      investmentAmountCents: "principal_cents",
       currentValueCents: "current_value_cents", currency: "currency", interestRate: "interest_rate",
       status: "status", startDate: "start_date", maturityDate: "maturity_date",
       payoutFrequency: "payout_frequency", description: "description",
@@ -304,18 +311,22 @@ router.patch("/:id/investments/:invId", async (req, res) => {
         updates[col] = v;
       }
     }
-    // If patching token prices/quantity, recompute principal + current value automatically
+    // token_meta (JSONB) — stored as-is
+    if ("tokenMeta" in req.body) {
+      updates["token_meta"] = req.body.tokenMeta != null ? JSON.stringify(req.body.tokenMeta) : null;
+    }
+
+    // For token investments, always keep current value = quantity × current price in sync.
+    // Principal is the explicit invested capital (accounts for bonus tokens) and is only
+    // changed when the admin sends an explicit amount.
     const qty = updates["token_quantity"] ?? null;
-    const buyP = updates["token_purchase_price_cents"] ?? null;
     const curP = updates["token_current_price_cents"] ?? null;
-    if (qty != null || buyP != null || curP != null) {
-      const [existing] = await client`SELECT investment_type, token_quantity, token_purchase_price_cents, token_current_price_cents FROM investor_investments WHERE id = ${Number(invId)}`;
+    if (qty != null || curP != null) {
+      const [existing] = await client`SELECT investment_type, token_quantity, token_current_price_cents FROM investor_investments WHERE id = ${Number(invId)}`;
       if (existing && (existing.investment_type === "token" || updates["investment_type"] === "token")) {
-        const q = qty ?? Number(existing.token_quantity);
-        const bp = buyP ?? Number(existing.token_purchase_price_cents);
+        const q = qty ?? (existing.token_quantity != null ? Number(existing.token_quantity) : null);
         const cp = curP ?? (existing.token_current_price_cents != null ? Number(existing.token_current_price_cents) : null);
-        if (q && bp) updates["principal_cents"] = Math.round(q * bp);
-        if (q && cp != null) updates["current_value_cents"] = Math.round(q * cp);
+        if (q != null && cp != null) updates["current_value_cents"] = Math.round(q * cp);
       }
     }
     if (Object.keys(updates).length === 0) {
@@ -568,6 +579,44 @@ router.put("/:id/benefits", async (req, res) => {
   } catch (err) {
     logger.error("[ADMIN-INVESTORS] set benefits error", err);
     res.status(500).json({ ok: false, error: "Failed to set benefits" });
+  }
+});
+
+// ============================================================================
+// CAPITAL REQUESTS — deposit top-up / withdrawal review
+// ============================================================================
+const REQUEST_STATUSES = ["pending", "approved", "rejected", "completed"];
+
+router.patch("/:id/requests/:reqId", async (req, res) => {
+  try {
+    const { reqId } = req.params;
+    const { status, note } = req.body ?? {};
+    if (status && !REQUEST_STATUSES.includes(status)) {
+      return res.status(400).json({ ok: false, error: "Ungültiger Status" });
+    }
+    const [request] = await client`
+      UPDATE investor_requests SET
+        status = COALESCE(${status ?? null}, status),
+        note   = COALESCE(${note ?? null}, note)
+      WHERE id = ${Number(reqId)}
+      RETURNING id, investment_id, request_type, amount_cents, currency, note, status, created_at
+    `;
+    if (!request) return res.status(404).json({ ok: false, error: "Anfrage nicht gefunden" });
+    res.json({ ok: true, request });
+  } catch (err) {
+    logger.error("[ADMIN-INVESTORS] update request error", err);
+    res.status(500).json({ ok: false, error: "Failed to update request" });
+  }
+});
+
+router.delete("/:id/requests/:reqId", async (req, res) => {
+  try {
+    const { reqId } = req.params;
+    await client`DELETE FROM investor_requests WHERE id = ${Number(reqId)}`;
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error("[ADMIN-INVESTORS] delete request error", err);
+    res.status(500).json({ ok: false, error: "Failed to delete request" });
   }
 });
 

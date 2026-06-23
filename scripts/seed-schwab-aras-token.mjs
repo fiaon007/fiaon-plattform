@@ -10,17 +10,16 @@ await sql`
     AND investment_type = 'token'
 `;
 
-// Values from ADDENDUM NR. 2 – Private Sale Agreement ARAS Token
-// Signed: 15. Dezember 2025 · Zürich
-// Total tokens: 504,164 ARAS (base 416,666 + 15% campaign bonus 62,499 + 6% additional bonus 24,999)
-// Purchase price: EUR 0.12/token → 12 cents
-// Current price (admin can update via UI): EUR 0.12/token → 12 cents (break-even at time of seeding)
-const tokenQty     = 504164;
-const buyPriceCents = 12;   // EUR 0.12 per token → 12 cents
-const curPriceCents = 12;   // admin updates this via the investment form to reflect live price
+// Laut Addendum Nr. 2: Investition EUR 50.000, Zuteilungspreis EUR 0,12/Token
+// Basiszuteilung: 416.666 + Kampagnenbonus 15%: 62.499 + Zusatzbonus 6%: 24.999 = 504.164 ARAS
+const tokenQty      = 504164; // Gesamt-Token inkl. aller Boni
+const buyPriceCents = 12;     // EUR 0,12 pro Token (Zuteilungspreis lt. Vertrag)
+const curPriceCents = 12;     // Aktueller Kurs – Admin kann diesen per UI aktualisieren
 
-const principalCents    = Math.round(tokenQty * buyPriceCents); // 6,049,968 → ≈ EUR 60,499.68
-const currentValueCents = Math.round(tokenQty * curPriceCents);
+// principal_cents = tatsächlich eingezahltes Kapital (EUR 50.000)
+// current_value_cents = Tokenwert zum aktuellen Kurs (504.164 × EUR 0,12)
+const principalCents    = 5_000_000;                        // EUR 50.000,00
+const currentValueCents = Math.round(tokenQty * curPriceCents); // EUR 60.499,68
 
 await sql`
   INSERT INTO investor_investments (

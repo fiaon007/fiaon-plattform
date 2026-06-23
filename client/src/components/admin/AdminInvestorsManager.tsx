@@ -18,6 +18,7 @@ interface Investment {
   current_value_cents: number | null; currency: string; interest_rate: number | null;
   status: string; start_date: string | null; maturity_date: string | null;
   payout_frequency: string | null; description: string | null;
+  token_quantity: number | null; token_purchase_price_cents: number | null; token_current_price_cents: number | null;
 }
 interface Transaction {
   id: number; investment_id: number | null; transaction_type: string; amount_cents: number;
@@ -44,7 +45,7 @@ const api = (url: string, opts: RequestInit = {}) => fetch(url, {
   },
 });
 
-const INV_TYPES = [["fund", "Fonds"], ["equity", "Beteiligung"], ["bond", "Anleihe"], ["loan", "Darlehen"], ["real_estate", "Immobilie"], ["other", "Sonstiges"]];
+const INV_TYPES = [["fund", "Fonds"], ["equity", "Beteiligung"], ["bond", "Anleihe"], ["loan", "Darlehen"], ["real_estate", "Immobilie"], ["token", "🪙 ARAS Token"], ["other", "Sonstiges"]];
 const INV_STATUS = [["active", "Aktiv"], ["matured", "Fällig"], ["pending", "Ausstehend"], ["cancelled", "Beendet"]];
 const TX_TYPES = [["interest", "Zinsen / Rendite"], ["payout", "Auszahlung"], ["deposit", "Einzahlung"], ["fee", "Gebühr"], ["withdrawal", "Entnahme"]];
 const TX_STATUS = [["completed", "Abgeschlossen"], ["pending", "Ausstehend"], ["scheduled", "Geplant"]];
@@ -292,16 +293,43 @@ export default function AdminInvestorsManager() {
                 {detailTab === "investments" && (
                   <div className="space-y-3">
                     <div className="flex justify-end"><button onClick={() => setModal("newInvestment")} className="px-3.5 py-2 text-[12px] font-bold text-white bg-[#2563eb] rounded-lg hover:bg-blue-700 transition-colors">+ Investment</button></div>
-                    {detail.investments.length === 0 ? <p className="py-10 text-center text-[13px] text-slate-400">Keine Investments</p> : detail.investments.map((inv) => (
-                      <div key={inv.id} className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-100">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-semibold text-slate-900">{inv.name}</p>
-                          <p className="text-[11px] text-slate-400">{eur(inv.principal_cents)} · {inv.interest_rate ?? 0}% p.a. · {INV_STATUS.find(s => s[0] === inv.status)?.[1] || inv.status}</p>
+                    {detail.investments.length === 0 ? <p className="py-10 text-center text-[13px] text-slate-400">Keine Investments</p> : detail.investments.map((inv) => {
+                      const isToken = inv.investment_type === "token";
+                      const pnlCents = (inv.current_value_cents ?? inv.principal_cents) - inv.principal_cents;
+                      const pnlPct = inv.principal_cents > 0 ? (pnlCents / inv.principal_cents) * 100 : null;
+                      const eurFmt = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2 });
+                      return (
+                        <div key={inv.id} className={`p-3.5 rounded-xl border ${isToken ? "border-amber-200 bg-amber-50/40" : "border-slate-100"}`}>
+                          <div className="flex items-start gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-[13px] font-semibold text-slate-900">{isToken ? "🪙 " : ""}{inv.name}</p>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">{INV_STATUS.find(s => s[0] === inv.status)?.[1] || inv.status}</span>
+                              </div>
+                              {isToken && inv.token_quantity != null ? (
+                                <div className="mt-1 space-y-0.5">
+                                  <p className="text-[11px] text-slate-500">
+                                    {Number(inv.token_quantity).toLocaleString("de-DE")} Token · Einkauf {inv.token_purchase_price_cents != null ? eurFmt.format(inv.token_purchase_price_cents / 100) : "—"} / Token · Aktuell {inv.token_current_price_cents != null ? eurFmt.format(inv.token_current_price_cents / 100) : "—"} / Token
+                                  </p>
+                                  <p className="text-[11px] text-slate-400">Einkaufswert: {eur(inv.principal_cents)}</p>
+                                </div>
+                              ) : (
+                                <p className="text-[11px] text-slate-400">{eur(inv.principal_cents)} · {inv.interest_rate ?? 0} % p.a.</p>
+                              )}
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-[13px] font-bold text-slate-900 tabular-nums">{eur(inv.current_value_cents ?? inv.principal_cents)}</p>
+                              {pnlPct != null && inv.current_value_cents != null && (
+                                <p className={`text-[11px] font-semibold tabular-nums ${pnlCents >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                                  {pnlCents >= 0 ? "+" : ""}{eur(pnlCents)} ({pnlCents >= 0 ? "+" : ""}{pnlPct.toFixed(2)} %)
+                                </p>
+                              )}
+                            </div>
+                            <button onClick={() => deleteInvestment(inv.id)} className="text-slate-300 hover:text-rose-500 transition-colors px-1 shrink-0">✕</button>
+                          </div>
                         </div>
-                        <p className="text-[13px] font-bold text-slate-900 tabular-nums">{eur(inv.current_value_cents ?? inv.principal_cents)}</p>
-                        <button onClick={() => deleteInvestment(inv.id)} className="text-slate-300 hover:text-rose-500 transition-colors px-1">✕</button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
                 {detailTab === "transactions" && (
@@ -496,35 +524,98 @@ function PasswordModal({ onClose, onSubmit, busy }: { onClose: () => void; onSub
 }
 
 function InvestmentModal({ onClose, onSubmit, busy }: { onClose: () => void; onSubmit: (f: any) => void; busy: boolean }) {
-  const [f, setF] = useState({ name: "", investmentType: "fund", principal: "", currentValue: "", interestRate: "", status: "active", startDate: "", maturityDate: "", payoutFrequency: "yearly", description: "" });
+  const [f, setF] = useState({ name: "ARAS Token", investmentType: "token", principal: "", currentValue: "", interestRate: "", status: "active", startDate: "", maturityDate: "", payoutFrequency: "yearly", description: "", tokenQty: "", tokenBuyPrice: "", tokenCurPrice: "" });
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
-  const submit = () => onSubmit({
-    name: f.name, investmentType: f.investmentType, status: f.status, payoutFrequency: f.payoutFrequency, description: f.description,
-    startDate: f.startDate || null, maturityDate: f.maturityDate || null,
-    principalCents: Math.round(parseFloat(f.principal || "0") * 100),
-    currentValueCents: f.currentValue === "" ? null : Math.round(parseFloat(f.currentValue) * 100),
-    interestRate: f.interestRate === "" ? null : parseFloat(f.interestRate),
-  });
+  const isToken = f.investmentType === "token";
+
+  // For token: auto-compute principal and current value as preview
+  const tokenQtyN = parseFloat(f.tokenQty || "0");
+  const tokenBuyN = parseFloat(f.tokenBuyPrice || "0");
+  const tokenCurN = parseFloat(f.tokenCurPrice || "0");
+  const computedPrincipal = isToken && tokenQtyN > 0 && tokenBuyN > 0 ? tokenQtyN * tokenBuyN : null;
+  const computedCurrent = isToken && tokenQtyN > 0 && tokenCurN > 0 ? tokenQtyN * tokenCurN : null;
+  const pnl = computedPrincipal != null && computedCurrent != null ? computedCurrent - computedPrincipal : null;
+  const pnlPct = computedPrincipal != null && computedPrincipal > 0 && pnl != null ? (pnl / computedPrincipal) * 100 : null;
+
+  const submit = () => {
+    if (isToken) {
+      onSubmit({
+        name: f.name, investmentType: f.investmentType, status: f.status, description: f.description,
+        startDate: f.startDate || null, maturityDate: f.maturityDate || null, payoutFrequency: f.payoutFrequency,
+        tokenQuantity: f.tokenQty === "" ? null : Number(f.tokenQty),
+        tokenPurchasePriceCents: f.tokenBuyPrice === "" ? null : Math.round(Number(f.tokenBuyPrice) * 100),
+        tokenCurrentPriceCents: f.tokenCurPrice === "" ? null : Math.round(Number(f.tokenCurPrice) * 100),
+        interestRate: pnlPct != null ? parseFloat(pnlPct.toFixed(2)) : null,
+      });
+    } else {
+      onSubmit({
+        name: f.name, investmentType: f.investmentType, status: f.status, payoutFrequency: f.payoutFrequency, description: f.description,
+        startDate: f.startDate || null, maturityDate: f.maturityDate || null,
+        principalCents: Math.round(parseFloat(f.principal || "0") * 100),
+        currentValueCents: f.currentValue === "" ? null : Math.round(parseFloat(f.currentValue) * 100),
+        interestRate: f.interestRate === "" ? null : parseFloat(f.interestRate),
+      });
+    }
+  };
   return (
     <Modal title="Neues Investment" onClose={onClose}>
       <div className="space-y-4">
         <Field label="Bezeichnung *"><input value={f.name} onChange={(e) => set("name", e.target.value)} className={inputCls} placeholder="z.B. FIAON Wachstums-Fonds I" /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Typ"><select value={f.investmentType} onChange={(e) => set("investmentType", e.target.value)} className={inputCls}>{INV_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+          <Field label="Typ"><select value={f.investmentType} onChange={(e) => { set("investmentType", e.target.value); if (e.target.value === "token") set("name", "ARAS Token"); }} className={inputCls}>{INV_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
           <Field label="Status"><select value={f.status} onChange={(e) => set("status", e.target.value)} className={inputCls}>{INV_STATUS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
         </div>
-        <div className="grid grid-cols-3 gap-3">
-          <Field label="Kapital (€) *"><input type="number" value={f.principal} onChange={(e) => set("principal", e.target.value)} className={inputCls} /></Field>
-          <Field label="Akt. Wert (€)"><input type="number" value={f.currentValue} onChange={(e) => set("currentValue", e.target.value)} className={inputCls} placeholder="optional" /></Field>
-          <Field label="Rendite % p.a."><input type="number" step="0.1" value={f.interestRate} onChange={(e) => set("interestRate", e.target.value)} className={inputCls} /></Field>
-        </div>
+
+        {isToken ? (
+          <>
+            <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-[12px] text-amber-800 font-medium">
+              🪙 ARAS Token — Einkaufs- und aktueller Kurs werden pro Token angegeben. Gesamtwerte werden automatisch berechnet.
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <Field label="Anzahl Token *"><input type="number" step="1" min="0" value={f.tokenQty} onChange={(e) => set("tokenQty", e.target.value)} className={inputCls} placeholder="z.B. 10000" /></Field>
+              <Field label="Einkaufskurs (€/Token) *"><input type="number" step="0.01" min="0" value={f.tokenBuyPrice} onChange={(e) => set("tokenBuyPrice", e.target.value)} className={inputCls} placeholder="z.B. 1.50" /></Field>
+              <Field label="Aktueller Kurs (€/Token) *"><input type="number" step="0.01" min="0" value={f.tokenCurPrice} onChange={(e) => set("tokenCurPrice", e.target.value)} className={inputCls} placeholder="z.B. 2.10" /></Field>
+            </div>
+            {computedPrincipal != null && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-1">
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Berechnung (Vorschau)</p>
+                <div className="flex justify-between text-[13px]">
+                  <span className="text-slate-600">Einkaufswert gesamt</span>
+                  <span className="font-semibold text-slate-900">{new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(computedPrincipal)}</span>
+                </div>
+                {computedCurrent != null && (
+                  <div className="flex justify-between text-[13px]">
+                    <span className="text-slate-600">Aktueller Wert gesamt</span>
+                    <span className="font-semibold text-slate-900">{new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(computedCurrent)}</span>
+                  </div>
+                )}
+                {pnl != null && (
+                  <div className="flex justify-between text-[13px]">
+                    <span className="text-slate-600">Gewinn / Verlust</span>
+                    <span className={`font-bold ${pnl >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                      {pnl >= 0 ? "+" : ""}{new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(pnl)}
+                      {pnlPct != null && <> ({pnl >= 0 ? "+" : ""}{pnlPct.toFixed(2)} %)</>}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Kapital (€) *"><input type="number" value={f.principal} onChange={(e) => set("principal", e.target.value)} className={inputCls} /></Field>
+            <Field label="Akt. Wert (€)"><input type="number" value={f.currentValue} onChange={(e) => set("currentValue", e.target.value)} className={inputCls} placeholder="optional" /></Field>
+            <Field label="Rendite % p.a."><input type="number" step="0.1" value={f.interestRate} onChange={(e) => set("interestRate", e.target.value)} className={inputCls} /></Field>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <Field label="Start"><input type="date" value={f.startDate} onChange={(e) => set("startDate", e.target.value)} className={inputCls} /></Field>
           <Field label="Fälligkeit"><input type="date" value={f.maturityDate} onChange={(e) => set("maturityDate", e.target.value)} className={inputCls} /></Field>
         </div>
-        <Field label="Auszahlung"><select value={f.payoutFrequency} onChange={(e) => set("payoutFrequency", e.target.value)} className={inputCls}><option value="yearly">Jährlich</option><option value="quarterly">Quartalsweise</option><option value="monthly">Monatlich</option><option value="on_maturity">Bei Fälligkeit</option></select></Field>
+        {!isToken && <Field label="Auszahlung"><select value={f.payoutFrequency} onChange={(e) => set("payoutFrequency", e.target.value)} className={inputCls}><option value="yearly">Jährlich</option><option value="quarterly">Quartalsweise</option><option value="monthly">Monatlich</option><option value="on_maturity">Bei Fälligkeit</option></select></Field>}
         <Field label="Beschreibung"><textarea value={f.description} onChange={(e) => set("description", e.target.value)} rows={2} className={inputCls} /></Field>
-        <button disabled={busy || !f.name} onClick={submit} className="w-full py-3 bg-[#2563eb] text-white text-[13px] font-bold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">{busy ? "Speichern…" : "Hinzufügen"}</button>
+        <button disabled={busy || !f.name || (isToken && (!f.tokenQty || !f.tokenBuyPrice || !f.tokenCurPrice))} onClick={submit} className="w-full py-3 bg-[#2563eb] text-white text-[13px] font-bold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50">{busy ? "Speichern…" : "Hinzufügen"}</button>
       </div>
     </Modal>
   );

@@ -32,6 +32,7 @@ interface Investment {
   interest_rate: number | null; status: string;
   start_date: string | null; maturity_date: string | null;
   payout_frequency: string | null; description: string | null;
+  token_quantity: number | null; token_purchase_price_cents: number | null; token_current_price_cents: number | null;
 }
 interface Transaction {
   id: number; investment_id: number | null; transaction_type: string;
@@ -58,7 +59,7 @@ const fmtDate = (v?: string | null) => {
 };
 
 const INVESTMENT_TYPE_LABEL: Record<string, string> = {
-  equity: "Beteiligung", bond: "Anleihe", loan: "Darlehen", fund: "Fonds", real_estate: "Immobilie", other: "Sonstiges",
+  equity: "Beteiligung", bond: "Anleihe", loan: "Darlehen", fund: "Fonds", real_estate: "Immobilie", token: "🪙 ARAS Token", other: "Sonstiges",
 };
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   active: { label: "Aktiv", cls: "bg-emerald-50 text-emerald-700" },
@@ -212,9 +213,11 @@ const BENEFIT_SERVICE: Record<string, BenefitServiceDef> = {
 };
 
 const ACTIVITY_STATUS: Record<string, { label: string; cls: string }> = {
+  proposed: { label: "Bestätigung offen", cls: "bg-[#B8923A]/15 text-[#8a6d22]" },
   requested: { label: "Angefragt", cls: "bg-amber-50 text-amber-700" },
   confirmed: { label: "Bestätigt", cls: "bg-emerald-50 text-emerald-700" },
   completed: { label: "Abgeschlossen", cls: "bg-[#0D1B3E]/8 text-[#0D1B3E]" },
+  declined: { label: "Abgelehnt", cls: "bg-rose-50 text-rose-600" },
   cancelled: { label: "Storniert", cls: "bg-slate-100 text-slate-400" },
 };
 
@@ -530,15 +533,24 @@ export default function InvestorDashboardPage() {
                 <div className="space-y-2">
                   {investments.slice(0, 5).map((inv) => {
                     const cur = inv.current_value_cents == null ? inv.principal_cents : inv.current_value_cents;
+                    const gain = cur - inv.principal_cents;
                     const st = STATUS_LABEL[inv.status] || STATUS_LABEL.active;
+                    const isToken = inv.investment_type === "token";
                     return (
                       <div key={inv.id} onClick={() => setSelectedInvestment(inv)} className="flex flex-col gap-1.5 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100 cursor-pointer">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-[13px] font-semibold text-slate-900 truncate">{inv.name}</p>
                           <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${st.cls}`}>{st.label}</span>
                         </div>
-                        <p className="text-[11px] text-slate-400">{INVESTMENT_TYPE_LABEL[inv.investment_type] || inv.investment_type} · {inv.interest_rate ?? 0}% p.a.</p>
-                        <p className="text-[14px] font-bold text-slate-900 tabular-nums">{eur(cur)}</p>
+                        {isToken && inv.token_quantity != null ? (
+                          <p className="text-[11px] text-slate-400">{Number(inv.token_quantity).toLocaleString("de-DE")} Token · Kurs {inv.token_current_price_cents != null ? (inv.token_current_price_cents / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }) : "—"}</p>
+                        ) : (
+                          <p className="text-[11px] text-slate-400">{INVESTMENT_TYPE_LABEL[inv.investment_type] || inv.investment_type} · {inv.interest_rate ?? 0}% p.a.</p>
+                        )}
+                        <div className="flex items-baseline gap-2">
+                          <p className="text-[14px] font-bold text-slate-900 tabular-nums">{eur(cur)}</p>
+                          {inv.current_value_cents != null && <span className={`text-[11px] font-semibold tabular-nums ${gain >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{gain >= 0 ? "+" : ""}{eur(gain)}</span>}
+                        </div>
                       </div>
                     );
                   })}
@@ -559,30 +571,44 @@ export default function InvestorDashboardPage() {
             ) : investments.map((inv) => {
               const cur = inv.current_value_cents == null ? inv.principal_cents : inv.current_value_cents;
               const gain = cur - inv.principal_cents;
+              const gainPct = inv.principal_cents > 0 ? (gain / inv.principal_cents) * 100 : null;
               const st = STATUS_LABEL[inv.status] || STATUS_LABEL.active;
+              const isToken = inv.investment_type === "token";
+              const eurFmt2dp = (v: number) => v.toLocaleString("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2 });
+              const statsRow = isToken ? [
+                { l: "Anzahl Token", v: inv.token_quantity != null ? Number(inv.token_quantity).toLocaleString("de-DE") : "—" },
+                { l: "Einkaufskurs", v: inv.token_purchase_price_cents != null ? eurFmt2dp(inv.token_purchase_price_cents / 100) + " / Token" : "—" },
+                { l: "Aktueller Kurs", v: inv.token_current_price_cents != null ? eurFmt2dp(inv.token_current_price_cents / 100) + " / Token" : "—" },
+                { l: "Einkaufswert", v: eur(inv.principal_cents) },
+              ] : [
+                { l: "Eingesetzt", v: eur(inv.principal_cents) },
+                { l: "Rendite p.a.", v: `${inv.interest_rate ?? 0} %` },
+                { l: "Laufzeit ab", v: fmtDate(inv.start_date) },
+                { l: "Fälligkeit", v: fmtDate(inv.maturity_date) },
+              ];
               return (
-                <div key={inv.id} onClick={() => setSelectedInvestment(inv)} className="scp-card p-6 cursor-pointer hover:border-slate-200 hover:shadow-md transition-all">
+                <div key={inv.id} onClick={() => setSelectedInvestment(inv)} className={`scp-card p-6 cursor-pointer hover:shadow-md transition-all ${isToken ? "border-amber-200 hover:border-amber-300" : "hover:border-slate-200"}`}>
                   <div className="flex items-start gap-3">
-                    <div className="w-1 self-stretch rounded-full min-h-[44px]" style={{ background: "linear-gradient(180deg,#0D1B3E,#B8923A)" }} />
+                    <div className="w-1 self-stretch rounded-full min-h-[44px]" style={{ background: isToken ? "linear-gradient(180deg,#d4af6a,#B8923A)" : "linear-gradient(180deg,#0D1B3E,#B8923A)" }} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="text-[16px] font-bold text-slate-900 truncate">{inv.name}</h3>
                         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${st.cls}`}>{st.label}</span>
+                        {isToken && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">ARAS Token</span>}
                       </div>
                       <p className="text-[12px] text-slate-400 mt-0.5">{INVESTMENT_TYPE_LABEL[inv.investment_type] || inv.investment_type}{inv.description ? ` · ${inv.description}` : ""}</p>
                       <div className="mt-3">
                         <p className="text-[22px] font-bold text-slate-900 tabular-nums">{eur(cur)}</p>
-                        <p className={`text-[12px] font-semibold mt-0.5 ${gain >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{gain >= 0 ? "+" : "−"}{eur(Math.abs(gain))} Wertzuwachs</p>
+                        {inv.current_value_cents != null ? (
+                          <p className={`text-[12px] font-semibold mt-0.5 ${gain >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                            {gain >= 0 ? "+" : "−"}{eur(Math.abs(gain))} {isToken ? "Kursgewinn" : "Wertzuwachs"}{gainPct != null ? ` (${gain >= 0 ? "+" : ""}${gainPct.toFixed(2)} %)` : ""}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5 pt-5 border-t border-slate-50">
-                    {[
-                      { l: "Eingesetzt", v: eur(inv.principal_cents) },
-                      { l: "Rendite p.a.", v: `${inv.interest_rate ?? 0} %` },
-                      { l: "Laufzeit ab", v: fmtDate(inv.start_date) },
-                      { l: "Fälligkeit", v: fmtDate(inv.maturity_date) },
-                    ].map((x) => (
+                    {statsRow.map((x) => (
                       <div key={x.l}>
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">{x.l}</p>
                         <p className="text-[14px] font-semibold text-slate-800 tabular-nums">{x.v}</p>
@@ -1233,7 +1259,7 @@ function BenefitDetailDrawer({ benefitKey, onClose }: { benefitKey: string; onCl
   const remaining = quota != null ? Math.max(0, quota - usedThisYear) : null;
 
   const isUpcoming = (a: BenefitActivity) =>
-    (a.status === "requested" || a.status === "confirmed") &&
+    (a.status === "proposed" || a.status === "requested" || a.status === "confirmed") &&
     (!a.scheduled_at || new Date(a.scheduled_at).getTime() >= now - 12 * 60 * 60 * 1000);
   const upcoming = activity.filter(isUpcoming);
   const past = activity.filter((a) => !isUpcoming(a));
@@ -1263,6 +1289,24 @@ function BenefitDetailDrawer({ benefitKey, onClose }: { benefitKey: string; onCl
     try {
       const r = await fetch(`/api/investor/benefit-activity/${id}/cancel`, { method: "POST", credentials: "include" });
       if (r.ok) await load();
+    } catch {} finally { setBusy(false); }
+  };
+
+  const respond = async (id: number, action: "accept" | "decline") => {
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/investor/benefit-activity/${id}/respond`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (r.ok) {
+        setToast(action === "accept"
+          ? "Verbindlich gebucht. Ihre Tickets stehen in Kürze in der App zum Download bereit."
+          : "Vorschlag abgelehnt. Ihr Reisemanagement meldet sich mit einer Alternative.");
+        setTimeout(() => setToast(null), 4500);
+        await load();
+      }
     } catch {} finally { setBusy(false); }
   };
 
@@ -1377,7 +1421,7 @@ function BenefitDetailDrawer({ benefitKey, onClose }: { benefitKey: string; onCl
                   <SectionHeader title="Anstehend" />
                   <div className="space-y-2.5">
                     {upcoming.map((a) => (
-                      <BenefitActivityRow key={a.id} a={a} when={fmtWhen(a)} onCancel={() => cancel(a.id)} busy={busy} />
+                      <BenefitActivityRow key={a.id} a={a} when={fmtWhen(a)} onCancel={() => cancel(a.id)} onRespond={(act) => respond(a.id, act)} busy={busy} />
                     ))}
                   </div>
                 </div>
@@ -1405,20 +1449,59 @@ function BenefitDetailDrawer({ benefitKey, onClose }: { benefitKey: string; onCl
   );
 }
 
-function BenefitActivityRow({ a, when, onCancel, busy }: { a: BenefitActivity; when: string; onCancel?: () => void; busy?: boolean }) {
+function BenefitActivityRow({ a, when, onCancel, onRespond, busy }: { a: BenefitActivity; when: string; onCancel?: () => void; onRespond?: (action: "accept" | "decline") => void; busy?: boolean }) {
   const st = ACTIVITY_STATUS[a.status] || ACTIVITY_STATUS.requested;
+  const [confirming, setConfirming] = useState(false);
+  const isProposal = a.status === "proposed";
   return (
-    <div className="scp-card p-4">
+    <div className={`scp-card p-4 ${isProposal ? "ring-1 ring-[#B8923A]/40" : ""}`}
+      style={isProposal ? { background: "linear-gradient(160deg,#fffdf8,#fbf6ea)" } : undefined}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[13.5px] font-semibold text-slate-900">{a.title}</p>
-          {a.details && <p className="text-[12px] text-slate-500 mt-0.5 leading-relaxed">{a.details}</p>}
+          {a.details && <p className="text-[12px] text-slate-500 mt-0.5 leading-relaxed whitespace-pre-line">{a.details}</p>}
           <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1.5">
             <Icon name="calendar" size={12} strokeWidth={1.7} /> {when}
           </p>
         </div>
         <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${st.cls}`}>{st.label}</span>
       </div>
+
+      {isProposal && onRespond && (
+        <div className="mt-3.5 pt-3.5 border-t border-[#B8923A]/20">
+          {!confirming ? (
+            <div className="flex items-center gap-2.5">
+              <button onClick={() => setConfirming(true)} disabled={busy}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[13px] font-semibold text-[#0D1B3E] transition-all hover:brightness-105 active:scale-[.99] disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg,#d4af6a,#B8923A)", boxShadow: "0 8px 22px -12px rgba(184,146,58,.7)" }}>
+                <Icon name="check" size={15} strokeWidth={2} /> Annehmen
+              </button>
+              <button onClick={() => onRespond("decline")} disabled={busy}
+                className="px-4 py-2.5 rounded-lg text-[13px] font-semibold text-rose-600 border border-rose-200 hover:bg-rose-50 disabled:opacity-50 transition-colors">
+                Ablehnen
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="rounded-lg px-3.5 py-3 text-[12px] leading-relaxed" style={{ background: "rgba(184,146,58,.1)", border: "1px solid rgba(184,146,58,.25)", color: "#6b541a" }}>
+                Mit Ihrer Bestätigung wird die Reise <span className="font-semibold">verbindlich zu den genannten Daten gebucht</span>. Ihre Tickets stehen anschließend direkt hier in der App zum Download bereit.
+              </div>
+              <div className="flex items-center gap-2.5">
+                <button onClick={() => onRespond("accept")} disabled={busy}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[13px] font-semibold text-white transition-all disabled:opacity-50"
+                  style={{ background: "linear-gradient(135deg,#0D1B3E,#1d2f5a)" }}>
+                  {busy ? "Wird gebucht…" : "Verbindlich buchen"}
+                </button>
+                <button onClick={() => setConfirming(false)} disabled={busy}
+                  className="px-4 py-2.5 rounded-lg text-[13px] font-semibold text-slate-500 hover:text-slate-700 disabled:opacity-50 transition-colors">
+                  Zurück
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {onCancel && (a.status === "requested" || a.status === "confirmed") && (
         <button onClick={onCancel} disabled={busy}
           className="mt-3 text-[12px] font-semibold text-rose-600 hover:text-rose-700 disabled:opacity-50 transition-colors">

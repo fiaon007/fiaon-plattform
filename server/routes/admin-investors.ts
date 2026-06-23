@@ -248,18 +248,32 @@ router.post("/:id/investments", async (req, res) => {
       name, investmentType = "fund", principalCents = 0, currentValueCents,
       currency = "EUR", interestRate, status = "active",
       startDate, maturityDate, payoutFrequency = "yearly", description,
+      tokenQuantity, tokenPurchasePriceCents, tokenCurrentPriceCents,
     } = req.body ?? {};
     if (!name) return res.status(400).json({ ok: false, error: "Name ist erforderlich" });
+
+    // For token investments, derive principal and current value from quantity × price
+    let finalPrincipalCents = Number(principalCents) || 0;
+    let finalCurrentValueCents = currentValueCents == null || currentValueCents === "" ? null : Number(currentValueCents);
+    const qty = tokenQuantity != null && tokenQuantity !== "" ? Number(tokenQuantity) : null;
+    const buyPrice = tokenPurchasePriceCents != null && tokenPurchasePriceCents !== "" ? Number(tokenPurchasePriceCents) : null;
+    const curPrice = tokenCurrentPriceCents != null && tokenCurrentPriceCents !== "" ? Number(tokenCurrentPriceCents) : null;
+    if (investmentType === "token" && qty != null && buyPrice != null) {
+      finalPrincipalCents = Math.round(qty * buyPrice);
+      if (curPrice != null) finalCurrentValueCents = Math.round(qty * curPrice);
+    }
 
     const [investment] = await client`
       INSERT INTO investor_investments (
         investor_id, name, investment_type, principal_cents, current_value_cents,
-        currency, interest_rate, status, start_date, maturity_date, payout_frequency, description
+        currency, interest_rate, status, start_date, maturity_date, payout_frequency, description,
+        token_quantity, token_purchase_price_cents, token_current_price_cents
       ) VALUES (
-        ${id}, ${name}, ${investmentType}, ${Number(principalCents) || 0},
-        ${currentValueCents == null || currentValueCents === "" ? null : Number(currentValueCents)},
+        ${id}, ${name}, ${investmentType}, ${finalPrincipalCents},
+        ${finalCurrentValueCents},
         ${currency}, ${interestRate == null || interestRate === "" ? null : Number(interestRate)},
-        ${status}, ${startDate || null}, ${maturityDate || null}, ${payoutFrequency}, ${description ?? null}
+        ${status}, ${startDate || null}, ${maturityDate || null}, ${payoutFrequency}, ${description ?? null},
+        ${qty}, ${buyPrice}, ${curPrice}
       ) RETURNING *
     `;
     res.status(201).json({ ok: true, investment });
@@ -277,8 +291,10 @@ router.patch("/:id/investments/:invId", async (req, res) => {
       currentValueCents: "current_value_cents", currency: "currency", interestRate: "interest_rate",
       status: "status", startDate: "start_date", maturityDate: "maturity_date",
       payoutFrequency: "payout_frequency", description: "description",
+      tokenQuantity: "token_quantity", tokenPurchasePriceCents: "token_purchase_price_cents",
+      tokenCurrentPriceCents: "token_current_price_cents",
     };
-    const numeric = new Set(["principal_cents", "current_value_cents", "interest_rate"]);
+    const numeric = new Set(["principal_cents", "current_value_cents", "interest_rate", "token_quantity", "token_purchase_price_cents", "token_current_price_cents"]);
     const updates: Record<string, any> = {};
     for (const [k, col] of Object.entries(map)) {
       if (k in req.body) {
@@ -286,6 +302,20 @@ router.patch("/:id/investments/:invId", async (req, res) => {
         if (v === "" || v === null) v = null;
         else if (numeric.has(col)) v = Number(v);
         updates[col] = v;
+      }
+    }
+    // If patching token prices/quantity, recompute principal + current value automatically
+    const qty = updates["token_quantity"] ?? null;
+    const buyP = updates["token_purchase_price_cents"] ?? null;
+    const curP = updates["token_current_price_cents"] ?? null;
+    if (qty != null || buyP != null || curP != null) {
+      const [existing] = await client`SELECT investment_type, token_quantity, token_purchase_price_cents, token_current_price_cents FROM investor_investments WHERE id = ${Number(invId)}`;
+      if (existing && (existing.investment_type === "token" || updates["investment_type"] === "token")) {
+        const q = qty ?? Number(existing.token_quantity);
+        const bp = buyP ?? Number(existing.token_purchase_price_cents);
+        const cp = curP ?? (existing.token_current_price_cents != null ? Number(existing.token_current_price_cents) : null);
+        if (q && bp) updates["principal_cents"] = Math.round(q * bp);
+        if (q && cp != null) updates["current_value_cents"] = Math.round(q * cp);
       }
     }
     if (Object.keys(updates).length === 0) {

@@ -248,6 +248,11 @@ export function ensureInvestorTables(): Promise<void> {
     // ---- demo flag (clearly marks the showcase / demo account) ----
     await client`ALTER TABLE investors ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT FALSE`;
 
+    // ---- token investments (e.g. ARAS Token) — quantity + dual price ----
+    await client`ALTER TABLE investor_investments ADD COLUMN IF NOT EXISTS token_quantity NUMERIC(20,6)`;
+    await client`ALTER TABLE investor_investments ADD COLUMN IF NOT EXISTS token_purchase_price_cents BIGINT`;
+    await client`ALTER TABLE investor_investments ADD COLUMN IF NOT EXISTS token_current_price_cents BIGINT`;
+
     // ---- benefit activity (bookings, consultations, cancellations) — all tracked ----
     await client`
       CREATE TABLE IF NOT EXISTS investor_benefit_activity (
@@ -768,6 +773,33 @@ router.post("/benefit-activity/:id/cancel", requireInvestor, async (req: Investo
     return res.json({ ok: true, activity: row });
   } catch (err) {
     logger.error("[INVESTOR-BENEFIT-ACTIVITY-CANCEL] error", err);
+    return res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// POST /api/investor/benefit-activity/:id/respond — accept or decline a staff proposal
+//   A 'proposed' booking is only finalised once the investor explicitly accepts it.
+router.post("/benefit-activity/:id/respond", requireInvestor, async (req: InvestorRequest, res: Response) => {
+  try {
+    const investorId = req.investor!.id;
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ ok: false, error: "Ungültige ID" });
+    const action = String(req.body?.action || "");
+    if (action !== "accept" && action !== "decline") {
+      return res.status(400).json({ ok: false, error: "Ungültige Aktion" });
+    }
+    const newStatus = action === "accept" ? "confirmed" : "declined";
+    const [row] = await client`
+      UPDATE investor_benefit_activity
+      SET status = ${newStatus}, updated_at = NOW()
+      WHERE id = ${id} AND investor_id = ${investorId} AND status = 'proposed'
+      RETURNING id, benefit_key, kind, title, details, status, scheduled_at, created_at
+    `;
+    if (!row) return res.status(404).json({ ok: false, error: "Vorschlag nicht gefunden oder bereits bearbeitet" });
+    logger.info?.(`[INVESTOR-BENEFIT-ACTIVITY] ${investorId} ${action}ed proposal ${id} (${row.benefit_key})`);
+    return res.json({ ok: true, activity: row });
+  } catch (err) {
+    logger.error("[INVESTOR-BENEFIT-ACTIVITY-RESPOND] error", err);
     return res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

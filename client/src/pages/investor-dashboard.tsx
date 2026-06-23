@@ -752,8 +752,25 @@ function InvestmentDetailDrawer({
   onClose: () => void;
 }) {
   const isZV1 = investment.name.includes("ZV1");
+  const isToken = investment.investment_type === "token";
   const myTxs = transactions.filter((t) => t.investment_id === investment.id);
   const totalPayout = Math.round(investment.principal_cents * (1 + (investment.interest_rate ?? 0) / 100));
+  const tokenCur = investment.current_value_cents ?? investment.principal_cents;
+  const tokenGain = tokenCur - investment.principal_cents;
+  const tokenGainPct = investment.principal_cents > 0 ? (tokenGain / investment.principal_cents) * 100 : 0;
+  const eurFmt = (v: number) => v.toLocaleString("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2 });
+
+  const tokenHeaderKpis = isToken ? [
+    { l: "Token-Gesamtzahl", v: investment.token_quantity != null ? Number(investment.token_quantity).toLocaleString("de-DE") + " ARAS" : "—" },
+    { l: "Einkaufskurs", v: investment.token_purchase_price_cents != null ? eurFmt(investment.token_purchase_price_cents / 100) + " / Token" : "—" },
+    { l: "Aktueller Kurs", v: investment.token_current_price_cents != null ? eurFmt(investment.token_current_price_cents / 100) + " / Token" : "—" },
+    { l: `Gesamtwert · ${tokenGain >= 0 ? "+" : ""}${tokenGainPct.toFixed(2)} %`, v: eur2(tokenCur) },
+  ] : [
+    { l: "Gesamteinlage", v: eur2(investment.principal_cents) },
+    { l: "Zinssatz p.a.", v: `${investment.interest_rate ?? 0} %` },
+    { l: "Laufzeit bis", v: fmtDate(investment.maturity_date) },
+    { l: "Endfällige Auszahlung", v: eur2(totalPayout) },
+  ];
 
   return (
     <>
@@ -763,13 +780,14 @@ function InvestmentDetailDrawer({
         style={{ width: "min(720px,100vw)", boxShadow: "-20px 0 60px rgba(0,0,0,.25)", animation: "slideInRight .3s cubic-bezier(.4,0,.2,1)" }}
       >
         {/* Header */}
-        <div className="shrink-0 px-7 pt-7 pb-6" style={{ background: "linear-gradient(160deg,#0D1B3E 0%,#142248 100%)" }}>
+        <div className="shrink-0 px-7 pt-7 pb-6" style={{ background: isToken ? "linear-gradient(160deg,#1a1200 0%,#3a2800 100%)" : "linear-gradient(160deg,#0D1B3E 0%,#142248 100%)" }}>
           <div className="flex items-start justify-between mb-5">
             <div className="flex-1 min-w-0 pr-4">
               <p className="text-[10px] font-bold uppercase tracking-[.3em] mb-1.5" style={{ color: "#B8923A" }}>
-                Investitionsvertrag · {investment.currency}
+                {isToken ? "Private Sale Agreement · ARAS Token · Addendum Nr. 2" : `Investitionsvertrag · ${investment.currency}`}
               </p>
               <h2 className="text-[16px] font-bold text-white leading-snug">{investment.name}</h2>
+              {isToken && <p className="text-[11px] mt-1" style={{ color: "rgba(212,175,106,0.7)" }}>ERC-20 · Arbitrum One Blockchain</p>}
             </div>
             <button
               onClick={onClose}
@@ -781,12 +799,7 @@ function InvestmentDetailDrawer({
             </button>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {[
-              { l: "Gesamteinlage", v: eur2(investment.principal_cents) },
-              { l: "Zinssatz p.a.", v: `${investment.interest_rate ?? 0} %` },
-              { l: "Laufzeit bis", v: fmtDate(investment.maturity_date) },
-              { l: "Endfällige Auszahlung", v: eur2(totalPayout) },
-            ].map((x) => (
+            {tokenHeaderKpis.map((x) => (
               <div key={x.l} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
                 <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "rgba(212,175,106,.7)" }}>{x.l}</p>
                 <p className="text-[12.5px] font-bold text-white tabular-nums">{x.v}</p>
@@ -797,6 +810,122 @@ function InvestmentDetailDrawer({
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto">
+
+          {/* ── ARAS TOKEN DETAIL ── */}
+          {isToken && (
+            <>
+              {/* Vertragsparteien */}
+              <section className="px-7 py-5 border-b border-slate-100">
+                <SectionHeader title="Vertragsparteien · Addendum Nr. 2" />
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <InfoBox
+                    label="Emittentin"
+                    name="Schwarzott Capital Partners AG"
+                    details={"Löwenstrasse 20, 8001 Zürich, Schweiz\nCHE-102.119.428\nVerwaltungsratspräsident: Justin Schwarzott"}
+                  />
+                  <InfoBox
+                    label="Investor"
+                    name="Iron Mountain Investment LLC"
+                    details={"Sharjah Media City, Sharjah, VAE\nFormation Number 2218188\nDirector: Christian Schwab"}
+                  />
+                </div>
+              </section>
+
+              {/* Token-Zuteilung */}
+              <section className="px-7 py-5 border-b border-slate-100">
+                <SectionHeader title="Token-Zuteilung · Investment EUR 50.000" />
+                <div className="rounded-xl overflow-hidden border border-slate-200">
+                  <table className="w-full">
+                    <tbody>
+                      {([
+                        { pos: "01 · Basiszuteilung", sub: "EUR 50.000 Investitionsbetrag ÷ EUR 0,12 Zuteilungspreis", val: "416.666 ARAS" },
+                        { pos: "02 · Investor Campaign Bonus (15 %)", sub: "15 % Bonus auf die Basiszuteilung gemäß Investoren-Kampagne", val: "62.499 ARAS" },
+                        { pos: "03 · Zusatzbonus (6 %)", sub: "Weiterer Bonus von 6 % auf die Basiszuteilung", val: "24.999 ARAS" },
+                      ] as const).map((r, i) => (
+                        <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                          <td className="px-4 py-3 text-[12.5px]">
+                            <p className="font-semibold text-slate-900">{r.pos}</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">{r.sub}</p>
+                          </td>
+                          <td className="px-4 py-3 text-right text-[13px] font-bold text-slate-900 tabular-nums whitespace-nowrap">{r.val}</td>
+                        </tr>
+                      ))}
+                      <tr style={{ background: "linear-gradient(90deg,#1a1200,#3a2800)" }}>
+                        <td className="px-4 py-3 text-[13px] font-bold text-white">Gesamt-Zuteilung</td>
+                        <td className="px-4 py-3 text-right text-[14px] font-bold tabular-nums whitespace-nowrap" style={{ color: "#d4af6a" }}>504.164 ARAS Token</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-3 p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 text-[12px] text-slate-700 leading-relaxed">
+                  Zuteilungspreis: <strong>EUR 0,12 pro Token</strong> · Token-Transfer innerhalb von <strong>3 Werktagen</strong> nach Unterzeichnung (Vorausleistung der Emittentin) · Blockchain: <strong>Arbitrum One (ERC-20)</strong>
+                </div>
+              </section>
+
+              {/* Kursentwicklung */}
+              {investment.token_purchase_price_cents != null && investment.token_current_price_cents != null && (
+                <section className="px-7 py-5 border-b border-slate-100">
+                  <SectionHeader title="Kursentwicklung & aktueller Portfoliowert" />
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {[
+                      { l: "Einkaufskurs", v: eurFmt(investment.token_purchase_price_cents / 100) + " / Token" },
+                      { l: "Aktueller Kurs", v: eurFmt(investment.token_current_price_cents / 100) + " / Token" },
+                      { l: "Einkaufswert gesamt", v: eur2(investment.principal_cents) },
+                      { l: tokenGain >= 0 ? "Kursgewinn" : "Kursverlust", v: `${tokenGain >= 0 ? "+" : ""}${eurFmt(tokenGain / 100)} (${tokenGain >= 0 ? "+" : ""}${tokenGainPct.toFixed(2)} %)` },
+                    ].map((x) => (
+                      <div key={x.l} className="flex flex-col justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{x.l}</p>
+                        <p className={`text-[13px] font-bold mt-1 tabular-nums ${x.l.includes("gewinn") ? "text-emerald-600" : x.l.includes("verlust") ? "text-rose-600" : "text-slate-900"}`}>{x.v}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Blockchain & Transfer */}
+              <section className="px-7 py-5 border-b border-slate-100">
+                <SectionHeader title="Blockchain · Transfer & Rechtliches" />
+                <div className="space-y-2.5">
+                  {[
+                    { t: "Blockchain-Standard", tx: "ERC-20 Token auf der Arbitrum One Blockchain. Transfer an die hinterlegte Wallet-Adresse des Investors; Dokumentation per Tx-Hash / Blockchain-Explorer." },
+                    { t: "Rechtsübergang", tx: "Mit Nachweis der Übertragung (Tx-Hash) gilt die rechtliche und wirtschaftliche Verfügungsmacht als auf den Investor übergegangen." },
+                    { t: "Kein Rückabwicklungsanspruch", tx: "Nach erfolgter Tokenzuteilung besteht kein Anspruch auf Rückabwicklung oder Umwandlung in Fiatgeld aufgrund nachträglicher Markt-, Kurs- oder Projektentwicklungen." },
+                    { t: "Rechtswahl & Gerichtsstand", tx: "Schweizer Recht (ohne Kollisionsnormen und UN-Kaufrecht). Ausschließlicher Gerichtsstand: Zürich, Schweiz." },
+                  ].map((s, i) => (
+                    <div key={i} className="p-3.5 rounded-xl border border-slate-100 bg-slate-50">
+                      <p className="text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1">{s.t}</p>
+                      <p className="text-[12px] text-slate-500 leading-relaxed">{s.tx}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Dokument-Signatur */}
+              <section className="px-7 py-5 border-b border-slate-100">
+                <SectionHeader title="Digitale Unterzeichnung via PandaDoc" />
+                <div className="rounded-xl border border-slate-200 p-4 bg-slate-50">
+                  <div className="grid grid-cols-2 gap-y-3 gap-x-6">
+                    {([
+                      ["Dokument-Referenz", "O3GU8-SKXPJ-QXGYX-UVXM8"],
+                      ["Unterzeichnet", "15. Dezember 2025 · Zürich"],
+                      ["Unterzeichner (Emittentin)", "Justin Schwarzott · Schwarzott Capital Partners AG"],
+                      ["Unterzeichner (Investor)", "Christian Schwab · Iron Mountain Investment LLC"],
+                    ] as const).map(([k, v], i) => (
+                      <div key={i}>
+                        <p className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">{k}</p>
+                        <p className="font-semibold text-slate-900 text-[11.5px]">{v}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+                    <span className="text-[11px] font-semibold">Addendum Nr. 2 rechtsgültig unterzeichnet · Beide Parteien verifiziert</span>
+                  </div>
+                </div>
+              </section>
+            </>
+          )}
+
           {isZV1 && (
             <>
               {/* Vertragsparteien */}

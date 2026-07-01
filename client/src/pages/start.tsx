@@ -881,9 +881,7 @@ function Reversal({ onOpenPack }: { onOpenPack: () => void }) {
 /* ════════════════════════════════════════════
    STICKY CTA (mobile)
    ════════════════════════════════════════════ */
-function StickyCTA({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
-  const slots = useSlots();
-  const left = useCountdown();
+function StickyCTA({ ctaRef, onOpenPack }: { ctaRef: React.RefObject<HTMLDivElement>; onOpenPack: () => void }) {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     if (!ctaRef.current) return;
@@ -905,19 +903,19 @@ function StickyCTA({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 mb-1">
             <span className="inline-flex w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: "startPulseDot 1.8s ease-in-out infinite" }} />
-            <span className="text-[10.5px] uppercase tracking-wider font-bold text-gray-700">Noch {slots} Priority-Slots</span>
+            <span className="text-[10.5px] uppercase tracking-wider font-bold text-gray-700">Deine FIAON Karte</span>
           </div>
           <div className="text-[10.5px] leading-snug font-medium text-gray-600">
-            Entscheidung in 120 Sek. · endet in <b className="font-mono text-gray-900 tabular-nums">{left}</b>
+            Beantrage direkt & erfahre dein Limit <b className="text-gray-900">in unter 2 Minuten</b>.
           </div>
         </div>
-        <a href={antragLink("highend")}
+        <button type="button"
           className="fiaon-btn-gradient shrink-0 inline-flex items-center gap-1.5 px-4 py-3 rounded-full text-[13px] font-semibold text-white whitespace-nowrap"
           style={{ minHeight: 44 }}
-          onClick={() => { try { fetch("/api/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event: "wa_sticky_cta", src: "wa" }) }).catch(() => { }); } catch { } }}>
+          onClick={() => { try { fetch("/api/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event: "wa_sticky_cta", src: "wa" }) }).catch(() => { }); } catch { } onOpenPack(); }}>
           Limit prüfen
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-        </a>
+        </button>
       </div>
     </div>
   );
@@ -966,7 +964,7 @@ export default function StartPage() {
       <SecurityStrip />
       <FAQ />
       <PremiumFooter />
-      <StickyCTA ctaRef={heroCtaRef} />
+      <StickyCTA ctaRef={heroCtaRef} onOpenPack={() => setPackOpen(true)} />
       <LiveFeedToast />
       <PackModal open={packOpen} onClose={() => setPackOpen(false)} />
     </div>

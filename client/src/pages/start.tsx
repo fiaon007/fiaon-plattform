@@ -958,13 +958,13 @@ export default function StartPage() {
       <Hero ctaRef={heroCtaRef} onOpenPack={() => setPackOpen(true)} />
       <TrustBar />
       <Packages />
+      <Reversal onOpenPack={() => setPackOpen(true)} />
       <Pains />
       <HowItWorks />
       <Testimonials />
       <UseCases />
       <SecurityStrip />
       <FAQ />
-      <Reversal onOpenPack={() => setPackOpen(true)} />
       <PremiumFooter />
       <StickyCTA ctaRef={heroCtaRef} />
       <LiveFeedToast />

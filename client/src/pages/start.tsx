@@ -38,6 +38,8 @@ if (typeof document !== "undefined" && !document.head.querySelector('style[data-
     @keyframes startChipFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
     @keyframes startRingSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     @keyframes startUrgency { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+    @keyframes startModalFade { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes startSheetUp { from { opacity: 0; transform: translateY(48px) scale(.97); } to { opacity: 1; transform: none; } }
     @media (prefers-reduced-motion: reduce) {
       .fiaon-card-float, .start-shimmer, .start-glow-pulse, .start-chip, .start-ring { animation: none !important; }
     }
@@ -219,6 +221,102 @@ function LiveFeedToast() {
 }
 
 /* ════════════════════════════════════════════
+   PAKET-AUSWAHL-MODAL
+   ════════════════════════════════════════════ */
+function PackModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
+  }, [open, onClose]);
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center" style={{ animation: "startModalFade .2s ease" }}>
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0"
+        style={{ background: "rgba(15,23,42,.5)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
+        onClick={onClose}
+      />
+      {/* Panel */}
+      <div
+        className="relative w-full sm:max-w-[480px] bg-white rounded-t-[28px] sm:rounded-[28px] px-5 pt-5 pb-7 sm:p-7 sm:mx-4 overflow-hidden max-h-[92vh] overflow-y-auto"
+        style={{ boxShadow: "0 30px 80px rgba(15,23,42,.3)", animation: "startSheetUp .38s cubic-bezier(.22,1,.36,1)" }}
+      >
+        {/* Ambient glow */}
+        <div className="absolute inset-x-0 top-0 h-[200px] pointer-events-none" style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,.10), transparent 70%)" }} />
+
+        {/* Close */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-20 w-9 h-9 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700 transition-colors"
+          aria-label="Schließen"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+        </button>
+
+        <div className="relative z-10">
+          {/* Drag handle (mobile) */}
+          <div className="sm:hidden w-10 h-1 rounded-full bg-gray-200 mx-auto mb-4" />
+
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 text-[#2563eb] text-[11px] font-bold uppercase tracking-[.16em] mb-3">
+              <span className="relative flex w-1.5 h-1.5">
+                <span className="absolute inline-flex w-full h-full rounded-full bg-[#2563eb] opacity-60 animate-ping" />
+                <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-[#2563eb]" />
+              </span>
+              Schritt 1 von 2
+            </div>
+            <h3 className="text-[22px] sm:text-[24px] font-semibold tracking-tight text-gray-900 leading-snug">
+              Wähle dein <G>Wunschlimit</G>
+            </h3>
+            <p className="text-[13px] text-gray-500 mt-1.5">0 € heute — Zahlung erst nach Freigabe</p>
+          </div>
+
+          <div className="space-y-2.5">
+            {PACKS.map(p => (
+              <a
+                key={p.key}
+                href={antragLink(p.key)}
+                onClick={() => { try { fetch("/api/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event: "wa_pack_modal_select", pack: p.key, src: "wa" }) }).catch(() => { }); } catch { } }}
+                className={`group relative flex items-center gap-3.5 p-3.5 rounded-2xl border bg-white transition-all duration-300 active:scale-[.99] hover:shadow-[0_12px_32px_rgba(37,99,235,.12)] ${p.rec ? "border-[#2563eb]/40 shadow-[0_4px_20px_rgba(37,99,235,.12)]" : "border-gray-100 hover:border-blue-200"}`}
+              >
+                {p.rec && (
+                  <span className="absolute -top-2.5 left-4 px-2.5 py-0.5 text-[9.5px] font-bold tracking-wider text-white rounded-full"
+                    style={{ background: "linear-gradient(135deg,#2563eb,#3b82f6)", boxShadow: "0 4px 12px rgba(37,99,235,.35)" }}>✦ MEISTGEWÄHLT</span>
+                )}
+                {/* Mini card */}
+                <div className="w-[68px] shrink-0 aspect-[1.586/1] rounded-lg relative overflow-hidden" style={{ background: p.bg, boxShadow: "0 6px 16px rgba(10,20,40,.25)" }}>
+                  <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 25% 15%, rgba(255,255,255,.3), transparent 55%)", mixBlendMode: "overlay" }} />
+                  <div className="absolute top-1.5 left-1.5 w-3.5 h-2.5 rounded-[2px]" style={{ background: "linear-gradient(135deg,#d4af37,#f0d875,#c9a227)" }} />
+                  <span className="absolute bottom-1 right-1.5 text-[5.5px] font-semibold" style={{ color: "rgba(255,255,255,.65)" }}>FIAON</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-1.5">
+                    <p className="text-[14.5px] font-bold text-gray-900 leading-tight">{p.name}</p>
+                  </div>
+                  <p className="text-[12px] text-gray-500 mt-0.5">Wunschlimit bis <b className="text-[#2563eb]">{p.lim} €</b> · {p.fee} €/Mt.</p>
+                </div>
+                <span className="w-8 h-8 rounded-full bg-gray-50 group-hover:bg-[#2563eb] flex items-center justify-center text-gray-400 group-hover:text-white transition-all duration-300 shrink-0">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
+                </span>
+              </a>
+            ))}
+          </div>
+
+          <div className="mt-5 flex items-center justify-center gap-1.5 text-[11.5px] text-gray-400">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+            Schufaneutral · Monatlich kündbar · SSL-verschlüsselt
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════
    SCARCITY BAR — Countdown + Slots
    ════════════════════════════════════════════ */
 function ScarcityBar() {
@@ -259,7 +357,7 @@ function ScarcityBar() {
 /* ════════════════════════════════════════════
    HERO
    ════════════════════════════════════════════ */
-function Hero({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
+function Hero({ ctaRef, onOpenPack }: { ctaRef: React.RefObject<HTMLDivElement>; onOpenPack: () => void }) {
   const slots = useSlots();
   return (
     <section className="relative pt-14 sm:pt-20 pb-20 sm:pb-28 overflow-hidden">
@@ -289,14 +387,14 @@ function Hero({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
 
         {/* CTA */}
         <div ref={ctaRef} className="mb-4 flex flex-col items-center" style={{ animation: "startCardEnter .6s cubic-bezier(.22,1,.36,1) .24s both" }}>
-          <a href={antragLink("highend")}
+          <button type="button"
             className="fiaon-btn-gradient relative inline-flex items-center justify-center gap-2 px-9 py-[18px] rounded-full text-[16px] sm:text-[17px] font-semibold text-white overflow-hidden group w-full sm:w-auto"
             style={{ minHeight: 56, boxShadow: "0 18px 44px rgba(37,99,235,.35)" }}
-            onClick={() => { try { fetch("/api/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event: "wa_hero_cta", src: "wa" }) }).catch(() => { }); } catch { } }}>
+            onClick={() => { try { fetch("/api/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event: "wa_hero_cta", src: "wa" }) }).catch(() => { }); } catch { } onOpenPack(); }}>
             <span className="relative z-10">Jetzt kostenlos Limit prüfen</span>
             <svg className="relative z-10" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
             <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent)", animation: "startShimmer 3.2s ease-in-out infinite" }} />
-          </a>
+          </button>
           <p className="mt-3 text-[12.5px] font-medium text-gray-500">
             Unverbindlich · Ergebnis sofort · <span className="text-amber-600 font-semibold" style={{ animation: "startUrgency 2.4s ease-in-out infinite" }}>Nur noch {slots} Priority-Slots heute</span>
           </p>
@@ -747,7 +845,7 @@ function FAQ() {
 /* ════════════════════════════════════════════
    RISK REVERSAL
    ════════════════════════════════════════════ */
-function Reversal() {
+function Reversal({ onOpenPack }: { onOpenPack: () => void }) {
   const obs = useReveal();
   return (
     <section className="relative py-20 sm:py-28 overflow-hidden" ref={obs.ref} style={{ background: "linear-gradient(180deg,#0b1628 0%,#0f1d34 100%)" }}>
@@ -762,14 +860,14 @@ function Reversal() {
         <p className="text-[15px] sm:text-[17px] text-gray-300 leading-relaxed max-w-[560px] mx-auto mb-9">
           Keine Einrichtungsgebühr. Keine Vorkasse. Kein versteckter Haken. Wenn wir nicht liefern, zahlst du nichts. Punkt.
         </p>
-        <a href={antragLink("highend")}
+        <button type="button" onClick={onOpenPack}
           className="relative inline-flex items-center gap-2 px-9 py-4 rounded-full text-[16px] font-semibold text-white overflow-hidden group"
           style={{ background: "linear-gradient(135deg,#2563eb,#3b82f6)", boxShadow: "0 20px 50px rgba(37,99,235,.45), 0 0 0 1px rgba(255,255,255,.1) inset", minHeight: 54 }}>
           <span className="relative z-10">Jetzt kostenlos Limit prüfen</span>
           <svg className="relative z-10" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
           <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ boxShadow: "0 0 60px rgba(37,99,235,.7)" }} />
           <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent)", animation: "startShimmer 3.2s ease-in-out infinite" }} />
-        </a>
+        </button>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[12.5px] text-gray-400 font-medium">
           <span className="inline-flex items-center gap-1.5"><Check /> Schufaneutral</span>
           <span className="inline-flex items-center gap-1.5"><Check /> Monatlich kündbar</span>
@@ -830,6 +928,7 @@ function StickyCTA({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
    ════════════════════════════════════════════ */
 export default function StartPage() {
   const heroCtaRef = useRef<HTMLDivElement>(null);
+  const [packOpen, setPackOpen] = useState(false);
 
   useEffect(() => {
     const prevTitle = document.title;
@@ -856,7 +955,7 @@ export default function StartPage() {
     <div className="min-h-screen text-gray-900 antialiased" style={{ fontFamily: "'Inter',-apple-system,sans-serif", background: "linear-gradient(180deg,#ffffff 0%,#f8faff 40%,#ffffff 100%)" }}>
       <GlassNav activePage="privatkunden" />
       <ScarcityBar />
-      <Hero ctaRef={heroCtaRef} />
+      <Hero ctaRef={heroCtaRef} onOpenPack={() => setPackOpen(true)} />
       <TrustBar />
       <Packages />
       <Pains />
@@ -865,10 +964,11 @@ export default function StartPage() {
       <UseCases />
       <SecurityStrip />
       <FAQ />
-      <Reversal />
+      <Reversal onOpenPack={() => setPackOpen(true)} />
       <PremiumFooter />
       <StickyCTA ctaRef={heroCtaRef} />
       <LiveFeedToast />
+      <PackModal open={packOpen} onClose={() => setPackOpen(false)} />
     </div>
   );
 }

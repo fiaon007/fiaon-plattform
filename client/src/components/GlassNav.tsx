@@ -194,6 +194,13 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
               }}
             >
               <a
+                href="/privatkunden"
+                onClick={() => setPrivatOpen(false)}
+                className="block px-5 py-3 text-[13.5px] font-medium text-gray-700 hover:text-gray-900 hover:bg-blue-50/50 transition-colors rounded-xl"
+              >
+                Privatkunden Startseite
+              </a>
+              <a
                 href="/bonitaet"
                 onClick={() => setPrivatOpen(false)}
                 className="block px-5 py-3 text-[13.5px] font-medium text-gray-700 hover:text-gray-900 hover:bg-blue-50/50 transition-colors rounded-xl"
@@ -232,6 +239,13 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                       {/* Mobile submenu for Privatkunden */}
                       {privatMobileOpen && (
                         <div className="pl-4 mt-2 pb-2 space-y-2">
+                          <a
+                            href="/privatkunden"
+                            onClick={() => { setMob(false); setPrivatMobileOpen(false); }}
+                            className="block py-3 text-[15px] font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                          >
+                            Privatkunden Startseite
+                          </a>
                           <a
                             href="/bonitaet"
                             onClick={() => { setMob(false); setPrivatMobileOpen(false); }}

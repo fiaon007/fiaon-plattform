@@ -2,10 +2,10 @@ import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
+import FiaonHome from "@/pages/fiaon-home";
 import FiaonLanding from "@/pages/fiaon-landing";
 import StartPage from "@/pages/start";
 import BusinessPage from "@/pages/business";
-import PrivatkundenPage from "@/pages/privatkunden";
 import AntragPage from "@/pages/antrag";
 import BusinessAntragPage from "@/pages/business-antrag";
 import Terms from "@/pages/terms";
@@ -32,11 +32,11 @@ import InvestorDashboardPage from "@/pages/investor-dashboard";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={FiaonLanding} />
+      <Route path="/" component={FiaonHome} />
       <Route path="/start" component={StartPage} />
       <Route path="/karte-sichern" component={StartPage} />
       <Route path="/business" component={BusinessPage} />
-      <Route path="/privatkunden" component={PrivatkundenPage} />
+      <Route path="/privatkunden" component={FiaonLanding} />
       <Route path="/antrag" component={AntragPage} />
       <Route path="/business-antrag" component={BusinessAntragPage} />
       <Route path="/login" component={LoginPage} />

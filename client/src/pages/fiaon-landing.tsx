@@ -1781,7 +1781,7 @@ function Foot() {
 export default function FiaonLanding() {
   return (
     <div className="min-h-screen bg-white text-gray-900 antialiased" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
-      <GlassNav activePage="startseite" />
+      <GlassNav activePage="privatkunden" />
       <Hero />
       <Numbers />
       <WhySection />

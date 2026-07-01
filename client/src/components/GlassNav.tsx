@@ -213,83 +213,132 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
 
         {/* Mobile full-screen menu overlay */}
         {mob && (
-          <div className="md:hidden fixed inset-0 top-[72px] z-40 bg-white/95 backdrop-blur-xl">
-            <div className="px-6 py-8 space-y-4">
-              {pages.map((p) => (
-                <div key={p.key}>
-                  {p.key === "privatkunden" ? (
-                    <>
-                      <button
-                        onClick={() => setPrivatMobileOpen(!privatMobileOpen)}
-                        className={`w-full text-left flex items-center justify-between py-4 text-lg font-medium transition-colors border-b border-gray-100 ${
-                          activePage === p.key
-                            ? "text-gray-900"
-                            : "text-gray-600"
+          <div className="md:hidden fixed inset-0 z-40" style={{ animation: "mobMenuIn .25s ease both" }}>
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-white/90"
+              style={{ backdropFilter: "blur(28px) saturate(160%)", WebkitBackdropFilter: "blur(28px) saturate(160%)" }}
+            />
+            {/* Ambient glow */}
+            <div
+              className="absolute -top-32 left-1/2 -translate-x-1/2 w-[520px] h-[420px] pointer-events-none"
+              style={{ background: "radial-gradient(ellipse at center, rgba(37,99,235,.10), transparent 65%)" }}
+            />
+            {/* Close button */}
+            <button
+              onClick={() => { setMob(false); setPrivatMobileOpen(false); }}
+              aria-label="Menü schließen"
+              className="absolute top-5 right-5 z-50 w-11 h-11 rounded-full bg-gray-900 text-white flex items-center justify-center shadow-xl active:scale-90 transition-transform"
+              style={{ animation: "mobItemIn .4s cubic-bezier(.22,1,.36,1) both" }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="relative h-full flex flex-col pt-[100px] px-5 pb-8 overflow-y-auto">
+              {/* Nav items */}
+              <div className="space-y-1.5">
+                {pages.map((p, i) => (
+                  <div key={p.key} style={{ animation: `mobItemIn .5s cubic-bezier(.22,1,.36,1) ${0.05 + i * 0.06}s both` }}>
+                    {p.key === "privatkunden" ? (
+                      <>
+                        <button
+                          onClick={() => setPrivatMobileOpen(!privatMobileOpen)}
+                          className={`w-full flex items-center justify-between px-4 py-4 rounded-2xl text-[17px] font-semibold transition-all ${
+                            activePage === p.key ? "text-gray-900 bg-blue-50/70" : "text-gray-700 active:bg-gray-100"
+                          }`}
+                        >
+                          <span className="flex items-center gap-3">
+                            {activePage === p.key && <span className="w-1.5 h-1.5 rounded-full bg-[#2563eb]" />}
+                            {p.label}
+                          </span>
+                          <span
+                            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
+                              privatMobileOpen ? "bg-[#2563eb] text-white rotate-180" : "bg-gray-100 text-gray-500"
+                            }`}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                              <path d="M6 9l6 6 6-6" />
+                            </svg>
+                          </span>
+                        </button>
+                        {/* Mobile submenu for Privatkunden */}
+                        {privatMobileOpen && (
+                          <div className="mt-1 mb-1 ml-4 pl-4 border-l-2 border-blue-100 space-y-0.5" style={{ animation: "mobItemIn .35s ease both" }}>
+                            <a
+                              href="/privatkunden"
+                              onClick={() => { setMob(false); setPrivatMobileOpen(false); }}
+                              className="flex items-center justify-between px-3 py-3.5 rounded-xl text-[15px] font-medium text-gray-600 active:bg-blue-50/60 transition-colors"
+                            >
+                              Privatkunden Startseite
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" strokeWidth="2.5" strokeLinecap="round">
+                                <path d="M9 18l6-6-6-6" />
+                              </svg>
+                            </a>
+                            <a
+                              href="/bonitaet"
+                              onClick={() => { setMob(false); setPrivatMobileOpen(false); }}
+                              className="flex items-center justify-between px-3 py-3.5 rounded-xl text-[15px] font-medium text-gray-600 active:bg-blue-50/60 transition-colors"
+                            >
+                              Bonitäts-Auszug
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" strokeWidth="2.5" strokeLinecap="round">
+                                <path d="M9 18l6-6-6-6" />
+                              </svg>
+                            </a>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <a
+                        href={p.href}
+                        onClick={() => setMob(false)}
+                        className={`flex items-center justify-between px-4 py-4 rounded-2xl text-[17px] font-semibold transition-all ${
+                          activePage === p.key ? "text-gray-900 bg-blue-50/70" : "text-gray-700 active:bg-gray-100"
                         }`}
                       >
-                        <span>{p.label}</span>
-                        <svg
-                          width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-                          className="transition-transform duration-300"
-                          style={{ transform: privatMobileOpen ? "rotate(180deg)" : "rotate(0deg)" }}
-                        >
-                          <path d="M6 9l6 6 6-6" />
+                        <span className="flex items-center gap-3">
+                          {activePage === p.key && <span className="w-1.5 h-1.5 rounded-full bg-[#2563eb]" />}
+                          {p.hasGradient ? (
+                            <>
+                              Was ist&nbsp;<span className="fiaon-gradient-text-animated">FIAON</span>
+                            </>
+                          ) : (
+                            p.label
+                          )}
+                        </span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="2" strokeLinecap="round">
+                          <path d="M9 18l6-6-6-6" />
                         </svg>
-                      </button>
-                      {/* Mobile submenu for Privatkunden */}
-                      {privatMobileOpen && (
-                        <div className="pl-4 mt-2 pb-2 space-y-2">
-                          <a
-                            href="/privatkunden"
-                            onClick={() => { setMob(false); setPrivatMobileOpen(false); }}
-                            className="block py-3 text-[15px] font-medium text-gray-600 hover:text-gray-900 transition-colors"
-                          >
-                            Privatkunden Startseite
-                          </a>
-                          <a
-                            href="/bonitaet"
-                            onClick={() => { setMob(false); setPrivatMobileOpen(false); }}
-                            className="block py-3 text-[15px] font-medium text-gray-600 hover:text-gray-900 transition-colors"
-                          >
-                            Bonitäts-Auszug
-                          </a>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <a
-                      href={p.href}
-                      onClick={() => setMob(false)}
-                      className={`block py-4 text-lg font-medium transition-colors border-b border-gray-100 ${
-                        activePage === p.key
-                          ? "text-gray-900"
-                          : "text-gray-600"
-                      }`}
-                    >
-                      {p.hasGradient ? (
-                        <>
-                          Was ist <span className="fiaon-gradient-text-animated">FIAON</span>
-                        </>
-                      ) : (
-                        p.label
-                      )}
-                    </a>
-                  )}
-                </div>
-              ))}
-              <div className="pt-4 space-y-3">
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* CTA area */}
+              <div className="mt-auto pt-8 space-y-3" style={{ animation: "mobItemIn .5s cubic-bezier(.22,1,.36,1) .32s both" }}>
                 <button
                   onClick={handleAntragClick}
-                  className="block w-full py-4 rounded-xl text-base font-semibold text-white fiaon-btn-gradient"
+                  className="fiaon-btn-gradient w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-[16px] font-semibold text-white shadow-[0_12px_30px_rgba(37,99,235,.30)] active:scale-[.98] transition-transform"
                 >
                   Konto eröffnen
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
                 </button>
                 <a
                   href="/login"
-                  className="block w-full py-4 rounded-xl text-base font-medium text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  className="w-full flex items-center justify-center py-4 rounded-2xl text-[15px] font-semibold text-gray-700 bg-white border border-gray-200 shadow-sm active:scale-[.98] transition-transform"
                 >
                   Login
                 </a>
+                <p className="flex items-center justify-center gap-1.5 pt-2 text-center text-[11px] text-gray-400">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  Kostenlos &amp; unverbindlich starten
+                </p>
               </div>
             </div>
           </div>
@@ -298,97 +347,109 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
 
       {/* Modal: Privatkunde oder Geschäftskunde */}
       {showModal && (
-        <div
-          className="fiaon-modal-overlay"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowModal(false);
-          }}
-        >
-          <div className="fiaon-modal max-w-[440px] relative overflow-hidden">
-            {/* Animated gradient background */}
-            <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
-              <div className="absolute inset-0 opacity-15" style={{
-                background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.1))",
-                backgroundSize: "200% 200%",
-                animation: "limitGlow 6s ease-in-out infinite"
-              }} />
-              <div className="absolute inset-0 opacity-10" style={{
-                background: "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.8), transparent 70%)"
-              }} />
+        <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center" style={{ animation: "modalFadeIn .2s ease" }}>
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0"
+            style={{ background: "rgba(15,23,42,.45)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
+            onClick={() => setShowModal(false)}
+          />
+          {/* Panel */}
+          <div
+            className="relative w-full sm:max-w-[440px] bg-white rounded-t-[28px] sm:rounded-[28px] px-6 pt-5 pb-7 sm:p-8 sm:mx-4 overflow-hidden"
+            style={{
+              boxShadow: "0 30px 80px rgba(15,23,42,.28)",
+              animation: "sheetUp .38s cubic-bezier(.22,1,.36,1)",
+            }}
+          >
+            {/* Ambient glow */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[380px] h-[240px]" style={{ background: "radial-gradient(ellipse at center, rgba(37,99,235,.12), transparent 70%)" }} />
             </div>
 
-            <div className="relative z-10 text-center mb-8">
-              <h3 className="text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-2">
-                Konto eröffnen
-              </h3>
-              <p className="text-[15px] text-gray-500">
-                Wie möchtest du fortfahren?
-              </p>
-            </div>
-
-            <div className="relative z-10 space-y-4">
-              {/* Privatkunde */}
-              <a
-                href="/antrag"
-                className="group block w-full p-5 rounded-2xl fiaon-glass-panel hover:scale-[1.02] hover:shadow-xl transition-all duration-300"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[16px] font-semibold text-gray-900 mb-1">
-                      Als Privatkunde
-                    </p>
-                    <p className="text-[13px] text-gray-400">
-                      Kreditkarte für persönliche Nutzung
-                    </p>
-                  </div>
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#2563eb"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    className="group-hover:translate-x-1 transition-all"
-                  >
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
-                </div>
-              </a>
-
-              {/* Geschäftskunde */}
-              <Link href="/business" onClick={() => setShowModal(false)} className="relative block w-full p-5 rounded-2xl fiaon-glass-panel group hover:border-blue-300/50 transition-all cursor-pointer">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[16px] font-semibold text-gray-900 mb-1">
-                      Als Geschäftskunde
-                    </p>
-                    <p className="text-[13px] text-gray-400">
-                      Business-Kreditkarte für Unternehmen
-                    </p>
-                  </div>
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#2563eb"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    className="group-hover:translate-x-1 transition-all"
-                  >
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
-                </div>
-              </Link>
-            </div>
-
+            {/* Close */}
             <button
               onClick={() => setShowModal(false)}
-              className="relative z-10 w-full mt-6 py-3 text-[13px] font-medium text-gray-400 hover:text-gray-600 transition-colors"
+              className="absolute top-4 right-4 z-20 w-9 h-9 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700 transition-colors"
+              aria-label="Schließen"
             >
-              Abbrechen
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
             </button>
+
+            <div className="relative z-10">
+              {/* Drag handle (mobile) */}
+              <div className="sm:hidden w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
+
+              <div className="text-center mb-7">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 text-[#2563eb] text-[11px] font-bold uppercase tracking-[.16em] mb-4">
+                  <span className="relative flex w-1.5 h-1.5">
+                    <span className="absolute inline-flex w-full h-full rounded-full bg-[#2563eb] opacity-60 animate-ping" />
+                    <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-[#2563eb]" />
+                  </span>
+                  Konto eröffnen
+                </div>
+                <h3 className="text-[24px] font-semibold tracking-tight text-gray-900 leading-snug">
+                  Wie möchtest du <span className="fiaon-gradient-text-animated">fortfahren</span>?
+                </h3>
+              </div>
+
+              <div className="space-y-3">
+                {/* Privatkunde */}
+                <a
+                  href="/antrag"
+                  className="group flex items-center gap-4 p-4 rounded-2xl border border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/40 hover:shadow-[0_12px_32px_rgba(37,99,235,.10)] active:scale-[.99] transition-all duration-300"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#2563eb] to-[#60a5fa] flex items-center justify-center text-white shrink-0 shadow-[0_8px_20px_rgba(37,99,235,.28)] group-hover:scale-105 transition-transform duration-300">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-[15.5px] font-semibold text-gray-900">Als Privatkunde</p>
+                    <p className="text-[13px] text-gray-500">Kreditkarte für persönliche Nutzung</p>
+                  </div>
+                  <span className="w-8 h-8 rounded-full bg-gray-50 group-hover:bg-[#2563eb] flex items-center justify-center text-gray-400 group-hover:text-white transition-all duration-300 shrink-0">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
+                  </span>
+                </a>
+
+                {/* Geschäftskunde */}
+                <Link
+                  href="/business"
+                  onClick={() => setShowModal(false)}
+                  className="group flex items-center gap-4 p-4 rounded-2xl border border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/40 hover:shadow-[0_12px_32px_rgba(37,99,235,.10)] active:scale-[.99] transition-all duration-300 cursor-pointer"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#1e40af] to-[#2563eb] flex items-center justify-center text-white shrink-0 shadow-[0_8px_20px_rgba(30,64,175,.28)] group-hover:scale-105 transition-transform duration-300">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <rect x="2" y="7" width="20" height="14" rx="2" />
+                      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-[15.5px] font-semibold text-gray-900">Als Geschäftskunde</p>
+                    <p className="text-[13px] text-gray-500">Business-Kreditkarte für Unternehmen</p>
+                  </div>
+                  <span className="w-8 h-8 rounded-full bg-gray-50 group-hover:bg-[#2563eb] flex items-center justify-center text-gray-400 group-hover:text-white transition-all duration-300 shrink-0">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
+                  </span>
+                </Link>
+              </div>
+
+              <div className="mt-6 flex items-center justify-center gap-1.5 text-[11.5px] text-gray-400">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                Kostenlos &amp; unverbindlich · SSL-verschlüsselt
+              </div>
+            </div>
           </div>
         </div>
       )}

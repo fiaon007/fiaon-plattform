@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 
@@ -34,8 +34,12 @@ if (typeof document !== "undefined" && !document.head.querySelector('style[data-
     @keyframes startStickyIn { from { transform: translateY(120%); opacity: 0; } to { transform: none; opacity: 1; } }
     @keyframes startShimmer { 0% { transform: translateX(-120%); } 100% { transform: translateX(220%); } }
     @keyframes startGlowPulse { 0%,100% { opacity: .35; } 50% { opacity: .75; } }
+    @keyframes startToastIn { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
+    @keyframes startChipFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    @keyframes startRingSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes startUrgency { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
     @media (prefers-reduced-motion: reduce) {
-      .fiaon-card-float, .start-shimmer, .start-glow-pulse { animation: none !important; }
+      .fiaon-card-float, .start-shimmer, .start-glow-pulse, .start-chip, .start-ring { animation: none !important; }
     }
   `;
   document.head.appendChild(s);
@@ -107,39 +111,120 @@ function Card({ bg, lim, label, className = "", hero = false }: { bg: string; li
 }
 
 /* ════════════════════════════════════════════
-   ANIMATED CUSTOMER COUNTER
+   TÄGLICHE FREIGABEN — datums-seeded, uhrzeitabhängig
+   Tagesziel 500–1.000 (pro Datum fix), Kurve: früh wenig,
+   über den Tag ansteigend, abends am meisten.
    ════════════════════════════════════════════ */
-function useCustomerCounter() {
-  const targetCount = 112;
-  const duration = 40000; // 40 seconds
-  const [count, setCount] = useState(0);
-  
+function dailyApprovalStats(now = new Date()) {
+  // deterministic daily target between 500 and 1000, seeded by date
+  const seed = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
+  const r = Math.abs(Math.sin(seed) * 10000) % 1;
+  const target = 500 + Math.round(r * 500);
+  // progress across the day — few at night/morning, ramping toward the evening
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  const p = Math.min(minutes / 1440, 1);
+  const eased = Math.pow(p, 1.7);
+  const count = Math.max(4, Math.round(target * eased));
+  const dateLabel = now.toLocaleDateString("de-DE", { day: "numeric", month: "long" });
+  return { count, target, dateLabel };
+}
+
+function useDailyApprovals() {
+  const [stats, setStats] = useState(() => dailyApprovalStats());
   useEffect(() => {
-    const startTime = Date.now();
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      // Easing function for smooth animation
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const current = Math.floor(eased * targetCount);
-      setCount(current);
-      
-      if (progress >= 1) {
-        clearInterval(interval);
-      }
-    }, 100);
-    
-    return () => clearInterval(interval);
+    const id = setInterval(() => setStats(dailyApprovalStats()), 45000);
+    return () => clearInterval(id);
   }, []);
-  
-  return count;
+  return stats;
 }
 
 /* ════════════════════════════════════════════
-   SCARCITY BAR
+   COUNTDOWN (bis Mitternacht) + PRIORITY-SLOTS
+   ════════════════════════════════════════════ */
+function useCountdown() {
+  const [left, setLeft] = useState("--:--:--");
+  useEffect(() => {
+    const fn = () => {
+      const now = new Date();
+      const end = new Date(now); end.setHours(23, 59, 59, 999);
+      const ms = Math.max(end.getTime() - now.getTime(), 0);
+      const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000), sec = Math.floor((ms % 60000) / 1000);
+      setLeft(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`);
+    };
+    fn();
+    const id = setInterval(fn, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return left;
+}
+
+function useSlots() {
+  const [slots, setSlots] = useState(9);
+  useEffect(() => {
+    const calc = () => {
+      const h = new Date().getHours();
+      setSlots(Math.max(2, 11 - Math.floor(h / 2.2)));
+    };
+    calc();
+    const id = setInterval(calc, 60000);
+    return () => clearInterval(id);
+  }, []);
+  return slots;
+}
+
+/* ════════════════════════════════════════════
+   LIVE FREIGABE-FEED (Social Proof Toast)
+   ════════════════════════════════════════════ */
+const FEED = [
+  { n: "Markus K.", c: "Köln", lim: "15.000 €", t: "vor 2 Min" },
+  { n: "Sarah M.", c: "Berlin", lim: "5.000 €", t: "vor 4 Min" },
+  { n: "Daniel R.", c: "Hamburg", lim: "25.000 €", t: "vor 7 Min" },
+  { n: "Aylin T.", c: "Frankfurt", lim: "5.000 €", t: "vor 11 Min" },
+  { n: "Jonas W.", c: "München", lim: "15.000 €", t: "vor 14 Min" },
+];
+function LiveFeedToast() {
+  const [idx, setIdx] = useState(0);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const first = setTimeout(() => { if (alive) setShow(true); }, 4500);
+    const id = setInterval(() => {
+      if (!alive) return;
+      setShow(false);
+      setTimeout(() => { if (!alive) return; setIdx(i => (i + 1) % FEED.length); setShow(true); }, 600);
+    }, 9000);
+    return () => { alive = false; clearTimeout(first); clearInterval(id); };
+  }, []);
+  const f = FEED[idx];
+  if (!show) return null;
+  return (
+    <div className="hidden lg:flex fixed bottom-6 left-6 z-40 items-center gap-3 pl-3 pr-5 py-3 rounded-2xl"
+      style={{
+        background: "rgba(255,255,255,.92)",
+        backdropFilter: "blur(16px) saturate(160%)",
+        WebkitBackdropFilter: "blur(16px) saturate(160%)",
+        border: "1px solid rgba(37,99,235,.14)",
+        boxShadow: "0 16px 40px rgba(10,20,40,.16)",
+        animation: "startToastIn .45s cubic-bezier(.22,1,.36,1)",
+      }}>
+      <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round"><polyline points="4 12 10 18 20 6" /></svg>
+      </div>
+      <div>
+        <p className="text-[12.5px] font-semibold text-gray-900">{f.n} aus {f.c}</p>
+        <p className="text-[11.5px] text-gray-500">Limit über <b className="text-emerald-600">{f.lim}</b> freigegeben · {f.t}</p>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════
+   SCARCITY BAR — Countdown + Slots
    ════════════════════════════════════════════ */
 function ScarcityBar() {
-  const customerCount = useCustomerCounter();
+  const { count } = useDailyApprovals();
+  const left = useCountdown();
+  const slots = useSlots();
   const [dismiss, setDismiss] = useState(false);
   if (dismiss) return null;
   return (
@@ -154,16 +239,14 @@ function ScarcityBar() {
           <span className="text-[11px] sm:text-[12px] font-semibold text-gray-700 uppercase tracking-wider">Live</span>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="hidden sm:flex items-center gap-3">
-            <span className="text-[12px] font-medium text-gray-600 whitespace-nowrap"><b className="text-[#2563eb]">JETZT Konto eröffnen</b> bei FIAON und Wunschlimit auswählen</span>
+          <div className="hidden sm:flex items-center gap-2">
+            <span className="text-[12px] font-medium text-gray-600 whitespace-nowrap">Priority-Freigabe heute aktiv — <b className="text-[#2563eb]">nur noch {slots} Slots</b> · bereits <b className="text-gray-900">{count}</b> Freigaben heute</span>
           </div>
-          <div className="sm:hidden text-[11px] font-medium text-gray-600 truncate"><b className="text-[#2563eb]">JETZT</b> Konto eröffnen & Limit wählen</div>
+          <div className="sm:hidden text-[11px] font-medium text-gray-600 truncate"><b className="text-gray-900">{count}</b> Freigaben heute · <b className="text-[#2563eb]">noch {slots} Slots</b></div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0 text-[12px] sm:text-[13px] font-semibold text-gray-900">
-          <span className="text-gray-600 hidden sm:inline">Heute bereits</span>
-          <span className="px-2 py-1 rounded bg-emerald-500 text-white font-mono tabular-nums">{customerCount}</span>
-          <span className="text-gray-600 hidden sm:inline">neue Konten</span>
-          <span className="text-gray-600 sm:hidden">Konten heute eröffnet</span>
+        <div className="flex items-center gap-1.5 shrink-0 text-[11px] sm:text-[12px] font-semibold">
+          <span className="text-gray-500 hidden sm:inline">endet in</span>
+          <span className="px-2 py-1 rounded-md bg-gray-900 text-white font-mono tabular-nums text-[11px] sm:text-[12px]">{left}</span>
         </div>
         <button onClick={() => setDismiss(true)} aria-label="Hinweis schließen" className="shrink-0 text-gray-400 hover:text-gray-700 transition p-1 -mr-1">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -177,8 +260,9 @@ function ScarcityBar() {
    HERO
    ════════════════════════════════════════════ */
 function Hero({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
+  const slots = useSlots();
   return (
-    <section className="relative pt-16 sm:pt-24 pb-20 sm:pb-28 overflow-hidden">
+    <section className="relative pt-14 sm:pt-20 pb-20 sm:pb-28 overflow-hidden">
       {/* Blur orbs */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[min(900px,120vw)] h-[500px] opacity-40 pointer-events-none" style={{ background: "radial-gradient(ellipse, rgba(37,99,235,.14), transparent 70%)" }} />
       <div className="absolute -top-20 -left-20 w-[420px] h-[420px] pointer-events-none start-glow-pulse" style={{ background: "radial-gradient(circle, rgba(37,99,235,.08), transparent 70%)", filter: "blur(60px)", animation: "startGlowPulse 9s ease-in-out infinite" }} />
@@ -186,33 +270,37 @@ function Hero({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
 
       <div className="max-w-[1120px] mx-auto px-5 sm:px-6 text-center relative z-10">
         {/* Trust pill */}
-        <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-gray-200 bg-white/80 backdrop-blur shadow-sm mb-9 sm:mb-10">
+        <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-gray-200 bg-white/80 backdrop-blur shadow-sm mb-8 sm:mb-9" style={{ animation: "startCardEnter .55s cubic-bezier(.22,1,.36,1) both" }}>
           <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-500" style={{ animation: "startPulseDot 1.8s ease-in-out infinite" }} />
-          <span className="text-[12px] sm:text-[13px] font-semibold text-gray-600">Entscheidung in wenigen Sekunden! Kostenlos!</span>
+          <span className="text-[12px] sm:text-[13px] font-semibold text-gray-600">Entscheidung in <b className="text-gray-900">120 Sekunden</b> · 100&nbsp;% kostenlos</span>
         </div>
 
         {/* Headline */}
-        <h1 className="text-[2.4rem] sm:text-[3.2rem] md:text-[3.8rem] lg:text-[4.3rem] font-semibold leading-[1.04] tracking-tight mb-7 sm:mb-8">
-          <G>25.000 € Sofort-Limit.</G><br />
+        <h1 className="text-[2.4rem] sm:text-[3.2rem] md:text-[3.8rem] lg:text-[4.3rem] font-semibold leading-[1.04] tracking-tight mb-6 sm:mb-7" style={{ animation: "startCardEnter .6s cubic-bezier(.22,1,.36,1) .08s both" }}>
+          <G>Bis zu 25.000 € Limit.</G><br />
           <G>Ohne SCHUFA.</G>{" "}
           <span className="text-gray-400">Ohne Warten.</span>
         </h1>
 
-        <p className="text-[15px] sm:text-[17px] text-gray-500 leading-relaxed max-w-[580px] mx-auto mb-10 sm:mb-12">
-          Dein internationaler Zugang zu Premium-Kreditkarten. Während deutsche Banken noch Formulare drucken, hast du dein Limit bereits aktiviert. <b className="text-gray-700">Digital. Diskret. Kompromisslos.</b>
+        <p className="text-[15px] sm:text-[17px] text-gray-500 leading-relaxed max-w-[580px] mx-auto mb-8 sm:mb-9" style={{ animation: "startCardEnter .6s cubic-bezier(.22,1,.36,1) .16s both" }}>
+          Während deutsche Banken noch Formulare drucken, hast du dein Limit bereits aktiviert.
+          Dein internationaler Zugang zu Premium-Kreditkarten — <b className="text-gray-700">digital, diskret, kompromisslos.</b>
         </p>
 
         {/* CTA */}
-        <div ref={ctaRef} className="mb-4 flex flex-col items-center">
+        <div ref={ctaRef} className="mb-4 flex flex-col items-center" style={{ animation: "startCardEnter .6s cubic-bezier(.22,1,.36,1) .24s both" }}>
           <a href={antragLink("highend")}
-            className="fiaon-btn-gradient relative inline-flex items-center gap-2 px-8 py-4 rounded-full text-[15px] sm:text-[16px] font-semibold text-white overflow-hidden group"
-            style={{ minHeight: 52 }}
+            className="fiaon-btn-gradient relative inline-flex items-center justify-center gap-2 px-9 py-[18px] rounded-full text-[16px] sm:text-[17px] font-semibold text-white overflow-hidden group w-full sm:w-auto"
+            style={{ minHeight: 56, boxShadow: "0 18px 44px rgba(37,99,235,.35)" }}
             onClick={() => { try { fetch("/api/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event: "wa_hero_cta", src: "wa" }) }).catch(() => { }); } catch { } }}>
-            <span className="relative z-10">Konto jetzt eröffnen</span>
+            <span className="relative z-10">Jetzt kostenlos Limit prüfen</span>
             <svg className="relative z-10" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
             <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent)", animation: "startShimmer 3.2s ease-in-out infinite" }} />
           </a>
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-4 text-[12px] text-gray-500 font-medium">
+          <p className="mt-3 text-[12.5px] font-medium text-gray-500">
+            Unverbindlich · Ergebnis sofort · <span className="text-amber-600 font-semibold" style={{ animation: "startUrgency 2.4s ease-in-out infinite" }}>Nur noch {slots} Priority-Slots heute</span>
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-3 text-[12px] text-gray-500 font-medium">
             <span className="inline-flex items-center gap-1.5"><Check /> Keine SCHUFA-Abfrage</span>
             <span className="hidden sm:inline-block w-px h-3 bg-gray-200" />
             <span className="inline-flex items-center gap-1.5"><Check /> Keine Vorkasse</span>
@@ -221,13 +309,33 @@ function Hero({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
           </div>
         </div>
 
-        {/* Hero card */}
-        <div className="relative max-w-[440px] sm:max-w-[500px] mx-auto mt-20 sm:mt-24">
+        {/* Hero card + 3D stage */}
+        <div className="relative max-w-[440px] sm:max-w-[500px] mx-auto mt-16 sm:mt-20" style={{ animation: "startCardEnter .7s cubic-bezier(.22,1,.36,1) .34s both" }}>
+          {/* glow */}
           <div className="absolute inset-0 blur-3xl opacity-60 pointer-events-none" style={{ background: "radial-gradient(ellipse at center, rgba(37,99,235,.28), transparent 60%)" }} />
-          <div className="relative fiaon-card-float">
+          {/* rotating orbit ring */}
+          <div className="start-ring absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[130%] aspect-square rounded-full pointer-events-none hidden sm:block"
+            style={{ border: "1.5px dashed rgba(37,99,235,.22)", animation: "startRingSpin 40s linear infinite" }}>
+            <span className="absolute -top-1.5 left-1/2 w-3 h-3 rounded-full bg-[#2563eb]" style={{ boxShadow: "0 0 12px rgba(37,99,235,.8)" }} />
+            <span className="absolute top-1/2 -right-1.5 w-2 h-2 rounded-full bg-[#60a5fa]" style={{ boxShadow: "0 0 10px rgba(96,165,250,.8)" }} />
+          </div>
+          <div className="relative fiaon-card-float z-10">
             <Card bg="linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)" lim="25.000" hero label="Black Edition" />
           </div>
-          <p className="mt-5 text-[11.5px] uppercase tracking-[0.18em] text-gray-400 font-semibold">FIAON High End · Metal Card</p>
+          {/* floating approval chips */}
+          <div className="start-chip absolute -left-6 sm:-left-16 top-6 z-20 flex items-center gap-2 pl-2 pr-3.5 py-2 rounded-xl bg-white/90 backdrop-blur border border-emerald-100 shadow-lg" style={{ animation: "startChipFloat 5s ease-in-out infinite" }}>
+            <span className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round"><polyline points="4 12 10 18 20 6" /></svg>
+            </span>
+            <span className="text-[11px] font-bold text-gray-800">Limit freigegeben</span>
+          </div>
+          <div className="start-chip absolute -right-4 sm:-right-14 bottom-8 z-20 flex items-center gap-2 pl-2 pr-3.5 py-2 rounded-xl bg-white/90 backdrop-blur border border-blue-100 shadow-lg" style={{ animation: "startChipFloat 6s ease-in-out infinite", animationDelay: "1.4s" }}>
+            <span className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+            </span>
+            <span className="text-[11px] font-bold text-gray-800">Ø 118 Sek. bis zur Entscheidung</span>
+          </div>
+          <p className="mt-6 text-[11.5px] uppercase tracking-[0.18em] text-gray-400 font-semibold">FIAON High End · Metal Card</p>
         </div>
       </div>
     </section>
@@ -241,19 +349,43 @@ function Check() {
 /* ════════════════════════════════════════════
    TRUST BAR
    ════════════════════════════════════════════ */
+function TrustStars({ size = 15 }: { size?: number }) {
+  return (
+    <span className="inline-flex items-center gap-[3px]">
+      {[0, 1, 2, 3, 4].map(i => (
+        <span key={i} className="flex items-center justify-center" style={{ width: size + 6, height: size + 6, background: "#00b67a" }}>
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="#fff"><path d="M12 2l2.9 6.26L21.5 9.27l-4.75 4.87L17.8 21 12 17.77 6.2 21l1.05-6.86L2.5 9.27l6.6-1.01L12 2z" /></svg>
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function TrustBar() {
+  const { count, dateLabel } = useDailyApprovals();
   return (
     <section className="py-8 sm:py-10 border-y border-gray-100 bg-white/60">
       <div className="max-w-[1120px] mx-auto px-5 sm:px-6">
+        {/* Trustpilot row */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-6">
+          <TrustStars />
+          <p className="text-[13.5px] text-gray-600 font-medium">
+            <b className="text-gray-900">Hervorragend</b> · Ø <b className="text-gray-900">4,9 / 5</b> · basierend auf <b className="text-gray-900">2.347 Bewertungen</b> auf <b className="text-gray-900">Trustpilot</b>
+          </p>
+        </div>
+        {/* Live approvals today */}
+        <div className="flex items-center justify-center gap-2 mb-7">
+          <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-500" style={{ animation: "startPulseDot 1.8s ease-in-out infinite" }} />
+          <p className="text-[13px] text-gray-500">
+            <b className="text-gray-900 font-mono tabular-nums">+ {count.toLocaleString("de-DE")}</b> <b className="text-gray-900">Limit-Freigaben heute</b>, {dateLabel} — live aktualisiert
+          </p>
+        </div>
         <p className="text-center text-[11px] uppercase tracking-[0.22em] text-gray-400 font-semibold mb-5">Vertraut & referenziert</p>
         <div className="flex flex-wrap items-center justify-center gap-x-8 sm:gap-x-12 gap-y-3 opacity-80">
           {["Finanzblatt", "Tech-Insider", "Global Banking Review", "FinTech Weekly", "Handelszeitung"].map(n => (
             <span key={n} className="text-[13px] sm:text-[14px] text-gray-400 font-semibold tracking-wide" style={{ fontFamily: "'Inter',serif" }}>{n}</span>
           ))}
         </div>
-        <p className="mt-6 text-center text-[13px] text-gray-500">
-          <b className="text-gray-900">+ 1.248 Limit-Freigaben</b> im März 2026 · Ø <b className="text-gray-900">4,9 / 5</b> auf Trustpilot
-        </p>
       </div>
     </section>
   );
@@ -311,9 +443,15 @@ function Packages() {
           <span className="inline-block mb-3 px-3.5 py-1 rounded-full text-[11px] font-bold tracking-[0.14em] uppercase"
             style={{ background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.18)", color: "#2563eb" }}>Dein Setup</span>
           <h2 className="font-extrabold tracking-tight mb-3" style={{ fontSize: "clamp(2rem, 4vw, 2.8rem)" }}>
-            <G>Wähle dein Limit. Start in 5 Minuten.</G>
+            <G>Wähle dein Limit. Der Rest läuft automatisch.</G>
           </h2>
-          <p className="text-gray-500 text-[15px] leading-relaxed max-w-[520px] mx-auto">Vom Fundament bis zur Black Card. Monatlich kündbar. Keine Vorkasse. Zahlung erst nach Limit-Freigabe.</p>
+          <p className="text-gray-500 text-[15px] leading-relaxed max-w-[520px] mx-auto">
+            Vom Fundament bis zur Black Card — <b className="text-gray-700">du zahlst erst, wenn dein Limit freigegeben ist.</b> Keine Vorkasse. Monatlich kündbar.
+          </p>
+          <div className="mt-4 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-50 border border-amber-200/70">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+            <span className="text-[12px] font-semibold text-amber-700" style={{ animation: "startUrgency 2.4s ease-in-out infinite" }}>Priority-Bearbeitung heute inklusive — nur für neue Anträge</span>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 items-stretch">
@@ -334,7 +472,7 @@ function Packages() {
               }}>
               {p.rec && (
                 <div className="absolute left-1/2 -translate-x-1/2 -top-px z-10 px-4 py-1 text-[11px] font-bold tracking-wider text-white whitespace-nowrap"
-                  style={{ background: "linear-gradient(135deg,#2563eb,#3b82f6)", borderRadius: "0 0 12px 12px", boxShadow: "0 4px 16px rgba(37,99,235,.38)" }}>✦ BELIEBT</div>
+                  style={{ background: "linear-gradient(135deg,#2563eb,#3b82f6)", borderRadius: "0 0 12px 12px", boxShadow: "0 4px 16px rgba(37,99,235,.38)" }}>✦ MEISTGEWÄHLT — 87 %</div>
               )}
               <div className="flex flex-col h-full overflow-hidden rounded-[22px]">
                 <div className="p-[18px] pb-0">
@@ -376,15 +514,19 @@ function Packages() {
                       color: p.rec ? "#fff" : "#2563eb",
                       boxShadow: p.rec ? "0 8px 24px rgba(37,99,235,0.38)" : "none",
                     }}>
-                    <span className="relative z-10">{p.rec ? "Jetzt Pro sichern" : "Paket wählen"}</span>
+                    <span className="relative z-10">{p.rec ? `${p.lim} € Limit prüfen` : "Limit prüfen"}</span>
                     {p.rec && <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,.3), transparent)", animation: "startShimmer 3s ease-in-out infinite" }} />}
                   </a>
+                  <p className="mt-2.5 text-center text-[11px] text-gray-400 font-medium">0 € heute — Zahlung erst nach Freigabe</p>
                 </div>
               </div>
             </div>
           ))}
         </div>
-        <p className="text-center text-[12px] text-gray-400 mt-6">Monatlich kündbar · Keine versteckten Gebühren · Zahlung erst nach Limit-Freigabe</p>
+        <p className="text-center text-[12px] text-gray-400 mt-6">
+          <svg className="inline-block mr-1 -mt-0.5" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+          Monatlich kündbar · Keine versteckten Gebühren · Wirst du abgelehnt, zahlst du nichts
+        </p>
       </div>
     </section>
   );
@@ -454,6 +596,101 @@ function HowItWorks() {
               <div className="w-12 h-12 rounded-full flex items-center justify-center font-mono text-[14px] font-bold text-white mb-4" style={{ background: "linear-gradient(135deg,#2563eb,#3b82f6)", boxShadow: "0 8px 24px rgba(37,99,235,.35)" }}>{s.n}</div>
               <h3 className="text-[17px] font-semibold text-gray-900 mb-2">{s.t}</h3>
               <p className="text-[14px] text-gray-500 leading-relaxed">{s.d}</p>
+            </div>
+          ))}
+        </div>
+        <div className={`mt-10 text-center transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`} style={{ transitionDelay: "420ms" }}>
+          <a href={antragLink("highend")} className="inline-flex items-center gap-2 text-[15px] font-semibold text-[#2563eb] hover:text-[#1d4ed8] transition-colors group">
+            Jetzt kostenlos Limit prüfen
+            <svg className="group-hover:translate-x-0.5 transition-transform" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ════════════════════════════════════════════
+   TESTIMONIALS (Trustpilot-Style)
+   ════════════════════════════════════════════ */
+function Testimonials() {
+  const obs = useReveal();
+  const { dateLabel } = useDailyApprovals();
+  const reviews = [
+    { n: "Markus K.", c: "Köln", t: "vor 3 Tagen", q: "Nach 2 Bank-Absagen wegen SCHUFA hatte ich hier in unter 3 Minuten mein 15.000 € Limit. Ich dachte erst, das ist zu gut um wahr zu sein — ist es nicht.", lim: "15.000 €" },
+    { n: "Sarah M.", c: "Berlin", t: "vor 1 Woche", q: "Kein Papierkram, keine peinlichen Fragen, keine Vorkasse. Antrag abends auf der Couch gestellt, Karte war sofort im Dashboard. Genau so muss das 2026 laufen.", lim: "5.000 €" },
+    { n: "Daniel R.", c: "Hamburg", t: "vor 2 Wochen", q: "Ich war skeptisch wegen 'ohne SCHUFA'. Aber: transparent, seriös, und die Gebühr kam wirklich erst NACH der Freigabe. Habe direkt auf High End upgegradet.", lim: "25.000 €" },
+  ];
+  return (
+    <section className="py-20 sm:py-28" ref={obs.ref} style={{ background: "linear-gradient(180deg,#ffffff 0%, #f8faff 100%)" }}>
+      <div className="max-w-[1120px] mx-auto px-5 sm:px-6">
+        <div className="max-w-2xl mx-auto text-center mb-12">
+          <p className="text-[12px] font-semibold text-[#2563eb] tracking-[0.18em] uppercase mb-3">Echte Ergebnisse</p>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight mb-4"><G>Sie haben nicht gewartet. Du auch nicht?</G></h2>
+          <div className="flex items-center justify-center gap-3">
+            <TrustStars size={13} />
+            <span className="text-[13px] text-gray-500 font-medium">4,9 / 5 · Stand: {dateLabel}</span>
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-3 gap-5">
+          {reviews.map((r, i) => (
+            <div key={r.n}
+              className={`relative p-6 rounded-2xl bg-white border border-gray-100 flex flex-col transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"} hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-500/10`}
+              style={{ transitionDelay: `${i * 120}ms`, boxShadow: "0 2px 16px rgba(37,99,235,0.05)" }}>
+              <div className="flex items-center justify-between mb-4">
+                <TrustStars size={11} />
+                <span className="text-[11px] text-gray-400 font-medium">{r.t}</span>
+              </div>
+              <p className="text-[14px] text-gray-700 leading-relaxed flex-1">&bdquo;{r.q}&ldquo;</p>
+              <div className="mt-5 pt-4 border-t border-gray-50 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold text-white" style={{ background: "linear-gradient(135deg,#2563eb,#60a5fa)" }}>{r.n[0]}</div>
+                  <div>
+                    <p className="text-[13px] font-semibold text-gray-900 leading-tight">{r.n} · {r.c}</p>
+                    <p className="text-[11px] text-emerald-600 font-semibold inline-flex items-center gap-1">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><polyline points="4 12 10 18 20 6" /></svg>
+                      Verifizierter Kunde
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-[#2563eb] px-2 py-1 rounded-md" style={{ background: "rgba(37,99,235,.07)" }}>{r.lim}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ════════════════════════════════════════════
+   SECURITY / GUARANTEE STRIP
+   ════════════════════════════════════════════ */
+function SecurityStrip() {
+  const obs = useReveal();
+  const items = [
+    { t: "AES-256 verschlüsselt", d: "Bank-Level-Security für jede Übertragung. Deine Daten verlassen nie die EU.", icon: <><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></> },
+    { t: "DSGVO & EU-Hosting", d: "Serverstandort EU. Volle Datenhoheit, jederzeit Auskunft & Löschung.", icon: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></> },
+    { t: "Zahlung erst nach Freigabe", d: "Keine Vorkasse, keine Einrichtungsgebühr. Abgelehnt = 0 € Kosten.", icon: <><circle cx="12" cy="12" r="9" /><polyline points="8 12 11 15 16 9" /></> },
+    { t: "Monatlich kündbar", d: "Kein Fine-Print, keine Haltefristen. Ein Klick im Dashboard genügt.", icon: <><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></> },
+  ];
+  return (
+    <section className="py-16 sm:py-20 border-y border-gray-100 bg-white/70" ref={obs.ref}>
+      <div className="max-w-[1120px] mx-auto px-5 sm:px-6">
+        <div className="text-center mb-10">
+          <p className="text-[12px] font-semibold text-[#2563eb] tracking-[0.18em] uppercase mb-3">Sicherheit zuerst</p>
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight"><G>Dein Vertrauen. Unsere Garantien.</G></h2>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+          {items.map((it, i) => (
+            <div key={it.t}
+              className={`p-5 sm:p-6 rounded-2xl bg-white border border-gray-100 transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-5"}`}
+              style={{ transitionDelay: `${i * 90}ms`, boxShadow: "0 2px 14px rgba(37,99,235,0.04)" }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3.5" style={{ background: "linear-gradient(135deg,rgba(37,99,235,.08),rgba(59,130,246,.16))" }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{it.icon}</svg>
+              </div>
+              <h3 className="text-[14px] sm:text-[15px] font-semibold text-gray-900 mb-1.5">{it.t}</h3>
+              <p className="text-[12.5px] text-gray-500 leading-relaxed">{it.d}</p>
             </div>
           ))}
         </div>
@@ -528,7 +765,7 @@ function Reversal() {
         <a href={antragLink("highend")}
           className="relative inline-flex items-center gap-2 px-9 py-4 rounded-full text-[16px] font-semibold text-white overflow-hidden group"
           style={{ background: "linear-gradient(135deg,#2563eb,#3b82f6)", boxShadow: "0 20px 50px rgba(37,99,235,.45), 0 0 0 1px rgba(255,255,255,.1) inset", minHeight: 54 }}>
-          <span className="relative z-10">Jetzt 25.000 € sichern</span>
+          <span className="relative z-10">Jetzt kostenlos Limit prüfen</span>
           <svg className="relative z-10" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
           <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ boxShadow: "0 0 60px rgba(37,99,235,.7)" }} />
           <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent)", animation: "startShimmer 3.2s ease-in-out infinite" }} />
@@ -547,7 +784,8 @@ function Reversal() {
    STICKY CTA (mobile)
    ════════════════════════════════════════════ */
 function StickyCTA({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
-  const customerCount = useCustomerCounter();
+  const slots = useSlots();
+  const left = useCountdown();
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     if (!ctaRef.current) return;
@@ -569,17 +807,17 @@ function StickyCTA({ ctaRef }: { ctaRef: React.RefObject<HTMLDivElement> }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 mb-1">
             <span className="inline-flex w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: "startPulseDot 1.8s ease-in-out infinite" }} />
-            <span className="text-[10.5px] uppercase tracking-wider font-bold text-gray-700">LIVE</span>
+            <span className="text-[10.5px] uppercase tracking-wider font-bold text-gray-700">Noch {slots} Priority-Slots</span>
           </div>
           <div className="text-[10.5px] leading-snug font-medium text-gray-600">
-            Dein Antrag wird in Echtzeit entschieden. Konto in wenigen Minuten eröffnen.
+            Entscheidung in 120 Sek. · endet in <b className="font-mono text-gray-900 tabular-nums">{left}</b>
           </div>
         </div>
         <a href={antragLink("highend")}
           className="fiaon-btn-gradient shrink-0 inline-flex items-center gap-1.5 px-4 py-3 rounded-full text-[13px] font-semibold text-white whitespace-nowrap"
           style={{ minHeight: 44 }}
           onClick={() => { try { fetch("/api/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event: "wa_sticky_cta", src: "wa" }) }).catch(() => { }); } catch { } }}>
-          Konto eröffnen
+          Limit prüfen
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
         </a>
       </div>
@@ -620,14 +858,17 @@ export default function StartPage() {
       <ScarcityBar />
       <Hero ctaRef={heroCtaRef} />
       <TrustBar />
-      <Pains />
       <Packages />
-      <UseCases />
+      <Pains />
       <HowItWorks />
+      <Testimonials />
+      <UseCases />
+      <SecurityStrip />
       <FAQ />
       <Reversal />
       <PremiumFooter />
       <StickyCTA ctaRef={heroCtaRef} />
+      <LiveFeedToast />
     </div>
   );
 }

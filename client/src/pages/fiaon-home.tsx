@@ -125,46 +125,95 @@ if (typeof document !== "undefined" && !document.head.querySelector("style[data-
 function CustomerModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md p-8 rounded-3xl fiaon-glass-panel" style={{ animation: "modalSlideIn .3s cubic-bezier(.22,1,.36,1)" }}>
-        <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 opacity-20" style={{
-            background: "linear-gradient(135deg, rgba(37,99,235,0.15), rgba(147,197,253,0.25), rgba(37,99,235,0.12))",
-            backgroundSize: "300% 300%",
-            animation: "limitGlow 8s ease-in-out infinite",
-          }} />
+    <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center" style={{ animation: "modalFadeIn .2s ease" }}>
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0"
+        style={{ background: "rgba(15,23,42,.45)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
+        onClick={onClose}
+      />
+      {/* Panel */}
+      <div
+        className="relative w-full sm:max-w-[440px] bg-white rounded-t-[28px] sm:rounded-[28px] px-6 pt-5 pb-7 sm:p-8 sm:mx-4 overflow-hidden"
+        style={{ boxShadow: "0 30px 80px rgba(15,23,42,.28)", animation: "sheetUp .38s cubic-bezier(.22,1,.36,1)" }}
+      >
+        {/* Ambient glow */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[380px] h-[240px]" style={{ background: "radial-gradient(ellipse at center, rgba(37,99,235,.12), transparent 70%)" }} />
         </div>
+
+        {/* Close */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-20 w-9 h-9 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700 transition-colors"
+          aria-label="Schließen"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+
         <div className="relative z-10">
-          <h3 className="text-2xl font-semibold tracking-tight mb-2 fiaon-gradient-text-animated">Profil analysieren</h3>
-          <p className="text-[14px] text-gray-500 mb-8">F&uuml;r wen m&ouml;chtest du starten?</p>
-          <div className="space-y-4">
-            <a href="/antrag" className="group relative block p-5 rounded-2xl fiaon-glass-panel hover:scale-[1.02] hover:shadow-xl transition-all duration-300">
-              <div className="relative z-10 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#2563eb] to-[#3b82f6] flex items-center justify-center text-white shrink-0">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                </div>
-                <div>
-                  <p className="text-[16px] font-semibold text-gray-900">Privatkunde</p>
-                  <p className="text-[13px] text-gray-500">Score verstehen &amp; Profil entwickeln</p>
-                </div>
+          {/* Drag handle (mobile) */}
+          <div className="sm:hidden w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
+
+          <div className="text-center mb-7">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 text-[#2563eb] text-[11px] font-bold uppercase tracking-[.16em] mb-4">
+              <span className="relative flex w-1.5 h-1.5">
+                <span className="absolute inline-flex w-full h-full rounded-full bg-[#2563eb] opacity-60 animate-ping" />
+                <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-[#2563eb]" />
+              </span>
+              Profil analysieren
+            </div>
+            <h3 className="text-[24px] font-semibold tracking-tight text-gray-900 leading-snug">
+              F&uuml;r wen m&ouml;chtest du <span className="fiaon-gradient-text-animated">starten</span>?
+            </h3>
+          </div>
+
+          <div className="space-y-3">
+            <a
+              href="/antrag"
+              className="group flex items-center gap-4 p-4 rounded-2xl border border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/40 hover:shadow-[0_12px_32px_rgba(37,99,235,.10)] active:scale-[.99] transition-all duration-300"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#2563eb] to-[#60a5fa] flex items-center justify-center text-white shrink-0 shadow-[0_8px_20px_rgba(37,99,235,.28)] group-hover:scale-105 transition-transform duration-300">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               </div>
+              <div className="flex-1 min-w-0 text-left">
+                <p className="text-[15.5px] font-semibold text-gray-900">Privatkunde</p>
+                <p className="text-[13px] text-gray-500">Score verstehen &amp; Profil entwickeln</p>
+              </div>
+              <span className="w-8 h-8 rounded-full bg-gray-50 group-hover:bg-[#2563eb] flex items-center justify-center text-gray-400 group-hover:text-white transition-all duration-300 shrink-0">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </span>
             </a>
-            <a href="/business-antrag" className="group relative block p-5 rounded-2xl fiaon-glass-panel hover:scale-[1.02] hover:shadow-xl transition-all duration-300">
-              <div className="relative z-10 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1e40af] to-[#2563eb] flex items-center justify-center text-white shrink-0">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-                </div>
-                <div>
-                  <p className="text-[16px] font-semibold text-gray-900">Gesch&auml;ftskunde</p>
-                  <p className="text-[13px] text-gray-500">Finanzstruktur professionalisieren</p>
-                </div>
+            <a
+              href="/business-antrag"
+              className="group flex items-center gap-4 p-4 rounded-2xl border border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/40 hover:shadow-[0_12px_32px_rgba(37,99,235,.10)] active:scale-[.99] transition-all duration-300"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#1e40af] to-[#2563eb] flex items-center justify-center text-white shrink-0 shadow-[0_8px_20px_rgba(30,64,175,.28)] group-hover:scale-105 transition-transform duration-300">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
               </div>
+              <div className="flex-1 min-w-0 text-left">
+                <p className="text-[15.5px] font-semibold text-gray-900">Gesch&auml;ftskunde</p>
+                <p className="text-[13px] text-gray-500">Finanzstruktur professionalisieren</p>
+              </div>
+              <span className="w-8 h-8 rounded-full bg-gray-50 group-hover:bg-[#2563eb] flex items-center justify-center text-gray-400 group-hover:text-white transition-all duration-300 shrink-0">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </span>
             </a>
           </div>
-          <button onClick={onClose} className="mt-6 w-full py-3 rounded-xl fiaon-glass-panel text-[13px] font-medium text-gray-600 hover:bg-white/60 transition-all">
-            Abbrechen
-          </button>
+
+          <div className="mt-6 flex items-center justify-center gap-1.5 text-[11.5px] text-gray-400">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            Kostenlos &amp; unverbindlich · SSL-verschl&uuml;sselt
+          </div>
         </div>
       </div>
     </div>

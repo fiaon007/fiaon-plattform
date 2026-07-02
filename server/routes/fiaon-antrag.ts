@@ -3,6 +3,7 @@ import { db } from "../db";
 import { fiaonApplications, fiaonClickEvents } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import PDFDocument from "pdfkit";
+import * as archiver from "archiver";
 import postgres from "postgres";
 import Stripe from "stripe";
 import multer from "multer";
@@ -1131,6 +1132,188 @@ router.get("/contract/:ref", async (req, res) => {
   } catch (err) {
     console.error('[FIAON-CONTRACT-PDF]', err);
     res.status(500).json({ error: 'PDF-Generierung fehlgeschlagen' });
+  }
+});
+
+// ── Helper: render a contract PDF for one application (snake_case DB row) ──
+function renderContractPdf(doc: PDFKit.PDFDocument, a: any) {
+  const acceptedAt = a.completed_at || a.submitted_at || a.updated_at || a.created_at;
+  const acceptedDate = acceptedAt ? new Date(acceptedAt) : new Date();
+  const dateStr = acceptedDate.toLocaleDateString('de-DE');
+  const timeStr = acceptedDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+  // Header
+  doc.fontSize(24).font('Helvetica-Bold').text('FIAON Kreditkartenvertrag', { align: 'center' });
+  doc.moveDown();
+  doc.fontSize(10).font('Helvetica').text(`Vertragsnummer: ${a.ref}`, { align: 'center' });
+  doc.text(`Datum: ${dateStr}`, { align: 'center' });
+  doc.moveDown(2);
+
+  // Vertragsparteien
+  doc.fontSize(14).font('Helvetica-Bold').text('§1 Vertragsparteien');
+  doc.moveDown(0.5);
+  doc.fontSize(10).font('Helvetica');
+  doc.text('Kreditgeber:', { continued: true }).font('Helvetica-Bold').text(' FIAON Financial Services GmbH');
+  doc.font('Helvetica').text('Musterstraße 123, 10115 Berlin');
+  doc.moveDown();
+  doc.text('Kreditnehmer:', { continued: true }).font('Helvetica-Bold').text(` ${a.first_name || ''} ${a.last_name || ''}`);
+  if (a.street) doc.font('Helvetica').text(`${a.street}, ${a.zip || ''} ${a.city || ''}`);
+  if (a.birthdate) doc.font('Helvetica').text(`Geburtsdatum: ${new Date(a.birthdate).toLocaleDateString('de-DE')}`);
+  if (a.email) doc.font('Helvetica').text(`E-Mail: ${a.email}`);
+  doc.moveDown(1.5);
+
+  // Vertragsgegenstand
+  doc.fontSize(14).font('Helvetica-Bold').text('§2 Vertragsgegenstand');
+  doc.moveDown(0.5);
+  doc.fontSize(10).font('Helvetica');
+  doc.text(`Der Kreditgeber stellt dem Kreditnehmer eine ${a.pack_name || 'FIAON'} Kreditkarte mit folgenden Konditionen zur Verfügung:`);
+  doc.moveDown(0.5);
+  doc.list([
+    `Kreditlimit: bis zu ${a.approved_limit ? (Number(a.approved_limit).toLocaleString('de-DE') + ' €') : 'individuell festgelegt'}`,
+    `Monatliche Grundgebühr: gemäß Preisverzeichnis`,
+    `Verwendungszweck: ${a.purpose || 'allgemeine Nutzung'}`,
+    `Abrechnungsart: ${a.billing || 'Vollzahlung'}`,
+    `NFC kontaktlos: ${a.nfc || 'aktiviert'}`,
+  ]);
+  doc.moveDown(1.5);
+
+  // Kreditkonditionen
+  doc.fontSize(14).font('Helvetica-Bold').text('§3 Kreditkonditionen');
+  doc.moveDown(0.5);
+  doc.fontSize(10).font('Helvetica');
+  doc.text('3.1 Der Kreditnehmer kann die Kreditkarte im Rahmen des vereinbarten Kreditlimits nutzen.');
+  doc.text('3.2 Die Abrechnung erfolgt monatlich zum Ende des Abrechnungszeitraums.');
+  doc.text('3.3 Bei Vollzahlung fallen keine Sollzinsen an. Bei Teilzahlung gelten die Konditionen gemäß Preisverzeichnis.');
+  doc.moveDown(1.5);
+
+  // Zahlungsbedingungen
+  doc.fontSize(14).font('Helvetica-Bold').text('§4 Zahlungsbedingungen');
+  doc.moveDown(0.5);
+  doc.fontSize(10).font('Helvetica');
+  if (a.billing_method === 'iban' && a.iban) {
+    doc.text('4.1 Die Abbuchung erfolgt per SEPA-Lastschrift von folgendem Konto:');
+    doc.text(`IBAN: ${a.iban}`);
+  } else {
+    doc.text('4.1 Die Abrechnung erfolgt per Papierrechnung.');
+  }
+  doc.text('4.2 Die Zahlung ist innerhalb von 14 Tagen nach Rechnungsstellung fällig.');
+  doc.moveDown(1.5);
+
+  // Kündigungsrecht
+  doc.fontSize(14).font('Helvetica-Bold').text('§5 Kündigungsrecht');
+  doc.moveDown(0.5);
+  doc.fontSize(10).font('Helvetica');
+  doc.text('5.1 Beide Vertragsparteien können diesen Vertrag jederzeit mit einer Frist von 4 Wochen kündigen.');
+  doc.text('5.2 Die Kündigung bedarf der Schriftform.');
+  doc.moveDown(1.5);
+
+  // Datenschutz
+  doc.fontSize(14).font('Helvetica-Bold').text('§6 Datenschutz');
+  doc.moveDown(0.5);
+  doc.fontSize(10).font('Helvetica');
+  doc.text('6.1 Der Kreditgeber verarbeitet personenbezogene Daten gemäß DSGVO.');
+  doc.text('6.2 Eine Bonitätsprüfung bei der SCHUFA wurde durchgeführt.');
+  doc.moveDown(2);
+
+  // Vertragsannahme + digitaler Nachweis
+  doc.fontSize(12).font('Helvetica-Bold').text('Vertragsannahme');
+  doc.moveDown(0.5);
+  doc.fontSize(10).font('Helvetica');
+  doc.text(`Der Kreditnehmer ${a.first_name || ''} ${a.last_name || ''} bestätigt hiermit:`);
+  doc.moveDown(0.5);
+  doc.list([
+    a.consent_agb ? '✓ AGB und Datenschutzerklärung akzeptiert' : '☐ AGB und Datenschutzerklärung',
+    a.consent_schufa ? '✓ Einwilligung zur Bonitätsprüfung erteilt' : '☐ Einwilligung zur Bonitätsprüfung',
+    a.consent_contract ? '✓ Vertrag verbindlich angenommen' : '☐ Vertrag angenommen',
+  ]);
+  doc.moveDown(2);
+
+  doc.text(`Ort, Datum: Berlin, ${dateStr}`);
+  doc.moveDown(2);
+  doc.text('_'.repeat(40));
+  doc.text('Unterschrift Kreditnehmer (digital bestätigt)');
+  doc.moveDown(1);
+
+  // Digitaler Akzeptanz-Nachweis (Audit-Trail)
+  doc.fontSize(8).font('Helvetica-Bold').text('Digitaler Akzeptanz-Nachweis:');
+  doc.fontSize(8).font('Helvetica');
+  doc.text(`Bestätigt am ${dateStr} um ${timeStr} Uhr`);
+  if (a.ip) doc.text(`IP-Adresse: ${a.ip}`);
+  if (a.user_agent) doc.text(`Gerät/Browser: ${String(a.user_agent).slice(0, 160)}`);
+
+  // Footer
+  doc.fontSize(8).text('\n\nFIAON Financial Services GmbH | Musterstraße 123 | 10115 Berlin | info@fiaon.de | www.fiaon.de', { align: 'center' });
+}
+
+// ── CSV escaping helper ──
+function csvCell(v: any): string {
+  const s = v == null ? '' : String(v);
+  return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+// Admin: download ALL contract acceptances as ZIP (one PDF per customer + CSV audit list)
+router.get("/admin/contracts/download-all", async (req, res) => {
+  try {
+    const apps = await sqlPool`
+      SELECT
+        ref, first_name, last_name, birthdate, street, zip, city, email,
+        pack_name, approved_limit, purpose, billing, nfc, iban, billing_method,
+        consent_agb, consent_schufa, consent_contract,
+        ip, user_agent, submitted_at, completed_at, created_at, updated_at, status
+      FROM fiaon_applications
+      WHERE consent_contract = TRUE
+      ORDER BY created_at ASC
+    `;
+
+    if (apps.length === 0) {
+      return res.status(404).json({ error: "Keine Vertragsakzeptierungen gefunden" });
+    }
+
+    const dateTag = new Date().toISOString().slice(0, 10);
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="FIAON_Vertraege_${dateTag}.zip"`);
+
+    const archive = (archiver as any).default ? (archiver as any).default("zip", { zlib: { level: 6 } }) : (archiver as any)("zip", { zlib: { level: 6 } });
+    archive.on("error", (err: Error) => {
+      console.error("[FIAON-CONTRACTS-ZIP] Archiver error:", err);
+      try { res.end(); } catch { }
+    });
+    archive.pipe(res);
+
+    // 1) CSV audit list of all acceptances (BOM for Excel, semicolon-separated)
+    const csvHeader = [
+      "Vertragsnummer", "Vorname", "Nachname", "E-Mail", "Paket", "Limit (EUR)",
+      "AGB akzeptiert", "SCHUFA-Einwilligung", "Vertrag akzeptiert",
+      "IP-Adresse", "Ger\u00e4t/Browser", "Antrag erstellt", "Abgeschlossen am", "Status",
+    ].join(";");
+    const csvRows = apps.map((a: any) => [
+      csvCell(a.ref), csvCell(a.first_name), csvCell(a.last_name), csvCell(a.email),
+      csvCell(a.pack_name), csvCell(a.approved_limit ?? ""),
+      a.consent_agb ? "Ja" : "Nein", a.consent_schufa ? "Ja" : "Nein", a.consent_contract ? "Ja" : "Nein",
+      csvCell(a.ip), csvCell(a.user_agent),
+      a.created_at ? new Date(a.created_at).toLocaleString("de-DE") : "",
+      (a.completed_at || a.submitted_at) ? new Date(a.completed_at || a.submitted_at).toLocaleString("de-DE") : "",
+      csvCell(a.status),
+    ].join(";"));
+    const csv = "\uFEFF" + csvHeader + "\r\n" + csvRows.join("\r\n");
+    archive.append(csv, { name: "Vertragsakzeptierungen_Uebersicht.csv" });
+
+    // 2) One contract PDF per customer
+    for (const a of apps) {
+      const doc = new PDFDocument({ size: "A4", margin: 50 });
+      const safeName = [a.last_name, a.first_name].filter(Boolean).join("_").replace(/[^a-zA-Z0-9äöüÄÖÜß_-]/g, "") || "Kunde";
+      archive.append(doc as any, { name: `Vertraege/FIAON_Vertrag_${a.ref}_${safeName}.pdf` });
+      renderContractPdf(doc, a);
+      doc.end();
+    }
+
+    await archive.finalize();
+    console.log(`[FIAON-CONTRACTS-ZIP] ${apps.length} Verträge als ZIP exportiert`);
+  } catch (err) {
+    console.error("[FIAON-CONTRACTS-ZIP]", err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Fehler beim Erstellen des ZIP-Archivs" });
+    }
   }
 });
 

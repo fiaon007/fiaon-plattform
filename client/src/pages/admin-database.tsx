@@ -400,6 +400,15 @@ export default function AdminDatabasePage() {
             <h1 className="text-lg font-bold text-slate-900 fiaon-gradient-text-animated">{typedText || 'Admin Dashboard'}</h1>
           </div>
           <div className="flex items-center gap-2">
+            <a
+              href="/api/fiaon/admin/contracts/download-all"
+              download
+              title="Alle Vertragsakzeptierungen als ZIP herunterladen (PDF pro Kunde + CSV-Nachweisliste)"
+              className="flex items-center gap-2 px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-full text-[11px] font-bold transition-colors shadow-sm"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+              Verträge (ZIP)
+            </a>
             {loadingApps ? (
               <div className="w-4 h-4 border-2 border-slate-200 border-t-[#2563eb] rounded-full animate-spin" />
             ) : (

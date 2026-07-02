@@ -3,7 +3,7 @@ import { db } from "../db";
 import { fiaonApplications, fiaonClickEvents } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import PDFDocument from "pdfkit";
-import * as archiver from "archiver";
+import { ZipArchive } from "archiver";
 import postgres from "postgres";
 import Stripe from "stripe";
 import multer from "multer";
@@ -1273,7 +1273,7 @@ router.get("/admin/contracts/download-all", async (req, res) => {
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="FIAON_Vertraege_${dateTag}.zip"`);
 
-    const archive = (archiver as any).default ? (archiver as any).default("zip", { zlib: { level: 6 } }) : (archiver as any)("zip", { zlib: { level: 6 } });
+    const archive = new ZipArchive({ zlib: { level: 6 } });
     archive.on("error", (err: Error) => {
       console.error("[FIAON-CONTRACTS-ZIP] Archiver error:", err);
       try { res.end(); } catch { }

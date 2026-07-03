@@ -94,13 +94,12 @@ Stand: 2026-07-03 · Umstellung des gesamten Zahlungsflows von Stripe auf SEPA-V
 **Datenmodell**
 - Neuer Status `claimed_paid` (zwischen `pending_payment` und `paid`) + Spalte `claimed_paid_at`. Löst NIEMALS Freischaltung/Willkommensmail aus. Claims sind von Reminder-/Expiry-Cron ausgenommen (Admin verifiziert manuell).
 
-**Zahlungsseite `/zahlung/[ref]` (mobile-first, neu aufgebaut)**
-- Headline „Letzter Schritt: Konto aktivieren" + „Dein Platz ist bis zum [Datum] reserviert."
-- Erklär-Box „So überweist du – in 3 einfachen Schritten" (für technikferne/ältere Nutzer).
-- **Lösung A (Held):** „Alle Überweisungsdaten kopieren" — 1 Klick kopiert Empfänger/IBAN/BIC/Betrag/Verwendungszweck formatiert; Bestätigung „Kopiert ✓ – wechsle jetzt in deine Banking-App…"; Clipboard-Fallback zeigt selektierten Datenblock + „Bitte kopiere die Daten unten manuell."
-- **Lösung B (nur Mobile, nachrangig):** „In meiner Banking-App öffnen" — BezahlCode-Deep-Link (`bank://singlepaymentsepa?…`) mit ehrlichem Hinweis; scheitert still, nichts geht kaputt.
-- Einzel-Copy-Felder bleiben (Verwendungszweck hervorgehoben mit „Ohne diesen Code…").
-- **Lösung C:** QR responsive — Mobile eingeklappt („▸ QR-Code anzeigen (zum Scannen mit einem anderen Gerät)" + Erklärtext), Desktop prominent sichtbar. Rein per Viewport-CSS, ein Code-Pfad.
+**Zahlungsseite `/zahlung/[ref]` (v2 — QR-Speichern-Lösung, ersetzt „Alles kopieren")**
+- „Alles kopieren" wurde **komplett entfernt** (Textblock landet ungeparst im ersten Feld der Banking-App → Fehlerquelle). Ebenso der unzuverlässige Deep-Link-Button.
+- **Haupt-Baustein:** GiroCode prominent + Button **„QR-Code speichern"** — exportiert NUR das QR-Bild als PNG (verstecktes 640px-Canvas mit Quiet Zone, immer weißer Hintergrund → auch im Darkmode scanbar), Dateiname `FIAON-Ueberweisung-[ref].png`. Mobile: Web Share API (`navigator.share` mit Bilddatei → „In Fotos sichern"), sonst PNG-Download; Share-Abbruch zeigt keine falsche Bestätigung. Kunde lädt den Code in der Banking-App per „Rechnung fotografieren / QR aus Galerie" hoch — alle Felder inkl. Verwendungszweck automatisch ausgefüllt.
+- Erklär-Box „So bezahlst du – ganz einfach" mit zwei sauber getrennten Wegen: Empfohlen (QR speichern → Galerie-Upload, 3 Schritte) / Alternativ (Einzelfelder von Hand, mit Referenz-Hinweis). Desktop-Zusatz: „…oder scanne den Code mit deiner Banking-App am Handy."
+- **Design:** Überschriften mit dezent animiertem Gradient-Shimmer (7s, `background-clip: text`, `prefers-reduced-motion` → Animation aus). Ruhige Vertrauens-Badges (SSL-verschlüsselt / SEPA-Überweisung / EU-Konto) unter Headline und auf der Danke-Seite. Clean, viel Weißraum, große Touch-Targets.
+- Einzel-Copy-Felder bleiben (feldgenaues Einfügen ist unproblematisch; Verwendungszweck hervorgehoben).
 - **Tracking:** „Ich habe die Überweisung getätigt" → `POST /payment-order/:ref/claim-paid` → Redirect `/zahlung/[ref]/danke` (exakter Danke-Text lt. Spez). Bei erneutem Seitenbesuch mit Status `claimed_paid`: grüner Hinweis, Daten bleiben sichtbar.
 
 **Admin `/admin/zahlungen`**
@@ -113,7 +112,7 @@ Stand: 2026-07-03 · Umstellung des gesamten Zahlungsflows von Stripe auf SEPA-V
 2. ✅ Stats: nach Claim „erwartet 59,99 €", nach mark-paid „bestätigt 59,99 €", Quote 100 %.
 3. ✅ claim auf bereits bezahlte Bestellung → 404 (kein Downgrade möglich).
 4. ✅ Zwei Bestellungen → zwei eindeutige Referenzen; Typecheck 0 Fehler.
-5. ⚠️ Manuell zu prüfen (echtes Gerät/HTTPS): Copy-Button auf iOS/Android, Deep-Link mit echter Banking-App, QR-Scan.
+5. ⚠️ Manuell zu prüfen (echtes Gerät/HTTPS): „QR-Code speichern" auf iOS/Android (Share-Sheet → Fotos), gespeichertes PNG per Galerie-Upload in echter Banking-App einlesen (Sparkasse/VR/ING o. ä.), Einzel-Copy-Buttons, Shimmer bei `prefers-reduced-motion` aus.
 
 ### Offene Punkte
 - [ ] **Env-Variablen entfernen**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VITE_STRIPE_PUBLISHABLE_KEY`/`VITE_STRIPE_PUBLIC_KEY` aus dem Deployment löschen (Code ist mit Null-Guards abgesichert).

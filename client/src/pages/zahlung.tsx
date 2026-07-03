@@ -167,6 +167,27 @@ const ZAHLUNG_STYLES = `
   @keyframes zahlungShimmer{0%{background-position:0% center}50%{background-position:100% center}100%{background-position:0% center}}
   @media (prefers-reduced-motion: reduce){.zahlung-shimmer-heading{animation:none}}
   @keyframes zahlungFadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+
+  /* Tracking-Button: animierter Farbverlaufs-Rahmen + glänzender Verlauf im Button */
+  .zahlung-claim-wrap{
+    position:relative;padding:3px;border-radius:9999px;
+    background:linear-gradient(115deg,#059669,#10b981,#3b82f6,#10b981,#059669);
+    background-size:300% 300%;
+    animation:zahlungClaimBorder 5s ease infinite;
+    box-shadow:0 12px 34px -8px rgba(16,185,129,.55);
+  }
+  @keyframes zahlungClaimBorder{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+  .zahlung-claim-btn{
+    background:linear-gradient(115deg,#047857,#059669,#10b981,#059669,#047857);
+    background-size:300% 300%;
+    animation:zahlungClaimBorder 5s ease infinite;
+  }
+  .zahlung-claim-btn:hover{transform:translateY(-2px);filter:brightness(1.06)}
+  @media (prefers-reduced-motion: reduce){
+    .zahlung-claim-wrap,.zahlung-claim-btn{animation:none}
+    .zahlung-claim-wrap{background:#059669}
+    .zahlung-claim-btn{background:linear-gradient(115deg,#047857,#10b981)}
+  }
 `;
 
 export default function ZahlungPage() {
@@ -344,7 +365,7 @@ export default function ZahlungPage() {
 
             {/* 3. Erklär-Box: So bezahlst du – ganz einfach */}
             <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5 sm:p-6 mb-5">
-              <p className="text-[16px] sm:text-[17px] font-bold zahlung-shimmer-heading mb-4 inline-block">So bezahlst du – ganz einfach</p>
+              <p className="text-[16px] sm:text-[17px] font-bold zahlung-shimmer-heading mb-4 inline-block">Konto aktivieren &amp; Karte versenden – ganz einfach</p>
 
               <p className="text-[12px] font-bold uppercase tracking-wider text-[#2563eb] mb-2.5">Empfohlen (schnell &amp; fehlerfrei)</p>
               <ol className="space-y-2.5 mb-5">
@@ -459,23 +480,28 @@ export default function ZahlungPage() {
               </p>
             </div>
 
-            {/* 8. Tracking-Button: Ich habe die Überweisung getätigt */}
-            <button
-              type="button"
-              onClick={handleClaimPaid}
-              disabled={claiming}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-full py-4 px-6 text-[14px] sm:text-[15px] font-bold text-emerald-700 bg-emerald-50 border-2 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-all disabled:opacity-60"
-              style={{ minHeight: 52 }}
-            >
-              {claiming ? (
-                "Einen Moment…"
-              ) : (
-                <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
-                  Ich habe die Überweisung getätigt
-                </>
-              )}
-            </button>
+            {/* 8. Tracking-Button: Ich habe die Überweisung getätigt (präsent, animierter Rahmen) */}
+            <div className="zahlung-claim-wrap">
+              <button
+                type="button"
+                onClick={handleClaimPaid}
+                disabled={claiming}
+                className="zahlung-claim-btn w-full inline-flex items-center justify-center gap-2.5 rounded-full py-5 px-6 text-[15px] sm:text-[17px] font-bold text-white transition-all disabled:opacity-60"
+                style={{ minHeight: 60 }}
+              >
+                {claiming ? (
+                  "Einen Moment…"
+                ) : (
+                  <>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+                    Ich habe die Überweisung getätigt
+                  </>
+                )}
+              </button>
+            </div>
+            <p className="text-center text-[12px] text-slate-400 mt-2.5">
+              Tippe hier erst, nachdem du die Überweisung in deiner Banking-App abgeschickt hast.
+            </p>
           </div>
         )}
       </div>

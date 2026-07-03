@@ -1,6 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
+import { MAINTENANCE_MODE } from "@/lib/maintenance";
+import { MaintenancePaymentBlock } from "@/components/MaintenanceBanner";
 
 // Stripe Payment Links (externes Checkout — ersetzt das eingebettete Stripe SDK)
 /**
@@ -514,6 +516,7 @@ export default function AntragPage() {
 
   // Weiterleitung zu externem Stripe Payment Link (statt eingebettetem SDK)
   const handleProceedToStripe = useCallback(async () => {
+    if (MAINTENANCE_MODE) return;
     if (!pack) return;
     try {
       // Antrag vor Redirect in DB speichern (Status: pending_payment)
@@ -2272,8 +2275,15 @@ export default function AntragPage() {
               </p>
             </div>
 
+            {/* Wartungsmodus: Zahlung blockiert */}
+            {MAINTENANCE_MODE && (
+              <div className="mb-6 sm:mb-8">
+                <MaintenancePaymentBlock />
+              </div>
+            )}
+
             {/* PRIMARY CTA — direkt unter Welcome */}
-            {pack && (
+            {!MAINTENANCE_MODE && pack && (
               <div className="mb-6 sm:mb-8">
                 <button
                   type="button"
@@ -2303,6 +2313,7 @@ export default function AntragPage() {
             )}
 
             {/* Dezente Info: Sichere Zahlungsabwicklung */}
+            {!MAINTENANCE_MODE && (
             <div className="rounded-xl bg-slate-50/70 border border-slate-100 p-4 sm:p-5 mb-6">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center">
@@ -2319,8 +2330,10 @@ export default function AntragPage() {
                 </div>
               </div>
             </div>
+            )}
 
             {/* Trust-Badges Mini-Row */}
+            {!MAINTENANCE_MODE && (
             <div className="flex items-center justify-center gap-4 sm:gap-6 flex-wrap mb-6">
               <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-400 font-medium">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2344,6 +2357,7 @@ export default function AntragPage() {
                 Sofortige Aktivierung
               </div>
             </div>
+            )}
 
             {/* Contract Download Link */}
             <div className="flex items-center justify-center gap-2">

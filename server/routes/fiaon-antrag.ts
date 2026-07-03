@@ -11,6 +11,10 @@ import { randomBytes } from "crypto";
 
 const router = Router();
 
+// ── Wartungsmodus: Stripe-Geschäftsbeziehung beendet — keine Zahlungen mehr ──
+// Muss synchron zu client/src/lib/maintenance.ts gehalten werden.
+const MAINTENANCE_MODE = true;
+
 // In-memory store for identity-verify tokens (15 min TTL)
 const verifyTokens = new Map<string, { ref: string; expiresAt: number }>();
 setInterval(() => {
@@ -45,7 +49,11 @@ const stripe = process.env.STRIPE_SECRET_KEY
 router.post("/create-payment-intent", async (req, res) => {
   try {
     const { amount, packageName, ref, firstName, lastName, email } = req.body;
-    
+
+    if (MAINTENANCE_MODE) {
+      return res.status(503).json({ error: "Wartungsarbeiten: Aktuell können keine Zahlungen angenommen werden.", maintenance: true });
+    }
+
     if (!stripe) {
       return res.status(500).json({ error: "Stripe not configured" });
     }

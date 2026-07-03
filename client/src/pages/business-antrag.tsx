@@ -4,6 +4,8 @@ import { Elements } from "@stripe/react-stripe-js";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import PremiumCheckoutForm from "@/components/PremiumCheckoutForm";
+import { MAINTENANCE_MODE } from "@/lib/maintenance";
+import { MaintenancePaymentBlock } from "@/components/MaintenanceBanner";
 import { downloadContract } from "@/utils/contractTemplate";
 
 /* === PREMIUM PHONE INPUT COMPONENT === */
@@ -483,7 +485,7 @@ export default function BusinessAntragPage() {
 
   // Fetch client secret when reaching payment step
   useEffect(() => {
-    if (step === 6 && pack && !clientSecret) {
+    if (!MAINTENANCE_MODE && step === 6 && pack && !clientSecret) {
       const fetchClientSecret = async () => {
         try {
           const response = await fetch("/api/fiaon/create-payment-intent", {
@@ -1287,8 +1289,10 @@ export default function BusinessAntragPage() {
               <div className="relative z-10 fiaon-glass-panel p-6 rounded-2xl">
                 <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Aktivierung abschließen</p>
                 <p className="text-[14px] text-gray-600 mb-5">Schließe die Zahlung für dein {pack?.name} Paket ab.</p>
-                
-                {clientSecret && pack && stripePromise && (
+
+                {MAINTENANCE_MODE && <MaintenancePaymentBlock />}
+
+                {!MAINTENANCE_MODE && clientSecret && pack && stripePromise && (
                   <Elements 
                     stripe={stripePromise} 
                     options={{ 
@@ -1319,7 +1323,7 @@ export default function BusinessAntragPage() {
                     <PremiumCheckoutForm packageName={pack.name} price={pack.fee} clientSecret={clientSecret} onSuccess={() => window.location.href = '/dashboard'} />
                   </Elements>
                 )}
-                {!stripePromise && (
+                {!MAINTENANCE_MODE && !stripePromise && (
                   <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-red-600 text-sm font-medium">
                     Systemfehler: Das Zahlungssystem konnte nicht initialisiert werden (Public Key fehlt). Bitte laden Sie die Seite neu.
                   </div>

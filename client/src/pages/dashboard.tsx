@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import Clarity from "@microsoft/clarity";
+import { MAINTENANCE_MODE } from "@/lib/maintenance";
+import { MaintenancePaymentBlock } from "@/components/MaintenanceBanner";
 
 /* ── Inject dashboard-specific animations ── */
 if (typeof document !== "undefined" && !document.head.querySelector("style[data-db-anim]")) {
@@ -1687,21 +1689,27 @@ export default function DashboardPage() {
               </ul>
 
               {/* CTA */}
-              <a
-                href={`https://buy.stripe.com/3cI7sN51dftYa2v5QCfnO06?prefilled_email=${encodeURIComponent(user.email || '')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full text-center py-4 rounded-2xl text-[15px] font-extrabold text-white relative overflow-hidden"
-                style={{ background: 'linear-gradient(135deg, #1d4ed8, #2563eb, #3b82f6)', boxShadow: '0 16px 40px rgba(37,99,235,0.4)', letterSpacing: '0.04em' }}
-                onClick={() => setSchufaModal(false)}
-              >
-                <span className="relative z-10">Jetzt bezahlen &amp; Auskunft erhalten — 74 €</span>
-                <div className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: 'linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent)', animation: 'bonShimmer 3s ease-in-out infinite' }} />
-              </a>
-              <p className="text-[11px] text-white/25 text-center mt-3 flex items-center justify-center gap-1.5">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 3L4 7v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V7z"/></svg>
-                Sichere Zahlung via Stripe · SSL-verschlüsselt · Einmalig
-              </p>
+              {MAINTENANCE_MODE ? (
+                <MaintenancePaymentBlock />
+              ) : (
+                <>
+                  <a
+                    href={`https://buy.stripe.com/3cI7sN51dftYa2v5QCfnO06?prefilled_email=${encodeURIComponent(user.email || '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full text-center py-4 rounded-2xl text-[15px] font-extrabold text-white relative overflow-hidden"
+                    style={{ background: 'linear-gradient(135deg, #1d4ed8, #2563eb, #3b82f6)', boxShadow: '0 16px 40px rgba(37,99,235,0.4)', letterSpacing: '0.04em' }}
+                    onClick={() => setSchufaModal(false)}
+                  >
+                    <span className="relative z-10">Jetzt bezahlen &amp; Auskunft erhalten — 74 €</span>
+                    <div className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: 'linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent)', animation: 'bonShimmer 3s ease-in-out infinite' }} />
+                  </a>
+                  <p className="text-[11px] text-white/25 text-center mt-3 flex items-center justify-center gap-1.5">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 3L4 7v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V7z"/></svg>
+                    Sichere Zahlung via Stripe · SSL-verschlüsselt · Einmalig
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>

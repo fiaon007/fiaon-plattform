@@ -31,6 +31,7 @@ import InvestorLoginPage from "@/pages/investor-login";
 import InvestorDashboardPage from "@/pages/investor-dashboard";
 import ZahlungPage, { ZahlungDankePage } from "@/pages/zahlung";
 import AdminZahlungenPage from "@/pages/admin-zahlungen";
+import AgentPortalPage from "@/pages/agent";
 
 function Router() {
   return (
@@ -46,6 +47,7 @@ function Router() {
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/admin/database" component={AdminDatabasePage} />
       <Route path="/admin/zahlungen" component={AdminZahlungenPage} />
+      <Route path="/agent" component={AgentPortalPage} />
       <Route path="/zahlung/:paymentRef/danke" component={ZahlungDankePage} />
       <Route path="/zahlung/:paymentRef" component={ZahlungPage} />
       <Route path="/was-ist-fiaon" component={WasIstFiaonPage} />

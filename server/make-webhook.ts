@@ -5,7 +5,7 @@
 // Siehe MIGRATION_INVENTORY.md
 // ═══════════════════════════════════════════════════════════════════
 
-export type MakeEventType = "welcome" | "payment_details" | "followup_48h";
+export type MakeEventType = "welcome" | "payment_details" | "followup_48h" | "agent_payment_reminder";
 
 export interface MakeWebhookPayload {
   email: string;

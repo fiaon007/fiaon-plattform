@@ -282,10 +282,11 @@ export default function CookieEinstellungenPage() {
               <div className="relative z-10">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">Verantwortliche Stelle</h2>
                 <div className="space-y-2 text-gray-700">
-                  <p className="font-semibold">SCP Real Estate KG</p>
-                  <p>Pasinger Str. 1</p>
-                  <p>82166 Gräfelfing</p>
-                  <p>Deutschland</p>
+                  <p className="font-semibold">FIAON LTD</p>
+                  <p>128 City Road</p>
+                  <p>London, EC1V 2NX</p>
+                  <p>Vereinigtes Königreich (United Kingdom)</p>
+                  <p>Company No. 17318250 · Director: Justin Schwarzott</p>
                   <p>E-Mail: support@fiaon.com</p>
                 </div>
               </div>

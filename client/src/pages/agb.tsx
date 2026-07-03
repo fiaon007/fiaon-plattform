@@ -38,7 +38,7 @@ export default function AGBPage() {
             <div className="relative z-10">
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">Präambel</h2>
               <p className="text-gray-700 leading-relaxed mb-4">
-                Die SCP Real Estate KG, Pasinger Str. 1, 82166 Gräfelfing (nachfolgend „Anbieterin" oder „FIAON"), betreibt unter der Domain fiaon.com eine internetbasierte Software-as-a-Service (SaaS) und E-Learning-Plattform. Die Plattform bietet Nutzern KI-gestützte Datenanalysen, Score-Simulationen und Schulungsmodule zur strategischen Optimierung privater und geschäftlicher Finanzprofile (sog. „Credit-Building").
+                Die FIAON LTD, 128 City Road, London, EC1V 2NX, Vereinigtes Königreich, eingetragen im Companies House (England and Wales) unter der Company Registration Number 17318250, vertreten durch den Director Justin Schwarzott (nachfolgend „Anbieterin" oder „FIAON"), betreibt unter der Domain fiaon.com eine internetbasierte Software-as-a-Service (SaaS) und E-Learning-Plattform. Die Plattform bietet Nutzern KI-gestützte Datenanalysen, Score-Simulationen und Schulungsmodule zur strategischen Optimierung privater und geschäftlicher Finanzprofile (sog. „Credit-Building").
               </p>
               <p className="text-gray-700 leading-relaxed">
                 Diese AGB regeln das Vertragsverhältnis zwischen der Anbieterin und den registrierten Nutzern (nachfolgend „Nutzer" oder „Kunde").
@@ -164,7 +164,7 @@ export default function AGBPage() {
                 Die Gebühren für das gewählte Abonnement sind jeweils monatlich im Voraus zur Zahlung fällig.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                Die Zahlungsabwicklung erfolgt über den externen Zahlungsdienstleister Stripe. Der Nutzer ermächtigt die Anbieterin, den fälligen Betrag über das gewählte Zahlungsmittel (z. B. Kreditkarte, SEPA-Lastschrift) einzuziehen.
+                Die Zahlung erfolgt per Vorkasse durch SEPA-Banküberweisung auf das in der Bestellbestätigung genannte Geschäftskonto der Anbieterin. Der Zugang wird nach Zahlungseingang freigeschaltet.
               </p>
               <p className="text-gray-700 leading-relaxed">
                 Befindet sich der Nutzer im Zahlungsverzug, ist die Anbieterin berechtigt, den Zugang zum Dashboard bis zur vollständigen Begleichung der offenen Forderung zu sperren. Die Verpflichtung zur Zahlung der monatlichen Gebühr bleibt hiervon unberührt.
@@ -206,7 +206,7 @@ export default function AGBPage() {
             <div className="relative z-10">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">§ 7 Geistiges Eigentum und Nutzungsrechte</h2>
               <p className="text-gray-700 leading-relaxed mb-4">
-                Die Software FIAON, alle damit verbundenen Quellcodes, Algorithmen, UI-Designs, Texte, Coaching-Videos sowie das zugrundeliegende methodische Konzept sind urheberrechtlich geschützt und geistiges Eigentum der SCP Real Estate KG.
+                Die Software FIAON, alle damit verbundenen Quellcodes, Algorithmen, UI-Designs, Texte, Coaching-Videos sowie das zugrundeliegende methodische Konzept sind urheberrechtlich geschützt und geistiges Eigentum der FIAON LTD.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
                 Dem Nutzer wird für die Dauer der Vertragslaufzeit ein einfaches, nicht übertragbares, nicht unterlizenzierbares und räumlich unbeschränktes Recht eingeräumt, die Software über einen Webbrowser bestimmungsgemäß zu nutzen.
@@ -294,7 +294,7 @@ export default function AGBPage() {
                   Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen. Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag des Vertragsabschlusses.
                 </p>
                 <p className="text-gray-700 leading-relaxed mb-4">
-                  Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (SCP Real Estate KG, Pasinger Str. 1, 82166 Gräfelfing, E-Mail: support@fiaon.com, Telefon: +49 (0) 89 12345678) mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.
+                  Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom, E-Mail: support@fiaon.com) mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.
                 </p>
                 <p className="text-gray-700 leading-relaxed mb-6">
                   Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.
@@ -321,7 +321,7 @@ export default function AGBPage() {
               <div className="mt-6 p-6 bg-white/50 rounded-xl border border-gray-200">
                 <h4 className="font-semibold text-gray-800 mb-4">Muster-Widerrufsformular</h4>
                 <p className="text-gray-500 text-sm mb-4">(Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück.)</p>
-                <p className="text-gray-700 mb-2"><strong>An:</strong> SCP Real Estate KG, Pasinger Str. 1, 82166 Gräfelfing, E-Mail: support@fiaon.com</p>
+                <p className="text-gray-700 mb-2"><strong>An:</strong> FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom, E-Mail: support@fiaon.com</p>
                 <p className="text-gray-700 mb-2">Hiermit widerrufe(n) ich/wir () den von mir/uns () abgeschlossenen Vertrag über die Erbringung der folgenden Dienstleistung: Zugang zur FIAON-Software</p>
                 <p className="text-gray-700 mb-2">Bestellt am (*)</p>
                 <p className="text-gray-700 mb-2">Name des/der Verbraucher(s)</p>
@@ -356,6 +356,7 @@ export default function AGBPage() {
             }} />
             <div className="relative z-10">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">§ 12 Schlussbestimmungen</h2>
+              {/* LEGAL REVIEW REQUIRED: Rechtswahl/Gerichtsstand UK Ltd vs. deutsches Verbraucherrecht — bestehender Text bewusst NICHT umformuliert, anwaltliche Prüfung (LEXR) ausstehend. */}
               <p className="text-gray-700 leading-relaxed mb-4">
                 Es gilt das Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts. Zwingende Verbraucherschutzbestimmungen des Staates, in dem der Verbraucher seinen gewöhnlichen Aufenthalt hat, bleiben hiervon unberührt.
               </p>

@@ -62,7 +62,8 @@ function wrap(inner: string): string {
     <p style="font-size:20px;font-weight:800;color:#2563eb;margin-bottom:24px;">FIAON</p>
     ${inner}
     <p style="font-size:12px;color:#94a3b8;margin-top:32px;border-top:1px solid #e2e8f0;padding-top:16px;">
-      Fiaon Ltd · Diese E-Mail wurde automatisch versendet.
+      FIAON LTD · 128 City Road, London, EC1V 2NX, United Kingdom · Registered in England and Wales, Companies House No. 17318250 · Director: Justin Schwarzott · support@fiaon.com<br/>
+      Diese E-Mail wurde automatisch versendet. / This e-mail was sent automatically.
     </p>
   </div>`;
 }

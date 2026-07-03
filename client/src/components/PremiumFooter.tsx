@@ -148,7 +148,7 @@ export default function PremiumFooter() {
         {/* Disclaimer Block */}
         <div className="pt-8 mb-8" style={{ borderTop: "1px solid rgba(255, 255, 255, 0.1)" }}>
           <p className="text-[12px] text-gray-500 leading-relaxed">
-            FIAON ist eine Software-as-a-Service (SaaS) und E-Learning-Plattform, bereitgestellt von der SCP Real Estate KG (Gräfelfing, Deutschland). FIAON ist kein Kreditinstitut, kein Finanzdienstleister und erbringt ausdrücklich keine Anlage-, Steuer- oder Rechtsberatung im Sinne des Kreditwesengesetzes (KWG). Ebenso betreiben wir keine Kredit- oder Darlehensvermittlung gemäß der Gewerbeordnung (insbesondere § 34c GewO). Wir vermitteln keine Finanzprodukte, setzen keine Affiliate-Tracking-Links ein und erhalten keinerlei Provisionen, Kick-backs oder erfolgsabhängige Vergütungen von Banken oder Kreditkartenherausgebern. Alle durch die Software generierten Daten, Analysen, Score-Simulationen und strategischen Dashboards dienen ausschließlich der finanziellen Bildung. Die Umsetzung der erlernten Strategien sowie die Antragstellung bei Finanzinstituten erfolgen vollumfänglich und in alleiniger Eigenverantwortung des Nutzers. Die finale Entscheidung über die Vergabe einer Kreditkarte oder die Gewährung eines spezifischen Kreditlimits obliegt zu 100 % dem jeweiligen Finanzinstitut. Es wird ausdrücklich keine Garantie, Haftung oder Gewährleistung für eine erfolgreiche Bewilligung übernommen.
+            FIAON ist eine Software-as-a-Service (SaaS) und E-Learning-Plattform, bereitgestellt von der FIAON LTD (128 City Road, London, EC1V 2NX, United Kingdom · Companies House No. 17318250). FIAON ist kein Kreditinstitut, kein Finanzdienstleister und erbringt ausdrücklich keine Anlage-, Steuer- oder Rechtsberatung im Sinne des Kreditwesengesetzes (KWG). Ebenso betreiben wir keine Kredit- oder Darlehensvermittlung gemäß der Gewerbeordnung (insbesondere § 34c GewO). Wir vermitteln keine Finanzprodukte, setzen keine Affiliate-Tracking-Links ein und erhalten keinerlei Provisionen, Kick-backs oder erfolgsabhängige Vergütungen von Banken oder Kreditkartenherausgebern. Alle durch die Software generierten Daten, Analysen, Score-Simulationen und strategischen Dashboards dienen ausschließlich der finanziellen Bildung. Die Umsetzung der erlernten Strategien sowie die Antragstellung bei Finanzinstituten erfolgen vollumfänglich und in alleiniger Eigenverantwortung des Nutzers. Die finale Entscheidung über die Vergabe einer Kreditkarte oder die Gewährung eines spezifischen Kreditlimits obliegt zu 100 % dem jeweiligen Finanzinstitut. Es wird ausdrücklich keine Garantie, Haftung oder Gewährleistung für eine erfolgreiche Bewilligung übernommen.
           </p>
         </div>
 
@@ -156,7 +156,7 @@ export default function PremiumFooter() {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4" style={{ borderTop: "1px solid rgba(255, 255, 255, 0.05)" }}>
           {/* Copyright */}
           <span className="text-[12px] text-gray-600">
-            © 2026 FIAON – Ein Produkt der SCP Real Estate KG - Schwarzott Group. Alle Rechte vorbehalten.
+            © 2026 FIAON – FIAON LTD, Registered in England and Wales, Companies House No. 17318250 · Director: Justin Schwarzott. Alle Rechte vorbehalten. / All rights reserved.
           </span>
 
           {/* System Status */}

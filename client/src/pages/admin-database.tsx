@@ -3,7 +3,6 @@ import CeoMindOS from "@/components/admin/CeoMindOS";
 import LiveRadar from "@/components/admin/LiveRadar";
 import KnowledgeBase from "@/components/admin/KnowledgeBase";
 import AccountingDashboard from "@/components/admin/AccountingDashboard";
-import MinimalistGlassLauncher from "@/components/layout/MinimalistGlassLauncher";
 import AdminApplicationsManager from "@/components/admin/AdminApplicationsManager";
 import AdminRevenueDashboard from "@/components/admin/AdminRevenueDashboard";
 import AdminInvestorsManager from "@/components/admin/AdminInvestorsManager";
@@ -361,8 +360,6 @@ export default function AdminDatabasePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex overflow-hidden">
-      <MinimalistGlassLauncher />
-
       {/* ═══════════════ SIDEBAR ═══════════════ */}
       <aside className="w-[220px] shrink-0 h-screen sticky top-0 bg-white border-r border-slate-100 flex flex-col z-20 shadow-sm">
         <div className="px-5 pt-6 pb-5 border-b border-slate-100">

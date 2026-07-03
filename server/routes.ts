@@ -212,6 +212,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const investorAuthRoutes = await import('./routes/investor-auth');
   app.use('/api/investor', investorAuthRoutes.default);
 
+  // 👤 FIAON Agent-Portal — Rollentrennung: Agent-Token auf /admin-Routen ⇒ 403 (serverseitig)
+  const fiaonAgentRoutes = await import('./routes/fiaon-agent');
+  app.use('/api/fiaon', fiaonAgentRoutes.blockAgentsFromAdmin);
+  app.use('/api/fiaon', fiaonAgentRoutes.default);
+
   // 💳 FIAON Antrag Routes — Public (no auth)
   const fiaonAntragRoutes = await import('./routes/fiaon-antrag');
   app.use('/api/fiaon', fiaonAntragRoutes.default);

@@ -57,16 +57,18 @@ export default function PrivacyPage() {
                 <p className="text-gray-700 leading-relaxed mb-4">
                   Verantwortlicher im Sinne der EU-Datenschutz-Grundverordnung (DSGVO) und anderer nationaler Datenschutzgesetze der Mitgliedsstaaten sowie sonstiger datenschutzrechtlicher Bestimmungen ist die:
                 </p>
+                {/* LEGAL REVIEW REQUIRED: Verantwortlicher außerhalb EU (UK Ltd) — Art. 27 DSGVO (EU-Vertreter) und internationale Datentransfers (UK Adequacy Decision) anwaltlich prüfen. */}
                 <div className="space-y-2 text-gray-700">
-                  <p className="font-semibold">SCP Real Estate KG</p>
-                  <p>Pasinger Str. 1</p>
-                  <p>82166 Gräfelfing</p>
-                  <p>Deutschland</p>
-                  <p className="mt-4">Vertreten durch den persönlich haftenden Gesellschafter: Hans-Jürgen Gerhold</p>
-                  <p>Telefon: +49 (0) 89 12345678</p>
+                  <p className="font-semibold">FIAON LTD</p>
+                  <p>128 City Road</p>
+                  <p>London, EC1V 2NX</p>
+                  <p>Vereinigtes Königreich (United Kingdom)</p>
+                  <p className="mt-4">Vertreten durch den Director: Justin Schwarzott</p>
+                  <p>Company Registration Number: 17318250 (Companies House, England and Wales)</p>
                   <p>E-Mail: support@fiaon.com</p>
                   <p>Website: fiaon.com</p>
                 </div>
+                <p className="text-sm text-gray-600 mt-4">Hinweis: Die FIAON LTD hat ihren Sitz im Vereinigten Königreich. Für das Vereinigte Königreich besteht ein Angemessenheitsbeschluss der Europäischen Kommission gemäß Art. 45 DSGVO, sodass personenbezogene Daten auf dieser Grundlage übermittelt werden dürfen.</p>
               </div>
             </div>
 
@@ -167,19 +169,20 @@ export default function PrivacyPage() {
                 animation: "limitGlow 6s ease-in-out infinite"
               }} />
               <div className="relative z-10">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">V. Zahlungsabwicklung (Stripe)</h2>
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">V. Zahlungsabwicklung (SEPA-Banküberweisung / Vorkasse)</h2>
+                {/* LEGAL REVIEW REQUIRED: Datenschutz-Passage Zahlungsabwicklung nach Stripe-Ablösung — Bankverbindung/Zahlungsdienstleister-Angaben anwaltlich prüfen. */}
                 <div className="space-y-4 text-gray-700">
                   <div>
                     <h3 className="font-semibold mb-2">1. Umfang der Verarbeitung</h3>
-                    <p className="text-sm">Zur Abwicklung der monatlichen Abonnement-Gebühren setzen wir den Zahlungsdienstleister Stripe ein (Stripe Payments Europe, Ltd., 1 Grand Canal Street Lower, Grand Canal Dock, Dublin, Irland). Wenn Sie ein kostenpflichtiges Paket bei FIAON buchen, werden die von Ihnen eingegebenen Zahlungsdaten direkt an Stripe übermittelt und dort verarbeitet. Die Anbieterin (SCP Real Estate KG) speichert Ihre vollständigen Kreditkartendaten zu keinem Zeitpunkt selbst auf eigenen Servern.</p>
+                    <p className="text-sm">Die Bezahlung der Abonnement-Gebühren erfolgt per Vorkasse durch SEPA-Banküberweisung auf das Geschäftskonto der Anbieterin. Bei der Bestellung erhalten Sie eine individuelle Zahlungsreferenz. Im Rahmen der Zahlungszuordnung verarbeiten wir die von Ihrer Bank übermittelten Überweisungsdaten (Name des Kontoinhabers, IBAN, Verwendungszweck, Betrag, Buchungsdatum). Kreditkartendaten werden von der Anbieterin zu keinem Zeitpunkt erhoben oder gespeichert.</p>
                   </div>
                   <div>
                     <h3 className="font-semibold mb-2">2. Zweck und Rechtsgrundlage</h3>
-                    <p className="text-sm">Die Übermittlung der Daten an Stripe erfolgt ausschließlich zum Zwecke der Zahlungsabwicklung und Abrechnung des gewählten Abonnements. Rechtsgrundlage ist die Vertragserfüllung gemäß Art. 6 Abs. 1 lit. b DSGVO.</p>
+                    <p className="text-sm">Die Verarbeitung der Zahlungsdaten erfolgt ausschließlich zum Zwecke der Zahlungsabwicklung, der Zuordnung des Zahlungseingangs zu Ihrer Bestellung sowie der Abrechnung des gewählten Abonnements. Rechtsgrundlage ist die Vertragserfüllung gemäß Art. 6 Abs. 1 lit. b DSGVO sowie die Erfüllung gesetzlicher Aufbewahrungspflichten gemäß Art. 6 Abs. 1 lit. c DSGVO.</p>
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-2">3. Weitere Datenschutzhinweise zu Stripe</h3>
-                    <p className="text-sm">Stripe fungiert bei der Zahlungsabwicklung als eigenständiger Verantwortlicher. Stripe stellt die Einhaltung des europäischen Datenschutzniveaus durch den Abschluss von EU-Standardvertragsklauseln sicher. Weitere Informationen zum Datenschutz bei Stripe finden Sie unter: <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 underline">stripe.com/privacy</a>.</p>
+                    <h3 className="font-semibold mb-2">3. Kontoführendes Institut</h3>
+                    <p className="text-sm">Das Geschäftskonto der Anbieterin wird bei einem in der Europäischen Union regulierten Zahlungsinstitut geführt. Ihre Überweisung erfolgt über Ihre eigene Bank; für deren Datenverarbeitung ist Ihre Bank eigenständig verantwortlich.</p>
                   </div>
                 </div>
               </div>

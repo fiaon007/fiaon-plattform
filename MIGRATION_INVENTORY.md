@@ -138,10 +138,52 @@ Stand: 2026-07-03 · Umstellung des gesamten Zahlungsflows von Stripe auf SEPA-V
 6. ✅ Zwei Bestellungen → zwei eindeutige Referenzen.
 7. Dubletten-Fix clientseitig (sessionStorage) — Code-Review-verifiziert; E2E: Antrag im Browser durchklicken, neu laden, prüfen dass nur 1 Zeile entsteht.
 
+### Update: Großes Update — Entity-Migration, Admin-Sanierung, Agent-Portal, Rechnungen
+
+**Paket A — Entity-Migration SCP Real Estate KG → FIAON LTD (überall)**
+- Bestandsaufnahme: 9 Dateien mit alter Entity (Impressum, AGB, Widerruf, Datenschutz, Cookies, Footer, B2B-Vertragsvorlage, 2× Server-Vertrags-PDF, E-Mail-Footer). Volltextsuche nach `SCP|Gräfelfing|Pasinger|Gerhold|HRA 120072|DE123456789` in ausgelieferten Quellen: **0 Treffer** nach Migration (getestet).
+- Impressum jetzt zweisprachig DE+EN mit Anker-Navigation; USt-ID-Panel ersatzlos entfernt (keine DE-USt-ID/UK-VAT vorhanden); Regulatorik-Disclaimer inhaltlich unverändert + EN-Übersetzung.
+- AGB §5: Stripe-Passus ersetzt durch SEPA-Vorkasse-Klausel. §12 unverändert + `LEGAL REVIEW REQUIRED`-Marker.
+- Alle Änderungen mit Vorher/Nachher in **`LEGAL_REVIEW_PACKAGE.md`** (Entwurf bis LEXR-Freigabe).
+
+**Paket B — Schwebendes Admin-Menü entfernt**
+- Ursache: `MinimalistGlassLauncher` (fixed `left-8 top-1/2 z-50`, Glas-Hamburger) wurde in `admin-database.tsx` gerendert und überlagerte die Sidebar (Buchhaltung/Ausbuchung). Auf Desktop UND Mobile überflüssig (Sidebar ist immer sichtbar) → Import + Rendering entfernt; Komponente selbst bleibt ungenutzt im Repo.
+
+**Paket C — Admin-Zahlungsansicht saniert (`/admin/zahlungen`)**
+- 4 Kacheln: Offen / **Zahlung angekündigt (hervorgehoben, klickbar = Arbeitsliste)** / Bestätigt bezahlt / Bestätigungsquote (paid je claimed).
+- Filter-Chips Alle/Offen/Angekündigt/Bezahlt/Abgelaufen; Default-Tab = Angekündigt; Sortierung claimed zuerst, älteste Ankündigung oben; claimed-Zeilen amber hinterlegt.
+- Tabelle: Referenz | Name | E-Mail | Telefon | Paket | Betrag | Status-Badge | Angekündigt am | Aktionen (Als bezahlt / Rechnung-PDF / Details).
+- Detail-Drawer mit **Ereignis-Timeline** (`GET /admin/payments/:ref/timeline`): Antrag erstellt → welcome → Rechnung → Zahlungsseite/payment_details → claimed → followup → Zusage → bezahlt, plus alle Agent-Aktionen.
+- **Duplikat-Altbestand**: `GET /admin/duplicates/preview` + `POST /admin/duplicates/cleanup-all` (confirmed-Pflicht). Soft-Delete via neuer Spalte `merged_into` (KEIN Hard-Delete); Keeper = höchster Score (Zahlstatus > payment_reference > Vertrag > Datenfülle > neuestes Update); paid/pending/claimed sind geschützt. Produktivlauf durchgeführt: **157 Gruppen, 311 Einträge gemerged, 9 geschützt**. `merged`-Zeilen sind aus `/admin/applications`, `/admin/payments`, Stats und Agent-Liste ausgeblendet.
+
+**Paket D — Mitarbeiter-Portal `/agent` (Rolle "Agent")**
+- Neue Tabellen `fiaon_agents` (bcrypt-Hash) + `fiaon_contact_log` (append-only Audit). Login: HMAC-signiertes httpOnly-Cookie (12h), eigener Screen unter `/agent`.
+- **Rollentrennung serverseitig**: Middleware `blockAgentsFromAdmin` (in `server/routes.ts` vor allen fiaon-Routern) → Request mit Agent-Cookie auf `/api/fiaon/admin/*` = **403** (getestet). Hinweis: Admin-Routen selbst sind weiterhin ohne eigene Auth (bestehendes Muster, siehe offene Punkte).
+- Agent sieht AUSSCHLIESSLICH `pending_payment` + `claimed_paid` (paid verschwindet automatisch, getestet) mit allen Durchgabe-Daten: Name, E-Mail, Telefon, Paket, Betrag, Referenz, Antragsdatum, Fälligkeit, Adresse, Rechnungsnummer, letzter Kontakt.
+- UI mobile-first (Karten + großer `tel:`-Anruf-Button, Bottom-Sheet-Detail) + Desktop-Tabelle; Suche; Chips Alle/Angekündigt/Termin/Nicht erreicht; **„Heute fällig"**-Bereich (Termine + Zusagen des Tages).
+- Kontakt-Doku: Freitext-Notizen (nach Speichern unveränderlich, Autor+Zeitstempel), 7 Ergebnis-Buttons (zahlt gleich / zahlt am [Datum] / abgelehnt / nicht erreicht / Mailbox / Rückruf am [Datum+Zeit] / Nummer falsch) mit Datums-Pickern; „zahlt am/gleich" setzt `promised_pay_date` → als „Zusage"-Badge auch im Admin sichtbar.
+- **Ein-Klick-Mail**: `POST /agent/customers/:ref/send-payment-email` → Make-Webhook **`agent_payment_reminder`** (Payload wie payment_details + `agent_name` + `invoice_url`). KEINE Direkt-Mail. 10-Min-Sperre pro Kunde (atomarer DB-Claim, HTTP 429 + Countdown im UI), jeder Versand als Log-Eintrag.
+- Admin-Verwaltung auf `/admin/zahlungen`: Agent anlegen/deaktivieren/Passwort setzen + einsehbarer Audit-Trail (`GET /admin/agent-log`).
+
+**Paket D6 — Rechnungssystem (`server/fiaon-invoice.ts`)**
+- Nummernkreis **lückenlos** über Counter-Tabelle `fiaon_counters` (atomares UPDATE…RETURNING), Format `FIAON-INV-2026-00001`, Jahr-Scope; Vergabe genau einmal beim Übergang zu `pending_payment` (idempotent). Rechnungsnummer+Datum am Datensatz (`invoice_number`, `invoice_date`); PDF wird deterministisch on-demand gerendert.
+- PDF im CI (#2563eb, FIAON-Wortmarke, bankrechnungs-klar): Entity-Kopf, Empfänger, Rechnungsnr./Datum/Zahlungsreferenz/Antragsnr./Zahlungsziel, Leistungsbeschreibung „[Paket] – Monatlicher Zugang zur FIAON SaaS- und E-Learning-Plattform…" + Leistungszeitraum, Gesamtbetrag EUR, Zahlungsblock (FIAON LTD, BE09 9058 9276 3957, TRWIBEB1XXX, Verwendungszweck, Ziel), Companies-House-Fußzeile.
+- **USt konfigurierbar** via env `INVOICE_VAT_MODE` (Default `none`: kein Steuerausweis + „Hinweis zur Umsatzsteuer: folgt nach steuerlicher Registrierung."). `TAX REVIEW REQUIRED`-Marker im Code — niemals 19 % vor Registrierung.
+- Downloads: Admin (`GET /admin/payments/:payref/invoice.pdf`, Tabelle+Drawer), Agent (`GET /agent/customers/:ref/invoice.pdf`), öffentlich **signiert mit Ablauf** (`GET /invoice/:payref.pdf?exp&sig`, HMAC, 72h) — `invoice_url` hängt an `payment_details`- und `agent_payment_reminder`-Payloads.
+
+**Betreiber-TODOs (Make.com / Brevo)**
+- [ ] In Make.com **vierten Router-Zweig `event_type = agent_payment_reminder`** anlegen (eigenes Brevo-Template „wie soeben besprochen…", Felder: vorname, betrag, payment_reference, agent_name, invoice_url).
+- [ ] Brevo-Templates (payment_details + agent_payment_reminder) optional um Button **„Rechnung herunterladen"** = `{{invoice_url}}` ergänzen (Link läuft nach 72h ab).
+- [ ] `LEGAL_REVIEW_PACKAGE.md` an LEXR geben; `INVOICE_VAT_MODE` nach Steuer-Registrierung mit Steuerberater festlegen.
+
+**Getestet (echter Server + DB + Webhook-Catcher, Testdaten danach entfernt)**
+1. ✅ Volltextsuche alte Entity → 0 Treffer. 2. ✅ Impressum/AGB/Widerruf FIAON LTD zweisprachig, `LEGAL_REVIEW_PACKAGE.md` existiert. 3. ✅ Schwebendes Menü entfernt (keine Verwendung mehr). 4. ✅ claim-paid → sofort in Angekündigt-Liste/Kachel. 5. ✅ Duplikat-Testgruppe korrekt gemerged (Keeper behalten, Soft-Delete, aus Listen verschwunden, ohne confirmed → 400). 6. ✅ Agent-Login (falsches PW 401), sieht nur unbezahlte, Admin-URLs → 403, bezahlter Kunde verschwindet. 7. ✅ Notiz + Rückruf-Termin mit Autor/Zeitstempel, Zusage im Admin sichtbar. 8. ✅ agent_payment_reminder feuert mit agent_name+invoice_url, 2. Klick → 429 (10-Min-Sperre), Log-Eintrag. 9. ✅ Rechnung FIAON-INV-2026-00001 automatisch, PDF valide, ohne USt-Ausweis, Admin+Agent-Download, signierter Link 200 / manipuliert 403 / abgelaufen 403. 10. ✅ Audit-Log zeigt alle 4 Agent-Aktionen.
+- Hinweis: Invoice-Counter nach Tests auf 0 zurückgesetzt (kein echter Kunde hatte eine Nummer) → erste echte Rechnung = FIAON-INV-2026-00001.
+
 ### Offene Punkte
 - [ ] **Env-Variablen entfernen**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VITE_STRIPE_PUBLISHABLE_KEY`/`VITE_STRIPE_PUBLIC_KEY` aus dem Deployment löschen (Code ist mit Null-Guards abgesichert).
 - [ ] **Stripe Payment Links im Stripe-Dashboard deaktivieren** (alte gespeicherte URLs könnten sonst noch funktionieren).
-- [ ] **AGB §5** (Rechtsabteilung): „Zahlungsabwicklung über Stripe" ersetzen. Ebenso `privacy.tsx` / `cookie-einstellungen.tsx`.
+- [x] ~~AGB §5 / privacy / cookie-einstellungen: Stripe-Passus ersetzen~~ — erledigt (siehe Paket A + `LEGAL_REVIEW_PACKAGE.md`).
 - [ ] Admin-Umsatz-Dashboards (`/admin/stripe/*`) zeigen nach Env-Entfernung keine Daten mehr — bei Bedarf auf `fiaon_applications.amount_due/paid` umstellen.
 - [ ] `FIAON_BASE_URL` env setzen (Default `https://fiaon.de`) für korrekte Links in E-Mails.
 - [ ] **`MAKE_WEBHOOK_URL` im Deployment setzen** — ohne diese env werden die Make-Events (welcome/payment_details/followup_48h) nur geloggt und übersprungen.

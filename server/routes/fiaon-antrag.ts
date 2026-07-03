@@ -10,6 +10,7 @@ import multer from "multer";
 import { randomBytes } from "crypto";
 import { sendPaymentConfirmedEmail } from "../email/fiaon-payment-emails";
 import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
+import { ensureInvoiceNumber, renderInvoicePdf, signInvoiceUrl, verifyInvoiceSig } from "../fiaon-invoice";
 
 const router = Router();
 
@@ -100,8 +101,14 @@ async function ensurePaymentColumns(): Promise<void> {
     ADD COLUMN IF NOT EXISTS claimed_paid_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS welcome_sent_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS payment_email_sent_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS followup_sent_at TIMESTAMPTZ;
+    ADD COLUMN IF NOT EXISTS followup_sent_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS merged_into VARCHAR,
+    ADD COLUMN IF NOT EXISTS promised_pay_date TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS agent_email_sent_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS invoice_number VARCHAR,
+    ADD COLUMN IF NOT EXISTS invoice_date TIMESTAMPTZ;
   `;
+  await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_invoice_no_idx ON fiaon_applications(invoice_number)`;
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_payment_ref_idx ON fiaon_applications(payment_reference)`;
   paymentColumnsEnsured = true;
   console.log("[FIAON-PAYMENT] Zahlungsspalten sichergestellt");
@@ -171,6 +178,13 @@ router.post("/payment-order", async (req, res) => {
 
     console.log(`[FIAON-PAYMENT] Bestellung angelegt: ${paymentReference} (ref=${ref}, ${amount.toFixed(2)} EUR, fällig ${dueDate.toISOString()})`);
 
+    // Rechnung: fortlaufende, lückenlose Nummer genau einmal beim Übergang zu pending_payment
+    try {
+      await ensureInvoiceNumber(sqlPool, ref);
+    } catch (invErr) {
+      console.error("[FIAON-INVOICE] Nummernvergabe:", invErr);
+    }
+
     // Make-Webhook 'payment_details' — genau einmal beim Übergang nach pending_payment.
     // Atomarer Flag-Claim verhindert Doppelversand; Fehler blockieren den Flow nicht.
     try {
@@ -179,7 +193,11 @@ router.post("/payment-order", async (req, res) => {
         WHERE ref = ${ref} AND payment_email_sent_at IS NULL
         RETURNING ref, first_name, last_name, contact_name, email, contact_email, billing_email, pack_name, payment_reference, amount_due
       `;
-      if (claimed.length > 0) sendMakeWebhook("payment_details", makePayloadFromRow(claimed[0])).catch(() => {});
+      if (claimed.length > 0) {
+        // invoice_url: signierter, ablaufender Download-Link (Brevo-Template: „Rechnung herunterladen"-Button)
+        const payload = { ...makePayloadFromRow(claimed[0]), invoice_url: signInvoiceUrl(paymentReference) };
+        sendMakeWebhook("payment_details", payload).catch(() => {});
+      }
     } catch (whErr) {
       console.error("[MAKE-WEBHOOK] payment_details claim:", whErr);
     }
@@ -224,16 +242,18 @@ router.get("/payment-order/:paymentRef", async (req, res) => {
 router.get("/admin/payments", async (req, res) => {
   try {
     await ensurePaymentColumns();
-    const allowed = ["pending_payment", "claimed_paid", "expired"];
+    const allowed = ["pending_payment", "claimed_paid", "expired", "paid"];
     const status = allowed.includes(String(req.query.status)) ? String(req.query.status) : "pending_payment";
     const rows = await sqlPool`
       SELECT ref, type, payment_reference, payment_status, payment_due_date, amount_due, currency,
              first_name, last_name, contact_name, company_name, email, contact_email, billing_email,
+             phone, phone_country_code, contact_phone,
              pack_name, updated_at, created_at,
-             reminder_sent_at_24h, reminder_sent_at_72h, claimed_paid_at
+             claimed_paid_at, promised_pay_date, invoice_number, welcome_sent_at,
+             payment_email_sent_at, followup_sent_at, agent_email_sent_at, completed_at
       FROM fiaon_applications
-      WHERE payment_status = ${status} AND payment_reference IS NOT NULL
-      ORDER BY payment_due_date ASC NULLS LAST
+      WHERE payment_status = ${status} AND payment_reference IS NOT NULL AND merged_into IS NULL
+      ORDER BY (payment_status = 'claimed_paid') DESC, claimed_paid_at ASC NULLS LAST, payment_due_date ASC NULLS LAST
     `;
     res.json({ ok: true, data: rows });
   } catch (err) {
@@ -280,7 +300,7 @@ router.get("/admin/payments/stats", async (_req, res) => {
         COUNT(*) FILTER (WHERE claimed_paid_at IS NOT NULL)                             AS claims_total,
         COUNT(*) FILTER (WHERE claimed_paid_at IS NOT NULL AND payment_status = 'paid') AS claims_confirmed
       FROM fiaon_applications
-      WHERE payment_reference IS NOT NULL
+      WHERE payment_reference IS NOT NULL AND merged_into IS NULL
     `;
     const claimsTotal = Number(stats.claims_total);
     res.json({
@@ -293,6 +313,98 @@ router.get("/admin/payments/stats", async (_req, res) => {
   } catch (err) {
     console.error("[FIAON-PAYMENT] admin/payments/stats:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Detail-Timeline: alle Ereignisse eines Antrags (Spalten-Flags + Agent-Kontakt-Log)
+router.get("/admin/payments/:paymentRef/timeline", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const rows = await sqlPool`
+      SELECT ref, created_at, welcome_sent_at, payment_email_sent_at, claimed_paid_at,
+             followup_sent_at, agent_email_sent_at, promised_pay_date, completed_at,
+             payment_status, payment_due_date, invoice_number, invoice_date
+      FROM fiaon_applications WHERE payment_reference = ${req.params.paymentRef}
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
+    const a = rows[0];
+    const events: Array<{ at: string; label: string; type: string; meta?: string }> = [];
+    const push = (at: any, label: string, type: string, meta?: string) => {
+      if (at) events.push({ at: new Date(at).toISOString(), label, type, meta });
+    };
+    push(a.created_at, "Antrag erstellt", "created");
+    push(a.welcome_sent_at, "Welcome-Webhook gesendet (Make)", "webhook");
+    push(a.invoice_date, `Rechnung erzeugt${a.invoice_number ? ` (${a.invoice_number})` : ""}`, "invoice");
+    push(a.payment_email_sent_at, "Zahlungsdaten-Webhook gesendet (Make) — Zahlungsseite erreicht", "webhook");
+    push(a.claimed_paid_at, "Kunde: „Ich habe überwiesen“ geklickt", "claimed");
+    push(a.followup_sent_at, "48h-Follow-up-Webhook gesendet (Make)", "webhook");
+    push(a.promised_pay_date, "Zahlungs-Zusage (durch Mitarbeiter erfasst)", "promise");
+    if (a.payment_status === "paid") push(a.completed_at, "Als bezahlt markiert — Zugang freigeschaltet", "paid");
+
+    // Agent-Aktionen aus dem Kontakt-Log (Tabelle existiert ggf. noch nicht → tolerant)
+    try {
+      const log = await sqlPool`
+        SELECT type, outcome, note, agent_name, scheduled_at, promised_date, created_at
+        FROM fiaon_contact_log WHERE ref = ${a.ref} ORDER BY created_at ASC
+      `;
+      for (const l of log) {
+        const label = l.type === "note" ? `Notiz von ${l.agent_name}`
+          : l.type === "email_sent" ? `Zahlungsdaten-Mail ausgelöst von ${l.agent_name}`
+          : `Kontakt-Ergebnis (${l.agent_name}): ${l.outcome || "—"}`;
+        events.push({ at: new Date(l.created_at).toISOString(), label, type: "agent", meta: l.note || undefined });
+      }
+    } catch { /* Kontakt-Log-Tabelle noch nicht angelegt */ }
+
+    events.sort((x, y) => x.at.localeCompare(y.at));
+    res.json({ ok: true, ref: a.ref, events });
+  } catch (err) {
+    console.error("[FIAON-PAYMENT] timeline:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Admin: Rechnungs-PDF (Download in Zahlungen-Tabelle + Detail)
+router.get("/admin/payments/:paymentRef/invoice.pdf", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const rows = await sqlPool`SELECT * FROM fiaon_applications WHERE payment_reference = ${req.params.paymentRef}`;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
+    let row = rows[0];
+    if (!row.invoice_number) {
+      await ensureInvoiceNumber(sqlPool, row.ref);
+      row = (await sqlPool`SELECT * FROM fiaon_applications WHERE payment_reference = ${req.params.paymentRef}`)[0];
+    }
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${row.invoice_number || "FIAON-Rechnung"}.pdf"`);
+    const doc = new PDFDocument({ size: "A4", margin: 50 });
+    doc.pipe(res);
+    renderInvoicePdf(doc, row);
+    doc.end();
+  } catch (err) {
+    console.error("[FIAON-INVOICE] admin download:", err);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Öffentlicher, SIGNIERTER Rechnungs-Link mit Ablauf (für E-Mail-Anhänge via Make, invoice_url)
+router.get("/invoice/:paymentRef.pdf", async (req, res) => {
+  try {
+    const { exp, sig } = req.query as { exp?: string; sig?: string };
+    if (!exp || !sig || !verifyInvoiceSig(req.params.paymentRef, exp, sig)) {
+      return res.status(403).json({ ok: false, error: "Link ungültig oder abgelaufen" });
+    }
+    await ensurePaymentColumns();
+    const rows = await sqlPool`SELECT * FROM fiaon_applications WHERE payment_reference = ${req.params.paymentRef}`;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${rows[0].invoice_number || "FIAON-Rechnung"}.pdf"`);
+    const doc = new PDFDocument({ size: "A4", margin: 50 });
+    doc.pipe(res);
+    renderInvoicePdf(doc, rows[0]);
+    doc.end();
+  } catch (err) {
+    console.error("[FIAON-INVOICE] signed download:", err);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
 
@@ -1206,8 +1318,9 @@ router.get("/contract/:ref", async (req, res) => {
     doc.fontSize(14).font('Helvetica-Bold').text('§1 Vertragsparteien');
     doc.moveDown(0.5);
     doc.fontSize(10).font('Helvetica');
-    doc.text('Kreditgeber:', { continued: true }).font('Helvetica-Bold').text(' FIAON Financial Services GmbH');
-    doc.font('Helvetica').text('Musterstraße 123, 10115 Berlin');
+    doc.text('Anbieterin:', { continued: true }).font('Helvetica-Bold').text(' FIAON LTD');
+    doc.font('Helvetica').text('128 City Road, London, EC1V 2NX, United Kingdom');
+    doc.font('Helvetica').text('Companies House (England and Wales), Company No. 17318250 · Director: Justin Schwarzott');
     doc.moveDown();
     doc.text('Kreditnehmer:', { continued: true }).font('Helvetica-Bold').text(` ${app.firstName || ''} ${app.lastName || ''}`);
     if (app.street) doc.font('Helvetica').text(`${app.street}, ${app.zip || ''} ${app.city || ''}`);
@@ -1280,13 +1393,13 @@ router.get("/contract/:ref", async (req, res) => {
     ]);
     doc.moveDown(2);
     
-    doc.text(`Ort, Datum: Berlin, ${new Date().toLocaleDateString('de-DE')}`);
+    doc.text(`Ort, Datum: London, ${new Date().toLocaleDateString('de-DE')}`);
     doc.moveDown(2);
     doc.text('_'.repeat(40));
     doc.text('Unterschrift Kreditnehmer (digital bestätigt)');
     
     // Footer
-    doc.fontSize(8).text('\n\nFIAON Financial Services GmbH | Musterstraße 123 | 10115 Berlin | info@fiaon.de | www.fiaon.de', { align: 'center' });
+    doc.fontSize(8).text('\n\nFIAON LTD | 128 City Road | London, EC1V 2NX | United Kingdom | Companies House No. 17318250 | Director: Justin Schwarzott | support@fiaon.com', { align: 'center' });
     
     // Finalize PDF
     doc.end();
@@ -1315,8 +1428,9 @@ function renderContractPdf(doc: PDFKit.PDFDocument, a: any) {
   doc.fontSize(14).font('Helvetica-Bold').text('§1 Vertragsparteien');
   doc.moveDown(0.5);
   doc.fontSize(10).font('Helvetica');
-  doc.text('Kreditgeber:', { continued: true }).font('Helvetica-Bold').text(' FIAON Financial Services GmbH');
-  doc.font('Helvetica').text('Musterstraße 123, 10115 Berlin');
+  doc.text('Anbieterin:', { continued: true }).font('Helvetica-Bold').text(' FIAON LTD');
+  doc.font('Helvetica').text('128 City Road, London, EC1V 2NX, United Kingdom');
+  doc.font('Helvetica').text('Companies House (England and Wales), Company No. 17318250 · Director: Justin Schwarzott');
   doc.moveDown();
   doc.text('Kreditnehmer:', { continued: true }).font('Helvetica-Bold').text(` ${a.first_name || ''} ${a.last_name || ''}`);
   if (a.street) doc.font('Helvetica').text(`${a.street}, ${a.zip || ''} ${a.city || ''}`);
@@ -1390,7 +1504,7 @@ function renderContractPdf(doc: PDFKit.PDFDocument, a: any) {
   ]);
   doc.moveDown(2);
 
-  doc.text(`Ort, Datum: Berlin, ${dateStr}`);
+  doc.text(`Ort, Datum: London, ${dateStr}`);
   doc.moveDown(2);
   doc.text('_'.repeat(40));
   doc.text('Unterschrift Kreditnehmer (digital bestätigt)');
@@ -1404,7 +1518,7 @@ function renderContractPdf(doc: PDFKit.PDFDocument, a: any) {
   if (a.user_agent) doc.text(`Gerät/Browser: ${String(a.user_agent).slice(0, 160)}`);
 
   // Footer
-  doc.fontSize(8).text('\n\nFIAON Financial Services GmbH | Musterstraße 123 | 10115 Berlin | info@fiaon.de | www.fiaon.de', { align: 'center' });
+  doc.fontSize(8).text('\n\nFIAON LTD | 128 City Road | London, EC1V 2NX | United Kingdom | Companies House No. 17318250 | Director: Justin Schwarzott | support@fiaon.com', { align: 'center' });
 }
 
 // ── CSV escaping helper ──
@@ -1542,9 +1656,12 @@ router.post("/run-migration", async (req, res) => {
 // individual migrations (KYC / stripe fields) haven't been run in this env.
 router.get("/admin/applications", async (_req, res) => {
   try {
+    await ensurePaymentColumns();
+    // merged_into IS NULL: soft-gelöschte Duplikate (Bereinigung) ausblenden — Datenbestand bleibt in der DB rekonstruierbar
     const rows = await sqlPool`
       SELECT *
       FROM fiaon_applications
+      WHERE merged_into IS NULL
       ORDER BY created_at DESC NULLS LAST, id DESC
     `;
 
@@ -1664,6 +1781,103 @@ router.post("/admin/applications/merge", async (req, res) => {
   } catch (err: any) {
     console.error("[FIAON-MERGE] ERROR:", err?.message || err);
     res.status(500).json({ ok: false, error: "Merge fehlgeschlagen", detail: String(err?.message || err) });
+  }
+});
+
+// ── Duplikat-Altbestand: sichere Massen-Bereinigung (Soft-Delete, KEIN Hard-Delete) ──
+// Pro E-Mail-Gruppe bleibt der vollständigste/neueste Datensatz; der Rest wird per
+// merged_into = <keeper.ref> markiert und verschwindet aus allen Listen.
+// Datensätze mit aktiver Zahlung (paid/pending_payment/claimed_paid) werden NIE wegmarkiert.
+
+function duplicateScore(a: any): number {
+  let s = 0;
+  if (a.payment_status === "paid") s += 4000;
+  else if (a.payment_status === "claimed_paid") s += 3000;
+  else if (a.payment_status === "pending_payment") s += 2000;
+  if (a.payment_reference) s += 500;
+  if (a.consent_contract) s += 200;
+  if (a.utm) s += 100; // enthält Passwort → Konto angelegt
+  for (const v of Object.values(a)) { if (v !== null && v !== undefined && v !== "") s += 1; }
+  return s;
+}
+
+const PROTECTED_PAYMENT_STATUS = new Set(["paid", "pending_payment", "claimed_paid"]);
+
+router.get("/admin/duplicates/preview", async (_req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const rows = await sqlPool`
+      SELECT id, ref, email, first_name, last_name, payment_status, payment_reference,
+             consent_contract, utm, current_step, status, created_at, updated_at
+      FROM fiaon_applications
+      WHERE merged_into IS NULL AND email IS NOT NULL AND email != ''
+    `;
+    const groups = new Map<string, any[]>();
+    for (const r of rows) {
+      const key = String(r.email).trim().toLowerCase();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(r);
+    }
+    let groupCount = 0, mergeable = 0;
+    const preview: any[] = [];
+    groups.forEach((apps, email) => {
+      if (apps.length < 2) return;
+      groupCount++;
+      const sorted = [...apps].sort((x, y) => duplicateScore(y) - duplicateScore(x) || new Date(y.updated_at || y.created_at).getTime() - new Date(x.updated_at || x.created_at).getTime());
+      const keeper = sorted[0];
+      const losers = sorted.slice(1).filter((l) => !PROTECTED_PAYMENT_STATUS.has(l.payment_status));
+      mergeable += losers.length;
+      if (preview.length < 20) preview.push({ email, keep: keeper.ref, merge: losers.map((l) => l.ref) });
+    });
+    res.json({ ok: true, groups: groupCount, mergeable, preview });
+  } catch (err) {
+    console.error("[FIAON-DEDUP] preview:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/admin/duplicates/cleanup-all", async (req, res) => {
+  try {
+    if (!req.body?.confirmed) {
+      return res.status(400).json({ ok: false, error: "Bestätigung erforderlich (confirmed=true)" });
+    }
+    await ensurePaymentColumns();
+    const rows = await sqlPool`
+      SELECT id, ref, email, payment_status, payment_reference, consent_contract, utm,
+             current_step, status, created_at, updated_at
+      FROM fiaon_applications
+      WHERE merged_into IS NULL AND email IS NOT NULL AND email != ''
+    `;
+    const groups = new Map<string, any[]>();
+    for (const r of rows) {
+      const key = String(r.email).trim().toLowerCase();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(r);
+    }
+    let groupsProcessed = 0, merged = 0, skippedProtected = 0;
+    for (const apps of Array.from(groups.values())) {
+      if (apps.length < 2) continue;
+      const sorted = [...apps].sort((x, y) => duplicateScore(y) - duplicateScore(x) || new Date(y.updated_at || y.created_at).getTime() - new Date(x.updated_at || x.created_at).getTime());
+      const keeper = sorted[0];
+      const loserRefs: string[] = [];
+      for (const l of sorted.slice(1)) {
+        if (PROTECTED_PAYMENT_STATUS.has(l.payment_status)) { skippedProtected++; continue; }
+        loserRefs.push(l.ref);
+      }
+      if (loserRefs.length === 0) continue;
+      await sqlPool`
+        UPDATE fiaon_applications
+        SET merged_into = ${keeper.ref}, updated_at = NOW()
+        WHERE ref = ANY(${loserRefs}) AND merged_into IS NULL
+      `;
+      groupsProcessed++;
+      merged += loserRefs.length;
+    }
+    console.log(`[FIAON-DEDUP] Bereinigung: ${groupsProcessed} Gruppen, ${merged} Einträge als merged markiert, ${skippedProtected} geschützt übersprungen`);
+    res.json({ ok: true, groupsProcessed, merged, skippedProtected });
+  } catch (err) {
+    console.error("[FIAON-DEDUP] cleanup:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
 

@@ -80,17 +80,17 @@ ul li { margin-bottom: 4px; text-align: justify; }
 </div>
 
 <h1>Software-as-a-Service (SaaS) und Lizenzvertrag</h1>
-<div class="subtitle">FIAON Plattform &middot; B2B-Geschäftskundenvertrag &middot; Bundesrepublik Deutschland</div>
+<div class="subtitle">FIAON Plattform &middot; B2B-Geschäftskundenvertrag</div>
 
 <div class="parties">
   <div class="parties-title">Vertragsparteien</div>
   <div class="party-row">
     <div class="party-label">Anbieter</div>
     <div class="party-body">
-      <strong>SCP Real Estate KG</strong><br>
-      Pasinger Str. 1, 82166 Gräfelfing, Deutschland<br>
-      Registergericht: Amtsgericht München, HRA 120072<br>
-      Crefonummer: 8330597510<br>
+      <strong>FIAON LTD</strong><br>
+      128 City Road, London, EC1V 2NX, United Kingdom<br>
+      Registerbehörde: Companies House (England and Wales), Company No. 17318250<br>
+      Director: Justin Schwarzott<br>
       Plattform / Produktmarke: <strong>FIAON</strong><br>
       &ndash; nachfolgend &bdquo;<strong>Anbieter</strong>&ldquo; oder &bdquo;<strong>FIAON</strong>&ldquo; &ndash;
     </div>
@@ -219,7 +219,8 @@ ul li { margin-bottom: 4px; text-align: justify; }
 
 <div class="section">
   <h2>§ 8 Schlussbestimmungen</h2>
-  <p>Dieser Vertrag unterliegt ausschließlich dem Recht der Bundesrepublik Deutschland. Ausschließlicher Gerichtsstand ist Gräfelfing, Landgerichtsbezirk München. Änderungen und Ergänzungen bedürfen mindestens der Textform gemäß § 126b BGB. Sollten einzelne Bestimmungen unwirksam sein, bleiben die übrigen Bestimmungen hiervon unberührt.</p>
+  <!-- LEGAL REVIEW REQUIRED: Rechtswahl/Gerichtsstand UK Ltd vs. deutsches Recht — Klausel anwaltlich prüfen (LEXR). -->
+  <p>Dieser Vertrag unterliegt ausschließlich dem Recht der Bundesrepublik Deutschland. Ausschließlicher Gerichtsstand ist – soweit gesetzlich zulässig – der Sitz der Anbieterin (London, Vereinigtes Königreich). Änderungen und Ergänzungen bedürfen mindestens der Textform gemäß § 126b BGB. Sollten einzelne Bestimmungen unwirksam sein, bleiben die übrigen Bestimmungen hiervon unberührt.</p>
 </div>
 
 <div class="signature-block">
@@ -230,10 +231,10 @@ ul li { margin-bottom: 4px; text-align: justify; }
       <td class="signature-cell">
         <div class="sig-col-label">Anbieter</div>
         <div class="sig-static">
-          <strong>SCP Real Estate KG</strong><br>
-          Pasinger Str. 1<br>
-          82166 Gräfelfing, Deutschland<br>
-          HRA 120072, AG München
+          <strong>FIAON LTD</strong><br>
+          128 City Road<br>
+          London, EC1V 2NX, United Kingdom<br>
+          Companies House No. 17318250
         </div>
         <div class="sig-line">Rechtsverbindlich für den Anbieter / Plattform FIAON</div>
         <div class="sig-meta">
@@ -262,8 +263,8 @@ ul li { margin-bottom: 4px; text-align: justify; }
 </div>
 
 <div class="footer">
-  <strong>SCP Real Estate KG</strong> &middot; Pasinger Str. 1 &middot; 82166 Gräfelfing &middot; Deutschland<br>
-  Amtsgericht München, HRA 120072 &middot; Crefonummer 8330597510 &middot; Plattform: FIAON<br>
+  <strong>FIAON LTD</strong> &middot; 128 City Road &middot; London, EC1V 2NX &middot; United Kingdom<br>
+  Registered in England and Wales, Companies House No. 17318250 &middot; Director: Justin Schwarzott &middot; Plattform: FIAON<br>
   Dieses Dokument wurde automatisiert generiert und ist auch ohne handschriftliche Unterschrift in Verbindung mit dem digitalen Annahmenachweis rechtsverbindlich.
 </div>
 

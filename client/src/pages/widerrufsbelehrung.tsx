@@ -69,12 +69,11 @@ export default function WiderrufsbelehrungPage() {
                   Um Ihr Widerrufsrecht auszuüben, müssen Sie uns:
                 </p>
                 <div className="bg-white/50 rounded-xl p-4 mb-4">
-                  <p className="font-semibold text-gray-900 mb-2">SCP Real Estate KG</p>
-                  <p className="text-sm text-gray-700">Pasinger Str. 1</p>
-                  <p className="text-sm text-gray-700">82166 Gräfelfing</p>
-                  <p className="text-sm text-gray-700">Deutschland</p>
-                  <p className="text-sm text-gray-700 mt-2">Telefon: +49 (0) 89 12345678</p>
-                  <p className="text-sm text-gray-700">E-Mail: support@fiaon.com</p>
+                  <p className="font-semibold text-gray-900 mb-2">FIAON LTD</p>
+                  <p className="text-sm text-gray-700">128 City Road</p>
+                  <p className="text-sm text-gray-700">London, EC1V 2NX</p>
+                  <p className="text-sm text-gray-700">Vereinigtes Königreich (United Kingdom)</p>
+                  <p className="text-sm text-gray-700 mt-2">E-Mail: support@fiaon.com</p>
                 </div>
                 <p className="text-gray-700 leading-relaxed">
                   mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder eine E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.
@@ -152,10 +151,10 @@ export default function WiderrufsbelehrungPage() {
                 </p>
                 <div className="bg-white/50 rounded-xl p-6 space-y-3">
                   <p className="text-sm text-gray-700"><strong>An:</strong></p>
-                  <p className="text-sm text-gray-700">SCP Real Estate KG</p>
-                  <p className="text-sm text-gray-700">Pasinger Str. 1</p>
-                  <p className="text-sm text-gray-700">82166 Gräfelfing</p>
-                  <p className="text-sm text-gray-700">Deutschland</p>
+                  <p className="text-sm text-gray-700">FIAON LTD</p>
+                  <p className="text-sm text-gray-700">128 City Road</p>
+                  <p className="text-sm text-gray-700">London, EC1V 2NX</p>
+                  <p className="text-sm text-gray-700">Vereinigtes Königreich (United Kingdom)</p>
                   <p className="text-sm text-gray-700">E-Mail: support@fiaon.com</p>
                   <div className="border-t border-gray-200 pt-4 mt-4">
                     <p className="text-sm text-gray-700 mb-4">Hiermit widerrufe(n) ich/wir () den von mir/uns () abgeschlossenen Vertrag über den Kauf der folgenden Waren () / die Erbringung der folgenden Dienstleistung ():</p>

@@ -29,7 +29,7 @@ import BonitaetServicePage from "@/pages/bonitaet-service";
 import BonitaetDankePage from "@/pages/bonitaet-danke";
 import InvestorLoginPage from "@/pages/investor-login";
 import InvestorDashboardPage from "@/pages/investor-dashboard";
-import ZahlungPage from "@/pages/zahlung";
+import ZahlungPage, { ZahlungDankePage } from "@/pages/zahlung";
 import AdminZahlungenPage from "@/pages/admin-zahlungen";
 
 function Router() {
@@ -46,6 +46,7 @@ function Router() {
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/admin/database" component={AdminDatabasePage} />
       <Route path="/admin/zahlungen" component={AdminZahlungenPage} />
+      <Route path="/zahlung/:paymentRef/danke" component={ZahlungDankePage} />
       <Route path="/zahlung/:paymentRef" component={ZahlungPage} />
       <Route path="/was-ist-fiaon" component={WasIstFiaonPage} />
       <Route path="/plattform-konzept" component={PlattformKonzeptPage} />

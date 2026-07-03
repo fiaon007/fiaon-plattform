@@ -99,7 +99,8 @@ async function ensurePaymentColumns(): Promise<void> {
     ADD COLUMN IF NOT EXISTS amount_due NUMERIC(10,2),
     ADD COLUMN IF NOT EXISTS currency VARCHAR DEFAULT 'EUR',
     ADD COLUMN IF NOT EXISTS reminder_sent_at_24h TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS reminder_sent_at_72h TIMESTAMPTZ;
+    ADD COLUMN IF NOT EXISTS reminder_sent_at_72h TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS claimed_paid_at TIMESTAMPTZ;
   `;
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_payment_ref_idx ON fiaon_applications(payment_reference)`;
   paymentColumnsEnsured = true;
@@ -144,8 +145,8 @@ router.post("/payment-order", async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Antrag nicht gefunden" });
     const app = rows[0];
 
-    // Idempotenz: bestehende offene/bezahlte Bestellung wiederverwenden
-    if (app.payment_reference && ["pending_payment", "paid"].includes(app.payment_status)) {
+    // Idempotenz: bestehende offene/gemeldete/bezahlte Bestellung wiederverwenden
+    if (app.payment_reference && ["pending_payment", "claimed_paid", "paid"].includes(app.payment_status)) {
       return res.json({ ok: true, paymentReference: app.payment_reference, existing: true });
     }
 
@@ -220,12 +221,13 @@ router.get("/payment-order/:paymentRef", async (req, res) => {
 router.get("/admin/payments", async (req, res) => {
   try {
     await ensurePaymentColumns();
-    const status = req.query.status === "expired" ? "expired" : "pending_payment";
+    const allowed = ["pending_payment", "claimed_paid", "expired"];
+    const status = allowed.includes(String(req.query.status)) ? String(req.query.status) : "pending_payment";
     const rows = await sqlPool`
       SELECT ref, type, payment_reference, payment_status, payment_due_date, amount_due, currency,
              first_name, last_name, contact_name, company_name, email, contact_email, billing_email,
              pack_name, updated_at, created_at,
-             reminder_sent_at_24h, reminder_sent_at_72h
+             reminder_sent_at_24h, reminder_sent_at_72h, claimed_paid_at
       FROM fiaon_applications
       WHERE payment_status = ${status} AND payment_reference IS NOT NULL
       ORDER BY payment_due_date ASC NULLS LAST
@@ -233,6 +235,60 @@ router.get("/admin/payments", async (req, res) => {
     res.json({ ok: true, data: rows });
   } catch (err) {
     console.error("[FIAON-PAYMENT] admin/payments:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Kunde meldet "Ich habe die Überweisung getätigt" — reines Tracking.
+// KRITISCH: Löst NIEMALS Freischaltung oder Willkommensmail aus.
+router.post("/payment-order/:paymentRef/claim-paid", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const rows = await sqlPool`
+      UPDATE fiaon_applications SET
+        payment_status = 'claimed_paid',
+        claimed_paid_at = COALESCE(claimed_paid_at, NOW()),
+        updated_at = NOW()
+      WHERE payment_reference = ${req.params.paymentRef}
+        AND payment_status IN ('pending_payment', 'claimed_paid')
+      RETURNING payment_reference
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden oder bereits abgeschlossen" });
+    console.log(`[FIAON-PAYMENT] Zahlung gemeldet (claimed_paid): ${req.params.paymentRef}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-PAYMENT] claim-paid:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Forecast-Kennzahlen: offen / erwartet (unbestätigt) / bestätigt + Bestätigungsquote
+router.get("/admin/payments/stats", async (_req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const [stats] = await sqlPool`
+      SELECT
+        COUNT(*) FILTER (WHERE payment_status = 'pending_payment')                      AS pending_count,
+        COALESCE(SUM(amount_due) FILTER (WHERE payment_status = 'pending_payment'), 0)  AS pending_sum,
+        COUNT(*) FILTER (WHERE payment_status = 'claimed_paid')                         AS claimed_count,
+        COALESCE(SUM(amount_due) FILTER (WHERE payment_status = 'claimed_paid'), 0)     AS claimed_sum,
+        COUNT(*) FILTER (WHERE payment_status = 'paid')                                 AS paid_count,
+        COALESCE(SUM(amount_due) FILTER (WHERE payment_status = 'paid'), 0)             AS paid_sum,
+        COUNT(*) FILTER (WHERE claimed_paid_at IS NOT NULL)                             AS claims_total,
+        COUNT(*) FILTER (WHERE claimed_paid_at IS NOT NULL AND payment_status = 'paid') AS claims_confirmed
+      FROM fiaon_applications
+      WHERE payment_reference IS NOT NULL
+    `;
+    const claimsTotal = Number(stats.claims_total);
+    res.json({
+      ok: true,
+      pending: { count: Number(stats.pending_count), sum: Number(stats.pending_sum) },
+      claimed: { count: Number(stats.claimed_count), sum: Number(stats.claimed_sum) },
+      paid: { count: Number(stats.paid_count), sum: Number(stats.paid_sum) },
+      confirmationRate: claimsTotal > 0 ? Math.round((Number(stats.claims_confirmed) / claimsTotal) * 100) : null,
+    });
+  } catch (err) {
+    console.error("[FIAON-PAYMENT] admin/payments/stats:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

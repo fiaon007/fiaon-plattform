@@ -89,6 +89,32 @@ Stand: 2026-07-03 · Umstellung des gesamten Zahlungsflows von Stripe auf SEPA-V
 6. ✅ Typecheck: 0 Fehler in allen geänderten Dateien.
 - QR-Code: Payload nach EPC069-12 (BCD/002/1/SCT) implementiert — **Scan mit echter deutscher Banking-App bitte einmal manuell verifizieren** (Betrag + Verwendungszweck werden vorausgefüllt).
 
+### Update: Mobile-Optimierung + Zahlungs-Tracking (claimed_paid)
+
+**Datenmodell**
+- Neuer Status `claimed_paid` (zwischen `pending_payment` und `paid`) + Spalte `claimed_paid_at`. Löst NIEMALS Freischaltung/Willkommensmail aus. Claims sind von Reminder-/Expiry-Cron ausgenommen (Admin verifiziert manuell).
+
+**Zahlungsseite `/zahlung/[ref]` (mobile-first, neu aufgebaut)**
+- Headline „Letzter Schritt: Konto aktivieren" + „Dein Platz ist bis zum [Datum] reserviert."
+- Erklär-Box „So überweist du – in 3 einfachen Schritten" (für technikferne/ältere Nutzer).
+- **Lösung A (Held):** „Alle Überweisungsdaten kopieren" — 1 Klick kopiert Empfänger/IBAN/BIC/Betrag/Verwendungszweck formatiert; Bestätigung „Kopiert ✓ – wechsle jetzt in deine Banking-App…"; Clipboard-Fallback zeigt selektierten Datenblock + „Bitte kopiere die Daten unten manuell."
+- **Lösung B (nur Mobile, nachrangig):** „In meiner Banking-App öffnen" — BezahlCode-Deep-Link (`bank://singlepaymentsepa?…`) mit ehrlichem Hinweis; scheitert still, nichts geht kaputt.
+- Einzel-Copy-Felder bleiben (Verwendungszweck hervorgehoben mit „Ohne diesen Code…").
+- **Lösung C:** QR responsive — Mobile eingeklappt („▸ QR-Code anzeigen (zum Scannen mit einem anderen Gerät)" + Erklärtext), Desktop prominent sichtbar. Rein per Viewport-CSS, ein Code-Pfad.
+- **Tracking:** „Ich habe die Überweisung getätigt" → `POST /payment-order/:ref/claim-paid` → Redirect `/zahlung/[ref]/danke` (exakter Danke-Text lt. Spez). Bei erneutem Seitenbesuch mit Status `claimed_paid`: grüner Hinweis, Daten bleiben sichtbar.
+
+**Admin `/admin/zahlungen`**
+- Kennzahlenblock: Offen (Anzahl+Summe) / Erwarteter Umsatz unbestätigt / Bestätigter Umsatz / **Bestätigungsquote** (basiert auf `claimed_paid_at`, bleibt daher auch nach mark-paid korrekt).
+- Neuer Tab „Zahlung gemeldet" mit `claimed_paid_at`-Spalte und „Als bezahlt markieren" (echte Freischaltung + Willkommensmail).
+- Backend: `GET /admin/payments/stats`, `GET /admin/payments?status=claimed_paid`.
+
+**Getestet (echter Server + DB)**
+1. ✅ claim-paid: `payment_status='claimed_paid'`, `claimed_paid_at` gesetzt, `status` bleibt `submitted` — **keine Freischaltung, keine Willkommensmail** (Logs geprüft).
+2. ✅ Stats: nach Claim „erwartet 59,99 €", nach mark-paid „bestätigt 59,99 €", Quote 100 %.
+3. ✅ claim auf bereits bezahlte Bestellung → 404 (kein Downgrade möglich).
+4. ✅ Zwei Bestellungen → zwei eindeutige Referenzen; Typecheck 0 Fehler.
+5. ⚠️ Manuell zu prüfen (echtes Gerät/HTTPS): Copy-Button auf iOS/Android, Deep-Link mit echter Banking-App, QR-Scan.
+
 ### Offene Punkte
 - [ ] **Env-Variablen entfernen**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VITE_STRIPE_PUBLISHABLE_KEY`/`VITE_STRIPE_PUBLIC_KEY` aus dem Deployment löschen (Code ist mit Null-Guards abgesichert).
 - [ ] **Stripe Payment Links im Stripe-Dashboard deaktivieren** (alte gespeicherte URLs könnten sonst noch funktionieren).

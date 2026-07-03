@@ -1321,6 +1321,7 @@ export const fiaonApplications = pgTable("fiaon_applications", {
   currency: varchar("currency").default("EUR"),
   reminderSentAt24h: timestamp("reminder_sent_at_24h"),
   reminderSentAt72h: timestamp("reminder_sent_at_72h"),
+  claimedPaidAt: timestamp("claimed_paid_at"),
   stripeSessionId: varchar("stripe_session_id"),
   stripeCustomerId: varchar("stripe_customer_id"),
   stripeSubscriptionId: varchar("stripe_subscription_id"),

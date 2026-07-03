@@ -24,6 +24,14 @@ interface PaymentRow {
   created_at: string;
   reminder_sent_at_24h: string | null;
   reminder_sent_at_72h: string | null;
+  claimed_paid_at: string | null;
+}
+
+interface PaymentStats {
+  pending: { count: number; sum: number };
+  claimed: { count: number; sum: number };
+  paid: { count: number; sum: number };
+  confirmationRate: number | null;
 }
 
 function customerName(r: PaymentRow): string {
@@ -51,16 +59,27 @@ function fmtAmount(v: string | null): string {
   return `${n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 }
 
+type TabKey = "pending_payment" | "claimed_paid" | "expired";
+
 export default function AdminZahlungenPage() {
-  const [tab, setTab] = useState<"pending_payment" | "expired">("pending_payment");
+  const [tab, setTab] = useState<TabKey>("pending_payment");
   const [rows, setRows] = useState<PaymentRow[]>([]);
+  const [stats, setStats] = useState<PaymentStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [actionRef, setActionRef] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [reminderRunning, setReminderRunning] = useState(false);
 
-  const load = useCallback(async (status: "pending_payment" | "expired") => {
+  const loadStats = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/fiaon/admin/payments/stats`, { credentials: "include" });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) setStats(json);
+    } catch {}
+  }, []);
+
+  const load = useCallback(async (status: TabKey) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/fiaon/admin/payments?status=${status}`, { credentials: "include" });
@@ -75,7 +94,8 @@ export default function AdminZahlungenPage() {
 
   useEffect(() => {
     load(tab);
-  }, [tab, load]);
+    loadStats();
+  }, [tab, load, loadStats]);
 
   const flash = (msg: string) => {
     setMessage(msg);
@@ -95,6 +115,7 @@ export default function AdminZahlungenPage() {
       if (res.ok && json?.ok) {
         flash(`✓ ${paymentRef} als bezahlt markiert — Zugang freigeschaltet, Willkommensmail versendet`);
         load(tab);
+        loadStats();
       } else {
         flash(`Fehler: ${json?.error || res.status}`);
       }
@@ -118,6 +139,7 @@ export default function AdminZahlungenPage() {
       if (res.ok && json?.ok) {
         flash(`✓ ${paymentRef} reaktiviert — neue Frist, Zahlungsinfos erneut versendet`);
         load(tab);
+        loadStats();
       } else {
         flash(`Fehler: ${json?.error || res.status}`);
       }
@@ -184,11 +206,38 @@ export default function AdminZahlungenPage() {
           </div>
         )}
 
+        {/* Forecast-Kennzahlen */}
+        {stats && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            <div className="bg-white border border-slate-200 rounded-2xl p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Offen (noch keine Reaktion)</p>
+              <p className="text-xl font-bold text-slate-900">{stats.pending.sum.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €</p>
+              <p className="text-[11px] text-slate-400">{stats.pending.count} Bestellungen</p>
+            </div>
+            <div className="bg-white border border-amber-200 rounded-2xl p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-500 mb-1">Erwarteter Umsatz (unbestätigt)</p>
+              <p className="text-xl font-bold text-amber-600">{stats.claimed.sum.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €</p>
+              <p className="text-[11px] text-slate-400">{stats.claimed.count} Zahlungen gemeldet</p>
+            </div>
+            <div className="bg-white border border-emerald-200 rounded-2xl p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 mb-1">Bestätigter Umsatz</p>
+              <p className="text-xl font-bold text-emerald-600">{stats.paid.sum.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €</p>
+              <p className="text-[11px] text-slate-400">{stats.paid.count} bezahlt</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-2xl p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Bestätigungsquote</p>
+              <p className="text-xl font-bold text-slate-900">{stats.confirmationRate === null ? "—" : `${stats.confirmationRate} %`}</p>
+              <p className="text-[11px] text-slate-400">wie viele Zahlungs-Behauptungen echt waren</p>
+            </div>
+          </div>
+        )}
+
         {/* Tabs */}
-        <div className="flex gap-2 mb-4">
+        <div className="flex flex-wrap gap-2 mb-4">
           {(
             [
               { key: "pending_payment", label: "Offen (wartet auf Zahlung)" },
+              { key: "claimed_paid", label: `Zahlung gemeldet${stats ? ` (${stats.claimed.count})` : ""}` },
               { key: "expired", label: "Abgelaufen" },
             ] as const
           ).map((t) => (
@@ -227,7 +276,7 @@ export default function AdminZahlungenPage() {
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/70">
-                  {["Referenz", "Kunde", "E-Mail", "Paket", "Betrag", "Bestellt", "Fällig", "Aktion"].map((h) => (
+                  {["Referenz", "Kunde", "E-Mail", "Paket", "Betrag", "Bestellt", tab === "claimed_paid" ? "Gemeldet am" : "Fällig", "Aktion"].map((h) => (
                     <th key={h} className="px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
                       {h}
                     </th>
@@ -264,31 +313,28 @@ export default function AdminZahlungenPage() {
                       <td className="px-4 py-3 text-[13px] font-bold whitespace-nowrap">{fmtAmount(r.amount_due)}</td>
                       <td className="px-4 py-3 text-[12px] text-slate-500 whitespace-nowrap">{fmtDate(r.created_at)}</td>
                       <td className="px-4 py-3 text-[12px] whitespace-nowrap">
-                        <span
-                          className={
-                            r.payment_due_date && new Date(r.payment_due_date) < new Date()
-                              ? "text-red-500 font-bold"
-                              : "text-slate-500"
-                          }
-                        >
-                          {fmtDate(r.payment_due_date)}
-                        </span>
-                        <p className="text-[10px] text-slate-400">
-                          {r.reminder_sent_at_24h ? "24h ✓ " : ""}
-                          {r.reminder_sent_at_72h ? "72h ✓" : ""}
-                        </p>
+                        {tab === "claimed_paid" ? (
+                          <span className="text-amber-600 font-bold">{fmtDate(r.claimed_paid_at)}</span>
+                        ) : (
+                          <>
+                            <span
+                              className={
+                                r.payment_due_date && new Date(r.payment_due_date) < new Date()
+                                  ? "text-red-500 font-bold"
+                                  : "text-slate-500"
+                              }
+                            >
+                              {fmtDate(r.payment_due_date)}
+                            </span>
+                            <p className="text-[10px] text-slate-400">
+                              {r.reminder_sent_at_24h ? "24h ✓ " : ""}
+                              {r.reminder_sent_at_72h ? "72h ✓" : ""}
+                            </p>
+                          </>
+                        )}
                       </td>
                       <td className="px-4 py-3">
-                        {tab === "pending_payment" ? (
-                          <button
-                            type="button"
-                            onClick={(e) => markPaid(e, r.payment_reference)}
-                            disabled={actionRef === r.payment_reference}
-                            className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-bold whitespace-nowrap transition-all disabled:opacity-50"
-                          >
-                            {actionRef === r.payment_reference ? "…" : "Als bezahlt markieren"}
-                          </button>
-                        ) : (
+                        {tab === "expired" ? (
                           <button
                             type="button"
                             onClick={(e) => reactivate(e, r.payment_reference)}
@@ -296,6 +342,15 @@ export default function AdminZahlungenPage() {
                             className="px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-blue-700 text-white text-[12px] font-bold whitespace-nowrap transition-all disabled:opacity-50"
                           >
                             {actionRef === r.payment_reference ? "…" : "Reaktivieren"}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => markPaid(e, r.payment_reference)}
+                            disabled={actionRef === r.payment_reference}
+                            className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-bold whitespace-nowrap transition-all disabled:opacity-50"
+                          >
+                            {actionRef === r.payment_reference ? "…" : "Als bezahlt markieren"}
                           </button>
                         )}
                       </td>

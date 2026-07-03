@@ -1,10 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
-import { MAINTENANCE_MODE } from "@/lib/maintenance";
-import { MaintenancePaymentBlock } from "@/components/MaintenanceBanner";
 
-// Stripe Payment Links (externes Checkout — ersetzt das eingebettete Stripe SDK)
 /**
  * Hart nach oben scrollen — umgeht das globale `html { scroll-behavior: smooth }`
  * aus index.css, das sonst `window.scrollTo({ behavior: "auto" })` ignoriert.
@@ -39,12 +36,6 @@ function scrollToTopHard() {
   }, 120);
 }
 
-const STRIPE_PAYMENT_LINKS: Record<string, string> = {
-  start: "https://buy.stripe.com/14AaEZ65h4Pkb6z0wifnO01",
-  pro: "https://buy.stripe.com/4gM4gB51d4Pk2A3baWfnO02",
-  ultra: "https://buy.stripe.com/6oU28t0KX81wfmP0wifnO03",
-  highend: "https://buy.stripe.com/dRmeVf51dftYdeHcf0fnO04",
-};
 
 /* === CUSTOM ANIMATIONS === */
 const styleElement = document.createElement("style");
@@ -335,10 +326,10 @@ function PremiumButton({ children, onClick, disabled = false }: { children: Reac
 }
 
 const PACKS = [
-  { key:"start", name:"FIAON Starter\n(Das Fundament)", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["Dein 500 € Einstiegs-Setup","Zugang: Basic Karten-Portfolio","Schufaneutrale Profil-Prüfung","Online-Dashboard & Verwaltung"], pay:"https://buy.stripe.com/7sY5kDbfRdT06fagh9bMQ01" },
-  { key:"pro", name:"FIAON Pro\n(Standard)", fee:59.99, lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:["Dein 5.000 € Limit-Protokoll","Zugang: Premium Karten-Netzwerk","Dynamische Limit-Aufstockung","Sofortige Score-Auswertung","Priority-Bearbeitung im System"], pay:"https://buy.stripe.com/cNieVdcjVeX4fPK4yrbMQ02" },
-  { key:"ultra", name:"FIAON Ultra\n(Elite Konto)", fee:79.99, lim:15000, bg:"linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats:["Dein 15.000 € Elite-Portfolio","Zugang: Gold- & Platinum-Karten","Cashback- & Meilen-Aktivierung","Individuelle Freigabe-Roadmap","VIP-Support & Konto-Optimierung"], pay:"https://buy.stripe.com/eVq4gz83F02a5b68OHbMQ03" },
-  { key:"highend", name:"FIAON High End\n(Das Maximum)", fee:99.99, lim:25000, bg:"linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats:["Dein 25.000 € Black-Card Setup","Exklusiver Zugang: Metal- & VIP-Karten","Persönlicher Account Director","Internationale Limit-Strukturen","24/7 Dedicated Concierge-Support"], pay:"https://buy.stripe.com/7sYdR9abNcOW5b6c0TbMQ04" },
+  { key:"start", name:"FIAON Starter\n(Das Fundament)", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["Dein 500 € Einstiegs-Setup","Zugang: Basic Karten-Portfolio","Schufaneutrale Profil-Prüfung","Online-Dashboard & Verwaltung"] },
+  { key:"pro", name:"FIAON Pro\n(Standard)", fee:59.99, lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:["Dein 5.000 € Limit-Protokoll","Zugang: Premium Karten-Netzwerk","Dynamische Limit-Aufstockung","Sofortige Score-Auswertung","Priority-Bearbeitung im System"] },
+  { key:"ultra", name:"FIAON Ultra\n(Elite Konto)", fee:79.99, lim:15000, bg:"linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats:["Dein 15.000 € Elite-Portfolio","Zugang: Gold- & Platinum-Karten","Cashback- & Meilen-Aktivierung","Individuelle Freigabe-Roadmap","VIP-Support & Konto-Optimierung"] },
+  { key:"highend", name:"FIAON High End\n(Das Maximum)", fee:99.99, lim:25000, bg:"linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats:["Dein 25.000 € Black-Card Setup","Exklusiver Zugang: Metal- & VIP-Karten","Persönlicher Account Director","Internationale Limit-Strukturen","24/7 Dedicated Concierge-Support"] },
 ];
 
 /* === CHECK ICON COMPONENT === */
@@ -514,19 +505,18 @@ export default function AntragPage() {
     topRef.current?.scrollIntoView({ behavior: "instant" as ScrollBehavior, block: "start" });
   }, [step]);
 
-  // Weiterleitung zu externem Stripe Payment Link (statt eingebettetem SDK)
-  const handleProceedToStripe = useCallback(async () => {
-    if (MAINTENANCE_MODE) return;
+  // Weiter zum Passwort-Setup — danach folgt die Zahlungsseite (Banküberweisung/Vorkasse)
+  const handleProceedToPayment = useCallback(async () => {
     if (!pack) return;
     try {
-      // Antrag vor Redirect in DB speichern (Status: pending_payment)
+      // Antrag in DB speichern (Status: submitted — Zahlung folgt per Überweisung)
       await fetch("/api/fiaon/application", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ref,
           type: "private",
-          status: "pending_payment",
+          status: "submitted",
           currentStep: 8,
           ...d,
           packKey: pack.key,
@@ -535,21 +525,10 @@ export default function AntragPage() {
         }),
       }).catch(() => {});
 
-      // Daten im localStorage sichern für Wiedererkennung nach Stripe-Return
-      try {
-        localStorage.setItem("fiaon_pending_ref", ref);
-        localStorage.setItem("fiaon_pending_email", d.email || "");
-        localStorage.setItem("fiaon_pending_packKey", pack.key);
-        localStorage.setItem("fiaon_pending_data", JSON.stringify({ ...d, approved, packKey: pack.key, packName: pack.name }));
-      } catch {}
-
-      track("checkout_redirect_stripe", { ref, packKey: pack.key }, ref);
-
-      const link = STRIPE_PAYMENT_LINKS[pack.key] || STRIPE_PAYMENT_LINKS.ultra;
-      const url = `${link}?client_reference_id=${encodeURIComponent(ref)}&prefilled_email=${encodeURIComponent(d.email || "")}`;
-      window.location.href = url;
+      track("checkout_bank_transfer", { ref, packKey: pack.key }, ref);
+      setStep(9);
     } catch (err) {
-      console.error("[FIAON] handleProceedToStripe failed:", err);
+      console.error("[FIAON] handleProceedToPayment failed:", err);
     }
   }, [pack, ref, d, approved]);
 
@@ -721,50 +700,6 @@ export default function AntragPage() {
         setStep(targetStep);
         console.log(`🚀 Dev: Jumped to step ${targetStep}`);
       }
-    }
-  }, []);
-
-  // Check for payment success and redirect to password step (Stripe Return)
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('payment_success') === 'true') {
-      try {
-        const pendingRef = localStorage.getItem("fiaon_pending_ref");
-        const pendingDataRaw = localStorage.getItem("fiaon_pending_data");
-        const pendingPackKey = localStorage.getItem("fiaon_pending_packKey");
-
-        if (pendingDataRaw) {
-          const parsed = JSON.parse(pendingDataRaw);
-          // Stelle Formulardaten (d) wieder her
-          setD((prev) => ({ ...prev, ...parsed }));
-          if (typeof parsed.approved === "number") setApproved(parsed.approved);
-        }
-
-        // Pack-State aus pendingPackKey wiederherstellen
-        if (pendingPackKey) {
-          const matchedPack = PACKS.find((p) => p.key === pendingPackKey);
-          if (matchedPack) setPack(matchedPack);
-        }
-
-        if (pendingRef) {
-          // Referenz-State bleibt (ref ist stabil via useState-initializer)
-          // Markiere Antrag in DB als bezahlt
-          fetch("/api/fiaon/application", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              ref: pendingRef,
-              type: "private",
-              status: "payment_completed",
-              currentStep: 9,
-            }),
-          }).catch(() => {});
-          track("payment_success", { ref: pendingRef }, pendingRef);
-        }
-      } catch (err) {
-        console.error("[FIAON] Failed to restore pending data:", err);
-      }
-      setStep(9);
     }
   }, []);
 
@@ -957,6 +892,11 @@ export default function AntragPage() {
                 margin: "0 auto",
                 lineHeight: "1.7"
               }}>Entscheide dich für das passende Paket — du gelangst automatisch zum nächsten Schritt.</p>
+              <p style={{
+                color: "#94a3b8",
+                fontSize: "12.5px",
+                marginTop: "10px"
+              }}>Aktivierung per Banküberweisung – Zugang nach Zahlungseingang</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5 w-full max-w-[1380px] mx-auto px-0 sm:px-5 box-border items-stretch">
               {PACKS.map((p, idx) => (
@@ -2275,19 +2215,12 @@ export default function AntragPage() {
               </p>
             </div>
 
-            {/* Wartungsmodus: Zahlung blockiert */}
-            {MAINTENANCE_MODE && (
-              <div className="mb-6 sm:mb-8">
-                <MaintenancePaymentBlock />
-              </div>
-            )}
-
             {/* PRIMARY CTA — direkt unter Welcome */}
-            {!MAINTENANCE_MODE && pack && (
+            {pack && (
               <div className="mb-6 sm:mb-8">
                 <button
                   type="button"
-                  onClick={handleProceedToStripe}
+                  onClick={handleProceedToPayment}
                   className="relative w-full inline-flex items-center justify-center gap-2.5 overflow-hidden rounded-full fiaon-btn-gradient py-4 sm:py-5 px-6 text-white font-semibold text-[15px] sm:text-[16px] shadow-xl shadow-blue-500/30 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-600/40 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-4 focus:ring-blue-300"
                   style={{ minHeight: 52 }}
                 >
@@ -2307,13 +2240,12 @@ export default function AntragPage() {
                 <p className="text-center text-[13px] sm:text-[14px] text-slate-500 mt-3">
                   <span className="font-bold text-slate-900">{pack.fee.toFixed(2)} €</span>
                   <span className="mx-1.5 text-slate-300">·</span>
-                  <span>monatlich</span>
+                  <span>monatlich · inkl. Kartenversand</span>
                 </p>
               </div>
             )}
 
-            {/* Dezente Info: Sichere Zahlungsabwicklung */}
-            {!MAINTENANCE_MODE && (
+            {/* Dezente Info: Aktivierung per Banküberweisung */}
             <div className="rounded-xl bg-slate-50/70 border border-slate-100 p-4 sm:p-5 mb-6">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center">
@@ -2323,17 +2255,15 @@ export default function AntragPage() {
                   </svg>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[12px] sm:text-[13px] font-semibold text-slate-700 mb-0.5">Sichere Zahlungsabwicklung</p>
+                  <p className="text-[12px] sm:text-[13px] font-semibold text-slate-700 mb-0.5">Aktivierung per Banküberweisung – Zugang nach Zahlungseingang</p>
                   <p className="text-[11px] sm:text-[12px] text-slate-500 leading-relaxed">
-                    Weiterleitung zu Stripe · SSL-verschlüsselt · 3D Secure · nach der Zahlung geht's zurück zum Passwort-Setup.
+                    Nach dem Passwort-Setup erhältst du deine persönlichen Zahlungsdaten inkl. QR-Code für deine Banking-App. Mit der Zahlung versenden wir auch direkt deine Karte.
                   </p>
                 </div>
               </div>
             </div>
-            )}
 
             {/* Trust-Badges Mini-Row */}
-            {!MAINTENANCE_MODE && (
             <div className="flex items-center justify-center gap-4 sm:gap-6 flex-wrap mb-6">
               <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-400 font-medium">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2348,16 +2278,15 @@ export default function AntragPage() {
                   <path d="M2 17l10 5 10-5"/>
                   <path d="M2 12l10 5 10-5"/>
                 </svg>
-                Powered by Stripe
+                SEPA-Überweisung
               </div>
               <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-400 font-medium">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <polyline points="20 6 9 17 4 12"/>
                 </svg>
-                Sofortige Aktivierung
+                Aktivierung nach Zahlungseingang
               </div>
             </div>
-            )}
 
             {/* Contract Download Link */}
             <div className="flex items-center justify-center gap-2">
@@ -2450,7 +2379,20 @@ export default function AntragPage() {
                         approvedLimit: approved,
                       }),
                     });
-                    window.location.href = '/login';
+
+                    // Bestellung anlegen (Vorkasse) und zur Zahlungsseite weiterleiten
+                    const orderRes = await fetch("/api/fiaon/payment-order", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ ref }),
+                    });
+                    const orderJson = await orderRes.json().catch(() => null);
+                    if (orderRes.ok && orderJson?.ok && orderJson.paymentReference) {
+                      window.location.href = `/zahlung/${orderJson.paymentReference}`;
+                    } else {
+                      // Fallback: Konto ist angelegt, Zahlungsinfos kommen per E-Mail
+                      window.location.href = '/login';
+                    }
                   } catch (error) {
                     setPasswordError("Fehler beim Speichern des Passworts");
                   }

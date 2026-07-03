@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
-import { MAINTENANCE_MODE } from "@/lib/maintenance";
-import { MaintenancePaymentBlock } from "@/components/MaintenanceBanner";
 
 /* ════════════════════════════════════════════
    FIAON · Bonitäts-Auszug Antrag  /bonitaet-antrag
@@ -91,6 +89,34 @@ export default function BonitaetAntragPage() {
     phone: "", email: "", country: "DE",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [payRedirecting, setPayRedirecting] = useState(false);
+
+  const handleProceedToPayment = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (payRedirecting) return;
+    setPayRedirecting(true);
+    try {
+      const nameParts = formData.fullName.trim().split(/\s+/);
+      const res = await fetch("/api/fiaon/payment-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "schufa",
+          email: formData.email,
+          firstName: nameParts[0] || "",
+          lastName: nameParts.slice(1).join(" ") || "",
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok && json.paymentReference) {
+        window.location.href = `/zahlung/${json.paymentReference}`;
+      } else {
+        setPayRedirecting(false);
+      }
+    } catch {
+      setPayRedirecting(false);
+    }
+  };
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -394,27 +420,21 @@ export default function BonitaetAntragPage() {
                 </p>
 
                 {/* CTA */}
-                {MAINTENANCE_MODE ? (
-                  <MaintenancePaymentBlock />
-                ) : (
-                  <>
-                    <a
-                      href="https://buy.stripe.com/3cI7sN51dftYa2v5QCfnO06"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="fiaon-btn-gradient relative inline-flex items-center justify-center gap-3 px-9 py-4 rounded-2xl text-[16px] font-bold text-white overflow-hidden"
-                      style={{ minHeight: 58, boxShadow: "0 16px 40px rgba(37,99,235,0.3)" }}
-                    >
-                      <span className="relative z-10">Jetzt bezahlen &amp; Auskunft erhalten (74 €)</span>
-                      <svg className="relative z-10" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                      <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent)", animation: "baShimmer 3s ease-in-out infinite" }} />
-                    </a>
-                    <p className="mt-3 text-[12px] text-gray-400 flex items-center justify-center gap-1.5">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><path d="M12 3L4 7v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V7z"/></svg>
-                      Sichere Zahlung über Stripe · AES-256 verschlüsselt
-                    </p>
-                  </>
-                )}
+                <button
+                  type="button"
+                  onClick={handleProceedToPayment}
+                  disabled={payRedirecting}
+                  className="fiaon-btn-gradient relative inline-flex items-center justify-center gap-3 px-9 py-4 rounded-2xl text-[16px] font-bold text-white overflow-hidden disabled:opacity-60"
+                  style={{ minHeight: 58, boxShadow: "0 16px 40px rgba(37,99,235,0.3)" }}
+                >
+                  <span className="relative z-10">{payRedirecting ? "Einen Moment…" : "Jetzt bezahlen & Auskunft erhalten (74 €)"}</span>
+                  <svg className="relative z-10" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                  <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent)", animation: "baShimmer 3s ease-in-out infinite" }} />
+                </button>
+                <p className="mt-3 text-[12px] text-gray-400 flex items-center justify-center gap-1.5">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><path d="M12 3L4 7v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V7z"/></svg>
+                  Aktivierung per Banküberweisung – Zugang nach Zahlungseingang
+                </p>
               </div>
 
               {/* Data summary */}

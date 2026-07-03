@@ -12,6 +12,7 @@ import {
   customType,
   bigint,
   date,
+  decimal,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -1313,6 +1314,13 @@ export const fiaonApplications = pgTable("fiaon_applications", {
   consentContract: boolean("consent_contract").default(false),
 
   paymentStatus: varchar("payment_status").default("pending"),
+  // Vorkasse per Banküberweisung (Migration: Stripe → SEPA)
+  paymentReference: varchar("payment_reference").unique(),
+  paymentDueDate: timestamp("payment_due_date"),
+  amountDue: decimal("amount_due", { precision: 10, scale: 2 }),
+  currency: varchar("currency").default("EUR"),
+  reminderSentAt24h: timestamp("reminder_sent_at_24h"),
+  reminderSentAt72h: timestamp("reminder_sent_at_72h"),
   stripeSessionId: varchar("stripe_session_id"),
   stripeCustomerId: varchar("stripe_customer_id"),
   stripeSubscriptionId: varchar("stripe_subscription_id"),

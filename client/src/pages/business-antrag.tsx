@@ -1,11 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { loadStripe } from "@stripe/stripe-js";
-import { Elements } from "@stripe/react-stripe-js";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
-import PremiumCheckoutForm from "@/components/PremiumCheckoutForm";
-import { MAINTENANCE_MODE } from "@/lib/maintenance";
-import { MaintenancePaymentBlock } from "@/components/MaintenanceBanner";
 import { downloadContract } from "@/utils/contractTemplate";
 
 /* === PREMIUM PHONE INPUT COMPONENT === */
@@ -188,9 +183,6 @@ function PremiumSelect({ value, onChange, options, error }: { value: string; onC
   );
 }
 
-// Robust Stripe key retrieval with fallback
-const stripePubKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || import.meta.env.VITE_STRIPE_PUBLIC_KEY;
-const stripePromise = stripePubKey ? loadStripe(stripePubKey) : null;
 
 const COUNTRIES = [
   // DACH Region (Priorisiert)
@@ -252,10 +244,10 @@ function CountryDropdown({ value, onChange, error }: { value: string; onChange: 
 }
 
 const BUSINESS_PACKS = [
-  { key:"business_starter", name:"FIAON Business Starter", fee:49.99, lim:5000, bg:"linear-gradient(145deg,#2c5282,#3b82f6,#4a90e2)", feats:["Limit bis 5.000 €","Business Support","Multi-User Access","Monthly Reports"], pay:"https://buy.stripe.com/7sY5kDbfRdT06fagh9bMQ05" },
-  { key:"business_pro", name:"FIAON Business Pro", fee:99.99, lim:25000, rec:true, bg:"linear-gradient(145deg,#1a365d,#2563eb,#4a8af5)", feats:["Limit bis 25.000 €","Priority Business Support","Expense Tracking","Employee Cards"], pay:"https://buy.stripe.com/cNieVdcjVeX4fPK4yrbMQ06" },
-  { key:"business_ultra", name:"FIAON Business Ultra", fee:149.99, lim:75000, bg:"linear-gradient(145deg,#1e3a5f,#2a5580,#3d7ab8)", feats:["Limit bis 75.000 €","Dedicated Account Manager","Advanced Analytics","Custom Limits"], pay:"https://buy.stripe.com/eVq4gz83F02a5b68OHbMQ07" },
-  { key:"business_enterprise", name:"FIAON Business Enterprise", fee:249.99, lim:250000, bg:"linear-gradient(145deg,#0f172a,#1e293b,#334155)", feats:["Limit bis 250.000 €","24/7 Enterprise Support","API Integration","Unlimited Users"], pay:"https://buy.stripe.com/7sYdR9abNcOW5b6c0TbMQ08" },
+  { key:"business_starter", name:"FIAON Business Starter", fee:49.99, lim:5000, bg:"linear-gradient(145deg,#2c5282,#3b82f6,#4a90e2)", feats:["Limit bis 5.000 €","Business Support","Multi-User Access","Monthly Reports"] },
+  { key:"business_pro", name:"FIAON Business Pro", fee:99.99, lim:25000, rec:true, bg:"linear-gradient(145deg,#1a365d,#2563eb,#4a8af5)", feats:["Limit bis 25.000 €","Priority Business Support","Expense Tracking","Employee Cards"] },
+  { key:"business_ultra", name:"FIAON Business Ultra", fee:149.99, lim:75000, bg:"linear-gradient(145deg,#1e3a5f,#2a5580,#3d7ab8)", feats:["Limit bis 75.000 €","Dedicated Account Manager","Advanced Analytics","Custom Limits"] },
+  { key:"business_enterprise", name:"FIAON Business Enterprise", fee:249.99, lim:250000, bg:"linear-gradient(145deg,#0f172a,#1e293b,#334155)", feats:["Limit bis 250.000 €","24/7 Enterprise Support","API Integration","Unlimited Users"] },
 ];
 
 function mkRef() { return "FIAON-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase(); }
@@ -430,7 +422,6 @@ export default function BusinessAntragPage() {
   const [ref] = useState(mkRef);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pack, setPack] = useState<typeof BUSINESS_PACKS[0] | null>(null);
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
 
   const [d, setD] = useState({
@@ -483,41 +474,30 @@ export default function BusinessAntragPage() {
     }
   }, [step]);
 
-  // Fetch client secret when reaching payment step
-  useEffect(() => {
-    if (!MAINTENANCE_MODE && step === 6 && pack && !clientSecret) {
-      const fetchClientSecret = async () => {
-        try {
-          const response = await fetch("/api/fiaon/create-payment-intent", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              amount: pack.fee,
-              packageName: pack.name,
-              ref,
-              firstName: d.contactFirstName || d.companyName,
-              lastName: d.contactLastName || '',
-              email: d.contactEmail || d.billingEmail,
-            }),
-          });
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            console.error("[FIAON] Payment intent API error:", errorData);
-            return;
-          }
-          const data = await response.json();
-          if (data.clientSecret) {
-            setClientSecret(data.clientSecret);
-          } else {
-            console.error("[FIAON] No client secret in response:", data);
-          }
-        } catch (error) {
-          console.error("[FIAON] Failed to fetch client secret:", error);
-        }
-      };
-      fetchClientSecret();
+  // Bestellung anlegen (Vorkasse per Banküberweisung) und zur Zahlungsseite weiterleiten
+  const [paymentRedirecting, setPaymentRedirecting] = useState(false);
+  const handleProceedToPayment = useCallback(async () => {
+    if (!pack || paymentRedirecting) return;
+    setPaymentRedirecting(true);
+    try {
+      const orderRes = await fetch("/api/fiaon/payment-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ref }),
+      });
+      const orderJson = await orderRes.json().catch(() => null);
+      if (orderRes.ok && orderJson?.ok && orderJson.paymentReference) {
+        track("checkout_bank_transfer", { ref, packKey: pack.key }, ref);
+        window.location.href = `/zahlung/${orderJson.paymentReference}`;
+      } else {
+        console.error("[FIAON] payment-order failed:", orderJson);
+        setPaymentRedirecting(false);
+      }
+    } catch (error) {
+      console.error("[FIAON] payment-order error:", error);
+      setPaymentRedirecting(false);
     }
-  }, [step, pack, clientSecret, ref]);
+  }, [pack, ref, paymentRedirecting]);
 
   const up = useCallback((k: string, v: any) => {
     setD(p => ({ ...p, [k]: v }));
@@ -594,7 +574,7 @@ export default function BusinessAntragPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ref, type: "business", status: "submitted", currentStep: 6,
-          packKey: pack?.tier, packName: pack?.name,
+          packKey: pack?.key, packName: pack?.name,
           companyName: d.companyName, legalForm: d.legalForm, taxId: d.taxId,
           establishedYear: d.establishedYear,
           contactFirstName: d.contactFirstName, contactLastName: d.contactLastName,
@@ -666,6 +646,7 @@ export default function BusinessAntragPage() {
               <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-3">Paket wählen</p>
               <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight fiaon-gradient-text-animated mb-4">Wähle dein FIAON Business Paket</h1>
               <p className="text-[15px] text-gray-400 max-w-lg mx-auto leading-relaxed">Entscheide dich für das passende Business-Paket — du gelangst automatisch zum nächsten Schritt.</p>
+              <p className="text-[12.5px] text-slate-400 mt-2.5">Aktivierung per Banküberweisung – Zugang nach Zahlungseingang</p>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-[1400px] mx-auto">
               {BUSINESS_PACKS.map((p, idx) => (
@@ -1288,46 +1269,27 @@ export default function BusinessAntragPage() {
 
               <div className="relative z-10 fiaon-glass-panel p-6 rounded-2xl">
                 <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Aktivierung abschließen</p>
-                <p className="text-[14px] text-gray-600 mb-5">Schließe die Zahlung für dein {pack?.name} Paket ab.</p>
+                <p className="text-[14px] text-gray-600 mb-5">
+                  Aktivierung per Banküberweisung – Zugang nach Zahlungseingang. Du erhältst alle Zahlungsdaten inkl. QR-Code für deine Banking-App.
+                </p>
 
-                {MAINTENANCE_MODE && <MaintenancePaymentBlock />}
+                <button
+                  type="button"
+                  onClick={handleProceedToPayment}
+                  disabled={paymentRedirecting}
+                  className="w-full inline-flex items-center justify-center gap-2.5 rounded-full fiaon-btn-gradient py-4 px-6 text-white font-semibold text-[15px] shadow-xl shadow-blue-500/30 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-600/40 hover:-translate-y-0.5 disabled:opacity-60"
+                  style={{ minHeight: 52 }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                  <span>{paymentRedirecting ? "Einen Moment…" : "Weiter zur Zahlung"}</span>
+                </button>
 
-                {!MAINTENANCE_MODE && clientSecret && pack && stripePromise && (
-                  <Elements 
-                    stripe={stripePromise} 
-                    options={{ 
-                      clientSecret,
-                      appearance: {
-                        theme: 'stripe',
-                        variables: {
-                          fontFamily: 'Inter, system-ui, sans-serif',
-                          borderRadius: '12px',
-                          colorPrimary: '#2563eb',
-                          colorBackground: '#ffffff',
-                          colorText: '#0f172a',
-                          colorDanger: '#ef4444',
-                        },
-                        rules: {
-                          '.Input': {
-                            border: '1px solid #e2e8f0',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                          },
-                          '.Input:focus': {
-                            boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.2)',
-                            borderColor: '#2563eb',
-                          },
-                        },
-                      },
-                    }}
-                  >
-                    <PremiumCheckoutForm packageName={pack.name} price={pack.fee} clientSecret={clientSecret} onSuccess={() => window.location.href = '/dashboard'} />
-                  </Elements>
-                )}
-                {!MAINTENANCE_MODE && !stripePromise && (
-                  <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-red-600 text-sm font-medium">
-                    Systemfehler: Das Zahlungssystem konnte nicht initialisiert werden (Public Key fehlt). Bitte laden Sie die Seite neu.
-                  </div>
-                )}
+                <p className="text-[12px] text-gray-400 mt-4">
+                  {(pack?.fee || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € monatlich · inkl. Kartenversand · SEPA-Überweisung
+                </p>
               </div>
             </div>
 

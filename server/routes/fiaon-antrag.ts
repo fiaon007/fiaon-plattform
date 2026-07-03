@@ -8,12 +8,13 @@ import postgres from "postgres";
 import Stripe from "stripe";
 import multer from "multer";
 import { randomBytes } from "crypto";
+import {
+  sendPaymentInstructionsEmail,
+  sendPaymentReminderEmail,
+  sendPaymentConfirmedEmail,
+} from "../email/fiaon-payment-emails";
 
 const router = Router();
-
-// ── Wartungsmodus: Stripe-Geschäftsbeziehung beendet — keine Zahlungen mehr ──
-// Muss synchron zu client/src/lib/maintenance.ts gehalten werden.
-const MAINTENANCE_MODE = true;
 
 // In-memory store for identity-verify tokens (15 min TTL)
 const verifyTokens = new Map<string, { ref: string; expiresAt: number }>();
@@ -40,248 +41,328 @@ const upload = multer({
 // Create a single postgres connection pool for direct SQL queries
 const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: 'require', max: 10 });
 
-// Initialize Stripe
+// Initialize Stripe — nur noch für Legacy-Admin-Analytics (Umsatzhistorie, lesend).
+// Sobald STRIPE_SECRET_KEY aus dem Deployment entfernt ist, ist stripe = null.
 const stripe = process.env.STRIPE_SECRET_KEY 
   ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' as any })
   : null;
 
-// Create subscription with saved payment method
-router.post("/create-payment-intent", async (req, res) => {
+// ═══════════════════════════════════════════════════════════════════
+// ZAHLUNG PER BANKÜBERWEISUNG (VORKASSE) — ersetzt Stripe komplett
+// Siehe MIGRATION_INVENTORY.md
+// ═══════════════════════════════════════════════════════════════════
+
+export const FIAON_BANK_DETAILS = {
+  recipient: "Fiaon Ltd",
+  iban: "BE09905892763957",
+  ibanDisplay: "BE09 9058 9276 3957",
+  bic: "TRWIBEB1XXX",
+};
+
+// Serverseitige Preisliste — Beträge werden NIE vom Client übernommen.
+const PACK_PRICES: Record<string, number> = {
+  // Privat
+  start: 7.99, pro: 59.99, ultra: 79.99, highend: 99.99,
+  // Business
+  business_starter: 49.99, business_pro: 99.99, business_ultra: 149.99, business_enterprise: 249.99,
+};
+const SCHUFA_PRICE = 74.0;
+const PAYMENT_DUE_DAYS = 7;
+
+// Zeichensatz ohne verwechselbare Zeichen: keine 0, 1, O, I, L
+const PAYMENT_REF_CHARSET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+
+function randomPaymentCode(len = 6): string {
+  const bytes = randomBytes(len);
+  let out = "";
+  for (let i = 0; i < len; i++) out += PAYMENT_REF_CHARSET[bytes[i] % PAYMENT_REF_CHARSET.length];
+  return out;
+}
+
+async function generateUniquePaymentReference(): Promise<string> {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const candidate = `FIAON-${randomPaymentCode(6)}`;
+    const existing = await sqlPool`SELECT 1 FROM fiaon_applications WHERE payment_reference = ${candidate} LIMIT 1`;
+    if (existing.length === 0) return candidate;
+  }
+  throw new Error("Konnte keine eindeutige Zahlungsreferenz erzeugen");
+}
+
+// Auto-Migration der neuen Zahlungsspalten (idempotent)
+let paymentColumnsEnsured = false;
+async function ensurePaymentColumns(): Promise<void> {
+  if (paymentColumnsEnsured) return;
+  await sqlPool`
+    ALTER TABLE fiaon_applications
+    ADD COLUMN IF NOT EXISTS payment_reference VARCHAR,
+    ADD COLUMN IF NOT EXISTS payment_due_date TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS amount_due NUMERIC(10,2),
+    ADD COLUMN IF NOT EXISTS currency VARCHAR DEFAULT 'EUR',
+    ADD COLUMN IF NOT EXISTS reminder_sent_at_24h TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS reminder_sent_at_72h TIMESTAMPTZ;
+  `;
+  await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_payment_ref_idx ON fiaon_applications(payment_reference)`;
+  paymentColumnsEnsured = true;
+  console.log("[FIAON-PAYMENT] Zahlungsspalten sichergestellt");
+}
+
+function orderInfoFromRow(row: any) {
+  return {
+    email: row.email || row.contact_email || row.billing_email || "",
+    firstName: row.first_name || row.contact_name?.split(" ")[0] || "",
+    paymentReference: row.payment_reference,
+    amountDue: String(row.amount_due),
+    dueDate: new Date(row.payment_due_date),
+    packName: row.pack_name,
+  };
+}
+
+// Bestellung anlegen (nach Antragsabschluss). Idempotent pro ref.
+// kind: "activation" (Standard, Betrag aus Paket) | "schufa" (74 € Einmalzahlung, eigene Bestellzeile)
+router.post("/payment-order", async (req, res) => {
   try {
-    const { amount, packageName, ref, firstName, lastName, email } = req.body;
+    await ensurePaymentColumns();
+    const { ref: refInput, kind, email, firstName, lastName } = req.body || {};
+    let ref: string | null = refInput || null;
 
-    if (MAINTENANCE_MODE) {
-      return res.status(503).json({ error: "Wartungsarbeiten: Aktuell können keine Zahlungen angenommen werden.", maintenance: true });
-    }
-
-    if (!stripe) {
-      return res.status(500).json({ error: "Stripe not configured" });
-    }
-
-    if (!amount || !packageName || !ref) {
-      return res.status(400).json({ error: "Missing required fields: amount, packageName, ref" });
-    }
-
-    console.log("[FIAON-SUBSCRIPTION] Creating subscription for:", { ref, packageName, amount, email, name: `${firstName} ${lastName}` });
-
-    // Get or create Stripe customer
-    let customer;
-    const existingApp = await sqlPool`
-      SELECT stripe_customer_id FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
-    `;
-    
-    if (existingApp.length > 0 && existingApp[0].stripe_customer_id) {
-      // Retrieve existing customer
-      customer = await stripe.customers.retrieve(existingApp[0].stripe_customer_id);
-      console.log("[FIAON-SUBSCRIPTION] Using existing customer:", customer.id);
-    } else {
-      // Create new customer
-      customer = await stripe.customers.create({
-        email: email || undefined,
-        name: firstName && lastName ? `${firstName} ${lastName}` : undefined,
-        metadata: {
-          ref,
-          packageName,
-        },
-      });
-      console.log("[FIAON-SUBSCRIPTION] Created new customer:", customer.id);
-      
-      // Save customer ID to database
+    if (kind === "schufa") {
+      // SCHUFA/Bonitätsauskunft: eigene Bestellzeile, unabhängig vom ABO
+      ref = `FIAON-SCHUFA-${Date.now().toString(36).toUpperCase()}-${randomPaymentCode(4)}`;
       await sqlPool`
-        UPDATE fiaon_applications 
-        SET stripe_customer_id = ${customer.id}
-        WHERE ref = ${ref}
+        INSERT INTO fiaon_applications (ref, type, status, first_name, last_name, email, pack_name, created_at, updated_at)
+        VALUES (${ref}, 'schufa', 'submitted', ${firstName ?? null}, ${lastName ?? null}, ${email ?? null}, 'Bonitätsauskunft inkl. Handlungsplan', NOW(), NOW())
       `;
     }
 
-    // Create product first
-    console.log("[FIAON-SUBSCRIPTION] Creating product:", packageName);
-    const product = await stripe.products.create({
-      name: packageName,
-      metadata: { ref },
-    });
-    console.log("[FIAON-SUBSCRIPTION] Created product:", product.id);
+    if (!ref) return res.status(400).json({ ok: false, error: "ref fehlt" });
 
-    // Create price for the product
-    console.log("[FIAON-SUBSCRIPTION] Creating price for product:", product.id, "amount:", amount);
-    const price = await stripe.prices.create({
-      product: product.id,
-      currency: 'eur',
-      recurring: {
-        interval: 'month',
-      },
-      unit_amount: Math.round(amount * 100), // Convert to cents
-    });
-    console.log("[FIAON-SUBSCRIPTION] Created price:", price.id);
+    const rows = await sqlPool`
+      SELECT ref, type, pack_key, pack_name, first_name, contact_name, email, contact_email, billing_email,
+             payment_reference, payment_status, payment_due_date, amount_due, currency
+      FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Antrag nicht gefunden" });
+    const app = rows[0];
 
-    // Create subscription with setup intent for payment method
-    console.log("[FIAON-SUBSCRIPTION] Creating subscription with price:", price.id, "for customer:", customer.id);
-    const subscription = await stripe.subscriptions.create({
-      customer: customer.id,
-      items: [{
-        price: price.id,
-      }],
-      payment_behavior: 'default_incomplete',
-      payment_settings: {
-        save_default_payment_method: 'on_subscription',
-        payment_method_types: ['card'],
-      },
-      expand: ['latest_invoice.payment_intent'],
-      metadata: {
-        ref,
-        packageName,
-      },
-    });
+    // Idempotenz: bestehende offene/bezahlte Bestellung wiederverwenden
+    if (app.payment_reference && ["pending_payment", "paid"].includes(app.payment_status)) {
+      return res.json({ ok: true, paymentReference: app.payment_reference, existing: true });
+    }
 
-    console.log("[FIAON-SUBSCRIPTION] Created subscription:", subscription.id);
+    const amount = app.type === "schufa" ? SCHUFA_PRICE : PACK_PRICES[app.pack_key];
+    if (!amount) return res.status(400).json({ ok: false, error: `Unbekanntes Paket: ${app.pack_key}` });
 
-    // Save subscription ID to database
+    const paymentReference = app.payment_reference || (await generateUniquePaymentReference());
+    const dueDate = new Date(Date.now() + PAYMENT_DUE_DAYS * 24 * 60 * 60 * 1000);
+
     await sqlPool`
-      UPDATE fiaon_applications 
-      SET stripe_subscription_id = ${subscription.id}
+      UPDATE fiaon_applications SET
+        payment_reference = ${paymentReference},
+        payment_status = 'pending_payment',
+        payment_due_date = ${dueDate},
+        amount_due = ${amount.toFixed(2)},
+        currency = 'EUR',
+        reminder_sent_at_24h = NULL,
+        reminder_sent_at_72h = NULL,
+        updated_at = NOW()
       WHERE ref = ${ref}
     `;
 
-    const invoice = subscription.latest_invoice as any;
-    const paymentIntent = invoice?.payment_intent;
+    console.log(`[FIAON-PAYMENT] Bestellung angelegt: ${paymentReference} (ref=${ref}, ${amount.toFixed(2)} EUR, fällig ${dueDate.toISOString()})`);
 
-    res.json({ 
-      clientSecret: paymentIntent?.client_secret,
-      subscriptionId: subscription.id,
-      customerId: customer.id,
-    });
-  } catch (err: any) {
-    console.error("[FIAON-SUBSCRIPTION] Error:", err.message);
-    console.error("[FIAON-SUBSCRIPTION] Full error:", JSON.stringify(err, null, 2));
-    res.status(500).json({ error: "Failed to create subscription", details: err.message });
+    // Template 1: Zahlungsinformationen (fail-safe, blockiert Antwort nicht)
+    sendPaymentInstructionsEmail({
+      email: app.email || app.contact_email || app.billing_email || email || "",
+      firstName: app.first_name || firstName || "",
+      paymentReference,
+      amountDue: amount.toFixed(2),
+      dueDate,
+      packName: app.pack_name,
+    }).catch(() => {});
+
+    res.json({ ok: true, paymentReference });
+  } catch (err) {
+    console.error("[FIAON-PAYMENT] payment-order:", err);
+    res.status(500).json({ ok: false, error: "Bestellung konnte nicht angelegt werden" });
   }
 });
 
-// Stripe webhook handler
-router.post("/stripe-webhook", async (req, res) => {
-  if (!stripe) {
-    return res.status(500).json({ error: "Stripe not configured" });
-  }
-
-  const sig = req.headers['stripe-signature'] as string;
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-  if (!webhookSecret) {
-    console.error("[STRIPE-WEBHOOK] No webhook secret configured");
-    return res.status(400).send('Webhook secret not configured');
-  }
-
-  let event;
-
+// Öffentliche Zahlungsdaten für /zahlung/[payment_reference] — kein Login nötig,
+// keine sensiblen Kundendaten außer Vorname.
+router.get("/payment-order/:paymentRef", async (req, res) => {
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-  } catch (err: any) {
-    console.error("[STRIPE-WEBHOOK] Signature verification failed:", err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  console.log("[STRIPE-WEBHOOK] Received event:", event.type);
-
-  try {
-    switch (event.type) {
-      case 'checkout.session.completed': {
-        // Handles external Stripe Payment Links where the application ref
-        // is provided via client_reference_id on the hosted checkout.
-        const session = event.data.object as any;
-        const clientReferenceId: string | null = session?.client_reference_id || null;
-        const customerId: string | null = session?.customer || null;
-        const subscriptionId: string | null = session?.subscription || null;
-        const paymentIntentId: string | null = session?.payment_intent || null;
-
-        console.log(
-          "[STRIPE-WEBHOOK] checkout.session.completed:",
-          { sessionId: session?.id, clientReferenceId, customerId, subscriptionId }
-        );
-
-        if (!clientReferenceId) {
-          console.warn("[STRIPE-WEBHOOK] checkout.session.completed ohne client_reference_id - skip DB update");
-          break;
-        }
-
-        try {
-          await sqlPool`
-            UPDATE fiaon_applications
-            SET
-              payment_status = 'paid',
-              status = 'payment_completed',
-              stripe_customer_id = COALESCE(${customerId}, stripe_customer_id),
-              stripe_subscription_id = COALESCE(${subscriptionId}, stripe_subscription_id),
-              stripe_session_id = COALESCE(${session?.id ?? null}, stripe_session_id),
-              updated_at = NOW()
-            WHERE ref = ${clientReferenceId}
-          `;
-          console.log(`[STRIPE] Zahlung für Ref ${clientReferenceId} erfolgreich verbucht.`);
-        } catch (dbErr) {
-          console.error(
-            `[STRIPE-WEBHOOK] DB-Update fehlgeschlagen für Ref ${clientReferenceId}:`,
-            dbErr
-          );
-        }
-        break;
-      }
-
-      case 'invoice.payment_succeeded': {
-        const invoice = event.data.object as any;
-        const subscriptionId = invoice.subscription;
-        const paymentMethodId = invoice.payment_intent?.payment_method;
-        
-        console.log("[STRIPE-WEBHOOK] Payment succeeded for subscription:", subscriptionId, "payment method:", paymentMethodId);
-        
-        if (subscriptionId && paymentMethodId) {
-          // Update payment method in database
-          await sqlPool`
-            UPDATE fiaon_applications 
-            SET 
-              stripe_payment_method_id = ${paymentMethodId},
-              payment_status = 'paid'
-            WHERE stripe_subscription_id = ${subscriptionId}
-          `;
-          console.log("[STRIPE-WEBHOOK] Updated payment method for subscription:", subscriptionId);
-        }
-        break;
-      }
-      
-      case 'customer.subscription.updated':
-      case 'customer.subscription.created': {
-        const subscription = event.data.object as any;
-        const paymentMethodId = subscription.default_payment_method;
-        
-        console.log("[STRIPE-WEBHOOK] Subscription updated:", subscription.id, "payment method:", paymentMethodId);
-        
-        if (paymentMethodId) {
-          await sqlPool`
-            UPDATE fiaon_applications 
-            SET stripe_payment_method_id = ${paymentMethodId}
-            WHERE stripe_subscription_id = ${subscription.id}
-          `;
-          console.log("[STRIPE-WEBHOOK] Updated payment method for subscription:", subscription.id);
-        }
-        break;
-      }
-      
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object as any;
-        console.log("[STRIPE-WEBHOOK] Subscription cancelled:", subscription.id);
-        
-        await sqlPool`
-          UPDATE fiaon_applications 
-          SET payment_status = 'cancelled'
-          WHERE stripe_subscription_id = ${subscription.id}
-        `;
-        break;
-      }
-    }
-
-    res.json({ received: true });
+    await ensurePaymentColumns();
+    const rows = await sqlPool`
+      SELECT payment_reference, payment_status, payment_due_date, amount_due, currency, first_name, pack_name
+      FROM fiaon_applications WHERE payment_reference = ${req.params.paymentRef} LIMIT 1
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
+    const r = rows[0];
+    res.json({
+      ok: true,
+      paymentReference: r.payment_reference,
+      status: r.payment_status,
+      dueDate: r.payment_due_date,
+      amountDue: String(r.amount_due),
+      currency: r.currency || "EUR",
+      firstName: r.first_name || "",
+      packName: r.pack_name || "",
+      bank: FIAON_BANK_DETAILS,
+    });
   } catch (err) {
-    console.error("[STRIPE-WEBHOOK] Error processing webhook:", err);
-    res.status(500).json({ error: "Webhook processing failed" });
+    console.error("[FIAON-PAYMENT] payment-order/:ref:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
   }
+});
+
+// ── Admin: Zahlungsverwaltung (manuelle Freischaltung) ──────────────
+
+router.get("/admin/payments", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const status = req.query.status === "expired" ? "expired" : "pending_payment";
+    const rows = await sqlPool`
+      SELECT ref, type, payment_reference, payment_status, payment_due_date, amount_due, currency,
+             first_name, last_name, contact_name, company_name, email, contact_email, billing_email,
+             pack_name, updated_at, created_at,
+             reminder_sent_at_24h, reminder_sent_at_72h
+      FROM fiaon_applications
+      WHERE payment_status = ${status} AND payment_reference IS NOT NULL
+      ORDER BY payment_due_date ASC NULLS LAST
+    `;
+    res.json({ ok: true, data: rows });
+  } catch (err) {
+    console.error("[FIAON-PAYMENT] admin/payments:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Als bezahlt markieren → Freischaltung (Logik des früheren Stripe-Webhooks) + Willkommensmail
+router.post("/admin/payments/:paymentRef/mark-paid", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const rows = await sqlPool`
+      UPDATE fiaon_applications SET
+        payment_status = 'paid',
+        status = 'payment_completed',
+        completed_at = COALESCE(completed_at, NOW()),
+        updated_at = NOW()
+      WHERE payment_reference = ${req.params.paymentRef}
+      RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
+
+    console.log(`[FIAON-PAYMENT] Als bezahlt markiert: ${req.params.paymentRef} (ref=${rows[0].ref})`);
+    sendPaymentConfirmedEmail(orderInfoFromRow(rows[0])).catch(() => {});
+    res.json({ ok: true, data: rows[0] });
+  } catch (err) {
+    console.error("[FIAON-PAYMENT] mark-paid:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Abgelaufene Bestellung reaktivieren: neue 7-Tage-Frist + Template 1 erneut
+router.post("/admin/payments/:paymentRef/reactivate", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const dueDate = new Date(Date.now() + PAYMENT_DUE_DAYS * 24 * 60 * 60 * 1000);
+    const rows = await sqlPool`
+      UPDATE fiaon_applications SET
+        payment_status = 'pending_payment',
+        payment_due_date = ${dueDate},
+        reminder_sent_at_24h = NULL,
+        reminder_sent_at_72h = NULL,
+        updated_at = NOW()
+      WHERE payment_reference = ${req.params.paymentRef} AND payment_status = 'expired'
+      RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Keine abgelaufene Bestellung mit dieser Referenz gefunden" });
+
+    console.log(`[FIAON-PAYMENT] Reaktiviert: ${req.params.paymentRef} (neue Frist ${dueDate.toISOString()})`);
+    sendPaymentInstructionsEmail(orderInfoFromRow(rows[0])).catch(() => {});
+    res.json({ ok: true, data: rows[0] });
+  } catch (err) {
+    console.error("[FIAON-PAYMENT] reactivate:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── Reminder & Ablauf (24h / 72h / expired) ─────────────────────────
+
+async function runPaymentReminders(): Promise<{ expired: number; sent24h: number; sent72h: number }> {
+  await ensurePaymentColumns();
+  const result = { expired: 0, sent24h: 0, sent72h: 0 };
+
+  // 1) Abgelaufene Bestellungen schließen
+  const expiredRows = await sqlPool`
+    UPDATE fiaon_applications SET payment_status = 'expired', updated_at = NOW()
+    WHERE payment_status = 'pending_payment' AND payment_due_date < NOW()
+    RETURNING payment_reference
+  `;
+  result.expired = expiredRows.length;
+  if (expiredRows.length) console.log(`[FIAON-PAYMENT] Abgelaufen: ${expiredRows.map((r: any) => r.payment_reference).join(", ")}`);
+
+  // 2) 24h-Erinnerung (Bestellzeitpunkt = due_date − 7 Tage; feuert genau einmal)
+  const rows24 = await sqlPool`
+    UPDATE fiaon_applications SET reminder_sent_at_24h = NOW(), updated_at = NOW()
+    WHERE payment_status = 'pending_payment'
+      AND reminder_sent_at_24h IS NULL
+      AND payment_due_date < NOW() + INTERVAL '6 days'
+    RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name
+  `;
+  for (const r of rows24) {
+    await sendPaymentReminderEmail(orderInfoFromRow(r), "24h").catch(() => {});
+    result.sent24h++;
+  }
+
+  // 3) 72h-Erinnerung
+  const rows72 = await sqlPool`
+    UPDATE fiaon_applications SET reminder_sent_at_72h = NOW(), updated_at = NOW()
+    WHERE payment_status = 'pending_payment'
+      AND reminder_sent_at_72h IS NULL
+      AND payment_due_date < NOW() + INTERVAL '4 days'
+    RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name
+  `;
+  for (const r of rows72) {
+    await sendPaymentReminderEmail(orderInfoFromRow(r), "72h").catch(() => {});
+    result.sent72h++;
+  }
+
+  return result;
+}
+
+// Stündlicher Reminder-Lauf (fail-safe)
+setInterval(() => {
+  runPaymentReminders().catch((err) => console.error("[FIAON-PAYMENT] Reminder-Cron:", err));
+}, 60 * 60 * 1000);
+
+// Manueller Trigger für Tests / Admin
+router.post("/admin/payments/run-reminders", async (_req, res) => {
+  try {
+    const result = await runPaymentReminders();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("[FIAON-PAYMENT] run-reminders:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── Stillgelegte Stripe-Endpoints (410 Gone, nicht 500) ─────────────
+
+router.post("/create-payment-intent", (_req, res) => {
+  res.status(410).json({
+    error: "Kartenzahlung wurde eingestellt. Aktivierung erfolgt per Banküberweisung – Zugang nach Zahlungseingang.",
+    gone: true,
+  });
+});
+
+// Stillgelegter Stripe-Webhook — Zahlungseingang wird jetzt manuell über
+// /admin/payments (mark-paid) verbucht. 410 Gone statt 500.
+router.post("/stripe-webhook", (_req, res) => {
+  res.status(410).json({
+    error: "Stripe-Integration wurde eingestellt. Aktivierung erfolgt per Banküberweisung.",
+    gone: true,
+  });
 });
 
 // Track click events

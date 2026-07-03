@@ -347,6 +347,23 @@ const CheckIcon = ({ isHighEnd = false }: { isHighEnd?: boolean }) => (
 );
 
 function mkRef() { return "FIAON-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase(); }
+
+// Dubletten-Fix: ref pro Antrag stabil halten (überlebt Reload/Zurück-Navigation).
+// Ohne Persistenz erzeugte jeder Seitenaufruf eine neue ref → neue DB-Zeile.
+export function getPersistentRef(storageKey: string): string {
+  try {
+    const existing = sessionStorage.getItem(storageKey);
+    if (existing) return existing;
+    const fresh = mkRef();
+    sessionStorage.setItem(storageKey, fresh);
+    return fresh;
+  } catch {
+    return mkRef();
+  }
+}
+export function clearPersistentRef(storageKey: string): void {
+  try { sessionStorage.removeItem(storageKey); } catch {}
+}
 function eur(n: number) { return "€ " + n.toLocaleString("de-DE", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 }); }
 
 async function track(event: string, data?: any, ref?: string) {
@@ -464,7 +481,7 @@ function Sel({ value, onChange, children, ...p }: any) {
 /* === MAIN COMPONENT === */
 export default function AntragPage() {
   const [step, setStep] = useState(0);
-  const [ref] = useState(mkRef);
+  const [ref] = useState(() => getPersistentRef("fiaon_antrag_ref"));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pack, setPack] = useState<typeof PACKS[0] | null>(null);
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
@@ -2388,9 +2405,12 @@ export default function AntragPage() {
                     });
                     const orderJson = await orderRes.json().catch(() => null);
                     if (orderRes.ok && orderJson?.ok && orderJson.paymentReference) {
+                      // Antrag abgeschlossen → ref freigeben (nächster Antrag = neue ref)
+                      clearPersistentRef("fiaon_antrag_ref");
                       window.location.href = `/zahlung/${orderJson.paymentReference}`;
                     } else {
                       // Fallback: Konto ist angelegt, Zahlungsinfos kommen per E-Mail
+                      clearPersistentRef("fiaon_antrag_ref");
                       window.location.href = '/login';
                     }
                   } catch (error) {

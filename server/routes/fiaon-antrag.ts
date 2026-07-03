@@ -8,11 +8,8 @@ import postgres from "postgres";
 import Stripe from "stripe";
 import multer from "multer";
 import { randomBytes } from "crypto";
-import {
-  sendPaymentInstructionsEmail,
-  sendPaymentReminderEmail,
-  sendPaymentConfirmedEmail,
-} from "../email/fiaon-payment-emails";
+import { sendPaymentConfirmedEmail } from "../email/fiaon-payment-emails";
+import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
 
 const router = Router();
 
@@ -100,7 +97,10 @@ async function ensurePaymentColumns(): Promise<void> {
     ADD COLUMN IF NOT EXISTS currency VARCHAR DEFAULT 'EUR',
     ADD COLUMN IF NOT EXISTS reminder_sent_at_24h TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS reminder_sent_at_72h TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS claimed_paid_at TIMESTAMPTZ;
+    ADD COLUMN IF NOT EXISTS claimed_paid_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS welcome_sent_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS payment_email_sent_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS followup_sent_at TIMESTAMPTZ;
   `;
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_payment_ref_idx ON fiaon_applications(payment_reference)`;
   paymentColumnsEnsured = true;
@@ -171,15 +171,18 @@ router.post("/payment-order", async (req, res) => {
 
     console.log(`[FIAON-PAYMENT] Bestellung angelegt: ${paymentReference} (ref=${ref}, ${amount.toFixed(2)} EUR, fällig ${dueDate.toISOString()})`);
 
-    // Template 1: Zahlungsinformationen (fail-safe, blockiert Antwort nicht)
-    sendPaymentInstructionsEmail({
-      email: app.email || app.contact_email || app.billing_email || email || "",
-      firstName: app.first_name || firstName || "",
-      paymentReference,
-      amountDue: amount.toFixed(2),
-      dueDate,
-      packName: app.pack_name,
-    }).catch(() => {});
+    // Make-Webhook 'payment_details' — genau einmal beim Übergang nach pending_payment.
+    // Atomarer Flag-Claim verhindert Doppelversand; Fehler blockieren den Flow nicht.
+    try {
+      const claimed = await sqlPool`
+        UPDATE fiaon_applications SET payment_email_sent_at = NOW()
+        WHERE ref = ${ref} AND payment_email_sent_at IS NULL
+        RETURNING ref, first_name, last_name, contact_name, email, contact_email, billing_email, pack_name, payment_reference, amount_due
+      `;
+      if (claimed.length > 0) sendMakeWebhook("payment_details", makePayloadFromRow(claimed[0])).catch(() => {});
+    } catch (whErr) {
+      console.error("[MAKE-WEBHOOK] payment_details claim:", whErr);
+    }
 
     res.json({ ok: true, paymentReference });
   } catch (err) {
@@ -335,7 +338,12 @@ router.post("/admin/payments/:paymentRef/reactivate", async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Keine abgelaufene Bestellung mit dieser Referenz gefunden" });
 
     console.log(`[FIAON-PAYMENT] Reaktiviert: ${req.params.paymentRef} (neue Frist ${dueDate.toISOString()})`);
-    sendPaymentInstructionsEmail(orderInfoFromRow(rows[0])).catch(() => {});
+    // Neue Frist → Make erneut informieren (payment_details) + Follow-up-Zyklus zurücksetzen
+    await sqlPool`
+      UPDATE fiaon_applications SET payment_email_sent_at = NOW(), followup_sent_at = NULL
+      WHERE payment_reference = ${req.params.paymentRef}
+    `;
+    sendMakeWebhook("payment_details", makePayloadFromRow(rows[0])).catch(() => {});
     res.json({ ok: true, data: rows[0] });
   } catch (err) {
     console.error("[FIAON-PAYMENT] reactivate:", err);
@@ -345,9 +353,10 @@ router.post("/admin/payments/:paymentRef/reactivate", async (req, res) => {
 
 // ── Reminder & Ablauf (24h / 72h / expired) ─────────────────────────
 
-async function runPaymentReminders(): Promise<{ expired: number; sent24h: number; sent72h: number }> {
+// Direkte 24h/72h-Reminder-Mails wurden entfernt — Follow-up-Mails laufen über Make ('followup_48h').
+async function runPaymentReminders(): Promise<{ expired: number; followupsSent: number }> {
   await ensurePaymentColumns();
-  const result = { expired: 0, sent24h: 0, sent72h: 0 };
+  const result = { expired: 0, followupsSent: 0 };
 
   // 1) Abgelaufene Bestellungen schließen
   const expiredRows = await sqlPool`
@@ -358,30 +367,19 @@ async function runPaymentReminders(): Promise<{ expired: number; sent24h: number
   result.expired = expiredRows.length;
   if (expiredRows.length) console.log(`[FIAON-PAYMENT] Abgelaufen: ${expiredRows.map((r: any) => r.payment_reference).join(", ")}`);
 
-  // 2) 24h-Erinnerung (Bestellzeitpunkt = due_date − 7 Tage; feuert genau einmal)
-  const rows24 = await sqlPool`
-    UPDATE fiaon_applications SET reminder_sent_at_24h = NOW(), updated_at = NOW()
-    WHERE payment_status = 'pending_payment'
-      AND reminder_sent_at_24h IS NULL
-      AND payment_due_date < NOW() + INTERVAL '6 days'
-    RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name
+  // 2) Make-Webhook 'followup_48h': unbestätigte Zahlungen (pending_payment ODER claimed_paid),
+  //    älter als 48h (Bestellzeitpunkt = due_date minus 7 Tage, d. h. due_date < NOW() + 5 Tage),
+  //    noch kein Follow-up gesendet. Atomarer Flag-Claim verhindert Doppelversand.
+  const followupRows = await sqlPool`
+    UPDATE fiaon_applications SET followup_sent_at = NOW(), updated_at = NOW()
+    WHERE payment_status IN ('pending_payment', 'claimed_paid')
+      AND followup_sent_at IS NULL
+      AND payment_due_date < NOW() + INTERVAL '5 days'
+    RETURNING ref, payment_reference, amount_due, first_name, last_name, contact_name, email, contact_email, billing_email, pack_name
   `;
-  for (const r of rows24) {
-    await sendPaymentReminderEmail(orderInfoFromRow(r), "24h").catch(() => {});
-    result.sent24h++;
-  }
-
-  // 3) 72h-Erinnerung
-  const rows72 = await sqlPool`
-    UPDATE fiaon_applications SET reminder_sent_at_72h = NOW(), updated_at = NOW()
-    WHERE payment_status = 'pending_payment'
-      AND reminder_sent_at_72h IS NULL
-      AND payment_due_date < NOW() + INTERVAL '4 days'
-    RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name
-  `;
-  for (const r of rows72) {
-    await sendPaymentReminderEmail(orderInfoFromRow(r), "72h").catch(() => {});
-    result.sent72h++;
+  for (const r of followupRows) {
+    await sendMakeWebhook("followup_48h", makePayloadFromRow(r));
+    result.followupsSent++;
   }
 
   return result;
@@ -440,6 +438,9 @@ router.post("/track", async (req, res) => {
 router.post("/application", async (req, res) => {
   try {
     console.log("[FIAON-APP] Received application save request. Body keys:", Object.keys(req.body), "password in body:", 'password' in req.body, "password value:", req.body.password);
+
+    // Neue Zahlungs-/Webhook-Spalten müssen vor dem Drizzle-SELECT existieren
+    await ensurePaymentColumns();
     
     const { 
       ref, type, status, currentStep, packKey, packName, 
@@ -637,6 +638,22 @@ router.post("/application", async (req, res) => {
         const verify = await sqlPool`SELECT utm, email, status FROM fiaon_applications WHERE ref = ${ref}`;
         console.log("[FIAON-APP] Password verification query result:", verify);
       }
+    }
+
+    // Make-Webhook 'welcome' — genau einmal, sobald der E-Mail-Schritt abgeschlossen ist
+    // (erste Speicherung mit E-Mail-Adresse). Atomarer Flag-Claim: Vor/Zurück-Navigation
+    // oder parallele Saves lösen NICHT erneut aus. Fehler blockieren den Antrag nicht.
+    try {
+      await ensurePaymentColumns();
+      const claimed = await sqlPool`
+        UPDATE fiaon_applications SET welcome_sent_at = NOW()
+        WHERE ref = ${ref} AND welcome_sent_at IS NULL
+          AND COALESCE(NULLIF(email, ''), NULLIF(contact_email, ''), NULLIF(billing_email, '')) IS NOT NULL
+        RETURNING ref, first_name, last_name, contact_name, email, contact_email, billing_email, pack_name, payment_reference, amount_due
+      `;
+      if (claimed.length > 0) sendMakeWebhook("welcome", makePayloadFromRow(claimed[0])).catch(() => {});
+    } catch (whErr) {
+      console.error("[MAKE-WEBHOOK] welcome claim:", whErr);
     }
 
     res.json({ ok: true, ref });

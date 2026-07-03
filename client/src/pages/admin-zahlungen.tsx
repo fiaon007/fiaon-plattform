@@ -157,8 +157,9 @@ export default function AdminZahlungenPage() {
       const res = await fetch(`/api/fiaon/admin/payments/run-reminders`, { method: "POST", credentials: "include" });
       const json = await res.json().catch(() => null);
       if (res.ok && json?.ok) {
-        flash(`✓ Reminder-Lauf: ${json.sent24h}× 24h, ${json.sent72h}× 72h, ${json.expired}× abgelaufen`);
+        flash(`✓ Lauf abgeschlossen: ${json.followupsSent}× Follow-up-Webhook (48h), ${json.expired}× abgelaufen`);
         load(tab);
+        loadStats();
       } else {
         flash(`Fehler: ${json?.error || res.status}`);
       }

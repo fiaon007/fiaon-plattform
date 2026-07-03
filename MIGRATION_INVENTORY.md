@@ -114,10 +114,35 @@ Stand: 2026-07-03 · Umstellung des gesamten Zahlungsflows von Stripe auf SEPA-V
 4. ✅ Zwei Bestellungen → zwei eindeutige Referenzen; Typecheck 0 Fehler.
 5. ⚠️ Manuell zu prüfen (echtes Gerät/HTTPS): „QR-Code speichern" auf iOS/Android (Share-Sheet → Fotos), gespeichertes PNG per Galerie-Upload in echter Banking-App einlesen (Sparkasse/VR/ING o. ä.), Einzel-Copy-Buttons, Shimmer bei `prefers-reduced-motion` aus.
 
+### Update: Make.com-Webhooks + Dubletten-Fix
+
+**Phase 0 — Dubletten-Ursache & Fix**
+- **Ursache:** `ref` wurde in `antrag.tsx`/`business-antrag.tsx` per `useState(mkRef)` bei **jedem Seiten-Mount neu generiert** (nicht persistiert). Jeder Reload/Wiederbesuch → neue ref → der Autosave (`POST /application`, feuert pro Schrittwechsel) legte eine **neue Zeile** an statt zu aktualisieren. DB-Befund: 3416 Zeilen = 3416 distinct refs, aber bis zu 10 Zeilen pro E-Mail-Adresse. Innerhalb einer Session war die ref stabil (Server macht korrektes Update auf ref) — das Problem war ausschließlich der Seiten-Neustart.
+- **Fix (minimal):** ref wird in `sessionStorage` persistiert (`fiaon_antrag_ref` / `fiaon_business_antrag_ref`, Helper `getPersistentRef`) und nach erfolgreichem Abschluss (`payment-order` ok → Redirect) via `clearPersistentRef` freigegeben. Pro Antrag existiert damit genau EIN Datensatz, der über alle Schritte hinweg aktualisiert wird.
+
+**Phase 1 — Webhook-Infrastruktur (`server/make-webhook.ts`)**
+- `sendMakeWebhook(eventType, payload)` → POST an `MAKE_WEBHOOK_URL` (**env, nicht hardcoded** — Wert muss im Deployment gesetzt werden!). Payload: `event_type`, `timestamp`, `email`, `vorname`, `nachname`, `antrag_id` (= ref), `payment_reference`, `betrag`, `paket`. 10s-Timeout; Fehler werden nur geloggt und blockieren NIE den Nutzerflow (getestet).
+
+**Phase 2 — Die drei Trigger (jeweils genau 1×, atomare Flag-Claims per `UPDATE … WHERE flag IS NULL RETURNING`)**
+- **`welcome`** (`welcome_sent_at`): in `POST /application`, sobald erstmals eine E-Mail gespeichert ist. Vor/Zurück-Navigation und parallele Saves feuern nicht erneut.
+- **`payment_details`** (`payment_email_sent_at`): in `POST /payment-order` beim Übergang nach `pending_payment` (Payload mit `payment_reference`, `betrag`, `paket`, `email`, `vorname`). Idempotenter Zweitaufruf feuert nicht. Reactivate feuert bewusst erneut (neue Frist) und setzt `followup_sent_at` zurück.
+- **`followup_48h`** (`followup_sent_at`): im bestehenden stündlichen Cron (`runPaymentReminders`). Kriterien: Status `pending_payment` ODER `claimed_paid`, Bestellung älter 48h (`payment_due_date < NOW() + 5 days`, da due = Bestellung + 7 Tage), Flag NULL. `paid`/`expired` feuern nie.
+- **Direkte Plattform-Mails entfernt:** Zahlungsinstruktions-Mail (Template 1) und 24h/72h-Reminder-Mails sind ersetzt durch die Webhooks — Make versendet die E-Mails. **Ausnahme (bewusst):** die Willkommens-/Freischaltungsmail bei manuellem „Als bezahlt markieren" bleibt in der Plattform (kein Make-Event dafür definiert).
+
+**Getestet (echter Server + Webhook-Catcher)**
+1. ✅ 1 Save ohne E-Mail → 0× welcome; 4 Saves mit E-Mail (Vor/Zurück) → exakt 1× welcome.
+2. ✅ payment-order + idempotenter Zweitaufruf → exakt 1× payment_details mit korrekter einzigartiger Referenz + Betrag.
+3. ✅ Cron mit >48h altem Datensatz → 1× followup_48h; zweiter Lauf → 0.
+4. ✅ `paid`-Datensatz (auch mit gelöschtem Flag) → kein followup_48h.
+5. ✅ Webhook-Ausfall (Ziel down) → Application-Save und payment-order liefern HTTP 200, Fehler nur im Log.
+6. ✅ Zwei Bestellungen → zwei eindeutige Referenzen.
+7. Dubletten-Fix clientseitig (sessionStorage) — Code-Review-verifiziert; E2E: Antrag im Browser durchklicken, neu laden, prüfen dass nur 1 Zeile entsteht.
+
 ### Offene Punkte
 - [ ] **Env-Variablen entfernen**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VITE_STRIPE_PUBLISHABLE_KEY`/`VITE_STRIPE_PUBLIC_KEY` aus dem Deployment löschen (Code ist mit Null-Guards abgesichert).
 - [ ] **Stripe Payment Links im Stripe-Dashboard deaktivieren** (alte gespeicherte URLs könnten sonst noch funktionieren).
 - [ ] **AGB §5** (Rechtsabteilung): „Zahlungsabwicklung über Stripe" ersetzen. Ebenso `privacy.tsx` / `cookie-einstellungen.tsx`.
 - [ ] Admin-Umsatz-Dashboards (`/admin/stripe/*`) zeigen nach Env-Entfernung keine Daten mehr — bei Bedarf auf `fiaon_applications.amount_due/paid` umstellen.
 - [ ] `FIAON_BASE_URL` env setzen (Default `https://fiaon.de`) für korrekte Links in E-Mails.
+- [ ] **`MAKE_WEBHOOK_URL` im Deployment setzen** — ohne diese env werden die Make-Events (welcome/payment_details/followup_48h) nur geloggt und übersprungen.
 - [ ] Admin-Routen (`/api/fiaon/admin/*`) sind — wie die bestehenden Admin-Endpoints — nicht zusätzlich authentifiziert; folgt dem bestehenden Muster von `/admin/database`.

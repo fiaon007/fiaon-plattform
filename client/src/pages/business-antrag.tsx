@@ -251,6 +251,22 @@ const BUSINESS_PACKS = [
 ];
 
 function mkRef() { return "FIAON-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase(); }
+
+// Dubletten-Fix: ref pro Antrag stabil halten (überlebt Reload/Zurück-Navigation).
+function getPersistentRef(storageKey: string): string {
+  try {
+    const existing = sessionStorage.getItem(storageKey);
+    if (existing) return existing;
+    const fresh = mkRef();
+    sessionStorage.setItem(storageKey, fresh);
+    return fresh;
+  } catch {
+    return mkRef();
+  }
+}
+function clearPersistentRef(storageKey: string): void {
+  try { sessionStorage.removeItem(storageKey); } catch {}
+}
 function eur(n: number) { return "€ " + n.toLocaleString("de-DE", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 }); }
 
 async function track(event: string, data?: any, ref?: string) {
@@ -419,7 +435,7 @@ function CostSimulation({ maxLimit, packName }: { maxLimit: number; packName: st
 /* === MAIN COMPONENT === */
 export default function BusinessAntragPage() {
   const [step, setStep] = useState(0);
-  const [ref] = useState(mkRef);
+  const [ref] = useState(() => getPersistentRef("fiaon_business_antrag_ref"));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pack, setPack] = useState<typeof BUSINESS_PACKS[0] | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
@@ -488,6 +504,8 @@ export default function BusinessAntragPage() {
       const orderJson = await orderRes.json().catch(() => null);
       if (orderRes.ok && orderJson?.ok && orderJson.paymentReference) {
         track("checkout_bank_transfer", { ref, packKey: pack.key }, ref);
+        // Antrag abgeschlossen → ref freigeben (nächster Antrag = neue ref)
+        clearPersistentRef("fiaon_business_antrag_ref");
         window.location.href = `/zahlung/${orderJson.paymentReference}`;
       } else {
         console.error("[FIAON] payment-order failed:", orderJson);

@@ -41,7 +41,7 @@ export default function AgentPasswortPage() {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <p className="text-xl font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</p>
+          <a href="/agent" className="text-xl font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</a>
           <h1 className="text-[15px] font-semibold text-slate-900 mt-1">
             {token ? "Neues Passwort festlegen" : "Passwort zurücksetzen"}
           </h1>
@@ -58,10 +58,20 @@ export default function AgentPasswortPage() {
                 <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">Passwort wiederholen</label>
                 <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} className={inputCls} autoComplete="new-password" style={{ minHeight: 46 }} />
               </div>
-              {error && <p className="text-[12px] font-medium text-slate-700 border border-slate-300 rounded-lg px-3 py-2">{error}</p>}
+              {error && (
+                <div className="text-[12px] font-medium text-slate-700 border border-slate-300 rounded-lg px-3 py-2">
+                  <p>{error}</p>
+                  {/Link|Token|abgelaufen|ungültig/i.test(error) && (
+                    <a href="/agent/passwort" className="block mt-1.5 font-semibold hover:underline" style={{ color: ACCENT }}>
+                      Neuen Reset-Link anfordern
+                    </a>
+                  )}
+                </div>
+              )}
               <button type="submit" disabled={busy || !pw || !pw2} className={`${btnPrimary} w-full py-3`} style={{ minHeight: 48 }}>
                 {busy ? "Speichern …" : "Passwort speichern und anmelden"}
               </button>
+              <a href="/agent" className="block text-center text-[12px] text-slate-400 hover:text-slate-600">Zurück zur Anmeldung</a>
             </form>
           ) : (
             <form onSubmit={requestReset} className="space-y-4">

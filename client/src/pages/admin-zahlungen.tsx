@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 // ============================================================================
 // /admin/zahlungen — Zahlungszentrale (Vorkasse per Banküberweisung)
@@ -103,6 +103,8 @@ const STATUS_ORDER: Record<string, number> = { claimed_paid: 0, pending_payment:
 export default function AdminZahlungenPage() {
   const [tab, setTab] = useState<TabKey>("claimed_paid");
   const [rows, setRows] = useState<PaymentRow[]>([]);
+  // Deep-Link aus Hub/Cmd+K: /admin/zahlungen?ref=… öffnet direkt den Drawer
+  const deepRef = useRef<string | null>(new URLSearchParams(window.location.search).get("ref"));
   const [stats, setStats] = useState<PaymentStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -182,6 +184,32 @@ export default function AdminZahlungenPage() {
     load(tab);
     loadStats();
   }, [tab, load, loadStats]);
+
+  // Deep-Links (Paket O3/N): ?ref → Suche + Drawer; #auszahlungen → Sektion
+  useEffect(() => {
+    if (deepRef.current) {
+      setTab("alle");
+      setSearch(deepRef.current);
+    }
+    const scrollToHash = () => {
+      if (window.location.hash === "#auszahlungen") {
+        setTimeout(() => document.getElementById("auszahlungen")?.scrollIntoView({ behavior: "smooth", block: "start" }), 250);
+      }
+    };
+    scrollToHash();
+    window.addEventListener("hashchange", scrollToHash);
+    return () => window.removeEventListener("hashchange", scrollToHash);
+  }, []);
+
+  useEffect(() => {
+    const target = deepRef.current;
+    if (!target || rows.length === 0) return;
+    const hit = rows.find((r) => r.payment_reference === target || r.ref === target);
+    if (hit) {
+      deepRef.current = null;
+      openDetail(hit);
+    }
+  }, [rows]);
 
   useEffect(() => {
     loadDup();
@@ -624,7 +652,7 @@ export default function AdminZahlungenPage() {
         </div>
 
         {/* ── H2: Auszahlungen (Provisions-Anforderungen der Mitarbeiter) ── */}
-        <div className="mt-6 bg-white border border-slate-200 rounded-2xl p-5">
+        <div id="auszahlungen" className="mt-6 bg-white border border-slate-200 rounded-2xl p-5 scroll-mt-16">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div>
               <h2 className="text-[15px] font-bold text-slate-900">

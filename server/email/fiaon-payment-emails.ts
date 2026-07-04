@@ -6,6 +6,7 @@
  */
 
 import { sendEmail, type SendEmailResult } from "./mailer";
+import { fiaonBaseUrl } from "../fiaon-base-url";
 
 // ── Bankverbindung (Vorkasse) ────────────────────────────────────────────────
 export const FIAON_BANK = {
@@ -15,7 +16,7 @@ export const FIAON_BANK = {
   bic: "TRWIBEB1XXX",
 } as const;
 
-const FIAON_BASE_URL = process.env.FIAON_BASE_URL || "https://fiaon.de";
+const FIAON_BASE_URL = fiaonBaseUrl();
 
 export interface PaymentOrderInfo {
   email: string;

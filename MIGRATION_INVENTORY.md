@@ -225,11 +225,45 @@ Stand: 2026-07-03 · Umstellung des gesamten Zahlungsflows von Stripe auf SEPA-V
 **Getestet (echter Server + DB + Webhook-Catcher; Testdaten/-Agents danach entfernt, Settings zurückgesetzt, Invoice-Counter unangetastet — 34 echte Rechnungen existieren)**
 1. ✅ Invite-Event + Setup-URL; Token nach Nutzung/Reinvite 410. 2. ✅ Schwaches Passwort 400, Setup loggt ein. 3. ✅ Anti-Enumeration (identische Antworten, nur 1 Event), Force-Reset ⇒ alte Session 401, Reset-Token loggt ein. 4. ✅ Falsche IBAN-Prüfsumme 400; gültige maskiert; Admin-Banner (`bank_change_ack=false`); Avatar-Upload. 5. ✅ Soft-Lock (B: readOnly + 423), Auto-Claim per Notiz, B 403 + nur Kollegen-Sektion, Lock-Ablauf ⇒ B claimt. 6. ✅ 9999 Cents × 1500 bp = 1500 Cents; Satzwechsel friert Alt-Eintrag ein; Potenziell-Anzeige korrekt. 7. ✅ Storno vor Auszahlung ⇒ storniert; nach Auszahlung ⇒ −80 €-Verrechnungseintrag, Saldo negativ, Folgeprovision verrechnet. 8. ✅ Ohne IBAN 400 / unter Min 400 / Doppelantrag 409; Admin sieht volle IBAN + CSV; überwiesen ⇒ ausgezahlt + payout_done; abgelehnt ⇒ bestätigt + payout_rejected inkl. Grund. 9. ✅ Text+PDF-Skript, Mapping blendet Kontext-Skript nach Status ein, PDF-Auslieferung. 10. ✅ Termin in Kalender, Reminder exakt 1× im 60-Min-Fenster, Verschieben re-armiert Reminder, Erledigen. 11. ✅ Team-Statistik konsistent (Kontakte/Conversions/Umsatz/Provisionsstände/Login). 12. ✅ Design-Audit: 0 Emojis, 0 Ampelfarben-Klassen in /agent + /admin/team; Agent-403 auf allen neuen Admin-Routen.
 
+### Update: Navigations-Überholung + Admin-Kommandozentrale + Base-URL-Fix (Pakete L–O)
+
+**Paket L — Base-URL-Fix (kritischer Bug: Reset-/Invite-Links zeigten auf die falsche .de-Domain)**
+- Neue zentrale Quelle `server/fiaon-base-url.ts`: `absoluteUrl(path)` / `fiaonBaseUrl()`. Priorität: **`APP_BASE_URL`** → `FIAON_BASE_URL` (legacy) → Fallback **`https://www.fiaon.com`** (nie .de, nie localhost). Fehlende ENV ⇒ einmalige WARNUNG im Log.
+- Alle 3 Generierungsstellen umgestellt: `signInvoiceUrl` (fiaon-invoice.ts), `baseUrl()` (fiaon-agent.ts → delegiert; deckt Invite `invite_url` + Reset `reset_url` aus fiaon-team.ts ab), Zahlungsseiten-/Login-Links (email/fiaon-payment-emails.ts).
+- Verifiziert: Volltextsuche `fiaon.de` in server/client/shared = **0 Treffer**; Invite + Reset ohne ENV → `https://www.fiaon.com/...` + Warnung; mit `APP_BASE_URL` → Quelle korrekt in der Diagnose.
+
+**Paket M — Seiten-Inventar**
+- Neues **`SITE_MAP.md`**: jede Client-Route (30+) mit Zweck/Zielgruppe/Verlinkung, Server-Routen-Gruppen, Waisen-Analyse. Ergebnis: alle Admin-Seiten waren Waisen (nur Direkt-URL), `/admin` war 404; keine toten Routen ⇒ keine Redirects nötig; `client/src/pages/privatkunden.tsx` als ungenutzte Altdatei markiert (nicht gelöscht).
+
+**Paket N — Globale Navigations-Regeln**
+- **`AdminShell`** (client/src/components/admin/AdminShell.tsx) um ALLE `/admin/*`-Seiten (Wrapper in App.tsx): Desktop-Sidebar mit 4 Gruppen, Mobile-Burger-Drawer, Breadcrumb-Leiste (Dashboard → Seite) mit **Zurück-Button** (History-basiert, Fallback `/admin` bei Direkteinstieg), ⌘K-Suche in der Kopfzeile. Fußlinks „Zur Website" / „Agent-Portal".
+- **403-Erklärseite**: Shell probt `hub/stats`; Agent-Token ⇒ freundliche Seite + Button zurück zu `/agent` (Server bleibt die Wahrheit, alle neuen Admin-Endpoints 403-getestet).
+- **Rollenbewusste 404** (`not-found.tsx` neu): /admin-, /agent- und öffentlicher Kontext mit passenden Auswegen statt Sackgasse.
+- **Token-Sackgassen beseitigt**: `/agent/setup/:token` ungültig/abgelaufen ⇒ Erklärung (48 h, einmalig) + „Zur Anmeldung"/Startseite; `/agent/passwort` mit abgelaufenem Token ⇒ Inline-CTA „Neuen Reset-Link anfordern" + „Zurück zur Anmeldung"; Wordmarks auf Login/Setup/Reset verlinken jetzt.
+- Öffentliche Seiten geprüft: alle haben GlassNav/eigene Header — keine weiteren Sackgassen gefunden.
+
+**Paket O — Admin-Kommandozentrale `/admin`**
+- Neue Seite `admin-hub.tsx`: Begrüßung + 4 Live-Kennzahlen (Neue Anträge heute · Zahlung angekündigt Anzahl+Summe · Heute bestätigt · Offene Auszahlungs-Anforderungen) + **Bereichs-Karten in 4 Gruppen** mit Live-Badges (angekündigt / offene Payouts / Rechnungs-Anzahl / Duplikat-Gruppen / Bankdaten-prüfen bzw. aktive Agents). Badge-Konsistenz mit Zielseiten getestet.
+- Neue Unterseiten (alle read-only, keine Logik-Duplikate):
+  - **`/admin/rechnungen`** — Nummernkreis-Übersicht + Suche + PDF-Download (bestehender Endpoint).
+  - **`/admin/einstellungen`** — Satz/Mindest-Auszahlung (bestehende Endpoints) + **System-Diagnose**: Base-URL inkl. Quelle (Warn-Badge bei Fallback), `INVOICE_VAT_MODE` read-only mit TAX-REVIEW-Hinweis, Make-Webhook konfiguriert? + **letzter erfolgreicher Versand je Event-Typ** (neues leichtgewichtiges Tracking in make-webhook.ts → fiaon_settings.make_last_events; Fix: statischer postgres-Import, dynamischer schlug unter esbuild-Interop fehl).
+  - **`/admin/audit`** — durchsuchbares Mitarbeiter-Log (bestehender agent-log-Endpoint).
+  - **`/admin/recht`** — LEGAL_REVIEW_PACKAGE.md read-only + Links auf Live-Rechtstexte.
+- **⌘K-Schnellsuche** (`GET /admin/search`): Kunden (Name/E-Mail/Referenz/Zahlungsreferenz/Telefon) + Agents; Treffer springen per Deep-Link. Kunden-IBANs existieren nicht (Kunden zahlen an uns), Agent-IBANs verschlüsselt ⇒ bewusst nicht durchsuchbar.
+- **Deep-Links**: `/admin/zahlungen?ref=…` öffnet automatisch den Detail-Drawer (Tab „alle" + Suche vorbefüllt), `#auszahlungen` scrollt zur Sektion; `/admin/team?einladen=1` öffnet das Einladungs-Formular, `#skripte` scrollt zur Skript-Verwaltung (inkl. hashchange-Listener). Palette nutzt harte Navigation ⇒ funktioniert auch von der Zielseite aus.
+- Neuer Server-Router **`server/routes/fiaon-admin-hub.ts`** (hub/stats, search, invoices, system-status, legal-review), gemountet hinter `blockAgentsFromAdmin`.
+
+**Betreiber-TODO (Render-Environment)**
+- [ ] **`APP_BASE_URL=https://www.fiaon.com` setzen** — behebt die falschen .de-Links in Reset-/Invite-/Rechnungs-Mails dauerhaft (bis dahin greift der sichere .com-Fallback). `FIAON_BASE_URL` kann danach entfernt werden.
+
+**Getestet (echter Server + DB, read-only gegen Produktivdaten; Test-Agent danach entfernt)**
+1. ✅ `fiaon.de` = 0 Treffer; Invite/Reset ohne ENV → .com-Fallback + Log-Warnung; mit APP_BASE_URL → Quelle „APP_BASE_URL" in Diagnose, keine Warnung. 2. ✅ SITE_MAP.md vollständig; jede Admin-Seite über Hub UND Sidebar erreichbar. 3. ✅ Hub-KPIs live (179 neue Anträge heute, 28 angekündigt = identisch mit Zahlungszentrale-Kachel, 51 Rechnungen = /admin/rechnungen-Zeilen). 4. ✅ Breadcrumb/Zurück in Shell (Fallback /admin bei Direkteinstieg); Titel+Beschreibung auf allen neuen Seiten. 5. ✅ Agent-Cookie auf allen 5 neuen Admin-Endpoints → 403; AccessDenied-Seite client-seitig; 404 rollenbewusst. 6. ✅ ⌘K-Suche: echte Zahlungsreferenz → Sprung-URL `/admin/zahlungen?ref=…`, Agent-Treffer → /admin/team; <2 Zeichen leer. 7. ✅ Keine Alt-Routen zu redirecten (Inventar). 8. ✅ Mobile: Burger-Drawer + Bottom-freie Shell (lg-Breakpoint), AgentShell unverändert mobil. Zusätzlich: make_last_events-Diagnose schreibt bei echtem Event (nach Import-Fix verifiziert); Produktions-Build grün.
+
 ### Offene Punkte
 - [ ] **Env-Variablen entfernen**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VITE_STRIPE_PUBLISHABLE_KEY`/`VITE_STRIPE_PUBLIC_KEY` aus dem Deployment löschen (Code ist mit Null-Guards abgesichert).
 - [ ] **Stripe Payment Links im Stripe-Dashboard deaktivieren** (alte gespeicherte URLs könnten sonst noch funktionieren).
 - [x] ~~AGB §5 / privacy / cookie-einstellungen: Stripe-Passus ersetzen~~ — erledigt (siehe Paket A + `LEGAL_REVIEW_PACKAGE.md`).
 - [ ] Admin-Umsatz-Dashboards (`/admin/stripe/*`) zeigen nach Env-Entfernung keine Daten mehr — bei Bedarf auf `fiaon_applications.amount_due/paid` umstellen.
-- [ ] `FIAON_BASE_URL` env setzen (Default `https://fiaon.de`) für korrekte Links in E-Mails.
+- [x] ~~`FIAON_BASE_URL` env setzen~~ — ersetzt durch **`APP_BASE_URL`** (Paket L); Fallback ist jetzt sicher `https://www.fiaon.com`.
 - [ ] **`MAKE_WEBHOOK_URL` im Deployment setzen** — ohne diese env werden die Make-Events (welcome/payment_details/followup_48h) nur geloggt und übersprungen.
 - [ ] Admin-Routen (`/api/fiaon/admin/*`) sind — wie die bestehenden Admin-Endpoints — nicht zusätzlich authentifiziert; folgt dem bestehenden Muster von `/admin/database`.

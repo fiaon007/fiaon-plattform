@@ -57,7 +57,7 @@ export default function AgentSetupPage() {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <p className="text-xl font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</p>
+          <a href="/agent" className="text-xl font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</a>
           <h1 className="text-[15px] font-semibold text-slate-900 mt-1">Zugang einrichten</h1>
           {firstName && <p className="text-[12px] text-slate-400 mt-1">Willkommen, {firstName} — bitte lege dein Passwort fest.</p>}
         </div>
@@ -68,7 +68,18 @@ export default function AgentSetupPage() {
           {state === "invalid" && (
             <div className="text-center py-4">
               <p className="text-[13px] font-medium text-slate-700 mb-2">{error}</p>
-              <p className="text-[12px] text-slate-400">Bitte wende dich an deinen Administrator für eine neue Einladung.</p>
+              <p className="text-[12px] text-slate-400 leading-relaxed mb-5">
+                Einladungs-Links sind 48 Stunden gültig und können nur einmal verwendet werden.
+                Bitte deinen Administrator um eine neue Einladung — er kann sie in der Team-Übersicht mit einem Klick erneut senden.
+              </p>
+              <a
+                href="/agent"
+                className="inline-block w-full px-5 py-3 rounded-xl text-white text-[13px] font-semibold"
+                style={{ background: ACCENT }}
+              >
+                Zur Anmeldung
+              </a>
+              <a href="/" className="block mt-3 text-[12px] text-slate-400 hover:text-slate-600">Zur Startseite</a>
             </div>
           )}
 

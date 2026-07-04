@@ -32,6 +32,12 @@ import InvestorDashboardPage from "@/pages/investor-dashboard";
 import ZahlungPage, { ZahlungDankePage } from "@/pages/zahlung";
 import AdminZahlungenPage from "@/pages/admin-zahlungen";
 import AdminTeamPage from "@/pages/admin-team";
+import AdminHubPage from "@/pages/admin-hub";
+import AdminRechnungenPage from "@/pages/admin-rechnungen";
+import AdminEinstellungenPage from "@/pages/admin-einstellungen";
+import AdminAuditPage from "@/pages/admin-audit";
+import AdminRechtPage from "@/pages/admin-recht";
+import AdminShell from "@/components/admin/AdminShell";
 import AgentPortalPage from "@/pages/agent";
 import AgentSetupPage from "@/pages/agent/setup";
 import AgentPasswortPage from "@/pages/agent/passwort";
@@ -39,6 +45,16 @@ import AgentProfilPage from "@/pages/agent/profil";
 import AgentAuszahlungPage from "@/pages/agent/auszahlung";
 import AgentSkriptePage from "@/pages/agent/skripte";
 import AgentKalenderPage from "@/pages/agent/kalender";
+
+// Paket N1: JEDE /admin-Seite läuft in der AdminShell (Sidebar, Breadcrumb,
+// Zurück, Cmd+K). Serverseitige Guards bleiben unberührt.
+function admin(Component: () => JSX.Element) {
+  return () => (
+    <AdminShell>
+      <Component />
+    </AdminShell>
+  );
+}
 
 function Router() {
   return (
@@ -52,8 +68,13 @@ function Router() {
       <Route path="/business-antrag" component={BusinessAntragPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/dashboard" component={DashboardPage} />
-      <Route path="/admin/database" component={AdminDatabasePage} />
-      <Route path="/admin/zahlungen" component={AdminZahlungenPage} />
+      <Route path="/admin" component={admin(AdminHubPage)} />
+      <Route path="/admin/database" component={admin(AdminDatabasePage)} />
+      <Route path="/admin/zahlungen" component={admin(AdminZahlungenPage)} />
+      <Route path="/admin/rechnungen" component={admin(AdminRechnungenPage)} />
+      <Route path="/admin/einstellungen" component={admin(AdminEinstellungenPage)} />
+      <Route path="/admin/audit" component={admin(AdminAuditPage)} />
+      <Route path="/admin/recht" component={admin(AdminRechtPage)} />
       <Route path="/agent" component={AgentPortalPage} />
       <Route path="/agent/setup/:token" component={AgentSetupPage} />
       <Route path="/agent/passwort" component={AgentPasswortPage} />
@@ -61,7 +82,7 @@ function Router() {
       <Route path="/agent/auszahlung" component={AgentAuszahlungPage} />
       <Route path="/agent/skripte" component={AgentSkriptePage} />
       <Route path="/agent/kalender" component={AgentKalenderPage} />
-      <Route path="/admin/team" component={AdminTeamPage} />
+      <Route path="/admin/team" component={admin(AdminTeamPage)} />
       <Route path="/zahlung/:paymentRef/danke" component={ZahlungDankePage} />
       <Route path="/zahlung/:paymentRef" component={ZahlungPage} />
       <Route path="/was-ist-fiaon" component={WasIstFiaonPage} />

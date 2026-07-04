@@ -89,6 +89,20 @@ export default function AdminTeamPage() {
   }, []);
   useEffect(load, [load]);
 
+  // Deep-Links vom Hub (Paket O): ?einladen=1 öffnet das Einladungs-Formular,
+  // #skripte springt zur Skript-Verwaltung.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("einladen") === "1") setInviteOpen(true);
+    const scrollToHash = () => {
+      if (window.location.hash === "#skripte") {
+        setTimeout(() => document.getElementById("skripte")?.scrollIntoView({ behavior: "smooth", block: "start" }), 250);
+      }
+    };
+    scrollToHash();
+    window.addEventListener("hashchange", scrollToHash);
+    return () => window.removeEventListener("hashchange", scrollToHash);
+  }, []);
+
   const bankChanges = stats.filter((a) => !a.bank_change_ack);
 
   const ackBankChanges = async (e: React.MouseEvent) => {
@@ -641,7 +655,7 @@ function ScriptsAdmin({ flash }: { flash: (m: string) => void }) {
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5">
+    <div id="skripte" className="bg-white border border-slate-200 rounded-2xl p-5 scroll-mt-16">
       <h2 className="text-[15px] font-bold text-slate-900 mb-1">Skripte &amp; Gesprächsvorlagen</h2>
       <p className="text-[12px] text-slate-400 mb-4">
         Kategorien sind frei definierbar (z. B. „Eröffnung", „Einwand: zu teuer", „Abschluss"). Sortierung per Ziehen am Griff.

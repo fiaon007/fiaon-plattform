@@ -20,6 +20,7 @@ import { createHmac, createHash, randomBytes, createCipheriv, createDecipheriv }
 import PDFDocument from "pdfkit";
 import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
 import { renderInvoicePdf, signInvoiceUrl, ensureInvoiceNumber } from "../fiaon-invoice";
+import { fiaonBaseUrl } from "../fiaon-base-url";
 
 const router = Router();
 const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 5 });
@@ -35,8 +36,9 @@ function agentSecret(): string {
   return process.env.SESSION_SECRET || "fiaon-dev-agent-secret";
 }
 
+// Re-Export für Bestandsimporte (fiaon-team.ts) — einzige Quelle: fiaon-base-url.ts
 export function baseUrl(): string {
-  return (process.env.FIAON_BASE_URL || "https://fiaon.de").replace(/\/$/, "");
+  return fiaonBaseUrl();
 }
 
 // ── Geld: IMMER Integer-Cents, kaufmännische Rundung ─────────────────────────

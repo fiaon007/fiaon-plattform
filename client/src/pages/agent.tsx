@@ -148,7 +148,7 @@ function LoginView({ onLogin }: { onLogin: (a: { name: string; email: string }) 
     <div className="min-h-[70vh] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <p className="text-xl font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</p>
+          <a href="/" className="text-xl font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</a>
           <h1 className="text-[15px] font-semibold text-slate-900 mt-1">Mitarbeiter-Portal</h1>
           <p className="text-[12px] text-slate-400 mt-1">Anmeldung nur für autorisierte Mitarbeiter</p>
         </div>

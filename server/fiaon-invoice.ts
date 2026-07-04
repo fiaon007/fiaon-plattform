@@ -9,6 +9,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { createHmac } from "crypto";
+import { absoluteUrl } from "./fiaon-base-url";
 import type PDFKit from "pdfkit";
 
 export const FIAON_ENTITY = {
@@ -44,8 +45,7 @@ function invoiceSecret(): string {
 export function signInvoiceUrl(paymentReference: string, ttlMs = 72 * 60 * 60 * 1000): string {
   const exp = Date.now() + ttlMs;
   const sig = createHmac("sha256", invoiceSecret()).update(`${paymentReference}.${exp}`).digest("hex").slice(0, 32);
-  const base = process.env.FIAON_BASE_URL || "https://fiaon.de";
-  return `${base}/api/fiaon/invoice/${encodeURIComponent(paymentReference)}.pdf?exp=${exp}&sig=${sig}`;
+  return absoluteUrl(`/api/fiaon/invoice/${encodeURIComponent(paymentReference)}.pdf?exp=${exp}&sig=${sig}`);
 }
 
 export function verifyInvoiceSig(paymentReference: string, exp: string, sig: string): boolean {

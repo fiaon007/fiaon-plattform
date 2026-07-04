@@ -221,6 +221,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonTeamRoutes = await import('./routes/fiaon-team');
   app.use('/api/fiaon', fiaonTeamRoutes.default);
 
+  // 🧭 FIAON Admin-Hub — Kommandozentrale /admin (Kennzahlen, Suche, Rechnungen, System-Status)
+  const fiaonHubRoutes = await import('./routes/fiaon-admin-hub');
+  app.use('/api/fiaon', fiaonHubRoutes.default);
+
   // 💳 FIAON Antrag Routes — Public (no auth)
   const fiaonAntragRoutes = await import('./routes/fiaon-antrag');
   app.use('/api/fiaon', fiaonAntragRoutes.default);

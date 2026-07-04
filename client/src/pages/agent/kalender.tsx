@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Phone, Check, Clock } from "lucide-react";
 import { AgentShell, Card, Badge, FlashMessage, api, fmtDT, fmtTime, inputCls, btnPrimary, btnGhost } from "./shared";
+import { Reveal } from "./motion";
 
 // ============================================================================
 // /agent/kalender (J1) — Tages-/Wochenansicht der eigenen Rückruf-Termine
@@ -173,8 +174,8 @@ function KalenderContent() {
 
   return (
     <div className="max-w-3xl">
-      <div className="flex items-center justify-between gap-3 mb-1">
-        <h1 className="text-lg font-bold tracking-tight">Kalender</h1>
+      <Reveal index={0} className="flex items-center justify-between gap-3 mb-1">
+        <h1 className="text-xl font-bold tracking-tight">Kalender</h1>
         <div className="flex rounded-lg border border-slate-200 overflow-hidden">
           {(["tag", "woche"] as const).map((v) => (
             <button
@@ -189,7 +190,7 @@ function KalenderContent() {
             </button>
           ))}
         </div>
-      </div>
+      </Reveal>
       <p className="text-[12px] text-slate-400 mb-5">Deine Rückruf-Termine und Zahlungs-Zusagen.</p>
       <FlashMessage message={message} />
 

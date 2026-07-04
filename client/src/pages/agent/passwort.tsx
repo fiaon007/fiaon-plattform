@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
-import { Card, api, inputCls, btnPrimary, ACCENT } from "./shared";
+import { api, inputCls, ACCENT } from "./shared";
+import { AuthLayout, SubmitButton } from "./motion";
 
 // ============================================================================
 // /agent/passwort — Passwort-Reset per E-Mail-Link (F2, Token 1h gültig)
@@ -38,56 +39,50 @@ export default function AgentPasswortPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <a href="/agent" className="text-xl font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</a>
-          <h1 className="text-[15px] font-semibold text-slate-900 mt-1">
-            {token ? "Neues Passwort festlegen" : "Passwort zurücksetzen"}
-          </h1>
-        </div>
-        <Card className="p-6">
-          {token ? (
-            <form onSubmit={doReset} className="space-y-4">
-              <div>
-                <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">Neues Passwort</label>
-                <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} className={inputCls} autoComplete="new-password" style={{ minHeight: 46 }} />
-                <p className="text-[11px] text-slate-400 mt-1">Min. 10 Zeichen, Zahl, Groß- und Kleinbuchstabe.</p>
-              </div>
-              <div>
-                <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">Passwort wiederholen</label>
-                <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} className={inputCls} autoComplete="new-password" style={{ minHeight: 46 }} />
-              </div>
-              {error && (
-                <div className="text-[12px] font-medium text-slate-700 border border-slate-300 rounded-lg px-3 py-2">
-                  <p>{error}</p>
-                  {/Link|Token|abgelaufen|ungültig/i.test(error) && (
-                    <a href="/agent/passwort" className="block mt-1.5 font-semibold hover:underline" style={{ color: ACCENT }}>
-                      Neuen Reset-Link anfordern
-                    </a>
-                  )}
-                </div>
+    <AuthLayout
+      title={token ? "Neues Passwort festlegen" : "Passwort zurücksetzen"}
+      subtitle={token ? "Wähle ein sicheres neues Passwort." : "Gib deine Login-E-Mail ein — wir senden dir einen Link."}
+      homeHref="/agent"
+    >
+      {token ? (
+        <form onSubmit={doReset} className="space-y-4">
+          <div>
+            <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">Neues Passwort</label>
+            <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} className={inputCls} autoComplete="new-password" style={{ minHeight: 46 }} />
+            <p className="text-[11px] text-slate-400 mt-1">Min. 10 Zeichen, Zahl, Groß- und Kleinbuchstabe.</p>
+          </div>
+          <div>
+            <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">Passwort wiederholen</label>
+            <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} className={inputCls} autoComplete="new-password" style={{ minHeight: 46 }} />
+          </div>
+          {error && (
+            <div className="text-[12px] font-medium text-slate-700 border border-slate-300 rounded-lg px-3 py-2.5">
+              <p>{error}</p>
+              {/Link|Token|abgelaufen|ungültig/i.test(error) && (
+                <a href="/agent/passwort" className="block mt-1.5 font-semibold hover:underline" style={{ color: ACCENT }}>
+                  Neuen Reset-Link anfordern
+                </a>
               )}
-              <button type="submit" disabled={busy || !pw || !pw2} className={`${btnPrimary} w-full py-3`} style={{ minHeight: 48 }}>
-                {busy ? "Speichern …" : "Passwort speichern und anmelden"}
-              </button>
-              <a href="/agent" className="block text-center text-[12px] text-slate-400 hover:text-slate-600">Zurück zur Anmeldung</a>
-            </form>
-          ) : (
-            <form onSubmit={requestReset} className="space-y-4">
-              <div>
-                <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">Login-E-Mail</label>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} autoComplete="username" style={{ minHeight: 46 }} />
-              </div>
-              {info && <p className="text-[12px] text-slate-500 border border-slate-200 rounded-lg px-3 py-2">{info}</p>}
-              <button type="submit" disabled={busy || !email} className={`${btnPrimary} w-full py-3`} style={{ minHeight: 48 }}>
-                {busy ? "Sende …" : "Reset-Link anfordern"}
-              </button>
-              <a href="/agent" className="block text-center text-[12px] text-slate-400 hover:text-slate-600">Zurück zur Anmeldung</a>
-            </form>
+            </div>
           )}
-        </Card>
-      </div>
-    </div>
+          <SubmitButton loading={busy} disabled={!pw || !pw2}>
+            {busy ? "Speichern …" : "Passwort speichern und anmelden"}
+          </SubmitButton>
+          <a href="/agent" className="block text-center text-[12px] text-slate-400 hover:text-slate-600 transition-colors">Zurück zur Anmeldung</a>
+        </form>
+      ) : (
+        <form onSubmit={requestReset} className="space-y-4">
+          <div>
+            <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">Login-E-Mail</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} autoComplete="username" style={{ minHeight: 46 }} />
+          </div>
+          {info && <p className="text-[12px] text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 leading-relaxed">{info}</p>}
+          <SubmitButton loading={busy} disabled={!email}>
+            {busy ? "Sende …" : "Reset-Link anfordern"}
+          </SubmitButton>
+          <a href="/agent" className="block text-center text-[12px] text-slate-400 hover:text-slate-600 transition-colors">Zurück zur Anmeldung</a>
+        </form>
+      )}
+    </AuthLayout>
   );
 }

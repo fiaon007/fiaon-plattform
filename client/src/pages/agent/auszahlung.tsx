@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
-import { AgentShell, Card, KpiCard, Badge, FlashMessage, api, fmtCents, fmtDT, btnPrimary } from "./shared";
+import { Wallet } from "lucide-react";
+import { AgentShell, Card, Badge, FlashMessage, api, fmtCents, fmtDT, btnPrimary, ACCENT } from "./shared";
+import { Reveal, CountUp, SuccessPulse } from "./motion";
 
 // ============================================================================
 // /agent/auszahlung (H1)
@@ -31,6 +33,7 @@ function AuszahlungContent() {
   const [data, setData] = useState<{ balanceCents: number; minCents: number; hasBank: boolean; ibanMasked: string | null; history: PayoutRow[] } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pulse, setPulse] = useState(0);
 
   const flash = (m: string) => { setMessage(m); setTimeout(() => setMessage(null), 4500); };
 
@@ -50,20 +53,37 @@ function AuszahlungContent() {
     setBusy(true);
     const r = await api("/agent/payouts/request", { method: "POST" });
     setBusy(false);
-    if (r.ok) { flash("Auszahlung beantragt — sie wird nach Prüfung manuell überwiesen."); load(); }
+    if (r.ok) { flash("Auszahlung beantragt — sie wird nach Prüfung manuell überwiesen."); setPulse((p) => p + 1); load(); }
     else flash(r.json?.error || "Fehler");
   };
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-lg font-bold tracking-tight mb-1">Auszahlung</h1>
-      <p className="text-[12px] text-slate-400 mb-5">Dein bestätigtes Provisions-Guthaben.</p>
+      <Reveal index={0}>
+        <h1 className="text-xl font-bold tracking-tight mb-1">Auszahlung</h1>
+        <p className="text-[12px] text-slate-400 mb-5">Dein bestätigtes Provisions-Guthaben.</p>
+      </Reveal>
       <FlashMessage message={message} />
 
-      <div className="grid sm:grid-cols-2 gap-3 mb-4">
-        <KpiCard label="Verfügbares Guthaben" value={fmtCents(data.balanceCents)} sub="Summe bestätigter Provisionen" />
-        <KpiCard label="Mindestbetrag" value={fmtCents(data.minCents)} sub="für eine Auszahlung" />
-      </div>
+      <Reveal index={1}>
+        <SuccessPulse trigger={pulse}>
+          <div className="grid sm:grid-cols-2 gap-3 mb-4">
+            <div className="rounded-2xl bg-white border border-slate-200 p-5">
+              <div className="flex items-start justify-between mb-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Verfügbares Guthaben</p>
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "rgba(37,99,235,.10)", color: ACCENT }}><Wallet size={15} strokeWidth={1.9} /></span>
+              </div>
+              <p className="text-[24px] font-bold tracking-tight text-slate-900"><CountUp value={data.balanceCents} format={fmtCents} /></p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Summe bestätigter Provisionen</p>
+            </div>
+            <div className="rounded-2xl bg-white border border-slate-200 p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">Mindestbetrag</p>
+              <p className="text-[24px] font-bold tracking-tight text-slate-900 tabular-nums">{fmtCents(data.minCents)}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">für eine Auszahlung</p>
+            </div>
+          </div>
+        </SuccessPulse>
+      </Reveal>
 
       <Card className="p-5 mb-6">
         <button

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Camera, Trash2 } from "lucide-react";
 import { AgentShell, Card, FlashMessage, Avatar, api, inputCls, btnPrimary, btnGhost } from "./shared";
+import { Reveal } from "./motion";
 
 // ============================================================================
 // /agent/profil (F3)
@@ -153,12 +154,14 @@ function ProfilContent() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-lg font-bold tracking-tight mb-1">Profil</h1>
-      <p className="text-[12px] text-slate-400 mb-5">Deine Konto- und Auszahlungsdaten.</p>
+      <Reveal index={0}>
+        <h1 className="text-xl font-bold tracking-tight mb-1">Profil</h1>
+        <p className="text-[12px] text-slate-400 mb-5">Deine Konto- und Auszahlungsdaten.</p>
+      </Reveal>
       <FlashMessage message={message} />
 
       {/* Profilbild + Stammdaten */}
-      <Card className="p-5 mb-4">
+      <Reveal index={1} className="block mb-4"><Card className="p-5">
         <div className="flex items-center gap-4">
           <Avatar src={profile.avatar} name={profile.name} size={64} />
           <div className="min-w-0 flex-1">
@@ -189,10 +192,10 @@ function ProfilContent() {
             onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); e.target.value = ""; }}
           />
         </div>
-      </Card>
+      </Card></Reveal>
 
       {/* Telefon */}
-      <Card className="p-5 mb-4">
+      <Reveal index={2} className="block mb-4"><Card className="p-5">
         <h2 className="text-[13px] font-semibold text-slate-900 mb-3">Telefonnummer</h2>
         <div className="flex gap-2">
           <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+49 …" className={inputCls} />
@@ -200,10 +203,10 @@ function ProfilContent() {
             {busy === "phone" ? "…" : "Speichern"}
           </button>
         </div>
-      </Card>
+      </Card></Reveal>
 
       {/* Passwort */}
-      <Card className="p-5 mb-4">
+      <Reveal index={3} className="block mb-4"><Card className="p-5">
         <h2 className="text-[13px] font-semibold text-slate-900 mb-3">Passwort ändern</h2>
         <form onSubmit={savePassword} className="space-y-3">
           <input type="password" value={pwForm.old} onChange={(e) => setPwForm((f) => ({ ...f, old: e.target.value }))} placeholder="Aktuelles Passwort" autoComplete="current-password" className={inputCls} />
@@ -216,10 +219,10 @@ function ProfilContent() {
             {busy === "pw" ? "…" : "Passwort ändern"}
           </button>
         </form>
-      </Card>
+      </Card></Reveal>
 
       {/* Auszahlungsdaten */}
-      <Card className="p-5">
+      <Reveal index={4} className="block"><Card className="p-5">
         <h2 className="text-[13px] font-semibold text-slate-900 mb-1">Auszahlungsdaten</h2>
         <p className="text-[12px] text-slate-400 mb-3">
           Wird verschlüsselt gespeichert und nur maskiert angezeigt. Jede Änderung wird protokolliert und dem Administrator gemeldet.
@@ -241,7 +244,7 @@ function ProfilContent() {
             {busy === "bank" ? "…" : profile.hasBank ? "Auszahlungsdaten aktualisieren" : "Auszahlungsdaten speichern"}
           </button>
         </form>
-      </Card>
+      </Card></Reveal>
     </div>
   );
 }

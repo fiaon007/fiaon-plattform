@@ -409,3 +409,140 @@ html {
   to   { opacity: 1; transform: none; }
 }
 .scp-fade-up { animation: scpFadeUp .5s cubic-bezier(.4,0,.2,1) both; }
+
+/* ════════════════════════════════════════════════════════════
+   FIAON AGENT-PORTAL — Cinematic Motion Layer (Pakete P–S)
+   Regeln: EINE Akzentfarbe (#2563eb), monochrom, kein Neon, keine Emojis.
+   „Cinematisch beim Ankommen, ruhig und schnell beim Arbeiten."
+   Alles transform/opacity (GPU), niemals Layout-Shift. reduced-motion
+   deaktiviert JEDE nicht-essenzielle Bewegung (Block ganz unten).
+   ════════════════════════════════════════════════════════════ */
+
+/* — Gestaffelte Einblendung (Reveal): fade + weicher Y-Versatz — */
+@keyframes agentReveal {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+.agent-reveal {
+  opacity: 0;
+  animation: agentReveal .62s cubic-bezier(.22,.61,.36,1) forwards;
+  will-change: transform, opacity;
+}
+
+/* — Panel-Einblendung für Auth-Karten (leichtes Anheben) — */
+@keyframes agentPanelIn {
+  from { opacity: 0; transform: translateY(20px) scale(.985); }
+  to   { opacity: 1; transform: none; }
+}
+.agent-panel-in { animation: agentPanelIn .7s cubic-bezier(.22,.61,.36,1) both; }
+
+/* — Signature-Core: ruhig rotierende Draht-Sphäre (CI, monochrom+Akzent) — */
+.agent-core { perspective: 900px; }
+.agent-core__inner {
+  position: relative;
+  transform-style: preserve-3d;
+  animation: agentCoreSpin 32s linear infinite;
+  width: 100%; height: 100%;
+}
+@keyframes agentCoreSpin {
+  from { transform: rotateY(0deg) rotateX(14deg); }
+  to   { transform: rotateY(360deg) rotateX(14deg); }
+}
+.agent-core__ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 1px solid rgba(37,99,235,.22);
+}
+.agent-core__ring:nth-child(1) { transform: rotateY(0deg); }
+.agent-core__ring:nth-child(2) { transform: rotateY(60deg); }
+.agent-core__ring:nth-child(3) { transform: rotateY(120deg); }
+.agent-core__ring:nth-child(4) { transform: rotateX(72deg); border-color: rgba(100,116,139,.20); }
+.agent-core__ring:nth-child(5) { transform: rotateX(72deg) rotateY(60deg); border-color: rgba(100,116,139,.18); }
+.agent-core__glow {
+  position: absolute; inset: 18%; border-radius: 50%;
+  background: radial-gradient(circle, rgba(37,99,235,.30), transparent 68%);
+  filter: blur(6px);
+  animation: agentGlowPulse 6s ease-in-out infinite;
+}
+@keyframes agentGlowPulse {
+  0%, 100% { opacity: .55; transform: scale(1); }
+  50%      { opacity: .85; transform: scale(1.06); }
+}
+
+/* — Sanfte Ambient-Orbs im Auth-Hintergrund — */
+@keyframes agentFloat {
+  0%, 100% { transform: translate3d(0,0,0); }
+  50%      { transform: translate3d(0,-18px,0); }
+}
+.agent-float { animation: agentFloat 12s ease-in-out infinite; }
+
+/* — Button-Lade-Spinner — */
+@keyframes agentSpin { to { transform: rotate(360deg); } }
+.agent-spinner {
+  width: 15px; height: 15px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.4); border-top-color: #fff;
+  animation: agentSpin .7s linear infinite;
+}
+
+/* — Erfolgs-Moment: weiches Aufleuchten + kurze Aufwärtsbewegung (≤800ms) — */
+@keyframes agentSuccessPulse {
+  0%   { transform: translateY(0); }
+  30%  { transform: translateY(-5px); }
+  100% { transform: translateY(0); }
+}
+@keyframes agentSuccessGlow {
+  0%   { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+  35%  { box-shadow: 0 0 0 6px rgba(37,99,235,.14); }
+  100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+}
+.agent-success {
+  animation: agentSuccessPulse .8s cubic-bezier(.22,.61,.36,1),
+             agentSuccessGlow .8s ease-out;
+  border-radius: 12px;
+}
+
+/* — Micro-Feedback: kurzes Häkchen-Einblenden (≤150ms) — */
+@keyframes agentCheckIn {
+  from { opacity: 0; transform: scale(.6); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.agent-check-in { animation: agentCheckIn .14s ease-out both; }
+
+/* — Skeleton-Shimmer für Ladezustände (ruhig) — */
+@keyframes agentShimmer { 100% { transform: translateX(100%); } }
+.agent-skeleton { position: relative; overflow: hidden; background: #eef2f7; }
+.agent-skeleton::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.6), transparent);
+  animation: agentShimmer 1.4s ease-in-out infinite;
+}
+
+/* — Autofill-Gelb neutralisieren (Login/Auth + alle Agent-Felder) — */
+.agent-scope input:-webkit-autofill,
+.agent-scope input:-webkit-autofill:hover,
+.agent-scope input:-webkit-autofill:focus,
+.agent-scope input:-webkit-autofill:active {
+  -webkit-text-fill-color: #0f172a !important;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  caret-color: #0f172a;
+  transition: background-color 9999s ease-out 0s;
+}
+
+/* — Dezenter Scrollbar in Panels — */
+.agent-scroll::-webkit-scrollbar { width: 7px; height: 7px; }
+.agent-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+.agent-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* ── prefers-reduced-motion: alle nicht-essenziellen Bewegungen AUS ── */
+@media (prefers-reduced-motion: reduce) {
+  .agent-reveal,
+  .agent-panel-in,
+  .agent-check-in,
+  .agent-success { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .agent-core__inner,
+  .agent-core__glow,
+  .agent-float,
+  .agent-spinner,
+  .agent-skeleton::after { animation: none !important; }
+  .agent-core__glow { opacity: .6; }
+}

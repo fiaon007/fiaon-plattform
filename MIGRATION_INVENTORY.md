@@ -259,6 +259,35 @@ Stand: 2026-07-03 · Umstellung des gesamten Zahlungsflows von Stripe auf SEPA-V
 **Getestet (echter Server + DB, read-only gegen Produktivdaten; Test-Agent danach entfernt)**
 1. ✅ `fiaon.de` = 0 Treffer; Invite/Reset ohne ENV → .com-Fallback + Log-Warnung; mit APP_BASE_URL → Quelle „APP_BASE_URL" in Diagnose, keine Warnung. 2. ✅ SITE_MAP.md vollständig; jede Admin-Seite über Hub UND Sidebar erreichbar. 3. ✅ Hub-KPIs live (179 neue Anträge heute, 28 angekündigt = identisch mit Zahlungszentrale-Kachel, 51 Rechnungen = /admin/rechnungen-Zeilen). 4. ✅ Breadcrumb/Zurück in Shell (Fallback /admin bei Direkteinstieg); Titel+Beschreibung auf allen neuen Seiten. 5. ✅ Agent-Cookie auf allen 5 neuen Admin-Endpoints → 403; AccessDenied-Seite client-seitig; 404 rollenbewusst. 6. ✅ ⌘K-Suche: echte Zahlungsreferenz → Sprung-URL `/admin/zahlungen?ref=…`, Agent-Treffer → /admin/team; <2 Zeichen leer. 7. ✅ Keine Alt-Routen zu redirecten (Inventar). 8. ✅ Mobile: Burger-Drawer + Bottom-freie Shell (lg-Breakpoint), AgentShell unverändert mobil. Zusätzlich: make_last_events-Diagnose schreibt bei echtem Event (nach Import-Fix verifiziert); Produktions-Build grün.
 
+### Update: Cinematisches Redesign Agent-Portal (Pakete P–S)
+
+Ziel: Agent-Portal von „rohem MVP" zu cinematischem, hochproduktivem Arbeits-Tool. **KEINE Logik-Änderung** — nur Präsentation/Layout/Motion. Leitprinzip: „Cinematisch beim Ankommen, ruhig und schnell beim Arbeiten." Alle Bewegungen respektieren `prefers-reduced-motion`, sind transform/opacity-basiert (60fps, CLS 0), CI-konform (eine Akzentfarbe `#2563eb`, monochrom, keine Emojis).
+
+**Paket S — Motion-/3D-Fundament**
+- `client/src/index.css`: neuer Block „FIAON AGENT-PORTAL — Cinematic Motion Layer" mit Keyframes (Reveal, Panel-In, Signature-Core-Spin, Glow-Pulse, Float, Spinner, Success-Pulse+Glow, Check-In, Shimmer), **Autofill-Gelb-Neutralisierung** (`.agent-scope input:-webkit-autofill`), Panel-Scrollbar und einem `@media (prefers-reduced-motion: reduce)`-Block, der JEDE nicht-essenzielle Animation abschaltet (statische Endzustände).
+- `client/src/pages/agent/motion.tsx` (neu): `useReducedMotion`, `Reveal` (gestaffelt), `CountUp` (einmalig beim Mount, easeOutExpo), **`SignatureCore`** (rein-CSS rotierende Draht-Sphäre, 0 Assets, statisch bei reduced-motion), `AuthLayout` (cinematischer Auth-Rahmen), `SubmitButton` (mit Spinner), `SuccessPulse` (Erfolgs-Moment ≤850ms).
+
+**Paket P — Login & Auth-Seiten**
+- `agent.tsx` (LoginView), `agent/setup.tsx`, `agent/passwort.tsx` nutzen jetzt `AuthLayout`: heller CI-Hintergrund mit Signature-Core + weichen Ambient-Orbs, gestaffelt eingeblendete Wortmarke/Titel, schwebendes Glas-Panel (`backdrop-blur`, weicher Schatten), großzügige Felder, ruhiger Fokus, vollbreiter Primärbutton mit Lade-Spinner. Autofill-Gelb neutralisiert. Setup-Prüfung zeigt Skeleton statt Text.
+
+**Paket Q — Dashboard komplett neu (`agent.tsx` `Dashboard`)**
+- **Q1 Begrüßungskopf**: tageszeitabhängig („Guten Morgen/Tag/Abend, [Vorname]", `useAgentInfo`), Signature-Core als dezenter Akzent, sanft eingeblendet.
+- **Q1 Kennzahlen**: 4 `EarningsTile` mit **Count-up** (Potenziell/Bestätigt/In Auszahlung/Ausgezahlt); „Bestätigt" in `SuccessPulse` (Erfolgs-Moment bei steigendem Guthaben). Monatsziel-Leiste mit animiertem Füllen.
+- **Q2 Fokus-Zone „Heute"**: fällige Rückrufe/Zusagen + neu angekündigte Zahlungen, dedupliziert, je Zeile Name/Status/Anruf-Button; klarer, positiver Leerzustand („Alles erledigt — starke Arbeit.").
+- **Q3 Bereichs-Kacheln**: Kundenliste/Kalender/Skripte/Auszahlung/Profil mit 1-Satz-Zweck + Zähler-Badge; responsiv (2/3/5 Spalten). Kundenliste mit Such-Icon, Filter-Chips, Skeleton-Ladezustand, mehr Weißraum.
+
+**Paket R — Kundendetail als Arbeitsbereich (`agent.tsx` `CustomerDetail`)**
+- **Desktop**: breiter Arbeits-Panel (`min(920px,100vw)`), **zweispaltig** — links Stammdaten + Verlauf/Timeline, rechts Aktionsbereich (Leitfaden, Kontakt-Ergebnis, Notiz, Zahlungsdaten-Mail). Anruf-Button fix in der Kopfzeile.
+- **Mobile**: sticky **Segment-Control** (Stammdaten/Aktion/Verlauf) für Einhand-Bedienung + **sticky Anruf-Aktion** unten (safe-area).
+- **Schnelles Feedback**: Kontakt-Ergebnis-Buttons zeigen ≤150ms Häkchen („Erfasst"), Timeline aktualisiert weich (neuester Eintrag mit Akzent-Punkt + Check-In, kein Reload-Sprung). E-Mail-Sperre als ruhiger linearer Fortschritt statt nacktem Countdown.
+- **Erfolgs-Moment**: Status-Strip in `SuccessPulse` (Aufleuchten bei Statuswechsel z. B. → bezahlt), ≤800ms, kein Konfetti, reduced-motion-fest.
+
+**Shell & übrige Bereiche**
+- `agent/shared.tsx`: Shell-Wrapper trägt `agent-scope` (Autofill-Fix greift auf ALLEN Agent-Seiten inkl. Profil/Passwort), Lade-Zustand zeigt Signature-Core, Bottom-Bar aktiv in Akzentfarbe + Indikator + iOS-safe-area.
+- `agent/auszahlung.tsx`: Count-up-Guthaben + Erfolgs-Moment nach erfolgreichem Auszahlungsantrag. `kalender/skripte/profil`: gestaffelte Reveal-Einblendung, größere Titel, Such-Icon.
+
+**Regel-Konformität**: Keine Handler/Routen/Datenflüsse/Auth-Guards geändert; CI-Variablen beibehalten; mobile-first, Touch-Targets ≥44px; 3D nur als ein CSS-Signature-Element (kein blockierendes Asset). Typecheck der Agent-Dateien fehlerfrei, Produktions-Build grün.
+
 ### Offene Punkte
 - [ ] **Env-Variablen entfernen**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VITE_STRIPE_PUBLISHABLE_KEY`/`VITE_STRIPE_PUBLIC_KEY` aus dem Deployment löschen (Code ist mit Null-Guards abgesichert).
 - [ ] **Stripe Payment Links im Stripe-Dashboard deaktivieren** (alte gespeicherte URLs könnten sonst noch funktionieren).

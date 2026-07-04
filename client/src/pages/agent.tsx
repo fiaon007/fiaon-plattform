@@ -1,10 +1,15 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link } from "wouter";
-import { Phone, FileText, Mail, X, ChevronDown, ChevronRight, Lock, CalendarClock } from "lucide-react";
 import {
-  AgentShell, Badge, Card, KpiCard, ProgressBar, FlashMessage, Avatar,
+  Phone, FileText, X, ChevronDown, ChevronRight, Lock, CalendarClock,
+  Wallet, User, Calendar, Users, TrendingUp, CheckCircle2, ArrowRight, Search,
+  Clock, Send, CalendarPlus, Info,
+} from "lucide-react";
+import {
+  AgentShell, Badge, Card, ProgressBar, FlashMessage, useAgentInfo,
   api, fmtCents, fmtEur, fmtD, fmtDT, isToday, inputCls, btnPrimary, btnGhost, ACCENT,
 } from "./agent/shared";
+import { AuthLayout, SubmitButton, Reveal, CountUp, SuccessPulse, SignatureCore } from "./agent/motion";
 
 // ============================================================================
 // /agent — Startseite: Verdienst-Kennzahlen (G4) + Arbeitsliste + Kundendetail
@@ -89,6 +94,102 @@ function custPhone(c: Customer): string | null {
 
 type Filter = "alle" | "claimed" | "termin" | "nicht_erreicht";
 
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 11) return "Guten Morgen";
+  if (h < 18) return "Guten Tag";
+  return "Guten Abend";
+}
+
+// ── Cinematische Verdienst-Kachel (Count-up beim ersten Laden) ──
+function EarningsTile({ label, cents, sub, icon: Icon, accent }: {
+  label: string; cents: number; sub?: string; icon: typeof TrendingUp; accent?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-5 h-full transition-shadow duration-200 hover:shadow-[0_12px_30px_-18px_rgba(15,23,42,.28)]">
+      <div className="flex items-start justify-between gap-2 mb-2.5">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 leading-tight">{label}</p>
+        <span
+          className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+          style={accent ? { background: "rgba(37,99,235,.10)", color: ACCENT } : { background: "#f1f5f9", color: "#94a3b8" }}
+        >
+          <Icon size={15} strokeWidth={1.9} />
+        </span>
+      </div>
+      <p className="text-[22px] sm:text-[24px] font-bold tracking-tight text-slate-900">
+        <CountUp value={cents} format={fmtCents} />
+      </p>
+      {sub && <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+// ── Bereichs-Kachel für die Navigation ──
+function AreaTile({ href, label, desc, icon: Icon, badge, onClick }: {
+  href: string; label: string; desc: string; icon: typeof Users; badge?: number; onClick?: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      className="group relative rounded-2xl border border-slate-200 bg-white p-4 flex flex-col gap-2 transition-all duration-150 hover:border-slate-300 hover:shadow-[0_12px_30px_-20px_rgba(15,23,42,.3)] active:scale-[.99]"
+    >
+      <div className="flex items-center justify-between">
+        <span className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 group-hover:text-slate-700 transition-colors">
+          <Icon size={17} strokeWidth={1.8} />
+        </span>
+        {badge != null && (
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: ACCENT }}>{badge}</span>
+        )}
+      </div>
+      <div>
+        <p className="text-[13px] font-semibold text-slate-900 flex items-center gap-1">
+          {label}
+          <ArrowRight size={13} className="text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all" />
+        </p>
+        <p className="text-[11.5px] text-slate-400 leading-tight mt-0.5">{desc}</p>
+      </div>
+    </Link>
+  );
+}
+
+// ── Fokus-Zeile in der „Heute"-Zone ──
+function FocusRow({ c, onOpen }: { c: Customer; onOpen: () => void }) {
+  const phone = custPhone(c);
+  const hasAppt = isToday(c.next_appointment);
+  const detail = hasAppt
+    ? `Termin ${fmtDT(c.next_appointment!)}`
+    : isToday(c.promised_pay_date)
+      ? "Zahlungs-Zusage heute"
+      : c.payment_status === "claimed_paid" ? "Zahlung angekündigt" : "Fällig";
+  return (
+    <div className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-slate-50/60 transition-colors">
+      <button type="button" onClick={(e) => { e.stopPropagation(); onOpen(); }} className="min-w-0 text-left flex items-center gap-3 flex-1">
+        <span className="w-9 h-9 rounded-full bg-slate-100 text-slate-500 text-[12px] font-semibold flex items-center justify-center shrink-0">
+          {(custName(c).match(/\b\w/g) || []).slice(0, 2).join("").toUpperCase()}
+        </span>
+        <span className="min-w-0">
+          <span className="block text-[13px] font-semibold text-slate-900 truncate">{custName(c)}</span>
+          <span className="block text-[11.5px] text-slate-400 truncate flex items-center gap-1.5">
+            {hasAppt ? <Clock size={11} strokeWidth={1.8} /> : <CalendarClock size={11} strokeWidth={1.8} />}
+            {detail}
+          </span>
+        </span>
+      </button>
+      <div className="flex items-center gap-1.5 shrink-0">
+        {phone && (
+          <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className={`${btnPrimary} px-3 py-2 inline-flex items-center gap-1.5`}>
+            <Phone size={13} strokeWidth={2} /><span className="hidden sm:inline">Anrufen</span>
+          </a>
+        )}
+        <button type="button" onClick={(e) => { e.stopPropagation(); onOpen(); }} className="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600 flex items-center justify-center transition-colors">
+          <ChevronRight size={15} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function AgentPortalPage() {
   return (
     <AgentShell>
@@ -145,56 +246,50 @@ function LoginView({ onLogin }: { onLogin: (a: { name: string; email: string }) 
   };
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <a href="/" className="text-xl font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</a>
-          <h1 className="text-[15px] font-semibold text-slate-900 mt-1">Mitarbeiter-Portal</h1>
-          <p className="text-[12px] text-slate-400 mt-1">Anmeldung nur für autorisierte Mitarbeiter</p>
-        </div>
-        <Card className="p-6">
-          {forgotMode ? (
-            <form onSubmit={forgot} className="space-y-4">
-              <div>
-                <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">E-Mail</label>
-                <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputCls} autoComplete="username" />
-              </div>
-              {info && <p className="text-[12px] text-slate-500 border border-slate-200 rounded-lg px-3 py-2">{info}</p>}
-              <button type="submit" disabled={busy || !form.email} className={`${btnPrimary} w-full py-3`}>
-                {busy ? "Sende …" : "Reset-Link anfordern"}
-              </button>
-              <button type="button" onClick={(e) => { e.stopPropagation(); setForgotMode(false); setInfo(null); }} className="w-full text-[12px] text-slate-400 hover:text-slate-600">
-                Zurück zur Anmeldung
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={login} className="space-y-4">
-              <div>
-                <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">E-Mail</label>
-                <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputCls} autoComplete="username" style={{ minHeight: 46 }} />
-              </div>
-              <div>
-                <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">Passwort</label>
-                <input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className={inputCls} autoComplete="current-password" style={{ minHeight: 46 }} />
-              </div>
-              {error && <p className="text-[12px] font-medium text-slate-700 border border-slate-300 rounded-lg px-3 py-2">{error}</p>}
-              <button type="submit" disabled={busy} className={`${btnPrimary} w-full py-3`} style={{ minHeight: 48 }}>
-                {busy ? "Anmelden …" : "Anmelden"}
-              </button>
-              <button type="button" onClick={(e) => { e.stopPropagation(); setForgotMode(true); }} className="w-full text-[12px] text-slate-400 hover:text-slate-600">
-                Passwort vergessen?
-              </button>
-            </form>
-          )}
-        </Card>
-      </div>
-    </div>
+    <AuthLayout
+      title="Mitarbeiter-Portal"
+      subtitle={forgotMode ? "Wir senden dir einen Link zum Zurücksetzen." : "Willkommen zurück. Melde dich an, um weiterzuarbeiten."}
+    >
+      {forgotMode ? (
+        <form onSubmit={forgot} className="space-y-4">
+          <div>
+            <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">E-Mail</label>
+            <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputCls} autoComplete="username" style={{ minHeight: 46 }} />
+          </div>
+          {info && <p className="text-[12px] text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 leading-relaxed">{info}</p>}
+          <SubmitButton loading={busy} disabled={!form.email}>
+            {busy ? "Sende …" : "Reset-Link anfordern"}
+          </SubmitButton>
+          <button type="button" onClick={(e) => { e.stopPropagation(); setForgotMode(false); setInfo(null); }} className="w-full text-[12px] text-slate-400 hover:text-slate-600 transition-colors">
+            Zurück zur Anmeldung
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={login} className="space-y-4">
+          <div>
+            <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">E-Mail</label>
+            <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputCls} autoComplete="username" style={{ minHeight: 46 }} />
+          </div>
+          <div>
+            <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">Passwort</label>
+            <input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className={inputCls} autoComplete="current-password" style={{ minHeight: 46 }} />
+          </div>
+          {error && <p className="text-[12px] font-medium text-slate-700 border border-slate-300 rounded-lg px-3 py-2.5">{error}</p>}
+          <SubmitButton loading={busy}>{busy ? "Anmelden …" : "Anmelden"}</SubmitButton>
+          <button type="button" onClick={(e) => { e.stopPropagation(); setForgotMode(true); }} className="w-full text-[12px] text-slate-400 hover:text-slate-600 transition-colors">
+            Passwort vergessen?
+          </button>
+        </form>
+      )}
+    </AuthLayout>
   );
 }
 
 // ═══════════════ Dashboard ═══════════════
 
 function Dashboard() {
+  const { agent } = useAgentInfo();
+  const firstName = (agent?.name || "").split(/\s+/)[0] || "";
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [colleagues, setColleagues] = useState<Customer[]>([]);
   const [colleaguesOpen, setColleaguesOpen] = useState(false);
@@ -233,70 +328,137 @@ function Dashboard() {
     [customers],
   );
 
+  const claimedCount = customers.filter((c) => c.payment_status === "claimed_paid").length;
+
+  // Fokus „Heute": fällige Rückrufe/Zusagen + neu angekündigte Zahlungen, dedupliziert.
+  const focusItems = useMemo(() => {
+    const map = new Map<string, Customer>();
+    for (const c of dueToday) map.set(c.ref, c);
+    for (const c of customers) if (c.payment_status === "claimed_paid") map.set(c.ref, c);
+    return Array.from(map.values());
+  }, [dueToday, customers]);
+
+  const AREAS = [
+    { href: "/agent", label: "Kundenliste", desc: "Offene Zahlungen bearbeiten", icon: Users, badge: customers.length || undefined, onClick: () => { setFilter("alle"); document.getElementById("kundenliste")?.scrollIntoView({ behavior: "smooth" }); } },
+    { href: "/agent/kalender", label: "Kalender", desc: "Rückrufe & Zusagen", icon: Calendar, badge: dueToday.length || undefined },
+    { href: "/agent/skripte", label: "Skripte", desc: "Leitfäden fürs Telefonat", icon: FileText },
+    { href: "/agent/auszahlung", label: "Auszahlung", desc: earnings && earnings.confirmedCents > 0 ? `${fmtCents(earnings.confirmedCents)} verfügbar` : "Guthaben & Anforderung", icon: Wallet },
+    { href: "/agent/profil", label: "Profil", desc: "Konto & Auszahlungsdaten", icon: User },
+  ];
+
   return (
     <div>
       <FlashMessage message={message} />
 
-      {/* ── G4: Verdienst-Kennzahlen ── */}
+      {/* ── Q1: Begrüßung (cinematischer Kopf) ── */}
+      <Reveal index={0}>
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white mb-4 px-5 py-5 sm:px-7 sm:py-6">
+          <div className="pointer-events-none absolute -right-10 -top-14 opacity-[.5] hidden sm:block">
+            <SignatureCore size={190} />
+          </div>
+          <p className="text-[12px] font-semibold uppercase tracking-[.14em] text-slate-400">{greeting()}</p>
+          <h1 className="text-[22px] sm:text-[26px] font-black tracking-tight text-slate-900 mt-0.5">
+            {firstName || "Willkommen"}
+          </h1>
+          <p className="text-[13px] text-slate-500 mt-1 max-w-md">
+            {focusItems.length > 0
+              ? `${focusItems.length} ${focusItems.length === 1 ? "Vorgang wartet" : "Vorgänge warten"} heute auf dich.`
+              : "Kein offener Vorgang für heute — starke Arbeit."}
+          </p>
+        </div>
+      </Reveal>
+
+      {/* ── Q1: Verdienst-Kennzahlen mit Count-up ── */}
       {earnings && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-            <KpiCard label="Potenziell diesen Monat" value={fmtCents(earnings.potentialCents)} sub={`${earnings.potentialCount} offene Kunden · Satz ${(earnings.rateBp / 100).toLocaleString("de-DE")} %`} />
-            <KpiCard label="Bestätigt (dein Guthaben)" value={fmtCents(earnings.confirmedCents)} sub="noch nicht ausgezahlt" />
-            <KpiCard label="In Auszahlung" value={fmtCents(earnings.inPayoutCents)} sub="Anforderung läuft" />
-            <KpiCard label="Insgesamt ausgezahlt" value={fmtCents(earnings.paidOutCents)} sub="seit Beginn" />
+            <Reveal index={1}>
+              <EarningsTile label="Potenziell" cents={earnings.potentialCents} icon={TrendingUp}
+                sub={`${earnings.potentialCount} offen · ${(earnings.rateBp / 100).toLocaleString("de-DE")} %`} />
+            </Reveal>
+            <Reveal index={2}>
+              <SuccessPulse trigger={earnings.confirmedCents}>
+                <EarningsTile label="Bestätigt · Guthaben" cents={earnings.confirmedCents} icon={CheckCircle2} accent sub="auszahlbar" />
+              </SuccessPulse>
+            </Reveal>
+            <Reveal index={3}>
+              <EarningsTile label="In Auszahlung" cents={earnings.inPayoutCents} icon={Clock} sub="Anforderung läuft" />
+            </Reveal>
+            <Reveal index={4}>
+              <EarningsTile label="Ausgezahlt" cents={earnings.paidOutCents} icon={Wallet} sub="seit Beginn" />
+            </Reveal>
           </div>
           {earnings.monthlyGoalCents != null && earnings.monthlyGoalCents > 0 && (
-            <Card className="px-4 py-3 mb-5">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Monatsziel</p>
-                <p className="text-[12px] text-slate-500 tabular-nums">
-                  {fmtCents(earnings.monthCents)} / {fmtCents(earnings.monthlyGoalCents)}
-                </p>
+            <Reveal index={5}>
+              <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 mb-5">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Monatsziel</p>
+                  <p className="text-[12px] text-slate-500 tabular-nums">
+                    {fmtCents(earnings.monthCents)} / {fmtCents(earnings.monthlyGoalCents)}
+                  </p>
+                </div>
+                <ProgressBar value={earnings.monthCents} max={earnings.monthlyGoalCents} />
               </div>
-              <ProgressBar value={earnings.monthCents} max={earnings.monthlyGoalCents} />
-            </Card>
+            </Reveal>
           )}
         </>
       )}
 
-      {/* ── Heute fällig ── */}
-      {dueToday.length > 0 && (
-        <Card className="p-4 mb-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2.5 flex items-center gap-1.5">
-            <CalendarClock size={13} strokeWidth={1.8} /> Heute fällig ({dueToday.length})
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {dueToday.map((c) => (
-              <button
-                key={c.ref}
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setDetailRef(c.ref); }}
-                className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-[12px] font-medium text-slate-700 hover:border-slate-400 transition-colors"
-              >
-                {custName(c)}
-                {isToday(c.next_appointment) && <span className="text-slate-400"> · Termin {fmtDT(c.next_appointment!)}</span>}
-                {!isToday(c.next_appointment) && isToday(c.promised_pay_date) && <span className="text-slate-400"> · Zusage heute</span>}
-              </button>
-            ))}
+      {/* ── Q2: Arbeits-Fokus-Zone „Heute" ── */}
+      <Reveal index={6}>
+        <div className="rounded-2xl border border-slate-200 bg-white mb-5 overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2">
+            <CalendarClock size={15} strokeWidth={1.8} className="text-slate-400" />
+            <h2 className="text-[13px] font-semibold text-slate-900">Heute</h2>
+            {focusItems.length > 0 && (
+              <span className="ml-1 text-[11px] font-semibold text-slate-400">{focusItems.length}</span>
+            )}
           </div>
-        </Card>
-      )}
+          {focusItems.length === 0 ? (
+            <div className="px-5 py-8 text-center">
+              <CheckCircle2 size={22} strokeWidth={1.6} className="mx-auto text-slate-300 mb-2" />
+              <p className="text-[13px] font-medium text-slate-500">Alles erledigt — starke Arbeit.</p>
+              <p className="text-[12px] text-slate-400 mt-0.5">Keine fälligen Rückrufe oder Zusagen für heute.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-50">
+              {focusItems.map((c) => <FocusRow key={c.ref} c={c} onOpen={() => setDetailRef(c.ref)} />)}
+            </div>
+          )}
+        </div>
+      </Reveal>
+
+      {/* ── Q3: Bereichs-Navigation ── */}
+      <Reveal index={7}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+          {AREAS.map((a) => <AreaTile key={a.label} {...a} />)}
+        </div>
+      </Reveal>
+
+      {/* ── Kundenliste ── */}
+      <div id="kundenliste" className="scroll-mt-20">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[15px] font-bold tracking-tight text-slate-900">Deine Kunden</h2>
+        <span className="text-[12px] text-slate-400">({customers.length})</span>
+      </div>
 
       {/* ── Suche + Filter ── */}
       <div className="mb-4 space-y-2.5">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Suche: Name, E-Mail, Referenz …"
-          className={inputCls}
-          style={{ minHeight: 46, maxWidth: 420 }}
-        />
+        <div className="relative" style={{ maxWidth: 420 }}>
+          <Search size={15} strokeWidth={1.8} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Suche: Name, E-Mail, Referenz …"
+            className={`${inputCls} pl-10`}
+            style={{ minHeight: 46 }}
+          />
+        </div>
         <div className="flex flex-wrap gap-2">
           {([
             { key: "alle", label: `Alle offenen (${customers.length})` },
-            { key: "claimed", label: `Zahlung angekündigt (${customers.filter((c) => c.payment_status === "claimed_paid").length})` },
+            { key: "claimed", label: `Zahlung angekündigt (${claimedCount})` },
             { key: "termin", label: "Termin vereinbart" },
             { key: "nicht_erreicht", label: "Nicht erreicht" },
           ] as const).map((f) => (
@@ -304,7 +466,7 @@ function Dashboard() {
               key={f.key}
               type="button"
               onClick={(e) => { e.stopPropagation(); setFilter(f.key); }}
-              className={`px-3.5 py-2 rounded-lg text-[12px] font-semibold border transition-colors ${
+              className={`px-3.5 py-2 rounded-lg text-[12px] font-semibold border transition-all duration-150 ${
                 filter === f.key ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
               }`}
             >
@@ -314,11 +476,17 @@ function Dashboard() {
         </div>
       </div>
 
-      {loading && <p className="py-14 text-center text-[13px] text-slate-400">Lädt Kundenliste …</p>}
+      {loading && (
+        <div className="space-y-2.5">
+          {[0, 1, 2, 3].map((i) => <div key={i} className="agent-skeleton h-16 rounded-xl" />)}
+        </div>
+      )}
       {!loading && filtered.length === 0 && (
-        <p className="py-14 text-center text-[13px] text-slate-400">
-          {search || filter !== "alle" ? "Keine Treffer." : "Aktuell keine unbezahlten Kunden in deiner Liste."}
-        </p>
+        <div className="py-14 text-center">
+          <p className="text-[13px] text-slate-400">
+            {search || filter !== "alle" ? "Keine Treffer." : "Aktuell keine unbezahlten Kunden in deiner Liste."}
+          </p>
+        </div>
       )}
 
       {/* ── Mobile Karten ── */}
@@ -388,6 +556,7 @@ function Dashboard() {
           </table>
         </Card>
       )}
+      </div>{/* /kundenliste */}
 
       {/* ── Von Kollegen betreut (read-only, G2) ── */}
       {colleagues.length > 0 && (
@@ -496,6 +665,8 @@ function CustomerDetail({ refId, onClose, onChanged, flash }: {
   const [datePick, setDatePick] = useState<{ outcome: string; value: string } | null>(null);
   const [lockUntil, setLockUntil] = useState<number>(0);
   const [now, setNow] = useState(Date.now());
+  const [mobileTab, setMobileTab] = useState<"stamm" | "aktion" | "verlauf">("aktion");
+  const [checkKey, setCheckKey] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -552,6 +723,8 @@ function CustomerDetail({ refId, onClose, onChanged, flash }: {
     if (r.ok) {
       setLog((l) => [r.json.entry, ...l]);
       setDatePick(null);
+      setCheckKey(outcome);
+      setTimeout(() => setCheckKey((k) => (k === outcome ? null : k)), 900);
       flash(`${OUTCOME_LABELS[outcome]} dokumentiert`);
       onChanged();
     } else flash(r.json?.error || "Fehler");
@@ -572,212 +745,256 @@ function CustomerDetail({ refId, onClose, onChanged, flash }: {
     } else flash(r.json?.error || "Fehler");
   };
 
-  return (
-    <div className="fixed inset-0 z-50" onClick={onClose}>
-      <div className="absolute inset-0 bg-slate-900/30" />
-      <div
-        className="absolute inset-x-0 bottom-0 max-h-[92vh] md:inset-y-0 md:left-auto md:right-0 md:max-h-none md:w-[500px] bg-white md:border-l border-slate-200 rounded-t-2xl md:rounded-none shadow-xl overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
+  const lockPct = lockSec > 0 ? Math.max(0, Math.min(100, ((600 - lockSec) / 600) * 100)) : 0;
+
+  // ── Stammdaten (linke Spalte / Mobile-Tab „Stammdaten") ──
+  const stammBlock = (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 text-[13px]">
+        <Field label="E-Mail" value={detail.email || "—"} breakAll />
+        <Field label="Telefon" value={phone || "—"} />
+        <Field label="Paket" value={(detail.pack_name || "—").replace(/\n/g, " ")} />
+        <Field label="Betrag" value={fmtEur(detail.amount_due)} />
+        <Field label="Zahlungsreferenz" value={detail.payment_reference || "—"} mono />
+        <Field label="Fällig bis" value={fmtD(detail.payment_due_date)} />
+        {(detail.street || detail.city) && (
+          <div className="col-span-2">
+            <Field label="Adresse" value={[detail.street, [detail.zip, detail.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")} />
+          </div>
+        )}
+      </div>
+      <a
+        href={`/api/fiaon/agent/customers/${encodeURIComponent(refId)}/invoice.pdf`}
+        target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+        className={`${btnGhost} w-full py-3 inline-flex items-center justify-center gap-2`}
+        style={{ minHeight: 46 }}
       >
-        <div className="sticky top-0 bg-white border-b border-slate-100 px-5 py-3.5 flex items-center justify-between z-10">
-          <div className="min-w-0">
-            <p className="text-[15px] font-semibold text-slate-900 truncate">{custName(detail)}</p>
-            <p className="font-mono text-[11px] text-slate-400">
-              {detail.payment_reference || detail.ref}
-              {detail.invoice_number ? ` · ${detail.invoice_number}` : ""}
-            </p>
+        <FileText size={14} strokeWidth={1.8} /> Rechnung (PDF) öffnen
+      </a>
+    </div>
+  );
+
+  // ── Verlauf/Timeline (linke Spalte / Mobile-Tab „Verlauf") ──
+  const verlaufBlock = (
+    <div>
+      <h3 className="text-[12px] font-semibold uppercase tracking-wide text-slate-400 mb-2.5">Verlauf</h3>
+      <div className="space-y-2">
+        {log.length === 0 && <p className="text-[12px] text-slate-400">Noch keine Einträge.</p>}
+        {log.map((l, i) => (
+          <div key={l.id} className={`relative pl-4 ${i === 0 ? "agent-check-in" : ""}`}>
+            <span className="absolute left-0 top-1.5 w-1.5 h-1.5 rounded-full" style={{ background: i === 0 ? ACCENT : "#cbd5e1" }} />
+            <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/60">
+              <div className="flex items-center justify-between gap-2 mb-0.5">
+                <span className="text-[11px] font-semibold text-slate-600">
+                  {l.type === "note" ? "Notiz"
+                    : l.type === "email_sent" ? "Zahlungsdaten-E-Mail"
+                    : l.type === "claim" ? "Zuweisung"
+                    : l.type === "system" ? "System"
+                    : OUTCOME_LABELS[l.outcome || ""] || l.outcome}
+                </span>
+                <span className="text-[10px] text-slate-400 whitespace-nowrap">{l.agent_name} · {fmtDT(l.created_at)}</span>
+              </div>
+              {l.scheduled_at && <p className="text-[12px] font-medium text-slate-700">Termin: {fmtDT(l.scheduled_at)}</p>}
+              {l.promised_date && <p className="text-[12px] font-medium text-slate-700">Zahlt am: {fmtD(l.promised_date)}</p>}
+              {l.note && <p className="text-[12px] text-slate-600 whitespace-pre-wrap">{l.note}</p>}
+            </div>
           </div>
-          <button type="button" onClick={(e) => { e.stopPropagation(); onClose(); }} className="w-9 h-9 shrink-0 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors">
-            <X size={16} />
+        ))}
+      </div>
+    </div>
+  );
+
+  // ── Aktionsbereich (rechte Spalte / Mobile-Tab „Aktion") ──
+  const aktionBlock = (
+    <div className="space-y-5">
+      {/* Gesprächsleitfaden */}
+      {scripts.length > 0 && (
+        <div className="border border-slate-200 rounded-xl overflow-hidden">
+          <button type="button" onClick={(e) => { e.stopPropagation(); setScriptsOpen((v) => !v); }}
+            className="w-full px-4 py-3 flex items-center justify-between text-[13px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+            <span className="flex items-center gap-2"><FileText size={14} strokeWidth={1.8} /> Gesprächsleitfaden ({scripts.length})</span>
+            <ChevronDown size={15} className={`text-slate-400 transition-transform ${scriptsOpen ? "" : "-rotate-90"}`} />
           </button>
-        </div>
-
-        <div className="px-5 py-4 space-y-5">
-          {readOnly && (
-            <div className="px-3.5 py-2.5 rounded-lg border border-slate-300 bg-slate-50 text-[12px] font-medium text-slate-600 flex items-center gap-2">
-              <Lock size={13} strokeWidth={1.8} />
-              {detail.assigned_agent_name
-                ? `Betreut von ${detail.assigned_agent_name} — nur Lesezugriff`
-                : `In Bearbeitung durch ${detail.locked_by_name} — nur Lesezugriff`}
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <Badge status={detail.payment_status} />
-            {detail.promised_pay_date && <Badge label={`Zusage ${fmtD(detail.promised_pay_date)}`} />}
-            {detail.assigned_agent_name && !readOnly && <Badge label={`Betreut von ${detail.assigned_agent_name}`} />}
-          </div>
-
-          {/* Stammdaten */}
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-[13px]">
-            <Field label="E-Mail" value={detail.email || "—"} breakAll />
-            <Field label="Telefon" value={phone || "—"} />
-            <Field label="Paket" value={(detail.pack_name || "—").replace(/\n/g, " ")} />
-            <Field label="Betrag" value={fmtEur(detail.amount_due)} />
-            <Field label="Zahlungsreferenz" value={detail.payment_reference || "—"} mono />
-            <Field label="Fällig bis" value={fmtD(detail.payment_due_date)} />
-            {(detail.street || detail.city) && (
-              <div className="col-span-2">
-                <Field label="Adresse" value={[detail.street, [detail.zip, detail.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")} />
-              </div>
-            )}
-          </div>
-
-          {/* Aktionen */}
-          <div className="grid grid-cols-2 gap-2">
-            {phone && (
-              <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className={`${btnPrimary} text-center py-3 inline-flex items-center justify-center gap-2`} style={{ minHeight: 46 }}>
-                <Phone size={14} strokeWidth={2} /> Anrufen
-              </a>
-            )}
-            <a
-              href={`/api/fiaon/agent/customers/${encodeURIComponent(refId)}/invoice.pdf`}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className={`${btnGhost} text-center py-3 inline-flex items-center justify-center gap-2`}
-              style={{ minHeight: 46 }}
-            >
-              <FileText size={14} strokeWidth={1.8} /> Rechnung (PDF)
-            </a>
-            {!readOnly && (
-              <button
-                type="button"
-                onClick={sendEmail}
-                disabled={lockSec > 0 || busy === "email"}
-                className={`${btnGhost} col-span-2 py-3 inline-flex items-center justify-center gap-2`}
-                style={{ minHeight: 48 }}
-              >
-                <Mail size={14} strokeWidth={1.8} />
-                {lockSec > 0
-                  ? `Gesendet — erneut in ${Math.floor(lockSec / 60)}:${String(lockSec % 60).padStart(2, "0")}`
-                  : "Zahlungsdaten-E-Mail senden"}
-              </button>
-            )}
-          </div>
-
-          {/* I2: Gesprächsleitfaden (Kontext-Panel) */}
-          {scripts.length > 0 && (
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setScriptsOpen((v) => !v); }}
-                className="w-full px-4 py-3 flex items-center justify-between text-[13px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-              >
-                <span className="flex items-center gap-2"><FileText size={14} strokeWidth={1.8} /> Gesprächsleitfaden ({scripts.length})</span>
-                <ChevronDown size={15} className={`text-slate-400 transition-transform ${scriptsOpen ? "" : "-rotate-90"}`} />
-              </button>
-              {scriptsOpen && (
-                <div className="border-t border-slate-100 divide-y divide-slate-50">
-                  {scripts.map((s) => (
-                    <div key={s.id} className="px-4 py-3">
-                      <p className="text-[12px] font-semibold text-slate-800 mb-1">{s.title}</p>
-                      {s.content_html && (
-                        <div className="text-[12px] text-slate-600 leading-relaxed prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-4 [&_b]:font-semibold" dangerouslySetInnerHTML={{ __html: s.content_html }} />
-                      )}
-                      {s.file_name && (
-                        <a
-                          href={`/api/fiaon/agent/scripts/${s.id}/file`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-[12px] font-semibold hover:underline"
-                          style={{ color: ACCENT }}
-                        >
-                          PDF öffnen: {s.file_name}
-                        </a>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Kontakt-Ergebnis */}
-          {!readOnly && (
-            <div>
-              <h3 className="text-[13px] font-semibold text-slate-900 mb-2">Kontakt-Ergebnis dokumentieren</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(OUTCOME_LABELS).map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={(e) => saveOutcome(e, key)}
-                    disabled={busy !== null}
-                    className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-[12px] font-medium text-slate-600 hover:border-slate-400 hover:text-slate-800 transition-colors disabled:opacity-40 text-left"
-                    style={{ minHeight: 44 }}
-                  >
-                    {busy === key ? "…" : label}
-                  </button>
-                ))}
-              </div>
-              {datePick && (
-                <div className="mt-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50">
-                  <p className="text-[12px] font-semibold text-slate-700 mb-2">
-                    {datePick.outcome === "rueckruf_termin" ? "Rückruf-Termin wählen" : "Kunde zahlt am"}
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      type={datePick.outcome === "rueckruf_termin" ? "datetime-local" : "date"}
-                      value={datePick.value}
-                      onChange={(e) => setDatePick((d) => (d ? { ...d, value: e.target.value } : d))}
-                      className={inputCls}
-                      style={{ minHeight: 44 }}
-                    />
-                    <button
-                      type="button"
-                      onClick={(e) => datePick.value && saveOutcome(e, datePick.outcome, datePick.value)}
-                      disabled={!datePick.value || busy !== null}
-                      className={btnPrimary}
-                    >
-                      Speichern
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Notizen + Historie */}
-          <div>
-            <h3 className="text-[13px] font-semibold text-slate-900 mb-2">Notizen &amp; Verlauf</h3>
-            {!readOnly && (
-              <div className="flex gap-2 mb-3">
-                <textarea
-                  value={noteText}
-                  onChange={(e) => setNoteText(e.target.value)}
-                  placeholder="Neue Notiz … (nach dem Speichern nicht mehr änderbar)"
-                  rows={2}
-                  className={`${inputCls} resize-none`}
-                />
-                <button type="button" onClick={saveNote} disabled={busy !== null || !noteText.trim()} className={btnPrimary}>
-                  {busy === "note" ? "…" : "Speichern"}
-                </button>
-              </div>
-            )}
-            <div className="space-y-2 max-h-72 overflow-y-auto">
-              {log.length === 0 && <p className="text-[12px] text-slate-400">Noch keine Einträge.</p>}
-              {log.map((l) => (
-                <div key={l.id} className="p-3 rounded-lg border border-slate-100 bg-slate-50/60">
-                  <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <span className="text-[11px] font-semibold text-slate-600">
-                      {l.type === "note" ? "Notiz"
-                        : l.type === "email_sent" ? "Zahlungsdaten-E-Mail"
-                        : l.type === "claim" ? "Zuweisung"
-                        : l.type === "system" ? "System"
-                        : OUTCOME_LABELS[l.outcome || ""] || l.outcome}
-                    </span>
-                    <span className="text-[10px] text-slate-400 whitespace-nowrap">{l.agent_name} · {fmtDT(l.created_at)}</span>
-                  </div>
-                  {l.scheduled_at && <p className="text-[12px] font-medium text-slate-700">Termin: {fmtDT(l.scheduled_at)}</p>}
-                  {l.promised_date && <p className="text-[12px] font-medium text-slate-700">Zahlt am: {fmtD(l.promised_date)}</p>}
-                  {l.note && <p className="text-[12px] text-slate-600 whitespace-pre-wrap">{l.note}</p>}
+          {scriptsOpen && (
+            <div className="border-t border-slate-100 divide-y divide-slate-50 max-h-64 overflow-y-auto agent-scroll">
+              {scripts.map((s) => (
+                <div key={s.id} className="px-4 py-3">
+                  <p className="text-[12px] font-semibold text-slate-800 mb-1">{s.title}</p>
+                  {s.content_html && (
+                    <div className="text-[12px] text-slate-600 leading-relaxed prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-4 [&_b]:font-semibold" dangerouslySetInnerHTML={{ __html: s.content_html }} />
+                  )}
+                  {s.file_name && (
+                    <a href={`/api/fiaon/agent/scripts/${s.id}/file`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                      className="text-[12px] font-semibold hover:underline" style={{ color: ACCENT }}>
+                      PDF öffnen: {s.file_name}
+                    </a>
+                  )}
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {readOnly ? (
+        <div className="px-3.5 py-3 rounded-xl border border-slate-200 bg-slate-50 text-[12px] font-medium text-slate-600 flex items-center gap-2">
+          <Info size={14} strokeWidth={1.8} />
+          {detail.assigned_agent_name
+            ? `Betreut von ${detail.assigned_agent_name} — nur Lesezugriff`
+            : `In Bearbeitung durch ${detail.locked_by_name} — nur Lesezugriff`}
+        </div>
+      ) : (
+        <>
+          {/* Kontakt-Ergebnis */}
+          <div>
+            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-slate-400 mb-2.5">Kontakt-Ergebnis</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(OUTCOME_LABELS).map(([key, label]) => (
+                <button key={key} type="button" onClick={(e) => saveOutcome(e, key)} disabled={busy !== null}
+                  className={`relative px-3 py-2.5 rounded-xl border text-[12px] font-medium transition-all duration-150 disabled:opacity-40 text-left active:scale-[.98] ${
+                    checkKey === key ? "border-[#2563eb] text-slate-800" : "border-slate-200 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800"
+                  }`}
+                  style={{ minHeight: 46 }}>
+                  {busy === key
+                    ? "…"
+                    : checkKey === key
+                      ? <span className="agent-check-in inline-flex items-center gap-1.5" style={{ color: ACCENT }}><CheckCircle2 size={14} strokeWidth={2} /> Erfasst</span>
+                      : label}
+                </button>
+              ))}
+            </div>
+            {datePick && (
+              <div className="mt-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50 agent-check-in">
+                <p className="text-[12px] font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
+                  <CalendarPlus size={13} strokeWidth={1.8} />
+                  {datePick.outcome === "rueckruf_termin" ? "Rückruf-Termin wählen" : "Kunde zahlt am"}
+                </p>
+                <div className="flex gap-2">
+                  <input type={datePick.outcome === "rueckruf_termin" ? "datetime-local" : "date"} value={datePick.value}
+                    onChange={(e) => setDatePick((d) => (d ? { ...d, value: e.target.value } : d))} className={inputCls} style={{ minHeight: 44 }} />
+                  <button type="button" onClick={(e) => datePick.value && saveOutcome(e, datePick.outcome, datePick.value)}
+                    disabled={!datePick.value || busy !== null} className={btnPrimary}>Speichern</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Notiz schreiben */}
+          <div>
+            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-slate-400 mb-2.5">Notiz</h3>
+            <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)}
+              placeholder="Neue Notiz … (nach dem Speichern nicht mehr änderbar)" rows={3}
+              className={`${inputCls} resize-none`} />
+            <button type="button" onClick={saveNote} disabled={busy !== null || !noteText.trim()}
+              className={`${btnPrimary} w-full mt-2 py-2.5 inline-flex items-center justify-center gap-2`}>
+              {busy === "note" ? "Speichern …" : "Notiz speichern"}
+            </button>
+          </div>
+
+          {/* Zahlungsdaten-E-Mail mit ruhigem Sperr-Fortschritt */}
+          <div>
+            <button type="button" onClick={sendEmail} disabled={lockSec > 0 || busy === "email"}
+              className={`${btnGhost} w-full py-3 inline-flex items-center justify-center gap-2 relative overflow-hidden`} style={{ minHeight: 48 }}>
+              {lockSec > 0 && (
+                <span className="absolute left-0 top-0 bottom-0 bg-slate-100" style={{ width: `${lockPct}%`, transition: "width 1s linear" }} />
+              )}
+              <span className="relative inline-flex items-center gap-2">
+                <Send size={14} strokeWidth={1.8} />
+                {busy === "email" ? "Wird gesendet …" : lockSec > 0
+                  ? `Gesendet — erneut in ${Math.floor(lockSec / 60)}:${String(lockSec % 60).padStart(2, "0")}`
+                  : "Zahlungsdaten-E-Mail senden"}
+              </span>
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="agent-scope fixed inset-0 z-50" onClick={onClose}>
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] agent-reveal" style={{ animationDuration: ".25s" }} />
+      <div
+        className="absolute inset-x-0 bottom-0 top-10 md:inset-y-0 md:left-auto md:right-0 md:top-0 md:w-[min(920px,100vw)] bg-white md:border-l border-slate-200 rounded-t-2xl md:rounded-none shadow-2xl flex flex-col agent-panel-in"
+        style={{ animationDuration: ".3s" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header (voll breit, Anruf-Button jederzeit erreichbar) */}
+        <div className="shrink-0 bg-white border-b border-slate-100 px-5 py-3.5 flex items-center justify-between gap-3 z-10">
+          <div className="min-w-0 flex items-center gap-3">
+            <span className="w-10 h-10 rounded-full bg-slate-100 text-slate-500 text-[13px] font-semibold hidden sm:flex items-center justify-center shrink-0">
+              {(custName(detail).match(/\b\w/g) || []).slice(0, 2).join("").toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <p className="text-[15px] font-semibold text-slate-900 truncate">{custName(detail)}</p>
+              <p className="font-mono text-[11px] text-slate-400 truncate">
+                {detail.payment_reference || detail.ref}{detail.invoice_number ? ` · ${detail.invoice_number}` : ""}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {phone && (
+              <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()}
+                className={`${btnPrimary} px-4 py-2.5 hidden md:inline-flex items-center gap-2`} style={{ minHeight: 42 }}>
+                <Phone size={14} strokeWidth={2} /> Anrufen
+              </a>
+            )}
+            <button type="button" onClick={(e) => { e.stopPropagation(); onClose(); }}
+              className="w-9 h-9 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors">
+              <X size={16} />
+            </button>
           </div>
         </div>
+
+        {/* Status-Strip (voll breit) + Erfolgs-Moment bei Statuswechsel */}
+        <div className="shrink-0 px-5 py-3 border-b border-slate-100">
+          <SuccessPulse trigger={detail.payment_status}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge status={detail.payment_status} />
+              {detail.promised_pay_date && <Badge label={`Zusage ${fmtD(detail.promised_pay_date)}`} />}
+              {detail.assigned_agent_name && !readOnly && <Badge label={`Betreut von ${detail.assigned_agent_name}`} />}
+            </div>
+          </SuccessPulse>
+        </div>
+
+        {/* Mobile Segment-Control (einhändig, sticky unter Header) */}
+        <div className="md:hidden shrink-0 px-3 py-2 border-b border-slate-100">
+          <div className="grid grid-cols-3 gap-1 bg-slate-100 rounded-xl p-1">
+            {([["stamm", "Stammdaten"], ["aktion", "Aktion"], ["verlauf", "Verlauf"]] as const).map(([k, lbl]) => (
+              <button key={k} type="button" onClick={(e) => { e.stopPropagation(); setMobileTab(k); }}
+                className={`py-2 rounded-lg text-[12px] font-semibold transition-all duration-150 ${
+                  mobileTab === k ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                }`}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Body: Desktop zweispaltig, Mobile per Segment-Control */}
+        <div className="flex-1 overflow-y-auto agent-scroll">
+          <div className="md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,400px)] md:divide-x md:divide-slate-100">
+            {/* Links: Stammdaten + Verlauf */}
+            <div className="px-5 py-5 space-y-6 md:min-h-full">
+              <div className={`${mobileTab === "stamm" ? "block" : "hidden"} md:block`}>{stammBlock}</div>
+              <div className={`${mobileTab === "verlauf" ? "block" : "hidden"} md:block`}>{verlaufBlock}</div>
+            </div>
+            {/* Rechts: Aktionen */}
+            <div className={`px-5 py-5 bg-slate-50/40 ${mobileTab === "aktion" ? "block" : "hidden"} md:block`}>
+              {aktionBlock}
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile sticky Anruf-Aktion */}
+        {phone && (
+          <div className="md:hidden shrink-0 border-t border-slate-100 bg-white px-4 py-3" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+            <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()}
+              className={`${btnPrimary} w-full py-3 inline-flex items-center justify-center gap-2`} style={{ minHeight: 48 }}>
+              <Phone size={15} strokeWidth={2} /> {custName(detail)} anrufen
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );

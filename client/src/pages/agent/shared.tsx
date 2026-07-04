@@ -152,13 +152,22 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
   };
 
   if (!checked) {
-    return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-[13px] text-slate-400">Lädt …</div>;
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="agent-core opacity-70" style={{ width: 64, height: 64 }} aria-hidden="true">
+          <div className="agent-core__inner">
+            <span className="agent-core__ring" /><span className="agent-core__ring" /><span className="agent-core__ring" />
+            <span className="agent-core__ring" /><span className="agent-core__ring" /><span className="agent-core__glow" />
+          </div>
+        </div>
+      </div>
+    );
   }
   if (!agent) return <>{children}</>; // Login-Ansicht rendert die Seite selbst
 
   return (
     <AgentCtx.Provider value={{ agent, reload: load }}>
-      <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 md:pb-10">
+      <div className="agent-scope min-h-screen bg-slate-50 text-slate-900 pb-20 md:pb-10">
         <header className="sticky top-0 z-30 bg-white border-b border-slate-200">
           <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
             <div className="flex items-center gap-6 min-w-0">
@@ -212,7 +221,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
         <main className="max-w-6xl mx-auto px-4 py-5">{children}</main>
 
         {/* Mobile Bottom-Navigation */}
-        <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 grid grid-cols-5">
+        <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 grid grid-cols-5" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
           {NAV.map((n) => {
             const active = location === n.href;
             const Icon = n.icon;
@@ -220,10 +229,10 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
               <Link
                 key={n.href}
                 href={n.href}
-                className={`flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${
-                  active ? "text-slate-900" : "text-slate-400"
-                }`}
+                className="relative flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors"
+                style={{ color: active ? ACCENT : "#94a3b8" }}
               >
+                {active && <span className="absolute top-0 h-0.5 w-8 rounded-full" style={{ background: ACCENT }} />}
                 <Icon size={19} strokeWidth={active ? 2 : 1.6} />
                 {n.label}
               </Link>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
-import { FileText, ChevronDown } from "lucide-react";
+import { FileText, ChevronDown, Search } from "lucide-react";
 import { AgentShell, Card, api, inputCls, fmtD, ACCENT } from "./shared";
+import { Reveal } from "./motion";
 
 // ============================================================================
 // /agent/skripte (I2) — durchsuchbare, nach Kategorie gruppierte Leitfäden.
@@ -52,17 +53,24 @@ function SkripteContent() {
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-lg font-bold tracking-tight mb-1">Skripte</h1>
-      <p className="text-[12px] text-slate-400 mb-5">Gesprächsvorlagen und Leitfäden für deine Telefonate.</p>
+      <Reveal index={0}>
+        <h1 className="text-xl font-bold tracking-tight mb-1">Skripte</h1>
+        <p className="text-[12px] text-slate-400 mb-5">Gesprächsvorlagen und Leitfäden für deine Telefonate.</p>
+      </Reveal>
 
-      <input
-        type="text"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Suche in Titel, Kategorie oder Inhalt …"
-        className={inputCls}
-        style={{ minHeight: 46, maxWidth: 420 }}
-      />
+      <Reveal index={1}>
+        <div className="relative" style={{ maxWidth: 420 }}>
+          <Search size={15} strokeWidth={1.8} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Suche in Titel, Kategorie oder Inhalt …"
+            className={`${inputCls} pl-10`}
+            style={{ minHeight: 46 }}
+          />
+        </div>
+      </Reveal>
 
       {loading && <p className="py-14 text-center text-[13px] text-slate-400">Lädt …</p>}
       {!loading && grouped.length === 0 && (

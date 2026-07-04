@@ -31,7 +31,14 @@ import InvestorLoginPage from "@/pages/investor-login";
 import InvestorDashboardPage from "@/pages/investor-dashboard";
 import ZahlungPage, { ZahlungDankePage } from "@/pages/zahlung";
 import AdminZahlungenPage from "@/pages/admin-zahlungen";
+import AdminTeamPage from "@/pages/admin-team";
 import AgentPortalPage from "@/pages/agent";
+import AgentSetupPage from "@/pages/agent/setup";
+import AgentPasswortPage from "@/pages/agent/passwort";
+import AgentProfilPage from "@/pages/agent/profil";
+import AgentAuszahlungPage from "@/pages/agent/auszahlung";
+import AgentSkriptePage from "@/pages/agent/skripte";
+import AgentKalenderPage from "@/pages/agent/kalender";
 
 function Router() {
   return (
@@ -48,6 +55,13 @@ function Router() {
       <Route path="/admin/database" component={AdminDatabasePage} />
       <Route path="/admin/zahlungen" component={AdminZahlungenPage} />
       <Route path="/agent" component={AgentPortalPage} />
+      <Route path="/agent/setup/:token" component={AgentSetupPage} />
+      <Route path="/agent/passwort" component={AgentPasswortPage} />
+      <Route path="/agent/profil" component={AgentProfilPage} />
+      <Route path="/agent/auszahlung" component={AgentAuszahlungPage} />
+      <Route path="/agent/skripte" component={AgentSkriptePage} />
+      <Route path="/agent/kalender" component={AgentKalenderPage} />
+      <Route path="/admin/team" component={AdminTeamPage} />
       <Route path="/zahlung/:paymentRef/danke" component={ZahlungDankePage} />
       <Route path="/zahlung/:paymentRef" component={ZahlungPage} />
       <Route path="/was-ist-fiaon" component={WasIstFiaonPage} />

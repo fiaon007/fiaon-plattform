@@ -217,6 +217,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/fiaon', fiaonAgentRoutes.blockAgentsFromAdmin);
   app.use('/api/fiaon', fiaonAgentRoutes.default);
 
+  // 👥 FIAON Team-Admin — Agents/Provisionen/Auszahlungen/Skripte/Einstellungen (nur Admin)
+  const fiaonTeamRoutes = await import('./routes/fiaon-team');
+  app.use('/api/fiaon', fiaonTeamRoutes.default);
+
   // 💳 FIAON Antrag Routes — Public (no auth)
   const fiaonAntragRoutes = await import('./routes/fiaon-antrag');
   app.use('/api/fiaon', fiaonAntragRoutes.default);

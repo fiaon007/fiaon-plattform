@@ -180,6 +180,51 @@ Stand: 2026-07-03 · Umstellung des gesamten Zahlungsflows von Stripe auf SEPA-V
 1. ✅ Volltextsuche alte Entity → 0 Treffer. 2. ✅ Impressum/AGB/Widerruf FIAON LTD zweisprachig, `LEGAL_REVIEW_PACKAGE.md` existiert. 3. ✅ Schwebendes Menü entfernt (keine Verwendung mehr). 4. ✅ claim-paid → sofort in Angekündigt-Liste/Kachel. 5. ✅ Duplikat-Testgruppe korrekt gemerged (Keeper behalten, Soft-Delete, aus Listen verschwunden, ohne confirmed → 400). 6. ✅ Agent-Login (falsches PW 401), sieht nur unbezahlte, Admin-URLs → 403, bezahlter Kunde verschwindet. 7. ✅ Notiz + Rückruf-Termin mit Autor/Zeitstempel, Zusage im Admin sichtbar. 8. ✅ agent_payment_reminder feuert mit agent_name+invoice_url, 2. Klick → 429 (10-Min-Sperre), Log-Eintrag. 9. ✅ Rechnung FIAON-INV-2026-00001 automatisch, PDF valide, ohne USt-Ausweis, Admin+Agent-Download, signierter Link 200 / manipuliert 403 / abgelaufen 403. 10. ✅ Audit-Log zeigt alle 4 Agent-Aktionen.
 - Hinweis: Invoice-Counter nach Tests auf 0 zurückgesetzt (kein echter Kunde hatte eine Nummer) → erste echte Rechnung = FIAON-INV-2026-00001.
 
+### Update: Vollausbau Mitarbeiter-System (Pakete E–K)
+
+**Paket E — Design-Overhaul Agent-Portal**
+- Komplett neu: monochrome Banking-/CRM-Optik. KEINE Emojis, KEINE bunten Icons — nur Lucide-Linien-Icons in slate, EINE Akzentfarbe (#2563eb) für Primär-Aktionen. Status = Text-Badges mit feinem Rahmen (`Badge` in `client/src/pages/agent/shared.tsx`), Monatsziel als schmale `ProgressBar`. Gemeinsame `AgentShell` (Desktop-Topnav + Mobile-Bottom-Bar, Avatar-Kreis mit Initialen-Fallback). Design-Audit getestet: 0 Emoji-/Ampelfarben-Treffer in `/agent`- und Team-Dateien.
+
+**Paket F — Onboarding & Konto**
+- **F1**: Admin legt Agent OHNE Passwort an (Vor-/Nachname, E-Mail, Telefon, Provisionssatz, Monatsziel) → 48h-Einladungs-Token (SHA-256-Hash in DB) + Make-Event **`agent_invite`** (email, vorname, nachname, invite_url, admin_name). „Einladung erneut senden" invalidiert den alten Token.
+- **F2**: `/agent/setup/:token` (Policy: min. 10 Zeichen, Zahl, Groß/Klein; danach direkt eingeloggt, Token entwertet). „Passwort vergessen" auf Login + `/agent/passwort?token=` → Make **`agent_password_reset`** (1h-Token), Anti-Enumeration (immer identische Antwort). Admin-„Passwort-Reset erzwingen" erhöht `session_epoch` ⇒ ALLE laufenden Sessions sofort 401 (Token-Format `id.epoch.exp.sig`; Bestands-Sessions vor dem Update werden dadurch einmalig ausgeloggt).
+- **F3**: `/agent/profil` — Profilbild (Canvas-Center-Crop auf 256×256 JPEG im Browser, Server validiert Format/Größe ≤600 KB; Hinweis: Verkleinerung clientseitig statt serverseitig, da keine Image-Library im Stack), Telefon selbst änderbar, Passwort ändern (altes nötig), **Bankdaten AES-256-GCM-verschlüsselt** (Key aus SESSION_SECRET, `encryptSecret/decryptSecret` in fiaon-agent.ts), IBAN-MOD-97-Prüfsumme, maskierte Anzeige `DE89 •••• •••• 3000`; jede Änderung → `fiaon_agent_events` + Banner in /admin/team (`bank_change_ack`).
+
+**Paket G — Provisions-Engine**
+- **G1**: `fiaon_settings`: `default_commission_rate_bp` (Default 1500 = 15 %), pro Agent überschreibbar. Satz + Basis werden am Provisionseintrag EINGEFROREN (getestet: Satzänderung 15→20 % ließ Alt-Eintrag unverändert).
+- **G2**: `assigned_agent_id` + **Auto-Claim** bei erster Aktion (Notiz/Ergebnis/Mail, atomar, `claim`-Logeintrag). Fremd-zugewiesene Kunden: für andere nur read-only Sektion „Von Kollegen betreut", Aktionen serverseitig 403. **15-Min-Soft-Lock** beim Öffnen unzugewiesener Kunden (`locked_by_agent_id/locked_until`), Fremdaktion währenddessen 423, läuft automatisch ab (getestet).
+- **G3**: `fiaon_commissions` — Integer-Cents, kaufmännische Rundung (`Math.round`; 99,99 € × 15 % = 1499,85 → **1500 Cents**, getestet). Lebenszyklus `bestaetigt → in_auszahlung → ausgezahlt`, `storniert` via Admin-„Zahlung stornieren/erstatten" (neuer Endpoint `POST /admin/payments/:payref/refund`, setzt `payment_status='refunded'`). Storno nach Auszahlung ⇒ **negativer Verrechnungs-Eintrag** (Guthaben kann negativ werden, nächste Provision gleicht aus — getestet). Hook: mark-paid ruft `onCustomerPaid()` (idempotent; läuft asynchron nach Response, Eintrag erscheint ≤1 s später).
+- **G4**: Startseite `/agent` mit 4 Kennzahlen (Potenziell/Bestätigt/In Auszahlung/Ausgezahlt), Einträge-Liste, Monatsziel-Fortschritt (Admin-konfigurierbar je Agent).
+
+**Paket H — Auszahlungen**
+- **H1** `/agent/auszahlung`: Button nur aktiv bei Bankdaten + Guthaben ≥ Mindestbetrag (Setting `payout_min_cents`, Default 5000); beantragt IMMER volles Guthaben; nur EINE offene Anforderung (409). **Erzeugt NUR eine Anforderung, niemals eine Transaktion** (Hinweistext „…manuell überwiesen, i. d. R. innerhalb von 5 Werktagen"). Bankdaten-Snapshot verschlüsselt am Payout.
+- **H2** in `/admin/zahlungen`: offene Anforderungen mit **voller IBAN (nur hier, nur solange `angefordert`)**, aufklappbaren Positionen, CSV-Export (`/admin/payouts/:id/export.csv`, Semikolon+BOM für Excel). „Als überwiesen markieren" → Einträge `ausgezahlt` + Make **`agent_payout_done`**; „Ablehnen mit Grund" → zurück auf `bestaetigt` + Make **`agent_payout_rejected`** (beides getestet).
+
+**Paket I — Skripte**
+- **I1** in `/admin/team`: Anlegen mit Titel/Kategorie (frei) + Text-Inhalt (Server-sanitisiert) ODER PDF ≤10 MB (Base64 in DB); Drag&Drop-Sortierung, aktiv/inaktiv, „zuletzt geändert", Soft-Delete.
+- **I2** `/agent/skripte`: Suche + Kategorie-Gruppen, PDF im Viewer. **Kontext-Panel „Gesprächsleitfaden"** in der Kundendetail-Ansicht via Status→Kategorie-Mapping (Setting `script_status_map`, Admin-UI in /admin/team) — getestet.
+
+**Paket J — Kalender**
+- **J1** `/agent/kalender`: Tag/Woche (mobil Listen, Desktop Wochen-Spalten), speist sich aus `rueckruf_termin` + „zahlt am"; Überfällige oben mit dezentem Rahmen. Erledigen (`done_at`) + Verschieben direkt im Kalender (je Log-Eintrag; Verschieben setzt `reminder_sent_at` zurück). „Heute fällig" bleibt auf der Startseite.
+- **J2**: stündlicher Cron (`runCallbackReminders`, zusätzlich im manuellen `run-reminders`-Lauf): Termine der nächsten 60 Min ohne Reminder → Make **`agent_callback_reminder`** (agent_email, vorname, kunde_name, referenz, termin_zeit), atomarer Claim ⇒ exakt einmal (getestet: Lauf 1 = 1, Lauf 2 = 0, nach Verschieben wieder 1).
+
+**Paket K — Admin „Team" (`/admin/team`)**
+- Übersicht je Agent: zugewiesene Kunden, Kontakte heute/Woche, Erreicht-Quote (`erreicht_*`/Ergebnisse), Conversions, generierter Umsatz, Provision offen/in Auszahlung/ausgezahlt, letzter Login, Einladungs-/Bankdaten-Status.
+- Detail-Drawer: Einstellungen (Name/Telefon/Satz/Ziel), Deaktivieren, Einladung erneut senden, Passwort-Reset erzwingen, Aktivitäts-Log (Kontakte + Konto-Events), Provisions-Historie, **Kunden-Neuzuweisung einzeln/Auswahl/alle** (`POST /admin/team/reassign`, auch „Zuweisung entfernen").
+- Alter Endpoint `POST /admin/agents` hat jetzt Invite-Signatur (firstName/lastName/email statt name/password); Agent-Verwaltung aus `/admin/zahlungen` nach `/admin/team` umgezogen (dort jetzt H2-Auszahlungen).
+
+**Architektur**: Agent-Endpoints in `server/routes/fiaon-agent.ts`, alle neuen Admin-Endpoints in `server/routes/fiaon-team.ts` (hinter `blockAgentsFromAdmin` — Agent-Token auf allen neuen /admin-Routen 403-getestet). Neue Tabellen: `fiaon_commissions`, `fiaon_payouts`, `fiaon_scripts`, `fiaon_settings`, `fiaon_agent_events`; Spalten-Migrationen idempotent in `ensureAgentTables()`.
+
+**Betreiber-TODOs (Make.com — 5 neue Router-Zweige + Brevo-Templates)**
+- [ ] `agent_invite` — „Dein Zugang zum FIAON Agent-Portal" (Felder: vorname, nachname, invite_url [48 h], admin_name)
+- [ ] `agent_password_reset` — Reset-Link (vorname, reset_url [1 h], optional forced)
+- [ ] `agent_payout_done` — Auszahlungs-Bestätigung (vorname, betrag, iban_masked)
+- [ ] `agent_payout_rejected` — Ablehnung (vorname, betrag, grund)
+- [ ] `agent_callback_reminder` — kurze Erinnerung (agent_email = Empfänger, vorname, kunde_name, referenz, termin_zeit)
+
+**Getestet (echter Server + DB + Webhook-Catcher; Testdaten/-Agents danach entfernt, Settings zurückgesetzt, Invoice-Counter unangetastet — 34 echte Rechnungen existieren)**
+1. ✅ Invite-Event + Setup-URL; Token nach Nutzung/Reinvite 410. 2. ✅ Schwaches Passwort 400, Setup loggt ein. 3. ✅ Anti-Enumeration (identische Antworten, nur 1 Event), Force-Reset ⇒ alte Session 401, Reset-Token loggt ein. 4. ✅ Falsche IBAN-Prüfsumme 400; gültige maskiert; Admin-Banner (`bank_change_ack=false`); Avatar-Upload. 5. ✅ Soft-Lock (B: readOnly + 423), Auto-Claim per Notiz, B 403 + nur Kollegen-Sektion, Lock-Ablauf ⇒ B claimt. 6. ✅ 9999 Cents × 1500 bp = 1500 Cents; Satzwechsel friert Alt-Eintrag ein; Potenziell-Anzeige korrekt. 7. ✅ Storno vor Auszahlung ⇒ storniert; nach Auszahlung ⇒ −80 €-Verrechnungseintrag, Saldo negativ, Folgeprovision verrechnet. 8. ✅ Ohne IBAN 400 / unter Min 400 / Doppelantrag 409; Admin sieht volle IBAN + CSV; überwiesen ⇒ ausgezahlt + payout_done; abgelehnt ⇒ bestätigt + payout_rejected inkl. Grund. 9. ✅ Text+PDF-Skript, Mapping blendet Kontext-Skript nach Status ein, PDF-Auslieferung. 10. ✅ Termin in Kalender, Reminder exakt 1× im 60-Min-Fenster, Verschieben re-armiert Reminder, Erledigen. 11. ✅ Team-Statistik konsistent (Kontakte/Conversions/Umsatz/Provisionsstände/Login). 12. ✅ Design-Audit: 0 Emojis, 0 Ampelfarben-Klassen in /agent + /admin/team; Agent-403 auf allen neuen Admin-Routen.
+
 ### Offene Punkte
 - [ ] **Env-Variablen entfernen**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VITE_STRIPE_PUBLISHABLE_KEY`/`VITE_STRIPE_PUBLIC_KEY` aus dem Deployment löschen (Code ist mit Null-Guards abgesichert).
 - [ ] **Stripe Payment Links im Stripe-Dashboard deaktivieren** (alte gespeicherte URLs könnten sonst noch funktionieren).

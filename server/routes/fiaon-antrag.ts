@@ -425,6 +425,8 @@ router.post("/admin/payments/:paymentRef/mark-paid", async (req, res) => {
 
     console.log(`[FIAON-PAYMENT] Als bezahlt markiert: ${req.params.paymentRef} (ref=${rows[0].ref})`);
     sendPaymentConfirmedEmail(orderInfoFromRow(rows[0])).catch(() => {});
+    // Provisions-Engine (G3): fester Eintrag für den zugewiesenen Agent (Satz wird eingefroren)
+    import("./fiaon-agent").then((m) => m.onCustomerPaid(rows[0].ref)).catch((e) => console.error("[FIAON-COMMISSION]", e));
     res.json({ ok: true, data: rows[0] });
   } catch (err) {
     console.error("[FIAON-PAYMENT] mark-paid:", err);
@@ -502,11 +504,12 @@ setInterval(() => {
   runPaymentReminders().catch((err) => console.error("[FIAON-PAYMENT] Reminder-Cron:", err));
 }, 60 * 60 * 1000);
 
-// Manueller Trigger für Tests / Admin
+// Manueller Trigger für Tests / Admin (inkl. Rückruf-Erinnerungen, J2)
 router.post("/admin/payments/run-reminders", async (_req, res) => {
   try {
     const result = await runPaymentReminders();
-    res.json({ ok: true, ...result });
+    const callbackReminders = await import("./fiaon-agent").then((m) => m.runCallbackReminders()).catch(() => 0);
+    res.json({ ok: true, ...result, callbackReminders });
   } catch (err) {
     console.error("[FIAON-PAYMENT] run-reminders:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

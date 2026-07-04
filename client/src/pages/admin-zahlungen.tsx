@@ -118,10 +118,10 @@ export default function AdminZahlungenPage() {
   const [dup, setDup] = useState<DupPreview | null>(null);
   const [dupRunning, setDupRunning] = useState(false);
 
-  // Mitarbeiter-Verwaltung
-  const [agents, setAgents] = useState<AgentRow[]>([]);
-  const [agentForm, setAgentForm] = useState({ name: "", email: "", password: "" });
-  const [agentSaving, setAgentSaving] = useState(false);
+  // Auszahlungen (H2) + Audit
+  const [payouts, setPayouts] = useState<any[]>([]);
+  const [payoutBusy, setPayoutBusy] = useState<number | null>(null);
+  const [expandedPayout, setExpandedPayout] = useState<number | null>(null);
   const [auditOpen, setAuditOpen] = useState(false);
   const [audit, setAudit] = useState<any[]>([]);
 
@@ -170,11 +170,11 @@ export default function AdminZahlungenPage() {
     } catch {}
   }, []);
 
-  const loadAgents = useCallback(async () => {
+  const loadPayouts = useCallback(async () => {
     try {
-      const res = await fetch(`/api/fiaon/admin/agents`, { credentials: "include" });
+      const res = await fetch(`/api/fiaon/admin/payouts`, { credentials: "include" });
       const json = await res.json().catch(() => null);
-      if (res.ok && json?.ok) setAgents(json.data);
+      if (res.ok && json?.ok) setPayouts(json.data);
     } catch {}
   }, []);
 
@@ -185,8 +185,8 @@ export default function AdminZahlungenPage() {
 
   useEffect(() => {
     loadDup();
-    loadAgents();
-  }, [loadDup, loadAgents]);
+    loadPayouts();
+  }, [loadDup, loadPayouts]);
 
   const flash = (msg: string) => {
     setMessage(msg);
@@ -235,58 +235,59 @@ export default function AdminZahlungenPage() {
     }
   };
 
-  const createAgent = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // H2: Auszahlung als überwiesen markieren / ablehnen (Anforderungen — keine Transaktionen)
+  const payoutMarkPaid = async (e: React.MouseEvent, p: any) => {
     e.stopPropagation();
-    if (!agentForm.name || !agentForm.email || agentForm.password.length < 8) {
-      flash("Name, E-Mail und Passwort (min. 8 Zeichen) erforderlich");
-      return;
-    }
-    setAgentSaving(true);
-    try {
-      const res = await fetch(`/api/fiaon/admin/agents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(agentForm),
-      });
-      const json = await res.json().catch(() => null);
-      if (res.ok && json?.ok) {
-        flash(`✓ Zugang angelegt: ${json.agent.email} — Login unter /agent`);
-        setAgentForm({ name: "", email: "", password: "" });
-        loadAgents();
-      } else {
-        flash(`Fehler: ${json?.error || res.status}`);
-      }
-    } catch {
-      flash("Netzwerkfehler");
-    } finally {
-      setAgentSaving(false);
-    }
-  };
-
-  const toggleAgent = async (e: React.MouseEvent, id: number) => {
-    e.stopPropagation();
-    const res = await fetch(`/api/fiaon/admin/agents/${id}/toggle`, { method: "POST", credentials: "include" });
+    if (!confirm(`Auszahlung #${p.id} (${(p.amount_cents / 100).toFixed(2)} € an ${p.agent_name}) als überwiesen markieren?\n\nDie enthaltenen Provisionen wechseln auf „ausgezahlt“, der Mitarbeiter erhält eine Bestätigungs-Mail (Make: agent_payout_done).`)) return;
+    setPayoutBusy(p.id);
+    const res = await fetch(`/api/fiaon/admin/payouts/${p.id}/mark-paid`, { method: "POST", credentials: "include" });
     const json = await res.json().catch(() => null);
-    if (res.ok && json?.ok) {
-      flash(`✓ ${json.agent.email} ${json.agent.active ? "aktiviert" : "deaktiviert"}`);
-      loadAgents();
-    }
+    setPayoutBusy(null);
+    if (res.ok && json?.ok) { flash(`Auszahlung #${p.id} als überwiesen markiert`); loadPayouts(); }
+    else flash(`Fehler: ${json?.error || res.status}`);
   };
 
-  const resetAgentPw = async (e: React.MouseEvent, id: number, email: string) => {
+  const payoutReject = async (e: React.MouseEvent, p: any) => {
     e.stopPropagation();
-    const pw = prompt(`Neues Passwort für ${email} (min. 8 Zeichen):`);
-    if (!pw) return;
-    const res = await fetch(`/api/fiaon/admin/agents/${id}/reset-password`, {
+    const reason = prompt(`Auszahlung #${p.id} ablehnen — Grund (wird dem Mitarbeiter mitgeteilt):`);
+    if (!reason) return;
+    setPayoutBusy(p.id);
+    const res = await fetch(`/api/fiaon/admin/payouts/${p.id}/reject`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ password: pw }),
+      body: JSON.stringify({ reason }),
     });
     const json = await res.json().catch(() => null);
-    flash(res.ok && json?.ok ? `✓ Passwort für ${email} gesetzt` : `Fehler: ${json?.error || res.status}`);
+    setPayoutBusy(null);
+    if (res.ok && json?.ok) { flash(`Auszahlung #${p.id} abgelehnt — Provisionen wieder verfügbar`); loadPayouts(); }
+    else flash(`Fehler: ${json?.error || res.status}`);
+  };
+
+  const refund = async (e: React.MouseEvent, paymentRef: string) => {
+    e.stopPropagation();
+    const reason = prompt(`Zahlung ${paymentRef} stornieren/erstatten — Grund:`);
+    if (reason === null) return;
+    setActionRef(paymentRef);
+    try {
+      const res = await fetch(`/api/fiaon/admin/payments/${encodeURIComponent(paymentRef)}/refund`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ reason }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        flash(`${paymentRef} erstattet — Provision: ${json.commission.cancelled}× storniert, ${json.commission.clawback}× Verrechnung`);
+        setDetail(null);
+        load(tab);
+        loadStats();
+      } else flash(`Fehler: ${json?.error || res.status}`);
+    } catch {
+      flash("Netzwerkfehler");
+    } finally {
+      setActionRef(null);
+    }
   };
 
   const openAudit = async (e: React.MouseEvent) => {
@@ -420,7 +421,7 @@ export default function AdminZahlungenPage() {
               onClick={(e) => { e.stopPropagation(); setTab("claimed_paid"); }}
               className="text-left bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 shadow-[0_4px_16px_rgba(245,158,11,.15)] hover:border-amber-400 transition-colors"
             >
-              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 mb-1">⚡ Zahlung angekündigt</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 mb-1">Zahlung angekündigt</p>
               <p className="text-xl font-bold text-amber-700">{stats.claimed.sum.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €</p>
               <p className="text-[11px] text-amber-600/80 font-semibold">{stats.claimed.count} warten auf Freischaltung — deine Arbeitsliste</p>
             </button>
@@ -622,14 +623,22 @@ export default function AdminZahlungenPage() {
           </div>
         </div>
 
-        {/* ── D1: Mitarbeiter-Zugänge (Agent-Portal) ── */}
+        {/* ── H2: Auszahlungen (Provisions-Anforderungen der Mitarbeiter) ── */}
         <div className="mt-6 bg-white border border-slate-200 rounded-2xl p-5">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div>
-              <h2 className="text-[15px] font-bold text-slate-900">Mitarbeiter-Zugänge (Telefon-Nachfass)</h2>
+              <h2 className="text-[15px] font-bold text-slate-900">
+                Auszahlungen
+                {payouts.filter((p) => p.status === "angefordert").length > 0 && (
+                  <span className="ml-2 px-2 py-0.5 rounded-full border border-slate-300 text-[11px] font-semibold text-slate-600">
+                    {payouts.filter((p) => p.status === "angefordert").length} offen
+                  </span>
+                )}
+              </h2>
               <p className="text-[12px] text-slate-500 mt-1">
-                Mitarbeiter melden sich unter <a href="/agent" className="font-bold text-[#2563eb] hover:underline">/agent</a> an
-                und sehen ausschließlich unbezahlte Kunden. Jede Aktion wird protokolliert.
+                Provisions-Anforderungen der Mitarbeiter. Überweisung erfolgt manuell — hier nur bestätigen oder ablehnen.
+                Mitarbeiter, Sätze und Skripte verwaltest du unter{" "}
+                <a href="/admin/team" className="font-bold text-[#2563eb] hover:underline">/admin/team</a>.
               </p>
             </div>
             <button
@@ -641,74 +650,85 @@ export default function AdminZahlungenPage() {
             </button>
           </div>
 
-          <form onSubmit={createAgent} className="grid sm:grid-cols-4 gap-2 mb-4">
-            <input
-              type="text"
-              value={agentForm.name}
-              onChange={(e) => setAgentForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="Name"
-              className="px-3 py-2.5 rounded-xl border border-slate-200 text-[13px] focus:border-[#2563eb] outline-none"
-            />
-            <input
-              type="email"
-              value={agentForm.email}
-              onChange={(e) => setAgentForm((f) => ({ ...f, email: e.target.value }))}
-              placeholder="Login-E-Mail"
-              className="px-3 py-2.5 rounded-xl border border-slate-200 text-[13px] focus:border-[#2563eb] outline-none"
-            />
-            <input
-              type="text"
-              value={agentForm.password}
-              onChange={(e) => setAgentForm((f) => ({ ...f, password: e.target.value }))}
-              placeholder="Passwort (min. 8 Zeichen)"
-              className="px-3 py-2.5 rounded-xl border border-slate-200 text-[13px] focus:border-[#2563eb] outline-none"
-            />
-            <button
-              type="submit"
-              disabled={agentSaving}
-              className="px-4 py-2.5 rounded-xl bg-[#2563eb] hover:bg-blue-700 text-white text-[13px] font-bold transition-all disabled:opacity-50"
-            >
-              {agentSaving ? "…" : "Zugang anlegen"}
-            </button>
-          </form>
-
-          {agents.length > 0 && (
-            <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden">
-              {agents.map((a) => (
-                <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-slate-50/40">
-                  <div>
-                    <p className="text-[13px] font-bold text-slate-800">
-                      {a.name}{" "}
-                      <span className={`ml-2 text-[10px] px-2 py-0.5 rounded-full font-bold ${a.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>
-                        {a.active ? "aktiv" : "deaktiviert"}
+          <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden">
+            {payouts.length === 0 && (
+              <p className="px-4 py-6 text-center text-[12px] text-slate-400">Noch keine Auszahlungs-Anforderungen.</p>
+            )}
+            {payouts.map((p) => (
+              <div key={p.id} className="px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-bold text-slate-900">
+                      {(p.amount_cents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} € · {p.agent_name}
+                      <span className={`ml-2 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${
+                        p.status === "angefordert" ? "border-slate-400 text-slate-700" : "border-slate-200 text-slate-400"
+                      }`}>
+                        {p.status === "angefordert" ? "Angefordert" : p.status === "ausgezahlt" ? "Ausgezahlt" : "Abgelehnt"}
                       </span>
                     </p>
-                    <p className="text-[11px] text-slate-400">{a.email}</p>
+                    <p className="text-[11px] text-slate-400">
+                      Beantragt {fmtDateTime(p.requested_at)}
+                      {p.processed_at ? ` · Verarbeitet ${fmtDateTime(p.processed_at)}` : ""}
+                      {p.reject_reason ? ` · Grund: ${p.reject_reason}` : ""}
+                    </p>
+                    {p.status === "angefordert" && p.iban_full && (
+                      <p className="text-[12px] font-mono font-semibold text-slate-700 mt-1">
+                        {p.holder} · {p.iban_full}{p.bic ? ` · ${p.bic}` : ""}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={(e) => resetAgentPw(e, a.id, a.email)}
+                      onClick={(e) => { e.stopPropagation(); setExpandedPayout(expandedPayout === p.id ? null : p.id); }}
                       className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-slate-500 hover:border-slate-300 transition-all"
                     >
-                      Passwort setzen
+                      {p.entries.length} Positionen
                     </button>
-                    <button
-                      type="button"
-                      onClick={(e) => toggleAgent(e, a.id)}
-                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
-                        a.active
-                          ? "bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100"
-                          : "bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100"
-                      }`}
+                    <a
+                      href={`/api/fiaon/admin/payouts/${p.id}/export.csv`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-slate-500 hover:border-slate-300 transition-all"
                     >
-                      {a.active ? "Deaktivieren" : "Aktivieren"}
-                    </button>
+                      CSV
+                    </a>
+                    {p.status === "angefordert" && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={(e) => payoutReject(e, p)}
+                          disabled={payoutBusy === p.id}
+                          className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-slate-500 hover:border-slate-400 transition-all disabled:opacity-40"
+                        >
+                          Ablehnen
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => payoutMarkPaid(e, p)}
+                          disabled={payoutBusy === p.id}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-all disabled:opacity-40"
+                        >
+                          {payoutBusy === p.id ? "…" : "Als überwiesen markieren"}
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+                {expandedPayout === p.id && (
+                  <div className="mt-2.5 border border-slate-100 rounded-lg divide-y divide-slate-50">
+                    {p.entries.map((en: any) => (
+                      <div key={en.id} className="px-3 py-2 flex items-center justify-between text-[12px]">
+                        <span className="font-mono text-slate-500">{en.payment_reference || en.ref}</span>
+                        <span className="text-slate-400">{(en.pack_name || "").replace(/\n/g, " ")}</span>
+                        <span className="text-slate-400">{(en.rate_bp / 100).toLocaleString("de-DE")} %</span>
+                        <span className="font-bold text-slate-700 tabular-nums">{(en.amount_cents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
 
           {auditOpen && (
             <div className="mt-4 border border-slate-100 rounded-xl overflow-hidden max-h-80 overflow-y-auto">
@@ -783,6 +803,16 @@ export default function AdminZahlungenPage() {
                     className="flex-1 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[13px] font-bold transition-all disabled:opacity-50"
                   >
                     Als bezahlt markieren
+                  </button>
+                )}
+                {detail.payment_status === "paid" && (
+                  <button
+                    type="button"
+                    onClick={(e) => refund(e, detail.payment_reference)}
+                    disabled={actionRef === detail.payment_reference}
+                    className="flex-1 px-4 py-3 rounded-xl bg-white border border-slate-300 text-slate-600 hover:border-slate-400 text-[13px] font-bold transition-all disabled:opacity-50"
+                  >
+                    Zahlung stornieren / erstatten
                   </button>
                 )}
                 <a

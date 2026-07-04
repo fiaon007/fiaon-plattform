@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, CreditCard, Banknote, FileText, Users, UserPlus,
   BookOpen, Settings, ScrollText, Scale, Database, Search, Menu, X,
-  ArrowLeft, ChevronRight, ShieldAlert,
+  ArrowLeft, ChevronRight, ShieldAlert, Wallet,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -41,6 +41,7 @@ export const ADMIN_NAV: NavGroup[] = [
     title: "Umsatz & Zahlungen",
     items: [
       { path: "/admin/zahlungen", label: "Zahlungszentrale", desc: "Offene Zahlungen prüfen, freischalten, Timeline", icon: CreditCard },
+      { path: "/admin/verbuchungen", label: "Verbuchungen", desc: "Bestätigte Zahlungen: Umsatz, Provisionen, Netto", icon: Wallet },
       { path: "/admin/zahlungen#auszahlungen", label: "Auszahlungen", desc: "Provisions-Anforderungen der Mitarbeiter freigeben", icon: Banknote, match: "/admin/zahlungen" },
       { path: "/admin/rechnungen", label: "Rechnungen", desc: "Alle erzeugten Rechnungen durchsuchen und laden", icon: FileText },
     ],

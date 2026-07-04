@@ -288,6 +288,14 @@ Ziel: Agent-Portal von „rohem MVP" zu cinematischem, hochproduktivem Arbeits-T
 
 **Regel-Konformität**: Keine Handler/Routen/Datenflüsse/Auth-Guards geändert; CI-Variablen beibehalten; mobile-first, Touch-Targets ≥44px; 3D nur als ein CSS-Signature-Element (kein blockierendes Asset). Typecheck der Agent-Dateien fehlerfrei, Produktions-Build grün.
 
+### Update: Admin-Seite „Verbuchungen" (Tagesfinanzen)
+
+Neue read-only Finanz-Übersicht `/admin/verbuchungen` — bestätigte Zahlungen auf einen Blick, damit Umsatz, Team-Provisionen und Netto jederzeit klar sind.
+- **Backend** `server/routes/fiaon-admin-hub.ts` → `GET /admin/bookings?range=today|yesterday|7d|30d|month`. Basis: `fiaon_applications` (`payment_status='paid'`, `completed_at`, `merged_into IS NULL`) LEFT-JOIN `fiaon_commissions` (eingefrorene Provision je `ref`, nur positiv/nicht-storniert) + `fiaon_agents` (Name). Tagesgrenzen in **Europe/Berlin** (`completed_at AT TIME ZONE 'Europe/Berlin'`). Range-Whitelist (keine Nutzereingabe im SQL). Liefert `totals` (count, revenueCents, commissionCents, netCents), `byAgent` (inkl. „Direkt (ohne Agent)") und `bookings[]`. Alles in Integer-Cents; `netCents = Umsatz − Provisionen`. Hinter `blockAgentsFromAdmin` (Agents → 403).
+- **Frontend** `client/src/pages/admin-verbuchungen.tsx`: Zeitraum-Umschalter (Heute default), 4 KPIs (Umsatz brutto / Provisionen Team / **Netto für uns** hervorgehoben mit Marge-% / Anzahl), Provision je Mitarbeiter (Karten), Buchungstabelle (Zeit, Kunde, Paket, Umsatz, Mitarbeiter, Satz, Provision, Netto) mit Summen-Zeile, PDF-Download + Deep-Link in die Zahlungszentrale. Monochrom slate, Akzent `#2563eb`, mobil-scrollbar.
+- **Verdrahtung**: Route in `client/src/App.tsx`; Sidebar-Eintrag in `AdminShell.tsx` (Gruppe „Umsatz & Zahlungen", Wallet-Icon); Hub-Karte + klickbare „Heute bestätigt"-Kachel in `admin-hub.tsx` verlinken auf die neue Seite.
+- **Getestet** (echter Server + Produktiv-DB, read-only): `range=today` → 5 Verbuchungen, 195,95 € Umsatz, 0 € Provision (Kunden ohne zugewiesenen Agent ⇒ korrekt „Direkt"), Netto = Umsatz; `range=30d` → 6/255,94 €; Aggregate/Gruppierung stimmig; Seite HTTP 200; Typecheck + Vite-Build grün.
+
 ### Offene Punkte
 - [ ] **Env-Variablen entfernen**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VITE_STRIPE_PUBLISHABLE_KEY`/`VITE_STRIPE_PUBLIC_KEY` aus dem Deployment löschen (Code ist mit Null-Guards abgesichert).
 - [ ] **Stripe Payment Links im Stripe-Dashboard deaktivieren** (alte gespeicherte URLs könnten sonst noch funktionieren).

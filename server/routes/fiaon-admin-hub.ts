@@ -168,6 +168,126 @@ router.get("/admin/system-status", async (_req, res) => {
   }
 });
 
+// ── Verbuchungen / Finanzen: bestätigte Zahlungen eines Zeitraums ────────────
+// Read-only. Zeigt je bestätigte Zahlung (payment_status='paid') den Umsatz,
+// den zugewiesenen Agent und dessen eingefrorene Provision (fiaon_commissions).
+// Netto = Umsatz − Provisionen (was bei uns bleibt). Alles in Integer-Cents.
+// Zeitbezug ist der Bestätigungszeitpunkt completed_at, ausgewertet in
+// Europe/Berlin (korrekte Tagesgrenzen). Zeitraum aus fester Whitelist.
+const BOOKING_RANGES: Record<string, string> = {
+  today: "bd = today",
+  yesterday: "bd = today - 1",
+  "7d": "bd >= today - 6",
+  "30d": "bd >= today - 29",
+  month: "date_trunc('month', bd) = date_trunc('month', today)",
+};
+
+router.get("/admin/bookings", async (req, res) => {
+  try {
+    const range = String(req.query.range || "today");
+    const cond = BOOKING_RANGES[range] || BOOKING_RANGES.today;
+    // Nur whitelisted Ausdrücke werden eingesetzt — keine Nutzereingabe im SQL.
+    const rows = await sqlPool.unsafe(`
+      WITH b AS (
+        SELECT
+          a.ref, a.payment_reference, a.invoice_number, a.pack_name, a.amount_due,
+          a.completed_at, a.assigned_agent_id,
+          a.first_name, a.last_name, a.contact_name, a.company_name,
+          a.email, a.contact_email,
+          ag.name AS agent_name,
+          c.amount_cents AS commission_cents, c.rate_bp,
+          (a.completed_at AT TIME ZONE 'Europe/Berlin')::date AS bd,
+          (now() AT TIME ZONE 'Europe/Berlin')::date AS today
+        FROM fiaon_applications a
+        LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
+        LEFT JOIN LATERAL (
+          SELECT amount_cents, rate_bp
+          FROM fiaon_commissions
+          WHERE ref = a.ref AND amount_cents > 0 AND status <> 'storniert'
+          ORDER BY id LIMIT 1
+        ) c ON TRUE
+        WHERE a.payment_status = 'paid'
+          AND a.merged_into IS NULL
+          AND a.completed_at IS NOT NULL
+      )
+      SELECT ref, payment_reference, invoice_number, pack_name, amount_due,
+             completed_at, assigned_agent_id, agent_name, commission_cents, rate_bp,
+             first_name, last_name, contact_name, company_name, email, contact_email
+      FROM b
+      WHERE ${cond}
+      ORDER BY completed_at DESC
+    `);
+
+    const custName = (r: any): string =>
+      r.company_name || [r.first_name, r.last_name].filter(Boolean).join(" ") || r.contact_name || r.ref;
+
+    const bookings = rows.map((r: any) => {
+      const revenueCents = Math.round(Number(r.amount_due || 0) * 100);
+      const commissionCents = Number(r.commission_cents || 0);
+      return {
+        ref: r.ref,
+        paymentReference: r.payment_reference,
+        invoiceNumber: r.invoice_number,
+        customer: custName(r),
+        email: r.email || r.contact_email || null,
+        packName: (r.pack_name || "").replace(/\n/g, " ").trim() || null,
+        completedAt: r.completed_at,
+        agentId: r.assigned_agent_id,
+        agentName: r.agent_name,
+        rateBp: r.rate_bp != null ? Number(r.rate_bp) : null,
+        revenueCents,
+        commissionCents,
+        netCents: revenueCents - commissionCents,
+      };
+    });
+
+    // Aggregat gesamt
+    const totals = bookings.reduce(
+      (acc, b) => {
+        acc.count += 1;
+        acc.revenueCents += b.revenueCents;
+        acc.commissionCents += b.commissionCents;
+        return acc;
+      },
+      { count: 0, revenueCents: 0, commissionCents: 0 },
+    );
+    const netCents = totals.revenueCents - totals.commissionCents;
+
+    // Aufschlüsselung je Mitarbeiter (ohne Zuweisung = Direktgeschäft)
+    const byAgentMap = new Map<string, any>();
+    for (const b of bookings) {
+      const key = b.agentId != null ? `a${b.agentId}` : "direct";
+      let g = byAgentMap.get(key);
+      if (!g) {
+        g = {
+          agentId: b.agentId ?? null,
+          agentName: b.agentId != null ? b.agentName || `Agent #${b.agentId}` : "Direkt (ohne Agent)",
+          count: 0,
+          revenueCents: 0,
+          commissionCents: 0,
+        };
+        byAgentMap.set(key, g);
+      }
+      g.count += 1;
+      g.revenueCents += b.revenueCents;
+      g.commissionCents += b.commissionCents;
+    }
+    const byAgent = Array.from(byAgentMap.values()).sort((a, b) => b.commissionCents - a.commissionCents);
+
+    res.json({
+      ok: true,
+      range,
+      totals: { ...totals, netCents },
+      byAgent,
+      bookings,
+      vatMode: (process.env.INVOICE_VAT_MODE || "none").toLowerCase(),
+    });
+  } catch (err) {
+    console.error("[FIAON-HUB] bookings:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 // ── Rechtstexte-Review-Status (read-only Anzeige der Review-Datei) ───────────
 router.get("/admin/legal-review", async (_req, res) => {
   try {

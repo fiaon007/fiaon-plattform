@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import {
   CreditCard, Banknote, FileText, Database, Users, UserPlus, BookOpen,
-  Settings, ScrollText, Scale, ChevronRight,
+  Settings, ScrollText, Scale, ChevronRight, Wallet,
 } from "lucide-react";
 import { ACCENT } from "@/components/admin/AdminShell";
 
@@ -87,6 +87,13 @@ export default function AdminHubPage() {
           desc: "Offene Zahlungen prüfen, als bezahlt freischalten, Erinnerungen, Timeline je Kunde.",
           icon: CreditCard,
           badge: stats && stats.claimed.count > 0 ? `${stats.claimed.count} angekündigt` : null,
+        },
+        {
+          href: "/admin/verbuchungen",
+          label: "Verbuchungen",
+          desc: "Bestätigte Zahlungen des Tages: Umsatz, Team-Provisionen und Netto auf einen Blick.",
+          icon: Wallet,
+          badge: stats && stats.todayPaid.count > 0 ? `${stats.todayPaid.count} heute` : null,
         },
         {
           href: "/admin/zahlungen#auszahlungen",
@@ -186,11 +193,11 @@ export default function AdminHubPage() {
           <p className="text-xl font-bold text-slate-900 tabular-nums">{stats ? eur(stats.claimed.sum) : "—"}</p>
           <p className="text-[11px] text-slate-400">{stats ? `${stats.claimed.count} warten auf Freischaltung` : ""}</p>
         </Link>
-        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+        <Link href="/admin/verbuchungen" className="text-left bg-white border border-slate-200 rounded-2xl p-4 hover:border-slate-400 transition-colors">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Heute bestätigt</p>
           <p className="text-xl font-bold text-slate-900 tabular-nums">{stats ? eur(stats.todayPaid.sum) : "—"}</p>
-          <p className="text-[11px] text-slate-400">{stats ? `${stats.todayPaid.count} Zahlung(en)` : ""}</p>
-        </div>
+          <p className="text-[11px] text-slate-400">{stats ? `${stats.todayPaid.count} Zahlung(en) · Verbuchungen` : ""}</p>
+        </Link>
         <Link href="/admin/zahlungen#auszahlungen" className="text-left bg-white border border-slate-200 rounded-2xl p-4 hover:border-slate-400 transition-colors">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Offene Auszahlungen</p>
           <p className="text-xl font-bold text-slate-900 tabular-nums">{stats ? stats.openPayouts : "—"}</p>

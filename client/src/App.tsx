@@ -35,6 +35,7 @@ import AdminTeamPage from "@/pages/admin-team";
 import AdminHubPage from "@/pages/admin-hub";
 import AdminRechnungenPage from "@/pages/admin-rechnungen";
 import AdminVerbuchungenPage from "@/pages/admin-verbuchungen";
+import AdminEventsPage from "@/pages/admin-events";
 import AdminEinstellungenPage from "@/pages/admin-einstellungen";
 import AdminAuditPage from "@/pages/admin-audit";
 import AdminRechtPage from "@/pages/admin-recht";
@@ -74,6 +75,7 @@ function Router() {
       <Route path="/admin/zahlungen" component={admin(AdminZahlungenPage)} />
       <Route path="/admin/rechnungen" component={admin(AdminRechnungenPage)} />
       <Route path="/admin/verbuchungen" component={admin(AdminVerbuchungenPage)} />
+      <Route path="/admin/events" component={admin(AdminEventsPage)} />
       <Route path="/admin/einstellungen" component={admin(AdminEinstellungenPage)} />
       <Route path="/admin/audit" component={admin(AdminAuditPage)} />
       <Route path="/admin/recht" component={admin(AdminRechtPage)} />

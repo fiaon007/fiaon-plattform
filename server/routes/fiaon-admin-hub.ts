@@ -13,8 +13,11 @@ import { Router } from "express";
 import postgres from "postgres";
 import { readFile } from "fs/promises";
 import path from "path";
-import { getSettings } from "./fiaon-agent";
-import { baseUrlDiagnostics } from "../fiaon-base-url";
+import { getSettings, setSetting } from "./fiaon-agent";
+import { baseUrlDiagnostics, absoluteUrl } from "../fiaon-base-url";
+import { sendMakeWebhook, makePayloadFromRow, type MakeWebhookPayload } from "../make-webhook";
+import { MAKE_EVENT_REGISTRY, getEventDef } from "../make-events-registry";
+import { signInvoiceUrl } from "../fiaon-invoice";
 
 const router = Router();
 const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 5 });
@@ -284,6 +287,156 @@ router.get("/admin/bookings", async (req, res) => {
     });
   } catch (err) {
     console.error("[FIAON-HUB] bookings:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════ PAKET T: EVENT-TEST-KONSOLE ═══════════════
+// Löst das Make-Struktur-Problem dauerhaft: Make lernt die Payload-Struktur
+// eines Events nur beim ersten echten Empfang — über die Konsole lässt sich
+// JEDES Registry-Event mit realistischen Beispielwerten (test: true) senden,
+// ohne den kompletten Workflow auslösen zu müssen. sendMakeWebhook bleibt
+// der einzige Versandweg. Verlauf: letzte 20 Sends in fiaon_settings.
+
+const TEST_HISTORY_KEY = "make_test_history";
+const TEST_HISTORY_MAX = 20;
+
+async function recordTestSend(entry: { event: string; email: string; ok: boolean; mode: "test" | "real"; at: string }): Promise<void> {
+  try {
+    const settings = await getSettings();
+    let history: any[] = [];
+    try { history = JSON.parse(settings[TEST_HISTORY_KEY] || "[]"); } catch {}
+    history.unshift(entry);
+    await setSetting(TEST_HISTORY_KEY, JSON.stringify(history.slice(0, TEST_HISTORY_MAX)));
+  } catch (err) {
+    console.warn("[FIAON-EVENTS] Verlauf-Write fehlgeschlagen:", err instanceof Error ? err.message : err);
+  }
+}
+
+function eventCustomerName(r: any): string {
+  return r.company_name || [r.first_name, r.last_name].filter(Boolean).join(" ") || r.contact_name || r.ref;
+}
+
+/** Baut den ECHTEN Payload eines kundengebundenen Events aus einer Bestellzeile —
+ *  identisch zu den produktiven Versandpfaden (fiaon-antrag.ts). */
+function buildRealPayload(eventType: string, row: any): MakeWebhookPayload {
+  const base = makePayloadFromRow(row);
+  switch (eventType) {
+    case "payment_details":
+    case "claim_received":
+      return { ...base, invoice_url: row.payment_reference ? signInvoiceUrl(row.payment_reference) : null };
+    case "payment_reminder":
+      return {
+        ...base,
+        invoice_url: row.payment_reference ? signInvoiceUrl(row.payment_reference) : null,
+        reminder_number: Number(row.reminder_count || 0) + 1,
+      };
+    case "payment_confirmed":
+      return { ...base, login_url: absoluteUrl("/login") };
+    default: // welcome
+      return base;
+  }
+}
+
+// T1 + T3: Registry, Diagnose (letzter Versand je Event) und Test-Verlauf
+router.get("/admin/events/registry", async (_req, res) => {
+  try {
+    const settings = await getSettings();
+    let lastEvents: Record<string, string> = {};
+    let history: any[] = [];
+    try { lastEvents = JSON.parse(settings.make_last_events || "{}"); } catch {}
+    try { history = JSON.parse(settings[TEST_HISTORY_KEY] || "[]"); } catch {}
+    res.json({
+      ok: true,
+      events: MAKE_EVENT_REGISTRY,
+      makeWebhookConfigured: Boolean(process.env.MAKE_WEBHOOK_URL),
+      lastEvents,
+      history,
+    });
+  } catch (err) {
+    console.error("[FIAON-EVENTS] registry:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// T2: Test-Versand — Beispiel-Payload (optional editiert), email ersetzt, test: true
+router.post("/admin/events/test", async (req, res) => {
+  try {
+    const { eventType, email, payload } = req.body || {};
+    const def = getEventDef(String(eventType || ""));
+    if (!def) return res.status(400).json({ ok: false, error: "Unbekannter Event-Typ" });
+    const to = String(email || "").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return res.status(400).json({ ok: false, error: "Gültige Test-E-Mail-Adresse angeben" });
+    if (!process.env.MAKE_WEBHOOK_URL) {
+      return res.status(400).json({ ok: false, error: "MAKE_WEBHOOK_URL ist nicht gesetzt — Versand nicht möglich" });
+    }
+    const merged: MakeWebhookPayload = {
+      ...def.example,
+      ...(payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {}),
+      email: to,
+      test: true,
+    } as MakeWebhookPayload;
+    const at = new Date().toISOString();
+    const sent = await sendMakeWebhook(def.type, merged);
+    await recordTestSend({ event: def.type, email: to, ok: sent, mode: "test", at });
+    res.json({ ok: true, sent, at });
+  } catch (err) {
+    console.error("[FIAON-EVENTS] test:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// T2: „Für echten Kunden senden“ — dryRun liefert Vorschau für den Bestätigungsdialog,
+// der eigentliche Versand nutzt die ECHTEN Kundendaten (nur kundengebundene Events).
+router.post("/admin/events/send-real", async (req, res) => {
+  try {
+    const { eventType, paymentRef, dryRun } = req.body || {};
+    const def = getEventDef(String(eventType || ""));
+    if (!def) return res.status(400).json({ ok: false, error: "Unbekannter Event-Typ" });
+    if (!def.customerBound || def.deprecated) {
+      return res.status(400).json({ ok: false, error: "Dieses Event ist nicht kundengebunden — nur Test-Versand möglich" });
+    }
+    const q = String(paymentRef || "").trim();
+    if (q.length < 4) return res.status(400).json({ ok: false, error: "Referenz angeben (Zahlungsreferenz oder Antrags-Referenz)" });
+    const rows = await sqlPool`
+      SELECT ref, payment_reference, amount_due, first_name, last_name, contact_name, company_name,
+             email, contact_email, billing_email, pack_name, payment_status, reminder_count
+      FROM fiaon_applications
+      WHERE (payment_reference = ${q} OR ref = ${q}) AND merged_into IS NULL
+      LIMIT 1
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Kunde/Bestellung nicht gefunden" });
+    const row = rows[0];
+    const realPayload = buildRealPayload(def.type, row);
+    if (!realPayload.email) return res.status(400).json({ ok: false, error: "Kunde hat keine E-Mail-Adresse hinterlegt" });
+
+    if (dryRun) {
+      return res.json({
+        ok: true,
+        preview: true,
+        customer: eventCustomerName(row),
+        email: realPayload.email,
+        status: row.payment_status,
+        payload: realPayload,
+      });
+    }
+
+    if (!process.env.MAKE_WEBHOOK_URL) {
+      return res.status(400).json({ ok: false, error: "MAKE_WEBHOOK_URL ist nicht gesetzt — Versand nicht möglich" });
+    }
+    // payment_reminder zählt kanalübergreifend als Erinnerung (20h-Dedupe, Paket V)
+    if (def.type === "payment_reminder") {
+      await sqlPool`
+        UPDATE fiaon_applications SET last_reminder_at = NOW(), reminder_count = COALESCE(reminder_count, 0) + 1, updated_at = NOW()
+        WHERE ref = ${row.ref}
+      `;
+    }
+    const at = new Date().toISOString();
+    const sent = await sendMakeWebhook(def.type, realPayload);
+    await recordTestSend({ event: def.type, email: String(realPayload.email), ok: sent, mode: "real", at });
+    res.json({ ok: true, sent, at, customer: eventCustomerName(row), email: realPayload.email });
+  } catch (err) {
+    console.error("[FIAON-EVENTS] send-real:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

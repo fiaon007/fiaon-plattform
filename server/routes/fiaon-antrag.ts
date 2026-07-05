@@ -8,9 +8,9 @@ import postgres from "postgres";
 import Stripe from "stripe";
 import multer from "multer";
 import { randomBytes } from "crypto";
-import { sendPaymentConfirmedEmail } from "../email/fiaon-payment-emails";
 import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
 import { ensureInvoiceNumber, renderInvoicePdf, signInvoiceUrl, verifyInvoiceSig } from "../fiaon-invoice";
+import { absoluteUrl } from "../fiaon-base-url";
 
 const router = Router();
 
@@ -106,23 +106,16 @@ async function ensurePaymentColumns(): Promise<void> {
     ADD COLUMN IF NOT EXISTS promised_pay_date TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS agent_email_sent_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS invoice_number VARCHAR,
-    ADD COLUMN IF NOT EXISTS invoice_date TIMESTAMPTZ;
+    ADD COLUMN IF NOT EXISTS invoice_date TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS claim_email_sent_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS confirmed_email_sent_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS last_reminder_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS reminder_count INTEGER NOT NULL DEFAULT 0;
   `;
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_invoice_no_idx ON fiaon_applications(invoice_number)`;
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_payment_ref_idx ON fiaon_applications(payment_reference)`;
   paymentColumnsEnsured = true;
   console.log("[FIAON-PAYMENT] Zahlungsspalten sichergestellt");
-}
-
-function orderInfoFromRow(row: any) {
-  return {
-    email: row.email || row.contact_email || row.billing_email || "",
-    firstName: row.first_name || row.contact_name?.split(" ")[0] || "",
-    paymentReference: row.payment_reference,
-    amountDue: String(row.amount_due),
-    dueDate: new Date(row.payment_due_date),
-    packName: row.pack_name,
-  };
 }
 
 // Bestellung anlegen (nach Antragsabschluss). Idempotent pro ref.
@@ -278,6 +271,24 @@ router.post("/payment-order/:paymentRef/claim-paid", async (req, res) => {
     `;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden oder bereits abgeschlossen" });
     console.log(`[FIAON-PAYMENT] Zahlung gemeldet (claimed_paid): ${req.params.paymentRef}`);
+    // Paket U: Bestätigungsmail 'claim_received' — genau 1× pro Bestellung
+    // (atomarer Flag-Claim; Mehrfachklick feuert NICHT erneut). Fehler blockieren nie.
+    try {
+      const claimed = await sqlPool`
+        UPDATE fiaon_applications SET claim_email_sent_at = NOW()
+        WHERE payment_reference = ${req.params.paymentRef} AND claim_email_sent_at IS NULL
+          AND COALESCE(NULLIF(email, ''), NULLIF(contact_email, ''), NULLIF(billing_email, '')) IS NOT NULL
+        RETURNING ref, payment_reference, amount_due, first_name, last_name, contact_name, email, contact_email, billing_email, pack_name
+      `;
+      if (claimed.length > 0) {
+        sendMakeWebhook("claim_received", {
+          ...makePayloadFromRow(claimed[0]),
+          invoice_url: signInvoiceUrl(req.params.paymentRef),
+        }).catch(() => {});
+      }
+    } catch (whErr) {
+      console.error("[MAKE-WEBHOOK] claim_received claim:", whErr);
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error("[FIAON-PAYMENT] claim-paid:", err);
@@ -298,7 +309,8 @@ router.get("/admin/payments/stats", async (_req, res) => {
         COUNT(*) FILTER (WHERE payment_status = 'paid')                                 AS paid_count,
         COALESCE(SUM(amount_due) FILTER (WHERE payment_status = 'paid'), 0)             AS paid_sum,
         COUNT(*) FILTER (WHERE claimed_paid_at IS NOT NULL)                             AS claims_total,
-        COUNT(*) FILTER (WHERE claimed_paid_at IS NOT NULL AND payment_status = 'paid') AS claims_confirmed
+        COUNT(*) FILTER (WHERE claimed_paid_at IS NOT NULL AND payment_status = 'paid') AS claims_confirmed,
+        COUNT(*) FILTER (WHERE (last_reminder_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date) AS reminders_today
       FROM fiaon_applications
       WHERE payment_reference IS NOT NULL AND merged_into IS NULL
     `;
@@ -309,6 +321,7 @@ router.get("/admin/payments/stats", async (_req, res) => {
       claimed: { count: Number(stats.claimed_count), sum: Number(stats.claimed_sum) },
       paid: { count: Number(stats.paid_count), sum: Number(stats.paid_sum) },
       confirmationRate: claimsTotal > 0 ? Math.round((Number(stats.claims_confirmed) / claimsTotal) * 100) : null,
+      remindersToday: Number(stats.reminders_today),
     });
   } catch (err) {
     console.error("[FIAON-PAYMENT] admin/payments/stats:", err);
@@ -323,7 +336,8 @@ router.get("/admin/payments/:paymentRef/timeline", async (req, res) => {
     const rows = await sqlPool`
       SELECT ref, created_at, welcome_sent_at, payment_email_sent_at, claimed_paid_at,
              followup_sent_at, agent_email_sent_at, promised_pay_date, completed_at,
-             payment_status, payment_due_date, invoice_number, invoice_date
+             payment_status, payment_due_date, invoice_number, invoice_date,
+             claim_email_sent_at, confirmed_email_sent_at, last_reminder_at, reminder_count
       FROM fiaon_applications WHERE payment_reference = ${req.params.paymentRef}
     `;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
@@ -338,6 +352,9 @@ router.get("/admin/payments/:paymentRef/timeline", async (req, res) => {
     push(a.payment_email_sent_at, "Zahlungsdaten-Webhook gesendet (Make) — Zahlungsseite erreicht", "webhook");
     push(a.claimed_paid_at, "Kunde: „Ich habe überwiesen“ geklickt", "claimed");
     push(a.followup_sent_at, "48h-Follow-up-Webhook gesendet (Make)", "webhook");
+    push(a.claim_email_sent_at, "Bestätigung der Ankündigung gesendet (Make: claim_received)", "webhook");
+    push(a.last_reminder_at, `Letzte Zahlungserinnerung gesendet (Make: payment_reminder${a.reminder_count ? `, Nr. ${a.reminder_count}` : ""})`, "webhook");
+    push(a.confirmed_email_sent_at, "Bezahlt-Bestätigung mit Login gesendet (Make: payment_confirmed)", "webhook");
     push(a.promised_pay_date, "Zahlungs-Zusage (durch Mitarbeiter erfasst)", "promise");
     if (a.payment_status === "paid") push(a.completed_at, "Als bezahlt markiert — Zugang freigeschaltet", "paid");
 
@@ -424,7 +441,25 @@ router.post("/admin/payments/:paymentRef/mark-paid", async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
 
     console.log(`[FIAON-PAYMENT] Als bezahlt markiert: ${req.params.paymentRef} (ref=${rows[0].ref})`);
-    sendPaymentConfirmedEmail(orderInfoFromRow(rows[0])).catch(() => {});
+    // Paket X: Bestätigung läuft über Make ('payment_confirmed' mit login_url) —
+    // ersetzt die frühere direkte Plattform-Freischaltmail. Genau 1× pro Bestellung
+    // (atomarer Flag-Claim), damit ALLE Kundenmails einheitlich über Make/Brevo laufen.
+    try {
+      const confirmed = await sqlPool`
+        UPDATE fiaon_applications SET confirmed_email_sent_at = NOW()
+        WHERE payment_reference = ${req.params.paymentRef} AND confirmed_email_sent_at IS NULL
+          AND COALESCE(NULLIF(email, ''), NULLIF(contact_email, ''), NULLIF(billing_email, '')) IS NOT NULL
+        RETURNING ref, payment_reference, amount_due, first_name, last_name, contact_name, email, contact_email, billing_email, pack_name
+      `;
+      if (confirmed.length > 0) {
+        sendMakeWebhook("payment_confirmed", {
+          ...makePayloadFromRow(confirmed[0]),
+          login_url: absoluteUrl("/login"),
+        }).catch(() => {});
+      }
+    } catch (whErr) {
+      console.error("[MAKE-WEBHOOK] payment_confirmed claim:", whErr);
+    }
     // Provisions-Engine (G3): fester Eintrag für den zugewiesenen Agent (Satz wird eingefroren)
     import("./fiaon-agent").then((m) => m.onCustomerPaid(rows[0].ref)).catch((e) => console.error("[FIAON-COMMISSION]", e));
     res.json({ ok: true, data: rows[0] });
@@ -465,14 +500,68 @@ router.post("/admin/payments/:paymentRef/reactivate", async (req, res) => {
   }
 });
 
-// ── Reminder & Ablauf (24h / 72h / expired) ─────────────────────────
+// ── Reminder & Ablauf — TÄGLICHE REMINDER-ENGINE (Paket V) ──────────
+// Ersetzt die alte einmalige 48h-Logik ('followup_48h', deprecated):
+// Jede unbezahlte Bestellung (pending_payment/claimed_paid) erhält EINMAL
+// pro Tag das Event 'payment_reminder' — erste Erinnerung 24h nach
+// Bestellung, danach täglich im Versandfenster (Default 10:00–11:00 Uhr
+// Europe/Berlin, NIE außerhalb 08:00–20:00). Kanalübergreifende Dedupe:
+// max. 1 Reminder pro 20h via last_reminder_at (Engine + Bulk + Agent-
+// Mail zählen zusammen). Obergrenze MAX_REMINDERS (Default 6); danach
+// läuft die Bestellung regulär in 'expired' (payment_due_date, 7 Tage
+// = MAX_REMINDERS + 1). paid/expired stoppen sofort (Status-Filter).
 
-// Direkte 24h/72h-Reminder-Mails wurden entfernt — Follow-up-Mails laufen über Make ('followup_48h').
-async function runPaymentReminders(): Promise<{ expired: number; followupsSent: number }> {
+/** Aktuelle Stunde in Europe/Berlin (0–23). formatToParts, weil format()
+ *  je nach Locale Text anhängt (de-DE: „14 Uhr“ → NaN). */
+export function berlinHour(): number {
+  const parts = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }).formatToParts(new Date());
+  const h = parseInt(parts.find((p) => p.type === "hour")?.value || "", 10);
+  return Number.isFinite(h) ? h % 24 : new Date().getUTCHours(); // Fallback: UTC (konservativ)
+}
+
+/** Hartes Sicherheitsfenster: Engine + Bulk versenden NIE außerhalb 08–20 Uhr Berlin. */
+function withinHardWindow(): boolean {
+  const h = berlinHour();
+  return h >= 8 && h < 20;
+}
+
+const REMINDER_BATCH = 50;
+
+/** Atomarer Batch-Claim erinnerungswürdiger Bestellungen (stempelt last_reminder_at + reminder_count). */
+async function claimReminderBatch(limit: number, opts: { requireAge24h: boolean; maxReminders: number | null }) {
+  return sqlPool`
+    UPDATE fiaon_applications
+    SET last_reminder_at = NOW(), reminder_count = COALESCE(reminder_count, 0) + 1, updated_at = NOW()
+    WHERE ref IN (
+      SELECT ref FROM fiaon_applications
+      WHERE payment_status IN ('pending_payment', 'claimed_paid')
+        AND payment_reference IS NOT NULL AND merged_into IS NULL
+        AND COALESCE(NULLIF(email, ''), NULLIF(contact_email, ''), NULLIF(billing_email, '')) IS NOT NULL
+        AND (last_reminder_at IS NULL OR last_reminder_at < NOW() - INTERVAL '20 hours')
+        AND (${!opts.requireAge24h} OR COALESCE(payment_email_sent_at, created_at) < NOW() - INTERVAL '24 hours')
+        AND (${opts.maxReminders == null} OR COALESCE(reminder_count, 0) < ${opts.maxReminders ?? 0})
+      ORDER BY created_at ASC
+      LIMIT ${limit}
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING ref, payment_reference, amount_due, first_name, last_name, contact_name,
+              email, contact_email, billing_email, pack_name, reminder_count
+  `;
+}
+
+function reminderPayload(r: any) {
+  return {
+    ...makePayloadFromRow(r),
+    invoice_url: r.payment_reference ? signInvoiceUrl(r.payment_reference) : null,
+    reminder_number: Number(r.reminder_count || 1),
+  };
+}
+
+async function runPaymentReminders(opts: { force?: boolean } = {}): Promise<{ expired: number; remindersSent: number; skippedWindow: boolean }> {
   await ensurePaymentColumns();
-  const result = { expired: 0, followupsSent: 0 };
+  const result = { expired: 0, remindersSent: 0, skippedWindow: false };
 
-  // 1) Abgelaufene Bestellungen schließen
+  // 1) Abgelaufene Bestellungen schließen (läuft IMMER, unabhängig vom Versandfenster)
   const expiredRows = await sqlPool`
     UPDATE fiaon_applications SET payment_status = 'expired', updated_at = NOW()
     WHERE payment_status = 'pending_payment' AND payment_due_date < NOW()
@@ -481,20 +570,35 @@ async function runPaymentReminders(): Promise<{ expired: number; followupsSent: 
   result.expired = expiredRows.length;
   if (expiredRows.length) console.log(`[FIAON-PAYMENT] Abgelaufen: ${expiredRows.map((r: any) => r.payment_reference).join(", ")}`);
 
-  // 2) Make-Webhook 'followup_48h': unbestätigte Zahlungen (pending_payment ODER claimed_paid),
-  //    älter als 48h (Bestellzeitpunkt = due_date minus 7 Tage, d. h. due_date < NOW() + 5 Tage),
-  //    noch kein Follow-up gesendet. Atomarer Flag-Claim verhindert Doppelversand.
-  const followupRows = await sqlPool`
-    UPDATE fiaon_applications SET followup_sent_at = NOW(), updated_at = NOW()
-    WHERE payment_status IN ('pending_payment', 'claimed_paid')
-      AND followup_sent_at IS NULL
-      AND payment_due_date < NOW() + INTERVAL '5 days'
-    RETURNING ref, payment_reference, amount_due, first_name, last_name, contact_name, email, contact_email, billing_email, pack_name
-  `;
-  for (const r of followupRows) {
-    await sendMakeWebhook("followup_48h", makePayloadFromRow(r));
-    result.followupsSent++;
+  // 2) Tägliche Reminder-Engine (Not-Aus + Versandfenster aus Admin-Einstellungen)
+  const { getSettings } = await import("./fiaon-agent");
+  const settings = await getSettings();
+  if (settings.reminder_engine_enabled !== "1") {
+    result.skippedWindow = true;
+    return result;
   }
+  const winStart = Math.min(19, Math.max(8, Math.round(Number(settings.reminder_window_start)) || 10));
+  const winEnd = Math.min(20, Math.max(winStart + 1, Math.round(Number(settings.reminder_window_end)) || winStart + 1));
+  const hour = berlinHour();
+  const inWindow = hour >= winStart && hour < winEnd;
+  // Manueller Trigger (force) darf das kleine Fenster ignorieren — das harte 08–20-Fenster NIE.
+  if ((!opts.force && !inWindow) || !withinHardWindow()) {
+    result.skippedWindow = true;
+    return result;
+  }
+  const maxReminders = Math.max(0, Math.round(Number(settings.max_reminders)) || 6);
+
+  // Batch-Schleife: speicherschonend, atomarer Claim verhindert Doppelversand
+  for (;;) {
+    const batch = await claimReminderBatch(REMINDER_BATCH, { requireAge24h: true, maxReminders });
+    if (batch.length === 0) break;
+    for (const r of batch) {
+      await sendMakeWebhook("payment_reminder", reminderPayload(r));
+      result.remindersSent++;
+    }
+    if (batch.length < REMINDER_BATCH) break;
+  }
+  if (result.remindersSent) console.log(`[FIAON-PAYMENT] Reminder-Engine: ${result.remindersSent} Zahlungserinnerung(en) versendet`);
 
   return result;
 }
@@ -507,13 +611,122 @@ setInterval(() => {
 // Manueller Trigger für Tests / Admin (inkl. Rückruf-Erinnerungen, J2)
 router.post("/admin/payments/run-reminders", async (_req, res) => {
   try {
-    const result = await runPaymentReminders();
+    const result = await runPaymentReminders({ force: true });
     const callbackReminders = await import("./fiaon-agent").then((m) => m.runCallbackReminders()).catch(() => 0);
     res.json({ ok: true, ...result, callbackReminders });
   } catch (err) {
     console.error("[FIAON-PAYMENT] run-reminders:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
+});
+
+// ═══════════════ PAKET W: BULK „AN ALLE UNBEZAHLTEN ERINNERN" ═══════════════
+// Hintergrund-Job: versendet 'payment_reminder' an alle offenen Bestellungen,
+// in Batches von max. 20 Events/Minute (Rate-Limit-Schutz Richtung Make),
+// speicherschonend über atomare Batch-Claims (kein Full-Table-Load).
+// Dieselbe 20h-Dedupe wie die Engine (last_reminder_at, kanalübergreifend).
+
+const BULK_BATCH = 20; // = max. Events pro Minute
+
+interface BulkJobState {
+  running: boolean;
+  startedAt: string;
+  finishedAt: string | null;
+  planned: number;
+  sent: number;
+  errors: number;
+}
+let bulkJob: BulkJobState | null = null;
+
+/** Zählung für den Bestätigungsdialog: wer bekommt die Erinnerung, wer wird übersprungen. */
+router.get("/admin/payments/bulk-reminder/preview", async (_req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const [row] = await sqlPool`
+      SELECT
+        COUNT(*) FILTER (WHERE (last_reminder_at IS NULL OR last_reminder_at < NOW() - INTERVAL '20 hours')) AS eligible,
+        COUNT(*) FILTER (WHERE last_reminder_at IS NOT NULL AND last_reminder_at >= NOW() - INTERVAL '20 hours') AS skipped
+      FROM fiaon_applications
+      WHERE payment_status IN ('pending_payment', 'claimed_paid')
+        AND payment_reference IS NOT NULL AND merged_into IS NULL
+        AND COALESCE(NULLIF(email, ''), NULLIF(contact_email, ''), NULLIF(billing_email, '')) IS NOT NULL
+    `;
+    res.json({
+      ok: true,
+      eligible: Number(row.eligible),
+      skipped: Number(row.skipped),
+      withinWindow: withinHardWindow(),
+      jobRunning: Boolean(bulkJob?.running),
+    });
+  } catch (err) {
+    console.error("[FIAON-BULK] preview:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** Startet den Hintergrund-Job (nur einer gleichzeitig; nur 08–20 Uhr Berlin). */
+router.post("/admin/payments/bulk-reminder/start", async (_req, res) => {
+  try {
+    await ensurePaymentColumns();
+    if (bulkJob?.running) return res.status(409).json({ ok: false, error: "Es läuft bereits ein Bulk-Versand" });
+    if (!withinHardWindow()) {
+      return res.status(400).json({ ok: false, error: "Versand nur zwischen 08:00 und 20:00 Uhr (Europa/Berlin) möglich" });
+    }
+    const [row] = await sqlPool`
+      SELECT COUNT(*) AS eligible FROM fiaon_applications
+      WHERE payment_status IN ('pending_payment', 'claimed_paid')
+        AND payment_reference IS NOT NULL AND merged_into IS NULL
+        AND COALESCE(NULLIF(email, ''), NULLIF(contact_email, ''), NULLIF(billing_email, '')) IS NOT NULL
+        AND (last_reminder_at IS NULL OR last_reminder_at < NOW() - INTERVAL '20 hours')
+    `;
+    const planned = Number(row.eligible);
+    bulkJob = { running: true, startedAt: new Date().toISOString(), finishedAt: null, planned, sent: 0, errors: 0 };
+    res.json({ ok: true, planned });
+
+    // Hintergrund-Schleife (fire-and-forget; Status via /bulk-reminder/status)
+    (async () => {
+      const job = bulkJob!;
+      try {
+        for (;;) {
+          if (!withinHardWindow()) break; // Fenster während des Laufs verlassen → sauber stoppen
+          const batch = await claimReminderBatch(BULK_BATCH, { requireAge24h: false, maxReminders: null });
+          if (batch.length === 0) break;
+          for (const r of batch) {
+            const ok = await sendMakeWebhook("payment_reminder", reminderPayload(r));
+            if (ok) job.sent++;
+            else job.errors++;
+          }
+          if (batch.length < BULK_BATCH) break;
+          // Rate-Limit: max. 20 Events/Minute Richtung Make
+          await new Promise((r) => setTimeout(r, 60_000));
+        }
+      } catch (err) {
+        console.error("[FIAON-BULK] Job-Fehler:", err);
+      } finally {
+        job.running = false;
+        job.finishedAt = new Date().toISOString();
+        // Audit-Log-Eintrag (erscheint im Admin-Audit über den bestehenden agent-log-Endpoint)
+        try {
+          await sqlPool`
+            INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+            VALUES ('SYSTEM', NULL, 'Admin', 'system',
+                    ${`Bulk-Zahlungserinnerung: ${job.sent} versendet, ${Math.max(0, job.planned - job.sent - job.errors)} übrig/übersprungen, ${job.errors} Fehler (geplant: ${job.planned})`})
+          `;
+        } catch (logErr) {
+          console.error("[FIAON-BULK] Audit-Log:", logErr);
+        }
+        console.log(`[FIAON-BULK] Abgeschlossen: ${job.sent}/${job.planned} versendet, ${job.errors} Fehler`);
+      }
+    })();
+  } catch (err) {
+    console.error("[FIAON-BULK] start:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** Fortschritt des laufenden/letzten Bulk-Jobs. */
+router.get("/admin/payments/bulk-reminder/status", async (_req, res) => {
+  res.json({ ok: true, job: bulkJob });
 });
 
 // ── Stillgelegte Stripe-Endpoints (410 Gone, nicht 500) ─────────────

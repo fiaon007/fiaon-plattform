@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import {
   CreditCard, Banknote, FileText, Database, Users, UserPlus, BookOpen,
-  Settings, ScrollText, Scale, ChevronRight, Wallet,
+  Settings, ScrollText, Scale, ChevronRight, Wallet, Send,
 } from "lucide-react";
 import { ACCENT } from "@/components/admin/AdminShell";
 
@@ -155,6 +155,12 @@ export default function AdminHubPage() {
           label: "Einstellungen",
           desc: "Provisionssatz, Mindest-Auszahlung, Base-URL- und Make-Webhook-Diagnose.",
           icon: Settings,
+        },
+        {
+          href: "/admin/events",
+          label: "E-Mail-Events",
+          desc: "Make-Events mit Beispieldaten testen — Diagnose, welcher Event-Typ noch nie gefeuert hat.",
+          icon: Send,
         },
         {
           href: "/admin/audit",

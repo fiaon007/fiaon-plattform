@@ -258,6 +258,11 @@ const SETTING_DEFAULTS: Record<string, string> = {
   default_commission_rate_bp: "1500", // 15,00 %
   payout_min_cents: "5000",           // 50,00 €
   script_status_map: "{}",            // z. B. {"pending_payment":"Eröffnung","claimed_paid":"Abschluss"}
+  // Paket V: tägliche Reminder-Engine (payment_reminder)
+  max_reminders: "6",                 // Obergrenze automatischer Erinnerungen pro Bestellung
+  reminder_window_start: "10",        // Versandfenster-Beginn (Stunde, Europe/Berlin)
+  reminder_window_end: "11",          // Versandfenster-Ende (exklusiv)
+  reminder_engine_enabled: "1",       // Not-Aus-Schalter ("1" = an)
 };
 
 export async function getSettings(): Promise<Record<string, string>> {
@@ -949,8 +954,10 @@ router.post("/agent/customers/:ref/send-payment-email", requireAgent, async (req
     const guard = await claimOrGuard(req.params.ref, req.agent!);
     if (guard.error) return res.status(guard.error.code).json({ ok: false, error: guard.error.msg });
     // Doppelklick-/Spam-Schutz: 10-Minuten-Sperre pro Kunde (atomarer Claim)
+    // last_reminder_at: kanalübergreifende 20h-Dedupe (Paket V) — die Agent-Mail
+    // zählt wie Engine/Bulk als Erinnerung, damit der Kunde nicht doppelt am Tag hört.
     const claimed = await sqlPool`
-      UPDATE fiaon_applications SET agent_email_sent_at = NOW()
+      UPDATE fiaon_applications SET agent_email_sent_at = NOW(), last_reminder_at = NOW()
       WHERE ref = ${req.params.ref}
         AND payment_status IN ('pending_payment', 'claimed_paid')
         AND (agent_email_sent_at IS NULL OR agent_email_sent_at < NOW() - INTERVAL '10 minutes')

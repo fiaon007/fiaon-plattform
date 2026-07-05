@@ -14,8 +14,9 @@ const btnPrimary =
   "px-4 py-2.5 rounded-lg text-white text-[13px] font-semibold transition-colors disabled:opacity-40 bg-[#2563eb] hover:bg-[#1d4fd7]";
 
 const MAKE_EVENTS = [
-  "welcome", "payment_details", "followup_48h", "agent_payment_reminder",
-  "agent_invite", "agent_password_reset", "agent_payout_done", "agent_payout_rejected", "agent_callback_reminder",
+  "welcome", "payment_details", "payment_reminder", "claim_received", "payment_confirmed",
+  "followup_48h", "agent_payment_reminder", "agent_invite", "agent_password_reset",
+  "agent_payout_done", "agent_payout_rejected", "agent_callback_reminder",
 ];
 
 function fmtDT(v: string | null | undefined): string {
@@ -25,6 +26,7 @@ function fmtDT(v: string | null | undefined): string {
 
 export default function AdminEinstellungenPage() {
   const [form, setForm] = useState({ rate: "", min: "" });
+  const [reminder, setReminder] = useState({ max: "6", start: "10", end: "11", enabled: true });
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
   const [sys, setSys] = useState<any>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -42,6 +44,12 @@ export default function AdminEinstellungenPage() {
             min: String(j.settings.payoutMinCents / 100).replace(".", ","),
           });
           setStatusMap(j.settings.scriptStatusMap || {});
+          setReminder({
+            max: String(j.settings.maxReminders ?? 6),
+            start: String(j.settings.reminderWindowStart ?? 10),
+            end: String(j.settings.reminderWindowEnd ?? 11),
+            enabled: Boolean(j.settings.reminderEngineEnabled),
+          });
         }
       });
     fetch("/api/fiaon/admin/system-status", { credentials: "include" })
@@ -61,6 +69,10 @@ export default function AdminEinstellungenPage() {
         defaultCommissionRateBp: Math.round(Number(form.rate.replace(",", ".")) * 100),
         payoutMinCents: Math.round(Number(form.min.replace(",", ".")) * 100),
         scriptStatusMap: statusMap,
+        maxReminders: Math.round(Number(reminder.max)),
+        reminderWindowStart: Math.round(Number(reminder.start)),
+        reminderWindowEnd: Math.round(Number(reminder.end)),
+        reminderEngineEnabled: reminder.enabled,
       }),
     });
     const j = await res.json().catch(() => null);
@@ -92,6 +104,45 @@ export default function AdminEinstellungenPage() {
           <div>
             <label className="block text-[11px] font-semibold text-slate-400 mb-1">Mindest-Auszahlungsbetrag (€)</label>
             <input type="text" inputMode="decimal" value={form.min} onChange={(e) => setForm((f) => ({ ...f, min: e.target.value }))} className={inputCls} />
+          </div>
+        </div>
+        <button type="submit" disabled={busy} className={`${btnPrimary} mt-4`}>{busy ? "…" : "Speichern"}</button>
+      </form>
+
+      {/* Paket V2: Tägliche Reminder-Engine */}
+      <form onSubmit={save} className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+          <h2 className="text-[14px] font-bold text-slate-900">Zahlungserinnerungen (tägliche Engine)</h2>
+          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={reminder.enabled}
+              onChange={(e) => setReminder((r) => ({ ...r, enabled: e.target.checked }))}
+              className="w-4 h-4 accent-[#2563eb]"
+            />
+            <span className={`text-[12px] font-bold ${reminder.enabled ? "text-emerald-600" : "text-red-600"}`}>
+              {reminder.enabled ? "Engine AN" : "Engine AUS (Not-Aus aktiv)"}
+            </span>
+          </label>
+        </div>
+        <p className="text-[12px] text-slate-400 mb-4">
+          Jede unbezahlte Bestellung erhält einmal pro Tag das Make-Event <code className="font-mono">payment_reminder</code> —
+          erste Erinnerung 24 h nach Bestellung, max. 1 Erinnerung pro 20 h (kanalübergreifend, inkl. Mitarbeiter-Mail und Bulk-Versand).
+          Versand nie außerhalb 08–20 Uhr (Europa/Berlin).
+        </p>
+        <div className="grid sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Max. Erinnerungen pro Bestellung</label>
+            <input type="number" min={0} max={30} value={reminder.max} onChange={(e) => setReminder((r) => ({ ...r, max: e.target.value }))} className={inputCls} />
+            <p className="text-[10px] text-slate-400 mt-1">Danach läuft die Bestellung regulär ab (7-Tage-Frist).</p>
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Versandfenster ab (Uhr)</label>
+            <input type="number" min={8} max={19} value={reminder.start} onChange={(e) => setReminder((r) => ({ ...r, start: e.target.value }))} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Versandfenster bis (Uhr, exkl.)</label>
+            <input type="number" min={9} max={20} value={reminder.end} onChange={(e) => setReminder((r) => ({ ...r, end: e.target.value }))} className={inputCls} />
           </div>
         </div>
         <button type="submit" disabled={busy} className={`${btnPrimary} mt-4`}>{busy ? "…" : "Speichern"}</button>

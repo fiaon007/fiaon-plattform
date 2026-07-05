@@ -351,6 +351,11 @@ router.get("/admin/settings", async (_req, res) => {
         defaultCommissionRateBp: Number(settings.default_commission_rate_bp),
         payoutMinCents: Number(settings.payout_min_cents),
         scriptStatusMap: JSON.parse(settings.script_status_map || "{}"),
+        // Paket V2: tägliche Reminder-Engine
+        maxReminders: Number(settings.max_reminders),
+        reminderWindowStart: Number(settings.reminder_window_start),
+        reminderWindowEnd: Number(settings.reminder_window_end),
+        reminderEngineEnabled: settings.reminder_engine_enabled === "1",
       },
     });
   } catch (err) {
@@ -362,7 +367,8 @@ router.get("/admin/settings", async (_req, res) => {
 router.post("/admin/settings", async (req, res) => {
   try {
     await ensureAgentTables();
-    const { defaultCommissionRateBp, payoutMinCents, scriptStatusMap } = req.body || {};
+    const { defaultCommissionRateBp, payoutMinCents, scriptStatusMap,
+            maxReminders, reminderWindowStart, reminderWindowEnd, reminderEngineEnabled } = req.body || {};
     if (defaultCommissionRateBp != null) {
       const v = Math.round(Number(defaultCommissionRateBp));
       if (isNaN(v) || v < 0 || v > 10000) return res.status(400).json({ ok: false, error: "Standard-Provisionssatz ungültig" });
@@ -375,6 +381,25 @@ router.post("/admin/settings", async (req, res) => {
     }
     if (scriptStatusMap != null && typeof scriptStatusMap === "object") {
       await setSetting("script_status_map", JSON.stringify(scriptStatusMap));
+    }
+    // Paket V2: Reminder-Engine-Einstellungen (Versand bleibt IMMER auf 08–20 Uhr Berlin begrenzt)
+    if (maxReminders != null) {
+      const v = Math.round(Number(maxReminders));
+      if (isNaN(v) || v < 0 || v > 30) return res.status(400).json({ ok: false, error: "Max. Erinnerungen ungültig (0–30)" });
+      await setSetting("max_reminders", String(v));
+    }
+    if (reminderWindowStart != null) {
+      const v = Math.round(Number(reminderWindowStart));
+      if (isNaN(v) || v < 8 || v > 19) return res.status(400).json({ ok: false, error: "Versandfenster-Beginn ungültig (8–19 Uhr)" });
+      await setSetting("reminder_window_start", String(v));
+    }
+    if (reminderWindowEnd != null) {
+      const v = Math.round(Number(reminderWindowEnd));
+      if (isNaN(v) || v < 9 || v > 20) return res.status(400).json({ ok: false, error: "Versandfenster-Ende ungültig (9–20 Uhr)" });
+      await setSetting("reminder_window_end", String(v));
+    }
+    if (reminderEngineEnabled != null) {
+      await setSetting("reminder_engine_enabled", reminderEngineEnabled ? "1" : "0");
     }
     res.json({ ok: true });
   } catch (err) {

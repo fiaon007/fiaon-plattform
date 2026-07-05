@@ -40,7 +40,12 @@ interface PaymentStats {
   claimed: { count: number; sum: number };
   paid: { count: number; sum: number };
   confirmationRate: number | null;
+  remindersToday: number;
 }
+
+// Paket W: Bulk-Zahlungserinnerung
+interface BulkPreview { eligible: number; skipped: number; withinWindow: boolean; jobRunning: boolean }
+interface BulkJob { running: boolean; startedAt: string; finishedAt: string | null; planned: number; sent: number; errors: number }
 
 interface TimelineEvent { at: string; label: string; type: string; meta?: string }
 interface AgentRow { id: number; name: string; email: string; active: boolean; created_at: string }
@@ -111,6 +116,12 @@ export default function AdminZahlungenPage() {
   const [actionRef, setActionRef] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [reminderRunning, setReminderRunning] = useState(false);
+
+  // Paket W: Bulk-Versand „An alle unbezahlten erinnern“
+  const [bulkPreview, setBulkPreview] = useState<BulkPreview | null>(null);
+  const [bulkDialog, setBulkDialog] = useState(false);
+  const [bulkJob, setBulkJob] = useState<BulkJob | null>(null);
+  const bulkPoll = useRef<ReturnType<typeof setInterval>>();
 
   // Detail-Drawer
   const [detail, setDetail] = useState<PaymentRow | null>(null);
@@ -384,7 +395,9 @@ export default function AdminZahlungenPage() {
       const res = await fetch(`/api/fiaon/admin/payments/run-reminders`, { method: "POST", credentials: "include" });
       const json = await res.json().catch(() => null);
       if (res.ok && json?.ok) {
-        flash(`✓ Lauf abgeschlossen: ${json.followupsSent}× Follow-up-Webhook (48h), ${json.expired}× abgelaufen`);
+        flash(json.skippedWindow
+          ? `✓ Lauf abgeschlossen: ${json.expired}× abgelaufen — Erinnerungen übersprungen (Engine aus oder außerhalb 08–20 Uhr)`
+          : `✓ Lauf abgeschlossen: ${json.remindersSent}× Zahlungserinnerung (payment_reminder), ${json.expired}× abgelaufen`);
         load(tab);
         loadStats();
       } else {
@@ -394,6 +407,73 @@ export default function AdminZahlungenPage() {
       flash("Netzwerkfehler");
     } finally {
       setReminderRunning(false);
+    }
+  };
+
+  // ── Paket W: Bulk-Versand ──
+  const openBulkDialog = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/fiaon/admin/payments/bulk-reminder/preview`, { credentials: "include" });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        setBulkPreview(json);
+        setBulkDialog(true);
+      } else {
+        flash(`Fehler: ${json?.error || res.status}`);
+      }
+    } catch {
+      flash("Netzwerkfehler");
+    }
+  };
+
+  const pollBulk = useCallback(() => {
+    clearInterval(bulkPoll.current);
+    bulkPoll.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/fiaon/admin/payments/bulk-reminder/status`, { credentials: "include" });
+        const json = await res.json().catch(() => null);
+        if (json?.ok && json.job) {
+          setBulkJob(json.job);
+          if (!json.job.running) {
+            clearInterval(bulkPoll.current);
+            loadStats();
+            flash(`✓ Bulk-Versand abgeschlossen: ${json.job.sent} versendet, ${json.job.errors} Fehler`);
+          }
+        }
+      } catch {}
+    }, 2500);
+  }, [loadStats]);
+
+  useEffect(() => () => clearInterval(bulkPoll.current), []);
+
+  // Läuft beim Seitenaufruf bereits ein Bulk-Job (z. B. nach Reload)? → Fortschritt wieder anzeigen
+  useEffect(() => {
+    fetch(`/api/fiaon/admin/payments/bulk-reminder/status`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j?.ok && j.job?.running) {
+          setBulkJob(j.job);
+          pollBulk();
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const startBulk = async () => {
+    setBulkDialog(false);
+    try {
+      const res = await fetch(`/api/fiaon/admin/payments/bulk-reminder/start`, { method: "POST", credentials: "include" });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        setBulkJob({ running: true, startedAt: new Date().toISOString(), finishedAt: null, planned: json.planned, sent: 0, errors: 0 });
+        pollBulk();
+      } else {
+        flash(`Fehler: ${json?.error || res.status}`);
+      }
+    } catch {
+      flash("Netzwerkfehler");
     }
   };
 
@@ -419,15 +499,49 @@ export default function AdminZahlungenPage() {
               Manuelle Freischaltung nach Zahlungseingang — Abgleich per Verwendungszweck mit dem Kontoauszug.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={runReminders}
-            disabled={reminderRunning}
-            className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-[13px] font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all disabled:opacity-50"
-          >
-            {reminderRunning ? "Läuft…" : "Follow-up-Lauf jetzt starten"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={openBulkDialog}
+              disabled={Boolean(bulkJob?.running)}
+              className="px-4 py-2.5 rounded-xl text-white text-[13px] font-semibold bg-[#2563eb] hover:bg-[#1d4fd7] transition-all disabled:opacity-50"
+            >
+              {bulkJob?.running ? "Bulk-Versand läuft …" : "Zahlungserinnerung an alle offenen senden"}
+            </button>
+            <button
+              type="button"
+              onClick={runReminders}
+              disabled={reminderRunning}
+              className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-[13px] font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all disabled:opacity-50"
+            >
+              {reminderRunning ? "Läuft…" : "Reminder-Lauf jetzt starten"}
+            </button>
+          </div>
         </div>
+
+        {/* Paket W: Fortschritt des Bulk-Jobs */}
+        {bulkJob && (
+          <div className="mb-4 px-4 py-3 rounded-xl bg-white border border-slate-200">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <p className="text-[13px] font-semibold text-slate-800">
+                {bulkJob.running ? "Bulk-Zahlungserinnerung läuft …" : "Bulk-Zahlungserinnerung abgeschlossen"}
+              </p>
+              <p className="text-[12px] text-slate-500 tabular-nums">
+                {bulkJob.sent} / {bulkJob.planned} versendet{bulkJob.errors > 0 ? ` · ${bulkJob.errors} Fehler` : ""}
+                {!bulkJob.running && (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); setBulkJob(null); }} className="ml-3 font-semibold text-slate-400 hover:text-slate-600">Ausblenden</button>
+                )}
+              </p>
+            </div>
+            <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-[#2563eb] transition-all duration-700"
+                style={{ width: `${bulkJob.planned > 0 ? Math.min(100, Math.round(((bulkJob.sent + bulkJob.errors) / bulkJob.planned) * 100)) : 100}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1.5">Versand in Batches (max. 20 E-Mails/Minute) — du kannst die Seite verlassen, der Versand läuft im Hintergrund weiter.</p>
+          </div>
+        )}
 
         {message && (
           <div className="mb-4 px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 text-[13px] font-semibold text-blue-800">
@@ -435,9 +549,9 @@ export default function AdminZahlungenPage() {
           </div>
         )}
 
-        {/* ── C1: Vier Kennzahl-Kacheln ── */}
+        {/* ── C1: Kennzahl-Kacheln ── */}
         {stats && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
             <div className="bg-white border border-slate-200 rounded-2xl p-4">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Offen — keine Reaktion</p>
               <p className="text-xl font-bold text-slate-900">{stats.pending.sum.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €</p>
@@ -462,6 +576,42 @@ export default function AdminZahlungenPage() {
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Bestätigungsquote</p>
               <p className="text-xl font-bold text-slate-900">{stats.confirmationRate === null ? "—" : `${stats.confirmationRate} %`}</p>
               <p className="text-[11px] text-slate-400">bezahlt / Zahlung angekündigt</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-2xl p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Heute versendete Erinnerungen</p>
+              <p className="text-xl font-bold text-slate-900 tabular-nums">{stats.remindersToday ?? 0}</p>
+              <p className="text-[11px] text-slate-400">payment_reminder (Engine + Bulk + Team)</p>
+            </div>
+          </div>
+        )}
+
+        {/* Paket W: Bestätigungsdialog Bulk-Versand */}
+        {bulkDialog && bulkPreview && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center px-4" onClick={() => setBulkDialog(false)}>
+            <div className="absolute inset-0 bg-slate-900/40" />
+            <div className="relative w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-[15px] font-bold text-slate-900 mb-3">Zahlungserinnerung an alle offenen senden?</h3>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 mb-4 text-[13px] space-y-1">
+                <p><b className="tabular-nums">{bulkPreview.eligible}</b> Kunden erhalten jetzt die Zahlungsdaten-Erinnerung (Make: <code className="font-mono text-[12px]">payment_reminder</code>).</p>
+                <p className="text-slate-500"><b className="tabular-nums">{bulkPreview.skipped}</b> Kunden werden übersprungen (bereits in den letzten 20 Stunden erinnert).</p>
+              </div>
+              {!bulkPreview.withinWindow && (
+                <p className="text-[12px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+                  Versand nur zwischen 08:00 und 20:00 Uhr (Europa/Berlin) möglich.
+                </p>
+              )}
+              <p className="text-[12px] text-slate-500 mb-4">Versand in Batches von 20 E-Mails pro Minute — läuft im Hintergrund, Fortschritt oben auf der Seite.</p>
+              <div className="flex gap-2 justify-end">
+                <button type="button" onClick={(e) => { e.stopPropagation(); setBulkDialog(false); }} className="px-4 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-600 hover:border-slate-300">Abbrechen</button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); startBulk(); }}
+                  disabled={!bulkPreview.withinWindow || bulkPreview.eligible === 0 || bulkPreview.jobRunning}
+                  className="px-4 py-2.5 rounded-xl text-white text-[13px] font-semibold bg-[#2563eb] hover:bg-[#1d4fd7] disabled:opacity-40"
+                >
+                  Jetzt an {bulkPreview.eligible} Kunden senden
+                </button>
+              </div>
             </div>
           </div>
         )}

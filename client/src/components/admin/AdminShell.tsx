@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, CreditCard, Banknote, FileText, Users, UserPlus,
   BookOpen, Settings, ScrollText, Scale, Database, Search, Menu, X,
-  ArrowLeft, ChevronRight, ShieldAlert, Wallet,
+  ArrowLeft, ChevronRight, ShieldAlert, Wallet, Send,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -63,7 +63,8 @@ export const ADMIN_NAV: NavGroup[] = [
   {
     title: "System & Recht",
     items: [
-      { path: "/admin/einstellungen", label: "Einstellungen", desc: "Provisionssatz, Auszahlung, Base-URL, Make-Status", icon: Settings },
+      { path: "/admin/einstellungen", label: "Einstellungen", desc: "Provisionssatz, Auszahlung, Reminder-Engine, Diagnose", icon: Settings },
+      { path: "/admin/events", label: "E-Mail-Events", desc: "Make-Events testen, Diagnose, Verlauf", icon: Send },
       { path: "/admin/audit", label: "Audit-Log", desc: "Alle Mitarbeiter-Aktionen durchsuchbar", icon: ScrollText },
       { path: "/admin/recht", label: "Rechtstexte-Status", desc: "LEGAL-Review-Stand (read-only)", icon: Scale },
     ],

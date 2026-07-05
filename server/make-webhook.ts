@@ -7,10 +7,16 @@
 
 import postgres from "postgres";
 
+// WICHTIG: Jeder neue Event-Typ MUSS zusätzlich in die Registry
+// (server/make-events-registry.ts) eingetragen werden — sie ist die
+// Quelle für die Event-Test-Konsole /admin/events (Paket T).
 export type MakeEventType =
   | "welcome"
   | "payment_details"
-  | "followup_48h"
+  | "followup_48h" // deprecated — ersetzt durch payment_reminder (Paket V)
+  | "payment_reminder"
+  | "claim_received"
+  | "payment_confirmed"
   | "agent_payment_reminder"
   | "agent_invite"
   | "agent_password_reset"

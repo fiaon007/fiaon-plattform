@@ -296,6 +296,42 @@ Neue read-only Finanz-Übersicht `/admin/verbuchungen` — bestätigte Zahlungen
 - **Verdrahtung**: Route in `client/src/App.tsx`; Sidebar-Eintrag in `AdminShell.tsx` (Gruppe „Umsatz & Zahlungen", Wallet-Icon); Hub-Karte + klickbare „Heute bestätigt"-Kachel in `admin-hub.tsx` verlinken auf die neue Seite.
 - **Getestet** (echter Server + Produktiv-DB, read-only): `range=today` → 5 Verbuchungen, 195,95 € Umsatz, 0 € Provision (Kunden ohne zugewiesenen Agent ⇒ korrekt „Direkt"), Netto = Umsatz; `range=30d` → 6/255,94 €; Aggregate/Gruppierung stimmig; Seite HTTP 200; Typecheck + Vite-Build grün.
 
+### Update: E-Mail-Engine-Ausbau (Pakete T–X)
+
+Event-Konsole, Claim-Bestätigung, tägliche Reminder-Engine, Bulk-Versand, Bezahlt-Mail über Make. `sendMakeWebhook` bleibt der EINZIGE Versandweg; Fehler blockieren nie den Nutzer-Flow.
+
+**Paket T — Event-Test-Konsole `/admin/events`** (Sidebar „System & Recht" + Hub-Karte)
+- **Registry** `server/make-events-registry.ts`: zentrale Liste ALLER 12 Event-Typen mit Beschreibung, Payload-Schema und realistischen Beispielwerten. REGEL: Jedes neue Event MUSS hier eingetragen werden (Kommentar auch in `make-webhook.ts` am Typ-Union).
+- **Test-Versand** (`POST /admin/events/test`): editierbarer JSON-Payload (Beispiele vorausgefüllt), `email` durch Test-Adresse ersetzt (im Browser gemerkt), `test: true` mitgesendet → Make lernt die Struktur, ohne echten Workflow. Ergebnis (Status + Zeit) inline; Verlauf der letzten 20 Sends (`fiaon_settings.make_test_history`).
+- **„Für echten Kunden senden"** (`POST /admin/events/send-real`): nur kundengebundene Events (welcome, payment_details, claim_received, payment_reminder, payment_confirmed); Referenz-Suche → dryRun-Vorschau (Kunde/E-Mail/Payload) → Bestätigungsdialog „Der Kunde erhält wirklich diese E-Mail". payment_reminder stempelt dabei `last_reminder_at` (kanalübergreifende Dedupe).
+- **Diagnose-Tabelle**: letzter erfolgreicher Versand je Event (bestehendes `make_last_events`-Logging), „noch nie gesendet"-Badge.
+
+**Paket U — `claim_received`**: Klick „Ich habe die Überweisung getätigt" feuert zusätzlich das Event (Payload wie payment_details inkl. `invoice_url`). Genau 1× pro Bestellung via atomarem Flag `claim_email_sent_at` — Mehrfachklick feuert nicht erneut (getestet).
+
+**Paket V — Tägliche Reminder-Engine** (ersetzt einmaliges `followup_48h`, Registry-Eintrag deprecated)
+- Stündlicher Cron: jede unbezahlte Bestellung (`pending_payment`/`claimed_paid`) erhält 1×/Tag Event **`payment_reminder`** (Payload wie payment_details + `reminder_number`). Erste Erinnerung 24 h nach Bestellung (`COALESCE(payment_email_sent_at, created_at)`), Versandfenster Default 10–11 Uhr Europe/Berlin, **hartes Fenster 08–20 Uhr gilt IMMER** (auch für manuellen Force-Lauf und Bulk).
+- **Dedupe kanalübergreifend**: max. 1 Reminder/20 h über `fiaon_applications.last_reminder_at` — Engine, Bulk, Konsole-Real-Send und Agent-Mail (`send-payment-email` stempelt jetzt mit) zählen zusammen.
+- Obergrenze `max_reminders` (Default 6) → danach keine automatischen Mails; Bestellung läuft regulär in `expired` (7-Tage-Frist = MAX+1, bereits abgestimmt). `paid`/`expired` stoppen sofort (Status-Filter). Batch-Claims à 50 (`FOR UPDATE SKIP LOCKED`), speicherschonend.
+- **Admin-Einstellungen** (`/admin/einstellungen`): MAX_REMINDERS, Versandfenster (8–19/9–20 validiert), Not-Aus-Schalter (`reminder_engine_enabled`). Neue Kennzahl Zahlungszentrale: „Heute versendete Erinnerungen" (`remindersToday`, Berlin-Tagesgrenze). Timeline zeigt claim/confirmed/last_reminder-Ereignisse.
+- **WICHTIG (Zeitzonen-Bugfix)**: `Intl.DateTimeFormat("de-DE", { hour })` liefert „14 Uhr" → NaN; `berlinHour()` nutzt daher `formatToParts` (im Test gefunden und behoben).
+
+**Paket W — Bulk „Zahlungserinnerung an alle offenen senden"** (Zahlungszentrale, Kopfzeile)
+- Bestätigungsdialog mit Live-Zahlen (`GET …/bulk-reminder/preview`): X erhalten die Erinnerung, Y übersprungen (20h-Dedupe); Hinweis + Sperre außerhalb 08–20 Uhr.
+- Hintergrund-Job (`POST …/start`, nur einer gleichzeitig): Batches à **20 Events/Minute** (Rate-Limit Richtung Make), atomare Batch-Claims statt Full-Table-Load (RAM flach, 512-MB-sicher). Fortschrittsbalken via Polling (`GET …/status`), überlebt Seiten-Reload; Abschluss-Zusammenfassung (versendet/übersprungen/Fehler) + **Audit-Eintrag** in `fiaon_contact_log` (ref `SYSTEM`, type `system`). Bulk nutzt dasselbe Event + dieselbe Dedupe wie die Engine (ohne 24h-Mindestalter, ohne MAX-Cap — bewusste Admin-Aktion, zählt aber mit).
+
+**Paket X — `payment_confirmed`**: „Als bezahlt markieren" feuert das Event mit `login_url` (via `absoluteUrl("/login")`) und ERSETZT die frühere direkte Resend-Freischaltmail (`sendPaymentConfirmedEmail`-Aufruf entfernt — alle Kundenmails laufen jetzt einheitlich über Make/Brevo). Genau 1× via Flag `confirmed_email_sent_at` (getestet).
+
+**Neue DB-Spalten** (idempotente Migration in `ensurePaymentColumns`): `claim_email_sent_at`, `confirmed_email_sent_at`, `last_reminder_at`, `reminder_count`. Neue Settings-Defaults in `fiaon-agent.ts`.
+
+**Getestet** (echter Server + Produktiv-DB; MAKE_WEBHOOK_URL lokal absichtlich nicht gesetzt → Events werden geloggt, keine echten Mails; Test-Bestellung danach gelöscht):
+1. ✅ Registry: 12 Events; Test-Send ohne env → sauberer 400; send-real dryRun mit echter Referenz → korrekte Vorschau (invoice_url, reminder_number=1); Konsole HTTP 200. 2. ✅ claim_received: 2× Klick → Event exakt 1× im Log, Flag gesetzt. 3. ✅ Engine-SQL in Transaktion (ROLLBACK, 0 Mutationen): 56 von 125 offenen >24h wären erinnert; 2. Lauf sofort = 0 (20h-Dedupe); reminder_count=6 → nicht mehr enthalten (MAX-Cap); Not-Aus → `skippedWindow`, 0 Erinnerungen, danach wieder aktiviert. 4. ✅ Bulk-Preview: 125 eligible/0 skipped, `withinWindow` korrekt (nach Zeitzonen-Fix); Batch-Design ≤20 Zeilen im RAM. 5. ✅ payment_confirmed: 2× mark-paid → Event exakt 1×, alte Direkt-Mail-Codepfad entfernt. 6. ✅ Regression: welcome/payment_details/Agent-Events unangetastet (nur `last_reminder_at`-Stempel ergänzt); Typecheck + Build grün.
+
+**Betreiber-TODO (Make.com + Brevo)**
+- [ ] Router-Zweige anlegen für: **`claim_received`**, **`payment_reminder`**, **`payment_confirmed`** (+ Brevo-Templates). Struktur lernen: je Event 1× „Test an Make senden" über `/admin/events`.
+- [ ] Bestehenden **`followup_48h`-Zweig auf `payment_reminder` umstellen** (nur Filterwert ändern, Template kann bleiben — Feld `reminder_number` steht zusätzlich bereit).
+- [ ] Zweige für **`agent_payout_done`**, **`agent_payout_rejected`**, **`agent_callback_reminder`** anlegen (Struktur ebenfalls per Test-Konsole lernen).
+- [ ] `claim_received`-Template: Dank + Freischalt-Zeitfenster „werktags bis 18:00 Uhr" + Zahlungsdaten (Payload liefert Betrag/Referenz/invoice_url).
+
 ### Offene Punkte
 - [ ] **Env-Variablen entfernen**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VITE_STRIPE_PUBLISHABLE_KEY`/`VITE_STRIPE_PUBLIC_KEY` aus dem Deployment löschen (Code ist mit Null-Guards abgesichert).
 - [ ] **Stripe Payment Links im Stripe-Dashboard deaktivieren** (alte gespeicherte URLs könnten sonst noch funktionieren).

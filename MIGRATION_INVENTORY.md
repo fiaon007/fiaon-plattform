@@ -332,6 +332,30 @@ Event-Konsole, Claim-Bestätigung, tägliche Reminder-Engine, Bulk-Versand, Beza
 - [ ] Zweige für **`agent_payout_done`**, **`agent_payout_rejected`**, **`agent_callback_reminder`** anlegen (Struktur ebenfalls per Test-Konsole lernen).
 - [ ] `claim_received`-Template: Dank + Freischalt-Zeitfenster „werktags bis 18:00 Uhr" + Zahlungsdaten (Payload liefert Betrag/Referenz/invoice_url).
 
+### Update: Login-Freischaltung-Bugfix + Voll-IBAN für Admins (Pakete Y–Z)
+
+**Paket Y — „Als bezahlt markiert" schaltet den Kunden-Login jetzt zuverlässig frei**
+
+Root-Cause (verifiziert): Der Kunden-Login `POST /api/fiaon/login` (`fiaon-antrag.ts`) prüfte EXAKT `status === "completed"`. `mark-paid` setzt aber `status = 'payment_completed'` (und der KYC-Upload `documents_submitted`) — jeder Status-Fortschritt nach „completed" sperrte den Login mit „Antrag noch nicht abgeschlossen" aus. Es gibt KEIN separates KYC-Login-Gate: `account_status` (pending/active/suspended) war reine Dashboard-Anzeige, kein harter Login-Block. KYC ist ein Nach-Login-Schritt (AGB: „Zugang nach Zahlungseingang freigeschaltet").
+
+- **Login-Gate robust** (`fiaon-antrag.ts`): Allowlist `LOGIN_ACCESS_STATUSES = {completed, documents_submitted, payment_completed}` ODER `payment_status='paid'` → Zugang. `account_status='suspended'` bleibt harte Sperre (Admin-Not-Aus, eigene 403-Meldung „Konto gesperrt"). Damit können bezahlte Kunden IMMER rein, egal wie der Antragsstatus fortschreitet.
+- **mark-paid atomar** (`admin/payments/:ref/mark-paid`): Ein UPDATE setzt `payment_status='paid'` + `status='payment_completed'` + `account_status = CASE WHEN 'suspended' THEN 'suspended' ELSE 'active' END` + `completed_at`. KEIN zweiter manueller Schritt nötig; suspendierte Konten werden NICHT automatisch reaktiviert. `payment_confirmed`-Mail (Paket X) feuert weiter genau 1× über den atomaren Flag-Claim.
+- **Kein separates Freischalt-Gate**: Da der Login nie auf KYC gate-te, genügt der bestehende Button „Als bezahlt markieren" — er setzt alles atomar. Kein zusätzlicher „Bezahlt + freischalten"-Button nötig (dokumentierte Design-Entscheidung, um kein Schein-Gate zu erfinden).
+- **Rückwirkende Reparatur** (`backfillPaidAccess`): schaltet alle `payment_status='paid'`-Kunden frei, deren Konto durch den Bug nie aktiviert wurde — setzt `status='payment_completed'` (nur wenn nicht bereits Access-Status) und `account_status='active'` (nur wenn nicht suspended), stempelt `access_backfilled_at`. **KEINE erneuten Mails** (rührt `confirmed_email_sent_at` nicht an). Idempotent über `access_backfilled_at IS NULL`. Läuft automatisch 1× beim Serverstart (in `ensurePaymentColumns`, geloggt mit Anzahl + Referenzen) UND per Admin-Endpoint `POST /admin/payments/backfill-access` (liefert `{count, refs}`).
+- **Neue Spalten** (idempotent in `ensurePaymentColumns`): `account_status VARCHAR DEFAULT 'pending'`, `access_backfilled_at TIMESTAMPTZ`.
+- **Timeline**: neuer Eintrag „Zugang freigeschaltet (Nachtrag)" bei gesetztem `access_backfilled_at`.
+
+**Getestet** (echter Server + Produktiv-DB; Testdaten danach gelöscht):
+1. ✅ Startlauf-Backfill: **97 bezahlte Alt-Kunden** nachträglich freigeschaltet, KEINE Mails (`confirmed_email_sent_at` unangetastet). 2. ✅ Alt-Fall (paid, payment_completed, account=pending): Login sofort `ok:true` (Login-Fix greift schon vor Backfill); Backfill setzt danach `account_status=active` + `access_backfilled_at`, ohne Mail. 3. ✅ Frischer pending-Kunde → mark-paid → `payment_completed` + `account_status=active` in einem Schritt. 4. ✅ Suspendierter, bezahlter Kunde: Login 403 „Konto gesperrt"; mark-paid reaktiviert NICHT (`account_status` bleibt `suspended`). 5. ✅ Kunde ohne Passwort: unverändert (Setup-Flow), Login-Gate greift nur nach Passwort-Prüfung.
+
+**Paket Z — Volle IBAN-Sichtbarkeit für Admins (alle Agenten, jederzeit, mit Audit)**
+
+- **Neuer Admin-Endpoint** `GET /admin/team/agents/:id/bank` (`fiaon-team.ts`): entschlüsselt (AES-256-GCM via `decryptSecret`) Kontoinhaber, **volle IBAN**, BIC + `bank_updated_at`; liefert zusätzlich die letzte Bankänderung (alt→neu maskiert, Zeit, IP) aus dem Audit-Log. **Jeder Abruf schreibt ein Audit-Event** `bank_viewed_by_admin` (Zeit + IP) in `fiaon_agent_events` → Einsicht bleibt nachvollziehbar. Liegt unter `/admin/*` → `blockAgentsFromAdmin` gibt Agent-Tokens serverseitig 403 (verifiziert: gültiger Agent-Token → 403 hier, aber 200 auf `/agent/me`).
+- **Bank-Change-Audit erweitert** (`fiaon-agent.ts`, `/agent/profile/bank`): loggt jetzt `old_iban_masked` + `iban_masked` + `ip` (ändert NICHT, was der Agent sieht — Agent behält maskierte IBAN + Änderungsmöglichkeit).
+- **Frontend** (`admin-team.tsx`): Betrugsschutz-Banner-Namen sind klickbar → öffnen das Agent-Detail und decken die Auszahlungsdaten automatisch auf. Neue Sektion „Auszahlungsdaten" (Kontoinhaber, volle IBAN monospace/`select-all`, BIC, letzte Änderung); volle IBAN wird erst auf Klick „Volle IBAN anzeigen" geladen (= bewusster, protokollierter Abruf). Alt→neu + Zeit + IP im Betrugsschutz-Kasten. Aktivitätslog erhält lesbare Event-Labels (`bank_viewed_by_admin` = „Volle IBAN durch Admin eingesehen") + IP/Alt→Neu aus dem meta-Feld.
+
+**Getestet**: ✅ Admin-Abruf liefert volle IBAN + alt→neu + IP; ✅ Audit-Event je Abruf geschrieben; ✅ Agent-Token → 403 am selben Endpoint. Typecheck (geänderte Dateien) + Vite-Build grün.
+
 ### Offene Punkte
 - [ ] **Env-Variablen entfernen**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VITE_STRIPE_PUBLISHABLE_KEY`/`VITE_STRIPE_PUBLIC_KEY` aus dem Deployment löschen (Code ist mit Null-Guards abgesichert).
 - [ ] **Stripe Payment Links im Stripe-Dashboard deaktivieren** (alte gespeicherte URLs könnten sonst noch funktionieren).

@@ -63,6 +63,31 @@ function fmtDT(v: string | null): string {
   try { return new Date(v).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return "—"; }
 }
 
+// Lesbare Labels für die Konto-Ereignisse (fiaon_agent_events) im Aktivitätslog.
+const EVENT_LABELS: Record<string, string> = {
+  invited: "Eingeladen", invite_resent: "Einladung erneut gesendet",
+  password_set: "Passwort gesetzt", password_reset_requested: "Passwort-Reset angefordert",
+  password_changed: "Passwort geändert", force_reset: "Passwort-Reset erzwungen (Admin)",
+  bank_changed: "Bankdaten geändert", bank_viewed_by_admin: "Volle IBAN durch Admin eingesehen",
+  phone_changed: "Telefon geändert", avatar_changed: "Profilbild geändert",
+  payout_requested: "Auszahlung angefordert", payout_paid: "Auszahlung ausgeführt",
+  payout_rejected: "Auszahlung abgelehnt", commission_created: "Provision gutgeschrieben",
+  commission_cancelled: "Provision storniert", login: "Anmeldung",
+};
+function eventLabel(type: string): string {
+  return EVENT_LABELS[type] || type;
+}
+/** Zusatzinfos aus dem meta-Feld (IP bei Bankdaten-Einsicht/-Änderung) für den Betrugsschutz-Trail. */
+function eventMeta(item: any): string {
+  if (item.kind !== "event" || !item.meta) return "";
+  let m: any = {};
+  try { m = typeof item.meta === "string" ? JSON.parse(item.meta) : item.meta; } catch { return ""; }
+  const parts: string[] = [];
+  if (m.old_iban_masked || m.iban_masked) parts.push(`${m.old_iban_masked || "—"} → ${m.iban_masked || "—"}`);
+  if (m.ip) parts.push(`IP ${m.ip}`);
+  return parts.length ? ` · ${parts.join(" · ")}` : "";
+}
+
 async function api(path: string, init?: RequestInit): Promise<any> {
   const res = await fetch(`/api/fiaon${path}`, {
     credentials: "include",
@@ -78,7 +103,11 @@ export default function AdminTeamPage() {
   const [defaults, setDefaults] = useState<{ commissionRateBp: number }>({ commissionRateBp: 1500 });
   const [message, setMessage] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
+  const [bankFocus, setBankFocus] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+
+  // Betrugsschutz-Banner → direkt ins Agent-Detail springen und Auszahlungsdaten aufdecken
+  const openBank = (agentId: number) => { setBankFocus(true); setDetailId(agentId); };
 
   const flash = (m: string) => { setMessage(m); setTimeout(() => setMessage(null), 4500); };
 
@@ -136,7 +165,20 @@ export default function AdminTeamPage() {
         {bankChanges.length > 0 && (
           <div className="mb-4 px-4 py-3 rounded-xl border border-slate-400 bg-white flex flex-wrap items-center justify-between gap-3">
             <p className="text-[13px] font-semibold text-slate-800">
-              Bankdaten geändert: {bankChanges.map((a) => `${a.name} (${a.bank_iban_masked || "—"})`).join(", ")}
+              Bankdaten geändert:{" "}
+              {bankChanges.map((a, i) => (
+                <span key={a.id}>
+                  {i > 0 && ", "}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); openBank(a.id); }}
+                    className="font-semibold text-[#2563eb] hover:underline"
+                    title="Auszahlungsdaten prüfen"
+                  >
+                    {a.name} ({a.bank_iban_masked || "—"})
+                  </button>
+                </span>
+              ))}
               <span className="font-normal text-slate-500"> — bitte prüfen (Betrugsschutz).</span>
             </p>
             <button type="button" onClick={ackBankChanges} className={btnGhost}>Geprüft, Hinweis entfernen</button>
@@ -196,7 +238,8 @@ export default function AdminTeamPage() {
         <AgentDetailDrawer
           id={detailId}
           agents={stats}
-          onClose={() => setDetailId(null)}
+          autoRevealBank={bankFocus}
+          onClose={() => { setDetailId(null); setBankFocus(false); }}
           onChanged={load}
           flash={flash}
         />
@@ -273,9 +316,10 @@ function InviteModal({ defaults, onClose, onDone, flash }: {
 
 // ═══════════════ K: Agent-Detail ═══════════════
 
-function AgentDetailDrawer({ id, agents, onClose, onChanged, flash }: {
+function AgentDetailDrawer({ id, agents, autoRevealBank, onClose, onChanged, flash }: {
   id: number;
   agents: AgentStat[];
+  autoRevealBank?: boolean;
   onClose: () => void;
   onChanged: () => void;
   flash: (m: string) => void;
@@ -286,6 +330,17 @@ function AgentDetailDrawer({ id, agents, onClose, onChanged, flash }: {
   const [reassignTo, setReassignTo] = useState<string>("");
   const [selectedRefs, setSelectedRefs] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<"aktivitaet" | "provisionen" | "kunden">("kunden");
+  // Paket Z: Auszahlungsdaten werden erst auf Klick geladen (jeder Abruf = Audit-Eintrag)
+  const [bank, setBank] = useState<any>(null);
+  const [bankBusy, setBankBusy] = useState(false);
+
+  const loadBank = useCallback(async () => {
+    setBankBusy(true);
+    const r = await api(`/admin/team/agents/${id}/bank`);
+    setBankBusy(false);
+    if (r.ok) setBank(r.json.bank);
+    else flash(r.json?.error || "Auszahlungsdaten konnten nicht geladen werden");
+  }, [id, flash]);
 
   const load = useCallback(() => {
     api(`/admin/team/agents/${id}`).then((r) => {
@@ -303,6 +358,8 @@ function AgentDetailDrawer({ id, agents, onClose, onChanged, flash }: {
     });
   }, [id]);
   useEffect(load, [load]);
+  // Aus dem Betrugsschutz-Banner geöffnet → volle IBAN sofort aufdecken (Audit läuft mit)
+  useEffect(() => { if (autoRevealBank) loadBank(); }, [autoRevealBank, loadBank]);
 
   if (!data) return null;
   const a = data.agent;
@@ -401,6 +458,64 @@ function AgentDetailDrawer({ id, agents, onClose, onChanged, flash }: {
             </div>
           </form>
 
+          {/* Paket Z: Auszahlungsdaten (volle IBAN — nur Admin, jeder Abruf wird protokolliert) */}
+          <div id="auszahlungsdaten" className="border border-slate-200 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-[13px] font-semibold text-slate-900">Auszahlungsdaten</h3>
+              {!a.bank_iban_masked && <span className="text-[11px] text-slate-400">Noch keine Bankdaten hinterlegt</span>}
+            </div>
+
+            {bank == null ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-[12px] text-slate-500">
+                  {a.bank_iban_masked ? `Hinterlegt: ${a.bank_iban_masked}` : "—"}
+                </p>
+                {a.bank_iban_masked && (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); loadBank(); }} disabled={bankBusy} className={btnGhost}>
+                    {bankBusy ? "Lädt …" : "Volle IBAN anzeigen"}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-400">Kontoinhaber</p>
+                    <p className="text-[13px] text-slate-900">{bank.holder || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-400">BIC</p>
+                    <p className="text-[13px] text-slate-900 font-mono">{bank.bic || "—"}</p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-[11px] font-semibold text-slate-400">IBAN (vollständig)</p>
+                    <p className="text-[14px] text-slate-900 font-mono tracking-wide select-all break-all">{bank.ibanFull || "—"}</p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-[11px] font-semibold text-slate-400">Zuletzt geändert</p>
+                    <p className="text-[13px] text-slate-900">{fmtDT(bank.updatedAt)}</p>
+                  </div>
+                </div>
+
+                {bank.lastChange && (bank.lastChange.oldIbanMasked || bank.lastChange.ip) && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700 mb-1">Letzte Bankänderung (Betrugsschutz)</p>
+                    <p className="text-[12px] text-slate-700">
+                      <span className="font-mono">{bank.lastChange.oldIbanMasked || "— (keine frühere)"}</span>
+                      {" → "}
+                      <span className="font-mono font-semibold">{bank.lastChange.newIbanMasked || bank.ibanMasked || "—"}</span>
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Geändert am {fmtDT(bank.lastChange.at)}{bank.lastChange.ip ? ` · IP ${bank.lastChange.ip}` : ""}
+                    </p>
+                  </div>
+                )}
+
+                <p className="text-[11px] text-slate-400">Diese Einsicht in die vollständige IBAN wurde im Aktivitätslog des Mitarbeiters protokolliert.</p>
+              </div>
+            )}
+          </div>
+
           {/* Tabs */}
           <div className="flex gap-2">
             {([["kunden", `Kunden (${data.customers.length})`], ["provisionen", `Provisionen (${data.commissions.length})`], ["aktivitaet", "Aktivität"]] as const).map(([key, label]) => (
@@ -491,9 +606,9 @@ function AgentDetailDrawer({ id, agents, onClose, onChanged, flash }: {
                 .map((item: any) => (
                   <div key={`${item.kind}-${item.id}`} className="px-4 py-2.5">
                     <p className="text-[12px] font-medium text-slate-700">
-                      {item.kind === "event" ? item.type : `${item.type}${item.outcome ? `: ${item.outcome}` : ""} · ${item.ref}`}
+                      {item.kind === "event" ? eventLabel(item.type) : `${item.type}${item.outcome ? `: ${item.outcome}` : ""} · ${item.ref}`}
                     </p>
-                    <p className="text-[11px] text-slate-400">{fmtDT(item.created_at)}{item.note ? ` · ${item.note}` : ""}</p>
+                    <p className="text-[11px] text-slate-400">{fmtDT(item.created_at)}{item.note ? ` · ${item.note}` : ""}{eventMeta(item)}</p>
                   </div>
                 ))}
             </div>

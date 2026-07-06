@@ -725,6 +725,11 @@ router.post("/agent/profile/bank", requireAgent, async (req: AgentRequest, res) 
     if (!ibanChecksumValid(ibanRaw)) return res.status(400).json({ ok: false, error: "IBAN ungültig (Prüfsumme fehlgeschlagen)" });
     if (bic && !/^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(bic)) return res.status(400).json({ ok: false, error: "BIC ungültig" });
     const masked = maskIban(ibanRaw);
+    // Alt-IBAN (maskiert) + IP für den Betrugsschutz-Trail festhalten (ändert NICHT,
+    // was der Agent sieht — nur der Admin-Audit gewinnt alt→neu + Herkunft).
+    const prev = await sqlPool`SELECT bank_iban_masked FROM fiaon_agents WHERE id = ${req.agent!.id}`;
+    const oldMasked = prev[0]?.bank_iban_masked || null;
+    const ip = String((req.headers["x-forwarded-for"] as string || "").split(",")[0].trim() || req.socket?.remoteAddress || "");
     await sqlPool`
       UPDATE fiaon_agents SET
         bank_holder_enc = ${encryptSecret(holder)},
@@ -735,7 +740,7 @@ router.post("/agent/profile/bank", requireAgent, async (req: AgentRequest, res) 
         bank_change_ack = FALSE
       WHERE id = ${req.agent!.id}
     `;
-    await logAgentEvent(req.agent!.id, "bank_changed", { iban_masked: masked });
+    await logAgentEvent(req.agent!.id, "bank_changed", { old_iban_masked: oldMasked, iban_masked: masked, ip });
     res.json({ ok: true, ibanMasked: masked });
   } catch (err) {
     console.error("[FIAON-AGENT] bank:", err);

@@ -293,6 +293,59 @@ router.get("/admin/team/agents/:id", async (req, res) => {
   }
 });
 
+/** Paket Z: Volle Auszahlungsdaten eines Agents — NUR Admin (Agent-Token ⇒ 403
+ *  über blockAgentsFromAdmin). JEDER Abruf erzeugt einen Audit-Eintrag
+ *  (bank_viewed_by_admin), damit die Einsicht in unmaskierte IBANs nachvollziehbar
+ *  bleibt. Liefert zusätzlich die letzte Bankänderung (alt→neu, Zeit, IP) aus dem
+ *  Audit-Log für den Betrugsschutz-Vergleich. */
+router.get("/admin/team/agents/:id/bank", async (req, res) => {
+  try {
+    await ensureAgentTables();
+    const id = Number(req.params.id);
+    const rows = await sqlPool`
+      SELECT bank_holder_enc, bank_iban_enc, bank_bic_enc, bank_iban_masked, bank_updated_at, bank_change_ack
+      FROM fiaon_agents WHERE id = ${id}
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Agent nicht gefunden" });
+    const r = rows[0];
+    // Letzte Bankänderung aus dem Audit-Log (alt→neu + Herkunft, sofern vorhanden)
+    const ev = await sqlPool`
+      SELECT meta, created_at FROM fiaon_agent_events
+      WHERE agent_id = ${id} AND type = 'bank_changed' ORDER BY created_at DESC LIMIT 1
+    `;
+    let lastChange: { oldIbanMasked: string | null; newIbanMasked: string | null; ip: string | null; at: string } | null = null;
+    if (ev.length > 0) {
+      let m: any = {};
+      try { m = JSON.parse(ev[0].meta || "{}"); } catch { /* tolerant */ }
+      lastChange = {
+        oldIbanMasked: m.old_iban_masked ?? null,
+        newIbanMasked: m.iban_masked ?? null,
+        ip: m.ip ?? null,
+        at: new Date(ev[0].created_at).toISOString(),
+      };
+    }
+    // Audit: Admin hat die volle IBAN eingesehen (wer=Admin, wann, welcher Agent)
+    const ip = String((req.headers["x-forwarded-for"] as string || "").split(",")[0].trim() || req.socket?.remoteAddress || "");
+    await logAgentEvent(id, "bank_viewed_by_admin", { at: new Date().toISOString(), ip });
+    res.json({
+      ok: true,
+      bank: {
+        hasBank: !!r.bank_iban_enc,
+        holder: decryptSecret(r.bank_holder_enc),
+        ibanFull: decryptSecret(r.bank_iban_enc),
+        ibanMasked: r.bank_iban_masked,
+        bic: decryptSecret(r.bank_bic_enc),
+        updatedAt: r.bank_updated_at,
+        changeAck: r.bank_change_ack,
+        lastChange,
+      },
+    });
+  } catch (err) {
+    console.error("[FIAON-TEAM] agent bank view:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 /** K: Kunden-Neuzuweisung — einzeln und als Massenaktion (toAgentId = null ⇒ Zuweisung entfernen). */
 router.post("/admin/team/reassign", async (req, res) => {
   try {

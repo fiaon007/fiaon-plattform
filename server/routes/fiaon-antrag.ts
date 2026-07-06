@@ -110,12 +110,63 @@ async function ensurePaymentColumns(): Promise<void> {
     ADD COLUMN IF NOT EXISTS claim_email_sent_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS confirmed_email_sent_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS last_reminder_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS reminder_count INTEGER NOT NULL DEFAULT 0;
+    ADD COLUMN IF NOT EXISTS reminder_count INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS account_status VARCHAR DEFAULT 'pending',
+    ADD COLUMN IF NOT EXISTS access_backfilled_at TIMESTAMPTZ;
   `;
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_invoice_no_idx ON fiaon_applications(invoice_number)`;
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_payment_ref_idx ON fiaon_applications(payment_reference)`;
   paymentColumnsEnsured = true;
   console.log("[FIAON-PAYMENT] Zahlungsspalten sichergestellt");
+  // Paket Y: Einmalige rückwirkende Freischaltung bereits bezahlter Kunden (idempotent).
+  backfillPaidAccessOnce().catch((e) => console.error("[FIAON-ACCESS-BACKFILL] Startlauf fehlgeschlagen:", e));
+}
+
+// ── Paket Y: Login-Freischaltung ─────────────────────────────────────────────
+// Der Kunden-Login (POST /login) erlaubt Zugang, sobald der Antrag ABGESCHLOSSEN
+// ist ODER die Bestellung bezahlt wurde. Die frühere EXAKT-Prüfung `status ===
+// 'completed'` war fehleranfällig: `mark-paid` setzt status='payment_completed'
+// und der KYC-Upload setzt 'documents_submitted' — beide sperrten den Login aus.
+// Diese Allowlist deckt „abgeschlossen und danach" ab; account_status='suspended'
+// bleibt eine harte Sperre (Admin-Not-Aus).
+const LOGIN_ACCESS_STATUSES = new Set(["completed", "documents_submitted", "payment_completed"]);
+
+/**
+ * Rückwirkende Reparatur (Paket Y): schaltet alle BEZAHLTEN Bestellungen frei,
+ * deren Konto (durch den früheren Bug) nie aktiviert wurde — OHNE erneute
+ * payment_confirmed-Mails. Idempotent über `access_backfilled_at IS NULL`.
+ * Suspendierte Konten werden NICHT reaktiviert.
+ */
+async function backfillPaidAccess(): Promise<{ count: number; refs: string[] }> {
+  const rows = await sqlPool`
+    UPDATE fiaon_applications SET
+      status = CASE WHEN status IN ('completed','documents_submitted','payment_completed')
+                    THEN status ELSE 'payment_completed' END,
+      account_status = CASE WHEN account_status = 'suspended' THEN account_status ELSE 'active' END,
+      access_backfilled_at = NOW(),
+      updated_at = NOW()
+    WHERE payment_status = 'paid'
+      AND merged_into IS NULL
+      AND access_backfilled_at IS NULL
+      AND (
+        status NOT IN ('completed','documents_submitted','payment_completed')
+        OR (account_status IS DISTINCT FROM 'active' AND account_status IS DISTINCT FROM 'suspended')
+      )
+    RETURNING ref
+  `;
+  return { count: rows.length, refs: rows.map((r) => r.ref) };
+}
+
+let accessBackfillDone = false;
+async function backfillPaidAccessOnce(): Promise<void> {
+  if (accessBackfillDone) return;
+  accessBackfillDone = true;
+  const result = await backfillPaidAccess();
+  if (result.count > 0) {
+    console.log(`[FIAON-ACCESS-BACKFILL] ${result.count} bezahlte Kunden nachträglich freigeschaltet (keine Mails): ${result.refs.join(", ")}`);
+  } else {
+    console.log("[FIAON-ACCESS-BACKFILL] Keine offenen Altfälle — nichts zu tun");
+  }
 }
 
 // Bestellung anlegen (nach Antragsabschluss). Idempotent pro ref.
@@ -337,7 +388,8 @@ router.get("/admin/payments/:paymentRef/timeline", async (req, res) => {
       SELECT ref, created_at, welcome_sent_at, payment_email_sent_at, claimed_paid_at,
              followup_sent_at, agent_email_sent_at, promised_pay_date, completed_at,
              payment_status, payment_due_date, invoice_number, invoice_date,
-             claim_email_sent_at, confirmed_email_sent_at, last_reminder_at, reminder_count
+             claim_email_sent_at, confirmed_email_sent_at, last_reminder_at, reminder_count,
+             access_backfilled_at
       FROM fiaon_applications WHERE payment_reference = ${req.params.paymentRef}
     `;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
@@ -357,6 +409,7 @@ router.get("/admin/payments/:paymentRef/timeline", async (req, res) => {
     push(a.confirmed_email_sent_at, "Bezahlt-Bestätigung mit Login gesendet (Make: payment_confirmed)", "webhook");
     push(a.promised_pay_date, "Zahlungs-Zusage (durch Mitarbeiter erfasst)", "promise");
     if (a.payment_status === "paid") push(a.completed_at, "Als bezahlt markiert — Zugang freigeschaltet", "paid");
+    push(a.access_backfilled_at, "Zugang freigeschaltet (Nachtrag)", "paid");
 
     // Agent-Aktionen aus dem Kontakt-Log (Tabelle existiert ggf. noch nicht → tolerant)
     try {
@@ -429,14 +482,18 @@ router.get("/invoice/:paymentRef.pdf", async (req, res) => {
 router.post("/admin/payments/:paymentRef/mark-paid", async (req, res) => {
   try {
     await ensurePaymentColumns();
+    // Paket Y: ATOMAR alles setzen, was der Login verlangt — kein zweiter Schritt.
+    // payment_status='paid' + finaler Antragsstatus + Konto-Aktivierung. Ein bereits
+    // suspendiertes Konto wird NICHT automatisch reaktiviert (Admin-Not-Aus bleibt).
     const rows = await sqlPool`
       UPDATE fiaon_applications SET
         payment_status = 'paid',
         status = 'payment_completed',
+        account_status = CASE WHEN account_status = 'suspended' THEN account_status ELSE 'active' END,
         completed_at = COALESCE(completed_at, NOW()),
         updated_at = NOW()
       WHERE payment_reference = ${req.params.paymentRef}
-      RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name
+      RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name, account_status
     `;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
 
@@ -465,6 +522,21 @@ router.post("/admin/payments/:paymentRef/mark-paid", async (req, res) => {
     res.json({ ok: true, data: rows[0] });
   } catch (err) {
     console.error("[FIAON-PAYMENT] mark-paid:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Paket Y: Manueller Backfill-Trigger — schaltet alle bezahlten, aber nie
+// aktivierten Konten nachträglich frei (idempotent, KEINE Mails). Läuft zusätzlich
+// automatisch einmal beim Serverstart (backfillPaidAccessOnce).
+router.post("/admin/payments/backfill-access", async (_req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const result = await backfillPaidAccess();
+    console.log(`[FIAON-ACCESS-BACKFILL] Manuell: ${result.count} freigeschaltet: ${result.refs.join(", ") || "—"}`);
+    res.json({ ok: true, count: result.count, refs: result.refs });
+  } catch (err) {
+    console.error("[FIAON-ACCESS-BACKFILL] manuell:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -1040,9 +1112,14 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ ok: false, error: "Ungültige Anmeldedaten" });
     }
     
-    // Check if application is completed
-    if (app.status !== "completed") {
+    // Zugangs-Gate (Paket Y): Antrag abgeschlossen ODER bezahlt → Login erlaubt.
+    // account_status='suspended' bleibt eine harte Sperre (Admin-Not-Aus).
+    const hasAccess = LOGIN_ACCESS_STATUSES.has(app.status) || app.payment_status === "paid";
+    if (!hasAccess) {
       return res.status(403).json({ ok: false, error: "Antrag noch nicht abgeschlossen" });
+    }
+    if (app.account_status === "suspended") {
+      return res.status(403).json({ ok: false, error: "Konto gesperrt — bitte kontaktiere den Support" });
     }
     
     // Return success with application data

@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { BtnLabel, useShakeClass } from "@/components/feedback/fx";
 
 export default function InvestorLoginPage() {
   const [email, setEmail] = useState("");
@@ -8,7 +7,6 @@ export default function InvestorLoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [checking, setChecking] = useState(true);
-  const shakeClass = useShakeClass(error);
 
   // Already logged in? → straight to portal
   useEffect(() => {
@@ -129,13 +127,13 @@ export default function InvestorLoginPage() {
               </div>
 
               {error && (
-                <div className="fx-error-in p-3 rounded-xl text-[13px] text-red-200 text-center" style={{ background: "rgba(239,68,68,.12)", border: "1px solid rgba(239,68,68,.25)" }}>
+                <div className="p-3 rounded-xl text-[13px] text-red-200 text-center" style={{ background: "rgba(239,68,68,.12)", border: "1px solid rgba(239,68,68,.25)" }}>
                   {error}
                 </div>
               )}
 
-              <button type="submit" disabled={isLoading} className={`w-full py-4 rounded-xl text-[15px] font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group ${shakeClass}`} style={{ background: "linear-gradient(135deg,#0D1B3E 0%,#162548 100%)", boxShadow: "0 8px 24px rgba(13,27,62,.5)" }}>
-                <span className="relative z-10"><BtnLabel busy={isLoading}>Anmelden</BtnLabel></span>
+              <button type="submit" disabled={isLoading} className="w-full py-4 rounded-xl text-[15px] font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group" style={{ background: "linear-gradient(135deg,#0D1B3E 0%,#162548 100%)", boxShadow: "0 8px 24px rgba(13,27,62,.5)" }}>
+                <span className="relative z-10">{isLoading ? "Wird angemeldet…" : "Anmelden"}</span>
                 <div className="absolute inset-0 flex items-center justify-center"><div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" style={{ background: "linear-gradient(90deg,transparent,rgba(212,175,106,.15),transparent)" }} /></div>
               </button>
             </form>

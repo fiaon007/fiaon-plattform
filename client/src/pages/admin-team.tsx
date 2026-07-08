@@ -158,7 +158,7 @@ export default function AdminTeamPage() {
         </div>
 
         {message && (
-          <div className="fx-toast-in mb-4 px-4 py-3 rounded-xl bg-white border border-slate-300 text-[13px] font-medium text-slate-700">{message}</div>
+          <div className="mb-4 px-4 py-3 rounded-xl bg-white border border-slate-300 text-[13px] font-medium text-slate-700">{message}</div>
         )}
 
         {/* F3: Betrugsschutz-Banner bei geänderten Bankdaten */}
@@ -283,8 +283,8 @@ function InviteModal({ defaults, onClose, onDone, flash }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" onClick={onClose}>
-      <div className="fx-overlay absolute inset-0 bg-slate-900/30" />
-      <div className="fx-modal relative w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="absolute inset-0 bg-slate-900/30" />
+      <div className="relative w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-[15px] font-bold">Mitarbeiter einladen</h2>
           <button type="button" onClick={(e) => { e.stopPropagation(); onClose(); }} className="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-600 flex items-center justify-center"><X size={15} /></button>
@@ -408,8 +408,8 @@ function AgentDetailDrawer({ id, agents, autoRevealBank, onClose, onChanged, fla
 
   return (
     <div className="fixed inset-0 z-50" onClick={onClose}>
-      <div className="fx-overlay absolute inset-0 bg-slate-900/30" />
-      <div className="fx-drawer absolute right-0 top-0 bottom-0 w-full sm:w-[560px] bg-white border-l border-slate-200 shadow-xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="absolute inset-0 bg-slate-900/30" />
+      <div className="absolute right-0 top-0 bottom-0 w-full sm:w-[560px] bg-white border-l border-slate-200 shadow-xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 bg-white border-b border-slate-100 px-5 py-4 flex items-center justify-between z-10">
           <div>
             <p className="text-[15px] font-bold text-slate-900">{a.name}</p>
@@ -472,7 +472,7 @@ function AgentDetailDrawer({ id, agents, autoRevealBank, onClose, onChanged, fla
                 </p>
                 {a.bank_iban_masked && (
                   <button type="button" onClick={(e) => { e.stopPropagation(); loadBank(); }} disabled={bankBusy} className={btnGhost}>
-                    {bankBusy ? <span className="inline-flex items-center gap-2"><span className="fx-spinner" aria-hidden="true" /> Lädt …</span> : "Volle IBAN anzeigen"}
+                    {bankBusy ? "Lädt …" : "Volle IBAN anzeigen"}
                   </button>
                 )}
               </div>

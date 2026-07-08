@@ -86,7 +86,7 @@ export default function AdminEinstellungenPage() {
       <p className="text-[13px] text-slate-500 mb-5">Globale Standardwerte und System-Diagnose.</p>
 
       {message && (
-        <div className="fx-toast-in mb-4 px-4 py-3 rounded-xl bg-white border border-slate-300 text-[13px] font-medium text-slate-700">{message}</div>
+        <div className="mb-4 px-4 py-3 rounded-xl bg-white border border-slate-300 text-[13px] font-medium text-slate-700">{message}</div>
       )}
 
       {/* Provisions-Standards */}
@@ -106,7 +106,7 @@ export default function AdminEinstellungenPage() {
             <input type="text" inputMode="decimal" value={form.min} onChange={(e) => setForm((f) => ({ ...f, min: e.target.value }))} className={inputCls} />
           </div>
         </div>
-        <button type="submit" disabled={busy} className={`${btnPrimary} mt-4`}>{busy ? <span className="fx-spinner" aria-hidden="true" /> : "Speichern"}</button>
+        <button type="submit" disabled={busy} className={`${btnPrimary} mt-4`}>{busy ? "…" : "Speichern"}</button>
       </form>
 
       {/* Paket V2: Tägliche Reminder-Engine */}
@@ -145,7 +145,7 @@ export default function AdminEinstellungenPage() {
             <input type="number" min={9} max={20} value={reminder.end} onChange={(e) => setReminder((r) => ({ ...r, end: e.target.value }))} className={inputCls} />
           </div>
         </div>
-        <button type="submit" disabled={busy} className={`${btnPrimary} mt-4`}>{busy ? <span className="fx-spinner" aria-hidden="true" /> : "Speichern"}</button>
+        <button type="submit" disabled={busy} className={`${btnPrimary} mt-4`}>{busy ? "…" : "Speichern"}</button>
       </form>
 
       {/* System-Diagnose */}

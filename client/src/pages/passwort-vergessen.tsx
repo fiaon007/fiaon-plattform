@@ -289,7 +289,7 @@ export default function PasswortVergessenPage() {
 
                 {/* Error */}
                 {verifyError && (
-                  <div className="fx-error-in flex items-center gap-2.5 p-3.5 rounded-xl bg-red-50 border border-red-100 mb-1">
+                  <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-red-50 border border-red-100 mb-1">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" className="shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                     <p className="text-[13px] font-medium text-red-600">{verifyError}</p>
                   </div>
@@ -432,7 +432,7 @@ export default function PasswortVergessenPage() {
 
                 {/* Error */}
                 {passError && (
-                  <div className="fx-error-in flex items-center gap-2.5 p-3.5 rounded-xl bg-red-50 border border-red-100 mb-4">
+                  <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-red-50 border border-red-100 mb-4">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" className="shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                     <p className="text-[13px] font-medium text-red-600">{passError}</p>
                   </div>

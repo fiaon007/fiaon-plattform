@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { BtnLabel, useShakeClass } from "@/components/feedback/fx";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 
@@ -9,7 +8,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const shakeClass = useShakeClass(error);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,10 +147,10 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className={`w-full py-4 rounded-xl text-[15px] font-semibold text-white transition-all fiaon-btn-gradient disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group ${shakeClass}`}
+                  className="w-full py-4 rounded-xl text-[15px] font-semibold text-white transition-all fiaon-btn-gradient disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
                 >
                   <span className="relative z-10">
-                    <BtnLabel busy={isLoading}>Anmelden</BtnLabel>
+                    {isLoading ? "Wird geladen..." : "Anmelden"}
                   </span>
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
@@ -161,7 +159,7 @@ export default function LoginPage() {
 
                 {/* Error Message */}
                 {error && (
-                  <div className="fx-error-in p-3 rounded-xl bg-red-50 border border-red-200 text-[13px] text-red-600 text-center">
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-[13px] text-red-600 text-center">
                     {error}
                   </div>
                 )}

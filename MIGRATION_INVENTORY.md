@@ -356,21 +356,6 @@ Root-Cause (verifiziert): Der Kunden-Login `POST /api/fiaon/login` (`fiaon-antra
 
 **Getestet**: ✅ Admin-Abruf liefert volle IBAN + alt→neu + IP; ✅ Audit-Event je Abruf geschrieben; ✅ Agent-Token → 403 am selben Endpoint. Typecheck (geänderte Dateien) + Vite-Build grün.
 
-### Update: Plattformweites Interaktions-Feedback (fx-Layer)
-
-Vollständiges Audit + Umsetzung in **`INTERACTION_AUDIT.md`** (jede Route aus SITE_MAP.md auditiert und abgehakt). NUR Motion/Zustände/Feedback — keinerlei Logik-, Routen-, Layout-, Farb- oder Textänderungen; keine neuen Dependencies (reines CSS + 1 Utility-Datei).
-
-**Zentrale Schicht (einmalig, wirkt überall):**
-- `client/src/index.css`: fx-Layer mit Timing-Tokens (`--fx-fast` 120ms / `--fx-base` 220ms / `--fx-slow` 400ms, ease-out), globalem Press-Feedback für ALLE Buttons (`:where()` → Spezifität 0, bricht keine Tailwind-Transitions), Skeleton-Puls, Fehler-Shake (300ms), Fehler-/Inhalts-Einblendung, Staffelung (30ms Versatz, max. 10), Modal/Drawer/Sheet-Animationen (200–250ms), Schritt-Slide, Routen-Fortschrittsleiste, Toast-Bewegung, Formular-Fokus-Übergang — plus zentralem `prefers-reduced-motion`-Block (Deko aus, Spinner/Fortschritt bleiben). Nur transform/opacity, CLS 0.
-- `client/src/components/feedback/fx.tsx`: `RouteProgress` (2px-Leiste bei Routenwechsel), `PageEnter` (einheitlicher Seiten-Eintritt, keyed in `App.tsx`), `Spinner`, `BtnLabel` (breitenstabiler busy/ok-Label-Swap), `useAsyncFx`/`useShakeClass`, `Skel`/`SkelRows`, `notifySuccess/notifyError` (shadcn-Toaster).
-
-**Vorher → Nachher je Bereich:**
-- **Kunde**: Klicks ohne Reaktion, Login-Fehler poppten hart, Antrags-Schritte wechselten schlagartig, „Konto erstellen"/Zahlungs-Buttons ohne Ladezustand → jetzt Press überall, Login mit Spinner+Shake, Antrag mit Schritt-Slide + animierter Progress + Absenden-Ladezustand (Doppelklick-geschützt), Zahlungsseite mit QR-Lade→Erfolg und sichtbarem Claim-Spinner.
-- **Admin**: Tabellen luden in leere Flächen („Lädt …"-Text), Drawer/Modals poppten, Aktionen zeigten nur „…" → jetzt Skeletons in Inhaltsform (Zahlungen/Rechnungen/Audit/Verbuchungen/Events/Hub-KPIs), gestaffelte Zeilen/Timeline, Spinner in mark-paid/Send/Speichern, weiche Drawer/Modals (⌘K, Detail, Bulk, Einladung), Flash-Meldungen mit Toast-Bewegung. `admin/database` bewusst unangetastet (Alt-Cockpit).
-- **Agent**: Paket S war bereits cinematisch — nur Lücken: Auszahlungs-Button-Spinner; Kontakt-Buttons erhalten das globale ≤100ms-Press (bewusst keine langen Animationen im Arbeits-Flow).
-
-Verifiziert: `tsc` ohne neue Fehler (Altbestand unberührt), Vite-Build grün, alle Kern-Routen HTTP 200.
-
 ### Offene Punkte
 - [ ] **Env-Variablen entfernen**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VITE_STRIPE_PUBLISHABLE_KEY`/`VITE_STRIPE_PUBLIC_KEY` aus dem Deployment löschen (Code ist mit Null-Guards abgesichert).
 - [ ] **Stripe Payment Links im Stripe-Dashboard deaktivieren** (alte gespeicherte URLs könnten sonst noch funktionieren).

@@ -124,9 +124,9 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[80] flex items-start justify-center pt-[12vh] px-4" onClick={onClose}>
-      <div className="fx-overlay absolute inset-0 bg-slate-900/40" />
+      <div className="absolute inset-0 bg-slate-900/40" />
       <div
-        className="fx-modal relative w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden"
+        className="relative w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2.5 px-4 border-b border-slate-100">
@@ -145,7 +145,7 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
           />
           <kbd className="text-[10px] font-semibold text-slate-400 border border-slate-200 rounded px-1.5 py-0.5 shrink-0">ESC</kbd>
         </div>
-        <div className="max-h-80 overflow-y-auto fx-stagger">
+        <div className="max-h-80 overflow-y-auto">
           {busy && <p className="px-4 py-4 text-[12px] text-slate-400">Suche …</p>}
           {!busy && q.trim().length >= 2 && results.length === 0 && (
             <p className="px-4 py-4 text-[12px] text-slate-400">Keine Treffer.</p>
@@ -182,7 +182,7 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
 function AccessDenied() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-      <div className="fx-page-enter w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 text-center">
+      <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 text-center">
         <span className="inline-flex w-12 h-12 rounded-full border border-slate-200 items-center justify-center text-slate-400 mb-4">
           <ShieldAlert size={20} strokeWidth={1.7} />
         </span>
@@ -267,7 +267,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 key={it.path}
                 href={it.path}
                 onClick={() => onNavigate?.()}
-                className={`fx-press flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors mb-0.5 ${
+                className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors mb-0.5 ${
                   primaryActive || active
                     ? "bg-slate-900 text-white"
                     : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
@@ -326,8 +326,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       {/* Mobile-Drawer */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50" onClick={() => setMobileOpen(false)}>
-          <div className="fx-overlay absolute inset-0 bg-slate-900/40" />
-          <div className="fx-drawer-left absolute inset-y-0 left-0 w-72 bg-white flex flex-col shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="absolute inset-0 bg-slate-900/40" />
+          <div className="absolute inset-y-0 left-0 w-72 bg-white flex flex-col shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <p className="text-[15px] font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</p>

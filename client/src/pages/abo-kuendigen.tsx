@@ -364,7 +364,7 @@ export default function AboKuendigenPage() {
 
                 {/* Error */}
                 {verifyError && (
-                  <div className="fx-error-in flex items-center gap-2.5 p-3.5 rounded-xl bg-red-50 border border-red-100 mb-4">
+                  <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-red-50 border border-red-100 mb-4">
                     <svg
                       width="16"
                       height="16"
@@ -644,7 +644,7 @@ export default function AboKuendigenPage() {
 
                 {/* Error */}
                 {formError && (
-                  <div className="fx-error-in flex items-center gap-2.5 p-3.5 rounded-xl bg-red-50 border border-red-100 mb-4">
+                  <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-red-50 border border-red-100 mb-4">
                     <svg
                       width="16"
                       height="16"

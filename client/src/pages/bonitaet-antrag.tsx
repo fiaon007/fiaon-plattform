@@ -427,7 +427,7 @@ export default function BonitaetAntragPage() {
                   className="fiaon-btn-gradient relative inline-flex items-center justify-center gap-3 px-9 py-4 rounded-2xl text-[16px] font-bold text-white overflow-hidden disabled:opacity-60"
                   style={{ minHeight: 58, boxShadow: "0 16px 40px rgba(37,99,235,0.3)" }}
                 >
-                  <span className="relative z-10 inline-flex items-center gap-2.5">{payRedirecting && <span className="fx-spinner" aria-hidden="true" />}{payRedirecting ? "Einen Moment…" : "Jetzt bezahlen & Auskunft erhalten (74 €)"}</span>
+                  <span className="relative z-10">{payRedirecting ? "Einen Moment…" : "Jetzt bezahlen & Auskunft erhalten (74 €)"}</span>
                   <svg className="relative z-10" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                   <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent)", animation: "baShimmer 3s ease-in-out infinite" }} />
                 </button>

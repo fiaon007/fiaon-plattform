@@ -79,17 +79,9 @@ export default function AdminRechnungenPage() {
                 ))}
               </tr>
             </thead>
-            <tbody className={!loading ? "fx-stagger" : undefined}>
+            <tbody>
               {loading && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-4">
-                    <div className="space-y-2" role="status" aria-label="Wird geladen">
-                      {Array.from({ length: 6 }).map((_, i) => (
-                        <div key={i} className="fx-skel h-10 w-full" style={{ animationDelay: `${i * 90}ms` }} />
-                      ))}
-                    </div>
-                  </td>
-                </tr>
+                <tr><td colSpan={6} className="px-4 py-10 text-center text-[13px] text-slate-400">Lädt …</td></tr>
               )}
               {!loading && rows.length === 0 && (
                 <tr><td colSpan={6} className="px-4 py-10 text-center text-[13px] text-slate-400">

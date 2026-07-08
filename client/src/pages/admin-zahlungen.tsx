@@ -544,7 +544,7 @@ export default function AdminZahlungenPage() {
         )}
 
         {message && (
-          <div className="fx-toast-in mb-4 px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 text-[13px] font-semibold text-blue-800">
+          <div className="mb-4 px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 text-[13px] font-semibold text-blue-800">
             {message}
           </div>
         )}
@@ -588,8 +588,8 @@ export default function AdminZahlungenPage() {
         {/* Paket W: Bestätigungsdialog Bulk-Versand */}
         {bulkDialog && bulkPreview && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center px-4" onClick={() => setBulkDialog(false)}>
-            <div className="fx-overlay absolute inset-0 bg-slate-900/40" />
-            <div className="fx-modal relative w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="absolute inset-0 bg-slate-900/40" />
+            <div className="relative w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-[15px] font-bold text-slate-900 mb-3">Zahlungserinnerung an alle offenen senden?</h3>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 mb-4 text-[13px] space-y-1">
                 <p><b className="tabular-nums">{bulkPreview.eligible}</b> Kunden erhalten jetzt die Zahlungsdaten-Erinnerung (Make: <code className="font-mono text-[12px]">payment_reminder</code>).</p>
@@ -669,21 +669,17 @@ export default function AdminZahlungenPage() {
                   ))}
                 </tr>
               </thead>
-              <tbody className={!loading ? "fx-stagger" : undefined}>
+              <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-4">
-                      <div className="space-y-2" role="status" aria-label="Wird geladen">
-                        {Array.from({ length: 6 }).map((_, i) => (
-                          <div key={i} className="fx-skel h-11 w-full" style={{ animationDelay: `${i * 90}ms` }} />
-                        ))}
-                      </div>
+                    <td colSpan={9} className="px-4 py-12 text-center text-[13px] text-slate-400">
+                      Lädt…
                     </td>
                   </tr>
                 )}
                 {!loading && filtered.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="fx-fade-in px-4 py-12 text-center text-[13px] text-slate-400">
+                    <td colSpan={9} className="px-4 py-12 text-center text-[13px] text-slate-400">
                       {q ? "Keine Treffer für deine Suche." : "Keine Bestellungen in diesem Status."}
                     </td>
                   </tr>
@@ -730,7 +726,7 @@ export default function AdminZahlungenPage() {
                               disabled={actionRef === r.payment_reference}
                               className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-bold whitespace-nowrap transition-all disabled:opacity-50"
                             >
-                              {actionRef === r.payment_reference ? <span className="fx-spinner" aria-hidden="true" /> : "Als bezahlt markieren"}
+                              {actionRef === r.payment_reference ? "…" : "Als bezahlt markieren"}
                             </button>
                           )}
                           {r.payment_status === "expired" && (
@@ -740,7 +736,7 @@ export default function AdminZahlungenPage() {
                               disabled={actionRef === r.payment_reference}
                               className="px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-blue-700 text-white text-[12px] font-bold whitespace-nowrap transition-all disabled:opacity-50"
                             >
-                              {actionRef === r.payment_reference ? <span className="fx-spinner" aria-hidden="true" /> : "Reaktivieren"}
+                              {actionRef === r.payment_reference ? "…" : "Reaktivieren"}
                             </button>
                           )}
                           <a
@@ -938,9 +934,9 @@ export default function AdminZahlungenPage() {
       {/* ── C2: Detail-Drawer mit Timeline ── */}
       {detail && (
         <div className="fixed inset-0 z-50" onClick={() => setDetail(null)}>
-          <div className="fx-overlay absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" />
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" />
           <div
-            className="fx-drawer absolute right-0 top-0 bottom-0 w-full sm:w-[480px] bg-white shadow-2xl overflow-y-auto"
+            className="absolute right-0 top-0 bottom-0 w-full sm:w-[480px] bg-white shadow-2xl overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="sticky top-0 bg-white border-b border-slate-100 px-5 py-4 flex items-center justify-between">
@@ -984,7 +980,7 @@ export default function AdminZahlungenPage() {
                     disabled={actionRef === detail.payment_reference}
                     className="flex-1 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[13px] font-bold transition-all disabled:opacity-50"
                   >
-                    {actionRef === detail.payment_reference ? <span className="fx-spinner" aria-hidden="true" /> : "Als bezahlt markieren"}
+                    Als bezahlt markieren
                   </button>
                 )}
                 {detail.payment_status === "paid" && (
@@ -1010,16 +1006,10 @@ export default function AdminZahlungenPage() {
 
               <div>
                 <h3 className="text-[13px] font-bold text-slate-900 mb-3">Ereignis-Timeline</h3>
-                {timeline === null && (
-                  <div className="space-y-3" role="status" aria-label="Wird geladen">
-                    {Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="fx-skel h-9 w-full" style={{ animationDelay: `${i * 90}ms` }} />
-                    ))}
-                  </div>
-                )}
+                {timeline === null && <p className="text-[12px] text-slate-400">Lädt…</p>}
                 {timeline !== null && timeline.length === 0 && <p className="text-[12px] text-slate-400">Keine Ereignisse.</p>}
                 {timeline !== null && timeline.length > 0 && (
-                  <div className="fx-stagger relative pl-5 space-y-4 before:absolute before:left-[5px] before:top-1 before:bottom-1 before:w-px before:bg-slate-200">
+                  <div className="relative pl-5 space-y-4 before:absolute before:left-[5px] before:top-1 before:bottom-1 before:w-px before:bg-slate-200">
                     {timeline.map((ev, i) => (
                       <div key={i} className="relative">
                         <span

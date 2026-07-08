@@ -199,6 +199,7 @@ export default function ZahlungPage() {
 
   // QR-Speichern
   const [qrSaved, setQrSaved] = useState<null | "shared" | "downloaded">(null);
+  const [qrBusy, setQrBusy] = useState(false);
   const exportWrapRef = useRef<HTMLDivElement>(null);
 
   // Tracking-Button
@@ -240,41 +241,46 @@ export default function ZahlungPage() {
   const handleSaveQr = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (!order) return;
+      if (!order || qrBusy) return;
       const canvas = exportWrapRef.current?.querySelector("canvas");
       if (!canvas) return;
       const fileName = `FIAON-Ueberweisung-${order.paymentReference}.png`;
+      setQrBusy(true);
 
-      const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-      if (!blob) return;
-
-      // Mobile: Web Share API mit Bilddatei (→ "In Fotos sichern")
       try {
-        const file = new File([blob], fileName, { type: "image/png" });
-        if (typeof navigator.share === "function" && navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ files: [file] });
-          setQrSaved("shared");
-          return;
+        const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+        if (!blob) return;
+
+        // Mobile: Web Share API mit Bilddatei (→ "In Fotos sichern")
+        try {
+          const file = new File([blob], fileName, { type: "image/png" });
+          if (typeof navigator.share === "function" && navigator.canShare?.({ files: [file] })) {
+            await navigator.share({ files: [file] });
+            setQrSaved("shared");
+            return;
+          }
+        } catch (err: any) {
+          // Nutzer hat das Share-Sheet abgebrochen → keine Bestätigung, kein Fehler
+          if (err?.name === "AbortError") return;
         }
-      } catch (err: any) {
-        // Nutzer hat das Share-Sheet abgebrochen → keine Bestätigung, kein Fehler
-        if (err?.name === "AbortError") return;
-      }
 
-      // Fallback: PNG-Download
-      try {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-        setQrSaved("downloaded");
-      } catch {}
+        // Fallback: PNG-Download
+        try {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+          setQrSaved("downloaded");
+        } catch {}
+      } finally {
+        setQrBusy(false);
+      }
     },
-    [order],
+    [order, qrBusy],
   );
 
   // Tracking: "Ich habe die Überweisung getätigt" → claimed_paid, dann Danke-Seite.
@@ -407,6 +413,7 @@ export default function ZahlungPage() {
               <button
                 type="button"
                 onClick={handleSaveQr}
+                disabled={qrBusy}
                 className={`w-full sm:w-auto inline-flex items-center justify-center gap-2.5 rounded-full py-4 px-8 font-semibold text-[15px] sm:text-[16px] transition-all duration-300 ${
                   qrSaved
                     ? "bg-emerald-600 text-white shadow-xl shadow-emerald-500/30"
@@ -414,11 +421,16 @@ export default function ZahlungPage() {
                 }`}
                 style={{ minHeight: 56 }}
               >
-                {qrSaved ? (
+                {qrBusy ? (
                   <>
+                    <span className="fx-spinner" aria-hidden="true" />
+                    QR-Code wird gespeichert…
+                  </>
+                ) : qrSaved ? (
+                  <span className="fx-check-in inline-flex items-center gap-2.5">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
                     QR-Code gespeichert ✓
-                  </>
+                  </span>
                 ) : (
                   <>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
@@ -427,12 +439,12 @@ export default function ZahlungPage() {
                 )}
               </button>
               {qrSaved === "shared" && (
-                <p className="mt-3 text-[13px] font-semibold text-emerald-600">
+                <p className="fx-fade-in mt-3 text-[13px] font-semibold text-emerald-600">
                   QR-Code gespeichert ✓ – öffne jetzt deine Banking-App und lade ihn dort hoch.
                 </p>
               )}
               {qrSaved === "downloaded" && (
-                <p className="mt-3 text-[13px] font-semibold text-emerald-600">
+                <p className="fx-fade-in mt-3 text-[13px] font-semibold text-emerald-600">
                   Das Bild wurde gespeichert – du findest es in deinen Downloads/Fotos. Öffne jetzt deine Banking-App und lade es dort hoch.
                 </p>
               )}
@@ -490,7 +502,10 @@ export default function ZahlungPage() {
                 style={{ minHeight: 60 }}
               >
                 {claiming ? (
-                  "Einen Moment…"
+                  <>
+                    <span className="fx-spinner" aria-hidden="true" />
+                    Einen Moment…
+                  </>
                 ) : (
                   <>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>

@@ -1302,7 +1302,7 @@ export default function BusinessAntragPage() {
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                   </svg>
-                  <span>{paymentRedirecting ? "Einen Moment…" : "Weiter zur Zahlung"}</span>
+                  <span className="inline-flex items-center gap-2">{paymentRedirecting && <span className="fx-spinner" aria-hidden="true" />}{paymentRedirecting ? "Einen Moment…" : "Weiter zur Zahlung"}</span>
                 </button>
 
                 <p className="text-[12px] text-gray-400 mt-4">

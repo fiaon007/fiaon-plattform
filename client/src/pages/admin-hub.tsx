@@ -40,7 +40,7 @@ function AreaCard({ c }: { c: CardDef }) {
   return (
     <Link
       href={c.href}
-      className="group bg-white border border-slate-200 rounded-2xl p-4 flex items-start gap-3.5 hover:border-slate-400 transition-colors"
+      className="fx-press group bg-white border border-slate-200 rounded-2xl p-4 flex items-start gap-3.5 hover:border-slate-400 hover:shadow-sm transition-all"
     >
       <span className="w-10 h-10 rounded-xl border border-slate-200 flex items-center justify-center text-slate-500 shrink-0 group-hover:border-slate-300">
         <Icon size={17} strokeWidth={1.7} />
@@ -192,21 +192,21 @@ export default function AdminHubPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
         <div className="bg-white border border-slate-200 rounded-2xl p-4">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Neue Anträge heute</p>
-          <p className="text-xl font-bold text-slate-900 tabular-nums">{stats ? stats.todayNew : "—"}</p>
+          {stats ? <p className="fx-fade-in text-xl font-bold text-slate-900 tabular-nums">{stats.todayNew}</p> : <div className="fx-skel h-7 w-16" />}
         </div>
-        <Link href="/admin/zahlungen" className="text-left bg-white border border-slate-300 rounded-2xl p-4 hover:border-slate-400 transition-colors">
+        <Link href="/admin/zahlungen" className="fx-press text-left bg-white border border-slate-300 rounded-2xl p-4 hover:border-slate-400 transition-all">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Zahlung angekündigt</p>
-          <p className="text-xl font-bold text-slate-900 tabular-nums">{stats ? eur(stats.claimed.sum) : "—"}</p>
-          <p className="text-[11px] text-slate-400">{stats ? `${stats.claimed.count} warten auf Freischaltung` : ""}</p>
+          {stats ? <p className="fx-fade-in text-xl font-bold text-slate-900 tabular-nums">{eur(stats.claimed.sum)}</p> : <div className="fx-skel h-7 w-24" />}
+          <p className="text-[11px] text-slate-400">{stats ? `${stats.claimed.count} warten auf Freischaltung` : "\u00a0"}</p>
         </Link>
-        <Link href="/admin/verbuchungen" className="text-left bg-white border border-slate-200 rounded-2xl p-4 hover:border-slate-400 transition-colors">
+        <Link href="/admin/verbuchungen" className="fx-press text-left bg-white border border-slate-200 rounded-2xl p-4 hover:border-slate-400 transition-all">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Heute bestätigt</p>
-          <p className="text-xl font-bold text-slate-900 tabular-nums">{stats ? eur(stats.todayPaid.sum) : "—"}</p>
-          <p className="text-[11px] text-slate-400">{stats ? `${stats.todayPaid.count} Zahlung(en) · Verbuchungen` : ""}</p>
+          {stats ? <p className="fx-fade-in text-xl font-bold text-slate-900 tabular-nums">{eur(stats.todayPaid.sum)}</p> : <div className="fx-skel h-7 w-24" />}
+          <p className="text-[11px] text-slate-400">{stats ? `${stats.todayPaid.count} Zahlung(en) · Verbuchungen` : "\u00a0"}</p>
         </Link>
-        <Link href="/admin/zahlungen#auszahlungen" className="text-left bg-white border border-slate-200 rounded-2xl p-4 hover:border-slate-400 transition-colors">
+        <Link href="/admin/zahlungen#auszahlungen" className="fx-press text-left bg-white border border-slate-200 rounded-2xl p-4 hover:border-slate-400 transition-all">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Offene Auszahlungen</p>
-          <p className="text-xl font-bold text-slate-900 tabular-nums">{stats ? stats.openPayouts : "—"}</p>
+          {stats ? <p className="fx-fade-in text-xl font-bold text-slate-900 tabular-nums">{stats.openPayouts}</p> : <div className="fx-skel h-7 w-16" />}
           <p className="text-[11px] text-slate-400">Anforderungen des Teams</p>
         </Link>
       </div>
@@ -215,7 +215,7 @@ export default function AdminHubPage() {
       {groups.map((g) => (
         <section key={g.title} className="mb-7">
           <h2 className="text-[11px] font-semibold uppercase tracking-[.14em] text-slate-400 mb-2.5">{g.title}</h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="fx-stagger grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {g.cards.map((c) => <AreaCard key={c.href} c={c} />)}
           </div>
         </section>

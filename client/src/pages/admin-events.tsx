@@ -203,7 +203,17 @@ export default function AdminEventsPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading && <tr><td colSpan={4} className="px-4 py-8 text-center text-[13px] text-slate-400">Lädt …</td></tr>}
+                {loading && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-4">
+                      <div className="space-y-2" role="status" aria-label="Wird geladen">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                          <div key={i} className="fx-skel h-10 w-full" style={{ animationDelay: `${i * 90}ms` }} />
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                )}
                 {data?.events.map((ev) => {
                   const last = data.lastEvents[ev.type];
                   return (
@@ -286,7 +296,7 @@ export default function AdminEventsPage() {
                         style={{ background: ACCENT }}
                         title={!emailValid ? "Erst Test-E-Mail-Adresse oben eintragen" : undefined}
                       >
-                        <Send size={13} /> {busy === `test:${ev.type}` ? "Sendet …" : "Test an Make senden"}
+                        {busy === `test:${ev.type}` ? <span className="fx-spinner" aria-hidden="true" /> : <Send size={13} />} {busy === `test:${ev.type}` ? "Sendet …" : "Test an Make senden"}
                       </button>
 
                       {ev.customerBound && !ev.deprecated && (
@@ -304,7 +314,7 @@ export default function AdminEventsPage() {
                             disabled={busy != null}
                             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 text-[13px] font-semibold text-slate-700 hover:border-slate-400 disabled:opacity-40 transition-colors"
                           >
-                            <User size={13} /> {busy === `real:${ev.type}` ? "Prüft …" : "Für echten Kunden senden"}
+                            {busy === `real:${ev.type}` ? <span className="fx-spinner" aria-hidden="true" /> : <User size={13} />} {busy === `real:${ev.type}` ? "Prüft …" : "Für echten Kunden senden"}
                           </button>
                         </div>
                       )}
@@ -365,8 +375,8 @@ export default function AdminEventsPage() {
       {/* Bestätigungsdialog „Für echten Kunden senden" */}
       {preview && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center px-4" onClick={() => setPreview(null)}>
-          <div className="absolute inset-0 bg-slate-900/40" />
-          <div className="relative w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="fx-overlay absolute inset-0 bg-slate-900/40" />
+          <div className="fx-modal relative w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-3">
               <AlertTriangle size={17} className="text-amber-500" />
               <h3 className="text-[15px] font-bold text-slate-900">Der Kunde erhält wirklich diese E-Mail</h3>
@@ -395,7 +405,7 @@ export default function AdminEventsPage() {
                 className="px-4 py-2.5 rounded-xl text-white text-[13px] font-semibold disabled:opacity-40"
                 style={{ background: ACCENT }}
               >
-                {busy?.startsWith("confirm:") ? "Sendet …" : "Ja, an Kunden senden"}
+                {busy?.startsWith("confirm:") ? <span className="inline-flex items-center gap-2"><span className="fx-spinner" aria-hidden="true" /> Sendet …</span> : "Ja, an Kunden senden"}
               </button>
             </div>
           </div>

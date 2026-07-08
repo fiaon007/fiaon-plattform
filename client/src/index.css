@@ -546,3 +546,183 @@ html {
   .agent-skeleton::after { animation: none !important; }
   .agent-core__glow { opacity: .6; }
 }
+
+/* ════════════════════════════════════════════════════════════
+   FIAON — PLATTFORMWEITES INTERAKTIONS-FEEDBACK (fx-Layer)
+   Einheitliche Micro-Interactions für Kunde + Admin + Agent.
+   Regeln: nur transform/opacity (GPU), CLS = 0, zentrale Timings,
+   reduced-motion-Block ganz unten. KEINE Farb-/Layout-Änderungen.
+   ════════════════════════════════════════════════════════════ */
+
+:root {
+  --fx-fast: 120ms;
+  --fx-base: 220ms;
+  --fx-slow: 400ms;
+  --fx-ease: cubic-bezier(.22, .61, .36, 1); /* ease-out */
+  --fx-accent: #2563eb;
+}
+
+/* — 1) Press-Feedback: JEDER klickbare Punkt reagiert sofort spürbar —
+   Global für Buttons + role=button; opt-in via .fx-press für Karten/Zeilen/CTAs.
+   :where() hält die Spezifität bei 0 — bestehende Tailwind-Transitions
+   (z. B. transition-all für Farb-Hover) bleiben unangetastet.
+   Nur transform + filter (kein Layout-Shift). */
+:where(button:not(:disabled), [role="button"], .fx-press) {
+  transition: transform 100ms ease-out, filter 100ms ease-out;
+}
+button:not(:disabled):active,
+[role="button"]:active,
+.fx-press:active,
+a.fx-press:active {
+  transform: scale(.98);
+  filter: brightness(.96);
+}
+
+/* — 2) Seiten-Eintritt (über App/Shells, nicht pro Seite) — */
+@keyframes fxPageIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+.fx-page-enter { animation: fxPageIn 250ms var(--fx-ease) both; }
+
+/* — 3) Inhalt-Einblendung nach Ladezustand (Skeleton → Inhalt) — */
+@keyframes fxFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.fx-fade-in { animation: fxFadeIn 200ms ease-out both; }
+
+/* Gestaffelte Listen: 30ms Versatz, max. 10 Kinder, Rest sofort */
+.fx-stagger > * { animation: fxPageIn 250ms var(--fx-ease) both; }
+.fx-stagger > *:nth-child(1)  { animation-delay: 0ms; }
+.fx-stagger > *:nth-child(2)  { animation-delay: 30ms; }
+.fx-stagger > *:nth-child(3)  { animation-delay: 60ms; }
+.fx-stagger > *:nth-child(4)  { animation-delay: 90ms; }
+.fx-stagger > *:nth-child(5)  { animation-delay: 120ms; }
+.fx-stagger > *:nth-child(6)  { animation-delay: 150ms; }
+.fx-stagger > *:nth-child(7)  { animation-delay: 180ms; }
+.fx-stagger > *:nth-child(8)  { animation-delay: 210ms; }
+.fx-stagger > *:nth-child(9)  { animation-delay: 240ms; }
+.fx-stagger > *:nth-child(10) { animation-delay: 270ms; }
+.fx-stagger > *:nth-child(n+11) { animation-delay: 270ms; }
+
+/* — 4) Skeleton: sanft pulsierende Platzhalter in Inhalts-Form — */
+@keyframes fxSkelPulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+.fx-skel {
+  background: #eef1f5;
+  border-radius: 8px;
+  animation: fxSkelPulse 1.5s ease-in-out infinite;
+}
+
+/* — 5) Fehler-Shake: 3 kurze horizontale Bewegungen, 300ms gesamt — */
+@keyframes fxShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+.fx-shake { animation: fxShake 300ms ease-in-out; }
+
+/* Validierungs-/Fehlermeldungen: sanftes Einblenden statt schlagartig */
+@keyframes fxErrorIn {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: none; }
+}
+.fx-error-in { animation: fxErrorIn 180ms ease-out both; }
+
+/* — 6) Button-Spinner (erbt Textfarbe → passt überall) — */
+@keyframes fxSpin { to { transform: rotate(360deg); } }
+.fx-spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  opacity: .8;
+  animation: fxSpin .7s linear infinite;
+  vertical-align: -2px;
+}
+
+/* Erfolgs-Häkchen (~600ms sichtbar, Einblendung 150ms) */
+@keyframes fxCheckIn { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
+.fx-check-in { animation: fxCheckIn 150ms ease-out both; }
+
+/* — 7) Routen-Fortschrittsleiste (2px, oben, Akzent) — */
+.fx-route-progress {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: 2px; z-index: 9999;
+  pointer-events: none;
+  transform-origin: left;
+  background: linear-gradient(90deg, var(--fx-accent), #60a5fa);
+  animation: fxRouteRun 800ms var(--fx-ease) both;
+}
+@keyframes fxRouteRun {
+  0%   { transform: scaleX(0);   opacity: 1; }
+  70%  { transform: scaleX(.85); opacity: 1; }
+  100% { transform: scaleX(1);   opacity: 0; }
+}
+
+/* — 8) Modals & Drawer: weiches Öffnen statt Aufpoppen — */
+@keyframes fxOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+.fx-overlay { animation: fxOverlayIn 200ms ease-out both; }
+@keyframes fxModalIn {
+  from { opacity: 0; transform: scale(.97) translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.fx-modal { animation: fxModalIn 220ms var(--fx-ease) both; }
+@keyframes fxDrawerIn {
+  from { opacity: .4; transform: translateX(24px); }
+  to   { opacity: 1; transform: none; }
+}
+.fx-drawer { animation: fxDrawerIn 250ms var(--fx-ease) both; }
+@keyframes fxDrawerInLeft {
+  from { opacity: .4; transform: translateX(-24px); }
+  to   { opacity: 1; transform: none; }
+}
+.fx-drawer-left { animation: fxDrawerInLeft 250ms var(--fx-ease) both; }
+@keyframes fxSheetUp {
+  from { opacity: .4; transform: translateY(24px); }
+  to   { opacity: 1; transform: none; }
+}
+.fx-sheet { animation: fxSheetUp 250ms var(--fx-ease) both; }
+
+/* — Mehrschritt-Formulare: horizontaler Slide/Fade beim Schrittwechsel — */
+@keyframes fxStepIn {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: none; }
+}
+.fx-step-in { animation: fxStepIn 250ms var(--fx-ease) both; }
+
+/* — 9) Status-Badges: Cross-Fade statt hartem Umschalten — */
+.fx-badge { transition: opacity var(--fx-base) ease-out, transform var(--fx-base) ease-out; }
+
+/* — 10) Formular-Fokus: weicher Rahmen-Übergang — */
+input, select, textarea { transition: border-color 150ms ease-out, box-shadow 150ms ease-out; }
+
+/* — 11) Toast-Bewegung (ergänzt shadcn-Toaster) — */
+@keyframes fxToastIn {
+  from { opacity: 0; transform: translateY(10px) scale(.98); }
+  to   { opacity: 1; transform: none; }
+}
+.fx-toast-in { animation: fxToastIn 220ms var(--fx-ease) both; }
+
+/* ── reduced-motion: dekorative fx-Motion AUS, Funktion bleibt ──
+   Spinner + Routen-Fortschritt bleiben (funktionale Indikatoren). */
+@media (prefers-reduced-motion: reduce) {
+  .fx-page-enter,
+  .fx-fade-in,
+  .fx-stagger > *,
+  .fx-shake,
+  .fx-error-in,
+  .fx-check-in,
+  .fx-overlay,
+  .fx-modal,
+  .fx-drawer,
+  .fx-drawer-left,
+  .fx-sheet,
+  .fx-toast-in,
+  .fx-step-in { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .fx-skel { animation: none !important; }
+  button:not(:disabled):active,
+  [role="button"]:active,
+  .fx-press:active,
+  a.fx-press:active { transform: none; filter: none; }
+}

@@ -93,7 +93,7 @@ function AuszahlungContent() {
           className={`${btnPrimary} w-full py-3.5`}
           style={{ minHeight: 50 }}
         >
-          {busy ? "Beantrage …" : `Auszahlung beantragen (${fmtCents(data.balanceCents)})`}
+          {busy ? <span className="inline-flex items-center gap-2"><span className="agent-spinner" aria-hidden="true" /> Beantrage …</span> : `Auszahlung beantragen (${fmtCents(data.balanceCents)})`}
         </button>
         <div className="mt-3 space-y-1">
           {!data.hasBank && (

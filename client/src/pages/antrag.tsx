@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
+import { BtnLabel } from "@/components/feedback/fx";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 
@@ -445,8 +446,8 @@ function Progress({ step, total }: { step: number; total: number }) {
       <div className="flex gap-1.5 mb-3">
         {Array.from({ length: total }).map((_, i) => (
           <div key={i} className="flex-1 h-1.5 rounded-full relative overflow-hidden" style={{ background: i <= step ? "rgba(37,99,235,.15)" : "rgba(0,0,0,.04)" }}>
-            {i < step && <div className="absolute inset-0 rounded-full bg-[#2563eb]" />}
-            {i === step && <div className="absolute inset-0 rounded-full bg-gradient-to-r from-[#2563eb] to-[#3b82f6]" style={{ animation: "shimmer 2s ease-in-out infinite", backgroundSize: "200% 100%" }} />}
+            {i < step && <div className="fx-fade-in absolute inset-0 rounded-full bg-[#2563eb]" />}
+            {i === step && <div className="fx-fade-in absolute inset-0 rounded-full bg-gradient-to-r from-[#2563eb] to-[#3b82f6]" style={{ animation: "shimmer 2s ease-in-out infinite", backgroundSize: "200% 100%" }} />}
           </div>
         ))}
       </div>
@@ -495,6 +496,7 @@ export default function AntragPage() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [creatingAccount, setCreatingAccount] = useState(false);
   const [showPackSwitcher, setShowPackSwitcher] = useState(false);
 
   // Paket wechseln während Antragsprozess (Up- oder Downgrade)
@@ -844,6 +846,9 @@ export default function AntragPage() {
       {/* ── Main Content ── */}
       <div ref={topRef} className="max-w-6xl mx-auto px-4 sm:px-5 pt-24 sm:pt-28 pb-8 sm:pb-12 relative z-10 overflow-x-hidden w-full">
         {step > 0 && <Progress step={step} total={10} />}
+
+        {/* Schrittwechsel: horizontaler Slide/Fade (250ms) statt hartem Austausch */}
+        <div key={step} className={step > 0 ? "fx-step-in" : undefined}>
 
         {/* === STEP 0: Paketauswahl === */}
         {step === 0 && (
@@ -2363,13 +2368,14 @@ export default function AntragPage() {
               </div>
 
               {passwordError && (
-                <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-red-600 text-sm font-medium">
+                <div className="fx-error-in bg-red-50 border border-red-100 rounded-xl p-4 text-red-600 text-sm font-medium">
                   {passwordError}
                 </div>
               )}
 
               <button
                 onClick={async () => {
+                  if (creatingAccount) return;
                   if (password.length < 8) {
                     setPasswordError("Passwort muss mindestens 8 Zeichen haben");
                     return;
@@ -2378,6 +2384,7 @@ export default function AntragPage() {
                     setPasswordError("Passwörter stimmen nicht überein");
                     return;
                   }
+                  setCreatingAccount(true);
                   
                   // Save password to database
                   try {
@@ -2415,29 +2422,34 @@ export default function AntragPage() {
                     }
                   } catch (error) {
                     setPasswordError("Fehler beim Speichern des Passworts");
+                    setCreatingAccount(false);
                   }
                 }}
-                className="w-full inline-flex items-center justify-center gap-2 py-4 rounded-full fiaon-btn-gradient text-[15px] font-semibold text-white transition-all duration-300 hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)] hover:-translate-y-0.5"
+                disabled={creatingAccount}
+                className="w-full inline-flex items-center justify-center gap-2 py-4 rounded-full fiaon-btn-gradient text-[15px] font-semibold text-white transition-all duration-300 hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)] hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed"
                 style={{ minHeight: 52 }}
               >
-                <span>Konto erstellen</span>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                <BtnLabel busy={creatingAccount}>
+                  <span>Konto erstellen</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                </BtnLabel>
               </button>
             </div>
           </div>
         )}
+        </div>
         <p className="text-[11px] text-gray-400 font-mono">Referenz: {ref}</p>
       </div>
 
       {/* === Paket-Switcher Modal === */}
       {showPackSwitcher && (
         <div
-          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
+          className="fx-overlay fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
           style={{ background: "rgba(15,23,42,0.55)", backdropFilter: "blur(6px)" }}
           onClick={() => setShowPackSwitcher(false)}
         >
           <div
-            className="bg-white w-full sm:w-auto sm:max-w-3xl rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] overflow-y-auto animate-[fadeInUp_.3s_ease]"
+            className="fx-sheet bg-white w-full sm:w-auto sm:max-w-3xl rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}

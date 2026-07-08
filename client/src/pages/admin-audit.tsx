@@ -62,7 +62,13 @@ export default function AdminAuditPage() {
       />
 
       <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-50 overflow-hidden">
-        {loading && <p className="px-4 py-10 text-center text-[13px] text-slate-400">Lädt …</p>}
+        {loading && (
+          <div className="px-4 py-4 space-y-2" role="status" aria-label="Wird geladen">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="fx-skel h-10 w-full" style={{ animationDelay: `${i * 90}ms` }} />
+            ))}
+          </div>
+        )}
         {!loading && filtered.length === 0 && (
           <p className="px-4 py-10 text-center text-[13px] text-slate-400">
             {q ? "Keine Treffer." : "Noch keine Aktionen protokolliert."}

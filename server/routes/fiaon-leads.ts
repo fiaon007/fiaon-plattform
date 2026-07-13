@@ -75,6 +75,29 @@ export async function ensureLeadTables(): Promise<void> {
     )
   `;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_lead_log_lead_idx ON fiaon_lead_log (lead_id, created_at)`;
+
+  // Paket BE: Import-/Sequenz-Steuerung (idempotent nachrüsten).
+  // in_sequence=FALSE ⇒ Lead wird NICHT automatisch angeschrieben (importierte
+  // Alt-Leads starten die Nachfass-Sequenz erst nach bewusstem Opt-in).
+  await sqlPool`ALTER TABLE fiaon_leads ADD COLUMN IF NOT EXISTS in_sequence BOOLEAN NOT NULL DEFAULT TRUE`;
+  await sqlPool`ALTER TABLE fiaon_leads ADD COLUMN IF NOT EXISTS import_id VARCHAR`;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_leads_import_idx ON fiaon_leads (import_id)`;
+  await sqlPool`
+    CREATE TABLE IF NOT EXISTS fiaon_lead_imports (
+      import_id VARCHAR PRIMARY KEY,
+      admin_name VARCHAR,
+      source VARCHAR,
+      campaign VARCHAR,
+      add_to_sequence BOOLEAN NOT NULL DEFAULT FALSE,
+      total INTEGER NOT NULL DEFAULT 0,
+      imported INTEGER NOT NULL DEFAULT 0,
+      converted INTEGER NOT NULL DEFAULT 0,
+      updated INTEGER NOT NULL DEFAULT 0,
+      skipped INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
   leadTablesEnsured = true;
   console.log("[FIAON-LEADS] Lead-Tabellen sichergestellt");
 }
@@ -236,6 +259,7 @@ async function claimLeadFollowupBatch(
     WHERE id IN (
       SELECT l.id FROM fiaon_leads l
       WHERE l.status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
+        AND l.in_sequence = TRUE
         AND COALESCE(NULLIF(l.email, ''), NULLIF(l.telefon, '')) IS NOT NULL
         AND (l.last_lead_reminder_at IS NULL OR l.last_lead_reminder_at < NOW() - INTERVAL '8 hours')
         AND COALESCE(l.lead_reminder_count, 0) < ${max}
@@ -268,6 +292,7 @@ async function markExhaustedLeadsDead(maxFollowups: number, planDays: number[]):
   const rows = await sqlPool`
     UPDATE fiaon_leads SET status = 'tot', updated_at = NOW()
     WHERE status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
+      AND in_sequence = TRUE
       AND (
         COALESCE(lead_reminder_count, 0) >= ${Math.round(maxFollowups)}
         OR (COALESCE(lead_reminder_count, 0) >= ${planDays.length}
@@ -597,23 +622,64 @@ router.get("/admin/leads", async (req: Request, res: Response) => {
   try {
     await ensureLeadTables();
     const status = typeof req.query.status === "string" ? req.query.status : null;
+    // BE3: gruppierte Filter-Chips (Alle · Offen · Konvertiert · Tot/Kein Interesse)
+    const group = typeof req.query.group === "string" ? req.query.group : null;
     const q = typeof req.query.q === "string" ? req.query.q.trim().toLowerCase() : "";
-    const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 100));
+    const sort = req.query.sort === "status" ? "status" : "datum";
+    const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
+    const groupStatuses =
+      group === "offen" ? ["neu", "kontaktiert", "nicht_erreichbar"]
+      : group === "konvertiert" ? ["konvertiert"]
+      : group === "tot" ? ["tot", "kein_interesse"]
+      : null;
+
+    // Konvertierte Zeilen mit verknüpfter Order (Zahlungsstatus + Betrag) anreichern.
     const rows = await sqlPool`
       SELECT l.id, l.vorname, l.nachname, l.email, l.telefon, l.quelle, l.kampagne, l.status,
-             l.assigned_agent_id, ag.name AS agent_name, l.converted_order_id,
-             l.erstellt_am, l.letzter_kontakt_am, l.konvertiert_am, l.lead_reminder_count
+             l.assigned_agent_id, ag.name AS agent_name, l.converted_order_id, l.in_sequence,
+             l.erstellt_am, l.letzter_kontakt_am, l.konvertiert_am, l.lead_reminder_count,
+             a.payment_status, a.amount_due, a.pack_name, a.created_at AS order_created_at
       FROM fiaon_leads l
       LEFT JOIN fiaon_agents ag ON ag.id = l.assigned_agent_id
+      LEFT JOIN fiaon_applications a ON a.ref = l.converted_order_id AND a.merged_into IS NULL
       WHERE (${status}::text IS NULL OR l.status = ${status})
+        AND (${groupStatuses}::text[] IS NULL OR l.status = ANY(${groupStatuses}))
         AND (${q} = '' OR LOWER(COALESCE(l.vorname,'') || ' ' || COALESCE(l.nachname,'') || ' ' || COALESCE(l.email,'') || ' ' || COALESCE(l.telefon,'')) LIKE ${"%" + q + "%"})
-      ORDER BY l.erstellt_am DESC
+      ORDER BY
+        CASE WHEN ${sort} = 'status' THEN l.status END ASC,
+        l.erstellt_am DESC
       LIMIT ${limit}
     `;
     const counts = await sqlPool`SELECT status, COUNT(*)::int AS c FROM fiaon_leads GROUP BY status`;
     const byStatus: Record<string, number> = {};
     for (const r of counts) byStatus[r.status] = Number(r.c);
-    res.json({ ok: true, data: rows, counts: byStatus });
+
+    // BE3-Kennzahlen: X Leads → Y konvertiert → Z zahlend (Umsatz) + offene Leads.
+    const [stats] = await sqlPool`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE l.status = 'konvertiert')::int AS converted,
+        COUNT(*) FILTER (WHERE l.status IN ('neu','kontaktiert','nicht_erreichbar'))::int AS open,
+        COUNT(*) FILTER (WHERE a.payment_status = 'paid')::int AS paying,
+        COALESCE(SUM(CASE WHEN a.payment_status = 'paid' THEN ROUND(COALESCE(a.amount_due::numeric,0)*100) ELSE 0 END),0)::bigint AS revenue_cents
+      FROM fiaon_leads l
+      LEFT JOIN fiaon_applications a ON a.ref = l.converted_order_id AND a.merged_into IS NULL
+    `;
+    const total = Number(stats.total);
+    const converted = Number(stats.converted);
+    res.json({
+      ok: true,
+      data: rows,
+      counts: byStatus,
+      stats: {
+        total,
+        converted,
+        convertedPct: total > 0 ? Math.round((converted / total) * 1000) / 10 : null,
+        open: Number(stats.open),
+        paying: Number(stats.paying),
+        revenueCents: Number(stats.revenue_cents),
+      },
+    });
   } catch (err) {
     console.error("[FIAON-LEADS] admin/leads:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -703,6 +769,170 @@ router.post("/admin/leads/backfill-convert", async (_req: Request, res: Response
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// BE1/BE2 — ALT-LEAD-IMPORT (Datei/Paste → gemappte Zeilen, batchweise)
+//
+// Verarbeitung ist zeilen-/batchweise (kein Full-File/Full-Table-Load).
+// Das Frontend parst Datei/Paste, mappt Spalten und sendet Zeilen in Batches
+// an diesen Endpoint. Dreifaches Dubletten-Handling (Datei→Lead→Kunde) greift
+// pro Zeile; Import löst NIE Mails aus (in_sequence nur bei Opt-in TRUE).
+// ═══════════════════════════════════════════════════════════════════
+
+interface ImportRow {
+  vorname?: string; nachname?: string; email?: string; telefon?: string;
+  quelle?: string; kampagne?: string; erstellt_am?: string;
+}
+
+async function findConvertedOrderRef(email: string | null, phone: string | null): Promise<string | null> {
+  const rows = await sqlPool`
+    SELECT ref FROM fiaon_applications
+    WHERE merged_into IS NULL AND payment_status IN ('pending_payment','claimed_paid','paid')
+      AND (
+        (${email}::text IS NOT NULL AND LOWER(TRIM(COALESCE(email,''))) = ${email})
+        OR (${email}::text IS NOT NULL AND LOWER(TRIM(COALESCE(contact_email,''))) = ${email})
+        OR (${email}::text IS NOT NULL AND LOWER(TRIM(COALESCE(billing_email,''))) = ${email})
+        OR (${phone}::text IS NOT NULL AND ${phone} <> '' AND phone = ${phone})
+      )
+    ORDER BY created_at ASC LIMIT 1
+  `;
+  return rows.length ? rows[0].ref : null;
+}
+
+router.post("/admin/leads/import", async (req: Request, res: Response) => {
+  try {
+    await ensureLeadTables();
+    const b = req.body || {};
+    const importId = String(b.importId || "").trim().slice(0, 80);
+    const rows: ImportRow[] = Array.isArray(b.rows) ? b.rows : [];
+    if (!importId) return res.status(400).json({ ok: false, error: "importId erforderlich" });
+    if (rows.length === 0) return res.status(400).json({ ok: false, error: "Keine Zeilen im Batch" });
+    if (rows.length > 1000) return res.status(400).json({ ok: false, error: "Batch zu groß (max. 1000 Zeilen)" });
+
+    const defaultSource = String(b.defaultSource || "import").slice(0, 120) || "import";
+    const defaultCampaign = b.defaultCampaign ? String(b.defaultCampaign).slice(0, 200) : null;
+    const addToSequence = b.addToSequence === true;
+    const adminName = String(b.adminName || "Admin").slice(0, 120);
+
+    let imported = 0, converted = 0, updated = 0;
+    const skipped: Array<{ email?: string; telefon?: string; reason: string }> = [];
+
+    for (const raw of rows) {
+      const vorname = raw.vorname ? String(raw.vorname).trim().slice(0, 200) : null;
+      const nachname = raw.nachname ? String(raw.nachname).trim().slice(0, 200) : null;
+      let email: string | null = raw.email ? String(raw.email).trim().toLowerCase() : null;
+      if (email && !EMAIL_RE.test(email)) email = null;
+      const phone = raw.telefon ? normalizePhone(String(raw.telefon)) : null;
+      if (!email && !phone) {
+        skipped.push({ email: raw.email, telefon: raw.telefon, reason: "Weder gültige E-Mail noch Telefon" });
+        continue;
+      }
+      const quelle = (raw.quelle ? String(raw.quelle).trim() : "").slice(0, 120) || defaultSource;
+      const kampagne = (raw.kampagne ? String(raw.kampagne).trim().slice(0, 200) : null) || defaultCampaign;
+      let createdAt: Date | null = null;
+      if (raw.erstellt_am) { const d = new Date(raw.erstellt_am); if (!isNaN(d.getTime())) createdAt = d; }
+
+      // Dublette gegen bestehenden Lead (E-Mail ODER Telefon).
+      const existing = await sqlPool`
+        SELECT id, status FROM fiaon_leads
+        WHERE (${email}::text IS NOT NULL AND email IS NOT NULL AND LOWER(TRIM(email)) = ${email})
+           OR (${phone}::text IS NOT NULL AND ${phone} <> '' AND telefon = ${phone})
+        ORDER BY erstellt_am ASC LIMIT 1
+      `;
+      const orderRef = await findConvertedOrderRef(email, phone);
+
+      if (existing.length > 0) {
+        const id = existing[0].id;
+        const alreadyConverted = existing[0].status === "konvertiert";
+        if (orderRef && !alreadyConverted) {
+          await sqlPool`
+            UPDATE fiaon_leads SET
+              vorname = COALESCE(vorname, ${vorname}), nachname = COALESCE(nachname, ${nachname}),
+              email = COALESCE(email, ${email}), telefon = COALESCE(NULLIF(telefon,''), ${phone}),
+              kampagne = COALESCE(kampagne, ${kampagne}), import_id = COALESCE(import_id, ${importId}),
+              status = 'konvertiert', converted_order_id = ${orderRef}, konvertiert_am = NOW(),
+              in_sequence = FALSE, updated_at = NOW()
+            WHERE id = ${id}
+          `;
+          await logLead(id, { id: null, name: adminName }, "system", { note: `Import: bereits Kunde (Antrag ${orderRef}) → als konvertiert markiert` });
+          converted++;
+        } else {
+          await sqlPool`
+            UPDATE fiaon_leads SET
+              vorname = COALESCE(vorname, ${vorname}), nachname = COALESCE(nachname, ${nachname}),
+              email = COALESCE(email, ${email}), telefon = COALESCE(NULLIF(telefon,''), ${phone}),
+              kampagne = COALESCE(kampagne, ${kampagne}), import_id = COALESCE(import_id, ${importId}),
+              updated_at = NOW()
+            WHERE id = ${id}
+          `;
+          updated++;
+        }
+        continue;
+      }
+
+      // Neuer Lead — bei Bestandskunden-Treffer sofort konvertiert anlegen.
+      if (orderRef) {
+        const ins = await sqlPool`
+          INSERT INTO fiaon_leads (vorname, nachname, email, telefon, quelle, kampagne, status,
+                                   converted_order_id, konvertiert_am, in_sequence, import_id, erstellt_am)
+          VALUES (${vorname}, ${nachname}, ${email}, ${phone || null}, ${quelle}, ${kampagne}, 'konvertiert',
+                  ${orderRef}, NOW(), FALSE, ${importId}, COALESCE(${createdAt}::timestamptz, NOW()))
+          RETURNING id
+        `;
+        await logLead(ins[0].id, { id: null, name: adminName }, "system", { note: `Import: bereits Kunde (Antrag ${orderRef}) → als konvertiert angelegt (Quelle ${quelle})` });
+        converted++;
+      } else {
+        const ins = await sqlPool`
+          INSERT INTO fiaon_leads (vorname, nachname, email, telefon, quelle, kampagne, status,
+                                   in_sequence, import_id, erstellt_am)
+          VALUES (${vorname}, ${nachname}, ${email}, ${phone || null}, ${quelle}, ${kampagne}, 'neu',
+                  ${addToSequence}, ${importId}, COALESCE(${createdAt}::timestamptz, NOW()))
+          RETURNING id
+        `;
+        await logLead(ins[0].id, { id: null, name: adminName }, "system", { note: `Import (Quelle ${quelle}${kampagne ? `, Kampagne ${kampagne}` : ""})${addToSequence ? " — Nachfass-Sequenz aktiv" : " — ohne Sequenz"}` });
+        imported++;
+      }
+    }
+
+    // Import-Protokoll (Audit) server-autoritativ hochzählen.
+    await sqlPool`
+      INSERT INTO fiaon_lead_imports (import_id, admin_name, source, campaign, add_to_sequence, total, imported, converted, updated, skipped)
+      VALUES (${importId}, ${adminName}, ${defaultSource}, ${defaultCampaign}, ${addToSequence},
+              ${rows.length}, ${imported}, ${converted}, ${updated}, ${skipped.length})
+      ON CONFLICT (import_id) DO UPDATE SET
+        total = fiaon_lead_imports.total + EXCLUDED.total,
+        imported = fiaon_lead_imports.imported + EXCLUDED.imported,
+        converted = fiaon_lead_imports.converted + EXCLUDED.converted,
+        updated = fiaon_lead_imports.updated + EXCLUDED.updated,
+        skipped = fiaon_lead_imports.skipped + EXCLUDED.skipped,
+        updated_at = NOW()
+    `;
+
+    res.json({ ok: true, imported, converted, updated, skipped });
+  } catch (err) {
+    console.error("[FIAON-LEADS] import:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler beim Import" });
+  }
+});
+
+// BE2 — importierte Leads bewusst in die Nachfass-Sequenz aufnehmen (Opt-in nach Import).
+router.post("/admin/leads/enable-sequence", async (req: Request, res: Response) => {
+  try {
+    await ensureLeadTables();
+    const importId = req.body?.importId ? String(req.body.importId).slice(0, 80) : null;
+    const rows = await sqlPool`
+      UPDATE fiaon_leads SET in_sequence = TRUE, updated_at = NOW()
+      WHERE in_sequence = FALSE AND status IN ('neu','kontaktiert','nicht_erreichbar')
+        AND (${importId}::text IS NULL OR import_id = ${importId})
+      RETURNING id
+    `;
+    console.log(`[FIAON-LEADS] Sequenz aktiviert für ${rows.length} importierte Lead(s)`);
+    res.json({ ok: true, activated: rows.length });
+  } catch (err) {
+    console.error("[FIAON-LEADS] enable-sequence:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 // BB — Nachfass-Engine: Einstellungen lesen/schreiben
 router.get("/admin/leads/settings", async (_req: Request, res: Response) => {
   const s = await getSettings();
@@ -758,6 +988,7 @@ async function leadBulkPreview(): Promise<{ eligible: number; skipped: number }>
       COUNT(*) FILTER (WHERE last_lead_reminder_at IS NOT NULL AND last_lead_reminder_at >= NOW() - INTERVAL '8 hours')::int AS skipped
     FROM fiaon_leads
     WHERE status IN ('neu','kontaktiert','nicht_erreichbar')
+      AND in_sequence = TRUE
       AND COALESCE(NULLIF(email,''), NULLIF(telefon,'')) IS NOT NULL
   `;
   return { eligible: Number(row.eligible), skipped: Number(row.skipped) };

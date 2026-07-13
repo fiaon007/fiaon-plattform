@@ -489,3 +489,47 @@ Partnerlogik, Round-Robin-Kundenverteilung und Rechnungssystem bleiben unveränd
 tsc-Fehler ausschließlich in vorbestehenden Dateien außerhalb dieses Updates: tasks/retell
 in `routes.ts`). Analytics vollständig serverseitig aggregiert (GROUP BY/FILTER/SUM), Nachfass
 + Bulk per atomarem Batch-Claim `FOR UPDATE SKIP LOCKED` (kein Full-Table-Load, 512 MB-konform).
+
+---
+
+## Paket BE — Alt-Lead-Import + Lead/Kunde-Übersicht (additiv)
+
+**Neue Dateien**: `client/src/pages/admin-leads-import.tsx` (Import-Dialog).
+**Geänderte Dateien**: `server/routes/fiaon-leads.ts`, `client/src/pages/admin-leads.tsx`.
+
+**Neue DB-Objekte** (idempotent): Spalten `fiaon_leads.in_sequence` (BOOLEAN, Default TRUE)
++ `fiaon_leads.import_id`; Tabelle `fiaon_lead_imports` (Audit je Import-Vorgang).
+
+**BE1/BE2 — Import** (`/admin/leads` → „Leads importieren"):
+- Zwei Wege im selben Dialog: **Datei** (CSV nativ; **XLSX** via SheetJS, lazy vom CDN
+  `cdn.sheetjs.com` geladen — keine neue Build-Abhängigkeit) und **Copy/Paste**
+  (Trennzeichen Tab/Komma/Semikolon automatisch erkannt).
+- **Mapping-Schritt** mit Auto-Vorschlägen (email/e-mail/mail, telefon/phone/…, vorname,
+  nachname, quelle, kampagne, datum) + **Vorschau** der ersten 10 Zeilen.
+- Parsing im Browser; Server erhält nur gemappte Zeilen in **Batches à 500**
+  (`POST /admin/leads/import`) → kein Full-File-Load serverseitig (512 MB-konform).
+- **Normalisierung** (E-Mail lowercase/trim, Telefon `normalizePhone` → +49) + Pflichtfeld
+  E-Mail ODER Telefon; Zeilen ohne beides → übersprungen (im Report + CSV-Download).
+- **Dreifaches Dubletten-Handling**: (1) innerhalb Datei durch sequentielle Batch-
+  Verarbeitung + Lead-Upsert; (2) gegen bestehende Leads (fehlende Felder auffüllen);
+  (3) gegen Bestandskunden (`fiaon_applications` per email/contact_email/billing_email/phone)
+  → Lead sofort `konvertiert` + `converted_order_id`.
+- **Kein Mailversand beim Import**: importierte Leads `in_sequence=FALSE` (Default), es sei
+  denn Opt-in-Checkbox „In Nachfass-Sequenz aufnehmen". Follow-up-Engine + Bulk + `tot`-
+  Markierung filtern jetzt auf `in_sequence=TRUE`. Nach dem Import: Button „Sequenz starten"
+  → `POST /admin/leads/enable-sequence` (optional je `importId`).
+- **Ergebnis-Report** (neu/konvertiert/aktualisiert/übersprungen) + Audit in
+  `fiaon_lead_imports` (server-autoritativ per `ON CONFLICT` hochgezählt).
+
+**BE3 — Lead/Kunde-Übersicht** (`/admin/leads`):
+- Gruppierte Filter-Chips: **Alle · Offene Leads · Konvertiert (Kunde) · Tot/Kein Interesse**
+  (`?group=`), Suche, Status-Sortierung.
+- Konvertierte Zeilen zeigen „Kunde seit [Datum]" + verknüpfte Order + Zahlungsstatus + Betrag
+  (LEFT JOIN auf `fiaon_applications`).
+- Kopf-Kennzahlen: Gesamt-Leads, konvertiert (Anzahl + %), zahlend (Anzahl + Umsatz), offen —
+  gleiche Datenbasis wie die Funnel-Analytics (BD).
+
+**Betreiber-Hinweis**: XLSX-Import benötigt einmalig Internetzugriff im Browser des Admins
+(CDN-Script). Bei gesperrtem CDN: Datei als CSV speichern (funktioniert offline).
+
+**Getestet**: `tsc --noEmit` für alle neuen/geänderten Dateien fehlerfrei.

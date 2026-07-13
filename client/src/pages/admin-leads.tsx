@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, Send, Users, Play, Settings2, X } from "lucide-react";
+import { RefreshCw, Send, Users, Play, Settings2, X, Upload } from "lucide-react";
+import ImportDialog from "./admin-leads-import";
 
 // ════════════════════════════════════════════════════════════════════
 // /admin/leads — Lead-Management (Pakete BA/BB/BC).
@@ -23,11 +24,23 @@ const STATUS: Record<string, string> = {
   neu: "Neu", kontaktiert: "Kontaktiert", nicht_erreichbar: "Nicht erreichbar",
   konvertiert: "Konvertiert", kein_interesse: "Kein Interesse", tot: "Tot",
 };
-const FILTERS = [
-  { key: "", label: "Alle" }, { key: "neu", label: "Neu" }, { key: "kontaktiert", label: "Kontaktiert" },
-  { key: "nicht_erreichbar", label: "Nicht erreichbar" }, { key: "konvertiert", label: "Konvertiert" },
-  { key: "kein_interesse", label: "Kein Interesse" }, { key: "tot", label: "Tot" },
+// BE3: gruppierte Filter-Chips (Alle · Offen · Konvertiert · Tot/Kein Interesse)
+const GROUPS: { key: string; label: string; statuses: string[] }[] = [
+  { key: "", label: "Alle", statuses: [] },
+  { key: "offen", label: "Offene Leads", statuses: ["neu", "kontaktiert", "nicht_erreichbar"] },
+  { key: "konvertiert", label: "Konvertiert (Kunde)", statuses: ["konvertiert"] },
+  { key: "tot", label: "Tot / Kein Interesse", statuses: ["tot", "kein_interesse"] },
 ];
+
+function eur(cents: number | null | undefined) {
+  if (cents == null) return "—";
+  return `${(Number(cents) / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+}
+function fmtD(v: string | null) {
+  if (!v) return "—";
+  try { return new Date(v).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }); } catch { return "—"; }
+}
+const PAY_LABEL: Record<string, string> = { pending_payment: "offen", claimed_paid: "angekündigt", paid: "bezahlt", expired: "abgelaufen", refunded: "erstattet" };
 
 function fmtDT(v: string | null) {
   if (!v) return "—";
@@ -192,8 +205,10 @@ export default function AdminLeadsPage() {
   const [data, setData] = useState<any[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [agents, setAgents] = useState<any[]>([]);
-  const [filter, setFilter] = useState("");
+  const [group, setGroup] = useState("");
   const [q, setQ] = useState("");
+  const [stats, setStats] = useState<any>(null);
+  const [showImport, setShowImport] = useState(false);
   const [openId, setOpenId] = useState<number | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -201,34 +216,50 @@ export default function AdminLeadsPage() {
   const load = useCallback(() => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (filter) params.set("status", filter);
+    if (group) params.set("group", group);
     if (q.trim()) params.set("q", q.trim());
     apiF(`/admin/leads?${params.toString()}`).then((r) => {
-      if (r.ok) { setData(r.json.data || []); setCounts(r.json.counts || {}); }
+      if (r.ok) { setData(r.json.data || []); setCounts(r.json.counts || {}); setStats(r.json.stats || null); }
     }).finally(() => setLoading(false));
-  }, [filter, q]);
+  }, [group, q]);
   useEffect(load, [load]);
   useEffect(() => { apiF("/admin/agents").then((r) => r.ok && setAgents(r.json.data || [])); }, []);
   useEffect(() => { if (flash) { const t = setTimeout(() => setFlash(null), 4000); return () => clearTimeout(t); } }, [flash]);
 
   return (
     <div className="px-4 sm:px-6 py-5 max-w-6xl mx-auto">
-      <div className="mb-4">
-        <h1 className="text-xl font-bold tracking-tight text-slate-900">Leads</h1>
-        <p className="text-[13px] text-slate-500">Interessenten aus Facebook-Lead-Ads — automatisch verknüpft, nachgefasst und an das Team verteilt.</p>
+      <div className="mb-4 flex items-start gap-3">
+        <div className="flex-1">
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">Leads</h1>
+          <p className="text-[13px] text-slate-500">Interessenten aus Lead-Ads und Import — automatisch verknüpft, nachgefasst und an das Team verteilt.</p>
+        </div>
+        <button onClick={() => setShowImport(true)} className="px-3 py-2 rounded-lg text-white text-[12px] font-semibold inline-flex items-center gap-1.5 shrink-0" style={{ background: ACCENT }}><Upload size={13} /> Leads importieren</button>
       </div>
 
       {flash && <div className="mb-4 px-4 py-2.5 rounded-lg border border-slate-300 bg-white text-[13px] text-slate-700">{flash}</div>}
 
+      {/* BE3: Kennzahlen X Leads → Y Kunden → Z zahlend */}
+      {stats && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-3"><p className="text-[11px] text-slate-400">Leads gesamt</p><p className="text-lg font-bold text-slate-900 tabular-nums">{stats.total}</p></div>
+          <div className="bg-white border border-slate-200 rounded-xl p-3"><p className="text-[11px] text-slate-400">Konvertiert</p><p className="text-lg font-bold text-slate-900 tabular-nums">{stats.converted}{stats.convertedPct != null ? <span className="text-[12px] font-medium text-slate-400"> · {stats.convertedPct}%</span> : null}</p></div>
+          <div className="bg-white border border-slate-200 rounded-xl p-3"><p className="text-[11px] text-slate-400">Zahlend</p><p className="text-lg font-bold text-slate-900 tabular-nums">{stats.paying}<span className="text-[12px] font-medium text-slate-400"> · {eur(stats.revenueCents)}</span></p></div>
+          <div className="bg-white border border-slate-200 rounded-xl p-3"><p className="text-[11px] text-slate-400">Offene Leads</p><p className="text-lg font-bold text-slate-900 tabular-nums">{stats.open}</p></div>
+        </div>
+      )}
+
       <EnginePanel onAction={(m) => { setFlash(m); load(); }} />
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        {FILTERS.map((f) => (
-          <button key={f.key} onClick={() => setFilter(f.key)}
-            className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold border ${filter === f.key ? "bg-slate-900 text-white border-slate-900" : "border-slate-200 text-slate-500 hover:border-slate-300"}`}>
-            {f.label}{f.key && counts[f.key] != null ? ` (${counts[f.key]})` : ""}
-          </button>
-        ))}
+        {GROUPS.map((g) => {
+          const c = g.statuses.reduce((sum, s) => sum + (counts[s] || 0), 0);
+          return (
+            <button key={g.key} onClick={() => setGroup(g.key)}
+              className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold border ${group === g.key ? "bg-slate-900 text-white border-slate-900" : "border-slate-200 text-slate-500 hover:border-slate-300"}`}>
+              {g.label}{g.key ? ` (${c})` : ""}
+            </button>
+          );
+        })}
         <div className="ml-auto flex items-center gap-2">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, E-Mail, Telefon…" className="px-3 py-1.5 rounded-lg border border-slate-200 text-[13px] w-52" />
           <button onClick={load} className="w-9 h-9 rounded-lg border border-slate-200 text-slate-400 flex items-center justify-center"><RefreshCw size={15} /></button>
@@ -243,7 +274,7 @@ export default function AdminLeadsPage() {
               <th className="text-left px-4 py-2.5 font-semibold">Kontakt</th>
               <th className="text-left px-4 py-2.5 font-semibold hidden sm:table-cell">Quelle</th>
               <th className="text-left px-4 py-2.5 font-semibold hidden md:table-cell">Agent</th>
-              <th className="text-left px-4 py-2.5 font-semibold hidden lg:table-cell">Alter</th>
+              <th className="text-left px-4 py-2.5 font-semibold hidden lg:table-cell">Kunde / Zahlung</th>
               <th className="text-left px-4 py-2.5 font-semibold">Status</th>
             </tr>
           </thead>
@@ -252,13 +283,18 @@ export default function AdminLeadsPage() {
             {!loading && data.length === 0 && <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400">Keine Leads.</td></tr>}
             {data.map((l) => {
               const name = [l.vorname, l.nachname].filter(Boolean).join(" ") || "—";
+              const isConv = l.status === "konvertiert";
               return (
                 <tr key={l.id} onClick={() => setOpenId(l.id)} className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer">
                   <td className="px-4 py-2.5 font-semibold text-slate-800">{name}</td>
                   <td className="px-4 py-2.5 text-slate-500">{l.telefon || l.email || "—"}</td>
                   <td className="px-4 py-2.5 text-slate-500 hidden sm:table-cell">{l.kampagne || l.quelle || "—"}</td>
                   <td className="px-4 py-2.5 text-slate-500 hidden md:table-cell">{l.agent_name || "—"}</td>
-                  <td className="px-4 py-2.5 text-slate-500 hidden lg:table-cell">{ageDays(l.erstellt_am)}</td>
+                  <td className="px-4 py-2.5 text-slate-500 hidden lg:table-cell text-[12px]">
+                    {isConv && l.converted_order_id
+                      ? <span>Kunde seit {fmtD(l.konvertiert_am)}<br /><span className="text-slate-400">{l.converted_order_id} · {PAY_LABEL[l.payment_status] || l.payment_status || "—"}{l.amount_due != null ? ` · ${eur(Math.round(Number(l.amount_due) * 100))}` : ""}</span></span>
+                      : "—"}
+                  </td>
                   <td className="px-4 py-2.5">
                     <span className="inline-block px-2.5 py-0.5 rounded-full border border-slate-200 text-[11px] font-semibold text-slate-500">{STATUS[l.status] || l.status}</span>
                   </td>
@@ -270,6 +306,7 @@ export default function AdminLeadsPage() {
       </div>
 
       {openId !== null && <LeadDrawer id={openId} agents={agents} onClose={() => setOpenId(null)} onChanged={load} />}
+      {showImport && <ImportDialog onClose={() => { setShowImport(false); load(); }} onDone={(m) => setFlash(m)} />}
     </div>
   );
 }

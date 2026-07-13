@@ -389,6 +389,82 @@ async function logIntake(status: string, quelle: string | null, detail: string |
   } catch (err) { console.error("[FIAON-LEADS] logIntake:", err); }
 }
 
+type IntakeResult = { ok: true; id: number; deduped: boolean } | { ok: false; code: number; error: string };
+
+/**
+ * Kern-Ingest: normalisieren, deduplizieren, anlegen/aktualisieren, ggf. konvertieren + verteilen.
+ * IN-PROCESS nutzbar — sowohl vom Intake-Webhook als auch vom Test-Lead, OHNE HTTP-Selbstaufruf.
+ * (Fix Paket 4: der Test-Lead scheiterte zuvor am Self-Fetch auf fiaonBaseUrl + Secret.)
+ */
+async function processIntake(b: any): Promise<IntakeResult> {
+  await ensureLeadTables();
+  const email = b.email ? String(b.email).trim().toLowerCase() : null;
+  const telefon = b.telefon || b.phone ? normalizePhone(String(b.telefon || b.phone)) : null;
+  if ((!email || !EMAIL_RE.test(email)) && (!telefon || telefon === "")) {
+    await logIntake("invalid", String(b.quelle || b.source || "").slice(0, 120) || null, "E-Mail/Telefon fehlt");
+    return { ok: false, code: 400, error: "E-Mail oder Telefon erforderlich" };
+  }
+  const vorname = b.vorname || b.firstName || b.first_name || null;
+  const nachname = b.nachname || b.lastName || b.last_name || null;
+  const quelle = String(b.quelle || b.source || "facebook_lead_ads").slice(0, 120);
+  const kampagne = b.kampagne || b.campaign || null;
+  const adset = b.adset || b.ad_set || null;
+
+  // Idempotenz: gleiche E-Mail (oder Telefon) innerhalb 24h → Update statt Insert
+  const existing = await sqlPool`
+    SELECT id, status FROM fiaon_leads
+    WHERE erstellt_am > NOW() - INTERVAL '24 hours'
+      AND (
+        (${email}::text IS NOT NULL AND email IS NOT NULL AND LOWER(TRIM(email)) = ${email})
+        OR (${telefon}::text IS NOT NULL AND ${telefon} <> '' AND telefon = ${telefon})
+      )
+    ORDER BY erstellt_am DESC LIMIT 1
+  `;
+  if (existing.length > 0) {
+    const id = existing[0].id;
+    await sqlPool`
+      UPDATE fiaon_leads SET
+        vorname = COALESCE(NULLIF(${vorname}::text, ''), vorname),
+        nachname = COALESCE(NULLIF(${nachname}::text, ''), nachname),
+        email = COALESCE(${email}, email),
+        telefon = COALESCE(NULLIF(${telefon}::text, ''), telefon),
+        kampagne = COALESCE(NULLIF(${kampagne}::text, ''), kampagne),
+        adset = COALESCE(NULLIF(${adset}::text, ''), adset),
+        updated_at = NOW()
+      WHERE id = ${id}
+    `;
+    await logLead(id, { id: null, name: "System" }, "system", { note: `Intake-Aktualisierung (Dublette innerhalb 24h, Quelle: ${quelle})` });
+    await logIntake(quelle === "test" ? "test" : "ok", quelle, "Dublette aktualisiert");
+    return { ok: true, id, deduped: true };
+  }
+
+  const inserted = await sqlPool`
+    INSERT INTO fiaon_leads (vorname, nachname, email, telefon, quelle, kampagne, adset, status)
+    VALUES (${vorname}, ${nachname}, ${email}, ${telefon || null}, ${quelle}, ${kampagne}, ${adset}, 'neu')
+    RETURNING id
+  `;
+  const id = inserted[0].id;
+  await logLead(id, { id: null, name: "System" }, "system", { note: `Lead eingegangen (Quelle: ${quelle}${kampagne ? `, Kampagne: ${kampagne}` : ""})` });
+
+  // Falls bereits ein Antrag mit dieser E-Mail/Telefon existiert → sofort konvertieren
+  const already = await sqlPool`
+    SELECT ref FROM fiaon_applications
+    WHERE payment_status IN ('pending_payment', 'claimed_paid', 'paid') AND merged_into IS NULL
+      AND (
+        (${email}::text IS NOT NULL AND email IS NOT NULL AND LOWER(TRIM(email)) = ${email})
+        OR (${telefon}::text IS NOT NULL AND ${telefon} <> '' AND phone = ${telefon})
+      )
+    ORDER BY created_at DESC LIMIT 1
+  `;
+  if (already.length > 0) {
+    await convertLeadsForContact(email, telefon, already[0].ref);
+  } else {
+    distributeUnassignedLeads().catch(() => {}); // fair verteilen (fire-and-forget)
+  }
+  await logIntake(quelle === "test" ? "test" : "ok", quelle, "Lead angelegt");
+  return { ok: true, id, deduped: false };
+}
+
 intakeRouter.post("/intake", async (req: Request, res: Response) => {
   try {
     await ensureLeadTables();
@@ -397,73 +473,9 @@ intakeRouter.post("/intake", async (req: Request, res: Response) => {
     const provided = String(req.headers["x-lead-secret"] || req.query.secret || "").trim();
     if (provided !== secret) { await logIntake("rejected_auth", null, provided ? "Falsches Secret" : "Kein Secret gesendet"); return res.status(401).json({ ok: false, error: "Ungültiges Intake-Secret" }); }
 
-    const b = req.body || {};
-    const email = b.email ? String(b.email).trim().toLowerCase() : null;
-    const telefon = b.telefon || b.phone ? normalizePhone(String(b.telefon || b.phone)) : null;
-    if ((!email || !EMAIL_RE.test(email)) && (!telefon || telefon === "")) {
-      await logIntake("invalid", String(b.quelle || b.source || "").slice(0, 120) || null, "E-Mail/Telefon fehlt");
-      return res.status(400).json({ ok: false, error: "E-Mail oder Telefon erforderlich" });
-    }
-    const vorname = b.vorname || b.firstName || b.first_name || null;
-    const nachname = b.nachname || b.lastName || b.last_name || null;
-    const quelle = String(b.quelle || b.source || "facebook_lead_ads").slice(0, 120);
-    const kampagne = b.kampagne || b.campaign || null;
-    const adset = b.adset || b.ad_set || null;
-
-    // Idempotenz: gleiche E-Mail (oder Telefon) innerhalb 24h → Update statt Insert
-    const existing = await sqlPool`
-      SELECT id, status FROM fiaon_leads
-      WHERE erstellt_am > NOW() - INTERVAL '24 hours'
-        AND (
-          (${email}::text IS NOT NULL AND email IS NOT NULL AND LOWER(TRIM(email)) = ${email})
-          OR (${telefon}::text IS NOT NULL AND ${telefon} <> '' AND telefon = ${telefon})
-        )
-      ORDER BY erstellt_am DESC LIMIT 1
-    `;
-    if (existing.length > 0) {
-      const id = existing[0].id;
-      await sqlPool`
-        UPDATE fiaon_leads SET
-          vorname = COALESCE(NULLIF(${vorname}::text, ''), vorname),
-          nachname = COALESCE(NULLIF(${nachname}::text, ''), nachname),
-          email = COALESCE(${email}, email),
-          telefon = COALESCE(NULLIF(${telefon}::text, ''), telefon),
-          kampagne = COALESCE(NULLIF(${kampagne}::text, ''), kampagne),
-          adset = COALESCE(NULLIF(${adset}::text, ''), adset),
-          updated_at = NOW()
-        WHERE id = ${id}
-      `;
-      await logLead(id, { id: null, name: "System" }, "system", { note: `Intake-Aktualisierung (Dublette innerhalb 24h, Quelle: ${quelle})` });
-      await logIntake("ok", quelle, "Dublette aktualisiert");
-      return res.json({ ok: true, id, deduped: true });
-    }
-
-    const inserted = await sqlPool`
-      INSERT INTO fiaon_leads (vorname, nachname, email, telefon, quelle, kampagne, adset, status)
-      VALUES (${vorname}, ${nachname}, ${email}, ${telefon || null}, ${quelle}, ${kampagne}, ${adset}, 'neu')
-      RETURNING id
-    `;
-    const id = inserted[0].id;
-    await logLead(id, { id: null, name: "System" }, "system", { note: `Lead eingegangen (Quelle: ${quelle}${kampagne ? `, Kampagne: ${kampagne}` : ""})` });
-
-    // Falls bereits ein Antrag mit dieser E-Mail/Telefon existiert → sofort konvertieren
-    const already = await sqlPool`
-      SELECT ref FROM fiaon_applications
-      WHERE payment_status IN ('pending_payment', 'claimed_paid', 'paid') AND merged_into IS NULL
-        AND (
-          (${email}::text IS NOT NULL AND email IS NOT NULL AND LOWER(TRIM(email)) = ${email})
-          OR (${telefon}::text IS NOT NULL AND ${telefon} <> '' AND phone = ${telefon})
-        )
-      ORDER BY created_at DESC LIMIT 1
-    `;
-    if (already.length > 0) {
-      await convertLeadsForContact(email, telefon, already[0].ref);
-    } else {
-      // Neuen Lead fair verteilen (fire-and-forget)
-      distributeUnassignedLeads().catch(() => {});
-    }
-    await logIntake(quelle === "test" ? "test" : "ok", quelle, "Lead angelegt");
-    res.json({ ok: true, id, deduped: false });
+    const result = await processIntake(req.body || {});
+    if (!result.ok) return res.status(result.code).json({ ok: false, error: result.error });
+    res.json({ ok: true, id: result.id, deduped: result.deduped });
   } catch (err) {
     console.error("[FIAON-LEADS] intake:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -1193,24 +1205,26 @@ router.get("/admin/leads/intake-diagnostics", async (_req: Request, res: Respons
   }
 });
 
-// Test-Lead: echter serverseitiger Aufruf des eigenen Intake-Endpoints (mit gültigem Secret).
+// Test-Lead: legt direkt in-process (ohne HTTP-Selbstaufruf, ohne Secret, unabhängig vom
+// Sendefenster) einen klar markierten Test-Lead über dieselbe Ingest-Logik wie der Webhook an.
 router.post("/admin/leads/test-intake", async (_req: Request, res: Response) => {
   try {
     await ensureLeadTables();
-    const secret = process.env.LEAD_INTAKE_SECRET;
-    if (!secret) return res.status(503).json({ ok: false, error: "LEAD_INTAKE_SECRET nicht konfiguriert — Test nicht möglich" });
     const stamp = Date.now();
-    const payload = { email: `test+${stamp}@fiaon-intake-test.de`, vorname: "Test", nachname: "Intake", quelle: "test", kampagne: "intake_test" };
-    const r = await fetch(`${fiaonBaseUrl()}/api/leads/intake`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-lead-secret": secret },
-      body: JSON.stringify(payload),
-    });
-    const json = await r.json().catch(() => null);
-    res.json({ ok: r.ok && json?.ok, httpStatus: r.status, response: json });
+    const payload = {
+      email: `test+${stamp}@fiaon-intake-test.de`,
+      vorname: "TEST",
+      nachname: `Test-Lead ${new Date().toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`,
+      telefon: null,
+      quelle: "test",
+      kampagne: "intake_test",
+    };
+    const result = await processIntake(payload);
+    if (!result.ok) return res.status(result.code).json({ ok: false, error: result.error });
+    res.json({ ok: true, id: result.id, deduped: result.deduped, lead: payload });
   } catch (err: any) {
     console.error("[FIAON-LEADS] test-intake:", err);
-    res.status(502).json({ ok: false, error: `Selbstaufruf fehlgeschlagen: ${err?.message || err}` });
+    res.status(500).json({ ok: false, error: `Test-Lead fehlgeschlagen: ${err?.message || err}` });
   }
 });
 

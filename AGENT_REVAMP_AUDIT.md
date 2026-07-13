@@ -73,3 +73,38 @@ Die Idee, „Bewegung" über 10 Bot-Agenten mit erfundenen Abschlüssen zu erzeu
 
 - Make-Szenario: neuen Zweig für Event **`agent_feedback_rewarded`** anlegen (Payload: `email`, `vorname`, `betrag_eur`, `feedback_titel`) + Brevo-Template.
 - Optional: Tagesziele pro Agent im Admin (Team → Agent → Tagesziele) setzen; Defaults: 30 €/Tag Provision, 15 Kontakte/Tag.
+
+---
+
+## 8. `/admin/leads` — Verständlichkeits-Revamp (Phase-0-Bestandsaufnahme)
+
+**Bedienelemente & tatsächliche Funktion** (Datei `client/src/pages/admin-leads.tsx`, Endpoints `server/routes/fiaon-leads.ts`):
+
+| Element | Endpoint | Funktion |
+|---|---|---|
+| Kachel „Leads gesamt / Konvertiert / Zahlend / Offen" | `GET /admin/leads` (`stats`) | Überblickszahlen (all-time). |
+| Automatik an/aus, Nachfass-Tage, Uhrzeit-Fenster, Max. Nachfässe | `GET|POST /admin/leads/settings` | Steuert die automatische Nachfass-Engine (Cron stündlich). |
+| „Jetzt ausführen" | `POST /admin/leads/run-followups` (`force`) | Manueller Nachfass-Lauf, ignoriert Soft-Fenster, respektiert Hard-Fenster 08–20. |
+| „Alle offenen anschreiben" (Bulk) | `GET …/followup-bulk/preview`, `POST …/start`, `GET …/status` | Batch-Versand an offene Leads; 8h-Dedupe; nur 08–20 Uhr. |
+| „Verteilen" | `POST /admin/leads/distribute` | Round-Robin-Zuweisung unzugewiesener Leads. |
+| „Leads mit Kunden abgleichen" (vorher „Backfill-Konversion") | `POST /admin/leads/backfill-convert` | Rückwirkende Lead→Kunde-Erkennung. |
+| „Heute versendet" | `GET /admin/leads/settings` (`sentToday`) | Zahl heute versandter Follow-ups. |
+| Diagnose-Kacheln (letzter Intake, 24h/7d, abgelehnt, ungültig) | `GET /admin/leads/intake-diagnostics` | Eingangs-Statistik aus `fiaon_lead_intake_log`. |
+| „Test-Lead simulieren" | `POST /admin/leads/test-intake` | Legt Test-Lead an (Quelle `test`). |
+| „Test-Leads löschen" | `DELETE /admin/leads/test-leads` | Entfernt alle `quelle='test'`. |
+| Zeilen-Klick → Drawer | `GET /admin/leads/:id(\d+)` + CC-Endpoints | Bearbeiten/Ergebnis/Notiz/Status/Zuweisung/Versand/Historie. |
+
+**Ursache „Test-Lead funktioniert nicht" (Paket 4)**: `test-intake` machte einen **HTTP-Selbstaufruf**
+auf `fiaonBaseUrl()/api/leads/intake` mit `x-lead-secret`. Das scheitert in vielen Hosting-Setups
+(DNS/TLS/SSRF-Schutz/Proxy) und war zwingend an ein gesetztes `LEAD_INTAKE_SECRET` gekoppelt (sonst
+503). **Fix**: Intake-Kern in `processIntake()` extrahiert; Webhook UND Test rufen ihn direkt
+in-process auf — kein Netzwerk, kein Secret nötig, unabhängig vom Sendefenster. Test-Lead erscheint
+sofort als „TEST" in der Liste und ist per „Test-Leads löschen" entfernbar. Bei Fehler wird der
+konkrete Grund samt Statuscode angezeigt.
+
+**Umgesetzt (nur Verständlichkeit/Design/Feedback, keine Logikänderung außer Paket 4)**:
+Info-Tooltips (`InfoTip`) an allen Feldern/Buttons, Panel-Untertitel, Klartext-Fensterstatus (mit
+Uhrzeit + Hinweis dass manueller Versand trotzdem geht), farbige Erfolg/Fehler-Meldungen (`Flash`),
+Leerzustände, Bulk-Bestätigungsdialog, Test-Löschen-Dialog, Abschnittsüberschriften (Überblick /
+Steuerung & Eingang / Lead-Liste), einklappbare Onboarding-Hilfe (`OnboardingHelp`,
+localStorage-Merker), Umbenennung „Backfill-Konversion" → „Leads mit Kunden abgleichen".

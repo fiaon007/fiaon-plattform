@@ -613,3 +613,13 @@ jetzt korrekt. Zusätzlich: Bulk-Versand mit Bestätigungsdialog (Live-Zahlen X 
 übersprungen + Fensterhinweis) und Engine-Status-Badge (aktiv/pausiert) im Panel.
 Der `fiaon-reconcile.ts`-Router wurde geprüft — dort kein `:id`-Shadowing (nur literale GETs
 `list`/`summary`/`search` und zweisegmentige `:id/...`-POSTs).
+
+### UX-Revamp `/admin/leads` + Fix „Test-Lead" (Details in `AGENT_REVAMP_AUDIT.md` §8)
+- **Backend (einzige Logikänderung)**: Intake-Kern in `processIntake()` extrahiert; `test-intake`
+  ruft ihn direkt in-process auf (vorher HTTP-Selbstaufruf auf `fiaonBaseUrl` + Secret → scheiterte
+  in vielen Hosting-Setups). Test-Lead funktioniert jetzt immer (unabhängig von Sendefenster/Secret).
+- **Frontend (rein verständlich/Design)**: Info-Tooltips überall, Panel-Untertitel, Klartext-
+  Fensterstatus mit Uhrzeit, farbige Erfolg/Fehler-Toasts, Leerzustände, Bulk- + Lösch-Bestätigungs-
+  dialoge, Abschnittsüberschriften, einklappbare Onboarding-Hilfe, TEST-Badge in der Liste.
+  Umbenennung „Backfill-Konversion" → „Leads mit Kunden abgleichen". Keine Endpoint-/Logikänderung
+  darüber hinaus; `tsc --noEmit` fehlerfrei.

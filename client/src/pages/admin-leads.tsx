@@ -1,6 +1,34 @@
-import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, Send, Users, Play, Settings2, X, Upload, Pencil, Check, Link2, Activity } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { RefreshCw, Send, Users, Play, Settings2, X, Upload, Pencil, Check, Link2, Activity, Info, ChevronDown, HelpCircle, FlaskConical, Trash2, Radio } from "lucide-react";
 import ImportDialog from "./admin-leads-import";
+
+type FlashKind = "ok" | "err" | "info";
+type Flash = { text: string; kind: FlashKind };
+
+// Kleiner Info-Tooltip („i"), funktioniert per Hover (Desktop) und Tap (Mobile).
+function InfoTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("click", h);
+    return () => document.removeEventListener("click", h);
+  }, [open]);
+  return (
+    <span ref={ref} className="relative inline-flex align-middle">
+      <button type="button" aria-label="Erklärung anzeigen"
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}
+        className="text-slate-300 hover:text-slate-500 ml-1"><Info size={13} /></button>
+      {open && (
+        <span className="absolute left-1/2 -translate-x-1/2 top-6 z-30 w-56 rounded-lg bg-slate-800 text-white text-[11px] leading-snug px-2.5 py-2 shadow-lg normal-case font-normal tracking-normal">
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
 
 // ════════════════════════════════════════════════════════════════════
 // /admin/leads — Lead-Management (Pakete BA/BB/BC).
@@ -51,7 +79,7 @@ function ageDays(iso: string) {
   return d <= 0 ? "heute" : d === 1 ? "1 Tag" : `${d} Tage`;
 }
 
-function EnginePanel({ onAction }: { onAction: (msg: string) => void }) {
+function EnginePanel({ onAction }: { onAction: (msg: string, kind?: FlashKind) => void }) {
   const [s, setS] = useState<any>(null);
   const [bulk, setBulk] = useState<any>(null);
   const [job, setJob] = useState<any>(null);
@@ -77,13 +105,15 @@ function EnginePanel({ onAction }: { onAction: (msg: string) => void }) {
     setBusy(true);
     const r = await apiF("/admin/leads/settings", { method: "POST", body: JSON.stringify(s) });
     setBusy(false);
-    onAction(r.ok ? "Einstellungen gespeichert." : "Fehler beim Speichern.");
+    onAction(r.ok ? "Einstellungen gespeichert." : (r.json?.error || "Konnte nicht gespeichert werden."), r.ok ? "ok" : "err");
+    if (r.ok) load();
   };
   const runNow = async () => {
     setBusy(true);
     const r = await apiF("/admin/leads/run-followups", { method: "POST" });
     setBusy(false);
-    onAction(r.ok ? `Nachfass-Lauf: ${r.json.sent} gesendet, ${r.json.markedDead} auf „tot".` : "Fehler.");
+    if (r.ok) onAction(`Nachfass-Lauf fertig: ${r.json.sent} Mail(s) verschickt${r.json.markedDead ? `, ${r.json.markedDead} Lead(s) als „tot" markiert` : ""}.`, "ok");
+    else onAction(r.json?.error || "Nachfass-Lauf fehlgeschlagen.", "err");
     load();
   };
   const startBulk = async () => {
@@ -91,75 +121,105 @@ function EnginePanel({ onAction }: { onAction: (msg: string) => void }) {
     const r = await apiF("/admin/leads/followup-bulk/start", { method: "POST" });
     setBusy(false);
     setConfirming(false);
-    if (r.ok) { onAction(`Bulk gestartet: ${r.json.planned} geplant.`); load(); }
-    else onAction(r.json?.error || "Bulk konnte nicht gestartet werden.");
+    if (r.ok) { onAction(`Versand gestartet: ${r.json.planned} Lead(s) werden angeschrieben. Fortschritt siehe unten.`, "ok"); load(); }
+    else onAction(r.json?.error || "Versand konnte nicht gestartet werden.", "err");
   };
   const distribute = async () => {
     setBusy(true);
     const r = await apiF("/admin/leads/distribute", { method: "POST" });
     setBusy(false);
-    onAction(r.ok ? `${r.json.assigned} Lead(s) verteilt.` : "Fehler.");
+    onAction(r.ok ? (r.json.assigned > 0 ? `${r.json.assigned} Lead(s) an das Team verteilt.` : "Alle Leads sind bereits zugewiesen.") : (r.json?.error || "Verteilen fehlgeschlagen."), r.ok ? "ok" : "err");
+    load();
   };
   const backfill = async () => {
     setBusy(true);
     const r = await apiF("/admin/leads/backfill-convert", { method: "POST" });
     setBusy(false);
-    onAction(r.ok ? `Backfill: ${r.json.converted} Lead(s) rückwirkend konvertiert.` : "Fehler.");
+    onAction(r.ok ? (r.json.converted > 0 ? `${r.json.converted} Lead(s) als Kunde erkannt und markiert.` : "Keine neuen Übereinstimmungen gefunden.") : (r.json?.error || "Abgleich fehlgeschlagen."), r.ok ? "ok" : "err");
+    load();
   };
 
+  // Fensterstatus in Klartext. Wichtig: preview.withinWindow = HARTES Limit 08–20 Uhr;
+  // das eingestellte Fenster (Default 09–18) gilt nur für die Automatik, manueller
+  // Versand (Jetzt ausführen / Bulk) läuft jederzeit innerhalb 08–20 Uhr.
+  const now = new Date();
+  const nowStr = now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  const softStart = parseInt(s.lead_followup_window_start, 10);
+  const softEnd = parseInt(s.lead_followup_window_end, 10);
+  const softOpen = !isNaN(softStart) && !isNaN(softEnd) && now.getHours() >= softStart && now.getHours() < softEnd;
+  const hardOpen = bulk?.withinWindow !== false;
+  const windowMsg = !hardOpen
+    ? `Versand pausiert. Es ist ${nowStr} Uhr — versendet wird nur zwischen 08 und 20 Uhr, auch manuell.`
+    : softOpen
+      ? `Automatik läuft (Fenster ${s.lead_followup_window_start}–${s.lead_followup_window_end} Uhr).`
+      : `Automatik pausiert bis ${s.lead_followup_window_start} Uhr. Manuell senden („Jetzt ausführen"/„Bulk") geht trotzdem.`;
+
   const inp = "px-2.5 py-1.5 rounded-lg border border-slate-200 text-[13px] w-full";
+  const lbl = "text-[12px] text-slate-500 flex items-center";
+  const btnSec = "px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600 hover:border-slate-300 disabled:opacity-40 inline-flex items-center gap-1.5";
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 mb-5">
-      <div className="flex items-center gap-2 mb-3">
-        <Settings2 size={15} className="text-slate-400" />
-        <p className="text-[13px] font-semibold text-slate-800">Nachfass-Automatik & Verteilung</p>
-        <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${s.lead_followup_enabled === "1" ? "text-emerald-700 bg-emerald-50" : "text-amber-700 bg-amber-50"}`}>{s.lead_followup_enabled === "1" ? "Engine aktiv" : "Engine pausiert"}</span>
-        {sentToday != null && <span className="text-[11px] font-semibold text-slate-500">Heute versendet: {sentToday}</span>}
-        <span className="ml-auto text-[11px] text-slate-400">{bulk?.withinWindow ? "Versandfenster offen (08–20 Uhr)" : "außerhalb Versandfenster"}</span>
+    <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 mb-5">
+      <div className="flex flex-wrap items-center gap-2 mb-1">
+        <Settings2 size={16} className="text-slate-400" />
+        <p className="text-[14px] font-bold text-slate-900">Nachfass-Automatik & Verteilung</p>
+        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${s.lead_followup_enabled === "1" ? "text-emerald-700 bg-emerald-50" : "text-amber-700 bg-amber-50"}`}>{s.lead_followup_enabled === "1" ? "Automatik aktiv" : "Automatik pausiert"}</span>
+        {sentToday != null && <span className="ml-auto text-[12px] text-slate-500">Heute versendet: <b className="text-slate-800 tabular-nums">{sentToday}</b></span>}
       </div>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-        <label className="text-[12px] text-slate-500">Engine
+      <p className="text-[12px] text-slate-500 mb-3 max-w-2xl">Hier stellst du ein, ob und wann Interessenten ohne Antrag automatisch per E-Mail erinnert werden — und wie neue Leads aufs Team verteilt werden.</p>
+
+      <div className={`text-[12px] rounded-lg px-3 py-2 mb-4 ${hardOpen ? "bg-slate-50 text-slate-600" : "bg-amber-50 text-amber-800"}`}>{windowMsg}</div>
+
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <label className={lbl + " flex-col !items-start gap-1"}><span className="flex items-center">Automatik an/aus<InfoTip text="Schaltet die automatischen Nachfass-Mails komplett ein oder aus (Not-Aus)." /></span>
           <select className={inp} value={s.lead_followup_enabled} onChange={(e) => set("lead_followup_enabled", e.target.value)}>
             <option value="1">An</option><option value="0">Aus (Not-Aus)</option>
           </select>
         </label>
-        <label className="text-[12px] text-slate-500">Nachfass-Tage
-          <input className={inp} value={s.lead_followup_days} onChange={(e) => set("lead_followup_days", e.target.value)} placeholder="1,2,4,7" />
+        <label className={lbl + " flex-col !items-start gap-1"}><span className="flex items-center">Nachfass-Tage<InfoTip text="An diesen Tagen nach Eingang bekommt ein Lead automatisch eine Erinnerung — z. B. am 1., 2., 4. Tag usw." /></span>
+          <input className={inp} value={s.lead_followup_days} onChange={(e) => set("lead_followup_days", e.target.value)} placeholder="1,2,4,7,14,21" />
         </label>
-        <label className="text-[12px] text-slate-500">Fenster Start–Ende
-          <div className="flex gap-1">
+        <label className={lbl + " flex-col !items-start gap-1"}><span className="flex items-center">Uhrzeit-Fenster<InfoTip text="Nur in dieser Uhrzeit werden automatische Mails versendet. Nachts wird pausiert, damit niemand um 3 Uhr eine Mail bekommt." /></span>
+          <div className="flex gap-1 items-center w-full">
             <input className={inp} value={s.lead_followup_window_start} onChange={(e) => set("lead_followup_window_start", e.target.value)} />
+            <span className="text-slate-400">–</span>
             <input className={inp} value={s.lead_followup_window_end} onChange={(e) => set("lead_followup_window_end", e.target.value)} />
           </div>
         </label>
-        <label className="text-[12px] text-slate-500">Max. Nachfässe
+        <label className={lbl + " flex-col !items-start gap-1"}><span className="flex items-center">Max. Nachfässe<InfoTip text="Nach so vielen Erinnerungen ohne Reaktion wird der Lead als ‚tot' markiert und nicht mehr angeschrieben." /></span>
           <input className={inp} value={s.max_lead_followups} onChange={(e) => set("max_lead_followups", e.target.value)} />
         </label>
       </div>
+
       <div className="flex flex-wrap gap-2">
-        <button disabled={busy} onClick={save} className="px-3 py-2 rounded-lg text-white text-[12px] font-semibold" style={{ background: ACCENT }}>Speichern</button>
-        <button disabled={busy} onClick={runNow} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600 inline-flex items-center gap-1.5"><Play size={13} /> Jetzt ausführen</button>
-        <button disabled={busy || job?.running} onClick={() => setConfirming(true)} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600 inline-flex items-center gap-1.5">
-          <Send size={13} /> Bulk an alle offenen{bulk ? ` (${bulk.eligible} senden / ${bulk.skipped} übersprungen)` : ""}
+        <button disabled={busy} onClick={save} className="px-3 py-2 rounded-lg text-white text-[12px] font-semibold" style={{ background: ACCENT }}>Einstellungen speichern</button>
+        <button disabled={busy} onClick={runNow} className={btnSec} title="Startet einen Nachfass-Lauf sofort von Hand (statt auf die Uhrzeit zu warten).">
+          <Play size={13} /> Jetzt ausführen<InfoTip text="Startet einen Nachfass-Lauf sofort von Hand (statt auf die Uhrzeit zu warten)." />
         </button>
-        <button disabled={busy} onClick={distribute} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600 inline-flex items-center gap-1.5"><Users size={13} /> Verteilen</button>
-        <button disabled={busy} onClick={backfill} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600">Backfill-Konversion</button>
+        <button disabled={busy || job?.running} onClick={() => setConfirming(true)} className={btnSec}>
+          <Send size={13} /> Alle offenen anschreiben{bulk ? ` (${bulk.eligible})` : ""}<InfoTip text="Schickt allen offenen Leads jetzt sofort die Nachfass-Mail. Kürzlich schon kontaktierte werden übersprungen." />
+        </button>
+        <button disabled={busy} onClick={distribute} className={btnSec}><Users size={13} /> Verteilen<InfoTip text="Ordnet noch nicht zugewiesene Leads gleichmäßig den aktiven Agenten zu." /></button>
+        <span className="ml-auto" />
+        <button disabled={busy} onClick={backfill} className="px-3 py-2 rounded-lg text-[12px] font-medium text-slate-400 hover:text-slate-600 inline-flex items-center gap-1">
+          Leads mit Kunden abgleichen<InfoTip text="Prüft nachträglich, welche Leads inzwischen einen Antrag gestellt haben, und markiert sie als Kunde. Selten nötig." />
+        </button>
       </div>
-      {job?.running && <p className="mt-2 text-[12px] text-slate-500">Bulk läuft: {job.sent}/{job.planned} gesendet, {job.errors} Fehler …</p>}
-      {job && !job.running && job.finishedAt && <p className="mt-2 text-[12px] text-slate-400">Letzter Bulk: {job.sent}/{job.planned} gesendet, {job.errors} Fehler.</p>}
+
+      {job?.running && <p className="mt-3 text-[12px] text-slate-500">Versand läuft: {job.sent}/{job.planned} verschickt{job.errors ? `, ${job.errors} Fehler` : ""} …</p>}
+      {job && !job.running && job.finishedAt && <p className="mt-3 text-[12px] text-slate-400">Letzter Versand: {job.sent}/{job.planned} verschickt{job.errors ? `, ${job.errors} Fehler` : ""}.</p>}
 
       {confirming && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setConfirming(false)}>
           <div className="absolute inset-0 bg-slate-900/40" />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
-            <p className="text-[14px] font-bold text-slate-900 mb-1">Alle offenen Leads anschreiben?</p>
+            <p className="text-[14px] font-bold text-slate-900 mb-1">Alle offenen Leads jetzt anschreiben?</p>
             <p className="text-[13px] text-slate-500 mb-3">
-              Es werden <b className="text-slate-800">{bulk?.eligible ?? 0}</b> Lead(s) angeschrieben, <b className="text-slate-800">{bulk?.skipped ?? 0}</b> übersprungen (Dedupe / konvertiert / tot). Versand in Batches; jeder Nachfass wird protokolliert.
+              Es werden <b className="text-slate-800">{bulk?.eligible ?? 0}</b> Lead(s) angeschrieben. <b className="text-slate-800">{bulk?.skipped ?? 0}</b> werden übersprungen, weil sie kürzlich (in den letzten 8 Std.) schon kontaktiert wurden oder bereits Kunde/„tot" sind. Der Versand läuft in Schüben; jeder Nachfass wird protokolliert.
             </p>
-            {!bulk?.withinWindow && <p className="text-[12px] text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5 mb-3">Hinweis: aktuell außerhalb des Sendefensters (08–20 Uhr).</p>}
+            {!hardOpen && <p className="text-[12px] text-amber-800 bg-amber-50 rounded-lg px-2.5 py-1.5 mb-3">Aktuell ist Versandpause (nur 08–20 Uhr möglich). Bitte später erneut versuchen.</p>}
             <div className="flex justify-end gap-2">
               <button onClick={() => setConfirming(false)} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600">Abbrechen</button>
-              <button disabled={busy} onClick={startBulk} className="px-3 py-2 rounded-lg text-white text-[12px] font-semibold inline-flex items-center gap-1.5" style={{ background: ACCENT }}><Send size={13} /> Ja, jetzt senden</button>
+              <button disabled={busy || !hardOpen} onClick={startBulk} className="px-3 py-2 rounded-lg text-white text-[12px] font-semibold inline-flex items-center gap-1.5 disabled:opacity-40" style={{ background: ACCENT }}><Send size={13} /> Ja, jetzt senden</button>
             </div>
           </div>
         </div>
@@ -168,9 +228,20 @@ function EnginePanel({ onAction }: { onAction: (msg: string) => void }) {
   );
 }
 
-function IntakeDiagnostics({ onAction }: { onAction: (msg: string) => void }) {
+function Metric({ label, value, tip, sub, warn }: { label: string; value: string | number; tip: string; sub?: string; warn?: boolean }) {
+  return (
+    <div className={`rounded-lg border p-3 ${warn ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"}`}>
+      <p className="text-[11px] text-slate-400 flex items-center">{label}<InfoTip text={tip} /></p>
+      <p className={`text-[15px] font-bold tabular-nums ${warn ? "text-amber-700" : "text-slate-800"}`}>{value}</p>
+      {sub && <p className="text-[11px] text-slate-400 truncate">{sub}</p>}
+    </div>
+  );
+}
+
+function IntakeDiagnostics({ onAction, onRefresh }: { onAction: (msg: string, kind?: FlashKind) => void; onRefresh: () => void }) {
   const [d, setD] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
   const load = useCallback(() => { apiF("/admin/leads/intake-diagnostics").then((r) => r.ok && setD(r.json)); }, []);
   useEffect(load, [load]);
   if (!d) return null;
@@ -178,37 +249,83 @@ function IntakeDiagnostics({ onAction }: { onAction: (msg: string) => void }) {
     setBusy(true);
     const r = await apiF("/admin/leads/test-intake", { method: "POST" });
     setBusy(false);
-    onAction(r.ok ? `Test-Lead angelegt (HTTP ${r.json.httpStatus}) — Intake funktioniert.` : (r.json?.error || `Test fehlgeschlagen (HTTP ${r.json?.httpStatus ?? "?"}).`));
-    load();
+    if (r.ok) onAction(`Test-Lead ${r.json.deduped ? "aktualisiert" : "angelegt"} — der Eingang funktioniert. Der Test-Lead ist unten in der Liste als „TEST" markiert.`, "ok");
+    else onAction(`Test fehlgeschlagen${r.status ? ` (Fehler ${r.status})` : ""}: ${r.json?.error || "unbekannter Grund"}.`, "err");
+    load(); onRefresh();
   };
-  const delTests = async () => { setBusy(true); const r = await apiF("/admin/leads/test-leads", { method: "DELETE" }); setBusy(false); onAction(r.ok ? `${r.json.deleted} Test-Lead(s) gelöscht.` : "Fehler."); load(); };
+  const delTests = async () => {
+    setBusy(true);
+    const r = await apiF("/admin/leads/test-leads", { method: "DELETE" });
+    setBusy(false); setConfirmDel(false);
+    onAction(r.ok ? (r.json.deleted > 0 ? `${r.json.deleted} Test-Lead(s) gelöscht.` : "Keine Test-Leads vorhanden.") : (r.json?.error || "Löschen fehlgeschlagen."), r.ok ? "ok" : "err");
+    load(); onRefresh();
+  };
+  const rejected = d.counts.rejected7d > 0;
+  const c = d.counts;
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 mb-5">
-      <div className="flex items-center gap-2 mb-3">
-        <Activity size={15} className="text-slate-400" />
-        <p className="text-[13px] font-semibold text-slate-800">Lead-Eingang (Intake) — Test & Diagnose</p>
-        <span className={`ml-auto text-[11px] font-semibold ${d.secretConfigured ? "text-emerald-600" : "text-amber-600"}`}>{d.secretConfigured ? "Secret konfiguriert" : "LEAD_INTAKE_SECRET fehlt"}</span>
+    <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 mb-5">
+      <div className="flex flex-wrap items-center gap-2 mb-1">
+        <Radio size={16} className="text-slate-400" />
+        <p className="text-[14px] font-bold text-slate-900">Lead-Eingang (Facebook → System)</p>
+        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${d.secretConfigured ? "text-emerald-700 bg-emerald-50" : "text-amber-700 bg-amber-50"}`}>{d.secretConfigured ? "Sicherheits-Schlüssel gesetzt" : "Schlüssel fehlt"}</span>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-        <div><p className="text-[11px] text-slate-400">Letzter Intake</p><p className="text-[13px] font-semibold text-slate-800">{d.lastIntake ? fmtDT(d.lastIntake.created_at) : "—"}</p><p className="text-[11px] text-slate-400">{d.lastIntake?.quelle || ""}</p></div>
-        <div><p className="text-[11px] text-slate-400">Intakes 24h / 7d</p><p className="text-[13px] font-semibold text-slate-800 tabular-nums">{d.counts.ok24h} / {d.counts.ok7d}</p></div>
-        <div><p className="text-[11px] text-slate-400">Abgelehnt (Auth, 7d)</p><p className="text-[13px] font-semibold text-slate-800 tabular-nums">{d.counts.rejected7d}</p></div>
-        <div><p className="text-[11px] text-slate-400">Ungültig (7d)</p><p className="text-[13px] font-semibold text-slate-800 tabular-nums">{d.counts.invalid7d}</p></div>
+      <p className="text-[12px] text-slate-500 mb-3 max-w-2xl">Zeigt, ob neue Leads von Facebook wirklich im System ankommen — und lässt dich den Eingang testen.</p>
+
+      {!d.secretConfigured && (
+        <div className="text-[12px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+          Der Sicherheits-Schlüssel <span className="font-mono">LEAD_INTAKE_SECRET</span> ist nicht gesetzt. Facebook/Make erhält beim Senden eine Fehlermeldung (503) — es kommen keine echten Leads an, bis der Schlüssel hinterlegt ist. (Der Test-Lead-Button funktioniert trotzdem.)
+        </div>
+      )}
+      {rejected && (
+        <div className="text-[12px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+          {c.rejected7d} Zugriff(e) mit falschem Schlüssel in den letzten 7 Tagen. Bitte in Make den Header <span className="font-mono">x-lead-secret</span> prüfen.
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        <Metric label="Letzter Lead-Eingang" tip="Wann zuletzt ein Lead empfangen wurde und aus welcher Quelle."
+          value={d.lastIntake ? fmtDT(d.lastIntake.created_at) : "noch keiner"} sub={d.lastIntake?.quelle || "Sobald Facebook einen Lead sendet, erscheint er hier."} />
+        <Metric label="Eingänge 24 Std / 7 Tage" tip="Wie viele Leads in den letzten 24 Stunden bzw. 7 Tagen angekommen sind."
+          value={`${c.ok24h} / ${c.ok7d}`} />
+        <Metric label="Abgelehnt (falscher Schlüssel)" tip="Zugriffe mit falschem Sicherheits-Schlüssel — sollte 0 sein. Falls größer 0: Header/Secret in Make prüfen." value={c.rejected7d} warn={rejected} />
+        <Metric label="Ungültig (ohne Kontakt)" tip="Empfangene Datensätze ohne E-Mail und ohne Telefon — konnten nicht als Lead gespeichert werden." value={c.invalid7d} warn={c.invalid7d > 0} />
       </div>
+
       <div className="flex flex-wrap gap-2 mb-3">
-        <button disabled={busy} onClick={testIntake} className="px-3 py-2 rounded-lg text-white text-[12px] font-semibold" style={{ background: ACCENT }}>Test-Lead simulieren</button>
-        <button disabled={busy} onClick={delTests} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600">Test-Leads löschen</button>
+        <button disabled={busy} onClick={testIntake} className="px-3 py-2 rounded-lg text-white text-[12px] font-semibold inline-flex items-center gap-1.5" style={{ background: ACCENT }}>
+          <FlaskConical size={13} /> Test-Lead simulieren<InfoTip text="Legt einen künstlichen Test-Lead an, um zu prüfen, ob der Eingang funktioniert. Unabhängig von Uhrzeit und Facebook." />
+        </button>
+        <button disabled={busy} onClick={() => setConfirmDel(true)} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600 inline-flex items-center gap-1.5"><Trash2 size={13} /> Test-Leads löschen</button>
       </div>
-      <div className="text-[11px] text-slate-400 border-t border-slate-100 pt-2">
-        <p>Erwartetes Format an <span className="font-mono text-slate-500">{d.doc.intakeUrl}</span> · Header <span className="font-mono text-slate-500">{d.doc.secretHeader}: &lt;LEAD_INTAKE_SECRET&gt;</span></p>
-        <p>Felder: <span className="font-mono text-slate-500">{d.doc.payloadFields.join(", ")}</span></p>
-        {d.recentRejected?.length > 0 && (
-          <div className="mt-2">
-            <p className="font-semibold text-slate-500">Zuletzt abgelehnt:</p>
-            {d.recentRejected.map((r: any, i: number) => <p key={i}>{fmtDT(r.created_at)} · {r.status} · {r.detail}</p>)}
+
+      <details className="text-[11px] text-slate-400 border-t border-slate-100 pt-2">
+        <summary className="cursor-pointer text-slate-500 select-none">Technische Details für Make/Facebook</summary>
+        <div className="mt-2 space-y-0.5">
+          <p>Ziel-Adresse: <span className="font-mono text-slate-500">{d.doc.intakeUrl}</span></p>
+          <p>Sicherheits-Header: <span className="font-mono text-slate-500">{d.doc.secretHeader}: &lt;LEAD_INTAKE_SECRET&gt;</span></p>
+          <p>Felder: <span className="font-mono text-slate-500">{d.doc.payloadFields.join(", ")}</span></p>
+          {d.recentRejected?.length > 0 && (
+            <div className="mt-1">
+              <p className="font-semibold text-slate-500">Zuletzt abgelehnt/ungültig:</p>
+              {d.recentRejected.map((r: any, i: number) => <p key={i}>{fmtDT(r.created_at)} · {r.status} · {r.detail}</p>)}
+            </div>
+          )}
+        </div>
+      </details>
+
+      {confirmDel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setConfirmDel(false)}>
+          <div className="absolute inset-0 bg-slate-900/40" />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+            <p className="text-[14px] font-bold text-slate-900 mb-1">Alle Test-Leads löschen?</p>
+            <p className="text-[13px] text-slate-500 mb-3">Entfernt nur die künstlich angelegten Test-Leads (Quelle „test"). Echte Leads bleiben unberührt.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmDel(false)} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600">Abbrechen</button>
+              <button disabled={busy} onClick={delTests} className="px-3 py-2 rounded-lg text-white text-[12px] font-semibold inline-flex items-center gap-1.5" style={{ background: "#dc2626" }}><Trash2 size={13} /> Ja, löschen</button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -379,6 +496,28 @@ function LeadDrawer({ id, agents, onClose, onChanged }: { id: number; agents: an
   );
 }
 
+function OnboardingHelp() {
+  const [open, setOpen] = useState(() => localStorage.getItem("fiaon_leads_help_collapsed") !== "1");
+  const toggle = () => { const n = !open; setOpen(n); localStorage.setItem("fiaon_leads_help_collapsed", n ? "0" : "1"); };
+  return (
+    <div className="bg-slate-50 border border-slate-200 rounded-xl mb-5">
+      <button onClick={toggle} className="w-full flex items-center gap-2 px-4 py-3 text-left">
+        <HelpCircle size={16} className="text-slate-400 shrink-0" />
+        <span className="text-[13px] font-semibold text-slate-700">Wie funktioniert diese Seite?</span>
+        <ChevronDown size={16} className={`ml-auto text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="px-4 pb-4 text-[13px] text-slate-600 leading-relaxed max-w-3xl">
+          Leads kommen automatisch von Facebook (oder per Import) ins System. Sie werden gleichmäßig aufs Team
+          verteilt und — solange niemand einen Antrag stellt — automatisch per E-Mail nachgefasst. Sobald jemand
+          einen Antrag stellt, wird er automatisch zum Kunden. Oben steuerst du die Automatik und prüfst den
+          Eingang; in der Liste unten arbeitest du einzelne Leads ab (anrufen, Notiz, Mail senden, Status setzen).
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminLeadsPage() {
   const [data, setData] = useState<any[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -388,8 +527,9 @@ export default function AdminLeadsPage() {
   const [stats, setStats] = useState<any>(null);
   const [showImport, setShowImport] = useState(false);
   const [openId, setOpenId] = useState<number | null>(null);
-  const [flash, setFlash] = useState<string | null>(null);
+  const [flash, setFlash] = useState<Flash | null>(null);
   const [loading, setLoading] = useState(true);
+  const notify = useCallback((text: string, kind: FlashKind = "info") => setFlash({ text, kind }), []);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -402,7 +542,13 @@ export default function AdminLeadsPage() {
   }, [group, q]);
   useEffect(load, [load]);
   useEffect(() => { apiF("/admin/agents").then((r) => r.ok && setAgents(r.json.data || [])); }, []);
-  useEffect(() => { if (flash) { const t = setTimeout(() => setFlash(null), 4000); return () => clearTimeout(t); } }, [flash]);
+  useEffect(() => { if (flash) { const t = setTimeout(() => setFlash(null), 5000); return () => clearTimeout(t); } }, [flash]);
+
+  const flashCls = flash?.kind === "err"
+    ? "border-red-200 bg-red-50 text-red-700"
+    : flash?.kind === "ok"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+      : "border-slate-300 bg-white text-slate-700";
 
   return (
     <div className="px-4 sm:px-6 py-5 max-w-6xl mx-auto">
@@ -414,20 +560,28 @@ export default function AdminLeadsPage() {
         <button onClick={() => setShowImport(true)} className="px-3 py-2 rounded-lg text-white text-[12px] font-semibold inline-flex items-center gap-1.5 shrink-0" style={{ background: ACCENT }}><Upload size={13} /> Leads importieren</button>
       </div>
 
-      {flash && <div className="mb-4 px-4 py-2.5 rounded-lg border border-slate-300 bg-white text-[13px] text-slate-700">{flash}</div>}
+      {flash && <div className={`mb-4 px-4 py-2.5 rounded-lg border text-[13px] ${flashCls}`}>{flash.text}</div>}
 
-      {/* BE3: Kennzahlen X Leads → Y Kunden → Z zahlend */}
+      <OnboardingHelp />
+
+      {/* Überblick */}
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">Überblick</p>
       {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-          <div className="bg-white border border-slate-200 rounded-xl p-3"><p className="text-[11px] text-slate-400">Leads gesamt</p><p className="text-lg font-bold text-slate-900 tabular-nums">{stats.total}</p></div>
-          <div className="bg-white border border-slate-200 rounded-xl p-3"><p className="text-[11px] text-slate-400">Konvertiert</p><p className="text-lg font-bold text-slate-900 tabular-nums">{stats.converted}{stats.convertedPct != null ? <span className="text-[12px] font-medium text-slate-400"> · {stats.convertedPct}%</span> : null}</p></div>
-          <div className="bg-white border border-slate-200 rounded-xl p-3"><p className="text-[11px] text-slate-400">Zahlend</p><p className="text-lg font-bold text-slate-900 tabular-nums">{stats.paying}<span className="text-[12px] font-medium text-slate-400"> · {eur(stats.revenueCents)}</span></p></div>
-          <div className="bg-white border border-slate-200 rounded-xl p-3"><p className="text-[11px] text-slate-400">Offene Leads</p><p className="text-lg font-bold text-slate-900 tabular-nums">{stats.open}</p></div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <div className="bg-white border border-slate-200 rounded-xl p-3"><p className="text-[11px] text-slate-400 flex items-center">Leads gesamt<InfoTip text="Alle jemals empfangenen oder importierten Interessenten." /></p><p className="text-lg font-bold text-slate-900 tabular-nums">{stats.total}</p></div>
+          <div className="bg-white border border-slate-200 rounded-xl p-3"><p className="text-[11px] text-slate-400 flex items-center">Konvertiert<InfoTip text="Leads, die inzwischen einen Antrag gestellt haben und damit Kunde wurden." /></p><p className="text-lg font-bold text-slate-900 tabular-nums">{stats.converted}{stats.convertedPct != null ? <span className="text-[12px] font-medium text-slate-400"> · {stats.convertedPct}%</span> : null}</p></div>
+          <div className="bg-white border border-slate-200 rounded-xl p-3"><p className="text-[11px] text-slate-400 flex items-center">Zahlend<InfoTip text="Konvertierte Kunden, die bereits bezahlt haben — inkl. Umsatzsumme." /></p><p className="text-lg font-bold text-slate-900 tabular-nums">{stats.paying}<span className="text-[12px] font-medium text-slate-400"> · {eur(stats.revenueCents)}</span></p></div>
+          <div className="bg-white border border-slate-200 rounded-xl p-3"><p className="text-[11px] text-slate-400 flex items-center">Offene Leads<InfoTip text="Noch nicht konvertierte, nicht als ‚tot' markierte Interessenten, die weiter bearbeitet werden." /></p><p className="text-lg font-bold text-slate-900 tabular-nums">{stats.open}</p></div>
         </div>
       )}
 
-      <EnginePanel onAction={(m) => { setFlash(m); load(); }} />
-      <IntakeDiagnostics onAction={(m) => setFlash(m)} />
+      {/* Steuerung */}
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">Steuerung & Eingang</p>
+      <EnginePanel onAction={notify} />
+      <IntakeDiagnostics onAction={notify} onRefresh={load} />
+
+      {/* Liste */}
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">Lead-Liste</p>
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
         {GROUPS.map((g) => {
@@ -465,7 +619,9 @@ export default function AdminLeadsPage() {
               const isConv = l.status === "konvertiert";
               return (
                 <tr key={l.id} onClick={() => setOpenId(l.id)} className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer">
-                  <td className="px-4 py-2.5 font-semibold text-slate-800">{name}</td>
+                  <td className="px-4 py-2.5 font-semibold text-slate-800">
+                    <span className="inline-flex items-center gap-1.5">{name}{l.quelle === "test" && <span className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 text-[10px] font-bold tracking-wide">TEST</span>}</span>
+                  </td>
                   <td className="px-4 py-2.5 text-slate-500">{l.telefon || l.email || "—"}</td>
                   <td className="px-4 py-2.5 text-slate-500 hidden sm:table-cell">{l.kampagne || l.quelle || "—"}</td>
                   <td className="px-4 py-2.5 text-slate-500 hidden md:table-cell">{l.agent_name || "—"}</td>
@@ -485,7 +641,7 @@ export default function AdminLeadsPage() {
       </div>
 
       {openId !== null && <LeadDrawer id={openId} agents={agents} onClose={() => setOpenId(null)} onChanged={load} />}
-      {showImport && <ImportDialog onClose={() => { setShowImport(false); load(); }} onDone={(m) => setFlash(m)} />}
+      {showImport && <ImportDialog onClose={() => { setShowImport(false); load(); }} onDone={(m) => notify(m, "ok")} />}
     </div>
   );
 }

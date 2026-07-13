@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Users, Calendar, FileText, Wallet, User, LogOut, RefreshCw } from "lucide-react";
+import { Users, Calendar, FileText, Wallet, User, LogOut, RefreshCw, Award } from "lucide-react";
 
 // ============================================================================
 // Agent-Portal — gemeinsame Shell + Design-System (Paket E)
@@ -120,6 +120,7 @@ const NAV = [
   { href: "/agent/kalender", label: "Kalender", icon: Calendar },
   { href: "/agent/skripte", label: "Skripte", icon: FileText },
   { href: "/agent/auszahlung", label: "Auszahlung", icon: Wallet },
+  { href: "/agent/partner-programm", label: "Partner", icon: Award },
   { href: "/agent/profil", label: "Profil", icon: User },
 ];
 
@@ -221,7 +222,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
         <main className="max-w-6xl mx-auto px-4 py-5">{children}</main>
 
         {/* Mobile Bottom-Navigation */}
-        <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 grid grid-cols-5" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 grid grid-cols-6" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
           {NAV.map((n) => {
             const active = location === n.href;
             const Icon = n.icon;

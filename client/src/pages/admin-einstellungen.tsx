@@ -27,6 +27,8 @@ function fmtDT(v: string | null | undefined): string {
 export default function AdminEinstellungenPage() {
   const [form, setForm] = useState({ rate: "", min: "" });
   const [reminder, setReminder] = useState({ max: "6", start: "10", end: "11", enabled: true });
+  const [distribution, setDistribution] = useState({ enabled: true, cap: "50" });
+  const [partner, setPartner] = useState<{ overrideRate: string; thresholds: Array<{ key: string; label: string; min: string; bonus: string }>; prizes: Record<string, { title: string; description: string }> }>({ overrideRate: "5", thresholds: [], prizes: {} });
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
   const [sys, setSys] = useState<any>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -49,6 +51,23 @@ export default function AdminEinstellungenPage() {
             start: String(j.settings.reminderWindowStart ?? 10),
             end: String(j.settings.reminderWindowEnd ?? 11),
             enabled: Boolean(j.settings.reminderEngineEnabled),
+          });
+          setDistribution({
+            enabled: Boolean(j.settings.distributionEnabled),
+            cap: String(j.settings.distributionCap ?? 50),
+          });
+          const prizes: Record<string, { title: string; description: string }> = {};
+          for (const [k, v] of Object.entries((j.settings.partnerPrizes || {}) as Record<string, any>)) {
+            prizes[k] = { title: v?.title || "", description: v?.description || "" };
+          }
+          setPartner({
+            overrideRate: String((j.settings.partnerOverrideBp ?? 500) / 100).replace(".", ","),
+            thresholds: ((j.settings.partnerThresholds || []) as any[]).map((t) => ({
+              key: t.key, label: t.label,
+              min: String(t.minCents / 100),
+              bonus: String(t.bonusBp / 100).replace(".", ","),
+            })),
+            prizes,
           });
         }
       });
@@ -73,6 +92,15 @@ export default function AdminEinstellungenPage() {
         reminderWindowStart: Math.round(Number(reminder.start)),
         reminderWindowEnd: Math.round(Number(reminder.end)),
         reminderEngineEnabled: reminder.enabled,
+        distributionEnabled: distribution.enabled,
+        distributionCap: Math.round(Number(distribution.cap)),
+        partnerOverrideBp: Math.round(Number(partner.overrideRate.replace(",", ".")) * 100),
+        partnerThresholds: partner.thresholds.map((t) => ({
+          key: t.key, label: t.label,
+          minCents: Math.round(Number(String(t.min).replace(",", ".")) * 100),
+          bonusBp: Math.round(Number(String(t.bonus).replace(",", ".")) * 100),
+        })),
+        partnerPrizes: partner.prizes,
       }),
     });
     const j = await res.json().catch(() => null);
@@ -145,6 +173,81 @@ export default function AdminEinstellungenPage() {
             <input type="number" min={9} max={20} value={reminder.end} onChange={(e) => setReminder((r) => ({ ...r, end: e.target.value }))} className={inputCls} />
           </div>
         </div>
+        <button type="submit" disabled={busy} className={`${btnPrimary} mt-4`}>{busy ? "…" : "Speichern"}</button>
+      </form>
+
+      {/* Paket AE1: Automatische Kundenverteilung */}
+      <form onSubmit={save} className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+          <h2 className="text-[14px] font-bold text-slate-900">Automatische Kundenverteilung</h2>
+          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={distribution.enabled}
+              onChange={(e) => setDistribution((d) => ({ ...d, enabled: e.target.checked }))}
+              className="w-4 h-4 accent-[#2563eb]"
+            />
+            <span className={`text-[12px] font-bold ${distribution.enabled ? "text-emerald-600" : "text-red-600"}`}>
+              {distribution.enabled ? "Verteilung AN" : "Verteilung AUS"}
+            </span>
+          </label>
+        </div>
+        <p className="text-[12px] text-slate-400 mb-4">
+          Neue, unzugewiesene Bestellungen werden im Rotationsprinzip (Round-Robin) fair auf alle aktiven Mitarbeiter verteilt.
+          Ob ein Mitarbeiter teilnimmt, steuerst du in der <Link href="/admin/team" className="font-semibold text-[#2563eb] hover:underline">Team-Übersicht</Link>.
+          Das bestehende Auto-Claim für Altbestände bleibt erhalten.
+        </p>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Obergrenze offener Kunden pro Mitarbeiter</label>
+            <input type="number" min={0} max={10000} value={distribution.cap} onChange={(e) => setDistribution((d) => ({ ...d, cap: e.target.value }))} className={inputCls} />
+            <p className="text-[10px] text-slate-400 mt-1">Ist ein Mitarbeiter voll, rotiert die Verteilung weiter. 0 = unbegrenzt.</p>
+          </div>
+        </div>
+        <button type="submit" disabled={busy} className={`${btnPrimary} mt-4`}>{busy ? "…" : "Speichern"}</button>
+      </form>
+
+      {/* Paket AE2/AE3: FIAON Partner-Programm */}
+      <form onSubmit={save} className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">
+        <h2 className="text-[14px] font-bold text-slate-900 mb-1">FIAON Partner-Programm</h2>
+        <p className="text-[12px] text-slate-400 mb-4">
+          Partnerstatus entsteht ausschließlich aus dem kumulierten bestätigten EIGENumsatz eines Mitarbeiters
+          (Team-Umsatzbeteiligungen zählen nicht). Zuschläge wirken nur auf neue Provisionseinträge (Einfrier-Prinzip).
+          Die Team-Umsatzbeteiligung gilt strikt für EINE Ebene — keine Ketten.
+        </p>
+        <div className="mb-4">
+          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Standard-Umsatzbeteiligung für Werber (%)</label>
+          <input type="text" inputMode="decimal" value={partner.overrideRate} onChange={(e) => setPartner((p) => ({ ...p, overrideRate: e.target.value }))} className={inputCls} style={{ maxWidth: 200 }} />
+          <p className="text-[10px] text-slate-400 mt-1">Pro Beziehung überschreibbar (Team-Übersicht → Mitarbeiter bearbeiten).</p>
+        </div>
+        <div className="space-y-3">
+          {partner.thresholds.map((t, i) => (
+            <div key={t.key} className="p-3.5 rounded-xl border border-slate-200">
+              <p className="text-[12px] font-bold text-slate-800 mb-2">{t.label}</p>
+              <div className="grid sm:grid-cols-2 gap-3 mb-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Meilenstein ab Eigenumsatz (€)</label>
+                  <input type="text" inputMode="decimal" value={t.min} onChange={(e) => setPartner((p) => ({ ...p, thresholds: p.thresholds.map((x, xi) => xi === i ? { ...x, min: e.target.value } : x) }))} className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Provisions-Zuschlag (Prozentpunkte)</label>
+                  <input type="text" inputMode="decimal" value={t.bonus} onChange={(e) => setPartner((p) => ({ ...p, thresholds: p.thresholds.map((x, xi) => xi === i ? { ...x, bonus: e.target.value } : x) }))} className={inputCls} />
+                </div>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Meilenstein-Prämie (Titel)</label>
+                  <input type="text" value={partner.prizes[t.key]?.title || ""} onChange={(e) => setPartner((p) => ({ ...p, prizes: { ...p.prizes, [t.key]: { title: e.target.value, description: p.prizes[t.key]?.description || "" } } }))} className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Prämien-Beschreibung</label>
+                  <input type="text" value={partner.prizes[t.key]?.description || ""} onChange={(e) => setPartner((p) => ({ ...p, prizes: { ...p.prizes, [t.key]: { title: p.prizes[t.key]?.title || "", description: e.target.value } } }))} className={inputCls} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] text-slate-400 mt-2">Sachprämien werden NIE automatisch als Geld gebucht — erreichte Meilensteine erscheinen als Aufgabe „Prämie ausliefern" in der Team-Übersicht.</p>
         <button type="submit" disabled={busy} className={`${btnPrimary} mt-4`}>{busy ? "…" : "Speichern"}</button>
       </form>
 

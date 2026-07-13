@@ -146,7 +146,10 @@ export async function ensureAgentTables(): Promise<void> {
       ADD COLUMN IF NOT EXISTS reset_token_hash VARCHAR,
       ADD COLUMN IF NOT EXISTS reset_expires_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS session_epoch INTEGER NOT NULL DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ
+      ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS recruited_by INTEGER,
+      ADD COLUMN IF NOT EXISTS override_rate_bp INTEGER,
+      ADD COLUMN IF NOT EXISTS distribution_active BOOLEAN NOT NULL DEFAULT TRUE
   `);
   await sqlPool`
     CREATE TABLE IF NOT EXISTS fiaon_contact_log (
@@ -198,6 +201,41 @@ export async function ensureAgentTables(): Promise<void> {
   `;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_commissions_agent_idx ON fiaon_commissions(agent_id, status)`;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_commissions_ref_idx ON fiaon_commissions(ref)`;
+  // Paket AE2: Provisionstyp 'own' | 'override' (Team-Umsatzbeteiligung, EXAKT eine Ebene)
+  await sqlPool.unsafe(`
+    ALTER TABLE fiaon_commissions
+      ADD COLUMN IF NOT EXISTS kind VARCHAR NOT NULL DEFAULT 'own',
+      ADD COLUMN IF NOT EXISTS source_agent_id INTEGER
+  `);
+  // Paket AE3: Partner-Programm — erreichte Meilensteine + Prämien-Aufgaben für den Admin
+  await sqlPool`
+    CREATE TABLE IF NOT EXISTS fiaon_partner_milestones (
+      id SERIAL PRIMARY KEY,
+      agent_id INTEGER NOT NULL,
+      milestone_key VARCHAR NOT NULL,      -- senior | executive | managing
+      achieved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      prize_status VARCHAR NOT NULL DEFAULT 'offen',  -- offen | erledigt
+      prize_done_at TIMESTAMPTZ,
+      UNIQUE (agent_id, milestone_key)
+    )
+  `;
+  // Paket AE4: „Partner vorschlagen“ — kontrollierter Rekrutierungs-Flow (KEIN Auto-Anlegen)
+  await sqlPool`
+    CREATE TABLE IF NOT EXISTS fiaon_partner_suggestions (
+      id SERIAL PRIMARY KEY,
+      agent_id INTEGER NOT NULL,           -- vorschlagender Agent
+      first_name VARCHAR NOT NULL,
+      last_name VARCHAR NOT NULL,
+      email VARCHAR NOT NULL,
+      phone VARCHAR,
+      reason TEXT,
+      status VARCHAR NOT NULL DEFAULT 'offen',  -- offen | angenommen | abgelehnt
+      decision_reason TEXT,
+      created_agent_id INTEGER,            -- bei Annahme: der angelegte Agent
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      decided_at TIMESTAMPTZ
+    )
+  `;
   // H: Auszahlungs-Anforderungen (Bankdaten-Snapshot verschlüsselt)
   await sqlPool`
     CREATE TABLE IF NOT EXISTS fiaon_payouts (
@@ -263,6 +301,25 @@ const SETTING_DEFAULTS: Record<string, string> = {
   reminder_window_start: "10",        // Versandfenster-Beginn (Stunde, Europe/Berlin)
   reminder_window_end: "11",          // Versandfenster-Ende (exklusiv)
   reminder_engine_enabled: "1",       // Not-Aus-Schalter ("1" = an)
+  // Paket AE1: automatische Kundenverteilung (Round-Robin auf aktive Agents)
+  distribution_enabled: "1",          // Verteilung an/aus
+  distribution_cap: "50",             // Obergrenze offener zugewiesener Kunden pro Agent
+  distribution_last_agent_id: "0",    // Rotations-Zeiger (intern)
+  // Paket AE2: Standard-Override-Satz für Werber (pro Beziehung überschreibbar)
+  partner_override_bp: "500",         // 5,00 %
+  // Paket AE3: Partner-Programm — Meilenstein-Schwellen (kumulierter bestätigter
+  // EIGENumsatz in Cents) + Provisions-Zuschlag in Basispunkten. Admin-editierbar.
+  partner_thresholds: JSON.stringify([
+    { key: "senior", label: "Senior Partner", minCents: 2_500_000, bonusBp: 200 },
+    { key: "executive", label: "Executive Partner", minCents: 7_500_000, bonusBp: 400 },
+    { key: "managing", label: "Managing Partner", minCents: 20_000_000, bonusBp: 600 },
+  ]),
+  // Sachprämien je Meilenstein (Titel/Beschreibung; KEINE automatische Geldbuchung)
+  partner_prizes: JSON.stringify({
+    senior: { title: "Business-Dinner mit der Geschäftsführung", description: "Persönliche Einladung nach Erreichen des Meilensteins." },
+    executive: { title: "MacBook Pro oder iPhone Pro Max", description: "Gerät nach Wahl — Auslieferung über das Admin-Team." },
+    managing: { title: "Reise-Voucher 3.000 € + Einladung zum Führungskreis-Event", description: "Voucher und Event-Einladung werden persönlich übergeben." },
+  }),
 };
 
 export async function getSettings(): Promise<Record<string, string>> {
@@ -375,9 +432,60 @@ export async function logAgentEvent(agentId: number, type: string, meta?: Record
 
 // ═══════════════ PROVISIONS-ENGINE (G3) — nur serverseitig ═══════════════
 
+// ── Paket AE3: Partner-Programm (Meilensteine, KEINE „Level“) ────────────────
+export type PartnerThreshold = { key: string; label: string; minCents: number; bonusBp: number };
+
+export function partnerThresholds(settings: Record<string, string>): PartnerThreshold[] {
+  try {
+    const arr = JSON.parse(settings.partner_thresholds || "[]");
+    if (Array.isArray(arr) && arr.length > 0) {
+      return arr
+        .filter((t: any) => t && t.key && Number(t.minCents) > 0)
+        .map((t: any) => ({ key: String(t.key), label: String(t.label || t.key), minCents: Number(t.minCents), bonusBp: Number(t.bonusBp) || 0 }))
+        .sort((a: PartnerThreshold, b: PartnerThreshold) => a.minCents - b.minCents);
+    }
+  } catch { /* Fallback unten */ }
+  return JSON.parse(SETTING_DEFAULTS.partner_thresholds);
+}
+
+/**
+ * Kumulierter bestätigter EIGENumsatz (Kundenumsatz der eigenen Abschlüsse).
+ * Overrides (kind='override') zählen NICHT für den Partnerstatus — Status
+ * entsteht ausschließlich aus Eigenleistung. Clawbacks (negative Einträge)
+ * mindern den Umsatz wieder.
+ */
+export async function ownRevenueCents(agentId: number): Promise<number> {
+  const rows = await sqlPool`
+    SELECT COALESCE(SUM(CASE WHEN amount_cents > 0 THEN base_amount_cents ELSE -base_amount_cents END), 0) AS s
+    FROM fiaon_commissions
+    WHERE agent_id = ${agentId} AND kind = 'own' AND status != 'storniert'
+  `;
+  return Math.max(0, Number(rows[0].s));
+}
+
+/** Aktueller Partnerstatus aus Eigenumsatz: höchster erreichter Meilenstein (oder Basis „Partner“). */
+export function partnerStatusFor(revenueCents: number, thresholds: PartnerThreshold[]): { key: string; label: string; bonusBp: number } {
+  let current = { key: "partner", label: "Partner", bonusBp: 0 };
+  for (const t of thresholds) {
+    if (revenueCents >= t.minCents) current = { key: t.key, label: t.label, bonusBp: t.bonusBp };
+  }
+  return current;
+}
+
 /**
  * Hook aus mark-paid (fiaon-antrag.ts): legt beim Übergang zu `paid` den festen
  * Provisionseintrag an — Satz des Agents wird JETZT eingefroren. Idempotent.
+ *
+ * Paket AE3: Der Provisionssatz enthält den Meilenstein-Zuschlag des Partner-
+ * Programms (auf Basis des Eigenumsatzes VOR diesem Abschluss) — Einfrier-
+ * Prinzip bleibt: spätere Statuswechsel ändern bestehende Einträge NIE.
+ *
+ * Paket AE2 — HARTE REGEL: Team-Umsatzbeteiligung (Override) gibt es für EXAKT
+ * EINE Ebene: den direkten Werber (recruited_by) des abschließenden Agents.
+ * KEINE Ketten, KEINE Mehrfach-Ebenen, KEINE Rekursion — wirbt der Geworbene
+ * später selbst jemanden, erhält NUR er dessen Override, nicht der ursprüngliche
+ * Werber. Rechtlicher Grund: klare Abgrenzung zu unzulässigen mehrstufigen
+ * Vertriebssystemen. Diese Regel ist bewusst und darf nicht aufgeweicht werden.
  */
 export async function onCustomerPaid(ref: string): Promise<void> {
   await ensureAgentTables();
@@ -387,24 +495,71 @@ export async function onCustomerPaid(ref: string): Promise<void> {
   `;
   if (apps.length === 0) return; // kein zugewiesener Agent → keine Provision
   const app = apps[0];
-  // Idempotenz: pro Kunde maximal EIN positiver, nicht-stornierter Eintrag
+  // Idempotenz: pro Kunde maximal EIN positiver, nicht-stornierter Eintrag (own + override zusammen)
   const existing = await sqlPool`
     SELECT id FROM fiaon_commissions WHERE ref = ${ref} AND amount_cents > 0 AND status != 'storniert'
   `;
   if (existing.length > 0) return;
-  const agents = await sqlPool`SELECT id, name, commission_rate_bp FROM fiaon_agents WHERE id = ${app.assigned_agent_id}`;
+  const agents = await sqlPool`SELECT id, name, commission_rate_bp, recruited_by, override_rate_bp FROM fiaon_agents WHERE id = ${app.assigned_agent_id}`;
   if (agents.length === 0) return;
   const settings = await getSettings();
-  const rateBp = agentRateBp(agents[0] as any, settings);
+  const thresholds = partnerThresholds(settings);
+  // Meilenstein-Zuschlag auf Basis des Eigenumsatzes VOR diesem Abschluss
+  const revenueBefore = await ownRevenueCents(app.assigned_agent_id);
+  const statusBefore = partnerStatusFor(revenueBefore, thresholds);
+  const rateBp = agentRateBp(agents[0] as any, settings) + statusBefore.bonusBp;
   const baseCents = eurToCents(app.amount_due);
   const amountCents = commissionCents(baseCents, rateBp);
   if (amountCents <= 0) return;
   await sqlPool`
-    INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status)
-    VALUES (${app.assigned_agent_id}, ${ref}, ${app.payment_reference}, ${app.pack_name}, ${baseCents}, ${rateBp}, ${amountCents}, 'bestaetigt')
+    INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind,
+                                   note)
+    VALUES (${app.assigned_agent_id}, ${ref}, ${app.payment_reference}, ${app.pack_name}, ${baseCents}, ${rateBp}, ${amountCents}, 'bestaetigt', 'own',
+            ${statusBefore.bonusBp > 0 ? `inkl. ${statusBefore.bonusBp / 100} Prozentpunkte ${statusBefore.label}-Zuschlag` : null})
   `;
   await logAgentEvent(app.assigned_agent_id, "commission_created", { ref, amount_cents: amountCents, rate_bp: rateBp });
   console.log(`[FIAON-COMMISSION] bestätigt: ${ref} → Agent ${app.assigned_agent_id}, ${(amountCents / 100).toFixed(2)} € (${rateBp / 100} %)`);
+
+  // ── Paket AE2: Override für den direkten Werber — EXAKT EINE EBENE (s. o.) ──
+  if (agents[0].recruited_by) {
+    const recruiter = await sqlPool`SELECT id, name FROM fiaon_agents WHERE id = ${agents[0].recruited_by}`;
+    if (recruiter.length > 0) {
+      // Override-Satz: pro Beziehung am GEWORBENEN Agent hinterlegt (override_rate_bp),
+      // sonst globaler Default. Basis ist der KUNDENumsatz, nicht die Provision.
+      const overrideBp = agents[0].override_rate_bp ?? Number(settings.partner_override_bp) ?? 500;
+      const overrideCents = commissionCents(baseCents, overrideBp);
+      if (overrideCents > 0) {
+        await sqlPool`
+          INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, source_agent_id, note)
+          VALUES (${recruiter[0].id}, ${ref}, ${app.payment_reference}, ${app.pack_name}, ${baseCents}, ${overrideBp}, ${overrideCents}, 'bestaetigt', 'override', ${app.assigned_agent_id},
+                  ${`Team-Umsatzbeteiligung: Abschluss von ${agents[0].name}`})
+        `;
+        await logAgentEvent(recruiter[0].id, "override_created", { ref, amount_cents: overrideCents, rate_bp: overrideBp, source_agent_id: app.assigned_agent_id });
+        console.log(`[FIAON-OVERRIDE] ${ref}: Werber ${recruiter[0].id} erhält ${(overrideCents / 100).toFixed(2)} € (${overrideBp / 100} % vom Kundenumsatz, eine Ebene)`);
+      }
+    }
+  }
+
+  // ── Paket AE3: Meilenstein-Erreichung prüfen (nach diesem Abschluss) ──
+  try {
+    const revenueAfter = await ownRevenueCents(app.assigned_agent_id);
+    for (const t of thresholds) {
+      if (revenueBefore < t.minCents && revenueAfter >= t.minCents) {
+        const inserted = await sqlPool`
+          INSERT INTO fiaon_partner_milestones (agent_id, milestone_key)
+          VALUES (${app.assigned_agent_id}, ${t.key})
+          ON CONFLICT (agent_id, milestone_key) DO NOTHING
+          RETURNING id
+        `;
+        if (inserted.length > 0) {
+          await logAgentEvent(app.assigned_agent_id, "milestone_reached", { milestone: t.key, revenue_cents: revenueAfter });
+          console.log(`[FIAON-PARTNER] Meilenstein erreicht: Agent ${app.assigned_agent_id} → ${t.label} (${(revenueAfter / 100).toFixed(2)} € Eigenumsatz)`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[FIAON-PARTNER] Meilenstein-Check:", err);
+  }
 }
 
 /**
@@ -420,9 +575,10 @@ export async function onCustomerRefunded(ref: string): Promise<{ cancelled: numb
   for (const c of rows) {
     if (c.status === "ausgezahlt") {
       // bereits ausgezahlt → negativer Saldo-Eintrag, Original bleibt (Buchhaltungs-Spur)
+      // Paket AE2: Verrechnungs-Eintrag erbt kind/source — Override-Clawback trifft den Werber
       await sqlPool`
-        INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, note)
-        VALUES (${c.agent_id}, ${ref}, ${c.payment_reference}, ${c.pack_name}, ${c.base_amount_cents}, ${c.rate_bp}, ${-c.amount_cents}, 'bestaetigt',
+        INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, source_agent_id, note)
+        VALUES (${c.agent_id}, ${ref}, ${c.payment_reference}, ${c.pack_name}, ${c.base_amount_cents}, ${c.rate_bp}, ${-c.amount_cents}, 'bestaetigt', ${c.kind || "own"}, ${c.source_agent_id || null},
                 ${`Storno nach Auszahlung — Verrechnung mit künftigen Provisionen (Ursprung #${c.id})`})
       `;
       result.clawback++;
@@ -445,6 +601,207 @@ export async function onCustomerRefunded(ref: string): Promise<{ cancelled: numb
   }
   return result;
 }
+
+// ═══════════════ PAKET AC — Stammdaten-Korrektur (Agent + Admin) ═══════════════
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/** Telefon-Normalisierung: 0049/0-Präfixe → +49…, nur Ziffern; leere Eingabe erlaubt. */
+export function normalizePhone(raw: string): string | null {
+  let p = String(raw || "").replace(/[\s\-()./]/g, "");
+  if (!p) return "";
+  if (p.startsWith("00")) p = "+" + p.slice(2);
+  if (p.startsWith("0")) p = "+49" + p.slice(1);
+  if (!/^\+\d{7,15}$/.test(p)) return null;
+  return p;
+}
+
+/**
+ * Gemeinsamer Kern für Agent- und Admin-Bearbeitung der Kundenstammdaten
+ * (Vorname, Nachname, E-Mail, Telefon). NIEMALS Paket/Betrag/Status/Referenz —
+ * diese Felder werden hier bewusst nicht einmal gelesen.
+ *
+ * E-Mail-Änderung zieht den Kunden-Login automatisch mit: der Login sucht den
+ * Antrag PER E-MAIL (fiaon-antrag.ts POST /login), das Passwort liegt am selben
+ * Datensatz (utm.password) — beides ändert sich in EINEM atomaren UPDATE.
+ *
+ * Jede Feldänderung erzeugt einen Audit-Eintrag in fiaon_contact_log
+ * (type 'edit', „E-Mail korrigiert durch …: alt → neu") für die Kunden-Timeline.
+ */
+export async function updateCustomerContact(
+  ref: string,
+  body: any,
+  actor: { id: number | null; name: string },
+): Promise<{
+  error?: { code: number; msg: string };
+  changes?: Array<{ field: string; from: string; to: string }>;
+  duplicate?: { ref: string; payment_status: string; name: string } | null;
+  loginEmailChanged?: boolean;
+}> {
+  const rows = await sqlPool`
+    SELECT ref, first_name, last_name, email, phone, phone_country_code, contact_phone, utm::text AS utm_string, password
+    FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL
+  `;
+  if (rows.length === 0) return { error: { code: 404, msg: "Kunde nicht gefunden" } };
+  const cur = rows[0];
+
+  // Explizite Abwehr: Versuche, geschützte Felder zu ändern, werden hart abgelehnt (Testplan AC).
+  const FORBIDDEN = ["packName", "pack_name", "packKey", "pack_key", "amountDue", "amount_due", "paymentStatus", "payment_status", "paymentReference", "payment_reference", "status", "ref"];
+  for (const k of FORBIDDEN) {
+    if (body[k] !== undefined) return { error: { code: 403, msg: `Feld '${k}' darf hier nicht geändert werden` } };
+  }
+
+  const firstName = body.firstName !== undefined ? String(body.firstName).trim() : null;
+  const lastName = body.lastName !== undefined ? String(body.lastName).trim() : null;
+  const emailRaw = body.email !== undefined ? String(body.email).trim().toLowerCase() : null;
+  const phoneRaw = body.phone !== undefined ? String(body.phone) : null;
+
+  if (firstName !== null && !firstName) return { error: { code: 400, msg: "Vorname darf nicht leer sein" } };
+  if (lastName !== null && !lastName) return { error: { code: 400, msg: "Nachname darf nicht leer sein" } };
+  if (emailRaw !== null && !EMAIL_RE.test(emailRaw)) return { error: { code: 400, msg: "E-Mail-Format ungültig" } };
+  let phone: string | null = null;
+  if (phoneRaw !== null) {
+    phone = normalizePhone(phoneRaw);
+    if (phone === null) return { error: { code: 400, msg: "Telefonnummer ungültig — bitte mit Vorwahl (+49 …)" } };
+  }
+
+  const changes: Array<{ field: string; from: string; to: string }> = [];
+  if (firstName !== null && firstName !== (cur.first_name || "")) changes.push({ field: "Vorname", from: cur.first_name || "—", to: firstName });
+  if (lastName !== null && lastName !== (cur.last_name || "")) changes.push({ field: "Nachname", from: cur.last_name || "—", to: lastName });
+  if (emailRaw !== null && emailRaw !== String(cur.email || "").trim().toLowerCase()) changes.push({ field: "E-Mail", from: cur.email || "—", to: emailRaw });
+  const curPhone = `${cur.phone_country_code || ""}${cur.phone || ""}` || cur.contact_phone || "";
+  if (phone !== null && phone !== curPhone) changes.push({ field: "Telefon", from: curPhone || "—", to: phone || "—" });
+  if (changes.length === 0) return { changes: [], duplicate: null, loginEmailChanged: false };
+
+  // Duplikat-Warnung (Paket AC5): Kollision mit anderem Kunden derselben E-Mail?
+  let duplicate: { ref: string; payment_status: string; name: string } | null = null;
+  if (emailRaw !== null && changes.some((c) => c.field === "E-Mail")) {
+    const dup = await sqlPool`
+      SELECT ref, payment_status, first_name, last_name, contact_name FROM fiaon_applications
+      WHERE LOWER(TRIM(email)) = ${emailRaw} AND ref != ${ref} AND merged_into IS NULL
+      ORDER BY created_at DESC LIMIT 1
+    `;
+    if (dup.length > 0) {
+      duplicate = {
+        ref: dup[0].ref,
+        payment_status: dup[0].payment_status,
+        name: [dup[0].first_name, dup[0].last_name].filter(Boolean).join(" ") || dup[0].contact_name || dup[0].ref,
+      };
+    }
+  }
+
+  // Atomares UPDATE — E-Mail + Login wandern zusammen (Passwort bleibt am Datensatz).
+  await sqlPool`
+    UPDATE fiaon_applications SET
+      first_name = ${firstName !== null ? firstName : cur.first_name},
+      last_name = ${lastName !== null ? lastName : cur.last_name},
+      email = ${emailRaw !== null ? emailRaw : cur.email},
+      phone = ${phone !== null ? (phone || null) : cur.phone},
+      phone_country_code = ${phone !== null ? "" : cur.phone_country_code},
+      updated_at = NOW()
+    WHERE ref = ${ref}
+  `;
+
+  // Audit: ein Timeline-Eintrag pro geändertem Feld (alt → neu, Akteur, Zeit)
+  for (const c of changes) {
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${ref}, ${actor.id}, ${actor.name}, 'edit',
+              ${`${c.field} korrigiert durch ${actor.name}: ${c.from} → ${c.to}`})
+    `;
+  }
+
+  // Hat der Kunde bereits ein Konto mit Passwort? → Hinweis „meldet sich künftig mit neuer E-Mail an"
+  let hasPassword = Boolean(cur.password);
+  if (!hasPassword && cur.utm_string) {
+    try { hasPassword = Boolean(JSON.parse(cur.utm_string)?.password); } catch { /* ignorieren */ }
+  }
+  const loginEmailChanged = hasPassword && changes.some((c) => c.field === "E-Mail");
+
+  console.log(`[FIAON-CONTACT-EDIT] ${ref} durch ${actor.name}: ${changes.map((c) => c.field).join(", ")}${duplicate ? ` (DUBLETTE mit ${duplicate.ref})` : ""}`);
+  return { changes, duplicate, loginEmailChanged };
+}
+
+// ═══════════════ PAKET AE1 — Automatische Kundenverteilung (Round-Robin) ═══════════════
+
+/**
+ * Verteilt unzugewiesene offene Bestellungen fair auf alle aktiven Agents mit
+ * distribution_active=TRUE. Rotations-Zeiger in fiaon_settings; Obergrenze
+ * offener zugewiesener Kunden pro Agent (distribution_cap, 0 = unbegrenzt).
+ * Läuft nach jeder Bestellanlage + stündlich (fail-safe). Bestehendes
+ * Auto-Claim für Altbestände und manuelle Admin-Neuzuweisung bleiben erhalten.
+ */
+export async function distributeUnassignedOrders(): Promise<number> {
+  await ensureAgentTables();
+  const settings = await getSettings();
+  if (settings.distribution_enabled !== "1") return 0;
+  const cap = Math.max(0, Math.round(Number(settings.distribution_cap) || 0));
+
+  const agents = await sqlPool`
+    SELECT id, name FROM fiaon_agents WHERE active = TRUE AND distribution_active = TRUE ORDER BY id ASC
+  `;
+  if (agents.length === 0) return 0;
+
+  const counts = await sqlPool`
+    SELECT assigned_agent_id, COUNT(*)::int AS c FROM fiaon_applications
+    WHERE payment_status IN ('pending_payment', 'claimed_paid') AND merged_into IS NULL AND assigned_agent_id IS NOT NULL
+    GROUP BY assigned_agent_id
+  `;
+  const openBy: Record<number, number> = {};
+  for (const r of counts) openBy[Number(r.assigned_agent_id)] = Number(r.c);
+
+  const orders = await sqlPool`
+    SELECT ref FROM fiaon_applications
+    WHERE payment_status IN ('pending_payment', 'claimed_paid')
+      AND merged_into IS NULL AND assigned_agent_id IS NULL AND payment_reference IS NOT NULL
+    ORDER BY created_at ASC
+  `;
+  if (orders.length === 0) return 0;
+
+  // Rotations-Start: nach dem zuletzt bedienten Agent weiterdrehen
+  const lastId = Number(settings.distribution_last_agent_id) || 0;
+  let idx = agents.findIndex((a: any) => Number(a.id) > lastId);
+  if (idx === -1) idx = 0;
+
+  let assigned = 0;
+  let lastAssignedAgent = lastId;
+  for (const o of orders) {
+    // nächsten Agent mit freier Kapazität im Ring suchen
+    let chosen: any = null;
+    for (let step = 0; step < agents.length; step++) {
+      const cand = agents[(idx + step) % agents.length];
+      if (cap === 0 || (openBy[Number(cand.id)] || 0) < cap) {
+        chosen = cand;
+        idx = (idx + step + 1) % agents.length;
+        break;
+      }
+    }
+    if (!chosen) break; // alle Agents voll → Rest bleibt unzugewiesen (Auto-Claim greift weiter)
+    const updated = await sqlPool`
+      UPDATE fiaon_applications SET assigned_agent_id = ${chosen.id}, updated_at = NOW()
+      WHERE ref = ${o.ref} AND assigned_agent_id IS NULL
+      RETURNING ref
+    `;
+    if (updated.length === 0) continue; // Race: parallel geclaimt
+    openBy[Number(chosen.id)] = (openBy[Number(chosen.id)] || 0) + 1;
+    lastAssignedAgent = Number(chosen.id);
+    assigned++;
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${o.ref}, NULL, 'System', 'system', ${`Automatisch zugewiesen an ${chosen.name} (Rotationsverteilung)`})
+    `;
+  }
+  if (assigned > 0) {
+    await setSetting("distribution_last_agent_id", String(lastAssignedAgent));
+    console.log(`[FIAON-VERTEILUNG] ${assigned} Bestellung(en) per Rotation zugewiesen`);
+  }
+  return assigned;
+}
+
+// Stündlicher fail-safe Lauf (zusätzlich zum Hook nach Bestellanlage)
+setInterval(() => {
+  distributeUnassignedOrders().catch((err) => console.error("[FIAON-VERTEILUNG] Cron:", err));
+}, 60 * 60 * 1000);
 
 // ═══════════════ KALENDER-ERINNERUNGEN (J2) — stündlicher Cron ═══════════════
 
@@ -899,6 +1256,23 @@ router.get("/agent/customers/:ref", requireAgent, async (req: AgentRequest, res)
   }
 });
 
+// ═══════════════ PAKET AC — Agent: Stammdaten korrigieren ═══════════════
+// Editierbar: Vorname, Nachname, E-Mail, Telefon. NICHT editierbar (Server
+// lehnt hart ab): Paket, Betrag, Zahlungsstatus, Referenz. Antwort enthält
+// duplicate (Dubletten-Warnung) + loginEmailChanged (Hinweis-Dialog).
+router.patch("/agent/customers/:ref/contact-data", requireAgent, async (req: AgentRequest, res) => {
+  try {
+    const guard = await claimOrGuard(req.params.ref, req.agent!);
+    if (guard.error) return res.status(guard.error.code).json({ ok: false, error: guard.error.msg });
+    const result = await updateCustomerContact(req.params.ref, req.body || {}, { id: req.agent!.id, name: req.agent!.name });
+    if (result.error) return res.status(result.error.code).json({ ok: false, error: result.error.msg });
+    res.json({ ok: true, changes: result.changes, duplicate: result.duplicate, loginEmailChanged: result.loginEmailChanged });
+  } catch (err) {
+    console.error("[FIAON-AGENT] contact-data:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 // ═══════════════ AGENT: Notizen + Kontakt-Ergebnisse ═══════════════
 
 // Freitext-Notiz (append-only). Erste Aktion an unzugewiesenem Kunden = Auto-Claim (G2).
@@ -958,6 +1332,19 @@ router.post("/agent/customers/:ref/send-payment-email", requireAgent, async (req
   try {
     const guard = await claimOrGuard(req.params.ref, req.agent!);
     if (guard.error) return res.status(guard.error.code).json({ ok: false, error: guard.error.msg });
+    // Paket AD2 (doppelter Boden): keine Agent-Mail an E-Mail-Adressen mit
+    // bezahlter Schwester-Bestellung — außer der Admin hat den Zweitkauf-Override gesetzt.
+    const paidSister = await sqlPool`
+      SELECT p.ref FROM fiaon_applications c
+      JOIN fiaon_applications p ON LOWER(TRIM(p.email)) = LOWER(TRIM(c.email)) AND p.ref != c.ref
+      WHERE c.ref = ${req.params.ref} AND c.allow_reminders_despite_paid = FALSE
+        AND c.email IS NOT NULL AND TRIM(c.email) != ''
+        AND p.payment_status = 'paid'
+      LIMIT 1
+    `;
+    if (paidSister.length > 0) {
+      return res.status(409).json({ ok: false, error: "Kunde hat bereits eine bezahlte Bestellung (Dublette) — keine Zahlungs-Mail. Admin kann in der Detailansicht einen echten Zweitkauf freigeben." });
+    }
     // Doppelklick-/Spam-Schutz: 10-Minuten-Sperre pro Kunde (atomarer Claim)
     // last_reminder_at: kanalübergreifende 20h-Dedupe (Paket V) — die Agent-Mail
     // zählt wie Engine/Bulk als Erinnerung, damit der Kunde nicht doppelt am Tag hört.
@@ -1044,8 +1431,17 @@ router.get("/agent/earnings", requireAgent, async (req: AgentRequest, res) => {
       WHERE agent_id = ${me} AND status != 'storniert' AND created_at >= date_trunc('month', NOW())
     `;
     const entries = await sqlPool`
-      SELECT id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, note, created_at
-      FROM fiaon_commissions WHERE agent_id = ${me} ORDER BY created_at DESC LIMIT 50
+      SELECT c.id, c.ref, c.payment_reference, c.pack_name, c.base_amount_cents, c.rate_bp, c.amount_cents,
+             c.status, c.note, c.created_at, c.kind,
+             a.first_name, a.last_name, a.contact_name, a.company_name
+      FROM fiaon_commissions c
+      LEFT JOIN fiaon_applications a ON a.ref = c.ref
+      WHERE c.agent_id = ${me} ORDER BY c.created_at DESC LIMIT 50
+    `;
+    // Paket AE2: Team-Umsatzbeteiligung getrennt ausweisen (fließt ins selbe Guthaben)
+    const overrides = await sqlPool`
+      SELECT COALESCE(SUM(amount_cents),0) AS s, COUNT(*) FILTER (WHERE amount_cents > 0) AS c
+      FROM fiaon_commissions WHERE agent_id = ${me} AND kind = 'override' AND status != 'storniert'
     `;
     res.json({
       ok: true,
@@ -1057,6 +1453,8 @@ router.get("/agent/earnings", requireAgent, async (req: AgentRequest, res) => {
       paidOutCents: byStatus.ausgezahlt?.sum || 0,
       monthCents: Number(month[0].s),
       monthlyGoalCents: agentRow[0].monthly_goal_cents,
+      overrideCents: Number(overrides[0].s),
+      overrideCount: Number(overrides[0].c),
       entries,
     });
   } catch (err) {
@@ -1123,6 +1521,98 @@ router.post("/agent/payouts/request", requireAgent, async (req: AgentRequest, re
     res.json({ ok: true, payout: payout[0] });
   } catch (err) {
     console.error("[FIAON-AGENT] payout request:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════ PAKET AE3/AE4 — Partner-Programm (Agent-Seite) ═══════════════
+
+router.get("/agent/partner-program", requireAgent, async (req: AgentRequest, res) => {
+  try {
+    const me = req.agent!.id;
+    const settings = await getSettings();
+    const thresholds = partnerThresholds(settings);
+    let prizes: Record<string, { title: string; description?: string }> = {};
+    try { prizes = JSON.parse(settings.partner_prizes || "{}"); } catch { /* leer */ }
+
+    const revenue = await ownRevenueCents(me);
+    const status = partnerStatusFor(revenue, thresholds);
+    const next = thresholds.find((t) => revenue < t.minCents) || null;
+
+    const milestones = await sqlPool`
+      SELECT milestone_key, achieved_at, prize_status FROM fiaon_partner_milestones WHERE agent_id = ${me} ORDER BY achieved_at ASC
+    `;
+
+    // „Mein Team“: geworbene Agents — anonym aggregiert (Anzahl, Abschlüsse, Umsatz),
+    // plus eigene Team-Umsatzbeteiligung. EXAKT eine Ebene (AE2).
+    const team = await sqlPool`
+      SELECT COUNT(*)::int AS members FROM fiaon_agents WHERE recruited_by = ${me} AND active = TRUE
+    `;
+    const teamRevenue = await sqlPool`
+      SELECT COUNT(*) FILTER (WHERE c.amount_cents > 0)::int AS deals,
+             COALESCE(SUM(CASE WHEN c.amount_cents > 0 THEN c.base_amount_cents ELSE -c.base_amount_cents END),0) AS revenue
+      FROM fiaon_commissions c
+      JOIN fiaon_agents a ON a.id = c.agent_id
+      WHERE a.recruited_by = ${me} AND c.kind = 'own' AND c.status != 'storniert'
+    `;
+    const myOverride = await sqlPool`
+      SELECT COALESCE(SUM(amount_cents),0) AS s FROM fiaon_commissions
+      WHERE agent_id = ${me} AND kind = 'override' AND status != 'storniert'
+    `;
+
+    const suggestions = await sqlPool`
+      SELECT id, first_name, last_name, status, created_at, decided_at FROM fiaon_partner_suggestions
+      WHERE agent_id = ${me} ORDER BY created_at DESC LIMIT 20
+    `;
+
+    res.json({
+      ok: true,
+      status,
+      revenueCents: revenue,
+      next: next ? { key: next.key, label: next.label, minCents: next.minCents, bonusBp: next.bonusBp, remainingCents: next.minCents - revenue } : null,
+      thresholds: thresholds.map((t) => ({ ...t, prize: prizes[t.key] || null })),
+      milestones,
+      team: {
+        members: Number(team[0].members),
+        deals: Number(teamRevenue[0].deals),
+        revenueCents: Math.max(0, Number(teamRevenue[0].revenue)),
+        overrideCents: Number(myOverride[0].s),
+      },
+      suggestions,
+    });
+  } catch (err) {
+    console.error("[FIAON-AGENT] partner-program:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Paket AE4: „Partner vorschlagen“ — erzeugt AUSSCHLIESSLICH eine Admin-Anfrage.
+// BEWUSSTE DESIGN-ENTSCHEIDUNG: Es gibt KEINE Prämie/Bonus für das Vorschlagen
+// selbst — der Werber profitiert ausschließlich über den umsatzbasierten
+// Override (AE2), sobald der Geworbene tatsächlich verkauft.
+router.post("/agent/partner-suggestions", requireAgent, async (req: AgentRequest, res) => {
+  try {
+    const { firstName, lastName, email, phone, reason } = req.body || {};
+    if (!firstName || !lastName || !email) return res.status(400).json({ ok: false, error: "Vorname, Nachname und E-Mail erforderlich" });
+    if (!EMAIL_RE.test(String(email).trim().toLowerCase())) return res.status(400).json({ ok: false, error: "E-Mail-Format ungültig" });
+    const phoneNorm = phone ? normalizePhone(String(phone)) : "";
+    if (phoneNorm === null) return res.status(400).json({ ok: false, error: "Telefonnummer ungültig" });
+    // Doppelte offene Vorschläge für dieselbe E-Mail vermeiden
+    const open = await sqlPool`
+      SELECT id FROM fiaon_partner_suggestions WHERE LOWER(email) = ${String(email).trim().toLowerCase()} AND status = 'offen'
+    `;
+    if (open.length > 0) return res.status(409).json({ ok: false, error: "Für diese E-Mail liegt bereits ein offener Vorschlag vor" });
+    const rows = await sqlPool`
+      INSERT INTO fiaon_partner_suggestions (agent_id, first_name, last_name, email, phone, reason)
+      VALUES (${req.agent!.id}, ${String(firstName).trim()}, ${String(lastName).trim()},
+              ${String(email).trim().toLowerCase()}, ${phoneNorm || null}, ${reason ? String(reason).trim().slice(0, 2000) : null})
+      RETURNING id, created_at
+    `;
+    await logAgentEvent(req.agent!.id, "partner_suggested", { suggestion_id: rows[0].id, email: String(email).trim().toLowerCase() });
+    console.log(`[FIAON-PARTNER] Vorschlag #${rows[0].id} von Agent ${req.agent!.id}`);
+    res.json({ ok: true, suggestion: rows[0] });
+  } catch (err) {
+    console.error("[FIAON-AGENT] partner-suggestion:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

@@ -28,12 +28,16 @@ router.get("/admin/agents", async (_req, res) => {
     await ensureAgentTables();
     const settings = await getSettings();
     const agents = await sqlPool`
-      SELECT id, name, first_name, last_name, email, phone, active, avatar,
-             commission_rate_bp, monthly_goal_cents,
-             bank_iban_masked, bank_updated_at, bank_change_ack,
-             invite_expires_at, password_hash IS NOT NULL AS has_password,
-             last_login_at, created_at
-      FROM fiaon_agents ORDER BY created_at ASC
+      SELECT a.id, a.name, a.first_name, a.last_name, a.email, a.phone, a.active, a.avatar,
+             a.commission_rate_bp, a.monthly_goal_cents,
+             a.bank_iban_masked, a.bank_updated_at, a.bank_change_ack,
+             a.invite_expires_at, a.password_hash IS NOT NULL AS has_password,
+             a.last_login_at, a.created_at,
+             a.recruited_by, a.override_rate_bp, a.distribution_active,
+             r.name AS recruited_by_name
+      FROM fiaon_agents a
+      LEFT JOIN fiaon_agents r ON r.id = a.recruited_by
+      ORDER BY a.created_at ASC
     `;
     res.json({
       ok: true,
@@ -53,23 +57,36 @@ router.get("/admin/agents", async (_req, res) => {
 router.post("/admin/agents", async (req, res) => {
   try {
     await ensureAgentTables();
-    const { firstName, lastName, email, phone, commissionRateBp, monthlyGoalCents } = req.body || {};
+    const { firstName, lastName, email, phone, commissionRateBp, monthlyGoalCents, recruitedBy, overrideRateBp, suggestionId } = req.body || {};
     if (!firstName || !lastName || !email) return res.status(400).json({ ok: false, error: "Vorname, Nachname und E-Mail erforderlich" });
     const rateBp = commissionRateBp != null && commissionRateBp !== "" ? Math.round(Number(commissionRateBp)) : null;
     if (rateBp != null && (isNaN(rateBp) || rateBp < 0 || rateBp > 10000)) return res.status(400).json({ ok: false, error: "Provisionssatz ungültig (0–100 %)" });
     const goal = monthlyGoalCents != null && monthlyGoalCents !== "" ? Math.round(Number(monthlyGoalCents)) : null;
+    // Paket AE2: Werber (recruited_by) — nur Admin setzbar; Override-Satz pro Beziehung optional
+    const recruiter = recruitedBy != null && recruitedBy !== "" ? Number(recruitedBy) : null;
+    if (recruiter != null && (!Number.isInteger(recruiter) || recruiter <= 0)) return res.status(400).json({ ok: false, error: "Werber-ID ungültig" });
+    const ovBp = overrideRateBp != null && overrideRateBp !== "" ? Math.round(Number(overrideRateBp)) : null;
+    if (ovBp != null && (isNaN(ovBp) || ovBp < 0 || ovBp > 5000)) return res.status(400).json({ ok: false, error: "Override-Satz ungültig (0–50 %)" });
     const token = randomBytes(32).toString("hex");
     const name = `${String(firstName).trim()} ${String(lastName).trim()}`;
     const rows = await sqlPool`
-      INSERT INTO fiaon_agents (name, first_name, last_name, email, phone, commission_rate_bp, monthly_goal_cents, invite_token_hash, invite_expires_at)
+      INSERT INTO fiaon_agents (name, first_name, last_name, email, phone, commission_rate_bp, monthly_goal_cents, invite_token_hash, invite_expires_at, recruited_by, override_rate_bp)
       VALUES (${name}, ${String(firstName).trim()}, ${String(lastName).trim()}, ${String(email).trim().toLowerCase()},
               ${phone ? String(phone).trim() : null}, ${rateBp}, ${goal},
-              ${hashToken(token)}, ${new Date(Date.now() + INVITE_TTL_MS)})
+              ${hashToken(token)}, ${new Date(Date.now() + INVITE_TTL_MS)}, ${recruiter}, ${ovBp})
       ON CONFLICT (email) DO NOTHING
       RETURNING id, name, email
     `;
     if (rows.length === 0) return res.status(409).json({ ok: false, error: "E-Mail bereits vergeben" });
-    await logAgentEvent(rows[0].id, "invited", { by: "admin" });
+    await logAgentEvent(rows[0].id, "invited", { by: "admin", recruited_by: recruiter });
+    // Paket AE4: kam der Agent über einen Partner-Vorschlag → Anfrage als angenommen markieren
+    if (suggestionId != null && Number(suggestionId) > 0) {
+      await sqlPool`
+        UPDATE fiaon_partner_suggestions
+        SET status = 'angenommen', created_agent_id = ${rows[0].id}, decided_at = NOW()
+        WHERE id = ${Number(suggestionId)} AND status = 'offen'
+      `;
+    }
     sendMakeWebhook("agent_invite", {
       email: rows[0].email,
       vorname: String(firstName).trim(),
@@ -116,10 +133,15 @@ router.post("/admin/agents/:id/update", async (req, res) => {
   try {
     await ensureAgentTables();
     const id = Number(req.params.id);
-    const { firstName, lastName, phone, commissionRateBp, monthlyGoalCents, active } = req.body || {};
+    const { firstName, lastName, phone, commissionRateBp, monthlyGoalCents, active, recruitedBy, overrideRateBp, distributionActive } = req.body || {};
     const rateBp = commissionRateBp === null || commissionRateBp === "" || commissionRateBp === undefined ? null : Math.round(Number(commissionRateBp));
     if (rateBp != null && (isNaN(rateBp) || rateBp < 0 || rateBp > 10000)) return res.status(400).json({ ok: false, error: "Provisionssatz ungültig" });
     const goal = monthlyGoalCents === null || monthlyGoalCents === "" || monthlyGoalCents === undefined ? null : Math.round(Number(monthlyGoalCents));
+    // Paket AE2: recruited_by nur Admin setzbar; Selbst-Werbung und Ketten-Setups abfangen
+    const recruiter = recruitedBy === undefined ? undefined : (recruitedBy === null || recruitedBy === "" ? null : Number(recruitedBy));
+    if (recruiter != null && (!Number.isInteger(recruiter) || recruiter <= 0 || recruiter === id)) return res.status(400).json({ ok: false, error: "Werber-ID ungültig (kein Selbstbezug)" });
+    const ovBp = overrideRateBp === undefined ? undefined : (overrideRateBp === null || overrideRateBp === "" ? null : Math.round(Number(overrideRateBp)));
+    if (ovBp != null && (isNaN(ovBp) || ovBp < 0 || ovBp > 5000)) return res.status(400).json({ ok: false, error: "Override-Satz ungültig (0–50 %)" });
     const rows = await sqlPool`
       UPDATE fiaon_agents SET
         first_name = COALESCE(${firstName ? String(firstName).trim() : null}, first_name),
@@ -128,9 +150,12 @@ router.post("/admin/agents/:id/update", async (req, res) => {
         phone = ${phone ? String(phone).trim() : null},
         commission_rate_bp = ${rateBp},
         monthly_goal_cents = ${goal},
-        active = COALESCE(${typeof active === "boolean" ? active : null}, active)
+        active = COALESCE(${typeof active === "boolean" ? active : null}, active),
+        recruited_by = ${recruiter === undefined ? sqlPool`recruited_by` : recruiter},
+        override_rate_bp = ${ovBp === undefined ? sqlPool`override_rate_bp` : ovBp},
+        distribution_active = COALESCE(${typeof distributionActive === "boolean" ? distributionActive : null}, distribution_active)
       WHERE id = ${id}
-      RETURNING id, name, email, active, commission_rate_bp, monthly_goal_cents
+      RETURNING id, name, email, active, commission_rate_bp, monthly_goal_cents, recruited_by, override_rate_bp, distribution_active
     `;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Agent nicht gefunden" });
     res.json({ ok: true, agent: rows[0] });
@@ -201,10 +226,14 @@ router.get("/admin/team/stats", async (_req, res) => {
     await ensureAgentTables();
     const settings = await getSettings();
     const agents = await sqlPool`
-      SELECT id, name, first_name, last_name, email, phone, active, avatar,
-             commission_rate_bp, monthly_goal_cents, bank_iban_masked, bank_change_ack,
-             invite_expires_at, password_hash IS NOT NULL AS has_password, last_login_at, created_at
-      FROM fiaon_agents ORDER BY created_at ASC
+      SELECT a.id, a.name, a.first_name, a.last_name, a.email, a.phone, a.active, a.avatar,
+             a.commission_rate_bp, a.monthly_goal_cents, a.bank_iban_masked, a.bank_change_ack,
+             a.invite_expires_at, a.password_hash IS NOT NULL AS has_password, a.last_login_at, a.created_at,
+             a.recruited_by, a.override_rate_bp, a.distribution_active,
+             r.name AS recruited_by_name
+      FROM fiaon_agents a
+      LEFT JOIN fiaon_agents r ON r.id = a.recruited_by
+      ORDER BY a.created_at ASC
     `;
     const assigned = await sqlPool`
       SELECT assigned_agent_id AS id, COUNT(*) AS c FROM fiaon_applications
@@ -263,10 +292,14 @@ router.get("/admin/team/agents/:id", async (req, res) => {
     await ensureAgentTables();
     const id = Number(req.params.id);
     const agents = await sqlPool`
-      SELECT id, name, first_name, last_name, email, phone, active, avatar,
-             commission_rate_bp, monthly_goal_cents, bank_iban_masked, bank_updated_at,
-             invite_expires_at, password_hash IS NOT NULL AS has_password, last_login_at, created_at
-      FROM fiaon_agents WHERE id = ${id}
+      SELECT a.id, a.name, a.first_name, a.last_name, a.email, a.phone, a.active, a.avatar,
+             a.commission_rate_bp, a.monthly_goal_cents, a.bank_iban_masked, a.bank_updated_at,
+             a.invite_expires_at, a.password_hash IS NOT NULL AS has_password, a.last_login_at, a.created_at,
+             a.recruited_by, a.override_rate_bp, a.distribution_active,
+             r.name AS recruited_by_name
+      FROM fiaon_agents a
+      LEFT JOIN fiaon_agents r ON r.id = a.recruited_by
+      WHERE a.id = ${id}
     `;
     if (agents.length === 0) return res.status(404).json({ ok: false, error: "Agent nicht gefunden" });
     const contactLog = await sqlPool`
@@ -277,7 +310,7 @@ router.get("/admin/team/agents/:id", async (req, res) => {
       SELECT id, type, meta, created_at FROM fiaon_agent_events WHERE agent_id = ${id} ORDER BY created_at DESC LIMIT 200
     `;
     const commissions = await sqlPool`
-      SELECT id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, note, created_at
+      SELECT id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, note, created_at
       FROM fiaon_commissions WHERE agent_id = ${id} ORDER BY created_at DESC LIMIT 200
     `;
     const customers = await sqlPool`
@@ -409,6 +442,13 @@ router.get("/admin/settings", async (_req, res) => {
         reminderWindowStart: Number(settings.reminder_window_start),
         reminderWindowEnd: Number(settings.reminder_window_end),
         reminderEngineEnabled: settings.reminder_engine_enabled === "1",
+        // Paket AE1: automatische Kundenverteilung
+        distributionEnabled: settings.distribution_enabled === "1",
+        distributionCap: Number(settings.distribution_cap),
+        // Paket AE2/AE3: Partner-Programm
+        partnerOverrideBp: Number(settings.partner_override_bp),
+        partnerThresholds: JSON.parse(settings.partner_thresholds || "[]"),
+        partnerPrizes: JSON.parse(settings.partner_prizes || "{}"),
       },
     });
   } catch (err) {
@@ -454,9 +494,118 @@ router.post("/admin/settings", async (req, res) => {
     if (reminderEngineEnabled != null) {
       await setSetting("reminder_engine_enabled", reminderEngineEnabled ? "1" : "0");
     }
+    // Paket AE1: Verteilung an/aus + Obergrenze
+    const { distributionEnabled, distributionCap, partnerOverrideBp, partnerThresholds: pThresholds, partnerPrizes: pPrizes } = req.body || {};
+    if (distributionEnabled != null) {
+      await setSetting("distribution_enabled", distributionEnabled ? "1" : "0");
+    }
+    if (distributionCap != null) {
+      const v = Math.round(Number(distributionCap));
+      if (isNaN(v) || v < 0 || v > 10000) return res.status(400).json({ ok: false, error: "Verteilungs-Obergrenze ungültig" });
+      await setSetting("distribution_cap", String(v));
+    }
+    // Paket AE2: Standard-Override-Satz
+    if (partnerOverrideBp != null) {
+      const v = Math.round(Number(partnerOverrideBp));
+      if (isNaN(v) || v < 0 || v > 5000) return res.status(400).json({ ok: false, error: "Override-Satz ungültig (0–50 %)" });
+      await setSetting("partner_override_bp", String(v));
+    }
+    // Paket AE3: Meilenstein-Schwellen + Zuschläge + Prämien (Admin-Pflege)
+    if (Array.isArray(pThresholds)) {
+      const clean = pThresholds
+        .filter((t: any) => t && t.key && Number(t.minCents) > 0)
+        .map((t: any) => ({ key: String(t.key), label: String(t.label || t.key), minCents: Math.round(Number(t.minCents)), bonusBp: Math.max(0, Math.min(5000, Math.round(Number(t.bonusBp) || 0))) }));
+      if (clean.length > 0) await setSetting("partner_thresholds", JSON.stringify(clean));
+    }
+    if (pPrizes != null && typeof pPrizes === "object" && !Array.isArray(pPrizes)) {
+      const clean: Record<string, { title: string; description: string }> = {};
+      for (const [k, v] of Object.entries(pPrizes as Record<string, any>)) {
+        if (v && typeof v.title === "string") clean[k] = { title: v.title.slice(0, 200), description: String(v.description || "").slice(0, 1000) };
+      }
+      await setSetting("partner_prizes", JSON.stringify(clean));
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error("[FIAON-TEAM] settings save:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════ PAKET AE4 — Partner-Anfragen (Admin) ═══════════
+
+router.get("/admin/team/partner-suggestions", async (_req, res) => {
+  try {
+    await ensureAgentTables();
+    const rows = await sqlPool`
+      SELECT s.id, s.first_name, s.last_name, s.email, s.phone, s.reason, s.status,
+             s.decision_reason, s.created_at, s.decided_at, s.created_agent_id,
+             a.name AS suggested_by_name, a.id AS suggested_by_id
+      FROM fiaon_partner_suggestions s
+      LEFT JOIN fiaon_agents a ON a.id = s.agent_id
+      ORDER BY (s.status = 'offen') DESC, s.created_at DESC
+      LIMIT 200
+    `;
+    res.json({ ok: true, data: rows });
+  } catch (err) {
+    console.error("[FIAON-TEAM] partner-suggestions:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Ablehnen (mit optionalem Grund). Der Kandidat wird NICHT automatisch informiert.
+// Annahme läuft über den normalen Agent-Anlege-Flow (POST /admin/agents mit
+// recruitedBy + suggestionId) — recruited_by wird dort automatisch gesetzt.
+router.post("/admin/team/partner-suggestions/:id/reject", async (req, res) => {
+  try {
+    await ensureAgentTables();
+    const rows = await sqlPool`
+      UPDATE fiaon_partner_suggestions
+      SET status = 'abgelehnt', decision_reason = ${req.body?.reason ? String(req.body.reason).slice(0, 1000) : null}, decided_at = NOW()
+      WHERE id = ${Number(req.params.id)} AND status = 'offen'
+      RETURNING id
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Anfrage nicht gefunden oder bereits entschieden" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-TEAM] suggestion reject:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════ PAKET AE3 — Meilenstein-Prämien (Admin-Aufgaben) ═══════════
+
+router.get("/admin/team/milestones", async (_req, res) => {
+  try {
+    await ensureAgentTables();
+    const settings = await getSettings();
+    let prizes: Record<string, { title: string }> = {};
+    try { prizes = JSON.parse(settings.partner_prizes || "{}"); } catch { /* leer */ }
+    const rows = await sqlPool`
+      SELECT m.id, m.agent_id, m.milestone_key, m.achieved_at, m.prize_status, m.prize_done_at, a.name AS agent_name
+      FROM fiaon_partner_milestones m
+      LEFT JOIN fiaon_agents a ON a.id = m.agent_id
+      ORDER BY (m.prize_status = 'offen') DESC, m.achieved_at DESC
+      LIMIT 200
+    `;
+    res.json({ ok: true, data: rows.map((r: any) => ({ ...r, prize_title: prizes[r.milestone_key]?.title || null })) });
+  } catch (err) {
+    console.error("[FIAON-TEAM] milestones:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/admin/team/milestones/:id/done", async (req, res) => {
+  try {
+    const rows = await sqlPool`
+      UPDATE fiaon_partner_milestones SET prize_status = 'erledigt', prize_done_at = NOW()
+      WHERE id = ${Number(req.params.id)} AND prize_status = 'offen'
+      RETURNING id, agent_id, milestone_key
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Aufgabe nicht gefunden oder bereits erledigt" });
+    await logAgentEvent(rows[0].agent_id, "milestone_prize_delivered", { milestone: rows[0].milestone_key });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-TEAM] milestone done:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

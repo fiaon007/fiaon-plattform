@@ -33,7 +33,29 @@ interface PaymentRow {
   claimed_paid_at: string | null;
   promised_pay_date: string | null;
   invoice_number: string | null;
+  superseded_by: string | null;
+  allow_reminders_despite_paid: boolean;
+  cancelled_at: string | null;
+  gdpr_deleted_at: string | null;
 }
+
+// Paket AD3: Dubletten-Gruppen (per E-Mail) für die Verwaltungsansicht
+interface DupApp {
+  ref: string;
+  payment_reference: string | null;
+  payment_status: string;
+  superseded_by: string | null;
+  amount_due: string | null;
+  pack_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  contact_name: string | null;
+  email: string | null;
+  invoice_number: string | null;
+  created_at: string;
+  gdpr_deleted_at: string | null;
+}
+interface DupGroup { email: string; apps: DupApp[] }
 
 interface PaymentStats {
   pending: { count: number; sum: number };
@@ -95,6 +117,8 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   claimed_paid: { label: "Zahlung angekündigt", cls: "bg-amber-100 text-amber-700" },
   paid: { label: "Bezahlt", cls: "bg-emerald-100 text-emerald-700" },
   expired: { label: "Abgelaufen", cls: "bg-rose-100 text-rose-600" },
+  superseded: { label: "Ersetzt (Dublette)", cls: "bg-slate-100 text-slate-500" },
+  cancelled: { label: "Storniert", cls: "bg-slate-100 text-slate-500" },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -130,6 +154,11 @@ export default function AdminZahlungenPage() {
   // Duplikat-Bereinigung
   const [dup, setDup] = useState<DupPreview | null>(null);
   const [dupRunning, setDupRunning] = useState(false);
+  // Paket AD3: Dubletten-Gruppen (per E-Mail) + retroaktiver Supersede-Lauf
+  const [dupGroups, setDupGroups] = useState<DupGroup[]>([]);
+  const [dupGroupsOpen, setDupGroupsOpen] = useState(false);
+  const [supersedeRunning, setSupersedeRunning] = useState(false);
+  const [groupBusy, setGroupBusy] = useState<string | null>(null);
 
   // Auszahlungen (H2) + Audit
   const [payouts, setPayouts] = useState<any[]>([]);
@@ -183,6 +212,15 @@ export default function AdminZahlungenPage() {
     } catch {}
   }, []);
 
+  // Paket AD3: Dubletten-Gruppen (per E-Mail) laden
+  const loadDupGroups = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/fiaon/admin/duplicates/groups`, { credentials: "include" });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) setDupGroups(json.groups || []);
+    } catch {}
+  }, []);
+
   const loadPayouts = useCallback(async () => {
     try {
       const res = await fetch(`/api/fiaon/admin/payouts`, { credentials: "include" });
@@ -224,8 +262,9 @@ export default function AdminZahlungenPage() {
 
   useEffect(() => {
     loadDup();
+    loadDupGroups();
     loadPayouts();
-  }, [loadDup, loadPayouts]);
+  }, [loadDup, loadDupGroups, loadPayouts]);
 
   const flash = (msg: string) => {
     setMessage(msg);
@@ -272,6 +311,91 @@ export default function AdminZahlungenPage() {
     } finally {
       setDupRunning(false);
     }
+  };
+
+  // ── Paket AD3: Einzel-Storno, DSGVO-Löschung, Reminder-Override ──
+  const cancelOrder = async (e: React.MouseEvent, paymentRef: string) => {
+    e.stopPropagation();
+    if (!confirm(`Bestellung ${paymentRef} stornieren?\n\nStatus wird „storniert", alle Erinnerungen stoppen, vorhandene Provisionen werden zurückgezogen (Clawback). Die Bestellung verschwindet aus den operativen Listen, bleibt aber in der Historie.`)) return;
+    setActionRef(paymentRef);
+    try {
+      const res = await fetch(`/api/fiaon/admin/payments/${encodeURIComponent(paymentRef)}/cancel`, { method: "POST", credentials: "include" });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        flash(`${paymentRef} storniert`);
+        setDetail(null); load(tab); loadStats(); loadDupGroups();
+      } else flash(`Fehler: ${json?.error || res.status}`);
+    } catch { flash("Netzwerkfehler"); } finally { setActionRef(null); }
+  };
+
+  const gdprDelete = async (e: React.MouseEvent, r: PaymentRow) => {
+    e.stopPropagation();
+    if (!confirm(`Kunde „${customerName(r)}" nach DSGVO löschen?\n\nName, E-Mail, Telefon, Adresse und KYC-Dokumente werden anonymisiert/entfernt. Offene Zahlung wird storniert.\n\nWICHTIG: Rechnungsdaten (Nummer ${r.invoice_number || "—"}, Betrag, Datum) bleiben aus Buchhaltungspflicht erhalten. Dieser Schritt ist nicht umkehrbar.`)) return;
+    setActionRef(r.payment_reference);
+    try {
+      const res = await fetch(`/api/fiaon/admin/applications/${encodeURIComponent(r.ref)}/gdpr-delete`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ confirmed: true }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        flash(`${customerName(r)} anonymisiert — Rechnungsdaten bleiben erhalten`);
+        setDetail(null); load(tab); loadStats(); loadDupGroups();
+      } else flash(`Fehler: ${json?.error || res.status}`);
+    } catch { flash("Netzwerkfehler"); } finally { setActionRef(null); }
+  };
+
+  const toggleReminders = async (e: React.MouseEvent, r: PaymentRow) => {
+    e.stopPropagation();
+    const next = !r.allow_reminders_despite_paid;
+    setActionRef(r.payment_reference);
+    try {
+      const res = await fetch(`/api/fiaon/admin/payments/${encodeURIComponent(r.payment_reference)}/allow-reminders`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ allow: next }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        flash(next ? "Erinnerungen trotz bezahlter Schwester-Bestellung erlaubt (echter Zweitkauf)" : "Reminder-Override entfernt");
+        setDetail((d) => (d ? { ...d, allow_reminders_despite_paid: next } : d));
+        load(tab);
+      } else flash(`Fehler: ${json?.error || res.status}`);
+    } catch { flash("Netzwerkfehler"); } finally { setActionRef(null); }
+  };
+
+  // Retroaktiver Aufräumlauf: wendet AD1 auf den gesamten Bestand an (KEINE Mails)
+  const runSupersede = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Dubletten-Aufräumlauf starten?\n\nFür jede bezahlte Bestellung werden offene Schwester-Bestellungen derselben E-Mail auf 'Ersetzt (Dublette)' gesetzt. Es werden KEINE E-Mails versendet. Idempotent — mehrfach ausführbar.")) return;
+    setSupersedeRunning(true);
+    try {
+      const res = await fetch(`/api/fiaon/admin/duplicates/supersede-run`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ confirmed: true }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        flash(`Aufräumlauf: ${json.superseded} Bestellung(en) ersetzt (${json.paidChecked} bezahlte geprüft) — keine Mails versendet`);
+        load(tab); loadStats(); loadDupGroups();
+      } else flash(`Fehler: ${json?.error || res.status}`);
+    } catch { flash("Netzwerkfehler"); } finally { setSupersedeRunning(false); }
+  };
+
+  const cancelGroupOpen = async (e: React.MouseEvent, email: string) => {
+    e.stopPropagation();
+    if (!confirm(`Alle OFFENEN Bestellungen von ${email} stornieren?\n\nBezahlte/ersetzte Einträge bleiben unberührt.`)) return;
+    setGroupBusy(email);
+    try {
+      const res = await fetch(`/api/fiaon/admin/duplicates/cancel-open`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ email, confirmed: true }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        flash(`${json.cancelled} offene Bestellung(en) von ${email} storniert`);
+        load(tab); loadStats(); loadDupGroups();
+      } else flash(`Fehler: ${json?.error || res.status}`);
+    } catch { flash("Netzwerkfehler"); } finally { setGroupBusy(null); }
   };
 
   // H2: Auszahlung als überwiesen markieren / ablehnen (Anforderungen — keine Transaktionen)
@@ -801,6 +925,88 @@ export default function AdminZahlungenPage() {
           </div>
         </div>
 
+        {/* ── Paket AD3: Dubletten-Verwaltung (Gruppierung per E-Mail) ── */}
+        <div className="mt-6 bg-white border border-slate-200 rounded-2xl p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-1">
+            <div>
+              <h2 className="text-[15px] font-bold text-slate-900">
+                Dubletten-Verwaltung
+                {dupGroups.length > 0 && (
+                  <span className="ml-2 px-2 py-0.5 rounded-full border border-slate-300 text-[11px] font-semibold text-slate-600">{dupGroups.length} E-Mail-Gruppen</span>
+                )}
+              </h2>
+              <p className="text-[12px] text-slate-500 mt-1 max-w-xl">
+                E-Mail-Adressen mit mehreren Anträgen. Wird eine Bestellung bezahlt, werden offene Schwestern automatisch
+                auf <span className="font-bold">Ersetzt (Dublette)</span> gesetzt — der Aufräumlauf wendet das rückwirkend auf den Bestand an (KEINE Mails).
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={runSupersede}
+                disabled={supersedeRunning}
+                className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[13px] font-bold transition-all disabled:opacity-40"
+              >
+                {supersedeRunning ? "Läuft…" : "Aufräumlauf starten (keine Mails)"}
+              </button>
+              {dupGroups.length > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setDupGroupsOpen((v) => !v); }}
+                  className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-500 hover:border-slate-300 transition-all"
+                >
+                  {dupGroupsOpen ? "Gruppen ausblenden" : "Gruppen anzeigen"}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {dupGroups.length === 0 && <p className="text-[12px] text-slate-400 mt-3">Keine Dubletten-Gruppen — jede E-Mail hat genau einen Antrag.</p>}
+
+          {dupGroupsOpen && dupGroups.length > 0 && (
+            <div className="mt-4 space-y-3 max-h-[560px] overflow-y-auto pr-1">
+              {dupGroups.map((g) => {
+                const openApps = g.apps.filter((a) => ["pending_payment", "claimed_paid", "expired"].includes(a.payment_status));
+                return (
+                  <div key={g.email} className="border border-slate-200 rounded-xl overflow-hidden">
+                    <div className="px-4 py-2.5 bg-slate-50/70 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[12px] font-bold text-slate-700 break-all">{g.email} <span className="font-normal text-slate-400">· {g.apps.length} Anträge</span></p>
+                      {openApps.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => cancelGroupOpen(e, g.email)}
+                          disabled={groupBusy === g.email}
+                          className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-[11px] font-bold text-slate-600 hover:border-slate-400 transition-all disabled:opacity-40"
+                        >
+                          {groupBusy === g.email ? "…" : `Alle offenen stornieren (${openApps.length})`}
+                        </button>
+                      )}
+                    </div>
+                    <div className="divide-y divide-slate-50">
+                      {g.apps.map((a) => (
+                        <div key={a.ref} className="px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-[12px] font-semibold text-slate-800">
+                              {a.first_name || a.last_name ? [a.first_name, a.last_name].filter(Boolean).join(" ") : a.contact_name || "—"}
+                              <span className="ml-2 font-mono text-[11px] text-slate-400">{a.payment_reference || a.ref}</span>
+                            </p>
+                            <p className="text-[11px] text-slate-400">
+                              {(a.pack_name || "—").replace(/\n/g, " ")} · {fmtAmount(a.amount_due)} · {fmtDate(a.created_at)}
+                              {a.invoice_number ? ` · ${a.invoice_number}` : ""}
+                              {a.superseded_by ? ` · ersetzt durch ${a.superseded_by}` : ""}
+                            </p>
+                          </div>
+                          <StatusBadge status={a.payment_status} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {/* ── H2: Auszahlungen (Provisions-Anforderungen der Mitarbeiter) ── */}
         <div id="auszahlungen" className="mt-6 bg-white border border-slate-200 rounded-2xl p-5 scroll-mt-16">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -1002,6 +1208,44 @@ export default function AdminZahlungenPage() {
                 >
                   Rechnung (PDF)
                 </a>
+              </div>
+
+              {/* Paket AD3: Storno + DSGVO + Reminder-Override */}
+              <div className="border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Verwaltung</p>
+                {(detail.payment_status === "pending_payment" || detail.payment_status === "claimed_paid" || detail.payment_status === "expired") && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => cancelOrder(e, detail.payment_reference)}
+                      disabled={actionRef === detail.payment_reference}
+                      className="w-full px-4 py-2.5 rounded-lg bg-white border border-slate-300 text-slate-600 hover:border-slate-400 text-[13px] font-bold transition-all disabled:opacity-50"
+                    >
+                      Bestellung stornieren
+                    </button>
+                    <label className="flex items-start gap-2 cursor-pointer select-none px-1 py-1">
+                      <input
+                        type="checkbox"
+                        checked={detail.allow_reminders_despite_paid}
+                        onChange={(e) => toggleReminders(e as unknown as React.MouseEvent, detail)}
+                        className="w-4 h-4 mt-0.5 accent-[#2563eb]"
+                      />
+                      <span className="text-[12px] text-slate-600">
+                        Erinnerungen trotz bezahlter Schwester-Bestellung erlauben
+                        <span className="block text-[11px] text-slate-400">Nur für echten Zweitkauf — sonst blockiert AD2 Erinnerungen an E-Mails mit bezahlter Bestellung.</span>
+                      </span>
+                    </label>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => gdprDelete(e, detail)}
+                  disabled={actionRef === detail.payment_reference || Boolean(detail.gdpr_deleted_at)}
+                  className="w-full px-4 py-2.5 rounded-lg bg-white border border-rose-200 text-rose-600 hover:border-rose-300 text-[13px] font-bold transition-all disabled:opacity-50"
+                >
+                  {detail.gdpr_deleted_at ? "Bereits DSGVO-gelöscht" : "Kunde löschen (DSGVO)"}
+                </button>
+                <p className="text-[11px] text-slate-400">Rechnungsdaten (Nummer/Betrag/Datum) bleiben aus Buchhaltungspflicht erhalten — nur Kontaktdaten werden anonymisiert.</p>
               </div>
 
               <div>

@@ -34,6 +34,37 @@ interface AgentStat {
   confirmed_cents: number;
   in_payout_cents: number;
   paid_out_cents: number;
+  recruited_by: number | null;
+  recruited_by_name: string | null;
+  override_rate_bp: number | null;
+  distribution_active: boolean;
+}
+
+interface PartnerSuggestion {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string | null;
+  reason: string | null;
+  status: string;
+  decision_reason: string | null;
+  created_at: string;
+  decided_at: string | null;
+  created_agent_id: number | null;
+  suggested_by_name: string | null;
+  suggested_by_id: number | null;
+}
+
+interface MilestoneTask {
+  id: number;
+  agent_id: number;
+  agent_name: string | null;
+  milestone_key: string;
+  achieved_at: string;
+  prize_status: string;
+  prize_done_at: string | null;
+  prize_title: string | null;
 }
 
 interface Script {
@@ -73,6 +104,10 @@ const EVENT_LABELS: Record<string, string> = {
   payout_requested: "Auszahlung angefordert", payout_paid: "Auszahlung ausgeführt",
   payout_rejected: "Auszahlung abgelehnt", commission_created: "Provision gutgeschrieben",
   commission_cancelled: "Provision storniert", login: "Anmeldung",
+  override_created: "Team-Umsatzbeteiligung gutgeschrieben",
+  milestone_reached: "Partner-Meilenstein erreicht",
+  milestone_prize_delivered: "Meilenstein-Prämie ausgeliefert",
+  contact_data_edited: "Stammdaten korrigiert",
 };
 function eventLabel(type: string): string {
   return EVENT_LABELS[type] || type;
@@ -229,6 +264,8 @@ export default function AdminTeamPage() {
           </div>
         </div>
 
+        <PartnerSuggestionsCard flash={flash} onChanged={load} />
+        <MilestoneTasksCard flash={flash} />
         <SettingsCard flash={flash} onSaved={load} />
         <ScriptsAdmin flash={flash} />
       </div>
@@ -250,13 +287,17 @@ export default function AdminTeamPage() {
 
 // ═══════════════ F1: Einladen ═══════════════
 
-function InviteModal({ defaults, onClose, onDone, flash }: {
+function InviteModal({ defaults, prefill, onClose, onDone, flash }: {
   defaults: { commissionRateBp: number };
+  prefill?: { firstName: string; lastName: string; email: string; phone: string; recruitedBy: number | null; suggestionId: number };
   onClose: () => void;
   onDone: () => void;
   flash: (m: string) => void;
 }) {
-  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "", rate: "", goal: "" });
+  const [form, setForm] = useState({
+    firstName: prefill?.firstName || "", lastName: prefill?.lastName || "",
+    email: prefill?.email || "", phone: prefill?.phone || "", rate: "", goal: "",
+  });
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
@@ -272,6 +313,9 @@ function InviteModal({ defaults, onClose, onDone, flash }: {
         phone: form.phone || null,
         commissionRateBp: form.rate === "" ? null : Math.round(Number(form.rate.replace(",", ".")) * 100),
         monthlyGoalCents: form.goal === "" ? null : Math.round(Number(form.goal.replace(",", ".")) * 100),
+        // Paket AE4: aus Partner-Anfrage angenommen → Werber automatisch setzen
+        recruitedBy: prefill?.recruitedBy ?? null,
+        suggestionId: prefill?.suggestionId ?? null,
       }),
     });
     setBusy(false);
@@ -325,7 +369,7 @@ function AgentDetailDrawer({ id, agents, autoRevealBank, onClose, onChanged, fla
   flash: (m: string) => void;
 }) {
   const [data, setData] = useState<any>(null);
-  const [form, setForm] = useState({ firstName: "", lastName: "", phone: "", rate: "", goal: "" });
+  const [form, setForm] = useState({ firstName: "", lastName: "", phone: "", rate: "", goal: "", recruitedBy: "", overrideRate: "", distributionActive: true });
   const [busy, setBusy] = useState<string | null>(null);
   const [reassignTo, setReassignTo] = useState<string>("");
   const [selectedRefs, setSelectedRefs] = useState<Set<string>>(new Set());
@@ -353,6 +397,9 @@ function AgentDetailDrawer({ id, agents, autoRevealBank, onClose, onChanged, fla
           phone: a.phone || "",
           rate: a.commission_rate_bp == null ? "" : String(a.commission_rate_bp / 100).replace(".", ","),
           goal: a.monthly_goal_cents == null ? "" : String(a.monthly_goal_cents / 100).replace(".", ","),
+          recruitedBy: a.recruited_by == null ? "" : String(a.recruited_by),
+          overrideRate: a.override_rate_bp == null ? "" : String(a.override_rate_bp / 100).replace(".", ","),
+          distributionActive: a.distribution_active !== false,
         });
       }
     });
@@ -376,6 +423,9 @@ function AgentDetailDrawer({ id, agents, autoRevealBank, onClose, onChanged, fla
         phone: form.phone,
         commissionRateBp: form.rate === "" ? null : Math.round(Number(form.rate.replace(",", ".")) * 100),
         monthlyGoalCents: form.goal === "" ? null : Math.round(Number(form.goal.replace(",", ".")) * 100),
+        recruitedBy: form.recruitedBy === "" ? null : Number(form.recruitedBy),
+        overrideRateBp: form.overrideRate === "" ? null : Math.round(Number(form.overrideRate.replace(",", ".")) * 100),
+        distributionActive: form.distributionActive,
       }),
     });
     setBusy(null);
@@ -438,6 +488,37 @@ function AgentDetailDrawer({ id, agents, autoRevealBank, onClose, onChanged, fla
               </div>
             </div>
             <p className="text-[11px] text-slate-400">Satzänderungen wirken nur auf ZUKÜNFTIGE Provisionen — bestehende Einträge behalten den eingefrorenen Satz.</p>
+
+            {/* Paket AE2: Werber-Beziehung (exakt eine Ebene) + Override-Satz + Verteilung */}
+            <div className="border-t border-slate-100 pt-3 space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Partner-Programm & Verteilung</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Geworben von (Werber)</label>
+                  <select value={form.recruitedBy} onChange={(e) => setForm((f) => ({ ...f, recruitedBy: e.target.value }))} className={inputCls}>
+                    <option value="">— niemand —</option>
+                    {agents.filter((x) => x.id !== id).map((x) => (
+                      <option key={x.id} value={x.id}>{x.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Override-Satz % (leer = Standard)</label>
+                  <input type="text" inputMode="decimal" value={form.overrideRate} onChange={(e) => setForm((f) => ({ ...f, overrideRate: e.target.value }))} className={inputCls} placeholder="z. B. 5" />
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Team-Umsatzbeteiligung gilt für <span className="font-semibold">exakt eine Ebene</span>: nur der direkte Werber erhält Override auf bestätigte Abschlüsse. Keine Ketten.
+              </p>
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" checked={form.distributionActive} onChange={(e) => setForm((f) => ({ ...f, distributionActive: e.target.checked }))} className="w-4 h-4 accent-[#2563eb]" />
+                <span className="text-[12px] font-medium text-slate-700">Nimmt an automatischer Kundenverteilung teil</span>
+              </label>
+              {a.recruited_by_name && (
+                <p className="text-[11px] text-slate-500">Aktueller Werber: <span className="font-semibold">{a.recruited_by_name}</span></p>
+              )}
+            </div>
+
             <div className="flex flex-wrap gap-2">
               <button type="submit" disabled={busy === "save"} className={btnPrimary}>{busy === "save" ? "…" : "Speichern"}</button>
               <button type="button" onClick={(e) => action(e, `/admin/agents/${id}/toggle`, a.active ? "Deaktiviert" : "Aktiviert")} className={btnGhost}>
@@ -583,8 +664,9 @@ function AgentDetailDrawer({ id, agents, autoRevealBank, onClose, onChanged, fla
               {data.commissions.map((k: any) => (
                 <div key={k.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[13px] font-semibold tabular-nums">
+                    <p className="text-[13px] font-semibold tabular-nums flex items-center gap-1.5">
                       {fmtCents(k.amount_cents)}
+                      {k.kind === "override" && <span className="px-1.5 py-0.5 rounded border border-slate-300 text-[10px] font-semibold text-slate-500">Team-Beteiligung</span>}
                       <span className="font-normal text-slate-400 text-[11px]"> · {(k.rate_bp / 100).toLocaleString("de-DE")} % von {fmtCents(k.base_amount_cents)}</span>
                     </p>
                     <p className="text-[11px] text-slate-400 truncate">{k.ref}{k.note ? ` · ${k.note}` : ""} · {fmtDT(k.created_at)}</p>
@@ -614,6 +696,138 @@ function AgentDetailDrawer({ id, agents, autoRevealBank, onClose, onChanged, fla
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════ AE4: Partner-Anfragen ═══════════════
+// Annehmen öffnet den normalen Einladungs-Flow mit vorbelegtem recruited_by
+// (der vorschlagende Agent). Ablehnen informiert den Kandidaten NICHT automatisch.
+
+function PartnerSuggestionsCard({ flash, onChanged }: {
+  flash: (m: string) => void;
+  onChanged: () => void;
+}) {
+  const [rows, setRows] = useState<PartnerSuggestion[]>([]);
+  const [busy, setBusy] = useState<number | null>(null);
+  const [accept, setAccept] = useState<PartnerSuggestion | null>(null);
+
+  const load = useCallback(() => {
+    api("/admin/team/partner-suggestions").then((r) => { if (r.ok) setRows(r.json.data); });
+  }, []);
+  useEffect(load, [load]);
+
+  const reject = async (e: React.MouseEvent, s: PartnerSuggestion) => {
+    e.stopPropagation();
+    const reason = prompt(`Vorschlag für ${s.first_name} ${s.last_name} ablehnen?\n\nOptionaler Grund (nur intern, der Kandidat wird NICHT informiert):`);
+    if (reason === null) return;
+    setBusy(s.id);
+    const r = await api(`/admin/team/partner-suggestions/${s.id}/reject`, { method: "POST", body: JSON.stringify({ reason }) });
+    setBusy(null);
+    if (r.ok) { flash("Vorschlag abgelehnt"); load(); } else flash(r.json?.error || "Fehler");
+  };
+
+  const open = rows.filter((r) => r.status === "offen");
+  const STATUS_LABEL: Record<string, string> = { offen: "Offen", angenommen: "Angenommen", abgelehnt: "Abgelehnt" };
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <h2 className="text-[14px] font-bold text-slate-900">Partner-Anfragen</h2>
+        {open.length > 0 && <span className="px-2 py-0.5 rounded-full border border-slate-400 text-[11px] font-semibold text-slate-700">{open.length} offen</span>}
+      </div>
+      <p className="text-[12px] text-slate-400 mb-4">
+        Von Mitarbeitern vorgeschlagene Partner. Annahme startet den Einladungs-Flow und setzt den Werber automatisch (Override greift ab dann).
+        Für das Vorschlagen selbst gibt es bewusst keine Prämie.
+      </p>
+      {rows.length === 0 ? (
+        <p className="text-[12px] text-slate-400">Noch keine Anfragen.</p>
+      ) : (
+        <div className="border border-slate-200 rounded-xl divide-y divide-slate-50">
+          {rows.map((s) => (
+            <div key={s.id} className="px-4 py-3 flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold text-slate-900">{s.first_name} {s.last_name}</p>
+                <p className="text-[11px] text-slate-400">{s.email}{s.phone ? ` · ${s.phone}` : ""}</p>
+                <p className="text-[11px] text-slate-400">Vorgeschlagen von {s.suggested_by_name || "—"} · {fmtDT(s.created_at)}</p>
+                {s.reason && <p className="text-[12px] text-slate-600 mt-1 max-w-lg">{s.reason}</p>}
+                {s.status === "abgelehnt" && s.decision_reason && <p className="text-[11px] text-slate-400 mt-1">Abgelehnt: {s.decision_reason}</p>}
+              </div>
+              <div className="flex items-center gap-2">
+                {s.status === "offen" ? (
+                  <>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setAccept(s); }} disabled={busy === s.id} className={btnPrimary}>Annehmen</button>
+                    <button type="button" onClick={(e) => reject(e, s)} disabled={busy === s.id} className={btnGhost}>Ablehnen</button>
+                  </>
+                ) : (
+                  <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-semibold ${s.status === "angenommen" ? "border-slate-400 text-slate-800" : "border-slate-200 text-slate-400"}`}>
+                    {STATUS_LABEL[s.status] || s.status}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {accept && (
+        <InviteModal
+          defaults={{ commissionRateBp: 1500 }}
+          prefill={{ firstName: accept.first_name, lastName: accept.last_name, email: accept.email, phone: accept.phone || "", recruitedBy: accept.suggested_by_id, suggestionId: accept.id }}
+          onClose={() => setAccept(null)}
+          onDone={() => { setAccept(null); load(); onChanged(); flash("Partner angenommen — Einladung versendet, Werber gesetzt"); }}
+          flash={flash}
+        />
+      )}
+    </div>
+  );
+}
+
+// ═══════════════ AE3: Meilenstein-Prämien (Aufgaben) ═══════════════
+
+function MilestoneTasksCard({ flash }: { flash: (m: string) => void }) {
+  const [rows, setRows] = useState<MilestoneTask[]>([]);
+  const [busy, setBusy] = useState<number | null>(null);
+
+  const load = useCallback(() => {
+    api("/admin/team/milestones").then((r) => { if (r.ok) setRows(r.json.data); });
+  }, []);
+  useEffect(load, [load]);
+
+  const markDone = async (e: React.MouseEvent, m: MilestoneTask) => {
+    e.stopPropagation();
+    setBusy(m.id);
+    const r = await api(`/admin/team/milestones/${m.id}/done`, { method: "POST" });
+    setBusy(null);
+    if (r.ok) { flash("Prämie als ausgeliefert markiert"); load(); } else flash(r.json?.error || "Fehler");
+  };
+
+  if (rows.length === 0) return null;
+  const open = rows.filter((r) => r.prize_status === "offen");
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <h2 className="text-[14px] font-bold text-slate-900">Meilenstein-Prämien</h2>
+        {open.length > 0 && <span className="px-2 py-0.5 rounded-full border border-slate-400 text-[11px] font-semibold text-slate-700">{open.length} auszuliefern</span>}
+      </div>
+      <p className="text-[12px] text-slate-400 mb-4">
+        Erreichte Partner-Meilensteine mit Sachprämie. Keine automatische Geldbuchung — als Aufgabe hier abhaken, sobald ausgeliefert.
+      </p>
+      <div className="border border-slate-200 rounded-xl divide-y divide-slate-50">
+        {rows.map((m) => (
+          <div key={m.id} className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[13px] font-semibold text-slate-900">{m.agent_name || `Agent #${m.agent_id}`}</p>
+              <p className="text-[11px] text-slate-400">{m.prize_title || m.milestone_key} · erreicht {fmtDT(m.achieved_at)}</p>
+            </div>
+            {m.prize_status === "offen" ? (
+              <button type="button" onClick={(e) => markDone(e, m)} disabled={busy === m.id} className={btnGhost}>Als ausgeliefert markieren</button>
+            ) : (
+              <span className="px-2.5 py-0.5 rounded-full border border-slate-200 text-[11px] font-semibold text-slate-400">Erledigt {m.prize_done_at ? fmtDT(m.prize_done_at) : ""}</span>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );

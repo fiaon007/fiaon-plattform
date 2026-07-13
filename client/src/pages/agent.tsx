@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import {
   Phone, FileText, X, ChevronDown, ChevronRight, Lock, CalendarClock,
   Wallet, User, Calendar, Users, TrendingUp, CheckCircle2, ArrowRight, Search,
-  Clock, Send, CalendarPlus, Info,
+  Clock, Send, CalendarPlus, Info, Pencil, AlertTriangle,
 } from "lucide-react";
 import {
   AgentShell, Badge, Card, ProgressBar, FlashMessage, useAgentInfo,
@@ -68,7 +68,14 @@ interface Earnings {
   paidOutCents: number;
   monthCents: number;
   monthlyGoalCents: number | null;
-  entries: { id: number; ref: string; pack_name: string | null; rate_bp: number; amount_cents: number; status: string; created_at: string }[];
+  overrideCents: number;
+  overrideCount: number;
+  entries: {
+    id: number; ref: string; payment_reference: string | null; pack_name: string | null;
+    base_amount_cents: number; rate_bp: number; amount_cents: number; status: string;
+    created_at: string; kind: string;
+    first_name: string | null; last_name: string | null; contact_name: string | null; company_name: string | null;
+  }[];
 }
 
 const OUTCOME_LABELS: Record<string, string> = {
@@ -558,6 +565,44 @@ function Dashboard() {
       )}
       </div>{/* /kundenliste */}
 
+      {/* ── Abschlüsse: bezahlte Kunden verschwinden aus der Anrufliste, hier sieht der
+          Agent WAS und WIE VIEL er abgeschlossen hat (inkl. Team-Umsatzbeteiligung) ── */}
+      {earnings && earnings.entries.length > 0 && (
+        <div className="mt-6">
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="text-[15px] font-bold tracking-tight text-slate-900">Deine Abschlüsse</h2>
+            <span className="text-[12px] text-slate-400">({earnings.entries.length})</span>
+            {earnings.overrideCents > 0 && (
+              <span className="ml-auto text-[11px] text-slate-400">davon Team-Umsatzbeteiligung: <span className="font-semibold text-slate-600">{fmtCents(earnings.overrideCents)}</span></span>
+            )}
+          </div>
+          <Card className="divide-y divide-slate-50">
+            {earnings.entries.map((k) => {
+              const kName = k.company_name || [k.first_name, k.last_name].filter(Boolean).join(" ") || k.contact_name || k.payment_reference || k.ref;
+              return (
+                <div key={k.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-slate-900 truncate flex items-center gap-1.5">
+                      {kName}
+                      {k.kind === "override" && (
+                        <span className="px-1.5 py-0.5 rounded border border-slate-300 text-[10px] font-semibold text-slate-500 shrink-0">Team-Beteiligung</span>
+                      )}
+                    </p>
+                    <p className="text-[11px] text-slate-400 truncate">
+                      {(k.pack_name || "—").replace(/\n/g, " ")} · {fmtCents(k.base_amount_cents)} Umsatz · {(k.rate_bp / 100).toLocaleString("de-DE")} % · {fmtDT(k.created_at)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <p className="text-[14px] font-bold tabular-nums text-slate-900">{fmtCents(k.amount_cents)}</p>
+                    <Badge status={k.status} />
+                  </div>
+                </div>
+              );
+            })}
+          </Card>
+        </div>
+      )}
+
       {/* ── Von Kollegen betreut (read-only, G2) ── */}
       {colleagues.length > 0 && (
         <div className="mt-6">
@@ -667,6 +712,12 @@ function CustomerDetail({ refId, onClose, onChanged, flash }: {
   const [now, setNow] = useState(Date.now());
   const [mobileTab, setMobileTab] = useState<"stamm" | "aktion" | "verlauf">("aktion");
   const [checkKey, setCheckKey] = useState<string | null>(null);
+  // Paket AC: Stammdaten-Bearbeitung (nur Vorname/Nachname/E-Mail/Telefon)
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", email: "", phone: "" });
+  const [editErr, setEditErr] = useState<string | null>(null);
+  const [dupWarn, setDupWarn] = useState<{ ref: string; payment_status: string; name: string } | null>(null);
+  const [loginHint, setLoginHint] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -747,22 +798,119 @@ function CustomerDetail({ refId, onClose, onChanged, flash }: {
 
   const lockPct = lockSec > 0 ? Math.max(0, Math.min(100, ((600 - lockSec) / 600) * 100)) : 0;
 
+  // Paket AC: Bearbeiten-Modus starten/speichern
+  const startEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditForm({
+      firstName: detail.first_name || "",
+      lastName: detail.last_name || "",
+      email: detail.email || "",
+      phone: phone || "",
+    });
+    setEditErr(null);
+    setEditMode(true);
+  };
+
+  const saveEdit = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!editForm.firstName.trim() || !editForm.lastName.trim()) { setEditErr("Vor- und Nachname sind Pflichtfelder"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(editForm.email.trim())) { setEditErr("E-Mail-Format ungültig"); return; }
+    setBusy("edit");
+    setEditErr(null);
+    const r = await api(`/agent/customers/${encodeURIComponent(refId)}/contact-data`, {
+      method: "PATCH",
+      body: JSON.stringify({ firstName: editForm.firstName.trim(), lastName: editForm.lastName.trim(), email: editForm.email.trim(), phone: editForm.phone.trim() }),
+    });
+    setBusy(null);
+    if (!r.ok) { setEditErr(r.json?.error || "Fehler beim Speichern"); return; }
+    setEditMode(false);
+    setDupWarn(r.json.duplicate || null);
+    setLoginHint(r.json.loginEmailChanged ? `Der Kunde meldet sich künftig mit ${editForm.email.trim().toLowerCase()} an — bitte im Gespräch erwähnen.` : null);
+    if ((r.json.changes || []).length > 0) {
+      flash(`Stammdaten aktualisiert (${(r.json.changes as any[]).map((c) => c.field).join(", ")})`);
+      // Detail + Verlauf neu laden (Audit-Einträge erscheinen in der Timeline)
+      const d = await api(`/agent/customers/${encodeURIComponent(refId)}`);
+      if (d.ok) { setDetail(d.json.data); setLog(d.json.log || []); }
+      onChanged();
+    } else {
+      flash("Keine Änderungen");
+    }
+  };
+
   // ── Stammdaten (linke Spalte / Mobile-Tab „Stammdaten") ──
   const stammBlock = (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 text-[13px]">
-        <Field label="E-Mail" value={detail.email || "—"} breakAll />
-        <Field label="Telefon" value={phone || "—"} />
-        <Field label="Paket" value={(detail.pack_name || "—").replace(/\n/g, " ")} />
-        <Field label="Betrag" value={fmtEur(detail.amount_due)} />
-        <Field label="Zahlungsreferenz" value={detail.payment_reference || "—"} mono />
-        <Field label="Fällig bis" value={fmtD(detail.payment_due_date)} />
-        {(detail.street || detail.city) && (
-          <div className="col-span-2">
-            <Field label="Adresse" value={[detail.street, [detail.zip, detail.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")} />
+      {!readOnly && !editMode && (
+        <button type="button" onClick={startEdit}
+          className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-500 hover:text-slate-800 transition-colors">
+          <Pencil size={12} strokeWidth={2} /> Stammdaten bearbeiten
+        </button>
+      )}
+
+      {editMode ? (
+        <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-3" onClick={(e) => e.stopPropagation()}>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Stammdaten korrigieren</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">Vorname *</label>
+              <input type="text" value={editForm.firstName} onChange={(e) => setEditForm((f) => ({ ...f, firstName: e.target.value }))} className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">Nachname *</label>
+              <input type="text" value={editForm.lastName} onChange={(e) => setEditForm((f) => ({ ...f, lastName: e.target.value }))} className={inputCls} />
+            </div>
           </div>
-        )}
-      </div>
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">E-Mail *</label>
+            <input type="email" value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">Telefon (+49 …)</label>
+            <input type="tel" value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} className={inputCls} placeholder="+49 151 2345678" />
+          </div>
+          <p className="text-[11px] text-slate-400">Paket, Betrag, Status und Referenz können nur vom Admin geändert werden. Jede Änderung wird im Verlauf protokolliert.</p>
+          {editErr && <p className="text-[12px] font-medium text-red-600">{editErr}</p>}
+          <div className="flex gap-2">
+            <button type="button" onClick={saveEdit} disabled={busy === "edit"} className={`${btnPrimary} flex-1 py-2.5 disabled:opacity-50`}>
+              {busy === "edit" ? "Speichert …" : "Speichern"}
+            </button>
+            <button type="button" onClick={(e) => { e.stopPropagation(); setEditMode(false); setEditErr(null); }} className={btnGhost}>
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 text-[13px]">
+          <Field label="E-Mail" value={detail.email || "—"} breakAll />
+          <Field label="Telefon" value={phone || "—"} />
+          <Field label="Paket" value={(detail.pack_name || "—").replace(/\n/g, " ")} />
+          <Field label="Betrag" value={fmtEur(detail.amount_due)} />
+          <Field label="Zahlungsreferenz" value={detail.payment_reference || "—"} mono />
+          <Field label="Fällig bis" value={fmtD(detail.payment_due_date)} />
+          {(detail.street || detail.city) && (
+            <div className="col-span-2">
+              <Field label="Adresse" value={[detail.street, [detail.zip, detail.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Paket AC5: Dubletten-Warnung nach E-Mail-Änderung */}
+      {dupWarn && (
+        <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50 text-[12px] text-amber-800">
+          <p className="font-semibold flex items-center gap-1.5 mb-1"><AlertTriangle size={13} strokeWidth={2} /> Mögliche Dublette</p>
+          <p>Diese E-Mail gehört bereits zu <span className="font-semibold">{dupWarn.name}</span> ({dupWarn.ref}, Status: {dupWarn.payment_status}).</p>
+          <p className="mt-1">Als Dublette behandeln: Der Admin führt die Datensätze in der Dubletten-Verwaltung (Admin → Zahlungen) zusammen — wird eine Bestellung bezahlt, werden offene Schwestern automatisch geschlossen.</p>
+        </div>
+      )}
+
+      {/* Paket AC3: Hinweis nach Login-relevanter E-Mail-Änderung */}
+      {loginHint && (
+        <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-[12px] text-slate-700">
+          <p className="font-semibold flex items-center gap-1.5 mb-1"><Info size={13} strokeWidth={2} /> Login-Änderung</p>
+          <p>{loginHint}</p>
+        </div>
+      )}
       <a
         href={`/api/fiaon/agent/customers/${encodeURIComponent(refId)}/invoice.pdf`}
         target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}

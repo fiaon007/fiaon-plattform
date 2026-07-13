@@ -112,7 +112,11 @@ async function ensurePaymentColumns(): Promise<void> {
     ADD COLUMN IF NOT EXISTS last_reminder_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS reminder_count INTEGER NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS account_status VARCHAR DEFAULT 'pending',
-    ADD COLUMN IF NOT EXISTS access_backfilled_at TIMESTAMPTZ;
+    ADD COLUMN IF NOT EXISTS access_backfilled_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS superseded_by VARCHAR,
+    ADD COLUMN IF NOT EXISTS allow_reminders_despite_paid BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS gdpr_deleted_at TIMESTAMPTZ;
   `;
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_invoice_no_idx ON fiaon_applications(invoice_number)`;
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_payment_ref_idx ON fiaon_applications(payment_reference)`;
@@ -169,6 +173,42 @@ async function backfillPaidAccessOnce(): Promise<void> {
   }
 }
 
+// ── Paket AD1: Dubletten-Automatik beim Bezahlt-Markieren ───────────────────
+// Wird eine Bestellung `paid`, werden ALLE anderen offenen Bestellungen
+// (pending_payment/claimed_paid) derselben E-Mail-Adresse (case-insensitive)
+// auf `superseded` gesetzt: kein Reminder mehr, raus aus Agent-Listen und
+// Offen-Kacheln. Timeline-Eintrag verweist auf die bezahlte Referenz.
+// superseded erzeugt KEINE Provision (onCustomerPaid läuft nur für die bezahlte ref).
+export async function supersedeSisterOrders(paidRef: string): Promise<{ count: number; refs: string[] }> {
+  const paid = await sqlPool`
+    SELECT ref, payment_reference, email FROM fiaon_applications WHERE ref = ${paidRef}
+  `;
+  if (paid.length === 0 || !paid[0].email || !String(paid[0].email).trim()) return { count: 0, refs: [] };
+  const em = String(paid[0].email).trim().toLowerCase();
+  const rows = await sqlPool`
+    UPDATE fiaon_applications SET
+      payment_status = 'superseded',
+      superseded_by = ${paid[0].payment_reference || paid[0].ref},
+      updated_at = NOW()
+    WHERE LOWER(TRIM(email)) = ${em}
+      AND ref != ${paidRef}
+      AND merged_into IS NULL
+      AND payment_status IN ('pending_payment', 'claimed_paid')
+    RETURNING ref
+  `;
+  for (const r of rows) {
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${r.ref}, NULL, 'System', 'system',
+              ${`Durch bezahlte Bestellung ${paid[0].payment_reference || paid[0].ref} ersetzt (Dublette, gleiche E-Mail) — keine weiteren Erinnerungen`})
+    `;
+  }
+  if (rows.length > 0) {
+    console.log(`[FIAON-DUBLETTE] ${rows.length} offene Schwester-Bestellung(en) von ${em} superseded (bezahlt: ${paidRef})`);
+  }
+  return { count: rows.length, refs: rows.map((r) => r.ref) };
+}
+
 // Bestellung anlegen (nach Antragsabschluss). Idempotent pro ref.
 // kind: "activation" (Standard, Betrag aus Paket) | "schufa" (74 € Einmalzahlung, eigene Bestellzeile)
 router.post("/payment-order", async (req, res) => {
@@ -221,6 +261,9 @@ router.post("/payment-order", async (req, res) => {
     `;
 
     console.log(`[FIAON-PAYMENT] Bestellung angelegt: ${paymentReference} (ref=${ref}, ${amount.toFixed(2)} EUR, fällig ${dueDate.toISOString()})`);
+
+    // Paket AE1: neue Bestellung sofort fair verteilen (Round-Robin, fire-and-forget)
+    import("./fiaon-agent").then((m) => m.distributeUnassignedOrders()).catch((e) => console.error("[FIAON-VERTEILUNG]", e));
 
     // Rechnung: fortlaufende, lückenlose Nummer genau einmal beim Übergang zu pending_payment
     try {
@@ -286,7 +329,7 @@ router.get("/payment-order/:paymentRef", async (req, res) => {
 router.get("/admin/payments", async (req, res) => {
   try {
     await ensurePaymentColumns();
-    const allowed = ["pending_payment", "claimed_paid", "expired", "paid"];
+    const allowed = ["pending_payment", "claimed_paid", "expired", "paid", "superseded", "cancelled"];
     const status = allowed.includes(String(req.query.status)) ? String(req.query.status) : "pending_payment";
     const rows = await sqlPool`
       SELECT ref, type, payment_reference, payment_status, payment_due_date, amount_due, currency,
@@ -294,7 +337,8 @@ router.get("/admin/payments", async (req, res) => {
              phone, phone_country_code, contact_phone,
              pack_name, updated_at, created_at,
              claimed_paid_at, promised_pay_date, invoice_number, welcome_sent_at,
-             payment_email_sent_at, followup_sent_at, agent_email_sent_at, completed_at
+             payment_email_sent_at, followup_sent_at, agent_email_sent_at, completed_at,
+             superseded_by, allow_reminders_despite_paid, cancelled_at, gdpr_deleted_at
       FROM fiaon_applications
       WHERE payment_status = ${status} AND payment_reference IS NOT NULL AND merged_into IS NULL
       ORDER BY (payment_status = 'claimed_paid') DESC, claimed_paid_at ASC NULLS LAST, payment_due_date ASC NULLS LAST
@@ -498,6 +542,8 @@ router.post("/admin/payments/:paymentRef/mark-paid", async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
 
     console.log(`[FIAON-PAYMENT] Als bezahlt markiert: ${req.params.paymentRef} (ref=${rows[0].ref})`);
+    // Paket AD1: offene Schwester-Bestellungen derselben E-Mail automatisch superseden
+    supersedeSisterOrders(rows[0].ref).catch((e) => console.error("[FIAON-DUBLETTE] supersede:", e));
     // Paket X: Bestätigung läuft über Make ('payment_confirmed' mit login_url) —
     // ersetzt die frühere direkte Plattform-Freischaltmail. Genau 1× pro Bestellung
     // (atomarer Flag-Claim), damit ALLE Kundenmails einheitlich über Make/Brevo laufen.
@@ -605,14 +651,22 @@ async function claimReminderBatch(limit: number, opts: { requireAge24h: boolean;
     UPDATE fiaon_applications
     SET last_reminder_at = NOW(), reminder_count = COALESCE(reminder_count, 0) + 1, updated_at = NOW()
     WHERE ref IN (
-      SELECT ref FROM fiaon_applications
-      WHERE payment_status IN ('pending_payment', 'claimed_paid')
-        AND payment_reference IS NOT NULL AND merged_into IS NULL
-        AND COALESCE(NULLIF(email, ''), NULLIF(contact_email, ''), NULLIF(billing_email, '')) IS NOT NULL
-        AND (last_reminder_at IS NULL OR last_reminder_at < NOW() - INTERVAL '20 hours')
-        AND (${!opts.requireAge24h} OR COALESCE(payment_email_sent_at, created_at) < NOW() - INTERVAL '24 hours')
-        AND (${opts.maxReminders == null} OR COALESCE(reminder_count, 0) < ${opts.maxReminders ?? 0})
-      ORDER BY created_at ASC
+      SELECT fa.ref FROM fiaon_applications fa
+      WHERE fa.payment_status IN ('pending_payment', 'claimed_paid')
+        AND fa.payment_reference IS NOT NULL AND fa.merged_into IS NULL
+        AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL
+        AND (fa.last_reminder_at IS NULL OR fa.last_reminder_at < NOW() - INTERVAL '20 hours')
+        AND (${!opts.requireAge24h} OR COALESCE(fa.payment_email_sent_at, fa.created_at) < NOW() - INTERVAL '24 hours')
+        AND (${opts.maxReminders == null} OR COALESCE(fa.reminder_count, 0) < ${opts.maxReminders ?? 0})
+        -- Paket AD2 (doppelter Boden): keine Erinnerung an E-Mail-Adressen, die
+        -- IRGENDEINE bezahlte Bestellung haben — selbst wenn AD1 (superseded) nicht
+        -- griff. Admin-Override pro Bestellung: allow_reminders_despite_paid (echter Zweitkauf).
+        AND (fa.allow_reminders_despite_paid = TRUE OR fa.email IS NULL OR TRIM(fa.email) = '' OR NOT EXISTS (
+          SELECT 1 FROM fiaon_applications p
+          WHERE p.payment_status = 'paid' AND p.email IS NOT NULL
+            AND LOWER(TRIM(p.email)) = LOWER(TRIM(fa.email))
+        ))
+      ORDER BY fa.created_at ASC
       LIMIT ${limit}
       FOR UPDATE SKIP LOCKED
     )
@@ -718,10 +772,16 @@ router.get("/admin/payments/bulk-reminder/preview", async (_req, res) => {
       SELECT
         COUNT(*) FILTER (WHERE (last_reminder_at IS NULL OR last_reminder_at < NOW() - INTERVAL '20 hours')) AS eligible,
         COUNT(*) FILTER (WHERE last_reminder_at IS NOT NULL AND last_reminder_at >= NOW() - INTERVAL '20 hours') AS skipped
-      FROM fiaon_applications
-      WHERE payment_status IN ('pending_payment', 'claimed_paid')
-        AND payment_reference IS NOT NULL AND merged_into IS NULL
-        AND COALESCE(NULLIF(email, ''), NULLIF(contact_email, ''), NULLIF(billing_email, '')) IS NOT NULL
+      FROM fiaon_applications fa
+      WHERE fa.payment_status IN ('pending_payment', 'claimed_paid')
+        AND fa.payment_reference IS NOT NULL AND fa.merged_into IS NULL
+        AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL
+        -- Paket AD2: E-Mails mit bezahlter Bestellung sind ausgeschlossen (wie Engine)
+        AND (fa.allow_reminders_despite_paid = TRUE OR fa.email IS NULL OR TRIM(fa.email) = '' OR NOT EXISTS (
+          SELECT 1 FROM fiaon_applications p
+          WHERE p.payment_status = 'paid' AND p.email IS NOT NULL
+            AND LOWER(TRIM(p.email)) = LOWER(TRIM(fa.email))
+        ))
     `;
     res.json({
       ok: true,
@@ -745,11 +805,17 @@ router.post("/admin/payments/bulk-reminder/start", async (_req, res) => {
       return res.status(400).json({ ok: false, error: "Versand nur zwischen 08:00 und 20:00 Uhr (Europa/Berlin) möglich" });
     }
     const [row] = await sqlPool`
-      SELECT COUNT(*) AS eligible FROM fiaon_applications
-      WHERE payment_status IN ('pending_payment', 'claimed_paid')
-        AND payment_reference IS NOT NULL AND merged_into IS NULL
-        AND COALESCE(NULLIF(email, ''), NULLIF(contact_email, ''), NULLIF(billing_email, '')) IS NOT NULL
-        AND (last_reminder_at IS NULL OR last_reminder_at < NOW() - INTERVAL '20 hours')
+      SELECT COUNT(*) AS eligible FROM fiaon_applications fa
+      WHERE fa.payment_status IN ('pending_payment', 'claimed_paid')
+        AND fa.payment_reference IS NOT NULL AND fa.merged_into IS NULL
+        AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL
+        AND (fa.last_reminder_at IS NULL OR fa.last_reminder_at < NOW() - INTERVAL '20 hours')
+        -- Paket AD2: E-Mails mit bezahlter Bestellung sind ausgeschlossen (wie Engine)
+        AND (fa.allow_reminders_despite_paid = TRUE OR fa.email IS NULL OR TRIM(fa.email) = '' OR NOT EXISTS (
+          SELECT 1 FROM fiaon_applications p
+          WHERE p.payment_status = 'paid' AND p.email IS NOT NULL
+            AND LOWER(TRIM(p.email)) = LOWER(TRIM(fa.email))
+        ))
     `;
     const planned = Number(row.eligible);
     bulkJob = { running: true, startedAt: new Date().toISOString(), finishedAt: null, planned, sent: 0, errors: 0 };
@@ -799,6 +865,198 @@ router.post("/admin/payments/bulk-reminder/start", async (_req, res) => {
 /** Fortschritt des laufenden/letzten Bulk-Jobs. */
 router.get("/admin/payments/bulk-reminder/status", async (_req, res) => {
   res.json({ ok: true, job: bulkJob });
+});
+
+// ═══════════ PAKET AD3 — Dubletten-Werkzeuge, Storno & DSGVO ═══════════
+
+// Bestellung stornieren: Status 'cancelled', stoppt Reminder/Listen sofort,
+// storniert vorhandene Provisionen (bestehende Clawback-Mechanik). Mit Audit.
+router.post("/admin/payments/:paymentRef/cancel", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const rows = await sqlPool`
+      UPDATE fiaon_applications SET
+        payment_status = 'cancelled',
+        cancelled_at = NOW(),
+        updated_at = NOW()
+      WHERE payment_reference = ${req.params.paymentRef}
+        AND payment_status IN ('pending_payment', 'claimed_paid', 'expired', 'paid')
+      RETURNING ref, payment_status
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden oder bereits storniert" });
+    const commissions = await import("./fiaon-agent").then((m) => m.onCustomerRefunded(rows[0].ref)).catch(() => ({ cancelled: 0, clawback: 0 }));
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${rows[0].ref}, NULL, 'Admin', 'system',
+              ${`Bestellung storniert (Admin) — Provisionen: ${commissions.cancelled} storniert, ${commissions.clawback} verrechnet`})
+    `;
+    console.log(`[FIAON-CANCEL] ${req.params.paymentRef} storniert (Provision: ${JSON.stringify(commissions)})`);
+    res.json({ ok: true, ref: rows[0].ref, commissions });
+  } catch (err) {
+    console.error("[FIAON-CANCEL]", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Reminder-Override für echten Zweitkauf: „Erinnerungen trotz bezahlter
+// Schwester-Bestellung erlauben“ (Paket AD2, Admin-Detailansicht).
+router.post("/admin/payments/:paymentRef/allow-reminders", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const allow = Boolean(req.body?.allow);
+    const rows = await sqlPool`
+      UPDATE fiaon_applications SET allow_reminders_despite_paid = ${allow}, updated_at = NOW()
+      WHERE payment_reference = ${req.params.paymentRef}
+      RETURNING ref
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${rows[0].ref}, NULL, 'Admin', 'system',
+              ${allow ? "Erinnerungen trotz bezahlter Schwester-Bestellung ERLAUBT (echter Zweitkauf)" : "Reminder-Override wieder entfernt"})
+    `;
+    res.json({ ok: true, allow });
+  } catch (err) {
+    console.error("[FIAON-ALLOW-REMINDERS]", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Kunde löschen (DSGVO): Soft-Delete + Anonymisierung der personenbezogenen
+// Felder. Rechnungsdaten (Nummer, Betrag, Referenz, Datum) bleiben aus
+// Buchhaltungspflicht erhalten — Nummernkreis unangetastet. KYC-PDFs werden
+// gelöscht (personenbezogen). Offene Zahlung wird storniert.
+router.post("/admin/applications/:ref/gdpr-delete", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+    if (!req.body?.confirmed) return res.status(400).json({ ok: false, error: "Bestätigung erforderlich (confirmed=true)" });
+    const existing = await sqlPool`SELECT id, ref, payment_status FROM fiaon_applications WHERE ref = ${req.params.ref}`;
+    if (existing.length === 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const anonEmail = `geloescht-${existing[0].id}@anonym.invalid`;
+    const rows = await sqlPool`
+      UPDATE fiaon_applications SET
+        first_name = 'Gelöscht', last_name = '(DSGVO)', contact_name = NULL,
+        email = ${anonEmail}, contact_email = NULL, billing_email = NULL,
+        phone = NULL, phone_country_code = NULL, contact_phone = NULL,
+        street = NULL, zip = NULL, city = NULL,
+        bank_statement_pdf = NULL, id_card_pdf = NULL, schufa_pdf = NULL,
+        utm = NULL,
+        payment_status = CASE WHEN payment_status IN ('pending_payment','claimed_paid','expired') THEN 'cancelled' ELSE payment_status END,
+        cancelled_at = CASE WHEN payment_status IN ('pending_payment','claimed_paid','expired') THEN NOW() ELSE cancelled_at END,
+        account_status = 'suspended',
+        gdpr_deleted_at = NOW(),
+        updated_at = NOW()
+      WHERE ref = ${req.params.ref}
+      RETURNING ref, invoice_number, payment_reference
+    `;
+    await import("./fiaon-agent").then((m) => m.onCustomerRefunded(rows[0].ref)).catch(() => {});
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${rows[0].ref}, NULL, 'Admin', 'system',
+              ${`Kunde gelöscht (DSGVO): personenbezogene Daten anonymisiert, KYC-Dokumente entfernt. Rechnungsdaten (${rows[0].invoice_number || "keine Rechnung"}) bleiben aus Buchhaltungspflicht erhalten.`})
+    `;
+    console.log(`[FIAON-GDPR] ${req.params.ref} anonymisiert (Rechnung ${rows[0].invoice_number || "—"} bleibt)`);
+    res.json({ ok: true, ref: rows[0].ref });
+  } catch (err) {
+    console.error("[FIAON-GDPR]", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Einmaliger Aufräumlauf (Paket AD3): wendet die AD1-Logik rückwirkend auf den
+// Bestand an — für JEDE bezahlte Bestellung werden offene Schwestern superseded.
+// KEINE Mails (supersede versendet grundsätzlich nichts). Idempotent.
+router.post("/admin/duplicates/supersede-run", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+    if (!req.body?.confirmed) return res.status(400).json({ ok: false, error: "Bestätigung erforderlich (confirmed=true)" });
+    const paidRefs = await sqlPool`
+      SELECT ref FROM fiaon_applications
+      WHERE payment_status = 'paid' AND merged_into IS NULL
+        AND email IS NOT NULL AND TRIM(email) != ''
+    `;
+    let total = 0;
+    const affected: string[] = [];
+    for (const p of paidRefs) {
+      const r = await supersedeSisterOrders(p.ref);
+      total += r.count;
+      affected.push(...r.refs);
+    }
+    console.log(`[FIAON-DUBLETTE] Aufräumlauf: ${total} Bestellungen superseded (${paidRefs.length} bezahlte geprüft)`);
+    res.json({ ok: true, superseded: total, refs: affected, paidChecked: paidRefs.length });
+  } catch (err) {
+    console.error("[FIAON-DUBLETTE] Aufräumlauf:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Dubletten-Gruppen für die Admin-Ansicht: pro E-Mail alle Anträge mit Status.
+router.get("/admin/duplicates/groups", async (_req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const rows = await sqlPool`
+      SELECT ref, payment_reference, payment_status, superseded_by, amount_due, pack_name,
+             first_name, last_name, contact_name, email, invoice_number, created_at, gdpr_deleted_at
+      FROM fiaon_applications
+      WHERE merged_into IS NULL AND email IS NOT NULL AND TRIM(email) != ''
+        AND LOWER(TRIM(email)) IN (
+          SELECT LOWER(TRIM(email)) FROM fiaon_applications
+          WHERE merged_into IS NULL AND email IS NOT NULL AND TRIM(email) != ''
+          GROUP BY LOWER(TRIM(email)) HAVING COUNT(*) > 1
+        )
+      ORDER BY LOWER(TRIM(email)), created_at DESC
+    `;
+    const groups = new Map<string, any[]>();
+    for (const r of rows) {
+      const em = String(r.email).trim().toLowerCase();
+      if (!groups.has(em)) groups.set(em, []);
+      groups.get(em)!.push(r);
+    }
+    res.json({ ok: true, groups: Array.from(groups.entries()).map(([email, apps]) => ({ email, apps })) });
+  } catch (err) {
+    console.error("[FIAON-DUBLETTE] groups:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// „Alle offenen stornieren“ für eine Dubletten-Gruppe (per E-Mail).
+router.post("/admin/duplicates/cancel-open", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    if (!email || !req.body?.confirmed) return res.status(400).json({ ok: false, error: "email + confirmed erforderlich" });
+    const rows = await sqlPool`
+      UPDATE fiaon_applications SET payment_status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+      WHERE LOWER(TRIM(email)) = ${email} AND merged_into IS NULL
+        AND payment_status IN ('pending_payment', 'claimed_paid', 'expired')
+      RETURNING ref
+    `;
+    for (const r of rows) {
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+        VALUES (${r.ref}, NULL, 'Admin', 'system', 'Offene Dubletten-Bestellung storniert (Gruppen-Aktion)')
+      `;
+    }
+    console.log(`[FIAON-DUBLETTE] cancel-open: ${rows.length} Bestellungen von ${email} storniert`);
+    res.json({ ok: true, cancelled: rows.length, refs: rows.map((r) => r.ref) });
+  } catch (err) {
+    console.error("[FIAON-DUBLETTE] cancel-open:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════ PAKET AC6 — Admin: Stammdaten bearbeiten (mit Audit) ═══════════
+router.post("/admin/applications/:ref/contact", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const { updateCustomerContact } = await import("./fiaon-agent");
+    const result = await updateCustomerContact(req.params.ref, req.body || {}, { id: null, name: "Admin" });
+    if (result.error) return res.status(result.error.code).json({ ok: false, error: result.error.msg });
+    res.json({ ok: true, changes: result.changes, duplicate: result.duplicate });
+  } catch (err) {
+    console.error("[FIAON-ADMIN-CONTACT]", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
 });
 
 // ── Stillgelegte Stripe-Endpoints (410 Gone, nicht 500) ─────────────

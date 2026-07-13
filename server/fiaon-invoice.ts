@@ -103,10 +103,19 @@ export async function ensureInvoiceNumber(sqlPool: any, ref: string): Promise<st
   return again[0]?.invoice_number || null;
 }
 
-// ── PDF-Rendering ────────────────────────────────────────────────────────────
+// ── PDF-Rendering (Paket AF: formatfest für kurze UND lange Namen/Pakete) ────
 function eur(n: number | string): string {
   const v = typeof n === "string" ? parseFloat(n) : n;
-  return (Number.isFinite(v) ? v : 0).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " EUR";
+  return (Number.isFinite(v) ? v : 0).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+
+function deDate(d: Date): string {
+  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+/** IBAN in Vierergruppen (unabhängig von der Eingabe-Formatierung). */
+function groupIban(iban: string): string {
+  return String(iban).replace(/\s/g, "").replace(/(.{4})/g, "$1 ").trim();
 }
 
 /**
@@ -114,8 +123,11 @@ function eur(n: number | string): string {
  * mit invoice_number, payment_reference, amount_due, payment_due_date etc.
  */
 export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
-  const M = 50;
-  const W = doc.page.width - 2 * M;
+  // Paket AF: Ränder ≥ 20 mm (A4: 1 mm ≈ 2.835 pt → 57 pt), feste Spaltengrenzen,
+  // KEINE Überlappungen — Empfängerblock und Meta-Block haben harte Breiten,
+  // alle dynamischen Höhen werden gemessen statt geraten.
+  const M = 57;                       // 20 mm
+  const W = doc.page.width - 2 * M;   // Nutzbreite
   const invoiceDate = a.invoice_date ? new Date(a.invoice_date) : new Date();
   const dueDate = a.payment_due_date ? new Date(a.payment_due_date) : null;
   const customerName = [a.first_name, a.last_name].filter(Boolean).join(" ")
@@ -123,116 +135,133 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
   const packName = a.pack_name ? String(a.pack_name).replace(/\n/g, " ") : "FIAON Zugang";
   const amount = a.amount_due != null ? parseFloat(String(a.amount_due)) : 0;
 
-  // ── Kopf: FIAON Wortmarke links, Entity-Block rechts ──
-  doc.font("Helvetica-Bold").fontSize(26).fillColor(CI.blue).text("FIAON", M, M);
+  // ── Kopf: FIAON Wortmarke links, Entity-Block rechtsbündig ──
+  doc.font("Helvetica-Bold").fontSize(24).fillColor(CI.blue).text("FIAON", M, M);
   doc.font("Helvetica").fontSize(8).fillColor(CI.slate)
-    .text("SaaS- & E-Learning-Plattform", M, M + 30);
+    .text("SaaS- & E-Learning-Plattform", M, M + 28);
 
-  const entityX = M + W - 220;
-  doc.font("Helvetica-Bold").fontSize(9).fillColor(CI.dark).text(FIAON_ENTITY.name, entityX, M, { width: 220, align: "right" });
+  const entityW = 210;
+  const entityX = M + W - entityW;
+  doc.font("Helvetica-Bold").fontSize(9).fillColor(CI.dark).text(FIAON_ENTITY.name, entityX, M, { width: entityW, align: "right" });
   doc.font("Helvetica").fontSize(8).fillColor(CI.slate)
-    .text(FIAON_ENTITY.addressLine1, entityX, doc.y + 1, { width: 220, align: "right" })
-    .text(`${FIAON_ENTITY.addressLine2}, ${FIAON_ENTITY.country}`, entityX, doc.y + 1, { width: 220, align: "right" })
-    .text(`Company No. ${FIAON_ENTITY.companyNo}`, entityX, doc.y + 1, { width: 220, align: "right" })
-    .text(FIAON_ENTITY.email, entityX, doc.y + 1, { width: 220, align: "right" });
+    .text(FIAON_ENTITY.addressLine1, entityX, doc.y + 1, { width: entityW, align: "right" })
+    .text(`${FIAON_ENTITY.addressLine2}, ${FIAON_ENTITY.country}`, entityX, doc.y + 1, { width: entityW, align: "right" })
+    .text(`Company No. ${FIAON_ENTITY.companyNo}`, entityX, doc.y + 1, { width: entityW, align: "right" })
+    .text(FIAON_ENTITY.email, entityX, doc.y + 1, { width: entityW, align: "right" });
 
-  // Trennlinie
-  doc.moveTo(M, 130).lineTo(M + W, 130).lineWidth(1.5).strokeColor(CI.blue).stroke();
+  // Trennlinie unter dem Kopf
+  const headBottom = Math.max(M + 44, doc.y + 8);
+  doc.moveTo(M, headBottom).lineTo(M + W, headBottom).lineWidth(1.2).strokeColor(CI.blue).stroke();
 
-  // ── Empfänger + Rechnungsmeta ──
-  let y = 150;
-  doc.font("Helvetica").fontSize(7.5).fillColor(CI.slate)
-    .text(`${FIAON_ENTITY.name} · ${FIAON_ENTITY.addressLine1} · ${FIAON_ENTITY.addressLine2} · ${FIAON_ENTITY.country}`, M, y);
-  y += 14;
-  doc.font("Helvetica-Bold").fontSize(10).fillColor(CI.dark).text("Rechnungsempfänger", M, y);
-  y += 14;
-  doc.font("Helvetica").fontSize(10).fillColor(CI.dark).text(customerName, M, y);
-  y += 13;
-  if (a.street) { doc.text(`${a.street}`, M, y); y += 13; }
-  if (a.zip || a.city) { doc.text(`${a.zip || ""} ${a.city || ""}`.trim(), M, y); y += 13; }
-  if (a.email) { doc.fillColor(CI.slate).fontSize(9).text(a.email, M, y); y += 13; }
+  // ── Empfängerblock (Fensterkuvert-Bereich, links) + Rechnungsmeta (rechts) ──
+  // Harte Spaltengrenze: Empfänger max. W-260 breit, Meta fix 240 — NIE überlappend.
+  const metaW = 240;
+  const metaX = M + W - metaW;
+  const addrW = W - metaW - 20;
+  let y = headBottom + 18;
 
-  const metaX = M + W - 240;
-  let my = 150 + 14;
+  // Absenderzeile (klein, Fensterkuvert-Konvention)
+  doc.font("Helvetica").fontSize(7).fillColor(CI.slate)
+    .text(`${FIAON_ENTITY.name} · ${FIAON_ENTITY.addressLine1} · ${FIAON_ENTITY.addressLine2} · ${FIAON_ENTITY.country}`, M, y, { width: addrW });
+  let ay = doc.y + 8;
+  doc.font("Helvetica-Bold").fontSize(9).fillColor(CI.dark).text("Rechnungsempfänger", M, ay, { width: addrW });
+  ay = doc.y + 3;
+  doc.font("Helvetica").fontSize(10).fillColor(CI.dark).text(customerName, M, ay, { width: addrW });
+  ay = doc.y + 1;
+  if (a.street) { doc.text(String(a.street), M, ay, { width: addrW }); ay = doc.y + 1; }
+  if (a.zip || a.city) { doc.text(`${a.zip || ""} ${a.city || ""}`.trim(), M, ay, { width: addrW }); ay = doc.y + 1; }
+  if (a.email) { doc.fillColor(CI.slate).fontSize(8.5).text(String(a.email), M, ay, { width: addrW }); ay = doc.y + 1; }
+  const addrBottom = doc.y;
+
+  // Rechnungsmeta rechtsbündig als Block (Label links, Wert rechts)
+  let my = y;
   const meta: Array<[string, string]> = [
     ["Rechnungsnummer", a.invoice_number || "—"],
-    ["Rechnungsdatum", invoiceDate.toLocaleDateString("de-DE")],
+    ["Rechnungsdatum", deDate(invoiceDate)],
     ["Zahlungsreferenz", a.payment_reference || "—"],
     ["Antrags-Nr.", a.ref || "—"],
   ];
-  if (dueDate) meta.push(["Zahlungsziel", dueDate.toLocaleDateString("de-DE")]);
+  if (dueDate) meta.push(["Zahlungsziel", deDate(dueDate)]);
   for (const [label, value] of meta) {
-    doc.font("Helvetica").fontSize(8.5).fillColor(CI.slate).text(label, metaX, my, { width: 110 });
-    doc.font("Helvetica-Bold").fontSize(8.5).fillColor(CI.dark).text(value, metaX + 112, my, { width: 128, align: "right" });
+    doc.font("Helvetica").fontSize(8.5).fillColor(CI.slate).text(label, metaX, my, { width: 108, lineBreak: false });
+    doc.font("Helvetica-Bold").fontSize(8.5).fillColor(CI.dark).text(value, metaX + 110, my, { width: metaW - 110, align: "right", lineBreak: false });
     my += 15;
   }
 
   // ── Titel ──
-  y = Math.max(y, my) + 28;
+  y = Math.max(addrBottom, my) + 26;
   doc.font("Helvetica-Bold").fontSize(16).fillColor(CI.dark).text("Rechnung", M, y);
   y += 26;
 
-  // ── Leistungstabelle ──
-  const col1 = M, col2 = M + W - 110;
+  // ── Positionstabelle: Beschreibung | Zeitraum | Betrag (Beträge RECHTSBÜNDIG) ──
+  const amountW = 90;
+  const periodW = 120;
+  const descX = M + 10;
+  const descW = W - amountW - periodW - 40;
+  const periodX = M + 10 + descW + 10;
+  const amountX = M + W - amountW - 10;
+
   doc.rect(M, y, W, 22).fillColor(CI.bgSoft).fill();
   doc.font("Helvetica-Bold").fontSize(9).fillColor(CI.slate)
-    .text("Leistungsbeschreibung", col1 + 10, y + 7)
-    .text("Betrag", col2, y + 7, { width: 100, align: "right" });
+    .text("Beschreibung", descX, y + 7, { width: descW, lineBreak: false })
+    .text("Zeitraum", periodX, y + 7, { width: periodW, lineBreak: false })
+    .text("Betrag", amountX, y + 7, { width: amountW, align: "right", lineBreak: false });
   y += 22;
 
-  const description = `${packName} – Monatlicher Zugang zur FIAON SaaS- und E-Learning-Plattform (Software-Lizenz, KI-Profilanalyse, Lernmodule, Dashboard)`;
-  const period = "Leistungszeitraum: 1 Monat ab Freischaltung des Zugangs";
+  const description = `${packName} — monatlicher Zugang zur FIAON SaaS- und E-Learning-Plattform (Software-Lizenz, KI-Profilanalyse, Lernmodule, Dashboard)`;
+  const rowTop = y + 10;
   doc.font("Helvetica").fontSize(9.5).fillColor(CI.dark)
-    .text(description, col1 + 10, y + 10, { width: W - 140 });
+    .text(description, descX, rowTop, { width: descW });
   const descBottom = doc.y;
-  doc.font("Helvetica").fontSize(8).fillColor(CI.slate).text(period, col1 + 10, descBottom + 4, { width: W - 140 });
+  doc.font("Helvetica").fontSize(8.5).fillColor(CI.slate)
+    .text("1 Monat ab Freischaltung des Zugangs", periodX, rowTop, { width: periodW });
+  const periodBottom = doc.y;
   doc.font("Helvetica-Bold").fontSize(10).fillColor(CI.dark)
-    .text(eur(amount), col2, y + 10, { width: 100, align: "right" });
-  y = Math.max(doc.y, descBottom) + 16;
+    .text(eur(amount), amountX, rowTop, { width: amountW, align: "right", lineBreak: false });
+  y = Math.max(descBottom, periodBottom) + 12;
   doc.moveTo(M, y).lineTo(M + W, y).lineWidth(0.5).strokeColor(CI.lightLine).stroke();
-  y += 10;
+  y += 12;
 
-  // ── Summe + USt-Zeile (konfigurierbar) ──
+  // ── Summenblock rechts (Gesamtbetrag fett) + USt-Hinweis ──
   const vatMode = (process.env.INVOICE_VAT_MODE || "none").toLowerCase();
   doc.font("Helvetica-Bold").fontSize(12).fillColor(CI.dark)
-    .text("Gesamtbetrag", col1 + 10, y)
-    .text(eur(amount), col2, y, { width: 100, align: "right" });
+    .text("Gesamtbetrag", metaX, y, { width: 110, lineBreak: false })
+    .text(eur(amount), metaX + 110, y, { width: metaW - 110, align: "right", lineBreak: false });
   y += 20;
   if (vatMode === "none") {
     doc.font("Helvetica").fontSize(8).fillColor(CI.slate)
-      .text("Gesamtbetrag ohne gesonderten Steuerausweis.", col1 + 10, y, { width: W - 20 });
-    y = doc.y + 2;
-    doc.text("Hinweis zur Umsatzsteuer: folgt nach steuerlicher Registrierung.", col1 + 10, y, { width: W - 20 });
+      .text("Gesamtbetrag ohne gesonderten Steuerausweis. Hinweis zur Umsatzsteuer: folgt nach steuerlicher Registrierung.", M, y, { width: W, align: "right" });
     y = doc.y;
   }
-  y += 24;
+  y += 22;
 
-  // ── Zahlungsdaten-Block ──
-  const payBoxH = 108;
-  doc.roundedRect(M, y, W, payBoxH, 8).fillColor(CI.bgSoft).fill();
-  doc.roundedRect(M, y, W, payBoxH, 8).lineWidth(1).strokeColor(CI.lightLine).stroke();
-  doc.font("Helvetica-Bold").fontSize(10).fillColor(CI.blue).text("Zahlung per SEPA-Banküberweisung (Vorkasse)", M + 14, y + 12);
-  const rows: Array<[string, string]> = [
+  // ── Zahlungsdaten-Block (dynamische Höhe — Hinweiszeile kollidiert NIE) ──
+  const payRows: Array<[string, string]> = [
     ["Empfänger", FIAON_BANK_DETAILS.recipient],
-    ["IBAN", FIAON_BANK_DETAILS.iban],
+    ["IBAN", groupIban(FIAON_BANK_DETAILS.iban)],
     ["BIC", FIAON_BANK_DETAILS.bic],
     ["Verwendungszweck", a.payment_reference || "—"],
-    ["Zahlungsziel", dueDate ? dueDate.toLocaleDateString("de-DE") : "—"],
+    ["Zahlungsziel", dueDate ? deDate(dueDate) : "—"],
   ];
+  const payBoxH = 12 + 20 + payRows.length * 14 + 18; // Titel + Zeilen + Hinweis
+  doc.roundedRect(M, y, W, payBoxH, 8).fillColor(CI.bgSoft).fill();
+  doc.roundedRect(M, y, W, payBoxH, 8).lineWidth(1).strokeColor(CI.lightLine).stroke();
+  doc.font("Helvetica-Bold").fontSize(10).fillColor(CI.blue).text("Zahlung per SEPA-Banküberweisung (Vorkasse)", M + 14, y + 12, { width: W - 28, lineBreak: false });
   let py = y + 32;
-  for (const [label, value] of rows) {
-    doc.font("Helvetica").fontSize(8.5).fillColor(CI.slate).text(label, M + 14, py, { width: 120 });
-    doc.font("Helvetica-Bold").fontSize(8.5).fillColor(CI.dark).text(value, M + 140, py);
+  for (const [label, value] of payRows) {
+    doc.font("Helvetica").fontSize(8.5).fillColor(CI.slate).text(label, M + 14, py, { width: 120, lineBreak: false });
+    doc.font("Helvetica-Bold").fontSize(8.5).fillColor(CI.dark).text(value, M + 140, py, { width: W - 154, lineBreak: false });
     py += 14;
   }
   doc.font("Helvetica").fontSize(7.5).fillColor(CI.slate)
-    .text("Bitte geben Sie den Verwendungszweck exakt an – nur so kann Ihre Zahlung automatisch zugeordnet werden.", M + 14, y + payBoxH - 14, { width: W - 28 });
+    .text("Bitte geben Sie den Verwendungszweck exakt an – nur so kann Ihre Zahlung automatisch zugeordnet werden.", M + 14, py + 4, { width: W - 28, lineBreak: false });
 
-  // ── Fußzeile ──
-  const footY = doc.page.height - 64;
+  // ── Fußzeile: einzeilig sauber + Seitenzahl bei Mehrseitigkeit ──
+  const range = doc.bufferedPageRange ? doc.bufferedPageRange() : { start: 0, count: 1 };
+  const pageCount = Math.max(1, range.count);
+  const footY = doc.page.height - 52;
   doc.moveTo(M, footY - 8).lineTo(M + W, footY - 8).lineWidth(0.5).strokeColor(CI.lightLine).stroke();
-  doc.font("Helvetica").fontSize(7.5).fillColor(CI.slate)
-    .text(`${FIAON_ENTITY.name} · ${FIAON_ENTITY.addressLine1} · ${FIAON_ENTITY.addressLine2} · ${FIAON_ENTITY.country}`, M, footY, { width: W, align: "center" })
-    .text(FIAON_ENTITY.registeredFooter, M, footY + 11, { width: W, align: "center" })
-    .text(`${FIAON_ENTITY.email} · fiaon.com`, M, footY + 22, { width: W, align: "center" });
+  doc.font("Helvetica").fontSize(7).fillColor(CI.slate)
+    .text(`${FIAON_ENTITY.name} · Companies House No. ${FIAON_ENTITY.companyNo} · Registered Office: ${FIAON_ENTITY.addressLine1}, ${FIAON_ENTITY.addressLine2} (UK) · Director: ${FIAON_ENTITY.director}`, M, footY, { width: W, align: "center", lineBreak: false })
+    .text(`${FIAON_ENTITY.email} · fiaon.com${pageCount > 1 ? ` · Seite ${range.start + 1} von ${pageCount}` : ""}`, M, footY + 10, { width: W, align: "center", lineBreak: false });
 }

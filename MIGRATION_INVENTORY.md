@@ -390,6 +390,42 @@ A4 mit ≥20-mm-Rändern, FIAON-Kopf links + Rechnungsmeta rechtsbündig als Blo
 
 **Getestet**: Typecheck der geänderten Dateien fehlerfrei (verbleibende tsc-Fehler stammen aus alten „Konflikt-Kopie"-Dateien außerhalb dieses Updates); Vite- + esbuild-Produktionsbuild grün; Server-Smoke-Test: Boot ohne Fehler, Routen registriert (Admin-Route ohne Auth → 403 wie erwartet). Dubletten-Zahlen werden beim Aufräumlauf geloggt und im Admin-Panel (Gruppen-Zähler) angezeigt.
 
+### Update: Agent-Portal Motivations-Update — Glas/3D, „Mein Tag", Feed, Wunschgehalt, Update-Center, Feedback-Belohnung (Pakete AG–AO)
+
+Vollständiges Audit vor Implementierung: **`AGENT_REVAMP_AUDIT.md`** (Routen, Provisions-Logik exakt, Realtime-Entscheid, CI-Tokens, Begründung gegen fiktive Agenten).
+
+**Paket AG — Dashboard „Mein Tag"** (`/agent` neu, Arbeitsliste nach `/agent/kunden` extrahiert)
+- AG1 Kopf: „Heute verdient" (LiveCount, echte bestätigte Provision+Override des Tages), „Diese Woche" + %-Vergleich zur Vorwoche, Doppel-Ziel-Ring (Provisions-Tagesziel € + Kontakte/Tag; pro Agent im Admin setzbar, Defaults 30 €/15 Kontakte), 3D-Signature dezent im Kopf. Server: `GET /agent/dashboard` (`fiaon-agent-portal.ts`).
+- AG2 „Jetzt dran": priorisierte Liste max. 5 (überfällige Rückrufe → Zahlung angekündigt → Zusage/Termin heute → Rest), tel:-Button, „Alle anzeigen" → `/agent/kunden`.
+- AG3 „Meine Abschlüsse": chronologischer Feed der eigenen bezahlten Kunden + Monatszähler; bezahlter Kunde wandert sichtbar von AG2 nach AG3 (Polling); Erfolgs-Glanz ≤2 s bei neuem Abschluss (kein Konfetti, reduced-motion respektiert). Leerer Zustand erklärt.
+- AG4 Partner-Teaser: Status + Fortschritt + nächste Prämie → Partner-Programm-Seite.
+
+**Paket AH — Aktivitäts-Feed** (`GET /agent/feed`, Seitenspalte Desktop / gestapelt Mobile)
+- NUR wahrheitsgemäße Inhalte: eigene Abschlüsse (kuratierte, seriös-anspornende Textbausteine, deterministisch rotiert), Team-Beteiligung, Feedback-Boni, Meilensteine, anonymisierte Team-Abschlüsse („Ein Kollege aus dem Vertrieb …", ohne Name/Betrag).
+- AH3 Benchmark-Impulse: eigener Kasten, ausdrücklich als „Statistik aus echten Zahlen" gekennzeichnet (beste Team-Woche 8 W, eigener Bestwert vs. heute, Team-Wochensumme). **KEINE fiktiven Agenten** — Begründung dokumentiert in `AGENT_REVAMP_AUDIT.md` §5. Feed verdichtet sich automatisch mit mehr echten Agents.
+
+**Paket AK — Wunschgehalt-Simulator** (`GET|POST /agent/wunschgehalt`, Karte auf Dashboard + /agent/verdienst)
+- Wunschgehalt pro Agent persistiert (`fiaon_agents.desired_salary_cents`). Rechnung SERVERSEITIG in Cents mit echten Werten: Satz (`agentRateBp`) + aktueller Partnerstatus-Zuschlag, Ø-Abschlusswert (eigene Abschlüsse → Fallback Systemdurchschnitt bezahlter Bestellungen → offene Bestellungen), Monatsverdienst bisher, verbleibende Werktage (Mo–Fr).
+- **Meilenstein-Sprung gestaffelt**: Simulation Abschluss für Abschluss, Satz steigt beim Überschreiten der Schwellen (identische Logik wie `onCustomerPaid`: Zuschlag auf Basis Umsatz VOR dem Abschluss); Segmente werden transparent angezeigt („12× zu 15 % (Partner), 3× zu 17 % (Senior Partner)"). Annahmen offen ausgewiesen, Wording „Orientierung — keine Zusage". Erzeugt NIE Provisionseinträge.
+
+**Paket AL — 3D-Signature-Element**: bestehender CSS-`SignatureCore` um Facetten-Conic-Ring erweitert (`.agent-facet`, 0 Assets, kein three.js), Login + Dashboard-Kopf; reduced-motion → statisch. Neue Glas-/Motion-Tokens in `index.css` (`.agent-glass[-strong]`, `.agent-ambient`, Timing-Vars 120/220/420 ms, Blur auf Mobile auf 8–10 px begrenzt, alles transform/opacity, CLS=0).
+
+**Paket AM — Update-Center**: Tabellen `fiaon_agent_updates` + `fiaon_agent_update_reads` (Gelesen-Status pro Agent). Banner in der `AgentShell` (NUR /agent/*) bei ungelesenen veröffentlichten Updates → `/agent/updates` (markiert als gelesen, Event `agent-updates-read` blendet Banner sofort aus). Admin postet ohne Deploy unter **/admin/agent-portal** (Entwurf/veröffentlichen/zurückziehen/löschen, Lese-Quote sichtbar).
+
+**Paket AN — Feedback mit Provisions-Dankeschön**: `/agent/feedback` (Kategorie, Titel, Beschreibung, optionaler Screenshot ≤1,5 MB, clientseitig verkleinert; Spam-Bremse 10 offene Tickets). Admin-Bereich „Agent-Feedback" (/admin/agent-portal): Status offen/geprüft/umgesetzt/abgelehnt, Kommentar (für Agent sichtbar), **einmalige Provisions-Gutschrift** → regulärer Eintrag `kind='feedback_bonus'` (status `bestaetigt`, ref `FEEDBACK-<id>`, rate_bp 0) — fließt ins normale Guthaben/Auszahlung, zählt NICHT zum Partnerstatus (`ownRevenueCents` filtert `kind='own'`), pro Ticket max. EINE Gutschrift, Audit `feedback_rewarded` + Make-Event **`agent_feedback_rewarded`** (Registry + Typ ergänzt). Agent sieht Status + erhaltene Boni + Feed-Eintrag „Danke für deinen Beitrag".
+
+**Paket AO — Navigation**: Agent-Menü auf 5 Punkte reduziert (Desktop + Mobile-Bottom-Nav): **Mein Tag** · **Kunden** (`/agent/kunden`, unverändert extrahierte Arbeitsliste + Kundendetail) · **Kalender** · **Verdienst** (`/agent/verdienst`: KPIs, Abschlussliste, Wunschgehalt, Wege zu Auszahlung/Partner — Alt-Routen bleiben) · **Mehr** (`/agent/mehr`: Skripte, Updates mit Ungelesen-Badge, Feedback, Profil, Abmelden). Jede Seite: Titel + Ein-Satz-Zweck. Erste-Schritte-Panel (5 Punkte: Profil/IBAN/Skripte/erster Anruf/erste Notiz — teils automatisch erkannt, `fiaon_agents.first_steps`), verschwindet nach Abschluss oder Ausblenden.
+
+**Paket AJ — Aktualisierung**: Polling 45 s (Dashboard + Feed), `LiveCount` animiert Wertänderungen; KEIN neuer Realtime-Stack (Audit bestätigte: keiner vorhanden).
+
+**Neue Dateien**: `server/routes/fiaon-agent-portal.ts` (registriert in `server/routes.ts` hinter `blockAgentsFromAdmin`), `client/src/pages/agent/{kunden,verdienst,updates,feedback,mehr,motivation}.tsx`, `client/src/pages/admin-agent-portal.tsx`. **Neue DB-Objekte** (idempotent): `fiaon_agent_updates`, `fiaon_agent_update_reads`, `fiaon_agent_feedback`; Spalten `fiaon_agents.desired_salary_cents/daily_goal_cents/daily_contacts_goal/first_steps`.
+
+**Getestet**: Typecheck aller geänderten/neuen Dateien fehlerfrei (verbleibende tsc-Fehler ausschließlich aus alten „Konflikt-Kopie"-/Dashboard-Dateien außerhalb dieses Updates); Vite- + esbuild-Produktionsbuild grün. Regressionsprinzip: Kundenliste/Kundendetail 1:1 extrahiert, Kalender/Auszahlung/Partner/Profil/Skripte unangetastet, Provisions-Engine unverändert (nur additiver kind `feedback_bonus`).
+
+**Betreiber-TODO (Make.com + Brevo)**
+- [ ] Make-Zweig für Event **`agent_feedback_rewarded`** anlegen (Payload: `email`, `vorname`, `betrag_eur`, `feedback_titel`) + Brevo-Template „Feedback-Bonus gutgeschrieben".
+- [ ] Optional: Tagesziele pro Agent unter /admin/agent-portal → „Tagesziele" pflegen (sonst Defaults 30 €/15 Kontakte).
+
 ### Offene Punkte
 - [ ] **Env-Variablen entfernen**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VITE_STRIPE_PUBLISHABLE_KEY`/`VITE_STRIPE_PUBLIC_KEY` aus dem Deployment löschen (Code ist mit Null-Guards abgesichert).
 - [ ] **Stripe Payment Links im Stripe-Dashboard deaktivieren** (alte gespeicherte URLs könnten sonst noch funktionieren).

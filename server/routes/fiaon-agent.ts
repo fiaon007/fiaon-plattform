@@ -378,7 +378,7 @@ export interface AgentRequest extends Request {
   agent?: { id: number; name: string; email: string; first_name: string | null };
 }
 
-async function requireAgent(req: AgentRequest, res: Response, next: NextFunction) {
+export async function requireAgent(req: AgentRequest, res: Response, next: NextFunction) {
   try {
     await ensureAgentTables();
     const tok = verifyAgentToken(req.cookies?.[AGENT_COOKIE]);

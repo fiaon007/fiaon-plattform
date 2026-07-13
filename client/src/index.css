@@ -533,16 +533,110 @@ html {
 .agent-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
 .agent-scroll::-webkit-scrollbar-track { background: transparent; }
 
+/* ════════════════════════════════════════════════════════════
+   AGENT-PORTAL — Motivations-Update (Pakete AG–AO)
+   Glasmorphismus + Facetten-3D + Timing-Tokens. Alles aus dem
+   bestehenden CI abgeleitet (#2563eb + Slate), transform/opacity
+   only, CLS=0, reduced-motion respektiert, Blur auf Mobile begrenzt.
+   ════════════════════════════════════════════════════════════ */
+.agent-scope {
+  --agent-fast: 120ms;
+  --agent-base: 220ms;
+  --agent-slow: 420ms;
+  --agent-ease: cubic-bezier(.22,.61,.36,1);
+}
+
+/* — Ambient-Hintergrund fürs Dashboard: ruhige CI-Radials, kein Neon — */
+.agent-ambient {
+  background:
+    radial-gradient(1000px 460px at 85% -10%, rgba(37,99,235,.07), transparent 62%),
+    radial-gradient(760px 400px at -12% 22%, rgba(100,116,139,.06), transparent 60%),
+    #f8fafc;
+}
+
+/* — Frosted-Glass-Karten: feine 1px-Border + Innen-Glow, weiche Schatten — */
+.agent-glass {
+  background: rgba(255,255,255,.72);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,.65);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.85),
+    0 1px 2px rgba(15,23,42,.04),
+    0 18px 44px -26px rgba(15,23,42,.22);
+}
+.agent-glass-strong {
+  background: rgba(255,255,255,.85);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(226,232,240,.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.9),
+    0 1px 2px rgba(15,23,42,.05),
+    0 24px 56px -28px rgba(15,23,42,.28);
+}
+/* Mobile: Blur-Radius begrenzen (GPU-Last, Scroll-Ruckler vermeiden) */
+@media (max-width: 640px) {
+  .agent-glass { -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  .agent-glass-strong { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+}
+
+/* — Facetten-Ring: Weiterentwicklung des Signature-Cores (AL), 0 Assets — */
+@keyframes agentFacetSpin { to { transform: rotate(360deg); } }
+.agent-facet {
+  position: absolute; inset: 6%;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(37,99,235,.28) 0deg, rgba(37,99,235,.05) 52deg,
+    rgba(100,116,139,.16) 118deg, rgba(37,99,235,.03) 178deg,
+    rgba(37,99,235,.24) 236deg, rgba(100,116,139,.06) 300deg,
+    rgba(37,99,235,.28) 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 10px), #000 calc(100% - 9px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 10px), #000 calc(100% - 9px));
+  animation: agentFacetSpin 26s linear infinite;
+}
+
+/* — Feed: weiche Einblendung neuer Einträge (nur transform/opacity) — */
+@keyframes agentFeedIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+.agent-feed-in { animation: agentFeedIn var(--agent-base, 220ms) var(--agent-ease, ease-out) both; }
+
+/* — Update-Banner: dezentes Hereingleiten — */
+@keyframes agentBannerIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+.agent-banner-in { animation: agentBannerIn var(--agent-slow, 420ms) var(--agent-ease, ease-out) both; }
+
+/* — Erfolgs-Moment (AH1): kurzer, edler Glanz ≤2s, kein Konfetti — */
+@keyframes agentGlow {
+  0%   { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+  25%  { box-shadow: 0 0 0 5px rgba(37,99,235,.12); }
+  100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+}
+.agent-glow { animation: agentGlow 1.6s var(--agent-ease, ease-out); border-radius: 16px; }
+
+/* — Ziel-Ring: weiche Fortschritts-Transition (SVG stroke-dashoffset) — */
+.agent-ring-arc { transition: stroke-dashoffset .8s var(--agent-ease, ease-out); }
+
 /* ── prefers-reduced-motion: alle nicht-essenziellen Bewegungen AUS ── */
 @media (prefers-reduced-motion: reduce) {
   .agent-reveal,
   .agent-panel-in,
   .agent-check-in,
+  .agent-feed-in,
+  .agent-banner-in,
+  .agent-glow,
   .agent-success { animation: none !important; opacity: 1 !important; transform: none !important; }
   .agent-core__inner,
   .agent-core__glow,
+  .agent-facet,
   .agent-float,
   .agent-spinner,
   .agent-skeleton::after { animation: none !important; }
   .agent-core__glow { opacity: .6; }
+  .agent-ring-arc { transition: none !important; }
 }

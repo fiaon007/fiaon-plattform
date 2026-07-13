@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, CreditCard, Banknote, FileText, Users, UserPlus,
   BookOpen, Settings, ScrollText, Scale, Database, Search, Menu, X,
-  ArrowLeft, ChevronRight, ShieldAlert, Wallet, Send,
+  ArrowLeft, ChevronRight, ShieldAlert, Wallet, Send, Sparkles, MessageSquarePlus,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -58,6 +58,8 @@ export const ADMIN_NAV: NavGroup[] = [
       { path: "/admin/team", label: "Team-Übersicht", desc: "Agents, Statistik, Provisionen, Zuweisungen", icon: Users },
       { path: "/admin/team?einladen=1", label: "Agent anlegen", desc: "Neuen Mitarbeiter per E-Mail einladen", icon: UserPlus, match: "/admin/team" },
       { path: "/admin/team#skripte", label: "Skripte & Leitfäden", desc: "Gesprächsvorlagen verwalten", icon: BookOpen, match: "/admin/team" },
+      { path: "/admin/agent-portal", label: "Agent-Updates", desc: "Portal-Updates posten (Banner) + Tagesziele pflegen", icon: Sparkles },
+      { path: "/admin/agent-portal#feedback", label: "Agent-Feedback", desc: "Verbesserungsvorschläge prüfen und belohnen", icon: MessageSquarePlus, match: "/admin/agent-portal" },
     ],
   },
   {

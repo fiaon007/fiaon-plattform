@@ -1,0 +1,103 @@
+import { useState, useEffect } from "react";
+import { Link, useLocation } from "wouter";
+import { FileText, Sparkles, MessageSquarePlus, User, Wallet, Award, ChevronRight, LogOut } from "lucide-react";
+import { AgentShell, api, useAgentInfo, Avatar, ACCENT } from "./shared";
+import { Reveal } from "./motion";
+
+// ============================================================================
+// /agent/mehr (Paket AO) — alle weiteren Bereiche an einem ruhigen Ort:
+// Skripte, Updates, Feedback, Profil (+ Schnellwege Auszahlung/Partner).
+// ============================================================================
+
+const AREAS: { href: string; label: string; desc: string; icon: typeof FileText; badgeKey?: string }[] = [
+  { href: "/agent/skripte", label: "Skripte", desc: "Gesprächsvorlagen und Leitfäden für deine Telefonate", icon: FileText },
+  { href: "/agent/updates", label: "Updates", desc: "Neuerungen an deinem Agent-Portal", icon: Sparkles, badgeKey: "updates" },
+  { href: "/agent/feedback", label: "Feedback", desc: "Verbesserungen vorschlagen — Umsetzung wird belohnt", icon: MessageSquarePlus },
+  { href: "/agent/profil", label: "Profil", desc: "Konto, Passwort und Auszahlungsdaten", icon: User },
+  { href: "/agent/auszahlung", label: "Auszahlung", desc: "Guthaben prüfen und Auszahlung beantragen", icon: Wallet },
+  { href: "/agent/partner-programm", label: "Partner-Programm", desc: "Meilensteine, Prämien und Team-Beteiligung", icon: Award },
+];
+
+export default function AgentMehrPage() {
+  return (
+    <AgentShell>
+      <MehrContent />
+    </AgentShell>
+  );
+}
+
+function MehrContent() {
+  const { agent } = useAgentInfo();
+  const [, navigate] = useLocation();
+  const [unreadUpdates, setUnreadUpdates] = useState(0);
+
+  useEffect(() => {
+    api("/agent/updates/state").then((r) => { if (r.ok) setUnreadUpdates(r.json.unread); });
+  }, []);
+
+  const logout = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    await fetch("/api/fiaon/agent/logout", { method: "POST", credentials: "include" }).catch(() => {});
+    navigate("/agent");
+    window.location.reload();
+  };
+
+  return (
+    <div className="max-w-2xl pb-24 md:pb-8">
+      <Reveal index={0}>
+        <h1 className="text-xl font-bold tracking-tight mb-1">Mehr</h1>
+        <p className="text-[12px] text-slate-400 mb-5">Skripte, Updates, Feedback und dein Konto.</p>
+      </Reveal>
+
+      {agent && (
+        <Reveal index={1}>
+          <Link href="/agent/profil" className="agent-glass rounded-2xl px-5 py-4 mb-4 flex items-center gap-3 transition-transform duration-150 active:scale-[.995]">
+            <Avatar name={agent.name} size={44} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[14px] font-semibold text-slate-900 truncate">{agent.name}</p>
+              <p className="text-[12px] text-slate-400 truncate">{agent.email}</p>
+            </div>
+            <ChevronRight size={16} className="text-slate-300 shrink-0" />
+          </Link>
+        </Reveal>
+      )}
+
+      <div className="space-y-2.5">
+        {AREAS.map((a, i) => {
+          const Icon = a.icon;
+          const badge = a.badgeKey === "updates" ? unreadUpdates : 0;
+          return (
+            <Reveal key={a.href} index={i + 2}>
+              <Link href={a.href} className="agent-glass rounded-2xl px-5 py-4 flex items-center gap-3 transition-transform duration-150 active:scale-[.995] hover:shadow-[0_20px_44px_-26px_rgba(15,23,42,.32)]">
+                <span className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 shrink-0">
+                  <Icon size={17} strokeWidth={1.8} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="text-[13px] font-semibold text-slate-900 flex items-center gap-2">
+                    {a.label}
+                    {badge > 0 && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: ACCENT }}>{badge}</span>
+                    )}
+                  </span>
+                  <span className="block text-[11.5px] text-slate-400">{a.desc}</span>
+                </span>
+                <ChevronRight size={16} className="text-slate-300 shrink-0" />
+              </Link>
+            </Reveal>
+          );
+        })}
+      </div>
+
+      <Reveal index={AREAS.length + 2}>
+        <button
+          type="button"
+          onClick={logout}
+          className="mt-5 w-full py-3 rounded-2xl border border-slate-200 bg-white text-[13px] font-semibold text-slate-500 hover:text-slate-700 hover:border-slate-300 inline-flex items-center justify-center gap-2 transition-colors"
+          style={{ minHeight: 48 }}
+        >
+          <LogOut size={15} strokeWidth={1.8} /> Abmelden
+        </button>
+      </Reveal>
+    </div>
+  );
+}

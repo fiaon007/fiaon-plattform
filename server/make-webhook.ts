@@ -22,7 +22,8 @@ export type MakeEventType =
   | "agent_password_reset"
   | "agent_payout_done"
   | "agent_payout_rejected"
-  | "agent_callback_reminder";
+  | "agent_callback_reminder"
+  | "agent_feedback_rewarded";
 
 export interface MakeWebhookPayload {
   email: string;

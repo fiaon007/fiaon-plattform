@@ -217,6 +217,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/fiaon', fiaonAgentRoutes.blockAgentsFromAdmin);
   app.use('/api/fiaon', fiaonAgentRoutes.default);
 
+  // ⚡ FIAON Agent-Portal Motivations-Update — Dashboard/Feed/Wunschgehalt/Updates/Feedback
+  // (Pakete AG–AO; Admin-Pflegebereiche laufen ebenfalls hinter blockAgentsFromAdmin)
+  const fiaonAgentPortalRoutes = await import('./routes/fiaon-agent-portal');
+  app.use('/api/fiaon', fiaonAgentPortalRoutes.default);
+
   // 👥 FIAON Team-Admin — Agents/Provisionen/Auszahlungen/Skripte/Einstellungen (nur Admin)
   const fiaonTeamRoutes = await import('./routes/fiaon-team');
   app.use('/api/fiaon', fiaonTeamRoutes.default);

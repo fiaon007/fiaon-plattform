@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Users, Calendar, FileText, Wallet, User, LogOut, RefreshCw, Award } from "lucide-react";
+import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X } from "lucide-react";
 
 // ============================================================================
 // Agent-Portal — gemeinsame Shell + Design-System (Paket E)
@@ -114,15 +114,59 @@ export async function api(path: string, init?: RequestInit): Promise<any> {
   return { status: res.status, ok: res.ok && json?.ok, json };
 }
 
-// ── Navigation ───────────────────────────────────────────────────────────────
-const NAV = [
-  { href: "/agent", label: "Kunden", icon: Users },
-  { href: "/agent/kalender", label: "Kalender", icon: Calendar },
-  { href: "/agent/skripte", label: "Skripte", icon: FileText },
-  { href: "/agent/auszahlung", label: "Auszahlung", icon: Wallet },
-  { href: "/agent/partner-programm", label: "Partner", icon: Award },
-  { href: "/agent/profil", label: "Profil", icon: User },
+// ── Navigation (Paket AO: 5 klare Punkte; Unterseiten markieren den Bereich) ─
+const NAV: { href: string; label: string; icon: typeof Users; match: string[] }[] = [
+  { href: "/agent", label: "Mein Tag", icon: LayoutDashboard, match: ["/agent"] },
+  { href: "/agent/kunden", label: "Kunden", icon: Users, match: ["/agent/kunden"] },
+  { href: "/agent/kalender", label: "Kalender", icon: Calendar, match: ["/agent/kalender"] },
+  { href: "/agent/verdienst", label: "Verdienst", icon: Wallet, match: ["/agent/verdienst", "/agent/auszahlung", "/agent/partner-programm"] },
+  { href: "/agent/mehr", label: "Mehr", icon: MoreHorizontal, match: ["/agent/mehr", "/agent/skripte", "/agent/updates", "/agent/feedback", "/agent/profil"] },
 ];
+
+/**
+ * Update-Banner (Paket AM): erscheint NUR im Agent-Portal, wenn ungelesene
+ * veröffentlichte Updates existieren. Klick → /agent/updates (markiert dort
+ * als gelesen und feuert 'agent-updates-read', der Banner verschwindet sofort).
+ */
+function UpdateBanner() {
+  const [state, setState] = useState<{ unread: number; latest: string | null } | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+  const [location] = useLocation();
+
+  useEffect(() => {
+    api("/agent/updates/state").then((r) => {
+      if (r.ok) setState({ unread: r.json.unread, latest: r.json.latest });
+    });
+    const onRead = () => setState((s) => (s ? { ...s, unread: 0 } : s));
+    window.addEventListener("agent-updates-read", onRead);
+    return () => window.removeEventListener("agent-updates-read", onRead);
+  }, []);
+
+  if (dismissed || !state || state.unread === 0 || location === "/agent/updates") return null;
+
+  const dateStr = state.latest
+    ? new Date(state.latest).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : "";
+
+  return (
+    <div className="agent-banner-in border-b border-slate-200/80" style={{ background: "rgba(37,99,235,.06)" }}>
+      <div className="max-w-6xl mx-auto px-4 py-2.5 flex items-center gap-3">
+        <Sparkles size={15} strokeWidth={1.8} className="shrink-0" style={{ color: ACCENT }} />
+        <Link href="/agent/updates" className="min-w-0 flex-1 text-[12.5px] font-medium text-slate-700 hover:text-slate-900 transition-colors truncate">
+          Neue Updates{dateStr ? ` vom ${dateStr}` : ""} für dein Agent-Portal — <span className="font-semibold" style={{ color: ACCENT }}>jetzt ansehen</span>
+        </Link>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setDismissed(true); }}
+          title="Später lesen"
+          className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors shrink-0"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Shell: prüft die Anmeldung, zeigt Kopfzeile + Navigation (Desktop oben,
@@ -168,8 +212,8 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
 
   return (
     <AgentCtx.Provider value={{ agent, reload: load }}>
-      <div className="agent-scope min-h-screen bg-slate-50 text-slate-900 pb-20 md:pb-10">
-        <header className="sticky top-0 z-30 bg-white border-b border-slate-200">
+      <div className="agent-scope agent-ambient min-h-screen text-slate-900 pb-20 md:pb-10">
+        <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-slate-200">
           <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
             <div className="flex items-center gap-6 min-w-0">
               <Link href="/agent" className="shrink-0">
@@ -178,7 +222,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
               </Link>
               <nav className="hidden md:flex items-center gap-1">
                 {NAV.map((n) => {
-                  const active = location === n.href;
+                  const active = n.match.includes(location);
                   return (
                     <Link
                       key={n.href}
@@ -219,12 +263,14 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
           </div>
         </header>
 
+        <UpdateBanner />
+
         <main className="max-w-6xl mx-auto px-4 py-5">{children}</main>
 
         {/* Mobile Bottom-Navigation */}
-        <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 grid grid-cols-6" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/90 backdrop-blur-md border-t border-slate-200 grid grid-cols-5" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
           {NAV.map((n) => {
-            const active = location === n.href;
+            const active = n.match.includes(location);
             const Icon = n.icon;
             return (
               <Link

@@ -150,6 +150,18 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       termin_zeit: "2026-07-06T14:30:00.000Z",
     },
   },
+  {
+    type: "agent_feedback_rewarded",
+    label: "Feedback-Bonus gutgeschrieben (Mitarbeiter)",
+    description: "Feuert, wenn der Admin ein Agent-Feedback mit einer einmaligen Provisions-Gutschrift honoriert. Betreiber-TODO: Make-Zweig + Brevo-Template anlegen.",
+    customerBound: false,
+    example: {
+      email: "anna.schmidt@example.com",
+      vorname: "Anna",
+      betrag_eur: "25.00",
+      feedback_titel: "Kalender: Wochenansicht auf Mobile verbessern",
+    },
+  },
 ];
 
 export function getEventDef(type: string): MakeEventDef | undefined {

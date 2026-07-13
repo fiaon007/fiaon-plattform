@@ -640,6 +640,14 @@ export default function AdminZahlungenPage() {
             >
               {reminderRunning ? "Läuft…" : "Reminder-Lauf jetzt starten"}
             </button>
+            <a
+              href="/api/fiaon/admin/invoices/download-all"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-[13px] font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all"
+              title="Alle Rechnungen als ZIP herunterladen (ein PDF je Kunde + CSV-Übersicht)"
+            >
+              Alle Rechnungen herunterladen (ZIP)
+            </a>
           </div>
         </div>
 

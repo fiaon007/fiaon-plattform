@@ -126,6 +126,13 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
   // Paket AF: Ränder ≥ 20 mm (A4: 1 mm ≈ 2.835 pt → 57 pt), feste Spaltengrenzen,
   // KEINE Überlappungen — Empfängerblock und Meta-Block haben harte Breiten,
   // alle dynamischen Höhen werden gemessen statt geraten.
+  //
+  // WICHTIG (Fix „leere Seiten"): pdfkit fügt automatisch eine neue Seite an,
+  // sobald Text unterhalb des unteren Seitenrands (page.margins.bottom) gezeichnet
+  // wird — genau das löste die Fußzeile (bei page.height − 52) aus und erzeugte 1–2
+  // leere Folgeseiten. Da wir ALLES absolut positionieren, deaktivieren wir die
+  // Seitenränder komplett → kein Auto-Umbruch, garantiert genau EINE Seite.
+  doc.page.margins = { top: 0, bottom: 0, left: 0, right: 0 };
   const M = 57;                       // 20 mm
   const W = doc.page.width - 2 * M;   // Nutzbreite
   const invoiceDate = a.invoice_date ? new Date(a.invoice_date) : new Date();

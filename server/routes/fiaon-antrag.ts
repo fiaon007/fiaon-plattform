@@ -500,6 +500,65 @@ router.get("/admin/payments/:paymentRef/invoice.pdf", async (req, res) => {
   }
 });
 
+// Admin: ALLE Rechnungen mit einem Klick als ZIP (ein PDF je Rechnungsnummer + CSV-Übersicht).
+// Enthält jede Bestellung mit vergebener Rechnungsnummer; sortiert nach Rechnungsnummer.
+router.get("/admin/invoices/download-all", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const apps = await sqlPool`
+      SELECT * FROM fiaon_applications
+      WHERE invoice_number IS NOT NULL
+      ORDER BY invoice_number ASC
+    `;
+    if (apps.length === 0) {
+      return res.status(404).json({ ok: false, error: "Keine Rechnungen vorhanden" });
+    }
+
+    const dateTag = new Date().toISOString().slice(0, 10);
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="FIAON_Rechnungen_${dateTag}.zip"`);
+
+    const archive = new ZipArchive({ zlib: { level: 6 } });
+    archive.on("error", (err: Error) => {
+      console.error("[FIAON-INVOICES-ZIP] Archiver error:", err);
+      try { res.end(); } catch { }
+    });
+    archive.pipe(res);
+
+    // 1) CSV-Übersicht (BOM für Excel, Semikolon-getrennt, deutsche Formatierung)
+    const csvHeader = [
+      "Rechnungsnummer", "Rechnungsdatum", "Zahlungsreferenz", "Antrags-Nr.",
+      "Kunde", "E-Mail", "Paket", "Betrag (EUR)", "Zahlungsstatus",
+    ].join(";");
+    const csvRows = apps.map((a: any) => [
+      csvCell(a.invoice_number),
+      a.invoice_date ? new Date(a.invoice_date).toLocaleDateString("de-DE") : "",
+      csvCell(a.payment_reference), csvCell(a.ref),
+      csvCell([a.first_name, a.last_name].filter(Boolean).join(" ") || a.contact_name || a.company_name || ""),
+      csvCell(a.email), csvCell(a.pack_name ? String(a.pack_name).replace(/\n/g, " ") : ""),
+      csvCell(a.amount_due != null ? Number(a.amount_due).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""),
+      csvCell(a.payment_status),
+    ].join(";"));
+    const csv = "\uFEFF" + csvHeader + "\r\n" + csvRows.join("\r\n");
+    archive.append(csv, { name: "Rechnungen_Uebersicht.csv" });
+
+    // 2) Ein Rechnungs-PDF je Kunde
+    for (const a of apps) {
+      const doc = new PDFDocument({ size: "A4", margin: 50 });
+      const fileName = `Rechnungen/${a.invoice_number || a.payment_reference || a.ref}.pdf`;
+      archive.append(doc as any, { name: fileName });
+      renderInvoicePdf(doc, a);
+      doc.end();
+    }
+
+    await archive.finalize();
+    console.log(`[FIAON-INVOICES-ZIP] ${apps.length} Rechnungen als ZIP exportiert`);
+  } catch (err) {
+    console.error("[FIAON-INVOICES-ZIP]", err);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: "Fehler beim Erstellen des ZIP-Archivs" });
+  }
+});
+
 // Öffentlicher, SIGNIERTER Rechnungs-Link mit Ablauf (für E-Mail-Anhänge via Make, invoice_url)
 router.get("/invoice/:paymentRef.pdf", async (req, res) => {
   try {

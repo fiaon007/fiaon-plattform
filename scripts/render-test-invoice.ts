@@ -27,10 +27,12 @@ const cases = [
 ];
 
 for (const c of cases) {
-  const doc = new PDFDocument({ size: "A4", margin: 0 });
+  // Identisch zu den echten Endpoints: margin 50 + bufferPages zum Zählen der Seiten.
+  const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
   const out = `/tmp/fiaon-invoice-${c.name}.pdf`;
   doc.pipe(createWriteStream(out));
   renderInvoicePdf(doc as any, c.row);
+  const pages = doc.bufferedPageRange().count;
   doc.end();
-  console.log("geschrieben:", out);
+  console.log(`geschrieben: ${out} — Seiten: ${pages}${pages === 1 ? " ✓" : " ✗ (erwartet 1)"}`);
 }

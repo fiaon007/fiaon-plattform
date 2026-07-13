@@ -725,7 +725,11 @@ router.get("/admin/leads", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/admin/leads/:id", async (req: Request, res: Response) => {
+// WICHTIG: numerischer Constraint (\d+), sonst matcht diese Route auch die
+// literalen Pfade /admin/leads/settings und /admin/leads/intake-diagnostics
+// (Express prüft in Registrierungsreihenfolge) → NaN-„Lead" → 404 → Panels
+// laden nie und bleiben unsichtbar (Ursache des CB/CD-Sichtbarkeitsfehlers).
+router.get("/admin/leads/:id(\\d+)", async (req: Request, res: Response) => {
   try {
     await ensureLeadTables();
     const id = Number(req.params.id);

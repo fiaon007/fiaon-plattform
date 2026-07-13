@@ -58,6 +58,7 @@ function EnginePanel({ onAction }: { onAction: (msg: string) => void }) {
   const [busy, setBusy] = useState(false);
 
   const [sentToday, setSentToday] = useState<number | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const load = useCallback(() => {
     apiF("/admin/leads/settings").then((r) => { if (r.ok) { setS(r.json.settings); setSentToday(r.json.sentToday ?? null); } });
     apiF("/admin/leads/followup-bulk/preview").then((r) => r.ok && setBulk(r.json));
@@ -89,6 +90,7 @@ function EnginePanel({ onAction }: { onAction: (msg: string) => void }) {
     setBusy(true);
     const r = await apiF("/admin/leads/followup-bulk/start", { method: "POST" });
     setBusy(false);
+    setConfirming(false);
     if (r.ok) { onAction(`Bulk gestartet: ${r.json.planned} geplant.`); load(); }
     else onAction(r.json?.error || "Bulk konnte nicht gestartet werden.");
   };
@@ -111,6 +113,7 @@ function EnginePanel({ onAction }: { onAction: (msg: string) => void }) {
       <div className="flex items-center gap-2 mb-3">
         <Settings2 size={15} className="text-slate-400" />
         <p className="text-[13px] font-semibold text-slate-800">Nachfass-Automatik & Verteilung</p>
+        <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${s.lead_followup_enabled === "1" ? "text-emerald-700 bg-emerald-50" : "text-amber-700 bg-amber-50"}`}>{s.lead_followup_enabled === "1" ? "Engine aktiv" : "Engine pausiert"}</span>
         {sentToday != null && <span className="text-[11px] font-semibold text-slate-500">Heute versendet: {sentToday}</span>}
         <span className="ml-auto text-[11px] text-slate-400">{bulk?.withinWindow ? "Versandfenster offen (08–20 Uhr)" : "außerhalb Versandfenster"}</span>
       </div>
@@ -136,7 +139,7 @@ function EnginePanel({ onAction }: { onAction: (msg: string) => void }) {
       <div className="flex flex-wrap gap-2">
         <button disabled={busy} onClick={save} className="px-3 py-2 rounded-lg text-white text-[12px] font-semibold" style={{ background: ACCENT }}>Speichern</button>
         <button disabled={busy} onClick={runNow} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600 inline-flex items-center gap-1.5"><Play size={13} /> Jetzt ausführen</button>
-        <button disabled={busy || job?.running} onClick={startBulk} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600 inline-flex items-center gap-1.5">
+        <button disabled={busy || job?.running} onClick={() => setConfirming(true)} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600 inline-flex items-center gap-1.5">
           <Send size={13} /> Bulk an alle offenen{bulk ? ` (${bulk.eligible} senden / ${bulk.skipped} übersprungen)` : ""}
         </button>
         <button disabled={busy} onClick={distribute} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600 inline-flex items-center gap-1.5"><Users size={13} /> Verteilen</button>
@@ -144,6 +147,23 @@ function EnginePanel({ onAction }: { onAction: (msg: string) => void }) {
       </div>
       {job?.running && <p className="mt-2 text-[12px] text-slate-500">Bulk läuft: {job.sent}/{job.planned} gesendet, {job.errors} Fehler …</p>}
       {job && !job.running && job.finishedAt && <p className="mt-2 text-[12px] text-slate-400">Letzter Bulk: {job.sent}/{job.planned} gesendet, {job.errors} Fehler.</p>}
+
+      {confirming && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setConfirming(false)}>
+          <div className="absolute inset-0 bg-slate-900/40" />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+            <p className="text-[14px] font-bold text-slate-900 mb-1">Alle offenen Leads anschreiben?</p>
+            <p className="text-[13px] text-slate-500 mb-3">
+              Es werden <b className="text-slate-800">{bulk?.eligible ?? 0}</b> Lead(s) angeschrieben, <b className="text-slate-800">{bulk?.skipped ?? 0}</b> übersprungen (Dedupe / konvertiert / tot). Versand in Batches; jeder Nachfass wird protokolliert.
+            </p>
+            {!bulk?.withinWindow && <p className="text-[12px] text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5 mb-3">Hinweis: aktuell außerhalb des Sendefensters (08–20 Uhr).</p>}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirming(false)} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600">Abbrechen</button>
+              <button disabled={busy} onClick={startBulk} className="px-3 py-2 rounded-lg text-white text-[12px] font-semibold inline-flex items-center gap-1.5" style={{ background: ACCENT }}><Send size={13} /> Ja, jetzt senden</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

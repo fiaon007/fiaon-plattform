@@ -600,3 +600,16 @@ in `routes.ts`). Analytics vollständig serverseitig aggregiert (GROUP BY/FILTER
 
 **Getestet**: `tsc --noEmit` für alle neuen/geänderten Dateien fehlerfrei (verbleibende Fehler nur
 in vorbestehendem `routes.ts` tasks/retell, außerhalb dieses Updates).
+
+### Bugfix — CB/CD-Panels waren unsichtbar (Routing-Reihenfolge)
+**Ursache**: `router.get("/admin/leads/:id")` war VOR den literalen Routen
+`GET /admin/leads/settings` und `GET /admin/leads/intake-diagnostics` registriert. Express matcht
+in Registrierungsreihenfolge, daher fingen `settings`/`intake-diagnostics` an der `:id`-Route
+(`Number("settings")` → NaN → 404). Folge: `EnginePanel` (Nachfass-Automatik, „Heute versendet",
+Bulk) und `IntakeDiagnostics` erhielten nie Daten und rendern bei fehlender Antwort `null` →
+komplett unsichtbar. Betraf auch das bereits ältere BB-Engine-Panel.
+**Fix**: `:id`-Route auf numerisch beschränkt (`/admin/leads/:id(\\d+)`); die Literal-Routen greifen
+jetzt korrekt. Zusätzlich: Bulk-Versand mit Bestätigungsdialog (Live-Zahlen X senden / Y
+übersprungen + Fensterhinweis) und Engine-Status-Badge (aktiv/pausiert) im Panel.
+Der `fiaon-reconcile.ts`-Router wurde geprüft — dort kein `:id`-Shadowing (nur literale GETs
+`list`/`summary`/`search` und zweisegmentige `:id/...`-POSTs).

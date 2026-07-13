@@ -623,3 +623,41 @@ Der `fiaon-reconcile.ts`-Router wurde geprüft — dort kein `:id`-Shadowing (nu
   dialoge, Abschnittsüberschriften, einklappbare Onboarding-Hilfe, TEST-Badge in der Liste.
   Umbenennung „Backfill-Konversion" → „Leads mit Kunden abgleichen". Keine Endpoint-/Logikänderung
   darüber hinaus; `tsc --noEmit` fehlerfrei.
+
+### Paket CF — Lead-Versand: klarer „Alle anschreiben" + Zeitplan (mehrere Sendezeiten)
+
+**Phase 0 — Ursache der „(4)"**: Der Bulk-Button zählte über `leadBulkPreview()` nur Leads mit
+`in_sequence = TRUE` (plus 8h-Dedupe + Obergrenze `max_lead_followups`). **Importierte Alt-Leads
+haben `in_sequence = FALSE`** (Import-Opt-in standardmäßig aus, `fiaon_lead_imports.add_to_sequence`)
+→ deshalb 1.626 offen, aber nur 4 „versendbar". Ausgeschlossen werden generell: konvertierte/tote
+(`status NOT IN neu/kontaktiert/nicht_erreichbar`), Leads ohne E-Mail/Telefon, in den letzten 8 h
+kontaktierte, und Leads am Nachfass-Limit.
+
+**Backend (`fiaon-leads.ts`, additiv — Kernmechanik unverändert)**:
+- Zwei Bulk-Modi über `POST /admin/leads/followup-bulk/start` mit `{ mode: "eligible" | "all" }`:
+  - `eligible` = wie bisher (nur Sequenz-Leads), respektiert hartes Fenster 08–20.
+  - `all` = **alle offenen Leads inkl. importierter Alt-Leads** (`claimAllOpenBatch`, ohne
+    `in_sequence`-Filter; nimmt sie beim Versand in die Sequenz auf). Kein Fensterzwang (bewusste
+    Betreiber-Aktion). Beide Modi: 8h-Dedupe, Obergrenze, konvertiert/tot raus, Event `lead_followup`.
+- Neuer `GET /admin/leads/followup-bulk/preview-all` → `{ openTotal, eligible, skipped,
+  importedNeverContacted, overCap }` für den Bestätigungsdialog.
+- Versand als Hintergrund-Job in Batches à 20 mit 60 s Pause = **20 Mails/Minute**; Cursor-basiert
+  (`FOR UPDATE SKIP LOCKED`, kein Full-Table-Load); Fortschritt über `…/status` (überlebt Reload);
+  jeder Nachfass per `logLead` protokolliert (Audit). Job-State trägt jetzt `mode`.
+- **Zeitplan (Paket 2)**: neue Settings `lead_followup_times` (Default `09:15,19:10`),
+  `lead_followup_weekdays` (ISO 1–7, Default `1,2,3,4,5,6` = Mo–Sa), interner Merker
+  `lead_followup_last_run_slot` gegen Doppelläufe. Helper `parseTimes`/`parseWeekdays`/`berlinNow`/
+  `nextRunLabel`/`maybeRunScheduledFollowups`. Cron läuft jetzt **alle 5 Min** und startet den
+  Nachfass-Lauf nur, wenn die aktuelle Berlin-Zeit ±5 Min an einer Sendezeit liegt UND heute ein
+  aktiver Wochentag ist (Slot-Merker verhindert Doppellauf). Das alte Soft-Fenster
+  (`window_start/end`) bleibt nur für Abwärtskompatibilität; hartes Limit 08–20 gilt weiter.
+- `GET /admin/leads/settings` liefert zusätzlich `lead_followup_times`, `lead_followup_weekdays`,
+  `nextRunLabel` („heute 19:10 Uhr" / „morgen 09:15 Uhr"). `POST` sanitisiert Zeiten (max. 6, gültige
+  HH:MM) und Wochentage. `max_lead_followups`-Default ist 6.
+
+**Frontend (`admin-leads.tsx`)**: Zeitplan-Editor (Zeit-Picker add/remove, Wochentag-Buttons Mo–So),
+„Nächster automatischer Versand"-Klartext + Automatik-Statusbadge, zwei getrennte Versand-Buttons
+(„Jetzt versendbare anschreiben (X)" + großer „Allen offenen Leads schreiben") mit je eigenem
+Bestätigungsdialog samt echten Zahlen (offen gesamt / versendbar / importierte nie kontaktiert /
+übersprungen), Drossel-Warnung (20/Min, geschätzte Dauer) und Außerhalb-der-Zeiten-Hinweis.
+Live-Fortschritt mit Modus-Label. Tooltips für alle Felder/Buttons. `tsc --noEmit` fehlerfrei.

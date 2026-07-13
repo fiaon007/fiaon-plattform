@@ -308,9 +308,13 @@ const SETTING_DEFAULTS: Record<string, string> = {
   // Paket BB: Lead-Nachfass-Automatik (lead_followup)
   lead_followup_enabled: "1",         // Not-Aus-Schalter ("1" = an)
   lead_followup_days: "1,2,4,7,14,21", // Nachfass an Lead-Alter-Tagen (aufsteigend; danach wöchentlich-artig)
-  lead_followup_window_start: "9",    // CB: breiteres Standard-Sendefenster 09:00 (Europe/Berlin)
-  lead_followup_window_end: "18",     // CB: Sendefenster-Ende 18:00 (exklusiv); hartes Limit 08–20 bleibt
+  lead_followup_window_start: "9",    // CB (Alt): Soft-Sendefenster-Beginn — durch Sendezeiten ersetzt, bleibt für Abwärtskompat.
+  lead_followup_window_end: "18",     // CB (Alt): Soft-Sendefenster-Ende; hartes Limit 08–20 bleibt aktiv.
   max_lead_followups: "6",            // CB: Obergrenze automatischer Nachfässe pro Lead → danach 'tot'
+  // Paket CF: klarer Zeitplan (mehrere feste Sendezeiten + Wochentage)
+  lead_followup_times: "09:15,19:10", // HH:MM (Europe/Berlin), komma-getrennt; zu diesen Zeiten startet der Auto-Lauf
+  lead_followup_weekdays: "1,2,3,4,5,6", // ISO-Wochentage 1=Mo … 7=So; Default Mo–Sa (So aus)
+  lead_followup_last_run_slot: "",    // interner Merker "YYYY-M-D HH:MM" gegen Doppelläufe pro Sendezeitpunkt
   // Paket BC2: Lead-Verteilung (eigener Rotations-Zeiger, gleiche Engine)
   lead_distribution_enabled: "1",     // Lead-Verteilung an/aus
   lead_distribution_last_agent_id: "0", // Rotations-Zeiger (intern)

@@ -163,6 +163,74 @@ function withinHardWindow(): boolean {
   const h = berlinHour();
   return h >= 8 && h < 20;
 }
+
+// ── Paket CF: Zeitplan (mehrere feste Sendezeiten + Wochentage) ──────────────
+const SCHEDULE_TICK_MIN = 5; // Cron-Granularität in Minuten (Sendezeit-Toleranzfenster)
+const WEEKDAY_LABELS = ["", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]; // ISO 1..7
+
+/** Aktuelle Zeit in Europe/Berlin als Date mit lokalen Feldern (Std/Min/Wochentag). */
+function berlinNow(): Date {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Berlin" }));
+}
+function isoWeekday(d: Date): number { return d.getDay() === 0 ? 7 : d.getDay(); } // 1=Mo … 7=So
+
+/** "09:15,19:10" → [{h,m,key}], sanitisiert & sortiert. */
+function parseTimes(raw: string): { h: number; m: number; key: string }[] {
+  const out = String(raw || "").split(",").map((s) => s.trim()).filter(Boolean).map((s) => {
+    const [hh, mm] = s.split(":");
+    const h = parseInt(hh, 10); const m = parseInt(mm, 10);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    const H = Math.min(23, Math.max(0, h)); const M = Math.min(59, Math.max(0, m));
+    return { h: H, m: M, key: `${String(H).padStart(2, "0")}:${String(M).padStart(2, "0")}` };
+  }).filter(Boolean) as { h: number; m: number; key: string }[];
+  const uniq = Array.from(new Map(out.map((t) => [t.key, t])).values());
+  return uniq.sort((a, b) => (a.h * 60 + a.m) - (b.h * 60 + b.m));
+}
+/** "1,2,3,4,5,6" → [1..7] ISO-Wochentage, Default Mo–Sa. */
+function parseWeekdays(raw: string): number[] {
+  const ds = String(raw ?? "").split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => n >= 1 && n <= 7);
+  return ds.length ? Array.from(new Set(ds)).sort((a, b) => a - b) : [1, 2, 3, 4, 5, 6];
+}
+
+/** Nächster automatischer Lauf als deutscher Klartext ("heute 19:10 Uhr" / "morgen 09:15 Uhr" / "Mo 09:15 Uhr"). */
+function nextRunLabel(settings: Record<string, string>): string | null {
+  if (settings.lead_followup_enabled !== "1") return null;
+  const times = parseTimes(settings.lead_followup_times);
+  const wds = parseWeekdays(settings.lead_followup_weekdays);
+  if (!times.length) return null;
+  const now = berlinNow();
+  for (let d = 0; d < 8; d++) {
+    const cand = new Date(now); cand.setDate(now.getDate() + d);
+    if (!wds.includes(isoWeekday(cand))) continue;
+    for (const t of times) {
+      const slot = new Date(cand); slot.setHours(t.h, t.m, 0, 0);
+      if (slot.getTime() > now.getTime()) {
+        const prefix = d === 0 ? "heute" : d === 1 ? "morgen" : WEEKDAY_LABELS[isoWeekday(cand)];
+        return `${prefix} ${t.key} Uhr`;
+      }
+    }
+  }
+  return null;
+}
+
+/** Prüft, ob JETZT ein konfigurierter Sendezeitpunkt fällig ist (an aktivem Wochentag, ohne Doppellauf). */
+async function maybeRunScheduledFollowups(): Promise<void> {
+  const s = await getSettings();
+  if (s.lead_followup_enabled !== "1") return;
+  const now = berlinNow();
+  if (!parseWeekdays(s.lead_followup_weekdays).includes(isoWeekday(now))) return;
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const due = parseTimes(s.lead_followup_times).find((t) => {
+    const tm = t.h * 60 + t.m;
+    return nowMin >= tm && nowMin < tm + SCHEDULE_TICK_MIN;
+  });
+  if (!due) return;
+  const slotKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()} ${due.key}`;
+  if (s.lead_followup_last_run_slot === slotKey) return; // schon gelaufen für diesen Zeitpunkt
+  await setSetting("lead_followup_last_run_slot", slotKey);
+  console.log(`[FIAON-LEADS] Geplanter Nachfass-Lauf (${slotKey}) startet`);
+  await runLeadFollowups({ force: true });
+}
 /** Nachfass-Plan (Tage nach Lead-Anlage) aus Einstellungen, aufsteigend, sanitisiert. */
 function followupDays(settings: Record<string, string>): number[] {
   const raw = String(settings.lead_followup_days || "1,2,4,7");
@@ -373,11 +441,12 @@ export async function runLeadFollowups(opts: { force?: boolean } = {}): Promise<
   return result;
 }
 
-// Stündlicher Nachfass-Lauf (fail-safe) + Lead-Verteilung
+// Paket CF: Takt alle 5 Min. Nachfass läuft NUR an konfigurierten Sendezeiten +
+// aktiven Wochentagen (Doppellauf-Schutz per Slot-Merker). Verteilung als fail-safe.
 setInterval(() => {
-  runLeadFollowups().catch((err) => console.error("[FIAON-LEADS] Followup-Cron:", err));
+  maybeRunScheduledFollowups().catch((err) => console.error("[FIAON-LEADS] Followup-Cron:", err));
   distributeUnassignedLeads().catch((err) => console.error("[FIAON-LEADS] Verteilung-Cron:", err));
-}, 60 * 60 * 1000);
+}, SCHEDULE_TICK_MIN * 60 * 1000);
 
 // ═══════════════════════════════════════════════════════════════════
 // BA2 — INTAKE-WEBHOOK  (POST /api/leads/intake, Secret-geschützt)
@@ -1136,17 +1205,31 @@ router.get("/admin/leads/settings", async (_req: Request, res: Response) => {
       lead_followup_window_end: s.lead_followup_window_end,
       max_lead_followups: s.max_lead_followups,
       lead_distribution_enabled: s.lead_distribution_enabled,
+      lead_followup_times: parseTimes(s.lead_followup_times).map((t) => t.key).join(","),
+      lead_followup_weekdays: parseWeekdays(s.lead_followup_weekdays).join(","),
     },
     withinWindow: withinHardWindow(),
     sentToday: Number(today.c),
+    nextRunLabel: nextRunLabel(s),
   });
 });
 
 router.post("/admin/leads/settings", async (req: Request, res: Response) => {
   try {
+    const b = req.body || {};
+    // Zeitplan sanitisieren, damit nur gültige Sendezeiten/Wochentage gespeichert werden.
+    if (b.lead_followup_times !== undefined) {
+      const times = parseTimes(String(b.lead_followup_times)).slice(0, 6).map((t) => t.key);
+      if (times.length === 0) return res.status(400).json({ ok: false, error: "Mindestens eine gültige Sendezeit (HH:MM) angeben." });
+      await setSetting("lead_followup_times", times.join(","));
+    }
+    if (b.lead_followup_weekdays !== undefined) {
+      const wds = parseWeekdays(String(b.lead_followup_weekdays));
+      await setSetting("lead_followup_weekdays", wds.join(","));
+    }
     const allowed = ["lead_followup_enabled", "lead_followup_days", "lead_followup_window_start", "lead_followup_window_end", "max_lead_followups", "lead_distribution_enabled"];
     for (const key of allowed) {
-      if (req.body?.[key] !== undefined) await setSetting(key, String(req.body[key]));
+      if (b[key] !== undefined) await setSetting(key, String(b[key]));
     }
     res.json({ ok: true });
   } catch (err) {
@@ -1246,11 +1329,18 @@ router.delete("/admin/leads/test-leads", async (_req: Request, res: Response) =>
   }
 });
 
-// ── BB2 — Bulk „Follow-up an alle offenen Leads" (20/min, 8h-Dedupe) ─────────
-const LEAD_BULK_BATCH = 20;
-interface LeadBulkState { running: boolean; startedAt: string; finishedAt: string | null; planned: number; sent: number; errors: number; }
+// ── BB2/CF — Bulk-Versand (20/min, 8h-Dedupe, Obergrenze) ────────────────────
+// Zwei Modi:
+//   "eligible" = nur Leads in der Sequenz (in_sequence=TRUE) — die JETZT dran sind.
+//   "all"      = ALLE offenen Leads inkl. importierter Alt-Leads (in_sequence egal);
+//                beim Versand werden sie in die Sequenz aufgenommen (in_sequence=TRUE).
+// Dedupe (8h), Obergrenze (max_lead_followups) und "konvertiert/tot raus" gelten in BEIDEN Modi.
+const LEAD_BULK_BATCH = 20; // = 20 Mails/Minute (ein Batch pro 60s) → Drosselung für Zustellbarkeit
+type BulkMode = "eligible" | "all";
+interface LeadBulkState { running: boolean; mode: BulkMode; startedAt: string; finishedAt: string | null; planned: number; sent: number; errors: number; }
 let leadBulkJob: LeadBulkState | null = null;
 
+/** Vorschau „Jetzt versendbare" (nur Sequenz-Leads). */
 async function leadBulkPreview(): Promise<{ eligible: number; skipped: number }> {
   const s = await getSettings();
   const max = Math.max(0, Math.round(Number(s.max_lead_followups)) || 5);
@@ -1267,6 +1357,58 @@ async function leadBulkPreview(): Promise<{ eligible: number; skipped: number }>
   return { eligible: Number(row.eligible), skipped: Number(row.skipped) };
 }
 
+/** Vorschau „Allen offenen" (alle offenen Leads, inkl. importierte Alt-Leads). */
+async function leadBulkPreviewAll(): Promise<{ openTotal: number; eligible: number; skipped: number; importedNeverContacted: number; overCap: number }> {
+  const s = await getSettings();
+  const max = Math.max(0, Math.round(Number(s.max_lead_followups)) || 5);
+  const [row] = await sqlPool`
+    SELECT
+      COUNT(*)::int AS open_total,
+      COUNT(*) FILTER (WHERE COALESCE(lead_reminder_count,0) < ${max}
+        AND (last_lead_reminder_at IS NULL OR last_lead_reminder_at < NOW() - INTERVAL '8 hours'))::int AS eligible,
+      COUNT(*) FILTER (WHERE last_lead_reminder_at IS NOT NULL AND last_lead_reminder_at >= NOW() - INTERVAL '8 hours')::int AS skipped,
+      COUNT(*) FILTER (WHERE import_id IS NOT NULL AND COALESCE(lead_reminder_count,0) = 0)::int AS imported_never,
+      COUNT(*) FILTER (WHERE COALESCE(lead_reminder_count,0) >= ${max})::int AS over_cap
+    FROM fiaon_leads
+    WHERE status IN ('neu','kontaktiert','nicht_erreichbar')
+      AND COALESCE(NULLIF(email,''), NULLIF(telefon,'')) IS NOT NULL
+  `;
+  return {
+    openTotal: Number(row.open_total),
+    eligible: Number(row.eligible),
+    skipped: Number(row.skipped),
+    importedNeverContacted: Number(row.imported_never),
+    overCap: Number(row.over_cap),
+  };
+}
+
+/** Batch-Claim für Modus "all": ALLE offenen Leads (in_sequence egal) → nimmt sie in die Sequenz auf. */
+async function claimAllOpenBatch(limit: number, maxFollowups: number): Promise<any[]> {
+  const max = Math.max(0, Math.round(maxFollowups));
+  const lim = Math.max(1, Math.round(limit));
+  const sql = `
+    UPDATE fiaon_leads SET
+      last_lead_reminder_at = NOW(),
+      lead_reminder_count = COALESCE(lead_reminder_count, 0) + 1,
+      letzter_kontakt_am = NOW(),
+      in_sequence = TRUE,
+      status = CASE WHEN status = 'neu' THEN 'kontaktiert' ELSE status END,
+      updated_at = NOW()
+    WHERE id IN (
+      SELECT l.id FROM fiaon_leads l
+      WHERE l.status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
+        AND COALESCE(NULLIF(l.email, ''), NULLIF(l.telefon, '')) IS NOT NULL
+        AND (l.last_lead_reminder_at IS NULL OR l.last_lead_reminder_at < NOW() - INTERVAL '8 hours')
+        AND COALESCE(l.lead_reminder_count, 0) < ${max}
+      ORDER BY l.erstellt_am ASC
+      LIMIT ${lim}
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING id, vorname, nachname, email, telefon, quelle, lead_reminder_count
+  `;
+  return sqlPool.unsafe(sql);
+}
+
 router.get("/admin/leads/followup-bulk/preview", async (_req: Request, res: Response) => {
   try {
     await ensureLeadTables();
@@ -1278,38 +1420,54 @@ router.get("/admin/leads/followup-bulk/preview", async (_req: Request, res: Resp
   }
 });
 
-router.post("/admin/leads/followup-bulk/start", async (_req: Request, res: Response) => {
+router.get("/admin/leads/followup-bulk/preview-all", async (_req: Request, res: Response) => {
+  try {
+    await ensureLeadTables();
+    const p = await leadBulkPreviewAll();
+    res.json({ ok: true, ...p, withinWindow: withinHardWindow(), jobRunning: Boolean(leadBulkJob?.running) });
+  } catch (err) {
+    console.error("[FIAON-LEADS] bulk preview-all:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/admin/leads/followup-bulk/start", async (req: Request, res: Response) => {
   try {
     await ensureLeadTables();
     if (leadBulkJob?.running) return res.status(409).json({ ok: false, error: "Es läuft bereits ein Bulk-Versand" });
-    if (!withinHardWindow()) return res.status(400).json({ ok: false, error: "Versand nur zwischen 08:00 und 20:00 Uhr (Europa/Berlin) möglich" });
+    const mode: BulkMode = req.body?.mode === "all" ? "all" : "eligible";
+    // "eligible" respektiert das harte Fenster; "all" wird bewusst vom Betreiber ausgelöst → kein Fensterzwang.
+    if (mode === "eligible" && !withinHardWindow()) return res.status(400).json({ ok: false, error: "Automatischer Versand nur zwischen 08:00 und 20:00 Uhr (Europa/Berlin) möglich" });
     const s = await getSettings();
     const max = Math.max(0, Math.round(Number(s.max_lead_followups)) || 5);
-    const { eligible } = await leadBulkPreview();
-    leadBulkJob = { running: true, startedAt: new Date().toISOString(), finishedAt: null, planned: eligible, sent: 0, errors: 0 };
-    res.json({ ok: true, planned: eligible });
+    const planned = mode === "all" ? (await leadBulkPreviewAll()).eligible : (await leadBulkPreview()).eligible;
+    if (planned === 0) return res.status(400).json({ ok: false, error: "Aktuell sind keine Leads versendbar (alle kürzlich kontaktiert, konvertiert oder am Limit)." });
+    leadBulkJob = { running: true, mode, startedAt: new Date().toISOString(), finishedAt: null, planned, sent: 0, errors: 0 };
+    res.json({ ok: true, mode, planned });
 
     (async () => {
       const job = leadBulkJob!;
       try {
         for (;;) {
-          if (!withinHardWindow()) break;
-          const batch = await claimLeadFollowupBatch(LEAD_BULK_BATCH, { maxFollowups: max, planDays: null });
+          if (mode === "eligible" && !withinHardWindow()) break; // "all" läuft durch (Drosselung schützt)
+          const batch = mode === "all"
+            ? await claimAllOpenBatch(LEAD_BULK_BATCH, max)
+            : await claimLeadFollowupBatch(LEAD_BULK_BATCH, { maxFollowups: max, planDays: null });
           if (batch.length === 0) break;
           for (const l of batch) {
             const ok = await sendMakeWebhook("lead_followup", followupPayload(l));
-            await logLead(l.id, { id: null, name: "Admin" }, "followup", { note: `Bulk-Nachfass #${l.lead_reminder_count} gesendet (Make: lead_followup)` });
+            await logLead(l.id, { id: null, name: "Admin" }, "followup", { note: `Bulk-Nachfass (${mode === "all" ? "alle offenen" : "versendbare"}) #${l.lead_reminder_count} gesendet (Make: lead_followup)` });
             if (ok) job.sent++; else job.errors++;
           }
           if (batch.length < LEAD_BULK_BATCH) break;
-          await new Promise((r) => setTimeout(r, 60_000));
+          await new Promise((r) => setTimeout(r, 60_000)); // 20/Minute
         }
       } catch (err) {
         console.error("[FIAON-LEADS] Bulk-Job-Fehler:", err);
       } finally {
         job.running = false;
         job.finishedAt = new Date().toISOString();
-        console.log(`[FIAON-LEADS] Bulk abgeschlossen: ${job.sent}/${job.planned} versendet, ${job.errors} Fehler`);
+        console.log(`[FIAON-LEADS] Bulk (${job.mode}) abgeschlossen: ${job.sent}/${job.planned} versendet, ${job.errors} Fehler`);
       }
     })();
   } catch (err) {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { RefreshCw, Send, Users, Play, Settings2, X, Upload, Pencil, Check, Link2, Activity, Info, ChevronDown, HelpCircle, FlaskConical, Trash2, Radio } from "lucide-react";
+import { RefreshCw, Send, Users, Play, Settings2, X, Upload, Pencil, Check, Link2, Activity, Info, ChevronDown, HelpCircle, FlaskConical, Trash2, Radio, Clock, Plus } from "lucide-react";
 import ImportDialog from "./admin-leads-import";
 
 type FlashKind = "ok" | "err" | "info";
@@ -79,17 +79,22 @@ function ageDays(iso: string) {
   return d <= 0 ? "heute" : d === 1 ? "1 Tag" : `${d} Tage`;
 }
 
+const WD = [{ n: "1", l: "Mo" }, { n: "2", l: "Di" }, { n: "3", l: "Mi" }, { n: "4", l: "Do" }, { n: "5", l: "Fr" }, { n: "6", l: "Sa" }, { n: "7", l: "So" }];
+
 function EnginePanel({ onAction }: { onAction: (msg: string, kind?: FlashKind) => void }) {
   const [s, setS] = useState<any>(null);
-  const [bulk, setBulk] = useState<any>(null);
+  const [bulk, setBulk] = useState<any>(null);      // preview (versendbare)
+  const [bulkAll, setBulkAll] = useState<any>(null); // preview-all (alle offenen)
   const [job, setJob] = useState<any>(null);
   const [busy, setBusy] = useState(false);
-
   const [sentToday, setSentToday] = useState<number | null>(null);
-  const [confirming, setConfirming] = useState(false);
+  const [nextRun, setNextRun] = useState<string | null>(null);
+  const [confirmMode, setConfirmMode] = useState<null | "eligible" | "all">(null);
+
   const load = useCallback(() => {
-    apiF("/admin/leads/settings").then((r) => { if (r.ok) { setS(r.json.settings); setSentToday(r.json.sentToday ?? null); } });
+    apiF("/admin/leads/settings").then((r) => { if (r.ok) { setS(r.json.settings); setSentToday(r.json.sentToday ?? null); setNextRun(r.json.nextRunLabel ?? null); } });
     apiF("/admin/leads/followup-bulk/preview").then((r) => r.ok && setBulk(r.json));
+    apiF("/admin/leads/followup-bulk/preview-all").then((r) => r.ok && setBulkAll(r.json));
     apiF("/admin/leads/followup-bulk/status").then((r) => r.ok && setJob(r.json.job));
   }, []);
   useEffect(load, [load]);
@@ -101,6 +106,11 @@ function EnginePanel({ onAction }: { onAction: (msg: string, kind?: FlashKind) =
 
   if (!s) return null;
   const set = (k: string, v: string) => setS({ ...s, [k]: v });
+  const times: string[] = (s.lead_followup_times || "").split(",").filter(Boolean);
+  const days = new Set<string>((s.lead_followup_weekdays || "").split(",").filter(Boolean));
+  const setTimes = (arr: string[]) => set("lead_followup_times", Array.from(new Set(arr.filter(Boolean))).sort().join(","));
+  const toggleDay = (n: string) => { const d = new Set(days); d.has(n) ? d.delete(n) : d.add(n); set("lead_followup_weekdays", WD.map((w) => w.n).filter((n2) => d.has(n2)).join(",")); };
+
   const save = async () => {
     setBusy(true);
     const r = await apiF("/admin/leads/settings", { method: "POST", body: JSON.stringify(s) });
@@ -116,12 +126,12 @@ function EnginePanel({ onAction }: { onAction: (msg: string, kind?: FlashKind) =
     else onAction(r.json?.error || "Nachfass-Lauf fehlgeschlagen.", "err");
     load();
   };
-  const startBulk = async () => {
+  const startBulk = async (mode: "eligible" | "all") => {
     setBusy(true);
-    const r = await apiF("/admin/leads/followup-bulk/start", { method: "POST" });
+    const r = await apiF("/admin/leads/followup-bulk/start", { method: "POST", body: JSON.stringify({ mode }) });
     setBusy(false);
-    setConfirming(false);
-    if (r.ok) { onAction(`Versand gestartet: ${r.json.planned} Lead(s) werden angeschrieben. Fortschritt siehe unten.`, "ok"); load(); }
+    setConfirmMode(null);
+    if (r.ok) { onAction(`Versand gestartet: ${r.json.planned} Lead(s) werden angeschrieben (ca. ${Math.max(1, Math.ceil(r.json.planned / 20))} Min., 20/Min.). Fortschritt siehe unten.`, "ok"); load(); }
     else onAction(r.json?.error || "Versand konnte nicht gestartet werden.", "err");
   };
   const distribute = async () => {
@@ -139,87 +149,128 @@ function EnginePanel({ onAction }: { onAction: (msg: string, kind?: FlashKind) =
     load();
   };
 
-  // Fensterstatus in Klartext. Wichtig: preview.withinWindow = HARTES Limit 08–20 Uhr;
-  // das eingestellte Fenster (Default 09–18) gilt nur für die Automatik, manueller
-  // Versand (Jetzt ausführen / Bulk) läuft jederzeit innerhalb 08–20 Uhr.
-  const now = new Date();
-  const nowStr = now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-  const softStart = parseInt(s.lead_followup_window_start, 10);
-  const softEnd = parseInt(s.lead_followup_window_end, 10);
-  const softOpen = !isNaN(softStart) && !isNaN(softEnd) && now.getHours() >= softStart && now.getHours() < softEnd;
   const hardOpen = bulk?.withinWindow !== false;
-  const windowMsg = !hardOpen
-    ? `Versand pausiert. Es ist ${nowStr} Uhr — versendet wird nur zwischen 08 und 20 Uhr, auch manuell.`
-    : softOpen
-      ? `Automatik läuft (Fenster ${s.lead_followup_window_start}–${s.lead_followup_window_end} Uhr).`
-      : `Automatik pausiert bis ${s.lead_followup_window_start} Uhr. Manuell senden („Jetzt ausführen"/„Bulk") geht trotzdem.`;
+  const nowStr = new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  const enabled = s.lead_followup_enabled === "1";
 
   const inp = "px-2.5 py-1.5 rounded-lg border border-slate-200 text-[13px] w-full";
-  const lbl = "text-[12px] text-slate-500 flex items-center";
+  const lbl = "text-[12px] text-slate-500 flex flex-col !items-start gap-1";
   const btnSec = "px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600 hover:border-slate-300 disabled:opacity-40 inline-flex items-center gap-1.5";
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 mb-5">
       <div className="flex flex-wrap items-center gap-2 mb-1">
         <Settings2 size={16} className="text-slate-400" />
         <p className="text-[14px] font-bold text-slate-900">Nachfass-Automatik & Verteilung</p>
-        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${s.lead_followup_enabled === "1" ? "text-emerald-700 bg-emerald-50" : "text-amber-700 bg-amber-50"}`}>{s.lead_followup_enabled === "1" ? "Automatik aktiv" : "Automatik pausiert"}</span>
+        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${enabled ? "text-emerald-700 bg-emerald-50" : "text-amber-700 bg-amber-50"}`}>{enabled ? "Automatik aktiv" : "Automatik pausiert"}</span>
         {sentToday != null && <span className="ml-auto text-[12px] text-slate-500">Heute versendet: <b className="text-slate-800 tabular-nums">{sentToday}</b></span>}
       </div>
       <p className="text-[12px] text-slate-500 mb-3 max-w-2xl">Hier stellst du ein, ob und wann Interessenten ohne Antrag automatisch per E-Mail erinnert werden — und wie neue Leads aufs Team verteilt werden.</p>
 
-      <div className={`text-[12px] rounded-lg px-3 py-2 mb-4 ${hardOpen ? "bg-slate-50 text-slate-600" : "bg-amber-50 text-amber-800"}`}>{windowMsg}</div>
+      <div className={`text-[12px] rounded-lg px-3 py-2 mb-4 ${enabled ? "bg-slate-50 text-slate-600" : "bg-amber-50 text-amber-800"}`}>
+        {enabled
+          ? (nextRun ? <>Nächster automatischer Versand: <b className="text-slate-800">{nextRun}</b>. {!hardOpen && <span className="text-amber-700">Es ist {nowStr} Uhr — außerhalb 08–20 Uhr wird pausiert.</span>}</>
+                     : "Kein Sendezeitpunkt gesetzt — bitte unten mindestens eine Sendezeit angeben.")
+          : "Die Automatik ist ausgeschaltet (Not-Aus). Es werden keine automatischen Mails versendet."}
+      </div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <label className={lbl + " flex-col !items-start gap-1"}><span className="flex items-center">Automatik an/aus<InfoTip text="Schaltet die automatischen Nachfass-Mails komplett ein oder aus (Not-Aus)." /></span>
+      {/* Grundeinstellungen */}
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+        <label className={lbl}><span className="flex items-center">Automatik an/aus<InfoTip text="Schaltet die automatischen Nachfass-Mails komplett ein oder aus (Not-Aus)." /></span>
           <select className={inp} value={s.lead_followup_enabled} onChange={(e) => set("lead_followup_enabled", e.target.value)}>
             <option value="1">An</option><option value="0">Aus (Not-Aus)</option>
           </select>
         </label>
-        <label className={lbl + " flex-col !items-start gap-1"}><span className="flex items-center">Nachfass-Tage<InfoTip text="An diesen Tagen nach Eingang bekommt ein Lead automatisch eine Erinnerung — z. B. am 1., 2., 4. Tag usw." /></span>
+        <label className={lbl}><span className="flex items-center">Nachfass-Tage<InfoTip text="An diesen Tagen nach Eingang bekommt ein Lead automatisch eine Erinnerung — z. B. am 1., 2., 4. Tag usw." /></span>
           <input className={inp} value={s.lead_followup_days} onChange={(e) => set("lead_followup_days", e.target.value)} placeholder="1,2,4,7,14,21" />
         </label>
-        <label className={lbl + " flex-col !items-start gap-1"}><span className="flex items-center">Uhrzeit-Fenster<InfoTip text="Nur in dieser Uhrzeit werden automatische Mails versendet. Nachts wird pausiert, damit niemand um 3 Uhr eine Mail bekommt." /></span>
-          <div className="flex gap-1 items-center w-full">
-            <input className={inp} value={s.lead_followup_window_start} onChange={(e) => set("lead_followup_window_start", e.target.value)} />
-            <span className="text-slate-400">–</span>
-            <input className={inp} value={s.lead_followup_window_end} onChange={(e) => set("lead_followup_window_end", e.target.value)} />
-          </div>
-        </label>
-        <label className={lbl + " flex-col !items-start gap-1"}><span className="flex items-center">Max. Nachfässe<InfoTip text="Nach so vielen Erinnerungen ohne Reaktion wird der Lead als ‚tot' markiert und nicht mehr angeschrieben." /></span>
-          <input className={inp} value={s.max_lead_followups} onChange={(e) => set("max_lead_followups", e.target.value)} />
+        <label className={lbl}><span className="flex items-center">Max. Nachfässe<InfoTip text="Nach so vielen erfolglosen Erinnerungen wird der Lead als ‚tot' markiert und nicht mehr angeschrieben." /></span>
+          <input className={inp} value={s.max_lead_followups} onChange={(e) => set("max_lead_followups", e.target.value)} placeholder="6" />
         </label>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      {/* Zeitplan */}
+      <div className="rounded-lg border border-slate-200 p-3 mb-4">
+        <p className="text-[12px] font-semibold text-slate-700 flex items-center mb-1"><Clock size={13} className="text-slate-400 mr-1.5" />Automatischer Versand: Wann?<InfoTip text="Zu diesen Uhrzeiten prüft das System automatisch, welche Leads eine Nachfass-Mail bekommen sollen, und versendet sie." /></p>
+        <p className="text-[11px] text-slate-400 mb-3">Uhrzeiten (Europa/Berlin), zu denen der automatische Lauf startet. Empfohlen innerhalb 08–20 Uhr.</p>
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          {times.map((t, i) => (
+            <span key={i} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 pl-2 pr-1 py-1">
+              <input type="time" value={t} onChange={(e) => { const a = [...times]; a[i] = e.target.value; setTimes(a); }} className="text-[13px] outline-none" />
+              <button type="button" onClick={() => setTimes(times.filter((_, j) => j !== i))} className="text-slate-300 hover:text-red-500" aria-label="Zeit entfernen"><X size={13} /></button>
+            </span>
+          ))}
+          {times.length < 6 && (
+            <button type="button" onClick={() => setTimes([...times, "12:00"])} className="inline-flex items-center gap-1 text-[12px] font-semibold text-slate-500 hover:text-slate-700 border border-dashed border-slate-300 rounded-lg px-2.5 py-1.5"><Plus size={13} /> Zeit hinzufügen</button>
+          )}
+        </div>
+        <p className="text-[12px] font-semibold text-slate-700 flex items-center mb-2">Versandtage<InfoTip text="An diesen Wochentagen läuft der automatische Versand. Sonntags standardmäßig aus." /></p>
+        <div className="flex flex-wrap gap-1.5">
+          {WD.map((w) => (
+            <button key={w.n} type="button" onClick={() => toggleDay(w.n)}
+              className={`px-2.5 py-1.5 rounded-lg text-[12px] font-semibold border ${days.has(w.n) ? "bg-slate-900 text-white border-slate-900" : "border-slate-200 text-slate-400 hover:border-slate-300"}`}>{w.l}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4">
         <button disabled={busy} onClick={save} className="px-3 py-2 rounded-lg text-white text-[12px] font-semibold" style={{ background: ACCENT }}>Einstellungen speichern</button>
-        <button disabled={busy} onClick={runNow} className={btnSec} title="Startet einen Nachfass-Lauf sofort von Hand (statt auf die Uhrzeit zu warten).">
-          <Play size={13} /> Jetzt ausführen<InfoTip text="Startet einen Nachfass-Lauf sofort von Hand (statt auf die Uhrzeit zu warten)." />
-        </button>
-        <button disabled={busy || job?.running} onClick={() => setConfirming(true)} className={btnSec}>
-          <Send size={13} /> Alle offenen anschreiben{bulk ? ` (${bulk.eligible})` : ""}<InfoTip text="Schickt allen offenen Leads jetzt sofort die Nachfass-Mail. Kürzlich schon kontaktierte werden übersprungen." />
+        <button disabled={busy} onClick={runNow} className={btnSec}>
+          <Play size={13} /> Automatik jetzt einmalig ausführen<InfoTip text="Startet einen Nachfass-Lauf sofort von Hand (statt auf die nächste Sendezeit zu warten). Schreibt nur die jetzt fälligen Leads an." />
         </button>
         <button disabled={busy} onClick={distribute} className={btnSec}><Users size={13} /> Verteilen<InfoTip text="Ordnet noch nicht zugewiesene Leads gleichmäßig den aktiven Agenten zu." /></button>
-        <span className="ml-auto" />
         <button disabled={busy} onClick={backfill} className="px-3 py-2 rounded-lg text-[12px] font-medium text-slate-400 hover:text-slate-600 inline-flex items-center gap-1">
           Leads mit Kunden abgleichen<InfoTip text="Prüft nachträglich, welche Leads inzwischen einen Antrag gestellt haben, und markiert sie als Kunde. Selten nötig." />
         </button>
       </div>
 
-      {job?.running && <p className="mt-3 text-[12px] text-slate-500">Versand läuft: {job.sent}/{job.planned} verschickt{job.errors ? `, ${job.errors} Fehler` : ""} …</p>}
-      {job && !job.running && job.finishedAt && <p className="mt-3 text-[12px] text-slate-400">Letzter Versand: {job.sent}/{job.planned} verschickt{job.errors ? `, ${job.errors} Fehler` : ""}.</p>}
+      {/* Manueller Versand: zwei klar getrennte Aktionen */}
+      <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+        <p className="text-[12px] font-semibold text-slate-700 mb-2 flex items-center"><Send size={13} className="text-slate-400 mr-1.5" />Jetzt manuell versenden</p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button disabled={busy || job?.running || !bulk} onClick={() => setConfirmMode("eligible")} className="flex-1 px-3 py-2.5 rounded-lg border border-slate-300 bg-white text-[13px] font-semibold text-slate-700 hover:border-slate-400 disabled:opacity-40 inline-flex items-center justify-center gap-1.5">
+            Jetzt versendbare anschreiben ({bulk?.eligible ?? 0})<InfoTip text="Schreibt alle Leads an, die JETZT dran sind — ohne die, die in den letzten 8 Stunden schon eine Mail bekommen haben, und ohne bereits konvertierte/tote." />
+          </button>
+          <button disabled={busy || job?.running || !bulkAll} onClick={() => setConfirmMode("all")} className="flex-1 px-3 py-2.5 rounded-lg text-white text-[13px] font-semibold disabled:opacity-40 inline-flex items-center justify-center gap-1.5" style={{ background: ACCENT }}>
+            <Send size={14} /> Allen offenen Leads schreiben<InfoTip text="Schreibt ALLEN offenen Leads (die noch keinen Antrag gestellt haben), auch importierten Alt-Leads, die noch nie kontaktiert wurden." />
+          </button>
+        </div>
+        <p className="text-[11px] text-slate-400 mt-2">„Allen offenen" bezieht auch importierte Alt-Leads ein — aktuell {bulkAll?.openTotal ?? 0} offen, {bulkAll?.eligible ?? 0} davon jetzt versendbar.</p>
+        {job?.running && <p className="mt-2 text-[12px] text-slate-600">Versand läuft ({job.mode === "all" ? "alle offenen" : "versendbare"}): <b className="tabular-nums">{job.sent}</b>/{job.planned} verschickt{job.errors ? `, ${job.errors} Fehler` : ""} …</p>}
+        {job && !job.running && job.finishedAt && <p className="mt-2 text-[12px] text-slate-400">Letzter Versand ({job.mode === "all" ? "alle offenen" : "versendbare"}): {job.sent}/{job.planned} verschickt{job.errors ? `, ${job.errors} Fehler` : ""}.</p>}
+      </div>
 
-      {confirming && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setConfirming(false)}>
+      {confirmMode === "eligible" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setConfirmMode(null)}>
           <div className="absolute inset-0 bg-slate-900/40" />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
-            <p className="text-[14px] font-bold text-slate-900 mb-1">Alle offenen Leads jetzt anschreiben?</p>
+            <p className="text-[14px] font-bold text-slate-900 mb-1">Jetzt versendbare Leads anschreiben?</p>
             <p className="text-[13px] text-slate-500 mb-3">
-              Es werden <b className="text-slate-800">{bulk?.eligible ?? 0}</b> Lead(s) angeschrieben. <b className="text-slate-800">{bulk?.skipped ?? 0}</b> werden übersprungen, weil sie kürzlich (in den letzten 8 Std.) schon kontaktiert wurden oder bereits Kunde/„tot" sind. Der Versand läuft in Schüben; jeder Nachfass wird protokolliert.
+              Es werden <b className="text-slate-800">{bulk?.eligible ?? 0}</b> Lead(s) angeschrieben. <b className="text-slate-800">{bulk?.skipped ?? 0}</b> werden übersprungen (in den letzten 8 Std. schon kontaktiert oder bereits Kunde/„tot"). Versand gedrosselt auf 20/Minute.
             </p>
-            {!hardOpen && <p className="text-[12px] text-amber-800 bg-amber-50 rounded-lg px-2.5 py-1.5 mb-3">Aktuell ist Versandpause (nur 08–20 Uhr möglich). Bitte später erneut versuchen.</p>}
+            {!hardOpen && <p className="text-[12px] text-amber-800 bg-amber-50 rounded-lg px-2.5 py-1.5 mb-3">Aktuell außerhalb 08–20 Uhr — dieser Versand wird pausiert. Bitte innerhalb der Zeiten senden.</p>}
             <div className="flex justify-end gap-2">
-              <button onClick={() => setConfirming(false)} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600">Abbrechen</button>
-              <button disabled={busy || !hardOpen} onClick={startBulk} className="px-3 py-2 rounded-lg text-white text-[12px] font-semibold inline-flex items-center gap-1.5 disabled:opacity-40" style={{ background: ACCENT }}><Send size={13} /> Ja, jetzt senden</button>
+              <button onClick={() => setConfirmMode(null)} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600">Abbrechen</button>
+              <button disabled={busy || !hardOpen} onClick={() => startBulk("eligible")} className="px-3 py-2 rounded-lg text-white text-[12px] font-semibold inline-flex items-center gap-1.5 disabled:opacity-40" style={{ background: ACCENT }}><Send size={13} /> Ja, senden</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmMode === "all" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setConfirmMode(null)}>
+          <div className="absolute inset-0 bg-slate-900/40" />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+            <p className="text-[15px] font-bold text-slate-900 mb-2">Allen offenen Leads eine E-Mail senden?</p>
+            <p className="text-[13px] text-slate-600 mb-3">
+              Du schreibst jetzt <b className="text-slate-900">{bulkAll?.eligible ?? 0}</b> offene Leads an. Davon <b className="text-slate-900">{bulkAll?.importedNeverContacted ?? 0}</b> importierte Alt-Leads, die noch nie kontaktiert wurden. <b className="text-slate-900">{bulkAll?.skipped ?? 0}</b> werden übersprungen (in den letzten 8 Std. bereits angeschrieben).
+            </p>
+            <div className="text-[12px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+              Das versendet bis zu <b>{bulkAll?.eligible ?? 0}</b> E-Mails. Bei sehr vielen Empfängern kann das die Zustellbarkeit beeinträchtigen — der Versand wird automatisch gedrosselt (max. 20/Minute, also ca. <b>{Math.max(1, Math.ceil((bulkAll?.eligible ?? 0) / 20))} Minuten</b>).
+            </div>
+            {!hardOpen && <p className="text-[12px] text-slate-500 bg-slate-50 rounded-lg px-2.5 py-1.5 mb-3">Hinweis: Es ist {nowStr} Uhr — außerhalb der üblichen Sendezeiten (08–20 Uhr). Da du bewusst auslöst, wird trotzdem gesendet.</p>}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmMode(null)} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600">Abbrechen</button>
+              <button disabled={busy || (bulkAll?.eligible ?? 0) === 0} onClick={() => startBulk("all")} className="px-3 py-2 rounded-lg text-white text-[12px] font-semibold inline-flex items-center gap-1.5 disabled:opacity-40" style={{ background: ACCENT }}><Send size={13} /> Ja, {bulkAll?.eligible ?? 0} Leads anschreiben</button>
             </div>
           </div>
         </div>

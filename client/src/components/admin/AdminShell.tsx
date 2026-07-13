@@ -4,7 +4,7 @@ import {
   LayoutDashboard, CreditCard, Banknote, FileText, Users, UserPlus,
   BookOpen, Settings, ScrollText, Scale, Database, Search, Menu, X,
   ArrowLeft, ChevronRight, ShieldAlert, Wallet, Send, Sparkles, MessageSquarePlus,
-  Target, TrendingUp,
+  Target, TrendingUp, Landmark,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -44,6 +44,7 @@ export const ADMIN_NAV: NavGroup[] = [
       { path: "/admin/zahlungen", label: "Zahlungszentrale", desc: "Offene Zahlungen prüfen, freischalten, Timeline", icon: CreditCard },
       { path: "/admin/finanzen", label: "Finanzen & Sales", desc: "Funnel, Umsatz, Marge, CAC, Kampagnen-Attribution", icon: TrendingUp },
       { path: "/admin/verbuchungen", label: "Verbuchungen", desc: "Bestätigte Zahlungen: Umsatz, Provisionen, Netto", icon: Wallet },
+      { path: "/admin/kontoabgleich", label: "Kontoabgleich", desc: "Bank-Eingänge exakt mit Kunden abgleichen und verbuchen", icon: Landmark },
       { path: "/admin/zahlungen#auszahlungen", label: "Auszahlungen", desc: "Provisions-Anforderungen der Mitarbeiter freigeben", icon: Banknote, match: "/admin/zahlungen" },
       { path: "/admin/rechnungen", label: "Rechnungen", desc: "Alle erzeugten Rechnungen durchsuchen und laden", icon: FileText },
     ],

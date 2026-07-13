@@ -533,3 +533,70 @@ in `routes.ts`). Analytics vollständig serverseitig aggregiert (GROUP BY/FILTER
 (CDN-Script). Bei gesperrtem CDN: Datei als CSV speichern (funktioniert offline).
 
 **Getestet**: `tsc --noEmit` für alle neuen/geänderten Dateien fehlerfrei.
+
+---
+
+## Kontoabgleich (Bank-Reconciliation) + Pakete CA–CE (additiv)
+
+**Neue Dateien**: `server/routes/fiaon-reconcile.ts`, `client/src/pages/admin-kontoabgleich.tsx`.
+**Geänderte Dateien**: `server/routes/fiaon-finance.ts`, `server/routes/fiaon-leads.ts`,
+`server/routes/fiaon-agent.ts`, `server/routes.ts`, `client/src/pages/admin-finanzen.tsx`,
+`client/src/pages/admin-leads.tsx`, `client/src/App.tsx`, `client/src/components/admin/AdminShell.tsx`.
+
+### Kontoabgleich (`/admin/kontoabgleich`)
+- Neue Tabelle `fiaon_bank_txns` (Ledger, idempotent per Bank-`txn_id`).
+- Ablauf: Kontoauszug-CSV (Wise-Format) wird **im Browser** geparst; nur Kunden-EINGÄNGE
+  (`CREDIT` + `DEPOSIT`, Betrag > 0) gehen an den Server. Ausgänge/Card/Top-ups werden
+  serverseitig ignoriert (`POST /admin/reconcile/import`).
+- **Auto-Match** über die FIAON-Referenz (6-stelliger Code aus dem Verwendungszweck) gegen
+  `fiaon_applications.ref`; Betragsabgleich (`amount_ok`).
+- **Manuelle Zuordnung** nicht erkannter Eingänge (`/admin/reconcile/:id/assign` mit Antragssuche
+  `/admin/reconcile/search`), „kein Kunde"-Ignorieren (`/ignore`).
+- **Verbuchen** (`/admin/reconcile/:id/apply`, Bulk `/apply-matched`): setzt NUR
+  `payment_status='paid'` (+ status/account_status/claimed_paid_at/completed_at) per Direkt-SQL.
+  **KEINE Provision** (onCustomerPaid wird NICHT aufgerufen), keine Ausgänge, keine Storno-Logik.
+  Option `syncAmount` gleicht `amount_due` exakt an den Bankeingang an (brutto).
+- Zusammenfassung `/admin/reconcile/summary`: Eingänge gesamt/zugeordnet/offen/verbucht +
+  Betrags-Abweichungen — exakte, brutto Kunden-Aufstellung.
+- **Wichtig**: Der Kontoauszug enthält auch Nicht-Kunden-Gutschriften (AIRWALLEX-Invoice,
+  eigene Top-ups „Einzahlung auf das Konto", Test-Überweisung, Uber-Kartenrückbuchungen) —
+  diese werden entweder gar nicht importiert (kein DEPOSIT) oder bleiben „offen" und lassen sich
+  ignorieren; sie verfälschen die Kunden-Aufstellung nicht.
+
+### CA — Funnel-Fix (`fiaon-finance.ts` + `admin-finanzen.tsx`)
+- Ursache der >100 %-Werte: Antrags-/Zahlstufen kamen aus ALLEN Anträgen, wurden aber durch
+  Lead-Stufen geteilt (Direktkunden verzerrten die Quote).
+- Jetzt **zwei getrennte Funnels**: **Lead-Funnel** (nur aus Leads via `converted_order_id`,
+  Stufen sind echte Teilmengen ⇒ Raten 0–100 %) und **Gesamt-Funnel (inkl. Direkt)** (alle
+  Anträge, kumulative Stufen). Alle Raten zusätzlich per `rateCapped()` auf 0–100 % gedeckelt,
+  Absolutzahlen + Tooltips je Stufe.
+
+### CB — Nachfass-Automatik (Dauerbetrieb)
+- Standard-Sendefenster **09:00–18:00** (statt 10–11); hartes Limit 08–20 bleibt.
+  Einmal-Migration `lead_followup_window_migrated_v2` hebt Alt-Installationen von 10→11 auf 09→18,
+  sofern nicht bewusst geändert. `max_lead_followups` Default **6**, Plan `1,2,4,7,14,21`.
+- Stündlicher Cron (`setInterval`) läuft weiter; Bulk-Button + Not-Aus vorhanden.
+- Kennzahl **„Heute versendet"** (`sentToday`) in `/admin/leads/settings`, angezeigt im Engine-Panel.
+
+### CC — Lead-Detail handlungsfähig (`fiaon-leads.ts` Admin-Endpoints + Drawer)
+- Neu: `PATCH /admin/leads/:id/contact-data`, `POST …/notes`, `…/contact-result`, `…/status`,
+  `…/send-application-link` (Make `lead_application_link`, 10-Min-Sperre), `…/send-followup`
+  (manuell `lead_followup`, 8h-Dedupe). „Kein Interesse"/„tot" nehmen den Lead aus der Automatik
+  (`in_sequence=FALSE`). Drawer bietet Bearbeiten, Ergebnis-Buttons, Notiz, Status, Zuweisung, Versand.
+
+### CD — Intake-Test & Diagnose
+- Neue Tabelle `fiaon_lead_intake_log` (Status `ok|rejected_auth|invalid|test`).
+- `GET /admin/leads/intake-diagnostics` (letzter Intake, 24h/7d-Zähler, abgelehnte Auth-Versuche,
+  Payload-/Header-Doku), `POST /admin/leads/test-intake` (echter Self-Call mit gültigem Secret,
+  Quelle `test`), `DELETE /admin/leads/test-leads`. Panel auf `/admin/leads`.
+
+### CE — Konsistenz
+- „Konvertiert %" einheitlich = konvertierte ÷ gesamt (Finanz-Lead-Funnel `konvertiertPct`
+  identisch zu `/admin/leads`). Hinweis: `/admin/leads` ist all-time, `/admin/finanzen` zeitraum-
+  gefiltert — die Definitionen sind identisch, die Zahlen decken sich im gleichen Zeitraum.
+
+**Betreiber-TODOs**: Make-Zweige `lead_followup` + `lead_application_link` (Payload s. o.),
+`LEAD_INTAKE_SECRET` setzen. Kontoauszug als CSV (Wise-Export) für den Abgleich verwenden.
+
+**Getestet**: `tsc --noEmit` für alle neuen/geänderten Dateien fehlerfrei (verbleibende Fehler nur
+in vorbestehendem `routes.ts` tasks/retell, außerhalb dieses Updates).

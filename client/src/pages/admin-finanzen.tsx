@@ -49,32 +49,55 @@ function Kpi({ label, value, sub }: { label: string; value: string; sub?: string
   );
 }
 
-function Funnel({ f, r }: { f: any; r: any }) {
-  const stages = [
-    { label: "Leads", value: f.leads, rate: null },
-    { label: "Kontaktiert", value: f.kontaktiert, rate: r.leadToKontaktiert },
-    { label: "Antrag gestellt", value: f.antraege, rate: r.kontaktiertToAntrag },
-    { label: "Zahlung angekündigt", value: f.angekuendigt, rate: r.antragToAngekuendigt },
-    { label: "Bezahlt", value: f.bezahlt, rate: r.angekuendigtToBezahlt },
-  ];
+function FunnelBars({ title, hint, stages, color = ACCENT }: { title: string; hint: string; stages: { label: string; value: number; rate: number | null; tip: string }[]; color?: string }) {
   const max = Math.max(1, ...stages.map((s) => s.value));
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 mb-5">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-[13px] font-semibold text-slate-800">Funnel</p>
-        <p className="text-[12px] text-slate-500">Gesamt Lead→zahlend: <b>{pct(r.gesamtLeadToBezahlt)}</b></p>
+    <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-[13px] font-semibold text-slate-800">{title}</p>
       </div>
+      <p className="text-[11px] text-slate-400 mb-3">{hint}</p>
       <div className="space-y-2">
         {stages.map((s, i) => (
-          <div key={s.label} className="flex items-center gap-3">
+          <div key={s.label} className="flex items-center gap-3" title={s.tip}>
             <div className="w-36 text-[12px] text-slate-500 shrink-0">{s.label}</div>
             <div className="flex-1 h-7 rounded-lg bg-slate-100 overflow-hidden">
-              <div className="h-full rounded-lg flex items-center px-2 text-[11px] font-semibold text-white" style={{ width: `${Math.max(6, (s.value / max) * 100)}%`, background: ACCENT }}>{s.value}</div>
+              <div className="h-full rounded-lg flex items-center px-2 text-[11px] font-semibold text-white" style={{ width: `${Math.max(6, (s.value / max) * 100)}%`, background: color }}>{s.value}</div>
             </div>
             <div className="w-20 text-right text-[12px] text-slate-400 shrink-0">{i > 0 ? pct(s.rate) : ""}</div>
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function Funnels({ f, r }: { f: any; r: any }) {
+  const lead = f.lead || {}, rl = r.lead || {};
+  const ges = f.gesamt || {}, rg = r.gesamt || {};
+  return (
+    <div className="grid lg:grid-cols-2 gap-4 mb-5">
+      <FunnelBars
+        title="Lead-Funnel (nur Leads)"
+        hint={`Nur aus Leads entstandene Anträge. Rate je Stufe = Stufe ÷ vorherige Stufe. Gesamt Lead→zahlend: ${pct(rl.gesamtLeadToBezahlt)}`}
+        stages={[
+          { label: "Leads", value: lead.leads || 0, rate: null, tip: "Alle Leads im Zeitraum (Bezugsgröße)" },
+          { label: "Kontaktiert", value: lead.kontaktiert || 0, rate: rl.leadToKontaktiert, tip: "Leads, die den Status 'neu' verlassen haben ÷ Leads" },
+          { label: "Antrag gestellt", value: lead.antraege || 0, rate: rl.kontaktiertToAntrag, tip: "Konvertierte Leads ÷ kontaktierte Leads" },
+          { label: "Zahlung angekündigt", value: lead.angekuendigt || 0, rate: rl.antragToAngekuendigt, tip: "Verknüpfte Order angekündigt/bezahlt ÷ Anträge" },
+          { label: "Bezahlt", value: lead.bezahlt || 0, rate: rl.angekuendigtToBezahlt, tip: "Verknüpfte Order bezahlt ÷ angekündigt" },
+        ]}
+      />
+      <FunnelBars
+        title="Gesamt-Funnel (inkl. Direkt)"
+        hint={`ALLE Anträge im Zeitraum (auch Direktkunden ohne Lead). Antrag→bezahlt: ${pct(rg.antragToBezahlt)}`}
+        color="#64748b"
+        stages={[
+          { label: "Antrag gestellt", value: ges.antraege || 0, rate: null, tip: "Alle Anträge/Bestellungen (Bezugsgröße)" },
+          { label: "Zahlung angekündigt", value: ges.angekuendigt || 0, rate: rg.antragToAngekuendigt, tip: "Angekündigt/bezahlt ÷ Anträge" },
+          { label: "Bezahlt", value: ges.bezahlt || 0, rate: rg.angekuendigtToBezahlt, tip: "Bezahlt ÷ angekündigt" },
+        ]}
+      />
     </div>
   );
 }
@@ -154,7 +177,7 @@ export default function AdminFinanzenPage() {
 
       {loading && !ov ? <p className="text-[13px] text-slate-400">Lädt…</p> : ov && (
         <>
-          <Funnel f={ov.funnel} r={ov.funnelRates} />
+          <Funnels f={ov.funnel} r={ov.funnelRates} />
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
             <Kpi label="Umsatz (brutto)" value={eur(ov.revenue.umsatzCents)} sub={`${ov.revenue.bezahltCount} bezahlt`} />

@@ -307,10 +307,10 @@ const SETTING_DEFAULTS: Record<string, string> = {
   distribution_last_agent_id: "0",    // Rotations-Zeiger (intern)
   // Paket BB: Lead-Nachfass-Automatik (lead_followup)
   lead_followup_enabled: "1",         // Not-Aus-Schalter ("1" = an)
-  lead_followup_days: "1,2,4,7",      // Nachfass an Lead-Alter-Tagen (aufsteigend)
-  lead_followup_window_start: "10",   // Versandfenster-Beginn (Stunde, Europe/Berlin)
-  lead_followup_window_end: "11",     // Versandfenster-Ende (exklusiv)
-  max_lead_followups: "5",            // Obergrenze automatischer Nachfässe pro Lead → danach 'tot'
+  lead_followup_days: "1,2,4,7,14,21", // Nachfass an Lead-Alter-Tagen (aufsteigend; danach wöchentlich-artig)
+  lead_followup_window_start: "9",    // CB: breiteres Standard-Sendefenster 09:00 (Europe/Berlin)
+  lead_followup_window_end: "18",     // CB: Sendefenster-Ende 18:00 (exklusiv); hartes Limit 08–20 bleibt
+  max_lead_followups: "6",            // CB: Obergrenze automatischer Nachfässe pro Lead → danach 'tot'
   // Paket BC2: Lead-Verteilung (eigener Rotations-Zeiger, gleiche Engine)
   lead_distribution_enabled: "1",     // Lead-Verteilung an/aus
   lead_distribution_last_agent_id: "0", // Rotations-Zeiger (intern)

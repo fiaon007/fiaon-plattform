@@ -76,6 +76,18 @@ export async function ensureLeadTables(): Promise<void> {
   `;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_lead_log_lead_idx ON fiaon_lead_log (lead_id, created_at)`;
 
+  // Paket CD: Intake-Diagnose — jeder eingehende Intake-Versuch (auch abgelehnte).
+  await sqlPool`
+    CREATE TABLE IF NOT EXISTS fiaon_lead_intake_log (
+      id SERIAL PRIMARY KEY,
+      status VARCHAR NOT NULL,            -- ok | rejected_auth | invalid | test
+      quelle VARCHAR,
+      detail VARCHAR,                     -- ohne sensible Daten
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_lead_intake_log_idx ON fiaon_lead_intake_log (created_at)`;
+
   // Paket BE: Import-/Sequenz-Steuerung (idempotent nachrüsten).
   // in_sequence=FALSE ⇒ Lead wird NICHT automatisch angeschrieben (importierte
   // Alt-Leads starten die Nachfass-Sequenz erst nach bewusstem Opt-in).
@@ -100,6 +112,23 @@ export async function ensureLeadTables(): Promise<void> {
   `;
   leadTablesEnsured = true;
   console.log("[FIAON-LEADS] Lead-Tabellen sichergestellt");
+
+  // CB: Einmalige Migration des Standard-Sendefensters auf 09–18 Uhr.
+  // Greift nur, wenn noch der alte, enge Default (10→11) gespeichert ist —
+  // eine bewusst gewählte andere Einstellung bleibt unangetastet.
+  try {
+    const s = await getSettings();
+    if (s.lead_followup_window_migrated_v2 !== "1") {
+      if (s.lead_followup_window_start === "10" && s.lead_followup_window_end === "11") {
+        await setSetting("lead_followup_window_start", "9");
+        await setSetting("lead_followup_window_end", "18");
+        console.log("[FIAON-LEADS] Sendefenster migriert: 10–11 → 09–18 Uhr");
+      }
+      await setSetting("lead_followup_window_migrated_v2", "1");
+    }
+  } catch (err) {
+    console.error("[FIAON-LEADS] Fenster-Migration:", err);
+  }
 }
 
 async function logLead(
@@ -353,18 +382,26 @@ setInterval(() => {
 // ═══════════════════════════════════════════════════════════════════
 // BA2 — INTAKE-WEBHOOK  (POST /api/leads/intake, Secret-geschützt)
 // ═══════════════════════════════════════════════════════════════════
+/** CD: Intake-Versuch protokollieren (ohne sensible Daten). Fehler nie werfen. */
+async function logIntake(status: string, quelle: string | null, detail: string | null): Promise<void> {
+  try {
+    await sqlPool`INSERT INTO fiaon_lead_intake_log (status, quelle, detail) VALUES (${status}, ${quelle}, ${detail})`;
+  } catch (err) { console.error("[FIAON-LEADS] logIntake:", err); }
+}
+
 intakeRouter.post("/intake", async (req: Request, res: Response) => {
   try {
-    const secret = process.env.LEAD_INTAKE_SECRET;
-    if (!secret) return res.status(503).json({ ok: false, error: "LEAD_INTAKE_SECRET nicht konfiguriert" });
-    const provided = String(req.headers["x-lead-secret"] || req.query.secret || "").trim();
-    if (provided !== secret) return res.status(401).json({ ok: false, error: "Ungültiges Intake-Secret" });
-
     await ensureLeadTables();
+    const secret = process.env.LEAD_INTAKE_SECRET;
+    if (!secret) { await logIntake("rejected_auth", null, "LEAD_INTAKE_SECRET nicht konfiguriert"); return res.status(503).json({ ok: false, error: "LEAD_INTAKE_SECRET nicht konfiguriert" }); }
+    const provided = String(req.headers["x-lead-secret"] || req.query.secret || "").trim();
+    if (provided !== secret) { await logIntake("rejected_auth", null, provided ? "Falsches Secret" : "Kein Secret gesendet"); return res.status(401).json({ ok: false, error: "Ungültiges Intake-Secret" }); }
+
     const b = req.body || {};
     const email = b.email ? String(b.email).trim().toLowerCase() : null;
     const telefon = b.telefon || b.phone ? normalizePhone(String(b.telefon || b.phone)) : null;
     if ((!email || !EMAIL_RE.test(email)) && (!telefon || telefon === "")) {
+      await logIntake("invalid", String(b.quelle || b.source || "").slice(0, 120) || null, "E-Mail/Telefon fehlt");
       return res.status(400).json({ ok: false, error: "E-Mail oder Telefon erforderlich" });
     }
     const vorname = b.vorname || b.firstName || b.first_name || null;
@@ -397,6 +434,7 @@ intakeRouter.post("/intake", async (req: Request, res: Response) => {
         WHERE id = ${id}
       `;
       await logLead(id, { id: null, name: "System" }, "system", { note: `Intake-Aktualisierung (Dublette innerhalb 24h, Quelle: ${quelle})` });
+      await logIntake("ok", quelle, "Dublette aktualisiert");
       return res.json({ ok: true, id, deduped: true });
     }
 
@@ -424,6 +462,7 @@ intakeRouter.post("/intake", async (req: Request, res: Response) => {
       // Neuen Lead fair verteilen (fire-and-forget)
       distributeUnassignedLeads().catch(() => {});
     }
+    await logIntake(quelle === "test" ? "test" : "ok", quelle, "Lead angelegt");
     res.json({ ok: true, id, deduped: false });
   } catch (err) {
     console.error("[FIAON-LEADS] intake:", err);
@@ -549,7 +588,7 @@ router.patch("/agent/leads/:id/contact-data", requireAgent, async (req: AgentReq
   return updateLeadContact(Number(req.params.id), req.body, req.agent!, res);
 });
 
-async function updateLeadContact(id: number, body: any, actor: { id: number; name: string }, res: Response) {
+async function updateLeadContact(id: number, body: any, actor: { id: number | null; name: string }, res: Response) {
   try {
     const rows = await sqlPool`SELECT vorname, nachname, email, telefon FROM fiaon_leads WHERE id = ${id}`;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Lead nicht gefunden" });
@@ -720,6 +759,135 @@ router.post("/admin/leads/:id/assign", async (req: Request, res: Response) => {
     res.json({ ok: true });
   } catch (err) {
     console.error("[FIAON-LEADS] assign:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── Paket CC: Admin-Lead-Aktionen (Bearbeiten/Ergebnis/Notiz/Status/Versand) ──
+const ADMIN_ACTOR = { id: null as number | null, name: "Admin" };
+
+router.post("/admin/leads/:id/notes", async (req: Request, res: Response) => {
+  try {
+    await ensureLeadTables();
+    const note = String(req.body?.note || "").trim();
+    if (!note) return res.status(400).json({ ok: false, error: "Notiz darf nicht leer sein" });
+    if (note.length > 4000) return res.status(400).json({ ok: false, error: "Notiz zu lang (max. 4000 Zeichen)" });
+    const exists = await sqlPool`SELECT id FROM fiaon_leads WHERE id = ${Number(req.params.id)}`;
+    if (exists.length === 0) return res.status(404).json({ ok: false, error: "Lead nicht gefunden" });
+    const entry = await logLead(Number(req.params.id), ADMIN_ACTOR, "note", { note });
+    res.json({ ok: true, entry });
+  } catch (err) {
+    console.error("[FIAON-LEADS] admin note:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/admin/leads/:id/contact-result", async (req: Request, res: Response) => {
+  try {
+    await ensureLeadTables();
+    const { outcome, scheduledAt, note } = req.body || {};
+    if (!(outcome in LEAD_OUTCOMES)) return res.status(400).json({ ok: false, error: "Ungültiges Kontakt-Ergebnis" });
+    if (outcome === "rueckruf_termin" && !scheduledAt) return res.status(400).json({ ok: false, error: "Termin-Datum erforderlich" });
+    const id = Number(req.params.id);
+    const exists = await sqlPool`SELECT id FROM fiaon_leads WHERE id = ${id}`;
+    if (exists.length === 0) return res.status(404).json({ ok: false, error: "Lead nicht gefunden" });
+    const entry = await logLead(id, ADMIN_ACTOR, "result", {
+      outcome, note: note ? String(note).slice(0, 4000) : null, scheduledAt: scheduledAt || null,
+    });
+    const newStatus = LEAD_OUTCOMES[outcome];
+    // „Kein Interesse" nimmt den Lead aus der Automatik (in_sequence=FALSE).
+    await sqlPool`
+      UPDATE fiaon_leads SET status = ${newStatus},
+        in_sequence = CASE WHEN ${newStatus} IN ('kein_interesse') THEN FALSE ELSE in_sequence END,
+        letzter_kontakt_am = NOW(), updated_at = NOW()
+      WHERE id = ${id} AND status <> 'konvertiert'
+    `;
+    res.json({ ok: true, entry });
+  } catch (err) {
+    console.error("[FIAON-LEADS] admin contact-result:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.patch("/admin/leads/:id/contact-data", async (req: Request, res: Response) => {
+  await ensureLeadTables();
+  return updateLeadContact(Number(req.params.id), req.body, ADMIN_ACTOR, res);
+});
+
+const ADMIN_STATUSES = ["neu", "kontaktiert", "nicht_erreichbar", "kein_interesse", "tot"] as const;
+router.post("/admin/leads/:id/status", async (req: Request, res: Response) => {
+  try {
+    await ensureLeadTables();
+    const status = String(req.body?.status || "");
+    if (!ADMIN_STATUSES.includes(status as any)) return res.status(400).json({ ok: false, error: "Ungültiger Status" });
+    const id = Number(req.params.id);
+    const rows = await sqlPool`SELECT status FROM fiaon_leads WHERE id = ${id}`;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Lead nicht gefunden" });
+    if (rows[0].status === "konvertiert") return res.status(409).json({ ok: false, error: "Konvertierte Leads können nicht geändert werden" });
+    // Tot/Kein-Interesse raus aus der Automatik; Reaktivierung nimmt wieder auf.
+    await sqlPool`
+      UPDATE fiaon_leads SET status = ${status},
+        in_sequence = CASE WHEN ${status} IN ('tot','kein_interesse') THEN FALSE ELSE TRUE END,
+        updated_at = NOW()
+      WHERE id = ${id}
+    `;
+    await logLead(id, ADMIN_ACTOR, "system", { note: `Status manuell auf „${status}" gesetzt (Admin)` });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-LEADS] admin status:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// „Zahlungslink/Antrag senden" — Make lead_application_link, 10-Min-Sperre gegen Doppelversand.
+router.post("/admin/leads/:id/send-application-link", async (req: Request, res: Response) => {
+  try {
+    await ensureLeadTables();
+    const id = Number(req.params.id);
+    const rows = await sqlPool`SELECT * FROM fiaon_leads WHERE id = ${id}`;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Lead nicht gefunden" });
+    const l = rows[0];
+    if (!l.email && !l.telefon) return res.status(400).json({ ok: false, error: "Kein Kontaktweg (E-Mail/Telefon) hinterlegt" });
+    const recent = await sqlPool`
+      SELECT id FROM fiaon_lead_log WHERE lead_id = ${id} AND type = 'email_sent' AND created_at > NOW() - INTERVAL '10 minutes' LIMIT 1
+    `;
+    if (recent.length > 0) return res.status(429).json({ ok: false, error: "Bereits in den letzten 10 Minuten gesendet" });
+    await sendMakeWebhook("lead_application_link", {
+      email: l.email || "", vorname: l.vorname || null, telefon: l.telefon || null,
+      lead_id: l.id, agent_name: "Admin", antrag_url: antragUrl(l.id),
+    });
+    await sqlPool`UPDATE fiaon_leads SET status = CASE WHEN status = 'neu' THEN 'kontaktiert' ELSE status END, letzter_kontakt_am = NOW(), updated_at = NOW() WHERE id = ${id}`;
+    await logLead(id, ADMIN_ACTOR, "email_sent", { note: "Antrags-/Zahlungslink an Lead gesendet (Make: lead_application_link)" });
+    res.json({ ok: true, antragUrl: antragUrl(l.id) });
+  } catch (err) {
+    console.error("[FIAON-LEADS] admin send-application-link:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// „Follow-up jetzt senden" — manuell EIN lead_followup für genau diesen Lead (8h-Dedupe).
+router.post("/admin/leads/:id/send-followup", async (req: Request, res: Response) => {
+  try {
+    await ensureLeadTables();
+    const id = Number(req.params.id);
+    const rows = await sqlPool`SELECT * FROM fiaon_leads WHERE id = ${id}`;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Lead nicht gefunden" });
+    const l = rows[0];
+    if (["konvertiert", "tot", "kein_interesse"].includes(l.status)) return res.status(409).json({ ok: false, error: "Lead ist nicht mehr offen" });
+    if (!l.email && !l.telefon) return res.status(400).json({ ok: false, error: "Kein Kontaktweg hinterlegt" });
+    if (l.last_lead_reminder_at && Date.now() - new Date(l.last_lead_reminder_at).getTime() < 8 * 3600 * 1000) {
+      return res.status(429).json({ ok: false, error: "Dedupe: letzter Nachfass < 8 Stunden her" });
+    }
+    const updated = await sqlPool`
+      UPDATE fiaon_leads SET last_lead_reminder_at = NOW(), lead_reminder_count = COALESCE(lead_reminder_count,0)+1,
+        letzter_kontakt_am = NOW(), status = CASE WHEN status = 'neu' THEN 'kontaktiert' ELSE status END, updated_at = NOW()
+      WHERE id = ${id} RETURNING id, vorname, nachname, email, telefon, quelle, lead_reminder_count
+    `;
+    await sendMakeWebhook("lead_followup", followupPayload(updated[0]));
+    await logLead(id, ADMIN_ACTOR, "followup", { note: `Manueller Nachfass #${updated[0].lead_reminder_count} gesendet (Admin, Make: lead_followup)` });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-LEADS] admin send-followup:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -933,9 +1101,16 @@ router.post("/admin/leads/enable-sequence", async (req: Request, res: Response) 
   }
 });
 
-// BB — Nachfass-Engine: Einstellungen lesen/schreiben
+// BB/CB — Nachfass-Engine: Einstellungen lesen/schreiben + Tageskennzahl
 router.get("/admin/leads/settings", async (_req: Request, res: Response) => {
+  await ensureLeadTables();
   const s = await getSettings();
+  // CB3: „Heute versendete Lead-Follow-ups" (Berlin-Tag) aus dem Lead-Log.
+  const [today] = await sqlPool`
+    SELECT COUNT(*)::int AS c FROM fiaon_lead_log
+    WHERE type = 'followup'
+      AND (created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date
+  `;
   res.json({
     ok: true,
     settings: {
@@ -947,6 +1122,7 @@ router.get("/admin/leads/settings", async (_req: Request, res: Response) => {
       lead_distribution_enabled: s.lead_distribution_enabled,
     },
     withinWindow: withinHardWindow(),
+    sentToday: Number(today.c),
   });
 });
 
@@ -969,6 +1145,85 @@ router.post("/admin/leads/run-followups", async (_req: Request, res: Response) =
     res.json({ ok: true, ...result });
   } catch (err) {
     console.error("[FIAON-LEADS] run-followups:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// Paket CD — Intake-Diagnose + Test-Lead-Simulation
+// ═══════════════════════════════════════════════════════════════════
+router.get("/admin/leads/intake-diagnostics", async (_req: Request, res: Response) => {
+  try {
+    await ensureLeadTables();
+    const [last] = await sqlPool`
+      SELECT status, quelle, created_at FROM fiaon_lead_intake_log
+      WHERE status IN ('ok','test') ORDER BY created_at DESC LIMIT 1
+    `;
+    const [c] = await sqlPool`
+      SELECT
+        COUNT(*) FILTER (WHERE status IN ('ok','test') AND created_at > NOW() - INTERVAL '24 hours')::int AS ok_24h,
+        COUNT(*) FILTER (WHERE status IN ('ok','test') AND created_at > NOW() - INTERVAL '7 days')::int AS ok_7d,
+        COUNT(*) FILTER (WHERE status = 'rejected_auth' AND created_at > NOW() - INTERVAL '7 days')::int AS rejected_7d,
+        COUNT(*) FILTER (WHERE status = 'invalid' AND created_at > NOW() - INTERVAL '7 days')::int AS invalid_7d
+      FROM fiaon_lead_intake_log
+    `;
+    const recentRejected = await sqlPool`
+      SELECT status, detail, created_at FROM fiaon_lead_intake_log
+      WHERE status IN ('rejected_auth','invalid') ORDER BY created_at DESC LIMIT 10
+    `;
+    res.json({
+      ok: true,
+      secretConfigured: Boolean(process.env.LEAD_INTAKE_SECRET),
+      lastIntake: last || null,
+      counts: { ok24h: Number(c.ok_24h), ok7d: Number(c.ok_7d), rejected7d: Number(c.rejected_7d), invalid7d: Number(c.invalid_7d) },
+      recentRejected,
+      doc: {
+        intakeUrl: `${fiaonBaseUrl()}/api/leads/intake`,
+        secretHeader: "x-lead-secret",
+        payloadFields: ["email", "vorname", "nachname", "telefon", "quelle", "kampagne"],
+      },
+    });
+  } catch (err) {
+    console.error("[FIAON-LEADS] intake-diagnostics:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Test-Lead: echter serverseitiger Aufruf des eigenen Intake-Endpoints (mit gültigem Secret).
+router.post("/admin/leads/test-intake", async (_req: Request, res: Response) => {
+  try {
+    await ensureLeadTables();
+    const secret = process.env.LEAD_INTAKE_SECRET;
+    if (!secret) return res.status(503).json({ ok: false, error: "LEAD_INTAKE_SECRET nicht konfiguriert — Test nicht möglich" });
+    const stamp = Date.now();
+    const payload = { email: `test+${stamp}@fiaon-intake-test.de`, vorname: "Test", nachname: "Intake", quelle: "test", kampagne: "intake_test" };
+    const r = await fetch(`${fiaonBaseUrl()}/api/leads/intake`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-lead-secret": secret },
+      body: JSON.stringify(payload),
+    });
+    const json = await r.json().catch(() => null);
+    res.json({ ok: r.ok && json?.ok, httpStatus: r.status, response: json });
+  } catch (err: any) {
+    console.error("[FIAON-LEADS] test-intake:", err);
+    res.status(502).json({ ok: false, error: `Selbstaufruf fehlgeschlagen: ${err?.message || err}` });
+  }
+});
+
+// Test-Leads (quelle='test') wieder entfernen.
+router.delete("/admin/leads/test-leads", async (_req: Request, res: Response) => {
+  try {
+    await ensureLeadTables();
+    const ids = await sqlPool`SELECT id FROM fiaon_leads WHERE quelle = 'test'`;
+    if (ids.length > 0) {
+      const idList = ids.map((r: any) => Number(r.id));
+      await sqlPool`DELETE FROM fiaon_lead_log WHERE lead_id = ANY(${idList})`;
+      await sqlPool`DELETE FROM fiaon_leads WHERE id = ANY(${idList})`;
+    }
+    await sqlPool`DELETE FROM fiaon_lead_intake_log WHERE status = 'test'`;
+    res.json({ ok: true, deleted: ids.length });
+  } catch (err) {
+    console.error("[FIAON-LEADS] delete test-leads:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

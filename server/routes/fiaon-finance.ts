@@ -49,6 +49,11 @@ function parseRange(req: Request): { from: Date; to: Date } {
 function rate(a: number, b: number): number | null {
   return b > 0 ? Math.round((a / b) * 1000) / 10 : null; // 1 Dezimalstelle
 }
+/** Wie rate(), aber sichtbar auf 0–100 % gedeckelt (CA: keine unmöglichen Werte). */
+function rateCapped(a: number, b: number): number | null {
+  const r = rate(a, b);
+  return r === null ? null : Math.min(100, Math.max(0, r));
+}
 
 // ═══════════════ BD1–BD2 + BD5 — Übersicht (Funnel, Umsatz, CAC, Zeitreihen) ═══════════════
 router.get("/admin/finance/overview", async (req: Request, res: Response) => {
@@ -56,36 +61,59 @@ router.get("/admin/finance/overview", async (req: Request, res: Response) => {
     await ensureBudgetTable();
     const { from, to } = parseRange(req);
 
-    // ── BD1: Funnel (serverseitig aggregiert) ──
-    const [leadFunnel] = await sqlPool`
+    // ── BD1/CA: Zwei getrennte Funnels (serverseitig aggregiert) ──
+    //
+    // LEAD-FUNNEL: NUR Leads und ihre daraus konvertierten Anträge (converted_order_id).
+    // Jede Stufe ist eine echte Teilmenge der vorherigen ⇒ Raten immer 0–100 %.
+    // Direktkunden ohne Lead tauchen hier NICHT auf und verzerren die Quote nicht.
+    const [lf] = await sqlPool`
       SELECT
         COUNT(*)::int AS leads,
-        COUNT(*) FILTER (WHERE status <> 'neu')::int AS kontaktiert,
-        COUNT(*) FILTER (WHERE status = 'konvertiert')::int AS konvertiert
-      FROM fiaon_leads
-      WHERE erstellt_am >= ${from} AND erstellt_am <= ${to}
+        COUNT(*) FILTER (WHERE l.status <> 'neu')::int AS kontaktiert,
+        COUNT(*) FILTER (WHERE l.status = 'konvertiert')::int AS antraege,
+        COUNT(*) FILTER (WHERE a.claimed_paid_at IS NOT NULL OR a.payment_status = 'paid')::int AS angekuendigt,
+        COUNT(*) FILTER (WHERE a.payment_status = 'paid')::int AS bezahlt
+      FROM fiaon_leads l
+      LEFT JOIN fiaon_applications a ON a.ref = l.converted_order_id AND a.merged_into IS NULL
+      WHERE l.erstellt_am >= ${from} AND l.erstellt_am <= ${to}
     `;
-    const [appFunnel] = await sqlPool`
+    // GESAMT-FUNNEL (inkl. Direktkunden): ALLE Anträge im Zeitraum. Stufen kumulativ
+    // definiert (Antrag ⊇ angekündigt ⊇ bezahlt) ⇒ Raten immer 0–100 %.
+    const [gf] = await sqlPool`
       SELECT
-        COUNT(*) FILTER (WHERE payment_reference IS NOT NULL)::int AS antraege,
-        COUNT(*) FILTER (WHERE claimed_paid_at IS NOT NULL)::int AS angekuendigt,
+        COUNT(*) FILTER (WHERE payment_reference IS NOT NULL OR claimed_paid_at IS NOT NULL OR payment_status = 'paid')::int AS antraege,
+        COUNT(*) FILTER (WHERE claimed_paid_at IS NOT NULL OR payment_status = 'paid')::int AS angekuendigt,
         COUNT(*) FILTER (WHERE payment_status = 'paid')::int AS bezahlt
       FROM fiaon_applications
       WHERE merged_into IS NULL AND created_at >= ${from} AND created_at <= ${to}
     `;
+    const leadFunnel = {
+      leads: Number(lf.leads), kontaktiert: Number(lf.kontaktiert), antraege: Number(lf.antraege),
+      angekuendigt: Number(lf.angekuendigt), bezahlt: Number(lf.bezahlt),
+    };
+    const gesamtFunnel = {
+      antraege: Number(gf.antraege), angekuendigt: Number(gf.angekuendigt), bezahlt: Number(gf.bezahlt),
+    };
     const funnel = {
-      leads: Number(leadFunnel.leads),
-      kontaktiert: Number(leadFunnel.kontaktiert),
-      antraege: Number(appFunnel.antraege),
-      angekuendigt: Number(appFunnel.angekuendigt),
-      bezahlt: Number(appFunnel.bezahlt),
+      // Zwei klar beschriftete Sichten
+      lead: leadFunnel,
+      gesamt: gesamtFunnel,
     };
     const funnelRates = {
-      leadToKontaktiert: rate(funnel.kontaktiert, funnel.leads),
-      kontaktiertToAntrag: rate(funnel.antraege, funnel.kontaktiert),
-      antragToAngekuendigt: rate(funnel.angekuendigt, funnel.antraege),
-      angekuendigtToBezahlt: rate(funnel.bezahlt, funnel.angekuendigt),
-      gesamtLeadToBezahlt: rate(funnel.bezahlt, funnel.leads),
+      lead: {
+        leadToKontaktiert: rateCapped(leadFunnel.kontaktiert, leadFunnel.leads),
+        kontaktiertToAntrag: rateCapped(leadFunnel.antraege, leadFunnel.kontaktiert),
+        antragToAngekuendigt: rateCapped(leadFunnel.angekuendigt, leadFunnel.antraege),
+        angekuendigtToBezahlt: rateCapped(leadFunnel.bezahlt, leadFunnel.angekuendigt),
+        gesamtLeadToBezahlt: rateCapped(leadFunnel.bezahlt, leadFunnel.leads),
+        // CE: „Konvertiert %" identisch definiert wie /admin/leads (konvertierte ÷ gesamt).
+        konvertiertPct: rateCapped(leadFunnel.antraege, leadFunnel.leads),
+      },
+      gesamt: {
+        antragToAngekuendigt: rateCapped(gesamtFunnel.angekuendigt, gesamtFunnel.antraege),
+        angekuendigtToBezahlt: rateCapped(gesamtFunnel.bezahlt, gesamtFunnel.angekuendigt),
+        antragToBezahlt: rateCapped(gesamtFunnel.bezahlt, gesamtFunnel.antraege),
+      },
     };
 
     // ── BD2: Umsatz (bezahlt im Zeitraum nach Freischaltzeitpunkt) ──
@@ -129,7 +157,7 @@ router.get("/admin/finance/overview", async (req: Request, res: Response) => {
     const spendCents = Number(spendRow.spend_cents);
     const hasBudget = spendCents > 0;
     const cacCents = hasBudget && bezahltCount > 0 ? Math.round(spendCents / bezahltCount) : null;
-    const leadCostCents = hasBudget && funnel.leads > 0 ? Math.round(spendCents / funnel.leads) : null;
+    const leadCostCents = hasBudget && leadFunnel.leads > 0 ? Math.round(spendCents / leadFunnel.leads) : null;
     // LTV konservativ: Ø-Abschlusswert × angenommene Laufzeit (transparent ausgewiesen)
     const assumedLifetimeMonths = 12;
     const ltvCents = aovCents * assumedLifetimeMonths;

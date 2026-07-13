@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, Send, Users, Play, Settings2, X, Upload } from "lucide-react";
+import { RefreshCw, Send, Users, Play, Settings2, X, Upload, Pencil, Check, Link2, Activity } from "lucide-react";
 import ImportDialog from "./admin-leads-import";
 
 // ════════════════════════════════════════════════════════════════════
@@ -57,8 +57,9 @@ function EnginePanel({ onAction }: { onAction: (msg: string) => void }) {
   const [job, setJob] = useState<any>(null);
   const [busy, setBusy] = useState(false);
 
+  const [sentToday, setSentToday] = useState<number | null>(null);
   const load = useCallback(() => {
-    apiF("/admin/leads/settings").then((r) => r.ok && setS(r.json.settings));
+    apiF("/admin/leads/settings").then((r) => { if (r.ok) { setS(r.json.settings); setSentToday(r.json.sentToday ?? null); } });
     apiF("/admin/leads/followup-bulk/preview").then((r) => r.ok && setBulk(r.json));
     apiF("/admin/leads/followup-bulk/status").then((r) => r.ok && setJob(r.json.job));
   }, []);
@@ -110,6 +111,7 @@ function EnginePanel({ onAction }: { onAction: (msg: string) => void }) {
       <div className="flex items-center gap-2 mb-3">
         <Settings2 size={15} className="text-slate-400" />
         <p className="text-[13px] font-semibold text-slate-800">Nachfass-Automatik & Verteilung</p>
+        {sentToday != null && <span className="text-[11px] font-semibold text-slate-500">Heute versendet: {sentToday}</span>}
         <span className="ml-auto text-[11px] text-slate-400">{bulk?.withinWindow ? "Versandfenster offen (08–20 Uhr)" : "außerhalb Versandfenster"}</span>
       </div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
@@ -146,50 +148,206 @@ function EnginePanel({ onAction }: { onAction: (msg: string) => void }) {
   );
 }
 
+function IntakeDiagnostics({ onAction }: { onAction: (msg: string) => void }) {
+  const [d, setD] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => { apiF("/admin/leads/intake-diagnostics").then((r) => r.ok && setD(r.json)); }, []);
+  useEffect(load, [load]);
+  if (!d) return null;
+  const testIntake = async () => {
+    setBusy(true);
+    const r = await apiF("/admin/leads/test-intake", { method: "POST" });
+    setBusy(false);
+    onAction(r.ok ? `Test-Lead angelegt (HTTP ${r.json.httpStatus}) — Intake funktioniert.` : (r.json?.error || `Test fehlgeschlagen (HTTP ${r.json?.httpStatus ?? "?"}).`));
+    load();
+  };
+  const delTests = async () => { setBusy(true); const r = await apiF("/admin/leads/test-leads", { method: "DELETE" }); setBusy(false); onAction(r.ok ? `${r.json.deleted} Test-Lead(s) gelöscht.` : "Fehler."); load(); };
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-4 mb-5">
+      <div className="flex items-center gap-2 mb-3">
+        <Activity size={15} className="text-slate-400" />
+        <p className="text-[13px] font-semibold text-slate-800">Lead-Eingang (Intake) — Test & Diagnose</p>
+        <span className={`ml-auto text-[11px] font-semibold ${d.secretConfigured ? "text-emerald-600" : "text-amber-600"}`}>{d.secretConfigured ? "Secret konfiguriert" : "LEAD_INTAKE_SECRET fehlt"}</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+        <div><p className="text-[11px] text-slate-400">Letzter Intake</p><p className="text-[13px] font-semibold text-slate-800">{d.lastIntake ? fmtDT(d.lastIntake.created_at) : "—"}</p><p className="text-[11px] text-slate-400">{d.lastIntake?.quelle || ""}</p></div>
+        <div><p className="text-[11px] text-slate-400">Intakes 24h / 7d</p><p className="text-[13px] font-semibold text-slate-800 tabular-nums">{d.counts.ok24h} / {d.counts.ok7d}</p></div>
+        <div><p className="text-[11px] text-slate-400">Abgelehnt (Auth, 7d)</p><p className="text-[13px] font-semibold text-slate-800 tabular-nums">{d.counts.rejected7d}</p></div>
+        <div><p className="text-[11px] text-slate-400">Ungültig (7d)</p><p className="text-[13px] font-semibold text-slate-800 tabular-nums">{d.counts.invalid7d}</p></div>
+      </div>
+      <div className="flex flex-wrap gap-2 mb-3">
+        <button disabled={busy} onClick={testIntake} className="px-3 py-2 rounded-lg text-white text-[12px] font-semibold" style={{ background: ACCENT }}>Test-Lead simulieren</button>
+        <button disabled={busy} onClick={delTests} className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600">Test-Leads löschen</button>
+      </div>
+      <div className="text-[11px] text-slate-400 border-t border-slate-100 pt-2">
+        <p>Erwartetes Format an <span className="font-mono text-slate-500">{d.doc.intakeUrl}</span> · Header <span className="font-mono text-slate-500">{d.doc.secretHeader}: &lt;LEAD_INTAKE_SECRET&gt;</span></p>
+        <p>Felder: <span className="font-mono text-slate-500">{d.doc.payloadFields.join(", ")}</span></p>
+        {d.recentRejected?.length > 0 && (
+          <div className="mt-2">
+            <p className="font-semibold text-slate-500">Zuletzt abgelehnt:</p>
+            {d.recentRejected.map((r: any, i: number) => <p key={i}>{fmtDT(r.created_at)} · {r.status} · {r.detail}</p>)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const RESULTS = [
+  { key: "erreicht_interesse", label: "Erreicht – Interesse" },
+  { key: "erreicht_kein_interesse", label: "Kein Interesse" },
+  { key: "nicht_erreicht", label: "Nicht erreicht" },
+  { key: "mailbox", label: "Mailbox" },
+  { key: "rueckruf_termin", label: "Rückruf vereinbart" },
+  { key: "nummer_falsch", label: "Falsche Nummer" },
+];
+const MANUAL_STATUS = ["neu", "kontaktiert", "nicht_erreichbar", "kein_interesse", "tot"];
+const OPEN = ["neu", "kontaktiert", "nicht_erreichbar"];
+
 function LeadDrawer({ id, agents, onClose, onChanged }: { id: number; agents: any[]; onClose: () => void; onChanged: () => void }) {
   const [lead, setLead] = useState<any>(null);
   const [log, setLog] = useState<any[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ vorname: "", nachname: "", email: "", telefon: "" });
+  const [note, setNote] = useState("");
+  const [rueckruf, setRueckruf] = useState("");
+
   const load = useCallback(() => {
     apiF(`/admin/leads/${id}`).then((r) => { if (r.ok) { setLead(r.json.lead); setLog(r.json.log || []); } });
   }, [id]);
   useEffect(load, [load]);
+  useEffect(() => { if (msg) { const t = setTimeout(() => setMsg(null), 3500); return () => clearTimeout(t); } }, [msg]);
   if (!lead) return null;
+
   const name = [lead.vorname, lead.nachname].filter(Boolean).join(" ") || lead.email || lead.telefon || `Lead #${lead.id}`;
+  const isOpen = OPEN.includes(lead.status);
+  const refresh = () => { load(); onChanged(); };
+  const act = async (path: string, body?: any, okMsg?: string) => {
+    setBusy(true);
+    const r = await apiF(`/admin/leads/${id}${path}`, { method: body === undefined ? "POST" : "POST", body: JSON.stringify(body || {}) });
+    setBusy(false);
+    setMsg(r.ok ? (okMsg || "Erledigt.") : (r.json?.error || "Fehler."));
+    if (r.ok) refresh();
+    return r.ok;
+  };
   const assign = async (agentId: string) => {
     const r = await apiF(`/admin/leads/${id}/assign`, { method: "POST", body: JSON.stringify({ agentId: agentId === "" ? null : Number(agentId) }) });
-    if (r.ok) { load(); onChanged(); }
+    if (r.ok) { setMsg("Zuweisung aktualisiert."); refresh(); }
   };
+  const startEdit = () => { setForm({ vorname: lead.vorname || "", nachname: lead.nachname || "", email: lead.email || "", telefon: lead.telefon || "" }); setEditing(true); };
+  const saveEdit = async () => {
+    setBusy(true);
+    const r = await apiF(`/admin/leads/${id}/contact-data`, { method: "PATCH", body: JSON.stringify(form) });
+    setBusy(false);
+    if (r.ok) { setEditing(false); setMsg("Kontaktdaten gespeichert."); refresh(); } else setMsg(r.json?.error || "Fehler.");
+  };
+  const result = async (key: string) => {
+    if (key === "rueckruf_termin" && !rueckruf) { setMsg("Bitte Rückruf-Termin wählen."); return; }
+    await act("/contact-result", { outcome: key, scheduledAt: key === "rueckruf_termin" ? new Date(rueckruf).toISOString() : null }, "Kontakt-Ergebnis gespeichert.");
+    setRueckruf("");
+  };
+  const sendNote = async () => { if (!note.trim()) return; if (await act("/notes", { note: note.trim() }, "Notiz gespeichert.")) setNote(""); };
+
+  const ipt = "px-2.5 py-1.5 rounded-lg border border-slate-200 text-[13px] w-full";
+  const btnS = "px-2.5 py-1.5 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600 hover:border-slate-300 disabled:opacity-40";
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/40" />
       <div className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 sticky top-0 bg-white">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 sticky top-0 bg-white z-10">
           <div className="min-w-0 flex-1"><p className="text-[15px] font-bold text-slate-900 truncate">{name}</p>
             <p className="text-[11px] text-slate-400">{STATUS[lead.status]} · Quelle {lead.quelle || "—"}{lead.kampagne ? ` · ${lead.kampagne}` : ""}</p></div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 flex items-center justify-center"><X size={15} /></button>
         </div>
+
+        {msg && <div className="mx-5 mt-3 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[12px] text-slate-700">{msg}</div>}
+
         <div className="p-5 space-y-4 text-[13px]">
-          <div className="grid grid-cols-2 gap-2 text-slate-600">
-            <div><span className="text-slate-400">E-Mail</span><br />{lead.email || "—"}</div>
-            <div><span className="text-slate-400">Telefon</span><br />{lead.telefon || "—"}</div>
-            <div><span className="text-slate-400">Angelegt</span><br />{fmtDT(lead.erstellt_am)}</div>
-            <div><span className="text-slate-400">Letzter Kontakt</span><br />{fmtDT(lead.letzter_kontakt_am)}</div>
-            {lead.converted_order_id && <div className="col-span-2"><span className="text-slate-400">Konvertiert → Antrag</span><br />{lead.converted_order_id}</div>}
-          </div>
+          {/* Kontaktdaten (bearbeitbar) */}
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Zuweisung</p>
-            <select className="px-2.5 py-2 rounded-lg border border-slate-200 text-[13px] w-full" value={lead.assigned_agent_id || ""} onChange={(e) => assign(e.target.value)}>
-              <option value="">— nicht zugewiesen —</option>
-              {agents.map((a) => <option key={a.id} value={a.id}>{a.name}{a.active ? "" : " (inaktiv)"}</option>)}
-            </select>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Kontaktdaten</p>
+              {!editing && <button onClick={startEdit} className="text-[11px] text-slate-500 inline-flex items-center gap-1 hover:text-slate-800"><Pencil size={12} /> Bearbeiten</button>}
+            </div>
+            {editing ? (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <input className={ipt} placeholder="Vorname" value={form.vorname} onChange={(e) => setForm({ ...form, vorname: e.target.value })} />
+                  <input className={ipt} placeholder="Nachname" value={form.nachname} onChange={(e) => setForm({ ...form, nachname: e.target.value })} />
+                </div>
+                <input className={ipt} placeholder="E-Mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                <input className={ipt} placeholder="Telefon (+49 …)" value={form.telefon} onChange={(e) => setForm({ ...form, telefon: e.target.value })} />
+                <div className="flex gap-2">
+                  <button disabled={busy} onClick={saveEdit} className="px-3 py-1.5 rounded-lg text-white text-[12px] font-semibold inline-flex items-center gap-1" style={{ background: ACCENT }}><Check size={13} /> Speichern</button>
+                  <button onClick={() => setEditing(false)} className={btnS}>Abbrechen</button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 text-slate-600">
+                <div><span className="text-slate-400">E-Mail</span><br />{lead.email || "—"}</div>
+                <div><span className="text-slate-400">Telefon</span><br />{lead.telefon || "—"}</div>
+                <div><span className="text-slate-400">Angelegt</span><br />{fmtDT(lead.erstellt_am)}</div>
+                <div><span className="text-slate-400">Letzter Kontakt</span><br />{fmtDT(lead.letzter_kontakt_am)}</div>
+                {lead.converted_order_id && <div className="col-span-2"><span className="text-slate-400">Konvertiert → Antrag</span><br />{lead.converted_order_id}</div>}
+              </div>
+            )}
           </div>
+
+          {/* Versand-Aktionen */}
+          {isOpen && (
+            <div className="flex flex-wrap gap-2">
+              <button disabled={busy} onClick={() => act("/send-application-link", {}, "Antrags-/Zahlungslink gesendet.")} className="px-3 py-1.5 rounded-lg text-white text-[12px] font-semibold inline-flex items-center gap-1.5" style={{ background: ACCENT }}><Link2 size={13} /> Antrag/Zahlungslink senden</button>
+              <button disabled={busy} onClick={() => act("/send-followup", {}, "Follow-up gesendet.")} className={btnS + " inline-flex items-center gap-1.5"}><Send size={13} /> Follow-up jetzt</button>
+            </div>
+          )}
+
+          {/* Kontakt-Ergebnis */}
+          {isOpen && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">Kontakt-Ergebnis</p>
+              <div className="grid grid-cols-2 gap-2">
+                {RESULTS.map((o) => (
+                  <button key={o.key} disabled={busy} onClick={() => result(o.key)} className={btnS + " text-left"}>{o.label}</button>
+                ))}
+              </div>
+              <input type="datetime-local" value={rueckruf} onChange={(e) => setRueckruf(e.target.value)} className={ipt + " mt-2"} />
+            </div>
+          )}
+
+          {/* Manueller Status + Zuweisung */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Status</p>
+              <select disabled={lead.status === "konvertiert"} className={ipt} value={MANUAL_STATUS.includes(lead.status) ? lead.status : ""} onChange={(e) => act("/status", { status: e.target.value }, "Status gesetzt.")}>
+                {lead.status === "konvertiert" ? <option value="">Konvertiert</option> : MANUAL_STATUS.map((st) => <option key={st} value={st}>{STATUS[st]}</option>)}
+              </select>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Zuweisung</p>
+              <select className={ipt} value={lead.assigned_agent_id || ""} onChange={(e) => assign(e.target.value)}>
+                <option value="">— nicht zugewiesen —</option>
+                {agents.map((a) => <option key={a.id} value={a.id}>{a.name}{a.active ? "" : " (inaktiv)"}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Notiz */}
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">Historie</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Notiz hinzufügen</p>
+            <textarea className={ipt} rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Interne Notiz …" />
+            <button disabled={busy || !note.trim()} onClick={sendNote} className={btnS + " mt-1"}>Notiz speichern</button>
+          </div>
+
+          {/* Historie */}
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2 inline-flex items-center gap-1"><Activity size={12} /> Historie</p>
             <div className="space-y-2">
               {log.length === 0 && <p className="text-[12px] text-slate-400">Keine Einträge.</p>}
               {log.map((e) => (
                 <div key={e.id} className="border-l-2 border-slate-200 pl-3 py-0.5">
-                  <p className="text-slate-700 text-[12px]">{e.note || e.outcome || e.type}</p>
+                  <p className="text-slate-700 text-[12px]">{e.note || e.outcome || e.type}{e.scheduled_at ? ` · Termin ${fmtDT(e.scheduled_at)}` : ""}</p>
                   <p className="text-slate-400 text-[11px]">{e.agent_name} · {fmtDT(e.created_at)}</p>
                 </div>
               ))}
@@ -249,6 +407,7 @@ export default function AdminLeadsPage() {
       )}
 
       <EnginePanel onAction={(m) => { setFlash(m); load(); }} />
+      <IntakeDiagnostics onAction={(m) => setFlash(m)} />
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
         {GROUPS.map((g) => {

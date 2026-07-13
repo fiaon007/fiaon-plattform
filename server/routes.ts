@@ -240,6 +240,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonFinanceRoutes = await import('./routes/fiaon-finance');
   app.use('/api/fiaon', fiaonFinanceRoutes.default);
 
+  // 🏦 FIAON Kontoabgleich (Admin) — Bank-Eingänge exakt mit Kunden abgleichen/verbuchen
+  const fiaonReconcileRoutes = await import('./routes/fiaon-reconcile');
+  app.use('/api/fiaon', fiaonReconcileRoutes.default);
+
   // 💳 FIAON Antrag Routes — Public (no auth)
   const fiaonAntragRoutes = await import('./routes/fiaon-antrag');
   app.use('/api/fiaon', fiaonAntragRoutes.default);

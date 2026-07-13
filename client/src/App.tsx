@@ -56,6 +56,7 @@ import AgentMehrPage from "@/pages/agent/mehr";
 import AdminAgentPortalPage from "@/pages/admin-agent-portal";
 import AdminLeadsPage from "@/pages/admin-leads";
 import AdminFinanzenPage from "@/pages/admin-finanzen";
+import AdminKontoabgleichPage from "@/pages/admin-kontoabgleich";
 import AgentLeadsPage from "@/pages/agent/leads";
 
 // Paket N1: JEDE /admin-Seite läuft in der AdminShell (Sidebar, Breadcrumb,
@@ -84,6 +85,7 @@ function Router() {
       <Route path="/admin/database" component={admin(AdminDatabasePage)} />
       <Route path="/admin/zahlungen" component={admin(AdminZahlungenPage)} />
       <Route path="/admin/finanzen" component={admin(AdminFinanzenPage)} />
+      <Route path="/admin/kontoabgleich" component={admin(AdminKontoabgleichPage)} />
       <Route path="/admin/leads" component={admin(AdminLeadsPage)} />
       <Route path="/admin/rechnungen" component={admin(AdminRechnungenPage)} />
       <Route path="/admin/verbuchungen" component={admin(AdminVerbuchungenPage)} />

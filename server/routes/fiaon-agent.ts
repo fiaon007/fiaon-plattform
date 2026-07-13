@@ -305,6 +305,15 @@ const SETTING_DEFAULTS: Record<string, string> = {
   distribution_enabled: "1",          // Verteilung an/aus
   distribution_cap: "50",             // Obergrenze offener zugewiesener Kunden pro Agent
   distribution_last_agent_id: "0",    // Rotations-Zeiger (intern)
+  // Paket BB: Lead-Nachfass-Automatik (lead_followup)
+  lead_followup_enabled: "1",         // Not-Aus-Schalter ("1" = an)
+  lead_followup_days: "1,2,4,7",      // Nachfass an Lead-Alter-Tagen (aufsteigend)
+  lead_followup_window_start: "10",   // Versandfenster-Beginn (Stunde, Europe/Berlin)
+  lead_followup_window_end: "11",     // Versandfenster-Ende (exklusiv)
+  max_lead_followups: "5",            // Obergrenze automatischer Nachfässe pro Lead → danach 'tot'
+  // Paket BC2: Lead-Verteilung (eigener Rotations-Zeiger, gleiche Engine)
+  lead_distribution_enabled: "1",     // Lead-Verteilung an/aus
+  lead_distribution_last_agent_id: "0", // Rotations-Zeiger (intern)
   // Paket AE2: Standard-Override-Satz für Werber (pro Beziehung überschreibbar)
   partner_override_bp: "500",         // 5,00 %
   // Paket AE3: Partner-Programm — Meilenstein-Schwellen (kumulierter bestätigter

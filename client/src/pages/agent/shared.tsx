@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X } from "lucide-react";
+import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall } from "lucide-react";
 
 // ============================================================================
 // Agent-Portal — gemeinsame Shell + Design-System (Paket E)
@@ -118,6 +118,7 @@ export async function api(path: string, init?: RequestInit): Promise<any> {
 const NAV: { href: string; label: string; icon: typeof Users; match: string[] }[] = [
   { href: "/agent", label: "Mein Tag", icon: LayoutDashboard, match: ["/agent"] },
   { href: "/agent/kunden", label: "Kunden", icon: Users, match: ["/agent/kunden"] },
+  { href: "/agent/leads", label: "Leads", icon: PhoneCall, match: ["/agent/leads"] },
   { href: "/agent/kalender", label: "Kalender", icon: Calendar, match: ["/agent/kalender"] },
   { href: "/agent/verdienst", label: "Verdienst", icon: Wallet, match: ["/agent/verdienst", "/agent/auszahlung", "/agent/partner-programm"] },
   { href: "/agent/mehr", label: "Mehr", icon: MoreHorizontal, match: ["/agent/mehr", "/agent/skripte", "/agent/updates", "/agent/feedback", "/agent/profil"] },
@@ -268,7 +269,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
         <main className="max-w-6xl mx-auto px-4 py-5">{children}</main>
 
         {/* Mobile Bottom-Navigation */}
-        <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/90 backdrop-blur-md border-t border-slate-200 grid grid-cols-5" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/90 backdrop-blur-md border-t border-slate-200 grid" style={{ gridTemplateColumns: `repeat(${NAV.length}, minmax(0,1fr))`, paddingBottom: "env(safe-area-inset-bottom)" }}>
           {NAV.map((n) => {
             const active = n.match.includes(location);
             const Icon = n.icon;

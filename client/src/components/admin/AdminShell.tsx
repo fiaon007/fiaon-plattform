@@ -4,6 +4,7 @@ import {
   LayoutDashboard, CreditCard, Banknote, FileText, Users, UserPlus,
   BookOpen, Settings, ScrollText, Scale, Database, Search, Menu, X,
   ArrowLeft, ChevronRight, ShieldAlert, Wallet, Send, Sparkles, MessageSquarePlus,
+  Target, TrendingUp,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -41,6 +42,7 @@ export const ADMIN_NAV: NavGroup[] = [
     title: "Umsatz & Zahlungen",
     items: [
       { path: "/admin/zahlungen", label: "Zahlungszentrale", desc: "Offene Zahlungen prüfen, freischalten, Timeline", icon: CreditCard },
+      { path: "/admin/finanzen", label: "Finanzen & Sales", desc: "Funnel, Umsatz, Marge, CAC, Kampagnen-Attribution", icon: TrendingUp },
       { path: "/admin/verbuchungen", label: "Verbuchungen", desc: "Bestätigte Zahlungen: Umsatz, Provisionen, Netto", icon: Wallet },
       { path: "/admin/zahlungen#auszahlungen", label: "Auszahlungen", desc: "Provisions-Anforderungen der Mitarbeiter freigeben", icon: Banknote, match: "/admin/zahlungen" },
       { path: "/admin/rechnungen", label: "Rechnungen", desc: "Alle erzeugten Rechnungen durchsuchen und laden", icon: FileText },
@@ -50,6 +52,7 @@ export const ADMIN_NAV: NavGroup[] = [
     title: "Kunden & Anträge",
     items: [
       { path: "/admin/database", label: "Kunden & Anträge", desc: "Alle Anträge, KYC, Aufgaben, Buchhaltung (Cockpit)", icon: Database },
+      { path: "/admin/leads", label: "Leads", desc: "Interessenten aus Lead-Ads — Nachfass, Verteilung, Anrufliste", icon: Target },
     ],
   },
   {

@@ -434,3 +434,58 @@ Vollständiges Audit vor Implementierung: **`AGENT_REVAMP_AUDIT.md`** (Routen, P
 - [x] ~~`FIAON_BASE_URL` env setzen~~ — ersetzt durch **`APP_BASE_URL`** (Paket L); Fallback ist jetzt sicher `https://www.fiaon.com`.
 - [ ] **`MAKE_WEBHOOK_URL` im Deployment setzen** — ohne diese env werden die Make-Events (welcome/payment_details/followup_48h) nur geloggt und übersprungen.
 - [ ] Admin-Routen (`/api/fiaon/admin/*`) sind — wie die bestehenden Admin-Endpoints — nicht zusätzlich authentifiziert; folgt dem bestehenden Muster von `/admin/database`.
+
+---
+
+## Paket BA/BB/BC/BD — Lead-Management + Finanz- & Sales-Analytics (additiv)
+
+Vollständiges Audit in `LEAD_FINANCE_AUDIT.md`. Alle Änderungen sind additiv;
+Kunden-Antragsflow, Zahlungszentrale, Reminder-Engine, Provisions-/Override-/
+Partnerlogik, Round-Robin-Kundenverteilung und Rechnungssystem bleiben unverändert.
+
+**Neue Dateien**
+- `server/routes/fiaon-leads.ts` — Intake, Auto-Konversion, Nachfass-Engine, Bulk,
+  Lead-Verteilung, Agent-Anrufliste, Admin-Lead-Verwaltung.
+  Mount: `default` → `/api/fiaon` (hinter `blockAgentsFromAdmin`); `intakeRouter` → `/api/leads`.
+- `server/routes/fiaon-finance.ts` — Analytics (`/api/fiaon/admin/finance/*`).
+- `client/src/pages/admin-leads.tsx` (`/admin/leads`), `admin-finanzen.tsx` (`/admin/finanzen`),
+  `client/src/pages/agent/leads.tsx` (`/agent/leads`).
+
+**Neue DB-Objekte** (idempotent, per `ensure*`): `fiaon_leads`, `fiaon_lead_log`, `fiaon_ad_spend`.
+
+**Neue Make-Events** (Registry + Typ ergänzt): `lead_followup`, `lead_application_link`.
+
+**Neue Einstellungen** (`fiaon_settings`, Defaults in `fiaon-agent.ts`):
+`lead_followup_enabled`, `lead_followup_days` (Default `1,2,4,7`),
+`lead_followup_window_start/end`, `max_lead_followups` (5),
+`lead_distribution_enabled`, `lead_distribution_last_agent_id`.
+
+**Kernmechanik**
+- **Auto-Konversion**: additiver Hook in `POST /api/fiaon/application` UND `POST /api/fiaon/payment-order`
+  (`convertLeadsForContact` per E-Mail/Telefon, fire-and-forget). Rückwirkend:
+  `POST /api/fiaon/admin/leads/backfill-convert` (ohne Mails).
+- **Nachfass**: `lead_followup` je Plan-Tag, 8h-Dedupe (`last_lead_reminder_at`),
+  Obergrenze → Status `tot`, hartes Fenster 08–20 Uhr, Not-Aus. Cron stündlich +
+  `POST …/admin/leads/run-followups`. Bulk: `…/admin/leads/followup-bulk/{preview,start,status}` (20/min).
+- **Anrufliste**: `/agent/leads` (nur eigene offene Leads); Kunden-Anträge haben Fokus-Vorrang.
+
+**Betreiber-TODO (Make.com + Brevo + Env)**
+- [ ] **Env `LEAD_INTAKE_SECRET`** setzen (Zufalls-Token). Ohne diese env antwortet
+  `/api/leads/intake` mit 503.
+- [ ] **Make „FIAON Lead #1"**: EIN zusätzliches Modul **„HTTP POST"** ergänzen, das
+  denselben Lead PARALLEL an `POST https://www.fiaon.com/api/leads/intake` sendet.
+  Header: `x-lead-secret: <LEAD_INTAKE_SECRET>`, Content-Type `application/json`.
+  Body (JSON): `{ "email": "...", "vorname": "...", "nachname": "...", "telefon": "+49...",
+  "quelle": "facebook_lead_ads", "kampagne": "<Ad-Set/Kampagne>", "adset": "<optional>" }`.
+  Die bestehende Sequenz (Sheet/Gmail/WhatsApp) bleibt UNVERÄNDERT.
+- [ ] **Make-Zweig `lead_followup`** + Brevo-Template (Payload: `email, vorname, nachname,
+  telefon, lead_id, followup_number, quelle, antrag_url`) + optional WhatsApp via Superchat.
+- [ ] **Make-Zweig `lead_application_link`** + Brevo-Template (Payload: `email, vorname,
+  telefon, lead_id, agent_name, antrag_url`).
+- [ ] **Werbebudget für CAC** unter `/admin/finanzen` → „Budget eintragen" (Meta-Spend je
+  Zeitraum/Kampagne). Ohne Budget zeigen CAC/Lead-Kosten „Budget eintragen".
+
+**Getestet**: `tsc --noEmit` für alle neuen/geänderten Dateien fehlerfrei (verbleibende
+tsc-Fehler ausschließlich in vorbestehenden Dateien außerhalb dieses Updates: tasks/retell
+in `routes.ts`). Analytics vollständig serverseitig aggregiert (GROUP BY/FILTER/SUM), Nachfass
++ Bulk per atomarem Batch-Claim `FOR UPDATE SKIP LOCKED` (kein Full-Table-Load, 512 MB-konform).

@@ -265,6 +265,12 @@ router.post("/payment-order", async (req, res) => {
     // Paket AE1: neue Bestellung sofort fair verteilen (Round-Robin, fire-and-forget)
     import("./fiaon-agent").then((m) => m.distributeUnassignedOrders()).catch((e) => console.error("[FIAON-VERTEILUNG]", e));
 
+    // Paket BA3: Auto-Konversion (Sicherheitsnetz) — Lead per E-Mail/Telefon konvertieren.
+    try {
+      const convPhone = (app.phone_country_code || app.phone) ? `${app.phone_country_code || ""}${app.phone || ""}` : (app.contact_phone || null);
+      import("./fiaon-leads").then((m) => m.convertLeadsForContact(app.email || app.contact_email || app.billing_email || null, convPhone, ref)).catch(() => {});
+    } catch { /* fire-and-forget */ }
+
     // Rechnung: fortlaufende, lückenlose Nummer genau einmal beim Übergang zu pending_payment
     try {
       await ensureInvoiceNumber(sqlPool, ref);
@@ -1372,6 +1378,14 @@ router.post("/application", async (req, res) => {
     } catch (whErr) {
       console.error("[MAKE-WEBHOOK] welcome claim:", whErr);
     }
+
+    // Paket BA3: Auto-Konversion — passenden offenen Lead (E-Mail/Telefon) auf
+    // 'konvertiert' setzen. Additiv, fire-and-forget, blockiert den Antrag nie.
+    try {
+      const convEmail = email || contactEmail || billingEmail || null;
+      const convPhone = (phoneCountryCode || phone) ? `${phoneCountryCode || ""}${phone || ""}` : (contactPhone || null);
+      import("./fiaon-leads").then((m) => m.convertLeadsForContact(convEmail, convPhone, ref)).catch(() => {});
+    } catch { /* fire-and-forget */ }
 
     res.json({ ok: true, ref });
   } catch (err) {

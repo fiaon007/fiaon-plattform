@@ -230,6 +230,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonHubRoutes = await import('./routes/fiaon-admin-hub');
   app.use('/api/fiaon', fiaonHubRoutes.default);
 
+  // 🎯 FIAON Lead-Management (Admin/Agent) — Auto-Konversion, Nachfass, Anrufliste
+  const fiaonLeadsRoutes = await import('./routes/fiaon-leads');
+  app.use('/api/fiaon', fiaonLeadsRoutes.default);
+  // 🎯 FIAON Lead-Intake — Public Webhook (Secret-geschützt, für Make „FIAON Lead #1")
+  app.use('/api/leads', fiaonLeadsRoutes.intakeRouter);
+
+  // 📊 FIAON Finanz- & Sales-Analytics (Admin) — Funnel, Umsatz, CAC, Attribution
+  const fiaonFinanceRoutes = await import('./routes/fiaon-finance');
+  app.use('/api/fiaon', fiaonFinanceRoutes.default);
+
   // 💳 FIAON Antrag Routes — Public (no auth)
   const fiaonAntragRoutes = await import('./routes/fiaon-antrag');
   app.use('/api/fiaon', fiaonAntragRoutes.default);

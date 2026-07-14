@@ -62,6 +62,8 @@ function AreaCard({ c }: { c: CardDef }) {
 export default function AdminHubPage() {
   const [stats, setStats] = useState<HubStats | null>(null);
   const [dupGroups, setDupGroups] = useState<number>(0);
+  // Selbstcheck: bezahlte Bestellungen ohne Provision (Nachbuchungs-Center)
+  const [missingCommission, setMissingCommission] = useState<number>(0);
 
   useEffect(() => {
     fetch("/api/fiaon/admin/hub/stats", { credentials: "include" })
@@ -71,6 +73,10 @@ export default function AdminHubPage() {
     fetch("/api/fiaon/admin/duplicates/preview", { credentials: "include" })
       .then((r) => r.json())
       .then((j) => { if (j?.ok) setDupGroups(Number(j.mergeable || 0)); })
+      .catch(() => {});
+    fetch("/api/fiaon/admin/commission-backfill/count", { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => { if (j?.ok) setMissingCommission(Number(j.count || 0)); })
       .catch(() => {});
   }, []);
 
@@ -188,6 +194,18 @@ export default function AdminHubPage() {
           Von hier erreichst du jeden Bereich der Verwaltung — Suche jederzeit mit <kbd className="text-[11px] font-semibold border border-slate-200 rounded px-1 py-0.5 bg-white">⌘K</kbd>.
         </p>
       </div>
+
+      {missingCommission > 0 && (
+        <Link href="/admin/nachbuchung" className="block mb-4 px-4 py-3.5 rounded-2xl border border-amber-300 bg-amber-50 hover:bg-amber-100/70 transition-colors">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[13px] font-bold text-amber-800">{missingCommission} bezahlte Bestellung(en) ohne Provision</p>
+              <p className="text-[12px] text-amber-700/80">Jetzt im Nachbuchungs-Center prüfen und buchen.</p>
+            </div>
+            <ChevronRight size={18} className="text-amber-600 shrink-0" />
+          </div>
+        </Link>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
         <div className="bg-white border border-slate-200 rounded-2xl p-4">

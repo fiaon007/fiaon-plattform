@@ -32,6 +32,7 @@ import InvestorDashboardPage from "@/pages/investor-dashboard";
 import ZahlungPage, { ZahlungDankePage } from "@/pages/zahlung";
 import AdminZahlungenPage from "@/pages/admin-zahlungen";
 import AdminTeamPage from "@/pages/admin-team";
+import AdminNachbuchungPage from "@/pages/admin-nachbuchung";
 import AdminHubPage from "@/pages/admin-hub";
 import AdminRechnungenPage from "@/pages/admin-rechnungen";
 import AdminVerbuchungenPage from "@/pages/admin-verbuchungen";
@@ -109,6 +110,7 @@ function Router() {
       <Route path="/agent/mehr" component={AgentMehrPage} />
       <Route path="/admin/agent-portal" component={admin(AdminAgentPortalPage)} />
       <Route path="/admin/team" component={admin(AdminTeamPage)} />
+      <Route path="/admin/nachbuchung" component={admin(AdminNachbuchungPage)} />
       <Route path="/zahlung/:paymentRef/danke" component={ZahlungDankePage} />
       <Route path="/zahlung/:paymentRef" component={ZahlungPage} />
       <Route path="/was-ist-fiaon" component={WasIstFiaonPage} />

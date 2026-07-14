@@ -301,7 +301,11 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
             </button>
             {open[f.id] && (
               <div className="mt-3 space-y-3">
-                <p className="text-[12.5px] text-slate-600 whitespace-pre-wrap bg-slate-50 border border-slate-100 rounded-lg px-3.5 py-2.5">{f.description}</p>
+                {f.description && f.description.trim() ? (
+                  <p className="text-[12.5px] text-slate-600 whitespace-pre-wrap bg-slate-50 border border-slate-100 rounded-lg px-3.5 py-2.5">{f.description}</p>
+                ) : (
+                  <p className="text-[12.5px] italic text-slate-400 bg-slate-50 border border-slate-100 rounded-lg px-3.5 py-2.5">Keine Beschreibung angegeben — Rückfrage beim Agent nötig.</p>
+                )}
                 <button type="button" onClick={(e) => { e.stopPropagation(); copyTicket(f); }}
                   className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-500 hover:text-slate-800 transition-colors">
                   {copiedId === f.id ? <Check size={13} strokeWidth={2} /> : <Copy size={13} strokeWidth={1.8} />}

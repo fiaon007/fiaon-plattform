@@ -831,6 +831,13 @@ export default function AdminZahlungenPage() {
           </div>
         )}
 
+        {/* EA: Arbeits-Fokus = offene Zahlungen. Abgeschlossenes lebt in Kunden & Anträge. */}
+        <div className="mb-4 px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-[12.5px] text-slate-600">
+          Diese Ansicht ist auf <span className="font-semibold text-slate-700">offene Zahlungen</span> fokussiert.
+          Bezahlte und abgeschlossene Bestellungen findest du unter{" "}
+          <a href="/admin/database" className="font-semibold text-[#2563eb] hover:underline">Kunden &amp; Anträge → Bezahlt</a>.
+        </div>
+
         {/* ── C2: Filter-Chips ── */}
         <div className="flex flex-wrap gap-2 mb-4">
           {(

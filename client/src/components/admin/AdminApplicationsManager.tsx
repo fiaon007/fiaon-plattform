@@ -15,6 +15,27 @@ export const getPaymentStatusKey = (app: any): 'paid' | 'pending' | 'cancelled' 
   return 'pending';
 };
 
+// EA: rohes payment_status auf sichtbare Bestell-Status-Gruppen abbilden —
+// bewusst getrennt von getPaymentStatusKey (das superseded auf „pending" kollabiert).
+export const getOrderStatusGroup = (app: any): 'pending_payment' | 'claimed_paid' | 'paid' | 'superseded' | 'cancelled' | 'other' => {
+  const raw = String(app?.payment_status ?? '').toLowerCase().trim();
+  if (raw === 'paid' || raw === 'succeeded') return 'paid';
+  if (raw === 'claimed_paid') return 'claimed_paid';
+  if (raw === 'pending_payment') return 'pending_payment';
+  if (raw === 'superseded') return 'superseded';
+  if (raw === 'cancelled' || raw === 'canceled' || raw === 'refunded') return 'cancelled';
+  return 'other';
+};
+
+export const ORDER_STATUS_CHIPS: { key: string; label: string }[] = [
+  { key: 'all', label: 'Alle' },
+  { key: 'pending_payment', label: 'Offen' },
+  { key: 'claimed_paid', label: 'Angekündigt' },
+  { key: 'paid', label: 'Bezahlt' },
+  { key: 'superseded', label: 'Geschlossen/Dublette' },
+  { key: 'cancelled', label: 'Storniert' },
+];
+
 export const getAppStatusKey = (app: any): 'lead' | 'in_progress' | 'kyc_missing' | 'ready_for_review' | 'completed' | 'cancelled' => {
   const raw = String(app?.status ?? '').toLowerCase().trim();
   const hasBank = !!(app?.has_bank_statement_pdf ?? app?.bank_statement_pdf);
@@ -79,6 +100,9 @@ export default function AdminApplicationsManager() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
+  // EA: expliziter Bestell-Status (rohes payment_status) — macht Bezahlt/
+  // Geschlossen-Dublette/Storniert eindeutig sichtbar (kein Kollaps auf „Ausstehend").
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
   const [schufaFilter, setSchufaFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -124,6 +148,7 @@ export default function AdminApplicationsManager() {
     if (schufaFilter === 'uploaded') filtered = filtered.filter(a => !!(a.has_schufa_pdf ?? a.schufa_pdf));
     else if (schufaFilter === 'missing') filtered = filtered.filter(a => !(a.has_schufa_pdf ?? a.schufa_pdf));
     else if (schufaFilter === 'approved') filtered = filtered.filter(a => a.schufa_status === 'approved');
+    if (orderStatusFilter !== 'all') filtered = filtered.filter(a => getOrderStatusGroup(a) === orderStatusFilter);
     filtered.sort((a, b) => {
       let cmp = 0;
       switch (sortField) {
@@ -138,11 +163,11 @@ export default function AdminApplicationsManager() {
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return filtered;
-  }, [applications, searchQuery, statusFilter, paymentFilter, schufaFilter, sortField, sortDir]);
+  }, [applications, searchQuery, statusFilter, paymentFilter, schufaFilter, orderStatusFilter, sortField, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filteredAndSorted.length / ITEMS_PER_PAGE));
   const paginatedApps = useMemo(() => { const s = (currentPage - 1) * ITEMS_PER_PAGE; return filteredAndSorted.slice(s, s + ITEMS_PER_PAGE); }, [filteredAndSorted, currentPage]);
-  useEffect(() => { setCurrentPage(1); }, [searchQuery, statusFilter, paymentFilter, schufaFilter]);
+  useEffect(() => { setCurrentPage(1); }, [searchQuery, statusFilter, paymentFilter, schufaFilter, orderStatusFilter]);
 
   const stats = useMemo(() => ({
     total: applications.length, paid: applications.filter(a => getPaymentStatusKey(a) === 'paid').length,
@@ -365,6 +390,19 @@ export default function AdminApplicationsManager() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={loading ? 'animate-spin' : ''}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             </button>
           </div>
+          {/* EA: Bestell-Status-Chips — jeder Status erreichbar, nichts unsichtbar */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {ORDER_STATUS_CHIPS.map(chip => {
+              const active = orderStatusFilter === chip.key;
+              const n = chip.key === 'all' ? applications.length : applications.filter(a => getOrderStatusGroup(a) === chip.key).length;
+              return (
+                <button key={chip.key} onClick={() => setOrderStatusFilter(chip.key)}
+                  className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${active ? 'bg-slate-900 text-white' : 'bg-slate-50 border border-slate-200 text-slate-600 hover:border-slate-300'}`}>
+                  {chip.label}{chip.key !== 'all' ? ` (${n})` : ''}
+                </button>
+              );
+            })}
+          </div>
           <div className="flex flex-col md:flex-row gap-2.5">
             <div className="relative flex-1">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -389,7 +427,7 @@ export default function AdminApplicationsManager() {
         ) : filteredAndSorted.length === 0 ? (
           <div className="py-16 text-center">
             <p className="text-sm font-semibold text-slate-600">{applications.length === 0 ? 'Keine Anträge vorhanden' : 'Keine Treffer'}</p>
-            {(searchQuery || statusFilter !== 'all' || paymentFilter !== 'all' || schufaFilter !== 'all') && <button onClick={() => { setSearchQuery(''); setStatusFilter('all'); setPaymentFilter('all'); setSchufaFilter('all'); }} className="mt-3 px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200">Filter zurücksetzen</button>}
+            {(searchQuery || statusFilter !== 'all' || paymentFilter !== 'all' || schufaFilter !== 'all' || orderStatusFilter !== 'all') && <button onClick={() => { setSearchQuery(''); setStatusFilter('all'); setPaymentFilter('all'); setSchufaFilter('all'); setOrderStatusFilter('all'); }} className="mt-3 px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200">Filter zurücksetzen</button>}
           </div>
         ) : (
           <>

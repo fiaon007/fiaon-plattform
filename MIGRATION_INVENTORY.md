@@ -661,3 +661,18 @@ kontaktierte, und Leads am Nachfass-Limit.
 Bestätigungsdialog samt echten Zahlen (offen gesamt / versendbar / importierte nie kontaktiert /
 übersprungen), Drossel-Warnung (20/Min, geschätzte Dauer) und Außerhalb-der-Zeiten-Hinweis.
 Live-Fortschritt mit Modus-Label. Tooltips für alle Felder/Buttons. `tsc --noEmit` fehlerfrei.
+
+---
+
+## Offene Produktfragen / Geparkt (Rechtsprüfung)
+
+- **Kartenversand-Status (gemeldet von Agent Daniel: „ob die Karte versendet wurde")**:
+  Existiert **NICHT** im System — `fiaon_applications` (shared/schema.ts) hat KEINE
+  Versand-/Tracking-/Lieferstatus-Spalte. Bewusst **nicht erfunden**. Bedarf ist real
+  (Agenten wollen Kunden Auskunft geben). Entscheidung nötig: Versandstatus-Feld +
+  Pflegeoberfläche einführen oder extern (Kartenherausgeber) belassen. Bis dahin
+  keine Anzeige im Agent-/Admin-Portal (Paket DB/ED bewusst weggelassen).
+- **Partnerlink/Referral-Programm (Agent wirbt eigene Kunden, z. B. 35 % Abschluss-Quote)**:
+  **GEPARKT** bis LEXR-Rechtsfreigabe (Kreditvermittlung / mehrstufiger Vertrieb).
+  Betreiber-Entscheidung (Paket ED): NICHT bauen, bis Rechtsprüfung vorliegt. Der
+  bestehende Einebenen-Override (recruited_by, Paket AE2) bleibt davon unberührt.

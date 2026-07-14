@@ -138,6 +138,50 @@ export function AdminAppDetail({ app, setApp, applications, setApplications }: P
         </div>
       </div>
 
+      {/* EA: Dubletten-Transparenz — Historie ohne Datenbank verständlich machen */}
+      {(() => {
+        const email = String(app.email || '').trim().toLowerCase();
+        const related = email
+          ? applications.filter(a => String(a.email || '').trim().toLowerCase() === email && a.ref !== app.ref)
+          : [];
+        const supersededBy = app.superseded_by
+          ? applications.find(a => a.ref === app.superseded_by || a.payment_reference === app.superseded_by)
+          : null;
+        const replaces = applications.filter(a => a.superseded_by && (a.superseded_by === app.ref || a.superseded_by === app.payment_reference));
+        if (related.length === 0 && !supersededBy && replaces.length === 0 && !app.merged_into) return null;
+        return (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mt-4">
+            <p className="text-[13px] font-bold text-amber-800 mb-1.5">Dubletten & zusammenhängende Bestellungen</p>
+            <div className="space-y-1 text-[12px] text-amber-800/90">
+              {app.superseded_by && (
+                <p>Diese Bestellung wurde durch <span className="font-mono font-semibold">{app.superseded_by}</span> ersetzt (Zahlung lief über die neuere Bestellung).</p>
+              )}
+              {app.merged_into && (
+                <p>Diese Bestellung wurde in <span className="font-mono font-semibold">{app.merged_into}</span> zusammengeführt.</p>
+              )}
+              {replaces.map(r => (
+                <p key={r.ref}>Ersetzt die ältere Bestellung <span className="font-mono font-semibold">{r.ref}</span>.</p>
+              ))}
+            </div>
+            {related.length > 0 && (
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                <span className="text-[11px] text-amber-700 font-semibold self-center">Gleiche E-Mail:</span>
+                {related.map(r => {
+                  const pay = PAYMENT_META[getPaymentStatusKey(r)];
+                  return (
+                    <button key={r.ref} onClick={() => setApp(r)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-amber-200 text-[11px] font-semibold text-slate-700 hover:border-amber-300 transition-colors">
+                      <span className="font-mono">{r.payment_reference || r.ref}</span>
+                      {pay && <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] ${pay.cls}`}>{pay.label}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Tab Content */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mt-4">
         <div className="p-6">

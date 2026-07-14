@@ -162,3 +162,81 @@ Kunden verschwinden NICHT aus der DB — sie fallen aus allen gefilterten Listen
    Kunden-Referenz). Es wird bewusst KEINE Provision automatisch nachgebucht.
 3. Optional: Feedback-Tickets von Daniel/Florentine im Admin (Agent-Portal → Feedback)
    auf „Umgesetzt" setzen + ggf. Feedback-Bonus.
+
+---
+
+## 10. EA — Auffindbarkeit & Nachbuchung (Pakete EA–EF)
+
+**Betreiber-Entscheidung (konservativ):** Der Kontoabgleich (`applyTxn`) bucht
+weiterhin **KEINE** automatische Provision; Nachbuchung erfolgt bewusst über das
+Nachbuchungs-Center + Dashboard-Warnkachel. Partnerlink/Referral bleibt **geparkt**
+(LEXR-Rechtsprüfung). Diese zwei Punkte aus dem Prompt wurden bewusst NICHT umgekehrt.
+
+### 10.1 Phase-0-Befunde (Code-Analyse)
+
+**Auffindbarkeit — welche Ansicht zeigt `paid` / `superseded`?**
+
+| Ansicht | Endpoint / Filter | zeigt bezahlt? | zeigt superseded? |
+|---|---|---|---|
+| Zahlungszentrale `/admin/zahlungen` | `GET /admin/payments?status=…`, Default-Tab `claimed_paid`; Tab „Alle" lädt claimed_paid+pending+expired+paid | Ja (Tab „Bezahlt"/„Alle") | Nein (superseded nicht in Tab-Liste) |
+| Kunden & Anträge `/admin/database` | `GET /admin/applications` = `SELECT * WHERE merged_into IS NULL` (Full-Load) | Ja (Client-Filter) | **vorher: als „Ausstehend"** (getPaymentStatusKey kollabiert superseded→pending) → **jetzt eigener Chip** |
+| Kontoabgleich | Bank-Txns, nicht bestell-zentriert | n/a | n/a |
+
+**Suche nach `ref`:** funktioniert bereits — `searchCustomersAndLeads` durchsucht
+`a.ref` + `a.payment_reference` (Teilstring, case-insensitive; Ziffern-arme Refs
+gehen in den Text-Zweig, daher auch Teilstrings wie `MQPOE01Q`). `AdminApplicationsManager`
+durchsucht `app.ref` client-seitig. Kein Bug — als Deliverable bestätigt.
+
+**`onCustomerPaid`-Aufrufe (Root-Cause der 12 fehlenden Provisionen):**
+- `mark-paid`: ruft auf ✅
+- `applyTxn` (Kontoabgleich): ruft bewusst NICHT auf ❌ → **die 12 Fälle wurden per Kontoabgleich bezahlt** → nie Provision.
+- `backfillPaidAccess`: ruft nicht auf ❌ (setzt nur Zugang/Status).
+- `onCustomerPaid` ist idempotent (max. 1 positiver, nicht-stornierter Eintrag/Ref) und braucht `amount_due` (bei NULL wird nichts gebucht).
+
+**12-Refs-Betragsquelle:** Bei bezahlten Dubletten ist `amount_due` teils NULL; der
+belastbare Betrag steht an der Donor-Bestellung (superseded Schwester) oder am
+zugehörigen Bankeingang (`fiaon_bank_txns.matched_ref`). Statt eines hartcodierten
+Ref-Arrays erkennt das Nachbuchungs-Center diese Fälle **automatisch** (SELECT-Logik
+in `backfillCandidates`), inkl. Quellen-Kennzeichnung.
+
+### 10.2 Umsetzung (Pakete EA–EF)
+
+- **EA — Admin sieht alles:** Kunden & Anträge (`AdminApplicationsManager`) hat neue
+  Bestell-Status-Chips **Alle · Offen · Angekündigt · Bezahlt · Geschlossen/Dublette ·
+  Storniert** (rohes `payment_status` via `getOrderStatusGroup`, kein Kollaps mehr).
+  Zahlungszentrale zeigt einen Hinweis + Link „Bezahlt/abgeschlossen → Kunden & Anträge".
+  Dubletten-Transparenz im Detail (`AdminAppDetail`): „ersetzt durch/ersetzt [ref]",
+  merged_into + klickbare Liste gleicher E-Mail. ref-Suche in Admin + Agent bestätigt.
+- **EB — Nachbuchungs-Center** `/admin/nachbuchung` (Nav unter Team): Auto-Erkennung
+  aller bezahlten, zugewiesenen Bestellungen ohne positive Provision (findet die 12
+  UND künftige). Je Zeile Betrag + Quelle (Bestellung/Dublette/Bankeingang), Satz,
+  errechnete Provision, Status (nachbuchbar / betrag_unklar). Aktionen: „Provision
+  buchen" je Zeile + „Alle nachbuchbaren buchen" (Bestätigung mit Gesamtsumme).
+  „Betrag unklar" ist NICHT sammelbuchbar — nur einzeln mit manueller Eingabe.
+  Buchung nutzt den bestehenden Hook **`onCustomerPaid`** (eingefrorener Satz + Override
+  + Meilenstein), idempotent (Vorab-Check + Nachprüfung). Betrag wird bei NULL vor dem
+  Hook aus der belastbaren Quelle ergänzt (Audit „Betrag ergänzt aus [Quelle]").
+  Endpoints: `GET /admin/commission-backfill/candidates|count`,
+  `POST /admin/commission-backfill/:ref/book`, `POST …/book-all`.
+- **EB — Selbstcheck:** Dashboard-Warnkachel „X bezahlte Bestellungen ohne Provision"
+  (Link ins Center) via `GET /admin/commission-backfill/count`.
+- **EC — Repair-Button:** „Zuordnung reparieren" im Nachbuchungs-Center mit Vorschau
+  (`GET /admin/payments/repair-attribution/preview`) + Ergebnis-Report + Audit.
+  **Idempotenz bestätigt:** der `UPDATE … WHERE assigned_agent_id IS NULL`-Guard sorgt
+  dafür, dass ein zweiter Lauf 0 Zeilen trifft (überschreibt keine Zuweisung). Die
+  Vorschau liefert nach erfolgtem Repair 0.
+- **ED — Restliche Feedbacks:** Kartenversand-Status existiert NICHT im Schema →
+  als offene Produktfrage in `MIGRATION_INVENTORY.md` dokumentiert (nicht erfunden).
+  Feedback ohne Text zeigt jetzt „Keine Beschreibung angegeben — Rückfrage nötig"
+  (Florentines Löschen-Ticket). Partnerlink/Referral bleibt geparkt.
+- **EE — Agenten-Transparenz:** verifiziert — nachgebuchte Provision (`onCustomerPaid`,
+  Status `bestaetigt`) fließt automatisch ins Agent-Guthaben (`SUM WHERE status='bestaetigt'`)
+  und in den Auszahlungslauf (Anforderung greift alle `bestaetigt`). Keine Änderung nötig.
+
+### 10.3 Betreiber-TODOs (Pakete EA–EF)
+
+1. **Kein Konsolen-Zugriff mehr nötig:** Admin → Team → **Provisionen nachbuchen**.
+   Dort ggf. zuerst **„Zuordnung reparieren"** (Button, mit Vorschau), dann **„Alle
+   nachbuchbaren buchen"**. „Betrag unklar"-Fälle einzeln mit manueller Betragseingabe.
+2. Die Warnkachel auf dem Dashboard muss danach **0** anzeigen.
+3. Florentines Löschen-Ticket: Rückfrage stellen (keine Beschreibung vorhanden).

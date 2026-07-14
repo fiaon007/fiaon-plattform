@@ -13,7 +13,8 @@ import { sendMakeWebhook } from "../make-webhook";
 import {
   ensureAgentTables, getSettings, setSetting, agentRateBp,
   decryptSecret, hashToken, baseUrl, logAgentEvent,
-  onCustomerRefunded, searchCustomersAndLeads,
+  onCustomerRefunded, onCustomerPaid, searchCustomersAndLeads,
+  eurToCents, commissionCents,
 } from "./fiaon-agent";
 
 const router = Router();
@@ -373,6 +374,238 @@ router.post("/admin/agents/:id/commissions/manual", async (req, res) => {
     res.json({ ok: true, commissionId: rows[0].id });
   } catch (err) {
     console.error("[FIAON-TEAM] manual commission:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════ PAKET EB — Provisions-Nachbuchung (Nachbuchungs-Center) ═══════════════
+//
+// Kontext: Zahlungen über den Kontoabgleich (applyTxn) setzen bewusst KEINE
+// Provision (dokumentierte Entscheidung). Dadurch existieren bezahlte, einem
+// Agent zugewiesene Bestellungen OHNE Provisionseintrag. Dieses Center findet
+// sie AUTOMATISCH (kein hartcodiertes Ref-Array) und bucht die reguläre Provision
+// über den bestehenden Abschluss-Hook onCustomerPaid — idempotent, mit Audit.
+//
+// Betrag: bezahlte Bestellung → sonst Donor (superseded Schwester, gleiche
+// E-Mail) → sonst zugehöriger Bankeingang (fiaon_bank_txns.matched_ref). Bei
+// NULL-Betrag wird die Bestellung als „Betrag unklar" markiert und ist NICHT
+// sammelbuchbar — nur einzeln mit manueller Betragseingabe.
+
+/** Findet alle bezahlten, zugewiesenen Bestellungen ohne positive Provision +
+ *  belastbaren Betrag inkl. Quellenangabe. Nur SELECT (kein Schreibzugriff). */
+async function backfillCandidates(): Promise<any[]> {
+  await ensureAgentTables();
+  const rows = await sqlPool`
+    SELECT
+      a.ref, a.payment_reference, a.pack_name, a.assigned_agent_id,
+      COALESCE(NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''), a.company_name, a.contact_name, a.email) AS customer_name,
+      COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,'')) AS email,
+      COALESCE(a.completed_at, a.claimed_paid_at, a.updated_at) AS paid_at,
+      ag.name AS agent_name, ag.commission_rate_bp AS agent_rate_bp,
+      -- belastbarer Betrag (Cents) + Quelle
+      CASE
+        WHEN a.amount_due IS NOT NULL THEN ROUND(a.amount_due::numeric * 100)
+        WHEN donor.amount_due IS NOT NULL THEN ROUND(donor.amount_due::numeric * 100)
+        WHEN bank.amount_cents IS NOT NULL THEN bank.amount_cents
+        ELSE NULL
+      END AS amount_cents,
+      CASE
+        WHEN a.amount_due IS NOT NULL THEN 'order'
+        WHEN donor.amount_due IS NOT NULL THEN 'donor'
+        WHEN bank.amount_cents IS NOT NULL THEN 'bank'
+        ELSE 'none'
+      END AS amount_source,
+      donor.ref AS donor_ref
+    FROM fiaon_applications a
+    JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
+    LEFT JOIN LATERAL (
+      SELECT s.ref, s.amount_due
+      FROM fiaon_applications s
+      WHERE s.payment_status = 'superseded' AND s.amount_due IS NOT NULL
+        AND s.email IS NOT NULL AND LOWER(TRIM(s.email)) = LOWER(TRIM(a.email))
+      ORDER BY s.updated_at DESC LIMIT 1
+    ) donor ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT t.amount_cents FROM fiaon_bank_txns t
+      WHERE t.matched_ref = a.ref AND t.applied = TRUE
+      ORDER BY t.booked_at DESC NULLS LAST, t.id DESC LIMIT 1
+    ) bank ON TRUE
+    WHERE a.payment_status = 'paid'
+      AND a.merged_into IS NULL
+      AND a.assigned_agent_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM fiaon_commissions c
+        WHERE c.ref = a.ref AND c.amount_cents > 0 AND c.status != 'storniert'
+      )
+    ORDER BY paid_at DESC NULLS LAST
+  `;
+  const settings = await getSettings();
+  return rows.map((r: any) => {
+    const rateBp = agentRateBp({ commission_rate_bp: r.agent_rate_bp }, settings);
+    const amountCents = r.amount_cents != null ? Number(r.amount_cents) : null;
+    const estimateCents = amountCents != null ? commissionCents(amountCents, rateBp) : null;
+    return {
+      ref: r.ref,
+      payment_reference: r.payment_reference,
+      pack_name: r.pack_name,
+      customer_name: r.customer_name,
+      email: r.email,
+      paid_at: r.paid_at,
+      agent_id: r.assigned_agent_id,
+      agent_name: r.agent_name,
+      rate_bp: rateBp,
+      amount_cents: amountCents,
+      amount_source: r.amount_source,
+      donor_ref: r.donor_ref,
+      estimated_commission_cents: estimateCents,
+      status: amountCents != null && amountCents > 0 ? "nachbuchbar" : "betrag_unklar",
+    };
+  });
+}
+
+/** Liste der nachbuchbaren Fälle (Auto-Erkennung). */
+router.get("/admin/commission-backfill/candidates", async (_req, res) => {
+  try {
+    const candidates = await backfillCandidates();
+    const bookable = candidates.filter((c) => c.status === "nachbuchbar");
+    res.json({
+      ok: true,
+      candidates,
+      summary: {
+        total: candidates.length,
+        bookable: bookable.length,
+        unclear: candidates.length - bookable.length,
+        bookableCommissionCents: bookable.reduce((s, c) => s + (c.estimated_commission_cents || 0), 0),
+      },
+    });
+  } catch (err) {
+    console.error("[FIAON-BACKFILL] candidates:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** Reine Zahl für die Dashboard-Warnkachel (Selbstcheck). */
+router.get("/admin/commission-backfill/count", async (_req, res) => {
+  try {
+    const [row] = await sqlPool`
+      SELECT COUNT(*)::int AS c
+      FROM fiaon_applications a
+      WHERE a.payment_status = 'paid' AND a.merged_into IS NULL AND a.assigned_agent_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM fiaon_commissions c
+          WHERE c.ref = a.ref AND c.amount_cents > 0 AND c.status != 'storniert'
+        )
+    `;
+    res.json({ ok: true, count: Number(row.c) });
+  } catch (err) {
+    console.error("[FIAON-BACKFILL] count:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** Bucht die Provision für EINE Bestellung über onCustomerPaid (idempotent).
+ *  Fehlt der Betrag, kann er einmalig manuell gesetzt werden (manualAmountCents),
+ *  sonst wird die belastbare Quelle (Donor/Bank) automatisch ergänzt. Jede
+ *  Betrags-Ergänzung + Buchung wird im Kontakt-Log protokolliert (Audit). */
+async function bookRef(ref: string, manualAmountCents?: number): Promise<{ ok: boolean; error?: string; alreadyBooked?: boolean; amountCents?: number; source?: string }> {
+  // Bereits gebucht? → idempotent, nichts tun.
+  const existing = await sqlPool`
+    SELECT id FROM fiaon_commissions WHERE ref = ${ref} AND amount_cents > 0 AND status != 'storniert'
+  `;
+  if (existing.length > 0) return { ok: true, alreadyBooked: true };
+
+  const apps = await sqlPool`
+    SELECT ref, amount_due, assigned_agent_id, email
+    FROM fiaon_applications
+    WHERE ref = ${ref} AND payment_status = 'paid' AND merged_into IS NULL
+  `;
+  if (apps.length === 0) return { ok: false, error: "Bezahlte Bestellung nicht gefunden" };
+  const app = apps[0];
+  if (!app.assigned_agent_id) return { ok: false, error: "Bestellung ist keinem Agent zugewiesen — zuerst Zuordnung reparieren" };
+
+  // Betrag sicherstellen: vorhanden? sonst manuell? sonst Donor/Bank.
+  let amountCents = eurToCents(app.amount_due);
+  let source = "order";
+  if (amountCents <= 0) {
+    if (manualAmountCents && manualAmountCents > 0) {
+      amountCents = Math.round(manualAmountCents);
+      source = "manuell";
+    } else {
+      const [donor] = await sqlPool`
+        SELECT amount_due FROM fiaon_applications
+        WHERE payment_status = 'superseded' AND amount_due IS NOT NULL
+          AND email IS NOT NULL AND LOWER(TRIM(email)) = LOWER(TRIM(${app.email}))
+        ORDER BY updated_at DESC LIMIT 1
+      `;
+      if (donor?.amount_due != null) { amountCents = eurToCents(donor.amount_due); source = "donor"; }
+      else {
+        const [bank] = await sqlPool`
+          SELECT amount_cents FROM fiaon_bank_txns
+          WHERE matched_ref = ${ref} AND applied = TRUE
+          ORDER BY booked_at DESC NULLS LAST, id DESC LIMIT 1
+        `;
+        if (bank?.amount_cents != null) { amountCents = Number(bank.amount_cents); source = "bank"; }
+      }
+    }
+    if (amountCents <= 0) return { ok: false, error: "Betrag unklar — bitte manuell eingeben" };
+    // Betrag am Antrag ergänzen (Buchhaltungs-Spur), damit onCustomerPaid + Anzeige stimmen.
+    await sqlPool`UPDATE fiaon_applications SET amount_due = ${(amountCents / 100).toFixed(2)}::numeric, updated_at = NOW() WHERE ref = ${ref} AND amount_due IS NULL`;
+    const srcLabel = source === "manuell" ? "manueller Eingabe" : source === "donor" ? "Dubletten-Bestellung" : "Bankeingang";
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${ref}, NULL, 'Admin', 'system',
+              ${`Betrag ergänzt aus ${srcLabel}: ${(amountCents / 100).toFixed(2)} € (Nachbuchung Dubletten-Bug)`})
+    `;
+  }
+
+  // Reguläre Provision über den bestehenden Hook (eingefrorener Satz + Override + Meilenstein).
+  await onCustomerPaid(ref);
+  // Verifizieren, dass genau ein positiver Eintrag entstand.
+  const after = await sqlPool`SELECT id FROM fiaon_commissions WHERE ref = ${ref} AND amount_cents > 0 AND status != 'storniert'`;
+  if (after.length === 0) return { ok: false, error: "Provision konnte nicht gebucht werden (Satz/Betrag = 0?)" };
+  await sqlPool`
+    INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+    VALUES (${ref}, NULL, 'Admin', 'system',
+            ${`Provision nachgebucht (Nachbuchung Dubletten-Bug) — Betragsquelle: ${source}`})
+  `;
+  return { ok: true, amountCents, source };
+}
+
+router.post("/admin/commission-backfill/:ref/book", async (req, res) => {
+  try {
+    await ensureAgentTables();
+    const manual = req.body?.manualAmountCents != null ? Math.round(Number(req.body.manualAmountCents)) : undefined;
+    if (manual != null && (!Number.isFinite(manual) || manual <= 0 || manual > 5_000_000)) {
+      return res.status(400).json({ ok: false, error: "Betrag ungültig (0,01 € bis 50.000,00 €)" });
+    }
+    const result = await bookRef(String(req.params.ref), manual);
+    if (!result.ok) return res.status(400).json(result);
+    console.log(`[FIAON-BACKFILL] gebucht: ${req.params.ref}${result.alreadyBooked ? " (bereits vorhanden)" : ` (${result.source})`}`);
+    res.json(result);
+  } catch (err) {
+    console.error("[FIAON-BACKFILL] book:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** Bucht alle EINDEUTIGEN Fälle (Betrag bekannt). „Betrag unklar" wird bewusst
+ *  übersprungen — diese nur einzeln mit manueller Eingabe. */
+router.post("/admin/commission-backfill/book-all", async (_req, res) => {
+  try {
+    const candidates = await backfillCandidates();
+    const bookable = candidates.filter((c) => c.status === "nachbuchbar");
+    let booked = 0, skipped = 0, failed = 0;
+    const results: any[] = [];
+    for (const c of bookable) {
+      const r = await bookRef(c.ref);
+      if (r.ok && !r.alreadyBooked) { booked++; results.push({ ref: c.ref, ok: true, amountCents: r.amountCents, source: r.source }); }
+      else if (r.ok && r.alreadyBooked) { skipped++; }
+      else { failed++; results.push({ ref: c.ref, ok: false, error: r.error }); }
+    }
+    console.log(`[FIAON-BACKFILL] Sammelbuchung: ${booked} gebucht, ${skipped} bereits vorhanden, ${failed} fehlgeschlagen`);
+    res.json({ ok: true, booked, skipped, failed, unclear: candidates.length - bookable.length, results });
+  } catch (err) {
+    console.error("[FIAON-BACKFILL] book-all:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, CreditCard, Banknote, FileText, Users, UserPlus,
   BookOpen, Settings, ScrollText, Scale, Database, Search, Menu, X,
   ArrowLeft, ChevronRight, ShieldAlert, Wallet, Send, Sparkles, MessageSquarePlus,
-  Target, TrendingUp, Landmark,
+  Target, TrendingUp, Landmark, HandCoins,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -60,6 +60,7 @@ export const ADMIN_NAV: NavGroup[] = [
     title: "Team",
     items: [
       { path: "/admin/team", label: "Team-Übersicht", desc: "Agents, Statistik, Provisionen, Zuweisungen", icon: Users },
+      { path: "/admin/nachbuchung", label: "Provisionen nachbuchen", desc: "Bezahlte Bestellungen ohne Provision erkennen und buchen", icon: HandCoins },
       { path: "/admin/team?einladen=1", label: "Agent anlegen", desc: "Neuen Mitarbeiter per E-Mail einladen", icon: UserPlus, match: "/admin/team" },
       { path: "/admin/team#skripte", label: "Skripte & Leitfäden", desc: "Gesprächsvorlagen verwalten", icon: BookOpen, match: "/admin/team" },
       { path: "/admin/agent-portal", label: "Agent-Updates", desc: "Portal-Updates posten (Banner) + Tagesziele pflegen", icon: Sparkles },

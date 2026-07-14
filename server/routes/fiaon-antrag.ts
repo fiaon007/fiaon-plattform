@@ -691,6 +691,35 @@ router.post("/admin/payments/backfill-access", async (_req, res) => {
 // Heilt die Altfälle vor dem Root-Cause-Fix (Attribution ging beim Dubletten-
 // Schließen verloren). KEINE automatische Provision — nur Sichtbarkeit/Zuordnung;
 // Provision bucht der Admin bewusst über die manuelle Buchung im Agent-Detail.
+// Paket EC: Vorschau für den „Zuordnung reparieren"-Button — zeigt, welche
+// bezahlten Bestellungen ohne Agent eine zuordenbare Dublette haben (nur SELECT).
+// Idempotent-Nachweis: nach erfolgtem Repair liefert diese Vorschau 0.
+router.get("/admin/payments/repair-attribution/preview", async (_req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const rows = await sqlPool`
+      SELECT p.ref, p.payment_reference,
+             COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''), p.company_name, p.contact_name, p.email) AS customer_name,
+             s.assigned_agent_id, ag.name AS agent_name, s.ref AS donor_ref
+      FROM fiaon_applications p
+      JOIN (
+        SELECT DISTINCT ON (LOWER(TRIM(email))) LOWER(TRIM(email)) AS em, assigned_agent_id, ref
+        FROM fiaon_applications
+        WHERE payment_status = 'superseded' AND assigned_agent_id IS NOT NULL
+          AND email IS NOT NULL AND TRIM(email) != ''
+        ORDER BY LOWER(TRIM(email)), updated_at DESC
+      ) s ON LOWER(TRIM(p.email)) = s.em
+      LEFT JOIN fiaon_agents ag ON ag.id = s.assigned_agent_id
+      WHERE p.payment_status = 'paid' AND p.assigned_agent_id IS NULL AND p.merged_into IS NULL
+      ORDER BY p.updated_at DESC
+    `;
+    res.json({ ok: true, count: rows.length, refs: rows });
+  } catch (err) {
+    console.error("[FIAON-REPAIR-ATTRIBUTION] preview:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.post("/admin/payments/repair-attribution", async (_req, res) => {
   try {
     await ensurePaymentColumns();

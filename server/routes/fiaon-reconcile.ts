@@ -294,6 +294,19 @@ async function applyTxn(id: number, syncAmount: boolean): Promise<{ ok: boolean;
   }
   await sqlPool`UPDATE fiaon_bank_txns SET applied = TRUE, applied_at = NOW(), updated_at = NOW() WHERE id = ${id}`;
   console.log(`[FIAON-RECONCILE] verbucht: ${txn.matched_ref} ← Bank ${txn.txn_id} (${eur} ${txn.currency})${syncAmount ? " [Betrag synchronisiert]" : ""}`);
+  // Paket DB (Root-Cause-Fix): identische Nacharbeit wie mark-paid —
+  // 1. Schwester-Dubletten sofort superseden (stoppt Erinnerungs-Kette) inkl.
+  //    Attributions-Übertrag auf die bezahlte Bestellung (Agent behält Sicht).
+  // 2. Bezahlt-Bestätigung an den Kunden (Make 'payment_confirmed', 1×-Claim).
+  // Weiterhin bewusst KEIN onCustomerPaid — Provision beim Kontoabgleich nur
+  // per manueller Admin-Buchung (/admin/agents/:id/commissions/manual).
+  try {
+    const antrag = await import("./fiaon-antrag");
+    await antrag.supersedeSisterOrders(txn.matched_ref);
+    await antrag.sendPaymentConfirmedOnce(txn.matched_ref);
+  } catch (e) {
+    console.error("[FIAON-RECONCILE] Nacharbeit (supersede/confirmed):", e);
+  }
   return { ok: true, ref: txn.matched_ref };
 }
 

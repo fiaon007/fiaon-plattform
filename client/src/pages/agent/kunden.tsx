@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { Link } from "wouter";
 import {
   Phone, FileText, X, ChevronDown, ChevronRight, Lock,
   CheckCircle2, Search, Send, CalendarPlus, Info, Pencil, AlertTriangle,
+  Archive, PhoneCall, Undo2,
 } from "lucide-react";
 import {
-  AgentShell, Badge, Card, FlashMessage,
+  AgentShell, Badge, Card, FlashMessage, useAgentInfo,
   api, fmtEur, fmtD, fmtDT, inputCls, btnPrimary, btnGhost, ACCENT,
 } from "./shared";
 import { SuccessPulse } from "./motion";
@@ -42,18 +44,22 @@ export interface Customer {
   street?: string | null;
   zip?: string | null;
   city?: string | null;
+  completed_at?: string | null;
+  superseded_by?: string | null;
   last_contact?: { type: string; outcome: string | null; agent_name: string; created_at: string } | null;
   next_appointment?: string | null;
 }
 
 interface LogEntry {
   id: number;
+  agent_id?: number | null;
   type: string;
   outcome: string | null;
   note: string | null;
   agent_name: string;
   scheduled_at: string | null;
   promised_date: string | null;
+  voided_at?: string | null;
   created_at: string;
 }
 
@@ -82,6 +88,23 @@ export function custPhone(c: Customer): string | null {
 
 type Filter = "alle" | "claimed" | "termin" | "nicht_erreicht";
 
+// Paket DA: Status-Gruppen im Gesamtbestand — klare Sprache statt Roh-Status
+type AllFilter = "alle" | "offen" | "angekuendigt" | "bezahlt" | "geschlossen";
+const ALL_GROUPS: { key: AllFilter; label: string }[] = [
+  { key: "alle", label: "Alle" },
+  { key: "offen", label: "Offen" },
+  { key: "angekuendigt", label: "Zahlung angekündigt" },
+  { key: "bezahlt", label: "Bezahlt" },
+  { key: "geschlossen", label: "Geschlossen" },
+];
+
+function allGroupOf(c: Customer): AllFilter {
+  if (c.payment_status === "pending_payment") return "offen";
+  if (c.payment_status === "claimed_paid") return "angekuendigt";
+  if (c.payment_status === "paid") return "bezahlt";
+  return "geschlossen"; // expired | superseded | refunded …
+}
+
 export default function AgentKundenPage() {
   return (
     <AgentShell>
@@ -99,8 +122,16 @@ function KundenContent() {
   const [filter, setFilter] = useState<Filter>("alle");
   const [message, setMessage] = useState<string | null>(null);
   const [detailRef, setDetailRef] = useState<string | null>(null);
+  // Paket DA: Gesamtbestand (alle je zugewiesenen Kunden, auch bezahlt/geschlossen)
+  const [view, setView] = useState<"arbeit" | "alle">("arbeit");
+  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
+  const [allLoaded, setAllLoaded] = useState(false);
+  const [allFilter, setAllFilter] = useState<AllFilter>("alle");
+  // Paket DC: serverseitige Suche (findet auch Bezahlte + Leads)
+  const [searchResult, setSearchResult] = useState<{ customers: any[]; leads: any[] } | null>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const flash = (m: string) => { setMessage(m); setTimeout(() => setMessage(null), 4000); };
+  const flash = (m: string) => { setMessage(m); setTimeout(() => setMessage(null), 5000); };
 
   const load = useCallback(async () => {
     const c = await api("/agent/customers");
@@ -108,7 +139,25 @@ function KundenContent() {
     setLoading(false);
   }, []);
 
+  const loadAll = useCallback(async () => {
+    const r = await api("/agent/customers/all");
+    if (r.ok) { setAllCustomers(r.json.data); setAllLoaded(true); }
+  }, []);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (view === "alle" && !allLoaded) loadAll(); }, [view, allLoaded, loadAll]);
+
+  // Debounced Server-Suche: ab 2 Zeichen — findet auch bezahlte Kunden + Leads
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    const q = search.trim();
+    if (q.length < 2) { setSearchResult(null); return; }
+    searchTimer.current = setTimeout(async () => {
+      const r = await api(`/agent/search?q=${encodeURIComponent(q)}`);
+      if (r.ok) setSearchResult({ customers: r.json.customers || [], leads: r.json.leads || [] });
+    }, 300);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [search]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -123,13 +172,47 @@ function KundenContent() {
 
   const claimedCount = customers.filter((c) => c.payment_status === "claimed_paid").length;
 
+  // Gesamtbestand: Suche + Gruppen-Filter
+  const filteredAll = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allCustomers.filter((c) => {
+      if (q && !(custName(c).toLowerCase().includes(q) || (c.email || "").toLowerCase().includes(q) || (c.ref || "").toLowerCase().includes(q) || (c.payment_reference || "").toLowerCase().includes(q))) return false;
+      if (allFilter !== "alle" && allGroupOf(c) !== allFilter) return false;
+      return true;
+    });
+  }, [allCustomers, search, allFilter]);
+
+  const groupCount = (g: AllFilter) => (g === "alle" ? allCustomers.length : allCustomers.filter((c) => allGroupOf(c) === g).length);
+
+  // Server-Suchtreffer, die NICHT schon in der aktuellen Liste stehen (z. B. Bezahlte)
+  const localRefs = useMemo(() => new Set((view === "alle" ? filteredAll : customers).map((c) => c.ref)), [view, filteredAll, customers]);
+  const extraHits = (searchResult?.customers || []).filter((c: any) => !localRefs.has(c.ref));
+
   return (
     <div>
       <div className="mb-1 flex items-center gap-2">
         <h1 className="text-xl font-bold tracking-tight">Kunden</h1>
-        <span className="text-[12px] text-slate-400">({customers.length})</span>
+        <span className="text-[12px] text-slate-400">({view === "alle" ? allCustomers.length : customers.length})</span>
       </div>
-      <p className="text-[12px] text-slate-400 mb-5">Deine Arbeitsliste — offene Zahlungen bearbeiten und dokumentieren.</p>
+      <p className="text-[12px] text-slate-400 mb-4">
+        {view === "alle"
+          ? "Gesamtbestand — ALLE Kunden, die dir je zugewiesen waren (auch bezahlte und geschlossene). Kein Kunde verschwindet."
+          : "Deine Arbeitsliste — offene Zahlungen bearbeiten und dokumentieren."}
+      </p>
+
+      {/* Paket DA: Umschalter Arbeitsliste / Gesamtbestand */}
+      <div className="mb-4 inline-flex bg-slate-100 rounded-xl p-1">
+        {([["arbeit", "Arbeitsliste (offen)"], ["alle", "Gesamtbestand (Alle)"]] as const).map(([k, lbl]) => (
+          <button key={k} type="button" onClick={(e) => { e.stopPropagation(); setView(k); }}
+            className={`px-4 py-2 rounded-lg text-[12px] font-semibold transition-all duration-150 inline-flex items-center gap-1.5 ${
+              view === k ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+            }`}>
+            {k === "alle" && <Archive size={13} strokeWidth={1.8} />}
+            {lbl}
+          </button>
+        ))}
+      </div>
+
       <FlashMessage message={message} />
 
       {/* ── Suche + Filter ── */}
@@ -140,30 +223,47 @@ function KundenContent() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Suche: Name, E-Mail, Referenz …"
+            placeholder="Suche: Name, E-Mail, Telefon, Referenz …"
             className={`${inputCls} pl-10`}
             style={{ minHeight: 46 }}
           />
         </div>
-        <div className="flex flex-wrap gap-2">
-          {([
-            { key: "alle", label: `Alle offenen (${customers.length})` },
-            { key: "claimed", label: `Zahlung angekündigt (${claimedCount})` },
-            { key: "termin", label: "Termin vereinbart" },
-            { key: "nicht_erreicht", label: "Nicht erreicht" },
-          ] as const).map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setFilter(f.key); }}
-              className={`px-3.5 py-2 rounded-lg text-[12px] font-semibold border transition-all duration-150 ${
-                filter === f.key ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        {view === "arbeit" ? (
+          <div className="flex flex-wrap gap-2">
+            {([
+              { key: "alle", label: `Alle offenen (${customers.length})` },
+              { key: "claimed", label: `Zahlung angekündigt (${claimedCount})` },
+              { key: "termin", label: "Termin vereinbart" },
+              { key: "nicht_erreicht", label: "Nicht erreicht" },
+            ] as const).map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setFilter(f.key); }}
+                className={`px-3.5 py-2 rounded-lg text-[12px] font-semibold border transition-all duration-150 ${
+                  filter === f.key ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {ALL_GROUPS.map((g) => (
+              <button
+                key={g.key}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setAllFilter(g.key); }}
+                className={`px-3.5 py-2 rounded-lg text-[12px] font-semibold border transition-all duration-150 ${
+                  allFilter === g.key ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                }`}
+              >
+                {g.label} ({groupCount(g.key)})
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {loading && (
@@ -171,23 +271,25 @@ function KundenContent() {
           {[0, 1, 2, 3].map((i) => <div key={i} className="agent-skeleton h-16 rounded-xl" />)}
         </div>
       )}
-      {!loading && filtered.length === 0 && (
+      {!loading && (view === "alle" ? filteredAll : filtered).length === 0 && (
         <div className="py-14 text-center">
           <p className="text-[13px] text-slate-400">
-            {search || filter !== "alle" ? "Keine Treffer." : "Aktuell keine unbezahlten Kunden in deiner Liste."}
+            {view === "alle"
+              ? (search || allFilter !== "alle" ? "Keine Treffer in dieser Gruppe." : "Dir wurden noch keine Kunden zugewiesen.")
+              : (search || filter !== "alle" ? "Keine Treffer in der Arbeitsliste — bezahlte/geschlossene Kunden findest du im Gesamtbestand oder unten unter „Weitere Treffer“." : "Aktuell keine unbezahlten Kunden in deiner Liste.")}
           </p>
         </div>
       )}
 
       {/* ── Mobile Karten ── */}
       <div className="space-y-2.5 md:hidden">
-        {filtered.map((c) => (
+        {(view === "alle" ? filteredAll : filtered).map((c) => (
           <CustomerCard key={c.ref} c={c} onOpen={() => setDetailRef(c.ref)} />
         ))}
       </div>
 
       {/* ── Desktop Tabelle ── */}
-      {!loading && filtered.length > 0 && (
+      {!loading && (view === "alle" ? filteredAll : filtered).length > 0 && (
         <Card className="hidden md:block overflow-hidden">
           <table className="w-full text-left">
             <thead>
@@ -198,7 +300,7 @@ function KundenContent() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c) => {
+              {(view === "alle" ? filteredAll : filtered).map((c) => {
                 const phone = custPhone(c);
                 return (
                   <tr key={c.ref} onClick={() => setDetailRef(c.ref)} className="border-b border-slate-50 cursor-pointer hover:bg-slate-50/70 transition-colors">
@@ -247,8 +349,55 @@ function KundenContent() {
         </Card>
       )}
 
+      {/* ── Paket DC: Weitere Server-Suchtreffer (Bezahlte, Geschlossene, Leads) ── */}
+      {searchResult && (extraHits.length > 0 || searchResult.leads.length > 0) && (
+        <div className="mt-6">
+          <h2 className="text-[12px] font-semibold uppercase tracking-wide text-slate-400 mb-2">
+            Weitere Treffer (Gesamtbestand & Leads)
+          </h2>
+          {extraHits.length > 0 && (
+            <Card className="divide-y divide-slate-50 mb-2">
+              {extraHits.map((c: any) => (
+                <button key={c.ref} type="button" onClick={(e) => { e.stopPropagation(); setDetailRef(c.ref); }}
+                  className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left hover:bg-slate-50/70 transition-colors">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-slate-900 truncate">{custName(c)}</p>
+                    <p className="text-[11px] text-slate-400 truncate">
+                      {c.email || "—"} · {c.payment_reference || c.ref}
+                      {c.assigned_agent_name ? ` · Betreut von ${c.assigned_agent_name}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge status={c.payment_status} />
+                    <ChevronRight size={14} className="text-slate-300" />
+                  </div>
+                </button>
+              ))}
+            </Card>
+          )}
+          {searchResult.leads.length > 0 && (
+            <Card className="divide-y divide-slate-50">
+              {searchResult.leads.map((l: any) => (
+                <div key={l.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-medium text-slate-700 truncate flex items-center gap-1.5">
+                      <PhoneCall size={12} className="text-slate-400 shrink-0" />
+                      {[l.vorname, l.nachname].filter(Boolean).join(" ") || l.email || l.telefon || `Lead #${l.id}`}
+                    </p>
+                    <p className="text-[11px] text-slate-400 truncate">Lead · {l.telefon || l.email || "—"} · Status: {l.status}</p>
+                  </div>
+                  <Link href="/agent/leads" className="text-[12px] font-semibold shrink-0" style={{ color: ACCENT }}>
+                    Zu den Leads
+                  </Link>
+                </div>
+              ))}
+            </Card>
+          )}
+        </div>
+      )}
+
       {/* ── Von Kollegen betreut (read-only, G2) ── */}
-      {colleagues.length > 0 && (
+      {view === "arbeit" && colleagues.length > 0 && (
         <div className="mt-6">
           <button
             type="button"
@@ -287,7 +436,7 @@ function KundenContent() {
         <CustomerDetail
           refId={detailRef}
           onClose={() => setDetailRef(null)}
-          onChanged={() => { load(); }}
+          onChanged={() => { load(); if (allLoaded) loadAll(); }}
           flash={flash}
         />
       )}
@@ -344,6 +493,7 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
   onChanged: () => void;
   flash: (m: string) => void;
 }) {
+  const { agent } = useAgentInfo();
   const [detail, setDetail] = useState<Customer | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [readOnly, setReadOnly] = useState(false);
@@ -352,13 +502,16 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
   const [noteText, setNoteText] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [datePick, setDatePick] = useState<{ outcome: string; value: string } | null>(null);
+  // Paket DD: Zwei-Schritt-Bestätigung für Kontakt-Ergebnisse (erst auswählen, dann bestätigen)
+  const [armedOutcome, setArmedOutcome] = useState<string | null>(null);
+  const [voidConfirm, setVoidConfirm] = useState<number | null>(null);
   const [lockUntil, setLockUntil] = useState<number>(0);
   const [now, setNow] = useState(Date.now());
   const [mobileTab, setMobileTab] = useState<"stamm" | "aktion" | "verlauf">("aktion");
   const [checkKey, setCheckKey] = useState<string | null>(null);
-  // Paket AC: Stammdaten-Bearbeitung (nur Vorname/Nachname/E-Mail/Telefon)
+  // Paket AC/DE: Stammdaten-Bearbeitung (Vorname/Nachname/E-Mail/Telefon + Adresse)
   const [editMode, setEditMode] = useState(false);
-  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", email: "", phone: "" });
+  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", email: "", phone: "", street: "", zip: "", city: "" });
   const [editErr, setEditErr] = useState<string | null>(null);
   const [dupWarn, setDupWarn] = useState<{ ref: string; payment_status: string; name: string } | null>(null);
   const [loginHint, setLoginHint] = useState<string | null>(null);
@@ -389,6 +542,8 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
 
   const phone = custPhone(detail);
   const lockSec = Math.max(0, Math.ceil((lockUntil - now) / 1000));
+  // Paket DA/DB: geschlossene Bestellungen (bezahlt/abgelaufen/ersetzt) sind read-only
+  const isOpenStatus = detail.payment_status === "pending_payment" || detail.payment_status === "claimed_paid";
 
   const saveNote = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -403,6 +558,20 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
     } else flash(r.json?.error || "Fehler");
   };
 
+  // Paket DD: Klick 1 wählt aus (armed), Klick 2 bestätigt — kein versehentlicher Statuswechsel mehr.
+  const pickOutcome = (e: React.MouseEvent, outcome: string) => {
+    e.stopPropagation();
+    if (outcome === "rueckruf_termin" || outcome === "erreicht_zahlt_am") {
+      // Datums-Dialog hat bereits einen expliziten Speichern-Schritt (= Bestätigung)
+      setArmedOutcome(null);
+      setDatePick({ outcome, value: "" });
+      return;
+    }
+    setDatePick(null);
+    if (armedOutcome === outcome) { saveOutcome(e, outcome); return; }
+    setArmedOutcome(outcome);
+  };
+
   const saveOutcome = async (e: React.MouseEvent, outcome: string, dateValue?: string) => {
     e.stopPropagation();
     if ((outcome === "rueckruf_termin" || outcome === "erreicht_zahlt_am") && !dateValue) {
@@ -415,12 +584,32 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
     if (outcome === "erreicht_zahlt_am") body.promisedDate = dateValue;
     const r = await api(`/agent/customers/${encodeURIComponent(refId)}/contact-result`, { method: "POST", body: JSON.stringify(body) });
     setBusy(null);
+    setArmedOutcome(null);
     if (r.ok) {
       setLog((l) => [r.json.entry, ...l]);
       setDatePick(null);
       setCheckKey(outcome);
       setTimeout(() => setCheckKey((k) => (k === outcome ? null : k)), 900);
-      flash(`${OUTCOME_LABELS[outcome]} dokumentiert`);
+      // Paket DA: erklären, wo der Kunde jetzt zu finden ist — nichts „verschwindet"
+      const wohin = outcome === "erreicht_zahlt_gleich" || outcome === "erreicht_zahlt_am"
+        ? " — der Kunde bleibt in deiner Arbeitsliste, bis die Zahlung eingeht (danach: Gesamtbestand → Bezahlt)"
+        : " — der Kunde bleibt in deiner Arbeitsliste sichtbar";
+      flash(`${OUTCOME_LABELS[outcome]} dokumentiert${wohin}.`);
+      onChanged();
+    } else flash(r.json?.error || "Fehler");
+  };
+
+  // Paket DD: eigenen Verlaufseintrag als irrtümlich markieren (Soft-Delete, bleibt sichtbar)
+  const voidEntry = async (e: React.MouseEvent, entryId: number) => {
+    e.stopPropagation();
+    if (voidConfirm !== entryId) { setVoidConfirm(entryId); return; }
+    setVoidConfirm(null);
+    setBusy("void");
+    const r = await api(`/agent/log/${entryId}/void`, { method: "POST" });
+    setBusy(null);
+    if (r.ok) {
+      setLog((l) => [r.json.entry, ...l.map((x) => (x.id === entryId ? { ...x, voided_at: new Date().toISOString() } : x))]);
+      flash("Eintrag als irrtümlich markiert — er bleibt durchgestrichen im Verlauf (nichts wird gelöscht).");
       onChanged();
     } else flash(r.json?.error || "Fehler");
   };
@@ -450,6 +639,9 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
       lastName: detail.last_name || "",
       email: detail.email || "",
       phone: phone || "",
+      street: detail.street || "",
+      zip: detail.zip || "",
+      city: detail.city || "",
     });
     setEditErr(null);
     setEditMode(true);
@@ -463,7 +655,11 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
     setEditErr(null);
     const r = await api(`/agent/customers/${encodeURIComponent(refId)}/contact-data`, {
       method: "PATCH",
-      body: JSON.stringify({ firstName: editForm.firstName.trim(), lastName: editForm.lastName.trim(), email: editForm.email.trim(), phone: editForm.phone.trim() }),
+      body: JSON.stringify({
+        firstName: editForm.firstName.trim(), lastName: editForm.lastName.trim(),
+        email: editForm.email.trim(), phone: editForm.phone.trim(),
+        street: editForm.street.trim(), zip: editForm.zip.trim(), city: editForm.city.trim(),
+      }),
     });
     setBusy(null);
     if (!r.ok) { setEditErr(r.json?.error || "Fehler beim Speichern"); return; }
@@ -511,6 +707,21 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
           <div>
             <label className="block text-[11px] font-medium text-slate-500 mb-1">Telefon (+49 …)</label>
             <input type="tel" value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} className={inputCls} placeholder="+49 151 2345678" />
+          </div>
+          {/* Paket DE: Adresse direkt im Gespräch korrigieren (mit Audit) */}
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">Straße & Hausnummer</label>
+            <input type="text" value={editForm.street} onChange={(e) => setEditForm((f) => ({ ...f, street: e.target.value }))} className={inputCls} placeholder="Musterstraße 12" />
+          </div>
+          <div className="grid grid-cols-[110px_1fr] gap-2">
+            <div>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">PLZ</label>
+              <input type="text" inputMode="numeric" value={editForm.zip} onChange={(e) => setEditForm((f) => ({ ...f, zip: e.target.value }))} className={inputCls} placeholder="10115" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">Ort</label>
+              <input type="text" value={editForm.city} onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))} className={inputCls} placeholder="Berlin" />
+            </div>
           </div>
           <p className="text-[11px] text-slate-400">Paket, Betrag, Status und Referenz können nur vom Admin geändert werden. Jede Änderung wird im Verlauf protokolliert.</p>
           {editErr && <p className="text-[12px] font-medium text-red-600">{editErr}</p>}
@@ -572,26 +783,41 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
       <h3 className="text-[12px] font-semibold uppercase tracking-wide text-slate-400 mb-2.5">Verlauf</h3>
       <div className="space-y-2">
         {log.length === 0 && <p className="text-[12px] text-slate-400">Noch keine Einträge.</p>}
-        {log.map((l, i) => (
-          <div key={l.id} className={`relative pl-4 ${i === 0 ? "agent-check-in" : ""}`}>
-            <span className="absolute left-0 top-1.5 w-1.5 h-1.5 rounded-full" style={{ background: i === 0 ? ACCENT : "#cbd5e1" }} />
-            <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/60">
-              <div className="flex items-center justify-between gap-2 mb-0.5">
-                <span className="text-[11px] font-semibold text-slate-600">
-                  {l.type === "note" ? "Notiz"
-                    : l.type === "email_sent" ? "Zahlungsdaten-E-Mail"
-                    : l.type === "claim" ? "Zuweisung"
-                    : l.type === "system" ? "System"
-                    : OUTCOME_LABELS[l.outcome || ""] || l.outcome}
-                </span>
-                <span className="text-[10px] text-slate-400 whitespace-nowrap">{l.agent_name} · {fmtDT(l.created_at)}</span>
+        {log.map((l, i) => {
+          const voided = !!l.voided_at;
+          const canVoid = !voided && (l.type === "note" || l.type === "result") && l.agent_name === agent?.name;
+          return (
+            <div key={l.id} className={`relative pl-4 ${i === 0 ? "agent-check-in" : ""}`}>
+              <span className="absolute left-0 top-1.5 w-1.5 h-1.5 rounded-full" style={{ background: voided ? "#e2e8f0" : i === 0 ? ACCENT : "#cbd5e1" }} />
+              <div className={`p-3 rounded-lg border border-slate-100 bg-slate-50/60 ${voided ? "opacity-60" : ""}`}>
+                <div className="flex items-center justify-between gap-2 mb-0.5">
+                  <span className={`text-[11px] font-semibold text-slate-600 ${voided ? "line-through" : ""}`}>
+                    {l.type === "note" ? "Notiz"
+                      : l.type === "email_sent" ? "Zahlungsdaten-E-Mail"
+                      : l.type === "claim" ? "Zuweisung"
+                      : l.type === "edit" ? "Korrektur"
+                      : l.type === "system" ? "System"
+                      : OUTCOME_LABELS[l.outcome || ""] || l.outcome}
+                    {voided && <span className="ml-1.5 no-underline text-[10px] font-semibold text-slate-400">(irrtümlich)</span>}
+                  </span>
+                  <span className="text-[10px] text-slate-400 whitespace-nowrap">{l.agent_name} · {fmtDT(l.created_at)}</span>
+                </div>
+                {l.scheduled_at && <p className={`text-[12px] font-medium text-slate-700 ${voided ? "line-through" : ""}`}>Termin: {fmtDT(l.scheduled_at)}</p>}
+                {l.promised_date && <p className={`text-[12px] font-medium text-slate-700 ${voided ? "line-through" : ""}`}>Zahlt am: {fmtD(l.promised_date)}</p>}
+                {l.note && <p className={`text-[12px] text-slate-600 whitespace-pre-wrap ${voided ? "line-through" : ""}`}>{l.note}</p>}
+                {canVoid && (
+                  <button type="button" onClick={(e) => voidEntry(e, l.id)} disabled={busy === "void"}
+                    className={`mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold transition-colors ${
+                      voidConfirm === l.id ? "text-red-600" : "text-slate-400 hover:text-slate-600"
+                    }`}>
+                    <Undo2 size={11} strokeWidth={2} />
+                    {voidConfirm === l.id ? "Wirklich als irrtümlich markieren? (erneut tippen)" : "Irrtümlich erfasst?"}
+                  </button>
+                )}
               </div>
-              {l.scheduled_at && <p className="text-[12px] font-medium text-slate-700">Termin: {fmtDT(l.scheduled_at)}</p>}
-              {l.promised_date && <p className="text-[12px] font-medium text-slate-700">Zahlt am: {fmtD(l.promised_date)}</p>}
-              {l.note && <p className="text-[12px] text-slate-600 whitespace-pre-wrap">{l.note}</p>}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -631,9 +857,13 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
       {readOnly ? (
         <div className="px-3.5 py-3 rounded-xl border border-slate-200 bg-slate-50 text-[12px] font-medium text-slate-600 flex items-center gap-2">
           <Info size={14} strokeWidth={1.8} />
-          {detail.assigned_agent_name
-            ? `Betreut von ${detail.assigned_agent_name} — nur Lesezugriff`
-            : `In Bearbeitung durch ${detail.locked_by_name} — nur Lesezugriff`}
+          {!isOpenStatus
+            ? detail.payment_status === "paid"
+              ? `Bestellung ist bezahlt${detail.completed_at ? ` (am ${fmtD(detail.completed_at)})` : ""} — keine Aktionen mehr nötig, Verlauf bleibt einsehbar`
+              : `Bestellung ist geschlossen (${detail.payment_status === "superseded" ? "durch Dublette ersetzt" : detail.payment_status}) — nur Lesezugriff`
+            : detail.assigned_agent_name
+              ? `Betreut von ${detail.assigned_agent_name} — nur Lesezugriff`
+              : `In Bearbeitung durch ${detail.locked_by_name} — nur Lesezugriff`}
         </div>
       ) : (
         <>
@@ -642,19 +872,31 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
             <h3 className="text-[12px] font-semibold uppercase tracking-wide text-slate-400 mb-2.5">Kontakt-Ergebnis</h3>
             <div className="grid grid-cols-2 gap-2">
               {Object.entries(OUTCOME_LABELS).map(([key, label]) => (
-                <button key={key} type="button" onClick={(e) => saveOutcome(e, key)} disabled={busy !== null}
+                <button key={key} type="button" onClick={(e) => pickOutcome(e, key)} disabled={busy !== null}
                   className={`relative px-3 py-2.5 rounded-xl border text-[12px] font-medium transition-all duration-150 disabled:opacity-40 text-left active:scale-[.98] ${
-                    checkKey === key ? "border-[#2563eb] text-slate-800" : "border-slate-200 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800"
+                    armedOutcome === key ? "border-[#2563eb] bg-[#2563eb]/5 text-slate-900"
+                      : checkKey === key ? "border-[#2563eb] text-slate-800"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800"
                   }`}
                   style={{ minHeight: 46 }}>
                   {busy === key
                     ? "…"
                     : checkKey === key
                       ? <span className="agent-check-in inline-flex items-center gap-1.5" style={{ color: ACCENT }}><CheckCircle2 size={14} strokeWidth={2} /> Erfasst</span>
-                      : label}
+                      : armedOutcome === key
+                        ? <span className="inline-flex items-center gap-1.5 font-semibold" style={{ color: ACCENT }}><CheckCircle2 size={14} strokeWidth={2} /> Bestätigen: {label}</span>
+                        : label}
                 </button>
               ))}
             </div>
+            {armedOutcome && (
+              <div className="mt-2 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 agent-check-in">
+                <p className="text-[11.5px] text-slate-500">Zum Speichern erneut auf den markierten Button tippen.</p>
+                <button type="button" onClick={(e) => { e.stopPropagation(); setArmedOutcome(null); }} className="text-[11.5px] font-semibold text-slate-400 hover:text-slate-600">
+                  Abbrechen
+                </button>
+              </div>
+            )}
             {datePick && (
               <div className="mt-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50 agent-check-in">
                 <p className="text-[12px] font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
@@ -743,7 +985,10 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
           <SuccessPulse trigger={detail.payment_status}>
             <div className="flex items-center gap-2 flex-wrap">
               <Badge status={detail.payment_status} />
-              {detail.promised_pay_date && <Badge label={`Zusage ${fmtD(detail.promised_pay_date)}`} />}
+              {/* Paket DB: Zahlungsstand transparent — wann ist das Geld eingegangen? */}
+              {detail.payment_status === "paid" && detail.completed_at && <Badge label={`Bezahlt am ${fmtD(detail.completed_at)}`} />}
+              {detail.payment_status === "superseded" && detail.superseded_by && <Badge label={`Ersetzt durch ${detail.superseded_by}`} />}
+              {detail.promised_pay_date && detail.payment_status !== "paid" && <Badge label={`Zusage ${fmtD(detail.promised_pay_date)}`} />}
               {detail.assigned_agent_name && !readOnly && <Badge label={`Betreut von ${detail.assigned_agent_name}`} />}
             </div>
           </SuccessPulse>

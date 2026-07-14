@@ -57,6 +57,7 @@ const BADGE_LABELS: Record<string, string> = {
   paid: "Bezahlt",
   expired: "Abgelaufen",
   refunded: "Erstattet",
+  superseded: "Ersetzt (Dublette)",
   bestaetigt: "Bestätigt",
   in_auszahlung: "In Auszahlung",
   ausgezahlt: "Ausgezahlt",

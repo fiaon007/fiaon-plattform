@@ -108,3 +108,57 @@ Uhrzeit + Hinweis dass manueller Versand trotzdem geht), farbige Erfolg/Fehler-M
 Leerzustände, Bulk-Bestätigungsdialog, Test-Löschen-Dialog, Abschnittsüberschriften (Überblick /
 Steuerung & Eingang / Lead-Liste), einklappbare Onboarding-Hilfe (`OnboardingHelp`,
 localStorage-Merker), Umbenennung „Backfill-Konversion" → „Leads mit Kunden abgleichen".
+
+## 9. Verschwundene Kunden — Forensik (Pakete DA–DF, Phase 0, 14.07.2026)
+
+Auslöser: Agent-Feedback vom 14.07.26 (Daniel Stripling ×3 Bugs „Kunden verschwinden",
+Florentine Lombardi „Kunde verschwunden hat jetzt aber bezahlt").
+
+### 9.1 DB-Befund zu den vier gemeldeten Fällen (Direkt-SQL, temporäres Forensik-Skript)
+
+| Kunde | Befund |
+|---|---|
+| **Gökay Terzi** | 8 Anträge. Daniel (Agent #8) betreute `FIAON-MR6PMQQC-B6OL` (claimed_paid 04.07., Notiz „Zahlt am Montag, Adresse muss geändert werden"). **Bezahlt wurde die ÄLTERE, UNZUGEWIESENE** `FIAON-MQPOE01Q-3CA0` (paid 06.07., `assigned_agent_id = NULL`, `amount_due = NULL`). Daniels Antrag erhielt **8 Zahlungserinnerungen bis 13.07.** (7 Tage NACH Zahlung) und wurde erst am 13.07. 14:10 supersedet → fiel damit aus JEDER Agent-Ansicht. **Provision: KEINE.** `confirmed_email_sent_at = NULL` → `payment_confirmed` nie gefeuert. |
+| **Samura/Samira Jusic** | 11 Anträge (Dubletten-Kaskade, mehrfach `merged_into`). Noch keine bezahlte Bestellung — Daniels Sicht-Verlust durch Merge-Kette (`merged_into` gesetzt ⇒ unsichtbar in `/agent/customers`). |
+| **Ilijana Weber** | 8 Anträge. Daniel betreute `FIAON-MR738BWX-EX3A` („Erreicht – zahlt gleich" 09.07.). Bezahlt: unzugewiesene `FIAON-MR339DDD-0VKP` (paid 06.07., Agent NULL, `amount_due NULL`). Daniels Antrag: **8 Erinnerungen bis 13.07. trotz bezahlter Schwester**, supersedet 13.07. **Provision: KEINE.** |
+| **Martin Dambok** | 5 Anträge, identisches Muster: bezahlt `FIAON-MQWLVN7N-QH62` (paid 06.07., Agent NULL), Daniels `FIAON-MR5FUEKQ-CT43` 8 Erinnerungen bis 13.07., supersedet 13.07. **Provision: KEINE.** |
+
+Alle drei bezahlten Bestellungen tragen `updated_at = 2026-07-06T08:23:29Z` (identisch)
+⇒ Batch-Verbuchung über Kontoabgleich (`fiaon-reconcile.ts` applyTxn) bzw. Access-Backfill.
+
+### 9.2 Sichtbarkeits-Analyse (warum „verschwinden" Kunden?)
+
+Kunden verschwinden NICHT aus der DB — sie fallen aus allen gefilterten Listen:
+
+- `GET /agent/customers` (fiaon-agent.ts): `WHERE payment_status IN ('pending_payment','claimed_paid') AND merged_into IS NULL` ⇒ **bezahlt / expired / superseded / gemergt = unsichtbar in JEDER Agent-Ansicht**.
+- `GET /agent/customers/:ref` (Detail): identischer Filter ⇒ 404 „bereits bezahlt" — auch für den eigenen, gerade bezahlten Kunden.
+- `GET /agent/leads`: `status IN ('neu','kontaktiert','nicht_erreichbar')` ⇒ konvertierte/tote Leads unsichtbar.
+- Dubletten-Mechanik: `supersedeSisterOrders` + Admin-Merge verschieben die Zahlung häufig auf einen Antrag OHNE `assigned_agent_id` ⇒ Agent verliert Attribution UND Provision (`onCustomerPaid` bricht bei `assigned_agent_id IS NULL` ab).
+
+### 9.3 Reminder-Kette + payment_confirmed (Kontoabgleich)
+
+- `claimReminderBatch` stoppt bei `paid` der SELBEN Bestellung sofort; Schwester-Dubletten sind nur über AD2 (`NOT EXISTS paid mit gleicher email`) geschützt — griff hier zu spät (supersede erst 13.07.).
+- `fiaon-reconcile.ts applyTxn` setzte `payment_status='paid'` per Direkt-SQL, rief aber **weder `supersedeSisterOrders` noch den `payment_confirmed`-Claim** auf ⇒ Erinnerungen an offene Schwester-Bestellungen liefen weiter, Kunde bekam keine Zahlungsbestätigung.
+
+### 9.4 Umsetzung (Pakete DA–DF)
+
+- **Root-Cause-Fix**: `supersedeSisterOrders` überträgt jetzt `assigned_agent_id` der geschlossenen Schwester auf die bezahlte Bestellung (nur wenn diese unzugewiesen ist) — Attribution bleibt stabil. `applyTxn` (Kontoabgleich) ruft supersede + `payment_confirmed`-Claim (Dedupe über `confirmed_email_sent_at`) auf.
+- **DA**: `GET /agent/customers/all` (Gesamtbestand, alle Status, Filter-Chips) + Detail öffnet eigene bezahlte/geschlossene Kunden read-only; Toast erklärt beim Statuswechsel, wo der Kunde jetzt zu finden ist.
+- **DB**: Zahlungsstand im Agent-Kundendetail (Status/bezahlt am/Betrag; KEIN Versandstatus — existiert im System nicht); manuelle Provisions-Buchung `POST /admin/agents/:id/commissions/manual` (±Betrag, Pflicht-Begründung, Audit, kind='manuell').
+- **DC**: Serverseitige Suche `GET /agent/search` (eigener Bestand) + `GET /admin/customer-search` (global): Name (tokenisiert, Reihenfolge egal), E-Mail, Telefon (normalisiert, Ziffern-Suffix-Match) über Kunden UND Leads.
+- **DD**: Kontakt-Ergebnis-Buttons mit Bestätigungs-Schritt (auswählen → bestätigen); Verlaufs-Einträge als „irrtümlich" markierbar (Soft-Delete `voided_at`, KEIN hartes Löschen).
+- **DE**: Adresse (Straße/PLZ/Ort) im Kunden-Detail editierbar (Agent + Admin) über `updateCustomerContact` mit Audit alt→neu.
+- **DF**: Feedback-Modul: Kopier-Button (Titel+Autor+Datum+Volltext), Status-Zähler je Filter-Chip, Umbrüche bereits korrekt (`whitespace-pre-wrap`).
+- **GEPARKT**: Partnerlink/Referral (Florentine) — NICHT gebaut, wartet auf LEXR-Freigabe (MIGRATION_INVENTORY.md „Geparkt (Rechtsprüfung)").
+
+### 9.5 Betreiber-TODOs (einmalig nach Deploy)
+
+1. **`POST /api/fiaon/admin/payments/repair-attribution`** einmal aufrufen (Admin-Session):
+   überträgt bei ALLEN bezahlten, unzugewiesenen Bestellungen die Agent-Zuweisung der
+   superseded Schwester (heilt Gökay Terzi / Ilijana Weber / Martin Dambok → erscheinen
+   danach in Daniels „Gesamtbestand → Bezahlt" + Admin-Suche). Antwort listet die Fälle auf.
+2. **Provisionen für die geheilten Fälle prüfen**: Admin → Team → Agent-Detail →
+   Tab „Provisionen" → „Provision manuell buchen" (Betrag, Pflicht-Begründung, optional
+   Kunden-Referenz). Es wird bewusst KEINE Provision automatisch nachgebucht.
+3. Optional: Feedback-Tickets von Daniel/Florentine im Admin (Agent-Portal → Feedback)
+   auf „Umgesetzt" setzen + ggf. Feedback-Bonus.

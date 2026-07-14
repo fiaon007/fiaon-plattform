@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { X, ChevronDown, GripVertical, FileText } from "lucide-react";
+import { X, ChevronDown, GripVertical, FileText, HandCoins } from "lucide-react";
 
 // ============================================================================
 // /admin/team (Paket K) — Agent-Statistik & Steuerung
@@ -377,6 +377,9 @@ function AgentDetailDrawer({ id, agents, autoRevealBank, onClose, onChanged, fla
   // Paket Z: Auszahlungsdaten werden erst auf Klick geladen (jeder Abruf = Audit-Eintrag)
   const [bank, setBank] = useState<any>(null);
   const [bankBusy, setBankBusy] = useState(false);
+  // Paket DB: Manuelle Provisions-Buchung (Korrektur/Nachtrag, ±Betrag, Pflicht-Begründung)
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manual, setManual] = useState({ amount: "", reason: "", ref: "" });
 
   const loadBank = useCallback(async () => {
     setBankBusy(true);
@@ -431,6 +434,29 @@ function AgentDetailDrawer({ id, agents, autoRevealBank, onClose, onChanged, fla
     setBusy(null);
     if (r.ok) { flash("Einstellungen gespeichert (Satz wirkt nur auf künftige Provisionen)"); onChanged(); load(); }
     else flash(r.json?.error || "Fehler");
+  };
+
+  // Paket DB: Nachtrag/Korrektur buchen — z. B. wenn die Zahlung über eine
+  // unzugewiesene Dublette lief (Kontoabgleich bucht bewusst keine Provision).
+  const bookManual = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const eur = Number(manual.amount.replace(",", "."));
+    if (isNaN(eur) || eur === 0) { flash("Betrag ungültig — z. B. 25 oder -25 (negativ = Abzug)"); return; }
+    if (!manual.reason.trim()) { flash("Begründung ist Pflicht (erscheint im Audit + beim Agent)"); return; }
+    if (!confirm(`${eur.toFixed(2)} € ${eur > 0 ? "gutschreiben" : "abziehen"} für ${a.name}?\n\nBegründung: ${manual.reason.trim()}${manual.ref.trim() ? `\nKundenbezug: ${manual.ref.trim()}` : ""}\n\nDie Buchung fließt ins normale Guthaben (Status 'Bestätigt') und wird auditiert.`)) return;
+    setBusy("manual");
+    const r = await api(`/admin/agents/${id}/commissions/manual`, {
+      method: "POST",
+      body: JSON.stringify({ amountCents: Math.round(eur * 100), reason: manual.reason.trim(), ref: manual.ref.trim() }),
+    });
+    setBusy(null);
+    if (r.ok) {
+      flash(`${eur.toFixed(2)} € manuell gebucht — sichtbar in Provisions-Historie und Agent-Guthaben.`);
+      setManual({ amount: "", reason: "", ref: "" });
+      setManualOpen(false);
+      load();
+      onChanged();
+    } else flash(r.json?.error || "Fehler");
   };
 
   const action = async (e: React.MouseEvent, path: string, label: string, confirmText?: string) => {
@@ -659,23 +685,62 @@ function AgentDetailDrawer({ id, agents, autoRevealBank, onClose, onChanged, fla
 
           {/* Provisions-Historie */}
           {tab === "provisionen" && (
-            <div className="border border-slate-200 rounded-xl divide-y divide-slate-50 max-h-96 overflow-y-auto">
-              {data.commissions.length === 0 && <p className="px-4 py-6 text-center text-[12px] text-slate-400">Noch keine Provisionen.</p>}
-              {data.commissions.map((k: any) => (
-                <div key={k.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-semibold tabular-nums flex items-center gap-1.5">
-                      {fmtCents(k.amount_cents)}
-                      {k.kind === "override" && <span className="px-1.5 py-0.5 rounded border border-slate-300 text-[10px] font-semibold text-slate-500">Team-Beteiligung</span>}
-                      <span className="font-normal text-slate-400 text-[11px]"> · {(k.rate_bp / 100).toLocaleString("de-DE")} % von {fmtCents(k.base_amount_cents)}</span>
-                    </p>
-                    <p className="text-[11px] text-slate-400 truncate">{k.ref}{k.note ? ` · ${k.note}` : ""} · {fmtDT(k.created_at)}</p>
+            <div className="space-y-3">
+              {/* Paket DB: Provision manuell buchen (Nachtrag/Korrektur, ±Betrag) */}
+              {!manualOpen ? (
+                <button type="button" onClick={(e) => { e.stopPropagation(); setManualOpen(true); }}
+                  className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-500 hover:text-slate-800 transition-colors">
+                  <HandCoins size={13} strokeWidth={1.8} /> Provision manuell buchen (Nachtrag/Korrektur)
+                </button>
+              ) : (
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2.5">
+                  <p className="text-[12px] font-semibold text-slate-700">Provision manuell buchen</p>
+                  <p className="text-[11px] text-slate-400">
+                    Für Fälle, in denen keine automatische Provision entstand (z. B. Zahlung über Dublette/Kontoabgleich).
+                    Positiver Betrag = Gutschrift, negativer = Abzug. Begründung ist Pflicht und wird auditiert.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="relative">
+                      <input type="text" inputMode="decimal" value={manual.amount} placeholder="z. B. 25 oder -25"
+                        onChange={(e) => setManual((m) => ({ ...m, amount: e.target.value }))} className={inputCls} />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 pointer-events-none">€</span>
+                    </div>
+                    <input type="text" value={manual.ref} placeholder="Kunden-Referenz (optional)"
+                      onChange={(e) => setManual((m) => ({ ...m, ref: e.target.value }))} className={inputCls} />
                   </div>
-                  <span className="shrink-0 px-2.5 py-0.5 rounded-full border border-slate-200 text-[11px] font-semibold text-slate-500">
-                    {k.status === "bestaetigt" ? "Bestätigt" : k.status === "in_auszahlung" ? "In Auszahlung" : k.status === "ausgezahlt" ? "Ausgezahlt" : "Storniert"}
-                  </span>
+                  <input type="text" value={manual.reason} maxLength={500}
+                    placeholder="Begründung (Pflicht) — z. B. Zahlung lief über Dublette FIAON-…, Provision nachgetragen"
+                    onChange={(e) => setManual((m) => ({ ...m, reason: e.target.value }))} className={inputCls} />
+                  <div className="flex gap-2">
+                    <button type="button" disabled={busy === "manual"} onClick={bookManual} className={btnPrimary}>
+                      {busy === "manual" ? "Bucht …" : "Buchen"}
+                    </button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setManualOpen(false); }} className={btnGhost}>
+                      Abbrechen
+                    </button>
+                  </div>
                 </div>
-              ))}
+              )}
+              <div className="border border-slate-200 rounded-xl divide-y divide-slate-50 max-h-96 overflow-y-auto">
+                {data.commissions.length === 0 && <p className="px-4 py-6 text-center text-[12px] text-slate-400">Noch keine Provisionen.</p>}
+                {data.commissions.map((k: any) => (
+                  <div key={k.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold tabular-nums flex items-center gap-1.5">
+                        {fmtCents(k.amount_cents)}
+                        {k.kind === "override" && <span className="px-1.5 py-0.5 rounded border border-slate-300 text-[10px] font-semibold text-slate-500">Team-Beteiligung</span>}
+                        {k.kind === "manuell" && <span className="px-1.5 py-0.5 rounded border border-slate-300 text-[10px] font-semibold text-slate-500">Manuell</span>}
+                        {k.kind === "feedback_bonus" && <span className="px-1.5 py-0.5 rounded border border-slate-300 text-[10px] font-semibold text-slate-500">Feedback-Bonus</span>}
+                        {k.rate_bp > 0 && <span className="font-normal text-slate-400 text-[11px]"> · {(k.rate_bp / 100).toLocaleString("de-DE")} % von {fmtCents(k.base_amount_cents)}</span>}
+                      </p>
+                      <p className="text-[11px] text-slate-400 truncate">{k.ref}{k.note ? ` · ${k.note}` : ""} · {fmtDT(k.created_at)}</p>
+                    </div>
+                    <span className="shrink-0 px-2.5 py-0.5 rounded-full border border-slate-200 text-[11px] font-semibold text-slate-500">
+                      {k.status === "bestaetigt" ? "Bestätigt" : k.status === "in_auszahlung" ? "In Auszahlung" : k.status === "ausgezahlt" ? "Ausgezahlt" : "Storniert"}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

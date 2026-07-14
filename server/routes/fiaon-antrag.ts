@@ -179,9 +179,17 @@ async function backfillPaidAccessOnce(): Promise<void> {
 // auf `superseded` gesetzt: kein Reminder mehr, raus aus Agent-Listen und
 // Offen-Kacheln. Timeline-Eintrag verweist auf die bezahlte Referenz.
 // superseded erzeugt KEINE Provision (onCustomerPaid läuft nur für die bezahlte ref).
+//
+// Paket DA/DB (Root-Cause-Fix „verschwundene Kunden"): War die BEZAHLTE
+// Bestellung unzugewiesen, eine geschlossene Schwester aber einem Agent
+// zugewiesen (er hat den Kunden betreut), wird `assigned_agent_id` auf die
+// bezahlte Bestellung ÜBERTRAGEN. Der Agent behält damit die Sichtbarkeit
+// (Gesamtbestand „Bezahlt") und die Attribution — ohne dass hier automatisch
+// Provision gebucht wird (bewusst: Provision nur über mark-paid-Hook oder
+// manuelle Admin-Buchung, siehe /admin/agents/:id/commissions/manual).
 export async function supersedeSisterOrders(paidRef: string): Promise<{ count: number; refs: string[] }> {
   const paid = await sqlPool`
-    SELECT ref, payment_reference, email FROM fiaon_applications WHERE ref = ${paidRef}
+    SELECT ref, payment_reference, email, assigned_agent_id FROM fiaon_applications WHERE ref = ${paidRef}
   `;
   if (paid.length === 0 || !paid[0].email || !String(paid[0].email).trim()) return { count: 0, refs: [] };
   const em = String(paid[0].email).trim().toLowerCase();
@@ -194,7 +202,7 @@ export async function supersedeSisterOrders(paidRef: string): Promise<{ count: n
       AND ref != ${paidRef}
       AND merged_into IS NULL
       AND payment_status IN ('pending_payment', 'claimed_paid')
-    RETURNING ref
+    RETURNING ref, assigned_agent_id
   `;
   for (const r of rows) {
     await sqlPool`
@@ -203,10 +211,51 @@ export async function supersedeSisterOrders(paidRef: string): Promise<{ count: n
               ${`Durch bezahlte Bestellung ${paid[0].payment_reference || paid[0].ref} ersetzt (Dublette, gleiche E-Mail) — keine weiteren Erinnerungen`})
     `;
   }
+  // Attributions-Übertrag: bezahlte Bestellung erbt den betreuenden Agent der Dublette
+  if (!paid[0].assigned_agent_id) {
+    const donor = rows.find((r) => r.assigned_agent_id);
+    if (donor) {
+      await sqlPool`
+        UPDATE fiaon_applications SET assigned_agent_id = ${donor.assigned_agent_id}, updated_at = NOW()
+        WHERE ref = ${paidRef} AND assigned_agent_id IS NULL
+      `;
+      const agentRows = await sqlPool`SELECT name FROM fiaon_agents WHERE id = ${donor.assigned_agent_id}`;
+      const agentName = agentRows[0]?.name || `Agent #${donor.assigned_agent_id}`;
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+        VALUES (${paidRef}, NULL, 'System', 'system',
+                ${`Zuweisung von Dublette ${donor.ref} übernommen: ${agentName} betreute diesen Kunden (Provision ggf. manuell prüfen)`})
+      `;
+      console.log(`[FIAON-DUBLETTE] Attribution übertragen: ${paidRef} → Agent ${donor.assigned_agent_id} (${agentName}) aus ${donor.ref}`);
+    }
+  }
   if (rows.length > 0) {
     console.log(`[FIAON-DUBLETTE] ${rows.length} offene Schwester-Bestellung(en) von ${em} superseded (bezahlt: ${paidRef})`);
   }
   return { count: rows.length, refs: rows.map((r) => r.ref) };
+}
+
+// Paket X/DB: Bezahlt-Bestätigung (Make 'payment_confirmed' mit login_url) —
+// genau 1× pro Bestellung über atomaren Flag-Claim (confirmed_email_sent_at).
+// Wiederverwendbar für mark-paid UND Kontoabgleich (fiaon-reconcile.ts).
+export async function sendPaymentConfirmedOnce(ref: string): Promise<boolean> {
+  try {
+    const confirmed = await sqlPool`
+      UPDATE fiaon_applications SET confirmed_email_sent_at = NOW()
+      WHERE ref = ${ref} AND confirmed_email_sent_at IS NULL
+        AND COALESCE(NULLIF(email, ''), NULLIF(contact_email, ''), NULLIF(billing_email, '')) IS NOT NULL
+      RETURNING ref, payment_reference, amount_due, first_name, last_name, contact_name, email, contact_email, billing_email, pack_name
+    `;
+    if (confirmed.length === 0) return false;
+    sendMakeWebhook("payment_confirmed", {
+      ...makePayloadFromRow(confirmed[0]),
+      login_url: absoluteUrl("/login"),
+    }).catch(() => {});
+    return true;
+  } catch (whErr) {
+    console.error("[MAKE-WEBHOOK] payment_confirmed claim:", whErr);
+    return false;
+  }
 }
 
 // Bestellung anlegen (nach Antragsabschluss). Idempotent pro ref.
@@ -340,7 +389,7 @@ router.get("/admin/payments", async (req, res) => {
     const rows = await sqlPool`
       SELECT ref, type, payment_reference, payment_status, payment_due_date, amount_due, currency,
              first_name, last_name, contact_name, company_name, email, contact_email, billing_email,
-             phone, phone_country_code, contact_phone,
+             phone, phone_country_code, contact_phone, street, zip, city,
              pack_name, updated_at, created_at,
              claimed_paid_at, promised_pay_date, invoice_number, welcome_sent_at,
              payment_email_sent_at, followup_sent_at, agent_email_sent_at, completed_at,
@@ -612,22 +661,7 @@ router.post("/admin/payments/:paymentRef/mark-paid", async (req, res) => {
     // Paket X: Bestätigung läuft über Make ('payment_confirmed' mit login_url) —
     // ersetzt die frühere direkte Plattform-Freischaltmail. Genau 1× pro Bestellung
     // (atomarer Flag-Claim), damit ALLE Kundenmails einheitlich über Make/Brevo laufen.
-    try {
-      const confirmed = await sqlPool`
-        UPDATE fiaon_applications SET confirmed_email_sent_at = NOW()
-        WHERE payment_reference = ${req.params.paymentRef} AND confirmed_email_sent_at IS NULL
-          AND COALESCE(NULLIF(email, ''), NULLIF(contact_email, ''), NULLIF(billing_email, '')) IS NOT NULL
-        RETURNING ref, payment_reference, amount_due, first_name, last_name, contact_name, email, contact_email, billing_email, pack_name
-      `;
-      if (confirmed.length > 0) {
-        sendMakeWebhook("payment_confirmed", {
-          ...makePayloadFromRow(confirmed[0]),
-          login_url: absoluteUrl("/login"),
-        }).catch(() => {});
-      }
-    } catch (whErr) {
-      console.error("[MAKE-WEBHOOK] payment_confirmed claim:", whErr);
-    }
+    await sendPaymentConfirmedOnce(rows[0].ref);
     // Provisions-Engine (G3): fester Eintrag für den zugewiesenen Agent (Satz wird eingefroren)
     import("./fiaon-agent").then((m) => m.onCustomerPaid(rows[0].ref)).catch((e) => console.error("[FIAON-COMMISSION]", e));
     res.json({ ok: true, data: rows[0] });
@@ -648,6 +682,44 @@ router.post("/admin/payments/backfill-access", async (_req, res) => {
     res.json({ ok: true, count: result.count, refs: result.refs });
   } catch (err) {
     console.error("[FIAON-ACCESS-BACKFILL] manuell:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Paket DB: Einmalige Daten-Reparatur — bezahlte, UNZUGEWIESENE Bestellungen
+// erben die Agent-Zuweisung ihrer superseded Schwester (gleiche E-Mail).
+// Heilt die Altfälle vor dem Root-Cause-Fix (Attribution ging beim Dubletten-
+// Schließen verloren). KEINE automatische Provision — nur Sichtbarkeit/Zuordnung;
+// Provision bucht der Admin bewusst über die manuelle Buchung im Agent-Detail.
+router.post("/admin/payments/repair-attribution", async (_req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const repaired = await sqlPool`
+      UPDATE fiaon_applications p SET assigned_agent_id = s.assigned_agent_id, updated_at = NOW()
+      FROM (
+        SELECT DISTINCT ON (LOWER(TRIM(email))) LOWER(TRIM(email)) AS em, assigned_agent_id, ref
+        FROM fiaon_applications
+        WHERE payment_status = 'superseded' AND assigned_agent_id IS NOT NULL
+          AND email IS NOT NULL AND TRIM(email) != ''
+        ORDER BY LOWER(TRIM(email)), updated_at DESC
+      ) s
+      WHERE p.payment_status = 'paid' AND p.assigned_agent_id IS NULL AND p.merged_into IS NULL
+        AND LOWER(TRIM(p.email)) = s.em
+      RETURNING p.ref, s.assigned_agent_id, s.ref AS donor_ref
+    `;
+    for (const r of repaired) {
+      const agents = await sqlPool`SELECT name FROM fiaon_agents WHERE id = ${r.assigned_agent_id}`;
+      const agentName = agents[0]?.name || `Agent #${r.assigned_agent_id}`;
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+        VALUES (${r.ref}, NULL, 'System', 'system',
+                ${`Zuweisung nachträglich von Dublette ${r.donor_ref} übernommen: ${agentName} betreute diesen Kunden (Reparatur; Provision ggf. manuell prüfen)`})
+      `;
+    }
+    console.log(`[FIAON-REPAIR-ATTRIBUTION] ${repaired.length} bezahlte Bestellung(en) nachträglich zugeordnet`);
+    res.json({ ok: true, count: repaired.length, refs: repaired.map((r: any) => ({ ref: r.ref, agentId: r.assigned_agent_id, donor: r.donor_ref })) });
+  } catch (err) {
+    console.error("[FIAON-REPAIR-ATTRIBUTION]", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

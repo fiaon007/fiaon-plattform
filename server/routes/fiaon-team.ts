@@ -13,7 +13,7 @@ import { sendMakeWebhook } from "../make-webhook";
 import {
   ensureAgentTables, getSettings, setSetting, agentRateBp,
   decryptSecret, hashToken, baseUrl, logAgentEvent,
-  onCustomerRefunded,
+  onCustomerRefunded, searchCustomersAndLeads,
 } from "./fiaon-agent";
 
 const router = Router();
@@ -322,6 +322,74 @@ router.get("/admin/team/agents/:id", async (req, res) => {
     res.json({ ok: true, agent: agents[0], contactLog, events, commissions, customers });
   } catch (err) {
     console.error("[FIAON-TEAM] agent detail:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * Paket DB: Manuelle Provisions-Buchung (Korrektur/Nachtrag) — positiv ODER negativ.
+ * Anwendungsfall: Zahlung lief über eine unzugewiesene Dublette (Kontoabgleich
+ * bucht bewusst KEINE Provision) → Admin trägt die Provision bewusst nach.
+ * Pflicht-Begründung, Audit-Eintrag, kind='manuell' — fließt ins normale
+ * Guthaben (Status 'bestaetigt'), KEINE automatische Auszahlung.
+ */
+router.post("/admin/agents/:id/commissions/manual", async (req, res) => {
+  try {
+    await ensureAgentTables();
+    const id = Number(req.params.id);
+    const amountCents = Math.round(Number(req.body?.amountCents));
+    const reason = String(req.body?.reason || "").trim().slice(0, 500);
+    const refRaw = String(req.body?.ref || "").trim();
+    if (isNaN(amountCents) || amountCents === 0 || Math.abs(amountCents) > 1_000_000) {
+      return res.status(400).json({ ok: false, error: "Betrag ungültig (±0,01 € bis ±10.000,00 €, nicht 0)" });
+    }
+    if (!reason) return res.status(400).json({ ok: false, error: "Begründung ist Pflicht" });
+    const agents = await sqlPool`SELECT id, name FROM fiaon_agents WHERE id = ${id}`;
+    if (agents.length === 0) return res.status(404).json({ ok: false, error: "Agent nicht gefunden" });
+    // Optionaler Kundenbezug: ref validieren + Paketname übernehmen
+    let ref = `MANUELL-${Date.now().toString(36).toUpperCase()}`;
+    let packName: string | null = "Manuelle Provisions-Buchung";
+    if (refRaw) {
+      const apps = await sqlPool`SELECT ref, pack_name, payment_reference FROM fiaon_applications WHERE ref = ${refRaw} OR payment_reference = ${refRaw} LIMIT 1`;
+      if (apps.length === 0) return res.status(404).json({ ok: false, error: `Kunde '${refRaw}' nicht gefunden — Feld leer lassen für Buchung ohne Kundenbezug` });
+      ref = apps[0].ref;
+      packName = apps[0].pack_name || packName;
+    }
+    const rows = await sqlPool`
+      INSERT INTO fiaon_commissions (agent_id, ref, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, note)
+      VALUES (${id}, ${ref}, ${packName}, ${Math.abs(amountCents)}, 0, ${amountCents}, 'bestaetigt', 'manuell',
+              ${`Manuelle Buchung durch Admin: ${reason}`})
+      RETURNING id
+    `;
+    await logAgentEvent(id, "commission_manual", { commission_id: rows[0].id, ref, amount_cents: amountCents, reason });
+    if (refRaw) {
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+        VALUES (${ref}, NULL, 'Admin', 'system',
+                ${`Provision manuell gebucht für ${agents[0].name}: ${(amountCents / 100).toFixed(2)} € — ${reason}`})
+      `;
+    }
+    console.log(`[FIAON-TEAM] Manuelle Provision #${rows[0].id}: ${(amountCents / 100).toFixed(2)} € → Agent ${id} (${reason})`);
+    res.json({ ok: true, commissionId: rows[0].id });
+  } catch (err) {
+    console.error("[FIAON-TEAM] manual commission:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * Paket DC: Globale Admin-Suche über Kunden UND Leads — serverseitig, indexierbar.
+ * Telefon normalisiert (+49/0049/0/Formatierung egal), Namen tokenisiert
+ * (Reihenfolge egal), E-Mail/Referenz-Teilstrings. Gleiche Engine wie /agent/search.
+ */
+router.get("/admin/customer-search", async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim();
+    if (q.length < 2) return res.json({ ok: true, customers: [], leads: [], mode: "leer" });
+    const result = await searchCustomersAndLeads(q, { agentId: null, limit: Number(req.query.limit) || 30 });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("[FIAON-TEAM] customer-search:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

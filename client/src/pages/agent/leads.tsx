@@ -44,6 +44,8 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
   const [editing, setEditing] = useState(false);
   const [edit, setEdit] = useState({ vorname: "", nachname: "", email: "", telefon: "" });
   const [rueckrufAt, setRueckrufAt] = useState("");
+  // Paket DD: Zwei-Schritt-Bestätigung — erst auswählen, dann bestätigen
+  const [armed, setArmed] = useState<string | null>(null);
 
   const load = useCallback(() => {
     api(`/agent/leads/${id}`).then((r) => {
@@ -65,13 +67,16 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
 
   const result = async (outcome: string) => {
     if (outcome === "rueckruf_termin" && !rueckrufAt) { setFlash("Bitte Rückruf-Termin wählen."); return; }
+    // Paket DD: erster Klick wählt aus, zweiter Klick bestätigt — kein Versehen mehr
+    if (armed !== outcome) { setArmed(outcome); return; }
+    setArmed(null);
     setBusy(true);
     const r = await api(`/agent/leads/${id}/contact-result`, {
       method: "POST",
       body: JSON.stringify({ outcome, scheduledAt: outcome === "rueckruf_termin" ? rueckrufAt : null }),
     });
     setBusy(false);
-    if (r.ok) { setFlash("Ergebnis gespeichert."); setRueckrufAt(""); load(); onChanged(); }
+    if (r.ok) { setFlash("Ergebnis gespeichert — der Lead bleibt in deiner Liste bzw. wandert in den passenden Status."); setRueckrufAt(""); load(); onChanged(); }
     else setFlash(r.json?.error || "Fehler.");
   };
 
@@ -149,11 +154,18 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
                   <input type="datetime-local" className={inputCls} value={rueckrufAt} onChange={(e) => setRueckrufAt(e.target.value)} />
                   <div className="grid grid-cols-2 gap-2">
                     {OUTCOMES.map((o) => (
-                      <button key={o.key} disabled={busy} onClick={() => result(o.key)} className={btnGhost + " text-left"}>
-                        {o.label}
+                      <button key={o.key} disabled={busy} onClick={() => result(o.key)}
+                        className={`${btnGhost} text-left ${armed === o.key ? "!border-[#2563eb] !text-[#2563eb]" : ""}`}>
+                        {armed === o.key ? `Bestätigen: ${o.label}` : o.label}
                       </button>
                     ))}
                   </div>
+                  {armed && (
+                    <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                      <p className="text-[11.5px] text-slate-500">Zum Speichern erneut auf den markierten Button tippen.</p>
+                      <button className="text-[11.5px] font-semibold text-slate-400 hover:text-slate-600" onClick={() => setArmed(null)}>Abbrechen</button>
+                    </div>
+                  )}
                 </div>
               </div>
 

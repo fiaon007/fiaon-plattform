@@ -168,7 +168,9 @@ export async function ensureAgentTables(): Promise<void> {
   await sqlPool.unsafe(`
     ALTER TABLE fiaon_contact_log
       ADD COLUMN IF NOT EXISTS done_at TIMESTAMPTZ,
-      ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ
+      ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS voided_by INTEGER
   `);
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_contact_log_ref_idx ON fiaon_contact_log(ref)`;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_contact_log_agent_idx ON fiaon_contact_log(agent_id, created_at)`;
@@ -652,7 +654,7 @@ export async function updateCustomerContact(
   loginEmailChanged?: boolean;
 }> {
   const rows = await sqlPool`
-    SELECT ref, first_name, last_name, email, phone, phone_country_code, contact_phone, utm::text AS utm_string, password
+    SELECT ref, first_name, last_name, email, phone, phone_country_code, contact_phone, street, zip, city, utm::text AS utm_string, password
     FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL
   `;
   if (rows.length === 0) return { error: { code: 404, msg: "Kunde nicht gefunden" } };
@@ -668,10 +670,15 @@ export async function updateCustomerContact(
   const lastName = body.lastName !== undefined ? String(body.lastName).trim() : null;
   const emailRaw = body.email !== undefined ? String(body.email).trim().toLowerCase() : null;
   const phoneRaw = body.phone !== undefined ? String(body.phone) : null;
+  // Paket DE: Adresse (Straße/PLZ/Ort) — leere Eingabe = Feld leeren (erlaubt)
+  const street = body.street !== undefined ? String(body.street).trim().slice(0, 160) : null;
+  const zip = body.zip !== undefined ? String(body.zip).trim().slice(0, 10) : null;
+  const city = body.city !== undefined ? String(body.city).trim().slice(0, 80) : null;
 
   if (firstName !== null && !firstName) return { error: { code: 400, msg: "Vorname darf nicht leer sein" } };
   if (lastName !== null && !lastName) return { error: { code: 400, msg: "Nachname darf nicht leer sein" } };
   if (emailRaw !== null && !EMAIL_RE.test(emailRaw)) return { error: { code: 400, msg: "E-Mail-Format ungültig" } };
+  if (zip !== null && zip && !/^[0-9]{4,5}$/.test(zip)) return { error: { code: 400, msg: "PLZ ungültig (4–5 Ziffern)" } };
   let phone: string | null = null;
   if (phoneRaw !== null) {
     phone = normalizePhone(phoneRaw);
@@ -684,6 +691,9 @@ export async function updateCustomerContact(
   if (emailRaw !== null && emailRaw !== String(cur.email || "").trim().toLowerCase()) changes.push({ field: "E-Mail", from: cur.email || "—", to: emailRaw });
   const curPhone = `${cur.phone_country_code || ""}${cur.phone || ""}` || cur.contact_phone || "";
   if (phone !== null && phone !== curPhone) changes.push({ field: "Telefon", from: curPhone || "—", to: phone || "—" });
+  if (street !== null && street !== (cur.street || "")) changes.push({ field: "Straße", from: cur.street || "—", to: street || "—" });
+  if (zip !== null && zip !== (cur.zip || "")) changes.push({ field: "PLZ", from: cur.zip || "—", to: zip || "—" });
+  if (city !== null && city !== (cur.city || "")) changes.push({ field: "Ort", from: cur.city || "—", to: city || "—" });
   if (changes.length === 0) return { changes: [], duplicate: null, loginEmailChanged: false };
 
   // Duplikat-Warnung (Paket AC5): Kollision mit anderem Kunden derselben E-Mail?
@@ -711,6 +721,9 @@ export async function updateCustomerContact(
       email = ${emailRaw !== null ? emailRaw : cur.email},
       phone = ${phone !== null ? (phone || null) : cur.phone},
       phone_country_code = ${phone !== null ? "" : cur.phone_country_code},
+      street = ${street !== null ? (street || null) : cur.street},
+      zip = ${zip !== null ? (zip || null) : cur.zip},
+      city = ${city !== null ? (city || null) : cur.city},
       updated_at = NOW()
     WHERE ref = ${ref}
   `;
@@ -824,7 +837,7 @@ export async function runCallbackReminders(): Promise<number> {
   const claimed = await sqlPool`
     UPDATE fiaon_contact_log SET reminder_sent_at = NOW()
     WHERE scheduled_at BETWEEN NOW() AND NOW() + INTERVAL '60 minutes'
-      AND done_at IS NULL AND reminder_sent_at IS NULL AND agent_id IS NOT NULL
+      AND done_at IS NULL AND reminder_sent_at IS NULL AND voided_at IS NULL AND agent_id IS NOT NULL
     RETURNING id, ref, agent_id, scheduled_at
   `;
   let sent = 0;
@@ -1152,13 +1165,13 @@ router.get("/agent/customers", requireAgent, async (req: AgentRequest, res) => {
     if (refs.length > 0) {
       const logs = await sqlPool`
         SELECT DISTINCT ON (ref) ref, type, outcome, note, agent_name, scheduled_at, created_at
-        FROM fiaon_contact_log WHERE ref = ANY(${refs})
+        FROM fiaon_contact_log WHERE ref = ANY(${refs}) AND voided_at IS NULL
         ORDER BY ref, created_at DESC
       `;
       for (const l of logs) lastLogByRef[l.ref] = l;
       const appts = await sqlPool`
         SELECT DISTINCT ON (ref) ref, scheduled_at FROM fiaon_contact_log
-        WHERE ref = ANY(${refs}) AND scheduled_at IS NOT NULL AND done_at IS NULL AND scheduled_at > NOW() - INTERVAL '1 day'
+        WHERE ref = ANY(${refs}) AND scheduled_at IS NOT NULL AND done_at IS NULL AND voided_at IS NULL AND scheduled_at > NOW() - INTERVAL '1 day'
         ORDER BY ref, scheduled_at ASC
       `;
       for (const a of appts) openAppointments[a.ref] = a.scheduled_at;
@@ -1176,6 +1189,141 @@ router.get("/agent/customers", requireAgent, async (req: AgentRequest, res) => {
     res.json({ ok: true, data: worklist, colleagues });
   } catch (err) {
     console.error("[FIAON-AGENT] customers:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════ PAKET DA — Gesamtbestand „Meine Kunden (Alle)" ═══════════════
+// Antwort auf „Kunden verschwinden": ALLE je zugewiesenen Kunden des Agents,
+// unabhängig vom Zahlungsstatus (auch bezahlt/abgelaufen/ersetzt) — read-only
+// für geschlossene. Die Arbeitsliste (/agent/customers) bleibt unverändert.
+// WICHTIG: MUSS vor /agent/customers/:ref registriert sein (Express-Reihenfolge).
+router.get("/agent/customers/all", requireAgent, async (req: AgentRequest, res) => {
+  try {
+    const me = req.agent!.id;
+    const rows = await sqlPool.unsafe(`
+      SELECT ${AGENT_CUSTOMER_FIELDS},
+        a.assigned_agent_id, a.completed_at, a.superseded_by
+      FROM fiaon_applications a
+      WHERE a.assigned_agent_id = $1 AND a.merged_into IS NULL
+      ORDER BY a.updated_at DESC NULLS LAST, a.created_at DESC
+      LIMIT 500
+    `, [me]);
+    const refs = rows.map((r: any) => r.ref);
+    const lastLogByRef: Record<string, any> = {};
+    if (refs.length > 0) {
+      const logs = await sqlPool`
+        SELECT DISTINCT ON (ref) ref, type, outcome, note, agent_name, scheduled_at, created_at
+        FROM fiaon_contact_log WHERE ref = ANY(${refs}) AND voided_at IS NULL
+        ORDER BY ref, created_at DESC
+      `;
+      for (const l of logs) lastLogByRef[l.ref] = l;
+    }
+    res.json({ ok: true, data: rows.map((r: any) => ({ ...r, last_contact: lastLogByRef[r.ref] || null })) });
+  } catch (err) {
+    console.error("[FIAON-AGENT] customers/all:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════ PAKET DC — Serverseitige Suche (Kunden + Leads) ═══════════════
+
+/** Telefonsuche: Eingabe auf signifikante Ziffern reduzieren (0049/49/0-Präfixe weg). */
+export function normalizeSearchDigits(raw: string): string | null {
+  let d = String(raw || "").replace(/\D/g, "");
+  if (d.length < 5) return null;
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.startsWith("49")) d = d.slice(2);
+  else if (d.startsWith("0")) d = d.slice(1);
+  return d.length >= 5 ? d : null;
+}
+
+/**
+ * Gemeinsame Suche für Agent (eigener Bestand + unzugewiesene offene) und
+ * Admin (global, agentId = null). Findet Kunden UND Leads:
+ * - Telefon: normalisiert, Ziffern-Teilstring-Match (+49/0049/0 egal, Formatierung egal)
+ * - Text: tokenisiert (Wortreihenfolge egal) über Vor-/Nachname, Firma, E-Mail, Referenz
+ * Serverseitig mit LIMIT — kein Full-Table-Load im Client.
+ */
+export async function searchCustomersAndLeads(q: string, opts: { agentId?: number | null; limit?: number } = {}): Promise<{ customers: any[]; leads: any[]; mode: string }> {
+  await ensureAgentTables();
+  const limit = Math.min(Math.max(Number(opts.limit) || 25, 1), 50);
+  const me = opts.agentId ?? null;
+  const digits = normalizeSearchDigits(q);
+  const custParams: any[] = [];
+  const leadParams: any[] = [];
+  let custCond: string;
+  let leadCond: string;
+  if (digits) {
+    custParams.push(`%${digits}%`);
+    custCond = `(
+      regexp_replace(COALESCE(a.phone_country_code,'') || COALESCE(a.phone,''), '[^0-9]', '', 'g') LIKE $1
+      OR regexp_replace(COALESCE(a.contact_phone,''), '[^0-9]', '', 'g') LIKE $1
+    )`;
+    leadParams.push(`%${digits}%`);
+    leadCond = `regexp_replace(COALESCE(l.telefon,''), '[^0-9]', '', 'g') LIKE $1`;
+  } else {
+    const tokens = q.trim().split(/\s+/).filter(Boolean).slice(0, 5);
+    if (tokens.length === 0) return { customers: [], leads: [], mode: "leer" };
+    const cc: string[] = [];
+    const lc: string[] = [];
+    for (const t of tokens) {
+      custParams.push(`%${t}%`);
+      const p = `$${custParams.length}`;
+      cc.push(`(a.first_name ILIKE ${p} OR a.last_name ILIKE ${p} OR a.contact_name ILIKE ${p} OR a.company_name ILIKE ${p} OR a.email ILIKE ${p} OR a.contact_email ILIKE ${p} OR a.ref ILIKE ${p} OR a.payment_reference ILIKE ${p})`);
+      leadParams.push(`%${t}%`);
+      const lp = `$${leadParams.length}`;
+      lc.push(`(l.vorname ILIKE ${lp} OR l.nachname ILIKE ${lp} OR l.email ILIKE ${lp})`);
+    }
+    custCond = cc.join(" AND ");
+    leadCond = lc.join(" AND ");
+  }
+  // Sichtbarkeits-Scope: Agent = eigener Bestand (ALLE Status) + unzugewiesene offene
+  let custScope = "";
+  let leadScope = "";
+  if (me != null) {
+    custParams.push(me);
+    custScope = ` AND (a.assigned_agent_id = $${custParams.length} OR (a.assigned_agent_id IS NULL AND a.payment_status IN ('pending_payment','claimed_paid')))`;
+    leadParams.push(me);
+    leadScope = ` AND (l.assigned_agent_id = $${leadParams.length} OR l.assigned_agent_id IS NULL)`;
+  }
+  custParams.push(limit);
+  const customers = await sqlPool.unsafe(`
+    SELECT a.ref, a.first_name, a.last_name, a.contact_name, a.company_name,
+           COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,'')) AS email,
+           a.phone, a.phone_country_code, a.contact_phone, a.pack_name, a.amount_due,
+           a.payment_reference, a.payment_status, a.created_at, a.completed_at,
+           a.assigned_agent_id, ag.name AS assigned_agent_name
+    FROM fiaon_applications a
+    LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
+    WHERE a.merged_into IS NULL AND ${custCond}${custScope}
+    ORDER BY (a.payment_status IN ('pending_payment','claimed_paid')) DESC, a.created_at DESC
+    LIMIT $${custParams.length}
+  `, custParams);
+  let leads: any[] = [];
+  try {
+    leadParams.push(limit);
+    leads = await sqlPool.unsafe(`
+      SELECT l.id, l.vorname, l.nachname, l.email, l.telefon, l.quelle, l.status, l.erstellt_am,
+             l.assigned_agent_id, ag.name AS assigned_agent_name, l.converted_order_id
+      FROM fiaon_leads l
+      LEFT JOIN fiaon_agents ag ON ag.id = l.assigned_agent_id
+      WHERE ${leadCond}${leadScope}
+      ORDER BY l.erstellt_am DESC
+      LIMIT $${leadParams.length}
+    `, leadParams);
+  } catch { /* Lead-Tabellen ggf. noch nicht angelegt — Suche liefert dann nur Kunden */ }
+  return { customers, leads, mode: digits ? "telefon" : "text" };
+}
+
+router.get("/agent/search", requireAgent, async (req: AgentRequest, res) => {
+  try {
+    const q = String(req.query.q || "").trim();
+    if (q.length < 2) return res.json({ ok: true, customers: [], leads: [], mode: "leer" });
+    const result = await searchCustomersAndLeads(q, { agentId: req.agent!.id });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("[FIAON-AGENT] search:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -1217,18 +1365,22 @@ async function claimOrGuard(ref: string, agent: { id: number; name: string }): P
 router.get("/agent/customers/:ref", requireAgent, async (req: AgentRequest, res) => {
   try {
     const me = req.agent!.id;
+    // Paket DA: EIGENE Kunden bleiben auch nach Bezahlung/Ablauf sichtbar (read-only) —
+    // fremde/unzugewiesene Kunden weiterhin nur solange offen.
     const rows = await sqlPool.unsafe(`
-      SELECT ${AGENT_CUSTOMER_FIELDS}, a.street, a.zip, a.city,
+      SELECT ${AGENT_CUSTOMER_FIELDS}, a.street, a.zip, a.city, a.completed_at, a.superseded_by,
         a.assigned_agent_id, a.locked_by_agent_id, a.locked_until,
         ag.name AS assigned_agent_name, lg.name AS locked_by_name
       FROM fiaon_applications a
       LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
       LEFT JOIN fiaon_agents lg ON lg.id = a.locked_by_agent_id
-      WHERE a.ref = $1 AND a.payment_status IN ('pending_payment', 'claimed_paid') AND a.merged_into IS NULL
-    `, [req.params.ref]);
+      WHERE a.ref = $1 AND a.merged_into IS NULL
+        AND (a.payment_status IN ('pending_payment', 'claimed_paid') OR a.assigned_agent_id = $2)
+    `, [req.params.ref, me]);
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden oder bereits bezahlt" });
     const r: any = rows[0];
-    const readOnly = !!(r.assigned_agent_id && r.assigned_agent_id !== me);
+    const closed = !['pending_payment', 'claimed_paid'].includes(r.payment_status);
+    const readOnly = !!(r.assigned_agent_id && r.assigned_agent_id !== me) || closed;
     const foreignLock = !r.assigned_agent_id && r.locked_by_agent_id && r.locked_by_agent_id !== me && r.locked_until && new Date(r.locked_until) > new Date();
     // Soft-Lock setzen/verlängern (nur wenn unzugewiesen und nicht fremd-gelockt)
     if (!r.assigned_agent_id && !foreignLock) {
@@ -1238,7 +1390,7 @@ router.get("/agent/customers/:ref", requireAgent, async (req: AgentRequest, res)
       `;
     }
     const log = await sqlPool`
-      SELECT id, type, outcome, note, agent_name, scheduled_at, promised_date, done_at, created_at
+      SELECT id, agent_id, type, outcome, note, agent_name, scheduled_at, promised_date, done_at, voided_at, created_at
       FROM fiaon_contact_log WHERE ref = ${req.params.ref}
       ORDER BY created_at DESC
     `;
@@ -1282,6 +1434,30 @@ router.patch("/agent/customers/:ref/contact-data", requireAgent, async (req: Age
     res.json({ ok: true, changes: result.changes, duplicate: result.duplicate, loginEmailChanged: result.loginEmailChanged });
   } catch (err) {
     console.error("[FIAON-AGENT] contact-data:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════ PAKET DD — Verlaufseintrag als irrtümlich markieren ═══════════════
+// Soft-Delete (KEIN hartes Löschen): nur EIGENE Notizen/Kontakt-Ergebnisse.
+// Der Eintrag bleibt durchgestrichen sichtbar; Kalender/Zuletzt-Anzeigen
+// ignorieren ihn (voided_at-Filter). Audit-Eintrag dokumentiert die Korrektur.
+router.post("/agent/log/:id/void", requireAgent, async (req: AgentRequest, res) => {
+  try {
+    const id = Number(req.params.id);
+    const rows = await sqlPool`
+      UPDATE fiaon_contact_log SET voided_at = NOW(), voided_by = ${req.agent!.id}
+      WHERE id = ${id} AND agent_id = ${req.agent!.id} AND voided_at IS NULL AND type IN ('note', 'result')
+      RETURNING ref, type, outcome, note
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Eintrag nicht gefunden, fremd oder bereits korrigiert" });
+    const label = rows[0].type === "note" ? "Notiz" : `Kontakt-Ergebnis „${rows[0].outcome || "—"}"`;
+    const entry = await logAction(rows[0].ref, req.agent!, "system", {
+      note: `${label} (Eintrag #${id}) als irrtümlich markiert durch ${req.agent!.name}`,
+    });
+    res.json({ ok: true, entry });
+  } catch (err) {
+    console.error("[FIAON-AGENT] log void:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -1396,9 +1572,10 @@ router.post("/agent/customers/:ref/send-payment-email", requireAgent, async (req
 
 router.get("/agent/customers/:ref/invoice.pdf", requireAgent, async (req: AgentRequest, res) => {
   try {
+    // Paket DA: auch für geschlossene/bezahlte Bestellungen abrufbar (read-only Detail)
     const rows = await sqlPool`
       SELECT * FROM fiaon_applications
-      WHERE ref = ${req.params.ref} AND payment_status IN ('pending_payment', 'claimed_paid') AND merged_into IS NULL
+      WHERE ref = ${req.params.ref} AND merged_into IS NULL
     `;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
     let row = rows[0];
@@ -1679,7 +1856,7 @@ router.get("/agent/calendar", requireAgent, async (req: AgentRequest, res) => {
              a.phone, a.phone_country_code, a.contact_phone
       FROM fiaon_contact_log l
       JOIN fiaon_applications a ON a.ref = l.ref
-      WHERE l.agent_id = ${me} AND l.done_at IS NULL
+      WHERE l.agent_id = ${me} AND l.done_at IS NULL AND l.voided_at IS NULL
         AND (
           (l.scheduled_at IS NOT NULL AND l.scheduled_at BETWEEN ${from} AND ${to})
           OR (l.promised_date IS NOT NULL AND l.scheduled_at IS NULL AND l.promised_date BETWEEN ${from} AND ${to})

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Sparkles, MessageSquarePlus, Target, HandCoins, Eye, EyeOff,
-  Trash2, Image as ImageIcon, ChevronDown, Save,
+  Trash2, Image as ImageIcon, ChevronDown, Save, Copy, Check,
 } from "lucide-react";
 
 // ============================================================================
@@ -189,6 +189,7 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
   const [comments, setComments] = useState<Record<number, string>>({});
   const [screenshots, setScreenshots] = useState<Record<number, string>>({});
   const [busy, setBusy] = useState<number | null>(null);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
 
   const load = useCallback(() => {
     api("/admin/agent-feedback").then((r) => { if (r.ok) setItems(r.json.data); });
@@ -223,6 +224,25 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
     else flash(r.json?.error || "Fehler");
   };
 
+  // Paket DF: Ticket-Volltext kopieren (Titel + Autor + Datum + Beschreibung) —
+  // für Weitergabe an Entwicklung/Ticketsystem, Umbrüche bleiben erhalten.
+  const copyTicket = async (f: FeedbackRow) => {
+    const text = [
+      `[${CATEGORY_LABELS[f.category] || f.category}] ${f.title}`,
+      `Von: ${f.agent_name} (${f.agent_email}) · ${fmtDT(f.created_at)} · Ticket #${f.id} · Status: ${STATUS_OPTIONS.find((s) => s.key === f.status)?.label || f.status}`,
+      "",
+      f.description,
+      f.admin_comment ? `\nAdmin-Kommentar: ${f.admin_comment}` : "",
+    ].join("\n").trim();
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(f.id);
+      setTimeout(() => setCopiedId((c) => (c === f.id ? null : c)), 2000);
+    } catch {
+      flash("Kopieren nicht möglich — bitte Text manuell markieren");
+    }
+  };
+
   const showScreenshot = async (f: FeedbackRow) => {
     if (screenshots[f.id]) { setScreenshots((s) => { const n = { ...s }; delete n[f.id]; return n; }); return; }
     const r = await api(`/admin/agent-feedback/${f.id}/screenshot`);
@@ -238,14 +258,18 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
         <span className="text-[11px] font-semibold text-slate-400">({items.filter((f) => f.status === "offen").length} offen)</span>
       </h2>
       <div className="flex flex-wrap gap-2 mb-3">
-        {[{ key: "alle", label: "Alle" }, ...STATUS_OPTIONS].map((s) => (
-          <button key={s.key} type="button" onClick={(e) => { e.stopPropagation(); setFilter(s.key); }}
-            className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-colors ${
-              filter === s.key ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
-            }`}>
-            {s.label}
-          </button>
-        ))}
+        {[{ key: "alle", label: "Alle" }, ...STATUS_OPTIONS].map((s) => {
+          // Paket DF: Zähler je Status — sofort sichtbar, wie viele Tickets wo liegen
+          const count = s.key === "alle" ? items.length : items.filter((f) => f.status === s.key).length;
+          return (
+            <button key={s.key} type="button" onClick={(e) => { e.stopPropagation(); setFilter(s.key); }}
+              className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-colors ${
+                filter === s.key ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+              }`}>
+              {s.label} ({count})
+            </button>
+          );
+        })}
       </div>
       <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-50">
         {filtered.length === 0 && <p className="px-4 py-8 text-center text-[12px] text-slate-400">Keine Tickets in dieser Ansicht.</p>}
@@ -278,6 +302,11 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
             {open[f.id] && (
               <div className="mt-3 space-y-3">
                 <p className="text-[12.5px] text-slate-600 whitespace-pre-wrap bg-slate-50 border border-slate-100 rounded-lg px-3.5 py-2.5">{f.description}</p>
+                <button type="button" onClick={(e) => { e.stopPropagation(); copyTicket(f); }}
+                  className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-500 hover:text-slate-800 transition-colors">
+                  {copiedId === f.id ? <Check size={13} strokeWidth={2} /> : <Copy size={13} strokeWidth={1.8} />}
+                  {copiedId === f.id ? "Kopiert" : "Ticket kopieren (Titel + Autor + Datum + Text)"}
+                </button>
                 {f.has_screenshot && (
                   <div>
                     <button type="button" onClick={(e) => { e.stopPropagation(); showScreenshot(f); }}

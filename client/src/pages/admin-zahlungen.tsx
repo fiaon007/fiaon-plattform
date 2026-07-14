@@ -28,6 +28,9 @@ interface PaymentRow {
   phone: string | null;
   phone_country_code: string | null;
   contact_phone: string | null;
+  street: string | null;
+  zip: string | null;
+  city: string | null;
   pack_name: string | null;
   created_at: string;
   claimed_paid_at: string | null;
@@ -137,9 +140,16 @@ export default function AdminZahlungenPage() {
   const [stats, setStats] = useState<PaymentStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  // Paket DC: globale Server-Suche (alle Status + Leads) — findet auch, was der
+  // aktuelle Tab nicht lädt (z. B. bezahlte/ersetzte Bestellungen im Tab „Angekündigt").
+  const [serverHits, setServerHits] = useState<{ customers: any[]; leads: any[] } | null>(null);
+  const serverSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [actionRef, setActionRef] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [reminderRunning, setReminderRunning] = useState(false);
+  // Paket DE: Stammdaten + Adresse im Detail-Drawer korrigieren (Audit über Backend)
+  const [contactEdit, setContactEdit] = useState<{ firstName: string; lastName: string; email: string; phone: string; street: string; zip: string; city: string } | null>(null);
+  const [contactBusy, setContactBusy] = useState(false);
 
   // Paket W: Bulk-Versand „An alle unbezahlten erinnern“
   const [bulkPreview, setBulkPreview] = useState<BulkPreview | null>(null);
@@ -233,6 +243,21 @@ export default function AdminZahlungenPage() {
     load(tab);
     loadStats();
   }, [tab, load, loadStats]);
+
+  // Paket DC: globale Server-Suche (debounced) — alle Status + Leads, unabhängig vom Tab
+  useEffect(() => {
+    if (serverSearchTimer.current) clearTimeout(serverSearchTimer.current);
+    const term = search.trim();
+    if (term.length < 2) { setServerHits(null); return; }
+    serverSearchTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/fiaon/admin/customer-search?q=${encodeURIComponent(term)}`, { credentials: "include" });
+        const json = await res.json().catch(() => null);
+        if (res.ok && json?.ok) setServerHits({ customers: json.customers || [], leads: json.leads || [] });
+      } catch { /* Suche ist best-effort */ }
+    }, 350);
+    return () => { if (serverSearchTimer.current) clearTimeout(serverSearchTimer.current); };
+  }, [search]);
 
   // Deep-Links (Paket O3/N): ?ref → Suche + Drawer; #auszahlungen → Sektion
   useEffect(() => {
@@ -601,15 +626,73 @@ export default function AdminZahlungenPage() {
     }
   };
 
+  // Paket DE: Formular zurücksetzen, wenn ein anderer Kunde geöffnet wird
+  useEffect(() => { setContactEdit(null); }, [detail?.ref]);
+
+  const startContactEdit = () => {
+    if (!detail) return;
+    setContactEdit({
+      firstName: detail.first_name || "",
+      lastName: detail.last_name || "",
+      email: customerEmail(detail) === "—" ? "" : customerEmail(detail),
+      phone: detail.phone ? `${detail.phone_country_code || ""}${detail.phone}` : (detail.contact_phone || ""),
+      street: detail.street || "",
+      zip: detail.zip || "",
+      city: detail.city || "",
+    });
+  };
+
+  const saveContactEdit = async () => {
+    if (!detail || !contactEdit) return;
+    setContactBusy(true);
+    try {
+      const res = await fetch(`/api/fiaon/admin/applications/${encodeURIComponent(detail.ref)}/contact`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({
+          firstName: contactEdit.firstName.trim(), lastName: contactEdit.lastName.trim(),
+          email: contactEdit.email.trim(), phone: contactEdit.phone.trim(),
+          street: contactEdit.street.trim(), zip: contactEdit.zip.trim(), city: contactEdit.city.trim(),
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        const changed = (json.changes || []).map((c: any) => c.field).join(", ");
+        flash(changed ? `Stammdaten aktualisiert (${changed}) — jede Änderung ist im Audit-Log protokolliert.` : "Keine Änderungen.");
+        if (json.duplicate) flash(`Achtung: E-Mail gehört bereits zu ${json.duplicate.name} (${json.duplicate.ref}) — mögliche Dublette.`);
+        setContactEdit(null);
+        setDetail(null);
+        load(tab);
+      } else {
+        flash(json?.error || "Fehler beim Speichern");
+      }
+    } catch {
+      flash("Netzwerkfehler");
+    } finally {
+      setContactBusy(false);
+    }
+  };
+
+  // Paket DC: präzise Suche — tokenisiert (Wortreihenfolge egal, „Max Müller" =
+  // „Müller Max") + Telefonsuche über normalisierte Ziffern (+49/0049/0/Format egal).
   const q = search.trim().toUpperCase();
+  const qTokens = q.split(/\s+/).filter(Boolean);
+  const qDigits = (() => {
+    let d = search.replace(/\D/g, "");
+    if (d.length < 5) return null;
+    if (d.startsWith("00")) d = d.slice(2);
+    if (d.startsWith("49")) d = d.slice(2);
+    else if (d.startsWith("0")) d = d.slice(1);
+    return d.length >= 5 ? d : null;
+  })();
   const filtered = q
-    ? rows.filter(
-        (r) =>
-          (r.payment_reference || "").toUpperCase().includes(q) ||
-          (r.ref || "").toUpperCase().includes(q) ||
-          customerName(r).toUpperCase().includes(q) ||
-          customerEmail(r).toUpperCase().includes(q),
-      )
+    ? rows.filter((r) => {
+        if (qDigits) {
+          const phoneDigits = `${r.phone_country_code || ""}${r.phone || ""}${r.contact_phone || ""}`.replace(/\D/g, "");
+          if (phoneDigits.includes(qDigits)) return true;
+        }
+        const hay = `${r.payment_reference || ""} ${r.ref || ""} ${customerName(r)} ${customerEmail(r)}`.toUpperCase();
+        return qTokens.every((t) => hay.includes(t));
+      })
     : rows;
 
   return (
@@ -896,6 +979,62 @@ export default function AdminZahlungenPage() {
             </table>
           </div>
         </div>
+
+        {/* ── Paket DC: globale Suchtreffer außerhalb des aktuellen Tabs (+ Leads) ── */}
+        {q && serverHits && (() => {
+          const localRefs = new Set(rows.map((r) => r.ref));
+          const extra = serverHits.customers.filter((c: any) => !localRefs.has(c.ref));
+          if (extra.length === 0 && serverHits.leads.length === 0) return null;
+          return (
+            <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-5">
+              <h2 className="text-[13px] font-bold text-slate-900 mb-1">Weitere Treffer (alle Status & Leads)</h2>
+              <p className="text-[11.5px] text-slate-400 mb-3">
+                Gefunden über die globale Suche — auch bezahlte, abgelaufene oder ersetzte Bestellungen sowie Leads.
+              </p>
+              {extra.length > 0 && (
+                <div className="divide-y divide-slate-50 border border-slate-100 rounded-xl overflow-hidden mb-3">
+                  {extra.map((c: any) => (
+                    <button
+                      key={c.ref}
+                      type="button"
+                      onClick={() => { setTab("alle"); setSearch(c.payment_reference || c.ref); }}
+                      className="w-full px-4 py-2.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50/70 transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-semibold text-slate-900 truncate">
+                          {c.company_name || [c.first_name, c.last_name].filter(Boolean).join(" ") || c.contact_name || "—"}
+                          <span className="ml-2 font-mono text-[11px] text-slate-400">{c.payment_reference || c.ref}</span>
+                        </p>
+                        <p className="text-[11px] text-slate-400 truncate">
+                          {c.email || "—"}{c.assigned_agent_name ? ` · Betreut von ${c.assigned_agent_name}` : ""}
+                        </p>
+                      </div>
+                      <StatusBadge status={c.payment_status} />
+                    </button>
+                  ))}
+                </div>
+              )}
+              {serverHits.leads.length > 0 && (
+                <div className="divide-y divide-slate-50 border border-slate-100 rounded-xl overflow-hidden">
+                  {serverHits.leads.map((l: any) => (
+                    <div key={l.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-medium text-slate-700 truncate">
+                          {[l.vorname, l.nachname].filter(Boolean).join(" ") || l.email || l.telefon || `Lead #${l.id}`}
+                          <span className="ml-2 px-1.5 py-0.5 rounded border border-slate-200 text-[10px] font-semibold text-slate-500">Lead</span>
+                        </p>
+                        <p className="text-[11px] text-slate-400 truncate">
+                          {l.telefon || l.email || "—"} · Status: {l.status}{l.assigned_agent_name ? ` · ${l.assigned_agent_name}` : ""}
+                        </p>
+                      </div>
+                      <a href="/admin/leads" className="text-[12px] font-bold text-[#2563eb] shrink-0">Zu den Leads</a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         <p className="text-[12px] text-slate-400 mt-4">
           Bankkonto: FIAON LTD · BE09 9058 9276 3957 · TRWIBEB1XXX — Zuordnung ausschließlich über den Verwendungszweck.
@@ -1184,7 +1323,58 @@ export default function AdminZahlungenPage() {
                 <div><p className="text-[10px] uppercase font-bold text-slate-400">Betrag</p><p className="font-semibold">{fmtAmount(detail.amount_due)}</p></div>
                 <div><p className="text-[10px] uppercase font-bold text-slate-400">Rechnung</p><p className="font-mono font-semibold">{detail.invoice_number || "—"}</p></div>
                 <div><p className="text-[10px] uppercase font-bold text-slate-400">Fällig</p><p className="font-semibold">{fmtDate(detail.payment_due_date)}</p></div>
+                <div className="col-span-2"><p className="text-[10px] uppercase font-bold text-slate-400">Adresse</p><p className="font-semibold">{[detail.street, [detail.zip, detail.city].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "—"}</p></div>
               </div>
+
+              {/* Paket DE: Stammdaten + Adresse korrigieren (Audit alt→neu im Backend) */}
+              {!contactEdit ? (
+                !detail.gdpr_deleted_at && (
+                  <button type="button" onClick={startContactEdit}
+                    className="text-[12px] font-bold text-slate-500 hover:text-slate-800 transition-colors">
+                    Stammdaten & Adresse korrigieren
+                  </button>
+                )
+              ) : (
+                <div className="border border-slate-200 rounded-xl p-3.5 space-y-2.5 bg-slate-50">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Stammdaten korrigieren</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="text" value={contactEdit.firstName} placeholder="Vorname"
+                      onChange={(e) => setContactEdit((f) => f && ({ ...f, firstName: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-[13px] outline-none focus:border-[#2563eb]" />
+                    <input type="text" value={contactEdit.lastName} placeholder="Nachname"
+                      onChange={(e) => setContactEdit((f) => f && ({ ...f, lastName: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-[13px] outline-none focus:border-[#2563eb]" />
+                  </div>
+                  <input type="email" value={contactEdit.email} placeholder="E-Mail"
+                    onChange={(e) => setContactEdit((f) => f && ({ ...f, email: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-[13px] outline-none focus:border-[#2563eb]" />
+                  <input type="tel" value={contactEdit.phone} placeholder="Telefon (+49 …)"
+                    onChange={(e) => setContactEdit((f) => f && ({ ...f, phone: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-[13px] outline-none focus:border-[#2563eb]" />
+                  <input type="text" value={contactEdit.street} placeholder="Straße & Hausnummer"
+                    onChange={(e) => setContactEdit((f) => f && ({ ...f, street: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-[13px] outline-none focus:border-[#2563eb]" />
+                  <div className="grid grid-cols-[110px_1fr] gap-2">
+                    <input type="text" inputMode="numeric" value={contactEdit.zip} placeholder="PLZ"
+                      onChange={(e) => setContactEdit((f) => f && ({ ...f, zip: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-[13px] outline-none focus:border-[#2563eb]" />
+                    <input type="text" value={contactEdit.city} placeholder="Ort"
+                      onChange={(e) => setContactEdit((f) => f && ({ ...f, city: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-[13px] outline-none focus:border-[#2563eb]" />
+                  </div>
+                  <p className="text-[11px] text-slate-400">Paket, Betrag, Status und Referenz sind hier bewusst nicht änderbar. Jede Änderung wird im Verlauf (alt → neu) protokolliert.</p>
+                  <div className="flex gap-2">
+                    <button type="button" disabled={contactBusy} onClick={saveContactEdit}
+                      className="flex-1 px-4 py-2.5 rounded-lg bg-[#2563eb] hover:bg-[#1d4fd7] text-white text-[13px] font-bold transition-all disabled:opacity-50">
+                      {contactBusy ? "Speichert …" : "Speichern"}
+                    </button>
+                    <button type="button" onClick={() => setContactEdit(null)}
+                      className="px-4 py-2.5 rounded-lg bg-white border border-slate-200 text-slate-600 text-[13px] font-bold hover:border-slate-300 transition-all">
+                      Abbrechen
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="flex flex-wrap gap-2">
                 {(detail.payment_status === "pending_payment" || detail.payment_status === "claimed_paid") && (

@@ -122,7 +122,7 @@ router.get("/agent/dashboard", requireAgent, async (req: AgentRequest, res) => {
     // Aktivität heute: dokumentierte Kontakte (Anruf-Ergebnisse + Zahlungs-Mails)
     const activity = await sqlPool`
       SELECT COUNT(*)::int AS c FROM fiaon_contact_log
-      WHERE agent_id = ${me} AND type IN ('result', 'email_sent') AND created_at >= date_trunc('day', NOW())
+      WHERE agent_id = ${me} AND type IN ('result', 'email_sent') AND voided_at IS NULL AND created_at >= date_trunc('day', NOW())
     `;
 
     // Abschlüsse (eigene, positiv, nicht storniert): Monat gesamt, heute, bester Tag

@@ -506,6 +506,24 @@ async function logIntake(status: string, quelle: string | null, detail: string |
   try {
     await sqlPool`INSERT INTO fiaon_lead_intake_log (status, quelle, detail) VALUES (${status}, ${quelle}, ${detail})`;
   } catch (err) { console.error("[FIAON-LEADS] logIntake:", err); }
+  // P5: abgelehnte/ungültige Intakes zusätzlich als Diagnose-Ereignis (non-blocking).
+  // 'ok'/'test' erzeugen bewusst KEIN Ereignis (kein Rauschen).
+  if (status === "rejected_auth" || status === "invalid") {
+    import("../lib/fiaon-diagnostics")
+      .then((d) => d.logDiagnostic({
+        severity: status === "rejected_auth" ? "kritisch" : "warnung",
+        category: "lead",
+        code: `lead_intake_${status}`,
+        message: status === "rejected_auth"
+          ? `Lead-Eingang abgewiesen (Authentifizierung): ${detail || "unbekannt"}. Make kann gerade KEINE Leads einliefern.`
+          : `Lead-Eingang ungültig (${detail || "Pflichtfeld fehlt"}), Quelle ${quelle || "?"}.`,
+        hint: status === "rejected_auth"
+          ? "Das Intake-Secret stimmt nicht oder fehlt. LEAD_INTAKE_SECRET im Deployment und im Make-Header 'x-lead-secret' abgleichen."
+          : "Der eingelieferte Datensatz hatte weder gültige E-Mail noch Telefon. Feld-Mapping im Make-Szenario prüfen.",
+        link: "/admin/leads",
+      }))
+      .catch(() => {});
+  }
 }
 
 type IntakeResult = { ok: true; id: number; deduped: boolean } | { ok: false; code: number; error: string };

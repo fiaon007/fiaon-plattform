@@ -4,7 +4,7 @@ import {
   LayoutDashboard, CreditCard, Banknote, FileText, Users, UserPlus,
   BookOpen, Settings, ScrollText, Scale, Database, Search, Menu, X,
   ArrowLeft, ChevronRight, ShieldAlert, Wallet, Send, Sparkles,
-  Target, TrendingUp, Landmark, HandCoins, Copy, BarChart3, History,
+  Target, TrendingUp, Landmark, HandCoins, Copy, BarChart3, History, Activity,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -37,7 +37,7 @@ interface NavGroup {
 //   /admin ✓ · zahlungen ✓ · finanzen ✓ · verbuchungen ✓ · kontoabgleich ✓ ·
 //   rechnungen ✓ · database ✓ · leads ✓ · team ✓ · nachbuchung ✓ · leistung ✓ (neu) ·
 //   agent-portal ✓ (Updates+Feedback zusammengelegt — war doppelt) ·
-//   einstellungen ✓ · events ✓ · audit ✓ · recht ✓ · changelog ✓ (neu) ·
+//   einstellungen ✓ · events ✓ · audit ✓ · recht ✓ · changelog ✓ · diagnose ✓ (P5, neu) ·
 //   Dubletten ✓ (neu verlinkt — lebt als Sektion in der Zahlungszentrale).
 //   Karteileichen: keine (admin-leads-import ist Dialog-Komponente, keine Route).
 export const ADMIN_NAV: NavGroup[] = [
@@ -81,6 +81,7 @@ export const ADMIN_NAV: NavGroup[] = [
   {
     title: "System & Recht",
     items: [
+      { path: "/admin/diagnose", label: "System-Diagnose", desc: "Was klemmt gerade? Ereignis-Konsole, Rohdaten, KI-Auswertung", icon: Activity, badgeKey: "diagnose" },
       { path: "/admin/einstellungen", label: "Einstellungen", desc: "Provisionssatz, Auszahlung, Reminder-Engine, Diagnose", icon: Settings },
       { path: "/admin/events", label: "E-Mail-Events", desc: "Make-Events testen, Diagnose, Verlauf", icon: Send },
       { path: "/admin/audit", label: "Audit-Log", desc: "Alle Mitarbeiter-Aktionen durchsuchbar", icon: ScrollText },

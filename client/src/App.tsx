@@ -60,6 +60,7 @@ import AdminFinanzenPage from "@/pages/admin-finanzen";
 import AdminKontoabgleichPage from "@/pages/admin-kontoabgleich";
 import AdminLeistungPage from "@/pages/admin-leistung";
 import AdminChangelogPage from "@/pages/admin-changelog";
+import AdminDiagnosePage from "@/pages/admin-diagnose";
 import AgentLeistungPage from "@/pages/agent/leistung";
 import AgentLeadsPage from "@/pages/agent/leads";
 
@@ -116,6 +117,7 @@ function Router() {
       <Route path="/admin/nachbuchung" component={admin(AdminNachbuchungPage)} />
       <Route path="/admin/leistung" component={admin(AdminLeistungPage)} />
       <Route path="/admin/changelog" component={admin(AdminChangelogPage)} />
+      <Route path="/admin/diagnose" component={admin(AdminDiagnosePage)} />
       <Route path="/agent/leistung" component={AgentLeistungPage} />
       <Route path="/zahlung/:paymentRef/danke" component={ZahlungDankePage} />
       <Route path="/zahlung/:paymentRef" component={ZahlungPage} />

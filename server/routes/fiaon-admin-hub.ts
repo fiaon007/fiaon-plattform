@@ -107,6 +107,12 @@ async function computeBadges(): Promise<any> {
     FROM fiaon_leads l JOIN fiaon_agents ag ON ag.id = l.opened_by_agent_id
     WHERE l.opened_at IS NOT NULL AND l.status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
   `.catch(() => [{ c: 0, first_agent: null }] as any);
+  // P5-D: kritische Diagnose-Ereignisse der letzten 24 h — Nav-Badge + Warn-Kachel.
+  const [diag] = await sqlPool`
+    SELECT COUNT(DISTINCT fingerprint)::int AS c
+    FROM fiaon_diagnostics
+    WHERE severity = 'kritisch' AND created_at > NOW() - INTERVAL '24 hours'
+  `.catch(() => [{ c: 0 }] as any);
   const settings = await getSettings();
 
   return {
@@ -118,6 +124,7 @@ async function computeBadges(): Promise<any> {
       nachbuchung: Number(apps.nachbuchung),
       dubletten: Number(dup.c),
       kontoabgleich: Number(bank.unmatched),
+      diagnose: Number(diag.c), // P5-D: kritische Ereignisse (24 h)
     },
     // Zusatzsignale für die Dashboard-Warn-Kacheln
     warn: {
@@ -126,6 +133,7 @@ async function computeBadges(): Promise<any> {
       bankMatchedUnapplied: Number(bank.matched_unapplied),
       blockedAkten: Number(blockedAkten.c),
       blockedAktenAgent: blockedAkten.first_agent || null,
+      criticalDiagnostics: Number(diag.c), // P5-D: eine Wahrheit, zwei Ansichten
     },
     at: new Date().toISOString(),
   };

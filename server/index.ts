@@ -237,6 +237,13 @@ async function seedSubscriptionPlans() {
 }
 
 (async () => {
+  // 🩺 FIAON System-Diagnose (Phase 5) — Console→Ring-Puffer + Prozess-Handler.
+  // So früh wie möglich, damit ab jetzt jede Log-Zeile (maskiert) erfasst wird.
+  try {
+    const { installDiagnostics } = await import("./lib/fiaon-diagnostics");
+    installDiagnostics();
+  } catch (e) { log("⚠️ Diagnose-Init übersprungen:", String(e)); }
+
   // 🔥 Migrate AI Profile columns first
   await migrateAIProfile();
   

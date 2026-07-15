@@ -504,3 +504,82 @@ Reine UX/Navigation/Erklärung/Berichte — **keine Geschäftslogik geändert.**
 1. **Reaktionszeit-Anker:** Der Lead-**Zuweisungs**-Zeitpunkt wurde historisch nie gespeichert. Die Kennzahl misst deshalb ehrlich „Lead-**Eingang** → erster dokumentierter Kontakt" und ist im UI exakt so beschriftet (Tooltip erklärt den Grund). Ein `assigned_at`-Feld wäre eine Logik-Änderung und war in dieser Phase untersagt.
 2. **Vorher/Nachher-Screenshots:** nicht erstellt (kein laufender Browser-Lauf in dieser Sitzung); die Änderungen sind stattdessen im Changelog und hier beschrieben. Kann nach dem Deploy nachgeholt werden.
 3. Die vorbestehenden TypeScript-Fehler in `server/routes.ts` / ARAS-AI-Komponenten (fremder Teil des Monorepos) wurden bewusst nicht angefasst; alle FIAON-Dateien sind fehlerfrei, `vite build` + Server-Bundle laufen durch.
+
+---
+---
+
+# PHASE 5 — SYSTEM-DIAGNOSE „WAS KLEMMT GERADE?" (15.07.2026)
+
+Neue Betreiber-Ansicht `/admin/diagnose`. **Keine Geschäftslogik geändert** — es
+wurden nur non-blocking Log-Aufrufe an bestehenden Fehlerstellen ergänzt sowie
+eine neue, rein additive Diagnose-Schicht gebaut.
+
+## P5-A — Was die Seite ist
+
+Primär eine **strukturierte Ereignis-/Problem-Konsole** (Tab „Konsole"): jedes
+Ereignis mit Schweregrad, Kategorie, Zeit, Klartext-Bedeutung, Lösungshinweis
+und — wo möglich — Direktlink/Aktion. Der Roh-Log ist ein **sekundärer Tab**
+(„Rohdaten") für die Tiefenanalyse, keine 1:1-Terminalspiegelung als Hauptansicht.
+
+## P5-B — Sicherheit & DSGVO (Kern)
+
+- **Nur Admin.** Router liegt hinter `blockAgentsFromAdmin` (in `routes.ts` davor gemountet) → Agenten erhalten 403.
+- **Maskierung SERVERSEITIG vor Speicherung & Auslieferung** (`server/lib/fiaon-diagnostics.ts`, `maskSensitive`): Connection-Strings mit Zugangsdaten, GitHub-PAT (`ghp_/github_pat_`), `sk-/pk-/rk-`-Keys, Google-`AIza`-Keys, `Bearer/Basic`-Header, JWT, benannte Secret-Env (`DATABASE_URL`, `*_API_KEY`, `*_SECRET`, `*_TOKEN`, `PASSWORD` …), IBAN (`DE** **** **52`), E-Mail (`ma***@gmail.com`), Telefon (`+49 *** *** **52`). Der reale Vorfall (PAT im Klartext in der Git-Remote-URL) ist als expliziter Testfall abgedeckt.
+- **Aufbewahrung 7 Tage** (`RETENTION_DAYS`) + Löschfunktion (`POST /admin/diagnose/purge`). Kein unbegrenztes Archiv mit Kundendaten.
+
+## P5-C — Was erfasst wird (Kategorien × Schweregrad)
+
+- `email_make` — Make-Webhook-Fehler (HTTP-Status ≥ 500 = kritisch, sonst Warnung) und Nicht-Erreichbarkeit; instrumentiert direkt in `server/make-webhook.ts` (non-blocking, ändert Rückgabe/Flow nicht). Deckt „E-Mail geht nicht" ab.
+- `lead` — abgelehnte/ungültige Intakes (im bestehenden Funnel `logIntake`), plus synthetisch „seit X h kein Lead-Eingang" (hätte den Make-Ausfall sofort gezeigt) und „Nachfass pausiert".
+- `zahlung` — synthetisch aus den Geschäftstabellen: nicht zugeordnete Bank-Eingänge, Betragsabweichungen, bezahlt ohne Provision, Dubletten-Gruppen.
+- `agent` — blockierte Akte (mit „Akte freigeben"-Aktion).
+- `system` — unbehandelte Exceptions/Rejections (Prozess-Handler, additiv).
+- `kunde` — vorgesehen; wird gespeist, sobald Antrags-/Upload-Fehlerstellen `logDiagnostic` aufrufen (Erweiterungspunkt, keine Logikänderung nötig).
+
+Struktur: **persistierte** Ereignisse (Tabelle `fiaon_diagnostics`, maskiert) +
+**synthetische** Live-Signale (bei jeder Abfrage aus den Geschäftstabellen
+abgeleitet — dieselben Signale wie die Dashboard-Warn-Kacheln = „eine Wahrheit").
+
+## P5-D — Die Seite (`client/src/pages/admin-diagnose.tsx`)
+
+- Live per **Polling alle 8 s** (kein WebSocket/Realtime-Stack).
+- Filter: Schweregrad · Kategorie · Zeitraum (1 h/24 h/7 d) · Freitext. Standard: kritisch + Warnung, 24 h.
+- **Aggregation** nach Fingerprint (normalisiert: Zahlen/Refs/UUIDs raus) → „N×", aufklappbar mit „zuerst/zuletzt".
+- Klartext + Link je Eintrag; **Direktaktionen**: „Akte freigeben" (`POST /admin/leads/:id/release-akte`), „Event erneut senden" (→ `/admin/events?ref=`).
+- **Verknüpfung P4-B:** kritische Ereignisse (24 h, distinct Fingerprint) fließen in `computeBadges` → Nav-Badge `diagnose` + Dashboard-Warn-Kachel.
+- Endpoints (`server/routes/fiaon-diagnose.ts`): `GET /admin/diagnose/events`, `GET /admin/diagnose/raw` (+`?download=1`), `GET /admin/diagnose/export`, `POST /admin/diagnose/purge`, `POST /admin/diagnose/ai`.
+- **KI:** derselbe Provider-Pfad wie P4-C (`aiComplete` aus `fiaon-leistung.ts` exportiert — Gemini Flash zuerst, dann gpt-4o-mini). Nur maskierte/aggregierte Fehlergruppen gehen an die KI.
+
+## P5-E — Design
+
+Nur die **Konsolen-Fläche** weicht ab: dunkel (`#0b0f17`), Monospace,
+farbcodierte Schweregrade (rose/amber/sky), Fenster-Punkte-Kopf. Kein
+Zeichenregen, keine Emojis. Header/Nav/Buttons/PageIntro bleiben im hellen
+Slate-CI. Einträge **umbrechen** (`break-words`/`whitespace-pre-wrap`), kein
+Horizontal-Scroll → mobil lesbar. Rohdaten-Tab zeigt die Ring-Puffer-Auslastung.
+
+## P5-F — Historie & Export
+
+Persistiert mit 7-Tage-Retention; Zeitraum-Auswahl; JSON-Export
+(`/admin/diagnose/export`) und Rohdaten-Download (`.txt`). Die Frage „Was war am
+14.07. zwischen 13–15 Uhr?" ist damit rückwirkend beantwortbar (im
+Retention-Fenster).
+
+## Strikte Regeln — Umsetzung
+
+- **Maskierung vor Speicherung:** `logDiagnostic` maskiert Nachricht + Kontext, bevor der INSERT läuft; der Ring-Puffer wird beim Push maskiert.
+- **Ring-Puffer hart begrenzt:** 1.000 Zeilen **und** 2 MB (beides durchgesetzt), Server-Pagination, neueste zuerst.
+- **Non-blocking:** `logDiagnostic` gibt sofort zurück, schreibt im Hintergrund; jeder Logging-Fehler wird verschluckt (die App läuft weiter). Eigener kleiner Pool (`max: 2`).
+- **Keine Geschäftslogik geändert.**
+
+## Testergebnisse (P5)
+
+- `scripts/test-diagnose-masking.ts`: **12/12 PASS** — u. a. `sk-…`, Test-IBAN, **GitHub-PAT-in-URL** (realer Vorfall), Bearer/JWT, `DATABASE_URL`, Google-Key, E-Mail, Telefon; Klartext bleibt lesbar.
+- `scripts/test-diagnose-e2e.ts` (echte DB, markierte Testdaten, räumt auf): **7/7 PASS** — Ring-Puffer hält Zeilen- **und** Byte-Grenze, neueste zuerst, Rohdaten maskiert; **100 identische Fehler → 1 Fingerprint** (Aggregation); persistierte Nachricht maskiert (`le***@gmail.com`, `sk-***REDIGIERT***`); Testdaten vollständig entfernt.
+- `vite build` ✓, Server-Bundle (esbuild) ✓, alle FIAON-Dateien TypeScript-fehlerfrei.
+
+## Ehrliche Abweichungen (Phase 5)
+
+1. **Make-Fehler live provozieren** (Testplan 1) wurde nicht gegen die Produktion ausgelöst (kein absichtlicher Fehlversand an echte Kunden). Der Pfad ist über `test-diagnose-e2e.ts` verifiziert: `make-webhook.ts` ruft dieselbe `logDiagnostic`-Funktion, deren Persistenz + Maskierung + Aggregation getestet ist. Nach dem Deploy lässt sich ein echtes Fehlerereignis über einen ungültigen Make-Zweig gefahrlos erzeugen.
+2. **Console-Interception** speist den Rohdaten-Puffer additiv (Original-Console wird zuerst aufgerufen) — sie erzeugt bewusst KEINE strukturierten Ereignisse aus jedem `console.error`, um Rauschen zu vermeiden; strukturierte Ereignisse kommen aus expliziten `logDiagnostic`-Aufrufen und den synthetischen Live-Signalen.
+3. Vorbestehende TS-Fehler in `server/routes.ts` (ARAS-AI) bleiben unangetastet.

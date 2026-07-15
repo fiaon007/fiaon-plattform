@@ -242,7 +242,7 @@ router.get("/agent/leistung", requireAgent, async (req: AgentRequest, res: Respo
 // ── KI-Zusammenfassung (P4-C) ────────────────────────────────────────────────
 // DSGVO: ausschließlich aggregierte Kennzahlen. Agenten werden anonymisiert
 // („Agent A/B/…"), Quellen-Namen sind Kampagnen-Bezeichnungen (keine Personen).
-async function aiComplete(prompt: string): Promise<{ text: string; provider: string }> {
+export async function aiComplete(prompt: string): Promise<{ text: string; provider: string }> {
   const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
   if (geminiKey) {
     const resp = await fetch(

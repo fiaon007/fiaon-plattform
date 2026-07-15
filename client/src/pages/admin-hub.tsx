@@ -4,7 +4,7 @@ import {
   CreditCard, Banknote, FileText, Database, Users, UserPlus, BookOpen,
   Settings, ScrollText, Scale, ChevronRight, Wallet, Send, Search,
   AlertTriangle, ListChecks, Landmark, HandCoins, Copy, Sparkles,
-  Target, TrendingUp, BarChart3, History,
+  Target, TrendingUp, BarChart3, History, Activity,
 } from "lucide-react";
 import { ACCENT } from "@/components/admin/AdminShell";
 import { PageIntro, Tip } from "@/components/admin/PageHelp";
@@ -175,6 +175,13 @@ export default function AdminHubPage() {
 
   // Warn-Kacheln: nur ECHTE Probleme.
   const warns: { title: string; explain: string; href: string; action: string }[] = [];
+  if ((warn?.criticalDiagnostics || 0) > 0) {
+    warns.push({
+      title: `${warn.criticalDiagnostics} kritische(s) System-Ereignis(se) (letzte 24 h)`,
+      explain: "Die System-Diagnose hat kritische Probleme erfasst (z. B. fehlgeschlagene E-Mails, Lead-Ausfall). Klartext, Ursache und Reihenfolge der Behebung findest du dort.",
+      href: "/admin/diagnose", action: "Diagnose öffnen",
+    });
+  }
   if (warn?.leadIntakeHours != null && warn.leadIntakeHours >= 24) {
     warns.push({
       title: `Seit ${warn.leadIntakeHours} Stunden kein Lead-Eingang`,
@@ -228,6 +235,7 @@ export default function AdminHubPage() {
     {
       title: "System & Recht",
       cards: [
+        { href: "/admin/diagnose", label: "System-Diagnose", desc: "Was klemmt gerade? Ereignis-Konsole mit Schweregrad, Rohdaten-Tail und KI-Auswertung.", icon: Activity, badge: (warn?.criticalDiagnostics || 0) > 0 ? `${warn.criticalDiagnostics} kritisch` : null },
         { href: "/admin/einstellungen", label: "Einstellungen", desc: "Provisionssatz, Mindest-Auszahlung, Base-URL- und Make-Webhook-Diagnose.", icon: Settings },
         { href: "/admin/events", label: "E-Mail-Events", desc: "Make-Events mit Beispieldaten testen — Diagnose, welcher Event-Typ noch nie gefeuert hat.", icon: Send },
         { href: "/admin/audit", label: "Audit-Log", desc: "Jede Mitarbeiter-Aktion nachvollziehen — durchsuchbar.", icon: ScrollText },

@@ -38,6 +38,18 @@ export interface MakeWebhookPayload {
   [key: string]: unknown;
 }
 
+// P5: Diagnose-Bridge — lazy import, non-blocking, wirft nie (kein Zyklus,
+// Maskierung passiert im Diagnose-Modul serverseitig vor Speicherung).
+function reportDiag(e: { severity: "kritisch" | "warnung" | "info"; code: string; message: string; hint?: string; ref?: string | null }): void {
+  import("./lib/fiaon-diagnostics")
+    .then((d) => d.logDiagnostic({
+      severity: e.severity, category: "email_make", code: e.code, message: e.message, hint: e.hint,
+      link: e.ref ? `/admin/zahlungen?ref=${encodeURIComponent(String(e.ref))}` : undefined,
+      action: e.ref ? { kind: "resend_event", label: "Event erneut senden", ref: String(e.ref) } : null,
+    }))
+    .catch(() => {});
+}
+
 /**
  * Sendet einen Webhook an Make.com (URL aus env MAKE_WEBHOOK_URL).
  * Fehler blockieren NIEMALS den Nutzer-/Zahlungsflow — sie werden nur geloggt.
@@ -61,6 +73,14 @@ export async function sendMakeWebhook(eventType: MakeEventType, payload: MakeWeb
     });
     if (!res.ok) {
       console.error(`[MAKE-WEBHOOK] '${eventType}' (${payload.antrag_id}) → HTTP ${res.status}`);
+      // P5: strukturiertes Diagnose-Ereignis (non-blocking, ändert den Flow nicht).
+      reportDiag({
+        severity: res.status >= 500 ? "kritisch" : "warnung",
+        code: "make_webhook_http",
+        message: `Make-Webhook für Event '${eventType}' abgelehnt (HTTP ${res.status}) — Empfänger ${payload.email || "?"}${payload.payment_reference ? `, Ref ${payload.payment_reference}` : ""}.`,
+        hint: "Prüfe das Make-Szenario (aktiv? Webhook erreichbar?) und ob die Payload-Struktur des Events dort bekannt ist (E-Mail-Events → Test senden).",
+        ref: payload.payment_reference || payload.antrag_id,
+      });
       return false;
     }
     console.log(`[MAKE-WEBHOOK] '${eventType}' gesendet (${payload.antrag_id}${payload.payment_reference ? `, ${payload.payment_reference}` : ""})`);
@@ -68,6 +88,13 @@ export async function sendMakeWebhook(eventType: MakeEventType, payload: MakeWeb
     return true;
   } catch (err) {
     console.error(`[MAKE-WEBHOOK] '${eventType}' (${payload.antrag_id}) fehlgeschlagen:`, err instanceof Error ? err.message : err);
+    reportDiag({
+      severity: "kritisch",
+      code: "make_webhook_error",
+      message: `Make-Webhook für Event '${eventType}' nicht erreichbar: ${err instanceof Error ? err.message : String(err)} — Empfänger ${payload.email || "?"}.`,
+      hint: "Netzwerk-/Timeout-Problem zu Make. Läuft das Szenario? Ist MAKE_WEBHOOK_URL korrekt? Kunde-Mail ggf. über E-Mail-Events erneut senden.",
+      ref: payload.payment_reference || payload.antrag_id,
+    });
     return false;
   }
 }

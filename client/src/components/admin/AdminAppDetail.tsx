@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { AdminAppSubComponents } from "./AdminAppSubComponents";
-import { getPaymentStatusKey, getAppStatusKey, PAYMENT_META, STATUS_META, getFullName, formatDate, formatDateTime, formatCurrency } from "./AdminApplicationsManager";
+import { getPaymentStatusKey, getAppStatusKey, getOrderStatusGroup, PAYMENT_META, STATUS_META, getFullName, formatDate, formatDateTime, formatCurrency } from "./AdminApplicationsManager";
 
 const { Field, StatusBadge, KycRow } = AdminAppSubComponents;
 
@@ -79,6 +79,27 @@ export function AdminAppDetail({ app, setApp, applications, setApplications }: P
       }
     } catch {}
     setReviewLoading(false);
+  };
+
+  const [reactivating, setReactivating] = useState(false);
+  const reactivate = async () => {
+    if (!app?.payment_reference) return;
+    if (!confirm("Abgelaufene Bestellung reaktivieren? Es wird eine neue 7-Tage-Zahlungsfrist gesetzt und die Zahlungsdaten-Mail erneut versendet. Der Kunde bleibt im Vertriebsnetz.")) return;
+    setReactivating(true);
+    try {
+      const res = await fetch(`/api/fiaon/admin/payments/${encodeURIComponent(app.payment_reference)}/reactivate`, { method: 'POST', credentials: 'include' });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        const updated = { ...app, payment_status: 'pending_payment', payment_due_date: json.data?.payment_due_date ?? app.payment_due_date };
+        setApp(updated);
+        setApplications(prev => prev.map(a => a.ref === app.ref ? { ...a, ...updated } : a));
+        setReviewSuccess('Reaktiviert — neue Zahlungsfrist gesetzt');
+        setTimeout(() => setReviewSuccess(null), 2800);
+      } else {
+        alert(json?.error || 'Reaktivierung fehlgeschlagen');
+      }
+    } catch { alert('Netzwerkfehler'); }
+    setReactivating(false);
   };
 
   const sendProfileQuery = async () => {
@@ -181,6 +202,20 @@ export function AdminAppDetail({ app, setApp, applications, setApplications }: P
           </div>
         );
       })()}
+
+      {/* Abgelaufen: Reaktivieren (Direktive „Kein Kunde verschwindet") */}
+      {getOrderStatusGroup(app) === 'expired' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold text-amber-800">Zahlungsfrist abgelaufen</p>
+            <p className="text-[12px] text-amber-700/90">Der Kunde bleibt im Vertriebsnetz. Reaktivieren setzt eine neue 7-Tage-Frist und sendet die Zahlungsdaten erneut.</p>
+          </div>
+          <button type="button" onClick={reactivate} disabled={reactivating || !app.payment_reference}
+            className="shrink-0 px-4 py-2.5 rounded-xl text-white text-[13px] font-semibold bg-[#2563eb] hover:bg-[#1d4fd7] disabled:opacity-40">
+            {reactivating ? 'Reaktiviere …' : 'Kunde reaktivieren'}
+          </button>
+        </div>
+      )}
 
       {/* Tab Content */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mt-4">

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useLocation } from "wouter";
 import { AdminAppDetail } from "./AdminAppDetail";
 import { AdminAppSubComponents } from "./AdminAppSubComponents";
 
@@ -17,21 +18,28 @@ export const getPaymentStatusKey = (app: any): 'paid' | 'pending' | 'cancelled' 
 
 // EA: rohes payment_status auf sichtbare Bestell-Status-Gruppen abbilden —
 // bewusst getrennt von getPaymentStatusKey (das superseded auf „pending" kollabiert).
-export const getOrderStatusGroup = (app: any): 'pending_payment' | 'claimed_paid' | 'paid' | 'superseded' | 'cancelled' | 'other' => {
+export const getOrderStatusGroup = (app: any): 'lead' | 'pending_payment' | 'claimed_paid' | 'paid' | 'expired' | 'superseded' | 'cancelled' | 'other' => {
+  if (app?.record_type === 'lead') return 'lead';
   const raw = String(app?.payment_status ?? '').toLowerCase().trim();
+  if (raw === 'lead') return 'lead';
   if (raw === 'paid' || raw === 'succeeded') return 'paid';
   if (raw === 'claimed_paid') return 'claimed_paid';
   if (raw === 'pending_payment') return 'pending_payment';
+  if (raw === 'expired') return 'expired';
   if (raw === 'superseded') return 'superseded';
   if (raw === 'cancelled' || raw === 'canceled' || raw === 'refunded') return 'cancelled';
   return 'other';
 };
 
+// Vereinheitlichter Lebenszyklus: Lead → Antrag/offen → angekündigt → bezahlt,
+// plus Nebenzustände abgelaufen/geschlossen/storniert. EINE Ansicht für alles.
 export const ORDER_STATUS_CHIPS: { key: string; label: string }[] = [
   { key: 'all', label: 'Alle' },
+  { key: 'lead', label: 'Leads' },
   { key: 'pending_payment', label: 'Offen' },
   { key: 'claimed_paid', label: 'Angekündigt' },
   { key: 'paid', label: 'Bezahlt' },
+  { key: 'expired', label: 'Abgelaufen' },
   { key: 'superseded', label: 'Geschlossen/Dublette' },
   { key: 'cancelled', label: 'Storniert' },
 ];
@@ -94,6 +102,7 @@ const ITEMS_PER_PAGE = 50;
 
 export default function AdminApplicationsManager() {
   const [applications, setApplications] = useState<any[]>([]);
+  const [leads, setLeads] = useState<any[]>([]);
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +123,7 @@ export default function AdminApplicationsManager() {
   const [mergeSuccess, setMergeSuccess] = useState<string | null>(null);
   const [showDuplicates, setShowDuplicates] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const [, setLocation] = useLocation();
 
   const fetchApplications = useCallback(async () => {
     setError(null); setLoading(true);
@@ -122,6 +132,7 @@ export default function AdminApplicationsManager() {
       const json = await res.json();
       if (res.ok && json.ok !== false) {
         setApplications(Array.isArray(json.data) ? json.data : []);
+        setLeads(Array.isArray(json.leads) ? json.leads : []);
         setDuplicateGroups(json.duplicateGroups || []);
       } else { setError(`Backend-Fehler (${res.status})`); }
     } catch (err: any) { setError(`Netzwerkfehler: ${err?.message || 'Unbekannt'}`); }
@@ -141,14 +152,21 @@ export default function AdminApplicationsManager() {
 
   const filteredAndSorted = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    let filtered = [...applications];
+    // Vereinheitlichter Pool: Leads erscheinen bei „Alle" und im „Leads"-Reiter.
+    // App-spezifische Filter (Status/Zahlung/SCHUFA) blenden Leads bewusst aus.
+    const appFiltersActive = statusFilter !== 'all' || paymentFilter !== 'all' || schufaFilter !== 'all';
+    let pool: any[];
+    if (orderStatusFilter === 'lead') pool = [...leads];
+    else if (orderStatusFilter === 'all') pool = appFiltersActive ? [...applications] : [...applications, ...leads];
+    else pool = applications.filter(a => getOrderStatusGroup(a) === orderStatusFilter);
+    let filtered = pool;
     if (q) filtered = filtered.filter(app => [app.first_name, app.last_name, app.email, app.ref, app.company_name, app.contact_name, app.phone, app.iban].filter(Boolean).join(' ').toLowerCase().includes(q));
-    if (statusFilter !== 'all') filtered = filtered.filter(app => getAppStatusKey(app) === statusFilter);
-    if (paymentFilter !== 'all') filtered = filtered.filter(app => getPaymentStatusKey(app) === paymentFilter);
-    if (schufaFilter === 'uploaded') filtered = filtered.filter(a => !!(a.has_schufa_pdf ?? a.schufa_pdf));
-    else if (schufaFilter === 'missing') filtered = filtered.filter(a => !(a.has_schufa_pdf ?? a.schufa_pdf));
-    else if (schufaFilter === 'approved') filtered = filtered.filter(a => a.schufa_status === 'approved');
-    if (orderStatusFilter !== 'all') filtered = filtered.filter(a => getOrderStatusGroup(a) === orderStatusFilter);
+    if (statusFilter !== 'all') filtered = filtered.filter(app => app.record_type !== 'lead' && getAppStatusKey(app) === statusFilter);
+    if (paymentFilter !== 'all') filtered = filtered.filter(app => app.record_type !== 'lead' && getPaymentStatusKey(app) === paymentFilter);
+    if (schufaFilter === 'uploaded') filtered = filtered.filter(a => a.record_type !== 'lead' && !!(a.has_schufa_pdf ?? a.schufa_pdf));
+    else if (schufaFilter === 'missing') filtered = filtered.filter(a => a.record_type !== 'lead' && !(a.has_schufa_pdf ?? a.schufa_pdf));
+    else if (schufaFilter === 'approved') filtered = filtered.filter(a => a.record_type !== 'lead' && a.schufa_status === 'approved');
+    filtered = [...filtered];
     filtered.sort((a, b) => {
       let cmp = 0;
       switch (sortField) {
@@ -163,7 +181,7 @@ export default function AdminApplicationsManager() {
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return filtered;
-  }, [applications, searchQuery, statusFilter, paymentFilter, schufaFilter, orderStatusFilter, sortField, sortDir]);
+  }, [applications, leads, searchQuery, statusFilter, paymentFilter, schufaFilter, orderStatusFilter, sortField, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filteredAndSorted.length / ITEMS_PER_PAGE));
   const paginatedApps = useMemo(() => { const s = (currentPage - 1) * ITEMS_PER_PAGE; return filteredAndSorted.slice(s, s + ITEMS_PER_PAGE); }, [filteredAndSorted, currentPage]);
@@ -247,23 +265,37 @@ export default function AdminApplicationsManager() {
   // ─── LIST VIEW ───
   return (
     <div className="space-y-5">
-      {/* Stats */}
-      <div className="grid grid-cols-3 lg:grid-cols-7 gap-3">
-        {[
-          { label: 'Gesamt', value: stats.total, color: 'bg-slate-900', onClick: () => { setStatusFilter('all'); setPaymentFilter('all'); } },
-          { label: 'Bezahlt', value: stats.paid, color: 'bg-emerald-600', onClick: () => { setPaymentFilter('paid'); setStatusFilter('all'); } },
-          { label: 'Prüfbereit', value: stats.readyForReview, color: 'bg-amber-500', onClick: () => { setStatusFilter('ready_for_review'); setPaymentFilter('all'); } },
-          { label: 'KYC fehlt', value: stats.kycMissing, color: 'bg-rose-500', onClick: () => { setStatusFilter('kyc_missing'); setPaymentFilter('all'); } },
-          { label: 'Abgeschlossen', value: stats.completed, color: 'bg-emerald-600', onClick: () => { setStatusFilter('completed'); setPaymentFilter('all'); } },
-          { label: 'Leads', value: stats.leads, color: 'bg-slate-500', onClick: () => { setStatusFilter('lead'); setPaymentFilter('all'); } },
-          { label: 'Duplikate', value: stats.duplicateCount, color: stats.duplicateCount > 0 ? 'bg-rose-600' : 'bg-slate-400', onClick: () => stats.duplicateCount > 0 && setShowDuplicates(true) },
-        ].map(s => (
-          <button key={s.label} onClick={s.onClick} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-md transition-all text-left hover:-translate-y-0.5">
-            <div className={`w-7 h-7 rounded-lg ${s.color} flex items-center justify-center mb-2`}><span className="text-white text-[10px] font-bold">{s.value}</span></div>
-            <div className="text-xl font-bold text-slate-900 tabular-nums">{s.value}</div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{s.label}</div>
+      {/* Vereinheitlichte Lebenszyklus-Pipeline — EINE zentrale Steuerung
+          (ersetzt die frühere doppelte Kachel-Übersicht „Dashboard im Dashboard").
+          Lead → Offen → Angekündigt → Bezahlt, plus Abgelaufen/Geschlossen/Storniert. */}
+      <div>
+        <div className="grid grid-cols-4 lg:grid-cols-8 gap-2.5">
+          {[
+            { key: 'all', label: 'Alle', color: 'bg-slate-900', count: applications.length + leads.length },
+            { key: 'lead', label: 'Leads', color: 'bg-violet-500', count: leads.length },
+            { key: 'pending_payment', label: 'Offen', color: 'bg-blue-500', count: applications.filter(a => getOrderStatusGroup(a) === 'pending_payment').length },
+            { key: 'claimed_paid', label: 'Angekündigt', color: 'bg-amber-500', count: applications.filter(a => getOrderStatusGroup(a) === 'claimed_paid').length },
+            { key: 'paid', label: 'Bezahlt', color: 'bg-emerald-600', count: applications.filter(a => getOrderStatusGroup(a) === 'paid').length },
+            { key: 'expired', label: 'Abgelaufen', color: 'bg-orange-500', count: applications.filter(a => getOrderStatusGroup(a) === 'expired').length },
+            { key: 'superseded', label: 'Geschlossen', color: 'bg-slate-400', count: applications.filter(a => getOrderStatusGroup(a) === 'superseded').length },
+            { key: 'cancelled', label: 'Storniert', color: 'bg-slate-400', count: applications.filter(a => getOrderStatusGroup(a) === 'cancelled').length },
+          ].map(s => {
+            const active = orderStatusFilter === s.key;
+            return (
+              <button key={s.key} onClick={() => { setOrderStatusFilter(s.key); setStatusFilter('all'); setPaymentFilter('all'); setSchufaFilter('all'); }}
+                className={`rounded-2xl p-3.5 border text-left transition-all hover:-translate-y-0.5 ${active ? 'border-slate-900 bg-slate-900 shadow-md' : 'border-slate-100 bg-white shadow-sm hover:shadow-md'}`}>
+                <div className={`w-2.5 h-2.5 rounded-full ${s.color} mb-2`} />
+                <div className={`text-xl font-bold tabular-nums ${active ? 'text-white' : 'text-slate-900'}`}>{s.count}</div>
+                <div className={`text-[10px] font-bold uppercase tracking-wider mt-0.5 ${active ? 'text-slate-300' : 'text-slate-400'}`}>{s.label}</div>
+              </button>
+            );
+          })}
+        </div>
+        {stats.duplicateCount > 0 && (
+          <button onClick={() => setShowDuplicates(true)} className="mt-2.5 inline-flex items-center gap-2 text-[12px] font-semibold text-rose-600 hover:text-rose-700">
+            <span className="w-2 h-2 rounded-full bg-rose-500" />{stats.duplicateCount} mögliche Duplikate prüfen
           </button>
-        ))}
+        )}
       </div>
 
       {/* Duplicate Banner */}
@@ -390,19 +422,6 @@ export default function AdminApplicationsManager() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={loading ? 'animate-spin' : ''}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             </button>
           </div>
-          {/* EA: Bestell-Status-Chips — jeder Status erreichbar, nichts unsichtbar */}
-          <div className="flex flex-wrap gap-2 mb-3">
-            {ORDER_STATUS_CHIPS.map(chip => {
-              const active = orderStatusFilter === chip.key;
-              const n = chip.key === 'all' ? applications.length : applications.filter(a => getOrderStatusGroup(a) === chip.key).length;
-              return (
-                <button key={chip.key} onClick={() => setOrderStatusFilter(chip.key)}
-                  className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${active ? 'bg-slate-900 text-white' : 'bg-slate-50 border border-slate-200 text-slate-600 hover:border-slate-300'}`}>
-                  {chip.label}{chip.key !== 'all' ? ` (${n})` : ''}
-                </button>
-              );
-            })}
-          </div>
           <div className="flex flex-col md:flex-row gap-2.5">
             <div className="relative flex-1">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -445,10 +464,27 @@ export default function AdminApplicationsManager() {
                 </tr></thead>
                 <tbody>
                   {paginatedApps.map(app => {
+                    const fullName = getFullName(app);
+                    // Lead-Datensatz (noch kein Antrag) — eigenes Rendering, klick öffnet Lead-Verwaltung.
+                    if (app.record_type === 'lead') {
+                      return (
+                        <tr key={app.ref} onClick={() => setLocation('/admin/leads')} className="border-b border-slate-50 hover:bg-violet-50/40 cursor-pointer transition-colors">
+                          <td className="py-3 px-4"><span className="text-[11px] font-mono text-violet-500">{app.ref}</span></td>
+                          <td className="py-3 px-4"><div className="flex items-center gap-3 min-w-0"><div className="w-8 h-8 rounded-full bg-violet-500 flex items-center justify-center text-white text-[11px] font-semibold shrink-0">{(fullName?.[0] || '?').toUpperCase()}</div><div className="min-w-0"><p className="text-[13px] font-semibold text-slate-900 truncate max-w-[200px]">{fullName}</p><p className="text-[11px] text-slate-400 truncate lg:hidden max-w-[180px]">{app.email || app.phone || '—'}</p></div></div></td>
+                          <td className="py-3 px-4 hidden lg:table-cell"><span className="text-[12px] text-slate-600 truncate block max-w-[220px]">{app.email || app.phone || '—'}</span></td>
+                          <td className="py-3 px-4"><span className="text-[12px] font-medium text-slate-400">{app.quelle || 'Lead'}</span></td>
+                          <td className="py-3 px-4"><span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-violet-100 text-violet-700"><span className="w-1.5 h-1.5 rounded-full bg-violet-500" />Lead</span></td>
+                          <td className="py-3 px-4 hidden md:table-cell"><span className="text-[11px] text-slate-400">—</span></td>
+                          <td className="py-3 px-4"><span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-violet-50 text-violet-600"><span className="w-1.5 h-1.5 rounded-full bg-violet-400" />Kein Antrag</span></td>
+                          <td className="py-3 px-4 text-right"><span className="text-[12px] text-slate-500 whitespace-nowrap">{formatDate(app.updated_at || app.created_at)}</span></td>
+                        </tr>
+                      );
+                    }
                     const pay = PAYMENT_META[getPaymentStatusKey(app)];
                     const st = STATUS_META[getAppStatusKey(app)];
-                    const fullName = getFullName(app);
                     const isDup = duplicateGroups.some(g => g.refs.includes(app.ref));
+                    // Abgelaufen: eigener Badge (kein Kollaps auf „Ausstehend")
+                    const isExpired = getOrderStatusGroup(app) === 'expired';
                     return (
                       <tr key={app.id || app.ref} onClick={() => setSelectedApp(app)} className={`border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors ${isDup ? 'bg-rose-50/30' : ''}`}>
                         <td className="py-3 px-4"><div className="flex items-center gap-1.5">{isDup && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" title="Duplikat" />}<span className="text-[11px] font-mono text-slate-500">{app.ref || '—'}</span></div></td>
@@ -457,7 +493,10 @@ export default function AdminApplicationsManager() {
                         <td className="py-3 px-4"><span className="text-[12px] font-medium text-slate-700">{app.pack_name || '—'}</span></td>
                         <td className="py-3 px-4"><span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${st.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />{st.label}</span></td>
                         <td className="py-3 px-4 hidden md:table-cell">{(() => { const has = !!(app.has_schufa_pdf ?? app.schufa_pdf); const approved = app.schufa_status === 'approved'; if (approved) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700"><span className="w-1.5 h-1.5 rounded-full bg-teal-500"/>Geprüft</span>; if (has) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"/>Hochgel.</span>; return <span className="text-[11px] text-slate-400">—</span>; })()}</td>
-                        <td className="py-3 px-4"><span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${pay.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${pay.dot}`} />{pay.label}</span></td>
+                        <td className="py-3 px-4">{isExpired
+                          ? <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-orange-50 text-orange-600"><span className="w-1.5 h-1.5 rounded-full bg-orange-500" />Abgelaufen</span>
+                          : <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${pay.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${pay.dot}`} />{pay.label}</span>}
+                        </td>
                         <td className="py-3 px-4 text-right"><span className="text-[12px] text-slate-500 whitespace-nowrap">{formatDate(app.updated_at || app.created_at)}</span></td>
                       </tr>
                     );

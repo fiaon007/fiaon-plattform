@@ -86,15 +86,16 @@ export function custPhone(c: Customer): string | null {
   return null;
 }
 
-type Filter = "alle" | "claimed" | "termin" | "nicht_erreicht";
+type Filter = "alle" | "claimed" | "abgelaufen" | "termin" | "nicht_erreicht";
 
 // Paket DA: Status-Gruppen im Gesamtbestand — klare Sprache statt Roh-Status
-type AllFilter = "alle" | "offen" | "angekuendigt" | "bezahlt" | "geschlossen";
+type AllFilter = "alle" | "offen" | "angekuendigt" | "bezahlt" | "abgelaufen" | "geschlossen";
 const ALL_GROUPS: { key: AllFilter; label: string }[] = [
   { key: "alle", label: "Alle" },
   { key: "offen", label: "Offen" },
   { key: "angekuendigt", label: "Zahlung angekündigt" },
   { key: "bezahlt", label: "Bezahlt" },
+  { key: "abgelaufen", label: "Abgelaufen" },
   { key: "geschlossen", label: "Geschlossen" },
 ];
 
@@ -102,7 +103,8 @@ function allGroupOf(c: Customer): AllFilter {
   if (c.payment_status === "pending_payment") return "offen";
   if (c.payment_status === "claimed_paid") return "angekuendigt";
   if (c.payment_status === "paid") return "bezahlt";
-  return "geschlossen"; // expired | superseded | refunded …
+  if (c.payment_status === "expired") return "abgelaufen";
+  return "geschlossen"; // superseded | refunded …
 }
 
 export default function AgentKundenPage() {
@@ -164,6 +166,7 @@ function KundenContent() {
     return customers.filter((c) => {
       if (q && !(custName(c).toLowerCase().includes(q) || (c.email || "").toLowerCase().includes(q) || (c.ref || "").toLowerCase().includes(q) || (c.payment_reference || "").toLowerCase().includes(q))) return false;
       if (filter === "claimed") return c.payment_status === "claimed_paid";
+      if (filter === "abgelaufen") return c.payment_status === "expired";
       if (filter === "termin") return !!c.next_appointment;
       if (filter === "nicht_erreicht") return c.last_contact?.outcome === "nicht_erreicht" || c.last_contact?.outcome === "mailbox";
       return true;
@@ -231,8 +234,9 @@ function KundenContent() {
         {view === "arbeit" ? (
           <div className="flex flex-wrap gap-2">
             {([
-              { key: "alle", label: `Alle offenen (${customers.length})` },
+              { key: "alle", label: `Alle (${customers.length})` },
               { key: "claimed", label: `Zahlung angekündigt (${claimedCount})` },
+              { key: "abgelaufen", label: `Abgelaufen (${customers.filter((c) => c.payment_status === "expired").length})` },
               { key: "termin", label: "Termin vereinbart" },
               { key: "nicht_erreicht", label: "Nicht erreicht" },
             ] as const).map((f) => (
@@ -497,6 +501,7 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
   const [detail, setDetail] = useState<Customer | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [readOnly, setReadOnly] = useState(false);
+  const [canReactivate, setCanReactivate] = useState(false);
   const [scripts, setScripts] = useState<ContextScript[]>([]);
   const [scriptsOpen, setScriptsOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
@@ -527,6 +532,7 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
         setDetail(r.json.data);
         setLog(r.json.log || []);
         setReadOnly(!!r.json.readOnly);
+        setCanReactivate(!!r.json.canReactivate);
         setScripts(r.json.contextScripts || []);
         if (r.json.data.agent_email_sent_at) {
           setLockUntil(new Date(r.json.data.agent_email_sent_at).getTime() + 10 * 60 * 1000);
@@ -556,6 +562,19 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
       setNoteText("");
       if (r.json.claimed) { flash("Kunde wurde dir zugewiesen"); onChanged(); }
     } else flash(r.json?.error || "Fehler");
+  };
+
+  // Abgelaufenen Kunden reaktivieren (neue 7-Tage-Frist + Zuweisung an mich).
+  const reactivate = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setBusy("reactivate");
+    const r = await api(`/agent/customers/${encodeURIComponent(refId)}/reactivate`, { method: "POST" });
+    setBusy(null);
+    if (r.ok) {
+      flash("Kunde reaktiviert — neue Zahlungsfrist gesetzt, Zahlungsdaten erneut gesendet");
+      onChanged();
+      onClose();
+    } else flash(r.json?.error || "Reaktivierung fehlgeschlagen");
   };
 
   // Paket DD: Klick 1 wählt aus (armed), Klick 2 bestätigt — kein versehentlicher Statuswechsel mehr.
@@ -855,15 +874,26 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
       )}
 
       {readOnly ? (
-        <div className="px-3.5 py-3 rounded-xl border border-slate-200 bg-slate-50 text-[12px] font-medium text-slate-600 flex items-center gap-2">
-          <Info size={14} strokeWidth={1.8} />
-          {!isOpenStatus
-            ? detail.payment_status === "paid"
-              ? `Bestellung ist bezahlt${detail.completed_at ? ` (am ${fmtD(detail.completed_at)})` : ""} — keine Aktionen mehr nötig, Verlauf bleibt einsehbar`
-              : `Bestellung ist geschlossen (${detail.payment_status === "superseded" ? "durch Dublette ersetzt" : detail.payment_status}) — nur Lesezugriff`
-            : detail.assigned_agent_name
-              ? `Betreut von ${detail.assigned_agent_name} — nur Lesezugriff`
-              : `In Bearbeitung durch ${detail.locked_by_name} — nur Lesezugriff`}
+        <div className="space-y-2.5">
+          <div className="px-3.5 py-3 rounded-xl border border-slate-200 bg-slate-50 text-[12px] font-medium text-slate-600 flex items-center gap-2">
+            <Info size={14} strokeWidth={1.8} />
+            {!isOpenStatus
+              ? detail.payment_status === "paid"
+                ? `Bestellung ist bezahlt${detail.completed_at ? ` (am ${fmtD(detail.completed_at)})` : ""} — keine Aktionen mehr nötig, Verlauf bleibt einsehbar`
+                : detail.payment_status === "expired"
+                  ? "Zahlungsfrist abgelaufen — der Kunde bleibt im Vertriebsnetz. Nach Kontakt/Zusage kannst du ihn reaktivieren."
+                  : `Bestellung ist geschlossen (${detail.payment_status === "superseded" ? "durch Dublette ersetzt" : detail.payment_status}) — nur Lesezugriff`
+              : detail.assigned_agent_name
+                ? `Betreut von ${detail.assigned_agent_name} — nur Lesezugriff`
+                : `In Bearbeitung durch ${detail.locked_by_name} — nur Lesezugriff`}
+          </div>
+          {canReactivate && (
+            <button type="button" onClick={reactivate} disabled={busy === "reactivate"}
+              className={`${btnPrimary} w-full py-3 inline-flex items-center justify-center gap-2`} style={{ minHeight: 48 }}>
+              <Undo2 size={16} strokeWidth={1.9} />
+              {busy === "reactivate" ? "Reaktiviere …" : "Kunde reaktivieren (neue Zahlungsfrist)"}
+            </button>
+          )}
         </div>
       ) : (
         <>

@@ -1145,9 +1145,11 @@ const AGENT_CUSTOMER_FIELDS = `
 
 router.get("/agent/customers", requireAgent, async (req: AgentRequest, res) => {
   try {
-    // Sichtbarkeit: AUSSCHLIESSLICH pending_payment + claimed_paid, keine merged-Altlasten.
-    // G2: Arbeitsliste = unzugewiesene + eigene Kunden; von Kollegen betreute Kunden
-    // erscheinen NUR read-only in der Sektion „Von Kollegen betreut".
+    const me = req.agent!.id;
+    // Sichtbarkeit: offene Bestellungen (pending_payment/claimed_paid) für alle sichtbar
+    // PLUS die EIGENEN ABGELAUFENEN Kunden — Direktive „Kein Kunde verschwindet":
+    // abgelaufen ist nur ein Zahlungsfenster-Zustand, der Kunde bleibt im Vertriebsnetz
+    // und im Blick (Filter „Abgelaufen" im Frontend). Keine merged-Altlasten.
     const rows = await sqlPool.unsafe(`
       SELECT ${AGENT_CUSTOMER_FIELDS},
         a.assigned_agent_id, a.locked_by_agent_id, a.locked_until,
@@ -1155,10 +1157,12 @@ router.get("/agent/customers", requireAgent, async (req: AgentRequest, res) => {
       FROM fiaon_applications a
       LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
       LEFT JOIN fiaon_agents lg ON lg.id = a.locked_by_agent_id
-      WHERE a.payment_status IN ('pending_payment', 'claimed_paid')
-        AND (a.merged_into IS NULL)
-      ORDER BY (a.payment_status = 'claimed_paid') DESC, a.claimed_paid_at ASC NULLS LAST, a.created_at ASC
-    `);
+      WHERE a.merged_into IS NULL
+        AND (a.payment_status IN ('pending_payment', 'claimed_paid')
+             OR (a.payment_status = 'expired' AND a.assigned_agent_id = $1))
+      ORDER BY (a.payment_status = 'claimed_paid') DESC, (a.payment_status = 'expired'),
+               a.claimed_paid_at ASC NULLS LAST, a.created_at ASC
+    `, [me]);
     const refs = rows.map((r: any) => r.ref);
     let lastLogByRef: Record<string, any> = {};
     let openAppointments: Record<string, string> = {};
@@ -1176,7 +1180,6 @@ router.get("/agent/customers", requireAgent, async (req: AgentRequest, res) => {
       `;
       for (const a of appts) openAppointments[a.ref] = a.scheduled_at;
     }
-    const me = req.agent!.id;
     const now = Date.now();
     const enrich = (r: any) => ({
       ...r,
@@ -1282,8 +1285,12 @@ export async function searchCustomersAndLeads(q: string, opts: { agentId?: numbe
   let custScope = "";
   let leadScope = "";
   if (me != null) {
+    // Direktive „Kein Kunde verschwindet": eigener Bestand (alle Status) PLUS jede
+    // unzugewiesene Bestellung (auch ABGELAUFEN) — nur echte Dubletten (superseded)
+    // bleiben ausgeblendet. So bleibt z. B. eine abgelaufene, unzugewiesene Kundin
+    // jederzeit über die Suche auffindbar und reaktivierbar.
     custParams.push(me);
-    custScope = ` AND (a.assigned_agent_id = $${custParams.length} OR (a.assigned_agent_id IS NULL AND a.payment_status IN ('pending_payment','claimed_paid')))`;
+    custScope = ` AND (a.assigned_agent_id = $${custParams.length} OR (a.assigned_agent_id IS NULL AND a.payment_status <> 'superseded'))`;
     leadParams.push(me);
     leadScope = ` AND (l.assigned_agent_id = $${leadParams.length} OR l.assigned_agent_id IS NULL)`;
   }
@@ -1375,9 +1382,11 @@ router.get("/agent/customers/:ref", requireAgent, async (req: AgentRequest, res)
       LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
       LEFT JOIN fiaon_agents lg ON lg.id = a.locked_by_agent_id
       WHERE a.ref = $1 AND a.merged_into IS NULL
-        AND (a.payment_status IN ('pending_payment', 'claimed_paid') OR a.assigned_agent_id = $2)
+        AND (a.payment_status IN ('pending_payment', 'claimed_paid')
+             OR a.assigned_agent_id = $2
+             OR (a.assigned_agent_id IS NULL AND a.payment_status <> 'superseded'))
     `, [req.params.ref, me]);
-    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden oder bereits bezahlt" });
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
     const r: any = rows[0];
     const closed = !['pending_payment', 'claimed_paid'].includes(r.payment_status);
     const readOnly = !!(r.assigned_agent_id && r.assigned_agent_id !== me) || closed;
@@ -1408,11 +1417,15 @@ router.get("/agent/customers/:ref", requireAgent, async (req: AgentRequest, res)
         `;
       }
     } catch {}
+    // Reaktivierbar: abgelaufene Bestellung, die mir gehört oder unzugewiesen ist
+    // (Direktive „Kein Kunde verschwindet" — Agent kann selbst wieder aktivieren).
+    const canReactivate = r.payment_status === "expired" && (!r.assigned_agent_id || r.assigned_agent_id === me);
     res.json({
       ok: true,
       data: { ...r, locked_by_name: foreignLock ? r.locked_by_name : null },
       log,
       readOnly: readOnly || !!foreignLock,
+      canReactivate,
       contextScripts,
     });
   } catch (err) {
@@ -1564,6 +1577,42 @@ router.post("/agent/customers/:ref/send-payment-email", requireAgent, async (req
     res.json({ ok: true, lockedUntil: new Date(Date.now() + EMAIL_LOCK_MS).toISOString() });
   } catch (err) {
     console.error("[FIAON-AGENT] send-payment-email:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════ AGENT: Abgelaufenen Kunden reaktivieren ═══════════════
+// Geschäftsleitungs-Direktive: Kunden werden NIE deaktiviert. „Abgelaufen" ist nur
+// ein Zahlungsfenster-Zustand. Nach einem erfolgreichen Anruf/Abschluss kann der
+// Agent den Kunden selbst reaktivieren (neue 7-Tage-Frist) — unzugewiesene werden
+// ihm dabei zugeordnet (er hat gerade den Abschluss gemacht). Löst Ticket #10/#12.
+router.post("/agent/customers/:ref/reactivate", requireAgent, async (req: AgentRequest, res) => {
+  try {
+    const me = req.agent!.id;
+    const ref = req.params.ref;
+    const [app] = await sqlPool`
+      SELECT ref, assigned_agent_id, payment_status FROM fiaon_applications
+      WHERE ref = ${ref} AND merged_into IS NULL
+    `;
+    if (!app) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    if (app.assigned_agent_id && app.assigned_agent_id !== me) {
+      return res.status(403).json({ ok: false, error: "Dieser Kunde wird von einem Kollegen betreut" });
+    }
+    if (app.payment_status === "paid") {
+      return res.status(400).json({ ok: false, error: "Kunde hat bereits bezahlt — keine Reaktivierung nötig" });
+    }
+    if (app.payment_status !== "expired") {
+      return res.status(400).json({ ok: false, error: "Nur abgelaufene Bestellungen können reaktiviert werden" });
+    }
+    const antrag = await import("./fiaon-antrag");
+    const data = await antrag.reactivateOrderByRef(ref, { assignAgentId: me });
+    if (!data) return res.status(400).json({ ok: false, error: "Reaktivierung fehlgeschlagen" });
+    await logAction(ref, req.agent!, "reactivate", {
+      note: "Reaktiviert nach Kontakt/Zusage — neue 7-Tage-Zahlungsfrist, Zahlungsdaten erneut gesendet",
+    });
+    res.json({ ok: true, data });
+  } catch (err) {
+    console.error("[FIAON-AGENT] reactivate:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

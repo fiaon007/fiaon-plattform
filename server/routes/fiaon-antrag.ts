@@ -753,31 +753,57 @@ router.post("/admin/payments/repair-attribution", async (_req, res) => {
   }
 });
 
-// Abgelaufene Bestellung reaktivieren: neue 7-Tage-Frist + Template 1 erneut
+/**
+ * Abgelaufene Bestellung reaktivieren — EINE geteilte Quelle für Admin UND Agent.
+ * Geschäftsleitungs-Direktive: Kein Kunde wird je „deaktiviert"; „abgelaufen" ist
+ * nur ein Zahlungsfenster-Zustand und bleibt jederzeit reaktivierbar. Setzt neue
+ * 7-Tage-Frist, weckt die Erinnerungs-Kette (Zähler zurück) und stößt die
+ * Zahlungsdaten-Mail erneut an. Optional: unzugewiesene Bestellung dem handelnden
+ * Agent zuordnen (er hat gerade telefoniert / den Abschluss gemacht).
+ */
+export async function reactivateOrderByRef(
+  ref: string,
+  opts: { assignAgentId?: number | null } = {},
+): Promise<any | null> {
+  await ensurePaymentColumns();
+  const dueDate = new Date(Date.now() + PAYMENT_DUE_DAYS * 24 * 60 * 60 * 1000);
+  const assign = opts.assignAgentId ?? null;
+  const rows = await sqlPool`
+    UPDATE fiaon_applications SET
+      payment_status = 'pending_payment',
+      payment_due_date = ${dueDate},
+      reminder_sent_at_24h = NULL,
+      reminder_sent_at_72h = NULL,
+      reminder_count = 0,
+      last_reminder_at = NULL,
+      payment_email_sent_at = NOW(),
+      followup_sent_at = NULL,
+      assigned_agent_id = CASE WHEN assigned_agent_id IS NULL AND ${assign}::int IS NOT NULL
+                               THEN ${assign}::int ELSE assigned_agent_id END,
+      updated_at = NOW()
+    WHERE ref = ${ref} AND payment_status = 'expired' AND merged_into IS NULL
+    RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, last_name,
+              contact_name, email, contact_email, billing_email, pack_name, assigned_agent_id
+  `;
+  if (rows.length === 0) return null;
+  console.log(`[FIAON-PAYMENT] Reaktiviert: ${ref} (neue Frist ${dueDate.toISOString()}${assign ? `, Agent #${assign}` : ""})`);
+  sendMakeWebhook("payment_details", makePayloadFromRow(rows[0])).catch(() => {});
+  return rows[0];
+}
+
+// Abgelaufene Bestellung reaktivieren (Admin): neue 7-Tage-Frist + Template 1 erneut
 router.post("/admin/payments/:paymentRef/reactivate", async (req, res) => {
   try {
     await ensurePaymentColumns();
-    const dueDate = new Date(Date.now() + PAYMENT_DUE_DAYS * 24 * 60 * 60 * 1000);
-    const rows = await sqlPool`
-      UPDATE fiaon_applications SET
-        payment_status = 'pending_payment',
-        payment_due_date = ${dueDate},
-        reminder_sent_at_24h = NULL,
-        reminder_sent_at_72h = NULL,
-        updated_at = NOW()
-      WHERE payment_reference = ${req.params.paymentRef} AND payment_status = 'expired'
-      RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name
+    const [found] = await sqlPool`
+      SELECT ref FROM fiaon_applications
+      WHERE payment_reference = ${req.params.paymentRef} AND payment_status = 'expired' AND merged_into IS NULL
+      LIMIT 1
     `;
-    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Keine abgelaufene Bestellung mit dieser Referenz gefunden" });
-
-    console.log(`[FIAON-PAYMENT] Reaktiviert: ${req.params.paymentRef} (neue Frist ${dueDate.toISOString()})`);
-    // Neue Frist → Make erneut informieren (payment_details) + Follow-up-Zyklus zurücksetzen
-    await sqlPool`
-      UPDATE fiaon_applications SET payment_email_sent_at = NOW(), followup_sent_at = NULL
-      WHERE payment_reference = ${req.params.paymentRef}
-    `;
-    sendMakeWebhook("payment_details", makePayloadFromRow(rows[0])).catch(() => {});
-    res.json({ ok: true, data: rows[0] });
+    if (!found) return res.status(404).json({ ok: false, error: "Keine abgelaufene Bestellung mit dieser Referenz gefunden" });
+    const data = await reactivateOrderByRef(found.ref);
+    if (!data) return res.status(404).json({ ok: false, error: "Keine abgelaufene Bestellung mit dieser Referenz gefunden" });
+    res.json({ ok: true, data });
   } catch (err) {
     console.error("[FIAON-PAYMENT] reactivate:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -2419,8 +2445,43 @@ router.get("/admin/applications", async (_req, res) => {
       }
     });
 
-    console.log(`[FIAON-ADMIN-APPS] returning ${data.length} applications, ${duplicateGroups.length} duplicate groups`);
-    res.json({ ok: true, data, count: data.length, duplicateGroups });
+    // Zentrale „ein System": un-konvertierte Leads (noch KEIN Antrag) als
+    // normalisierte Datensätze mitliefern, damit /admin/database den vollen
+    // Lebenszyklus Lead → Antrag → bezahlt/abgelaufen in EINER Ansicht zeigt.
+    // Konvertierte Leads (converted_order_id gesetzt) sind bereits als Antrag da.
+    let leads: any[] = [];
+    try {
+      const leadRows = await sqlPool`
+        SELECT l.id, l.vorname, l.nachname, l.email, l.telefon, l.status, l.quelle,
+               l.assigned_agent_id, l.erstellt_am, l.updated_at, ag.name AS assigned_agent_name
+        FROM fiaon_leads l
+        LEFT JOIN fiaon_agents ag ON ag.id = l.assigned_agent_id
+        WHERE l.converted_order_id IS NULL AND COALESCE(l.status,'') <> 'konvertiert'
+        ORDER BY l.erstellt_am DESC NULLS LAST, l.id DESC
+        LIMIT 5000
+      `;
+      leads = leadRows.map((l: any) => ({
+        record_type: "lead",
+        lead_id: l.id,
+        ref: `LEAD-${l.id}`,
+        first_name: l.vorname,
+        last_name: l.nachname,
+        email: l.email,
+        phone: l.telefon,
+        pack_name: null,
+        status: "lead",
+        payment_status: "lead",
+        lead_status: l.status || "neu",
+        quelle: l.quelle,
+        assigned_agent_id: l.assigned_agent_id,
+        assigned_agent_name: l.assigned_agent_name,
+        created_at: l.erstellt_am,
+        updated_at: l.updated_at,
+      }));
+    } catch { /* Lead-Tabelle ggf. nicht vorhanden — Zentrale zeigt dann nur Anträge */ }
+
+    console.log(`[FIAON-ADMIN-APPS] returning ${data.length} applications, ${leads.length} offene Leads, ${duplicateGroups.length} duplicate groups`);
+    res.json({ ok: true, data, count: data.length, duplicateGroups, leads });
   } catch (err: any) {
     console.error("[FIAON-ADMIN-APPS] ERROR:", err?.message || err);
     res.status(500).json({

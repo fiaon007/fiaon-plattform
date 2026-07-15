@@ -240,3 +240,64 @@ in `backfillCandidates`), inkl. Quellen-Kennzeichnung.
    nachbuchbaren buchen"**. „Betrag unklar"-Fälle einzeln mit manueller Betragseingabe.
 2. Die Warnkachel auf dem Dashboard muss danach **0** anzeigen.
 3. Florentines Löschen-Ticket: Rückfrage stellen (keine Beschreibung vorhanden).
+
+---
+
+## 11. „Ein System" — Zentrale + „Kunden verschwinden nie mehr" (Iteration 1)
+
+Agent-Feedback 15.07.26 (Daniel Stripling): Kunden verschwinden nach Ablauf/
+Zahlung (Tickets #8, #9, #12), abgelaufene sollen reaktivierbar sein (#10).
+Geschäftsleitungs-Direktive: **KEIN Kunde/Lead wird je deaktiviert** — nur auf
+ausdrücklichen Kundenwunsch. Kunden bleiben IMMER im Vertriebsnetz.
+
+### 11.1 Ursache (Phase 0)
+
+- **Auto-Ablauf**: `runPaymentReminders` (`fiaon-antrag.ts`) setzt stündlich
+  `pending_payment → expired` nach 7 Tagen (`payment_due_date < NOW()`).
+- **Agent-Arbeitsliste** (`/agent/customers`) zeigte NUR `pending_payment`/
+  `claimed_paid` → abgelaufene verschwanden aus Daniels Hauptansicht.
+- **Agent-Suche** fand unzugewiesene nur solange offen → abgelaufene, unzugewiesene
+  Kundin (Marija, #8) war nicht mehr auffindbar.
+- **Admin-Chips** hatten kein „Abgelaufen" → expired fiel unter „Alle".
+- `applyTxn` (Kontoabgleich) heilt expired→paid korrekt; „bezahlt, steht auf
+  abgelaufen" (#12) = Zahlung noch nicht abgeglichen → jetzt per Reaktivierung/
+  Abgleich lösbar. #9 = fehlende Provision → Nachbuchungs-Center (Paket EB).
+
+### 11.2 Umsetzung — Sicherheitsnetz „nie verschwinden"
+
+- **Geteilte `reactivateOrderByRef(ref, {assignAgentId})`** in `fiaon-antrag.ts`
+  (Admin-Route nutzt sie jetzt ebenfalls) — neue 7-Tage-Frist, Reminder-Reset,
+  Zahlungsdaten-Mail erneut, optional Zuweisung an den handelnden Agent.
+- **Agent-Selbstbedienung**: `POST /agent/customers/:ref/reactivate` (nur eigene/
+  unzugewiesene, nur `expired`), mit Audit-Log. UI: „Kunde reaktivieren"-Button im
+  read-only-Banner (Flag `canReactivate` vom Server).
+- **Agent-Suche** (`searchCustomersAndLeads`): eigener Bestand (alle Status) + JEDE
+  unzugewiesene Bestellung außer `superseded` → abgelaufene bleiben auffindbar.
+- **Agent-Detail** öffnet unzugewiesene (auch abgelaufene) Kunden read-only zum
+  Reaktivieren.
+- **Agent-Arbeitsliste** enthält jetzt die EIGENEN abgelaufenen Kunden + Filter
+  „Abgelaufen"; Gesamtbestand-Gruppe „Abgelaufen" von „Geschlossen" getrennt.
+- **Admin**: „Abgelaufen" als eigener Lifecycle-Status (`getOrderStatusGroup`),
+  eigener Zahlungs-Badge in der Tabelle, Reaktivieren-Banner im Detail
+  (`AdminAppDetail`, nutzt bestehenden Reaktivieren-Endpoint).
+
+### 11.3 Umsetzung — Zentrale „ein System" (`/admin/database`)
+
+- **Backend**: `/admin/applications` liefert zusätzlich ein `leads`-Array
+  (un-konvertierte `fiaon_leads`, normalisiert als `record_type:'lead'`,
+  `ref:'LEAD-<id>'`), damit der volle Lebenszyklus in EINER Ansicht sichtbar ist.
+- **Frontend** (`AdminApplicationsManager`): die frühere doppelte Kachel-Übersicht
+  („Dashboard im Dashboard") ist durch EINE **Lebenszyklus-Pipeline** ersetzt:
+  Alle · Leads · Offen · Angekündigt · Bezahlt · Abgelaufen · Geschlossen ·
+  Storniert (Klick = Filter). Leads erscheinen bei „Alle"/„Leads" als eigene Zeilen
+  (violett, Klick → `/admin/leads`); App-spezifische Filter (Status/SCHUFA) blenden
+  Leads bewusst aus. Duplikate-Hinweis als kompakter Link erhalten.
+
+### 11.4 Bewusst NICHT gemacht / nächste Iterationen
+
+- Der Auto-Ablauf-Cron bleibt (nützlich fürs Reminder-Ende), aber `expired`
+  versteckt keinen Kunden mehr — es ist nur ein Zahlungsfenster-Zustand.
+- Kein physischer Tabellen-Merge von `fiaon_leads`/`fiaon_applications` (Risiko);
+  Vereinheitlichung erfolgt auf Präsentationsebene. Nächste Schritte: Lead-Detail
+  inline im Cockpit, serverseitige Paginierung für `/admin/applications`
+  (aktuell Full-Load mit gestrippten bytea).

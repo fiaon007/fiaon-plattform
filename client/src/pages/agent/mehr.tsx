@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { FileText, Sparkles, MessageSquarePlus, User, Wallet, Award, ChevronRight, LogOut } from "lucide-react";
+import { FileText, Sparkles, MessageSquarePlus, User, Wallet, Award, ChevronRight, LogOut, BarChart3 } from "lucide-react";
 import { AgentShell, api, useAgentInfo, Avatar, ACCENT } from "./shared";
 import { Reveal } from "./motion";
 
@@ -16,6 +16,8 @@ const AREAS: { href: string; label: string; desc: string; icon: typeof FileText;
   { href: "/agent/profil", label: "Profil", desc: "Konto, Passwort und Auszahlungsdaten", icon: User },
   { href: "/agent/auszahlung", label: "Auszahlung", desc: "Guthaben prüfen und Auszahlung beantragen", icon: Wallet },
   { href: "/agent/partner-programm", label: "Partner-Programm", desc: "Meilensteine, Prämien und Team-Beteiligung", icon: Award },
+  // P4-C Spiegelansicht: dieselben Zahlen, die auch die Verwaltung sieht — Transparenz.
+  { href: "/agent/leistung", label: "Meine Leistung", desc: "Deine Arbeitsergebnisse — exakt das, was auch die Verwaltung sieht", icon: BarChart3 },
 ];
 
 export default function AgentMehrPage() {

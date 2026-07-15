@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
+import { PageIntro } from "@/components/admin/PageHelp";
 
 // ============================================================================
 // /admin/nachbuchung (Paket EB + EC) — Provisionen nachbuchen
@@ -146,16 +147,18 @@ export default function AdminNachbuchungPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        <div className="mb-6">
-          <p className="text-[11px] font-bold uppercase tracking-[.2em] text-[#2563eb] mb-1">Team</p>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Provisionen nachbuchen</h1>
-          <p className="text-[13px] text-slate-500 mt-1 max-w-2xl">
-            Bezahlte Bestellungen ohne Provisionseintrag — automatisch erkannt, inklusive Fälle OHNE Agent
-            (mit Vorschlag aus der dokumentierten Betreuung; Buchung nur nach deiner Bestätigung, nie automatisch).
-            Buchung erfolgt über den regulären Abschluss-Hook (eingefrorener Satz, Override, Meilenstein) und ist idempotent.
-            Direktzahler (Zahlung ohne Agenten-Arbeit) erscheinen hier bewusst nicht.
-          </p>
-        </div>
+        <PageIntro
+          id="nachbuchung"
+          title="Provisionen nachbuchen"
+          subtitle="Hier findest du bezahlte Bestellungen, für die noch keine Provision gebucht wurde — und entscheidest, wer sie bekommt."
+          steps={[
+            "Die Tabelle erkennt automatisch alle bezahlten Bestellungen ohne Provisionseintrag — auch Fälle OHNE zugewiesenen Agent (mit Vorschlag aus der dokumentierten Betreuung).",
+            "„Vorschlag — bestätigen“ heißt: Das System hat einen Agenten mit dokumentiertem Kontakt gefunden. Gebucht wird NUR nach deiner ausdrücklichen Bestätigung — nie automatisch.",
+            "Die Buchung nutzt den regulären Abschluss-Weg (eingefrorener Provisionssatz, Werber-Beteiligung, Meilenstein) und ist doppelt-sicher: bereits gebuchte Fälle werden nie erneut gebucht.",
+            "„Betrag unklar“: Für diese Fälle fehlt der Zahlbetrag — trage ihn manuell ein und buche einzeln. Die Sammelbuchung überspringt sie bewusst.",
+            "Direktzahler (Zahlung ohne dokumentierte Agenten-Arbeit) erscheinen hier bewusst NICHT — dort entsteht kein Anspruch.",
+          ]}
+        />
 
         {msg && (
           <div className="mb-4 px-4 py-3 rounded-xl border border-slate-200 bg-white text-[13px] text-slate-700">{msg}</div>

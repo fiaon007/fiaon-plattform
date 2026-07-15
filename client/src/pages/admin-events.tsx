@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Send, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertTriangle, User, FlaskConical } from "lucide-react";
+import { PageIntro } from "@/components/admin/PageHelp";
 
 // ═══════════════════════════════════════════════════════════════════
 // /admin/events — Event-Test-Konsole (Paket T)
@@ -159,12 +160,17 @@ export default function AdminEventsPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-      <p className="text-[11px] font-bold uppercase tracking-[.2em] mb-1" style={{ color: ACCENT }}>System</p>
-      <h1 className="text-xl font-bold tracking-tight text-slate-900 mb-1">E-Mail-Events (Make)</h1>
-      <p className="text-[13px] text-slate-500 mb-5 max-w-2xl">
-        Alle Event-Typen aus der Code-Registry. Ein Test-Versand lässt Make die Payload-Struktur eines Events lernen,
-        ohne den echten Workflow auszulösen — Pflicht vor dem Anlegen neuer Router-Zweige/Brevo-Templates.
-      </p>
+      <PageIntro
+        id="events"
+        title="E-Mail-Events (Make)"
+        subtitle="Hier testest du jede automatische Kunden-Mail und siehst, welcher Event-Typ zuletzt (oder noch nie) gefeuert hat."
+        steps={[
+          "Jede Zeile ist ein Event-Typ aus dem Code (z. B. payment_confirmed). „Noch nie gefeuert“ heißt: Make kennt die Struktur noch nicht — vor dem Anlegen eines neuen Make-Zweigs hier einmal testen.",
+          "„Test senden“ schickt das Event mit Beispieldaten an DEINE Test-Adresse (test: true) — es löst keinen echten Workflow aus.",
+          "„Für echten Kunden senden“ nutzt die ECHTEN Kundendaten — mit Vorschau und Bestätigung. Vorsicht bei payment_reminder: das zählt als echte Erinnerung.",
+          "Steht oben „Seit X Stunden kein Lead-Eingang“ im Dashboard, prüfe hier zuerst, ob der Make-Webhook konfiguriert ist und Events ankommen.",
+        ]}
+      />
 
       {data && !data.makeWebhookConfigured && (
         <div className="mb-5 px-4 py-3 rounded-xl border border-amber-300 bg-amber-50 text-[13px] text-amber-800 flex items-center gap-2">

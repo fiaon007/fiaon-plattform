@@ -1,0 +1,346 @@
+// ═══════════════════════════════════════════════════════════════════
+// FIAON Arbeitsberichte (Phase 4, P4-C) — /admin/leistung + /agent/leistung
+//
+// RECHTLICHER RAHMEN (verbindlich, siehe SYSTEM_DIAGNOSE.md Phase 4):
+// Protokolliert werden ARBEITSERGEBNISSE, keine Verhaltensüberwachung.
+// KEIN Tracking von Arbeitsbeginn/-ende, Pausen, Anwesenheit oder Inaktivität
+// (Scheinselbstständigkeits-Indiz / DSGVO). Alles hier Ausgewertete stammt aus
+// Logs, die die Agenten selbst erzeugen (Kontakt-Ergebnisse, Übernahmen,
+// Link-Versand) — und JEDER Agent sieht seine eigenen Zahlen im Portal
+// (/agent/leistung, Spiegelansicht). Keine Geheim-Logs.
+//
+// KI-Zusammenfassung: NUR aggregierte Kennzahlen gehen an die KI — keine
+// Kundendaten, keine Kontaktdaten, Agenten anonymisiert als „Agent A/B/…".
+// Provider: Gemini (Flash, günstigste Option — Key liegt im Server-Env für
+// gemini-enrich), Fallback OpenAI gpt-4o-mini. KI-Ausfall ⇒ verständlicher
+// Fehler, die Zahlen bleiben unabhängig davon sichtbar.
+// ═══════════════════════════════════════════════════════════════════
+
+import { Router, type Request, type Response } from "express";
+import postgres from "postgres";
+import { requireAgent, getSettings, setSetting, type AgentRequest } from "./fiaon-agent";
+
+const router = Router();
+const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 3 });
+
+/** Zeitraum aus Query — Default 30 Tage, hart begrenzt auf 366 Tage. */
+function parseRange(req: Request): { from: Date; to: Date } {
+  const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+  const from = req.query.from
+    ? new Date(String(req.query.from))
+    : new Date(Date.now() - 30 * 864e5);
+  const safeTo = isNaN(to.getTime()) ? new Date() : to;
+  let safeFrom = isNaN(from.getTime()) ? new Date(Date.now() - 30 * 864e5) : from;
+  if (safeTo.getTime() - safeFrom.getTime() > 366 * 864e5) {
+    safeFrom = new Date(safeTo.getTime() - 366 * 864e5);
+  }
+  return { from: safeFrom, to: safeTo };
+}
+
+/** Kern-Aggregation: Arbeitsergebnisse je Agent im Zeitraum (nur Ergebnisse!). */
+export async function computeLeistung(from: Date, to: Date): Promise<any> {
+  // 1) Lead-Log: Übernahmen, Kontakte, Ergebnisse nach Typ, Links, Rückgaben
+  const leadLog = await sqlPool`
+    SELECT agent_id,
+      COUNT(*) FILTER (WHERE type = 'claim')::int AS akten,
+      COUNT(*) FILTER (WHERE type = 'result')::int AS kontakte_leads,
+      COUNT(*) FILTER (WHERE type = 'email_sent')::int AS links,
+      COUNT(*) FILTER (WHERE type = 'system' AND note LIKE 'Akte ohne Kontakt-Ergebnis geschlossen%')::int AS rueckgaben
+    FROM fiaon_lead_log
+    WHERE agent_id IS NOT NULL AND created_at BETWEEN ${from} AND ${to}
+    GROUP BY agent_id
+  `;
+  const outcomes = await sqlPool`
+    SELECT agent_id, outcome, COUNT(*)::int AS c
+    FROM fiaon_lead_log
+    WHERE agent_id IS NOT NULL AND type = 'result' AND outcome IS NOT NULL
+      AND created_at BETWEEN ${from} AND ${to}
+    GROUP BY agent_id, outcome
+  `;
+  // 2) Kunden-Log: dokumentierte Kontakte an Bestellungen
+  const custLog = await sqlPool`
+    SELECT agent_id,
+      COUNT(*) FILTER (WHERE type = 'result')::int AS kontakte_kunden,
+      COUNT(*) FILTER (WHERE type = 'email_sent')::int AS kundenmails
+    FROM fiaon_contact_log
+    WHERE agent_id IS NOT NULL AND voided_at IS NULL AND created_at BETWEEN ${from} AND ${to}
+    GROUP BY agent_id
+  `;
+  // 3) Konversionen (Lead → Antrag) je betreuendem Agent
+  const conversions = await sqlPool`
+    SELECT assigned_agent_id AS agent_id, COUNT(*)::int AS konversionen
+    FROM fiaon_leads
+    WHERE assigned_agent_id IS NOT NULL AND status = 'konvertiert'
+      AND konvertiert_am BETWEEN ${from} AND ${to}
+    GROUP BY assigned_agent_id
+  `;
+  // 4) Abschlüsse + Umsatz — die EINE Wahrheit (paid + Referenz, Zeit-Anker completed_at)
+  const paid = await sqlPool`
+    SELECT assigned_agent_id AS agent_id, COUNT(*)::int AS abschluesse,
+      COALESCE(SUM(ROUND(COALESCE(amount_due::numeric, 0) * 100)), 0)::bigint AS umsatz_cents
+    FROM fiaon_applications
+    WHERE assigned_agent_id IS NOT NULL AND payment_status = 'paid'
+      AND merged_into IS NULL AND payment_reference IS NOT NULL
+      AND COALESCE(completed_at, claimed_paid_at, created_at) BETWEEN ${from} AND ${to}
+    GROUP BY assigned_agent_id
+  `;
+  // 5) Provision (gebucht im Zeitraum, nicht storniert)
+  const commissions = await sqlPool`
+    SELECT agent_id, COALESCE(SUM(amount_cents), 0)::bigint AS provision_cents
+    FROM fiaon_commissions
+    WHERE status <> 'storniert' AND amount_cents > 0 AND created_at BETWEEN ${from} AND ${to}
+    GROUP BY agent_id
+  `;
+  // 6) Reaktionsschnelligkeit: Lead-Eingang → erster dokumentierter Kontakt des
+  //    Agenten. (Hinweis: Zuweisungs-Zeitpunkt wird historisch nicht gespeichert;
+  //    Anker ist ehrlich der Lead-Eingang — im UI genau so beschriftet.)
+  const reaction = await sqlPool`
+    SELECT g.agent_id, AVG(EXTRACT(EPOCH FROM (g.first_at - l.erstellt_am)) / 3600)::numeric(10,1) AS avg_hours
+    FROM (
+      SELECT lead_id, agent_id, MIN(created_at) AS first_at
+      FROM fiaon_lead_log
+      WHERE agent_id IS NOT NULL AND type IN ('result', 'email_sent')
+      GROUP BY lead_id, agent_id
+    ) g
+    JOIN fiaon_leads l ON l.id = g.lead_id
+    WHERE g.first_at BETWEEN ${from} AND ${to} AND g.first_at >= l.erstellt_am
+    GROUP BY g.agent_id
+  `;
+  // 7) Anteil Direktzahler: eigene Leads, die OHNE dokumentierten Kontakt des
+  //    Agenten selbst gezahlt haben (commission_basis = 'direktzahler')
+  const direkt = await sqlPool`
+    SELECT l.assigned_agent_id AS agent_id,
+      COUNT(*)::int AS paid_leads,
+      COUNT(*) FILTER (WHERE a.commission_basis = 'direktzahler')::int AS direktzahler
+    FROM fiaon_leads l
+    JOIN fiaon_applications a ON a.ref = l.converted_order_id AND a.merged_into IS NULL
+    WHERE l.assigned_agent_id IS NOT NULL
+      AND a.payment_status = 'paid' AND a.payment_reference IS NOT NULL
+      AND COALESCE(a.completed_at, a.claimed_paid_at, a.created_at) BETWEEN ${from} AND ${to}
+    GROUP BY l.assigned_agent_id
+  `;
+
+  const agents = await sqlPool`SELECT id, name, active FROM fiaon_agents ORDER BY name ASC`;
+  const byId = new Map<number, any>();
+  for (const a of agents) {
+    byId.set(Number(a.id), {
+      agentId: Number(a.id), name: a.name, active: !!a.active,
+      akten: 0, kontakte: 0, kontakteLeads: 0, kontakteKunden: 0,
+      links: 0, kundenmails: 0, rueckgaben: 0, outcomes: {} as Record<string, number>,
+      konversionen: 0, abschluesse: 0, umsatzCents: 0, provisionCents: 0,
+      reaktionStunden: null as number | null,
+      rueckgabeQuote: null as number | null,
+      direktzahler: 0, paidLeads: 0, direktzahlerQuote: null as number | null,
+    });
+  }
+  const put = (rows: any[], fill: (t: any, r: any) => void) => {
+    for (const r of rows) { const t = byId.get(Number(r.agent_id)); if (t) fill(t, r); }
+  };
+  put(leadLog, (t, r) => { t.akten = Number(r.akten); t.kontakteLeads = Number(r.kontakte_leads); t.links = Number(r.links); t.rueckgaben = Number(r.rueckgaben); });
+  put(outcomes, (t, r) => { t.outcomes[r.outcome] = Number(r.c); });
+  put(custLog, (t, r) => { t.kontakteKunden = Number(r.kontakte_kunden); t.kundenmails = Number(r.kundenmails); });
+  put(conversions, (t, r) => { t.konversionen = Number(r.konversionen); });
+  put(paid, (t, r) => { t.abschluesse = Number(r.abschluesse); t.umsatzCents = Number(r.umsatz_cents); });
+  put(commissions, (t, r) => { t.provisionCents = Number(r.provision_cents); });
+  put(reaction, (t, r) => { t.reaktionStunden = r.avg_hours != null ? Number(r.avg_hours) : null; });
+  put(direkt, (t, r) => { t.paidLeads = Number(r.paid_leads); t.direktzahler = Number(r.direktzahler); });
+
+  const list = Array.from(byId.values()).map((t) => {
+    t.kontakte = t.kontakteLeads + t.kontakteKunden;
+    t.rueckgabeQuote = t.akten > 0 ? Math.round((t.rueckgaben / t.akten) * 1000) / 10 : null;
+    t.direktzahlerQuote = t.paidLeads > 0 ? Math.round((t.direktzahler / t.paidLeads) * 1000) / 10 : null;
+    return t;
+  });
+  // Nur Agenten mit Aktivität im Zeitraum ODER aktive Agenten anzeigen
+  const visible = list.filter((t) => t.active || t.kontakte > 0 || t.akten > 0 || t.abschluesse > 0 || t.provisionCents > 0);
+
+  // 8) Zeitverlauf (Team, täglich): Kontakte + Abschlüsse
+  const seriesContacts = await sqlPool`
+    SELECT (created_at AT TIME ZONE 'Europe/Berlin')::date AS d, COUNT(*)::int AS c
+    FROM fiaon_lead_log
+    WHERE agent_id IS NOT NULL AND type = 'result' AND created_at BETWEEN ${from} AND ${to}
+    GROUP BY 1 ORDER BY 1
+  `;
+  const seriesPaid = await sqlPool`
+    SELECT (COALESCE(completed_at, claimed_paid_at, created_at) AT TIME ZONE 'Europe/Berlin')::date AS d, COUNT(*)::int AS c
+    FROM fiaon_applications
+    WHERE payment_status = 'paid' AND merged_into IS NULL AND payment_reference IS NOT NULL
+      AND COALESCE(completed_at, claimed_paid_at, created_at) BETWEEN ${from} AND ${to}
+    GROUP BY 1 ORDER BY 1
+  `;
+
+  // 9) Quellen/Kampagnen-Konversion (für die KI-Analyse + Anzeige)
+  const sources = await sqlPool`
+    SELECT COALESCE(NULLIF(TRIM(l.quelle), ''), 'unbekannt') AS quelle,
+      COUNT(*)::int AS leads,
+      COUNT(*) FILTER (WHERE l.status = 'konvertiert')::int AS konvertiert,
+      COUNT(*) FILTER (WHERE a.payment_status = 'paid' AND a.payment_reference IS NOT NULL)::int AS zahlend
+    FROM fiaon_leads l
+    LEFT JOIN fiaon_applications a ON a.ref = l.converted_order_id AND a.merged_into IS NULL
+    WHERE l.erstellt_am BETWEEN ${from} AND ${to}
+    GROUP BY 1 ORDER BY leads DESC LIMIT 12
+  `;
+
+  const totals = visible.reduce((acc, t) => {
+    acc.akten += t.akten; acc.kontakte += t.kontakte; acc.links += t.links;
+    acc.konversionen += t.konversionen; acc.abschluesse += t.abschluesse;
+    acc.umsatzCents += t.umsatzCents; acc.provisionCents += t.provisionCents;
+    acc.rueckgaben += t.rueckgaben; acc.direktzahler += t.direktzahler;
+    return acc;
+  }, { akten: 0, kontakte: 0, links: 0, konversionen: 0, abschluesse: 0, umsatzCents: 0, provisionCents: 0, rueckgaben: 0, direktzahler: 0 });
+
+  return {
+    range: { from: from.toISOString(), to: to.toISOString() },
+    agents: visible,
+    totals,
+    series: {
+      kontakte: seriesContacts.map((r: any) => ({ date: r.d, count: Number(r.c) })),
+      abschluesse: seriesPaid.map((r: any) => ({ date: r.d, count: Number(r.c) })),
+    },
+    sources: sources.map((r: any) => ({
+      quelle: r.quelle, leads: Number(r.leads), konvertiert: Number(r.konvertiert), zahlend: Number(r.zahlend),
+    })),
+  };
+}
+
+// ── Admin: Team-Bericht ──────────────────────────────────────────────────────
+router.get("/admin/leistung", async (req: Request, res: Response) => {
+  try {
+    const { from, to } = parseRange(req);
+    const data = await computeLeistung(from, to);
+    // Letzte gespeicherte KI-Zusammenfassung mitliefern (kopier-/nachlesbar)
+    const settings = await getSettings();
+    let lastSummary: any = null;
+    try { lastSummary = JSON.parse(settings.leistung_last_summary || "null"); } catch {}
+    res.json({ ok: true, ...data, lastSummary });
+  } catch (err) {
+    console.error("[FIAON-LEISTUNG] admin:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── Agent: Spiegelansicht (nur die EIGENEN Zahlen — Transparenz) ─────────────
+router.get("/agent/leistung", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const { from, to } = parseRange(req);
+    const data = await computeLeistung(from, to);
+    const me = data.agents.find((a: any) => a.agentId === req.agent!.id) || null;
+    // Team-Durchschnitt zur Einordnung (keine Namen der Kollegen)
+    const n = data.agents.length || 1;
+    const teamAvg = {
+      kontakte: Math.round(data.totals.kontakte / n),
+      abschluesse: Math.round((data.totals.abschluesse / n) * 10) / 10,
+      umsatzCents: Math.round(data.totals.umsatzCents / n),
+    };
+    res.json({ ok: true, range: data.range, me, teamAvg, series: data.series });
+  } catch (err) {
+    console.error("[FIAON-LEISTUNG] agent:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── KI-Zusammenfassung (P4-C) ────────────────────────────────────────────────
+// DSGVO: ausschließlich aggregierte Kennzahlen. Agenten werden anonymisiert
+// („Agent A/B/…"), Quellen-Namen sind Kampagnen-Bezeichnungen (keine Personen).
+async function aiComplete(prompt: string): Promise<{ text: string; provider: string }> {
+  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  if (geminiKey) {
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
+        }),
+        signal: AbortSignal.timeout(45_000),
+      },
+    );
+    if (resp.ok) {
+      const j: any = await resp.json();
+      const text = j?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") || "";
+      if (text.trim()) return { text: text.trim(), provider: "gemini-2.0-flash" };
+    } else {
+      console.warn("[FIAON-LEISTUNG] Gemini-Fehler:", resp.status, await resp.text().catch(() => ""));
+    }
+  }
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (openaiKey) {
+    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        temperature: 0.3,
+        max_tokens: 1500,
+        messages: [{ role: "user", content: prompt }],
+      }),
+      signal: AbortSignal.timeout(45_000),
+    });
+    if (resp.ok) {
+      const j: any = await resp.json();
+      const text = j?.choices?.[0]?.message?.content || "";
+      if (text.trim()) return { text: text.trim(), provider: "gpt-4o-mini" };
+    } else {
+      console.warn("[FIAON-LEISTUNG] OpenAI-Fehler:", resp.status, await resp.text().catch(() => ""));
+    }
+  }
+  throw new Error(
+    geminiKey || openaiKey
+      ? "Die KI hat nicht geantwortet (Zeitüberschreitung oder Dienst-Fehler). Die Zahlen unten bleiben davon unberührt — bitte später erneut versuchen."
+      : "Kein KI-Schlüssel hinterlegt (GEMINI_API_KEY oder OPENAI_API_KEY). Die Zahlen unten funktionieren ohne KI.",
+  );
+}
+
+router.post("/admin/leistung/ai-summary", async (req: Request, res: Response) => {
+  try {
+    const { from, to } = parseRange(req);
+    const data = await computeLeistung(from, to);
+
+    // Anonymisieren: Agent A/B/C … — KEINE Namen an die KI.
+    const anonAgents = data.agents.map((a: any, i: number) => ({
+      agent: `Agent ${String.fromCharCode(65 + (i % 26))}${i >= 26 ? Math.floor(i / 26) : ""}`,
+      akten: a.akten, kontakte: a.kontakte, links: a.links,
+      ergebnisse: a.outcomes, konversionen: a.konversionen,
+      abschluesse: a.abschluesse, umsatzEur: Math.round(a.umsatzCents / 100),
+      reaktionStundenLeadEingangBisKontakt: a.reaktionStunden,
+      rueckgabeQuotePct: a.rueckgabeQuote, direktzahlerQuotePct: a.direktzahlerQuote,
+    }));
+    const payload = {
+      zeitraum: data.range,
+      team: anonAgents,
+      summen: { ...data.totals, umsatzEur: Math.round(data.totals.umsatzCents / 100), provisionEur: Math.round(data.totals.provisionCents / 100) },
+      quellen: data.sources,
+      verlaufKontakteProTag: data.series.kontakte,
+      verlaufAbschluesseProTag: data.series.abschluesse,
+    };
+
+    const prompt = [
+      "Du bist Vertriebs-Analyst für ein kleines deutsches Fintech (Kreditkarten-Anträge, Telefon-Vertrieb).",
+      "Analysiere die folgenden AGGREGIERTEN Team-Kennzahlen eines Zeitraums. Antworte auf Deutsch, in Klartext für einen Nicht-Analysten, mit Markdown-Überschriften.",
+      "Gliedere GENAU so:",
+      "## Was lief gut",
+      "## Wo bricht es ab (Prozessschritt mit dem größten Verlust)",
+      "## Beste Quelle/Kampagne (Konversion, nicht nur Menge)",
+      "## Konkrete Handlungsempfehlungen (max. 5, priorisiert)",
+      "## Auffälligkeiten / möglicher technischer Ausfall",
+      "Für Auffälligkeiten: Prüfe z. B. Quellen mit vielen Leads aber 0 Konversion, Tage mit 0 Kontakten trotz Aktivität davor, extreme Ausreißer einzelner Agenten — und sage ehrlich, wenn die Datenbasis für eine Aussage zu dünn ist.",
+      "Keine erfundenen Zahlen; beziehe dich nur auf die Daten. Agenten sind anonymisiert (Agent A/B/…).",
+      "",
+      "DATEN (JSON):",
+      JSON.stringify(payload),
+    ].join("\n");
+
+    const { text, provider } = await aiComplete(prompt);
+    const summary = { at: new Date().toISOString(), range: data.range, provider, text };
+    // Speicherbar: letzte Zusammenfassung in den Settings (kopierbar im UI).
+    await setSetting("leistung_last_summary", JSON.stringify(summary));
+    res.json({ ok: true, summary });
+  } catch (err) {
+    console.error("[FIAON-LEISTUNG] ai-summary:", err);
+    res.status(502).json({ ok: false, error: err instanceof Error ? err.message : "KI-Zusammenfassung fehlgeschlagen" });
+  }
+});
+
+export default router;

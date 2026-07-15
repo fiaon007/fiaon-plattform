@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Download, Plus, Trash2 } from "lucide-react";
+import { PageIntro } from "@/components/admin/PageHelp";
 
 // ════════════════════════════════════════════════════════════════════
 // /admin/finanzen — Finanz- & Sales-Analytics-Zentrale (Paket BD).
@@ -164,10 +165,18 @@ export default function AdminFinanzenPage() {
 
   return (
     <div className="px-4 sm:px-6 py-5 max-w-6xl mx-auto">
-      <div className="mb-4">
-        <h1 className="text-xl font-bold tracking-tight text-slate-900">Finanzen & Sales</h1>
-        <p className="text-[13px] text-slate-500">Strategische Analytics: Funnel, Umsatz, Marge, CAC und Kampagnen-Rentabilität — serverseitig aggregiert.</p>
-      </div>
+      <PageIntro
+        id="finanzen"
+        title="Finanzen & Sales"
+        subtitle="Hier analysierst du Funnel, Umsatz, Marge und Kampagnen-Rentabilität — jede Kennzahl mit Klartext-Definition."
+        steps={[
+          "Wähle oben den Zeitraum. Zeit-Anker aller Umsatzzahlen ist der Bezahl-Zeitpunkt — „bezahlt“ heißt überall dasselbe (Status bezahlt + Zahlungsreferenz, ohne Dubletten und Alt-Import).",
+          "Der Lead-Funnel zeigt nur Leads; „Angeschrieben (Mail)“ ist ehrlich benannt — eine Massenmail ist kein persönlicher Kontakt. „Echt kontaktiert“ zählt nur dokumentierte Agenten-Ergebnisse.",
+          "CAC und Lead-Kosten brauchen ein eingetragenes Werbebudget (Abschnitt unten). LTV/CAC ist als ANNAHME gekennzeichnet — die 12 Monate Laufzeit sind nicht gemessen.",
+          "Fahre mit der Maus über das ⓘ an jeder Kennzahl — dort steht die genaue Definition.",
+          "Der Alt-Import (bezahlt importierte Alt-Kunden ohne Beleg) wird separat ausgewiesen und fließt bewusst in keine Kennzahl ein.",
+        ]}
+      />
 
       <div className="flex flex-wrap items-center gap-2 mb-5">
         {RANGES.map((r) => (

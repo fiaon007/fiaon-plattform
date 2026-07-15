@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
 import { TrendingUp, Banknote, Wallet, Receipt, Users, ChevronRight, Download } from "lucide-react";
+import { PageIntro } from "@/components/admin/PageHelp";
 
 // ═══════════════════════════════════════════════════════════════════
 // /admin/verbuchungen — Tagesfinanzen auf einen Blick (read-only).
@@ -83,12 +84,18 @@ export default function AdminVerbuchungenPage() {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       {/* Kopf */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[.2em] mb-1" style={{ color: ACCENT }}>Finanzen</p>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">Verbuchungen</h1>
-          <p className="text-[13px] text-slate-500 mt-1">
-            Bestätigte Zahlungen {rangeLabel.toLowerCase()} — Umsatz, Team-Provisionen und was netto bei uns bleibt.
-          </p>
+        <div className="min-w-0 flex-1">
+          <PageIntro
+            id="verbuchungen"
+            title="Verbuchungen"
+            subtitle={`Hier siehst du alle bestätigten Zahlungen ${rangeLabel.toLowerCase()} — Umsatz, Team-Provisionen und was netto bei FIAON bleibt.`}
+            steps={[
+              "Wähle rechts den Zeitraum — Zeit-Anker ist immer der Bestätigungs-Zeitpunkt der Zahlung (nicht das Änderungsdatum).",
+              "Netto = Umsatz minus Team-Provisionen. Sonstige Kosten (z. B. Werbung) sind hier bewusst nicht enthalten — die stehen in Finanzen & Sales.",
+              "Die Aufschlüsselung je Mitarbeiter zeigt, wer welchen Umsatz gebracht hat. „Direkt (ohne Agent)“ = Kunden ohne zugewiesenen Betreuer.",
+              "Diese Seite ist reine Anzeige — freigeschaltet wird in der Zahlungszentrale oder im Kontoabgleich.",
+            ]}
+          />
         </div>
         {/* Zeitraum-Umschalter */}
         <div className="flex flex-wrap gap-1 bg-white border border-slate-200 rounded-xl p-1">

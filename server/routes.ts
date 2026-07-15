@@ -230,6 +230,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonHubRoutes = await import('./routes/fiaon-admin-hub');
   app.use('/api/fiaon', fiaonHubRoutes.default);
 
+  // 📈 FIAON Arbeitsberichte (P4-C) — /admin/leistung + /agent/leistung (Spiegel) + KI-Analyse
+  const fiaonLeistungRoutes = await import('./routes/fiaon-leistung');
+  app.use('/api/fiaon', fiaonLeistungRoutes.default);
+
   // 🎯 FIAON Lead-Management (Admin/Agent) — Auto-Konversion, Nachfass, Anrufliste
   const fiaonLeadsRoutes = await import('./routes/fiaon-leads');
   app.use('/api/fiaon', fiaonLeadsRoutes.default);

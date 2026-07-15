@@ -438,6 +438,69 @@ Keine neuen Features — Absicherung der Geldlogik vor dem Livegang. Alle Zahlen
 
 Das Rematch-Ergebnis darf NICHT vor dem Deploy verbucht werden — der alte, noch deployte `applyTxn`-Code kennt weder Mail-Parität noch Provisionsprüfung.
 
+### DURCHGEFÜHRT am 15.07.2026, 17:40 Uhr (echte Ergebnisse)
+
+1. **Deploy:** Commit `0705a5b` auf `main` gepusht → Render-Build ausgelöst (Schema migriert beim Boot).
+2. **Stichtag gesetzt:** `commission_cutoff_at = 2026-07-15T15:40:26Z`. Zum Zeitpunkt des Setzens: **28 offene Bestellungen** durch das Altmodell geschützt (Zahl war zwischenzeitlich von 35 auf 28 gesunken — laufender Betrieb). Skript verweigert jedes erneute Setzen.
+3. **Rematch (write):** **50 von 66** offenen Bank-Eingängen zugeordnet (2 davon mit markierter Betrags-Abweichung), 8 ohne erkennbare Referenz, 8 mit Referenz ohne Antrag. **Nichts verbucht** — Verbuchen ist der bewusste nächste Admin-Schritt im Kontoabgleich.
+4. **E2E-Test: 12 PASS, 0 FAIL** — Freischaltung ✓, Direktzahler ohne Provision ✓, Dubletten-Stopp ✓, Mail-Claim genau 1× ✓, Idempotenz ✓, Betreut-Buchung 14,85 € ✓, Dubletten-Attribution (T6) ✓. Hinweis: `MAKE_WEBHOOK_URL` liegt lokal nicht vor — der Mail-1×-Mechanismus wurde über das Claim-Feld verifiziert; der tatsächliche Versand läuft nur auf dem Server. Testdaten vollständig entfernt (4 Anträge, 2 Bank-Txns, 1 Provision, 9 Log-Einträge, 1 Testagent).
+5. **Eine Wahrheit (Prod, 15.07.2026):** bezahlt = **90 Kunden**, Umsatz = **5.919,14 €**; Alt-Bestand separat = **69** (68 ohne Betrag). Der Betreiber verifiziert nach dem Render-Build `GET /api/fiaon/admin/truth-check` → muss `identical: true` und dieselben 90 zeigen.
+
+**Offen für den Betreiber:** die 50 zugeordneten Eingänge im Kontoabgleich prüfen und verbuchen; die 8+8 Rest-Fälle manuell zuordnen oder ignorieren.
+
 ## V5 — Changelog
 
 `CHANGELOG.md` angelegt (Phase 2 + 2B in Klartext). Regel ab jetzt: **jede Änderung bekommt einen Eintrag im selben Commit.** Die Admin-Seite dafür folgt in Phase 4.
+
+---
+---
+
+# PHASE 4 — ADMIN-UX, HINWEISE & ARBEITSBERICHTE (15.07.2026)
+
+Reine UX/Navigation/Erklärung/Berichte — **keine Geschäftslogik geändert.**
+
+## P4-A — Hinweis-Badges
+
+- `GET /admin/hub/badges` (`fiaon-admin-hub.ts`): EIN Endpoint, alle Zähler serverseitig aggregiert, **60-s-In-Memory-Cache** (nur ein kleines JSON — 512-MB-tauglich). Frontend pollt alle 60 s (AdminShell), kein Realtime-Stack.
+- Badges (monochrome Pill, verschwindet bei 0): Zahlungszentrale (angekündigt), Kontoabgleich (unzugeordnet), Auszahlungen (angefordert), Dubletten (offene Gruppen), Nachbuchung (bezahlt ohne Provision, ohne Direktzahler), Agent-Feedback (offen).
+
+## P4-B — Dashboard zum Arbeiten (`/admin`)
+
+- **„Was ist zu tun?"** oben: bis zu 7 Aufgabenzeilen mit direkter Aktion (öffnen/abgleichen/verbuchen/prüfen/nachbuchen/zusammenführen/ansehen) — nur sichtbar bei > 0.
+- **Warn-Kacheln** nur bei echten Problemen, jeweils mit Erklärung + Lösung: „Seit X Stunden kein Lead-Eingang" (≥ 24 h; hätte den Make-Ausfall sofort gezeigt), „Nachfass-Automatik pausiert", „blockierte Akte bei Agent X".
+- **Schnellsuche prominent** (Name/E-Mail/Telefon/Referenz → Kunde) zusätzlich zu ⌘K; Kennzahlen klickbar mit ⓘ-Definition.
+
+## P4-C — Arbeitsberichte (`/admin/leistung` + Spiegel `/agent/leistung`)
+
+- Backend `server/routes/fiaon-leistung.ts` (hinter `blockAgentsFromAdmin` für den Admin-Teil): pro Agent Akten, Kontakte (Leads+Kunden), Ergebnisse nach Typ, Antragslinks, Konversionen, Abschlüsse (eine Wahrheit), Umsatz, Provision, Reaktionszeit, Rückgabequote, Direktzahler-Anteil; Team-Zeitverlauf + Quellen-Konversion. Zeitraumfilter Heute/7/30/Custom.
+- **Rechtlicher Rahmen eingehalten:** ausschließlich Arbeitsergebnisse aus selbst erzeugten Logs; keinerlei Arbeitszeit-/Pausen-/Anwesenheits-/Inaktivitäts-Erfassung; Hinweis-Text auf beiden Seiten; **Spiegelansicht** für jeden Agenten (Agent-Portal → Mehr → „Meine Leistung", mit anonymem Team-Durchschnitt).
+- **KI-Zusammenfassung:** Provider-Wahl per Env-Prüfung — **Gemini Flash zuerst** (Key liegt im Server-Env, günstigste Option), Fallback **gpt-4o-mini** (OPENAI_API_KEY liegt ebenfalls vor). Nur aggregierte, **anonymisierte** Kennzahlen (Agent A/B/…, keine Kunden-/Kontaktdaten). Ergebnis kopierbar + als letzte Zusammenfassung gespeichert; KI-Ausfall → verständliche Meldung, Zahlen bleiben sichtbar.
+- **Smoke-Test gegen Prod (30 Tage, echt):** 301 Links, 72 Konversionen, 50 Abschlüsse, 3.543,52 € Umsatz, 940,70 € Provision; Quellen: import 1.736 Leads → 51 zahlend, facebook_lead_ads 139 → 4 (`scripts/smoke-leistung.ts`).
+
+## P4-D — Jede Seite erklärt sich selbst
+
+- Gemeinsames Muster `client/src/components/admin/PageHelp.tsx`: `PageIntro` (Titel + Du-Untertitel + einklappbares „Wie funktioniert diese Seite?", Erstbesuch offen, localStorage-Merker pro Seite) und `Tip` (ⓘ-Klartext).
+- Ausgerollt auf: Dashboard, Zahlungszentrale (inkl. Auszahlungen/Dubletten-Schritte), Finanzen & Sales, Verbuchungen, Kontoabgleich, Rechnungen, Kunden & Anträge, Team-Übersicht, Leistung, Nachbuchung, Agent-Updates & Feedback, E-Mail-Events, Audit-Log, Changelog. Leads war bereits das Vorbild.
+
+## P4-E — Navigation & Design (Routen-Audit)
+
+| Route | im Menü? |
+|---|---|
+| /admin, /admin/zahlungen, /admin/kontoabgleich, /admin/verbuchungen, /admin/finanzen, /admin/rechnungen, /admin/database, /admin/leads, /admin/team, /admin/nachbuchung, /admin/einstellungen, /admin/events, /admin/audit, /admin/recht | ✓ (bestand) |
+| /admin/leistung, /admin/changelog | ✓ (neu, mit Route) |
+| Auszahlungen, Dubletten | ✓ (neu verlinkt — Sektionen der Zahlungszentrale, mit Anker-Scroll) |
+| Karteileichen | keine (admin-leads-import ist Dialog-Komponente, keine Route) |
+
+- **Doppelung aufgelöst:** „Agent-Updates" und „Agent-Feedback" zeigten dieselbe Seite → ein Menüpunkt „Agent-Updates & Feedback".
+- **/admin/agent-portal aufs CI gebracht:** Standard-Container/Abstände + PageIntro (fiel vorher aus dem Rahmen).
+- Aktive Seite: Sidebar-Highlight + Breadcrumb (bestand, AdminShell).
+
+## P4-F — Changelog als Seite
+
+- `/admin/changelog` („Was ist neu?") liest `CHANGELOG.md` über `GET /admin/changelog` und rendert Klartext-Karten. Rückwirkend befüllt (Pakete E–EF, Phasen 1–4) aus Git-Historie und den Doku-Dateien.
+
+## Ehrliche Abweichungen / offene Punkte (Phase 4)
+
+1. **Reaktionszeit-Anker:** Der Lead-**Zuweisungs**-Zeitpunkt wurde historisch nie gespeichert. Die Kennzahl misst deshalb ehrlich „Lead-**Eingang** → erster dokumentierter Kontakt" und ist im UI exakt so beschriftet (Tooltip erklärt den Grund). Ein `assigned_at`-Feld wäre eine Logik-Änderung und war in dieser Phase untersagt.
+2. **Vorher/Nachher-Screenshots:** nicht erstellt (kein laufender Browser-Lauf in dieser Sitzung); die Änderungen sind stattdessen im Changelog und hier beschrieben. Kann nach dem Deploy nachgeholt werden.
+3. Die vorbestehenden TypeScript-Fehler in `server/routes.ts` / ARAS-AI-Komponenten (fremder Teil des Monorepos) wurden bewusst nicht angefasst; alle FIAON-Dateien sind fehlerfrei, `vite build` + Server-Bundle laufen durch.

@@ -122,7 +122,7 @@ const NAV: { href: string; label: string; icon: typeof Users; match: string[] }[
   { href: "/agent/leads", label: "Leads", icon: PhoneCall, match: ["/agent/leads"] },
   { href: "/agent/kalender", label: "Kalender", icon: Calendar, match: ["/agent/kalender"] },
   { href: "/agent/verdienst", label: "Verdienst", icon: Wallet, match: ["/agent/verdienst", "/agent/auszahlung", "/agent/partner-programm"] },
-  { href: "/agent/mehr", label: "Mehr", icon: MoreHorizontal, match: ["/agent/mehr", "/agent/skripte", "/agent/updates", "/agent/feedback", "/agent/profil"] },
+  { href: "/agent/mehr", label: "Mehr", icon: MoreHorizontal, match: ["/agent/mehr", "/agent/skripte", "/agent/updates", "/agent/feedback", "/agent/profil", "/agent/leistung"] },
 ];
 
 /**

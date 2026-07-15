@@ -58,6 +58,9 @@ import AdminAgentPortalPage from "@/pages/admin-agent-portal";
 import AdminLeadsPage from "@/pages/admin-leads";
 import AdminFinanzenPage from "@/pages/admin-finanzen";
 import AdminKontoabgleichPage from "@/pages/admin-kontoabgleich";
+import AdminLeistungPage from "@/pages/admin-leistung";
+import AdminChangelogPage from "@/pages/admin-changelog";
+import AgentLeistungPage from "@/pages/agent/leistung";
 import AgentLeadsPage from "@/pages/agent/leads";
 
 // Paket N1: JEDE /admin-Seite läuft in der AdminShell (Sidebar, Breadcrumb,
@@ -111,6 +114,9 @@ function Router() {
       <Route path="/admin/agent-portal" component={admin(AdminAgentPortalPage)} />
       <Route path="/admin/team" component={admin(AdminTeamPage)} />
       <Route path="/admin/nachbuchung" component={admin(AdminNachbuchungPage)} />
+      <Route path="/admin/leistung" component={admin(AdminLeistungPage)} />
+      <Route path="/admin/changelog" component={admin(AdminChangelogPage)} />
+      <Route path="/agent/leistung" component={AgentLeistungPage} />
       <Route path="/zahlung/:paymentRef/danke" component={ZahlungDankePage} />
       <Route path="/zahlung/:paymentRef" component={ZahlungPage} />
       <Route path="/was-ist-fiaon" component={WasIstFiaonPage} />

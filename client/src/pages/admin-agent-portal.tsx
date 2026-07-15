@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { PageIntro } from "@/components/admin/PageHelp";
 import {
   Sparkles, MessageSquarePlus, Target, HandCoins, Eye, EyeOff,
   Trash2, Image as ImageIcon, ChevronDown, Save, Copy, Check,
@@ -66,11 +67,19 @@ export default function AdminAgentPortalPage() {
   const flash = (m: string) => { setMessage(m); setTimeout(() => setMessage(null), 4500); };
 
   return (
-    <div className="max-w-4xl">
-      <h1 className="text-xl font-bold tracking-tight mb-1">Agent-Portal</h1>
-      <p className="text-[12px] text-slate-400 mb-5">
-        Updates posten (Banner im Agent-Portal), Feedback prüfen und belohnen, Tagesziele setzen.
-      </p>
+    // P4-E: identisches CI wie alle Admin-Seiten (Container, Abstände, Karten) —
+    // die Seite fiel vorher aus dem Rahmen (kein Seitenrand, kein Standard-Kopf).
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <PageIntro
+        id="agent-portal"
+        title="Agent-Updates & Feedback"
+        subtitle="Hier informierst du dein Team (Updates), prüfst und belohnst Feedback und setzt Tagesziele."
+        steps={[
+          "„Updates“: Veröffentlichte Einträge erscheinen als Banner im Agent-Portal, bis jeder Agent sie gelesen hat. Entwürfe sieht niemand.",
+          "„Feedback“: Vorschläge und Bug-Meldungen der Agenten. Status setzen (geprüft/umgesetzt/abgelehnt) und optional eine einmalige Prämie gutschreiben — die Gutschrift landet direkt im Provisions-Guthaben.",
+          "„Tagesziele“: Die Zielwerte, die Agenten auf „Mein Tag“ sehen.",
+        ]}
+      />
       {message && (
         <div className="mb-4 px-4 py-3 rounded-xl bg-white border border-slate-300 text-[13px] font-medium text-slate-700">{message}</div>
       )}

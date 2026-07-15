@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { FileText, Download } from "lucide-react";
+import { PageIntro } from "@/components/admin/PageHelp";
 
 // ═══════════════════════════════════════════════════════════════════
 // /admin/rechnungen — read-only Übersicht des Rechnungs-Nummernkreises
@@ -56,10 +57,16 @@ export default function AdminRechnungenPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-      <h1 className="text-xl font-bold tracking-tight text-slate-900 mb-1">Rechnungen</h1>
-      <p className="text-[13px] text-slate-500 mb-5">
-        Alle automatisch erzeugten Rechnungen (lückenloser Nummernkreis). Erstellung und Storno laufen über die Zahlungszentrale — hier nur Übersicht und Download.
-      </p>
+      <PageIntro
+        id="rechnungen"
+        title="Rechnungen"
+        subtitle="Hier durchsuchst du alle erzeugten Rechnungen und lädst sie als PDF herunter."
+        steps={[
+          "Suche nach Rechnungsnummer, Kunde, E-Mail oder Referenz — die Liste zeigt den lückenlosen Nummernkreis.",
+          "Rechnungen entstehen automatisch bei der Zahlung; erstellt oder storniert wird NICHT hier, sondern in der Zahlungszentrale am jeweiligen Kunden.",
+          "Der Download-Button lädt das Original-PDF — identisch zu dem, das der Kunde erhalten hat.",
+        ]}
+      />
 
       <input
         type="text"

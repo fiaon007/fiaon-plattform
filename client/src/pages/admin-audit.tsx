@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { PageIntro } from "@/components/admin/PageHelp";
 
 // ═══════════════════════════════════════════════════════════════════
 // /admin/audit — durchsuchbare Ansicht des Mitarbeiter-Audit-Logs
@@ -48,10 +49,16 @@ export default function AdminAuditPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-      <h1 className="text-xl font-bold tracking-tight text-slate-900 mb-1">Audit-Log</h1>
-      <p className="text-[13px] text-slate-500 mb-5">
-        Jede Mitarbeiter-Aktion mit Zeitstempel — Notizen, Kontakt-Ergebnisse, Übernahmen, Erinnerungs-Mails, Termin-Änderungen.
-      </p>
+      <PageIntro
+        id="audit"
+        title="Audit-Log"
+        subtitle="Hier kannst du jede Aktion im System nachvollziehen — wer hat wann was an welchem Kunden gemacht."
+        steps={[
+          "Suche nach Kunde, Referenz, Agent oder Stichwort — die Liste zeigt alle protokollierten Aktionen mit Zeitstempel.",
+          "Auch System-Aktionen stehen hier (z. B. „Per Kontoabgleich verbucht“, „Attribution folgt der Betreuung“) — nichts passiert unsichtbar.",
+          "Einträge werden nie gelöscht; Korrekturen erscheinen als eigener Eintrag (durchgestrichen bleibt sichtbar).",
+        ]}
+      />
 
       <input
         type="text"

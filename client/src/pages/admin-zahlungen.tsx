@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { PageIntro } from "@/components/admin/PageHelp";
 
 // ============================================================================
 // /admin/zahlungen — Zahlungszentrale (Vorkasse per Banküberweisung)
@@ -266,8 +267,11 @@ export default function AdminZahlungenPage() {
       setSearch(deepRef.current);
     }
     const scrollToHash = () => {
-      if (window.location.hash === "#auszahlungen") {
-        setTimeout(() => document.getElementById("auszahlungen")?.scrollIntoView({ behavior: "smooth", block: "start" }), 250);
+      // P4-E: Nav-Einträge „Auszahlungen" und „Dubletten" springen zur Sektion.
+      const target = window.location.hash === "#auszahlungen" ? "auszahlungen"
+        : window.location.hash === "#dubletten" ? "dubletten" : null;
+      if (target) {
+        setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" }), 250);
       }
     };
     scrollToHash();
@@ -699,12 +703,19 @@ export default function AdminZahlungenPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[.2em] text-[#2563eb] mb-1">Admin</p>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Zahlungen (Banküberweisung)</h1>
-            <p className="text-[13px] text-slate-500 mt-1">
-              Manuelle Freischaltung nach Zahlungseingang — Abgleich per Verwendungszweck mit dem Kontoauszug.
-            </p>
+          <div className="min-w-0 flex-1">
+            <PageIntro
+              id="zahlungen"
+              title="Zahlungszentrale"
+              subtitle="Hier prüfst du angekündigte Zahlungen und schaltest sie nach Zahlungseingang frei — außerdem Auszahlungen und Dubletten."
+              steps={[
+                "Der Tab „Zahlung angekündigt“ zeigt Kunden, die „Ich habe bezahlt“ gemeldet haben. Prüfe den Eingang auf dem Konto (Verwendungszweck = Zahlungsreferenz FIAON-…) und schalte mit „bezahlt“ frei — das stoppt Erinnerungen, sendet die Bestätigungs-Mail und prüft die Provision automatisch.",
+                "Tipp: Der Kontoabgleich (eigene Seite) macht denselben Schritt direkt aus dem hochgeladenen Kontoauszug — exakter und schneller bei vielen Eingängen.",
+                "Unter „Auszahlungen“ (unten, oder Menüpunkt links) gibst du Provisions-Anforderungen des Teams frei.",
+                "Unter „Dubletten“ führst du Mehrfach-Bestellungen derselben Person zusammen — nichts wird gelöscht, alles bleibt rekonstruierbar.",
+                "Jeder Kunde hat eine Timeline (Zeile anklicken): jede Mail, jeder Statuswechsel, jede Notiz.",
+              ]}
+            />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -1048,7 +1059,7 @@ export default function AdminZahlungenPage() {
         </p>
 
         {/* ── C3: Duplikat-Altbestand ── */}
-        <div className="mt-8 bg-white border border-slate-200 rounded-2xl p-5">
+        <div id="dubletten" className="mt-8 bg-white border border-slate-200 rounded-2xl p-5 scroll-mt-16">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="text-[15px] font-bold text-slate-900">Duplikat-Altbestand bereinigen</h2>

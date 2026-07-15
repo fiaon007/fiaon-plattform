@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Upload, RefreshCw, Check, X, Link2, Search } from "lucide-react";
+import { PageIntro } from "@/components/admin/PageHelp";
 
 // ════════════════════════════════════════════════════════════════════
 // /admin/kontoabgleich — Bank-Reconciliation (Kontoeingänge ↔ Kunden).
@@ -219,9 +220,19 @@ export default function AdminKontoabgleichPage() {
   return (
     <div className="px-4 sm:px-6 py-5 max-w-6xl mx-auto">
       <div className="mb-4 flex items-start gap-3">
-        <div className="flex-1">
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">Kontoabgleich</h1>
-          <p className="text-[13px] text-slate-500">Reale Kontoeingänge (Kunden) exakt abgleichen und verbuchen — identisch zum „bezahlt"-Button (inkl. Bestätigungs-Mail; Provision nur bei dokumentierter Betreuung).</p>
+        <div className="flex-1 min-w-0">
+          <PageIntro
+            id="kontoabgleich"
+            title="Kontoabgleich"
+            subtitle="Hier gleichst du die echten Bank-Eingänge mit den Kunden ab und verbuchst sie — identisch zum „bezahlt“-Button."
+            steps={[
+              "Lade rechts den Kontoauszug (CSV, z. B. Wise) hoch. Nur Kunden-EINGÄNGE werden importiert — Ausgänge und Karten-Umsätze ignoriert das System automatisch.",
+              "Das System ordnet Eingänge per Zahlungsreferenz (FIAON-…) automatisch zu. „Offene neu abgleichen“ prüft alte, unzugeordnete Eingänge erneut — ordnet nur zu, verbucht nichts.",
+              "Offene Eingänge ohne Referenz ordnest du per „Zuordnen“ zu — mit Vorschlägen nach Einzahlername + Betrag (Konfidenz wird angezeigt, du bestätigst immer selbst).",
+              "„Verbuchen“ wirkt exakt wie der „bezahlt“-Button: Freischaltung, Dubletten-Stopp, Bestätigungs-Mail (genau 1×), Provisionsprüfung. Betrags-Abweichungen werden markiert, nie stillschweigend übernommen.",
+              "„Ignorieren“ ist für Eingänge, die keine Kundenzahlung sind (z. B. eigene Umbuchung).",
+            ]}
+          />
         </div>
         <label className={`px-3 py-2 rounded-lg text-white text-[12px] font-semibold inline-flex items-center gap-1.5 shrink-0 cursor-pointer ${busy ? "opacity-50" : ""}`} style={{ background: ACCENT }}>
           <Upload size={13} /> Kontoauszug (CSV)

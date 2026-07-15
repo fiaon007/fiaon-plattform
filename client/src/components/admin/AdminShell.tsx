@@ -3,8 +3,8 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, CreditCard, Banknote, FileText, Users, UserPlus,
   BookOpen, Settings, ScrollText, Scale, Database, Search, Menu, X,
-  ArrowLeft, ChevronRight, ShieldAlert, Wallet, Send, Sparkles, MessageSquarePlus,
-  Target, TrendingUp, Landmark, HandCoins,
+  ArrowLeft, ChevronRight, ShieldAlert, Wallet, Send, Sparkles,
+  Target, TrendingUp, Landmark, HandCoins, Copy, BarChart3, History,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -24,6 +24,8 @@ interface NavItem {
   icon: typeof LayoutDashboard;
   /** exakter Router-Pfad für Aktiv-Markierung (Query/Hash ignoriert) */
   match?: string;
+  /** P4-A: Schlüssel im /admin/hub/badges-Objekt — Zähler-Pill am Menüpunkt */
+  badgeKey?: string;
 }
 
 interface NavGroup {
@@ -31,21 +33,29 @@ interface NavGroup {
   items: NavItem[];
 }
 
+// P4-E Routen-Audit (15.07.2026) — jede /admin-Route hat einen Menüpunkt:
+//   /admin ✓ · zahlungen ✓ · finanzen ✓ · verbuchungen ✓ · kontoabgleich ✓ ·
+//   rechnungen ✓ · database ✓ · leads ✓ · team ✓ · nachbuchung ✓ · leistung ✓ (neu) ·
+//   agent-portal ✓ (Updates+Feedback zusammengelegt — war doppelt) ·
+//   einstellungen ✓ · events ✓ · audit ✓ · recht ✓ · changelog ✓ (neu) ·
+//   Dubletten ✓ (neu verlinkt — lebt als Sektion in der Zahlungszentrale).
+//   Karteileichen: keine (admin-leads-import ist Dialog-Komponente, keine Route).
 export const ADMIN_NAV: NavGroup[] = [
   {
     title: null,
     items: [
-      { path: "/admin", label: "Dashboard", desc: "Kommandozentrale — alle Bereiche und Tageszahlen", icon: LayoutDashboard },
+      { path: "/admin", label: "Dashboard", desc: "Was ist zu tun? Aufgaben, Warnungen, Suche, Tageszahlen", icon: LayoutDashboard },
     ],
   },
   {
     title: "Umsatz & Zahlungen",
     items: [
-      { path: "/admin/zahlungen", label: "Zahlungszentrale", desc: "Offene Zahlungen prüfen, freischalten, Timeline", icon: CreditCard },
-      { path: "/admin/finanzen", label: "Finanzen & Sales", desc: "Funnel, Umsatz, Marge, CAC, Kampagnen-Attribution", icon: TrendingUp },
+      { path: "/admin/zahlungen", label: "Zahlungszentrale", desc: "Offene Zahlungen prüfen, freischalten, Timeline", icon: CreditCard, badgeKey: "zahlungen" },
+      { path: "/admin/kontoabgleich", label: "Kontoabgleich", desc: "Bank-Eingänge exakt mit Kunden abgleichen und verbuchen", icon: Landmark, badgeKey: "kontoabgleich" },
+      { path: "/admin/zahlungen#auszahlungen", label: "Auszahlungen", desc: "Provisions-Anforderungen der Mitarbeiter freigeben", icon: Banknote, match: "/admin/zahlungen", badgeKey: "auszahlungen" },
+      { path: "/admin/zahlungen#dubletten", label: "Dubletten", desc: "Mehrfach-Bestellungen derselben Person zusammenführen", icon: Copy, match: "/admin/zahlungen", badgeKey: "dubletten" },
       { path: "/admin/verbuchungen", label: "Verbuchungen", desc: "Bestätigte Zahlungen: Umsatz, Provisionen, Netto", icon: Wallet },
-      { path: "/admin/kontoabgleich", label: "Kontoabgleich", desc: "Bank-Eingänge exakt mit Kunden abgleichen und verbuchen", icon: Landmark },
-      { path: "/admin/zahlungen#auszahlungen", label: "Auszahlungen", desc: "Provisions-Anforderungen der Mitarbeiter freigeben", icon: Banknote, match: "/admin/zahlungen" },
+      { path: "/admin/finanzen", label: "Finanzen & Sales", desc: "Funnel, Umsatz, Marge, CAC, Kampagnen-Attribution", icon: TrendingUp },
       { path: "/admin/rechnungen", label: "Rechnungen", desc: "Alle erzeugten Rechnungen durchsuchen und laden", icon: FileText },
     ],
   },
@@ -53,18 +63,19 @@ export const ADMIN_NAV: NavGroup[] = [
     title: "Kunden & Anträge",
     items: [
       { path: "/admin/database", label: "Kunden & Anträge", desc: "Alle Anträge, KYC, Aufgaben, Buchhaltung (Cockpit)", icon: Database },
-      { path: "/admin/leads", label: "Leads", desc: "Interessenten aus Lead-Ads — Nachfass, Verteilung, Anrufliste", icon: Target },
+      { path: "/admin/leads", label: "Leads", desc: "Interessenten aus Lead-Ads — Nachfass, Verteilung, Warteschlange", icon: Target },
     ],
   },
   {
     title: "Team",
     items: [
       { path: "/admin/team", label: "Team-Übersicht", desc: "Agents, Statistik, Provisionen, Zuweisungen", icon: Users },
-      { path: "/admin/nachbuchung", label: "Provisionen nachbuchen", desc: "Bezahlte Bestellungen ohne Provision erkennen und buchen", icon: HandCoins },
+      { path: "/admin/leistung", label: "Leistung", desc: "Arbeitsberichte: Ergebnisse pro Agent — offen, nicht heimlich", icon: BarChart3 },
+      { path: "/admin/nachbuchung", label: "Provisionen nachbuchen", desc: "Bezahlte Bestellungen ohne Provision erkennen und buchen", icon: HandCoins, badgeKey: "nachbuchung" },
       { path: "/admin/team?einladen=1", label: "Agent anlegen", desc: "Neuen Mitarbeiter per E-Mail einladen", icon: UserPlus, match: "/admin/team" },
       { path: "/admin/team#skripte", label: "Skripte & Leitfäden", desc: "Gesprächsvorlagen verwalten", icon: BookOpen, match: "/admin/team" },
-      { path: "/admin/agent-portal", label: "Agent-Updates", desc: "Portal-Updates posten (Banner) + Tagesziele pflegen", icon: Sparkles },
-      { path: "/admin/agent-portal#feedback", label: "Agent-Feedback", desc: "Verbesserungsvorschläge prüfen und belohnen", icon: MessageSquarePlus, match: "/admin/agent-portal" },
+      // P4-E: „Agent-Updates" + „Agent-Feedback" zeigten dieselbe Seite — zusammengelegt.
+      { path: "/admin/agent-portal", label: "Agent-Updates & Feedback", desc: "Portal-Updates posten, Tagesziele, Feedback prüfen und belohnen", icon: Sparkles, badgeKey: "feedback" },
     ],
   },
   {
@@ -73,6 +84,7 @@ export const ADMIN_NAV: NavGroup[] = [
       { path: "/admin/einstellungen", label: "Einstellungen", desc: "Provisionssatz, Auszahlung, Reminder-Engine, Diagnose", icon: Settings },
       { path: "/admin/events", label: "E-Mail-Events", desc: "Make-Events testen, Diagnose, Verlauf", icon: Send },
       { path: "/admin/audit", label: "Audit-Log", desc: "Alle Mitarbeiter-Aktionen durchsuchbar", icon: ScrollText },
+      { path: "/admin/changelog", label: "Was ist neu?", desc: "Alle Änderungen am System in Klartext", icon: History },
       { path: "/admin/recht", label: "Rechtstexte-Status", desc: "LEGAL-Review-Stand (read-only)", icon: Scale },
     ],
   },
@@ -216,6 +228,21 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [forbidden, setForbidden] = useState(false);
+  // P4-A: Zähler-Badges — EIN gecachter Endpoint, 60-s-Polling, kein Realtime-Stack.
+  const [badges, setBadges] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    let alive = true;
+    const loadBadges = () => {
+      fetch("/api/fiaon/admin/hub/badges", { credentials: "include" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => { if (alive && j?.ok && j.badges) setBadges(j.badges); })
+        .catch(() => {});
+    };
+    loadBadges();
+    const t = setInterval(loadBadges, 60_000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
 
   const meta = pageMeta(location);
   const isHub = location.split("?")[0].split("#")[0] === "/admin";
@@ -281,7 +308,15 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 }`}
               >
                 <Icon size={15} strokeWidth={1.8} className="shrink-0" />
-                {it.label}
+                <span className="min-w-0 flex-1 truncate">{it.label}</span>
+                {/* P4-A: dezente Zähler-Pill (monochrom, verschwindet bei 0) */}
+                {it.badgeKey && (badges[it.badgeKey] || 0) > 0 && (
+                  <span className={`shrink-0 min-w-[20px] text-center px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums ${
+                    primaryActive || active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
+                  }`}>
+                    {badges[it.badgeKey] > 99 ? "99+" : badges[it.badgeKey]}
+                  </span>
+                )}
               </Link>
             );
           })}

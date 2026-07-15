@@ -59,6 +59,92 @@ router.get("/admin/hub/stats", async (_req, res) => {
   }
 });
 
+// ── P4-A: Hinweis-Badges + Aufgaben + Warnungen — EIN gecachter Endpoint ─────
+// Alle Zähler serverseitig in einem Rutsch aggregiert, 60 s In-Memory-Cache
+// (512-MB-Budget: nur ein kleines JSON-Objekt, keine Listen). Frontend pollt
+// alle 60 s — kein Realtime-Stack, keine sechs Einzel-Requests.
+let badgeCache: { at: number; data: any } | null = null;
+const BADGE_CACHE_MS = 60_000;
+
+async function computeBadges(): Promise<any> {
+  const [apps] = await sqlPool`
+    SELECT
+      COUNT(*) FILTER (WHERE payment_status = 'claimed_paid' AND merged_into IS NULL)::int AS zahlungen,
+      COUNT(*) FILTER (WHERE payment_status = 'paid' AND merged_into IS NULL
+        AND COALESCE(commission_basis, '') <> 'direktzahler'
+        AND assigned_agent_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM fiaon_commissions c WHERE c.ref = fiaon_applications.ref AND c.amount_cents > 0 AND c.status <> 'storniert')
+      )::int AS nachbuchung
+    FROM fiaon_applications
+  `;
+  const [dup] = await sqlPool`
+    SELECT COUNT(*)::int AS c FROM (
+      SELECT LOWER(TRIM(email)) FROM fiaon_applications
+      WHERE merged_into IS NULL AND email IS NOT NULL AND TRIM(email) <> ''
+      GROUP BY LOWER(TRIM(email))
+      HAVING COUNT(*) > 1
+         AND COUNT(*) FILTER (WHERE payment_status IN ('pending_payment', 'claimed_paid')) > 0
+    ) x
+  `;
+  const [payouts] = await sqlPool`
+    SELECT COUNT(*)::int AS c FROM fiaon_payouts WHERE status = 'angefordert'
+  `.catch(() => [{ c: 0 }] as any);
+  const [feedback] = await sqlPool`
+    SELECT COUNT(*)::int AS c FROM fiaon_agent_feedback WHERE status = 'offen'
+  `.catch(() => [{ c: 0 }] as any);
+  const [bank] = await sqlPool`
+    SELECT COUNT(*) FILTER (WHERE match_status = 'unmatched' AND applied = FALSE)::int AS unmatched,
+           COUNT(*) FILTER (WHERE match_status IN ('matched', 'manual') AND applied = FALSE)::int AS matched_unapplied
+    FROM fiaon_bank_txns
+  `.catch(() => [{ unmatched: 0, matched_unapplied: 0 }] as any);
+
+  // Warn-Signale (echte Probleme, mit Erklärung + Lösung im Frontend)
+  const [leadIntake] = await sqlPool`
+    SELECT EXTRACT(EPOCH FROM (NOW() - MAX(erstellt_am))) / 3600 AS hours FROM fiaon_leads
+  `.catch(() => [{ hours: null }] as any);
+  const [blockedAkten] = await sqlPool`
+    SELECT COUNT(*)::int AS c, MIN(ag.name) AS first_agent
+    FROM fiaon_leads l JOIN fiaon_agents ag ON ag.id = l.opened_by_agent_id
+    WHERE l.opened_at IS NOT NULL AND l.status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
+  `.catch(() => [{ c: 0, first_agent: null }] as any);
+  const settings = await getSettings();
+
+  return {
+    // Badges (Nav): Schlüssel = Nav-Pfad-Kürzel; 0 ⇒ Frontend blendet aus.
+    badges: {
+      zahlungen: Number(apps.zahlungen),
+      auszahlungen: Number(payouts.c),
+      feedback: Number(feedback.c),
+      nachbuchung: Number(apps.nachbuchung),
+      dubletten: Number(dup.c),
+      kontoabgleich: Number(bank.unmatched),
+    },
+    // Zusatzsignale für die Dashboard-Warn-Kacheln
+    warn: {
+      leadIntakeHours: leadIntake.hours != null ? Math.round(Number(leadIntake.hours)) : null,
+      followupPaused: settings.lead_followup_enabled !== "1",
+      bankMatchedUnapplied: Number(bank.matched_unapplied),
+      blockedAkten: Number(blockedAkten.c),
+      blockedAktenAgent: blockedAkten.first_agent || null,
+    },
+    at: new Date().toISOString(),
+  };
+}
+
+router.get("/admin/hub/badges", async (_req, res) => {
+  try {
+    if (badgeCache && Date.now() - badgeCache.at < BADGE_CACHE_MS) {
+      return res.json({ ok: true, cached: true, ...badgeCache.data });
+    }
+    const data = await computeBadges();
+    badgeCache = { at: Date.now(), data };
+    res.json({ ok: true, cached: false, ...data });
+  } catch (err) {
+    console.error("[FIAON-HUB] badges:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 // ── O3: Globale Schnellsuche (Cmd+K) ─────────────────────────────────────────
 // Kunden: Name / E-Mail / Referenz / Zahlungsreferenz / Telefon.
 // Agents: Name / E-Mail. (Kunden-IBANs existieren nicht — Kunden zahlen an UNS;
@@ -437,6 +523,18 @@ router.post("/admin/events/send-real", async (req, res) => {
     res.json({ ok: true, sent, at, customer: eventCustomerName(row), email: realPayload.email });
   } catch (err) {
     console.error("[FIAON-EVENTS] send-real:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── P4-F: Changelog (read-only aus CHANGELOG.md — „Was ist neu?") ────────────
+router.get("/admin/changelog", async (_req, res) => {
+  try {
+    const filePath = path.resolve(process.cwd(), "CHANGELOG.md");
+    const content = await readFile(filePath, "utf-8").catch(() => null);
+    res.json({ ok: true, content, exists: content != null });
+  } catch (err) {
+    console.error("[FIAON-HUB] changelog:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import CeoMindOS from "@/components/admin/CeoMindOS";
+import { PageIntro } from "@/components/admin/PageHelp";
 import LiveRadar from "@/components/admin/LiveRadar";
 import KnowledgeBase from "@/components/admin/KnowledgeBase";
 import AccountingDashboard from "@/components/admin/AccountingDashboard";
@@ -419,6 +420,21 @@ export default function AdminDatabasePage() {
 
         {/* Content */}
         <main className="flex-1 p-5 lg:p-8 space-y-6">
+
+          {/* P4-D: Selbsterklärung — nur in der Übersicht, nicht in jedem Untertab */}
+          {adminSection === 'overview' && (
+            <PageIntro
+              id="database"
+              title="Kunden & Anträge"
+              subtitle="Hier findest du jeden Antrag im Detail — KYC, Aufgaben, Investoren und Buchhaltung in einem Cockpit."
+              steps={[
+                "Links wechselst du zwischen den Bereichen (Übersicht, Anträge, KYC, Aufgaben, Buchhaltung).",
+                "Klick auf einen Antrag öffnet alle Details inklusive Dokumenten und Verlauf.",
+                "Zahlungen schaltest du NICHT hier frei — das passiert in der Zahlungszentrale oder im Kontoabgleich (eine klare Zuständigkeit pro Seite).",
+                "„Verträge (ZIP)“ oben lädt alle Vertragsakzeptierungen als Nachweis-Paket.",
+              ]}
+            />
+          )}
 
           {/* ══════════ ÜBERSICHT ══════════ */}
           {adminSection === 'overview' && (

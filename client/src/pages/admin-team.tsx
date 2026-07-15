@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { X, ChevronDown, GripVertical, FileText, HandCoins } from "lucide-react";
+import { PageIntro } from "@/components/admin/PageHelp";
 
 // ============================================================================
 // /admin/team (Paket K) — Agent-Statistik & Steuerung
@@ -179,13 +180,19 @@ export default function AdminTeamPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[.2em] text-[#2563eb] mb-1">Admin</p>
-            <h1 className="text-2xl font-bold tracking-tight">Team</h1>
-            <p className="text-[13px] text-slate-500 mt-1">
-              Mitarbeiter, Provisionen und Leistung. Auszahlungen verwaltest du in der{" "}
-              <a href="/admin/zahlungen" className="font-semibold text-[#2563eb] hover:underline">Zahlungszentrale</a>.
-            </p>
+          <div className="min-w-0 flex-1">
+            <PageIntro
+              id="team"
+              title="Team-Übersicht"
+              subtitle="Hier verwaltest du deine Mitarbeiter: Zugänge, Provisionssätze, Zuweisungen und Gesprächsskripte."
+              steps={[
+                "„Agent anlegen“ verschickt eine E-Mail-Einladung (Link 48 h gültig). Der Agent setzt sein Passwort selbst — du siehst nie eines.",
+                "Klick auf einen Agenten öffnet Details: Provisionssatz, Werber-Beziehung, zugewiesene Kunden, Statistik.",
+                "Geänderte Bankdaten eines Agenten musst du einmal bestätigen (Vier-Augen-Schutz vor Auszahlungs-Betrug).",
+                "Auszahlungen gibst du in der Zahlungszentrale frei; die Arbeitsberichte findest du unter „Leistung“.",
+                "Unter „Skripte & Leitfäden“ pflegst du die Gesprächsvorlagen, die Agenten am Kunden sehen.",
+              ]}
+            />
           </div>
           <button type="button" onClick={(e) => { e.stopPropagation(); setInviteOpen(true); }} className={btnPrimary}>
             Mitarbeiter einladen

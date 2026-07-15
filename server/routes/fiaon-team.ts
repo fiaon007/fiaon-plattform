@@ -391,8 +391,11 @@ router.post("/admin/agents/:id/commissions/manual", async (req, res) => {
 // NULL-Betrag wird die Bestellung als „Betrag unklar" markiert und ist NICHT
 // sammelbuchbar — nur einzeln mit manueller Betragseingabe.
 
-/** Findet alle bezahlten, zugewiesenen Bestellungen ohne positive Provision +
- *  belastbaren Betrag inkl. Quellenangabe. Nur SELECT (kein Schreibzugriff). */
+/** Findet alle bezahlten Bestellungen ohne positive Provision + belastbaren
+ *  Betrag inkl. Quellenangabe. P2-B: auch FÄLLE OHNE zugewiesenen Agent —
+ *  mit Vorschlag aus der dokumentierten Betreuung (letzter Agenten-Kontakt).
+ *  Entscheidung trifft IMMER der Betreiber, nichts wird automatisch gebucht.
+ *  Nur SELECT (kein Schreibzugriff). */
 async function backfillCandidates(): Promise<any[]> {
   await ensureAgentTables();
   const rows = await sqlPool`
@@ -401,6 +404,8 @@ async function backfillCandidates(): Promise<any[]> {
       COALESCE(NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''), a.company_name, a.contact_name, a.email) AS customer_name,
       COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,'')) AS email,
       COALESCE(a.completed_at, a.claimed_paid_at, a.updated_at) AS paid_at,
+      a.commission_basis,
+      suggested.agent_id AS suggested_agent_id, suggested.agent_name AS suggested_agent_name,
       ag.name AS agent_name, ag.commission_rate_bp AS agent_rate_bp,
       -- belastbarer Betrag (Cents) + Quelle
       CASE
@@ -417,7 +422,7 @@ async function backfillCandidates(): Promise<any[]> {
       END AS amount_source,
       donor.ref AS donor_ref
     FROM fiaon_applications a
-    JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
+    LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
     LEFT JOIN LATERAL (
       SELECT s.ref, s.amount_due
       FROM fiaon_applications s
@@ -430,9 +435,25 @@ async function backfillCandidates(): Promise<any[]> {
       WHERE t.matched_ref = a.ref AND t.applied = TRUE
       ORDER BY t.booked_at DESC NULLS LAST, t.id DESC LIMIT 1
     ) bank ON TRUE
+    LEFT JOIN LATERAL (
+      -- P2-B: Betreuungs-Vorschlag = letzter dokumentierter Agenten-Kontakt
+      -- (Kunden-Log + Lead-Log; Notizen/Akte-Öffnen zählen nicht)
+      SELECT x.agent_id, x.agent_name FROM (
+        SELECT c.agent_id, c.agent_name, c.created_at
+        FROM fiaon_contact_log c
+        WHERE c.ref = a.ref AND c.agent_id IS NOT NULL AND c.voided_at IS NULL
+          AND c.type IN ('result', 'email_sent')
+        UNION ALL
+        SELECT g.agent_id, g.agent_name, g.created_at
+        FROM fiaon_lead_log g JOIN fiaon_leads l ON l.id = g.lead_id
+        WHERE l.converted_order_id = a.ref AND g.agent_id IS NOT NULL
+          AND g.type IN ('result', 'email_sent')
+      ) x ORDER BY x.created_at DESC LIMIT 1
+    ) suggested ON TRUE
     WHERE a.payment_status = 'paid'
       AND a.merged_into IS NULL
-      AND a.assigned_agent_id IS NOT NULL
+      AND (a.assigned_agent_id IS NOT NULL OR suggested.agent_id IS NOT NULL)
+      AND COALESCE(a.commission_basis, '') <> 'direktzahler'
       AND NOT EXISTS (
         SELECT 1 FROM fiaon_commissions c
         WHERE c.ref = a.ref AND c.amount_cents > 0 AND c.status != 'storniert'
@@ -444,6 +465,9 @@ async function backfillCandidates(): Promise<any[]> {
     const rateBp = agentRateBp({ commission_rate_bp: r.agent_rate_bp }, settings);
     const amountCents = r.amount_cents != null ? Number(r.amount_cents) : null;
     const estimateCents = amountCents != null ? commissionCents(amountCents, rateBp) : null;
+    // P2-B: Fall ohne zugewiesenen Agent → Vorschlag aus dokumentierter Betreuung.
+    const agentId = r.assigned_agent_id ?? r.suggested_agent_id ?? null;
+    const agentName = r.agent_name ?? (r.suggested_agent_name ? `${r.suggested_agent_name} (Vorschlag aus Betreuung)` : null);
     return {
       ref: r.ref,
       payment_reference: r.payment_reference,
@@ -451,8 +475,9 @@ async function backfillCandidates(): Promise<any[]> {
       customer_name: r.customer_name,
       email: r.email,
       paid_at: r.paid_at,
-      agent_id: r.assigned_agent_id,
-      agent_name: r.agent_name,
+      agent_id: agentId,
+      agent_name: agentName,
+      agent_suggested: r.assigned_agent_id == null && r.suggested_agent_id != null,
       rate_bp: rateBp,
       amount_cents: amountCents,
       amount_source: r.amount_source,
@@ -507,7 +532,7 @@ router.get("/admin/commission-backfill/count", async (_req, res) => {
  *  Fehlt der Betrag, kann er einmalig manuell gesetzt werden (manualAmountCents),
  *  sonst wird die belastbare Quelle (Donor/Bank) automatisch ergänzt. Jede
  *  Betrags-Ergänzung + Buchung wird im Kontakt-Log protokolliert (Audit). */
-async function bookRef(ref: string, manualAmountCents?: number): Promise<{ ok: boolean; error?: string; alreadyBooked?: boolean; amountCents?: number; source?: string }> {
+async function bookRef(ref: string, manualAmountCents?: number, agentIdOverride?: number): Promise<{ ok: boolean; error?: string; alreadyBooked?: boolean; amountCents?: number; source?: string }> {
   // Bereits gebucht? → idempotent, nichts tun.
   const existing = await sqlPool`
     SELECT id FROM fiaon_commissions WHERE ref = ${ref} AND amount_cents > 0 AND status != 'storniert'
@@ -521,6 +546,20 @@ async function bookRef(ref: string, manualAmountCents?: number): Promise<{ ok: b
   `;
   if (apps.length === 0) return { ok: false, error: "Bezahlte Bestellung nicht gefunden" };
   const app = apps[0];
+  // P2-B: Fall ohne Agent → Admin-Entscheid mit explizitem Agent (Vorschlag aus
+  // Betreuung); die Zuweisung wird dabei gesetzt und im Audit protokolliert.
+  if (!app.assigned_agent_id && agentIdOverride) {
+    await sqlPool`
+      UPDATE fiaon_applications SET assigned_agent_id = ${agentIdOverride}, updated_at = NOW()
+      WHERE ref = ${ref} AND assigned_agent_id IS NULL
+    `;
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${ref}, NULL, 'Admin', 'system',
+              ${`Agent #${agentIdOverride} per Admin-Entscheid zugewiesen (Nachbuchungs-Center, Vorschlag aus dokumentierter Betreuung)`})
+    `;
+    app.assigned_agent_id = agentIdOverride;
+  }
   if (!app.assigned_agent_id) return { ok: false, error: "Bestellung ist keinem Agent zugewiesen — zuerst Zuordnung reparieren" };
 
   // Betrag sicherstellen: vorhanden? sonst manuell? sonst Donor/Bank.
@@ -559,7 +598,9 @@ async function bookRef(ref: string, manualAmountCents?: number): Promise<{ ok: b
   }
 
   // Reguläre Provision über den bestehenden Hook (eingefrorener Satz + Override + Meilenstein).
-  await onCustomerPaid(ref);
+  // P2-B: Nachbuchung = dokumentierte ADMIN-ENTSCHEIDUNG — übersteuert die
+  // Betreuungs-Prüfung bewusst (forceAgentId), z. B. für Altfälle vor Stichtag.
+  await onCustomerPaid(ref, { forceAgentId: Number(app.assigned_agent_id), forceReason: "Admin-Entscheidung im Nachbuchungs-Center" });
   // Verifizieren, dass genau ein positiver Eintrag entstand.
   const after = await sqlPool`SELECT id FROM fiaon_commissions WHERE ref = ${ref} AND amount_cents > 0 AND status != 'storniert'`;
   if (after.length === 0) return { ok: false, error: "Provision konnte nicht gebucht werden (Satz/Betrag = 0?)" };
@@ -578,7 +619,8 @@ router.post("/admin/commission-backfill/:ref/book", async (req, res) => {
     if (manual != null && (!Number.isFinite(manual) || manual <= 0 || manual > 5_000_000)) {
       return res.status(400).json({ ok: false, error: "Betrag ungültig (0,01 € bis 50.000,00 €)" });
     }
-    const result = await bookRef(String(req.params.ref), manual);
+    const agentOverride = req.body?.agentId != null ? Number(req.body.agentId) : undefined;
+    const result = await bookRef(String(req.params.ref), manual, agentOverride);
     if (!result.ok) return res.status(400).json(result);
     console.log(`[FIAON-BACKFILL] gebucht: ${req.params.ref}${result.alreadyBooked ? " (bereits vorhanden)" : ` (${result.source})`}`);
     res.json(result);
@@ -597,6 +639,9 @@ router.post("/admin/commission-backfill/book-all", async (_req, res) => {
     let booked = 0, skipped = 0, failed = 0;
     const results: any[] = [];
     for (const c of bookable) {
+      // Sammelbuchung bucht NUR bereits zugewiesene Fälle — Vorschläge (agent_suggested)
+      // brauchen die bewusste Einzel-Entscheidung des Betreibers.
+      if (c.agent_suggested) { skipped++; continue; }
       const r = await bookRef(c.ref);
       if (r.ok && !r.alreadyBooked) { booked++; results.push({ ref: c.ref, ok: true, amountCents: r.amountCents, source: r.source }); }
       else if (r.ok && r.alreadyBooked) { skipped++; }

@@ -175,12 +175,16 @@ export async function ensureAgentTables(): Promise<void> {
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_contact_log_ref_idx ON fiaon_contact_log(ref)`;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_contact_log_agent_idx ON fiaon_contact_log(agent_id, created_at)`;
   // G2: Attribution + Soft-Lock am Kunden
+  // P2-B: commission_basis dokumentiert TRANSPARENT, warum es Provision gab
+  // oder nicht ('betreut' | 'direktzahler' | 'admin') + Klartext-Begründung.
   await sqlPool.unsafe(`
     ALTER TABLE fiaon_applications
       ADD COLUMN IF NOT EXISTS assigned_agent_id INTEGER,
       ADD COLUMN IF NOT EXISTS locked_by_agent_id INTEGER,
       ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ,
-      ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ
+      ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS commission_basis VARCHAR,
+      ADD COLUMN IF NOT EXISTS commission_basis_note TEXT
   `);
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_applications_assigned_idx ON fiaon_applications(assigned_agent_id)`;
   // G3: Provisionseinträge — Satz + Basis werden EINGEFROREN (Integer-Cents/Basispunkte)
@@ -322,6 +326,14 @@ const SETTING_DEFAULTS: Record<string, string> = {
   lead_distribution_last_agent_id: "0", // Rotations-Zeiger (intern)
   // Paket AE2: Standard-Override-Satz für Werber (pro Beziehung überschreibbar)
   partner_override_bp: "500",         // 5,00 %
+  // Phase 2B (V1): Stichtag der neuen Provisionsregel. Bestellungen, die VOR
+  // diesem Zeitpunkt erstellt wurden, laufen nach dem ALTEN Modell (Zuweisung
+  // genügt). Leer = Altmodell für ALLE (neue Regel noch nicht scharf).
+  // Wird beim Scharfstellen per Skript/Admin auf den Deploy-Zeitpunkt gesetzt.
+  commission_cutoff_at: "",
+  // Phase 2B (V2): offene Akte ohne Kontakt-Ergebnis wird nach X Minuten
+  // automatisch freigegeben (Deadlock-Schutz). 0 = nie.
+  akte_auto_release_min: "30",
   // Paket AE3: Partner-Programm — Meilenstein-Schwellen (kumulierter bestätigter
   // EIGENumsatz in Cents) + Provisions-Zuschlag in Basispunkten. Admin-editierbar.
   partner_thresholds: JSON.stringify([
@@ -502,19 +514,125 @@ export function partnerStatusFor(revenueCents: number, thresholds: PartnerThresh
  * Werber. Rechtlicher Grund: klare Abgrenzung zu unzulässigen mehrstufigen
  * Vertriebssystemen. Diese Regel ist bewusst und darf nicht aufgeweicht werden.
  */
-export async function onCustomerPaid(ref: string): Promise<void> {
+export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number; forceReason?: string }): Promise<void> {
   await ensureAgentTables();
   const apps = await sqlPool`
-    SELECT ref, payment_reference, pack_name, amount_due, assigned_agent_id
-    FROM fiaon_applications WHERE ref = ${ref} AND assigned_agent_id IS NOT NULL
+    SELECT ref, payment_reference, pack_name, amount_due, assigned_agent_id, created_at, email
+    FROM fiaon_applications WHERE ref = ${ref}
   `;
-  if (apps.length === 0) return; // kein zugewiesener Agent → keine Provision
+  if (apps.length === 0) return;
   const app = apps[0];
   // Idempotenz: pro Kunde maximal EIN positiver, nicht-stornierter Eintrag (own + override zusammen)
   const existing = await sqlPool`
     SELECT id FROM fiaon_commissions WHERE ref = ${ref} AND amount_cents > 0 AND status != 'storniert'
   `;
   if (existing.length > 0) return;
+
+  // ── P2-B (Stichtag: gilt nur für Abschlüsse AB Deploy; bestehende Provisionen
+  // bleiben unangetastet — kein Clawback): PROVISION WIRD VERDIENT, NICHT VERLOST.
+  // Anspruch NUR bei dokumentierter Betreuung: letzter Agent mit Kontakt-Ergebnis
+  // oder dokumentierter Kundenmail VOR der Zahlung (Kunden-Log + Lead-Log).
+  // Notizen und das bloße Öffnen der Akte zählen NICHT.
+  // Grenzfälle (SYSTEM_DIAGNOSE.md, Phase 2):
+  //  - Lead zugewiesen, nie geöffnet/kontaktiert → kein Anspruch (Direktzahler).
+  //  - Agent kontaktierte, Kunde zahlt Tage später selbst → Anspruch (Verkauf).
+  //  - Mehrere Agenten → letzter dokumentierter Kontakt vor Zahlung gewinnt.
+  //  - Admin-Entscheid (Nachbuchungs-Center/manuelle Buchung) übersteuert via opts.
+  let agentId: number | null = null;
+  let basisNote = "";
+  let basisKind: "admin" | "betreut" | "altmodell" = "betreut";
+  const settingsEarly = await getSettings();
+  if (opts?.forceAgentId) {
+    agentId = opts.forceAgentId;
+    basisKind = "admin";
+    basisNote = opts.forceReason || "Admin-Entscheidung (manuelle Nachbuchung)";
+  } else {
+    // ── V1 STICHTAG (Phase 2B): Kein rückwirkender Regelwechsel. Bestellungen,
+    // die VOR dem Stichtag erstellt wurden, laufen nach dem ALTEN Modell weiter:
+    // Zuweisung genügt für den Anspruch (der Agent hat evtl. telefoniert, ohne
+    // zu dokumentieren — die Dokumentationspflicht galt damals noch nicht).
+    // Leerer Stichtag = neue Regel noch nicht scharf → Altmodell für alle.
+    const cutoffRaw = String(settingsEarly.commission_cutoff_at || "").trim();
+    const cutoff = cutoffRaw ? new Date(cutoffRaw) : null;
+    const isLegacy = !cutoff || isNaN(cutoff.getTime()) || new Date(app.created_at) < cutoff;
+    if (isLegacy && app.assigned_agent_id) {
+      agentId = Number(app.assigned_agent_id);
+      basisKind = "altmodell";
+      basisNote = cutoff
+        ? `Altmodell: Bestellung vom ${new Date(app.created_at).toLocaleDateString("de-DE")} liegt vor dem Stichtag ${cutoff.toLocaleString("de-DE", { timeZone: "Europe/Berlin" })} → Zuweisung genügt`
+        : "Altmodell: Stichtag der neuen Provisionsregel noch nicht gesetzt → Zuweisung genügt";
+    } else {
+      // Neue Regel (ab Stichtag): letzter dokumentierter Kontakt vor Zahlung.
+      // V3.6 (Dubletten): Kontakte zählen über die GANZE Bestell-Familie —
+      // gleiche E-Mail bzw. per merged_into/superseded_by verknüpfte Schwester-
+      // Bestellungen. Der Agent betreute den KUNDEN, nicht eine einzelne ref.
+      const contacts = await sqlPool`
+        WITH familie AS (
+          SELECT a2.ref FROM fiaon_applications a2
+          WHERE a2.ref = ${ref}
+             OR a2.merged_into = ${ref}
+             OR (${app.email || null}::text IS NOT NULL AND ${app.email || null}::text <> ''
+                 AND LOWER(a2.email) = LOWER(${app.email || ""}))
+        )
+        SELECT agent_id, agent_name, created_at FROM (
+          SELECT c.agent_id, c.agent_name, c.created_at
+          FROM fiaon_contact_log c
+          WHERE c.ref IN (SELECT ref FROM familie) AND c.agent_id IS NOT NULL AND c.voided_at IS NULL
+            AND c.type IN ('result', 'email_sent')
+          UNION ALL
+          SELECT g.agent_id, g.agent_name, g.created_at
+          FROM fiaon_lead_log g
+          JOIN fiaon_leads l ON l.id = g.lead_id
+          WHERE l.converted_order_id IN (SELECT ref FROM familie) AND g.agent_id IS NOT NULL
+            AND g.type IN ('result', 'email_sent')
+        ) x ORDER BY created_at DESC LIMIT 1
+      `;
+      if (contacts.length > 0) {
+        agentId = Number(contacts[0].agent_id);
+        basisNote = `Dokumentierter Kontakt durch ${contacts[0].agent_name} am ${new Date(contacts[0].created_at).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })} → Anspruch`;
+      }
+    }
+  }
+
+  if (!agentId) {
+    // DIREKTZAHLER: Kunde hat ohne dokumentierte Agenten-Arbeit gezahlt → keine Provision.
+    await sqlPool`
+      UPDATE fiaon_applications SET
+        commission_basis = 'direktzahler',
+        commission_basis_note = 'Kein dokumentierter Agenten-Kontakt vor Zahlung → Direktzahler, keine Provision',
+        updated_at = NOW()
+      WHERE ref = ${ref} AND commission_basis IS DISTINCT FROM 'direktzahler'
+    `;
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${ref}, NULL, 'System', 'system',
+              'Zahlung ohne dokumentierte Betreuung → Direktzahler, keine Provision (P2-B). Admin kann im Nachbuchungs-Center anders entscheiden.')
+    `.catch(() => {});
+    console.log(`[FIAON-COMMISSION] ${ref}: Direktzahler — keine dokumentierte Betreuung, keine Provision`);
+    return;
+  }
+
+  // Attribution folgt der Betreuung: der Agent mit dem letzten dokumentierten
+  // Kontakt wird (falls abweichend/leer) als zuständiger Agent gesetzt.
+  if (Number(app.assigned_agent_id) !== agentId) {
+    await sqlPool`
+      UPDATE fiaon_applications SET assigned_agent_id = ${agentId}, updated_at = NOW() WHERE ref = ${ref}
+    `;
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${ref}, NULL, 'System', 'system',
+              ${`Attribution folgt der Betreuung (P2-B): zuständiger Agent auf #${agentId} gesetzt (letzter dokumentierter Kontakt vor Zahlung)`})
+    `.catch(() => {});
+  }
+  await sqlPool`
+    UPDATE fiaon_applications SET
+      commission_basis = ${basisKind},
+      commission_basis_note = ${basisNote},
+      updated_at = NOW()
+    WHERE ref = ${ref}
+  `;
+  app.assigned_agent_id = agentId;
+
   const agents = await sqlPool`SELECT id, name, commission_rate_bp, recruited_by, override_rate_bp FROM fiaon_agents WHERE id = ${app.assigned_agent_id}`;
   if (agents.length === 0) return;
   const settings = await getSettings();
@@ -758,76 +876,17 @@ export async function updateCustomerContact(
  * Auto-Claim für Altbestände und manuelle Admin-Neuzuweisung bleiben erhalten.
  */
 export async function distributeUnassignedOrders(): Promise<number> {
-  await ensureAgentTables();
-  const settings = await getSettings();
-  if (settings.distribution_enabled !== "1") return 0;
-  const cap = Math.max(0, Math.round(Number(settings.distribution_cap) || 0));
-
-  const agents = await sqlPool`
-    SELECT id, name FROM fiaon_agents WHERE active = TRUE AND distribution_active = TRUE ORDER BY id ASC
-  `;
-  if (agents.length === 0) return 0;
-
-  const counts = await sqlPool`
-    SELECT assigned_agent_id, COUNT(*)::int AS c FROM fiaon_applications
-    WHERE payment_status IN ('pending_payment', 'claimed_paid') AND merged_into IS NULL AND assigned_agent_id IS NOT NULL
-    GROUP BY assigned_agent_id
-  `;
-  const openBy: Record<number, number> = {};
-  for (const r of counts) openBy[Number(r.assigned_agent_id)] = Number(r.c);
-
-  const orders = await sqlPool`
-    SELECT ref FROM fiaon_applications
-    WHERE payment_status IN ('pending_payment', 'claimed_paid')
-      AND merged_into IS NULL AND assigned_agent_id IS NULL AND payment_reference IS NOT NULL
-    ORDER BY created_at ASC
-  `;
-  if (orders.length === 0) return 0;
-
-  // Rotations-Start: nach dem zuletzt bedienten Agent weiterdrehen
-  const lastId = Number(settings.distribution_last_agent_id) || 0;
-  let idx = agents.findIndex((a: any) => Number(a.id) > lastId);
-  if (idx === -1) idx = 0;
-
-  let assigned = 0;
-  let lastAssignedAgent = lastId;
-  for (const o of orders) {
-    // nächsten Agent mit freier Kapazität im Ring suchen
-    let chosen: any = null;
-    for (let step = 0; step < agents.length; step++) {
-      const cand = agents[(idx + step) % agents.length];
-      if (cap === 0 || (openBy[Number(cand.id)] || 0) < cap) {
-        chosen = cand;
-        idx = (idx + step + 1) % agents.length;
-        break;
-      }
-    }
-    if (!chosen) break; // alle Agents voll → Rest bleibt unzugewiesen (Auto-Claim greift weiter)
-    const updated = await sqlPool`
-      UPDATE fiaon_applications SET assigned_agent_id = ${chosen.id}, updated_at = NOW()
-      WHERE ref = ${o.ref} AND assigned_agent_id IS NULL
-      RETURNING ref
-    `;
-    if (updated.length === 0) continue; // Race: parallel geclaimt
-    openBy[Number(chosen.id)] = (openBy[Number(chosen.id)] || 0) + 1;
-    lastAssignedAgent = Number(chosen.id);
-    assigned++;
-    await sqlPool`
-      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
-      VALUES (${o.ref}, NULL, 'System', 'system', ${`Automatisch zugewiesen an ${chosen.name} (Rotationsverteilung)`})
-    `;
-  }
-  if (assigned > 0) {
-    await setSetting("distribution_last_agent_id", String(lastAssignedAgent));
-    console.log(`[FIAON-VERTEILUNG] ${assigned} Bestellung(en) per Rotation zugewiesen`);
-  }
-  return assigned;
+  // ── P2-B: ABGESCHALTET. Bestellungen werden NICHT mehr per Round-Robin
+  // „verlost" — das erzeugte Provisions-Ansprüche ohne Arbeit (SYSTEM_DIAGNOSE.md,
+  // D2: 24 Bestellungen mit anderem Agent als der betreuende Lead-Agent).
+  // Attribution entsteht jetzt ausschließlich durch:
+  //  1. Lead→Kunde-Konversion (überträgt den betreuenden Agent, fiaon-leads.ts),
+  //  2. dokumentierte Betreuung (onCustomerPaid, letzter Kontakt vor Zahlung),
+  //  3. Auto-Claim bei aktiver Arbeit am Kunden bzw. manuelle Admin-Zuweisung.
+  // Round-Robin verteilt weiterhin NUR LEADS (distributeUnassignedLeads).
+  // Sichtbarkeit leidet nicht: /agent/customers zeigt offene Bestellungen allen.
+  return 0;
 }
-
-// Stündlicher fail-safe Lauf (zusätzlich zum Hook nach Bestellanlage)
-setInterval(() => {
-  distributeUnassignedOrders().catch((err) => console.error("[FIAON-VERTEILUNG] Cron:", err));
-}, 60 * 60 * 1000);
 
 // ═══════════════ KALENDER-ERINNERUNGEN (J2) — stündlicher Cron ═══════════════
 
@@ -1377,6 +1436,7 @@ router.get("/agent/customers/:ref", requireAgent, async (req: AgentRequest, res)
     const rows = await sqlPool.unsafe(`
       SELECT ${AGENT_CUSTOMER_FIELDS}, a.street, a.zip, a.city, a.completed_at, a.superseded_by,
         a.assigned_agent_id, a.locked_by_agent_id, a.locked_until,
+        a.commission_basis, a.commission_basis_note,
         ag.name AS assigned_agent_name, lg.name AS locked_by_name
       FROM fiaon_applications a
       LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id

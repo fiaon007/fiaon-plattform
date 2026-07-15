@@ -384,7 +384,7 @@ router.get("/agent/wunschgehalt", requireAgent, async (req: AgentRequest, res) =
     } else {
       const paidAvg = await sqlPool`
         SELECT COALESCE(AVG(ROUND(amount_due::numeric * 100)), 0) AS a, COUNT(*)::int AS c
-        FROM fiaon_applications WHERE payment_status = 'paid' AND amount_due IS NOT NULL AND merged_into IS NULL
+        FROM fiaon_applications WHERE payment_status = 'paid' AND payment_reference IS NOT NULL AND amount_due IS NOT NULL AND merged_into IS NULL
       `;
       if (Number(paidAvg[0].c) >= 1) {
         avgDealCents = Math.round(Number(paidAvg[0].a));

@@ -188,6 +188,42 @@ function EnginePanel({ onAction }: { onAction: (msg: string, kind?: FlashKind) =
         </label>
       </div>
 
+      {/* P2-C: Arbeitswarteschlange der Agenten — Gewichtung + Fairness */}
+      <div className="rounded-lg border border-slate-200 p-3 mb-4">
+        <p className="text-[12px] font-semibold text-slate-700 flex items-center mb-1">
+          Arbeitswarteschlange der Agenten
+          <InfoTip text="Agenten sehen Leads verdeckt und in dieser Server-Reihenfolge. Die Gewichte bestimmen, was oben steht — die Agenten sehen die Gewichtung bewusst nicht." />
+        </p>
+        <p className="text-[11px] text-slate-400 mb-3">Höheres Gewicht = stärkerer Einfluss auf die Reihenfolge. Fairness: jeder N-te Lead kommt aus dem ältesten Bestand.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <label className={lbl}><span className="flex items-center">Frische<InfoTip text="Neue Leads stehen höher (nimmt mit dem Alter ab, Halbwertszeit ~7 Tage)." /></span>
+            <input className={inp} value={s.queue_w_fresh ?? ""} onChange={(e) => set("queue_w_fresh", e.target.value)} placeholder="40" />
+          </label>
+          <label className={lbl}><span className="flex items-center">Umsatzpotenzial<InfoTip text="Leads aus Business-Kampagnen (höherwertiges Paketinteresse) stehen höher." /></span>
+            <input className={inp} value={s.queue_w_value ?? ""} onChange={(e) => set("queue_w_value", e.target.value)} placeholder="25" />
+          </label>
+          <label className={lbl}><span className="flex items-center">Reaktionssignal<InfoTip text="Leads mit fälligem, dokumentiertem Rückruf-Termin stehen deutlich höher." /></span>
+            <input className={inp} value={s.queue_w_react ?? ""} onChange={(e) => set("queue_w_react", e.target.value)} placeholder="50" />
+          </label>
+          <label className={lbl}><span className="flex items-center">Kontakthistorie<InfoTip text="Nie kontaktierte Leads stehen höher; lange nicht kontaktierte rücken langsam nach oben." /></span>
+            <input className={inp} value={s.queue_w_contact ?? ""} onChange={(e) => set("queue_w_contact", e.target.value)} placeholder="30" />
+          </label>
+          <label className={lbl}><span className="flex items-center">Fairness (jeder N-te)<InfoTip text="Jeder N-te Slot in der Warteschlange kommt aus dem ältesten Bestand, damit alte Leads nicht ewig liegenbleiben (2–10)." /></span>
+            <input className={inp} value={s.queue_fairness_nth ?? ""} onChange={(e) => set("queue_fairness_nth", e.target.value)} placeholder="4" />
+          </label>
+          <label className={lbl}><span className="flex items-center">Akte-Auto-Freigabe (Min.)<InfoTip text="Eine offene Akte ohne dokumentiertes Kontakt-Ergebnis wird nach so vielen Minuten automatisch freigegeben (Deadlock-Schutz, z. B. Feierabend). 0 = nie." /></span>
+            <input className={inp} value={s.akte_auto_release_min ?? ""} onChange={(e) => set("akte_auto_release_min", e.target.value)} placeholder="30" />
+          </label>
+        </div>
+        {/* V1 (Phase 2B): Stichtag der Provisionsregel — nur Anzeige, bewusst nicht editierbar */}
+        <p className="text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-100">
+          Provisionsregel-Stichtag:{" "}
+          {s.commission_cutoff_at
+            ? <b className="text-slate-600">{new Date(s.commission_cutoff_at).toLocaleString("de-DE")} — Bestellungen davor laufen nach dem alten Modell (Zuweisung genügt), danach gilt „Betreuung dokumentiert“.</b>
+            : <b className="text-amber-700">noch nicht gesetzt — für ALLE Bestellungen gilt das alte Modell (Zuweisung genügt). Scharfstellung erfolgt einmalig per Skript.</b>}
+        </p>
+      </div>
+
       {/* Zeitplan */}
       <div className="rounded-lg border border-slate-200 p-3 mb-4">
         <p className="text-[12px] font-semibold text-slate-700 flex items-center mb-1"><Clock size={13} className="text-slate-400 mr-1.5" />Automatischer Versand: Wann?<InfoTip text="Zu diesen Uhrzeiten prüft das System automatisch, welche Leads eine Nachfass-Mail bekommen sollen, und versendet sie." /></p>
@@ -478,6 +514,16 @@ function LeadDrawer({ id, agents, onClose, onChanged }: { id: number; agents: an
                 <div><span className="text-slate-400">Telefon</span><br />{lead.telefon || "—"}</div>
                 <div><span className="text-slate-400">Angelegt</span><br />{fmtDT(lead.erstellt_am)}</div>
                 <div><span className="text-slate-400">Letzter Kontakt</span><br />{fmtDT(lead.letzter_kontakt_am)}</div>
+                {/* V2 (Phase 2B): offene Akte sichtbar + Admin-Notausgang */}
+                {lead.opened_at && (
+                  <div className="col-span-2 flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-amber-50 border border-amber-200">
+                    <span className="text-[12px] text-amber-800">Akte offen seit {fmtDT(lead.opened_at)}{lead.opened_by_name ? ` bei ${lead.opened_by_name}` : ""}</span>
+                    <button disabled={busy} onClick={() => act("/release-akte", {}, "Akte freigegeben — Lead ist zurück in der Warteschlange.")}
+                      className="shrink-0 px-2.5 py-1 rounded-lg border border-amber-300 text-[11px] font-semibold text-amber-800 hover:bg-amber-100">
+                      Akte freigeben
+                    </button>
+                  </div>
+                )}
                 {lead.converted_order_id && <div className="col-span-2"><span className="text-slate-400">Konvertiert → Antrag</span><br />{lead.converted_order_id}</div>}
               </div>
             )}

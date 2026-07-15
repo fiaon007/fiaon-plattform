@@ -93,6 +93,17 @@ export async function ensureLeadTables(): Promise<void> {
   // Alt-Leads starten die Nachfass-Sequenz erst nach bewusstem Opt-in).
   await sqlPool`ALTER TABLE fiaon_leads ADD COLUMN IF NOT EXISTS in_sequence BOOLEAN NOT NULL DEFAULT TRUE`;
   await sqlPool`ALTER TABLE fiaon_leads ADD COLUMN IF NOT EXISTS import_id VARCHAR`;
+  // P2-C Arbeitswarteschlange: „Akte öffnen" = dokumentierte Übernahme.
+  // opened_at gesetzt = Akte ist OFFEN (max. 1 pro Agent); nach Kontakt-Ergebnis
+  // wird opened_at genullt, opened_by_agent_id bleibt als „zuletzt bearbeitet von".
+  // requeue_at = Wiedervorlage (Lead taucht erst danach wieder in der Queue auf).
+  await sqlPool.unsafe(`
+    ALTER TABLE fiaon_leads
+      ADD COLUMN IF NOT EXISTS opened_by_agent_id INTEGER,
+      ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS requeue_at TIMESTAMPTZ
+  `);
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_leads_opened_idx ON fiaon_leads (opened_by_agent_id, opened_at)`;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_leads_import_idx ON fiaon_leads (import_id)`;
   await sqlPool`
     CREATE TABLE IF NOT EXISTS fiaon_lead_imports (
@@ -269,7 +280,7 @@ export async function convertLeadsForContact(
           (${email}::text IS NOT NULL AND email IS NOT NULL AND LOWER(TRIM(email)) = ${email})
           OR (${phone}::text IS NOT NULL AND ${phone} <> '' AND telefon = ${phone})
         )
-      RETURNING id
+      RETURNING id, assigned_agent_id
     `;
     for (const r of rows) {
       await logLead(r.id, { id: null, name: "System" }, "system", {
@@ -277,6 +288,45 @@ export async function convertLeadsForContact(
       });
     }
     if (rows.length) console.log(`[FIAON-LEADS] Auto-Konversion: ${rows.length} Lead(s) → ${orderRef}`);
+
+    // ── P2-B (D2-Root-Cause-Fix): ATTRIBUTION FOLGT DER BETREUUNG. ──
+    // Der betreuende Lead-Agent wird auf die Bestellung ÜBERTRAGEN (nur wenn
+    // dort noch keiner steht — bestehende Zuweisungen werden nie überschrieben).
+    // Der Provisions-ANSPRUCH entsteht davon unabhängig erst durch dokumentierte
+    // Betreuung (onCustomerPaid prüft Kontakt-Ergebnisse, nicht die Zuweisung).
+    try {
+      const donor = rows.find((r: any) => r.assigned_agent_id);
+      if (donor) {
+        const upd = await sqlPool`
+          UPDATE fiaon_applications SET assigned_agent_id = ${donor.assigned_agent_id}, updated_at = NOW()
+          WHERE ref = ${orderRef} AND assigned_agent_id IS NULL AND merged_into IS NULL
+          RETURNING ref
+        `;
+        if (upd.length > 0) {
+          await sqlPool`
+            INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+            VALUES (${orderRef}, NULL, 'System', 'system',
+                    ${`Zuweisung vom Lead #${donor.id} übernommen (P2-B: Attribution folgt der Betreuung, Agent #${donor.assigned_agent_id})`})
+          `;
+          console.log(`[FIAON-LEADS] Attribution übertragen: Lead #${donor.id} → ${orderRef} (Agent ${donor.assigned_agent_id})`);
+        }
+      } else if (rows.length > 0) {
+        // Rückrichtung: Lead ohne Agent erbt den Bestell-Agenten — behebt die
+        // dauerhaften „Agent —"-Zeilen bei konvertierten Leads (D2, 144 Fälle).
+        const [order] = await sqlPool`
+          SELECT assigned_agent_id FROM fiaon_applications WHERE ref = ${orderRef} AND merged_into IS NULL
+        `;
+        if (order?.assigned_agent_id) {
+          const ids = rows.map((r: any) => r.id);
+          await sqlPool`
+            UPDATE fiaon_leads SET assigned_agent_id = ${order.assigned_agent_id}, updated_at = NOW()
+            WHERE id = ANY(${ids}) AND assigned_agent_id IS NULL
+          `;
+        }
+      }
+    } catch (attrErr) {
+      console.error("[FIAON-LEADS] Attributions-Übertrag:", attrErr);
+    }
     return rows.length;
   } catch (err) {
     console.error("[FIAON-LEADS] convertLeadsForContact:", err);
@@ -576,26 +626,224 @@ async function leadGuard(id: number, agent: { id: number; name: string }): Promi
   return { lead: l, claimed: false };
 }
 
-// Agent-Anrufliste: eigene offene Leads + Hinweis, ob offene Kunden Vorrang haben.
+// ═════════════ P2-C — ARBEITSWARTESCHLANGE (statt 826-Zeilen-Friedhof) ═══════════
+// Prinzip: Kontaktdaten sind VERDECKT, bis der Agent die Akte öffnet
+// (dokumentierte Übernahme). Nur EINE offene Akte gleichzeitig — die nächste
+// erst nach dokumentiertem Kontakt-Ergebnis. Reihenfolge kommt vom Server
+// (Score, Gewichte im Admin konfigurierbar) + Fairness-Beimischung aus dem
+// Alt-Bestand. Der Agent sieht den Score bewusst NICHT (sonst wird gespielt).
+
+function queueWeights(s: Record<string, string>) {
+  const num = (v: string | undefined, d: number) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : d;
+  };
+  return {
+    wFresh: num(s.queue_w_fresh, 40),      // Frische (neue Leads höher)
+    wValue: num(s.queue_w_value, 25),      // Paket-/Umsatzpotenzial (Business-Kampagnen)
+    wReact: num(s.queue_w_react, 50),      // Reaktionssignal (fälliger Rückruf-Termin)
+    wContact: num(s.queue_w_contact, 30),  // Kontakthistorie (nie kontaktiert > lange her)
+    fairnessNth: Math.max(2, Math.min(10, num(s.queue_fairness_nth, 4))), // jeder N-te aus Alt-Bestand
+  };
+}
+
+// ── V2 (Phase 2B) DEADLOCK-SCHUTZ: Eine offene Akte ohne Kontakt-Ergebnis wird
+// nach X Minuten (Setting akte_auto_release_min, Default 30, 0 = nie) automatisch
+// freigegeben — Lead zurück in die Queue, Historie und Übernahme-Protokoll bleiben.
+// Läuft lazy bei jedem Queue-Abruf/Akte-Öffnen (kein eigener Cron nötig).
+async function autoReleaseStaleAktes(): Promise<void> {
+  const s = await getSettings();
+  const min = Number(s.akte_auto_release_min);
+  const minutes = Number.isFinite(min) && min >= 0 ? min : 30;
+  if (minutes === 0) return;
+  const released = await sqlPool`
+    UPDATE fiaon_leads SET opened_at = NULL, updated_at = NOW()
+    WHERE opened_at IS NOT NULL AND opened_at < NOW() - make_interval(mins => ${minutes})
+      AND status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
+    RETURNING id
+  `;
+  for (const r of released) {
+    await logLead(Number(r.id), { id: null, name: "System" }, "system", {
+      note: `Akte automatisch freigegeben: ${minutes} Min. ohne dokumentiertes Kontakt-Ergebnis (Deadlock-Schutz). Lead ist zurück in der Warteschlange.`,
+    }).catch(() => {});
+  }
+}
+
+/** Maskierte Queue-Zeile — KEINE Kontaktdaten, nur neutrale Merkmale. */
+function maskQueueRow(l: any): any {
+  return {
+    id: l.id,
+    quelle: l.quelle || null,
+    kampagne: l.kampagne || null,
+    status: l.status,
+    erstellt_am: l.erstellt_am,
+    letzter_kontakt_am: l.letzter_kontakt_am,
+    lead_reminder_count: l.lead_reminder_count,
+    callback_due: !!l.callback_due,
+    hat_email: !!l.hat_email,
+    hat_telefon: !!l.hat_telefon,
+  };
+}
+
 router.get("/agent/leads", requireAgent, async (req: AgentRequest, res) => {
   try {
     await ensureLeadTables();
+    await autoReleaseStaleAktes();
     const me = req.agent!.id;
-    const leads = await sqlPool`
-      SELECT id, vorname, nachname, email, telefon, quelle, kampagne, status,
-             erstellt_am, letzter_kontakt_am, lead_reminder_count
-      FROM fiaon_leads
+    const limit = Math.min(100, Math.max(10, Number(req.query.limit) || 50));
+    const offset = Math.max(0, Number(req.query.offset) || 0);
+    const w = queueWeights(await getSettings());
+
+    // Aktive Akte (max. 1): voller Datensatz — der Agent hat sie übernommen.
+    const activeRows = await sqlPool`
+      SELECT * FROM fiaon_leads
+      WHERE opened_by_agent_id = ${me} AND opened_at IS NOT NULL
+        AND status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
+      ORDER BY opened_at DESC LIMIT 1
+    `;
+    const active = activeRows[0] || null;
+
+    // Serverseitiger Score (Agent sieht ihn nicht):
+    //  Frische:        exponentiell fallend mit Alter (Halbwertszeit ~7 Tage)
+    //  Potenzial:      Business-Kampagne/-Quelle = höherwertiges Interesse
+    //  Reaktion:       fälliger, dokumentierter Rückruf-Termin → stark nach oben
+    //  Kontakthistorie: nie kontaktiert am höchsten, sonst wächst mit Abstand
+    const scored = await sqlPool.unsafe(`
+      SELECT l.id, l.quelle, l.kampagne, l.status, l.erstellt_am, l.letzter_kontakt_am,
+             l.lead_reminder_count,
+             (l.email IS NOT NULL AND l.email <> '') AS hat_email,
+             (l.telefon IS NOT NULL AND l.telefon <> '') AS hat_telefon,
+             EXISTS (
+               SELECT 1 FROM fiaon_lead_log g
+               WHERE g.lead_id = l.id AND g.scheduled_at IS NOT NULL
+                 AND g.scheduled_at <= NOW() AND g.scheduled_at > NOW() - INTERVAL '7 days'
+             ) AS callback_due,
+             (
+               $2::numeric * EXP(-EXTRACT(EPOCH FROM (NOW() - l.erstellt_am)) / 86400.0 / 7.0)
+               + CASE WHEN LOWER(COALESCE(l.kampagne,'') || ' ' || COALESCE(l.quelle,'')) LIKE '%business%' THEN $3::numeric ELSE 0 END
+               + CASE WHEN EXISTS (
+                   SELECT 1 FROM fiaon_lead_log g
+                   WHERE g.lead_id = l.id AND g.scheduled_at IS NOT NULL
+                     AND g.scheduled_at <= NOW() AND g.scheduled_at > NOW() - INTERVAL '7 days'
+                 ) THEN $4::numeric ELSE 0 END
+               + CASE WHEN l.letzter_kontakt_am IS NULL THEN $5::numeric
+                      ELSE $5::numeric * LEAST(1, EXTRACT(EPOCH FROM (NOW() - l.letzter_kontakt_am)) / 86400.0 / 14.0) END
+             ) AS score
+      FROM fiaon_leads l
+      WHERE l.assigned_agent_id = $1 AND l.status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
+        AND (l.requeue_at IS NULL OR l.requeue_at <= NOW())
+        AND (l.opened_at IS NULL OR l.opened_by_agent_id <> $1)
+        AND (COALESCE(l.telefon, '') <> '' OR COALESCE(l.email, '') <> '')
+      ORDER BY score DESC, l.erstellt_am DESC
+      LIMIT $6 OFFSET $7
+    `, [me, w.wFresh, w.wValue, w.wReact, w.wContact, limit, offset]);
+
+    // Fairness-Beimischung: jeder N-te Slot kommt aus dem ÄLTESTEN Bestand,
+    // damit alte Leads nicht ewig liegenbleiben (Anteil im Admin einstellbar).
+    const fairCount = Math.ceil(scored.length / w.fairnessNth);
+    const oldest = await sqlPool`
+      SELECT l.id, l.quelle, l.kampagne, l.status, l.erstellt_am, l.letzter_kontakt_am,
+             l.lead_reminder_count,
+             (l.email IS NOT NULL AND l.email <> '') AS hat_email,
+             (l.telefon IS NOT NULL AND l.telefon <> '') AS hat_telefon,
+             FALSE AS callback_due
+      FROM fiaon_leads l
+      WHERE l.assigned_agent_id = ${me} AND l.status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
+        AND (l.requeue_at IS NULL OR l.requeue_at <= NOW())
+        AND (l.opened_at IS NULL OR l.opened_by_agent_id <> ${me})
+        AND (COALESCE(l.telefon, '') <> '' OR COALESCE(l.email, '') <> '')
+      ORDER BY COALESCE(l.letzter_kontakt_am, l.erstellt_am) ASC
+      LIMIT ${fairCount} OFFSET ${offset > 0 ? Math.floor(offset / w.fairnessNth) : 0}
+    `;
+    const seen = new Set<number>();
+    const queue: any[] = [];
+    let oldIdx = 0;
+    for (let i = 0; i < scored.length && queue.length < limit; i++) {
+      // jeder N-te Slot: Alt-Bestand einmischen
+      if ((queue.length + 1) % w.fairnessNth === 0 && oldIdx < oldest.length) {
+        const o = oldest[oldIdx++];
+        if (!seen.has(Number(o.id))) { seen.add(Number(o.id)); queue.push(maskQueueRow(o)); }
+      }
+      const s = scored[i];
+      if (!seen.has(Number(s.id))) { seen.add(Number(s.id)); queue.push(maskQueueRow(s)); }
+    }
+
+    const [tot] = await sqlPool`
+      SELECT COUNT(*)::int AS c FROM fiaon_leads
       WHERE assigned_agent_id = ${me} AND status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
-      ORDER BY (status = 'neu') DESC, erstellt_am ASC
+        AND (requeue_at IS NULL OR requeue_at <= NOW())
+        AND (COALESCE(telefon, '') <> '' OR COALESCE(email, '') <> '')
     `;
     // Priorisierung (BC1): offene Kunden-Anträge haben Vorrang.
     const [openCust] = await sqlPool`
       SELECT COUNT(*)::int AS c FROM fiaon_applications
       WHERE assigned_agent_id = ${me} AND payment_status IN ('pending_payment', 'claimed_paid') AND merged_into IS NULL
     `;
-    res.json({ ok: true, data: leads, openCustomerCount: Number(openCust.c) });
+    res.json({
+      ok: true,
+      active,
+      queue,
+      total: Number(tot.c),
+      hasMore: offset + scored.length < Number(tot.c),
+      openCustomerCount: Number(openCust.c),
+      // Abwärtskompatibilität: alte Clients lasen `data` — maskiert, ohne Kontaktdaten.
+      data: queue,
+    });
   } catch (err) {
     console.error("[FIAON-LEADS] agent/leads:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// P2-C: „Akte öffnen" — dokumentierte Übernahme. Erst dadurch werden die
+// Kontaktdaten sichtbar; gleichzeitig der Nachweis-Baustein für P2-B.
+router.post("/agent/leads/:id/open", requireAgent, async (req: AgentRequest, res) => {
+  try {
+    await ensureLeadTables();
+    await autoReleaseStaleAktes();
+    const me = req.agent!.id;
+    const id = Number(req.params.id);
+    // V2: Leads ohne jegliche Kontaktdaten gehören nicht in die Bearbeitung —
+    // der Agent könnte die Akte nie mit einem Ergebnis schließen.
+    const cd = await sqlPool`SELECT COALESCE(telefon,'') <> '' OR COALESCE(email,'') <> '' AS hat FROM fiaon_leads WHERE id = ${id}`;
+    if (cd.length > 0 && !cd[0].hat) {
+      return res.status(409).json({ ok: false, error: "Dieser Lead hat weder Telefon noch E-Mail — er kann nicht bearbeitet werden und steht nicht in der Warteschlange." });
+    }
+    // Regel: nur EINE offene Akte — die nächste erst nach Kontakt-Ergebnis.
+    const open = await sqlPool`
+      SELECT id FROM fiaon_leads
+      WHERE opened_by_agent_id = ${me} AND opened_at IS NOT NULL
+        AND status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
+      LIMIT 1
+    `;
+    if (open.length > 0 && Number(open[0].id) !== id) {
+      return res.status(409).json({
+        ok: false,
+        error: `Du hast bereits eine offene Akte (#${open[0].id}). Dokumentiere zuerst das Kontakt-Ergebnis — dann kannst du die nächste öffnen.`,
+        openLeadId: Number(open[0].id),
+      });
+    }
+    const rows = await sqlPool`
+      UPDATE fiaon_leads SET
+        opened_by_agent_id = ${me},
+        opened_at = COALESCE(opened_at, NOW()),
+        assigned_agent_id = COALESCE(assigned_agent_id, ${me}),
+        updated_at = NOW()
+      WHERE id = ${id}
+        AND status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
+        AND (assigned_agent_id IS NULL OR assigned_agent_id = ${me})
+        AND (opened_at IS NULL OR opened_by_agent_id = ${me})
+      RETURNING *
+    `;
+    if (rows.length === 0) {
+      return res.status(409).json({ ok: false, error: "Akte nicht verfügbar — nicht mehr offen oder von einem Kollegen übernommen." });
+    }
+    // Audit: Übernahme protokollieren (zählt NICHT als Kontakt → kein Provisions-Anspruch).
+    await logLead(id, req.agent!, "claim", { note: `Akte übernommen durch ${req.agent!.name} (Kontaktdaten sichtbar)` });
+    const log = await sqlPool`SELECT id, type, outcome, note, agent_name, scheduled_at, created_at FROM fiaon_lead_log WHERE lead_id = ${id} ORDER BY created_at DESC`;
+    res.json({ ok: true, lead: rows[0], log });
+  } catch (err) {
+    console.error("[FIAON-LEADS] open:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -606,10 +854,17 @@ router.get("/agent/leads/:id", requireAgent, async (req: AgentRequest, res) => {
     const id = Number(req.params.id);
     const rows = await sqlPool`SELECT * FROM fiaon_leads WHERE id = ${id}`;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Lead nicht gefunden" });
-    const log = await sqlPool`SELECT id, type, outcome, note, agent_name, scheduled_at, created_at FROM fiaon_lead_log WHERE lead_id = ${id} ORDER BY created_at DESC`;
     const l = rows[0];
+    // P2-C: Kontaktdaten bleiben VERDECKT, bis der Agent die Akte übernommen hat
+    // (Gleichbehandlung aller Leads — niemand wird übersprungen). Bereits
+    // übernommene Akten (auch geschlossene) bleiben für den Bearbeiter sichtbar.
+    const openedByMe = Number(l.opened_by_agent_id) === req.agent!.id;
+    if (!openedByMe && ["neu", "kontaktiert", "nicht_erreichbar"].includes(l.status)) {
+      return res.json({ ok: true, lead: maskQueueRow(l), log: [], readOnly: true, masked: true });
+    }
+    const log = await sqlPool`SELECT id, type, outcome, note, agent_name, scheduled_at, created_at FROM fiaon_lead_log WHERE lead_id = ${id} ORDER BY created_at DESC`;
     const readOnly = !!(l.assigned_agent_id && l.assigned_agent_id !== req.agent!.id);
-    res.json({ ok: true, lead: l, log, readOnly });
+    res.json({ ok: true, lead: l, log, readOnly, masked: false });
   } catch (err) {
     console.error("[FIAON-LEADS] agent/leads/:id:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -654,10 +909,52 @@ router.post("/agent/leads/:id/contact-result", requireAgent, async (req: AgentRe
       scheduledAt: scheduledAt || null,
     });
     const newStatus = LEAD_OUTCOMES[outcome];
-    await sqlPool`UPDATE fiaon_leads SET status = ${newStatus}, letzter_kontakt_am = NOW(), updated_at = NOW() WHERE id = ${id} AND status NOT IN ('konvertiert')`;
-    res.json({ ok: true, entry, claimed: guard.claimed || false });
+    // P2-C: Kontakt-Ergebnis SCHLIESST die Akte (nächste Akte wird frei) und
+    // setzt die Wiedervorlage: nicht erreicht/Mailbox → +4 h zurück in die Queue;
+    // Rückruf-Termin → Wiedervorlage zum Termin; Nummer falsch → +24 h.
+    // Historie bleibt vollständig (Direktive: kein Lead wird je entfernt).
+    const requeueSql =
+      outcome === "rueckruf_termin" && scheduledAt ? sqlPool`${scheduledAt}::timestamptz`
+      : outcome === "nicht_erreicht" || outcome === "mailbox" ? sqlPool`NOW() + INTERVAL '4 hours'`
+      : outcome === "nummer_falsch" ? sqlPool`NOW() + INTERVAL '24 hours'`
+      : sqlPool`NULL`;
+    await sqlPool`
+      UPDATE fiaon_leads SET
+        status = ${newStatus},
+        letzter_kontakt_am = NOW(),
+        opened_at = NULL,
+        requeue_at = ${requeueSql},
+        updated_at = NOW()
+      WHERE id = ${id} AND status NOT IN ('konvertiert')
+    `;
+    res.json({ ok: true, entry, claimed: guard.claimed || false, akteClosed: true });
   } catch (err) {
     console.error("[FIAON-LEADS] contact-result:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── V2 (Phase 2B): „Akte schließen ohne Ergebnis" — der Agent darf sich nie
+// ausgesperrt fühlen. Kurze Begründung Pflicht, alles im Audit-Log; zählt
+// NICHT als Kontakt (kein Provisions-Anspruch, kein letzter_kontakt_am).
+router.post("/agent/leads/:id/close-akte", requireAgent, async (req: AgentRequest, res) => {
+  try {
+    const me = req.agent!.id;
+    const id = Number(req.params.id);
+    const reason = String(req.body?.reason || "").trim();
+    if (reason.length < 3) return res.status(400).json({ ok: false, error: "Bitte kurz begründen (z. B. „Feierabend“, „Kunde legte auf“)." });
+    const rows = await sqlPool`
+      UPDATE fiaon_leads SET opened_at = NULL, updated_at = NOW()
+      WHERE id = ${id} AND opened_by_agent_id = ${me} AND opened_at IS NOT NULL
+      RETURNING id
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Keine offene Akte von dir unter dieser Nummer." });
+    await logLead(id, req.agent!, "system", {
+      note: `Akte ohne Kontakt-Ergebnis geschlossen durch ${req.agent!.name}. Begründung: ${reason.slice(0, 500)}. Lead ist zurück in der Warteschlange.`,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-LEADS] close-akte:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -758,9 +1055,11 @@ router.get("/admin/leads", async (req: Request, res: Response) => {
       SELECT l.id, l.vorname, l.nachname, l.email, l.telefon, l.quelle, l.kampagne, l.status,
              l.assigned_agent_id, ag.name AS agent_name, l.converted_order_id, l.in_sequence,
              l.erstellt_am, l.letzter_kontakt_am, l.konvertiert_am, l.lead_reminder_count,
+             l.opened_at, l.opened_by_agent_id, og.name AS opened_by_name,
              a.payment_status, a.amount_due, a.pack_name, a.created_at AS order_created_at
       FROM fiaon_leads l
       LEFT JOIN fiaon_agents ag ON ag.id = l.assigned_agent_id
+      LEFT JOIN fiaon_agents og ON og.id = l.opened_by_agent_id
       LEFT JOIN fiaon_applications a ON a.ref = l.converted_order_id AND a.merged_into IS NULL
       WHERE (${status}::text IS NULL OR l.status = ${status})
         AND (${groupStatuses}::text[] IS NULL OR l.status = ANY(${groupStatuses}))
@@ -780,8 +1079,9 @@ router.get("/admin/leads", async (req: Request, res: Response) => {
         COUNT(*)::int AS total,
         COUNT(*) FILTER (WHERE l.status = 'konvertiert')::int AS converted,
         COUNT(*) FILTER (WHERE l.status IN ('neu','kontaktiert','nicht_erreichbar'))::int AS open,
-        COUNT(*) FILTER (WHERE a.payment_status = 'paid')::int AS paying,
-        COALESCE(SUM(CASE WHEN a.payment_status = 'paid' THEN ROUND(COALESCE(a.amount_due::numeric,0)*100) ELSE 0 END),0)::bigint AS revenue_cents
+        -- P2-D: "Zahlend" = die EINE Wahrheit (paid + Referenz), identisch zu Finanzen/Zahlungszentrale
+        COUNT(*) FILTER (WHERE a.payment_status = 'paid' AND a.payment_reference IS NOT NULL)::int AS paying,
+        COALESCE(SUM(CASE WHEN a.payment_status = 'paid' AND a.payment_reference IS NOT NULL THEN ROUND(COALESCE(a.amount_due::numeric,0)*100) ELSE 0 END),0)::bigint AS revenue_cents
       FROM fiaon_leads l
       LEFT JOIN fiaon_applications a ON a.ref = l.converted_order_id AND a.merged_into IS NULL
     `;
@@ -815,14 +1115,40 @@ router.get("/admin/leads/:id(\\d+)", async (req: Request, res: Response) => {
     await ensureLeadTables();
     const id = Number(req.params.id);
     const rows = await sqlPool`
-      SELECT l.*, ag.name AS agent_name FROM fiaon_leads l
-      LEFT JOIN fiaon_agents ag ON ag.id = l.assigned_agent_id WHERE l.id = ${id}
+      SELECT l.*, ag.name AS agent_name, og.name AS opened_by_name FROM fiaon_leads l
+      LEFT JOIN fiaon_agents ag ON ag.id = l.assigned_agent_id
+      LEFT JOIN fiaon_agents og ON og.id = l.opened_by_agent_id
+      WHERE l.id = ${id}
     `;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Lead nicht gefunden" });
     const log = await sqlPool`SELECT id, type, outcome, note, agent_name, scheduled_at, created_at FROM fiaon_lead_log WHERE lead_id = ${id} ORDER BY created_at DESC`;
     res.json({ ok: true, lead: rows[0], log });
   } catch (err) {
     console.error("[FIAON-LEADS] admin/leads/:id:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── V2 (Phase 2B) ADMIN-NOTAUSGANG: jede blockierte Akte freigeben — z. B. wenn
+// ein Agent im Urlaub/nicht erreichbar ist. Lead zurück in die Warteschlange,
+// Historie bleibt, Freigabe wird protokolliert.
+router.post("/admin/leads/:id/release-akte", async (req: Request, res: Response) => {
+  try {
+    await ensureLeadTables();
+    const id = Number(req.params.id);
+    const rows = await sqlPool`
+      UPDATE fiaon_leads l SET opened_at = NULL, updated_at = NOW()
+      FROM fiaon_agents ag
+      WHERE l.id = ${id} AND l.opened_at IS NOT NULL AND ag.id = l.opened_by_agent_id
+      RETURNING l.id, ag.name AS agent_name
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Keine offene Akte unter dieser Nummer." });
+    await logLead(id, { id: null, name: "Admin" }, "system", {
+      note: `Akte durch Admin freigegeben (war offen bei ${rows[0].agent_name}). Lead ist zurück in der Warteschlange.`,
+    });
+    res.json({ ok: true, releasedFrom: rows[0].agent_name });
+  } catch (err) {
+    console.error("[FIAON-LEADS] release-akte:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -1196,6 +1522,7 @@ router.get("/admin/leads/settings", async (_req: Request, res: Response) => {
     WHERE type = 'followup'
       AND (created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date
   `;
+  const qw = queueWeights(s);
   res.json({
     ok: true,
     settings: {
@@ -1207,6 +1534,17 @@ router.get("/admin/leads/settings", async (_req: Request, res: Response) => {
       lead_distribution_enabled: s.lead_distribution_enabled,
       lead_followup_times: parseTimes(s.lead_followup_times).map((t) => t.key).join(","),
       lead_followup_weekdays: parseWeekdays(s.lead_followup_weekdays).join(","),
+      // P2-C: Warteschlangen-Gewichte (Frische/Potenzial/Reaktion/Kontakthistorie) + Fairness
+      queue_w_fresh: String(qw.wFresh),
+      queue_w_value: String(qw.wValue),
+      queue_w_react: String(qw.wReact),
+      queue_w_contact: String(qw.wContact),
+      queue_fairness_nth: String(qw.fairnessNth),
+      // V2 (Phase 2B): Auto-Freigabe offener Akten (Minuten, 0 = nie)
+      akte_auto_release_min: s.akte_auto_release_min ?? "30",
+      // V1 (Phase 2B): Stichtag der neuen Provisionsregel — NUR ANZEIGE.
+      // Setzen erfolgt bewusst einmalig per Scharfstellungs-Skript, nicht per Formular.
+      commission_cutoff_at: s.commission_cutoff_at ?? "",
     },
     withinWindow: withinHardWindow(),
     sentToday: Number(today.c),
@@ -1227,7 +1565,15 @@ router.post("/admin/leads/settings", async (req: Request, res: Response) => {
       const wds = parseWeekdays(String(b.lead_followup_weekdays));
       await setSetting("lead_followup_weekdays", wds.join(","));
     }
-    const allowed = ["lead_followup_enabled", "lead_followup_days", "lead_followup_window_start", "lead_followup_window_end", "max_lead_followups", "lead_distribution_enabled"];
+    const allowed = [
+      "lead_followup_enabled", "lead_followup_days", "lead_followup_window_start", "lead_followup_window_end",
+      "max_lead_followups", "lead_distribution_enabled",
+      // P2-C: Warteschlangen-Gewichtung + Fairness-Anteil (Admin-konfigurierbar)
+      "queue_w_fresh", "queue_w_value", "queue_w_react", "queue_w_contact", "queue_fairness_nth",
+      // V2 (Phase 2B): Auto-Freigabe offener Akten. commission_cutoff_at ist hier
+      // bewusst NICHT erlaubt — der Stichtag darf nicht versehentlich verstellt werden.
+      "akte_auto_release_min",
+    ];
     for (const key of allowed) {
       if (b[key] !== undefined) await setSetting(key, String(b[key]));
     }

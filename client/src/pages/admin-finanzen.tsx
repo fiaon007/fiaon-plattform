@@ -39,17 +39,21 @@ function computeRange(key: RangeKey, custom: { from: string; to: string }): { fr
   return { from: startOfDay(new Date(now.getTime() - days * 864e5)).toISOString(), to: endOfDay(now).toISOString() };
 }
 
-function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
+// P2-D: Jede Kennzahl bekommt einen Tooltip mit Klartext-Definition (tip).
+function Kpi({ label, value, sub, tip }: { label: string; value: string; sub?: string; tip?: string }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">{label}</p>
+    <div className="bg-white border border-slate-200 rounded-xl p-4" title={tip}>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1 flex items-center gap-1">
+        {label}
+        {tip && <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate-300 text-slate-400 text-[9px] font-bold cursor-help" aria-label={tip}>i</span>}
+      </p>
       <p className="text-lg font-bold tracking-tight text-slate-900 tabular-nums">{value}</p>
       {sub && <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>}
     </div>
   );
 }
 
-function FunnelBars({ title, hint, stages, color = ACCENT }: { title: string; hint: string; stages: { label: string; value: number; rate: number | null; tip: string }[]; color?: string }) {
+function FunnelBars({ title, hint, stages, color = ACCENT, footer }: { title: string; hint: string; stages: { label: string; value: number; rate: number | null; tip: string }[]; color?: string; footer?: string }) {
   const max = Math.max(1, ...stages.map((s) => s.value));
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4">
@@ -68,6 +72,7 @@ function FunnelBars({ title, hint, stages, color = ACCENT }: { title: string; hi
           </div>
         ))}
       </div>
+      {footer && <p className="text-[11px] text-slate-500 mt-3 pt-2 border-t border-slate-100">{footer}</p>}
     </div>
   );
 }
@@ -82,11 +87,13 @@ function Funnels({ f, r }: { f: any; r: any }) {
         hint={`Nur aus Leads entstandene Anträge. Rate je Stufe = Stufe ÷ vorherige Stufe. Gesamt Lead→zahlend: ${pct(rl.gesamtLeadToBezahlt)}`}
         stages={[
           { label: "Leads", value: lead.leads || 0, rate: null, tip: "Alle Leads im Zeitraum (Bezugsgröße)" },
-          { label: "Kontaktiert", value: lead.kontaktiert || 0, rate: rl.leadToKontaktiert, tip: "Leads, die den Status 'neu' verlassen haben ÷ Leads" },
-          { label: "Antrag gestellt", value: lead.antraege || 0, rate: rl.kontaktiertToAntrag, tip: "Konvertierte Leads ÷ kontaktierte Leads" },
+          // P2-D ehrlich: Massenmail ist KEIN Kontakt — diese Stufe heißt jetzt „Angeschrieben".
+          { label: "Angeschrieben (Mail)", value: lead.angeschrieben ?? lead.kontaktiert ?? 0, rate: rl.leadToKontaktiert, tip: "Lead hat mindestens eine automatische Mail erhalten (Status nicht mehr 'neu'). Das ist KEIN persönlicher Kontakt." },
+          { label: "Antrag gestellt", value: lead.antraege || 0, rate: rl.kontaktiertToAntrag, tip: "Konvertierte Leads ÷ angeschriebene Leads" },
           { label: "Zahlung angekündigt", value: lead.angekuendigt || 0, rate: rl.antragToAngekuendigt, tip: "Verknüpfte Order angekündigt/bezahlt ÷ Anträge" },
-          { label: "Bezahlt", value: lead.bezahlt || 0, rate: rl.angekuendigtToBezahlt, tip: "Verknüpfte Order bezahlt ÷ angekündigt" },
+          { label: "Bezahlt", value: lead.bezahlt || 0, rate: rl.angekuendigtToBezahlt, tip: "Verknüpfte Order bezahlt ÷ angekündigt (nur echte, referenzierte Zahlungen)" },
         ]}
+        footer={`Echt kontaktiert (dokumentiertes Agenten-Ergebnis): ${lead.kontaktiertEcht ?? "—"} von ${lead.leads || 0} Leads`}
       />
       <FunnelBars
         title="Gesamt-Funnel (inkl. Direkt)"
@@ -180,15 +187,24 @@ export default function AdminFinanzenPage() {
           <Funnels f={ov.funnel} r={ov.funnelRates} />
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-            <Kpi label="Umsatz (brutto)" value={eur(ov.revenue.umsatzCents)} sub={`${ov.revenue.bezahltCount} bezahlt`} />
-            <Kpi label="Provisionen (Team)" value={eur(ov.revenue.provisionenCents)} />
-            <Kpi label="Netto FIAON" value={eur(ov.revenue.nettoCents)} sub={`Marge ${pct(ov.revenue.margePct)}`} />
-            <Kpi label="Ø Abschlusswert (AOV)" value={eur(ov.revenue.aovCents)} />
-            <Kpi label="CAC" value={ov.cac.hasBudget ? eur(ov.cac.cacCents) : "Budget eintragen"} sub={ov.cac.hasBudget ? `Werbebudget ${eur(ov.cac.spendCents)}` : undefined} />
-            <Kpi label="Lead-Kosten" value={ov.cac.hasBudget ? eur(ov.cac.leadCostCents) : "Budget eintragen"} />
-            <Kpi label="LTV/CAC" value={ov.cac.ltvCacRatio != null ? `${ov.cac.ltvCacRatio}×` : "—"} sub={`LTV Annahme: AOV × ${ov.cac.assumedLifetimeMonths} Mon.`} />
-            <Kpi label="Bestand (bezahlt)" value={String(ov.revenue.bestandCount)} sub="all-time" />
+            <Kpi label="Umsatz (brutto)" value={eur(ov.revenue.umsatzCents)} sub={`${ov.revenue.bezahltCount} bezahlt`} tip={ov.kpiDefs?.umsatz} />
+            <Kpi label="Provisionen (Team)" value={eur(ov.revenue.provisionenCents)} tip="Alle nicht-stornierten Provisionseinträge im Zeitraum (own + override)." />
+            <Kpi label="Netto FIAON" value={eur(ov.revenue.nettoCents)} sub={`Marge ${pct(ov.revenue.margePct)}`} tip="Umsatz minus Team-Provisionen. Keine sonstigen Kosten enthalten." />
+            <Kpi label="Ø Abschlusswert (AOV)" value={eur(ov.revenue.aovCents)} tip="Umsatz ÷ bezahlte Kunden im Zeitraum (nur echte, referenzierte Zahlungen)." />
+            <Kpi label="CAC" value={ov.cac.hasBudget ? eur(ov.cac.cacCents) : "Budget eintragen"} sub={ov.cac.hasBudget ? `Werbebudget ${eur(ov.cac.spendCents)}` : undefined} tip={ov.kpiDefs?.cac} />
+            <Kpi label="Lead-Kosten" value={ov.cac.hasBudget ? eur(ov.cac.leadCostCents) : "Budget eintragen"} tip="Werbebudget ÷ Leads im Zeitraum." />
+            {/* P2-D ehrlich: LTV/CAC ist eine ANNAHME (12 Monate Laufzeit sind nicht gemessen) */}
+            <Kpi label="LTV/CAC (Annahme)" value={ov.cac.ltvCacRatio != null ? `~${ov.cac.ltvCacRatio}×` : "—"} sub={`Annahme: Kunde bleibt ${ov.cac.assumedLifetimeMonths} Mon. — nicht gemessen`} tip={ov.kpiDefs?.ltv} />
+            <Kpi label="Bestand (bezahlt)" value={String(ov.revenue.bestandCount)} sub="all-time · eine Wahrheit" tip={ov.kpiDefs?.bezahlt} />
           </div>
+
+          {/* P2-D: Alt-Import GETRENNT ausgewiesen — ehrlich statt versteckt */}
+          {ov.revenue.altbestandCount > 0 && (
+            <div className="mb-5 px-4 py-3 rounded-xl border border-slate-200 bg-white text-[12.5px] text-slate-600" title={ov.kpiDefs?.altbestand}>
+              <b className="text-slate-800">Alt-Import (nicht im Umsatz):</b> {ov.revenue.altbestandCount} als bezahlt importierte Alt-Kunden ohne Zahlungsreferenz,
+              davon {ov.revenue.altbestandOhneBetrag} ohne Betrag. Diese Datensätze fließen bewusst in KEINE Umsatz- oder Funnel-Kennzahl ein.
+            </div>
+          )}
 
           <div className="grid lg:grid-cols-2 gap-4 mb-5">
             <div className="bg-white border border-slate-200 rounded-xl p-4">

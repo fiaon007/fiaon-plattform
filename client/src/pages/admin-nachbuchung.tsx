@@ -19,8 +19,9 @@ interface Candidate {
   customer_name: string | null;
   email: string | null;
   paid_at: string | null;
-  agent_id: number;
+  agent_id: number | null;
   agent_name: string | null;
+  agent_suggested?: boolean;
   rate_bp: number;
   amount_cents: number | null;
   amount_source: "order" | "donor" | "bank" | "none";
@@ -94,6 +95,13 @@ export default function AdminNachbuchungPage() {
         if (!eur || eur <= 0) { flash("Bitte einen gültigen Betrag eingeben."); setBusyRef(null); return; }
         body.manualAmountCents = Math.round(eur * 100);
       }
+      // P2-B: Fall ohne zugewiesenen Agent — Buchung nur mit bewusster Bestätigung
+      // des Betreuungs-Vorschlags (Admin-Entscheid, wird im Audit protokolliert).
+      if (c.agent_suggested) {
+        if (!c.agent_id) { flash("Kein Agent ermittelbar — bitte zuerst manuell zuweisen."); setBusyRef(null); return; }
+        if (!confirm(`Diese Bestellung hat KEINEN zugewiesenen Agent.\n\nVorschlag aus dokumentierter Betreuung: ${c.agent_name || `Agent #${c.agent_id}`}\n\nZuweisen und Provision buchen? (Admin-Entscheid, wird protokolliert)`)) { setBusyRef(null); return; }
+        body.agentId = c.agent_id;
+      }
       const res = await fetch(`/api/fiaon/admin/commission-backfill/${encodeURIComponent(c.ref)}/book`, {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body),
       });
@@ -142,8 +150,10 @@ export default function AdminNachbuchungPage() {
           <p className="text-[11px] font-bold uppercase tracking-[.2em] text-[#2563eb] mb-1">Team</p>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Provisionen nachbuchen</h1>
           <p className="text-[13px] text-slate-500 mt-1 max-w-2xl">
-            Bezahlte, einem Agent zugewiesene Bestellungen ohne Provisionseintrag — automatisch erkannt.
+            Bezahlte Bestellungen ohne Provisionseintrag — automatisch erkannt, inklusive Fälle OHNE Agent
+            (mit Vorschlag aus der dokumentierten Betreuung; Buchung nur nach deiner Bestätigung, nie automatisch).
             Buchung erfolgt über den regulären Abschluss-Hook (eingefrorener Satz, Override, Meilenstein) und ist idempotent.
+            Direktzahler (Zahlung ohne Agenten-Arbeit) erscheinen hier bewusst nicht.
           </p>
         </div>
 
@@ -258,7 +268,12 @@ export default function AdminNachbuchungPage() {
                       <span className="text-[13px] font-bold">{fmtCents(c.amount_cents)}</span>
                       <p className="text-[10px] text-slate-400">{SOURCE_LABEL[c.amount_source]}</p>
                     </td>
-                    <td className="px-4 py-3 text-[12px] text-slate-600 whitespace-nowrap">{c.agent_name || `#${c.agent_id}`}</td>
+                    <td className="px-4 py-3 text-[12px] text-slate-600 whitespace-nowrap">
+                      {c.agent_name || (c.agent_id ? `#${c.agent_id}` : "—")}
+                      {c.agent_suggested && (
+                        <span className="block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-[#2563eb] w-fit">Vorschlag — bestätigen</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-[12px] text-slate-500 whitespace-nowrap">{(c.rate_bp / 100).toLocaleString("de-DE")} %</td>
                     <td className="px-4 py-3 text-[13px] font-bold whitespace-nowrap">{fmtCents(c.estimated_commission_cents)}</td>
                     <td className="px-4 py-3">

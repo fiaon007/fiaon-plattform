@@ -46,6 +46,9 @@ export interface Customer {
   city?: string | null;
   completed_at?: string | null;
   superseded_by?: string | null;
+  // P2-B Transparenz: Grund für (keine) Provision
+  commission_basis?: "betreut" | "direktzahler" | "admin" | "altmodell" | null;
+  commission_basis_note?: string | null;
   last_contact?: { type: string; outcome: string | null; agent_name: string; created_at: string } | null;
   next_appointment?: string | null;
 }
@@ -1020,7 +1023,15 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
               {detail.payment_status === "superseded" && detail.superseded_by && <Badge label={`Ersetzt durch ${detail.superseded_by}`} />}
               {detail.promised_pay_date && detail.payment_status !== "paid" && <Badge label={`Zusage ${fmtD(detail.promised_pay_date)}`} />}
               {detail.assigned_agent_name && !readOnly && <Badge label={`Betreut von ${detail.assigned_agent_name}`} />}
+              {/* P2-B Transparenz: WARUM gab es Provision (oder nicht) — keine Blackbox */}
+              {detail.commission_basis === "direktzahler" && <Badge label="Direktzahler — keine Provision" />}
+              {detail.commission_basis === "betreut" && <Badge label="Provision: Betreuung dokumentiert" />}
+              {detail.commission_basis === "admin" && <Badge label="Provision: Admin-Entscheid" />}
+              {detail.commission_basis === "altmodell" && <Badge label="Provision: Altmodell (vor Stichtag)" />}
             </div>
+            {detail.commission_basis_note && (
+              <p className="mt-1.5 text-[11.5px] text-slate-400">{detail.commission_basis_note}</p>
+            )}
           </SuccessPulse>
         </div>
 

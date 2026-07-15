@@ -12,11 +12,18 @@
 
 import { Router, type Request, type Response } from "express";
 import postgres from "postgres";
+import { paidWhere, legacyPaidWhere, paidAtSql, revenueCentsSql, KPI_DEFS } from "../lib/fiaon-truth";
 
 const router = Router();
 const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 3 });
 
-const CENTS = "ROUND(COALESCE(amount_due::numeric, 0) * 100)";
+const CENTS = revenueCentsSql();
+// P2-D: DIE eine Wahrheit — zentrale Definition aus server/lib/fiaon-truth.ts.
+const PAID = paidWhere();
+const PAID_A = paidWhere("a");
+const LEGACY = legacyPaidWhere();
+const PAID_AT = paidAtSql();
+const PAID_AT_A = paidAtSql("a");
 
 let budgetEnsured = false;
 async function ensureBudgetTable(): Promise<void> {
@@ -66,29 +73,38 @@ router.get("/admin/finance/overview", async (req: Request, res: Response) => {
     // LEAD-FUNNEL: NUR Leads und ihre daraus konvertierten Anträge (converted_order_id).
     // Jede Stufe ist eine echte Teilmenge der vorherigen ⇒ Raten immer 0–100 %.
     // Direktkunden ohne Lead tauchen hier NICHT auf und verzerren die Quote nicht.
-    const [lf] = await sqlPool`
+    // P2-D/ehrlich: „kontaktiert" (status <> 'neu') entsteht durch Massenmail und heißt
+    // deshalb jetzt ANGESCHRIEBEN. Echter Kontakt = dokumentiertes Agenten-Ergebnis (Lead-Log).
+    const [lf] = await sqlPool.unsafe(`
       SELECT
         COUNT(*)::int AS leads,
-        COUNT(*) FILTER (WHERE l.status <> 'neu')::int AS kontaktiert,
+        COUNT(*) FILTER (WHERE l.status <> 'neu')::int AS angeschrieben,
+        COUNT(*) FILTER (WHERE EXISTS (
+          SELECT 1 FROM fiaon_lead_log g WHERE g.lead_id = l.id AND g.agent_id IS NOT NULL AND g.type = 'result'
+        ))::int AS kontaktiert_echt,
         COUNT(*) FILTER (WHERE l.status = 'konvertiert')::int AS antraege,
-        COUNT(*) FILTER (WHERE a.claimed_paid_at IS NOT NULL OR a.payment_status = 'paid')::int AS angekuendigt,
-        COUNT(*) FILTER (WHERE a.payment_status = 'paid')::int AS bezahlt
+        COUNT(*) FILTER (WHERE a.claimed_paid_at IS NOT NULL OR (${PAID_A}))::int AS angekuendigt,
+        COUNT(*) FILTER (WHERE ${PAID_A})::int AS bezahlt
       FROM fiaon_leads l
       LEFT JOIN fiaon_applications a ON a.ref = l.converted_order_id AND a.merged_into IS NULL
-      WHERE l.erstellt_am >= ${from} AND l.erstellt_am <= ${to}
-    `;
+      WHERE l.erstellt_am >= $1 AND l.erstellt_am <= $2
+    `, [from, to]).then((r: any) => [r[0]]);
     // GESAMT-FUNNEL (inkl. Direktkunden): ALLE Anträge im Zeitraum. Stufen kumulativ
     // definiert (Antrag ⊇ angekündigt ⊇ bezahlt) ⇒ Raten immer 0–100 %.
-    const [gf] = await sqlPool`
+    const [gf] = await sqlPool.unsafe(`
       SELECT
         COUNT(*) FILTER (WHERE payment_reference IS NOT NULL OR claimed_paid_at IS NOT NULL OR payment_status = 'paid')::int AS antraege,
-        COUNT(*) FILTER (WHERE claimed_paid_at IS NOT NULL OR payment_status = 'paid')::int AS angekuendigt,
-        COUNT(*) FILTER (WHERE payment_status = 'paid')::int AS bezahlt
+        COUNT(*) FILTER (WHERE payment_reference IS NOT NULL AND (claimed_paid_at IS NOT NULL OR payment_status = 'paid'))::int AS angekuendigt,
+        COUNT(*) FILTER (WHERE ${PAID})::int AS bezahlt
       FROM fiaon_applications
-      WHERE merged_into IS NULL AND created_at >= ${from} AND created_at <= ${to}
-    `;
+      WHERE merged_into IS NULL AND created_at >= $1 AND created_at <= $2
+    `, [from, to]).then((r: any) => [r[0]]);
     const leadFunnel = {
-      leads: Number(lf.leads), kontaktiert: Number(lf.kontaktiert), antraege: Number(lf.antraege),
+      leads: Number(lf.leads),
+      // "kontaktiert" bleibt als Feldname für Abwärtskompatibilität = ANGESCHRIEBEN
+      kontaktiert: Number(lf.angeschrieben), angeschrieben: Number(lf.angeschrieben),
+      kontaktiertEcht: Number(lf.kontaktiert_echt),
+      antraege: Number(lf.antraege),
       angekuendigt: Number(lf.angekuendigt), bezahlt: Number(lf.bezahlt),
     };
     const gesamtFunnel = {
@@ -116,14 +132,14 @@ router.get("/admin/finance/overview", async (req: Request, res: Response) => {
       },
     };
 
-    // ── BD2: Umsatz (bezahlt im Zeitraum nach Freischaltzeitpunkt) ──
+    // ── BD2: Umsatz — NUR die eine Wahrheit, Zeit-Anker completed_at (nie updated_at) ──
     const [rev] = await sqlPool.unsafe(`
       SELECT
         COALESCE(SUM(${CENTS}), 0)::bigint AS umsatz_cents,
         COUNT(*)::int AS bezahlt_count
       FROM fiaon_applications
-      WHERE payment_status = 'paid' AND merged_into IS NULL
-        AND COALESCE(completed_at, updated_at) >= $1 AND COALESCE(completed_at, updated_at) <= $2
+      WHERE ${PAID}
+        AND ${PAID_AT} >= $1 AND ${PAID_AT} <= $2
     `, [from, to]);
     const umsatzCents = Number(rev.umsatz_cents);
     const bezahltCount = Number(rev.bezahlt_count);
@@ -141,13 +157,19 @@ router.get("/admin/finance/overview", async (req: Request, res: Response) => {
     const perTier = await sqlPool.unsafe(`
       SELECT COALESCE(pack_name, '—') AS pack, COUNT(*)::int AS c, COALESCE(SUM(${CENTS}), 0)::bigint AS cents
       FROM fiaon_applications
-      WHERE payment_status = 'paid' AND merged_into IS NULL
-        AND COALESCE(completed_at, updated_at) >= $1 AND COALESCE(completed_at, updated_at) <= $2
+      WHERE ${PAID}
+        AND ${PAID_AT} >= $1 AND ${PAID_AT} <= $2
       GROUP BY pack_name ORDER BY cents DESC
     `, [from, to]);
 
-    // Bestand (all-time bezahlt) für Neu-vs-Bestand-Indikator
-    const [stock] = await sqlPool`SELECT COUNT(*)::int AS c FROM fiaon_applications WHERE payment_status = 'paid' AND merged_into IS NULL`;
+    // Bestand (all-time bezahlt) + Alt-Bestand GETRENNT ausgewiesen (ehrlich, D3)
+    const [stock] = await sqlPool.unsafe(`
+      SELECT
+        COUNT(*) FILTER (WHERE ${PAID})::int AS c,
+        COUNT(*) FILTER (WHERE ${LEGACY})::int AS legacy_c,
+        COUNT(*) FILTER (WHERE ${LEGACY} AND (amount_due IS NULL OR amount_due = 0))::int AS legacy_no_amount
+      FROM fiaon_applications
+    `).then((r: any) => [r[0]]);
 
     // ── BD2: CAC / Lead-Kosten (nur wenn Budget eingetragen) ──
     const [spendRow] = await sqlPool`
@@ -165,11 +187,11 @@ router.get("/admin/finance/overview", async (req: Request, res: Response) => {
 
     // ── BD5: Zeitreihen (Tagesreihen, aggregiert) ──
     const revSeries = await sqlPool.unsafe(`
-      SELECT (COALESCE(completed_at, updated_at) AT TIME ZONE 'Europe/Berlin')::date AS d,
+      SELECT (${PAID_AT} AT TIME ZONE 'Europe/Berlin')::date AS d,
              COALESCE(SUM(${CENTS}), 0)::bigint AS cents, COUNT(*)::int AS c
       FROM fiaon_applications
-      WHERE payment_status = 'paid' AND merged_into IS NULL
-        AND COALESCE(completed_at, updated_at) >= $1 AND COALESCE(completed_at, updated_at) <= $2
+      WHERE ${PAID}
+        AND ${PAID_AT} >= $1 AND ${PAID_AT} <= $2
       GROUP BY d ORDER BY d
     `, [from, to]);
     const leadSeries = await sqlPool`
@@ -188,8 +210,12 @@ router.get("/admin/finance/overview", async (req: Request, res: Response) => {
         bezahltCount, aovCents,
         perTier: perTier.map((r: any) => ({ pack: r.pack, count: Number(r.c), cents: Number(r.cents) })),
         bestandCount: Number(stock.c),
+        // Alt-Import (D3): getrennt ausgewiesen, fließt NIE in Umsatz/Funnel
+        altbestandCount: Number(stock.legacy_c),
+        altbestandOhneBetrag: Number(stock.legacy_no_amount),
       },
       cac: { hasBudget, spendCents, cacCents, leadCostCents, ltvCents, assumedLifetimeMonths, ltvCacRatio },
+      kpiDefs: KPI_DEFS,
       series: {
         revenue: revSeries.map((r: any) => ({ date: r.d, cents: Number(r.cents), count: Number(r.c) })),
         leads: leadSeries.map((r: any) => ({ date: r.d, count: Number(r.c) })),
@@ -213,7 +239,7 @@ router.get("/admin/finance/attribution", async (req: Request, res: Response) => 
         l.quelle AS quelle,
         COUNT(*)::int AS leads,
         COUNT(*) FILTER (WHERE l.status = 'konvertiert')::int AS konversionen,
-        COALESCE(SUM(CASE WHEN a.payment_status = 'paid' THEN ROUND(COALESCE(a.amount_due::numeric,0)*100) ELSE 0 END), 0)::bigint AS umsatz_cents
+        COALESCE(SUM(CASE WHEN ${PAID_A} THEN ${revenueCentsSql("a")} ELSE 0 END), 0)::bigint AS umsatz_cents
       FROM fiaon_leads l
       LEFT JOIN fiaon_applications a ON a.ref = l.converted_order_id
       WHERE l.erstellt_am >= $1 AND l.erstellt_am <= $2
@@ -261,8 +287,8 @@ router.get("/admin/finance/team", async (req: Request, res: Response) => {
         (SELECT COUNT(*) FROM fiaon_leads l WHERE l.assigned_agent_id = ag.id AND l.erstellt_am >= $1 AND l.erstellt_am <= $2)::int AS leads,
         (SELECT COUNT(*) FROM fiaon_leads l WHERE l.assigned_agent_id = ag.id AND l.status = 'konvertiert' AND l.konvertiert_am >= $1 AND l.konvertiert_am <= $2)::int AS lead_konversionen,
         (SELECT COUNT(*) FROM fiaon_applications a WHERE a.assigned_agent_id = ag.id AND a.created_at >= $1 AND a.created_at <= $2 AND a.merged_into IS NULL)::int AS kunden,
-        (SELECT COUNT(*) FROM fiaon_applications a WHERE a.assigned_agent_id = ag.id AND a.payment_status = 'paid' AND a.merged_into IS NULL AND COALESCE(a.completed_at, a.updated_at) >= $1 AND COALESCE(a.completed_at, a.updated_at) <= $2)::int AS abschluesse,
-        (SELECT COALESCE(SUM(ROUND(COALESCE(a.amount_due::numeric,0)*100)),0) FROM fiaon_applications a WHERE a.assigned_agent_id = ag.id AND a.payment_status = 'paid' AND a.merged_into IS NULL AND COALESCE(a.completed_at, a.updated_at) >= $1 AND COALESCE(a.completed_at, a.updated_at) <= $2)::bigint AS umsatz_cents,
+        (SELECT COUNT(*) FROM fiaon_applications a WHERE a.assigned_agent_id = ag.id AND ${PAID_A} AND ${PAID_AT_A} >= $1 AND ${PAID_AT_A} <= $2)::int AS abschluesse,
+        (SELECT COALESCE(SUM(${revenueCentsSql("a")}),0) FROM fiaon_applications a WHERE a.assigned_agent_id = ag.id AND ${PAID_A} AND ${PAID_AT_A} >= $1 AND ${PAID_AT_A} <= $2)::bigint AS umsatz_cents,
         (SELECT COALESCE(SUM(c.amount_cents),0) FROM fiaon_commissions c WHERE c.agent_id = ag.id AND c.status <> 'storniert' AND c.created_at >= $1 AND c.created_at <= $2)::bigint AS provision_cents
       FROM fiaon_agents ag
       WHERE ag.active = TRUE
@@ -282,6 +308,42 @@ router.get("/admin/finance/team", async (req: Request, res: Response) => {
     res.json({ ok: true, data, range: { from: from.toISOString(), to: to.toISOString() } });
   } catch (err) {
     console.error("[FIAON-FINANCE] team:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════ P2-D Selbstcheck: „bezahlt" muss überall identisch sein ═══════════════
+// Rechnet die Bezahlt-Zahl mit der Definition JEDER Ansicht nach. Nach Phase 2
+// nutzen alle dieselbe zentrale Definition — weicht hier je etwas ab, ist ein
+// Copy-Paste-SQL zurückgekommen. Leads „Zahlend" ist bewusst eine Teilmenge
+// (nur Lead-Konversionen) und wird getrennt ausgewiesen.
+router.get("/admin/truth-check", async (_req: Request, res: Response) => {
+  try {
+    const [r] = await sqlPool.unsafe(`
+      SELECT
+        (SELECT COUNT(*) FROM fiaon_applications WHERE payment_status = 'paid' AND payment_reference IS NOT NULL AND merged_into IS NULL)::int AS zahlungszentrale,
+        (SELECT COUNT(*) FROM fiaon_applications WHERE ${PAID})::int AS finanzen_bestand,
+        (SELECT COUNT(*) FROM fiaon_applications WHERE ${LEGACY})::int AS altbestand,
+        (SELECT COUNT(DISTINCT a.ref) FROM fiaon_leads l JOIN fiaon_applications a ON a.ref = l.converted_order_id WHERE ${PAID_A})::int AS leads_zahlend
+    `);
+    const identical = Number(r.zahlungszentrale) === Number(r.finanzen_bestand);
+    res.json({
+      ok: true,
+      identical,
+      bezahlt: Number(r.finanzen_bestand),
+      ansichten: {
+        zahlungszentrale: Number(r.zahlungszentrale),
+        finanzenBestand: Number(r.finanzen_bestand),
+        leadsZahlend: Number(r.leads_zahlend),
+      },
+      altbestand: Number(r.altbestand),
+      hinweis: identical
+        ? "Alle Ansichten nutzen die eine Wahrheit. Leads-Zahlend ist eine gekennzeichnete Teilmenge (nur Lead-Konversionen)."
+        : "ABWEICHUNG — eine Ansicht nutzt nicht die zentrale Definition!",
+      definition: KPI_DEFS.bezahlt,
+    });
+  } catch (err) {
+    console.error("[FIAON-FINANCE] truth-check:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -350,7 +412,7 @@ router.get("/admin/finance/export/:view.csv", async (req: Request, res: Response
       const rows = await sqlPool.unsafe(`
         SELECT COALESCE(NULLIF(l.kampagne,''), l.quelle, '—') AS bucket, l.quelle AS quelle,
           COUNT(*)::int AS leads, COUNT(*) FILTER (WHERE l.status='konvertiert')::int AS konv,
-          COALESCE(SUM(CASE WHEN a.payment_status='paid' THEN ROUND(COALESCE(a.amount_due::numeric,0)*100) ELSE 0 END),0)::bigint AS cents
+          COALESCE(SUM(CASE WHEN ${PAID_A} THEN ${revenueCentsSql("a")} ELSE 0 END),0)::bigint AS cents
         FROM fiaon_leads l LEFT JOIN fiaon_applications a ON a.ref = l.converted_order_id
         WHERE l.erstellt_am >= $1 AND l.erstellt_am <= $2 GROUP BY bucket, l.quelle ORDER BY leads DESC
       `, [from, to]);
@@ -360,8 +422,8 @@ router.get("/admin/finance/export/:view.csv", async (req: Request, res: Response
       const rows = await sqlPool.unsafe(`
         SELECT ag.name,
           (SELECT COUNT(*) FROM fiaon_leads l WHERE l.assigned_agent_id=ag.id AND l.erstellt_am>=$1 AND l.erstellt_am<=$2)::int AS leads,
-          (SELECT COUNT(*) FROM fiaon_applications a WHERE a.assigned_agent_id=ag.id AND a.payment_status='paid' AND a.merged_into IS NULL AND COALESCE(a.completed_at,a.updated_at)>=$1 AND COALESCE(a.completed_at,a.updated_at)<=$2)::int AS abschluesse,
-          (SELECT COALESCE(SUM(ROUND(COALESCE(a.amount_due::numeric,0)*100)),0) FROM fiaon_applications a WHERE a.assigned_agent_id=ag.id AND a.payment_status='paid' AND a.merged_into IS NULL AND COALESCE(a.completed_at,a.updated_at)>=$1 AND COALESCE(a.completed_at,a.updated_at)<=$2)::bigint AS umsatz,
+          (SELECT COUNT(*) FROM fiaon_applications a WHERE a.assigned_agent_id=ag.id AND ${PAID_A} AND ${PAID_AT_A}>=$1 AND ${PAID_AT_A}<=$2)::int AS abschluesse,
+          (SELECT COALESCE(SUM(${revenueCentsSql("a")}),0) FROM fiaon_applications a WHERE a.assigned_agent_id=ag.id AND ${PAID_A} AND ${PAID_AT_A}>=$1 AND ${PAID_AT_A}<=$2)::bigint AS umsatz,
           (SELECT COALESCE(SUM(c.amount_cents),0) FROM fiaon_commissions c WHERE c.agent_id=ag.id AND c.status<>'storniert' AND c.created_at>=$1 AND c.created_at<=$2)::bigint AS prov
         FROM fiaon_agents ag WHERE ag.active=TRUE ORDER BY umsatz DESC
       `, [from, to]);
@@ -370,10 +432,10 @@ router.get("/admin/finance/export/:view.csv", async (req: Request, res: Response
     } else {
       // Default: bezahlte Umsätze (Buchhaltung)
       const rows = await sqlPool.unsafe(`
-        SELECT ref, payment_reference, invoice_number, pack_name, ROUND(COALESCE(amount_due::numeric,0)*100)::bigint AS cents,
-          (COALESCE(completed_at, updated_at) AT TIME ZONE 'Europe/Berlin')::date AS d
+        SELECT ref, payment_reference, invoice_number, pack_name, ${CENTS}::bigint AS cents,
+          (${PAID_AT} AT TIME ZONE 'Europe/Berlin')::date AS d
         FROM fiaon_applications
-        WHERE payment_status='paid' AND merged_into IS NULL AND COALESCE(completed_at,updated_at)>=$1 AND COALESCE(completed_at,updated_at)<=$2
+        WHERE ${PAID} AND ${PAID_AT}>=$1 AND ${PAID_AT}<=$2
         ORDER BY d
       `, [from, to]);
       csv = toCsv(["Referenz", "Zahlungsreferenz", "Rechnungsnr.", "Paket", "Betrag EUR", "Datum"],

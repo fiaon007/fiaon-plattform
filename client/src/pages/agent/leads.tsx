@@ -1,14 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
-import { Phone, ArrowLeft, Send, Pencil, Users } from "lucide-react";
+import { Phone, ArrowLeft, Send, Pencil, Users, Lock, FolderOpen, ShieldCheck, ChevronDown } from "lucide-react";
 import {
   AgentShell, api, Card, Badge, fmtDT, fmtD, inputCls, btnPrimary, btnGhost, FlashMessage,
 } from "./shared";
 
 // ════════════════════════════════════════════════════════════════════
-// Agent-Anrufliste „Leads" (Paket BC1) — getrennt von „Kunden".
-// Zweck: Interessenten ohne Antrag reaktivieren und zum Abschluss bringen.
-// Priorisierung: offene Kunden-Anträge haben Vorrang (Hinweis im Kopf).
+// P2-C — ARBEITSWARTESCHLANGE (statt Lead-Friedhof).
+// Kontaktdaten sind VERDECKT, bis der Agent die Akte öffnet (dokumentierte
+// Übernahme, Bestätigungs-Dialog). Nur EINE offene Akte gleichzeitig — die
+// nächste erst nach dokumentiertem Kontakt-Ergebnis. Reihenfolge kommt vom
+// Server (Score + Fairness); der Agent sieht bewusst nicht, warum ein Lead
+// oben steht. Mobil UND Desktop vollständig bedienbar.
 // ════════════════════════════════════════════════════════════════════
 
 const LEAD_STATUS: Record<string, string> = {
@@ -76,7 +79,7 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
       body: JSON.stringify({ outcome, scheduledAt: outcome === "rueckruf_termin" ? rueckrufAt : null }),
     });
     setBusy(false);
-    if (r.ok) { setFlash("Ergebnis gespeichert — der Lead bleibt in deiner Liste bzw. wandert in den passenden Status."); setRueckrufAt(""); load(); onChanged(); }
+    if (r.ok) { setFlash("Ergebnis gespeichert — Akte geschlossen. Du kannst jetzt die nächste Akte öffnen."); setRueckrufAt(""); load(); onChanged(); }
     else setFlash(r.json?.error || "Fehler.");
   };
 
@@ -100,6 +103,17 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
     const r = await api(`/agent/leads/${id}/move-to-application`, { method: "POST" });
     setBusy(false);
     if (r.ok) { setFlash("Antrags-Link an den Interessenten gesendet."); load(); onChanged(); } else setFlash(r.json?.error || "Fehler.");
+  };
+
+  // V2 (Phase 2B): Notausgang — Akte ohne Ergebnis schließen (Begründung Pflicht).
+  // Der Agent darf sich nie ausgesperrt fühlen; zählt NICHT als Kontakt.
+  const closeWithoutResult = async () => {
+    const reason = window.prompt("Akte ohne Kontakt-Ergebnis schließen — kurze Begründung (z. B. Feierabend, Kunde legte auf):");
+    if (reason === null) return;
+    setBusy(true);
+    const r = await api(`/agent/leads/${id}/close-akte`, { method: "POST", body: JSON.stringify({ reason }) });
+    setBusy(false);
+    if (r.ok) { onChanged(); onClose(); } else setFlash(r.json?.error || "Fehler.");
   };
 
   return (
@@ -178,6 +192,13 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
                 <textarea className={inputCls} rows={2} placeholder="Notiz hinzufügen…" value={note} onChange={(e) => setNote(e.target.value)} />
                 <button className={btnGhost + " mt-2"} disabled={busy || !note.trim()} onClick={saveNote}>Notiz speichern</button>
               </div>
+
+              {/* V2: Notausgang — nie ausgesperrt sein */}
+              {lead.opened_at && (
+                <button className="w-full text-[12px] text-slate-400 hover:text-slate-600 py-1" disabled={busy} onClick={closeWithoutResult}>
+                  Akte schließen ohne Ergebnis (mit Begründung) — Lead geht zurück in die Warteschlange
+                </button>
+              )}
             </>
           )}
 
@@ -200,69 +221,173 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
   );
 }
 
+/** Bestätigungs-Dialog „Akte übernehmen?" — Klick + Bestätigen (kein Versehen). */
+function ConfirmOpenSheet({ lead, busy, onConfirm, onCancel }: {
+  lead: any; busy: boolean; onConfirm: () => void; onCancel: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={onCancel}>
+      <div className="absolute inset-0 bg-slate-900/40" />
+      <div
+        className="relative w-full sm:max-w-md bg-white border border-slate-200 rounded-t-2xl sm:rounded-2xl shadow-xl p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#2563eb]/10 text-[#2563eb] flex items-center justify-center shrink-0">
+            <FolderOpen size={18} />
+          </div>
+          <div>
+            <p className="text-[15px] font-bold text-slate-900">Akte übernehmen?</p>
+            <p className="text-[12px] text-slate-500">{lead.quelle || "Lead"}{lead.kampagne ? ` · ${lead.kampagne}` : ""} · {ageDays(lead.erstellt_am)}</p>
+          </div>
+        </div>
+        <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-[12.5px] text-slate-600 space-y-1">
+          <p>Mit der Übernahme werden die Kontaktdaten sichtbar und du wirst als zuständiger Agent protokolliert.</p>
+          <p className="font-semibold text-slate-700">Die nächste Akte kannst du erst öffnen, wenn du ein Kontakt-Ergebnis dokumentiert hast.</p>
+        </div>
+        <div className="flex gap-2">
+          <button className={btnGhost + " flex-1 !py-3"} onClick={onCancel} disabled={busy}>Abbrechen</button>
+          <button className={btnPrimary + " flex-1 !py-3"} onClick={onConfirm} disabled={busy}>
+            {busy ? "Öffnet…" : "Ja, Akte öffnen"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AgentLeadsPage() {
-  const [leads, setLeads] = useState<any[]>([]);
+  const [active, setActive] = useState<any>(null);
+  const [queue, setQueue] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [openCustomers, setOpenCustomers] = useState(0);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<number | null>(null);
+  const [confirmLead, setConfirmLead] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const [flash, setFlash] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    setLoading(true);
-    api("/agent/leads").then((r) => {
-      if (r.ok) { setLeads(r.json.data || []); setOpenCustomers(Number(r.json.openCustomerCount) || 0); }
+  const load = useCallback((append = false, offset = 0) => {
+    if (!append) setLoading(true);
+    api(`/agent/leads?limit=50&offset=${offset}`).then((r) => {
+      if (r.ok) {
+        setActive(r.json.active || null);
+        setQueue((prev) => (append ? [...prev, ...(r.json.queue || [])] : r.json.queue || []));
+        setTotal(Number(r.json.total) || 0);
+        setHasMore(!!r.json.hasMore);
+        setOpenCustomers(Number(r.json.openCustomerCount) || 0);
+      }
     }).finally(() => setLoading(false));
   }, []);
-  useEffect(load, [load]);
+  useEffect(() => { load(); }, [load]);
+
+  const openAkte = async (lead: any) => {
+    setBusy(true);
+    const r = await api(`/agent/leads/${lead.id}/open`, { method: "POST" });
+    setBusy(false);
+    setConfirmLead(null);
+    if (r.ok) {
+      setFlash(null);
+      load();
+      setOpenId(lead.id);
+    } else {
+      setFlash(r.json?.error || "Akte konnte nicht geöffnet werden.");
+      load();
+    }
+  };
+
+  const activeName = active
+    ? [active.vorname, active.nachname].filter(Boolean).join(" ") || active.email || active.telefon || `Lead #${active.id}`
+    : null;
 
   return (
-    <AgentShell onRefresh={load}>
+    <AgentShell onRefresh={() => load()}>
       <div className="mb-5">
-        <h1 className="text-xl font-bold tracking-tight text-slate-900">Leads</h1>
-        <p className="text-[13px] text-slate-500">Interessenten ohne Antrag — reaktivieren und zum Abschluss bringen.</p>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900">Arbeitswarteschlange</h1>
+        <p className="text-[13px] text-slate-500">{total} Leads warten — einer nach dem anderen, in der Reihenfolge des Systems.</p>
+      </div>
+
+      <FlashMessage message={flash} />
+
+      {/* Gleichbehandlungs-Hinweis (P2-C, Klartext) */}
+      <div className="mb-4 px-4 py-3 rounded-xl border border-slate-200 bg-white text-[12.5px] text-slate-600 flex items-start gap-2.5">
+        <ShieldCheck size={16} className="text-[#2563eb] shrink-0 mt-0.5" />
+        <span>
+          <b className="text-slate-800">Alle Leads werden gleich behandelt</b> — Kontaktdaten werden erst beim Öffnen der
+          Akte sichtbar. So wird niemand übersprungen und jede Chance genutzt.
+        </span>
       </div>
 
       {/* Priorisierungs-Hinweis (BC1) */}
-      {openCustomers > 0 ? (
+      {openCustomers > 0 && (
         <div className="mb-4 px-4 py-3 rounded-xl border border-slate-300 bg-white text-[13px] text-slate-700 flex items-center gap-2">
           <Users size={15} className="text-slate-400 shrink-0" />
           Du hast <b className="mx-1">{openCustomers}</b> offene Kunden-Anträge — diese haben Vorrang.
           <Link href="/agent/kunden" className="ml-auto font-semibold" style={{ color: "#2563eb" }}>Zu den Kunden</Link>
         </div>
-      ) : (
-        <div className="mb-4 px-4 py-3 rounded-xl border border-slate-200 bg-white text-[13px] text-slate-600">
-          Keine offenen Kunden — jetzt Leads reaktivieren.
-        </div>
+      )}
+
+      {/* Offene Akte — prominent, blockiert die nächste Übernahme */}
+      {active && (
+        <Card className="p-4 mb-4 border-[#2563eb]/40 bg-[#2563eb]/[0.03]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#2563eb] text-white flex items-center justify-center shrink-0">
+              <FolderOpen size={18} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#2563eb]">Deine offene Akte</p>
+              <p className="text-[14px] font-bold text-slate-900 truncate">{activeName}</p>
+              <p className="text-[12px] text-slate-500 truncate">Seit {fmtDT(active.opened_at)} · Ergebnis dokumentieren, um die nächste zu öffnen</p>
+            </div>
+            <button className={btnPrimary + " shrink-0"} onClick={() => setOpenId(active.id)}>Weiterarbeiten</button>
+          </div>
+        </Card>
       )}
 
       {loading ? (
         <p className="text-[13px] text-slate-400">Lädt…</p>
-      ) : leads.length === 0 ? (
-        <Card className="p-8 text-center text-[13px] text-slate-400">Aktuell keine offenen Leads zugewiesen.</Card>
+      ) : queue.length === 0 && !active ? (
+        <Card className="p-8 text-center text-[13px] text-slate-400">Aktuell keine Leads in der Warteschlange.</Card>
       ) : (
         <div className="space-y-2">
-          {leads.map((l) => {
-            const name = [l.vorname, l.nachname].filter(Boolean).join(" ") || l.email || l.telefon || `Lead #${l.id}`;
-            return (
-              <Card key={l.id} className="p-4 flex items-center gap-3">
-                <button className="min-w-0 flex-1 text-left" onClick={() => setOpenId(l.id)}>
-                  <p className="text-[14px] font-semibold text-slate-900 truncate">{name}</p>
-                  <p className="text-[12px] text-slate-400 truncate">
-                    {l.telefon || l.email || "—"} · {l.quelle || "—"} · {ageDays(l.erstellt_am)}
-                  </p>
-                </button>
-                <Badge label={LEAD_STATUS[l.status] || l.status} />
-                {l.telefon && (
-                  <a href={`tel:${l.telefon}`} className="w-9 h-9 rounded-lg border border-slate-200 text-slate-500 flex items-center justify-center shrink-0" title="Anrufen">
-                    <Phone size={15} />
-                  </a>
-                )}
-              </Card>
-            );
-          })}
+          {queue.map((l, idx) => (
+            <Card key={l.id} className="p-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center shrink-0">
+                <Lock size={15} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[14px] font-semibold text-slate-900 truncate">
+                  Lead · {l.quelle || "unbekannte Quelle"}
+                </p>
+                <p className="text-[12px] text-slate-400 truncate">
+                  {l.kampagne || "—"} · {ageDays(l.erstellt_am)} · {l.hat_telefon ? "Telefon vorhanden" : l.hat_email ? "E-Mail vorhanden" : "—"}
+                  {l.callback_due ? " · Rückruf fällig" : ""}
+                </p>
+              </div>
+              <Badge label={idx === 0 && !active ? "Als Nächstes" : LEAD_STATUS[l.status] || l.status} />
+              <button
+                className={btnPrimary + " shrink-0 !px-3.5"}
+                disabled={!!active || busy}
+                title={active ? "Erst das Ergebnis der offenen Akte dokumentieren" : "Akte öffnen"}
+                onClick={() => setConfirmLead(l)}
+              >
+                Akte öffnen
+              </button>
+            </Card>
+          ))}
+          {hasMore && (
+            <button className={btnGhost + " w-full inline-flex items-center justify-center gap-2 !py-3"} onClick={() => load(true, queue.length)}>
+              <ChevronDown size={14} /> Mehr laden ({total - queue.length} weitere)
+            </button>
+          )}
         </div>
       )}
 
-      {openId !== null && <LeadDetail id={openId} onClose={() => setOpenId(null)} onChanged={load} />}
+      {confirmLead && (
+        <ConfirmOpenSheet lead={confirmLead} busy={busy} onConfirm={() => openAkte(confirmLead)} onCancel={() => setConfirmLead(null)} />
+      )}
+      {openId !== null && <LeadDetail id={openId} onClose={() => setOpenId(null)} onChanged={() => load()} />}
     </AgentShell>
   );
 }

@@ -8,9 +8,17 @@
 // STRIKTE REGELN (aus Anforderung):
 // - NUR EINGÄNGE der Kunden (CREDIT + DEPOSIT). Ausgänge/Card/Top-ups werden
 //   serverseitig ignoriert und NIE verbucht.
-// - Verbuchen setzt NUR den Zahlungsstatus (payment_status='paid') per Direkt-SQL.
-//   Es wird KEINE Provision erzeugt/abgezogen (onCustomerPaid wird NICHT aufgerufen) —
-//   bestehende Kunden-/Zahlungs-/Provisionslogik bleibt unangetastet.
+// - P2-A: Verbuchen ist IDENTISCH zum Admin-Button „bezahlt" (mark-paid):
+//   payment_status='paid' + Schwester-Dubletten superseden + payment_confirmed-
+//   Mail (1×-Claim) + Provisionshook onCustomerPaid (der seit P2-B nur bei
+//   dokumentierter Betreuung bucht — sonst Direktzahler, keine Provision).
+// - P2-A Match: Kunden überweisen mit der KURZEN payment_reference (FIAON-XXXXXX,
+//   QR-Code/Zahlungsseite); vereinzelt steht die LANGE Bestell-ref im Zweck.
+//   findApp prüft deshalb BEIDE Felder (case-insensitiv, tolerant gegenüber
+//   Leerzeichen/Bindestrichen, mit/ohne FIAON-Präfix).
+// - Abweichender Betrag wird als Abweichung markiert (amount_ok=FALSE), nie
+//   stillschweigend übernommen.
+// - Fuzzy (Einzahlername+Betrag) ist NUR VORSCHLAG mit Konfidenz — nie Auto-Buchung.
 // - Nicht automatisch zuordenbare Eingänge lassen sich manuell einem Kunden
 //   zuordnen (assign) oder als „nicht-Kunde" ignorieren.
 // - Beträge in Integer-Cents; Idempotenz über die Bank-Transaktions-ID.
@@ -51,7 +59,11 @@ async function ensureTable(): Promise<void> {
   ensured = true;
 }
 
-/** FIAON-Referenz aus einem freien Verwendungszweck extrahieren (6-stelliger Code). */
+/** FIAON-Referenz aus einem freien Verwendungszweck extrahieren.
+ * Kurzes Format (Zahlungsseite/QR): FIAON-XXXXXX (6 Zeichen).
+ * Langes Format (Bestell-ref): FIAON-XXXXXXXX-XXXX (12 Zeichen).
+ * Wir nehmen bis zu 12 alphanumerische Zeichen nach „FIAON" mit —
+ * der Abgleich (findApp) prüft beide Varianten gegen BEIDE Felder. */
 export function extractRef(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const up = String(raw).toUpperCase();
@@ -59,17 +71,33 @@ export function extractRef(raw: string | null | undefined): string | null {
   if (idx === -1) return null;
   const after = up.slice(idx + 5).replace(/[^A-Z0-9]/g, "");
   if (after.length < 6) return null;
-  return `FIAON-${after.slice(0, 6)}`;
+  return `FIAON-${after.slice(0, 12)}`;
 }
 
-/** Sucht den Antrag zu einer (normalisierten) Referenz. */
-async function findApp(ref: string): Promise<any | null> {
+/** Sucht den Antrag zu einer (normalisierten) Referenz — P2-A (D6-Root-Cause):
+ * Kunden überweisen mit der KURZEN payment_reference, der alte Code prüfte nur
+ * die LANGE ref → 0 % Auto-Match. Jetzt: BEIDE Felder, Präfix-/Format-tolerant. */
+export async function findApp(ref: string): Promise<any | null> {
   const norm = ref.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const body = norm.startsWith("FIAON") ? norm.slice(5) : norm;
+  if (body.length < 6) return null;
+  // Kandidaten: exakt wie angegeben, kurze 6er- und lange 12er-Variante —
+  // Verwendungszwecke hängen oft Junk an („FIAON 6AS4A5/WUIBCB…").
+  const candidates = Array.from(new Set([
+    `FIAON${body}`,
+    `FIAON${body.slice(0, 6)}`,
+    `FIAON${body.slice(0, 12)}`,
+  ]));
   const rows = await sqlPool`
-    SELECT ref, amount_due, currency, payment_status, first_name, last_name, contact_name, email
+    SELECT ref, payment_reference, amount_due, currency, payment_status, first_name, last_name, contact_name, email
     FROM fiaon_applications
-    WHERE merged_into IS NULL AND UPPER(REGEXP_REPLACE(ref, '[^A-Za-z0-9]', '', 'g')) = ${norm}
-    ORDER BY created_at ASC LIMIT 1
+    WHERE merged_into IS NULL AND (
+      UPPER(REGEXP_REPLACE(COALESCE(payment_reference, ''), '[^A-Za-z0-9]', '', 'g')) = ANY(${candidates})
+      OR UPPER(REGEXP_REPLACE(ref, '[^A-Za-z0-9]', '', 'g')) = ANY(${candidates})
+    )
+    ORDER BY (UPPER(REGEXP_REPLACE(COALESCE(payment_reference, ''), '[^A-Za-z0-9]', '', 'g')) = ANY(${candidates})) DESC,
+             created_at ASC
+    LIMIT 1
   `;
   return rows.length ? rows[0] : null;
 }
@@ -144,6 +172,82 @@ router.post("/admin/reconcile/import", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[FIAON-RECONCILE] import:", err);
     res.status(500).json({ ok: false, error: "Serverfehler beim Import" });
+  }
+});
+
+// ═══════════════ P2-A: Rematch — unzugeordnete Eingänge mit dem reparierten
+// Matcher erneut prüfen (heilt den 0-%-Altbestand aus D6, keine Verbuchung). ════
+router.post("/admin/reconcile/rematch", async (_req: Request, res: Response) => {
+  try {
+    await ensureTable();
+    const rows = await sqlPool`
+      SELECT id, reference_raw, payer_name FROM fiaon_bank_txns
+      WHERE match_status = 'unmatched' AND applied = FALSE
+      ORDER BY id ASC
+    `;
+    let matched = 0;
+    for (const t of rows) {
+      const extracted = extractRef(t.reference_raw) || extractRef(t.payer_name);
+      if (!extracted) continue;
+      const app = await findApp(extracted);
+      if (!app) continue;
+      const [txn] = await sqlPool`SELECT amount_cents FROM fiaon_bank_txns WHERE id = ${t.id}`;
+      const amountOk = appAmountCents(app) === Number(txn.amount_cents);
+      await sqlPool`
+        UPDATE fiaon_bank_txns SET
+          extracted_ref = ${extracted}, matched_ref = ${app.ref}, match_status = 'matched',
+          amount_ok = ${amountOk},
+          note = ${amountOk ? null : `Abweichung: Bank ${(Number(txn.amount_cents) / 100).toFixed(2)} € vs. Soll ${(appAmountCents(app) / 100).toFixed(2)} €`},
+          updated_at = NOW()
+        WHERE id = ${t.id} AND match_status = 'unmatched' AND applied = FALSE
+      `;
+      matched++;
+    }
+    console.log(`[FIAON-RECONCILE] Rematch: ${matched} von ${rows.length} unzugeordneten Eingängen jetzt zugeordnet`);
+    res.json({ ok: true, checked: rows.length, matched });
+  } catch (err) {
+    console.error("[FIAON-RECONCILE] rematch:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════ P2-A: Fuzzy-Vorschläge (Einzahlername + Betrag) — NUR Vorschlag
+// mit Konfidenz, wird NIE automatisch verbucht. Admin bestätigt per assign. ════
+router.get("/admin/reconcile/:id/suggestions", async (req: Request, res: Response) => {
+  try {
+    await ensureTable();
+    const [txn] = await sqlPool`SELECT id, payer_name, amount_cents FROM fiaon_bank_txns WHERE id = ${Number(req.params.id)}`;
+    if (!txn) return res.status(404).json({ ok: false, error: "Eingang nicht gefunden" });
+    const payer = String(txn.payer_name || "").toLowerCase().trim();
+    if (payer.length < 3) return res.json({ ok: true, data: [] });
+    const cents = Number(txn.amount_cents);
+    // Kandidaten: Nachname ODER Vorname im Einzahlernamen enthalten.
+    const rows = await sqlPool`
+      SELECT ref, payment_reference, amount_due, payment_status,
+             COALESCE(NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)), ''), contact_name, email) AS customer_name
+      FROM fiaon_applications
+      WHERE merged_into IS NULL
+        AND (
+          (last_name IS NOT NULL AND LENGTH(TRIM(last_name)) >= 3 AND ${payer} LIKE '%' || LOWER(TRIM(last_name)) || '%')
+          OR (contact_name IS NOT NULL AND LENGTH(TRIM(contact_name)) >= 3 AND ${payer} LIKE '%' || LOWER(TRIM(contact_name)) || '%')
+        )
+      ORDER BY (ROUND(COALESCE(amount_due::numeric, 0) * 100) = ${cents}) DESC, created_at DESC
+      LIMIT 5
+    `;
+    const data = rows.map((r: any) => {
+      const amountMatch = Math.round(Number(r.amount_due || 0) * 100) === cents;
+      return {
+        ...r,
+        confidence: amountMatch ? "hoch" : "mittel",
+        confidenceLabel: amountMatch
+          ? "Name im Einzahler + exakter Betrag"
+          : "Name im Einzahler, Betrag weicht ab",
+      };
+    });
+    res.json({ ok: true, data });
+  } catch (err) {
+    console.error("[FIAON-RECONCILE] suggestions:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
 
@@ -263,11 +367,14 @@ router.post("/admin/reconcile/:id/ignore", async (req: Request, res: Response) =
 });
 
 /**
- * Verbucht EINEN Bank-Eingang: setzt den zugeordneten Antrag auf `paid`
- * (Direkt-SQL, KEINE Provision). Optional wird `amount_due` exakt an den
- * Bankeingang angeglichen (syncAmount). Idempotent.
+ * Verbucht EINEN Bank-Eingang — P2-A: IDENTISCH zum Admin-Button „bezahlt"
+ * (mark-paid): Status + Freischaltung, Schwester-Dubletten superseden,
+ * payment_confirmed-Mail (1×-Claim) und Provisionshook onCustomerPaid.
+ * Der Hook bucht seit P2-B nur bei dokumentierter Betreuung (sonst Direktzahler).
+ * Optional wird `amount_due` exakt an den Bankeingang angeglichen (syncAmount).
+ * Idempotent; jede Verbuchung landet im Kontakt-Log (Audit).
  */
-async function applyTxn(id: number, syncAmount: boolean): Promise<{ ok: boolean; error?: string; ref?: string }> {
+export async function applyTxn(id: number, syncAmount: boolean): Promise<{ ok: boolean; error?: string; ref?: string }> {
   const [txn] = await sqlPool`SELECT * FROM fiaon_bank_txns WHERE id = ${id}`;
   if (!txn) return { ok: false, error: "Eingang nicht gefunden" };
   if (txn.match_status === "ignored") return { ok: false, error: "Eingang ist als ignoriert markiert" };
@@ -275,7 +382,6 @@ async function applyTxn(id: number, syncAmount: boolean): Promise<{ ok: boolean;
 
   const receivedCents = Number(txn.amount_cents);
   const eur = (receivedCents / 100).toFixed(2);
-  // NUR Zahlungsstatus setzen — KEIN onCustomerPaid, KEINE Provision.
   const updated = await sqlPool`
     UPDATE fiaon_applications SET
       payment_status = 'paid',
@@ -294,18 +400,26 @@ async function applyTxn(id: number, syncAmount: boolean): Promise<{ ok: boolean;
   }
   await sqlPool`UPDATE fiaon_bank_txns SET applied = TRUE, applied_at = NOW(), updated_at = NOW() WHERE id = ${id}`;
   console.log(`[FIAON-RECONCILE] verbucht: ${txn.matched_ref} ← Bank ${txn.txn_id} (${eur} ${txn.currency})${syncAmount ? " [Betrag synchronisiert]" : ""}`);
-  // Paket DB (Root-Cause-Fix): identische Nacharbeit wie mark-paid —
-  // 1. Schwester-Dubletten sofort superseden (stoppt Erinnerungs-Kette) inkl.
-  //    Attributions-Übertrag auf die bezahlte Bestellung (Agent behält Sicht).
+  // Audit: jede Schreibaktion nachvollziehbar im Kontakt-Log.
+  const mismatch = txn.amount_ok === false && !syncAmount ? " — ABWEICHUNG zum Sollbetrag, nicht übernommen" : "";
+  await sqlPool`
+    INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+    VALUES (${txn.matched_ref}, NULL, 'System', 'system',
+            ${`Per Kontoabgleich als bezahlt verbucht — Bankeingang ${txn.txn_id || "#" + id} (${eur} ${txn.currency})${mismatch}`})
+  `.catch(() => {});
+  // P2-A: identische Nacharbeit wie mark-paid —
+  // 1. Schwester-Dubletten superseden (stoppt Erinnerungs-Kette, Attribution bleibt).
   // 2. Bezahlt-Bestätigung an den Kunden (Make 'payment_confirmed', 1×-Claim).
-  // Weiterhin bewusst KEIN onCustomerPaid — Provision beim Kontoabgleich nur
-  // per manueller Admin-Buchung (/admin/agents/:id/commissions/manual).
+  // 3. Provisionshook onCustomerPaid — seit P2-B nur bei dokumentierter Betreuung
+  //    (idempotent: bestehende positive Provision wird nie doppelt gebucht).
   try {
     const antrag = await import("./fiaon-antrag");
     await antrag.supersedeSisterOrders(txn.matched_ref);
     await antrag.sendPaymentConfirmedOnce(txn.matched_ref);
+    const agent = await import("./fiaon-agent");
+    await agent.onCustomerPaid(txn.matched_ref);
   } catch (e) {
-    console.error("[FIAON-RECONCILE] Nacharbeit (supersede/confirmed):", e);
+    console.error("[FIAON-RECONCILE] Nacharbeit (supersede/confirmed/provision):", e);
   }
   return { ok: true, ref: txn.matched_ref };
 }

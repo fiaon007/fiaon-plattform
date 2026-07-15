@@ -92,6 +92,12 @@ const STATUS_CHIPS = [
 function AssignModal({ txn, onClose, onDone }: { txn: any; onClose: () => void; onDone: () => void }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<any[]>([]);
+  // P2-A: Fuzzy-Vorschläge (Einzahlername + Betrag) — NUR Vorschlag mit Konfidenz,
+  // der Admin bestätigt per Klick (assign). Nie automatische Verbuchung.
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  useEffect(() => {
+    apiF(`/admin/reconcile/${txn.id}/suggestions`).then((r) => r.ok && setSuggestions(r.json.data || []));
+  }, [txn.id]);
   useEffect(() => {
     if (q.trim().length < 2) { setResults([]); return; }
     const t = setTimeout(() => { apiF(`/admin/reconcile/search?q=${encodeURIComponent(q.trim())}`).then((r) => r.ok && setResults(r.json.data || [])); }, 250);
@@ -113,6 +119,24 @@ function AssignModal({ txn, onClose, onDone }: { txn: any; onClose: () => void; 
           <div className="mb-3 text-[12px] text-slate-500">
             {eur(txn.amount_cents)} · {txn.payer_name || "—"} · <span className="text-slate-400">{txn.reference_raw}</span>
           </div>
+          {suggestions.length > 0 && (
+            <div className="mb-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Vorschläge (Name + Betrag — bitte prüfen)</p>
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
+                {suggestions.map((s) => (
+                  <button key={s.ref} onClick={() => assign(s.ref)} className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-semibold text-slate-800 truncate">{s.customer_name || "—"}</p>
+                      <p className="text-[11px] text-slate-400">{s.payment_reference || s.ref} · {s.payment_status} · {eur(Math.round(Number(s.amount_due || 0) * 100))}</p>
+                    </div>
+                    <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${s.confidence === "hoch" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`} title={s.confidenceLabel}>
+                      {s.confidence === "hoch" ? "Konfidenz hoch" : "Konfidenz mittel"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-2 mb-3 px-2.5 py-1.5 rounded-lg border border-slate-200">
             <Search size={14} className="text-slate-400" />
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Referenz, Name oder E-Mail…" className="flex-1 text-[13px] outline-none" />
@@ -182,13 +206,22 @@ export default function AdminKontoabgleichPage() {
     if (r.ok) setFlash(`${r.json.applied}/${r.json.total} zugeordnete Eingänge verbucht.`);
     setBusy(false); load();
   };
+  // P2-A: unzugeordnete Eingänge mit dem reparierten Matcher erneut prüfen
+  // (heilt den 0-%-Altbestand aus D6 — ordnet nur zu, verbucht NICHTS).
+  const rematch = async () => {
+    setBusy(true);
+    const r = await apiF("/admin/reconcile/rematch", { method: "POST" });
+    if (r.ok) setFlash(`Neu abgeglichen: ${r.json.matched} von ${r.json.checked} offenen Eingängen jetzt zugeordnet (nichts verbucht — bitte prüfen und verbuchen).`);
+    else setFlash(r.json?.error || "Fehler beim Neu-Abgleich");
+    setBusy(false); load();
+  };
 
   return (
     <div className="px-4 sm:px-6 py-5 max-w-6xl mx-auto">
       <div className="mb-4 flex items-start gap-3">
         <div className="flex-1">
           <h1 className="text-xl font-bold tracking-tight text-slate-900">Kontoabgleich</h1>
-          <p className="text-[13px] text-slate-500">Reale Kontoeingänge (Kunden) exakt mit den Anträgen abgleichen und verbuchen — nur Eingänge, keine Provision.</p>
+          <p className="text-[13px] text-slate-500">Reale Kontoeingänge (Kunden) exakt abgleichen und verbuchen — identisch zum „bezahlt"-Button (inkl. Bestätigungs-Mail; Provision nur bei dokumentierter Betreuung).</p>
         </div>
         <label className={`px-3 py-2 rounded-lg text-white text-[12px] font-semibold inline-flex items-center gap-1.5 shrink-0 cursor-pointer ${busy ? "opacity-50" : ""}`} style={{ background: ACCENT }}>
           <Upload size={13} /> Kontoauszug (CSV)
@@ -213,6 +246,7 @@ export default function AdminKontoabgleichPage() {
         ))}
         <label className="flex items-center gap-1.5 text-[12px] text-slate-600 ml-2"><input type="checkbox" checked={syncAmount} onChange={(e) => setSyncAmount(e.target.checked)} /> Betrag exakt übernehmen</label>
         <div className="ml-auto flex items-center gap-2">
+          <button onClick={rematch} disabled={busy} className="px-3 py-1.5 rounded-lg border border-slate-300 text-[12px] font-semibold text-slate-600 hover:border-slate-400 disabled:opacity-40" title="Offene Eingänge mit dem reparierten Matcher erneut prüfen — ordnet nur zu, verbucht nichts">Offene neu abgleichen</button>
           <button onClick={applyAll} disabled={busy} className="px-3 py-1.5 rounded-lg text-white text-[12px] font-semibold disabled:opacity-40" style={{ background: ACCENT }}>Alle zugeordneten verbuchen</button>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, Referenz…" className="px-3 py-1.5 rounded-lg border border-slate-200 text-[13px] w-44" />
           <button onClick={load} className="w-9 h-9 rounded-lg border border-slate-200 text-slate-400 flex items-center justify-center"><RefreshCw size={15} /></button>

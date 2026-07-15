@@ -30,8 +30,8 @@ router.get("/admin/hub/stats", async (_req, res) => {
         COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE AND merged_into IS NULL) AS today_new,
         COUNT(*) FILTER (WHERE payment_status = 'claimed_paid' AND merged_into IS NULL) AS claimed_count,
         COALESCE(SUM(amount_due) FILTER (WHERE payment_status = 'claimed_paid' AND merged_into IS NULL), 0) AS claimed_sum,
-        COUNT(*) FILTER (WHERE payment_status = 'paid' AND completed_at::date = CURRENT_DATE AND merged_into IS NULL) AS today_paid_count,
-        COALESCE(SUM(amount_due) FILTER (WHERE payment_status = 'paid' AND completed_at::date = CURRENT_DATE AND merged_into IS NULL), 0) AS today_paid_sum,
+        COUNT(*) FILTER (WHERE payment_status = 'paid' AND payment_reference IS NOT NULL AND completed_at::date = CURRENT_DATE AND merged_into IS NULL) AS today_paid_count,
+        COALESCE(SUM(amount_due) FILTER (WHERE payment_status = 'paid' AND payment_reference IS NOT NULL AND completed_at::date = CURRENT_DATE AND merged_into IS NULL), 0) AS today_paid_sum,
         COUNT(*) FILTER (WHERE invoice_number IS NOT NULL AND merged_into IS NULL) AS invoice_count
       FROM fiaon_applications
     `;

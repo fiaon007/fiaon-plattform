@@ -3097,7 +3097,7 @@ router.get("/admin/stripe/ai-insights", async (_req, res) => {
     const churnRisk = pastDueSubs.length;
     const churnedThisYear = canceledSubs.filter(s => s.canceled_at && new Date(s.canceled_at * 1000).getFullYear() === currentYear).length;
 
-    // ── AI narrative (GPT-4 / Gemini) ─────────────────────────────
+    // ── AI narrative (nur OpenAI — OPENAI_API_KEY, kein anderer Anbieter) ──
     let aiText: string | null = null;
     let aiError: string | null = null;
 
@@ -3129,11 +3129,11 @@ Gib deine Analyse als JSON mit folgender Struktur zurück (kein Markdown, nur re
 
     try {
       const openai = process.env.OPENAI_API_KEY ? new (await import('openai')).default({ apiKey: process.env.OPENAI_API_KEY }) : null;
-      const geminiKey = process.env.GOOGLE_GEMINI_API_KEY;
-
-      if (openai) {
+      if (!openai) {
+        aiError = "Kein OPENAI_API_KEY hinterlegt — die KI-Analyse nutzt ausschließlich OpenAI.";
+      } else {
         const resp = await openai.chat.completions.create({
-          model: 'gpt-4',
+          model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
           messages: [
             { role: 'system', content: 'Du bist ein präziser Finanzanalyst. Antworte immer als reines JSON ohne Markdown-Formatierung.' },
             { role: 'user', content: aiPrompt }
@@ -3142,12 +3142,6 @@ Gib deine Analyse als JSON mit folgender Struktur zurück (kein Markdown, nur re
           max_tokens: 600,
         });
         aiText = resp.choices[0]?.message?.content || null;
-      } else if (geminiKey) {
-        const { GoogleGenerativeAI } = await import('@google/generative-ai');
-        const genai = new GoogleGenerativeAI(geminiKey);
-        const model = genai.getGenerativeModel({ model: 'gemini-pro' });
-        const result = await model.generateContent(aiPrompt);
-        aiText = result.response.text() || null;
       }
     } catch (e: any) {
       aiError = e?.message || 'AI nicht verfügbar';

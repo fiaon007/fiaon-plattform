@@ -242,55 +242,53 @@ router.get("/agent/leistung", requireAgent, async (req: AgentRequest, res: Respo
 // ── KI-Zusammenfassung (P4-C) ────────────────────────────────────────────────
 // DSGVO: ausschließlich aggregierte Kennzahlen. Agenten werden anonymisiert
 // („Agent A/B/…"), Quellen-Namen sind Kampagnen-Bezeichnungen (keine Personen).
+//
+// WICHTIG: In FIAON läuft JEDE KI ausschließlich über OPENAI_API_KEY — kein
+// Gemini, kein anderer Anbieter. Diese Funktion ist die EINE zentrale Stelle
+// für alle FIAON-KI-Aufrufe (Leistung + Diagnose). Modell überschreibbar via
+// OPENAI_MODEL (Default: gpt-4o-mini).
 export async function aiComplete(prompt: string): Promise<{ text: string; provider: string }> {
-  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-  if (geminiKey) {
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
-        }),
-        signal: AbortSignal.timeout(45_000),
-      },
-    );
-    if (resp.ok) {
-      const j: any = await resp.json();
-      const text = j?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") || "";
-      if (text.trim()) return { text: text.trim(), provider: "gemini-2.0-flash" };
-    } else {
-      console.warn("[FIAON-LEISTUNG] Gemini-Fehler:", resp.status, await resp.text().catch(() => ""));
-    }
-  }
   const openaiKey = process.env.OPENAI_API_KEY;
-  if (openaiKey) {
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+  if (!openaiKey) {
+    throw new Error("Kein OPENAI_API_KEY hinterlegt. Bitte den OpenAI-Schlüssel im Deployment setzen — die KI-Auswertung nutzt ausschließlich OpenAI.");
+  }
+  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+
+  let resp: globalThis.Response;
+  try {
+    resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model,
         temperature: 0.3,
         max_tokens: 1500,
         messages: [{ role: "user", content: prompt }],
       }),
       signal: AbortSignal.timeout(45_000),
     });
-    if (resp.ok) {
-      const j: any = await resp.json();
-      const text = j?.choices?.[0]?.message?.content || "";
-      if (text.trim()) return { text: text.trim(), provider: "gpt-4o-mini" };
-    } else {
-      console.warn("[FIAON-LEISTUNG] OpenAI-Fehler:", resp.status, await resp.text().catch(() => ""));
-    }
+  } catch (e: any) {
+    const reason = e?.name === "TimeoutError" ? "Zeitüberschreitung (45 s)" : (e?.message || "Netzwerkfehler");
+    throw new Error(`OpenAI nicht erreichbar: ${reason}. Bitte später erneut versuchen — die Zahlen unten bleiben davon unberührt.`);
   }
-  throw new Error(
-    geminiKey || openaiKey
-      ? "Die KI hat nicht geantwortet (Zeitüberschreitung oder Dienst-Fehler). Die Zahlen unten bleiben davon unberührt — bitte später erneut versuchen."
-      : "Kein KI-Schlüssel hinterlegt (GEMINI_API_KEY oder OPENAI_API_KEY). Die Zahlen unten funktionieren ohne KI.",
-  );
+
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => "");
+    console.error("[FIAON-KI] OpenAI-Fehler:", resp.status, body.slice(0, 500));
+    // Klartext-Ursache aus der OpenAI-Antwort ziehen (Key ungültig, Kontingent, Modell …).
+    let detail = "";
+    try { detail = JSON.parse(body)?.error?.message || ""; } catch {}
+    const hint = resp.status === 401 ? "Der OPENAI_API_KEY ist ungültig oder abgelaufen."
+      : resp.status === 429 ? "OpenAI-Kontingent/Rate-Limit erreicht (Guthaben prüfen)."
+      : resp.status === 404 ? `Modell „${model}" ist für diesen Key nicht verfügbar (OPENAI_MODEL anpassen).`
+      : `OpenAI-Fehler (HTTP ${resp.status}).`;
+    throw new Error(`${hint}${detail ? ` — ${detail}` : ""}`);
+  }
+
+  const j: any = await resp.json();
+  const text = j?.choices?.[0]?.message?.content || "";
+  if (!text.trim()) throw new Error("OpenAI hat eine leere Antwort geliefert. Bitte erneut versuchen.");
+  return { text: text.trim(), provider: model };
 }
 
 router.post("/admin/leistung/ai-summary", async (req: Request, res: Response) => {

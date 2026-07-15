@@ -548,7 +548,7 @@ abgeleitet — dieselben Signale wie die Dashboard-Warn-Kacheln = „eine Wahrhe
 - Klartext + Link je Eintrag; **Direktaktionen**: „Akte freigeben" (`POST /admin/leads/:id/release-akte`), „Event erneut senden" (→ `/admin/events?ref=`).
 - **Verknüpfung P4-B:** kritische Ereignisse (24 h, distinct Fingerprint) fließen in `computeBadges` → Nav-Badge `diagnose` + Dashboard-Warn-Kachel.
 - Endpoints (`server/routes/fiaon-diagnose.ts`): `GET /admin/diagnose/events`, `GET /admin/diagnose/raw` (+`?download=1`), `GET /admin/diagnose/export`, `POST /admin/diagnose/purge`, `POST /admin/diagnose/ai`.
-- **KI:** derselbe Provider-Pfad wie P4-C (`aiComplete` aus `fiaon-leistung.ts` exportiert — Gemini Flash zuerst, dann gpt-4o-mini). Nur maskierte/aggregierte Fehlergruppen gehen an die KI.
+- **KI:** derselbe Provider-Pfad wie P4-C (`aiComplete` aus `fiaon-leistung.ts` exportiert). **In FIAON läuft jede KI ausschließlich über `OPENAI_API_KEY`** — kein Gemini/anderer Anbieter (Modell via `OPENAI_MODEL`, Default `gpt-4o-mini`). Bei Fehlern (401/429/404/Timeout) liefert der Endpoint die Klartext-Ursache. Nur maskierte/aggregierte Fehlergruppen gehen an die KI.
 
 ## P5-E — Design
 

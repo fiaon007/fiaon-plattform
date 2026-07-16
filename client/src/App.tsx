@@ -12,7 +12,7 @@ import BusinessAntragPage from "@/pages/business-antrag";
 import Terms from "@/pages/terms";
 import Privacy from "@/pages/privacy";
 import NotFound from "@/pages/not-found";
-import AdminDatabasePage from "@/pages/admin-database";
+import AdminKundenPage from "@/pages/admin-kunden";
 import WasIstFiaonPage from "@/pages/was-ist-fiaon";
 import PlattformKonzeptPage from "@/pages/plattform-konzept";
 import LoginPage from "@/pages/login";
@@ -61,6 +61,10 @@ import AdminKontoabgleichPage from "@/pages/admin-kontoabgleich";
 import AdminLeistungPage from "@/pages/admin-leistung";
 import AdminChangelogPage from "@/pages/admin-changelog";
 import AdminDiagnosePage from "@/pages/admin-diagnose";
+import AdminDublettenPage from "@/pages/admin-dubletten";
+import AdminKuendigungenPage from "@/pages/admin-kuendigungen";
+import AdminInvestorenPage from "@/pages/admin-investoren";
+import AdminBuchhaltungPage from "@/pages/admin-buchhaltung";
 import AgentLeistungPage from "@/pages/agent/leistung";
 import AgentLeadsPage from "@/pages/agent/leads";
 
@@ -87,13 +91,18 @@ function Router() {
       <Route path="/login" component={LoginPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/admin" component={admin(AdminHubPage)} />
-      <Route path="/admin/database" component={admin(AdminDatabasePage)} />
+      <Route path="/admin/database" component={admin(AdminKundenPage)} />
+      <Route path="/admin/kunden" component={admin(AdminKundenPage)} />
       <Route path="/admin/zahlungen" component={admin(AdminZahlungenPage)} />
       <Route path="/admin/finanzen" component={admin(AdminFinanzenPage)} />
       <Route path="/admin/kontoabgleich" component={admin(AdminKontoabgleichPage)} />
       <Route path="/admin/leads" component={admin(AdminLeadsPage)} />
+      <Route path="/admin/dubletten" component={admin(AdminDublettenPage)} />
+      <Route path="/admin/kuendigungen" component={admin(AdminKuendigungenPage)} />
+      <Route path="/admin/investoren" component={admin(AdminInvestorenPage)} />
       <Route path="/admin/rechnungen" component={admin(AdminRechnungenPage)} />
       <Route path="/admin/verbuchungen" component={admin(AdminVerbuchungenPage)} />
+      <Route path="/admin/buchhaltung" component={admin(AdminBuchhaltungPage)} />
       <Route path="/admin/events" component={admin(AdminEventsPage)} />
       <Route path="/admin/einstellungen" component={admin(AdminEinstellungenPage)} />
       <Route path="/admin/audit" component={admin(AdminAuditPage)} />

@@ -3,6 +3,7 @@ import { PageIntro } from "@/components/admin/PageHelp";
 import {
   Sparkles, MessageSquarePlus, Target, HandCoins, Eye, EyeOff,
   Trash2, Image as ImageIcon, ChevronDown, Save, Copy, Check,
+  Send, Link2, CircleDot,
 } from "lucide-react";
 
 // ============================================================================
@@ -44,10 +45,15 @@ interface UpdateRow {
   id: number; title: string; body: string; published: boolean;
   published_at: string | null; created_at: string; read_count: number;
 }
+interface ThreadMessage {
+  id: number; author: "agent" | "admin" | "system";
+  body: string | null; event: string | null; meta: string | null; created_at: string;
+}
 interface FeedbackRow {
   id: number; agent_id: number; agent_name: string; agent_email: string;
   category: string; title: string; description: string; has_screenshot: boolean;
   status: string; admin_comment: string | null; reward_cents: number | null;
+  duplicate_of: number | null; awaiting_reply: boolean; messages: ThreadMessage[];
   created_at: string;
 }
 interface GoalRow { id: number; name: string; email: string; daily_goal_cents: number | null; daily_contacts_goal: number | null }
@@ -76,7 +82,7 @@ export default function AdminAgentPortalPage() {
         subtitle="Hier informierst du dein Team (Updates), prüfst und belohnst Feedback und setzt Tagesziele."
         steps={[
           "„Updates“: Veröffentlichte Einträge erscheinen als Banner im Agent-Portal, bis jeder Agent sie gelesen hat. Entwürfe sieht niemand.",
-          "„Feedback“: Vorschläge und Bug-Meldungen der Agenten. Status setzen (geprüft/umgesetzt/abgelehnt) und optional eine einmalige Prämie gutschreiben — die Gutschrift landet direkt im Provisions-Guthaben.",
+          "„Feedback“: Jedes Ticket ist ein Gespräch (Thread). Antworte direkt im Verlauf — der Agent bekommt eine Mail und antwortet im selben Ticket (kein neues Ticket). Der Zähler oben zeigt nur Tickets, die auf DEINE Antwort warten. Status setzen, Duplikate verknüpfen („gehört zu #11“) und optional eine einmalige Prämie gutschreiben (landet im Provisions-Guthaben).",
           "„Tagesziele“: Die Zielwerte, die Agenten auf „Mein Tag“ sehen.",
         ]}
       />
@@ -193,18 +199,22 @@ function UpdatesSection({ flash }: { flash: (m: string) => void }) {
 
 function FeedbackSection({ flash }: { flash: (m: string) => void }) {
   const [items, setItems] = useState<FeedbackRow[]>([]);
-  const [filter, setFilter] = useState<string>("alle");
+  const [awaitingCount, setAwaitingCount] = useState(0);
+  const [filter, setFilter] = useState<string>("wartet");
   const [open, setOpen] = useState<Record<number, boolean>>({});
-  const [comments, setComments] = useState<Record<number, string>>({});
+  const [replies, setReplies] = useState<Record<number, string>>({});
+  const [dupInputs, setDupInputs] = useState<Record<number, string>>({});
+  const [dupOpen, setDupOpen] = useState<Record<number, boolean>>({});
   const [screenshots, setScreenshots] = useState<Record<number, string>>({});
   const [busy, setBusy] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
   const load = useCallback(() => {
-    api("/admin/agent-feedback").then((r) => { if (r.ok) setItems(r.json.data); });
+    api("/admin/agent-feedback").then((r) => { if (r.ok) { setItems(r.json.data); setAwaitingCount(r.json.awaitingCount || 0); } });
   }, []);
   useEffect(load, [load]);
 
+  // Statuswechsel: der Server hängt ein System-Ereignis in den Verlauf („Status auf … gesetzt").
   const setStatus = async (f: FeedbackRow, status: string) => {
     setBusy(f.id);
     const r = await api(`/admin/agent-feedback/${f.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
@@ -212,12 +222,31 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
     if (r.ok) load(); else flash(r.json?.error || "Fehler");
   };
 
-  const saveComment = async (f: FeedbackRow) => {
+  // Betreiber antwortet IM Thread → Agent bekommt eine Mail (Make/Brevo). Kein neues Ticket.
+  const sendReply = async (f: FeedbackRow) => {
+    const body = (replies[f.id] || "").trim();
+    if (!body) return;
     setBusy(f.id);
-    const r = await api(`/admin/agent-feedback/${f.id}`, { method: "PATCH", body: JSON.stringify({ adminComment: comments[f.id] ?? "" }) });
+    const r = await api(`/admin/agent-feedback/${f.id}/reply`, { method: "POST", body: JSON.stringify({ body }) });
     setBusy(null);
-    if (r.ok) { flash("Kommentar gespeichert — der Agent sieht ihn in seiner Übersicht."); load(); }
+    if (r.ok) { setReplies((x) => ({ ...x, [f.id]: "" })); flash("Antwort gesendet — der Agent wird per Mail benachrichtigt (Make-Event agent_feedback_reply)."); load(); }
     else flash(r.json?.error || "Fehler");
+  };
+
+  // Duplikat verknüpfen („gehört zu #11") statt schließen — nichts wird gelöscht.
+  const linkDuplicate = async (f: FeedbackRow, remove = false) => {
+    const raw = (dupInputs[f.id] || "").trim().replace(/^#/, "");
+    const target = remove ? null : raw === "" ? null : Number(raw);
+    if (!remove && (raw === "" || isNaN(Number(raw)))) { flash("Bitte eine gültige Ticketnummer eingeben"); return; }
+    setBusy(f.id);
+    const r = await api(`/admin/agent-feedback/${f.id}/duplicate`, { method: "POST", body: JSON.stringify({ duplicateOf: target }) });
+    setBusy(null);
+    if (r.ok) {
+      flash(target != null ? `Ticket #${f.id} als Duplikat von #${target} markiert.` : "Duplikat-Verknüpfung entfernt.");
+      setDupInputs((x) => ({ ...x, [f.id]: "" }));
+      setDupOpen((x) => ({ ...x, [f.id]: false }));
+      load();
+    } else flash(r.json?.error || "Fehler");
   };
 
   const reward = async (f: FeedbackRow) => {
@@ -233,16 +262,18 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
     else flash(r.json?.error || "Fehler");
   };
 
-  // Paket DF: Ticket-Volltext kopieren (Titel + Autor + Datum + Beschreibung) —
-  // für Weitergabe an Entwicklung/Ticketsystem, Umbrüche bleiben erhalten.
+  // Ticket-Volltext (gesamter Verlauf) kopieren — für Weitergabe an Entwicklung.
   const copyTicket = async (f: FeedbackRow) => {
-    const text = [
-      `[${CATEGORY_LABELS[f.category] || f.category}] ${f.title}`,
-      `Von: ${f.agent_name} (${f.agent_email}) · ${fmtDT(f.created_at)} · Ticket #${f.id} · Status: ${STATUS_OPTIONS.find((s) => s.key === f.status)?.label || f.status}`,
+    const head = [
+      `[${CATEGORY_LABELS[f.category] || f.category}] #${f.id} ${f.title}`,
+      `Von: ${f.agent_name} (${f.agent_email}) · Status: ${STATUS_OPTIONS.find((s) => s.key === f.status)?.label || f.status}${f.duplicate_of != null ? ` · Duplikat von #${f.duplicate_of}` : ""}`,
       "",
-      f.description,
-      f.admin_comment ? `\nAdmin-Kommentar: ${f.admin_comment}` : "",
-    ].join("\n").trim();
+    ];
+    const body = (f.messages || []).map((m) => {
+      const who = m.author === "agent" ? f.agent_name : m.author === "admin" ? "Betreiber" : "System";
+      return `[${who} · ${fmtDT(m.created_at)}] ${m.body}`;
+    });
+    const text = [...head, ...body].join("\n").trim();
     try {
       await navigator.clipboard.writeText(text);
       setCopiedId(f.id);
@@ -258,18 +289,22 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
     if (r.ok) setScreenshots((s) => ({ ...s, [f.id]: r.json.screenshot }));
   };
 
-  const filtered = filter === "alle" ? items : items.filter((f) => f.status === filter);
+  const filtered =
+    filter === "alle" ? items
+    : filter === "wartet" ? items.filter((f) => f.awaiting_reply)
+    : items.filter((f) => f.status === filter);
+
+  const FILTERS = [{ key: "wartet", label: "Wartet auf Antwort" }, { key: "alle", label: "Alle" }, ...STATUS_OPTIONS];
 
   return (
     <section className="mb-8">
       <h2 className="text-[13px] font-bold text-slate-900 mb-3 flex items-center gap-2">
         <MessageSquarePlus size={15} strokeWidth={1.8} className="text-slate-400" /> Agent-Feedback
-        <span className="text-[11px] font-semibold text-slate-400">({items.filter((f) => f.status === "offen").length} offen)</span>
+        <span className="text-[11px] font-semibold text-slate-400">({awaitingCount} {awaitingCount === 1 ? "wartet auf deine Antwort" : "warten auf deine Antwort"})</span>
       </h2>
       <div className="flex flex-wrap gap-2 mb-3">
-        {[{ key: "alle", label: "Alle" }, ...STATUS_OPTIONS].map((s) => {
-          // Paket DF: Zähler je Status — sofort sichtbar, wie viele Tickets wo liegen
-          const count = s.key === "alle" ? items.length : items.filter((f) => f.status === s.key).length;
+        {FILTERS.map((s) => {
+          const count = s.key === "alle" ? items.length : s.key === "wartet" ? awaitingCount : items.filter((f) => f.status === s.key).length;
           return (
             <button key={s.key} type="button" onClick={(e) => { e.stopPropagation(); setFilter(s.key); }}
               className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-colors ${
@@ -284,11 +319,17 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
         {filtered.length === 0 && <p className="px-4 py-8 text-center text-[12px] text-slate-400">Keine Tickets in dieser Ansicht.</p>}
         {filtered.map((f) => (
           <div key={f.id} className="px-4 py-3">
-            <button type="button" onClick={(e) => { e.stopPropagation(); setOpen((o) => ({ ...o, [f.id]: !o[f.id] })); if (comments[f.id] === undefined) setComments((c) => ({ ...c, [f.id]: f.admin_comment || "" })); }}
+            <button type="button" onClick={(e) => { e.stopPropagation(); setOpen((o) => ({ ...o, [f.id]: !o[f.id] })); }}
               className="w-full flex items-center justify-between gap-3 text-left">
               <div className="min-w-0">
                 <p className="text-[13px] font-semibold text-slate-900 truncate flex items-center gap-2">
-                  {f.title}
+                  {f.awaiting_reply && <span className="shrink-0 w-2 h-2 rounded-full bg-amber-500" aria-label="Wartet auf Antwort" />}
+                  <span className="truncate">#{f.id} · {f.title}</span>
+                  {f.duplicate_of != null && (
+                    <span className="px-1.5 py-0.5 rounded border border-slate-200 text-[10px] font-semibold text-slate-500 inline-flex items-center gap-1 shrink-0">
+                      <Link2 size={10} strokeWidth={2} /> #{f.duplicate_of}
+                    </span>
+                  )}
                   {f.reward_cents != null && (
                     <span className="px-1.5 py-0.5 rounded border border-slate-300 text-[10px] font-semibold text-slate-600 inline-flex items-center gap-1 shrink-0">
                       <HandCoins size={10} strokeWidth={2} /> {fmtCents(f.reward_cents)}
@@ -310,16 +351,9 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
             </button>
             {open[f.id] && (
               <div className="mt-3 space-y-3">
-                {f.description && f.description.trim() ? (
-                  <p className="text-[12.5px] text-slate-600 whitespace-pre-wrap bg-slate-50 border border-slate-100 rounded-lg px-3.5 py-2.5">{f.description}</p>
-                ) : (
-                  <p className="text-[12.5px] italic text-slate-400 bg-slate-50 border border-slate-100 rounded-lg px-3.5 py-2.5">Keine Beschreibung angegeben — Rückfrage beim Agent nötig.</p>
-                )}
-                <button type="button" onClick={(e) => { e.stopPropagation(); copyTicket(f); }}
-                  className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-500 hover:text-slate-800 transition-colors">
-                  {copiedId === f.id ? <Check size={13} strokeWidth={2} /> : <Copy size={13} strokeWidth={1.8} />}
-                  {copiedId === f.id ? "Kopiert" : "Ticket kopieren (Titel + Autor + Datum + Text)"}
-                </button>
+                {/* Verlauf: Agent links, Betreiber rechts, System mittig */}
+                <AdminThread messages={f.messages} agentName={f.agent_name} />
+
                 {f.has_screenshot && (
                   <div>
                     <button type="button" onClick={(e) => { e.stopPropagation(); showScreenshot(f); }}
@@ -329,6 +363,20 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
                     {screenshots[f.id] && <img src={screenshots[f.id]} alt="" className="mt-2 max-h-80 rounded-lg border border-slate-200" />}
                   </div>
                 )}
+
+                {/* Antwortfeld direkt im Thread (ersetzt das alte Kommentarfeld) */}
+                <div className="flex items-end gap-2">
+                  <textarea value={replies[f.id] ?? ""} onChange={(e) => setReplies((c) => ({ ...c, [f.id]: e.target.value }))}
+                    placeholder="Antwort an den Agenten … (er bekommt eine Mail; Antwort bleibt in diesem Thread)"
+                    rows={2} className={`${inputCls} resize-none`} maxLength={6000}
+                    onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); sendReply(f); } }} />
+                  <button type="button" disabled={busy === f.id || !(replies[f.id] || "").trim()} onClick={(e) => { e.stopPropagation(); sendReply(f); }}
+                    className={`${btnPrimary} shrink-0 inline-flex items-center gap-1.5`}>
+                    <Send size={13} strokeWidth={2} /> {busy === f.id ? "…" : "Antworten"}
+                  </button>
+                </div>
+
+                {/* Status + Bonus */}
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Status:</span>
                   {STATUS_OPTIONS.map((s) => (
@@ -348,11 +396,30 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
                     <span className="ml-auto text-[11.5px] font-semibold text-slate-500">Bereits honoriert: {fmtCents(f.reward_cents)}</span>
                   )}
                 </div>
-                <div className="flex gap-2">
-                  <input type="text" value={comments[f.id] ?? f.admin_comment ?? ""} onChange={(e) => setComments((c) => ({ ...c, [f.id]: e.target.value }))}
-                    placeholder="Kommentar für den Agent (sichtbar in seiner Feedback-Übersicht)" className={inputCls} maxLength={2000} />
-                  <button type="button" disabled={busy === f.id} onClick={(e) => { e.stopPropagation(); saveComment(f); }} className={btnGhost}>
-                    Speichern
+
+                {/* Werkzeuge: Duplikat verknüpfen + kopieren */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1 border-t border-slate-50">
+                  {dupOpen[f.id] ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[12px] text-slate-500">Duplikat von #</span>
+                      <input type="text" inputMode="numeric" value={dupInputs[f.id] ?? ""} onChange={(e) => setDupInputs((x) => ({ ...x, [f.id]: e.target.value }))}
+                        placeholder="z. B. 11" className="w-24 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[12px] text-slate-900 outline-none focus:border-slate-400" />
+                      <button type="button" disabled={busy === f.id} onClick={(e) => { e.stopPropagation(); linkDuplicate(f); }} className={btnGhost}>Verknüpfen</button>
+                      {f.duplicate_of != null && (
+                        <button type="button" disabled={busy === f.id} onClick={(e) => { e.stopPropagation(); linkDuplicate(f, true); }}
+                          className="text-[12px] font-semibold text-slate-400 hover:text-slate-700">Verknüpfung entfernen</button>
+                      )}
+                    </div>
+                  ) : (
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setDupOpen((x) => ({ ...x, [f.id]: true })); setDupInputs((x) => ({ ...x, [f.id]: f.duplicate_of != null ? String(f.duplicate_of) : "" })); }}
+                      className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-500 hover:text-slate-800 transition-colors">
+                      <Link2 size={13} strokeWidth={1.8} /> {f.duplicate_of != null ? `Duplikat von #${f.duplicate_of}` : "Als Duplikat markieren"}
+                    </button>
+                  )}
+                  <button type="button" onClick={(e) => { e.stopPropagation(); copyTicket(f); }}
+                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-500 hover:text-slate-800 transition-colors">
+                    {copiedId === f.id ? <Check size={13} strokeWidth={2} /> : <Copy size={13} strokeWidth={1.8} />}
+                    {copiedId === f.id ? "Kopiert" : "Verlauf kopieren"}
                   </button>
                 </div>
               </div>
@@ -361,6 +428,40 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
         ))}
       </div>
     </section>
+  );
+}
+
+// Chronologischer Verlauf im Admin: Agent links, Betreiber rechts, System mittig.
+function AdminThread({ messages, agentName }: { messages: ThreadMessage[]; agentName: string }) {
+  if (!messages || messages.length === 0) {
+    return <p className="text-[12px] text-slate-400">Noch kein Verlauf.</p>;
+  }
+  return (
+    <div className="space-y-2.5 bg-slate-50/60 border border-slate-100 rounded-xl p-3">
+      {messages.map((m) => {
+        if (m.author === "system") {
+          return (
+            <div key={m.id} className="flex justify-center">
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-500 bg-white border border-slate-200 rounded-full px-3 py-1">
+                <CircleDot size={11} className="text-slate-400" />
+                {m.body} <span className="text-slate-400">· {fmtDT(m.created_at)}</span>
+              </span>
+            </div>
+          );
+        }
+        const isAdmin = m.author === "admin";
+        return (
+          <div key={m.id} className={`flex ${isAdmin ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 ${isAdmin ? "bg-slate-900 text-white" : "bg-white border border-slate-200 text-slate-700"}`}>
+              <p className={`text-[10px] font-semibold uppercase tracking-wide mb-0.5 ${isAdmin ? "text-white/60" : "text-slate-400"}`}>
+                {isAdmin ? "Betreiber (Du)" : agentName} · {fmtDT(m.created_at)}
+              </p>
+              <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">{m.body}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

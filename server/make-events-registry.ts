@@ -192,6 +192,20 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       feedback_titel: "Kalender: Wochenansicht auf Mobile verbessern",
     },
   },
+  {
+    type: "agent_feedback_reply",
+    label: "Antwort auf Feedback-Ticket (Mitarbeiter)",
+    description: "Feuert, wenn der Betreiber im Feedback-Thread eines Mitarbeiters antwortet — der Agent wird per Mail informiert und antwortet im selben Ticket (kein neues Ticket). Betreiber-TODO: Make-Zweig 'agent_feedback_reply' + Brevo-Template mit Link zu portal_url anlegen.",
+    customerBound: false,
+    example: {
+      email: "anna.schmidt@example.com",
+      vorname: "Anna",
+      feedback_id: 11,
+      feedback_titel: "Kalender: Wochenansicht auf Mobile verbessern",
+      antwort: "Danke für den Hinweis — wir haben die Wochenansicht angepasst, schau sie dir gern an.",
+      portal_url: "https://www.fiaon.com/agent/feedback",
+    },
+  },
 ];
 
 export function getEventDef(type: string): MakeEventDef | undefined {

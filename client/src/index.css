@@ -622,8 +622,46 @@ html {
 /* — Ziel-Ring: weiche Fortschritts-Transition (SVG stroke-dashoffset) — */
 .agent-ring-arc { transition: stroke-dashoffset .8s var(--agent-ease, ease-out); }
 
+/* ── Admin-CI: Info-Tooltip + KI-Aktionen ──────────────────────────────
+   Zurückhaltende Tiefe (kein Neon, kein Glow), ruhige Übergänge 150–200 ms. */
+.fiaon-tip-card {
+  animation: fiaonTipIn 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top center;
+}
+@keyframes fiaonTipIn {
+  from { opacity: 0; transform: translateY(-3px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* KI-Buttons: subtiler dunkler Verlauf + feine Innenkante + weicher Schatten. */
+.fiaon-ai-btn {
+  background-image: linear-gradient(180deg, #334155 0%, #1e293b 55%, #0f172a 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.20),
+    0 1px 2px rgba(15, 23, 42, 0.20),
+    0 8px 20px -10px rgba(15, 23, 42, 0.45);
+}
+.fiaon-ai-btn:hover:not(:disabled) {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 2px 4px rgba(15, 23, 42, 0.22),
+    0 12px 26px -10px rgba(15, 23, 42, 0.52);
+  transform: translateY(-1px);
+}
+.fiaon-ai-btn:active:not(:disabled) { transform: translateY(0); }
+.fiaon-ai-pulse { animation: fiaonAiPulse 1.6s ease-in-out infinite; }
+@keyframes fiaonAiPulse {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 1; }
+}
+
 /* ── prefers-reduced-motion: alle nicht-essenziellen Bewegungen AUS ── */
 @media (prefers-reduced-motion: reduce) {
+  .fiaon-tip-card,
+  .fiaon-ai-pulse { animation: none !important; }
+  .fiaon-ai-btn:hover:not(:disabled) { transform: none !important; }
   .agent-reveal,
   .agent-panel-in,
   .agent-check-in,

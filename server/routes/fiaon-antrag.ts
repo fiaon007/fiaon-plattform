@@ -11,6 +11,7 @@ import { randomBytes } from "crypto";
 import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
 import { ensureInvoiceNumber, renderInvoicePdf, signInvoiceUrl, verifyInvoiceSig } from "../fiaon-invoice";
 import { absoluteUrl } from "../fiaon-base-url";
+import { normalizePhone } from "./fiaon-agent";
 
 const router = Router();
 
@@ -235,6 +236,311 @@ export async function supersedeSisterOrders(paidRef: string): Promise<{ count: n
   return { count: rows.length, refs: rows.map((r) => r.ref) };
 }
 
+// ── P3-A: Dubletten-ERKENNUNG beim Antrags-Intake (E-Mail ODER Telefon) ──────
+// Betreiber-Entscheidung (Ticket P3-A): NUR ERKENNEN + FLAGGEN.
+// Es findet KEIN automatischer Merge/Reuse im Zahlungsfluss statt — Zahlungs-
+// referenz, Rechnungsnummer und Provision bleiben unangetastet. Gefundene
+// Dubletten werden ausschließlich per Audit-Log dokumentiert und erscheinen in
+// der Admin-Dubletten-Verwaltung (E-Mail- UND Telefon-Gruppen).
+
+/**
+ * Normalisiert die Telefonnummer eines Antragsdatensatzes zu E.164 (+49…),
+ * damit Dubletten formatunabhängig (0170…, +49170…, 0049170…) erkannt werden.
+ * Prüft Privat- (phone_country_code+phone) und Geschäftsfeld (contact_phone).
+ */
+export function normalizeApplicationPhone(row: {
+  phone?: string | null;
+  phone_country_code?: string | null;
+  contact_phone?: string | null;
+}): string | null {
+  const candidates = [
+    (row.phone_country_code || row.phone) ? `${row.phone_country_code || ""}${row.phone || ""}` : null,
+    row.contact_phone || null,
+  ];
+  for (const c of candidates) {
+    if (!c) continue;
+    const n = normalizePhone(String(c));
+    if (n) return n; // "" (leer) und null (ungültig) überspringen
+  }
+  return null;
+}
+
+/**
+ * Erkennt aktive Schwester-Anträge (andere ref, gleiche E-Mail ODER normalisiertes
+ * Telefon, Status pending/claimed/paid, nicht gemerged). Schreibt bei Fund einen
+ * Audit-Eintrag in fiaon_contact_log. Wirft NIE — Aufruf ist fire-and-forget aus
+ * dem Zahlungsfluss und darf diesen niemals blockieren.
+ */
+export async function detectAndFlagDuplicateApplication(
+  ref: string,
+): Promise<{ sisters: string[]; byEmail: string[]; byPhone: string[] }> {
+  const empty = { sisters: [], byEmail: [], byPhone: [] };
+  try {
+    const rows = await sqlPool`
+      SELECT ref, email, contact_email, billing_email, phone, phone_country_code, contact_phone
+      FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
+    `;
+    if (rows.length === 0) return empty;
+    const me = rows[0];
+    const email = String(me.email || me.contact_email || me.billing_email || "").trim().toLowerCase() || null;
+    const phone = normalizeApplicationPhone(me);
+    if (!email && !phone) return empty;
+
+    const byEmailSet = new Set<string>();
+    const byPhoneSet = new Set<string>();
+
+    // E-Mail-Treffer direkt in SQL (case-insensitive, getrimmt).
+    if (email) {
+      const emailRows = await sqlPool`
+        SELECT ref FROM fiaon_applications
+        WHERE ref <> ${ref} AND merged_into IS NULL
+          AND payment_status IN ('pending_payment','claimed_paid','paid')
+          AND LOWER(TRIM(COALESCE(NULLIF(email,''), NULLIF(contact_email,''), NULLIF(billing_email,'')))) = ${email}
+      `;
+      for (const r of emailRows) byEmailSet.add(r.ref);
+    }
+
+    // Telefon-Treffer: Kandidaten mit vorhandener Nummer in JS normalisieren + vergleichen.
+    if (phone) {
+      const phoneCandidates = await sqlPool`
+        SELECT ref, phone, phone_country_code, contact_phone FROM fiaon_applications
+        WHERE ref <> ${ref} AND merged_into IS NULL
+          AND payment_status IN ('pending_payment','claimed_paid','paid')
+          AND (COALESCE(NULLIF(phone,''), NULLIF(contact_phone,'')) IS NOT NULL)
+      `;
+      for (const c of phoneCandidates) {
+        const cPhone = normalizeApplicationPhone(c);
+        if (cPhone && cPhone === phone) byPhoneSet.add(c.ref);
+      }
+    }
+
+    const sisters = Array.from(new Set([...Array.from(byEmailSet), ...Array.from(byPhoneSet)]));
+    if (sisters.length === 0) return empty;
+
+    const reasons: string[] = [];
+    if (byEmailSet.size > 0) reasons.push(`E-Mail: ${email}`);
+    if (byPhoneSet.size > 0) reasons.push(`Telefon: ${phone}`);
+    const note = `Mögliche Dublette erkannt (${reasons.join(" / ")}). Dieselbe Person existiert bereits als: ${sisters.join(", ")}. `
+      + `KEINE automatische Zusammenführung — bitte in der Dubletten-Verwaltung prüfen.`;
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${ref}, NULL, 'System', 'system', ${note})
+    `;
+    console.log(`[FIAON-DUBLETTE] Erkennung: ${ref} → Schwestern ${sisters.join(", ")} (${reasons.join(" / ")})`);
+    return { sisters, byEmail: Array.from(byEmailSet), byPhone: Array.from(byPhoneSet) };
+  } catch (err) {
+    console.error("[FIAON-DUBLETTE] Erkennung fehlgeschlagen:", err);
+    return empty;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SOFT-MERGE (Dubletten zusammenführen) — KEIN HARD-DELETE (Direktive).
+// Der Gewinner erbt fehlende Felder + die Kontakthistorie + Lead-Verknüpfungen
+// des Verlierers; der Verlierer bleibt als Zeile erhalten (merged_into = Gewinner),
+// verschwindet aber aus allen Listen. Jeder Merge ist vollständig protokolliert
+// und per undoMergeApplications() exakt umkehrbar.
+//
+// Provisionen (fiaon_commissions) bleiben BEWUSST an ihrer ursprünglichen ref
+// (Buchhaltungs-Spur): sie werden pro agent_id gezählt, unabhängig vom Merge —
+// so geht KEIN Anspruch verloren und es entsteht KEINER doppelt.
+// ═══════════════════════════════════════════════════════════════════════════
+
+let mergeLogEnsured = false;
+async function ensureMergeLog(): Promise<void> {
+  if (mergeLogEnsured) return;
+  await sqlPool`
+    CREATE TABLE IF NOT EXISTS fiaon_merge_log (
+      id SERIAL PRIMARY KEY,
+      batch VARCHAR NOT NULL,             -- gruppiert eine Merge-Aktion (mehrere Verlierer)
+      primary_ref VARCHAR NOT NULL,       -- Gewinner
+      loser_ref VARCHAR NOT NULL,         -- zusammengeführter Datensatz
+      filled_fields JSONB,                -- { spalte: alterGewinnerWert } für exaktes Undo der Feld-Füllung
+      moved_log_ids JSONB,                -- fiaon_contact_log-IDs, die von loser→primary umgehängt wurden
+      moved_lead_ids JSONB,               -- fiaon_leads-IDs, deren converted_order_id umgehängt wurde
+      actor VARCHAR,
+      undone_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_merge_log_batch_idx ON fiaon_merge_log(batch)`;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_merge_log_primary_idx ON fiaon_merge_log(primary_ref)`;
+  mergeLogEnsured = true;
+}
+
+// Felder, die beim Merge NIE aus dem Verlierer übernommen werden (Identität/Technik).
+const MERGE_SKIP_COLS = new Set([
+  "id", "ref", "created_at", "updated_at", "merged_into", "superseded_by",
+  "payment_status", "payment_reference", "invoice_number", "invoice_date",
+  "amount_due", "confirmed_email_sent_at", "cancelled_at", "gdpr_deleted_at",
+]);
+// KYC-Dokumente separat behandelt (bytea) — nur füllen, wenn Gewinner leer.
+const MERGE_DOC_COLS = ["bank_statement_pdf", "id_card_pdf", "schufa_pdf"];
+
+export interface MergeResult {
+  ok: boolean;
+  batch?: string;
+  primaryRef: string;
+  merged: string[];
+  fieldsFilled: string[];
+  movedContactLogs: number;
+  movedLeadLinks: number;
+  error?: string;
+}
+
+/**
+ * Führt duplicateRefs in primaryRef zusammen (Soft-Merge). Reihenfolge der
+ * Verlierer bestimmt, welcher zuerst ein leeres Gewinner-Feld füllt.
+ * NUR FÜLLEN, NIE ÜBERSCHREIBEN. Vollständig umkehrbar (fiaon_merge_log).
+ */
+export async function mergeApplications(
+  primaryRef: string,
+  duplicateRefs: string[],
+  actor: string,
+): Promise<MergeResult> {
+  await ensurePaymentColumns();
+  await ensureMergeLog();
+  const loserRefs = Array.from(new Set(duplicateRefs.filter((r) => r && r !== primaryRef)));
+  const base: MergeResult = { ok: false, primaryRef, merged: [], fieldsFilled: [], movedContactLogs: 0, movedLeadLinks: 0 };
+  if (loserRefs.length === 0) return { ...base, error: "Keine Verlierer-Refs" };
+
+  const allRefs = [primaryRef, ...loserRefs];
+  const rows = await sqlPool`SELECT * FROM fiaon_applications WHERE ref = ANY(${allRefs})`;
+  const primary = rows.find((r: any) => r.ref === primaryRef);
+  if (!primary) return { ...base, error: "Gewinner-Datensatz nicht gefunden" };
+  const losers = rows.filter((r: any) => r.ref !== primaryRef && loserRefs.includes(r.ref));
+  if (losers.length === 0) return { ...base, error: "Keine Verlierer-Datensätze gefunden" };
+
+  const batch = `merge_${Date.now()}_${randomBytes(4).toString("hex")}`;
+  const fieldsFilledAll = new Set<string>();
+
+  // Nur EINMAL pro leerem Gewinner-Feld füllen: hier den zusammengeführten Wert bestimmen.
+  const isEmpty = (v: any) => v === null || v === undefined || v === "";
+  const updates: Record<string, any> = {};
+  const oldPrimaryVals: Record<string, any> = {};
+  for (const dup of losers) {
+    for (const [col, val] of Object.entries(dup as Record<string, any>)) {
+      if (MERGE_SKIP_COLS.has(col) || MERGE_DOC_COLS.includes(col)) continue;
+      if (col in updates) continue; // bereits durch früheren Verlierer gefüllt
+      if (isEmpty((primary as any)[col]) && !isEmpty(val)) {
+        updates[col] = val;
+        oldPrimaryVals[col] = (primary as any)[col] ?? null;
+      }
+    }
+  }
+  for (const docCol of MERGE_DOC_COLS) {
+    if ((primary as any)[docCol] == null) {
+      const donor = losers.find((d: any) => d[docCol] != null);
+      if (donor) { updates[docCol] = (donor as any)[docCol]; oldPrimaryVals[docCol] = null; }
+    }
+  }
+
+  // 1) Fehlende Gewinner-Felder füllen (nur füllen, nie überschreiben).
+  if (Object.keys(updates).length > 0) {
+    const cols = Object.keys(updates);
+    const setClauses = cols.map((col, i) => `${col} = $${i + 2}`).join(", ");
+    await sqlPool.unsafe(
+      `UPDATE fiaon_applications SET ${setClauses}, updated_at = NOW() WHERE ref = $1`,
+      [primaryRef, ...cols.map((c) => updates[c])],
+    );
+    cols.forEach((c) => fieldsFilledAll.add(c));
+  }
+
+  // 2) Pro Verlierer: Kontakthistorie + Lead-Verknüpfungen umhängen, dann soft-mergen.
+  for (const loser of losers) {
+    const movedLogs = await sqlPool`
+      UPDATE fiaon_contact_log SET ref = ${primaryRef}
+      WHERE ref = ${loser.ref} RETURNING id
+    `;
+    const movedLeads = await sqlPool`
+      UPDATE fiaon_leads SET converted_order_id = ${primaryRef}, updated_at = NOW()
+      WHERE converted_order_id = ${loser.ref} RETURNING id
+    `;
+    await sqlPool`
+      UPDATE fiaon_applications
+      SET merged_into = ${primaryRef}, updated_at = NOW()
+      WHERE ref = ${loser.ref} AND merged_into IS NULL
+    `;
+    // Nur die Felder protokollieren, die AUS DIESEM Verlierer stammen (für lesbares Undo/Audit).
+    const filledFromThis: Record<string, any> = {};
+    for (const [col, val] of Object.entries(updates)) {
+      if ((loser as any)[col] === val && col in oldPrimaryVals) filledFromThis[col] = oldPrimaryVals[col];
+    }
+    await sqlPool`
+      INSERT INTO fiaon_merge_log (batch, primary_ref, loser_ref, filled_fields, moved_log_ids, moved_lead_ids, actor)
+      VALUES (${batch}, ${primaryRef}, ${loser.ref},
+              ${sqlPool.json(filledFromThis)},
+              ${sqlPool.json(movedLogs.map((r: any) => r.id))},
+              ${sqlPool.json(movedLeads.map((r: any) => r.id))},
+              ${actor})
+    `;
+    base.movedContactLogs += movedLogs.length;
+    base.movedLeadLinks += movedLeads.length;
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${loser.ref}, NULL, ${actor}, 'system',
+              ${`Als Dublette zusammengeführt in ${primaryRef} (Soft-Merge, Batch ${batch}). Kein Datenverlust — rückgängig machbar.`})
+    `;
+  }
+
+  await sqlPool`
+    INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+    VALUES (${primaryRef}, NULL, ${actor}, 'system',
+            ${`Dubletten zusammengeführt: ${loserRefs.join(", ")} → dieser Datensatz. Gefüllte Felder: ${Array.from(fieldsFilledAll).join(", ") || "keine"}. Batch ${batch}.`})
+  `;
+
+  console.log(`[FIAON-MERGE] Soft-Merge ${loserRefs.length} → ${primaryRef} (Batch ${batch}); Felder: ${Array.from(fieldsFilledAll).join(", ") || "keine"}; ${base.movedContactLogs} Log-Einträge, ${base.movedLeadLinks} Leads umgehängt`);
+  return { ok: true, batch, primaryRef, merged: loserRefs, fieldsFilled: Array.from(fieldsFilledAll), movedContactLogs: base.movedContactLogs, movedLeadLinks: base.movedLeadLinks };
+}
+
+/**
+ * Macht einen Merge-Batch exakt rückgängig: merged_into zurück auf NULL,
+ * gefüllte Felder zurück auf den alten Gewinner-Wert, umgehängte Kontakt-Logs
+ * und Lead-Verknüpfungen zurück auf den Verlierer.
+ */
+export async function undoMergeApplications(
+  batch: string,
+  actor: string,
+): Promise<{ ok: boolean; restored: string[]; error?: string }> {
+  await ensureMergeLog();
+  const entries = await sqlPool`SELECT * FROM fiaon_merge_log WHERE batch = ${batch} AND undone_at IS NULL`;
+  if (entries.length === 0) return { ok: false, restored: [], error: "Kein rückgängig machbarer Merge-Batch gefunden" };
+  const restored: string[] = [];
+  for (const e of entries) {
+    // Kontakt-Logs zurück auf den Verlierer
+    const logIds: number[] = Array.isArray(e.moved_log_ids) ? e.moved_log_ids : [];
+    if (logIds.length > 0) {
+      await sqlPool`UPDATE fiaon_contact_log SET ref = ${e.loser_ref} WHERE id = ANY(${logIds})`;
+    }
+    // Lead-Verknüpfungen zurück auf den Verlierer
+    const leadIds: number[] = Array.isArray(e.moved_lead_ids) ? e.moved_lead_ids : [];
+    if (leadIds.length > 0) {
+      await sqlPool`UPDATE fiaon_leads SET converted_order_id = ${e.loser_ref}, updated_at = NOW() WHERE id = ANY(${leadIds})`;
+    }
+    // Gefüllte Felder auf dem Gewinner zurücksetzen (nur die aus diesem Verlierer stammenden)
+    const filled: Record<string, any> = e.filled_fields || {};
+    const cols = Object.keys(filled);
+    if (cols.length > 0) {
+      const setClauses = cols.map((col, i) => `${col} = $${i + 2}`).join(", ");
+      await sqlPool.unsafe(
+        `UPDATE fiaon_applications SET ${setClauses}, updated_at = NOW() WHERE ref = $1`,
+        [e.primary_ref, ...cols.map((c) => filled[c])],
+      );
+    }
+    // Verlierer reaktivieren
+    await sqlPool`UPDATE fiaon_applications SET merged_into = NULL, updated_at = NOW() WHERE ref = ${e.loser_ref}`;
+    await sqlPool`UPDATE fiaon_merge_log SET undone_at = NOW() WHERE id = ${e.id}`;
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${e.loser_ref}, NULL, ${actor}, 'system',
+              ${`Merge rückgängig gemacht (Batch ${batch}) — Datensatz wieder eigenständig.`})
+    `;
+    restored.push(e.loser_ref);
+  }
+  console.log(`[FIAON-MERGE] Undo Batch ${batch}: ${restored.length} Datensätze wiederhergestellt (${actor})`);
+  return { ok: true, restored };
+}
+
 // Paket X/DB: Bezahlt-Bestätigung (Make 'payment_confirmed' mit login_url) —
 // genau 1× pro Bestellung über atomaren Flag-Claim (confirmed_email_sent_at).
 // Wiederverwendbar für mark-paid UND Kontoabgleich (fiaon-reconcile.ts).
@@ -313,6 +619,10 @@ router.post("/payment-order", async (req, res) => {
 
     // Paket AE1: neue Bestellung sofort fair verteilen (Round-Robin, fire-and-forget)
     import("./fiaon-agent").then((m) => m.distributeUnassignedOrders()).catch((e) => console.error("[FIAON-VERTEILUNG]", e));
+
+    // P3-A: Dubletten-ERKENNUNG (E-Mail ODER Telefon) — nur erkennen + flaggen,
+    // KEIN Merge/Reuse. Fire-and-forget: blockiert oder verändert den Zahlungsfluss nie.
+    detectAndFlagDuplicateApplication(ref).catch((e) => console.error("[FIAON-DUBLETTE] Erkennung:", e));
 
     // Paket BA3: Auto-Konversion (Sicherheitsnetz) — Lead per E-Mail/Telefon konvertieren.
     try {
@@ -1182,54 +1492,155 @@ router.post("/admin/duplicates/supersede-run", async (req, res) => {
   }
 });
 
-// Dubletten-Gruppen für die Admin-Ansicht: pro E-Mail alle Anträge mit Status.
+// Dubletten-Gruppen für die Admin-Ansicht: gruppiert nach E-Mail UND nach
+// normalisiertem Telefon (P3-A). Telefon-Gruppen werden nur gezeigt, wenn sie
+// eine Verbindung aufdecken, die die E-Mail-Gruppierung NICHT bereits abdeckt
+// (z. B. gleiche Nummer bei unterschiedlichen/fehlenden E-Mails).
+// Gewinner-Score (Dubletten): bezahlt > angekündigt > offen; mit Agent > ohne;
+// vollständiger > unvollständiger. Höchster Score = Vorschlag „behalten“.
+function winnerScore(a: any): number {
+  let s = 0;
+  if (a.payment_status === "paid") s += 5000;
+  else if (a.payment_status === "claimed_paid") s += 3000;
+  else if (a.payment_status === "pending_payment") s += 2000;
+  else if (a.payment_status === "cancelled" || a.payment_status === "expired") s += 100;
+  if (a.payment_reference) s += 400;
+  if (a.assigned_agent_id) s += 300;              // mit Agent > ohne
+  if (a.invoice_number) s += 200;
+  // Vollständigkeit: gefüllte Kernfelder zählen
+  for (const f of ["email", "phone", "contact_phone", "street", "zip", "city", "birthdate", "first_name", "last_name"]) {
+    if (a[f] !== null && a[f] !== undefined && a[f] !== "") s += 10;
+  }
+  return s;
+}
+function appPhone(a: any): string | null { return normalizeApplicationPhone(a); }
+function appHasAddress(a: any): boolean { return !!(String(a.street || "").trim() && String(a.city || "").trim()); }
+function normLast(a: any): string { return String(a.last_name || "").trim().toLowerCase(); }
+
 router.get("/admin/duplicates/groups", async (_req, res) => {
   try {
     await ensurePaymentColumns();
     const rows = await sqlPool`
       SELECT ref, payment_reference, payment_status, superseded_by, amount_due, pack_name,
-             first_name, last_name, contact_name, email, invoice_number, created_at, gdpr_deleted_at
+             first_name, last_name, contact_name, email, phone, phone_country_code, contact_phone,
+             street, zip, city, birthdate, assigned_agent_id, status, account_status,
+             invoice_number, created_at, gdpr_deleted_at
       FROM fiaon_applications
-      WHERE merged_into IS NULL AND email IS NOT NULL AND TRIM(email) != ''
-        AND LOWER(TRIM(email)) IN (
-          SELECT LOWER(TRIM(email)) FROM fiaon_applications
-          WHERE merged_into IS NULL AND email IS NOT NULL AND TRIM(email) != ''
-          GROUP BY LOWER(TRIM(email)) HAVING COUNT(*) > 1
-        )
-      ORDER BY LOWER(TRIM(email)), created_at DESC
+      WHERE merged_into IS NULL
+      ORDER BY created_at DESC NULLS LAST
     `;
-    const groups = new Map<string, any[]>();
+
+    // ── E-Mail-Gruppen ──
+    const byEmail = new Map<string, any[]>();
     for (const r of rows) {
-      const em = String(r.email).trim().toLowerCase();
-      if (!groups.has(em)) groups.set(em, []);
-      groups.get(em)!.push(r);
+      const em = String(r.email || "").trim().toLowerCase();
+      if (!em) continue;
+      if (!byEmail.has(em)) byEmail.set(em, []);
+      byEmail.get(em)!.push(r);
     }
-    res.json({ ok: true, groups: Array.from(groups.entries()).map(([email, apps]) => ({ email, apps })) });
+    const emailGroups = Array.from(byEmail.entries())
+      .filter(([, apps]) => apps.length > 1)
+      .map(([email, apps]) => ({ matchType: "email" as const, key: `email:${email}`, label: email, email, apps }));
+    // Refs, die bereits über eine E-Mail-Gruppe erfasst sind (für Redundanz-Prüfung).
+    const emailRefSets = emailGroups.map((g) => new Set(g.apps.map((a) => a.ref)));
+
+    // ── Telefon-Gruppen (normalisiert) ──
+    const byPhone = new Map<string, any[]>();
+    for (const r of rows) {
+      const p = normalizeApplicationPhone(r);
+      if (!p) continue;
+      if (!byPhone.has(p)) byPhone.set(p, []);
+      byPhone.get(p)!.push(r);
+    }
+    const phoneGroups = Array.from(byPhone.entries())
+      .filter(([, apps]) => apps.length > 1)
+      .filter(([, apps]) => {
+        // Redundant, wenn alle Anträge dieselbe (nicht-leere) E-Mail teilen → E-Mail-Gruppe deckt es ab.
+        const emails = new Set(apps.map((a) => String(a.email || "").trim().toLowerCase()));
+        const hasEmpty = apps.some((a) => !String(a.email || "").trim());
+        if (!hasEmpty && emails.size === 1) return false;
+        // Redundant, wenn diese exakte Ref-Menge bereits als E-Mail-Gruppe existiert.
+        const refSet = new Set(apps.map((a) => a.ref));
+        return !emailRefSets.some((es) => es.size === refSet.size && Array.from(refSet).every((r) => es.has(r)));
+      })
+      .map(([phone, apps]) => ({ matchType: "phone" as const, key: `phone:${phone}`, label: phone, email: null, apps }));
+
+    // ── Anreicherung: Gewinner-Vorschlag, Konfidenz, Feld-/Anrufbarkeits-Vorschau ──
+    const enrich = (g: any) => {
+      const apps = [...g.apps].sort((x: any, y: any) => winnerScore(y) - winnerScore(x)
+        || new Date(y.created_at || 0).getTime() - new Date(x.created_at || 0).getTime());
+      const winner = apps[0];
+      const losers = apps.slice(1);
+
+      // Konfidenz: gleiche E-Mail + gleicher Nachname = sicher; sonst wahrscheinlich/prüfen.
+      const lastNames = new Set(apps.map(normLast).filter(Boolean));
+      const sameLast = lastNames.size <= 1 && lastNames.size > 0;
+      let confidence: "sicher" | "wahrscheinlich" | "pruefen";
+      if (g.matchType === "email") confidence = sameLast ? "sicher" : "wahrscheinlich";
+      else confidence = sameLast ? "wahrscheinlich" : "pruefen";
+
+      // Feld-Vorschau: was würde der Gewinner beim Merge dazugewinnen (nur füllen)?
+      const gainable: string[] = [];
+      const winnerPhone = appPhone(winner);
+      const loserPhone = losers.map(appPhone).find(Boolean);
+      const callableGain = !winnerPhone && !!loserPhone;   // Gewinner wird anrufbar
+      if (callableGain) gainable.push("Telefon");
+      if (!String(winner.email || "").trim() && losers.some((l: any) => String(l.email || "").trim())) gainable.push("E-Mail");
+      if (!appHasAddress(winner) && losers.some(appHasAddress)) gainable.push("Adresse");
+      if (!winner.birthdate && losers.some((l: any) => l.birthdate)) gainable.push("Geburtsdatum");
+
+      // Anzahl bezahlter Datensätze in der Gruppe (Doppelzahler-Signal)
+      const paidCount = apps.filter((a: any) => a.payment_status === "paid").length;
+
+      return { ...g, apps, winnerRef: winner.ref, confidence, gainable, callableGain, paidCount };
+    };
+
+    const groups = [...emailGroups, ...phoneGroups].map(enrich);
+    // Sortierung: Doppelzahler (paidCount>1) zuerst, dann Anrufbarkeits-Gewinn, dann sichere.
+    const confRank: Record<string, number> = { sicher: 0, wahrscheinlich: 1, pruefen: 2 };
+    groups.sort((a, b) =>
+      (b.paidCount > 1 ? 1 : 0) - (a.paidCount > 1 ? 1 : 0)
+      || (b.callableGain ? 1 : 0) - (a.callableGain ? 1 : 0)
+      || confRank[a.confidence] - confRank[b.confidence]);
+
+    res.json({ ok: true, groups });
   } catch (err) {
     console.error("[FIAON-DUBLETTE] groups:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
 
-// „Alle offenen stornieren“ für eine Dubletten-Gruppe (per E-Mail).
+// „Alle offenen stornieren“ für eine Dubletten-Gruppe. Akzeptiert entweder
+// eine E-Mail (E-Mail-Gruppe) ODER eine explizite Ref-Liste (Telefon-Gruppe,
+// P3-A) — so lassen sich auch Gruppen ohne gemeinsame E-Mail behandeln.
 router.post("/admin/duplicates/cancel-open", async (req, res) => {
   try {
     await ensurePaymentColumns();
     const email = String(req.body?.email || "").trim().toLowerCase();
-    if (!email || !req.body?.confirmed) return res.status(400).json({ ok: false, error: "email + confirmed erforderlich" });
-    const rows = await sqlPool`
-      UPDATE fiaon_applications SET payment_status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
-      WHERE LOWER(TRIM(email)) = ${email} AND merged_into IS NULL
-        AND payment_status IN ('pending_payment', 'claimed_paid', 'expired')
-      RETURNING ref
-    `;
+    const refs: string[] = Array.isArray(req.body?.refs) ? req.body.refs.map((r: any) => String(r)) : [];
+    if (!req.body?.confirmed || (!email && refs.length === 0)) {
+      return res.status(400).json({ ok: false, error: "confirmed + (email ODER refs[]) erforderlich" });
+    }
+    const rows = email
+      ? await sqlPool`
+          UPDATE fiaon_applications SET payment_status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+          WHERE LOWER(TRIM(email)) = ${email} AND merged_into IS NULL
+            AND payment_status IN ('pending_payment', 'claimed_paid', 'expired')
+          RETURNING ref
+        `
+      : await sqlPool`
+          UPDATE fiaon_applications SET payment_status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+          WHERE ref = ANY(${refs}) AND merged_into IS NULL
+            AND payment_status IN ('pending_payment', 'claimed_paid', 'expired')
+          RETURNING ref
+        `;
     for (const r of rows) {
       await sqlPool`
         INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
         VALUES (${r.ref}, NULL, 'Admin', 'system', 'Offene Dubletten-Bestellung storniert (Gruppen-Aktion)')
       `;
     }
-    console.log(`[FIAON-DUBLETTE] cancel-open: ${rows.length} Bestellungen von ${email} storniert`);
+    console.log(`[FIAON-DUBLETTE] cancel-open: ${rows.length} Bestellungen storniert (${email || `refs=${refs.length}`})`);
     res.json({ ok: true, cancelled: rows.length, refs: rows.map((r) => r.ref) });
   } catch (err) {
     console.error("[FIAON-DUBLETTE] cancel-open:", err);
@@ -2506,67 +2917,40 @@ router.post("/admin/applications/merge", async (req, res) => {
       return res.status(400).json({ ok: false, error: "primaryRef und duplicateRefs[] erforderlich" });
     }
 
-    // Fetch all records
-    const allRefs = [primaryRef, ...duplicateRefs];
-    const rows = await sqlPool`
-      SELECT * FROM fiaon_applications WHERE ref = ANY(${allRefs})
-    `;
-    if (rows.length < 2) {
-      return res.status(404).json({ ok: false, error: "Nicht genug Datensätze zum Zusammenführen gefunden" });
+    // Soft-Merge (KEIN Hard-Delete): Verlierer bleiben als merged_into-Zeile erhalten,
+    // Historie + Lead-Verknüpfungen wandern zum Gewinner, alles umkehrbar (Batch).
+    const actor = String((req as any).fiaonAdmin?.name || (req as any).adminName || "Admin");
+    const result = await mergeApplications(primaryRef, duplicateRefs, actor);
+    if (!result.ok) {
+      return res.status(404).json({ ok: false, error: result.error || "Merge fehlgeschlagen" });
     }
-
-    const primary = rows.find((r: any) => r.ref === primaryRef);
-    if (!primary) {
-      return res.status(404).json({ ok: false, error: "Primary-Datensatz nicht gefunden" });
-    }
-
-    const SKIP = new Set(["id", "ref", "created_at", "bank_statement_pdf", "id_card_pdf", "schufa_pdf"]);
-    const duplicates = rows.filter((r: any) => r.ref !== primaryRef);
-
-    // Merge: for each column, if primary is null/empty, take the first non-null from duplicates
-    const updates: Record<string, any> = {};
-    for (const dup of duplicates) {
-      for (const [col, val] of Object.entries(dup as Record<string, any>)) {
-        if (SKIP.has(col)) continue;
-        const pVal = (primary as Record<string, any>)[col];
-        const isEmpty = pVal === null || pVal === undefined || pVal === '';
-        if (isEmpty && val !== null && val !== undefined && val !== '') {
-          if (!(col in updates)) updates[col] = val;
-        }
-      }
-    }
-
-    // Also merge KYC docs: if primary has no doc but a dup does, copy it
-    for (const docCol of ["bank_statement_pdf", "id_card_pdf", "schufa_pdf"]) {
-      if ((primary as any)[docCol] == null) {
-        const donor = duplicates.find((d: any) => d[docCol] != null);
-        if (donor) updates[docCol] = (donor as any)[docCol];
-      }
-    }
-
-    // Apply merged fields to primary
-    if (Object.keys(updates).length > 0) {
-      const setClauses = Object.entries(updates)
-        .map(([col], i) => `${col} = $${i + 2}`)
-        .join(", ");
-      const vals = Object.values(updates);
-      await sqlPool.unsafe(
-        `UPDATE fiaon_applications SET ${setClauses}, updated_at = NOW() WHERE ref = $1`,
-        [primaryRef, ...vals]
-      );
-    }
-
-    // Delete duplicates
-    const dupRefs = duplicateRefs.filter((r: string) => r !== primaryRef);
-    if (dupRefs.length > 0) {
-      await sqlPool`DELETE FROM fiaon_applications WHERE ref = ANY(${dupRefs})`;
-    }
-
-    console.log(`[FIAON-MERGE] Merged ${dupRefs.length} duplicates into ${primaryRef}. Fields updated: ${Object.keys(updates).join(', ') || 'none'}`);
-    res.json({ ok: true, mergedInto: primaryRef, deleted: dupRefs, fieldsUpdated: Object.keys(updates) });
+    res.json({
+      ok: true,
+      mergedInto: result.primaryRef,
+      merged: result.merged,           // soft-merged (NICHT gelöscht)
+      batch: result.batch,             // für Undo
+      fieldsUpdated: result.fieldsFilled,
+      movedContactLogs: result.movedContactLogs,
+      movedLeadLinks: result.movedLeadLinks,
+    });
   } catch (err: any) {
     console.error("[FIAON-MERGE] ERROR:", err?.message || err);
     res.status(500).json({ ok: false, error: "Merge fehlgeschlagen", detail: String(err?.message || err) });
+  }
+});
+
+// Merge rückgängig machen (Undo per Batch aus fiaon_merge_log).
+router.post("/admin/applications/merge/undo", async (req, res) => {
+  try {
+    const batch = String(req.body?.batch || "").trim();
+    if (!batch) return res.status(400).json({ ok: false, error: "batch erforderlich" });
+    const actor = String((req as any).fiaonAdmin?.name || (req as any).adminName || "Admin");
+    const result = await undoMergeApplications(batch, actor);
+    if (!result.ok) return res.status(404).json({ ok: false, error: result.error });
+    res.json({ ok: true, restored: result.restored });
+  } catch (err: any) {
+    console.error("[FIAON-MERGE] UNDO ERROR:", err?.message || err);
+    res.status(500).json({ ok: false, error: "Undo fehlgeschlagen", detail: String(err?.message || err) });
   }
 });
 

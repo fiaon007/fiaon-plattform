@@ -297,14 +297,20 @@ router.post("/admin/leistung/ai-summary", async (req: Request, res: Response) =>
     const data = await computeLeistung(from, to);
 
     // Anonymisieren: Agent A/B/C … — KEINE Namen an die KI.
+    // Der Token pro Agent ist stabil an die Reihenfolge gekoppelt; die Rück-
+    // Zuordnung (Token → echter Name) bleibt AUSSCHLIESSLICH auf unserem Server
+    // und wird der Anzeige mitgegeben — die KI erhält niemals einen Namen.
+    const agentTokens = data.agents.map((_: any, i: number) => `Agent ${String.fromCharCode(65 + (i % 26))}${i >= 26 ? Math.floor(i / 26) : ""}`);
     const anonAgents = data.agents.map((a: any, i: number) => ({
-      agent: `Agent ${String.fromCharCode(65 + (i % 26))}${i >= 26 ? Math.floor(i / 26) : ""}`,
+      agent: agentTokens[i],
       akten: a.akten, kontakte: a.kontakte, links: a.links,
       ergebnisse: a.outcomes, konversionen: a.konversionen,
       abschluesse: a.abschluesse, umsatzEur: Math.round(a.umsatzCents / 100),
       reaktionStundenLeadEingangBisKontakt: a.reaktionStunden,
       rueckgabeQuotePct: a.rueckgabeQuote, direktzahlerQuotePct: a.direktzahlerQuote,
     }));
+    const agentMap: Record<string, string> = {};
+    data.agents.forEach((a: any, i: number) => { agentMap[agentTokens[i]] = a.name; });
     const payload = {
       zeitraum: data.range,
       team: anonAgents,
@@ -331,7 +337,10 @@ router.post("/admin/leistung/ai-summary", async (req: Request, res: Response) =>
     ].join("\n");
 
     const { text, provider } = await aiComplete(prompt);
-    const summary = { at: new Date().toISOString(), range: data.range, provider, text };
+    // agentMap: Rück-Zuordnung Token→Name NUR für die Anzeige. Der gespeicherte
+    // Text bleibt anonymisiert; die Anzeige ersetzt „Agent A" durch den echten
+    // Namen (Datenschutz gegenüber OpenAI bleibt, Analyse wird lesbar).
+    const summary = { at: new Date().toISOString(), range: data.range, provider, text, agentMap };
     // Speicherbar: letzte Zusammenfassung in den Settings (kopierbar im UI).
     await setSetting("leistung_last_summary", JSON.stringify(summary));
     res.json({ ok: true, summary });

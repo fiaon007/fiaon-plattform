@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { HandCoins, ImagePlus, X, CheckCircle2 } from "lucide-react";
-import { AgentShell, Badge, Card, FlashMessage, api, fmtCents, fmtD, inputCls, btnPrimary, ACCENT } from "./shared";
+import { HandCoins, ImagePlus, X, CheckCircle2, Send, ChevronDown, CircleDot } from "lucide-react";
+import { AgentShell, Badge, Card, FlashMessage, api, fmtCents, fmtD, fmtDT, inputCls, btnPrimary, ACCENT } from "./shared";
 import { Reveal } from "./motion";
 
 // ============================================================================
@@ -10,6 +10,14 @@ import { Reveal } from "./motion";
 // (kind='feedback_bonus') honorieren — sie fließt ins normale Guthaben.
 // ============================================================================
 
+interface ThreadMessage {
+  id: number;
+  author: "agent" | "admin" | "system";
+  body: string | null;
+  event: string | null;
+  meta: string | null;
+  created_at: string;
+}
 interface FeedbackItem {
   id: number;
   category: string;
@@ -17,7 +25,10 @@ interface FeedbackItem {
   status: string;
   admin_comment: string | null;
   reward_cents: number | null;
+  duplicate_of: number | null;
   created_at: string;
+  messages: ThreadMessage[];
+  unread: number;
 }
 
 const CATEGORIES: { key: string; label: string }[] = [
@@ -71,6 +82,9 @@ function FeedbackContent() {
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  const [replies, setReplies] = useState<Record<number, string>>({});
+  const [replyBusy, setReplyBusy] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const flash = (m: string) => { setMessage(m); setTimeout(() => setMessage(null), 4500); };
@@ -81,6 +95,32 @@ function FeedbackContent() {
     });
   }, []);
   useEffect(load, [load]);
+
+  // Thread öffnen: markiert ungelesene Antworten als gelesen und aktualisiert das
+  // Nav-Badge (Event für die Shell). Kein neues Ticket — reine Ansicht.
+  const toggle = async (f: FeedbackItem) => {
+    const willOpen = !expanded[f.id];
+    setExpanded((e) => ({ ...e, [f.id]: willOpen }));
+    if (willOpen && f.unread > 0) {
+      await api(`/agent/feedback/${f.id}/read`, { method: "POST" });
+      setItems((list) => list.map((x) => (x.id === f.id ? { ...x, unread: 0 } : x)));
+      window.dispatchEvent(new Event("agent-feedback-read"));
+    }
+  };
+
+  // Agent antwortet IM Thread — kein neues Ticket.
+  const sendReply = async (f: FeedbackItem) => {
+    const body = (replies[f.id] || "").trim();
+    if (!body) return;
+    setReplyBusy(f.id);
+    const r = await api(`/agent/feedback/${f.id}/reply`, { method: "POST", body: JSON.stringify({ body }) });
+    setReplyBusy(null);
+    if (r.ok) {
+      setReplies((x) => ({ ...x, [f.id]: "" }));
+      flash("Antwort gesendet — das Admin-Team wird benachrichtigt.");
+      load();
+    } else flash(r.json?.error || "Fehler beim Senden");
+  };
 
   const pickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -203,36 +243,113 @@ function FeedbackContent() {
         </div>
       </Reveal>
 
-      {/* Eigene Einreichungen */}
+      {/* Eigene Tickets — jedes ist ein Thread: aufklappen, lesen, antworten */}
       <Reveal index={3}>
-        <h2 className="text-[13px] font-semibold text-slate-900 mb-2">Deine Einreichungen</h2>
+        <h2 className="text-[13px] font-semibold text-slate-900 mb-2">Deine Tickets</h2>
         <Card className="divide-y divide-slate-50">
           {items.length === 0 && (
-            <p className="px-4 py-8 text-center text-[12px] text-slate-400">Noch keine Einreichungen.</p>
+            <p className="px-4 py-8 text-center text-[12px] text-slate-400">Noch keine Tickets.</p>
           )}
-          {items.map((f) => (
-            <div key={f.id} className="px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[13px] font-semibold text-slate-900 truncate">{f.title}</p>
-                  <p className="text-[11px] text-slate-400">
-                    {CATEGORIES.find((c) => c.key === f.category)?.label || f.category} · {fmtD(f.created_at)}
-                    {f.reward_cents != null && (
-                      <span className="font-semibold" style={{ color: ACCENT }}> · +{fmtCents(f.reward_cents)} Bonus</span>
-                    )}
-                  </p>
-                </div>
-                <Badge label={STATUS_LABELS[f.status] || f.status} status={f.status === "umgesetzt" ? "claimed_paid" : undefined} />
+          {items.map((f) => {
+            const isOpen = !!expanded[f.id];
+            return (
+              <div key={f.id} className="px-4 py-3">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); toggle(f); }}
+                  aria-expanded={isOpen}
+                  className="w-full flex items-center gap-3 text-left min-h-[44px]"
+                >
+                  {f.unread > 0 && !isOpen && (
+                    <span className="shrink-0 w-2 h-2 rounded-full" style={{ background: ACCENT }} aria-label="Ungelesene Antwort" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-semibold text-slate-900 truncate">
+                      #{f.id} · {f.title}
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      {CATEGORIES.find((c) => c.key === f.category)?.label || f.category} · {fmtD(f.created_at)}
+                      {f.duplicate_of != null && <span> · Duplikat von #{f.duplicate_of}</span>}
+                      {f.reward_cents != null && (
+                        <span className="font-semibold" style={{ color: ACCENT }}> · +{fmtCents(f.reward_cents)} Bonus</span>
+                      )}
+                    </p>
+                  </div>
+                  <Badge label={STATUS_LABELS[f.status] || f.status} status={f.status === "umgesetzt" ? "claimed_paid" : undefined} />
+                  <ChevronDown size={16} className={`shrink-0 text-slate-400 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+                </button>
+
+                {isOpen && (
+                  <div className="mt-3">
+                    <ThreadView messages={f.messages} />
+                    {f.status === "abgelehnt" ? (
+                      <p className="mt-3 text-[11.5px] text-slate-400">
+                        Dieses Ticket wurde abgelehnt. Du kannst trotzdem antworten — das Admin-Team sieht deine Nachricht.
+                      </p>
+                    ) : null}
+                    <div className="mt-3 flex items-end gap-2">
+                      <textarea
+                        value={replies[f.id] ?? ""}
+                        onChange={(e) => setReplies((x) => ({ ...x, [f.id]: e.target.value }))}
+                        placeholder="Antworten … (kein neues Ticket — bleibt in diesem Verlauf)"
+                        rows={2}
+                        className={`${inputCls} resize-none`}
+                        maxLength={6000}
+                        onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); sendReply(f); } }}
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); sendReply(f); }}
+                        disabled={replyBusy === f.id || !(replies[f.id] || "").trim()}
+                        className={`${btnPrimary} shrink-0 inline-flex items-center gap-1.5`}
+                        style={{ minHeight: 46 }}
+                        aria-label="Antwort senden"
+                      >
+                        <Send size={14} strokeWidth={2} /> {replyBusy === f.id ? "…" : "Senden"}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-              {f.admin_comment && (
-                <p className="mt-2 text-[12px] text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
-                  <span className="font-semibold text-slate-500">Antwort:</span> {f.admin_comment}
-                </p>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </Card>
       </Reveal>
+    </div>
+  );
+}
+
+// Chronologischer Verlauf: Agent rechts (Du), Betreiber links, System mittig.
+function ThreadView({ messages }: { messages: ThreadMessage[] }) {
+  if (!messages || messages.length === 0) {
+    return <p className="text-[12px] text-slate-400">Noch kein Verlauf.</p>;
+  }
+  return (
+    <div className="space-y-2.5">
+      {messages.map((m) => {
+        if (m.author === "system") {
+          return (
+            <div key={m.id} className="flex justify-center">
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-full px-3 py-1">
+                <CircleDot size={11} className="text-slate-400" />
+                {m.body} <span className="text-slate-400">· {fmtDT(m.created_at)}</span>
+              </span>
+            </div>
+          );
+        }
+        const mine = m.author === "agent";
+        return (
+          <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 ${mine ? "text-white" : "bg-slate-50 border border-slate-100 text-slate-700"}`}
+              style={mine ? { background: ACCENT } : undefined}>
+              <p className={`text-[10px] font-semibold uppercase tracking-wide mb-0.5 ${mine ? "text-white/70" : "text-slate-400"}`}>
+                {mine ? "Du" : "Betreiber"} · {fmtDT(m.created_at)}
+              </p>
+              <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">{m.body}</p>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

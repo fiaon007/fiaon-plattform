@@ -77,6 +77,46 @@ async function ensurePortalTables(): Promise<void> {
     )
   `;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_agent_feedback_agent_idx ON fiaon_agent_feedback(agent_id, created_at)`;
+  // Prompt 2/3: Aus jedem Ticket wird ein THREAD. Verlaufseinträge (Agent/Admin
+  // abwechselnd) + System-Ereignisse (Statuswechsel, Duplikat, Bonus). Nichts
+  // wird gelöscht — der bestehende Kommentar bleibt als erster Verlaufseintrag.
+  await sqlPool`
+    CREATE TABLE IF NOT EXISTS fiaon_agent_feedback_messages (
+      id SERIAL PRIMARY KEY,
+      feedback_id INTEGER NOT NULL,
+      author VARCHAR NOT NULL,             -- agent | admin | system
+      body TEXT,                           -- freier Text (agent/admin)
+      event VARCHAR,                       -- system: status | duplicate | reward | reopened
+      meta TEXT,                           -- system: JSON-Detail (z. B. {"status":"umgesetzt"})
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_agent_feedback_messages_idx ON fiaon_agent_feedback_messages(feedback_id, created_at)`;
+  // Duplikat-Verknüpfung + Gelesen-Zeitpunkt des Agenten (für „ungelesene Antworten")
+  await sqlPool.unsafe(`
+    ALTER TABLE fiaon_agent_feedback
+      ADD COLUMN IF NOT EXISTS duplicate_of INTEGER,
+      ADD COLUMN IF NOT EXISTS agent_last_read_at TIMESTAMPTZ
+  `);
+  // Einmalige Migration des Bestands: für JEDES Ticket ohne Verlauf wird der
+  // ursprüngliche Beschreibungstext als erster Agent-Eintrag übernommen; ein
+  // vorhandener Admin-Kommentar als Admin-Antwort. Idempotent (nur wenn leer).
+  await sqlPool`
+    INSERT INTO fiaon_agent_feedback_messages (feedback_id, author, body, created_at)
+    SELECT f.id, 'agent', f.description, f.created_at
+    FROM fiaon_agent_feedback f
+    WHERE NOT EXISTS (SELECT 1 FROM fiaon_agent_feedback_messages m WHERE m.feedback_id = f.id)
+  `;
+  await sqlPool`
+    INSERT INTO fiaon_agent_feedback_messages (feedback_id, author, body, created_at)
+    SELECT f.id, 'admin', f.admin_comment, f.updated_at
+    FROM fiaon_agent_feedback f
+    WHERE f.admin_comment IS NOT NULL AND TRIM(f.admin_comment) <> ''
+      AND NOT EXISTS (
+        SELECT 1 FROM fiaon_agent_feedback_messages m
+        WHERE m.feedback_id = f.id AND m.author = 'admin'
+      )
+  `;
   // AG/AK/AO: Ziel- und Onboarding-Felder am Agent
   await sqlPool.unsafe(`
     ALTER TABLE fiaon_agents
@@ -542,21 +582,71 @@ router.post("/agent/updates/read", requireAgent, async (req: AgentRequest, res) 
 
 const FEEDBACK_CATEGORIES = new Set(["verbesserung", "bug", "idee", "sonstiges"]);
 
+// Ein Ticket = ein THREAD. Liefert je Ticket den vollständigen Verlauf
+// (Agent/Admin/System, chronologisch) sowie die Anzahl ungelesener Antworten
+// (Admin-/System-Einträge neuer als der Gelesen-Zeitpunkt des Agenten).
 router.get("/agent/feedback", requireAgent, async (req: AgentRequest, res) => {
   try {
     await ensurePortalTables();
+    const me = req.agent!.id;
     const rows = await sqlPool`
-      SELECT id, category, title, description, status, admin_comment, reward_cents, created_at, updated_at
-      FROM fiaon_agent_feedback WHERE agent_id = ${req.agent!.id}
+      SELECT id, category, title, description, status, admin_comment, reward_cents,
+             duplicate_of, agent_last_read_at, created_at, updated_at
+      FROM fiaon_agent_feedback WHERE agent_id = ${me}
       ORDER BY created_at DESC LIMIT 50
     `;
+    const ids = rows.map((r: any) => r.id);
+    const messages = ids.length
+      ? await sqlPool`
+          SELECT id, feedback_id, author, body, event, meta, created_at
+          FROM fiaon_agent_feedback_messages
+          WHERE feedback_id = ANY(${ids})
+          ORDER BY created_at ASC, id ASC
+        `
+      : [];
+    const byTicket = new Map<number, any[]>();
+    for (const m of messages) {
+      if (!byTicket.has(m.feedback_id)) byTicket.set(m.feedback_id, []);
+      byTicket.get(m.feedback_id)!.push(m);
+    }
+    const data = rows.map((r: any) => {
+      const msgs = byTicket.get(r.id) || [];
+      const lastRead = r.agent_last_read_at ? new Date(r.agent_last_read_at).getTime() : 0;
+      const unread = msgs.filter((m) => (m.author === "admin" || m.author === "system") && new Date(m.created_at).getTime() > lastRead).length;
+      return { ...r, messages: msgs, unread };
+    });
     const rewards = await sqlPool`
       SELECT COALESCE(SUM(reward_cents), 0) AS s FROM fiaon_agent_feedback
-      WHERE agent_id = ${req.agent!.id} AND reward_cents IS NOT NULL
+      WHERE agent_id = ${me} AND reward_cents IS NOT NULL
     `;
-    res.json({ ok: true, data: rows, rewardTotalCents: Number(rewards[0].s) });
+    res.json({
+      ok: true,
+      data,
+      rewardTotalCents: Number(rewards[0].s),
+      unreadTotal: data.reduce((s: number, t: any) => s + t.unread, 0),
+    });
   } catch (err) {
     console.error("[FIAON-AGENT-PORTAL] feedback list:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Leichtgewichtiger Status für das Nav-Badge im Agent-Portal: Anzahl Tickets
+// mit ungelesenen Antworten (auf die der Agent noch nicht reagiert/geschaut hat).
+router.get("/agent/feedback/state", requireAgent, async (req: AgentRequest, res) => {
+  try {
+    await ensurePortalTables();
+    const rows = await sqlPool`
+      SELECT COUNT(DISTINCT f.id)::int AS unread
+      FROM fiaon_agent_feedback f
+      JOIN fiaon_agent_feedback_messages m ON m.feedback_id = f.id
+      WHERE f.agent_id = ${req.agent!.id}
+        AND m.author IN ('admin', 'system')
+        AND m.created_at > COALESCE(f.agent_last_read_at, 'epoch'::timestamptz)
+    `;
+    res.json({ ok: true, unread: Number(rows[0].unread) });
+  } catch (err) {
+    console.error("[FIAON-AGENT-PORTAL] feedback state:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -588,11 +678,54 @@ router.post("/agent/feedback", requireAgent, async (req: AgentRequest, res) => {
       VALUES (${req.agent!.id}, ${category}, ${title}, ${description}, ${screenshot})
       RETURNING id, created_at
     `;
+    // Der Beschreibungstext ist zugleich der erste Verlaufseintrag des Threads.
+    await sqlPool`
+      INSERT INTO fiaon_agent_feedback_messages (feedback_id, author, body, created_at)
+      VALUES (${rows[0].id}, 'agent', ${description}, ${rows[0].created_at})
+    `;
     await logAgentEvent(req.agent!.id, "feedback_submitted", { feedback_id: rows[0].id, category, title });
     console.log(`[FIAON-FEEDBACK] Ticket #${rows[0].id} von Agent ${req.agent!.id}: ${title}`);
     res.json({ ok: true, feedback: rows[0] });
   } catch (err) {
     console.error("[FIAON-AGENT-PORTAL] feedback create:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Agent antwortet IM Thread — es entsteht KEIN neues Ticket (Kern von Prompt 2/3).
+router.post("/agent/feedback/:id/reply", requireAgent, async (req: AgentRequest, res) => {
+  try {
+    await ensurePortalTables();
+    const id = Number(req.params.id);
+    const body = String(req.body?.body || "").trim().slice(0, 6000);
+    if (!id || isNaN(id)) return res.status(400).json({ ok: false, error: "Ticket ungültig" });
+    if (!body) return res.status(400).json({ ok: false, error: "Antwort erforderlich" });
+    const owner = await sqlPool`SELECT id FROM fiaon_agent_feedback WHERE id = ${id} AND agent_id = ${req.agent!.id}`;
+    if (owner.length === 0) return res.status(404).json({ ok: false, error: "Ticket nicht gefunden" });
+    await sqlPool`
+      INSERT INTO fiaon_agent_feedback_messages (feedback_id, author, body)
+      VALUES (${id}, 'agent', ${body})
+    `;
+    // Antworten = der Agent hat den bisherigen Verlauf gesehen; Ticket aktualisiert.
+    await sqlPool`UPDATE fiaon_agent_feedback SET updated_at = NOW(), agent_last_read_at = NOW() WHERE id = ${id}`;
+    await logAgentEvent(req.agent!.id, "feedback_reply", { feedback_id: id });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-AGENT-PORTAL] feedback reply:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Thread als gelesen markieren (Badge/Ungelesen-Punkt verschwindet).
+router.post("/agent/feedback/:id/read", requireAgent, async (req: AgentRequest, res) => {
+  try {
+    await ensurePortalTables();
+    const id = Number(req.params.id);
+    if (!id || isNaN(id)) return res.status(400).json({ ok: false, error: "Ticket ungültig" });
+    await sqlPool`UPDATE fiaon_agent_feedback SET agent_last_read_at = NOW() WHERE id = ${id} AND agent_id = ${req.agent!.id}`;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-AGENT-PORTAL] feedback read:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -734,14 +867,40 @@ router.get("/admin/agent-feedback", async (_req, res) => {
     await ensurePortalTables();
     const rows = await sqlPool`
       SELECT f.id, f.agent_id, f.category, f.title, f.description, f.screenshot IS NOT NULL AS has_screenshot,
-             f.status, f.admin_comment, f.reward_cents, f.created_at, f.updated_at,
+             f.status, f.admin_comment, f.reward_cents, f.duplicate_of, f.created_at, f.updated_at,
              a.name AS agent_name, a.email AS agent_email
       FROM fiaon_agent_feedback f
       JOIN fiaon_agents a ON a.id = f.agent_id
-      ORDER BY (f.status = 'offen') DESC, f.created_at DESC
+      ORDER BY f.created_at DESC
       LIMIT 200
     `;
-    res.json({ ok: true, data: rows });
+    const ids = rows.map((r: any) => r.id);
+    const messages = ids.length
+      ? await sqlPool`
+          SELECT id, feedback_id, author, body, event, meta, created_at
+          FROM fiaon_agent_feedback_messages
+          WHERE feedback_id = ANY(${ids})
+          ORDER BY created_at ASC, id ASC
+        `
+      : [];
+    const byTicket = new Map<number, any[]>();
+    for (const m of messages) {
+      if (!byTicket.has(m.feedback_id)) byTicket.set(m.feedback_id, []);
+      byTicket.get(m.feedback_id)!.push(m);
+    }
+    const data = rows.map((r: any) => {
+      const msgs = byTicket.get(r.id) || [];
+      // „Wartet auf Betreiber-Antwort" = letzter echter Beitrag (agent/admin) ist vom Agenten.
+      const real = msgs.filter((m) => m.author === "agent" || m.author === "admin");
+      const awaitingReply = real.length > 0 && real[real.length - 1].author === "agent";
+      return { ...r, messages: msgs, awaiting_reply: awaitingReply };
+    });
+    // Wartende zuerst, dann jüngste — der Betreiber sieht sofort, wo er dran ist.
+    data.sort((x: any, y: any) => {
+      if (x.awaiting_reply !== y.awaiting_reply) return x.awaiting_reply ? -1 : 1;
+      return new Date(y.created_at).getTime() - new Date(x.created_at).getTime();
+    });
+    res.json({ ok: true, data, awaitingCount: data.filter((t: any) => t.awaiting_reply).length });
   } catch (err) {
     console.error("[FIAON-AGENT-PORTAL] admin feedback:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -761,6 +920,7 @@ router.get("/admin/agent-feedback/:id/screenshot", async (req, res) => {
 });
 
 const FEEDBACK_STATUS = new Set(["offen", "geprueft", "umgesetzt", "abgelehnt"]);
+const STATUS_LABEL_DE: Record<string, string> = { offen: "Offen", geprueft: "Geprüft", umgesetzt: "Umgesetzt", abgelehnt: "Abgelehnt" };
 
 router.patch("/admin/agent-feedback/:id", async (req, res) => {
   try {
@@ -769,18 +929,110 @@ router.patch("/admin/agent-feedback/:id", async (req, res) => {
     const status = req.body?.status != null ? String(req.body.status) : null;
     const comment = req.body?.adminComment != null ? String(req.body.adminComment).trim().slice(0, 2000) : null;
     if (status !== null && !FEEDBACK_STATUS.has(status)) return res.status(400).json({ ok: false, error: "Status ungültig" });
-    const rows = await sqlPool`
+    const cur = await sqlPool`SELECT id, status FROM fiaon_agent_feedback WHERE id = ${id}`;
+    if (cur.length === 0) return res.status(404).json({ ok: false, error: "Ticket nicht gefunden" });
+    await sqlPool`
       UPDATE fiaon_agent_feedback SET
         status = COALESCE(${status}, status),
         admin_comment = COALESCE(${comment}, admin_comment),
         updated_at = NOW()
       WHERE id = ${id}
-      RETURNING id
     `;
-    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Ticket nicht gefunden" });
+    // Statuswechsel wird als System-Ereignis im Verlauf sichtbar (für Agent + Betreiber).
+    if (status !== null && status !== cur[0].status) {
+      await sqlPool`
+        INSERT INTO fiaon_agent_feedback_messages (feedback_id, author, event, body, meta)
+        VALUES (${id}, 'system', 'status', ${`Status auf „${STATUS_LABEL_DE[status] || status}" gesetzt.`}, ${JSON.stringify({ status })})
+      `;
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error("[FIAON-AGENT-PORTAL] admin feedback edit:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Betreiber antwortet IM Thread (ersetzt das alte Kommentarfeld). Löst eine
+// Mail an den Agenten aus (Make/Brevo, Event 'agent_feedback_reply') — sonst
+// merkt der Agent die Antwort nicht. Nichts wird gelöscht, alles im Verlauf.
+router.post("/admin/agent-feedback/:id/reply", async (req, res) => {
+  try {
+    await ensurePortalTables();
+    const id = Number(req.params.id);
+    const body = String(req.body?.body || "").trim().slice(0, 6000);
+    const newStatus = req.body?.status != null ? String(req.body.status) : null;
+    if (!id || isNaN(id)) return res.status(400).json({ ok: false, error: "Ticket ungültig" });
+    if (!body) return res.status(400).json({ ok: false, error: "Antwort erforderlich" });
+    if (newStatus !== null && !FEEDBACK_STATUS.has(newStatus)) return res.status(400).json({ ok: false, error: "Status ungültig" });
+    const tickets = await sqlPool`
+      SELECT f.id, f.title, f.status, a.name AS agent_name, a.email AS agent_email, a.first_name
+      FROM fiaon_agent_feedback f JOIN fiaon_agents a ON a.id = f.agent_id
+      WHERE f.id = ${id}
+    `;
+    if (tickets.length === 0) return res.status(404).json({ ok: false, error: "Ticket nicht gefunden" });
+    const t = tickets[0];
+    await sqlPool`
+      INSERT INTO fiaon_agent_feedback_messages (feedback_id, author, body)
+      VALUES (${id}, 'admin', ${body})
+    `;
+    // admin_comment spiegelt die JÜNGSTE Betreiber-Antwort (Abwärtskompatibilität).
+    await sqlPool`
+      UPDATE fiaon_agent_feedback SET
+        admin_comment = ${body},
+        status = COALESCE(${newStatus}, status),
+        updated_at = NOW()
+      WHERE id = ${id}
+    `;
+    if (newStatus !== null && newStatus !== t.status) {
+      await sqlPool`
+        INSERT INTO fiaon_agent_feedback_messages (feedback_id, author, event, body, meta)
+        VALUES (${id}, 'system', 'status', ${`Status auf „${STATUS_LABEL_DE[newStatus] || newStatus}" gesetzt.`}, ${JSON.stringify({ status: newStatus })})
+      `;
+    }
+    // Betreiber-TODO (dokumentiert): Make-Zweig 'agent_feedback_reply' + Brevo-Template.
+    sendMakeWebhook("agent_feedback_reply", {
+      email: t.agent_email,
+      vorname: t.first_name || t.agent_name,
+      feedback_id: id,
+      feedback_titel: t.title,
+      antwort: body.slice(0, 500),
+      portal_url: "https://www.fiaon.com/agent/feedback",
+    }).catch(() => {});
+    console.log(`[FIAON-FEEDBACK] Betreiber-Antwort auf Ticket #${id} → Agent ${t.agent_name}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-AGENT-PORTAL] admin feedback reply:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Duplikat verknüpfen statt schließen: „gehört zu #11". Nichts wird gelöscht —
+// die Verknüpfung bleibt als System-Ereignis im Verlauf sichtbar.
+router.post("/admin/agent-feedback/:id/duplicate", async (req, res) => {
+  try {
+    await ensurePortalTables();
+    const id = Number(req.params.id);
+    const raw = req.body?.duplicateOf;
+    const target = raw === null || raw === "" ? null : Number(raw);
+    if (!id || isNaN(id)) return res.status(400).json({ ok: false, error: "Ticket ungültig" });
+    if (target !== null) {
+      if (isNaN(target) || target <= 0) return res.status(400).json({ ok: false, error: "Ziel-Ticketnummer ungültig" });
+      if (target === id) return res.status(400).json({ ok: false, error: "Ein Ticket kann kein Duplikat von sich selbst sein" });
+      const exists = await sqlPool`SELECT id FROM fiaon_agent_feedback WHERE id = ${target}`;
+      if (exists.length === 0) return res.status(404).json({ ok: false, error: `Ticket #${target} existiert nicht` });
+    }
+    const cur = await sqlPool`SELECT id FROM fiaon_agent_feedback WHERE id = ${id}`;
+    if (cur.length === 0) return res.status(404).json({ ok: false, error: "Ticket nicht gefunden" });
+    await sqlPool`UPDATE fiaon_agent_feedback SET duplicate_of = ${target}, updated_at = NOW() WHERE id = ${id}`;
+    await sqlPool`
+      INSERT INTO fiaon_agent_feedback_messages (feedback_id, author, event, body, meta)
+      VALUES (${id}, 'system', 'duplicate',
+              ${target !== null ? `Als Duplikat von #${target} markiert.` : "Duplikat-Verknüpfung entfernt."},
+              ${JSON.stringify({ duplicate_of: target })})
+    `;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-AGENT-PORTAL] admin feedback duplicate:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -818,6 +1070,11 @@ router.post("/admin/agent-feedback/:id/reward", async (req, res) => {
       UPDATE fiaon_agent_feedback SET reward_cents = ${amountCents}, reward_commission_id = ${commission[0].id},
         status = CASE WHEN status = 'offen' THEN 'umgesetzt' ELSE status END, updated_at = NOW()
       WHERE id = ${t.id}
+    `;
+    // Gutschrift als System-Ereignis im Verlauf sichtbar (Bonus-Logik unverändert).
+    await sqlPool`
+      INSERT INTO fiaon_agent_feedback_messages (feedback_id, author, event, body, meta)
+      VALUES (${t.id}, 'system', 'reward', ${`Feedback-Bonus über ${(amountCents / 100).toFixed(2)} € gutgeschrieben — danke für deinen Beitrag.`}, ${JSON.stringify({ amount_cents: amountCents })})
     `;
     await logAgentEvent(t.agent_id, "feedback_rewarded", { feedback_id: t.id, amount_cents: amountCents, commission_id: commission[0].id });
     // Betreiber-TODO (dokumentiert): Make-Zweig 'agent_feedback_rewarded' + Brevo-Template

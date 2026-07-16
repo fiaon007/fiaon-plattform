@@ -238,6 +238,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonDiagnoseRoutes = await import('./routes/fiaon-diagnose');
   app.use('/api/fiaon', fiaonDiagnoseRoutes.default);
 
+  // 🤖 FIAON KI-Cockpit (Prompt 3/3) — /admin/cockpit: Frage → geprüfte read-only SQL → Tabelle + Erklärung
+  const fiaonCockpitRoutes = await import('./routes/fiaon-cockpit');
+  app.use('/api/fiaon', fiaonCockpitRoutes.default);
+
   // 🎯 FIAON Lead-Management (Admin/Agent) — Auto-Konversion, Nachfass, Anrufliste
   const fiaonLeadsRoutes = await import('./routes/fiaon-leads');
   app.use('/api/fiaon', fiaonLeadsRoutes.default);

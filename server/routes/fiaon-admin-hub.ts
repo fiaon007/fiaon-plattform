@@ -89,8 +89,17 @@ async function computeBadges(): Promise<any> {
   const [payouts] = await sqlPool`
     SELECT COUNT(*)::int AS c FROM fiaon_payouts WHERE status = 'angefordert'
   `.catch(() => [{ c: 0 }] as any);
+  // Prompt 2/3: Badge zeigt Tickets, die auf eine BETREIBER-ANTWORT warten —
+  // nicht alle offenen. „Wartet" = der jüngste echte Beitrag (agent/admin) im
+  // Thread stammt vom Agenten. Fällt auf „offen" zurück, falls (noch) kein
+  // Verlauf existiert (defensiv gegen Alt-Daten).
   const [feedback] = await sqlPool`
-    SELECT COUNT(*)::int AS c FROM fiaon_agent_feedback WHERE status = 'offen'
+    SELECT COUNT(*)::int AS c FROM fiaon_agent_feedback f
+    WHERE (
+      SELECT m.author FROM fiaon_agent_feedback_messages m
+      WHERE m.feedback_id = f.id AND m.author IN ('agent', 'admin')
+      ORDER BY m.created_at DESC, m.id DESC LIMIT 1
+    ) = 'agent'
   `.catch(() => [{ c: 0 }] as any);
   const [bank] = await sqlPool`
     SELECT COUNT(*) FILTER (WHERE match_status = 'unmatched' AND applied = FALSE)::int AS unmatched,

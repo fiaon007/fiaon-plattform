@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Download, Plus, Trash2 } from "lucide-react";
-import { PageIntro } from "@/components/admin/PageHelp";
+import { PageIntro, Tip } from "@/components/admin/PageHelp";
 
 // ════════════════════════════════════════════════════════════════════
 // /admin/finanzen — Finanz- & Sales-Analytics-Zentrale (Paket BD).
@@ -43,10 +43,10 @@ function computeRange(key: RangeKey, custom: { from: string; to: string }): { fr
 // P2-D: Jede Kennzahl bekommt einen Tooltip mit Klartext-Definition (tip).
 function Kpi({ label, value, sub, tip }: { label: string; value: string; sub?: string; tip?: string }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4" title={tip}>
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1 flex items-center gap-1">
+    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1 flex items-center">
         {label}
-        {tip && <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate-300 text-slate-400 text-[9px] font-bold cursor-help" aria-label={tip}>i</span>}
+        {tip && <Tip text={tip} />}
       </p>
       <p className="text-lg font-bold tracking-tight text-slate-900 tabular-nums">{value}</p>
       {sub && <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>}
@@ -64,8 +64,8 @@ function FunnelBars({ title, hint, stages, color = ACCENT, footer }: { title: st
       <p className="text-[11px] text-slate-400 mb-3">{hint}</p>
       <div className="space-y-2">
         {stages.map((s, i) => (
-          <div key={s.label} className="flex items-center gap-3" title={s.tip}>
-            <div className="w-36 text-[12px] text-slate-500 shrink-0">{s.label}</div>
+          <div key={s.label} className="flex items-center gap-3">
+            <div className="w-36 text-[12px] text-slate-500 shrink-0 flex items-center">{s.label}<Tip text={s.tip} /></div>
             <div className="flex-1 h-7 rounded-lg bg-slate-100 overflow-hidden">
               <div className="h-full rounded-lg flex items-center px-2 text-[11px] font-semibold text-white" style={{ width: `${Math.max(6, (s.value / max) * 100)}%`, background: color }}>{s.value}</div>
             </div>
@@ -209,8 +209,8 @@ export default function AdminFinanzenPage() {
 
           {/* P2-D: Alt-Import GETRENNT ausgewiesen — ehrlich statt versteckt */}
           {ov.revenue.altbestandCount > 0 && (
-            <div className="mb-5 px-4 py-3 rounded-xl border border-slate-200 bg-white text-[12.5px] text-slate-600" title={ov.kpiDefs?.altbestand}>
-              <b className="text-slate-800">Alt-Import (nicht im Umsatz):</b> {ov.revenue.altbestandCount} als bezahlt importierte Alt-Kunden ohne Zahlungsreferenz,
+            <div className="mb-5 px-4 py-3 rounded-xl border border-slate-200 bg-white text-[12.5px] text-slate-600">
+              <b className="text-slate-800 inline-flex items-center">Alt-Import (nicht im Umsatz):{ov.kpiDefs?.altbestand && <Tip text={ov.kpiDefs.altbestand} />}</b> {ov.revenue.altbestandCount} als bezahlt importierte Alt-Kunden ohne Zahlungsreferenz,
               davon {ov.revenue.altbestandOhneBetrag} ohne Betrag. Diese Datensätze fließen bewusst in KEINE Umsatz- oder Funnel-Kennzahl ein.
             </div>
           )}

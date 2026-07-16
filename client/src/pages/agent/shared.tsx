@@ -179,6 +179,7 @@ function UpdateBanner() {
 export function AgentShell({ children, onRefresh }: { children: ReactNode; onRefresh?: () => void }) {
   const [agent, setAgent] = useState<AgentInfo | null>(null);
   const [checked, setChecked] = useState(false);
+  const [fbUnread, setFbUnread] = useState(0);
   const [location, navigate] = useLocation();
 
   const load = () => {
@@ -188,6 +189,18 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
       .finally(() => setChecked(true));
   };
   useEffect(load, []);
+
+  // Nav-Badge: Tickets mit ungelesener Betreiber-Antwort. Aktualisiert beim
+  // Öffnen eines Threads (Event 'agent-feedback-read') und alle 60 s.
+  useEffect(() => {
+    if (!agent) return;
+    const fetchState = () => api("/agent/feedback/state").then((r) => { if (r.ok) setFbUnread(r.json.unread); }).catch(() => {});
+    fetchState();
+    const onRead = () => fetchState();
+    window.addEventListener("agent-feedback-read", onRead);
+    const iv = setInterval(fetchState, 60_000);
+    return () => { window.removeEventListener("agent-feedback-read", onRead); clearInterval(iv); };
+  }, [agent]);
 
   useEffect(() => {
     if (checked && !agent && location !== "/agent") navigate("/agent");
@@ -227,15 +240,21 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
               <nav className="hidden md:flex items-center gap-1">
                 {NAV.map((n) => {
                   const active = n.match.includes(location);
+                  const badge = n.href === "/agent/mehr" ? fbUnread : 0;
                   return (
                     <Link
                       key={n.href}
                       href={n.href}
-                      className={`px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                      className={`relative px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
                         active ? "text-slate-900 bg-slate-100" : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
                       }`}
                     >
                       {n.label}
+                      {badge > 0 && (
+                        <span className="absolute top-0.5 right-0 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold text-white flex items-center justify-center tabular-nums" style={{ background: ACCENT }}>
+                          {badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
@@ -276,6 +295,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
           {NAV.map((n) => {
             const active = n.match.includes(location);
             const Icon = n.icon;
+            const badge = n.href === "/agent/mehr" ? fbUnread : 0;
             return (
               <Link
                 key={n.href}
@@ -284,7 +304,14 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
                 style={{ color: active ? ACCENT : "#94a3b8" }}
               >
                 {active && <span className="absolute top-0 h-0.5 w-8 rounded-full" style={{ background: ACCENT }} />}
-                <Icon size={19} strokeWidth={active ? 2 : 1.6} />
+                <span className="relative">
+                  <Icon size={19} strokeWidth={active ? 2 : 1.6} />
+                  {badge > 0 && (
+                    <span className="absolute -top-1.5 -right-2 min-w-[15px] h-[15px] px-1 rounded-full text-[9px] font-bold text-white flex items-center justify-center tabular-nums" style={{ background: ACCENT }}>
+                      {badge}
+                    </span>
+                  )}
+                </span>
                 {n.label}
               </Link>
             );

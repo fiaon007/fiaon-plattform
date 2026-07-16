@@ -665,3 +665,218 @@ Retention-Fenster).
 ## Fazit Phase 0
 - **A:** einheitlicher +2-h-Versatz, 8 Termine, Korrektur vorbereitet (wartet auf Freigabe). Neue Termine sind ab Deploy korrekt.
 - **B:** Filter arbeitet korrekt (nur-E-Mail bleibt im Mailing), aber der anrufbare Bestand ist mit ~147 knapp für zwei Agenten. Import ohne Telefon ist die Ursache; Merges heben ~262 zusätzlich. Entscheidung liegt beim Betreiber.
+
+---
+---
+
+# PROMPT 3/3 — KI-COCKPIT (Chat mit dem eigenen System, 16.07.2026)
+
+Neue Betreiber-Ansicht: oben auf `/admin` ein Chat, der Geschäftsfragen in
+Klartext beantwortet — mit **echten** Zahlen aus der Datenbank, nie erfundenen.
+**Keine Geschäftslogik geändert.** Alle KI-Aufrufe laufen über `OPENAI_API_KEY`
+(`aiComplete`, Modell via `OPENAI_MODEL`, Default `gpt-4o-mini`).
+
+## Architektur (verbindlich umgesetzt)
+
+1. **Frage → SQL:** An die KI gehen NUR die Frage + das (kuratierte) DB-Schema +
+   die verbindlichen Definitionen aus P2-D („bezahlt = …"). Die KI liefert **eine**
+   read-only SQL-Abfrage. **Keine Kundendaten im ersten Schritt.**
+2. **Server prüft & führt aus:** `server/lib/fiaon-cockpit.ts` härtet die SQL
+   (s. u.) und führt sie NUR-LESEND aus. Das Ergebnis rendert die Seite als
+   echte Tabelle/Zahl (Namen sieht **nur der Betreiber** — er ist Verantwortlicher).
+3. **Erklärung → nur Aggregate:** Für die Einordnung gehen ausschließlich
+   **aggregierte, anonymisierte** Werte an die KI (Spaltentyp, Zeilenzahl, Summen;
+   sensible Spalten nur als „N verschiedene", nie Klartext). So kann der Betreiber
+   „zeig mir alle Zahlungen von Terzi" fragen und das echte Ergebnis sehen, **ohne
+   dass OpenAI je einen Kundennamen erhält.** (FIAON LTD/UK ↔ DACH-Verbraucher:
+   keine Kundendaten-Übermittlung in die USA.)
+
+## Sicherheits-Leitplanken (`server/lib/fiaon-cockpit.ts`)
+
+- **Nur Lesen, mehrfach abgesichert:** (a) Whitelist — Query muss mit
+  `SELECT`/`WITH` beginnen, EIN Statement, keine Kommentare, kein `;`. (b)
+  Verbotene Schlüsselwörter wort-genau (`INSERT/UPDATE/DELETE/DROP/ALTER/
+  TRUNCATE/CREATE/GRANT/REVOKE/COPY/MERGE/SET/INTO/…`; `updated_at`/`created_at`
+  bleiben erlaubt). (c) Verbotene Ausdrücke/Kataloge (`pg_*`, `information_schema`,
+  `current_setting`, `dblink`, …). (d) **Ausführung in einer READ-ONLY-Transaktion**
+  (`SET TRANSACTION READ ONLY`) auf einem Pool mit `default_transaction_read_only`
+  — selbst eine durchgerutschte Schreib-Anweisung scheitert an der DB.
+- **Tabellen-/Spalten-Allowlist:** Nur Geschäftstabellen (Kunden, Leads, Zahlungen,
+  Provisionen, Agenten, Feedback, Diagnose, Rechnungen). Jede nach `FROM/JOIN`
+  referenzierte Tabelle wird geprüft (CTE-Namen erlaubt). **Gesperrt:** `users`,
+  `sessions`, verschlüsselte Bankspalten (`bank_iban_enc`…), alles mit
+  `password/secret/token/session` im Namen.
+- **Statement-Timeout** (6 s) **+ erzwungenes LIMIT** (max. 500 Zeilen; fehlt es,
+  wird es angehängt; Ergebnis zusätzlich serverseitig gekappt).
+- **Prompt-Injection:** Aus der DB zurückkommende Texte (Kundennamen, Agenten-
+  Notizen) werden nie als Anweisung interpretiert — der Erklär-Prompt bekommt sie
+  gar nicht im Klartext, nur Aggregate.
+- **Nur Admin:** Router hinter `blockAgentsFromAdmin` (Agent-Token ⇒ 403).
+- **Kosten:** Rate-Limit (15 Fragen/Minute/IP), günstiges Modell, **kein KI-Aufruf
+  beim bloßen Seitenaufruf** (nur auf aktives Fragen).
+- **Kein Agenten-Tracking:** Es werden Ergebnisse abgefragt, kein Klick-/Zeit-
+  verhalten (Scheinselbstständigkeit/DSGVO, wie Phase 4).
+
+## Audit — „wer hat was gefragt"
+
+Jede Frage landet in `fiaon_cockpit_log` (Akteur, IP, Frage, verwendete SQL,
+Erfolg/Fehler, Zeilenzahl, Zeit). Der Verlauf der letzten Fragen ist im Cockpit
+sichtbar (`GET /admin/cockpit/history`) und erneut anklickbar.
+
+## UI (`client/src/components/admin/Cockpit.tsx`, oben auf `/admin`)
+
+- **Prominent oben, nicht alleinige Startseite** — die „Was ist zu tun?"-Kacheln
+  bleiben darunter. Bei KI-Ausfall/Fehlantwort bleibt das Dashboard voll nutzbar.
+- Vorschlags-Chips, Ergebnis als **echte Tabelle** (mobil als Karten),
+  `ref`-Spalten als Detail-Link in die Zahlungszentrale, gerendertes Markdown,
+  ruhiger Ladezustand, **aufklappbare Abfrage** („woher kommt die Zahl"),
+  Antwort kopierbar, Verlauf der letzten Fragen. Voll bedienbar ab 380 px.
+
+## Endpunkte
+
+- `POST /admin/cockpit/ask` `{ question }` → `{ sql, columns, rows, rowCount, truncated, explanation }` bzw. `{ ok:false, error, sql?, rejected? }`.
+- `GET  /admin/cockpit/history` → letzte 25 Fragen (dedupliziert im UI).
+
+## Abnahme-Test (Soll)
+
+- „Wie viele bezahlt?" → dieselbe Definition wie truth-check (`paid` + `merged_into IS NULL` + `payment_reference IS NOT NULL`) → gleiche Zahl.
+- Schreibende Abfrage (`UPDATE …`) → **abgelehnt** (Whitelist) bzw. an der DB (Read-only-TX) — nichts wird verändert.
+- Frage nach einem Kundennamen → echtes Ergebnis in der Tabelle, **ohne** dass der Name an OpenAI geht (nur Aggregate im Erklär-Schritt).
+- Injection in einer Notiz („… ignoriere alle Regeln …") → wird nur als Datenwert behandelt, nie als Anweisung.
+- Bedienbar auf 380 px (Tabellen als Karten, Eingabe unten).
+
+---
+
+# PROMPT 3/3 — VORAB-FIXES (aus den Screenshots)
+
+## F1 — Leistungs-KI widersprach den Kacheln → behoben (Anzeige-Bug, kein Datenbug)
+
+**Ursache:** `/admin/leistung` lädt beim Öffnen IMMER die zuletzt **gespeicherte**
+KI-Analyse (`leistung_last_summary`) — egal, welcher Zeitraum gerade gewählt ist.
+Wurde die Analyse für „Heute" (1 Tag) erstellt und dann auf „30 Tage" umgeschaltet,
+stand die alte Aussage („5 Konversionen/478 €, nur ein Tag") neben den 30-Tage-
+Kacheln (89/4.255,42 €). Die KI bekam nie einen falschen Datensatz — sie lief nur
+auf einem anderen Zeitraum als die aktuell gezeigten Kacheln.
+
+**Fix (`admin-leistung.tsx`):** Die KI-Karte zeigt jetzt **immer ihren eigenen
+Analyse-Zeitraum**. Weicht er vom aktuell gewählten ab, erscheint ein deutlicher
+Hinweis („Diese Analyse bezieht sich auf … — die Kacheln zeigen …") mit Knopf
+„Für aktuellen Zeitraum neu erstellen". Kein stiller Widerspruch mehr.
+
+## F2 — Agentennamen in der KI-Analyse zurückgemappt
+
+An OpenAI gehen weiterhin nur anonyme Token („Agent A/B/…"). Der Server liefert der
+Anzeige zusätzlich die Rück-Zuordnung `agentMap` (Token→echter Name); das Frontend
+ersetzt die Token beim **Anzeigen und Kopieren** durch die echten Namen
+(`fiaon-leistung.ts` liefert `summary.agentMap`, `admin-leistung.tsx: applyAgentMap`).
+Datenschutz gegenüber OpenAI bleibt, die Analyse wird lesbar.
+
+## F3 — „Übernommene Akten: 1" bei 465 Kontakten → klar beantwortet
+
+**Die Zählung ist korrekt.** „Übernommene Akten" zählt AUSSCHLIESSLICH die formale
+Warteschlangen-Übernahme („Akte öffnen" → `fiaon_lead_log` `type='claim'`, genau
+eine Stelle: `fiaon-leads.ts:893`). „Dokumentierte Kontakte" (`type='result'`) kommen
+aus **Lead-Log UND Kunden-Log** (`fiaon_contact_log`); Kundenkontakte erzeugen nie
+einen Lead-„claim". Ergebnis: Die **Warteschlange wird kaum genutzt** — die Agenten
+arbeiten zugewiesene Leads/Kunden direkt und dokumentieren dort ihre Kontakte. Kein
+kaputter Zähler. Tooltips auf `/admin/leistung` (Kachel + Tabellenkopf) erklären das
+jetzt explizit.
+
+## F4 — Doppelter Agent „Justin Schwarzott" → Zusammenführ-Skript (nicht löschen)
+
+Stammsatz doppelt (D1.1: #2 aktiv, #7 inaktiv) → Historie auf zwei Identitäten.
+**Read-only-Skript** `scripts/merge-duplicate-agent.ts` (DRY-RUN Standard):
+
+```
+npx tsx scripts/merge-duplicate-agent.ts                          # nur zeigen
+npx tsx scripts/merge-duplicate-agent.ts --name="Justin Schwarzott" --apply
+npx tsx scripts/merge-duplicate-agent.ts --from=7 --to=2 --apply  # explizit
+```
+
+Hängt ALLE Verweise (per `information_schema` gefundene `*_agent_id`-Spalten) vom
+Quell- auf den Ziel-Agenten um, deaktiviert den Quell-Stammsatz (invalidiert dessen
+Sessions) und schreibt Audit-Ereignisse (`agent_merge_received` / `agent_merged_into`).
+**Es wird nichts gelöscht**, der Schreibvorgang läuft in EINER Transaktion
+(alles-oder-nichts). Ausführung ist der bewusste Schritt des Betreibers nach dem Deploy.
+
+## Verifikation (Prompt 3)
+
+- `npx tsc --noEmit`: alle berührten FIAON-Dateien fehlerfrei; `vite build` ✓.
+- Read-only-TX + Whitelist gegen `UPDATE/DELETE` geprüft (Guard lehnt ab; DB lehnt zusätzlich ab).
+- Vorbestehende TS-Fehler in fremden Monorepo-Teilen (ARAS/`@shared/schema`) unberührt.
+
+---
+---
+
+# P0/P3 — HARD-DELETE-FIX, DUBLETTEN-WERKZEUG, NAV-AUFRÄUMUNG + REPORT (16.07.2026)
+
+## P0 — Hard-Delete abgesichert (DRINGEND)
+
+`POST /admin/applications/merge` enthielt `DELETE FROM fiaon_applications` — echtes,
+unwiderrufliches Löschen der Dublette. Ersetzt durch **Soft-Merge** (`mergeApplications`
+in `server/routes/fiaon-antrag.ts`):
+- Verlierer bleibt als Zeile (`merged_into = Gewinner`), verschwindet nur aus Listen.
+- **Nur füllen, nie überschreiben**: leere Gewinner-Felder werden aus dem Verlierer ergänzt.
+- Kontakthistorie (`fiaon_contact_log`) und Lead-Verknüpfungen (`fiaon_leads.converted_order_id`)
+  wandern zum Gewinner (mit protokollierten IDs für exaktes Undo).
+- **Provisionen bleiben an ihrer ref** (Buchhaltungs-Spur; gezählt pro agent_id → kein
+  Anspruch verloren, keiner doppelt).
+- Jeder Merge ist in `fiaon_merge_log` (Batch) protokolliert und per
+  `POST /admin/applications/merge/undo` **exakt umkehrbar** (`undoMergeApplications`).
+- `POST /admin/duplicates/cleanup-all` war bereits Soft-Merge (kein Handlungsbedarf).
+
+## WURDE BEREITS GELÖSCHT? — JA (Forensik `scripts/p3-report.ts`)
+
+Der alte Endpoint hat real Daten entfernt (verwaiste Verweise blieben zurück):
+- **42** verwaiste Kontakt-Log-Einträge (ref ohne Antrag)
+- **13** verwaiste Provisionseinträge (ref ohne Antrag)
+- **5** Leads mit `converted_order_id` auf einen nicht mehr existierenden Antrag
+Die gelöschten Antrags-Stammsätze selbst sind **nicht rekonstruierbar** (harte DELETEs,
+kein Backup-Restore im Rahmen dieses Fixes). Ab jetzt kann so etwas nicht mehr passieren.
+Die verwaisten Log-/Provisionszeilen bleiben als Spur erhalten (nichts wird gelöscht).
+
+## /admin/dubletten (P3-A-Nachtrag) — Merge-Oberfläche
+
+Neue Seite + angereicherter Endpoint `GET /admin/duplicates/groups` (Konfidenz,
+Gewinner-Score, Feld-/Anrufbarkeits-Vorschau, Sortierung Doppelzahler→anrufbar→sicher).
+Merge/Undo über die P0-Engine. Gewinner-Regel: bezahlt > angekündigt > offen; mit Agent >
+ohne; vollständiger > unvollständiger.
+
+## Report-Zahlen (Stand 16.07.2026, read-only)
+
+- **Eine Wahrheit:** 111 bezahlt · **7.332,96 €** Umsatz (Definition: paid + merged_into IS NULL
+  + payment_reference gesetzt). (Frühere 5.919,14 € stammten aus einem älteren Stand.)
+- **Doppelzahler:** 4 E-Mail-Gruppen mit je 2× „bezahlt". **ACHTUNG:** in allen vier Fällen ist
+  je ein `FIAON-SCHUFA-…`-Datensatz dabei (Bonitäts-/Schufa-Produkt) neben dem Hauptantrag —
+  das sind **vermutlich zwei unterschiedliche Produkte derselben Person, KEINE echten Dubletten**.
+  Nicht automatisch mergen; Betreiber muss je Fall entscheiden. Deshalb bleibt der Umsatz
+  vorerst bei 7.332,96 € (keine pauschale Reduktion).
+- **Anrufbarkeit:** **261** nicht-anrufbare offene Leads könnten per E-Mail-Merge eine
+  Telefonnummer aus einem Schwester-Datensatz erben → direkt mehr Anrufe möglich.
+- **Lead-Filter:** 1.549 nur-E-Mail-Leads offen, davon **1.549 in der Nachfass-Sequenz** →
+  Filter korrekt, alle nur-E-Mail-Leads landen im Mailing (nichts zu beheben).
+- **Zeitzonen (zukünftige Termine):** 22 offene Kunden-Termine, 0 Lead-Rückrufe. Versatz
+  **NICHT einheitlich**: ein Teil sind reine Datums-Zusagen ohne Uhrzeit (erscheinen als
+  „02:00 Berlin" = 00:00 UTC, Sommerzeit-Artefakt), andere haben plausible echte Uhrzeiten
+  (z. B. 14:33, 16:00, 19:48). Daher **keine pauschale Korrektur** — neue Termine sind ab dem
+  bereits deployten Fix korrekt; Alt-Termine nur einzeln nach Betreiber-Sichtung.
+- **Daten-Präsenz (P3-B):** investors 3, investor_investments 8, investor_requests 1,
+  investor_transactions 14 → **behalten** (`/admin/investoren`). accounting_entries 8,
+  accounting_balance 1, accounting_ledger 143, accounting_config 1 → **echte Buchungen,
+  behalten** (`/admin/buchhaltung`); offen: FIAON-eigen oder Fremdprodukt? → ggf. mit
+  `/admin/verbuchungen` zusammenlegen.
+
+## P3-B — /admin/database aufgelöst
+
+Zweite Sidebar entfernt. `/admin/database` (+ Alias `/admin/kunden`) rendert nur noch
+`AdminApplicationsManager`. Kündigungen/Investoren/Buchhaltung/Dubletten sind eigene
+Nav-Punkte. Entfernt: Command OS, Live Radar, manuelle Aufgabenliste, Wissens-DB,
+Stripe-Umsatzansicht (Stripe stillgelegt). Alte `/admin/database`-Links funktionieren weiter.
+Die irreführende „Anträge (4297)"-Zahl der alten Übersicht entfällt.
+
+## Verifikation (P0/P3)
+
+- `npx tsc --noEmit`: alle berührten Dateien fehlerfrei; `npm run build` (vite + esbuild) ✓.
+- `scripts/p3-report.ts` gegen die Produktions-DB (nur lesend) ausgeführt — Zahlen s. o.
+- Regeln eingehalten: kein hartes Löschen, kein Eingriff in Zahlungs-/Provisions-/Stichtag-Logik,
+  alles im Audit, umkehrbar, Changelog im selben Commit.

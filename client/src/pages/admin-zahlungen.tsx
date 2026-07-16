@@ -43,7 +43,7 @@ interface PaymentRow {
   gdpr_deleted_at: string | null;
 }
 
-// Paket AD3: Dubletten-Gruppen (per E-Mail) für die Verwaltungsansicht
+// Paket AD3 / P3-A: Dubletten-Gruppen (per E-Mail ODER normalisiertem Telefon)
 interface DupApp {
   ref: string;
   payment_reference: string | null;
@@ -55,11 +55,16 @@ interface DupApp {
   last_name: string | null;
   contact_name: string | null;
   email: string | null;
+  phone: string | null;
+  phone_country_code: string | null;
+  contact_phone: string | null;
   invoice_number: string | null;
   created_at: string;
   gdpr_deleted_at: string | null;
 }
-interface DupGroup { email: string; apps: DupApp[] }
+// matchType: "email" (gleiche E-Mail) | "phone" (gleiche normalisierte Nummer).
+// label = die gemeinsame E-Mail bzw. Telefonnummer. key = stabiler React-Key.
+interface DupGroup { matchType: "email" | "phone"; key: string; label: string; email: string | null; apps: DupApp[] }
 
 interface PaymentStats {
   pending: { count: number; sum: number };
@@ -410,18 +415,22 @@ export default function AdminZahlungenPage() {
     } catch { flash("Netzwerkfehler"); } finally { setSupersedeRunning(false); }
   };
 
-  const cancelGroupOpen = async (e: React.MouseEvent, email: string) => {
+  // E-Mail-Gruppen stornieren per E-Mail; Telefon-Gruppen per expliziter Ref-Liste.
+  const cancelGroupOpen = async (e: React.MouseEvent, g: DupGroup) => {
     e.stopPropagation();
-    if (!confirm(`Alle OFFENEN Bestellungen von ${email} stornieren?\n\nBezahlte/ersetzte Einträge bleiben unberührt.`)) return;
-    setGroupBusy(email);
+    if (!confirm(`Alle OFFENEN Bestellungen von ${g.label} stornieren?\n\nBezahlte/ersetzte Einträge bleiben unberührt.`)) return;
+    setGroupBusy(g.key);
     try {
+      const body = g.matchType === "email" && g.email
+        ? { email: g.email, confirmed: true }
+        : { refs: g.apps.map((a) => a.ref), confirmed: true };
       const res = await fetch(`/api/fiaon/admin/duplicates/cancel-open`, {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-        body: JSON.stringify({ email, confirmed: true }),
+        body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => null);
       if (res.ok && json?.ok) {
-        flash(`${json.cancelled} offene Bestellung(en) von ${email} storniert`);
+        flash(`${json.cancelled} offene Bestellung(en) von ${g.label} storniert`);
         load(tab); loadStats(); loadDupGroups();
       } else flash(`Fehler: ${json?.error || res.status}`);
     } catch { flash("Netzwerkfehler"); } finally { setGroupBusy(null); }
@@ -1090,19 +1099,22 @@ export default function AdminZahlungenPage() {
           </div>
         </div>
 
-        {/* ── Paket AD3: Dubletten-Verwaltung (Gruppierung per E-Mail) ── */}
+        {/* ── Paket AD3 / P3-A: Dubletten-Verwaltung (Gruppierung per E-Mail UND Telefon) ── */}
         <div className="mt-6 bg-white border border-slate-200 rounded-2xl p-5">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-1">
             <div>
               <h2 className="text-[15px] font-bold text-slate-900">
                 Dubletten-Verwaltung
                 {dupGroups.length > 0 && (
-                  <span className="ml-2 px-2 py-0.5 rounded-full border border-slate-300 text-[11px] font-semibold text-slate-600">{dupGroups.length} E-Mail-Gruppen</span>
+                  <span className="ml-2 px-2 py-0.5 rounded-full border border-slate-300 text-[11px] font-semibold text-slate-600">
+                    {dupGroups.filter((g) => g.matchType === "email").length} E-Mail · {dupGroups.filter((g) => g.matchType === "phone").length} Telefon
+                  </span>
                 )}
               </h2>
               <p className="text-[12px] text-slate-500 mt-1 max-w-xl">
-                E-Mail-Adressen mit mehreren Anträgen. Wird eine Bestellung bezahlt, werden offene Schwestern automatisch
-                auf <span className="font-bold">Ersetzt (Dublette)</span> gesetzt — der Aufräumlauf wendet das rückwirkend auf den Bestand an (KEINE Mails).
+                Personen mit mehreren Anträgen — gruppiert nach gleicher <span className="font-bold">E-Mail</span> oder gleicher
+                <span className="font-bold"> Telefonnummer</span> (formatunabhängig normalisiert). Wird eine Bestellung bezahlt, werden offene
+                Schwestern automatisch auf <span className="font-bold">Ersetzt (Dublette)</span> gesetzt — der Aufräumlauf wendet das rückwirkend an (KEINE Mails).
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -1126,24 +1138,29 @@ export default function AdminZahlungenPage() {
             </div>
           </div>
 
-          {dupGroups.length === 0 && <p className="text-[12px] text-slate-400 mt-3">Keine Dubletten-Gruppen — jede E-Mail hat genau einen Antrag.</p>}
+          {dupGroups.length === 0 && <p className="text-[12px] text-slate-400 mt-3">Keine Dubletten-Gruppen — jede E-Mail und Telefonnummer gehört zu genau einem Antrag.</p>}
 
           {dupGroupsOpen && dupGroups.length > 0 && (
             <div className="mt-4 space-y-3 max-h-[560px] overflow-y-auto pr-1">
               {dupGroups.map((g) => {
                 const openApps = g.apps.filter((a) => ["pending_payment", "claimed_paid", "expired"].includes(a.payment_status));
                 return (
-                  <div key={g.email} className="border border-slate-200 rounded-xl overflow-hidden">
+                  <div key={g.key} className="border border-slate-200 rounded-xl overflow-hidden">
                     <div className="px-4 py-2.5 bg-slate-50/70 flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-[12px] font-bold text-slate-700 break-all">{g.email} <span className="font-normal text-slate-400">· {g.apps.length} Anträge</span></p>
+                      <p className="text-[12px] font-bold text-slate-700 break-all flex items-center gap-2">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${g.matchType === "phone" ? "bg-amber-100 text-amber-700" : "bg-sky-100 text-sky-700"}`}>
+                          {g.matchType === "phone" ? "Telefon" : "E-Mail"}
+                        </span>
+                        {g.label} <span className="font-normal text-slate-400">· {g.apps.length} Anträge</span>
+                      </p>
                       {openApps.length > 0 && (
                         <button
                           type="button"
-                          onClick={(e) => cancelGroupOpen(e, g.email)}
-                          disabled={groupBusy === g.email}
+                          onClick={(e) => cancelGroupOpen(e, g)}
+                          disabled={groupBusy === g.key}
                           className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-[11px] font-bold text-slate-600 hover:border-slate-400 transition-all disabled:opacity-40"
                         >
-                          {groupBusy === g.email ? "…" : `Alle offenen stornieren (${openApps.length})`}
+                          {groupBusy === g.key ? "…" : `Alle offenen stornieren (${openApps.length})`}
                         </button>
                       )}
                     </div>

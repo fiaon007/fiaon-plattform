@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { ACCENT } from "@/components/admin/AdminShell";
 import { PageIntro, Tip } from "@/components/admin/PageHelp";
+import Cockpit from "@/components/admin/Cockpit";
 
 // ═══════════════════════════════════════════════════════════════════
 // /admin — DASHBOARD ZUM ARBEITEN (Phase 4, P4-B).
@@ -252,12 +253,16 @@ export default function AdminHubPage() {
         title={`${greeting}.`}
         subtitle="Hier siehst du auf einen Blick, was zu tun ist — und erreichst jeden Bereich der Verwaltung."
         steps={[
+          "Ganz oben das „KI-Cockpit\": stell in normaler Sprache eine Frage zu deinem Geschäft (z. B. „Wie viele bezahlt?\"). Du bekommst echte Zahlen aus der Datenbank plus die verwendete Abfrage zum Aufklappen. Kundendaten gehen dabei NIE an die KI — nur anonyme Summen.",
           "„Was ist zu tun?\" zeigt alle offenen Aufgaben mit direkter Aktion — Geld-Themen stehen oben. Ist die Liste leer, ist nichts liegen geblieben.",
           "Gelbe Warn-Kacheln erscheinen NUR bei echten Problemen (z. B. kein Lead-Eingang seit Stunden) — mit Erklärung und Lösungsweg.",
           "Über die Suche findest du jeden Kunden per Name, E-Mail, Telefon oder Referenz — jederzeit auch mit ⌘K.",
           "Die Kennzahlen-Kacheln sind klickbar und führen direkt in die passende Detailansicht; das ⓘ erklärt jede Zahl.",
         ]}
       />
+
+      {/* KI-Cockpit: prominent oben. Bei KI-Ausfall bleibt alles darunter nutzbar. */}
+      <Cockpit />
 
       <QuickSearch />
 

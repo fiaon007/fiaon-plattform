@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, HelpCircle } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -10,19 +11,103 @@ import { ChevronDown, HelpCircle } from "lucide-react";
 // - Titel + Untertitel in Du-Form
 // - Einklappbares „Wie funktioniert diese Seite?" — beim ERSTEN Besuch offen,
 //   danach merkt sich localStorage die Entscheidung (pro Seite).
-// - <Tip text="…"/> = kleines ⓘ mit Klartext-Definition (native title,
-//   funktioniert auf Desktop-Hover und Mobile-Longpress).
+// - <Tip text="…"/> = kleines ⓘ mit Klartext-Definition.
+//   KLICK-/TAP-basiert (kein natives title-Attribut) → funktioniert auch auf
+//   dem Handy (kein Hover). Wird per Portal an <body> gehängt und positioniert
+//   sich selbst im Viewport, damit es NIE von overflow-hidden-Tabellen oder
+//   Karten abgeschnitten wird. Schließt bei Klick daneben oder ESC.
 // ═══════════════════════════════════════════════════════════════════
 
-export function Tip({ text }: { text: string }) {
+export function Tip({ text, label }: { text: string; label?: string }) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLSpanElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number; placement: "top" | "bottom" } | null>(null);
+
+  const place = useCallback(() => {
+    const b = btnRef.current?.getBoundingClientRect();
+    if (!b) return;
+    const margin = 8;
+    const width = Math.min(280, window.innerWidth - margin * 2);
+    let left = b.left + b.width / 2 - width / 2;
+    left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
+    const estHeight = (cardRef.current?.offsetHeight ?? 0) || 120;
+    const roomBelow = window.innerHeight - b.bottom;
+    const placement: "top" | "bottom" = roomBelow > estHeight + margin || roomBelow > b.top ? "bottom" : "top";
+    const top = placement === "bottom" ? b.bottom + 6 : b.top - 6;
+    setPos({ top, left, width, placement });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+    const onMove = () => place();
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
+    return () => {
+      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("resize", onMove);
+    };
+  }, [open, place]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || cardRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("touchstart", onDown, { passive: true });
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("touchstart", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   return (
-    <span
-      title={text}
-      aria-label={text}
-      className="inline-flex items-center justify-center w-3.5 h-3.5 ml-1 rounded-full border border-slate-300 text-slate-400 text-[9px] font-bold cursor-help align-middle select-none"
-    >
-      i
-    </span>
+    <>
+      <span
+        ref={btnRef}
+        role="button"
+        tabIndex={0}
+        aria-label={label || text}
+        aria-expanded={open}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen((v) => !v); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setOpen((v) => !v); }
+        }}
+        className="inline-flex items-center justify-center align-middle ml-1 shrink-0 p-1.5 -m-1.5 cursor-pointer"
+      >
+        <span
+          className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border text-[9px] font-bold select-none transition-colors duration-150 ${open ? "border-slate-400 bg-slate-100 text-slate-600" : "border-slate-300 text-slate-400"}`}
+        >
+          i
+        </span>
+      </span>
+      {open && pos && createPortal(
+        <div
+          ref={cardRef}
+          role="tooltip"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "fixed",
+            top: pos.placement === "bottom" ? pos.top : undefined,
+            bottom: pos.placement === "top" ? window.innerHeight - pos.top : undefined,
+            left: pos.left,
+            width: pos.width,
+            zIndex: 90,
+          }}
+          className="fiaon-tip-card rounded-xl border border-slate-200 bg-white p-3 text-[12px] font-normal leading-relaxed text-slate-600 shadow-[0_10px_30px_-8px_rgba(15,23,42,0.22)]"
+        >
+          {text}
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 

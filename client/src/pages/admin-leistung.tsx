@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Sparkles, Copy as CopyIcon, RefreshCw } from "lucide-react";
 import { ACCENT } from "@/components/admin/AdminShell";
 import { PageIntro, Tip } from "@/components/admin/PageHelp";
+import { AiButton, Markdown } from "@/components/admin/AiKit";
 
 // ═══════════════════════════════════════════════════════════════════
 // /admin/leistung — ARBEITSBERICHTE (Phase 4, P4-C).
@@ -23,6 +24,26 @@ const OUTCOME_LABEL: Record<string, string> = {
 
 function eur(cents: number): string {
   return `${(cents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €`;
+}
+
+/** Ersetzt die anonymen KI-Token („Agent A") durch die echten Namen — NUR fürs
+ *  Anzeigen/Kopieren. An OpenAI ging nie ein Name (Rück-Zuordnung serverseitig). */
+function applyAgentMap(text: string, map?: Record<string, string> | null): string {
+  if (!text || !map) return text || "";
+  const tokens = Object.keys(map).sort((a, b) => b.length - a.length); // längste zuerst (Agent A1 vor Agent A)
+  let out = text;
+  for (const t of tokens) {
+    const esc = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    out = out.replace(new RegExp(esc + "(?![A-Za-z0-9])", "g"), map[t]);
+  }
+  return out;
+}
+
+/** Zeitraum menschenlesbar (Datum, deutsche Zeit). */
+function rangeLabel(r?: { from: string; to: string } | null): string {
+  if (!r?.from || !r?.to) return "";
+  const d = (s: string) => new Date(s).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin" });
+  return `${d(r.from)} – ${d(r.to)}`;
 }
 
 async function apiF(path: string, init?: RequestInit): Promise<{ ok: boolean; json: any }> {
@@ -87,7 +108,8 @@ export default function AdminLeistungPage() {
   };
   const copySummary = () => {
     if (!summary?.text) return;
-    navigator.clipboard?.writeText(summary.text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+    // Kopiert MIT echten Namen (internes Teilen); an OpenAI ging nie ein Name.
+    navigator.clipboard?.writeText(applyAgentMap(summary.text, summary.agentMap)).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
 
   const RANGES: { key: RangeKey; label: string }[] = [
@@ -110,10 +132,9 @@ export default function AdminLeistungPage() {
           "Jeder Agent sieht seine eigenen Zahlen im Agent-Portal unter „Mehr → Meine Leistung\" — Transparenz statt Geheim-Logs.",
         ]}
         right={
-          <button onClick={runAi} disabled={aiBusy || loading}
-            className="px-3.5 py-2 rounded-lg text-white text-[12.5px] font-semibold inline-flex items-center gap-2 disabled:opacity-50 shrink-0" style={{ background: ACCENT }}>
-            <Sparkles size={14} /> {aiBusy ? "Analysiert …" : "KI-Analyse erstellen"}
-          </button>
+          <AiButton onClick={runAi} busy={aiBusy} disabled={loading} className="shrink-0">
+            KI-Analyse erstellen
+          </AiButton>
         }
       />
 
@@ -138,48 +159,65 @@ export default function AdminLeistungPage() {
         </div>
       )}
 
-      {/* KI-Zusammenfassung (kopierbar, letzte bleibt gespeichert) */}
-      {summary && (
-        <div className="mb-5 bg-white border border-slate-200 rounded-2xl p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Sparkles size={15} className="text-slate-400" />
-            <p className="text-[13px] font-bold text-slate-900 flex-1">KI-Analyse</p>
-            <span className="text-[11px] text-slate-400">{new Date(summary.at).toLocaleString("de-DE")} · {summary.provider}</span>
-            <button onClick={copySummary} className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-[11.5px] font-semibold text-slate-500 inline-flex items-center gap-1.5 hover:border-slate-300">
-              <CopyIcon size={12} /> {copied ? "Kopiert" : "Kopieren"}
-            </button>
+      {/* KI-Zusammenfassung: zeigt IMMER ihren eigenen Analyse-Zeitraum. Weicht er
+          vom aktuell gewählten Zeitraum ab (z. B. gespeicherte Analyse von „Heute"
+          bei jetzt „30 Tage"), macht ein Hinweis das sichtbar — sonst widerspricht
+          die KI-Aussage den Kacheln. Namen werden lokal zurückgemappt. */}
+      {summary && (() => {
+        const analyzed = rangeLabel(summary.range);
+        const shown = rangeLabel(range);
+        const stale = !!analyzed && !!shown && analyzed !== shown;
+        return (
+          <div className="mb-5 bg-white border border-slate-200 rounded-2xl p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <Sparkles size={15} className="text-slate-400" />
+              <p className="text-[13px] font-bold text-slate-900 flex-1 min-w-0">KI-Analyse</p>
+              <span className="text-[11px] text-slate-400">{new Date(summary.at).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })} · {summary.provider}</span>
+              <button onClick={copySummary} className="px-2.5 py-1.5 min-h-[36px] rounded-lg border border-slate-200 text-[11.5px] font-semibold text-slate-500 inline-flex items-center gap-1.5 hover:border-slate-300 transition-colors">
+                <CopyIcon size={12} /> {copied ? "Kopiert" : "Kopieren"}
+              </button>
+            </div>
+            {analyzed && (
+              <p className="text-[11px] text-slate-400 mb-3">Analyse-Zeitraum: <span className="font-semibold text-slate-500">{analyzed}</span></p>
+            )}
+            {stale && (
+              <div className="mb-3 px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-[12px] text-amber-800 flex flex-wrap items-center gap-2">
+                <span>Diese Analyse bezieht sich auf <b>{analyzed}</b> — die Kacheln unten zeigen <b>{shown}</b>. Deshalb können die Zahlen abweichen.</span>
+                <button onClick={runAi} disabled={aiBusy} className="ml-auto px-2.5 py-1 rounded-md border border-amber-400 font-semibold hover:bg-amber-100 disabled:opacity-50">Für aktuellen Zeitraum neu erstellen</button>
+              </div>
+            )}
+            <Markdown text={applyAgentMap(summary.text, summary.agentMap)} />
           </div>
-          <div className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap">{summary.text}</div>
-        </div>
-      )}
+        );
+      })()}
 
       {loading && !data ? <p className="text-[13px] text-slate-400">Lädt…</p> : data && (
         <>
           {/* Team-Summen */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
             {([
-              ["Übernommene Akten", data.totals.akten, "Lead-Akten, die ein Agent im Zeitraum bewusst übernommen hat (protokollierte Übernahme)."],
+              ["Übernommene Akten", data.totals.akten, "Zählt NUR die formale Übernahme über die Warteschlange („Akte öffnen“). Ist die Zahl niedrig, obwohl viele Kontakte dokumentiert sind, wird die Warteschlange kaum genutzt — die Agenten arbeiten zugewiesene Leads/Kunden direkt. Die Zählung ist korrekt; sie misst nur diesen einen Vorgang."],
               ["Dokumentierte Kontakte", data.totals.kontakte, "Kontakt-Ergebnisse an Leads UND Kunden — nur dokumentierte Arbeit zählt."],
               ["Antragslinks", data.totals.links, "Von Agenten versendete Antrags-/Zahlungslinks (Verkaufsarbeit)."],
               ["Konversionen", data.totals.konversionen, "Leads, die im Zeitraum zu einem Antrag wurden (betreuender Agent)."],
               ["Abschlüsse", data.totals.abschluesse, "Bezahlte Kunden im Zeitraum (eine Wahrheit: bezahlt + Zahlungsreferenz)."],
               ["Umsatz", eur(data.totals.umsatzCents), "Summe der bezahlten Beträge im Zeitraum (Zeit-Anker: Bezahl-Zeitpunkt)."],
             ] as [string, any, string][]).map(([label, value, tip]) => (
-              <div key={label} className="bg-white border border-slate-200 rounded-xl p-3.5" title={tip}>
+              <div key={label} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center">{label}<Tip text={tip} /></p>
                 <p className="text-lg font-bold text-slate-900 tabular-nums">{value}</p>
               </div>
             ))}
           </div>
 
-          {/* Team-Tabelle */}
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden mb-5">
+          {/* Team-Tabelle (Desktop) — auf schmalen Viewports als Karten (unten) */}
+          <div className="hidden lg:block bg-white border border-slate-200 rounded-2xl overflow-hidden mb-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-slate-50/70 border-b border-slate-100">
                   <tr>
                     <th className={th}>Agent</th>
-                    <th className={th}>Akten<Tip text="Übernommene Lead-Akten (protokollierte Übernahme)" /></th>
+                    <th className={th}>Akten<Tip text="Nur formale Warteschlangen-Übernahmen („Akte öffnen“). Niedrig trotz vieler Kontakte = Warteschlange kaum genutzt, nicht kaputt gezählt." /></th>
                     <th className={th}>Kontakte<Tip text="Dokumentierte Kontakt-Ergebnisse (Leads + Kunden)" /></th>
                     <th className={th}>Links<Tip text="Versendete Antrags-/Zahlungslinks" /></th>
                     <th className={th}>Konversionen<Tip text="Leads → Antrag im Zeitraum" /></th>
@@ -236,6 +274,65 @@ export default function AdminLeistungPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Team-Karten (Mobile) — Agent oben, Kennzahlen als Paare; wichtige zuerst */}
+          <div className="lg:hidden space-y-3 mb-5">
+            {data.agents.length === 0 && (
+              <div className="bg-white border border-slate-200 rounded-2xl px-4 py-10 text-center text-[13px] text-slate-400">
+                Keine Aktivität im gewählten Zeitraum. Wähle oben einen größeren Zeitraum — oder es wurde schlicht noch nichts dokumentiert.
+              </div>
+            )}
+            {data.agents.map((a: any) => {
+              const pairs: [string, any][] = [
+                ["Abschlüsse", a.abschluesse],
+                ["Umsatz", eur(a.umsatzCents)],
+                ["Provision", eur(a.provisionCents)],
+                ["Konversionen", a.konversionen],
+                ["Kontakte", a.kontakte],
+                ["Akten", a.akten],
+                ["Links", a.links],
+                ["Reaktion", a.reaktionStunden != null ? `${a.reaktionStunden} h` : "—"],
+                ["Rückgaben", a.rueckgabeQuote != null ? `${a.rueckgabeQuote} %` : "—"],
+                ["Direktzahler", a.direktzahlerQuote != null ? `${a.direktzahlerQuote} %` : "—"],
+              ];
+              const open = detail === a.agentId;
+              return (
+                <div key={a.agentId} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                  <button
+                    type="button"
+                    onClick={() => setDetail(open ? null : a.agentId)}
+                    aria-expanded={open}
+                    className="w-full min-h-[44px] px-4 py-3 flex items-center gap-2 text-left border-b border-slate-100"
+                  >
+                    <span className="font-semibold text-slate-900 text-[14px] flex-1 min-w-0 truncate">{a.name}</span>
+                    {!a.active && <span className="text-[10px] text-slate-400">(inaktiv)</span>}
+                    <span className="text-[11px] font-semibold text-slate-400 shrink-0">{open ? "weniger" : "Details"}</span>
+                  </button>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 px-4 py-3">
+                    {pairs.map(([k, v], i) => (
+                      <div key={k}>
+                        <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{k}</dt>
+                        <dd className={`tabular-nums text-slate-900 ${i < 2 ? "text-[15px] font-bold" : "text-[13px] font-semibold"}`}>{v}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  {open && (
+                    <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Kontakt-Ergebnisse nach Typ</p>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.keys(a.outcomes).length === 0 && <span className="text-[12px] text-slate-400">Keine dokumentierten Ergebnisse im Zeitraum.</span>}
+                        {Object.entries(a.outcomes).map(([k, v]) => (
+                          <span key={k} className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-[12px] text-slate-600">
+                            {OUTCOME_LABEL[k] || k}: <b className="tabular-nums">{v as number}</b>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Zeitverlauf + Quellen */}

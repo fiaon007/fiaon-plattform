@@ -4,6 +4,7 @@ import {
   Sparkles, Terminal, ExternalLink, ChevronDown, Copy, Check,
 } from "lucide-react";
 import { PageIntro } from "@/components/admin/PageHelp";
+import { AiButton, Markdown } from "@/components/admin/AiKit";
 
 // ═══════════════════════════════════════════════════════════════════
 // /admin/diagnose — System-Diagnose (Phase 5).
@@ -228,10 +229,7 @@ function ConsoleTab() {
 
       {/* Aktions-Leiste */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <button onClick={runAi} disabled={aiBusy}
-          className="px-3.5 py-2 rounded-xl bg-[#2563eb] hover:bg-[#1d4fd7] text-white text-[12.5px] font-semibold inline-flex items-center gap-1.5 disabled:opacity-50">
-          <Sparkles size={13} /> {aiBusy ? "Analysiert …" : "Probleme zusammenfassen"}
-        </button>
+        <AiButton onClick={runAi} busy={aiBusy}>Probleme zusammenfassen</AiButton>
         <a href={exportUrl()} className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 text-[12.5px] font-semibold inline-flex items-center gap-1.5 hover:border-slate-300">
           <Download size={13} /> Export
         </a>
@@ -332,7 +330,7 @@ function AiPanel({ ai, onClose }: { ai: { text: string; provider: string; at: st
           <button onClick={onClose} className="px-2 py-1 rounded-lg border border-slate-200 text-slate-400 text-[11px] hover:border-slate-300">schließen</button>
         </div>
       </div>
-      <div className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap break-words">{ai.text}</div>
+      <Markdown text={ai.text} />
     </div>
   );
 }

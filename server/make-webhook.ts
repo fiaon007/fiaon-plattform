@@ -24,6 +24,7 @@ export type MakeEventType =
   | "agent_payout_rejected"
   | "agent_callback_reminder"
   | "agent_feedback_rewarded"
+  | "agent_feedback_reply"
   | "lead_followup"
   | "lead_application_link";
 

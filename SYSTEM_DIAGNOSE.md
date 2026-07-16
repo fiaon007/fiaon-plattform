@@ -619,5 +619,49 @@ Retention-Fenster).
 - `npx tsc --noEmit`: keine neuen Fehler in den geänderten FIAON-Dateien.
 
 ## Ehrliche Grenzen
-- **Keine Massenkorrektur** von Alt-Terminen (Freigabe des Betreibers nötig; Versatz gemischt). Neue Termine sind ab dem Fix korrekt.
+- **Keine Massenkorrektur** von Alt-Terminen (Freigabe des Betreibers nötig). Neue Termine sind ab dem Fix korrekt.
 - DST-Randstunde (Umstellungsnacht 02:00–03:00) wird über einen Zwei-Pass-Offset behandelt; exotische Eingaben genau in der übersprungenen Stunde sind ein akzeptierter Grenzfall.
+
+---
+
+# Phase 3 — Phase 0 (Messbericht, 16.07.2026)
+
+**Methode:** Nur-Lese-Skript `scripts/phase0-report.ts` (ausschließlich SELECT). Zeitzonen-Korrektur vorbereitet als `scripts/fix-callback-timezone.ts` (Standard = DRY-RUN, ändert nichts). Beide live gegen die Produktions-DB ausgeführt.
+
+## A) Zeitzonen-Altbestand — Ergebnis: EINHEITLICH, Korrektur vorbereitet
+
+| Kategorie | gesamt | **zukünftig (relevant)** | Versatz |
+|---|---|---|---|
+| Kunden-Rückrufe (`contact_log.scheduled_at`) | 9 | **8** | 8× Sommer **+2 h**, 0× Winter |
+| Zahlungs-Zusagen (`promised_pay_date`) | 65 | 9 | tagesgenau → praktisch irrelevant |
+| Lead-Rückrufe (`lead_log.scheduled_at`) | — | **0** | — |
+
+- **Alle 8 zukünftigen Rückrufe sind agent-eingegeben (0 Admin/Browser-Einträge) und alle +2 h** → der Versatz ist **einheitlich**, eine deterministische Einmal-Korrektur (`neuer UTC = alt − Berlin-Offset`) ist zulässig.
+- **Vorher/Nachher (Auszug):** `#616` Florentine 12:00 → **10:00**; `#316` Daniel 18:10 → **16:10**; `#921` Daniel (23.07.) 19:00 → **17:00**. Vollständige Liste im Dry-Run.
+- **Zahlungs-Zusagen** sind tagesgenau (Zahltag) — 00:00 vs. 02:00 fällt auf denselben Kalendertag, daher **nicht** korrigiert.
+- **Status:** Korrektur **NICHT ausgeführt**. Ausführen erst nach Freigabe:
+  `npx tsx scripts/fix-callback-timezone.ts --apply --cutoff=<Deploy-Zeit ISO>` (schreibt vorher ein Backup, protokolliert jede Änderung, überspringt Admin-/System-Einträge, nur Zeilen vor dem Stichtag).
+
+## B) Strenger Lead-Filter — Auswirkung gemessen: nur ~147 anrufbar
+
+**Pro Agent (offene Leads → anrufbar nach Queue-Regel Tel+Mail+Name):**
+- **Daniel: 840 → 71 anrufbar**
+- **Florentine: 859 → 76 anrufbar**
+
+**Gesamtbestand offener Leads (1.700):**
+- vollständig (Tel+Mail+Name): **147**
+- **nur E-Mail (kein Telefon): 1.553**
+- nur Telefon (keine Mail): 0
+- weder noch: 0
+- Tel+Mail vorhanden, Name fehlt: 0
+
+**Antworten auf die kritischen Fragen:**
+1. **Bleiben „nur E-Mail"-Leads in der Nachfass-Sequenz?** **JA — alle 1.553** stehen auf `in_sequence = TRUE` und werden weiter angeschrieben. Die Nachfass-Engine verlangt `email OR telefon` (nicht Telefon), die strenge Regel gilt **nur** für die Anruf-Warteschlange. **Kein Fehler, keine Stilllegung — korrekt getrennt.** Diese Leads können als Direktzahler selbst konvertieren (volle Marge, keine Provision).
+2. **Reicht die Arbeit?** **Nein, das ist knapp:** ~147 anrufbare Leads für zwei Agenten (Daniel 71 / Florentine 76). **→ Geschäftsentscheidung des Betreibers**, nicht technisch. Hebel: (a) Merges (siehe unten, +262 möglich), (b) Telefonnummern in den Import bringen.
+3. **Welche Facebook-Kampagne liefert Leads ohne Telefon?** **Keine** — die telefonlosen Leads stammen fast vollständig aus der Quelle **`import`** (1.536 von 1.538 = 100 % ohne Telefon) sowie `Test import (20)` (16/16). Echte Facebook-Kampagnen (z. B. „Österreich Campaign 1") liefern nahezu vollständige Telefonnummern (1 % ohne). **→ Betreiber-TODO liegt beim Import-Prozess, nicht bei Facebook/Make.**
+
+**Merge-Rettung (Schätzung, read-only):** **262** offene Leads ohne Telefon haben dieselbe E-Mail wie ein anderer Datensatz **mit** Telefon (Lead oder Antrag) → durch Merge anrufbar. Das würde den anrufbaren Bestand von ~147 auf grob **~400** heben — direkter Umsatzhebel und Begründung für P3-A.
+
+## Fazit Phase 0
+- **A:** einheitlicher +2-h-Versatz, 8 Termine, Korrektur vorbereitet (wartet auf Freigabe). Neue Termine sind ab Deploy korrekt.
+- **B:** Filter arbeitet korrekt (nur-E-Mail bleibt im Mailing), aber der anrufbare Bestand ist mit ~147 knapp für zwei Agenten. Import ohne Telefon ist die Ursache; Merges heben ~262 zusätzlich. Entscheidung liegt beim Betreiber.

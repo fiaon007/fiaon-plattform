@@ -1,7 +1,10 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Sparkles, Send, ChevronDown, Copy as CopyIcon, Check, Code2, AlertTriangle, History, ExternalLink } from "lucide-react";
-import { ACCENT } from "./AdminShell";
+import { useState, useRef, useEffect } from "react";
 import { Markdown } from "./AiKit";
+
+// High-End-Look im Gemini-Stil — bewusst OHNE Icon-Bibliothek, nur Farbe/Verlauf.
+const GRAD = "linear-gradient(120deg, #4f46e5, #7c3aed, #db2777, #2563eb)";
+const LINK = "#6d28d9";
+const LS_KEY = "fiaon_cockpit_convos_v1";
 
 // ═══════════════════════════════════════════════════════════════════
 // KI-Cockpit — Chat mit dem eigenen System (Prompt 3/3).
@@ -25,6 +28,7 @@ interface AskResult {
   rejected?: boolean;
 }
 interface Turn { id: number; question: string; result: AskResult | null; error?: string }
+interface Conversation { id: string; title: string; turns: Turn[]; updatedAt: number }
 
 const CHIPS = [
   "Wie ist der Stand heute?",
@@ -50,8 +54,8 @@ function CellValue({ col, value }: { col: string; value: any }) {
   const s = value == null ? "" : String(value);
   if (col.toLowerCase() === "ref" && /^FIAON-/i.test(s)) {
     return (
-      <a href={`/admin/zahlungen?ref=${encodeURIComponent(s)}`} className="inline-flex items-center gap-1 font-medium hover:underline" style={{ color: ACCENT }}>
-        {s} <ExternalLink size={11} />
+      <a href={`/admin/zahlungen?ref=${encodeURIComponent(s)}`} className="font-medium underline decoration-dotted underline-offset-2 hover:decoration-solid" style={{ color: LINK }}>
+        {s}
       </a>
     );
   }
@@ -113,49 +117,46 @@ function TurnView({ turn }: { turn: Turn }) {
   };
 
   return (
-    <div className="border-t border-slate-100 pt-3 first:border-0 first:pt-0">
-      {/* Frage (Betreiber) */}
-      <div className="flex justify-end mb-2">
-        <span className="max-w-[85%] rounded-2xl px-3.5 py-2 text-[13px] text-white" style={{ background: ACCENT }}>{turn.question}</span>
+    <div className="pt-6 first:pt-0">
+      {/* Frage (Betreiber) — Verlaufs-Blase */}
+      <div className="flex justify-end mb-3">
+        <span className="max-w-[85%] rounded-[20px] rounded-br-md px-4 py-2.5 text-[14.5px] leading-snug text-white shadow-[0_6px_18px_-6px_rgba(124,58,237,0.6)]" style={{ background: GRAD }}>{turn.question}</span>
       </div>
 
       {/* Fehler (KI/DB/abgelehnt) — Zahlen bleiben ehrlich, kein Erfinden */}
       {turn.error && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-[12.5px] text-amber-800 flex items-start gap-2">
-          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          <div>
-            <p>{turn.error}</p>
-            {res?.sql && (
-              <details className="mt-1.5">
-                <summary className="cursor-pointer text-[11.5px] font-semibold text-amber-700">Vorschlag der KI ansehen</summary>
-                <pre className="mt-1 whitespace-pre-wrap break-words text-[11.5px] bg-white/60 border border-amber-200 rounded-lg p-2">{res.sql}</pre>
-              </details>
-            )}
-          </div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-[13px] text-amber-800">
+          <p className="font-medium">{turn.error}</p>
+          {res?.sql && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-[12px] font-semibold text-amber-700">Vorschlag der KI ansehen</summary>
+              <pre className="mt-1.5 whitespace-pre-wrap break-words text-[12px] bg-white/70 border border-amber-200 rounded-xl p-2.5">{res.sql}</pre>
+            </details>
+          )}
         </div>
       )}
 
       {/* Antwort */}
       {res?.ok && (
-        <div>
-          {res.explanation && <Markdown text={res.explanation} />}
+        <div className="rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-4">
+          {res.explanation && <div className="text-[14.5px] leading-relaxed text-slate-700"><Markdown text={res.explanation} /></div>}
           {res.columns && res.rows && res.rows.length > 0 && (
             <ResultTable columns={res.columns} rows={res.rows} />
           )}
-          <div className="flex flex-wrap items-center gap-2 mt-2.5">
-            <span className="text-[11px] text-slate-400">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3.5 text-[12.5px]">
+            <span className="text-slate-400">
               {res.rowCount} {res.rowCount === 1 ? "Zeile" : "Zeilen"}
-              {res.truncated ? ` (nur die ersten ${res.maxRows} gezeigt)` : ""}
+              {res.truncated ? ` · nur die ersten ${res.maxRows} gezeigt` : ""}
             </span>
-            <button onClick={() => setShowSql((v) => !v)} className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-slate-500 hover:text-slate-800">
-              <Code2 size={12} /> {showSql ? "Abfrage verbergen" : "Abfrage anzeigen"}
+            <button onClick={() => setShowSql((v) => !v)} className="font-semibold text-slate-500 hover:text-violet-700 transition-colors">
+              {showSql ? "Abfrage verbergen" : "Abfrage anzeigen"}
             </button>
-            <button onClick={copyAnswer} className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-slate-500 hover:text-slate-800">
-              {copied ? <Check size={12} /> : <CopyIcon size={12} />} {copied ? "Kopiert" : "Antwort kopieren"}
+            <button onClick={copyAnswer} className="font-semibold text-slate-500 hover:text-violet-700 transition-colors">
+              {copied ? "Kopiert!" : "Antwort kopieren"}
             </button>
           </div>
           {showSql && (
-            <pre className="mt-2 whitespace-pre-wrap break-words text-[11.5px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-3">{res.sql}</pre>
+            <pre className="mt-2.5 whitespace-pre-wrap break-words text-[12px] text-slate-500 bg-white border border-slate-200 rounded-xl p-3.5">{res.sql}</pre>
           )}
         </div>
       )}
@@ -163,43 +164,109 @@ function TurnView({ turn }: { turn: Turn }) {
   );
 }
 
+const COCKPIT_CSS = `
+.cp-gradient-text{
+  background:${GRAD}; background-size:200% auto;
+  -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent; color:transparent;
+  animation:cpText 6s linear infinite;
+}
+@keyframes cpText{to{background-position:200% center}}
+@keyframes cpFlow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+
+.cp-input-shell{position:relative;border-radius:24px;padding:2px;}
+.cp-input-shell::before{
+  content:"";position:absolute;inset:0;border-radius:inherit;padding:2px;pointer-events:none;
+  background:linear-gradient(120deg,#4f46e5,#7c3aed,#db2777,#2563eb,#4f46e5);
+  background-size:300% 300%;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+  animation:cpFlow 6s ease infinite;
+}
+.cp-input-shell::after{
+  content:"";position:absolute;inset:-4px;border-radius:28px;z-index:-1;pointer-events:none;
+  background:linear-gradient(120deg,#4f46e5,#7c3aed,#db2777,#2563eb);
+  background-size:300% 300%;filter:blur(16px);opacity:.30;
+  animation:cpFlow 6s ease infinite;transition:opacity .35s;
+}
+.cp-input-shell:focus-within::after{opacity:.72;}
+.cp-input-shell.cp-busy::after{opacity:.8;}
+.cp-input-inner{position:relative;z-index:1;display:flex;align-items:flex-end;gap:8px;background:#fff;border-radius:22px;padding:10px 10px 10px 16px;}
+
+.cp-send{border-radius:16px;color:#fff;font-weight:700;font-size:14.5px;padding:0 22px;height:46px;min-width:92px;background:${GRAD};box-shadow:0 6px 18px -6px rgba(124,58,237,.55);transition:transform .15s,opacity .2s,box-shadow .2s;}
+.cp-send:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 10px 24px -8px rgba(124,58,237,.7);}
+.cp-send:disabled{opacity:.4;box-shadow:none;}
+
+.cp-orb{width:72px;height:72px;border-radius:9999px;background:conic-gradient(from 0deg,#4f46e5,#7c3aed,#db2777,#2563eb,#4f46e5);box-shadow:0 0 48px -6px rgba(124,58,237,.6);animation:cpSpin 8s linear infinite;}
+.cp-orb-core{position:absolute;inset:14px;border-radius:9999px;background:#fff;}
+@keyframes cpSpin{to{transform:rotate(360deg)}}
+
+.cp-dots{display:inline-flex;gap:5px;align-items:center;}
+.cp-dots i{width:7px;height:7px;border-radius:9999px;background:linear-gradient(120deg,#7c3aed,#db2777);display:inline-block;animation:cpBounce 1s ease-in-out infinite;}
+.cp-dots i:nth-child(2){animation-delay:.15s}
+.cp-dots i:nth-child(3){animation-delay:.3s}
+@keyframes cpBounce{0%,100%{transform:translateY(0);opacity:.45}50%{transform:translateY(-5px);opacity:1}}
+`;
+
 export default function Cockpit() {
   const [q, setQ] = useState("");
-  const [turns, setTurns] = useState<Turn[]>([]);
+  const [convos, setConvos] = useState<Conversation[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [history, setHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const nextId = useRef(1);
+  const taRef = useRef<HTMLTextAreaElement>(null);
 
-  const loadHistory = useCallback(() => {
-    fetch("/api/fiaon/admin/cockpit/history", { credentials: "include" })
-      .then((r) => r.json()).then((j) => {
-        if (j?.ok) {
-          const seen = new Set<string>();
-          const qs: string[] = [];
-          for (const h of j.history as any[]) {
-            const t = String(h.question || "").trim();
-            if (t && !seen.has(t)) { seen.add(t); qs.push(t); }
-            if (qs.length >= 12) break;
-          }
-          setHistory(qs);
+  // Konversationen aus dem Browser laden (persistent über Reloads).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Conversation[];
+        if (Array.isArray(parsed) && parsed.length) {
+          setConvos(parsed);
+          setActiveId(parsed.slice().sort((a, b) => b.updatedAt - a.updatedAt)[0].id);
         }
-      }).catch(() => {});
+      }
+    } catch { /* ignore */ }
   }, []);
-  useEffect(loadHistory, [loadHistory]);
+
+  // Konversationen speichern (max. 50, damit der Speicher nicht vollläuft).
+  useEffect(() => {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(convos.slice(0, 50))); } catch { /* ignore */ }
+  }, [convos]);
+
+  const activeConv = convos.find((c) => c.id === activeId) || null;
+  const turns = activeConv?.turns || [];
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [turns, busy]);
+  }, [turns.length, busy, activeId]);
+
+  // Textarea wächst mit dem Text (bis zu einer Grenze).
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 200) + "px";
+  }, [q]);
 
   const ask = async (question: string) => {
     const text = question.trim();
     if (!text || busy) return;
     setQ("");
-    const id = nextId.current++;
-    setTurns((t) => [...t, { id, question: text, result: null }]);
     setBusy(true);
+    const turnId = Date.now() + Math.random();
+    const isNew = !(activeId && convos.some((c) => c.id === activeId));
+    const convId = isNew ? `c_${Date.now()}_${Math.random().toString(36).slice(2, 6)}` : (activeId as string);
+    setActiveId(convId);
+    setConvos((prev) => {
+      let list = [...prev];
+      if (isNew) list = [{ id: convId, title: text.slice(0, 70), turns: [], updatedAt: Date.now() }, ...list];
+      return list.map((c) => c.id === convId
+        ? { ...c, title: c.turns.length ? c.title : text.slice(0, 70), turns: [...c.turns, { id: turnId, question: text, result: null }], updatedAt: Date.now() }
+        : c);
+    });
     try {
       const res = await fetch("/api/fiaon/admin/cockpit/ask", {
         method: "POST",
@@ -208,88 +275,112 @@ export default function Cockpit() {
         body: JSON.stringify({ question: text }),
       });
       const json: AskResult = await res.json().catch(() => ({ ok: false, error: "Antwort nicht lesbar" } as AskResult));
-      setTurns((t) => t.map((x) => x.id === id ? {
-        ...x,
-        result: json,
-        error: json.ok ? undefined : (json.error || "Die Frage konnte nicht beantwortet werden."),
-      } : x));
-      loadHistory();
+      setConvos((prev) => prev.map((c) => c.id === convId
+        ? { ...c, updatedAt: Date.now(), turns: c.turns.map((t) => t.id === turnId ? { ...t, result: json, error: json.ok ? undefined : (json.error || "Die Frage konnte nicht beantwortet werden.") } : t) }
+        : c));
     } catch {
-      setTurns((t) => t.map((x) => x.id === id ? { ...x, error: "Verbindung zur KI fehlgeschlagen. Der Rest des Dashboards funktioniert weiter." } : x));
+      setConvos((prev) => prev.map((c) => c.id === convId
+        ? { ...c, turns: c.turns.map((t) => t.id === turnId ? { ...t, error: "Verbindung zur KI fehlgeschlagen. Der Rest des Dashboards funktioniert weiter." } : t) }
+        : c));
     } finally {
       setBusy(false);
     }
   };
 
+  const newChat = () => { setActiveId(null); setQ(""); setShowHistory(false); };
+  const openConv = (id: string) => { setActiveId(id); setShowHistory(false); };
+  const deleteConv = (id: string) => {
+    setConvos((prev) => prev.filter((c) => c.id !== id));
+    if (activeId === id) setActiveId(null);
+  };
+
   return (
-    <div className="mb-6 bg-white border border-slate-200 rounded-2xl shadow-[0_1px_2px_rgba(15,23,42,0.04)] overflow-hidden">
-      <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-        <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: ACCENT }}>
-          <Sparkles size={15} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-bold text-slate-900">KI-Cockpit</p>
-          <p className="text-[11px] text-slate-400 leading-tight">Frag dein Geschäft in normaler Sprache — echte Zahlen aus der Datenbank, mit sichtbarer Abfrage.</p>
+    <div className="mb-8">
+      <style>{COCKPIT_CSS}</style>
+      <div className="relative rounded-[28px] bg-white border border-slate-200/70 shadow-[0_20px_60px_-24px_rgba(79,70,229,0.28)] overflow-hidden">
+        {/* Dekorativer Farbschimmer */}
+        <div className="pointer-events-none absolute -top-28 left-1/2 -translate-x-1/2 h-56 w-[75%] rounded-full opacity-[0.18] blur-3xl" style={{ background: GRAD }} />
+
+        {/* Kopf */}
+        <div className="relative flex items-start gap-3 px-6 pt-6 pb-4">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[24px] sm:text-[28px] font-extrabold tracking-tight cp-gradient-text leading-tight">KI-Cockpit</h2>
+            <p className="text-[13.5px] text-slate-500 mt-1">Frag dein Geschäft in normaler Sprache — echte Zahlen aus der Datenbank, mit sichtbarer Abfrage.</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 pt-1">
+            {turns.length > 0 && (
+              <button onClick={newChat} className="px-4 py-2 rounded-full text-[12.5px] font-semibold text-white shadow-[0_6px_16px_-6px_rgba(124,58,237,0.6)] hover:opacity-90 transition" style={{ background: GRAD }}>Neuer Chat</button>
+            )}
+            {convos.length > 0 && (
+              <button onClick={() => setShowHistory((v) => !v)} className={`px-4 py-2 rounded-full text-[12.5px] font-semibold border transition ${showHistory ? "border-violet-300 text-violet-700 bg-violet-50" : "border-slate-200 text-slate-600 bg-white hover:border-slate-300"}`}>Verlauf</button>
+            )}
+          </div>
         </div>
-        {history.length > 0 && (
-          <button onClick={() => setShowHistory((v) => !v)} className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-slate-500 hover:text-slate-800 shrink-0">
-            <History size={13} /> Verlauf
-          </button>
+
+        {/* Verlauf gespeicherter Konversationen */}
+        {showHistory && convos.length > 0 && (
+          <div className="relative mx-6 mb-3 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-2 max-h-[280px] overflow-y-auto shadow-sm">
+            {convos.slice().sort((a, b) => b.updatedAt - a.updatedAt).map((c) => (
+              <div key={c.id} className={`flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer transition ${c.id === activeId ? "bg-violet-50" : "hover:bg-slate-50"}`}>
+                <button onClick={() => openConv(c.id)} className="flex-1 min-w-0 text-left">
+                  <p className="text-[13.5px] font-medium text-slate-700 truncate">{c.title || "Neue Unterhaltung"}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{new Date(c.updatedAt).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })} · {c.turns.length} Frage{c.turns.length === 1 ? "" : "n"}</p>
+                </button>
+                <button onClick={() => deleteConv(c.id)} className="text-[11.5px] font-semibold text-slate-300 hover:text-rose-500 transition shrink-0">Entfernen</button>
+              </div>
+            ))}
+          </div>
         )}
-      </div>
 
-      {/* Verlauf der letzten Fragen (aus dem Audit-Log) */}
-      {showHistory && history.length > 0 && (
-        <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50/50 flex flex-wrap gap-1.5">
-          {history.map((h, i) => (
-            <button key={i} onClick={() => ask(h)} disabled={busy}
-              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-[11.5px] text-slate-600 hover:border-slate-300 disabled:opacity-50 truncate max-w-full">
-              {h}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Ergebnisse (scrollbar) */}
-      {turns.length > 0 && (
-        <div ref={scrollRef} className="px-4 py-3 space-y-3 max-h-[60vh] overflow-y-auto">
-          {turns.map((t) => <TurnView key={t.id} turn={t} />)}
-          {busy && (
-            <div className="flex items-center gap-2 text-[12.5px] text-slate-400">
-              <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-slate-300 border-t-slate-500 animate-spin" />
-              Denkt nach, erzeugt eine geprüfte Abfrage …
+        {/* Gesprächsbereich / Willkommens-Hero */}
+        <div ref={scrollRef} className="relative px-6 overflow-y-auto" style={{ maxHeight: "58vh", minHeight: turns.length ? 260 : 320 }}>
+          {turns.length === 0 ? (
+            <div className="flex flex-col items-center justify-center text-center py-12">
+              <div className="relative mb-6"><div className="cp-orb" /><div className="cp-orb-core" /></div>
+              <h3 className="text-[26px] sm:text-[32px] font-extrabold tracking-tight cp-gradient-text">Was möchtest du wissen?</h3>
+              <p className="text-[14.5px] text-slate-500 mt-2.5 max-w-lg leading-relaxed">Stell eine Frage zu Kunden, Zahlungen, Provisionen oder Leads. Du bekommst echte Zahlen — inklusive der Abfrage, die dahintersteckt. Kundendaten gehen nie an die KI.</p>
+              <div className="flex flex-wrap justify-center gap-2.5 mt-7 max-w-2xl">
+                {CHIPS.map((c) => (
+                  <button key={c} onClick={() => ask(c)} disabled={busy}
+                    className="px-4 py-2.5 rounded-full text-[13.5px] font-medium text-slate-600 bg-white border border-slate-200 hover:border-violet-300 hover:text-violet-700 hover:shadow-[0_6px_16px_-8px_rgba(124,58,237,0.5)] transition disabled:opacity-50">
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="pb-4">
+              {turns.map((t) => <TurnView key={t.id} turn={t} />)}
+              {busy && (
+                <div className="flex items-center gap-2.5 pt-6 text-[14px] text-slate-400">
+                  <span className="cp-dots"><i /><i /><i /></span> Denkt nach, erzeugt eine geprüfte Abfrage …
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
 
-      {/* Starter-Chips (nur solange leer) */}
-      {turns.length === 0 && (
-        <div className="px-4 pt-3 flex flex-wrap gap-1.5">
-          {CHIPS.map((c) => (
-            <button key={c} onClick={() => ask(c)} disabled={busy}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-[12px] font-medium text-slate-600 hover:border-slate-300 transition-colors disabled:opacity-50">
-              {c}
-            </button>
-          ))}
+        {/* Eingabe mit leuchtendem Rand (mobil voll bedienbar) */}
+        <div className="relative px-6 pb-6 pt-4">
+          <div className={`cp-input-shell ${busy ? "cp-busy" : ""}`}>
+            <div className="cp-input-inner">
+              <textarea
+                ref={taRef}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(q); } }}
+                placeholder="Frag dein Geschäft … z. B. „Zeig mir alle Zahlungen von Terzi“"
+                rows={1}
+                className="flex-1 resize-none bg-transparent px-1 py-2 text-[15.5px] leading-relaxed text-slate-800 outline-none placeholder:text-slate-400"
+                style={{ maxHeight: 200 }}
+              />
+              <button onClick={() => ask(q)} disabled={busy || !q.trim()} className="cp-send">
+                {busy ? "…" : "Fragen"}
+              </button>
+            </div>
+          </div>
+          <p className="text-[11.5px] text-slate-400 mt-2.5 text-center">Enter zum Senden · Shift + Enter für neue Zeile · Kundendaten gehen nie an die KI</p>
         </div>
-      )}
-
-      {/* Eingabe unten (mobil voll bedienbar) */}
-      <div className="p-3 flex items-end gap-2">
-        <textarea
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(q); } }}
-          placeholder="z. B. „Zeig mir alle Zahlungen von Terzi“ oder „Wie viele bezahlt diesen Monat?“"
-          rows={1}
-          className="flex-1 resize-none rounded-xl border border-slate-200 px-3.5 py-2.5 text-[13.5px] outline-none focus:border-slate-400 placeholder:text-slate-400 min-h-[44px]"
-        />
-        <button onClick={() => ask(q)} disabled={busy || !q.trim()}
-          className="shrink-0 inline-flex items-center gap-1.5 rounded-xl px-4 text-[13px] font-semibold text-white disabled:opacity-40 transition-opacity"
-          style={{ background: ACCENT, minHeight: 44 }}>
-          <Send size={14} /> Fragen
-        </button>
       </div>
     </div>
   );

@@ -89,6 +89,21 @@ export function custPhone(c: Customer): string | null {
   return null;
 }
 
+// Ticket #14: lokaler Treffer-Test inkl. Telefonnummer (Ziffern-Teilstring, Format egal),
+// damit auch bereits geladene Kunden bei Nummernsuche sichtbar bleiben (die serverseitige
+// /agent/search liefert zusätzlich Bezahlte/Leads).
+export function matchCustomer(c: Customer, q: string): boolean {
+  const s = q.toLowerCase();
+  const txt = `${custName(c)} ${c.email || ""} ${c.ref || ""} ${c.payment_reference || ""}`.toLowerCase();
+  if (txt.includes(s)) return true;
+  const qDigits = q.replace(/\D/g, "");
+  if (qDigits.length >= 3) {
+    const phoneDigits = (custPhone(c) || "").replace(/\D/g, "");
+    if (phoneDigits.includes(qDigits)) return true;
+  }
+  return false;
+}
+
 type Filter = "alle" | "claimed" | "abgelaufen" | "termin" | "nicht_erreicht";
 
 // Paket DA: Status-Gruppen im Gesamtbestand — klare Sprache statt Roh-Status
@@ -152,6 +167,16 @@ function KundenContent() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (view === "alle" && !allLoaded) loadAll(); }, [view, allLoaded, loadAll]);
 
+  // Ticket #14: Deep-Link aus der Suche (/agent/kunden?ref=<ref>) — Kunde direkt öffnen.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const refParam = params.get("ref");
+    if (refParam) {
+      setDetailRef(refParam);
+      window.history.replaceState({}, "", "/agent/kunden");
+    }
+  }, []);
+
   // Debounced Server-Suche: ab 2 Zeichen — findet auch bezahlte Kunden + Leads
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -167,7 +192,7 @@ function KundenContent() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return customers.filter((c) => {
-      if (q && !(custName(c).toLowerCase().includes(q) || (c.email || "").toLowerCase().includes(q) || (c.ref || "").toLowerCase().includes(q) || (c.payment_reference || "").toLowerCase().includes(q))) return false;
+      if (q && !matchCustomer(c, q)) return false;
       if (filter === "claimed") return c.payment_status === "claimed_paid";
       if (filter === "abgelaufen") return c.payment_status === "expired";
       if (filter === "termin") return !!c.next_appointment;
@@ -180,9 +205,9 @@ function KundenContent() {
 
   // Gesamtbestand: Suche + Gruppen-Filter
   const filteredAll = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = search.trim();
     return allCustomers.filter((c) => {
-      if (q && !(custName(c).toLowerCase().includes(q) || (c.email || "").toLowerCase().includes(q) || (c.ref || "").toLowerCase().includes(q) || (c.payment_reference || "").toLowerCase().includes(q))) return false;
+      if (q && !matchCustomer(c, q)) return false;
       if (allFilter !== "alle" && allGroupOf(c) !== allFilter) return false;
       return true;
     });
@@ -393,8 +418,9 @@ function KundenContent() {
                     </p>
                     <p className="text-[11px] text-slate-400 truncate">Lead · {l.telefon || l.email || "—"} · Status: {l.status}</p>
                   </div>
-                  <Link href="/agent/leads" className="text-[12px] font-semibold shrink-0" style={{ color: ACCENT }}>
-                    Zu den Leads
+                  {/* Ticket #14: direkt diesen Lead öffnen (auch wenn nicht übernommen) */}
+                  <Link href={`/agent/leads?open=${l.id}`} className="text-[12px] font-semibold shrink-0" style={{ color: ACCENT }}>
+                    Öffnen
                   </Link>
                 </div>
               ))}
@@ -529,23 +555,26 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
-    api(`/agent/customers/${encodeURIComponent(refId)}`).then((r) => {
-      if (r.ok) {
-        setDetail(r.json.data);
-        setLog(r.json.log || []);
-        setReadOnly(!!r.json.readOnly);
-        setCanReactivate(!!r.json.canReactivate);
-        setScripts(r.json.contextScripts || []);
-        if (r.json.data.agent_email_sent_at) {
-          setLockUntil(new Date(r.json.data.agent_email_sent_at).getTime() + 10 * 60 * 1000);
-        }
-      } else {
-        flash(r.json?.error || "Kunde nicht gefunden");
-        onClose();
+  // Ticket #16: eine wiederverwendbare Ladefunktion — so kann der Drawer nach einem
+  // Statuswechsel (z. B. Reaktivierung) in-place neu laden, ohne sich zu schließen.
+  const loadDetail = useCallback(async (opts: { closeOnError?: boolean } = {}) => {
+    const r = await api(`/agent/customers/${encodeURIComponent(refId)}`);
+    if (r.ok) {
+      setDetail(r.json.data);
+      setLog(r.json.log || []);
+      setReadOnly(!!r.json.readOnly);
+      setCanReactivate(!!r.json.canReactivate);
+      setScripts(r.json.contextScripts || []);
+      if (r.json.data.agent_email_sent_at) {
+        setLockUntil(new Date(r.json.data.agent_email_sent_at).getTime() + 10 * 60 * 1000);
       }
-    });
+    } else if (opts.closeOnError) {
+      flash(r.json?.error || "Kunde nicht gefunden");
+      onClose();
+    }
   }, [refId]);
+
+  useEffect(() => { loadDetail({ closeOnError: true }); }, [loadDetail]);
 
   if (!detail) return null;
 
@@ -568,15 +597,19 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
   };
 
   // Abgelaufenen Kunden reaktivieren (neue 7-Tage-Frist + Zuweisung an mich).
+  // Ticket #16: NICHT das Fenster schließen — der Drawer lädt in-place neu, zeigt
+  // den neuen Status und alle Aktionen sind sofort nutzbar. Ein Statuswechsel darf
+  // nie dazu führen, dass ein geöffneter Datensatz aus dem Fenster verschwindet.
   const reactivate = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setBusy("reactivate");
     const r = await api(`/agent/customers/${encodeURIComponent(refId)}/reactivate`, { method: "POST" });
     setBusy(null);
     if (r.ok) {
-      flash("Kunde reaktiviert — neue Zahlungsfrist gesetzt, Zahlungsdaten erneut gesendet");
+      await loadDetail();
+      const bis = r.json?.data?.payment_due_date ? ` Neue Zahlungsfrist bis ${fmtD(r.json.data.payment_due_date)}.` : "";
+      flash(`Reaktiviert — ${custName(detail)} steht jetzt wieder unter „Offen".${bis} Zahlungsdaten wurden erneut gesendet.`);
       onChanged();
-      onClose();
     } else flash(r.json?.error || "Reaktivierung fehlgeschlagen");
   };
 
@@ -612,11 +645,19 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
       setDatePick(null);
       setCheckKey(outcome);
       setTimeout(() => setCheckKey((k) => (k === outcome ? null : k)), 900);
-      // Paket DA: erklären, wo der Kunde jetzt zu finden ist — nichts „verschwindet"
-      const wohin = outcome === "erreicht_zahlt_gleich" || outcome === "erreicht_zahlt_am"
-        ? " — der Kunde bleibt in deiner Arbeitsliste, bis die Zahlung eingeht (danach: Gesamtbestand → Bezahlt)"
-        : " — der Kunde bleibt in deiner Arbeitsliste sichtbar";
-      flash(`${OUTCOME_LABELS[outcome]} dokumentiert${wohin}.`);
+      // Ticket #13: gespeicherte Zeit sofort im Klartext zurückspiegeln (deutsche Zeit),
+      // damit ein Fehler direkt auffällt statt erst später.
+      if (outcome === "rueckruf_termin" && r.json.entry?.scheduled_at) {
+        flash(`Rückruf gespeichert: ${fmtDT(r.json.entry.scheduled_at)} Uhr (deutsche Zeit).`);
+      } else if (outcome === "erreicht_zahlt_am" && r.json.entry?.promised_date) {
+        flash(`Zahlungs-Zusage gespeichert: ${fmtD(r.json.entry.promised_date)} (deutsche Zeit).`);
+      } else {
+        // Paket DA: erklären, wo der Kunde jetzt zu finden ist — nichts „verschwindet"
+        const wohin = outcome === "erreicht_zahlt_gleich"
+          ? " — der Kunde bleibt in deiner Arbeitsliste, bis die Zahlung eingeht (danach: Gesamtbestand → Bezahlt)"
+          : " — der Kunde bleibt in deiner Arbeitsliste sichtbar";
+        flash(`${OUTCOME_LABELS[outcome]} dokumentiert${wohin}.`);
+      }
       onChanged();
     } else flash(r.json?.error || "Fehler");
   };
@@ -942,6 +983,9 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
                   <button type="button" onClick={(e) => datePick.value && saveOutcome(e, datePick.outcome, datePick.value)}
                     disabled={!datePick.value || busy !== null} className={btnPrimary}>Speichern</button>
                 </div>
+                {datePick.outcome === "rueckruf_termin" && (
+                  <p className="text-[11px] text-slate-400 mt-1.5">Uhrzeit in deutscher Zeit (Europe/Berlin)</p>
+                )}
               </div>
             )}
           </div>

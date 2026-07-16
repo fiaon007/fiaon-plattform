@@ -21,6 +21,7 @@ import PDFDocument from "pdfkit";
 import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
 import { renderInvoicePdf, signInvoiceUrl, ensureInvoiceNumber } from "../fiaon-invoice";
 import { fiaonBaseUrl } from "../fiaon-base-url";
+import { parseBerlinInput, formatBerlin } from "../lib/fiaon-time";
 
 const router = Router();
 const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 5 });
@@ -444,7 +445,7 @@ async function logAction(ref: string, agent: { id: number; name: string }, type:
   const rows = await sqlPool`
     INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, outcome, note, scheduled_at, promised_date)
     VALUES (${ref}, ${agent.id}, ${agent.name}, ${type}, ${fields.outcome || null}, ${fields.note || null},
-            ${fields.scheduledAt ? new Date(fields.scheduledAt) : null}, ${fields.promisedDate ? new Date(fields.promisedDate) : null})
+            ${parseBerlinInput(fields.scheduledAt)}, ${parseBerlinInput(fields.promisedDate)})
     RETURNING *
   `;
   return rows[0];
@@ -913,6 +914,8 @@ export async function runCallbackReminders(): Promise<number> {
       kunde_name: kunde,
       referenz: entry.ref,
       termin_zeit: new Date(entry.scheduled_at).toISOString(),
+      // Klartext in deutscher Zeit — für die E-Mail an den Agenten (Ticket #13).
+      termin_zeit_text: formatBerlin(entry.scheduled_at),
     });
     sent++;
   }
@@ -1577,7 +1580,7 @@ router.post("/agent/customers/:ref/contact-result", requireAgent, async (req: Ag
 
     // Zahlungs-Zusage am Antrag speichern (sichtbar auch im Admin)
     if (promisedDate || outcome === "erreicht_zahlt_gleich") {
-      const promised = promisedDate ? new Date(promisedDate) : new Date();
+      const promised = parseBerlinInput(promisedDate) || new Date();
       await sqlPool`UPDATE fiaon_applications SET promised_pay_date = ${promised}, updated_at = NOW() WHERE ref = ${req.params.ref}`;
     }
     res.json({ ok: true, entry, claimed: guard.claimed || false });
@@ -1999,7 +2002,7 @@ router.post("/agent/calendar/:logId/done", requireAgent, async (req: AgentReques
 // Termin verschieben — erzeugt Log-Eintrag, Reminder wird erneut fällig
 router.post("/agent/calendar/:logId/reschedule", requireAgent, async (req: AgentRequest, res) => {
   try {
-    const newAt = req.body?.scheduledAt ? new Date(String(req.body.scheduledAt)) : null;
+    const newAt = parseBerlinInput(req.body?.scheduledAt);
     if (!newAt || isNaN(newAt.getTime())) return res.status(400).json({ ok: false, error: "Neuer Zeitpunkt erforderlich" });
     const rows = await sqlPool`
       UPDATE fiaon_contact_log SET scheduled_at = ${newAt}, promised_date = CASE WHEN scheduled_at IS NULL THEN ${newAt} ELSE promised_date END, reminder_sent_at = NULL
@@ -2007,7 +2010,7 @@ router.post("/agent/calendar/:logId/reschedule", requireAgent, async (req: Agent
       RETURNING ref
     `;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Termin nicht gefunden" });
-    await logAction(rows[0].ref, req.agent!, "note", { note: `Termin verschoben auf ${newAt.toLocaleString("de-DE")}` });
+    await logAction(rows[0].ref, req.agent!, "note", { note: `Termin verschoben auf ${formatBerlin(newAt)}` });
     res.json({ ok: true });
   } catch (err) {
     console.error("[FIAON-AGENT] calendar reschedule:", err);

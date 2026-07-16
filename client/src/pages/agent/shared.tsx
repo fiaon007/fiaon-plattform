@@ -24,19 +24,21 @@ export function fmtEur(v: string | number | null | undefined): string {
   return `${n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 }
 
+// Ticket #13: Anzeige IMMER in deutscher Geschäftszeit (Europe/Berlin) — unabhängig
+// vom Standort des Betrachters (Betreiber in Bangkok, Agenten in Deutschland).
 export function fmtD(v: string | null | undefined): string {
   if (!v) return "—";
-  try { return new Date(v).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }); } catch { return "—"; }
+  try { return new Date(v).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }); } catch { return "—"; }
 }
 
 export function fmtDT(v: string | null | undefined): string {
   if (!v) return "—";
-  try { return new Date(v).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return "—"; }
+  try { return new Date(v).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return "—"; }
 }
 
 export function fmtTime(v: string | null | undefined): string {
   if (!v) return "—";
-  try { return new Date(v).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }); } catch { return "—"; }
+  try { return new Date(v).toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" }); } catch { return "—"; }
 }
 
 export function isToday(v: string | null | undefined): boolean {

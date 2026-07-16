@@ -1,9 +1,17 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "wouter";
-import { Phone, ArrowLeft, Send, Pencil, Users, Lock, FolderOpen, ShieldCheck, ChevronDown } from "lucide-react";
+import { Phone, ArrowLeft, Send, Pencil, Users, Lock, FolderOpen, ShieldCheck, ChevronDown, Search, Archive, PhoneCall, X } from "lucide-react";
 import {
   AgentShell, api, Card, Badge, fmtDT, fmtD, inputCls, btnPrimary, btnGhost, FlashMessage,
 } from "./shared";
+
+// Ticket #15: Gründe fürs Aussortieren („aus meiner Liste entfernen" — nie gelöscht).
+const DISMISS_REASONS: { key: string; label: string }[] = [
+  { key: "keine_telefonnummer", label: "keine Telefonnummer" },
+  { key: "nummer_ungueltig", label: "Nummer ungültig" },
+  { key: "kein_interesse", label: "kein Interesse" },
+  { key: "dublette", label: "Dublette" },
+];
 
 // ════════════════════════════════════════════════════════════════════
 // P2-C — ARBEITSWARTESCHLANGE (statt Lead-Friedhof).
@@ -49,6 +57,9 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
   const [rueckrufAt, setRueckrufAt] = useState("");
   // Paket DD: Zwei-Schritt-Bestätigung — erst auswählen, dann bestätigen
   const [armed, setArmed] = useState<string | null>(null);
+  // Ticket #15: „Aus meiner Liste entfernen" (nie gelöscht)
+  const [dismissOpen, setDismissOpen] = useState(false);
+  const [dismissReason, setDismissReason] = useState("");
 
   const load = useCallback(() => {
     api(`/agent/leads/${id}`).then((r) => {
@@ -116,6 +127,16 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
     if (r.ok) { onChanged(); onClose(); } else setFlash(r.json?.error || "Fehler.");
   };
 
+  // Ticket #15: „Aus meiner Liste entfernen" — Lead verlässt die Warteschlange,
+  // bleibt aber vollständig gespeichert (nie gelöscht). Grund Pflicht, alles im Audit.
+  const dismiss = async () => {
+    if (!dismissReason) { setFlash("Bitte einen Grund wählen."); return; }
+    setBusy(true);
+    const r = await api(`/agent/leads/${id}/dismiss`, { method: "POST", body: JSON.stringify({ reason: dismissReason }) });
+    setBusy(false);
+    if (r.ok) { onChanged(); onClose(); } else setFlash(r.json?.error || "Fehler.");
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto py-6 px-3" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/40" />
@@ -166,6 +187,7 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">Kontakt-Ergebnis</p>
                 <div className="flex flex-col gap-2">
                   <input type="datetime-local" className={inputCls} value={rueckrufAt} onChange={(e) => setRueckrufAt(e.target.value)} />
+                  <p className="text-[11px] text-slate-400 -mt-1">Uhrzeit in deutscher Zeit (Europe/Berlin)</p>
                   <div className="grid grid-cols-2 gap-2">
                     {OUTCOMES.map((o) => (
                       <button key={o.key} disabled={busy} onClick={() => result(o.key)}
@@ -199,6 +221,35 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
                   Akte schließen ohne Ergebnis (mit Begründung) — Lead geht zurück in die Warteschlange
                 </button>
               )}
+
+              {/* Ticket #15: Aus meiner Liste entfernen (nie gelöscht) */}
+              <div className="pt-2 border-t border-slate-100">
+                {!dismissOpen ? (
+                  <button className="w-full text-[12px] font-semibold text-slate-500 hover:text-slate-700 py-1.5 inline-flex items-center justify-center gap-1.5"
+                    disabled={busy} onClick={() => setDismissOpen(true)}>
+                    <Archive size={13} /> Aus meiner Liste entfernen
+                  </button>
+                ) : (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                    <p className="text-[12px] font-semibold text-slate-700">Aus meiner Liste entfernen</p>
+                    <p className="text-[11.5px] text-slate-500">Leads werden nie gelöscht — sie verschwinden nur aus deiner Liste. Der Admin kann sie jederzeit zurückholen.</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {DISMISS_REASONS.map((rsn) => (
+                        <button key={rsn.key} onClick={() => setDismissReason(rsn.key)}
+                          className={`px-2.5 py-2 rounded-lg border text-[12px] font-medium text-left ${dismissReason === rsn.key ? "!border-[#2563eb] !text-[#2563eb] bg-[#2563eb]/5" : "border-slate-200 text-slate-600"}`}>
+                          {rsn.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button className={btnPrimary + " flex-1"} disabled={busy || !dismissReason} onClick={dismiss}>
+                        {busy ? "Entfernt…" : "Entfernen"}
+                      </button>
+                      <button className={btnGhost} disabled={busy} onClick={() => { setDismissOpen(false); setDismissReason(""); }}>Abbrechen</button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
           )}
 
@@ -267,6 +318,12 @@ export default function AgentLeadsPage() {
   const [confirmLead, setConfirmLead] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
+  // Ticket #14: serverseitige Suche (Telefon/Name/E-Mail/Referenz über Kunden UND Leads)
+  const [search, setSearch] = useState("");
+  const [searchResult, setSearchResult] = useState<{ customers: any[]; leads: any[] } | null>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ticket #14: „Aktuelle Akte parken?"-Dialog, wenn beim Öffnen bereits eine Akte offen ist.
+  const [parkPrompt, setParkPrompt] = useState<{ id: number } | null>(null);
 
   const load = useCallback((append = false, offset = 0) => {
     if (!append) setLoading(true);
@@ -282,20 +339,52 @@ export default function AgentLeadsPage() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const openAkte = async (lead: any) => {
+  // Debounced Server-Suche ab 2 Zeichen — findet auch Nummern (Ticket #14).
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    const q = search.trim();
+    if (q.length < 2) { setSearchResult(null); return; }
+    searchTimer.current = setTimeout(async () => {
+      const r = await api(`/agent/search?q=${encodeURIComponent(q)}`);
+      if (r.ok) setSearchResult({ customers: r.json.customers || [], leads: r.json.leads || [] });
+    }, 300);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [search]);
+
+  // Öffnet einen Lead direkt (aus Suche/Deep-Link). Ist bereits eine Akte offen,
+  // bietet parkCurrent an, sie zu parken (Ticket #14) — ein Rückruf ist echte Arbeit.
+  const doOpen = async (id: number, parkCurrent = false) => {
     setBusy(true);
-    const r = await api(`/agent/leads/${lead.id}/open`, { method: "POST" });
+    const r = await api(`/agent/leads/${id}/open`, { method: "POST", body: JSON.stringify({ parkCurrent }) });
     setBusy(false);
     setConfirmLead(null);
     if (r.ok) {
+      setParkPrompt(null);
       setFlash(null);
       load();
-      setOpenId(lead.id);
+      setOpenId(id);
+    } else if (r.status === 409 && r.json?.openLeadId) {
+      // Es ist bereits eine andere Akte offen → Park-Dialog anbieten.
+      setParkPrompt({ id });
     } else {
       setFlash(r.json?.error || "Akte konnte nicht geöffnet werden.");
       load();
     }
   };
+
+  const openAkte = (lead: any) => doOpen(lead.id);
+
+  // Ticket #14: Deep-Link aus der Kundensuche (/agent/leads?open=<id>) — Lead sofort öffnen.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const openParam = params.get("open");
+    if (openParam && /^\d+$/.test(openParam)) {
+      doOpen(Number(openParam));
+      // URL bereinigen, damit ein Reload den Lead nicht erneut öffnet.
+      window.history.replaceState({}, "", "/agent/leads");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const activeName = active
     ? [active.vorname, active.nachname].filter(Boolean).join(" ") || active.email || active.telefon || `Lead #${active.id}`
@@ -309,6 +398,59 @@ export default function AgentLeadsPage() {
       </div>
 
       <FlashMessage message={flash} />
+
+      {/* Ticket #14: Suche über Kunden UND Leads — auch nach Telefonnummer.
+          Der klassische Fall: unbekannte Nummer ruft zurück → Nummer tippen →
+          sehen wer das ist und die Akte sofort öffnen (auch wenn nicht übernommen). */}
+      <div className="mb-4">
+        <div className="relative">
+          <Search size={15} strokeWidth={1.8} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rückruf? Nummer, Name, E-Mail oder Referenz suchen …"
+            className={`${inputCls} pl-10`}
+            style={{ minHeight: 46 }}
+          />
+        </div>
+        {searchResult && (searchResult.customers.length > 0 || searchResult.leads.length > 0) && (
+          <Card className="mt-2 divide-y divide-slate-50">
+            {searchResult.customers.map((c: any) => {
+              const cname = c.company_name || [c.first_name, c.last_name].filter(Boolean).join(" ") || c.contact_name || c.email || c.ref;
+              const cphone = c.phone ? `${c.phone_country_code || ""}${c.phone}` : c.contact_phone;
+              return (
+                <Link key={`c${c.ref}`} href={`/agent/kunden?ref=${encodeURIComponent(c.ref)}`}
+                  className="w-full px-4 py-3 flex items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-slate-900 truncate">{cname} <span className="text-[11px] font-normal text-slate-400">· Kunde</span></p>
+                    <p className="text-[11px] text-slate-400 truncate">{cphone || c.email || "—"} · {c.payment_reference || c.ref}</p>
+                  </div>
+                  <Badge status={c.payment_status} />
+                </Link>
+              );
+            })}
+            {searchResult.leads.map((l: any) => (
+              <div key={`l${l.id}`} className="px-4 py-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium text-slate-700 truncate flex items-center gap-1.5">
+                    <PhoneCall size={12} className="text-slate-400 shrink-0" />
+                    {[l.vorname, l.nachname].filter(Boolean).join(" ") || l.email || l.telefon || `Lead #${l.id}`}
+                    <span className="text-[11px] font-normal text-slate-400">· Lead</span>
+                  </p>
+                  <p className="text-[11px] text-slate-400 truncate">{l.telefon || l.email || "—"} · Status: {LEAD_STATUS[l.status] || l.status}</p>
+                </div>
+                <button className={btnPrimary + " shrink-0 !px-3"} disabled={busy} onClick={() => doOpen(l.id)}>
+                  Öffnen
+                </button>
+              </div>
+            ))}
+          </Card>
+        )}
+        {searchResult && searchResult.customers.length === 0 && searchResult.leads.length === 0 && (
+          <p className="mt-2 text-[12px] text-slate-400 px-1">Keine Treffer für „{search.trim()}".</p>
+        )}
+      </div>
 
       {/* Gleichbehandlungs-Hinweis (P2-C, Klartext) */}
       <div className="mb-4 px-4 py-3 rounded-xl border border-slate-200 bg-white text-[12.5px] text-slate-600 flex items-start gap-2.5">
@@ -387,6 +529,32 @@ export default function AgentLeadsPage() {
       {confirmLead && (
         <ConfirmOpenSheet lead={confirmLead} busy={busy} onConfirm={() => openAkte(confirmLead)} onCancel={() => setConfirmLead(null)} />
       )}
+
+      {/* Ticket #14: Park-Dialog — Rückruf öffnen, obwohl bereits eine Akte offen ist. */}
+      {parkPrompt && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setParkPrompt(null)}>
+          <div className="absolute inset-0 bg-slate-900/40" />
+          <div className="relative w-full sm:max-w-md bg-white border border-slate-200 rounded-t-2xl sm:rounded-2xl shadow-xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0"><FolderOpen size={18} /></div>
+              <div>
+                <p className="text-[15px] font-bold text-slate-900">Aktuelle Akte parken?</p>
+                <p className="text-[12px] text-slate-500">Du hast bereits eine offene Akte. Für den Rückruf parken wir sie zurück in die Warteschlange.</p>
+              </div>
+            </div>
+            <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-[12.5px] text-slate-600">
+              Kein Datenverlust: Die geparkte Akte bleibt vollständig erhalten und kann jederzeit weiterbearbeitet werden. Ein Rückruf ist echte Arbeit und hat Vorrang.
+            </div>
+            <div className="flex gap-2">
+              <button className={btnGhost + " flex-1 !py-3"} onClick={() => setParkPrompt(null)} disabled={busy}>Abbrechen</button>
+              <button className={btnPrimary + " flex-1 !py-3"} onClick={() => doOpen(parkPrompt.id, true)} disabled={busy}>
+                {busy ? "Öffnet…" : "Parken & Rückruf öffnen"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {openId !== null && <LeadDetail id={openId} onClose={() => setOpenId(null)} onChanged={() => load()} />}
     </AgentShell>
   );

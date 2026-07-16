@@ -52,12 +52,22 @@ const STATUS: Record<string, string> = {
   neu: "Neu", kontaktiert: "Kontaktiert", nicht_erreichbar: "Nicht erreichbar",
   konvertiert: "Konvertiert", kein_interesse: "Kein Interesse", tot: "Tot",
 };
+// Ticket #15: Klartext-Gründe fürs Aussortieren.
+const DISMISS_LABEL: Record<string, string> = {
+  keine_telefonnummer: "keine Telefonnummer",
+  nummer_ungueltig: "Nummer ungültig",
+  kein_interesse: "kein Interesse",
+  dublette: "Dublette",
+  sonstiges: "sonstiges",
+};
 // BE3: gruppierte Filter-Chips (Alle · Offen · Konvertiert · Tot/Kein Interesse)
 const GROUPS: { key: string; label: string; statuses: string[] }[] = [
   { key: "", label: "Alle", statuses: [] },
   { key: "offen", label: "Offene Leads", statuses: ["neu", "kontaktiert", "nicht_erreichbar"] },
   { key: "konvertiert", label: "Konvertiert (Kunde)", statuses: ["konvertiert"] },
   { key: "tot", label: "Tot / Kein Interesse", statuses: ["tot", "kein_interesse"] },
+  // Ticket #15: von Agenten aus der Arbeitsliste entfernt — nie gelöscht, zurückholbar.
+  { key: "aussortiert", label: "Aussortiert", statuses: [] },
 ];
 
 function eur(cents: number | null | undefined) {
@@ -66,13 +76,14 @@ function eur(cents: number | null | undefined) {
 }
 function fmtD(v: string | null) {
   if (!v) return "—";
-  try { return new Date(v).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }); } catch { return "—"; }
+  try { return new Date(v).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }); } catch { return "—"; }
 }
 const PAY_LABEL: Record<string, string> = { pending_payment: "offen", claimed_paid: "angekündigt", paid: "bezahlt", expired: "abgelaufen", refunded: "erstattet" };
 
 function fmtDT(v: string | null) {
   if (!v) return "—";
-  try { return new Date(v).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return "—"; }
+  // Ticket #13: immer deutsche Zeit anzeigen (Europe/Berlin), unabhängig vom Betrachter.
+  try { return new Date(v).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return "—"; }
 }
 function ageDays(iso: string) {
   const d = Math.floor((Date.now() - new Date(iso).getTime()) / 864e5);
@@ -469,7 +480,10 @@ function LeadDrawer({ id, agents, onClose, onChanged }: { id: number; agents: an
   };
   const result = async (key: string) => {
     if (key === "rueckruf_termin" && !rueckruf) { setMsg("Bitte Rückruf-Termin wählen."); return; }
-    await act("/contact-result", { outcome: key, scheduledAt: key === "rueckruf_termin" ? new Date(rueckruf).toISOString() : null }, "Kontakt-Ergebnis gespeichert.");
+    // Ticket #13: naive datetime-local-Eingabe unverändert senden — der Server
+    // deutet sie als deutsche Zeit (Europe/Berlin). Kein toISOString() (das wäre
+    // Browser-lokal und hängt vom Standort des Betrachters ab).
+    await act("/contact-result", { outcome: key, scheduledAt: key === "rueckruf_termin" ? rueckruf : null }, "Kontakt-Ergebnis gespeichert.");
     setRueckruf("");
   };
   const sendNote = async () => { if (!note.trim()) return; if (await act("/notes", { note: note.trim() }, "Notiz gespeichert.")) setNote(""); };
@@ -487,6 +501,19 @@ function LeadDrawer({ id, agents, onClose, onChanged }: { id: number; agents: an
         </div>
 
         {msg && <div className="mx-5 mt-3 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[12px] text-slate-700">{msg}</div>}
+
+        {/* Ticket #15: aussortiert — nie gelöscht, jederzeit zurückholbar */}
+        {lead.dismissed_at && (
+          <div className="mx-5 mt-3 px-3 py-2.5 rounded-lg border border-amber-200 bg-amber-50 flex items-center justify-between gap-2">
+            <span className="text-[12px] text-amber-800">
+              Aussortiert am {fmtDT(lead.dismissed_at)}{lead.dismissed_by_name ? ` von ${lead.dismissed_by_name}` : ""} · Grund: {DISMISS_LABEL[lead.dismissed_reason] || lead.dismissed_reason || "—"}
+            </span>
+            <button disabled={busy} onClick={() => act("/restore", {}, "Lead zurückgeholt — steht wieder in der Arbeitswarteschlange.")}
+              className="shrink-0 px-2.5 py-1 rounded-lg border border-amber-300 text-[11px] font-semibold text-amber-800 hover:bg-amber-100">
+              Zurückholen
+            </button>
+          </div>
+        )}
 
         <div className="p-5 space-y-4 text-[13px]">
           {/* Kontaktdaten (bearbeitbar) */}
@@ -547,6 +574,7 @@ function LeadDrawer({ id, agents, onClose, onChanged }: { id: number; agents: an
                 ))}
               </div>
               <input type="datetime-local" value={rueckruf} onChange={(e) => setRueckruf(e.target.value)} className={ipt + " mt-2"} />
+              <p className="text-[10.5px] text-slate-400 mt-1">Uhrzeit in deutscher Zeit (Europe/Berlin)</p>
             </div>
           )}
 
@@ -682,7 +710,7 @@ export default function AdminLeadsPage() {
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
         {GROUPS.map((g) => {
-          const c = g.statuses.reduce((sum, s) => sum + (counts[s] || 0), 0);
+          const c = g.key === "aussortiert" ? (counts.aussortiert || 0) : g.statuses.reduce((sum, s) => sum + (counts[s] || 0), 0);
           return (
             <button key={g.key} onClick={() => setGroup(g.key)}
               className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold border ${group === g.key ? "bg-slate-900 text-white border-slate-900" : "border-slate-200 text-slate-500 hover:border-slate-300"}`}>

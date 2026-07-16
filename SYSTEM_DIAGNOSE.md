@@ -583,3 +583,41 @@ Retention-Fenster).
 1. **Make-Fehler live provozieren** (Testplan 1) wurde nicht gegen die Produktion ausgelöst (kein absichtlicher Fehlversand an echte Kunden). Der Pfad ist über `test-diagnose-e2e.ts` verifiziert: `make-webhook.ts` ruft dieselbe `logDiagnostic`-Funktion, deren Persistenz + Maskierung + Aggregation getestet ist. Nach dem Deploy lässt sich ein echtes Fehlerereignis über einen ungültigen Make-Zweig gefahrlos erzeugen.
 2. **Console-Interception** speist den Rohdaten-Puffer additiv (Original-Console wird zuerst aufgerufen) — sie erzeugt bewusst KEINE strukturierten Ereignisse aus jedem `console.error`, um Rauschen zu vermeiden; strukturierte Ereignisse kommen aus expliziten `logDiagnostic`-Aufrufen und den synthetischen Live-Signalen.
 3. Vorbestehende TS-Fehler in `server/routes.ts` (ARAS-AI) bleiben unangetastet.
+
+---
+
+# Agent-Tickets #13–#16 (Florentine Lombardi, 15.07.2026)
+
+## Phase 0 — Diagnose (vor jeder Änderung)
+
+### T13 — Rückruf-Uhrzeit falsch gespeichert (Zeitzonen-Bug)
+- **Ursache:** `datetime-local` liefert eine zeitzonenlose Wandzeit (`2026-07-15T12:30`). Der Server parste sie mit `new Date(...)` bzw. `::timestamptz` — auf Render (UTC) wird 12:30 dadurch als **12:30 UTC** gespeichert und in Deutschland als **14:30** (Sommer, +2 h) angezeigt.
+- **Betroffene Server-Stellen:** `logAction` (`fiaon-agent.ts`, Rückruf + Zusage), `promised_pay_date`-Update im Kontakt-Ergebnis, Kalender-`reschedule`, `logLead` (`fiaon-leads.ts`) sowie der `${scheduledAt}::timestamptz`-Cast im Lead-Kontakt-Ergebnis (nutzte die Session-Zeitzone = UTC).
+- **Dritte Inkonsistenz:** Der Admin (`admin-leads.tsx`) sendete `new Date(rueckruf).toISOString()` = **Browser-lokal** — nur korrekt, wenn der Browser in Berlin steht (Betreiber sitzt in Bangkok, UTC+7).
+- **Anzeige:** `fmtD/fmtDT/fmtTime` (`agent/shared.tsx`) und die Admin-Formatter setzten **keine** `timeZone` → Anzeige in Betrachter-Zeitzone.
+- **Reminder:** `runCallbackReminders` vergleicht absolute Instants (`scheduled_at BETWEEN NOW() … +60min`). Nach korrekter Speicherung feuert er automatisch zur richtigen Zeit.
+- **Bestandsschaden:** Versatz ist **nicht einheitlich** (Agent +1/+2 h, Admin je nach Browser korrekt) → **keine pauschale Korrektur**. Read-only-Report: `scripts/measure-callback-offset.ts` (ändert nichts). Alt-Termine nur nach ausdrücklicher Freigabe des Betreibers einzeln prüfen.
+
+### T14 — Nummernsuche erreicht die Agentin nicht
+- Server-Endpoint `GET /agent/search` (`searchCustomersAndLeads`) **existiert** und normalisiert Telefonziffern (Kunden + Leads). Die **Leads-Seite hatte aber keine Suchleiste**; die Kunden-Seite zeigte Lead-Treffer nur als Link zur Queue (nicht öffenbar). Zusätzlich filterte die lokale Kunden-Liste nicht nach Telefon → geladene Kunden verschwanden bei Nummernsuche.
+
+### T16 — Reaktivierung schließt das Fenster
+- `reactivate()` rief `onChanged()` **und `onClose()`** → Drawer zu. Status verlässt `expired` → fällt zusätzlich aus dem „Abgelaufen"-Filter. Bestätigt (nicht angenommen).
+
+### T15 — „Löschen"
+- Direktive: kein Lead wird je gelöscht. Es fehlte ein Weg, No-Number-Leads **aus der Arbeitsliste** zu nehmen. Es gab keine `dismissed`-Spalte.
+
+## Umsetzung
+- **T13:** Neue Single-Source `server/lib/fiaon-time.ts` (`parseBerlinInput`, `berlinOffsetMinutes`, `formatBerlin`). Alle Server-Parse-Stellen deuten Eingaben als **Europe/Berlin** und speichern `timestamptz`. Anzeige überall mit `timeZone: "Europe/Berlin"` fixiert. Admin sendet die naive Eingabe (kein `toISOString()` mehr). UI-Hinweis „(Uhrzeit in deutscher Zeit)" + Sofort-Bestätigung nach dem Speichern („Rückruf gespeichert: … Uhr (deutsche Zeit)"). Reminder sendet zusätzlich `termin_zeit_text` in Berlin-Klartext.
+- **T14:** Suchleiste auf der Leads-Seite (Kunden + Leads, Telefon/Name/E-Mail/Referenz). Treffer direkt öffenbar — auch nicht übernommene Leads. Kollision mit „nur eine offene Akte": **Park-Dialog** „Aktuelle Akte parken & Rückruf öffnen?" (`parkCurrent` parkt die offene Akte zurück in die Queue, kein Datenverlust, protokolliert). Kunden-Treffer öffnen via `/agent/kunden?ref=…`, Lead-Treffer via `/agent/leads?open=…`. Lokale Kundenliste matcht jetzt auch Telefonziffern.
+- **T16:** Drawer bleibt nach Reaktivierung offen (`loadDetail()` in-place), zeigt neuen Status + Aktionen; Toast „Reaktiviert — … steht wieder unter ‚Offen'. Neue Zahlungsfrist bis TT.MM." Grundsatz umgesetzt: ein Statuswechsel entfernt einen geöffneten Datensatz nicht aus dem Fenster.
+- **T15:** Button „Aus meiner Liste entfernen" (Grund-Auswahl) → `POST /agent/leads/:id/dismiss`. Lead verlässt die Queue (`dismissed_at/by/reason`), bleibt vollständig in der DB, Audit-Eintrag. Admin: Filter „Aussortiert" + „Zurückholen" (`POST /admin/leads/:id/restore`). Kein hartes Löschen — DSGVO-Löschung bleibt dem Admin (`gdpr_deleted_at`) vorbehalten.
+- **Sichtbarkeitsregel (Betreiber):** Agenten-Warteschlange zeigt nur noch Leads mit **E-Mail + Name + Telefon** (vorher Telefon ODER E-Mail). Unvollständige Leads bleiben in der DB, im Admin sichtbar.
+
+## Tests
+- `scripts/test-berlin-time.ts`: **10/10 PASS** unter `TZ=UTC` (Render) **und** `TZ=Asia/Bangkok` (Betreiber) — Sommer/Winter (DST), reines Datum, ISO-mit-Z, Offset, Reminder-Instant, Anzeige immer Berlin.
+- `npx tsc --noEmit`: keine neuen Fehler in den geänderten FIAON-Dateien.
+
+## Ehrliche Grenzen
+- **Keine Massenkorrektur** von Alt-Terminen (Freigabe des Betreibers nötig; Versatz gemischt). Neue Termine sind ab dem Fix korrekt.
+- DST-Randstunde (Umstellungsnacht 02:00–03:00) wird über einen Zwei-Pass-Offset behandelt; exotische Eingaben genau in der übersprungenen Stunde sind ein akzeptierter Grenzfall.

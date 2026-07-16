@@ -16,6 +16,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import postgres from "postgres";
 import { sendMakeWebhook } from "../make-webhook";
 import { fiaonBaseUrl } from "../fiaon-base-url";
+import { parseBerlinInput } from "../lib/fiaon-time";
 import {
   requireAgent,
   getSettings,
@@ -103,7 +104,18 @@ export async function ensureLeadTables(): Promise<void> {
       ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS requeue_at TIMESTAMPTZ
   `);
+  // Ticket #15: „Aus meiner Liste entfernen" — Lead verlässt die Arbeitswarteschlange,
+  // bleibt aber VOLLSTÄNDIG in der DB (Direktive: kein Lead wird je gelöscht). Grund +
+  // wer/wann werden protokolliert; im Admin unter dem Filter „Aussortiert" jederzeit
+  // zurückholbar. KEIN hartes Löschen — das bleibt echten DSGVO-Anfragen vorbehalten.
+  await sqlPool.unsafe(`
+    ALTER TABLE fiaon_leads
+      ADD COLUMN IF NOT EXISTS dismissed_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS dismissed_by INTEGER,
+      ADD COLUMN IF NOT EXISTS dismissed_reason VARCHAR
+  `);
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_leads_opened_idx ON fiaon_leads (opened_by_agent_id, opened_at)`;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_leads_dismissed_idx ON fiaon_leads (dismissed_at)`;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_leads_import_idx ON fiaon_leads (import_id)`;
   await sqlPool`
     CREATE TABLE IF NOT EXISTS fiaon_lead_imports (
@@ -151,7 +163,7 @@ async function logLead(
   const rows = await sqlPool`
     INSERT INTO fiaon_lead_log (lead_id, agent_id, agent_name, type, outcome, note, scheduled_at)
     VALUES (${leadId}, ${actor.id}, ${actor.name}, ${type}, ${fields.outcome || null}, ${fields.note || null},
-            ${fields.scheduledAt ? new Date(fields.scheduledAt) : null})
+            ${parseBerlinInput(fields.scheduledAt)})
     RETURNING *
   `;
   return rows[0];
@@ -749,9 +761,12 @@ router.get("/agent/leads", requireAgent, async (req: AgentRequest, res) => {
              ) AS score
       FROM fiaon_leads l
       WHERE l.assigned_agent_id = $1 AND l.status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
+        AND l.dismissed_at IS NULL
         AND (l.requeue_at IS NULL OR l.requeue_at <= NOW())
         AND (l.opened_at IS NULL OR l.opened_by_agent_id <> $1)
-        AND (COALESCE(l.telefon, '') <> '' OR COALESCE(l.email, '') <> '')
+        -- Ticket #15/Sichtbarkeitsregel: nur vollständige Leads (E-Mail + Name + Telefon) in der Queue
+        AND COALESCE(l.telefon, '') <> '' AND COALESCE(l.email, '') <> ''
+        AND (COALESCE(l.vorname, '') <> '' OR COALESCE(l.nachname, '') <> '')
       ORDER BY score DESC, l.erstellt_am DESC
       LIMIT $6 OFFSET $7
     `, [me, w.wFresh, w.wValue, w.wReact, w.wContact, limit, offset]);
@@ -767,9 +782,11 @@ router.get("/agent/leads", requireAgent, async (req: AgentRequest, res) => {
              FALSE AS callback_due
       FROM fiaon_leads l
       WHERE l.assigned_agent_id = ${me} AND l.status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
+        AND l.dismissed_at IS NULL
         AND (l.requeue_at IS NULL OR l.requeue_at <= NOW())
         AND (l.opened_at IS NULL OR l.opened_by_agent_id <> ${me})
-        AND (COALESCE(l.telefon, '') <> '' OR COALESCE(l.email, '') <> '')
+        AND COALESCE(l.telefon, '') <> '' AND COALESCE(l.email, '') <> ''
+        AND (COALESCE(l.vorname, '') <> '' OR COALESCE(l.nachname, '') <> '')
       ORDER BY COALESCE(l.letzter_kontakt_am, l.erstellt_am) ASC
       LIMIT ${fairCount} OFFSET ${offset > 0 ? Math.floor(offset / w.fairnessNth) : 0}
     `;
@@ -789,8 +806,10 @@ router.get("/agent/leads", requireAgent, async (req: AgentRequest, res) => {
     const [tot] = await sqlPool`
       SELECT COUNT(*)::int AS c FROM fiaon_leads
       WHERE assigned_agent_id = ${me} AND status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
+        AND dismissed_at IS NULL
         AND (requeue_at IS NULL OR requeue_at <= NOW())
-        AND (COALESCE(telefon, '') <> '' OR COALESCE(email, '') <> '')
+        AND COALESCE(telefon, '') <> '' AND COALESCE(email, '') <> ''
+        AND (COALESCE(vorname, '') <> '' OR COALESCE(nachname, '') <> '')
     `;
     // Priorisierung (BC1): offene Kunden-Anträge haben Vorrang.
     const [openCust] = await sqlPool`
@@ -835,11 +854,25 @@ router.post("/agent/leads/:id/open", requireAgent, async (req: AgentRequest, res
       LIMIT 1
     `;
     if (open.length > 0 && Number(open[0].id) !== id) {
-      return res.status(409).json({
-        ok: false,
-        error: `Du hast bereits eine offene Akte (#${open[0].id}). Dokumentiere zuerst das Kontakt-Ergebnis — dann kannst du die nächste öffnen.`,
-        openLeadId: Number(open[0].id),
-      });
+      // Ticket #14: Ein Rückruf ist echte Arbeit und darf nicht an der „nur eine
+      // offene Akte"-Regel scheitern. Mit parkCurrent=true wird die aktuelle Akte
+      // zurück in die Warteschlange geparkt (kein Ergebnis, kein Datenverlust),
+      // damit der Rückruf sofort bearbeitet werden kann.
+      if (req.body?.parkCurrent) {
+        await sqlPool`
+          UPDATE fiaon_leads SET opened_at = NULL, updated_at = NOW()
+          WHERE id = ${Number(open[0].id)} AND opened_by_agent_id = ${me}
+        `;
+        await logLead(Number(open[0].id), req.agent!, "system", {
+          note: `Akte geparkt (zurück in die Warteschlange), um einen Rückruf zu bearbeiten (Lead #${id}). Kein Kontakt-Ergebnis — Historie unverändert.`,
+        }).catch(() => {});
+      } else {
+        return res.status(409).json({
+          ok: false,
+          error: `Du hast bereits eine offene Akte (#${open[0].id}). Dokumentiere zuerst das Kontakt-Ergebnis — dann kannst du die nächste öffnen.`,
+          openLeadId: Number(open[0].id),
+        });
+      }
     }
     const rows = await sqlPool`
       UPDATE fiaon_leads SET
@@ -931,8 +964,11 @@ router.post("/agent/leads/:id/contact-result", requireAgent, async (req: AgentRe
     // setzt die Wiedervorlage: nicht erreicht/Mailbox → +4 h zurück in die Queue;
     // Rückruf-Termin → Wiedervorlage zum Termin; Nummer falsch → +24 h.
     // Historie bleibt vollständig (Direktive: kein Lead wird je entfernt).
+    // Ticket #13: Rückruf-Termin als Berlin-Wandzeit interpretieren (kein naives
+    // ::timestamptz, das sonst die Server-Session-Zeitzone/UTC verwenden würde).
+    const rueckrufAt = outcome === "rueckruf_termin" ? parseBerlinInput(scheduledAt) : null;
     const requeueSql =
-      outcome === "rueckruf_termin" && scheduledAt ? sqlPool`${scheduledAt}::timestamptz`
+      rueckrufAt ? sqlPool`${rueckrufAt}`
       : outcome === "nicht_erreicht" || outcome === "mailbox" ? sqlPool`NOW() + INTERVAL '4 hours'`
       : outcome === "nummer_falsch" ? sqlPool`NOW() + INTERVAL '24 hours'`
       : sqlPool`NULL`;
@@ -973,6 +1009,56 @@ router.post("/agent/leads/:id/close-akte", requireAgent, async (req: AgentReques
     res.json({ ok: true });
   } catch (err) {
     console.error("[FIAON-LEADS] close-akte:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── Ticket #15: „Aus meiner Liste entfernen" ──────────────────────────────────
+// Geschäftsleitungs-Direktive: Kein Lead wird je gelöscht/deaktiviert (außer echte
+// DSGVO-Anfrage → Admin). Das echte Bedürfnis der Agentin ist „aus meinem Weg" —
+// nicht „löschen". Der Lead verlässt die Arbeitswarteschlange, bleibt vollständig
+// in der DB (Historie erhalten), mit Grund + wer/wann protokolliert. Im Admin unter
+// „Aussortiert" jederzeit zurückholbar.
+const DISMISS_REASONS = new Set(["keine_telefonnummer", "nummer_ungueltig", "kein_interesse", "dublette", "sonstiges"]);
+const DISMISS_REASON_LABEL: Record<string, string> = {
+  keine_telefonnummer: "keine Telefonnummer",
+  nummer_ungueltig: "Nummer ungültig",
+  kein_interesse: "kein Interesse",
+  dublette: "Dublette",
+  sonstiges: "sonstiges",
+};
+router.post("/agent/leads/:id/dismiss", requireAgent, async (req: AgentRequest, res) => {
+  try {
+    await ensureLeadTables();
+    const me = req.agent!.id;
+    const id = Number(req.params.id);
+    const reason = String(req.body?.reason || "").trim();
+    if (!DISMISS_REASONS.has(reason)) {
+      return res.status(400).json({ ok: false, error: "Bitte einen Grund wählen (keine Telefonnummer, Nummer ungültig, kein Interesse, Dublette)." });
+    }
+    // Nur eigene bzw. unzugewiesene Leads dürfen aussortiert werden (kein Eingriff in Kollegen-Bestand).
+    const rows = await sqlPool`
+      UPDATE fiaon_leads SET
+        dismissed_at = NOW(),
+        dismissed_by = ${me},
+        dismissed_reason = ${reason},
+        opened_at = NULL,
+        assigned_agent_id = COALESCE(assigned_agent_id, ${me}),
+        updated_at = NOW()
+      WHERE id = ${id}
+        AND (assigned_agent_id IS NULL OR assigned_agent_id = ${me})
+        AND dismissed_at IS NULL
+      RETURNING id
+    `;
+    if (rows.length === 0) {
+      return res.status(409).json({ ok: false, error: "Lead nicht gefunden, bereits aussortiert oder von einem Kollegen betreut." });
+    }
+    await logLead(id, req.agent!, "system", {
+      note: `Aus der Arbeitsliste entfernt (Grund: ${DISMISS_REASON_LABEL[reason]}) durch ${req.agent!.name}. Der Lead bleibt vollständig gespeichert und ist im Admin unter „Aussortiert" jederzeit zurückholbar.`,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-LEADS] dismiss:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -1067,6 +1153,10 @@ router.get("/admin/leads", async (req: Request, res: Response) => {
       : group === "konvertiert" ? ["konvertiert"]
       : group === "tot" ? ["tot", "kein_interesse"]
       : null;
+    // Ticket #15: eigener Filter „Aussortiert" (aus einer Agenten-Liste entfernt,
+    // aber nie gelöscht). In allen anderen Ansichten werden aussortierte Leads
+    // ausgeblendet, damit sie die normalen Listen nicht überfrachten.
+    const dismissedView = group === "aussortiert";
 
     // Konvertierte Zeilen mit verknüpfter Order (Zahlungsstatus + Betrag) anreichern.
     const rows = await sqlPool`
@@ -1074,22 +1164,27 @@ router.get("/admin/leads", async (req: Request, res: Response) => {
              l.assigned_agent_id, ag.name AS agent_name, l.converted_order_id, l.in_sequence,
              l.erstellt_am, l.letzter_kontakt_am, l.konvertiert_am, l.lead_reminder_count,
              l.opened_at, l.opened_by_agent_id, og.name AS opened_by_name,
+             l.dismissed_at, l.dismissed_reason, l.dismissed_by, dg.name AS dismissed_by_name,
              a.payment_status, a.amount_due, a.pack_name, a.created_at AS order_created_at
       FROM fiaon_leads l
       LEFT JOIN fiaon_agents ag ON ag.id = l.assigned_agent_id
       LEFT JOIN fiaon_agents og ON og.id = l.opened_by_agent_id
+      LEFT JOIN fiaon_agents dg ON dg.id = l.dismissed_by
       LEFT JOIN fiaon_applications a ON a.ref = l.converted_order_id AND a.merged_into IS NULL
       WHERE (${status}::text IS NULL OR l.status = ${status})
         AND (${groupStatuses}::text[] IS NULL OR l.status = ANY(${groupStatuses}))
+        AND ((${dismissedView})::boolean = (l.dismissed_at IS NOT NULL))
         AND (${q} = '' OR LOWER(COALESCE(l.vorname,'') || ' ' || COALESCE(l.nachname,'') || ' ' || COALESCE(l.email,'') || ' ' || COALESCE(l.telefon,'')) LIKE ${"%" + q + "%"})
       ORDER BY
         CASE WHEN ${sort} = 'status' THEN l.status END ASC,
         l.erstellt_am DESC
       LIMIT ${limit}
     `;
-    const counts = await sqlPool`SELECT status, COUNT(*)::int AS c FROM fiaon_leads GROUP BY status`;
+    const counts = await sqlPool`SELECT status, COUNT(*)::int AS c FROM fiaon_leads WHERE dismissed_at IS NULL GROUP BY status`;
     const byStatus: Record<string, number> = {};
     for (const r of counts) byStatus[r.status] = Number(r.c);
+    const [dismissedCount] = await sqlPool`SELECT COUNT(*)::int AS c FROM fiaon_leads WHERE dismissed_at IS NOT NULL`;
+    byStatus.aussortiert = Number(dismissedCount.c);
 
     // BE3-Kennzahlen: X Leads → Y konvertiert → Z zahlend (Umsatz) + offene Leads.
     const [stats] = await sqlPool`
@@ -1133,9 +1228,10 @@ router.get("/admin/leads/:id(\\d+)", async (req: Request, res: Response) => {
     await ensureLeadTables();
     const id = Number(req.params.id);
     const rows = await sqlPool`
-      SELECT l.*, ag.name AS agent_name, og.name AS opened_by_name FROM fiaon_leads l
+      SELECT l.*, ag.name AS agent_name, og.name AS opened_by_name, dg.name AS dismissed_by_name FROM fiaon_leads l
       LEFT JOIN fiaon_agents ag ON ag.id = l.assigned_agent_id
       LEFT JOIN fiaon_agents og ON og.id = l.opened_by_agent_id
+      LEFT JOIN fiaon_agents dg ON dg.id = l.dismissed_by
       WHERE l.id = ${id}
     `;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Lead nicht gefunden" });
@@ -1167,6 +1263,27 @@ router.post("/admin/leads/:id/release-akte", async (req: Request, res: Response)
     res.json({ ok: true, releasedFrom: rows[0].agent_name });
   } catch (err) {
     console.error("[FIAON-LEADS] release-akte:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// Ticket #15: aussortierten Lead wieder in die Arbeit zurückholen (Admin).
+router.post("/admin/leads/:id/restore", async (req: Request, res: Response) => {
+  try {
+    await ensureLeadTables();
+    const id = Number(req.params.id);
+    const rows = await sqlPool`
+      UPDATE fiaon_leads SET dismissed_at = NULL, dismissed_by = NULL, dismissed_reason = NULL, requeue_at = NULL, updated_at = NOW()
+      WHERE id = ${id} AND dismissed_at IS NOT NULL
+      RETURNING id
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Kein aussortierter Lead unter dieser Nummer." });
+    await logLead(id, { id: null, name: "Admin" }, "system", {
+      note: "Lead durch Admin zurückgeholt (nicht mehr aussortiert) — steht wieder in der Arbeitswarteschlange.",
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-LEADS] restore:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, Users, Check, Phone, Mail, MapPin, Cake, Info, Undo2, AlertTriangle } from "lucide-react";
+import { RefreshCw, Users, Check, Phone, Mail, MapPin, Cake, Info, Undo2, AlertTriangle, UserCheck, Link2 } from "lucide-react";
 
 // ════════════════════════════════════════════════════════════════════
 // /admin/dubletten — Dubletten zusammenführen (P3-A Nachtrag).
@@ -28,10 +28,15 @@ type App = {
   street: string | null; zip: string | null; city: string | null; birthdate: string | null;
   assigned_agent_id: number | null; created_at: string | null;
 };
+type Lead = {
+  leadId: number; name: string | null; email: string | null; telefon: string | null;
+  status: string; assigned_agent_id: number | null; in_sequence: boolean | null;
+};
 type Group = {
-  matchType: "email" | "phone"; key: string; label: string; email: string | null;
+  matchType: "email" | "phone" | "lead_cross"; key: string; label: string; email: string | null;
   apps: App[]; winnerRef: string; confidence: "sicher" | "wahrscheinlich" | "pruefen";
   gainable: string[]; callableGain: boolean; paidCount: number;
+  leads?: Lead[]; note?: string;
 };
 
 const PAY_LABEL: Record<string, string> = {
@@ -112,6 +117,19 @@ export default function AdminDubletten() {
     setBusyKey(null);
   };
 
+  const doAttachLead = async (leadId: number, ref: string) => {
+    setBusyKey(`lead_${leadId}`);
+    const { ok, json } = await apiF(`/admin/leads/${leadId}/attach-to-order`, {
+      method: "POST",
+      body: JSON.stringify({ ref }),
+    });
+    if (ok) {
+      setFlash({ text: `Lead mit ${ref} verknüpft — verlässt die Anruf-Warteschlange, kein Doppelanruf.`, kind: "ok" });
+      await load();
+    } else setFlash({ text: `Fehler: ${json?.error || "Unbekannt"}`, kind: "err" });
+    setBusyKey(null);
+  };
+
   const doubles = groups.filter((g) => g.paidCount > 1);
   const callable = groups.filter((g) => g.callableGain).length;
 
@@ -178,8 +196,8 @@ export default function AdminDubletten() {
                 <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-slate-100 bg-slate-50/60">
                   <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border ${conf.cls}`}>{conf.label}</span>
                   <span className="text-[11px] text-slate-400 inline-flex items-center gap-1">
-                    {g.matchType === "email" ? <Mail size={12} /> : <Phone size={12} />}
-                    {g.matchType === "email" ? "E-Mail-Treffer" : "Telefon-Treffer"}
+                    {g.matchType === "email" ? <Mail size={12} /> : g.matchType === "phone" ? <Phone size={12} /> : <UserCheck size={12} />}
+                    {g.matchType === "email" ? "E-Mail-Treffer" : g.matchType === "phone" ? "Telefon-Treffer" : "Lead ↔ Kunde"}
                   </span>
                   <span className="text-[12.5px] font-mono font-semibold text-slate-700">{g.label}</span>
                   {g.paidCount > 1 && (
@@ -229,9 +247,37 @@ export default function AdminDubletten() {
                   })}
                 </div>
 
+                {/* Offene Leads derselben Person (P3: Lead ↔ Antrag) */}
+                {g.leads && g.leads.length > 0 && (
+                  <div className="px-4 py-3 border-t border-slate-100 bg-amber-50/40">
+                    <p className="text-[11.5px] font-semibold text-amber-800 inline-flex items-center gap-1.5 mb-2">
+                      <UserCheck size={13} /> Offene(r) Lead(s) derselben Person — dürfen nicht erneut angerufen werden
+                    </p>
+                    <div className="space-y-1.5">
+                      {g.leads.map((l) => (
+                        <div key={l.leadId} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-slate-600">
+                          <span className="font-mono text-slate-400">Lead #{l.leadId}</span>
+                          <span className="font-semibold text-slate-800">{l.name || "—"}</span>
+                          {l.email && <span className="inline-flex items-center gap-1"><Mail size={11} />{l.email}</span>}
+                          {l.telefon && <span className="inline-flex items-center gap-1"><Phone size={11} />{l.telefon}</span>}
+                          <span className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10.5px]">{l.status}</span>
+                          <button onClick={() => doAttachLead(l.leadId, winner)} disabled={busyKey === `lead_${l.leadId}`}
+                            className="ml-auto px-2.5 py-1 rounded-md border border-amber-300 text-amber-800 font-semibold inline-flex items-center gap-1.5 hover:bg-amber-100 disabled:opacity-50">
+                            <Link2 size={12} /> {busyKey === `lead_${l.leadId}` ? "Verknüpfe…" : `Mit ${winner} verknüpfen`}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Fußzeile: Feld-Vorschau + Aktion */}
                 <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-t border-slate-100 bg-slate-50/40">
-                  {g.gainable.length > 0 ? (
+                  {g.matchType === "lead_cross" ? (
+                    <span className="text-[12px] text-slate-600 inline-flex items-center gap-2">
+                      <Info size={13} className="text-slate-400" /> {g.note || "Lead trifft bestehenden Kunden — Lead verknüpfen statt anzurufen."}
+                    </span>
+                  ) : g.gainable.length > 0 ? (
                     <span className="text-[12px] text-slate-600 inline-flex items-center gap-2 flex-wrap">
                       <Info size={13} className="text-slate-400" /> Gewinner erhält:
                       {g.gainable.map((f) => (
@@ -243,11 +289,13 @@ export default function AdminDubletten() {
                   ) : (
                     <span className="text-[12px] text-slate-400">Keine fehlenden Felder zu ergänzen</span>
                   )}
-                  <button onClick={() => doMerge(g)} disabled={busyKey === g.key}
-                    className="ml-auto px-3.5 py-2 min-h-[38px] rounded-lg text-white text-[12.5px] font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"
-                    style={{ background: ACCENT }}>
-                    <Check size={14} /> {busyKey === g.key ? "Führe zusammen…" : "Zusammenführen"}
-                  </button>
+                  {g.matchType !== "lead_cross" && (
+                    <button onClick={() => doMerge(g)} disabled={busyKey === g.key}
+                      className="ml-auto px-3.5 py-2 min-h-[38px] rounded-lg text-white text-[12.5px] font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"
+                      style={{ background: ACCENT }}>
+                      <Check size={14} /> {busyKey === g.key ? "Führe zusammen…" : "Zusammenführen"}
+                    </button>
+                  )}
                 </div>
               </div>
             );

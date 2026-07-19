@@ -89,6 +89,16 @@ async function computeBadges(): Promise<any> {
   const [payouts] = await sqlPool`
     SELECT COUNT(*)::int AS c FROM fiaon_payouts WHERE status = 'angefordert'
   `.catch(() => [{ c: 0 }] as any);
+  // #18: „Lange bezahlt, nie bestätigt" — Kunden, die seit > 7 Tagen „Ich habe
+  // überwiesen" gemeldet haben (claimed_paid), aber nie auf 'paid' bestätigt
+  // wurden. Hier liegt unerkannter Umsatz. MIN(...) für die Alter-Anzeige.
+  const [payConfirm] = await sqlPool`
+    SELECT COUNT(*)::int AS c,
+           FLOOR(EXTRACT(EPOCH FROM (NOW() - MIN(claimed_paid_at))) / 86400)::int AS oldest_days
+    FROM fiaon_applications
+    WHERE payment_status = 'claimed_paid' AND merged_into IS NULL
+      AND claimed_paid_at IS NOT NULL AND claimed_paid_at < NOW() - INTERVAL '7 days'
+  `.catch(() => [{ c: 0, oldest_days: null }] as any);
   // Prompt 2/3: Badge zeigt Tickets, die auf eine BETREIBER-ANTWORT warten —
   // nicht alle offenen. „Wartet" = der jüngste echte Beitrag (agent/admin) im
   // Thread stammt vom Agenten. Fällt auf „offen" zurück, falls (noch) kein
@@ -143,6 +153,9 @@ async function computeBadges(): Promise<any> {
       blockedAkten: Number(blockedAkten.c),
       blockedAktenAgent: blockedAkten.first_agent || null,
       criticalDiagnostics: Number(diag.c), // P5-D: eine Wahrheit, zwei Ansichten
+      // #18: seit > 7 Tagen angekündigt, nie bestätigt (unerkannter Umsatz)
+      paymentConfirmBacklog: Number(payConfirm.c),
+      paymentConfirmOldestDays: payConfirm.oldest_days != null ? Number(payConfirm.oldest_days) : null,
     },
     at: new Date().toISOString(),
   };
@@ -449,9 +462,15 @@ router.get("/admin/events/registry", async (_req, res) => {
     let history: any[] = [];
     try { lastEvents = JSON.parse(settings.make_last_events || "{}"); } catch {}
     try { history = JSON.parse(settings[TEST_HISTORY_KEY] || "[]"); } catch {}
+    // makeBranchReady: heuristisch — Events mit „Betreiber-TODO" in der Beschreibung
+    // oder recommendationOnly haben (noch) keinen Make-Zweig → UI zeigt Hinweis.
+    const events = MAKE_EVENT_REGISTRY.map((e) => ({
+      ...e,
+      makeBranchReady: !e.deprecated && !e.recommendationOnly && !/Betreiber-TODO/i.test(e.description),
+    }));
     res.json({
       ok: true,
-      events: MAKE_EVENT_REGISTRY,
+      events,
       makeWebhookConfigured: Boolean(process.env.MAKE_WEBHOOK_URL),
       lastEvents,
       history,
@@ -498,6 +517,9 @@ router.post("/admin/events/send-real", async (req, res) => {
     if (!def) return res.status(400).json({ ok: false, error: "Unbekannter Event-Typ" });
     if (!def.customerBound || def.deprecated) {
       return res.status(400).json({ ok: false, error: "Dieses Event ist nicht kundengebunden — nur Test-Versand möglich" });
+    }
+    if (def.recommendationOnly) {
+      return res.status(400).json({ ok: false, error: "Dieses Event ist eine Empfehlung ohne Auto-Versand — nur Test-Versand an eine Test-Adresse möglich (erst Make-Zweig + Template anlegen)." });
     }
     const q = String(paymentRef || "").trim();
     if (q.length < 4) return res.status(400).json({ ok: false, error: "Referenz angeben (Zahlungsreferenz oder Antrags-Referenz)" });

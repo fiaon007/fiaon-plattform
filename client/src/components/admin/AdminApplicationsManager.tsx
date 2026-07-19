@@ -157,6 +157,7 @@ export default function AdminApplicationsManager() {
     const appFiltersActive = statusFilter !== 'all' || paymentFilter !== 'all' || schufaFilter !== 'all';
     let pool: any[];
     if (orderStatusFilter === 'lead') pool = [...leads];
+    else if (orderStatusFilter === 'dismissed') pool = applications.filter(a => a.dismissed_at); // #15/#22
     else if (orderStatusFilter === 'all') pool = appFiltersActive ? [...applications] : [...applications, ...leads];
     else pool = applications.filter(a => getOrderStatusGroup(a) === orderStatusFilter);
     let filtered = pool;
@@ -279,6 +280,7 @@ export default function AdminApplicationsManager() {
             { key: 'expired', label: 'Abgelaufen', color: 'bg-orange-500', count: applications.filter(a => getOrderStatusGroup(a) === 'expired').length },
             { key: 'superseded', label: 'Geschlossen', color: 'bg-slate-400', count: applications.filter(a => getOrderStatusGroup(a) === 'superseded').length },
             { key: 'cancelled', label: 'Storniert', color: 'bg-slate-400', count: applications.filter(a => getOrderStatusGroup(a) === 'cancelled').length },
+            { key: 'dismissed', label: 'Aussortiert', color: 'bg-rose-400', count: applications.filter(a => a.dismissed_at).length },
           ].map(s => {
             const active = orderStatusFilter === s.key;
             return (

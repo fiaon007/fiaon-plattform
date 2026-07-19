@@ -880,3 +880,327 @@ Die irreführende „Anträge (4297)"-Zahl der alten Übersicht entfällt.
 - `scripts/p3-report.ts` gegen die Produktions-DB (nur lesend) ausgeführt — Zahlen s. o.
 - Regeln eingehalten: kein hartes Löschen, kein Eingriff in Zahlungs-/Provisions-/Stichtag-Logik,
   alles im Audit, umkehrbar, Changelog im selben Commit.
+
+---
+---
+
+# PROMPT 1/2 — DUBLETTEN & VERSCHWUNDENE KUNDEN ENDGÜLTIG LÖSEN (19.07.2026)
+
+Bezug: SYSTEM_DIAGNOSE.md D5 (Dubletten-Bestandsaufnahme) und die Phase-3-Arbeit
+(P3-A „nur erkennen + flaggen"). Diese Phase behebt das Problem **real** statt es
+nur zu markieren. Tickets: #19/#21/#24/#25/#26/#27 (verschwundene/doppelte Kunden).
+
+## Phase 0 — Forensik-Skript (nur lesend, kein Heredoc)
+
+`scripts/forensik-verschwundene-kunden.ts` prüft je gemeldeter Person **alle**
+Datensätze: Status, `payment_status`, `merged_into`/`superseded_by`, zugewiesener
+Agent, Provision, bezahlt ja/nein — plus Lead-Sätze und Kontakt-/Lead-Logs.
+Namen (#18–#27): Samira Jusic, Veronika Szekula, Erwin Brunauer, icoana gerne,
+Erika Becker, Reinhold Müller, Anna Weber (Ref FIAON-NURC9W), Momir Jovanovic,
+Alan Imsirovic, Ilija Dzankic. Zusätzlich: Doppelzahler-Report (E-Mail, ohne
+SCHUFA), „offene Anträge trotz bezahlter Schwester" (= Datensätze, die wieder in
+der Agenten-Ansicht landen) und die „eine Wahrheit" (bezahlt + Umsatz).
+
+**Ausführen (Betreiber, gegen Prod):** `npx tsx scripts/forensik-verschwundene-kunden.ts`
+— die konkreten Zahlen gehören nach diesem Lauf hier eingetragen.
+
+### Kernfrage (Code-Pfad): Wie bekommt ein bezahlter Kunde einen neuen Antrag?
+
+1. Jeder Browser-Besuch erzeugt eine neue `ref`; `POST /application` (Upsert per
+   `ref`, `fiaon-antrag.ts`) legte bisher **ohne** E-Mail-/Telefon-Prüfung einen
+   neuen Datensatz an (D5). Zwei Sessions → zwei `ref`s → zwei „Kunden".
+2. `POST /payment-order` machte aus **jedem** dieser Datensätze eine eigenständige
+   Bestellung (`pending_payment`, eigene Rechnungsnummer, Verteilung) — auch wenn
+   dieselbe Person längst bezahlt war.
+3. Sichtbarkeit: `GET /agent/customers` (`fiaon-agent.ts`) filtert `merged_into IS
+   NULL AND payment_status IN ('pending_payment','claimed_paid') …` — **bezahlte
+   und gemergte Sätze sind korrekt ausgeblendet.** Der zweite (unbezahlte) Antrag
+   ist aber `pending_payment` → er erscheint als „neuer" Kunde. Das ist der Kern
+   von #19/#21/#24/#26: nicht die Sichtbarkeitslogik war falsch, sondern es
+   entstanden **laufend neue Doppel-Anträge**, die die Prävention (P3-A) nicht
+   verhinderte (sie hat nur geflaggt).
+
+**Antwort auf die Kernfrage:** Die Dubletten entstehen **nach** der P3-A-Erkennung
+im Zahlungsfluss — P3-A greift bewusst nicht ein. Deshalb muss die Prävention
+tatsächlich **eingreifen** (P1), nicht nur flaggen.
+
+## P1 — Prävention, die wirklich greift (umgesetzt)
+
+`linkDuplicateToPaidOrActive(newRef)` (`fiaon-antrag.ts`), aufgerufen in
+`POST /payment-order` direkt nach der Idempotenz-Prüfung, **bevor** eine zweite
+Bestellung entsteht:
+- Findet Schwester-Anträge derselben Person (gleiche E-Mail **oder** normalisiertes
+  Telefon, `normalizeApplicationPhone`), die **bezahlt** oder in **aktiver
+  Betreuung** (`pending_payment`/`claimed_paid`) sind.
+- Ist genau **ein** bezahlter (oder sonst der älteste aktive/betreute) Gewinner
+  vorhanden → **Soft-Merge** des neuen Antrags via `mergeApplications` (füllt nur
+  leere Gewinner-Felder, hängt Kontakthistorie/Lead-Links um, `merged_into` gesetzt,
+  per `fiaon_merge_log` umkehrbar). `/payment-order` gibt die **bestehende**
+  `payment_reference` zurück (`linkedToExisting: true`, `alreadyPaid`), legt **keine**
+  zweite Bestellung, **keine** zweite Rechnung, **keinen** zweiten Agent an.
+- **Geld unberührt:** `MERGE_SKIP_COLS` schützt `payment_status/payment_reference/
+  invoice_number/amount_due/…`; Provisionen bleiben an ihrer ref.
+- **Unsicherheit:** ≥ 2 bezahlte Schwestern → **kein** Auto-Merge, Audit-Note
+  „prüfen", erscheint in `/admin/dubletten`.
+- **SCHUFA/Bonität** (Typ `schufa` / `FIAON-SCHUFA-…`) wird nie automatisch
+  verknüpft — eigenes Produkt.
+
+## P2 — Bezahlte/gemergte Kunden aus der Arbeitsliste (bestätigt + verstärkt)
+
+- `GET /agent/customers` (Arbeitsliste) und `GET /agent/leads` (Anruf-Queue)
+  blenden `merged_into`- und `paid`-Sätze bereits korrekt aus (Filter belegt).
+- **Auffindbarkeit bleibt:** `GET /agent/customers/all` (Gesamtbestand → Bezahlt)
+  und `searchCustomersAndLeads` zeigen dem betreuenden Agenten den Kunden weiter.
+- **Doppelanruf (#21):** Ursache waren Dubletten-Datensätze derselben Person, je
+  einem anderen Agenten zugewiesen (Daniel/Florentine). P1 verhindert das
+  Nachwachsen; Altbestand wird über `/admin/dubletten` (P3) + P5 bereinigt.
+
+## P3 — /admin/dubletten: Erkennung über Leads hinweg (umgesetzt)
+
+`GET /admin/duplicates/groups` liefert zusätzlich zu E-Mail-/Telefon-Gruppen jetzt
+**Lead ↔ Kunde-Treffer**: offene Leads (`neu`/`kontaktiert`/`nicht_erreichbar`,
+nicht konvertiert), die per E-Mail **oder** normalisiertem Telefon zu einem
+bezahlten/aktiven Antrag gehören — die Fälle, die der reine E-Mail-Merge übersah.
+Aktion: `POST /admin/leads/:id/attach-to-order` setzt den Lead auf `konvertiert`
++ `converted_order_id`, `in_sequence=FALSE` → **raus aus der Anruf-Warteschlange,
+kein Doppelanruf**, vollständig in der DB, Zahlung/Provision unberührt. Frontend:
+`admin-dubletten.tsx` (Lead-Zeilen + „Mit … verknüpfen").
+App↔App-Merge mit Undo, Gewinner-Score und Feld-/Anrufbarkeits-Vorschau bestehen
+seit P0/P3 (16.07.). Hard-Delete ist seit P0 (16.07.) entschärft — `merge` ist
+Soft-Merge, `undo` stellt exakt wieder her.
+
+## P4 — Zahler mit abweichendem Namen/Konto (#27, umgesetzt)
+
+`GET /admin/reconcile/list` liefert je Eingang `payerNameMismatch`/`payerHint`:
+Referenz-Treffer + abweichender Einzahlername → dezenter Hinweis „Name weicht ab
+(Zahlung evtl. durch Dritte)" (`payerMatchesCustomer`, tolerant/diakritikafrei).
+Reine Sichtbarkeit — die Referenz bleibt der Anker, manuelle Zuordnung möglich.
+Frontend: `admin-kontoabgleich.tsx`.
+
+## P5 — Konkrete Altfälle bereinigen (Betreiber, nach Deploy)
+
+1. Deploy (Schema migriert beim Boot; keine neuen Pflichtspalten).
+2. `npx tsx scripts/forensik-verschwundene-kunden.ts` → Zahlen hier eintragen.
+3. `/admin/dubletten`: die gemeldeten Fälle einzeln zusammenführen bzw. Leads
+   verknüpfen (jeder Schritt vom Betreiber bestätigt, nichts automatisch).
+4. `GET /api/fiaon/admin/truth-check` → neue Umsatzzahl berichten (die 5.919,14 €
+   waren wegen Doppelzahlern vermutlich zu hoch; s. auch P3-Report 7.332,96 €).
+
+## Testplan (Soll)
+
+| # | Fall | Soll | Abgedeckt durch |
+|---|---|---|---|
+| 1 | Bezahlter Kunde stellt neuen Antrag | kein neuer offener Kunde/Agent/Anruf | P1 `linkDuplicateToPaidOrActive` |
+| 2 | Zwei Sessions derselben Person | ein Datensatz | P1 (beim 2. `/payment-order`) |
+| 3 | Bezahlt/gemergt nicht in Arbeitsliste, aber via Suche | ✓ | P2 (bestehende Filter + `customers/all`) |
+| 4 | Kein Kunde gleichzeitig bei zwei Agenten | ✓ | P1 (Prävention) + P3/P5 (Altbestand) |
+| 5 | Merge zweier Fälle → Provision/Attribution intakt, Undo | ✓ | `mergeApplications`/`undoMergeApplications` |
+| 6 | Zahlung mit abweichendem Einzahler, korrekter Referenz | auffindbar + Hinweis | P4 |
+| 7 | Gemeldete Namen nach Bereinigung je genau 1× | ✓ | P5 (Betreiber via /admin/dubletten) |
+
+## Verifikation
+
+- `npx tsc --noEmit`: alle berührten FIAON-Dateien fehlerfrei (Server + Client).
+- **E2E-Test P1** `scripts/p1-prevention-e2e.ts` (markierte Testdaten
+  `*@fiaon-systemtest.invalid`, räumt mit `--cleanup` auf): T1 Verknüpfung bei
+  bezahltem Kunden, T2 Geld-Sicherheit (Zahlung/Referenz/Betrag unverändert),
+  T3 Doppel-Antrag `merged_into`, T4 keine Provision durch Verknüpfung, T5
+  Telefon-Treffer, T6 aktiver Kunde als Gewinner, T7 zwei Bezahlte → kein
+  Auto-Merge, T8 SCHUFA ausgeschlossen, T9 Undo. Ausführen:
+  `npx tsx scripts/p1-prevention-e2e.ts` (bewusster Betreiber-Schritt gegen Prod).
+- **Kunden-Flow gehärtet:** Wird der neue Antrag verknüpft, gibt `/payment-order`
+  die bestehende `payment_reference` zurück → der Funnel leitet auf `/zahlung/…`
+  (zeigt bei bezahltem Gewinner die „bereits bezahlt"-Ansicht). Ohne Referenz
+  (Alt-Import) leiten `antrag.tsx`/`business-antrag.tsx` auf `/login` — kein
+  hängender Button. SCHUFA-Funnel unberührt (kein Merge).
+- E2E gegen Prod-DB (Forensik-Skript, P1-Test, Merge/Undo, truth-check) ist der
+  bewusste Betreiber-Schritt nach dem Deploy — keine automatischen Schreibaktionen
+  auf Prod aus dieser Sitzung.
+- Regeln eingehalten: kein hartes Löschen, kein Eingriff in Zahlungs-/Provisions-/
+  Stichtag-Logik, Verknüpfen berührt nie bestehende Zahlung/Provision, alles im
+  Audit, umkehrbar, Changelog im selben Commit.
+
+### Offene/ehrliche Grenzen
+
+- **`POST /application`** (Funnel-Autosave) bekommt bewusst KEINEN Merge — dort
+  fehlen oft noch Kontaktdaten und der Schritt läuft sehr häufig. Der einzige,
+  saubere Choke-Point ist der Übergang zu `pending_payment` (`/payment-order`),
+  wo die Person als „Kunde" entsteht. Das deckt „zwei Sessions" und „bezahlter
+  Kunde stellt neuen Antrag" vollständig ab.
+- Reine **Telefon**-Dubletten ohne gemeinsame E-Mail werden von P1 erkannt
+  (JS-Normalisierung), im Bestand über die Telefon-/Lead-Cross-Gruppen in
+  `/admin/dubletten`.
+
+---
+---
+
+# PROMPT 2/2 — AGENTEN-WORKFLOW: LÖSCHEN, KALENDER, NUMMER-FALSCH, PORTAL-BUG (19.07.2026)
+
+Tickets #15, #16, #17, #18, #20, #22, #23. Zwei davon (#18, #20) sind akut
+umsatzrelevant und wurden zuerst umgesetzt.
+
+## Phase 0 — Befunde (read-only, `scripts/prompt2-report.ts`)
+
+### #18 — „Bezahlt am 30.06., seit ~3 Wochen nicht bestätigt" (Alan Imsirovic)
+- **Code-Pfad, warum die Zahlung nie erfasst wurde:** Eine Zahlung wird nur zu
+  `paid`, wenn (a) der Betreiber in der Zahlungszentrale „bezahlt" klickt oder
+  (b) der Kontoabgleich den Bankeingang verbucht (`applyTxn`, `fiaon-reconcile.ts`).
+  Klickt der Kunde „Ich habe überwiesen", steht die Bestellung auf `claimed_paid`
+  (`claimed_paid_at` gesetzt) — **ohne** einen dieser beiden Schritte bleibt sie
+  dort für immer hängen. Bis P2-A (Kontoabgleich-Fix, 0 % Auto-Match) war das die
+  Regel; Alt-Eingänge ohne Referenz-Match blieben unverbucht.
+- **Systemischer Report:** `prompt2-report.ts` listet alle Bestellungen mit
+  `claimed_paid` seit > 7 Tagen (mit Bank-Abgleich-Status + Summe) — „diese Liste
+  ist Gold" (unerkannter Umsatz). Zusätzlich: zugeordnete, aber noch nicht
+  verbuchte Bank-Eingänge.
+- **Dashboard-Warnung:** neues `warn.paymentConfirmBacklog` in `computeBadges`
+  (`fiaon-admin-hub.ts`) → Kachel „X Kunden warten seit > 7 Tagen auf
+  Zahlungsbestätigung" auf `/admin` (`admin-hub.tsx`). Das „bezahlt bestätigen"
+  bleibt bewusst ein Betreiber-Handgriff.
+
+### #20 — Portal zeigt falsches Kreditlimit (Ilija Dzankic, Ultra → 250 €)
+- **Code-Pfad:** Das Portal rendert `user.approvedLimit` (`dashboard.tsx`,
+  `CreditCard3D`), das aus dem Login/Profile stammt (`app.approved_limit`).
+  `approved_limit` ist ein **pro-Antrag im Funnel berechneter** Wert
+  (`antrag.tsx: runVerify`): `approved = wantedLimit × ~1`, geklemmt auf
+  `[250, PaketMax]`. War `wantedLimit` niedrig/0 (oder der Verify-Schritt
+  übersprungen), blieb `approved_limit = 250` — **auch bei Ultra**. Es ist also
+  ein separates Feld, das das Paket nicht widerspiegelt (kein Ableiten aus dem
+  Paket).
+- **Fix (nur Anzeige, kein Geld/Provision):** `effectiveLimit(packKey,
+  approved_limit)` (`fiaon-antrag.ts`) gibt das persönliche Limit zurück, wenn es
+  > 250 € ist, sonst das **Paket-Headline-Limit** (`PACK_LIMITS`). Verwendet in
+  `/login` und `/profile`; das Portal frischt beim Öffnen aus `/profile` nach
+  (veraltete Session wird korrigiert). `prompt2-report.ts` listet alle
+  bezahlten/aktiven Kunden mit abweichendem/geklemmtem Limit.
+
+## Umsetzung (Kurz)
+
+- **#15/#22 Löschen→Aussortieren (Kunden):** Spalten `dismissed_at/by/reason` auf
+  `fiaon_applications`; `/agent/customers/:ref/dismiss` (+ Admin
+  `/admin/applications/:ref/dismiss|restore`); Worklist-Filter `dismissed_at IS
+  NULL` in `/agent/customers`; Admin-Filter „Aussortiert". Kein Löschen, Audit,
+  umkehrbar. Sucht/Gesamtbestand bleiben unberührt.
+- **#17 Kalender:** Zeilen klickbar → Detail-Popup/Bottom-Sheet (Berlin-Zeit,
+  Notiz, „Zur Kundenakte" via `/agent/kunden?ref=`); Namen brechen um statt
+  abzuschneiden.
+- **#23 Nummer-falsch:** Kontakt-Ergebnis `nummer_falsch` (Kunde + Lead) triggert
+  `maybeSendNumberUpdateMail` (`fiaon-number-update.ts`, max. 1×/Tag), Make-Event
+  `number_update_request` mit signiertem Link → `/nummer-aktualisieren`. Speichern
+  aktualisiert die Nummer, hebt die Nummer-bedingte Aussortierung auf, setzt Leads
+  `in_sequence=TRUE`, `requeue_at=NULL`, Status `neu` → wieder anrufbar. Audit
+  „vom Kunden selbst aktualisiert".
+- **#16 Reaktivierung:** verifiziert — `reactivate()` (`agent/kunden.tsx`) ruft
+  `loadDetail()` in-place, **kein** `onClose()`; Drawer bleibt offen.
+
+## Betreiber-TODO (Make/Brevo)
+
+- Neuer Make-Zweig **`number_update_request`** + Brevo-Template mit Button auf
+  `update_url` (Payload: `email`, `vorname`, `update_url`, `antrag_id`/`lead_id`).
+  Ohne diesen Zweig wird kein Fehler ausgelöst — das Event wird nur nicht
+  zugestellt (Struktur in der Event-Registry / `/admin/events` einsehbar).
+
+## Verifikation
+
+- `npx tsc --noEmit`: alle berührten FIAON-Dateien fehlerfrei (Server + Client).
+- `scripts/prompt2-report.ts` gegen Prod (nur lesend) ist der bewusste
+  Betreiber-Schritt — liefert die #18-Liste und die #20-Abweichungen mit echten
+  Zahlen.
+- Regeln: kein echtes Löschen, Berlin-Zeit überall, kein Eingriff in
+  Provisions-/Stichtag-Logik, Changelog im selben Commit.
+
+---
+---
+
+# E-MAIL-VOLLINVENTUR + „NUMMER FALSCH"-STRECKE KUNDENFERTIG (19.07.2026)
+
+## Teil 1 — Vollinventur aller Versandpunkte
+
+**Methode:** Server vollständig durchsucht nach `sendMakeWebhook(`, Brevo/SMTP/
+Nodemailer/Sendgrid u. Ä. **Befund:** FIAON verschickt **keine E-Mail direkt** —
+**jeder** Versand läuft über `sendMakeWebhook()` → Make.com → Brevo. Es gibt
+**keinen** direkten Brevo-/SMTP-Aufruf. `mail-inbound.ts` erzeugt nur
+**Antwort-Entwürfe** (KI), kein Auto-Versand. `followup_48h` wird nirgends mehr
+aufgerufen (nur Kommentar) → 💀 veraltet.
+
+**Ergebnis der Registry-Prüfung: Kein `sendMakeWebhook`-Aufruf feuert an der
+Registry vorbei — alle im Code gefeuerten Events sind registriert (kein ❌).**
+
+### Inventur-Tabelle
+
+| Event | Wann feuert es | In Registry | Auf /admin/events testbar | Make-Zweig | Status |
+|---|---|---|---|---|---|
+| `welcome` | Antrag mit E-Mail abgeschlossen | ✓ | ✓ | ja | ✅ vollständig |
+| `payment_details` | Übergang zu pending_payment (Bestellung/Reaktivierung) | ✓ | ✓ | ja | ✅ |
+| `payment_reminder` | tägliche Zahlungserinnerung (Cron + Bulk) | ✓ | ✓ | ja | ✅ |
+| `claim_received` | Kunde klickt „Ich habe überwiesen" | ✓ | ✓ | ja | ✅ |
+| `payment_confirmed` | Admin markiert bezahlt / Kontoabgleich verbucht | ✓ | ✓ | ja | ✅ |
+| `agent_payment_reminder` | Agent-Ein-Klick-Mail „Wie besprochen" | ✓ | ✓ | ja | ✅ |
+| `agent_invite` | Mitarbeiter angelegt / Einladung erneut | ✓ | ✓ | ja | ✅ |
+| `agent_password_reset` | Passwort vergessen / Force-Reset | ✓ | ✓ | ja | ✅ |
+| `agent_payout_done` | Auszahlung ausgeführt | ✓ | ✓ | ja | ✅ |
+| `agent_payout_rejected` | Auszahlung abgelehnt | ✓ | ✓ | ja | ✅ |
+| `agent_callback_reminder` | 15 Min vor Rückruf-Termin | ✓ | ✓ | ja | ✅ |
+| `agent_feedback_rewarded` | Feedback-Bonus gutgeschrieben | ✓ | ✓ | **fehlt** | ⚠️ Make-Zweig anlegen |
+| `agent_feedback_reply` | Betreiber antwortet im Feedback-Thread | ✓ | ✓ | **fehlt** | ⚠️ Make-Zweig anlegen |
+| `lead_followup` | automatisierter Lead-Nachfass | ✓ | ✓ | **fehlt** | ⚠️ Make-Zweig anlegen |
+| `lead_application_link` | Agent schickt Antrags-Link an Lead | ✓ | ✓ | **fehlt** | ⚠️ Make-Zweig anlegen |
+| `number_update_request` | „Falsche Nummer" → Selbst-Update-Mail (#23) | ✓ | ✓ | **fehlt** | ⚠️ Make-Zweig + Template (Teil 2 kundenfertig) |
+| `followup_48h` | (früher 48h-Follow-up) | ✓ | ✓ | — | 💀 VERALTET (durch payment_reminder ersetzt, kein Aufruf mehr) |
+| `payment_cancelled` | Bestellung storniert (#1.3, vermisst) | ✓ (neu) | ✓ | **fehlt** | ⚠️ Empfehlung — **kein Auto-Versand verdrahtet** |
+| `payment_reactivated` | Bestellung reaktiviert (neue Frist) | ✓ (neu) | ✓ | **fehlt** | ⚠️ Empfehlung (payment_details geht bereits raus) |
+| `documents_change_request` | Dokumente-Nachbesserung angefordert | ✓ (neu) | ✓ | **fehlt** | ⚠️ Empfehlung |
+| `schufa_approved` | SCHUFA genehmigt | ✓ (neu) | ✓ | **fehlt** | ⚠️ Empfehlung |
+| `schufa_rejected` | SCHUFA abgelehnt | ✓ (neu) | ✓ | **fehlt** | ⚠️ Empfehlung |
+| `schufa_requested` | neues SCHUFA-Dokument angefordert | ✓ (neu) | ✓ | **fehlt** | ⚠️ Empfehlung |
+| `account_activated` | Konto manuell aktiviert | ✓ (neu) | ✓ | **fehlt** | ⚠️ Empfehlung (Zahlung → payment_confirmed) |
+| `account_suspended` | Konto gesperrt | ✓ (neu) | ✓ | **fehlt** | ⚠️ Empfehlung (sensibel) |
+| `profile_query` | Profil-Rückfrage an Kunden | ✓ (neu) | ✓ | **fehlt** | ⚠️ Empfehlung |
+| `gdpr_deleted` | DSGVO-Löschbestätigung | ✓ (neu) | ✓ | **fehlt** | ⚠️ Empfehlung (E-Mail ggf. vor Anonymisierung) |
+
+### Lücken-Prüfung (Teil 1.3) — Antworten
+
+- **Kunde storniert (`/admin/payments/:ref/cancel`):** Bisher **keine Mail**. Der
+  Betreiber vermisst hier zu Recht ein Event → **`payment_cancelled` registriert**
+  (Empfehlung, kein Auto-Versand). Auf Wunsch verdrahten wir den Versand im
+  cancel-Handler — bewusst nicht ohne explizite Freigabe getan.
+- **Reaktivierung:** `payment_details` geht bereits erneut raus (enthält neue
+  Frist + Rechnungslink). Eigenes `payment_reactivated` nur registriert (optional).
+- **changes_requested / SCHUFA (approved/rejected/requested) / Konto
+  (aktiviert/gesperrt) / Profil-Rückfrage / GDPR:** aktuell **keine** Mail →
+  je ein Event **registriert** (Empfehlung). Kein Auto-Versand verdrahtet.
+
+### /admin/events zeigt die Wahrheit
+
+- Neues Feld `makeBranchReady` (Server berechnet: kein Auto-TODO/Empfehlung/
+  veraltet) → UI-Badge **„Make-Zweig fehlt"** + Erklärbanner „Test lernt Make die
+  Payload an". `recommendationOnly`-Events tragen ein **„Empfehlung"**-Badge und
+  sind vom „Für echten Kunden senden" ausgeschlossen (nur Test-Versand).
+  VERALTET bleibt klar markiert.
+
+## Teil 2 — „Nummer falsch"-Strecke kundenfertig
+
+1. **Brevo-Template:** `docs/brevo-templates/number_update_request.html` (FIAON-CI,
+   Sie-Form, Button, Impressum). Anleitung: `docs/BETREIBER_TODO_MAKE.md`.
+2. **Kundenseite `nummer-aktualisieren.tsx` auf Premium-Niveau:** FIAON-Branding,
+   eine Karte, große Schrift, mobil perfekt; **maskierte aktuelle Nummer**
+   („+49 176 •••••• 52", Server liefert `maskedPhone`); **Live-Validierung**
+   (`@/lib/phone`, grüner Haken/Fehlertext, Button erst bei gültiger Nummer);
+   Erfolgs- + freundliche Ablauf-Seite; **nur** die Telefonnummer änderbar.
+3. **Funnel-Live-Validierung:** `antrag.tsx` + `business-antrag.tsx` nutzen
+   dieselbe `@/lib/phone`-Logik (grüner Haken beim Tippen, Format-Fehler blockiert
+   den Schritt; Unsinn wie 00000 wird abgefangen). Kein SMS-Schritt, kein neuer
+   Pflicht-Schritt — nur sofortige Formatprüfung.
+4. **Sichtbarkeit im System:** Bei Selbst-Korrektur wird `number_corrected_at`
+   gesetzt (Kunde + Lead). Der Lead springt per Score **an die Spitze** der Queue;
+   Kunden-Karte und Lead-Queue zeigen das Badge **„Nummer vom Kunden korrigiert —
+   erneut anrufen"** (bis ein neuer Kontakt dokumentiert ist). Vermerk im Verlauf
+   bleibt zusätzlich bestehen.
+
+## Verifikation
+
+- `npx tsc --noEmit`: alle berührten FIAON-Dateien fehlerfrei (Server + Client).
+- Kein `sendMakeWebhook`-Aufruf ohne Registry-Eintrag (Inventur oben).
+- Regeln: keine neuen automatischen Versände (fehlende Events nur registriert +
+  empfohlen), Sie-Form + mobil, kein Eingriff in Zahlungs-/Provisions-/Stichtag-
+  Logik, Changelog im selben Commit.

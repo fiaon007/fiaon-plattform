@@ -90,7 +90,22 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
       body: JSON.stringify({ outcome, scheduledAt: outcome === "rueckruf_termin" ? rueckrufAt : null }),
     });
     setBusy(false);
-    if (r.ok) { setFlash("Ergebnis gespeichert — Akte geschlossen. Du kannst jetzt die nächste Akte öffnen."); setRueckrufAt(""); load(); onChanged(); }
+    if (r.ok) {
+      // #23: bei „Nummer falsch" Rückmeldung zur Selbst-Update-Mail geben.
+      const nu = r.json?.numberUpdateMail;
+      if (outcome === "nummer_falsch") {
+        setFlash(nu?.sent
+          ? "Nummer falsch dokumentiert — dem Lead wurde eine Mail zur Nummern-Aktualisierung gesendet. Sobald er eine neue Nummer einträgt, ist er wieder anrufbar."
+          : nu?.reason === "keine_email"
+            ? "Nummer falsch dokumentiert. Keine E-Mail hinterlegt — keine Korrektur-Mail möglich."
+            : nu?.reason === "rate_limit"
+              ? "Nummer falsch dokumentiert. Korrektur-Mail wurde heute bereits gesendet."
+              : "Nummer falsch dokumentiert — Akte geschlossen.");
+      } else {
+        setFlash("Ergebnis gespeichert — Akte geschlossen. Du kannst jetzt die nächste Akte öffnen.");
+      }
+      setRueckrufAt(""); load(); onChanged();
+    }
     else setFlash(r.json?.error || "Fehler.");
   };
 
@@ -494,14 +509,17 @@ export default function AgentLeadsPage() {
       ) : (
         <div className="space-y-2">
           {queue.map((l, idx) => (
-            <Card key={l.id} className="p-4 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center shrink-0">
-                <Lock size={15} />
+            <Card key={l.id} className={`p-4 flex items-center gap-3 ${l.number_corrected ? "border-emerald-300 ring-1 ring-emerald-100" : ""}`}>
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${l.number_corrected ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>
+                {l.number_corrected ? <PhoneCall size={15} /> : <Lock size={15} />}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-[14px] font-semibold text-slate-900 truncate">
                   Lead · {l.quelle || "unbekannte Quelle"}
                 </p>
+                {l.number_corrected && (
+                  <p className="text-[11.5px] font-semibold text-emerald-700">Nummer vom Kunden korrigiert — erneut anrufen</p>
+                )}
                 <p className="text-[12px] text-slate-400 truncate">
                   {l.kampagne || "—"} · {ageDays(l.erstellt_am)} · {l.hat_telefon ? "Telefon vorhanden" : l.hat_email ? "E-Mail vorhanden" : "—"}
                   {l.callback_due ? " · Rückruf fällig" : ""}

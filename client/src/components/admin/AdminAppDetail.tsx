@@ -102,6 +102,44 @@ export function AdminAppDetail({ app, setApp, applications, setApplications }: P
     setReactivating(false);
   };
 
+  // #15/#22: Kunde aus der Arbeitsliste aussortieren / zurückholen (kein Löschen).
+  const [dismissBusy, setDismissBusy] = useState(false);
+  const dismissCustomer = async (reason: string) => {
+    if (!app?.ref) return;
+    setDismissBusy(true);
+    try {
+      const res = await fetch(`/api/fiaon/admin/applications/${app.ref}/dismiss`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ reason }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        const updated = { ...app, dismissed_at: new Date().toISOString(), dismissed_reason: reason };
+        setApp(updated);
+        setApplications(prev => prev.map(a => a.ref === app.ref ? { ...a, ...updated } : a));
+        setReviewSuccess('Aussortiert — bleibt gespeichert, jederzeit zurückholbar');
+        setTimeout(() => setReviewSuccess(null), 2800);
+      } else alert(json?.error || 'Konnte nicht aussortiert werden');
+    } catch { alert('Netzwerkfehler'); }
+    setDismissBusy(false);
+  };
+  const restoreCustomer = async () => {
+    if (!app?.ref) return;
+    setDismissBusy(true);
+    try {
+      const res = await fetch(`/api/fiaon/admin/applications/${app.ref}/restore`, { method: 'POST', credentials: 'include' });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.ok) {
+        const updated = { ...app, dismissed_at: null, dismissed_reason: null };
+        setApp(updated);
+        setApplications(prev => prev.map(a => a.ref === app.ref ? { ...a, ...updated } : a));
+        setReviewSuccess('Zurückgeholt — steht wieder in der Arbeitsliste');
+        setTimeout(() => setReviewSuccess(null), 2800);
+      } else alert(json?.error || 'Konnte nicht zurückgeholt werden');
+    } catch { alert('Netzwerkfehler'); }
+    setDismissBusy(false);
+  };
+
   const sendProfileQuery = async () => {
     if (!app?.ref || !profileNote.trim()) return;
     try {
@@ -215,6 +253,33 @@ export function AdminAppDetail({ app, setApp, applications, setApplications }: P
             {reactivating ? 'Reaktiviere …' : 'Kunde reaktivieren'}
           </button>
         </div>
+      )}
+
+      {/* #15/#22: Aussortiert-Status + Zurückholen / Aussortieren (kein Löschen) */}
+      {app.dismissed_at ? (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold text-rose-800">Aus der Arbeitsliste aussortiert{app.dismissed_reason ? ` (${app.dismissed_reason})` : ''}</p>
+            <p className="text-[12px] text-rose-700/90">Der Kunde ist NICHT gelöscht — nur aus den Agenten-Listen genommen. Zurückholen stellt ihn wieder in die Arbeitsliste.</p>
+          </div>
+          <button type="button" onClick={restoreCustomer} disabled={dismissBusy}
+            className="shrink-0 px-4 py-2.5 rounded-xl text-white text-[13px] font-semibold bg-slate-900 hover:bg-slate-700 disabled:opacity-40">
+            {dismissBusy ? '…' : 'Zurückholen'}
+          </button>
+        </div>
+      ) : (
+        <details className="bg-white border border-slate-100 rounded-2xl p-4 mt-4 shadow-sm">
+          <summary className="text-[12px] font-semibold text-slate-500 cursor-pointer hover:text-slate-700">Aus der Arbeitsliste entfernen (kein Löschen)</summary>
+          <p className="text-[12px] text-slate-500 mt-2 mb-2.5">Wird nie gelöscht — verschwindet nur aus den Agenten-Listen und ist jederzeit zurückholbar. Grund:</p>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries({ keine_nummer: 'Keine Nummer', nummer_ungueltig: 'Ungültige Nummer', abgelehnt: '100 % abgelehnt', kein_interesse: 'Kein Interesse', dublette: 'Dublette' }).map(([key, label]) => (
+              <button key={key} type="button" disabled={dismissBusy} onClick={() => dismissCustomer(key)}
+                className="px-3 py-2 rounded-lg border border-slate-200 text-[12px] font-medium text-slate-600 hover:border-slate-400 hover:text-slate-800 disabled:opacity-40">
+                {label}
+              </button>
+            ))}
+          </div>
+        </details>
       )}
 
       {/* Tab Content */}

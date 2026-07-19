@@ -51,6 +51,7 @@ export interface Customer {
   commission_basis_note?: string | null;
   last_contact?: { type: string; outcome: string | null; agent_name: string; created_at: string } | null;
   next_appointment?: string | null;
+  number_corrected_at?: string | null; // #23: Kunde hat seine Nummer selbst korrigiert
 }
 
 interface LogEntry {
@@ -87,6 +88,16 @@ export function custPhone(c: Customer): string | null {
   if (c.phone) return `${c.phone_country_code || ""}${c.phone}`.replace(/\s/g, "");
   if (c.contact_phone) return c.contact_phone.replace(/\s/g, "");
   return null;
+}
+
+// #23: Der Kunde hat seine Nummer selbst korrigiert und es gab seither KEINEN
+// dokumentierten Kontakt → „erneut anrufen"-Signal für den Agenten.
+export function numberCorrectedPending(c: Customer): boolean {
+  if (!c.number_corrected_at) return false;
+  const corrected = new Date(c.number_corrected_at).getTime();
+  if (Number.isNaN(corrected)) return false;
+  const lastContact = c.last_contact?.created_at ? new Date(c.last_contact.created_at).getTime() : 0;
+  return corrected > lastContact;
 }
 
 // Ticket #14: lokaler Treffer-Test inkl. Telefonnummer (Ziffern-Teilstring, Format egal),
@@ -479,9 +490,15 @@ function KundenContent() {
 
 export function CustomerCard({ c, onOpen }: { c: Customer; onOpen: () => void }) {
   const phone = custPhone(c);
+  const numberCorrected = numberCorrectedPending(c);
   return (
-    <Card className={`p-4 cursor-pointer active:bg-slate-50 ${c.payment_status === "claimed_paid" ? "border-slate-300" : ""}`}>
+    <Card className={`p-4 cursor-pointer active:bg-slate-50 ${numberCorrected ? "border-emerald-300 ring-1 ring-emerald-100" : c.payment_status === "claimed_paid" ? "border-slate-300" : ""}`}>
       <div onClick={onOpen}>
+        {numberCorrected && (
+          <div className="mb-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[11px] font-semibold text-emerald-700">
+            <PhoneCall size={11} strokeWidth={2} /> Nummer vom Kunden korrigiert — erneut anrufen
+          </div>
+        )}
         <div className="flex items-start justify-between gap-2 mb-1.5">
           <div className="min-w-0">
             <p className="text-[14px] font-semibold text-slate-900 truncate">{custName(c)}</p>
@@ -518,6 +535,47 @@ export function CustomerCard({ c, onOpen }: { c: Customer; onOpen: () => void })
   );
 }
 
+// #15/#22: „Aus meiner Liste entfernen" — kein echtes Löschen. Grund-Auswahl,
+// klarer Hinweis, dass nichts gelöscht wird. Wiederverwendbar (offen + abgelaufen).
+const CUST_DISMISS_REASONS: Record<string, string> = {
+  keine_nummer: "Keine Telefonnummer",
+  nummer_ungueltig: "Ungültige Nummer",
+  abgelehnt: "100 % abgelehnt",
+  kein_interesse: "Kein Interesse",
+  dublette: "Dublette",
+};
+function DismissBlock({ open, setOpen, busy, onDismiss }: {
+  open: boolean; setOpen: (v: boolean) => void; busy: boolean; onDismiss: (reason: string) => void;
+}) {
+  if (!open) {
+    return (
+      <div className="pt-1">
+        <button type="button" onClick={() => setOpen(true)}
+          className="w-full py-2.5 rounded-xl border border-slate-200 text-[12px] font-medium text-slate-400 hover:text-slate-600 hover:border-slate-300 inline-flex items-center justify-center gap-1.5">
+          <X size={13} strokeWidth={1.9} /> Aus meiner Liste entfernen
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="pt-1 p-3.5 rounded-xl border border-slate-200 bg-slate-50 agent-check-in">
+      <p className="text-[12px] font-semibold text-slate-700 mb-1">Aus deiner Liste entfernen</p>
+      <p className="text-[11.5px] text-slate-500 mb-2.5">Wird nie gelöscht — verschwindet nur aus deiner Liste. Der Admin kann ihn jederzeit zurückholen. Grund wählen:</p>
+      <div className="grid grid-cols-1 gap-1.5">
+        {Object.entries(CUST_DISMISS_REASONS).map(([key, label]) => (
+          <button key={key} type="button" disabled={busy} onClick={() => onDismiss(key)}
+            className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-[12px] font-medium text-slate-600 hover:border-slate-400 hover:text-slate-800 text-left disabled:opacity-40" style={{ minHeight: 44 }}>
+            {busy ? "…" : label}
+          </button>
+        ))}
+      </div>
+      <button type="button" onClick={() => setOpen(false)} className="mt-2 text-[11.5px] font-semibold text-slate-400 hover:text-slate-600">
+        Abbrechen
+      </button>
+    </div>
+  );
+}
+
 // ═══════════════ Kundendetail (Sheet) — unverändert aus /agent extrahiert ═══════════════
 
 export function CustomerDetail({ refId, onClose, onChanged, flash }: {
@@ -549,6 +607,8 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
   const [editErr, setEditErr] = useState<string | null>(null);
   const [dupWarn, setDupWarn] = useState<{ ref: string; payment_status: string; name: string } | null>(null);
   const [loginHint, setLoginHint] = useState<string | null>(null);
+  // #15/#22: „Aus meiner Liste entfernen" (kein echtes Löschen)
+  const [dismissOpen, setDismissOpen] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -613,6 +673,18 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
     } else flash(r.json?.error || "Reaktivierung fehlgeschlagen");
   };
 
+  // #15/#22: Kunde aus der eigenen Arbeitsliste entfernen (kein echtes Löschen).
+  const doDismiss = async (reason: string) => {
+    setBusy("dismiss");
+    const r = await api(`/agent/customers/${encodeURIComponent(refId)}/dismiss`, { method: "POST", body: JSON.stringify({ reason }) });
+    setBusy(null);
+    if (r.ok) {
+      flash("Aus deiner Liste entfernt — bleibt vollständig gespeichert und ist im Admin jederzeit zurückholbar.");
+      onChanged();
+      onClose();
+    } else flash(r.json?.error || "Konnte nicht entfernt werden");
+  };
+
   // Paket DD: Klick 1 wählt aus (armed), Klick 2 bestätigt — kein versehentlicher Statuswechsel mehr.
   const pickOutcome = (e: React.MouseEvent, outcome: string) => {
     e.stopPropagation();
@@ -651,6 +723,16 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
         flash(`Rückruf gespeichert: ${fmtDT(r.json.entry.scheduled_at)} Uhr (deutsche Zeit).`);
       } else if (outcome === "erreicht_zahlt_am" && r.json.entry?.promised_date) {
         flash(`Zahlungs-Zusage gespeichert: ${fmtD(r.json.entry.promised_date)} (deutsche Zeit).`);
+      } else if (outcome === "nummer_falsch") {
+        // #23: Rückmeldung, ob die Selbst-Update-Mail rausging.
+        const nu = r.json.numberUpdateMail;
+        flash(nu?.sent
+          ? "Falsche Nummer dokumentiert — dem Kunden wurde eine Mail zur Nummern-Aktualisierung gesendet."
+          : nu?.reason === "keine_email"
+            ? "Falsche Nummer dokumentiert. Keine E-Mail hinterlegt — keine Korrektur-Mail möglich."
+            : nu?.reason === "rate_limit"
+              ? "Falsche Nummer dokumentiert. Korrektur-Mail wurde heute bereits gesendet."
+              : "Falsche Nummer dokumentiert.");
       } else {
         // Paket DA: erklären, wo der Kunde jetzt zu finden ist — nichts „verschwindet"
         const wohin = outcome === "erreicht_zahlt_gleich"
@@ -938,6 +1020,10 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
               {busy === "reactivate" ? "Reaktiviere …" : "Kunde reaktivieren (neue Zahlungsfrist)"}
             </button>
           )}
+          {/* #15/#22: auch abgelaufene eigene Kunden aus der Liste nehmen (kein Löschen) */}
+          {canReactivate && (
+            <DismissBlock open={dismissOpen} setOpen={setDismissOpen} busy={busy === "dismiss"} onDismiss={doDismiss} />
+          )}
         </div>
       ) : (
         <>
@@ -1017,6 +1103,8 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
               </span>
             </button>
           </div>
+
+          <DismissBlock open={dismissOpen} setOpen={setDismissOpen} busy={busy === "dismiss"} onDismiss={doDismiss} />
         </>
       )}
     </div>

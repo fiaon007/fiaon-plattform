@@ -12,6 +12,7 @@ import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
 import { ensureInvoiceNumber, renderInvoicePdf, signInvoiceUrl, verifyInvoiceSig } from "../fiaon-invoice";
 import { absoluteUrl } from "../fiaon-base-url";
 import { normalizePhone } from "./fiaon-agent";
+import { verifyNumberToken, markNumberUpdated } from "../fiaon-number-update";
 
 const router = Router();
 
@@ -68,6 +69,30 @@ const PACK_PRICES: Record<string, number> = {
 const SCHUFA_PRICE = 74.0;
 const PAYMENT_DUE_DAYS = 7;
 
+// ── #20: Kanonische Paket-Kreditlimits (Headline „bis zu X €", identisch zu den
+// PACKS/BUSINESS_PACKS im Frontend). Quelle der Wahrheit fürs Portal, falls das
+// pro-Antrag berechnete `approved_limit` fehlt oder auf den Funnel-Mindestwert
+// (250 €) geklemmt wurde (Bug: Ultra-Kunde sah 250 € statt 15.000 €).
+export const PACK_LIMITS: Record<string, number> = {
+  start: 500, pro: 5000, ultra: 15000, highend: 25000,
+  business_starter: 5000, business_pro: 25000, business_ultra: 75000, business_enterprise: 250000,
+};
+// Untergrenze, ab der ein berechnetes approved_limit als „echt personalisiert"
+// gilt. Der Funnel klemmt auf min. 250 € — genau dieser Wert (und null/0) ist das
+// Bug-Signal „nie ein echtes Limit vergeben".
+const FUNNEL_LIMIT_FLOOR = 250;
+
+/** Anzuzeigendes Kreditlimit fürs Kundenportal: das personalisierte
+ * `approved_limit`, sofern es > Funnel-Floor ist; sonst das Paket-Headline-Limit.
+ * Verändert NICHTS in der DB — reine Anzeige-Ableitung (kein Geld-/Provisionsbezug). */
+export function effectiveLimit(packKey: string | null | undefined, approvedLimit: any): number | null {
+  const n = Number(approvedLimit);
+  if (Number.isFinite(n) && n > FUNNEL_LIMIT_FLOOR) return n;
+  const packLimit = packKey ? PACK_LIMITS[packKey] : undefined;
+  if (packLimit != null) return packLimit;
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 // Zeichensatz ohne verwechselbare Zeichen: keine 0, 1, O, I, L
 const PAYMENT_REF_CHARSET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
 
@@ -117,7 +142,11 @@ async function ensurePaymentColumns(): Promise<void> {
     ADD COLUMN IF NOT EXISTS superseded_by VARCHAR,
     ADD COLUMN IF NOT EXISTS allow_reminders_despite_paid BOOLEAN NOT NULL DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS gdpr_deleted_at TIMESTAMPTZ;
+    ADD COLUMN IF NOT EXISTS gdpr_deleted_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS dismissed_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS dismissed_by INTEGER,
+    ADD COLUMN IF NOT EXISTS dismissed_reason VARCHAR,
+    ADD COLUMN IF NOT EXISTS number_corrected_at TIMESTAMPTZ;
   `;
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_invoice_no_idx ON fiaon_applications(invoice_number)`;
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_payment_ref_idx ON fiaon_applications(payment_reference)`;
@@ -541,6 +570,125 @@ export async function undoMergeApplications(
   return { ok: true, restored };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// P1 — PRÄVENTION, DIE WIRKLICH GREIFT (Prompt „Dubletten & verschwundene Kunden")
+//
+// Bevor ein Antrag als eigenständiger „Kunde" in Umlauf geht (Übergang zu
+// pending_payment in POST /payment-order), wird geprüft, ob bereits ein Antrag
+// DERSELBEN PERSON (gleiche E-Mail ODER normalisiertes Telefon) BEZAHLT oder in
+// AKTIVER BETREUUNG (pending_payment/claimed_paid) existiert. Wenn ja, wird der
+// neue Antrag SOFORT als Dublette an den bestehenden verknüpft (Soft-Merge,
+// merged_into) — kein zweiter Kunde, kein zweiter Agent, keine zweite Anrufliste.
+//
+// GELD-SICHERHEIT (Direktive, unverhandelbar): Der Merge berührt NIEMALS eine
+// bestehende Zahlung, Provision oder Rechnungsnummer — MERGE_SKIP_COLS schützt
+// payment_status/payment_reference/invoice_number/amount_due etc.; Provisionen
+// bleiben an ihrer ref. Nur der neue, unbezahlte Doppel-Antrag wird angehängt.
+//
+// UNSICHERHEIT: Existieren ZWEI oder mehr BEZAHLTE Schwester-Datensätze, findet
+// KEIN Automatik-Merge statt — der Fall wird als „prüfen" geflaggt (Audit-Log)
+// und erscheint in /admin/dubletten zur manuellen Entscheidung des Betreibers.
+//
+// SCHUFA/Bonitäts-Bestellungen sind ein EIGENES Produkt (dieselbe Person kann
+// Aktivierung UND SCHUFA kaufen) → werden bewusst NIE automatisch verknüpft.
+//
+// Wirft nie. Bei Verknüpfung: { linked:true, winnerRef, winnerPaymentReference,
+// winnerPaymentStatus } — der Zahlungsfluss verwendet dann die bestehende
+// Bestellung wieder, statt eine zweite anzulegen.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function linkDuplicateToPaidOrActive(
+  newRef: string,
+  actor = "System (Prävention)",
+): Promise<{
+  linked: boolean;
+  ambiguous?: boolean;
+  winnerRef?: string;
+  winnerPaymentReference?: string | null;
+  winnerPaymentStatus?: string;
+}> {
+  try {
+    await ensurePaymentColumns();
+    const rows = await sqlPool`
+      SELECT ref, type, email, contact_email, billing_email, phone, phone_country_code, contact_phone,
+             payment_status, merged_into
+      FROM fiaon_applications WHERE ref = ${newRef} LIMIT 1
+    `;
+    if (rows.length === 0) return { linked: false };
+    const me = rows[0];
+    // Bereits gemergt oder selbst bezahlt → nichts tun (bestehendes Geld nie anfassen).
+    if (me.merged_into) return { linked: false };
+    if (me.payment_status === "paid") return { linked: false };
+    // SCHUFA/Bonität ist ein eigenes Produkt — nie automatisch verknüpfen.
+    if (String(me.type || "").toLowerCase() === "schufa" || newRef.startsWith("FIAON-SCHUFA-")) return { linked: false };
+
+    const email = String(me.email || me.contact_email || me.billing_email || "").trim().toLowerCase() || null;
+    const phone = normalizeApplicationPhone(me);
+    if (!email && !phone) return { linked: false };
+
+    // Kandidaten: andere, nicht-gemergte, nicht-SCHUFA Anträge in aktivem Zustand
+    // (bezahlt oder in aktiver Betreuung). Telefon-Vergleich in JS (formatunabhängig).
+    const candidates = await sqlPool`
+      SELECT ref, type, email, contact_email, billing_email, phone, phone_country_code, contact_phone,
+             payment_status, payment_reference, assigned_agent_id, created_at
+      FROM fiaon_applications
+      WHERE ref <> ${newRef} AND merged_into IS NULL
+        AND COALESCE(type,'') <> 'schufa' AND ref NOT LIKE 'FIAON-SCHUFA-%'
+        AND payment_status IN ('paid','pending_payment','claimed_paid')
+    `;
+    const sameParty = candidates.filter((c: any) => {
+      const cEmail = String(c.email || c.contact_email || c.billing_email || "").trim().toLowerCase() || null;
+      if (email && cEmail && cEmail === email) return true;
+      const cPhone = normalizeApplicationPhone(c);
+      if (phone && cPhone && cPhone === phone) return true;
+      return false;
+    });
+    if (sameParty.length === 0) return { linked: false };
+
+    const paid = sameParty.filter((c: any) => c.payment_status === "paid");
+    // Unsicherheit: mehr als EIN bezahlter Schwester-Datensatz → NICHT automatisch
+    // mergen (Geld-Risiko). Als „prüfen" flaggen; erscheint in /admin/dubletten.
+    if (paid.length > 1) {
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+        VALUES (${newRef}, NULL, 'System', 'system',
+                ${`Prävention: mehrere BEZAHLTE Schwester-Datensätze gefunden (${paid.map((p: any) => p.ref).join(", ")}) — KEIN Automatik-Merge (Geld-Sicherheit). Bitte in /admin/dubletten prüfen.`})
+      `.catch(() => {});
+      console.log(`[FIAON-PRÄVENTION] ${newRef}: ${paid.length} bezahlte Schwestern → prüfen (kein Auto-Merge)`);
+      return { linked: false, ambiguous: true };
+    }
+
+    // Gewinner: der bezahlte; sonst der aktiv betreute (mit Agent); sonst der älteste aktive.
+    const byAgeAsc = (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    let winner: any = paid[0];
+    if (!winner) {
+      const active = sameParty.filter((c: any) => c.assigned_agent_id).sort(byAgeAsc);
+      winner = active[0] || [...sameParty].sort(byAgeAsc)[0];
+    }
+    if (!winner) return { linked: false };
+
+    // Soft-Merge des NEUEN (unbezahlten) Antrags in den bestehenden Datensatz.
+    // mergeApplications füllt nur leere Gewinner-Felder (z. B. fehlende Kontaktdaten),
+    // schützt Zahlung/Provision/Rechnung (MERGE_SKIP_COLS) und ist per Batch umkehrbar.
+    const result = await mergeApplications(winner.ref, [newRef], actor);
+    if (!result.ok) return { linked: false };
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${winner.ref}, NULL, 'System', 'system',
+              ${`Prävention: Kunde hat erneut einen Antrag gestellt (${newRef}) — automatisch mit diesem ${winner.payment_status === "paid" ? "bezahlten" : "bestehenden"} Datensatz verknüpft. Kein zweiter Kunde, kein zweiter Agent, kein Doppelanruf. Zahlung/Provision/Rechnung unverändert.`})
+    `.catch(() => {});
+    console.log(`[FIAON-PRÄVENTION] ${newRef} → verknüpft mit ${winner.ref} (${winner.payment_status})`);
+    return {
+      linked: true,
+      winnerRef: winner.ref,
+      winnerPaymentReference: winner.payment_reference,
+      winnerPaymentStatus: winner.payment_status,
+    };
+  } catch (err) {
+    console.error("[FIAON-PRÄVENTION] linkDuplicateToPaidOrActive:", err);
+    return { linked: false };
+  }
+}
+
 // Paket X/DB: Bezahlt-Bestätigung (Make 'payment_confirmed' mit login_url) —
 // genau 1× pro Bestellung über atomaren Flag-Claim (confirmed_email_sent_at).
 // Wiederverwendbar für mark-paid UND Kontoabgleich (fiaon-reconcile.ts).
@@ -594,6 +742,28 @@ router.post("/payment-order", async (req, res) => {
     // Idempotenz: bestehende offene/gemeldete/bezahlte Bestellung wiederverwenden
     if (app.payment_reference && ["pending_payment", "claimed_paid", "paid"].includes(app.payment_status)) {
       return res.json({ ok: true, paymentReference: app.payment_reference, existing: true });
+    }
+
+    // ── P1 PRÄVENTION: Bevor dieser Antrag als eigenständiger Kunde in Umlauf
+    // geht, prüfen, ob dieselbe Person (E-Mail ODER Telefon) bereits bezahlt hat
+    // oder in aktiver Betreuung ist. Wenn ja: neuen Antrag verknüpfen (Soft-Merge)
+    // und die BESTEHENDE Bestellung wiederverwenden — kein zweiter Kunde/Agent/Anruf.
+    // Berührt keine bestehende Zahlung/Provision/Rechnung. Bei Unsicherheit (zwei
+    // Bezahlte) wird NICHT gemergt, sondern für /admin/dubletten geflaggt.
+    const link = await linkDuplicateToPaidOrActive(ref);
+    if (link.linked && link.winnerRef) {
+      const w = await sqlPool`
+        SELECT payment_reference, payment_status FROM fiaon_applications WHERE ref = ${link.winnerRef} LIMIT 1
+      `;
+      const winnerPaid = (w[0]?.payment_status || link.winnerPaymentStatus) === "paid";
+      console.log(`[FIAON-PAYMENT] ${ref} an bestehenden Kunden ${link.winnerRef} verknüpft (${w[0]?.payment_status}) — keine zweite Bestellung`);
+      return res.json({
+        ok: true,
+        paymentReference: w[0]?.payment_reference || link.winnerPaymentReference || null,
+        existing: true,
+        linkedToExisting: true,
+        alreadyPaid: winnerPaid,
+      });
     }
 
     const amount = app.type === "schufa" ? SCHUFA_PRICE : PACK_PRICES[app.pack_key];
@@ -1424,6 +1594,55 @@ router.post("/admin/payments/:paymentRef/allow-reminders", async (req, res) => {
   }
 });
 
+// ── #15/#22 (Admin): Kunde aus der Arbeitsliste aussortieren / zurückholen ──
+// Kein echtes Löschen — nur raus aus den Agenten-Listen, vollständig in der DB,
+// im Admin unter „Aussortiert" sichtbar. Berührt keine Zahlung/Provision.
+const ADMIN_CUST_DISMISS_LABEL: Record<string, string> = {
+  keine_nummer: "keine Telefonnummer", nummer_ungueltig: "ungültige Nummer",
+  abgelehnt: "100 % abgelehnt", kein_interesse: "kein Interesse", dublette: "Dublette",
+};
+router.post("/admin/applications/:ref/dismiss", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const reason = String(req.body?.reason || "").trim();
+    if (!ADMIN_CUST_DISMISS_LABEL[reason]) return res.status(400).json({ ok: false, error: "Grund erforderlich (keine_nummer, nummer_ungueltig, abgelehnt, kein_interesse, dublette)." });
+    const rows = await sqlPool`
+      UPDATE fiaon_applications SET dismissed_at = NOW(), dismissed_by = NULL, dismissed_reason = ${reason}, updated_at = NOW()
+      WHERE ref = ${req.params.ref} AND merged_into IS NULL AND dismissed_at IS NULL
+      RETURNING ref
+    `;
+    if (rows.length === 0) return res.status(409).json({ ok: false, error: "Kunde nicht gefunden oder bereits aussortiert." });
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${req.params.ref}, NULL, 'Admin', 'system',
+              ${`Aus der Arbeitsliste entfernt (Admin, Grund: ${ADMIN_CUST_DISMISS_LABEL[reason]}). Wird NIE gelöscht — jederzeit zurückholbar.`})
+    `.catch(() => {});
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-ADMIN] applications dismiss:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+router.post("/admin/applications/:ref/restore", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const rows = await sqlPool`
+      UPDATE fiaon_applications SET dismissed_at = NULL, dismissed_by = NULL, dismissed_reason = NULL, updated_at = NOW()
+      WHERE ref = ${req.params.ref} AND dismissed_at IS NOT NULL
+      RETURNING ref
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Kein aussortierter Kunde unter dieser Referenz." });
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${req.params.ref}, NULL, 'Admin', 'system', 'Kunde zurückgeholt (nicht mehr aussortiert) — steht wieder in der Arbeitsliste.')
+    `.catch(() => {});
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-ADMIN] applications restore:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 // Kunde löschen (DSGVO): Soft-Delete + Anonymisierung der personenbezogenen
 // Felder. Rechnungsdaten (Nummer, Betrag, Referenz, Datum) bleiben aus
 // Buchhaltungspflicht erhalten — Nummernkreis unangetastet. KYC-PDFs werden
@@ -1595,7 +1814,89 @@ router.get("/admin/duplicates/groups", async (_req, res) => {
       return { ...g, apps, winnerRef: winner.ref, confidence, gainable, callableGain, paidCount };
     };
 
-    const groups = [...emailGroups, ...phoneGroups].map(enrich);
+    let groups = [...emailGroups, ...phoneGroups].map(enrich);
+
+    // ── P3: Erkennung ÜBER LEADS HINWEG (Lead + Antrag derselben Person) ──
+    // Die gemeldeten Fälle (#19/#24/#26 …) wurden per reiner E-Mail-Gruppierung
+    // NICHT erfasst — oft existiert ein offener Lead neben einem bereits
+    // bezahlten/aktiven Antrag (gleiche Person, andere/fehlende E-Mail, gleiche
+    // Nummer). Wir hängen passende offene Leads an bestehende Gruppen an UND
+    // erzeugen neue „Lead ↔ Antrag"-Gruppen, wo eine Person als Lead UND als
+    // bezahlter/aktiver Kunde existiert. Read-only — reine Sichtbarkeit.
+    const openLeads = await sqlPool`
+      SELECT id, vorname, nachname, email, telefon, status, assigned_agent_id,
+             converted_order_id, in_sequence, created_at, erstellt_am
+      FROM fiaon_leads
+      WHERE status IN ('neu','kontaktiert','nicht_erreichbar')
+        AND converted_order_id IS NULL
+    `;
+    const leadKey = (l: any) => ({
+      email: String(l.email || "").trim().toLowerCase() || null,
+      phone: l.telefon ? normalizePhone(String(l.telefon)) : null,
+    });
+    // Index der Anträge nach E-Mail/Telefon für schnelles Nachschlagen.
+    const appByEmail = new Map<string, any[]>();
+    const appByPhone = new Map<string, any[]>();
+    for (const r of rows) {
+      const em = String(r.email || "").trim().toLowerCase();
+      if (em) { if (!appByEmail.has(em)) appByEmail.set(em, []); appByEmail.get(em)!.push(r); }
+      const p = normalizeApplicationPhone(r);
+      if (p) { if (!appByPhone.has(p)) appByPhone.set(p, []); appByPhone.get(p)!.push(r); }
+    }
+    // 1) Leads an bestehende Gruppen anhängen (gleiche E-Mail ODER Telefon).
+    const attachLeadRow = (l: any) => ({
+      leadId: l.id, name: [l.vorname, l.nachname].filter(Boolean).join(" ") || null,
+      email: l.email || null, telefon: l.telefon || null, status: l.status,
+      assigned_agent_id: l.assigned_agent_id, in_sequence: l.in_sequence,
+    });
+    const usedLeadIds = new Set<number>();
+    for (const g of groups) {
+      const groupEmails = new Set(g.apps.map((a: any) => String(a.email || "").trim().toLowerCase()).filter(Boolean));
+      const groupPhones = new Set(g.apps.map((a: any) => normalizeApplicationPhone(a)).filter(Boolean));
+      const matched = openLeads.filter((l: any) => {
+        const k = leadKey(l);
+        return (k.email && groupEmails.has(k.email)) || (k.phone && groupPhones.has(k.phone));
+      });
+      (g as any).leads = matched.map(attachLeadRow);
+      matched.forEach((l: any) => usedLeadIds.add(Number(l.id)));
+    }
+    // 2) NEUE Lead↔Antrag-Gruppen: offener Lead trifft einen bezahlten/aktiven
+    //    Antrag, der (noch) in KEINER App-Dubletten-Gruppe steht.
+    const crossGroups: any[] = [];
+    const seenCrossKey = new Set<string>();
+    for (const l of openLeads) {
+      if (usedLeadIds.has(Number(l.id))) continue;
+      const k = leadKey(l);
+      const hits = [
+        ...(k.email ? (appByEmail.get(k.email) || []) : []),
+        ...(k.phone ? (appByPhone.get(k.phone) || []) : []),
+      ];
+      const active = hits.filter((a: any) => ["paid", "pending_payment", "claimed_paid"].includes(a.payment_status));
+      if (active.length === 0) continue;
+      const anchor = active.sort((x: any, y: any) => winnerScore(y) - winnerScore(x))[0];
+      const ck = `cross:${anchor.ref}:${l.id}`;
+      if (seenCrossKey.has(ck)) continue;
+      seenCrossKey.add(ck);
+      usedLeadIds.add(Number(l.id));
+      const confidence = k.email && String(anchor.email || "").trim().toLowerCase() === k.email
+        ? "wahrscheinlich" : "pruefen";
+      crossGroups.push({
+        matchType: "lead_cross",
+        key: ck,
+        label: `${[l.vorname, l.nachname].filter(Boolean).join(" ") || l.email || l.telefon} (Lead ↔ ${anchor.payment_status === "paid" ? "bezahlt" : "aktiv"})`,
+        email: k.email,
+        apps: [anchor],
+        winnerRef: anchor.ref,
+        confidence,
+        gainable: [],
+        callableGain: false,
+        paidCount: anchor.payment_status === "paid" ? 1 : 0,
+        leads: [attachLeadRow(l)],
+        note: "Offener Lead trifft einen bereits bezahlten/aktiven Kunden — dieser Lead sollte nicht erneut angerufen werden (konvertieren oder aus der Queue nehmen).",
+      });
+    }
+    groups = [...groups, ...crossGroups];
+
     // Sortierung: Doppelzahler (paidCount>1) zuerst, dann Anrufbarkeits-Gewinn, dann sichere.
     const confRank: Record<string, number> = { sicher: 0, wahrscheinlich: 1, pruefen: 2 };
     groups.sort((a, b) =>
@@ -1999,10 +2300,108 @@ router.post("/login", async (req, res) => {
       lastName: app.last_name,
       email: app.email,
       packName: app.pack_name,
-      approvedLimit: app.approved_limit,
+      // #20: Portal zeigt das Paket-Limit, wenn approved_limit fehlt/auf 250 € geklemmt ist.
+      approvedLimit: effectiveLimit(app.pack_key, app.approved_limit),
     });
   } catch (err) {
     console.error("[FIAON-LOGIN]", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════ #23 — Telefonnummer-Selbstaktualisierung (öffentlich, signiert) ═══════════════
+// Kunde/Lead öffnet den signierten Link aus der „Falsche Nummer"-Mail und trägt
+// seine korrekte Nummer ein. Kein Login nötig; Token ist HMAC-signiert + läuft ab.
+
+/** Maskierte Anzeige der hinterlegten Nummer, z. B. „+49 176 •••••• 52".
+ *  Zeigt nur Ländervorwahl + erste 3 + letzte 2 Ziffern — genug zum Wiedererkennen. */
+function maskPhoneDisplay(e164: string | null): string | null {
+  if (!e164) return null;
+  const cc = e164.startsWith("+49") ? "+49" : e164.slice(0, 3);
+  const rest = e164.slice(cc.length);
+  if (rest.length < 5) return null;
+  const prefix = rest.slice(0, 3);
+  const last2 = rest.slice(-2);
+  const mid = "•".repeat(Math.max(3, rest.length - 5));
+  return `${cc} ${prefix} ${mid} ${last2}`;
+}
+
+router.get("/number-update/:token", async (req, res) => {
+  try {
+    const t = verifyNumberToken(req.params.token);
+    if (!t) return res.status(400).json({ ok: false, error: "Der Link ist ungültig oder abgelaufen. Bitte fordere einen neuen an." });
+    if (t.kind === "app") {
+      const [a] = await sqlPool`
+        SELECT first_name, contact_name, phone, phone_country_code, contact_phone FROM fiaon_applications WHERE ref = ${t.id} AND merged_into IS NULL
+      `;
+      if (!a) return res.status(404).json({ ok: false, error: "Datensatz nicht gefunden" });
+      const masked = maskPhoneDisplay(normalizeApplicationPhone(a));
+      return res.json({ ok: true, firstName: a.first_name || a.contact_name || "", hasNumber: !!(a.phone || a.contact_phone), maskedPhone: masked });
+    } else {
+      const [l] = await sqlPool`SELECT vorname, telefon FROM fiaon_leads WHERE id = ${Number(t.id)}`;
+      if (!l) return res.status(404).json({ ok: false, error: "Datensatz nicht gefunden" });
+      const masked = maskPhoneDisplay(l.telefon ? normalizePhone(String(l.telefon)) : null);
+      return res.json({ ok: true, firstName: l.vorname || "", hasNumber: !!l.telefon, maskedPhone: masked });
+    }
+  } catch (err) {
+    console.error("[FIAON-NUMUPDATE] get:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/number-update/:token", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+    const t = verifyNumberToken(req.params.token);
+    if (!t) return res.status(400).json({ ok: false, error: "Der Link ist ungültig oder abgelaufen." });
+    const normalized = normalizePhone(String(req.body?.phone || "").trim());
+    if (!normalized) return res.status(400).json({ ok: false, error: "Bitte eine gültige Telefonnummer eingeben (z. B. 0170 1234567)." });
+
+    if (t.kind === "app") {
+      // Volle E.164-Nummer in `phone`, Ländervorwahl leeren (Anzeige/Suche verketten beides).
+      // Aussortierung wegen Nummer-Problem wird aufgehoben → Kunde wieder anrufbar.
+      const rows = await sqlPool`
+        UPDATE fiaon_applications SET
+          phone = ${normalized}, phone_country_code = '',
+          dismissed_at = CASE WHEN dismissed_reason IN ('keine_nummer','nummer_ungueltig') THEN NULL ELSE dismissed_at END,
+          dismissed_reason = CASE WHEN dismissed_reason IN ('keine_nummer','nummer_ungueltig') THEN NULL ELSE dismissed_reason END,
+          number_corrected_at = NOW(),
+          updated_at = NOW()
+        WHERE ref = ${t.id} AND merged_into IS NULL
+        RETURNING ref
+      `;
+      if (rows.length === 0) return res.status(404).json({ ok: false, error: "Datensatz nicht gefunden" });
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+        VALUES (${t.id}, NULL, 'System', 'system',
+                ${`Telefonnummer vom Kunden selbst aktualisiert (über „Nummer aktualisieren"-Link): ${normalized}. Kunde ist wieder anrufbar.`})
+      `.catch(() => {});
+    } else {
+      // number_corrected_at auf Leads defensiv sicherstellen (Migration zur Laufzeit).
+      await sqlPool`ALTER TABLE fiaon_leads ADD COLUMN IF NOT EXISTS number_corrected_at TIMESTAMPTZ`.catch(() => {});
+      const rows = await sqlPool`
+        UPDATE fiaon_leads SET
+          telefon = ${normalized},
+          dismissed_at = NULL, dismissed_by = NULL, dismissed_reason = NULL,
+          requeue_at = NULL, in_sequence = TRUE,
+          number_corrected_at = NOW(),
+          status = CASE WHEN status IN ('tot','nicht_erreichbar') THEN 'neu' ELSE status END,
+          updated_at = NOW()
+        WHERE id = ${Number(t.id)}
+        RETURNING id
+      `.catch(() => [] as any[]);
+      if (rows.length === 0) return res.status(404).json({ ok: false, error: "Datensatz nicht gefunden" });
+      await sqlPool`
+        INSERT INTO fiaon_lead_log (lead_id, agent_id, agent_name, type, note)
+        VALUES (${Number(t.id)}, NULL, 'System', 'system',
+                ${`Telefonnummer vom Interessenten selbst aktualisiert (über „Nummer aktualisieren"-Link): ${normalized}. Lead ist wieder anrufbar und zurück in der Warteschlange.`})
+      `.catch(() => {});
+    }
+    await markNumberUpdated(t.kind, t.id);
+    console.log(`[FIAON-NUMUPDATE] ${t.kind}:${t.id} → Nummer aktualisiert`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-NUMUPDATE] post:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -2244,7 +2643,8 @@ router.get("/profile/:ref", async (req, res) => {
       wantedLimit: a.wanted_limit, purpose: a.purpose, billing: a.billing,
       billingMethod: a.billing_method, salaryReceiptDay: a.salary_receipt_day,
       iban: a.iban, packName: a.pack_name, packKey: a.pack_key,
-      approvedLimit: a.approved_limit, accountStatus: a.account_status, kycStatus: a.kyc_status,
+      // #20: Portal zeigt das Paket-Limit, wenn approved_limit fehlt/auf 250 € geklemmt ist.
+      approvedLimit: effectiveLimit(a.pack_key, a.approved_limit), accountStatus: a.account_status, kycStatus: a.kyc_status,
       movedRecently: a.moved_recently ?? false,
       previousStreet: a.previous_street ?? '', previousZip: a.previous_zip ?? '',
       previousCity: a.previous_city ?? '', previousCountry: a.previous_country ?? 'Deutschland',

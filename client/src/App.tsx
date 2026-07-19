@@ -30,6 +30,7 @@ import BonitaetDankePage from "@/pages/bonitaet-danke";
 import InvestorLoginPage from "@/pages/investor-login";
 import InvestorDashboardPage from "@/pages/investor-dashboard";
 import ZahlungPage, { ZahlungDankePage } from "@/pages/zahlung";
+import NummerAktualisierenPage from "@/pages/nummer-aktualisieren";
 import AdminZahlungenPage from "@/pages/admin-zahlungen";
 import AdminTeamPage from "@/pages/admin-team";
 import AdminNachbuchungPage from "@/pages/admin-nachbuchung";
@@ -130,6 +131,7 @@ function Router() {
       <Route path="/agent/leistung" component={AgentLeistungPage} />
       <Route path="/zahlung/:paymentRef/danke" component={ZahlungDankePage} />
       <Route path="/zahlung/:paymentRef" component={ZahlungPage} />
+      <Route path="/nummer-aktualisieren" component={NummerAktualisierenPage} />
       <Route path="/was-ist-fiaon" component={WasIstFiaonPage} />
       <Route path="/plattform-konzept" component={PlattformKonzeptPage} />
       <Route path="/terms" component={Terms} />

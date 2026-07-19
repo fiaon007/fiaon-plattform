@@ -220,7 +220,7 @@ export default function DashboardPage() {
   const fileInputRef1 = useRef<HTMLInputElement>(null);
   const fileInputRef2 = useRef<HTMLInputElement>(null);
   const fileInputRef3 = useRef<HTMLInputElement>(null);
-  const user: SessionUser = (() => { try { return JSON.parse(sessionStorage.getItem("fiaon_user") || "{}"); } catch { return {} as SessionUser; } })();
+  const [user, setUser] = useState<SessionUser>(() => { try { return JSON.parse(sessionStorage.getItem("fiaon_user") || "{}"); } catch { return {} as SessionUser; } });
   const greeting = (() => { const h = new Date().getHours(); return h < 12 ? "Guten Morgen" : h < 18 ? "Guten Tag" : "Guten Abend"; })();
   const docsOk = isUploadSuccess || (serverDocStatus.hasBankStatement && serverDocStatus.hasIdCard);
   const kycBadge = docsOk ? undefined : "!";
@@ -234,6 +234,16 @@ export default function DashboardPage() {
         if (d.hasBankStatement && d.hasIdCard) { setIsUploadSuccess(true); localStorage.setItem("kyc_uploaded", "true"); }
         setStatusLoaded(true);
       }).catch(() => { setStatusLoaded(true); });
+      // #20: Limit/Paket serverseitig frisch holen (korrigiert veraltete Session,
+      // z. B. Ultra-Kunde, der bisher 250 € sah) — nur Anzeige, kein Geldbezug.
+      fetch(`/api/fiaon/profile/${user.ref}`).then(r => r.json()).then(d => {
+        if (!d?.ok) return;
+        setUser((prev) => {
+          const next = { ...prev, approvedLimit: d.approvedLimit ?? prev.approvedLimit, packName: d.packName ?? prev.packName };
+          try { sessionStorage.setItem("fiaon_user", JSON.stringify(next)); } catch {}
+          return next;
+        });
+      }).catch(() => {});
     }
   }, []);
 

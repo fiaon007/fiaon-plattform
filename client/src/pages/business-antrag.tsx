@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import { downloadContract } from "@/utils/contractTemplate";
+import { checkPhone } from "@/lib/phone";
 
 /* === PREMIUM PHONE INPUT COMPONENT === */
 function PremiumPhoneInput({ countryCode, phone, onCountryCodeChange, onPhoneChange, error }: { countryCode: string; phone: string; onCountryCodeChange: (v: string) => void; onPhoneChange: (v: string) => void; error?: string }) {
@@ -53,6 +54,10 @@ function PremiumPhoneInput({ countryCode, phone, onCountryCodeChange, onPhoneCha
     { code: "+354", country: "Island" },
   ];
 
+  // #23: identische Live-Validierung wie auf der Nummer-Update-Seite (@/lib/phone).
+  const live = checkPhone(`${countryCode}${phone}`);
+  const liveHint = phone.trim().length >= 4 && !live.valid ? live.reason : null;
+
   return (
     <div className="relative" ref={dropdownRef}>
       <div className={`flex bg-slate-50/50 border border-slate-200 rounded-xl overflow-hidden transition-all duration-300 ease-in-out focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-300 ${error ? "border-red-500" : ""}`}>
@@ -69,6 +74,11 @@ function PremiumPhoneInput({ countryCode, phone, onCountryCodeChange, onPhoneCha
           placeholder="170 1234567"
           className="flex-1 px-4 py-3 bg-transparent outline-none text-slate-900 font-medium text-base placeholder:text-slate-400"
         />
+        {live.valid && (
+          <span className="flex items-center pr-3 text-emerald-500 shrink-0" aria-hidden>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+          </span>
+        )}
       </div>
       {isOpen && (
         <ul className="absolute top-full left-0 w-48 mt-2 bg-white/90 backdrop-blur-xl border border-slate-100 rounded-xl shadow-[0_20px_40px_-15px_rgba(15,23,42,0.1)] max-h-60 overflow-y-auto overflow-x-hidden z-50">
@@ -83,6 +93,9 @@ function PremiumPhoneInput({ countryCode, phone, onCountryCodeChange, onPhoneCha
           ))}
         </ul>
       )}
+      {error ? <p className="mt-1 text-xs text-red-500">{error}</p>
+        : liveHint ? <p className="mt-1 text-xs text-amber-600">{liveHint}</p>
+        : null}
     </div>
   );
 }
@@ -507,6 +520,11 @@ export default function BusinessAntragPage() {
         // Antrag abgeschlossen → ref freigeben (nächster Antrag = neue ref)
         clearPersistentRef("fiaon_business_antrag_ref");
         window.location.href = `/zahlung/${orderJson.paymentReference}`;
+      } else if (orderRes.ok && orderJson?.ok && orderJson.linkedToExisting) {
+        // P1: bereits bezahlter Kunde ohne Zahlungsreferenz (Alt-Bestand) →
+        // keine zweite Bestellung; zum Login (Konto ist bereits aktiv).
+        clearPersistentRef("fiaon_business_antrag_ref");
+        window.location.href = "/login";
       } else {
         console.error("[FIAON] payment-order failed:", orderJson);
         setPaymentRedirecting(false);
@@ -562,6 +580,7 @@ export default function BusinessAntragPage() {
       if (!d.contactLastName) e.contactLastName = "Nachname eingeben";
       if (!d.contactEmail || !d.contactEmail.includes("@")) e.contactEmail = "Gültige E-Mail eingeben";
       if (!d.contactPhoneCountryCode || !d.contactPhone) e.contactPhone = "Telefonnummer eingeben";
+      else if (!checkPhone(`${d.contactPhoneCountryCode}${d.contactPhone}`).valid) e.contactPhone = checkPhone(`${d.contactPhoneCountryCode}${d.contactPhone}`).reason || "Bitte gültige Telefonnummer eingeben";
       if (!d.street) e.street = "Adresse eingeben";
       if (!d.zip) e.zip = "PLZ eingeben";
       if (!d.city) e.city = "Ort eingeben";

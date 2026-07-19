@@ -106,6 +106,23 @@ function appAmountCents(app: any): number {
   return Math.round(Number(app.amount_due || 0) * 100);
 }
 
+/** P4: Passt der Einzahlername plausibel zum Kundennamen? Tolerant (Reihenfolge,
+ * Diakritika, Teil-Tokens ≥ 3 Zeichen). Genügt EIN gemeinsames Namens-Token, gilt
+ * es als Treffer — es geht nur darum, echte Dritt-Zahler (#27) sichtbar zu machen,
+ * nicht darum, Zuordnungen zu blockieren. */
+export function payerMatchesCustomer(payer: string, customer: string): boolean {
+  const norm = (s: string) =>
+    String(s || "")
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/).filter((t) => t.length >= 3);
+  const p = new Set(norm(payer));
+  const c = norm(customer);
+  if (p.size === 0 || c.length === 0) return true; // zu wenig Info → keinen Hinweis erzwingen
+  return c.some((t) => p.has(t));
+}
+
 // ═══════════════ Import (Kontoauszug-Zeilen → Ledger, idempotent) ═══════════════
 interface BankRow {
   txnId?: string; dateTime?: string; amount?: number | string; currency?: string;
@@ -270,7 +287,23 @@ router.get("/admin/reconcile/list", async (req: Request, res: Response) => {
       ORDER BY t.booked_at DESC NULLS LAST, t.id DESC
       LIMIT ${limit}
     `;
-    res.json({ ok: true, data: rows });
+    // P4 (#27 „Jovanovic Momir zahlte über das Konto der Mutter"): Die Referenz
+    // ist der verlässliche Anker, NICHT der Einzahlername. Wenn ein Eingang zwar
+    // per Referenz zugeordnet ist, der Einzahlername aber nicht zum Kundennamen
+    // passt, wird ein dezenter Hinweis gesetzt („Zahlung evtl. durch Dritte").
+    // Reine Sichtbarkeit — kein Automatismus, keine Zuordnungsänderung.
+    const enriched = rows.map((r: any) => {
+      let payerNameMismatch = false;
+      if (r.matched_ref && r.payer_name && r.customer_name) {
+        payerNameMismatch = !payerMatchesCustomer(r.payer_name, r.customer_name);
+      }
+      return {
+        ...r,
+        payerNameMismatch,
+        payerHint: payerNameMismatch ? "Name weicht ab (Zahlung evtl. durch Dritte)" : null,
+      };
+    });
+    res.json({ ok: true, data: enriched });
   } catch (err) {
     console.error("[FIAON-RECONCILE] list:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

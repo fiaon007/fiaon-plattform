@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
+import { checkPhone } from "@/lib/phone";
 
 /**
  * Hart nach oben scrollen — umgeht das globale `html { scroll-behavior: smooth }`
@@ -273,6 +274,11 @@ function PremiumPhoneInput({ countryCode, phone, onCountryCodeChange, onPhoneCha
     { code: "+1", country: "USA/Kanada" },
   ];
 
+  // #23: identische Live-Validierung wie auf der Nummer-Update-Seite (@/lib/phone).
+  const live = checkPhone(`${countryCode}${phone}`);
+  const liveValid = live.valid;
+  const liveHint = phone.trim().length >= 4 && !liveValid ? live.reason : null;
+
   return (
     <div className="relative" ref={dropdownRef}>
       <label className="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">Telefon</label>
@@ -290,6 +296,12 @@ function PremiumPhoneInput({ countryCode, phone, onCountryCodeChange, onPhoneCha
           placeholder="170 1234567"
           className="flex-1 px-4 py-3 bg-transparent outline-none text-slate-900 font-medium text-base placeholder:text-slate-400"
         />
+        {/* #23: Live-Formatprüfung (keine SMS-Verifizierung) — grüner Haken bei gültiger Nummer */}
+        {liveValid && (
+          <span className="flex items-center pr-3 text-emerald-500 shrink-0" aria-hidden>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+          </span>
+        )}
       </div>
       {isOpen && (
         <ul className="absolute top-full left-0 w-48 mt-2 bg-white/90 backdrop-blur-xl border border-slate-100 rounded-xl shadow-[0_20px_40px_-15px_rgba(15,23,42,0.1)] max-h-60 overflow-y-auto overflow-x-hidden z-50">
@@ -304,7 +316,9 @@ function PremiumPhoneInput({ countryCode, phone, onCountryCodeChange, onPhoneCha
           ))}
         </ul>
       )}
-      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+      {error ? <p className="mt-1 text-xs text-red-500">{error}</p>
+        : liveHint ? <p className="mt-1 text-xs text-amber-600">{liveHint}</p>
+        : null}
     </div>
   );
 }
@@ -625,6 +639,7 @@ export default function AntragPage() {
       if (!d.birthDay || !d.birthMonth || !d.birthYear || d.birthYear.length < 4) e.birth = "Gültiges Datum eingeben";
       else { const age = new Date().getFullYear() - +d.birthYear; if (age < 18) e.birth = "Du musst mind. 18 sein"; }
       if (!d.phoneCountryCode || !d.phone) e.phone = "Telefonnummer eingeben";
+      else if (!checkPhone(`${d.phoneCountryCode}${d.phone}`).valid) e.phone = checkPhone(`${d.phoneCountryCode}${d.phone}`).reason || "Bitte gültige Telefonnummer eingeben";
       if (!d.street) e.street = "Adresse eingeben";
       if (!d.zip) e.zip = "PLZ eingeben";
       if (!d.city) e.city = "Ort eingeben";

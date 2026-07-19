@@ -176,6 +176,13 @@ export default function AdminHubPage() {
 
   // Warn-Kacheln: nur ECHTE Probleme.
   const warns: { title: string; explain: string; href: string; action: string }[] = [];
+  if ((warn?.paymentConfirmBacklog || 0) > 0) {
+    warns.push({
+      title: `${warn.paymentConfirmBacklog} Kunde(n) warten seit > 7 Tagen auf Zahlungsbestätigung`,
+      explain: `Diese Kunden haben „Ich habe überwiesen\" gemeldet${warn.paymentConfirmOldestDays ? ` (ältester Fall: vor ${warn.paymentConfirmOldestDays} Tagen)` : ""}, wurden aber nie bestätigt. Hier liegt sehr wahrscheinlich unerkannter Umsatz — im Kontoabgleich prüfen und freischalten.`,
+      href: "/admin/zahlungen?status=claimed_paid", action: "Zahlungen prüfen",
+    });
+  }
   if ((warn?.criticalDiagnostics || 0) > 0) {
     warns.push({
       title: `${warn.criticalDiagnostics} kritische(s) System-Ereignis(se) (letzte 24 h)`,

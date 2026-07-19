@@ -21,6 +21,9 @@ export interface MakeEventDef {
   customerBound: boolean;
   /** deprecated = wird nicht mehr automatisch gefeuert (nur noch Test/Migration). */
   deprecated?: boolean;
+  /** true = im Code wird KEIN automatischer Versand ausgelöst — nur registriert,
+   *  damit der Betreiber das Event testen und den Make-Zweig anlegen kann. */
+  recommendationOnly?: boolean;
   /** Vollständiges Payload-Beispiel mit realistischen Werten (email wird beim Test durch die Test-Adresse ersetzt). */
   example: Record<string, unknown>;
 }
@@ -205,6 +208,104 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       antwort: "Danke für den Hinweis — wir haben die Wochenansicht angepasst, schau sie dir gern an.",
       portal_url: "https://www.fiaon.com/agent/feedback",
     },
+  },
+  {
+    type: "number_update_request",
+    label: "Telefonnummer aktualisieren (Kunde/Lead)",
+    description: "Feuert, wenn ein Mitarbeiter das Kontakt-Ergebnis „Falsche Nummer\" wählt UND eine E-Mail hinterlegt ist — schickt dem Kunden/Lead einen Button „Nummer aktualisieren\" zu einem schlanken Formular. Neue Nummer landet direkt im Datensatz (Audit „vom Kunden selbst aktualisiert\"), der Lead/Kunde wird wieder anrufbar. Max. 1× pro Tag/Person. Betreiber-TODO: Make-Zweig 'number_update_request' + Brevo-Template mit Button zu update_url anlegen.",
+    customerBound: false,
+    example: {
+      email: "interessent@example.com",
+      vorname: "Lena",
+      update_url: "https://www.fiaon.com/nummer-aktualisieren?token=YXBwOkZJQU9OLi4u.0f3a9b7c2e4d",
+    },
+  },
+
+  // ════════════════════════════════════════════════════════════════════
+  // EMPFEHLUNGEN (Teil 1.3) — registriert, damit der Betreiber sie auf
+  // /admin/events testen und den Make-Zweig bauen kann. Es ist bewusst NOCH
+  // KEIN automatischer Versand im Code verdrahtet (recommendationOnly). Sobald
+  // Template + Make-Zweig stehen, kann der Versand auf Wunsch aktiviert werden.
+  // ════════════════════════════════════════════════════════════════════
+  {
+    type: "payment_cancelled",
+    label: "Bestellung storniert (Kunde)",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn eine Bestellung storniert wird (/admin/payments/:ref/cancel). Der Betreiber vermisst hier ausdrücklich ein testbares Event. Betreiber-TODO: Make-Zweig 'payment_cancelled' + Brevo-Template.",
+    customerBound: true,
+    recommendationOnly: true,
+    example: { ...CUSTOMER_EXAMPLE, grund: "Auf Kundenwunsch storniert" },
+  },
+  {
+    type: "payment_reactivated",
+    label: "Bestellung reaktiviert — neue Zahlungsfrist (Kunde)",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn eine abgelaufene Bestellung reaktiviert wird (neue 7-Tage-Frist). Hinweis: Beim Reaktivieren wird bereits 'payment_details' erneut versendet — ein eigenes Event ist optional. Betreiber-TODO: Make-Zweig 'payment_reactivated' + Brevo-Template.",
+    customerBound: true,
+    recommendationOnly: true,
+    example: { ...CUSTOMER_EXAMPLE, invoice_url: INVOICE_URL_EXAMPLE, faellig_am: "2026-07-26" },
+  },
+  {
+    type: "documents_change_request",
+    label: "Dokumente-Änderung angefordert (Kunde)",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn der Admin eine Dokumenten-Nachbesserung anfordert (changes_requested). Betreiber-TODO: Make-Zweig 'documents_change_request' + Brevo-Template mit login_url.",
+    customerBound: true,
+    recommendationOnly: true,
+    example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login", hinweis: "Bitte laden Sie einen aktuellen Kontoauszug (letzte 3 Monate) hoch." },
+  },
+  {
+    type: "schufa_approved",
+    label: "SCHUFA/Bonität genehmigt (Kunde)",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn eine SCHUFA-/Bonitätsprüfung genehmigt wird. Betreiber-TODO: Make-Zweig 'schufa_approved' + Brevo-Template.",
+    customerBound: true,
+    recommendationOnly: true,
+    example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login" },
+  },
+  {
+    type: "schufa_rejected",
+    label: "SCHUFA/Bonität abgelehnt (Kunde)",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn eine SCHUFA-/Bonitätsprüfung abgelehnt wird. Betreiber-TODO: Make-Zweig 'schufa_rejected' + Brevo-Template.",
+    customerBound: true,
+    recommendationOnly: true,
+    example: { ...CUSTOMER_EXAMPLE, grund: "Eingereichtes Dokument nicht lesbar" },
+  },
+  {
+    type: "schufa_requested",
+    label: "Neues SCHUFA-Dokument angefordert (Kunde)",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn ein neues SCHUFA-/Bonitätsdokument angefordert wird. Betreiber-TODO: Make-Zweig 'schufa_requested' + Brevo-Template mit login_url.",
+    customerBound: true,
+    recommendationOnly: true,
+    example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login", hinweis: "Bitte laden Sie Ihre aktuelle SCHUFA-Auskunft hoch." },
+  },
+  {
+    type: "account_activated",
+    label: "Konto aktiviert (Kunde)",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn ein Konto vom Admin aktiviert wird (account_status='active'). Hinweis: Bei Zahlung läuft bereits 'payment_confirmed' — dieses Event ist für manuelle Aktivierungen ohne Zahlungstrigger. Betreiber-TODO: Make-Zweig 'account_activated' + Brevo-Template.",
+    customerBound: true,
+    recommendationOnly: true,
+    example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login" },
+  },
+  {
+    type: "account_suspended",
+    label: "Konto gesperrt (Kunde)",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn ein Konto vom Admin gesperrt wird (account_status='suspended'). Betreiber-TODO: Make-Zweig 'account_suspended' + Brevo-Template. Sensibel — Text sorgfältig wählen.",
+    customerBound: true,
+    recommendationOnly: true,
+    example: { ...CUSTOMER_EXAMPLE, grund: "Rückfrage zu den eingereichten Unterlagen" },
+  },
+  {
+    type: "profile_query",
+    label: "Profil-Rückfrage (Kunde)",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn der Admin eine Profil-Rückfrage stellt (profile_changes_requested). Betreiber-TODO: Make-Zweig 'profile_query' + Brevo-Template mit login_url.",
+    customerBound: true,
+    recommendationOnly: true,
+    example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login", hinweis: "Bitte ergänzen Sie Ihre monatlichen Ausgaben im Profil." },
+  },
+  {
+    type: "gdpr_deleted",
+    label: "Löschbestätigung DSGVO (Kunde)",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn ein Kunde per DSGVO gelöscht/anonymisiert wird — Bestätigung der Löschung. Achtung: Nach der Anonymisierung ist die E-Mail-Adresse ggf. nicht mehr verfügbar; ggf. VOR der Anonymisierung senden. Betreiber-TODO: Make-Zweig 'gdpr_deleted' + Brevo-Template.",
+    customerBound: false,
+    recommendationOnly: true,
+    example: { email: "max.mustermann@example.com", vorname: "Max", geloescht_am: "2026-07-19" },
   },
 ];
 

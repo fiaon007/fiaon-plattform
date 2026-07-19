@@ -11,6 +11,41 @@ echte Workflow existiert.
 
 ---
 
+## NEU (Prompt „E-Mail-Inventur"): `number_update_request` — kundenfertig
+
+**Wann:** Ein Mitarbeiter wählt beim Kunden/Lead das Kontakt-Ergebnis
+**„Falsche Nummer"** und es ist eine E-Mail hinterlegt. Es geht **max. 1× pro Tag
+pro Person** ein Webhook raus.
+
+**Zweck:** Der Kunde bekommt einen Button „Telefonnummer aktualisieren" zu einer
+schlanken, signierten Seite (`/nummer-aktualisieren`). Trägt er die Nummer ein,
+landet sie sofort im Datensatz und der Lead/Kunde wird wieder anrufbar.
+
+**Payload:**
+
+| Feld | Beispiel | Bedeutung |
+| --- | --- | --- |
+| `event_type` | `number_update_request` | Zweig-Auswahl in Make |
+| `email` | `interessent@example.com` | Empfänger (Kunde/Lead) |
+| `vorname` | `Lena` | Anrede |
+| `update_url` | `https://www.fiaon.com/nummer-aktualisieren?token=…` | signierter Button-Link (14 Tage gültig) |
+| `antrag_id` / `lead_id` | `FIAON-…` / `1234` | Kontext (je nach Quelle) |
+
+**In Make + Brevo anlegen:**
+
+1. Brevo-Template aus `docs/brevo-templates/number_update_request.html` anlegen
+   (Design ist FIAON-CI, Sie-Form). Platzhalter: `{{ params.vorname }}`,
+   `{{ params.update_url }}`. **Template-ID notieren.**
+2. Im Make-Szenario den bestehenden Zweig **klonen**, Filter auf
+   `event_type = number_update_request` setzen.
+3. Brevo „Send a transactional email": Template-ID eintragen, `to = {{email}}`,
+   Params `vorname` und `update_url` durchreichen.
+4. Betreff-Vorschlag: **„Wir haben versucht, Sie zu erreichen"**.
+5. Test über `/admin/events` → Event „Telefonnummer aktualisieren" → Test an die
+   eigene Adresse; Link öffnen, Nummer testweise ändern.
+
+---
+
 ## NEU (Prompt 2/3): `agent_feedback_reply`
 
 **Wann:** Der Betreiber antwortet im Feedback-Thread eines Mitarbeiters

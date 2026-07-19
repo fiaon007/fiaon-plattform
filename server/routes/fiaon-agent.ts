@@ -1202,7 +1202,7 @@ const AGENT_CUSTOMER_FIELDS = `
   a.phone, a.phone_country_code, a.contact_phone,
   a.pack_name, a.pack_key, a.amount_due, a.currency, a.payment_reference, a.payment_status,
   a.payment_due_date, a.claimed_paid_at, a.promised_pay_date, a.agent_email_sent_at,
-  a.invoice_number, a.created_at
+  a.invoice_number, a.created_at, a.number_corrected_at
 `;
 
 router.get("/agent/customers", requireAgent, async (req: AgentRequest, res) => {
@@ -1220,6 +1220,7 @@ router.get("/agent/customers", requireAgent, async (req: AgentRequest, res) => {
       LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
       LEFT JOIN fiaon_agents lg ON lg.id = a.locked_by_agent_id
       WHERE a.merged_into IS NULL
+        AND a.dismissed_at IS NULL
         AND (a.payment_status IN ('pending_payment', 'claimed_paid')
              OR (a.payment_status = 'expired' AND a.assigned_agent_id = $1))
       ORDER BY (a.payment_status = 'claimed_paid') DESC, (a.payment_status = 'expired'),
@@ -1556,6 +1557,53 @@ router.post("/agent/customers/:ref/notes", requireAgent, async (req: AgentReques
   }
 });
 
+// ── #15/#22: „Aus meiner Liste entfernen" für KUNDEN (kein echtes Löschen) ──
+// Der Kunde verschwindet aus der Arbeitsliste/Warteschlange, bleibt aber
+// vollständig in der DB (Historie erhalten), im Admin unter „Aussortiert"
+// sichtbar und jederzeit zurückholbar. Berührt keine Zahlung/Provision.
+const CUST_DISMISS_REASON_LABEL: Record<string, string> = {
+  keine_nummer: "keine Telefonnummer",
+  nummer_ungueltig: "ungültige Nummer",
+  abgelehnt: "100 % abgelehnt",
+  kein_interesse: "kein Interesse",
+  dublette: "Dublette",
+};
+
+router.post("/agent/customers/:ref/dismiss", requireAgent, async (req: AgentRequest, res) => {
+  try {
+    const me = req.agent!.id;
+    const ref = req.params.ref;
+    const reason = String(req.body?.reason || "").trim();
+    if (!CUST_DISMISS_REASON_LABEL[reason]) {
+      return res.status(400).json({ ok: false, error: "Bitte einen Grund wählen (keine Nummer, ungültige Nummer, 100 % abgelehnt, kein Interesse, Dublette)." });
+    }
+    // Nur eigene bzw. unzugewiesene Kunden dürfen aussortiert werden (kein Eingriff in Kollegen-Bestand).
+    const rows = await sqlPool`
+      UPDATE fiaon_applications SET
+        dismissed_at = NOW(), dismissed_by = ${me}, dismissed_reason = ${reason},
+        locked_by_agent_id = NULL, locked_until = NULL,
+        assigned_agent_id = COALESCE(assigned_agent_id, ${me}),
+        updated_at = NOW()
+      WHERE ref = ${ref} AND merged_into IS NULL AND dismissed_at IS NULL
+        AND (assigned_agent_id IS NULL OR assigned_agent_id = ${me})
+      RETURNING ref
+    `;
+    if (rows.length === 0) {
+      return res.status(409).json({ ok: false, error: "Kunde nicht gefunden, bereits aussortiert oder von einem Kollegen betreut." });
+    }
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${ref}, ${me}, ${req.agent!.name}, 'system',
+              ${`Aus der Arbeitsliste entfernt (Grund: ${CUST_DISMISS_REASON_LABEL[reason]}) durch ${req.agent!.name}. Wird NIE gelöscht — bleibt vollständig gespeichert und ist im Admin unter „Aussortiert" jederzeit zurückholbar.`})
+    `.catch(() => {});
+    console.log(`[FIAON-AGENT] Kunde aussortiert: ${ref} (${reason}) durch #${me}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-AGENT] customer dismiss:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 const VALID_OUTCOMES = new Set([
   "erreicht_zahlt_gleich", "erreicht_zahlt_am", "erreicht_abgelehnt",
   "nicht_erreicht", "mailbox", "rueckruf_termin", "nummer_falsch",
@@ -1583,7 +1631,20 @@ router.post("/agent/customers/:ref/contact-result", requireAgent, async (req: Ag
       const promised = parseBerlinInput(promisedDate) || new Date();
       await sqlPool`UPDATE fiaon_applications SET promised_pay_date = ${promised}, updated_at = NOW() WHERE ref = ${req.params.ref}`;
     }
-    res.json({ ok: true, entry, claimed: guard.claimed || false });
+
+    // #23: „Falsche Nummer" → optionale Selbst-Update-Mail (nur wenn E-Mail da,
+    // max. 1×/Tag). Fire-and-forget; blockiert das Kontakt-Ergebnis nie.
+    let numberUpdateMail: { sent: boolean; reason?: string } | undefined;
+    if (outcome === "nummer_falsch") {
+      const [c] = await sqlPool`
+        SELECT COALESCE(NULLIF(email,''), NULLIF(contact_email,''), NULLIF(billing_email,'')) AS email,
+               COALESCE(first_name, contact_name) AS first_name
+        FROM fiaon_applications WHERE ref = ${req.params.ref}
+      `;
+      const { maybeSendNumberUpdateMail } = await import("../fiaon-number-update");
+      numberUpdateMail = await maybeSendNumberUpdateMail("app", req.params.ref, { email: c?.email, firstName: c?.first_name });
+    }
+    res.json({ ok: true, entry, claimed: guard.claimed || false, numberUpdateMail });
   } catch (err) {
     console.error("[FIAON-AGENT] contact-result:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -1964,7 +2025,7 @@ router.get("/agent/calendar", requireAgent, async (req: AgentRequest, res) => {
     // Eigene Rückruf-Termine + Zahlungs-Zusagen; Überfälliges (bis 14 Tage) bleibt sichtbar
     const rows = await sqlPool`
       SELECT l.id, l.ref, l.outcome, l.scheduled_at, l.promised_date, l.done_at, l.note, l.created_at,
-             a.first_name, a.last_name, a.contact_name, a.company_name, a.payment_status,
+             a.first_name, a.last_name, a.contact_name, a.company_name, a.payment_status, a.payment_reference,
              a.phone, a.phone_country_code, a.contact_phone
       FROM fiaon_contact_log l
       JOIN fiaon_applications a ON a.ref = l.ref

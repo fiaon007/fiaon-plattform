@@ -26,7 +26,20 @@ export type MakeEventType =
   | "agent_feedback_rewarded"
   | "agent_feedback_reply"
   | "lead_followup"
-  | "lead_application_link";
+  | "lead_application_link"
+  | "number_update_request" // #23: Kunde/Lead aktualisiert Telefonnummer selbst
+  // ── Registriert für /admin/events (Betreiber kann testen + Make-Zweig bauen).
+  //    NOCH KEIN automatischer Versand im Code verdrahtet (Empfehlung, Teil 1.3):
+  | "payment_cancelled"       // Bestellung storniert
+  | "payment_reactivated"     // abgelaufene Bestellung reaktiviert (neue Frist)
+  | "documents_change_request"// Dokumente-Änderung angefordert (changes_requested)
+  | "schufa_approved"         // SCHUFA genehmigt
+  | "schufa_rejected"         // SCHUFA abgelehnt
+  | "schufa_requested"        // neues SCHUFA-Dokument angefordert
+  | "account_suspended"       // Konto gesperrt
+  | "account_activated"       // Konto aktiviert
+  | "profile_query"           // Profil-Rückfrage an den Kunden
+  | "gdpr_deleted";           // Löschbestätigung (DSGVO)
 
 export interface MakeWebhookPayload {
   email: string;

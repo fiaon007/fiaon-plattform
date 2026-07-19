@@ -102,7 +102,8 @@ export async function ensureLeadTables(): Promise<void> {
     ALTER TABLE fiaon_leads
       ADD COLUMN IF NOT EXISTS opened_by_agent_id INTEGER,
       ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ,
-      ADD COLUMN IF NOT EXISTS requeue_at TIMESTAMPTZ
+      ADD COLUMN IF NOT EXISTS requeue_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS number_corrected_at TIMESTAMPTZ
   `);
   // Ticket #15: „Aus meiner Liste entfernen" — Lead verlässt die Arbeitswarteschlange,
   // bleibt aber VOLLSTÄNDIG in der DB (Direktive: kein Lead wird je gelöscht). Grund +
@@ -712,6 +713,7 @@ function maskQueueRow(l: any): any {
     callback_due: !!l.callback_due,
     hat_email: !!l.hat_email,
     hat_telefon: !!l.hat_telefon,
+    number_corrected: !!l.number_corrected, // #23: Nummer vom Kunden korrigiert → erneut anrufen
   };
 }
 
@@ -743,6 +745,7 @@ router.get("/agent/leads", requireAgent, async (req: AgentRequest, res) => {
              l.lead_reminder_count,
              (l.email IS NOT NULL AND l.email <> '') AS hat_email,
              (l.telefon IS NOT NULL AND l.telefon <> '') AS hat_telefon,
+             (l.number_corrected_at IS NOT NULL AND (l.letzter_kontakt_am IS NULL OR l.number_corrected_at > l.letzter_kontakt_am)) AS number_corrected,
              EXISTS (
                SELECT 1 FROM fiaon_lead_log g
                WHERE g.lead_id = l.id AND g.scheduled_at IS NOT NULL
@@ -758,6 +761,8 @@ router.get("/agent/leads", requireAgent, async (req: AgentRequest, res) => {
                  ) THEN $4::numeric ELSE 0 END
                + CASE WHEN l.letzter_kontakt_am IS NULL THEN $5::numeric
                       ELSE $5::numeric * LEAST(1, EXTRACT(EPOCH FROM (NOW() - l.letzter_kontakt_am)) / 86400.0 / 14.0) END
+               -- #23: frisch vom Kunden korrigierte Nummer → ganz nach oben (erneut anrufen)
+               + CASE WHEN l.number_corrected_at IS NOT NULL AND (l.letzter_kontakt_am IS NULL OR l.number_corrected_at > l.letzter_kontakt_am) THEN 100000 ELSE 0 END
              ) AS score
       FROM fiaon_leads l
       WHERE l.assigned_agent_id = $1 AND l.status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
@@ -981,7 +986,16 @@ router.post("/agent/leads/:id/contact-result", requireAgent, async (req: AgentRe
         updated_at = NOW()
       WHERE id = ${id} AND status NOT IN ('konvertiert')
     `;
-    res.json({ ok: true, entry, claimed: guard.claimed || false, akteClosed: true });
+    // #23: „Falsche Nummer" → optionale Selbst-Update-Mail (nur wenn E-Mail da,
+    // max. 1×/Tag). Genau die „nur E-Mail, keine Nummer"-Leads werden so wieder
+    // anrufbar. Fire-and-forget; blockiert das Kontakt-Ergebnis nie.
+    let numberUpdateMail: { sent: boolean; reason?: string } | undefined;
+    if (outcome === "nummer_falsch") {
+      const [l] = await sqlPool`SELECT email, vorname FROM fiaon_leads WHERE id = ${id}`;
+      const { maybeSendNumberUpdateMail } = await import("../fiaon-number-update");
+      numberUpdateMail = await maybeSendNumberUpdateMail("lead", String(id), { email: l?.email, firstName: l?.vorname });
+    }
+    res.json({ ok: true, entry, claimed: guard.claimed || false, akteClosed: true, numberUpdateMail });
   } catch (err) {
     console.error("[FIAON-LEADS] contact-result:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -1381,6 +1395,47 @@ router.post("/admin/leads/:id/status", async (req: Request, res: Response) => {
     res.json({ ok: true });
   } catch (err) {
     console.error("[FIAON-LEADS] admin status:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// P3 (Lead ↔ Antrag derselben Person): einen offenen Lead an einen bereits
+// bezahlten/aktiven KUNDEN anhängen — der Lead wird auf 'konvertiert' gesetzt und
+// verlässt die Anruf-Warteschlange (kein Doppelanruf), bleibt aber vollständig in
+// der DB (Historie/Provisionsspur intakt). Berührt KEINE Zahlung/Provision des
+// Kunden. Rückholbar über Status-Reset (Admin).
+router.post("/admin/leads/:id/attach-to-order", async (req: Request, res: Response) => {
+  try {
+    await ensureLeadTables();
+    const id = Number(req.params.id);
+    const orderRef = String(req.body?.ref || "").trim();
+    if (!orderRef) return res.status(400).json({ ok: false, error: "Kunden-Referenz (ref) erforderlich" });
+    const leadRows = await sqlPool`SELECT id, status, converted_order_id FROM fiaon_leads WHERE id = ${id}`;
+    if (leadRows.length === 0) return res.status(404).json({ ok: false, error: "Lead nicht gefunden" });
+    // Zielkunde muss existieren und darf keine Dublette sein.
+    const app = await sqlPool`SELECT ref, payment_status FROM fiaon_applications WHERE ref = ${orderRef} AND merged_into IS NULL`;
+    if (app.length === 0) return res.status(404).json({ ok: false, error: "Kunde/Antrag nicht gefunden" });
+    await sqlPool`
+      UPDATE fiaon_leads SET
+        status = 'konvertiert',
+        converted_order_id = ${orderRef},
+        konvertiert_am = COALESCE(konvertiert_am, NOW()),
+        in_sequence = FALSE,
+        updated_at = NOW()
+      WHERE id = ${id}
+    `;
+    await logLead(id, ADMIN_ACTOR, "system", {
+      note: `Lead als konvertiert mit bestehendem Kunden ${orderRef} verknüpft (Dubletten-Bereinigung) — verlässt die Anruf-Warteschlange, kein Doppelanruf. Zahlung/Provision unberührt.`,
+    });
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${orderRef}, NULL, 'Admin', 'system',
+              ${`Offener Lead #${id} als dieselbe Person erkannt und verknüpft (aus /admin/dubletten). Kein weiterer Anruf über diesen Lead.`})
+    `.catch(() => {});
+    console.log(`[FIAON-LEADS] attach-to-order: Lead #${id} → ${orderRef} (${app[0].payment_status})`);
+    res.json({ ok: true, ref: orderRef });
+  } catch (err) {
+    console.error("[FIAON-LEADS] admin attach-to-order:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

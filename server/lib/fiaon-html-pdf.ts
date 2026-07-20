@@ -1,26 +1,35 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// FIAON — HTML → PDF (Playwright/Chromium), revisionssicher & im FIAON-CI.
+// FIAON — Dokument-PDF, revisionssicher & im FIAON-CI.
 //
-// Verträge und Provisions-Abrechnungen werden serverseitig aus HTML gerendert,
-// damit die CI (Wortmarke FIAON, saubere Typografie, Fußzeile FIAON LTD) exakt
-// stimmt. Ein einzelner Chromium-Prozess wird lazy gestartet und wiederverwendet.
+// Primär: HTML → PDF via Playwright/Chromium (pixelgenaue CI). Playwright wird
+// LAZY geladen (dynamischer Import), damit der Server auch startet, wenn Paket
+// oder Browser in Produktion fehlen.
+// Fallback: pdfkit (immer verfügbar, kein Browser) — erzeugt ein sauberes,
+// gültiges PDF aus demselben Inhalt, falls Chromium nicht startbar ist. So wird
+// IMMER ein PDF erzeugt.
 //
 // Manipulationsschutz: Jedes fertige Dokument trägt einen SHA-256-Hash über den
 // gerenderten Inhalt + die harten Metadaten (Signatur, Zeit, IP, Version).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { chromium, type Browser } from "playwright";
 import { createHash } from "crypto";
+import PDFDocument from "pdfkit";
 
+type Browser = any;
 let browserPromise: Promise<Browser> | null = null;
 
 async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
-    browserPromise = chromium.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-    });
-    // Fällt der Browser weg (Crash), Promise zurücksetzen, damit neu gestartet wird.
+    // In node_modules abgelegte Browser (Build mit PLAYWRIGHT_BROWSERS_PATH=0)
+    // finden — sonst greift die Standard-Auflösung (~/.cache/ms-playwright).
+    browserPromise = (async () => {
+      const { chromium } = await import("playwright");
+      return chromium.launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+      });
+    })();
+    // Fällt der Browser weg (Crash/kein Browser), Promise zurücksetzen.
     browserPromise.then((b) => b.on("disconnected", () => { browserPromise = null; })).catch(() => { browserPromise = null; });
   }
   return browserPromise;
@@ -136,6 +145,121 @@ export function wrapFiaonDocument(opts: {
   <footer class="doc">${FIAON_FOOTER}</footer>
 </body>
 </html>`;
+}
+
+// ── Öffentliche API: erzeugt IMMER ein PDF (Playwright, sonst pdfkit) ─────────
+export interface DocumentPdfOptions {
+  documentTitle: string;
+  subtitle?: string;
+  bodyHtml: string;
+  watermark?: string | null;
+}
+
+/**
+ * Rendert ein FIAON-Dokument als PDF. Versucht zuerst Playwright/Chromium
+ * (pixelgenaue CI); ist der Browser nicht verfügbar/startbar, wird automatisch
+ * der pdfkit-Fallback genutzt, sodass immer ein gültiges PDF entsteht.
+ */
+export async function renderDocumentPdf(opts: DocumentPdfOptions): Promise<Buffer> {
+  try {
+    return await htmlToPdf(wrapFiaonDocument(opts));
+  } catch (e) {
+    console.warn(`[FIAON-PDF] Playwright nicht verfügbar — pdfkit-Fallback: ${(e as Error)?.message || e}`);
+    return await renderPdfKitFallback(opts);
+  }
+}
+
+// ── pdfkit-Fallback: HTML-Body → einfaches, sauberes Text-PDF ─────────────────
+const ENTITIES: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", apos: "'", nbsp: " ",
+  ldquo: "“", rdquo: "”", lsquo: "‘", rsquo: "’", ndash: "–", mdash: "—",
+  hellip: "…", euro: "€", auml: "ä", ouml: "ö", uuml: "ü", Auml: "Ä", Ouml: "Ö",
+  Uuml: "Ü", szlig: "ß", middot: "·", times: "×", eacute: "é", agrave: "à",
+};
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&#(\d+);/g, (_m, n) => String.fromCharCode(Number(n)))
+    .replace(/&([a-zA-Z0-9#]+);/g, (_m, name) => (ENTITIES[name] != null ? ENTITIES[name] : _m));
+}
+
+interface Block { kind: "h1" | "h2" | "p" | "row"; text: string; }
+
+function htmlToBlocks(html: string): Block[] {
+  let s = html;
+  s = s.replace(/<img[^>]*>/gi, "[electronic signature on file]");
+  s = s.replace(/<tr[^>]*>/gi, "\n[[ROW]]").replace(/<\/tr>/gi, "");
+  s = s.replace(/<(td|th)[^>]*>/gi, "").replace(/<\/(td|th)>/gi, " \u00b7 ");
+  s = s.replace(/<h1[^>]*>/gi, "\n[[H1]]").replace(/<\/h1>/gi, "\n");
+  s = s.replace(/<h[2-6][^>]*>/gi, "\n[[H2]]").replace(/<\/h[2-6]>/gi, "\n");
+  s = s.replace(/<(p|div|li|section|tfoot|thead|tbody|table)[^>]*>/gi, "\n").replace(/<\/(p|div|li|section)>/gi, "\n");
+  s = s.replace(/<br\s*\/?>/gi, "\n");
+  s = s.replace(/<[^>]+>/g, "");
+  s = decodeEntities(s);
+  const out: Block[] = [];
+  for (let raw of s.split("\n")) {
+    const line = raw.replace(/\s+/g, " ").trim();
+    if (!line) continue;
+    if (line.startsWith("[[H1]]")) out.push({ kind: "h1", text: line.slice(6).trim() });
+    else if (line.startsWith("[[H2]]")) out.push({ kind: "h2", text: line.slice(6).trim() });
+    else if (line.startsWith("[[ROW]]")) out.push({ kind: "row", text: line.slice(7).trim() });
+    else out.push({ kind: "p", text: line });
+  }
+  return out;
+}
+
+function renderPdfKitFallback(opts: DocumentPdfOptions): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ size: "A4", bufferPages: true, margins: { top: 56, bottom: 70, left: 56, right: 56 } });
+      const chunks: Buffer[] = [];
+      doc.on("data", (c: Buffer) => chunks.push(c));
+      doc.on("end", () => resolve(Buffer.concat(chunks)));
+      doc.on("error", reject);
+
+      // Kopf: Wortmarke + Markenzeile + Trennlinie
+      doc.fillColor(FIAON_ACCENT).font("Helvetica-Bold").fontSize(20).text("FIAON");
+      doc.fillColor("#64748b").font("Helvetica").fontSize(8).text("FIAON LTD · Company No. 17318250 · London, United Kingdom");
+      doc.moveDown(0.4);
+      const y = doc.y;
+      doc.moveTo(56, y).lineTo(539, y).lineWidth(1.5).strokeColor(FIAON_ACCENT).stroke();
+      doc.moveDown(0.8);
+
+      // Titel + Untertitel
+      doc.fillColor("#0f172a").font("Helvetica-Bold").fontSize(15).text(opts.documentTitle);
+      if (opts.subtitle) doc.fillColor("#475569").font("Helvetica").fontSize(9.5).text(opts.subtitle);
+      if (opts.watermark) doc.moveDown(0.2).fillColor("#b91c1c").font("Helvetica-Bold").fontSize(10).text(`— ${opts.watermark} —`);
+      doc.moveDown(0.6);
+
+      for (const b of htmlToBlocks(opts.bodyHtml)) {
+        if (b.kind === "h1") {
+          doc.moveDown(0.5).fillColor("#0f172a").font("Helvetica-Bold").fontSize(13).text(b.text);
+          doc.moveDown(0.2);
+        } else if (b.kind === "h2") {
+          doc.moveDown(0.4).fillColor("#0f172a").font("Helvetica-Bold").fontSize(11).text(b.text);
+          doc.moveDown(0.15);
+        } else if (b.kind === "row") {
+          doc.fillColor("#334155").font("Helvetica").fontSize(9).text(b.text);
+        } else {
+          doc.fillColor("#0f172a").font("Helvetica").fontSize(10).text(b.text, { align: "justify" });
+          doc.moveDown(0.25);
+        }
+      }
+
+      // Fußzeile auf jeder Seite
+      const range = doc.bufferedPageRange?.() || { start: 0, count: 1 };
+      for (let i = range.start; i < range.start + range.count; i++) {
+        try {
+          doc.switchToPage(i);
+          doc.fillColor("#94a3b8").font("Helvetica").fontSize(7.5)
+            .text(FIAON_FOOTER, 56, 782, { width: 483, align: "center" });
+        } catch { /* Seite evtl. nicht adressierbar */ }
+      }
+
+      doc.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
 }
 
 export { FIAON_FOOTER };

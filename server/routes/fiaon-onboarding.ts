@@ -27,7 +27,7 @@ import postgres from "postgres";
 import { requireAgent, logAgentEvent, type AgentRequest } from "./fiaon-agent";
 import { sendMakeWebhook } from "../make-webhook";
 import { formatBerlin } from "../lib/fiaon-time";
-import { htmlToPdf, wrapFiaonDocument, docHash, escapeHtml } from "../lib/fiaon-html-pdf";
+import { renderDocumentPdf, wrapFiaonDocument, docHash, escapeHtml } from "../lib/fiaon-html-pdf";
 import { DEFAULT_CONTRACT_HTML, ONBOARDING_DOCS, type OnboardingDoc } from "./fiaon-onboarding-content";
 
 const router = Router();
@@ -499,15 +499,13 @@ router.post("/agent/onboarding/sign", requireAgent, async (req: AgentRequest, re
       docHashValue: hash,
     });
     const renderedBody = renderContractBody(active.body_html, vars as any, panel);
-    const fullHtml = wrapFiaonDocument({
-      documentTitle: active.title,
-      subtitle: "Self-Employed Commercial Agent Agreement · Independent Sales Agency",
-      bodyHtml: renderedBody,
-    });
-
     let pdfBase64: string | null = null;
     try {
-      const pdf = await htmlToPdf(fullHtml);
+      const pdf = await renderDocumentPdf({
+        documentTitle: active.title,
+        subtitle: "Self-Employed Commercial Agent Agreement · Independent Sales Agency",
+        bodyHtml: renderedBody,
+      });
       pdfBase64 = pdf.toString("base64");
     } catch (e) {
       console.error("[FIAON-ONBOARDING] contract PDF render failed:", e);
@@ -706,15 +704,13 @@ export async function generateCommissionStatement(payoutId: number): Promise<{ o
   `;
 
   const hash = docHash(`${statementNo}|${payout.agent_id}|${grossCents}|${netCents}|${JSON.stringify(lines)}`);
-  const fullHtml = wrapFiaonDocument({
-    documentTitle: "Commission Statement",
-    subtitle: `${statementNo} · self-billed credit note`,
-    bodyHtml: bodyHtml + `<p class="hash" style="margin-top:14px;">Document hash (SHA-256): ${hash}</p>`,
-  });
-
   let pdfBase64: string | null = null;
   try {
-    const pdf = await htmlToPdf(fullHtml);
+    const pdf = await renderDocumentPdf({
+      documentTitle: "Commission Statement",
+      subtitle: `${statementNo} · self-billed credit note`,
+      bodyHtml: bodyHtml + `<p class="hash" style="margin-top:14px;">Document hash (SHA-256): ${hash}</p>`,
+    });
     pdfBase64 = pdf.toString("base64");
   } catch (e) {
     console.error("[FIAON-ONBOARDING] statement PDF render failed:", e);
@@ -1012,8 +1008,7 @@ router.get("/admin/agents/:id/consent-protocol.pdf", async (req, res) => {
       </table>
       <p class="muted" style="font-size:8pt;margin-top:12px;">System-generated audit record. Each consent is stored versioned; a change to any document requires renewed consent.</p>
     `;
-    const html = wrapFiaonDocument({ documentTitle: "Consent Protocol", subtitle: `Agent #${agent.id} · ${escapeHtml(agent.email)}`, bodyHtml: body });
-    const pdf = await htmlToPdf(html);
+    const pdf = await renderDocumentPdf({ documentTitle: "Consent Protocol", subtitle: `Agent #${agent.id} · ${escapeHtml(agent.email)}`, bodyHtml: body });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="FIAON_Consent_Protocol_${agent.id}.pdf"`);
     res.send(pdf);

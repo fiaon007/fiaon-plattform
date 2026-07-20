@@ -991,6 +991,14 @@ export default function AdminZahlungenPage() {
                           >
                             Rechnung
                           </a>
+                          <a
+                            href={`/admin/kunde/${encodeURIComponent(r.ref)}`}
+                            onClick={(e) => e.stopPropagation()}
+                            title="Kundenakte öffnen (eine Seite, alles)"
+                            className="px-2.5 py-2 rounded-lg bg-white border border-slate-200 text-[#2563eb] hover:border-blue-300 text-[12px] font-bold transition-all"
+                          >
+                            Akte
+                          </a>
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); openDetail(r); }}
@@ -1007,7 +1015,9 @@ export default function AdminZahlungenPage() {
           </div>
         </div>
 
-        {/* ── Paket DC: globale Suchtreffer außerhalb des aktuellen Tabs (+ Leads) ── */}
+        {/* ── PROMPT 1/2: globale Suchtreffer — JEDER Treffer öffnet die AKTE ──
+            (ersetzt den früheren, nicht klickbaren Treffer-Block „Paket DC":
+            Kunden setzten nur den Suchtext, Leads waren gar nicht klickbar.) */}
         {q && serverHits && (() => {
           const localRefs = new Set(rows.map((r) => r.ref));
           const extra = serverHits.customers.filter((c: any) => !localRefs.has(c.ref));
@@ -1016,15 +1026,14 @@ export default function AdminZahlungenPage() {
             <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-5">
               <h2 className="text-[13px] font-bold text-slate-900 mb-1">Weitere Treffer (alle Status & Leads)</h2>
               <p className="text-[11.5px] text-slate-400 mb-3">
-                Gefunden über die globale Suche — auch bezahlte, abgelaufene oder ersetzte Bestellungen sowie Leads.
+                Gefunden über die globale Suche — jeder Klick öffnet die Kundenakte (eine Seite, alles).
               </p>
               {extra.length > 0 && (
                 <div className="divide-y divide-slate-50 border border-slate-100 rounded-xl overflow-hidden mb-3">
                   {extra.map((c: any) => (
-                    <button
+                    <a
                       key={c.ref}
-                      type="button"
-                      onClick={() => { setTab("alle"); setSearch(c.payment_reference || c.ref); }}
+                      href={`/admin/kunde/${encodeURIComponent(c.ref)}`}
                       className="w-full px-4 py-2.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50/70 transition-colors"
                     >
                       <div className="min-w-0">
@@ -1036,15 +1045,18 @@ export default function AdminZahlungenPage() {
                           {c.email || "—"}{c.assigned_agent_name ? ` · Betreut von ${c.assigned_agent_name}` : ""}
                         </p>
                       </div>
-                      <StatusBadge status={c.payment_status} />
-                    </button>
+                      <span className="flex items-center gap-2 shrink-0">
+                        <StatusBadge status={c.payment_status} />
+                        <span className="text-[12px] font-bold text-[#2563eb]">Akte öffnen →</span>
+                      </span>
+                    </a>
                   ))}
                 </div>
               )}
               {serverHits.leads.length > 0 && (
                 <div className="divide-y divide-slate-50 border border-slate-100 rounded-xl overflow-hidden">
                   {serverHits.leads.map((l: any) => (
-                    <div key={l.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                    <a key={l.id} href={`/admin/kunde/lead-${l.id}`} className="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors">
                       <div className="min-w-0">
                         <p className="text-[13px] font-medium text-slate-700 truncate">
                           {[l.vorname, l.nachname].filter(Boolean).join(" ") || l.email || l.telefon || `Lead #${l.id}`}
@@ -1054,8 +1066,8 @@ export default function AdminZahlungenPage() {
                           {l.telefon || l.email || "—"} · Status: {l.status}{l.assigned_agent_name ? ` · ${l.assigned_agent_name}` : ""}
                         </p>
                       </div>
-                      <a href="/admin/leads" className="text-[12px] font-bold text-[#2563eb] shrink-0">Zu den Leads</a>
-                    </div>
+                      <span className="text-[12px] font-bold text-[#2563eb] shrink-0">Akte öffnen →</span>
+                    </a>
                   ))}
                 </div>
               )}
@@ -1342,13 +1354,20 @@ export default function AdminZahlungenPage() {
             </div>
 
             <div className="px-5 py-4 space-y-4">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={detail.payment_status} />
                 {detail.promised_pay_date && (
                   <span className="inline-block px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700">
                     Zusage: {fmtDate(detail.promised_pay_date)}
                   </span>
                 )}
+                <a
+                  href={`/admin/kunde/${encodeURIComponent(detail.ref)}`}
+                  className="ml-auto px-3 py-1.5 rounded-lg bg-[#2563eb] hover:bg-blue-700 text-white text-[11.5px] font-bold transition-colors"
+                  title="Die zentrale Kundenakte: Stammdaten, Zahlungen, Mails, Agent, Verlauf, Dubletten"
+                >
+                  Akte öffnen →
+                </a>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-[13px]">

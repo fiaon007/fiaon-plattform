@@ -1,6 +1,6 @@
-import { useState, useEffect, createContext, useContext, type ReactNode } from "react";
+import { useState, useEffect, useRef, createContext, useContext, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall } from "lucide-react";
+import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle } from "lucide-react";
 
 // ============================================================================
 // Agent-Portal — gemeinsame Shell + Design-System (Paket E)
@@ -358,6 +358,133 @@ export function FlashMessage({ message }: { message: string | null }) {
 
 export const inputCls =
   "w-full px-3.5 py-2.5 rounded-lg border border-slate-200 bg-white text-[14px] text-slate-900 placeholder:text-slate-400 focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/10 outline-none transition-colors";
+
+// ── PROMPT 2/2 · A — EIN modaler Bestätigungsdialog (ersetzt den Doppel-Tap) ──
+// Zentriert auf Desktop, Bottom-Sheet auf Mobile. Fokus-Falle (Tab bleibt im
+// Dialog), ESC/Backdrop schließt, Touch-Ziele ≥ 44 px. Der Schutz vor Versehen
+// bleibt — er wird nur sichtbar. Zeigt optional die Folge der Aktion (z. B.
+// „Der Kunde erhält eine E-Mail zur Nummern-Korrektur.") und kann ein Feld
+// (Datum/Zeit) einbetten (children). Bestätigen ist erst möglich, wenn
+// `confirmDisabled` false ist.
+export interface ConfirmState {
+  title: string;
+  message?: string;
+  consequence?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  danger?: boolean;
+}
+
+export function ConfirmDialog({
+  open, title, message, consequence, confirmLabel = "Bestätigen", cancelLabel = "Abbrechen",
+  danger, busy, confirmDisabled, onConfirm, onCancel, children,
+}: {
+  open: boolean;
+  title: string;
+  message?: string;
+  consequence?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  danger?: boolean;
+  busy?: boolean;
+  confirmDisabled?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  children?: ReactNode;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    // Fokus auf den primären Button (bzw. auf ein eingebettetes Feld, falls vorhanden)
+    const t = setTimeout(() => {
+      const firstField = panelRef.current?.querySelector<HTMLElement>("input, select, textarea");
+      (firstField || confirmRef.current)?.focus();
+    }, 30);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); onCancel(); return; }
+      if (e.key === "Tab" && panelRef.current) {
+        // Fokus-Falle: Tab zirkuliert nur innerhalb des Dialogs
+        const focusables = panelRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]',
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { clearTimeout(t); document.removeEventListener("keydown", onKey); document.body.style.overflow = prevOverflow; };
+  }, [open, onCancel]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="agent-scope fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      onClick={onCancel}
+    >
+      <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-[2px] agent-reveal" style={{ animationDuration: ".2s" }} />
+      <div
+        ref={panelRef}
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full sm:max-w-sm bg-white border border-slate-200 rounded-t-2xl sm:rounded-2xl shadow-2xl agent-panel-in"
+        style={{ animationDuration: ".24s", paddingBottom: "max(0px, env(safe-area-inset-bottom))" }}
+      >
+        <div className="p-5">
+          <div className="flex items-start gap-3">
+            {danger && (
+              <span className="mt-0.5 w-9 h-9 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
+                <AlertTriangle size={17} strokeWidth={1.9} />
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <h3 className="text-[15.5px] font-bold text-slate-900">{title}</h3>
+              {message && <p className="mt-1 text-[13px] text-slate-600 leading-relaxed">{message}</p>}
+            </div>
+          </div>
+
+          {children && <div className="mt-3.5">{children}</div>}
+
+          {consequence && (
+            <div className="mt-3.5 px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-[12.5px] text-slate-600 leading-relaxed">
+              {consequence}
+            </div>
+          )}
+
+          <div className="mt-5 flex gap-2.5">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onCancel(); }}
+              className="flex-1 rounded-xl border border-slate-200 bg-white text-[13.5px] font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-800 transition-colors"
+              style={{ minHeight: 48 }}
+            >
+              {cancelLabel}
+            </button>
+            <button
+              ref={confirmRef}
+              type="button"
+              disabled={busy || confirmDisabled}
+              onClick={(e) => { e.stopPropagation(); onConfirm(); }}
+              className={`flex-1 rounded-xl text-[13.5px] font-semibold text-white transition-colors disabled:opacity-40 ${danger ? "bg-slate-900 hover:bg-slate-800" : "bg-[#2563eb] hover:bg-[#1d4fd7]"}`}
+              style={{ minHeight: 48 }}
+            >
+              {busy ? "…" : confirmLabel}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export const btnPrimary =
   "px-4 py-2.5 rounded-lg text-white text-[13px] font-semibold transition-colors disabled:opacity-40 bg-[#2563eb] hover:bg-[#1d4fd7]";

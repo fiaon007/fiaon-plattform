@@ -1204,3 +1204,122 @@ Registry vorbei — alle im Code gefeuerten Events sind registriert (kein ❌).*
 - Regeln: keine neuen automatischen Versände (fehlende Events nur registriert +
   empfohlen), Sie-Form + mobil, kein Eingriff in Zahlungs-/Provisions-/Stichtag-
   Logik, Changelog im selben Commit.
+
+---
+---
+
+# PROMPT 1/2 — DIE ZENTRALE KUNDENAKTE „Eine Seite. Alles." (20.07.2026)
+
+## Phase 0 — Bestandsaufnahme
+
+### 0.1 Der nicht-klickbare Suchtreffer (dokumentiert, jetzt ersetzt)
+
+**Komponente:** `client/src/pages/admin-zahlungen.tsx`, Block „Paket DC: globale
+Suchtreffer" (vor dem Umbau Zeilen 1010–1064). Zustand vor dem Umbau:
+- **Kunden-Treffer** waren `<button>`, dessen `onClick` nur `setTab("alle")` +
+  `setSearch(ref)` setzte — bei nicht ladbaren Status (z. B. `superseded`)
+  eine Sackgasse ohne jede Detailansicht.
+- **Lead-Treffer** waren reine `<div>`s — **gar nicht klickbar**; einziger Link
+  war ein generisches „Zu den Leads" (ohne den Lead zu öffnen).
+- Die einzige klickbare Zeilen-Aktion neben „bezahlt/reaktivieren" war der
+  **Rechnungs-Download** — „klickbare führen nur zum Rechnungs-Download" bestätigt.
+- Zusätzlich zielte die ⌘K-Suche (`fiaon-admin-hub.ts`, `GET /admin/search`)
+  auf `/admin/zahlungen?ref=…` (wieder nur Zahlungs-Kontext) und **fand gar
+  keine Leads**.
+
+**Ersetzt durch:** Jeder Treffer (Zahlungszentrale-Block, ⌘K, Dashboard-
+Schnellsuche) öffnet jetzt `/admin/kunde/<ref>` bzw. `/admin/kunde/lead-<id>`.
+
+### 0.2 Funktions-Inventar (Bau-Checkliste) — Aktion → heutiger Ort → Endpoint → in der Akte
+
+| Aktion | heutiger Ort | Endpoint | in der Akte |
+|---|---|---|---|
+| Bezahlt markieren (inkl. Provisions-Hook `onCustomerPaid`) | Zahlungszentrale | `POST /admin/payments/:payRef/mark-paid` (`fiaon-antrag.ts:1120`) | ✅ Kopf-Button (identischer Endpoint) |
+| Stornieren (inkl. Provisions-Clawback) | Zahlungszentrale-Detail | `POST /admin/payments/:payRef/cancel` (`fiaon-antrag.ts:1546`) | ✅ Kopf-Button |
+| Reaktivieren (neue 7-Tage-Frist + Mail) | Zahlungszentrale | `POST /admin/payments/:payRef/reactivate` (`fiaon-antrag.ts:1275`) | ✅ Kopf-Button |
+| Zahlungsfrist ändern | — (gab es nur indirekt via Reaktivierung) | NEU `POST /admin/kunden/:ref/konditionen` (nur Feld + Audit, kein Hook) | ✅ Konditionen |
+| Erinnerung/Zahlungsdaten/Bestätigung senden | E-Mail-Events (`/admin/events`) | `POST /admin/events/send-real` (`fiaon-admin-hub.ts:536`, dryRun-Vorschau) | ✅ E-Mail-Center (alle customerBound-Events, ⚠️ ohne Make-Zweig) |
+| Reminder-Override (Zweitkauf) | Zahlungszentrale-Detail | `POST /admin/payments/:payRef/allow-reminders` (`fiaon-antrag.ts:1575`) | ✅ bleibt dort (Spezialfall der Bestellung, aus der Akte verlinkt via Zahlungen) |
+| Agent zuweisen (Bestellung) | Team / Kunden & Anträge | `POST /admin/team/reassign` (`fiaon-team.ts:729`) | ✅ Dropdown „Agent & Betreuung" |
+| Agent zuweisen (Lead) | Leads-Drawer | `POST /admin/leads/:id/assign` (`fiaon-leads.ts:1305`) | ✅ Dropdown je Lead |
+| Kontakt/Adresse ändern (Audit alt→neu) | Zahlungszentrale-Detail (Paket DE) | `POST /admin/applications/:ref/contact` → `updateCustomerContact` (`fiaon-agent.ts:765`) | ✅ Stammdaten (NEU `POST /admin/kunden/:ref/stammdaten` delegiert an dieselbe Engine, + Geburtsdatum) |
+| Limit (`approved_limit`) / Betrag (`amount_due`) / Paket ändern | — (nirgends editierbar) | NEU `POST /admin/kunden/:ref/konditionen` (confirmed-Pflicht, Audit; Betrag bei `paid` gesperrt) | ✅ Konditionen |
+| KYC/SCHUFA-Review | Kunden & Anträge (`AdminApplicationsManager`) | bestehende Applications-Endpoints | ✅ verlinkt (Arbeits-Fokus bleibt `/admin/database`) |
+| Notizen (Kunde) | nirgends für Admin (nur Agent) | NEU `POST /admin/kunden/:ref/note` (Kontakt-Log, Format wie bisher) | ✅ Verlauf |
+| Notizen (Lead) | Leads-Drawer | `POST /admin/leads/:id/notes` (`fiaon-leads.ts:1329`) | ✅ Verlauf/Lead-Karte |
+| Rechnung (PDF) | Zahlungszentrale | `GET /admin/payments/:payRef/invoice.pdf` (`fiaon-antrag.ts:1016`) | ✅ Kopf + je Bestellung |
+| Merge (Soft, mit Undo) | Dubletten (`/admin/dubletten`) | `POST /admin/applications/merge` + `/merge/undo` (`fiaon-antrag.ts:3309/3343`) | ✅ Dubletten-Bereich (1-Klick, Gewinner-Vorschlag, Undo) |
+| Lead ↔ Kunde verknüpfen | Dubletten | `POST /admin/leads/:id/attach-to-order` (`fiaon-leads.ts:1407`) | ✅ „Mit Akte verknüpfen" |
+| Aussortieren / Zurückholen (Kunde) | Kunden & Anträge | `POST /admin/applications/:ref/dismiss` / `/restore` (`fiaon-antrag.ts:1604/1626`) | ✅ Status im Kopf sichtbar; Aktion bleibt im Arbeits-Fokus |
+| Aussortieren / Zurückholen (Lead) | Leads | `POST /agent/leads/:id/dismiss`, `POST /admin/leads/:id/restore` | ✅ Status sichtbar, Restore im Lead-Drawer |
+| Akte freigeben (blockierte Agenten-Akte) | Leads-Drawer | `POST /admin/leads/:id/release-akte` | ✅ via Lead-Drawer (verlinkt) |
+| Antrags-/Zahlungslink an Lead | Leads-Drawer | `POST /admin/leads/:id/send-application-link` | ✅ E-Mail-Center (je offener Lead) |
+| Follow-up jetzt senden (Lead) | Leads-Drawer | `POST /admin/leads/:id/send-followup` | ✅ via Lead-Drawer (verlinkt aus Akte) |
+| Provision nachbuchen | Nachbuchung | `POST /admin/commission-backfill/:ref/book` (`fiaon-team.ts:615`) | ✅ Link aus Provisions-Lage („bezahlt ohne Provision") |
+| Bankeingang zuordnen/verbuchen | Kontoabgleich | `fiaon-reconcile.ts` (applyTxn = identisch zu mark-paid) | ✅ Bankeingänge sichtbar + Link in den Kontoabgleich |
+| DSGVO-Löschung | Kunden & Anträge | `POST /admin/applications/:ref/gdpr-delete` (`fiaon-antrag.ts:1650`) | ✅ Status „DSGVO gelöscht" im Kopf; Aktion bewusst NUR im Arbeits-Fokus (hohe Hürde) |
+| Timeline ansehen | Zahlungszentrale-Detail | `GET /admin/payments/:payRef/timeline` (`fiaon-antrag.ts:963`) | ✅ Akte-Verlauf ist die VOLLE Person (Kontakt-Log Familie + Lead-Log), Drawer bleibt Bestellungs-Fokus |
+
+Keine Aktion ist beim Umbau verloren gegangen — Akte ruft ausschließlich
+bestehende Endpoints; neu sind nur reine Feld-Editoren mit Audit (Stammdaten-
+Erweiterung, Konditionen, Notiz), die keinerlei Geld-Hooks berühren.
+
+### 0.3 Daten-Fundament: Wie wird „eine Person" ermittelt?
+
+Bestehende Dubletten-Logik wiederverwendet (D5 + P1 `linkDuplicateToPaidOrActive`):
+- **Bestell-Familie** = alle `fiaon_applications` mit gleicher normalisierter
+  E-Mail ODER gleichen Telefon-Ziffern (≥ 7, Suffix-Vergleich letzte 9 Ziffern —
+  robust gegen +49/0-Präfixe) — plus `merged_into`/`superseded_by`-Ketten.
+- **Leads der Person** = `fiaon_leads` mit gleicher E-Mail/Telefon oder
+  `converted_order_id` in der Familie.
+- **Primärsatz** der Akte = bezahlter sichtbarer Datensatz der Familie, sonst der
+  angeforderte. Aufruf einer gemergten ref leitet automatisch auf den Gewinner um.
+- **Akte-ID:** Antrags-`ref` (FIAON-…) bzw. `lead-<id>` für Lead-only-Personen.
+- **Liste:** Lead-only-Zeilen erscheinen NUR, wenn keine Antrags-Schwester per
+  E-Mail/Telefon existiert → keine Person doppelt. `superseded`/`merged` sind
+  ausgeblendet (leben als Historie in der Akte). Anonyme Funnel-Abbrecher (60 %
+  der Datensätze, D4) sind standardmäßig ausgeblendet (Toggle „anonyme Abbrecher").
+
+## Umsetzung (A/B/C)
+
+- **A — Akte:** `server/routes/fiaon-kunden.ts` (`GET /admin/kunden/akte`,
+  `POST /admin/kunden/:ref/stammdaten|konditionen|note`) +
+  `client/src/pages/admin-kunde.tsx`. Sensible Felder (Limit, Betrag, E-Mail,
+  Frist, Paket) mit Bestätigungsdialog; jede Änderung als `edit`-Eintrag im
+  Kontakt-Log (alt → neu, Akteur, Zeit — bestehendes Audit-Format).
+  `amount_due` bei bezahlten Bestellungen serverseitig gesperrt (Rechnung/
+  Provision gebucht). E-Mail-Center nutzt `send-real` mit dryRun-Vorschau;
+  Versand-Historie aus Spalten-Flags + `email_sent`/`followup`-Logs der Person.
+- **B — Liste + Suche:** `GET /admin/kunden` (UNION Anträge + Lead-only,
+  `COUNT(*) OVER()`, LIMIT/OFFSET) + `client/src/pages/admin-kunden.tsx`.
+  `GET /admin/search` verlinkt in die Akte und findet jetzt auch Leads
+  (inkl. Telefon-Ziffern). Zahlungszentrale/Leads/Anträge & KYC bleiben als
+  Arbeits-Fokusse, verlinken aber überall in die Akte (Zeilen-Knopf „Akte",
+  Detail-Drawer, Lead-Drawer, Treffer-Block).
+- **C — Dubletten:** Akte zeigt die sichtbare Familie mit Gewinner-Vorschlag
+  (bezahlt > angekündigt > offen; mit Agent > ohne; vollständiger) und
+  1-Klick-Merge über die bestehende Engine (`mergeApplications`, Undo per Batch).
+  Unsichere Namens-Treffer nur als Prüf-Liste (kein Auto-Merge). Prävention P1
+  verifiziert: `linkDuplicateToPaidOrActive` greift in `/payment-order`, die
+  Listen-Query blendet Lead-Schwestern und `merged`/`superseded` aus → neue
+  Anträge derselben Person landen in der bestehenden Akte, die Liste zeigt sie
+  nie doppelt.
+
+## Testplan (nach Deploy, Betreiber)
+
+1. Suche „Terzi" (⌘K oder /admin/kunden) → ein Treffer → Akte mit Zahlungen, Mails, Verlauf, Agent.
+2. Limit in der Akte ändern (Bestätigungsdialog) → `GET /profile`/Portal zeigt es (via `effectiveLimit`), `edit`-Audit im Verlauf.
+3. Jedes customerBound-Event aus dem E-Mail-Center versendbar (Vorschau → Senden), Historie aktualisiert sich; Events ohne Make-Zweig zeigen ⚠️.
+4. „Bezahlt markieren" aus der Akte → identischer Endpoint → Freischaltung + `payment_confirmed` + Provision exakt wie bisher.
+5. Zwei identische Personen → Akte zeigt Familie → 1-Klick-Merge → eine Akte, Undo stellt exakt wieder her, Provisionen unberührt (`MERGE_SKIP_COLS`).
+6. Kein Suchtreffer im Admin ist mehr eine Sackgasse (⌘K, Dashboard, Zahlungszentrale, Leads — alle öffnen die Akte).
+
+## Ehrliche Grenzen
+
+- Die Zahlungsfrist-Änderung und Konditionen-Edits sind NEUE, reine Feld-Updates
+  mit Audit — bewusst ohne jeden Mail-/Provisions-Automatismus (Frist-Mail geht
+  weiterhin nur über Reaktivierung/Reminder-Engine).
+- Personen-Zusammenführung über REINE Namensgleichheit bleibt manuell (Prüf-Liste
+  in der Akte + /admin/dubletten) — exakt wie in D5 empfohlen (Namen variieren).
+- DSGVO-Löschung bleibt absichtlich außerhalb der Akte (im Arbeits-Fokus mit
+  eigener Bestätigung) — Schutz vor versehentlichem Klick auf der Alltags-Seite.

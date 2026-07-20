@@ -5,7 +5,7 @@ import {
   BookOpen, Settings, ScrollText, Scale, Database, Search, Menu, X,
   ArrowLeft, ChevronRight, ShieldAlert, Wallet, Send, Sparkles,
   Target, TrendingUp, Landmark, HandCoins, Copy, BarChart3, History, Activity,
-  LogOut, PiggyBank,
+  LogOut, PiggyBank, GraduationCap,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -64,7 +64,8 @@ export const ADMIN_NAV: NavGroup[] = [
   {
     title: "Kunden & Anträge",
     items: [
-      { path: "/admin/database", label: "Kunden & Anträge", desc: "Alle Anträge und Kunden: suchen, filtern, KYC, Stammdaten, zusammenführen", icon: Database },
+      { path: "/admin/kunden", label: "Kunden — die eine Liste", desc: "Jede Person genau einmal (Leads + Kunden vereint) — jeder Treffer öffnet die Akte", icon: Users },
+      { path: "/admin/database", label: "Anträge & KYC", desc: "Arbeits-Fokus: Antrags-Details, KYC-Dokumente, SCHUFA-Review", icon: Database },
       { path: "/admin/leads", label: "Leads", desc: "Interessenten aus Lead-Ads — Nachfass, Verteilung, Warteschlange", icon: Target },
       { path: "/admin/kuendigungen", label: "Kündigungen", desc: "Eingehende Kündigungsanträge prüfen, bestätigen oder ablehnen", icon: LogOut, badgeKey: "kuendigungen" },
       { path: "/admin/investoren", label: "Investoren", desc: "Investoren-Verwaltung: Anfragen, Investments, Dokumente", icon: PiggyBank },
@@ -85,6 +86,7 @@ export const ADMIN_NAV: NavGroup[] = [
   {
     title: "System & Recht",
     items: [
+      { path: "/admin/funktionen", label: "Funktionen & Schulung", desc: "Alle Funktionen mit Klartext + Direktlink, Selbsttest (Button → Event → Status), Schulungsmodus", icon: GraduationCap },
       { path: "/admin/diagnose", label: "System-Diagnose", desc: "Was klemmt gerade? Ereignis-Konsole, Rohdaten, KI-Auswertung", icon: Activity, badgeKey: "diagnose" },
       { path: "/admin/einstellungen", label: "Einstellungen", desc: "Provisionssatz, Auszahlung, Reminder-Engine, Diagnose", icon: Settings },
       { path: "/admin/events", label: "E-Mail-Events", desc: "Make-Events testen, Diagnose, Verlauf", icon: Send },
@@ -98,6 +100,9 @@ export const ADMIN_NAV: NavGroup[] = [
 /** Seitentitel für Breadcrumb — erster Nav-Treffer auf den reinen Pfad. */
 export function pageMeta(location: string): { label: string; desc: string } {
   const clean = location.split("?")[0].split("#")[0];
+  if (clean.startsWith("/admin/kunde/")) {
+    return { label: "Kundenakte", desc: "Eine Seite. Alles: Stammdaten, Zahlungen, Mails, Agent, Verlauf, Dubletten" };
+  }
   for (const g of ADMIN_NAV) {
     for (const it of g.items) {
       if ((it.match || it.path.split("?")[0].split("#")[0]) === clean) return { label: it.label, desc: it.desc };

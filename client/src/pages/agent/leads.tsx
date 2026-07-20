@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "wouter";
 import { Phone, ArrowLeft, Send, Pencil, Users, Lock, FolderOpen, ShieldCheck, ChevronDown, Search, Archive, PhoneCall, X } from "lucide-react";
 import {
-  AgentShell, api, Card, Badge, fmtDT, fmtD, inputCls, btnPrimary, btnGhost, FlashMessage,
+  AgentShell, api, Card, Badge, fmtDT, fmtD, inputCls, btnPrimary, btnGhost, FlashMessage, ConfirmDialog,
 } from "./shared";
 
 // Ticket #15: Gründe fürs Aussortieren („aus meiner Liste entfernen" — nie gelöscht).
@@ -12,6 +12,16 @@ const DISMISS_REASONS: { key: string; label: string }[] = [
   { key: "kein_interesse", label: "kein Interesse" },
   { key: "dublette", label: "Dublette" },
 ];
+
+// PROMPT 2/2 · A: Folgen-Text im Bestätigungsdialog (macht den Schutz sichtbar).
+const LEAD_OUTCOME_CONSEQUENCE: Record<string, string> = {
+  erreicht_interesse: "Wird dokumentiert — die Akte wird geschlossen.",
+  erreicht_kein_interesse: "Wird dokumentiert — der Lead verlässt die Automatik.",
+  nicht_erreicht: "Wird dokumentiert — Wiedervorlage in ca. 4 Stunden.",
+  mailbox: "Wird dokumentiert — Wiedervorlage in ca. 4 Stunden.",
+  rueckruf_termin: "Legt einen Rückruf-Termin an (deutsche Zeit).",
+  nummer_falsch: "Der Lead erhält — falls eine E-Mail hinterlegt ist (max. 1×/Tag) — eine E-Mail zur Nummern-Korrektur. Die Akte wird geschlossen.",
+};
 
 // ════════════════════════════════════════════════════════════════════
 // P2-C — ARBEITSWARTESCHLANGE (statt Lead-Friedhof).
@@ -54,9 +64,10 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const [edit, setEdit] = useState({ vorname: "", nachname: "", email: "", telefon: "" });
-  const [rueckrufAt, setRueckrufAt] = useState("");
-  // Paket DD: Zwei-Schritt-Bestätigung — erst auswählen, dann bestätigen
-  const [armed, setArmed] = useState<string | null>(null);
+  // PROMPT 2/2 · A: EIN modaler Bestätigungsdialog statt Doppel-Tap.
+  const [pending, setPending] = useState<{ key: string; date: string } | null>(null);
+  const [closeAkteOpen, setCloseAkteOpen] = useState(false);
+  const [closeReason, setCloseReason] = useState("");
   // Ticket #15: „Aus meiner Liste entfernen" (nie gelöscht)
   const [dismissOpen, setDismissOpen] = useState(false);
   const [dismissReason, setDismissReason] = useState("");
@@ -79,17 +90,22 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
   if (!lead) return null;
   const name = [lead.vorname, lead.nachname].filter(Boolean).join(" ") || lead.email || lead.telefon || `Lead #${lead.id}`;
 
-  const result = async (outcome: string) => {
-    if (outcome === "rueckruf_termin" && !rueckrufAt) { setFlash("Bitte Rückruf-Termin wählen."); return; }
-    // Paket DD: erster Klick wählt aus, zweiter Klick bestätigt — kein Versehen mehr
-    if (armed !== outcome) { setArmed(outcome); return; }
-    setArmed(null);
+  const outcomeNeedsDate = (o: string) => o === "rueckruf_termin";
+
+  // PROMPT 2/2 · A: ein Tap öffnet den Bestätigungsdialog (Datum eingebettet) —
+  // kein blinder Doppel-Tap mehr. Der Schutz vor Versehen bleibt, wird nur sichtbar.
+  const saveOutcome = async () => {
+    if (!pending) return;
+    const outcome = pending.key;
+    const date = pending.date;
+    if (outcomeNeedsDate(outcome) && !date) return;
     setBusy(true);
     const r = await api(`/agent/leads/${id}/contact-result`, {
       method: "POST",
-      body: JSON.stringify({ outcome, scheduledAt: outcome === "rueckruf_termin" ? rueckrufAt : null }),
+      body: JSON.stringify({ outcome, scheduledAt: outcome === "rueckruf_termin" ? date : null }),
     });
     setBusy(false);
+    setPending(null);
     if (r.ok) {
       // #23: bei „Nummer falsch" Rückmeldung zur Selbst-Update-Mail geben.
       const nu = r.json?.numberUpdateMail;
@@ -104,7 +120,7 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
       } else {
         setFlash("Ergebnis gespeichert — Akte geschlossen. Du kannst jetzt die nächste Akte öffnen.");
       }
-      setRueckrufAt(""); load(); onChanged();
+      load(); onChanged();
     }
     else setFlash(r.json?.error || "Fehler.");
   };
@@ -133,13 +149,13 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
 
   // V2 (Phase 2B): Notausgang — Akte ohne Ergebnis schließen (Begründung Pflicht).
   // Der Agent darf sich nie ausgesperrt fühlen; zählt NICHT als Kontakt.
-  const closeWithoutResult = async () => {
-    const reason = window.prompt("Akte ohne Kontakt-Ergebnis schließen — kurze Begründung (z. B. Feierabend, Kunde legte auf):");
-    if (reason === null) return;
+  // PROMPT 2/2 · A: modaler Dialog mit Pflicht-Begründung statt window.prompt.
+  const doCloseAkte = async () => {
+    if (closeReason.trim().length < 3) return;
     setBusy(true);
-    const r = await api(`/agent/leads/${id}/close-akte`, { method: "POST", body: JSON.stringify({ reason }) });
+    const r = await api(`/agent/leads/${id}/close-akte`, { method: "POST", body: JSON.stringify({ reason: closeReason.trim() }) });
     setBusy(false);
-    if (r.ok) { onChanged(); onClose(); } else setFlash(r.json?.error || "Fehler.");
+    if (r.ok) { setCloseAkteOpen(false); onChanged(); onClose(); } else setFlash(r.json?.error || "Fehler.");
   };
 
   // Ticket #15: „Aus meiner Liste entfernen" — Lead verlässt die Warteschlange,
@@ -153,6 +169,7 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
   };
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto py-6 px-3" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/40" />
       <div className="relative w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -197,26 +214,16 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
 
           {!readOnly && (
             <>
-              {/* Kontakt-Ergebnisse */}
+              {/* Kontakt-Ergebnisse — ein Tap öffnet den Bestätigungsdialog */}
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">Kontakt-Ergebnis</p>
-                <div className="flex flex-col gap-2">
-                  <input type="datetime-local" className={inputCls} value={rueckrufAt} onChange={(e) => setRueckrufAt(e.target.value)} />
-                  <p className="text-[11px] text-slate-400 -mt-1">Uhrzeit in deutscher Zeit (Europe/Berlin)</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {OUTCOMES.map((o) => (
-                      <button key={o.key} disabled={busy} onClick={() => result(o.key)}
-                        className={`${btnGhost} text-left ${armed === o.key ? "!border-[#2563eb] !text-[#2563eb]" : ""}`}>
-                        {armed === o.key ? `Bestätigen: ${o.label}` : o.label}
-                      </button>
-                    ))}
-                  </div>
-                  {armed && (
-                    <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
-                      <p className="text-[11.5px] text-slate-500">Zum Speichern erneut auf den markierten Button tippen.</p>
-                      <button className="text-[11.5px] font-semibold text-slate-400 hover:text-slate-600" onClick={() => setArmed(null)}>Abbrechen</button>
-                    </div>
-                  )}
+                <div className="grid grid-cols-2 gap-2">
+                  {OUTCOMES.map((o) => (
+                    <button key={o.key} disabled={busy} onClick={() => setPending({ key: o.key, date: "" })}
+                      className={`${btnGhost} text-left`} style={{ minHeight: 46 }}>
+                      {o.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -232,7 +239,7 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
 
               {/* V2: Notausgang — nie ausgesperrt sein */}
               {lead.opened_at && (
-                <button className="w-full text-[12px] text-slate-400 hover:text-slate-600 py-1" disabled={busy} onClick={closeWithoutResult}>
+                <button className="w-full text-[12px] text-slate-400 hover:text-slate-600 py-1" disabled={busy} onClick={() => { setCloseReason(""); setCloseAkteOpen(true); }}>
                   Akte schließen ohne Ergebnis (mit Begründung) — Lead geht zurück in die Warteschlange
                 </button>
               )}
@@ -284,6 +291,58 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
         </div>
       </div>
     </div>
+
+    {/* PROMPT 2/2 · A: Kontakt-Ergebnis bestätigen (ein Tap → Dialog, Datum eingebettet) */}
+    <ConfirmDialog
+      open={!!pending}
+      title={pending ? (OUTCOMES.find((o) => o.key === pending.key)?.label || "Kontakt-Ergebnis") : ""}
+      message={pending ? `Für ${name} dokumentieren?` : ""}
+      consequence={pending ? LEAD_OUTCOME_CONSEQUENCE[pending.key] : undefined}
+      confirmLabel="Speichern"
+      busy={busy}
+      confirmDisabled={!!pending && outcomeNeedsDate(pending.key) && !pending.date}
+      onConfirm={saveOutcome}
+      onCancel={() => setPending(null)}
+    >
+      {pending && outcomeNeedsDate(pending.key) && (
+        <div>
+          <label className="block text-[12px] font-medium text-slate-500 mb-1.5">Rückruf-Termin</label>
+          <input
+            type="datetime-local"
+            value={pending.date}
+            onChange={(e) => setPending((p) => (p ? { ...p, date: e.target.value } : p))}
+            className={inputCls}
+            style={{ minHeight: 44 }}
+          />
+          <p className="text-[11px] text-slate-400 mt-1.5">Uhrzeit in deutscher Zeit (Europe/Berlin)</p>
+        </div>
+      )}
+    </ConfirmDialog>
+
+    {/* Akte ohne Ergebnis schließen (Begründung Pflicht) */}
+    <ConfirmDialog
+      open={closeAkteOpen}
+      title="Akte ohne Ergebnis schließen?"
+      message="Der Lead geht zurück in die Warteschlange. Dies zählt NICHT als Kontakt."
+      confirmLabel="Akte schließen"
+      busy={busy}
+      confirmDisabled={closeReason.trim().length < 3}
+      onConfirm={doCloseAkte}
+      onCancel={() => setCloseAkteOpen(false)}
+    >
+      <div>
+        <label className="block text-[12px] font-medium text-slate-500 mb-1.5">Kurze Begründung (Pflicht)</label>
+        <input
+          type="text"
+          value={closeReason}
+          onChange={(e) => setCloseReason(e.target.value)}
+          placeholder="z. B. Feierabend, Kunde legte auf"
+          className={inputCls}
+          style={{ minHeight: 44 }}
+        />
+      </div>
+    </ConfirmDialog>
+    </>
   );
 }
 

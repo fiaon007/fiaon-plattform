@@ -13,6 +13,9 @@ import Terms from "@/pages/terms";
 import Privacy from "@/pages/privacy";
 import NotFound from "@/pages/not-found";
 import AdminKundenPage from "@/pages/admin-kunden";
+import AdminKundeAktePage from "@/pages/admin-kunde";
+import AdminAntraegePage from "@/pages/admin-antraege";
+import AdminFunktionenPage from "@/pages/admin-funktionen";
 import WasIstFiaonPage from "@/pages/was-ist-fiaon";
 import PlattformKonzeptPage from "@/pages/plattform-konzept";
 import LoginPage from "@/pages/login";
@@ -92,8 +95,9 @@ function Router() {
       <Route path="/login" component={LoginPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/admin" component={admin(AdminHubPage)} />
-      <Route path="/admin/database" component={admin(AdminKundenPage)} />
+      <Route path="/admin/database" component={admin(AdminAntraegePage)} />
       <Route path="/admin/kunden" component={admin(AdminKundenPage)} />
+      <Route path="/admin/kunde/:id" component={admin(AdminKundeAktePage)} />
       <Route path="/admin/zahlungen" component={admin(AdminZahlungenPage)} />
       <Route path="/admin/finanzen" component={admin(AdminFinanzenPage)} />
       <Route path="/admin/kontoabgleich" component={admin(AdminKontoabgleichPage)} />
@@ -108,6 +112,7 @@ function Router() {
       <Route path="/admin/einstellungen" component={admin(AdminEinstellungenPage)} />
       <Route path="/admin/audit" component={admin(AdminAuditPage)} />
       <Route path="/admin/recht" component={admin(AdminRechtPage)} />
+      <Route path="/admin/funktionen" component={admin(AdminFunktionenPage)} />
       <Route path="/agent" component={AgentPortalPage} />
       <Route path="/agent/setup/:token" component={AgentSetupPage} />
       <Route path="/agent/passwort" component={AgentPasswortPage} />

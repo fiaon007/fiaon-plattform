@@ -6,7 +6,7 @@ import {
   Archive, PhoneCall, Undo2,
 } from "lucide-react";
 import {
-  AgentShell, Badge, Card, FlashMessage, useAgentInfo,
+  AgentShell, Badge, Card, FlashMessage, useAgentInfo, ConfirmDialog,
   api, fmtEur, fmtD, fmtDT, inputCls, btnPrimary, btnGhost, ACCENT,
 } from "./shared";
 import { SuccessPulse } from "./motion";
@@ -77,6 +77,17 @@ export const OUTCOME_LABELS: Record<string, string> = {
   mailbox: "Mailbox besprochen",
   rueckruf_termin: "Rückruf vereinbart",
   nummer_falsch: "Nummer falsch",
+};
+
+// PROMPT 2/2 · A: Folgen-Text im Bestätigungsdialog (macht den Schutz sichtbar).
+export const OUTCOME_CONSEQUENCE: Record<string, string> = {
+  erreicht_zahlt_gleich: "Wird dokumentiert. Der Kunde bleibt in deiner Arbeitsliste, bis die Zahlung eingeht.",
+  erreicht_zahlt_am: "Wird als Zahlungs-Zusage gespeichert (deutsche Zeit).",
+  erreicht_abgelehnt: "Wird dokumentiert. Der Kunde bleibt sichtbar.",
+  nicht_erreicht: "Wird dokumentiert — der Kunde bleibt in deiner Arbeitsliste.",
+  mailbox: "Wird dokumentiert — der Kunde bleibt in deiner Arbeitsliste.",
+  rueckruf_termin: "Legt einen Rückruf-Termin an (deutsche Zeit).",
+  nummer_falsch: "Der Kunde erhält — falls eine E-Mail hinterlegt ist (max. 1×/Tag) — eine E-Mail zur Nummern-Korrektur.",
 };
 
 export function custName(c: Customer): string {
@@ -593,10 +604,12 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
   const [scriptsOpen, setScriptsOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const [datePick, setDatePick] = useState<{ outcome: string; value: string } | null>(null);
-  // Paket DD: Zwei-Schritt-Bestätigung für Kontakt-Ergebnisse (erst auswählen, dann bestätigen)
-  const [armedOutcome, setArmedOutcome] = useState<string | null>(null);
-  const [voidConfirm, setVoidConfirm] = useState<number | null>(null);
+  // PROMPT 2/2 · A: EIN Bestätigungsdialog statt Doppel-Tap. `pending` hält das
+  // gewählte Kontakt-Ergebnis (inkl. optionalem Datum), bis der Nutzer im Dialog
+  // bestätigt. `voidConfirmId` und `confirmReactivate` steuern die übrigen Dialoge.
+  const [pending, setPending] = useState<{ key: string; date: string } | null>(null);
+  const [voidConfirmId, setVoidConfirmId] = useState<number | null>(null);
+  const [confirmReactivate, setConfirmReactivate] = useState(false);
   const [lockUntil, setLockUntil] = useState<number>(0);
   const [now, setNow] = useState(Date.now());
   const [mobileTab, setMobileTab] = useState<"stamm" | "aktion" | "verlauf">("aktion");
@@ -660,8 +673,8 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
   // Ticket #16: NICHT das Fenster schließen — der Drawer lädt in-place neu, zeigt
   // den neuen Status und alle Aktionen sind sofort nutzbar. Ein Statuswechsel darf
   // nie dazu führen, dass ein geöffneter Datensatz aus dem Fenster verschwindet.
-  const reactivate = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const doReactivate = async () => {
+    setConfirmReactivate(false);
     setBusy("reactivate");
     const r = await api(`/agent/customers/${encodeURIComponent(refId)}/reactivate`, { method: "POST" });
     setBusy(null);
@@ -685,36 +698,29 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
     } else flash(r.json?.error || "Konnte nicht entfernt werden");
   };
 
-  // Paket DD: Klick 1 wählt aus (armed), Klick 2 bestätigt — kein versehentlicher Statuswechsel mehr.
+  const outcomeNeedsDate = (o: string) => o === "rueckruf_termin" || o === "erreicht_zahlt_am";
+
+  // PROMPT 2/2 · A: Ein Tap öffnet den Bestätigungsdialog (Datum ist dort eingebettet) —
+  // kein blinder Doppel-Tap mehr. Der Schutz vor Versehen bleibt, wird nur sichtbar.
   const pickOutcome = (e: React.MouseEvent, outcome: string) => {
     e.stopPropagation();
-    if (outcome === "rueckruf_termin" || outcome === "erreicht_zahlt_am") {
-      // Datums-Dialog hat bereits einen expliziten Speichern-Schritt (= Bestätigung)
-      setArmedOutcome(null);
-      setDatePick({ outcome, value: "" });
-      return;
-    }
-    setDatePick(null);
-    if (armedOutcome === outcome) { saveOutcome(e, outcome); return; }
-    setArmedOutcome(outcome);
+    setPending({ key: outcome, date: "" });
   };
 
-  const saveOutcome = async (e: React.MouseEvent, outcome: string, dateValue?: string) => {
-    e.stopPropagation();
-    if ((outcome === "rueckruf_termin" || outcome === "erreicht_zahlt_am") && !dateValue) {
-      setDatePick({ outcome, value: "" });
-      return;
-    }
+  const saveOutcome = async () => {
+    if (!pending) return;
+    const outcome = pending.key;
+    const dateValue = pending.date;
+    if (outcomeNeedsDate(outcome) && !dateValue) return;
     setBusy(outcome);
     const body: any = { outcome };
     if (outcome === "rueckruf_termin") body.scheduledAt = dateValue;
     if (outcome === "erreicht_zahlt_am") body.promisedDate = dateValue;
     const r = await api(`/agent/customers/${encodeURIComponent(refId)}/contact-result`, { method: "POST", body: JSON.stringify(body) });
     setBusy(null);
-    setArmedOutcome(null);
+    setPending(null);
     if (r.ok) {
       setLog((l) => [r.json.entry, ...l]);
-      setDatePick(null);
       setCheckKey(outcome);
       setTimeout(() => setCheckKey((k) => (k === outcome ? null : k)), 900);
       // Ticket #13: gespeicherte Zeit sofort im Klartext zurückspiegeln (deutsche Zeit),
@@ -744,11 +750,12 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
     } else flash(r.json?.error || "Fehler");
   };
 
-  // Paket DD: eigenen Verlaufseintrag als irrtümlich markieren (Soft-Delete, bleibt sichtbar)
-  const voidEntry = async (e: React.MouseEvent, entryId: number) => {
-    e.stopPropagation();
-    if (voidConfirm !== entryId) { setVoidConfirm(entryId); return; }
-    setVoidConfirm(null);
+  // Paket DD: eigenen Verlaufseintrag als irrtümlich markieren (Soft-Delete, bleibt sichtbar).
+  // PROMPT 2/2 · A: Bestätigung jetzt über den modalen Dialog statt Doppel-Tap.
+  const voidEntry = async () => {
+    const entryId = voidConfirmId;
+    if (entryId == null) return;
+    setVoidConfirmId(null);
     setBusy("void");
     const r = await api(`/agent/log/${entryId}/void`, { method: "POST" });
     setBusy(null);
@@ -951,12 +958,10 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
                 {l.promised_date && <p className={`text-[12px] font-medium text-slate-700 ${voided ? "line-through" : ""}`}>Zahlt am: {fmtD(l.promised_date)}</p>}
                 {l.note && <p className={`text-[12px] text-slate-600 whitespace-pre-wrap ${voided ? "line-through" : ""}`}>{l.note}</p>}
                 {canVoid && (
-                  <button type="button" onClick={(e) => voidEntry(e, l.id)} disabled={busy === "void"}
-                    className={`mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold transition-colors ${
-                      voidConfirm === l.id ? "text-red-600" : "text-slate-400 hover:text-slate-600"
-                    }`}>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); setVoidConfirmId(l.id); }} disabled={busy === "void"}
+                    className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-slate-600 transition-colors">
                     <Undo2 size={11} strokeWidth={2} />
-                    {voidConfirm === l.id ? "Wirklich als irrtümlich markieren? (erneut tippen)" : "Irrtümlich erfasst?"}
+                    Irrtümlich erfasst?
                   </button>
                 )}
               </div>
@@ -1014,7 +1019,7 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
                 : `In Bearbeitung durch ${detail.locked_by_name} — nur Lesezugriff`}
           </div>
           {canReactivate && (
-            <button type="button" onClick={reactivate} disabled={busy === "reactivate"}
+            <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmReactivate(true); }} disabled={busy === "reactivate"}
               className={`${btnPrimary} w-full py-3 inline-flex items-center justify-center gap-2`} style={{ minHeight: 48 }}>
               <Undo2 size={16} strokeWidth={1.9} />
               {busy === "reactivate" ? "Reaktiviere …" : "Kunde reaktivieren (neue Zahlungsfrist)"}
@@ -1034,8 +1039,7 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
               {Object.entries(OUTCOME_LABELS).map(([key, label]) => (
                 <button key={key} type="button" onClick={(e) => pickOutcome(e, key)} disabled={busy !== null}
                   className={`relative px-3 py-2.5 rounded-xl border text-[12px] font-medium transition-all duration-150 disabled:opacity-40 text-left active:scale-[.98] ${
-                    armedOutcome === key ? "border-[#2563eb] bg-[#2563eb]/5 text-slate-900"
-                      : checkKey === key ? "border-[#2563eb] text-slate-800"
+                    checkKey === key ? "border-[#2563eb] text-slate-800"
                       : "border-slate-200 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800"
                   }`}
                   style={{ minHeight: 46 }}>
@@ -1043,37 +1047,10 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
                     ? "…"
                     : checkKey === key
                       ? <span className="agent-check-in inline-flex items-center gap-1.5" style={{ color: ACCENT }}><CheckCircle2 size={14} strokeWidth={2} /> Erfasst</span>
-                      : armedOutcome === key
-                        ? <span className="inline-flex items-center gap-1.5 font-semibold" style={{ color: ACCENT }}><CheckCircle2 size={14} strokeWidth={2} /> Bestätigen: {label}</span>
-                        : label}
+                      : label}
                 </button>
               ))}
             </div>
-            {armedOutcome && (
-              <div className="mt-2 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 agent-check-in">
-                <p className="text-[11.5px] text-slate-500">Zum Speichern erneut auf den markierten Button tippen.</p>
-                <button type="button" onClick={(e) => { e.stopPropagation(); setArmedOutcome(null); }} className="text-[11.5px] font-semibold text-slate-400 hover:text-slate-600">
-                  Abbrechen
-                </button>
-              </div>
-            )}
-            {datePick && (
-              <div className="mt-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50 agent-check-in">
-                <p className="text-[12px] font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
-                  <CalendarPlus size={13} strokeWidth={1.8} />
-                  {datePick.outcome === "rueckruf_termin" ? "Rückruf-Termin wählen" : "Kunde zahlt am"}
-                </p>
-                <div className="flex gap-2">
-                  <input type={datePick.outcome === "rueckruf_termin" ? "datetime-local" : "date"} value={datePick.value}
-                    onChange={(e) => setDatePick((d) => (d ? { ...d, value: e.target.value } : d))} className={inputCls} style={{ minHeight: 44 }} />
-                  <button type="button" onClick={(e) => datePick.value && saveOutcome(e, datePick.outcome, datePick.value)}
-                    disabled={!datePick.value || busy !== null} className={btnPrimary}>Speichern</button>
-                </div>
-                {datePick.outcome === "rueckruf_termin" && (
-                  <p className="text-[11px] text-slate-400 mt-1.5">Uhrzeit in deutscher Zeit (Europe/Berlin)</p>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Notiz schreiben */}
@@ -1111,6 +1088,7 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
   );
 
   return (
+    <>
     <div className="agent-scope fixed inset-0 z-50" onClick={onClose}>
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] agent-reveal" style={{ animationDuration: ".25s" }} />
       <div
@@ -1207,6 +1185,62 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
         )}
       </div>
     </div>
+
+    {/* PROMPT 2/2 · A: Kontakt-Ergebnis bestätigen (ein Tap → Dialog, Datum eingebettet) */}
+    <ConfirmDialog
+      open={!!pending}
+      title={pending ? OUTCOME_LABELS[pending.key] || "Kontakt-Ergebnis" : ""}
+      message={pending ? `Für ${custName(detail)} dokumentieren?` : ""}
+      consequence={pending ? OUTCOME_CONSEQUENCE[pending.key] : undefined}
+      confirmLabel="Speichern"
+      busy={busy !== null}
+      confirmDisabled={!!pending && outcomeNeedsDate(pending.key) && !pending.date}
+      onConfirm={saveOutcome}
+      onCancel={() => setPending(null)}
+    >
+      {pending && outcomeNeedsDate(pending.key) && (
+        <div>
+          <label className="block text-[12px] font-medium text-slate-500 mb-1.5">
+            {pending.key === "rueckruf_termin" ? "Rückruf-Termin" : "Kunde zahlt am"}
+          </label>
+          <input
+            type={pending.key === "rueckruf_termin" ? "datetime-local" : "date"}
+            value={pending.date}
+            onChange={(e) => setPending((p) => (p ? { ...p, date: e.target.value } : p))}
+            className={inputCls}
+            style={{ minHeight: 44 }}
+          />
+          {pending.key === "rueckruf_termin" && (
+            <p className="text-[11px] text-slate-400 mt-1.5">Uhrzeit in deutscher Zeit (Europe/Berlin)</p>
+          )}
+        </div>
+      )}
+    </ConfirmDialog>
+
+    {/* Reaktivieren bestätigen */}
+    <ConfirmDialog
+      open={confirmReactivate}
+      title={`${custName(detail)} reaktivieren?`}
+      message="Die Bestellung erhält eine neue 7-Tage-Zahlungsfrist und wird dir zugewiesen."
+      consequence="Die Zahlungsdaten werden dem Kunden erneut per E-Mail gesendet."
+      confirmLabel="Reaktivieren"
+      busy={busy === "reactivate"}
+      onConfirm={doReactivate}
+      onCancel={() => setConfirmReactivate(false)}
+    />
+
+    {/* Verlaufseintrag als irrtümlich markieren */}
+    <ConfirmDialog
+      open={voidConfirmId != null}
+      title="Eintrag als irrtümlich markieren?"
+      message="Der Eintrag bleibt durchgestrichen im Verlauf sichtbar — es wird nichts gelöscht."
+      confirmLabel="Als irrtümlich markieren"
+      danger
+      busy={busy === "void"}
+      onConfirm={voidEntry}
+      onCancel={() => setVoidConfirmId(null)}
+    />
+    </>
   );
 }
 

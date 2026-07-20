@@ -242,6 +242,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonCockpitRoutes = await import('./routes/fiaon-cockpit');
   app.use('/api/fiaon', fiaonCockpitRoutes.default);
 
+  // 📇 FIAON Zentrale Kundenakte (Prompt 1/2) — /admin/kunden (eine Liste) + /admin/kunden/akte (eine Akte pro Person)
+  const fiaonKundenRoutes = await import('./routes/fiaon-kunden');
+  app.use('/api/fiaon', fiaonKundenRoutes.default);
+
   // 🎯 FIAON Lead-Management (Admin/Agent) — Auto-Konversion, Nachfass, Anrufliste
   const fiaonLeadsRoutes = await import('./routes/fiaon-leads');
   app.use('/api/fiaon', fiaonLeadsRoutes.default);

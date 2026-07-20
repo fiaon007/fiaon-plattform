@@ -176,14 +176,18 @@ router.get("/admin/hub/badges", async (_req, res) => {
 });
 
 // ── O3: Globale Schnellsuche (Cmd+K) ─────────────────────────────────────────
-// Kunden: Name / E-Mail / Referenz / Zahlungsreferenz / Telefon.
-// Agents: Name / E-Mail. (Kunden-IBANs existieren nicht — Kunden zahlen an UNS;
-// Agent-IBANs sind verschlüsselt und damit bewusst nicht durchsuchbar.)
+// Kunden: Name / E-Mail / Referenz / Zahlungsreferenz / Telefon. Leads: Name /
+// E-Mail / Telefon. Agents: Name / E-Mail. (Kunden-IBANs existieren nicht —
+// Kunden zahlen an UNS; Agent-IBANs sind verschlüsselt, bewusst nicht suchbar.)
+// PROMPT 1/2: Jeder Treffer öffnet DIE AKTE (/admin/kunde/…) — keine Sackgassen,
+// kein „nur Rechnung" mehr (ersetzt den kaputten Suchtreffer der Zahlungszentrale).
 router.get("/admin/search", async (req, res) => {
   try {
     const q = String(req.query.q || "").trim();
     if (q.length < 2) return res.json({ ok: true, results: [] });
     const like = `%${q}%`;
+    const qDigits = q.replace(/\D/g, "");
+    const digitsLike = qDigits.length >= 5 ? `%${qDigits}%` : null;
     const customers = await sqlPool`
       SELECT ref, payment_reference, payment_status, amount_due,
              first_name, last_name, contact_name, company_name, email, contact_email
@@ -194,11 +198,25 @@ router.get("/admin/search", async (req, res) => {
         OR company_name ILIKE ${like} OR contact_name ILIKE ${like}
         OR email ILIKE ${like} OR contact_email ILIKE ${like}
         OR phone ILIKE ${like}
+        OR (${digitsLike}::text IS NOT NULL AND regexp_replace(COALESCE(phone_country_code,'') || COALESCE(phone,'') , '\\D', '', 'g') LIKE ${digitsLike})
         OR (first_name || ' ' || last_name) ILIKE ${like}
       )
       ORDER BY updated_at DESC NULLS LAST
       LIMIT 8
     `;
+    // Leads (nicht konvertierte) — konvertierte laufen über die Antrags-Akte
+    const leads = await sqlPool`
+      SELECT id, vorname, nachname, email, telefon, status, quelle
+      FROM fiaon_leads
+      WHERE converted_order_id IS NULL AND (
+        vorname ILIKE ${like} OR nachname ILIKE ${like}
+        OR (COALESCE(vorname,'') || ' ' || COALESCE(nachname,'')) ILIKE ${like}
+        OR email ILIKE ${like}
+        OR (${digitsLike}::text IS NOT NULL AND regexp_replace(COALESCE(telefon,''), '\\D', '', 'g') LIKE ${digitsLike})
+      )
+      ORDER BY erstellt_am DESC
+      LIMIT 6
+    `.catch(() => [] as any);
     const agents = await sqlPool`
       SELECT id, name, email FROM fiaon_agents
       WHERE name ILIKE ${like} OR email ILIKE ${like}
@@ -211,9 +229,14 @@ router.get("/admin/search", async (req, res) => {
         label: c.company_name || [c.first_name, c.last_name].filter(Boolean).join(" ") || c.contact_name || c.ref,
         sub: `${c.payment_reference || c.ref}${c.email || c.contact_email ? ` · ${c.email || c.contact_email}` : ""}`,
         status: c.payment_status,
-        url: c.payment_reference
-          ? `/admin/zahlungen?ref=${encodeURIComponent(c.payment_reference)}`
-          : `/admin/zahlungen?ref=${encodeURIComponent(c.ref)}`,
+        url: `/admin/kunde/${encodeURIComponent(c.ref)}`,
+      })),
+      ...leads.map((l: any) => ({
+        type: "lead",
+        label: [l.vorname, l.nachname].filter(Boolean).join(" ") || l.email || l.telefon || `Lead #${l.id}`,
+        sub: `Lead · ${l.quelle || "—"}${l.email ? ` · ${l.email}` : ""}`,
+        status: l.status,
+        url: `/admin/kunde/lead-${l.id}`,
       })),
       ...agents.map((a: any) => ({
         type: "agent",

@@ -497,6 +497,15 @@ function LeadDrawer({ id, agents, onClose, onChanged }: { id: number; agents: an
         <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 sticky top-0 bg-white z-10">
           <div className="min-w-0 flex-1"><p className="text-[15px] font-bold text-slate-900 truncate">{name}</p>
             <p className="text-[11px] text-slate-400">{STATUS[lead.status]} · Quelle {lead.quelle || "—"}{lead.kampagne ? ` · ${lead.kampagne}` : ""}</p></div>
+          {/* PROMPT 1/2: jede Person verlinkt in DIE Akte — keine abweichende Detail-Wahrheit */}
+          <a
+            href={lead.converted_order_id ? `/admin/kunde/${encodeURIComponent(lead.converted_order_id)}` : `/admin/kunde/lead-${lead.id}`}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-white text-[11.5px] font-bold"
+            style={{ background: ACCENT }}
+            title="Die zentrale Kundenakte: Stammdaten, Zahlungen, Mails, Agent, Verlauf, Dubletten"
+          >
+            Akte öffnen →
+          </a>
           <button onClick={onClose} className="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 flex items-center justify-center"><X size={15} /></button>
         </div>
 

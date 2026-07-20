@@ -215,12 +215,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 👤 FIAON Agent-Portal — Rollentrennung: Agent-Token auf /admin-Routen ⇒ 403 (serverseitig)
   const fiaonAgentRoutes = await import('./routes/fiaon-agent');
   app.use('/api/fiaon', fiaonAgentRoutes.blockAgentsFromAdmin);
+
+  // 🔒 Onboarding-Gate (Prompt 1): kein Kundendatenzugriff, solange Zustimmung
+  // + Vertragsunterzeichnung nicht abgeschlossen sind. Muss VOR allen Agent-
+  // Routern mit Kundendaten stehen (allowlistet Auth + Onboarding-Flow).
+  const fiaonOnboardingRoutes = await import('./routes/fiaon-onboarding');
+  app.use('/api/fiaon', fiaonOnboardingRoutes.customerDataGate);
+
   app.use('/api/fiaon', fiaonAgentRoutes.default);
 
   // ⚡ FIAON Agent-Portal Motivations-Update — Dashboard/Feed/Wunschgehalt/Updates/Feedback
   // (Pakete AG–AO; Admin-Pflegebereiche laufen ebenfalls hinter blockAgentsFromAdmin)
   const fiaonAgentPortalRoutes = await import('./routes/fiaon-agent-portal');
   app.use('/api/fiaon', fiaonAgentPortalRoutes.default);
+
+  // 📝 FIAON Onboarding & Verträge (Prompt 1+2) — Zustimmung, Vertragssignatur,
+  // Provisions-Abrechnungen, „Meine Dokumente" + Admin-Vorlagen/Nachweise
+  app.use('/api/fiaon', fiaonOnboardingRoutes.default);
 
   // 👥 FIAON Team-Admin — Agents/Provisionen/Auszahlungen/Skripte/Einstellungen (nur Admin)
   const fiaonTeamRoutes = await import('./routes/fiaon-team');

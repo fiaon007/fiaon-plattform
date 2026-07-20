@@ -75,6 +75,7 @@ export const ADMIN_NAV: NavGroup[] = [
     title: "Team",
     items: [
       { path: "/admin/team", label: "Team-Übersicht", desc: "Agents, Statistik, Provisionen, Zuweisungen", icon: Users },
+      { path: "/admin/vertraege", label: "Onboarding & Verträge", desc: "Zustimmungs-/Vertragsstatus, Vorlagen (Entwurf/Aktiv), Vertragsvariablen, Nachweise", icon: ScrollText },
       { path: "/admin/leistung", label: "Leistung", desc: "Arbeitsberichte: Ergebnisse pro Agent — offen, nicht heimlich", icon: BarChart3 },
       { path: "/admin/nachbuchung", label: "Provisionen nachbuchen", desc: "Bezahlte Bestellungen ohne Provision erkennen und buchen", icon: HandCoins, badgeKey: "nachbuchung" },
       { path: "/admin/team?einladen=1", label: "Agent anlegen", desc: "Neuen Mitarbeiter per E-Mail einladen", icon: UserPlus, match: "/admin/team" },

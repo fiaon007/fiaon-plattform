@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, createContext, useContext, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle } from "lucide-react";
+import OnboardingGate from "./onboarding";
 
 // ============================================================================
 // Agent-Portal — gemeinsame Shell + Design-System (Paket E)
@@ -124,7 +125,7 @@ const NAV: { href: string; label: string; icon: typeof Users; match: string[] }[
   { href: "/agent/leads", label: "Leads", icon: PhoneCall, match: ["/agent/leads"] },
   { href: "/agent/kalender", label: "Kalender", icon: Calendar, match: ["/agent/kalender"] },
   { href: "/agent/verdienst", label: "Verdienst", icon: Wallet, match: ["/agent/verdienst", "/agent/auszahlung", "/agent/partner-programm"] },
-  { href: "/agent/mehr", label: "Mehr", icon: MoreHorizontal, match: ["/agent/mehr", "/agent/skripte", "/agent/updates", "/agent/feedback", "/agent/profil", "/agent/leistung"] },
+  { href: "/agent/mehr", label: "Mehr", icon: MoreHorizontal, match: ["/agent/mehr", "/agent/skripte", "/agent/updates", "/agent/feedback", "/agent/profil", "/agent/leistung", "/agent/dokumente"] },
 ];
 
 /**
@@ -180,6 +181,9 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
   const [agent, setAgent] = useState<AgentInfo | null>(null);
   const [checked, setChecked] = useState(false);
   const [fbUnread, setFbUnread] = useState(0);
+  // Onboarding-Gate (Prompt 1): solange nicht abgeschlossen, sieht der Agent
+  // nur den Onboarding-Flow — keine Leads/Kunden/Kontaktdaten.
+  const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
   const [location, navigate] = useLocation();
 
   const load = () => {
@@ -189,6 +193,13 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
       .finally(() => setChecked(true));
   };
   useEffect(load, []);
+
+  useEffect(() => {
+    if (!agent) { setOnboardingComplete(null); return; }
+    api("/agent/onboarding")
+      .then((r) => setOnboardingComplete(r.ok ? !!r.json.status?.complete : true))
+      .catch(() => setOnboardingComplete(true));
+  }, [agent]);
 
   // Nav-Badge: Tickets mit ungelesener Betreiber-Antwort. Aktualisiert beim
   // Öffnen eines Threads (Event 'agent-feedback-read') und alle 60 s.
@@ -226,6 +237,25 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
     );
   }
   if (!agent) return <>{children}</>; // Login-Ansicht rendert die Seite selbst
+
+  // Onboarding-Status wird noch geladen → kurzer Ladezustand (kein Kurz-Aufblitzen
+  // von Kundendaten, bevor das Gate greift).
+  if (onboardingComplete === null) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="agent-core opacity-70" style={{ width: 64, height: 64 }} aria-hidden="true">
+          <div className="agent-core__inner">
+            <span className="agent-core__ring" /><span className="agent-core__ring" /><span className="agent-core__ring" />
+            <span className="agent-core__ring" /><span className="agent-core__ring" /><span className="agent-core__glow" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+  // Pflicht-Gate: kein Portal, bis Zustimmung + Vertrag erledigt sind.
+  if (!onboardingComplete) {
+    return <OnboardingGate onComplete={() => window.location.reload()} />;
+  }
 
   return (
     <AgentCtx.Provider value={{ agent, reload: load }}>

@@ -307,6 +307,34 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     recommendationOnly: true,
     example: { email: "max.mustermann@example.com", vorname: "Max", geloescht_am: "2026-07-19" },
   },
+  {
+    type: "contract_signed",
+    label: "Vertrag signiert (Mitarbeiter)",
+    description: "Feuert, wenn ein Agent den Handelsvertretervertrag digital signiert. Betreiber-TODO: Make-Zweig 'contract_signed' + Brevo-Template (Vertrags-PDF-Kopie an den Agenten).",
+    customerBound: false,
+    example: {
+      email: "anna.schmidt@example.com",
+      vorname: "Anna",
+      agent_name: "Anna Schmidt",
+      contract_version: 1,
+      signed_at_text: "Mi, 15.07.2026 um 12:30 Uhr",
+      doc_hash: "9f2c…",
+      download_url: "/api/fiaon/agent/documents/contract/1.pdf",
+    },
+  },
+  {
+    type: "commission_statement_issued",
+    label: "Provisions-Abrechnung erstellt (Mitarbeiter)",
+    description: "Feuert bei jeder bestätigten Auszahlung, sobald die Provisions-Abrechnung/Gutschrift (PDF) erzeugt wurde. Betreiber-TODO: Make-Zweig 'commission_statement_issued' + Brevo-Template.",
+    customerBound: false,
+    example: {
+      email: "anna.schmidt@example.com",
+      vorname: "Anna",
+      statement_no: "FIAON-COM-2026-0001",
+      betrag: "125.50",
+      doc_hash: "a1b2…",
+    },
+  },
 ];
 
 export function getEventDef(type: string): MakeEventDef | undefined {

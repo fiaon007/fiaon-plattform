@@ -39,7 +39,9 @@ export type MakeEventType =
   | "account_suspended"       // Konto gesperrt
   | "account_activated"       // Konto aktiviert
   | "profile_query"           // Profil-Rückfrage an den Kunden
-  | "gdpr_deleted";           // Löschbestätigung (DSGVO)
+  | "gdpr_deleted"            // Löschbestätigung (DSGVO)
+  | "contract_signed"         // Agent hat den Handelsvertretervertrag digital signiert (Prompt 2 D)
+  | "commission_statement_issued"; // Provisions-Abrechnung/Gutschrift erzeugt (Prompt 2 E)
 
 export interface MakeWebhookPayload {
   email: string;

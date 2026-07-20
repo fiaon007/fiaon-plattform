@@ -5,6 +5,34 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 20.07.2026 — Onboarding-Gate + digitaler Agentenvertrag & Provisions-Abrechnungen (Prompt 1/2 + 2/2)
+
+**Warum:** Kein Agent darf echte Kundendaten sehen, bevor er (1) Datenschutz-, Verhaltens- und Nutzungshinweise bestätigt und (2) seinen Handelsvertretervertrag digital unterschrieben hat. Zusätzlich entsteht bei jeder Auszahlung automatisch eine revisionssichere Provisions-Abrechnung. Alles versioniert, in Berlin-Zeit, mobil vollständig, CI-treu.
+
+**A — Zustimmungs-Gate (Schritt 1):** Beim ersten Login (und für alle Bestehenden beim nächsten Login) erscheint ein nicht wegklickbares, mehrstufiges Onboarding-Overlay (zentriert, mobil als Vollbild-Flow ab 380 px). Drei einzeln zu bestätigende Blöcke mit ausklappbarem Volltext: **Datenschutz & Vertraulichkeit**, **Seriosität/Verhalten & Compliance** (FIAON = Bildung/Software, keine Finanzberatung/Kreditvermittlung, keine Kreditversprechen am Telefon), **Nutzungsbedingungen**. Jede Zustimmung wird protokolliert (Agent-ID, Dokumentversion, Zeitstempel Berlin, IP). **Versioniert** — ändert sich ein Dokument (Version erhöhen), ist erneute Zustimmung nötig.
+
+**B — Vertrags-Gate (Schritt 2):** Direkt nach der Zustimmung liest der Agent seinen vollständig befüllten, englischen **Self-Employed Commercial Agent Agreement** (langform, nummerierte Klauseln, Selbstständigkeits-/Compliance-Anker, Ausgleichsanspruch-Klausel) und unterschreibt digital — **Unterschrift zeichnen** (Finger/Maus) oder getippter Name als Fallback, mit verbindlicher Schlussbestätigung. Erfasst und ins PDF eingebettet: Signaturbild/Name, Zeitstempel (Berlin), IP, Vertragsversion, Dokument-Hash (SHA-256). Erst wenn **beides** erledigt ist, wird der Account frei — vorher sieht der Agent nur den Onboarding-Flow (sauberer Sperr-Zustand mit Erklärung).
+
+**Server-Gate:** eine zentrale Middleware (`customerDataGate`) blockt alle `/agent/*`-Routen mit Kundendaten (Kunden, Leads, Dashboard, Feed, Kalender, Verdienst …) mit `403`, solange das Onboarding nicht abgeschlossen ist — Auth- und Onboarding-Endpoints bleiben erreichbar. Defense-in-depth zusätzlich zum UI-Gate.
+
+**Vertrag konfigurierbar (Admin):** versionierte Vorlagen mit Status **Entwurf/Aktiv** — Signieren nur bei „Aktiv" (Entwurf trägt „DRAFT"-Wasserzeichen in der Vorschau). Pro Agent setzbare Vertragsvariablen (Privatperson/Unternehmen — steuert Textblöcke und Pflichtfelder; Firma/Rechtsform/Register-Nr./USt-ID/Vertretungsberechtigter, Anschrift, Geburts-/Gründungsdatum, Steuer-/USt-ID, Provisionssatz, Auszahlungsmodus, Kündigungsfrist, Governing law & Jurisdiction) mit **Live-Vorschau** des fertigen Vertrags.
+
+**E — Provisions-Abrechnung:** Bei jeder bestätigten Auszahlung (`/admin/payouts/:id/mark-paid`) entsteht automatisch ein **Commission Statement / Gutschrift**-PDF mit fortlaufender Nummer (FIAON-COM-JJJJ-####), FIAON-LTD- und Agent-Block, Positionstabelle (Datum · Referenz · Verkaufsbetrag · Satz · Provision), **Clawbacks als Minusposition mit Grund**, USt-Behandlung je Partner-Typ (Reverse-Charge-Hinweis bei Unternehmen mit USt-ID; anpassbarer Textbaustein — steuerlich vom Betreiber final zu bestätigen), Netto-Auszahlungsbetrag, Zahlungsweg und Dokument-Hash. **Zieht ausschließlich die Werte der bestehenden Commission-Engine + des Auszahlungssatzes** — kein Parallel-Rechenweg.
+
+**PDFs:** serverseitig via **Playwright/Chromium** im FIAON-CI (Wortmarke, saubere Typografie, Fußzeile „FIAON LTD · Company No. 17318250 · 128 City Road, London, EC1V 2NX"). Alles versioniert abgelegt, nichts hart gelöscht.
+
+**F — „Meine Dokumente" (Agent) + Admin-Spiegel:** neue Agent-Seite `/agent/dokumente` (Vertrag inkl. früherer Versionen + Provisions-Abrechnungen chronologisch, als PDF). Admin unter **Team → Onboarding & Verträge** (`/admin/vertraege`): Onboarding-Status pro Agent (Zustimmung ✅/offen, Vertrag ✅/offen, Datum, Version), Vorlagen-Verwaltung, Vertragsvariablen + Vorschau und Download von **Zustimmungsprotokoll**, **signiertem Vertrag** und **Provisions-Abrechnungen** als PDF (Nachweis für LEXR/Prüfung).
+
+**Events:** neue Make-Events `contract_signed` und `commission_statement_issued` (Registry + Betreiber-TODO für Make-Zweig/Brevo-Template).
+
+**G — Word-Vorlage:** `docs/vertraege/commercial_agent_agreement_EN.docx` mit denselben `[[Platzhaltern]]` im Repo, damit der Betreiber sie außerhalb des Systems bearbeiten kann.
+
+**Regeln eingehalten:** keine Änderung an Provisions-/Lead-Geschäftslogik; Berlin-Zeit; mobil vollständig; keine Heredocs; Changelog im selben Commit. **Rechtlicher Hinweis:** Ausgleichsanspruch-Klausel (Directive 86/653 / §89b / UK Regs) und die USt-Textbausteine sind vom Betreiber mit einem Berater/Steuerberater final zu prüfen.
+
+**Wo:** neu `server/lib/fiaon-html-pdf.ts`, `server/routes/fiaon-onboarding.ts`, `server/routes/fiaon-onboarding-content.ts`; `server/routes.ts` (+Gate/Router), `server/routes/fiaon-team.ts` (Abrechnung bei mark-paid), `server/make-webhook.ts` + `server/make-events-registry.ts` (2 Events); Client neu `client/src/pages/agent/onboarding.tsx`, `client/src/pages/agent/dokumente.tsx`, `client/src/pages/admin-vertraege.tsx`; `client/src/pages/agent/shared.tsx` (Gate in `AgentShell` + Nav), `client/src/pages/agent/mehr.tsx`, `client/src/App.tsx`, `client/src/components/admin/AdminShell.tsx`; `docs/vertraege/commercial_agent_agreement_EN.docx`.
+
+---
+
 ## 20.07.2026 — Agent-UX: sichtbarer Bestätigungsdialog + Funktions-/Schulungsseite (Prompt 2/2)
 
 **A — Doppel-Tap durch echtes Bestätigungs-Popup ersetzt:** Der frühere „Zwei-Schritt"-Klick (Paket DD — erst markieren, dann denselben Button erneut tippen) war auf dem Handy unsichtbar/unverständlich. Er ist jetzt überall durch **einen modalen Bestätigungsdialog** ersetzt (zentriert am Desktop, Bottom-Sheet am Handy): ein Tap → Popup mit Titel, Name und — bei Aktionen mit Folgen — Klartext-Hinweis (z. B. „Der Kunde erhält eine E-Mail zur Nummern-Korrektur."), dann Abbrechen/Bestätigen. **Eine** wiederverwendbare Komponente (`ConfirmDialog` in `client/src/pages/agent/shared.tsx`): Fokus-Falle (Tab bleibt im Dialog), ESC/Backdrop schließt, Touch-Ziele ≥ 44 px, im bestehenden CI. Ausgerollt auf: **Kontakt-Ergebnisse** (Kunde + Lead), **Reaktivieren**, **Akte schließen ohne Ergebnis** (Pflicht-Begründung im Dialog statt `window.prompt`), **Verlaufseintrag als irrtümlich markieren**. Der **Rückruf-Termin** ist direkt im Dialog eingebettet (Datum/Zeit, Hinweis „deutsche Zeit" bleibt). Der Schutz vor Versehen bleibt also erhalten — er wird nur sichtbar.

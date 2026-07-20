@@ -1007,6 +1007,10 @@ router.post("/admin/payouts/:id/mark-paid", async (req, res) => {
     await sqlPool`UPDATE fiaon_commissions SET status = 'ausgezahlt', updated_at = NOW() WHERE payout_id = ${id} AND status = 'in_auszahlung'`;
     const agent = await sqlPool`SELECT email, first_name, name FROM fiaon_agents WHERE id = ${rows[0].agent_id}`;
     await logAgentEvent(rows[0].agent_id, "payout_paid", { payout_id: id, amount_cents: rows[0].amount_cents });
+    // Prompt 2 E: automatische Provisions-Abrechnung (Gutschrift-PDF) — zieht
+    // ausschließlich die Werte der Commission-Engine + dieses Auszahlungssatzes.
+    const { generateCommissionStatement } = await import("./fiaon-onboarding");
+    generateCommissionStatement(id).catch((e) => console.error("[FIAON-TEAM] statement gen:", e));
     sendMakeWebhook("agent_payout_done", {
       email: agent[0].email,
       vorname: agent[0].first_name || agent[0].name,

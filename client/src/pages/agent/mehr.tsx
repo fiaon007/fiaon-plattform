@@ -13,6 +13,7 @@ const AREAS: { href: string; label: string; desc: string; icon: typeof FileText;
   { href: "/agent/skripte", label: "Skripte", desc: "Gesprächsvorlagen und Leitfäden für deine Telefonate", icon: FileText },
   { href: "/agent/updates", label: "Updates", desc: "Neuerungen an deinem Agent-Portal", icon: Sparkles, badgeKey: "updates" },
   { href: "/agent/feedback", label: "Feedback", desc: "Verbesserungen vorschlagen — Umsetzung wird belohnt", icon: MessageSquarePlus },
+  { href: "/agent/dokumente", label: "Meine Dokumente", desc: "Vertrag und Provisions-Abrechnungen als PDF", icon: FileText },
   { href: "/agent/profil", label: "Profil", desc: "Konto, Passwort und Auszahlungsdaten", icon: User },
   { href: "/agent/auszahlung", label: "Auszahlung", desc: "Guthaben prüfen und Auszahlung beantragen", icon: Wallet },
   { href: "/agent/partner-programm", label: "Partner-Programm", desc: "Meilensteine, Prämien und Team-Beteiligung", icon: Award },

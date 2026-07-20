@@ -71,6 +71,8 @@ import AdminInvestorenPage from "@/pages/admin-investoren";
 import AdminBuchhaltungPage from "@/pages/admin-buchhaltung";
 import AgentLeistungPage from "@/pages/agent/leistung";
 import AgentLeadsPage from "@/pages/agent/leads";
+import AgentDokumentePage from "@/pages/agent/dokumente";
+import AdminVertraegePage from "@/pages/admin-vertraege";
 
 // Paket N1: JEDE /admin-Seite läuft in der AdminShell (Sidebar, Breadcrumb,
 // Zurück, Cmd+K). Serverseitige Guards bleiben unberührt.
@@ -127,8 +129,10 @@ function Router() {
       <Route path="/agent/updates" component={AgentUpdatesPage} />
       <Route path="/agent/feedback" component={AgentFeedbackPage} />
       <Route path="/agent/mehr" component={AgentMehrPage} />
+      <Route path="/agent/dokumente" component={AgentDokumentePage} />
       <Route path="/admin/agent-portal" component={admin(AdminAgentPortalPage)} />
       <Route path="/admin/team" component={admin(AdminTeamPage)} />
+      <Route path="/admin/vertraege" component={admin(AdminVertraegePage)} />
       <Route path="/admin/nachbuchung" component={admin(AdminNachbuchungPage)} />
       <Route path="/admin/leistung" component={admin(AdminLeistungPage)} />
       <Route path="/admin/changelog" component={admin(AdminChangelogPage)} />

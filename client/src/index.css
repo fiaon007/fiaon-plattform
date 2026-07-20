@@ -611,6 +611,20 @@ html {
 }
 .agent-banner-in { animation: agentBannerIn var(--agent-slow, 420ms) var(--agent-ease, ease-out) both; }
 
+/* — Update-Banner: dezenter, wandernder Glanz (sehr subtil, im CI) — */
+.agent-banner-shine { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.agent-banner-shine::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -45%; width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(37,99,235,.12), transparent);
+  animation: agentBannerShine 5s var(--agent-ease, ease-out) infinite;
+}
+@keyframes agentBannerShine { 0% { transform: translateX(0); } 55%, 100% { transform: translateX(340%); } }
+
+/* — Aufklapp-Panel: weiche Höhen-Animation (grid-template-rows 0fr→1fr) — */
+.agent-expand { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--agent-slow, 420ms) var(--agent-ease, ease-out); }
+.agent-expand.open { grid-template-rows: 1fr; }
+.agent-expand > div { overflow: hidden; }
+
 /* — Erfolgs-Moment (AH1): kurzer, edler Glanz ≤2s, kein Konfetti — */
 @keyframes agentGlow {
   0%   { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
@@ -677,4 +691,6 @@ html {
   .agent-skeleton::after { animation: none !important; }
   .agent-core__glow { opacity: .6; }
   .agent-ring-arc { transition: none !important; }
+  .agent-banner-shine::after { animation: none !important; display: none; }
+  .agent-expand { transition: none !important; }
 }

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, createContext, useContext, type ReactNode 
 import { Link, useLocation } from "wouter";
 import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle } from "lucide-react";
 import OnboardingGate from "./onboarding";
+import { AGENT_UPDATES, getUnseenCount, fmtUpdateDate } from "./updates-data";
 
 // ============================================================================
 // Agent-Portal — gemeinsame Shell + Design-System (Paket E)
@@ -134,31 +135,33 @@ const NAV: { href: string; label: string; icon: typeof Users; match: string[] }[
  * als gelesen und feuert 'agent-updates-read', der Banner verschwindet sofort).
  */
 function UpdateBanner() {
-  const [state, setState] = useState<{ unread: number; latest: string | null } | null>(null);
+  const [unseen, setUnseen] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [location] = useLocation();
 
   useEffect(() => {
-    api("/agent/updates/state").then((r) => {
-      if (r.ok) setState({ unread: r.json.unread, latest: r.json.latest });
-    });
-    const onRead = () => setState((s) => (s ? { ...s, unread: 0 } : s));
-    window.addEventListener("agent-updates-read", onRead);
-    return () => window.removeEventListener("agent-updates-read", onRead);
+    setUnseen(getUnseenCount());
+    const onSeen = () => setUnseen(0);
+    window.addEventListener("agent-updates-seen", onSeen);
+    return () => window.removeEventListener("agent-updates-seen", onSeen);
   }, []);
 
-  if (dismissed || !state || state.unread === 0 || location === "/agent/updates") return null;
+  if (dismissed || unseen === 0 || location === "/agent/updates") return null;
 
-  const dateStr = state.latest
-    ? new Date(state.latest).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })
-    : "";
+  const latest = AGENT_UPDATES[0];
+  const dateStr = latest ? fmtUpdateDate(latest.date) : "";
 
   return (
-    <div className="agent-banner-in border-b border-slate-200/80" style={{ background: "rgba(37,99,235,.06)" }}>
-      <div className="max-w-6xl mx-auto px-4 py-2.5 flex items-center gap-3">
-        <Sparkles size={15} strokeWidth={1.8} className="shrink-0" style={{ color: ACCENT }} />
+    <div className="agent-banner-in relative border-b border-slate-200/80 overflow-hidden" style={{ background: "rgba(37,99,235,.06)" }}>
+      <span className="agent-banner-shine" aria-hidden="true" />
+      <div className="relative max-w-6xl mx-auto px-4 py-2.5 flex items-center gap-3">
+        <span className="relative shrink-0 flex items-center justify-center">
+          <span className="absolute inline-flex h-4 w-4 rounded-full opacity-40 animate-ping" style={{ background: ACCENT }} />
+          <Sparkles size={15} strokeWidth={1.8} className="relative" style={{ color: ACCENT }} />
+        </span>
         <Link href="/agent/updates" className="min-w-0 flex-1 text-[12.5px] font-medium text-slate-700 hover:text-slate-900 transition-colors truncate">
-          Neue Updates{dateStr ? ` vom ${dateStr}` : ""} für dein Agent-Portal — <span className="font-semibold" style={{ color: ACCENT }}>jetzt ansehen</span>
+          <span className="font-semibold text-slate-900">{unseen} {unseen === 1 ? "neue Neuerung" : "neue Neuerungen"}</span>
+          {dateStr ? ` (${dateStr})` : ""} — <span className="font-semibold" style={{ color: ACCENT }}>ansehen & lernen, wie du es bedienst</span>
         </Link>
         <button
           type="button"

@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { FileText, Sparkles, MessageSquarePlus, User, Wallet, Award, ChevronRight, LogOut, BarChart3 } from "lucide-react";
-import { AgentShell, api, useAgentInfo, Avatar, ACCENT } from "./shared";
+import { AgentShell, useAgentInfo, Avatar, ACCENT } from "./shared";
 import { Reveal } from "./motion";
+import { getUnseenCount } from "./updates-data";
 
 // ============================================================================
 // /agent/mehr (Paket AO) — alle weiteren Bereiche an einem ruhigen Ort:
@@ -35,7 +36,10 @@ function MehrContent() {
   const [unreadUpdates, setUnreadUpdates] = useState(0);
 
   useEffect(() => {
-    api("/agent/updates/state").then((r) => { if (r.ok) setUnreadUpdates(r.json.unread); });
+    setUnreadUpdates(getUnseenCount());
+    const onSeen = () => setUnreadUpdates(0);
+    window.addEventListener("agent-updates-seen", onSeen);
+    return () => window.removeEventListener("agent-updates-seen", onSeen);
   }, []);
 
   const logout = async (e: React.MouseEvent) => {

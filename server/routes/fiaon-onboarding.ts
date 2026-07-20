@@ -24,11 +24,11 @@
 
 import { Router, type Request, type Response, type NextFunction } from "express";
 import postgres from "postgres";
-import { requireAgent, logAgentEvent, type AgentRequest } from "./fiaon-agent";
+import { requireAgent, logAgentEvent, getSettings, type AgentRequest } from "./fiaon-agent";
 import { sendMakeWebhook } from "../make-webhook";
 import { formatBerlin } from "../lib/fiaon-time";
 import { renderDocumentPdf, wrapFiaonDocument, docHash, escapeHtml } from "../lib/fiaon-html-pdf";
-import { DEFAULT_CONTRACT_HTML, ONBOARDING_DOCS, type OnboardingDoc } from "./fiaon-onboarding-content";
+import { DEFAULT_CONTRACT_HTML, DEFAULT_CONTRACT_VERSION, ONBOARDING_DOCS, type OnboardingDoc } from "./fiaon-onboarding-content";
 
 const router = Router();
 const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 5 });
@@ -151,14 +151,19 @@ export async function ensureOnboardingTables(): Promise<void> {
       ADD COLUMN IF NOT EXISTS activity_description TEXT
   `);
 
-  // Standardvorlage v1 (aktiv) beim ersten Start seeden
-  const existing = await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_contract_templates`;
-  if (existing[0].n === 0) {
+  // Standardvorlage seeden bzw. auf die aktuelle Default-Version anheben.
+  // Solange keine Vorlage mit Version >= DEFAULT_CONTRACT_VERSION existiert,
+  // wird die neue Fassung als aktiv angelegt und die bisherige aktive
+  // archiviert. Admin-eigene, höhere Versionen bleiben unberührt. Das erneute
+  // Aktivieren erzwingt über computeOnboardingStatus die Neu-Unterschrift.
+  const maxV = await sqlPool`SELECT COALESCE(MAX(version), 0)::int AS v FROM fiaon_contract_templates`;
+  if (maxV[0].v < DEFAULT_CONTRACT_VERSION) {
+    await sqlPool`UPDATE fiaon_contract_templates SET status = 'archived' WHERE status = 'active'`;
     await sqlPool`
       INSERT INTO fiaon_contract_templates (version, title, body_html, status, activated_at)
-      VALUES (1, ${"Self-Employed Commercial Agent Agreement"}, ${DEFAULT_CONTRACT_HTML}, 'active', NOW())
+      VALUES (${DEFAULT_CONTRACT_VERSION}, ${"Self-Employed Commercial Agent Agreement"}, ${DEFAULT_CONTRACT_HTML}, 'active', NOW())
     `;
-    console.log("[FIAON-ONBOARDING] Standard-Vertragsvorlage v1 (aktiv) angelegt");
+    console.log(`[FIAON-ONBOARDING] Standard-Vertragsvorlage v${DEFAULT_CONTRACT_VERSION} (aktiv) angelegt — bestehende Agenten müssen erneut unterschreiben`);
   }
   ensured = true;
   console.log("[FIAON-ONBOARDING] Onboarding-/Vertrags-Tabellen sichergestellt");
@@ -178,6 +183,8 @@ interface ContractVars {
   GOVERNING_LAW: string;
   JURISDICTION: string;
   ACTIVITY: string;
+  MIN_PAYOUT_THRESHOLD: string;
+  MAX_RETAINED_BALANCE: string;
 }
 
 function fmtDateEN(v: string | Date | null | undefined, fallbackToday = false): string {
@@ -186,7 +193,25 @@ function fmtDateEN(v: string | Date | null | undefined, fallbackToday = false): 
   return new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", day: "numeric", month: "long", year: "numeric" }).format(d);
 }
 
-export function resolveContractVars(a: any): { vars: ContractVars; missing: string[] } {
+/** Auszahlungs-Schwellen in EUR für die Vertrags-Platzhalter (z. B. „€50.00“). */
+function fmtEurThreshold(cents: number): string {
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "EUR" }).format(cents / 100);
+}
+
+/**
+ * Löst die Vertragsvariablen eines Agenten auf. Die Auszahlungs-Schwellen
+ * (Minimum Payout Threshold / Maximum Retained Balance) kommen aus den globalen
+ * Einstellungen — dieselben Werte, die auch die Selbst-Auszahlung und der
+ * Admin-Hinweis nutzen (eine Wahrheit; Vertrag = System). `settingsArg`
+ * optional, sonst werden die Einstellungen geladen.
+ */
+export async function resolveContractVars(
+  a: any,
+  settingsArg?: Record<string, string>,
+): Promise<{ vars: ContractVars; missing: string[] }> {
+  const settings = settingsArg || (await getSettings());
+  const minCents = Number(settings.payout_min_cents);
+  const maxCents = Number(settings.payout_max_retained_cents);
   const isCompany = String(a.partner_type || "private") === "company";
   const missing: string[] = [];
 
@@ -225,6 +250,8 @@ export function resolveContractVars(a: any): { vars: ContractVars; missing: stri
     GOVERNING_LAW: a.governing_law || "the laws of England and Wales",
     JURISDICTION: a.jurisdiction || "London, England",
     ACTIVITY: a.activity_description || "promotion and solicitation of orders for the FIAON Products",
+    MIN_PAYOUT_THRESHOLD: Number.isFinite(minCents) ? fmtEurThreshold(minCents) : "EUR 50.00",
+    MAX_RETAINED_BALANCE: Number.isFinite(maxCents) ? fmtEurThreshold(maxCents) : "EUR 1,000.00",
   };
   return { vars, missing };
 }
@@ -404,7 +431,7 @@ router.get("/agent/onboarding", requireAgent, async (req: AgentRequest, res) => 
     let contractMissing: string[] = [];
     if (active) {
       const agentRows = await sqlPool`SELECT * FROM fiaon_agents WHERE id = ${req.agent!.id}`;
-      const { vars, missing } = resolveContractVars(agentRows[0]);
+      const { vars, missing } = await resolveContractVars(agentRows[0]);
       contractMissing = missing;
       contractHtml = renderContractBody(
         active.body_html,
@@ -475,7 +502,7 @@ router.post("/agent/onboarding/sign", requireAgent, async (req: AgentRequest, re
 
     const agentRows = await sqlPool`SELECT * FROM fiaon_agents WHERE id = ${req.agent!.id}`;
     const agent = agentRows[0];
-    const { vars } = resolveContractVars(agent);
+    const { vars } = await resolveContractVars(agent);
 
     const ip = clientIp(req);
     const ua = String(req.headers["user-agent"] || "").slice(0, 500);
@@ -608,7 +635,7 @@ export async function generateCommissionStatement(payoutId: number): Promise<{ o
 
   const agentRows = await sqlPool`SELECT * FROM fiaon_agents WHERE id = ${payout.agent_id}`;
   const agent = agentRows[0];
-  const { vars } = resolveContractVars(agent);
+  const { vars } = await resolveContractVars(agent);
 
   // Positionen — genau die Commission-Einträge dieser Auszahlung (eine Wahrheit).
   const entries = await sqlPool`
@@ -869,7 +896,7 @@ router.get("/admin/agents/:id/contract-preview", async (req, res) => {
     const agentRows = await sqlPool`SELECT * FROM fiaon_agents WHERE id = ${id}`;
     if (agentRows.length === 0) return res.status(404).json({ ok: false, error: "Agent nicht gefunden" });
     const agent = agentRows[0];
-    const { vars, missing } = resolveContractVars(agent);
+    const { vars, missing } = await resolveContractVars(agent);
     // optional: bestimmte Vorlage; sonst aktive (oder neuester Entwurf zur Vorschau)
     let tpl: any = null;
     if (req.query.templateId) {
@@ -895,6 +922,9 @@ router.get("/admin/agents/:id/contract-preview", async (req, res) => {
       payoutTerms: agent.payout_terms, noticePeriod: agent.notice_period,
       governingLaw: agent.governing_law, jurisdiction: agent.jurisdiction, activityDescription: agent.activity_description,
       commissionRateBp: agent.commission_rate_bp,
+      // Auszahlungs-Schwellen (global, nur Anzeige — im Team-Bereich pflegbar)
+      minPayoutThreshold: vars.MIN_PAYOUT_THRESHOLD,
+      maxRetainedBalance: vars.MAX_RETAINED_BALANCE,
     };
     res.json({ ok: true, html, missing, variables, templateStatus: tpl ? tpl.status : null, templateVersion: tpl ? tpl.version : null });
   } catch (err) {

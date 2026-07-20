@@ -68,6 +68,14 @@ export const ONBOARDING_DOCS: OnboardingDoc[] = [
 ];
 
 // ── Standard-Vertragsvorlage (EN) — deckt Prompt 2 B ab ──────────────────────
+// WICHTIG: Bei JEDER inhaltlichen Änderung an DEFAULT_CONTRACT_HTML MUSS
+// DEFAULT_CONTRACT_VERSION erhöht werden. ensureOnboardingTables() seedet die
+// neue Version als aktiv (archiviert die alte) → bestehende Agenten müssen die
+// neue Fassung erneut unterschreiben (Onboarding-Gate greift automatisch).
+// v2 (2026-07-20): Clause 6.7 „Payment of accrued Commission“ ergänzt
+//                  ([[MIN_PAYOUT_THRESHOLD]] / [[MAX_RETAINED_BALANCE]]).
+export const DEFAULT_CONTRACT_VERSION = 2;
+
 export const DEFAULT_CONTRACT_HTML = `
 <p class="muted">FIAON LTD · Company No. 17318250 · London, United Kingdom</p>
 <p><strong>(Independent Sales Agency — Non-Employment)</strong></p>
@@ -123,6 +131,7 @@ export const DEFAULT_CONTRACT_HTML = `
 <p class="clause">6.4 Commission becomes due when, and to the extent that, the Customer has paid the Principal in full for the relevant Product.</p>
 <p class="clause">6.5 Where a Customer subsequently obtains a refund, reverses a payment, or a chargeback occurs, any Commission paid or accrued in respect of that sale shall be reversed (&ldquo;clawback&rdquo;). The Principal may deduct clawback amounts from future Commission or, where no sufficient future Commission exists, the Agent shall repay the amount within fourteen (14) days of demand.</p>
 <p class="clause">6.6 Commission is paid [[PAYOUT_TERMS]]. Each payment is accompanied by a commission statement issued in accordance with Clause 7.</p>
+<p class="clause">6.7 Payment of accrued Commission. Accrued Commission is credited to the Agent&rsquo;s commission balance held by the Principal. The Agent may request payment of the accrued balance at any time once it reaches <strong>[[MIN_PAYOUT_THRESHOLD]]</strong> (the &ldquo;Minimum Payout Threshold&rdquo;); such self-initiated payouts are processed by the Principal within a reasonable time. The Principal may from time to time set and adjust, acting reasonably, a maximum accrued balance (the &ldquo;Maximum Retained Balance&rdquo;, <strong>[[MAX_RETAINED_BALANCE]]</strong>); where the Agent&rsquo;s accrued balance exceeds the Maximum Retained Balance, the Principal shall pay out the excess to the Agent of its own motion, without requiring a request from the Agent. The Principal may also make payment of any accrued Commission to the Agent at its discretion at any time. Nothing in this clause entitles the Principal to withhold Commission that is due and payable to the Agent; the Minimum Payout Threshold and Maximum Retained Balance are administrative arrangements for the timing of payments only and do not affect the Agent&rsquo;s entitlement to Commission earned. The Principal may amend the Minimum Payout Threshold and the Maximum Retained Balance by reasonable notice to the Agent.</p>
 
 <h2>7. Payment, Commission Statements and Taxes</h2>
 <p class="clause">7.1 The Principal shall issue to the Agent a written commission statement for each payment period, setting out the Qualifying Sales, the applicable rate, the Commission due, any clawbacks or adjustments, the net amount payable, and the date and method of payment. Where the Agent is a business with a valid VAT identification number, the Parties may agree that such statements are issued under a self-billing arrangement.</p>

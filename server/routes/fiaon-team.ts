@@ -262,7 +262,10 @@ router.get("/admin/team/stats", async (_req, res) => {
     const aMap = byId(assigned), cMap = byId(contacts), kMap = byId(commissions);
     res.json({
       ok: true,
-      defaults: { commissionRateBp: Number(settings.default_commission_rate_bp) },
+      defaults: {
+        commissionRateBp: Number(settings.default_commission_rate_bp),
+        payoutMaxRetainedCents: Number(settings.payout_max_retained_cents),
+      },
       data: agents.map((ag: any) => {
         const c = cMap[ag.id] || {}, k = kMap[ag.id] || {};
         const results = Number(c.results || 0), reached = Number(c.reached || 0);
@@ -782,6 +785,7 @@ router.get("/admin/settings", async (_req, res) => {
       settings: {
         defaultCommissionRateBp: Number(settings.default_commission_rate_bp),
         payoutMinCents: Number(settings.payout_min_cents),
+        payoutMaxRetainedCents: Number(settings.payout_max_retained_cents),
         scriptStatusMap: JSON.parse(settings.script_status_map || "{}"),
         // Paket V2: tägliche Reminder-Engine
         maxReminders: Number(settings.max_reminders),
@@ -806,7 +810,7 @@ router.get("/admin/settings", async (_req, res) => {
 router.post("/admin/settings", async (req, res) => {
   try {
     await ensureAgentTables();
-    const { defaultCommissionRateBp, payoutMinCents, scriptStatusMap,
+    const { defaultCommissionRateBp, payoutMinCents, payoutMaxRetainedCents, scriptStatusMap,
             maxReminders, reminderWindowStart, reminderWindowEnd, reminderEngineEnabled } = req.body || {};
     if (defaultCommissionRateBp != null) {
       const v = Math.round(Number(defaultCommissionRateBp));
@@ -817,6 +821,15 @@ router.post("/admin/settings", async (req, res) => {
       const v = Math.round(Number(payoutMinCents));
       if (isNaN(v) || v < 0) return res.status(400).json({ ok: false, error: "Mindestbetrag ungültig" });
       await setSetting("payout_min_cents", String(v));
+    }
+    // Obergrenze Guthaben (Maximum Retained Balance) — reine Timing-Regel: darüber
+    // zahlt FIAON den Überschuss aus, kein Anspruchseinbehalt. Muss ≥ Mindestbetrag sein.
+    if (payoutMaxRetainedCents != null) {
+      const v = Math.round(Number(payoutMaxRetainedCents));
+      if (isNaN(v) || v <= 0) return res.status(400).json({ ok: false, error: "Obergrenze ungültig" });
+      const curMin = Number((await getSettings()).payout_min_cents);
+      if (Number.isFinite(curMin) && v < curMin) return res.status(400).json({ ok: false, error: "Obergrenze darf nicht unter dem Mindestbetrag liegen" });
+      await setSetting("payout_max_retained_cents", String(v));
     }
     if (scriptStatusMap != null && typeof scriptStatusMap === "object") {
       await setSetting("script_status_map", JSON.stringify(scriptStatusMap));

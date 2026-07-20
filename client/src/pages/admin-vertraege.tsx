@@ -242,6 +242,7 @@ interface AgentVars {
   companyName: string; legalForm: string; registerNo: string; authorisedRep: string;
   contractStartDate: string; payoutTerms: string; noticePeriod: string; governingLaw: string; jurisdiction: string;
   activityDescription: string; commissionRateBp: number | null;
+  minPayoutThreshold?: string; maxRetainedBalance?: string;
 }
 
 function AgentDetail({ id, onClose, flash }: { id: number; onClose: () => void; flash: (m: string) => void }) {
@@ -267,6 +268,7 @@ function AgentDetail({ id, onClose, flash }: { id: number; onClose: () => void; 
           payoutTerms: v.payoutTerms || "", noticePeriod: v.noticePeriod || "", governingLaw: v.governingLaw || "",
           jurisdiction: v.jurisdiction || "", activityDescription: v.activityDescription || "",
           commissionRateBp: v.commissionRateBp ?? null,
+          minPayoutThreshold: v.minPayoutThreshold || "", maxRetainedBalance: v.maxRetainedBalance || "",
         });
       }
     });
@@ -360,6 +362,7 @@ function AgentDetail({ id, onClose, flash }: { id: number; onClose: () => void; 
                 <textarea value={vars.activityDescription} onChange={(e) => set("activityDescription", e.target.value)} rows={2} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[13px]" />
               </div>
               <p className="text-[11px] text-slate-400 mt-2">Provisionssatz: {vars.commissionRateBp != null ? `${(vars.commissionRateBp / 100).toLocaleString("de-DE")} %` : "Standard"} (im Team-Bereich pflegbar). Governing law/Jurisdiction haben rechtliche Konsequenzen — Voreinstellung England &amp; Wales / London.</p>
+              <p className="text-[11px] text-slate-400 mt-1">Auszahlungs-Schwellen (Clause 6.7): Mindestbetrag <span className="font-semibold text-slate-600">{vars.minPayoutThreshold || "—"}</span> (Selbst-Auszahlung), Obergrenze <span className="font-semibold text-slate-600">{vars.maxRetainedBalance || "—"}</span> (Überschuss wird ausgezahlt). Global im Team-Bereich → Einstellungen pflegbar; nur Timing, kein Einbehalt.</p>
               {missing.length > 0 && <p className="text-[12px] text-amber-700 mt-2">Fehlende Pflichtangaben: {missing.join(", ")}</p>}
               <div className="mt-4 flex gap-2">
                 <button onClick={save} className="px-4 py-2 rounded-lg text-white text-[13px] font-semibold" style={{ background: ACCENT }}>Speichern</button>

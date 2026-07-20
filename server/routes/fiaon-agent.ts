@@ -301,7 +301,8 @@ export async function ensureAgentTables(): Promise<void> {
 // ── Einstellungen mit Defaults ───────────────────────────────────────────────
 const SETTING_DEFAULTS: Record<string, string> = {
   default_commission_rate_bp: "1500", // 15,00 %
-  payout_min_cents: "5000",           // 50,00 €
+  payout_min_cents: "5000",           // 50,00 € — Mindestbetrag Selbst-Auszahlung (Vertrag: Minimum Payout Threshold)
+  payout_max_retained_cents: "100000",// 1.000,00 € — Obergrenze Guthaben; darüber zahlt FIAON den Überschuss aus (Vertrag: Maximum Retained Balance)
   script_status_map: "{}",            // z. B. {"pending_payment":"Eröffnung","claimed_paid":"Abschluss"}
   // Paket V: tägliche Reminder-Engine (payment_reminder)
   max_reminders: "6",                 // Obergrenze automatischer Erinnerungen pro Bestellung

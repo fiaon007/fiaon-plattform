@@ -136,7 +136,7 @@ async function api(path: string, init?: RequestInit): Promise<any> {
 
 export default function AdminTeamPage() {
   const [stats, setStats] = useState<AgentStat[]>([]);
-  const [defaults, setDefaults] = useState<{ commissionRateBp: number }>({ commissionRateBp: 1500 });
+  const [defaults, setDefaults] = useState<{ commissionRateBp: number; payoutMaxRetainedCents?: number }>({ commissionRateBp: 1500 });
   const [message, setMessage] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
   const [bankFocus, setBankFocus] = useState(false);
@@ -259,6 +259,11 @@ export default function AdminTeamPage() {
                     <td className="px-4 py-3 text-[13px] font-semibold tabular-nums whitespace-nowrap">{fmtCents(a.revenue_cents)}</td>
                     <td className="px-4 py-3 text-[12px] text-slate-600 tabular-nums whitespace-nowrap">
                       {fmtCents(a.confirmed_cents)} / {fmtCents(a.in_payout_cents)} / {fmtCents(a.paid_out_cents)}
+                      {defaults.payoutMaxRetainedCents != null && a.confirmed_cents > defaults.payoutMaxRetainedCents && (
+                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-[10px] font-semibold text-amber-700" title="Guthaben über der Obergrenze — FIAON zahlt den Überschuss aus (Vertrag: Maximum Retained Balance).">
+                          Auszahlung fällig — Überschuss {fmtCents(a.confirmed_cents - defaults.payoutMaxRetainedCents)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-[12px] text-slate-400 whitespace-nowrap">{fmtDT(a.last_login_at)}</td>
                     <td className="px-4 py-3 text-right">
@@ -908,7 +913,7 @@ function MilestoneTasksCard({ flash }: { flash: (m: string) => void }) {
 // ═══════════════ G1: Einstellungen ═══════════════
 
 function SettingsCard({ flash, onSaved }: { flash: (m: string) => void; onSaved: () => void }) {
-  const [form, setForm] = useState({ rate: "", min: "" });
+  const [form, setForm] = useState({ rate: "", min: "", maxRetained: "" });
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
   const [categories, setCategories] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -919,6 +924,7 @@ function SettingsCard({ flash, onSaved }: { flash: (m: string) => void; onSaved:
         setForm({
           rate: String(s.json.settings.defaultCommissionRateBp / 100).replace(".", ","),
           min: String(s.json.settings.payoutMinCents / 100).replace(".", ","),
+          maxRetained: String(s.json.settings.payoutMaxRetainedCents / 100).replace(".", ","),
         });
         setStatusMap(s.json.settings.scriptStatusMap || {});
       }
@@ -935,6 +941,7 @@ function SettingsCard({ flash, onSaved }: { flash: (m: string) => void; onSaved:
       body: JSON.stringify({
         defaultCommissionRateBp: Math.round(Number(form.rate.replace(",", ".")) * 100),
         payoutMinCents: Math.round(Number(form.min.replace(",", ".")) * 100),
+        payoutMaxRetainedCents: Math.round(Number(form.maxRetained.replace(",", ".")) * 100),
         scriptStatusMap: statusMap,
       }),
     });
@@ -955,6 +962,12 @@ function SettingsCard({ flash, onSaved }: { flash: (m: string) => void; onSaved:
         <div>
           <label className="block text-[11px] font-semibold text-slate-400 mb-1">Mindest-Auszahlungsbetrag (€)</label>
           <input type="text" inputMode="decimal" value={form.min} onChange={(e) => setForm((f) => ({ ...f, min: e.target.value }))} className={inputCls} />
+          <p className="text-[10.5px] text-slate-400 mt-1">Ab hier kann der Agent selbst auszahlen (Vertrag: „Minimum Payout Threshold“).</p>
+        </div>
+        <div>
+          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Obergrenze Guthaben (€)</label>
+          <input type="text" inputMode="decimal" value={form.maxRetained} onChange={(e) => setForm((f) => ({ ...f, maxRetained: e.target.value }))} className={inputCls} />
+          <p className="text-[10.5px] text-slate-400 mt-1">Darüber zahlt FIAON den Überschuss aus (Vertrag: „Maximum Retained Balance“). Nur Timing, kein Einbehalt.</p>
         </div>
         {(["pending_payment", "claimed_paid"] as const).map((status) => (
           <div key={status}>

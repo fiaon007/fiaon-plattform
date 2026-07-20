@@ -5,6 +5,24 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 20.07.2026 — Auszahlungsregelung im Agentenvertrag präzisiert (Clause 6.7) + konfigurierbare Schwellen
+
+**Warum:** Der Vertrag soll klar sagen, wie ausgezahlt wird — ohne dass jemand den Eindruck bekommt, FIAON könnte verdiente Provision einbehalten. Deshalb gibt es jetzt zwei transparente Schwellen, die **nur den Zeitpunkt** der Zahlung regeln, nie den Anspruch: einen **Mindestbetrag** für die Selbst-Auszahlung und eine **Obergrenze**, ab der FIAON den Überschuss von sich aus auszahlt.
+
+**A — Neue Klausel 6.7 „Payment of accrued Commission":** In derselben formellen englischen Rechtssprache wie der übrige Vertrag ergänzt. Kernaussage: Der Agent kann ab dem **Minimum Payout Threshold** jederzeit selbst auszahlen; übersteigt das Guthaben die **Maximum Retained Balance**, zahlt FIAON den Überschuss ohne Anforderung aus. Ausdrücklich klargestellt: Die Schwellen sind reine Timing-Regeln und schmälern den Provisionsanspruch nicht.
+
+**B — Konfigurierbare Variablen:** `[[MIN_PAYOUT_THRESHOLD]]` (Default **50 €**) und `[[MAX_RETAINED_BALANCE]]` (Default **1.000 €**, frei änderbar) fließen aus den globalen Einstellungen in Vertrags-Vorschau und PDF. Pflegbar unter **Team → Einstellungen** (neues Feld „Obergrenze Guthaben"); im Variablen-Editor unter `/admin/vertraege` als Klartext-Hinweis sichtbar (wie der Provisionssatz). In die Platzhalter-Legende der Word-Vorlage aufgenommen.
+
+**C — Funktion:** Die **Selbst-Auszahlung** des Agenten nutzt bereits den Mindestbetrag (`payout_min_cents`) — der Vertragswert = der Systemwert (eine Wahrheit). Für die Obergrenze zeigt die **Team-Übersicht** jetzt ein Badge „**Auszahlung fällig — Überschuss X €**", sobald ein Guthaben die Maximum Retained Balance übersteigt. Keine automatische Geldbewegung: Die Auszahlung bleibt ein bestätigter Schritt, die Provisions-Abrechnung wird dabei wie gehabt erzeugt.
+
+**Versionierung:** Vertrags-Standardvorlage auf **v2** angehoben — bestehende Agenten müssen die neue Fassung beim nächsten Login erneut lesen und unterschreiben (Onboarding-Gate greift automatisch). Beide Fassungen (Code-Vertragstext + `commercial_agent_agreement_EN.docx`) enthalten Clause 6.7 **wortgleich**.
+
+**Regeln eingehalten:** kein Eingriff in Provisions-Berechnung/Clawback; Schwellen nur als Timing-Regel formuliert; Berlin-Zeit; mobil; keine Heredocs; Changelog im selben Commit. **Rechtlicher Hinweis:** Klausel vom Betreiber mit Berater final zu prüfen.
+
+**Wo:** `server/routes/fiaon-onboarding-content.ts` (Clause 6.7 + `DEFAULT_CONTRACT_VERSION`), `server/routes/fiaon-onboarding.ts` (Schwellen in `resolveContractVars`, Versions-Seed), `server/routes/fiaon-agent.ts` (`payout_max_retained_cents`-Default), `server/routes/fiaon-team.ts` (Settings-API + Team-Badge-Default); Client `client/src/pages/admin-team.tsx` (Einstellungsfeld + Badge), `client/src/pages/admin-vertraege.tsx` (Hinweis); `docs/vertraege/commercial_agent_agreement_EN.docx` (Clause 6.7 + Legende).
+
+---
+
 ## 20.07.2026 — Onboarding-Gate + digitaler Agentenvertrag & Provisions-Abrechnungen (Prompt 1/2 + 2/2)
 
 **Warum:** Kein Agent darf echte Kundendaten sehen, bevor er (1) Datenschutz-, Verhaltens- und Nutzungshinweise bestätigt und (2) seinen Handelsvertretervertrag digital unterschrieben hat. Zusätzlich entsteht bei jeder Auszahlung automatisch eine revisionssichere Provisions-Abrechnung. Alles versioniert, in Berlin-Zeit, mobil vollständig, CI-treu.

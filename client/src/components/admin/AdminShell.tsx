@@ -5,7 +5,7 @@ import {
   BookOpen, Settings, ScrollText, Scale, Database, Search, Menu, X,
   ArrowLeft, ChevronRight, ShieldAlert, Wallet, Send, Sparkles,
   Target, TrendingUp, Landmark, HandCoins, Copy, BarChart3, History, Activity,
-  LogOut, PiggyBank, GraduationCap,
+  LogOut, PiggyBank, GraduationCap, Map,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -66,6 +66,7 @@ export const ADMIN_NAV: NavGroup[] = [
     items: [
       { path: "/admin/kunden", label: "Kunden — die eine Liste", desc: "Jede Person genau einmal (Leads + Kunden vereint) — jeder Treffer öffnet die Akte", icon: Users },
       { path: "/admin/database", label: "Anträge & KYC", desc: "Arbeits-Fokus: Antrags-Details, KYC-Dokumente, SCHUFA-Review", icon: Database },
+      { path: "/admin/fahrplan", label: "Fahrplan / Kundenprodukt", desc: "Upload-Review, KI-Analyse freigeben, Fahrplan steuern, Ziel-Freischaltung, Audit", icon: Map },
       { path: "/admin/leads", label: "Leads", desc: "Interessenten aus Lead-Ads — Nachfass, Verteilung, Warteschlange", icon: Target },
       { path: "/admin/kuendigungen", label: "Kündigungen", desc: "Eingehende Kündigungsanträge prüfen, bestätigen oder ablehnen", icon: LogOut, badgeKey: "kuendigungen" },
       { path: "/admin/investoren", label: "Investoren", desc: "Investoren-Verwaltung: Anfragen, Investments, Dokumente", icon: PiggyBank },

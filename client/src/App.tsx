@@ -73,6 +73,7 @@ import AgentLeistungPage from "@/pages/agent/leistung";
 import AgentLeadsPage from "@/pages/agent/leads";
 import AgentDokumentePage from "@/pages/agent/dokumente";
 import AdminVertraegePage from "@/pages/admin-vertraege";
+import AdminFahrplanPage from "@/pages/admin-fahrplan";
 
 // Paket N1: JEDE /admin-Seite läuft in der AdminShell (Sidebar, Breadcrumb,
 // Zurück, Cmd+K). Serverseitige Guards bleiben unberührt.
@@ -115,6 +116,7 @@ function Router() {
       <Route path="/admin/audit" component={admin(AdminAuditPage)} />
       <Route path="/admin/recht" component={admin(AdminRechtPage)} />
       <Route path="/admin/funktionen" component={admin(AdminFunktionenPage)} />
+      <Route path="/admin/fahrplan" component={admin(AdminFahrplanPage)} />
       <Route path="/agent" component={AgentPortalPage} />
       <Route path="/agent/setup/:token" component={AgentSetupPage} />
       <Route path="/agent/passwort" component={AgentPasswortPage} />

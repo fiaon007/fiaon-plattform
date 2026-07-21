@@ -275,6 +275,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonAntragRoutes = await import('./routes/fiaon-antrag');
   app.use('/api/fiaon', fiaonAntragRoutes.default);
 
+  // 🗺️ FIAON Fahrplan (Prompt 2/2) — Kundenprodukt: Analyse → Coaching → Ziel
+  //    Kunden-Endpoints per ref; Admin-Endpoints (/admin/roadmap/*) via requireAdmin.
+  const fiaonRoadmapRoutes = await import('./routes/fiaon-roadmap');
+  app.use('/api/fiaon', fiaonRoadmapRoutes.default);
+
   // ❌ FIAON Cancellation Routes — Public submit + Admin review
   const cancellationRoutes = await import('./routes/cancellation');
   app.use('/api/fiaon', cancellationRoutes.default);

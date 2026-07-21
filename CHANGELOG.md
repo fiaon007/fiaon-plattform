@@ -5,6 +5,60 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 21.07.2026 — Der FIAON-Fahrplan: Analyse → Coaching → Ziel (Prompt 2/2)
+
+**Warum:** Das Kunden-Dashboard bekommt sein eigentliches Produkt: Der Kunde lädt seine Kontoauszüge hoch, FIAON erstellt eine KI-gestützte Analyse (nur aus anonymen, aggregierten Kennzahlen) und daraus einen persönlichen, priorisierten **Fahrplan** zur Verbesserung von Finanzen und Scoring. Das sichtbare **Ziel** ist eine Kreditkarte über einen **lizenzierten Partner** — durchgängig als **erarbeitetes Zukunftsziel** dargestellt (Freischaltung ab 01.10.2026 in DE/AT/CH geplant), nie als Zusage. Jede Kundenfunktion hat eine **Admin-Gegenseite**.
+
+**Phase 0 (dokumentiert):** In `SYSTEM_DIAGNOSE.md` neuer Abschnitt **„FAHRPLAN-PRODUKT — Modell & Bestand"**: Kunden-Zustände heute, bestehender Upload (unverschlüsselte BYTEA in `fiaon_applications`), verfügbare KI-Keys (`OPENAI_API_KEY` in der Umgebung liefert aktuell **HTTP 401 — ungültig**; Empfehlung `gpt-4o` beste / `gpt-4o-mini` günstig-ausreichend), sowie die Feature-Map mit je einer Admin-Gegenseite.
+
+**A — Kunden-Journey (`client/src/components/roadmap/RoadmapJourney.tsx`, eingebunden als neuer Bereich „Fahrplan" in `dashboard.tsx`):** Sichtbare **Etappen-Reise** (Willkommen → Upload → KI-Analyse → Fahrplan → Fortschritt/Coaching → Ziel) mit Zustand je Etappe (**erledigt/aktiv/gesperrt**), High-End-CI (Slate/Blau, Tiefe, Glas-/Shimmer-Effekte, `prefers-reduced-motion` respektiert). Die **Ziel-Karte** edel als „freischaltbare" Belohnung mit Lock-Overlay und Kriterien-Fortschritt.
+
+**B — Kontoauszug-Upload (Sicherheit zuerst):** **Consent-Gate** vor dem ersten Upload (protokolliert mit Version, Zeit, IP in `fiaon_consents`). Speicherung **AES-256-GCM-verschlüsselt at rest** in `fiaon_statements` (`server/lib/roadmap-crypto.ts`); Key aus `STATEMENT_ENC_KEY` (Fallback deterministisch abgeleitet). PDF/Bild, mehrere Dateien, klare Fehlertexte, mobil-first. **Löschrecht** (`/roadmap/:ref/delete-statements`).
+
+**C — KI-Analyse (`server/lib/roadmap-ai.ts`):** Der Server berechnet serverseitig **aggregierte, anonyme Kennzahlen** (Einnahmen/Ausgaben-Kategorien, Fixkosten, Spar-/Schuldenquote, Auffälligkeiten) — **nur diese** gehen an die KI, **keine** Namen/IBANs/Einzelbuchungen (im Server-Log als `Sending ONLY aggregated metrics` nachweisbar; der exakte Payload wird in `fiaon_analysis.metrics_sent` gespeichert). Fehlerfall sauber abgefangen: fällt automatisch auf eine **hochwertige regelbasierte Analyse** zurück. Alles als **Bildungsinhalt** gekennzeichnet.
+
+**D — Fahrplan:** Priorisierte, umsetzbare Schritte (`fiaon_roadmap_steps`) mit Erklärung, Nutzen, optionalem Zielwert und „erledigt"-Markierung; Fortschritt bleibt bei Neu-Analyse erhalten.
+
+**E — KI-Login-Begrüßung:** `/roadmap/:ref/greeting` erzeugt aus aggregierten Signalen (nächste Zahlung/Frist, nächster offener Schritt, Fortschritt) eine motivierende Nachricht — eingebettet ins Begrüßungs-Popup aus Prompt 1 (`WelcomeModal` erweitert um `coaching`).
+
+**F — Admin-Gegenseite (`client/src/pages/admin-fahrplan.tsx`, Route `/admin/fahrplan`, in AdminShell-Nav):** Upload-Review (entschlüsseltes Ansehen **auditiert**), Analyse anstoßen/prüfen/**freigeben** (QS: KI schlägt vor, Mensch gibt frei — per Einstellung auch Auto-Freigabe), Ziel-Freischaltung/Kriterien, versionierter Coaching-Text, **Audit** über alle sensiblen Zugriffe (`fiaon_roadmap_audit`).
+
+**Server:** neue Route `server/routes/fiaon-roadmap.ts` (registriert in `server/routes.ts`), Admin-Endpoints via `requireAdmin`; Tabellen werden automatisch angelegt.
+
+**Aktion Betreiber:** gültigen `OPENAI_API_KEY` hinterlegen (aktueller Key = 401); optional dedizierten `STATEMENT_ENC_KEY` (`openssl rand -hex 32`) setzen — beides in `.env.example` dokumentiert.
+
+**Regeln eingehalten:** Karte immer als erarbeitetes Ziel; keine Rohdaten an die KI (nur Aggregate, im Log belegt); Consent + Verschlüsselung + Löschkonzept vor Upload; Empfehlungen als Bildungsinhalt gekennzeichnet; jede Kundenfunktion mit Admin-Gegenseite + Audit; mobil + Desktop; Berlin-Zeit; keine Heredocs; Changelog im selben Commit; Live-Server bereitgestellt.
+
+---
+
+## 21.07.2026 — Kunden-Dashboard: Compliance-Bereinigung + Begrüßungs-Popup (Prompt 1/2)
+
+**Warum:** FIAON ist laut Markenprofil und Agentenvertrag ausdrücklich **kein Finanzdienstleister, keine Bank, keine Kreditvermittlung**, sondern eine Finanzbildungs- und Software-Plattform. Das Kunden-Dashboard erweckte durch „Banking"-Badge, „Kreditlimit", Mastercard-Logo und eine Kartennummer-Anmutung („•••• 4242") aber genau diesen Eindruck. Das wurde entfernt — das hochwertige, vertrauenswürdige Gefühl bleibt, die regulierten **Begriffe und Symbole** sind weg. Zusätzlich gibt es jetzt eine freundliche, zustandsabhängige Begrüßung beim Login.
+
+**Phase 0 — Logik zuerst dokumentiert:** In `SYSTEM_DIAGNOSE.md` (neuer Abschnitt **„KUNDEN-DASHBOARD — Logik verstehen"**) ist in einfacher Sprache erklärt: welche Datei `/dashboard` rendert, woher jede der vier Kacheln + die Karte ihre Daten zieht, woher das „Limit" kommt (echtes Feld `approved_limit` vs. Paket-Ableitung `effectiveLimit` — Bezug Ticket #20), was echte Logik vs. Fassade ist, welche Zustände der Kunde sieht und welche Funktionen eine **Admin-Gegenseite** brauchen (Basis für Prompt 2). **Keine Geschäftslogik geändert** — nur Darstellung/Sprache/Begrüßung.
+
+**A — Compliance-Bereinigung (`client/src/pages/dashboard.tsx`):**
+- „BANKING"-Badge neben dem Logo → **„MITGLIEDSBEREICH"**.
+- „Willkommen in deinem FIAON Banking-Portal" → **„…FIAON-Bereich"**.
+- **Mastercard-Logo entfernt**, **Kartennummer-Anmutung „•••• 4242" entfernt**; die Karte bleibt als edle **Mitgliedskarte** (ohne Zahlungsnetzwerk-Symbolik).
+- „Kreditlimit" → durchgängig **„Paket-Rahmen"** (Kachel, Karte, Modal, Konto-Übersicht, FAQ) — Wortwahl mit dem Betreiber abgestimmt.
+- „Kontoaktivierung" → **„Freischaltung deines Zugangs"**; „Kontostatus" → „Zugangsstatus"; „Konto aktiviert" → „Zugang freigeschaltet".
+- „Kreditantrag" → „Antrag"; „Kreditkartenvertrag" → **„Mitgliedsvertrag"**; „FIAON Bonitäts-Auskunft" → „FIAON SCHUFA-Auskunft"; Formular-Hinweis „§ 18a KWG / Kreditwürdigkeitsprüfung" → neutral „Haushaltsübersicht"; „Bonität … verifiziert" → „Angaben geprüft".
+
+**B — Kontextabhängiges Begrüßungs-Popup:** Beim Login erscheint ein hochwertiges, zentriertes Willkommens-Popup im CI (mobil als Bottom-Sheet). Vier Zustände: **Erst-Login** (herzlich + Orientierung), **Profil unvollständig** (was fehlt + Handlung), **In Prüfung** (beruhigend), **Aktiv** (kurz & wertschätzend). Wird pro Zustand einmal gezeigt (`localStorage`-Merker mit Versionsschlüssel), jederzeit wieder aufrufbar über den **„?"-Punkt** in der Kopfzeile.
+
+**Wichtig — Onboarding-Tour abschaltbar:** Die **reine Begrüßung ist immer aktiv**; die **Feature-/Orientierungs-Schritte** hängen an einem zentralen Schalter `tourEnabled` in **`client/src/config/welcome.ts`** und sind **standardmäßig AUS** — sie werden erst „scharf" gestellt, wenn die erklärten Funktionen wirklich existieren. Alle Texte liegen als reine Daten mit `{name}`-Platzhalter zentral in dieser Datei (leicht anpassbar; in Prompt 2 an den Admin/DB anbindbar). `version` erhöhen zeigt das Popup allen Kunden einmalig erneut.
+
+**C — Darstellung:** Aufgeräumtes, hochwertiges Layout im FIAON-CI (Inter, Slate/Blau, viel Weißraum, feine Tiefe), Karte als edle Mitgliedskarte, mobil-first.
+
+**Weitere Fundstellen (nur gelistet, NICHT geändert — Betreiber-Entscheidung nötig):** Die Marketing-/Funnel-Seiten `privatkunden.tsx`, `start.tsx`, `antrag.tsx`, `zahlung.tsx` nutzen „Kreditkarte"/„Banking"/„Kreditlimit" als Produkt-Positionierung; `impressum.tsx`/`agb.tsx`/`cookie-einstellungen.tsx` nutzen „Kredit"-Begriffe bewusst in **rechtlichen Klarstellungen** (dort korrekt). Die Bank-Namen/„Online Banking"-Menüwege in der Kontoauszug-Anleitung verweisen auf die **eigene Bank des Kunden** (für den KYC-Upload notwendig) und bleiben fachlich korrekt.
+
+**Regeln eingehalten:** Phase 0 vor Umbau; keine Bank-/Kredit-/Zahlungsnetzwerk-Begriffe oder -Logos mehr im eingeloggten Kundenbereich; keine echte Geschäftslogik (Zahlungen, Limit-Werte) verändert — Limit-Herkunft nur dokumentiert; Berlin-Zeit; CI-treu; mobil; keine Heredocs; Live-Server bereitgestellt; Changelog im selben Commit.
+
+**Wo:** `client/src/pages/dashboard.tsx` (Sprache/Karte/Popup-Einbindung + „?"-Button), `client/src/components/WelcomeModal.tsx` (neu), `client/src/config/welcome.ts` (neu — zentrale Textbausteine + `tourEnabled`), `SYSTEM_DIAGNOSE.md` (Abschnitt „KUNDEN-DASHBOARD").
+
+---
+
 ## 20.07.2026 — Auszahlungsregelung im Agentenvertrag präzisiert (Clause 6.7) + konfigurierbare Schwellen
 
 **Warum:** Der Vertrag soll klar sagen, wie ausgezahlt wird — ohne dass jemand den Eindruck bekommt, FIAON könnte verdiente Provision einbehalten. Deshalb gibt es jetzt zwei transparente Schwellen, die **nur den Zeitpunkt** der Zahlung regeln, nie den Anspruch: einen **Mindestbetrag** für die Selbst-Auszahlung und eine **Obergrenze**, ab der FIAON den Überschuss von sich aus auszahlt.

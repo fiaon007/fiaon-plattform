@@ -1323,3 +1323,121 @@ Bestehende Dubletten-Logik wiederverwendet (D5 + P1 `linkDuplicateToPaidOrActive
   in der Akte + /admin/dubletten) — exakt wie in D5 empfohlen (Namen variieren).
 - DSGVO-Löschung bleibt absichtlich außerhalb der Akte (im Arbeits-Fokus mit
   eigener Bestätigung) — Schutz vor versehentlichem Klick auf der Alltags-Seite.
+
+---
+
+# KUNDEN-DASHBOARD — Logik verstehen (Phase 0, vor Umbau)
+
+**Stand:** 21.07.2026 (Europe/Berlin). **Zweck:** In einfacher Sprache erklären, was der Kunde unter `/dashboard` sieht, woher jede Zahl kommt und was echte Logik vs. reine Anzeige („Fassade") ist — als Grundlage für die anschließende Compliance-Bereinigung und für Prompt 2 (Admin-Gegenseite). **Es wurde in dieser Phase nichts an der Geschäftslogik geändert.**
+
+## 0.1 Welche Seite rendert `/dashboard`?
+
+- **Eine einzige Datei:** `client/src/pages/dashboard.tsx` (ca. 1.950 Zeilen). Route ist in `client/src/App.tsx` (`<Route path="/dashboard" component={DashboardPage} />`).
+- Es ist eine **In-Page-Navigation** (kein echter Seitenwechsel): links eine Sidebar mit fünf Bereichen — `Übersicht`, `Mein Konto`, `Dokumente`, `Kontoauszüge` (Anleitung je Bank), `Support`. Umschalten passiert über den React-State `section`, nicht über die URL.
+- **Wer darf rein?** Der Login (`/login` → `POST /api/fiaon/login`) prüft E-Mail + Passwort gegen `fiaon_applications`. Bei Erfolg wird die Antwort in `sessionStorage["fiaon_user"]` gelegt (Felder: `ref, firstName, lastName, email, packName, approvedLimit`). Das Dashboard liest daraus beim Laden. **Kein Server-Session-Cookie fürs Portal** — nur SessionStorage im Browser.
+
+## 0.2 Woher kommen die Daten der vier Kacheln + der Karten-Grafik?
+
+Beim Öffnen ruft das Dashboard zwei Endpunkte auf (`useEffect`, `dashboard.tsx` ~Z. 228–247):
+
+- `GET /api/fiaon/kyc-status/:ref` → liefert Dokumenten- und Prüf-Status.
+- `GET /api/fiaon/profile/:ref` → liefert Paket, Limit und alle Profildaten (überschreibt die evtl. veraltete Session-Anzeige von Limit/Paket).
+
+| Kachel | Angezeigter Wert | Datenquelle |
+|---|---|---|
+| **Kreditlimit** | z. B. „500 €" | `user.approvedLimit` → serverseitig `effectiveLimit(pack_key, approved_limit)` (siehe 0.3) |
+| **Status** (Konto) | „In Prüfung / Aktiv / Gesperrt" | `kyc-status.accountStatus` (DB-Spalte `account_status`) |
+| **Dokumente** | „Ausstehend / Eingereicht / Genehmigt / Änderung" | `kyc-status.kycStatus` + Vorhandensein von `bank_statement_pdf` / `id_card_pdf` |
+| **Paket** | letztes Wort aus Paketname (z. B. „Ultra") | `user.packName` (DB-Spalte `pack_name`) |
+| **Karten-Grafik** | Name, Limit, „•••• 4242", Mastercard-Logo | Name + `approvedLimit` aus der Session; **„4242" und Mastercard-Logo sind fest im Code, keine echten Daten** |
+
+**Wichtig:** Es gibt **keine echte Karte, keine echte Kartennummer, kein Zahlungsnetzwerk**. Die „•••• 4242"-Ziffern und das Mastercard-Symbol sind reine Deko-Grafik (`CreditCard3D`, `dashboard.tsx` Z. 84–99). Das ist der zentrale Compliance-Befund.
+
+## 0.3 Woher kommt das „Kreditlimit" (Bezug Ticket #20)?
+
+- Es gibt eine **echte DB-Spalte** `approved_limit` pro Antrag, aber sie ist bei vielen Kunden leer oder auf den Funnel-Mindestwert **250 €** geklemmt (Alt-Bug: „nie ein echtes Limit vergeben").
+- Deshalb leitet der Server die Anzeige ab (`server/routes/fiaon-antrag.ts`, `effectiveLimit()`, Z. 85–94):
+  1. Ist `approved_limit` **größer als 250 €** → dieser personalisierte Wert wird gezeigt.
+  2. Sonst → das **Paket-Headline-Limit** aus `PACK_LIMITS` (start 500, pro 5.000, ultra 15.000, highend 25.000 €).
+- **Wer setzt den echten Wert?** Der Admin in der Kundenakte (`PATCH`-Route in `fiaon-kunden.ts` Z. 627–635, mit Audit-Eintrag). Solange kein Admin einen echten Wert setzt, sieht der Kunde das Paket-Limit.
+- **Das erklärt Ticket #20 (falsches Limit):** Wenn jemand „500 €" sieht, obwohl er ein größeres Paket hat, dann ist entweder `pack_key` falsch/leer oder `approved_limit` steckt noch auf dem 250-€-Funnelwert und das Start-Paket (500 €) greift als Fallback. **Reine Anzeige-Ableitung, kein Geldfluss.** — In dieser Phase nicht verändert, nur dokumentiert.
+
+## 0.4 Was bedeuten die Prozess-Begriffe konkret — echte Logik oder Fassade?
+
+- **„Antrag eingereicht"** — echt: der Antrag existiert in `fiaon_applications`. Immer als erledigt markiert.
+- **„Dokumente eingereicht / In Prüfung"** — **echt**: „Jetzt hochladen" öffnet den Bereich `Dokumente`; Uploads gehen an `POST /api/fiaon/upload-kyc` und landen als PDF-Bytes in der DB (`bank_statement_pdf`, `id_card_pdf`, `schufa_pdf`). Status `kycStatus` wird serverseitig gesetzt.
+- **„Profil vervollständigen" / „Jetzt ausfüllen" (Reisepass, Ausgaben, Umzug, weitere Einkünfte)** — **echt**: Der Button springt in den Bereich `Mein Konto` zum Formular; „Angaben speichern" schreibt via `PATCH /api/fiaon/profile/:ref` in die DB (`passport_number`, `expenses_*`, `previous_*` usw.) und setzt `profile_completed_at`.
+- **„Kontoaktivierung / In Prüfung / Aktiv"** — **teils Fassade**: Der Fortschrittsbalken („X von 4 Schritten") wird rein aus vorhandenen Feldern berechnet. Der Schritt „Prüfung & Aktivierung" wird **nicht automatisch** erledigt — er hängt an `account_status = 'active'` / `kyc_status = 'approved'`, und diese setzt **aktuell nur ein Mensch im Admin** (bzw. noch gar keine ausgebaute Freigabe-Oberfläche). Für den Kunden sieht es nach einem laufenden Prüfprozess aus; dahinter steht heute manuelle/teilweise fehlende Admin-Logik.
+- **„Reisepass"** — echt als Formularfeld (Nummer + Ablaufdatum), Pflichtangabe fürs Profil; keine automatische Verifikation.
+
+## 0.5 Was sieht der Kunde je nach Zustand? (Zustandsliste)
+
+1. **Frisch bezahlt / Erstlogin:** blaues Banner „Profil unvollständig", Kachel Status „In Prüfung", Dokumente „Ausstehend". Aufforderung zum Hochladen + Profil ausfüllen. Fortschritt 1/4.
+2. **Dokumente hochgeladen, Profil ausgefüllt:** Status weiter „In Prüfung", aber Schritte 2+3 grün; Hinweis „Unterlagen werden geprüft (1–3 Werktage)". Fortschritt 3/4.
+3. **Admin fordert Nachbesserung an:** rotes Banner (`kycStatus = changes_requested`, `adminNote`) bzw. gelbes Banner (`profileChangesRequested`, `adminProfileNote`) mit direkter Handlungsaufforderung.
+4. **Aktiv/alles erledigt:** `account_status = active` → grüne Status-Kachel „Aktiv/Freigeschaltet", der Aktivierungs-Tracker verschwindet ganz.
+5. **Gesperrt:** `account_status = suspended` → rote Status-Kachel; Login wird zusätzlich hart blockiert.
+
+## 0.6 Welche Funktionen brauchen eine Admin-Gegenseite? (Basis für Prompt 2)
+
+| Funktion im Kundenbereich | Braucht Admin-Gegenseite? | Status heute |
+|---|---|---|
+| Limit-Anzeige (`approved_limit`) | **Ja** — setzen/prüfen | Existiert (Kundenakte, mit Audit) |
+| Dokumenten-Prüfung (KYC freigeben/ablehnen/nachfordern) | **Ja** | Teilweise (`kyc_status`, `adminNote`) |
+| Profil-Rückfrage (`adminProfileNote`, `profileChangesRequested`) | **Ja** | Feld vorhanden, Oberfläche prüfen |
+| Kontoaktivierung (`account_status = active`) | **Ja — Kernstück** | Freigabe-Flow unvollständig → Prompt 2 |
+| Begrüßungs-/Onboarding-Textbausteine (neu in diesem Prompt) | **Ja** — zentral schaltbar | Wird als Textbaustein angelegt, Admin-Schalter = Prompt 2 |
+| SCHUFA-Nachweis | **Ja** — als geprüft markieren | Upload vorhanden, Freigabe prüfen |
+
+**Fazit für den Umbau:** Alles unter „Mein Konto" und „Dokumente" ist echte, funktionierende Logik. Die einzige echte „Fassade" sind (a) die Bank-/Kartensymbolik (Mastercard, „4242", „Banking") und (b) der letzte Aktivierungsschritt, der auf eine noch auszubauende Admin-Freigabe wartet. Genau dort setzt die Onboarding-Tour „scharf/nicht scharf" an.
+
+---
+
+# FAHRPLAN-PRODUKT — Modell & Bestand (Phase 0, Prompt 2/2)
+
+**Stand:** 21.07.2026 (Europe/Berlin). **Zweck:** Bevor das eigentliche Kundenprodukt (Analyse → Coaching → Ziel) gebaut wird, hier für den Betreiber verständlich: Was existiert bereits, welche KI-Schlüssel liegen an, wie sieht die Feature-Map inkl. Admin-Gegenseite aus. **Rechtlicher Rahmen (verbindlich):** FIAON verkauft **Finanzbildung, Analyse und Coaching** — kein reguliertes Finanzprodukt, keine Kreditvermittlung, keine Kreditzusage. Die Kreditkarte ist ein **Zukunftsziel über einen lizenzierten Partner** (geplante Freischaltung **ab 01.10.2026** in DE/AT/CH). Überall wird die Karte als **erarbeitetes Ziel** dargestellt, nie als zugesagtes/gekauftes Produkt.
+
+## F0.1 Kunden-Zustände heute und ihre Abbildung
+
+- Die Zustände kommen aus `fiaon_applications`: `account_status` (pending/active/suspended), `kyc_status` (pending/approved/changes_requested), `profile_completed_at`, sowie das Vorhandensein der Dokument-Spalten.
+- Das Dashboard bildet sie über die vier Kacheln + den „Freischaltung"-Tracker + das (aus Prompt 1) zustandsabhängige Begrüßungs-Popup ab (`erst-login`/`incomplete`/`review`/`active`).
+- **Neu in Prompt 2:** Diese Zustände werden um eine **Fahrplan-Reise** ergänzt (Etappen: Willkommen → Upload → KI-Analyse → Fahrplan → Fortschritt/Coaching → Ziel/Partner). Der Fahrplan-Zustand wird eigenständig gespeichert und aus den vorhandenen Daten + neuen Tabellen abgeleitet.
+
+## F0.2 Gibt es schon einen Upload-Mechanismus? Wie wird gespeichert?
+
+- **Ja.** `POST /api/fiaon/upload-kyc` (multer, `memoryStorage`) legt Dateien als **BYTEA-Spalten direkt in `fiaon_applications`** ab: `bank_statement_pdf`, `id_card_pdf`, `schufa_pdf`. Max. 25 MB, PDF/Bild.
+- **Zugriff heute:** Wer DB-Zugriff hat, plus Admin-Endpoints. **Die Dateien liegen unverschlüsselt (Klartext-Bytes) in der DB** — für hochsensible Kontoauszüge (GDPR Art. 9-nah) **nicht ausreichend**.
+- **Konsequenz für Prompt 2:** Der Fahrplan-Upload speichert Kontoauszüge in einer **eigenen Tabelle `fiaon_statements`, AES-256-GCM-verschlüsselt at rest**, mit Consent-Gate davor, Zugriffs-Audit und Löschkonzept. Der bestehende KYC-Upload bleibt unangetastet.
+
+## F0.3 Welche KI-Schlüssel liegen in der Umgebung?
+
+- **Im Code referenziert:** `OPENAI_API_KEY` (+ optional `OPENAI_MODEL`), `GOOGLE_GEMINI_API_KEY`, `GROQ_API_KEY` (siehe `.env.example`). SDKs installiert: `openai@5`, `@google/genai`, `@google/generative-ai`.
+- **Aktueller Stand (getestet 21.07.2026):** In der Laufzeit-Umgebung IST ein `OPENAI_API_KEY` gesetzt (`sk-proj-…5IUA`), er liefert aber beim Aufruf **HTTP 401 „Incorrect API key"** — der Schlüssel ist **ungültig/abgelaufen**. → **Aktion Betreiber:** einen **gültigen** `OPENAI_API_KEY` hinterlegen und Server neu starten. Das Produkt fällt bis dahin automatisch auf die **regelbasierte Analyse** zurück (funktioniert vollständig); sobald ein gültiger Key vorliegt, wird die Analyse ohne Codeänderung KI-angereichert.
+- **Modell-Empfehlung (Dokument-/Text-Analyse):**
+  - **Bester:** `gpt-4o` (bzw. `gpt-4.1`) — höchste Qualität bei Analyse/Empfehlungen.
+  - **Günstig & ausreichend (Default):** `gpt-4o-mini` — sehr gutes Preis-/Leistungsverhältnis für strukturierte Kennzahl-Analyse. Über `OPENAI_MODEL` umstellbar.
+- **Wichtig (Architektur):** An die KI gehen **ausschließlich aggregierte, anonymisierte Kennzahlen** (Kategorien-Summen, Quoten) — **keine** Namen, IBANs, Kontonummern oder Einzeltransaktionen. Jeder KI-Call wird mit dem exakt übermittelten (aggregierten) Payload protokolliert, damit das nachweisbar ist.
+
+## F0.4 Woher kommen die Kennzahlen? (ehrliche Architektur)
+
+- Zuverlässiges automatisches Parsen beliebiger (oft fotografierter/gescannter) Kontoauszug-PDFs ist unrealistisch fehleranfällig. Deshalb:
+  - **Primärquelle der Kennzahlen** sind die bereits **strukturiert erfassten Profildaten** (`income`, `rent`, `debts`, `expenses_food/transport/insurance/loans/subscriptions/other`, Zusatzeinkommen). Daraus berechnet der Server serverseitig Aggregate: Einnahmen, Fixkosten, variable Ausgaben, Sparquote, Schuldenquote, Auffälligkeiten.
+  - **Die hochgeladenen Kontoauszüge** dienen als **Nachweis/Beleg** (verschlüsselt gespeichert, für Admin-Review) und als Vertrauensanker der Reise. Best-effort-Textextraktion kann später ergänzt werden; die Analyse-Qualität hängt nicht davon ab.
+- Das erfüllt die Regel „nur aggregierte Kennzahlen an die KI" sauber und liefert trotzdem eine echte, datengestützte Analyse.
+
+## F0.5 Feature-Map mit Admin-Gegenseite (tragende Regel)
+
+| Kundenfunktion | Admin-Gegenseite | Datentabellen (neu) |
+|---|---|---|
+| Consent vor Upload | Consent-Protokoll einsehen | `fiaon_consents` |
+| Kontoauszug-Upload (verschlüsselt) | Upload-Review, entschlüsselt einsehen (auditiert) | `fiaon_statements` |
+| Aggregierte Kennzahlen | Kennzahlen einsehen/prüfen | `fiaon_metrics` |
+| KI-Analyse ansehen | Analyse anstoßen/prüfen/**freigeben** (QS) | `fiaon_analysis` |
+| Persönlicher Fahrplan (Schritte) | Schritte prüfen/bearbeiten/freigeben, Bausteine pflegen | `fiaon_roadmap_steps` |
+| Fortschritt abhaken | Fortschritt einsehen | `fiaon_roadmap_steps.status` |
+| KI-Login-Begrüßung | Begrüßungs-/Coaching-Texte + Version pflegen | `fiaon_roadmap_settings` |
+| Ziel-Etappe „Partner" | Kriterien definieren, global „in Vorbereitung"/frei | `fiaon_roadmap_settings` |
+| — (Querschnitt) | **Audit über alle Zugriffe auf sensible Daten** | `fiaon_roadmap_audit` |
+
+**Grundsatz:** Die KI **schlägt vor**, der **Mensch (Admin) gibt frei**, wo sinnvoll (Analyse/Fahrplan als „Entwurf" bis Freigabe — per Einstellung auch Auto-Freigabe möglich). Solange kein lizenzierter Partner angebunden ist, steht die Ziel-Etappe global auf **„in Vorbereitung"** (kein Live-Antrag).
+

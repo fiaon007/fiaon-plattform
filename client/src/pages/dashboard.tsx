@@ -1,5 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import Clarity from "@microsoft/clarity";
+import WelcomeModal from "@/components/WelcomeModal";
+import { welcomeConfig, type WelcomeState } from "@/config/welcome";
+import RoadmapJourney from "@/components/roadmap/RoadmapJourney";
 
 /* ── Inject dashboard-specific animations ── */
 if (typeof document !== "undefined" && !document.head.querySelector("style[data-db-anim]")) {
@@ -24,7 +27,7 @@ if (typeof document !== "undefined" && !document.head.querySelector("style[data-
   document.head.appendChild(s);
 }
 
-type NavSection = "overview" | "account" | "documents" | "bank-guide" | "support";
+type NavSection = "overview" | "roadmap" | "account" | "documents" | "bank-guide" | "support";
 
 interface SessionUser {
   ref: string;
@@ -75,7 +78,7 @@ function CreditCard3D({ user }: { user: SessionUser }) {
           <div className="flex justify-between items-start">
             <span className="text-xl font-bold tracking-tight text-white/90">FIAON</span>
             <span className="text-[10px] font-semibold tracking-[.18em] uppercase text-white/50">
-              {user.packName?.split(" ").pop() || "Card"}
+              {user.packName?.split(" ").pop() || "Mitglied"}
             </span>
           </div>
           <div className="w-11 h-8 rounded" style={{ background: "linear-gradient(135deg,#d4af37,#f0d875,#c9a227)", boxShadow: "0 1px 4px rgba(0,0,0,.25)" }}>
@@ -83,20 +86,15 @@ function CreditCard3D({ user }: { user: SessionUser }) {
           </div>
           <div className="flex justify-between items-end">
             <div>
-              <div className="text-[10px] text-white/40 uppercase tracking-widest mb-1">Kreditlimit</div>
+              <div className="text-[10px] text-white/40 uppercase tracking-widest mb-1">Paket-Rahmen</div>
               <div className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{eur(user.approvedLimit)}</div>
             </div>
-            <div className="text-white/25 text-xs tracking-widest">•••• 4242</div>
           </div>
           <div className="flex justify-between items-end">
             <div className="text-[11px] font-semibold tracking-[.12em] uppercase text-white/75">
               {user.firstName} {user.lastName}
             </div>
-            <svg width="36" height="24" viewBox="0 0 36 24" className="opacity-60">
-              <circle cx="14" cy="12" r="10" fill="#eb001b" opacity=".9"/>
-              <circle cx="22" cy="12" r="10" fill="#f79e1b" opacity=".9"/>
-              <path d="M18 5.5a10 10 0 0 1 0 13 10 10 0 0 1 0-13z" fill="#ff5f00" opacity=".9"/>
-            </svg>
+            <span className="text-[9px] font-semibold tracking-[.2em] uppercase text-white/40">Mitgliedskarte</span>
           </div>
         </div>
       </div>
@@ -213,6 +211,9 @@ export default function DashboardPage() {
   const [bankCountry, setBankCountry] = useState<"de" | "at" | "ch">("de");
   const [activeModal, setActiveModal] = useState<null | 'limit' | 'status' | 'paket'>(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const [welcomeState, setWelcomeState] = useState<WelcomeState>('first');
+  const [coaching, setCoaching] = useState<string | null>(null);
   const [schufaFile, setSchufaFile] = useState<File | null>(null);
   const [isSchufaUploading, setIsSchufaUploading] = useState(false);
   const [schufaModal, setSchufaModal] = useState(false);
@@ -224,6 +225,58 @@ export default function DashboardPage() {
   const greeting = (() => { const h = new Date().getHours(); return h < 12 ? "Guten Morgen" : h < 18 ? "Guten Tag" : "Guten Abend"; })();
   const docsOk = isUploadSuccess || (serverDocStatus.hasBankStatement && serverDocStatus.hasIdCard);
   const kycBadge = docsOk ? undefined : "!";
+
+  /* ── Kontextabhängiger Zustand fürs Willkommens-Popup ── */
+  const computeWelcomeState = useCallback((): WelcomeState => {
+    if (serverDocStatus.accountStatus === 'active') return 'active';
+    const profileDone = !!serverDocStatus.profileCompletedAt && !serverDocStatus.profileChangesRequested;
+    if (profileDone && docsOk && serverDocStatus.kycStatus !== 'changes_requested') return 'review';
+    return 'incomplete';
+  }, [serverDocStatus.accountStatus, serverDocStatus.profileCompletedAt, serverDocStatus.profileChangesRequested, serverDocStatus.kycStatus, docsOk]);
+
+  /* Einmalig je Zustand zeigen; Erst-Login immer als herzliche Begrüßung.
+     Merker in localStorage, damit es nicht nervt (version bricht bei Textänderung um). */
+  useEffect(() => {
+    if (!statusLoaded) return;
+    const v = welcomeConfig.version;
+    const firstKey = `fiaon_welcome_first_v${v}`;
+    if (!localStorage.getItem(firstKey)) {
+      setWelcomeState('first');
+      setWelcomeOpen(true);
+      return;
+    }
+    const st = computeWelcomeState();
+    const stateKey = `fiaon_welcome_${st}_v${v}`;
+    if (!localStorage.getItem(stateKey)) {
+      setWelcomeState(st);
+      setWelcomeOpen(true);
+    }
+  }, [statusLoaded, computeWelcomeState]);
+
+  const closeWelcome = useCallback(() => {
+    const v = welcomeConfig.version;
+    if (welcomeState === 'first') localStorage.setItem(`fiaon_welcome_first_v${v}`, 'true');
+    localStorage.setItem(`fiaon_welcome_${welcomeState}_v${v}`, 'true');
+    setWelcomeOpen(false);
+  }, [welcomeState]);
+
+  /* ── KI-Login-Begrüßung laden (nur aggregierte Signale; nächste Zahlung/Frist + nächster Schritt) ── */
+  useEffect(() => {
+    if (!welcomeOpen || coaching || !user?.ref) return;
+    let cancelled = false;
+    fetch(`/api/fiaon/roadmap/${user.ref}/greeting`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled && d?.ok && d.greeting) setCoaching(d.greeting); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [welcomeOpen, coaching, user?.ref]);
+
+  /* Manuelles Wiederöffnen über den „?"-Punkt — zeigt den aktuellen Zustand,
+     ohne den „schon gesehen"-Merker zu verändern. */
+  const reopenWelcome = useCallback(() => {
+    setWelcomeState(computeWelcomeState());
+    setWelcomeOpen(true);
+  }, [computeWelcomeState]);
 
   useEffect(() => {
     setMounted(true);
@@ -368,6 +421,7 @@ export default function DashboardPage() {
   /* ── NAV CONFIG ── */
   const NAV: { id: NavSection; label: string; badge?: string; icon: React.ReactNode }[] = [
     { id: "overview",   label: "Übersicht",      icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> },
+    { id: "roadmap",    label: "Fahrplan",       icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-.553-.894L15 4m0 13V4m0 0L9 7"/></svg> },
     { id: "account",    label: "Mein Konto", badge: serverDocStatus.profileChangesRequested ? "!" : undefined, icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
     { id: "documents",  label: "Dokumente",  badge: kycBadge, icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
     { id: "bank-guide", label: "Kontoauszüge",    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg> },
@@ -383,7 +437,7 @@ export default function DashboardPage() {
       <div className="px-4 pt-6 pb-5 border-b border-slate-100">
         <a href="/" className="flex items-center gap-2">
           <span className="text-lg font-bold fiaon-gradient-text-animated tracking-tight">FIAON</span>
-          <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md uppercase tracking-wider">Banking</span>
+          <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md uppercase tracking-wider">Mitgliedsbereich</span>
         </a>
       </div>
       {/* Nav */}
@@ -452,9 +506,17 @@ export default function DashboardPage() {
           <div className="flex-1 min-w-0">
             <span className="text-[13px] font-semibold text-slate-700">{NAV.find(n => n.id === section)?.label}</span>
           </div>
+          <button
+            onClick={reopenWelcome}
+            aria-label="Begrüßung erneut anzeigen"
+            title="Begrüßung erneut anzeigen"
+            className="w-7 h-7 rounded-full bg-slate-100 hover:bg-blue-100 text-slate-500 hover:text-blue-600 transition-colors flex items-center justify-center text-[13px] font-bold"
+          >
+            ?
+          </button>
           <div className="flex items-center gap-1.5">
             <div className={`w-1.5 h-1.5 rounded-full ${serverDocStatus.accountStatus === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
-            <span className="text-[11px] text-slate-400 font-medium hidden sm:block">{serverDocStatus.accountStatus === 'active' ? 'Konto aktiv' : 'In Prüfung'}</span>
+            <span className="text-[11px] text-slate-400 font-medium hidden sm:block">{serverDocStatus.accountStatus === 'active' ? 'Zugang aktiv' : 'In Prüfung'}</span>
           </div>
         </header>
 
@@ -482,7 +544,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex-1 min-w-0">
               <span className="text-[12px] font-bold">Profil unvollständig: </span>
-              <span className="text-[12px]">Reisepass, Ausgaben & weitere Angaben für die Kontoaktivierung erforderlich.</span>
+              <span className="text-[12px]">Reisepass, Ausgaben & weitere Angaben für die Freischaltung deines Zugangs erforderlich.</span>
             </div>
             <button onClick={() => setSection("account")} className="shrink-0 text-[11px] font-bold bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-lg whitespace-nowrap">
               Jetzt ausfüllen →
@@ -513,23 +575,28 @@ export default function DashboardPage() {
         <main className="flex-1 overflow-y-auto">
           <div key={sectionKey} className="db-enter max-w-4xl mx-auto px-4 sm:px-6 py-6 pb-24 lg:pb-6">
 
+            {/* ════════════════ FAHRPLAN (Kundenprodukt) ════════════════ */}
+            {section === "roadmap" && (
+              <RoadmapJourney userRef={user.ref} firstName={user.firstName} />
+            )}
+
             {/* ════════════════ OVERVIEW ════════════════ */}
             {section === "overview" && (
               <div className="space-y-6">
                 <div>
                   <p className="text-[11px] text-[#2563eb] font-bold uppercase tracking-[.18em] mb-1">Dashboard</p>
                   <h1 className="text-2xl sm:text-3xl font-bold fiaon-gradient-text-animated tracking-tight">{greeting}, {user.firstName || "—"}.</h1>
-                  <p className="text-[13px] text-slate-500 mt-1">Willkommen in deinem FIAON Banking-Portal.</p>
+                  <p className="text-[13px] text-slate-500 mt-1">Willkommen in deinem FIAON-Bereich.</p>
                 </div>
 
                 {/* ── PREMIUM STATS GRID ── */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
 
-                  {/* Kreditlimit */}
+                  {/* Paket-Rahmen */}
                   <PremiumStatCard
-                    label="Kreditlimit"
+                    label="Paket-Rahmen"
                     value={eur(user.approvedLimit || 0)}
-                    sub={user.packName || 'FIAON Card'}
+                    sub={user.packName || 'FIAON Programm'}
                     bg="linear-gradient(145deg,#0f2d5c 0%,#1a4a8a 50%,#1e56a0 100%)"
                     glow="#1a4a8a"
                     onClick={() => setActiveModal('limit')}
@@ -594,7 +661,7 @@ export default function DashboardPage() {
                   <PremiumStatCard
                     label="Paket"
                     value={user.packName?.split(' ').pop() || '—'}
-                    sub="FIAON Card"
+                    sub="Mitgliedschaft"
                     bg="linear-gradient(145deg,#1a0533,#2d1065,#3b0764)"
                     glow="#2d1065"
                     onClick={() => setActiveModal('paket')}
@@ -608,12 +675,12 @@ export default function DashboardPage() {
                     <CreditCard3D user={user} />
                   </div>
                   <div className="fiaon-glass-panel rounded-2xl p-5 space-y-3 border border-white/60">
-                    <h3 className="text-[13px] font-bold text-slate-700 uppercase tracking-wider">Kontoübersicht</h3>
+                    <h3 className="text-[13px] font-bold text-slate-700 uppercase tracking-wider">Übersicht</h3>
                     {[
-                      ["Karteninhaber", `${user.firstName || "—"} ${user.lastName || ""}`],
+                      ["Mitglied", `${user.firstName || "—"} ${user.lastName || ""}`],
                       ["Referenz", user.ref || "—"],
                       ["Paket", user.packName || "—"],
-                      ["Limit", eur(user.approvedLimit || 0)],
+                      ["Paket-Rahmen", eur(user.approvedLimit || 0)],
                       ["E-Mail", user.email || "—"],
                     ].map(([k, v]) => (
                       <div key={k} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
@@ -657,7 +724,7 @@ export default function DashboardPage() {
                   </button>
                 )}
 
-                {/* ── Kontoaktivierung Tracker ── */}
+                {/* ── Freischaltung Tracker ── */}
                 {(() => {
                   const docsDone = docsOk && serverDocStatus.kycStatus !== 'changes_requested' && serverDocStatus.hasSchufa;
                   const profileDone = !!serverDocStatus.profileCompletedAt && !serverDocStatus.profileChangesRequested;
@@ -669,7 +736,7 @@ export default function DashboardPage() {
                     {
                       n: 1, done: true, urgent: false, locked: false,
                       label: 'Antrag eingereicht',
-                      detail: 'Ihr Kreditantrag wurde erfolgreich übermittelt.',
+                      detail: 'Ihr Antrag wurde erfolgreich übermittelt.',
                       action: null as null | (() => void), cta: null as null | string,
                     },
                     {
@@ -692,8 +759,8 @@ export default function DashboardPage() {
                     },
                     {
                       n: 4, done: kycDone || accountDone, urgent: false, locked: !docsDone || !profileDone,
-                      label: accountDone ? 'Konto aktiviert' : kycDone ? 'Konto wird aktiviert' : 'Prüfung & Aktivierung',
-                      detail: accountDone ? 'Ihr FIAON-Konto ist vollständig freigeschaltet.'
+                      label: accountDone ? 'Zugang freigeschaltet' : kycDone ? 'Zugang wird freigeschaltet' : 'Prüfung & Freischaltung',
+                      detail: accountDone ? 'Ihr FIAON-Zugang ist vollständig freigeschaltet.'
                         : kycDone ? 'Ihre Unterlagen wurden geprüft — Aktivierung folgt.'
                         : 'FIAON prüft Ihre Dokumente und Profilangaben nach vollständiger Einreichung.',
                       action: null, cta: null,
@@ -704,7 +771,7 @@ export default function DashboardPage() {
                     <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #e2e8f0', background: '#fff' }}>
                       <div className="px-5 pt-5 pb-4 flex items-center justify-between" style={{ borderBottom: '1px solid #f1f5f9' }}>
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400 mb-0.5">Kontoaktivierung</p>
+                          <p className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400 mb-0.5">Freischaltung</p>
                           <h3 className="text-[15px] font-bold text-slate-900 tracking-tight">Ihre nächsten Schritte</h3>
                         </div>
                         <div className="text-right">
@@ -802,7 +869,7 @@ export default function DashboardPage() {
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                       </div>
                       <div>
-                        <div className="text-[13px] font-bold text-white">Profil vervollständigen — erforderlich für Kontoaktivierung</div>
+                        <div className="text-[13px] font-bold text-white">Profil vervollständigen — erforderlich für die Freischaltung</div>
                         <div className="text-[11px] text-white/70 mt-0.5">Bitte füllen Sie alle Pflichtangaben im Formular unten aus und speichern Sie.</div>
                       </div>
                     </div>
@@ -870,14 +937,14 @@ export default function DashboardPage() {
                   <div className="px-5 divide-y divide-slate-50">
                     {pf("Referenznummer", user.ref)}
                     {pf("Vertragspaket", user.packName)}
-                    {pf("Genehmigtes Kreditlimit", eur(user.approvedLimit || 0))}
-                    {pf("Kontostatus", serverDocStatus.accountStatus === 'active' ? 'Aktiv' : serverDocStatus.accountStatus === 'suspended' ? 'Gesperrt' : 'Ausstehend')}
+                    {pf("Paket-Rahmen", eur(user.approvedLimit || 0))}
+                    {pf("Zugangsstatus", serverDocStatus.accountStatus === 'active' ? 'Aktiv' : serverDocStatus.accountStatus === 'suspended' ? 'Gesperrt' : 'Ausstehend')}
                     {pf("KYC-Prüfungsstatus", serverDocStatus.kycStatus === 'approved' ? 'Genehmigt' : serverDocStatus.kycStatus === 'changes_requested' ? 'Änderung angefordert' : 'In Prüfung')}
                   </div>
                   <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50">
                     <a href={`/api/fiaon/contract/${user.ref}`} className="inline-flex items-center gap-2 text-[13px] font-semibold text-[#2563eb] hover:text-blue-700 transition-colors">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                      Kreditkartenvertrag herunterladen (PDF)
+                      Mitgliedsvertrag herunterladen (PDF)
                     </a>
                   </div>
                 </div>
@@ -940,7 +1007,7 @@ export default function DashboardPage() {
                       <h4 className="text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2">
                         <span className="w-5 h-5 rounded-md bg-slate-900 text-white text-[9px] font-bold flex items-center justify-center">1</span>
                         Frühere Anschrift
-                        {tip('moved', 'Sofern Sie in den letzten 6 Monaten Ihren Hauptwohnsitz gewechselt haben, geben Sie bitte Ihre vorherige Adresse an. Dies ist für die Bonitätsprüfung erforderlich.')}
+                        {tip('moved', 'Sofern Sie in den letzten 6 Monaten Ihren Hauptwohnsitz gewechselt haben, geben Sie bitte Ihre vorherige Adresse an. Dies ist für die Vollständigkeit Ihres Profils erforderlich.')}
                       </h4>
                       <label className="flex items-start gap-3 cursor-pointer select-none mb-4">
                         <input type="checkbox" checked={profileForm.movedRecently} onChange={e => setProfileForm(p => ({ ...p, movedRecently: e.target.checked }))} className="mt-0.5 w-4 h-4 accent-[#2563eb]" />
@@ -1036,9 +1103,9 @@ export default function DashboardPage() {
                         <span className={`w-5 h-5 rounded-md text-white text-[9px] font-bold flex items-center justify-center ${profileErrors.expenses ? 'bg-rose-500' : 'bg-slate-900'}`}>4</span>
                         Monatliche Ausgaben
                         {profileErrors.expenses && <span className="text-[11px] font-normal normal-case text-rose-500">— Mindestens ein Betrag erforderlich</span>}
-                        {tip('expenses', 'Ihre monatlichen Ausgaben werden für die Haushaltsrechnung gemäß § 18a KWG benötigt. Bitte geben Sie Schätzwerte in Euro an. Bereits angegebene Kreditbelastungen müssen nicht erneut aufgeführt werden.')}
+                        {tip('expenses', 'Deine monatlichen Ausgaben helfen bei der Haushaltsübersicht innerhalb deines FIAON-Programms. Bitte gib Schätzwerte in Euro an. Bereits an anderer Stelle angegebene Verpflichtungen müssen nicht erneut aufgeführt werden.')}
                       </h4>
-                      <p className="text-[11px] text-slate-400 mb-4 pl-7">Angaben gemäß § 18a KWG (Kreditwürdigkeitsprüfung) — bitte in Euro/Monat</p>
+                      <p className="text-[11px] text-slate-400 mb-4 pl-7">Angaben zu deiner monatlichen Haushaltsübersicht — bitte in Euro/Monat</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {[
                           { key: 'expensesFood',          label: 'Lebensmittel & Haushaltsbedarf',     tip: 'expF', tipText: 'Schätzung Ihrer monatlichen Ausgaben für Lebensmittel, Drogerieartikel und sonstige Haushaltswaren.' },
@@ -1097,7 +1164,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-[11px] text-[#2563eb] font-bold uppercase tracking-[.18em] mb-1">KYC Verifizierung</p>
                   <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Dokumente</h1>
-                  <p className="text-[13px] text-slate-500 mt-1">Upload zur Kontofreischaltung. Alle Uploads sind verschlüsselt.</p>
+                  <p className="text-[13px] text-slate-500 mt-1">Upload zur Freischaltung deines Zugangs. Alle Uploads sind verschlüsselt.</p>
                 </div>
 
                 {/* Admin-Nachricht prominent im Dokumente-Bereich */}
@@ -1388,7 +1455,7 @@ export default function DashboardPage() {
                     ) : (
                       <>
                         <p className="text-[12px] text-slate-500 leading-relaxed">
-                          Für die Kontoaktivierung benötigen wir ab sofort auch eine <strong className="text-slate-800">SCHUFA-Auskunft</strong>. Sie haben zwei Möglichkeiten:
+                          Für die Freischaltung deines Zugangs benötigen wir ab sofort auch eine <strong className="text-slate-800">SCHUFA-Auskunft</strong>. Sie haben zwei Möglichkeiten:
                         </p>
 
                         {/* Option A: FIAON kaufen */}
@@ -1400,7 +1467,7 @@ export default function DashboardPage() {
                           <div className="px-4 py-4">
                             <div className="flex items-start justify-between gap-3 mb-3">
                               <div>
-                                <p className="text-[13px] font-bold text-slate-900">FIAON Bonitäts-Auskunft</p>
+                                <p className="text-[13px] font-bold text-slate-900">FIAON SCHUFA-Auskunft</p>
                                 <p className="text-[11px] text-slate-500 mt-0.5">Vollauskunft + Handlungsplan · Lieferung noch heute</p>
                               </div>
                               <span className="text-[14px] font-extrabold text-[#2563eb] shrink-0">74 €</span>
@@ -1440,7 +1507,7 @@ export default function DashboardPage() {
                             <div className="px-4 py-4 space-y-3 border-t border-slate-100">
                               <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 flex items-start gap-2">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" className="mt-0.5 shrink-0"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
-                                <p className="text-[11px] text-amber-800 leading-relaxed"><strong>Wichtig:</strong> Die kostenlose Datenkopie nach Art. 15 DSGVO kann <strong>bis zu 4 Wochen</strong> dauern. Die Lieferung erfolgt per Post. Bis zum Eingang wird Ihre Kontoaktivierung pausiert.</p>
+                                <p className="text-[11px] text-amber-800 leading-relaxed"><strong>Wichtig:</strong> Die kostenlose Datenkopie nach Art. 15 DSGVO kann <strong>bis zu 4 Wochen</strong> dauern. Die Lieferung erfolgt per Post. Bis zum Eingang wird Ihre Freischaltung pausiert.</p>
                               </div>
                               <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">Schritt-für-Schritt Anleitung:</p>
                               {[
@@ -1597,7 +1664,7 @@ export default function DashboardPage() {
                       ["Wie lade ich meine Kontoauszüge hoch?", "Gehe zu Dokumente und wähle die PDF-Datei deiner Kontoauszüge aus. Nutze unsere Kontoauszüge-Seite für eine Anleitung je nach Bank."],
                       ["Wie lange dauert die Prüfung?", "Nach dem Upload prüft unser Team deine Unterlagen innerhalb von 1–3 Werktagen."],
                       ["Kann ich mein Passwort ändern?", "Ja, nutze die Passwort-Vergessen Funktion auf der Login-Seite — keine E-Mail-Bestätigung nötig."],
-                      ["Was ist das Kreditlimit?", "Das bewilligte Limit entspricht dem Betrag, der dir für Zahlungen über deine FIAON-Karte zur Verfügung steht."],
+                      ["Was ist der Paket-Rahmen?", "Der Paket-Rahmen ist die deinem gewählten Paket zugeordnete Stufe innerhalb deines FIAON-Programms. Er dient der Orientierung über deinen Programm-Umfang."],
                     ].map(([q, a]) => (
                       <details key={q} className="group bg-white border border-slate-100 rounded-xl overflow-hidden">
                         <summary className="flex items-center justify-between px-4 py-3 cursor-pointer text-[13px] font-semibold text-slate-800 hover:text-[#2563eb] transition-colors list-none">
@@ -1650,7 +1717,7 @@ export default function DashboardPage() {
                     <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                     </div>
-                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">FIAON Bonitäts-Auskunft</span>
+                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">FIAON SCHUFA-Auskunft</span>
                   </div>
                   <h2 className="text-[18px] font-extrabold text-white leading-tight">SCHUFA-Vollauskunft bestellen</h2>
                   <p className="text-[12px] text-white/40 mt-1">Express-Lieferung noch heute · 74 € einmalig</p>
@@ -1687,7 +1754,7 @@ export default function DashboardPage() {
                   'Persönlicher Score-Verbesserungsplan von FIAON',
                   'SCHUFA-neutraler Abruf — kein Einfluss auf Score',
                   'Express: Lieferung per E-Mail am selben Werktag',
-                  'Gilt als offizieller Nachweis für Ihre Kontoaktivierung',
+                  'Gilt als offizieller Nachweis für Ihre Freischaltung',
                 ].map(b => (
                   <li key={b} className="flex items-center gap-2.5 text-[12px] text-white/60">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" className="shrink-0"><polyline points="4 12 10 18 20 6"/></svg>
@@ -1759,14 +1826,14 @@ export default function DashboardPage() {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.5)" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </button>
                 </div>
-                <p className="text-[10px] font-bold text-white/40 uppercase tracking-[.2em] mb-1">Kreditlimit</p>
+                <p className="text-[10px] font-bold text-white/40 uppercase tracking-[.2em] mb-1">Paket-Rahmen</p>
                 <div className="text-4xl font-bold text-white tracking-tight mb-1">{eur(user.approvedLimit || 0)}</div>
                 <p className="text-[12px] text-white/35 mb-6">{user.packName || 'FIAON Standard'}</p>
                 <div className="space-y-0 mb-6">
                   {[
-                    ['Genehmigtes Limit', eur(user.approvedLimit || 0)],
+                    ['Paket-Rahmen', eur(user.approvedLimit || 0)],
                     ['Paket', user.packName || '—'],
-                    ['Status', 'Genehmigt'],
+                    ['Status', 'Aktiv'],
                   ].map(([k, v], i) => (
                     <div key={k} className="flex items-center justify-between py-3 border-b border-white/[.05]">
                       <span className="text-[12px] text-white/45">{k}</span>
@@ -1775,7 +1842,7 @@ export default function DashboardPage() {
                   ))}
                 </div>
                 <div className="rounded-2xl p-4 mb-5" style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)' }}>
-                  <p className="text-[12px] text-white/55 leading-relaxed">Möchtest du dein Kreditlimit anpassen? Wende dich direkt an unser Team — wir prüfen deinen Wunsch individuell und diskret.</p>
+                  <p className="text-[12px] text-white/55 leading-relaxed">Möchtest du deinen Paket-Rahmen anpassen? Wende dich direkt an unser Team — wir prüfen deinen Wunsch individuell und diskret.</p>
                 </div>
                 <a href="mailto:limit@fiaon.com" className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-bold text-[13px] text-white transition-all hover:opacity-90 active:scale-[.98]" style={{ background: 'linear-gradient(135deg,#1a4a8a,#2563eb)' }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
@@ -1795,17 +1862,17 @@ export default function DashboardPage() {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.5)" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </button>
                 </div>
-                <p className="text-[10px] font-bold text-white/40 uppercase tracking-[.2em] mb-1">Kontostatus</p>
+                <p className="text-[10px] font-bold text-white/40 uppercase tracking-[.2em] mb-1">Zugangsstatus</p>
                 <div className="text-3xl font-bold text-white tracking-tight mb-1">{serverDocStatus.accountStatus === 'active' ? 'Aktiv' : serverDocStatus.accountStatus === 'suspended' ? 'Gesperrt' : 'In Prüfung'}</div>
                 <div className="flex items-center gap-2 mb-7">
                   <div className={`w-2 h-2 rounded-full ${serverDocStatus.accountStatus === 'active' ? 'bg-emerald-400 animate-pulse' : serverDocStatus.accountStatus === 'suspended' ? 'bg-rose-400' : 'bg-amber-400 animate-pulse'}`} />
-                  <p className="text-[12px] text-white/40">{serverDocStatus.accountStatus === 'active' ? 'Konto vollständig freigeschaltet' : serverDocStatus.accountStatus === 'suspended' ? 'Konto vorübergehend gesperrt' : 'FIAON prüft deinen Antrag'}</p>
+                  <p className="text-[12px] text-white/40">{serverDocStatus.accountStatus === 'active' ? 'Zugang vollständig freigeschaltet' : serverDocStatus.accountStatus === 'suspended' ? 'Zugang vorübergehend gesperrt' : 'FIAON prüft deinen Antrag'}</p>
                 </div>
                 <div className="space-y-0 mb-5">
                   {([
                     {
                       label: 'Antrag eingereicht',
-                      sub: 'Kreditantrag vollständig übermittelt',
+                      sub: 'Antrag vollständig übermittelt',
                       done: true, urgent: false,
                     },
                     {
@@ -1829,15 +1896,15 @@ export default function DashboardPage() {
                     {
                       label: 'Unterlagen geprüft',
                       sub: serverDocStatus.kycStatus === 'approved'
-                        ? 'Identität & Bonität erfolgreich verifiziert'
+                        ? 'Identität & Angaben erfolgreich geprüft'
                         : 'FIAON prüft Dokumente und Profilangaben',
                       done: serverDocStatus.kycStatus === 'approved',
                       urgent: false,
                     },
                     {
-                      label: 'Konto aktiviert',
+                      label: 'Zugang freigeschaltet',
                       sub: serverDocStatus.accountStatus === 'active'
-                        ? 'Ihr FIAON-Konto ist vollständig freigeschaltet'
+                        ? 'Ihr FIAON-Zugang ist vollständig freigeschaltet'
                         : 'Erfolgt nach abgeschlossener Prüfung',
                       done: serverDocStatus.accountStatus === 'active',
                       urgent: false,
@@ -1919,8 +1986,8 @@ export default function DashboardPage() {
                 <div className="text-3xl font-bold text-white tracking-tight mb-5">{user.packName || '—'}</div>
                 <div className="space-y-0 mb-6">
                   {([
-                    ['Karteninhaber', `${user.firstName || '—'} ${user.lastName || ''}`],
-                    ['Kreditlimit', eur(user.approvedLimit || 0)],
+                    ['Mitglied', `${user.firstName || '—'} ${user.lastName || ''}`],
+                    ['Paket-Rahmen', eur(user.approvedLimit || 0)],
                     ['Referenz', user.ref || '—'],
                     ['E-Mail', user.email || '—'],
                   ] as [string, string][]).map(([k, v]) => (
@@ -1942,6 +2009,16 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* ── KONTEXTABHÄNGIGES WILLKOMMENS-POPUP ── */}
+      <WelcomeModal
+        open={welcomeOpen}
+        state={welcomeState}
+        coaching={coaching}
+        firstName={user.firstName}
+        onClose={closeWelcome}
+        onGoto={(s) => setSection(s)}
+      />
     </div>
   );
 }

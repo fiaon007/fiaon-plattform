@@ -3,6 +3,23 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 27.07.2026 — Nachtrag: Die Index-Anlage hat die Kartei lahmgelegt (mein Fehler)
+
+**Befund nach dem Deploy:** Die Kartei meldet „Serverfehler", im Kopf steht „Lädt …" statt „FREI: 768". Entscheidend: **Der Zähler lief vorher.** Er fiel also *neu* aus — und das grenzt die Ursache eindeutig auf meine eigene Änderung ein, nicht auf den ursprünglichen Bug.
+
+**Ursache — ein Fehler in meinem letzten Commit.** Alle Kartei-Routen rufen zuerst `ensureKarteiTables()` auf. Dort hatte ich die elf neuen `CREATE INDEX`-Anweisungen mit `await` direkt eingehängt. Schlägt **eine einzige** davon fehl, wirft die Funktion — und reißt die **gesamte** Route mit, Liste wie Zähler. Verschärfend: `ensured` bleibt dann `false`, der Fehlversuch wiederholt sich also bei **jeder** Anfrage.
+
+**Der Denkfehler dahinter:** Ich habe eine reine Optimierung in den kritischen Pfad gelegt. Ein Index beschleunigt, er ist kein Funktionsbestandteil. Er darf unter keinen Umständen den Betrieb anhalten.
+
+**Behoben:**
+
+- Die Indizes laufen jetzt **nach** `ensured = true` und **ohne** `await`, in einer eigenen Funktion. Jeder einzeln abgesichert: Schlägt einer fehl, wird das protokolliert und der nächste versucht. Die Kartei arbeitet weiter — schlimmstenfalls langsamer.
+- **Das Zeitlimit im gemeinsamen Pool war mit 30 s zu eng.** Die Einzel-Pools vorher hatten **gar keines** — auch das war eine von mir neu eingebaute Fehlerquelle. Jetzt 90 s, über `DB_STATEMENT_TIMEOUT_MS` einstellbar.
+- **„Serverfehler" ist keine Diagnose.** Die Antwort enthält jetzt den SQLSTATE plus einen Klartextsatz („Die Abfrage hat zu lange gedauert", „Die Datenbank nimmt keine weiteren Verbindungen an", „eine erwartete Spalte fehlt"). Die Oberfläche zeigt den Code mit. Keine Kundendaten.
+- Fällt **nur** der Zähler aus, während die Liste lädt, wird auch das jetzt gemeldet statt verschluckt.
+
+---
+
 ## 27.07.2026 — Kartei lädt wieder, Portal wird schneller, neues Menü (Teil A/B/C)
 
 ### Teil A — Der Kartei-Bug: zwei Fehler, nicht einer

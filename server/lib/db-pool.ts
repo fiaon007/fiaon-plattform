@@ -39,7 +39,11 @@ export const sqlPool = postgres(process.env.DATABASE_URL, {
   idle_timeout: 30,
   // Eine hängende Abfrage darf nicht dauerhaft einen Platz blockieren.
   connect_timeout: 15,
-  connection: { statement_timeout: 30_000 },
+  // Bewusst großzügig. Die einzelnen Pools vorher hatten GAR KEIN Zeitlimit;
+  // ein zu enges hier wäre eine neu eingebaute Fehlerquelle gewesen. Das
+  // Limit soll ausschließlich echte Hänger abräumen, keine langsamen, aber
+  // funktionierenden Abfragen abschneiden.
+  connection: { statement_timeout: Number(process.env.DB_STATEMENT_TIMEOUT_MS) || 90_000 },
   onnotice: () => {},
 });
 

@@ -87,53 +87,92 @@ export async function ensureKarteiTables(): Promise<void> {
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_kartei_events_card_idx ON fiaon_kartei_events (card_id, created_at DESC)`;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_kartei_events_agent_idx ON fiaon_kartei_events (agent_id, event, created_at DESC)`;
 
-  // ── Geschwindigkeit (Teil B) ────────────────────────────────────────────
-  // Indizes aendern KEIN Ergebnis, nur den Weg dorthin. Sie decken genau die
-  // Spalten ab, nach denen die Kartei filtert, sortiert und verknuepft.
-  //
+  ensured = true;
+  console.log("[FIAON-KARTEI] Kartei-Tabellen sichergestellt");
+
+  // Die Indizes laufen BEWUSST erst nach `ensured = true` und ohne `await`.
+  // Grund: Ein Index ist eine Beschleunigung, kein Funktionsbestandteil. Er
+  // darf die Kartei niemals blockieren. Lief die Anlage frueher im selben
+  // Ablauf, riss eine einzige fehlschlagende Anweisung die GESAMTE Route mit —
+  // und weil `ensured` dann false blieb, bei jeder Anfrage erneut.
+  void ensureKarteiIndizes();
+}
+
+/**
+ * Beschleunigungs-Indizes. Jeder einzeln abgesichert: Schlaegt einer fehl,
+ * wird das protokolliert und der naechste versucht. Die Kartei funktioniert
+ * in jedem Fall weiter — nur eben langsamer.
+ */
+let indizesVersucht = false;
+async function ensureKarteiIndizes(): Promise<void> {
+  if (indizesVersucht) return;
+  indizesVersucht = true;
+
   // Der teuerste Teil der Kartei-Abfrage ist LEAD_HAS_NO_APP_SIBLING: fuer
   // JEDEN Lead wird geprueft, ob es einen Antrag derselben Person gibt —
   // ueber LOWER(TRIM(email)) und die letzten neun Ziffern der Rufnummer.
   // Ohne passende Ausdruck-Indizes ist das ein vollstaendiger Durchlauf durch
-  // fiaon_applications pro Lead. Genau dafuer sind die beiden letzten Indizes.
-  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_apps_kartei_filter_idx
-    ON fiaon_applications (payment_status, merged_into, dismissed_at, created_at DESC)`;
-  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_apps_agent_updated_idx
-    ON fiaon_applications (assigned_agent_id, updated_at DESC)`;
-  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_leads_kartei_filter_idx
-    ON fiaon_leads (status, dismissed_at, converted_order_id, requeue_at, erstellt_am DESC)`;
-  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_leads_agent_updated_idx
-    ON fiaon_leads (assigned_agent_id, updated_at DESC)`;
+  // fiaon_applications pro Lead.
+  const indizes: [string, string][] = [
+    ["fiaon_apps_kartei_filter_idx",
+      `CREATE INDEX IF NOT EXISTS fiaon_apps_kartei_filter_idx
+         ON fiaon_applications (payment_status, merged_into, dismissed_at, created_at DESC)`],
+    ["fiaon_apps_agent_updated_idx",
+      `CREATE INDEX IF NOT EXISTS fiaon_apps_agent_updated_idx
+         ON fiaon_applications (assigned_agent_id, updated_at DESC)`],
+    ["fiaon_leads_kartei_filter_idx",
+      `CREATE INDEX IF NOT EXISTS fiaon_leads_kartei_filter_idx
+         ON fiaon_leads (status, dismissed_at, converted_order_id, requeue_at, erstellt_am DESC)`],
+    ["fiaon_leads_agent_updated_idx",
+      `CREATE INDEX IF NOT EXISTS fiaon_leads_agent_updated_idx
+         ON fiaon_leads (assigned_agent_id, updated_at DESC)`],
+    ["fiaon_contact_log_ref_type_idx",
+      `CREATE INDEX IF NOT EXISTS fiaon_contact_log_ref_type_idx
+         ON fiaon_contact_log (ref, type, voided_at, created_at DESC)`],
+    ["fiaon_contact_log_sched_idx",
+      `CREATE INDEX IF NOT EXISTS fiaon_contact_log_sched_idx
+         ON fiaon_contact_log (ref, scheduled_at) WHERE scheduled_at IS NOT NULL`],
+    ["fiaon_lead_log_lead_type_idx",
+      `CREATE INDEX IF NOT EXISTS fiaon_lead_log_lead_type_idx
+         ON fiaon_lead_log (lead_id, type, created_at DESC)`],
+    ["fiaon_lead_log_sched_idx",
+      `CREATE INDEX IF NOT EXISTS fiaon_lead_log_sched_idx
+         ON fiaon_lead_log (lead_id, scheduled_at) WHERE scheduled_at IS NOT NULL`],
+    ["fiaon_apps_norm_email_idx",
+      `CREATE INDEX IF NOT EXISTS fiaon_apps_norm_email_idx
+         ON fiaon_applications (LOWER(TRIM(email))) WHERE merged_into IS NULL`],
+    ["fiaon_apps_norm_phone_idx",
+      `CREATE INDEX IF NOT EXISTS fiaon_apps_norm_phone_idx
+         ON fiaon_applications (RIGHT(COALESCE(${APP_PHONE_SQL},''), 9)) WHERE merged_into IS NULL`],
+    ["fiaon_leads_norm_email_idx",
+      `CREATE INDEX IF NOT EXISTS fiaon_leads_norm_email_idx
+         ON fiaon_leads (LOWER(TRIM(email)))`],
+  ];
 
-  // Kontakt-Verlauf: beide Log-Tabellen werden je Karte zweimal angefasst
-  // (dokumentierter Kontakt + faelliger Rueckruf).
-  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_contact_log_ref_type_idx
-    ON fiaon_contact_log (ref, type, voided_at, created_at DESC)`;
-  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_contact_log_sched_idx
-    ON fiaon_contact_log (ref, scheduled_at) WHERE scheduled_at IS NOT NULL`;
-  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_lead_log_lead_type_idx
-    ON fiaon_lead_log (lead_id, type, created_at DESC)`;
-  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_lead_log_sched_idx
-    ON fiaon_lead_log (lead_id, scheduled_at) WHERE scheduled_at IS NOT NULL`;
+  for (const [name, sql] of indizes) {
+    try {
+      await sqlPool.unsafe(sql);
+    } catch (err: any) {
+      console.warn(`[FIAON-KARTEI] Index ${name} nicht angelegt (${err?.code || "?"}): ${err?.message}`);
+    }
+  }
+  console.log("[FIAON-KARTEI] Index-Durchlauf beendet");
+}
 
-  // Dubletten-Erkennung: normalisierte E-Mail und normalisierte Rufnummer.
-  // Die Ausdruecke muessen ZEICHENGLEICH mit der Abfrage sein, sonst nutzt
-  // Postgres den Index nicht — deshalb wird APP_PHONE_SQL wiederverwendet.
-  await sqlPool.unsafe(`
-    CREATE INDEX IF NOT EXISTS fiaon_apps_norm_email_idx
-      ON fiaon_applications (LOWER(TRIM(email))) WHERE merged_into IS NULL
-  `);
-  await sqlPool.unsafe(`
-    CREATE INDEX IF NOT EXISTS fiaon_apps_norm_phone_idx
-      ON fiaon_applications (RIGHT(COALESCE(${APP_PHONE_SQL},''), 9)) WHERE merged_into IS NULL
-  `);
-  await sqlPool.unsafe(`
-    CREATE INDEX IF NOT EXISTS fiaon_leads_norm_email_idx
-      ON fiaon_leads (LOWER(TRIM(email)))
-  `);
-
-  ensured = true;
-  console.log("[FIAON-KARTEI] Kartei-Tabellen sichergestellt");
+/**
+ * Uebersetzt die haeufigsten Datenbankfehler in einen Satz, mit dem der
+ * Betreiber sofort etwas anfangen kann — statt eines nackten „Serverfehler".
+ * Enthaelt bewusst KEINE Kundendaten, nur die technische Ursache.
+ */
+function karteiFehlertext(err: any): string {
+  const code = String(err?.code || "");
+  if (code === "57014") return "Die Abfrage hat zu lange gedauert und wurde abgebrochen (Zeitlimit).";
+  if (code === "53300") return "Die Datenbank nimmt gerade keine weiteren Verbindungen an.";
+  if (code === "42P18") return "Interner Abfragefehler: ein Parameter ohne bestimmbaren Typ.";
+  if (code === "42703") return "Interner Abfragefehler: eine erwartete Spalte fehlt.";
+  if (code === "42P01") return "Interner Abfragefehler: eine erwartete Tabelle fehlt.";
+  if (code) return `Datenbankfehler ${code}.`;
+  return "Unerwarteter Serverfehler.";
 }
 
 async function karteiEvent(
@@ -567,9 +606,16 @@ router.get("/agent/kartei", requireAgent, async (req: AgentRequest, res: Respons
       // Der Agent muss wissen, warum er gerade keine zweite Akte öffnen kann.
       autoReleaseMinutes: w.autoReleaseMin,
     });
-  } catch (err) {
-    console.error("[FIAON-KARTEI] liste:", err);
-    res.status(500).json({ ok: false, error: "Serverfehler" });
+  } catch (err: any) {
+    // Der Fehlercode gehoert in die Antwort. „Serverfehler" allein hat den
+    // Betreiber vor einem Bildschirm stehen lassen, auf dem nichts stand,
+    // womit sich arbeiten laesst. Der SQLSTATE verraet keine Kundendaten.
+    console.error("[FIAON-KARTEI] liste:", err?.code, err?.message, err);
+    res.status(500).json({
+      ok: false,
+      error: karteiFehlertext(err),
+      code: err?.code || null,
+    });
   }
 });
 
@@ -844,9 +890,13 @@ router.get("/agent/kartei/status", requireAgent, async (req: AgentRequest, res: 
       ruecklaeufer: { anzahl: warnCount, inTagen: warnInDays, fristTage: w.hoardingDays },
       autoReleaseMinutes: w.autoReleaseMin,
     });
-  } catch (err) {
-    console.error("[FIAON-KARTEI] status:", err);
-    res.status(500).json({ ok: false, error: "Serverfehler" });
+  } catch (err: any) {
+    console.error("[FIAON-KARTEI] status:", err?.code, err?.message, err);
+    res.status(500).json({
+      ok: false,
+      error: karteiFehlertext(err),
+      code: err?.code || null,
+    });
   }
 });
 

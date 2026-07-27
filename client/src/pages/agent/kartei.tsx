@@ -128,9 +128,16 @@ function KarteiContent() {
         setCards(c.json.cards);
         setTotal(c.json.total);
       } else {
-        setLadeFehler(c.json?.error || "Die Kartei konnte nicht geladen werden.");
+        // Der technische Code gehoert sichtbar dazu — ohne ihn steht der
+        // Betreiber vor „Serverfehler" und kann nichts damit anfangen.
+        const code = c.json?.code ? ` (Code ${c.json.code})` : "";
+        setLadeFehler(`${c.json?.error || "Die Kartei konnte nicht geladen werden."}${code}`);
       }
       if (s.ok) setStatus(s.json);
+      else if (c.ok) {
+        const code = s.json?.code ? ` (Code ${s.json.code})` : "";
+        setLadeFehler(`Der Kartei-Stand konnte nicht geladen werden.${code}`);
+      }
     } catch {
       setLadeFehler("Keine Verbindung zum Server. Prüfe deine Internetverbindung.");
     } finally {

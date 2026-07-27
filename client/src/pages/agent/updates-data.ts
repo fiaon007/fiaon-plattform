@@ -40,6 +40,23 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-07-27-kartei-serverfehler",
+    date: "2026-07-27",
+    category: "Behoben",
+    title: "Kartei war kurz nicht erreichbar — behoben",
+    summary: "Nach dem letzten Update meldete die Kartei „Serverfehler“. Ursache war eine Umstellung im Hintergrund, nicht deine Daten.",
+    changes: [
+      "Beim Beschleunigen der Datenbank wurde eine Wartungsroutine an die falsche Stelle gesetzt. Schlug sie fehl, blockierte sie die gesamte Kartei.",
+      "Diese Routine läuft jetzt getrennt im Hintergrund. Geht dort etwas schief, arbeitet die Kartei trotzdem weiter — nur etwas langsamer.",
+      "Wenn doch einmal ein Fehler auftritt, steht ab sofort im Klartext auf dem Bildschirm, woran es liegt, statt nur „Serverfehler“.",
+      "Deine Akten waren zu keinem Zeitpunkt betroffen — es war reine Anzeige.",
+    ],
+    howto: [
+      "Öffne „Kartei“ und tippe bei Bedarf auf „Erneut laden“.",
+    ],
+    link: { href: "/agent/kartei", label: "Kartei öffnen" },
+  },
+  {
     id: "2026-07-27-kartei-laedt",
     date: "2026-07-27",
     category: "Behoben",

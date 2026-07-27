@@ -1677,3 +1677,38 @@ bewusste Erweiterung und gehört in einen eigenen Auftrag.
 **Nicht mit Popup belegt (bewusst):** Notiz speichern und Stammdaten bearbeiten. Beide sind
 nicht-destruktiv, lösen kein Event aus und sind über den Verlauf korrigierbar; ein Dialog
 würde hier nur bremsen.
+
+## 0.12 Verbindliche Regel: Agenten-Updates gehören in denselben Commit
+
+**Problem, das dahintersteht:** Die Kartei-Umstellung war die größte Änderung an der
+täglichen Arbeit der Agenten seit dem Start — und auf `/agent/updates` stand kein Wort
+davon. Ein Agent hätte sich morgens in ein verändertes System eingeloggt, ohne Erklärung.
+
+**Ab sofort gilt:**
+
+Jede Änderung, die im Agent-Portal **sichtbar** ist, bekommt im **selben Commit** einen
+Eintrag in `client/src/pages/agent/updates-data.ts` — genauso verbindlich wie der Eintrag
+in `CHANGELOG.md`. Ein Commit ohne diesen Eintrag gilt als unfertig.
+
+**Sichtbar heißt:** neue oder umbenannte Seite, neuer Knopf, geänderte Bedienung,
+geänderte Zuständigkeit, geänderte Zahlen, neue oder wegfallende E-Mail, geänderte
+Auszahlungs- oder Provisionsregel. Reine Serverarbeit ohne sichtbare Folge braucht
+keinen Eintrag — im Zweifel schreiben.
+
+**Ein Eintrag besteht aus:**
+
+- **`id`** — Datum + Kürzel, stabil. Steuert den „gesehen"-Status, darf nie nachträglich geändert werden.
+- **`summary`** — ein Satz, den ein Nicht-Techniker versteht.
+- **`changes`** — was sich ändert, aus Agentensicht, ohne Fachbegriffe.
+- **`howto`** — die konkreten Schritte zum Bedienen.
+- **`link`** — direkt in den betroffenen Bereich.
+- **`important: true`** — nur, wenn der Agent es kennen MUSS (neue Arbeitsweise, geänderte
+  Zuständigkeit, Geld). Solche Einträge erscheinen beim nächsten Login einmalig als kurzer
+  Hinweis und danach nie wieder.
+
+**Reihenfolge:** Neueste zuerst. Die Sortierung steuert den „neu"-Zähler im Menü —
+ein falsch einsortierter Eintrag verfälscht ihn.
+
+**Sparsam mit `important`.** Ein Hinweis, der bei jedem Login erscheint, wird ignoriert.
+Bei der Kartei-Umstellung sind genau zwei Einträge als wichtig markiert: die Kartei selbst
+und die Popups vor E-Mail-Versand.

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link } from "wouter";
 import {
   Phone, ChevronRight, CalendarClock, Clock, CheckCircle2, ArrowRight,
-  Award, TrendingUp, Trophy,
+  Award, TrendingUp, Trophy, Gift,
 } from "lucide-react";
 import {
   AgentShell, FlashMessage, api, fmtCents, fmtTime, fmtD, isToday,
@@ -37,9 +37,11 @@ interface DashboardData {
   monthDeals: number;
   todayDeals: number;
   bestDayDeals: number;
+  monthBonusCount: number;
+  monthBonusCents: number;
   closes: {
     id: number; ref: string; pack_name: string | null; amount_cents: number;
-    kind: string; status: string; created_at: string;
+    kind: string; status: string; created_at: string; is_bonus: boolean;
     first_name: string | null; last_name: string | null; contact_name: string | null; company_name: string | null;
   }[];
   partner: {
@@ -47,6 +49,14 @@ interface DashboardData {
     revenueCents: number;
     next: { key: string; label: string; minCents: number; remainingCents: number; prize: { title: string } | null } | null;
   };
+}
+
+/** Kartei-Kurzstand für die Handlungskarte oben (aus /agent/kartei/status). */
+interface KarteiStatus {
+  activeCardId: string | null;
+  freieKarten: number;
+  meineKarten: number;
+  ruecklaeufer: { anzahl: number; inTagen: number | null; fristTage: number };
 }
 
 function greeting(): string {
@@ -155,11 +165,126 @@ function LoginView({ onLogin }: { onLogin: (a: { name: string; email: string }) 
   );
 }
 
+/**
+ * Die EINE wichtigste Handlung des Tages — ganz oben, groß, ohne Ablenkung.
+ * Reihenfolge der Dringlichkeit:
+ *   1. Überfällige Rückrufe (jemand wartet auf einen Anruf)
+ *   2. Eine Akte ist noch in Bearbeitung (erst zu Ende bringen)
+ *   3. Freie Karten in der Kartei (neue Arbeit holen)
+ *   4. Nichts offen — ehrlich sagen statt künstlich beschäftigen
+ */
+function NaechsterSchritt({
+  firstName, faelligeRueckrufe, kartei, onRueckruf,
+}: {
+  firstName: string;
+  faelligeRueckrufe: Customer[];
+  kartei: KarteiStatus | null;
+  onRueckruf: () => void;
+}) {
+  const rueckrufe = faelligeRueckrufe.length;
+  const frei = kartei?.freieKarten ?? 0;
+  const aktiv = !!kartei?.activeCardId;
+
+  // Lagebericht in EINEM Satz — nur, was tatsächlich zutrifft.
+  const teile: string[] = [];
+  if (rueckrufe > 0) teile.push(`${rueckrufe} ${rueckrufe === 1 ? "Rückruf ist fällig" : "Rückrufe sind fällig"}`);
+  if (frei > 0) teile.push(`${frei} freie ${frei === 1 ? "Karte wartet" : "Karten warten"}`);
+  const lage = teile.length > 0 ? teile.join(" · ") : "Nichts überfällig — sauber gearbeitet.";
+
+  let aktion: { label: string; href?: string; onClick?: () => void; icon: typeof Phone } | null = null;
+  if (rueckrufe > 0) {
+    aktion = { label: "Rückruf jetzt erledigen", onClick: onRueckruf, icon: Phone };
+  } else if (aktiv) {
+    aktion = { label: "Offene Akte weiterbearbeiten", href: "/agent/kartei?tab=meine", icon: ArrowRight };
+  } else if (frei > 0) {
+    aktion = { label: "Nächste Akte öffnen", href: "/agent/kartei", icon: ArrowRight };
+  }
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl agent-glass-strong mb-4 px-5 py-4 sm:px-6 sm:py-5">
+      <p className="text-[12px] font-semibold uppercase tracking-[.14em] text-slate-400">
+        {greeting()}, {firstName}
+      </p>
+      <p className="text-[17px] sm:text-[19px] font-bold tracking-tight text-slate-900 mt-1.5 leading-snug">
+        {lage}
+      </p>
+
+      {aktion && (
+        aktion.href ? (
+          <Link
+            href={aktion.href}
+            className="mt-3.5 w-full inline-flex items-center justify-center gap-2 rounded-xl px-5 text-[14px] font-semibold text-white transition-transform duration-150 active:scale-[.985]"
+            style={{ background: ACCENT, minHeight: 50 }}
+          >
+            {aktion.label} <aktion.icon size={16} strokeWidth={2.2} />
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); aktion!.onClick?.(); }}
+            className="mt-3.5 w-full inline-flex items-center justify-center gap-2 rounded-xl px-5 text-[14px] font-semibold text-white transition-transform duration-150 active:scale-[.985]"
+            style={{ background: ACCENT, minHeight: 50 }}
+          >
+            {aktion.label} <aktion.icon size={16} strokeWidth={2.2} />
+          </button>
+        )
+      )}
+
+      {/* Rückläufer-Vorwarnung: ehrlich, aber ohne Drohton. */}
+      {kartei && kartei.ruecklaeufer.anzahl > 0 && (
+        <p className="mt-2.5 text-[11.5px] text-slate-500 leading-relaxed">
+          {kartei.ruecklaeufer.anzahl} deiner Akten {kartei.ruecklaeufer.anzahl === 1 ? "wurde" : "wurden"} noch nicht bearbeitet
+          {kartei.ruecklaeufer.inTagen != null && kartei.ruecklaeufer.inTagen > 0
+            ? ` und gehen in ${kartei.ruecklaeufer.inTagen} ${kartei.ruecklaeufer.inTagen === 1 ? "Tag" : "Tagen"} zurück in die Kartei.`
+            : " und gehen demnächst zurück in die Kartei."}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Eine Zeile in „Meine Abschlüsse" — für echte Abschlüsse und für Boni. */
+function AbschlussRow({ k }: { k: DashboardData["closes"][number] }) {
+  const kName = k.company_name || [k.first_name, k.last_name].filter(Boolean).join(" ") || k.contact_name
+    || (k.kind === "feedback_bonus" ? "Feedback-Dankschön" : k.ref);
+  const zusatz = k.kind === "override" ? "Team-Beteiligung"
+    : k.kind === "feedback_bonus" ? "Bonus" : "";
+  return (
+    <div className="px-5 py-3 flex items-center justify-between gap-3">
+      <div className="min-w-0 flex items-center gap-3">
+        <span
+          className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+          style={k.is_bonus
+            ? { background: "rgb(248 250 252)", color: "rgb(100 116 139)" }
+            : { background: "rgba(37,99,235,.10)", color: ACCENT }}
+        >
+          {k.is_bonus ? <Gift size={15} strokeWidth={2} /> : <CheckCircle2 size={15} strokeWidth={2} />}
+        </span>
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold text-slate-900 truncate">{kName}</p>
+          <p className="text-[11px] text-slate-400 truncate">
+            {[(k.pack_name || "").replace(/\n/g, " ").trim(),
+              isToday(k.created_at) ? `heute ${fmtTime(k.created_at)}` : fmtD(k.created_at),
+              zusatz].filter(Boolean).join(" · ")}
+          </p>
+        </div>
+      </div>
+      <p
+        className="text-[14px] font-bold tabular-nums shrink-0"
+        style={{ color: k.is_bonus ? "rgb(71 85 105)" : ACCENT }}
+      >
+        +{fmtCents(k.amount_cents)}
+      </p>
+    </div>
+  );
+}
+
 // ═══════════════ Dashboard „Mein Tag" ═══════════════
 
 function Dashboard({ agentName }: { agentName: string }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [kartei, setKartei] = useState<KarteiStatus | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [detailRef, setDetailRef] = useState<string | null>(null);
   const [glow, setGlow] = useState(false);
@@ -169,7 +294,12 @@ function Dashboard({ agentName }: { agentName: string }) {
   const flash = (m: string) => { setMessage(m); setTimeout(() => setMessage(null), 4000); };
 
   const load = useCallback(async () => {
-    const [d, c] = await Promise.all([api("/agent/dashboard"), api("/agent/customers")]);
+    const [d, c, k] = await Promise.all([
+      api("/agent/dashboard"),
+      api("/agent/customers"),
+      api("/agent/kartei/status"),
+    ]);
+    if (k.ok) setKartei(k.json);
     if (d.ok) {
       const next: DashboardData = d.json;
       // Erfolgs-Moment (AH1): neuer eigener Abschluss seit dem letzten Poll →
@@ -191,6 +321,13 @@ function Dashboard({ agentName }: { agentName: string }) {
   }, [load]);
 
   const firstName = agentName.split(" ")[0];
+
+  // Fällige Rückrufe — der stärkste Grund, sofort loszulegen.
+  const faelligeRueckrufe = useMemo(
+    () => customers.filter((c) => c.next_appointment && new Date(c.next_appointment).getTime() <= Date.now()),
+    [customers],
+  );
+  const naechsterRueckruf = faelligeRueckrufe[0] || null;
 
   // AG2: Priorisierung — überfällige Rückrufe → Zahlung angekündigt → Zusage
   // heute → Termin heute → Rest (Eingangsdatum). Max. 5 sichtbar.
@@ -217,6 +354,11 @@ function Dashboard({ agentName }: { agentName: string }) {
     );
   }
 
+  // Trennung Abschluss / Bonus — der Zähler oben darf der Liste nicht
+  // widersprechen (frueher stand „1 im Juli" ueber zwei Eintraegen).
+  const echteAbschluesse = data.closes.filter((k) => !k.is_bonus);
+  const boni = data.closes.filter((k) => k.is_bonus);
+
   const weekDelta = data.prevWeekCents > 0
     ? Math.round(((data.weekCents - data.prevWeekCents) / data.prevWeekCents) * 100)
     : null;
@@ -234,16 +376,26 @@ function Dashboard({ agentName }: { agentName: string }) {
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_350px] lg:gap-5 lg:items-start">
         {/* ════ Hauptspalte ════ */}
         <div className="min-w-0">
-          {/* ── AG1: Kopf „Heute" — Glas, Ziel-Ring, 3D-Signature ── */}
+          {/* ── Die EINE wichtigste Handlung. Muss auf 380 px ohne Scrollen
+                 sichtbar sein, deshalb steht sie ganz oben und bleibt kompakt. ── */}
           <Reveal index={0}>
+            <NaechsterSchritt
+              firstName={firstName}
+              faelligeRueckrufe={faelligeRueckrufe}
+              kartei={kartei}
+              onRueckruf={() => { if (naechsterRueckruf) setDetailRef(naechsterRueckruf.ref); }}
+            />
+          </Reveal>
+
+          {/* ── AG1: Kopf „Heute" — Glas, Ziel-Ring, 3D-Signature ── */}
+          <Reveal index={1}>
             <div className="relative overflow-hidden rounded-2xl agent-glass-strong mb-4 px-5 py-5 sm:px-7 sm:py-6">
               <div className="pointer-events-none absolute -right-12 -top-16 opacity-[.45] hidden sm:block">
                 <SignatureCore size={220} facet />
               </div>
               <div className="relative flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-8">
                 <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-semibold uppercase tracking-[.14em] text-slate-400">{greeting()}, {firstName}</p>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mt-4">Heute verdient</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Heute verdient</p>
                   <p className="text-[34px] sm:text-[40px] leading-none font-black tracking-tight text-slate-900 mt-1">
                     <LiveCount value={data.todayCents} format={fmtCents} />
                   </p>
@@ -287,7 +439,7 @@ function Dashboard({ agentName }: { agentName: string }) {
           </Reveal>
 
           {/* ── AG2: Fokus „Jetzt dran" (Arbeitszone — schnell, kein schweres Motion) ── */}
-          <Reveal index={1}>
+          <Reveal index={2}>
             <div className="rounded-2xl agent-glass mb-4 overflow-hidden">
               <div className="px-5 py-3.5 border-b border-slate-100/80 flex items-center gap-2">
                 <CalendarClock size={15} strokeWidth={1.8} className="text-slate-400" />
@@ -312,7 +464,7 @@ function Dashboard({ agentName }: { agentName: string }) {
           </Reveal>
 
           {/* ── AG3: Erfolge „Meine Abschlüsse" (mit Erfolgs-Glanz bei neuem Abschluss) ── */}
-          <Reveal index={2}>
+          <Reveal index={3}>
             <div className={`rounded-2xl agent-glass mb-4 overflow-hidden ${glow ? "agent-glow" : ""}`}>
               <div className="px-5 py-3.5 border-b border-slate-100/80 flex items-center gap-2">
                 <Trophy size={15} strokeWidth={1.8} className="text-slate-400" />
@@ -324,42 +476,47 @@ function Dashboard({ agentName }: { agentName: string }) {
                   Verdienst <ArrowRight size={12} strokeWidth={2} />
                 </Link>
               </div>
+              {/* Abschlüsse und Boni sind getrennt: Der Zähler oben zählt echte
+                  Abschlüsse (kind='own'). Boni sind Verdienst, aber kein
+                  Abschluss — vorher standen beide vermischt unter einer Zahl. */}
               {data.closes.length === 0 ? (
                 <p className="px-5 py-8 text-center text-[12px] text-slate-400">
                   Hier erscheinen deine Abschlüsse, sobald ein Kunde bezahlt hat.
                 </p>
               ) : (
-                <div className="divide-y divide-slate-50">
-                  {data.closes.slice(0, 6).map((k) => {
-                    const kName = k.company_name || [k.first_name, k.last_name].filter(Boolean).join(" ") || k.contact_name
-                      || (k.kind === "feedback_bonus" ? "Feedback-Dankeschön" : k.ref);
-                    return (
-                      <div key={k.id} className="px-5 py-3 flex items-center justify-between gap-3">
-                        <div className="min-w-0 flex items-center gap-3">
-                          <span className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-                            style={{ background: "rgba(37,99,235,.10)", color: ACCENT }}>
-                            <CheckCircle2 size={15} strokeWidth={2} />
-                          </span>
-                          <div className="min-w-0">
-                            <p className="text-[13px] font-semibold text-slate-900 truncate">{kName}</p>
-                            <p className="text-[11px] text-slate-400 truncate">
-                              {[(k.pack_name || "").replace(/\n/g, " ").trim(), isToday(k.created_at) ? `heute ${fmtTime(k.created_at)}` : fmtD(k.created_at)]
-                                .filter(Boolean).join(" · ")}
-                              {k.kind === "override" ? " · Team-Beteiligung" : ""}
-                            </p>
-                          </div>
-                        </div>
-                        <p className="text-[14px] font-bold tabular-nums shrink-0" style={{ color: ACCENT }}>+{fmtCents(k.amount_cents)}</p>
+                <>
+                  {echteAbschluesse.length === 0 ? (
+                    <p className="px-5 py-6 text-center text-[12px] text-slate-400">
+                      Noch kein eigener Abschluss — deine erste Zahlung erscheint hier.
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-slate-50">
+                      {echteAbschluesse.slice(0, 6).map((k) => (
+                        <AbschlussRow key={k.id} k={k} />
+                      ))}
+                    </div>
+                  )}
+                  {boni.length > 0 && (
+                    <>
+                      <div className="px-5 py-2 bg-slate-50/70 border-y border-slate-100/80">
+                        <p className="text-[10.5px] font-semibold uppercase tracking-wide text-slate-400">
+                          Boni und Gutschriften · zählen nicht als Abschluss
+                        </p>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div className="divide-y divide-slate-50">
+                        {boni.slice(0, 3).map((k) => (
+                          <AbschlussRow key={k.id} k={k} />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
               )}
             </div>
           </Reveal>
 
           {/* ── AG4: Partner-Fortschritt (Teaser) ── */}
-          <Reveal index={3}>
+          <Reveal index={4}>
             <Link href="/agent/partner-programm" className="block rounded-2xl agent-glass mb-4 px-5 py-4 transition-transform duration-150 active:scale-[.995] hover:shadow-[0_20px_44px_-26px_rgba(15,23,42,.32)]">
               <div className="flex items-center gap-3">
                 <span className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 shrink-0">
@@ -385,7 +542,7 @@ function Dashboard({ agentName }: { agentName: string }) {
           </Reveal>
 
           {/* ── AK: Wunschgehalt-Simulator ── */}
-          <Reveal index={4}>
+          <Reveal index={5}>
             <SalarySimulatorCard className="mb-4" />
           </Reveal>
         </div>

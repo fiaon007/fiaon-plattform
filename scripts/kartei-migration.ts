@@ -104,9 +104,18 @@ async function keepCounts(): Promise<Map<string, number>> {
 }
 
 async function doUndo(batch: string): Promise<void> {
+  // Robust gegen beide Schreibweisen von meta: echtes JSON-Objekt UND (aus einem
+  // frueheren Fehler) ein doppelt kodierter JSON-String. Sonst faende der
+  // Rueckwaertsgang keinen einzigen Eintrag und die Migration waere faktisch
+  // unumkehrbar.
   const events = await sql`
     SELECT kind, target_id, agent_id FROM fiaon_kartei_events
-    WHERE event = 'migration_release' AND meta->>'batch_id' = ${batch}
+    WHERE event = 'migration_release'
+      AND COALESCE(
+            meta->>'batch_id',
+            CASE WHEN jsonb_typeof(meta) = 'string'
+                 THEN ((meta #>> '{}')::jsonb)->>'batch_id' END
+          ) = ${batch}
   `;
   if (events.length === 0) {
     console.error(`Kein Migrations-Stapel „${batch}" gefunden.`);
@@ -127,7 +136,7 @@ async function doUndo(batch: string): Promise<void> {
     INSERT INTO fiaon_kartei_events (kind, target_id, card_id, agent_id, event, reason, actor, meta)
     VALUES ('app', ${batch}, ${batch}, NULL, 'migration_undo',
             ${`Migrations-Stapel ${batch} zurückgerollt: ${restored} Akte(n) wieder zugewiesen.`},
-            'Admin', ${JSON.stringify({ batch_id: batch, restored })})
+            'Admin', ${sql.json({ batch_id: batch, restored })})
   `;
   console.log(`✅ ${restored} Akte(n) wiederhergestellt. Bereits neu übernommene Akten wurden bewusst NICHT überschrieben.`);
 }
@@ -178,7 +187,7 @@ async function main(): Promise<void> {
       INSERT INTO fiaon_kartei_events (kind, target_id, card_id, agent_id, event, reason, actor, meta)
       VALUES ('lead', ${String(l.id)}, ${`lead-${l.id}`}, ${l.assigned_agent_id}, 'migration_release',
               ${`Migration in die offene Kartei: nie dokumentierter Kontakt (war zugewiesen an ${l.agent_name || l.assigned_agent_id}).`},
-              'Migration', ${JSON.stringify({ batch_id: batch, previous_agent_id: l.assigned_agent_id })})
+              'Migration', ${sql.json({ batch_id: batch, previous_agent_id: l.assigned_agent_id })})
     `;
     await sql`
       INSERT INTO fiaon_lead_log (lead_id, agent_id, agent_name, type, note)
@@ -197,7 +206,7 @@ async function main(): Promise<void> {
       INSERT INTO fiaon_kartei_events (kind, target_id, card_id, agent_id, event, reason, actor, meta)
       VALUES ('app', ${a.ref}, ${a.ref}, ${a.assigned_agent_id}, 'migration_release',
               ${`Migration in die offene Kartei: nie dokumentierter Kontakt (war zugewiesen an ${a.agent_name || a.assigned_agent_id}).`},
-              'Migration', ${JSON.stringify({ batch_id: batch, previous_agent_id: a.assigned_agent_id })})
+              'Migration', ${sql.json({ batch_id: batch, previous_agent_id: a.assigned_agent_id })})
     `;
     await sql`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)

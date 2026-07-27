@@ -2,7 +2,10 @@ import { useState, useEffect, useRef, createContext, useContext, type ReactNode 
 import { Link, useLocation } from "wouter";
 import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle } from "lucide-react";
 import OnboardingGate from "./onboarding";
-import { AGENT_UPDATES, getUnseenCount, fmtUpdateDate } from "./updates-data";
+import {
+  AGENT_UPDATES, getUnseenCount, fmtUpdateDate,
+  getUnseenImportant, markImportantSeen, type AgentUpdate,
+} from "./updates-data";
 
 // ============================================================================
 // Agent-Portal — gemeinsame Shell + Design-System (Paket E)
@@ -180,6 +183,71 @@ function UpdateBanner() {
 }
 
 /**
+ * Einmaliger Hinweis für als „wichtig" markierte Updates — erscheint beim
+ * nächsten Login genau EINMAL und danach nie wieder. Bewusst zurückhaltend:
+ * kein Zwang, kein Blockieren der Arbeit, mit einem Tipp weg.
+ */
+function ImportantUpdateHint() {
+  const [items, setItems] = useState<AgentUpdate[]>([]);
+  const [location] = useLocation();
+
+  useEffect(() => {
+    // Kurz warten, damit der Hinweis nicht in die Ladephase platzt.
+    const t = setTimeout(() => setItems(getUnseenImportant()), 900);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (items.length === 0 || location === "/agent/updates") return null;
+
+  const schliessen = () => {
+    markImportantSeen(items.map((u) => u.id));
+    setItems([]);
+  };
+
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-[60] sm:bottom-4 sm:right-4 sm:left-auto sm:max-w-sm px-3 pb-[calc(env(safe-area-inset-bottom)+76px)] sm:pb-0 sm:px-0">
+      <div className="agent-banner-in rounded-2xl border border-slate-200 bg-white shadow-[0_24px_60px_-24px_rgba(15,23,42,.35)] overflow-hidden">
+        <div className="px-4 pt-3.5 pb-3">
+          <div className="flex items-start gap-2.5">
+            <span className="mt-0.5 shrink-0" style={{ color: ACCENT }}>
+              <Sparkles size={16} strokeWidth={1.9} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[13px] font-semibold text-slate-900">
+                {items.length === 1 ? "Eine wichtige Neuerung" : `${items.length} wichtige Neuerungen`}
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {items.slice(0, 3).map((u) => (
+                  <li key={u.id} className="text-[12px] text-slate-600 leading-snug">{u.title}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div className="flex border-t border-slate-100">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); schliessen(); }}
+            className="flex-1 px-4 py-3 text-[12.5px] font-semibold text-slate-500 hover:bg-slate-50 transition-colors"
+            style={{ minHeight: 46 }}
+          >
+            Verstanden
+          </button>
+          <Link
+            href="/agent/updates"
+            onClick={schliessen}
+            className="flex-1 px-4 py-3 text-[12.5px] font-semibold text-center border-l border-slate-100 hover:bg-slate-50 transition-colors"
+            style={{ color: ACCENT, minHeight: 46 }}
+          >
+            Ansehen
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Shell: prüft die Anmeldung, zeigt Kopfzeile + Navigation (Desktop oben,
  * Mobile als Bottom-Bar). Nicht angemeldet ⇒ Redirect auf /agent (Login).
  */
@@ -323,6 +391,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
         </header>
 
         <UpdateBanner />
+        <ImportantUpdateHint />
 
         <main className="max-w-6xl mx-auto px-4 py-5">{children}</main>
 

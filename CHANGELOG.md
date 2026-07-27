@@ -3,6 +3,33 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 27.07.2026 — Migration ausgeführt + Wunschgehalt-Rechnung korrigiert (Prompt 2/2 Teil A–C)
+
+**Migration ausgeführt:** **2.056 Akten** in die offene Kartei überführt, Stapel `mig-2026-07-27-66a3e2`. Rückabwicklung jederzeit über `npx tsx scripts/kartei-migration.ts --undo=mig-2026-07-27-66a3e2`.
+
+**Vorher behobener Blocker — die Migration war faktisch unumkehrbar:** Die Audit-Einträge wurden mit `JSON.stringify()` in eine `jsonb`-Spalte geschrieben und landeten dadurch als doppelt kodierter JSON-*String* statt als Objekt. Die Undo-Abfrage `meta->>'batch_id'` fand darauf **null Einträge**. Ein Rückwärtsgang hätte gemeldet „0 Akten wiederhergestellt" und die Zuordnung von 2.056 Akten wäre unwiederbringlich verloren gewesen. Behoben durch `sql.json()` beim Schreiben; die Undo-Abfrage liest zusätzlich die alte Schreibweise mit, damit auch Altbestände umkehrbar bleiben. Geprüft in `scripts/kartei-audit-check.ts`.
+
+**Zwei Abweichungen im Betreuungs-Vergleich — untersucht statt blind zurückgerollt:** Eine Bestellung wanderte von „betreut" zu „abgeschlossen" (Summe je Agent unverändert), die Nachfass-Menge *stieg* um 1. Ursache: Während der 25 Minuten Laufzeit haben zwei echte Kunden bezahlt, eine Bestellung lief ab, zwei neue Leads kamen herein. Die Migration setzt ausschließlich `assigned_agent_id` auf `NULL` und fasst weder `payment_status` noch neue Leads an. `scripts/kartei-nachpruefung.ts` belegt: **keine Akte mit dokumentiertem Kontakt und nichts Bezahltes freigegeben, 2.056/2.056 rückabwickelbar.** Ein `--undo` wäre hier der größere Schaden gewesen.
+
+**Wunschgehalt: „Noch 2.812 Abschlüsse" — Ursache gefunden (Teil A).** Zwei getrennte Fehler in `server/routes/fiaon-agent-portal.ts`:
+
+1. **Ø-Abschlusswert ab dem allerersten Abschluss.** Ein einzelnes Starter-Paket zu 7,99 € galt als „Durchschnitt", ergab 1,60 € Provision — daraus die vierstellige Zahl. Jetzt zählt der eigene Schnitt erst **ab fünf** eigenen Abschlüssen, davor der **Team-Durchschnitt der letzten 90 Tage**; die dünne Datenlage wird im Hinweis ausdrücklich benannt.
+2. **Zähler und Liste maßen Verschiedenes.** `monthDeals` zählte nur echte Abschlüsse des Monats, die Liste zeigte *alle* Provisionsarten *ohne* Monatsfilter — daher „1 im Juli" über zwei Einträgen. Boni stehen jetzt in einem eigenen Abschnitt „Boni und Gutschriften · zählen nicht als Abschluss".
+
+**Plausibilitätsgrenze statt Fantasiezahl:** Übersteigt das nötige Tagespensum die **beste tatsächliche Tagesleistung im Team der letzten 90 Tage**, wird die Zahl nicht mehr angezeigt. Stattdessen sagt das Portal ehrlich, dass das Ziel diesen Monat nicht erreichbar ist, und schlägt ein aus echten Daten errechnetes Zwischenziel zum Übernehmen vor. Boni fließen nie in den Ø-Abschlusswert.
+
+**„Mein Tag": eine Handlung statt einer Zahlenwand (Teil B).** Ganz oben steht jetzt die eine wichtigste Handlung mit einer großen Schaltfläche, priorisiert nach *fällige Rückrufe → offene Akte → freie Karten → nichts offen*. Auf 380 px ohne Scrollen erreichbar. Der Verdienst rückt darunter. Feed-Zeiten in Menschensprache („vor 12 Minuten", „gestern 14:20") statt roher Zeitstempel.
+
+**Updates-Seite nachgetragen (Teil C).** Die größte Änderung der täglichen Arbeit seit dem Start stand nicht auf `/agent/updates`. Ergänzt: Kartei · Meine Kunden · Popups vor E-Mail-Versand · Wunschgehalt-Korrektur · Auszahlungs-Schwellen · Kalender. Neu ist `important` — als wichtig markierte Einträge erscheinen beim nächsten Login **einmalig** als kurzer Hinweis und danach nie wieder; bewusst nur zwei davon.
+
+**Neue Regel `SYSTEM_DIAGNOSE.md` (0.12):** Jede im Agent-Portal sichtbare Änderung bekommt im **selben Commit** einen Eintrag in `updates-data.ts` — sonst gilt der Commit als unfertig.
+
+**Prüfungen:** `kartei-verify.ts` alle sechs Zusagen grün · `event-inventar.ts --check` **25/25 Versandpunkte erhalten** · `kartei-nachpruefung.ts` N1–N4 grün.
+
+**Zu finden:** `server/routes/fiaon-agent-portal.ts` · `client/src/pages/agent.tsx` · `client/src/pages/agent/motivation.tsx` · `client/src/pages/agent/shared.tsx` · `client/src/pages/agent/updates-data.ts` · `scripts/kartei-migration.ts` · `scripts/kartei-nachpruefung.ts` · `SYSTEM_DIAGNOSE.md` (0.12)
+
+---
+
 ## 27.07.2026 — Kartei-Oberfläche + Popups bei jeder Aktion (Prompt 1/2 Teil 2, Prompt 2/2)
 
 **Warum:** Der Serverteil der offenen Kartei stand, aber die Agenten hatten keine Oberfläche dafür. Gleichzeitig löste ein Teil der Aktionen — darunter zwei, die echte Kunden-E-Mails verschicken — ohne jede Rückfrage aus.

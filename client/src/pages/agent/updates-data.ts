@@ -4,7 +4,12 @@
 // Jeder echte GitHub-Push, der den Agenten betrifft, bekommt hier EINEN Eintrag
 // in einfacher Sprache: „Was wurde gemacht" + „So bedienst du es" (Schritt für
 // Schritt). Reine Commit-Texte sind zu technisch — das hier ist die Version,
-// die der Agent versteht und bedienen kann. Neueste zuerst, max. 10.
+// die der Agent versteht und bedienen kann. Neueste zuerst.
+//
+// VERBINDLICHE REGEL (siehe SYSTEM_DIAGNOSE.md 0.12):
+// Jede Änderung, die im Agent-Portal SICHTBAR ist, bekommt im SELBEN Commit
+// einen Eintrag hier — genauso verbindlich wie der Eintrag im CHANGELOG.md.
+// Ein Update ohne Eintrag gilt als unfertig.
 // ============================================================================
 
 export type UpdateCategory = "Neu" | "Verbessert" | "Behoben" | "Hintergrund";
@@ -24,10 +29,112 @@ export interface AgentUpdate {
   howto?: string[];
   /** Direktlink in den passenden Bereich (optional). */
   link?: { href: string; label: string };
+  /**
+   * „Wichtig" markiert Änderungen, die der Agent kennen MUSS (neue Arbeitsweise,
+   * geänderte Zuständigkeit, Geld). Sie erscheinen beim nächsten Login einmalig
+   * als kurzer Hinweis — danach nie wieder.
+   */
+  important?: boolean;
 }
 
-// Neueste zuerst. Genau die letzten 10 relevanten GitHub-Updates.
+// Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
+  {
+    id: "2026-07-27-kartei",
+    date: "2026-07-27",
+    category: "Neu",
+    important: true,
+    title: "Die Kartei: alle Kunden offen für alle",
+    summary: "Es gibt keine zugeteilten Listen mehr. Alle Akten liegen in einer gemeinsamen Kartei — du nimmst dir, was du bearbeiten willst.",
+    changes: [
+      "Früher hat das System dir Leads zugeteilt. Damit ist Schluss: Es gibt jetzt EINE Kartei für alle.",
+      "Freie Karten zeigen zuerst nur neutrale Angaben — Status, Alter, Paket, offener Betrag, Quelle, PLZ-Gebiet. Name und Nummer erscheinen erst nach der Übernahme.",
+      "Bearbeitet ein Kollege eine Akte, steht das direkt auf der Karte. So ruft niemand doppelt an.",
+      "Du kannst immer nur EINE Akte gleichzeitig in Bearbeitung haben — das schützt dich und die Kollegen vor Wildwuchs.",
+      "Die Reihenfolge macht der Server: oben liegt, was sich am meisten lohnt. Du musst nicht suchen — arbeite von oben nach unten.",
+      "Akten, die niemand anfasst, gehen nach einigen Tagen automatisch zurück in die Kartei. Du wirst vorher gewarnt.",
+    ],
+    howto: [
+      "Öffne unten in der Leiste „Kartei“.",
+      "Im Reiter „Frei“ siehst du alles, was noch niemand betreut.",
+      "Tippe auf die oberste Karte — es erscheint eine Nachfrage mit allen Angaben.",
+      "Bestätige mit „Übernehmen“. Danach siehst du Name und Nummer und bist zuständig.",
+      "Passt die Akte doch nicht? Tippe auf „Zurückgeben“, gib kurz den Grund an — sie liegt dann wieder frei.",
+    ],
+    link: { href: "/agent/kartei", label: "Kartei öffnen" },
+  },
+  {
+    id: "2026-07-27-meine-kunden",
+    date: "2026-07-27",
+    category: "Neu",
+    title: "„Meine Kunden“: nichts verschwindet mehr",
+    summary: "Alles, was du je übernommen hast, bleibt an einem Ort sichtbar — auch bezahlt, abgelaufen oder zusammengeführt.",
+    changes: [
+      "Die frühere Seite „Kunden“ heißt jetzt „Meine Kunden“ und zeigt deinen kompletten Bestand.",
+      "Filter: Offen · Angekündigt · Bezahlt · Rückruf · Abgelaufen · Tot.",
+      "Wurde eine Akte mit einer anderen zusammengeführt, steht jetzt im Klartext da, wo die Betreuung weiterläuft — statt dass der Kunde scheinbar verschwindet.",
+    ],
+    howto: [
+      "Öffne unten „Meine Kunden“.",
+      "Oben wählst du den Filter, unten suchst du über Name, Nummer oder Referenz.",
+    ],
+    link: { href: "/agent/meine-kunden", label: "Meine Kunden öffnen" },
+  },
+  {
+    id: "2026-07-27-popup-email",
+    date: "2026-07-27",
+    category: "Verbessert",
+    important: true,
+    title: "Du siehst jetzt immer, wenn eine E-Mail rausgeht",
+    summary: "Vor jeder Aktion, die eine E-Mail an den Kunden auslöst, steht jetzt ausdrücklich da, wer sie bekommt und was drinsteht.",
+    changes: [
+      "Zwei Aktionen haben vorher OHNE jede Rückfrage eine echte Kunden-E-Mail verschickt: „Zahlungsdaten senden“ und „Antrags-/Zahlungslink senden“. Beide fragen jetzt vorher nach.",
+      "Im Popup steht der Empfänger und was die E-Mail auslöst — keine Überraschungen mehr.",
+      "Auch „Akte übernehmen“, „Akte zurückgeben“, „Aussortieren“ und „Auszahlung beantragen“ fragen jetzt einheitlich nach.",
+      "Wo KEINE E-Mail rausgeht, steht das auch ausdrücklich — damit du dich traust zu tippen.",
+    ],
+    howto: [
+      "Du musst nichts umstellen. Lies im Popup den Satz unter „Was passiert“ — dort steht die Folge.",
+      "Mit „Abbrechen“ passiert garantiert nichts.",
+    ],
+  },
+  {
+    id: "2026-07-27-wunschgehalt",
+    date: "2026-07-27",
+    category: "Behoben",
+    title: "Wunschgehalt: endlich realistische Zahlen",
+    summary: "Die Rechnung nannte absurde Werte wie „2.812 Abschlüsse“. Ursache gefunden und behoben.",
+    changes: [
+      "Früher wurde dein Durchschnitt schon ab dem ERSTEN Abschluss gebildet. Ein einzelnes Starter-Paket (7,99 €) hat die ganze Rechnung verzerrt.",
+      "Jetzt gilt: Erst ab fünf eigenen Abschlüssen zählt dein eigener Schnitt — vorher der Team-Durchschnitt der letzten 90 Tage.",
+      "Boni und Team-Beteiligungen zählen zu deinem Verdienst, aber NICHT als Abschluss. Sie verfälschen den Schnitt nicht mehr.",
+      "Ist ein Ziel rechnerisch nicht erreichbar, wird keine Fantasiezahl mehr angezeigt. Stattdessen bekommst du ein realistisches Zwischenziel vorgeschlagen.",
+      "„Meine Abschlüsse“ trennt jetzt sauber: echte Abschlüsse oben, Boni klar abgesetzt darunter. Zähler und Liste widersprechen sich nicht mehr.",
+    ],
+    howto: [
+      "Öffne „Mein Tag“ oder „Verdienst“.",
+      "Tippe unter der Rechnung auf „Wie wird das gerechnet?“ — dort stehen alle Annahmen.",
+    ],
+    link: { href: "/agent/verdienst", label: "Verdienst ansehen" },
+  },
+  {
+    id: "2026-07-20-auszahlung-schwellen",
+    date: "2026-07-20",
+    category: "Verbessert",
+    title: "Auszahlung: klare Regeln, klare Schwellen",
+    summary: "Wann du wie viel auszahlen lassen kannst, steht jetzt eindeutig im Vertrag und im Portal.",
+    changes: [
+      "Die Auszahlungsregelung im Agentenvertrag wurde präzisiert (Ziffer 6.7).",
+      "Mindestbetrag und Bearbeitungszeit sind im Portal sichtbar — keine Unklarheit mehr.",
+      "Beim Beantragen steht jetzt im Popup, dass zunächst nur eine Anforderung entsteht und die Überweisung nach Prüfung manuell erfolgt.",
+    ],
+    howto: [
+      "Öffne Mehr → Auszahlung.",
+      "Hinterlege zuerst deine Bankdaten im Profil, falls noch nicht geschehen.",
+      "Ab dem Mindestbetrag ist der Knopf aktiv.",
+    ],
+    link: { href: "/agent/auszahlung", label: "Auszahlung öffnen" },
+  },
   {
     id: "2026-07-20-dokumente-pdf",
     date: "2026-07-20",
@@ -84,7 +191,25 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Bei „Rückruf“ wählst du Datum und Uhrzeit direkt im Popup (deutsche Zeit).",
       "Tippe „Bestätigen“ — oder „Abbrechen“, falls du dich vertippt hast.",
     ],
-    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
+    link: { href: "/agent/meine-kunden", label: "Zu meinen Kunden" },
+  },
+  {
+    id: "2026-07-19-kalender",
+    date: "2026-07-19",
+    category: "Neu",
+    title: "Kalender mit Tagesdetail",
+    summary: "Deine Rückrufe und Termine übersichtlich im Monat — mit Detailansicht pro Tag.",
+    changes: [
+      "Der Kalender zeigt deine vereinbarten Rückrufe und Termine im Monatsüberblick.",
+      "Ein Tap auf einen Tag öffnet alle Vorgänge dieses Tages.",
+      "Überfällige Rückrufe sind deutlich hervorgehoben.",
+    ],
+    howto: [
+      "Öffne unten „Kalender“.",
+      "Tippe auf einen markierten Tag — die Vorgänge erscheinen darunter.",
+      "Von dort kommst du direkt in die Kundenakte.",
+    ],
+    link: { href: "/agent/kalender", label: "Kalender öffnen" },
   },
   {
     id: "2026-07-19-nummer-falsch",
@@ -101,7 +226,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Wähle beim Kontakt-Ergebnis „Nummer falsch“.",
       "Bestätige im Popup — der Kunde erhält automatisch eine E-Mail mit Korrektur-Link.",
     ],
-    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
+    link: { href: "/agent/meine-kunden", label: "Zu meinen Kunden" },
   },
   {
     id: "2026-07-16-berlin-zeit",
@@ -135,7 +260,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Reaktivieren: In der Akte auf „Reaktivieren“ tippen und im Popup bestätigen.",
       "Aussortieren: „Akte schließen“ wählen und im Popup kurz den Grund angeben.",
     ],
-    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
+    link: { href: "/agent/meine-kunden", label: "Zu meinen Kunden" },
   },
   {
     id: "2026-07-16-soft-merge",
@@ -192,7 +317,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     howto: [
       "In deiner Kundenliste kannst du nach Status filtern und abgelaufene Kunden gezielt reaktivieren.",
     ],
-    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
+    link: { href: "/agent/meine-kunden", label: "Zu meinen Kunden" },
   },
 ];
 
@@ -213,6 +338,37 @@ export function getUnseenCount(): number {
   } catch {
     return 0;
   }
+}
+
+// ── Einmaliger Hinweis für WICHTIGE Updates ───────────────────────────
+const IMPORTANT_KEY = "fiaon-agent-updates-important-seen";
+
+/**
+ * Wichtige Updates, die dieser Agent noch nie bestätigt hat. Absichtlich über
+ * eine eigene ID-Liste (nicht über den Index), damit ein später ergänzter
+ * älterer Eintrag nicht versehentlich erneut auftaucht.
+ */
+export function getUnseenImportant(): AgentUpdate[] {
+  try {
+    const raw = localStorage.getItem(IMPORTANT_KEY);
+    const seen: string[] = raw ? JSON.parse(raw) : [];
+    return AGENT_UPDATES.filter((u) => u.important && !seen.includes(u.id));
+  } catch {
+    return [];
+  }
+}
+
+/** Bestätigt die wichtigen Hinweise — sie erscheinen danach nie wieder. */
+export function markImportantSeen(ids: string[]): void {
+  try {
+    const raw = localStorage.getItem(IMPORTANT_KEY);
+    const seen: string[] = raw ? JSON.parse(raw) : [];
+    const merged = seen.concat(ids.filter((id) => !seen.includes(id)));
+    localStorage.setItem(IMPORTANT_KEY, JSON.stringify(merged));
+  } catch {
+    /* localStorage evtl. gesperrt — dann erscheint der Hinweis erneut, kein Schaden */
+  }
+  window.dispatchEvent(new CustomEvent("agent-updates-seen"));
 }
 
 /** Markiert alle aktuellen Updates als gesehen und benachrichtigt Banner/Badge. */

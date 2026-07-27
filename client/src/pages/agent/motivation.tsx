@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "wouter";
 import {
   CheckCircle2, TrendingUp, Users, Award, Target, BarChart3,
-  ListChecks, X, HandCoins, Save,
+  ListChecks, X, HandCoins, Save, Info,
 } from "lucide-react";
 import { api, fmtCents, fmtTime, fmtD, isToday, inputCls, btnPrimary, ACCENT } from "./shared";
 
@@ -35,8 +35,28 @@ function feedIcon(type: string) {
   return TrendingUp; // team_deal
 }
 
+/**
+ * Zeitangabe so, wie ein Mensch sie sagt: „gerade eben", „vor 12 Minuten",
+ * „vor 3 Stunden", „gestern 14:20". Erst ab einer Woche das reine Datum.
+ */
 function feedTime(at: string): string {
-  return isToday(at) ? `heute ${fmtTime(at)}` : fmtD(at);
+  const t = new Date(at).getTime();
+  if (!Number.isFinite(t)) return fmtD(at);
+  const min = Math.floor((Date.now() - t) / 60000);
+
+  if (min < 1) return "gerade eben";
+  if (min < 60) return `vor ${min} ${min === 1 ? "Minute" : "Minuten"}`;
+
+  const std = Math.floor(min / 60);
+  if (isToday(at)) return `vor ${std} ${std === 1 ? "Stunde" : "Stunden"}`;
+
+  const gestern = new Date(Date.now() - 86_400_000);
+  const d = new Date(at);
+  if (d.toDateString() === gestern.toDateString()) return `gestern ${fmtTime(at)}`;
+
+  const tage = Math.floor(min / 1440);
+  if (tage < 7) return `vor ${tage} Tagen`;
+  return fmtD(at);
 }
 
 export function FeedPanel({ className = "" }: { className?: string }) {
@@ -145,7 +165,11 @@ interface SimData {
     workdaysLeft: number;
     avgDealCents: number;
     avgSource: string;
+    avgThin: boolean;
     segments: { rateBp: number; deals: number; label: string }[];
+    reachable: boolean;
+    ceilingPerWorkday: number;
+    suggestedCents: number | null;
   } | null;
 }
 
@@ -154,6 +178,7 @@ export function SalarySimulatorCard({ className = "" }: { className?: string }) 
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [showAnnahmen, setShowAnnahmen] = useState(false);
 
   const load = useCallback(async () => {
     const r = await api("/agent/wunschgehalt");
@@ -168,8 +193,12 @@ export function SalarySimulatorCard({ className = "" }: { className?: string }) 
     e.preventDefault();
     const eur = Number(input.replace(",", "."));
     if (isNaN(eur) || eur < 0) return;
+    await persist(Math.round(eur * 100));
+  };
+
+  const persist = async (cents: number) => {
     setBusy(true);
-    const r = await api("/agent/wunschgehalt", { method: "POST", body: JSON.stringify({ amountCents: Math.round(eur * 100) }) });
+    const r = await api("/agent/wunschgehalt", { method: "POST", body: JSON.stringify({ amountCents: cents }) });
     setBusy(false);
     if (r.ok) { setEditing(false); load(); }
   };
@@ -225,6 +254,37 @@ export function SalarySimulatorCard({ className = "" }: { className?: string }) 
               <CheckCircle2 size={15} strokeWidth={2} style={{ color: ACCENT }} />
               Ziel erreicht — stark. Alles Weitere ist Bonus.
             </p>
+          ) : sim && !sim.reachable ? (
+            /* Unerreichbar: KEINE hochgerechnete Fantasiezahl, sondern ein
+               ehrliches Zwischenziel aus echten Daten. */
+            <div className="space-y-3">
+              <p className="text-[13px] text-slate-700 leading-relaxed">
+                Mit deinem aktuellen Schnitt ist{" "}
+                <span className="font-semibold tabular-nums">{fmtCents(data.desiredCents!)}</span>{" "}
+                in diesem Monat nicht erreichbar — setz dir ein Zwischenziel.
+              </p>
+              <p className="text-[12px] text-slate-500 leading-relaxed">
+                Dafür wären rund <span className="font-semibold tabular-nums">{sim.perWorkday}</span> Abschlüsse
+                pro Werktag nötig. Die beste Tagesleistung im Team lag zuletzt bei{" "}
+                <span className="font-semibold tabular-nums">{sim.ceilingPerWorkday}</span>.
+              </p>
+              {sim.suggestedCents != null && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); persist(sim.suggestedCents!); }}
+                  disabled={busy}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition-colors hover:bg-slate-100 disabled:opacity-60"
+                  style={{ minHeight: 46 }}
+                >
+                  <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Realistisches Zwischenziel</span>
+                  <span className="block text-[15px] font-bold tabular-nums text-slate-900 mt-0.5">
+                    {fmtCents(sim.suggestedCents)}
+                    <span className="ml-2 text-[11.5px] font-semibold" style={{ color: ACCENT }}>übernehmen</span>
+                  </span>
+                </button>
+              )}
+              <AnnahmenHinweis sim={sim} open={showAnnahmen} onToggle={() => setShowAnnahmen((v) => !v)} />
+            </div>
           ) : sim ? (
             <div className="space-y-3">
               <p className="text-[13px] text-slate-700 leading-relaxed">
@@ -244,15 +304,51 @@ export function SalarySimulatorCard({ className = "" }: { className?: string }) 
                   ))}
                 </div>
               )}
-              <p className="text-[10.5px] text-slate-400 leading-relaxed">
-                Annahmen: Ø-Abschlusswert {fmtCents(sim.avgDealCents)} (Quelle: {sim.avgSource}), aktueller Satz inkl.
-                Partnerstatus-Zuschlag, Meilenstein-Sprünge gestaffelt eingerechnet. Orientierung — keine Zusage.
-              </p>
+              <AnnahmenHinweis sim={sim} open={showAnnahmen} onToggle={() => setShowAnnahmen((v) => !v)} />
             </div>
           ) : (
             <p className="text-[12px] text-slate-400">Noch keine Datenbasis für die Berechnung.</p>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Erklärt die Annahmen hinter der Rechnung in einem Satz — aufklappbar statt
+ * Hover-Tooltip, damit es auf dem Handy bedienbar bleibt. Ist die Datenbasis
+ * dünn (weniger als fünf eigene Abschlüsse), wird das ausdrücklich gesagt.
+ */
+function AnnahmenHinweis({
+  sim, open, onToggle,
+}: {
+  sim: { avgDealCents: number; avgSource: string; avgThin: boolean };
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onToggle(); }}
+        className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400 hover:text-slate-600 transition-colors"
+        style={{ minHeight: 32 }}
+        aria-expanded={open}
+      >
+        <Info size={12} strokeWidth={2} />
+        Wie wird das gerechnet?
+      </button>
+      {open && (
+        <p className="mt-1.5 text-[11px] text-slate-500 leading-relaxed">
+          Gerechnet wird mit einem Ø-Auftragswert von{" "}
+          <span className="font-semibold tabular-nums">{fmtCents(sim.avgDealCents)}</span>{" "}
+          ({sim.avgSource}), deinem aktuellen Provisionssatz inklusive Partnerstatus-Zuschlag
+          und den Meilenstein-Sprüngen, die während des Monats greifen.
+          {sim.avgThin && " Du hast noch zu wenige eigene Abschlüsse für einen eigenen Schnitt — deshalb der Team-Wert."}
+          {" "}Boni und Team-Beteiligungen zählen zu deinem Verdienst, aber nicht als Abschluss.
+          <span className="block mt-1 text-slate-400">Orientierung — keine Zusage.</span>
+        </p>
       )}
     </div>
   );

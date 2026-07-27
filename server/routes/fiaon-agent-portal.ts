@@ -182,14 +182,26 @@ router.get("/agent/dashboard", requireAgent, async (req: AgentRequest, res) => {
       ) t
     `;
 
-    // AG3: „Meine Abschlüsse" — chronologisch, mit Kundenname/Paket
+    // AG3: „Meine Abschlüsse" — chronologisch, mit Kundenname/Paket.
+    // WICHTIG: `is_bonus` trennt echte Abschluesse von Boni/Gutschriften. Vorher
+    // stand der Zaehler („1 im Juli", nur kind='own') ueber einer Liste, die auch
+    // Feedback-Boni enthielt — dadurch widersprachen sich Zahl und Liste.
     const closes = await sqlPool`
       SELECT c.id, c.ref, c.pack_name, c.amount_cents, c.kind, c.status, c.created_at,
+             (c.kind <> 'own') AS is_bonus,
              ap.first_name, ap.last_name, ap.contact_name, ap.company_name
       FROM fiaon_commissions c
       LEFT JOIN fiaon_applications ap ON ap.ref = c.ref
       WHERE c.agent_id = ${me} AND c.amount_cents > 0 AND c.status != 'storniert'
       ORDER BY c.created_at DESC LIMIT 12
+    `;
+    // Boni des laufenden Monats getrennt ausweisen — sie zaehlen zum Verdienst,
+    // aber ausdruecklich NICHT als Abschluss.
+    const monthBonus = await sqlPool`
+      SELECT COUNT(*)::int AS c, COALESCE(SUM(amount_cents), 0) AS s
+      FROM fiaon_commissions
+      WHERE agent_id = ${me} AND kind <> 'own' AND amount_cents > 0 AND status != 'storniert'
+        AND created_at >= date_trunc('month', NOW())
     `;
 
     // AG4: Partner-Fortschritt (bestehende Engine, keine Neu-Erfindung)
@@ -213,6 +225,8 @@ router.get("/agent/dashboard", requireAgent, async (req: AgentRequest, res) => {
       monthDeals: Number(deals[0].month_deals),
       todayDeals: Number(deals[0].today_deals),
       bestDayDeals: Number(bestDay[0].best),
+      monthBonusCount: Number(monthBonus[0].c),
+      monthBonusCents: Number(monthBonus[0].s),
       closes,
       partner: {
         status,
@@ -411,16 +425,37 @@ router.get("/agent/wunschgehalt", requireAgent, async (req: AgentRequest, res) =
     `;
     const monthCents = Number(month[0].s);
 
-    // Ø-Abschlusswert: eigene bisherige Abschlüsse; Fallback: Ø bezahlter
-    // Bestellungen im System; letzter Fallback: Ø offener Bestellwerte.
+    // ── Ø-Abschlusswert auf BELASTBARER Basis ────────────────────────────────
+    // Frueher wurde ab dem ERSTEN eigenen Abschluss dessen Wert als „Durchschnitt"
+    // genommen. Ein einzelnes Starter-Paket (7,99 €) erzeugte dadurch eine
+    // Provision von ~1,60 € pro Abschluss und daraus vierstellige Abschlusszahlen.
+    // Jetzt gilt: der eigene Schnitt zaehlt erst ab MIN_OWN_DEALS, sonst der
+    // Team-Durchschnitt der letzten 90 Tage. Boni und Team-Beteiligungen fliessen
+    // nie ein (kind = 'own'), sie sind Verdienst, aber kein Abschluss.
+    const MIN_OWN_DEALS = 5;
     let avgDealCents = 0;
-    let avgSource: "eigene Abschlüsse" | "Systemdurchschnitt" | "offene Bestellungen" = "eigene Abschlüsse";
+    let avgSource = "Team-Durchschnitt der letzten 90 Tage";
+    let avgThin = false;
+
     const ownAvg = await sqlPool`
       SELECT COALESCE(AVG(base_amount_cents), 0) AS a, COUNT(*)::int AS c FROM fiaon_commissions
       WHERE agent_id = ${me} AND kind = 'own' AND amount_cents > 0 AND status != 'storniert'
+        AND base_amount_cents > 0
     `;
-    if (Number(ownAvg[0].c) >= 1) {
+    const teamAvg = await sqlPool`
+      SELECT COALESCE(AVG(base_amount_cents), 0) AS a, COUNT(*)::int AS c FROM fiaon_commissions
+      WHERE kind = 'own' AND amount_cents > 0 AND status != 'storniert'
+        AND base_amount_cents > 0 AND created_at >= NOW() - INTERVAL '90 days'
+    `;
+    const ownCount = Number(ownAvg[0].c);
+    const teamCount = Number(teamAvg[0].c);
+
+    if (ownCount >= MIN_OWN_DEALS) {
       avgDealCents = Math.round(Number(ownAvg[0].a));
+      avgSource = `dein Schnitt aus ${ownCount} Abschlüssen`;
+    } else if (teamCount >= 1) {
+      avgDealCents = Math.round(Number(teamAvg[0].a));
+      avgThin = true;
     } else {
       const paidAvg = await sqlPool`
         SELECT COALESCE(AVG(ROUND(amount_due::numeric * 100)), 0) AS a, COUNT(*)::int AS c
@@ -428,7 +463,8 @@ router.get("/agent/wunschgehalt", requireAgent, async (req: AgentRequest, res) =
       `;
       if (Number(paidAvg[0].c) >= 1) {
         avgDealCents = Math.round(Number(paidAvg[0].a));
-        avgSource = "Systemdurchschnitt";
+        avgSource = "Durchschnitt aller bezahlten Bestellungen";
+        avgThin = true;
       } else {
         const openAvg = await sqlPool`
           SELECT COALESCE(AVG(ROUND(amount_due::numeric * 100)), 0) AS a
@@ -436,7 +472,8 @@ router.get("/agent/wunschgehalt", requireAgent, async (req: AgentRequest, res) =
           WHERE payment_status IN ('pending_payment','claimed_paid') AND amount_due IS NOT NULL AND merged_into IS NULL
         `;
         avgDealCents = Math.round(Number(openAvg[0].a));
-        avgSource = "offene Bestellungen";
+        avgSource = "Durchschnitt der offenen Bestellungen";
+        avgThin = true;
       }
     }
 
@@ -450,7 +487,11 @@ router.get("/agent/wunschgehalt", requireAgent, async (req: AgentRequest, res) =
 
     let sim: any = null;
     if (remainingCents === 0) {
-      sim = { achieved: true, dealsNeeded: 0, perWorkday: 0, todayTarget: 0, workdaysLeft: workdays, avgDealCents, avgSource, segments: [] as any[] };
+      sim = {
+        achieved: true, dealsNeeded: 0, perWorkday: 0, todayTarget: 0, workdaysLeft: workdays,
+        avgDealCents, avgSource, avgThin, segments: [] as any[],
+        reachable: true, ceilingPerWorkday: 0, suggestedCents: null,
+      };
     } else if (avgDealCents > 0) {
       // Gestaffelte Rechnung: kumulierter EIGENumsatz wächst mit jedem simulierten
       // Abschluss; überschreitet er eine Meilenstein-Schwelle, steigt der Satz
@@ -478,6 +519,41 @@ router.get("/agent/wunschgehalt", requireAgent, async (req: AgentRequest, res) =
           AND created_at >= date_trunc('day', NOW())
       `;
       const perWorkday = Math.ceil(deals / workdays);
+
+      // ── PLAUSIBILITAETSGRENZE ────────────────────────────────────────────
+      // Eine Zahl, die niemand je erreicht hat, ist keine Orientierung, sondern
+      // demotiviert. Obergrenze ist deshalb die beste TATSAECHLICHE Tagesleistung
+      // irgendeines Agenten in den letzten 90 Tagen (mindestens 3, damit ein
+      // junges Team sich nicht selbst ausbremst).
+      const bestDayEver = await sqlPool`
+        SELECT COALESCE(MAX(c), 0)::int AS best FROM (
+          SELECT agent_id, date_trunc('day', created_at) AS d, COUNT(*)::int AS c
+          FROM fiaon_commissions
+          WHERE kind = 'own' AND amount_cents > 0 AND status != 'storniert'
+            AND created_at >= NOW() - INTERVAL '90 days'
+          GROUP BY agent_id, date_trunc('day', created_at)
+        ) t
+      `;
+      const ceiling = Math.max(3, Number(bestDayEver[0].best));
+      const reachable = perWorkday <= ceiling;
+
+      // Wenn unerreichbar: kein hochgerechneter Fantasiewert, sondern ein
+      // ehrliches Zwischenziel — was bei realistischem Tempo herauskommt.
+      let suggestedCents: number | null = null;
+      if (!reachable) {
+        let r2 = await ownRevenueCents(me);
+        let earned2 = 0;
+        const maxDeals = ceiling * workdays;
+        for (let i = 0; i < maxDeals; i++) {
+          const st = partnerStatusFor(r2, thresholds);
+          earned2 += commissionCents(avgDealCents, baseRateBp + st.bonusBp);
+          r2 += avgDealCents;
+        }
+        // Auf volle 50 € abrunden — ein Zwischenziel soll greifbar wirken.
+        suggestedCents = Math.max(0, Math.floor((monthCents + earned2) / 5000) * 5000);
+        if (suggestedCents <= monthCents) suggestedCents = null;
+      }
+
       sim = {
         achieved: false,
         dealsNeeded: deals,
@@ -486,7 +562,11 @@ router.get("/agent/wunschgehalt", requireAgent, async (req: AgentRequest, res) =
         workdaysLeft: workdays,
         avgDealCents,
         avgSource,
+        avgThin,
         segments,
+        reachable,
+        ceilingPerWorkday: ceiling,
+        suggestedCents,
       };
     }
 

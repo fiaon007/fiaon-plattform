@@ -101,7 +101,7 @@ async function karteiEvent(
     INSERT INTO fiaon_kartei_events (kind, target_id, card_id, agent_id, event, reason, actor, meta)
     VALUES (${card.kind}, ${card.targetId}, ${card.cardId}, ${agentId}, ${event},
             ${opts.reason || null}, ${opts.actor || "System"},
-            ${opts.meta ? JSON.stringify(opts.meta) : null})
+            ${opts.meta ? sqlPool.json(opts.meta as any) : null})
   `.catch((err) => console.error("[FIAON-KARTEI] Audit-Write:", err));
 }
 

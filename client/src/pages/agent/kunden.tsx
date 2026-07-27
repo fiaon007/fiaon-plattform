@@ -10,6 +10,8 @@ import {
   api, fmtEur, fmtD, fmtDT, inputCls, btnPrimary, btnGhost, ACCENT,
 } from "./shared";
 import { SuccessPulse } from "./motion";
+import { KontaktErgebnis, KUNDE_GRUPPEN } from "./kontakt-ergebnis";
+import { jetztFuerEingabe } from "./zeit-eingabe";
 
 // ============================================================================
 // /agent/kunden — Arbeitsliste (NUR unbezahlte Kunden) + Kundendetail-Sheet.
@@ -606,6 +608,13 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
   const [now, setNow] = useState(Date.now());
   const [mobileTab, setMobileTab] = useState<"stamm" | "aktion" | "verlauf">("aktion");
   const [checkKey, setCheckKey] = useState<string | null>(null);
+  // FLIESSBAND: Nach einem dokumentierten Ergebnis ist die Akte serverseitig
+  // geschlossen. Der Agent soll dann nicht suchen muessen, wie es weitergeht —
+  // der Weg zur naechsten Akte steht direkt da. Dieser Rhythmus (dokumentieren,
+  // weiter, naechste) ist der Unterschied zwischen Abarbeiten und Verwalten.
+  const [akteFertig, setAkteFertig] = useState(false);
+  const [closeAkteOpen, setCloseAkteOpen] = useState(false);
+  const [closeReason, setCloseReason] = useState("");
   // Paket AC/DE: Stammdaten-Bearbeitung (Vorname/Nachname/E-Mail/Telefon + Adresse)
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState({ firstName: "", lastName: "", email: "", phone: "", street: "", zip: "", city: "" });
@@ -715,6 +724,8 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
       setLog((l) => [r.json.entry, ...l]);
       setCheckKey(outcome);
       setTimeout(() => setCheckKey((k) => (k === outcome ? null : k)), 900);
+      // Der Server hat `opened_at` genullt — die naechste Akte ist frei.
+      if (r.json.akteClosed) setAkteFertig(true);
       // Ticket #13: gespeicherte Zeit sofort im Klartext zurückspiegeln (deutsche Zeit),
       // damit ein Fehler direkt auffällt statt erst später.
       if (outcome === "rueckruf_termin" && r.json.entry?.scheduled_at) {
@@ -754,6 +765,24 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
     if (r.ok) {
       setLog((l) => [r.json.entry, ...l.map((x) => (x.id === entryId ? { ...x, voided_at: new Date().toISOString() } : x))]);
       flash("Eintrag als irrtümlich markiert — er bleibt durchgestrichen im Verlauf (nichts wird gelöscht).");
+      onChanged();
+    } else flash(r.json?.error || "Fehler");
+  };
+
+  // Akte OHNE Ergebnis schliessen — der Notausgang. Begruendung Pflicht,
+  // zaehlt NICHT als Betreuung (kein Provisionsanspruch aus einem Abbruch).
+  const doCloseAkte = async () => {
+    if (closeReason.trim().length < 3) return;
+    setBusy("close");
+    const r = await api(`/agent/customers/${encodeURIComponent(refId)}/close-akte`, {
+      method: "POST", body: JSON.stringify({ reason: closeReason.trim() }),
+    });
+    setBusy(null);
+    if (r.ok) {
+      setCloseAkteOpen(false);
+      setCloseReason("");
+      setAkteFertig(true);
+      flash("Akte ohne Ergebnis geschlossen — zählt nicht als Betreuung. Die nächste Akte ist frei.");
       onChanged();
     } else flash(r.json?.error || "Fehler");
   };
@@ -1024,23 +1053,52 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
         <>
           {/* Kontakt-Ergebnis */}
           <div>
-            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-slate-400 mb-2.5">Kontakt-Ergebnis</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {Object.entries(OUTCOME_LABELS).map(([key, label]) => (
-                <button key={key} type="button" onClick={(e) => pickOutcome(e, key)} disabled={busy !== null}
-                  className={`relative px-3 py-2.5 rounded-xl border text-[12px] font-medium transition-all duration-150 disabled:opacity-40 text-left active:scale-[.98] ${
-                    checkKey === key ? "border-[#2563eb] text-slate-800"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800"
-                  }`}
-                  style={{ minHeight: 46 }}>
-                  {busy === key
-                    ? "…"
-                    : checkKey === key
-                      ? <span className="agent-check-in inline-flex items-center gap-1.5" style={{ color: ACCENT }}><CheckCircle2 size={14} strokeWidth={2} /> Erfasst</span>
-                      : label}
-                </button>
-              ))}
-            </div>
+            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-slate-400 mb-2.5">
+              Wie ist das Gespräch ausgegangen?
+            </h3>
+            {checkKey ? (
+              <div className="agent-check-in flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-3.5"
+                   style={{ minHeight: 56, color: ACCENT }}>
+                <CheckCircle2 size={16} strokeWidth={2} />
+                <span className="text-[13px] font-semibold">{OUTCOME_LABELS[checkKey] || "Erfasst"} — gespeichert</span>
+              </div>
+            ) : (
+              <KontaktErgebnis
+                gruppen={KUNDE_GRUPPEN}
+                disabled={busy !== null}
+                onWaehle={(code) => setPending({ key: code, date: "" })}
+                zahlungsdaten={{ onSend: sendEmail, gesperrtSek: lockSec || undefined }}
+              />
+            )}
+
+            {/* FLIESSBAND — der Weg zur nächsten Akte steht direkt da. */}
+            {akteFertig ? (
+              <div className="mt-3 rounded-xl border border-blue-200 bg-gradient-to-b from-blue-50/80 to-white p-4">
+                <p className="text-[13px] font-semibold text-slate-800 mb-0.5">Akte abgeschlossen.</p>
+                <p className="text-[12px] text-slate-500 leading-snug mb-3">
+                  Die Akte ist geschlossen — du kannst die nächste öffnen. {custName(detail)} bleibt dir zugewiesen.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Link href="/agent/kartei" className={`${btnPrimary} flex-1 inline-flex items-center justify-center gap-2 py-3`}
+                        style={{ minHeight: 48 }}>
+                    <PhoneCall size={15} strokeWidth={2} /> Nächste Akte öffnen
+                  </Link>
+                  <button type="button" onClick={onClose} className={`${btnGhost} sm:flex-none px-4 py-3`} style={{ minHeight: 48 }}>
+                    Hier bleiben
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setCloseAkteOpen(true)}
+                disabled={busy !== null}
+                className="mt-3 w-full text-[12px] text-slate-500 hover:text-slate-800 underline underline-offset-2 disabled:opacity-40"
+                style={{ minHeight: 44 }}
+              >
+                Ohne Ergebnis schließen
+              </button>
+            )}
           </div>
 
           {/* Notiz schreiben */}
@@ -1184,7 +1242,11 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
       consequence={pending ? OUTCOME_CONSEQUENCE[pending.key] : undefined}
       confirmLabel="Speichern"
       busy={busy !== null}
-      confirmDisabled={!!pending && outcomeNeedsDate(pending.key) && !pending.date}
+      confirmDisabled={
+        !!pending && outcomeNeedsDate(pending.key) &&
+        (!pending.date ||
+          (pending.key === "rueckruf_termin" && new Date(pending.date).getTime() < Date.now() - 5 * 60_000))
+      }
       onConfirm={saveOutcome}
       onCancel={() => setPending(null)}
     >
@@ -1196,6 +1258,11 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
           <input
             type={pending.key === "rueckruf_termin" ? "datetime-local" : "date"}
             value={pending.date}
+            /* Ein Termin in der Vergangenheit wird nie faellig und verschwindet
+               lautlos. Genau das ist passiert: am 27.07. gespeichert, Termin
+               stand auf dem 12.07. Der Browser sperrt jetzt alles davor — und
+               der Server prueft es zusaetzlich, falls das Feld umgangen wird. */
+            min={jetztFuerEingabe(pending.key === "rueckruf_termin")}
             onChange={(e) => setPending((p) => (p ? { ...p, date: e.target.value } : p))}
             className={inputCls}
             style={{ minHeight: 44 }}
@@ -1203,8 +1270,38 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
           {pending.key === "rueckruf_termin" && (
             <p className="text-[11px] text-slate-400 mt-1.5">Uhrzeit in deutscher Zeit (Europe/Berlin)</p>
           )}
+          {pending.date && new Date(pending.date).getTime() < Date.now() - 5 * 60_000 && (
+            <p className="text-[11.5px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-2 leading-snug">
+              Dieser Zeitpunkt liegt in der Vergangenheit. Ein vergangener Termin wird nie fällig — bitte in die Zukunft legen.
+            </p>
+          )}
         </div>
       )}
+    </ConfirmDialog>
+
+    {/* Notausgang: Akte ohne Ergebnis schließen (Begründung Pflicht) */}
+    <ConfirmDialog
+      open={closeAkteOpen}
+      title="Ohne Ergebnis schließen?"
+      message="Die Akte wird geschlossen und du kannst die nächste öffnen."
+      consequence="Zählt NICHT als Betreuung — es entsteht kein Provisionsanspruch. Der Kunde bleibt dir zugewiesen und vollständig gespeichert."
+      confirmLabel="Schließen"
+      busy={busy !== null}
+      confirmDisabled={closeReason.trim().length < 3}
+      onConfirm={doCloseAkte}
+      onCancel={() => { setCloseAkteOpen(false); setCloseReason(""); }}
+    >
+      <div>
+        <label className="block text-[12px] font-medium text-slate-500 mb-1.5">Kurze Begründung</label>
+        <input
+          value={closeReason}
+          onChange={(e) => setCloseReason(e.target.value)}
+          placeholder="z. B. Feierabend, Kunde legte auf"
+          className={inputCls}
+          style={{ minHeight: 44 }}
+          autoFocus
+        />
+      </div>
     </ConfirmDialog>
 
     {/* Reaktivieren bestätigen */}

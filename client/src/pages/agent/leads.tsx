@@ -4,6 +4,8 @@ import { Phone, ArrowLeft, Send, Pencil, Users, Lock, FolderOpen, ShieldCheck, C
 import {
   AgentShell, api, Card, Badge, fmtDT, fmtD, inputCls, btnPrimary, btnGhost, FlashMessage, ConfirmDialog,
 } from "./shared";
+import { KontaktErgebnis, LEAD_GRUPPEN } from "./kontakt-ergebnis";
+import { jetztFuerEingabe } from "./zeit-eingabe";
 
 // Ticket #15: Gründe fürs Aussortieren („aus meiner Liste entfernen" — nie gelöscht).
 const DISMISS_REASONS: { key: string; label: string }[] = [
@@ -90,6 +92,13 @@ export function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: ()
   }, [id]);
   useEffect(load, [load]);
 
+  // FLIESSBAND: Nach dem dokumentierten Ergebnis ist die Akte serverseitig
+  // geschlossen — der Weg zur naechsten steht dann direkt da.
+  // MUSS vor dem fruehen `return null` stehen: Ein Hook hinter einer Bedingung
+  // wird bei manchen Durchlaeufen uebersprungen und bringt Reacts Reihenfolge
+  // durcheinander.
+  const [akteFertig, setAkteFertig] = useState(false);
+
   if (!lead) return null;
   const name = [lead.vorname, lead.nachname].filter(Boolean).join(" ") || lead.email || lead.telefon || `Lead #${lead.id}`;
 
@@ -110,6 +119,7 @@ export function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: ()
     setBusy(false);
     setPending(null);
     if (r.ok) {
+      if (r.json?.akteClosed) setAkteFertig(true);
       // #23: bei „Nummer falsch" Rückmeldung zur Selbst-Update-Mail geben.
       const nu = r.json?.numberUpdateMail;
       if (outcome === "nummer_falsch") {
@@ -220,15 +230,33 @@ export function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: ()
             <>
               {/* Kontakt-Ergebnisse — ein Tap öffnet den Bestätigungsdialog */}
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">Kontakt-Ergebnis</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {OUTCOMES.map((o) => (
-                    <button key={o.key} disabled={busy} onClick={() => setPending({ key: o.key, date: "" })}
-                      className={`${btnGhost} text-left`} style={{ minHeight: 46 }}>
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">
+                  Wie ist das Gespräch ausgegangen?
+                </p>
+                <KontaktErgebnis
+                  gruppen={LEAD_GRUPPEN}
+                  disabled={busy}
+                  onWaehle={(code) => setPending({ key: code, date: "" })}
+                />
+
+                {/* FLIESSBAND — nach dem Dokumentieren direkt weiter. */}
+                {akteFertig && (
+                  <div className="mt-3 rounded-xl border border-blue-200 bg-gradient-to-b from-blue-50/80 to-white p-4">
+                    <p className="text-[13px] font-semibold text-slate-800 mb-0.5">Akte abgeschlossen.</p>
+                    <p className="text-[12px] text-slate-500 leading-snug mb-3">
+                      Du kannst die nächste Akte öffnen.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Link href="/agent/kartei" className={`${btnPrimary} flex-1 inline-flex items-center justify-center gap-2 py-3`}
+                            style={{ minHeight: 48 }}>
+                        <PhoneCall size={15} strokeWidth={2} /> Nächste Akte öffnen
+                      </Link>
+                      <button type="button" onClick={onClose} className={`${btnGhost} sm:flex-none px-4 py-3`} style={{ minHeight: 48 }}>
+                        Hier bleiben
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <button className={btnPrimary + " w-full inline-flex items-center justify-center gap-2"} disabled={busy} onClick={(e) => { e.stopPropagation(); setConfirmLink(true); }}>
@@ -287,7 +315,10 @@ export function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: ()
       consequence={pending ? LEAD_OUTCOME_CONSEQUENCE[pending.key] : undefined}
       confirmLabel="Speichern"
       busy={busy}
-      confirmDisabled={!!pending && outcomeNeedsDate(pending.key) && !pending.date}
+      confirmDisabled={
+        !!pending && outcomeNeedsDate(pending.key) &&
+        (!pending.date || new Date(pending.date).getTime() < Date.now() - 5 * 60_000)
+      }
       onConfirm={saveOutcome}
       onCancel={() => setPending(null)}
     >
@@ -297,11 +328,19 @@ export function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: ()
           <input
             type="datetime-local"
             value={pending.date}
+            /* Ohne Untergrenze liess sich ein Termin in der Vergangenheit
+               speichern — er wird nie faellig und verschwindet lautlos. */
+            min={jetztFuerEingabe(true)}
             onChange={(e) => setPending((p) => (p ? { ...p, date: e.target.value } : p))}
             className={inputCls}
             style={{ minHeight: 44 }}
           />
           <p className="text-[11px] text-slate-400 mt-1.5">Uhrzeit in deutscher Zeit (Europe/Berlin)</p>
+          {pending.date && new Date(pending.date).getTime() < Date.now() - 5 * 60_000 && (
+            <p className="text-[11.5px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-2 leading-snug">
+              Dieser Zeitpunkt liegt in der Vergangenheit. Ein vergangener Termin wird nie fällig — bitte in die Zukunft legen.
+            </p>
+          )}
         </div>
       )}
     </ConfirmDialog>

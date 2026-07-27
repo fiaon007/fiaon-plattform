@@ -21,7 +21,7 @@ import PDFDocument from "pdfkit";
 import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
 import { renderInvoicePdf, signInvoiceUrl, ensureInvoiceNumber } from "../fiaon-invoice";
 import { fiaonBaseUrl } from "../fiaon-base-url";
-import { parseBerlinInput, formatBerlin } from "../lib/fiaon-time";
+import { parseBerlinInput, formatBerlin, pruefeTerminZukunft } from "../lib/fiaon-time";
 
 const router = Router();
 
@@ -346,6 +346,8 @@ const SETTING_DEFAULTS: Record<string, string> = {
   // (Betreiber-Sichtbarkeitsregel aus Phase 3: Name + Telefon + E-Mail).
   // "0" lockert die Regel auf „mindestens ein Kontaktweg".
   kartei_require_full_contact: "1",
+  // „Zahlung angekündigt" steht standardmäßig immer ganz oben (Teil C).
+  kartei_vorrang_zahlung: "1",
   // Paket AE3: Partner-Programm — Meilenstein-Schwellen (kumulierter bestätigter
   // EIGENumsatz in Cents) + Provisions-Zuschlag in Basispunkten. Admin-editierbar.
   partner_thresholds: JSON.stringify([
@@ -1593,6 +1595,9 @@ router.post("/agent/customers/:ref/dismiss", requireAgent, async (req: AgentRequ
       UPDATE fiaon_applications SET
         dismissed_at = NOW(), dismissed_by = ${me}, dismissed_reason = ${reason},
         locked_by_agent_id = NULL, locked_until = NULL,
+        -- Aussortieren beendet die aktive Akte. Fehlte bisher: Ein aussortierter
+        -- Kunde blieb als „aktive Akte" stehen und sperrte die ganze Kartei.
+        opened_at = NULL,
         assigned_agent_id = COALESCE(assigned_agent_id, ${me}),
         updated_at = NOW()
       WHERE ref = ${ref} AND merged_into IS NULL AND dismissed_at IS NULL
@@ -1627,6 +1632,11 @@ router.post("/agent/customers/:ref/contact-result", requireAgent, async (req: Ag
     if (!VALID_OUTCOMES.has(outcome)) return res.status(400).json({ ok: false, error: "Ungültiges Kontakt-Ergebnis" });
     if (outcome === "rueckruf_termin" && !scheduledAt) return res.status(400).json({ ok: false, error: "Termin-Datum erforderlich" });
     if (outcome === "erreicht_zahlt_am" && !promisedDate) return res.status(400).json({ ok: false, error: "Zusage-Datum erforderlich" });
+    // Ein Rueckruf ist eine Wiedervorlage. Ein Termin in der Vergangenheit kann
+    // nie faellig werden und verschwindet lautlos. Gemessener Fall: am 27.07.
+    // gespeichert, Termin stand auf dem 12.07. — 15 Tage zurueck, unbemerkt.
+    const terminFehler = pruefeTerminZukunft(outcome, scheduledAt);
+    if (terminFehler) return res.status(400).json({ ok: false, error: terminFehler });
     const guard = await claimOrGuard(req.params.ref, req.agent!);
     if (guard.error) return res.status(guard.error.code).json({ ok: false, error: guard.error.msg });
 
@@ -1655,9 +1665,77 @@ router.post("/agent/customers/:ref/contact-result", requireAgent, async (req: Ag
       const { maybeSendNumberUpdateMail } = await import("../fiaon-number-update");
       numberUpdateMail = await maybeSendNumberUpdateMail("app", req.params.ref, { email: c?.email, firstName: c?.first_name });
     }
-    res.json({ ok: true, entry, claimed: guard.claimed || false, numberUpdateMail });
+
+    // ── DER BUG: Das dokumentierte Ergebnis SCHLIESST die aktive Akte. ──
+    // Im Lead-Pfad stand das seit jeher, im Kunden-Pfad fehlte es. Die Kartei
+    // umfasst aber BEIDE Kartenarten — also blieb der Agent nach jedem
+    // Kunden-Kontakt haengen („Du hast eine Akte in Bearbeitung"), obwohl das
+    // Ergebnis sauber im Verlauf stand. Gemessen an FIAON-MS245V2U-XJVT:
+    // zwei Ergebnisse um 21:32 und 21:34, Akte trotzdem noch aktiv.
+    // Nur `opened_at` wird genullt — die ZUWEISUNG bleibt beim Agenten,
+    // Beziehung und Provisionsanspruch sind unberuehrt.
+    await sqlPool`
+      UPDATE fiaon_applications SET opened_at = NULL, updated_at = NOW()
+      WHERE ref = ${req.params.ref}
+    `;
+
+    res.json({ ok: true, entry, claimed: guard.claimed || false, akteClosed: true, numberUpdateMail });
   } catch (err) {
     console.error("[FIAON-AGENT] contact-result:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── „Akte ohne Ergebnis schliessen" fuer KUNDEN ──────────────────────────────
+// Gab es bisher nur fuer Leads. Der Agent darf sich nie ausgesperrt fuehlen:
+// Kurze Begruendung Pflicht, alles im Verlauf. Zaehlt NICHT als Betreuung —
+// es wird KEIN 'result' geschrieben und `letzter_kontakt_am` bleibt unberuehrt,
+// damit kein Provisionsanspruch aus einem Abbruch entsteht.
+router.post("/agent/customers/:ref/close-akte", requireAgent, async (req: AgentRequest, res) => {
+  try {
+    const me = req.agent!.id;
+    const ref = req.params.ref;
+    const reason = String(req.body?.reason || "").trim();
+    if (reason.length < 3) {
+      return res.status(400).json({ ok: false, error: "Bitte kurz begründen (z. B. „Feierabend“, „Kunde legte auf“)." });
+    }
+    const rows = await sqlPool`
+      UPDATE fiaon_applications SET opened_at = NULL, updated_at = NOW()
+      WHERE ref = ${ref} AND opened_by_agent_id = ${me} AND opened_at IS NOT NULL
+      RETURNING ref
+    `;
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, error: "Keine offene Akte von dir unter dieser Referenz." });
+    }
+    await logAction(ref, req.agent!, "system", {
+      note: `Akte ohne Kontakt-Ergebnis geschlossen durch ${req.agent!.name}. Begründung: ${reason.slice(0, 500)}. Zählt nicht als Betreuung.`,
+    }).catch(() => {});
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-AGENT] close-akte:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── ADMIN-NOTAUSGANG fuer Kunden-Akten ───────────────────────────────────────
+// Pendant zu /admin/leads/:id/release-akte. Fehlte, wodurch eine blockierte
+// Kunden-Akte (z. B. Agent im Urlaub) nur direkt in der Datenbank loesbar war.
+router.post("/admin/customers/:ref/release-akte", async (req: Request, res: Response) => {
+  try {
+    const ref = req.params.ref;
+    const rows = await sqlPool`
+      UPDATE fiaon_applications a SET opened_at = NULL, updated_at = NOW()
+      FROM fiaon_agents ag
+      WHERE a.ref = ${ref} AND a.opened_at IS NOT NULL AND ag.id = a.opened_by_agent_id
+      RETURNING a.ref, ag.name AS agent_name
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Keine offene Akte unter dieser Referenz." });
+    await logAction(ref, { id: null as any, name: "Admin" }, "system", {
+      note: `Akte durch Admin freigegeben (war offen bei ${rows[0].agent_name}). Die Zuweisung bleibt bestehen.`,
+    }).catch(() => {});
+    res.json({ ok: true, releasedFrom: rows[0].agent_name });
+  } catch (err) {
+    console.error("[FIAON-AGENT] admin release-akte:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

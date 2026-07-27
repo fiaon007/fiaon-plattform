@@ -268,6 +268,9 @@ function karteiWeights(s: Record<string, string>) {
     wReact: num(s.queue_w_react, 50),
     wContact: num(s.queue_w_contact, 30),
     fairnessNth: Math.max(2, Math.min(10, num(s.queue_fairness_nth, 4))),
+    // TEIL C: Harte Vorrangstufe fuer „Zahlung angekuendigt". Abschaltbar,
+    // falls sich das Verhaeltnis im Bestand spaeter aendert.
+    vorrangZahlung: String(s.kartei_vorrang_zahlung ?? "1") === "1",
     hoardingDays: num(s.kartei_hoarding_days, 7),
     hoardingWarnDays: num(s.kartei_hoarding_warn_days, 2),
     autoReleaseMin: num(s.akte_auto_release_min, 30),
@@ -446,6 +449,34 @@ function karteiCte(w: ReturnType<typeof karteiWeights>): string {
 }
 
 /**
+ * TEIL C — HARTE VORRANGSTUFE.
+ *
+ * Menschen, die gesagt haben „ich zahle", sind der wertvollste Bestand. Sie
+ * duerfen nicht dadurch nach unten rutschen, dass ein frischerer Lead zufaellig
+ * mehr Punkte sammelt. Deshalb ist das KEINE weitere Gewichtung, sondern eine
+ * Stufe DAVOR: erst die Gruppe, dann innerhalb der Gruppe der normale Score.
+ *
+ * Reihenfolge: Zahlung angekuendigt → faelliger Rueckruf → offener Antrag → Lead.
+ *
+ * Kleinere Zahl = weiter oben (ORDER BY ... ASC), damit sich die Stufen
+ * spaeter erweitern lassen, ohne bestehende Werte zu verschieben.
+ * Abschaltbar ueber die Einstellung `kartei_vorrang_zahlung`.
+ */
+function stufeSql(vorrangAktiv: boolean): string {
+  if (!vorrangAktiv) {
+    // Abgeschaltet: alle Karten in dieselbe Stufe — es entscheidet allein der Score.
+    return `0`;
+  }
+  return `
+    CASE
+      WHEN k.zahlung_angekuendigt THEN 0
+      WHEN k.rueckruf_faellig     THEN 1
+      WHEN k.kind = 'app'         THEN 2
+      ELSE 3
+    END`;
+}
+
+/**
  * Serverseitiger Rang. Der Agent sieht den Score NIE — er nimmt oben weg.
  * Rosinenpicken ist ausgeschlossen, weil ohnehin keine Kontaktdaten sichtbar sind.
  *
@@ -588,24 +619,88 @@ async function releaseHoardedCards(days: number): Promise<number> {
   return leads.length + apps.length;
 }
 
+/**
+ * SICHERHEITSNETZ — kein Datenzustand darf einen Agenten dauerhaft blockieren.
+ *
+ * Eine Akte gilt als „aktiv", solange `opened_at` gesetzt ist. Wird der
+ * zugrunde liegende Datensatz aber so veraendert, dass er gar keine offene
+ * Karte mehr sein KANN — bezahlt, gemergt, aussortiert, konvertiert — dann
+ * bleibt `opened_at` stehen und der Agent haengt fest, ohne dass es dafuer
+ * noch eine Akte gibt, die er schliessen koennte.
+ *
+ * Gemessen am 27.07.2026, zwei echte Faelle:
+ *   · FIAON-MS245V2U-XJVT — aussortiert UND bezahlt, seit 21:30 „aktiv"
+ *   · Lead 2373 — Status „konvertiert", seit dem 23.07. „aktiv"
+ *
+ * Das hier ist die letzte Verteidigungslinie: Sie repariert die Symptome bei
+ * jedem Kartei-Aufruf. Die Ursachen sind an den jeweiligen Routen behoben —
+ * dieses Netz faengt nur, was kuenftige Wege uebersehen.
+ */
+async function freigabeUnmoeglicheAkten(): Promise<number> {
+  const apps = await sqlPool`
+    UPDATE fiaon_applications SET opened_at = NULL, updated_at = NOW()
+    WHERE opened_at IS NOT NULL
+      AND (payment_status <> ALL(${OPEN_PAYMENT_STATUS})
+           OR merged_into IS NOT NULL
+           OR dismissed_at IS NOT NULL)
+    RETURNING ref, opened_by_agent_id, payment_status,
+              (merged_into IS NOT NULL) AS gemergt, (dismissed_at IS NOT NULL) AS aussortiert
+  `;
+  const leads = await sqlPool`
+    UPDATE fiaon_leads SET opened_at = NULL, updated_at = NOW()
+    WHERE opened_at IS NOT NULL
+      AND (status <> ALL(${OPEN_LEAD_STATUS})
+           OR dismissed_at IS NOT NULL
+           OR converted_order_id IS NOT NULL)
+    RETURNING id, opened_by_agent_id, status,
+              (dismissed_at IS NOT NULL) AS aussortiert
+  `;
+  for (const r of apps) {
+    const grund = r.gemergt ? "zusammengefuehrt" : r.aussortiert ? "aussortiert" : `Status „${r.payment_status}"`;
+    const note = `Aktive Bearbeitung automatisch beendet: Die Akte kann keine offene Karte mehr sein (${grund}). Sonst haette sie den Bearbeiter dauerhaft blockiert.`;
+    await logAction(r.ref, { id: null as any, name: "System" }, "system", { note }).catch(() => {});
+    await karteiEvent({ kind: "app", targetId: r.ref, cardId: r.ref }, r.opened_by_agent_id, "release_auto", { reason: note }).catch(() => {});
+  }
+  for (const r of leads) {
+    const grund = r.aussortiert ? "aussortiert" : `Status „${r.status}"`;
+    const note = `Aktive Bearbeitung automatisch beendet: Die Akte kann keine offene Karte mehr sein (${grund}). Sonst haette sie den Bearbeiter dauerhaft blockiert.`;
+    await logLead(Number(r.id), { id: null, name: "System" }, "system", { note }).catch(() => {});
+    await karteiEvent({ kind: "lead", targetId: String(r.id), cardId: `lead-${r.id}` }, r.opened_by_agent_id, "release_auto", { reason: note }).catch(() => {});
+  }
+  const n = apps.length + leads.length;
+  if (n > 0) console.log(`[FIAON-KARTEI] Sicherheitsnetz: ${n} unmoegliche aktive Akte(n) freigegeben`);
+  return n;
+}
+
 /** Wird vor jedem Kartei-Zugriff ausgeführt. Fehler dürfen nie blockieren. */
 async function housekeeping(w: ReturnType<typeof karteiWeights>): Promise<void> {
+  await freigabeUnmoeglicheAkten().catch((e) => console.error("[FIAON-KARTEI] sicherheitsnetz:", e));
   await autoReleaseActive(w.autoReleaseMin).catch((e) => console.error("[FIAON-KARTEI] auto-release:", e));
   await releaseHoardedCards(w.hoardingDays).catch((e) => console.error("[FIAON-KARTEI] hoarding:", e));
 }
 
-/** Die eine aktive Akte des Agenten (über beide Kartenarten hinweg). */
+/**
+ * Die eine aktive Akte des Agenten (ueber beide Kartenarten hinweg).
+ *
+ * Die Filter hier muessen DIESELBEN sein wie in `freigabeUnmoeglicheAkten` —
+ * sonst meldet die Kartei eine aktive Akte, die das Sicherheitsnetz gar nicht
+ * als solche erkennt. `dismissed_at` fehlte bisher in beiden Abfragen: Ein
+ * aussortierter Datensatz galt weiter als aktive Akte und sperrte alles.
+ */
 async function activeCardOf(agentId: number): Promise<CardRef | null> {
   const [lead] = await sqlPool`
     SELECT id FROM fiaon_leads
-    WHERE opened_by_agent_id = ${agentId} AND opened_at IS NOT NULL AND status = ANY(${OPEN_LEAD_STATUS})
+    WHERE opened_by_agent_id = ${agentId} AND opened_at IS NOT NULL
+      AND status = ANY(${OPEN_LEAD_STATUS})
+      AND dismissed_at IS NULL AND converted_order_id IS NULL
     ORDER BY opened_at DESC LIMIT 1
   `;
   if (lead) return { kind: "lead", targetId: String(lead.id), cardId: `lead-${lead.id}` };
   const [app] = await sqlPool`
     SELECT ref FROM fiaon_applications
-    WHERE opened_by_agent_id = ${agentId} AND opened_at IS NOT NULL AND payment_status = ANY(${OPEN_PAYMENT_STATUS})
-      AND merged_into IS NULL
+    WHERE opened_by_agent_id = ${agentId} AND opened_at IS NOT NULL
+      AND payment_status = ANY(${OPEN_PAYMENT_STATUS})
+      AND merged_into IS NULL AND dismissed_at IS NULL
     ORDER BY opened_at DESC LIMIT 1
   `;
   if (app) return { kind: "app", targetId: app.ref, cardId: app.ref };
@@ -667,14 +762,15 @@ router.get("/agent/kartei", requireAgent, async (req: AgentRequest, res: Respons
       ? `
       ${karteiCte(w)},
       ranked AS (
-        SELECT k.*, ag.name AS agent_name, ${SCORE_SQL} AS score, COUNT(*) OVER() AS total_count
+        SELECT k.*, ag.name AS agent_name, ${SCORE_SQL} AS score,
+               ${stufeSql(w.vorrangZahlung)} AS stufe, COUNT(*) OVER() AS total_count
         FROM kartei k
         LEFT JOIN fiaon_agents ag ON ag.id = k.assigned_agent_id
         ${whereSql}
       )
       SELECT * FROM (
         SELECT r.*, 0 AS bucket FROM ranked r
-        ORDER BY r.score DESC, r.created_at DESC LIMIT ${limitPh} OFFSET ${offsetPh}
+        ORDER BY r.stufe ASC, r.score DESC, r.created_at DESC LIMIT ${limitPh} OFFSET ${offsetPh}
       ) top
       UNION ALL
       SELECT * FROM (
@@ -684,11 +780,12 @@ router.get("/agent/kartei", requireAgent, async (req: AgentRequest, res: Respons
     `
       : `
       ${karteiCte(w)}
-      SELECT k.*, ag.name AS agent_name, ${SCORE_SQL} AS score, COUNT(*) OVER() AS total_count, 0 AS bucket
+      SELECT k.*, ag.name AS agent_name, ${SCORE_SQL} AS score,
+             ${stufeSql(w.vorrangZahlung)} AS stufe, COUNT(*) OVER() AS total_count, 0 AS bucket
       FROM kartei k
       LEFT JOIN fiaon_agents ag ON ag.id = k.assigned_agent_id
       ${whereSql}
-      ORDER BY score DESC, k.created_at DESC
+      ORDER BY stufe ASC, score DESC, k.created_at DESC
       LIMIT ${limitPh} OFFSET ${offsetPh}
     `;
 
@@ -1276,6 +1373,7 @@ router.get("/admin/kartei", async (_req: Request, res: Response) => {
         kartei_hoarding_days: w.hoardingDays,
         kartei_hoarding_warn_days: w.hoardingWarnDays,
         kartei_require_full_contact: w.requireFullContact ? 1 : 0,
+        kartei_vorrang_zahlung: w.vorrangZahlung ? 1 : 0,
       },
     });
   } catch (err) {
@@ -1299,6 +1397,9 @@ const SETTING_RANGE: Record<string, { min: number; max: number }> = {
   kartei_hoarding_days: { min: 0, max: 365 },
   kartei_hoarding_warn_days: { min: 0, max: 90 },
   kartei_require_full_contact: { min: 0, max: 1 },
+  // TEIL C: 1 = „Zahlung angekuendigt" steht immer ganz oben (Standard),
+  // 0 = keine Vorrangstufe, es entscheidet allein die Gewichtung.
+  kartei_vorrang_zahlung: { min: 0, max: 1 },
 };
 
 router.post("/admin/kartei/settings", async (req: Request, res: Response) => {

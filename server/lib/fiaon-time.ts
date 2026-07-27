@@ -68,6 +68,32 @@ export function parseBerlinInput(value: string | null | undefined): Date | null 
   return isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * Ein Rueckruf-Termin ist eine WIEDERVORLAGE. Liegt er in der Vergangenheit,
+ * kann er nie faellig werden — der Rueckruf verschwindet lautlos, und niemand
+ * merkt es. Genau das ist passiert: Am 27.07. um 21:34 gespeichert, Termin
+ * stand auf dem 12.07. um 21:34 — exakt 15 Tage zurueck. Weder Oberflaeche
+ * noch Server haben widersprochen.
+ *
+ * Fuenf Minuten Nachlauf, damit ein Termin „in zwei Minuten" oder eine
+ * langsame Eingabe nicht unnoetig abgelehnt wird.
+ *
+ * @returns Fehlertext (Klartext, mit der erkannten Zeit) oder null, wenn i. O.
+ */
+export function pruefeTerminZukunft(outcome: string, scheduledAt: string | null | undefined): string | null {
+  if (outcome !== "rueckruf_termin" || !scheduledAt) return null;
+  const termin = parseBerlinInput(scheduledAt);
+  if (!termin) return "Der Rückruf-Termin ist unlesbar. Bitte Datum und Uhrzeit erneut wählen.";
+  if (termin.getTime() >= Date.now() - 5 * 60_000) return null;
+  const wann = termin.toLocaleString("de-DE", {
+    timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+  const tage = Math.round((Date.now() - termin.getTime()) / 86_400_000);
+  return `Der Rückruf-Termin liegt in der Vergangenheit (${wann} Uhr${tage >= 1 ? `, ${tage} Tag${tage === 1 ? "" : "e"} zurück` : ""}). Ein vergangener Termin wird nie fällig — bitte einen Zeitpunkt in der Zukunft wählen.`;
+}
+
+
 /** Klartext-Anzeige eines Zeitpunkts in Berlin-Zeit, z. B. „Mi, 15.07.2026 um 12:30 Uhr". */
 export function formatBerlin(at: Date | string | null | undefined, withTime = true): string {
   if (!at) return "—";

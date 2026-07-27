@@ -3,6 +3,50 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 27.07.2026 — Akten-Fluss: Die Akte gab nicht frei (Teil A/B/C)
+
+### Teil A — Der Bug, mit echten Daten belegt
+
+Neues Werkzeug `scripts/akte-blockade.ts` (10 s je Abfrage, 60 s Gesamtabbruch, Laufzeit 4,3 s). Es hat **drei** Fehler gefunden, nicht einen:
+
+**1. Der Kunden-Pfad hat die Akte nie freigegeben.** In `/agent/leads/:id/contact-result` stand seit jeher `opened_at = NULL`. In `/agent/customers/:ref/contact-result` fehlte genau diese Zeile. Die Kartei umfasst aber **beide** Kartenarten — nach jedem Kunden-Kontakt hing der Agent fest, obwohl das Ergebnis sauber im Verlauf stand. Belegt an `FIAON-MS245V2U-XJVT`: zwei Ergebnisse um 21:32 und 21:34, Akte um 21:34 weiterhin aktiv.
+
+**2. Aussortieren gab die Akte ebenfalls nicht frei.** Derselbe fehlende Satz in `/agent/customers/:ref/dismiss`. Ein aussortierter Kunde blieb als „aktive Akte" stehen.
+
+**3. Zwei Akten waren dauerhaft blockiert, ohne dass es sie noch gab.** `FIAON-MS245V2U-XJVT` (aussortiert **und** bezahlt) und Lead 2373 (Status „konvertiert", blockiert seit dem 23.07.). Solche Datensätze können gar keine offene Karte mehr sein — es gab also nichts mehr, was der Agent hätte schließen können.
+
+**Behoben:**
+
+- Kunden-Kontakt-Ergebnis und Aussortieren schließen die Akte. Nur `opened_at` wird genullt — die **Zuweisung bleibt**, Beziehung und Provisionsanspruch sind unberührt.
+- Neu: `/agent/customers/:ref/close-akte` („ohne Ergebnis schließen", Begründung Pflicht) — gab es bisher nur für Leads.
+- Neu: `/admin/customers/:ref/release-akte` — der Admin-Notausgang fehlte auf der Kundenseite komplett.
+- **Sicherheitsnetz** `freigabeUnmoeglicheAkten()`: Bei jedem Kartei-Aufruf werden aktive Akten freigegeben, deren Datensatz keine offene Karte mehr sein kann. Kein Datenzustand blockiert einen Agenten dauerhaft.
+- `activeCardOf` filtert jetzt ebenfalls `dismissed_at` und `converted_order_id` — die Abfrage kannte diese Fälle nicht und meldete sie weiter als aktive Akte.
+
+**Fließband:** Nach dem Abschließen erscheint direkt **„Nächste Akte öffnen"**. Dokumentieren, weiter, nächste.
+
+### Teil B — Kontakt-Ergebnis in zwei Ebenen
+
+Sieben gleichwertige Knöpfe waren eine Wand, bei der jede Option gleich wichtig aussah. Tatsächlich gibt es nur **eine** erste Frage: erreicht oder nicht?
+
+Ebene 1: zwei große Schaltflächen. Ebene 2: die passenden Feinheiten — auf dem Desktop aufklappend, auf dem Handy als Bottom-Sheet mit Griff, „Zurück" und Tippfläche außerhalb.
+
+**Die Ergebnis-Codes sind unverändert.** `erreicht_zahlt_gleich`, `nicht_erreicht`, `nummer_falsch` und alle anderen hängen an der Provisionslogik und an der Event-Registry — dies ist ein reiner Oberflächen-Umbau. Lead und Kunde bekommen unterschiedliche Zuordnungen, weil ein Lead ohne Antrag nichts zahlen kann.
+
+Jede Option, die eine E-Mail auslöst, sagt das **vor** dem Bestätigen im Klartext. Der bestehende Bestätigungsdialog bleibt der letzte Schritt.
+
+**Eine bewusste Entscheidung:** „Braucht die Zahlungsdaten erneut" versendet **nur** die Mail und dokumentiert **kein** Kontakt-Ergebnis. Damit entsteht daraus kein Provisionsanspruch und die Akte bleibt offen — der Agent dokumentiert anschließend, wie das Gespräch wirklich ausging. Die ehrlichere von drei möglichen Varianten, dafür ein Schritt mehr.
+
+### Teil C — „Zahlung angekündigt" ganz nach oben
+
+Eine **harte Vorrangstufe** vor dem Score, keine weitere Gewichtung: Zahlung angekündigt → fälliger Rückruf → offener Antrag → Lead. Innerhalb jeder Gruppe gilt die bestehende Gewichtung unverändert, der Wartezeit-Ausgleich bleibt. Abschaltbar über `kartei_vorrang_zahlung`.
+
+**Der Rückruf auf dem 12.07. war kein Eingabefehler.** Gemessen: am 27.07. um 21:34 gespeichert, Termin 12.07. um 21:34 — exakt 15 Tage zurück, die Uhrzeit stimmt auf die Minute mit dem Speicherzeitpunkt überein. Ursache: **Das Datumsfeld hatte keine Untergrenze und der Server hat nicht geprüft.** Ein vergangener Termin wird nie fällig und verschwindet lautlos aus der Wiedervorlage. Jetzt dreifach abgesichert: `min` im Eingabefeld, sichtbare Warnung, Ablehnung am Server (`pruefeTerminZukunft`, 5 Minuten Nachlauf). Gilt für Lead **und** Kunde.
+
+**Prüfungen:** `kartei-verify.ts` **6/6** · `event-inventar.ts --check` **25/25** · Termin-Prüfung 6/6 Fälle.
+
+---
+
 ## 27.07.2026 — Zeitlimit 57014: Die Abfrage war falsch herum gebaut
 
 Diesmal **gemessen**, nicht vermutet. Neues Werkzeug `scripts/kartei-tempo.ts` — es kann die Konsole nicht blockieren: 5 s Verbindungsaufbau, 10 s je Abfrage, 60 s Gesamtabbruch. Ein Abbruch ist dort ein *Ergebnis*, kein Fehlschlag.

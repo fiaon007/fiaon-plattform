@@ -16,7 +16,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { sqlPool } from "../lib/db-pool";
 import { sendMakeWebhook } from "../make-webhook";
 import { fiaonBaseUrl } from "../fiaon-base-url";
-import { parseBerlinInput } from "../lib/fiaon-time";
+import { parseBerlinInput, pruefeTerminZukunft } from "../lib/fiaon-time";
 import {
   requireAgent,
   getSettings,
@@ -969,6 +969,9 @@ router.post("/agent/leads/:id/contact-result", requireAgent, async (req: AgentRe
     const { outcome, scheduledAt, note } = req.body || {};
     if (!(outcome in LEAD_OUTCOMES)) return res.status(400).json({ ok: false, error: "Ungültiges Kontakt-Ergebnis" });
     if (outcome === "rueckruf_termin" && !scheduledAt) return res.status(400).json({ ok: false, error: "Termin-Datum erforderlich" });
+    // Vergangener Termin = Wiedervorlage, die nie faellig wird (siehe fiaon-time.ts).
+    const terminFehler = pruefeTerminZukunft(outcome, scheduledAt);
+    if (terminFehler) return res.status(400).json({ ok: false, error: terminFehler });
     const guard = await leadGuard(Number(req.params.id), req.agent!);
     if (guard.error) return res.status(guard.error.code).json({ ok: false, error: guard.error.msg });
     const id = Number(req.params.id);

@@ -40,6 +40,30 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-07-27-akten-fluss",
+    date: "2026-07-27",
+    category: "Behoben",
+    important: true,
+    title: "Akte gibt jetzt frei — und das Ergebnis geht in zwei Schritten",
+    summary: "Nach einem dokumentierten Kunden-Gespräch bliebst du hängen: „Du hast eine Akte in Bearbeitung“. Behoben. Dazu die Ergebnis-Erfassung neu.",
+    changes: [
+      "Bei Kunden wurde die Akte nach dem Kontakt-Ergebnis nicht geschlossen — bei Leads schon. Deshalb war die Kartei danach gesperrt. Das ist behoben, ebenso beim Aussortieren.",
+      "Neu: „Ohne Ergebnis schließen“ gibt es jetzt auch bei Kunden — mit kurzer Begründung. Zählt nicht als Betreuung.",
+      "Akten, die gar keine offene Karte mehr sein können (bezahlt, aussortiert, konvertiert), werden ab sofort automatisch freigegeben. Kein Zustand kann dich noch dauerhaft blockieren.",
+      "Nach dem Abschließen steht direkt „Nächste Akte öffnen“ da — dokumentieren, weiter, nächste.",
+      "Das Kontakt-Ergebnis läuft jetzt in zwei Schritten: erst „Erreicht“ oder „Nicht erreicht“, dann die Feinheit. Statt sieben Knöpfen auf einmal.",
+      "Optionen, die eine E-Mail auslösen, sagen das vorher im Klartext.",
+      "„Zahlung angekündigt“ steht ab sofort immer ganz oben in der Kartei — vor allem anderen.",
+      "Ein Rückruf lässt sich nicht mehr in der Vergangenheit speichern. Ein solcher Termin wurde nie fällig und ist lautlos verschwunden.",
+    ],
+    howto: [
+      "Öffne eine Akte und tippe auf „Erreicht“ oder „Nicht erreicht“ — die passenden Optionen erscheinen darunter.",
+      "Nach dem Speichern tippe auf „Nächste Akte öffnen“.",
+      "Kommst du nicht weiter: „Ohne Ergebnis schließen“ mit kurzer Begründung.",
+    ],
+    link: { href: "/agent/kartei", label: "Kartei öffnen" },
+  },
+  {
     id: "2026-07-27-kartei-zeitlimit",
     date: "2026-07-27",
     category: "Behoben",

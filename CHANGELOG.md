@@ -3,6 +3,54 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 27.07.2026 — Zeitlimit 57014: Die Abfrage war falsch herum gebaut
+
+Diesmal **gemessen**, nicht vermutet. Neues Werkzeug `scripts/kartei-tempo.ts` — es kann die Konsole nicht blockieren: 5 s Verbindungsaufbau, 10 s je Abfrage, 60 s Gesamtabbruch. Ein Abbruch ist dort ein *Ergebnis*, kein Fehlschlag.
+
+### Was die Messung ergab
+
+| Befund | Wert |
+|---|---|
+| Anträge / Leads | 5 364 / 2 771 |
+| Vergleiche der alten Dubletten-Prüfung | **14,9 Mio.** |
+| Alte Prüfung (`NOT EXISTS` je Zeile) | **über 10 000 ms — Abbruch** |
+| Neu als Anti-Join | **2 519 ms** |
+| Indizes vorhanden | **10 von 11** — `fiaon_apps_norm_phone_idx` fehlte |
+
+### Warum der Zähler lief und die Liste nicht
+
+Beide benutzen denselben Bauplan. Beim Zähler ist es `COUNT(*)` — Postgres darf die teuren Unterabfragen dann **wegoptimieren**, weil ihre Werte niemand sieht. Die Liste braucht `k.*`, also werden sie für **jede** Zeile ausgeführt. Dazu lief der komplette Bauplan **zweimal**: einmal für die Rangfolge, einmal für den Wartezeit-Ausgleich.
+
+### Die drei Änderungen
+
+**1. Dubletten-Prüfung umgedreht.** Vorher ein `NOT EXISTS` mit Funktionsaufrufen auf *beiden* Seiten — für jeden Lead ein vollständiger Durchlauf durch alle Anträge, jede Rufnummer dabei neu normalisiert. Kein Index kann das retten, weil die Verknüpfung selbst falsch herum stand. Jetzt werden die Vergleichsschlüssel **einmal** gesammelt und der Lead prüft gegen diese fertige Menge.
+
+**2. Kontakt-Verlauf vorab gruppiert.** Drei zusammenhängende Unterabfragen pro Zeile wurden zu zwei gruppierten Zwischenmengen mit `BOOL_OR`/`MAX(...) FILTER`.
+
+**3. Eine statt zwei Abfragen.** Rangfolge und Wartezeit-Ausgleich kommen aus einer Anweisung.
+
+### Vorberechnete Normalisierung — bewusst NICHT automatisch
+
+Auch als Anti-Join bleiben rund 16 000 `regexp_replace`-Aufrufe pro Anfrage. Die richtige Lösung sind gespeicherte, abgeleitete Spalten (`GENERATED ALWAYS AS ... STORED`).
+
+**Ich habe das aus dem Serverstart herausgenommen.** Der Versuch lief im Test selbst in ein Zeitlimit — eine solche Spalte erzwingt eine Tabellenumschreibung mit **exklusiver Sperre**. Automatisch bei jedem Start könnte ein Sperr-Stau sämtliche Abfragen auf `fiaon_applications` hinter sich aufreihen, also die halbe Plattform. Genau diesen Fehler — eine Optimierung in den kritischen Pfad zu legen — habe ich heute schon einmal gemacht.
+
+Stattdessen `scripts/kartei-normspalten.ts --anlegen`: einmalig, mit **5 s Sperr-Zeitlimit** (bekommt es die Sperre nicht sofort, bricht es folgenlos ab), mit Gleichheitsnachweis und `--zurueck`. Der Server **erkennt** die Spalten und schaltet selbstständig um; fehlen sie, rechnet er zur Laufzeit weiter.
+
+### Die Kartei darf nie ganz ausfallen
+
+Läuft die vollständige Abfrage trotzdem ins Zeitlimit, liefert die Kartei jetzt eine einfache Variante — ohne Gewichtung, nur nach Frische — mit sichtbarem Hinweis **„Vereinfachte Ansicht — Sortierung eingeschränkt."** Eine kaputte Sortierung ist ein Schönheitsfehler, eine leere Kartei ist Arbeitsausfall.
+
+### Offen und ehrlich
+
+Der **direkte A/B-Vergleich** alt gegen neu ließ sich nicht abschließen: Die alte Fassung läuft in das 10-Sekunden-Limit, bevor der Vergleich fertig ist. Die Gleichheit ist damit **logisch begründet und durch `kartei-verify.ts` gedeckt, aber nicht Zeile für Zeile bewiesen.** Der Nachweis steckt in `kartei-normspalten.ts` und läuft mit, sobald die Spalten angelegt werden.
+
+Das Ziel **unter 200 ms ist noch nicht erreicht** — der jetzige Stand ist rund 2,5 s statt Abbruch. Die 200 ms kommen mit den vorberechneten Spalten.
+
+**Prüfungen:** `kartei-verify.ts` **6/6** · `event-inventar.ts --check` **25/25**.
+
+---
+
 ## 27.07.2026 — Nachtrag: Die Index-Anlage hat die Kartei lahmgelegt (mein Fehler)
 
 **Befund nach dem Deploy:** Die Kartei meldet „Serverfehler", im Kopf steht „Lädt …" statt „FREI: 768". Entscheidend: **Der Zähler lief vorher.** Er fiel also *neu* aus — und das grenzt die Ursache eindeutig auf meine eigene Änderung ein, nicht auf den ursprünglichen Bug.

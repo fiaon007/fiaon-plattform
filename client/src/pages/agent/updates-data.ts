@@ -40,6 +40,25 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-07-27-kartei-zeitlimit",
+    date: "2026-07-27",
+    category: "Behoben",
+    title: "Kartei lädt wieder — die Abfrage war zu langsam gebaut",
+    summary: "Der Zähler zeigte 773 freie Karten, die Liste lief in eine Zeitgrenze. Ursache gefunden und umgebaut.",
+    changes: [
+      "Um doppelte Kunden zu erkennen, hat das System für jeden Lead die komplette Antragsliste durchsucht — fast 15 Millionen Vergleiche bei jedem Aufruf der Seite.",
+      "Jetzt wird die Vergleichsliste einmal vorbereitet, statt sie jedes Mal neu zu durchsuchen. Gleiches Ergebnis, ein Bruchteil der Zeit.",
+      "Zusätzlich lief die Abfrage doppelt: einmal für die Reihenfolge, einmal für den Wartezeit-Ausgleich. Das ist jetzt ein Durchgang.",
+      "Sollte es trotzdem einmal zu lange dauern, siehst du die Karten in einer vereinfachten Ansicht statt einer Fehlermeldung — nach Frische sortiert, mit Hinweis. Arbeiten kannst du damit normal.",
+      "An der Auswahl der Karten ändert sich nichts. Es sind dieselben Akten in derselben Reihenfolge.",
+    ],
+    howto: [
+      "Öffne „Kartei“ — die freien Karten sind wieder da.",
+      "Steht oben „Vereinfachte Ansicht“, stimmt die Reihenfolge gerade nicht. Die Karten selbst sind vollständig.",
+    ],
+    link: { href: "/agent/kartei", label: "Kartei öffnen" },
+  },
+  {
     id: "2026-07-27-kartei-serverfehler",
     date: "2026-07-27",
     category: "Behoben",

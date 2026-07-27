@@ -90,12 +90,62 @@ export async function ensureKarteiTables(): Promise<void> {
   ensured = true;
   console.log("[FIAON-KARTEI] Kartei-Tabellen sichergestellt");
 
+  void pruefeNormSpalten();
+
   // Die Indizes laufen BEWUSST erst nach `ensured = true` und ohne `await`.
   // Grund: Ein Index ist eine Beschleunigung, kein Funktionsbestandteil. Er
   // darf die Kartei niemals blockieren. Lief die Anlage frueher im selben
   // Ablauf, riss eine einzige fehlschlagende Anweisung die GESAMTE Route mit —
   // und weil `ensured` dann false blieb, bei jeder Anfrage erneut.
   void ensureKarteiIndizes();
+}
+
+/**
+ * VORBERECHNETE NORMALISIERUNG — der eigentliche Tempo-Hebel.
+ *
+ * Gemessen: Die Dubletten-Pruefung kostete 2 519 ms, obwohl sie schon als
+ * Anti-Join gebaut war. Der Grund waren rund 16 000 `regexp_replace`-Aufrufe
+ * ZUR LAUFZEIT — bei jeder einzelnen Anfrage aufs Neue. Eine Rufnummer aendert
+ * sich aber nur, wenn sie geaendert wird. Also wird sie einmal beim Schreiben
+ * normalisiert und gespeichert (`GENERATED ALWAYS AS ... STORED`), statt sie
+ * millionenfach beim Lesen neu zu berechnen.
+ *
+ * WICHTIG — hier wird NICHTS angelegt, nur nachgesehen.
+ * Eine gespeicherte generierte Spalte erzwingt eine Tabellenumschreibung mit
+ * exklusiver Sperre. Liefe das automatisch bei jedem Serverstart, koennte ein
+ * einziger Sperr-Stau saemtliche Abfragen auf fiaon_applications hinter sich
+ * aufreihen — also die halbe Plattform. Gemessen ist das kein theoretisches
+ * Risiko: Der Versuch lief bereits in ein Zeitlimit.
+ *
+ * Angelegt wird deshalb kontrolliert und einmalig:
+ *   npx tsx scripts/kartei-normspalten.ts --anlegen
+ * Der Server erkennt die Spalten danach von selbst und schaltet um. Fehlen
+ * sie, rechnet er zur Laufzeit weiter — langsamer, aber vollstaendig.
+ */
+let normSpaltenDa = false;
+let normVersucht = false;
+export function hatNormSpalten(): boolean { return normSpaltenDa; }
+
+async function pruefeNormSpalten(): Promise<void> {
+  if (normVersucht) return;
+  normVersucht = true;
+  try {
+    const [{ n }] = await sqlPool<{ n: number }[]>`
+      SELECT COUNT(*)::int AS n FROM information_schema.columns
+      WHERE table_schema = 'public' AND (
+        (table_name = 'fiaon_applications' AND column_name IN ('kartei_norm_email','kartei_norm_phone9'))
+        OR (table_name = 'fiaon_leads' AND column_name IN ('kartei_norm_email','kartei_norm_phone'))
+      )`;
+    normSpaltenDa = Number(n) === 4;
+    console.log(
+      normSpaltenDa
+        ? "[FIAON-KARTEI] Vorberechnete Normalisierung aktiv — schnelle Dubletten-Pruefung"
+        : `[FIAON-KARTEI] ${n}/4 Norm-Spalten vorhanden — Laufzeit-Berechnung (langsamer). Anlegen: scripts/kartei-normspalten.ts --anlegen`,
+    );
+  } catch (err: any) {
+    normSpaltenDa = false;
+    console.warn(`[FIAON-KARTEI] Norm-Spalten-Pruefung fehlgeschlagen (${err?.code || "?"}) — nutze Laufzeit-Berechnung`);
+  }
 }
 
 /**
@@ -236,21 +286,36 @@ const APP_PHONE_SQL = `
     NULLIF(regexp_replace(COALESCE(a.contact_phone,''), '\\D', '', 'g'), '')
   )`;
 
+/** Ziffern einer Lead-Rufnummer. */
+const LEAD_PHONE_SQL = `regexp_replace(COALESCE(l.telefon,''),'\\D','','g')`;
+
 /**
  * Ein Lead erzeugt NUR dann eine Karte, wenn es keinen Antrag derselben Person
  * gibt. Exakt dieselbe Bedingung wie in der zentralen Kundenakte — dadurch ist
  * garantiert: Lead + Antrag derselben Person = EINE Karte.
+ *
+ * WARUM DAS HIER SO STEHT — die Fassung davor war der Grund für Zeitlimit 57014:
+ * Sie war ein `NOT EXISTS` mit Funktionsaufrufen auf BEIDEN Seiten. Damit musste
+ * Postgres für JEDEN Lead die GESAMTE Antragstabelle durchgehen und dabei jede
+ * Rufnummer neu normalisieren — bei 2 000 Leads und 4 300 Anträgen sind das
+ * 8,6 Millionen Vergleiche mit regulärem Ausdruck. Kein Index kann das retten,
+ * weil die Verknüpfung selbst falsch herum gebaut war.
+ *
+ * Jetzt werden die Vergleichsschlüssel EINMAL vorab gesammelt (siehe
+ * `app_email`/`app_phone` in karteiCte) und der Lead prüft nur noch gegen diese
+ * fertige Menge. Aus 8,6 Millionen Vergleichen wird ein Hash-Durchlauf über
+ * 6 300 Zeilen. Das Ergebnis ist identisch — Maßstab bleibt kartei-verify.ts.
  */
-const LEAD_HAS_NO_APP_SIBLING = `
-  NOT EXISTS (
-    SELECT 1 FROM fiaon_applications a
-    WHERE a.merged_into IS NULL AND (
-      (COALESCE(l.email,'') <> '' AND LOWER(TRIM(a.email)) = LOWER(TRIM(l.email)))
-      OR (LENGTH(regexp_replace(COALESCE(l.telefon,''),'\\D','','g')) >= 7
-          AND RIGHT(regexp_replace(COALESCE(l.telefon,''),'\\D','','g'), 9)
-            = RIGHT(COALESCE(${APP_PHONE_SQL},''), 9))
-    )
+function leadHasNoAppSibling(schnell: boolean): string {
+  // Schnell: fertig gespeicherte Spalte. Sonst: Berechnung zur Laufzeit.
+  const mail = schnell ? "l.kartei_norm_email" : "LOWER(TRIM(l.email))";
+  const tel = schnell ? "l.kartei_norm_phone" : LEAD_PHONE_SQL;
+  return `
+  NOT (
+    (COALESCE(l.email,'') <> '' AND ${mail} IN (SELECT k FROM app_email))
+    OR (LENGTH(${tel}) >= 7 AND RIGHT(${tel}, 9) IN (SELECT k FROM app_phone))
   )`;
+}
 
 /**
  * Baut die vollständige Kartei als CTE. Enthält NUR neutrale Merkmale plus die
@@ -259,6 +324,7 @@ const LEAD_HAS_NO_APP_SIBLING = `
  * Flags. Damit können Kontaktdaten gar nicht erst versehentlich austreten.
  */
 function karteiCte(w: ReturnType<typeof karteiWeights>): string {
+  const schnell = normSpaltenDa;
   const appContactRule = w.requireFullContact
     ? `AND ${APP_PHONE_SQL} IS NOT NULL
        AND COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,'')) IS NOT NULL`
@@ -269,8 +335,46 @@ function karteiCte(w: ReturnType<typeof karteiWeights>): string {
        AND (COALESCE(l.vorname,'') <> '' OR COALESCE(l.nachname,'') <> '')`
     : `AND (COALESCE(l.telefon,'') <> '' OR COALESCE(l.email,'') <> '')`;
 
+  const TYPEN = `'{${CONTACT_TYPES.join(",")}}'`;
+
   return `
-    WITH kartei AS (
+    WITH
+    -- ── Vergleichsschlüssel der Anträge, EINMAL gesammelt ───────────────
+    -- Ersetzt die zeilenweise Dublettensuche. Beide Mengen sind klein und
+    -- werden per Hash geprüft statt per vollständigem Tabellendurchlauf.
+    app_email AS MATERIALIZED (
+      SELECT DISTINCT ${schnell ? "a.kartei_norm_email" : "LOWER(TRIM(a.email))"} AS k
+      FROM fiaon_applications a
+      WHERE a.merged_into IS NULL AND a.email IS NOT NULL
+    ),
+    app_phone AS MATERIALIZED (
+      SELECT DISTINCT ${schnell ? "a.kartei_norm_phone9" : `RIGHT(COALESCE(${APP_PHONE_SQL},''), 9)`} AS k
+      FROM fiaon_applications a
+      WHERE a.merged_into IS NULL
+    ),
+    -- ── Kontakt-Verlauf, vorab je Akte zusammengefasst ──────────────────
+    -- Vorher waren das DREI zusammenhängende Unterabfragen PRO ZEILE. Beim
+    -- Zähler (COUNT) durfte Postgres sie wegoptimieren, bei der Liste nicht —
+    -- genau daher lief der Zähler und die Liste lief in das Zeitlimit.
+    app_log AS MATERIALIZED (
+      SELECT c.ref AS ref,
+        BOOL_OR(c.scheduled_at IS NOT NULL AND c.voided_at IS NULL AND c.done_at IS NULL
+                AND c.scheduled_at <= NOW() AND c.scheduled_at > NOW() - INTERVAL '7 days') AS rueckruf_faellig,
+        BOOL_OR(c.type = ANY(${TYPEN}) AND c.voided_at IS NULL) AS betreut,
+        MAX(c.created_at) FILTER (WHERE c.type = ANY(${TYPEN}) AND c.voided_at IS NULL) AS letzter_kontakt
+      FROM fiaon_contact_log c
+      GROUP BY c.ref
+    ),
+    lead_log AS MATERIALIZED (
+      SELECT g.lead_id AS lead_id,
+        BOOL_OR(g.scheduled_at IS NOT NULL
+                AND g.scheduled_at <= NOW() AND g.scheduled_at > NOW() - INTERVAL '7 days') AS rueckruf_faellig,
+        BOOL_OR(g.type = ANY(${TYPEN})) AS betreut,
+        MAX(g.created_at) FILTER (WHERE g.type = ANY(${TYPEN})) AS letzter_kontakt
+      FROM fiaon_lead_log g
+      GROUP BY g.lead_id
+    ),
+    kartei AS MATERIALIZED (
       -- ── Anträge (offene Bestellungen) ──────────────────────────────────
       SELECT
         'app'::varchar                       AS kind,
@@ -294,19 +398,11 @@ function karteiCte(w: ReturnType<typeof karteiWeights>): string {
         (COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,'')) IS NOT NULL) AS hat_email,
         (a.number_corrected_at IS NOT NULL)  AS nummer_korrigiert,
         (a.payment_status = 'claimed_paid')  AS zahlung_angekuendigt,
-        EXISTS (
-          SELECT 1 FROM fiaon_contact_log c
-          WHERE c.ref = a.ref AND c.scheduled_at IS NOT NULL AND c.voided_at IS NULL
-            AND c.done_at IS NULL AND c.scheduled_at <= NOW() AND c.scheduled_at > NOW() - INTERVAL '7 days'
-        )                                    AS rueckruf_faellig,
-        EXISTS (
-          SELECT 1 FROM fiaon_contact_log c
-          WHERE c.ref = a.ref AND c.type = ANY('{${CONTACT_TYPES.join(",")}}') AND c.voided_at IS NULL
-        )                                    AS betreut,
-        (SELECT MAX(c.created_at) FROM fiaon_contact_log c
-          WHERE c.ref = a.ref AND c.type = ANY('{${CONTACT_TYPES.join(",")}}') AND c.voided_at IS NULL
-        )                                    AS letzter_kontakt
+        COALESCE(al.rueckruf_faellig, FALSE)  AS rueckruf_faellig,
+        COALESCE(al.betreut, FALSE)           AS betreut,
+        al.letzter_kontakt                    AS letzter_kontakt
       FROM fiaon_applications a
+      LEFT JOIN app_log al ON al.ref = a.ref
       WHERE a.merged_into IS NULL
         AND a.dismissed_at IS NULL
         AND a.payment_status = ANY('{${OPEN_PAYMENT_STATUS.join(",")}}')
@@ -335,25 +431,17 @@ function karteiCte(w: ReturnType<typeof karteiWeights>): string {
         (l.number_corrected_at IS NOT NULL
           AND (l.letzter_kontakt_am IS NULL OR l.number_corrected_at > l.letzter_kontakt_am)) AS nummer_korrigiert,
         FALSE                                AS zahlung_angekuendigt,
-        EXISTS (
-          SELECT 1 FROM fiaon_lead_log g
-          WHERE g.lead_id = l.id AND g.scheduled_at IS NOT NULL
-            AND g.scheduled_at <= NOW() AND g.scheduled_at > NOW() - INTERVAL '7 days'
-        )                                    AS rueckruf_faellig,
-        EXISTS (
-          SELECT 1 FROM fiaon_lead_log g
-          WHERE g.lead_id = l.id AND g.type = ANY('{${CONTACT_TYPES.join(",")}}')
-        )                                    AS betreut,
-        (SELECT MAX(g.created_at) FROM fiaon_lead_log g
-          WHERE g.lead_id = l.id AND g.type = ANY('{${CONTACT_TYPES.join(",")}}')
-        )                                    AS letzter_kontakt
+        COALESCE(gl.rueckruf_faellig, FALSE)  AS rueckruf_faellig,
+        COALESCE(gl.betreut, FALSE)           AS betreut,
+        gl.letzter_kontakt                    AS letzter_kontakt
       FROM fiaon_leads l
+      LEFT JOIN lead_log gl ON gl.lead_id = l.id
       WHERE l.status = ANY('{${OPEN_LEAD_STATUS.join(",")}}')
         AND l.dismissed_at IS NULL
         AND l.converted_order_id IS NULL
         AND (l.requeue_at IS NULL OR l.requeue_at <= NOW())
         ${leadContactRule}
-        AND ${LEAD_HAS_NO_APP_SIBLING}
+        AND ${leadHasNoAppSibling(schnell)}
     )`;
 }
 
@@ -568,31 +656,94 @@ router.get("/agent/kartei", requireAgent, async (req: AgentRequest, res: Respons
     const limitPh = p(limit);
     const offsetPh = p(offset);
 
-    const sql = `
+    // P1-F Wartezeit-Ausgleich: In der FREIEN Kartei kommt jeder N-te Platz
+    // aus dem ältesten Bestand, damit alte Einträge nicht ewig liegenbleiben.
+    const mitAusgleich = tab === "frei" && !q;
+
+    // Beide Mengen kommen aus EINER Anweisung. Vorher waren es zwei getrennte
+    // Abfragen, die den kompletten Bauplan jeweils neu berechnet haben —
+    // doppelte Arbeit für dasselbe Ergebnis.
+    const sql = mitAusgleich
+      ? `
+      ${karteiCte(w)},
+      ranked AS (
+        SELECT k.*, ag.name AS agent_name, ${SCORE_SQL} AS score, COUNT(*) OVER() AS total_count
+        FROM kartei k
+        LEFT JOIN fiaon_agents ag ON ag.id = k.assigned_agent_id
+        ${whereSql}
+      )
+      SELECT * FROM (
+        SELECT r.*, 0 AS bucket FROM ranked r
+        ORDER BY r.score DESC, r.created_at DESC LIMIT ${limitPh} OFFSET ${offsetPh}
+      ) top
+      UNION ALL
+      SELECT * FROM (
+        SELECT r.*, 1 AS bucket FROM ranked r
+        ORDER BY r.created_at ASC LIMIT ${p(Math.ceil(limit / w.fairnessNth))} OFFSET ${p(Math.floor(offset / w.fairnessNth))}
+      ) alt
+    `
+      : `
       ${karteiCte(w)}
-      SELECT k.*, ag.name AS agent_name, ${SCORE_SQL} AS score, COUNT(*) OVER() AS total_count
+      SELECT k.*, ag.name AS agent_name, ${SCORE_SQL} AS score, COUNT(*) OVER() AS total_count, 0 AS bucket
       FROM kartei k
       LEFT JOIN fiaon_agents ag ON ag.id = k.assigned_agent_id
       ${whereSql}
       ORDER BY score DESC, k.created_at DESC
       LIMIT ${limitPh} OFFSET ${offsetPh}
     `;
-    const rows = await sqlPool.unsafe(sql, params);
-    const total = rows.length > 0 ? Number(rows[0].total_count) : 0;
-    let cards = rows.map((r: any) => maskCard(r, me));
 
-    // P1-F Wartezeit-Ausgleich: In der FREIEN Kartei kommt jeder N-te Platz
-    // aus dem ältesten Bestand, damit alte Einträge nicht ewig liegenbleiben.
-    if (tab === "frei" && !q) {
-      const oldest = await sqlPool.unsafe(
+    let rows: any[];
+    let vereinfacht = false;
+    try {
+      rows = await sqlPool.unsafe(sql, params);
+    } catch (err: any) {
+      // TEIL 3 — Die Kartei darf nie ganz ausfallen. Eine kaputte Sortierung
+      // ist ein Schönheitsfehler, eine leere Kartei ist Arbeitsausfall.
+      // Deshalb: bei Zeitlimit auf die einfache Variante ausweichen — ohne
+      // Gewichtung, ohne Ausgleich, nur nach Frische.
+      if (err?.code !== "57014") throw err;
+      console.warn("[FIAON-KARTEI] Volle Abfrage im Zeitlimit — weiche auf vereinfachte Ansicht aus");
+      vereinfacht = true;
+
+      // EIGENE Parameterliste. Die Notvariante rechnet keine Gewichtung, also
+      // darf sie die vier Gewichtungswerte auch nicht mitschicken — ein nie
+      // referenzierter Parameter ist exakt der Fehler 42P18, der uns diesen
+      // ganzen Vorgang eingebrockt hat.
+      const nParams: any[] = [];
+      const np = (value: unknown): string => `$${nParams.push(value)}`;
+      const nWhere: string[] = [];
+      if (tab === "frei") nWhere.push("k.assigned_agent_id IS NULL");
+      else if (tab === "meine") nWhere.push(`k.assigned_agent_id = ${np(me)}`);
+      if (q) {
+        const nLike = np(`%${q}%`);
+        nWhere.push(`(
+          COALESCE(k.quelle,'') ILIKE ${nLike} OR COALESCE(k.kampagne,'') ILIKE ${nLike}
+          OR COALESCE(k.paket,'') ILIKE ${nLike} OR COALESCE(k.plz_gebiet,'') ILIKE ${nLike}
+          OR COALESCE(k.lifecycle,'') ILIKE ${nLike}
+        )`);
+      }
+      rows = await sqlPool.unsafe(
         `${karteiCte(w)}
-         SELECT k.*, NULL::varchar AS agent_name FROM kartei k
-         WHERE k.assigned_agent_id IS NULL
-         ORDER BY k.created_at ASC
-         LIMIT $1 OFFSET $2`,
-        [Math.ceil(limit / w.fairnessNth), Math.floor(offset / w.fairnessNth)],
+         SELECT k.*, NULL::varchar AS agent_name, 0 AS bucket
+         FROM kartei k
+         ${nWhere.length ? `WHERE ${nWhere.join(" AND ")}` : ""}
+         ORDER BY k.created_at DESC
+         LIMIT ${np(limit)} OFFSET ${np(offset)}`,
+        nParams,
       );
-      cards = interleaveFairness(cards, oldest.map((r: any) => maskCard(r, me)), w.fairnessNth, limit);
+    }
+
+    const topRows = rows.filter((r) => Number(r.bucket) === 0);
+    const altRows = rows.filter((r) => Number(r.bucket) === 1);
+    const total = vereinfacht
+      ? topRows.length + offset
+      : topRows.length > 0
+        ? Number(topRows[0].total_count)
+        : 0;
+
+    let cards = topRows.map((r: any) => maskCard(r, me));
+    if (mitAusgleich && !vereinfacht) {
+      cards = interleaveFairness(cards, altRows.map((r: any) => maskCard(r, me)), w.fairnessNth, limit);
     }
 
     const active = await activeCardOf(me);
@@ -601,10 +752,12 @@ router.get("/agent/kartei", requireAgent, async (req: AgentRequest, res: Respons
       tab,
       cards,
       total,
-      hasMore: offset + rows.length < total,
+      hasMore: offset + topRows.length < total,
       activeCardId: active?.cardId || null,
       // Der Agent muss wissen, warum er gerade keine zweite Akte öffnen kann.
       autoReleaseMinutes: w.autoReleaseMin,
+      // Ehrlichkeit gegenüber dem Agenten: Wenn die Rangfolge fehlt, sagen wir das.
+      vereinfacht,
     });
   } catch (err: any) {
     // Der Fehlercode gehoert in die Antwort. „Serverfehler" allein hat den

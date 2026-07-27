@@ -94,6 +94,10 @@ function KarteiContent() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [ladeFehler, setLadeFehler] = useState<string | null>(null);
+  // Notvariante: Die Kartei laedt, aber ohne Rangfolge. Das muss sichtbar
+  // sein — sonst haelt der Agent eine willkuerliche Reihenfolge fuer die
+  // beste. Arbeiten kann er trotzdem, und darauf kommt es an.
+  const [vereinfacht, setVereinfacht] = useState(false);
   const [q, setQ] = useState("");
   const [flash, setFlash] = useState<string | null>(null);
 
@@ -127,6 +131,7 @@ function KarteiContent() {
       if (c.ok) {
         setCards(c.json.cards);
         setTotal(c.json.total);
+        setVereinfacht(!!c.json.vereinfacht);
       } else {
         // Der technische Code gehoert sichtbar dazu — ohne ihn steht der
         // Betreiber vor „Serverfehler" und kann nichts damit anfangen.
@@ -318,6 +323,16 @@ function KarteiContent() {
           Freie Karten zeigen bewusst keine Namen oder Nummern — alle werden gleich behandelt, niemand wird übersprungen.
           Erst mit der Übernahme siehst du die vollständigen Daten.
         </p>
+      )}
+
+      {vereinfacht && !loading && !ladeFehler && (
+        <div className="mb-3 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5">
+          <AlertTriangle size={15} className="text-amber-600 mt-0.5 shrink-0" strokeWidth={2} />
+          <p className="text-[12.5px] text-amber-900 leading-relaxed">
+            <span className="font-semibold">Vereinfachte Ansicht — Sortierung eingeschränkt.</span>{" "}
+            Die Karten sind nach Frische geordnet, nicht nach Gewichtung. Du kannst normal arbeiten.
+          </p>
+        </div>
       )}
 
       {/* ── Kartenraster ── */}

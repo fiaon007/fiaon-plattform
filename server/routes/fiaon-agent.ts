@@ -334,8 +334,19 @@ const SETTING_DEFAULTS: Record<string, string> = {
   // Wird beim Scharfstellen per Skript/Admin auf den Deploy-Zeitpunkt gesetzt.
   commission_cutoff_at: "",
   // Phase 2B (V2): offene Akte ohne Kontakt-Ergebnis wird nach X Minuten
-  // automatisch freigegeben (Deadlock-Schutz). 0 = nie.
+  // automatisch freigegeben (Deadlock-Schutz). 0 = nie. Gilt jetzt auch für die
+  // offene Kartei (Leads UND Kunden — eine Regel, ein Wert).
   akte_auto_release_min: "30",
+  // ── OFFENE KARTEI ──────────────────────────────────────────────────────────
+  // Übernommene Akte OHNE dokumentierten Kontakt geht nach X Tagen zurück in die
+  // freie Kartei (Hortungs-Schutz). 0 = nie. Akten MIT Betreuung bleiben immer.
+  kartei_hoarding_days: "7",
+  // Vorwarnung im Portal, X Tage bevor eine Akte zurückläuft.
+  kartei_hoarding_warn_days: "2",
+  // Nur vollständig kontaktierbare Karten in die FREIE Kartei legen
+  // (Betreiber-Sichtbarkeitsregel aus Phase 3: Name + Telefon + E-Mail).
+  // "0" lockert die Regel auf „mindestens ein Kontaktweg".
+  kartei_require_full_contact: "1",
   // Paket AE3: Partner-Programm — Meilenstein-Schwellen (kumulierter bestätigter
   // EIGENumsatz in Cents) + Provisions-Zuschlag in Basispunkten. Admin-editierbar.
   partner_thresholds: JSON.stringify([
@@ -440,7 +451,7 @@ export function blockAgentsFromAdmin(req: Request, res: Response, next: NextFunc
   next();
 }
 
-async function logAction(ref: string, agent: { id: number; name: string }, type: string, fields: {
+export async function logAction(ref: string, agent: { id: number; name: string }, type: string, fields: {
   outcome?: string | null; note?: string | null; scheduledAt?: string | null; promisedDate?: string | null;
 } = {}): Promise<any> {
   const rows = await sqlPool`

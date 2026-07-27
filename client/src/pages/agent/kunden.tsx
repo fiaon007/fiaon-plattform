@@ -555,33 +555,21 @@ const CUST_DISMISS_REASONS: Record<string, string> = {
   kein_interesse: "Kein Interesse",
   dublette: "Dublette",
 };
-function DismissBlock({ open, setOpen, busy, onDismiss }: {
-  open: boolean; setOpen: (v: boolean) => void; busy: boolean; onDismiss: (reason: string) => void;
-}) {
-  if (!open) {
-    return (
-      <div className="pt-1">
-        <button type="button" onClick={() => setOpen(true)}
-          className="w-full py-2.5 rounded-xl border border-slate-200 text-[12px] font-medium text-slate-400 hover:text-slate-600 hover:border-slate-300 inline-flex items-center justify-center gap-1.5">
-          <X size={13} strokeWidth={1.9} /> Aus meiner Liste entfernen
-        </button>
-      </div>
-    );
-  }
+/**
+ * PROMPT 2/2 · A: Auslöser für das Aussortieren. Die Gründe und die Folge
+ * stehen jetzt im modalen Dialog (ConfirmDialog) statt in einem Inline-Panel —
+ * ein Tap öffnet, der Dialog bestätigt.
+ */
+function DismissButton({ onOpen }: { onOpen: () => void }) {
   return (
-    <div className="pt-1 p-3.5 rounded-xl border border-slate-200 bg-slate-50 agent-check-in">
-      <p className="text-[12px] font-semibold text-slate-700 mb-1">Aus deiner Liste entfernen</p>
-      <p className="text-[11.5px] text-slate-500 mb-2.5">Wird nie gelöscht — verschwindet nur aus deiner Liste. Der Admin kann ihn jederzeit zurückholen. Grund wählen:</p>
-      <div className="grid grid-cols-1 gap-1.5">
-        {Object.entries(CUST_DISMISS_REASONS).map(([key, label]) => (
-          <button key={key} type="button" disabled={busy} onClick={() => onDismiss(key)}
-            className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-[12px] font-medium text-slate-600 hover:border-slate-400 hover:text-slate-800 text-left disabled:opacity-40" style={{ minHeight: 44 }}>
-            {busy ? "…" : label}
-          </button>
-        ))}
-      </div>
-      <button type="button" onClick={() => setOpen(false)} className="mt-2 text-[11.5px] font-semibold text-slate-400 hover:text-slate-600">
-        Abbrechen
+    <div className="pt-1">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onOpen(); }}
+        className="w-full py-2.5 rounded-xl border border-slate-200 text-[12px] font-medium text-slate-400 hover:text-slate-600 hover:border-slate-300 inline-flex items-center justify-center gap-1.5"
+        style={{ minHeight: 44 }}
+      >
+        <X size={13} strokeWidth={1.9} /> Aus meiner Liste entfernen
       </button>
     </div>
   );
@@ -610,6 +598,10 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
   const [pending, setPending] = useState<{ key: string; date: string } | null>(null);
   const [voidConfirmId, setVoidConfirmId] = useState<number | null>(null);
   const [confirmReactivate, setConfirmReactivate] = useState(false);
+  // PROMPT 2/2 · A: Auch die Zahlungsdaten-Mail und das Aussortieren laufen jetzt
+  // über den modalen Dialog — der Agent muss wissen, dass eine E-Mail rausgeht.
+  const [confirmEmail, setConfirmEmail] = useState(false);
+  const [confirmDismiss, setConfirmDismiss] = useState<string | null>(null);
   const [lockUntil, setLockUntil] = useState<number>(0);
   const [now, setNow] = useState(Date.now());
   const [mobileTab, setMobileTab] = useState<"stamm" | "aktion" | "verlauf">("aktion");
@@ -621,7 +613,6 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
   const [dupWarn, setDupWarn] = useState<{ ref: string; payment_status: string; name: string } | null>(null);
   const [loginHint, setLoginHint] = useState<string | null>(null);
   // #15/#22: „Aus meiner Liste entfernen" (kein echtes Löschen)
-  const [dismissOpen, setDismissOpen] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -688,6 +679,7 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
 
   // #15/#22: Kunde aus der eigenen Arbeitsliste entfernen (kein echtes Löschen).
   const doDismiss = async (reason: string) => {
+    setConfirmDismiss(null);
     setBusy("dismiss");
     const r = await api(`/agent/customers/${encodeURIComponent(refId)}/dismiss`, { method: "POST", body: JSON.stringify({ reason }) });
     setBusy(null);
@@ -766,14 +758,14 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
     } else flash(r.json?.error || "Fehler");
   };
 
-  const sendEmail = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const sendEmail = async () => {
+    setConfirmEmail(false);
     setBusy("email");
     const r = await api(`/agent/customers/${encodeURIComponent(refId)}/send-payment-email`, { method: "POST" });
     setBusy(null);
     if (r.ok) {
       setLockUntil(new Date(r.json.lockedUntil).getTime());
-      flash("Zahlungsdaten-E-Mail wird versendet");
+      flash(`✓ E-Mail wurde versendet — ${custName(detail)} hat die Zahlungsdaten erhalten.`);
       onChanged();
     } else if (r.status === 429 && r.json?.lockedUntil) {
       setLockUntil(new Date(r.json.lockedUntil).getTime());
@@ -1026,9 +1018,7 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
             </button>
           )}
           {/* #15/#22: auch abgelaufene eigene Kunden aus der Liste nehmen (kein Löschen) */}
-          {canReactivate && (
-            <DismissBlock open={dismissOpen} setOpen={setDismissOpen} busy={busy === "dismiss"} onDismiss={doDismiss} />
-          )}
+          {canReactivate && <DismissButton onOpen={() => setConfirmDismiss("")} />}
         </div>
       ) : (
         <>
@@ -1067,7 +1057,7 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
 
           {/* Zahlungsdaten-E-Mail mit ruhigem Sperr-Fortschritt */}
           <div>
-            <button type="button" onClick={sendEmail} disabled={lockSec > 0 || busy === "email"}
+            <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmEmail(true); }} disabled={lockSec > 0 || busy === "email"}
               className={`${btnGhost} w-full py-3 inline-flex items-center justify-center gap-2 relative overflow-hidden`} style={{ minHeight: 48 }}>
               {lockSec > 0 && (
                 <span className="absolute left-0 top-0 bottom-0 bg-slate-100" style={{ width: `${lockPct}%`, transition: "width 1s linear" }} />
@@ -1081,7 +1071,7 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
             </button>
           </div>
 
-          <DismissBlock open={dismissOpen} setOpen={setDismissOpen} busy={busy === "dismiss"} onDismiss={doDismiss} />
+          <DismissButton onOpen={() => setConfirmDismiss("")} />
         </>
       )}
     </div>
@@ -1240,6 +1230,53 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
       onConfirm={voidEntry}
       onCancel={() => setVoidConfirmId(null)}
     />
+
+    {/* Zahlungsdaten-Mail — löst eine echte E-Mail aus, deshalb im Klartext angesagt */}
+    <ConfirmDialog
+      open={confirmEmail}
+      title="Zahlungsdaten per E-Mail senden?"
+      message={`${custName(detail)} erhält die Zahlungsdaten zu dieser Bestellung.`}
+      consequence={`Es geht sofort eine E-Mail an ${detail.email || "die hinterlegte Adresse"} — mit Betrag, Verwendungszweck und Bankverbindung. Danach ist die Aktion für 10 Minuten gesperrt, damit der Kunde keine Mail doppelt bekommt.`}
+      confirmLabel="E-Mail senden"
+      busy={busy === "email"}
+      onConfirm={sendEmail}
+      onCancel={() => setConfirmEmail(false)}
+    />
+
+    {/* Aussortieren — Grund wählen im Dialog statt Inline-Panel */}
+    <ConfirmDialog
+      open={confirmDismiss !== null}
+      title="Aus deiner Liste entfernen?"
+      message={`${custName(detail)} verschwindet aus deiner Arbeitsliste.`}
+      consequence="Es wird nichts gelöscht und keine E-Mail versendet. Der Datensatz bleibt vollständig gespeichert und kann vom Admin jederzeit zurückgeholt werden."
+      confirmLabel="Entfernen"
+      danger
+      busy={busy === "dismiss"}
+      confirmDisabled={!confirmDismiss}
+      onConfirm={() => confirmDismiss && doDismiss(confirmDismiss)}
+      onCancel={() => setConfirmDismiss(null)}
+    >
+      <div>
+        <label className="block text-[12px] font-medium text-slate-500 mb-1.5">Grund</label>
+        <div className="grid gap-1.5">
+          {Object.entries(CUST_DISMISS_REASONS).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setConfirmDismiss(key); }}
+              className={`px-3 py-2.5 rounded-lg border text-[12.5px] font-medium text-left transition-colors ${
+                confirmDismiss === key
+                  ? "border-slate-400 bg-slate-50 text-slate-900"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              }`}
+              style={{ minHeight: 44 }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </ConfirmDialog>
     </>
   );
 }

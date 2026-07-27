@@ -122,8 +122,11 @@ export async function api(path: string, init?: RequestInit): Promise<any> {
 // ── Navigation (Paket AO: 5 klare Punkte; Unterseiten markieren den Bereich) ─
 const NAV: { href: string; label: string; icon: typeof Users; match: string[] }[] = [
   { href: "/agent", label: "Mein Tag", icon: LayoutDashboard, match: ["/agent"] },
-  { href: "/agent/kunden", label: "Kunden", icon: Users, match: ["/agent/kunden"] },
-  { href: "/agent/leads", label: "Leads", icon: PhoneCall, match: ["/agent/leads"] },
+  // Offene Kartei: ein gemeinsamer Bestand statt getrennter Leads-/Kunden-Silos.
+  // Die alten Pfade bleiben als Route erreichbar (Übergangsphase), sind aber
+  // bewusst nicht mehr in der Navigation.
+  { href: "/agent/kartei", label: "Kartei", icon: PhoneCall, match: ["/agent/kartei", "/agent/leads"] },
+  { href: "/agent/meine-kunden", label: "Meine Kunden", icon: Users, match: ["/agent/meine-kunden", "/agent/kunden"] },
   { href: "/agent/kalender", label: "Kalender", icon: Calendar, match: ["/agent/kalender"] },
   { href: "/agent/verdienst", label: "Verdienst", icon: Wallet, match: ["/agent/verdienst", "/agent/auszahlung", "/agent/partner-programm"] },
   { href: "/agent/mehr", label: "Mehr", icon: MoreHorizontal, match: ["/agent/mehr", "/agent/skripte", "/agent/updates", "/agent/feedback", "/agent/profil", "/agent/leistung", "/agent/dokumente"] },

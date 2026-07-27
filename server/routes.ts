@@ -257,6 +257,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonKundenRoutes = await import('./routes/fiaon-kunden');
   app.use('/api/fiaon', fiaonKundenRoutes.default);
 
+  // 🗂️ FIAON Offene Kunden-Kartei — ein gemeinsamer Bestand für alle Agenten
+  //    (Leads + Kunden, Kontaktdaten serverseitig maskiert bis zur Übernahme).
+  //    Läuft hinter customerDataGate → kein Kartei-Zugriff ohne Onboarding.
+  const fiaonKarteiRoutes = await import('./routes/fiaon-kartei');
+  app.use('/api/fiaon', fiaonKarteiRoutes.default);
+
   // 🎯 FIAON Lead-Management (Admin/Agent) — Auto-Konversion, Nachfass, Anrufliste
   const fiaonLeadsRoutes = await import('./routes/fiaon-leads');
   app.use('/api/fiaon', fiaonLeadsRoutes.default);

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
 import { Wallet } from "lucide-react";
-import { AgentShell, Card, Badge, FlashMessage, api, fmtCents, fmtDT, btnPrimary, ACCENT } from "./shared";
+import { AgentShell, Card, Badge, FlashMessage, api, fmtCents, fmtDT, btnPrimary, ACCENT, ConfirmDialog } from "./shared";
 import { Reveal, CountUp, SuccessPulse } from "./motion";
 
 // ============================================================================
@@ -34,6 +34,9 @@ function AuszahlungContent() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [pulse, setPulse] = useState(0);
+  // PROMPT 2/2 · A: eigener Dialog statt Browser-confirm — gleiche Optik wie
+  // überall im Portal, auf dem Handy als Bottom-Sheet bedienbar.
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const flash = (m: string) => { setMessage(m); setTimeout(() => setMessage(null), 4500); };
 
@@ -47,14 +50,16 @@ function AuszahlungContent() {
   const hasOpen = data.history.some((h) => h.status === "angefordert");
   const canRequest = data.hasBank && data.balanceCents >= data.minCents && !hasOpen;
 
-  const request = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm(`Auszahlung über ${fmtCents(data.balanceCents)} beantragen?\n\nEs wird immer das volle verfügbare Guthaben angefordert. Die Überweisung erfolgt nach Prüfung manuell.`)) return;
+  const request = async () => {
+    setConfirmOpen(false);
     setBusy(true);
     const r = await api("/agent/payouts/request", { method: "POST" });
     setBusy(false);
-    if (r.ok) { flash("Auszahlung beantragt — sie wird nach Prüfung manuell überwiesen."); setPulse((p) => p + 1); load(); }
-    else flash(r.json?.error || "Fehler");
+    if (r.ok) {
+      flash("✓ Auszahlung beantragt — du findest sie unten im Verlauf. Die Überweisung erfolgt nach Prüfung manuell.");
+      setPulse((p) => p + 1);
+      load();
+    } else flash(r.json?.error || "Fehler");
   };
 
   return (
@@ -88,7 +93,7 @@ function AuszahlungContent() {
       <Card className="p-5 mb-6">
         <button
           type="button"
-          onClick={request}
+          onClick={(e) => { e.stopPropagation(); setConfirmOpen(true); }}
           disabled={!canRequest || busy}
           className={`${btnPrimary} w-full py-3.5`}
           style={{ minHeight: 50 }}
@@ -130,6 +135,18 @@ function AuszahlungContent() {
           </div>
         ))}
       </Card>
+
+      {/* PROMPT 2/2 · A: Auszahlung anfordern — Folge im Klartext, kein Browser-Dialog */}
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Auszahlung beantragen?"
+        message={`Du forderst dein gesamtes verfügbares Guthaben von ${fmtCents(data.balanceCents)} an.`}
+        consequence={`Es wird nur eine Anforderung erstellt — es fließt noch kein Geld. Nach der Prüfung überweist FIAON manuell${data.ibanMasked ? ` auf ${data.ibanMasked}` : ""}, in der Regel innerhalb von 5 Werktagen. Du erhältst dann eine E-Mail.`}
+        confirmLabel="Auszahlung beantragen"
+        busy={busy}
+        onConfirm={request}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }

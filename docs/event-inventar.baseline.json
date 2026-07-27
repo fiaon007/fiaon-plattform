@@ -1,0 +1,291 @@
+{
+  "generatedAt": "2026-07-27T13:19:36.436Z",
+  "count": 25,
+  "sites": [
+    {
+      "event": "agent_callback_reminder",
+      "file": "server/routes/fiaon-agent.ts",
+      "line": 911,
+      "trigger": "runCallbackReminders()",
+      "route": null,
+      "actor": "Admin",
+      "recipient": "Agent",
+      "calledFrom": [
+        "POST /api/fiaon/admin/payments/run-reminders"
+      ],
+      "key": "agent_callback_reminder|server/routes/fiaon-agent.ts|runCallbackReminders()"
+    },
+    {
+      "event": "agent_feedback_reply",
+      "file": "server/routes/fiaon-agent-portal.ts",
+      "line": 993,
+      "trigger": "POST /api/fiaon/admin/agent-feedback/:id/reply",
+      "route": "POST /api/fiaon/admin/agent-feedback/:id/reply",
+      "actor": "Admin",
+      "recipient": "Agent",
+      "calledFrom": [],
+      "key": "agent_feedback_reply|server/routes/fiaon-agent-portal.ts|POST /api/fiaon/admin/agent-feedback/:id/reply"
+    },
+    {
+      "event": "agent_feedback_rewarded",
+      "file": "server/routes/fiaon-agent-portal.ts",
+      "line": 1081,
+      "trigger": "POST /api/fiaon/admin/agent-feedback/:id/reward",
+      "route": "POST /api/fiaon/admin/agent-feedback/:id/reward",
+      "actor": "Admin",
+      "recipient": "Agent",
+      "calledFrom": [],
+      "key": "agent_feedback_rewarded|server/routes/fiaon-agent-portal.ts|POST /api/fiaon/admin/agent-feedback/:id/reward"
+    },
+    {
+      "event": "agent_invite",
+      "file": "server/routes/fiaon-team.ts",
+      "line": 91,
+      "trigger": "POST /api/fiaon/admin/agents",
+      "route": "POST /api/fiaon/admin/agents",
+      "actor": "Admin",
+      "recipient": "Agent",
+      "calledFrom": [],
+      "key": "agent_invite|server/routes/fiaon-team.ts|POST /api/fiaon/admin/agents"
+    },
+    {
+      "event": "agent_invite",
+      "file": "server/routes/fiaon-team.ts",
+      "line": 118,
+      "trigger": "POST /api/fiaon/admin/agents/:id/reinvite",
+      "route": "POST /api/fiaon/admin/agents/:id/reinvite",
+      "actor": "Admin",
+      "recipient": "Agent",
+      "calledFrom": [],
+      "key": "agent_invite|server/routes/fiaon-team.ts|POST /api/fiaon/admin/agents/:id/reinvite"
+    },
+    {
+      "event": "agent_password_reset",
+      "file": "server/routes/fiaon-agent.ts",
+      "line": 1024,
+      "trigger": "POST /api/fiaon/agent/forgot-password",
+      "route": "POST /api/fiaon/agent/forgot-password",
+      "actor": "Agent",
+      "recipient": "Agent",
+      "calledFrom": [],
+      "key": "agent_password_reset|server/routes/fiaon-agent.ts|POST /api/fiaon/agent/forgot-password"
+    },
+    {
+      "event": "agent_password_reset",
+      "file": "server/routes/fiaon-team.ts",
+      "line": 198,
+      "trigger": "POST /api/fiaon/admin/agents/:id/force-reset",
+      "route": "POST /api/fiaon/admin/agents/:id/force-reset",
+      "actor": "Admin",
+      "recipient": "Agent",
+      "calledFrom": [],
+      "key": "agent_password_reset|server/routes/fiaon-team.ts|POST /api/fiaon/admin/agents/:id/force-reset"
+    },
+    {
+      "event": "agent_payment_reminder",
+      "file": "server/routes/fiaon-agent.ts",
+      "line": 1699,
+      "trigger": "POST /api/fiaon/agent/customers/:ref/send-payment-email",
+      "route": "POST /api/fiaon/agent/customers/:ref/send-payment-email",
+      "actor": "Agent",
+      "recipient": "Kunde",
+      "calledFrom": [],
+      "key": "agent_payment_reminder|server/routes/fiaon-agent.ts|POST /api/fiaon/agent/customers/:ref/send-payment-email"
+    },
+    {
+      "event": "agent_payout_done",
+      "file": "server/routes/fiaon-team.ts",
+      "line": 1027,
+      "trigger": "POST /api/fiaon/admin/payouts/:id/mark-paid",
+      "route": "POST /api/fiaon/admin/payouts/:id/mark-paid",
+      "actor": "Admin",
+      "recipient": "Agent",
+      "calledFrom": [],
+      "key": "agent_payout_done|server/routes/fiaon-team.ts|POST /api/fiaon/admin/payouts/:id/mark-paid"
+    },
+    {
+      "event": "agent_payout_rejected",
+      "file": "server/routes/fiaon-team.ts",
+      "line": 1057,
+      "trigger": "POST /api/fiaon/admin/payouts/:id/reject",
+      "route": "POST /api/fiaon/admin/payouts/:id/reject",
+      "actor": "Admin",
+      "recipient": "Agent",
+      "calledFrom": [],
+      "key": "agent_payout_rejected|server/routes/fiaon-team.ts|POST /api/fiaon/admin/payouts/:id/reject"
+    },
+    {
+      "event": "claim_received",
+      "file": "server/routes/fiaon-antrag.ts",
+      "line": 914,
+      "trigger": "POST /api/fiaon/payment-order/:paymentRef/claim-paid",
+      "route": "POST /api/fiaon/payment-order/:paymentRef/claim-paid",
+      "actor": "Kunde (öffentlich)",
+      "recipient": "Kunde",
+      "calledFrom": [],
+      "key": "claim_received|server/routes/fiaon-antrag.ts|POST /api/fiaon/payment-order/:paymentRef/claim-paid"
+    },
+    {
+      "event": "commission_statement_issued",
+      "file": "server/routes/fiaon-onboarding.ts",
+      "line": 755,
+      "trigger": "generateCommissionStatement()",
+      "route": "GET /api/fiaon/agent/documents/statement/:id.pdf",
+      "actor": "Agent",
+      "recipient": "Agent",
+      "calledFrom": [],
+      "key": "commission_statement_issued|server/routes/fiaon-onboarding.ts|generateCommissionStatement()"
+    },
+    {
+      "event": "contract_signed",
+      "file": "server/routes/fiaon-onboarding.ts",
+      "line": 552,
+      "trigger": "POST /api/fiaon/agent/onboarding/sign",
+      "route": "POST /api/fiaon/agent/onboarding/sign",
+      "actor": "Agent",
+      "recipient": "Agent",
+      "calledFrom": [],
+      "key": "contract_signed|server/routes/fiaon-onboarding.ts|POST /api/fiaon/agent/onboarding/sign"
+    },
+    {
+      "event": "lead_application_link",
+      "file": "server/routes/fiaon-leads.ts",
+      "line": 1456,
+      "trigger": "POST /api/fiaon/admin/leads/:id/send-application-link",
+      "route": "POST /api/fiaon/admin/leads/:id/send-application-link",
+      "actor": "Admin",
+      "recipient": "Lead",
+      "calledFrom": [],
+      "key": "lead_application_link|server/routes/fiaon-leads.ts|POST /api/fiaon/admin/leads/:id/send-application-link"
+    },
+    {
+      "event": "lead_application_link",
+      "file": "server/routes/fiaon-leads.ts",
+      "line": 1135,
+      "trigger": "POST /api/fiaon/agent/leads/:id/move-to-application",
+      "route": "POST /api/fiaon/agent/leads/:id/move-to-application",
+      "actor": "Agent",
+      "recipient": "Lead",
+      "calledFrom": [],
+      "key": "lead_application_link|server/routes/fiaon-leads.ts|POST /api/fiaon/agent/leads/:id/move-to-application"
+    },
+    {
+      "event": "lead_followup",
+      "file": "server/routes/fiaon-leads.ts",
+      "line": 1487,
+      "trigger": "POST /api/fiaon/admin/leads/:id/send-followup",
+      "route": "POST /api/fiaon/admin/leads/:id/send-followup",
+      "actor": "Admin",
+      "recipient": "Lead",
+      "calledFrom": [],
+      "key": "lead_followup|server/routes/fiaon-leads.ts|POST /api/fiaon/admin/leads/:id/send-followup"
+    },
+    {
+      "event": "lead_followup",
+      "file": "server/routes/fiaon-leads.ts",
+      "line": 1994,
+      "trigger": "POST /api/fiaon/admin/leads/followup-bulk/start",
+      "route": "POST /api/fiaon/admin/leads/followup-bulk/start",
+      "actor": "Admin",
+      "recipient": "Lead",
+      "calledFrom": [],
+      "key": "lead_followup|server/routes/fiaon-leads.ts|POST /api/fiaon/admin/leads/followup-bulk/start"
+    },
+    {
+      "event": "lead_followup",
+      "file": "server/routes/fiaon-leads.ts",
+      "line": 497,
+      "trigger": "runLeadFollowups()",
+      "route": null,
+      "actor": "Admin",
+      "recipient": "Lead",
+      "calledFrom": [
+        "POST /api/fiaon/admin/leads/run-followups"
+      ],
+      "key": "lead_followup|server/routes/fiaon-leads.ts|runLeadFollowups()"
+    },
+    {
+      "event": "number_update_request",
+      "file": "server/fiaon-number-update.ts",
+      "line": 99,
+      "trigger": "maybeSendNumberUpdateMail()",
+      "route": null,
+      "actor": "Agent",
+      "recipient": "Kunde/Lead (Selbstkorrektur-Link)",
+      "calledFrom": [
+        "POST /api/fiaon/agent/customers/:ref/contact-result",
+        "POST /api/fiaon/agent/leads/:id/contact-result"
+      ],
+      "key": "number_update_request|server/fiaon-number-update.ts|maybeSendNumberUpdateMail()"
+    },
+    {
+      "event": "payment_confirmed",
+      "file": "server/routes/fiaon-antrag.ts",
+      "line": 704,
+      "trigger": "sendPaymentConfirmedOnce()",
+      "route": null,
+      "actor": "Admin",
+      "recipient": "Kunde",
+      "calledFrom": [
+        "POST /api/fiaon/admin/payments/:paymentRef/mark-paid",
+        "POST /api/fiaon/admin/reconcile/:id/ignore"
+      ],
+      "key": "payment_confirmed|server/routes/fiaon-antrag.ts|sendPaymentConfirmedOnce()"
+    },
+    {
+      "event": "payment_details",
+      "file": "server/routes/fiaon-antrag.ts",
+      "line": 821,
+      "trigger": "convPhone()",
+      "route": "POST /api/fiaon/payment-order",
+      "actor": "Kunde (öffentlich)",
+      "recipient": "Kunde",
+      "calledFrom": [],
+      "key": "payment_details|server/routes/fiaon-antrag.ts|convPhone()"
+    },
+    {
+      "event": "payment_details",
+      "file": "server/routes/fiaon-antrag.ts",
+      "line": 1270,
+      "trigger": "reactivateOrderByRef()",
+      "route": "POST /api/fiaon/admin/payments/repair-attribution",
+      "actor": "Admin",
+      "recipient": "Kunde",
+      "calledFrom": [],
+      "key": "payment_details|server/routes/fiaon-antrag.ts|reactivateOrderByRef()"
+    },
+    {
+      "event": "payment_reminder",
+      "file": "server/routes/fiaon-antrag.ts",
+      "line": 1505,
+      "trigger": "POST /api/fiaon/admin/payments/bulk-reminder/start",
+      "route": "POST /api/fiaon/admin/payments/bulk-reminder/start",
+      "actor": "Admin",
+      "recipient": "Kunde",
+      "calledFrom": [],
+      "key": "payment_reminder|server/routes/fiaon-antrag.ts|POST /api/fiaon/admin/payments/bulk-reminder/start"
+    },
+    {
+      "event": "payment_reminder",
+      "file": "server/routes/fiaon-antrag.ts",
+      "line": 1394,
+      "trigger": "runPaymentReminders()",
+      "route": "POST /api/fiaon/admin/payments/:paymentRef/reactivate",
+      "actor": "Admin",
+      "recipient": "Kunde",
+      "calledFrom": [],
+      "key": "payment_reminder|server/routes/fiaon-antrag.ts|runPaymentReminders()"
+    },
+    {
+      "event": "welcome",
+      "file": "server/routes/fiaon-antrag.ts",
+      "line": 2216,
+      "trigger": "ip()",
+      "route": "POST /api/fiaon/application",
+      "actor": "Kunde (öffentlich)",
+      "recipient": "Kunde",
+      "calledFrom": [],
+      "key": "welcome|server/routes/fiaon-antrag.ts|ip()"
+    }
+  ]
+}

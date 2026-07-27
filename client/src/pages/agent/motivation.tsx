@@ -294,8 +294,8 @@ export function FirstStepsPanel({ className = "" }: { className?: string }) {
     profil: "/agent/profil",
     iban: "/agent/profil",
     skripte: "/agent/skripte",
-    anruf: "/agent/kunden",
-    notiz: "/agent/kunden",
+    anruf: "/agent/meine-kunden",
+    notiz: "/agent/meine-kunden",
   };
 
   return (

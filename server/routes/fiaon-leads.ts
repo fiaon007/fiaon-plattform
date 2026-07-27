@@ -155,7 +155,7 @@ export async function ensureLeadTables(): Promise<void> {
   }
 }
 
-async function logLead(
+export async function logLead(
   leadId: number,
   actor: { id: number | null; name: string },
   type: string,
@@ -351,6 +351,20 @@ export async function convertLeadsForContact(
 // BC2 — LEAD-VERTEILUNG (Round-Robin, gleiche Engine wie Kunden)
 // ═══════════════════════════════════════════════════════════════════
 export async function distributeUnassignedLeads(): Promise<number> {
+  // ── OFFENE KARTEI: ABGESCHALTET ──────────────────────────────────────────
+  // Pfad 7 der Phase-0-Diagnose (SYSTEM_DIAGNOSE.md, Abschnitt „Offene Kartei")
+  // war die Wurzel des Chaos: Die Rotation hat Leads an Agenten verteilt, ohne
+  // dass jemand gearbeitet hat — 2.054 von 2.502 zugewiesenen Akten hatten nie
+  // einen dokumentierten Kontakt. Zuweisung entsteht ab jetzt AUSSCHLIESSLICH
+  // durch die bewusste Übernahme aus der offenen Kartei (fiaon-kartei.ts).
+  //
+  // Die Funktion bleibt als No-Op bestehen, damit alle bestehenden Aufrufer
+  // (Intake, Cron, Admin-Buttons) unverändert weiterlaufen.
+  return 0;
+}
+
+/** Alte Rotations-Implementierung — bewusst inaktiv, nur als Beleg erhalten. */
+async function distributeUnassignedLeadsLegacy(): Promise<number> {
   await ensureLeadTables();
   const settings = await getSettings();
   if (settings.lead_distribution_enabled !== "1") return 0;

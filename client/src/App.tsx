@@ -54,6 +54,8 @@ import AgentSkriptePage from "@/pages/agent/skripte";
 import AgentKalenderPage from "@/pages/agent/kalender";
 import AgentPartnerProgrammPage from "@/pages/agent/partner-programm";
 import AgentKundenPage from "@/pages/agent/kunden";
+import AgentKarteiPage from "@/pages/agent/kartei";
+import AgentMeineKundenPage from "@/pages/agent/meine-kunden";
 import AgentVerdienstPage from "@/pages/agent/verdienst";
 import AgentUpdatesPage from "@/pages/agent/updates";
 import AgentFeedbackPage from "@/pages/agent/feedback";
@@ -74,6 +76,7 @@ import AgentLeadsPage from "@/pages/agent/leads";
 import AgentDokumentePage from "@/pages/agent/dokumente";
 import AdminVertraegePage from "@/pages/admin-vertraege";
 import AdminFahrplanPage from "@/pages/admin-fahrplan";
+import AdminKarteiPage from "@/pages/admin-kartei";
 
 // Paket N1: JEDE /admin-Seite läuft in der AdminShell (Sidebar, Breadcrumb,
 // Zurück, Cmd+K). Serverseitige Guards bleiben unberührt.
@@ -117,6 +120,7 @@ function Router() {
       <Route path="/admin/recht" component={admin(AdminRechtPage)} />
       <Route path="/admin/funktionen" component={admin(AdminFunktionenPage)} />
       <Route path="/admin/fahrplan" component={admin(AdminFahrplanPage)} />
+      <Route path="/admin/kartei" component={admin(AdminKarteiPage)} />
       <Route path="/agent" component={AgentPortalPage} />
       <Route path="/agent/setup/:token" component={AgentSetupPage} />
       <Route path="/agent/passwort" component={AgentPasswortPage} />
@@ -125,6 +129,11 @@ function Router() {
       <Route path="/agent/skripte" component={AgentSkriptePage} />
       <Route path="/agent/kalender" component={AgentKalenderPage} />
       <Route path="/agent/partner-programm" component={AgentPartnerProgrammPage} />
+      {/* Offene Kartei (neu) — löst /agent/leads und /agent/kunden ab. */}
+      <Route path="/agent/kartei" component={AgentKarteiPage} />
+      <Route path="/agent/meine-kunden" component={AgentMeineKundenPage} />
+      {/* Alte Ansichten bleiben erreichbar, bis die Kartei im Betrieb bestätigt
+          ist — kein Zwischenzustand, in dem ein Agent seine Akten nicht findet. */}
       <Route path="/agent/kunden" component={AgentKundenPage} />
       <Route path="/agent/leads" component={AgentLeadsPage} />
       <Route path="/agent/verdienst" component={AgentVerdienstPage} />

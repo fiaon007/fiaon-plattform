@@ -3,6 +3,67 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 27.07.2026 — Kartei-Oberfläche + Popups bei jeder Aktion (Prompt 1/2 Teil 2, Prompt 2/2)
+
+**Warum:** Der Serverteil der offenen Kartei stand, aber die Agenten hatten keine Oberfläche dafür. Gleichzeitig löste ein Teil der Aktionen — darunter zwei, die echte Kunden-E-Mails verschicken — ohne jede Rückfrage aus.
+
+**Neue Oberfläche `/agent/kartei` (`client/src/pages/agent/kartei.tsx`):** Kopfkarte mit persönlicher Begrüßung und dem, was heute ansteht (freie Karten, eigene Akten, aktive Akte, Rückläufer-Vorwarnung). Drei Tabs **Frei · Meine Akten · Alle**. Freie Karten wirken sichtbar verschlossen (Schloss-Symbol, verschleierte Datenzeilen, Hinweis „Name und Nummer erscheinen nach der Übernahme"); vergebene Karten stehen dezent abgesetzt mit **„In Bearbeitung bei [Agent]"** — damit ist ein Doppelanruf ausgeschlossen (Ticket #21). Sichtbar sind nur neutrale Merkmale: Status, Alter, Paket, offener Betrag, Quelle/Kampagne, PLZ-Gebiet. Ein Tap öffnet die **Doppelbestätigung** („Mit der Annahme übernimmst du diese Kundenakte …"), danach folgt eine kurze Freischalt-Animation und die vollständige Akte. Hat der Agent bereits eine Akte in Bearbeitung, sind freie Karten sichtbar gesperrt statt stumm zu scheitern.
+
+**Neue Oberfläche `/agent/meine-kunden` (`client/src/pages/agent/meine-kunden.tsx`):** Alles, was der Agent je übernommen hat — filterbar nach Offen · Angekündigt · Bezahlt · Rückruf · Abgelaufen · Tot, mit Suche über die vollen Daten. **Nichts verschwindet:** Zusammengeführte und ersetzte Akten bleiben sichtbar und sagen im Klartext, wohin die Betreuung gewandert ist („Wurde mit FIAON-… zusammengeführt — dort läuft die Betreuung weiter"). Genau das war der wiederkehrende „mein Kunde ist weg"-Fall.
+
+**Navigation umgestellt:** „Kunden" und „Leads" heißen jetzt **„Kartei"** und **„Meine Kunden"**. Die alten Pfade `/agent/leads` und `/agent/kunden` **bleiben als Route erreichbar**, bis die Kartei im Betrieb bestätigt ist — es gibt keinen Zwischenzustand, in dem ein Agent seine Akten nicht findet.
+
+**Admin-Gegenseite `/admin/kartei` (`client/src/pages/admin-kartei.tsx`):** Frei/vergeben/in Bearbeitung, je Agent mit „betreut" gegen „unbearbeitet", Übernahmen und Rückläufer der letzten 30 Tage, die letzten Rückgaben mit Grund. Einstellbar: die vier Gewichtungen, Wartezeit-Ausgleich, Auto-Release-Minuten, Hortungs-Frist und Vorwarnung — über eine eigene, wertgeprüfte Route (`POST /admin/kartei/settings`). Notausgang: jede Akte freigeben oder gezielt zuweisen, beides protokolliert. **Keine Zeit- oder Anwesenheitsüberwachung** — nur Ergebnisse.
+
+**Popup vor jeder Aktion (Prompt 2 A):** Die bestehende `ConfirmDialog`-Komponente wurde konsequent ausgerollt statt neu gebaut. **Neu abgedeckt:** Akte übernehmen · Akte zurückgeben (Begründung Pflicht) · **Zahlungsdaten-Mail senden** · **Antrags-/Zahlungslink senden** · Aussortieren bei Kunde und Lead (vorher Inline-Panel) · Auszahlung anfordern (vorher `window.confirm`). Jede Aktion, die eine E-Mail auslöst, **nennt Empfänger und Wirkung im Dialog** — z. B. „Es geht sofort eine E-Mail an … mit Betrag, Verwendungszweck und Bankverbindung. Danach ist die Aktion für 10 Minuten gesperrt." Nach der Aktion kommt eine klare Rückmeldung („✓ E-Mail wurde versendet — …"). Die vollständige Abdeckungstabelle steht in `SYSTEM_DIAGNOSE.md` (0.11).
+
+**Ehrliche Abweichung:** „Nachfass senden" war in der Popup-Liste, existiert im Agent-Portal aber nicht und wurde **nicht neu gebaut** — der Nachfass läuft ausschließlich über Engine und Admin. Ein neuer Agenten-Knopf hätte einen zusätzlichen Versandweg für Kundenmails geschaffen, was der Regel „keine neue Massenaktion" widerspricht.
+
+**Mobil-first:** Alle Touch-Ziele ≥ 44 px, Dialoge auf dem Handy als Bottom-Sheet, Karten statt Scroll-Tabellen, Filter horizontal wischbar. Animationen 150–250 ms und über `prefers-reduced-motion` abschaltbar (die Freischalt-Animation entfällt dann und die Akte öffnet direkt).
+
+**Keine Geschäftslogik geändert:** Die Popups rufen exakt dieselben Endpoints wie vorher. `npx tsx scripts/event-inventar.ts --check` meldet weiterhin **25/25 Versandpunkte erhalten**; `npx tsx scripts/kartei-verify.ts` bestätigt alle sechs Kartei-Zusagen.
+
+**Migration weiterhin NICHT ausgeführt** — Reihenfolge wie vereinbart: Oberfläche → Deploy → Betreiber testet → Team informieren → dann `--write`.
+
+**Zu finden:** `client/src/pages/agent/kartei.tsx` · `client/src/pages/agent/meine-kunden.tsx` · `client/src/pages/admin-kartei.tsx` · `client/src/pages/agent/kunden.tsx` · `client/src/pages/agent/leads.tsx` · `client/src/pages/agent/auszahlung.tsx` · `SYSTEM_DIAGNOSE.md` (0.11)
+
+---
+
+## 27.07.2026 — Die offene Kunden-Kartei (Prompt 1/2, Serverteil)
+
+**Warum:** Leads und Kunden lagen in per-Agent-Silos, gefüllt von einer Rotationsverteilung, die zuteilte, ohne dass jemand arbeitete. Messung vor dem Umbau: **von 2.502 zugewiesenen Akten hatten 2.054 (82 %) nie einen dokumentierten Kontakt** — sie blockierten, während zwei neue Agenten leer liefen. Gleichzeitig empfanden Agenten Kunden als „verschwunden", obwohl die Datensätze existierten. Beides löst die gemeinsame, offene Kartei.
+
+**Phase 0 (vor jeder Änderung, in `SYSTEM_DIAGNOSE.md`, Abschnitt „OFFENE KUNDEN-KARTEI"):**
+- **Event-Inventur** aller 25 Make/Brevo-Versandpunkte (18 Event-Typen) — maschinell erzeugt über `scripts/event-inventar.ts`, inklusive der Ketten über Hilfsfunktionen (z. B. „Nummer falsch" → `number_update_request`). Baseline in `docs/event-inventar.baseline.json`.
+- **15 Pfade geprüft**, auf denen eine Zuweisung verschwinden kann. Ergebnis: real verloren geht sie nur über Admin-Entzug und **Round-Robin**; das Gefühl „mein Kunde ist weg" entsteht über Merge, Bezahlung und Supersede — der Datensatz lebt, fällt aber aus der einen Liste, die der Agent kennt.
+- **Bestandsaufnahme je Agent**, Dubletten-Risiko (247 E-Mail- + 52 Telefon-Überschneidungen zwischen offenen Leads und Anträgen) und Onboarding-Status.
+
+**A — Die Kartei (`server/routes/fiaon-kartei.ts`, neu):** Ein gemeinsamer Bestand aus Leads **und** Kunden. **Eine Person = eine Karte** — die Gruppierung ist exakt die der zentralen Kundenakte (E-Mail bzw. letzte 9 Telefonziffern), ein Lead erzeugt nur dann eine Karte, wenn es keinen Antrag derselben Person gibt. Drei Zustände: **frei**, **vergeben** („in Bearbeitung bei [Agent]", verhindert Doppelanrufe/Ticket #21) und **nicht mehr verfügbar** (bezahlt, storniert, aussortiert, gemergt — verlässt die Kartei sofort; die Direktzahler-Regel bleibt damit intakt).
+
+**Kontaktdaten sind serverseitig maskiert, nicht im Frontend versteckt:** Die Kartei-Abfrage selektiert Name, Telefon, E-Mail und Adresse gar nicht erst; die Antwort wird als neues Objekt gebaut. Nachgewiesen durch `scripts/kartei-verify.ts` (V1 prüft die *echte* Abfrage, nicht eine Kopie): 21 gelieferte Spalten, alle neutral.
+
+**B/C — Übernahme und eine aktive Akte:** Übernahme läuft atomar über `FOR UPDATE SKIP LOCKED` — klicken zwei Agenten dieselbe Karte, bekommt sie genau einer, der andere eine freundliche Meldung. **Eine** Akte gleichzeitig in aktiver Bearbeitung, die nächste sofort nach dokumentiertem Ergebnis; **kein Limit** für die Gesamtzahl. Auto-Release nach 30 Min. ohne Ergebnis (einstellbar) beendet nur die *Bearbeitung* — die Zuweisung bleibt, der Agent verliert nichts.
+
+**D — „Meine Kunden":** Zeigt **jede** je übernommene Akte, auch bezahlt, abgelaufen, storniert — und macht gemergte/ersetzte Akten **mit Verweis auf den Gewinner-Datensatz** sichtbar. Genau das war das wiederkehrende „Kunde verschwunden"-Problem.
+
+**E — Hortungs-Schutz:** Übernommene, nie bearbeitete Akten gehen nach 7 Tagen (einstellbar) zurück in die freie Kartei, mit Vorwarnung im Portal. Akten **mit** dokumentierter Betreuung bleiben immer beim Agenten — Beziehung und Provisionsanspruch geschützt.
+
+**F — Rangfolge:** Serverseitig sortiert (Umsatzpotenzial, Reaktionssignal, Frische, Kontakthistorie), Gewichte im Admin einstellbar, plus Wartezeit-Ausgleich (jeder 4. Platz aus dem ältesten Bestand). Der Score wird bewusst **nicht** ausgeliefert. **Round-Robin ist abgeschaltet** (`distributeUnassignedLeads` ist eine No-Op; alle Aufrufer laufen unverändert weiter). Facebook-Leads laufen durch dasselbe System: Intake → Kartei → Übernahme.
+
+**G — Migration (`scripts/kartei-migration.ts`, NOCH NICHT AUSGEFÜHRT):** Standard ist Dry-Run. Vorschau: Daniel 1.318 → **526 eigene / 792 zurück**, Florentine 1.279 → **206 / 1.073**, Lucas 97 → 6 / 91, Nikita 117 → 19 / 98; gesamt **2.056 Akten** in die offene Kartei. Nichts wird gelöscht, jede Änderung trägt eine Stapel-Kennung und ist über `--undo=<stapel>` vollständig umkehrbar. **Ausführung erst nach ausdrücklichem „Start" des Betreibers.**
+
+**H — Admin:** `GET /admin/kartei` liefert frei/vergeben/je Agent, Rückläufer und die Ergebnis-Kennzahlen der letzten 30 Tage; `POST /admin/kartei/:id/release` und `/assign` sind der protokollierte Notausgang. **Bewusst keine Zeit- oder Anwesenheitsüberwachung** — nur Ergebnisse (Scheinselbstständigkeit/DSGVO, Phase 4).
+
+**E-Mail-Kette unangetastet:** Kein einziger `sendMakeWebhook`-Aufruf wurde verschoben, umgeschrieben oder entfernt — `npx tsx scripts/event-inventar.ts --check` meldet **25/25 Versandpunkte erhalten, 0 verloren**. Es entsteht keine neue Massenaktion; Events bleiben pro Einzelaktion.
+
+**Provisionslogik unangetastet:** Die Übernahme wird als Typ `claim` protokolliert und zählt — wie bisher — **nicht** als dokumentierte Betreuung. Damit bleibt die Phase-2-Regel (Anspruch nur bei dokumentiertem Kontakt vor Zahlung), der Stichtag und die Direktzahler-Regel unverändert.
+
+**Onboarding-Gate:** Die Kartei hängt hinter dem bestehenden `customerDataGate` — ohne Zustimmung **und** signierten Vertrag gibt es keinen Kartei-Zugriff. Betrifft aktuell Herbert Schöttl.
+
+**Zu finden:** `server/routes/fiaon-kartei.ts` · `scripts/event-inventar.ts` · `scripts/kartei-phase0.ts` · `scripts/kartei-verify.ts` · `scripts/kartei-migration.ts` · `SYSTEM_DIAGNOSE.md` (Abschnitt „OFFENE KUNDEN-KARTEI")
+
+---
+
 ---
 
 ## 21.07.2026 — Der FIAON-Fahrplan: Analyse → Coaching → Ziel (Prompt 2/2)

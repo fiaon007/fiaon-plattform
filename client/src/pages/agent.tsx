@@ -293,7 +293,7 @@ function Dashboard({ agentName }: { agentName: string }) {
                 <CalendarClock size={15} strokeWidth={1.8} className="text-slate-400" />
                 <h2 className="text-[13px] font-semibold text-slate-900">Jetzt dran</h2>
                 {customers.length > 0 && <span className="text-[11px] font-semibold text-slate-400">{customers.length} offen</span>}
-                <Link href="/agent/kunden" className="ml-auto text-[12px] font-semibold inline-flex items-center gap-1 hover:underline" style={{ color: ACCENT }}>
+                <Link href="/agent/meine-kunden" className="ml-auto text-[12px] font-semibold inline-flex items-center gap-1 hover:underline" style={{ color: ACCENT }}>
                   Alle anzeigen <ArrowRight size={12} strokeWidth={2} />
                 </Link>
               </div>

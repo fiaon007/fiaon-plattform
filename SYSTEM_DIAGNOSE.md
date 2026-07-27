@@ -1441,3 +1441,239 @@ Beim Öffnen ruft das Dashboard zwei Endpunkte auf (`useEffect`, `dashboard.tsx`
 
 **Grundsatz:** Die KI **schlägt vor**, der **Mensch (Admin) gibt frei**, wo sinnvoll (Analyse/Fahrplan als „Entwurf" bis Freigabe — per Einstellung auch Auto-Freigabe möglich). Solange kein lizenzierter Partner angebunden ist, steht die Ziel-Etappe global auf **„in Vorbereitung"** (kein Live-Antrag).
 
+
+
+---
+
+# OFFENE KUNDEN-KARTEI — Phase 0 (Diagnose vor jeder Änderung, 27.07.2026)
+
+Bezug: Phase 2 (Warteschlange/Attribution/Stichtag), D5 (Dubletten). Der Umbau baut auf der
+bestehenden Logik auf. **Alle Zahlen sind gemessen, nicht geschätzt** — reproduzierbar über
+`npx tsx scripts/kartei-phase0.ts` (nur lesend) und `npx tsx scripts/event-inventar.ts`.
+
+## 0.1 Event-Inventur — jede Aktion, die eine E-Mail auslöst
+
+**Oberste Regel des Umbaus:** Kein `sendMakeWebhook`-Aufruf wird verschoben, umgeschrieben oder
+entfernt. Die Inventur ist **maschinell erzeugt** (statische Analyse aller `server/**/*.ts`) und
+dient zugleich als Prüfwerkzeug:
+
+- `npx tsx scripts/event-inventar.ts --save` → Baseline (**vor** dem Umbau, liegt in `docs/event-inventar.baseline.json`)
+- `npx tsx scripts/event-inventar.ts --check` → Verifikation (**nach** dem Umbau), Exit-Code 1, sobald ein Versandpunkt fehlt
+
+Die Spalte „Auslösende Codestelle" nennt bei Hilfsfunktionen zusätzlich die Routen, die sie
+aufrufen — sonst wäre nicht sichtbar, dass z. B. `number_update_request` am Kontakt-Ergebnis
+„Nummer falsch" des Agenten hängt.
+
+| Aktion | Event-Typ | Auslösende Codestelle | Auslöser | Empfänger |
+| --- | --- | --- | --- | --- |
+| Rückruf-Erinnerung 60 Min. vorher (Cron) | `agent_callback_reminder` | `server/routes/fiaon-agent.ts:911` — `runCallbackReminders()`, aufgerufen von `POST /api/fiaon/admin/payments/run-reminders` | Admin | Agent |
+| Admin antwortet auf Feedback-Ticket | `agent_feedback_reply` | `server/routes/fiaon-agent-portal.ts:993` — `POST /api/fiaon/admin/agent-feedback/:id/reply` | Admin | Agent |
+| Admin honoriert Feedback | `agent_feedback_rewarded` | `server/routes/fiaon-agent-portal.ts:1081` — `POST /api/fiaon/admin/agent-feedback/:id/reward` | Admin | Agent |
+| Admin lädt Agent ein | `agent_invite` | `server/routes/fiaon-team.ts:91` — `POST /api/fiaon/admin/agents` | Admin | Agent |
+| Admin lädt Agent ein | `agent_invite` | `server/routes/fiaon-team.ts:118` — `POST /api/fiaon/admin/agents/:id/reinvite` | Admin | Agent |
+| Agent fordert Passwort-Reset an | `agent_password_reset` | `server/routes/fiaon-agent.ts:1024` — `POST /api/fiaon/agent/forgot-password` | Agent | Agent |
+| Admin löst Passwort-Reset aus | `agent_password_reset` | `server/routes/fiaon-team.ts:198` — `POST /api/fiaon/admin/agents/:id/force-reset` | Admin | Agent |
+| Agent sendet Zahlungsdaten-Mail | `agent_payment_reminder` | `server/routes/fiaon-agent.ts:1699` — `POST /api/fiaon/agent/customers/:ref/send-payment-email` | Agent | Kunde |
+| Admin markiert Auszahlung als überwiesen | `agent_payout_done` | `server/routes/fiaon-team.ts:1027` — `POST /api/fiaon/admin/payouts/:id/mark-paid` | Admin | Agent |
+| Admin lehnt Auszahlung ab | `agent_payout_rejected` | `server/routes/fiaon-team.ts:1057` — `POST /api/fiaon/admin/payouts/:id/reject` | Admin | Agent |
+| Kunde kündigt Überweisung an | `claim_received` | `server/routes/fiaon-antrag.ts:914` — `POST /api/fiaon/payment-order/:paymentRef/claim-paid` | Kunde (öffentlich) | Kunde |
+| Provisions-Abrechnung erzeugt | `commission_statement_issued` | `server/routes/fiaon-onboarding.ts:755` — `GET /api/fiaon/agent/documents/statement/:id.pdf` | Agent | Agent |
+| Agent signiert Handelsvertretervertrag | `contract_signed` | `server/routes/fiaon-onboarding.ts:552` — `POST /api/fiaon/agent/onboarding/sign` | Agent | Agent |
+| Antrags-/Zahlungslink an Lead senden | `lead_application_link` | `server/routes/fiaon-leads.ts:1135` — `POST /api/fiaon/agent/leads/:id/move-to-application` | Agent | Lead |
+| Antrags-/Zahlungslink an Lead senden | `lead_application_link` | `server/routes/fiaon-leads.ts:1456` — `POST /api/fiaon/admin/leads/:id/send-application-link` | Admin | Lead |
+| Nachfass an Lead (Engine/Bulk/Einzel) | `lead_followup` | `server/routes/fiaon-leads.ts:497` — `runLeadFollowups()`, aufgerufen von `POST /api/fiaon/admin/leads/run-followups` | Admin | Lead |
+| Nachfass an Lead (Engine/Bulk/Einzel) | `lead_followup` | `server/routes/fiaon-leads.ts:1487` — `POST /api/fiaon/admin/leads/:id/send-followup` | Admin | Lead |
+| Nachfass an Lead (Engine/Bulk/Einzel) | `lead_followup` | `server/routes/fiaon-leads.ts:1994` — `POST /api/fiaon/admin/leads/followup-bulk/start` | Admin | Lead |
+| Kontakt-Ergebnis „Nummer falsch“ → Kunde/Lead korrigiert Nummer selbst | `number_update_request` | `server/fiaon-number-update.ts:99` — `maybeSendNumberUpdateMail()`, aufgerufen von `POST /api/fiaon/agent/customers/:ref/contact-result`, `POST /api/fiaon/agent/leads/:id/contact-result` | Agent | Kunde/Lead (Selbstkorrektur-Link) |
+| Zahlung bestätigt (Konto aktiv) | `payment_confirmed` | `server/routes/fiaon-antrag.ts:704` — `sendPaymentConfirmedOnce()`, aufgerufen von `POST /api/fiaon/admin/payments/:paymentRef/mark-paid`, `POST /api/fiaon/admin/reconcile/:id/ignore` | Admin | Kunde |
+| Bestellung angelegt / Zahlungsdaten erneut | `payment_details` | `server/routes/fiaon-antrag.ts:821` — `POST /api/fiaon/payment-order` | Kunde (öffentlich) | Kunde |
+| Bestellung angelegt / Zahlungsdaten erneut | `payment_details` | `server/routes/fiaon-antrag.ts:1270` — `POST /api/fiaon/admin/payments/repair-attribution` | Admin | Kunde |
+| Zahlungserinnerung (Engine/Bulk) | `payment_reminder` | `server/routes/fiaon-antrag.ts:1394` — `POST /api/fiaon/admin/payments/:paymentRef/reactivate` | Admin | Kunde |
+| Zahlungserinnerung (Engine/Bulk) | `payment_reminder` | `server/routes/fiaon-antrag.ts:1505` — `POST /api/fiaon/admin/payments/bulk-reminder/start` | Admin | Kunde |
+| Antrag eingegangen (Kunde) | `welcome` | `server/routes/fiaon-antrag.ts:2216` — `POST /api/fiaon/application` | Kunde (öffentlich) | Kunde |
+
+**Summe:** 25 Versandpunkte, 18 verschiedene Event-Typen.
+
+**Baseline-Stand:** 25 Versandpunkte, 18 Event-Typen. Zwei Zeilen (`agent_callback_reminder`,
+`lead_followup`) laufen primär im Cron und sind zusätzlich über eine Admin-Route manuell
+auslösbar — deshalb steht dort „Admin" als Auslöser.
+
+**Die vom Betreiber ausdrücklich genannten Agenten-Aktionen sind vollständig erfasst:**
+
+| Geforderte Aktion | Event | Status in der Inventur |
+| --- | --- | --- |
+| Kontakt-Ergebnisse inkl. „Nummer falsch" | `number_update_request` | ✅ erfasst (Kunde + Lead) |
+| Zahlungsdaten-Mail | `agent_payment_reminder` | ✅ erfasst |
+| Antrags-/Zahlungslink | `lead_application_link` | ✅ erfasst (Agent + Admin) |
+| Nachfass | `lead_followup` | ✅ erfasst (Engine, Einzel, Bulk) |
+| Rückruf-Erinnerung | `agent_callback_reminder` | ✅ erfasst |
+| Feedback-Antwort | `agent_feedback_reply` | ✅ erfasst |
+| Auszahlungs-Events | `agent_payout_done`, `agent_payout_rejected` | ✅ erfasst |
+| Vertrag / Abrechnung | `contract_signed`, `commission_statement_issued` | ✅ erfasst |
+
+**Wichtig für den Umbau:** Die übrigen Kontakt-Ergebnisse (`erreicht_zahlt_gleich`,
+`nicht_erreicht`, `mailbox`, `rueckruf_termin`, …) lösen **bewusst keine** Mail aus. Nur
+„Nummer falsch" verschickt eine. Das muss so bleiben — und die neuen Popups müssen genau
+deshalb **nur dort** eine E-Mail ankündigen.
+
+## 0.2 Warum „verliert" ein Agent Kunden? — jeder Pfad, auf dem eine Zuweisung verschwindet
+
+| # | Pfad | Codestelle | Entfernt Zuweisung? | Gewollt? |
+| --- | --- | --- | --- | --- |
+| 1 | Auto-Release der aktiven Akte nach 30 Min. ohne Ergebnis | `server/routes/fiaon-leads.ts:685` `autoReleaseStaleAktes()` | Nein — setzt nur `opened_at = NULL`, `assigned_agent_id` bleibt | **Ja** (Deadlock-Schutz) |
+| 2 | Requeue nach Kontakt-Ergebnis | `server/routes/fiaon-leads.ts:980` | Nein — `opened_at = NULL` + `requeue_at` | **Ja** (nächste Akte wird frei) |
+| 3 | „Akte schließen ohne Ergebnis" | `server/routes/fiaon-leads.ts:1014` | Nein | **Ja** |
+| 4 | Akte „parken" für einen Rückruf | `server/routes/fiaon-leads.ts:867` | Nein | **Ja** (Ticket #14) |
+| 5 | Admin-Notausgang „Akte freigeben" | `server/routes/fiaon-leads.ts:1268` | Nein | **Ja**, protokolliert |
+| 6 | **Admin „Zuweisung entfernen"** | `server/routes/fiaon-leads.ts:1316` | **JA** — `assigned_agent_id = NULL` | Ja, aber **Ausnahme**; muss protokolliert + sichtbar bleiben |
+| 7 | **Round-Robin-Verteilung der Leads** | `server/routes/fiaon-leads.ts:353` `distributeUnassignedLeads()` | Setzt Zuweisung auf **irgendeinen** Agenten, ohne dass jemand gearbeitet hat | **NEIN — Kern des Chaos.** Wird durch die Kartei ersetzt |
+| 8 | Round-Robin der Bestellungen | `server/routes/fiaon-agent.ts:880` | Bereits **abgeschaltet** (P2-B, gibt konstant 0 zurück) | Ja, korrekt abgeschaltet |
+| 9 | Aussortieren (Lead) | `server/routes/fiaon-leads.ts:1056` | Nein — `dismissed_at`, Zuweisung bleibt | Ja |
+| 10 | Aussortieren (Kunde) | `server/routes/fiaon-agent.ts:1584` | Nein | Ja |
+| 11 | **Merge/Dublette** | `mergeApplications()`, `linkDuplicateToPaidOrActive()` | Der Verlierer-Datensatz verschwindet aus jeder Liste (`merged_into IS NOT NULL`) — hing der Agent daran, ist „sein" Kunde weg | Teilweise: Merge ist richtig, aber der Agent muss den **Gewinner** sehen |
+| 12 | Lead→Kunde-Konversion | `server/routes/fiaon-leads.ts:314/335` | Nein — überträgt die Zuweisung in beide Richtungen | Ja (Attribution) |
+| 13 | Bestellung bezahlt | `payment_status = 'paid'` | Nein, **aber**: `/agent/customers` zeigt nur `pending_payment`/`claimed_paid` → der Kunde **verschwindet aus der Arbeitsliste** | Teilweise: Arbeitsliste korrekt, aber der Agent empfindet es als Verlust |
+| 14 | Bestellung abgelaufen | `payment_status = 'expired'` | Nein — bleibt sichtbar, aber nur für den zugewiesenen Agenten | Ja |
+| 15 | Supersede bei Zahlung | `superseded_by` gesetzt | Nein, aber der Datensatz fällt aus der Arbeitsliste | Ja |
+
+**Diagnose in einem Satz:** Eine Zuweisung geht real nur über **Pfad 6 und 7** verloren. Das
+subjektive „mein Kunde ist weg" entsteht dagegen fast immer über **Pfad 11, 13 und 15** — der
+Datensatz existiert weiter, ist aber aus der einen Liste gefallen, die der Agent kennt. Beides
+löst die Kartei: Round-Robin entfällt ersatzlos, und „Meine Kunden" zeigt **jede** je übernommene
+Akte, auch bezahlt, abgelaufen, gemergt (dann mit Verweis auf den Gewinner-Datensatz).
+
+### 0.3 Bestandsaufnahme je Agent (Migrationsgrundlage)
+
+| Agent | Leads gesamt | davon ohne Kontakt | Kunden gesamt | davon ohne Kontakt | bleibt beim Agenten | zurück in die Kartei |
+| --- | --- | --- | --- | --- | --- | --- |
+| Justin Schwarzott | 1 | 1 | 0 | 0 | 0 | 1 |
+| Justin Schwarzott (inaktiv) | 0 | 0 | 1 | 1 | 0 | 1 |
+| Daniel Stripling | 1062 | 790 | 90 | 1 | 361 | 791 |
+| Florentine Lombardi | 1069 | 1068 | 73 | 5 | 69 | 1073 |
+| Lucas Böhnert | 87 | 87 | 9 | 4 | 5 | 91 |
+| Nikita Boychenko | 97 | 97 | 13 | 0 | 13 | 97 |
+
+### 0.4 Freie Kartei nach der Migration
+
+| Herkunft | Anzahl |
+| --- | --- |
+| Heute schon unzugewiesen (Leads) | 0 |
+| Heute schon unzugewiesen (Kunden) | 0 |
+| Rückläufer aus der Migration (ohne dokumentierten Kontakt) | 2054 |
+| **Freie Kartei gesamt** | 2054 |
+| Bleibt fest bei den Agenten (dokumentierte Betreuung) | 448 |
+
+### 0.5 Onboarding-Status (Kartei-Zugang)
+
+| Agent | aktiv | Zustimmungen | Vertrag signiert (aktive Version) | Kartei-Zugang |
+| --- | --- | --- | --- | --- |
+| Justin Schwarzott | ja | 3 | ja | JA |
+| Herbert Schöttl | ja | 0 | nein | NEIN |
+| Justin Schwarzott | nein | 0 | nein | NEIN |
+| Daniel Stripling | ja | 3 | ja | JA |
+| Florentine Lombardi | ja | 3 | ja | JA |
+| Lucas Böhnert | ja | 3 | ja | JA |
+| Nikita Boychenko | ja | 3 | ja | JA |
+
+### 0.6 Dubletten-Risiko (eine Person = eine Karte)
+
+| Prüfung | Treffer | Bedeutung |
+| --- | --- | --- |
+| Offener Lead + Antrag mit gleicher E-Mail | 247 | würde OHNE Merge zwei Karten erzeugen |
+| Offener Lead + Antrag mit gleicher Telefonnummer (letzte 9 Ziffern) | 52 | dito, greift bei fehlender E-Mail |
+| Anträge mit mehrfach genutzter E-Mail (nicht gemergt) | 46 | Mehrfach-Karten innerhalb der Anträge |
+
+### 0.7 Zustände, die die Kartei verlassen müssen
+
+| Zustand | Anzahl | Regel |
+| --- | --- | --- |
+| bezahlt | 258 | verlässt die Kartei sofort (Direktzahler-Regel) |
+| gemergt | 517 | verlässt die Kartei (Gewinner-Datensatz bleibt) |
+| aussortiert | 78 | verlässt die Kartei, Admin kann zurückholen |
+| abgelaufen | 190 | bleibt beim betreuenden Agenten sichtbar |
+
+### 0.8 Lesart der Zahlen (Betreiber-Zusammenfassung)
+
+- Die Erwartung aus der Diagnose (Daniel ~826, Florentine ~841) ist inzwischen **überholt** —
+  der Bestand ist gewachsen: **Daniel 1.152 Akten** (1.062 Leads + 90 Kunden),
+  **Florentine 1.142** (1.069 + 73). Ursache ist Pfad 7 (Round-Robin), der weiter zuteilt,
+  ohne dass jemand arbeitet.
+- **Der Kern des Problems in einer Zahl:** Von 2.502 zugewiesenen Akten haben **2.054 (82 %)
+  nie einen dokumentierten Kontakt** gesehen. Sie blockieren im Silo eines Agenten, während
+  zwei neue Agenten fast leer laufen.
+- **Nach der Migration:** 448 Akten bleiben fest bei ihren Agenten (dokumentierte Betreuung,
+  Provisionsanspruch geschützt), **2.054 gehen in die offene Kartei**.
+  - Daniel: 1.152 → **361 eigene**, 791 zurück in die Kartei
+  - Florentine: 1.142 → **69 eigene**, 1.073 zurück in die Kartei
+  - Lucas: 96 → 5 eigene, 91 zurück · Nikita: 110 → 13 eigene, 97 zurück
+- **Florentines Bild erklärt sich:** Sie dokumentiert fast ausschließlich am **Kunden**
+  (68 von 73 Bestellungen betreut), praktisch nie am Lead (1 von 1.069). Das deckt sich mit
+  dem Befund aus Phase 3 („die Warteschlange wird kaum genutzt"). Ihre 69 verbleibenden Akten
+  sind daher kein Leistungsurteil, sondern eine Folge davon, wo sie dokumentiert.
+
+### 0.9 Dubletten: Wie eine Person genau eine Karte erzeugt
+
+Es wird **keine neue** Dubletten-Logik gebaut. Die Kartei nutzt die vorhandene Kette aus D5/P1
+und der zentralen Kundenakte:
+
+1. **Intake** dedupliziert Leads bereits (`processIntake`, E-Mail + Telefon).
+2. **`linkDuplicateToPaidOrActive()`** (`server/routes/fiaon-antrag.ts`) verknüpft einen neuen
+   Antrag automatisch mit einem bestehenden bezahlten/aktiven Datensatz derselben Person.
+3. **`mergeApplications()`** führt Anträge zusammen und schützt Zahlung/Provision/Rechnung.
+4. Die **Kundenakte** (`server/routes/fiaon-kunden.ts`) gruppiert Lead + Antrag bereits heute
+   zu **einer Person**.
+
+**Konsequenz für die Kartei:** Eine Karte ist keine Zeile aus `fiaon_leads` oder
+`fiaon_applications`, sondern eine **Person** — gebildet über dieselbe Gruppierung wie die
+Kundenakte (E-Mail normalisiert, sonst letzte 9 Telefonziffern, sonst Name+PLZ). Die gemessenen
+**247 E-Mail-Überschneidungen** und **52 Telefon-Überschneidungen** zwischen offenen Leads und
+Anträgen würden ohne diese Gruppierung **299 doppelte Karten** erzeugen — genau der Doppelanruf,
+den Ticket #21 beschreibt.
+
+### 0.10 Kartei-Zugang (Onboarding-Gate)
+
+Das Gate existiert bereits und muss **nicht neu gebaut** werden: `customerDataGate`
+(`server/routes/fiaon-onboarding.ts:399`) hängt vor allen `/agent/*`-Routen mit Kundendaten und
+antwortet ohne abgeschlossenes Onboarding mit `403 { onboarding: "incomplete" }`. **Jeder neue
+Kartei-Endpunkt unter `/api/fiaon/agent/…` ist damit automatisch geschützt.**
+
+Aktueller Stand: **Justin, Daniel, Florentine, Lucas, Nikita** haben Zustimmung + Vertrag
+abgeschlossen → Kartei-Zugang. **Herbert Schöttl** hat weder Zustimmung noch Vertrag → **kein
+Zugang**, bis er das Onboarding abschließt. Ein zweiter, inaktiver Datensatz „Justin Schwarzott"
+hält noch 1 Kunden-Akte (bekannter Doppel-Agent aus F4, Zusammenführung per
+`scripts/merge-duplicate-agent.ts`).
+
+
+## 0.11 Popup-Abdeckung je Agenten-Aktion (Prompt 2 A)
+
+Jede Aktion zeigt vor dem Auslösen einen `ConfirmDialog` (`client/src/pages/agent/shared.tsx`)
+mit Klartext-Folge. Aktionen, die eine **E-Mail** verschicken, sagen das ausdrücklich.
+
+| Aktion | Popup | Sagt „E-Mail geht raus"? | Wo |
+| --- | --- | --- | --- |
+| Akte übernehmen | ✅ neu | nein (ausdrücklich: „Es wird keine E-Mail versendet") | `agent/kartei.tsx` |
+| Kontakt-Ergebnisse (Kunde, 7 Stück) | ✅ bestand | nur bei „Nummer falsch" | `agent/kunden.tsx` |
+| Kontakt-Ergebnisse (Lead, 6 Stück) | ✅ bestand | nur bei „Nummer falsch" | `agent/leads.tsx` |
+| Rückruf-Termin setzen | ✅ bestand (Datum im Dialog) | nein | beide Detailansichten |
+| **Zahlungsdaten-Mail senden** | ✅ **neu** | **ja** — Empfänger + 10-Minuten-Sperre genannt | `agent/kunden.tsx` |
+| **Antrags-/Zahlungslink senden** | ✅ **neu** | **ja** — Empfänger genannt | `agent/leads.tsx` |
+| Nachfass senden | — | — | **existiert nicht als Agenten-Aktion** (siehe unten) |
+| Akte schließen (ohne Ergebnis) | ✅ bestand, Begründung Pflicht | nein | `agent/leads.tsx` |
+| **Akte zurückgeben** | ✅ **neu**, Begründung Pflicht | nein | `agent/kartei.tsx` |
+| **Aussortieren (Kunde)** | ✅ **neu** (war Inline-Panel) | nein | `agent/kunden.tsx` |
+| **Aussortieren (Lead)** | ✅ **neu** (war Inline-Panel) | nein | `agent/leads.tsx` |
+| Reaktivieren | ✅ bestand | ja — „Zahlungsdaten werden erneut gesendet" | `agent/kunden.tsx` |
+| Verlaufseintrag als irrtümlich | ✅ bestand | nein | `agent/kunden.tsx` |
+| **Auszahlung anfordern** | ✅ **neu** (war `window.confirm`) | ja — Bestätigungs-Mail nach Prüfung | `agent/auszahlung.tsx` |
+
+**Ehrliche Abweichung — „Nachfass senden":** Der Betreiber hat diese Aktion in der Popup-Liste
+genannt. Sie existiert im Agent-Portal **nicht** und wurde auch **nicht neu gebaut**. Der
+Nachfass (`lead_followup`) läuft ausschließlich über die Engine und zwei Admin-Routen
+(Einzel + Bulk, siehe Event-Inventur). Ein neuer Agenten-Knopf hätte einen zusätzlichen
+Versandweg für Kundenmails geschaffen — das verstößt gegen die Regel „keine neue Massenaktion,
+Events bleiben wie sie sind". Wenn der Nachfass durch Agenten auslösbar sein soll, ist das eine
+bewusste Erweiterung und gehört in einen eigenen Auftrag.
+
+**Nicht mit Popup belegt (bewusst):** Notiz speichern und Stammdaten bearbeiten. Beide sind
+nicht-destruktiv, lösen kein Event aus und sind über den Verlauf korrigierbar; ein Dialog
+würde hier nur bremsen.

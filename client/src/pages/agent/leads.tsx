@@ -55,7 +55,7 @@ function ageDays(iso: string): string {
   return d <= 0 ? "heute" : d === 1 ? "1 Tag" : `${d} Tage`;
 }
 
-function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => void; onChanged: () => void }) {
+export function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => void; onChanged: () => void }) {
   const [lead, setLead] = useState<any>(null);
   const [log, setLog] = useState<any[]>([]);
   const [readOnly, setReadOnly] = useState(false);
@@ -69,8 +69,11 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
   const [closeAkteOpen, setCloseAkteOpen] = useState(false);
   const [closeReason, setCloseReason] = useState("");
   // Ticket #15: „Aus meiner Liste entfernen" (nie gelöscht)
+  // PROMPT 2/2 · A: Aussortieren und Antrags-Link laufen über den modalen Dialog.
+  // `dismissOpen` = Dialog offen, `dismissReason` = gewählter Grund.
   const [dismissOpen, setDismissOpen] = useState(false);
   const [dismissReason, setDismissReason] = useState("");
+  const [confirmLink, setConfirmLink] = useState(false);
 
   const load = useCallback(() => {
     api(`/agent/leads/${id}`).then((r) => {
@@ -141,10 +144,11 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
   };
 
   const moveToApplication = async () => {
+    setConfirmLink(false);
     setBusy(true);
     const r = await api(`/agent/leads/${id}/move-to-application`, { method: "POST" });
     setBusy(false);
-    if (r.ok) { setFlash("Antrags-Link an den Interessenten gesendet."); load(); onChanged(); } else setFlash(r.json?.error || "Fehler.");
+    if (r.ok) { setFlash("✓ E-Mail wurde versendet — der Interessent hat den Antrags-Link erhalten."); load(); onChanged(); } else setFlash(r.json?.error || "Fehler.");
   };
 
   // V2 (Phase 2B): Notausgang — Akte ohne Ergebnis schließen (Begründung Pflicht).
@@ -227,7 +231,7 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
                 </div>
               </div>
 
-              <button className={btnPrimary + " w-full inline-flex items-center justify-center gap-2"} disabled={busy} onClick={moveToApplication}>
+              <button className={btnPrimary + " w-full inline-flex items-center justify-center gap-2"} disabled={busy} onClick={(e) => { e.stopPropagation(); setConfirmLink(true); }}>
                 <Send size={14} /> Zum Antrag bewegen (Link senden)
               </button>
 
@@ -246,31 +250,14 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
 
               {/* Ticket #15: Aus meiner Liste entfernen (nie gelöscht) */}
               <div className="pt-2 border-t border-slate-100">
-                {!dismissOpen ? (
-                  <button className="w-full text-[12px] font-semibold text-slate-500 hover:text-slate-700 py-1.5 inline-flex items-center justify-center gap-1.5"
-                    disabled={busy} onClick={() => setDismissOpen(true)}>
-                    <Archive size={13} /> Aus meiner Liste entfernen
-                  </button>
-                ) : (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
-                    <p className="text-[12px] font-semibold text-slate-700">Aus meiner Liste entfernen</p>
-                    <p className="text-[11.5px] text-slate-500">Leads werden nie gelöscht — sie verschwinden nur aus deiner Liste. Der Admin kann sie jederzeit zurückholen.</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {DISMISS_REASONS.map((rsn) => (
-                        <button key={rsn.key} onClick={() => setDismissReason(rsn.key)}
-                          className={`px-2.5 py-2 rounded-lg border text-[12px] font-medium text-left ${dismissReason === rsn.key ? "!border-[#2563eb] !text-[#2563eb] bg-[#2563eb]/5" : "border-slate-200 text-slate-600"}`}>
-                          {rsn.label}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex gap-2 pt-1">
-                      <button className={btnPrimary + " flex-1"} disabled={busy || !dismissReason} onClick={dismiss}>
-                        {busy ? "Entfernt…" : "Entfernen"}
-                      </button>
-                      <button className={btnGhost} disabled={busy} onClick={() => { setDismissOpen(false); setDismissReason(""); }}>Abbrechen</button>
-                    </div>
-                  </div>
-                )}
+                <button
+                  className="w-full text-[12px] font-semibold text-slate-500 hover:text-slate-700 py-1.5 inline-flex items-center justify-center gap-1.5"
+                  style={{ minHeight: 44 }}
+                  disabled={busy}
+                  onClick={(e) => { e.stopPropagation(); setDismissReason(""); setDismissOpen(true); }}
+                >
+                  <Archive size={13} /> Aus meiner Liste entfernen
+                </button>
               </div>
             </>
           )}
@@ -340,6 +327,53 @@ function LeadDetail({ id, onClose, onChanged }: { id: number; onClose: () => voi
           className={inputCls}
           style={{ minHeight: 44 }}
         />
+      </div>
+    </ConfirmDialog>
+
+    {/* Antrags-/Zahlungslink — löst eine echte E-Mail aus */}
+    <ConfirmDialog
+      open={confirmLink}
+      title="Antrags-Link senden?"
+      message={`${name} bekommt den Link zum Antrag mit den Zahlungsdaten.`}
+      consequence={`Es geht sofort eine E-Mail an ${lead?.email || "die hinterlegte Adresse"}. Darüber kann der Interessent den Antrag selbst abschließen und bezahlen.`}
+      confirmLabel="E-Mail senden"
+      busy={busy}
+      onConfirm={moveToApplication}
+      onCancel={() => setConfirmLink(false)}
+    />
+
+    {/* Aussortieren — Grund im Dialog, nichts wird gelöscht */}
+    <ConfirmDialog
+      open={dismissOpen}
+      title="Aus deiner Liste entfernen?"
+      message={`${name} verschwindet aus deiner Warteschlange.`}
+      consequence="Es wird nichts gelöscht und keine E-Mail versendet. Der Lead bleibt vollständig gespeichert und kann vom Admin jederzeit zurückgeholt werden."
+      confirmLabel="Entfernen"
+      danger
+      busy={busy}
+      confirmDisabled={!dismissReason}
+      onConfirm={dismiss}
+      onCancel={() => { setDismissOpen(false); setDismissReason(""); }}
+    >
+      <div>
+        <label className="block text-[12px] font-medium text-slate-500 mb-1.5">Grund</label>
+        <div className="grid grid-cols-2 gap-1.5">
+          {DISMISS_REASONS.map((rsn) => (
+            <button
+              key={rsn.key}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setDismissReason(rsn.key); }}
+              className={`px-2.5 py-2 rounded-lg border text-[12px] font-medium text-left transition-colors ${
+                dismissReason === rsn.key
+                  ? "border-slate-400 bg-slate-50 text-slate-900"
+                  : "border-slate-200 text-slate-600 hover:border-slate-300"
+              }`}
+              style={{ minHeight: 44 }}
+            >
+              {rsn.label}
+            </button>
+          ))}
+        </div>
       </div>
     </ConfirmDialog>
     </>

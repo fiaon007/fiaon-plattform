@@ -22,7 +22,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Router } from "express";
-import postgres from "postgres";
+import { sqlPool } from "../lib/db-pool";
 import { sendMakeWebhook } from "../make-webhook";
 import {
   ensureAgentTables, getSettings, agentRateBp, commissionCents,
@@ -31,7 +31,6 @@ import {
 } from "./fiaon-agent";
 
 const router = Router();
-const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 5 });
 
 // ── Tabellen & Spalten (idempotent, gleiches Muster wie fiaon-agent.ts) ──────
 let portalTablesEnsured = false;

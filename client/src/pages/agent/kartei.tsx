@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Lock, Users, Sparkles, Search, RefreshCw, PhoneCall, FileText,
-  Clock, AlertCircle, CheckCircle2, MapPin, Inbox,
+  Clock, AlertCircle, CheckCircle2, MapPin, Inbox, AlertTriangle,
 } from "lucide-react";
 import {
   AgentShell, api, ConfirmDialog, FlashMessage, inputCls, btnGhost, ACCENT, useAgentInfo,
@@ -93,6 +93,7 @@ function KarteiContent() {
   const [status, setStatus] = useState<KarteiStatus | null>(null);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [ladeFehler, setLadeFehler] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [flash, setFlash] = useState<string | null>(null);
 
@@ -113,13 +114,28 @@ function KarteiContent() {
   const say = (m: string) => { setFlash(m); setTimeout(() => setFlash(null), 5000); };
 
   const load = useCallback(async () => {
-    const [c, s] = await Promise.all([
-      api(`/agent/kartei?tab=${tab}&limit=48${q ? `&q=${encodeURIComponent(q)}` : ""}`),
-      api("/agent/kartei/status"),
-    ]);
-    if (c.ok) { setCards(c.json.cards); setTotal(c.json.total); }
-    if (s.ok) setStatus(s.json);
-    setLoading(false);
+    // Drei Zustaende, sauber getrennt: laedt / leer / Fehler.
+    // Vorher wurde ein fehlgeschlagener Aufruf stillschweigend verworfen —
+    // die Liste blieb leer und die Oberflaeche meldete „Die Kartei ist gerade
+    // leer.". Ein Serverfehler sah damit exakt aus wie ein Normalzustand.
+    setLadeFehler(null);
+    try {
+      const [c, s] = await Promise.all([
+        api(`/agent/kartei?tab=${tab}&limit=48${q ? `&q=${encodeURIComponent(q)}` : ""}`),
+        api("/agent/kartei/status"),
+      ]);
+      if (c.ok) {
+        setCards(c.json.cards);
+        setTotal(c.json.total);
+      } else {
+        setLadeFehler(c.json?.error || "Die Kartei konnte nicht geladen werden.");
+      }
+      if (s.ok) setStatus(s.json);
+    } catch {
+      setLadeFehler("Keine Verbindung zum Server. Prüfe deine Internetverbindung.");
+    } finally {
+      setLoading(false);
+    }
   }, [tab, q]);
 
   useEffect(() => { setLoading(true); load(); }, [load]);
@@ -302,6 +318,8 @@ function KarteiContent() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="agent-skeleton h-40 rounded-2xl" />)}
         </div>
+      ) : ladeFehler ? (
+        <LadeFehler text={ladeFehler} onRetry={() => { setLoading(true); load(); }} />
       ) : cards.length === 0 ? (
         <EmptyState tab={tab} />
       ) : (
@@ -554,6 +572,32 @@ function Chip({ children }: { children: React.ReactNode }) {
     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border border-slate-200 text-slate-500 bg-white">
       {children}
     </span>
+  );
+}
+
+/**
+ * Fehler beim Laden — bewusst UNVERWECHSELBAR mit dem Leerzustand. Genau diese
+ * Verwechslung war die Ursache dafuer, dass ein Serverfehler wochenlang wie ein
+ * Normalzustand aussah („FREI: 768" ueber „Die Kartei ist gerade leer.").
+ */
+function LadeFehler({ text, onRetry }: { text: string; onRetry: () => void }) {
+  return (
+    <div className="rounded-2xl border border-slate-300 bg-white px-6 py-12 text-center">
+      <AlertTriangle size={26} strokeWidth={1.6} className="mx-auto text-slate-400 mb-3" />
+      <p className="text-[14px] font-semibold text-slate-800">Die Kartei konnte nicht geladen werden.</p>
+      <p className="text-[12.5px] text-slate-500 mt-1 max-w-sm mx-auto leading-relaxed">{text}</p>
+      <p className="text-[11.5px] text-slate-400 mt-1.5 max-w-sm mx-auto leading-relaxed">
+        Das ist ein Fehler, kein leerer Bestand — deine Akten sind vollständig vorhanden.
+      </p>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onRetry(); }}
+        className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl px-5 text-[13px] font-semibold text-white transition-transform duration-150 active:scale-[.985]"
+        style={{ background: ACCENT, minHeight: 44 }}
+      >
+        <RefreshCw size={14} strokeWidth={2.2} /> Erneut laden
+      </button>
+    </div>
   );
 }
 

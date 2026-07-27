@@ -10,7 +10,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Router } from "express";
-import postgres from "postgres";
+import { sqlPool } from "../lib/db-pool";
 import { readFile } from "fs/promises";
 import path from "path";
 import { getSettings, setSetting } from "./fiaon-agent";
@@ -20,7 +20,6 @@ import { MAKE_EVENT_REGISTRY, getEventDef } from "../make-events-registry";
 import { signInvoiceUrl } from "../fiaon-invoice";
 
 const router = Router();
-const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 5 });
 
 // ── O1: Tages-Kennzahlen ─────────────────────────────────────────────────────
 router.get("/admin/hub/stats", async (_req, res) => {

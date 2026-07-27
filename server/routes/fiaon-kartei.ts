@@ -24,12 +24,11 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Router, type Request, type Response } from "express";
-import postgres from "postgres";
+import { sqlPool } from "../lib/db-pool";
 import { requireAgent, logAction, logAgentEvent, getSettings, setSetting, type AgentRequest } from "./fiaon-agent";
 import { logLead } from "./fiaon-leads";
 
 const router = Router();
-const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 5 });
 
 // ── Zustände, die überhaupt Arbeitsvorrat sind ───────────────────────────────
 /** Offene Lead-Status. `konvertiert`/`tot`/`kein_interesse` verlassen die Kartei. */
@@ -87,6 +86,52 @@ export async function ensureKarteiTables(): Promise<void> {
   `;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_kartei_events_card_idx ON fiaon_kartei_events (card_id, created_at DESC)`;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_kartei_events_agent_idx ON fiaon_kartei_events (agent_id, event, created_at DESC)`;
+
+  // ── Geschwindigkeit (Teil B) ────────────────────────────────────────────
+  // Indizes aendern KEIN Ergebnis, nur den Weg dorthin. Sie decken genau die
+  // Spalten ab, nach denen die Kartei filtert, sortiert und verknuepft.
+  //
+  // Der teuerste Teil der Kartei-Abfrage ist LEAD_HAS_NO_APP_SIBLING: fuer
+  // JEDEN Lead wird geprueft, ob es einen Antrag derselben Person gibt —
+  // ueber LOWER(TRIM(email)) und die letzten neun Ziffern der Rufnummer.
+  // Ohne passende Ausdruck-Indizes ist das ein vollstaendiger Durchlauf durch
+  // fiaon_applications pro Lead. Genau dafuer sind die beiden letzten Indizes.
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_apps_kartei_filter_idx
+    ON fiaon_applications (payment_status, merged_into, dismissed_at, created_at DESC)`;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_apps_agent_updated_idx
+    ON fiaon_applications (assigned_agent_id, updated_at DESC)`;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_leads_kartei_filter_idx
+    ON fiaon_leads (status, dismissed_at, converted_order_id, requeue_at, erstellt_am DESC)`;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_leads_agent_updated_idx
+    ON fiaon_leads (assigned_agent_id, updated_at DESC)`;
+
+  // Kontakt-Verlauf: beide Log-Tabellen werden je Karte zweimal angefasst
+  // (dokumentierter Kontakt + faelliger Rueckruf).
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_contact_log_ref_type_idx
+    ON fiaon_contact_log (ref, type, voided_at, created_at DESC)`;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_contact_log_sched_idx
+    ON fiaon_contact_log (ref, scheduled_at) WHERE scheduled_at IS NOT NULL`;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_lead_log_lead_type_idx
+    ON fiaon_lead_log (lead_id, type, created_at DESC)`;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_lead_log_sched_idx
+    ON fiaon_lead_log (lead_id, scheduled_at) WHERE scheduled_at IS NOT NULL`;
+
+  // Dubletten-Erkennung: normalisierte E-Mail und normalisierte Rufnummer.
+  // Die Ausdruecke muessen ZEICHENGLEICH mit der Abfrage sein, sonst nutzt
+  // Postgres den Index nicht — deshalb wird APP_PHONE_SQL wiederverwendet.
+  await sqlPool.unsafe(`
+    CREATE INDEX IF NOT EXISTS fiaon_apps_norm_email_idx
+      ON fiaon_applications (LOWER(TRIM(email))) WHERE merged_into IS NULL
+  `);
+  await sqlPool.unsafe(`
+    CREATE INDEX IF NOT EXISTS fiaon_apps_norm_phone_idx
+      ON fiaon_applications (RIGHT(COALESCE(${APP_PHONE_SQL},''), 9)) WHERE merged_into IS NULL
+  `);
+  await sqlPool.unsafe(`
+    CREATE INDEX IF NOT EXISTS fiaon_leads_norm_email_idx
+      ON fiaon_leads (LOWER(TRIM(email)))
+  `);
+
   ensured = true;
   console.log("[FIAON-KARTEI] Kartei-Tabellen sichergestellt");
 }
@@ -459,20 +504,31 @@ router.get("/agent/kartei", requireAgent, async (req: AgentRequest, res: Respons
     // (Quelle, Kampagne, Paket, Region) — niemals über Name/Telefon/E-Mail.
     const q = String(req.query.q || "").trim().slice(0, 80);
 
+    // Die Platzhalter werden FORTLAUFEND vergeben, statt feste Nummern zu
+    // verwenden. Vorher waren $5 (Agent) und $6 (Suche) fest verdrahtet und
+    // wurden trotzdem immer mitgeschickt — im Tab „frei" ohne Suche kamen sie
+    // im SQL aber nie vor. Postgres kann den Typ eines nie referenzierten
+    // Parameters nicht bestimmen und bricht die gesamte Abfrage ab (42P18).
+    // Der Zaehler lief weiter (er hat gar keine Parameter), die Liste nicht —
+    // genau der Widerspruch „FREI: 768" ueber „Die Kartei ist gerade leer.".
+    const params: any[] = [w.wFresh, w.wValue, w.wReact, w.wContact];
+    const p = (value: unknown): string => `$${params.push(value)}`;
+
     const where: string[] = [];
     if (tab === "frei") where.push("k.assigned_agent_id IS NULL");
-    else if (tab === "meine") where.push(`k.assigned_agent_id = $5`);
+    else if (tab === "meine") where.push(`k.assigned_agent_id = ${p(me)}`);
     if (q) {
+      const like = p(`%${q}%`);
       where.push(`(
-        COALESCE(k.quelle,'') ILIKE $6 OR COALESCE(k.kampagne,'') ILIKE $6
-        OR COALESCE(k.paket,'') ILIKE $6 OR COALESCE(k.plz_gebiet,'') ILIKE $6
-        OR COALESCE(k.lifecycle,'') ILIKE $6
+        COALESCE(k.quelle,'') ILIKE ${like} OR COALESCE(k.kampagne,'') ILIKE ${like}
+        OR COALESCE(k.paket,'') ILIKE ${like} OR COALESCE(k.plz_gebiet,'') ILIKE ${like}
+        OR COALESCE(k.lifecycle,'') ILIKE ${like}
       )`);
     }
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const limitPh = p(limit);
+    const offsetPh = p(offset);
 
-    // $1..$4 Gewichte · $5 Agent · $6 Suche · $7 Limit · $8 Offset
-    const params: any[] = [w.wFresh, w.wValue, w.wReact, w.wContact, me, `%${q}%`, limit, offset];
     const sql = `
       ${karteiCte(w)}
       SELECT k.*, ag.name AS agent_name, ${SCORE_SQL} AS score, COUNT(*) OVER() AS total_count
@@ -480,7 +536,7 @@ router.get("/agent/kartei", requireAgent, async (req: AgentRequest, res: Respons
       LEFT JOIN fiaon_agents ag ON ag.id = k.assigned_agent_id
       ${whereSql}
       ORDER BY score DESC, k.created_at DESC
-      LIMIT $7 OFFSET $8
+      LIMIT ${limitPh} OFFSET ${offsetPh}
     `;
     const rows = await sqlPool.unsafe(sql, params);
     const total = rows.length > 0 ? Number(rows[0].total_count) : 0;
@@ -818,17 +874,28 @@ router.get("/agent/kartei/meine", requireAgent, async (req: AgentRequest, res: R
     const offset = Math.max(0, Number(req.query.offset) || 0);
 
     // Eigene Akten: VOLLE Daten — der Agent hat sie übernommen und betreut sie.
-    const params: any[] = [me, `%${q}%`, limit, offset];
+    //
+    // Auch hier gilt: fortlaufende Platzhalter statt fester Nummern. Vorher
+    // wurde $2 (Suchtext) immer mitgeschickt, aber ohne Suchbegriff nie im SQL
+    // referenziert — dieselbe 42P18-Falle wie in der Kartei-Liste. Die beiden
+    // Abfragen (Antraege und Leads) bekommen bewusst EIGENE Parameterlisten,
+    // weil sie unterschiedliche Bedingungen enthalten.
+    const params: any[] = [me];
+    const p = (value: unknown): string => `$${params.push(value)}`;
+
     const appWhere = [`a.assigned_agent_id = $1`];
     if (filter && MEINE_FILTER[filter]) appWhere.push(MEINE_FILTER[filter]);
     if (q) {
+      const like = p(`%${q}%`);
       appWhere.push(`(
-        a.ref ILIKE $2 OR a.payment_reference ILIKE $2 OR a.email ILIKE $2
-        OR a.first_name ILIKE $2 OR a.last_name ILIKE $2
-        OR (COALESCE(a.first_name,'') || ' ' || COALESCE(a.last_name,'')) ILIKE $2
-        OR a.company_name ILIKE $2 OR a.phone ILIKE $2
+        a.ref ILIKE ${like} OR a.payment_reference ILIKE ${like} OR a.email ILIKE ${like}
+        OR a.first_name ILIKE ${like} OR a.last_name ILIKE ${like}
+        OR (COALESCE(a.first_name,'') || ' ' || COALESCE(a.last_name,'')) ILIKE ${like}
+        OR a.company_name ILIKE ${like} OR a.phone ILIKE ${like}
       )`);
     }
+    const appLimit = p(limit);
+    const appOffset = p(offset);
     const apps = await sqlPool.unsafe(
       `SELECT 'app' AS kind, a.ref AS card_id, a.ref, a.payment_reference, a.payment_status,
               a.first_name, a.last_name, a.company_name, a.contact_name,
@@ -845,24 +912,29 @@ router.get("/agent/kartei/meine", requireAgent, async (req: AgentRequest, res: R
        FROM fiaon_applications a
        WHERE ${appWhere.join(" AND ")}
        ORDER BY a.updated_at DESC NULLS LAST, a.created_at DESC
-       LIMIT $3 OFFSET $4`,
+       LIMIT ${appLimit} OFFSET ${appOffset}`,
       params,
     );
 
     // Lead-Akten (nur wenn kein Antrags-Filter aktiv ist).
     let leads: any[] = [];
     if (!filter || filter === "lead" || filter === "tot" || filter === "rueckruf") {
+      const leadParams: any[] = [me];
+      const lp = (value: unknown): string => `$${leadParams.push(value)}`;
       const leadWhere = [`l.assigned_agent_id = $1`];
       if (filter === "tot") leadWhere.push(`l.status IN ('tot','kein_interesse')`);
       if (filter === "rueckruf") {
         leadWhere.push(`EXISTS (SELECT 1 FROM fiaon_lead_log g WHERE g.lead_id = l.id AND g.scheduled_at IS NOT NULL AND g.scheduled_at > NOW() - INTERVAL '1 day')`);
       }
       if (q) {
+        const like = lp(`%${q}%`);
         leadWhere.push(`(
-          l.vorname ILIKE $2 OR l.nachname ILIKE $2 OR l.email ILIKE $2 OR l.telefon ILIKE $2
-          OR (COALESCE(l.vorname,'') || ' ' || COALESCE(l.nachname,'')) ILIKE $2
+          l.vorname ILIKE ${like} OR l.nachname ILIKE ${like} OR l.email ILIKE ${like} OR l.telefon ILIKE ${like}
+          OR (COALESCE(l.vorname,'') || ' ' || COALESCE(l.nachname,'')) ILIKE ${like}
         )`);
       }
+      const leadLimit = lp(limit);
+      const leadOffset = lp(offset);
       leads = await sqlPool.unsafe(
         `SELECT 'lead' AS kind, 'lead-' || l.id AS card_id, l.id AS lead_id, l.status,
                 l.vorname AS first_name, l.nachname AS last_name, l.email, l.telefon AS phone,
@@ -875,8 +947,8 @@ router.get("/agent/kartei/meine", requireAgent, async (req: AgentRequest, res: R
          FROM fiaon_leads l
          WHERE ${leadWhere.join(" AND ")}
          ORDER BY l.updated_at DESC NULLS LAST, l.erstellt_am DESC
-         LIMIT $3 OFFSET $4`,
-        params,
+         LIMIT ${leadLimit} OFFSET ${leadOffset}`,
+        leadParams,
       );
     }
 
@@ -1126,5 +1198,6 @@ router.post("/admin/kartei/:cardId/assign", async (req: Request, res: Response) 
  * Route — von außen nicht erreichbar.
  */
 export const __karteiCteForTests = karteiCte;
+export const __scoreSqlForTests = SCORE_SQL;
 
 export default router;

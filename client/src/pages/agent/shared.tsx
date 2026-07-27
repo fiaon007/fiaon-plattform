@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, createContext, useContext, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle } from "lucide-react";
+import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle, Menu, ChevronRight } from "lucide-react";
 import OnboardingGate from "./onboarding";
 import {
   AGENT_UPDATES, getUnseenCount, fmtUpdateDate,
@@ -248,6 +248,146 @@ function ImportantUpdateHint() {
 }
 
 /**
+ * Respektiert die Systemeinstellung „Bewegung reduzieren". Bewusst lokal
+ * definiert: `./motion` importiert aus dieser Datei, ein Gegenimport waere
+ * ein Ringschluss.
+ */
+function useReduzierteBewegung(): boolean {
+  const [reduziert, setReduziert] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const an = () => setReduziert(mq.matches);
+    an();
+    mq.addEventListener("change", an);
+    return () => mq.removeEventListener("change", an);
+  }, []);
+  return reduziert;
+}
+
+/**
+ * Seitliches Ausklapp-Menü — ersetzt die Fußzeilen-Leiste auf dem Handy.
+ *
+ * Bedienung mit einer Hand: Der Auslöser sitzt oben links, laesst sich aber
+ * auch mit einer Wisch-Geste von der linken Kante oeffnen; geschlossen wird
+ * per Wisch nach links, Tipp auf den Hintergrund oder Escape.
+ *
+ * Waehrend das Menue offen ist, wird der Seiteninhalt gesperrt und leicht
+ * zurueckgesetzt. Das Sperren ist nicht nur Deko: Ohne Scrollen kann die
+ * verschobene Kopfzeile nicht verrutschen.
+ */
+function AgentDrawer({
+  open, onClose, location, badges,
+}: {
+  open: boolean;
+  onClose: () => void;
+  location: string;
+  badges: { mehr: number };
+}) {
+  const reduziert = useReduzierteBewegung();
+  const [zieh, setZieh] = useState(0);
+  const start = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const vorher = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", esc);
+    return () => {
+      document.body.style.overflow = vorher;
+      window.removeEventListener("keydown", esc);
+    };
+  }, [open, onClose]);
+
+  useEffect(() => { if (!open) setZieh(0); }, [open]);
+
+  if (!open) return null;
+
+  const onTouchStart = (e: React.TouchEvent) => { start.current = e.touches[0].clientX; };
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (start.current === null) return;
+    const dx = e.touches[0].clientX - start.current;
+    if (dx < 0) setZieh(Math.max(-320, dx));
+  };
+  const onTouchEnd = () => {
+    if (zieh < -70) onClose();
+    setZieh(0);
+    start.current = null;
+  };
+
+  return (
+    <div className="md:hidden fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Menü">
+      <button
+        type="button"
+        aria-label="Menü schließen"
+        onClick={onClose}
+        className="absolute inset-0 w-full h-full bg-slate-900/40 backdrop-blur-[2px] agent-drawer-backdrop"
+        style={reduziert ? { animation: "none" } : undefined}
+      />
+      <div
+        className="absolute inset-y-0 left-0 w-[82%] max-w-[320px] bg-white shadow-[0_24px_70px_-20px_rgba(15,23,42,.45)] flex flex-col agent-drawer-panel"
+        style={{
+          transform: zieh ? `translateX(${zieh}px)` : undefined,
+          transition: zieh ? "none" : undefined,
+          animation: reduziert ? "none" : undefined,
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        <div className="px-5 pt-5 pb-4 border-b border-slate-100">
+          <span className="text-[15px] font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</span>
+          <span className="ml-2 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-400">Mitarbeiter</span>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-3 py-3">
+          {NAV.map((n, i) => {
+            const aktiv = n.match.includes(location);
+            const Icon = n.icon;
+            const zahl = n.href === "/agent/mehr" ? badges.mehr : 0;
+            return (
+              <Link
+                key={n.href}
+                href={n.href}
+                onClick={onClose}
+                className={`relative flex items-center gap-3 px-3 rounded-xl mb-1 transition-colors ${
+                  aktiv ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-50"
+                } ${reduziert ? "" : "agent-drawer-item"}`}
+                style={{ minHeight: 48, animationDelay: reduziert ? undefined : `${40 + i * 32}ms` }}
+              >
+                {aktiv && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-[3px] rounded-r-full" style={{ background: ACCENT }} />
+                )}
+                <Icon size={18} strokeWidth={aktiv ? 2 : 1.7} style={{ color: aktiv ? ACCENT : "#94a3b8" }} />
+                <span className="text-[14px] font-medium flex-1">{n.label}</span>
+                {zahl > 0 && (
+                  <span className="min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold text-white flex items-center justify-center tabular-nums" style={{ background: ACCENT }}>
+                    {zahl}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="px-3 pb-3 pt-2 border-t border-slate-100">
+          <Link
+            href="/agent/profil"
+            onClick={onClose}
+            className="flex items-center gap-3 px-3 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors"
+            style={{ minHeight: 46 }}
+          >
+            <Users size={17} strokeWidth={1.7} className="text-slate-400" />
+            <span className="text-[13.5px] font-medium">Mein Profil</span>
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Shell: prüft die Anmeldung, zeigt Kopfzeile + Navigation (Desktop oben,
  * Mobile als Bottom-Bar). Nicht angemeldet ⇒ Redirect auf /agent (Login).
  */
@@ -259,6 +399,10 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
   // nur den Onboarding-Flow — keine Leads/Kunden/Kontaktdaten.
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
   const [location, navigate] = useLocation();
+  // Ausklapp-Menü (mobil) — ersetzt die Fußzeilen-Leiste.
+  const [menueOffen, setMenueOffen] = useState(false);
+  const [neueUpdates, setNeueUpdates] = useState(0);
+  const [ruecklaeufer, setRuecklaeufer] = useState(0);
 
   const load = () => {
     api("/agent/me")
@@ -287,6 +431,58 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
     return () => { window.removeEventListener("agent-feedback-read", onRead); clearInterval(iv); };
   }, [agent]);
 
+  // Zaehler am Menue-Ausloeser: ungelesene Neuerungen + Akten, die bald
+  // zurueck in die Kartei laufen. Beides darf nicht untergehen, nur weil die
+  // Navigation jetzt hinter einem Knopf liegt.
+  useEffect(() => {
+    setNeueUpdates(getUnseenCount());
+    const gesehen = () => setNeueUpdates(0);
+    window.addEventListener("agent-updates-seen", gesehen);
+    return () => window.removeEventListener("agent-updates-seen", gesehen);
+  }, []);
+
+  useEffect(() => {
+    if (!agent) return;
+    const holen = () => api("/agent/kartei/status")
+      .then((r) => { if (r.ok) setRuecklaeufer(r.json.ruecklaeufer?.anzahl || 0); })
+      .catch(() => {});
+    holen();
+    const iv = setInterval(holen, 120_000);
+    return () => clearInterval(iv);
+  }, [agent]);
+
+  // Menue schliesst sich beim Seitenwechsel — sonst bleibt es nach einem
+  // Zurueck-Tipp des Browsers offen stehen.
+  useEffect(() => { setMenueOffen(false); }, [location]);
+
+  // Wisch-Geste von der linken Kante oeffnet das Menue. Bewusst schmal (24 px),
+  // damit horizontales Wischen in Listen nicht versehentlich ausloest.
+  useEffect(() => {
+    if (!agent) return;
+    let startX: number | null = null;
+    let startY: number | null = null;
+    const an = (e: TouchEvent) => {
+      const t = e.touches[0];
+      startX = t.clientX <= 24 ? t.clientX : null;
+      startY = t.clientY;
+    };
+    const bewegt = (e: TouchEvent) => {
+      if (startX === null || startY === null) return;
+      const dx = e.touches[0].clientX - startX;
+      const dy = Math.abs(e.touches[0].clientY - startY);
+      if (dx > 60 && dy < 40) { setMenueOffen(true); startX = null; }
+    };
+    const aus = () => { startX = null; startY = null; };
+    window.addEventListener("touchstart", an, { passive: true });
+    window.addEventListener("touchmove", bewegt, { passive: true });
+    window.addEventListener("touchend", aus);
+    return () => {
+      window.removeEventListener("touchstart", an);
+      window.removeEventListener("touchmove", bewegt);
+      window.removeEventListener("touchend", aus);
+    };
+  }, [agent]);
+
   useEffect(() => {
     if (checked && !agent && location !== "/agent") navigate("/agent");
   }, [checked, agent, location, navigate]);
@@ -297,6 +493,11 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
     navigate("/agent");
     setAgent(null);
   };
+
+  // Ein Zaehler am Ausloeser buendelt alles, was sonst untergehen wuerde:
+  // Betreiber-Antworten, ungelesene Neuerungen und drohende Rueckläufer.
+  const menuBadge = fbUnread + neueUpdates + ruecklaeufer;
+  const istKarteiSeite = location.startsWith("/agent/kartei");
 
   if (!checked) {
     return (
@@ -336,7 +537,25 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
       <div className="agent-scope agent-ambient min-h-screen text-slate-900 pb-20 md:pb-10">
         <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-slate-200">
           <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-6 min-w-0">
+            <div className="flex items-center gap-3 md:gap-6 min-w-0">
+              {/* Menue-Ausloeser: nur mobil, oben links im Daumenbereich. */}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setMenueOffen(true); }}
+                aria-label="Menü öffnen"
+                aria-expanded={menueOffen}
+                className="md:hidden relative -ml-1.5 w-11 h-11 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-50 flex items-center justify-center transition-colors shrink-0"
+              >
+                <Menu size={20} strokeWidth={1.9} />
+                {menuBadge > 0 && (
+                  <span
+                    className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full text-[9.5px] font-bold text-white flex items-center justify-center tabular-nums"
+                    style={{ background: ACCENT }}
+                  >
+                    {menuBadge}
+                  </span>
+                )}
+              </button>
               <Link href="/agent" className="shrink-0">
                 <span className="text-[15px] font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</span>
                 <span className="ml-2 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-400">Mitarbeiter</span>
@@ -395,33 +614,26 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
 
         <main className="max-w-6xl mx-auto px-4 py-5">{children}</main>
 
-        {/* Mobile Bottom-Navigation */}
-        <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/90 backdrop-blur-md border-t border-slate-200 grid" style={{ gridTemplateColumns: `repeat(${NAV.length}, minmax(0,1fr))`, paddingBottom: "env(safe-area-inset-bottom)" }}>
-          {NAV.map((n) => {
-            const active = n.match.includes(location);
-            const Icon = n.icon;
-            const badge = n.href === "/agent/mehr" ? fbUnread : 0;
-            return (
-              <Link
-                key={n.href}
-                href={n.href}
-                className="relative flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors"
-                style={{ color: active ? ACCENT : "#94a3b8" }}
-              >
-                {active && <span className="absolute top-0 h-0.5 w-8 rounded-full" style={{ background: ACCENT }} />}
-                <span className="relative">
-                  <Icon size={19} strokeWidth={active ? 2 : 1.6} />
-                  {badge > 0 && (
-                    <span className="absolute -top-1.5 -right-2 min-w-[15px] h-[15px] px-1 rounded-full text-[9px] font-bold text-white flex items-center justify-center tabular-nums" style={{ background: ACCENT }}>
-                      {badge}
-                    </span>
-                  )}
-                </span>
-                {n.label}
-              </Link>
-            );
-          })}
-        </nav>
+        {/* Die wichtigste Handlung bleibt IMMER erreichbar — auch bei
+            geschlossenem Menue. Auf „Mein Tag" und in der Kartei selbst waere
+            der Knopf doppelt, dort entfaellt er. */}
+        {!istKarteiSeite && (
+          <Link
+            href="/agent/kartei"
+            className="md:hidden fixed z-30 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-full pl-5 pr-4 text-[13px] font-semibold text-white shadow-[0_14px_34px_-12px_rgba(37,99,235,.75)] transition-transform duration-150 active:scale-[.97]"
+            style={{ background: ACCENT, minHeight: 46, bottom: "calc(env(safe-area-inset-bottom) + 16px)" }}
+          >
+            Nächste Akte
+            <ChevronRight size={16} strokeWidth={2.4} />
+          </Link>
+        )}
+
+        <AgentDrawer
+          open={menueOffen}
+          onClose={() => setMenueOffen(false)}
+          location={location}
+          badges={{ mehr: fbUnread + neueUpdates }}
+        />
       </div>
     </AgentCtx.Provider>
   );

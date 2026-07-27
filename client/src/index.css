@@ -611,6 +611,34 @@ html {
 }
 .agent-banner-in { animation: agentBannerIn var(--agent-slow, 420ms) var(--agent-ease, ease-out) both; }
 
+/* ── Ausklapp-Menü (Agent-Portal, mobil) ───────────────────────────────────
+   Bewusst NUR transform und opacity animiert. Beides erledigt der Compositor
+   auf der GPU — kein Neu-Layout, kein Neu-Zeichnen. Genau deshalb bleibt das
+   Menü auch auf einem Mittelklasse-Gerät bei 60 Bildern pro Sekunde. */
+@keyframes agentDrawerBackdrop {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes agentDrawerPanel {
+  from { transform: translate3d(-100%, 0, 0); }
+  to   { transform: translate3d(0, 0, 0); }
+}
+@keyframes agentDrawerItem {
+  from { opacity: 0; transform: translate3d(-10px, 0, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.agent-drawer-backdrop {
+  animation: agentDrawerBackdrop 200ms ease-out both;
+}
+.agent-drawer-panel {
+  animation: agentDrawerPanel 240ms cubic-bezier(.22, .61, .36, 1) both;
+  transition: transform 200ms cubic-bezier(.22, .61, .36, 1);
+  will-change: transform;
+}
+.agent-drawer-item {
+  animation: agentDrawerItem 220ms cubic-bezier(.22, .61, .36, 1) both;
+}
+
 /* — Update-Banner: dezenter, wandernder Glanz (sehr subtil, im CI) — */
 .agent-banner-shine { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .agent-banner-shine::after {
@@ -682,6 +710,9 @@ html {
   .agent-feed-in,
   .agent-banner-in,
   .agent-glow,
+  .agent-drawer-backdrop,
+  .agent-drawer-panel,
+  .agent-drawer-item,
   .agent-success { animation: none !important; opacity: 1 !important; transform: none !important; }
   .agent-core__inner,
   .agent-core__glow,

@@ -7,7 +7,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Router } from "express";
-import postgres from "postgres";
+import { sqlPool } from "../lib/db-pool";
 import { randomBytes } from "crypto";
 import { sendMakeWebhook } from "../make-webhook";
 import {
@@ -18,7 +18,6 @@ import {
 } from "./fiaon-agent";
 
 const router = Router();
-const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 5 });
 
 const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
 

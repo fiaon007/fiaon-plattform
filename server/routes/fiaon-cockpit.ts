@@ -12,14 +12,13 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Router, type Request, type Response } from "express";
-import postgres from "postgres";
+import { sqlPool } from "../lib/db-pool";
 import { aiComplete } from "./fiaon-leistung";
 import {
   validateReadOnlySql, runReadOnly, buildSchemaDoc, aggregateForAi, MAX_ROWS,
 } from "../lib/fiaon-cockpit";
 
 const router = Router();
-const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 2 });
 
 let tableReady = false;
 async function ensureCockpitTable(): Promise<void> {

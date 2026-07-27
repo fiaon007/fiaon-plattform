@@ -1,10 +1,9 @@
 import { Router } from "express";
-import postgres from "postgres";
+import { sqlPool } from "../lib/db-pool";
 import { logger } from "../logger";
 
 const router = Router();
 
-const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 5 });
 
 // ─── Ensure table exists (idempotent) ────────────────────────────────────────
 async function ensureTable() {

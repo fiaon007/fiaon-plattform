@@ -13,7 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Router, type Request, type Response, type NextFunction } from "express";
-import postgres from "postgres";
+import { sqlPool } from "../lib/db-pool";
 import { sendMakeWebhook } from "../make-webhook";
 import { fiaonBaseUrl } from "../fiaon-base-url";
 import { parseBerlinInput } from "../lib/fiaon-time";
@@ -27,7 +27,6 @@ import {
 
 const router = Router();       // mount: /api/fiaon  (/admin/leads*, /agent/leads*)
 const intakeRouter = Router(); // mount: /api/leads  (/intake)
-const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 3 });
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const OPEN_STATUSES = ["neu", "kontaktiert", "nicht_erreichbar"] as const;

@@ -25,10 +25,9 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Router, type Request, type Response } from "express";
-import postgres from "postgres";
+import { sqlPool } from "../lib/db-pool";
 
 const router = Router();
-const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 3 });
 
 let ensured = false;
 async function ensureTable(): Promise<void> {

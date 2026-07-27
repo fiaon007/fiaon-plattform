@@ -3,6 +3,44 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 27.07.2026 — Kartei lädt wieder, Portal wird schneller, neues Menü (Teil A/B/C)
+
+### Teil A — Der Kartei-Bug: zwei Fehler, nicht einer
+
+**Befund:** Kopf meldet „FREI: 768", Liste darunter „Die Kartei ist gerade leer."
+
+**Erste Ursache — die Abfrage bricht ab.** In `GET /agent/kartei` waren die Platzhalter **fest nummeriert**: `$5` für den Agenten, `$6` für den Suchtext. Beide wurden *immer* mitgeschickt, im Tab „frei" ohne Suche aber im SQL **nie referenziert**. Postgres kann den Datentyp eines nie verwendeten Parameters nicht bestimmen und bricht die gesamte Anweisung ab (`42P18`). Der Zähler in `/agent/kartei/status` lief weiter, weil er **gar keine Parameter** übergibt — daher der Widerspruch. Behoben durch fortlaufende Vergabe der Platzhalter: Es existiert nur noch, was auch benutzt wird.
+
+**Derselbe Fehler in `GET /agent/kartei/meine`:** Dort wurde `$2` (Suchtext) immer mitgeschickt und ohne Suchbegriff nie referenziert. „Meine Kunden" war betroffen — ebenfalls behoben, Anträge und Leads bekommen jetzt getrennte Parameterlisten.
+
+**Zweite Ursache — und die eigentlich gefährliche.** Das Frontend verwarf den Fehler stillschweigend: `if (c.ok) { setCards(...) }` ohne `else`. Schlug der Aufruf fehl, blieb die Liste leer und die Oberfläche meldete „Die Kartei ist gerade leer." **Ein Serverfehler war optisch nicht von einem Normalzustand zu unterscheiden.** Genau deshalb ist wochenlang niemandem aufgefallen, was los war. Ab sofort sind drei Zustände sauber getrennt — **lädt** (Skelett), **leer** (echte Leermeldung), **Fehler** (Klartext, Hinweis „Das ist ein Fehler, kein leerer Bestand" und „Erneut laden"). Gilt für Kartei und Meine Kunden.
+
+### Teil B — Geschwindigkeit
+
+**Indizes (`ensureKarteiTables`, idempotent):** Filter- und Sortierspalten von `fiaon_applications` und `fiaon_leads`, beide Kontakt-Log-Verknüpfungen sowie **Ausdruck-Indizes** auf normalisierte E-Mail und die letzten neun Ziffern der Rufnummer. Letztere sind der Kern: `LEAD_HAS_NO_APP_SIBLING` prüfte für **jeden** Lead per Funktionsausdruck gegen **alle** Anträge — ohne passenden Index ein vollständiger Durchlauf pro Lead. Indizes ändern kein Ergebnis, nur den Weg dorthin; alle Verifikationen bleiben unverändert grün.
+
+**Verbindungen zusammengelegt:** Achtzehn Module hielten je einen eigenen Pool — in Summe **73 mögliche Dauerverbindungen**. Render-Postgres bringt keinen Pooler mit, die Instanzgrenze gilt also unmittelbar. Neu: ein gemeinsamer Pool in `server/lib/db-pool.ts` mit **12** Verbindungen, Leerlauf-Rückgabe nach 30 s und Anweisungs-Zeitlimit. **Ausdrücklich nicht angetastet:** der Nur-Lese-Pool in `server/lib/fiaon-cockpit.ts` — seine Verbindungsoptionen (`default_transaction_read_only`) sind eine Sicherheitsschranke, kein Tuning.
+
+**Bundle:** 28 Admin-Seiten sowie die Antrags- und Kundenstrecken werden per `lazy`/`Suspense` erst beim Aufruf geladen. Gemessen mit `vite build`: **619 kB gzip → 377 kB gzip, minus 39 %.** Ein Agent lädt den Verwaltungsbereich nicht mehr mit.
+
+### Teil C — Das neue Menü
+
+Die Fußzeilen-Leiste weicht einem seitlichen Ausklapp-Menü. Auslöser oben links **oder** Wisch-Geste von der linken Kante (24 px breit, damit horizontales Wischen in Listen nicht auslöst). Schließen per Wisch nach links, Tipp daneben oder Escape. Gestaffelte Einblendung der Einträge, Ein-/Ausfahren 200–250 ms.
+
+**Bewusst nur `transform` und `opacity` animiert** — beides erledigt der Compositor auf der GPU, kein Neu-Layout. Während das Menü offen ist, wird der Seiten-Scroll gesperrt; das ist nicht nur Fokus, sondern verhindert auch, dass die klebende Kopfzeile verrutscht. `prefers-reduced-motion` schaltet sämtliche Animationen ab.
+
+**Zähler am Auslöser** bündelt Betreiber-Antworten, ungelesene Neuerungen und drohende Rückläufer. **„Nächste Akte" bleibt dauerhaft sichtbar**, auch bei geschlossenem Menü — auf der Kartei-Seite selbst entfällt der Knopf, dort wäre er doppelt.
+
+### Ehrliche Grenzen
+
+Die Endpoint-Laufzeiten **vorher/nachher** und `EXPLAIN ANALYZE` (B1/B2) konnte ich nicht messen — die Messläufe wurden abgebrochen, wir haben uns auf direktes Umsetzen verständigt. Die Wirkung der Indizes ist damit begründet, aber **nicht von mir gemessen**. Die Bundle-Zahlen dagegen sind echt gemessen. Gleiches gilt für die Bildrate des Menüs: Die Umsetzung vermeidet Layout-Arbeit konsequent, ein Messwert auf einem Mittelklasse-Gerät liegt aber nicht vor.
+
+**Prüfungen:** `kartei-verify.ts` **6/6 grün** · `event-inventar.ts --check` **25/25 Versandpunkte erhalten**.
+
+**Zu finden:** `server/routes/fiaon-kartei.ts` · `server/lib/db-pool.ts` · `client/src/pages/agent/kartei.tsx` · `client/src/pages/agent/meine-kunden.tsx` · `client/src/pages/agent/shared.tsx` · `client/src/App.tsx` · `client/src/index.css`
+
+---
+
 ## 27.07.2026 — Migration ausgeführt + Wunschgehalt-Rechnung korrigiert (Prompt 2/2 Teil A–C)
 
 **Migration ausgeführt:** **2.056 Akten** in die offene Kartei überführt, Stapel `mig-2026-07-27-66a3e2`. Rückabwicklung jederzeit über `npx tsx scripts/kartei-migration.ts --undo=mig-2026-07-27-66a3e2`.

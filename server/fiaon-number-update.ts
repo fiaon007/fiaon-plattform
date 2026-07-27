@@ -11,11 +11,10 @@
 // reaktivierbar — echter Umsatz-Hebel.
 // ═══════════════════════════════════════════════════════════════════
 import { createHmac } from "crypto";
-import postgres from "postgres";
+import { sqlPool as sql } from "./lib/db-pool";
 import { absoluteUrl } from "./fiaon-base-url";
 import { sendMakeWebhook } from "./make-webhook";
 
-const sql = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 2 });
 
 function secret(): string {
   return process.env.SESSION_SECRET || process.env.MAKE_WEBHOOK_URL || "fiaon-dev-invoice-secret";

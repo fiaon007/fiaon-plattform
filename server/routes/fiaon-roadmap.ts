@@ -15,14 +15,13 @@
  * ============================================================================
  */
 import { Router, type Request, type Response } from "express";
-import postgres from "postgres";
+import { sqlPool } from "../lib/db-pool";
 import multer from "multer";
 import { requireAdmin } from "../middleware/admin";
 import { encryptBuffer, decryptBuffer, hasDedicatedKey } from "../lib/roadmap-crypto";
 import { buildMetrics, analyzeMetrics, generateGreeting, aiConfigured, type AnalysisResult } from "../lib/roadmap-ai";
 
 const router = Router();
-const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 3 });
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 

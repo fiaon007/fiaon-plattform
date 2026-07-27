@@ -14,7 +14,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Router, type Request, type Response, type NextFunction } from "express";
-import postgres from "postgres";
+import { sqlPool } from "../lib/db-pool";
 import bcrypt from "bcryptjs";
 import { createHmac, createHash, randomBytes, createCipheriv, createDecipheriv } from "crypto";
 import PDFDocument from "pdfkit";
@@ -24,7 +24,6 @@ import { fiaonBaseUrl } from "../fiaon-base-url";
 import { parseBerlinInput, formatBerlin } from "../lib/fiaon-time";
 
 const router = Router();
-const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 5 });
 
 const AGENT_COOKIE = "fiaon_agent_token";
 const TOKEN_TTL_MS = 12 * 60 * 60 * 1000; // 12h Schicht

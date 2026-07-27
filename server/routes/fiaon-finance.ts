@@ -11,11 +11,10 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Router, type Request, type Response } from "express";
-import postgres from "postgres";
+import { sqlPool } from "../lib/db-pool";
 import { paidWhere, legacyPaidWhere, paidAtSql, revenueCentsSql, KPI_DEFS } from "../lib/fiaon-truth";
 
 const router = Router();
-const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 3 });
 
 const CENTS = revenueCentsSql();
 // P2-D: DIE eine Wahrheit — zentrale Definition aus server/lib/fiaon-truth.ts.

@@ -23,7 +23,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Router, type Request, type Response, type NextFunction } from "express";
-import postgres from "postgres";
+import { sqlPool } from "../lib/db-pool";
 import { requireAgent, logAgentEvent, getSettings, type AgentRequest } from "./fiaon-agent";
 import { sendMakeWebhook } from "../make-webhook";
 import { formatBerlin } from "../lib/fiaon-time";
@@ -31,7 +31,6 @@ import { renderDocumentPdf, wrapFiaonDocument, docHash, escapeHtml } from "../li
 import { DEFAULT_CONTRACT_HTML, DEFAULT_CONTRACT_VERSION, ONBOARDING_DOCS, type OnboardingDoc } from "./fiaon-onboarding-content";
 
 const router = Router();
-const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 5 });
 
 export { ONBOARDING_DOCS };
 

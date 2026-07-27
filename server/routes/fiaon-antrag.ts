@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import PDFDocument from "pdfkit";
 import { ZipArchive } from "archiver";
 import postgres from "postgres";
+import { sqlPool } from "../lib/db-pool";
 import Stripe from "stripe";
 import multer from "multer";
 import { randomBytes } from "crypto";
@@ -39,7 +40,6 @@ const upload = multer({
 });
 
 // Create a single postgres connection pool for direct SQL queries
-const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: 'require', max: 10 });
 
 // Initialize Stripe — nur noch für Legacy-Admin-Analytics (Umsatzhistorie, lesend).
 // Sobald STRIPE_SECRET_KEY aus dem Deployment entfernt ist, ist stripe = null.

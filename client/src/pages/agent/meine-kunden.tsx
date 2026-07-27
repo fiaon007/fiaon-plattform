@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  Search, RefreshCw, PhoneCall, FileText, Link2, Archive, CalendarClock, Users,
+  Search, RefreshCw, PhoneCall, FileText, Link2, Archive, CalendarClock, Users, AlertTriangle,
 } from "lucide-react";
 import {
   AgentShell, api, FlashMessage, inputCls, btnGhost, btnPrimary, ACCENT, fmtD, fmtDT,
@@ -99,6 +99,7 @@ function MeineKundenContent() {
   const [kunden, setKunden] = useState<MeinKunde[]>([]);
   const [leads, setLeads] = useState<MeinLead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ladeFehler, setLadeFehler] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [openApp, setOpenApp] = useState<string | null>(null);
   const [openLead, setOpenLead] = useState<number | null>(null);
@@ -106,11 +107,24 @@ function MeineKundenContent() {
   const say = (m: string) => { setFlash(m); setTimeout(() => setFlash(null), 5000); };
 
   const load = useCallback(async () => {
-    const r = await api(
-      `/agent/kartei/meine?limit=60${filter ? `&filter=${filter}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
-    );
-    if (r.ok) { setKunden(r.json.kunden); setLeads(r.json.leads); }
-    setLoading(false);
+    // Laedt / leer / Fehler sauber getrennt — ein Serverfehler darf nie als
+    // „keine Kunden" erscheinen. Sonst glaubt der Agent, sein Bestand sei weg.
+    setLadeFehler(null);
+    try {
+      const r = await api(
+        `/agent/kartei/meine?limit=60${filter ? `&filter=${filter}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
+      );
+      if (r.ok) {
+        setKunden(r.json.kunden);
+        setLeads(r.json.leads);
+      } else {
+        setLadeFehler(r.json?.error || "Deine Kunden konnten nicht geladen werden.");
+      }
+    } catch {
+      setLadeFehler("Keine Verbindung zum Server. Prüfe deine Internetverbindung.");
+    } finally {
+      setLoading(false);
+    }
   }, [filter, q]);
 
   useEffect(() => { setLoading(true); const t = setTimeout(load, q ? 250 : 0); return () => clearTimeout(t); }, [load, q]);
@@ -173,6 +187,25 @@ function MeineKundenContent() {
       {loading ? (
         <div className="space-y-3">
           {[0, 1, 2, 3].map((i) => <div key={i} className="agent-skeleton h-24 rounded-2xl" />)}
+        </div>
+      ) : ladeFehler ? (
+        /* Fehler ist NICHT dasselbe wie „keine Kunden" — sonst glaubt der
+           Agent, sein Bestand sei verschwunden. */
+        <div className="rounded-2xl border border-slate-300 bg-white px-6 py-12 text-center">
+          <AlertTriangle size={26} strokeWidth={1.6} className="mx-auto text-slate-400 mb-3" />
+          <p className="text-[14px] font-semibold text-slate-800">Deine Kunden konnten nicht geladen werden.</p>
+          <p className="text-[12.5px] text-slate-500 mt-1 max-w-sm mx-auto leading-relaxed">{ladeFehler}</p>
+          <p className="text-[11.5px] text-slate-400 mt-1.5 max-w-sm mx-auto leading-relaxed">
+            Das ist ein Anzeigefehler — deine Akten sind vollständig gespeichert.
+          </p>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setLoading(true); load(); }}
+            className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl px-5 text-[13px] font-semibold text-white transition-transform duration-150 active:scale-[.985]"
+            style={{ background: ACCENT, minHeight: 44 }}
+          >
+            <RefreshCw size={14} strokeWidth={2.2} /> Erneut laden
+          </button>
         </div>
       ) : gesamt === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white px-6 py-14 text-center">

@@ -1,3 +1,4 @@
+import { lazy, Suspense, type ComponentType } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -7,43 +8,46 @@ import FiaonHome from "@/pages/fiaon-home";
 import FiaonLanding from "@/pages/fiaon-landing";
 import StartPage from "@/pages/start";
 import BusinessPage from "@/pages/business";
-import AntragPage from "@/pages/antrag";
-import BusinessAntragPage from "@/pages/business-antrag";
-import Terms from "@/pages/terms";
-import Privacy from "@/pages/privacy";
+// Antrags- und Kundenstrecken: umfangreich und fuer Agenten irrelevant.
+// Sie werden erst beim Aufruf geladen, damit das Agent-Portal auf dem Handy
+// nicht die komplette Kundenstrecke mitziehen muss.
+const AntragPage = lazy(() => import("@/pages/antrag"));
+const BusinessAntragPage = lazy(() => import("@/pages/business-antrag"));
+const Terms = lazy(() => import("@/pages/terms"));
+const Privacy = lazy(() => import("@/pages/privacy"));
 import NotFound from "@/pages/not-found";
-import AdminKundenPage from "@/pages/admin-kunden";
-import AdminKundeAktePage from "@/pages/admin-kunde";
-import AdminAntraegePage from "@/pages/admin-antraege";
-import AdminFunktionenPage from "@/pages/admin-funktionen";
+const AdminKundenPage = lazy(() => import("@/pages/admin-kunden"));
+const AdminKundeAktePage = lazy(() => import("@/pages/admin-kunde"));
+const AdminAntraegePage = lazy(() => import("@/pages/admin-antraege"));
+const AdminFunktionenPage = lazy(() => import("@/pages/admin-funktionen"));
 import WasIstFiaonPage from "@/pages/was-ist-fiaon";
 import PlattformKonzeptPage from "@/pages/plattform-konzept";
 import LoginPage from "@/pages/login";
-import DashboardPage from "@/pages/dashboard";
+const DashboardPage = lazy(() => import("@/pages/dashboard"));
 import ImpressumPage from "@/pages/impressum";
 import AGBPage from "@/pages/agb";
 import WiderrufsbelehrungPage from "@/pages/widerrufsbelehrung";
 import CookieEinstellungenPage from "@/pages/cookie-einstellungen";
 import PasswortVergessenPage from "@/pages/passwort-vergessen";
-import AboKuendigenPage from "@/pages/abo-kuendigen";
-import BonitaetPage from "@/pages/bonitaet";
-import BonitaetAntragPage from "@/pages/bonitaet-antrag";
-import BonitaetServicePage from "@/pages/bonitaet-service";
-import BonitaetDankePage from "@/pages/bonitaet-danke";
-import InvestorLoginPage from "@/pages/investor-login";
-import InvestorDashboardPage from "@/pages/investor-dashboard";
+const AboKuendigenPage = lazy(() => import("@/pages/abo-kuendigen"));
+const BonitaetPage = lazy(() => import("@/pages/bonitaet"));
+const BonitaetAntragPage = lazy(() => import("@/pages/bonitaet-antrag"));
+const BonitaetServicePage = lazy(() => import("@/pages/bonitaet-service"));
+const BonitaetDankePage = lazy(() => import("@/pages/bonitaet-danke"));
+const InvestorLoginPage = lazy(() => import("@/pages/investor-login"));
+const InvestorDashboardPage = lazy(() => import("@/pages/investor-dashboard"));
 import ZahlungPage, { ZahlungDankePage } from "@/pages/zahlung";
 import NummerAktualisierenPage from "@/pages/nummer-aktualisieren";
-import AdminZahlungenPage from "@/pages/admin-zahlungen";
-import AdminTeamPage from "@/pages/admin-team";
-import AdminNachbuchungPage from "@/pages/admin-nachbuchung";
-import AdminHubPage from "@/pages/admin-hub";
-import AdminRechnungenPage from "@/pages/admin-rechnungen";
-import AdminVerbuchungenPage from "@/pages/admin-verbuchungen";
-import AdminEventsPage from "@/pages/admin-events";
-import AdminEinstellungenPage from "@/pages/admin-einstellungen";
-import AdminAuditPage from "@/pages/admin-audit";
-import AdminRechtPage from "@/pages/admin-recht";
+const AdminZahlungenPage = lazy(() => import("@/pages/admin-zahlungen"));
+const AdminTeamPage = lazy(() => import("@/pages/admin-team"));
+const AdminNachbuchungPage = lazy(() => import("@/pages/admin-nachbuchung"));
+const AdminHubPage = lazy(() => import("@/pages/admin-hub"));
+const AdminRechnungenPage = lazy(() => import("@/pages/admin-rechnungen"));
+const AdminVerbuchungenPage = lazy(() => import("@/pages/admin-verbuchungen"));
+const AdminEventsPage = lazy(() => import("@/pages/admin-events"));
+const AdminEinstellungenPage = lazy(() => import("@/pages/admin-einstellungen"));
+const AdminAuditPage = lazy(() => import("@/pages/admin-audit"));
+const AdminRechtPage = lazy(() => import("@/pages/admin-recht"));
 import AdminShell from "@/components/admin/AdminShell";
 import AgentPortalPage from "@/pages/agent";
 import AgentSetupPage from "@/pages/agent/setup";
@@ -60,27 +64,31 @@ import AgentVerdienstPage from "@/pages/agent/verdienst";
 import AgentUpdatesPage from "@/pages/agent/updates";
 import AgentFeedbackPage from "@/pages/agent/feedback";
 import AgentMehrPage from "@/pages/agent/mehr";
-import AdminAgentPortalPage from "@/pages/admin-agent-portal";
-import AdminLeadsPage from "@/pages/admin-leads";
-import AdminFinanzenPage from "@/pages/admin-finanzen";
-import AdminKontoabgleichPage from "@/pages/admin-kontoabgleich";
-import AdminLeistungPage from "@/pages/admin-leistung";
-import AdminChangelogPage from "@/pages/admin-changelog";
-import AdminDiagnosePage from "@/pages/admin-diagnose";
-import AdminDublettenPage from "@/pages/admin-dubletten";
-import AdminKuendigungenPage from "@/pages/admin-kuendigungen";
-import AdminInvestorenPage from "@/pages/admin-investoren";
-import AdminBuchhaltungPage from "@/pages/admin-buchhaltung";
+const AdminAgentPortalPage = lazy(() => import("@/pages/admin-agent-portal"));
+const AdminLeadsPage = lazy(() => import("@/pages/admin-leads"));
+const AdminFinanzenPage = lazy(() => import("@/pages/admin-finanzen"));
+const AdminKontoabgleichPage = lazy(() => import("@/pages/admin-kontoabgleich"));
+const AdminLeistungPage = lazy(() => import("@/pages/admin-leistung"));
+const AdminChangelogPage = lazy(() => import("@/pages/admin-changelog"));
+const AdminDiagnosePage = lazy(() => import("@/pages/admin-diagnose"));
+const AdminDublettenPage = lazy(() => import("@/pages/admin-dubletten"));
+const AdminKuendigungenPage = lazy(() => import("@/pages/admin-kuendigungen"));
+const AdminInvestorenPage = lazy(() => import("@/pages/admin-investoren"));
+const AdminBuchhaltungPage = lazy(() => import("@/pages/admin-buchhaltung"));
 import AgentLeistungPage from "@/pages/agent/leistung";
 import AgentLeadsPage from "@/pages/agent/leads";
 import AgentDokumentePage from "@/pages/agent/dokumente";
-import AdminVertraegePage from "@/pages/admin-vertraege";
-import AdminFahrplanPage from "@/pages/admin-fahrplan";
-import AdminKarteiPage from "@/pages/admin-kartei";
+const AdminVertraegePage = lazy(() => import("@/pages/admin-vertraege"));
+const AdminFahrplanPage = lazy(() => import("@/pages/admin-fahrplan"));
+const AdminKarteiPage = lazy(() => import("@/pages/admin-kartei"));
 
 // Paket N1: JEDE /admin-Seite läuft in der AdminShell (Sidebar, Breadcrumb,
 // Zurück, Cmd+K). Serverseitige Guards bleiben unberührt.
-function admin(Component: () => JSX.Element) {
+//
+// Die Admin-Seiten werden per `lazy` erst beim Aufruf geladen. Vorher lagen
+// alle 28 im Haupt-Bundle — ein Agent auf dem Handy hat damit den kompletten
+// Admin-Bereich mitgeladen, den er nie zu Gesicht bekommt.
+function admin(Component: ComponentType) {
   return () => (
     <AdminShell>
       <Component />
@@ -88,8 +96,20 @@ function admin(Component: () => JSX.Element) {
   );
 }
 
+/** Dezenter Platzhalter, solange ein nachgeladener Seitenteil unterwegs ist. */
+function SeiteLaedt() {
+  return (
+    <div className="max-w-6xl mx-auto px-4 py-8 space-y-4">
+      <div className="agent-skeleton h-8 w-52 rounded-lg" />
+      <div className="agent-skeleton h-40 rounded-2xl" />
+      <div className="agent-skeleton h-64 rounded-2xl" />
+    </div>
+  );
+}
+
 function Router() {
   return (
+    <Suspense fallback={<SeiteLaedt />}>
     <Switch>
       <Route path="/" component={FiaonHome} />
       <Route path="/start" component={StartPage} />
@@ -170,6 +190,7 @@ function Router() {
       <Route path="/banking/dashboard" component={InvestorDashboardPage} />
       <Route component={NotFound} />
     </Switch>
+    </Suspense>
   );
 }
 

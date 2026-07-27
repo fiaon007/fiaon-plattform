@@ -40,6 +40,57 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-07-27-kartei-laedt",
+    date: "2026-07-27",
+    category: "Behoben",
+    important: true,
+    title: "Die Kartei zeigt jetzt wirklich alle freien Karten",
+    summary: "Oben stand „768 frei“, darunter „Die Kartei ist gerade leer“. Der Fehler ist gefunden und behoben.",
+    changes: [
+      "Zähler und Liste haben zwei verschiedene Abfragen benutzt. Der Zähler lief, die Liste brach ab — und der Abbruch wurde stillschweigend verschluckt.",
+      "Die Oberfläche hat daraus „leer“ gemacht. Ein Fehler sah damit genauso aus wie ein normaler leerer Bestand.",
+      "Ab sofort wird sauber unterschieden: Es lädt · Es ist wirklich leer · Es ist ein Fehler. Bei einem Fehler steht das im Klartext da, samt „Erneut laden“.",
+      "Derselbe Fehler steckte in „Meine Kunden“ — auch dort behoben.",
+      "Wichtig für dich: Es war nie ein Datenverlust. Die Akten waren die ganze Zeit vollständig vorhanden, sie wurden nur nicht angezeigt.",
+    ],
+    howto: [
+      "Öffne „Kartei“ — du siehst jetzt die freien Karten, oben die lohnendsten.",
+      "Sollte doch einmal etwas klemmen, steht der Grund auf dem Bildschirm. Tippe auf „Erneut laden“.",
+    ],
+    link: { href: "/agent/kartei", label: "Kartei öffnen" },
+  },
+  {
+    id: "2026-07-27-menue",
+    date: "2026-07-27",
+    category: "Neu",
+    title: "Neues Menü — seitlich statt unten",
+    summary: "Die Leiste am unteren Rand ist weg. Das Menü fährt jetzt von links ein und gibt dir mehr Platz zum Arbeiten.",
+    changes: [
+      "Tippe oben links auf das Menü-Symbol — oder wisch einfach vom linken Bildschirmrand nach rechts.",
+      "Schließen: nach links wischen, daneben tippen oder die Zurück-Taste.",
+      "Am Menü-Symbol steht eine Zahl, wenn etwas auf dich wartet: Antwort vom Betreiber, neue Neuerungen oder Akten, die bald zurück in die Kartei laufen.",
+      "„Nächste Akte“ bleibt immer als Knopf sichtbar, auch wenn das Menü zu ist — eine Handbewegung bis zur Arbeit.",
+      "Alles ist einhändig erreichbar, alle Tippflächen mindestens 44 Pixel.",
+    ],
+    howto: [
+      "Menü öffnen: oben links tippen oder vom linken Rand nach rechts wischen.",
+      "Hast du „Bewegung reduzieren“ im Handy eingestellt, erscheint das Menü ohne Animation.",
+    ],
+  },
+  {
+    id: "2026-07-27-tempo",
+    date: "2026-07-27",
+    category: "Verbessert",
+    title: "Das Portal lädt spürbar schneller",
+    summary: "Weniger Ballast beim Laden, schnellere Datenbank-Abfragen — vor allem auf dem Handy und im mobilen Netz.",
+    changes: [
+      "Beim Öffnen wurde bisher der komplette Verwaltungsbereich mitgeladen, den du gar nicht siehst. Das ist jetzt getrennt: rund 40 Prozent weniger Ladelast.",
+      "Die Datenbank hat für die Kartei bei jeder Anfrage alle Bestellungen durchsucht. Mit den passenden Suchregistern geht das jetzt direkt.",
+      "Die Verbindungen zur Datenbank laufen über einen gemeinsamen Vorrat statt über achtzehn getrennte. Das verhindert, dass unter Last Anfragen abgewiesen werden.",
+      "An deinen Zahlen, Provisionen und Akten ändert das nichts — nur an der Geschwindigkeit.",
+    ],
+  },
+  {
     id: "2026-07-27-kartei",
     date: "2026-07-27",
     category: "Neu",

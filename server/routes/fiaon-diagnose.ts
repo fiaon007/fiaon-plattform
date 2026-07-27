@@ -16,13 +16,12 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Router, type Request, type Response } from "express";
-import postgres from "postgres";
+import { sqlPool } from "../lib/db-pool";
 import { getSettings } from "./fiaon-agent";
 import { aiComplete } from "./fiaon-leistung";
 import { getRawTail, purgeDiagnostics, maskSensitive, DIAGNOSTICS_CONFIG, type Severity, type Category } from "../lib/fiaon-diagnostics";
 
 const router = Router();
-const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 3 });
 
 const SEVERITIES: Severity[] = ["kritisch", "warnung", "info"];
 const CATEGORIES: Category[] = ["email_make", "lead", "zahlung", "agent", "kunde", "system"];

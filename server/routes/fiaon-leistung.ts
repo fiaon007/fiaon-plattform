@@ -17,11 +17,10 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Router, type Request, type Response } from "express";
-import postgres from "postgres";
+import { sqlPool } from "../lib/db-pool";
 import { requireAgent, getSettings, setSetting, type AgentRequest } from "./fiaon-agent";
 
 const router = Router();
-const sqlPool = postgres(process.env.DATABASE_URL!, { ssl: "require", max: 3 });
 
 /** Zeitraum aus Query — Default 30 Tage, hart begrenzt auf 366 Tage. */
 function parseRange(req: Request): { from: Date; to: Date } {

@@ -2601,6 +2601,98 @@ router.get("/kyc-status/:ref", async (req, res) => {
   }
 });
 
+// ── GET /bonitaet-status/:ref — Zustand des Bonitäts-Checks (NUR LESEN) ─────
+//
+// Hintergrund (SYSTEM_DIAGNOSE.md, Abschnitt B0): Der Kauf der Bonitätsauskunft
+// erzeugt eine EIGENE Antragszeile (ref = FIAON-SCHUFA-…, type = 'schufa'), die
+// bewusst nicht mit dem Kundendatensatz verknüpft wird — sonst entstünde ein
+// zweiter Kunde inkl. Agentenzuteilung. Folge: Das Dashboard konnte bisher nicht
+// wissen, ob ein Kunde bereits gekauft oder bezahlt hat, und forderte auch nach
+// Zahlung weiter zum Hochladen auf.
+//
+// Dieser Endpunkt schließt genau diese Wissenslücke — und NUR sie:
+//   - Er liest ausschließlich (kein UPDATE, kein INSERT).
+//   - Er verändert weder Zahlungs- noch Freischaltungslogik. Ob ein bezahlter
+//     Kauf den Freischaltungs-Nachweis erfüllt, entscheidet der Betreiber
+//     (SYSTEM_DIAGNOSE.md, Abschnitt B3) — hier wird nur berichtet, was ist.
+//   - Zuordnung über die E-Mail des Kunden, weil es keine andere Verbindung gibt.
+//
+// Zustände: 'offen' (nicht gekauft) → 'zahlung_offen' → 'bezahlt' (Auskunft wird
+// beschafft) → 'geliefert' (liegt im Kundendatensatz).
+router.get("/bonitaet-status/:ref", async (req, res) => {
+  try {
+    const { ref } = req.params;
+
+    const rows = await sqlPool`
+      SELECT email, contact_email, billing_email,
+             CASE WHEN schufa_pdf IS NOT NULL THEN true ELSE false END AS has_schufa
+      FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Antrag nicht gefunden" });
+    const me = rows[0];
+
+    // Alle bekannten E-Mail-Felder des Kunden — kleingeschrieben, ohne Leere.
+    const mails = [me.email, me.contact_email, me.billing_email]
+      .map((m: string | null) => String(m || "").trim().toLowerCase())
+      .filter(Boolean);
+
+    // Jüngste Bonitäts-Bestellung dieser Person. LOWER(...) statt Gleichheit,
+    // weil Adressen im Bestand gemischt geschrieben sind.
+    let order: any = null;
+    if (mails.length > 0) {
+      const orders = await sqlPool`
+        SELECT ref, payment_status, payment_reference, amount_due, currency,
+               payment_due_date, created_at
+        FROM fiaon_applications
+        WHERE (COALESCE(type,'') = 'schufa' OR ref LIKE 'FIAON-SCHUFA-%')
+          AND LOWER(COALESCE(NULLIF(email,''), NULLIF(contact_email,''), NULLIF(billing_email,''), '')) = ANY(${mails})
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
+      order = orders[0] || null;
+    }
+
+    const bezahlt = order?.payment_status === "paid";
+    const zahlungOffen = ["pending_payment", "claimed_paid"].includes(String(order?.payment_status || ""));
+
+    const zustand = me.has_schufa ? "geliefert"
+      : bezahlt ? "bezahlt"
+      : zahlungOffen ? "zahlung_offen"
+      : "offen";
+
+    // Fahrplan-Anschluss: Ist für diesen Kunden schon eine Analyse freigegeben?
+    // Die Tabellen gehören zum Fahrplan-Produkt und existieren evtl. noch nicht —
+    // ein Fehlschlag darf den Zustand nicht kippen.
+    let analyse = "keine";
+    let fahrplanSchritte = 0;
+    try {
+      const a = await sqlPool`SELECT status FROM fiaon_analysis WHERE ref = ${ref} LIMIT 1`;
+      if (a[0]?.status === "approved") analyse = "fertig";
+      else if (a[0]) analyse = "laeuft";
+      const s = await sqlPool`SELECT COUNT(*)::int AS c FROM fiaon_roadmap_steps WHERE ref = ${ref}`;
+      fahrplanSchritte = s[0]?.c ?? 0;
+    } catch { /* Fahrplan noch nie benutzt — bleibt 'keine' */ }
+
+    res.json({
+      ok: true,
+      zustand,
+      preisEuro: SCHUFA_PRICE,
+      bestellung: order ? {
+        paymentReference: order.payment_reference,
+        status: order.payment_status,
+        betrag: order.amount_due != null ? String(order.amount_due) : null,
+        faelligAm: order.payment_due_date,
+        bestelltAm: order.created_at,
+      } : null,
+      analyse,
+      fahrplanSchritte,
+    });
+  } catch (err) {
+    console.error("[FIAON-BONITAET-STATUS]", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 // ── GET /profile/:ref — Vollständiges Kundenprofil ──────────────────────────
 router.get("/profile/:ref", async (req, res) => {
   try {

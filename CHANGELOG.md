@@ -3,6 +3,83 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 28.07.2026 (Kundenbereich) — Der Bonitäts-Check wird das Herzstück des Dashboards
+
+Der Bereich „Freischaltung / Ihre nächsten Schritte" ist komplett neu. Vorher stand das teuerste und wertvollste Angebot — die Bonitätsauskunft samt Auswertung — als **vierte Zeile einer Pflichtliste** zwischen Ausweis-Upload und Prüfung. Kein Wunder, dass kaum jemand kaufte.
+
+### Phase 0 — was der Umbau zuerst gefunden hat (dokumentiert in `SYSTEM_DIAGNOSE.md`, B0–B4)
+
+Der Grund für die schwachen Verkäufe war nicht nur die Darstellung. **Kauf und Pflicht sind zwei Pfade, die sich nie begegnen:**
+
+- Der Kauf (`kind: "schufa"`, 74 €) erzeugt eine **eigene Antragszeile** `FIAON-SCHUFA-…`, die von der Verknüpfungslogik ausdrücklich ausgeschlossen ist (`fiaon-antrag.ts:622` und `:635`) — damit eine 74-€-Bestellung keinen zweiten Kunden und keine Agentenzuteilung erzeugt. Richtig gedacht, mit einer unbeabsichtigten Folge.
+- Die Pflicht verlangt `hasSchufa`, und das ist **ausschließlich** `schufa_pdf` in der **eigenen** Zeile des Kunden — gefüllt nur durch **Upload** (`/upload-kyc`, Feld `schufaDoc`).
+- **Ergebnis:** Ein Kunde konnte kaufen, 74 € bezahlen — und sein Dashboard sagte weiter „SCHUFA-Nachweis fehlt noch → Zu den Unterlagen". Auch die Lieferung per E-Mail änderte daran nichts. Die Belohnung für den Kauf war unsichtbar; im Zweifel lud der Kunde unsere eigene Lieferung selbst wieder hoch.
+- Von den fünf Zuständen (nicht gekauft · Zahlung offen · bezahlt/in Arbeit · Auszug da · Analyse fertig) existierte am Kundendatensatz **genau einer**: „hochgeladen ja/nein".
+- Der **Fahrplan** analysiert **Kontoauszüge**, nicht die SCHUFA. Die 74-€-Leistung endete bisher in der E-Mail und lebte im Portal nirgends weiter.
+
+### Teil A — Der Bonitäts-Check ist jetzt der Held der Seite
+
+Eigener, dominanter Bereich **direkt unter der Begrüßung — vor Kennzahlen und Karte** (maschinell geprüft). Wert zuerst, Aufgabe zweitens:
+
+- **Was der Kunde bekommt**, in vier Punkten: Auskunft beschaffen · Analyse durch FIAON · persönlicher Fahrplan · begleitete Umsetzung.
+- **Genau ein Knopf**: „Bonitäts-Check starten" → führt in die **bestehende** Bestellstrecke (unverändertes Popup mit vorbefüllten Daten). Preis transparent: 74 € einmalig, kein Abo.
+- **Zustandsabhängig** statt Dauerwerbung: Nach dem Kauf wird aus dem Angebot ein Status („Nur die Zahlung fehlt noch" → „Wir beschaffen Ihre Auskunft" → „Ihr Fahrplan steht bereit"). Der Bereich begleitet, statt zu verkaufen, was schon gekauft ist.
+- **Ehrlichkeit sichtbar, nicht kleingedruckt:** „Was wir nicht tun: Wir löschen keine Einträge und versprechen keinen bestimmten Score." Die Karte am Ende bleibt ein erarbeitetes Ziel über einen künftigen lizenzierten Partner — keine Zusage, kein Kreditangebot.
+
+Damit die Zustände überhaupt darstellbar sind, gibt es einen neuen, **nur lesenden** Endpunkt `GET /agent/../bonitaet-status/:ref` (`fiaon-antrag.ts`): Er sucht die Bonitäts-Bestellung über die E-Mail des Kunden und meldet deren Zahlungsstand. **Kein `UPDATE`, kein `INSERT`, keine Änderung an Zahlung oder Freischaltung.**
+
+### Teil B — Produkt und Verwaltung sind getrennt
+
+| | vorher | nachher |
+|---|---|---|
+| Struktur | eine gemischte Liste „1 von 4 erledigt" + 2 Hinweis-Banner darüber | **„Ihr Weg"** (Produkt) und **„Noch zu erledigen"** (Verwaltung) |
+| Bonitätsauskunft | Zeile 3 der Pflichtliste | eigener Held-Bereich oben |
+| Fortschritt | „1 von 4" (liest sich wie drei Versäumnisse) | Reise mit fünf Etappen und „Sie sind hier: …" |
+
+„Ihr Weg" zeigt Bonitäts-Check → Analyse → Fahrplan → Umsetzung → Ziel mit Zustand je Etappe. „Noch zu erledigen" nennt **nur** Verwaltung (Profil, Dokumente, Prüfung) — jeweils **mit Grund** („Gesetzlich vorgeschrieben für die Prüfung Ihrer Identität"). Ist nichts offen, wird daraus eine Erledigt-Bestätigung.
+
+**Doppelungen aufgelöst:** Die Sticky-Balken („Profil unvollständig", „Nachricht von FIAON") erscheinen auf der Übersicht **nicht mehr** — dort steht dieselbe Aufgabe ausführlicher und ruhiger in „Noch zu erledigen". Auf allen anderen Seiten bleiben die Balken die Erinnerung. Rückfragen des Betreibers gehen dabei nicht verloren (geprüft).
+
+Zusätzlich auf der **Unterlagen**-Seite: Wer gekauft und bezahlt hat, sieht dort jetzt „Bestellt" bzw. „Wird beschafft" statt „Ausstehend" — und den Satz „Sie müssen hier nichts hochladen". Das ist die zweite Stelle, an der der Widerspruch aus B0 sichtbar wurde.
+
+### Teil C — „Was Sie danach erwartet"
+
+Darunter eine Sektion, die den Fahrplan vor der Freischaltung sichtbar macht: drei Beispiel-Etappen (Ihre Einträge im Klartext · Ihre größten Hebel zuerst · Reihenfolge und Zeitplan). Verschlossene Inhalte erscheinen als **graue Platzhalter-Balken** — wie in der Agenten-Kartei gelöst und ehrlicher als ein Weichzeichner: Es wird nichts Echtes versteckt und **kein Fülltext, keine Bewertungen, keine unbelegten Zahlen** erfunden. Dazu der vertrauensbildende Satz: „Die Auswertung und der Fahrplan sind im Preis der Auskunft enthalten — es kommt nichts hinzu."
+
+### Teil D — Design auf dem Niveau des Agenten-Portals
+
+Neue Ebenen in `index.css`, dieselbe Sprache wie die `.agent-*`-Klassen: `.db-hero` (stärkstes Element, heller Verlauf plus vierschichtiger Schatten), `.db-panel` (Sachkarte), `.db-act` (Primäraktion mit Lichtreflex und Eindrücken auf `:active`), `.db-tile-c`, `.db-bar`. Auftritt gestaffelt (60 · 140 · 200 · 260 ms), `.db-light` wandert in 26 s einmal durchs Bild.
+
+**Animiert werden ausschließlich `transform` und `opacity`.** Dabei fiel ein Altlast-Verstoß auf derselben Seite auf: Die Sektions-Einblendung `dbFadeUp` animierte `filter: blur(2px)` — das wurde bei jedem Bild neu gerechnet. Jetzt nur noch Verschiebung und Deckkraft.
+
+### Gemessen (Playwright, 4-fache CPU-Bremse, 60-s-Abbruch)
+
+`scripts/dashboard-bonitaet.mjs` prüft 15 Zusagen:
+
+| Prüfung | Ergebnis |
+|---|---|
+| Bildrate beim Laden | **78 Bilder/s** (Ziel ≥ 50) |
+| Bildrate beim Scrollen | **120 Bilder/s** |
+| 380 px: Bereich **inkl. Knopf** ohne Scrollen | Knopf-Unterkante **690 px** von 780 px |
+| Knopf als Touch-Ziel | **54 px** hoch |
+| Bereich steht vor Kennzahlen und Karte | ja |
+| Knopf öffnet die bestehende Bestellstrecke | ja, Popup mit Preis |
+| Alle vier Zustände | nicht gekauft · Zahlung offen · in Arbeit · Auswertung fertig — **alle korrekt** |
+| Produkt/Verwaltung getrennt | zwei Bereiche, Auskunft **nicht** mehr in der Pflichtliste |
+| Keine Aufgabe doppelt | Balken erscheinen auf der Übersicht nicht mehr |
+| Rückfragen bleiben sichtbar | beide in der Liste |
+| Volltextprüfung Versprechen | **9 Muster** (SCHUFA-frei, Einträge löschen, garantierter Score, Kreditzusage …) in 4 Zuständen — **kein Treffer** |
+| `prefers-reduced-motion` | Licht steht, kein Auftritt, kein Druckgefühl, alles lesbar |
+| Desktop 1440 px | Bereich im ersten Bildschirm, Weg und Verwaltung nebeneinander, **77 %** Breite genutzt |
+
+**Bundle:** Haupt-Chunk **1.613,55 → 1.613,56 kB** (gzip **420,03 → 420,03 kB**) — praktisch unverändert, weil die neue Sektion 131 Zeilen alten Inline-Code ersetzt. CSS **256,66 → 259,44 kB** (gzip **37,91 → 38,41 kB**): **+2,8 kB** (gzip +0,5 kB) für die neue Design-Ebene. Das ist die einzige Zunahme; JavaScript ist flach geblieben.
+
+**Geschäftslogik unverändert:** keine Zahlungs-, Preis- oder Freischaltungslogik berührt, kein bestehender Endpunkt geändert, ein neuer Endpunkt der ausschließlich liest.
+
+**Zwei Entscheidungen liegen beim Betreiber** (`SYSTEM_DIAGNOSE.md`, B3): Soll ein **bezahlter** Kauf den Freischaltungs-Nachweis automatisch erfüllen? Und bleibt die Auskunft überhaupt Pflicht für die Freischaltung? Beides ist Freischaltungslogik und wurde deshalb **nicht** eigenmächtig geändert.
+
+---
+
 ## 28.07.2026 (später) — „Guten Abend" um 09:30, Bestands-Blick, Menü-Zähler, Feinschliff
 
 ### Teil A — Der Zeit-Bug, mit der Ursache belegt

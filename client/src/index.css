@@ -834,4 +834,123 @@ html {
   .agent-core__glow { opacity: .6; }
   .agent-banner-shine::after { animation: none !important; display: none; }
   .agent-expand { transition: none !important; }
+  /* Kunden-Dashboard: Auftritt und Druckgefühl aus, Tiefe bleibt. */
+  .db-rise { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .db-light { animation: none !important; }
+  .db-act, .db-tile-c { transition: none !important; }
+  .db-act:active, .db-tile-c:active { transform: none !important; }
+  .db-act::after { display: none; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   KUNDEN-DASHBOARD — Elevations-Ebenen (Maßstab: Agenten-Portal)
+   Dieselbe Sprache wie .agent-* : EINE Akzentfarbe (#2563eb), Tiefe über
+   mehrschichtige Schatten statt Linien, Rangfolge über Elevation.
+   Es wird ausschließlich `transform` und `opacity` animiert.
+   ════════════════════════════════════════════════════════════ */
+
+/* Gestaffelter Auftritt. Versatz kommt per Inline-`animation-delay`
+   (60–90 ms je Reihe) — bewusst kein Blur, der kostet jeden Frame. */
+@keyframes dbRise {
+  from { opacity: 0; transform: translate3d(0, 12px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+.db-rise {
+  opacity: 0;
+  animation: dbRise .6s cubic-bezier(.16, 1, .3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+/* Ebene 1 — ruhige Sachkarte (Verwaltung, Vorschau). */
+.db-panel {
+  background: #fff;
+  border: 1px solid rgba(226, 232, 240, .9);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.9),
+    0 1px 2px rgba(15,23,42,.04),
+    0 10px 22px -18px rgba(15,23,42,.18);
+}
+
+/* Ebene 2 — der Bonitäts-Bereich: stärkstes Element der Seite. Heller
+   Verlauf plus tiefer, weicher Schatten; kein Neon, keine neue Farbe. */
+.db-hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 88% -10%, rgba(37,99,235,.10), transparent 62%),
+    linear-gradient(180deg, #ffffff 0%, #fbfdff 60%, #f6f9ff 100%);
+  border: 1px solid rgba(37,99,235,.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.95),
+    0 2px 4px rgba(15,23,42,.04),
+    0 18px 38px -20px rgba(30,64,175,.26),
+    0 48px 88px -44px rgba(30,64,175,.30);
+}
+
+/* Sehr langsam wandernder Lichtverlauf im Bonitäts-Bereich. Reine
+   Verschiebung einer Fläche, kein Filter, kein Layout. */
+.db-light {
+  position: absolute;
+  top: -55%; right: -20%;
+  width: 70%; height: 190%;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(37,99,235,.10), transparent 66%);
+  animation: dbLightDrift 26s ease-in-out infinite;
+}
+@keyframes dbLightDrift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(-9%, 5%, 0) scale(1.08); }
+}
+
+/* Ebene 3 — die Primäraktion. Höchste Elevation, ein feiner Lichtreflex
+   beim Überfahren, spürbares Eindrücken beim Tippen. */
+.db-act {
+  position: relative;
+  overflow: hidden;
+  background-image: linear-gradient(180deg, #3b82f6 0%, #2563eb 58%, #1d4ed8 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.26),
+    0 2px 4px rgba(29,78,216,.22),
+    0 16px 30px -12px rgba(37,99,235,.50),
+    0 34px 60px -30px rgba(29,78,216,.42);
+  transition: transform 130ms cubic-bezier(.22,.61,.36,1),
+              box-shadow 220ms cubic-bezier(.22,.61,.36,1);
+}
+.db-act:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.3),
+    0 2px 6px rgba(29,78,216,.24),
+    0 20px 38px -12px rgba(37,99,235,.56),
+    0 40px 70px -30px rgba(29,78,216,.46);
+}
+.db-act:active { transform: scale(.985); }
+.db-act::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 34%, rgba(255,255,255,.16) 50%, transparent 66%);
+  transform: translateX(-100%);
+  transition: transform 620ms cubic-bezier(.22,.61,.36,1);
+}
+.db-act:hover::after { transform: translateX(100%); }
+
+/* Antippbare Kachel (Etappen, Aufgaben) — ruhig, mit feinem Druckgefühl. */
+.db-tile-c {
+  background: rgba(255,255,255,.78);
+  border: 1px solid rgba(226,232,240,.9);
+  transition: transform 130ms cubic-bezier(.22,.61,.36,1),
+              border-color 220ms ease-out,
+              box-shadow 220ms ease-out;
+}
+.db-tile-c:hover {
+  border-color: rgba(191,210,240,.95);
+  box-shadow: 0 12px 24px -18px rgba(15,23,42,.28);
+}
+.db-tile-c:active { transform: scale(.99); }
+
+/* Verschlossene Vorschau: graue Platzhalter-Balken wie in der Agenten-Kartei.
+   Ehrlicher als ein Weichzeichner — es wird nichts Echtes versteckt. */
+.db-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #eef2f7, #e6ebf3);
 }

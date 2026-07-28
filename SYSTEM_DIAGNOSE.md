@@ -1712,3 +1712,117 @@ ein falsch einsortierter Eintrag verfälscht ihn.
 **Sparsam mit `important`.** Ein Hinweis, der bei jedem Login erscheint, wird ignoriert.
 Bei der Kartei-Umstellung sind genau zwei Einträge als wichtig markiert: die Kartei selbst
 und die Popups vor E-Mail-Versand.
+
+---
+
+# PHASE 0 — KUNDEN-DASHBOARD: DER BONITÄTS-/SCHUFA-ABLAUF (28.07.2026)
+
+Vor dem Umbau des Bereichs „Freischaltung / Ihre nächsten Schritte" wurde geprüft, was
+heute **tatsächlich** passiert. Ergebnis: Kauf und Pflicht sind zwei Pfade, die sich nie
+begegnen. Das ist der eigentliche Grund, warum der Bonitäts-Auszug kaum verkauft wird —
+nicht nur die unauffällige Darstellung.
+
+## B0 — Zwei Pfade, keine Verbindung
+
+**Pfad 1 — der Kauf (funktioniert, aber isoliert):**
+
+- `POST /api/fiaon/payment-order` mit `kind: "schufa"` legt eine **komplett neue
+  Antragszeile** an: `ref = FIAON-SCHUFA-<zeit>-<code>`, `type = 'schufa'`,
+  `pack_name = 'Bonitätsauskunft inkl. Handlungsplan'` (`server/routes/fiaon-antrag.ts:723-729`).
+- Preis serverseitig: `SCHUFA_PRICE = 74.00` (`fiaon-antrag.ts:69`). Der Client kann den
+  Betrag nicht beeinflussen — korrekt.
+- Danach normale Zahlungsstrecke: `payment_reference`, Rechnung, `/zahlung/<ref>`,
+  Erinnerungen, Kontoabgleich. Alles wie bei einem Paket.
+- Erreichbar ist der Kauf **von drei Stellen**: `/bonitaet` → `/bonitaet-antrag`,
+  `/bonitaet-service`, und im Dashboard unter **Unterlagen** über das SCHUFA-Modal
+  (`client/src/pages/dashboard.tsx:1770-1790`).
+
+**Pfad 2 — die Pflicht (verlangt einen Upload):**
+
+- Die Freischaltungs-Liste verlangt `serverDocStatus.hasSchufa`
+  (`dashboard.tsx:729`: `docsDone = docsOk && kycStatus !== 'changes_requested' && hasSchufa`).
+- `hasSchufa` bedeutet ausschließlich: **`schufa_pdf IS NOT NULL` in der eigenen
+  Antragszeile des Kunden** (`fiaon-antrag.ts:2560`).
+- Diese Spalte wird nur an einer Stelle gefüllt: `POST /upload-kyc`, Feld `schufaDoc` —
+  also **durch den Kunden per Datei-Upload** (`fiaon-antrag.ts:2459-2462`).
+
+**Der Widerspruch, schwarz auf weiß:** Die SCHUFA-Bestellung wird von der
+Dubletten-/Verknüpfungslogik **ausdrücklich ausgeschlossen**:
+
+```
+fiaon-antrag.ts:622   if (type === "schufa" || newRef.startsWith("FIAON-SCHUFA-")) return { linked: false };
+fiaon-antrag.ts:635   AND COALESCE(type,'') <> 'schufa' AND ref NOT LIKE 'FIAON-SCHUFA-%'
+```
+
+Das ist bewusst so gebaut (eine 74-€-Bestellung soll keinen zweiten Kunden erzeugen und
+keinen Agenten binden) — hat aber eine Nebenwirkung, die niemand beabsichtigt hat:
+
+> **Ein Kunde kann die Auskunft kaufen und bezahlen — sein Dashboard sagt danach weiter
+> „SCHUFA-Nachweis fehlt noch → Zu den Unterlagen".**
+
+Auch die Lieferung ändert daran nichts: Wir versenden den Auszug per E-Mail. In die Spalte
+`schufa_pdf` des Kunden kommt dabei nichts. Es gibt **keinen** Weg im Code, über den ein
+Kauf den Nachweis erfüllt. Damit zahlt der Kunde 74 €, wird weiter zum Hochladen
+aufgefordert — und lädt im Zweifel die von uns gelieferte Datei selbst wieder hoch, damit
+die Ampel umspringt. Für den Betreiber sieht das nach „Kunden kaufen nicht" aus; in
+Wahrheit ist die Belohnung für den Kauf unsichtbar.
+
+## B1 — Welche Zustände existieren technisch?
+
+| Zustand | Existiert am Kundendatensatz? | Wo steht er wirklich? |
+|---|---|---|
+| noch nicht gekauft | nein (nicht unterscheidbar von „nicht hochgeladen") | — |
+| gekauft, Zahlung offen | **nein** | separate Zeile `FIAON-SCHUFA-…`, `payment_status='pending_payment'` |
+| bezahlt, Auszug in Arbeit | **nein** | dieselbe separate Zeile, `payment_status='paid'` |
+| Auszug da / Analyse läuft | nur indirekt: `schufa_pdf IS NOT NULL` (nach Upload) | Kundenzeile |
+| Analyse fertig | **nein** — für die SCHUFA gibt es keinen Analyse-Datensatz | `fiaon_analysis` existiert nur für den **Fahrplan** (Kontoauszüge) |
+
+Das Dashboard konnte diese Zustände also nicht anzeigen, weil es sie nicht kennt. Der
+Umbau braucht deshalb genau eine neue, **nur lesende** Auskunft (kein Eingriff in Zahlung
+oder Freischaltung): Bestellung zur E-Mail des Kunden suchen und ihren Zahlungsstand melden.
+
+## B2 — Verhältnis zum „Fahrplan" (Roadmap-Produkt)
+
+Der Fahrplan (`server/routes/fiaon-roadmap.ts`, `client/src/components/roadmap/RoadmapJourney.tsx`)
+ist ein **eigenständiges** Produkt mit sechs Etappen:
+
+```
+Willkommen & Ziel → Kontoauszüge hochladen → KI-Analyse → persönlicher Fahrplan
+→ Fortschritt & Coaching → Ziel: Karte über Partner
+```
+
+Grundlage der Analyse sind **Kontoauszüge** (`fiaon_statements`, verschlüsselt) und daraus
+gebildete **Aggregate** (`fiaon_metrics`; Rohdaten gehen nie an die KI). Die Empfehlungen
+landen als Schritte in `fiaon_roadmap_steps`, Freigabe über `fiaon_analysis.status='approved'`.
+
+**Die SCHUFA kommt darin nicht vor.** Die 74-€-Leistung („Vollauskunft inkl.
+Handlungsplan") wird per E-Mail geliefert und endet dort — sie fließt weder in die
+Metriken noch in die Fahrplan-Schritte ein. Genau diese fehlende Verbindung macht das
+Angebot unrund: Der Kunde kauft eine Analyse, deren Ergebnis anschließend nirgends im
+Portal weiterlebt.
+
+**Folgerung für den Umbau (Darstellung, nicht Logik):** Der Bonitäts-Check wird als
+**erste Etappe des Fahrplans** dargestellt und verweist auf ihn. Damit ist für den Kunden
+sichtbar, wofür er zahlt und wo es weitergeht. Die inhaltliche Zusammenführung
+(SCHUFA-Erkenntnisse als Fahrplan-Schritte) ist ein Datenthema und ausdrücklich **nicht**
+Teil dieses Umbaus.
+
+## B3 — Was der Betreiber entscheiden muss
+
+Zwei Dinge liegen außerhalb reiner Darstellung und wurden **nicht** eigenmächtig geändert:
+
+1. **Soll ein bezahlter Kauf den Freischaltungs-Nachweis erfüllen?** Heute nicht. Wenn ja,
+   ist das eine Änderung an der Freischaltungslogik (z. B. `hasSchufa` auch dann wahr,
+   wenn eine bezahlte SCHUFA-Bestellung zur E-Mail des Kunden vorliegt, oder Ablage des
+   gelieferten PDFs in `schufa_pdf` beim Versand).
+2. **Bleibt die SCHUFA überhaupt Pflicht für die Freischaltung?** Sie wird im Text als
+   „ab sofort erforderlich" geführt und blockiert die Aktivierung — gleichzeitig ist sie
+   ein kostenpflichtiges Produkt. Diese Doppelrolle ist erklärungsbedürftig; der Umbau
+   benennt sie ehrlich, statt sie zu verstecken.
+
+## B4 — Nebenbefund: Begrüßung im Kundenbereich
+
+`dashboard.tsx:225` bildet den Gruß mit `new Date().getHours()` — also der **Uhrzeit des
+Betrachters**, nicht deutscher Zeit. Kein `NaN`-Fehler wie auf der Agenten-Startseite, aber
+ein Kunde im Urlaub außerhalb Europas wird falsch begrüßt. Der geprüfte Helfer
+`client/src/pages/agent/zeit.ts` löst das bereits; eine Übernahme ist eine Zeile.

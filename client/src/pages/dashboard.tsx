@@ -3,13 +3,20 @@ import Clarity from "@microsoft/clarity";
 import WelcomeModal from "@/components/WelcomeModal";
 import { welcomeConfig, type WelcomeState } from "@/config/welcome";
 import RoadmapJourney from "@/components/roadmap/RoadmapJourney";
+import {
+  BonitaetsCheck, IhrWeg, NochZuErledigen, FahrplanVorschau, useBonitaetStatus,
+} from "@/components/dashboard/naechste-schritte";
+import { gruss } from "@/pages/agent/zeit";
 
 /* ── Inject dashboard-specific animations ── */
 if (typeof document !== "undefined" && !document.head.querySelector("style[data-db-anim]")) {
   const s = document.createElement("style");
   s.setAttribute("data-db-anim", "true");
   s.textContent = `
-    @keyframes dbFadeUp { from{opacity:0;transform:translateY(20px) scale(.98);filter:blur(2px)} to{opacity:1;transform:none;filter:blur(0)} }
+    /* Nur transform und opacity: der frühere Weichzeichner musste bei JEDEM
+       Bild neu gerechnet werden und hat den Seitenwechsel auf schwachen Geräten
+       sichtbar gebremst. Die Einblendung sieht unverändert weich aus. */
+    @keyframes dbFadeUp { from{opacity:0;transform:translate3d(0,16px,0)} to{opacity:1;transform:none} }
     @keyframes dbSlideIn { from{opacity:0;transform:translateX(-16px)} to{opacity:1;transform:none} }
     @keyframes dbOrb1 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(40px,-30px) scale(1.1)} }
     @keyframes dbOrb2 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-25px,35px) scale(1.07)} }
@@ -222,7 +229,14 @@ export default function DashboardPage() {
   const fileInputRef2 = useRef<HTMLInputElement>(null);
   const fileInputRef3 = useRef<HTMLInputElement>(null);
   const [user, setUser] = useState<SessionUser>(() => { try { return JSON.parse(sessionStorage.getItem("fiaon_user") || "{}"); } catch { return {} as SessionUser; } });
-  const greeting = (() => { const h = new Date().getHours(); return h < 12 ? "Guten Morgen" : h < 18 ? "Guten Tag" : "Guten Abend"; })();
+  // Zustand des Bonitäts-Checks (nur lesend) — steuert den Held-Bereich der
+  // Übersicht: Angebot, offene Zahlung, in Arbeit oder Auswertung fertig.
+  // Muss NACH `user` stehen, sonst Zugriff vor der Initialisierung.
+  const { status: bonitaet, loading: bonitaetLaedt } = useBonitaetStatus(user?.ref);
+  // Deutsche Geschäftszeit statt Geräte-Uhrzeit (geprüfter Helfer, siehe
+  // client/src/pages/agent/zeit.ts) — ein Kunde im Ausland wurde bisher falsch
+  // begrüßt. Sie-Form bleibt: der Gruß wird unten mit dem Namen zusammengesetzt.
+  const greeting = gruss();
   const docsOk = isUploadSuccess || (serverDocStatus.hasBankStatement && serverDocStatus.hasIdCard);
   const kycBadge = docsOk ? undefined : "!";
 
@@ -520,8 +534,12 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* ── PROFIL-RÜCKFRAGE STICKY BANNER (höchste Prio) ── */}
-        {statusLoaded && serverDocStatus.profileChangesRequested && (
+        {/* ── STICKY BANNER — nur AUSSERHALB der Übersicht ──
+            Auf der Übersicht steht dieselbe Aufgabe ausführlich in „Noch zu
+            erledigen" (mit Grund und Knopf). Beides gleichzeitig war dieselbe
+            Aufforderung in zwei Tonlagen — einmal drängend, einmal sachlich.
+            Auf allen anderen Seiten bleibt der Balken die Erinnerung. */}
+        {statusLoaded && section !== "overview" && serverDocStatus.profileChangesRequested && (
           <div className="db-banner shrink-0 flex items-center gap-3 px-4 sm:px-6 py-3 bg-amber-500 text-white z-10 relative">
             <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0 animate-pulse">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -536,15 +554,15 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── PROFIL UNVOLLSTÄNDIG BANNER ── */}
-        {statusLoaded && !serverDocStatus.profileCompletedAt && !serverDocStatus.profileChangesRequested && (
+        {/* ── PROFIL UNVOLLSTÄNDIG BANNER (außerhalb der Übersicht) ── */}
+        {statusLoaded && section !== "overview" && !serverDocStatus.profileCompletedAt && !serverDocStatus.profileChangesRequested && (
           <div className="db-banner shrink-0 flex items-center gap-3 px-4 sm:px-6 py-3 bg-[#1d4ed8] text-white z-10 relative">
             <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
             </div>
             <div className="flex-1 min-w-0">
               <span className="text-[12px] font-bold">Profil unvollständig: </span>
-              <span className="text-[12px]">Reisepass, Ausgaben & weitere Angaben für die Freischaltung deines Zugangs erforderlich.</span>
+              <span className="text-[12px]">Reisepass, Ausgaben und weitere Angaben sind für die Freischaltung Ihres Zugangs erforderlich.</span>
             </div>
             <button onClick={() => setSection("account")} className="shrink-0 text-[11px] font-bold bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-lg whitespace-nowrap">
               Jetzt ausfüllen →
@@ -552,8 +570,8 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── ADMIN-NACHRICHT STICKY BANNER ── */}
-        {serverDocStatus.kycStatus === 'changes_requested' && serverDocStatus.adminNote && (
+        {/* ── ADMIN-NACHRICHT STICKY BANNER (außerhalb der Übersicht) ── */}
+        {section !== "overview" && serverDocStatus.kycStatus === 'changes_requested' && serverDocStatus.adminNote && (
           <div className="db-banner shrink-0 flex items-center gap-3 px-4 sm:px-6 py-3 bg-rose-600 text-white z-10 relative">
             <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -573,7 +591,10 @@ export default function DashboardPage() {
 
         {/* ── SCROLL AREA ── */}
         <main className="flex-1 overflow-y-auto">
-          <div key={sectionKey} className="db-enter max-w-4xl mx-auto px-4 sm:px-6 py-6 pb-24 lg:pb-6">
+          {/* Auf der Übersicht darf der Inhalt breiter atmen (vorher eine
+              schmale Spalte mit toten Rändern), alle anderen Bereiche behalten
+              ihre Lesebreite. */}
+          <div key={sectionKey} className={`db-enter mx-auto px-4 sm:px-6 py-6 pb-24 lg:pb-6 ${section === "overview" ? "max-w-4xl xl:max-w-6xl" : "max-w-4xl"}`}>
 
             {/* ════════════════ FAHRPLAN (Kundenprodukt) ════════════════ */}
             {section === "roadmap" && (
@@ -586,8 +607,20 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-[11px] text-[#2563eb] font-bold uppercase tracking-[.18em] mb-1">Dashboard</p>
                   <h1 className="text-2xl sm:text-3xl font-bold fiaon-gradient-text-animated tracking-tight">{greeting}, {user.firstName || "—"}.</h1>
-                  <p className="text-[13px] text-slate-500 mt-1">Willkommen in deinem FIAON-Bereich.</p>
+                  <p className="text-[13px] text-slate-500 mt-1">Willkommen in Ihrem FIAON-Bereich.</p>
                 </div>
+
+                {/* ── DER BONITÄTS-CHECK — stärkstes Element der Seite ──
+                    Steht bewusst VOR den Kennzahlen und der Karte: Er ist das
+                    Herzstück des Angebots und muss auf 380 px ohne Scrollen mit
+                    seinem Knopf sichtbar sein. Der Kauf läuft über den
+                    bestehenden Bestellweg (Modal), nichts an der Zahlung ist neu. */}
+                <BonitaetsCheck
+                  status={bonitaet}
+                  loading={bonitaetLaedt}
+                  onKaufen={() => setSchufaModal(true)}
+                  onFahrplan={() => setSection("roadmap")}
+                />
 
                 {/* ── PREMIUM STATS GRID ── */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -695,137 +728,34 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Admin-Nachricht Banner — Änderung angefordert */}
-                {serverDocStatus.kycStatus === 'changes_requested' && serverDocStatus.adminNote && (
-                  <button onClick={() => setSection("documents")} className="w-full flex items-start gap-4 p-4 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100/80 transition-colors text-left group">
-                    <div className="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center shrink-0 mt-0.5">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                {/* ── PRODUKT und VERWALTUNG, sichtbar getrennt ──
+                    Vorher standen hier zwei Hinweis-Banner UND eine gemischte
+                    Vierer-Liste („1 von 4 erledigt"), in der die Bonitätsauskunft
+                    zwischen Ausweis-Upload und Prüfung verschwand. Jetzt:
+                      „Ihr Weg"          — die Produktreise, motivierend.
+                      „Noch zu erledigen" — Verwaltung, kompakt, mit Grund.
+                    Jede Aufgabe erscheint nur an EINER Stelle. */}
+                {statusLoaded && (
+                  <div className="grid gap-6 xl:grid-cols-2 xl:items-start">
+                    <IhrWeg status={bonitaet} />
+                    <NochZuErledigen
+                      stand={{
+                        docsOk,
+                        kycStatus: serverDocStatus.kycStatus,
+                        accountStatus: serverDocStatus.accountStatus,
+                        profileCompletedAt: serverDocStatus.profileCompletedAt,
+                        profileChangesRequested: serverDocStatus.profileChangesRequested,
+                        adminNote: serverDocStatus.adminNote,
+                        adminProfileNote: serverDocStatus.adminProfileNote,
+                      }}
+                      onUnterlagen={() => setSection("documents")}
+                      onKonto={() => setSection("account")}
+                    />
+                    <div className="xl:col-span-2">
+                      <FahrplanVorschau status={bonitaet} onFahrplan={() => setSection("roadmap")} />
                     </div>
-                    <div className="flex-1">
-                      <div className="text-[13px] font-bold text-rose-800">Nachricht von FIAON: Dokument-Änderung erforderlich</div>
-                      <div className="text-[12px] text-rose-700 mt-1 leading-relaxed">„{serverDocStatus.adminNote}"</div>
-                      <div className="text-[11px] text-rose-500 mt-1.5 font-semibold">→ Dokumente neu hochladen</div>
-                    </div>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2.5" strokeLinecap="round" className="group-hover:translate-x-1 transition-transform shrink-0 mt-1"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                  </button>
+                  </div>
                 )}
-
-                {/* Action banner if docs missing */}
-                {!docsOk && serverDocStatus.kycStatus !== 'changes_requested' && (
-                  <button onClick={() => setSection("documents")} className="w-full flex items-center gap-4 p-4 rounded-2xl border border-amber-200 bg-amber-50 hover:bg-amber-100/80 transition-colors text-left group">
-                    <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-[13px] font-bold text-amber-800">Aktion erforderlich: Dokumente hochladen</div>
-                      <div className="text-[11px] text-amber-600 mt-0.5">Kontoauszüge & Identitätsnachweis ausstehend — hier klicken</div>
-                    </div>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" className="group-hover:translate-x-1 transition-transform"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                  </button>
-                )}
-
-                {/* ── Freischaltung Tracker ── */}
-                {(() => {
-                  const docsDone = docsOk && serverDocStatus.kycStatus !== 'changes_requested' && serverDocStatus.hasSchufa;
-                  const profileDone = !!serverDocStatus.profileCompletedAt && !serverDocStatus.profileChangesRequested;
-                  const kycDone = serverDocStatus.kycStatus === 'approved';
-                  const accountDone = serverDocStatus.accountStatus === 'active';
-                  if (docsDone && profileDone && kycDone && accountDone) return null;
-
-                  const steps = [
-                    {
-                      n: 1, done: true, urgent: false, locked: false,
-                      label: 'Antrag eingereicht',
-                      detail: 'Ihr Antrag wurde erfolgreich übermittelt.',
-                      action: null as null | (() => void), cta: null as null | string,
-                    },
-                    {
-                      n: 2, done: docsDone, urgent: serverDocStatus.kycStatus === 'changes_requested', locked: false,
-                      label: serverDocStatus.kycStatus === 'changes_requested' ? 'Dokumente erneut einreichen' : docsDone ? 'Alle Unterlagen vorhanden' : 'Unterlagen einreichen',
-                      detail: serverDocStatus.kycStatus === 'changes_requested'
-                        ? (serverDocStatus.adminNote ? `FIAON: „${serverDocStatus.adminNote}"` : 'FIAON hat neue Dokumente angefordert.')
-                        : docsDone ? 'Kontoauszug, Lichtbildausweis und SCHUFA-Nachweis liegen vor.'
-                        : [!docsOk && 'Kontoauszug & Ausweis fehlen', docsOk && !serverDocStatus.hasSchufa && 'SCHUFA-Nachweis fehlt noch'].filter(Boolean).join(' · ') || 'Unterlagen ausstehend.',
-                      action: () => setSection('documents'), cta: serverDocStatus.kycStatus === 'changes_requested' ? 'Jetzt hochladen' : 'Zu den Unterlagen',
-                    },
-                    {
-                      n: 3, done: profileDone, urgent: serverDocStatus.profileChangesRequested, locked: false,
-                      label: serverDocStatus.profileChangesRequested ? 'Rückfrage beantworten' : profileDone ? 'Profil vollständig' : 'Profil vervollständigen',
-                      detail: serverDocStatus.profileChangesRequested
-                        ? (serverDocStatus.adminProfileNote ? `FIAON: „${serverDocStatus.adminProfileNote}"` : 'FIAON hat eine Rückfrage zu Ihren Profilangaben.')
-                        : profileDone ? 'Alle Pflichtangaben wurden gespeichert.'
-                        : 'Reisepass-Daten, monatliche Ausgaben und weitere Angaben sind noch ausstehend.',
-                      action: () => setSection('account'), cta: serverDocStatus.profileChangesRequested ? 'Jetzt beantworten' : 'Profil ausfüllen',
-                    },
-                    {
-                      n: 4, done: kycDone || accountDone, urgent: false, locked: !docsDone || !profileDone,
-                      label: accountDone ? 'Zugang freigeschaltet' : kycDone ? 'Zugang wird freigeschaltet' : 'Prüfung & Freischaltung',
-                      detail: accountDone ? 'Ihr FIAON-Zugang ist vollständig freigeschaltet.'
-                        : kycDone ? 'Ihre Unterlagen wurden geprüft — Aktivierung folgt.'
-                        : 'FIAON prüft Ihre Dokumente und Profilangaben nach vollständiger Einreichung.',
-                      action: null, cta: null,
-                    },
-                  ];
-                  const doneCount = steps.filter(s => s.done).length;
-                  return (
-                    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #e2e8f0', background: '#fff' }}>
-                      <div className="px-5 pt-5 pb-4 flex items-center justify-between" style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-400 mb-0.5">Freischaltung</p>
-                          <h3 className="text-[15px] font-bold text-slate-900 tracking-tight">Ihre nächsten Schritte</h3>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[11px] font-bold text-slate-500">{doneCount} <span className="font-normal text-slate-300">von</span> {steps.length}</p>
-                          <div className="flex gap-1 mt-1.5">
-                            {steps.map((s, i) => (
-                              <div key={i} className={`h-1 w-7 rounded-full ${s.done ? 'bg-emerald-500' : s.urgent ? 'bg-amber-400' : 'bg-slate-100'}`} />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        {steps.map((step, i) => {
-                          const isActionable = !step.done && !step.locked && step.action;
-                          return (
-                            <div key={i}
-                              className={`px-5 py-4 flex items-start gap-4 ${i < steps.length - 1 ? 'border-b border-slate-50' : ''} ${step.urgent ? 'bg-amber-50' : isActionable && !step.urgent ? 'bg-blue-50/40' : ''}`}
-                              style={isActionable ? { cursor: 'pointer' } : {}}
-                              onClick={isActionable ? step.action! : undefined}
-                            >
-                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${step.done ? 'bg-emerald-500' : step.urgent ? 'bg-amber-500' : step.locked ? 'bg-slate-100' : 'bg-[#2563eb]'}`}>
-                                {step.done
-                                  ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                                  : step.urgent
-                                    ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="8" x2="12" y2="13"/><circle cx="12" cy="17" r="1" fill="white"/></svg>
-                                    : step.locked
-                                      ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                                      : <span className="text-white text-[11px] font-bold">{step.n}</span>}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className={`text-[13px] font-bold leading-tight ${step.done ? 'text-slate-400' : step.urgent ? 'text-amber-900' : step.locked ? 'text-slate-300' : 'text-slate-800'}`}>{step.label}</p>
-                                <p className={`text-[12px] mt-0.5 leading-relaxed ${step.urgent ? 'text-amber-700' : step.done ? 'text-slate-300' : step.locked ? 'text-slate-300' : 'text-slate-500'}`}>{step.detail}</p>
-                                {isActionable && !step.urgent && (
-                                  <div className="inline-flex items-center gap-1.5 mt-2 text-[12px] font-bold text-[#2563eb]">
-                                    {step.cta}
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                                  </div>
-                                )}
-                              </div>
-                              {step.urgent && step.action && (
-                                <button
-                                  onClick={e => { e.stopPropagation(); step.action!(); }}
-                                  className="shrink-0 text-[11px] font-bold px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white transition-colors whitespace-nowrap"
-                                >
-                                  {step.cta}
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
               </div>
             )}
 
@@ -1442,11 +1372,39 @@ export default function DashboardPage() {
                     </div>
                     {serverDocStatus.hasSchufa
                       ? <span className="text-[11px] font-bold text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full">Hochgeladen ✓</span>
-                      : <span className="text-[11px] font-bold text-amber-600 bg-amber-100 px-3 py-1 rounded-full">Ausstehend</span>
+                      : bonitaet?.zustand === "bezahlt"
+                        ? <span className="text-[11px] font-bold text-[#2563eb] bg-blue-50 px-3 py-1 rounded-full">Wird beschafft</span>
+                        : bonitaet?.zustand === "zahlung_offen"
+                          ? <span className="text-[11px] font-bold text-[#2563eb] bg-blue-50 px-3 py-1 rounded-full">Bestellt</span>
+                          : <span className="text-[11px] font-bold text-amber-600 bg-amber-100 px-3 py-1 rounded-full">Ausstehend</span>
                     }
                   </div>
 
                   <div className="px-5 py-5 space-y-5">
+                    {/* Wer bei FIAON gekauft hat, wird hier NICHT mehr zum
+                        Hochladen gedrängt — er erfährt seinen echten Stand.
+                        Reine Anzeige; die Freischaltungslogik ist unverändert
+                        (siehe SYSTEM_DIAGNOSE.md, Abschnitt B3). */}
+                    {!serverDocStatus.hasSchufa && (bonitaet?.zustand === "bezahlt" || bonitaet?.zustand === "zahlung_offen") && (
+                      <div className="rounded-xl px-4 py-3.5" style={{ background: "rgba(37,99,235,.06)", border: "1px solid rgba(37,99,235,.18)" }}>
+                        <p className="text-[12.5px] font-bold text-slate-800 leading-snug">
+                          {bonitaet?.zustand === "bezahlt"
+                            ? "Sie haben Ihre Auskunft bei FIAON bestellt und bezahlt."
+                            : "Sie haben Ihre Auskunft bei FIAON bestellt."}
+                        </p>
+                        <p className="text-[12px] text-slate-600 leading-relaxed mt-1">
+                          {bonitaet?.zustand === "bezahlt"
+                            ? "Wir beschaffen sie und melden uns per E-Mail. Sie müssen hier nichts hochladen — die Angaben unten gelten nur, wenn Sie die Auskunft selbst anfordern."
+                            : "Sobald Ihre Zahlung eingeht, beschaffen wir die Auskunft für Sie."}
+                        </p>
+                        {bonitaet?.zustand === "zahlung_offen" && bonitaet?.bestellung?.paymentReference && (
+                          <a href={`/zahlung/${bonitaet.bestellung.paymentReference}`} className="inline-flex items-center gap-1.5 text-[12px] font-bold mt-2" style={{ color: "#2563eb" }}>
+                            Zahlung abschließen
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                          </a>
+                        )}
+                      </div>
+                    )}
                     {serverDocStatus.hasSchufa ? (
                       <div className="flex items-center gap-3 py-1">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -1455,7 +1413,7 @@ export default function DashboardPage() {
                     ) : (
                       <>
                         <p className="text-[12px] text-slate-500 leading-relaxed">
-                          Für die Freischaltung deines Zugangs benötigen wir ab sofort auch eine <strong className="text-slate-800">SCHUFA-Auskunft</strong>. Sie haben zwei Möglichkeiten:
+                          Für die Freischaltung Ihres Zugangs benötigen wir auch Ihre <strong className="text-slate-800">Bonitätsauskunft</strong>. Sie haben zwei Möglichkeiten:
                         </p>
 
                         {/* Option A: FIAON kaufen */}

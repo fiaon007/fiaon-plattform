@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { PageIntro } from "@/components/admin/PageHelp";
 import {
-  Sparkles, MessageSquarePlus, Target, HandCoins, Eye, EyeOff,
+  Sparkles, MessageSquarePlus, HandCoins, Eye, EyeOff,
   Trash2, Image as ImageIcon, ChevronDown, Save, Copy, Check,
   Send, Link2, CircleDot,
 } from "lucide-react";
 
 // ============================================================================
-// /admin/agent-portal — Pflegebereich fürs Agent-Portal (Pakete AM3/AN2/AG1):
+// /admin/agent-portal — Pflegebereich fürs Agent-Portal (Pakete AM3/AN2):
 // 1. Agent-Updates: posten ohne Deploy (Entwurf/veröffentlichen) → Banner
 // 2. Agent-Feedback: Tickets prüfen, kommentieren, mit EINMALIGER
 //    Provisions-Gutschrift (feedback_bonus) honorieren
-// 3. Tagesziele: Provisions-/Kontaktziel pro Agent (Ziel-Ring im Dashboard)
+// Die Tagesziele (Provisions-/Kontaktziel pro Agent) sind am 28.07.2026
+// entfallen — die Startseite der Agenten zeigt keine Ziel-Ringe mehr.
 // Läuft in der AdminShell; Agent-Tokens werden serverseitig mit 403 geblockt.
 // ============================================================================
 
@@ -56,7 +57,6 @@ interface FeedbackRow {
   duplicate_of: number | null; awaiting_reply: boolean; messages: ThreadMessage[];
   created_at: string;
 }
-interface GoalRow { id: number; name: string; email: string; daily_goal_cents: number | null; daily_contacts_goal: number | null }
 
 const CATEGORY_LABELS: Record<string, string> = {
   verbesserung: "Verbesserung", bug: "Bug", idee: "Idee", sonstiges: "Sonstiges",
@@ -79,11 +79,10 @@ export default function AdminAgentPortalPage() {
       <PageIntro
         id="agent-portal"
         title="Agent-Updates & Feedback"
-        subtitle="Hier informierst du dein Team (Updates), prüfst und belohnst Feedback und setzt Tagesziele."
+        subtitle="Hier informierst du dein Team (Updates) und prüfst und belohnst Feedback."
         steps={[
           "„Updates“: Veröffentlichte Einträge erscheinen als Banner im Agent-Portal, bis jeder Agent sie gelesen hat. Entwürfe sieht niemand.",
           "„Feedback“: Jedes Ticket ist ein Gespräch (Thread). Antworte direkt im Verlauf — der Agent bekommt eine Mail und antwortet im selben Ticket (kein neues Ticket). Der Zähler oben zeigt nur Tickets, die auf DEINE Antwort warten. Status setzen, Duplikate verknüpfen („gehört zu #11“) und optional eine einmalige Prämie gutschreiben (landet im Provisions-Guthaben).",
-          "„Tagesziele“: Die Zielwerte, die Agenten auf „Mein Tag“ sehen.",
         ]}
       />
       {message && (
@@ -91,7 +90,6 @@ export default function AdminAgentPortalPage() {
       )}
       <UpdatesSection flash={flash} />
       <div id="feedback" className="scroll-mt-20"><FeedbackSection flash={flash} /></div>
-      <GoalsSection flash={flash} />
     </div>
   );
 }
@@ -462,89 +460,5 @@ function AdminThread({ messages, agentName }: { messages: ThreadMessage[]; agent
         );
       })}
     </div>
-  );
-}
-
-// ═══════════════ 3. Tagesziele pro Agent (AG1) ═══════════════
-
-function GoalsSection({ flash }: { flash: (m: string) => void }) {
-  const [rows, setRows] = useState<GoalRow[]>([]);
-  const [defaults, setDefaults] = useState({ dailyGoalCents: 3000, dailyContactsGoal: 15 });
-  const [edits, setEdits] = useState<Record<number, { goal: string; contacts: string }>>({});
-  const [busy, setBusy] = useState<number | null>(null);
-
-  const load = useCallback(() => {
-    api("/admin/agent-daily-goals").then((r) => {
-      if (r.ok) {
-        setRows(r.json.data);
-        setDefaults(r.json.defaults);
-        const e: Record<number, { goal: string; contacts: string }> = {};
-        for (const a of r.json.data) {
-          e[a.id] = {
-            goal: a.daily_goal_cents != null ? String(a.daily_goal_cents / 100) : "",
-            contacts: a.daily_contacts_goal != null ? String(a.daily_contacts_goal) : "",
-          };
-        }
-        setEdits(e);
-      }
-    });
-  }, []);
-  useEffect(load, [load]);
-
-  const save = async (a: GoalRow) => {
-    const e = edits[a.id];
-    const goalEur = e.goal.trim() === "" ? null : Number(e.goal.replace(",", "."));
-    if (goalEur !== null && (isNaN(goalEur) || goalEur < 0)) { flash("Tagesziel ungültig"); return; }
-    const contacts = e.contacts.trim() === "" ? null : Math.round(Number(e.contacts));
-    if (contacts !== null && (isNaN(contacts) || contacts < 0)) { flash("Kontaktziel ungültig"); return; }
-    setBusy(a.id);
-    const r = await api(`/admin/agents/${a.id}/daily-goals`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        dailyGoalCents: goalEur === null ? "" : Math.round(goalEur * 100),
-        dailyContactsGoal: contacts === null ? "" : contacts,
-      }),
-    });
-    setBusy(null);
-    if (r.ok) { flash(`Tagesziele für ${a.name} gespeichert.`); load(); }
-    else flash(r.json?.error || "Fehler");
-  };
-
-  return (
-    <section className="mb-8">
-      <h2 className="text-[13px] font-bold text-slate-900 mb-1 flex items-center gap-2">
-        <Target size={15} strokeWidth={1.8} className="text-slate-400" /> Tagesziele (Ziel-Ring im Dashboard)
-      </h2>
-      <p className="text-[11.5px] text-slate-400 mb-3">
-        Leer = Standard ({fmtCents(defaults.dailyGoalCents)} Provision · {defaults.dailyContactsGoal} Kontakte pro Tag).
-      </p>
-      <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-50">
-        {rows.length === 0 && <p className="px-4 py-8 text-center text-[12px] text-slate-400">Keine aktiven Agents.</p>}
-        {rows.map((a) => (
-          <div key={a.id} className="px-4 py-3 flex flex-wrap items-center gap-3">
-            <div className="min-w-0 flex-1" style={{ minWidth: 160 }}>
-              <p className="text-[13px] font-semibold text-slate-900 truncate">{a.name}</p>
-              <p className="text-[11px] text-slate-400 truncate">{a.email}</p>
-            </div>
-            <div className="relative">
-              <input type="number" min="0" step="5" value={edits[a.id]?.goal ?? ""} placeholder={String(defaults.dailyGoalCents / 100)}
-                onChange={(e) => setEdits((x) => ({ ...x, [a.id]: { ...x[a.id], goal: e.target.value } }))}
-                className={inputCls} style={{ width: 120 }} />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 pointer-events-none">€/Tag</span>
-            </div>
-            <div className="relative">
-              <input type="number" min="0" step="1" value={edits[a.id]?.contacts ?? ""} placeholder={String(defaults.dailyContactsGoal)}
-                onChange={(e) => setEdits((x) => ({ ...x, [a.id]: { ...x[a.id], contacts: e.target.value } }))}
-                className={inputCls} style={{ width: 130 }} />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 pointer-events-none">Kontakte</span>
-            </div>
-            <button type="button" disabled={busy === a.id} onClick={(e) => { e.stopPropagation(); save(a); }}
-              className={`${btnGhost} inline-flex items-center gap-1.5`}>
-              <Save size={13} strokeWidth={1.8} /> {busy === a.id ? "…" : "Speichern"}
-            </button>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }

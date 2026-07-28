@@ -237,7 +237,7 @@ export default function AdminHubPage() {
         { href: "/admin/leistung", label: "Leistung", desc: "Arbeitsberichte pro Agent: Kontakte, Abschlüsse, Reaktionszeit — mit KI-Analyse.", icon: BarChart3 },
         { href: "/admin/team?einladen=1", label: "Agent anlegen", desc: "Neuen Mitarbeiter per E-Mail-Einladung anlegen (Link 48 h gültig).", icon: UserPlus },
         { href: "/admin/team#skripte", label: "Skripte & Leitfäden", desc: "Gesprächsvorlagen für das Telefon-Team pflegen und sortieren.", icon: BookOpen },
-        { href: "/admin/agent-portal", label: "Agent-Updates & Feedback", desc: "Portal-Updates posten, Tagesziele pflegen, Feedback prüfen und belohnen.", icon: Sparkles },
+        { href: "/admin/agent-portal", label: "Agent-Updates & Feedback", desc: "Portal-Updates posten, Feedback prüfen und belohnen.", icon: Sparkles },
       ],
     },
     {

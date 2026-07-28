@@ -173,55 +173,6 @@ export function LiveCount({
 }
 
 /**
- * GoalRing (AG1): ruhiger Doppel-Ring — außen Provisions-Tagesziel (Akzent),
- * innen Aktivitäts-Fortschritt (Slate). Reines SVG, CLS=0, weiche Transition
- * über .agent-ring-arc (bei reduced-motion ohne Transition).
- */
-export function GoalRing({
-  size = 132,
-  moneyPct,
-  activityPct,
-  centerTop,
-  centerBottom,
-}: {
-  size?: number;
-  moneyPct: number;      // 0–100
-  activityPct: number;   // 0–100
-  centerTop: string;
-  centerBottom: string;
-}) {
-  const outerR = size / 2 - 7;
-  const innerR = outerR - 11;
-  const outerC = 2 * Math.PI * outerR;
-  const innerC = 2 * Math.PI * innerR;
-  const mp = Math.max(0, Math.min(100, moneyPct));
-  const ap = Math.max(0, Math.min(100, activityPct));
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }} role="img"
-      aria-label={`Tagesziel Provision ${Math.round(mp)} %, Aktivität ${Math.round(ap)} %`}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={outerR} fill="none" stroke="#e2e8f0" strokeWidth="6" />
-        <circle
-          cx={size / 2} cy={size / 2} r={outerR} fill="none" stroke={ACCENT} strokeWidth="6"
-          strokeLinecap="round" strokeDasharray={outerC} strokeDashoffset={outerC * (1 - mp / 100)}
-          className="agent-ring-arc"
-        />
-        <circle cx={size / 2} cy={size / 2} r={innerR} fill="none" stroke="#eef2f7" strokeWidth="5" />
-        <circle
-          cx={size / 2} cy={size / 2} r={innerR} fill="none" stroke="#64748b" strokeWidth="5"
-          strokeLinecap="round" strokeDasharray={innerC} strokeDashoffset={innerC * (1 - ap / 100)}
-          className="agent-ring-arc"
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-3">
-        <span className="text-[15px] font-bold tracking-tight text-slate-900 tabular-nums leading-tight">{centerTop}</span>
-        <span className="text-[9.5px] font-semibold uppercase tracking-wide text-slate-400 mt-0.5 leading-tight">{centerBottom}</span>
-      </div>
-    </div>
-  );
-}
-
-/**
  * Cinematischer Voll-Bildschirm-Rahmen für alle Auth-Seiten (Login, Setup,
  * Reset, Token-abgelaufen). Ruhiger heller CI-Hintergrund, ein Signature-Core
  * + zwei dezente Ambient-Orbs, schwebendes Glas-Panel. Mobile-first.

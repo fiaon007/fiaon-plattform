@@ -1,12 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════
 // FIAON Agent-Portal — Motivations-Update (Pakete AG/AH/AJ/AK/AM/AN/AO)
-// - GET /agent/dashboard   „Mein Tag": Heute/Woche-Verdienst, Tagesziele,
-//                          Abschlüsse, Partner-Fortschritt (echte Werte)
-// - GET /agent/feed        Aktivitäts-Feed: NUR echte Ereignisse (eigene
-//                          Abschlüsse, anonymisierte Team-Abschlüsse,
-//                          Meilensteine) + klar gekennzeichnete Benchmark-
-//                          Impulse aus echten Systemdaten. KEINE fiktiven
-//                          Agenten (Begründung: AGENT_REVAMP_AUDIT.md §5).
+// - GET /agent/dashboard   Verdienst-Zahlen: Heute/Woche/Monat, Abschlüsse,
+//                          Partner-Fortschritt (echte Werte). Speist
+//                          /agent/verdienst und den Kontostand-Untertitel
+//                          der Startseite. Tagesziele sind am 28.07.2026
+//                          entfallen (keine Ziel-Ringe mehr).
+// - GET /agent/feed        Aktivitäts-Feed: unverändert vorhanden, seit dem
+//                          28.07.2026 im Portal aber OHNE Aufrufer (die
+//                          Startseite zeigt keinen Feed mehr).
 // - /agent/wunschgehalt    Wunschgehalt-Simulator — rechnet SERVERSEITIG mit
 //                          echtem Satz + Partnerstatus-Zuschlag, gestaffelt
 //                          über Meilenstein-Schwellen. Erzeugt NIE Einträge.
@@ -15,8 +16,7 @@
 //                          Provisions-Gutschrift kind='feedback_bonus' danken
 //                          (fließt ins normale Guthaben, voll auditiert)
 // - /agent/first-steps     Erste-Schritte-Checkliste für neue Agents
-// - Admin-Pflege: /admin/agent-updates, /admin/agent-feedback,
-//                 /admin/agents/:id/daily-goals
+// - Admin-Pflege: /admin/agent-updates, /admin/agent-feedback
 // Regeln: Geld nur Integer-Cents, bestehende Engine wiederverwenden,
 // blockAgentsFromAdmin (routes.ts) schützt die /admin-Routen serverseitig.
 // ═══════════════════════════════════════════════════════════════════
@@ -116,21 +116,17 @@ async function ensurePortalTables(): Promise<void> {
         WHERE m.feedback_id = f.id AND m.author = 'admin'
       )
   `;
-  // AG/AK/AO: Ziel- und Onboarding-Felder am Agent
+  // AK/AO: Wunschgehalt- und Onboarding-Felder am Agent.
+  // Tagesziele (daily_goal_cents / daily_contacts_goal) sind am 28.07.2026
+  // entfallen — siehe CHANGELOG samt Aufräum-SQL für Bestandsdatenbanken.
   await sqlPool.unsafe(`
     ALTER TABLE fiaon_agents
       ADD COLUMN IF NOT EXISTS desired_salary_cents INTEGER,
-      ADD COLUMN IF NOT EXISTS daily_goal_cents INTEGER,
-      ADD COLUMN IF NOT EXISTS daily_contacts_goal INTEGER,
       ADD COLUMN IF NOT EXISTS first_steps TEXT
   `);
   portalTablesEnsured = true;
   console.log("[FIAON-AGENT-PORTAL] Update-/Feedback-/Ziel-Tabellen sichergestellt");
 }
-
-// Defaults für Tagesziele (Admin pro Agent überschreibbar)
-const DEFAULT_DAILY_GOAL_CENTS = 3000; // 30,00 €
-const DEFAULT_DAILY_CONTACTS = 15;
 
 // ═══════════════ AG — Dashboard „Mein Tag" (echte Werte, Cents) ═══════════════
 
@@ -141,7 +137,7 @@ router.get("/agent/dashboard", requireAgent, async (req: AgentRequest, res) => {
     const settings = await getSettings();
 
     const agentRows = await sqlPool`
-      SELECT commission_rate_bp, monthly_goal_cents, daily_goal_cents, daily_contacts_goal, desired_salary_cents
+      SELECT commission_rate_bp, monthly_goal_cents, desired_salary_cents
       FROM fiaon_agents WHERE id = ${me}
     `;
     const a = agentRows[0];
@@ -156,12 +152,6 @@ router.get("/agent/dashboard", requireAgent, async (req: AgentRequest, res) => {
                                              AND created_at <  date_trunc('week', NOW())), 0) AS prev_week,
         COALESCE(SUM(amount_cents) FILTER (WHERE created_at >= date_trunc('month', NOW())), 0) AS month
       FROM fiaon_commissions WHERE agent_id = ${me} AND status != 'storniert'
-    `;
-
-    // Aktivität heute: dokumentierte Kontakte (Anruf-Ergebnisse + Zahlungs-Mails)
-    const activity = await sqlPool`
-      SELECT COUNT(*)::int AS c FROM fiaon_contact_log
-      WHERE agent_id = ${me} AND type IN ('result', 'email_sent') AND voided_at IS NULL AND created_at >= date_trunc('day', NOW())
     `;
 
     // Abschlüsse (eigene, positiv, nicht storniert): Monat gesamt, heute, bester Tag
@@ -218,9 +208,6 @@ router.get("/agent/dashboard", requireAgent, async (req: AgentRequest, res) => {
       prevWeekCents: Number(sums[0].prev_week),
       monthCents: Number(sums[0].month),
       monthlyGoalCents: a.monthly_goal_cents,
-      dailyGoalCents: a.daily_goal_cents ?? DEFAULT_DAILY_GOAL_CENTS,
-      dailyContactsGoal: a.daily_contacts_goal ?? DEFAULT_DAILY_CONTACTS,
-      todayContacts: Number(activity[0].c),
       monthDeals: Number(deals[0].month_deals),
       todayDeals: Number(deals[0].today_deals),
       bestDayDeals: Number(bestDay[0].best),
@@ -1171,54 +1158,9 @@ router.post("/admin/agent-feedback/:id/reward", async (req, res) => {
   }
 });
 
-// ═══════════════ ADMIN — Tagesziele pro Agent (AG1) ═══════════════
-
-router.get("/admin/agent-daily-goals", async (_req, res) => {
-  try {
-    await ensurePortalTables();
-    const rows = await sqlPool`
-      SELECT id, name, email, daily_goal_cents, daily_contacts_goal
-      FROM fiaon_agents WHERE active = TRUE ORDER BY name ASC
-    `;
-    res.json({
-      ok: true,
-      data: rows,
-      defaults: { dailyGoalCents: DEFAULT_DAILY_GOAL_CENTS, dailyContactsGoal: DEFAULT_DAILY_CONTACTS },
-    });
-  } catch (err) {
-    console.error("[FIAON-AGENT-PORTAL] daily goals list:", err);
-    res.status(500).json({ ok: false, error: "Serverfehler" });
-  }
-});
-
-router.patch("/admin/agents/:id/daily-goals", async (req, res) => {
-  try {
-    await ensurePortalTables();
-    const id = Number(req.params.id);
-    const goal = req.body?.dailyGoalCents;
-    const contacts = req.body?.dailyContactsGoal;
-    let goalCents: number | null = null;
-    if (goal != null && goal !== "") {
-      goalCents = Math.round(Number(goal));
-      if (isNaN(goalCents) || goalCents < 0 || goalCents > 10_000_000) return res.status(400).json({ ok: false, error: "Tagesziel ungültig" });
-      if (goalCents === 0) goalCents = null;
-    }
-    let contactsGoal: number | null = null;
-    if (contacts != null && contacts !== "") {
-      contactsGoal = Math.round(Number(contacts));
-      if (isNaN(contactsGoal) || contactsGoal < 0 || contactsGoal > 500) return res.status(400).json({ ok: false, error: "Kontaktziel ungültig" });
-      if (contactsGoal === 0) contactsGoal = null;
-    }
-    const rows = await sqlPool`
-      UPDATE fiaon_agents SET daily_goal_cents = ${goalCents}, daily_contacts_goal = ${contactsGoal}
-      WHERE id = ${id} RETURNING id
-    `;
-    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Agent nicht gefunden" });
-    res.json({ ok: true });
-  } catch (err) {
-    console.error("[FIAON-AGENT-PORTAL] daily goals:", err);
-    res.status(500).json({ ok: false, error: "Serverfehler" });
-  }
-});
+// Tagesziele pro Agent (GET /admin/agent-daily-goals, PATCH
+// /admin/agents/:id/daily-goals) sind am 28.07.2026 entfallen: Die Startseite
+// zeigt keine Ziel-Ringe mehr, damit hatte die Einstellung keinen Ort und
+// keine Wirkung. Steuerungsmittel bleiben Monatsziel und Provisionssatz.
 
 export default router;

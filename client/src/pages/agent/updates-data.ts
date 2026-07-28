@@ -40,6 +40,32 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-07-28-startseite",
+    date: "2026-07-28",
+    category: "Verbessert",
+    important: true,
+    title: "Neue Startseite: dein Kontostand und ein Knopf",
+    summary: "„Mein Tag“ zeigt jetzt drei Dinge: Begrüßung, deinen Kontostand — groß — und „Nächste Akte öffnen“. Sonst nichts.",
+    changes: [
+      "Der Kontostand ist der Held der Seite: dein verfügbares Guthaben, groß und ruhig, mit „Auszahlung“ direkt daneben.",
+      "Darunter steht dezent, was diese Woche und diesen Monat dazugekommen ist.",
+      "Liegt dein Guthaben unter dem Mindestbetrag, sagt die Karte das freundlich und nennt den fehlenden Betrag — statt dir einen Knopf anzubieten, der dann nicht funktioniert. Läuft eine Auszahlung, steht das dort.",
+      "Es gibt nur noch EINEN großen Knopf: „Nächste Akte öffnen“. Der zusätzliche schwebende Knopf unten ist auf der Startseite weg.",
+      "Hast du eine Akte offen, heißt der Knopf „Akte fortsetzen“ und öffnet sie direkt.",
+      "Die Begrüßung nennt jetzt, wie viele Kunden auf Betreuung warten — und, falls vorhanden, wie viele Rückrufe heute fällig sind. Ohne Namen: die stehen in deiner nächsten Akte ganz oben.",
+      "Weg sind: die Tagesziel-Ringe, der Team-Vergleich („beste Wochenleistung“), der Kollegen-Feed und die Kundenliste „Jetzt dran“. Gearbeitet wird in der Kartei — nicht auf der Startseite.",
+      "Deine Abschlüsse, das Wunschgehalt und das Partner-Programm findest du unverändert unter „Verdienst“.",
+      "„Erste Schritte“ steht jetzt unter „Mehr“.",
+      "An deinem Geld ändert sich nichts: Es sind dieselben Zahlen aus derselben Quelle wie unter „Verdienst“ und „Auszahlung“.",
+    ],
+    howto: [
+      "Öffne „Mein Tag“ — oben steht dein Kontostand.",
+      "Willst du auszahlen: „Auszahlung“ in der Kontostand-Karte antippen.",
+      "Willst du arbeiten: den großen blauen Knopf antippen — er bringt dich zur nächsten wichtigen Akte.",
+    ],
+    link: { href: "/agent", label: "Startseite ansehen" },
+  },
+  {
     id: "2026-07-27-akten-fluss",
     date: "2026-07-27",
     category: "Behoben",

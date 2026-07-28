@@ -497,7 +497,10 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
   // Ein Zaehler am Ausloeser buendelt alles, was sonst untergehen wuerde:
   // Betreiber-Antworten, ungelesene Neuerungen und drohende Rueckläufer.
   const menuBadge = fbUnread + neueUpdates + ruecklaeufer;
-  const istKarteiSeite = location.startsWith("/agent/kartei");
+  // Der schwebende Knopf entfällt dort, wo die Handlung schon auf der Seite
+  // steht: in der Kartei selbst und auf der Startseite (dort ist „Nächste Akte
+  // öffnen" die EINE grosse Primäraktion — ein zweiter Knopf wäre Konkurrenz).
+  const eigeneAktionVorhanden = location === "/agent" || location.startsWith("/agent/kartei");
 
   if (!checked) {
     return (
@@ -615,9 +618,9 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
         <main className="max-w-6xl mx-auto px-4 py-5">{children}</main>
 
         {/* Die wichtigste Handlung bleibt IMMER erreichbar — auch bei
-            geschlossenem Menue. Auf „Mein Tag" und in der Kartei selbst waere
-            der Knopf doppelt, dort entfaellt er. */}
-        {!istKarteiSeite && (
+            geschlossenem Menue. Auf der Startseite und in der Kartei selbst
+            waere der Knopf doppelt, dort entfaellt er. */}
+        {!eigeneAktionVorhanden && (
           <Link
             href="/agent/kartei"
             className="md:hidden fixed z-30 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-full pl-5 pr-4 text-[13px] font-semibold text-white shadow-[0_14px_34px_-12px_rgba(37,99,235,.75)] transition-transform duration-150 active:scale-[.97]"

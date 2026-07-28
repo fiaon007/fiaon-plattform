@@ -3,6 +3,73 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 28.07.2026 — Startseite /agent: drei Elemente, eine Handlung
+
+Die Startseite war ein Zahlenfriedhof mit konkurrierenden Elementen: Tagesziel-Ringe bei 0 %, ein Benchmark-Aushang, ein anonymer Aktivitäts-Feed, eine Arbeitsliste mit Anruf-Knöpfen, ein Partner-Balken, der Wunschgehalt-Rechner — und **zwei** „Nächste Akte"-Knöpfe. Sie ist jetzt eine reine Oberflächen-Arbeit auf drei Elemente reduziert. **Keine Geschäftslogik verändert, kein Endpunkt geändert, kein Betrag neu gerechnet.**
+
+### Was verschwunden ist (ersatzlos)
+
+| Weg | Warum |
+|---|---|
+| Tagesziel-Ringe („Provision 0,00 € / 30,00 €", „Kontakte 0 / 15") | Ein Prozentring, der morgens bei 0 % steht, sagt dem Agenten nur, dass er noch nichts geschafft hat. |
+| Benchmark-Block („Beste Wochenleistung im Team", „Dein bester Tag") | Wirkte wie ein Aushang, motivierte nachweislich niemanden. |
+| Aktivitäts-Feed („Ein Kollege aus dem Vertrieb hat gerade …") | Repetitiv und anonym — ohne Wert. |
+| Arbeitsliste „Jetzt dran" samt Anruf-Knöpfen | Gearbeitet wird in der Kartei, nicht auf der Startseite. |
+| „Meine Abschlüsse", Partner-Teaser, Wunschgehalt-Rechner | Stehen unverändert auf `/agent/verdienst` bzw. `/agent/partner-programm`. |
+| Schwebender Zweit-Knopf „Nächste Akte" (mobil) | Er entfällt jetzt auch auf der Startseite, nicht nur in der Kartei — genau **eine** Primäraktion. |
+
+`FeedPanel` (client) und `GoalRing` wurden gelöscht, nicht nur ausgehängt. Der Server-Endpunkt `/agent/feed` bleibt unberührt (keine Logik-Änderung), hat im Portal aber keinen Aufrufer mehr. **„Erste Schritte" wurde nicht gelöscht, sondern nach `/agent/mehr` verschoben** — die Einstiegshilfe für neue Agents darf nicht verschwinden, nur weil die Startseite aufräumt.
+
+### Was bleibt
+
+1. **Begrüßung** — tageszeitabhängig nach **deutscher** Zeit (`Europe/Berlin`, nicht mehr der Uhr des Betrachters): „Guten Morgen, Justin — aktuell warten 786 Kunden auf Betreuung." Menschliche Sprache: Kunden, die auf Betreuung warten, keine „freien Karten". Fällige Rückrufe erscheinen als dezente Zahl **ohne Namen** („3 Rückrufe sind heute fällig — sie stehen in deiner nächsten Akte ganz oben").
+2. **Kontostand** — die dominante Zahl der Seite, Ziffern in tabellarischer Breite, zählt hoch (bestehende `LiveCount`-Komponente). Quelle ist `/agent/payouts`, also **dieselbe** wie `/agent/auszahlung` und `/agent/verdienst`. Der Zustand wird ehrlich gezeigt: läuft eine Anforderung, steht das da; fehlen Bankdaten, führt der Weg ins Profil; liegt das Guthaben unter dem Mindestbetrag, steht „Ab 50 € kannst du jederzeit auszahlen — dir fehlen noch X €" **statt** einer Schaltfläche, die scheitern würde.
+3. **Die eine Handlung** — „Nächste Akte öffnen", die visuell stärkste Fläche der Seite. Hat der Agent eine Akte offen, heißt sie „Akte fortsetzen" und öffnet über `?akte=aktiv` direkt die laufende Akte. Die Reihenfolge macht weiterhin der Server (Zahlung angekündigt → fällige Rückrufe → offene Anträge → Leads).
+
+### Design: Tiefe statt Effektmenge
+
+Drei Elevations-Ebenen (`.agent-aura` → `.agent-raise` → `.agent-cta`): Hintergrund liegt tief, die Kontostand-Karte schwebt, die Primäraktion liegt am höchsten — mehrschichtige weiche Schatten statt harter Linien. Dazu ein sehr langsam wandernder Lichtschimmer (28 s), gestaffelte Einblendung (70 ms Versatz) und ein feiner Lichtreflex auf der Primäraktion beim Berühren. **Animiert werden ausschließlich `transform` und `opacity`** — keine Layout-Eigenschaft, keine 3D-Bibliothek, kein Bild, kein Video.
+
+### Gemessen, nicht behauptet
+
+Neues Werkzeug `scripts/startseite-tempo.mjs` (Playwright, **4-fache CPU-Bremse** = Mittelklasse-Gerät, API im Browser abgefangen, 60 s Gesamtabbruch):
+
+| Messpunkt | Ergebnis |
+|---|---|
+| Bildrate beim Laden | **83–91 Bilder/s** über vier Läufe (Ziel ≥ 50) |
+| Bildrate beim Scrollen | **120 Bilder/s** |
+| 380 px: Begrüßung + Kontostand + Primäraktion ohne Scrollen | unterste Kante bei **598 px** von 780 px — inklusive Update-Banner |
+| Primäraktion als Touch-Ziel | **96 px** hoch |
+| Primäraktionen auf der Seite | **1** · schwebende Zweit-Knöpfe: **0** |
+| `prefers-reduced-motion` | Schimmer `none`, keine Einblendung, kein Eindrücken — Seite voll nutzbar |
+| Desktop 1280 px | unterste Kante bei **611 px** von 900 px |
+
+Ausführen: `npx vite build && npx vite preview --port 4173`, dann `node scripts/startseite-tempo.mjs`.
+
+**Bundle (Produktions-Build, vorher → nachher):** Haupt-Chunk **1.618,19 kB → 1.607,44 kB** (gzip **421,26 → 418,35 kB**), CSS **254,65 → 255,99 kB** (+1,34 kB für die drei neuen Klassen, die Ziel-Ring-Regel ist entfallen). Netto **−9,4 kB** ausgeliefertes Gewicht — der neue Agenten-Changelog-Eintrag ist darin schon enthalten. Die Startseite ruft jetzt 4 Endpunkte statt 7 auf.
+
+**Prüfungen:** `kartei-verify.ts` **6/6** (frei = 786 — dieselbe Zahl, die die Begrüßung nennt) · `event-inventar.ts --check` **25/25** · `startseite-tempo.mjs` **8/8**.
+
+### Tagesziele: ganz entfernt (Entscheidung des Betreibers)
+
+Mit den Ziel-Ringen ist auch die Einstellung dahinter weg — eine Zahl, die niemand mehr sieht, ist kein Steuerungsmittel, sondern Ballast:
+
+- **Admin:** Der Abschnitt „Tagesziele (Ziel-Ring im Dashboard)" auf `/admin/agent-portal` ist entfernt, ebenso die Erwähnung in Seitenkopf, Hilfetext, Seitenmenü und Hub-Kachel.
+- **Server:** `GET /admin/agent-daily-goals` und `PATCH /admin/agents/:id/daily-goals` sind gelöscht. `GET /agent/dashboard` liefert `dailyGoalCents`, `dailyContactsGoal` und `todayContacts` nicht mehr — die dafür nötige Abfrage auf `fiaon_contact_log` entfällt, das Dashboard braucht jetzt **eine Datenbank-Abfrage weniger**. Die Konstanten `DEFAULT_DAILY_GOAL_CENTS` / `DEFAULT_DAILY_CONTACTS` sind weg.
+- **Schema:** Der Bootstrap legt `daily_goal_cents` / `daily_contacts_goal` nicht mehr an. Monatsziel (`monthly_goal_cents`) und Provisionssatz bleiben unangetastet — sie sind weiterhin im Team-Bereich pflegbar und werden weiterhin angezeigt.
+
+**Nicht automatisch ausgeführt:** In Bestandsdatenbanken stehen die beiden Spalten noch. Das Löschen von Spalten ist unumkehrbar und gehört in die Hand des Betreibers:
+
+```sql
+ALTER TABLE fiaon_agents
+  DROP COLUMN IF EXISTS daily_goal_cents,
+  DROP COLUMN IF EXISTS daily_contacts_goal;
+```
+
+Ohne diesen Schritt funktioniert alles unverändert — die Spalten werden nur von niemandem mehr gelesen oder geschrieben.
+
+---
+
 ## 27.07.2026 — Akten-Fluss: Die Akte gab nicht frei (Teil A/B/C)
 
 ### Teil A — Der Bug, mit echten Daten belegt

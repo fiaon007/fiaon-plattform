@@ -3,11 +3,15 @@ import { Link, useLocation } from "wouter";
 import { FileText, Sparkles, MessageSquarePlus, User, Wallet, Award, ChevronRight, LogOut, BarChart3 } from "lucide-react";
 import { AgentShell, useAgentInfo, Avatar, ACCENT } from "./shared";
 import { Reveal } from "./motion";
+import { FirstStepsPanel } from "./motivation";
 import { getUnseenCount } from "./updates-data";
 
 // ============================================================================
 // /agent/mehr (Paket AO) — alle weiteren Bereiche an einem ruhigen Ort:
 // Skripte, Updates, Feedback, Profil (+ Schnellwege Auszahlung/Partner).
+// Hier steht auch „Erste Schritte": die Startseite trägt genau drei Elemente,
+// die Einstiegshilfe für neue Agents gehört aber nicht gelöscht — sie steht
+// jetzt hier und verschwindet weiterhin von selbst, sobald sie erledigt ist.
 // ============================================================================
 
 const AREAS: { href: string; label: string; desc: string; icon: typeof FileText; badgeKey?: string }[] = [
@@ -68,6 +72,8 @@ function MehrContent() {
           </Link>
         </Reveal>
       )}
+
+      <FirstStepsPanel className="mb-4" />
 
       <div className="space-y-2.5">
         {AREAS.map((a, i) => {

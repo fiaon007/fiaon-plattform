@@ -83,7 +83,7 @@ export const ADMIN_NAV: NavGroup[] = [
       { path: "/admin/team?einladen=1", label: "Agent anlegen", desc: "Neuen Mitarbeiter per E-Mail einladen", icon: UserPlus, match: "/admin/team" },
       { path: "/admin/team#skripte", label: "Skripte & Leitfäden", desc: "Gesprächsvorlagen verwalten", icon: BookOpen, match: "/admin/team" },
       // P4-E: „Agent-Updates" + „Agent-Feedback" zeigten dieselbe Seite — zusammengelegt.
-      { path: "/admin/agent-portal", label: "Agent-Updates & Feedback", desc: "Portal-Updates posten, Tagesziele, Feedback prüfen und belohnen", icon: Sparkles, badgeKey: "feedback" },
+      { path: "/admin/agent-portal", label: "Agent-Updates & Feedback", desc: "Portal-Updates posten, Feedback prüfen und belohnen", icon: Sparkles, badgeKey: "feedback" },
     ],
   },
   {

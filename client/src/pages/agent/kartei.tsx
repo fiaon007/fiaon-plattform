@@ -110,6 +110,12 @@ function KarteiContent() {
   const [openApp, setOpenApp] = useState<string | null>(null);
   const [openLead, setOpenLead] = useState<number | null>(null);
 
+  // Von der Startseite kommend: „Akte fortsetzen" (?akte=aktiv) öffnet die
+  // laufende Akte direkt — ein Tipp, kein Suchen in der Liste.
+  const [autoAkte, setAutoAkte] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("akte") === "aktiv",
+  );
+
   // Bewusste Rückgabe einer eigenen Akte (P1-C/D)
   const [pendingRelease, setPendingRelease] = useState<KarteiCard | null>(null);
   const [releaseReason, setReleaseReason] = useState("");
@@ -151,6 +157,15 @@ function KarteiContent() {
   }, [tab, q]);
 
   useEffect(() => { setLoading(true); load(); }, [load]);
+
+  useEffect(() => {
+    if (!autoAkte || !status?.activeCardId) return;
+    setAutoAkte(false);
+    setTab("meine");
+    const id = status.activeCardId;
+    if (id.startsWith("lead-")) setOpenLead(Number(id.replace("lead-", "")));
+    else setOpenApp(id);
+  }, [autoAkte, status]);
 
   const openCard = (card: KarteiCard) => {
     if (card.kind === "lead") setOpenLead(Number(card.cardId.replace("lead-", "")));

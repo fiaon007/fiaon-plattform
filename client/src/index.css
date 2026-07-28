@@ -661,8 +661,82 @@ html {
 }
 .agent-glow { animation: agentGlow 1.6s var(--agent-ease, ease-out); border-radius: 16px; }
 
-/* — Ziel-Ring: weiche Fortschritts-Transition (SVG stroke-dashoffset) — */
-.agent-ring-arc { transition: stroke-dashoffset .8s var(--agent-ease, ease-out); }
+/* ════════════════════════════════════════════════════════════
+   STARTSEITE /agent — Tiefe statt Menge
+   Drei Ebenen: Hintergrund liegt tief, Karten schweben darüber,
+   die Primäraktion am höchsten. Animiert wird AUSSCHLIESSLICH
+   transform und opacity — nie eine Layout-Eigenschaft.
+   ════════════════════════════════════════════════════════════ */
+
+/* Lichtschimmer hinter den Karten: zwei weiche CI-Radials, sehr langsam
+   bewegt. Eigene Compositor-Ebene, kein Neu-Layout, kein Neu-Zeichnen. */
+.agent-aura {
+  position: absolute;
+  top: -14%;
+  left: -12%;
+  right: -12%;
+  height: 460px;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(420px 260px at 24% 22%, rgba(37,99,235,.11), transparent 68%),
+    radial-gradient(380px 240px at 80% 4%, rgba(100,116,139,.10), transparent 66%);
+  animation: agentAuraDrift 28s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes agentAuraDrift {
+  from { transform: translate3d(-1.5%, 0, 0) scale(1); }
+  to   { transform: translate3d(2.5%, 1.5%, 0) scale(1.07); }
+}
+
+/* Ebene 2 — die Karte schwebt: mehrschichtiger, weicher Schatten statt Linie. */
+.agent-raise {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.92),
+    0 1px 2px rgba(15,23,42,.05),
+    0 12px 26px -16px rgba(15,23,42,.20),
+    0 40px 76px -36px rgba(15,23,42,.30);
+}
+
+/* Ebene 3 — die Primäraktion: höchste Elevation, EIN feiner Lichtreflex.
+   Farbwelt unverändert (Akzent #2563eb, nur Tiefe über Helligkeitsstufen). */
+.agent-cta {
+  position: relative;
+  overflow: hidden;
+  background-image: linear-gradient(180deg, #3b82f6 0%, #2563eb 58%, #1d4ed8 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.26),
+    0 2px 4px rgba(29,78,216,.22),
+    0 18px 34px -14px rgba(37,99,235,.52),
+    0 46px 80px -44px rgba(15,23,42,.45);
+  transition: transform var(--agent-fast, 120ms) var(--agent-ease, ease-out),
+              box-shadow var(--agent-base, 220ms) var(--agent-ease, ease-out);
+  will-change: transform;
+}
+.agent-cta:active {
+  transform: scale(.985);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.22),
+    0 1px 2px rgba(29,78,216,.20),
+    0 10px 22px -12px rgba(37,99,235,.46);
+}
+.agent-cta::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  width: 38%;
+  transform: translate3d(-140%, 0, 0);
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,.20), transparent);
+  pointer-events: none;
+}
+.agent-cta:hover::after,
+.agent-cta:focus-visible::after {
+  animation: agentCtaShine 1.05s var(--agent-ease, ease-out);
+}
+@keyframes agentCtaShine {
+  from { transform: translate3d(-140%, 0, 0); }
+  to   { transform: translate3d(400%, 0, 0); }
+}
 
 /* ── Admin-CI: Info-Tooltip + KI-Aktionen ──────────────────────────────
    Zurückhaltende Tiefe (kein Neon, kein Glow), ruhige Übergänge 150–200 ms. */
@@ -719,9 +793,14 @@ html {
   .agent-facet,
   .agent-float,
   .agent-spinner,
+  .agent-aura,
   .agent-skeleton::after { animation: none !important; }
+  /* Startseite: Schimmer steht still, Primäraktion drückt nicht ein, kein
+     Lichtreflex. Tiefe (Schatten) bleibt — sie ist keine Bewegung. */
+  .agent-cta { transition: none !important; }
+  .agent-cta:active { transform: none !important; }
+  .agent-cta::after { display: none; }
   .agent-core__glow { opacity: .6; }
-  .agent-ring-arc { transition: none !important; }
   .agent-banner-shine::after { animation: none !important; display: none; }
   .agent-expand { transition: none !important; }
 }

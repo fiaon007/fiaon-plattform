@@ -1,18 +1,22 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link } from "wouter";
-import { ArrowRight, Wallet } from "lucide-react";
+import { ArrowRight, Wallet, Users, CheckCircle2, ChevronRight } from "lucide-react";
 import { AgentShell, api, fmtCents, isToday, inputCls, ACCENT } from "./agent/shared";
 import { AuthLayout, SubmitButton, Reveal, LiveCount } from "./agent/motion";
+import { gruss, monatName } from "./agent/zeit";
 
 // ============================================================================
-// /agent — die Startseite. Drei Elemente, mehr nicht:
+// /agent — die Startseite. Vier Blöcke, klare Rangfolge:
 //   1. Begrüßung — wer du bist, wie viele Kunden auf Betreuung warten.
 //   2. Kontostand — die dominante Zahl der Seite, Auszahlung einen Klick weit.
 //   3. EINE Handlung — „Nächste Akte öffnen" (bzw. „Akte fortsetzen").
-// Gearbeitet wird in der Kartei, nicht hier. Zahlen, Listen, Feeds und Ziele
-// stehen dort, wo man sie braucht (/agent/kartei, /agent/verdienst).
+//   4. Mein Bestand — RÜCKBLICK, kein Arbeitsvorrat: Segmente mit Zahlen und
+//      die letzten Abschlüsse. Keine Anruf-Knöpfe, keine offenen Aufgaben —
+//      gearbeitet wird über die Primäraktion und in der Kartei.
 // Alle Beträge kommen fertig gerechnet vom Server (Integer-Cents).
 // Aktualisierung per Polling (45 s) — kein neuer Realtime-Stack.
+// Desktop nutzt die Breite (Kontostand/Handlung links, Bestand rechts); auf
+// dem Handy bleibt die Reihenfolge 1 → 2 → 3 → 4 unverändert.
 // ============================================================================
 
 const POLL_MS = 45_000;
@@ -43,28 +47,31 @@ interface KundeKurz {
   next_appointment: string | null;
 }
 
-/**
- * Tageszeit nach deutscher Geschäftszeit — unabhängig davon, wo der Betrachter
- * gerade sitzt. „Guten Morgen" um 9 Uhr in Berlin, auch aus Bangkok gesehen.
- */
-function berlinStunde(): number {
-  try {
-    return Number(new Intl.DateTimeFormat("de-DE", {
-      timeZone: "Europe/Berlin", hour: "2-digit", hour12: false,
-    }).format(new Date()));
-  } catch {
-    return new Date().getHours();
-  }
+/** Segment-Zahlen des eigenen Bestands (aus /agent/kartei/segmente). */
+interface Segmente {
+  betreuung: number;
+  angekuendigt: number;
+  abgeschlossen: number;
 }
 
-function greeting(): string {
-  const h = berlinStunde();
-  if (h < 11) return "Guten Morgen";
-  if (h < 18) return "Guten Tag";
-  return "Guten Abend";
+/** Ein Abschluss aus /agent/dashboard (`closes`) — Roh-Spalten der Abfrage. */
+interface Abschluss {
+  id: number;
+  ref: string;
+  pack_name: string | null;
+  amount_cents: number;
+  is_bonus: boolean;
+  created_at: string;
+  first_name: string | null;
+  last_name: string | null;
+  contact_name: string | null;
+  company_name: string | null;
 }
 
-const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+function kundenName(a: Abschluss): string {
+  const person = [a.first_name, a.last_name].filter(Boolean).join(" ").trim();
+  return person || a.company_name || a.contact_name || a.ref;
+}
 
 export default function AgentPortalPage() {
   return (
@@ -163,16 +170,7 @@ function LoginView({ onLogin }: { onLogin: (a: { name: string; email: string }) 
   );
 }
 
-// ═══════════════ Startseite: Begrüßung · Kontostand · eine Handlung ═══════════════
-
-/** Monatsname in deutscher Zeit (für „im Juli dazugekommen"). */
-function monatName(): string {
-  try {
-    return new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", month: "long" }).format(new Date());
-  } catch {
-    return MONTHS[new Date().getMonth()];
-  }
-}
+// ═══════════════ Startseite: Begrüßung · Kontostand · Handlung · Bestand ═══════════════
 
 /** Fällig heißt: der Termin ist vorbei ODER er liegt im heutigen Tag. */
 function rueckrufFaellig(v: string | null): boolean {
@@ -187,15 +185,30 @@ function Dashboard({ agentName }: { agentName: string }) {
   const [payout, setPayout] = useState<PayoutStand | null>(null);
   const [kartei, setKartei] = useState<KarteiStatus | null>(null);
   const [rueckrufe, setRueckrufe] = useState(0);
+  const [segmente, setSegmente] = useState<Segmente | null>(null);
+  const [abschluesse, setAbschluesse] = useState<Abschluss[]>([]);
 
   const load = useCallback(async () => {
-    const [d, p, k, c] = await Promise.all([
+    const [d, p, k, c, s] = await Promise.all([
       api("/agent/dashboard"),
       api("/agent/payouts"),
       api("/agent/kartei/status"),
       api("/agent/customers"),
+      api("/agent/kartei/segmente"),
     ]);
-    if (d.ok) setVerdienst({ weekCents: d.json.weekCents, monthCents: d.json.monthCents });
+    if (d.ok) {
+      setVerdienst({ weekCents: d.json.weekCents, monthCents: d.json.monthCents });
+      // Nur echte Abschlüsse — Boni und Gutschriften sind kein Verkauf.
+      const echte: Abschluss[] = (d.json.closes || []).filter((x: Abschluss) => !x.is_bonus);
+      setAbschluesse(echte.slice(0, 3));
+    }
+    if (s.ok) {
+      setSegmente({
+        betreuung: s.json.betreuung,
+        angekuendigt: s.json.angekuendigt,
+        abgeschlossen: s.json.abgeschlossen,
+      });
+    }
     if (p.ok) {
       setPayout({
         balanceCents: p.json.balanceCents,
@@ -229,10 +242,15 @@ function Dashboard({ agentName }: { agentName: string }) {
   // Startseite ist schlimmer als ein kurzer, ruhiger Ladezustand.
   if (!payout || !kartei) {
     return (
-      <div className="max-w-2xl mx-auto space-y-3 pt-1">
-        <div className="agent-skeleton h-[86px] rounded-2xl" />
-        <div className="agent-skeleton h-[188px] rounded-3xl" />
-        <div className="agent-skeleton h-[76px] rounded-2xl" />
+      <div className="max-w-2xl lg:max-w-none mx-auto pt-1">
+        <div className="agent-skeleton h-[74px] rounded-2xl mb-4" />
+        <div className="grid gap-3 lg:grid-cols-2 lg:gap-5 lg:items-start">
+          <div className="grid gap-3 content-start">
+            <div className="agent-skeleton h-[172px] rounded-3xl" />
+            <div className="agent-skeleton h-[68px] rounded-3xl" />
+          </div>
+          <div className="agent-skeleton h-[196px] rounded-3xl" />
+        </div>
       </div>
     );
   }
@@ -265,7 +283,7 @@ function Dashboard({ agentName }: { agentName: string }) {
   const auszahlbar = payout.hasBank && payout.balanceCents >= payout.minCents;
 
   return (
-    <div className="relative max-w-2xl mx-auto">
+    <div className="relative max-w-2xl lg:max-w-none mx-auto">
       {/* Lichtschimmer: reine CSS-Verläufe, sehr langsam bewegt (transform only).
           Liegt hinter allem und fängt keine Tipps ab. */}
       <span className="agent-aura" aria-hidden="true" />
@@ -273,11 +291,11 @@ function Dashboard({ agentName }: { agentName: string }) {
       <div className="relative">
         {/* ── 1. Begrüßung ── */}
         <Reveal index={0}>
-          <div className="pt-1 pb-5 sm:pb-6">
-            <h1 className="text-[27px] sm:text-[36px] font-black tracking-tight text-slate-900 leading-[1.1]">
-              {greeting()}, {firstName}
+          <div className="pt-0.5 pb-4 sm:pb-5">
+            <h1 className="text-[24px] sm:text-[30px] font-black tracking-tight text-slate-900 leading-[1.12]">
+              {gruss()}, {firstName}
             </h1>
-            <p className="text-[14px] sm:text-[15px] text-slate-500 mt-2 leading-relaxed">
+            <p className="text-[13.5px] sm:text-[14px] text-slate-500 mt-1.5 leading-relaxed">
               {frei === 0
                 ? "Aktuell wartet kein Kunde auf Betreuung."
                 : frei === 1
@@ -285,41 +303,46 @@ function Dashboard({ agentName }: { agentName: string }) {
                   : `Aktuell warten ${frei.toLocaleString("de-DE")} Kunden auf Betreuung.`}
             </p>
             {rueckrufe > 0 && (
-              <p className="text-[12.5px] sm:text-[13px] text-slate-400 mt-1.5 leading-relaxed">
+              <p className="text-[12px] sm:text-[12.5px] text-slate-400 mt-1 leading-relaxed">
                 {rueckrufe === 1 ? "1 Rückruf ist" : `${rueckrufe} Rückrufe sind`} heute fällig — sie stehen in deiner nächsten Akte ganz oben.
               </p>
             )}
           </div>
         </Reveal>
 
-        {/* ── 2. Der Kontostand — der Held der Seite ── */}
-        <Reveal index={1}>
-          <section className="agent-glass-strong agent-raise rounded-3xl px-5 py-6 sm:px-7 sm:py-7 mb-3.5">
+        {/* Desktop: zwei Spalten, damit die Fläche nicht tot daliegt. Die
+            DOM-Reihenfolge ist gleich der Handy-Reihenfolge — kein Umsortieren
+            per CSS, also auch keine andere Tab-Reihenfolge. */}
+        <div className="grid gap-3 lg:grid-cols-2 lg:gap-5 lg:items-start">
+          <div className="grid gap-3 content-start">
+            {/* ── 2. Der Kontostand — der Held der Seite ── */}
+            <Reveal index={1}>
+              <section className="agent-glass-strong agent-raise rounded-3xl px-5 py-5 sm:px-6 sm:py-6">
             <div className="flex items-center gap-2.5">
               <span
-                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-                style={{ background: "rgba(37,99,235,.10)", color: ACCENT }}
+                className="rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: "rgba(37,99,235,.10)", color: ACCENT, width: 26, height: 26 }}
               >
-                <Wallet size={15} strokeWidth={1.9} />
+                <Wallet size={14} strokeWidth={1.9} />
               </span>
-              <h2 className="text-[12px] font-semibold uppercase tracking-[.14em] text-slate-400">
+              <h2 className="text-[11px] font-semibold uppercase tracking-[.15em] text-slate-400">
                 Dein Kontostand
               </h2>
             </div>
 
-            <p className="text-[42px] sm:text-[56px] font-black tracking-tight text-slate-900 leading-none mt-3.5 tabular-nums">
-              <LiveCount value={payout.balanceCents} format={fmtCents} />
+            <p className="text-[34px] sm:text-[42px] font-black tracking-tight text-slate-900 leading-none mt-3 tabular-nums">
+              <LiveCount value={payout.balanceCents} format={fmtCents} durationMs={1100} />
             </p>
 
             {verdienst && (
-              <p className="text-[12.5px] text-slate-500 mt-2.5 leading-relaxed">
+              <p className="text-[12px] text-slate-500 mt-2 leading-relaxed">
                 Diese Woche <span className="font-semibold text-slate-700 tabular-nums">+{fmtCents(verdienst.weekCents)}</span>
                 <span className="text-slate-300 mx-1.5">·</span>
                 Im {monatName()} <span className="font-semibold text-slate-700 tabular-nums">+{fmtCents(verdienst.monthCents)}</span>
               </p>
             )}
 
-            <div className="mt-5">
+            <div className="mt-4">
               {offeneAnforderung ? (
                 <div className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-3">
                   <p className="text-[12.5px] text-slate-600 leading-relaxed">
@@ -362,30 +385,152 @@ function Dashboard({ agentName }: { agentName: string }) {
                 </p>
               )}
             </div>
-          </section>
-        </Reveal>
+              </section>
+            </Reveal>
 
-        {/* ── 3. Die eine Handlung ── */}
-        <Reveal index={2}>
-          <Link
-            href={aktion.href}
-            className="agent-cta flex items-center gap-4 rounded-3xl px-5 py-4 sm:px-6 sm:py-5 text-white"
-            style={{ minHeight: 76 }}
-          >
-            <span className="min-w-0 flex-1">
-              <span className="block text-[17px] sm:text-[19px] font-bold tracking-tight leading-snug">
-                {aktion.label}
-              </span>
-              <span className="block text-[12px] sm:text-[12.5px] text-white/75 mt-0.5 leading-relaxed">
-                {aktion.hinweis}
-              </span>
-            </span>
-            <span className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
-              <ArrowRight size={19} strokeWidth={2.3} />
-            </span>
-          </Link>
-        </Reveal>
+            {/* ── 3. Die eine Handlung ── */}
+            <Reveal index={2}>
+              <Link
+                href={aktion.href}
+                className="agent-cta flex items-center gap-3.5 rounded-3xl px-5 py-4 sm:px-5 sm:py-4 text-white"
+                style={{ minHeight: 68 }}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15.5px] sm:text-[17px] font-bold tracking-tight leading-snug">
+                    {aktion.label}
+                  </span>
+                  <span className="block text-[11.5px] sm:text-[12px] text-white/75 mt-0.5 leading-relaxed">
+                    {aktion.hinweis}
+                  </span>
+                </span>
+                <span className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+                  <ArrowRight size={17} strokeWidth={2.3} />
+                </span>
+              </Link>
+            </Reveal>
+          </div>
+
+          {/* ── 4. Mein Bestand — Rückblick, kein Arbeitsvorrat ── */}
+          <Reveal index={3}>
+            <Bestand segmente={segmente} abschluesse={abschluesse} />
+          </Reveal>
+        </div>
       </div>
     </div>
+  );
+}
+
+// ═══════════════ Mein Bestand: Segmente + letzte Abschlüsse ═══════════════
+
+/**
+ * BEWUSST KEIN ARBEITSBEREICH: keine Anruf-Knöpfe, keine offenen Aufgaben,
+ * keine Liste zum Abarbeiten. Diese Sektion beantwortet zwei Fragen, die ein
+ * Agent sonst nirgends beiläufig beantwortet bekommt: „Was betreue ich?" und
+ * „Was habe ich geschafft?". Gearbeitet wird über die Primäraktion darüber
+ * und in der Kartei.
+ *
+ * Jede Segment-Zahl verlinkt in die Liste mit GENAU diesem Filter — die Zahl
+ * und die Liste danach stammen aus derselben Bedingung (siehe
+ * /agent/kartei/segmente im Server).
+ */
+const SEGMENTE: { key: keyof Segmente; label: string; filter: string }[] = [
+  { key: "betreuung", label: "In Betreuung", filter: "offen" },
+  { key: "angekuendigt", label: "Zahlung angekündigt", filter: "angekuendigt" },
+  { key: "abgeschlossen", label: "Abgeschlossen", filter: "bezahlt" },
+];
+
+function Bestand({ segmente, abschluesse }: { segmente: Segmente | null; abschluesse: Abschluss[] }) {
+  if (!segmente) return <div className="agent-skeleton h-[196px] rounded-3xl" />;
+
+  const gesamt = segmente.betreuung + segmente.angekuendigt + segmente.abgeschlossen;
+
+  return (
+    <section className="agent-glass agent-lift rounded-3xl px-5 py-5 sm:px-6 sm:py-6">
+      <div className="flex items-center gap-2.5">
+        <span
+          className="rounded-lg flex items-center justify-center shrink-0 text-slate-500 bg-slate-100/80"
+          style={{ width: 26, height: 26 }}
+        >
+          <Users size={14} strokeWidth={1.9} />
+        </span>
+        <h2 className="text-[11px] font-semibold uppercase tracking-[.15em] text-slate-400">
+          Mein Bestand
+        </h2>
+      </div>
+
+      {gesamt === 0 && abschluesse.length === 0 ? (
+        /* Leerer Bestand: ein Weg nach vorne, keine leere Fläche. */
+        <div className="mt-3">
+          <p className="text-[14px] font-semibold text-slate-800 leading-snug">
+            Noch keine eigene Akte.
+          </p>
+          <p className="text-[12.5px] text-slate-500 mt-1 leading-relaxed">
+            Übernimm deine erste aus der Kartei — sie bleibt danach dauerhaft hier bei dir,
+            mit allem, was du dokumentierst.
+          </p>
+          <Link
+            href="/agent/kartei"
+            className="mt-3 inline-flex items-center gap-1.5 text-[12.5px] font-semibold hover:underline"
+            style={{ color: ACCENT }}
+          >
+            Zur Kartei <ArrowRight size={13} strokeWidth={2.2} />
+          </Link>
+        </div>
+      ) : (
+        <>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {SEGMENTE.map((s) => (
+              <Link
+                key={s.key}
+                href={`/agent/meine-kunden?filter=${s.filter}`}
+                className="agent-tile rounded-2xl px-3 py-3 text-left"
+                style={{ minHeight: 76 }}
+              >
+                <span className="block text-[22px] sm:text-[24px] font-black tracking-tight text-slate-900 tabular-nums leading-none">
+                  {segmente[s.key].toLocaleString("de-DE")}
+                </span>
+                <span className="block text-[10.5px] font-semibold text-slate-500 mt-1.5 leading-tight">
+                  {s.label}
+                </span>
+              </Link>
+            ))}
+          </div>
+
+          {abschluesse.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-slate-200/70">
+              <p className="text-[11px] font-semibold uppercase tracking-[.14em] text-slate-400">
+                Zuletzt abgeschlossen
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {abschluesse.map((a) => (
+                  <li key={a.id} className="flex items-center gap-2.5">
+                    <CheckCircle2 size={14} strokeWidth={2} className="shrink-0" style={{ color: ACCENT }} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-semibold text-slate-800 truncate leading-tight">
+                        {kundenName(a)}
+                      </span>
+                      {a.pack_name && (
+                        <span className="block text-[11px] text-slate-400 truncate leading-tight mt-0.5">
+                          {a.pack_name.replace(/\n/g, " ")}
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-[13px] font-bold text-slate-900 tabular-nums shrink-0">
+                      +{fmtCents(a.amount_cents)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/agent/verdienst"
+                className="mt-3 inline-flex items-center gap-1 text-[12px] font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+              >
+                Alle Abschlüsse <ChevronRight size={13} strokeWidth={2.2} />
+              </Link>
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }

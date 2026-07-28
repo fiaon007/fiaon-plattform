@@ -1300,6 +1300,42 @@ router.get("/agent/kartei/meine", requireAgent, async (req: AgentRequest, res: R
 });
 
 // ═══════════════════════════════════════════════════════════════════
+// SEGMENTE — Zahlen für den Bestands-Blick auf der Startseite (nur lesend)
+//
+// WICHTIG: Jede Zahl entsteht aus GENAU DER Bedingung, auf die ihr Klick
+// führt (MEINE_FILTER oben). Sonst zeigt die Startseite „7" und die Liste
+// danach fünf Zeilen — der klassische Vertrauensbruch. Deshalb hier kein
+// eigener Zähl-Weg, sondern dieselben Filter-Ausdrücke.
+//
+// Leads ohne Bestellung tauchen in diesen drei Zahlen NICHT auf (sie haben
+// keinen Zahlungsstatus). Sie stehen auf „Meine Kunden" unter „Alle".
+// ═══════════════════════════════════════════════════════════════════
+router.get("/agent/kartei/segmente", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await ensureKarteiTables();
+    const me = req.agent!.id;
+    const [z] = await sqlPool.unsafe(
+      `SELECT
+         COUNT(*) FILTER (WHERE ${MEINE_FILTER.offen})::int         AS betreuung,
+         COUNT(*) FILTER (WHERE ${MEINE_FILTER.angekuendigt})::int  AS angekuendigt,
+         COUNT(*) FILTER (WHERE ${MEINE_FILTER.bezahlt})::int       AS abgeschlossen
+       FROM fiaon_applications a
+       WHERE a.assigned_agent_id = $1`,
+      [me],
+    );
+    res.json({
+      ok: true,
+      betreuung: Number(z?.betreuung || 0),
+      angekuendigt: Number(z?.angekuendigt || 0),
+      abgeschlossen: Number(z?.abgeschlossen || 0),
+    });
+  } catch (err) {
+    console.error("[FIAON-KARTEI] segmente:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
 // P1-H — ADMIN-GEGENSEITE
 // Übersicht, Einstellungen, Notausgang. BEWUSST OHNE Zeit-/Anwesenheits-
 // überwachung: gezählt werden nur Ergebnisse (Übernahmen, dokumentierte

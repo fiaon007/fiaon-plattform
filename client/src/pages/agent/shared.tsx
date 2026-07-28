@@ -276,12 +276,13 @@ function useReduzierteBewegung(): boolean {
  * verschobene Kopfzeile nicht verrutschen.
  */
 function AgentDrawer({
-  open, onClose, location, badges,
+  open, onClose, location, zaehler,
 }: {
   open: boolean;
   onClose: () => void;
   location: string;
-  badges: { mehr: number };
+  /** Pro Ziel-Pfad genau eine Zahl — dieselbe Quelle wie der Auslöser. */
+  zaehler: Record<string, number>;
 }) {
   const reduziert = useReduzierteBewegung();
   const [zieh, setZieh] = useState(0);
@@ -345,7 +346,7 @@ function AgentDrawer({
           {NAV.map((n, i) => {
             const aktiv = n.match.includes(location);
             const Icon = n.icon;
-            const zahl = n.href === "/agent/mehr" ? badges.mehr : 0;
+            const zahl = zaehler[n.href] || 0;
             return (
               <Link
                 key={n.href}
@@ -494,9 +495,20 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
     setAgent(null);
   };
 
-  // Ein Zaehler am Ausloeser buendelt alles, was sonst untergehen wuerde:
-  // Betreiber-Antworten, ungelesene Neuerungen und drohende Rueckläufer.
-  const menuBadge = fbUnread + neueUpdates + ruecklaeufer;
+  // EINE QUELLE, EINE WAHRHEIT (28.07.2026):
+  // Der Zaehler am Ausloeser ist die Summe genau dieser Karte — er kann nicht
+  // mehr von den Zahlen im Menue abweichen. Vorher wurden die Rueckläufer nur
+  // aussen mitgezaehlt und tauchten im Menue nirgends auf: aussen 3, innen 2,
+  // und der Agent suchte den dritten Punkt vergeblich.
+  // Wer hier etwas eintraegt, muss es einem Menuepunkt zuordnen — sonst kann
+  // es nicht gezaehlt werden.
+  const zaehler: Record<string, number> = {
+    // Akten, die bald in die Kartei zurueckfallen — dort wird sie bearbeitet.
+    "/agent/kartei": ruecklaeufer,
+    // Neuerungen und Betreiber-Antworten liegen beide unter „Mehr".
+    "/agent/mehr": neueUpdates + fbUnread,
+  };
+  const menuBadge = Object.values(zaehler).reduce((s, n) => s + n, 0);
   // Der schwebende Knopf entfällt dort, wo die Handlung schon auf der Seite
   // steht: in der Kartei selbst und auf der Startseite (dort ist „Nächste Akte
   // öffnen" die EINE grosse Primäraktion — ein zweiter Knopf wäre Konkurrenz).
@@ -566,7 +578,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
               <nav className="hidden md:flex items-center gap-1">
                 {NAV.map((n) => {
                   const active = n.match.includes(location);
-                  const badge = n.href === "/agent/mehr" ? fbUnread : 0;
+                  const badge = zaehler[n.href] || 0;
                   return (
                     <Link
                       key={n.href}
@@ -635,7 +647,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
           open={menueOffen}
           onClose={() => setMenueOffen(false)}
           location={location}
-          badges={{ mehr: fbUnread + neueUpdates }}
+          zaehler={zaehler}
         />
       </div>
     </AgentCtx.Provider>

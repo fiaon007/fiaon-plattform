@@ -3,6 +3,88 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 28.07.2026 (später) — „Guten Abend" um 09:30, Bestands-Blick, Menü-Zähler, Feinschliff
+
+### Teil A — Der Zeit-Bug, mit der Ursache belegt
+
+Um 09:30 Uhr stand „**Guten Abend**" auf der Startseite. Ursache ist keine Zeitzone, sondern eine stillschweigend fehlgeschlagene Zahlen-Umwandlung:
+
+```
+new Intl.DateTimeFormat("de-DE", { hour: "2-digit", hour12: false }).format(jetzt)
+  →  "09 Uhr"          (deutsches Format hängt „ Uhr" an)
+Number("09 Uhr")       →  NaN
+NaN < 11  → false  ·  NaN < 18  → false   ⇒  letzter Zweig: „Guten Abend"
+```
+
+Mit `NaN` ist **jeder** Vergleich falsch, also fiel die Bedingungskette bis zum letzten Zweig durch. Bitter: Der Server warnt an genau dieser Stelle im Kommentar vor dieser Falle (`berlinHour()` in `server/routes/fiaon-antrag.ts`) — die Startseite hat sie trotzdem gebaut. Der Fehler blieb unentdeckt, weil abends getestet wurde: da war das falsche Ergebnis zufällig richtig.
+
+**Behoben und geprüft:** Die Zeit-Logik liegt jetzt in `client/src/pages/agent/zeit.ts` — bewusst ohne React und ohne Fenster, damit sie mit **festen Uhrzeiten** prüfbar ist. `formatToParts` liefert die Stunde ohne Beiwerk, `hourCycle: "h23"` verhindert die „24" um Mitternacht, und eine nicht bestimmbare Stunde liefert **`null`** statt einer geratenen Zahl. Aus `null` wird „**Hallo, Justin**" — nie stillschweigend „Abend".
+
+Grenzen festgeschrieben: **05:00–10:59 Morgen · 11:00–17:59 Tag · 18:00–04:59 Abend.**
+
+Neues Werkzeug `scripts/gruss-test.ts` (44 Prüfungen, Laufzeit < 1 s): alle Grenzen inkl. 04:59/10:59/17:59, Mitternacht, **beide Zeitumstellungen 2026** (29.03. und 25.10., je beide Seiten der Umstellung), Sicht aus Bangkok/Wien/New York/UTC, ungültige Datumswerte, Jahreswechsel-Monatsname.
+
+**Versandfenster gegengeprüft (wie verlangt, auch ohne Fund):** `berlinHour()` in `fiaon-antrag.ts` und `fiaon-leads.ts` nutzt bereits `formatToParts` + `Number.isFinite` — dieselbe Fehlerklasse ist dort **nicht** vorhanden. Nachgerechnet mit festen Zeitpunkten: 07:59 kein Versand · 08:00 Versand · 19:59 Versand · 20:00 kein Versand, in Sommer- **und** Winterzeit korrekt.
+**Eine Restlücke, bewusst nicht eigenmächtig geändert:** Scheitert `Intl` (praktisch nur bei kaputtem ICU), fällt der Server auf `getUTCHours()` zurück und rechnet UTC als Berlin — im Sommer zwei Stunden zu früh, wodurch am Rand bis 22:00 Uhr deutscher Zeit versendet werden könnte. Saubere Lösung wäre „im Zweifel nicht senden" (Fenster geschlossen halten). Das ist eine Verhaltensänderung am Versand und braucht deine Freigabe.
+
+### Teil B — Eigener Bestand als vierter Block
+
+Unter der Primäraktion stand Leere. Jetzt steht dort ein **Rückblick, kein zweiter Arbeitsbereich**:
+
+- **Drei Segmente mit Zahlen:** In Betreuung · Zahlung angekündigt · Abgeschlossen. Jede Kachel führt nach `/agent/meine-kunden` mit **vorgewähltem Filter** (`?filter=offen|angekuendigt|bezahlt`) — dafür liest diese Seite den Filter jetzt aus der Adresse.
+- **Eine Quelle für Zahl und Liste:** Der neue Endpunkt `GET /agent/kartei/segmente` (nur lesend, eine Abfrage) zählt mit **genau denselben** SQL-Ausdrücken wie die Filter, auf die er verlinkt (`MEINE_FILTER`). Die Startseite kann also nicht „7" zeigen und die Liste danach fünf Zeilen.
+- **Zuletzt abgeschlossen:** die letzten drei **echten** Abschlüsse mit Name, Paket und Provision — wertig gesetzt, nicht als Tabellenzeile. Boni und Gutschriften sind ausdrücklich ausgeschlossen (`is_bonus`), sie sind kein Verkauf.
+- **Leerer Bestand:** „Noch keine eigene Akte — übernimm deine erste aus der Kartei" mit Weg dorthin, statt einer leeren Fläche.
+- **Keine Anruf-Knöpfe, keine Aufgabenliste.** Geprüft: 0 Knöpfe in dieser Sektion. Gearbeitet wird über die Primäraktion und in der Kartei.
+
+Leads ohne Bestellung erscheinen in den drei Zahlen nicht (sie haben keinen Zahlungsstatus) — sie stehen auf „Meine Kunden" unter „Alle". Das steht auch als Kommentar am Endpunkt.
+
+### Teil C — Menü-Zähler: eine Quelle, eine Wahrheit
+
+Außen stand 3, innen 2. Grund: Der Zähler am Auslöser addierte **Rückläufer**, die im Menü an keiner Stelle auftauchten — der Agent suchte den dritten Punkt vergeblich.
+
+Jetzt gibt es genau eine Karte `{ "/agent/kartei": Rückläufer, "/agent/mehr": Neuerungen + Betreiber-Antworten }`. Der Auslöser ist deren **Summe**, die Menüpunkte zeigen ihre Einträge, und die Desktop-Navigation nutzt dieselbe Karte (vorher zeigte sie dort nur die Feedback-Antworten). Wer künftig etwas mitzählen will, muss es einem Menüpunkt zuordnen — sonst kann es nicht gezählt werden. **Rückläufer sind jetzt am Menüpunkt „Kartei" sichtbar**, dort wird sie bearbeitet.
+
+Geprüft in vier Zuständen (gemischt 1+2 · nur Rückläufer 3 · nur Antworten 2 · nichts offen): außen = Summe innen, jedes Mal. Zusätzlich wird das echte Lese-Ereignis (`agent-updates-seen`) ausgelöst — beide Zähler sinken sofort und gemeinsam.
+
+### Teil D — Kleiner, ruhiger, hochwertiger
+
+| | vorher | nachher |
+|---|---|---|
+| Überschrift | 27 / 36 px | **24 / 30 px** |
+| Kontostand | 42 / 56 px | **34 / 42 px** |
+| Primäraktion | 76 px hoch, 17/19 px Schrift | **68 px, 15,5/17 px** |
+
+Dazu: Einblendung weicher (10 px Versatz, Kurve `cubic-bezier(.16,1,.3,1)`, 70 ms Staffel), Kontostand zählt in 1,1 s flüssig hoch statt zu springen, neue Ebene `.agent-lift` für die Bestands-Karte (eine Stufe unter dem Kontostand) und `.agent-tile` für die Segmente mit feinem Druckgefühl beim Antippen. **Animiert werden weiterhin ausschließlich `transform` und `opacity`.**
+
+**Desktop nutzt endlich die Fläche:** Kontostand und Primäraktion links, Bestand rechts (`lg:grid-cols-2`). Die DOM-Reihenfolge ist identisch zur Handy-Reihenfolge — kein Umsortieren per CSS, also auch keine überraschende Tab-Reihenfolge. Gemessen: Der Inhalt nutzt **88 %** der Fensterbreite (vorher eine schmale Spalte mit toter Fläche links und rechts).
+
+### Gemessen (Playwright, 4-fache CPU-Bremse, 60-s-Abbruch)
+
+`scripts/startseite-tempo.mjs` prüft jetzt 15 Zusagen, darunter die neuen:
+
+| Messpunkt | Ergebnis |
+|---|---|
+| Bildrate beim Laden | **91 Bilder/s** (Ziel ≥ 50) |
+| Bildrate beim Scrollen | **121 Bilder/s** |
+| 380 px: Begrüßung + Kontostand + Primäraktion | unterste Kante **550 px** von 780 px (vorher 598 px — der kleinere Maßstab schafft Luft) |
+| Begrüßung zu 6 festen Uhrzeiten | 09:30 Sommer/Winter, 06:30, 13:15, 20:05, 00:10 — **alle korrekt** |
+| Bestands-Segmente | 9 · 4 · 27 mit korrekten Filter-Zielen |
+| Zuletzt abgeschlossen | 3 echte Abschlüsse, Bonus **nicht** enthalten |
+| Bestand ohne Arbeits-Knöpfe | **0** Anruf-/Aktionsknöpfe |
+| Leerer Bestand | motivierender Zustand statt leerer Fläche |
+| Menü-Zähler in 4 Zuständen | außen = Summe innen, **immer** |
+| Desktop 1280 px | alles im ersten Bildschirm (595 px), 88 % Breite genutzt |
+| `prefers-reduced-motion` | Schimmer aus, keine Einblendung, kein Druckgefühl, voll nutzbar |
+
+Ein Messfehler wurde dabei selbst behoben: Die Ladephasen-Messung startete nach `goto` und konnte in den alten Ausführungskontext fallen — sie meldete dann **0 Bilder/s**, obwohl nichts ruckelte. Der Bildzähler läuft jetzt ab Dokumentstart mit.
+
+**Bundle:** Haupt-Chunk **1.607,44 → 1.613,55 kB** (gzip **418,35 → 420,03 kB**), CSS **255,99 → 256,66 kB**. Das sind **+6,1 kB** (gzip +1,7 kB) für eine komplette neue Sektion, den geprüften Zeit-Helfer und den Agenten-Changelog-Eintrag. Gegenüber dem Stand **vor** dem Startseiten-Umbau (1.618,19 kB / gzip 421,26 kB) ist die Auslieferung weiterhin **kleiner**. Ich habe nichts gefunden, was sich ohne Funktionsverlust herausnehmen ließe — deshalb hier die ehrliche Zahl statt einer geschönten.
+
+**Prüfungen:** `gruss-test.ts` **44/44** · `startseite-tempo.mjs` **15/15** · `kartei-verify.ts` **6/6** · `event-inventar.ts --check` **25/25**. Geschäftslogik unverändert; die einzige inhaltliche Änderung ist der Zeit-Bug.
+
+---
+
 ## 28.07.2026 — Startseite /agent: drei Elemente, eine Handlung
 
 Die Startseite war ein Zahlenfriedhof mit konkurrierenden Elementen: Tagesziel-Ringe bei 0 %, ein Benchmark-Aushang, ein anonymer Aktivitäts-Feed, eine Arbeitsliste mit Anruf-Knöpfen, ein Partner-Balken, der Wunschgehalt-Rechner — und **zwei** „Nächste Akte"-Knöpfe. Sie ist jetzt eine reine Oberflächen-Arbeit auf drei Elemente reduziert. **Keine Geschäftslogik verändert, kein Endpunkt geändert, kein Betrag neu gerechnet.**

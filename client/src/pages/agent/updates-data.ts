@@ -40,6 +40,28 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-07-28-bestand-und-gruss",
+    date: "2026-07-28",
+    category: "Behoben",
+    title: "„Guten Abend“ am Morgen — behoben, dazu dein Bestand auf der Startseite",
+    summary: "Die Begrüßung stimmt jetzt zur Uhrzeit. Neu darunter: dein eigener Bestand mit deinen letzten Abschlüssen.",
+    changes: [
+      "Die Startseite hat morgens „Guten Abend“ gesagt. Ursache war ein Rechenfehler bei der Uhrzeit — behoben und mit festen Testzeiten abgesichert (auch Mitternacht und Zeitumstellung).",
+      "Kann die Uhrzeit einmal nicht bestimmt werden, steht dort neutral „Hallo“ — nie mehr eine falsche Tageszeit.",
+      "Neu: „Mein Bestand“ unter dem großen Knopf. Drei Zahlen — In Betreuung, Zahlung angekündigt, Abgeschlossen. Ein Tipp darauf öffnet „Meine Kunden“ mit genau diesem Filter.",
+      "Darunter stehen deine letzten drei Abschlüsse mit Paket und Provision. Boni erscheinen dort nicht — sie sind kein Abschluss.",
+      "Hast du noch keine eigene Akte, steht dort, wie du deine erste übernimmst.",
+      "Der Zähler am Menü-Knopf stimmt jetzt mit den Zahlen im Menü überein. Vorher zählte er Akten mit, die bald zurücklaufen, zeigte sie aber nirgends — diese Zahl steht ab sofort am Menüpunkt „Kartei“.",
+      "Alles etwas kleiner und ruhiger gesetzt; am Computer stehen Kontostand und Bestand jetzt nebeneinander statt in einer schmalen Spalte.",
+    ],
+    howto: [
+      "Öffne „Mein Tag“ — unter dem blauen Knopf steht „Mein Bestand“.",
+      "Tippe auf eine der drei Zahlen, um genau diese Akten zu sehen.",
+      "„Alle Abschlüsse“ führt zu Verdienst, wo deine komplette Liste steht.",
+    ],
+    link: { href: "/agent", label: "Startseite ansehen" },
+  },
+  {
     id: "2026-07-28-startseite",
     date: "2026-07-28",
     category: "Verbessert",

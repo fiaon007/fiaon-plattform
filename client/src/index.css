@@ -420,12 +420,14 @@ html {
 
 /* — Gestaffelte Einblendung (Reveal): fade + weicher Y-Versatz — */
 @keyframes agentReveal {
-  from { opacity: 0; transform: translateY(14px); }
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
   to   { opacity: 1; transform: none; }
 }
 .agent-reveal {
   opacity: 0;
-  animation: agentReveal .62s cubic-bezier(.22,.61,.36,1) forwards;
+  /* Sanfte Ausklang-Kurve: startet zügig, kommt weich zur Ruhe. Nur
+     transform und opacity — beides erledigt der Compositor. */
+  animation: agentReveal .68s cubic-bezier(.16, 1, .3, 1) forwards;
   will-change: transform, opacity;
 }
 
@@ -698,6 +700,33 @@ html {
     0 40px 76px -36px rgba(15,23,42,.30);
 }
 
+/* Ebene 2b — die Bestands-Karte liegt eine Stufe unter dem Kontostand:
+   dieselbe Sprache, weniger Gewicht. Rangfolge entsteht durch Schatten-Tiefe,
+   nicht durch Farbe oder Größe. */
+.agent-lift {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.86),
+    0 1px 2px rgba(15,23,42,.04),
+    0 8px 18px -12px rgba(15,23,42,.16),
+    0 28px 56px -34px rgba(15,23,42,.24);
+}
+
+/* Segment-Flächen im Bestand: ruhige Kacheln mit feinem Druckgefühl.
+   Kein Hover-Springen, keine Farbfläche — nur eine Spur mehr Tiefe. */
+.agent-tile {
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(226,232,240,.9);
+  box-shadow: 0 1px 2px rgba(15,23,42,.03);
+  transition: transform var(--agent-fast, 120ms) var(--agent-ease, ease-out),
+              box-shadow var(--agent-base, 220ms) var(--agent-ease, ease-out),
+              border-color var(--agent-base, 220ms) var(--agent-ease, ease-out);
+}
+.agent-tile:hover {
+  border-color: rgba(203,213,225,.95);
+  box-shadow: 0 10px 22px -16px rgba(15,23,42,.26);
+}
+.agent-tile:active { transform: scale(.985); }
+
 /* Ebene 3 — die Primäraktion: höchste Elevation, EIN feiner Lichtreflex.
    Farbwelt unverändert (Akzent #2563eb, nur Tiefe über Helligkeitsstufen). */
 .agent-cta {
@@ -800,6 +829,8 @@ html {
   .agent-cta { transition: none !important; }
   .agent-cta:active { transform: none !important; }
   .agent-cta::after { display: none; }
+  .agent-tile { transition: none !important; }
+  .agent-tile:active { transform: none !important; }
   .agent-core__glow { opacity: .6; }
   .agent-banner-shine::after { animation: none !important; display: none; }
   .agent-expand { transition: none !important; }

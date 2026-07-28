@@ -53,6 +53,21 @@ interface MeinLead {
   createdAt: string;
 }
 
+/**
+ * Filter aus der Adresse lesen (`/agent/meine-kunden?filter=angekuendigt`).
+ * Die Segmente auf der Startseite verlinken hierher — ohne das würde der
+ * Klick auf „Zahlung angekündigt · 4" eine ungefilterte Liste zeigen und der
+ * Agent müsste selbst weitersuchen. Unbekannte Werte werden ignoriert.
+ */
+function filterAusAdresse(erlaubt: string[]): string {
+  try {
+    const wert = new URLSearchParams(window.location.search).get("filter") || "";
+    return erlaubt.includes(wert) ? wert : "";
+  } catch {
+    return "";
+  }
+}
+
 const FILTERS: { key: string; label: string }[] = [
   { key: "", label: "Alle" },
   { key: "offen", label: "Offen" },
@@ -94,7 +109,7 @@ export default function AgentMeineKundenPage() {
 }
 
 function MeineKundenContent() {
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter] = useState(() => filterAusAdresse(FILTERS.map((f) => f.key)));
   const [q, setQ] = useState("");
   const [kunden, setKunden] = useState<MeinKunde[]>([]);
   const [leads, setLeads] = useState<MeinLead[]>([]);

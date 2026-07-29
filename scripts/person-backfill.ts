@@ -28,6 +28,28 @@
  *   npx tsx scripts/person-backfill.ts --apply --limit 50   → kleiner Testlauf
  *   npx tsx scripts/person-backfill.ts --undo P1B-…    → macht einen Stapel rückgängig
  *
+ * WIEDERHOLBARKEIT — DER SINN DES GANZEN
+ * Dieses Skript muss regelmässig laufen, um Nachzügler einzusammeln. Ein
+ * Skript, das beim zweiten Lauf abbricht oder Dubletten erzeugt, kann das
+ * nicht. Am 29.07.2026 wurden im Zweitlauf 2.829 Lead-Personen ERNEUT
+ * angelegt, obwohl alle 2.848 Leads bereits eine person_id hatten.
+ *
+ * Die Ursache lag tiefer als der Lead-Pfad: BEIDE Durchläufe glichen nur
+ * gegen die im selben Lauf gebauten Pläne ab, nie gegen die Personen, die
+ * schon in der Datenbank stehen. Daraus folgten drei Störungen:
+ *
+ *   1. Ein Lead mit gesetzter person_id wurde trotzdem verarbeitet.
+ *   2. Ein NEUER Lead, dessen Adresse einer bestehenden Person gehört, hätte
+ *      eine zweite Person dafür angelegt.
+ *   3. Eine NEUE Bestellung eines bestehenden Kunden hätte eine zweite Person
+ *      mit derselben E-Mail angelegt — der eindeutige Index hätte den Lauf
+ *      abgebrochen. Genau der Fall „Nachzügler einsammeln".
+ *
+ * Deshalb lädt der Lauf jetzt ZUERST alle bestehenden Personen samt Aliasen
+ * und bindet passende Zeilen dort an, statt neu anzulegen. Angebunden wird nur
+ * `person_id` an Zeilen, die noch keine haben, und Aliase, die es noch nicht
+ * gibt — beides ohne Wirkung, wenn es schon getan wurde.
+ *
  * ZU --limit: Der begrenzte Lauf legt BEWUSST keine Lead-only-Personen an.
  * Grund, gemessen am 29.07.2026: Mit gekürzter Personenliste hält der
  * Lead-Durchlauf jeden Lead für „gehört zu keinem Antrag" und erzeugt Personen,
@@ -94,6 +116,33 @@ async function undo(batchId: string): Promise<void> {
     WHERE person_id IN (SELECT id FROM fiaon_persons WHERE merge_batch_id = ${batchId})
     RETURNING id
   `;
+
+  // Zeilen, die an eine SCHON VORHANDENE Person angebunden wurden. Ihre Person
+  // stammt aus einem früheren Stapel und bleibt bestehen — nur die in diesem
+  // Lauf gesetzte Verknüpfung wird gelöst. Ohne diesen Schritt bliebe ein Teil
+  // des Laufs stehen und „umkehrbar" wäre eine leere Zusage.
+  const angebundeneRefs: string[] = Array.isArray(batch.linked_refs) ? batch.linked_refs : [];
+  const angebundeneLeads: number[] = Array.isArray(batch.linked_lead_ids) ? batch.linked_lead_ids : [];
+  let extraApps = 0, extraLeads = 0;
+  if (angebundeneRefs.length > 0) {
+    const r = await sqlPool`
+      UPDATE fiaon_applications SET person_id = NULL
+      WHERE ref = ANY(${angebundeneRefs}::text[]) RETURNING ref
+    `;
+    extraApps = r.length;
+  }
+  if (angebundeneLeads.length > 0) {
+    const r = await sqlPool`
+      UPDATE fiaon_leads SET person_id = NULL
+      WHERE id = ANY(${angebundeneLeads}::int[]) RETURNING id
+    `;
+    extraLeads = r.length;
+  }
+  // Aliase, die dieser Lauf an bestehende Personen gehängt hat.
+  const aliasWeg = await sqlPool`
+    DELETE FROM fiaon_person_aliases WHERE merge_batch_id = ${batchId} RETURNING id
+  `;
+
   await sqlPool`
     DELETE FROM fiaon_person_aliases
     WHERE person_id IN (SELECT id FROM fiaon_persons WHERE merge_batch_id = ${batchId})
@@ -103,6 +152,9 @@ async function undo(batchId: string): Promise<void> {
   log("");
   log(`✅ Stapel ${batchId} zurückgenommen.`);
   log(`   ${gone.length} Personen entfernt · ${apps.length} Anträge und ${leads.length} Leads wieder ohne person_id.`);
+  if (extraApps + extraLeads + aliasWeg.length > 0) {
+    log(`   Anbindungen gelöst: ${extraApps} Anträge, ${extraLeads} Leads, ${aliasWeg.length} Aliase (Personen aus früheren Stapeln bleiben).`);
+  }
   log("   An keiner Bestandszeile wurde sonst etwas verändert.");
 }
 
@@ -165,6 +217,73 @@ async function main(): Promise<void> {
     ORDER BY erstellt_am ASC NULLS FIRST, id ASC
   `;
 
+  // ── Was es schon gibt ────────────────────────────────────────────
+  // Ohne diesen Schritt kennt der Lauf nur sich selbst und legt beim zweiten
+  // Mal alles noch einmal an. `aliasBesitzer` beantwortet die einzige Frage,
+  // die zählt: Gehört diese Adresse bereits jemandem?
+  const bestehendeAliase = await sqlPool`
+    SELECT person_id, kind, value_norm FROM fiaon_person_aliases
+  `;
+  const aliasBesitzer = new Map<string, number>();
+  for (const a of bestehendeAliase as any[]) {
+    aliasBesitzer.set(`${a.kind}:${a.value_norm}`, Number(a.person_id));
+  }
+  const aliasSchluessel = (kind: string, norm: string) => `${kind}:${norm}`;
+
+  /**
+   * Anbindung an eine bereits vorhandene Person — kein Neuanlegen.
+   * Nach Person gesammelt, damit mehrere Familien und Leads, die auf dieselbe
+   * Person zeigen, in einem Rutsch angebunden werden.
+   */
+  interface Anbindung {
+    personId: number;
+    refs: string[];
+    leadIds: number[];
+    neueAliase: ReturnType<typeof collectAliases>;
+  }
+  const anbindungen = new Map<number, Anbindung>();
+  let kollisionen = 0;
+
+  const anbindung = (personId: number): Anbindung => {
+    let a = anbindungen.get(personId);
+    if (!a) { a = { personId, refs: [], leadIds: [], neueAliase: [] }; anbindungen.set(personId, a); }
+    return a;
+  };
+
+  /** Bestehende Person zu einer Alias-Liste finden. E-Mail schlägt Telefon. */
+  const findeBestehende = (aliase: ReturnType<typeof collectAliases>): number | null => {
+    for (const a of aliase) {
+      if (a.kind !== "email") continue;
+      const pid = aliasBesitzer.get(aliasSchluessel("email", a.valueNorm));
+      if (pid) return pid;
+    }
+    for (const a of aliase) {
+      if (a.kind !== "phone") continue;
+      const pid = aliasBesitzer.get(aliasSchluessel("phone", a.valueNorm));
+      if (pid) return pid;
+    }
+    return null;
+  };
+
+  /**
+   * Fehlende Aliase an eine bestehende Person hängen.
+   * Gehört eine Adresse bereits einer ANDEREN Person, wird sie übergangen und
+   * gezählt: Das ist ein Zusammenführungsfall und keine Entscheidung, die ein
+   * Backfill treffen darf. (Der eindeutige Index würde den Lauf sonst abbrechen.)
+   */
+  const ergaenzeAliase = (personId: number, aliase: ReturnType<typeof collectAliases>): void => {
+    const ziel = anbindung(personId);
+    for (const a of aliase) {
+      const k = aliasSchluessel(a.kind, a.valueNorm);
+      const besitzer = aliasBesitzer.get(k);
+      if (besitzer === personId) continue;
+      if (besitzer !== undefined) { kollisionen++; continue; }
+      if (ziel.neueAliase.some((x) => x.kind === a.kind && x.valueNorm === a.valueNorm)) continue;
+      ziel.neueAliase.push(a);
+      aliasBesitzer.set(k, personId);
+    }
+  };
+
   // ── Familien: E-Mail-Gleichheit + dokumentierte Merge-Ketten ──────────────
   const uf = new UnionFind(apps.length);
   const byRef = new Map<string, number>();
@@ -214,6 +333,25 @@ async function main(): Promise<void> {
       continue;
     }
     if (family.every((r: any) => r.person_id != null)) { bereitsZugeordnet++; continue; }
+
+    // Gehört diese Familie schon jemandem? Zwei Wege dorthin: eine Zeile trägt
+    // bereits eine person_id (dann fehlt sie nur den übrigen Zeilen), oder eine
+    // ihrer Adressen ist als Alias vergeben.
+    //
+    // Das ist der Fall „neue Bestellung eines bestehenden Kunden". Ohne diese
+    // Abzweigung entstünde eine zweite Person mit derselben E-Mail — und der
+    // eindeutige Index bräche den ganzen Lauf ab.
+    const vorhandeneId = family
+      .map((r: any) => (r.person_id != null ? Number(r.person_id) : null))
+      .filter((v): v is number => v !== null)
+      .sort((a, b) => a - b)[0] ?? null;
+    const zielPerson = vorhandeneId ?? findeBestehende(aliases);
+    if (zielPerson !== null) {
+      const ziel = anbindung(zielPerson);
+      for (const r of family) if (r.person_id == null) ziel.refs.push(r.ref);
+      ergaenzeAliase(zielPerson, aliases);
+      continue;
+    }
 
     const draft = buildPersonDraft(family);
     const account = pickPersonSourceRow(family);
@@ -303,9 +441,40 @@ async function main(): Promise<void> {
     }
   };
 
+  // Durchgang 0 — DIE LÜCKE, die den Zweitlauf 2.829 Personen kosten liess.
+  //
+  // Ein Lead mit gesetzter person_id ist fertig; er darf gar nicht erst in die
+  // Durchgänge 1–3 geraten. Und ein Lead OHNE person_id, dessen Adresse bereits
+  // einer Person gehört, wird an sie angebunden statt verdoppelt — das ist der
+  // Regelfall beim Einsammeln von Nachzüglern.
+  //
+  // Der Antrags-Pfad hatte seine Prüfung von Anfang an („2142 übersprungen"),
+  // dem Lead-Pfad fehlte sie. Beide sind jetzt gleich gebaut.
+  const offeneLeads: any[] = [];
+  let leadsBereitsZugeordnet = 0, leadsAnBestehende = 0;
+  for (const l of leads as any[]) {
+    if (l.person_id != null) { leadsBereitsZugeordnet++; continue; }
+
+    const aliase: ReturnType<typeof collectAliases> = [];
+    const m0 = normEmail(l.email);
+    if (m0) aliase.push({ kind: "email", valueNorm: m0, valueRaw: String(l.email).trim(), source: `lead:${l.id}` });
+    const p0 = phoneKey9(l.telefon);
+    if (p0) aliase.push({ kind: "phone", valueNorm: p0, valueRaw: String(l.telefon).trim(), source: `lead:${l.id}` });
+
+    const treffer = findeBestehende(aliase);
+    if (treffer !== null) {
+      const ziel = anbindung(treffer);
+      ziel.leadIds.push(Number(l.id));
+      ergaenzeAliase(treffer, aliase);
+      leadsAnBestehende++;
+      continue;
+    }
+    offeneLeads.push(l);
+  }
+
   // Durchgang 1 — E-Mail-Sicherheit: der belastbare Treffer, zuerst.
   const rest1: any[] = [];
-  for (const l of leads as any[]) {
+  for (const l of offeneLeads) {
     const m = normEmail(l.email);
     const hit = m ? emailToPlan.get(m) : undefined;
     if (hit !== undefined) linkLead(hit, l);
@@ -398,24 +567,57 @@ async function main(): Promise<void> {
   // ── Bericht ───────────────────────────────────────────────────────────────
   const konflikte = plans.filter((p) => p.agentConflict).length;
   const bezahltePersonen = plans.filter((p) => p.paidRows > 0).length;
+  const anbindungsListe = Array.from(anbindungen.values());
+  const anzubindendeRefs = anbindungsListe.reduce((s, a) => s + a.refs.length, 0);
+  const anzubindendeLeads = anbindungsListe.reduce((s, a) => s + a.leadIds.length, 0);
+  const anzubindendeAliase = anbindungsListe.reduce((s, a) => s + a.neueAliase.length, 0);
+  const neuePersonen = plans.length + leadPlans.length;
+
   log("");
   log(`${APPLY ? "SCHARFER LAUF" : "TROCKENLAUF (nichts wird geschrieben)"} — P1-B Backfill`);
   log("─".repeat(70));
   log(`Antragszeilen gelesen ........... ${apps.length}`);
   log(`Leads gelesen ................... ${leads.length}`);
-  log(`Personen aus Anträgen ........... ${plans.length}`);
-  log(`  davon mit bezahlter Bestellung  ${bezahltePersonen}`);
-  log(`  davon Agenten-Konflikt .......  ${konflikte}  (keine automatische Entscheidung)`);
-  log(`Lead-only-Personen .............. ${leadPlans.length}${LIMIT ? "  (bei --limit bewusst 0)" : ""}`);
-  log(`Leads an bestehende Person ...... ${leadsVerknuepft}`);
+  log("");
+  log("NEUE PERSONEN");
+  log(`  aus Anträgen .................. ${plans.length}`);
+  log(`    davon mit bezahlter Bestellung ${bezahltePersonen}`);
+  log(`    davon Agenten-Konflikt ...... ${konflikte}  (keine automatische Entscheidung)`);
+  log(`  Lead-only ..................... ${leadPlans.length}${LIMIT ? "  (bei --limit bewusst 0)" : ""}`);
+  log(`  Leads daran verknüpft ......... ${leadsVerknuepft}`);
+  log("");
+  log("AN BESTEHENDE PERSONEN ANGEBUNDEN  (kein Neuanlegen)");
+  log(`  betroffene Personen ........... ${anbindungsListe.length}`);
+  log(`  Antragszeilen ................. ${anzubindendeRefs}`);
+  log(`  Leads ......................... ${anzubindendeLeads}`);
+  log(`  neue Aliase ................... ${anzubindendeAliase}`);
+  if (kollisionen > 0) {
+    log(`  ⚠️  Adresse gehört anderer Person ${kollisionen} — Zusammenführung nötig, hier NICHT entschieden`);
+  }
+  log("");
+  log("BEREITS ERLEDIGT (übersprungen)");
+  log(`  Antrags-Familien .............. ${bereitsZugeordnet}`);
+  log(`  Leads mit person_id ........... ${leadsBereitsZugeordnet}`);
+  log(`  Leads an bestehende Person .... ${leadsAnBestehende}`);
   log(`Verwaiste Entwurfszeilen ........ ${verwaisteZeilen} in ${verwaist} Gruppen (keine Person)`);
-  log(`Bereits zugeordnete Familien .... ${bereitsZugeordnet} (übersprungen)`);
   log("─".repeat(70));
 
   if (!APPLY) {
     log("");
     log("Kein Schreibzugriff erfolgt. Scharf schalten mit:");
     log("   npx tsx scripts/person-backfill.ts --apply");
+    log("");
+    await sqlPool.end();
+    return;
+  }
+
+  // Nichts zu tun — der Normalfall beim Wiederholungslauf ohne Nachzügler.
+  // Kein leerer Stapel, damit die Stapel-Liste aussagekräftig bleibt.
+  if (neuePersonen === 0 && anzubindendeRefs === 0 && anzubindendeLeads === 0 && anzubindendeAliase === 0) {
+    log("");
+    log("✅ NICHTS ZU TUN — jede Zeile ist bereits einer Person zugeordnet.");
+    log("   0 neue Personen, 0 Anbindungen. Kein Stapel angelegt.");
+    log(`   Dauer: ${((Date.now() - t0) / 1000).toFixed(1)} s`);
     log("");
     await sqlPool.end();
     return;
@@ -479,13 +681,16 @@ async function main(): Promise<void> {
       const pid = refToId.get(plan.personRef);
       if (!pid) return;
       for (const a of plan.aliases) {
-        aliasRows.push({ person_id: pid, kind: a.kind, value_norm: a.valueNorm, value_raw: a.valueRaw, source: a.source });
+        aliasRows.push({
+          person_id: pid, kind: a.kind, value_norm: a.valueNorm,
+          value_raw: a.valueRaw, source: a.source, merge_batch_id: batchId,
+        });
       }
     });
     for (let i = 0; i < aliasRows.length; i += 500) {
       const teil = aliasRows.slice(i, i + 500);
       await sqlPool`
-        INSERT INTO fiaon_person_aliases ${sqlPool(teil as any, "person_id", "kind", "value_norm", "value_raw", "source")}
+        INSERT INTO fiaon_person_aliases ${sqlPool(teil as any, "person_id", "kind", "value_norm", "value_raw", "source", "merge_batch_id")}
       `;
     }
 
@@ -530,10 +735,53 @@ async function main(): Promise<void> {
   }
   process.stdout.write("\n");
 
+  // ── Anbindung an Personen, die es schon gab ────────────────────────────
+  // Der Fall „Nachzügler": neue Bestellung oder neuer Lead eines Kunden, den es
+  // im Personenmodell bereits gibt. Es entsteht KEINE Person; es wird nur
+  // `person_id` gesetzt — und auch das nur dort, wo noch keine steht.
+  const angebundenRefs: string[] = [];
+  const angebundenLeadIds: number[] = [];
+  let angebundenApps = 0, angebundenLeads = 0, angebundenAliase = 0;
+
+  for (const a of anbindungsListe) {
+    if (a.refs.length > 0) {
+      const upd = await sqlPool`
+        UPDATE fiaon_applications SET person_id = ${a.personId}
+        WHERE ref = ANY(${a.refs}::text[]) AND person_id IS NULL
+        RETURNING ref
+      `;
+      angebundenApps += upd.length;
+      for (const r of upd as any[]) angebundenRefs.push(String(r.ref));
+    }
+    if (a.leadIds.length > 0) {
+      const upd = await sqlPool`
+        UPDATE fiaon_leads SET person_id = ${a.personId}
+        WHERE id = ANY(${a.leadIds}::int[]) AND person_id IS NULL
+        RETURNING id
+      `;
+      angebundenLeads += upd.length;
+      for (const r of upd as any[]) angebundenLeadIds.push(Number(r.id));
+    }
+    if (a.neueAliase.length > 0) {
+      const rows = a.neueAliase.map((x) => ({
+        person_id: a.personId, kind: x.kind, value_norm: x.valueNorm,
+        value_raw: x.valueRaw, source: x.source, merge_batch_id: batchId,
+      }));
+      await sqlPool`
+        INSERT INTO fiaon_person_aliases ${sqlPool(rows as any, "person_id", "kind", "value_norm", "value_raw", "source", "merge_batch_id")}
+      `;
+      angebundenAliase += rows.length;
+    }
+  }
+  appsLinked += angebundenApps;
+  leadsLinked += angebundenLeads;
+
   await sqlPool`
     UPDATE fiaon_person_batches SET
       finished_at = NOW(), persons_created = ${personsCreated}, apps_linked = ${appsLinked},
-      leads_linked = ${leadsLinked}, conflicts = ${konflikte}, orphans = ${verwaisteZeilen}
+      leads_linked = ${leadsLinked}, conflicts = ${konflikte}, orphans = ${verwaisteZeilen},
+      linked_refs = ${JSON.stringify(angebundenRefs)}::jsonb,
+      linked_lead_ids = ${JSON.stringify(angebundenLeadIds)}::jsonb
     WHERE batch_id = ${batchId}
   `;
 
@@ -542,6 +790,9 @@ async function main(): Promise<void> {
   log(`   Personen erzeugt ......... ${personsCreated}`);
   log(`   Anträge zugeordnet ....... ${appsLinked}`);
   log(`   Leads zugeordnet ......... ${leadsLinked}`);
+  if (angebundenApps + angebundenLeads + angebundenAliase > 0) {
+    log(`   davon an bestehende Personen angebunden: ${angebundenApps} Anträge, ${angebundenLeads} Leads, ${angebundenAliase} Aliase`);
+  }
   log(`   Agenten-Konflikte ........ ${konflikte} (markiert, nicht entschieden)`);
   log(`   Verwaiste Zeilen ......... ${verwaisteZeilen} (bewusst ohne Person)`);
   log(`   Dauer .................... ${((Date.now() - t0) / 1000).toFixed(1)} s`);

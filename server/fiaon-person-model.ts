@@ -349,6 +349,14 @@ export async function ensurePersonTables(): Promise<void> {
   await sqlPool`ALTER TABLE fiaon_applications ADD COLUMN IF NOT EXISTS person_id INTEGER`;
   await sqlPool`ALTER TABLE fiaon_leads ADD COLUMN IF NOT EXISTS person_id INTEGER`;
 
+  // Ein Lauf bindet Zeilen auch an Personen an, die es SCHON GAB (neue
+  // Bestellung eines bestehenden Kunden). Diese Zeilen hängen an einer Person
+  // aus einem früheren Stapel — ohne die folgenden drei Spalten würde `--undo`
+  // sie übersehen und das Versprechen „vollständig umkehrbar" wäre gebrochen.
+  await sqlPool`ALTER TABLE fiaon_person_batches ADD COLUMN IF NOT EXISTS linked_refs JSONB`;
+  await sqlPool`ALTER TABLE fiaon_person_batches ADD COLUMN IF NOT EXISTS linked_lead_ids JSONB`;
+  await sqlPool`ALTER TABLE fiaon_person_aliases ADD COLUMN IF NOT EXISTS merge_batch_id VARCHAR`;
+
   personTablesEnsured = true;
   console.log("[FIAON-PERSON] Personen-Tabellen sichergestellt");
 

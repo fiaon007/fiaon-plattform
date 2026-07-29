@@ -3,6 +3,38 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 29.07.2026 — Der Backfill ist wiederholbar: Nachzügler einsammeln statt Dubletten erzeugen
+
+Der versehentliche Zweitlauf hat 2.829 Lead-Personen **erneut** angelegt, obwohl alle 2.848 Leads bereits zugeordnet waren. Er wurde zurückgenommen — die Aufräum-Kontrolle bestätigt: keine Person ohne Alias und ohne Zeile, kein Alias ohne Person, keine tote `person_id`.
+
+### Die Ursache lag tiefer als gedacht
+
+Nicht nur dem Lead-Pfad fehlte die Prüfung „hat diese Zeile schon eine Person?". **Beide** Durchläufe glichen ausschließlich gegen die im selben Lauf gebauten Pläne ab — nie gegen die Personen, die bereits in der Datenbank stehen. Daraus folgten drei Störungen, nicht eine:
+
+- **Ein Lead mit gesetzter `person_id`** wurde trotzdem verarbeitet. Das war der sichtbare Fehler.
+- **Ein neuer Lead**, dessen Adresse einer bestehenden Person gehört, hätte eine zweite Person bekommen.
+- **Eine neue Bestellung eines bestehenden Kunden** hätte eine zweite Person mit derselben E-Mail angelegt — der eindeutige Index hätte den ganzen Lauf abgebrochen. Das ist exakt der Fall „Nachzügler einsammeln", also genau der Zweck, für den das Skript künftig regelmäßig laufen soll.
+
+Der Lauf lädt jetzt zuerst alle vorhandenen Personen samt Aliasen und **bindet passende Zeilen dort an, statt neu anzulegen**. Geschrieben wird nur `person_id` an Zeilen, die noch keine haben, und Aliase, die es noch nicht gibt — beides wirkungslos, wenn es schon getan wurde.
+
+Gehört eine Adresse bereits einer **anderen** Person, wird sie übergangen und gezählt. Das ist ein Zusammenführungsfall und keine Entscheidung, die ein Backfill treffen darf.
+
+### Das Sicherheitsnetz war löchrig
+
+Zeilen, die an eine **bestehende** Person angebunden werden, hängen an einer Person aus einem früheren Stapel. `--undo` hätte sie übersehen, und „vollständig umkehrbar" wäre eine leere Zusage gewesen. Der Stapel merkt sich jetzt die angebundenen Anträge und Leads, und jeder Alias trägt seine Stapel-ID.
+
+### Der Beweis
+
+Zwei scharfe Läufe hintereinander. Lauf 1 sammelte die fünf Nachzügler ein (1 neue Lead-Person, 1 Antragszeile angebunden). **Lauf 2: 0 neue Personen, 0 Anbindungen, grün durchgelaufen** — kein Abbruch. Bei einem Wiederholungslauf ohne Nachzügler wird bewusst kein leerer Stapel angelegt.
+
+### `scripts/person-nachlauf.ts` — misst, was ohne Dauerschutz verloren geht
+
+Seit dem Backfill sind in 1,3 Stunden fünf Zeilen ohne Person entstanden, hochgerechnet **rund 90 pro Tag**. Solange kein Schreibpfad die Person kennt, wächst dieser Rückstand stündlich weiter.
+
+Das Skript schlüsselt zusätzlich die 26 Agenten-Konflikte auf: **19 mit bezahlter Bestellung**, betroffen sind vor allem Florentine Lombardi (21), Daniel Stripling (18) und Nikita Boychenko (10).
+
+Prüfungen nach dem Umbau: person-verify 5/5 (254 bezahlte Personen, Baseline gehalten), kartei-verify grün, event-inventar 25/25, login-notfall-test 46/46.
+
 ## 29.07.2026 — Der API-Weg ist versperrt: Kontoabgleich läuft über CSV
 
 **Der Befund:** Wise unterstützt „retrieving balance statements via API" mit persönlichen Zugangstoken nur für Konten in den USA, Kanada, Australien, Neuseeland, Singapur und Malaysia. FIAON LTD ist britisch. Kein Codefehler — deshalb wurden alle sieben Signatur-Varianten abgewiesen. Der Code lief gegen eine geschlossene Tür.

@@ -45,6 +45,11 @@ import {
   WiseError,
 } from "../server/lib/wise-api";
 
+// Der Zugang ist stillgelegt (Wise erlaubt Kontoauszüge über persönliche Token
+// nicht für britische Konten). Genau dieses Skript soll ihn aber prüfen können —
+// etwa nach einem Partnerschaftsabkommen. Deshalb schaltet es sich selbst frei.
+process.env.WISE_AKTIV = "1";
+
 const log = (s = "") => console.log(s);
 const linie = (z = "─") => log(z.repeat(76));
 

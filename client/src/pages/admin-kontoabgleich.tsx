@@ -29,58 +29,13 @@ function fmtDT(v: string | null) {
   try { return new Date(v).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return "—"; }
 }
 
-// ── CSV-Parser (Wise-Export), Trennzeichen automatisch ───────────────
-function parseDelimited(text: string, delim: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [], field = "", inQ = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQ) {
-      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
-      else field += c;
-    } else if (c === '"') inQ = true;
-    else if (c === delim) { row.push(field); field = ""; }
-    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
-    else if (c !== "\r") field += c;
-  }
-  if (field.length || row.length) { row.push(field); rows.push(row); }
-  return rows.filter((r) => r.some((x) => x.trim() !== ""));
-}
-function detectDelim(sample: string): string {
-  const first = sample.split(/\r?\n/)[0] || "";
-  const counts: Record<string, number> = { ",": 0, ";": 0, "\t": 0 };
-  for (const ch of first) if (ch in counts) counts[ch]++;
-  const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-  return best[1] > 0 ? best[0] : ",";
-}
-
-const COLMAP: Record<string, string> = {
-  "transferwise id": "txnId", "wise id": "txnId", "id": "txnId",
-  "date time": "dateTime", "datetime": "dateTime",
-  "amount": "amount", "currency": "currency",
-  "description": "description", "payment reference": "reference", "reference": "reference",
-  "payer name": "payerName",
-  "transaction type": "transactionType", "transaction details type": "detailsType",
-};
-
-function parseBankCsv(text: string): any[] {
-  const rows = parseDelimited(text, detectDelim(text));
-  if (rows.length < 2) return [];
-  const header = rows[0].map((h) => h.trim().toLowerCase());
-  const idx: Record<string, number> = {};
-  header.forEach((h, i) => { const key = COLMAP[h]; if (key && idx[key] === undefined) idx[key] = i; });
-  return rows.slice(1).map((cols) => ({
-    txnId: idx.txnId != null ? cols[idx.txnId] : "",
-    dateTime: idx.dateTime != null ? cols[idx.dateTime] : "",
-    amount: idx.amount != null ? cols[idx.amount] : "",
-    currency: idx.currency != null ? cols[idx.currency] : "EUR",
-    description: idx.description != null ? cols[idx.description] : "",
-    reference: idx.reference != null ? cols[idx.reference] : "",
-    payerName: idx.payerName != null ? cols[idx.payerName] : "",
-    transactionType: idx.transactionType != null ? cols[idx.transactionType] : "",
-    detailsType: idx.detailsType != null ? cols[idx.detailsType] : "",
-  }));
-}
+// ── Der Kontoauszug wird SERVERSEITIG gelesen ───────────────────────
+// Früher zerlegte der Browser die Datei mit einer festen Spaltentabelle. Hiess
+// eine Spalte anders, verschwand die Zeile wortlos — von 100 Eingängen wurden 9
+// zugeordnet. Jetzt geht der Rohtext an den Server: `server/lib/wise-csv.ts`
+// erkennt die Spalten in mehreren Sprach- und Formatvarianten und ANTWORTET MIT
+// EINEM FEHLER, wenn eine Pflichtspalte fehlt. Diese Logik ist durch Tests
+// abgesichert (`scripts/wise-csv-test.ts`) — im Browser war sie es nie.
 
 const STATUS_CHIPS = [
   { key: "", label: "Alle" },
@@ -187,11 +142,23 @@ export default function AdminKontoabgleichPage() {
   const onFile = async (file: File) => {
     setBusy(true); setFlash(null);
     try {
-      const rows = parseBankCsv(await file.text());
-      if (rows.length === 0) { setFlash("Keine verwertbaren Zeilen erkannt."); return; }
-      const r = await apiF("/admin/reconcile/import", { method: "POST", body: JSON.stringify({ rows }) });
-      if (r.ok) setFlash(`Import: ${r.json.imported} Eingänge (${r.json.matched} zugeordnet, ${r.json.unmatched} offen, ${r.json.skipped} übersprungen — nur Kunden-Eingänge).`);
-      else setFlash(r.json?.error || "Import fehlgeschlagen.");
+      const csv = await file.text();
+      const r = await apiF("/admin/reconcile/import", { method: "POST", body: JSON.stringify({ csv }) });
+      if (r.ok) {
+        const st = r.json.stufen || {};
+        const sicher = (st.referenz || 0) + (st.iban || 0) + (st.name_betrag || 0);
+        setFlash(
+          `Import: ${r.json.imported} Eingänge — ${sicher} sicher zugeordnet ` +
+          `(${st.referenz || 0}× Referenz, ${st.iban || 0}× IBAN, ${st.name_betrag || 0}× Name+Betrag), ` +
+          `${r.json.unmatched} zur Prüfung. ` +
+          (r.json.hinweise?.length ? r.json.hinweise.join(" · ") + ". " : "") +
+          "Nichts verbucht, keine E-Mail verschickt.",
+        );
+      } else {
+        // Die Begründung des Servers wird vollständig angezeigt — sie nennt die
+        // fehlende Pflichtspalte und die tatsächlich gefundenen Überschriften.
+        setFlash(r.json?.error || "Import fehlgeschlagen.");
+      }
       load();
     } finally { setBusy(false); }
   };
@@ -240,7 +207,7 @@ export default function AdminKontoabgleichPage() {
         </label>
       </div>
 
-      {flash && <div className="mb-4 px-4 py-2.5 rounded-lg border border-slate-300 bg-white text-[13px] text-slate-700">{flash}</div>}
+      {flash && <div className="mb-4 px-4 py-2.5 rounded-lg border border-slate-300 bg-white text-[13px] text-slate-700 whitespace-pre-line">{flash}</div>}
 
       {summary && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">

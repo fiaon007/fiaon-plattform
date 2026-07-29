@@ -3,6 +3,40 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 29.07.2026 — Der API-Weg ist versperrt: Kontoabgleich läuft über CSV
+
+**Der Befund:** Wise unterstützt „retrieving balance statements via API" mit persönlichen Zugangstoken nur für Konten in den USA, Kanada, Australien, Neuseeland, Singapur und Malaysia. FIAON LTD ist britisch. Kein Codefehler — deshalb wurden alle sieben Signatur-Varianten abgewiesen. Der Code lief gegen eine geschlossene Tür.
+
+Der API-Code wurde **nicht gelöscht**, sondern stillgelegt: `server/lib/wise-api.ts` trägt den Grund oben im Kopf, und ein Schutzschalter verhindert die versehentliche Nutzung. Nach einem Partnerschaftsabkommen mit Wise genügt `WISE_AKTIV=1`. Zuordnung, Bankbuch und Bericht sind gemeinsam genutzt — es änderte sich dann nur, woher die Umsätze kommen.
+
+### Der eigentliche Grund für das Chaos
+
+Der alte Import zerlegte die Datei **im Browser** mit einer festen Spaltentabelle und verlangte die Werte `CREDIT` und `DEPOSIT`. Hieß eine Spalte anders, verschwand die Zeile wortlos. Zugeordnet wurde ausschließlich über eine Referenz im Verwendungszweck — wer ohne Referenz überwies, blieb liegen, auch bei eindeutigem Namen und Betrag. **Ergebnis: 9 von 100 Eingängen zugeordnet.**
+
+### `server/lib/wise-csv.ts` — liest jetzt der Server, nicht der Browser
+
+- **Spalten flexibel** — Datum, Betrag, Währung, Verwendungszweck, Absender, Absender-IBAN und Transaktions-ID werden in deutschen wie englischen Schreibweisen erkannt, bei Komma, Semikolon und Tabulator.
+- **Fehlt eine Pflichtspalte, bricht der Import ab** und nennt die tatsächlich gefundenen Überschriften. Kein stilles Weiterlaufen. Genau das hat vorher Geld gekostet.
+- **Jede übersprungene Zeile wird mit Nummer und Grund benannt.** Am Ende muss die Rechnung aufgehen: gelesen = Eingänge + Ausgänge + intern + übersprungen.
+- **Richtung über das Vorzeichen**, nicht über eine Spalte, die es je nach Export gar nicht gibt. Ein negativer Betrag ist immer ein Ausgang. Umbuchungen zwischen eigenen Konten gelten nie als Kundengeld.
+- **Deutsch und englisch getrennt gehalten**: „1.234,56" und „1,234.56" ergeben beide 123456 Cent. Eine Verwechslung hier hätte einen Faktor 1000 zur Folge.
+
+**73 Tests** (`scripts/wise-csv-test.ts`), ohne Datenbank und ohne Netz — auch für die Fälle, in denen der Leser **abbrechen muss**.
+
+### Zugeordnet wird jetzt in Stufen
+
+Referenz, Absender-IBAN, Name mit exaktem Betrag — alles Unsichere bleibt Vorschlag mit Begründung im Klartext. Das gilt für den Upload **und** für „Offene neu abgleichen": Die 100 bereits vorhandenen Eingänge profitieren davon, ohne dass etwas neu importiert werden muss.
+
+Mehrfach-Import ist vorgesehen: Die Transaktions-ID ist der Schlüssel, bekannte Zeilen werden erkannt. Eine von Hand gesetzte oder bereits verbuchte Zuordnung wird dabei **nie** überschrieben.
+
+### `scripts/wise-csv-import.ts` — der volle Abgleichsbericht
+
+Vier Kategorien mit Anzahl und Summe: Geld da und bezahlt · **Geld da, aber im System offen** (das ist der Schaden: diese Kunden werden gemahnt) · als bezahlt geführt ohne Beleg · Geld ohne Zuordnung.
+
+Dazu die Frage, um die es geht: **Wie viele der als bezahlt geführten Bestellungen haben einen echten Bankeingang?** Mit ausdrücklichem Hinweis, dass „ohne Beleg" nicht „hat nicht bezahlt" heißt, solange der Auszug nicht den ganzen Zeitraum abdeckt — der Bericht nennt deshalb den abgedeckten Zeitraum mit.
+
+**Standardlauf schreibt nichts.** Mit `--apply` wird ausschließlich das Bankbuch gefüllt. In keinem Lauf wird eine Bestellung auf bezahlt gesetzt, `confirmed_email_sent_at` angefasst, eine E-Mail verschickt oder Provision gebucht. Verbuchen bleibt ein eigener, ausdrücklicher Schritt.
+
 ## 29.07.2026 — Wise weist die Signatur ab: Diagnose statt Raten
 
 Das Schlüsselpaar ist geprüft, der Schlüssel bei Wise aktiv — und die Unterschrift wird trotzdem abgelehnt. Die bisherige Fehlermeldung endete mit „Antwort:" und dahinter stand nichts. Damit war nicht einmal erkennbar, **welcher** der beiden 403-Fälle zugeschlagen hatte: fehlende Berechtigung oder abgelehnte Unterschrift. Eine Meldung, die das offenlässt, ist keine Hilfe, sondern eine Falle.

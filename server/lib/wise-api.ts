@@ -1,13 +1,41 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * WISE-ZUGANG — NUR LESEND
+ * WISE-ZUGANG — STILLGELEGT, ABER EINSATZBEREIT
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * WARUM
- * Der Kontoabgleich lief bisher über einen CSV-Upload von Hand. Wer ihn
- * vergisst, verliert Zahlungen: Der Kunde hat bezahlt, das System weiß es
- * nicht, der Agent ruft ihn zur Mahnung an. Diese Datei holt die Umsätze
- * direkt bei Wise ab.
+ * ┌───────────────────────────────────────────────────────────────────────┐
+ * │ DIESER WEG IST VERSPERRT — UND ZWAR NICHT WEGEN EINES FEHLERS.        │
+ * │                                                                       │
+ * │ Wise unterstützt „retrieving balance statements via API" mit          │
+ * │ PERSÖNLICHEN Zugangstoken nur für Konten in den USA, Kanada,          │
+ * │ Australien, Neuseeland, Singapur und Malaysia.                        │
+ * │ FIAON LTD ist britisch. Der Abruf ist damit nicht vorgesehen.         │
+ * │                                                                       │
+ * │ Deshalb wurden am 29.07.2026 ALLE SIEBEN Signatur-Varianten           │
+ * │ abgewiesen (siehe `scripts/wise-sca-diagnose.ts`): PKCS#1 v1.5,       │
+ * │ die Kopfzeilen der offiziellen Vorlage, Base64URL, Hex, PSS,          │
+ * │ nur-Kennung-ohne-Unterschrift und der Endpunkt aus der Vorlage.       │
+ * │ Der Code lief gegen eine geschlossene Tür.                            │
+ * │                                                                       │
+ * │ IM EINSATZ IST STATTDESSEN: `server/lib/wise-csv.ts`                  │
+ * │ Der Kontoauszug wird aus der Wise-Weboberfläche als CSV geladen.      │
+ * │                                                                       │
+ * │ WANN DIESER CODE WIEDER GEBRAUCHT WIRD                                │
+ * │ Bei einem Partnerschaftsabkommen mit Wise (Wise Platform). Dann       │
+ * │ genügt es, `WISE_AKTIV=1` zu setzen. Zuordnung, Bankbuch und          │
+ * │ Abgleichsbericht sind bereits gemeinsam genutzt und bleiben gültig —  │
+ * │ es ändert sich nur, WOHER die Umsätze kommen.                         │
+ * │                                                                       │
+ * │ Nicht gelöscht, weil hier die vollständige, geprüfte SCA-Signatur     │
+ * │ steckt (12 Tests in `scripts/wise-sca-test.ts`). Sie noch einmal zu   │
+ * │ bauen wäre reine Doppelarbeit.                                        │
+ * └───────────────────────────────────────────────────────────────────────┘
+ *
+ * WOFÜR ES GEDACHT WAR
+ * Der Kontoabgleich läuft über einen CSV-Upload von Hand. Wer ihn vergisst,
+ * verliert Zahlungen: Der Kunde hat bezahlt, das System weiß es nicht, der
+ * Agent ruft ihn zur Mahnung an. Dieses Modul sollte die Umsätze stündlich
+ * selbst holen und diesen Handgriff überflüssig machen.
  *
  * SICHERHEIT — NICHT VERHANDELBAR
  *   · Der Token kommt AUSSCHLIESSLICH aus `process.env.WISE_API_TOKEN`,
@@ -99,6 +127,28 @@ function token(): string {
 }
 
 const schlaf = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Schutzschalter.
+ *
+ * Ohne ihn würde ein späterer Aufruf dieses Moduls wieder in denselben
+ * unerklärlichen 403 laufen und die Fehlersuche von vorne beginnen. Die
+ * Meldung nennt den Grund und den Weg, der tatsächlich funktioniert.
+ *
+ * `scripts/wise-sca-diagnose.ts` bleibt bewusst aufrufbar — es setzt die
+ * Variable selbst, damit ein Partnerschaftsabkommen sofort nachprüfbar ist.
+ */
+function stillgelegtPruefen(): void {
+  if (process.env.WISE_AKTIV === "1") return;
+  throw new WiseError(
+    "Der Wise-Abruf über die Schnittstelle ist stillgelegt. Wise erlaubt den Abruf von " +
+    "Kontoauszügen mit persönlichen Zugangstoken nur für Konten in den USA, Kanada, " +
+    "Australien, Neuseeland, Singapur und Malaysia — FIAON LTD ist britisch. " +
+    "Im Einsatz ist der CSV-Weg (server/lib/wise-csv.ts). " +
+    "Nach einem Partnerschaftsabkommen mit Wise genügt WISE_AKTIV=1, um diesen Weg " +
+    "wieder freizuschalten.",
+  );
+}
 
 /** Antwortkörper für die Ausgabe aufbereiten — leere Körper klar benennen.
  *  Ein bloßes „Antwort:" ohne Inhalt lässt offen, ob nichts kam oder nichts
@@ -266,6 +316,7 @@ export function oeffentlicherFingerabdruck(): string {
  * abweichende Kopie wäre bei der Fehlersuche wertlos.
  */
 export async function roherAufruf(pfad: string, zusatz: Record<string, string> = {}): Promise<Response> {
+  stillgelegtPruefen();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ZEITLIMIT_MS);
   try {

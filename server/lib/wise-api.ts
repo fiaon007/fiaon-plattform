@@ -41,6 +41,33 @@ const WISE_BASE = "https://api.wise.com";
 const FENSTER_TAGE = 400;
 const ZEITLIMIT_MS = 30_000;
 
+/** Wie in der offiziellen Wise-Vorlage (sca-personal-tokens). Ohne eigenen
+ *  Bezeichner sendet Node einen nichtssagenden Standardwert. */
+const KENNUNG_CLIENT = "FIAON-Kontoabgleich/1.0 (tw-statements-sca)";
+
+/** Kopfzeilen, die bei einem 403 die Wahrheit enthalten. */
+const DIAGNOSE_KOEPFE = [
+  "x-2fa-approval",
+  "x-2fa-approval-result",
+  "www-authenticate",
+  "x-request-id",
+  "x-trace-id",
+  "content-type",
+  "content-length",
+  "date",
+];
+
+/** Alle aussagekräftigen Kopfzeilen einer Antwort als eine Zeile. Enthält nie
+ *  Geheimnisse — die Freigabe-Kennung ist eine Einmal-Kennung ohne Dauerwert. */
+export function kopfBericht(res: Response): string {
+  const teile: string[] = [];
+  for (const name of DIAGNOSE_KOEPFE) {
+    const v = res.headers.get(name);
+    if (v) teile.push(`${name}: ${v}`);
+  }
+  return teile.join(" | ") || "(keine aussagekräftigen Kopfzeilen)";
+}
+
 export class WiseError extends Error {
   constructor(message: string, readonly status?: number) {
     super(message);
@@ -73,6 +100,15 @@ function token(): string {
 
 const schlaf = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Antwortkörper für die Ausgabe aufbereiten — leere Körper klar benennen.
+ *  Ein bloßes „Antwort:" ohne Inhalt lässt offen, ob nichts kam oder nichts
+ *  gelesen wurde. */
+function koerper(body: string): string {
+  const t = String(body ?? "").trim();
+  if (!t) return "(leer — Wise sendet bei 403 oft keinen Text; die Wahrheit steht in den Kopfzeilen)";
+  return redact(t).slice(0, 600);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Signatur für die starke Kundenauthentifizierung
 // ═══════════════════════════════════════════════════════════════════════════
@@ -89,6 +125,8 @@ const schlaf = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * liegt das Rohmaterial nicht länger als nötig als Zeichenkette herum.
  */
 let schluesselCache: crypto.KeyObject | null = null;
+let schluesselArt = "unbekannt";
+let schluesselZeilen = 0;
 
 function privaterSchluessel(): crypto.KeyObject {
   if (schluesselCache) return schluesselCache;
@@ -108,6 +146,17 @@ function privaterSchluessel(): crypto.KeyObject {
   } else {
     pem = Buffer.from(roh, "base64").toString("utf8");
   }
+
+  // Art merken: PKCS#1 („BEGIN RSA PRIVATE KEY", von `openssl genrsa`) oder
+  // PKCS#8 („BEGIN PRIVATE KEY", nach `openssl pkcs8`). Node liest beides —
+  // aber bei einer Fehlersuche will man wissen, was tatsächlich vorliegt.
+  schluesselArt = pem.includes("BEGIN RSA PRIVATE KEY")
+    ? "PKCS#1"
+    : pem.includes("BEGIN PRIVATE KEY")
+      ? "PKCS#8"
+      : "unbekannte Form";
+  const zeilen = pem.trim().split("\n").length;
+  schluesselZeilen = zeilen;
 
   if (!pem.includes("-----BEGIN")) {
     throw new WiseError(
@@ -157,27 +206,77 @@ export function signiereFreigabe(kennung: string, schluessel: crypto.KeyObject |
  */
 export function schluesselStatus(): { ok: boolean; text: string } {
   try {
-    const k = privaterSchluessel();
-    const bits = (k.asymmetricKeyDetails as any)?.modulusLength;
-    const art = String(k.asymmetricKeyType || "unbekannt").toUpperCase();
-    return { ok: true, text: `geladen (${art}${bits ? `-${bits}` : ""})` };
+    return { ok: true, text: schluesselBeschreibung() };
   } catch (err: any) {
     return { ok: false, text: redact(String(err?.message || err)) };
   }
+}
+
+/** Kurzbeschreibung des Schlüssels für Log und Fehlermeldung. Wirft, wenn er fehlt. */
+function schluesselBeschreibung(): string {
+  const k = privaterSchluessel();
+  const bits = (k.asymmetricKeyDetails as any)?.modulusLength;
+  const art = String(k.asymmetricKeyType || "unbekannt").toUpperCase();
+  return `${art}${bits ? `-${bits}` : ""}, ${schluesselArt}, ${schluesselZeilen} PEM-Zeilen`;
+}
+
+/**
+ * Der zum privaten Schlüssel gehörende öffentliche Schlüssel als PEM.
+ *
+ * Ein öffentlicher Schlüssel ist per Definition nicht geheim — er darf und soll
+ * ausgegeben werden, damit man ihn mit dem bei Wise hinterlegten vergleichen kann.
+ */
+export function oeffentlicherSchluesselPem(): string {
+  return crypto
+    .createPublicKey(privaterSchluessel())
+    .export({ type: "spki", format: "pem" })
+    .toString()
+    .trim();
+}
+
+/**
+ * Nur für die Fehlersuche: das Schlüsselobjekt selbst.
+ *
+ * Ein `KeyObject` gibt sein Rohmaterial nicht als Text preis und kann nicht
+ * versehentlich in ein Log geraten. Der Zweck ist, dass das Diagnoseskript
+ * andere Signaturverfahren durchprobieren kann, ohne das Laden des Schlüssels
+ * ein zweites Mal — und womöglich abweichend — nachzubauen.
+ */
+export function holePrivatenSchluessel(): crypto.KeyObject {
+  return privaterSchluessel();
+}
+
+/** Fingerabdruck des öffentlichen Schlüssels — kurz vergleichbar, ohne langes PEM. */
+export function oeffentlicherFingerabdruck(): string {
+  const der = crypto
+    .createPublicKey(privaterSchluessel())
+    .export({ type: "spki", format: "der" }) as Buffer;
+  return crypto.createHash("sha256").update(der).digest("base64");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Aufruf
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Ein einzelner Aufruf mit Zeitlimit. Wirft nur bei Netzproblemen. */
-async function roherAufruf(pfad: string, zusatz: Record<string, string> = {}): Promise<Response> {
+/**
+ * Ein einzelner Aufruf mit Zeitlimit. Wirft nur bei Netzproblemen.
+ *
+ * Exportiert, damit `scripts/wise-sca-diagnose.ts` den Handschlag Schritt für
+ * Schritt nachstellen kann, ohne die Logik zu verdoppeln — eine zweite,
+ * abweichende Kopie wäre bei der Fehlersuche wertlos.
+ */
+export async function roherAufruf(pfad: string, zusatz: Record<string, string> = {}): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ZEITLIMIT_MS);
   try {
     return await fetch(`${WISE_BASE}${pfad}`, {
       method: "GET",
-      headers: { Authorization: `Bearer ${token()}`, Accept: "application/json", ...zusatz },
+      headers: {
+        Authorization: `Bearer ${token()}`,
+        Accept: "application/json",
+        "User-Agent": KENNUNG_CLIENT,
+        ...zusatz,
+      },
       signal: ctrl.signal,
     });
   } catch (err: any) {
@@ -206,9 +305,13 @@ async function get<T>(pfad: string, versuch = 0): Promise<T> {
     if (!kennung) {
       const body = await res.text().catch(() => "");
       throw new WiseError(
-        `Wise verweigert den Zugriff auf ${redact(pfad)} (403) und nennt keine Freigabe-Kennung. ` +
-        "Das ist keine Signaturfrage, sondern fehlende Berechtigung: Hat der Token Leserechte " +
-        `für dieses Profil? Antwort: ${redact(body).slice(0, 300)}`,
+        [
+          `Wise verweigert den Zugriff auf ${redact(pfad)} (403) und nennt KEINE Freigabe-Kennung.`,
+          "  Das ist keine Signaturfrage — die Signatur kam hier gar nicht zum Einsatz.",
+          "  Es fehlt die Berechtigung: Hat der Token Leserechte für dieses Profil?",
+          `  Kopfzeilen: ${kopfBericht(res)}`,
+          `  Antwortkörper: ${koerper(body)}`,
+        ].join("\n"),
         403,
       );
     }
@@ -224,15 +327,32 @@ async function get<T>(pfad: string, versuch = 0): Promise<T> {
     // Genau eine Wiederholung — derselbe Aufruf, jetzt unterschrieben.
     res = await roherAufruf(pfad, { "x-2fa-approval": kennung, "X-Signature": signatur });
 
-    if (res.status === 403) {
-      const grund = res.headers.get("x-2fa-approval-result") || "ohne Angabe";
+    // Alles außer Überlast und Serverstörung ist hier endgültig — und muss
+    // vollständig erklärt werden. Ein nacktes „403" schickt sonst jeden auf
+    // eine stundenlange Suche am falschen Ende.
+    if (!res.ok && res.status !== 429 && res.status < 500) {
+      const ergebnis = res.headers.get("x-2fa-approval-result");
+      const neue = res.headers.get("x-2fa-approval");
       const body = await res.text().catch(() => "");
       throw new WiseError(
-        `Wise hat die Signatur abgelehnt (${grund}) bei ${redact(pfad)}. ` +
-        "Üblichste Ursache: Der bei Wise hinterlegte öffentliche Schlüssel gehört nicht zu " +
-        "WISE_PRIVATE_KEY_B64. Beide müssen aus demselben Schlüsselpaar stammen. " +
-        `Antwort: ${redact(body).slice(0, 300)}`,
-        403,
+        [
+          `Wise hat die unterschriebene Anfrage mit ${res.status} abgewiesen (${redact(pfad)}).`,
+          `  x-2fa-approval-result: ${ergebnis ?? "(nicht gesendet)"}`,
+          `  Kennung in der Antwort: ${
+            !neue
+              ? "keine"
+              : neue === kennung
+                ? "dieselbe wie im ersten 403"
+                : "eine ANDERE — Wise hat die Kette neu begonnen, die Unterschrift wurde nicht gewertet"
+          }`,
+          `  Kopfzeilen: ${kopfBericht(res)}`,
+          `  Antwortkörper: ${koerper(body)}`,
+          `  Kennung ${kennung.length} Zeichen · Signatur ${signatur.length} Zeichen Base64 ` +
+            `(RSA-2048 erwartet 344)`,
+          `  Schlüssel: ${schluesselStatus().text}`,
+          "  Nächster Schritt: npx tsx scripts/wise-sca-diagnose.ts — prüft die Varianten einzeln durch.",
+        ].join("\n"),
+        res.status,
       );
     }
   }

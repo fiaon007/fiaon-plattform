@@ -3,6 +3,34 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 29.07.2026 — Wise weist die Signatur ab: Diagnose statt Raten
+
+Das Schlüsselpaar ist geprüft, der Schlüssel bei Wise aktiv — und die Unterschrift wird trotzdem abgelehnt. Die bisherige Fehlermeldung endete mit „Antwort:" und dahinter stand nichts. Damit war nicht einmal erkennbar, **welcher** der beiden 403-Fälle zugeschlagen hatte: fehlende Berechtigung oder abgelehnte Unterschrift. Eine Meldung, die das offenlässt, ist keine Hilfe, sondern eine Falle.
+
+### Was der Abgleich mit der offiziellen Wise-Vorlage ergeben hat
+
+Verfahren, Kopfzeilen und Kodierung stimmen mit `transferwise/digital-signatures-examples` überein. Ein Punkt ließ sich dabei als Ursache **ausschließen**: Im Beispiel von Wise baut der Wiederholungsaufruf `intervalStart`/`intervalEnd` aus der aktuellen Uhrzeit neu — die URL unterscheidet sich also zwischen erstem und zweitem Versuch, und es funktioniert trotzdem. Die Einmal-Kennung ist damit **nicht an die exakte URL gebunden**.
+
+Drei Abweichungen blieben: Wir sendeten keinen `User-Agent` (die Vorlage sendet `tw-statements-sca`), `Accept` statt `Content-Type`, und einen anderen Endpunkt-Zweig.
+
+### Fehlermeldungen, die den Fall tatsächlich aufklären
+
+Bei jedem abgewiesenen Aufruf stehen jetzt: HTTP-Status, `x-2fa-approval-result`, sämtliche aussagekräftigen Kopfzeilen, der Antwortkörper im Klartext, Länge von Kennung und Unterschrift, sowie Art und Form des Schlüssels.
+
+Eine Angabe ist dabei besonders aufschlussreich: **ob in der Antwort eine neue Kennung zurückkam.** Ist es eine andere als die unterschriebene, hat Wise die Kette neu begonnen — die Unterschrift wurde dann gar nicht erst gewertet. Das ist ein völlig anderer Fehler als eine geprüfte und verworfene Unterschrift, sieht am nackten Statuscode aber identisch aus.
+
+Ein leerer Antwortkörper wird als solcher benannt statt einfach nichts anzuzeigen — Wise sendet bei 403 regelmäßig keinen Text, die Wahrheit steht in den Kopfzeilen.
+
+### `scripts/wise-sca-diagnose.ts` — misst, statt zu vermuten
+
+Ohne Netz wird bewiesen, dass zwei unabhängige Wege in Node dieselbe Unterschrift ergeben, dass sie 344 Zeichen lang ist und aus Standard-Base64 besteht. Damit sind Verfahren und Kodierung als Ursache erledigt.
+
+Danach werden sieben Varianten **einzeln am lebenden System** durchgeprüft: die aktuelle, die mit den Kopfzeilen der Vorlage, Base64URL, Hex, PSS, nur-Kennung-ohne-Unterschrift und der Endpunkt aus der Vorlage. Jede holt sich eine **frische** Einmal-Kennung — sonst misst man nur, dass die vorige verbraucht ist, und hält das für einen Signaturfehler.
+
+Ausgegeben wird außerdem der aus `WISE_PRIVATE_KEY_B64` abgeleitete **öffentliche** Schlüssel samt Fingerabdruck. Der ist nicht geheim und genau das, was man mit Wise vergleichen will. Token, privater Schlüssel und der Wert der Kennung erscheinen nirgends.
+
+Nimmt Wise keine einzige Variante an, ist die Ursache nicht mehr im Code zu suchen. Dann bleibt der Fall, den die Wise-Oberfläche nicht sichtbar macht: Schlüssel und Token gehören zu unterschiedlichen Benutzern oder Profilen.
+
 ## 29.07.2026 — Wise live, Teil 2: Signatur für die starke Kundenauthentifizierung
 
 Kontoauszüge sind bei Wise besonders geschützt. Der erste Aufruf wird **absichtlich mit 403 abgewiesen** und trägt im Antwortkopf `x-2fa-approval` eine Einmal-Kennung. Wer den privaten Schlüssel besitzt, unterschreibt sie und wiederholt den Aufruf. Damit beweist unser Server, dass er zu dem bei Wise hinterlegten öffentlichen Schlüssel gehört.

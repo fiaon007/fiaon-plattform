@@ -14,6 +14,10 @@ import { ensureInvoiceNumber, renderInvoicePdf, signInvoiceUrl, verifyInvoiceSig
 import { absoluteUrl } from "../fiaon-base-url";
 import { normalizePhone } from "./fiaon-agent";
 import { verifyNumberToken, markNumberUpdated } from "../fiaon-number-update";
+// P1-C Dauerschutz: jede neue Antragszeile ist eine BESTELLUNG an einer Person,
+// kein neuer Mensch. Ohne diese Bindung entstehen wieder ~90 Zeilen pro Tag ohne
+// Zuordnung (gemessen: scripts/person-nachlauf.ts).
+import { bindePersonAnAntrag } from "../fiaon-person-model";
 import {
   LOGIN_ACCESS_STATUSES,
   LOGIN_CODES,
@@ -789,6 +793,18 @@ router.post("/payment-order", async (req, res) => {
     `;
 
     console.log(`[FIAON-PAYMENT] Bestellung angelegt: ${paymentReference} (ref=${ref}, ${amount.toFixed(2)} EUR, fällig ${dueDate.toISOString()})`);
+
+    // ══ P1-C DAUERSCHUTZ: Bestellung an bestehender Person ════════════════
+    // Besonders wichtig beim Bonitäts-Kauf: Der legt bewusst eine EIGENE
+    // Antragszeile an (`FIAON-SCHUFA-…`, oben in dieser Route). Genau diese
+    // Zeile hat den Login-Ausfall ausgelöst — sie war die jüngste Zeile der
+    // E-Mail und trug kein Passwort.
+    //
+    // Sie wird jetzt derselben Person zugeordnet wie das Konto. Damit zählt der
+    // Bonitäts-Käufer strukturell nur noch EINMAL, und der Ausfall kann sich
+    // nicht wiederholen: Das Passwort hängt an der Person, nicht an der Zeile.
+    await bindePersonAnAntrag(ref).catch((e) =>
+      console.error("[FIAON-PERSON] Zuordnung nach /payment-order:", e));
 
     // Paket AE1: neue Bestellung sofort fair verteilen (Round-Robin, fire-and-forget)
     import("./fiaon-agent").then((m) => m.distributeUnassignedOrders()).catch((e) => console.error("[FIAON-VERTEILUNG]", e));
@@ -2240,6 +2256,23 @@ router.post("/application", async (req, res) => {
       const convPhone = (phoneCountryCode || phone) ? `${phoneCountryCode || ""}${phone || ""}` : (contactPhone || null);
       import("./fiaon-leads").then((m) => m.convertLeadsForContact(convEmail, convPhone, ref)).catch(() => {});
     } catch { /* fire-and-forget */ }
+
+    // ══ P1-C DAUERSCHUTZ: diese Zeile an ihre PERSON binden ══════════════
+    // Ohne diesen Aufruf entstünde hier wieder eine Zeile ohne Person — gemessen
+    // rund 90 pro Tag. Eine neue Antragszeile ist eine BESTELLUNG an einer
+    // bestehenden Person, kein neuer Mensch.
+    //
+    // Der Funnel speichert bei jedem Schritt-Wechsel. Solange weder E-Mail noch
+    // Telefon eingegeben sind, gibt `personFuerZeile` bewusst `null` zurück: Das
+    // ist ein Entwurf, kein Kunde. Sobald der Kontaktschritt ausgefüllt ist,
+    // wird die Person gefunden oder angelegt — und bleibt es bei jedem weiteren
+    // Speichern (nur `person_id`, immer derselbe Wert).
+    //
+    // Das Passwort wird hier NICHT geschrieben, wenn es fehlt: `personFuerZeile`
+    // füllt nur leere Felder. Dieselbe Regel wie oben im Antrags-Speicher — sie
+    // war die Ursache des Login-Ausfalls.
+    await bindePersonAnAntrag(ref).catch((e) =>
+      console.error("[FIAON-PERSON] Zuordnung nach /application:", e));
 
     res.json({ ok: true, ref });
   } catch (err) {

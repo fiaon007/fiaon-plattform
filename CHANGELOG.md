@@ -3,6 +3,41 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 29.07.2026 — Dauerschutz: die Person wird gefunden, nicht neu erfunden
+
+Der Backfill war eine Momentaufnahme. Gemessen mit `scripts/person-nachlauf.ts`: In den 1,3 Stunden danach entstanden bereits fünf Zeilen ohne Person, hochgerechnet **rund 90 pro Tag**. Ohne diesen Teil wäre der gesamte Aufwand nach wenigen Wochen wieder aufgezehrt gewesen.
+
+Ab jetzt ruft **jeder** Schreibpfad, der eine Antragszeile oder einen Lead anlegt, denselben Auflöser. Er sucht über die normalisierte E-Mail **und** die Rufnummer — einschließlich aller je verwendeten Aliase — und legt nur dann eine Person an, wenn wirklich keine passt.
+
+- **Neuer Antrag** — eine neue Antragszeile ist eine *Bestellung an einer bestehenden Person*, kein neuer Mensch.
+- **Bonitäts-Kauf** — legt bewusst eine eigene Antragszeile an (`FIAON-SCHUFA-…`). Genau diese Zeile hat den Login-Ausfall ausgelöst: Sie war die jüngste Zeile der E-Mail und trug kein Passwort. Sie gehört jetzt derselben Person wie das Konto. Damit zählt der Bonitäts-Käufer strukturell nur noch einmal, **und der Ausfall kann sich nicht wiederholen** — das Passwort hängt an der Person, nicht an der Zeile.
+- **Facebook-Lead** — dasselbe Verfahren. Kennt das System die Adresse oder Nummer bereits, wird der Lead an die bestehende Person gehängt.
+
+### Der Übergang Lead → Antrag
+
+Wird ein Lead später zum Antrag, findet der Auflöser über E-Mail oder Rufnummer dieselbe Person. Agent, Verlauf und Betreuungsnachweis bleiben damit an **einer** Akte — der Agent, der den Lead gewonnen hat, sieht seinen Kunden weiterhin bei sich, einschließlich „Zahlung angekündigt". Vorher zerfiel derselbe Mensch in Lead- und Kundenkarte.
+
+### Der Sonderfall, der wirklich schwierig ist
+
+Ein Lead ohne E-Mail wird als Person angelegt — er hat nur eine Rufnummer. Später stellt derselbe Mensch einen Antrag mit einer E-Mail, die bereits einer **anderen** Person gehört. Erst diese eine Zeile beweist, dass beide derselbe Mensch sind, weil sie beide Merkmale trägt.
+
+Beide werden zusammengeführt. **Nichts wird gelöscht:** Die unterlegene Person bleibt als Datensatz bestehen und zeigt per `merged_into_person_id` auf die neue — ein falscher Zusammenschluss lässt sich damit ohne Datenverlust wieder auflösen. Alle Aliase wandern mit, sonst wäre das Zusammenführen genau der Datenverlust, den wir beenden wollten. Sind zwei verschiedene Agenten beteiligt, wird **markiert statt geraten**.
+
+### Was der Auflöser niemals tut
+
+- Ein gesetztes Stammdatenfeld überschreiben. Nur leere Felder werden gefüllt.
+- Ein Passwort überschreiben oder löschen. Dieselbe `COALESCE`-Regel wie im Antrags-Speicher — sie war die Ursache des Login-Ausfalls.
+- Einen Agenten umhängen.
+- Eine Person anlegen, wenn weder E-Mail noch Telefon vorliegen. Das ist der Funnel-Abbrecher, und er soll ausdrücklich keine bekommen.
+
+Zwei gleichzeitige Anfragen mit derselben neuen Adresse laufen in den eindeutigen Index; das wird abgefangen und einmal neu aufgelöst, statt den Antrag des Kunden scheitern zu lassen.
+
+### Nachgewiesen an echten Zeilen
+
+`scripts/person-dauerschutz-test.ts` — **27 Prüfungen, alle grün**, gegen die echte Datenbank statt gegen Attrappen: Die Fehler, die Geld gekostet haben, steckten im Zusammenspiel von Abfrage, eindeutigem Index und Reihenfolge, nicht in der reinen Logik. Alle Testzeilen werden restlos entfernt, und der Test prüft am Ende selbst nach, dass Personen-, Antrags- und Alias-Zahl unverändert sind.
+
+Geprüft werden unter anderem: zweite Bestellung derselben E-Mail ohne Passwort im Body (Passwort bleibt unversehrt), Bonitäts-Kauf (drei Bestellungen an einer Person), die Zusammenführung samt erhaltener Lead-Rufnummer, der Funnel-Abbrecher ohne Person und vier aufeinanderfolgende Speichervorgänge ohne Nebenwirkung.
+
 ## 29.07.2026 — Der Backfill ist wiederholbar: Nachzügler einsammeln statt Dubletten erzeugen
 
 Der versehentliche Zweitlauf hat 2.829 Lead-Personen **erneut** angelegt, obwohl alle 2.848 Leads bereits zugeordnet waren. Er wurde zurückgenommen — die Aufräum-Kontrolle bestätigt: keine Person ohne Alias und ohne Zeile, kein Alias ohne Person, keine tote `person_id`.

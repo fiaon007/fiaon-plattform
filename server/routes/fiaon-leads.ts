@@ -17,6 +17,10 @@ import { sqlPool } from "../lib/db-pool";
 import { sendMakeWebhook } from "../make-webhook";
 import { fiaonBaseUrl } from "../fiaon-base-url";
 import { parseBerlinInput, pruefeTerminZukunft } from "../lib/fiaon-time";
+// P1-C Dauerschutz: Ein Lead ist derselbe Mensch wie der spätere Antrag.
+// Ohne diese Bindung zerfällt er in Lead- und Kundenkarte, und der Agent, der
+// ihn gewonnen hat, verliert ihn nach dem Antrag aus der Ansicht.
+import { bindePersonAnLead } from "../fiaon-person-model";
 import {
   requireAgent,
   getSettings,
@@ -598,6 +602,10 @@ async function processIntake(b: any): Promise<IntakeResult> {
     `;
     await logLead(id, { id: null, name: "System" }, "system", { note: `Intake-Aktualisierung (Dublette innerhalb 24h, Quelle: ${quelle})` });
     await logIntake(quelle === "test" ? "test" : "ok", quelle, "Dublette aktualisiert");
+    // Die Aktualisierung kann eine E-Mail ergänzt haben, die der Lead vorher
+    // nicht hatte. Dann ist jetzt erst erkennbar, zu wem er gehört.
+    await bindePersonAnLead(id).catch((e) =>
+      console.error("[FIAON-PERSON] Zuordnung nach Lead-Aktualisierung:", e));
     return { ok: true, id, deduped: true };
   }
 
@@ -608,6 +616,14 @@ async function processIntake(b: any): Promise<IntakeResult> {
   `;
   const id = inserted[0].id;
   await logLead(id, { id: null, name: "System" }, "system", { note: `Lead eingegangen (Quelle: ${quelle}${kampagne ? `, Kampagne: ${kampagne}` : ""})` });
+
+  // ══ P1-C DAUERSCHUTZ: Lead an seine Person binden ══════════════════════
+  // Kennt das System diese Adresse oder Nummer bereits, wird der Lead an die
+  // BESTEHENDE Person gehängt — auch wenn diese aus einem Antrag stammt. Genau
+  // das hält den Übergang Lead → Antrag zusammen: Agent, Verlauf und
+  // Betreuungsnachweis bleiben an einer Akte statt auf zwei Karten zu zerfallen.
+  await bindePersonAnLead(id).catch((e) =>
+    console.error("[FIAON-PERSON] Zuordnung nach Lead-Eingang:", e));
 
   // Falls bereits ein Antrag mit dieser E-Mail/Telefon existiert → sofort konvertieren
   const already = await sqlPool`

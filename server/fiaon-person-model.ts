@@ -353,6 +353,11 @@ export async function ensurePersonTables(): Promise<void> {
   // Bestellung eines bestehenden Kunden). Diese Zeilen hängen an einer Person
   // aus einem früheren Stapel — ohne die folgenden drei Spalten würde `--undo`
   // sie übersehen und das Versprechen „vollständig umkehrbar" wäre gebrochen.
+  // Zusammengeführte Personen werden NICHT gelöscht, sondern zeigen auf die
+  // Person, in der sie aufgegangen sind. So bleibt jede frühere Verknüpfung
+  // nachvollziehbar und ein falscher Zusammenschluss wieder auflösbar.
+  await sqlPool`ALTER TABLE fiaon_persons ADD COLUMN IF NOT EXISTS merged_into_person_id INTEGER`;
+
   await sqlPool`ALTER TABLE fiaon_person_batches ADD COLUMN IF NOT EXISTS linked_refs JSONB`;
   await sqlPool`ALTER TABLE fiaon_person_batches ADD COLUMN IF NOT EXISTS linked_lead_ids JSONB`;
   await sqlPool`ALTER TABLE fiaon_person_aliases ADD COLUMN IF NOT EXISTS merge_batch_id VARCHAR`;
@@ -418,4 +423,480 @@ async function ensurePersonIndizes(): Promise<void> {
 export function __resetPersonEnsureForTests(): void {
   personTablesEnsured = false;
   indizesVersucht = false;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEIL 3 — DAUERSCHUTZ (P1-C): DIE PERSON WIRD GEFUNDEN, NICHT NEU ERFUNDEN
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Der Backfill war eine Momentaufnahme. Ohne diesen Teil entsteht ab der
+// nächsten Bestellung wieder eine Zeile ohne Person — gemessen rund 90 pro Tag
+// (`scripts/person-nachlauf.ts`). Dann wäre der ganze Aufwand umsonst gewesen.
+//
+// JEDER Schreibpfad, der eine Antragszeile oder einen Lead anlegt, ruft
+// `personFuerZeile()`. Die Funktion sucht über die normalisierte E-Mail UND
+// die Rufnummer — einschliesslich aller je verwendeten Aliase — und legt nur
+// dann eine Person an, wenn wirklich keine passt.
+//
+// WAS SIE NIEMALS TUT
+//   · Kein vorhandenes Stammdatenfeld überschreiben. Nur leere Felder füllen.
+//   · Kein Passwort überschreiben oder löschen. Das war die Ursache des
+//     Login-Ausfalls; die Regel ist hier dieselbe wie im Antrags-Speicher.
+//   · Keinen Agenten umhängen. Bei zwei Agenten wird MARKIERT, nicht entschieden.
+//   · Nichts löschen. Auch beim Zusammenführen bleibt die unterlegene Person
+//     als Datensatz bestehen und zeigt per `merged_into_person_id` auf die neue.
+
+export interface PersonZuordnung {
+  personId: number;
+  personRef: string;
+  /** Wurde in diesem Aufruf eine neue Person angelegt? */
+  angelegt: boolean;
+  /** IDs der Personen, die dabei zusammengeführt wurden (meist leer). */
+  zusammengefuehrt: number[];
+  /** Mehrere Agenten beteiligt — markiert, nicht entschieden. */
+  agentKonflikt: boolean;
+}
+
+export interface PersonEingabe {
+  /** Alle Adressen der Zeile, roh. Wird normalisiert. */
+  emails?: unknown[];
+  /** Alle Rufnummern der Zeile, roh. Wird auf die letzten 9 Ziffern verkürzt. */
+  phones?: unknown[];
+  /** Stammdaten — füllen nur, was an der Person noch leer ist. */
+  stammdaten?: Partial<PersonDraft>;
+  /** Betreuender Agent, falls bekannt. */
+  agentId?: number | null;
+  /** Herkunft für die Alias-Ablage: `app:FIAON-…` oder `lead:123`. */
+  quelle: string;
+  /** Erstkontakt — nur gesetzt, wenn die Person noch keinen früheren trägt. */
+  firstSeenAt?: Date | null;
+}
+
+/** Postgres: Verstoss gegen einen eindeutigen Index. */
+const UNIQUE_VIOLATION = "23505";
+
+/**
+ * Die Person zu einer Zeile finden oder anlegen.
+ *
+ * Gibt `null` zurück, wenn die Zeile weder E-Mail noch Rufnummer hat. Das ist
+ * kein Fehler, sondern der Funnel-Abbrecher: 3.235 solcher Entwurfszeilen gibt
+ * es im Bestand, und sie sollen ausdrücklich KEINE Person bekommen.
+ */
+export async function personFuerZeile(ein: PersonEingabe): Promise<PersonZuordnung | null> {
+  await ensurePersonTables();
+
+  const emails = Array.from(new Set((ein.emails ?? []).map(normEmail).filter((v): v is string => !!v)));
+  const phones = Array.from(new Set((ein.phones ?? []).map((p) => phoneKey9(p)).filter((v): v is string => !!v)));
+  if (emails.length === 0 && phones.length === 0) return null;
+
+  try {
+    return await aufloesen(ein, emails, phones);
+  } catch (err: any) {
+    // Zwei gleichzeitige Anfragen mit derselben neuen Adresse: eine legt die
+    // Person an, die andere läuft in den eindeutigen Index. Kein Fehlerfall —
+    // die Person existiert jetzt ja. Einmal neu auflösen genügt.
+    if (err?.code === UNIQUE_VIOLATION) {
+      console.warn(`[FIAON-PERSON] Gleichzeitiger Anlauf für ${ein.quelle} — löse erneut auf`);
+      return await aufloesen(ein, emails, phones);
+    }
+    throw err;
+  }
+}
+
+async function aufloesen(ein: PersonEingabe, emails: string[], phones: string[]): Promise<PersonZuordnung> {
+  // ── 1. Wem gehören diese Adressen bereits? ──────────────────────────────
+  // E-Mail und Telefon werden GEMEINSAM abgefragt: Genau daraus entsteht der
+  // Sonderfall, bei dem eine Zeile zwei bisher getrennte Personen verbindet.
+  const treffer = await sqlPool`
+    SELECT DISTINCT a.person_id, p.created_at
+    FROM fiaon_person_aliases a
+    JOIN fiaon_persons p ON p.id = a.person_id
+    WHERE (a.kind = 'email' AND a.value_norm = ANY(${emails}::text[]))
+       OR (a.kind = 'phone' AND a.value_norm = ANY(${phones}::text[]))
+    ORDER BY p.created_at ASC NULLS FIRST, a.person_id ASC
+  `;
+  const ids = (treffer as any[]).map((r) => Number(r.person_id));
+
+  if (ids.length === 0) {
+    return await neuePersonAnlegen(ein, emails, phones);
+  }
+
+  // Die älteste Person gewinnt — sie trägt die längste Geschichte.
+  const zielId = ids[0];
+  const zusammengefuehrt: number[] = [];
+
+  // ── 2. Sonderfall: die Zeile verbindet mehrere Personen ─────────────────
+  // Beispiel aus der Praxis: Ein Lead ohne E-Mail wurde als Person angelegt
+  // (nur Rufnummer). Später stellt derselbe Mensch einen Antrag mit einer
+  // E-Mail, die bereits einer anderen Person gehört. Beides ist derselbe
+  // Mensch — hier ist es zum ersten Mal BEWEISBAR, weil eine Zeile beide
+  // Merkmale trägt. Also zusammenführen, statt eine dritte Person zu bauen.
+  for (const verliererId of ids.slice(1)) {
+    await personenZusammenfuehren(zielId, verliererId, ein.quelle);
+    zusammengefuehrt.push(verliererId);
+  }
+
+  // ── 3. Fehlende Aliase ergänzen ─────────────────────────────────────────
+  await aliaseErgaenzen(zielId, emails, phones, ein.quelle);
+
+  // ── 4. Leere Stammdatenfelder füllen — niemals überschreiben ────────────
+  await stammdatenErgaenzen(zielId, ein);
+
+  // ── 5. Agent: nie umhängen, bei Abweichung markieren ────────────────────
+  const agentKonflikt = await agentPruefen(zielId, ein.agentId ?? null);
+
+  const [p] = await sqlPool`SELECT person_ref FROM fiaon_persons WHERE id = ${zielId}`;
+  return {
+    personId: zielId,
+    personRef: String(p?.person_ref ?? ""),
+    angelegt: false,
+    zusammengefuehrt,
+    agentKonflikt,
+  };
+}
+
+async function neuePersonAnlegen(ein: PersonEingabe, emails: string[], phones: string[]): Promise<PersonZuordnung> {
+  const s = ein.stammdaten ?? {};
+  const personRef = newPersonRef();
+  const [row] = await sqlPool`
+    INSERT INTO fiaon_persons (
+      person_ref, kind, first_name, last_name, company_name, contact_name, birthdate,
+      primary_email, primary_phone, phone_key9,
+      street, zip, city, country, nationality,
+      password, account_status, assigned_agent_id, first_seen_at
+    ) VALUES (
+      ${personRef}, ${s.kind ?? "private"},
+      ${s.first_name ?? null}, ${s.last_name ?? null}, ${s.company_name ?? null},
+      ${s.contact_name ?? null}, ${s.birthdate ?? null},
+      ${emails[0] ?? null}, ${s.primary_phone ?? null}, ${phones[0] ?? null},
+      ${s.street ?? null}, ${s.zip ?? null}, ${s.city ?? null},
+      ${s.country ?? null}, ${s.nationality ?? null},
+      ${s.password ?? null}, 'pending', ${ein.agentId ?? null},
+      ${ein.firstSeenAt ?? new Date()}
+    )
+    RETURNING id, person_ref
+  `;
+  const personId = Number(row.id);
+  await aliaseErgaenzen(personId, emails, phones, ein.quelle);
+  console.log(`[FIAON-PERSON] Neue Person ${row.person_ref} (#${personId}) aus ${ein.quelle}`);
+  return { personId, personRef: String(row.person_ref), angelegt: true, zusammengefuehrt: [], agentKonflikt: false };
+}
+
+/** Aliase anlegen, die es noch nicht gibt. Mehrfach aufrufbar ohne Wirkung. */
+async function aliaseErgaenzen(personId: number, emails: string[], phones: string[], quelle: string): Promise<void> {
+  const vorhanden = await sqlPool`
+    SELECT kind, value_norm FROM fiaon_person_aliases WHERE person_id = ${personId}
+  `;
+  const da = new Set((vorhanden as any[]).map((r) => `${r.kind}:${r.value_norm}`));
+  const neu: Array<{ kind: string; value_norm: string; source: string }> = [];
+  for (const e of emails) if (!da.has(`email:${e}`)) neu.push({ kind: "email", value_norm: e, source: quelle });
+  for (const p of phones) if (!da.has(`phone:${p}`)) neu.push({ kind: "phone", value_norm: p, source: quelle });
+  if (neu.length === 0) return;
+
+  for (const a of neu) {
+    try {
+      await sqlPool`
+        INSERT INTO fiaon_person_aliases (person_id, kind, value_norm, value_raw, source)
+        VALUES (${personId}, ${a.kind}, ${a.value_norm}, ${a.value_norm}, ${a.source})
+      `;
+    } catch (err: any) {
+      // Die Adresse gehört inzwischen jemand anderem. Nicht abbrechen: Der
+      // Antrag des Kunden darf an einer Alias-Kollision nicht scheitern.
+      if (err?.code === UNIQUE_VIOLATION) {
+        console.warn(`[FIAON-PERSON] Alias ${a.kind}:${a.value_norm} gehört bereits einer anderen Person — übergangen (${quelle})`);
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+/**
+ * Leere Felder füllen. Ein gesetzter Wert bleibt IMMER stehen.
+ * `COALESCE(spalte, neu)` heisst genau das: Die Spalte gewinnt, wenn sie etwas
+ * enthält. Beim Passwort ist das nicht Kosmetik, sondern die Lehre aus dem
+ * Login-Ausfall — ein leerer Wert darf ein vorhandenes Passwort nie verdrängen.
+ */
+async function stammdatenErgaenzen(personId: number, ein: PersonEingabe): Promise<void> {
+  const s = ein.stammdaten ?? {};
+  const leer = (v: unknown) => v === null || v === undefined || String(v).trim() === "";
+  const wert = (v: unknown) => (leer(v) ? null : String(v).trim());
+
+  await sqlPool`
+    UPDATE fiaon_persons SET
+      first_name   = COALESCE(first_name,   ${wert(s.first_name)}),
+      last_name    = COALESCE(last_name,    ${wert(s.last_name)}),
+      company_name = COALESCE(company_name, ${wert(s.company_name)}),
+      contact_name = COALESCE(contact_name, ${wert(s.contact_name)}),
+      birthdate    = COALESCE(birthdate,    ${wert(s.birthdate)}),
+      street       = COALESCE(street,       ${wert(s.street)}),
+      zip          = COALESCE(zip,          ${wert(s.zip)}),
+      city         = COALESCE(city,         ${wert(s.city)}),
+      country      = COALESCE(country,      ${wert(s.country)}),
+      nationality  = COALESCE(nationality,  ${wert(s.nationality)}),
+      primary_phone = COALESCE(primary_phone, ${wert(s.primary_phone)}),
+      password     = COALESCE(password,     ${wert(s.password)}),
+      kind         = CASE WHEN ${s.kind ?? null} = 'business' THEN 'business' ELSE kind END,
+      first_seen_at = LEAST(COALESCE(first_seen_at, ${ein.firstSeenAt ?? null}), COALESCE(${ein.firstSeenAt ?? null}, first_seen_at)),
+      updated_at   = NOW()
+    WHERE id = ${personId}
+  `;
+}
+
+/**
+ * Der Agent wird NIE umgehängt.
+ *
+ * Hat die Person noch keinen, bekommt sie diesen. Hat sie bereits einen
+ * anderen, ist das ein Konflikt für die Betreiber-Liste — keine Entscheidung
+ * für den Automaten. Wer den Lead gewonnen hat, behält seinen Kunden sichtbar.
+ */
+async function agentPruefen(personId: number, agentId: number | null): Promise<boolean> {
+  if (agentId == null) {
+    const [p] = await sqlPool`SELECT agent_conflict FROM fiaon_persons WHERE id = ${personId}`;
+    return Boolean(p?.agent_conflict);
+  }
+  const [p] = await sqlPool`
+    SELECT assigned_agent_id, agent_conflict, quality_flags FROM fiaon_persons WHERE id = ${personId}
+  `;
+  if (!p) return false;
+
+  if (p.assigned_agent_id == null) {
+    await sqlPool`
+      UPDATE fiaon_persons SET assigned_agent_id = ${agentId}, updated_at = NOW() WHERE id = ${personId}
+    `;
+    return Boolean(p.agent_conflict);
+  }
+  if (Number(p.assigned_agent_id) === agentId) return Boolean(p.agent_conflict);
+
+  const flags = (typeof p.quality_flags === "string" ? JSON.parse(p.quality_flags) : p.quality_flags) ?? {};
+  const agenten: number[] = Array.from(new Set([...(Array.isArray(flags.agents) ? flags.agents.map(Number) : [Number(p.assigned_agent_id)]), agentId]));
+  await sqlPool`
+    UPDATE fiaon_persons SET
+      agent_conflict = TRUE,
+      quality_flags = COALESCE(quality_flags, '{}'::jsonb) || ${JSON.stringify({ agents: agenten })}::jsonb,
+      updated_at = NOW()
+    WHERE id = ${personId}
+  `;
+  console.log(`[FIAON-PERSON] Agenten-Konflikt an Person #${personId}: ${agenten.join(", ")} — markiert, nicht entschieden`);
+  return true;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ZWEI ANSCHLÜSSE, DIE DIE ROUTEN AUFRUFEN
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Eine Antragszeile an ihre Person binden.
+ *
+ * Wird nach JEDEM Speichern aufgerufen — der Funnel speichert bei jedem
+ * Schritt. Das ist bewusst so: Beim ersten Aufruf ohne Kontaktdaten passiert
+ * nichts, sobald E-Mail oder Telefon da sind, greift die Zuordnung. Jeder
+ * weitere Aufruf ist wirkungslos, weil `person_id` dann schon steht.
+ *
+ * Trägt die Zeile bereits eine Person, wird NICHT neu aufgelöst — sonst könnte
+ * eine nachträglich geänderte E-Mail den Kunden einer anderen Person zuordnen.
+ * Ergänzt werden dann nur fehlende Aliase und leere Stammdatenfelder.
+ */
+export async function bindePersonAnAntrag(ref: string): Promise<PersonZuordnung | null> {
+  await ensurePersonTables();
+  const [row] = await sqlPool`
+    SELECT ref, type, person_id, assigned_agent_id, created_at,
+           email, contact_email, billing_email,
+           phone, phone_country_code, contact_phone,
+           first_name, last_name, company_name, contact_name, birthdate,
+           street, zip, city, country, nationality, password, utm::text AS utm_string
+    FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
+  `;
+  if (!row) return null;
+
+  const emails = [row.email, row.contact_email, row.billing_email];
+  const phones = [phoneDigits(row.phone_country_code, row.phone), row.contact_phone];
+  const stammdaten: Partial<PersonDraft> = {
+    first_name: row.first_name, last_name: row.last_name,
+    company_name: row.company_name, contact_name: row.contact_name,
+    birthdate: row.birthdate, street: row.street, zip: row.zip, city: row.city,
+    country: row.country, nationality: row.nationality,
+    primary_phone: row.phone ?? row.contact_phone ?? null,
+    // Nur die Konto-Zeile bringt ein Passwort mit. Eine Bonitäts-Bestellung
+    // hat keines — und darf das vorhandene niemals verdrängen.
+    password: storedPasswordOf(row),
+    kind: String(row.type ?? "").toLowerCase() === "business" ? "business" : "private",
+  };
+
+  if (row.person_id != null) {
+    const personId = Number(row.person_id);
+    const e = Array.from(new Set(emails.map(normEmail).filter((v): v is string => !!v)));
+    const p = Array.from(new Set(phones.map((x) => phoneKey9(x)).filter((v): v is string => !!v)));
+    if (e.length > 0 || p.length > 0) {
+      await aliaseErgaenzen(personId, e, p, `app:${ref}`);
+      await stammdatenErgaenzen(personId, { quelle: `app:${ref}`, stammdaten });
+    }
+    const [pr] = await sqlPool`SELECT person_ref, agent_conflict FROM fiaon_persons WHERE id = ${personId}`;
+    return {
+      personId,
+      personRef: String(pr?.person_ref ?? ""),
+      angelegt: false,
+      zusammengefuehrt: [],
+      agentKonflikt: Boolean(pr?.agent_conflict),
+    };
+  }
+
+  const zuordnung = await personFuerZeile({
+    emails,
+    phones,
+    stammdaten,
+    agentId: row.assigned_agent_id != null ? Number(row.assigned_agent_id) : null,
+    quelle: `app:${ref}`,
+    firstSeenAt: row.created_at ? new Date(row.created_at) : null,
+  });
+  if (!zuordnung) return null;
+
+  // `person_id IS NULL` in der Bedingung: Zwei gleichzeitige Speichervorgänge
+  // dürfen sich nicht gegenseitig überschreiben.
+  await sqlPool`
+    UPDATE fiaon_applications SET person_id = ${zuordnung.personId}
+    WHERE ref = ${ref} AND person_id IS NULL
+  `;
+  return zuordnung;
+}
+
+/**
+ * Einen Lead an seine Person binden.
+ *
+ * DER ÜBERGANG LEAD → ANTRAG: Meldet sich ein Lead später mit einem Antrag,
+ * findet `personFuerZeile` über E-Mail oder Rufnummer dieselbe Person. Agent,
+ * Verlauf und Betreuungsnachweis bleiben damit an EINER Akte — der Agent, der
+ * den Lead gewonnen hat, sieht seinen Kunden weiterhin bei sich, einschliesslich
+ * „Zahlung angekündigt". Vorher zerfiel derselbe Mensch in Lead- und Kundenkarte.
+ */
+export async function bindePersonAnLead(leadId: number): Promise<PersonZuordnung | null> {
+  await ensurePersonTables();
+  const [row] = await sqlPool`
+    SELECT id, person_id, vorname, nachname, email, telefon, assigned_agent_id, erstellt_am
+    FROM fiaon_leads WHERE id = ${leadId} LIMIT 1
+  `;
+  if (!row) return null;
+  if (row.person_id != null) {
+    const [pr] = await sqlPool`SELECT person_ref, agent_conflict FROM fiaon_persons WHERE id = ${Number(row.person_id)}`;
+    return {
+      personId: Number(row.person_id),
+      personRef: String(pr?.person_ref ?? ""),
+      angelegt: false,
+      zusammengefuehrt: [],
+      agentKonflikt: Boolean(pr?.agent_conflict),
+    };
+  }
+
+  const zuordnung = await personFuerZeile({
+    emails: [row.email],
+    phones: [row.telefon],
+    stammdaten: {
+      first_name: row.vorname, last_name: row.nachname,
+      primary_phone: row.telefon ?? null,
+    },
+    agentId: row.assigned_agent_id != null ? Number(row.assigned_agent_id) : null,
+    quelle: `lead:${leadId}`,
+    firstSeenAt: row.erstellt_am ? new Date(row.erstellt_am) : null,
+  });
+  if (!zuordnung) return null;
+
+  await sqlPool`
+    UPDATE fiaon_leads SET person_id = ${zuordnung.personId}
+    WHERE id = ${leadId} AND person_id IS NULL
+  `;
+  return zuordnung;
+}
+
+/**
+ * Zwei Personen zusammenführen — der Sonderfall „Lead ohne E-Mail".
+ *
+ * NICHTS WIRD GELÖSCHT. Die unterlegene Person bleibt als Datensatz bestehen
+ * und zeigt per `merged_into_person_id` auf die neue. Damit ist jede frühere
+ * Verknüpfung nachvollziehbar, und ein falscher Zusammenschluss lässt sich
+ * ohne Datenverlust wieder auflösen.
+ *
+ * Aliase wandern mit — das ist der Kern des Versprechens „beim Zusammenführen
+ * geht nichts verloren". Wer später nach der alten Adresse sucht, findet die
+ * Person weiterhin.
+ */
+async function personenZusammenfuehren(zielId: number, verliererId: number, quelle: string): Promise<void> {
+  if (zielId === verliererId) return;
+
+  const [ziel] = await sqlPool`SELECT * FROM fiaon_persons WHERE id = ${zielId}`;
+  const [verlierer] = await sqlPool`SELECT * FROM fiaon_persons WHERE id = ${verliererId}`;
+  if (!ziel || !verlierer) return;
+
+  // Stammdaten: nur Lücken des Ziels füllen. Der Gewinner behält alles Eigene.
+  await sqlPool`
+    UPDATE fiaon_persons SET
+      first_name   = COALESCE(first_name,   ${verlierer.first_name}),
+      last_name    = COALESCE(last_name,    ${verlierer.last_name}),
+      company_name = COALESCE(company_name, ${verlierer.company_name}),
+      contact_name = COALESCE(contact_name, ${verlierer.contact_name}),
+      birthdate    = COALESCE(birthdate,    ${verlierer.birthdate}),
+      street       = COALESCE(street,       ${verlierer.street}),
+      zip          = COALESCE(zip,          ${verlierer.zip}),
+      city         = COALESCE(city,         ${verlierer.city}),
+      country      = COALESCE(country,      ${verlierer.country}),
+      nationality  = COALESCE(nationality,  ${verlierer.nationality}),
+      primary_email = COALESCE(primary_email, ${verlierer.primary_email}),
+      primary_phone = COALESCE(primary_phone, ${verlierer.primary_phone}),
+      phone_key9   = COALESCE(phone_key9,   ${verlierer.phone_key9}),
+      password     = COALESCE(password,     ${verlierer.password}),
+      first_seen_at = LEAST(COALESCE(first_seen_at, ${verlierer.first_seen_at}), COALESCE(${verlierer.first_seen_at}, first_seen_at)),
+      account_status = CASE
+        WHEN account_status = 'suspended' OR ${verlierer.account_status} = 'suspended' THEN 'suspended'
+        WHEN account_status = 'active' OR ${verlierer.account_status} = 'active' THEN 'active'
+        ELSE account_status END,
+      updated_at = NOW()
+    WHERE id = ${zielId}
+  `;
+
+  // Aliase übernehmen — sie machen die Person unter jeder je genutzten Adresse
+  // auffindbar. Ohne diesen Schritt wäre das Zusammenführen ein Datenverlust.
+  await sqlPool`
+    UPDATE fiaon_person_aliases SET person_id = ${zielId}
+    WHERE person_id = ${verliererId}
+      AND NOT EXISTS (
+        SELECT 1 FROM fiaon_person_aliases x
+        WHERE x.person_id = ${zielId} AND x.kind = fiaon_person_aliases.kind
+          AND x.value_norm = fiaon_person_aliases.value_norm
+      )
+  `;
+
+  // Bestellungen und Leads zeigen ab jetzt auf den Gewinner.
+  await sqlPool`UPDATE fiaon_applications SET person_id = ${zielId} WHERE person_id = ${verliererId}`;
+  await sqlPool`UPDATE fiaon_leads SET person_id = ${zielId} WHERE person_id = ${verliererId}`;
+
+  // Zwei Agenten? Markieren, nicht entscheiden.
+  const agenten = Array.from(new Set(
+    [ziel.assigned_agent_id, verlierer.assigned_agent_id].filter((v) => v != null).map(Number),
+  ));
+  if (agenten.length > 1) {
+    await sqlPool`
+      UPDATE fiaon_persons SET
+        agent_conflict = TRUE,
+        quality_flags = COALESCE(quality_flags, '{}'::jsonb) || ${JSON.stringify({ agents: agenten })}::jsonb,
+        updated_at = NOW()
+      WHERE id = ${zielId}
+    `;
+  } else if (ziel.assigned_agent_id == null && verlierer.assigned_agent_id != null) {
+    await sqlPool`
+      UPDATE fiaon_persons SET assigned_agent_id = ${verlierer.assigned_agent_id}, updated_at = NOW()
+      WHERE id = ${zielId}
+    `;
+  }
+
+  // Die unterlegene Person bleibt bestehen — als Wegweiser, nicht als Leiche.
+  await sqlPool`
+    UPDATE fiaon_persons SET
+      merged_into_person_id = ${zielId},
+      account_status = 'merged',
+      updated_at = NOW()
+    WHERE id = ${verliererId}
+  `;
+  console.log(
+    `[FIAON-PERSON] Person #${verliererId} in #${zielId} zusammengeführt (Auslöser: ${quelle}) — ` +
+    `Aliase übernommen, nichts gelöscht${agenten.length > 1 ? `, Agenten-Konflikt ${agenten.join("/")}` : ""}`,
+  );
 }

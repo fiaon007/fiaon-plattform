@@ -40,6 +40,26 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-07-29-personenmodell-teil2",
+    date: "2026-07-29",
+    category: "Verbessert",
+    title: "Dein Lead bleibt dein Kunde — auch nach dem Antrag",
+    summary:
+      "Bisher zerfiel derselbe Mensch in eine Lead-Karte und eine Kundenkarte. Ab jetzt ist es eine Akte.",
+    changes: [
+      "Stellt einer deiner Leads später einen Antrag, erkennt das System ihn an E-Mail oder Rufnummer wieder. Verlauf, Notizen und dein Betreuungsnachweis bleiben zusammen — auch „Zahlung angekündigt“.",
+      "Wer den Bonitäts-Check kauft, bekommt keine zweite Karte mehr. Das war auch der Grund, warum manche Kunden sich plötzlich nicht mehr einloggen konnten — dieser Fehler ist strukturell nicht mehr möglich.",
+      "Bestellt ein Kunde ein zweites Mal, ist das eine weitere Bestellung an derselben Akte statt ein neuer Kunde.",
+      "Jede Adresse und jede Nummer, die ein Kunde je genutzt hat, bleibt suchbar. Auch wenn zwei Akten zusammengelegt werden, geht keine davon verloren.",
+      "Sind ausnahmsweise zwei Agenten an einer Person beteiligt, entscheidet das System NICHT von allein. Der Fall wird markiert und von der Leitung geklärt — deine Zuordnung wird dir nicht automatisch weggenommen.",
+    ],
+    howto: [
+      "Du musst nichts anders machen. Suche wie bisher nach Name, E-Mail oder Nummer.",
+      "Findest du denselben Menschen trotzdem zweimal: melden, nicht selbst zusammenführen. Wir lösen das zentral auf.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-07-29-personenmodell-teil1",
     date: "2026-07-29",
     category: "Hintergrund",

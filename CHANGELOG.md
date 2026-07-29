@@ -3,6 +3,26 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 29.07.2026 — `/admin/personen`: die echte Kundenzahl und die 26 strittigen Zuordnungen
+
+Zwei Fragen, die bisher niemand beantworten konnte, haben jetzt eine Seite.
+
+### Wie viele Kunden haben wir wirklich?
+
+**254 bezahlte Kunden** — gezählt werden Menschen, nicht Antragszeilen. Daneben steht bewusst die alte Zahl: **264 bezahlte Zeilen**. Die Differenz von **10** ist die Doppelzählung, die bisher in jedem Bericht steckte, fast immer der Bonitäts-Check, der eine eigene Bestellzeile anlegt.
+
+Beide Zahlen nebeneinander, nicht nur die neue: Eine Korrektur, die den alten Wert verschweigt, sieht aus wie ein Fehler. Umsatz und Provision bleiben unberührt — es wurde nie doppelt berechnet, nur doppelt gezählt.
+
+**3.235 Funnel-Abbrecher** (weder E-Mail noch Telefon) sind als Entwürfe ausgewiesen und zählen nirgends als Kunde.
+
+### Wem gehört dieser Kunde?
+
+Die 26 Personen mit mehreren Agenten waren seit dem Backfill markiert, aber nirgends einsehbar. Jetzt aufklappbar mit allem, was für eine Entscheidung nötig ist: bezahlte Bestellungen mit Summe, alle beteiligten Agenten und **je Agent der letzte dokumentierte Kontakt** mit Art, Ergebnis und Notiz. Sortiert nach letztem Kontakt — wer nachweislich zuletzt gearbeitet hat, steht oben.
+
+Betroffen sind vor allem Florentine Lombardi (21 Fälle, 16 mit Zahlung), Daniel Stripling (18/11) und Nikita Boychenko (10/9). Insgesamt **19 der 26 Fälle mit bezahlter Bestellung**, zusammen 1.717,83 €.
+
+Die Seite entscheidet **nichts** und schreibt **nichts**. An der Zuordnung hängt Provision; ein Automat, der nach „letztem Kontakt" oder „ältester Zuweisung" rät, verteilt fremdes Geld um, und niemand könnte hinterher begründen, warum. Also: markieren, vorlegen, der Betreiber entscheidet — oder es wird mit dem Stichtag und der Basis-Provision aufgelöst.
+
 ## 29.07.2026 — Dauerschutz: die Person wird gefunden, nicht neu erfunden
 
 Der Backfill war eine Momentaufnahme. Gemessen mit `scripts/person-nachlauf.ts`: In den 1,3 Stunden danach entstanden bereits fünf Zeilen ohne Person, hochgerechnet **rund 90 pro Tag**. Ohne diesen Teil wäre der gesamte Aufwand nach wenigen Wochen wieder aufgezehrt gewesen.

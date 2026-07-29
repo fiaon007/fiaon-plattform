@@ -227,6 +227,7 @@ export default function AdminHubPage() {
       title: "Kunden & Anträge",
       cards: [
         { href: "/admin/database", label: "Kunden & Anträge", desc: "Antrags-Cockpit: alle Anträge, KYC/Prüfbereit, Aufgaben, Investoren, Buchhaltung.", icon: Database },
+        { href: "/admin/personen", label: "Kunden & Zuordnung", desc: "Wie viele Menschen sind wirklich Kunden (statt Antragszeilen) — und bei wem hängen mehrere Agenten an einer Person.", icon: Users },
         { href: "/admin/leads", label: "Leads", desc: "Interessenten aus Lead-Ads: Nachfass-Automatik, Verteilung, Warteschlange der Agenten.", icon: Target },
       ],
     },

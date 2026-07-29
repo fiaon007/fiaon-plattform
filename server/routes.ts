@@ -277,6 +277,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonReconcileRoutes = await import('./routes/fiaon-reconcile');
   app.use('/api/fiaon', fiaonReconcileRoutes.default);
 
+  // 👤 FIAON Personen (Admin, nur lesend) — Kundenzählung über Personen statt
+  //    Antragszeilen, plus die Agenten-Konflikte, die der Backfill markiert hat.
+  const fiaonPersonenRoutes = await import('./routes/fiaon-personen');
+  app.use('/api/fiaon', fiaonPersonenRoutes.default);
+
   // 💳 FIAON Antrag Routes — Public (no auth)
   const fiaonAntragRoutes = await import('./routes/fiaon-antrag');
   app.use('/api/fiaon', fiaonAntragRoutes.default);

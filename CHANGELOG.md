@@ -3,6 +3,102 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 29.07.2026 (NOTFALL) — Zahlende Kunden konnten sich nicht einloggen
+
+Kunden — und der Betreiber selbst — sahen beim Login nur „Ungültige Anmeldedaten". Ihr Passwort war richtig. Ihr Konto war in Ordnung. **Der Login hat nur nie in ihr Konto geschaut.**
+
+### Die Ursache — in einer Zeile
+
+Der Login suchte den Kunden so:
+
+```sql
+WHERE email = ? ORDER BY created_at DESC LIMIT 1
+```
+
+Er nahm also **ausschließlich die jüngste Antragszeile** einer E-Mail-Adresse. Das war jahrelang unauffällig — bis der **Bonitäts-Check** dazukam. Eine Bonitäts-Bestellung legt bewusst eine **eigene Antragszeile** an (`FIAON-SCHUFA-…`, siehe Eintrag vom 28.07.), damit eine 74-€-Bestellung keinen zweiten Kunden erzeugt. Diese Zeile hat **kein Passwort** — sie ist kein Konto.
+
+**Folge:** In der Sekunde, in der ein Kunde den Bonitäts-Check bestellte, wurde diese Bestellzeile seine jüngste Zeile. Der Login las sie, fand kein Passwort und antwortete „Ungültige Anmeldedaten". Das echte Konto lag unversehrt eine Zeile weiter — unangesehen.
+
+Genau das ist der Fall des Betreibers: Sein Login funktionierte am Vortag noch, weil er den Bonitäts-Check **erst am 28.07. um 10:26 Uhr bestellte**. Vier neue `FIAON-SCHUFA-…`-Zeilen später war sein Konto `FIAON-MNPTDV19-QYAJ` (Passwort vorhanden, Antrag abgeschlossen) für den Login unerreichbar.
+
+### Zweite Ursache: Zwischenspeichern löschte Passwörter
+
+Der Antragsstrecke-Speicher (`POST /application`) schrieb bei **jedem** Aufruf:
+
+```
+password = <Wert aus dem Formular>          →  ohne Passwort im Formular: NULL
+utm      = { "password": <Wert> }           →  ohne Passwort im Formular: {}
+```
+
+Der Funnel speichert aber bei **jedem Schritt-Wechsel** zwischen (`antrag.tsx`, `useEffect` auf `[step]`) — **ohne** Passwort. Jeder dieser Zwischenspeicher löschte still beide Kopien des Kundenpassworts. Der Beweis steckt im Datensatz des Betreibers: sein `utm` ist ein leeres `{}`. **Jetzt gilt: ein Passwort wird nur gesetzt, niemals gelöscht** (`COALESCE`), und `utm` wird ergänzt statt ersetzt.
+
+### Dritte Ursache: Der Rettungsweg war selbst zu
+
+„Passwort vergessen" verlangte `status = 'completed'`. Bezahlte Konten stehen aber auf `payment_completed` bzw. `documents_submitted`. **263 von 268 bezahlten Kunden** bekamen dort „Kein Konto mit dieser E-Mail gefunden" — der Notausgang für die Ausgesperrten war verschlossen. Außerdem wurde nur `email` verglichen (Geschäftskunden hinterlegen `billing_email`) und wieder nur die jüngste Zeile geprüft. Die Identitätsprüfung selbst (Vorname + Nachname + E-Mail + Geburtsdatum) bleibt **unverändert streng** — nur der Status-Filter ist weg.
+
+### Was gemessen wurde (Phase 0, `scripts/login-notfall-phase0.ts`, nur lesend)
+
+| Befund | Zahl |
+|---|---|
+| Bezahlte Kunden gesamt | 268 |
+| E-Mails, deren jüngste Zeile kein Passwort hat, eine ältere aber schon | **55** |
+| Bezahlt und nirgends ein Passwort hinterlegt | 70 Zeilen |
+| Bezahlt, aber `status <> 'completed'` → Passwort-Reset blockiert | **263** |
+| Zugangs-Gate hätte bezahlte Kunden gesperrt | **0** (die vermutete Status-Ursache traf **nicht** zu) |
+
+**Welche Hypothese zutraf:** die Dubletten-/Zusatzbestellungs-Nebenwirkung (H2) — allerdings nicht als „Merge verliert das Passwort", sondern als **„der Login liest die falsche Zeile"**. H1 (ein `catch`, der alles zu „Ungültige Anmeldedaten" macht) traf **nicht** zu: der `catch` antwortete korrekt mit 500. H3 (Status-Filter) traf für den Login **nicht** zu — wohl aber für „Passwort vergessen".
+
+### Nachweis am echten Bestand (`scripts/login-notfall-verify.ts`, nur lesend)
+
+Für jede bezahlte Kundenfamilie wurden alter und neuer Login gegeneinander gespielt:
+
+| | |
+|---|---|
+| Bezahlte Kundenfamilien geprüft | 255 |
+| konnten sich mit dem **alten** Login anmelden | 193 |
+| können sich mit dem **neuen** Login anmelden | **239** |
+| **durch den Fix wieder freigeschaltet** | **46** |
+| brauchen „Passwort vergessen" (nie ein Passwort) | 14 — davon **12 können sich selbst befreien**, 2 brauchen den Betreiber (kein Name/Geburtsdatum hinterlegt) |
+| Zahlung am Konto offen (korrekt abgewiesen) | 2 |
+| **Zugangs-Gate umgangen** | **0** |
+
+### Teil A — Fehlermeldungen, die etwas sagen
+
+Statt einer Meldung für alles gibt es jetzt einen Fehlerkatalog. Jeder Fall hat einen Code, den der Kunde dem Support nennen kann:
+
+| Code | Fall | Was der Kunde liest |
+|---|---|---|
+| `AUTH-01` | falsches Passwort **oder** unbekannte E-Mail | „E-Mail-Adresse oder Passwort stimmt nicht." — **wortgleich** in beiden Fällen, damit niemand fremde Adressen durchprobieren kann |
+| `AUTH-02` | kein Passwort hinterlegt | „Für dieses Konto ist noch kein Passwort gesetzt." + direkter Weg zum Setzen — nicht mehr als „falsche Daten" getarnt |
+| `AUTH-03` | Passwort richtig, Zahlung offen | „Deine Zahlung ist bei uns noch nicht eingegangen. Sobald sie bestätigt ist, wird dein Zugang automatisch frei." + was zu tun ist, wenn schon überwiesen wurde, **mit Zahlungsreferenz** |
+| `AUTH-04` | Konto gesperrt | klare Ansage + Support-Hinweis |
+| `AUTH-05` | technischer Fehler | „Technisches Problem — bitte in einem Moment erneut versuchen." + Fehlercode. **Nie** als Anmeldefehler |
+
+`AUTH-03` und `AUTH-04` erscheinen **erst nach korrektem Passwort** — dann ist die konkrete Auskunft sicher. Auf der Login-Seite ist `AUTH-01` sachlich rot, alles andere ruhig blau: Es ist kein Fehler des Kunden, sondern ein Zustand.
+
+**Eine Abwägung offen benannt:** `AUTH-02` verrät, dass zu dieser Adresse ein bezahltes Konto existiert. Ohne diese Auskunft bleiben genau die Kunden ausgesperrt, deren Passwort **uns** verloren gegangen ist. Darum eng begrenzt: nur bei **bezahlten** Konten **ohne jedes** Passwort. Alle anderen bekommen die neutrale Meldung.
+
+**Jeder** Login-Versuch wird jetzt serverseitig protokolliert (`fiaon_login_log`): Grund, Zeit, **maskierte** E-Mail (`of•••@sch•••.com`) plus ein Pseudonym zum Gruppieren. Einsicht über `GET /admin/login-log`. Damit läuft ein Aussperren nie wieder unbemerkt. Nebenbei entfernt: Der Login schrieb bisher **das eingegebene Passwort im Klartext** und die **komplette Datenbankzeile** ins Server-Log.
+
+### Teil B — Die Betroffenen wieder reinlassen
+
+- **Ursache behoben, nicht Symptom:** Der Login betrachtet jetzt die ganze „Familie" einer E-Mail (`email`, `contact_email`, `billing_email`, normalisiert — die alte Exakt-Suche scheiterte schon an Großschreibung) **inklusive der Gewinner von Merges**. Das Passwort darf in jeder Zeile liegen; über Zugang und Portal-Daten entscheidet die Zeile, die wirklich das Konto ist (nicht gemergt > keine Zusatzbestellung > freigeschaltet).
+- **Arbeitsliste:** `GET /admin/login-lockouts` — alle bezahlten Kunden mit Namen, Referenz und **Grund**, getrennt nach „durch den Fix behoben" und „braucht noch Handarbeit". Nur lesend, und sie benutzt **dieselbe** Auflösung wie der Login — sie behauptet also nichts anderes, als der Kunde erlebt.
+- **„Passwort vergessen" geprüft:** Der Kundenweg (`/passwort-vergessen`) verschickt **gar keine E-Mail** — er prüft die Identität sofort und lässt direkt ein neues Passwort setzen. **Es gibt hier also keinen Make-Zweig, der fehlen könnte.** Der Weg war nur durch den Status-Filter blockiert und ist jetzt offen. (Der Make-Zweig `agent_password_reset` betrifft ausschließlich Mitarbeiter; `sendPasswordResetEmail` in `email-service.ts` gehört zu einem anderen Produkt und hängt nicht am FIAON-Kundenlogin.)
+
+### Nicht angefasst
+
+Keine Zahlungs- oder Provisionslogik. Das Zugangs-Gate ist **unverändert** (`LOGIN_ACCESS_STATUSES` bzw. `payment_status='paid'`) — es wird nur auf die richtige Zeile angewandt; maschinell gegengeprüft: 0 Fälle, in denen jemand ohne Freischaltung durchkäme.
+
+### Geprüft
+
+`scripts/login-notfall-test.ts` — **46 Prüfungen, alle bestanden**, ohne Datenbank und ohne echte Kundenpasswörter. Die Entscheidungslogik liegt dafür jetzt als reine Funktion in `server/fiaon-login-logic.ts` (vorher im Endpunkt vergraben und damit nicht prüfbar). Abgedeckt: neutrale Meldung wortgleich · Zahlung-offen-Meldung mit Referenz · defektes `utm` kippt die Entscheidung nicht · **der Fall des Betreibers als Attrappe** · Passwort aus gemergter Zeile · Altbestand-Passwort aus `utm` · Leerstring ist kein Passwort · gesperrt bleibt gesperrt · Zahlungs-Gate nicht umgehbar.
+
+### Zwei offene Punkte für den Betreiber
+
+1. **Kundenpasswörter stehen im Klartext** in der Datenbank (`password` und `utm->>'password'`). Das ist unabhängig von diesem Notfall zu beheben, gehört aber **nicht** in denselben Schritt: ein Wechsel auf Hashes ohne Übergangsphase würde alle Kunden erneut aussperren.
+2. **Die `/admin`-Endpunkte in `fiaon-antrag.ts` sind nur durch `blockAgentsFromAdmin` geschützt** (Agent-Token wird abgewiesen), nicht durch `requireAdmin`. Die zwei neuen Endpunkte haben bewusst genau dasselbe Schutzniveau wie die bestehenden — das ist eine **vorbestehende** Lücke, die einmal geschlossen werden sollte.
+
 ## 28.07.2026 (Kundenbereich) — Der Bonitäts-Check wird das Herzstück des Dashboards
 
 Der Bereich „Freischaltung / Ihre nächsten Schritte" ist komplett neu. Vorher stand das teuerste und wertvollste Angebot — die Bonitätsauskunft samt Auswertung — als **vierte Zeile einer Pflichtliste** zwischen Ausweis-Upload und Prüfung. Kein Wunder, dass kaum jemand kaufte.

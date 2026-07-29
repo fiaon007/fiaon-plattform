@@ -2,43 +2,73 @@ import { useState } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 
+/**
+ * Antwort des Logins auf einen fehlgeschlagenen Versuch. Der Server unterscheidet
+ * die Gründe bewusst (AUTH-01 … AUTH-05) — vorher sah jeder Grund gleich aus
+ * („Ungültige Anmeldedaten"), auch ein technischer Fehler.
+ */
+type LoginProblem = {
+  code?: string;
+  error: string;
+  hint?: string;
+  action?: string;
+  actionHref?: string;
+  retryable?: boolean;
+};
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [problem, setProblem] = useState<LoginProblem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setError(null);
-    
+    setProblem(null);
+
     try {
       const response = await fetch("/api/fiaon/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        setError(data.error || "Login fehlgeschlagen");
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data?.ok) {
+        setProblem({
+          code: data?.code,
+          error: data?.error || "Anmeldung derzeit nicht möglich.",
+          hint: data?.hint,
+          action: data?.action,
+          actionHref: data?.actionHref,
+          retryable: data?.retryable,
+        });
         setIsLoading(false);
         return;
       }
-      
+
       // Store user data in sessionStorage
       sessionStorage.setItem("fiaon_user", JSON.stringify(data));
-      
+
       // Redirect to dashboard
       window.location.href = "/dashboard";
     } catch (error) {
-      setError("Verbindungsfehler. Bitte versuche es erneut.");
+      // Netzwerkfehler ist ein technisches Problem — nicht „falsche Daten".
+      setProblem({
+        error: "Technisches Problem — bitte in einem Moment erneut versuchen.",
+        hint: "Deine Anmeldedaten sind in Ordnung. Wir konnten den Server gerade nicht erreichen.",
+        retryable: true,
+      });
       setIsLoading(false);
     }
   };
+
+  // AUTH-01 (falsche Daten) bleibt sachlich-rot; alles andere ist KEIN Fehler des
+  // Kunden, sondern ein Zustand — daher ruhige, hilfreiche Darstellung.
+  const isNeutralInfo = !!problem?.code && problem.code !== "AUTH-01";
 
   return (
     <div className="min-h-screen bg-white relative overflow-hidden">
@@ -157,10 +187,44 @@ export default function LoginPage() {
                   </div>
                 </button>
 
-                {/* Error Message */}
-                {error && (
-                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-[13px] text-red-600 text-center">
-                    {error}
+                {/* Fehler/Zustand — mit Grund und Handlungsweg */}
+                {problem && (
+                  <div
+                    role="alert"
+                    aria-live="polite"
+                    className={`p-4 rounded-xl border text-[13px] space-y-2 ${
+                      isNeutralInfo
+                        ? "bg-blue-50/70 border-blue-200 text-blue-900"
+                        : "bg-red-50 border-red-200 text-red-700"
+                    }`}
+                  >
+                    <p className="font-semibold leading-snug">{problem.error}</p>
+                    {problem.hint && (
+                      <p className={`leading-relaxed ${isNeutralInfo ? "text-blue-800/90" : "text-red-600/90"}`}>
+                        {problem.hint}
+                      </p>
+                    )}
+                    {problem.action && problem.actionHref && (
+                      <a
+                        href={problem.actionHref}
+                        className={`inline-block font-semibold underline decoration-2 underline-offset-2 ${
+                          isNeutralInfo ? "text-[#2563eb]" : "text-red-700"
+                        }`}
+                      >
+                        {problem.action}
+                      </a>
+                    )}
+                    {problem.retryable && (
+                      <button
+                        type="submit"
+                        className="block font-semibold text-[#2563eb] underline decoration-2 underline-offset-2"
+                      >
+                        Erneut versuchen
+                      </button>
+                    )}
+                    {problem.code && (
+                      <p className="text-[11px] opacity-60 font-mono pt-1">Fehlercode: {problem.code}</p>
+                    )}
                   </div>
                 )}
               </form>

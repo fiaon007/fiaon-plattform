@@ -8,12 +8,21 @@ import postgres from "postgres";
 import { sqlPool } from "../lib/db-pool";
 import Stripe from "stripe";
 import multer from "multer";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
 import { ensureInvoiceNumber, renderInvoicePdf, signInvoiceUrl, verifyInvoiceSig } from "../fiaon-invoice";
 import { absoluteUrl } from "../fiaon-base-url";
 import { normalizePhone } from "./fiaon-agent";
 import { verifyNumberToken, markNumberUpdated } from "../fiaon-number-update";
+import {
+  LOGIN_ACCESS_STATUSES,
+  LOGIN_CODES,
+  decideLogin,
+  maskEmailForLog,
+  pickAccountRow,
+  storedPasswordOf,
+  birthdateKey,
+} from "../fiaon-login-logic";
 
 const router = Router();
 
@@ -156,14 +165,8 @@ async function ensurePaymentColumns(): Promise<void> {
   backfillPaidAccessOnce().catch((e) => console.error("[FIAON-ACCESS-BACKFILL] Startlauf fehlgeschlagen:", e));
 }
 
-// ── Paket Y: Login-Freischaltung ─────────────────────────────────────────────
-// Der Kunden-Login (POST /login) erlaubt Zugang, sobald der Antrag ABGESCHLOSSEN
-// ist ODER die Bestellung bezahlt wurde. Die frühere EXAKT-Prüfung `status ===
-// 'completed'` war fehleranfällig: `mark-paid` setzt status='payment_completed'
-// und der KYC-Upload setzt 'documents_submitted' — beide sperrten den Login aus.
-// Diese Allowlist deckt „abgeschlossen und danach" ab; account_status='suspended'
-// bleibt eine harte Sperre (Admin-Not-Aus).
-const LOGIN_ACCESS_STATUSES = new Set(["completed", "documents_submitted", "payment_completed"]);
+// Hinweis: LOGIN_ACCESS_STATUSES (Zugangs-Gate) liegt jetzt in
+// ../fiaon-login-logic — dort, wo auch die Login-Entscheidung getestet wird.
 
 /**
  * Rückwirkende Reparatur (Paket Y): schaltet alle BEZAHLTEN Bestellungen frei,
@@ -2149,7 +2152,13 @@ router.post("/application", async (req, res) => {
           rent = ${values.rent ?? null},
           debts = ${values.debts ?? null},
           housing = ${values.housing ?? null},
-          password = ${password ?? null},
+          -- URSACHE (Notfall 29.07.2026): hier wurde das Passwort ungeprueft
+          -- durchgeschrieben (null, wenn keines im Body war). Der Antrags-Funnel
+          -- speichert bei JEDEM Schritt-Wechsel zwischen (antrag.tsx, useEffect
+          -- auf [step]) - OHNE Passwort. Jeder dieser Zwischenspeicher setzte das
+          -- Passwort des Kunden auf NULL: Der Kunde kannte sein Passwort, der
+          -- Datensatz nicht mehr. Jetzt gilt: nur SETZEN, niemals loeschen.
+          password = COALESCE(NULLIF(${password ?? ''}, ''), password),
           company_name = ${values.companyName ?? null},
           legal_form = ${values.legalForm ?? null},
           tax_id = ${values.taxId ?? null},
@@ -2179,26 +2188,32 @@ router.post("/application", async (req, res) => {
           ip = ${values.ip ?? null},
           user_agent = ${values.userAgent ?? null},
           updated_at = ${values.updatedAt ?? null},
-          utm = ${JSON.stringify({ password })}::jsonb
+          -- Dieselbe Ursache im Rueckfall-Speicher: utm wurde komplett durch
+          -- ein Objekt mit nur dem Passwort ersetzt. Ohne Passwort im Body
+          -- schrieb das ein leeres Objekt und loeschte die zweite Kopie.
+          -- (Beweis im Bestand: Betreiber-Datensatz FIAON-MNPTDV19-QYAJ hat utm leer.)
+          -- Jetzt wird der Schluessel nur ERGAENZT, wenn ein Passwort mitkommt.
+          utm = CASE
+                  WHEN ${password ?? ''} = '' THEN utm
+                  ELSE COALESCE(utm, '{}'::jsonb) || ${JSON.stringify({ password: password ?? "" })}::jsonb
+                END
         WHERE ref = ${ref}
       `;
       console.log("[FIAON-APP] Direct SQL update completed");
-      
-      // Verify password was actually saved in utm field
-      const verify = await sqlPool`SELECT utm, email, status FROM fiaon_applications WHERE ref = ${ref}`;
-      console.log("[FIAON-APP] Password verification query result:", verify);
     } else {
       console.log("[FIAON-APP] Inserting new application");
       await db.insert(fiaonApplications).values(values);
       console.log("[FIAON-APP] Insert completed");
       
-      // Direct SQL update for password to ensure it's saved in utm field
+      // Rückfall-Kopie des Passworts (Altbestand-Kompatibilität) — nur ergänzend.
       if (password) {
-        await sqlPool`UPDATE fiaon_applications SET utm = ${JSON.stringify({ password })}::jsonb, status = ${status}, email = ${email} WHERE ref = ${ref}`;
-        console.log("[FIAON-APP] Password updated via direct SQL after insert in utm field");
-        
-        const verify = await sqlPool`SELECT utm, email, status FROM fiaon_applications WHERE ref = ${ref}`;
-        console.log("[FIAON-APP] Password verification query result:", verify);
+        await sqlPool`
+          UPDATE fiaon_applications
+          SET utm = COALESCE(utm, '{}'::jsonb) || ${JSON.stringify({ password })}::jsonb,
+              status = ${status}, email = ${email}
+          WHERE ref = ${ref}
+        `;
+        console.log("[FIAON-APP] Passwort gespeichert (Spalte + utm-Rückfall)");
       }
     }
 
@@ -2233,79 +2248,182 @@ router.post("/application", async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// KUNDEN-LOGIN (Notfall 29.07.2026) — Kontoauflösung statt „neueste Zeile"
+//
+// URSACHE des Massen-Aussperrens: Der Login suchte
+//   WHERE email = ? ORDER BY created_at DESC LIMIT 1
+// — also NUR die jüngste Antragszeile einer E-Mail. Eine Bonitäts-/SCHUFA-
+// Bestellung legt aber bewusst eine EIGENE Antragszeile an (`FIAON-SCHUFA-…`,
+// siehe POST /payment-order) — ohne Passwort, weil sie kein Konto ist. Ab der
+// Sekunde, in der ein Kunde den Bonitäts-Check bestellte, war seine jüngste
+// Zeile diese Bestellzeile: Der Login las sie, fand kein Passwort und
+// antwortete „Ungültige Anmeldedaten". Konto und Passwort waren unversehrt —
+// sie wurden nur nie angesehen. Dasselbe galt für zusammengeführte Dubletten.
+//
+// Jetzt wird die gesamte „Familie" einer E-Mail betrachtet (inkl. der Gewinner
+// von Merges); das Passwort darf in JEDER Zeile der Familie liegen, und für
+// Zugang/Status entscheidet die Zeile, die wirklich das Konto ist.
+//
+// Das Zugangs-Gate selbst ist UNVERÄNDERT (LOGIN_ACCESS_STATUSES bzw.
+// payment_status='paid'). Keine Zahlungsprüfung wird umgangen.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Alle Antragszeilen, die zu einer Login-E-Mail gehören („Familie"):
+ * `email`, `contact_email` und `billing_email` werden normalisiert verglichen
+ * (kleingeschrieben, getrimmt) — die alte Exakt-Suche scheiterte an
+ * Großschreibung und Leerzeichen. Zusätzlich werden die GEWINNER von Merges
+ * geladen: nach einem Zusammenführen lebt das Konto dort weiter.
+ */
+async function loadLoginFamily(normalizedEmail: string): Promise<any[]> {
+  const rows = await sqlPool`
+    SELECT *, utm::text AS utm_string
+    FROM fiaon_applications
+    WHERE gdpr_deleted_at IS NULL
+      AND (
+        LOWER(TRIM(COALESCE(email, ''))) = ${normalizedEmail}
+        OR LOWER(TRIM(COALESCE(contact_email, ''))) = ${normalizedEmail}
+        OR LOWER(TRIM(COALESCE(billing_email, ''))) = ${normalizedEmail}
+      )
+    ORDER BY created_at DESC NULLS LAST, id DESC
+  `;
+  const known = new Set(rows.map((r: any) => r.ref));
+  const winnerRefs = Array.from(
+    new Set(rows.map((r: any) => r.merged_into).filter((r: any): r is string => !!r && !known.has(r))),
+  );
+  if (winnerRefs.length === 0) return rows;
+  const winners = await sqlPool`
+    SELECT *, utm::text AS utm_string
+    FROM fiaon_applications
+    WHERE ref = ANY(${winnerRefs}) AND gdpr_deleted_at IS NULL
+  `;
+  return [...rows, ...winners];
+}
+
+// ── Protokoll jedes Login-Versuchs ──────────────────────────────────────────
+// Damit ein Aussperren nie wieder unbemerkt läuft: Grund, Zeit, maskierte
+// E-Mail. Zusätzlich ein Pseudonym (SHA-256 der E-Mail), damit der Betreiber
+// Versuche gruppieren kann, ohne Klartext-Adressen zu speichern.
+let loginLogEnsured = false;
+async function ensureLoginLog(): Promise<void> {
+  if (loginLogEnsured) return;
+  await sqlPool`
+    CREATE TABLE IF NOT EXISTS fiaon_login_log (
+      id SERIAL PRIMARY KEY,
+      at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      email_masked VARCHAR NOT NULL,
+      email_hash VARCHAR NOT NULL,
+      ref VARCHAR,
+      code VARCHAR NOT NULL,
+      reason VARCHAR NOT NULL,
+      ip VARCHAR,
+      user_agent VARCHAR
+    )
+  `;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_login_log_at_idx ON fiaon_login_log(at DESC)`;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_login_log_code_idx ON fiaon_login_log(code)`;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_login_log_hash_idx ON fiaon_login_log(email_hash)`;
+  loginLogEnsured = true;
+}
+
+/** Feuert und vergisst: ein Protokollfehler darf einen Login niemals stören. */
+function logLoginAttempt(args: {
+  email: string;
+  code: string;
+  reason: string;
+  ref?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
+}): void {
+  const masked = maskEmailForLog(args.email);
+  console.log(
+    `[FIAON-LOGIN] ${args.code} ${args.reason} — ${masked}${args.ref ? ` (${args.ref})` : ""}`,
+  );
+  void (async () => {
+    try {
+      await ensureLoginLog();
+      const hash = createHash("sha256").update(String(args.email || "").trim().toLowerCase()).digest("hex");
+      await sqlPool`
+        INSERT INTO fiaon_login_log (email_masked, email_hash, ref, code, reason, ip, user_agent)
+        VALUES (${masked}, ${hash}, ${args.ref ?? null}, ${args.code}, ${args.reason},
+                ${args.ip ?? null}, ${String(args.userAgent ?? "").slice(0, 300) || null})
+      `;
+    } catch (err) {
+      console.error("[FIAON-LOGIN-LOG] konnte nicht schreiben:", err instanceof Error ? err.message : err);
+    }
+  })();
+}
+
 // Login endpoint for fiaon applications
 router.post("/login", async (req, res) => {
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
+  const userAgent = String(req.headers["user-agent"] || "");
+  const rawEmail = String(req.body?.email ?? "");
+  const password = String(req.body?.password ?? "");
+  const normalizedEmail = rawEmail.trim().toLowerCase();
+
   try {
-    const { email, password } = req.body;
-    
-    console.log("[FIAON-LOGIN] Login attempt for email:", email, "password length:", password?.length);
-    
-    if (!email || !password) {
-      return res.status(400).json({ ok: false, error: "Email und Passwort erforderlich" });
-    }
-    
-    // Find application by email using direct SQL with same pool as save
-    const apps = await sqlPool`SELECT *, utm::text as utm_string FROM fiaon_applications WHERE email = ${email} ORDER BY created_at DESC LIMIT 1`;
-    
-    console.log("[FIAON-LOGIN] Found apps:", apps.length);
-    
-    if (apps.length === 0) {
-      return res.status(401).json({ ok: false, error: "Ungültige Anmeldedaten" });
-    }
-    
-    const app = apps[0];
-    console.log("[FIAON-LOGIN] RAW DB ROW:", JSON.stringify(app));
-    
-    // Extract password from utm JSON field with brute-force parsing
-    let storedPassword = null;
-
-    if (app.password) {
-      storedPassword = app.password;
-    } else {
-      // Nutze den garantierten Text-String aus der DB
-      const rawUtmData = app.utm_string || app.utm;
-
-      if (rawUtmData) {
-        try {
-          const utmObj = typeof rawUtmData === 'string' ? JSON.parse(rawUtmData) : rawUtmData;
-          storedPassword = utmObj.password;
-        } catch (parseError) {
-          console.error("[FIAON-LOGIN] UTM JSON Parse Error:", parseError);
-        }
-      }
+    if (!normalizedEmail || !password) {
+      return res.status(400).json({
+        ok: false,
+        code: LOGIN_CODES.BAD_CREDENTIALS,
+        error: "Bitte E-Mail-Adresse und Passwort eingeben.",
+      });
     }
 
-    console.log(`[FIAON-LOGIN] Extracted Password: ${storedPassword} | Input: ${password} | Match: ${storedPassword === password}`);
-    
-    // Check password
-    if (!storedPassword || storedPassword !== password) {
-      return res.status(401).json({ ok: false, error: "Ungültige Anmeldedaten" });
+    await ensurePaymentColumns();
+    const family = await loadLoginFamily(normalizedEmail);
+
+    // Die Entscheidung selbst liegt in ../fiaon-login-logic — rein, ohne
+    // Datenbank, und dort mit Tests abgedeckt (scripts/login-notfall-test.ts).
+    const verdict = decideLogin(family, password);
+
+    if (!verdict.granted) {
+      logLoginAttempt({ email: normalizedEmail, code: verdict.code, reason: verdict.reason, ref: verdict.ref, ip, userAgent });
+      return res.status(verdict.status).json({
+        ok: false,
+        code: verdict.code,
+        error: verdict.error,
+        hint: verdict.hint,
+        action: verdict.action,
+        actionHref: verdict.actionHref,
+        reference: verdict.reference,
+      });
     }
-    
-    // Zugangs-Gate (Paket Y): Antrag abgeschlossen ODER bezahlt → Login erlaubt.
-    // account_status='suspended' bleibt eine harte Sperre (Admin-Not-Aus).
-    const hasAccess = LOGIN_ACCESS_STATUSES.has(app.status) || app.payment_status === "paid";
-    if (!hasAccess) {
-      return res.status(403).json({ ok: false, error: "Antrag noch nicht abgeschlossen" });
-    }
-    if (app.account_status === "suspended") {
-      return res.status(403).json({ ok: false, error: "Konto gesperrt — bitte kontaktiere den Support" });
-    }
-    
+
+    const account = verdict.account;
+    logLoginAttempt({ email: normalizedEmail, code: "LOGIN-OK", reason: "Anmeldung erfolgreich", ref: account.ref, ip, userAgent });
+
     // Return success with application data
-    res.json({ 
-      ok: true, 
-      ref: app.ref,
-      firstName: app.first_name,
-      lastName: app.last_name,
-      email: app.email,
-      packName: app.pack_name,
+    res.json({
+      ok: true,
+      ref: account.ref,
+      firstName: account.first_name,
+      lastName: account.last_name,
+      email: account.email,
+      packName: account.pack_name,
       // #20: Portal zeigt das Paket-Limit, wenn approved_limit fehlt/auf 250 € geklemmt ist.
-      approvedLimit: effectiveLimit(app.pack_key, app.approved_limit),
+      approvedLimit: effectiveLimit(account.pack_key, account.approved_limit),
     });
   } catch (err) {
-    console.error("[FIAON-LOGIN]", err);
-    res.status(500).json({ ok: false, error: "Serverfehler" });
+    // Ein technischer Fehler darf NIEMALS wie ein falsches Passwort aussehen.
+    const incident = randomBytes(4).toString("hex").toUpperCase();
+    console.error(`[FIAON-LOGIN] ${LOGIN_CODES.TECHNICAL}-${incident} technischer Fehler:`, err);
+    logLoginAttempt({
+      email: normalizedEmail,
+      code: `${LOGIN_CODES.TECHNICAL}-${incident}`,
+      reason: `technischer Fehler: ${err instanceof Error ? err.message : String(err)}`.slice(0, 300),
+      ip,
+      userAgent,
+    });
+    res.status(503).json({
+      ok: false,
+      code: `${LOGIN_CODES.TECHNICAL}-${incident}`,
+      error: "Technisches Problem — bitte in einem Moment erneut versuchen.",
+      hint: `Deine Anmeldedaten sind in Ordnung. Bleibt das Problem, nenne dem Support diesen Fehlercode: ${LOGIN_CODES.TECHNICAL}-${incident}`,
+      retryable: true,
+    });
   }
 });
 
@@ -3575,48 +3693,85 @@ router.get("/admin/applications/:ref/document/:type", async (req, res) => {
   }
 });
 
+// ── „Passwort vergessen" (Notfall 29.07.2026) ────────────────────────────────
+// Dieser Weg war für praktisch alle zahlenden Kunden ebenfalls versperrt:
+//   1. `AND status = 'completed'` — bezahlte Konten stehen aber auf
+//      'payment_completed' bzw. 'documents_submitted' (siehe LOGIN_ACCESS_STATUSES).
+//      Gemessen: 263 von 268 bezahlten Kunden fielen aus diesem Filter heraus und
+//      bekamen „Kein Konto mit dieser E-Mail gefunden" — der Rettungsweg für die
+//      ausgesperrten Kunden war also selbst zu.
+//   2. Nur `email` wurde verglichen — Geschäftskunden hinterlegen `billing_email`.
+//   3. `ORDER BY created_at DESC LIMIT 1` — dieselbe „neueste Zeile"-Falle wie im
+//      Login: geprüft wurde eine Bonitäts-Bestellzeile ohne Namen/Geburtsdatum.
+// Die Identitätsprüfung selbst (Vorname + Nachname + E-Mail + Geburtsdatum)
+// bleibt unverändert streng — nur der Status-Filter ist weg.
+
+/** Eine Meldung für „E-Mail unbekannt" UND „Angaben passen nicht" — keine Auskunft
+ *  darüber, ob eine E-Mail-Adresse bei uns existiert. */
+const VERIFY_NEUTRAL_MESSAGE =
+  "Die Angaben stimmen nicht mit einem Konto überein. Bitte prüfe Vorname, Nachname, E-Mail-Adresse und Geburtsdatum — genau so, wie du sie im Antrag angegeben hast.";
+
 // POST /api/fiaon/verify-identity — prüft Name + Geb. + Email, gibt Token zurück
 router.post("/verify-identity", async (req, res) => {
+  const emailForLog = String(req.body?.email ?? "");
   try {
     const { firstName, lastName, birthDay, birthMonth, birthYear, email } = req.body;
     if (!firstName || !lastName || !email || !birthDay || !birthMonth || !birthYear) {
-      return res.status(400).json({ ok: false, error: "Alle Felder ausfüllen" });
+      return res.status(400).json({ ok: false, error: "Bitte alle Felder ausfüllen." });
     }
 
-    const trimEmail = email.trim().toLowerCase();
+    await ensurePaymentColumns();
+    const trimEmail = String(email).trim().toLowerCase();
     const birthdate = `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}`;
 
-    const apps = await sqlPool`
-      SELECT ref, first_name, last_name, email, birthdate, status
-      FROM fiaon_applications
-      WHERE LOWER(TRIM(email)) = ${trimEmail}
-        AND status = 'completed'
-      ORDER BY created_at DESC
-      LIMIT 1
-    `;
+    // Dieselbe Kontoauflösung wie im Login: die ganze Familie der E-Mail.
+    const family = await loadLoginFamily(trimEmail);
+    const wantFirst = String(firstName).trim().toLowerCase();
+    const wantLast = String(lastName).trim().toLowerCase();
 
-    if (apps.length === 0) {
-      return res.status(401).json({ ok: false, error: "Kein Konto mit dieser E-Mail gefunden" });
+    const candidates = family.filter((r: any) => {
+      const first = String(r.first_name ?? "").trim().toLowerCase();
+      const last = String(r.last_name ?? "").trim().toLowerCase();
+      return first === wantFirst && last === wantLast && birthdateKey(r.birthdate) === birthdate;
+    });
+
+    if (candidates.length === 0) {
+      logLoginAttempt({
+        email: trimEmail,
+        code: "RESET-01",
+        reason: family.length === 0 ? "Reset: kein Datensatz zur E-Mail" : "Reset: Name/Geburtsdatum passen nicht",
+        ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "",
+        userAgent: String(req.headers["user-agent"] || ""),
+      });
+      return res.status(401).json({ ok: false, error: VERIFY_NEUTRAL_MESSAGE });
     }
 
-    const app = apps[0];
-    const nameMatch =
-      app.first_name?.trim().toLowerCase() === firstName.trim().toLowerCase() &&
-      app.last_name?.trim().toLowerCase() === lastName.trim().toLowerCase();
-    const dateMatch = app.birthdate && app.birthdate.startsWith(birthdate);
-
-    if (!nameMatch || !dateMatch) {
-      return res.status(401).json({ ok: false, error: "Die Angaben stimmen nicht überein" });
-    }
-
+    // Das Passwort gehört an das KONTO, nicht an eine Zusatzbestellung oder eine
+    // zusammengeführte Dublette.
+    const account = pickAccountRow(candidates)!;
     const token = randomBytes(32).toString("hex");
-    verifyTokens.set(token, { ref: app.ref, expiresAt: Date.now() + 15 * 60 * 1000 });
+    verifyTokens.set(token, { ref: account.ref, expiresAt: Date.now() + 15 * 60 * 1000 });
 
-    console.log("[FIAON-VERIFY-IDENTITY] Identity verified for ref:", app.ref);
+    logLoginAttempt({
+      email: trimEmail,
+      code: "RESET-OK",
+      reason: "Identität bestätigt, Passwort darf gesetzt werden",
+      ref: account.ref,
+      ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "",
+      userAgent: String(req.headers["user-agent"] || ""),
+    });
     return res.json({ ok: true, token });
   } catch (err) {
-    console.error("[FIAON-VERIFY-IDENTITY]", err);
-    return res.status(500).json({ ok: false, error: "Serverfehler" });
+    const incident = randomBytes(4).toString("hex").toUpperCase();
+    console.error(`[FIAON-VERIFY-IDENTITY] RESET-05-${incident}`, err);
+    logLoginAttempt({ email: emailForLog, code: `RESET-05-${incident}`, reason: "technischer Fehler beim Identitätsabgleich" });
+    // Ein technischer Fehler darf nicht wie „falsche Angaben" aussehen.
+    return res.status(503).json({
+      ok: false,
+      code: `RESET-05-${incident}`,
+      error: "Technisches Problem — bitte in einem Moment erneut versuchen.",
+      hint: `Bleibt das Problem, nenne dem Support diesen Fehlercode: RESET-05-${incident}`,
+    });
   }
 });
 
@@ -3624,8 +3779,8 @@ router.post("/verify-identity", async (req, res) => {
 router.post("/reset-password-direct", async (req, res) => {
   try {
     const { token, newPassword } = req.body;
-    if (!token || !newPassword || newPassword.length < 8) {
-      return res.status(400).json({ ok: false, error: "Ungültige Anfrage oder Passwort zu kurz" });
+    if (!token || !newPassword || String(newPassword).length < 8) {
+      return res.status(400).json({ ok: false, error: "Ungültige Anfrage oder Passwort zu kurz (mind. 8 Zeichen)." });
     }
 
     const entry = verifyTokens.get(token);
@@ -3635,20 +3790,167 @@ router.post("/reset-password-direct", async (req, res) => {
     }
 
     const { ref } = entry;
-    await sqlPool`
+    // utm wird ERGÄNZT, nicht ersetzt — das Ersetzen war Teil der Ursache
+    // (es löschte die Rückfall-Kopie und alle übrigen utm-Schlüssel).
+    const updated = await sqlPool`
       UPDATE fiaon_applications
       SET password = ${newPassword},
-          utm = ${JSON.stringify({ password: newPassword })}::jsonb,
+          utm = COALESCE(utm, '{}'::jsonb) || ${JSON.stringify({ password: newPassword })}::jsonb,
           updated_at = NOW()
       WHERE ref = ${ref}
+      RETURNING ref
     `;
+    if (updated.length === 0) {
+      return res.status(410).json({ ok: false, error: "Konto nicht mehr auffindbar. Bitte kontaktiere den Support." });
+    }
 
     verifyTokens.delete(token);
-    console.log("[FIAON-RESET-DIRECT] Password reset for ref:", ref);
+    console.log("[FIAON-RESET-DIRECT] Passwort gesetzt für", ref);
     return res.json({ ok: true });
   } catch (err) {
-    console.error("[FIAON-RESET-DIRECT]", err);
-    return res.status(500).json({ ok: false, error: "Serverfehler" });
+    const incident = randomBytes(4).toString("hex").toUpperCase();
+    console.error(`[FIAON-RESET-DIRECT] RESET-05-${incident}`, err);
+    return res.status(503).json({
+      ok: false,
+      code: `RESET-05-${incident}`,
+      error: "Technisches Problem — dein Passwort wurde NICHT geändert. Bitte in einem Moment erneut versuchen.",
+      hint: `Bleibt das Problem, nenne dem Support diesen Fehlercode: RESET-05-${incident}`,
+    });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEIL B — ARBEITSLISTE: BEZAHLTE KUNDEN, DIE NICHT INS KONTO KOMMEN
+//
+// NUR LESEND. Kein UPDATE, keine Mail, kein Webhook. Die Liste benutzt genau
+// dieselbe Kontoauflösung wie der Login (loadLoginFamily/pickAccountRow) —
+// sonst würde sie etwas anderes behaupten als das, was der Kunde erlebt.
+//
+// `behoben: true` heißt: Dieser Kunde war durch den „neueste Zeile"-Bug
+// ausgesperrt, sein Passwort liegt aber in einer anderen Zeile seiner Familie —
+// er kann sich nach diesem Fix sofort wieder anmelden, ohne dass jemand etwas
+// tun muss. `behoben: false` heißt: Es gibt nirgends ein Passwort — dieser
+// Kunde braucht den Weg über „Passwort vergessen".
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Normalisierter Kontakt-Schlüssel einer Zeile (wie der Login vergleicht). */
+function loginKeyOf(row: any): string | null {
+  const raw = row?.email || row?.contact_email || row?.billing_email || "";
+  const key = String(raw).trim().toLowerCase();
+  return key || null;
+}
+
+router.get("/admin/login-lockouts", async (_req, res) => {
+  try {
+    await ensurePaymentColumns();
+    // EINE schlanke Abfrage (ohne die schweren bytea-Spalten), Gruppierung in JS.
+    // Ein `LOWER(TRIM(...)) = ANY(...)` über drei Spalten kann keinen Index
+    // nutzen und läuft auf dem echten Bestand ins Zeitlimit.
+    const rows = await sqlPool`
+      SELECT id, ref, type, status, account_status, payment_status, payment_reference,
+             merged_into, email, contact_email, billing_email,
+             first_name, last_name, contact_name, pack_key, pack_name,
+             password, utm::text AS utm_string, created_at
+      FROM fiaon_applications
+      WHERE gdpr_deleted_at IS NULL
+      ORDER BY created_at DESC NULLS LAST, id DESC
+    `;
+
+    // Nur Familien betrachten, in denen überhaupt bezahlt wurde.
+    const paidKeys = new Set<string>();
+    for (const row of rows) {
+      if (row.payment_status !== "paid") continue;
+      const key = loginKeyOf(row);
+      if (key) paidKeys.add(key);
+    }
+    if (paidKeys.size === 0) return res.json({ ok: true, count: 0, summary: {}, data: [] });
+
+    const families = new Map<string, any[]>();
+    for (const row of rows) {
+      const key = loginKeyOf(row);
+      if (!key || !paidKeys.has(key)) continue;
+      if (!families.has(key)) families.set(key, []);
+      families.get(key)!.push(row);
+    }
+
+    const data: any[] = [];
+    families.forEach((family, key) => {
+      const account = pickAccountRow(family);
+      if (!account) return;
+      const familyHasPassword = family.some((r) => storedPasswordOf(r) !== null);
+      const accountHasPassword = storedPasswordOf(account) !== null;
+      // Was der ALTE Login gelesen hätte: die schlicht neueste Zeile.
+      const newest = family[0];
+      const oldWouldFail = storedPasswordOf(newest) === null;
+      const hasAccess = LOGIN_ACCESS_STATUSES.has(account.status) || account.payment_status === "paid";
+      const suspended = account.account_status === "suspended";
+
+      let reason: string | null = null;
+      let behoben = false;
+      if (!familyHasPassword) {
+        reason = "kein Passwort hinterlegt — Kunde muss es über „Passwort vergessen\" neu setzen";
+      } else if (suspended) {
+        reason = "Konto gesperrt (account_status='suspended') — Entscheidung des Betreibers";
+      } else if (!hasAccess) {
+        reason = `Zugang am Konto nicht frei (status='${account.status ?? "-"}', Zahlung='${account.payment_status ?? "-"}') — bezahlt wurde eine andere Zeile`;
+      } else if (oldWouldFail) {
+        reason = accountHasPassword
+          ? "war ausgesperrt: Login las die neueste Zeile (Bonitäts-Bestellung/Dublette) statt des Kontos — jetzt behoben"
+          : "war ausgesperrt: Passwort liegt in einer anderen Zeile der Familie — jetzt behoben";
+        behoben = true;
+      }
+      if (!reason) return; // Kunde kommt normal rein — nicht in die Arbeitsliste.
+
+      data.push({
+        ref: account.ref,
+        name: [account.first_name, account.last_name].filter(Boolean).join(" ") || account.contact_name || null,
+        email: account.email || account.contact_email || account.billing_email || key,
+        packName: account.pack_name,
+        status: account.status,
+        accountStatus: account.account_status,
+        paymentStatus: account.payment_status,
+        paymentReference: account.payment_reference,
+        mergedInto: account.merged_into,
+        familyRefs: family.map((r) => r.ref),
+        grund: reason,
+        behoben,
+      });
+    });
+
+    data.sort((a, b) => Number(a.behoben) - Number(b.behoben) || String(a.grund).localeCompare(String(b.grund)));
+    const summary = {
+      gesamt: data.length,
+      durchFixBehoben: data.filter((d) => d.behoben).length,
+      brauchenPasswortReset: data.filter((d) => !d.behoben && d.grund.startsWith("kein Passwort")).length,
+      gesperrt: data.filter((d) => d.grund.startsWith("Konto gesperrt")).length,
+      zugangNichtFrei: data.filter((d) => d.grund.startsWith("Zugang am Konto")).length,
+    };
+    console.log(`[FIAON-LOGIN-LOCKOUTS] ${summary.gesamt} betroffen (${summary.durchFixBehoben} durch Fix behoben, ${summary.brauchenPasswortReset} brauchen Reset)`);
+    res.json({ ok: true, count: data.length, summary, data });
+  } catch (err) {
+    console.error("[FIAON-LOGIN-LOCKOUTS]", err);
+    res.status(500).json({ ok: false, error: "Arbeitsliste konnte nicht erstellt werden" });
+  }
+});
+
+/** Protokoll der Login-Versuche (maskiert). Damit ein Aussperren sichtbar wird. */
+router.get("/admin/login-log", async (req, res) => {
+  try {
+    await ensureLoginLog();
+    const limit = Math.min(Math.max(Number(req.query.limit) || 200, 1), 1000);
+    const rows = await sqlPool`
+      SELECT at, email_masked, ref, code, reason, ip
+      FROM fiaon_login_log ORDER BY at DESC LIMIT ${limit}
+    `;
+    const counts = await sqlPool`
+      SELECT code, COUNT(*)::int AS n
+      FROM fiaon_login_log WHERE at > NOW() - INTERVAL '24 hours'
+      GROUP BY code ORDER BY n DESC
+    `;
+    res.json({ ok: true, data: rows, letzte24h: counts });
+  } catch (err) {
+    console.error("[FIAON-LOGIN-LOG]", err);
+    res.status(500).json({ ok: false, error: "Protokoll konnte nicht gelesen werden" });
   }
 });
 

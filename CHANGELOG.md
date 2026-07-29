@@ -3,6 +3,18 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 29.07.2026 — 3.236 Funnel-Abbrecher sind Entwürfe, keine Kunden
+
+54 % des Zeilenbestands haben **weder E-Mail noch Telefon**. Der Antrags-Funnel speichert bei jedem Schritt-Wechsel; wer vor dem Kontaktschritt abspringt, hinterlässt genau so eine Zeile. Das ist kein Kunde, kein Lead und kein Interessent — man kann diese Menschen nicht einmal erreichen.
+
+Bisher zählten sie überall mit. **Das ist der Grund, warum keine Zahl im Dashboard stimmte:** „Neue Anträge heute" war die Summe aus echten Anträgen und Leuten, die auf Schritt 1 abgesprungen sind.
+
+Sie tragen jetzt ein Kennzeichen und sind aus den Tages-Kennzahlen gefiltert. **Ein Kennzeichen statt einer wiederholten `WHERE`-Bedingung:** Eine Bedingung, die an zwanzig Abfragen abgeschrieben wird, weicht irgendwann an einer davon ab — und dann stimmt wieder nichts. Gesetzt wird es an genau einer Stelle, überall sonst nur gelesen.
+
+**Selbstheilend:** Der Schreibpfad setzt das Kennzeichen bei jedem Speichern neu. Trägt jemand im nächsten Schritt seine E-Mail ein, ist die Zeile automatisch kein Entwurf mehr — und wird zur selben Sekunde einer Person zugeordnet.
+
+Vor dem Lauf prüft `scripts/entwuerfe-kennzeichnen.ts` die eine Frage, die zählt: Fällt irgendeine **bezahlte** Zeile unter die Bedingung? Dann wäre die Bedingung falsch und wir würden Umsatz aus der Zählung werfen — in dem Fall bricht das Skript ab, bevor es etwas ändert. Ergebnis: keine einzige. **Nichts wurde gelöscht**, die Zeilen bleiben vollständig erhalten.
+
 ## 29.07.2026 — `/admin/personen`: die echte Kundenzahl und die 26 strittigen Zuordnungen
 
 Zwei Fragen, die bisher niemand beantworten konnte, haben jetzt eine Seite.

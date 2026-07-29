@@ -24,9 +24,14 @@ const router = Router();
 // ── O1: Tages-Kennzahlen ─────────────────────────────────────────────────────
 router.get("/admin/hub/stats", async (_req, res) => {
   try {
+    // `ist_entwurf` ausschliessen: 3.236 Zeilen (54 % des Bestands) haben weder
+    // E-Mail noch Telefon — Menschen, die im Funnel vor dem Kontaktschritt
+    // abgesprungen sind. „Neue Anträge heute" war bisher die Summe aus echten
+    // Anträgen und diesen Absprüngen. Gepflegt wird das Kennzeichen an genau
+    // einer Stelle (fiaon-person-model.ts), hier wird es nur gelesen.
     const [row] = await sqlPool`
       SELECT
-        COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE AND merged_into IS NULL) AS today_new,
+        COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE AND merged_into IS NULL AND NOT ist_entwurf) AS today_new,
         COUNT(*) FILTER (WHERE payment_status = 'claimed_paid' AND merged_into IS NULL) AS claimed_count,
         COALESCE(SUM(amount_due) FILTER (WHERE payment_status = 'claimed_paid' AND merged_into IS NULL), 0) AS claimed_sum,
         COUNT(*) FILTER (WHERE payment_status = 'paid' AND payment_reference IS NOT NULL AND completed_at::date = CURRENT_DATE AND merged_into IS NULL) AS today_paid_count,

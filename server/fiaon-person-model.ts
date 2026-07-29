@@ -358,6 +358,18 @@ export async function ensurePersonTables(): Promise<void> {
   // nachvollziehbar und ein falscher Zusammenschluss wieder auflösbar.
   await sqlPool`ALTER TABLE fiaon_persons ADD COLUMN IF NOT EXISTS merged_into_person_id INTEGER`;
 
+  // ── Entwurf oder Kunde? ──────────────────────────────────────────────────
+  // 3.235 Antragszeilen (54 % des Bestands) haben WEDER E-Mail NOCH Telefon:
+  // Der Funnel speichert bei jedem Schritt, und wer vor dem Kontaktschritt
+  // abbricht, hinterlässt so eine Zeile. Sie sind kein Kunde, kein Lead und
+  // kein Interessent — man kann sie nicht einmal erreichen.
+  //
+  // Bisher zählten sie überall mit. Das ist der Grund, warum keine Zahl im
+  // Dashboard stimmte. Ein Flag statt einer wiederholten WHERE-Bedingung: Eine
+  // Bedingung, die an zwanzig Stellen abgeschrieben wird, weicht irgendwann an
+  // einer davon ab — und dann stimmt wieder nichts.
+  await sqlPool`ALTER TABLE fiaon_applications ADD COLUMN IF NOT EXISTS ist_entwurf BOOLEAN NOT NULL DEFAULT FALSE`;
+
   await sqlPool`ALTER TABLE fiaon_person_batches ADD COLUMN IF NOT EXISTS linked_refs JSONB`;
   await sqlPool`ALTER TABLE fiaon_person_batches ADD COLUMN IF NOT EXISTS linked_lead_ids JSONB`;
   await sqlPool`ALTER TABLE fiaon_person_aliases ADD COLUMN IF NOT EXISTS merge_batch_id VARCHAR`;
@@ -749,6 +761,15 @@ export async function bindePersonAnAntrag(ref: string): Promise<PersonZuordnung 
     quelle: `app:${ref}`,
     firstSeenAt: row.created_at ? new Date(row.created_at) : null,
   });
+
+  // Keine Person = kein Kontaktweg = Entwurf. Diese Zeile darf in keiner
+  // Zählung und keiner Liste als Kunde auftauchen. Das Kennzeichen wird bei
+  // JEDEM Speichern neu gesetzt: Trägt der Kunde im nächsten Schritt seine
+  // E-Mail ein, ist es beim nächsten Aufruf von allein wieder FALSE.
+  await sqlPool`
+    UPDATE fiaon_applications SET ist_entwurf = ${zuordnung === null}
+    WHERE ref = ${ref} AND ist_entwurf IS DISTINCT FROM ${zuordnung === null}
+  `;
   if (!zuordnung) return null;
 
   // `person_id IS NULL` in der Bedingung: Zwei gleichzeitige Speichervorgänge

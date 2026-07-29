@@ -1346,6 +1346,11 @@ export const fiaonApplications = pgTable("fiaon_applications", {
   // bekommen bewusst keine Person und zählen nirgends als Kunde.
   personId: integer("person_id"),
 
+  // Funnel-Abbrecher: weder E-Mail noch Telefon, also nicht erreichbar. 54 %
+  // des Bestands. Sie zählen nirgends als Kunde. Gepflegt an genau EINER
+  // Stelle (fiaon-person-model.ts, bindePersonAnAntrag), überall nur gelesen.
+  istEntwurf: boolean("ist_entwurf").notNull().default(false),
+
   submittedAt: timestamp("submitted_at"),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -1405,6 +1410,12 @@ export const fiaonPersons = pgTable("fiaon_persons", {
   gcMandateStatus: varchar("gc_mandate_status"),
 
   mergeBatchId: varchar("merge_batch_id"),
+
+  // Zusammengeführte Personen werden NICHT gelöscht, sondern zeigen auf die
+  // Person, in der sie aufgegangen sind — damit bleibt ein falscher
+  // Zusammenschluss ohne Datenverlust wieder auflösbar.
+  mergedIntoPersonId: integer("merged_into_person_id"),
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [

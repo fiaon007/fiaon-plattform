@@ -40,6 +40,25 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-07-29-personenmodell-teil1",
+    date: "2026-07-29",
+    category: "Hintergrund",
+    title: "Wir bauen die Kundendatenbank auf „ein Mensch = eine Akte\" um",
+    summary:
+      "Heute steht derselbe Kunde bis zu zwölfmal in der Datenbank. Das ändern wir — Schritt eins ist gemacht, für dich ändert sich noch nichts.",
+    changes: [
+      "Gemessen: 5.963 Zeilen stehen für 2.142 Menschen. Über die Hälfte der Zeilen sind abgebrochene Anträge ohne jeden Kontakt — die zählen ab jetzt nirgends mehr als Kunde.",
+      "Wir zählen aktuell 264 bezahlte Kunden, es sind 254 Menschen. Wer den Bonitäts-Check kauft, wurde doppelt gezählt.",
+      "Jede E-Mail-Adresse und jede Nummer, die ein Kunde je genutzt hat, wird künftig gespeichert. Damit findest du ihn auch über eine alte Adresse — und beim Zusammenführen von Dubletten geht nichts mehr verloren.",
+      "757 Leads sind längst Antragsteller. Sie werden zu EINER Akte zusammengeführt, damit dein Lead nach dem Antrag bei dir sichtbar bleibt.",
+      "An deinen Kunden, deiner Zuordnung und deiner Provision wurde nichts verändert — die Provisionssumme wurde auf den Cent gegengeprüft.",
+    ],
+    howto: [
+      "Für dich ändert sich in diesem Schritt nichts — Kartei, Kunden und Leads arbeiten unverändert weiter.",
+      "Wenn du eine Dublette siehst: nicht selbst zusammenführen, sondern melden. Ab dem nächsten Schritt erkennt das System sie von allein.",
+    ],
+  },
+  {
     id: "2026-07-28-bestand-und-gruss",
     date: "2026-07-28",
     category: "Behoben",

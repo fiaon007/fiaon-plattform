@@ -59,19 +59,12 @@ async function ensureTable(): Promise<void> {
 }
 
 /** FIAON-Referenz aus einem freien Verwendungszweck extrahieren.
- * Kurzes Format (Zahlungsseite/QR): FIAON-XXXXXX (6 Zeichen).
- * Langes Format (Bestell-ref): FIAON-XXXXXXXX-XXXX (12 Zeichen).
- * Wir nehmen bis zu 12 alphanumerische Zeichen nach „FIAON" mit —
- * der Abgleich (findApp) prüft beide Varianten gegen BEIDE Felder. */
-export function extractRef(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const up = String(raw).toUpperCase();
-  const idx = up.indexOf("FIAON");
-  if (idx === -1) return null;
-  const after = up.slice(idx + 5).replace(/[^A-Z0-9]/g, "");
-  if (after.length < 6) return null;
-  return `FIAON-${after.slice(0, 12)}`;
-}
+ * Die Funktion ist reine Logik und liegt seit dem Wise-Umbau in
+ * `lib/zahlungs-zuordnung.ts` — dort ist sie ohne Datenbank testbar.
+ * Sie wird hier unverändert re-exportiert, damit alle bisherigen Aufrufer
+ * (Import, Rematch, Zuordnung) gültig bleiben. */
+export { extractRef } from "../lib/zahlungs-zuordnung";
+import { extractRef } from "../lib/zahlungs-zuordnung";
 
 /** Sucht den Antrag zu einer (normalisierten) Referenz — P2-A (D6-Root-Cause):
  * Kunden überweisen mit der KURZEN payment_reference, der alte Code prüfte nur

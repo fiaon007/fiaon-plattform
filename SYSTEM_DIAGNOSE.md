@@ -1826,3 +1826,128 @@ Zwei Dinge liegen außerhalb reiner Darstellung und wurden **nicht** eigenmächt
 Betrachters**, nicht deutscher Zeit. Kein `NaN`-Fehler wie auf der Agenten-Startseite, aber
 ein Kunde im Urlaub außerhalb Europas wird falsch begrüßt. Der geprüfte Helfer
 `client/src/pages/agent/zeit.ts` löst das bereits; eine Übernahme ist eine Zeile.
+
+---
+
+# PERSONENMODELL — PHASE 0: BEFUND (29.07.2026, Berlin)
+
+Gemessen mit `scripts/person-phase0.ts` — **nur lesend, 4,9 Sekunden**, keine Änderung an
+einer einzigen Zeile. Die Familienauflösung ist identisch zur Login-Logik
+(`server/fiaon-login-logic.ts`): `email`/`contact_email`/`billing_email` normalisiert
+(kleingeschrieben, getrimmt) plus die dokumentierten `merged_into`/`superseded_by`-Ketten.
+Telefon-Treffer werden **getrennt gezählt und nie automatisch zusammengeführt** (Lehre aus
+D5: Nummern werden in Haushalten geteilt).
+
+## P0.1 — Wie viele Menschen stecken im Bestand?
+
+| | Anzahl |
+|---|---|
+| Zeilen in `fiaon_applications` | **5.963** |
+| davon DSGVO-gelöscht | 1 |
+| davon Zusatzbestellungen (`FIAON-SCHUFA-…`) | 66 |
+| Merge-/Supersede-Verknüpfungen | 490 |
+| **Eindeutige Personen (E-Mail-sicher)** | **1.108** |
+| Kandidaten nur mit Telefon (kein Auto-Merge) | 1.034 |
+| Zeilen ohne E-Mail **und** ohne Telefon (Funnel-Abbrecher) | 3.231 |
+| Lead-only-Personen (Lead ohne jeden Antrag) | 2.076 |
+| **Personen insgesamt (Antrag + Lead-only)** | **4.218** |
+
+**Der eigentliche Befund:** 5.963 Zeilen stehen für 2.142 Menschen mit Antrag — 2,78 Zeilen
+je Mensch. Und **3.231 Zeilen (54 % der Tabelle) enthalten weder E-Mail noch Telefon**.
+Das sind abgebrochene Funnel-Entwürfe. Sie sind der Grund, warum jede Zählung auf
+`fiaon_applications` schief liegt: Über die Hälfte der „Anträge" ist niemand.
+
+| Art | Personen | Zeilen |
+|---|---|---|
+| mit E-Mail | 1.108 | 1.698 |
+| nur Telefon | 1.034 | 1.034 |
+| ohne beides → **keine Person anlegen** | — | 3.231 |
+
+Personen mit mehr als einer Zeile: 308 · grösste Familie: **12 Zeilen für einen Menschen**.
+
+## P0.2 — Konfliktfälle (gezählt, ausdrücklich nicht gelöst)
+
+| Konflikt | Anzahl | Konsequenz |
+|---|---|---|
+| (a) bezahlte Zeilen unter verschiedenen Namen | **1** | Einzelfall, Handprüfung — kein systemisches Problem |
+| (b) Telefon verbindet mehrere E-Mail-Familien | **49 Nummern / 139 Personen** | nur Vorschlag in `/admin/dubletten`, **nie** Automatik |
+| (c) Familien mit Zeilen bei verschiedenen Agenten | **26** (davon mit Geldbezug: **19**) | `agent_conflict = TRUE` — Grundlage für den Attributions-Neustart in Phase 4 |
+
+Die Zahl 19 ist die entscheidende: **Nur 19 Fälle** stehen zwischen dem heutigen Zustand
+und einer sauberen Attribution. Das ist keine Grundsatzdebatte, das ist eine Liste, die
+der Betreiber an einem Nachmittag durchgeht.
+
+## P0.3 — Leads gegen den Antragsbestand
+
+| | Anzahl |
+|---|---|
+| Leads gesamt | 2.840 |
+| gehören per E-Mail zu einer bestehenden Antrags-Familie | 665 |
+| gehören per Telefon zu einer bestehenden Antrags-Familie | 92 |
+| eigenständig (echte Lead-only-Personen) | 2.083 |
+| als „konvertiert" markiert, aber ohne Treffer im Bestand | 0 |
+
+**757 Leads sind bereits Antragsteller** — sie werden heute an zwei Orten geführt, mit
+zwei Verläufen und potenziell zwei Zuständigkeiten. Genau hier entsteht die Frage des
+Betreibers „sieht der Lead-Gewinner seinen Kunden nach dem Antrag noch?". Antwort heute:
+nur zufällig, über `converted_order_id`.
+
+## P0.4 — Doppelzählung „bezahlte Kunden"
+
+| | Anzahl |
+|---|---|
+| bezahlte **Zeilen** | 269 (ohne Merge-Verlierer: 264) |
+| bezahlte **Personen** | **254** |
+| Personen mit mehr als einer bezahlten Zeile | 14 |
+| bezahlte Bonitäts-/SCHUFA-Bestellungen | 17 von 66 |
+| Familien, die ausschliesslich aus Zusatzbestellungen bestehen | 4 |
+
+**Überzählung: 10 Kunden.** Jede Kennzahl, die heute „264 Kunden" sagt, meint 254 Menschen.
+
+## P0.5 — Anrufbare Karten: heute vs. nach Zusammenführung
+
+| | Anzahl |
+|---|---|
+| offene Antragskarten heute (Telefon **und** E-Mail auf **derselben Zeile**) | 164 |
+| offene Personen mit Telefon und E-Mail (aus **irgendeiner** ihrer Zeilen) | 169 |
+| offene Personen gesamt | 172 |
+| Lead-only-Karten mit vollständigem Kontakt | 820 |
+
+Ehrliche Zahl: der Zugewinn beträgt **+5 Karten**, nicht mehr. Die Zusammenführung ist
+kein Wachstumshebel für den Arbeitsvorrat — ihr Wert liegt woanders (eine Akte statt
+verstreuter Zeilen, keine Doppelanrufe, kein Datenverlust). Diese Erwartung wird hiermit
+vorab korrigiert, damit sie später nicht als Fehlschlag wirkt.
+
+## P0.6 — Provisions-Baseline (Soll: vorher = nachher, auf den Cent)
+
+| Status | Art | Einträge | Summe |
+|---|---|---|---|
+| ausgezahlt | feedback_bonus | 14 | 658,00 € |
+| ausgezahlt | manuell | 1 | −12,00 € |
+| ausgezahlt | override | 34 | 117,80 € |
+| ausgezahlt | own | 80 | 1.134,00 € |
+| bestaetigt | feedback_bonus | 4 | 80,00 € |
+| bestaetigt | manuell | 4 | 362,00 € |
+| bestaetigt | override | 25 | 90,00 € |
+| bestaetigt | own | 54 | 753,60 € |
+| storniert | own | 1 | 20,00 € |
+| **gesamt** | | **217** | **3.203,40 €** |
+
+Diese Summe ist der Prüfwert von `scripts/person-verify.ts`. Weicht sie nach dem Backfill
+auch nur um einen Cent ab, hat der Umbau Geld angefasst — und wird zurückgerollt.
+
+## P0.7 — SEPA/GoCardless-Vorschau
+
+| | Anzahl |
+|---|---|
+| Personen, die ein Mandat brauchen (bezahlt) | 254 |
+| davon mit hinterlegter IBAN | 200 |
+| **bezahlte Personen ohne jedes Passwort — heute ausgesperrt** | **13** |
+
+Das Mandat gehört an die **Person**, nicht an die Bestellung. Sonst bräuchte derselbe
+Mensch für Hauptpaket, Bonitäts-Check und Abo je ein eigenes Mandat.
+
+**Sofort handeln, unabhängig vom Umbau:** 13 Menschen haben bezahlt und können sich nicht
+anmelden, weil in ihrer gesamten Familie kein Passwort liegt. Der Login meldet dafür seit
+dem Notfall-Fix korrekt `AUTH-02` mit Weg zum Setzen — aber niemand hat diese 13 aktiv
+angeschrieben.

@@ -3,6 +3,78 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 29.07.2026 — Wise live, Teil 1: Zugang und Zuordnung (noch keine Buchung)
+
+**Das Problem in einem Satz:** Der Kontoabgleich lief über einen CSV-Upload von Hand. Wer ihn vergisst, verliert Zahlungen — der Kunde hat bezahlt, das System weiß es nicht, und ein Agent ruft ihn zur Mahnung an.
+
+Wie groß das ist, zeigt eine einzige Zahl: **157 Bestellungen stehen auf „Kunde sagt, er hat bezahlt"** — bei 264 tatsächlich verbuchten Zahlungen. Ein erheblicher Teil dieser 157 dürfte bezahlt haben, ohne dass es je jemand verbucht hat.
+
+### Was gebaut wurde
+
+- **`server/lib/wise-api.ts`** — liest die Umsätze direkt bei Wise. Ausschliesslich lesende Aufrufe; dieses Modul kennt keine Funktion, die bei Wise etwas auslösen könnte. Der Token kommt nur aus der Umgebung, wird nie geloggt und aus jeder Fehlermeldung entfernt. Alle Profile und Währungskonten, Zeitraum in 400-Tage-Fenstern (Wise erlaubt 469), Wiederholung mit wachsender Wartezeit bei Überlast.
+- **`server/lib/zahlungs-zuordnung.ts`** — Zuordnung in vier Stufen. Automatisch nur bei **Referenz im Verwendungszweck**, **übereinstimmender Absender-IBAN** oder **exaktem Betrag mit eindeutigem Namen**. Alles andere wird Vorschlag mit Begründung im Klartext („Name 90 % ähnlich, Betrag exakt").
+- **`scripts/wise-phase0.ts`** — nur lesend, berichtet die vier Kategorien: stimmt · fehlt im System · im System ohne Geld · nicht zuordenbar.
+
+### Warum die Automatik absichtlich zurückhaltend ist
+
+Der teure Fehler ist nicht „nicht zugeordnet" — das klärt ein Mensch in zehn Sekunden. Der teure Fehler ist die **falsche** Zuordnung: Sie setzt einen fremden Kunden auf bezahlt, schickt ihm eine Bestätigung, bucht womöglich Provision, und der echte Zahler wird weiter gemahnt. Deshalb gilt: Passen zwei Bestellungen gleich gut, wird **nichts** automatisch entschieden.
+
+Tippfehler sind dabei ausdrücklich eingeplant: „Müller" / „Mueller" / „Muler", vertauschte Vor- und Nachnamen, Mädchenname, Firma statt Person. Zahlt ein Ehepartner oder ein Elternteil, ist die **Referenz** der Anker — ein abweichender Einzahlername blockiert die Zuordnung nicht, wird aber sichtbar gemacht.
+
+### Beweis statt Behauptung (`scripts/zuordnung-test.ts`, 28 Prüfungen, ohne Wise und ohne Datenbank)
+
+Umlaute, ein Tippfehler im Nachnamen, vertauschte Namensteile, Dritt-Zahler, Teilzahlung, zwei Kunden mit demselben Namen und Betrag. Der letzte Fall ist der wichtigste: Er **muss** unentschieden bleiben, und er bleibt es.
+
+Beim Schreiben der Tests fiel auf, dass die reine Zuordnungslogik über `extractRef` die gesamte Datenbank mitzog und dadurch nicht prüfbar war. Die Funktion liegt jetzt bei der Logik; `fiaon-reconcile.ts` re-exportiert sie unverändert, alle bisherigen Aufrufer bleiben gültig.
+
+### Was ausdrücklich NICHT passiert ist
+
+Keine Buchung, kein Status, keine E-Mail, keine Provision. `confirmed_email_sent_at` und alle Versand-Merker bleiben unangetastet — ein Neuaufbau des Zahlungsstatus darf keine E-Mail-Welle auslösen.
+
+Zur Anweisung „alles Verbuchte weg": Das **Ledger** `fiaon_bank_txns` wird beim scharfen Lauf archiviert und aus den Live-Daten neu aufgebaut. Der Zahlungsstatus der Kunden wird dabei **nicht** pauschal zurückgesetzt — das würde bezahlte Kunden aus ihrem Konto aussperren und sie zurück in die Mahnstrecke werfen. Abweichungen erscheinen als Kategorie 3 und werden einzeln entschieden.
+
+## 29.07.2026 — Personenmodell, Teil 1: Messung, Schema, Backfill (noch nicht scharf)
+
+**Das Problem in einem Satz:** `fiaon_applications` vermischt „wer ist der Mensch" mit „was hat er bestellt". Deshalb zählen wir Kunden doppelt, verlieren Daten beim Zusammenführen und sperren Zahler aus.
+
+### Was gemessen wurde (`scripts/person-phase0.ts`, nur lesend, 4,9 s)
+
+| | |
+|---|---|
+| Zeilen in `fiaon_applications` | 5.963 |
+| **Menschen dahinter** | **2.142** (2,78 Zeilen je Mensch, im Extremfall 12) |
+| Zeilen ohne E-Mail **und** ohne Telefon | 3.231 — **54 % der Tabelle ist niemand** |
+| bezahlte Zeilen / bezahlte **Menschen** | 264 / **254** → wir zählen 10 Kunden zu viel |
+| Leads, die längst Antragsteller sind | 757 von 2.840 |
+| strittige Agenten-Zuordnungen **mit Geld** | **19** |
+| bezahlte Kunden ohne jedes Passwort | **13 — sie kommen heute nicht in ihr Konto** |
+
+Vollständiger Befund: `SYSTEM_DIAGNOSE.md`, Abschnitt „PERSONENMODELL — PHASE 0".
+
+Eine Erwartung wird dabei ausdrücklich korrigiert: Die Zusammenführung bringt **+5 anrufbare Karten**, nicht hunderte. Ihr Wert liegt in einer Akte statt verstreuter Zeilen — nicht in mehr Arbeitsvorrat.
+
+### Was gebaut wurde
+
+- **`fiaon_persons`** — ein Datensatz je Mensch: Name, primäre Kontaktdaten, Adresse, Passwort, Konto-Status, zuständiger Agent, Quelle des Erstkontakts, Qualitäts-Kennzeichen, Platz für das SEPA-Mandat (Phase 3).
+- **`fiaon_person_aliases`** — **jede** je verwendete E-Mail und Rufnummer. Damit endet „beim Zusammenführen verschwinden Daten": die alte Adresse findet die Person weiterhin.
+- **`person_id`** an `fiaon_applications` und `fiaon_leads` — das **einzige** Feld, das der Umbau an Bestandszeilen schreibt.
+- Ein eindeutiger Index erzwingt **in der Datenbank**, dass keine zwei Personen dieselbe E-Mail tragen. Ein fehlerhafter Lauf scheitert dadurch sofort, statt still Dubletten zu bauen.
+- **`scripts/person-backfill.ts`** — standardmässig Trockenlauf, schreibt nur mit `--apply`, jeder Lauf hat eine Stapel-ID und ist mit `--undo <STAPEL>` vollständig zurücknehmbar.
+- **`scripts/person-verify.ts`** — fünf Prüfungen, nur lesend.
+
+### Zwei Fehler, die der Testlauf gefunden hat (beide behoben)
+
+1. **`--limit` erzeugte falsche Personen.** Bei gekürzter Personenliste hielt der Lead-Durchlauf jeden Lead für „gehört zu keinem Antrag" und legte 2.809 statt 2.076 Lead-Personen an. Der Stapel wurde mit `--undo` restlos entfernt; der begrenzte Lauf legt jetzt bewusst gar keine Lead-Personen mehr an.
+2. **Ein per Telefon verknüpfter Lead brachte seine E-Mail nicht mit.** Damit wäre genau der Datenverlust entstanden, den wir beenden wollen. Jetzt werden die Kontaktdaten eines verknüpften Leads immer zu Aliasen der Person.
+
+### Was ausdrücklich NICHT passiert ist
+
+Keine Zeile gelöscht, keine Zeile inhaltlich verändert. **Keine Zahlung, kein Status, keine Provision angefasst** — `person-verify.ts` prüft die Provisionssumme auf den Cent gegen die Baseline (217 Einträge · 3.203,40 €) und meldet sie unverändert. Kein automatisches Zusammenführen bei blosser Telefon-Gleichheit: 49 Nummern verbinden 139 verschiedene E-Mail-Familien (Haushalte, Firmenzentralen) — das bleibt ein Vorschlag für den Menschen.
+
+### Was noch aussteht
+
+Der scharfe Backfill (`--apply`) läuft **abends**, nicht in der Telefonzeit. Danach folgen die Lesepfade (Login, Kartei, Kundenzählung) und der Schutz gegen Neuanlage im Antrag, im Bonitäts-Kauf und im Lead-Eingang. Bis dahin liest **kein** Programmteil `person_id` — das System verhält sich exakt wie vorher.
+
 ## 29.07.2026 (NOTFALL) — Zahlende Kunden konnten sich nicht einloggen
 
 Kunden — und der Betreiber selbst — sahen beim Login nur „Ungültige Anmeldedaten". Ihr Passwort war richtig. Ihr Konto war in Ordnung. **Der Login hat nur nie in ihr Konto geschaut.**

@@ -7,3 +7,17 @@ vite.config.ts.*
 .env
 .env.*
 !.env.example
+
+# ── Kundendaten, die im Projektordner landen, gehören NIE ins Repo ──────────
+# Verträge, Kontoauszüge, Clarity-Auswertungen und Kampagnen-Pakete werden hier
+# abgelegt, weil der Ordner offen im Downloads-Verzeichnis liegt. Ein einziges
+# `git add -A` würde sie sonst öffentlich auf GitHub schieben — mit Namen,
+# Adressen und Bankdaten echter Kunden. Nur das Wurzelverzeichnis ist gesperrt;
+# echte Projekt-Assets liegen in client/ und server/ und bleiben unberührt.
+/*.pdf
+/*.csv
+/*.zip
+/*.png
+/*.jpg
+/*.html
+/schwarzott-group/

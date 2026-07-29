@@ -1341,6 +1341,11 @@ export const fiaonApplications = pgTable("fiaon_applications", {
   idCardPdf: bytea("id_card_pdf"),
   documentsUploadedAt: timestamp("documents_uploaded_at"),
 
+  // Personenmodell (P1-A): Diese Zeile ist eine BESTELLUNG und gehört zu genau
+  // einer Person. Nullable — Funnel-Abbrecher ohne jeden Kontaktdatensatz
+  // bekommen bewusst keine Person und zählen nirgends als Kunde.
+  personId: integer("person_id"),
+
   submittedAt: timestamp("submitted_at"),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -1355,6 +1360,90 @@ export const fiaonApplications = pgTable("fiaon_applications", {
 
 export type FiaonApplication = typeof fiaonApplications.$inferSelect;
 export type InsertFiaonApplication = typeof fiaonApplications.$inferInsert;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PERSONENMODELL — eine Person = ein Datensatz (server/fiaon-person-model.ts)
+// Angelegt wird zur Laufzeit über ensurePersonTables(); hier stehen die
+// Tabellen, damit drizzle-kit push sie kennt und NICHT verwirft.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const fiaonPersons = pgTable("fiaon_persons", {
+  id: serial("id").primaryKey(),
+  personRef: varchar("person_ref").unique().notNull(),
+  kind: varchar("kind").notNull().default("private"),
+
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  companyName: varchar("company_name"),
+  contactName: varchar("contact_name"),
+  birthdate: varchar("birthdate"),
+
+  primaryEmail: varchar("primary_email"),
+  primaryPhone: varchar("primary_phone"),
+  phoneKey9: varchar("phone_key9"),
+
+  street: varchar("street"),
+  zip: varchar("zip"),
+  city: varchar("city"),
+  country: varchar("country"),
+  nationality: varchar("nationality"),
+
+  password: varchar("password"),
+  accountStatus: varchar("account_status").notNull().default("pending"),
+
+  assignedAgentId: integer("assigned_agent_id"),
+  agentConflict: boolean("agent_conflict").notNull().default(false),
+  qualityFlags: jsonb("quality_flags"),
+
+  firstSource: varchar("first_source"),
+  firstCampaign: varchar("first_campaign"),
+  firstSeenAt: timestamp("first_seen_at"),
+
+  // Phase 3 — SEPA-Mandat gehört an die Person, nicht an die Bestellung.
+  gcCustomerRef: varchar("gc_customer_ref"),
+  gcMandateRef: varchar("gc_mandate_ref"),
+  gcMandateStatus: varchar("gc_mandate_status"),
+
+  mergeBatchId: varchar("merge_batch_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("fiaon_persons_email_idx").on(table.primaryEmail),
+  index("fiaon_persons_phone_idx").on(table.phoneKey9),
+  index("fiaon_persons_agent_idx").on(table.assignedAgentId),
+]);
+
+/** Jede je verwendete E-Mail/Rufnummer — damit beim Zusammenführen nichts verloren geht. */
+export const fiaonPersonAliases = pgTable("fiaon_person_aliases", {
+  id: serial("id").primaryKey(),
+  personId: integer("person_id").notNull(),
+  kind: varchar("kind").notNull(),
+  valueNorm: varchar("value_norm").notNull(),
+  valueRaw: varchar("value_raw"),
+  source: varchar("source"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("fiaon_person_alias_person_idx").on(table.personId, table.kind),
+  index("fiaon_person_alias_lookup_idx").on(table.kind, table.valueNorm),
+]);
+
+/** Backfill-Stapel — Grundlage für Bericht und --undo. */
+export const fiaonPersonBatches = pgTable("fiaon_person_batches", {
+  batchId: varchar("batch_id").primaryKey(),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  finishedAt: timestamp("finished_at"),
+  personsCreated: integer("persons_created").notNull().default(0),
+  appsLinked: integer("apps_linked").notNull().default(0),
+  leadsLinked: integer("leads_linked").notNull().default(0),
+  conflicts: integer("conflicts").notNull().default(0),
+  orphans: integer("orphans").notNull().default(0),
+  undoneAt: timestamp("undone_at"),
+  note: text("note"),
+});
+
+export type FiaonPerson = typeof fiaonPersons.$inferSelect;
+export type InsertFiaonPerson = typeof fiaonPersons.$inferInsert;
+export type FiaonPersonAlias = typeof fiaonPersonAliases.$inferSelect;
 
 export const fiaonClickEvents = pgTable("fiaon_click_events", {
   id: serial("id").primaryKey(),

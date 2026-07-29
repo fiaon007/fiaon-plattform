@@ -3,6 +3,32 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 29.07.2026 — Wise live, Teil 2: Signatur für die starke Kundenauthentifizierung
+
+Kontoauszüge sind bei Wise besonders geschützt. Der erste Aufruf wird **absichtlich mit 403 abgewiesen** und trägt im Antwortkopf `x-2fa-approval` eine Einmal-Kennung. Wer den privaten Schlüssel besitzt, unterschreibt sie und wiederholt den Aufruf. Damit beweist unser Server, dass er zu dem bei Wise hinterlegten öffentlichen Schlüssel gehört.
+
+Das sitzt jetzt zentral in `get()` in `server/lib/wise-api.ts` — jeder Aufruf des Moduls ist automatisch abgedeckt, Profile wie Konten wie Auszüge. **Genau eine Wiederholung**, danach ein klarer Fehler.
+
+### Warum das mehr Sorgfalt verlangt als es aussieht
+
+Ein 403 von Wise sieht immer gleich aus. Er kann dreierlei bedeuten: Signatur fehlt, Signatur falsch, oder schlicht keine Berechtigung. Wer das nicht auseinanderhält, sucht stundenlang am falschen Ende. Deshalb unterscheidet der Code:
+
+- **403 ohne `x-2fa-approval`** → keine Signaturfrage, sondern fehlende Leserechte des Tokens.
+- **403 nach der Unterschrift** → meldet `x-2fa-approval-result` mit und nennt die häufigste Ursache: hinterlegter öffentlicher Schlüssel und `WISE_PRIVATE_KEY_B64` stammen nicht aus demselben Paar.
+- **Schlüssel fehlt, ist kein PEM oder kennwortgeschützt** → jeweils eigene Meldung im Klartext, statt eines Absturzes aus der Krypto-Bibliothek.
+
+### Beweis statt Behauptung (`scripts/wise-sca-test.ts`, 12 Prüfungen, ohne Wise und ohne Netz)
+
+Ob unsere Unterschrift stimmt, würde uns sonst erst Wise sagen — mit einem nackten 403. Der Test erzeugt daher ein eigenes Schlüsselpaar, unterschreibt mit dem privaten Teil und lässt den öffentlichen Teil prüfen.
+
+Die wichtigste Prüfung betrifft eine Falle, in die man leicht tappt: **PKCS#1 v1.5 gegen PSS.** Beides heißt „RSA mit SHA-256", beides erzeugt eine gültig aussehende Unterschrift — aber sie sind unvereinbar, und Wise akzeptiert nur v1.5. Der Test belegt, dass wir v1.5 verwenden und dass die PSS-Variante durchfallen würde.
+
+### Nebenbei behoben
+
+Ein fehlender `WISE_API_TOKEN` wurde als „Wise nicht erreichbar" gemeldet — ein Einrichtungsfehler, getarnt als Netzproblem. Solche Meldungen kosten eine halbe Stunde Suche an der falschen Stelle. Konfigurationsfehler werden jetzt unverändert durchgereicht.
+
+`scripts/wise-phase0.ts` meldet außerdem in der ersten Sekunde, ob Token und Schlüssel brauchbar sind — vorher wäre das erst nach Profilen und Konten aufgefallen.
+
 ## 29.07.2026 — Wise live, Teil 1: Zugang und Zuordnung (noch keine Buchung)
 
 **Das Problem in einem Satz:** Der Kontoabgleich lief über einen CSV-Upload von Hand. Wer ihn vergisst, verliert Zahlungen — der Kunde hat bezahlt, das System weiß es nicht, und ein Agent ruft ihn zur Mahnung an.

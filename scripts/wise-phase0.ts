@@ -27,7 +27,7 @@
 
 import "dotenv/config";
 import { sqlPool } from "../server/lib/db-pool";
-import { holeAlleUmsaetze, ordneEin, WiseError, type WiseTxn } from "../server/lib/wise-api";
+import { holeAlleUmsaetze, ordneEin, schluesselStatus, WiseError, type WiseTxn } from "../server/lib/wise-api";
 import { findApp } from "../server/routes/fiaon-reconcile";
 import { nameTokens, ordneZu, type Kandidat, type Zuordnung } from "../server/lib/zahlungs-zuordnung";
 
@@ -74,6 +74,19 @@ async function main(): Promise<void> {
   log(`Ledger fiaon_bank_txns .......... ${ledger.zeilen} Eingänge · ${eur(Number(ledger.summe))}`);
   log(`  davon verbucht ................ ${ledger.verbucht} · ${eur(Number(ledger.summe_verbucht))}`);
   log(`  davon unzugeordnet / manuell .. ${ledger.offen} / ${ledger.manuell}`);
+  log();
+
+  // ── Zugangsmittel prüfen, bevor irgendetwas abgerufen wird ─────────────────
+  // Kontoauszüge verlangen bei Wise eine Signatur. Fehlt der private
+  // Schlüssel, soll das in der ersten Sekunde stehen — nicht nach dem halben
+  // Abruf und nicht getarnt als „keine Umsätze".
+  const schluessel = schluesselStatus();
+  log(`Zugangstoken .................... ${process.env.WISE_API_TOKEN ? "gesetzt" : "FEHLT"}`);
+  log(`Privater Schlüssel (Signatur) ... ${schluessel.ok ? schluessel.text : "FEHLT/UNBRAUCHBAR"}`);
+  if (!schluessel.ok) {
+    log(`  ${schluessel.text}`);
+    log("  Ohne Signatur weist Wise jeden Kontoauszug mit 403 ab.");
+  }
   log();
 
   // ── Live bei Wise abholen ─────────────────────────────────────────────────

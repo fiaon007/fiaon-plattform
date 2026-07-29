@@ -10,20 +10,32 @@
  * direkt bei Wise ab.
  *
  * SICHERHEIT — NICHT VERHANDELBAR
- *   · Der Token kommt AUSSCHLIESSLICH aus `process.env.WISE_API_TOKEN`.
- *     Er wird nie geloggt, nie in eine Fehlermeldung geschrieben, nie
- *     gespeichert. `redact()` entfernt ihn aus jedem Text, der nach außen geht.
+ *   · Der Token kommt AUSSCHLIESSLICH aus `process.env.WISE_API_TOKEN`,
+ *     der private Schlüssel aus `process.env.WISE_PRIVATE_KEY_B64`.
+ *     Beide werden nie geloggt, nie in eine Fehlermeldung geschrieben, nie
+ *     gespeichert. `redact()` entfernt sie aus jedem Text, der nach außen geht.
  *   · Dieses Modul kennt ausschliesslich GET-Aufrufe. Es gibt hier keine
  *     Funktion, die bei Wise etwas auslösen, überweisen oder ändern könnte.
+ *
+ * STARKE KUNDENAUTHENTIFIZIERUNG (SCA)
+ * Kontoauszüge sind bei Wise besonders geschützt. Der erste Aufruf wird
+ * absichtlich mit 403 abgewiesen und trägt im Antwortkopf `x-2fa-approval`
+ * eine Einmal-Kennung. Wer den privaten Schlüssel besitzt, signiert diese
+ * Kennung und wiederholt den Aufruf — damit beweist der Server, dass er der
+ * hinterlegte öffentliche Schlüssel ist. Das läuft hier zentral in `get()`:
+ * jeder Aufruf im Modul ist automatisch abgedeckt, genau eine Wiederholung.
  *
  * ROBUSTHEIT
  *   · Zeitfenster von 400 Tagen — Wise erlaubt höchstens 469 je Abfrage.
  *   · Wiederholung mit wachsender Wartezeit bei 429 und 5xx.
  *   · Zeitlimit je Aufruf; ein hängender Aufruf blockiert nichts.
- *   · Fällt Wise aus, wirft dieses Modul einen sprechenden Fehler — es liefert
- *     NIEMALS eine leere Liste, die wie „keine Zahlungen" aussieht. Ein stiller
- *     Fehlschlag wäre hier das gefährlichste Verhalten überhaupt.
+ *   · Fällt Wise aus oder scheitert die Signatur, wirft dieses Modul einen
+ *     sprechenden Fehler — es liefert NIEMALS eine leere Liste, die wie „keine
+ *     Zahlungen" aussieht. Ein stiller Fehlschlag wäre hier das gefährlichste
+ *     Verhalten überhaupt: Er sähe aus wie ein Monat ohne Kundenzahlungen.
  */
+
+import crypto from "node:crypto";
 
 const WISE_BASE = "https://api.wise.com";
 const FENSTER_TAGE = 400;
@@ -36,11 +48,16 @@ export class WiseError extends Error {
   }
 }
 
-/** Entfernt den Token aus beliebigem Text — Schutz gegen versehentliches Loggen. */
+/** Entfernt Token und Schlüsselmaterial aus beliebigem Text — Schutz gegen
+ * versehentliches Loggen. Gilt auch für Fehlermeldungen aus fremden Bibliotheken. */
 function redact(text: string): string {
+  let out = String(text);
   const t = process.env.WISE_API_TOKEN;
-  if (!t) return text;
-  return text.split(t).join("«TOKEN»");
+  if (t) out = out.split(t).join("«TOKEN»");
+  const k = process.env.WISE_PRIVATE_KEY_B64;
+  if (k) out = out.split(k).join("«SCHLUESSEL»");
+  // Sollte je ein PEM-Block in einen Text geraten, hier abschneiden.
+  return out.replace(/-----BEGIN[\s\S]*?-----END[^-]*-----/g, "«SCHLUESSEL»");
 }
 
 function token(): string {
@@ -56,32 +73,116 @@ function token(): string {
 
 const schlaf = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function get<T>(pfad: string, versuch = 0): Promise<T> {
+// ═══════════════════════════════════════════════════════════════════════════
+// Signatur für die starke Kundenauthentifizierung
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Den privaten Schlüssel als PEM bereitstellen.
+ *
+ * Erwartet wird `WISE_PRIVATE_KEY_B64`: das PEM, Base64-kodiert. Ein PEM direkt
+ * in eine Umgebungsvariable zu schreiben scheitert sonst an den Zeilenumbrüchen.
+ *
+ * Bewusst nachsichtig: Trägt jemand versehentlich das PEM unkodiert ein, wird
+ * das erkannt und akzeptiert, statt mit einer rätselhaften Meldung abzubrechen.
+ * Der Schlüssel wird einmal geprüft und dann als Schlüsselobjekt gehalten — so
+ * liegt das Rohmaterial nicht länger als nötig als Zeichenkette herum.
+ */
+let schluesselCache: crypto.KeyObject | null = null;
+
+function privaterSchluessel(): crypto.KeyObject {
+  if (schluesselCache) return schluesselCache;
+
+  const roh = String(process.env.WISE_PRIVATE_KEY_B64 || "").trim();
+  if (!roh) {
+    throw new WiseError(
+      "Wise verlangt eine Signatur (SCA), aber WISE_PRIVATE_KEY_B64 ist nicht gesetzt. " +
+      "In Render unter Environment das private PEM Base64-kodiert hinterlegen " +
+      "(erzeugen mit: base64 -i wise-private.pem | tr -d '\\n').",
+    );
+  }
+
+  let pem: string;
+  if (roh.includes("-----BEGIN")) {
+    pem = roh; // unkodiert eingetragen — nehmen wir auch
+  } else {
+    pem = Buffer.from(roh, "base64").toString("utf8");
+  }
+
+  if (!pem.includes("-----BEGIN")) {
+    throw new WiseError(
+      "WISE_PRIVATE_KEY_B64 ergibt kein gültiges PEM. Erwartet wird der Base64-Text " +
+      "des privaten Schlüssels; nach dem Dekodieren muss er mit '-----BEGIN' anfangen.",
+    );
+  }
+  if (/ENCRYPTED/.test(pem)) {
+    throw new WiseError(
+      "Der private Schlüssel ist mit einem Kennwort geschützt. Ein Server kann kein " +
+      "Kennwort eingeben — bitte einen Schlüssel ohne Passphrase hinterlegen.",
+    );
+  }
+
+  try {
+    schluesselCache = crypto.createPrivateKey(pem);
+  } catch (err: any) {
+    throw new WiseError(
+      `Der private Schlüssel ist unlesbar: ${redact(String(err?.message || err))}. ` +
+      "Häufigste Ursache: beim Kopieren wurde der Base64-Text umgebrochen oder gekürzt.",
+    );
+  }
+  return schluesselCache;
+}
+
+/**
+ * Eine Einmal-Kennung signieren: SHA-256, PKCS#1 v1.5, Ergebnis Base64.
+ *
+ * Als eigenständige Funktion mit übergebenem Schlüssel, damit sie ohne Wise und
+ * ohne Umgebungsvariablen prüfbar ist — siehe `scripts/wise-sca-test.ts`.
+ */
+export function signiereFreigabe(kennung: string, schluessel: crypto.KeyObject | string): string {
+  return crypto
+    .sign("sha256", Buffer.from(kennung, "utf8"), {
+      key: schluessel as any,
+      padding: crypto.constants.RSA_PKCS1_PADDING,
+    })
+    .toString("base64");
+}
+
+/**
+ * Prüft vorab, ob der private Schlüssel da und lesbar ist — ohne Netzzugriff.
+ *
+ * Sinn: Fehlt der Schlüssel, scheitert sonst erst der Abruf des ersten
+ * Kontoauszugs, nach Profilen und Konten. Diese Prüfung sagt es in der ersten
+ * Sekunde. Wirft nie.
+ */
+export function schluesselStatus(): { ok: boolean; text: string } {
+  try {
+    const k = privaterSchluessel();
+    const bits = (k.asymmetricKeyDetails as any)?.modulusLength;
+    const art = String(k.asymmetricKeyType || "unbekannt").toUpperCase();
+    return { ok: true, text: `geladen (${art}${bits ? `-${bits}` : ""})` };
+  } catch (err: any) {
+    return { ok: false, text: redact(String(err?.message || err)) };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Aufruf
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Ein einzelner Aufruf mit Zeitlimit. Wirft nur bei Netzproblemen. */
+async function roherAufruf(pfad: string, zusatz: Record<string, string> = {}): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ZEITLIMIT_MS);
   try {
-    const res = await fetch(`${WISE_BASE}${pfad}`, {
+    return await fetch(`${WISE_BASE}${pfad}`, {
       method: "GET",
-      headers: { Authorization: `Bearer ${token()}`, Accept: "application/json" },
+      headers: { Authorization: `Bearer ${token()}`, Accept: "application/json", ...zusatz },
       signal: ctrl.signal,
     });
-    if (res.status === 429 || res.status >= 500) {
-      if (versuch < 4) {
-        const warten = 1000 * Math.pow(2, versuch);
-        console.warn(`[WISE] ${res.status} bei ${redact(pfad)} — erneuter Versuch in ${warten} ms`);
-        await schlaf(warten);
-        return get<T>(pfad, versuch + 1);
-      }
-    }
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new WiseError(
-        `Wise antwortete ${res.status} auf ${redact(pfad)}: ${redact(body).slice(0, 400)}`,
-        res.status,
-      );
-    }
-    return (await res.json()) as T;
   } catch (err: any) {
+    // Ein fehlender Token ist ein Einrichtungsfehler, kein Netzproblem — sonst
+    // sucht man an der falschen Stelle. Unverändert durchreichen.
     if (err instanceof WiseError) throw err;
     if (err?.name === "AbortError") {
       throw new WiseError(`Wise antwortete nicht innerhalb von ${ZEITLIMIT_MS / 1000} s (${redact(pfad)})`);
@@ -89,6 +190,75 @@ async function get<T>(pfad: string, versuch = 0): Promise<T> {
     throw new WiseError(`Wise nicht erreichbar (${redact(pfad)}): ${redact(String(err?.message || err))}`);
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** Merker, damit der Hinweis auf die Signatur nur einmal je Lauf im Log steht. */
+let scaGemeldet = false;
+
+async function get<T>(pfad: string, versuch = 0): Promise<T> {
+  let res = await roherAufruf(pfad);
+
+  // ── Starke Kundenauthentifizierung ────────────────────────────────────────
+  // Der erste 403 ist kein Fehler, sondern die Aufforderung zu unterschreiben.
+  if (res.status === 403) {
+    const kennung = res.headers.get("x-2fa-approval");
+    if (!kennung) {
+      const body = await res.text().catch(() => "");
+      throw new WiseError(
+        `Wise verweigert den Zugriff auf ${redact(pfad)} (403) und nennt keine Freigabe-Kennung. ` +
+        "Das ist keine Signaturfrage, sondern fehlende Berechtigung: Hat der Token Leserechte " +
+        `für dieses Profil? Antwort: ${redact(body).slice(0, 300)}`,
+        403,
+      );
+    }
+
+    // Wirft mit klarer Meldung, wenn der Schlüssel fehlt oder unbrauchbar ist.
+    const signatur = signiereFreigabe(kennung, privaterSchluessel());
+
+    if (!scaGemeldet) {
+      console.log("[WISE] Signatur für die starke Kundenauthentifizierung wird verwendet.");
+      scaGemeldet = true;
+    }
+
+    // Genau eine Wiederholung — derselbe Aufruf, jetzt unterschrieben.
+    res = await roherAufruf(pfad, { "x-2fa-approval": kennung, "X-Signature": signatur });
+
+    if (res.status === 403) {
+      const grund = res.headers.get("x-2fa-approval-result") || "ohne Angabe";
+      const body = await res.text().catch(() => "");
+      throw new WiseError(
+        `Wise hat die Signatur abgelehnt (${grund}) bei ${redact(pfad)}. ` +
+        "Üblichste Ursache: Der bei Wise hinterlegte öffentliche Schlüssel gehört nicht zu " +
+        "WISE_PRIVATE_KEY_B64. Beide müssen aus demselben Schlüsselpaar stammen. " +
+        `Antwort: ${redact(body).slice(0, 300)}`,
+        403,
+      );
+    }
+  }
+
+  // ── Überlast und Störungen ────────────────────────────────────────────────
+  if ((res.status === 429 || res.status >= 500) && versuch < 4) {
+    const warten = 1000 * Math.pow(2, versuch);
+    console.warn(`[WISE] ${res.status} bei ${redact(pfad)} — erneuter Versuch in ${warten} ms`);
+    await schlaf(warten);
+    return get<T>(pfad, versuch + 1);
+  }
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new WiseError(
+      `Wise antwortete ${res.status} auf ${redact(pfad)}: ${redact(body).slice(0, 400)}`,
+      res.status,
+    );
+  }
+
+  try {
+    return (await res.json()) as T;
+  } catch (err: any) {
+    throw new WiseError(
+      `Wise lieferte auf ${redact(pfad)} keine lesbare Antwort: ${redact(String(err?.message || err))}`,
+    );
   }
 }
 

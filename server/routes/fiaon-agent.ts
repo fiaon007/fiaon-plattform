@@ -382,8 +382,20 @@ export function agentRateBp(agentRow: { commission_rate_bp: number | null }, set
   return agentRow.commission_rate_bp ?? Number(settings.default_commission_rate_bp) ?? 1500;
 }
 
+/** Name des Sitzungs-Cookies. Exportiert, damit Integrationstests ihn setzen können. */
+export const AGENT_COOKIE_NAME = AGENT_COOKIE;
+
 // ── Token mit Session-Epoch (Force-Reset invalidiert laufende Sessions) ─────
-function signAgentToken(agentId: number, epoch: number): string {
+//
+// `signAgentToken` ist exportiert, weil die Zugriffsprüfung der Agenten-APIs
+// nur über einen echten HTTP-Aufruf mit gültiger Sitzung beweisbar ist
+// (`scripts/test-agent-zugriff.ts`). Eine Prüfung, die nur die SQL-Bedingung
+// nachrechnet, würde genau den Fall übersehen, der zählt: eine Route, die die
+// Bedingung vergessen hat.
+//
+// Kein zusätzliches Risiko: Die Funktion lief immer im selben Prozess, und wer
+// dieses Modul importieren kann, hat ohnehin Zugriff auf Datenbank und Secret.
+export function signAgentToken(agentId: number, epoch: number): string {
   const exp = Date.now() + TOKEN_TTL_MS;
   const payload = `${agentId}.${epoch}.${exp}`;
   const sig = createHmac("sha256", agentSecret()).update(`agent2:${payload}`).digest("hex").slice(0, 40);

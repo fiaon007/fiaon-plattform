@@ -277,6 +277,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonReconcileRoutes = await import('./routes/fiaon-reconcile');
   app.use('/api/fiaon', fiaonReconcileRoutes.default);
 
+  // 👥 FIAON Agent CRM (person-scoped) — der Nachfolger der offenen Kartei.
+  //    Eigenes Präfix /agent/crm, weil /agent/dashboard im Agentenportal schon
+  //    belegt ist. Autorisierung über fiaon_persons.assigned_agent_id, fremde
+  //    Person antwortet mit 404 (nie 403 — das würde ihre Existenz bestätigen).
+  const fiaonAgentKundenRoutes = await import('./routes/fiaon-agent-kunden');
+  app.use('/api/fiaon', fiaonAgentKundenRoutes.default);
+
   // ✅ FIAON Verbuchung (Admin) — nur die Eingänge, bei denen etwas zu entscheiden
   //    ist, mit Vorschau vor dem Klick. Bucht ausschliesslich über applyTxn aus
   //    dem Kontoabgleich; kein zweiter Buchungspfad.

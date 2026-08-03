@@ -59,6 +59,9 @@ import AgentKalenderPage from "@/pages/agent/kalender";
 import AgentPartnerProgrammPage from "@/pages/agent/partner-programm";
 import AgentKundenPage from "@/pages/agent/kunden";
 import AgentKarteiPage from "@/pages/agent/kartei";
+// Nachgeladen statt statisch importiert: Die Seite wird nur von den Agenten
+// gebraucht und würde das Hauptbündel für alle anderen Besucher vergrössern.
+const AgentHeutePage = lazy(() => import("@/pages/agent/heute"));
 import AgentMeineKundenPage from "@/pages/agent/meine-kunden";
 import AgentVerdienstPage from "@/pages/agent/verdienst";
 import AgentUpdatesPage from "@/pages/agent/updates";
@@ -154,6 +157,9 @@ function Router() {
       <Route path="/agent/kalender" component={AgentKalenderPage} />
       <Route path="/agent/partner-programm" component={AgentPartnerProgrammPage} />
       {/* Offene Kartei (neu) — löst /agent/leads und /agent/kunden ab. */}
+      {/* Die Arbeitsseite, die die offene Kartei abloest: zugewiesene Kunden
+          nach Dringlichkeit statt gemeinsamer Bestand. */}
+      <Route path="/agent/heute" component={AgentHeutePage} />
       <Route path="/agent/kartei" component={AgentKarteiPage} />
       <Route path="/agent/meine-kunden" component={AgentMeineKundenPage} />
       {/* Alte Ansichten bleiben erreichbar, bis die Kartei im Betrieb bestätigt

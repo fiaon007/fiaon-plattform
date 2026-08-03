@@ -328,6 +328,10 @@ async function main(): Promise<void> {
          ${z.referenceRaw}, ${erkannt}, ${zu.automatisch ? erkannt : null}, ${status},
          ${betragOk}, ${zu.begruendung})
       ON CONFLICT (txn_id) DO UPDATE SET
+        -- Das Buchungsdatum stammt aus dem Auszug und ist dort die Wahrheit.
+        -- Fehlte es hier, behielten bereits bekannte Zeilen für immer das Datum
+        -- ihres ersten Imports — auch ein falsch gelesenes.
+        booked_at     = EXCLUDED.booked_at,
         amount_cents  = EXCLUDED.amount_cents,
         currency      = EXCLUDED.currency,
         payer_name    = EXCLUDED.payer_name,

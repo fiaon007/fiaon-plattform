@@ -21,3 +21,12 @@ vite.config.ts.*
 /*.jpg
 /*.html
 /schwarzott-group/
+
+# Datenbank-Abzüge: enthalten den vollständigen Kundenbestand inklusive der
+# verschlüsselten Bankdaten der Agenten. Niemals ins Repo.
+/*.dump
+/backups/
+
+# Auswertungen aus dem CRM-Umbau: Prüflisten mit Namen, Beträgen und
+# Zahlungszuordnungen echter Kunden. Bleiben lokal.
+/reports/

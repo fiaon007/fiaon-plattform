@@ -23,17 +23,19 @@
 // Oberfläche muss nichts verstecken.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Link } from "wouter";
+import { AgentShell } from "./shared";
 import {
-  AlertTriangle, ArrowLeft, Ban, CalendarClock, CheckCircle2, ChevronDown,
-  Clock, Info, Mail, Megaphone, PhoneCall, PhoneOff, Search, X,
-} from "lucide-react";
-import {
-  Haken, Skelett, Tilt, ToastAnbieter, Zahl, ZeitAngabe,
+  Skelett, Tilt, ToastAnbieter, Zahl, ZeitAngabe,
   datum, eintritt, eur, useReduzierteBewegung, useToast,
 } from "@/lib/fiaon-ui";
+
+// KEINE Icon-Komponenten auf dieser Seite. Wo vorher ein Symbol stand, steht
+// jetzt Text — ein Agent, der „Anrufen“ liest, muss nicht raten, was ein
+// Hörer-Symbol bedeutet. Die farbigen Balken und Punkte sind Flächen, keine
+// Symbole. Die Emojis in den Tab-Namen sind ausdrückliche Vorgabe.
 
 // ───────────────────────────────────────────────────────────────────────────
 async function apiF(pfad: string, init?: RequestInit) {
@@ -91,6 +93,15 @@ function Seite() {
   const [grundFilter, setGrundFilter] = useState<string>("");
 
   const [detail, setDetail] = useState<number | null>(null);
+  const [tourOffen, setTourOffen] = useState(false);
+
+  // Die Tour öffnet sich EINMAL pro Agent. Der Status liegt am Agenten in der
+  // Datenbank, nicht im localStorage — sonst käme sie auf jedem neuen Gerät
+  // wieder, und genau am Handy wäre sie am störendsten.
+  const tourWegklicken = useCallback(() => {
+    setTourOffen(false);
+    apiF("/agent/crm/tour-gesehen", { method: "POST" }).catch(() => {});
+  }, []);
 
   // ── Laden ────────────────────────────────────────────────────────────────
   const ladeKopf = useCallback(async () => {
@@ -104,6 +115,7 @@ function Seite() {
       setZahlen(d.json.zahlen);
       setVorname(d.json.agent?.vorname || "");
       setEskalationTage(d.json.eskalationNachTagen ?? 7);
+      if (!d.json.tourGesehen) setTourOffen(true);
     }
     if (h.ok) setHeute(h.json.kunden);
     if (o.ok) setOhneDatum(o.json.kunden);
@@ -165,8 +177,9 @@ function Seite() {
   }, [liste]);
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: "var(--fi-seite)", fontFamily: "Inter, system-ui, sans-serif" }}>
-      <div className="max-w-[720px] mx-auto px-4 pt-6">
+    <div className="pb-4">
+      <div className="max-w-[720px] mx-auto">
+        <Willkommen offen={tourOffen} onFertig={tourWegklicken} />
 
         {/* ── 1 · Begrüßung + Kennzahlen ──────────────────────────────── */}
         <motion.div {...eintritt(reduziert)}>
@@ -184,12 +197,19 @@ function Seite() {
                     : "Heute steht nichts Fälliges an. Sieh dir unten deine Listen an."}
               </p>
             </div>
-            <Link href="/agent/updates"
-                  className="shrink-0 relative inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border bg-white text-[12px] font-semibold
-                             transition-transform duration-150 active:scale-[0.96]"
-                  style={{ borderColor: "var(--fi-linie)", color: "var(--fi-primaer)" }}>
-              <Megaphone size={13} /> Neuigkeiten
-            </Link>
+            <div className="shrink-0 flex flex-col items-end gap-1.5">
+              <Link href="/agent/updates"
+                    className="inline-flex items-center px-2.5 py-1.5 rounded-xl border bg-white text-[12px] font-semibold
+                               transition-transform duration-150 active:scale-[0.96]"
+                    style={{ borderColor: "var(--fi-linie)", color: "var(--fi-primaer)" }}>
+                Neuigkeiten
+              </Link>
+              <button onClick={() => setTourOffen(true)}
+                      className="text-[11px] underline underline-offset-2"
+                      style={{ color: "var(--fi-text-still)" }}>
+                Wie funktioniert das?
+              </button>
+            </div>
           </div>
         </motion.div>
 
@@ -228,7 +248,6 @@ function Seite() {
           <motion.div {...eintritt(reduziert)}
             className="mt-3 p-3 rounded-2xl border flex items-center gap-2.5"
             style={{ background: "var(--fi-tint)", borderColor: "var(--fi-border-aktiv)" }}>
-            <CheckCircle2 size={16} style={{ color: "var(--fi-primaer)" }} />
             <p className="text-[12.5px]" style={{ color: "var(--fi-text)" }}>
               <span className="font-bold">{zahlen.neuHeute} neue Kunden</span> sind heute zu dir gekommen.
             </p>
@@ -238,11 +257,11 @@ function Seite() {
         {/* ── 2 · HERO: Heute fällig ──────────────────────────────────── */}
         <Abschnitt
           titel="Heute fällig"
-          ikon={PhoneCall}
           farbe="var(--fi-tier1)"
           anzahl={heute.length}
           laedt={laedt}
           leer="Kein Kunde ist heute fällig. Gut gearbeitet."
+          erklaerung="Hier stehen die Kunden, die heute dran sind: Sie haben für heute Zahlung zugesagt, oder du hast sie selbst auf heute zurückgelegt. Arbeite diese Liste von oben nach unten ab — dann hast du den Tag erledigt."
           hero
         >
           <AnimatePresence mode="popLayout">
@@ -256,7 +275,6 @@ function Seite() {
         {/* ── 3 · Zahlung gemeldet, Geld fehlt ────────────────────────── */}
         <Abschnitt
           titel="Zahlung gemeldet, Geld fehlt"
-          ikon={AlertTriangle}
           farbe="var(--fi-warnung)"
           anzahl={ohneDatum.length}
           laedt={laedt}
@@ -274,7 +292,6 @@ function Seite() {
         {/* ── 4 · Überfällig ─────────────────────────────────────────── */}
         <Abschnitt
           titel="Überfällig"
-          ikon={CalendarClock}
           farbe="var(--fi-fehler)"
           anzahl={ueberfaellig.length}
           laedt={laedt}
@@ -297,12 +314,17 @@ function Seite() {
             {([1, 2, 3] as const).map((t) => {
               const anzahl = t === 1 ? zahlen?.tier1 : t === 2 ? zahlen?.tier2 : zahlen?.tier3;
               const ist = tab === t;
+              // Sprechende Namen statt „Priorität 1/2/3“. Eine Zahl sagt einem
+              // neuen Agenten nichts — der Grund sagt ihm, was ihn erwartet.
+              const name = t === 1 ? "🔥 Zahlung gemeldet"
+                : t === 2 ? "📄 Antrag & Rechnung"
+                : "📥 Neue Leads";
               return (
                 <button key={t} onClick={() => { setTab(t); setGrundFilter(""); }}
                         className="relative px-3.5 py-2.5 text-[13px] font-semibold whitespace-nowrap
                                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fi-border-aktiv)] rounded-t-lg"
                         style={{ color: ist ? tierFarbe(t) : "var(--fi-text-leise)" }}>
-                  Priorität {t}
+                  {name}
                   <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold fi-zahl"
                         style={{ background: ist ? tierTint(t) : "#f1f5f9", color: ist ? tierFarbe(t) : "var(--fi-text-still)" }}>
                     {anzahl ?? 0}
@@ -321,13 +343,13 @@ function Seite() {
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2 px-2.5 py-2 rounded-xl bg-white border flex-1 min-w-[200px]"
                  style={{ borderColor: "var(--fi-linie)" }}>
-              <Search size={14} style={{ color: "var(--fi-text-still)" }} />
               <input value={suche} onChange={(e) => setSuche(e.target.value)}
-                     placeholder="Name, E-Mail oder Telefon …"
+                     placeholder="Suchen: Name, E-Mail oder Telefon …"
                      className="flex-1 text-[13px] outline-none bg-transparent" />
               {suche && (
-                <button onClick={() => setSuche("")} aria-label="Suche löschen">
-                  <X size={13} style={{ color: "var(--fi-text-still)" }} />
+                <button onClick={() => setSuche("")} className="text-[12px] font-semibold px-1"
+                        style={{ color: "var(--fi-text-still)" }}>
+                  zurücksetzen
                 </button>
               )}
             </div>
@@ -345,7 +367,11 @@ function Seite() {
             {listeLaedt ? (
               [0, 1, 2, 3].map((i) => <KartenSkelett key={i} />)
             ) : liste.length === 0 ? (
-              <LeerHinweis text={suche ? "Keine Treffer." : "Keine Kunden in dieser Priorität."} />
+              <LeerHinweis
+                text={suche ? "Keine Treffer" : "Hier ist gerade nichts"}
+                zusatz={suche
+                  ? "Prüfe die Schreibweise oder setze die Suche zurück."
+                  : "Aktuell sind dir in dieser Kategorie keine Kunden zugewiesen. Neue kommen automatisch dazu — wenn hier dauerhaft nichts steht, melde dich bei Justin."} />
             ) : (
               <AnimatePresence mode="popLayout">
                 {liste.map((k, i) => (
@@ -374,9 +400,9 @@ function Seite() {
 // Abschnitt mit Kopf, Zähler und aufklappbarer Erklärung
 // ═══════════════════════════════════════════════════════════════════════════
 function Abschnitt({
-  titel, ikon: Ikon, farbe, anzahl, laedt, leer, erklaerung, hero, children,
+  titel, farbe, anzahl, laedt, leer, erklaerung, hero, children,
 }: {
-  titel: string; ikon: any; farbe: string; anzahl: number; laedt: boolean;
+  titel: string; farbe: string; anzahl: number; laedt: boolean;
   leer: string; erklaerung?: string; hero?: boolean; children: React.ReactNode;
 }) {
   const [offen, setOffen] = useState(false);
@@ -385,10 +411,8 @@ function Abschnitt({
   return (
     <motion.section {...eintritt(reduziert)} className={hero ? "mt-6" : "mt-7"}>
       <div className="flex items-center gap-2">
-        <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-              style={{ background: `${farbe}14` }}>
-          <Ikon size={15} style={{ color: farbe }} />
-        </span>
+        {/* Farbbalken statt Symbol: eine Fläche, die die Dringlichkeit zeigt. */}
+        <span aria-hidden="true" className="w-1 h-5 rounded-full shrink-0" style={{ background: farbe }} />
         <h2 className={`font-bold ${hero ? "text-[17px]" : "text-[15px]"}`} style={{ color: "var(--fi-text)" }}>
           {titel}
         </h2>
@@ -399,9 +423,12 @@ function Abschnitt({
           </span>
         )}
         {erklaerung && (
-          <button onClick={() => setOffen((o) => !o)} aria-label="Erklärung"
-                  className="ml-auto w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-slate-100">
-            <Info size={14} style={{ color: "var(--fi-text-still)" }} />
+          <button onClick={() => setOffen((o) => !o)}
+                  aria-label={`Erklärung zu ${titel}`} aria-expanded={offen}
+                  className="ml-auto w-7 h-7 rounded-lg flex items-center justify-center text-[15px] font-bold
+                             transition-colors hover:bg-slate-100"
+                  style={{ color: "var(--fi-text-still)" }}>
+            ⓘ
           </button>
         )}
       </div>
@@ -427,13 +454,15 @@ function Abschnitt({
   );
 }
 
-function LeerHinweis({ text }: { text: string }) {
+function LeerHinweis({ text, zusatz }: { text: string; zusatz?: string }) {
   return (
-    <div className="py-7 text-center rounded-2xl bg-white border" style={{ borderColor: "var(--fi-linie)" }}>
-      <div className="w-9 h-9 mx-auto rounded-xl flex items-center justify-center" style={{ background: "var(--fi-erfolg-tint)" }}>
-        <Haken groesse={18} />
-      </div>
-      <p className="mt-2 text-[12.5px]" style={{ color: "var(--fi-text-leise)" }}>{text}</p>
+    <div className="py-7 px-5 text-center rounded-2xl bg-white border" style={{ borderColor: "var(--fi-linie)" }}>
+      <p className="text-[13px] font-semibold" style={{ color: "var(--fi-text)" }}>{text}</p>
+      {zusatz && (
+        <p className="mt-1.5 text-[12.5px] leading-relaxed max-w-[380px] mx-auto" style={{ color: "var(--fi-text-leise)" }}>
+          {zusatz}
+        </p>
+      )}
     </div>
   );
 }
@@ -549,10 +578,10 @@ function KundenKarte({
           {/* Telefon als grosse Tippfläche — das Wichtigste auf der Karte */}
           {kunde.telefon ? (
             <a href={`tel:${kunde.telefon.replace(/\s/g, "")}`}
-               className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[13px] font-bold text-white
+               className="shrink-0 inline-flex items-center px-3.5 py-2 rounded-xl text-[13px] font-bold text-white
                           transition-transform duration-150 active:scale-[0.95]"
                style={{ background: "linear-gradient(180deg, var(--fi-erfolg), #047857)" }}>
-              <PhoneCall size={14} /> Anrufen
+              Anrufen
             </a>
           ) : (
             <span className="shrink-0 px-2.5 py-2 rounded-xl text-[11px] font-semibold"
@@ -564,10 +593,10 @@ function KundenKarte({
 
         {/* Handlungshinweis, aufklappbar */}
         <button onClick={() => setHinweisOffen((o) => !o)}
-                className="mt-2.5 inline-flex items-center gap-1.5 text-[12px] font-semibold"
+                className="mt-2.5 inline-flex items-center gap-1 text-[12px] font-semibold"
                 style={{ color: "var(--fi-primaer)" }}>
-          <ChevronDown size={13} className="transition-transform duration-200"
-                       style={{ transform: hinweisOffen ? "rotate(180deg)" : "none" }} />
+          <span aria-hidden="true" className="inline-block transition-transform duration-200 text-[10px]"
+                style={{ transform: hinweisOffen ? "rotate(180deg)" : "none" }}>▾</span>
           {hinweisOffen ? "Hinweis schließen" : "Was ist hier zu tun?"}
         </button>
         <div className="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -582,18 +611,18 @@ function KundenKarte({
 
         {/* One-Tap-Aktionen */}
         <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Aktion label="Erreicht" ikon={CheckCircle2} farbe="var(--fi-erfolg)"
+          <Aktion label="Erreicht" farbe="var(--fi-erfolg)"
                   laeuft={laeuft === "erreicht"} disabled={!!laeuft}
                   onClick={() => fuehreAus("erreicht", "/aktivitaet", { art: "erreicht" },
                     "Als erreicht dokumentiert", "var(--fi-erfolg-tint)")} />
-          <Aktion label="Nicht erreicht" ikon={PhoneOff} farbe="var(--fi-warnung)"
+          <Aktion label="Nicht erreicht" farbe="var(--fi-warnung)"
                   laeuft={laeuft === "nicht"} disabled={!!laeuft}
                   onClick={() => fuehreAus("nicht", "/aktivitaet", { art: "nicht_erreicht" },
                     "Nicht erreicht — morgen erneut", "var(--fi-warnung-tint)")} />
-          <Aktion label="Zahlt am …" ikon={CalendarClock} farbe="var(--fi-primaer)"
+          <Aktion label="Zahlt am …" farbe="var(--fi-primaer)"
                   laeuft={laeuft === "zusage"} disabled={!!laeuft}
                   onClick={() => setDatumOffen((o) => !o)} />
-          <Aktion label="Blockiert" ikon={Ban} farbe="var(--fi-fehler)"
+          <Aktion label="Blockiert" farbe="var(--fi-fehler)"
                   laeuft={laeuft === "blockiert"} disabled={!!laeuft}
                   onClick={() => fuehreAus("blockiert", "/aktivitaet", { art: "blockiert" },
                     "Kunde will nicht kontaktiert werden", "var(--fi-fehler-tint)")} />
@@ -631,7 +660,7 @@ function KundenKarte({
                     className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[12px] font-bold
                                transition-transform duration-150 active:scale-[0.96] disabled:opacity-50"
                     style={{ borderColor: "var(--fi-linie)", color: "var(--fi-primaer)" }}>
-              <Mail size={13} /> {laeuft === "rechnung" ? "Sende …" : "Zahlungsdetails senden"}
+              {laeuft === "rechnung" ? "Sende …" : "Zahlungsdetails senden"}
             </button>
             {kunde.rechnungVersandt > 0 && (
               <span className="text-[11px] fi-zahl"
@@ -652,16 +681,15 @@ function KundenKarte({
 }
 
 function Aktion({
-  label, ikon: Ikon, farbe, onClick, laeuft, disabled,
-}: { label: string; ikon: any; farbe: string; onClick: () => void; laeuft: boolean; disabled?: boolean }) {
+  label, farbe, onClick, laeuft, disabled,
+}: { label: string; farbe: string; onClick: () => void; laeuft: boolean; disabled?: boolean }) {
   return (
     <button onClick={onClick} disabled={disabled}
-            className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl border text-[11.5px] font-bold
+            className="flex items-center justify-center py-3 px-2 rounded-xl border text-[12px] font-bold text-center
                        transition-transform duration-150 active:scale-[0.95] disabled:opacity-40
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fi-border-aktiv)]"
             style={{ borderColor: "var(--fi-linie)", color: farbe }}>
-      {laeuft ? <Clock size={15} className="animate-spin" /> : <Ikon size={15} />}
-      {label}
+      {laeuft ? "…" : label}
     </button>
   );
 }
@@ -732,10 +760,10 @@ function KundenDetail({
       >
         <div className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b px-4 py-3 flex items-center gap-3"
              style={{ borderColor: "var(--fi-linie)" }}>
-          <button onClick={onSchliessen} aria-label="Zurück"
-                  className="w-9 h-9 rounded-xl border flex items-center justify-center transition-transform active:scale-[0.94]"
-                  style={{ borderColor: "var(--fi-linie)" }}>
-            <ArrowLeft size={16} style={{ color: "var(--fi-text-leise)" }} />
+          <button onClick={onSchliessen}
+                  className="px-3 h-9 rounded-xl border text-[12.5px] font-semibold transition-transform active:scale-[0.94]"
+                  style={{ borderColor: "var(--fi-linie)", color: "var(--fi-text-leise)" }}>
+            Zurück
           </button>
           <p className="text-[15px] font-bold truncate flex-1" style={{ color: "var(--fi-text)" }}>
             {k?.name ?? "Lade …"}
@@ -770,16 +798,16 @@ function KundenDetail({
               <div className="flex gap-2">
                 {k.telefon && (
                   <a href={`tel:${k.telefon.replace(/\s/g, "")}`}
-                     className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-bold text-white"
+                     className="flex-1 inline-flex items-center justify-center py-2.5 rounded-xl text-[13px] font-bold text-white"
                      style={{ background: "linear-gradient(180deg, var(--fi-erfolg), #047857)" }}>
-                    <PhoneCall size={14} /> {k.telefon}
+                    Anrufen: {k.telefon}
                   </a>
                 )}
                 {k.email && (
                   <a href={`mailto:${k.email}`}
-                     className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border text-[13px] font-bold"
+                     className="inline-flex items-center justify-center px-3 py-2.5 rounded-xl border text-[12.5px] font-bold"
                      style={{ borderColor: "var(--fi-linie)", color: "var(--fi-primaer)" }}>
-                    <Mail size={14} />
+                    E-Mail
                   </a>
                 )}
               </div>
@@ -872,10 +900,100 @@ function KundenDetail({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Willkommens-Tour — einmal pro Agent, jederzeit erneut aufrufbar
+//
+// Vier Schritte, kein Zwang: jederzeit wegklickbar, und der Status liegt am
+// Agenten in der Datenbank statt im localStorage. Wer sie übersprungen hat und
+// später doch nachlesen will, findet oben rechts „Wie funktioniert das?".
+// ═══════════════════════════════════════════════════════════════════════════
+const SCHRITTE = [
+  {
+    titel: "Willkommen in deiner Kundenliste",
+    text: "Du suchst keine Akten mehr aus einem gemeinsamen Bestand. Deine Kunden sind dir fest zugewiesen — niemand anders ruft sie an, und du siehst ausschließlich deine eigenen.",
+  },
+  {
+    titel: "„Heute fällig“ ist deine Arbeitsliste",
+    text: "Ganz oben stehen die Kunden, die heute dran sind: Sie haben für heute Zahlung zugesagt, oder du hast sie selbst auf heute zurückgelegt. Von oben nach unten durcharbeiten — dann ist der Tag erledigt.",
+  },
+  {
+    titel: "Die drei Kategorien",
+    text: "🔥 Zahlung gemeldet: Der Kunde sagt, er habe bezahlt, das Geld fehlt aber — höchste Dringlichkeit. 📄 Antrag & Rechnung: Rechnung offen oder Antrag unvollständig. 📥 Neue Leads: noch kein Antrag, erstes Gespräch.",
+  },
+  {
+    titel: "Ein Tipp genügt",
+    text: "„Anrufen“ wählt direkt. Danach dokumentierst du mit einem Tipp: Erreicht, Nicht erreicht, Zahlt am … oder Blockiert. Die Karte verschwindet dann aus der Liste. Weißt du nicht weiter, öffne auf der Karte „Was ist hier zu tun?“.",
+  },
+];
+
+function Willkommen({ offen, onFertig }: { offen: boolean; onFertig: () => void }) {
+  const [schritt, setSchritt] = useState(0);
+  const reduziert = useReduzierteBewegung();
+  if (!offen) return null;
+  const s = SCHRITTE[schritt];
+  const letzter = schritt === SCHRITTE.length - 1;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}
+                  className="absolute inset-0 bg-slate-900/50" onClick={onFertig} />
+      <motion.div
+        initial={reduziert ? { opacity: 0 } : { opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={reduziert ? { duration: 0.15 } : { type: "spring", stiffness: 380, damping: 32 }}
+        className="relative w-full sm:max-w-[440px] bg-white rounded-3xl p-5"
+        style={{ boxShadow: "0 20px 60px rgba(15,23,42,0.25)" }}
+      >
+        <div className="flex items-center gap-1.5">
+          {SCHRITTE.map((_, i) => (
+            <span key={i} aria-hidden="true" className="h-1 rounded-full transition-all duration-300"
+                  style={{
+                    width: i === schritt ? 22 : 8,
+                    background: i <= schritt ? "var(--fi-primaer)" : "var(--fi-linie)",
+                  }} />
+          ))}
+          <button onClick={onFertig} className="ml-auto text-[12px] font-semibold"
+                  style={{ color: "var(--fi-text-still)" }}>
+            überspringen
+          </button>
+        </div>
+
+        <h2 className="mt-4 text-[18px] font-bold leading-tight" style={{ color: "var(--fi-text)" }}>
+          {s.titel}
+        </h2>
+        <p className="mt-2 text-[13.5px] leading-relaxed" style={{ color: "var(--fi-text-leise)" }}>
+          {s.text}
+        </p>
+
+        <div className="mt-5 flex items-center gap-2">
+          {schritt > 0 && (
+            <button onClick={() => setSchritt((n) => n - 1)}
+                    className="px-3.5 py-2.5 rounded-xl border text-[13px] font-semibold"
+                    style={{ borderColor: "var(--fi-linie)", color: "var(--fi-text-leise)" }}>
+              Zurück
+            </button>
+          )}
+          <button onClick={() => (letzter ? onFertig() : setSchritt((n) => n + 1))}
+                  className="flex-1 py-2.5 rounded-xl text-[13.5px] font-bold text-white
+                             transition-transform duration-150 active:scale-[0.97]"
+                  style={{ background: "var(--fi-primaer)" }}>
+            {letzter ? "Los geht’s" : "Weiter"}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// In der Portal-Shell: dieselbe Navigation wie auf allen anderen
+// Agentenseiten. Vorher stand die Seite ohne Rahmen da — der Agent kam von hier
+// nirgendwo hin.
 export default function AgentHeute() {
   return (
-    <ToastAnbieter>
-      <Seite />
-    </ToastAnbieter>
+    <AgentShell>
+      <ToastAnbieter>
+        <Seite />
+      </ToastAnbieter>
+    </AgentShell>
   );
 }

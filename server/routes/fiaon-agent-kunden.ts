@@ -44,6 +44,21 @@ const router = Router();
 
 /** Ab so vielen Zahlungsdetail-Versänden warnt die Karte. */
 const RECHNUNG_WARNUNG_AB = 3;
+
+/**
+ * Merker für die Willkommens-Tour. Eine eigene Spalte statt eines Eintrags in
+ * `fiaon_settings`, weil der Status PRO AGENT gilt — ein globaler Schlüssel
+ * würde die Tour für alle ausschalten, sobald sie einer weggeklickt hat.
+ *
+ * Nicht in Migration 033, weil die dort schon in der Produktion gelaufen ist.
+ * `ADD COLUMN IF NOT EXISTS` ist gefahrlos wiederholbar.
+ */
+let spalteGeprueft = false;
+async function ensureTourSpalte(): Promise<void> {
+  if (spalteGeprueft) return;
+  await sqlPool`ALTER TABLE fiaon_agents ADD COLUMN IF NOT EXISTS crm_tour_seen_at TIMESTAMPTZ`;
+  spalteGeprueft = true;
+}
 /** Ohne Aktivität so lange → Eskalation. */
 const ESKALATION_TAGE = 7;
 
@@ -196,9 +211,15 @@ router.get("/agent/crm/dashboard", requireAgent, async (req: AgentRequest, res: 
       WHERE p.assigned_agent_id = ${agentId} AND p.merged_into_person_id IS NULL
     `;
 
+    await ensureTourSpalte();
+    const [tour] = await sqlPool`
+      SELECT crm_tour_seen_at IS NOT NULL AS gesehen FROM fiaon_agents WHERE id = ${agentId}
+    `;
+
     res.json({
       ok: true,
       agent: { vorname: req.agent!.first_name || req.agent!.name },
+      tourGesehen: tour?.gesehen ?? false,
       zahlen: {
         heuteFaellig: z.heute_faellig,
         ohneDatum: z.ohne_datum,
@@ -217,6 +238,23 @@ router.get("/agent/crm/dashboard", requireAgent, async (req: AgentRequest, res: 
     });
   } catch (err) {
     console.error("[AGENT-KUNDEN] dashboard:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// POST /agent/crm/tour-gesehen — die Willkommens-Tour einmalig wegklicken
+// ──────────────────────────────────────────────────────────────────
+router.post("/agent/crm/tour-gesehen", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await ensureTourSpalte();
+    await sqlPool`
+      UPDATE fiaon_agents SET crm_tour_seen_at = NOW()
+      WHERE id = ${req.agent!.id} AND crm_tour_seen_at IS NULL
+    `;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[AGENT-KUNDEN] tour-gesehen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

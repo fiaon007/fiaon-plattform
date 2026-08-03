@@ -277,6 +277,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonReconcileRoutes = await import('./routes/fiaon-reconcile');
   app.use('/api/fiaon', fiaonReconcileRoutes.default);
 
+  // ✅ FIAON Verbuchung (Admin) — nur die Eingänge, bei denen etwas zu entscheiden
+  //    ist, mit Vorschau vor dem Klick. Bucht ausschliesslich über applyTxn aus
+  //    dem Kontoabgleich; kein zweiter Buchungspfad.
+  const fiaonVerbuchungRoutes = await import('./routes/fiaon-verbuchung');
+  app.use('/api/fiaon', fiaonVerbuchungRoutes.default);
+
   // 👤 FIAON Personen (Admin, nur lesend) — Kundenzählung über Personen statt
   //    Antragszeilen, plus die Agenten-Konflikte, die der Backfill markiert hat.
   const fiaonPersonenRoutes = await import('./routes/fiaon-personen');

@@ -1,0 +1,157 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FIAON DESIGN-TOKENS
+   Eine Quelle für Farben, Radien, Kurven und Zeiten. Alles als CSS-Variablen,
+   damit ein Dark-Mode später möglich ist, ohne Komponenten anzufassen.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Marke ─────────────────────────────────────────────────────────────── */
+  --fi-primaer: #1d4ed8;
+  --fi-primaer-hover: #1e40af;
+  --fi-primaer-hell: #2563eb;
+  --fi-tint: #eff6ff;
+  --fi-border-aktiv: #93c5fd;
+  --fi-gradient-hell: #60a5fa;
+
+  /* ── Tier-Farben ───────────────────────────────────────────────────────── */
+  --fi-tier1: #dc2626;
+  --fi-tier2: #d97706;
+  --fi-tier3: #64748b;
+
+  /* ── Zustände ──────────────────────────────────────────────────────────── */
+  --fi-erfolg: #059669;
+  --fi-erfolg-tint: #ecfdf5;
+  --fi-fehler: #dc2626;
+  --fi-fehler-tint: #fef2f2;
+  --fi-warnung: #d97706;
+  --fi-warnung-tint: #fffbeb;
+
+  /* ── Flächen ───────────────────────────────────────────────────────────── */
+  --fi-seite: #f8fafc;
+  --fi-karte: #ffffff;
+  --fi-linie: #e2e8f0;
+  --fi-text: #0f172a;
+  --fi-text-leise: #64748b;
+  --fi-text-still: #94a3b8;
+
+  /* ── Form ──────────────────────────────────────────────────────────────── */
+  --fi-radius: 16px;
+  --fi-radius-klein: 10px;
+  --fi-schatten-ruhe: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --fi-schatten-hover: 0 12px 32px rgba(29, 78, 216, 0.12);
+
+  /* ── Bewegung ──────────────────────────────────────────────────────────── */
+  --fi-kurve: cubic-bezier(0.22, 1, 0.36, 1);
+  --fi-mikro: 150ms;
+  --fi-karte-zeit: 300ms;
+  --fi-seite-zeit: 450ms;
+}
+
+/* Zahlen dürfen beim Hochzählen nicht zittern. */
+.fi-zahl {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ── Skeleton-Schimmer ───────────────────────────────────────────────────── */
+/* Nur `transform` wird animiert, damit die GPU arbeitet und kein Layout fällt. */
+.fi-skelett {
+  position: relative;
+  overflow: hidden;
+  background: #eef2f7;
+  border-radius: var(--fi-radius-klein);
+}
+.fi-skelett::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+  animation: fi-schimmer 1.4s infinite;
+}
+@keyframes fi-schimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* ── Begrüßungs-Gradient ─────────────────────────────────────────────────── */
+.fi-gradient-text {
+  background: linear-gradient(90deg, var(--fi-primaer), var(--fi-gradient-hell), var(--fi-primaer));
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: fi-gradient 6s ease-in-out infinite;
+}
+@keyframes fi-gradient {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ── Erfolgs-Puls einer Zeile ────────────────────────────────────────────── */
+.fi-puls-erfolg {
+  animation: fi-puls-erfolg 600ms var(--fi-kurve);
+}
+@keyframes fi-puls-erfolg {
+  0% { background-color: var(--fi-erfolg-tint); }
+  100% { background-color: transparent; }
+}
+
+/* ── Fehler-Shake ────────────────────────────────────────────────────────── */
+.fi-shake {
+  animation: fi-shake 300ms ease-in-out;
+}
+@keyframes fi-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+/* ── Häkchen zeichnet sich ───────────────────────────────────────────────── */
+.fi-haken path {
+  stroke-dasharray: 32;
+  stroke-dashoffset: 32;
+  animation: fi-haken 400ms var(--fi-kurve) forwards;
+}
+@keyframes fi-haken {
+  to { stroke-dashoffset: 0; }
+}
+
+/* ── Scroll-Schatten für abgeschnittene Listen ───────────────────────────── */
+.fi-scroll-schatten {
+  background:
+    linear-gradient(var(--fi-karte) 30%, rgba(255, 255, 255, 0)) top,
+    linear-gradient(rgba(255, 255, 255, 0), var(--fi-karte) 70%) bottom,
+    radial-gradient(farthest-side at 50% 0, rgba(15, 23, 42, 0.12), transparent) top,
+    radial-gradient(farthest-side at 50% 100%, rgba(15, 23, 42, 0.12), transparent) bottom;
+  background-repeat: no-repeat;
+  background-size: 100% 32px, 100% 32px, 100% 8px, 100% 8px;
+  background-attachment: local, local, scroll, scroll;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HARTE GRENZE: Wer weniger Bewegung will, bekommt weniger Bewegung.
+   Dauerschleifen und Tilt komplett aus, Eintritte werden reine Blenden.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .fi-skelett::after,
+  .fi-gradient-text,
+  .fi-puls-erfolg,
+  .fi-shake {
+    animation: none !important;
+  }
+  .fi-gradient-text {
+    -webkit-text-fill-color: var(--fi-primaer);
+    background: none;
+  }
+  .fi-haken path {
+    stroke-dashoffset: 0;
+    animation: none !important;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 150ms !important;
+  }
+}

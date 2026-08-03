@@ -68,6 +68,7 @@ const AdminAgentPortalPage = lazy(() => import("@/pages/admin-agent-portal"));
 const AdminLeadsPage = lazy(() => import("@/pages/admin-leads"));
 const AdminFinanzenPage = lazy(() => import("@/pages/admin-finanzen"));
 const AdminKontoabgleichPage = lazy(() => import("@/pages/admin-kontoabgleich"));
+const AdminVerbuchungPage = lazy(() => import("@/pages/admin-verbuchung"));
 const AdminPersonenPage = lazy(() => import("@/pages/admin-personen"));
 const AdminLeistungPage = lazy(() => import("@/pages/admin-leistung"));
 const AdminChangelogPage = lazy(() => import("@/pages/admin-changelog"));
@@ -128,6 +129,7 @@ function Router() {
       <Route path="/admin/zahlungen" component={admin(AdminZahlungenPage)} />
       <Route path="/admin/finanzen" component={admin(AdminFinanzenPage)} />
       <Route path="/admin/kontoabgleich" component={admin(AdminKontoabgleichPage)} />
+      <Route path="/admin/verbuchung" component={admin(AdminVerbuchungPage)} />
       <Route path="/admin/personen" component={admin(AdminPersonenPage)} />
       <Route path="/admin/leads" component={admin(AdminLeadsPage)} />
       <Route path="/admin/dubletten" component={admin(AdminDublettenPage)} />

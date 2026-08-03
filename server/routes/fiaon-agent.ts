@@ -514,6 +514,95 @@ export function partnerStatusFor(revenueCents: number, thresholds: PartnerThresh
 }
 
 /**
+ * WER HAT ANSPRUCH AUF DIE PROVISION?
+ *
+ * Bis zum 03.08.2026 stand diese Entscheidung mitten in `onCustomerPaid` und war
+ * damit nur durch eine echte Buchung beobachtbar. Für die Buchungs-Vorschau der
+ * Verbuchungs-Seite braucht der Admin die Antwort VOR dem Klick — ohne dass eine
+ * zweite Kopie der Regeln entsteht, die auseinanderlaufen kann. Deshalb liegt die
+ * Entscheidung hier, lesend und ohne Nebenwirkung, und wird von beiden benutzt.
+ *
+ * Reihenfolge der Prüfung (bewusst, siehe Kommentar in `onCustomerPaid`):
+ *   1. Admin-Entscheid (`opts.forceAgentId`) übersteuert alles.
+ *   2. Bestellungen VOR dem Stichtag: Zuweisung genügt (Altmodell, kein
+ *      rückwirkender Regelwechsel).
+ *   3. Ab Stichtag: letzter dokumentierter Kontakt über die ganze Bestell-Familie.
+ *   4. Nichts davon → kein Anspruch, der Kunde gilt als Direktzahler.
+ */
+export type ProvisionsAnspruch = {
+  agentId: number | null;
+  basisNote: string;
+  basisKind: "admin" | "betreut" | "altmodell";
+};
+
+export async function ermittleProvisionsAnspruch(
+  app: { ref: string; email?: string | null; created_at: any; assigned_agent_id?: number | null },
+  opts?: { forceAgentId?: number; forceReason?: string },
+): Promise<ProvisionsAnspruch> {
+  const ref = app.ref;
+  let agentId: number | null = null;
+  let basisNote = "";
+  let basisKind: "admin" | "betreut" | "altmodell" = "betreut";
+
+  if (opts?.forceAgentId) {
+    return {
+      agentId: opts.forceAgentId,
+      basisKind: "admin",
+      basisNote: opts.forceReason || "Admin-Entscheidung (manuelle Nachbuchung)",
+    };
+  }
+
+  const settingsEarly = await getSettings();
+  // ── V1 STICHTAG (Phase 2B): Kein rückwirkender Regelwechsel. Bestellungen,
+  // die VOR dem Stichtag erstellt wurden, laufen nach dem ALTEN Modell weiter:
+  // Zuweisung genügt für den Anspruch (der Agent hat evtl. telefoniert, ohne
+  // zu dokumentieren — die Dokumentationspflicht galt damals noch nicht).
+  // Leerer Stichtag = neue Regel noch nicht scharf → Altmodell für alle.
+  const cutoffRaw = String(settingsEarly.commission_cutoff_at || "").trim();
+  const cutoff = cutoffRaw ? new Date(cutoffRaw) : null;
+  const isLegacy = !cutoff || isNaN(cutoff.getTime()) || new Date(app.created_at) < cutoff;
+  if (isLegacy && app.assigned_agent_id) {
+    agentId = Number(app.assigned_agent_id);
+    basisKind = "altmodell";
+    basisNote = cutoff
+      ? `Altmodell: Bestellung vom ${new Date(app.created_at).toLocaleDateString("de-DE")} liegt vor dem Stichtag ${cutoff.toLocaleString("de-DE", { timeZone: "Europe/Berlin" })} → Zuweisung genügt`
+      : "Altmodell: Stichtag der neuen Provisionsregel noch nicht gesetzt → Zuweisung genügt";
+    return { agentId, basisNote, basisKind };
+  }
+
+  // Neue Regel (ab Stichtag): letzter dokumentierter Kontakt vor Zahlung.
+  // V3.6 (Dubletten): Kontakte zählen über die GANZE Bestell-Familie —
+  // gleiche E-Mail bzw. per merged_into/superseded_by verknüpfte Schwester-
+  // Bestellungen. Der Agent betreute den KUNDEN, nicht eine einzelne ref.
+  const contacts = await sqlPool`
+    WITH familie AS (
+      SELECT a2.ref FROM fiaon_applications a2
+      WHERE a2.ref = ${ref}
+         OR a2.merged_into = ${ref}
+         OR (${app.email || null}::text IS NOT NULL AND ${app.email || null}::text <> ''
+             AND LOWER(a2.email) = LOWER(${app.email || ""}))
+    )
+    SELECT agent_id, agent_name, created_at FROM (
+      SELECT c.agent_id, c.agent_name, c.created_at
+      FROM fiaon_contact_log c
+      WHERE c.ref IN (SELECT ref FROM familie) AND c.agent_id IS NOT NULL AND c.voided_at IS NULL
+        AND c.type IN ('result', 'email_sent')
+      UNION ALL
+      SELECT g.agent_id, g.agent_name, g.created_at
+      FROM fiaon_lead_log g
+      JOIN fiaon_leads l ON l.id = g.lead_id
+      WHERE l.converted_order_id IN (SELECT ref FROM familie) AND g.agent_id IS NOT NULL
+        AND g.type IN ('result', 'email_sent')
+    ) x ORDER BY created_at DESC LIMIT 1
+  `;
+  if (contacts.length > 0) {
+    agentId = Number(contacts[0].agent_id);
+    basisNote = `Dokumentierter Kontakt durch ${contacts[0].agent_name} am ${new Date(contacts[0].created_at).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })} → Anspruch`;
+  }
+  return { agentId, basisNote, basisKind };
+}
+
+/**
  * Hook aus mark-paid (fiaon-antrag.ts): legt beim Übergang zu `paid` den festen
  * Provisionseintrag an — Satz des Agents wird JETZT eingefroren. Idempotent.
  *
@@ -552,61 +641,10 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
   //  - Agent kontaktierte, Kunde zahlt Tage später selbst → Anspruch (Verkauf).
   //  - Mehrere Agenten → letzter dokumentierter Kontakt vor Zahlung gewinnt.
   //  - Admin-Entscheid (Nachbuchungs-Center/manuelle Buchung) übersteuert via opts.
-  let agentId: number | null = null;
-  let basisNote = "";
-  let basisKind: "admin" | "betreut" | "altmodell" = "betreut";
-  const settingsEarly = await getSettings();
-  if (opts?.forceAgentId) {
-    agentId = opts.forceAgentId;
-    basisKind = "admin";
-    basisNote = opts.forceReason || "Admin-Entscheidung (manuelle Nachbuchung)";
-  } else {
-    // ── V1 STICHTAG (Phase 2B): Kein rückwirkender Regelwechsel. Bestellungen,
-    // die VOR dem Stichtag erstellt wurden, laufen nach dem ALTEN Modell weiter:
-    // Zuweisung genügt für den Anspruch (der Agent hat evtl. telefoniert, ohne
-    // zu dokumentieren — die Dokumentationspflicht galt damals noch nicht).
-    // Leerer Stichtag = neue Regel noch nicht scharf → Altmodell für alle.
-    const cutoffRaw = String(settingsEarly.commission_cutoff_at || "").trim();
-    const cutoff = cutoffRaw ? new Date(cutoffRaw) : null;
-    const isLegacy = !cutoff || isNaN(cutoff.getTime()) || new Date(app.created_at) < cutoff;
-    if (isLegacy && app.assigned_agent_id) {
-      agentId = Number(app.assigned_agent_id);
-      basisKind = "altmodell";
-      basisNote = cutoff
-        ? `Altmodell: Bestellung vom ${new Date(app.created_at).toLocaleDateString("de-DE")} liegt vor dem Stichtag ${cutoff.toLocaleString("de-DE", { timeZone: "Europe/Berlin" })} → Zuweisung genügt`
-        : "Altmodell: Stichtag der neuen Provisionsregel noch nicht gesetzt → Zuweisung genügt";
-    } else {
-      // Neue Regel (ab Stichtag): letzter dokumentierter Kontakt vor Zahlung.
-      // V3.6 (Dubletten): Kontakte zählen über die GANZE Bestell-Familie —
-      // gleiche E-Mail bzw. per merged_into/superseded_by verknüpfte Schwester-
-      // Bestellungen. Der Agent betreute den KUNDEN, nicht eine einzelne ref.
-      const contacts = await sqlPool`
-        WITH familie AS (
-          SELECT a2.ref FROM fiaon_applications a2
-          WHERE a2.ref = ${ref}
-             OR a2.merged_into = ${ref}
-             OR (${app.email || null}::text IS NOT NULL AND ${app.email || null}::text <> ''
-                 AND LOWER(a2.email) = LOWER(${app.email || ""}))
-        )
-        SELECT agent_id, agent_name, created_at FROM (
-          SELECT c.agent_id, c.agent_name, c.created_at
-          FROM fiaon_contact_log c
-          WHERE c.ref IN (SELECT ref FROM familie) AND c.agent_id IS NOT NULL AND c.voided_at IS NULL
-            AND c.type IN ('result', 'email_sent')
-          UNION ALL
-          SELECT g.agent_id, g.agent_name, g.created_at
-          FROM fiaon_lead_log g
-          JOIN fiaon_leads l ON l.id = g.lead_id
-          WHERE l.converted_order_id IN (SELECT ref FROM familie) AND g.agent_id IS NOT NULL
-            AND g.type IN ('result', 'email_sent')
-        ) x ORDER BY created_at DESC LIMIT 1
-      `;
-      if (contacts.length > 0) {
-        agentId = Number(contacts[0].agent_id);
-        basisNote = `Dokumentierter Kontakt durch ${contacts[0].agent_name} am ${new Date(contacts[0].created_at).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })} → Anspruch`;
-      }
-    }
-  }
+  const anspruch = await ermittleProvisionsAnspruch(app as any, opts);
+  const agentId = anspruch.agentId;
+  const basisNote = anspruch.basisNote;
+  const basisKind = anspruch.basisKind;
 
   if (!agentId) {
     // DIREKTZAHLER: Kunde hat ohne dokumentierte Agenten-Arbeit gezahlt → keine Provision.

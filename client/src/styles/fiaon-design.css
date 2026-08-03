@@ -41,8 +41,15 @@
   /* ── Form ──────────────────────────────────────────────────────────────── */
   --fi-radius: 16px;
   --fi-radius-klein: 10px;
-  --fi-schatten-ruhe: 0 1px 3px rgba(15, 23, 42, 0.06);
-  --fi-schatten-hover: 0 12px 32px rgba(29, 78, 216, 0.12);
+  /* Mehrschichtig statt einfach: Die erste Lage (1px) zeichnet die Kante, die
+     zweite (8px/24px) traegt die Karte vom Untergrund ab. Ein einzelner Schatten
+     kann beides nicht gleichzeitig — er wird entweder hart oder wolkig. */
+  --fi-schatten-ruhe: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(29, 78, 216, 0.06);
+  --fi-schatten-hover: 0 1px 2px rgba(15, 23, 42, 0.04), 0 20px 48px rgba(29, 78, 216, 0.14);
+
+  /* Glanzkante: ein 1px heller Innenrand oben. Laesst die Karte wie ein Blatt
+     mit Dicke wirken statt wie ein aufgemalter Umriss. */
+  --fi-glanzkante: inset 0 1px 0 rgba(255, 255, 255, 0.8);
 
   /* ── Bewegung ──────────────────────────────────────────────────────────── */
   --fi-kurve: cubic-bezier(0.22, 1, 0.36, 1);

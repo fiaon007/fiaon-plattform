@@ -277,9 +277,21 @@ function ToastKarte({ toast, onWeg }: { toast: Toast; onWeg: () => void }) {
 // ───────────────────────────────────────────────────────────────────────────
 // 3D-Tilt — nur mit Zeigegerät. Auf Touch wäre es sinnlos und träge.
 // ───────────────────────────────────────────────────────────────────────────
+/**
+ * Neigung, die dem Zeiger folgt.
+ *
+ * `tiefe` schaltet echte Räumlichkeit zu: Die Karte bekommt `preserve-3d` und
+ * der Inhalt wird um 20px nach VORNE gelegt. Der Unterschied ist deutlich —
+ * ohne translateZ kippt ein flaches Bild, mit translateZ steht der Inhalt
+ * sichtbar vor seiner Karte.
+ *
+ * Standardmässig aus, weil `preserve-3d` einen eigenen Stapelkontext erzeugt:
+ * Overlays und `position: sticky` INNERHALB der Karte verhalten sich dann
+ * anders. Wer es einschaltet, muss die Karte daraufhin ansehen.
+ */
 export function Tilt({
-  children, max = 4, className = "", style,
-}: { children: ReactNode; max?: number; className?: string; style?: React.CSSProperties }) {
+  children, max = 5, tiefe = false, className = "", style,
+}: { children: ReactNode; max?: number; tiefe?: boolean; className?: string; style?: React.CSSProperties }) {
   const reduziert = useReduzierteBewegung();
   const ref = useRef<HTMLDivElement>(null);
   const frame = useRef(0);
@@ -297,15 +309,15 @@ export function Tilt({
     const y = (e.clientY - r.top) / r.height - 0.5;
     cancelAnimationFrame(frame.current);
     frame.current = requestAnimationFrame(() => {
-      el.style.transform = `perspective(1000px) rotateY(${x * max * 2}deg) rotateX(${-y * max * 2}deg)`;
-      el.style.boxShadow = "var(--fi-schatten-hover)";
+      el.style.transform = `perspective(1200px) rotateY(${x * max}deg) rotateX(${-y * max}deg)`;
+      el.style.boxShadow = "var(--fi-schatten-hover), var(--fi-glanzkante)";
     });
   };
   const verlasse = () => {
     if (!ref.current) return;
     cancelAnimationFrame(frame.current);
-    ref.current.style.transform = "perspective(1000px) rotateY(0deg) rotateX(0deg)";
-    ref.current.style.boxShadow = "var(--fi-schatten-ruhe)";
+    ref.current.style.transform = "perspective(1200px) rotateY(0deg) rotateX(0deg)";
+    ref.current.style.boxShadow = "var(--fi-schatten-ruhe), var(--fi-glanzkante)";
   };
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
 
@@ -318,11 +330,14 @@ export function Tilt({
       style={{
         ...style,
         transition: "transform 300ms var(--fi-kurve), box-shadow 300ms var(--fi-kurve)",
-        boxShadow: "var(--fi-schatten-ruhe)",
+        boxShadow: "var(--fi-schatten-ruhe), var(--fi-glanzkante)",
         willChange: "transform",
+        transformStyle: tiefe ? "preserve-3d" : undefined,
       }}
     >
-      {children}
+      {tiefe && zeigegeraet && !reduziert
+        ? <div style={{ transform: "translateZ(20px)", transformStyle: "preserve-3d" }}>{children}</div>
+        : children}
     </div>
   );
 }

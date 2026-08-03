@@ -1112,7 +1112,7 @@ const SCHRITTE = [
   },
   {
     titel: "Die drei Kategorien",
-    text: "🔥 Zahlung gemeldet: Der Kunde sagt, er habe bezahlt, das Geld fehlt aber — höchste Dringlichkeit. 📄 Antrag & Rechnung: Rechnung offen oder Antrag unvollständig. 📥 Neue Leads: noch kein Antrag, erstes Gespräch.",
+    text: "Zahlung gemeldet: Der Kunde sagt, er habe bezahlt, das Geld fehlt aber — höchste Dringlichkeit. Antrag & Rechnung: Rechnung offen oder Antrag unvollständig. Neue Leads: noch kein Antrag, erstes Gespräch. Die Farbpunkte an den Reitern zeigen dieselbe Reihenfolge: rot, gelb, grau.",
   },
   {
     titel: "Ein Tipp genügt",

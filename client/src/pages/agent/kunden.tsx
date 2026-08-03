@@ -802,7 +802,7 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
     setBusy(null);
     if (r.ok) {
       setLockUntil(new Date(r.json.lockedUntil).getTime());
-      flash(`✓ E-Mail wurde versendet — ${custName(detail)} hat die Zahlungsdaten erhalten.`);
+      flash(`E-Mail wurde versendet — ${custName(detail)} hat die Zahlungsdaten erhalten.`);
       onChanged();
     } else if (r.status === 429 && r.json?.lockedUntil) {
       setLockUntil(new Date(r.json.lockedUntil).getTime());

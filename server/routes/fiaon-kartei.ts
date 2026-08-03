@@ -30,6 +30,49 @@ import { logLead } from "./fiaon-leads";
 
 const router = Router();
 
+// ═══════════════════════════════════════════════════════════════════════════
+// STILLLEGUNG (03.08.2026) — die Kartei ist abgelöst
+//
+// Der CRM-Umbau ersetzt die offene Kartei durch besitzgeführte Personen mit
+// Tiering und Pool-Deckel. Zwei konkurrierende Zuweisungsmodelle gleichzeitig
+// laufen zu lassen ist der sichere Weg zurück in doppelte Zuständigkeiten:
+// Der Agent übernimmt eine Karte, die Verteilung vergibt dieselbe Person an
+// jemand anderen, und beide halten sich für zuständig.
+//
+// Der Code bleibt vollständig stehen, statt gelöscht zu werden. Zeigt sich das
+// neue Modell im Betrieb als untauglich, ist ein Zurückschalten eine Änderung
+// EINER Einstellung — keine Wiederherstellung aus dem Verlauf.
+//
+// 410 Gone und nicht 404: Diese Endpunkte HABEN existiert und sind bewusst
+// abgeschaltet. Ein 404 würde behaupten, es hätte sie nie gegeben, und jeden
+// Fehlersuchenden in die falsche Richtung schicken.
+//
+// Umschalten: fiaon_settings.kartei_enabled auf 'true'. Die Prüfung liest die
+// Einstellung bei JEDEM Aufruf — kein Neustart nötig, kein Zwischenspeicher,
+// der irgendwann von der Wirklichkeit abweicht.
+// ═══════════════════════════════════════════════════════════════════════════
+router.use(async (req: Request, res: Response, next) => {
+  // Nur Kartei-Pfade betreffen. Der Router hängt unter /api/fiaon und trägt
+  // ausschliesslich Kartei-Routen — die Prüfung ist trotzdem explizit, damit
+  // eine später hier einsortierte Route nicht versehentlich mit abgeschaltet wird.
+  if (!req.path.includes("/kartei")) return next();
+  try {
+    const settings = await getSettings();
+    if (String(settings.kartei_enabled ?? "false").toLowerCase() === "true") return next();
+  } catch (err) {
+    // Ist die Einstellung nicht lesbar, gilt die Kartei als abgeschaltet. Der
+    // Umbau ist der Zielzustand; ein Datenbankfehler darf das alte Modell nicht
+    // heimlich wieder aufwecken.
+    console.error("[FIAON-KARTEI] kartei_enabled nicht lesbar — bleibt abgeschaltet:", err);
+  }
+  return res.status(410).json({
+    ok: false,
+    error: "Die Kunden-Kartei ist abgelöst. Kunden werden jetzt über Personen mit Tiering zugewiesen.",
+    ersetztDurch: req.path.startsWith("/agent") ? "/agent/kunden" : "/admin/personen",
+    einstellung: "kartei_enabled",
+  });
+});
+
 // ── Zustände, die überhaupt Arbeitsvorrat sind ───────────────────────────────
 /** Offene Lead-Status. `konvertiert`/`tot`/`kein_interesse` verlassen die Kartei. */
 const OPEN_LEAD_STATUS = ["neu", "kontaktiert", "nicht_erreichbar"];

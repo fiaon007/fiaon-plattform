@@ -212,7 +212,10 @@ function ImportantUpdateHint() {
   };
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[60] sm:bottom-4 sm:right-4 sm:left-auto sm:max-w-sm px-3 pb-[calc(env(safe-area-inset-bottom)+76px)] sm:pb-0 sm:px-0">
+    // 76px unterer Abstand hielten den schwebenden „Nächste Akte"-Knopf frei.
+    // Der Knopf ist entfernt; die Meldung rückt jetzt bis an den Bildrand und
+    // respektiert nur noch die Geräte-Sicherheitszone.
+    <div className="fixed inset-x-0 bottom-0 z-[60] sm:bottom-4 sm:right-4 sm:left-auto sm:max-w-sm px-3 pb-[calc(env(safe-area-inset-bottom)+16px)] sm:pb-0 sm:px-0">
       <div className="agent-banner-in rounded-2xl border border-slate-200 bg-white shadow-[0_24px_60px_-24px_rgba(15,23,42,.35)] overflow-hidden">
         <div className="px-4 pt-3.5 pb-3">
           <div className="flex items-start gap-2.5">
@@ -536,10 +539,6 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
     "/agent/mehr": neueUpdates + fbUnread,
   };
   const menuBadge = Object.values(zaehler).reduce((s, n) => s + n, 0);
-  // Der schwebende Knopf entfällt dort, wo die Handlung schon auf der Seite
-  // steht: in der Kartei selbst und auf der Startseite (dort ist „Nächste Akte
-  // öffnen" die EINE grosse Primäraktion — ein zweiter Knopf wäre Konkurrenz).
-  const eigeneAktionVorhanden = location === "/agent" || location.startsWith("/agent/heute");
 
   if (!checked) {
     return (
@@ -576,7 +575,9 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
 
   return (
     <AgentCtx.Provider value={{ agent, reload: load }}>
-      <div className="agent-scope agent-ambient min-h-screen text-slate-900 pb-20 md:pb-10">
+      {/* pb-20 hielt Platz für den entfernten schwebenden Knopf frei. Ohne ihn
+          braucht die Seite unten nur noch normalen Auslauf. */}
+      <div className="agent-scope agent-ambient min-h-screen text-slate-900 pb-10">
         {/* Kopfbereich ist eine SCHWEBENDE Ebene und deshalb Glas: blur(20px)
             mit saturate(180%), heller Innenrand oben, darunter eine haarfeine
             Linie. Der Inhalt darunter bleibt erahnbar — das verankert die
@@ -662,19 +663,25 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
 
         <main className="max-w-6xl mx-auto px-4 py-5">{children}</main>
 
-        {/* Die wichtigste Handlung bleibt IMMER erreichbar — auch bei
-            geschlossenem Menue. Auf der Startseite und in der Kartei selbst
-            waere der Knopf doppelt, dort entfaellt er. */}
-        {!eigeneAktionVorhanden && (
-          <Link
-            href="/agent/kartei"
-            className="md:hidden fixed z-30 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-full pl-5 pr-4 text-[13px] font-semibold text-white shadow-[0_14px_34px_-12px_rgba(37,99,235,.75)] transition-transform duration-150 active:scale-[.97]"
-            style={{ background: ACCENT, minHeight: 46, bottom: "calc(env(safe-area-inset-bottom) + 16px)" }}
-          >
-            Nächste Akte
-            <ChevronRight size={16} strokeWidth={2.4} />
-          </Link>
-        )}
+        {/* HIER STAND EIN SCHWEBENDER KNOPF „Nächste Akte" — entfernt am
+            03.08.2026.
+            ────────────────────────────────────────────────────────────────
+            Er stammte aus dem Pool-System: Damals zog der Agent sich die
+            nächste Akte selbst aus einem gemeinsamen Bestand, und dieser Knopf
+            war die zentrale Handlung. Dieses System ist abgeschafft — Kunden
+            sind heute fest zugewiesen. Es gibt keine „nächste Akte" mehr, die
+            man ziehen könnte.
+
+            Der Knopf zeigte auf /agent/kartei. Diese Route ist abgeschaltet und
+            wird in App.tsx auf /agent/heute umgeleitet: Ein Tipp führte also im
+            Kreis zurück auf die Seite, auf der man ohnehin landet. Auf dem Handy
+            verdeckte er dabei dauerhaft den unteren Bildrand und damit die
+            Aktionsreihe der letzten Kundenkarte.
+
+            Ein Knopf, der nichts tut, ist schlimmer als kein Knopf: Er lässt den
+            Agenten glauben, er habe etwas falsch gemacht. Ersatz braucht es
+            keinen — „Heute" ist die Arbeitsliste und steht im Menü an erster
+            Stelle. */}
 
         <AgentDrawer
           open={menueOffen}

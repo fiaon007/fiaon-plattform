@@ -642,12 +642,46 @@ function KundenKarte({
         : { duration: 0.4, ease: [0.22, 1, 0.36, 1], delay: Math.min(index, 10) * 0.04 }}
       // Beim Verlassen kollabiert die Höhe weich mit, damit die Liste nachrückt
       // statt zu springen — `layout` übernimmt die Verschiebung der Nachbarn.
+      //
+      // `pointerEvents: "none"` ist hier KEINE Kosmetik, sondern behebt den
+      // Fehler, dass Kunden ungewollt weggebucht wurden.
+      //
+      // `AnimatePresence mode="popLayout"` setzt eine austretende Karte auf
+      // `position: absolute`, damit die Nachbarn sofort nachrücken können. Für
+      // die 280 ms ihrer Ausblendung schwebt sie damit ÜBER der Liste — und nahm
+      // dort weiter Klicks an, während darunter längst die nächste Karte
+      // hochgerutscht war. Wer zügig arbeitet, dokumentiert einen Kunden, klickt
+      // sofort den nächsten Namen und trifft die verblassende Karte davor,
+      // inzwischen auf Höhe ihrer Aktionsreihe. Dort liegen vier Knöpfe, die
+      // Kunden wegbuchen; einer heisst „Nicht erreicht".
+      //
+      // Am PC fiel es zuerst auf, weil dort mit der Maus deutlich schneller
+      // hintereinander geklickt wird als mit dem Daumen. Der Fehler steckte
+      // aber in beiden Fassungen.
       exit={reduziert
-        ? { opacity: 0 }
-        : { opacity: 0, x: 40, height: 0, marginBottom: 0,
+        ? { opacity: 0, pointerEvents: "none" }
+        : { opacity: 0, x: 40, height: 0, marginBottom: 0, pointerEvents: "none",
             transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } }}
+      // KEIN `preserve-3d` und KEINE Ebenen-Staffelung mehr auf dieser Karte.
+      //
+      // Das war mein erster Verdacht für den weggebuchten Kunden und er war
+      // FALSCH: Die Karte hat `overflow: hidden`, und das legt `preserve-3d`
+      // laut Spezifikation flach — die drei `translateZ`-Ebenen hatten also
+      // keinerlei Wirkung, weder sichtbar noch auf Klickflächen. Ein
+      // Reproduktionsversuch hat das widerlegt, bevor die Behauptung stehen
+      // blieb.
+      //
+      // Entfernt sind sie trotzdem, aus einem anderen guten Grund: Sie kosteten
+      // drei GPU-Ebenen und einen Stapelkontext pro Karte, ohne irgendetwas zu
+      // leisten. Tiefenstaffelung braucht eine Drehung, und diese Karte ist
+      // kein `Tilt`. Damit das nicht wieder jemand versucht, wirkt `Ebene`
+      // seither nur noch innerhalb eines drehenden `Tilt` (siehe fiaon-ui).
       className={`fi-karte relative overflow-hidden ${fehlerShake ? "fi-shake" : ""}`}
-      style={{ transformStyle: "preserve-3d" }}
+      // Haltepunkte für den Regressionstest. Bewusst eigene Attribute statt
+      // CSS-Klassen: Klassen ändern sich mit der Gestaltung, und ein Test, der
+      // an der Gestaltung hängt, wird bei der ersten Umgestaltung entweder rot
+      // oder gelöscht.
+      data-fi-karte={kunde.personId}
     >
       {/* Erfolgs-Blitz: die Karte färbt sich kurz, bevor sie hinausgleitet */}
       <AnimatePresence>
@@ -665,10 +699,18 @@ function KundenKarte({
             style={{ background: tierFarbe(kunde.tier) }} />
 
       <div className="p-4 sm:p-5 pl-5 sm:pl-6">
-        {/* Ebene 1 — Name und Status, am weitesten vorn nach den Aktionen. */}
-        <Ebene z={28}>
+        {/* Name und Status. */}
+        <div>
           <div className="flex items-start gap-3">
-            <button onClick={onDetail} className="flex-1 min-w-0 text-left">
+            {/* `type="button"` an JEDEM Knopf dieser Karte. Ohne die Angabe ist
+                ein Knopf laut HTML ein Absende-Knopf; sobald irgendwann ein
+                Formular über der Liste liegt, löst derselbe Klick zwei Dinge
+                aus. Genau diese Fehlerklasse hat uns hier schon einmal einen
+                weggebuchten Kunden gekostet. */}
+            <button type="button" onClick={onDetail}
+                    data-fi-name
+                    className="flex-1 min-w-0 text-left rounded-[6px]
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fi-primaer)]">
               <span className="fi-name block truncate" style={{ color: "var(--fi-text)" }}>
                 {kunde.name || "Ohne Namen"}
               </span>
@@ -686,10 +728,10 @@ function KundenKarte({
               {kunde.titel}
             </span>
           </div>
-        </Ebene>
+        </div>
 
-        {/* Ebene 2 — Metazeile: Betrag · Produkt · Zusage. */}
-        <Ebene z={16}>
+        {/* Metazeile: Betrag · Produkt · Zusage. */}
+        <div>
           <p className="fi-meta mt-1.5 flex items-center flex-wrap">
             {kunde.betrag != null && <span className="fi-zahl font-semibold">{eur(kunde.betrag)}</span>}
             {kunde.produkt && (
@@ -706,10 +748,10 @@ function KundenKarte({
               </span>
             )}
           </p>
-        </Ebene>
+        </div>
 
         {/* Handlungshinweis: einzeilig angerissen, per Klick aufklappend. */}
-        <button onClick={() => setHinweisOffen((o) => !o)}
+        <button type="button" onClick={() => setHinweisOffen((o) => !o)}
                 aria-expanded={hinweisOffen}
                 className="mt-3 w-full flex items-start gap-1.5 text-left text-[13px]
                            transition-colors duration-[120ms] group"
@@ -735,13 +777,13 @@ function KundenKarte({
           </div>
         </div>
 
-        {/* Ebene 3 — Aktionen liegen am weitesten vorn: Sie sind das, was
-            angefasst wird, und sollen dem Finger entgegenkommen.
-
-            EINE Primäraktion mit Blauverlauf, alles andere ruhige
+        {/* Aktionen. EINE Primäraktion mit Blauverlauf, alles andere ruhige
             Umrandungsknöpfe. Vier gleichwertige Knöpfe wären vier Fragen; ein
-            hervorgehobener ist eine Empfehlung. */}
-        <Ebene z={32} className="mt-4">
+            hervorgehobener ist eine Empfehlung.
+
+            Die Reihe ist durch `mt-4` klar vom Namen getrennt — kein
+            `translateZ` mehr, das sie darüber schieben könnte. */}
+        <div className="mt-4">
           <div className="flex flex-wrap items-center gap-2">
             {kunde.telefon ? (
               <a href={`tel:${kunde.telefon.replace(/\s/g, "")}`}
@@ -786,7 +828,7 @@ function KundenKarte({
               </span>
             )}
           </div>
-        </Ebene>
+        </div>
 
         {/* Datumsfeld für die Zusage */}
         <div className="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -801,6 +843,7 @@ function KundenKarte({
                      className="px-2.5 py-2 rounded-lg border text-[13px] outline-none bg-white"
                      style={{ borderColor: "var(--fi-linie)" }} />
               <button
+                type="button"
                 disabled={!datumWert || !!laeuft}
                 onClick={() => fuehreAus("zusage", "/zusage", { datum: datumWert },
                   `Zusage für ${datum(datumWert)} notiert`, "var(--fi-tint)")}
@@ -816,7 +859,7 @@ function KundenKarte({
         {/* Zahlungsdetails senden — nur auf Tier-2-Karten */}
         {zeigeRechnung && (
           <div className="mt-2.5 pt-2.5 border-t flex flex-wrap items-center gap-2" style={{ borderColor: "var(--fi-linie)" }}>
-            <button onClick={rechnungSenden} disabled={!!laeuft}
+            <button type="button" onClick={rechnungSenden} disabled={!!laeuft}
                     className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[12px] font-bold
                                transition-transform duration-150 active:scale-[0.96] disabled:opacity-50"
                     style={{ borderColor: "var(--fi-linie)", color: "var(--fi-primaer)" }}>
@@ -1123,6 +1166,22 @@ const SCHRITTE = [
 function Willkommen({ offen, onFertig }: { offen: boolean; onFertig: () => void }) {
   const [schritt, setSchritt] = useState(0);
   const reduziert = useReduzierteBewegung();
+
+  // Bei JEDEM Öffnen zurück auf Schritt 1.
+  //
+  // Vorher blieb `schritt` erhalten, weil diese Komponente immer eingehängt ist
+  // und bei `offen === false` nur `null` zurückgibt — `useState(0)` läuft dann
+  // genau einmal im Leben der Seite. Wer die Tour einmal bis „Los geht's"
+  // durchgeklickt hatte, bekam beim nächsten Klick auf „Wie funktioniert das?"
+  // sofort wieder die LETZTE Seite zu sehen. Es sah aus, als öffne sich nichts
+  // Neues, und die Erklärung war praktisch unerreichbar.
+  //
+  // Der Effekt hängt an `offen`, nicht an der Einhängung: Die Tour soll sich
+  // immer öffnen, so oft der Agent will, und immer von vorn.
+  useEffect(() => {
+    if (offen) setSchritt(0);
+  }, [offen]);
+
   if (!offen) return null;
   const s = SCHRITTE[schritt];
   const letzter = schritt === SCHRITTE.length - 1;

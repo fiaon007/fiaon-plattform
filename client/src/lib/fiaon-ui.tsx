@@ -289,6 +289,16 @@ function ToastKarte({ toast, onWeg }: { toast: Toast; onWeg: () => void }) {
 // ───────────────────────────────────────────────────────────────────────────
 // 3D-Tilt — nur mit Zeigegerät. Auf Touch wäre es sinnlos und träge.
 // ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Erlaubnis zur Tiefenstaffelung, die `Tilt` an seine Kinder weitergibt.
+ *
+ * Steht bewusst VOR `Tilt` statt bei `Ebene`: Dieses Projekt hatte schon eine
+ * Safari-Regression durch eine Referenz in der temporalen Todeszone, und dafür
+ * existiert ein eigener Smoke-Test. Die Reihenfolge ist hier keine Kosmetik.
+ */
+const TiefeCtx = createContext(false);
+
 /**
  * Neigung, die dem Zeiger folgt — Räumlichkeit als ORIENTIERUNG, nicht als
  * Effekt. Sie zeigt, was greifbar ist.
@@ -377,31 +387,43 @@ export function Tilt({
         transformStyle: tiefe ? "preserve-3d" : undefined,
       }}
     >
-      {children}
+      {/* Nur ein Tilt, das wirklich neigen kann, erlaubt seinen Kindern
+          Tiefenstaffelung. Sonst wäre translateZ reiner Schaden. */}
+      <TiefeCtx.Provider value={tiefe && beweglich}>
+        {children}
+      </TiefeCtx.Provider>
     </div>
   );
 }
 
 /**
- * Eine Inhaltsebene innerhalb einer geneigten Karte.
+ * Eine Inhaltsebene innerhalb einer GENEIGTEN Karte.
  *
  * Name, Metazeile und Aktionen liegen auf verschiedenen Z-Höhen. Beim Neigen
  * verschieben sie sich unterschiedlich stark gegeneinander — das ist echte
- * Tiefenstaffelung. Ohne sie kippt ein flaches Bild, und der Betrachter merkt
- * sofort, dass da nichts ist.
+ * Tiefenstaffelung.
  *
- * Greift nur, wenn die Elternkarte `tiefe` gesetzt hat und ein Zeigegerät
- * vorhanden ist; sonst kostet `translateZ` nur eine GPU-Ebene ohne Wirkung.
+ * Die Wirkung hängt an einem Kontext, den AUSSCHLIESSLICH ein drehendes `Tilt`
+ * bereitstellt. Wer `Ebene` anderswo benutzt, bekommt ein gewöhnliches `div`.
+ *
+ * Der Grund für diese Fessel (03.08.2026): Auf der Kundenkarte von
+ * /agent/heute standen drei `Ebene`-Ebenen, obwohl die Karte sich nie neigt.
+ * Sie waren dort vollständig wirkungslos — die Karte hat `overflow: hidden`,
+ * und das legt `preserve-3d` laut Spezifikation flach. Bezahlt wurden sie
+ * trotzdem: drei GPU-Ebenen und ein Stapelkontext pro Karte, bei bis zu 300
+ * Karten in der Liste.
+ *
+ * Schlimmer als die Kosten war die Verwechslungsgefahr: Ich hielt sie zunächst
+ * für die Ursache eines schweren Bedienfehlers und hätte sie beinahe als solche
+ * dokumentiert. Erst ein Reproduktionsversuch hat das widerlegt. Damit niemand
+ * — auch ich nicht — erneut Tiefe an eine Karte schreibt, die sich nicht dreht,
+ * ist die Voraussetzung jetzt im Typ- und Laufzeitverhalten verankert statt in
+ * einem Kommentar, den man überliest.
  */
 export function Ebene({
   z, className = "", children,
 }: { z: number; className?: string; children: ReactNode }) {
-  const reduziert = useReduzierteBewegung();
-  const [zeigegeraet, setZeigegeraet] = useState(false);
-  useEffect(() => {
-    setZeigegeraet(window.matchMedia("(hover: hover) and (pointer: fine)").matches);
-  }, []);
-  const an = zeigegeraet && !reduziert;
+  const an = useContext(TiefeCtx);
   return (
     <div className={className} style={an ? { transform: `translateZ(${z}px)` } : undefined}>
       {children}

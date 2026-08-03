@@ -226,26 +226,78 @@ async function backfillPaidAccessOnce(): Promise<void> {
 // manuelle Admin-Buchung, siehe /admin/agents/:id/commissions/manual).
 export async function supersedeSisterOrders(paidRef: string): Promise<{ count: number; refs: string[] }> {
   const paid = await sqlPool`
-    SELECT ref, payment_reference, email, assigned_agent_id FROM fiaon_applications WHERE ref = ${paidRef}
+    SELECT ref, payment_reference, email, assigned_agent_id, pack_name, type
+    FROM fiaon_applications WHERE ref = ${paidRef}
   `;
   if (paid.length === 0 || !paid[0].email || !String(paid[0].email).trim()) return { count: 0, refs: [] };
   const em = String(paid[0].email).trim().toLowerCase();
+
+  // ── KATEGORIEGRENZE (Korrektur 03.08.2026) ───────────────────────────────
+  // Es gibt zwei Arten von Bestellungen, und nur INNERHALB einer Art kann eine
+  // Dublette entstehen:
+  //
+  //   Stufenpaket   Starter/Pro/Ultra/High End/Business — ein Konto hat GENAU
+  //                 eine Stufe. Bezahlt der Kunde Ultra, ist seine offene
+  //                 Pro-Bestellung erledigt (Upgrade). Stilllegen ist richtig.
+  //   Zusatzprodukt Bonitätsauskunft (74 €, `type='schufa'`) — unabhängig vom
+  //                 Konto. Der Verkaufsweg macht das zwingend: Der Kunde
+  //                 bezahlt zuerst die Aktivierung, erhält Kontozugriff und
+  //                 sieht ERST DANN im Dashboard den Upsell. Diese Bestellung
+  //                 ist immer ein Zweitprodukt — niemals eine Dublette.
+  //
+  // Vorher fehlte diese Grenze ganz: JEDE offene Bestellung derselben E-Mail
+  // starb, protokolliert als „Dublette, gleiche E-Mail". Betroffen waren 12
+  // lebende Bestellungen — 8 davon fälschlich, 583,98 € offener Umsatz bei
+  // genau den kaufwilligsten Bestandskunden. Es traf beide Richtungen: eine
+  // Bonitätszahlung von 74 € tötete auch schon eine Ultra-Bestellung zu 79,99 €.
+  //
+  // Die Kategorie kommt aus `type`/`ref`-Präfix, NICHT aus `pack_name`: derselbe
+  // Tarif existiert im Bestand unter zwei Schreibweisen („FIAON Pro" und
+  // „FIAON Pro | (Standard)"), ein Namensvergleich würde echte Dubletten
+  // übersehen. `type='schufa'` ist die Marke, die die Bestellanlage selbst setzt
+  // (siehe POST /payment-order) und die `isAddonOrderRow` bereits auswertet.
+  const istZusatzprodukt =
+    String(paid[0].type || "").toLowerCase() === "schufa" || String(paid[0].ref || "").startsWith("FIAON-SCHUFA-");
+  const kategorie = istZusatzprodukt ? "Zusatzprodukt (Bonitätsauskunft)" : "Stufenpaket (Kontoaktivierung)";
+
+  // ── ZEIGER-PRÜFUNG ───────────────────────────────────────────────────────
+  // `superseded_by` speicherte bevorzugt die kurze payment_reference. Ändert
+  // sie sich später oder verschwindet die Bestellung, zeigt der Zeiger ins
+  // Leere — genau so entstanden zwei Phantom-Fälle, bei denen niemand mehr
+  // nachvollziehen konnte, wodurch eine Bestellung ersetzt wurde.
+  // Deshalb: Zeiger nur verwenden, wenn er auch zurückführt. Sonst die `ref`,
+  // die als Primärschlüssel immer auflösbar ist.
+  const zeigerKandidat = paid[0].payment_reference || paid[0].ref;
+  const [zeigerOk] = await sqlPool`
+    SELECT 1 AS treffer FROM fiaon_applications
+    WHERE payment_reference = ${zeigerKandidat} OR ref = ${zeigerKandidat}
+    LIMIT 1
+  `;
+  const zeiger = zeigerOk ? zeigerKandidat : paid[0].ref;
+  if (!zeigerOk) {
+    console.warn(`[FIAON-DUBLETTE] ${paidRef}: Zeiger „${zeigerKandidat}" ist nicht auflösbar → es wird die ref gespeichert`);
+  }
+
   const rows = await sqlPool`
     UPDATE fiaon_applications SET
       payment_status = 'superseded',
-      superseded_by = ${paid[0].payment_reference || paid[0].ref},
+      superseded_by = ${zeiger},
       updated_at = NOW()
     WHERE LOWER(TRIM(email)) = ${em}
       AND ref != ${paidRef}
       AND merged_into IS NULL
       AND payment_status IN ('pending_payment', 'claimed_paid')
-    RETURNING ref, assigned_agent_id
+      -- Nur dieselbe Kategorie. Ein bezahltes Stufenpaket beendet offene
+      -- Stufenpakete (Upgrade), lässt die Bonitätsauskunft aber unberührt —
+      -- und umgekehrt.
+      AND (COALESCE(type, '') = 'schufa' OR ref LIKE 'FIAON-SCHUFA-%') = ${istZusatzprodukt}
+    RETURNING ref, assigned_agent_id, pack_name
   `;
   for (const r of rows) {
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
       VALUES (${r.ref}, NULL, 'System', 'system',
-              ${`Durch bezahlte Bestellung ${paid[0].payment_reference || paid[0].ref} ersetzt (Dublette, gleiche E-Mail) — keine weiteren Erinnerungen`})
+              ${`Durch bezahlte Bestellung ${zeiger} ersetzt — gleiche E-Mail und dieselbe Produktkategorie „${kategorie}“. Keine weiteren Erinnerungen.`})
     `;
   }
   // Attributions-Übertrag: bezahlte Bestellung erbt den betreuenden Agent der Dublette

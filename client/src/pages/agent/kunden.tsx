@@ -159,8 +159,6 @@ export default function AgentKundenPage() {
 
 function KundenContent() {
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [colleagues, setColleagues] = useState<Customer[]>([]);
-  const [colleaguesOpen, setColleaguesOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("alle");
@@ -179,7 +177,7 @@ function KundenContent() {
 
   const load = useCallback(async () => {
     const c = await api("/agent/customers");
-    if (c.ok) { setCustomers(c.json.data); setColleagues(c.json.colleagues || []); }
+    if (c.ok) setCustomers(c.json.data);
     setLoading(false);
   }, []);
 
@@ -453,41 +451,18 @@ function KundenContent() {
         </div>
       )}
 
-      {/* ── Von Kollegen betreut (read-only, G2) ── */}
-      {view === "arbeit" && colleagues.length > 0 && (
-        <div className="mt-6">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); setColleaguesOpen((v) => !v); }}
-            className="flex items-center gap-2 text-[12px] font-semibold text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            <ChevronDown size={14} className={`transition-transform ${colleaguesOpen ? "" : "-rotate-90"}`} />
-            Von Kollegen betreut ({colleagues.length})
-          </button>
-          {colleaguesOpen && (
-            <Card className="mt-2 divide-y divide-slate-50">
-              {colleagues.map((c) => (
-                <div key={c.ref} className="px-4 py-3 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-medium text-slate-600 truncate">{custName(c)}</p>
-                    <p className="text-[11px] text-slate-400">Betreut von {c.assigned_agent_name}</p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge status={c.payment_status} />
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setDetailRef(c.ref); }}
-                      className="text-[12px] font-semibold text-slate-400 hover:text-slate-600"
-                    >
-                      Ansehen
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </Card>
-          )}
-        </div>
-      )}
+      {/* ENTFERNT 03.08.2026 — „Von Kollegen betreut".
+
+          Dieser Abschnitt listete die Kunden ANDERER Agenten mit Namen, Status
+          und einem „Ansehen"-Knopf, der deren Detailansicht öffnete. Er war der
+          sichtbare Teil des Datenlecks: ein Testkonto ohne eigene Kunden sah
+          hier fremde Datensätze samt Namen des betreuenden Kollegen.
+
+          Der Server liefert `colleagues` jetzt immer leer, der Abschnitt würde
+          also nie mehr erscheinen. Er ist trotzdem gelöscht statt stehen
+          gelassen: Ein Block, der nur deshalb unsichtbar ist, weil das Backend
+          gerade nichts liefert, ist eine Falle für den Nächsten, der die
+          Abfrage „aufräumt". */}
 
       {detailRef && (
         <CustomerDetail

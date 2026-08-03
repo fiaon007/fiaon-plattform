@@ -1271,10 +1271,19 @@ const AGENT_CUSTOMER_FIELDS = `
 router.get("/agent/customers", requireAgent, async (req: AgentRequest, res) => {
   try {
     const me = req.agent!.id;
-    // Sichtbarkeit: offene Bestellungen (pending_payment/claimed_paid) für alle sichtbar
-    // PLUS die EIGENEN ABGELAUFENEN Kunden — Direktive „Kein Kunde verschwindet":
-    // abgelaufen ist nur ein Zahlungsfenster-Zustand, der Kunde bleibt im Vertriebsnetz
-    // und im Blick (Filter „Abgelaufen" im Frontend). Keine merged-Altlasten.
+    // SICHERHEITSFIX 03.08.2026: `a.assigned_agent_id = $1` ist neu.
+    //
+    // Vorher lieferte diese Abfrage JEDE offene Bestellung — unabhängig davon,
+    // wem sie gehört. Aufgeteilt wurde erst danach im Speicher, und BEIDE
+    // Hälften gingen an den Browser: `data` (eigene und herrenlose) und
+    // `colleagues` (die der Kollegen, samt deren Namen). Ein Testkonto ohne
+    // einen einzigen eigenen Kunden sah so 35 fremde mit Name, E-Mail, Betrag
+    // und Zusagedatum.
+    //
+    // Das war im Modell der offenen Kartei gewollt. Mit der Zuweisung über
+    // Tiering ist es ein Datenleck. Gefiltert wird jetzt in der WHERE-Bedingung,
+    // nicht im Anwendungscode: Was der Server nicht lädt, kann keine Ansicht
+    // versehentlich anzeigen.
     const rows = await sqlPool.unsafe(`
       SELECT ${AGENT_CUSTOMER_FIELDS},
         a.assigned_agent_id, a.locked_by_agent_id, a.locked_until,
@@ -1284,8 +1293,8 @@ router.get("/agent/customers", requireAgent, async (req: AgentRequest, res) => {
       LEFT JOIN fiaon_agents lg ON lg.id = a.locked_by_agent_id
       WHERE a.merged_into IS NULL
         AND a.dismissed_at IS NULL
-        AND (a.payment_status IN ('pending_payment', 'claimed_paid')
-             OR (a.payment_status = 'expired' AND a.assigned_agent_id = $1))
+        AND a.assigned_agent_id = $1
+        AND a.payment_status IN ('pending_payment', 'claimed_paid', 'expired')
       ORDER BY (a.payment_status = 'claimed_paid') DESC, (a.payment_status = 'expired'),
                a.claimed_paid_at ASC NULLS LAST, a.created_at ASC
     `, [me]);
@@ -1313,14 +1322,56 @@ router.get("/agent/customers", requireAgent, async (req: AgentRequest, res) => {
       next_appointment: openAppointments[r.ref] || null,
       locked_by_name: r.locked_by_agent_id && r.locked_by_agent_id !== me && r.locked_until && new Date(r.locked_until).getTime() > now ? r.locked_by_name : null,
     });
-    const worklist = rows.filter((r: any) => !r.assigned_agent_id || r.assigned_agent_id === me).map(enrich);
-    const colleagues = rows.filter((r: any) => r.assigned_agent_id && r.assigned_agent_id !== me).map(enrich);
-    res.json({ ok: true, data: worklist, colleagues });
+    // `colleagues` gibt es nicht mehr. Es war der eigentliche Leckpfad: eine
+    // ausdrückliche Liste der Kunden ANDERER Agenten im selben Antwortobjekt.
+    // Das leere Feld bleibt erhalten, damit ältere Clients nicht auf undefined
+    // laufen — gefüllt wird es nie wieder.
+    res.json({ ok: true, data: rows.map(enrich), colleagues: [] });
   } catch (err) {
     console.error("[FIAON-AGENT] customers:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * EIGENTUMSRIEGEL für /agent/customers/:ref — Sicherheitsfix 03.08.2026
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * BEFUND: Sämtliche :ref-Endpunkte suchten die Bestellung allein über die
+ * Referenz. Ein Agent konnte damit jeden offenen Kunden eines Kollegen
+ * abrufen (Name, E-Mail, Adresse, Betrag, Provisionsbasis), dessen Rechnung
+ * als PDF herunterladen, ihm eine Zahlungsmail schicken, Notizen schreiben
+ * und sein Zahlungsdatum überschreiben.
+ *
+ * URSACHE: Das Modell der offenen Kartei war „ein gemeinsamer Bestand, jeder
+ * sieht alles". Mit der Zuweisung über Tiering gilt das Gegenteil — die
+ * Endpunkte sind aber nie nachgezogen worden.
+ *
+ * REGEL: Nur der zugewiesene Agent. Nicht zugewiesene Bestellungen gehören
+ * NIEMANDEM und sind für Agenten unsichtbar; die Zuteilung macht der
+ * Tageslauf, nicht ein Direktaufruf.
+ *
+ * 404 statt 403: Ein 403 bestätigt, dass die Referenz existiert. Das ist
+ * schon eine Auskunft — dieselbe Regel wie in /agent/crm.
+ */
+async function requireEigenerKunde(req: AgentRequest, res: Response, next: NextFunction) {
+  try {
+    const ref = String(req.params.ref || "");
+    const [app] = await sqlPool`
+      SELECT assigned_agent_id FROM fiaon_applications
+      WHERE ref = ${ref} AND merged_into IS NULL
+      LIMIT 1
+    `;
+    if (!app || app.assigned_agent_id !== req.agent!.id) {
+      return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    }
+    return next();
+  } catch (err) {
+    console.error("[FIAON-AGENT] Eigentumsprüfung:", err);
+    return res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+}
 
 // ═══════════════ PAKET DA — Gesamtbestand „Meine Kunden (Alle)" ═══════════════
 // Antwort auf „Kunden verschwinden": ALLE je zugewiesenen Kunden des Agents,
@@ -1495,7 +1546,7 @@ async function claimOrGuard(ref: string, agent: { id: number; name: string }): P
 
 // Detail: Kunde + Historie + passende Gesprächsleitfäden (I2).
 // Öffnen eines UNZUGEWIESENEN Kunden setzt den 15-Min-Soft-Lock (G2).
-router.get("/agent/customers/:ref", requireAgent, async (req: AgentRequest, res) => {
+router.get("/agent/customers/:ref", requireAgent, requireEigenerKunde, async (req: AgentRequest, res) => {
   try {
     const me = req.agent!.id;
     // Paket DA: EIGENE Kunden bleiben auch nach Bezahlung/Ablauf sichtbar (read-only) —
@@ -1565,7 +1616,7 @@ router.get("/agent/customers/:ref", requireAgent, async (req: AgentRequest, res)
 // Editierbar: Vorname, Nachname, E-Mail, Telefon. NICHT editierbar (Server
 // lehnt hart ab): Paket, Betrag, Zahlungsstatus, Referenz. Antwort enthält
 // duplicate (Dubletten-Warnung) + loginEmailChanged (Hinweis-Dialog).
-router.patch("/agent/customers/:ref/contact-data", requireAgent, async (req: AgentRequest, res) => {
+router.patch("/agent/customers/:ref/contact-data", requireAgent, requireEigenerKunde, async (req: AgentRequest, res) => {
   try {
     const guard = await claimOrGuard(req.params.ref, req.agent!);
     if (guard.error) return res.status(guard.error.code).json({ ok: false, error: guard.error.msg });
@@ -1605,7 +1656,7 @@ router.post("/agent/log/:id/void", requireAgent, async (req: AgentRequest, res) 
 // ═══════════════ AGENT: Notizen + Kontakt-Ergebnisse ═══════════════
 
 // Freitext-Notiz (append-only). Erste Aktion an unzugewiesenem Kunden = Auto-Claim (G2).
-router.post("/agent/customers/:ref/notes", requireAgent, async (req: AgentRequest, res) => {
+router.post("/agent/customers/:ref/notes", requireAgent, requireEigenerKunde, async (req: AgentRequest, res) => {
   try {
     const note = String(req.body?.note || "").trim();
     if (!note) return res.status(400).json({ ok: false, error: "Notiz darf nicht leer sein" });
@@ -1632,7 +1683,7 @@ const CUST_DISMISS_REASON_LABEL: Record<string, string> = {
   dublette: "Dublette",
 };
 
-router.post("/agent/customers/:ref/dismiss", requireAgent, async (req: AgentRequest, res) => {
+router.post("/agent/customers/:ref/dismiss", requireAgent, requireEigenerKunde, async (req: AgentRequest, res) => {
   try {
     const me = req.agent!.id;
     const ref = req.params.ref;
@@ -1676,7 +1727,7 @@ const VALID_OUTCOMES = new Set([
 ]);
 
 // Kontakt-Ergebnis (je Klick ein neuer Log-Eintrag; Termin-/Zusage-Daten optional)
-router.post("/agent/customers/:ref/contact-result", requireAgent, async (req: AgentRequest, res) => {
+router.post("/agent/customers/:ref/contact-result", requireAgent, requireEigenerKunde, async (req: AgentRequest, res) => {
   try {
     const { outcome, scheduledAt, promisedDate, note } = req.body || {};
     if (!VALID_OUTCOMES.has(outcome)) return res.status(400).json({ ok: false, error: "Ungültiges Kontakt-Ergebnis" });
@@ -1741,7 +1792,7 @@ router.post("/agent/customers/:ref/contact-result", requireAgent, async (req: Ag
 // Kurze Begruendung Pflicht, alles im Verlauf. Zaehlt NICHT als Betreuung —
 // es wird KEIN 'result' geschrieben und `letzter_kontakt_am` bleibt unberuehrt,
 // damit kein Provisionsanspruch aus einem Abbruch entsteht.
-router.post("/agent/customers/:ref/close-akte", requireAgent, async (req: AgentRequest, res) => {
+router.post("/agent/customers/:ref/close-akte", requireAgent, requireEigenerKunde, async (req: AgentRequest, res) => {
   try {
     const me = req.agent!.id;
     const ref = req.params.ref;
@@ -1793,7 +1844,7 @@ router.post("/admin/customers/:ref/release-akte", async (req: Request, res: Resp
 // ═══════════════ AGENT: Ein-Klick-Mail „Wie soeben besprochen" ═══════════════
 // KEINE Direkt-Mail — feuert Make-Webhook `agent_payment_reminder`.
 
-router.post("/agent/customers/:ref/send-payment-email", requireAgent, async (req: AgentRequest, res) => {
+router.post("/agent/customers/:ref/send-payment-email", requireAgent, requireEigenerKunde, async (req: AgentRequest, res) => {
   try {
     const guard = await claimOrGuard(req.params.ref, req.agent!);
     if (guard.error) return res.status(guard.error.code).json({ ok: false, error: guard.error.msg });
@@ -1849,7 +1900,7 @@ router.post("/agent/customers/:ref/send-payment-email", requireAgent, async (req
 // ein Zahlungsfenster-Zustand. Nach einem erfolgreichen Anruf/Abschluss kann der
 // Agent den Kunden selbst reaktivieren (neue 7-Tage-Frist) — unzugewiesene werden
 // ihm dabei zugeordnet (er hat gerade den Abschluss gemacht). Löst Ticket #10/#12.
-router.post("/agent/customers/:ref/reactivate", requireAgent, async (req: AgentRequest, res) => {
+router.post("/agent/customers/:ref/reactivate", requireAgent, requireEigenerKunde, async (req: AgentRequest, res) => {
   try {
     const me = req.agent!.id;
     const ref = req.params.ref;
@@ -1882,7 +1933,7 @@ router.post("/agent/customers/:ref/reactivate", requireAgent, async (req: AgentR
 
 // ═══════════════ AGENT: Rechnung (Download) ═══════════════
 
-router.get("/agent/customers/:ref/invoice.pdf", requireAgent, async (req: AgentRequest, res) => {
+router.get("/agent/customers/:ref/invoice.pdf", requireAgent, requireEigenerKunde, async (req: AgentRequest, res) => {
   try {
     // Paket DA: auch für geschlossene/bezahlte Bestellungen abrufbar (read-only Detail)
     const rows = await sqlPool`

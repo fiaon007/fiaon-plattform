@@ -38,6 +38,7 @@ import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
 import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
 import { signInvoiceUrl } from "../fiaon-invoice";
+import { nachschub } from "./fiaon-followup";
 
 const router = Router();
 
@@ -174,6 +175,15 @@ router.get("/agent/crm/dashboard", requireAgent, async (req: AgentRequest, res: 
         ), p.assigned_at, NOW() - INTERVAL '99 days') < NOW() - (${ESKALATION_TAGE} || ' days')::interval
     `;
 
+    // „Neu bei dir“: heute zugewiesene Kunden. Es gibt kein
+    // Benachrichtigungssystem pro Agent — dieser Zähler ist der Ersatz, damit
+    // ein Auto-Assign nicht unbemerkt in der Liste verschwindet.
+    const [neu] = await sqlPool`
+      SELECT count(*)::int AS anzahl FROM fiaon_persons
+      WHERE assigned_agent_id = ${agentId} AND merged_into_person_id IS NULL
+        AND assigned_at::date = CURRENT_DATE
+    `;
+
     // Abschlussquote 30 Tage: eigene Kunden, die in diesem Zeitraum bezahlt haben.
     // Bewusst nur der EIGENE Wert — kein Vergleich mit anderen Agenten.
     const [conv] = await sqlPool`
@@ -194,6 +204,7 @@ router.get("/agent/crm/dashboard", requireAgent, async (req: AgentRequest, res: 
         ohneDatum: z.ohne_datum,
         ueberfaellig: z.ueberfaellig,
         eskalation: esk?.anzahl ?? 0,
+        neuHeute: neu?.anzahl ?? 0,
         tier1: z.tier1,
         tier2: z.tier2,
         tier3: z.tier3,
@@ -409,6 +420,15 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
         `;
       }
     });
+
+    // Nachschub nach der Statusaenderung. Vor allem "blockiert" senkt den
+    // offenen Bestand — ohne Nachschub würde der Agent unter die Schwelle
+    // fallen und bis zum nächsten Morgen mit einer halbleeren Liste arbeiten.
+    // Fire-and-forget: Der Nachschub darf die Antwort nicht verzögern und ein
+    // Fehler dabei darf die dokumentierte Aktivität nicht zurücknehmen.
+    if (art === "blockiert" || art === "erreicht") {
+      nachschub(req.agent!.id).catch((e) => console.error("[AGENT-KUNDEN] Nachschub:", e));
+    }
 
     const neu = await meinePerson(personId, req.agent!.id);
     res.json({ ok: true, kunde: kartePayload(neu, await letzteAktivitaetVon(personId)) });

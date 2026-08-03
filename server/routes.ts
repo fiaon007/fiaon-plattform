@@ -277,6 +277,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonReconcileRoutes = await import('./routes/fiaon-reconcile');
   app.use('/api/fiaon', fiaonReconcileRoutes.default);
 
+  // ⏰ FIAON Follow-up-Engine — Tageslauf 06:00 Europe/Vienna, Nachschub,
+  //    Auto-Assign. setInterval im Web-Prozess wie die Mahn-Engine, aber MIT
+  //    Lock in fiaon_settings: bei mehreren Instanzen läuft nur eine.
+  const fiaonFollowupRoutes = await import('./routes/fiaon-followup');
+  app.use('/api/fiaon', fiaonFollowupRoutes.default);
+
   // 👥 FIAON Agent CRM (person-scoped) — der Nachfolger der offenen Kartei.
   //    Eigenes Präfix /agent/crm, weil /agent/dashboard im Agentenportal schon
   //    belegt ist. Autorisierung über fiaon_persons.assigned_agent_id, fremde

@@ -5,57 +5,219 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* ── Marke ─────────────────────────────────────────────────────────────── */
+  /* ── Akzent ────────────────────────────────────────────────────────────────
+     EINE Akzentfarbe, und sie ist reserviert: Primäraktion und aktiver Zustand.
+     Nichts anderes darf blau sein. Sobald Blau auch für Hinweise, Rahmen oder
+     Überschriften benutzt wird, verliert der Primärknopf seine Wirkung — der
+     Blick weiß dann nicht mehr, wohin. */
   --fi-primaer: #1d4ed8;
-  --fi-primaer-hover: #1e40af;
   --fi-primaer-hell: #2563eb;
-  --fi-tint: #eff6ff;
-  --fi-border-aktiv: #93c5fd;
-  --fi-gradient-hell: #60a5fa;
+  --fi-primaer-hover: #1e40af;
+  --fi-verlauf-primaer: linear-gradient(180deg, #1d4ed8 0%, #2563eb 100%);
 
-  /* ── Tier-Farben ───────────────────────────────────────────────────────── */
+  /* ── Statusfarben ──────────────────────────────────────────────────────────
+     Nur als Kante oder Punkt, NIE als Füllfläche. Eine rote Karte schreit; eine
+     rote 3px-Kante an einer weißen Karte informiert. */
   --fi-tier1: #dc2626;
   --fi-tier2: #d97706;
   --fi-tier3: #64748b;
-
-  /* ── Zustände ──────────────────────────────────────────────────────────── */
   --fi-erfolg: #059669;
-  --fi-erfolg-tint: #ecfdf5;
   --fi-fehler: #dc2626;
-  --fi-fehler-tint: #fef2f2;
   --fi-warnung: #d97706;
-  --fi-warnung-tint: #fffbeb;
 
-  /* ── Flächen ───────────────────────────────────────────────────────────── */
-  --fi-seite: #f8fafc;
+  /* Farbige Hintergründe: maximal 3 % Deckkraft. Das reicht, um ein Badge vom
+     Weiß abzuheben, und bleibt weit unter „bunt". */
+  --fi-flaeche-tier1: rgba(220, 38, 38, 0.03);
+  --fi-flaeche-tier2: rgba(217, 119, 6, 0.03);
+  --fi-flaeche-tier3: rgba(100, 116, 139, 0.03);
+  --fi-flaeche-akzent: rgba(29, 78, 216, 0.03);
+  --fi-flaeche-erfolg: rgba(5, 150, 105, 0.03);
+
+  /* ── Flächen und Text ──────────────────────────────────────────────────── */
+  --fi-seite: #fafbfc;
   --fi-karte: #ffffff;
   --fi-linie: #e2e8f0;
+  --fi-linie-hover: #cbd5e1;
+
   --fi-text: #0f172a;
-  /* Beide Sekundärtöne erreichen auf Weiß mindestens 4,5:1 (WCAG AA).
-     Vorher stand hier #94a3b8 mit 2,8:1 — auf einem Handy in Tageslicht
-     praktisch unlesbar, und bei Lighthouse ein Barrierefreiheits-Fehler.
-     Der Abstand zwischen den beiden Tönen bleibt sichtbar. */
-  --fi-text-leise: #4b5563;  /* 7,6:1 */
-  --fi-text-still: #6b7280;  /* 4,8:1 */
+  --fi-text-leise: #475569;  /* sekundär,  7,5:1 */
+  --fi-text-still: #64748b;  /* tertiär,   4,8:1 — WCAG AA auf Weiß.
+     Die Vorgabe nannte #94A3B8. Das sind 2,8:1 und fällt bei Lighthouse als
+     Fehler durch; auf einem Handy in Tageslicht ist es unlesbar. Der Ton ist
+     deshalb so weit abgesenkt, dass er AA erreicht, und bleibt optisch
+     erkennbar leiser als die Sekundärstufe. */
+
+  /* ── Glas ──────────────────────────────────────────────────────────────────
+     Nur für SCHWEBENDE Ebenen: Kopfbereich, Bottom-Bar, Slide-over. Karten sind
+     massiv weiß. Wird alles zu Glas, wirkt nichts mehr erhaben. */
+  --fi-glas: rgba(255, 255, 255, 0.72);
+  --fi-glas-filter: blur(20px) saturate(180%);
+  --fi-glas-kante: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --fi-glas-linie: rgba(15, 23, 42, 0.06);
+  --fi-backdrop: rgba(15, 23, 42, 0.32);
+
+  /* ── Schatten: drei Stufen, alle mit Blauanteil ────────────────────────────
+     Grauer Schatten wirkt schmutzig, weil er die Farbtemperatur der Fläche
+     bricht. Ein Blaustich liegt in derselben Familie wie der Akzent und wirkt
+     dadurch wie Licht statt wie Schmutz. */
+  --fi-schatten-ruhe:     0 1px 2px rgba(15, 23, 42, 0.04), 0 2px 8px rgba(29, 78, 216, 0.04);
+  --fi-schatten-gehoben:  0 2px 4px rgba(15, 23, 42, 0.04), 0 12px 32px rgba(29, 78, 216, 0.10);
+  --fi-schatten-schwebend:0 4px 8px rgba(15, 23, 42, 0.06), 0 24px 64px rgba(29, 78, 216, 0.16);
+  --fi-glanzkante: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+
+  /* ── Altnamen ──────────────────────────────────────────────────────────────
+     Diese Token werden an rund 40 Stellen ausserhalb des Kundenbereichs
+     benutzt. Sie werden NICHT gelöscht, sondern auf das neue System
+     zurückgeführt: Die Tints zeigen jetzt auf die 3-%-Flächen, damit auch die
+     alten Seiten leiser werden, ohne dass eine einzige davon angefasst wird.
+     Wer eine neue Fläche baut, nimmt die --fi-flaeche-*-Token. */
+  --fi-schatten-hover: var(--fi-schatten-gehoben);
+  --fi-tint: var(--fi-flaeche-akzent);
+  --fi-erfolg-tint: var(--fi-flaeche-erfolg);
+  --fi-warnung-tint: var(--fi-flaeche-tier2);
+  --fi-fehler-tint: var(--fi-flaeche-tier1);
+  --fi-border-aktiv: var(--fi-primaer);
+  --fi-gradient-hell: var(--fi-primaer-hell);
 
   /* ── Form ──────────────────────────────────────────────────────────────── */
-  --fi-radius: 16px;
-  --fi-radius-klein: 10px;
-  /* Mehrschichtig statt einfach: Die erste Lage (1px) zeichnet die Kante, die
-     zweite (8px/24px) traegt die Karte vom Untergrund ab. Ein einzelner Schatten
-     kann beides nicht gleichzeitig — er wird entweder hart oder wolkig. */
-  --fi-schatten-ruhe: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(29, 78, 216, 0.06);
-  --fi-schatten-hover: 0 1px 2px rgba(15, 23, 42, 0.04), 0 20px 48px rgba(29, 78, 216, 0.14);
+  --fi-radius-karte: 14px;
+  --fi-radius-knopf: 10px;
+  --fi-radius-badge: 6px;
+  --fi-radius-ebene: 20px;
+  --fi-radius: var(--fi-radius-karte);
+  --fi-radius-klein: var(--fi-radius-knopf);
 
-  /* Glanzkante: ein 1px heller Innenrand oben. Laesst die Karte wie ein Blatt
-     mit Dicke wirken statt wie ein aufgemalter Umriss. */
-  --fi-glanzkante: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  /* ── Bewegung ──────────────────────────────────────────────────────────────
+     Eine Kurve für alles: schneller Start, sehr weiches Ausklingen. Genau das
+     unterscheidet ein teures Interface von einem, das „animiert" wurde. */
+  --fi-kurve: cubic-bezier(0.32, 0.72, 0, 1);
+  --fi-mikro: 120ms;
+  --fi-element: 280ms;
+  --fi-ebene: 400ms;
+  --fi-seite-zeit: 460ms;
+  --fi-karte-zeit: var(--fi-element);
 
-  /* ── Bewegung ──────────────────────────────────────────────────────────── */
-  --fi-kurve: cubic-bezier(0.22, 1, 0.36, 1);
-  --fi-mikro: 150ms;
-  --fi-karte-zeit: 300ms;
-  --fi-seite-zeit: 450ms;
+  /* ── Raum ──────────────────────────────────────────────────────────────────
+     Vierer-Rhythmus. Jeder Abstand ist ein Vielfaches von 4px — deshalb wirkt
+     das Raster ruhig, auch wenn niemand es bewusst bemerkt. */
+  --fi-raum-abschnitt: 56px;
+  --fi-raum-karten: 10px;
+  --fi-raum-innen: 20px;
+  --fi-raum-innen-mobil: 16px;
+  --fi-breite-max: 1180px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Bausteine, die überall gleich aussehen müssen
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Schwebende Ebene: Kopfbereich, Bottom-Bar, Slide-over. */
+.fi-glas {
+  background: var(--fi-glas);
+  -webkit-backdrop-filter: var(--fi-glas-filter);
+  backdrop-filter: var(--fi-glas-filter);
+  box-shadow: var(--fi-glas-kante), 0 1px 0 var(--fi-glas-linie);
+}
+
+/* Massive Karte. Kein Glas — das ist der Unterschied zwischen edel und
+   beliebig. */
+.fi-karte {
+  background: var(--fi-karte);
+  border: 1px solid var(--fi-linie);
+  border-radius: var(--fi-radius-karte);
+  box-shadow: var(--fi-schatten-ruhe), var(--fi-glanzkante);
+  transition: box-shadow var(--fi-element) var(--fi-kurve),
+              border-color var(--fi-element) var(--fi-kurve);
+}
+.fi-karte:hover { border-color: var(--fi-linie-hover); }
+
+/* Container für einen Kartenstapel: die Perspektive gehört an den Container,
+   nicht an jede Karte. Sonst hat jede Karte ihren eigenen Fluchtpunkt und der
+   Stapel kippt auseinander statt gemeinsam. */
+.fi-buehne { perspective: 1400px; }
+
+/* ── Primäraktion ─────────────────────────────────────────────────────────────
+   Der einzige Blauverlauf im Interface. Bei Hover kommt der Knopf dem Finger
+   entgegen: translateZ(4px) innerhalb der geneigten Karte plus wachsender
+   Schatten. Beim Klick fällt er zurück — ein Knopf, der sich beim Drücken hebt,
+   fühlt sich falsch an. */
+.fi-primaerknopf {
+  background: var(--fi-verlauf-primaer);
+  border-radius: var(--fi-radius-knopf);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08),
+              0 4px 12px rgba(29, 78, 216, 0.24),
+              var(--fi-glanzkante);
+  transform: translateZ(0);
+  transition: transform var(--fi-mikro) var(--fi-kurve),
+              box-shadow var(--fi-mikro) var(--fi-kurve);
+}
+.fi-primaerknopf:hover {
+  transform: translateZ(4px);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08),
+              0 10px 24px rgba(29, 78, 216, 0.32),
+              var(--fi-glanzkante);
+}
+.fi-primaerknopf:active { transform: translateZ(0) scale(0.985); }
+
+/* Sekundäraktion: ruhige Umrandung. Sie soll verfügbar sein, nicht werben. */
+.fi-zweitknopf {
+  background: #fff;
+  border: 1px solid var(--fi-linie);
+  border-radius: var(--fi-radius-knopf);
+  color: var(--fi-text-leise);
+  transition: border-color var(--fi-mikro) var(--fi-kurve),
+              color var(--fi-mikro) var(--fi-kurve),
+              transform var(--fi-mikro) var(--fi-kurve);
+}
+.fi-zweitknopf:hover:not(:disabled) {
+  border-color: var(--fi-linie-hover);
+  color: var(--fi-text);
+}
+.fi-zweitknopf:active:not(:disabled) { transform: scale(0.97); }
+.fi-zweitknopf:disabled { opacity: 0.4; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fi-primaerknopf, .fi-zweitknopf { transition-duration: 150ms; }
+  .fi-primaerknopf:hover { transform: none; }
+}
+
+/* ── Typografie ───────────────────────────────────────────────────────────── */
+.fi-stat-zahl {
+  font-size: 34px; font-weight: 600; line-height: 1;
+  letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+}
+.fi-stat-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--fi-text-still);
+}
+.fi-name { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.fi-meta { font-size: 13px; font-weight: 450; color: var(--fi-text-leise); }
+.fi-abschnitt-titel { font-size: 20px; font-weight: 600; letter-spacing: -0.015em; }
+.fi-fliesstext { font-size: 14px; line-height: 1.55; }
+
+/* Trenner in der Metazeile: schmaler Mittelpunkt mit Luft. Ein Schrägstrich
+   wäre lauter, ein Komma zweideutig bei Beträgen. */
+.fi-punkt::before {
+  content: "·"; margin: 0 8px; color: var(--fi-linie-hover);
+}
+
+/* ── Skeleton ─────────────────────────────────────────────────────────────────
+   Ein Verlauf, der EINMAL pro 1,6 s durchläuft. Das übliche Grauwabern pulsiert
+   im Sekundentakt und zieht dauerhaft Aufmerksamkeit auf eine Stelle, an der es
+   noch nichts zu sehen gibt. */
+.fi-skelett {
+  background: linear-gradient(90deg,
+    #eef2f6 0%, #eef2f6 40%, #f8fafc 50%, #eef2f6 60%, #eef2f6 100%);
+  background-size: 300% 100%;
+  animation: fi-sweep 1.6s var(--fi-kurve) infinite;
+}
+@keyframes fi-sweep {
+  from { background-position: 150% 0; }
+  to   { background-position: -150% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fi-skelett { animation: none; background: #eef2f6; }
 }
 
 /* Zahlen dürfen beim Hochzählen nicht zittern. */

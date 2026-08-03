@@ -33,8 +33,20 @@ export function useReduzierteBewegung(): boolean {
   return reduziert;
 }
 
-/** Eintritt: translateY + opacity, bei reduzierter Bewegung nur eine Blende. */
-export function eintritt(reduziert: boolean, index = 0, stufeMs = 30) {
+/**
+ * Die Standardkurve des Hauses: schneller Start, sehr weiches Ausklingen.
+ * Als Konstante, damit sie nicht an zwanzig Stellen leicht abweichend steht.
+ */
+export const KURVE = [0.32, 0.72, 0, 1] as [number, number, number, number];
+
+/**
+ * Eintritt: translateY(20px) + Deckkraft, gestaffelt. KEIN scale.
+ *
+ * Eine Karte, die aus 0.96 heranskaliert, sieht aus wie eine Folie in einer
+ * Präsentationssoftware. Reine Vertikalbewegung wirkt wie Material, das sich
+ * setzt — und genau das soll es sein.
+ */
+export function eintritt(reduziert: boolean, index = 0, stufeMs = 40) {
   if (reduziert) {
     return {
       initial: { opacity: 0 },
@@ -43,12 +55,12 @@ export function eintritt(reduziert: boolean, index = 0, stufeMs = 30) {
     };
   }
   return {
-    initial: { opacity: 0, y: 12 },
+    initial: { opacity: 0, y: 20 },
     animate: { opacity: 1, y: 0 },
     transition: {
-      duration: 0.3,
+      duration: 0.28,
       delay: (index * stufeMs) / 1000,
-      ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+      ease: KURVE,
     },
   };
 }
@@ -57,7 +69,7 @@ export function eintritt(reduziert: boolean, index = 0, stufeMs = 30) {
 // Zahlen zählen hoch — auch bei Aktualisierungen, nie harte Sprünge
 // ───────────────────────────────────────────────────────────────────────────
 export function Zahl({
-  wert, dauer = 800, nachkomma = 0, suffix = "", className = "",
+  wert, dauer = 900, nachkomma = 0, suffix = "", className = "",
 }: { wert: number; dauer?: number; nachkomma?: number; suffix?: string; className?: string }) {
   const reduziert = useReduzierteBewegung();
   const [anzeige, setAnzeige] = useState(reduziert ? wert : 0);
@@ -278,24 +290,35 @@ function ToastKarte({ toast, onWeg }: { toast: Toast; onWeg: () => void }) {
 // 3D-Tilt — nur mit Zeigegerät. Auf Touch wäre es sinnlos und träge.
 // ───────────────────────────────────────────────────────────────────────────
 /**
- * Neigung, die dem Zeiger folgt.
+ * Neigung, die dem Zeiger folgt — Räumlichkeit als ORIENTIERUNG, nicht als
+ * Effekt. Sie zeigt, was greifbar ist.
  *
- * `tiefe` schaltet echte Räumlichkeit zu: Die Karte bekommt `preserve-3d` und
- * der Inhalt wird um 20px nach VORNE gelegt. Der Unterschied ist deutlich —
- * ohne translateZ kippt ein flaches Bild, mit translateZ steht der Inhalt
- * sichtbar vor seiner Karte.
+ * Drei Entscheidungen, die den Unterschied zu einem Spielerei-Tilt ausmachen:
  *
- * Standardmässig aus, weil `preserve-3d` einen eigenen Stapelkontext erzeugt:
- * Overlays und `position: sticky` INNERHALB der Karte verhalten sich dann
- * anders. Wer es einschaltet, muss die Karte daraufhin ansehen.
+ *  1. MAXIMAL 3 GRAD. Fünf sehen nach Demo aus, drei nach Material. Die
+ *     Perspektive sitzt am Container (`.fi-buehne`, 1400px), nicht an jeder
+ *     Karte — sonst hat jede Karte einen eigenen Fluchtpunkt und ein Stapel
+ *     kippt auseinander statt gemeinsam.
+ *
+ *  2. DER SCHATTEN WANDERT ENTGEGEN DER NEIGUNG. Kippt die Karte nach rechts,
+ *     muss der Schatten nach links. Bleibt er mittig, wirkt die Neigung wie
+ *     ein aufgeklebtes Bild — das ist der häufigste Fehler bei 3D-Karten.
+ *
+ *  3. AUF TOUCH KEIN TILT, sondern Press-Depth: scale(.985) und Schatten
+ *     zurück auf ruhend, wie ein physisch gedrückter Knopf. Eine Neigung ohne
+ *     Zeiger müsste geraten werden und ruckelt.
+ *
+ * Gedrosselt über requestAnimationFrame, ausschließlich `transform` und
+ * `box-shadow` — niemals etwas, das Layout auslöst.
  */
 export function Tilt({
-  children, max = 5, tiefe = false, className = "", style,
+  children, max = 3, tiefe = false, className = "", style,
 }: { children: ReactNode; max?: number; tiefe?: boolean; className?: string; style?: React.CSSProperties }) {
   const reduziert = useReduzierteBewegung();
   const ref = useRef<HTMLDivElement>(null);
   const frame = useRef(0);
   const [zeigegeraet, setZeigegeraet] = useState(false);
+  const [gedrueckt, setGedrueckt] = useState(false);
 
   useEffect(() => {
     setZeigegeraet(window.matchMedia("(hover: hover) and (pointer: fine)").matches);
@@ -309,37 +332,105 @@ export function Tilt({
     const y = (e.clientY - r.top) / r.height - 0.5;
     cancelAnimationFrame(frame.current);
     frame.current = requestAnimationFrame(() => {
-      el.style.transform = `perspective(1200px) rotateY(${x * max}deg) rotateX(${-y * max}deg)`;
-      el.style.boxShadow = "var(--fi-schatten-hover), var(--fi-glanzkante)";
+      el.style.transform = `rotateY(${x * max}deg) rotateX(${-y * max}deg)`;
+      // Gegenläufig zur Neigung, Ausschlag proportional zum Winkel.
+      const sx = -x * 18;
+      const sy = -y * 18;
+      el.style.boxShadow =
+        `${sx * 0.2}px ${sy * 0.2 + 2}px 4px rgba(15,23,42,.04), ` +
+        `${sx}px ${sy + 12}px 32px rgba(29,78,216,.10), ` +
+        `var(--fi-glanzkante)`;
     });
   };
+
   const verlasse = () => {
+    setGedrueckt(false);
     if (!ref.current) return;
     cancelAnimationFrame(frame.current);
-    ref.current.style.transform = "perspective(1200px) rotateY(0deg) rotateX(0deg)";
+    ref.current.style.transform = "rotateY(0deg) rotateX(0deg)";
     ref.current.style.boxShadow = "var(--fi-schatten-ruhe), var(--fi-glanzkante)";
   };
+
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
+
+  const beweglich = zeigegeraet && !reduziert;
 
   return (
     <div
       ref={ref}
       onPointerMove={bewege}
       onPointerLeave={verlasse}
-      className={`${className} ${!zeigegeraet ? "active:scale-[0.98]" : ""}`}
+      onPointerDown={() => !beweglich && setGedrueckt(true)}
+      onPointerUp={() => setGedrueckt(false)}
+      onPointerCancel={() => setGedrueckt(false)}
+      className={className}
       style={{
         ...style,
-        transition: "transform 300ms var(--fi-kurve), box-shadow 300ms var(--fi-kurve)",
+        // Federrückstellung mit leichtem Überschwingen: Die Karte fällt nicht
+        // in die Ruhelage, sie schwingt einmal knapp darüber hinaus.
+        transition: reduziert
+          ? "box-shadow 150ms linear"
+          : "transform 380ms cubic-bezier(0.34, 1.4, 0.64, 1), box-shadow 280ms var(--fi-kurve)",
+        transform: gedrueckt ? "scale(0.985)" : undefined,
         boxShadow: "var(--fi-schatten-ruhe), var(--fi-glanzkante)",
         willChange: "transform",
         transformStyle: tiefe ? "preserve-3d" : undefined,
       }}
     >
-      {tiefe && zeigegeraet && !reduziert
-        ? <div style={{ transform: "translateZ(20px)", transformStyle: "preserve-3d" }}>{children}</div>
-        : children}
+      {children}
     </div>
   );
+}
+
+/**
+ * Eine Inhaltsebene innerhalb einer geneigten Karte.
+ *
+ * Name, Metazeile und Aktionen liegen auf verschiedenen Z-Höhen. Beim Neigen
+ * verschieben sie sich unterschiedlich stark gegeneinander — das ist echte
+ * Tiefenstaffelung. Ohne sie kippt ein flaches Bild, und der Betrachter merkt
+ * sofort, dass da nichts ist.
+ *
+ * Greift nur, wenn die Elternkarte `tiefe` gesetzt hat und ein Zeigegerät
+ * vorhanden ist; sonst kostet `translateZ` nur eine GPU-Ebene ohne Wirkung.
+ */
+export function Ebene({
+  z, className = "", children,
+}: { z: number; className?: string; children: ReactNode }) {
+  const reduziert = useReduzierteBewegung();
+  const [zeigegeraet, setZeigegeraet] = useState(false);
+  useEffect(() => {
+    setZeigegeraet(window.matchMedia("(hover: hover) and (pointer: fine)").matches);
+  }, []);
+  const an = zeigegeraet && !reduziert;
+  return (
+    <div className={className} style={an ? { transform: `translateZ(${z}px)` } : undefined}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Scroll-Reveal per IntersectionObserver, Schwelle 0.15, einmalig.
+ *
+ * Framer Motions `whileInView` macht dasselbe, legt aber je Element einen
+ * eigenen Observer an. Bei 60 Karten sind das 60 Observer — hier ist es einer
+ * pro Abschnitt, und der trennt sich nach dem ersten Auslösen selbst.
+ */
+export function useImBild<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [drin, setDrin] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") { setDrin(true); return; }
+    const b = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setDrin(true); b.disconnect(); } },
+      { threshold: 0.15 },
+    );
+    b.observe(el);
+    return () => b.disconnect();
+  }, []);
+  return { ref, drin };
 }
 
 // ───────────────────────────────────────────────────────────────────────────

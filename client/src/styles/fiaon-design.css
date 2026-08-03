@@ -31,8 +31,12 @@
   --fi-karte: #ffffff;
   --fi-linie: #e2e8f0;
   --fi-text: #0f172a;
-  --fi-text-leise: #64748b;
-  --fi-text-still: #94a3b8;
+  /* Beide Sekundärtöne erreichen auf Weiß mindestens 4,5:1 (WCAG AA).
+     Vorher stand hier #94a3b8 mit 2,8:1 — auf einem Handy in Tageslicht
+     praktisch unlesbar, und bei Lighthouse ein Barrierefreiheits-Fehler.
+     Der Abstand zwischen den beiden Tönen bleibt sichtbar. */
+  --fi-text-leise: #4b5563;  /* 7,6:1 */
+  --fi-text-still: #6b7280;  /* 4,8:1 */
 
   /* ── Form ──────────────────────────────────────────────────────────────── */
   --fi-radius: 16px;

@@ -2,7 +2,11 @@
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <!-- Zoom bleibt erlaubt. `user-scalable=no` sperrt Menschen mit
+         eingeschränktem Sehvermögen aus und ist bei Lighthouse ein
+         Barrierefreiheits-Fehler. Agenten arbeiten am Handy und müssen eine
+         Telefonnummer vergrößern können. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
     <!-- Primary Meta Tags -->
     <title>FIAON – Deine Premium Kreditkarte. Bis zu 25.000€ Limit.</title>

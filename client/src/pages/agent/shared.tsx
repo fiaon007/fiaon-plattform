@@ -124,12 +124,19 @@ export async function api(path: string, init?: RequestInit): Promise<any> {
 
 // ── Navigation (Paket AO: 5 klare Punkte; Unterseiten markieren den Bereich) ─
 const NAV: { href: string; label: string; icon: typeof Users; match: string[] }[] = [
-  { href: "/agent", label: "Mein Tag", icon: LayoutDashboard, match: ["/agent"] },
-  // Offene Kartei: ein gemeinsamer Bestand statt getrennter Leads-/Kunden-Silos.
-  // Die alten Pfade bleiben als Route erreichbar (Übergangsphase), sind aber
-  // bewusst nicht mehr in der Navigation.
-  { href: "/agent/kartei", label: "Kartei", icon: PhoneCall, match: ["/agent/kartei", "/agent/leads"] },
-  { href: "/agent/meine-kunden", label: "Meine Kunden", icon: Users, match: ["/agent/meine-kunden", "/agent/kunden"] },
+  // „Mein Tag“ (/agent) ist bewusst KEIN Menüpunkt mehr: Die Seite bezieht ihre
+  // Zahlen aus /agent/kartei/status und /agent/kartei/segmente, und die Kartei
+  // ist abgeschaltet. Sie wäre eine leere Seite mit Nullen. Angemeldete Agenten
+  // werden von /agent direkt auf „Heute“ geleitet.
+  // „Heute“ ersetzt die offene Kartei. Der Unterschied ist nicht die Optik: In
+  // der Kartei suchte sich der Agent Akten aus einem gemeinsamen Bestand, hier
+  // bekommt er seine Kunden zugewiesen. Der Kartei-Eintrag ist entfernt, weil
+  // die Kartei abgeschaltet ist und ein Menüpunkt ins Leere zeigen würde.
+  { href: "/agent/heute", label: "Heute", icon: PhoneCall, match: ["/agent/heute"] },
+  // Zeigt auf /agent/kunden, NICHT auf /agent/meine-kunden: Letztere Seite holt
+  // ihre Liste aus /agent/kartei/meine, und das antwortet mit 410. Ein
+  // Menüpunkt, der auf eine leere Seite führt, ist schlimmer als keiner.
+  { href: "/agent/kunden", label: "Meine Kunden", icon: Users, match: ["/agent/kunden", "/agent/meine-kunden"] },
   { href: "/agent/kalender", label: "Kalender", icon: Calendar, match: ["/agent/kalender"] },
   { href: "/agent/verdienst", label: "Verdienst", icon: Wallet, match: ["/agent/verdienst", "/agent/auszahlung", "/agent/partner-programm"] },
   { href: "/agent/mehr", label: "Mehr", icon: MoreHorizontal, match: ["/agent/mehr", "/agent/skripte", "/agent/updates", "/agent/feedback", "/agent/profil", "/agent/leistung", "/agent/dokumente"] },
@@ -444,8 +451,21 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
 
   useEffect(() => {
     if (!agent) return;
-    const holen = () => api("/agent/kartei/status")
-      .then((r) => { if (r.ok) setRuecklaeufer(r.json.ruecklaeufer?.anzahl || 0); })
+    // Quelle ist das CRM-Dashboard, NICHT mehr /agent/kartei/status: Die Kartei
+    // ist abgeschaltet und antwortet dort mit 410. Ein Poll alle zwei Minuten
+    // gegen einen 410er hätte den Zähler still auf 0 stehen lassen.
+    // Gezählt wird ALLES, was auf „Heute" oben zu tun ist: heute fällig PLUS
+    // gemeldete Zahlungen ohne Geldeingang PLUS überfällige Zusagen. Nur
+    // `heuteFaellig` wäre irreführend — bei Daniel steht das auf 0, während
+    // 26 gemeldete Zahlungen und 10 überfällige Zusagen auf ihn warten. Ein
+    // Badge, der 0 zeigt, obwohl 36 Vorgänge offen sind, ist schlimmer als
+    // keiner: der Agent hält die Seite für abgearbeitet.
+    const holen = () => api("/agent/crm/dashboard")
+      .then((r) => {
+        if (!r.ok) return;
+        const z = r.json.zahlen ?? {};
+        setRuecklaeufer((z.heuteFaellig || 0) + (z.ohneDatum || 0) + (z.ueberfaellig || 0));
+      })
       .catch(() => {});
     holen();
     const iv = setInterval(holen, 120_000);
@@ -488,6 +508,13 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
     if (checked && !agent && location !== "/agent") navigate("/agent");
   }, [checked, agent, location, navigate]);
 
+  // Startseite nach dem Login ist „Heute“. /agent bleibt die Anmeldeseite für
+  // Nichtangemeldete — deshalb hängt die Weiterleitung an `agent`, nicht am Pfad
+  // allein, und kann nicht in einer Schleife enden.
+  useEffect(() => {
+    if (checked && agent && location === "/agent") navigate("/agent/heute", { replace: true });
+  }, [checked, agent, location, navigate]);
+
   const logout = async (e: React.MouseEvent) => {
     e.stopPropagation();
     await fetch("/api/fiaon/agent/logout", { method: "POST", credentials: "include" }).catch(() => {});
@@ -503,8 +530,8 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
   // Wer hier etwas eintraegt, muss es einem Menuepunkt zuordnen — sonst kann
   // es nicht gezaehlt werden.
   const zaehler: Record<string, number> = {
-    // Akten, die bald in die Kartei zurueckfallen — dort wird sie bearbeitet.
-    "/agent/kartei": ruecklaeufer,
+    // Kunden, die heute fällig sind — bearbeitet werden sie auf „Heute“.
+    "/agent/heute": ruecklaeufer,
     // Neuerungen und Betreiber-Antworten liegen beide unter „Mehr".
     "/agent/mehr": neueUpdates + fbUnread,
   };
@@ -512,7 +539,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
   // Der schwebende Knopf entfällt dort, wo die Handlung schon auf der Seite
   // steht: in der Kartei selbst und auf der Startseite (dort ist „Nächste Akte
   // öffnen" die EINE grosse Primäraktion — ein zweiter Knopf wäre Konkurrenz).
-  const eigeneAktionVorhanden = location === "/agent" || location.startsWith("/agent/kartei");
+  const eigeneAktionVorhanden = location === "/agent" || location.startsWith("/agent/heute");
 
   if (!checked) {
     return (

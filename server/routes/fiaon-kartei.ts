@@ -68,7 +68,7 @@ router.use(async (req: Request, res: Response, next) => {
   return res.status(410).json({
     ok: false,
     error: "Die Kunden-Kartei ist abgelöst. Kunden werden jetzt über Personen mit Tiering zugewiesen.",
-    ersetztDurch: req.path.startsWith("/agent") ? "/agent/kunden" : "/admin/personen",
+    ersetztDurch: req.path.startsWith("/agent") ? "/agent/heute" : "/admin/personen",
     einstellung: "kartei_enabled",
   });
 });

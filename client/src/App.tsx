@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ComponentType } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -58,11 +58,9 @@ import AgentSkriptePage from "@/pages/agent/skripte";
 import AgentKalenderPage from "@/pages/agent/kalender";
 import AgentPartnerProgrammPage from "@/pages/agent/partner-programm";
 import AgentKundenPage from "@/pages/agent/kunden";
-import AgentKarteiPage from "@/pages/agent/kartei";
 // Nachgeladen statt statisch importiert: Die Seite wird nur von den Agenten
 // gebraucht und würde das Hauptbündel für alle anderen Besucher vergrössern.
 const AgentHeutePage = lazy(() => import("@/pages/agent/heute"));
-import AgentMeineKundenPage from "@/pages/agent/meine-kunden";
 import AgentVerdienstPage from "@/pages/agent/verdienst";
 import AgentUpdatesPage from "@/pages/agent/updates";
 import AgentFeedbackPage from "@/pages/agent/feedback";
@@ -160,8 +158,13 @@ function Router() {
       {/* Die Arbeitsseite, die die offene Kartei abloest: zugewiesene Kunden
           nach Dringlichkeit statt gemeinsamer Bestand. */}
       <Route path="/agent/heute" component={AgentHeutePage} />
-      <Route path="/agent/kartei" component={AgentKarteiPage} />
-      <Route path="/agent/meine-kunden" component={AgentMeineKundenPage} />
+      {/* Die Kartei ist abgeschaltet. Beide Pfade zeigen NICHT mehr auf sie,
+          sondern leiten weiter — ein Lesezeichen darf nicht auf einer Seite
+          landen, deren Endpunkte mit 410 antworten. Die Seiten selbst bleiben
+          im Repository, damit die Umschaltung rückholbar bleibt. */}
+      <Route path="/agent/kartei"><Redirect to="/agent/heute" /></Route>
+      {/* /agent/meine-kunden speist sich aus /agent/kartei/meine — ebenfalls 410. */}
+      <Route path="/agent/meine-kunden"><Redirect to="/agent/heute" /></Route>
       {/* Alte Ansichten bleiben erreichbar, bis die Kartei im Betrieb bestätigt
           ist — kein Zwischenzustand, in dem ein Agent seine Akten nicht findet. */}
       <Route path="/agent/kunden" component={AgentKundenPage} />

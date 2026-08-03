@@ -3,6 +3,46 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 03.08.2026 — Bezahlte Bonitätsauskünfte wurden stillschweigend gelöscht
+
+Wer eine **Bonitätsauskunft (74 €)** bestellte und danach sein Konto aktivierte, verlor die Auskunft — ohne Hinweis, ohne Eintrag, ohne dass irgendwer es merkte. Der Grund: Nach jeder Zahlung suchte das System nach „Dubletten" und legte **jede** offene Bestellung derselben E-Mail still. Es fragte nie, ob es überhaupt dasselbe Produkt war.
+
+Es traf beide Richtungen. Eine Bonitätszahlung von 74 € hat auch schon eine **FIAON-Ultra-Bestellung zu 79,99 €** getötet. Betroffen waren 12 lebende Bestellungen.
+
+**Was jetzt gilt:** Stillgelegt wird nur innerhalb derselben Produktkategorie. Stufenpakete (Starter/Pro/Ultra/High End) schließen sich gegenseitig aus — bezahlt jemand Ultra, ist seine offene Pro-Bestellung zu Recht erledigt, denn ein Konto hat genau eine Stufe. Die Bonitätsauskunft ist davon unabhängig und wird nicht mehr angetastet. Die Unterscheidung läuft über das Kennzeichen `type='schufa'`, nicht über den Produktnamen: Derselbe Tarif existiert im Bestand unter zwei Schreibweisen, ein Namensvergleich hätte echte Dubletten übersehen.
+
+Zusätzlich abgestellt: Der Verweis „ersetzt durch" zeigte teils auf Bestellungen, die es nicht gibt. Er wird jetzt geprüft, bevor er gespeichert wird — sonst ist später nicht mehr nachvollziehbar, wodurch eine Bestellung ersetzt wurde.
+
+**Zu finden:** `server/routes/fiaon-antrag.ts` → `supersedeSisterOrders`. Prüfliste: `scripts/sql/superseded-falsch.sql`.
+
+## 03.08.2026 — Neue Seite: Verbuchung mit Vorschau vor dem Klick
+
+Bisher zeigte der Kontoabgleich alle Bankeingänge gleichwertig. Ob ein Klick eine Mail an den Kunden auslöst, eine Provision bucht oder eine andere Bestellung stilllegt, stand nirgends — man musste es wissen.
+
+**`/admin/verbuchung`** zeigt nur die Eingänge, bei denen etwas zu entscheiden ist, in vier getrennten Fällen: verbuchen, Zuordnung korrigieren, fälschlich stillgelegt, ohne Zuordnung. Jede Zeile lässt sich aufklappen und sagt vorher, was passiert: welcher Statuswechsel, welche Bestellungen mitbetroffen sind, ob eine Bestätigungsmail rausgeht und **wer die Provision bekommt**.
+
+Damit die Vorschau nicht von der Wirklichkeit abweichen kann, wurde die Provisionsentscheidung aus dem Buchungsvorgang herausgelöst (`ermittleProvisionsAnspruch`). Vorschau und echte Buchung fragen jetzt dieselbe Funktion — es gibt keine zweite Kopie der Regeln, die auseinanderlaufen könnte.
+
+„Zuordnung korrigieren" löst **bewusst keine Buchung** aus: Dort gehört das Geld zu einer längst bezahlten Bestellung, und nur die Bank-Verknüpfung war falsch.
+
+**Zu finden:** `server/routes/fiaon-verbuchung.ts`, `client/src/pages/admin-verbuchung.tsx`.
+
+## 03.08.2026 — Ein Kunde, ein Zuständiger — jetzt von der Datenbank erzwungen
+
+Die Zuständigkeit hing am einzelnen Antrag. Ein Kunde mit acht Bestellungen konnte acht Zuständige haben — die Ursache der 26 Zuweisungskonflikte. Seit dem CRM-Umbau ist die **Person** der Besitzer, aber jede Schreibstelle im Code musste selbst daran denken, die Antragszeilen mitzuziehen. Genau dieses „daran denken müssen" hat die Konflikte erzeugt: Eine Stelle vergisst es, und ab da hat ein Kunde zwei Zuständige.
+
+Diese Regel hält jetzt die Datenbank selbst. Wechselt der Besitzer einer Person, folgen ihre Antragszeilen ohne Zutun des Aufrufers, und es entsteht eine Beweiszeile mit **vorherigem und neuem** Zuständigen — die Grundlage für jeden Provisionsstreit. Die Regel lässt sich nicht mehr durch eine neue Schreibstelle umgehen, auch nicht durch ein manuelles `UPDATE` in der Konsole.
+
+**Zu finden:** `db/migrations/033_person_ownership_trigger.sql`. Rücknahme: `db/rollback/033_…`. Nachweis: `scripts/sql/test-033-trigger.sql`.
+
+## 03.08.2026 — Die offene Kunden-Kartei ist abgelöst
+
+Zwei konkurrierende Zuweisungsmodelle gleichzeitig laufen zu lassen führt zuverlässig zurück in doppelte Zuständigkeiten: Der Agent übernimmt eine Karte, die Verteilung vergibt dieselbe Person an jemand anderen, und beide halten sich für zuständig.
+
+Die Kartei-Endpunkte antworten deshalb mit **410 Gone** und einem Verweis auf den Nachfolger. Bewusst nicht 404 — diese Endpunkte haben existiert und sind abgeschaltet; ein 404 würde jeden Fehlersuchenden in die falsche Richtung schicken. Der Code bleibt vollständig stehen: Zurückschalten ist eine Änderung **einer** Einstellung (`kartei_enabled`), keine Wiederherstellung aus dem Verlauf.
+
+**Zu finden:** `server/routes/fiaon-kartei.ts`, oberste Prüfung.
+
 ## 29.07.2026 — 3.236 Funnel-Abbrecher sind Entwürfe, keine Kunden
 
 54 % des Zeilenbestands haben **weder E-Mail noch Telefon**. Der Antrags-Funnel speichert bei jedem Schritt-Wechsel; wer vor dem Kontaktschritt abspringt, hinterlässt genau so eine Zeile. Das ist kein Kunde, kein Lead und kein Interessent — man kann diese Menschen nicht einmal erreichen.

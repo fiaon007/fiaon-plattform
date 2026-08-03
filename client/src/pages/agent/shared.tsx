@@ -577,8 +577,14 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
   return (
     <AgentCtx.Provider value={{ agent, reload: load }}>
       <div className="agent-scope agent-ambient min-h-screen text-slate-900 pb-20 md:pb-10">
-        <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-slate-200">
-          <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+        {/* Kopfbereich ist eine SCHWEBENDE Ebene und deshalb Glas: blur(20px)
+            mit saturate(180%), heller Innenrand oben, darunter eine haarfeine
+            Linie. Der Inhalt darunter bleibt erahnbar — das verankert die
+            Leiste räumlich, statt sie wie ein Deckel aufzusetzen.
+            Karten bekommen dieses Glas NICHT; sie sind massiv. */}
+        <header className="fi-glas sticky top-0 z-30">
+          <div className="mx-auto px-4 h-14 flex items-center justify-between gap-4"
+               style={{ maxWidth: "var(--fi-breite-max)" }}>
             <div className="flex items-center gap-3 md:gap-6 min-w-0">
               {/* Menue-Ausloeser: nur mobil, oben links im Daumenbereich. */}
               <button
@@ -682,16 +688,25 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
 }
 
 // ── Kleine Bausteine ─────────────────────────────────────────────────────────
+/**
+ * Die Karte des Hauses. Zieht ihr Aussehen aus `.fi-karte` in
+ * fiaon-design.css: massives Weiß, 14px Radius, dreistufiger Schatten mit
+ * Blauanteil, Glanzkante oben.
+ *
+ * Bewusst über EINE Klasse statt über Tailwind-Utilities: Alle Agentenseiten
+ * benutzen diese Komponente, und wenn die Gestaltung an einer Stelle definiert
+ * ist, können /agent/heute und /agent/kunden gar nicht auseinanderlaufen.
+ */
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`bg-white border border-slate-200 rounded-xl ${className}`}>{children}</div>;
+  return <div className={`fi-karte ${className}`}>{children}</div>;
 }
 
 export function KpiCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <Card className="p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">{label}</p>
-      <p className="text-xl font-bold tracking-tight text-slate-900 tabular-nums">{value}</p>
-      {sub && <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>}
+      <p className="fi-stat-label mb-3">{label}</p>
+      <p className="fi-stat-zahl" style={{ color: "var(--fi-text)" }}>{value}</p>
+      {sub && <p className="text-[12px] mt-1.5" style={{ color: "var(--fi-text-still)" }}>{sub}</p>}
     </Card>
   );
 }
@@ -716,7 +731,11 @@ export function FlashMessage({ message }: { message: string | null }) {
 }
 
 export const inputCls =
-  "w-full px-3.5 py-2.5 rounded-lg border border-slate-200 bg-white text-[14px] text-slate-900 placeholder:text-slate-400 focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/10 outline-none transition-colors";
+  "w-full px-3.5 py-2.5 rounded-[10px] border bg-white text-[14px] text-[color:var(--fi-text)] " +
+  "placeholder:text-[color:var(--fi-text-still)] border-[color:var(--fi-linie)] " +
+  "hover:border-[color:var(--fi-linie-hover)] " +
+  "focus:border-[color:var(--fi-primaer)] focus:ring-2 focus:ring-[color:var(--fi-primaer)]/10 " +
+  "outline-none transition-colors duration-[120ms]";
 
 // ── PROMPT 2/2 · A — EIN modaler Bestätigungsdialog (ersetzt den Doppel-Tap) ──
 // Zentriert auf Desktop, Bottom-Sheet auf Mobile. Fokus-Falle (Tab bleibt im
@@ -845,8 +864,11 @@ export function ConfirmDialog({
   );
 }
 
+// Primär- und Sekundäraktion kommen aus denselben Klassen wie auf
+// /agent/heute. Der Blauverlauf ist der EINZIGE im Interface und ausschliesslich
+// der Primäraktion vorbehalten.
 export const btnPrimary =
-  "px-4 py-2.5 rounded-lg text-white text-[13px] font-semibold transition-colors disabled:opacity-40 bg-[#2563eb] hover:bg-[#1d4fd7]";
+  "fi-primaerknopf px-4 py-2.5 text-white text-[13px] font-semibold disabled:opacity-40";
 
 export const btnGhost =
-  "px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-[13px] font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-800 transition-colors disabled:opacity-40";
+  "fi-zweitknopf px-4 py-2.5 text-[13px] font-medium";

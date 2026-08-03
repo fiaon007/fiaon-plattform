@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link } from "wouter";
 import {
-  Phone, FileText, X, ChevronDown, ChevronRight, Lock,
-  CheckCircle2, Search, Send, CalendarPlus, Info, Pencil, AlertTriangle,
-  Archive, PhoneCall, Undo2,
-} from "lucide-react";
+  ZeichenHaken, ZeichenSchliessen, ZeichenTelefon, ZeichenWinkel, ZeichenZurueck,
+} from "@/lib/fiaon-zeichen";
 import {
   AgentShell, Badge, Card, FlashMessage, useAgentInfo, ConfirmDialog,
   api, fmtEur, fmtD, fmtDT, inputCls, btnPrimary, btnGhost, ACCENT,
@@ -12,6 +10,41 @@ import {
 import { SuccessPulse } from "./motion";
 import { KontaktErgebnis, KUNDE_GRUPPEN } from "./kontakt-ergebnis";
 import { jetztFuerEingabe } from "./zeit-eingabe";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KEINE Icon-Bibliothek mehr im Kundenbereich (03.08.2026)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Diese Datei benutzte 16 lucide-Symbole an 22 Stellen. Statt 22 Einzelstellen
+// umzubauen, liegt die Zuordnung hier an EINER Stelle:
+//
+//   · Was fachlich ein Symbol braucht, bekommt eines unserer fünf Zeichen.
+//   · Alles andere wird zu `null` und verschwindet — die Beschriftung daneben
+//     trug die Bedeutung ohnehin allein. „Rechnung (PDF) öffnen" braucht kein
+//     Blatt-Symbol, „Mögliche Dublette" kein Warndreieck.
+//
+// Das ist kein Notbehelf, sondern die Absicht: Ein Interface, in dem jede
+// zweite Zeile bebildert ist, wirkt unruhig und billig. Übrig bleiben Telefon,
+// Schließen, Winkel, Zurück und Haken — dieselben fünf wie auf /agent/heute.
+type ZeichenProps = { size?: number; strokeWidth?: number; className?: string };
+
+const Leer = (_p: ZeichenProps) => null;
+const Phone = ZeichenTelefon;
+const PhoneCall = ZeichenTelefon;
+const X = ZeichenSchliessen;
+const ChevronDown = (p: ZeichenProps) => <ZeichenWinkel {...p} richtung="unten" />;
+const ChevronRight = (p: ZeichenProps) => <ZeichenWinkel {...p} richtung="rechts" />;
+const CheckCircle2 = ZeichenHaken;
+const Undo2 = ZeichenZurueck;
+const FileText = Leer;
+const Lock = Leer;
+const Search = Leer;
+const Send = Leer;
+const CalendarPlus = Leer;
+const Info = Leer;
+const Pencil = Leer;
+const AlertTriangle = Leer;
+const Archive = Leer;
 
 // ============================================================================
 // /agent/kunden — Arbeitsliste (NUR unbezahlte Kunden) + Kundendetail-Sheet.

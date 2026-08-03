@@ -28,14 +28,15 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Link } from "wouter";
 import { AgentShell } from "./shared";
 import {
-  Skelett, Tilt, ToastAnbieter, Zahl, ZeitAngabe,
-  datum, eintritt, eur, useReduzierteBewegung, useToast,
+  Ebene, KURVE, Skelett, Tilt, ToastAnbieter, Zahl, ZeitAngabe,
+  datum, eintritt, eur, useImBild, useReduzierteBewegung, useToast,
 } from "@/lib/fiaon-ui";
+import { LeerForm, ZeichenSchliessen, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
 
-// KEINE Icon-Komponenten auf dieser Seite. Wo vorher ein Symbol stand, steht
-// jetzt Text — ein Agent, der „Anrufen“ liest, muss nicht raten, was ein
-// Hörer-Symbol bedeutet. Die farbigen Balken und Punkte sind Flächen, keine
-// Symbole. Die Emojis in den Tab-Namen sind ausdrückliche Vorgabe.
+// KEINE Icon-Bibliothek und KEINE Emojis. Symbole kommen aus `fiaon-zeichen`
+// — fünf selbstgezeichnete SVG, alle nach denselben Regeln. Überall sonst
+// steht Text. Farbe ist Information: Statuskante, Statuspunkt, Primäraktion.
+// Nichts davon ist Dekoration.
 
 // ───────────────────────────────────────────────────────────────────────────
 async function apiF(pfad: string, init?: RequestInit) {
@@ -62,8 +63,11 @@ type Kunde = {
 function tierFarbe(tier: number) {
   return tier === 1 ? "var(--fi-tier1)" : tier === 2 ? "var(--fi-tier2)" : "var(--fi-tier3)";
 }
-function tierTint(tier: number) {
-  return tier === 1 ? "#fef2f2" : tier === 2 ? "var(--fi-warnung-tint)" : "#f1f5f9";
+/** Statusfläche: höchstens 3 % Deckkraft. Farbe informiert, sie färbt nicht. */
+function tierFlaeche(tier: number) {
+  return tier === 1 ? "var(--fi-flaeche-tier1)"
+    : tier === 2 ? "var(--fi-flaeche-tier2)"
+    : "var(--fi-flaeche-tier3)";
 }
 
 /** Tage zwischen heute und einem Datum in der Vergangenheit. */
@@ -203,8 +207,10 @@ function Seite() {
   }, [liste]);
 
   return (
-    <div className="pb-4">
-      <div className="max-w-[720px] mx-auto">
+    <div className="pb-10">
+      {/* 1180px statt 720: Auf dem Schreibtisch stand die Seite als schmale
+          Säule mitten im Nichts. Die Karten dürfen atmen. */}
+      <div className="mx-auto" style={{ maxWidth: "var(--fi-breite-max)" }}>
         <Willkommen offen={tourOffen} onFertig={tourWegklicken} />
 
         {/* ── 1 · Begrüßung + Kennzahlen ──────────────────────────────── */}
@@ -247,39 +253,37 @@ function Seite() {
 
             2 Spalten auf dem Handy, 5 ab sm. `items-stretch` hält alle Karten
             auf gleicher Höhe, auch wenn ein Titel zweizeilig bricht. */}
-        <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2.5 items-stretch">
+        <div className="mt-6 fi-buehne grid grid-cols-2 sm:grid-cols-5 gap-2.5 items-stretch">
           {laedt
             ? [0, 1, 2, 3, 4].map((i) => (
-                <div key={i} className="p-3 rounded-2xl bg-white border" style={{ borderColor: "var(--fi-linie)" }}>
+                <div key={i} className={`fi-karte p-4 ${i === 4 ? "col-span-2 sm:col-span-1" : ""}`}>
                   <Skelett h={10} w="70%" />
-                  <div className="mt-2.5"><Skelett h={24} w="45%" /></div>
+                  <div className="mt-4"><Skelett h={30} w="45%" /></div>
                 </div>
               ))
             : [
                 { titel: "Heute fällig", wert: zahlen?.heuteFaellig ?? 0, farbe: "var(--fi-tier1)" },
-                { titel: "Zahlung gemeldet", wert: zahlen?.ohneDatum ?? 0, farbe: "var(--fi-warnung)" },
-                { titel: "Überfällig", wert: zahlen?.ueberfaellig ?? 0, farbe: "var(--fi-fehler)" },
+                { titel: "Zahlung gemeldet", wert: zahlen?.ohneDatum ?? 0, farbe: "var(--fi-tier2)" },
+                { titel: "Überfällig", wert: zahlen?.ueberfaellig ?? 0, farbe: "var(--fi-tier1)" },
                 { titel: "Liegengeblieben", wert: zahlen?.eskalation ?? 0, farbe: "var(--fi-tier3)" },
                 { titel: "Abschlüsse 30 Tg.", wert: zahlen?.abschluesse30Tage ?? 0, farbe: "var(--fi-erfolg)" },
               ].map((k, i) => (
-                // 80ms Versatz: Die Zahlen zählen nacheinander hoch, nicht alle
-                // gleichzeitig. Gleichzeitig wirkt es wie ein Ruckeln, versetzt
-                // wie eine Bewegung.
-                <motion.div key={k.titel} {...eintritt(reduziert, i, 80)} className="h-full">
-                  <Tilt tiefe
-                        className="h-full p-3 rounded-2xl border flex flex-col justify-between"
-                        style={{
-                          borderColor: "var(--fi-linie)",
-                          // Sehr dezenter Verlauf in der Kategoriefarbe: 4%
-                          // oben, weiss unten. Genug, um die Karten
-                          // unterscheidbar zu machen, zu wenig, um zu färben.
-                          background: `linear-gradient(160deg, color-mix(in srgb, ${k.farbe} 4%, #fff) 0%, #fff 70%)`,
-                        }}>
-                    <p className="text-[9.5px] font-bold uppercase tracking-[0.08em] leading-tight"
-                       style={{ color: "var(--fi-text-still)" }}>
-                      {k.titel}
-                    </p>
-                    <p className="mt-2 text-[26px] font-bold leading-none fi-zahl" style={{ color: k.farbe }}>
+                // 80ms Versatz: Die Zahlen zählen nacheinander hoch. Gleichzeitig
+                // wirkt es wie ein Ruckeln, versetzt wie eine Bewegung.
+                //
+                // Die fünfte Karte liegt auf dem Handy in voller Breite unter dem
+                // 2×2-Raster. Bei fünf Karten in zwei Spalten bliebe sonst eine
+                // halbe Zeile leer — das sieht nach Fehler aus, nicht nach Raster.
+                <motion.div key={k.titel} {...eintritt(reduziert, i, 80)}
+                            className={`h-full ${i === 4 ? "col-span-2 sm:col-span-1" : ""}`}>
+                  <Tilt tiefe className="fi-karte h-full p-4 flex flex-col justify-between">
+                    <div className="flex items-center gap-1.5">
+                      {/* Statusfarbe als Punkt — die Fläche bleibt weiß. */}
+                      <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full shrink-0"
+                            style={{ background: k.farbe }} />
+                      <span className="fi-stat-label leading-tight">{k.titel}</span>
+                    </div>
+                    <p className="fi-stat-zahl mt-4" style={{ color: "var(--fi-text)" }}>
                       <Zahl wert={k.wert} />
                     </p>
                   </Tilt>
@@ -360,24 +364,31 @@ function Seite() {
               const ist = tab === t;
               // Sprechende Namen statt „Priorität 1/2/3“. Eine Zahl sagt einem
               // neuen Agenten nichts — der Grund sagt ihm, was ihn erwartet.
-              const name = t === 1 ? "🔥 Zahlung gemeldet"
-                : t === 2 ? "📄 Antrag & Rechnung"
-                : "📥 Neue Leads";
+              // KEINE Emojis: Die Kategorie trägt Text und einen Farbpunkt.
+              // Ein Emoji hätte auf jedem Betriebssystem eine andere
+              // Anmutung und hätte die Beschriftung zum Aufkleber gemacht.
+              const name = t === 1 ? "Zahlung gemeldet"
+                : t === 2 ? "Antrag & Rechnung"
+                : "Neue Leads";
               return (
                 <button key={t} onClick={() => { setTab(t); setGrundFilter(""); }}
-                        className="relative px-3.5 py-2.5 text-[13px] font-semibold whitespace-nowrap
-                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fi-border-aktiv)] rounded-t-lg"
-                        style={{ color: ist ? tierFarbe(t) : "var(--fi-text-leise)" }}>
+                        className="relative flex items-center gap-2 px-4 py-3 text-[13px] font-semibold whitespace-nowrap
+                                   transition-colors duration-[120ms]
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fi-primaer)] rounded-t-lg"
+                        style={{ color: ist ? "var(--fi-text)" : "var(--fi-text-still)" }}>
+                  {/* Farbe als Punkt, nicht als Füllfläche. */}
+                  <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ background: tierFarbe(t), opacity: ist ? 1 : 0.4 }} />
                   {name}
-                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold fi-zahl"
-                        style={{ background: ist ? tierTint(t) : "#f1f5f9", color: ist ? tierFarbe(t) : "var(--fi-text-still)" }}>
+                  <span className="fi-zahl text-[12px] font-semibold"
+                        style={{ color: ist ? "var(--fi-text-leise)" : "var(--fi-text-still)" }}>
                     {anzahl ?? 0}
                   </span>
                   {ist && (
                     <motion.div layoutId="agent-tier-indikator"
                       className="absolute left-0 right-0 -bottom-px h-[2px] rounded-full"
-                      style={{ background: tierFarbe(t) }}
-                      transition={reduziert ? { duration: 0.15 } : { type: "spring", stiffness: 420, damping: 32 }} />
+                      style={{ background: "var(--fi-primaer)" }}
+                      transition={reduziert ? { duration: 0.15 } : { type: "spring", stiffness: 420, damping: 34 }} />
                   )}
                 </button>
               );
@@ -453,48 +464,49 @@ function Abschnitt({
 }) {
   const [offen, setOffen] = useState(false);
   const reduziert = useReduzierteBewegung();
+  const { ref, drin } = useImBild<HTMLElement>();
 
   return (
-    // Scroll-Reveal statt Alles-auf-einmal: Der Abschnitt blendet ein, wenn er
-    // ins Bild kommt. `once` verhindert das Flackern beim Zurückscrollen,
-    // `margin` löst kurz VOR der Kante aus — sonst sieht man das Einblenden erst,
-    // wenn der Abschnitt schon halb sichtbar ist.
-    <motion.section
-      initial={reduziert ? { opacity: 0 } : { opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={reduziert ? { duration: 0.2 } : { duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-      className={hero ? "mt-12" : "mt-12"}
+    // Scroll-Reveal über EINEN IntersectionObserver pro Abschnitt statt über
+    // `whileInView` an jedem Element — bei 60 Karten wären das 60 Beobachter.
+    <section
+      ref={ref}
+      className="transition-all"
+      style={{
+        marginTop: "var(--fi-raum-abschnitt)",
+        opacity: drin ? 1 : 0,
+        transform: drin || reduziert ? "none" : "translateY(20px)",
+        transitionDuration: reduziert ? "150ms" : "var(--fi-ebene)",
+        transitionTimingFunction: "var(--fi-kurve)",
+      }}
     >
-      <div className="flex items-center gap-2.5">
-        {/* Farbbalken statt Symbol: eine Fläche, die die Dringlichkeit zeigt.
-            Wächst beim Eintritt von 0 auf volle Höhe — die Bewegung führt das
-            Auge an den Titel, statt ihn fertig hinzustellen. */}
-        <motion.span
+      <div className="flex items-center gap-3">
+        {/* Statuskante als Balken. Wächst von OBEN nach unten — die Bewegung
+            läuft in Leserichtung und führt das Auge auf den Titel. */}
+        <span
           aria-hidden="true"
-          className="w-[3px] rounded-full shrink-0 origin-center"
-          style={{ background: farbe, height: hero ? 22 : 18 }}
-          initial={reduziert ? { opacity: 0 } : { scaleY: 0 }}
-          whileInView={reduziert ? { opacity: 1 } : { scaleY: 1 }}
-          viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
+          className="w-[3px] rounded-full shrink-0"
+          style={{
+            background: farbe,
+            height: 24,
+            transformOrigin: "top",
+            transform: drin || reduziert ? "scaleY(1)" : "scaleY(0)",
+            transition: reduziert ? "none" : "transform 320ms var(--fi-kurve) 80ms",
+          }}
         />
-        <h2 className={`font-bold ${hero ? "text-[17px]" : "text-[15px]"}`} style={{ color: "var(--fi-text)" }}>
-          {titel}
-        </h2>
+        <h2 className="fi-abschnitt-titel" style={{ color: "var(--fi-text)" }}>{titel}</h2>
         {!laedt && (
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold fi-zahl"
-                style={{ background: `${farbe}14`, color: farbe }}>
+          <span className="fi-zahl text-[15px] font-semibold" style={{ color: "var(--fi-text-still)" }}>
             {anzahl}
           </span>
         )}
         {erklaerung && (
           <button onClick={() => setOffen((o) => !o)}
                   aria-label={`Erklärung zu ${titel}`} aria-expanded={offen}
-                  className="ml-auto w-7 h-7 rounded-lg flex items-center justify-center text-[15px] font-bold
-                             transition-colors hover:bg-slate-100"
+                  className="ml-auto w-8 h-8 rounded-[10px] flex items-center justify-center
+                             transition-colors duration-[120ms] hover:bg-slate-50"
                   style={{ color: "var(--fi-text-still)" }}>
-            ⓘ
+            <ZeichenWinkel size={16} richtung={offen ? "oben" : "unten"} />
           </button>
         )}
       </div>
@@ -511,58 +523,29 @@ function Abschnitt({
         </div>
       )}
 
-      {/* 12px zwischen Karten: Sie gehören zusammen und sollen als Gruppe
-          lesbar sein. Der große Abstand (48px) trennt die Abschnitte. */}
-      <div className="mt-3 space-y-3">
+      {/* Karten eng gruppiert (10px), Abschnitte weit getrennt (56px). Das
+          Verhältnis macht die Gruppen lesbar, nicht die Linien. */}
+      <div className="fi-buehne mt-4 flex flex-col" style={{ gap: "var(--fi-raum-karten)" }}>
         {laedt ? [0, 1].map((i) => <KartenSkelett key={i} />)
           : anzahl === 0 ? <LeerHinweis text={leer} testkonto={testkonto} />
           : children}
       </div>
-    </motion.section>
-  );
-}
-
-/**
- * Selbstgezeichnete Illustration für leere Listen — keine Icon-Bibliothek.
- *
- * Drei abgehakte Zeilen auf einem Blatt, in CI-Blau, mit abnehmender Deckkraft
- * nach unten. Abstrakt genug, um für jeden leeren Abschnitt zu passen (erledigt,
- * nichts zugewiesen, keine Treffer), und ruhig genug, um nicht selbst zum
- * Blickfang zu werden.
- */
-function LeerBild() {
-  const reduziert = useReduzierteBewegung();
-  return (
-    <motion.svg
-      width="88" height="66" viewBox="0 0 88 66" fill="none" aria-hidden="true" className="mx-auto"
-      initial={reduziert ? { opacity: 0 } : { opacity: 0, scale: 0.94 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-    >
-      {/* Blatt */}
-      <rect x="14" y="4" width="60" height="58" rx="8"
-            stroke="var(--fi-primaer)" strokeOpacity="0.22" strokeWidth="1.5" fill="var(--fi-primaer)" fillOpacity="0.03" />
-      {/* Drei Zeilen mit Haken, nach unten leiser */}
-      {[0, 1, 2].map((i) => (
-        <g key={i} opacity={0.5 - i * 0.13}>
-          <path d={`M24 ${20 + i * 14} l3.4 3.4 L34 ${16.6 + i * 14}`}
-                stroke="var(--fi-primaer)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          <rect x="40" y={`${17 + i * 14}`} width={24 - i * 6} height="3.5" rx="1.75"
-                fill="var(--fi-primaer)" />
-        </g>
-      ))}
-    </motion.svg>
+    </section>
   );
 }
 
 function LeerHinweis({ text, zusatz, testkonto }: { text: string; zusatz?: string; testkonto?: boolean }) {
+  const reduziert = useReduzierteBewegung();
   return (
-    <div className="py-8 px-5 text-center rounded-2xl bg-white border"
-         style={{ borderColor: "var(--fi-linie)", boxShadow: "var(--fi-schatten-ruhe), var(--fi-glanzkante)" }}>
-      <LeerBild />
-      <p className="mt-4 text-[13.5px] font-semibold" style={{ color: "var(--fi-text)" }}>{text}</p>
+    <motion.div className="fi-karte py-12 px-6 text-center"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                transition={{ duration: reduziert ? 0.15 : 0.4, ease: KURVE }}>
+      {/* Eine Form, kein Bildchen: konzentrische Kreise bedeuten nichts
+          Bestimmtes und können deshalb in keinem Zusammenhang falsch sein. */}
+      <LeerForm size={88} />
+      <p className="mt-5 text-[15px] font-semibold" style={{ color: "var(--fi-text)" }}>{text}</p>
       {zusatz && (
-        <p className="mt-1.5 text-[12.5px] leading-relaxed max-w-[380px] mx-auto" style={{ color: "var(--fi-text-leise)" }}>
+        <p className="mt-2 fi-fliesstext max-w-[420px] mx-auto" style={{ color: "var(--fi-text-leise)" }}>
           {zusatz}
         </p>
       )}
@@ -571,13 +554,17 @@ function LeerHinweis({ text, zusatz, testkonto }: { text: string; zusatz?: strin
           Verteilung ausgenommen — die leere Liste ist hier das richtige
           Ergebnis, nicht ein Fehler. */}
       {testkonto && (
-        <p className="mt-3 mx-auto max-w-[380px] px-3 py-2 rounded-xl text-[12px] leading-relaxed"
-           style={{ background: "var(--fi-tint)", color: "var(--fi-primaer)" }}>
-          <span className="font-bold">Dies ist ein Testkonto.</span> Testkonten bekommen keine
-          Kunden zugewiesen — deshalb ist hier nichts zu sehen. Das ist kein Fehler.
+        <p className="mt-4 mx-auto max-w-[420px] px-4 py-3 rounded-[10px] text-[13px] leading-relaxed"
+           style={{
+             background: "var(--fi-flaeche-akzent)",
+             border: "1px solid var(--fi-linie)",
+             color: "var(--fi-text-leise)",
+           }}>
+          <span className="font-semibold" style={{ color: "var(--fi-text)" }}>Dies ist ein Testkonto.</span>{" "}
+          Testkonten bekommen keine Kunden zugewiesen — deshalb ist hier nichts zu sehen. Das ist kein Fehler.
         </p>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -659,9 +646,8 @@ function KundenKarte({
         ? { opacity: 0 }
         : { opacity: 0, x: 40, height: 0, marginBottom: 0,
             transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } }}
-      whileHover={reduziert ? undefined : { y: -1, boxShadow: "var(--fi-schatten-hover), var(--fi-glanzkante)" }}
-      className={`relative rounded-2xl bg-white border overflow-hidden ${fehlerShake ? "fi-shake" : ""}`}
-      style={{ borderColor: "var(--fi-linie)", boxShadow: "var(--fi-schatten-ruhe), var(--fi-glanzkante)" }}
+      className={`fi-karte relative overflow-hidden ${fehlerShake ? "fi-shake" : ""}`}
+      style={{ transformStyle: "preserve-3d" }}
     >
       {/* Erfolgs-Blitz: die Karte färbt sich kurz, bevor sie hinausgleitet */}
       <AnimatePresence>
@@ -673,103 +659,134 @@ function KundenKarte({
         )}
       </AnimatePresence>
 
+      {/* Statuskante: 3px, volle Kartenhöhe. Der einzige Ort, an dem die
+          Statusfarbe als Fläche erscheint — und selbst hier ist es eine Kante. */}
       <span aria-hidden="true" className="absolute left-0 top-0 bottom-0 w-[3px]"
             style={{ background: tierFarbe(kunde.tier) }} />
 
-      <div className="p-4 pl-5">
-        <div className="flex items-start gap-3">
-          <button onClick={onDetail} className="flex-1 min-w-0 text-left">
-            <p className={`font-bold truncate ${hero ? "text-[16px]" : "text-[14.5px]"}`} style={{ color: "var(--fi-text)" }}>
-              {kunde.name || "Ohne Namen"}
-            </p>
-            {/* Betrag und Produkt als eine ruhige Zeile unter dem Namen —
-                nicht als Etiketten. Der Name führt, das Kaufmännische folgt. */}
-            {(kunde.betrag != null || kunde.produkt) && (
-              <p className="mt-0.5 text-[12px]" style={{ color: "var(--fi-text-leise)" }}>
-                {kunde.betrag != null && <span className="fi-zahl font-semibold">{eur(kunde.betrag)}</span>}
-                {kunde.betrag != null && kunde.produkt && <span className="mx-1.5" style={{ color: "var(--fi-linie)" }}>|</span>}
-                {kunde.produkt}
-              </p>
-            )}
-            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                    style={{ background: tierTint(kunde.tier), color: tierFarbe(kunde.tier) }}>
-                {kunde.titel}
+      <div className="p-4 sm:p-5 pl-5 sm:pl-6">
+        {/* Ebene 1 — Name und Status, am weitesten vorn nach den Aktionen. */}
+        <Ebene z={28}>
+          <div className="flex items-start gap-3">
+            <button onClick={onDetail} className="flex-1 min-w-0 text-left">
+              <span className="fi-name block truncate" style={{ color: "var(--fi-text)" }}>
+                {kunde.name || "Ohne Namen"}
               </span>
-              {/* Relative Angabe, absolutes Datum im title. „in 2 Tagen“ sagt
-                  sofort, ob es dringend ist; „05.08.2026“ muss man erst
-                  ausrechnen. Beides zu zeigen wäre Rauschen — das genaue Datum
-                  steht im Tooltip und in der Detailansicht. */}
-              {kunde.zusagedatum && (
-                <span className="text-[11px] fi-zahl cursor-help"
-                      title={`Zusagedatum: ${datum(kunde.zusagedatum)}`}
-                      style={{ color: verzug > 0 ? "var(--fi-fehler)" : "var(--fi-text-still)" }}>
-                  {relativerTag(kunde.zusagedatum)}
-                </span>
-              )}
-              {kunde.nichtErreicht > 0 && (
-                <span className="text-[11px]" style={{ color: "var(--fi-text-still)" }}>
-                  {kunde.nichtErreicht}× nicht erreicht
-                </span>
-              )}
-            </div>
-          </button>
-
-          {/* Telefon als grosse Tippfläche — das Wichtigste auf der Karte */}
-          {kunde.telefon ? (
-            <a href={`tel:${kunde.telefon.replace(/\s/g, "")}`}
-               className="shrink-0 inline-flex items-center px-4 py-2.5 rounded-xl text-[13px] font-bold text-white
-                          transition-all duration-150 active:scale-[0.95] hover:-translate-y-px"
-               style={{
-                 background: "linear-gradient(180deg, var(--fi-erfolg), #047857)",
-                 boxShadow: "0 1px 2px rgba(15,23,42,.08), 0 4px 12px rgba(4,120,87,.22), var(--fi-glanzkante)",
-               }}>
-              Anrufen
-            </a>
-          ) : (
-            <span className="shrink-0 px-2.5 py-2 rounded-xl text-[11px] font-semibold"
-                  style={{ background: "#f1f5f9", color: "var(--fi-text-still)" }}>
-              keine Nummer
+            </button>
+            {/* Status als Umrandung mit 3-%-Füllung, nicht als farbige Pille.
+                Eine volle Farbfläche neben dem Namen zieht mehr Aufmerksamkeit
+                als der Name selbst — genau verkehrt herum. */}
+            <span className="shrink-0 px-2 py-1 text-[11px] font-semibold"
+                  style={{
+                    borderRadius: "var(--fi-radius-badge)",
+                    color: tierFarbe(kunde.tier),
+                    background: tierFlaeche(kunde.tier),
+                    border: `1px solid ${tierFarbe(kunde.tier)}33`,
+                  }}>
+              {kunde.titel}
             </span>
-          )}
-        </div>
+          </div>
+        </Ebene>
 
-        {/* Handlungshinweis, aufklappbar */}
+        {/* Ebene 2 — Metazeile: Betrag · Produkt · Zusage. */}
+        <Ebene z={16}>
+          <p className="fi-meta mt-1.5 flex items-center flex-wrap">
+            {kunde.betrag != null && <span className="fi-zahl font-semibold">{eur(kunde.betrag)}</span>}
+            {kunde.produkt && (
+              <span className={kunde.betrag != null ? "fi-punkt" : ""}>{kunde.produkt}</span>
+            )}
+            {/* Relativ, weil „in 2 Tagen“ sofort sagt, ob es dringend ist;
+                „05.08.2026“ muss man erst ausrechnen. Das genaue Datum steht
+                im Tooltip — beides gleichzeitig wäre Rauschen. */}
+            {kunde.zusagedatum && (
+              <span className={(kunde.betrag != null || kunde.produkt) ? "fi-punkt cursor-help" : "cursor-help"}
+                    title={`Zusagedatum: ${datum(kunde.zusagedatum)}`}
+                    style={{ color: verzug > 0 ? "var(--fi-tier1)" : undefined }}>
+                {relativerTag(kunde.zusagedatum)}
+              </span>
+            )}
+          </p>
+        </Ebene>
+
+        {/* Handlungshinweis: einzeilig angerissen, per Klick aufklappend. */}
         <button onClick={() => setHinweisOffen((o) => !o)}
-                className="mt-2.5 inline-flex items-center gap-1 text-[12px] font-semibold"
-                style={{ color: "var(--fi-primaer)" }}>
-          <span aria-hidden="true" className="inline-block transition-transform duration-200 text-[10px]"
-                style={{ transform: hinweisOffen ? "rotate(180deg)" : "none" }}>▾</span>
-          {hinweisOffen ? "Hinweis schließen" : "Was ist hier zu tun?"}
+                aria-expanded={hinweisOffen}
+                className="mt-3 w-full flex items-start gap-1.5 text-left text-[13px]
+                           transition-colors duration-[120ms] group"
+                style={{ color: "var(--fi-text-still)" }}>
+          <ZeichenWinkel size={15} richtung={hinweisOffen ? "oben" : "unten"} className="shrink-0 mt-[1px]" />
+          <span className={hinweisOffen ? "sr-only" : "truncate"}>{kunde.hinweis}</span>
+          {hinweisOffen && <span>Hinweis schließen</span>}
         </button>
-        <div className="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-             style={{ gridTemplateRows: hinweisOffen ? "1fr" : "0fr" }}>
+        <div className="grid"
+             style={{
+               gridTemplateRows: hinweisOffen ? "1fr" : "0fr",
+               transition: "grid-template-rows var(--fi-element) var(--fi-kurve)",
+             }}>
           <div className="overflow-hidden">
-            <p className="mt-2 p-3 rounded-xl text-[12.5px] leading-relaxed"
-               style={{ background: "var(--fi-seite)", color: "var(--fi-text-leise)" }}>
+            <p className="mt-2 p-3 fi-fliesstext"
+               style={{
+                 background: "var(--fi-seite)",
+                 borderRadius: "var(--fi-radius-knopf)",
+                 color: "var(--fi-text-leise)",
+               }}>
               {kunde.hinweis}
             </p>
           </div>
         </div>
 
-        {/* One-Tap-Aktionen */}
-        <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Aktion label="Erreicht" farbe="var(--fi-erfolg)"
-                  laeuft={laeuft === "erreicht"} disabled={!!laeuft}
-                  onClick={() => fuehreAus("erreicht", "/aktivitaet", { art: "erreicht" },
-                    "Als erreicht dokumentiert", "var(--fi-erfolg-tint)")} />
-          <Aktion label="Nicht erreicht" farbe="var(--fi-warnung)"
-                  laeuft={laeuft === "nicht"} disabled={!!laeuft}
-                  onClick={() => fuehreAus("nicht", "/aktivitaet", { art: "nicht_erreicht" },
-                    "Nicht erreicht — morgen erneut", "var(--fi-warnung-tint)")} />
-          <Aktion label="Zahlt am …" farbe="var(--fi-primaer)"
-                  laeuft={laeuft === "zusage"} disabled={!!laeuft}
-                  onClick={() => setDatumOffen((o) => !o)} />
-          <Aktion label="Blockiert" farbe="var(--fi-fehler)"
-                  laeuft={laeuft === "blockiert"} disabled={!!laeuft}
-                  onClick={() => fuehreAus("blockiert", "/aktivitaet", { art: "blockiert" },
-                    "Kunde will nicht kontaktiert werden", "var(--fi-fehler-tint)")} />
-        </div>
+        {/* Ebene 3 — Aktionen liegen am weitesten vorn: Sie sind das, was
+            angefasst wird, und sollen dem Finger entgegenkommen.
+
+            EINE Primäraktion mit Blauverlauf, alles andere ruhige
+            Umrandungsknöpfe. Vier gleichwertige Knöpfe wären vier Fragen; ein
+            hervorgehobener ist eine Empfehlung. */}
+        <Ebene z={32} className="mt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {kunde.telefon ? (
+              <a href={`tel:${kunde.telefon.replace(/\s/g, "")}`}
+                 className="fi-primaerknopf inline-flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold text-white">
+                <ZeichenTelefon size={16} />
+                Anrufen
+              </a>
+            ) : (
+              <span className="px-3 py-2.5 text-[12px] font-medium"
+                    style={{
+                      borderRadius: "var(--fi-radius-knopf)",
+                      background: "var(--fi-seite)", color: "var(--fi-text-still)",
+                      border: "1px solid var(--fi-linie)",
+                    }}>
+                keine Nummer
+              </span>
+            )}
+
+            <Aktion label="Erreicht"
+                    laeuft={laeuft === "erreicht"} disabled={!!laeuft}
+                    onClick={() => fuehreAus("erreicht", "/aktivitaet", { art: "erreicht" },
+                      "Als erreicht dokumentiert", "var(--fi-erfolg)")} />
+            <Aktion label="Nicht erreicht"
+                    laeuft={laeuft === "nicht"} disabled={!!laeuft}
+                    onClick={() => fuehreAus("nicht", "/aktivitaet", { art: "nicht_erreicht" },
+                      "Nicht erreicht — morgen erneut", "var(--fi-tier2)")} />
+            <Aktion label="Zahlt am …"
+                    laeuft={laeuft === "zusage"} disabled={!!laeuft}
+                    onClick={() => setDatumOffen((o) => !o)} />
+            <Aktion label="Blockiert"
+                    laeuft={laeuft === "blockiert"} disabled={!!laeuft}
+                    onClick={() => fuehreAus("blockiert", "/aktivitaet", { art: "blockiert" },
+                      "Kunde will nicht kontaktiert werden", "var(--fi-tier1)")} />
+
+            {/* Zähler tertiär und rechts unten — nur wenn es etwas zu sagen
+                gibt. „0× nicht erreicht" ist keine Information. */}
+            {(kunde.nichtErreicht > 0 || kunde.rechnungVersandt > 0) && (
+              <span className="ml-auto text-[12px] fi-zahl" style={{ color: "var(--fi-text-still)" }}>
+                {kunde.nichtErreicht > 0 && `${kunde.nichtErreicht}× nicht erreicht`}
+                {kunde.nichtErreicht > 0 && kunde.rechnungVersandt > 0 && " · "}
+                {kunde.rechnungVersandt > 0 && `${kunde.rechnungVersandt}× Rechnung`}
+              </span>
+            )}
+          </div>
+        </Ebene>
 
         {/* Datumsfeld für die Zusage */}
         <div className="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -824,28 +841,23 @@ function KundenKarte({
 }
 
 /**
- * Aktionsknopf mit drei Zuständen im Material: Ruhe, Hover (hebt sich um 1px an
- * und bekommt Schatten), Klick (drückt auf 0,97). Das ist kein Zierrat — der
- * Agent tippt diese Knöpfe hundertmal am Tag und braucht die Bestätigung, dass
- * der Tipp angekommen ist, BEVOR der Server antwortet.
+ * Sekundäraktion. Bewusst OHNE eigene Farbe: Vier verschiedenfarbige Knöpfe
+ * nebeneinander sind eine Ampel ohne Bedeutung. Die Unterscheidung leistet der
+ * Text; die Farbe bleibt der Statuskante und dem Primärknopf vorbehalten.
+ *
+ * Zustände stecken in `.fi-zweitknopf` — in CSS statt in Framer Motion, weil
+ * Hover und Active zu den billigsten Dingen gehören, die der Browser selbst
+ * kann, und pro Karte vier solcher Knöpfe existieren.
  */
 function Aktion({
-  label, farbe, onClick, laeuft, disabled,
-}: { label: string; farbe: string; onClick: () => void; laeuft: boolean; disabled?: boolean }) {
-  const reduziert = useReduzierteBewegung();
+  label, onClick, laeuft, disabled,
+}: { label: string; onClick: () => void; laeuft: boolean; disabled?: boolean }) {
   return (
-    <motion.button
-      onClick={onClick} disabled={disabled}
-      whileHover={reduziert || disabled ? undefined : { y: -1, boxShadow: "0 4px 12px rgba(15,23,42,.08)" }}
-      whileTap={reduziert || disabled ? undefined : { scale: 0.97 }}
-      transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
-      className="flex items-center justify-center py-3 px-2 rounded-xl border text-[12px] font-bold text-center
-                 disabled:opacity-40
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fi-border-aktiv)]"
-      style={{ borderColor: "var(--fi-linie)", color: farbe, background: "#fff" }}
-    >
+    <button onClick={onClick} disabled={disabled}
+            className="fi-zweitknopf px-3 py-2.5 text-[12.5px] font-medium
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fi-primaer)]">
       {laeuft ? "…" : label}
-    </motion.button>
+    </button>
   );
 }
 
@@ -899,28 +911,44 @@ function KundenDetail({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
+      {/* Backdrop mit eigenem Weichzeichner: Die Seite dahinter bleibt lesbar
+          genug, um den Zusammenhang zu halten, und unscharf genug, um nicht
+          mehr um Aufmerksamkeit zu konkurrieren. */}
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        className="absolute inset-0 bg-slate-900/40"
+        transition={{ duration: 0.28, ease: KURVE }}
+        className="absolute inset-0"
+        style={{
+          background: "var(--fi-backdrop)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+        }}
         onClick={onSchliessen}
       />
+      {/* 380ms herein, 280ms hinaus. Schliessen ist IMMER schneller: Der
+          Benutzer hat sich schon entschieden und will das Ergebnis sehen,
+          nicht die Bewegung. */}
       <motion.div
         initial={reduziert ? { opacity: 0 } : { x: "100%" }}
         animate={reduziert ? { opacity: 1 } : { x: 0 }}
-        exit={reduziert ? { opacity: 0 } : { x: "100%" }}
-        transition={reduziert ? { duration: 0.15 } : { type: "spring", stiffness: 380, damping: 36 }}
-        className="relative w-full sm:max-w-[520px] h-full bg-white overflow-y-auto"
-        style={{ boxShadow: "-8px 0 32px rgba(15,23,42,0.12)" }}
+        exit={reduziert
+          ? { opacity: 0, transition: { duration: 0.15 } }
+          : { x: "100%", transition: { duration: 0.28, ease: KURVE } }}
+        transition={reduziert ? { duration: 0.15 } : { duration: 0.38, ease: KURVE }}
+        className="relative w-full sm:max-w-[560px] h-full overflow-y-auto"
+        style={{
+          background: "#fff",
+          borderTopLeftRadius: "var(--fi-radius-ebene)",
+          borderBottomLeftRadius: "var(--fi-radius-ebene)",
+          boxShadow: "var(--fi-schatten-schwebend)",
+        }}
       >
-        <div className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b px-4 py-3 flex items-center gap-3"
-             style={{ borderColor: "var(--fi-linie)" }}>
-          <button onClick={onSchliessen}
-                  className="px-3 h-9 rounded-xl border text-[12.5px] font-semibold transition-transform active:scale-[0.94]"
-                  style={{ borderColor: "var(--fi-linie)", color: "var(--fi-text-leise)" }}>
-            Zurück
+        <div className="fi-glas sticky top-0 z-10 px-4 sm:px-5 py-3 flex items-center gap-3">
+          <button onClick={onSchliessen} aria-label="Schließen"
+                  className="fi-zweitknopf w-9 h-9 flex items-center justify-center shrink-0">
+            <ZeichenSchliessen size={17} />
           </button>
-          <p className="text-[15px] font-bold truncate flex-1" style={{ color: "var(--fi-text)" }}>
+          <p className="fi-name truncate flex-1" style={{ color: "var(--fi-text)" }}>
             {k?.name ?? "Lade …"}
           </p>
         </div>
@@ -933,14 +961,26 @@ function KundenDetail({
             </>
           ) : (
             <>
+              {/* Dieselben Badges wie auf der Karte — Umrandung statt Pille.
+                  Karte und Detail dürfen nicht aussehen wie zwei Systeme. */}
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold"
-                      style={{ background: tierTint(k.tier), color: tierFarbe(k.tier) }}>
+                <span className="px-2 py-1 text-[11px] font-semibold"
+                      style={{
+                        borderRadius: "var(--fi-radius-badge)",
+                        color: tierFarbe(k.tier),
+                        background: tierFlaeche(k.tier),
+                        border: `1px solid ${tierFarbe(k.tier)}33`,
+                      }}>
                   {k.titel}
                 </span>
                 {k.gesperrt && (
-                  <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold"
-                        style={{ background: "var(--fi-fehler-tint)", color: "var(--fi-fehler)" }}>
+                  <span className="px-2 py-1 text-[11px] font-semibold"
+                        style={{
+                          borderRadius: "var(--fi-radius-badge)",
+                          color: "var(--fi-tier1)",
+                          background: "var(--fi-flaeche-tier1)",
+                          border: "1px solid rgba(220,38,38,.2)",
+                        }}>
                     blockiert
                   </span>
                 )}

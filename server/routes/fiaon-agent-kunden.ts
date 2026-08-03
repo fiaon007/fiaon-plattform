@@ -77,6 +77,12 @@ async function meinePerson(personId: number, agentId: number) {
   const [p] = await sqlPool`
     SELECT p.id, p.priority_tier, p.tier_reason, p.promised_payment_date,
            p.follow_up_date, p.unreachable_count, p.invoice_sent_count,
+           (SELECT a.pack_name FROM fiaon_applications a
+             WHERE a.person_id = p.id AND a.merged_into IS NULL
+             ORDER BY a.created_at DESC LIMIT 1) AS pack_name,
+           (SELECT a.amount_due FROM fiaon_applications a
+             WHERE a.person_id = p.id AND a.merged_into IS NULL
+             ORDER BY a.created_at DESC LIMIT 1) AS amount_due,
            p.is_blocked, p.assigned_at, p.primary_phone, p.primary_email,
            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                     p.company_name, p.contact_name, p.primary_email) AS name,
@@ -108,6 +114,12 @@ function kartePayload(p: any, letzteAktivitaet?: any) {
     tierGrund: p.tier_reason,
     titel: h.titel,
     hinweis: h.hinweis,
+    // Betrag und Produkt der jüngsten offenen Bestellung. Die Karte braucht
+    // beides: Ein Anruf ohne Kenntnis von Paket und Summe beginnt mit einer
+    // Rückfrage. Vorher standen die Werte nur in der Detailansicht — der Agent
+    // musste die Karte erst öffnen, um zu wissen, worüber er spricht.
+    produkt: p.pack_name ? String(p.pack_name).split("\n")[0].trim() : null,
+    betrag: p.amount_due != null ? Math.round(Number(p.amount_due) * 100) : null,
     zusagedatum: p.promised_payment_date,
     wiedervorlage: p.follow_up_date,
     nichtErreicht: p.unreachable_count,
@@ -212,14 +224,20 @@ router.get("/agent/crm/dashboard", requireAgent, async (req: AgentRequest, res: 
     `;
 
     await ensureTourSpalte();
+    // `is_test_account` geht mit an den Browser, damit der Leerzustand sagen
+    // kann WARUM er leer ist. Testkonten sind aus der Verteilung ausgenommen
+    // (`NOT a.is_test_account` in der Follow-up-Engine) — ohne diesen Hinweis
+    // sieht der Prüfende eine leere Seite und hält das System für kaputt.
     const [tour] = await sqlPool`
-      SELECT crm_tour_seen_at IS NOT NULL AS gesehen FROM fiaon_agents WHERE id = ${agentId}
+      SELECT crm_tour_seen_at IS NOT NULL AS gesehen, is_test_account
+      FROM fiaon_agents WHERE id = ${agentId}
     `;
 
     res.json({
       ok: true,
       agent: { vorname: req.agent!.first_name || req.agent!.name },
       tourGesehen: tour?.gesehen ?? false,
+      istTestkonto: tour?.is_test_account ?? false,
       zahlen: {
         heuteFaellig: z.heute_faellig,
         ohneDatum: z.ohne_datum,
@@ -281,6 +299,13 @@ router.get("/agent/crm/kunden", requireAgent, async (req: AgentRequest, res: Res
              (SELECT a.status FROM fiaon_applications a
                WHERE a.person_id = p.id AND a.merged_into IS NULL
                ORDER BY a.created_at DESC LIMIT 1) AS letzter_status,
+             -- Paket und Betrag der jüngsten Bestellung für die Kartenzeile.
+             (SELECT a.pack_name FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL
+               ORDER BY a.created_at DESC LIMIT 1) AS pack_name,
+             (SELECT a.amount_due FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL
+               ORDER BY a.created_at DESC LIMIT 1) AS amount_due,
              (SELECT MAX(c.created_at) FROM fiaon_contact_log c
                JOIN fiaon_applications ap ON ap.ref = c.ref
                WHERE ap.person_id = p.id AND c.voided_at IS NULL) AS letzte_am

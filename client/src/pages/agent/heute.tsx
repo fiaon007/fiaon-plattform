@@ -51,6 +51,7 @@ async function apiF(pfad: string, init?: RequestInit) {
 type Kunde = {
   personId: number; name: string; telefon: string | null; email: string | null;
   tier: number; tierGrund: string; titel: string; hinweis: string;
+  produkt: string | null; betrag: number | null;
   zusagedatum: string | null; wiedervorlage: string | null;
   nichtErreicht: number; rechnungVersandt: number; rechnungWarnung: string | null;
   gesperrt: boolean; seit: string | null;
@@ -71,6 +72,29 @@ function tageSeit(wert: string | null): number {
   const d = new Date(wert);
   if (isNaN(d.getTime())) return 0;
   return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000));
+}
+
+/**
+ * Zeitangabe in Worten: „heute“, „morgen“, „in 3 Tagen“, „seit 5 Tagen
+ * überfällig“. Das genaue Datum steht im `title` der Zeile.
+ *
+ * Gerechnet wird auf KALENDERTAGE, nicht auf 24-Stunden-Blöcke: Eine Zusage für
+ * heute Abend ist „heute“, auch wenn sie rechnerisch 0,4 Tage entfernt ist. Mit
+ * Millisekunden-Differenzen hätte am Nachmittag „in 0 Tagen“ dort gestanden.
+ */
+function relativerTag(wert: string | null): string {
+  if (!wert) return "";
+  const d = new Date(wert);
+  if (isNaN(d.getTime())) return "";
+  const heute = new Date();
+  const a = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  const b = Date.UTC(heute.getFullYear(), heute.getMonth(), heute.getDate());
+  const tage = Math.round((a - b) / 86_400_000);
+  if (tage === 0) return "zahlt heute";
+  if (tage === 1) return "zahlt morgen";
+  if (tage === -1) return "seit gestern überfällig";
+  if (tage > 1) return `zahlt in ${tage} Tagen`;
+  return `seit ${Math.abs(tage)} Tagen überfällig`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -94,6 +118,7 @@ function Seite() {
 
   const [detail, setDetail] = useState<number | null>(null);
   const [tourOffen, setTourOffen] = useState(false);
+  const [istTestkonto, setIstTestkonto] = useState(false);
 
   // Die Tour öffnet sich EINMAL pro Agent. Der Status liegt am Agenten in der
   // Datenbank, nicht im localStorage — sonst käme sie auf jedem neuen Gerät
@@ -116,6 +141,7 @@ function Seite() {
       setVorname(d.json.agent?.vorname || "");
       setEskalationTage(d.json.eskalationNachTagen ?? 7);
       if (!d.json.tourGesehen) setTourOffen(true);
+      setIstTestkonto(!!d.json.istTestkonto);
     }
     if (h.ok) setHeute(h.json.kunden);
     if (o.ok) setOhneDatum(o.json.kunden);
@@ -213,35 +239,52 @@ function Seite() {
           </div>
         </motion.div>
 
-        {/* Stat-Row — waagrecht scrollbar auf schmalen Geräten */}
-        <div className="mt-4 -mx-4 px-4 overflow-x-auto">
-          <div className="flex gap-2.5 min-w-max pb-1">
-            {laedt
-              ? [0, 1, 2, 3, 4].map((i) => (
-                  <div key={i} className="w-[124px] p-3 rounded-2xl bg-white border shrink-0" style={{ borderColor: "var(--fi-linie)" }}>
-                    <Skelett h={10} w="70%" />
-                    <div className="mt-2.5"><Skelett h={24} w="45%" /></div>
-                  </div>
-                ))
-              : [
-                  { titel: "Heute fällig", wert: zahlen?.heuteFaellig ?? 0, farbe: "var(--fi-tier1)" },
-                  { titel: "Zahlung gemeldet", wert: zahlen?.ohneDatum ?? 0, farbe: "var(--fi-warnung)" },
-                  { titel: "Überfällig", wert: zahlen?.ueberfaellig ?? 0, farbe: "var(--fi-fehler)" },
-                  { titel: "Liegengeblieben", wert: zahlen?.eskalation ?? 0, farbe: "var(--fi-tier3)" },
-                  { titel: "Abschlüsse 30 Tg.", wert: zahlen?.abschluesse30Tage ?? 0, farbe: "var(--fi-erfolg)", suffix: "" },
-                ].map((k, i) => (
-                  <motion.div key={k.titel} {...eintritt(reduziert, i, 50)} className="shrink-0">
-                    <Tilt className="w-[124px] p-3 rounded-2xl bg-white border" style={{ borderColor: "var(--fi-linie)" }}>
-                      <p className="text-[10px] font-bold uppercase tracking-wide leading-tight" style={{ color: "var(--fi-text-still)" }}>
-                        {k.titel}
-                      </p>
-                      <p className="mt-1.5 text-[24px] font-bold leading-none" style={{ color: k.farbe }}>
-                        <Zahl wert={k.wert} />
-                      </p>
-                    </Tilt>
-                  </motion.div>
-                ))}
-          </div>
+        {/* ══ Kennzahlen ═══════════════════════════════════════════════════
+            RASTER statt waagrechter Rolle. Vorher lagen fünf Karten in einer
+            scrollbaren Reihe — auf dem Handy ragte die fünfte rechts aus dem
+            Bild und sah wie ein Anschnittfehler aus. Niemand scrollt eine
+            Kennzahlenreihe seitwärts, wenn sie nicht sichtbar überläuft.
+
+            2 Spalten auf dem Handy, 5 ab sm. `items-stretch` hält alle Karten
+            auf gleicher Höhe, auch wenn ein Titel zweizeilig bricht. */}
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2.5 items-stretch">
+          {laedt
+            ? [0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="p-3 rounded-2xl bg-white border" style={{ borderColor: "var(--fi-linie)" }}>
+                  <Skelett h={10} w="70%" />
+                  <div className="mt-2.5"><Skelett h={24} w="45%" /></div>
+                </div>
+              ))
+            : [
+                { titel: "Heute fällig", wert: zahlen?.heuteFaellig ?? 0, farbe: "var(--fi-tier1)" },
+                { titel: "Zahlung gemeldet", wert: zahlen?.ohneDatum ?? 0, farbe: "var(--fi-warnung)" },
+                { titel: "Überfällig", wert: zahlen?.ueberfaellig ?? 0, farbe: "var(--fi-fehler)" },
+                { titel: "Liegengeblieben", wert: zahlen?.eskalation ?? 0, farbe: "var(--fi-tier3)" },
+                { titel: "Abschlüsse 30 Tg.", wert: zahlen?.abschluesse30Tage ?? 0, farbe: "var(--fi-erfolg)" },
+              ].map((k, i) => (
+                // 80ms Versatz: Die Zahlen zählen nacheinander hoch, nicht alle
+                // gleichzeitig. Gleichzeitig wirkt es wie ein Ruckeln, versetzt
+                // wie eine Bewegung.
+                <motion.div key={k.titel} {...eintritt(reduziert, i, 80)} className="h-full">
+                  <Tilt tiefe
+                        className="h-full p-3 rounded-2xl border flex flex-col justify-between"
+                        style={{
+                          borderColor: "var(--fi-linie)",
+                          // Sehr dezenter Verlauf in der Kategoriefarbe: 4%
+                          // oben, weiss unten. Genug, um die Karten
+                          // unterscheidbar zu machen, zu wenig, um zu färben.
+                          background: `linear-gradient(160deg, color-mix(in srgb, ${k.farbe} 4%, #fff) 0%, #fff 70%)`,
+                        }}>
+                    <p className="text-[9.5px] font-bold uppercase tracking-[0.08em] leading-tight"
+                       style={{ color: "var(--fi-text-still)" }}>
+                      {k.titel}
+                    </p>
+                    <p className="mt-2 text-[26px] font-bold leading-none fi-zahl" style={{ color: k.farbe }}>
+                      <Zahl wert={k.wert} />
+                    </p>
+                  </Tilt>
+                </motion.div>
+              ))}
         </div>
 
         {zahlen?.neuHeute > 0 && (
@@ -262,6 +305,7 @@ function Seite() {
           laedt={laedt}
           leer="Kein Kunde ist heute fällig. Gut gearbeitet."
           erklaerung="Hier stehen die Kunden, die heute dran sind: Sie haben für heute Zahlung zugesagt, oder du hast sie selbst auf heute zurückgelegt. Arbeite diese Liste von oben nach unten ab — dann hast du den Tag erledigt."
+          testkonto={istTestkonto}
           hero
         >
           <AnimatePresence mode="popLayout">
@@ -371,7 +415,8 @@ function Seite() {
                 text={suche ? "Keine Treffer" : "Hier ist gerade nichts"}
                 zusatz={suche
                   ? "Prüfe die Schreibweise oder setze die Suche zurück."
-                  : "Aktuell sind dir in dieser Kategorie keine Kunden zugewiesen. Neue kommen automatisch dazu — wenn hier dauerhaft nichts steht, melde dich bei Justin."} />
+                  : "Aktuell sind dir in dieser Kategorie keine Kunden zugewiesen. Neue kommen automatisch dazu — wenn hier dauerhaft nichts steht, melde dich bei Justin."}
+                testkonto={!suche && istTestkonto} />
             ) : (
               <AnimatePresence mode="popLayout">
                 {liste.map((k, i) => (
@@ -400,19 +445,40 @@ function Seite() {
 // Abschnitt mit Kopf, Zähler und aufklappbarer Erklärung
 // ═══════════════════════════════════════════════════════════════════════════
 function Abschnitt({
-  titel, farbe, anzahl, laedt, leer, erklaerung, hero, children,
+  titel, farbe, anzahl, laedt, leer, erklaerung, hero, testkonto, children,
 }: {
   titel: string; farbe: string; anzahl: number; laedt: boolean;
-  leer: string; erklaerung?: string; hero?: boolean; children: React.ReactNode;
+  leer: string; erklaerung?: string; hero?: boolean; testkonto?: boolean;
+  children: React.ReactNode;
 }) {
   const [offen, setOffen] = useState(false);
   const reduziert = useReduzierteBewegung();
 
   return (
-    <motion.section {...eintritt(reduziert)} className={hero ? "mt-6" : "mt-7"}>
-      <div className="flex items-center gap-2">
-        {/* Farbbalken statt Symbol: eine Fläche, die die Dringlichkeit zeigt. */}
-        <span aria-hidden="true" className="w-1 h-5 rounded-full shrink-0" style={{ background: farbe }} />
+    // Scroll-Reveal statt Alles-auf-einmal: Der Abschnitt blendet ein, wenn er
+    // ins Bild kommt. `once` verhindert das Flackern beim Zurückscrollen,
+    // `margin` löst kurz VOR der Kante aus — sonst sieht man das Einblenden erst,
+    // wenn der Abschnitt schon halb sichtbar ist.
+    <motion.section
+      initial={reduziert ? { opacity: 0 } : { opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={reduziert ? { duration: 0.2 } : { duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      className={hero ? "mt-12" : "mt-12"}
+    >
+      <div className="flex items-center gap-2.5">
+        {/* Farbbalken statt Symbol: eine Fläche, die die Dringlichkeit zeigt.
+            Wächst beim Eintritt von 0 auf volle Höhe — die Bewegung führt das
+            Auge an den Titel, statt ihn fertig hinzustellen. */}
+        <motion.span
+          aria-hidden="true"
+          className="w-[3px] rounded-full shrink-0 origin-center"
+          style={{ background: farbe, height: hero ? 22 : 18 }}
+          initial={reduziert ? { opacity: 0 } : { scaleY: 0 }}
+          whileInView={reduziert ? { opacity: 1 } : { scaleY: 1 }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
+        />
         <h2 className={`font-bold ${hero ? "text-[17px]" : "text-[15px]"}`} style={{ color: "var(--fi-text)" }}>
           {titel}
         </h2>
@@ -445,22 +511,70 @@ function Abschnitt({
         </div>
       )}
 
-      <div className="mt-3 space-y-2.5">
+      {/* 12px zwischen Karten: Sie gehören zusammen und sollen als Gruppe
+          lesbar sein. Der große Abstand (48px) trennt die Abschnitte. */}
+      <div className="mt-3 space-y-3">
         {laedt ? [0, 1].map((i) => <KartenSkelett key={i} />)
-          : anzahl === 0 ? <LeerHinweis text={leer} />
+          : anzahl === 0 ? <LeerHinweis text={leer} testkonto={testkonto} />
           : children}
       </div>
     </motion.section>
   );
 }
 
-function LeerHinweis({ text, zusatz }: { text: string; zusatz?: string }) {
+/**
+ * Selbstgezeichnete Illustration für leere Listen — keine Icon-Bibliothek.
+ *
+ * Drei abgehakte Zeilen auf einem Blatt, in CI-Blau, mit abnehmender Deckkraft
+ * nach unten. Abstrakt genug, um für jeden leeren Abschnitt zu passen (erledigt,
+ * nichts zugewiesen, keine Treffer), und ruhig genug, um nicht selbst zum
+ * Blickfang zu werden.
+ */
+function LeerBild() {
+  const reduziert = useReduzierteBewegung();
   return (
-    <div className="py-7 px-5 text-center rounded-2xl bg-white border" style={{ borderColor: "var(--fi-linie)" }}>
-      <p className="text-[13px] font-semibold" style={{ color: "var(--fi-text)" }}>{text}</p>
+    <motion.svg
+      width="88" height="66" viewBox="0 0 88 66" fill="none" aria-hidden="true" className="mx-auto"
+      initial={reduziert ? { opacity: 0 } : { opacity: 0, scale: 0.94 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+    >
+      {/* Blatt */}
+      <rect x="14" y="4" width="60" height="58" rx="8"
+            stroke="var(--fi-primaer)" strokeOpacity="0.22" strokeWidth="1.5" fill="var(--fi-primaer)" fillOpacity="0.03" />
+      {/* Drei Zeilen mit Haken, nach unten leiser */}
+      {[0, 1, 2].map((i) => (
+        <g key={i} opacity={0.5 - i * 0.13}>
+          <path d={`M24 ${20 + i * 14} l3.4 3.4 L34 ${16.6 + i * 14}`}
+                stroke="var(--fi-primaer)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <rect x="40" y={`${17 + i * 14}`} width={24 - i * 6} height="3.5" rx="1.75"
+                fill="var(--fi-primaer)" />
+        </g>
+      ))}
+    </motion.svg>
+  );
+}
+
+function LeerHinweis({ text, zusatz, testkonto }: { text: string; zusatz?: string; testkonto?: boolean }) {
+  return (
+    <div className="py-8 px-5 text-center rounded-2xl bg-white border"
+         style={{ borderColor: "var(--fi-linie)", boxShadow: "var(--fi-schatten-ruhe), var(--fi-glanzkante)" }}>
+      <LeerBild />
+      <p className="mt-4 text-[13.5px] font-semibold" style={{ color: "var(--fi-text)" }}>{text}</p>
       {zusatz && (
         <p className="mt-1.5 text-[12.5px] leading-relaxed max-w-[380px] mx-auto" style={{ color: "var(--fi-text-leise)" }}>
           {zusatz}
+        </p>
+      )}
+      {/* Ohne diesen Satz rätselt der Prüfende, ob das System kaputt ist.
+          Testkonten sind in der Follow-up-Engine ausdrücklich von der
+          Verteilung ausgenommen — die leere Liste ist hier das richtige
+          Ergebnis, nicht ein Fehler. */}
+      {testkonto && (
+        <p className="mt-3 mx-auto max-w-[380px] px-3 py-2 rounded-xl text-[12px] leading-relaxed"
+           style={{ background: "var(--fi-tint)", color: "var(--fi-primaer)" }}>
+          <span className="font-bold">Dies ist ein Testkonto.</span> Testkonten bekommen keine
+          Kunden zugewiesen — deshalb ist hier nichts zu sehen. Das ist kein Fehler.
         </p>
       )}
     </div>
@@ -531,12 +645,23 @@ function KundenKarte({
   return (
     <motion.div
       layout={!reduziert}
-      {...eintritt(reduziert, Math.min(index, 10), 35)}
+      // Gestaffelt mit 40ms, aus translateY(16px) und scale(0.98) heraus. Die
+      // Skalierung ist der Unterschied zwischen „etwas rutscht herein“ und
+      // „etwas kommt auf mich zu“.
+      initial={reduziert ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={reduziert
+        ? { duration: 0.2 }
+        : { duration: 0.4, ease: [0.22, 1, 0.36, 1], delay: Math.min(index, 10) * 0.04 }}
+      // Beim Verlassen kollabiert die Höhe weich mit, damit die Liste nachrückt
+      // statt zu springen — `layout` übernimmt die Verschiebung der Nachbarn.
       exit={reduziert
         ? { opacity: 0 }
-        : { opacity: 0, x: 40, transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] } }}
+        : { opacity: 0, x: 40, height: 0, marginBottom: 0,
+            transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } }}
+      whileHover={reduziert ? undefined : { y: -1, boxShadow: "var(--fi-schatten-hover), var(--fi-glanzkante)" }}
       className={`relative rounded-2xl bg-white border overflow-hidden ${fehlerShake ? "fi-shake" : ""}`}
-      style={{ borderColor: "var(--fi-linie)", boxShadow: "var(--fi-schatten-ruhe)" }}
+      style={{ borderColor: "var(--fi-linie)", boxShadow: "var(--fi-schatten-ruhe), var(--fi-glanzkante)" }}
     >
       {/* Erfolgs-Blitz: die Karte färbt sich kurz, bevor sie hinausgleitet */}
       <AnimatePresence>
@@ -557,14 +682,29 @@ function KundenKarte({
             <p className={`font-bold truncate ${hero ? "text-[16px]" : "text-[14.5px]"}`} style={{ color: "var(--fi-text)" }}>
               {kunde.name || "Ohne Namen"}
             </p>
-            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+            {/* Betrag und Produkt als eine ruhige Zeile unter dem Namen —
+                nicht als Etiketten. Der Name führt, das Kaufmännische folgt. */}
+            {(kunde.betrag != null || kunde.produkt) && (
+              <p className="mt-0.5 text-[12px]" style={{ color: "var(--fi-text-leise)" }}>
+                {kunde.betrag != null && <span className="fi-zahl font-semibold">{eur(kunde.betrag)}</span>}
+                {kunde.betrag != null && kunde.produkt && <span className="mx-1.5" style={{ color: "var(--fi-linie)" }}>|</span>}
+                {kunde.produkt}
+              </p>
+            )}
+            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold"
                     style={{ background: tierTint(kunde.tier), color: tierFarbe(kunde.tier) }}>
                 {kunde.titel}
               </span>
+              {/* Relative Angabe, absolutes Datum im title. „in 2 Tagen“ sagt
+                  sofort, ob es dringend ist; „05.08.2026“ muss man erst
+                  ausrechnen. Beides zu zeigen wäre Rauschen — das genaue Datum
+                  steht im Tooltip und in der Detailansicht. */}
               {kunde.zusagedatum && (
-                <span className="text-[11px] fi-zahl" style={{ color: verzug > 0 ? "var(--fi-fehler)" : "var(--fi-text-still)" }}>
-                  {verzug > 0 ? `${verzug} Tg. überfällig` : `zahlt am ${datum(kunde.zusagedatum)}`}
+                <span className="text-[11px] fi-zahl cursor-help"
+                      title={`Zusagedatum: ${datum(kunde.zusagedatum)}`}
+                      style={{ color: verzug > 0 ? "var(--fi-fehler)" : "var(--fi-text-still)" }}>
+                  {relativerTag(kunde.zusagedatum)}
                 </span>
               )}
               {kunde.nichtErreicht > 0 && (
@@ -578,9 +718,12 @@ function KundenKarte({
           {/* Telefon als grosse Tippfläche — das Wichtigste auf der Karte */}
           {kunde.telefon ? (
             <a href={`tel:${kunde.telefon.replace(/\s/g, "")}`}
-               className="shrink-0 inline-flex items-center px-3.5 py-2 rounded-xl text-[13px] font-bold text-white
-                          transition-transform duration-150 active:scale-[0.95]"
-               style={{ background: "linear-gradient(180deg, var(--fi-erfolg), #047857)" }}>
+               className="shrink-0 inline-flex items-center px-4 py-2.5 rounded-xl text-[13px] font-bold text-white
+                          transition-all duration-150 active:scale-[0.95] hover:-translate-y-px"
+               style={{
+                 background: "linear-gradient(180deg, var(--fi-erfolg), #047857)",
+                 boxShadow: "0 1px 2px rgba(15,23,42,.08), 0 4px 12px rgba(4,120,87,.22), var(--fi-glanzkante)",
+               }}>
               Anrufen
             </a>
           ) : (
@@ -680,17 +823,29 @@ function KundenKarte({
   );
 }
 
+/**
+ * Aktionsknopf mit drei Zuständen im Material: Ruhe, Hover (hebt sich um 1px an
+ * und bekommt Schatten), Klick (drückt auf 0,97). Das ist kein Zierrat — der
+ * Agent tippt diese Knöpfe hundertmal am Tag und braucht die Bestätigung, dass
+ * der Tipp angekommen ist, BEVOR der Server antwortet.
+ */
 function Aktion({
   label, farbe, onClick, laeuft, disabled,
 }: { label: string; farbe: string; onClick: () => void; laeuft: boolean; disabled?: boolean }) {
+  const reduziert = useReduzierteBewegung();
   return (
-    <button onClick={onClick} disabled={disabled}
-            className="flex items-center justify-center py-3 px-2 rounded-xl border text-[12px] font-bold text-center
-                       transition-transform duration-150 active:scale-[0.95] disabled:opacity-40
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fi-border-aktiv)]"
-            style={{ borderColor: "var(--fi-linie)", color: farbe }}>
+    <motion.button
+      onClick={onClick} disabled={disabled}
+      whileHover={reduziert || disabled ? undefined : { y: -1, boxShadow: "0 4px 12px rgba(15,23,42,.08)" }}
+      whileTap={reduziert || disabled ? undefined : { scale: 0.97 }}
+      transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+      className="flex items-center justify-center py-3 px-2 rounded-xl border text-[12px] font-bold text-center
+                 disabled:opacity-40
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fi-border-aktiv)]"
+      style={{ borderColor: "var(--fi-linie)", color: farbe, background: "#fff" }}
+    >
       {laeuft ? "…" : label}
-    </button>
+    </motion.button>
   );
 }
 

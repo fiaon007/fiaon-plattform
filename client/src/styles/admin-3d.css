@@ -284,6 +284,59 @@ a.a3-kachel:active, button.a3-kachel:active { transform: translateY(-1px) scale(
 .a3-rang[data-platz="2"] { color: #334155; background: linear-gradient(180deg, #f1f5f9, #cbd5e1); box-shadow: inset 0 1px 0 #fff, 0 2px 6px rgba(100, 116, 139, .3); }
 .a3-rang[data-platz="3"] { color: #7c2d12; background: linear-gradient(180deg, #fed7aa, #ea9a5b); box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 2px 6px rgba(234, 154, 91, .35); }
 
+/* ── Zeilen-Knopf ────────────────────────────────────────────────────────────
+   Die kleinen Handlungen in Listenzeilen (Akte öffnen, anrufen, bezahlt buchen).
+   Bewusst OHNE display-Angabe: sonst überschreibt diese Regel Tailwinds
+   `hidden` (gleiche Spezifität, aber später im Dokument) und man kann keinen
+   Knopf mehr per Bildschirmbreite ausblenden. Anordnung über `inline-flex`
+   am Element. */
+.a3-knopf, .df-knopf {
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  border: 1px solid var(--a3-linie, #e4e9f2);
+  background: #fff;
+  color: #475569;
+  transition: transform 120ms var(--a3-kurve), box-shadow 180ms ease, border-color 180ms ease;
+}
+.a3-knopf:hover, .df-knopf:hover { border-color: var(--a3-linie-stark, #cdd8ea); box-shadow: 0 2px 8px rgba(29, 78, 216, .12); }
+.a3-knopf:active, .df-knopf:active { transform: scale(.96); }
+.a3-knopf:disabled, .df-knopf:disabled { opacity: .45; }
+/* Die eine Hauptaktion je Zeile trägt den Akzent — alles andere bleibt weiß. */
+.a3-knopf[data-haupt="1"], .df-knopf[data-haupt="1"] {
+  border-color: transparent;
+  color: #fff;
+  background: linear-gradient(180deg, #1d4ed8, #1e40af);
+  box-shadow: 0 3px 10px -3px rgba(29, 78, 216, .6), inset 0 1px 0 rgba(255, 255, 255, .25);
+}
+.a3-knopf[data-haupt="1"]:hover, .df-knopf[data-haupt="1"]:hover { box-shadow: 0 6px 16px -4px rgba(29, 78, 216, .7); }
+
+/* ── Segment-Umschalter ──────────────────────────────────────────────────────
+   Für „genau eine von mehreren Sichten". Die aktive Fläche liegt sichtbar
+   OBEN (weiß + Schatten), die inaktiven liegen in der Vertiefung. */
+.a3-reiter {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 10px;
+  background: #eef2f7;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, .08);
+}
+.a3-reiter > button {
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #64748b;
+  white-space: nowrap;
+  transition: all 180ms var(--a3-kurve);
+}
+.a3-reiter > button[data-an="1"] { background: #fff; color: #0f172a; box-shadow: 0 1px 3px rgba(15, 23, 42, .16); }
+
 /* ── Auftritt: gestaffelt, einmalig, kurz ────────────────────────────────────
    Reihenfolge über --i. Länger als 400ms wirkt zäh, gleichzeitig wirkt flach. */
 .a3-auf { animation: a3Auf 460ms var(--a3-kurve) both; animation-delay: calc(var(--i, 0) * 55ms); }

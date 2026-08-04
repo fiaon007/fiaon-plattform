@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { PageIntro } from "@/components/admin/PageHelp";
+import { PageIntro, Tip } from "@/components/admin/PageHelp";
+import { ACCENT } from "@/components/admin/AdminShell";
+import Detailfenster, { type ListenArt, type FensterReiter } from "@/components/admin/Detailfenster";
+import AboTafel from "@/components/admin/AboTafel";
 
 // ============================================================================
 // /admin/zahlungen — Zahlungszentrale (Vorkasse per Banküberweisung)
-// - 4 Kennzahl-Kacheln, „Zahlung angekündigt" = Arbeitsliste (hervorgehoben)
+// - 4 Kennzahl-Kacheln, „Zahlung angekündigt“ = Arbeitsliste (hervorgehoben)
 // - Filter-Chips Alle/Offen/Angekündigt/Bezahlt/Abgelaufen, claimed_paid zuerst
 // - Detail-Drawer mit Ereignis-Timeline + Rechnungs-Download
 // - Duplikat-Altbestand: sichere Massen-Bereinigung (Soft-Delete)
@@ -141,13 +144,17 @@ const STATUS_ORDER: Record<string, number> = { claimed_paid: 0, pending_payment:
 export default function AdminZahlungenPage() {
   const [tab, setTab] = useState<TabKey>("claimed_paid");
   const [rows, setRows] = useState<PaymentRow[]>([]);
+  /** true = neueste zuerst (Vorgabe), false = längste Wartezeit zuerst. */
+  const [sortNeu, setSortNeu] = useState(true);
+  /** Welche Kennzahl ist als Namensliste geöffnet? */
+  const [fenster, setFenster] = useState<ListenArt | null>(null);
   // Deep-Link aus Hub/Cmd+K: /admin/zahlungen?ref=… öffnet direkt den Drawer
   const deepRef = useRef<string | null>(new URLSearchParams(window.location.search).get("ref"));
   const [stats, setStats] = useState<PaymentStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   // Paket DC: globale Server-Suche (alle Status + Leads) — findet auch, was der
-  // aktuelle Tab nicht lädt (z. B. bezahlte/ersetzte Bestellungen im Tab „Angekündigt").
+  // aktuelle Tab nicht lädt (z. B. bezahlte/ersetzte Bestellungen im Tab „Angekündigt“).
   const [serverHits, setServerHits] = useState<{ customers: any[]; leads: any[] } | null>(null);
   const serverSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [actionRef, setActionRef] = useState<string | null>(null);
@@ -203,15 +210,6 @@ export default function AdminZahlungenPage() {
         ),
       );
       const all: PaymentRow[] = results.flatMap((j) => (j?.ok ? j.data : []));
-      // Priorität: Angekündigt zuerst (älteste Ankündigung oben — warten am längsten auf Freischaltung)
-      all.sort((a, b) => {
-        const so = (STATUS_ORDER[a.payment_status] ?? 9) - (STATUS_ORDER[b.payment_status] ?? 9);
-        if (so !== 0) return so;
-        if (a.payment_status === "claimed_paid") {
-          return new Date(a.claimed_paid_at || 0).getTime() - new Date(b.claimed_paid_at || 0).getTime();
-        }
-        return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
-      });
       setRows(all);
     } catch {
       setRows([]);
@@ -272,7 +270,7 @@ export default function AdminZahlungenPage() {
       setSearch(deepRef.current);
     }
     const scrollToHash = () => {
-      // P4-E: Nav-Einträge „Auszahlungen" und „Dubletten" springen zur Sektion.
+      // P4-E: Nav-Einträge „Auszahlungen“ und „Dubletten“ springen zur Sektion.
       const target = window.location.hash === "#auszahlungen" ? "auszahlungen"
         : window.location.hash === "#dubletten" ? "dubletten" : null;
       if (target) {
@@ -321,7 +319,7 @@ export default function AdminZahlungenPage() {
     e.stopPropagation();
     if (!dup) return;
     if (!confirm(
-      `Duplikat-Bereinigung starten?\n\n${dup.groups} Gruppen · ${dup.mergeable} überflüssige Alt-Einträge werden als „merged" markiert (Soft-Delete, KEIN Löschen).\n\nPro E-Mail bleibt der vollständigste/neueste Antrag erhalten. Bezahlte/offene Zahlungen sind geschützt.`,
+      `Duplikat-Bereinigung starten?\n\n${dup.groups} Gruppen · ${dup.mergeable} überflüssige Alt-Einträge werden als „merged“ markiert (Soft-Delete, KEIN Löschen).\n\nPro E-Mail bleibt der vollständigste/neueste Antrag erhalten. Bezahlte/offene Zahlungen sind geschützt.`,
     )) return;
     setDupRunning(true);
     try {
@@ -350,7 +348,7 @@ export default function AdminZahlungenPage() {
   // ── Paket AD3: Einzel-Storno, DSGVO-Löschung, Reminder-Override ──
   const cancelOrder = async (e: React.MouseEvent, paymentRef: string) => {
     e.stopPropagation();
-    if (!confirm(`Bestellung ${paymentRef} stornieren?\n\nStatus wird „storniert", alle Erinnerungen stoppen, vorhandene Provisionen werden zurückgezogen (Clawback). Die Bestellung verschwindet aus den operativen Listen, bleibt aber in der Historie.`)) return;
+    if (!confirm(`Bestellung ${paymentRef} stornieren?\n\nStatus wird „storniert“, alle Erinnerungen stoppen, vorhandene Provisionen werden zurückgezogen (Clawback). Die Bestellung verschwindet aus den operativen Listen, bleibt aber in der Historie.`)) return;
     setActionRef(paymentRef);
     try {
       const res = await fetch(`/api/fiaon/admin/payments/${encodeURIComponent(paymentRef)}/cancel`, { method: "POST", credentials: "include" });
@@ -364,7 +362,7 @@ export default function AdminZahlungenPage() {
 
   const gdprDelete = async (e: React.MouseEvent, r: PaymentRow) => {
     e.stopPropagation();
-    if (!confirm(`Kunde „${customerName(r)}" nach DSGVO löschen?\n\nName, E-Mail, Telefon, Adresse und KYC-Dokumente werden anonymisiert/entfernt. Offene Zahlung wird storniert.\n\nWICHTIG: Rechnungsdaten (Nummer ${r.invoice_number || "—"}, Betrag, Datum) bleiben aus Buchhaltungspflicht erhalten. Dieser Schritt ist nicht umkehrbar.`)) return;
+    if (!confirm(`Kunde „${customerName(r)}“ nach DSGVO löschen?\n\nName, E-Mail, Telefon, Adresse und KYC-Dokumente werden anonymisiert/entfernt. Offene Zahlung wird storniert.\n\nWICHTIG: Rechnungsdaten (Nummer ${r.invoice_number || "—"}, Betrag, Datum) bleiben aus Buchhaltungspflicht erhalten. Dieser Schritt ist nicht umkehrbar.`)) return;
     setActionRef(r.payment_reference);
     try {
       const res = await fetch(`/api/fiaon/admin/applications/${encodeURIComponent(r.ref)}/gdpr-delete`, {
@@ -685,8 +683,8 @@ export default function AdminZahlungenPage() {
     }
   };
 
-  // Paket DC: präzise Suche — tokenisiert (Wortreihenfolge egal, „Max Müller" =
-  // „Müller Max") + Telefonsuche über normalisierte Ziffern (+49/0049/0/Format egal).
+  // Paket DC: präzise Suche — tokenisiert (Wortreihenfolge egal, „Max Müller“ =
+  // „Müller Max“) + Telefonsuche über normalisierte Ziffern (+49/0049/0/Format egal).
   const q = search.trim().toUpperCase();
   const qTokens = q.split(/\s+/).filter(Boolean);
   const qDigits = (() => {
@@ -697,7 +695,7 @@ export default function AdminZahlungenPage() {
     else if (d.startsWith("0")) d = d.slice(1);
     return d.length >= 5 ? d : null;
   })();
-  const filtered = q
+  const gefiltert = q
     ? rows.filter((r) => {
         if (qDigits) {
           const phoneDigits = `${r.phone_country_code || ""}${r.phone || ""}${r.contact_phone || ""}`.replace(/\D/g, "");
@@ -708,50 +706,46 @@ export default function AdminZahlungenPage() {
       })
     : rows;
 
+  /** Der maßgebliche Zeitpunkt einer Zeile: bei angekündigten Zahlungen der
+   *  Zeitpunkt der Ankündigung, sonst der Bestelleingang. */
+  const zeitpunkt = (r: PaymentRow) =>
+    new Date((r.payment_status === "claimed_paid" ? r.claimed_paid_at : null) || r.created_at || 0).getTime();
+
+  // Standard: NEUESTE ZUERST (nach Datum und Uhrzeit). Die Gegenansicht
+  // „längste Wartezeit zuerst“ bleibt einen Klick entfernt — sie ist die
+  // richtige Sicht, wenn man den Rückstand abarbeitet.
+  const filtered = [...gefiltert].sort((a, b) => {
+    if (tab === "alle") {
+      const so = (STATUS_ORDER[a.payment_status] ?? 9) - (STATUS_ORDER[b.payment_status] ?? 9);
+      if (so !== 0) return so;
+    }
+    return sortNeu ? zeitpunkt(b) - zeitpunkt(a) : zeitpunkt(a) - zeitpunkt(b);
+  });
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <div className="min-w-0 flex-1">
-            <PageIntro
-              id="zahlungen"
-              title="Zahlungszentrale"
-              subtitle="Hier prüfst du angekündigte Zahlungen und schaltest sie nach Zahlungseingang frei — außerdem Auszahlungen und Dubletten."
-              steps={[
-                "Der Tab „Zahlung angekündigt“ zeigt Kunden, die „Ich habe bezahlt“ gemeldet haben. Prüfe den Eingang auf dem Konto (Verwendungszweck = Zahlungsreferenz FIAON-…) und schalte mit „bezahlt“ frei — das stoppt Erinnerungen, sendet die Bestätigungs-Mail und prüft die Provision automatisch.",
-                "Tipp: Der Kontoabgleich (eigene Seite) macht denselben Schritt direkt aus dem hochgeladenen Kontoauszug — exakter und schneller bei vielen Eingängen.",
-                "Unter „Auszahlungen“ (unten, oder Menüpunkt links) gibst du Provisions-Anforderungen des Teams frei.",
-                "Unter „Dubletten“ führst du Mehrfach-Bestellungen derselben Person zusammen — nichts wird gelöscht, alles bleibt rekonstruierbar.",
-                "Jeder Kunde hat eine Timeline (Zeile anklicken): jede Mail, jeder Statuswechsel, jede Notiz.",
-              ]}
-            />
+    <div className="text-slate-900">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+        {/* ── Kopf: Titel und Zustand. Die Knöpfe stehen NICHT mehr hier oben,
+            sondern jeweils bei der Sache, auf die sie wirken: Erinnerungen in
+            der Werkzeugleiste über der Liste, Rechnungen bei den Rechnungen.
+            Ein Knopf, der Mails an 159 Kunden schickt, gehört nicht neben die
+            Seitenüberschrift, wo man ihn im Vorbeigehen trifft. ── */}
+        <div className="flex items-end justify-between gap-4 mb-4">
+          <div className="min-w-0">
+            <h1 className="text-[22px] sm:text-[26px] font-bold text-slate-900 tracking-[-.02em]">Zahlungszentrale</h1>
+            <p className="text-[12.5px] text-slate-500 mt-0.5">
+              Angekündigte Zahlungen prüfen und freischalten · Abo-Raten · Auszahlungen · Dubletten
+            </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={openBulkDialog}
-              disabled={Boolean(bulkJob?.running)}
-              className="px-4 py-2.5 rounded-xl text-white text-[13px] font-semibold bg-[#2563eb] hover:bg-[#1d4fd7] transition-all disabled:opacity-50"
-            >
-              {bulkJob?.running ? "Bulk-Versand läuft …" : "Zahlungserinnerung an alle offenen senden"}
-            </button>
-            <button
-              type="button"
-              onClick={runReminders}
-              disabled={reminderRunning}
-              className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-[13px] font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all disabled:opacity-50"
-            >
-              {reminderRunning ? "Läuft…" : "Reminder-Lauf jetzt starten"}
-            </button>
-            <a
-              href="/api/fiaon/admin/invoices/download-all"
-              onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-[13px] font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all"
-              title="Alle Rechnungen als ZIP herunterladen (ein PDF je Kunde + CSV-Übersicht)"
-            >
-              Alle Rechnungen herunterladen (ZIP)
-            </a>
-          </div>
+          <button
+            type="button"
+            onClick={() => { load(tab); loadStats(); }}
+            disabled={loading}
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border text-[12.5px] font-semibold text-slate-600 disabled:opacity-50"
+            style={{ borderColor: "var(--a3-linie,#e4e9f2)" }}
+          >
+            {loading ? "Lädt …" : "Aktualisieren"}
+          </button>
         </div>
 
         {/* Paket W: Fortschritt des Bulk-Jobs */}
@@ -784,41 +778,75 @@ export default function AdminZahlungenPage() {
           </div>
         )}
 
-        {/* ── C1: Kennzahl-Kacheln ── */}
+        {/* ── Kennzahlen — jede führt in die Namensliste dahinter ──────────────
+            Vorher waren es Anzeigetafeln: „46 Bestellungen“ ohne die Möglichkeit
+            zu sehen, WELCHE. Jetzt öffnet jede Kachel dieselbe Detailliste wie
+            im Dashboard, mit Akte, Anruf und Mail je Zeile. ── */}
         {stats && (
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
-            <div className="bg-white border border-slate-200 rounded-2xl p-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Offen — keine Reaktion</p>
-              <p className="text-xl font-bold text-slate-900">{stats.pending.sum.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €</p>
-              <p className="text-[11px] text-slate-400">{stats.pending.count} Bestellungen</p>
-            </div>
-            {/* Arbeitsliste — visuell hervorgehoben */}
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setTab("claimed_paid"); }}
-              className="text-left bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 shadow-[0_4px_16px_rgba(245,158,11,.15)] hover:border-amber-400 transition-colors"
-            >
-              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 mb-1">Zahlung angekündigt</p>
-              <p className="text-xl font-bold text-amber-700">{stats.claimed.sum.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €</p>
-              <p className="text-[11px] text-amber-600/80 font-semibold">{stats.claimed.count} warten auf Freischaltung — deine Arbeitsliste</p>
-            </button>
-            <div className="bg-white border border-emerald-200 rounded-2xl p-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 mb-1">Bestätigt bezahlt</p>
-              <p className="text-xl font-bold text-emerald-600">{stats.paid.sum.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €</p>
-              <p className="text-[11px] text-slate-400">{stats.paid.count} bezahlt</p>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-2xl p-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Bestätigungsquote</p>
-              <p className="text-xl font-bold text-slate-900">{stats.confirmationRate === null ? "—" : `${stats.confirmationRate} %`}</p>
-              <p className="text-[11px] text-slate-400">bezahlt / Zahlung angekündigt</p>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-2xl p-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Heute versendete Erinnerungen</p>
-              <p className="text-xl font-bold text-slate-900 tabular-nums">{stats.remindersToday ?? 0}</p>
-              <p className="text-[11px] text-slate-400">payment_reminder (Engine + Bulk + Team)</p>
-            </div>
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-3 mb-4">
+            {[
+              {
+                label: "Offen — keine Reaktion",
+                wert: `${stats.pending.sum.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €`,
+                unter: `${stats.pending.count} Bestellungen`,
+                art: "offen-alle" as ListenArt, ton: undefined,
+                hilfe: "Bestellung liegt, Zahlung fehlt, und der Kunde hat sich nicht gemeldet. Nach sieben Tagen läuft sie in „abgelaufen“ — sichtbar bleibt sie trotzdem.",
+              },
+              {
+                label: "Zahlung angekündigt",
+                wert: `${stats.claimed.sum.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €`,
+                unter: `${stats.claimed.count} warten auf Freischaltung`,
+                art: "angekuendigt-alle" as ListenArt, ton: "offen" as const,
+                hilfe: "Der Kunde hat „Ich habe überwiesen“ gemeldet. Eingang prüfen (Verwendungszweck = Zahlungsreferenz) und freischalten. Das ist die eigentliche Arbeitsliste.",
+              },
+              {
+                label: "Bestätigt bezahlt",
+                wert: `${stats.paid.sum.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €`,
+                unter: `${stats.paid.count} bezahlt`,
+                art: "bezahlt-alle" as ListenArt, ton: "geld" as const,
+                hilfe: "Alle bestätigten Erstzahlungen. Ab dieser Buchung läuft die Abo-Uhr: 30 Tage später ist die erste Monatsrate fällig.",
+              },
+              {
+                label: "Bestätigungsquote",
+                wert: stats.confirmationRate === null ? "—" : `${stats.confirmationRate} %`,
+                unter: "bezahlt / angekündigt",
+                art: "angekuendigt-alt" as ListenArt, ton: undefined,
+                hilfe: "Wie viele der angekündigten Zahlungen tatsächlich bestätigt wurden. Ein Klick zeigt die verdächtigen Fälle: seit über sieben Tagen angekündigt, nie bestätigt.",
+              },
+              {
+                label: "Erinnerungen heute",
+                wert: String(stats.remindersToday ?? 0),
+                unter: "Motor, Sammelversand und Team zusammen",
+                art: "erinnert-heute" as ListenArt, ton: undefined,
+                hilfe: "Zahlungserinnerungen des heutigen Tages. Ein Klick zeigt, WER sie bekommen hat und wie oft insgesamt schon erinnert wurde.",
+              },
+            ].map((k, i) => (
+              <button
+                key={k.label}
+                type="button"
+                onClick={() => setFenster(k.art)}
+                className="a3-kachel a3-auf p-4 pl-[18px] text-left w-full"
+                data-ton={k.ton}
+                style={{ ["--i" as any]: i }}
+              >
+                <span className="flex items-start gap-1.5">
+                  <span className="flex-1 min-w-0 text-[10px] font-semibold uppercase tracking-[.07em] text-slate-500 leading-tight">{k.label}</span>
+                  {/* Das ⓘ braucht eigenen Platz — sonst schiebt sich die
+                      umbrechende Beschriftung darunter. */}
+                  <span className="shrink-0 mt-[-1px]"><Tip text={k.hilfe} /></span>
+                </span>
+                <span className="block mt-2 text-[20px] sm:text-[22px] font-bold text-slate-900 a3-zahl leading-none">{k.wert}</span>
+                <span className="block mt-1.5 text-[11.5px] text-slate-500 leading-snug">{k.unter}</span>
+                <span className="block mt-1.5 text-[11px] font-semibold inline-flex items-center gap-1" style={{ color: ACCENT }}>
+                  Wer? →
+                </span>
+              </button>
+            ))}
           </div>
         )}
+
+        {/* ── Abo — die monatliche Paketrate ── */}
+        <AboTafel onMeldung={flash} />
 
         {/* Paket W: Bestätigungsdialog Bulk-Versand */}
         {bulkDialog && bulkPreview && (
@@ -851,55 +879,76 @@ export default function AdminZahlungenPage() {
           </div>
         )}
 
-        {/* EA: Arbeits-Fokus = offene Zahlungen. Abgeschlossenes lebt in Kunden & Anträge. */}
-        <div className="mb-4 px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-[12.5px] text-slate-600">
-          Diese Ansicht ist auf <span className="font-semibold text-slate-700">offene Zahlungen</span> fokussiert.
-          Bezahlte und abgeschlossene Bestellungen findest du unter{" "}
-          <a href="/admin/database" className="font-semibold text-[#2563eb] hover:underline">Kunden &amp; Anträge → Bezahlt</a>.
-        </div>
+        {/* ── Erstzahlungen: Filter, Suche, Werkzeuge, Liste — alles in EINER
+            Tafel, damit sichtbar ist, worauf die Werkzeuge wirken. ── */}
+        <section className="a3-tafel mb-4">
+          <header className="a3-tafel-kopf flex-wrap">
+            <h2 className="text-[14px] font-bold text-slate-900">Erstzahlungen</h2>
+            <Tip text="Die erste Zahlung eines Kunden: Sie schaltet den Zugang frei. Die monatlichen Folgeraten stehen in der Abo-Tafel darüber. Bezahlte und abgeschlossene Bestellungen findest du außerdem unter Anträge & KYC." />
+            <span className="a3-reiter ml-auto">
+              {([
+                { key: "claimed_paid", label: `Angekündigt${stats ? ` ${stats.claimed.count}` : ""}` },
+                { key: "pending_payment", label: `Offen${stats ? ` ${stats.pending.count}` : ""}` },
+                { key: "expired", label: "Abgelaufen" },
+                { key: "paid", label: `Bezahlt${stats ? ` ${stats.paid.count}` : ""}` },
+                { key: "alle", label: "Alle" },
+              ] as const).map((t) => (
+                <button key={t.key} type="button" data-an={tab === t.key ? "1" : undefined}
+                  onClick={(e) => { e.stopPropagation(); setTab(t.key); }}>
+                  {t.label}
+                </button>
+              ))}
+            </span>
+          </header>
 
-        {/* ── C2: Filter-Chips ── */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          {(
-            [
-              { key: "alle", label: "Alle" },
-              { key: "pending_payment", label: `Offen${stats ? ` (${stats.pending.count})` : ""}` },
-              { key: "claimed_paid", label: `Angekündigt${stats ? ` (${stats.claimed.count})` : ""}` },
-              { key: "paid", label: `Bezahlt${stats ? ` (${stats.paid.count})` : ""}` },
-              { key: "expired", label: "Abgelaufen" },
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setTab(t.key);
-              }}
-              className={`px-4 py-2 rounded-xl text-[13px] font-bold transition-all ${
-                tab === t.key
-                  ? "bg-[#2563eb] text-white shadow-md shadow-blue-500/25"
-                  : "bg-white border border-slate-200 text-slate-500 hover:border-slate-300"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+          {/* Werkzeugleiste: Suche, Sortierung und die Versand-Knöpfe.
+              Die Erinnerungs-Knöpfe stehen bewusst HIER — direkt über der Liste
+              der offenen Zahlungen, auf die sie wirken. */}
+          <div className="px-3.5 sm:px-4 py-3 flex flex-wrap items-center gap-2"
+            style={{ boxShadow: "inset 0 -1px 0 rgba(226,232,240,.8)" }}>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Referenz, Name, E-Mail oder Telefon …"
+              className="h-[34px] px-3 rounded-lg border bg-white text-[12.5px] outline-none flex-1 min-w-[180px]"
+              style={{ borderColor: "var(--a3-linie,#e4e9f2)" }}
+            />
+            <span className="a3-reiter shrink-0">
+              <button type="button" data-an={sortNeu ? "1" : undefined} onClick={() => setSortNeu(true)}>Neueste zuerst</button>
+              <button type="button" data-an={!sortNeu ? "1" : undefined} onClick={() => setSortNeu(false)}>Längste Wartezeit</button>
+            </span>
+            <span className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={openBulkDialog}
+                disabled={Boolean(bulkJob?.running)}
+                className="a3-knopf inline-flex"
+                data-haupt="1"
+                title="Sendet payment_reminder an alle offenen Bestellungen — mit Vorschau und Bestätigung"
+              >
+                {bulkJob?.running ? "Sammelversand läuft …" : "Erinnerung an alle offenen"}
+              </button>
+              <button
+                type="button"
+                onClick={runReminders}
+                disabled={reminderRunning}
+                className="a3-knopf inline-flex"
+                title="Startet den täglichen Reminder-Lauf sofort (Engine): Erinnerungen + Ablauf-Prüfung"
+              >
+                {reminderRunning ? "Läuft …" : "Erinnerungs-Lauf"}
+              </button>
+              <a
+                href="/api/fiaon/admin/invoices/download-all"
+                onClick={(e) => e.stopPropagation()}
+                className="a3-knopf hidden sm:inline-flex"
+                title="Alle Rechnungen als ZIP (ein PDF je Kunde + CSV-Übersicht)"
+              >
+                Rechnungen (ZIP)
+              </a>
+            </span>
+          </div>
 
-        {/* Suchfeld */}
-        <div className="mb-4">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Suche nach Referenz, Name oder E-Mail…"
-            className="w-full sm:max-w-md px-4 py-3 rounded-xl border border-slate-200 bg-white focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/10 outline-none text-[14px]"
-          />
-        </div>
-
-        {/* ── C2: Tabelle ── */}
-        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
@@ -1013,10 +1062,16 @@ export default function AdminZahlungenPage() {
               </tbody>
             </table>
           </div>
-        </div>
+          {/* Fuß: Kontodaten dort, wo man die Zahlung prüft — nicht irgendwo
+              weiter unten auf der Seite. */}
+          <div className="px-4 py-2.5 text-[11px] text-slate-400" style={{ background: "#fbfcfe" }}>
+            Bankkonto FIAON LTD · BE09 9058 9276 3957 · TRWIBEB1XXX — Zuordnung ausschließlich über den Verwendungszweck
+            {filtered.length > 0 && ` · ${filtered.length} Zeile${filtered.length === 1 ? "" : "n"} angezeigt`}
+          </div>
+        </section>
 
         {/* ── PROMPT 1/2: globale Suchtreffer — JEDER Treffer öffnet die AKTE ──
-            (ersetzt den früheren, nicht klickbaren Treffer-Block „Paket DC":
+            (ersetzt den früheren, nicht klickbaren Treffer-Block „Paket DC“:
             Kunden setzten nur den Suchtext, Leads waren gar nicht klickbar.) */}
         {q && serverHits && (() => {
           const localRefs = new Set(rows.map((r) => r.ref));
@@ -1075,12 +1130,8 @@ export default function AdminZahlungenPage() {
           );
         })()}
 
-        <p className="text-[12px] text-slate-400 mt-4">
-          Bankkonto: FIAON LTD · BE09 9058 9276 3957 · TRWIBEB1XXX — Zuordnung ausschließlich über den Verwendungszweck.
-        </p>
-
         {/* ── C3: Duplikat-Altbestand ── */}
-        <div id="dubletten" className="mt-8 bg-white border border-slate-200 rounded-2xl p-5 scroll-mt-16">
+        <div id="dubletten" className="mt-4 a3-tafel p-5 scroll-mt-16">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="text-[15px] font-bold text-slate-900">Duplikat-Altbestand bereinigen</h2>
@@ -1103,7 +1154,7 @@ export default function AdminZahlungenPage() {
                 type="button"
                 onClick={runDupCleanup}
                 disabled={dupRunning || !dup || dup.mergeable === 0}
-                className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[13px] font-bold transition-all disabled:opacity-40"
+                className="px-4 py-2.5 rounded-xl text-white text-[13px] font-bold transition-all disabled:opacity-40" style={{ background: `linear-gradient(180deg,${ACCENT},#1e40af)`, boxShadow: "0 4px 14px -6px rgba(29,78,216,.6)" }}
               >
                 {dupRunning ? "Bereinige…" : "Alle abarbeiten"}
               </button>
@@ -1112,7 +1163,7 @@ export default function AdminZahlungenPage() {
         </div>
 
         {/* ── Paket AD3 / P3-A: Dubletten-Verwaltung (Gruppierung per E-Mail UND Telefon) ── */}
-        <div className="mt-6 bg-white border border-slate-200 rounded-2xl p-5">
+        <div className="mt-4 a3-tafel p-5">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-1">
             <div>
               <h2 className="text-[15px] font-bold text-slate-900">
@@ -1134,7 +1185,7 @@ export default function AdminZahlungenPage() {
                 type="button"
                 onClick={runSupersede}
                 disabled={supersedeRunning}
-                className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[13px] font-bold transition-all disabled:opacity-40"
+                className="px-4 py-2.5 rounded-xl text-white text-[13px] font-bold transition-all disabled:opacity-40" style={{ background: `linear-gradient(180deg,${ACCENT},#1e40af)`, boxShadow: "0 4px 14px -6px rgba(29,78,216,.6)" }}
               >
                 {supersedeRunning ? "Läuft…" : "Aufräumlauf starten (keine Mails)"}
               </button>
@@ -1202,7 +1253,7 @@ export default function AdminZahlungenPage() {
         </div>
 
         {/* ── H2: Auszahlungen (Provisions-Anforderungen der Mitarbeiter) ── */}
-        <div id="auszahlungen" className="mt-6 bg-white border border-slate-200 rounded-2xl p-5 scroll-mt-16">
+        <div id="auszahlungen" className="mt-4 a3-tafel p-5 scroll-mt-16">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div>
               <h2 className="text-[15px] font-bold text-slate-900">
@@ -1530,6 +1581,67 @@ export default function AdminZahlungenPage() {
           </div>
         </div>
       )}
+
+      {/* Namensliste zur angeklickten Kennzahl — dieselbe Bauart wie im Dashboard. */}
+      {fenster && (
+        <Detailfenster
+          reiter={(
+            fenster.startsWith("angekuendigt")
+              ? [
+                  { art: "angekuendigt-alle", label: "Alle" },
+                  { art: "angekuendigt-heute", label: "Heute" },
+                  { art: "angekuendigt-alt", label: "Älter als 7 Tage" },
+                ]
+              : fenster.startsWith("bezahlt")
+                ? [
+                    { art: "bezahlt-alle", label: "Alle" },
+                    { art: "bezahlt-monat", label: "Dieser Monat" },
+                    { art: "bezahlt-heute", label: "Heute" },
+                  ]
+                : fenster === "erinnert-heute"
+                  ? [{ art: "erinnert-heute", label: "Heute erinnert" }]
+                  : [
+                      { art: "offen-alle", label: "Alle offenen" },
+                      { art: "offen-ohne-reaktion", label: "Ohne jede Reaktion" },
+                      { art: "abgelaufen", label: "Abgelaufen" },
+                    ]
+          ) as FensterReiter[]}
+          start={fenster}
+          titel={
+            fenster.startsWith("angekuendigt") ? "Wer hat eine Zahlung angekündigt?"
+            : fenster.startsWith("bezahlt") ? "Wer hat bezahlt?"
+            : fenster === "erinnert-heute" ? "Wer hat heute eine Erinnerung bekommen?"
+            : "Wer hat noch nicht gezahlt?"
+          }
+          hinweis={
+            fenster.startsWith("angekuendigt") ? "Gemeldet, aber nicht bestätigt — ältester Fall zuerst."
+            : fenster.startsWith("bezahlt") ? "Bestätigte Erstzahlungen. Ab der Buchung läuft die Abo-Uhr (30 Tage)."
+            : fenster === "erinnert-heute" ? "Zahlungserinnerungen des heutigen Tages, jüngste zuerst."
+            : "Bestellung liegt, Zahlung fehlt. Neueste zuerst — Alter je Zeile."
+          }
+          alleLink="/admin/kontoabgleich"
+          alleLabel="Im Kontoabgleich mit dem Kontoauszug abgleichen"
+          onClose={() => setFenster(null)}
+        />
+      )}
+
+      {/* Anleitung: am Ende und zugeklappt — sie soll die Arbeitsliste nicht
+          jeden Tag nach unten schieben. */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-8">
+        <PageIntro
+          id="zahlungen"
+          title="So arbeitest du hier"
+          subtitle="Erstzahlung freischalten, Abo-Raten im Blick behalten, Auszahlungen freigeben."
+          steps={[
+            "„Angekündigt“ ist die Arbeitsliste: Der Kunde hat gemeldet, dass er überwiesen hat. Eingang prüfen (Verwendungszweck = Zahlungsreferenz FIAON-…) und „Als bezahlt markieren“ — das stoppt Erinnerungen, sendet die Bestätigungsmail und prüft die Provision.",
+            "Jede Kennzahl oben ist anklickbar und zeigt die Namen dahinter — mit Akte, Anruf und Mail je Zeile.",
+            "Die Abo-Tafel zeigt die monatlichen Paketraten: fällig 30 Tage nach der Buchung, danach im gleichen Abstand. „bezahlt“ buchen erzeugt automatisch die nächste Fälligkeit.",
+            "Bei vielen Eingängen ist der Kontoabgleich schneller: Kontoauszug hochladen, Eingänge zuordnen, in einem Zug verbuchen.",
+            "Unter „Auszahlungen“ gibst du Provisions-Anforderungen des Teams frei, unter „Dubletten“ führst du Mehrfach-Bestellungen zusammen (nichts wird gelöscht).",
+            "Jede Zeile öffnet die Timeline: jede Mail, jeder Statuswechsel, jede Notiz.",
+          ]}
+        />
+      </div>
     </div>
   );
 }

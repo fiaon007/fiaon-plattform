@@ -646,6 +646,17 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
   `;
   if (apps.length === 0) return;
   const app = apps[0];
+
+  // ── Abo-Kette anlegen (monatliche Paketrate) ────────────────────────────────
+  // Bewusst HIER, vor allen weiteren Abbruchbedingungen dieser Funktion: unten
+  // gibt es mehrere frühe `return` (Provision schon gebucht, Direktzahler,
+  // Betrag 0). Stünde der Aufruf weiter unten, hätte ein Direktzahler kein Abo
+  // — und damit nie wieder eine Rechnung. Fire-and-forget: eine Zahlung darf
+  // nicht daran scheitern, dass das Abo-Modul etwas nicht anlegen kann.
+  import("./fiaon-abo")
+    .then((m) => m.aboBeiZahlungAnlegen(ref))
+    .catch((e) => console.error("[FIAON-ABO] Anlage nach Zahlung:", e));
+
   // Idempotenz: pro Kunde maximal EIN positiver, nicht-stornierter Eintrag (own + override zusammen)
   const existing = await sqlPool`
     SELECT id FROM fiaon_commissions WHERE ref = ${ref} AND amount_cents > 0 AND status != 'storniert'

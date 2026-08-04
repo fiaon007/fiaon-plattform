@@ -271,7 +271,7 @@ export default function Cockpit() {
         <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
           style={{ background: "var(--fi-flaeche-akzent,#f1f5ff)", color: ACCENT }}>
           {/* Kein Icon-Zoo: zwei Striche und ein Punkt genügen als Zeichen für
-              „Frage an die Datenbank". */}
+              „Frage an die Datenbank“. */}
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M4 7h16M4 12h10M4 17h6" />
             <circle cx="18" cy="17" r="2.2" fill="currentColor" stroke="none" />

@@ -303,6 +303,16 @@ export async function computeLage(): Promise<any> {
   const summe = (feld: string) => zusagen.reduce((s: number, z: any) => s + Number(z[feld] || 0), 0);
   const zahl = (v: any) => Number(v || 0);
 
+  // 5) Abo — der laufende Umsatz. Ohne diesen Block zeigt das Dashboard nur das
+  //    Neugeschäft und verschweigt, was monatlich wiederkommt.
+  let abo: any = null;
+  try {
+    const { aboUebersicht } = await import("./fiaon-abo");
+    abo = await aboUebersicht();
+  } catch (err) {
+    console.error("[FIAON-HUB] abo:", err);
+  }
+
   return {
     umsatz: {
       heute: { anzahl: zahl(umsatz.heute_anzahl), cents: zahl(umsatz.heute_cents) },
@@ -344,6 +354,7 @@ export async function computeLage(): Promise<any> {
         kuenftig: zahl(z.kuenftig), ueberfaellig: zahl(z.ueberfaellig), summeCents: zahl(z.summe_cents),
       })),
     },
+    abo,
     at: new Date().toISOString(),
   };
 }
@@ -374,7 +385,12 @@ router.get("/admin/hub/lage", async (_req, res) => {
 export type LagenListe =
   | "angekuendigt-heute" | "angekuendigt-alle" | "angekuendigt-alt"
   | "zusagen-heute" | "zusagen-ueberfaellig" | "zusagen-alle"
-  | "bezahlt-heute" | "bezahlt-monat";
+  | "bezahlt-heute" | "bezahlt-monat" | "bezahlt-alle"
+  // Zahlungszentrale: die Kennzahlen dort führen in dieselben Listen.
+  | "offen-alle" | "offen-ohne-reaktion" | "abgelaufen"
+  | "erinnert-heute"
+  // Abo: die monatliche Paketrate (fiaon_abo_raten).
+  | "abo-heute" | "abo-woche" | "abo-ueberfaellig" | "abo-bezahlt-monat";
 
 /** Anzeigename einer Antragszeile — Firma vor Person, Referenz als letzter Halt. */
 const NAME_SQL = `COALESCE(
@@ -443,9 +459,17 @@ router.get("/admin/hub/liste", async (req, res) => {
         WHERE TRUE ${filter}
         ORDER BY n.promised_date ASC
         LIMIT ${limit}
-      `, [heute]);
+      `, filter ? [heute] : []);
     } else if (art.startsWith("bezahlt")) {
-      const nurHeute = art === "bezahlt-heute";
+      const zeitraum = art === "bezahlt-heute"
+        ? `AND (a.completed_at AT TIME ZONE 'Europe/Berlin')::date = $1::date`
+        : art === "bezahlt-monat"
+          ? `AND (a.completed_at AT TIME ZONE 'Europe/Berlin')::date >= date_trunc('month', $1::date)::date`
+          : "";
+      // Parameter nur mitgeben, wenn der Zeitraum-Filter ihn wirklich benutzt:
+      // bei „alle" fällt der Filter weg, und ein übergebener, nie referenzierter
+      // Platzhalter lässt Postgres mit „could not determine data type of
+      // parameter $1" abbrechen.
       rows = await sqlPool.unsafe(`
         SELECT a.ref, a.payment_reference, ${NAME_SQL} AS name, ${MAIL_SQL} AS email, ${TEL_SQL} AS telefon,
                a.amount_due, ${PAKET_SQL} AS paket, a.completed_at AS datum,
@@ -454,10 +478,75 @@ router.get("/admin/hub/liste", async (req, res) => {
         LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
         WHERE a.payment_status = 'paid' AND a.payment_reference IS NOT NULL
           AND a.merged_into IS NULL AND a.completed_at IS NOT NULL
-          AND ${nurHeute
-            ? `(a.completed_at AT TIME ZONE 'Europe/Berlin')::date = $1::date`
-            : `(a.completed_at AT TIME ZONE 'Europe/Berlin')::date >= date_trunc('month', $1::date)::date`}
+          ${zeitraum}
         ORDER BY a.completed_at DESC
+        LIMIT ${limit}
+      `, zeitraum ? [heute] : []);
+    } else if (art === "offen-alle" || art === "offen-ohne-reaktion" || art === "abgelaufen") {
+      // Offen = Bestellung liegt, Kunde hat sich nicht gemeldet. „ohne Reaktion"
+      // grenzt auf die ein, bei denen auch keine Zusage im Gespräch steht —
+      // das sind die wirklich stillen Fälle.
+      const status = art === "abgelaufen" ? "'expired'" : "'pending_payment'";
+      const stille = art === "offen-ohne-reaktion"
+        ? `AND NOT EXISTS (
+             SELECT 1 FROM fiaon_contact_log l
+             WHERE l.ref = a.ref AND l.voided_at IS NULL AND l.promised_date IS NOT NULL
+           )`
+        : "";
+      // Bewusst OHNE Parameter: diese Abfrage braucht das heutige Datum nicht.
+      // Ein übergebener, aber nirgends benutzter Platzhalter lässt Postgres mit
+      // „could not determine data type of parameter $1" abbrechen — derselbe
+      // Fehler, der die Kartei-Abfragen schon einmal lahmgelegt hat.
+      rows = await sqlPool.unsafe(`
+        SELECT a.ref, a.payment_reference, ${NAME_SQL} AS name, ${MAIL_SQL} AS email, ${TEL_SQL} AS telefon,
+               a.amount_due, ${PAKET_SQL} AS paket, a.created_at AS datum, a.payment_status,
+               ag.name AS agent_name,
+               FLOOR(EXTRACT(EPOCH FROM (NOW() - a.created_at)) / 86400)::int AS tage_alt
+        FROM fiaon_applications a
+        LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
+        WHERE a.payment_status IN (${status}) AND a.merged_into IS NULL
+          AND a.payment_reference IS NOT NULL AND NOT COALESCE(a.ist_entwurf, FALSE)
+          ${stille}
+        ORDER BY a.created_at DESC
+        LIMIT ${limit}
+      `);
+    } else if (art.startsWith("abo-")) {
+      // Abo-Raten in derselben Form wie alle anderen Listen, damit das
+      // Detailfenster im Dashboard ohne Sonderfall damit umgehen kann.
+      const wo =
+        art === "abo-heute" ? `r.status = 'offen' AND r.faellig_am = $1::date`
+        : art === "abo-woche" ? `r.status = 'offen' AND r.faellig_am >= $1::date AND r.faellig_am <= $1::date + 7`
+        : art === "abo-ueberfaellig" ? `r.status = 'offen' AND r.faellig_am < $1::date`
+        : `r.status = 'bezahlt' AND r.rate_nr > 1 AND (r.bezahlt_am AT TIME ZONE 'Europe/Berlin')::date >= date_trunc('month', $1::date)::date`;
+      const sortierung = art === "abo-bezahlt-monat" ? "r.bezahlt_am DESC NULLS LAST" : "r.faellig_am ASC";
+      rows = await sqlPool.unsafe(`
+        SELECT a.ref, r.zahlungsreferenz AS payment_reference, ${NAME_SQL} AS name,
+               ${MAIL_SQL} AS email, ${TEL_SQL} AS telefon,
+               (r.betrag_cents / 100.0) AS amount_due, ${PAKET_SQL} AS paket,
+               COALESCE(r.bezahlt_am, r.faellig_am::timestamptz) AS datum,
+               ag.name AS agent_name,
+               NULLIF(($1::date - r.faellig_am), 0) AS tage_alt,
+               ('Rate ' || r.rate_nr || (CASE WHEN r.mahnstufe > 0 THEN ' · Mahnstufe ' || r.mahnstufe ELSE '' END)) AS note,
+               a.payment_status
+        FROM fiaon_abo_raten r
+        JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL
+        LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
+        WHERE ${wo}
+        ORDER BY ${sortierung}
+        LIMIT ${limit}
+      `, [heute]);
+    } else if (art === "erinnert-heute") {
+      // Wer hat heute eine Zahlungserinnerung bekommen? Beantwortet die Frage
+      // „175 versendet — an wen?", die man sonst nur im Make-Protokoll sieht.
+      rows = await sqlPool.unsafe(`
+        SELECT a.ref, a.payment_reference, ${NAME_SQL} AS name, ${MAIL_SQL} AS email, ${TEL_SQL} AS telefon,
+               a.amount_due, ${PAKET_SQL} AS paket, a.last_reminder_at AS datum, a.payment_status,
+               ag.name AS agent_name, NULL::int AS tage_alt, a.reminder_count AS erinnerungen
+        FROM fiaon_applications a
+        LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
+        WHERE a.merged_into IS NULL AND a.last_reminder_at IS NOT NULL
+          AND (a.last_reminder_at AT TIME ZONE 'Europe/Berlin')::date = $1::date
+        ORDER BY a.last_reminder_at DESC
         LIMIT ${limit}
       `, [heute]);
     } else {
@@ -477,6 +566,8 @@ router.get("/admin/hub/liste", async (req, res) => {
       agent: r.agent_name || null,
       notiz: r.note || null,
       status: r.payment_status || null,
+      // Wie oft wurde schon erinnert? Nur bei der Erinnerungsliste gesetzt.
+      erinnerungen: r.erinnerungen != null ? Number(r.erinnerungen) : null,
       akte: `/admin/kunde/${encodeURIComponent(r.ref)}`,
     }));
 

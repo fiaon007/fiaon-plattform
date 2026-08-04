@@ -11,6 +11,70 @@ echte Workflow existiert.
 
 ---
 
+## NEU (04.08.2026): `abo_payment_reminder` — monatliche Paketrate
+
+**Wann:** Für jede offene Abo-Rate. Die Rate ist **30 Tage nach dem Tag fällig,
+an dem die Zahlung als bezahlt gebucht wurde**, danach im gleichen Abstand.
+Versendet wird in drei Stufen:
+
+| Stufe | Zeitpunkt | Gedanke |
+| --- | --- | --- |
+| 1 | am Fälligkeitstag | freundliche Erinnerung |
+| 2 | 7 Tage nach Fälligkeit | zweite Erinnerung |
+| 3 | 14 Tage nach Fälligkeit | letzte Erinnerung |
+
+Danach geht **keine weitere Mail** raus; der Fall erscheint in der
+Zahlungszentrale als „Entscheidung nötig". Es wird **nie** automatisch ein Konto
+gesperrt. Versand nur zwischen **08 und 20 Uhr Berliner Zeit**, höchstens **eine
+Mail je Rate pro 20 Stunden**. Der Bonitäts-Check (74 €) ist ein Einmalkauf und
+löst dieses Event **nie** aus.
+
+**Payload — alle Felder, die in der Mail gebraucht werden:**
+
+| Feld | Beispiel | Bedeutung |
+| --- | --- | --- |
+| `event_type` | `abo_payment_reminder` | Zweig-Auswahl in Make |
+| `email` | `max.mustermann@example.com` | Empfänger |
+| `vorname` / `nachname` | `Max` / `Mustermann` | Anrede |
+| `antrag_id` | `FIAON-MB2XK4LQ-7T9A` | interne Bestellreferenz |
+| `payment_reference` | `FIAON-A1B2C3-2` | **Verwendungszweck der Rate** (Bestellreferenz + Ratennummer) |
+| `verwendungszweck` | `FIAON-A1B2C3-2` | derselbe Wert, sprechend benannt |
+| `betrag` | `59.99` | Ratenbetrag in Euro (Punkt als Dezimaltrenner) |
+| `paket` | `FIAON Pro (Standard)` | gebuchtes Paket |
+| `rate_nr` | `2` | Nummer der Rate (1 = Startzahlung) |
+| `faellig_am` | `2026-09-03` | Fälligkeit technisch (ISO) |
+| `faellig_am_text` | `03.09.2026` | Fälligkeit für die Mail |
+| `tage_ueberfaellig` | `0` | 0 = heute fällig, sonst Tage seit Fälligkeit |
+| `mahnstufe` | `1` | 1, 2 oder 3 |
+| `mahnstufe_text` | `Freundliche Erinnerung — heute ist Ihre Monatsrate fällig.` | fertiger Satz je Stufe |
+| `empfaenger` | `Fiaon Ltd` | Kontoinhaber |
+| `iban` | `BE09 9058 9276 3957` | IBAN |
+| `bic` | `TRWIBEB1XXX` | BIC |
+| `portal_url` | `https://www.fiaon.com/login` | Login-Link fürs Kundenportal |
+
+**In Make + Brevo anlegen:**
+
+1. Brevo-Template „Abo-Rate fällig" anlegen. Pflicht-Platzhalter:
+   `{{ params.vorname }}`, `{{ params.betrag }}`, `{{ params.faellig_am_text }}`,
+   `{{ params.verwendungszweck }}`, `{{ params.empfaenger }}`, `{{ params.iban }}`,
+   `{{ params.bic }}`, `{{ params.mahnstufe_text }}`, `{{ params.portal_url }}`.
+   **Der Verwendungszweck muss im Text stehen** — ohne ihn kann die Überweisung
+   nicht zugeordnet werden.
+2. Im Make-Szenario einen Zweig mit Filter `event_type = abo_payment_reminder`
+   anlegen und auf das Template mappen.
+3. Vorher testen: `/admin/events` → Event `abo_payment_reminder` → an die
+   Test-Adresse senden.
+
+**Bis der Make-Zweig steht, passiert nichts Schädliches:** Die Plattform feuert
+den Webhook, Make kennt den Typ nicht und verwirft ihn — es geht nur keine Mail
+raus. Fälligkeiten und Mahnstufen laufen trotzdem korrekt mit.
+
+**Bedienung (ohne Make):** In der Zahlungszentrale → Abo-Tafel kann jede Rate
+einzeln erinnert und als bezahlt gebucht werden; „bezahlt" erzeugt automatisch
+die nächste Fälligkeit.
+
+---
+
 ## NEU (Prompt „E-Mail-Inventur"): `number_update_request` — kundenfertig
 
 **Wann:** Ein Mitarbeiter wählt beim Kunden/Lead das Kontakt-Ergebnis

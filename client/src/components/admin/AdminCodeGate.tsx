@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // Kein zweiter Login, sondern ein achtstelliger Zahlencode: eine Eingabe, ein
 // Handgriff, auch einhändig am Telefon. Nach erfolgreicher Eingabe setzt der
 // Server ein signiertes Cookie (30 Tage) — danach ist JEDE /admin-Seite offen,
-// ohne erneute Frage. Ausloggen geht über „Sperren" in der Seitenleiste.
+// ohne erneute Frage. Ausloggen geht über „Sperren“ in der Seitenleiste.
 //
 // Die Sperre hier ist nur die Anzeige. Die Wahrheit liegt im Server-Gate
 // (server/routes/fiaon-admin-zugang.ts): ohne Cookie antwortet jeder Admin-
@@ -72,7 +72,7 @@ export default function AdminCodeGate({ onOffen }: { onOffen: () => void }) {
     setCode((alt) => {
       if (alt.length >= LAENGE) return alt;
       const neu = alt + z;
-      // Die achte Ziffer schickt ab — ein extra „OK" wäre ein Handgriff zu viel.
+      // Die achte Ziffer schickt ab — ein extra „OK“ wäre ein Handgriff zu viel.
       if (neu.length === LAENGE) void pruefen(neu);
       return neu;
     });

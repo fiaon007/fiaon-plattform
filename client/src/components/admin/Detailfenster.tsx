@@ -6,7 +6,7 @@ import { ACCENT } from "./AdminShell";
 // ═══════════════════════════════════════════════════════════════════════════
 // Detailfenster — WER steckt hinter der Zahl?
 //
-// „11 heute angekündigt" ist keine Information, mit der man arbeiten kann:
+// „11 heute angekündigt“ ist keine Information, mit der man arbeiten kann:
 // solange nicht dasteht, WER angekündigt hat, muss man die Zahl in einer
 // anderen Ansicht nachschlagen. Deshalb öffnet jede Kachel des Dashboards
 // dieses Fenster — auf derselben Seite, mit Namen, Betrag, Alter, Agent und
@@ -21,10 +21,16 @@ import { ACCENT } from "./AdminShell";
 // man den Kontext darunter weiter sehen soll.
 // ═══════════════════════════════════════════════════════════════════════════
 
+/** Spiegel von LagenListe in server/routes/fiaon-admin-hub.ts — beide Seiten
+ *  müssen dieselben Namen kennen, sonst fragt die Oberfläche eine Liste ab, die
+ *  es nicht gibt. */
 export type ListenArt =
   | "angekuendigt-heute" | "angekuendigt-alle" | "angekuendigt-alt"
   | "zusagen-heute" | "zusagen-ueberfaellig" | "zusagen-alle"
-  | "bezahlt-heute" | "bezahlt-monat";
+  | "bezahlt-heute" | "bezahlt-monat" | "bezahlt-alle"
+  | "offen-alle" | "offen-ohne-reaktion" | "abgelaufen"
+  | "erinnert-heute"
+  | "abo-heute" | "abo-woche" | "abo-ueberfaellig" | "abo-bezahlt-monat";
 
 export interface Eintrag {
   ref: string;
@@ -54,7 +60,7 @@ function datumKurz(iso: string | null): string {
   return d.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
-/** Klartext statt Rohstatus — „claimed_paid" sagt niemandem etwas. */
+/** Klartext statt Rohstatus — „claimed_paid“ sagt niemandem etwas. */
 const STATUS_TEXT: Record<string, string> = {
   claimed_paid: "Zahlung angekündigt",
   pending_payment: "wartet auf Zahlung",
@@ -105,35 +111,9 @@ const CSS = `
 .df-zeile:hover{ background:rgba(29,78,216,.035); }
 .df-zeile:last-child{ box-shadow:none; }
 
-/* Bewusst OHNE display-Angabe: sonst überschreibt diese Regel Tailwinds
-   hidden-Klasse (gleiche Spezifität, aber später im Dokument) — dann lässt sich
-   kein Knopf mehr per Bildschirmbreite ausblenden. Die Anordnung kommt über
-   inline-flex am Element selbst. */
-.df-knopf{
-  align-items:center; gap:5px;
-  height:32px; padding:0 10px; border-radius:9px;
-  font-size:12px; font-weight:700; white-space:nowrap;
-  border:1px solid #e4e9f2; background:#fff; color:#475569;
-  transition:transform 120ms cubic-bezier(.32,.72,0,1), box-shadow 180ms ease, border-color 180ms ease;
-}
-.df-knopf:hover{ border-color:#cdd8ea; box-shadow:0 2px 8px rgba(29,78,216,.12); }
-.df-knopf:active{ transform:scale(.96); }
-.df-knopf[data-haupt="1"]{
-  border-color:transparent; color:#fff;
-  background:linear-gradient(180deg,#1d4ed8,#1e40af);
-  box-shadow:0 3px 10px -3px rgba(29,78,216,.6), inset 0 1px 0 rgba(255,255,255,.25);
-}
-.df-knopf[data-haupt="1"]:hover{ box-shadow:0 6px 16px -4px rgba(29,78,216,.7); }
-
-.df-reiter{
-  display:inline-flex; padding:2px; border-radius:10px; background:#eef2f7;
-  box-shadow:inset 0 1px 2px rgba(15,23,42,.08);
-}
-.df-reiter button{
-  padding:5px 10px; border-radius:8px; font-size:12px; font-weight:700; color:#64748b;
-  transition:all 180ms cubic-bezier(.32,.72,0,1);
-}
-.df-reiter button[data-an="1"]{ background:#fff; color:#0f172a; box-shadow:0 1px 3px rgba(15,23,42,.16); }
+/* Knopf- und Reiter-Optik liegen in admin-3d.css (.a3-knopf / .a3-reiter) —
+   sie werden auch von der Abo-Tafel und der Zahlungszentrale gebraucht, und
+   geteilte Optik gehört nicht in eine einzelne Komponente. */
 
 @media (prefers-reduced-motion: reduce){
   .df-hinter,.df-fenster{ animation:none !important; }
@@ -237,7 +217,7 @@ export default function Detailfenster({
 
             <div className="flex flex-wrap items-center gap-2 mt-3">
               {reiter.length > 1 && (
-                <span className="df-reiter">
+                <span className="a3-reiter">
                   {reiter.map((r) => (
                     <button key={r.art} type="button" data-an={art === r.art ? "1" : undefined}
                       onClick={() => setArt(r.art)}>
@@ -278,7 +258,7 @@ export default function Detailfenster({
             {fehler && <p className="px-[18px] py-8 text-[13px] text-red-600">{fehler}</p>}
             {!laedt && !fehler && liste.length === 0 && (
               <p className="px-[18px] py-10 text-center text-[13px] text-slate-400">
-                {filter ? `Kein Eintrag passt zu „${filter}".` : "Nichts vorhanden — hier ist gerade alles erledigt."}
+                {filter ? `Kein Eintrag passt zu „${filter}“.` : "Nichts vorhanden — hier ist gerade alles erledigt."}
               </p>
             )}
 
@@ -305,32 +285,32 @@ export default function Detailfenster({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
-                  <a className="df-knopf inline-flex" data-haupt="1" href={e.akte}>
+                  <a className="a3-knopf inline-flex" data-haupt="1" href={e.akte}>
                     Akte öffnen <ChevronRight size={12} />
                   </a>
                   {/* Auf dem Handy kurze Beschriftungen: mit voller Nummer und
                       E-Mail-Adresse brauchten die Knöpfe zwei Reihen, und jede
                       Zeile der Liste wurde 300px hoch. */}
                   {e.telefon && (
-                    <a className="df-knopf inline-flex" href={`tel:${e.telefon.replace(/[^\d+]/g, "")}`}>
+                    <a className="a3-knopf inline-flex" href={`tel:${e.telefon.replace(/[^\d+]/g, "")}`}>
                       <Phone size={12} />
                       <span className="hidden sm:inline">{e.telefon}</span>
                       <span className="sm:hidden">Anrufen</span>
                     </a>
                   )}
                   {e.email && (
-                    <a className="df-knopf inline-flex" href={`mailto:${e.email}`} title={e.email} aria-label="E-Mail schreiben">
+                    <a className="a3-knopf inline-flex" href={`mailto:${e.email}`} title={e.email} aria-label="E-Mail schreiben">
                       <Mail size={12} /> <span className="hidden sm:inline">{e.email}</span>
                     </a>
                   )}
                   {/* Referenz kopieren und Zahlungszentrale erst ab Tablet: auf
                       380px passen fünf Knöpfe nicht in eine Reihe, und die Akte
                       enthält beides ohnehin. */}
-                  <button type="button" className="df-knopf hidden sm:inline-flex" title="Zahlungsreferenz kopieren"
+                  <button type="button" className="a3-knopf hidden sm:inline-flex" title="Zahlungsreferenz kopieren"
                     onClick={() => kopieren(e.zahlungsreferenz || e.ref, e.ref)}>
                     <Copy size={12} /> {kopiert === e.ref ? "kopiert" : "Referenz"}
                   </button>
-                  <a className="df-knopf hidden sm:inline-flex" href={`/admin/zahlungen?ref=${encodeURIComponent(e.ref)}`}
+                  <a className="a3-knopf hidden sm:inline-flex" href={`/admin/zahlungen?ref=${encodeURIComponent(e.ref)}`}
                     title="In der Zahlungszentrale öffnen">
                     <ExternalLink size={12} /> Zahlung
                   </a>

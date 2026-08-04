@@ -43,8 +43,8 @@ function dt(iso: string, mitJahr = true): string {
   });
 }
 
-/** Zeitraum als Klartext — „01.08. – 04.08.2026" liest sich in einer Gruppe
- *  eindeutiger als „monat". */
+/** Zeitraum als Klartext — „01.08. – 04.08.2026“ liest sich in einer Gruppe
+ *  eindeutiger als „monat“. */
 function zeitraumText(zeitraum: Zeitraum, von: string, bis: string): string {
   if (zeitraum === "tag") {
     const d = new Date(`${bis}T12:00:00Z`);

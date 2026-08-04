@@ -27,7 +27,41 @@ async function entsperren(page: Page) {
   }, CODE);
 }
 
+/**
+ * Alle Detaillisten einmal abfragen. Klingt banal, ist aber die Prüfung, die
+ * eine ganze Fehlerklasse abfängt: Sobald eine dieser Abfragen einen
+ * Platzhalter übergibt, den sie nicht benutzt, antwortet Postgres mit
+ * „could not determine data type of parameter $1" — die Kachel öffnet sich
+ * dann mit „Serverfehler", und das sieht man nur, wenn man sie anklickt.
+ */
+async function listenPruefen(cookie: string) {
+  const arten = [
+    "angekuendigt-heute", "angekuendigt-alle", "angekuendigt-alt",
+    "zusagen-heute", "zusagen-ueberfaellig", "zusagen-alle",
+    "bezahlt-heute", "bezahlt-monat", "bezahlt-alle",
+    "offen-alle", "offen-ohne-reaktion", "abgelaufen",
+    "erinnert-heute",
+    "abo-heute", "abo-woche", "abo-ueberfaellig", "abo-bezahlt-monat",
+  ];
+  console.log("\n── Detaillisten (alle Arten) ─────────────");
+  for (const art of arten) {
+    const r = await fetch(`${BASIS}/api/fiaon/admin/hub/liste?art=${art}&limit=5`, { headers: { cookie } });
+    const j: any = await r.json().catch(() => null);
+    pruefe(`Liste ${art}`, r.status === 200 && j?.ok === true,
+      `HTTP ${r.status} ${j?.error || ""}`);
+  }
+}
+
 (async () => {
+  // Cookie einmal per API holen — für die reinen Datenprüfungen braucht es
+  // keinen Browser.
+  const anmeldung = await fetch(`${BASIS}/api/fiaon/zugang/oeffnen`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: CODE }),
+  });
+  const cookie = (anmeldung.headers.get("set-cookie") || "").split(";")[0];
+  await listenPruefen(cookie);
+
   const browser = await chromium.launch();
 
   for (const [name, viewport] of [
@@ -139,6 +173,47 @@ async function entsperren(page: Page) {
     }
 
     pruefe("Keine JavaScript-Fehler auf der Seite", fehlerImLog.length === 0, fehlerImLog.slice(0, 2).join(" | "));
+
+    // ── Zahlungszentrale ──────────────────────────────────────────────────────
+    // WICHTIG: hier wird NICHT auf „bezahlt" oder „erinnern" geklickt — das
+    // würde echtes Geld buchen bzw. echte Kundenmails auslösen. Geprüft wird
+    // nur, dass die Knöpfe da sind und die Namenslisten funktionieren.
+    console.log(`  ── /admin/zahlungen`);
+    await page.goto(`${BASIS}/admin/zahlungen`, { waitUntil: "domcontentloaded", timeout: 60_000 }).catch(() => {});
+    await page.waitForTimeout(9000);
+
+    const zKacheln = page.locator("button.a3-kachel");
+    pruefe("Kennzahlen sind anklickbar", (await zKacheln.count()) >= 5, `gefunden: ${await zKacheln.count()}`);
+    await zKacheln.first().click();
+    await page.waitForFunction(
+      () => !document.querySelector('[role="dialog"]')?.textContent?.includes("Wird geladen"),
+      { timeout: 15_000 },
+    ).catch(() => {});
+    const zZeilen = await page.locator(".df-zeile").count();
+    pruefe("Kennzahl öffnet Namensliste", zZeilen > 0, `Zeilen: ${zZeilen}`);
+    await page.screenshot({ path: `/tmp/fiaon-${name}-zahlungen-fenster.png` });
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(400);
+
+    // Abo-Tafel
+    const abo = page.getByRole("heading", { name: "Abo — monatliche Paketrate" });
+    pruefe("Abo-Tafel ist vorhanden", await abo.isVisible().catch(() => false));
+    const aboText = await page.locator("section.a3-tafel").first().innerText().catch(() => "");
+    pruefe("Abo zeigt laufenden Monatsumsatz", /LAUFENDER MONATSUMSATZ/i.test(aboText));
+    pruefe("Abo zeigt Ratenzeilen mit Referenz", /-\d+\s·/.test(aboText) || /Rate \d/.test(aboText));
+    pruefe("Abo-Zeilen haben Buchen- und Erinnern-Knopf",
+      (await page.getByRole("button", { name: "bezahlt" }).count()) > 0 &&
+      (await page.getByRole("button", { name: "erinnern" }).count()) > 0);
+    pruefe("Erstzahlungs-Liste ist da", await page.getByRole("heading", { name: "Erstzahlungen" }).isVisible().catch(() => false));
+    pruefe("Versand-Knöpfe stehen über der Liste",
+      (await page.getByRole("button", { name: /Erinnerung an alle offenen/ }).count()) === 1 &&
+      (await page.getByRole("button", { name: /^Erinnerungs-Lauf$/ }).count()) >= 1);
+    pruefe("Sortierung „Neueste zuerst\" ist aktiv",
+      (await page.locator('.a3-reiter button[data-an="1"]', { hasText: "Neueste zuerst" }).count()) === 1);
+    await page.screenshot({ path: `/tmp/fiaon-${name}-zahlungen.png`, fullPage: true });
+    console.log(`        Bild: /tmp/fiaon-${name}-zahlungen.png`);
+    pruefe("Keine JavaScript-Fehler in der Zahlungszentrale", fehlerImLog.length === 0, fehlerImLog.slice(0, 2).join(" | "));
+
     await ctx.close();
   }
 

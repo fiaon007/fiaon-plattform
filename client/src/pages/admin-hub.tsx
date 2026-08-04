@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Link } from "wouter";
 import {
   CreditCard, Banknote, ChevronRight, Search, Landmark, HandCoins, Copy,
-  Sparkles, AlertTriangle, RefreshCw, ArrowUpRight, ArrowDownRight, Users,
+  Sparkles, AlertTriangle, RefreshCw, ArrowUpRight, ArrowDownRight, Users, Receipt,
   CalendarClock, Megaphone, TrendingUp, Check, X,
 } from "lucide-react";
 import { ACCENT, ADMIN_NAV } from "@/components/admin/AdminShell";
@@ -18,7 +18,7 @@ import RanglisteTeilen from "@/components/admin/RanglisteTeilen";
 // Reihenfolge entschieden wird:
 //   1. Was haben wir HEUTE verdient?            → Geldtafel (dunkel, ganz oben)
 //   2. Was ist angekündigt, was ist zugesagt?   → vier Kennzahl-Kacheln
-//   3. Was muss ich jetzt anfassen?             → „Was ist zu tun?"
+//   3. Was muss ich jetzt anfassen?             → „Was ist zu tun?“
 //   4. Wer im Team bringt was?                  → Rangliste + Zusagen je Agent
 // Danach erst Werkzeuge: Suche, KI-Cockpit, Seitenverzeichnis.
 //
@@ -39,12 +39,24 @@ interface AgentLage {
   abschluesseMonat: number; abschluesseGesamt: number;
   zusagen: Zusage | null;
 }
+interface AboLage {
+  heute: { anzahl: number; cents: number };
+  woche: { anzahl: number; cents: number };
+  ueberfaellig: { anzahl: number; cents: number };
+  entscheidung: number;
+  monatBezahlt: { anzahl: number; cents: number };
+  laufend: { abos: number; cents: number };
+  ohneKette: number;
+  motorAktiv: boolean;
+  zyklusTage: number;
+}
 interface Lage {
   umsatz: { heute: Betrag; gestern: Betrag; monat: Betrag; gesamt: Betrag; verlauf: { tag: string; anzahl: number; cents: number }[] };
   provision: { heuteCents: number; monatCents: number; gesamtCents: number };
   agenten: AgentLage[];
   ankuendigungen: { heute: Betrag; gesamt: Betrag; alt: Betrag };
   zusagen: Zusage & { jeAgent: (Zusage & { name: string; agentId: number | null })[] };
+  abo: AboLage | null;
   at: string;
 }
 
@@ -61,7 +73,7 @@ function tagKurz(iso: string): string {
 }
 
 /** Veränderung gegenüber gestern in Prozent — null, wenn gestern 0 war (dann ist
- *  jede Prozentangabe eine Lüge: „+∞ %" hilft niemandem). */
+ *  jede Prozentangabe eine Lüge: „+∞ %“ hilft niemandem). */
 function veraenderung(heute: number, gestern: number): number | null {
   if (gestern <= 0) return null;
   return Math.round(((heute - gestern) / gestern) * 100);
@@ -158,7 +170,7 @@ function Geldtafel({ lage, onZeigen }: { lage: Lage | null; onZeigen: (art: List
               { label: `Monat (${umsatz.monat.anzahl})`, wert: eur(umsatz.monat.cents), hilfe: "Bestätigte Zahlungen seit dem 1. des Monats, Berliner Zeit." },
             ].map((k) => (
               <div key={k.label} className="min-w-0">
-                {/* Umbrechen statt abschneiden: „PROVISION T…" ist keine
+                {/* Umbrechen statt abschneiden: „PROVISION T…“ ist keine
                     Beschriftung, sondern ein Rätsel. */}
                 <p className="text-[9.5px] sm:text-[10.5px] font-semibold uppercase tracking-[.08em] sm:tracking-[.12em] text-white/40 leading-tight">
                   {k.label}
@@ -208,7 +220,7 @@ function Kachel({ onClick, label, wert, unter, ton, hilfe, icon: Icon, i }: {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// „Was ist zu tun?" — eine Liste, nach Dringlichkeit, jede Zeile mit Ausgang
+// „Was ist zu tun?“ — eine Liste, nach Dringlichkeit, jede Zeile mit Ausgang
 // ═══════════════════════════════════════════════════════════════════════════
 interface Aufgabe {
   href: string; anzahl: number | null; titel: string; erklaerung: string;
@@ -318,7 +330,7 @@ function Rangliste({ agenten }: { agenten: AgentLage[] }) {
   const [zeit, setZeit] = useState<Zeitraum>("monat");
   const feld = zeit === "heute" ? "heuteCents" : zeit === "monat" ? "monatCents" : "gesamtCents";
 
-  // Nach dem gewählten Zeitraum neu ordnen — sonst zeigt „Heute" die Reihenfolge
+  // Nach dem gewählten Zeitraum neu ordnen — sonst zeigt „Heute“ die Reihenfolge
   // des Monats und die Rangzahl lügt.
   const liste = useMemo(
     () => [...agenten].sort((a, b) => (b as any)[feld] - (a as any)[feld]),
@@ -406,7 +418,7 @@ function Rangliste({ agenten }: { agenten: AgentLage[] }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Zahlungszusagen — „Kunde zahlt am …", aufgenommen vom Agenten
+// Zahlungszusagen — „Kunde zahlt am …“, aufgenommen vom Agenten
 // ═══════════════════════════════════════════════════════════════════════════
 function Zusagen({ lage, onZeigen }: { lage: Lage; onZeigen: (art: ListenArt) => void }) {
   const z = lage.zusagen;
@@ -421,7 +433,7 @@ function Zusagen({ lage, onZeigen }: { lage: Lage; onZeigen: (art: ListenArt) =>
           <CalendarClock size={15} />
         </span>
         <h2 className="text-[14px] font-bold text-slate-900">Zahlungszusagen der Agenten</h2>
-        <Tip text={'Termine, die ein Agent im Gespräch aufgenommen hat („Kunde zahlt am …"). Pro Kunde zählt nur die jüngste Zusage; bereits bezahlte oder stornierte Bestellungen sind heraus. Überfällig heißt: Termin verstrichen, Geld nicht da.'} />
+        <Tip text={'Termine, die ein Agent im Gespräch aufgenommen hat („Kunde zahlt am …“). Pro Kunde zählt nur die jüngste Zusage; bereits bezahlte oder stornierte Bestellungen sind heraus. Überfällig heißt: Termin verstrichen, Geld nicht da.'} />
         <span className="ml-auto text-[11.5px] font-semibold text-slate-400 a3-zahl">{eur(z.summeCents)} offen</span>
       </header>
 
@@ -471,7 +483,7 @@ function Zusagen({ lage, onZeigen }: { lage: Lage; onZeigen: (art: ListenArt) =>
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Suche — findet Kunden UND Seiten. Zwei Suchfelder für zwei Dinge wären ein
-// Rätsel; hier ist ein Feld die Antwort auf „wo war das nur?".
+// Rätsel; hier ist ein Feld die Antwort auf „wo war das nur?“.
 // ═══════════════════════════════════════════════════════════════════════════
 const ALLE_SEITEN = ADMIN_NAV.flatMap((g) =>
   g.items.map((it) => ({ ...it, gruppe: g.title || "Start" })),
@@ -656,7 +668,7 @@ function Bereiche({ badges }: { badges: Record<string, number> }) {
             </div>
           </div>
         ))}
-        {anzahl === 0 && <p className="text-[13px] text-slate-400 px-1">Kein Bereich passt zu „{filter}".</p>}
+        {anzahl === 0 && <p className="text-[13px] text-slate-400 px-1">Kein Bereich passt zu „{filter}“.</p>}
       </div>
     </section>
   );
@@ -750,10 +762,25 @@ const FENSTER: Record<string, {
     alleLink: "/admin/verbuchungen",
     alleLabel: "Tagesfinanzen öffnen",
   },
+  abo: {
+    reiter: [
+      { art: "abo-heute", label: "Heute fällig" },
+      { art: "abo-woche", label: "Nächste 7 Tage" },
+      { art: "abo-ueberfaellig", label: "Überfällig" },
+      { art: "abo-bezahlt-monat", label: "Diesen Monat bezahlt" },
+    ],
+    titel: "Abo — wer ist wann fällig?",
+    hinweis: "Monatliche Paketraten. Fällig 30 Tage nach der letzten Buchung; die Referenz je Rate endet auf die Ratennummer.",
+    alleLink: "/admin/zahlungen",
+    alleLabel: "In der Zahlungszentrale bearbeiten",
+  },
 };
 
 function fensterFuer(art: ListenArt) {
-  const gruppe = art.startsWith("angekuendigt") ? "angekuendigt" : art.startsWith("zusagen") ? "zusagen" : "bezahlt";
+  const gruppe = art.startsWith("angekuendigt") ? "angekuendigt"
+    : art.startsWith("zusagen") ? "zusagen"
+    : art.startsWith("abo-") ? "abo"
+    : "bezahlt";
   return { ...FENSTER[gruppe], start: art };
 }
 
@@ -797,7 +824,7 @@ export default function AdminHubPage() {
       liste.push({
         href: "/admin/zahlungen?status=claimed_paid", anzahl: warn.paymentConfirmBacklog,
         titel: "Kunden warten seit über 7 Tagen auf die Bestätigung ihrer Zahlung",
-        erklaerung: `Sie haben „Ich habe überwiesen" gemeldet${warn.paymentConfirmOldestDays ? ` (ältester Fall: vor ${warn.paymentConfirmOldestDays} Tagen)` : ""}. Hier liegt sehr wahrscheinlich Umsatz, der noch nicht verbucht ist.`,
+        erklaerung: `Sie haben „Ich habe überwiesen“ gemeldet${warn.paymentConfirmOldestDays ? ` (ältester Fall: vor ${warn.paymentConfirmOldestDays} Tagen)` : ""}. Hier liegt sehr wahrscheinlich Umsatz, der noch nicht verbucht ist.`,
         aktion: "prüfen", stufe: "dringend", icon: CreditCard,
       });
     }
@@ -936,7 +963,7 @@ export default function AdminHubPage() {
           wert={a ? String(a.heute.anzahl) : "—"}
           unter={a ? `${eurGlatt(a.heute.cents)} · Kunden melden Überweisung` : undefined}
           ton="offen"
-          hilfe={'Kunden, die HEUTE gemeldet haben, dass sie überwiesen haben (Status „Zahlung angekündigt"). Noch kein Umsatz — erst nach Prüfung des Eingangs.'}
+          hilfe={'Kunden, die HEUTE gemeldet haben, dass sie überwiesen haben (Status „Zahlung angekündigt“). Noch kein Umsatz — erst nach Prüfung des Eingangs.'}
         />
         <Kachel
           i={1} onClick={() => setFenster("angekuendigt-alle")} icon={CreditCard}
@@ -952,7 +979,7 @@ export default function AdminHubPage() {
           wert={z ? String(z.heuteFaellig) : "—"}
           unter={z ? `${z.ueberfaellig} überfällig · ${eurGlatt(z.summeCents)} Volumen` : undefined}
           ton={z && z.ueberfaellig > 0 ? "warnung" : undefined}
-          hilfe={'Termine, die Agenten im Gespräch aufgenommen haben („Kunde zahlt am …"). Heute fällig heißt: heute muss das Geld kommen oder nachgefasst werden.'}
+          hilfe={'Termine, die Agenten im Gespräch aufgenommen haben („Kunde zahlt am …“). Heute fällig heißt: heute muss das Geld kommen oder nachgefasst werden.'}
         />
         <Kachel
           i={3} onClick={() => setFenster("bezahlt-monat")} icon={TrendingUp}
@@ -963,6 +990,45 @@ export default function AdminHubPage() {
           hilfe="Bestätigte Zahlungen seit dem 1. des Monats, dazu die im selben Zeitraum gebuchten Team-Provisionen."
         />
       </div>
+
+      {/* 2b. Der laufende Umsatz — das Abo. Steht direkt unter dem Neugeschäft,
+             weil die monatlichen Raten die verlässlichere Einnahme sind: sie
+             kommen wieder, ohne dass jemand neu verkaufen muss. */}
+      {lage?.abo && (
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 sm:gap-3 mb-4">
+          <Kachel
+            i={0} onClick={() => setFenster("abo-woche")} icon={RefreshCw}
+            label="Abo — laufender Monatsumsatz"
+            wert={eurGlatt(lage.abo.laufend.cents)}
+            unter={`${lage.abo.laufend.abos} aktive Abos · ${lage.abo.zyklusTage} Tage Zyklus`}
+            ton="geld"
+            hilfe="Summe der monatlichen Paketraten aller laufenden Abos — der Umsatz, der bei gleichbleibendem Bestand jeden Monat wiederkommt. Fällig ist eine Rate 30 Tage nach der Buchung der letzten Zahlung."
+          />
+          <Kachel
+            i={1} onClick={() => setFenster("abo-heute")} icon={CalendarClock}
+            label="Abo heute fällig"
+            wert={String(lage.abo.heute.anzahl)}
+            unter={`${eurGlatt(lage.abo.heute.cents)} · nächste 7 Tage: ${lage.abo.woche.anzahl}`}
+            hilfe="Raten mit Fälligkeit heute. Am Fälligkeitstag geht die erste Erinnerung raus (Event abo_payment_reminder, Mahnstufe 1)."
+          />
+          <Kachel
+            i={2} onClick={() => setFenster("abo-ueberfaellig")} icon={AlertTriangle}
+            label="Abo überfällig"
+            wert={String(lage.abo.ueberfaellig.anzahl)}
+            unter={`${eurGlatt(lage.abo.ueberfaellig.cents)}${lage.abo.entscheidung > 0 ? ` · ${lage.abo.entscheidung} Entscheidung nötig` : ""}`}
+            ton={lage.abo.ueberfaellig.anzahl > 0 ? "warnung" : undefined}
+            hilfe="Fälligkeit verstrichen, Zahlung nicht gebucht. Nach Stufe 3 (14 Tage) endet der automatische Versand — der Fall wartet dann auf deine Entscheidung. Es wird nie automatisch gesperrt."
+          />
+          <Kachel
+            i={3} onClick={() => setFenster("abo-bezahlt-monat")} icon={TrendingUp}
+            label="Abo-Raten diesen Monat bezahlt"
+            wert={eurGlatt(lage.abo.monatBezahlt.cents)}
+            unter={`${lage.abo.monatBezahlt.anzahl} Raten gebucht`}
+            ton="geld"
+            hilfe="Bereits gebuchte Monatsraten im laufenden Kalendermonat — ohne Erstzahlungen, die stehen oben in der Tafel."
+          />
+        </div>
+      )}
 
       {/* 3. Arbeit */}
       <AufgabenTafel aufgaben={aufgaben} geladen={geladen} />

@@ -32,7 +32,7 @@ const pfade = process.argv.slice(2).length ? process.argv.slice(2) : ["/admin"];
       await page.goto(`${BASIS}${pfad}`, { waitUntil: "domcontentloaded", timeout: 60_000 }).catch((e) => {
         console.log(`  [warnung] ${pfad}: ${String(e).split("\n")[0]}`);
       });
-      await page.waitForTimeout(3000);
+      await page.waitForTimeout(Number(process.env.WARTE || 3000));
       const datei = `/tmp/fiaon-${name}${pfad.replace(/\//g, "_")}.png`;
       await page.screenshot({ path: datei, fullPage: true });
       console.log(`${datei}`);

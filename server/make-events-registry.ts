@@ -17,7 +17,7 @@ export interface MakeEventDef {
   label: string;
   /** 1 Satz: wann feuert dieses Event im echten Betrieb. */
   description: string;
-  /** true = Payload lässt sich aus einer echten Bestellung (fiaon_applications) bauen → „Für echten Kunden senden" erlaubt. */
+  /** true = Payload lässt sich aus einer echten Bestellung (fiaon_applications) bauen → „Für echten Kunden senden“ erlaubt. */
   customerBound: boolean;
   /** deprecated = wird nicht mehr automatisch gefeuert (nur noch Test/Migration). */
   deprecated?: boolean;
@@ -70,6 +70,31 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     description: "Feuert für jede unbezahlte Bestellung (pending_payment/claimed_paid) einmal pro Tag im Versandfenster, ab 24h nach Bestellung, bis MAX_REMINDERS erreicht ist — auch vom Bulk-Versand genutzt.",
     customerBound: true,
     example: { ...CUSTOMER_EXAMPLE, invoice_url: INVOICE_URL_EXAMPLE, reminder_number: 1 },
+  },
+  {
+    type: "abo_payment_reminder",
+    label: "Abo-Rate fällig (monatliche Paketrate)",
+    description:
+      "Feuert für eine offene Monatsrate des Pakets: Stufe 1 am Fälligkeitstag, Stufe 2 sieben Tage später, Stufe 3 nach vierzehn Tagen. Danach keine weitere Mail, sondern ein Punkt „Entscheidung nötig“ in der Zahlungszentrale. Enthält Bankdaten UND den Verwendungszweck (Ratenreferenz) — ohne ihn lässt sich die Überweisung nicht zuordnen. Der Bonitäts-Check (74 €) ist kein Abo und löst dieses Event nie aus. Betreiber-TODO: Make-Zweig 'abo_payment_reminder' + Brevo-Template anlegen (Variablen: betrag, faellig_am_text, rate_nr, mahnstufe_text, empfaenger, iban, bic, verwendungszweck, portal_url).",
+    customerBound: true,
+    example: {
+      ...CUSTOMER_EXAMPLE,
+      // Die Ratenreferenz steht bewusst in payment_reference: bestehende
+      // Vorlagen drucken dieses Feld als Verwendungszweck.
+      payment_reference: "FIAON-A1B2C3-2",
+      betrag: "59.99",
+      rate_nr: 2,
+      faellig_am: "2026-09-03",
+      faellig_am_text: "03.09.2026",
+      tage_ueberfaellig: 0,
+      mahnstufe: 1,
+      mahnstufe_text: "Freundliche Erinnerung — heute ist Ihre Monatsrate fällig.",
+      empfaenger: "Fiaon Ltd",
+      iban: "BE09 9058 9276 3957",
+      bic: "TRWIBEB1XXX",
+      verwendungszweck: "FIAON-A1B2C3-2",
+      portal_url: "https://www.fiaon.com/login",
+    },
   },
   {
     type: "claim_received",
@@ -212,7 +237,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "number_update_request",
     label: "Telefonnummer aktualisieren (Kunde/Lead)",
-    description: "Feuert, wenn ein Mitarbeiter das Kontakt-Ergebnis „Falsche Nummer\" wählt UND eine E-Mail hinterlegt ist — schickt dem Kunden/Lead einen Button „Nummer aktualisieren\" zu einem schlanken Formular. Neue Nummer landet direkt im Datensatz (Audit „vom Kunden selbst aktualisiert\"), der Lead/Kunde wird wieder anrufbar. Max. 1× pro Tag/Person. Betreiber-TODO: Make-Zweig 'number_update_request' + Brevo-Template mit Button zu update_url anlegen.",
+    description: "Feuert, wenn ein Mitarbeiter das Kontakt-Ergebnis „Falsche Nummer“ wählt UND eine E-Mail hinterlegt ist — schickt dem Kunden/Lead einen Button „Nummer aktualisieren“ zu einem schlanken Formular. Neue Nummer landet direkt im Datensatz (Audit „vom Kunden selbst aktualisiert“), der Lead/Kunde wird wieder anrufbar. Max. 1× pro Tag/Person. Betreiber-TODO: Make-Zweig 'number_update_request' + Brevo-Template mit Button zu update_url anlegen.",
     customerBound: false,
     example: {
       email: "interessent@example.com",

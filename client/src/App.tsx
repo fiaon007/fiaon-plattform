@@ -61,6 +61,7 @@ import AgentKundenPage from "@/pages/agent/kunden";
 // Nachgeladen statt statisch importiert: Die Seite wird nur von den Agenten
 // gebraucht und würde das Hauptbündel für alle anderen Besucher vergrössern.
 const AgentHeutePage = lazy(() => import("@/pages/agent/heute"));
+const AgentAufgabenPage = lazy(() => import("@/pages/agent/aufgaben"));
 import AgentVerdienstPage from "@/pages/agent/verdienst";
 import AgentUpdatesPage from "@/pages/agent/updates";
 import AgentFeedbackPage from "@/pages/agent/feedback";
@@ -85,6 +86,7 @@ const AdminVertraegePage = lazy(() => import("@/pages/admin-vertraege"));
 const AdminFahrplanPage = lazy(() => import("@/pages/admin-fahrplan"));
 const AdminKarteiPage = lazy(() => import("@/pages/admin-kartei"));
 const AdminAuszahlungenPage = lazy(() => import("@/pages/admin-auszahlungen"));
+const AdminAufgabenPage = lazy(() => import("@/pages/admin-aufgaben"));
 
 // Paket N1: JEDE /admin-Seite läuft in der AdminShell (Sidebar, Breadcrumb,
 // Zurück, Cmd+K). Serverseitige Guards bleiben unberührt.
@@ -132,6 +134,8 @@ function Router() {
       {/* Eigene Seite: Auszahlungen an Mitarbeiter waren vorher eine Sektion der
           Zahlungszentrale — zwei Geldrichtungen in einer Ansicht. */}
       <Route path="/admin/auszahlungen" component={admin(AdminAuszahlungenPage)} />
+      {/* Notizen und Aufgaben an Personen — eigene und ans Team vergebene. */}
+      <Route path="/admin/aufgaben" component={admin(AdminAufgabenPage)} />
       <Route path="/admin/finanzen" component={admin(AdminFinanzenPage)} />
       <Route path="/admin/kontoabgleich" component={admin(AdminKontoabgleichPage)} />
       <Route path="/admin/verbuchung" component={admin(AdminVerbuchungPage)} />
@@ -162,6 +166,8 @@ function Router() {
       {/* Die Arbeitsseite, die die offene Kartei abloest: zugewiesene Kunden
           nach Dringlichkeit statt gemeinsamer Bestand. */}
       <Route path="/agent/heute" component={AgentHeutePage} />
+      {/* Aufgaben und Hinweise, die die Verwaltung dem Mitarbeiter zuweist. */}
+      <Route path="/agent/aufgaben" component={AgentAufgabenPage} />
       {/* Die Kartei ist abgeschaltet. Beide Pfade zeigen NICHT mehr auf sie,
           sondern leiten weiter — ein Lesezeichen darf nicht auf einer Seite
           landen, deren Endpunkte mit 410 antworten. Die Seiten selbst bleiben

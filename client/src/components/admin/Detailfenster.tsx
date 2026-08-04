@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Search, ChevronRight, Phone, Mail, Copy, ExternalLink } from "lucide-react";
+import { X, Search, ChevronRight, Phone, Mail, Copy, ExternalLink, StickyNote } from "lucide-react";
 import { ACCENT } from "./AdminShell";
+import VermerkDialog, { type AgentWahl } from "./VermerkDialog";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Detailfenster — WER steckt hinter der Zahl?
@@ -140,6 +141,20 @@ export default function Detailfenster({
   const [filter, setFilter] = useState("");
   const [kopiert, setKopiert] = useState<string | null>(null);
   const sucheRef = useRef<HTMLInputElement>(null);
+  // Vermerk direkt aus der Liste anlegen — ohne die Ansicht zu verlassen. Wer
+  // eine Liste durchgeht, hält unterwegs etwas fest; ihn dafür in die Akte zu
+  // schicken hieße, die Liste von vorn zu beginnen.
+  const [vermerkFuer, setVermerkFuer] = useState<Eintrag | null>(null);
+  const [agenten, setAgenten] = useState<AgentWahl[]>([]);
+  const [notiz, setNotiz] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/fiaon/admin/agents", { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => setAgenten((j?.ok ? j.data : []).filter((a: any) => a.active !== false && !a.is_test_account)
+        .map((a: any) => ({ id: Number(a.id), name: a.name }))))
+      .catch(() => setAgenten([]));
+  }, []);
 
   useEffect(() => {
     let lebt = true;
@@ -303,6 +318,15 @@ export default function Detailfenster({
                       <Mail size={12} /> <span className="hidden sm:inline">{e.email}</span>
                     </a>
                   )}
+                  {/* aria-label ist Pflicht: auf dem Handy zeigt der Knopf nur
+                      das Zeichen, und ein Knopf ohne Namen existiert für ein
+                      Vorleseprogramm nicht. */}
+                  <button type="button" className="a3-knopf inline-flex"
+                    title="Notiz oder Aufgabe zu dieser Person"
+                    aria-label="Vermerk anlegen"
+                    onClick={() => setVermerkFuer(e)}>
+                    <StickyNote size={12} /> <span className="hidden sm:inline">Vermerk</span>
+                  </button>
                   {/* Referenz kopieren und Zahlungszentrale erst ab Tablet: auf
                       380px passen fünf Knöpfe nicht in eine Reihe, und die Akte
                       enthält beides ohnehin. */}
@@ -329,15 +353,33 @@ export default function Detailfenster({
           {/* Fuß */}
           <div className="shrink-0 px-[18px] py-2.5 flex items-center justify-between gap-3"
             style={{ background: "#fbfcfe", boxShadow: "inset 0 1px 0 rgba(226,232,240,.9)" }}>
-            <a href={alleLink} className="text-[12px] font-semibold inline-flex items-center gap-1" style={{ color: ACCENT }}>
-              {alleLabel} <ChevronRight size={12} />
-            </a>
+            {notiz ? (
+              <span className="text-[12px] font-semibold" style={{ color: "#047857" }}>{notiz}</span>
+            ) : (
+              <a href={alleLink} className="text-[12px] font-semibold inline-flex items-center gap-1" style={{ color: ACCENT }}>
+                {alleLabel} <ChevronRight size={12} />
+              </a>
+            )}
             <button type="button" onClick={onClose} className="text-[12px] font-semibold text-slate-500 hover:text-slate-800">
               Schließen
             </button>
           </div>
         </div>
       </div>
+
+      {/* Vermerk zu einer Zeile — liegt ÜBER dem Fenster (z-Index 110). */}
+      {vermerkFuer && (
+        <VermerkDialog
+          ziel={{ ref: vermerkFuer.ref, name: vermerkFuer.name }}
+          agenten={agenten}
+          onAbbrechen={() => setVermerkFuer(null)}
+          onFertig={(m) => {
+            setVermerkFuer(null);
+            setNotiz(m);
+            setTimeout(() => setNotiz(null), 6000);
+          }}
+        />
+      )}
     </>,
     document.body,
   );

@@ -137,6 +137,16 @@ async function computeBadges(): Promise<any> {
     FROM fiaon_diagnostics
     WHERE severity = 'kritisch' AND created_at > NOW() - INTERVAL '24 hours'
   `.catch(() => [{ c: 0 }] as any);
+  // Eigene offene Aufgaben (Notizen/Aufgaben-Modul) — sie gehören in dieselbe
+  // Liste wie alles andere, was liegen geblieben ist.
+  let aufgaben = { offen: 0, ueberfaellig: 0, heute: 0, zugewiesen: 0 };
+  try {
+    const { vermerkZahlen } = await import("./fiaon-vermerke");
+    aufgaben = await vermerkZahlen();
+  } catch (err) {
+    console.error("[FIAON-HUB] aufgaben:", err);
+  }
+
   const settings = await getSettings();
   // Der Kontoabgleich ist abschaltbar (kontoabgleich_enabled). Ist er aus, darf
   // die Zahl der nicht zugeordneten Bank-Eingänge NICHT mehr als Aufgabe
@@ -155,7 +165,14 @@ async function computeBadges(): Promise<any> {
       dubletten: Number(dup.c),
       kontoabgleich: abgleichAn ? Number(bank.unmatched) : 0,
       diagnose: Number(diag.c), // P5-D: kritische Ereignisse (24 h)
+      // Nav-Pille an „Notizen & Aufgaben": nur was DRÄNGT (heute + überfällig).
+      // Alle offenen zu zählen würde die Zahl dauerhaft hoch halten, und eine
+      // Zahl, die immer da ist, liest niemand mehr.
+      aufgabenOffen: aufgaben.heute + aufgaben.ueberfaellig,
     },
+    // Aufgaben: eigene offene, davon überfällig/heute, plus die an Agenten
+    // vergebenen (die erledigt der Agent, sie stehen hier nur zur Übersicht).
+    aufgaben,
     // Schalter, die die Oberfläche kennen muss (Navigation, Aufgabenliste).
     flags: {
       kontoabgleich: abgleichAn,

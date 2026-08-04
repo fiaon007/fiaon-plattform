@@ -4,6 +4,7 @@ import {
   User, CreditCard, Mail, Users, Clock, Copy, Pencil, Check, X,
   AlertTriangle, FileText, ArrowLeft, Send, StickyNote, Undo2,
 } from "lucide-react";
+import VermerkTafel from "@/components/admin/VermerkTafel";
 
 // ═══════════════════════════════════════════════════════════════════
 // DIE ZENTRALE KUNDENAKTE — /admin/kunde/:id (Prompt 1/2)
@@ -569,6 +570,19 @@ export default function AdminKundeAktePage() {
               </div>
             )}
           </Section>
+
+          {/* ── NOTIZEN & AUFGABEN ──────────────────────────────────────────
+              Steht bewusst weit oben, direkt nach den harten Fakten: Was an
+              dieser Person zu tun ist, muss man sehen, bevor man handelt — nicht
+              erst nach dem Scrollen durch Zahlungen und Dubletten. */}
+          <VermerkTafel
+            ziel={{
+              ref: data.head?.ref || (id.startsWith("lead-") ? null : id),
+              leadId: id.startsWith("lead-") ? Number(id.replace("lead-", "")) : null,
+              name: head.name,
+            }}
+            onMeldung={flash}
+          />
 
           {/* ── DUBLETTEN ── */}
           <Section title="Dubletten — Zusammenführen statt Löschen" icon={Copy} warn={head.duplicateSuspicion}>

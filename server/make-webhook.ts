@@ -29,6 +29,7 @@ export type MakeEventType =
   | "lead_application_link"
   | "number_update_request" // #23: Kunde/Lead aktualisiert Telefonnummer selbst
   | "abo_payment_reminder"  // monatliche Paketrate fällig (Abo) — Stufen 1–3
+  | "aufgabe_zugewiesen"    // Betreiber weist einem Mitarbeiter eine Aufgabe zu
   // ── Registriert für /admin/events (Betreiber kann testen + Make-Zweig bauen).
   //    NOCH KEIN automatischer Versand im Code verdrahtet (Empfehlung, Teil 1.3):
   | "payment_cancelled"       // Bestellung storniert

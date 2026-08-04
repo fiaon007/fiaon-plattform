@@ -315,6 +315,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonPersonenRoutes = await import('./routes/fiaon-personen');
   app.use('/api/fiaon', fiaonPersonenRoutes.default);
 
+  // 📝 FIAON Vermerke — Notizen und Aufgaben an der Person, mit Frist,
+  //    Zuständigem und Sichtbarkeit (privat / Team / bestimmte Personen).
+  const fiaonVermerkeRoutes = await import('./routes/fiaon-vermerke');
+  app.use('/api/fiaon', fiaonVermerkeRoutes.default);
+
   // 🔁 FIAON Abo — die monatliche Paketrate: Ratenketten, Fälligkeiten,
   //    Mahnstufen und der Erinnerungs-Motor (Event `abo_payment_reminder`).
   const fiaonAboRoutes = await import('./routes/fiaon-abo');

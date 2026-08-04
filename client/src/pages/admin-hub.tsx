@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Link } from "wouter";
 import {
   CreditCard, Banknote, ChevronRight, Search, Landmark, HandCoins, Copy,
-  Sparkles, AlertTriangle, RefreshCw, ArrowUpRight, ArrowDownRight, Users, Receipt,
+  Sparkles, AlertTriangle, RefreshCw, ArrowUpRight, ArrowDownRight, Users, Receipt, ListChecks,
   CalendarClock, Megaphone, TrendingUp, Check, X,
 } from "lucide-react";
 import { ACCENT, ADMIN_NAV } from "@/components/admin/AdminShell";
@@ -797,6 +797,7 @@ export default function AdminHubPage() {
   const [lage, setLage] = useState<Lage | null>(null);
   const [badges, setBadges] = useState<Record<string, number>>({});
   const [warn, setWarn] = useState<any>(null);
+  const [aufgabenZahlen, setAufgabenZahlen] = useState<{ offen: number; ueberfaellig: number; heute: number; zugewiesen: number } | null>(null);
   const [geladen, setGeladen] = useState(false);
   const [laedt, setLaedt] = useState(false);
   const [stand, setStand] = useState<Date | null>(null);
@@ -811,7 +812,7 @@ export default function AdminHubPage() {
         fetch("/api/fiaon/admin/hub/badges", { credentials: "include" }).then((r) => r.json()).catch(() => null),
       ]);
       if (l?.ok) setLage(l);
-      if (b?.ok) { setBadges(b.badges || {}); setWarn(b.warn || null); }
+      if (b?.ok) { setBadges(b.badges || {}); setWarn(b.warn || null); setAufgabenZahlen(b.aufgaben || null); }
       setStand(new Date());
       setGeladen(true);
     } finally { setLaedt(false); }
@@ -826,6 +827,24 @@ export default function AdminHubPage() {
   const aufgaben = useMemo<Aufgabe[]>(() => {
     const liste: Aufgabe[] = [];
 
+    // Eigene Aufgaben zuerst: Was man sich selbst notiert hat, ist meist der
+    // Grund, warum man das Dashboard überhaupt öffnet.
+    if ((aufgabenZahlen?.ueberfaellig || 0) > 0) {
+      liste.push({
+        href: "/admin/aufgaben", anzahl: aufgabenZahlen!.ueberfaellig,
+        titel: "Eigene Aufgaben überfällig",
+        erklaerung: "Selbst gesetzte Fristen, die verstrichen sind. Entweder erledigen oder die Frist ehrlich verschieben.",
+        aktion: "öffnen", stufe: "dringend", icon: ListChecks,
+      });
+    }
+    if ((aufgabenZahlen?.heute || 0) > 0) {
+      liste.push({
+        href: "/admin/aufgaben", anzahl: aufgabenZahlen!.heute,
+        titel: "Eigene Aufgaben heute fällig",
+        erklaerung: "Was du dir für heute vorgenommen hast.",
+        aktion: "öffnen", stufe: "offen", icon: ListChecks,
+      });
+    }
     if ((warn?.paymentConfirmBacklog || 0) > 0) {
       liste.push({
         href: "/admin/zahlungen?status=claimed_paid", anzahl: warn.paymentConfirmBacklog,

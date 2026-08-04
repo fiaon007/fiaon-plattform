@@ -195,6 +195,8 @@ async function listenPruefen(cookie: string) {
     ).catch(() => {});
     const zZeilen = await page.locator(".df-zeile").count();
     pruefe("Kennzahl öffnet Namensliste", zZeilen > 0, `Zeilen: ${zZeilen}`);
+    pruefe("Jede Zeile bietet einen Vermerk-Knopf",
+      (await page.locator(".df-zeile").first().getByRole("button", { name: /Vermerk/ }).count()) === 1);
     await page.screenshot({ path: `/tmp/fiaon-${name}-zahlungen-fenster.png` });
     await page.keyboard.press("Escape");
     await page.waitForTimeout(400);
@@ -267,13 +269,33 @@ async function listenPruefen(cookie: string) {
     pruefe("Dubletten-Seite hat die Massenwerkzeuge",
       /Alt-Bestand bereinigen/.test(dubText) && /Aufräumlauf/.test(dubText));
 
+    // ── Notizen & Aufgaben: überall erreichbar? ───────────────────────────────
+    await page.goto(`${BASIS}/admin/aufgaben`, { waitUntil: "domcontentloaded" }).catch(() => {});
+    await page.waitForTimeout(4000);
+    pruefe("Seite /admin/aufgaben laedt",
+      await page.getByRole("heading", { name: /Notizen & Aufgaben/ }).first().isVisible().catch(() => false));
+    // Dialog oeffnen und die Sichtbarkeits-Auswahl pruefen. NICHT speichern —
+    // das wuerde einen echten Vermerk in der Datenbank anlegen.
+    await page.getByRole("button", { name: /^Neu/ }).first().click();
+    await page.waitForTimeout(900);
+    const dlg = await page.locator('[role="dialog"]').innerText().catch(() => "");
+    pruefe("Dialog bietet Notiz und Aufgabe", /Notiz/.test(dlg) && /Aufgabe/.test(dlg));
+    pruefe("Dialog bietet drei Sichtbarkeiten", /Nur ich/.test(dlg) && /Ganzes Team/.test(dlg) && /Bestimmte/.test(dlg));
+    pruefe("Dialog sagt in Klartext, wer es sieht", /Kein Mitarbeiter sieht/.test(dlg));
+    await page.screenshot({ path: `/tmp/fiaon-${name}-vermerk.png` });
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(400);
+
     await page.goto(`${BASIS}/admin/kontoabgleich`, { waitUntil: "domcontentloaded" }).catch(() => {});
     await page.waitForTimeout(3000);
     const kontoText = await page.locator("body").innerText();
     pruefe("Kontoabgleich erklärt die Abschaltung statt Fehler zu zeigen",
       /Abgeschaltet/.test(kontoText) && /manuell/.test(kontoText));
-    pruefe("Kontoabgleich steht nicht mehr im Menü",
-      (await page.locator('aside a[href="/admin/kontoabgleich"], .fixed a[href="/admin/kontoabgleich"]').count()) === 0);
+    // Kein SICHTBARER Verweis auf die abgeschaltete Seite — egal ob Seitenleiste
+    // (Desktop) oder Schublade (Handy). Die Prüfung auf einzelne Behälter war
+    // zu eng und schlug je nach Ladezeitpunkt unterschiedlich aus.
+    const nochVerlinkt = await page.locator('a[href="/admin/kontoabgleich"]:visible').count();
+    pruefe("Kein sichtbarer Menü-Verweis auf den Kontoabgleich", nochVerlinkt === 0, `gefunden: ${nochVerlinkt}`);
     await page.screenshot({ path: `/tmp/fiaon-${name}-kontoabgleich.png` });
 
     await ctx.close();

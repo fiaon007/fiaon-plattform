@@ -5,7 +5,7 @@ import {
   BookOpen, Settings, ScrollText, Scale, Database, Search, Menu, X,
   ArrowLeft, ChevronRight, ShieldAlert, Wallet, Send, Sparkles,
   Target, TrendingUp, Landmark, HandCoins, Copy, BarChart3, History, Activity,
-  LogOut, PiggyBank, GraduationCap, Map, Layers, Receipt, UserCheck,
+  LogOut, PiggyBank, GraduationCap, Map, Layers, Receipt, UserCheck, ListChecks,
 } from "lucide-react";
 import AdminCodeGate from "./AdminCodeGate";
 
@@ -53,6 +53,7 @@ export const ADMIN_NAV: NavGroup[] = [
     title: null,
     items: [
       { path: "/admin", label: "Dashboard", desc: "Was ist zu tun? Aufgaben, Warnungen, Suche, Tageszahlen", icon: LayoutDashboard },
+      { path: "/admin/aufgaben", label: "Notizen & Aufgaben", desc: "Alles, was an Personen festgehalten oder ans Team vergeben wurde — mit Frist und Sichtbarkeit", icon: ListChecks, badgeKey: "aufgabenOffen" },
     ],
   },
   {

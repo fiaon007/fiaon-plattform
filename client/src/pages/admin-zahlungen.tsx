@@ -5,6 +5,7 @@ import { ACCENT } from "@/components/admin/AdminShell";
 import Detailfenster, { type ListenArt, type FensterReiter } from "@/components/admin/Detailfenster";
 import AboTafel from "@/components/admin/AboTafel";
 import BuchenDialog from "@/components/admin/BuchenDialog";
+import VermerkTafel from "@/components/admin/VermerkTafel";
 
 // ============================================================================
 // /admin/zahlungen — Zahlungszentrale (Vorkasse per Banküberweisung)
@@ -1340,6 +1341,16 @@ export default function AdminZahlungenPage() {
                   {detail.gdpr_deleted_at ? "Bereits DSGVO-gelöscht" : "Kunde löschen (DSGVO)"}
                 </button>
                 <p className="text-[11px] text-slate-400">Rechnungsdaten (Nummer/Betrag/Datum) bleiben aus Buchhaltungspflicht erhalten — nur Kontaktdaten werden anonymisiert.</p>
+              </div>
+
+              {/* Notizen und Aufgaben zur Person — direkt hier, weil man beim
+                  Prüfen einer Zahlung genau dann etwas festhalten will. */}
+              <div className="mb-5">
+                <VermerkTafel
+                  kompakt
+                  ziel={{ ref: detail.ref, name: customerName(detail) }}
+                  onMeldung={flash}
+                />
               </div>
 
               <div>

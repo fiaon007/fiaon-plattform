@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, createContext, useContext, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle, Menu, ChevronRight } from "lucide-react";
+import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle, Menu, ChevronRight, ListChecks } from "lucide-react";
 import OnboardingGate from "./onboarding";
 import {
   AGENT_UPDATES, getUnseenCount, fmtUpdateDate,
@@ -137,6 +137,9 @@ const NAV: { href: string; label: string; icon: typeof Users; match: string[] }[
   // ihre Liste aus /agent/kartei/meine, und das antwortet mit 410. Ein
   // Menüpunkt, der auf eine leere Seite führt, ist schlimmer als keiner.
   { href: "/agent/kunden", label: "Meine Kunden", icon: Users, match: ["/agent/kunden", "/agent/meine-kunden"] },
+  // Aufgaben stehen bewusst VOR dem Kalender: Ein zugewiesener Auftrag mit
+  // Frist ist verbindlicher als ein selbst gesetzter Termin.
+  { href: "/agent/aufgaben", label: "Aufgaben", icon: ListChecks, match: ["/agent/aufgaben"] },
   { href: "/agent/kalender", label: "Kalender", icon: Calendar, match: ["/agent/kalender"] },
   { href: "/agent/verdienst", label: "Verdienst", icon: Wallet, match: ["/agent/verdienst", "/agent/auszahlung", "/agent/partner-programm"] },
   { href: "/agent/mehr", label: "Mehr", icon: MoreHorizontal, match: ["/agent/mehr", "/agent/skripte", "/agent/updates", "/agent/feedback", "/agent/profil", "/agent/leistung", "/agent/dokumente"] },
@@ -414,6 +417,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
   const [menueOffen, setMenueOffen] = useState(false);
   const [neueUpdates, setNeueUpdates] = useState(0);
   const [ruecklaeufer, setRuecklaeufer] = useState(0);
+  const [aufgabenFaellig, setAufgabenFaellig] = useState(0);
 
   const load = () => {
     api("/agent/me")
@@ -473,6 +477,20 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
     holen();
     const iv = setInterval(holen, 120_000);
     return () => clearInterval(iv);
+  }, [agent]);
+
+  // Zugewiesene Aufgaben: heute fällig + überfällig. Aktualisiert alle zwei
+  // Minuten und sofort, wenn der Agent auf der Aufgabenseite abhakt.
+  useEffect(() => {
+    if (!agent) return;
+    const holen = () => api("/agent/vermerke/zahlen")
+      .then((r) => { if (r.ok) setAufgabenFaellig((r.json.heute || 0) + (r.json.ueberfaellig || 0)); })
+      .catch(() => {});
+    holen();
+    const geaendert = () => holen();
+    window.addEventListener("agent-aufgaben-geaendert", geaendert);
+    const iv = setInterval(holen, 120_000);
+    return () => { window.removeEventListener("agent-aufgaben-geaendert", geaendert); clearInterval(iv); };
   }, [agent]);
 
   // Menue schliesst sich beim Seitenwechsel — sonst bleibt es nach einem
@@ -535,6 +553,10 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
   const zaehler: Record<string, number> = {
     // Kunden, die heute fällig sind — bearbeitet werden sie auf „Heute“.
     "/agent/heute": ruecklaeufer,
+    // Zugewiesene Aufgaben: gezählt wird, was heute oder früher fällig ist.
+    // Eine Aufgabe für nächste Woche soll den Zähler nicht dauerhaft rot
+    // halten — sonst gewöhnt man sich an die Zahl und sieht sie nicht mehr.
+    "/agent/aufgaben": aufgabenFaellig,
     // Neuerungen und Betreiber-Antworten liegen beide unter „Mehr".
     "/agent/mehr": neueUpdates + fbUnread,
   };

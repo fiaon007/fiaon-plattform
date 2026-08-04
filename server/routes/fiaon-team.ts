@@ -34,6 +34,9 @@ router.get("/admin/agents", async (_req, res) => {
              a.invite_expires_at, a.password_hash IS NOT NULL AS has_password,
              a.last_login_at, a.created_at,
              a.recruited_by, a.override_rate_bp, a.distribution_active,
+             -- Testkonten müssen erkennbar sein: Wer eine Aufgabe zuweist, soll
+             -- kein Testkonto in der Auswahl sehen.
+             COALESCE(a.is_test_account, FALSE) AS is_test_account,
              r.name AS recruited_by_name
       FROM fiaon_agents a
       LEFT JOIN fiaon_agents r ON r.id = a.recruited_by

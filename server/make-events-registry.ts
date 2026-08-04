@@ -97,6 +97,23 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     },
   },
   {
+    type: "aufgabe_zugewiesen",
+    label: "Aufgabe zugewiesen (Mitarbeiter)",
+    description:
+      "Feuert, wenn der Betreiber einem Mitarbeiter eine Aufgabe an einem Kunden zuweist. Ohne diese Mail fällt eine Aufgabe erst beim nächsten Portal-Besuch auf — bei einer Frist von morgen ist das zu spät. Der Mitarbeiter erledigt sie unter „Aufgaben“ in seinem Portal. Betreiber-TODO: Make-Zweig 'aufgabe_zugewiesen' + Brevo-Template anlegen (Variablen: vorname, aufgabe, kunde, faellig_am_text, dringend, portal_url).",
+    customerBound: false,
+    example: {
+      email: "anna.schmidt@example.com",
+      vorname: "Anna",
+      aufgabe: "Unterlagen prüfen und Kunden zurückrufen",
+      kunde: "Max Mustermann",
+      faellig_am: "2026-08-08",
+      faellig_am_text: "08.08.2026",
+      dringend: false,
+      portal_url: "https://www.fiaon.com/agent/aufgaben",
+    },
+  },
+  {
     type: "claim_received",
     label: "Überweisung angekündigt (Danke)",
     description: "Feuert genau einmal, wenn der Kunde auf „Ich habe die Überweisung getätigt“ klickt — dankt und nennt das Freischalt-Zeitfenster (werktags bis 18:00 Uhr).",

@@ -94,6 +94,21 @@ export function pruefeTerminZukunft(outcome: string, scheduledAt: string | null 
 }
 
 
+/**
+ * Der heutige Geschäftstag als „YYYY-MM-DD" in Berliner Zeit.
+ *
+ * Gebraucht für Tageskennzahlen: Der Server läuft auf UTC, `CURRENT_DATE` in SQL
+ * ist also im Sommer bis 02:00 Uhr noch der Vortag. Eine Zahlung um 01:30 fiel
+ * damit in die Statistik von gestern. Diese Funktion ist die eine Tagesgrenze,
+ * gegen die alle Kennzahlen rechnen.
+ */
+export function berlinToday(at: Date = new Date()): string {
+  // en-CA liefert das ISO-Format YYYY-MM-DD.
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(at);
+}
+
 /** Klartext-Anzeige eines Zeitpunkts in Berlin-Zeit, z. B. „Mi, 15.07.2026 um 12:30 Uhr". */
 export function formatBerlin(at: Date | string | null | undefined, withTime = true): string {
   if (!at) return "—";

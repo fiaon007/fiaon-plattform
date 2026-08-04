@@ -125,9 +125,18 @@ export function PageIntro({
   right?: ReactNode;
 }) {
   const key = `fiaon-help-${id}`;
-  const [open, setOpen] = useState<boolean>(() => {
-    try { return localStorage.getItem(key) == null; } catch { return true; }
-  });
+  // Standard: ZUGEKLAPPT.
+  //
+  // Vorher war die Anleitung bei jedem ersten Besuch offen. Auf dem Handy hieß
+  // das: der komplette erste Bildschirm ist fünfschrittiger Hilfetext, der
+  // eigentliche Inhalt der Seite beginnt unter der Falte — auf 20 Seiten
+  // gleichzeitig. Für ein Werkzeug, das täglich benutzt wird, ist ein
+  // Dauer-Tutorial Lärm. Die Hilfe bleibt einen Tipp entfernt und merkt sich,
+  // wenn jemand sie offen haben will.
+  const [open, setOpen] = useState<boolean>(false);
+  useEffect(() => {
+    try { setOpen(localStorage.getItem(key) === "open"); } catch { /* Speicher gesperrt */ }
+  }, [key]);
   const toggle = () => {
     setOpen((v) => {
       const next = !v;

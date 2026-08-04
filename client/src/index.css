@@ -4,6 +4,11 @@
    Muss vor @tailwind stehen: @import ist nur am Dateianfang gültig. */
 @import "./styles/fiaon-design.css";
 
+/* Tiefe und einheitliche Abstände für ALLE /admin-Seiten. Wirkt nur innerhalb
+   von `.admin-flaeche` (setzt AdminShell) — Kunden- und Agentenbereich bleiben
+   unberührt. Details und Begründung in der Datei. */
+@import "./styles/admin-3d.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

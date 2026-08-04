@@ -1,39 +1,38 @@
 import { useState, useRef, useEffect } from "react";
 import { Markdown } from "./AiKit";
+import { ACCENT } from "./AdminShell";
 
-// High-End-Look im Gemini-Stil — bewusst OHNE Icon-Bibliothek, nur Farbe/Verlauf.
-const GRAD = "linear-gradient(120deg, #4f46e5, #7c3aed, #db2777, #2563eb)";
-const LINK = "#6d28d9";
+// ═══════════════════════════════════════════════════════════════════════════
+// Frag dein System — Frage in normaler Sprache → geprüfte, NUR-LESENDE SQL →
+// echte Tabelle + Einordnung. Jede Antwort zeigt aufklappbar die verwendete
+// Abfrage. Kundendaten gehen NIE an die KI, nur aggregierte Werte.
+//
+// Umbau 04.08.2026 — was vorher nicht ging:
+//   · Ein vierfarbiger Verlauf (Indigo/Violett/Pink/Blau) und eine rotierende
+//     Kugel. Nichts davon ist FIAON: das CI hat EINE Akzentfarbe, und die ist
+//     für Primäraktionen reserviert. Ein Regenbogen-Kasten hat die Seite
+//     dominiert, obwohl er das unwichtigste Element darauf ist.
+//   · Der leere Zustand war 320px hoch — ein Drittel Bildschirm für „noch
+//     nichts gefragt". Jetzt ist der Kasten so hoch wie sein Inhalt.
+//   · Der Kasten stand ganz oben und schob die Tageszahlen unter die Falte.
+//     Jetzt liegt er als Werkzeug unter den Zahlen, geschlossen bis man ihn
+//     braucht.
+// ═══════════════════════════════════════════════════════════════════════════
+
 const LS_KEY = "fiaon_cockpit_convos_v1";
 
-// ═══════════════════════════════════════════════════════════════════
-// KI-Cockpit — Chat mit dem eigenen System (Prompt 3/3).
-// Frage in normaler Sprache → geprüfte, NUR-LESENDE SQL → echte Tabelle +
-// KI-Einordnung. Jede Antwort zeigt aufklappbar die verwendete Abfrage (woher
-// die Zahl kommt). Kundendaten gehen NIE an die KI — nur aggregierte Werte.
-// Sitzt prominent oben auf /admin; bei KI-Ausfall bleibt der Rest der Seite nutzbar.
-// ═══════════════════════════════════════════════════════════════════
-
 interface AskResult {
-  ok: boolean;
-  question: string;
-  sql?: string;
-  columns?: string[];
-  rows?: any[];
-  rowCount?: number;
-  truncated?: boolean;
-  maxRows?: number;
-  explanation?: string;
-  error?: string;
-  rejected?: boolean;
+  ok: boolean; question: string; sql?: string; columns?: string[]; rows?: any[];
+  rowCount?: number; truncated?: boolean; maxRows?: number;
+  explanation?: string; error?: string; rejected?: boolean;
 }
 interface Turn { id: number; question: string; result: AskResult | null; error?: string }
 interface Conversation { id: string; title: string; turns: Turn[]; updatedAt: number }
 
-const CHIPS = [
+const VORSCHLAEGE = [
   "Wie ist der Stand heute?",
   "Welche Zahlungen sind offen?",
-  "Wie viele Kunden haben bezahlt?",
+  "Umsatz pro Paket diesen Monat",
   "Beste Quellen nach Konversion",
 ];
 
@@ -41,7 +40,6 @@ function fmtCell(v: any): string {
   if (v === null || v === undefined || v === "") return "—";
   if (typeof v === "number") return v.toLocaleString("de-DE", { maximumFractionDigits: 2 });
   const s = String(v);
-  // ISO-Zeitstempel hübsch (deutsche Zeit)
   if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
     const d = new Date(s);
     if (!isNaN(d.getTime())) return d.toLocaleString("de-DE", { timeZone: "Europe/Berlin" });
@@ -49,12 +47,15 @@ function fmtCell(v: any): string {
   return s;
 }
 
-/** ref-Spalten werden zu Links in die Zahlungszentrale (Detail öffnen). */
-function CellValue({ col, value }: { col: string; value: any }) {
+/** Referenz-Spalten werden zu Links in die Kundenakte — eine Zahl, mit der man
+ *  nichts anfangen kann, ist eine halbe Antwort. */
+function Zelle({ col, value }: { col: string; value: any }) {
   const s = value == null ? "" : String(value);
   if (col.toLowerCase() === "ref" && /^FIAON-/i.test(s)) {
     return (
-      <a href={`/admin/zahlungen?ref=${encodeURIComponent(s)}`} className="font-medium underline decoration-dotted underline-offset-2 hover:decoration-solid" style={{ color: LINK }}>
+      <a href={`/admin/zahlungen?ref=${encodeURIComponent(s)}`}
+        className="font-medium underline decoration-dotted underline-offset-2 hover:decoration-solid"
+        style={{ color: ACCENT }}>
         {s}
       </a>
     );
@@ -62,24 +63,22 @@ function CellValue({ col, value }: { col: string; value: any }) {
   return <span>{fmtCell(value)}</span>;
 }
 
-function ResultTable({ columns, rows }: { columns: string[]; rows: any[] }) {
-  // Desktop: echte Tabelle; Mobile (<sm): jede Zeile als Karte.
+/** Desktop: echte Tabelle (Kopf klebt oben, siehe admin-3d.css).
+ *  Handy: jede Zeile als Kärtchen — eine 7-spaltige Tabelle auf 380px ist
+ *  unlesbar, egal wie klein die Schrift wird. */
+function Ergebnis({ columns, rows }: { columns: string[]; rows: any[] }) {
   return (
     <div className="mt-3">
-      <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200">
+      <div className="hidden sm:block overflow-x-auto rounded-xl border" style={{ borderColor: "var(--a3-linie,#e4e9f2)" }}>
         <table className="w-full text-left">
-          <thead className="bg-slate-50/80 border-b border-slate-100">
-            <tr>
-              {columns.map((c) => (
-                <th key={c} className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-400 whitespace-nowrap">{c}</th>
-              ))}
-            </tr>
+          <thead>
+            <tr>{columns.map((c) => <th key={c} className="px-3 py-2">{c}</th>)}</tr>
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={i} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
+              <tr key={i}>
                 {columns.map((c) => (
-                  <td key={c} className="px-3 py-2 text-[13px] text-slate-700 tabular-nums whitespace-nowrap"><CellValue col={c} value={r[c]} /></td>
+                  <td key={c} className="px-3 py-2 text-[13px] text-slate-700 whitespace-nowrap"><Zelle col={c} value={r[c]} /></td>
                 ))}
               </tr>
             ))}
@@ -88,12 +87,12 @@ function ResultTable({ columns, rows }: { columns: string[]; rows: any[] }) {
       </div>
       <div className="sm:hidden space-y-2">
         {rows.map((r, i) => (
-          <div key={i} className="rounded-xl border border-slate-200 bg-white p-3">
-            <dl className="grid grid-cols-[minmax(0,40%)_1fr] gap-x-3 gap-y-1">
+          <div key={i} className="rounded-xl border bg-white p-3" style={{ borderColor: "var(--a3-linie,#e4e9f2)" }}>
+            <dl className="grid grid-cols-[minmax(0,42%)_1fr] gap-x-3 gap-y-1">
               {columns.map((c) => (
                 <div key={c} className="contents">
                   <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-400 py-0.5 truncate">{c}</dt>
-                  <dd className="text-[12.5px] text-slate-700 py-0.5 break-words"><CellValue col={c} value={r[c]} /></dd>
+                  <dd className="text-[12.5px] text-slate-700 py-0.5 break-words a3-zahl"><Zelle col={c} value={r[c]} /></dd>
                 </div>
               ))}
             </dl>
@@ -104,59 +103,68 @@ function ResultTable({ columns, rows }: { columns: string[]; rows: any[] }) {
   );
 }
 
-function TurnView({ turn }: { turn: Turn }) {
-  const [showSql, setShowSql] = useState(false);
-  const [copied, setCopied] = useState(false);
+function Runde({ turn }: { turn: Turn }) {
+  const [sqlOffen, setSqlOffen] = useState(false);
+  const [kopiert, setKopiert] = useState(false);
   const res = turn.result;
 
-  const copyAnswer = () => {
-    const parts = [`Frage: ${turn.question}`];
-    if (res?.explanation) parts.push("", res.explanation);
-    if (res?.sql) parts.push("", "Abfrage:", res.sql);
-    navigator.clipboard?.writeText(parts.join("\n")).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  const kopieren = () => {
+    const teile = [`Frage: ${turn.question}`];
+    if (res?.explanation) teile.push("", res.explanation);
+    if (res?.sql) teile.push("", "Abfrage:", res.sql);
+    navigator.clipboard?.writeText(teile.join("\n")).then(() => {
+      setKopiert(true);
+      setTimeout(() => setKopiert(false), 2000);
+    });
   };
 
   return (
-    <div className="pt-6 first:pt-0">
-      {/* Frage (Betreiber) — Verlaufs-Blase */}
-      <div className="flex justify-end mb-3">
-        <span className="max-w-[85%] rounded-[20px] rounded-br-md px-4 py-2.5 text-[14.5px] leading-snug text-white shadow-[0_6px_18px_-6px_rgba(124,58,237,0.6)]" style={{ background: GRAD }}>{turn.question}</span>
+    <div className="pt-4 first:pt-0">
+      {/* Die eigene Frage: rechts, im Akzent — so wie in jedem Messenger, damit
+          man Frage und Antwort ohne Nachdenken auseinanderhält. */}
+      <div className="flex justify-end mb-2.5">
+        <span
+          className="max-w-[85%] rounded-2xl rounded-br-md px-3.5 py-2 text-[13.5px] leading-snug text-white"
+          style={{ background: `linear-gradient(180deg,${ACCENT},#1e40af)`, boxShadow: "0 4px 14px -6px rgba(29,78,216,.6)" }}
+        >
+          {turn.question}
+        </span>
       </div>
 
-      {/* Fehler (KI/DB/abgelehnt) — Zahlen bleiben ehrlich, kein Erfinden */}
       {turn.error && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-[13px] text-amber-800">
-          <p className="font-medium">{turn.error}</p>
+        <div className="rounded-xl border px-3.5 py-2.5 text-[12.5px]"
+          style={{ borderColor: "#fcd9b6", background: "rgba(217,119,6,.05)", color: "#92400e" }}>
+          <p className="font-semibold">{turn.error}</p>
           {res?.sql && (
-            <details className="mt-2">
-              <summary className="cursor-pointer text-[12px] font-semibold text-amber-700">Vorschlag der KI ansehen</summary>
-              <pre className="mt-1.5 whitespace-pre-wrap break-words text-[12px] bg-white/70 border border-amber-200 rounded-xl p-2.5">{res.sql}</pre>
+            <details className="mt-1.5">
+              <summary className="cursor-pointer text-[12px] font-semibold">Vorschlag der KI ansehen</summary>
+              <pre className="mt-1.5 whitespace-pre-wrap break-words text-[11.5px] bg-white/80 border rounded-lg p-2.5" style={{ borderColor: "#fcd9b6" }}>{res.sql}</pre>
             </details>
           )}
         </div>
       )}
 
-      {/* Antwort */}
       {res?.ok && (
-        <div className="rounded-2xl border border-slate-100 bg-slate-50/50 px-4 py-4">
-          {res.explanation && <div className="text-[14.5px] leading-relaxed text-slate-700"><Markdown text={res.explanation} /></div>}
-          {res.columns && res.rows && res.rows.length > 0 && (
-            <ResultTable columns={res.columns} rows={res.rows} />
+        <div className="rounded-xl border px-3.5 py-3" style={{ borderColor: "var(--a3-linie,#e4e9f2)", background: "#fbfcfe" }}>
+          {res.explanation && (
+            <div className="text-[13.5px] leading-relaxed text-slate-700"><Markdown text={res.explanation} /></div>
           )}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3.5 text-[12.5px]">
-            <span className="text-slate-400">
+          {res.columns && res.rows && res.rows.length > 0 && <Ergebnis columns={res.columns} rows={res.rows} />}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-[12px]">
+            <span className="text-slate-400 a3-zahl">
               {res.rowCount} {res.rowCount === 1 ? "Zeile" : "Zeilen"}
               {res.truncated ? ` · nur die ersten ${res.maxRows} gezeigt` : ""}
             </span>
-            <button onClick={() => setShowSql((v) => !v)} className="font-semibold text-slate-500 hover:text-violet-700 transition-colors">
-              {showSql ? "Abfrage verbergen" : "Abfrage anzeigen"}
+            <button type="button" onClick={() => setSqlOffen((v) => !v)} className="font-semibold text-slate-500 hover:text-slate-800">
+              {sqlOffen ? "Abfrage verbergen" : "Abfrage anzeigen"}
             </button>
-            <button onClick={copyAnswer} className="font-semibold text-slate-500 hover:text-violet-700 transition-colors">
-              {copied ? "Kopiert!" : "Antwort kopieren"}
+            <button type="button" onClick={kopieren} className="font-semibold text-slate-500 hover:text-slate-800">
+              {kopiert ? "Kopiert" : "Antwort kopieren"}
             </button>
           </div>
-          {showSql && (
-            <pre className="mt-2.5 whitespace-pre-wrap break-words text-[12px] text-slate-500 bg-white border border-slate-200 rounded-xl p-3.5">{res.sql}</pre>
+          {sqlOffen && (
+            <pre className="mt-2 whitespace-pre-wrap break-words text-[11.5px] text-slate-500 bg-white border rounded-lg p-3"
+              style={{ borderColor: "var(--a3-linie,#e4e9f2)" }}>{res.sql}</pre>
           )}
         </div>
       )}
@@ -164,60 +172,25 @@ function TurnView({ turn }: { turn: Turn }) {
   );
 }
 
-const COCKPIT_CSS = `
-.cp-gradient-text{
-  background:${GRAD}; background-size:200% auto;
-  -webkit-background-clip:text; background-clip:text;
-  -webkit-text-fill-color:transparent; color:transparent;
-  animation:cpText 6s linear infinite;
-}
-@keyframes cpText{to{background-position:200% center}}
-@keyframes cpFlow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
-
-.cp-input-shell{position:relative;border-radius:24px;padding:2px;}
-.cp-input-shell::before{
-  content:"";position:absolute;inset:0;border-radius:inherit;padding:2px;pointer-events:none;
-  background:linear-gradient(120deg,#4f46e5,#7c3aed,#db2777,#2563eb,#4f46e5);
-  background-size:300% 300%;
-  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
-  -webkit-mask-composite:xor;mask-composite:exclude;
-  animation:cpFlow 6s ease infinite;
-}
-.cp-input-shell::after{
-  content:"";position:absolute;inset:-4px;border-radius:28px;z-index:-1;pointer-events:none;
-  background:linear-gradient(120deg,#4f46e5,#7c3aed,#db2777,#2563eb);
-  background-size:300% 300%;filter:blur(16px);opacity:.30;
-  animation:cpFlow 6s ease infinite;transition:opacity .35s;
-}
-.cp-input-shell:focus-within::after{opacity:.72;}
-.cp-input-shell.cp-busy::after{opacity:.8;}
-.cp-input-inner{position:relative;z-index:1;display:flex;align-items:flex-end;gap:8px;background:#fff;border-radius:22px;padding:10px 10px 10px 16px;}
-
-.cp-send{border-radius:16px;color:#fff;font-weight:700;font-size:14.5px;padding:0 22px;height:46px;min-width:92px;background:${GRAD};box-shadow:0 6px 18px -6px rgba(124,58,237,.55);transition:transform .15s,opacity .2s,box-shadow .2s;}
-.cp-send:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 10px 24px -8px rgba(124,58,237,.7);}
-.cp-send:disabled{opacity:.4;box-shadow:none;}
-
-.cp-orb{width:72px;height:72px;border-radius:9999px;background:conic-gradient(from 0deg,#4f46e5,#7c3aed,#db2777,#2563eb,#4f46e5);box-shadow:0 0 48px -6px rgba(124,58,237,.6);animation:cpSpin 8s linear infinite;}
-.cp-orb-core{position:absolute;inset:14px;border-radius:9999px;background:#fff;}
-@keyframes cpSpin{to{transform:rotate(360deg)}}
-
-.cp-dots{display:inline-flex;gap:5px;align-items:center;}
-.cp-dots i{width:7px;height:7px;border-radius:9999px;background:linear-gradient(120deg,#7c3aed,#db2777);display:inline-block;animation:cpBounce 1s ease-in-out infinite;}
-.cp-dots i:nth-child(2){animation-delay:.15s}
-.cp-dots i:nth-child(3){animation-delay:.3s}
-@keyframes cpBounce{0%,100%{transform:translateY(0);opacity:.45}50%{transform:translateY(-5px);opacity:1}}
+const CSS = `
+.ki-punkte{display:inline-flex;gap:4px;align-items:center}
+.ki-punkte i{width:6px;height:6px;border-radius:9999px;background:${ACCENT};display:inline-block;animation:kiHuepf 1s ease-in-out infinite}
+.ki-punkte i:nth-child(2){animation-delay:.15s}
+.ki-punkte i:nth-child(3){animation-delay:.3s}
+@keyframes kiHuepf{0%,100%{transform:translateY(0);opacity:.35}50%{transform:translateY(-4px);opacity:1}}
+@media (prefers-reduced-motion: reduce){.ki-punkte i{animation:none}}
 `;
 
 export default function Cockpit() {
+  const [offen, setOffen] = useState(false);
   const [q, setQ] = useState("");
   const [convos, setConvos] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const [verlaufOffen, setVerlaufOffen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
-  // Konversationen aus dem Browser laden (persistent über Reloads).
   useEffect(() => {
     try {
       const raw = localStorage.getItem(LS_KEY);
@@ -228,49 +201,49 @@ export default function Cockpit() {
           setActiveId(parsed.slice().sort((a, b) => b.updatedAt - a.updatedAt)[0].id);
         }
       }
-    } catch { /* ignore */ }
+    } catch { /* Ein defekter Speicher darf das Dashboard nicht aufhalten. */ }
   }, []);
 
-  // Konversationen speichern (max. 50, damit der Speicher nicht vollläuft).
   useEffect(() => {
-    try { localStorage.setItem(LS_KEY, JSON.stringify(convos.slice(0, 50))); } catch { /* ignore */ }
+    try { localStorage.setItem(LS_KEY, JSON.stringify(convos.slice(0, 50))); } catch { /* voll oder gesperrt */ }
   }, [convos]);
 
-  const activeConv = convos.find((c) => c.id === activeId) || null;
-  const turns = activeConv?.turns || [];
+  const conv = convos.find((c) => c.id === activeId) || null;
+  const turns = conv?.turns || [];
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [turns.length, busy, activeId]);
 
-  // Textarea wächst mit dem Text (bis zu einer Grenze).
+  // Eingabefeld wächst mit dem Text — eine einzeilige Zeile für eine
+  // dreizeilige Frage zwingt zum Blindtippen.
   useEffect(() => {
     const el = taRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 200) + "px";
-  }, [q]);
+    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+  }, [q, offen]);
 
-  const ask = async (question: string) => {
-    const text = question.trim();
+  const fragen = async (frage: string) => {
+    const text = frage.trim();
     if (!text || busy) return;
     setQ("");
     setBusy(true);
+    setOffen(true);
     const turnId = Date.now() + Math.random();
-    const isNew = !(activeId && convos.some((c) => c.id === activeId));
-    const convId = isNew ? `c_${Date.now()}_${Math.random().toString(36).slice(2, 6)}` : (activeId as string);
+    const neu = !(activeId && convos.some((c) => c.id === activeId));
+    const convId = neu ? `c_${Date.now()}_${Math.random().toString(36).slice(2, 6)}` : (activeId as string);
     setActiveId(convId);
     setConvos((prev) => {
       let list = [...prev];
-      if (isNew) list = [{ id: convId, title: text.slice(0, 70), turns: [], updatedAt: Date.now() }, ...list];
+      if (neu) list = [{ id: convId, title: text.slice(0, 70), turns: [], updatedAt: Date.now() }, ...list];
       return list.map((c) => c.id === convId
         ? { ...c, title: c.turns.length ? c.title : text.slice(0, 70), turns: [...c.turns, { id: turnId, question: text, result: null }], updatedAt: Date.now() }
         : c);
     });
     try {
       const res = await fetch("/api/fiaon/admin/cockpit/ask", {
-        method: "POST",
-        credentials: "include",
+        method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: text }),
       });
@@ -280,108 +253,133 @@ export default function Cockpit() {
         : c));
     } catch {
       setConvos((prev) => prev.map((c) => c.id === convId
-        ? { ...c, turns: c.turns.map((t) => t.id === turnId ? { ...t, error: "Verbindung zur KI fehlgeschlagen. Der Rest des Dashboards funktioniert weiter." } : t) }
+        ? { ...c, turns: c.turns.map((t) => t.id === turnId ? { ...t, error: "Keine Verbindung zur KI. Der Rest des Dashboards funktioniert weiter." } : t) }
         : c));
     } finally {
       setBusy(false);
     }
   };
 
-  const newChat = () => { setActiveId(null); setQ(""); setShowHistory(false); };
-  const openConv = (id: string) => { setActiveId(id); setShowHistory(false); };
-  const deleteConv = (id: string) => {
-    setConvos((prev) => prev.filter((c) => c.id !== id));
-    if (activeId === id) setActiveId(null);
-  };
+  const neuerChat = () => { setActiveId(null); setQ(""); setVerlaufOffen(false); };
 
   return (
-    <div className="mb-8">
-      <style>{COCKPIT_CSS}</style>
-      <div className="relative rounded-[28px] bg-white border border-slate-200/70 shadow-[0_20px_60px_-24px_rgba(79,70,229,0.28)] overflow-hidden">
-        {/* Dekorativer Farbschimmer */}
-        <div className="pointer-events-none absolute -top-28 left-1/2 -translate-x-1/2 h-56 w-[75%] rounded-full opacity-[0.18] blur-3xl" style={{ background: GRAD }} />
+    <section className="a3-tafel">
+      <style>{CSS}</style>
 
-        {/* Kopf */}
-        <div className="relative flex items-start gap-3 px-6 pt-6 pb-4">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-[24px] sm:text-[28px] font-extrabold tracking-tight cp-gradient-text leading-tight">KI-Cockpit</h2>
-            <p className="text-[13.5px] text-slate-500 mt-1">Frag dein Geschäft in normaler Sprache — echte Zahlen aus der Datenbank, mit sichtbarer Abfrage.</p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0 pt-1">
-            {turns.length > 0 && (
-              <button onClick={newChat} className="px-4 py-2 rounded-full text-[12.5px] font-semibold text-white shadow-[0_6px_16px_-6px_rgba(124,58,237,0.6)] hover:opacity-90 transition" style={{ background: GRAD }}>Neuer Chat</button>
-            )}
-            {convos.length > 0 && (
-              <button onClick={() => setShowHistory((v) => !v)} className={`px-4 py-2 rounded-full text-[12.5px] font-semibold border transition ${showHistory ? "border-violet-300 text-violet-700 bg-violet-50" : "border-slate-200 text-slate-600 bg-white hover:border-slate-300"}`}>Verlauf</button>
-            )}
-          </div>
+      {/* Kopf — zugeklappt ein Knopf, aufgeklappt eine Werkzeugleiste. */}
+      <header className="a3-tafel-kopf">
+        <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+          style={{ background: "var(--fi-flaeche-akzent,#f1f5ff)", color: ACCENT }}>
+          {/* Kein Icon-Zoo: zwei Striche und ein Punkt genügen als Zeichen für
+              „Frage an die Datenbank". */}
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M4 7h16M4 12h10M4 17h6" />
+            <circle cx="18" cy="17" r="2.2" fill="currentColor" stroke="none" />
+          </svg>
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-[14px] font-bold text-slate-900">Frag dein System</h2>
+          <p className="hidden sm:block text-[11.5px] text-slate-500 leading-tight">
+            Frage in normaler Sprache — echte Zahlen, mit Abfrage zum Nachsehen. Kundendaten gehen nie an die KI.
+          </p>
         </div>
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          {offen && turns.length > 0 && (
+            <button type="button" onClick={neuerChat}
+              className="px-2.5 py-1.5 rounded-lg border bg-white text-[11.5px] font-semibold text-slate-600"
+              style={{ borderColor: "var(--a3-linie,#e4e9f2)" }}>
+              Neu
+            </button>
+          )}
+          {offen && convos.length > 0 && (
+            <button type="button" onClick={() => setVerlaufOffen((v) => !v)}
+              className="px-2.5 py-1.5 rounded-lg border bg-white text-[11.5px] font-semibold text-slate-600"
+              style={{ borderColor: verlaufOffen ? ACCENT : "var(--a3-linie,#e4e9f2)", color: verlaufOffen ? ACCENT : undefined }}>
+              Verlauf
+            </button>
+          )}
+          <button type="button" onClick={() => setOffen((v) => !v)}
+            className="px-2.5 py-1.5 rounded-lg text-[11.5px] font-semibold"
+            style={offen
+              ? { border: "1px solid var(--a3-linie,#e4e9f2)", background: "#fff", color: "#64748b" }
+              : { background: ACCENT, color: "#fff", boxShadow: "0 4px 12px -4px rgba(29,78,216,.55)" }}>
+            {offen ? "Schließen" : "Frage stellen"}
+          </button>
+        </div>
+      </header>
 
-        {/* Verlauf gespeicherter Konversationen */}
-        {showHistory && convos.length > 0 && (
-          <div className="relative mx-6 mb-3 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-2 max-h-[280px] overflow-y-auto shadow-sm">
-            {convos.slice().sort((a, b) => b.updatedAt - a.updatedAt).map((c) => (
-              <div key={c.id} className={`flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer transition ${c.id === activeId ? "bg-violet-50" : "hover:bg-slate-50"}`}>
-                <button onClick={() => openConv(c.id)} className="flex-1 min-w-0 text-left">
-                  <p className="text-[13.5px] font-medium text-slate-700 truncate">{c.title || "Neue Unterhaltung"}</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">{new Date(c.updatedAt).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })} · {c.turns.length} Frage{c.turns.length === 1 ? "" : "n"}</p>
-                </button>
-                <button onClick={() => deleteConv(c.id)} className="text-[11.5px] font-semibold text-slate-300 hover:text-rose-500 transition shrink-0">Entfernen</button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Gesprächsbereich / Willkommens-Hero */}
-        <div ref={scrollRef} className="relative px-6 overflow-y-auto" style={{ maxHeight: "58vh", minHeight: turns.length ? 260 : 320 }}>
-          {turns.length === 0 ? (
-            <div className="flex flex-col items-center justify-center text-center py-12">
-              <div className="relative mb-6"><div className="cp-orb" /><div className="cp-orb-core" /></div>
-              <h3 className="text-[26px] sm:text-[32px] font-extrabold tracking-tight cp-gradient-text">Was möchtest du wissen?</h3>
-              <p className="text-[14.5px] text-slate-500 mt-2.5 max-w-lg leading-relaxed">Stell eine Frage zu Kunden, Zahlungen, Provisionen oder Leads. Du bekommst echte Zahlen — inklusive der Abfrage, die dahintersteckt. Kundendaten gehen nie an die KI.</p>
-              <div className="flex flex-wrap justify-center gap-2.5 mt-7 max-w-2xl">
-                {CHIPS.map((c) => (
-                  <button key={c} onClick={() => ask(c)} disabled={busy}
-                    className="px-4 py-2.5 rounded-full text-[13.5px] font-medium text-slate-600 bg-white border border-slate-200 hover:border-violet-300 hover:text-violet-700 hover:shadow-[0_6px_16px_-8px_rgba(124,58,237,0.5)] transition disabled:opacity-50">
-                    {c}
+      {offen && (
+        <div className="p-3.5 sm:p-4">
+          {verlaufOffen && convos.length > 0 && (
+            <div className="mb-3 rounded-xl border bg-white p-1.5 max-h-[220px] overflow-y-auto" style={{ borderColor: "var(--a3-linie,#e4e9f2)" }}>
+              {convos.slice().sort((a, b) => b.updatedAt - a.updatedAt).map((c) => (
+                <div key={c.id} className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 ${c.id === activeId ? "bg-slate-50" : "hover:bg-slate-50"}`}>
+                  <button type="button" onClick={() => { setActiveId(c.id); setVerlaufOffen(false); }} className="flex-1 min-w-0 text-left">
+                    <p className="text-[12.5px] font-medium text-slate-700 truncate">{c.title || "Neue Unterhaltung"}</p>
+                    <p className="text-[10.5px] text-slate-400">
+                      {new Date(c.updatedAt).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })} · {c.turns.length} Frage{c.turns.length === 1 ? "" : "n"}
+                    </p>
                   </button>
-                ))}
-              </div>
+                  <button type="button"
+                    onClick={() => { setConvos((prev) => prev.filter((x) => x.id !== c.id)); if (activeId === c.id) setActiveId(null); }}
+                    className="text-[11px] font-semibold text-slate-300 hover:text-red-500 shrink-0">
+                    Entfernen
+                  </button>
+                </div>
+              ))}
             </div>
-          ) : (
-            <div className="pb-4">
-              {turns.map((t) => <TurnView key={t.id} turn={t} />)}
+          )}
+
+          {/* Gespräch — nur so hoch wie nötig, höchstens halber Bildschirm. */}
+          {turns.length > 0 && (
+            <div ref={scrollRef} className="overflow-y-auto mb-3" style={{ maxHeight: "50vh" }}>
+              {turns.map((t) => <Runde key={t.id} turn={t} />)}
               {busy && (
-                <div className="flex items-center gap-2.5 pt-6 text-[14px] text-slate-400">
-                  <span className="cp-dots"><i /><i /><i /></span> Denkt nach, erzeugt eine geprüfte Abfrage …
+                <div className="flex items-center gap-2 pt-3 text-[12.5px] text-slate-400">
+                  <span className="ki-punkte"><i /><i /><i /></span> denkt nach …
                 </div>
               )}
             </div>
           )}
-        </div>
 
-        {/* Eingabe mit leuchtendem Rand (mobil voll bedienbar) */}
-        <div className="relative px-6 pb-6 pt-4">
-          <div className={`cp-input-shell ${busy ? "cp-busy" : ""}`}>
-            <div className="cp-input-inner">
-              <textarea
-                ref={taRef}
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(q); } }}
-                placeholder="Frag dein Geschäft … z. B. „Zeig mir alle Zahlungen von Terzi“"
-                rows={1}
-                className="flex-1 resize-none bg-transparent px-1 py-2 text-[15.5px] leading-relaxed text-slate-800 outline-none placeholder:text-slate-400"
-                style={{ maxHeight: 200 }}
-              />
-              <button onClick={() => ask(q)} disabled={busy || !q.trim()} className="cp-send">
-                {busy ? "…" : "Fragen"}
-              </button>
-            </div>
+          {/* Eingabe */}
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={taRef}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void fragen(q); }
+              }}
+              rows={1}
+              placeholder="Zum Beispiel: Wie viele Kunden haben diesen Monat bezahlt?"
+              className="flex-1 resize-none rounded-xl border px-3.5 py-2.5 text-[13.5px] outline-none bg-white"
+              style={{ borderColor: "var(--a3-linie,#e4e9f2)" }}
+            />
+            <button
+              type="button"
+              onClick={() => void fragen(q)}
+              disabled={busy || !q.trim()}
+              className="shrink-0 h-[42px] px-4 rounded-xl text-[13px] font-bold text-white disabled:opacity-40"
+              style={{ background: `linear-gradient(180deg,${ACCENT},#1e40af)`, boxShadow: "0 4px 14px -6px rgba(29,78,216,.6)" }}
+            >
+              Fragen
+            </button>
           </div>
-          <p className="text-[11.5px] text-slate-400 mt-2.5 text-center">Enter zum Senden · Shift + Enter für neue Zeile · Kundendaten gehen nie an die KI</p>
+
+          {turns.length === 0 && (
+            <div className="flex flex-wrap gap-2 mt-2.5">
+              {VORSCHLAEGE.map((v) => (
+                <button key={v} type="button" onClick={() => void fragen(v)}
+                  className="px-2.5 py-1.5 rounded-lg border bg-white text-[12px] text-slate-600 hover:text-slate-900"
+                  style={{ borderColor: "var(--a3-linie,#e4e9f2)" }}>
+                  {v}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
-    </div>
+      )}
+    </section>
   );
 }

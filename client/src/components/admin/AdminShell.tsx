@@ -5,7 +5,7 @@ import {
   BookOpen, Settings, ScrollText, Scale, Database, Search, Menu, X,
   ArrowLeft, ChevronRight, ShieldAlert, Wallet, Send, Sparkles,
   Target, TrendingUp, Landmark, HandCoins, Copy, BarChart3, History, Activity,
-  LogOut, PiggyBank, GraduationCap, Map, Layers,
+  LogOut, PiggyBank, GraduationCap, Map, Layers, Receipt, UserCheck,
 } from "lucide-react";
 import AdminCodeGate from "./AdminCodeGate";
 
@@ -54,6 +54,9 @@ export const ADMIN_NAV: NavGroup[] = [
     items: [
       { path: "/admin/zahlungen", label: "Zahlungszentrale", desc: "Offene Zahlungen prüfen, freischalten, Timeline", icon: CreditCard, badgeKey: "zahlungen" },
       { path: "/admin/kontoabgleich", label: "Kontoabgleich", desc: "Bank-Eingänge exakt mit Kunden abgleichen und verbuchen", icon: Landmark, badgeKey: "kontoabgleich" },
+      // Routen-Audit 04.08.2026: diese Seite war erreichbar, stand aber in KEINEM
+      // Menü — man kam nur über einen gemerkten Link hin.
+      { path: "/admin/verbuchung", label: "Zahlungen verbuchen", desc: "Vier Fälle, vier Reiter: verbuchen, Zuordnung korrigieren, fälschlich stillgelegt, ohne Zuordnung — mit Vorschau vor dem Klick", icon: Receipt },
       { path: "/admin/zahlungen#auszahlungen", label: "Auszahlungen", desc: "Provisions-Anforderungen der Mitarbeiter freigeben", icon: Banknote, match: "/admin/zahlungen", badgeKey: "auszahlungen" },
       { path: "/admin/dubletten", label: "Dubletten", desc: "Mehrfach angelegte Personen erkennen und zusammenführen (füllt fehlende Felder, umkehrbar)", icon: Copy, badgeKey: "dubletten" },
       { path: "/admin/verbuchungen", label: "Verbuchungen", desc: "Bestätigte Zahlungen: Umsatz, Provisionen, Netto", icon: Wallet },
@@ -67,6 +70,8 @@ export const ADMIN_NAV: NavGroup[] = [
     items: [
       { path: "/admin/kunden", label: "Kunden — die eine Liste", desc: "Jede Person genau einmal (Leads + Kunden vereint) — jeder Treffer öffnet die Akte", icon: Users },
       { path: "/admin/database", label: "Anträge & KYC", desc: "Arbeits-Fokus: Antrags-Details, KYC-Dokumente, SCHUFA-Review", icon: Database },
+      // Routen-Audit 04.08.2026: ebenfalls ohne Menüpunkt gewesen.
+      { path: "/admin/personen", label: "Kunden & Zuordnung", desc: "Wie viele Menschen sind wirklich Kunden (statt Antragszeilen) — und bei wem hängen mehrere Agenten an einer Person", icon: UserCheck },
       { path: "/admin/fahrplan", label: "Fahrplan / Kundenprodukt", desc: "Upload-Review, KI-Analyse freigeben, Fahrplan steuern, Ziel-Freischaltung, Audit", icon: Map },
       { path: "/admin/kartei", label: "Offene Kartei", desc: "Ein gemeinsamer Bestand für alle Agenten — frei/vergeben, Rückläufer, Rangfolge, Notausgang", icon: Layers },
       { path: "/admin/leads", label: "Leads", desc: "Interessenten aus Lead-Ads — Nachfass, Verteilung, Warteschlange", icon: Target },
@@ -377,10 +382,20 @@ function AdminShellRahmen({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Desktop-Sidebar */}
-      <aside className="hidden lg:flex fixed inset-y-0 left-0 w-60 bg-white border-r border-slate-200 flex-col z-40">
-        <div className="px-5 py-4 border-b border-slate-100">
+    // `admin-flaeche` ist der Schalter für die Tiefen-Schicht (admin-3d.css):
+    // Karten, Tabellen, Felder und Abstände aller Unterseiten hängen daran.
+    <div className="admin-flaeche min-h-screen">
+      {/* Desktop-Sidebar — liegt VOR dem Inhalt, deshalb ein Streuschatten nach
+          rechts statt einer harten Linie. */}
+      <aside
+        className="hidden lg:flex fixed inset-y-0 left-0 w-60 flex-col z-40 border-r"
+        style={{
+          background: "linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%)",
+          borderColor: "var(--a3-linie, #e4e9f2)",
+          boxShadow: "6px 0 24px -18px rgba(29,78,216,.35)",
+        }}
+      >
+        <div className="px-5 py-4" style={{ boxShadow: "inset 0 -1px 0 var(--a3-linie, #e4e9f2)" }}>
           <Link href="/admin" className="text-lg font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</Link>
           <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-slate-400 mt-0.5">Verwaltung</p>
         </div>
@@ -388,7 +403,7 @@ function AdminShellRahmen({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Mobile-Topbar */}
-      <header className="lg:hidden sticky top-0 z-40 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+      <header className="lg:hidden sticky top-0 z-40 bg-white/85 backdrop-blur-xl border-b border-slate-200/80 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <button
             type="button"
@@ -437,8 +452,17 @@ function AdminShellRahmen({ children }: { children: React.ReactNode }) {
 
       {/* Inhalt */}
       <div className="lg:pl-60">
-        {/* Breadcrumb-Leiste (N1/N3): Orientierung + Zurück + Suche */}
-        <div className="sticky top-0 lg:top-0 z-30 bg-slate-50/90 backdrop-blur border-b border-slate-200/70 px-4 sm:px-6 py-2.5 flex items-center gap-3">
+        {/* Breadcrumb-Leiste (N1/N3): Orientierung + Zurück + Suche.
+            Echtes Glas: die Leiste schwebt über dem Inhalt, der darunter
+            durchscheint — dadurch sieht man beim Scrollen, dass sie oben liegt
+            und nicht Teil der Seite ist. */}
+        <div
+          className="sticky top-0 z-30 backdrop-blur-xl px-4 sm:px-6 py-2.5 flex items-center gap-3"
+          style={{
+            background: "rgba(246,248,252,.82)",
+            boxShadow: "inset 0 -1px 0 rgba(15,23,42,.07), 0 8px 20px -18px rgba(29,78,216,.5)",
+          }}
+        >
           {!isHub && (
             <button
               type="button"
@@ -456,6 +480,11 @@ function AdminShellRahmen({ children }: { children: React.ReactNode }) {
               <>
                 <ChevronRight size={12} className="text-slate-300 shrink-0" />
                 <span className="font-semibold text-slate-900 truncate">{meta.label}</span>
+                {/* Ein Satz, was diese Seite tut — auf breiten Schirmen ist Platz
+                    dafür, und er erspart das Raten beim Direkteinstieg. */}
+                {meta.desc && (
+                  <span className="hidden xl:inline text-slate-400 truncate max-w-[46ch]">— {meta.desc}</span>
+                )}
               </>
             )}
           </nav>

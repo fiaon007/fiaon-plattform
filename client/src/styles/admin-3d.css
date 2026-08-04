@@ -1,0 +1,316 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FIAON VERWALTUNG — TIEFE & ÜBERSICHT FÜR ALLE SEITEN
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Warum eine Schicht und nicht 31 Umbauten:
+   Die Admin-Seiten benutzen alle dasselbe Grundmuster — weiße Fläche, 1px
+   Rahmen, 14–16px Radius, dazu Tabellen und Formularfelder. Werden diese
+   Muster EINMAL zentral gehoben, gewinnt jede Seite dieselbe Tiefe und
+   dieselben Abstände, ohne dass in 12.600 Zeilen Seitenlogik gerührt wird.
+   Ein Umbau je Seite hätte 31-mal denselben Fehler an 31 Stellen erzeugt.
+
+   Alles ist unter `.admin-flaeche` eingesperrt (setzt AdminShell). Kunden- und
+   Agentenbereich bleiben unberührt.
+
+   Woher die Tiefe kommt: NICHT aus stärkeren Schatten, sondern aus drei
+   Zutaten, die echtes Material nachbilden —
+     1. Lichtkante oben (inset weiß)   → die Platte fängt Licht
+     2. zwei Schatten mit Blauanteil   → Kontakt- und Streuschatten
+     3. Bewegung Richtung Betrachter   → nur bei Klickbarem, 2px, sonst nichts
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.admin-flaeche {
+  /* ── Tiefenstufen. Blauanteil statt Grau: grauer Schatten wirkt schmutzig,
+        ein Blaustich liegt in derselben Farbfamilie wie der Akzent und liest
+        sich als Licht. */
+  --a3-tief-1: 0 1px 2px rgba(15, 23, 42, .05), 0 2px 8px rgba(29, 78, 216, .05);
+  --a3-tief-2: 0 2px 4px rgba(15, 23, 42, .05), 0 10px 24px rgba(29, 78, 216, .09);
+  --a3-tief-3: 0 4px 8px rgba(15, 23, 42, .07), 0 22px 50px rgba(29, 78, 216, .15);
+  --a3-licht: inset 0 1px 0 rgba(255, 255, 255, .92);
+  --a3-linie: #e4e9f2;
+  --a3-linie-stark: #cdd8ea;
+  --a3-breite: 1180px;
+  --a3-kurve: cubic-bezier(.32, .72, 0, 1);
+
+  /* Der Hintergrund ist kein flaches Grau, sondern ein sehr flaches Licht von
+     oben. Dadurch liegen weiße Karten sichtbar AUF etwas. */
+  background:
+    radial-gradient(1200px 480px at 50% -8%, rgba(37, 99, 235, .07), transparent 70%),
+    radial-gradient(700px 400px at 100% 0%, rgba(37, 99, 235, .04), transparent 65%),
+    #f6f8fc;
+  min-height: 100vh;
+}
+
+/* ── Einheitliche Seitenbreite ───────────────────────────────────────────────
+   Manche Seiten waren 1152px breit, andere 1280px. Beim Wechsel zwischen zwei
+   Seiten sprang dadurch die ganze Spalte. Eine Breite für alle. */
+.admin-flaeche .max-w-6xl,
+.admin-flaeche .max-w-7xl { max-width: var(--a3-breite); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   1. KARTEN — das Muster, das auf jeder Seite vorkommt
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.admin-flaeche .bg-white.rounded-2xl,
+.admin-flaeche .bg-white.rounded-xl,
+.admin-flaeche .a3-tafel {
+  border-color: var(--a3-linie);
+  box-shadow: var(--a3-tief-1), var(--a3-licht);
+  transition: box-shadow 280ms var(--a3-kurve),
+              transform 280ms var(--a3-kurve),
+              border-color 280ms var(--a3-kurve);
+}
+
+/* Klickbares hebt sich beim Zeigen an — Nicht-Klickbares NICHT. Genau das
+   unterscheidet eine Fläche, die etwas verspricht, von einer, die informiert. */
+.admin-flaeche a.bg-white.rounded-2xl:hover,
+.admin-flaeche a.bg-white.rounded-xl:hover,
+.admin-flaeche button.bg-white.rounded-2xl:hover,
+.admin-flaeche button.bg-white.rounded-xl:hover,
+.admin-flaeche .a3-hebt:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--a3-tief-2), var(--a3-licht);
+  border-color: var(--a3-linie-stark);
+}
+.admin-flaeche a.bg-white.rounded-2xl:active,
+.admin-flaeche a.bg-white.rounded-xl:active,
+.admin-flaeche button.bg-white.rounded-2xl:active,
+.admin-flaeche button.bg-white.rounded-xl:active,
+.admin-flaeche .a3-hebt:active {
+  transform: translateY(0) scale(.994);
+  box-shadow: var(--a3-tief-1), var(--a3-licht);
+}
+
+/* Schwebende Ebenen (Dialoge, Aufklapplisten) liegen weiter oben — sie brauchen
+   die dritte Tiefenstufe, sonst kleben sie optisch am Inhalt darunter.
+   Bewusst OHNE transform-Regel: manche Ebenen fahren per transform ein, das
+   darf diese Schicht nicht abschalten. */
+.admin-flaeche .fixed.bg-white,
+.admin-flaeche .absolute.bg-white,
+.admin-flaeche [role="dialog"] {
+  box-shadow: var(--a3-tief-3), var(--a3-licht);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   2. TABELLEN — 76 Dateien enthalten welche, alle mit demselben Problem:
+      der Kopf verschwindet beim Scrollen und die Zeilen sind nicht zu trennen
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.admin-flaeche table { border-collapse: separate; border-spacing: 0; }
+
+.admin-flaeche thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(248, 250, 253, .94);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: #64748b;
+  white-space: nowrap;
+  box-shadow: inset 0 -1px 0 var(--a3-linie);
+}
+
+/* Zebra sehr leise (1,6 %): das Auge folgt der Zeile, ohne dass es gestreift
+   aussieht. Darüber die Zeile unter dem Zeiger deutlich, aber ruhig. */
+.admin-flaeche tbody tr:nth-child(even) { background: rgba(29, 78, 216, .016); }
+.admin-flaeche tbody tr { transition: background 140ms var(--a3-kurve); }
+.admin-flaeche tbody tr:hover { background: rgba(29, 78, 216, .045); }
+.admin-flaeche tbody td { box-shadow: inset 0 -1px 0 rgba(226, 232, 240, .7); }
+.admin-flaeche tbody tr:last-child td { box-shadow: none; }
+
+/* Zahlen gehören in Ziffernbreite, sonst kann man Spalten nicht vergleichen. */
+.admin-flaeche td, .admin-flaeche .a3-zahl { font-variant-numeric: tabular-nums; }
+
+/* Seitwärts scrollende Bereiche: am rechten Rand ausblenden, damit man SIEHT,
+   dass da noch etwas kommt. Ohne diesen Hinweis sucht man auf dem Handy
+   Spalten, von denen man nicht weiß, dass sie existieren. */
+.admin-flaeche .overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.admin-flaeche .overflow-x-auto::-webkit-scrollbar { height: 8px; }
+.admin-flaeche .overflow-x-auto::-webkit-scrollbar-thumb {
+  background: #cbd5e1; border-radius: 9999px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. BEDIENELEMENTE — Rückmeldung beim Drücken, sichtbarer Fokus
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.admin-flaeche button:not(:disabled) { transition: transform 120ms var(--a3-kurve), box-shadow 180ms var(--a3-kurve), background 180ms var(--a3-kurve), border-color 180ms var(--a3-kurve); }
+.admin-flaeche button:not(:disabled):active { transform: scale(.97); }
+
+.admin-flaeche input:not([type="checkbox"]):not([type="radio"]),
+.admin-flaeche select,
+.admin-flaeche textarea {
+  transition: border-color 180ms var(--a3-kurve), box-shadow 180ms var(--a3-kurve);
+}
+.admin-flaeche input:not([type="checkbox"]):not([type="radio"]):focus,
+.admin-flaeche select:focus,
+.admin-flaeche textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, .13);
+}
+/* Tastatur-Fokus muss man sehen — sonst ist die Seite ohne Maus unbenutzbar. */
+.admin-flaeche a:focus-visible,
+.admin-flaeche button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. BAUSTEINE FÜR DAS DASHBOARD (eigene Klassen, kein Fremdgriff)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Bühne: Die Perspektive gehört an den Container. Läge sie an jeder Karte,
+   hätte jede ihren eigenen Fluchtpunkt und der Stapel kippt auseinander. */
+.a3-buehne { perspective: 1600px; }
+
+/* Die Geldtafel. Dunkles Blau, damit die eine Zahl, auf die es ankommt, nicht
+   mit 20 weißen Karten um Aufmerksamkeit ringt. */
+.a3-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  color: #fff;
+  background:
+    radial-gradient(900px 380px at 12% -30%, rgba(96, 165, 250, .45), transparent 62%),
+    radial-gradient(600px 300px at 105% 120%, rgba(29, 78, 216, .55), transparent 60%),
+    linear-gradient(160deg, #14265c 0%, #0d1a3f 55%, #0a142f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .18),
+    0 2px 6px rgba(10, 20, 47, .3),
+    0 24px 60px -12px rgba(13, 26, 63, .55);
+  transform-style: preserve-3d;
+  transition: transform 400ms var(--a3-kurve), box-shadow 400ms var(--a3-kurve);
+}
+/* Lichtstreifen quer über die Tafel — eine Kante, die Licht fängt, sonst
+   nichts. Kein Glitzern, kein Puls. */
+.a3-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, .07) 47%, transparent 56%);
+}
+.a3-hero-inhalt { position: relative; z-index: 1; transform: translateZ(30px); }
+
+/* Kennzahl-Kachel: heller Kartenkörper, Zahl auf einer eigenen Tiefenebene. */
+.a3-kachel {
+  position: relative;
+  display: block;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #fcfdff 100%);
+  border: 1px solid var(--a3-linie);
+  box-shadow: var(--a3-tief-1), var(--a3-licht);
+  transform-style: preserve-3d;
+  transition: transform 280ms var(--a3-kurve), box-shadow 280ms var(--a3-kurve), border-color 280ms var(--a3-kurve);
+}
+a.a3-kachel:hover, button.a3-kachel:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--a3-tief-2), var(--a3-licht);
+  border-color: var(--a3-linie-stark);
+}
+a.a3-kachel:active, button.a3-kachel:active { transform: translateY(-1px) scale(.995); }
+/* Farbige Kante LINKS statt farbiger Fläche: informiert, ohne zu schreien. */
+.a3-kachel[data-ton="geld"]::before,
+.a3-kachel[data-ton="warnung"]::before,
+.a3-kachel[data-ton="offen"]::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 14px; bottom: 14px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+}
+.a3-kachel[data-ton="geld"]::before { background: #059669; }
+.a3-kachel[data-ton="warnung"]::before { background: #dc2626; }
+.a3-kachel[data-ton="offen"]::before { background: #d97706; }
+
+/* Abschnittstafel: weiße Platte mit eigenem Kopf. Gibt jeder Sektion einen
+   sichtbaren Anfang — das ist der halbe Weg zur Übersicht. */
+.a3-tafel {
+  background: #fff;
+  border: 1px solid var(--a3-linie);
+  border-radius: 20px;
+  box-shadow: var(--a3-tief-1), var(--a3-licht);
+  overflow: hidden;
+}
+.a3-tafel-kopf {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: linear-gradient(180deg, #fbfcfe, #f5f8fd);
+  box-shadow: inset 0 -1px 0 var(--a3-linie);
+}
+
+/* Balken für Ranglisten: Vertiefung + Verlauf = Volumen ohne Diagramm-Ballast. */
+.a3-balken {
+  height: 7px;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, .07);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, .10);
+  overflow: hidden;
+}
+.a3-balken > span {
+  display: block;
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #1d4ed8, #3b82f6);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .35) inset, 0 2px 8px rgba(29, 78, 216, .4);
+  transition: width 700ms var(--a3-kurve);
+}
+.a3-balken[data-ton="hell"] > span { background: linear-gradient(90deg, #64748b, #94a3b8); box-shadow: none; }
+
+/* Rangabzeichen 1–3: geprägte Münze, danach nur noch Zahl. */
+.a3-rang {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px; height: 26px;
+  border-radius: 9999px;
+  font-size: 11.5px; font-weight: 800;
+  color: #475569;
+  background: linear-gradient(180deg, #fff, #eef2f8);
+  box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(15, 23, 42, .12);
+}
+.a3-rang[data-platz="1"] { color: #7c4a03; background: linear-gradient(180deg, #fde68a, #f59e0b); box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 2px 8px rgba(245, 158, 11, .45); }
+.a3-rang[data-platz="2"] { color: #334155; background: linear-gradient(180deg, #f1f5f9, #cbd5e1); box-shadow: inset 0 1px 0 #fff, 0 2px 6px rgba(100, 116, 139, .3); }
+.a3-rang[data-platz="3"] { color: #7c2d12; background: linear-gradient(180deg, #fed7aa, #ea9a5b); box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 2px 6px rgba(234, 154, 91, .35); }
+
+/* ── Auftritt: gestaffelt, einmalig, kurz ────────────────────────────────────
+   Reihenfolge über --i. Länger als 400ms wirkt zäh, gleichzeitig wirkt flach. */
+.a3-auf { animation: a3Auf 460ms var(--a3-kurve) both; animation-delay: calc(var(--i, 0) * 55ms); }
+@keyframes a3Auf { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: none } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. HANDY — die Verwaltung wird unterwegs benutzt, nicht nur am Schreibtisch
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  /* Große Radien fressen auf 380px echte Textbreite. */
+  .admin-flaeche .rounded-2xl { border-radius: 14px; }
+  .a3-hero { border-radius: 18px; }
+  .a3-tafel { border-radius: 16px; }
+
+  /* Tabellen nicht quetschen, sondern scrollen lassen — eine auf 90px
+     gequetschte Spalte ist unlesbar, eine scrollende ist benutzbar. */
+  .admin-flaeche .overflow-x-auto > table { min-width: 560px; }
+
+  /* Tippziele: alles unter 40px trifft man mit dem Daumen nicht zuverlässig. */
+  .admin-flaeche button, .admin-flaeche a[class*="rounded"] { min-height: 40px; }
+  .admin-flaeche thead th, .admin-flaeche tbody td { padding-left: 10px; padding-right: 10px; }
+}
+
+/* Schwebende Tiefe kostet auf schwachen Geräten Bildrate — und wer Bewegung
+   abgeschaltet hat, will sie nicht sehen. */
+@media (prefers-reduced-motion: reduce) {
+  .admin-flaeche *, .a3-auf { animation: none !important; transition: none !important; }
+  .admin-flaeche a:hover, .admin-flaeche button:hover,
+  .a3-kachel:hover, .a3-hero:hover { transform: none !important; }
+}

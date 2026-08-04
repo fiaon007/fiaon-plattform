@@ -18,6 +18,7 @@ import { baseUrlDiagnostics, absoluteUrl } from "../fiaon-base-url";
 import { sendMakeWebhook, makePayloadFromRow, type MakeWebhookPayload } from "../make-webhook";
 import { MAKE_EVENT_REGISTRY, getEventDef } from "../make-events-registry";
 import { signInvoiceUrl } from "../fiaon-invoice";
+import { berlinToday } from "../lib/fiaon-time";
 
 const router = Router();
 
@@ -175,6 +176,188 @@ router.get("/admin/hub/badges", async (_req, res) => {
     res.json({ ok: true, cached: false, ...data });
   } catch (err) {
     console.error("[FIAON-HUB] badges:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── Lage: die vier Fragen, die das Dashboard beantworten muss ────────────────
+// 1. Was haben WIR heute verdient?         → Umsatz bestätigter Zahlungen
+// 2. Was haben die AGENTEN verdient?       → Provisionen, Rangliste
+// 3. Wie viele Zahlungen sind angekündigt?  → heute und insgesamt
+// 4. Was haben die Agenten zugesagt?       → „Kunde zahlt am …", je Agent
+//
+// Tagesgrenze: Europe/Berlin, nicht UTC. Die Alt-Kennzahlen benutzen
+// `::date = CURRENT_DATE` — das ist im Sommer zwei Stunden falsch, eine Zahlung
+// um 01:30 Berliner Zeit zählte dort noch zum Vortag. Deshalb hier durchgehend
+// (spalte AT TIME ZONE 'Europe/Berlin')::date. Alle Zeitspalten sind timestamptz.
+//
+// EIN Endpoint, 60 s Cache: das Dashboard soll nicht sechs Abfragen auslösen.
+let lageCache: { at: number; data: any } | null = null;
+const LAGE_CACHE_MS = 60_000;
+
+export async function computeLage(): Promise<any> {
+  // EINE Tagesgrenze für alle vier Abfragen, in JavaScript bestimmt: liefe der
+  // Tageswechsel mitten in der Auswertung, würden sich sonst zwei Abfragen auf
+  // verschiedene Tage beziehen und die Summen widersprächen sich.
+  const heute = berlinToday();
+
+  // 1) Umsatz heute / gestern / Monat — amount_due ist EUR-numeric, daher × 100.
+  const [umsatz] = await sqlPool`
+    SELECT
+      COUNT(*) FILTER (WHERE tag = ${heute}::date)::int                        AS heute_anzahl,
+      ROUND(COALESCE(SUM(betrag) FILTER (WHERE tag = ${heute}::date), 0) * 100) AS heute_cents,
+      COUNT(*) FILTER (WHERE tag = ${heute}::date - 1)::int                    AS gestern_anzahl,
+      ROUND(COALESCE(SUM(betrag) FILTER (WHERE tag = ${heute}::date - 1), 0) * 100) AS gestern_cents,
+      COUNT(*) FILTER (WHERE tag >= date_trunc('month', ${heute}::date)::date)::int AS monat_anzahl,
+      ROUND(COALESCE(SUM(betrag) FILTER (WHERE tag >= date_trunc('month', ${heute}::date)::date), 0) * 100) AS monat_cents,
+      COUNT(*)::int                                                           AS gesamt_anzahl,
+      ROUND(COALESCE(SUM(betrag), 0) * 100)                                   AS gesamt_cents
+    FROM (
+      SELECT (completed_at AT TIME ZONE 'Europe/Berlin')::date AS tag, amount_due AS betrag
+      FROM fiaon_applications
+      WHERE payment_status = 'paid' AND payment_reference IS NOT NULL
+        AND merged_into IS NULL AND completed_at IS NOT NULL
+    ) x
+  `;
+
+  // 1b) Verlauf der letzten 14 Tage. Eine Tageszahl allein sagt nichts — erst
+  //     die Reihe zeigt, ob heute ein guter oder ein schwacher Tag ist. Tage
+  //     ohne Zahlung müssen als 0 auftauchen, sonst zieht die Linie eine Lücke
+  //     glatt und ein Ausfall wird unsichtbar: daher generate_series + LEFT JOIN.
+  const verlauf = await sqlPool`
+    SELECT reihe.tag::date AS tag,
+           COALESCE(z.anzahl, 0)::int AS anzahl,
+           ROUND(COALESCE(z.summe, 0) * 100) AS cents
+    FROM generate_series(${heute}::date - 13, ${heute}::date, INTERVAL '1 day') AS reihe(tag)
+    LEFT JOIN (
+      SELECT (completed_at AT TIME ZONE 'Europe/Berlin')::date AS tag,
+             COUNT(*) AS anzahl, SUM(amount_due) AS summe
+      FROM fiaon_applications
+      WHERE payment_status = 'paid' AND payment_reference IS NOT NULL
+        AND merged_into IS NULL AND completed_at IS NOT NULL
+        AND (completed_at AT TIME ZONE 'Europe/Berlin')::date >= ${heute}::date - 13
+      GROUP BY 1
+    ) z ON z.tag = reihe.tag::date
+    ORDER BY reihe.tag
+  `;
+
+  // 2) Provisionen je Agent — Rangliste nach Monat. Testkonten bleiben draussen,
+  //    stornierte Provisionen zählen nicht. `own` = Eigenabschluss (die Zahl, die
+  //    Leistung zeigt), `override` = Anteil aus dem Team darunter.
+  const agenten = await sqlPool`
+    SELECT a.id, a.name, a.avatar,
+      COALESCE(SUM(c.amount_cents) FILTER (WHERE (c.created_at AT TIME ZONE 'Europe/Berlin')::date = ${heute}::date), 0)::bigint AS heute_cents,
+      COALESCE(SUM(c.amount_cents) FILTER (WHERE (c.created_at AT TIME ZONE 'Europe/Berlin')::date >= date_trunc('month', ${heute}::date)::date), 0)::bigint AS monat_cents,
+      COALESCE(SUM(c.amount_cents), 0)::bigint AS gesamt_cents,
+      COUNT(c.id) FILTER (WHERE c.kind = 'own' AND (c.created_at AT TIME ZONE 'Europe/Berlin')::date >= date_trunc('month', ${heute}::date)::date)::int AS abschluesse_monat,
+      COUNT(c.id) FILTER (WHERE c.kind = 'own')::int AS abschluesse_gesamt
+    FROM fiaon_agents a
+    LEFT JOIN fiaon_commissions c ON c.agent_id = a.id AND c.status <> 'storniert'
+    WHERE a.active AND COALESCE(a.is_test_account, FALSE) = FALSE
+    GROUP BY a.id, a.name, a.avatar
+    ORDER BY monat_cents DESC, gesamt_cents DESC
+  `;
+
+  // 3) Angekündigte Zahlungen des Kunden („Ich habe überwiesen") — heute und
+  //    insgesamt. `alt` = älter als 7 Tage: das ist der Stapel, in dem
+  //    unerkannter Umsatz liegt.
+  const [ankuendigung] = await sqlPool`
+    SELECT
+      COUNT(*)::int AS gesamt_anzahl,
+      ROUND(COALESCE(SUM(amount_due), 0) * 100) AS gesamt_cents,
+      COUNT(*) FILTER (WHERE (claimed_paid_at AT TIME ZONE 'Europe/Berlin')::date = ${heute}::date)::int AS heute_anzahl,
+      ROUND(COALESCE(SUM(amount_due) FILTER (WHERE (claimed_paid_at AT TIME ZONE 'Europe/Berlin')::date = ${heute}::date), 0) * 100) AS heute_cents,
+      COUNT(*) FILTER (WHERE claimed_paid_at < NOW() - INTERVAL '7 days')::int AS alt_anzahl,
+      ROUND(COALESCE(SUM(amount_due) FILTER (WHERE claimed_paid_at < NOW() - INTERVAL '7 days'), 0) * 100) AS alt_cents
+    FROM fiaon_applications
+    WHERE payment_status = 'claimed_paid' AND merged_into IS NULL
+  `;
+
+  // 4) Zahlungszusagen, die der Agent aufgenommen hat („Kunde zahlt am …").
+  //    DISTINCT ON (ref): pro Kunde zählt nur die JÜNGSTE Zusage, sonst würde ein
+  //    dreimal verschobener Termin dreifach in der Statistik stehen. Bereits
+  //    bezahlte oder stornierte Bestellungen fallen heraus — eine erfüllte Zusage
+  //    ist keine offene Aufgabe.
+  const zusagen = await sqlPool`
+    WITH neueste AS (
+      SELECT DISTINCT ON (l.ref) l.ref, l.agent_id, l.agent_name, l.promised_date
+      FROM fiaon_contact_log l
+      WHERE l.promised_date IS NOT NULL AND l.voided_at IS NULL
+      ORDER BY l.ref, l.promised_date DESC, l.id DESC
+    )
+    SELECT COALESCE(ag.name, n.agent_name, 'Ohne Agent') AS name, n.agent_id,
+      COUNT(*)::int AS gesamt,
+      COUNT(*) FILTER (WHERE (n.promised_date AT TIME ZONE 'Europe/Berlin')::date = ${heute}::date)::int AS heute_faellig,
+      COUNT(*) FILTER (WHERE (n.promised_date AT TIME ZONE 'Europe/Berlin')::date > ${heute}::date)::int AS kuenftig,
+      COUNT(*) FILTER (WHERE (n.promised_date AT TIME ZONE 'Europe/Berlin')::date < ${heute}::date)::int AS ueberfaellig,
+      ROUND(COALESCE(SUM(app.amount_due), 0) * 100) AS summe_cents
+    FROM neueste n
+    JOIN fiaon_applications app ON app.ref = n.ref
+      AND app.merged_into IS NULL
+      AND app.payment_status NOT IN ('paid', 'cancelled', 'refunded')
+    LEFT JOIN fiaon_agents ag ON ag.id = n.agent_id
+    GROUP BY COALESCE(ag.name, n.agent_name, 'Ohne Agent'), n.agent_id
+    ORDER BY gesamt DESC
+  `;
+
+  const summe = (feld: string) => zusagen.reduce((s: number, z: any) => s + Number(z[feld] || 0), 0);
+  const zahl = (v: any) => Number(v || 0);
+
+  return {
+    umsatz: {
+      heute: { anzahl: zahl(umsatz.heute_anzahl), cents: zahl(umsatz.heute_cents) },
+      gestern: { anzahl: zahl(umsatz.gestern_anzahl), cents: zahl(umsatz.gestern_cents) },
+      monat: { anzahl: zahl(umsatz.monat_anzahl), cents: zahl(umsatz.monat_cents) },
+      gesamt: { anzahl: zahl(umsatz.gesamt_anzahl), cents: zahl(umsatz.gesamt_cents) },
+      verlauf: verlauf.map((v: any) => ({
+        tag: typeof v.tag === "string" ? v.tag : new Date(v.tag).toISOString().slice(0, 10),
+        anzahl: zahl(v.anzahl), cents: zahl(v.cents),
+      })),
+    },
+    // Team-Provision: was vom Umsatz an die Agenten geht. Netto = Umsatz − Provision.
+    provision: {
+      heuteCents: agenten.reduce((s: number, a: any) => s + zahl(a.heute_cents), 0),
+      monatCents: agenten.reduce((s: number, a: any) => s + zahl(a.monat_cents), 0),
+      gesamtCents: agenten.reduce((s: number, a: any) => s + zahl(a.gesamt_cents), 0),
+    },
+    agenten: agenten.map((a: any) => {
+      const z = zusagen.find((z: any) => Number(z.agent_id) === Number(a.id));
+      return {
+        id: Number(a.id), name: a.name, avatar: a.avatar || null,
+        heuteCents: zahl(a.heute_cents), monatCents: zahl(a.monat_cents), gesamtCents: zahl(a.gesamt_cents),
+        abschluesseMonat: zahl(a.abschluesse_monat), abschluesseGesamt: zahl(a.abschluesse_gesamt),
+        zusagen: z ? { gesamt: zahl(z.gesamt), heuteFaellig: zahl(z.heute_faellig), kuenftig: zahl(z.kuenftig), ueberfaellig: zahl(z.ueberfaellig), summeCents: zahl(z.summe_cents) } : null,
+      };
+    }),
+    ankuendigungen: {
+      heute: { anzahl: zahl(ankuendigung.heute_anzahl), cents: zahl(ankuendigung.heute_cents) },
+      gesamt: { anzahl: zahl(ankuendigung.gesamt_anzahl), cents: zahl(ankuendigung.gesamt_cents) },
+      alt: { anzahl: zahl(ankuendigung.alt_anzahl), cents: zahl(ankuendigung.alt_cents) },
+    },
+    zusagen: {
+      gesamt: summe("gesamt"), heuteFaellig: summe("heute_faellig"),
+      kuenftig: summe("kuenftig"), ueberfaellig: summe("ueberfaellig"),
+      summeCents: summe("summe_cents"),
+      jeAgent: zusagen.map((z: any) => ({
+        name: z.name, agentId: z.agent_id != null ? Number(z.agent_id) : null,
+        gesamt: zahl(z.gesamt), heuteFaellig: zahl(z.heute_faellig),
+        kuenftig: zahl(z.kuenftig), ueberfaellig: zahl(z.ueberfaellig), summeCents: zahl(z.summe_cents),
+      })),
+    },
+    at: new Date().toISOString(),
+  };
+}
+
+router.get("/admin/hub/lage", async (_req, res) => {
+  try {
+    if (lageCache && Date.now() - lageCache.at < LAGE_CACHE_MS) {
+      return res.json({ ok: true, cached: true, ...lageCache.data });
+    }
+    const data = await computeLage();
+    lageCache = { at: Date.now(), data };
+    res.json({ ok: true, cached: false, ...data });
+  } catch (err) {
+    console.error("[FIAON-HUB] lage:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

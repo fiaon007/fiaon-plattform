@@ -457,6 +457,15 @@ export async function requireAgent(req: AgentRequest, res: Response, next: NextF
  * Admin-Routen werden mit 403 abgelehnt (nicht nur im UI versteckt).
  * In server/routes.ts VOR den fiaon-Routern auf /api/fiaon eingehängt.
  */
+/**
+ * Liegt ein gültiges Agent-Token vor? Wird vom Admin-Zugang gebraucht, um einem
+ * angemeldeten Mitarbeiter die Rollen-Erklärung zu zeigen statt der Code-Tastatur
+ * — er soll nicht einmal erfahren, dass es einen Zugangscode gibt.
+ */
+export function hasAgentToken(req: Request): boolean {
+  return !!verifyAgentToken((req as any).cookies?.[AGENT_COOKIE]);
+}
+
 export function blockAgentsFromAdmin(req: Request, res: Response, next: NextFunction) {
   if (req.path.startsWith("/admin") && verifyAgentToken((req as any).cookies?.[AGENT_COOKIE])) {
     return res.status(403).json({ ok: false, error: "Kein Zugriff: Agent-Rolle hat keine Admin-Berechtigung" });

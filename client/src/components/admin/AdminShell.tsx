@@ -7,6 +7,7 @@ import {
   Target, TrendingUp, Landmark, HandCoins, Copy, BarChart3, History, Activity,
   LogOut, PiggyBank, GraduationCap, Map, Layers,
 } from "lucide-react";
+import AdminCodeGate from "./AdminCodeGate";
 
 // ═══════════════════════════════════════════════════════════════════
 // AdminShell (Paket N1) — persistentes Gerüst um ALLE /admin-Seiten:
@@ -235,8 +236,38 @@ function AccessDenied() {
   );
 }
 
-// ── Shell ────────────────────────────────────────────────────────────────────
+// ── Zugangsschleuse (Zahlencode) ─────────────────────────────────────────────
+// Jede /admin-Seite läuft in dieser Shell — deshalb steht die Tür hier und
+// nicht in 30 einzelnen Seiten. Ist das Cookie gesetzt, merkt man von der
+// Schleuse nichts mehr; sonst kommt die Zifferntastatur. Serverseitig sind die
+// Admin-Endpoints unabhängig davon gesperrt (fiaon-admin-zugang.ts).
 export default function AdminShell({ children }: { children: React.ReactNode }) {
+  const [zugang, setZugang] = useState<"pruefe" | "gesperrt" | "offen" | "agent">("pruefe");
+
+  useEffect(() => {
+    fetch("/api/fiaon/zugang/status", { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => setZugang(j?.agent ? "agent" : j?.entsperrt ? "offen" : "gesperrt"))
+      // Antwortet der Server nicht, bleibt die Tür zu — im Zweifel geschlossen.
+      .catch(() => setZugang("gesperrt"));
+  }, []);
+
+  // Dunkle Fläche statt Weißblitz: die Schleuse ist dunkel, ein weißes
+  // Zwischenbild würde bei jedem Aufruf aufblitzen.
+  if (zugang === "pruefe") return <div className="min-h-screen" style={{ background: "#070b16" }} />;
+  if (zugang === "agent") return <AccessDenied />;
+  if (zugang === "gesperrt") return <AdminCodeGate onOffen={() => setZugang("offen")} />;
+  return <AdminShellRahmen>{children}</AdminShellRahmen>;
+}
+
+/** Abschliessen (fremdes Gerät, Feierabend) — Cookie weg, Schleuse zurück. */
+async function sperren() {
+  await fetch("/api/fiaon/zugang/schliessen", { method: "POST", credentials: "include" }).catch(() => {});
+  window.location.href = "/admin";
+}
+
+// ── Shell ────────────────────────────────────────────────────────────────────
+function AdminShellRahmen({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -339,6 +370,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         <a href="/" className="text-[11px] text-slate-400 hover:text-slate-600">Zur Website</a>
         <span className="text-slate-200 mx-2">·</span>
         <a href="/agent" className="text-[11px] text-slate-400 hover:text-slate-600">Agent-Portal</a>
+        <span className="text-slate-200 mx-2">·</span>
+        <button type="button" onClick={sperren} className="text-[11px] text-slate-400 hover:text-slate-600">Sperren</button>
       </div>
     </nav>
   );

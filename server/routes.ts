@@ -216,6 +216,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonAgentRoutes = await import('./routes/fiaon-agent');
   app.use('/api/fiaon', fiaonAgentRoutes.blockAgentsFromAdmin);
 
+  // 🔢 Admin-Zugang — EIN Zahlencode vor dem Verwaltungsbereich. Der Router
+  //    liegt bewusst NICHT unter /admin (sonst sperrt das Gate seine eigene
+  //    Tür zu). Reihenfolge: Agent-403 zuerst, dann Code-401 — ein Agent soll
+  //    nicht erfahren, dass es hier einen Code gibt.
+  const fiaonZugangRoutes = await import('./routes/fiaon-admin-zugang');
+  // Kennzeichen für die Statusabfrage: ein angemeldeter Mitarbeiter bekommt die
+  // Rollen-Erklärung statt der Zifferntastatur.
+  app.use('/api/fiaon/zugang', (req, _res, next) => {
+    (req as any).agentAngemeldet = fiaonAgentRoutes.hasAgentToken(req);
+    next();
+  });
+  app.use('/api/fiaon/zugang', fiaonZugangRoutes.default);
+  app.use('/api/fiaon', fiaonZugangRoutes.adminCodeGate);
+
   // 🔒 Onboarding-Gate (Prompt 1): kein Kundendatenzugriff, solange Zustimmung
   // + Vertragsunterzeichnung nicht abgeschlossen sind. Muss VOR allen Agent-
   // Routern mit Kundendaten stehen (allowlistet Auth + Onboarding-Flow).

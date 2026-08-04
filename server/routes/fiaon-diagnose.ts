@@ -94,7 +94,14 @@ async function computeSyntheticEvents(): Promise<SynthEvent[]> {
            COUNT(*) FILTER (WHERE amount_ok = FALSE AND applied = FALSE AND match_status <> 'ignored')::int AS amount_mismatch
     FROM fiaon_bank_txns
   `.catch(() => [{ unmatched: 0, matched_unapplied: 0, amount_mismatch: 0 }] as any);
-  if (Number(bank?.unmatched) > 0) {
+  // Diese beiden Meldungen führen in den Kontoabgleich. Ist er abgeschaltet
+  // (kontoabgleich_enabled = false), wären sie eine Aufforderung, eine
+  // abgeschaltete Seite zu benutzen — also stumm. Die Daten bleiben, nur der
+  // Hinweis entfällt. Zugeordnete, aber unverbuchte Eingänge melden wir weiter:
+  // sie gehören zu /admin/verbuchung, das bewusst aktiv bleibt.
+  const { kontoabgleichAktiv } = await import("./fiaon-reconcile");
+  const abgleichAn = await kontoabgleichAktiv();
+  if (abgleichAn && Number(bank?.unmatched) > 0) {
     push({
       severity: "warnung", category: "zahlung", code: "bank_unmatched", count: Number(bank.unmatched),
       message: `${bank.unmatched} Bank-Eingang/Eingänge ohne Zuordnung — Geld liegt unverbucht auf dem Konto.`,
@@ -102,12 +109,20 @@ async function computeSyntheticEvents(): Promise<SynthEvent[]> {
       link: "/admin/kontoabgleich",
     });
   }
-  if (Number(bank?.amount_mismatch) > 0) {
+  if (abgleichAn && Number(bank?.amount_mismatch) > 0) {
     push({
       severity: "warnung", category: "zahlung", code: "bank_amount_mismatch", count: Number(bank.amount_mismatch),
       message: `${bank.amount_mismatch} zugeordnete(r) Eingang/Eingänge mit Betrags-Abweichung — nicht stillschweigend übernehmen.`,
       hint: "Im Kontoabgleich prüfen: Teilzahlung, Gebührenabzug oder falscher Kunde?",
       link: "/admin/kontoabgleich",
+    });
+  }
+  if (Number(bank?.matched_unapplied) > 0) {
+    push({
+      severity: "warnung", category: "zahlung", code: "bank_matched_unapplied", count: Number(bank.matched_unapplied),
+      message: `${bank.matched_unapplied} zugeordnete(r) Bank-Eingang/Eingänge noch nicht verbucht — der Kunde gilt weiter als unbezahlt.`,
+      hint: "Unter „Zahlungen verbuchen“ mit Vorschau abschließen (Altfälle aus der Zeit des Kontoabgleichs).",
+      link: "/admin/verbuchung",
     });
   }
 

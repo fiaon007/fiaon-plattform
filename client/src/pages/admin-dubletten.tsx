@@ -133,6 +133,51 @@ export default function AdminDubletten() {
   const doubles = groups.filter((g) => g.paidCount > 1);
   const callable = groups.filter((g) => g.callableGain).length;
 
+  // ── Massenwerkzeuge (04.08.2026 aus der Zahlungszentrale hierher geholt) ────
+  // Sie standen dort als zwei eigene Kästen. Falscher Ort: Die Zahlungszentrale
+  // beantwortet „Hat der Kunde gezahlt?" — Dubletten sind Datenpflege. Wer sie
+  // sucht, sucht sie hier.
+  const altbestandBereinigen = async () => {
+    const v = await apiF("/admin/duplicates/preview");
+    if (!v.ok) { setFlash({ text: "Vorschau fehlgeschlagen.", kind: "err" }); return; }
+    const { groups: gr, mergeable } = v.json;
+    if (!mergeable) { setFlash({ text: "Kein Altbestand zu bereinigen.", kind: "ok" }); return; }
+    if (!confirm(
+      `Alt-Bestand bereinigen?\n\n${gr} Gruppen · ${mergeable} überflüssige Alt-Einträge werden als „merged“ ` +
+      `markiert (Soft-Delete, KEIN Löschen).\n\nPro E-Mail bleibt der vollständigste/neueste Antrag erhalten. ` +
+      `Bezahlte und offene Zahlungen sind geschützt. Es geht KEINE E-Mail raus.`,
+    )) return;
+    setBusyKey("bulk");
+    const r = await apiF("/admin/duplicates/cleanup-all", { method: "POST", body: JSON.stringify({ confirmed: true }) });
+    setBusyKey(null);
+    if (r.ok) {
+      setFlash({
+        text: `Bereinigt: ${r.json.groupsProcessed} Gruppen, ${r.json.merged} Einträge zusammengeführt` +
+          `${r.json.skippedProtected ? `, ${r.json.skippedProtected} geschützt übersprungen` : ""}.`,
+        kind: "ok",
+      });
+      void load();
+    } else setFlash({ text: r.json?.error || "Fehler bei der Bereinigung.", kind: "err" });
+  };
+
+  const aufraeumlauf = async () => {
+    if (!confirm(
+      "Aufräumlauf starten?\n\nFür jede bezahlte Bestellung werden offene Schwester-Bestellungen derselben " +
+      "E-Mail auf „Ersetzt (Dublette)“ gesetzt — innerhalb derselben Produktart. Es werden KEINE E-Mails " +
+      "versendet. Mehrfach ausführbar, das Ergebnis bleibt gleich.",
+    )) return;
+    setBusyKey("supersede");
+    const r = await apiF("/admin/duplicates/supersede-run", { method: "POST", body: JSON.stringify({ confirmed: true }) });
+    setBusyKey(null);
+    if (r.ok) {
+      setFlash({
+        text: `Aufräumlauf: ${r.json.superseded} Bestellung(en) ersetzt (${r.json.paidChecked} bezahlte geprüft) — keine Mails versendet.`,
+        kind: "ok",
+      });
+      void load();
+    } else setFlash({ text: r.json?.error || "Fehler im Aufräumlauf.", kind: "err" });
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
       <div className="flex flex-wrap items-center gap-3 mb-1">
@@ -164,6 +209,40 @@ export default function AdminDubletten() {
           <p className={`text-[20px] font-bold ${doubles.length ? "text-rose-700" : "text-slate-900"}`}>{doubles.length}</p>
         </div>
       </div>
+
+      {/* Massenwerkzeuge — zwei Läufe, die den ganzen Bestand betreffen.
+          Bewusst mit Vorschau und Bestätigung, weil sie viele Datensätze
+          anfassen; beide verschicken keine E-Mails. */}
+      <section className="a3-tafel mb-5">
+        <header className="a3-tafel-kopf">
+          <h2 className="text-[14px] font-bold text-slate-900">Massenwerkzeuge</h2>
+          <span className="ml-auto text-[11px] text-slate-400">verschicken keine E-Mails</span>
+        </header>
+        <div className="p-3.5 sm:p-4 grid gap-2.5 sm:grid-cols-2">
+          <div className="a3-kachel p-3.5">
+            <p className="text-[13px] font-bold text-slate-900">Alt-Bestand bereinigen</p>
+            <p className="text-[11.5px] text-slate-500 leading-snug mt-1">
+              Einträge aus der Zeit vor dem Dubletten-Fix. Pro E-Mail bleibt der vollständigste Antrag, der Rest wird
+              als <b>merged</b> markiert — Soft-Delete, nichts wird gelöscht. Bezahlte und offene Zahlungen sind geschützt.
+            </p>
+            <button type="button" onClick={() => void altbestandBereinigen()} disabled={busyKey === "bulk"}
+              className="a3-knopf inline-flex mt-2.5" data-haupt="1">
+              {busyKey === "bulk" ? "Bereinige …" : "Vorschau und bereinigen"}
+            </button>
+          </div>
+          <div className="a3-kachel p-3.5">
+            <p className="text-[13px] font-bold text-slate-900">Aufräumlauf (Ersetzt-Markierung)</p>
+            <p className="text-[11.5px] text-slate-500 leading-snug mt-1">
+              Setzt bei jeder bezahlten Bestellung die offenen Schwestern derselben E-Mail auf <b>Ersetzt (Dublette)</b> —
+              nur innerhalb derselben Produktart, damit ein Bonitäts-Check nie eine Paketbestellung stilllegt.
+            </p>
+            <button type="button" onClick={() => void aufraeumlauf()} disabled={busyKey === "supersede"}
+              className="a3-knopf inline-flex mt-2.5">
+              {busyKey === "supersede" ? "Läuft …" : "Aufräumlauf starten"}
+            </button>
+          </div>
+        </div>
+      </section>
 
       {flash && (
         <div className={`mb-4 px-3.5 py-2.5 rounded-lg text-[13px] flex items-center gap-3 ${flash.kind === "ok" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-rose-50 text-rose-800 border border-rose-200"}`}>

@@ -315,6 +315,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonPersonenRoutes = await import('./routes/fiaon-personen');
   app.use('/api/fiaon', fiaonPersonenRoutes.default);
 
+  // 🔁 FIAON Abo — die monatliche Paketrate: Ratenketten, Fälligkeiten,
+  //    Mahnstufen und der Erinnerungs-Motor (Event `abo_payment_reminder`).
+  const fiaonAboRoutes = await import('./routes/fiaon-abo');
+  app.use('/api/fiaon', fiaonAboRoutes.default);
+
   // 💳 FIAON Antrag Routes — Public (no auth)
   const fiaonAntragRoutes = await import('./routes/fiaon-antrag');
   app.use('/api/fiaon', fiaonAntragRoutes.default);

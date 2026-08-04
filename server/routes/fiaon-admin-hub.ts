@@ -138,6 +138,12 @@ async function computeBadges(): Promise<any> {
     WHERE severity = 'kritisch' AND created_at > NOW() - INTERVAL '24 hours'
   `.catch(() => [{ c: 0 }] as any);
   const settings = await getSettings();
+  // Der Kontoabgleich ist abschaltbar (kontoabgleich_enabled). Ist er aus, darf
+  // die Zahl der nicht zugeordneten Bank-Eingänge NICHT mehr als Aufgabe
+  // erscheinen: sie würde in eine abgeschaltete Ansicht führen. Die bereits
+  // zugeordneten, aber unverbuchten Eingänge bleiben sichtbar — die gehören zu
+  // /admin/verbuchung und sind echte, noch zu erledigende Arbeit.
+  const abgleichAn = String(settings.kontoabgleich_enabled ?? "false").toLowerCase() === "true";
 
   return {
     // Badges (Nav): Schlüssel = Nav-Pfad-Kürzel; 0 ⇒ Frontend blendet aus.
@@ -147,8 +153,13 @@ async function computeBadges(): Promise<any> {
       feedback: Number(feedback.c),
       nachbuchung: Number(apps.nachbuchung),
       dubletten: Number(dup.c),
-      kontoabgleich: Number(bank.unmatched),
+      kontoabgleich: abgleichAn ? Number(bank.unmatched) : 0,
       diagnose: Number(diag.c), // P5-D: kritische Ereignisse (24 h)
+    },
+    // Schalter, die die Oberfläche kennen muss (Navigation, Aufgabenliste).
+    flags: {
+      kontoabgleich: abgleichAn,
+      abgleichHistorie: Number(bank.unmatched) + Number(bank.matched_unapplied),
     },
     // Zusatzsignale für die Dashboard-Warn-Kacheln
     warn: {

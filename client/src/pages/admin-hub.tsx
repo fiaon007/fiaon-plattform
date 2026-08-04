@@ -198,24 +198,30 @@ function Kachel({ onClick, label, wert, unter, ton, hilfe, icon: Icon, i }: {
   label: string; wert: string; unter?: string;
   ton?: "geld" | "warnung" | "offen"; hilfe: string; icon: typeof CreditCard; i: number;
 }) {
+  // Die Kachel ist ein DIV mit einem echten Knopf darin — nicht selbst ein
+  // Knopf. Grund: Das ⓘ ist ebenfalls ein Bedienelement, und ein Bedienelement
+  // in einem Bedienelement ist ungültiges HTML. Tastatur und Vorleseprogramm
+  // sehen dann nur EIN Ziel und erreichen die Erklärung nie. Für die Maus
+  // bleibt die ganze Fläche klickbar.
   return (
-    <button type="button" onClick={onClick} className="a3-kachel a3-auf p-4 pl-[18px] text-left w-full"
+    <div onClick={onClick} className="a3-kachel a3-auf a3-hebt p-4 pl-[18px] text-left w-full cursor-pointer"
       data-ton={ton} style={{ ["--i" as any]: i }}>
       {/* Beschriftung darf zweizeilig werden — auf 380px passt „Zusagen heute
           fällig" nicht in eine Zeile, und abgeschnitten ist sie wertlos. */}
-      <span className="flex items-start gap-1.5">
+      <div className="flex items-start gap-1.5">
         <Icon size={13} className="text-slate-400 shrink-0 mt-[1px]" />
         <span className="flex-1 min-w-0 text-[10.5px] sm:text-[11px] font-semibold uppercase tracking-[.07em] text-slate-500 leading-tight">{label}</span>
-        <Tip text={hilfe} />
-      </span>
+        <span className="shrink-0" onClick={(e) => e.stopPropagation()}><Tip text={hilfe} /></span>
+      </div>
       <span className="block mt-2 text-[24px] sm:text-[27px] font-bold text-slate-900 tracking-[-.02em] leading-none a3-zahl">
         {wert}
       </span>
       {unter && <span className="block mt-1.5 text-[12px] text-slate-500 leading-snug">{unter}</span>}
-      <span className="block mt-2 text-[11px] font-semibold inline-flex items-center gap-1" style={{ color: ACCENT }}>
+      <button type="button" onClick={(e) => { e.stopPropagation(); onClick(); }}
+        className="mt-2 text-[11px] font-semibold inline-flex items-center gap-1" style={{ color: ACCENT }}>
         Wer? <ChevronRight size={11} />
-      </span>
-    </button>
+      </button>
+    </div>
   );
 }
 

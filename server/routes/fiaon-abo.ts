@@ -40,7 +40,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
-import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
+import { sendMakeWebhookMitGrund, makePayloadFromRow } from "../make-webhook";
 import { berlinToday } from "../lib/fiaon-time";
 import { FIAON_BANK_DETAILS } from "./fiaon-antrag";
 import { getSettings, setSetting } from "./fiaon-agent";
@@ -81,6 +81,13 @@ export async function ensureAboTabellen(): Promise<void> {
   `;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_abo_raten_faellig_idx ON fiaon_abo_raten (status, faellig_am)`;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_abo_raten_ref_idx ON fiaon_abo_raten (ref)`;
+  // Zustellung: Ein Fehlschlag muss sichtbar bleiben, sonst mahnt man ins Leere.
+  await sqlPool`
+    ALTER TABLE fiaon_abo_raten
+    ADD COLUMN IF NOT EXISTS letzter_fehler TEXT,
+    ADD COLUMN IF NOT EXISTS letzter_fehler_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS fehlversuche INTEGER NOT NULL DEFAULT 0
+  `;
   // Abo-Stopp am Antrag: Kündigung/Pause hält die Kette an, ohne Daten zu löschen.
   await sqlPool`
     ALTER TABLE fiaon_applications
@@ -107,6 +114,29 @@ function plusTage(iso: string, tage: number): string {
   const d = new Date(`${iso}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + tage);
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Prüft ein eingegebenes Zahlungsdatum. Vorgabe ist heute.
+ *
+ * Zwei Grenzen, beide aus der Praxis: In der Zukunft kann kein Geld eingegangen
+ * sein, und ein Datum, das Jahre zurückliegt, ist fast immer ein Tippfehler im
+ * Jahr — beides würde die ganze Ratenkette verschieben.
+ */
+export function pruefeZahlungsdatum(eingabe: unknown): { datum: string; fehler?: string } {
+  const heute = berlinToday();
+  const s = String(eingabe ?? "").trim();
+  if (!s) return { datum: heute };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return { datum: heute, fehler: "Zahlungsdatum unlesbar (erwartet JJJJ-MM-TT)." };
+  }
+  if (s > heute) {
+    return { datum: heute, fehler: "Das Zahlungsdatum liegt in der Zukunft — dann ist noch kein Geld eingegangen." };
+  }
+  if (tageZwischen(s, heute) > 365) {
+    return { datum: heute, fehler: "Das Zahlungsdatum liegt über ein Jahr zurück — bitte prüfen (Jahr vertippt?)." };
+  }
+  return { datum: s };
 }
 
 function tageZwischen(vonIso: string, bisIso: string): number {
@@ -169,15 +199,25 @@ export async function aboBeiZahlungAnlegen(ref: string): Promise<{ angelegt: boo
   }
 }
 
-/** Nächste Rate nach einer bezahlten Rate — die Kette wächst nur nach Zahlung. */
-async function naechsteRateAnlegen(ref: string, letzteRate: { rate_nr: number; faellig_am: any; betrag_cents: number; zahlungsreferenz: string }) {
+/**
+ * Nächste Rate nach einer bezahlten Rate — die Kette wächst nur nach Zahlung.
+ *
+ * `abDatum` ist das tatsächliche Zahlungsdatum. Ohne es würde ab der alten
+ * Fälligkeit gerechnet: Wer zehn Tage zu spät zahlt, hätte dann schon nach
+ * 20 Tagen die nächste Rate offen.
+ */
+async function naechsteRateAnlegen(
+  ref: string,
+  letzteRate: { rate_nr: number; faellig_am: any; betrag_cents: number; zahlungsreferenz: string },
+  abDatum?: string,
+) {
   const [app] = await sqlPool`
     SELECT payment_reference, ref, abo_gestoppt_am, amount_due FROM fiaon_applications WHERE ref = ${ref}
   `;
   if (!app || app.abo_gestoppt_am) return;
   const referenz = app.payment_reference || app.ref;
   const nr = Number(letzteRate.rate_nr) + 1;
-  const basis = new Date(letzteRate.faellig_am).toISOString().slice(0, 10);
+  const basis = abDatum || new Date(letzteRate.faellig_am).toISOString().slice(0, 10);
   // Betrag immer frisch aus der Bestellung: ändert der Betreiber das Paket,
   // gilt der neue Preis ab der nächsten Rate.
   const betrag = cents(app.amount_due) || Number(letzteRate.betrag_cents);
@@ -324,10 +364,10 @@ async function faelligeRaten(limit: number, opts: { abStichtag?: string | null }
  * per Sammelversand freigegeben werden.
  */
 export async function aboMotor(opts: { force?: boolean } = {}): Promise<{
-  gesendet: number; uebersprungenFenster: boolean; ueberfaelligMarkiert: number;
+  gesendet: number; fehlgeschlagen: number; uebersprungenFenster: boolean;
 }> {
   await ensureAboTabellen();
-  const ergebnis = { gesendet: 0, uebersprungenFenster: false, ueberfaelligMarkiert: 0 };
+  const ergebnis = { gesendet: 0, fehlgeschlagen: 0, uebersprungenFenster: false };
   const settings = await getSettings();
   if (settings.abo_motor_enabled === "0") {
     ergebnis.uebersprungenFenster = true;
@@ -346,20 +386,53 @@ export async function aboMotor(opts: { force?: boolean } = {}): Promise<{
 
   const batch = await faelligeRaten(ABO_BATCH, { abStichtag: stichtag });
   for (const r of batch) {
-    const stufe = Math.min(MAHNSTUFEN.length, Number(r.mahnstufe || 0) + 1);
-    await sendMakeWebhook("abo_payment_reminder", aboErinnerungPayload(r) as any);
-    await sqlPool`
-      UPDATE fiaon_abo_raten
-      SET mahnstufe = ${stufe}, erinnerungen = erinnerungen + 1,
-          letzte_erinnerung_at = NOW(), updated_at = NOW()
-      WHERE id = ${r.id}
-    `;
-    ergebnis.gesendet++;
+    const erg = await rateErinnern(r);
+    if (erg.ok) ergebnis.gesendet++;
+    else ergebnis.fehlgeschlagen++;
   }
   if (ergebnis.gesendet > 0) {
     console.log(`[FIAON-ABO] ${ergebnis.gesendet} Abo-Erinnerung(en) versendet`);
   }
+  if (ergebnis.fehlgeschlagen > 0) {
+    console.warn(`[FIAON-ABO] ${ergebnis.fehlgeschlagen} Erinnerung(en) NICHT zugestellt — Mahnstufe unverändert`);
+  }
   return ergebnis;
+}
+
+/**
+ * Eine Rate erinnern — und die Mahnstufe NUR bei erfolgreichem Versand erhöhen.
+ *
+ * Vorher schritt die Stufe auch dann fort, wenn Make den Event nicht annehmen
+ * konnte. Ein Kunde landete damit nach 14 Tagen auf „Entscheidung nötig", ohne
+ * je eine Mail gesehen zu haben — die schlimmste Sorte Fehler, weil sie wie
+ * Absicht aussieht. Jetzt gilt: kein Versand, keine Stufe. Der Fehlgrund wird
+ * an der Rate festgehalten und in der Zahlungszentrale angezeigt.
+ */
+async function rateErinnern(r: any): Promise<{ ok: boolean; grund?: string }> {
+  const stufe = Math.min(MAHNSTUFEN.length, Number(r.mahnstufe || 0) + 1);
+  const versand = await sendMakeWebhookMitGrund("abo_payment_reminder", aboErinnerungPayload(r) as any);
+  if (versand.ok) {
+    await sqlPool`
+      UPDATE fiaon_abo_raten
+      SET mahnstufe = ${stufe}, erinnerungen = erinnerungen + 1,
+          letzte_erinnerung_at = NOW(),
+          letzter_fehler = NULL, letzter_fehler_at = NULL,
+          updated_at = NOW()
+      WHERE id = ${r.id}
+    `;
+    return { ok: true };
+  }
+  // Fehlschlag: Stufe und Zähler bleiben unangetastet. `letzte_erinnerung_at`
+  // wird bewusst NICHT gesetzt — sonst würde die 20-Stunden-Sperre einen
+  // erneuten Versuch blockieren, obwohl nie etwas rausging.
+  await sqlPool`
+    UPDATE fiaon_abo_raten
+    SET fehlversuche = fehlversuche + 1,
+        letzter_fehler = ${versand.grund || "Unbekannter Fehler beim Versand"},
+        letzter_fehler_at = NOW(), updated_at = NOW()
+    WHERE id = ${r.id}
+  `;
+  return { ok: false, grund: versand.grund };
 }
 
 // Stündlicher Lauf, fail-safe (wie die Zahlungs-Reminder-Engine).
@@ -393,6 +466,7 @@ export async function aboUebersicht() {
       COUNT(*) FILTER (WHERE r.status = 'offen' AND r.faellig_am < ${heute}::date)::int AS ueberfaellig_anzahl,
       COALESCE(SUM(r.betrag_cents) FILTER (WHERE r.status = 'offen' AND r.faellig_am < ${heute}::date), 0)::bigint AS ueberfaellig_cents,
       COUNT(*) FILTER (WHERE r.status = 'offen' AND r.faellig_am < ${heute}::date AND r.mahnstufe >= ${MAHNSTUFEN.length})::int AS entscheidung_anzahl,
+      COUNT(*) FILTER (WHERE r.status = 'offen' AND r.letzter_fehler IS NOT NULL)::int AS zustellfehler_anzahl,
       COUNT(*) FILTER (WHERE r.status = 'bezahlt' AND r.rate_nr > 1 AND (r.bezahlt_am AT TIME ZONE 'Europe/Berlin')::date >= date_trunc('month', ${heute}::date)::date)::int AS monat_bezahlt_anzahl,
       COALESCE(SUM(r.betrag_cents) FILTER (WHERE r.status = 'bezahlt' AND r.rate_nr > 1 AND (r.bezahlt_am AT TIME ZONE 'Europe/Berlin')::date >= date_trunc('month', ${heute}::date)::date), 0)::bigint AS monat_bezahlt_cents
     FROM fiaon_abo_raten r
@@ -420,6 +494,9 @@ export async function aboUebersicht() {
     woche: { anzahl: zahl(k.woche_anzahl), cents: zahl(k.woche_cents) },
     ueberfaellig: { anzahl: zahl(k.ueberfaellig_anzahl), cents: zahl(k.ueberfaellig_cents) },
     entscheidung: zahl(k.entscheidung_anzahl),
+    // Erinnerungen, die Make nicht angenommen hat: Diese Kunden haben KEINE
+    // Mail bekommen, ihre Mahnstufe steht bewusst still.
+    zustellfehler: zahl(k.zustellfehler_anzahl),
     monatBezahlt: { anzahl: zahl(k.monat_bezahlt_anzahl), cents: zahl(k.monat_bezahlt_cents) },
     laufend: { abos: zahl(mrr.abos), cents: zahl(mrr.cents) },
     ohneKette: zahl(ohne.c),
@@ -451,6 +528,7 @@ router.get("/admin/abo/raten", async (req, res) => {
       : art === "woche" ? `r.status = 'offen' AND r.faellig_am > $1::date AND r.faellig_am <= $1::date + 7`
       : art === "ueberfaellig" ? `r.status = 'offen' AND r.faellig_am < $1::date`
       : art === "entscheidung" ? `r.status = 'offen' AND r.faellig_am < $1::date AND r.mahnstufe >= ${MAHNSTUFEN.length}`
+      : art === "zustellfehler" ? `r.status = 'offen' AND r.letzter_fehler IS NOT NULL`
       : art === "bezahlt" ? `r.status = 'bezahlt' AND r.rate_nr > 1`
       : `r.status = 'offen'`;
     // Sortierung: bei offenen die dringendste zuerst, bei bezahlten die neueste.
@@ -459,6 +537,7 @@ router.get("/admin/abo/raten", async (req, res) => {
     const rows = await sqlPool.unsafe(`
       SELECT r.id, r.ref, r.rate_nr, r.zahlungsreferenz, r.betrag_cents, r.faellig_am, r.status,
              r.mahnstufe, r.erinnerungen, r.letzte_erinnerung_at, r.bezahlt_am, r.notiz,
+             r.letzter_fehler, r.letzter_fehler_at, r.fehlversuche,
              COALESCE(NULLIF(TRIM(a.company_name),''), NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)),''),
                       NULLIF(TRIM(a.contact_name),''), a.ref) AS name,
              COALESCE(NULLIF(TRIM(a.email),''), NULLIF(TRIM(a.contact_email),''), NULLIF(TRIM(a.billing_email),'')) AS email,
@@ -483,6 +562,9 @@ router.get("/admin/abo/raten", async (req, res) => {
         faelligAm: new Date(r.faellig_am).toISOString().slice(0, 10),
         status: r.status, mahnstufe: Number(r.mahnstufe), erinnerungen: Number(r.erinnerungen),
         letzteErinnerung: r.letzte_erinnerung_at || null, bezahltAm: r.bezahlt_am || null,
+        letzterFehler: r.letzter_fehler || null,
+        letzterFehlerAt: r.letzter_fehler_at || null,
+        fehlversuche: Number(r.fehlversuche || 0),
         tageUeberfaellig: Number(r.tage_ueberfaellig || 0),
         name: r.name, email: r.email || null, telefon: r.telefon || null,
         paket: r.paket || null, agent: r.agent_name || null, notiz: r.notiz || null,
@@ -495,7 +577,14 @@ router.get("/admin/abo/raten", async (req, res) => {
   }
 });
 
-/** Rate als bezahlt buchen — erzeugt automatisch die nächste Fälligkeit. */
+/**
+ * Rate als bezahlt buchen — erzeugt automatisch die nächste Fälligkeit.
+ *
+ * `zahlungsdatum` (YYYY-MM-DD, Vorgabe heute) ist das TATSÄCHLICHE Datum des
+ * Geldeingangs, nicht der Zeitpunkt des Klicks. Da manuell gebucht wird, können
+ * dazwischen Tage liegen; die nächste Fälligkeit muss vom Eingang aus rechnen,
+ * sonst wandert der Zyklus mit jeder verspäteten Buchung nach hinten.
+ */
 router.post("/admin/abo/raten/:id/bezahlt", async (req: Request, res: Response) => {
   try {
     await ensureAboTabellen();
@@ -504,17 +593,26 @@ router.post("/admin/abo/raten/:id/bezahlt", async (req: Request, res: Response) 
     if (!rate) return res.status(404).json({ ok: false, error: "Rate nicht gefunden" });
     if (rate.status === "bezahlt") return res.json({ ok: true, schonBezahlt: true });
 
+    const pruefung = pruefeZahlungsdatum(req.body?.zahlungsdatum);
+    if (pruefung.fehler) return res.status(400).json({ ok: false, error: pruefung.fehler });
+    const zahlungsdatum = pruefung.datum;
+
     await sqlPool`
-      UPDATE fiaon_abo_raten SET status = 'bezahlt', bezahlt_am = NOW(), updated_at = NOW() WHERE id = ${id}
+      UPDATE fiaon_abo_raten
+      SET status = 'bezahlt', bezahlt_am = ${`${zahlungsdatum}T12:00:00Z`}, updated_at = NOW()
+      WHERE id = ${id}
     `;
-    await naechsteRateAnlegen(rate.ref, rate as any);
+    // Die nächste Rate rechnet ab dem Zahlungsdatum — nicht ab der bisherigen
+    // Fälligkeit. Zahlt jemand zehn Tage zu spät, ist der nächste Termin
+    // 30 Tage nach seiner Zahlung.
+    await naechsteRateAnlegen(rate.ref, rate as any, zahlungsdatum);
     // Im Kundenverlauf dokumentieren, damit die Akte die Wahrheit zeigt.
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
       VALUES (${rate.ref}, NULL, 'System', 'system',
-              ${`Abo-Rate ${rate.rate_nr} (${rate.zahlungsreferenz}) als bezahlt gebucht`})
+              ${`Abo-Rate ${rate.rate_nr} (${rate.zahlungsreferenz}) als bezahlt gebucht — Zahlungseingang ${zahlungsdatum}`})
     `.catch(() => {});
-    res.json({ ok: true });
+    res.json({ ok: true, zahlungsdatum, naechsteFaelligkeit: plusTage(zahlungsdatum, ABO_ZYKLUS_TAGE) });
   } catch (err) {
     console.error("[FIAON-ABO] bezahlt:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -539,13 +637,11 @@ router.post("/admin/abo/raten/:id/erinnern", async (req: Request, res: Response)
     if (!imVersandfenster()) {
       return res.status(400).json({ ok: false, error: "Außerhalb des Versandfensters (08–20 Uhr Berlin)" });
     }
-    await sendMakeWebhook("abo_payment_reminder", aboErinnerungPayload(r) as any);
-    await sqlPool`
-      UPDATE fiaon_abo_raten
-      SET mahnstufe = LEAST(${MAHNSTUFEN.length}, mahnstufe + 1), erinnerungen = erinnerungen + 1,
-          letzte_erinnerung_at = NOW(), updated_at = NOW()
-      WHERE id = ${id}
-    `;
+    const erg = await rateErinnern(r);
+    if (!erg.ok) {
+      // Ehrliche Rückmeldung: Der Betreiber muss wissen, dass NICHTS rausging.
+      return res.status(502).json({ ok: false, error: `Erinnerung konnte nicht zugestellt werden: ${erg.grund}` });
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error("[FIAON-ABO] erinnern:", err);
@@ -661,17 +757,12 @@ router.post("/admin/abo/sammelversand", async (_req, res) => {
     // Ohne Stichtag-Grenze, aber mit denselben Schutzregeln (20h-Sperre, Stufen).
     const batch = await faelligeRaten(ABO_BATCH);
     let gesendet = 0;
+    let fehlgeschlagen = 0;
     for (const r of batch) {
-      const stufe = Math.min(MAHNSTUFEN.length, Number(r.mahnstufe || 0) + 1);
-      await sendMakeWebhook("abo_payment_reminder", aboErinnerungPayload(r) as any);
-      await sqlPool`
-        UPDATE fiaon_abo_raten
-        SET mahnstufe = ${stufe}, erinnerungen = erinnerungen + 1, letzte_erinnerung_at = NOW(), updated_at = NOW()
-        WHERE id = ${r.id}
-      `;
-      gesendet++;
+      const erg = await rateErinnern(r);
+      if (erg.ok) gesendet++; else fehlgeschlagen++;
     }
-    res.json({ ok: true, gesendet, rest: batch.length === ABO_BATCH });
+    res.json({ ok: true, gesendet, fehlgeschlagen, rest: batch.length === ABO_BATCH });
   } catch (err) {
     console.error("[FIAON-ABO] sammelversand:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

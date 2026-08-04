@@ -125,6 +125,11 @@ export default function AdminKontoabgleichPage() {
   const [flash, setFlash] = useState<string | null>(null);
   const [assignTxn, setAssignTxn] = useState<any>(null);
   const [syncAmount, setSyncAmount] = useState(false);
+  // Der Kontoabgleich ist abschaltbar (kontoabgleich_enabled). Der Server
+  // antwortet dann mit 410 — die Seite muss das ERKLÄREN, nicht als Fehler
+  // zeigen. Ohne diese Weiche stünde hier eine leere Tabelle, und niemand
+  // wüsste, ob die Daten weg sind oder die Funktion aus ist.
+  const [abgeschaltet, setAbgeschaltet] = useState<{ text: string; ersatz?: string } | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -132,7 +137,13 @@ export default function AdminKontoabgleichPage() {
     if (filter) params.set("status", filter);
     if (q.trim()) params.set("q", q.trim());
     Promise.all([
-      apiF(`/admin/reconcile/list?${params.toString()}`).then((r) => r.ok && setData(r.json.data || [])),
+      apiF(`/admin/reconcile/list?${params.toString()}`).then((r) => {
+        if (r.status === 410) {
+          setAbgeschaltet({ text: r.json?.error || "Der Kontoabgleich ist abgeschaltet.", ersatz: r.json?.ersetztDurch });
+          return;
+        }
+        if (r.ok) setData(r.json.data || []);
+      }),
       apiF(`/admin/reconcile/summary`).then((r) => r.ok && setSummary(r.json.summary)),
     ]).finally(() => setLoading(false));
   }, [filter, q]);
@@ -183,6 +194,41 @@ export default function AdminKontoabgleichPage() {
     else setFlash(r.json?.error || "Fehler beim Neu-Abgleich");
     setBusy(false); load();
   };
+
+  // Abgeschaltet: Klartext statt leerer Tabelle. Die Daten sind NICHT weg —
+  // sie liegen weiter in fiaon_bank_txns und die Altfälle stehen unter
+  // /admin/verbuchung. Diese Seite sagt genau das.
+  if (abgeschaltet) {
+    return (
+      <div className="px-4 sm:px-6 py-5 max-w-3xl mx-auto">
+        <h1 className="text-[22px] font-bold text-slate-900 tracking-[-.02em]">Kontoabgleich</h1>
+        <div className="a3-tafel mt-4 p-5">
+          <p className="text-[14px] font-bold text-slate-900">Abgeschaltet — Zahlungen werden manuell gebucht</p>
+          <p className="text-[13px] text-slate-600 leading-relaxed mt-2">{abgeschaltet.text}</p>
+          <ul className="mt-3 space-y-1.5">
+            {[
+              "Der Zahlungseingang wird auf dem Konto geprüft und in der Zahlungszentrale mit dem tatsächlichen Zahlungsdatum gebucht.",
+              "Die Buchhaltungshistorie bleibt vollständig erhalten — es wurde nichts gelöscht.",
+              "Noch nicht verbuchte Altfälle aus der Zeit des Abgleichs stehen unter „Zahlungen verbuchen“.",
+              "Zurückschalten ist eine Einstellung: kontoabgleich_enabled auf true.",
+            ].map((t) => (
+              <li key={t} className="flex gap-2 text-[12.5px] text-slate-600 leading-snug">
+                <span className="shrink-0 mt-[7px] w-1 h-1 rounded-full bg-slate-300" />
+                <span>{t}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap gap-2 mt-4">
+            <a href={abgeschaltet.ersatz || "/admin/zahlungen"} className="a3-knopf inline-flex" data-haupt="1">
+              Zur Zahlungszentrale
+            </a>
+            <a href="/admin/verbuchung" className="a3-knopf inline-flex">Offene Altfälle verbuchen</a>
+            <a href="/admin/einstellungen" className="a3-knopf inline-flex">Einstellungen</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 sm:px-6 py-5 max-w-6xl mx-auto">

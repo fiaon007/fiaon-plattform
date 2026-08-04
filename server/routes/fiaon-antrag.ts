@@ -1188,9 +1188,22 @@ router.get("/invoice/:paymentRef.pdf", async (req, res) => {
 });
 
 // Als bezahlt markieren → Freischaltung (Logik des früheren Stripe-Webhooks) + Willkommensmail
+//
+// `zahlungsdatum` (YYYY-MM-DD, optional, Vorgabe heute) ist das TATSÄCHLICHE
+// Datum des Geldeingangs. Seit der Kontoabgleich abgeschaltet ist, wird manuell
+// gebucht — zwischen Eingang und Klick können Tage liegen. `completed_at` ist
+// der Ankerpunkt der Abo-Fälligkeit (+30 Tage); ohne dieses Feld würde jede
+// verspätete Buchung den ganzen Zahlungszyklus des Kunden nach hinten schieben.
 router.post("/admin/payments/:paymentRef/mark-paid", async (req, res) => {
   try {
     await ensurePaymentColumns();
+    const { pruefeZahlungsdatum } = await import("./fiaon-abo");
+    const pruefung = pruefeZahlungsdatum(req.body?.zahlungsdatum);
+    if (pruefung.fehler) return res.status(400).json({ ok: false, error: pruefung.fehler });
+    // 12:00 UTC: liegt in jeder Zeitzone am gemeinten Tag — mit 00:00 wäre der
+    // Eingang in Berliner Anzeige der Vortag.
+    const eingang = `${pruefung.datum}T12:00:00Z`;
+
     // Paket Y: ATOMAR alles setzen, was der Login verlangt — kein zweiter Schritt.
     // payment_status='paid' + finaler Antragsstatus + Konto-Aktivierung. Ein bereits
     // suspendiertes Konto wird NICHT automatisch reaktiviert (Admin-Not-Aus bleibt).
@@ -1199,10 +1212,10 @@ router.post("/admin/payments/:paymentRef/mark-paid", async (req, res) => {
         payment_status = 'paid',
         status = 'payment_completed',
         account_status = CASE WHEN account_status = 'suspended' THEN account_status ELSE 'active' END,
-        completed_at = COALESCE(completed_at, NOW()),
+        completed_at = COALESCE(completed_at, ${eingang}),
         updated_at = NOW()
       WHERE payment_reference = ${req.params.paymentRef}
-      RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name, account_status
+      RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name, account_status, completed_at
     `;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
 
@@ -1213,9 +1226,17 @@ router.post("/admin/payments/:paymentRef/mark-paid", async (req, res) => {
     // ersetzt die frühere direkte Plattform-Freischaltmail. Genau 1× pro Bestellung
     // (atomarer Flag-Claim), damit ALLE Kundenmails einheitlich über Make/Brevo laufen.
     await sendPaymentConfirmedOnce(rows[0].ref);
-    // Provisions-Engine (G3): fester Eintrag für den zugewiesenen Agent (Satz wird eingefroren)
+    // Provisions-Engine (G3): fester Eintrag für den zugewiesenen Agent (Satz wird eingefroren).
+    // Der Hook legt auch die Abo-Ratenkette an — sie rechnet ab `completed_at`.
     import("./fiaon-agent").then((m) => m.onCustomerPaid(rows[0].ref)).catch((e) => console.error("[FIAON-COMMISSION]", e));
-    res.json({ ok: true, data: rows[0] });
+    res.json({
+      ok: true,
+      data: rows[0],
+      zahlungsdatum: pruefung.datum,
+      // Damit die Oberfläche sofort sagen kann, wann die erste Monatsrate fällig ist.
+      naechsteAboFaelligkeit: new Date(new Date(rows[0].completed_at || eingang).getTime() + 30 * 86_400_000)
+        .toISOString().slice(0, 10),
+    });
   } catch (err) {
     console.error("[FIAON-PAYMENT] mark-paid:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

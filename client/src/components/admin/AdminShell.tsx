@@ -28,6 +28,12 @@ interface NavItem {
   match?: string;
   /** P4-A: Schlüssel im /admin/hub/badges-Objekt — Zähler-Pill am Menüpunkt */
   badgeKey?: string;
+  /**
+   * Schlüssel in /admin/hub/badges → flags. Ist der Schalter aus, verschwindet
+   * der Menüpunkt. Ein Eintrag, der in eine abgeschaltete Ansicht führt, ist
+   * schlimmer als kein Eintrag: man klickt und landet bei einer Fehlermeldung.
+   */
+  flagKey?: string;
 }
 
 interface NavGroup {
@@ -53,11 +59,16 @@ export const ADMIN_NAV: NavGroup[] = [
     title: "Umsatz & Zahlungen",
     items: [
       { path: "/admin/zahlungen", label: "Zahlungszentrale", desc: "Offene Zahlungen prüfen, freischalten, Timeline", icon: CreditCard, badgeKey: "zahlungen" },
-      { path: "/admin/kontoabgleich", label: "Kontoabgleich", desc: "Bank-Eingänge exakt mit Kunden abgleichen und verbuchen", icon: Landmark, badgeKey: "kontoabgleich" },
+      // Abgeschaltet am 04.08.2026 (kontoabgleich_enabled = false): Zahlungen
+      // werden manuell in der Zahlungszentrale gebucht. Der Menüpunkt erscheint
+      // wieder, sobald der Schalter umgelegt wird.
+      { path: "/admin/kontoabgleich", label: "Kontoabgleich", desc: "Bank-Eingänge exakt mit Kunden abgleichen und verbuchen", icon: Landmark, badgeKey: "kontoabgleich", flagKey: "kontoabgleich" },
       // Routen-Audit 04.08.2026: diese Seite war erreichbar, stand aber in KEINEM
       // Menü — man kam nur über einen gemerkten Link hin.
       { path: "/admin/verbuchung", label: "Zahlungen verbuchen", desc: "Vier Fälle, vier Reiter: verbuchen, Zuordnung korrigieren, fälschlich stillgelegt, ohne Zuordnung — mit Vorschau vor dem Klick", icon: Receipt },
-      { path: "/admin/zahlungen#auszahlungen", label: "Auszahlungen", desc: "Provisions-Anforderungen der Mitarbeiter freigeben", icon: Banknote, match: "/admin/zahlungen", badgeKey: "auszahlungen" },
+      // Eigene Seite seit 04.08.2026 — war vorher eine Sektion der
+      // Zahlungszentrale und damit unter den Kundenzahlungen versteckt.
+      { path: "/admin/auszahlungen", label: "Auszahlungen", desc: "Provisions-Anforderungen der Mitarbeiter freigeben", icon: Banknote, badgeKey: "auszahlungen" },
       { path: "/admin/dubletten", label: "Dubletten", desc: "Mehrfach angelegte Personen erkennen und zusammenführen (füllt fehlende Felder, umkehrbar)", icon: Copy, badgeKey: "dubletten" },
       { path: "/admin/verbuchungen", label: "Verbuchungen", desc: "Bestätigte Zahlungen: Umsatz, Provisionen, Netto", icon: Wallet },
       { path: "/admin/buchhaltung", label: "Buchhaltung", desc: "Buchungsjournal und Ausbuchung (Ledger)", icon: Landmark },
@@ -279,13 +290,21 @@ function AdminShellRahmen({ children }: { children: React.ReactNode }) {
   const [forbidden, setForbidden] = useState(false);
   // P4-A: Zähler-Badges — EIN gecachter Endpoint, 60-s-Polling, kein Realtime-Stack.
   const [badges, setBadges] = useState<Record<string, number>>({});
+  // Schalter (z. B. Kontoabgleich): steuern, ob ein Menüpunkt überhaupt
+  // erscheint. Vorgabe true, damit bei einem Ladefehler nichts verschwindet,
+  // was es gibt — nur bei ausdrücklichem `false` wird ausgeblendet.
+  const [flags, setFlags] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let alive = true;
     const loadBadges = () => {
       fetch("/api/fiaon/admin/hub/badges", { credentials: "include" })
         .then((r) => (r.ok ? r.json() : null))
-        .then((j) => { if (alive && j?.ok && j.badges) setBadges(j.badges); })
+        .then((j) => {
+          if (!alive || !j?.ok) return;
+          if (j.badges) setBadges(j.badges);
+          if (j.flags) setFlags(j.flags);
+        })
         .catch(() => {});
     };
     loadBadges();
@@ -341,7 +360,7 @@ function AdminShellRahmen({ children }: { children: React.ReactNode }) {
           {group.title && (
             <p className="px-2.5 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[.14em] text-slate-400">{group.title}</p>
           )}
-          {group.items.map((it) => {
+          {group.items.filter((it) => !it.flagKey || flags[it.flagKey] !== false).map((it) => {
             const Icon = it.icon;
             const active = isActive(it) && (it.path.includes("#") || it.path.includes("?") ? location === it.path : true);
             const primaryActive = isActive(it) && !it.path.includes("#") && !it.path.includes("?");

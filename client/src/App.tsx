@@ -84,6 +84,7 @@ import AgentDokumentePage from "@/pages/agent/dokumente";
 const AdminVertraegePage = lazy(() => import("@/pages/admin-vertraege"));
 const AdminFahrplanPage = lazy(() => import("@/pages/admin-fahrplan"));
 const AdminKarteiPage = lazy(() => import("@/pages/admin-kartei"));
+const AdminAuszahlungenPage = lazy(() => import("@/pages/admin-auszahlungen"));
 
 // Paket N1: JEDE /admin-Seite läuft in der AdminShell (Sidebar, Breadcrumb,
 // Zurück, Cmd+K). Serverseitige Guards bleiben unberührt.
@@ -128,6 +129,9 @@ function Router() {
       <Route path="/admin/kunden" component={admin(AdminKundenPage)} />
       <Route path="/admin/kunde/:id" component={admin(AdminKundeAktePage)} />
       <Route path="/admin/zahlungen" component={admin(AdminZahlungenPage)} />
+      {/* Eigene Seite: Auszahlungen an Mitarbeiter waren vorher eine Sektion der
+          Zahlungszentrale — zwei Geldrichtungen in einer Ansicht. */}
+      <Route path="/admin/auszahlungen" component={admin(AdminAuszahlungenPage)} />
       <Route path="/admin/finanzen" component={admin(AdminFinanzenPage)} />
       <Route path="/admin/kontoabgleich" component={admin(AdminKontoabgleichPage)} />
       <Route path="/admin/verbuchung" component={admin(AdminVerbuchungPage)} />

@@ -97,6 +97,37 @@ const eur = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractio
     }
   }
 
+  // ── Abo: Verwendungszweck und Fälligkeitsketten ────────────────────────────
+  // Der Verwendungszweck ist die einzige Brücke zwischen einer Überweisung und
+  // einer Rate. Stimmt das Format nicht, ist die Zahlung nicht zuzuordnen —
+  // deshalb wird es hier gegen die echten Daten geprüft, nicht behauptet.
+  console.log("\n── Abo: Verwendungszweck (FIAON-XXXXXX-N) ──");
+  const raten = await sqlPool`
+    SELECT r.rate_nr, r.zahlungsreferenz, a.payment_reference, r.faellig_am, r.betrag_cents, a.amount_due
+    FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
+    WHERE r.rate_nr > 1
+  `;
+  const formatOk = raten.filter((r: any) => /^FIAON-[A-Z0-9]+-\d+$/.test(String(r.zahlungsreferenz)));
+  pruefe(`Alle ${raten.length} Folgeraten haben das Format FIAON-XXXXXX-N`,
+    formatOk.length === raten.length,
+    `abweichend: ${raten.filter((r: any) => !/^FIAON-[A-Z0-9]+-\d+$/.test(String(r.zahlungsreferenz))).slice(0, 3).map((r: any) => r.zahlungsreferenz).join(", ")}`);
+  pruefe("Ratenreferenz = Bestellreferenz + Ratennummer",
+    raten.every((r: any) => r.zahlungsreferenz === `${r.payment_reference}-${r.rate_nr}`),
+    raten.filter((r: any) => r.zahlungsreferenz !== `${r.payment_reference}-${r.rate_nr}`).slice(0, 3)
+      .map((r: any) => `${r.zahlungsreferenz} ≠ ${r.payment_reference}-${r.rate_nr}`).join(" | "));
+  pruefe("Ratenbetrag = Paketpreis der Bestellung",
+    raten.every((r: any) => Number(r.betrag_cents) === Math.round(Number(r.amount_due) * 100)));
+  if (raten.length > 0) {
+    console.log(`  Beispiel: ${raten[0].zahlungsreferenz} · Rate ${raten[0].rate_nr} · fällig ${new Date(raten[0].faellig_am).toISOString().slice(0, 10)} · ${eur(Number(raten[0].betrag_cents))}`);
+  }
+  const [offenProKunde] = await sqlPool`
+    SELECT COALESCE(MAX(c), 0)::int AS max_offen FROM (
+      SELECT COUNT(*)::int AS c FROM fiaon_abo_raten WHERE status = 'offen' GROUP BY ref
+    ) x
+  `;
+  pruefe("Höchstens EINE offene Rate pro Kunde", Number(offenProKunde.max_offen) <= 1,
+    `höchster Wert: ${offenProKunde.max_offen}`);
+
   console.log(rot === 0 ? "\nAlles grün." : `\n${rot} Prüfung(en) rot.`);
   await sqlPool.end();
   process.exit(rot === 0 ? 0 : 1);

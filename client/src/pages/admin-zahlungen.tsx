@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Copy, ChevronRight, Banknote, Check, Send, Phone, Mail } from "lucide-react";
 import { PageIntro, Tip } from "@/components/admin/PageHelp";
 import { ACCENT } from "@/components/admin/AdminShell";
 import Detailfenster, { type ListenArt, type FensterReiter } from "@/components/admin/Detailfenster";
 import AboTafel from "@/components/admin/AboTafel";
+import BuchenDialog from "@/components/admin/BuchenDialog";
 
 // ============================================================================
 // /admin/zahlungen — Zahlungszentrale (Vorkasse per Banküberweisung)
@@ -148,6 +150,8 @@ export default function AdminZahlungenPage() {
   const [sortNeu, setSortNeu] = useState(true);
   /** Welche Kennzahl ist als Namensliste geöffnet? */
   const [fenster, setFenster] = useState<ListenArt | null>(null);
+  /** Bestellung, für die der Buchen-Dialog (mit Zahlungsdatum) offen ist. */
+  const [buchenZiel, setBuchenZiel] = useState<PaymentRow | null>(null);
   // Deep-Link aus Hub/Cmd+K: /admin/zahlungen?ref=… öffnet direkt den Drawer
   const deepRef = useRef<string | null>(new URLSearchParams(window.location.search).get("ref"));
   const [stats, setStats] = useState<PaymentStats | null>(null);
@@ -270,12 +274,12 @@ export default function AdminZahlungenPage() {
       setSearch(deepRef.current);
     }
     const scrollToHash = () => {
-      // P4-E: Nav-Einträge „Auszahlungen“ und „Dubletten“ springen zur Sektion.
-      const target = window.location.hash === "#auszahlungen" ? "auszahlungen"
-        : window.location.hash === "#dubletten" ? "dubletten" : null;
-      if (target) {
-        setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" }), 250);
-      }
+      // Alt-Lesezeichen: Auszahlungen und Dubletten sind seit 04.08.2026 eigene
+      // Seiten. Ein gemerkter Link darf nicht ins Nichts zeigen — er wird
+      // umgeleitet, statt zu einer Sektion zu springen, die es hier nicht
+      // mehr gibt.
+      if (window.location.hash === "#auszahlungen") { window.location.replace("/admin/auszahlungen"); return; }
+      if (window.location.hash === "#dubletten") { window.location.replace("/admin/dubletten"); return; }
     };
     scrollToHash();
     window.addEventListener("hashchange", scrollToHash);
@@ -499,18 +503,28 @@ export default function AdminZahlungenPage() {
     }
   };
 
-  const markPaid = async (e: React.MouseEvent, paymentRef: string) => {
-    e.stopPropagation();
-    if (!confirm(`Zahlung ${paymentRef} wirklich als bezahlt markieren?\n\nDer Kundenzugang wird freigeschaltet und die Willkommens-E-Mail versendet.`)) return;
+  /**
+   * Erstzahlung buchen. Läuft über den Dialog, weil das TATSÄCHLICHE
+   * Zahlungsdatum mitgegeben werden muss: Es ist der Ankerpunkt der Abo-
+   * Fälligkeit (+30 Tage). Wird heute eine Zahlung von vorgestern gebucht,
+   * darf der Zyklus nicht um zwei Tage wandern.
+   */
+  const markPaid = async (paymentRef: string, zahlungsdatum: string) => {
     setActionRef(paymentRef);
     try {
       const res = await fetch(`/api/fiaon/admin/payments/${encodeURIComponent(paymentRef)}/mark-paid`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({ zahlungsdatum }),
       });
       const json = await res.json().catch(() => null);
       if (res.ok && json?.ok) {
-        flash(`✓ ${paymentRef} als bezahlt markiert — Zugang freigeschaltet, Willkommensmail versendet`);
+        flash(
+          `${paymentRef} als bezahlt gebucht (Eingang ${zahlungsdatum}) — Zugang frei, Bestätigungsmail versendet` +
+          (json.naechsteAboFaelligkeit ? `, erste Abo-Rate fällig am ${fmtDate(json.naechsteAboFaelligkeit)}` : ""),
+        );
+        setBuchenZiel(null);
         setDetail(null);
         load(tab);
         loadStats();
@@ -523,6 +537,9 @@ export default function AdminZahlungenPage() {
       setActionRef(null);
     }
   };
+
+  /** Öffnet den Buchen-Dialog für eine Bestellung. */
+  const buchenOeffnen = (r: PaymentRow) => setBuchenZiel(r);
 
   const reactivate = async (e: React.MouseEvent, paymentRef: string) => {
     e.stopPropagation();
@@ -821,26 +838,30 @@ export default function AdminZahlungenPage() {
                 hilfe: "Zahlungserinnerungen des heutigen Tages. Ein Klick zeigt, WER sie bekommen hat und wie oft insgesamt schon erinnert wurde.",
               },
             ].map((k, i) => (
-              <button
+              // DIV mit echtem Knopf darin, nicht selbst ein Knopf: das ⓘ ist
+              // ebenfalls bedienbar, und Bedienelement-in-Bedienelement ist
+              // ungültiges HTML — Tastatur und Vorleseprogramm erreichen die
+              // Erklärung dann nie.
+              <div
                 key={k.label}
-                type="button"
                 onClick={() => setFenster(k.art)}
-                className="a3-kachel a3-auf p-4 pl-[18px] text-left w-full"
+                className="a3-kachel a3-auf a3-hebt p-4 pl-[18px] text-left w-full cursor-pointer"
                 data-ton={k.ton}
                 style={{ ["--i" as any]: i }}
               >
-                <span className="flex items-start gap-1.5">
+                <div className="flex items-start gap-1.5">
                   <span className="flex-1 min-w-0 text-[10px] font-semibold uppercase tracking-[.07em] text-slate-500 leading-tight">{k.label}</span>
                   {/* Das ⓘ braucht eigenen Platz — sonst schiebt sich die
                       umbrechende Beschriftung darunter. */}
-                  <span className="shrink-0 mt-[-1px]"><Tip text={k.hilfe} /></span>
-                </span>
+                  <span className="shrink-0 mt-[-1px]" onClick={(e) => e.stopPropagation()}><Tip text={k.hilfe} /></span>
+                </div>
                 <span className="block mt-2 text-[20px] sm:text-[22px] font-bold text-slate-900 a3-zahl leading-none">{k.wert}</span>
                 <span className="block mt-1.5 text-[11.5px] text-slate-500 leading-snug">{k.unter}</span>
-                <span className="block mt-1.5 text-[11px] font-semibold inline-flex items-center gap-1" style={{ color: ACCENT }}>
+                <button type="button" onClick={(e) => { e.stopPropagation(); setFenster(k.art); }}
+                  className="mt-1.5 text-[11px] font-semibold inline-flex items-center gap-1" style={{ color: ACCENT }}>
                   Wer? →
-                </span>
-              </button>
+                </button>
+              </div>
             ))}
           </div>
         )}
@@ -949,118 +970,104 @@ export default function AdminZahlungenPage() {
             </span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/70">
-                  {["Referenz", "Name", "E-Mail", "Telefon", "Paket", "Betrag", "Status", "Angekündigt am", "Aktionen"].map((h) => (
-                    <th key={h} className="px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading && (
-                  <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-[13px] text-slate-400">
-                      Lädt…
-                    </td>
-                  </tr>
-                )}
-                {!loading && filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-[13px] text-slate-400">
-                      {q ? "Keine Treffer für deine Suche." : "Keine Bestellungen in diesem Status."}
-                    </td>
-                  </tr>
-                )}
-                {!loading &&
-                  filtered.map((r) => (
-                    <tr
-                      key={r.payment_reference}
-                      onClick={() => openDetail(r)}
-                      className={`border-b border-slate-50 cursor-pointer transition-colors ${
-                        r.payment_status === "claimed_paid" ? "bg-amber-50/60 hover:bg-amber-50" : "hover:bg-slate-50/50"
-                      }`}
-                    >
-                      <td className="px-4 py-3">
-                        <span className="font-mono text-[13px] font-bold text-[#2563eb]">{r.payment_reference}</span>
-                        <p className="text-[11px] text-slate-400 font-mono">{r.invoice_number || r.ref}</p>
-                      </td>
-                      <td className="px-4 py-3 text-[13px] font-semibold whitespace-nowrap">{customerName(r)}</td>
-                      <td className="px-4 py-3 text-[12px] text-slate-500">{customerEmail(r)}</td>
-                      <td className="px-4 py-3 text-[12px] text-slate-500 whitespace-nowrap">{customerPhone(r)}</td>
-                      <td className="px-4 py-3 text-[12px] text-slate-500 whitespace-nowrap">
-                        {(r.pack_name || "—").replace(/\n/g, " ")}
-                      </td>
-                      <td className="px-4 py-3 text-[13px] font-bold whitespace-nowrap">{fmtAmount(r.amount_due)}</td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={r.payment_status} />
-                        {r.promised_pay_date && r.payment_status !== "paid" && (
-                          <p className="text-[10px] text-blue-600 font-bold mt-1 whitespace-nowrap">Zusage: {fmtDate(r.promised_pay_date)}</p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-[12px] whitespace-nowrap">
-                        {r.claimed_paid_at ? (
-                          <span className="text-amber-600 font-bold">{fmtDateTime(r.claimed_paid_at)}</span>
-                        ) : (
-                          <span className="text-slate-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          {(r.payment_status === "pending_payment" || r.payment_status === "claimed_paid") && (
-                            <button
-                              type="button"
-                              onClick={(e) => markPaid(e, r.payment_reference)}
-                              disabled={actionRef === r.payment_reference}
-                              className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-bold whitespace-nowrap transition-all disabled:opacity-50"
-                            >
-                              {actionRef === r.payment_reference ? "…" : "Als bezahlt markieren"}
-                            </button>
-                          )}
-                          {r.payment_status === "expired" && (
-                            <button
-                              type="button"
-                              onClick={(e) => reactivate(e, r.payment_reference)}
-                              disabled={actionRef === r.payment_reference}
-                              className="px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-blue-700 text-white text-[12px] font-bold whitespace-nowrap transition-all disabled:opacity-50"
-                            >
-                              {actionRef === r.payment_reference ? "…" : "Reaktivieren"}
-                            </button>
-                          )}
-                          <a
-                            href={`/api/fiaon/admin/payments/${encodeURIComponent(r.payment_reference)}/invoice.pdf`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            title="Rechnung (PDF) herunterladen"
-                            className="px-2.5 py-2 rounded-lg bg-white border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 text-[12px] font-bold transition-all"
-                          >
-                            Rechnung
-                          </a>
-                          <a
-                            href={`/admin/kunde/${encodeURIComponent(r.ref)}`}
-                            onClick={(e) => e.stopPropagation()}
-                            title="Kundenakte öffnen (eine Seite, alles)"
-                            className="px-2.5 py-2 rounded-lg bg-white border border-slate-200 text-[#2563eb] hover:border-blue-300 text-[12px] font-bold transition-all"
-                          >
-                            Akte
-                          </a>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); openDetail(r); }}
-                            className="px-2.5 py-2 rounded-lg bg-white border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 text-[12px] font-bold transition-all"
-                          >
-                            Details
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+          {/* ── Karten statt Breittabelle ─────────────────────────────────────
+              Die Tabelle hatte neun Spalten und musste seitwärts geschoben
+              werden — auf dem Handy war sie unbenutzbar, und auch am Schreibtisch
+              sucht niemand einen Kunden über neun Spalten. Eine Karte zeigt die
+              drei Dinge, die zum Zuordnen einer Überweisung reichen:
+              Verwendungszweck, Name, Betrag. Alles Weitere steht einen Klick
+              entfernt in der Akte. */}
+          <div className="p-3 sm:p-3.5 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+            {loading && <p className="col-span-full px-1 py-8 text-center text-[13px] text-slate-400">Lädt …</p>}
+            {!loading && filtered.length === 0 && (
+              <p className="col-span-full px-1 py-10 text-center text-[13px] text-slate-400">
+                {q ? "Keine Treffer für deine Suche." : "Keine Bestellungen in diesem Status."}
+              </p>
+            )}
+            {!loading && filtered.map((r, i) => {
+              const wartet = r.payment_status === "claimed_paid";
+              const kante = wartet ? "#d97706" : r.payment_status === "paid" ? "#059669"
+                : r.payment_status === "expired" ? "#dc2626" : "transparent";
+              return (
+                // Die Karte ist ein DIV, kein Button. Vorher steckten die
+                // Handlungen in einem Button — verschachtelte Bedienelemente
+                // sind ungültiges HTML: Vorleseprogramme und Tastatur sehen nur
+                // EIN Element, und selbst der automatische Test traf immer nur
+                // die Karte. Jetzt sind „bezahlt buchen" und „Details" echte
+                // Knöpfe, die Karte bleibt für die Maus trotzdem anklickbar.
+                <div
+                  key={r.payment_reference}
+                  onClick={() => openDetail(r)}
+                  className="a3-kachel a3-auf a3-hebt p-3.5 pl-[18px] text-left w-full cursor-pointer"
+                  style={{ ["--i" as any]: Math.min(i, 8), borderLeft: `3px solid ${kante}` }}
+                >
+                  {/* Zeile 1: Verwendungszweck und Betrag — die zwei Werte, mit
+                      denen man den Kontoauszug vergleicht. */}
+                  <span className="flex items-start gap-2">
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-bold a3-zahl truncate" style={{ color: ACCENT }}>
+                        {r.payment_reference}
+                      </span>
+                      <span className="block text-[14px] font-bold text-slate-900 truncate mt-0.5">{customerName(r)}</span>
+                    </span>
+                    <span className="shrink-0 text-[15px] font-bold text-slate-900 a3-zahl">{fmtAmount(r.amount_due)}</span>
+                  </span>
+
+                  {/* Zeile 2: Zustand in Klartext, nicht als Spaltensalat. */}
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2">
+                    <StatusBadge status={r.payment_status} />
+                    {wartet && r.claimed_paid_at && (
+                      <span className="text-[11.5px] font-semibold text-amber-700">
+                        gemeldet {fmtDateTime(r.claimed_paid_at)}
+                      </span>
+                    )}
+                    {!wartet && (
+                      <span className="text-[11.5px] text-slate-400">angelegt {fmtDate(r.created_at)}</span>
+                    )}
+                    {r.promised_pay_date && r.payment_status !== "paid" && (
+                      <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-md"
+                        style={{ background: "rgba(29,78,216,.07)", color: "#1d4ed8" }}>
+                        Zusage {fmtDate(r.promised_pay_date)}
+                      </span>
+                    )}
+                  </span>
+
+                  {/* Zeile 3: Paket, klein — Kontext, keine Hauptrolle. */}
+                  {r.pack_name && (
+                    <span className="block mt-1.5 text-[11px] text-slate-400 truncate">
+                      {r.pack_name.replace(/\n/g, " ")}
+                    </span>
+                  )}
+
+                  {/* Handlungen: genau die, die man ohne Detailansicht braucht. */}
+                  <span className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                    {(r.payment_status === "pending_payment" || r.payment_status === "claimed_paid") && (
+                      <button type="button" className="a3-knopf inline-flex" data-haupt="1"
+                        disabled={actionRef === r.payment_reference}
+                        onClick={(e) => { e.stopPropagation(); buchenOeffnen(r); }}>
+                        <Check size={12} /> bezahlt buchen
+                      </button>
+                    )}
+                    {r.payment_status === "expired" && (
+                      <button type="button" className="a3-knopf inline-flex" data-haupt="1"
+                        disabled={actionRef === r.payment_reference}
+                        onClick={(e) => reactivate(e, r.payment_reference)}>
+                        Reaktivieren
+                      </button>
+                    )}
+                    <button type="button" className="a3-knopf inline-flex"
+                      onClick={(e) => { e.stopPropagation(); openDetail(r); }}>
+                      Details
+                    </button>
+                    <a href={`/admin/kunde/${encodeURIComponent(r.ref)}`} onClick={(e) => e.stopPropagation()}
+                      className="a3-knopf inline-flex">Akte</a>
+                    <a href={`/api/fiaon/admin/payments/${encodeURIComponent(r.payment_reference)}/invoice.pdf`}
+                      target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                      className="a3-knopf hidden sm:inline-flex">Rechnung</a>
+                  </span>
+                </div>
+              );
+            })}
           </div>
           {/* Fuß: Kontodaten dort, wo man die Zahlung prüft — nicht irgendwo
               weiter unten auf der Seite. */}
@@ -1130,256 +1137,39 @@ export default function AdminZahlungenPage() {
           );
         })()}
 
-        {/* ── C3: Duplikat-Altbestand ── */}
-        <div id="dubletten" className="mt-4 a3-tafel p-5 scroll-mt-16">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h2 className="text-[15px] font-bold text-slate-900">Duplikat-Altbestand bereinigen</h2>
-              <p className="text-[12px] text-slate-500 mt-1 max-w-xl">
-                Alt-Einträge aus der Zeit vor dem Dubletten-Fix. Pro E-Mail-Gruppe bleibt der vollständigste/neueste Antrag,
-                der Rest wird als <span className="font-mono font-bold">merged</span> markiert (Soft-Delete — nichts wird gelöscht, alles bleibt rekonstruierbar).
-                Bezahlte und offene Zahlungen sind geschützt.
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-xl font-bold text-slate-900">{dup ? dup.groups : "—"}</p>
-                <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Gruppen</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xl font-bold text-rose-500">{dup ? dup.mergeable : "—"}</p>
-                <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">überflüssig</p>
-              </div>
-              <button
-                type="button"
-                onClick={runDupCleanup}
-                disabled={dupRunning || !dup || dup.mergeable === 0}
-                className="px-4 py-2.5 rounded-xl text-white text-[13px] font-bold transition-all disabled:opacity-40" style={{ background: `linear-gradient(180deg,${ACCENT},#1e40af)`, boxShadow: "0 4px 14px -6px rgba(29,78,216,.6)" }}
-              >
-                {dupRunning ? "Bereinige…" : "Alle abarbeiten"}
-              </button>
-            </div>
-          </div>
+        {/* ── Verwaltungswerkzeuge liegen jetzt dort, wo sie hingehoeren ──
+            Dubletten (inkl. Alt-Bestand-Bereinigung und Aufraeumlauf) leben unter
+            /admin/dubletten, Auszahlungen unter /admin/auszahlungen. Diese Seite
+            ist Zahlungszentrale — nichts anderes. */}
+        <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
+          <a href="/admin/dubletten" id="dubletten" className="a3-kachel p-4 flex items-start gap-3 scroll-mt-16">
+            <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: "linear-gradient(180deg,#fff,#f1f5f9)", color: "#475569", boxShadow: "inset 0 1px 0 #fff, 0 1px 3px rgba(15,23,42,.12)" }}>
+              <Copy size={16} strokeWidth={1.8} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-bold text-slate-900">Dubletten</span>
+              <span className="block text-[11.5px] text-slate-500 leading-snug mt-0.5">
+                Mehrfach angelegte Personen zusammenfuehren, Alt-Bestand bereinigen, Aufraeumlauf
+              </span>
+            </span>
+            <ChevronRight size={15} className="text-slate-300 shrink-0 mt-1.5" />
+          </a>
+          <a href="/admin/auszahlungen" id="auszahlungen" className="a3-kachel p-4 flex items-start gap-3 scroll-mt-16">
+            <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: "linear-gradient(180deg,#fff,#f1f5f9)", color: "#475569", boxShadow: "inset 0 1px 0 #fff, 0 1px 3px rgba(15,23,42,.12)" }}>
+              <Banknote size={16} strokeWidth={1.8} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-bold text-slate-900">Auszahlungen</span>
+              <span className="block text-[11.5px] text-slate-500 leading-snug mt-0.5">
+                Provisions-Anforderungen des Teams freigeben oder ablehnen
+              </span>
+            </span>
+            <ChevronRight size={15} className="text-slate-300 shrink-0 mt-1.5" />
+          </a>
         </div>
 
-        {/* ── Paket AD3 / P3-A: Dubletten-Verwaltung (Gruppierung per E-Mail UND Telefon) ── */}
-        <div className="mt-4 a3-tafel p-5">
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-1">
-            <div>
-              <h2 className="text-[15px] font-bold text-slate-900">
-                Dubletten-Verwaltung
-                {dupGroups.length > 0 && (
-                  <span className="ml-2 px-2 py-0.5 rounded-full border border-slate-300 text-[11px] font-semibold text-slate-600">
-                    {dupGroups.filter((g) => g.matchType === "email").length} E-Mail · {dupGroups.filter((g) => g.matchType === "phone").length} Telefon
-                  </span>
-                )}
-              </h2>
-              <p className="text-[12px] text-slate-500 mt-1 max-w-xl">
-                Personen mit mehreren Anträgen — gruppiert nach gleicher <span className="font-bold">E-Mail</span> oder gleicher
-                <span className="font-bold"> Telefonnummer</span> (formatunabhängig normalisiert). Wird eine Bestellung bezahlt, werden offene
-                Schwestern automatisch auf <span className="font-bold">Ersetzt (Dublette)</span> gesetzt — der Aufräumlauf wendet das rückwirkend an (KEINE Mails).
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={runSupersede}
-                disabled={supersedeRunning}
-                className="px-4 py-2.5 rounded-xl text-white text-[13px] font-bold transition-all disabled:opacity-40" style={{ background: `linear-gradient(180deg,${ACCENT},#1e40af)`, boxShadow: "0 4px 14px -6px rgba(29,78,216,.6)" }}
-              >
-                {supersedeRunning ? "Läuft…" : "Aufräumlauf starten (keine Mails)"}
-              </button>
-              {dupGroups.length > 0 && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); setDupGroupsOpen((v) => !v); }}
-                  className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-500 hover:border-slate-300 transition-all"
-                >
-                  {dupGroupsOpen ? "Gruppen ausblenden" : "Gruppen anzeigen"}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {dupGroups.length === 0 && <p className="text-[12px] text-slate-400 mt-3">Keine Dubletten-Gruppen — jede E-Mail und Telefonnummer gehört zu genau einem Antrag.</p>}
-
-          {dupGroupsOpen && dupGroups.length > 0 && (
-            <div className="mt-4 space-y-3 max-h-[560px] overflow-y-auto pr-1">
-              {dupGroups.map((g) => {
-                const openApps = g.apps.filter((a) => ["pending_payment", "claimed_paid", "expired"].includes(a.payment_status));
-                return (
-                  <div key={g.key} className="border border-slate-200 rounded-xl overflow-hidden">
-                    <div className="px-4 py-2.5 bg-slate-50/70 flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-[12px] font-bold text-slate-700 break-all flex items-center gap-2">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${g.matchType === "phone" ? "bg-amber-100 text-amber-700" : "bg-sky-100 text-sky-700"}`}>
-                          {g.matchType === "phone" ? "Telefon" : "E-Mail"}
-                        </span>
-                        {g.label} <span className="font-normal text-slate-400">· {g.apps.length} Anträge</span>
-                      </p>
-                      {openApps.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={(e) => cancelGroupOpen(e, g)}
-                          disabled={groupBusy === g.key}
-                          className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-[11px] font-bold text-slate-600 hover:border-slate-400 transition-all disabled:opacity-40"
-                        >
-                          {groupBusy === g.key ? "…" : `Alle offenen stornieren (${openApps.length})`}
-                        </button>
-                      )}
-                    </div>
-                    <div className="divide-y divide-slate-50">
-                      {g.apps.map((a) => (
-                        <div key={a.ref} className="px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-[12px] font-semibold text-slate-800">
-                              {a.first_name || a.last_name ? [a.first_name, a.last_name].filter(Boolean).join(" ") : a.contact_name || "—"}
-                              <span className="ml-2 font-mono text-[11px] text-slate-400">{a.payment_reference || a.ref}</span>
-                            </p>
-                            <p className="text-[11px] text-slate-400">
-                              {(a.pack_name || "—").replace(/\n/g, " ")} · {fmtAmount(a.amount_due)} · {fmtDate(a.created_at)}
-                              {a.invoice_number ? ` · ${a.invoice_number}` : ""}
-                              {a.superseded_by ? ` · ersetzt durch ${a.superseded_by}` : ""}
-                            </p>
-                          </div>
-                          <StatusBadge status={a.payment_status} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* ── H2: Auszahlungen (Provisions-Anforderungen der Mitarbeiter) ── */}
-        <div id="auszahlungen" className="mt-4 a3-tafel p-5 scroll-mt-16">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <div>
-              <h2 className="text-[15px] font-bold text-slate-900">
-                Auszahlungen
-                {payouts.filter((p) => p.status === "angefordert").length > 0 && (
-                  <span className="ml-2 px-2 py-0.5 rounded-full border border-slate-300 text-[11px] font-semibold text-slate-600">
-                    {payouts.filter((p) => p.status === "angefordert").length} offen
-                  </span>
-                )}
-              </h2>
-              <p className="text-[12px] text-slate-500 mt-1">
-                Provisions-Anforderungen der Mitarbeiter. Überweisung erfolgt manuell — hier nur bestätigen oder ablehnen.
-                Mitarbeiter, Sätze und Skripte verwaltest du unter{" "}
-                <a href="/admin/team" className="font-bold text-[#2563eb] hover:underline">/admin/team</a>.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={openAudit}
-              className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-[12px] font-bold text-slate-500 hover:border-slate-300 transition-all"
-            >
-              {auditOpen ? "Audit-Log ausblenden" : "Audit-Log anzeigen"}
-            </button>
-          </div>
-
-          <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden">
-            {payouts.length === 0 && (
-              <p className="px-4 py-6 text-center text-[12px] text-slate-400">Noch keine Auszahlungs-Anforderungen.</p>
-            )}
-            {payouts.map((p) => (
-              <div key={p.id} className="px-4 py-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-bold text-slate-900">
-                      {(p.amount_cents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} € · {p.agent_name}
-                      <span className={`ml-2 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${
-                        p.status === "angefordert" ? "border-slate-400 text-slate-700" : "border-slate-200 text-slate-400"
-                      }`}>
-                        {p.status === "angefordert" ? "Angefordert" : p.status === "ausgezahlt" ? "Ausgezahlt" : "Abgelehnt"}
-                      </span>
-                    </p>
-                    <p className="text-[11px] text-slate-400">
-                      Beantragt {fmtDateTime(p.requested_at)}
-                      {p.processed_at ? ` · Verarbeitet ${fmtDateTime(p.processed_at)}` : ""}
-                      {p.reject_reason ? ` · Grund: ${p.reject_reason}` : ""}
-                    </p>
-                    {p.status === "angefordert" && p.iban_full && (
-                      <p className="text-[12px] font-mono font-semibold text-slate-700 mt-1">
-                        {p.holder} · {p.iban_full}{p.bic ? ` · ${p.bic}` : ""}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setExpandedPayout(expandedPayout === p.id ? null : p.id); }}
-                      className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-slate-500 hover:border-slate-300 transition-all"
-                    >
-                      {p.entries.length} Positionen
-                    </button>
-                    <a
-                      href={`/api/fiaon/admin/payouts/${p.id}/export.csv`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-slate-500 hover:border-slate-300 transition-all"
-                    >
-                      CSV
-                    </a>
-                    {p.status === "angefordert" && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={(e) => payoutReject(e, p)}
-                          disabled={payoutBusy === p.id}
-                          className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-slate-500 hover:border-slate-400 transition-all disabled:opacity-40"
-                        >
-                          Ablehnen
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => payoutMarkPaid(e, p)}
-                          disabled={payoutBusy === p.id}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-all disabled:opacity-40"
-                        >
-                          {payoutBusy === p.id ? "…" : "Als überwiesen markieren"}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-                {expandedPayout === p.id && (
-                  <div className="mt-2.5 border border-slate-100 rounded-lg divide-y divide-slate-50">
-                    {p.entries.map((en: any) => (
-                      <div key={en.id} className="px-3 py-2 flex items-center justify-between text-[12px]">
-                        <span className="font-mono text-slate-500">{en.payment_reference || en.ref}</span>
-                        <span className="text-slate-400">{(en.pack_name || "").replace(/\n/g, " ")}</span>
-                        <span className="text-slate-400">{(en.rate_bp / 100).toLocaleString("de-DE")} %</span>
-                        <span className="font-bold text-slate-700 tabular-nums">{(en.amount_cents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {auditOpen && (
-            <div className="mt-4 border border-slate-100 rounded-xl overflow-hidden max-h-80 overflow-y-auto">
-              {audit.length === 0 && <p className="px-4 py-6 text-center text-[12px] text-slate-400">Noch keine Agent-Aktionen protokolliert.</p>}
-              {audit.map((l) => (
-                <div key={l.id} className="px-4 py-2.5 border-b border-slate-50 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[12px] font-semibold text-slate-700">
-                      <span className="text-[#2563eb]">{l.agent_name}</span>
-                      {" · "}
-                      {l.type === "note" ? "Notiz" : l.type === "email_sent" ? "Zahlungsdaten-Mail" : `Ergebnis: ${l.outcome || "—"}`}
-                      {" · "}
-                      <span className="font-mono text-slate-400">{l.ref}</span>
-                    </p>
-                    {l.note && <p className="text-[11px] text-slate-500 truncate">{l.note}</p>}
-                  </div>
-                  <span className="text-[11px] text-slate-400 whitespace-nowrap">{fmtDateTime(l.created_at)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
 
       {/* ── C2: Detail-Drawer mit Timeline ── */}
@@ -1485,11 +1275,12 @@ export default function AdminZahlungenPage() {
                 {(detail.payment_status === "pending_payment" || detail.payment_status === "claimed_paid") && (
                   <button
                     type="button"
-                    onClick={(e) => markPaid(e, detail.payment_reference)}
+                    onClick={(e) => { e.stopPropagation(); buchenOeffnen(detail); }}
                     disabled={actionRef === detail.payment_reference}
-                    className="flex-1 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[13px] font-bold transition-all disabled:opacity-50"
+                    className="flex-1 px-4 py-3 rounded-xl text-white text-[13px] font-bold transition-all disabled:opacity-50"
+                    style={{ background: `linear-gradient(180deg,${ACCENT},#1e40af)`, boxShadow: "0 4px 14px -6px rgba(29,78,216,.6)" }}
                   >
-                    Als bezahlt markieren
+                    Als bezahlt buchen
                   </button>
                 )}
                 {detail.payment_status === "paid" && (
@@ -1622,6 +1413,31 @@ export default function AdminZahlungenPage() {
           alleLink="/admin/kontoabgleich"
           alleLabel="Im Kontoabgleich mit dem Kontoauszug abgleichen"
           onClose={() => setFenster(null)}
+        />
+      )}
+
+      {/* Erstzahlung buchen — mit tatsächlichem Zahlungsdatum. */}
+      {buchenZiel && (
+        <BuchenDialog
+          busy={actionRef === buchenZiel.payment_reference}
+          ziel={{
+            titel: "Erstzahlung buchen",
+            name: customerName(buchenZiel),
+            referenz: buchenZiel.payment_reference,
+            betragText: fmtAmount(buchenZiel.amount_due),
+            zeilen: [
+              ...(buchenZiel.pack_name ? [{ label: "Paket", wert: buchenZiel.pack_name.replace(/\n/g, " ") }] : []),
+              ...(buchenZiel.claimed_paid_at ? [{ label: "Kunde meldete", wert: fmtDateTime(buchenZiel.claimed_paid_at) }] : []),
+            ],
+            folgen: [
+              "Der Zugang wird freigeschaltet und die Bestätigungsmail versendet (Make: payment_confirmed).",
+              "Erinnerungen für diese Bestellung stoppen; offene Schwester-Bestellungen derselben Produktart werden als ersetzt markiert.",
+              "Die Provision wird geprüft und bei dokumentierter Betreuung gebucht.",
+              "Die Abo-Ratenkette startet: die erste Monatsrate wird 30 Tage nach dem Zahlungseingang fällig.",
+            ],
+          }}
+          onAbbrechen={() => setBuchenZiel(null)}
+          onBuchen={(datum) => void markPaid(buchenZiel.payment_reference, datum)}
         />
       )}
 

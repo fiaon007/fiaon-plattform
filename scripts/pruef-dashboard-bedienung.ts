@@ -79,9 +79,13 @@ async function listenPruefen(cookie: string) {
     await page.waitForTimeout(2600);
 
     // ── Kachel „Heute angekündigt" → Detailfenster
-    const kacheln = page.locator("button.a3-kachel");
-    pruefe("Kacheln sind Knöpfe (öffnen ein Fenster statt wegzunavigieren)", (await kacheln.count()) >= 4,
-      `gefunden: ${await kacheln.count()}`);
+    // Kacheln sind DIVs mit einem echten „Wer?"-Knopf darin (ein ⓘ-Knopf in
+    // einem Knopf wäre ungültiges HTML). Geprüft wird beides: Fläche klickbar
+    // UND der Knopf vorhanden.
+    const kacheln = page.locator("div.a3-kachel[data-ton], div.a3-kachel");
+    pruefe("Kacheln vorhanden und klickbar", (await kacheln.count()) >= 4, `gefunden: ${await kacheln.count()}`);
+    pruefe("Jede Kachel hat einen erreichbaren „Wer?\"-Knopf",
+      (await page.getByRole("button", { name: /^Wer\?/ }).count()) >= 4);
     await kacheln.first().click();
     const fenster = page.locator('[role="dialog"]');
     await fenster.first().waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
@@ -182,7 +186,7 @@ async function listenPruefen(cookie: string) {
     await page.goto(`${BASIS}/admin/zahlungen`, { waitUntil: "domcontentloaded", timeout: 60_000 }).catch(() => {});
     await page.waitForTimeout(9000);
 
-    const zKacheln = page.locator("button.a3-kachel");
+    const zKacheln = page.locator("div.a3-kachel.a3-hebt");
     pruefe("Kennzahlen sind anklickbar", (await zKacheln.count()) >= 5, `gefunden: ${await zKacheln.count()}`);
     await zKacheln.first().click();
     await page.waitForFunction(
@@ -213,6 +217,64 @@ async function listenPruefen(cookie: string) {
     await page.screenshot({ path: `/tmp/fiaon-${name}-zahlungen.png`, fullPage: true });
     console.log(`        Bild: /tmp/fiaon-${name}-zahlungen.png`);
     pruefe("Keine JavaScript-Fehler in der Zahlungszentrale", fehlerImLog.length === 0, fehlerImLog.slice(0, 2).join(" | "));
+
+    // ── Umbau 04.08.2026: Karten statt Tabelle, eigene Seiten, Flag ───────────
+    const tabellen = await page.locator("section.a3-tafel table").count();
+    pruefe("Erstzahlungen ohne seitwärts scrollende Tabelle", tabellen === 0, `Tabellen: ${tabellen}`);
+    const karten = await page.locator("div.a3-kachel[style*='border-left']").count();
+    pruefe("Bestellungen erscheinen als Karten", karten > 5, `Karten: ${karten}`);
+    // Verschachtelte Bedienelemente sind ungültiges HTML und für Tastatur und
+    // Vorleseprogramme unerreichbar — deshalb hier ausdrücklich geprüft.
+    const verschachtelt = await page.locator("button button, button [role='button'], a a").count();
+    pruefe("Keine Knöpfe in Knöpfen (Tastatur + Vorleseprogramm)", verschachtelt === 0, `gefunden: ${verschachtelt}`);
+    pruefe("Auszahlungen NICHT mehr in der Zahlungszentrale",
+      (await page.getByRole("heading", { name: "Offene Anforderungen" }).count()) === 0);
+    pruefe("Dubletten-Werkzeuge NICHT mehr in der Zahlungszentrale",
+      (await page.getByRole("heading", { name: "Dubletten-Verwaltung" }).count()) === 0);
+
+    // Buchen-Dialog: Datumsfeld muss da sein. NICHT abschicken — das würde
+    // echtes Geld buchen.
+    const buchenKnopf = page.getByRole("button", { name: /bezahlt buchen/ }).first();
+    if (await buchenKnopf.count() > 0) {
+      await buchenKnopf.click();
+      await page.waitForTimeout(700);
+      const datum = page.locator('[role="dialog"] input[type="date"]');
+      pruefe("Buchen-Dialog hat ein Datumsfeld", await datum.isVisible().catch(() => false));
+      const wert = await datum.inputValue().catch(() => "");
+      pruefe("Datumsfeld ist mit heute vorbelegt",
+        wert === new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()),
+        `Wert: ${wert}`);
+      const dialogText = await page.locator('[role="dialog"]').innerText();
+      pruefe("Dialog zeigt den Verwendungszweck", /FIAON-[A-Z0-9]+/.test(dialogText));
+      pruefe("Dialog nennt die nächste Fälligkeit", /Monatsrate wird auf den/.test(dialogText));
+      await page.screenshot({ path: `/tmp/fiaon-${name}-buchen.png` });
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(300);
+    }
+
+    // Eigene Seiten
+    await page.goto(`${BASIS}/admin/auszahlungen`, { waitUntil: "domcontentloaded" }).catch(() => {});
+    await page.waitForTimeout(3500);
+    pruefe("Seite /admin/auszahlungen lädt",
+      await page.getByRole("heading", { name: "Auszahlungen", exact: true }).first().isVisible().catch(() => false));
+    pruefe("Auszahlungen zeigt offene Anforderungen",
+      (await page.getByRole("heading", { name: "Offene Anforderungen" }).count()) === 1);
+    await page.screenshot({ path: `/tmp/fiaon-${name}-auszahlungen.png`, fullPage: true });
+
+    await page.goto(`${BASIS}/admin/dubletten`, { waitUntil: "domcontentloaded" }).catch(() => {});
+    await page.waitForTimeout(3500);
+    const dubText = await page.locator("body").innerText();
+    pruefe("Dubletten-Seite hat die Massenwerkzeuge",
+      /Alt-Bestand bereinigen/.test(dubText) && /Aufräumlauf/.test(dubText));
+
+    await page.goto(`${BASIS}/admin/kontoabgleich`, { waitUntil: "domcontentloaded" }).catch(() => {});
+    await page.waitForTimeout(3000);
+    const kontoText = await page.locator("body").innerText();
+    pruefe("Kontoabgleich erklärt die Abschaltung statt Fehler zu zeigen",
+      /Abgeschaltet/.test(kontoText) && /manuell/.test(kontoText));
+    pruefe("Kontoabgleich steht nicht mehr im Menü",
+      (await page.locator('aside a[href="/admin/kontoabgleich"], .fixed a[href="/admin/kontoabgleich"]').count()) === 0);
+    await page.screenshot({ path: `/tmp/fiaon-${name}-kontoabgleich.png` });
 
     await ctx.close();
   }

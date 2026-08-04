@@ -28,8 +28,52 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { CsvFehler, entdoppele, leseWiseCsv, type CsvZeile } from "../lib/wise-csv";
 import { nameTokens, ordneZu, type Kandidat } from "../lib/zahlungs-zuordnung";
+import { getSettings } from "./fiaon-agent";
 
 const router = Router();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ABGESCHALTET (04.08.2026) — Zahlungen werden manuell in der Plattform gebucht
+//
+// Der Betreiber sieht den Eingang auf dem Konto und bucht in der
+// Zahlungszentrale. CSV-Import und Abgleich werden nicht mehr benutzt.
+//
+// Der Code bleibt VOLLSTÄNDIG stehen und die Tabelle `fiaon_bank_txns` bleibt
+// unangetastet: Sie ist Buchhaltungshistorie und die Quelle, aus der
+// /admin/verbuchung die noch offenen Fälle zeigt. Zurückschalten ist eine
+// Änderung EINER Einstellung, keine Wiederherstellung aus dem Verlauf —
+// dasselbe Muster wie `kartei_enabled`.
+//
+// 410 Gone und nicht 404: Diese Endpunkte HABEN existiert und sind bewusst
+// abgeschaltet. Ein 404 würde behaupten, es hätte sie nie gegeben.
+//
+// Umschalten: `fiaon_settings.kontoabgleich_enabled` auf 'true'. Gelesen wird
+// bei JEDEM Aufruf — kein Neustart, kein Zwischenspeicher, der irgendwann von
+// der Wirklichkeit abweicht.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function kontoabgleichAktiv(): Promise<boolean> {
+  try {
+    const settings = await getSettings();
+    return String(settings.kontoabgleich_enabled ?? "false").toLowerCase() === "true";
+  } catch (err) {
+    // Nicht lesbar ⇒ abgeschaltet. Der manuelle Weg ist der Zielzustand; ein
+    // Datenbankfehler darf den alten Pfad nicht heimlich wieder aufwecken.
+    console.error("[FIAON-RECONCILE] kontoabgleich_enabled nicht lesbar — bleibt abgeschaltet:", err);
+    return false;
+  }
+}
+
+router.use(async (req: Request, res: Response, next) => {
+  if (!req.path.includes("/reconcile")) return next();
+  if (await kontoabgleichAktiv()) return next();
+  return res.status(410).json({
+    ok: false,
+    error: "Der Kontoabgleich ist abgeschaltet. Zahlungen werden manuell in der Zahlungszentrale gebucht.",
+    ersetztDurch: "/admin/zahlungen",
+    einstellung: "kontoabgleich_enabled",
+    hinweis: "Die Buchhaltungshistorie (fiaon_bank_txns) bleibt erhalten; offene Altfälle stehen unter /admin/verbuchung.",
+  });
+});
 
 let ensured = false;
 async function ensureTable(): Promise<void> {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw, Send, Check, ChevronRight, AlertTriangle } from "lucide-react";
 import { ACCENT } from "./AdminShell";
 import { Tip } from "./PageHelp";
+import BuchenDialog from "./BuchenDialog";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Abo-Tafel — die monatliche Paketrate in der Zahlungszentrale
@@ -23,6 +24,11 @@ interface AboRate {
   bezahltAm: string | null; tageUeberfaellig: number;
   name: string; email: string | null; telefon: string | null;
   paket: string | null; agent: string | null; notiz: string | null; akte: string;
+  /** Gesetzt, wenn der Versand der Erinnerung fehlgeschlagen ist — dann steht
+   *  die Mahnstufe bewusst still, der Kunde hat KEINE Mail bekommen. */
+  letzterFehler: string | null;
+  letzterFehlerAt: string | null;
+  fehlversuche: number;
 }
 
 interface AboUebersicht {
@@ -30,6 +36,7 @@ interface AboUebersicht {
   woche: { anzahl: number; cents: number };
   ueberfaellig: { anzahl: number; cents: number };
   entscheidung: number;
+  zustellfehler: number;
   monatBezahlt: { anzahl: number; cents: number };
   laufend: { abos: number; cents: number };
   ohneKette: number;
@@ -46,13 +53,14 @@ function tag(iso: string): string {
   return new Date(`${iso}T12:00:00Z`).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
-type Art = "heute" | "woche" | "ueberfaellig" | "offen" | "bezahlt" | "entscheidung";
+type Art = "heute" | "woche" | "ueberfaellig" | "offen" | "bezahlt" | "entscheidung" | "zustellfehler";
 
 const REITER: { art: Art; label: string }[] = [
   { art: "heute", label: "Heute fällig" },
   { art: "woche", label: "Nächste 7 Tage" },
   { art: "ueberfaellig", label: "Überfällig" },
   { art: "entscheidung", label: "Entscheidung nötig" },
+  { art: "zustellfehler", label: "Nicht zugestellt" },
   { art: "offen", label: "Alle offenen" },
   { art: "bezahlt", label: "Bezahlt" },
 ];
@@ -65,6 +73,8 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
   const [busy, setBusy] = useState<number | null>(null);
   const [offen, setOffen] = useState(true);
   const [filter, setFilter] = useState("");
+  /** Rate, für die der Buchen-Dialog offen ist. */
+  const [buchen, setBuchen] = useState<AboRate | null>(null);
 
   const ladeUebersicht = useCallback(async () => {
     const r = await fetch("/api/fiaon/admin/abo/uebersicht", { credentials: "include" })
@@ -92,18 +102,21 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
       r.zahlungsreferenz.toLowerCase().includes(s) || (r.agent || "").toLowerCase().includes(s));
   }, [raten, filter]);
 
-  const bezahltBuchen = async (r: AboRate) => {
-    if (!confirm(
-      `Rate ${r.rateNr} von ${r.name} als bezahlt buchen?\n\n` +
-      `${eur(r.betragCents)} · Verwendungszweck ${r.zahlungsreferenz}\n\n` +
-      `Danach entsteht automatisch die nächste Fälligkeit (${u?.zyklusTage || 30} Tage später).`,
-    )) return;
+  /** Buchen läuft über den Dialog — dort steht das Zahlungsdatum. */
+  const bezahltBuchen = async (r: AboRate, zahlungsdatum: string) => {
     setBusy(r.id);
     try {
-      const res = await fetch(`/api/fiaon/admin/abo/raten/${r.id}/bezahlt`, { method: "POST", credentials: "include" });
+      const res = await fetch(`/api/fiaon/admin/abo/raten/${r.id}/bezahlt`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        credentials: "include", body: JSON.stringify({ zahlungsdatum }),
+      });
       const j = await res.json().catch(() => null);
       if (res.ok && j?.ok) {
-        onMeldung(`Rate ${r.rateNr} von ${r.name} gebucht — nächste Fälligkeit wurde angelegt.`);
+        onMeldung(
+          `Rate ${r.rateNr} von ${r.name} gebucht (Eingang ${zahlungsdatum})` +
+          (j.naechsteFaelligkeit ? ` — nächste Rate fällig am ${tag(j.naechsteFaelligkeit)}.` : "."),
+        );
+        setBuchen(null);
         await Promise.all([ladeUebersicht(), ladeRaten(art)]);
       } else onMeldung(`Fehler: ${j?.error || res.status}`);
     } finally { setBusy(null); }
@@ -120,9 +133,14 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
       const res = await fetch(`/api/fiaon/admin/abo/raten/${r.id}/erinnern`, { method: "POST", credentials: "include" });
       const j = await res.json().catch(() => null);
       if (res.ok && j?.ok) {
-        onMeldung(`Erinnerung an ${r.name} versendet.`);
-        await ladeRaten(art);
-      } else onMeldung(`Fehler: ${j?.error || res.status}`);
+        onMeldung(`Erinnerung an ${r.name} versendet (Mahnstufe ${Math.min(3, r.mahnstufe + 1)}).`);
+        await Promise.all([ladeUebersicht(), ladeRaten(art)]);
+      } else {
+        // Ehrlich bleiben: Bei einem Fehlschlag ging NICHTS raus, und die
+        // Mahnstufe bleibt absichtlich stehen.
+        onMeldung(j?.error || `Fehler: ${res.status}`);
+        await Promise.all([ladeUebersicht(), ladeRaten(art)]);
+      }
     } finally { setBusy(null); }
   };
 
@@ -158,7 +176,7 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
     if (res.ok && j?.ok) {
       onMeldung(j.uebersprungenFenster
         ? "Lauf übersprungen — Motor aus oder außerhalb 08–20 Uhr."
-        : `${j.gesendet} Abo-Erinnerung(en) versendet.`);
+        : `${j.gesendet} Abo-Erinnerung(en) versendet${j.fehlgeschlagen ? `, ${j.fehlgeschlagen} NICHT zugestellt (Mahnstufe unverändert)` : ""}.`);
       await Promise.all([ladeUebersicht(), ladeRaten(art)]);
     } else onMeldung(`Fehler: ${j?.error || res.status}`);
   };
@@ -194,6 +212,13 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
             <span className="px-1.5 py-0.5 rounded-md text-[10.5px] font-bold" style={{ background: "rgba(217,119,6,.1)", color: "#b45309" }}>
               Motor aus
             </span>
+          )}
+          {u && u.zustellfehler > 0 && (
+            <button type="button" onClick={() => { setOffen(true); setArt("zustellfehler"); }}
+              className="px-1.5 py-0.5 rounded-md text-[10.5px] font-bold"
+              style={{ background: "rgba(220,38,38,.1)", color: "#b91c1c" }}>
+              {u.zustellfehler}× nicht zugestellt
+            </button>
           )}
           {u && u.entscheidung > 0 && (
             <span className="px-1.5 py-0.5 rounded-md text-[10.5px] font-bold" style={{ background: "rgba(220,38,38,.08)", color: "#dc2626" }}>
@@ -291,6 +316,18 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
                     <p className="text-[11px] text-slate-400 mt-0.5 truncate">
                       {r.zahlungsreferenz}{r.paket ? ` · ${r.paket}` : ""}
                     </p>
+                    {/* Fehlgeschlagene Zustellung: Der Kunde hat KEINE Mail
+                        bekommen, und die Mahnstufe steht deshalb still. Das muss
+                        man sehen — sonst wartet man auf eine Reaktion, die
+                        niemand auslösen konnte. */}
+                    {r.letzterFehler && (
+                      <p className="mt-1.5 text-[11.5px] leading-snug px-2 py-1.5 rounded-lg"
+                        style={{ background: "rgba(220,38,38,.06)", color: "#b91c1c" }}>
+                        <b>Erinnerung konnte nicht zugestellt werden</b> ({r.fehlversuche}× versucht,
+                        {" "}{r.letzterFehlerAt ? new Date(r.letzterFehlerAt).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—"}):
+                        {" "}{r.letzterFehler} — Mahnstufe bleibt bei {r.mahnstufe}.
+                      </p>
+                    )}
                   </div>
                   <span className="shrink-0 text-[14px] font-bold text-slate-900 a3-zahl">{eur(r.betragCents)}</span>
                   <span className="shrink-0 flex items-center gap-1.5">
@@ -298,7 +335,7 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
                     {r.status === "offen" && (
                       <>
                         <button type="button" className="a3-knopf inline-flex" disabled={busy === r.id}
-                          onClick={() => void bezahltBuchen(r)}>
+                          onClick={() => setBuchen(r)}>
                           <Check size={12} /> bezahlt
                         </button>
                         {r.email && (
@@ -321,8 +358,34 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
             (Stufe 1), nach 7 Tagen (Stufe 2), nach 14 Tagen (Stufe 3) · danach keine automatische Mail mehr, sondern
             „Entscheidung nötig“ · Versand nur zwischen 08 und 20 Uhr, höchstens eine Mail je Rate pro 20 Stunden
             {u?.stichtag ? ` · Einführungsstichtag ${tag(u.stichtag)}: Raten, die vorher fällig waren, werden nicht automatisch angemahnt` : ""}
+            {" "}· Mahnstufe steigt NUR, wenn die Mail wirklich zugestellt wurde
           </div>
         </>
+      )}
+
+      {/* Buchen mit tatsächlichem Zahlungsdatum */}
+      {buchen && (
+        <BuchenDialog
+          busy={busy === buchen.id}
+          ziel={{
+            titel: `Abo-Rate ${buchen.rateNr} buchen`,
+            name: buchen.name,
+            referenz: buchen.zahlungsreferenz,
+            betragText: eur(buchen.betragCents),
+            zeilen: [
+              { label: "Bisherige Fälligkeit", wert: tag(buchen.faelligAm) },
+              ...(buchen.paket ? [{ label: "Paket", wert: buchen.paket }] : []),
+              ...(buchen.mahnstufe > 0 ? [{ label: "Mahnstufe", wert: String(buchen.mahnstufe) }] : []),
+            ],
+            folgen: [
+              "Die Rate gilt als bezahlt und verschwindet aus den Fälligkeiten.",
+              `Die nächste Rate (Nr. ${buchen.rateNr + 1}) wird 30 Tage nach dem Zahlungseingang angelegt.`,
+              "Der Vorgang wird im Kundenverlauf dokumentiert. Es geht keine E-Mail raus.",
+            ],
+          }}
+          onAbbrechen={() => setBuchen(null)}
+          onBuchen={(datum) => void bezahltBuchen(buchen, datum)}
+        />
       )}
     </section>
   );

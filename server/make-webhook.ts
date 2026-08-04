@@ -67,15 +67,27 @@ function reportDiag(e: { severity: "kritisch" | "warnung" | "info"; code: string
     .catch(() => {});
 }
 
+/** Ergebnis eines Versands — mit Grund, falls er nicht geklappt hat. */
+export interface MakeVersand {
+  ok: boolean;
+  /** Klartext für die Oberfläche, z. B. „HTTP 400 von Make" oder „Zeitüberschreitung". */
+  grund?: string;
+}
+
 /**
  * Sendet einen Webhook an Make.com (URL aus env MAKE_WEBHOOK_URL).
  * Fehler blockieren NIEMALS den Nutzer-/Zahlungsflow — sie werden nur geloggt.
+ *
+ * Diese Variante gibt den GRUND zurück. Gebraucht überall, wo ein Fehlschlag
+ * Folgen hat: Die Abo-Mahnstufe darf nur fortschreiten, wenn die Mail wirklich
+ * rausging — sonst landet ein Kunde nach 14 Tagen auf „Entscheidung nötig",
+ * ohne je eine Erinnerung bekommen zu haben.
  */
-export async function sendMakeWebhook(eventType: MakeEventType, payload: MakeWebhookPayload): Promise<boolean> {
+export async function sendMakeWebhookMitGrund(eventType: MakeEventType, payload: MakeWebhookPayload): Promise<MakeVersand> {
   const url = process.env.MAKE_WEBHOOK_URL;
   if (!url) {
     console.warn(`[MAKE-WEBHOOK] MAKE_WEBHOOK_URL nicht gesetzt — Event '${eventType}' (${payload.antrag_id}) übersprungen`);
-    return false;
+    return { ok: false, grund: "MAKE_WEBHOOK_URL ist nicht gesetzt — es kann keine Mail rausgehen." };
   }
   try {
     const res = await fetch(url, {
@@ -98,11 +110,11 @@ export async function sendMakeWebhook(eventType: MakeEventType, payload: MakeWeb
         hint: "Prüfe das Make-Szenario (aktiv? Webhook erreichbar?) und ob die Payload-Struktur des Events dort bekannt ist (E-Mail-Events → Test senden).",
         ref: payload.payment_reference || payload.antrag_id,
       });
-      return false;
+      return { ok: false, grund: `Make hat abgelehnt (HTTP ${res.status}) — Szenario aktiv? Event-Zweig vorhanden?` };
     }
     console.log(`[MAKE-WEBHOOK] '${eventType}' gesendet (${payload.antrag_id}${payload.payment_reference ? `, ${payload.payment_reference}` : ""})`);
     recordLastSent(eventType);
-    return true;
+    return { ok: true };
   } catch (err) {
     console.error(`[MAKE-WEBHOOK] '${eventType}' (${payload.antrag_id}) fehlgeschlagen:`, err instanceof Error ? err.message : err);
     reportDiag({
@@ -112,8 +124,16 @@ export async function sendMakeWebhook(eventType: MakeEventType, payload: MakeWeb
       hint: "Netzwerk-/Timeout-Problem zu Make. Läuft das Szenario? Ist MAKE_WEBHOOK_URL korrekt? Kunde-Mail ggf. über E-Mail-Events erneut senden.",
       ref: payload.payment_reference || payload.antrag_id,
     });
-    return false;
+    return {
+      ok: false,
+      grund: `Make nicht erreichbar: ${err instanceof Error ? err.message : String(err)}`,
+    };
   }
+}
+
+/** Kurzform für alle Aufrufer, die nur wissen müssen, ob es geklappt hat. */
+export async function sendMakeWebhook(eventType: MakeEventType, payload: MakeWebhookPayload): Promise<boolean> {
+  return (await sendMakeWebhookMitGrund(eventType, payload)).ok;
 }
 
 // ── Diagnose: letzter erfolgreicher Versand je Event-Typ ─────────────────────

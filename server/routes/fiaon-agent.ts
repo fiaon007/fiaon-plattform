@@ -308,6 +308,13 @@ const SETTING_DEFAULTS: Record<string, string> = {
   reminder_window_start: "10",        // Versandfenster-Beginn (Stunde, Europe/Berlin)
   reminder_window_end: "11",          // Versandfenster-Ende (exklusiv)
   reminder_engine_enabled: "1",       // Not-Aus-Schalter ("1" = an)
+  // ── Abo (monatliche Paketrate) ─────────────────────────────────────────────
+  abo_motor_enabled: "1",             // Erinnerungs-Motor an/aus ("0" = aus)
+  abo_stichtag: "",                   // wird beim ersten Motorlauf gesetzt (YYYY-MM-DD)
+  // ── Kontoabgleich (CSV-Import + Bank-Zuordnung) ───────────────────────────
+  // Abgeschaltet am 04.08.2026: Zahlungen werden manuell in der Zahlungszentrale
+  // gebucht. Code und Daten bleiben; Zurückschalten = 'true' setzen.
+  kontoabgleich_enabled: "false",
   // Paket AE1: automatische Kundenverteilung (Round-Robin auf aktive Agents)
   distribution_enabled: "1",          // Verteilung an/aus
   distribution_cap: "50",             // Obergrenze offener zugewiesener Kunden pro Agent

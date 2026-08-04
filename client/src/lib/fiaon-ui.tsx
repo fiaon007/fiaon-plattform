@@ -447,7 +447,37 @@ export function useImBild<T extends HTMLElement>() {
     if (typeof IntersectionObserver === "undefined") { setDrin(true); return; }
     const b = new IntersectionObserver(
       ([e]) => { if (e.isIntersecting) { setDrin(true); b.disconnect(); } },
-      { threshold: 0.15 },
+      // SCHWELLE 0, NICHT 0.15 — und der Unterschied ist kein Feinschliff.
+      //
+      // `threshold` misst den Anteil DER ELEMENTFLÄCHE, der im Bild liegt, nicht
+      // einen Anteil des Bildschirms. Bei 0.15 folgen daraus zwei Fehler, und der
+      // zweite ist schwer:
+      //
+      //  1. Man muss 15 % der Elementhöhe blind durchscrollen, bevor es
+      //     erscheint. Ein Abschnitt mit 30 Kundenkarten liess über 1000 Pixel
+      //     Weiss vor sich her.
+      //
+      //  2. Ist ein Element höher als Bildschirmhöhe / 0.15, kann das
+      //     Verhältnis 0.15 NIE erreicht werden — mehr als die Bildschirmhöhe
+      //     passt nicht gleichzeitig ins Bild. Das Element bleibt dann FÜR IMMER
+      //     unsichtbar, so weit man auch scrollt. Bei 900 px Bildhöhe liegt die
+      //     Grenze bei 6000 px, also rund 30 Karten — die Kundenliste lädt bis
+      //     zu 300.
+      //
+      // Genau das war die gemeldete „ewig weisse Fläche" zwischen „Heute fällig"
+      // und „Überfällig": Die Abschnitte waren nicht leer, sie waren da und
+      // unsichtbar, denn `opacity: 0` nimmt keinen Platz weg.
+      //
+      // Schwelle 0 löst bei jedem sichtbaren Pixel aus und ist damit von der
+      // Höhe unabhängig. Der POSITIVE untere `rootMargin` vergrössert den
+      // Beobachtungsbereich nach unten: Der Abschnitt blendet ein, WÄHREND er
+      // sich nähert, und steht fertig da, wenn der Blick ihn erreicht. Ein
+      // negativer Wert wäre hier falsch — er würde später auslösen und für
+      // Elemente am Dokumentende erneut ein Nie-Sichtbar erzeugen.
+      //
+      // Merksatz: Ein dekorativer Einblend-Effekt darf Inhalt niemals dauerhaft
+      // verbergen. Abgesichert in tests/e2e/abschnitt-sichtbarkeit.spec.ts.
+      { threshold: 0, rootMargin: "0px 0px 15% 0px" },
     );
     b.observe(el);
     return () => b.disconnect();

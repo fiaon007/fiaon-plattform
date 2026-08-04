@@ -27,6 +27,16 @@ function eur(v: any): string {
   return `${Number(v).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €`;
 }
 
+/** Klartext für ergänzte Felder — „phone_country_code" sagt einem Menschen nichts. */
+const FELD_NAME: Record<string, string> = {
+  first_name: "Vorname", last_name: "Nachname", contact_name: "Ansprechpartner",
+  company_name: "Firma", email: "E-Mail", contact_email: "E-Mail (Kontakt)",
+  billing_email: "E-Mail (Rechnung)", phone: "Telefon",
+  phone_country_code: "Ländervorwahl", contact_phone: "Telefon (Kontakt)",
+  street: "Straße", zip: "PLZ", city: "Ort", country: "Land",
+  birthdate: "Geburtsdatum", nationality: "Staatsangehörigkeit",
+};
+
 const LIFECYCLE_BADGE: Record<string, { label: string; cls: string }> = {
   lead: { label: "Lead", cls: "bg-sky-50 text-sky-700 border-sky-200" },
   antrag: { label: "Antrag (unvollständig)", cls: "bg-slate-50 text-slate-600 border-slate-200" },
@@ -339,10 +349,30 @@ export default function AdminKundeAktePage() {
               )}
             </div>
           </div>
+          {/* Nur ECHTE Dubletten schlagen Alarm: mehrere offene Bestellungen
+              DERSELBEN Produktart. Vorher galt jede zweite Bestellung als
+              Verdacht — also auch die Bonitätsauskunft neben dem Paket. Das ist
+              ein regulärer Zweitkauf, und ein Zusammenführen wäre dort falsch. */}
           {head.duplicateSuspicion && (
             <div className="mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-[12px] font-semibold text-amber-800 flex items-center gap-2">
-              <AlertTriangle size={13} /> Dubletten-Verdacht — Details und „Zusammenführen" im Dubletten-Bereich unten.
+              <AlertTriangle size={13} /> Echte Dublette: mehrere offene Bestellungen derselben Produktart — unten zusammenführen.
             </div>
+          )}
+          {!head.duplicateSuspicion && head.namensHinweise > 0 && (
+            <p className="mt-3 text-[11.5px] text-slate-400">
+              {head.namensHinweise} Person{head.namensHinweise === 1 ? "" : "en"} mit gleichem Namen, aber anderer E-Mail und
+              anderer Nummer. Das ist kein Dublettenverdacht — nur ein Hinweis, unten nachsehbar.
+            </p>
+          )}
+          {/* Ergänzte Felder offenlegen: Diese Werte stehen nicht an DIESER
+              Bestellung, sondern an einer früheren derselben Person. Ohne den
+              Hinweis wirkt die Akte inkonsistent zur Bestellung. */}
+          {Array.isArray(data.ergaenzt) && data.ergaenzt.length > 0 && (
+            <p className="mt-2 text-[11.5px] text-slate-500">
+              {data.ergaenzt.length} Feld{data.ergaenzt.length === 1 ? "" : "er"} aus einer früheren Bestellung derselben
+              Person ergänzt ({Array.from(new Set(data.ergaenzt.map((e: any) => FELD_NAME[e.feld] || e.feld))).join(", ")}) —
+              so ist die Akte vollständig, ohne dass etwas überschrieben wurde.
+            </p>
           )}
           {head.commissionBasisNote && (
             <p className="mt-2 text-[11.5px] text-slate-400">Provisions-Lage: {head.commissionBasisNote}</p>

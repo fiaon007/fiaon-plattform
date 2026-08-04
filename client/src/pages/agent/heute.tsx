@@ -52,6 +52,18 @@ async function apiF(pfad: string, init?: RequestInit) {
 type Kunde = {
   personId: number; name: string; telefon: string | null; email: string | null;
   tier: number; tierGrund: string; titel: string; hinweis: string;
+  // Wählbare Nummer (mit Ländervorwahl) getrennt von der Anzeige: Eine Nummer
+  // ohne Vorwahl soll man SEHEN, aber nicht wählen — sonst ruft das Telefon
+  // eine Ortsnummer im eigenen Netz.
+  telefonWaehlbar?: string | null;
+  telefonHinweis?: string | null;
+  stammdaten?: {
+    strasse: string | null; plz: string | null; ort: string | null;
+    land: string | null; geburtsdatum: string | null;
+  } | null;
+  zahlung?: {
+    referenz: string | null; status: string | null; frist: string | null; ref: string | null;
+  } | null;
   produkt: string | null; betrag: number | null;
   zusagedatum: string | null; wiedervorlage: string | null;
   nichtErreicht: number; rechnungVersandt: number; rechnungWarnung: string | null;
@@ -187,7 +199,10 @@ function Seite() {
     });
 
     if (r.ok) {
-      zeige("erfolg", erfolgstext, kunde.name);
+      // Der Server sagt, WAS sein Klick bewirkt hat („Mailbox besprochen — in
+      // zwei Tagen erneut"). Diese Regel steht an einer Stelle im Server; sie
+      // hier nochmal zu formulieren würde irgendwann abweichen.
+      zeige("erfolg", r.json?.meldung || erfolgstext, kunde.name);
       // Zahlen neu holen, aber ohne Ladezustand — die Seite darf nicht blinken.
       apiF("/agent/crm/dashboard").then((d) => d.ok && setZahlen(d.json.zahlen));
     } else {
@@ -602,6 +617,9 @@ function KundenKarte({
   const [hinweisOffen, setHinweisOffen] = useState(false);
   const [datumOffen, setDatumOffen] = useState(false);
   const [datumWert, setDatumWert] = useState("");
+  const [terminOffen, setTerminOffen] = useState(false);
+  const [terminWert, setTerminWert] = useState("");
+  const [stammOffen, setStammOffen] = useState(false);
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [fehlerShake, setFehlerShake] = useState(false);
   const [blitz, setBlitz] = useState<string | null>(null);
@@ -785,12 +803,31 @@ function KundenKarte({
             `translateZ` mehr, das sie darüber schieben könnte. */}
         <div className="mt-4">
           <div className="flex flex-wrap items-center gap-2">
-            {kunde.telefon ? (
-              <a href={`tel:${kunde.telefon.replace(/\s/g, "")}`}
+            {/* ── ANRUFEN (Meldung 04.08.2026) ─────────────────────────────────
+                Vorher wurde `kunde.telefon` direkt in den tel:-Link geschrieben.
+                Bei 2.058 von 4.521 Personen steht dort eine Nummer OHNE
+                Ländervorwahl — das Telefon wählte dann eine Ortsnummer im
+                eigenen Netz. Jetzt liefert der Server die wählbare Form
+                (+49 …); fehlt die Vorwahl wirklich, wird die Nummer angezeigt,
+                aber NICHT verlinkt, mit klarem Hinweis. Eine geratene Vorwahl
+                würde einen fremden Menschen anrufen. */}
+            {kunde.telefonWaehlbar ? (
+              <a href={`tel:${kunde.telefonWaehlbar}`}
                  className="fi-primaerknopf inline-flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold text-white">
                 <ZeichenTelefon size={16} />
                 Anrufen
               </a>
+            ) : kunde.telefon ? (
+              <span className="inline-flex flex-col px-3 py-2 text-[12px] font-medium"
+                    style={{
+                      borderRadius: "var(--fi-radius-knopf)",
+                      background: "var(--fi-flaeche-warnung, #fffbeb)",
+                      color: "var(--fi-tier2)",
+                      border: "1px solid var(--fi-tier2)",
+                    }}>
+                <span className="fi-zahl font-bold">{kunde.telefon}</span>
+                <span className="text-[10.5px] leading-tight">Ländervorwahl fehlt — in der Akte ergänzen</span>
+              </span>
             ) : (
               <span className="px-3 py-2.5 text-[12px] font-medium"
                     style={{
@@ -802,21 +839,54 @@ function KundenKarte({
               </span>
             )}
 
-            <Aktion label="Erreicht"
-                    laeuft={laeuft === "erreicht"} disabled={!!laeuft}
-                    onClick={() => fuehreAus("erreicht", "/aktivitaet", { art: "erreicht" },
-                      "Als erreicht dokumentiert", "var(--fi-erfolg)")} />
+            {kunde.email && (
+              <a href={`mailto:${kunde.email}`}
+                 className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-2.5 text-[12.5px] font-semibold"
+                 title={kunde.email}>
+                E-Mail
+              </a>
+            )}
+          </div>
+
+          {/* ── ERGEBNIS DOKUMENTIEREN ───────────────────────────────────────
+              Vorher gab es hier vier Möglichkeiten. Es fehlten „Erreicht –
+              abgelehnt", „Mailbox besprochen" und „Rückruf" — genau die drei
+              Fälle, die im Telefonalltag am häufigsten übrig bleiben. Wer sie
+              dokumentieren wollte, musste in „Meine Kunden" wechseln, und dort
+              hatte das Ergebnis keine Wirkung auf diese Liste.
+              Jetzt steht der vollständige Satz hier, in der Reihenfolge der
+              Häufigkeit. */}
+          <p className="mt-3 mb-1.5 text-[11px] font-semibold uppercase tracking-[.06em]"
+             style={{ color: "var(--fi-text-still)" }}>
+            Ergebnis festhalten
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Aktion label="Zahlt sofort"
+                    laeuft={laeuft === "sofort"} disabled={!!laeuft}
+                    onClick={() => fuehreAus("sofort", "/aktivitaet", { art: "erreicht_zahlt_gleich" },
+                      "Zahlt sofort", "var(--fi-erfolg)")} />
+            <Aktion label="Zahlt am …"
+                    laeuft={laeuft === "zusage"} disabled={!!laeuft}
+                    onClick={() => { setTerminOffen(false); setDatumOffen((o) => !o); }} />
             <Aktion label="Nicht erreicht"
                     laeuft={laeuft === "nicht"} disabled={!!laeuft}
                     onClick={() => fuehreAus("nicht", "/aktivitaet", { art: "nicht_erreicht" },
                       "Nicht erreicht — morgen erneut", "var(--fi-tier2)")} />
-            <Aktion label="Zahlt am …"
-                    laeuft={laeuft === "zusage"} disabled={!!laeuft}
-                    onClick={() => setDatumOffen((o) => !o)} />
-            <Aktion label="Blockiert"
-                    laeuft={laeuft === "blockiert"} disabled={!!laeuft}
-                    onClick={() => fuehreAus("blockiert", "/aktivitaet", { art: "blockiert" },
-                      "Kunde will nicht kontaktiert werden", "var(--fi-tier1)")} />
+            <Aktion label="Mailbox besprochen"
+                    laeuft={laeuft === "mailbox"} disabled={!!laeuft}
+                    onClick={() => fuehreAus("mailbox", "/aktivitaet", { art: "mailbox" },
+                      "Mailbox besprochen", "var(--fi-tier2)")} />
+            <Aktion label="Rückruf vereinbart"
+                    laeuft={laeuft === "rueckruf"} disabled={!!laeuft}
+                    onClick={() => { setDatumOffen(false); setTerminOffen((o) => !o); }} />
+            <Aktion label="Erreicht – abgelehnt"
+                    laeuft={laeuft === "abgelehnt"} disabled={!!laeuft}
+                    onClick={() => fuehreAus("abgelehnt", "/aktivitaet", { art: "erreicht_abgelehnt" },
+                      "Abgelehnt", "var(--fi-tier1)")} />
+            <Aktion label="Falsche Nummer"
+                    laeuft={laeuft === "nummer"} disabled={!!laeuft}
+                    onClick={() => fuehreAus("nummer", "/aktivitaet", { art: "nummer_falsch" },
+                      "Falsche Nummer notiert", "var(--fi-tier3)")} />
 
             {/* Zähler tertiär und rechts unten — nur wenn es etwas zu sagen
                 gibt. „0× nicht erreicht" ist keine Information. */}
@@ -845,7 +915,8 @@ function KundenKarte({
               <button
                 type="button"
                 disabled={!datumWert || !!laeuft}
-                onClick={() => fuehreAus("zusage", "/zusage", { datum: datumWert },
+                onClick={() => fuehreAus("zusage", "/aktivitaet",
+                  { art: "erreicht_zahlt_am", zusageDatum: datumWert },
                   `Zusage für ${datum(datumWert)} notiert`, "var(--fi-tint)")}
                 className="px-3 py-2 rounded-lg text-[12px] font-bold text-white transition-transform duration-150
                            active:scale-[0.96] disabled:opacity-40"
@@ -855,6 +926,74 @@ function KundenKarte({
             </div>
           </div>
         </div>
+
+        {/* Terminfeld für den Rückruf. Eigenes Feld, nicht dasselbe wie die
+            Zusage: Ein Rückruf ist keine Zahlungsvereinbarung, und beides
+            gleichzeitig zu speichern hätte die Zusage überschrieben. */}
+        <div className="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+             style={{ gridTemplateRows: terminOffen ? "1fr" : "0fr" }}>
+          <div className="overflow-hidden">
+            <div className="mt-2.5 p-3 rounded-xl flex flex-wrap items-center gap-2" style={{ background: "var(--fi-seite)" }}>
+              <label className="text-[12px] font-semibold" style={{ color: "var(--fi-text-leise)" }}>
+                Rückruf am
+              </label>
+              <input type="date" value={terminWert} onChange={(e) => setTerminWert(e.target.value)}
+                     min={new Date().toISOString().slice(0, 10)}
+                     className="px-2.5 py-2 rounded-lg border text-[13px] outline-none bg-white"
+                     style={{ borderColor: "var(--fi-linie)" }} />
+              <button
+                type="button"
+                disabled={!terminWert || !!laeuft}
+                onClick={() => fuehreAus("rueckruf", "/aktivitaet",
+                  { art: "rueckruf_termin", terminDatum: terminWert },
+                  `Rückruf am ${datum(terminWert)} vorgemerkt`, "var(--fi-tint)")}
+                className="px-3 py-2 rounded-lg text-[12px] font-bold text-white transition-transform duration-150
+                           active:scale-[0.96] disabled:opacity-40"
+                style={{ background: "var(--fi-primaer)" }}>
+                Speichern
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── STAMMDATEN (Meldung 04.08.2026) ───────────────────────────────
+            Sie fehlten hier vollständig. Der Agent musste den Kunden zusätzlich
+            unter „Meine Kunden" suchen, nur um am Telefon die Adresse zu
+            bestätigen oder die Zahlungsreferenz vorzulesen. Zugeklappt, weil sie
+            nicht bei jedem Anruf gebraucht werden — aber EINEN Tipp entfernt. */}
+        {(kunde.stammdaten || kunde.zahlung?.referenz) && (
+          <div className="mt-2.5">
+            <button type="button" onClick={() => setStammOffen((o) => !o)}
+                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold"
+                    style={{ color: "var(--fi-primaer)" }}>
+              {stammOffen ? "Stammdaten schließen" : "Stammdaten ansehen"}
+            </button>
+            <div className="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                 style={{ gridTemplateRows: stammOffen ? "1fr" : "0fr" }}>
+              <div className="overflow-hidden">
+                <dl className="mt-2 p-3 rounded-xl text-[12.5px]" style={{ background: "var(--fi-seite)" }}>
+                  {[
+                    ["Adresse", [kunde.stammdaten?.strasse, [kunde.stammdaten?.plz, kunde.stammdaten?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null],
+                    ["Land", kunde.stammdaten?.land || null],
+                    ["Geburtsdatum", kunde.stammdaten?.geburtsdatum ? datum(String(kunde.stammdaten.geburtsdatum).slice(0, 10)) : null],
+                    ["E-Mail", kunde.email],
+                    ["Telefon", kunde.telefon],
+                    ["Verwendungszweck", kunde.zahlung?.referenz || null],
+                    ["Paket", kunde.produkt],
+                  ].map(([label, wert]) => (
+                    <div key={String(label)} className="flex items-start gap-2 py-1">
+                      <dt className="w-[130px] shrink-0" style={{ color: "var(--fi-text-still)" }}>{label}</dt>
+                      <dd className="min-w-0 flex-1 font-medium break-words"
+                          style={{ color: wert ? "var(--fi-text)" : "var(--fi-text-still)" }}>
+                        {wert || "nicht hinterlegt"}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Zahlungsdetails senden — nur auf Tier-2-Karten */}
         {zeigeRechnung && (
@@ -1035,7 +1174,7 @@ function KundenDetail({
 
               <div className="flex gap-2">
                 {k.telefon && (
-                  <a href={`tel:${k.telefon.replace(/\s/g, "")}`}
+                  <a href={`tel:${k.telefonWaehlbar || k.telefon.replace(/\s/g, "")}`}
                      className="flex-1 inline-flex items-center justify-center py-2.5 rounded-xl text-[13px] font-bold text-white"
                      style={{ background: "linear-gradient(180deg, var(--fi-erfolg), #047857)" }}>
                     Anrufen: {k.telefon}

@@ -16,6 +16,8 @@
 
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { isAddonOrderRow } from "../fiaon-login-logic";
+import { nummerAusZeile } from "../lib/fiaon-telefon";
 
 const router = Router();
 
@@ -325,6 +327,16 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
     if (primaryApp) {
       const em = normEmail(appEmail(primaryApp));
       const ph = appPhoneDigits(primaryApp);
+      // Die Familie wird über DREI Wege gebildet: gleiche Referenz-Kette,
+      // gleiche E-Mail/Telefonnummer UND dieselbe Person.
+      //
+      // Der letzte Weg fehlte. Das Personen-Modell (fiaon_persons) verknüpft
+      // Bestellungen bereits sauber — auch dann, wenn der Kunde beim zweiten Kauf
+      // eine andere Adresse und eine andere Nummer angegeben hat. Die Akte
+      // bildete ihre Familie aber nach einer EIGENEN Regel und übersah genau
+      // diese Fälle: Stammdaten wirkten unvollständig, obwohl sie zwei Zeilen
+      // weiter standen, und dieselbe Person konnte in zwei Ansichten
+      // unterschiedlich aussehen.
       family = await sqlPool.unsafe(`
         SELECT a.*, ag.name AS agent_name, ${APP_PHONE_SQL} AS phone_digits
         FROM fiaon_applications a
@@ -332,8 +344,9 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
         WHERE a.ref = $3 OR a.merged_into = $3 OR a.superseded_by = $3
            OR ($1 <> '' AND LOWER(TRIM(COALESCE(a.email, a.contact_email, a.billing_email,''))) = $1)
            OR ($2 <> '' AND LENGTH($2) >= 7 AND RIGHT(COALESCE(${APP_PHONE_SQL},''),9) = RIGHT($2,9))
+           OR ($4::int IS NOT NULL AND a.person_id = $4::int)
         ORDER BY (a.payment_status = 'paid') DESC, a.created_at ASC`,
-        [em, ph, primaryApp.ref]);
+        [em, ph, primaryApp.ref, primaryApp.person_id ?? null]);
       // Primärsatz = bezahlter Gewinner der sichtbaren Familie, sonst wie geladen.
       const visible = family.filter((f) => !f.merged_into);
       const paidVisible = visible.find((f) => f.payment_status === "paid");
@@ -426,9 +439,72 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
         [nameKey, familyRefs.length ? familyRefs : ["__none__"]]);
     }
 
-    // Sichere Dubletten IN der Familie (mehrere sichtbare Datensätze derselben Person)
+    // ── VOLLSTÄNDIGE STAMMDATEN (Meldung 04.08.2026) ─────────────────────────
+    // Die Akte zeigte nur die Felder der EINEN Bestellung, die als Primärsatz
+    // gewählt wurde. Trägt der Kunde Adresse und Geburtsdatum bei seiner ersten
+    // Bestellung ein und kauft später ein zweites Produkt, war die Akte leer,
+    // obwohl die Daten zwei Zeilen weiter standen. Gemessen: 107 Bestellungen
+    // mit Lücken, die aus einer Schwesterbestellung derselben Person gefüllt
+    // werden können.
+    //
+    // Regel: Der Primärsatz bleibt die Wahrheit. NUR leere Felder werden aus der
+    // Familie ergänzt — jüngste brauchbare Angabe zuerst. Nichts wird
+    // überschrieben, und jede Ergänzung ist nachvollziehbar (`ergaenzt`).
+    const ERGAENZBAR = [
+      "first_name", "last_name", "contact_name", "company_name",
+      "email", "contact_email", "billing_email",
+      "phone", "phone_country_code", "contact_phone",
+      "street", "zip", "city", "country", "birthdate", "nationality",
+    ] as const;
+    const ergaenzt: { feld: string; ausRef: string }[] = [];
+    if (primaryApp && family.length > 1) {
+      const geschwister = family
+        .filter((f) => f.ref !== primaryApp.ref)
+        .sort((a, b) => +new Date(b.created_at || 0) - +new Date(a.created_at || 0));
+      for (const feld of ERGAENZBAR) {
+        const wert = (primaryApp as any)[feld];
+        const fehlt = wert === null || wert === undefined || String(wert).trim() === "";
+        if (!fehlt) continue;
+        const quelle = geschwister.find((g) => {
+          const v = (g as any)[feld];
+          return v !== null && v !== undefined && String(v).trim() !== "";
+        });
+        if (quelle) {
+          (primaryApp as any)[feld] = (quelle as any)[feld];
+          ergaenzt.push({ feld, ausRef: quelle.ref });
+        }
+      }
+    }
+
+    // ── DUBLETTEN: nur echte, nicht jedes Zweitprodukt ───────────────────────
+    // Vorher galt JEDE zweite sichtbare Bestellung als Dublettenverdacht. Damit
+    // schrie die Akte bei jedem Kunden „Dubletten!", der zusätzlich zum Paket
+    // eine Bonitätsauskunft gekauft hat — also beim besten Teil des Bestands.
+    // Ein Zusammenführen wäre dort sogar falsch: Es sind zwei bezahlte Produkte.
+    //
+    // Es gilt dieselbe Kategoriegrenze wie in `supersedeSisterOrders`:
+    // Stufenpaket (Kontoaktivierung) und Zusatzprodukt (Bonitätsauskunft, 74 €)
+    // sind verschiedene Dinge. Eine Dublette liegt nur INNERHALB einer Kategorie
+    // vor — und auch nur, wenn höchstens eine der beiden bezahlt ist. Zwei
+    // bezahlte Bestellungen derselben Kategorie sind kein Merge-Fall, sondern
+    // ein Geldthema (Doppelzahlung) und stehen weiter unten als Warnung.
     const visibleFamily = family.filter((f) => !f.merged_into);
-    const mergeCandidates = visibleFamily.length > 1 ? visibleFamily : [];
+    const kategorie = (f: any) => (isAddonOrderRow(f) ? "zusatz" : "paket");
+    const gleicheKategorie = new Map<string, any[]>();
+    for (const f of visibleFamily) {
+      const k = kategorie(f);
+      gleicheKategorie.set(k, [...(gleicheKategorie.get(k) || []), f]);
+    }
+    // Nur LEBENDE Bestellungen zählen. Abgelaufene, storniete und ersetzte sind
+    // erledigt — ein Zusammenführen ändert an ihnen nichts. Vorher meldete die
+    // Akte „Dubletten!", weil ein Kunde vor Monaten vier Mal auf denselben Knopf
+    // geklickt hatte und alle vier Bestellungen abgelaufen sind.
+    const LEBENDIG = new Set(["pending_payment", "claimed_paid", "paid"]);
+    const echteDubletten = Array.from(gleicheKategorie.values())
+      .map((gruppe) => gruppe.filter((f) => LEBENDIG.has(String(f.payment_status))))
+      .filter((gruppe) => gruppe.length > 1 && gruppe.filter((f) => f.payment_status === "paid").length <= 1)
+      .flat();
+    const mergeCandidates = echteDubletten.length > 1 ? echteDubletten : [];
     // Gewinner-Vorschlag: bezahlt > angekündigt > offen; mit Agent > ohne; vollständiger.
     let suggestedWinner: string | null = null;
     if (mergeCandidates.length > 1) {
@@ -448,9 +524,14 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
       name: primaryApp ? appName(primaryApp) : ([primaryLead.vorname, primaryLead.nachname].filter(Boolean).join(" ") || primaryLead.email || primaryLead.telefon || `Lead #${primaryLead.id}`),
       lifecycle: lifecycleOf(primaryApp, primaryLead || (leads.length ? leads[0] : null)),
       email: primaryApp ? appEmail(primaryApp) : primaryLead?.email || null,
+      // Nummer in wählbarer Form: Vorwahl und Nummer werden zusammengesetzt,
+      // statt sie nur aneinanderzuhängen (das ergab bei fehlender Vorwahl eine
+      // nicht wählbare Nummer).
       phone: primaryApp
-        ? (`${primaryApp.phone_country_code || ""}${primaryApp.phone || ""}` || primaryApp.contact_phone || null)
+        ? (nummerAusZeile(primaryApp).anzeige || primaryApp.contact_phone || null)
         : primaryLead?.telefon || null,
+      phoneWaehlbar: primaryApp ? nummerAusZeile(primaryApp).waehlbar : null,
+      phoneHinweis: primaryApp ? nummerAusZeile(primaryApp).hinweis : null,
       agentId: primaryApp ? primaryApp.assigned_agent_id : primaryLead?.assigned_agent_id || null,
       agentName: primaryApp
         ? (family.find((f) => f.ref === primaryApp.ref)?.agent_name || null)
@@ -458,7 +539,11 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
       seit: primaryApp ? primaryApp.created_at : primaryLead?.erstellt_am,
       commissionBasis: primaryApp?.commission_basis || null,
       commissionBasisNote: primaryApp?.commission_basis_note || null,
-      duplicateSuspicion: mergeCandidates.length > 1 || nameSuspects.length > 0,
+      // Nur echte Dubletten lösen die Warnfarbe aus. Namensgleichheit bei
+      // anderer E-Mail und anderer Nummer ist ein HINWEIS, kein Verdacht —
+      // „Müller" gibt es mehrfach. Sie wird unten separat gemeldet.
+      duplicateSuspicion: mergeCandidates.length > 1,
+      namensHinweise: nameSuspects.length,
       gdprDeleted: Boolean(primaryApp?.gdpr_deleted_at),
       dismissedAt: primaryApp?.dismissed_at || primaryLead?.dismissed_at || null,
     };
@@ -466,6 +551,9 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
     res.json({
       ok: true,
       head,
+      // Welche Felder aus einer Schwesterbestellung ergänzt wurden — die Akte
+      // zeigt das an, damit niemand rätselt, woher ein Wert kommt.
+      ergaenzt,
       app: primaryApp
         ? {
             ref: primaryApp.ref,
@@ -479,7 +567,9 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
             companyName: primaryApp.company_name,
             email: primaryApp.email,
             contactEmail: primaryApp.contact_email,
-            phone: `${primaryApp.phone_country_code || ""}${primaryApp.phone || ""}` || primaryApp.contact_phone || "",
+            phone: nummerAusZeile(primaryApp).anzeige || primaryApp.contact_phone || "",
+            phoneWaehlbar: nummerAusZeile(primaryApp).waehlbar,
+            phoneHinweis: nummerAusZeile(primaryApp).hinweis,
             street: primaryApp.street,
             zip: primaryApp.zip,
             city: primaryApp.city,

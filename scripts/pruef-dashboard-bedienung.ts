@@ -97,8 +97,29 @@ async function listenPruefen(cookie: string) {
       { timeout: 15_000 },
     ).catch(() => {});
     const zeilen = page.locator(".df-zeile");
-    const anzahl = await zeilen.count();
-    pruefe("Fenster enthält Einträge mit Namen", anzahl > 0, `Zeilen: ${anzahl}`);
+    let anzahl = await zeilen.count();
+    // Die erste Kachel ist „Umsatz heute". Kurz nach Mitternacht ist sie ECHT
+    // leer — ein Test, der dann rot wird, misst die Uhrzeit und nicht die
+    // Funktion. Also: entweder Zeilen ODER ein sauberer Leerzustand. Für die
+    // folgenden Prüfungen wird dann auf einen Reiter mit Inhalt gewechselt.
+    const fensterText = await page.locator('[role="dialog"]').innerText();
+    pruefe("Kennzahl öffnet eine Liste (Einträge oder klarer Leerzustand)",
+      anzahl > 0 || /Kein Eintrag|Keine Einträge|nichts/i.test(fensterText),
+      `Zeilen: ${anzahl}`);
+    if (anzahl === 0) {
+      // Auf einen Reiter mit Bestand wechseln, damit die Zeilen-Prüfungen
+      // (Akte-Link, Filter) trotzdem etwas zu prüfen haben.
+      for (const reiter of ["Dieser Monat", "Alle", "Alle offenen"]) {
+        const k = page.getByRole("button", { name: reiter, exact: true });
+        if (await k.count()) {
+          await k.first().click();
+          await page.waitForTimeout(1500);
+          anzahl = await zeilen.count();
+          if (anzahl > 0) break;
+        }
+      }
+    }
+    pruefe("Liste enthält Einträge mit Namen", anzahl > 0, `Zeilen: ${anzahl}`);
     if (anzahl > 0) {
       const ersteAkte = await zeilen.first().locator('a[href^="/admin/kunde/"]').first().getAttribute("href");
       pruefe('„Akte öffnen" zeigt auf eine echte Akte', !!ersteAkte && ersteAkte.startsWith("/admin/kunde/FIAON-"),

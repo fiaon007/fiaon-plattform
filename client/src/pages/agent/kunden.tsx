@@ -84,6 +84,9 @@ export interface Customer {
   // P2-B Transparenz: Grund für (keine) Provision
   commission_basis?: "betreut" | "direktzahler" | "admin" | "altmodell" | null;
   commission_basis_note?: string | null;
+  phoneWaehlbar?: string | null;
+  phoneAnzeige?: string | null;
+  phoneHinweis?: string | null;
   last_contact?: { type: string; outcome: string | null; agent_name: string; created_at: string } | null;
   next_appointment?: string | null;
   number_corrected_at?: string | null; // #23: Kunde hat seine Nummer selbst korrigiert
@@ -130,9 +133,30 @@ export function custName(c: Customer): string {
   return [c.first_name, c.last_name].filter(Boolean).join(" ") || c.contact_name || "—";
 }
 
+/**
+ * Anzeigenummer. Der Server liefert unter `phoneAnzeige` bereits die
+ * zusammengesetzte Form (+49 171 …); die alten Felder bleiben als Rückfall,
+ * damit ein noch geladener Browser-Tab nichts verliert.
+ */
 export function custPhone(c: Customer): string | null {
+  if (c.phoneAnzeige) return c.phoneAnzeige;
   if (c.phone) return `${c.phone_country_code || ""}${c.phone}`.replace(/\s/g, "");
   if (c.contact_phone) return c.contact_phone.replace(/\s/g, "");
+  return null;
+}
+
+/**
+ * Wählbare Nummer für `tel:`. Getrennt von der Anzeige: Fehlt die
+ * Ländervorwahl, darf NICHT gewählt werden — das Telefon würde eine Ortsnummer
+ * im eigenen Netz versuchen. Der Server entscheidet das, weil nur er das
+ * Herkunftsland kennt.
+ */
+export function custPhoneWaehlbar(c: Customer): string | null {
+  if (c.phoneWaehlbar) return c.phoneWaehlbar;
+  // Rückfall: nur wenn die Nummer selbst international ist.
+  const roh = `${c.phone_country_code || ""}${c.phone || ""}`.replace(/\s/g, "");
+  if (roh.startsWith("+")) return roh;
+  if ((c.contact_phone || "").trim().startsWith("+")) return (c.contact_phone || "").replace(/\s/g, "");
   return null;
 }
 
@@ -416,7 +440,7 @@ function KundenContent() {
                       <div className="flex items-center gap-1.5 justify-end">
                         {phone && (
                           <a
-                            href={`tel:${phone}`}
+                            href={`tel:${custPhoneWaehlbar(c) || phone}`}
                             onClick={(e) => e.stopPropagation()}
                             className={`${btnPrimary} px-3 py-2 inline-flex items-center gap-1.5`}
                           >
@@ -538,7 +562,7 @@ export function CustomerCard({ c, onOpen }: { c: Customer; onOpen: () => void })
       <div className="flex gap-2">
         {phone ? (
           <a
-            href={`tel:${phone}`}
+            href={`tel:${custPhoneWaehlbar(c) || phone}`}
             onClick={(e) => e.stopPropagation()}
             className={`${btnPrimary} flex-1 text-center py-3 inline-flex items-center justify-center gap-2`}
             style={{ minHeight: 46 }}
@@ -1167,7 +1191,7 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {phone && (
-              <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()}
+              <a href={`tel:${custPhoneWaehlbar(detail) || phone}`} onClick={(e) => e.stopPropagation()}
                 className={`${btnPrimary} px-4 py-2.5 hidden md:inline-flex items-center gap-2`} style={{ minHeight: 42 }}>
                 <Phone size={14} strokeWidth={2} /> Anrufen
               </a>
@@ -1233,7 +1257,7 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
         {/* Mobile sticky Anruf-Aktion */}
         {phone && (
           <div className="md:hidden shrink-0 border-t border-slate-100 bg-white px-4 py-3" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
-            <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()}
+            <a href={`tel:${custPhoneWaehlbar(detail) || phone}`} onClick={(e) => e.stopPropagation()}
               className={`${btnPrimary} w-full py-3 inline-flex items-center justify-center gap-2`} style={{ minHeight: 48 }}>
               <Phone size={15} strokeWidth={2} /> {custName(detail)} anrufen
             </a>

@@ -34,6 +34,11 @@
 
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { waehlbareNummer } from "../lib/fiaon-telefon";
+import { pruefeTerminZukunft } from "../lib/fiaon-time";
+import {
+  ERGEBNISSE, ERGEBNIS_TEXT, brauchtDatum, ergebnisAnwenden, istErgebnis, type Ergebnis,
+} from "../lib/fiaon-kontakt-ergebnis";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
 import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
@@ -93,7 +98,54 @@ async function meinePerson(personId: number, agentId: number) {
            -- Ziel für Schreibvorgänge in den Kontaktverlauf
            (SELECT a.ref FROM fiaon_applications a
              WHERE a.person_id = p.id AND a.merged_into IS NULL
-             ORDER BY a.created_at DESC LIMIT 1) AS schreib_ref
+             ORDER BY a.created_at DESC LIMIT 1) AS schreib_ref,
+           -- ── STAMMDATEN (Meldung 04.08.2026) ──────────────────────────────
+           -- In „Heute" fehlten Adresse, Geburtsdatum und Zahlungsreferenz. Der
+           -- Agent musste den Kunden zusätzlich unter „Meine Kunden" suchen, um
+           -- am Telefon Auskunft geben zu können. Sie kommen aus der Person UND
+           -- ergänzend aus der Bestellung: Was in der Person fehlt, steht oft in
+           -- der Bestellung — und umgekehrt.
+           COALESCE(NULLIF(p.street, ''), (SELECT NULLIF(a.street,'') FROM fiaon_applications a
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.street,'') IS NOT NULL
+             ORDER BY a.created_at DESC LIMIT 1)) AS strasse,
+           COALESCE(NULLIF(p.zip, ''), (SELECT NULLIF(a.zip,'') FROM fiaon_applications a
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.zip,'') IS NOT NULL
+             ORDER BY a.created_at DESC LIMIT 1)) AS plz,
+           COALESCE(NULLIF(p.city, ''), (SELECT NULLIF(a.city,'') FROM fiaon_applications a
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.city,'') IS NOT NULL
+             ORDER BY a.created_at DESC LIMIT 1)) AS ort,
+           COALESCE(NULLIF(p.country, ''), (SELECT NULLIF(a.country,'') FROM fiaon_applications a
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.country,'') IS NOT NULL
+             ORDER BY a.created_at DESC LIMIT 1)) AS country,
+           COALESCE(p.birthdate, (SELECT a.birthdate FROM fiaon_applications a
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.birthdate IS NOT NULL
+             ORDER BY a.created_at DESC LIMIT 1)) AS geburtsdatum,
+           -- Telefon der Bestellung inkl. getrennter Ländervorwahl: genau die
+           -- Vorwahl, die in primary_phone bei 2.058 Personen fehlt.
+           (SELECT a.phone FROM fiaon_applications a
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.phone,'') IS NOT NULL
+             ORDER BY a.created_at DESC LIMIT 1) AS app_phone,
+           (SELECT a.phone_country_code FROM fiaon_applications a
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.phone,'') IS NOT NULL
+             ORDER BY a.created_at DESC LIMIT 1) AS app_vorwahl,
+           (SELECT NULLIF(a.contact_phone,'') FROM fiaon_applications a
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.contact_phone,'') IS NOT NULL
+             ORDER BY a.created_at DESC LIMIT 1) AS app_contact_phone,
+           -- Zahlung: Referenz, Status und Frist gehören auf die Karte, weil
+           -- der Kunde am Telefon genau danach fragt.
+           (SELECT a.payment_reference FROM fiaon_applications a
+             WHERE a.person_id = p.id AND a.merged_into IS NULL
+             ORDER BY a.created_at DESC LIMIT 1) AS zahlungsreferenz,
+           (SELECT a.payment_status FROM fiaon_applications a
+             WHERE a.person_id = p.id AND a.merged_into IS NULL
+             ORDER BY a.created_at DESC LIMIT 1) AS zahlungsstatus,
+           (SELECT a.payment_due_date FROM fiaon_applications a
+             WHERE a.person_id = p.id AND a.merged_into IS NULL
+             ORDER BY a.created_at DESC LIMIT 1) AS zahlungsfrist,
+           (SELECT COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,''))
+             FROM fiaon_applications a
+             WHERE a.person_id = p.id AND a.merged_into IS NULL
+             ORDER BY a.created_at DESC LIMIT 1) AS app_email
     FROM fiaon_persons p
     WHERE p.id = ${personId}
       AND p.assigned_agent_id = ${agentId}
@@ -105,11 +157,42 @@ async function meinePerson(personId: number, agentId: number) {
 /** Die Karten-Antwort. Enthält alles, was die Oberfläche zum Handeln braucht. */
 function kartePayload(p: any, letzteAktivitaet?: any) {
   const h = hinweisFuer(p.tier_reason as TierGrund, p.letzter_status);
+  // Wählbare Nummer: die Bestellnummer mit getrennter Vorwahl zuerst, danach die
+  // Sammelnummer der Person. Ohne diese Zusammensetzung fehlte im `tel:`-Link
+  // die Ländervorwahl — der Anruf ging ins Leere.
+  const tel = waehlbareNummer(
+    [
+      { nummer: p.app_phone, vorwahl: p.app_vorwahl },
+      { nummer: p.primary_phone },
+      { nummer: p.app_contact_phone },
+    ],
+    p.country,
+  );
   return {
     personId: p.id,
     name: p.name,
-    telefon: p.primary_phone || null,
-    email: p.primary_email || null,
+    // `telefon` bleibt die Anzeige (abwärtskompatibel), `telefonWaehlbar` ist
+    // die Form für den Anruf. Getrennt, weil eine Nummer ohne Vorwahl angezeigt
+    // werden soll, aber NICHT gewählt.
+    telefon: tel.anzeige || p.primary_phone || null,
+    telefonWaehlbar: tel.waehlbar,
+    telefonHinweis: tel.hinweis,
+    email: p.primary_email || p.app_email || null,
+    // Stammdaten für die Karte — damit niemand mehr zwischen zwei Ansichten
+    // wechseln muss, um am Telefon Auskunft zu geben.
+    stammdaten: {
+      strasse: p.strasse || null,
+      plz: p.plz || null,
+      ort: p.ort || null,
+      land: p.country || null,
+      geburtsdatum: p.geburtsdatum || null,
+    },
+    zahlung: {
+      referenz: p.zahlungsreferenz || null,
+      status: p.zahlungsstatus || null,
+      frist: p.zahlungsfrist || null,
+      ref: p.schreib_ref || null,
+    },
     tier: p.priority_tier,
     tierGrund: p.tier_reason,
     titel: h.titel,
@@ -308,7 +391,32 @@ router.get("/agent/crm/kunden", requireAgent, async (req: AgentRequest, res: Res
                ORDER BY a.created_at DESC LIMIT 1) AS amount_due,
              (SELECT MAX(c.created_at) FROM fiaon_contact_log c
                JOIN fiaon_applications ap ON ap.ref = c.ref
-               WHERE ap.person_id = p.id AND c.voided_at IS NULL) AS letzte_am
+               WHERE ap.person_id = p.id AND c.voided_at IS NULL) AS letzte_am,
+             -- Die Karte in der LISTE hat denselben Anruf-Knopf wie die
+             -- Detailansicht. Ohne diese drei Felder fehlte dort die
+             -- Ländervorwahl — der gemeldete Fehler trat also genau auf der
+             -- Liste auf, mit der die Agenten den ganzen Tag arbeiten.
+             (SELECT a.phone FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.phone,'') IS NOT NULL
+               ORDER BY a.created_at DESC LIMIT 1) AS app_phone,
+             (SELECT a.phone_country_code FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.phone,'') IS NOT NULL
+               ORDER BY a.created_at DESC LIMIT 1) AS app_vorwahl,
+             (SELECT NULLIF(a.contact_phone,'') FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.contact_phone,'') IS NOT NULL
+               ORDER BY a.created_at DESC LIMIT 1) AS app_contact_phone,
+             COALESCE(NULLIF(p.country,''), (SELECT NULLIF(a.country,'') FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.country,'') IS NOT NULL
+               ORDER BY a.created_at DESC LIMIT 1)) AS country,
+             (SELECT a.payment_reference FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL
+               ORDER BY a.created_at DESC LIMIT 1) AS zahlungsreferenz,
+             (SELECT a.payment_status FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL
+               ORDER BY a.created_at DESC LIMIT 1) AS zahlungsstatus,
+             (SELECT a.ref FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL
+               ORDER BY a.created_at DESC LIMIT 1) AS schreib_ref
       FROM fiaon_persons p
       WHERE p.assigned_agent_id = ${agentId}
         AND p.merged_into_person_id IS NULL
@@ -413,19 +521,54 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
 });
 
 // ───────────────────────────────────────────────────────────────────────────
-// POST /agent/kunden/:personId/aktivitaet
-//   art: erreicht | nicht_erreicht | blockiert | notiz
+// POST /agent/crm/kunden/:personId/aktivitaet
+//
+// UMBAU 04.08.2026 (Meldung der Agenten): Es gab hier nur vier Möglichkeiten —
+// erreicht, nicht erreicht, blockiert, notiz. Es fehlten „Erreicht – abgelehnt"
+// als eigenes Ergebnis, „Mailbox besprochen" und „Rückruf vereinbart". Wer
+// diese Fälle dokumentieren wollte, musste in „Meine Kunden" wechseln, und dort
+// hatte das Ergebnis wiederum keine Wirkung auf die Tagesliste.
+//
+// Jetzt nimmt dieser Endpunkt DENSELBEN Satz Ergebnisse wie „Meine Kunden" und
+// wendet ihn über dieselbe Funktion an. Die alten Kurznamen bleiben gültig,
+// damit ein offener Browser-Tab nach dem Deploy keine Fehlermeldung bekommt.
 // ───────────────────────────────────────────────────────────────────────────
+const ALT_NAMEN: Record<string, Ergebnis> = {
+  erreicht: "erreicht_zahlt_gleich",
+  nicht_erreicht: "nicht_erreicht",
+  blockiert: "erreicht_abgelehnt",
+};
+
 router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const personId = Number(req.params.personId);
     const art = String(req.body?.art || "").trim();
     const notiz = req.body?.notiz ? String(req.body.notiz).trim() : null;
     const wiedervorlage = req.body?.wiedervorlage ? String(req.body.wiedervorlage) : null;
+    const zusageDatum = req.body?.zusageDatum ? String(req.body.zusageDatum) : null;
+    const terminDatum = req.body?.terminDatum ? String(req.body.terminDatum) : null;
 
-    const erlaubt = ["erreicht", "nicht_erreicht", "blockiert", "notiz"];
-    if (!erlaubt.includes(art)) {
-      return res.status(400).json({ ok: false, error: `Unbekannte Aktivität. Erlaubt: ${erlaubt.join(", ")}` });
+    // Notiz bleibt ein eigener Fall: Sie ändert keinen Zustand.
+    const istNotiz = art === "notiz";
+    const ergebnis: Ergebnis | null = istNotiz ? null : (ALT_NAMEN[art] || (istErgebnis(art) ? art : null));
+    if (!istNotiz && !ergebnis) {
+      return res.status(400).json({
+        ok: false,
+        error: `Unbekanntes Ergebnis. Erlaubt: notiz, ${ERGEBNISSE.join(", ")}`,
+      });
+    }
+
+    // Pflichtdaten prüfen, BEVOR etwas geschrieben wird. Ein Rückruf ohne Termin
+    // und eine Zusage ohne Datum sind keine Dokumentation, sondern ein Loch.
+    if (ergebnis && brauchtDatum(ergebnis) === "zusage" && !zusageDatum) {
+      return res.status(400).json({ ok: false, error: "Bitte das zugesagte Zahlungsdatum angeben." });
+    }
+    if (ergebnis && brauchtDatum(ergebnis) === "termin" && !terminDatum) {
+      return res.status(400).json({ ok: false, error: "Bitte den vereinbarten Rückruf-Termin angeben." });
+    }
+    if (ergebnis === "rueckruf_termin") {
+      const fehler = pruefeTerminZukunft("rueckruf_termin", terminDatum);
+      if (fehler) return res.status(400).json({ ok: false, error: fehler });
     }
 
     const p = await meinePerson(personId, req.agent!.id);
@@ -437,64 +580,63 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
       });
     }
 
-    // Ergebnis-Werte des bestehenden Verlaufs weiterverwenden, damit alte und
-    // neue Einträge in derselben Auswertung zusammenpassen.
-    const outcome =
-      art === "erreicht" ? "erreicht_zahlt_gleich" :
-      art === "nicht_erreicht" ? "nicht_erreicht" :
-      art === "blockiert" ? "erreicht_abgelehnt" : null;
+    // 1. Verlauf schreiben — die Herkunft kennt nur dieser Aufrufer.
+    await sqlPool`
+      INSERT INTO fiaon_contact_log
+        (ref, agent_id, agent_name, type, outcome, note, promised_date, scheduled_at, created_at)
+      VALUES (${p.schreib_ref}, ${req.agent!.id}, ${req.agent!.name},
+              ${istNotiz ? "note" : "result"}, ${ergebnis},
+              ${notiz}, ${zusageDatum || null}, ${terminDatum || null}, NOW())
+    `;
 
-    await sqlPool.begin(async (tx) => {
-      await tx`
-        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, outcome, note, created_at)
-        VALUES (${p.schreib_ref}, ${req.agent!.id}, ${req.agent!.name},
-                ${art === "notiz" ? "note" : "result"}, ${outcome}, ${notiz}, NOW())
+    // 2. Zustand anwenden — gemeinsame Regel für beide Ansichten.
+    let wirkung = null;
+    if (ergebnis) {
+      wirkung = await ergebnisAnwenden({
+        ref: p.schreib_ref, personId, ergebnis,
+        zusageDatum, terminDatum, wiedervorlage,
+      });
+    } else if (wiedervorlage) {
+      // Notiz mit Wiedervorlage: erlaubt, aber ohne Ergebnis-Wirkung.
+      await sqlPool`
+        UPDATE fiaon_persons SET follow_up_date = ${wiedervorlage}::date, updated_at = NOW()
+        WHERE id = ${personId}
       `;
+    }
 
-      if (art === "nicht_erreicht") {
-        await tx`
-          UPDATE fiaon_persons
-             SET unreachable_count = unreachable_count + 1,
-                 follow_up_date = COALESCE(${wiedervorlage}::date, CURRENT_DATE + 1),
-                 updated_at = NOW()
-           WHERE id = ${personId}
-        `;
-      } else if (art === "blockiert") {
-        // Gesperrt heißt: aus jeder Anrufliste. Wiedervorlage wird gelöscht,
-        // sonst käme der Kunde über die Tagesliste zurück.
-        await tx`
-          UPDATE fiaon_persons
-             SET is_blocked = TRUE, follow_up_date = NULL, updated_at = NOW()
-           WHERE id = ${personId}
-        `;
-      } else if (wiedervorlage) {
-        await tx`
-          UPDATE fiaon_persons
-             SET follow_up_date = ${wiedervorlage}::date, updated_at = NOW()
-           WHERE id = ${personId}
-        `;
-      } else if (art === "erreicht") {
-        // Erreicht ohne Zusagedatum: morgen erneut ansehen, damit der Fall
-        // nicht aus der Tagesliste verschwindet.
-        await tx`
-          UPDATE fiaon_persons
-             SET follow_up_date = CURRENT_DATE + 1, updated_at = NOW()
-           WHERE id = ${personId} AND follow_up_date IS NULL
-        `;
-      }
-    });
+    // 3. „Falsche Nummer" bittet den Kunden per Mail um seine Nummer — derselbe
+    //    Weg wie in „Meine Kunden", damit beide Ansichten gleich handeln.
+    let nummerMail: { sent: boolean; reason?: string } | undefined;
+    if (ergebnis === "nummer_falsch") {
+      const [c] = await sqlPool`
+        SELECT COALESCE(NULLIF(email,''), NULLIF(contact_email,''), NULLIF(billing_email,'')) AS email,
+               COALESCE(first_name, contact_name) AS first_name
+        FROM fiaon_applications WHERE ref = ${p.schreib_ref}
+      `;
+      const { maybeSendNumberUpdateMail } = await import("../fiaon-number-update");
+      nummerMail = await maybeSendNumberUpdateMail("app", p.schreib_ref, {
+        email: c?.email, firstName: c?.first_name,
+      });
+    }
 
-    // Nachschub nach der Statusaenderung. Vor allem "blockiert" senkt den
+    // Nachschub nach der Statusaenderung. Vor allem "abgelehnt" senkt den
     // offenen Bestand — ohne Nachschub würde der Agent unter die Schwelle
     // fallen und bis zum nächsten Morgen mit einer halbleeren Liste arbeiten.
     // Fire-and-forget: Der Nachschub darf die Antwort nicht verzögern und ein
     // Fehler dabei darf die dokumentierte Aktivität nicht zurücknehmen.
-    if (art === "blockiert" || art === "erreicht") {
+    if (ergebnis === "erreicht_abgelehnt" || ergebnis === "erreicht_zahlt_gleich" || ergebnis === "erreicht_zahlt_am") {
       nachschub(req.agent!.id).catch((e) => console.error("[AGENT-KUNDEN] Nachschub:", e));
     }
 
     const neu = await meinePerson(personId, req.agent!.id);
-    res.json({ ok: true, kunde: kartePayload(neu, await letzteAktivitaetVon(personId)) });
+    res.json({
+      ok: true,
+      kunde: kartePayload(neu, await letzteAktivitaetVon(personId)),
+      wirkung,
+      nummerMail,
+      // Klartext für die Rückmeldung — der Agent soll sehen, was sein Klick bewirkt hat.
+      meldung: wirkung?.meldung || (istNotiz ? "Notiz gespeichert." : ERGEBNIS_TEXT[ergebnis!]),
+    });
   } catch (err) {
     console.error("[AGENT-KUNDEN] aktivitaet:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

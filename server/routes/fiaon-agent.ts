@@ -22,6 +22,8 @@ import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
 import { renderInvoicePdf, signInvoiceUrl, ensureInvoiceNumber } from "../fiaon-invoice";
 import { fiaonBaseUrl } from "../fiaon-base-url";
 import { parseBerlinInput, formatBerlin, pruefeTerminZukunft } from "../lib/fiaon-time";
+import { ERGEBNISSE, ergebnisAnwenden, type Ergebnis } from "../lib/fiaon-kontakt-ergebnis";
+import { nummerAusZeile } from "../lib/fiaon-telefon";
 
 const router = Router();
 
@@ -1289,7 +1291,7 @@ router.post("/agent/profile/bank", requireAgent, async (req: AgentRequest, res) 
 const AGENT_CUSTOMER_FIELDS = `
   a.ref, a.type, a.first_name, a.last_name, a.contact_name, a.company_name,
   COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,'')) AS email,
-  a.phone, a.phone_country_code, a.contact_phone,
+  a.phone, a.phone_country_code, a.contact_phone, a.country,
   a.pack_name, a.pack_key, a.amount_due, a.currency, a.payment_reference, a.payment_status,
   a.payment_due_date, a.claimed_paid_at, a.promised_pay_date, a.agent_email_sent_at,
   a.invoice_number, a.created_at, a.number_corrected_at
@@ -1320,7 +1322,22 @@ router.get("/agent/customers", requireAgent, async (req: AgentRequest, res) => {
       LEFT JOIN fiaon_agents lg ON lg.id = a.locked_by_agent_id
       WHERE a.merged_into IS NULL
         AND a.dismissed_at IS NULL
-        AND a.assigned_agent_id = $1
+        AND (
+          a.assigned_agent_id = $1
+          -- ── LÜCKE GESCHLOSSEN (Meldung 04.08.2026) ────────────────────────
+          -- Agenten fanden in „Heute" Kunden, die sie unter „Meine Kunden" nicht
+          -- aufrufen konnten. Ursache: „Heute" arbeitet mit PERSONEN, diese Liste
+          -- mit BESTELLUNGEN. Ist die Person dem Agenten zugewiesen, die
+          -- Bestellung aber (noch) nicht, fiel sie hier heraus — gemessen 3 bis 4
+          -- Fälle je Agent, also täglich.
+          -- Die Zuweisung der Person ist derselbe Besitznachweis wie die der
+          -- Bestellung; es werden also keine fremden Daten sichtbar.
+          OR EXISTS (
+            SELECT 1 FROM fiaon_persons p
+            WHERE p.id = a.person_id AND p.merged_into_person_id IS NULL
+              AND p.assigned_agent_id = $1
+          )
+        )
         AND a.payment_status IN ('pending_payment', 'claimed_paid', 'expired')
       ORDER BY (a.payment_status = 'claimed_paid') DESC, (a.payment_status = 'expired'),
                a.claimed_paid_at ASC NULLS LAST, a.created_at ASC
@@ -1345,6 +1362,11 @@ router.get("/agent/customers", requireAgent, async (req: AgentRequest, res) => {
     const now = Date.now();
     const enrich = (r: any) => ({
       ...r,
+      // Wählbare Nummer aus derselben Regel wie in „Heute": Vorwahl und Nummer
+      // werden zusammengesetzt, notfalls über das Land ergänzt. Vorher wurden
+      // sie im Browser nur aneinandergehängt — fehlte die Vorwahl, entstand ein
+      // Link, der nichts wählt.
+      ...(() => { const t = nummerAusZeile(r); return { phoneWaehlbar: t.waehlbar, phoneAnzeige: t.anzeige, phoneHinweis: t.hinweis }; })(),
       last_contact: lastLogByRef[r.ref] || null,
       next_appointment: openAppointments[r.ref] || null,
       locked_by_name: r.locked_by_agent_id && r.locked_by_agent_id !== me && r.locked_until && new Date(r.locked_until).getTime() > now ? r.locked_by_name : null,
@@ -1385,12 +1407,22 @@ router.get("/agent/customers", requireAgent, async (req: AgentRequest, res) => {
 async function requireEigenerKunde(req: AgentRequest, res: Response, next: NextFunction) {
   try {
     const ref = String(req.params.ref || "");
+    // Besitz gilt über die Bestellung ODER über die Person. Beides ist derselbe
+    // Nachweis — und wer einen Kunden in der Liste sieht, muss ihn auch
+    // bearbeiten können. Stünde hier nur die Bestellung, wäre der Kunde
+    // sichtbar, aber jede Dokumentation würde mit „nicht gefunden" abgewiesen.
     const [app] = await sqlPool`
-      SELECT assigned_agent_id FROM fiaon_applications
-      WHERE ref = ${ref} AND merged_into IS NULL
+      SELECT a.assigned_agent_id,
+             EXISTS (
+               SELECT 1 FROM fiaon_persons p
+               WHERE p.id = a.person_id AND p.merged_into_person_id IS NULL
+                 AND p.assigned_agent_id = ${req.agent!.id}
+             ) AS person_gehoert_mir
+      FROM fiaon_applications a
+      WHERE a.ref = ${ref} AND a.merged_into IS NULL
       LIMIT 1
     `;
-    if (!app || app.assigned_agent_id !== req.agent!.id) {
+    if (!app || (app.assigned_agent_id !== req.agent!.id && !app.person_gehoert_mir)) {
       return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
     }
     return next();
@@ -1735,6 +1767,36 @@ router.post("/agent/customers/:ref/dismiss", requireAgent, requireEigenerKunde, 
     if (rows.length === 0) {
       return res.status(409).json({ ok: false, error: "Kunde nicht gefunden, bereits aussortiert oder von einem Kollegen betreut." });
     }
+    // ── DER ZWEITE TEIL DESSELBEN FEHLERS (Meldung 04.08.2026) ──────────────
+    // „In Heute habe ich Kundenkontakte, die ich in Meine Kunden gar nicht
+    // finde." Ursache: Aussortieren betraf nur die BESTELLUNG. Die PERSON blieb
+    // in der Tagesliste — der Agent hatte „100 % abgelehnt" geklickt und bekam
+    // den Kunden am nächsten Morgen wieder vorgelegt, ohne ihn irgendwo öffnen
+    // zu können. Gemessen: 3 bis 4 solcher Fälle pro Agent.
+    //
+    // Jetzt zieht das Aussortieren die Person mit — je nach Grund
+    // unterschiedlich, denn „abgelehnt" und „keine Nummer" sind nicht dasselbe.
+    const [app] = await sqlPool`SELECT person_id FROM fiaon_applications WHERE ref = ${ref}`;
+    if (app?.person_id) {
+      if (reason === "abgelehnt" || reason === "kein_interesse") {
+        // Ein „nein" ist ein Ergebnis. Der Kunde erscheint in keiner Anrufliste
+        // mehr — dieselbe Wirkung wie „Erreicht – abgelehnt".
+        await sqlPool`
+          UPDATE fiaon_persons SET is_blocked = TRUE, follow_up_date = NULL, updated_at = NOW()
+          WHERE id = ${app.person_id}
+        `;
+      } else if (reason === "keine_nummer" || reason === "nummer_ungueltig") {
+        // Nicht sperren: Der Kunde will vielleicht zahlen, wir erreichen ihn nur
+        // nicht. Drei Tage Ruhe, bis die Nummer-Update-Mail wirken kann.
+        await sqlPool`
+          UPDATE fiaon_persons SET follow_up_date = CURRENT_DATE + 3, updated_at = NOW()
+          WHERE id = ${app.person_id}
+        `;
+      }
+      // „dublette" bleibt bewusst ohne Personen-Wirkung: Das Zusammenführen
+      // entscheidet, welche Person weiterlebt.
+    }
+
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
       VALUES (${ref}, ${me}, ${req.agent!.name}, 'system',
@@ -1748,10 +1810,10 @@ router.post("/agent/customers/:ref/dismiss", requireAgent, requireEigenerKunde, 
   }
 });
 
-const VALID_OUTCOMES = new Set([
-  "erreicht_zahlt_gleich", "erreicht_zahlt_am", "erreicht_abgelehnt",
-  "nicht_erreicht", "mailbox", "rueckruf_termin", "nummer_falsch",
-]);
+// Die erlaubten Ergebnisse stehen jetzt in server/lib/fiaon-kontakt-ergebnis.ts —
+// derselbe Satz, den auch die Tagesliste („Heute") verwendet. Zwei getrennte
+// Listen waren der Grund, warum in „Heute" drei Ergebnisse fehlten.
+const VALID_OUTCOMES = new Set<string>(ERGEBNISSE);
 
 // Kontakt-Ergebnis (je Klick ein neuer Log-Eintrag; Termin-/Zusage-Daten optional)
 router.post("/agent/customers/:ref/contact-result", requireAgent, requireEigenerKunde, async (req: AgentRequest, res) => {
@@ -1775,11 +1837,20 @@ router.post("/agent/customers/:ref/contact-result", requireAgent, requireEigener
       promisedDate: promisedDate || null,
     });
 
-    // Zahlungs-Zusage am Antrag speichern (sichtbar auch im Admin)
-    if (promisedDate || outcome === "erreicht_zahlt_gleich") {
-      const promised = parseBerlinInput(promisedDate) || new Date();
-      await sqlPool`UPDATE fiaon_applications SET promised_pay_date = ${promised}, updated_at = NOW() WHERE ref = ${req.params.ref}`;
-    }
+    // ── DER GEMELDETE FEHLER (04.08.2026) ──────────────────────────────────
+    // Vorher wurde hier NUR `fiaon_applications.promised_pay_date` gesetzt. Die
+    // Tagesliste „Heute" filtert aber auf `fiaon_persons` (follow_up_date,
+    // promised_payment_date, is_blocked). Ein Ergebnis aus „Meine Kunden" hatte
+    // deshalb null Wirkung auf „Heute": Der Kunde stand am nächsten Morgen
+    // wieder da. Gemessen: 890 solcher Ergebnisse in 14 Tagen.
+    //
+    // Jetzt läuft beides über EINE Funktion — dieselbe, die „Heute" benutzt.
+    const wirkung = await ergebnisAnwenden({
+      ref: req.params.ref,
+      ergebnis: outcome,
+      zusageDatum: promisedDate || null,
+      terminDatum: scheduledAt || null,
+    });
 
     // #23: „Falsche Nummer" → optionale Selbst-Update-Mail (nur wenn E-Mail da,
     // max. 1×/Tag). Fire-and-forget; blockiert das Kontakt-Ergebnis nie.
@@ -1807,7 +1878,12 @@ router.post("/agent/customers/:ref/contact-result", requireAgent, requireEigener
       WHERE ref = ${req.params.ref}
     `;
 
-    res.json({ ok: true, entry, claimed: guard.claimed || false, akteClosed: true, numberUpdateMail });
+    res.json({
+      ok: true, entry, claimed: guard.claimed || false, akteClosed: true, numberUpdateMail,
+      // Damit der Agent SIEHT, was sein Klick bewirkt hat — vorher blieb offen,
+      // wann der Kunde wieder auf der Liste erscheint.
+      wirkung,
+    });
   } catch (err) {
     console.error("[FIAON-AGENT] contact-result:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

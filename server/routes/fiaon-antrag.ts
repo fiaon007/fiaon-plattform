@@ -2595,6 +2595,13 @@ router.post("/number-update/:token", async (req, res) => {
         RETURNING ref
       `;
       if (rows.length === 0) return res.status(404).json({ ok: false, error: "Datensatz nicht gefunden" });
+      // Die PERSON mitpflegen. Sonst korrigiert der Kunde seine Nummer, die
+      // Bestellung ist aktuell — und die Anrufliste der Agenten (die auf der
+      // Person arbeitet) zeigt weiter die alte, falsche Nummer.
+      await sqlPool`
+        UPDATE fiaon_persons SET primary_phone = ${normalized}, updated_at = NOW()
+        WHERE id = (SELECT person_id FROM fiaon_applications WHERE ref = ${t.id})
+      `.catch(() => {});
       await sqlPool`
         INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
         VALUES (${t.id}, NULL, 'System', 'system',

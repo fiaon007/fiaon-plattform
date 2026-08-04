@@ -237,6 +237,34 @@ async function naechsteRateAnlegen(
  * `rueckwirkend = true`: die offene Rate ist die letzte verstrichene Fälligkeit
  * — der Kunde ist damit sofort überfällig. Bewusste Entscheidung des Betreibers.
  */
+/**
+ * Stellt sicher, dass JEDE bezahlte Paketbestellung eine Ratenkette hat.
+ *
+ * Warum ohne Knopf: Wer ein Paket kauft, hat ein Abo — das ist keine
+ * Einzelfallentscheidung, sondern die Regel des Geschäfts. Der frühere Knopf
+ * „Ketten anlegen" verlangte vom Betreiber eine Zustimmung zu etwas, das
+ * ohnehin gilt, und ließ bis zum Klick Umsatz unsichtbar. Angelegt wird die
+ * NÄCHSTE künftige Fälligkeit — für Monate, die nie in Rechnung gestellt
+ * wurden, kann niemand gemahnt werden.
+ *
+ * Idempotent und billig: Ist nichts offen, kostet der Aufruf eine Zählabfrage.
+ */
+export async function ketteSicherstellen(): Promise<{ neu: number }> {
+  await ensureAboTabellen();
+  const [offen] = await sqlPool`
+    SELECT COUNT(*)::int AS c
+    FROM fiaon_applications a
+    WHERE a.payment_status = 'paid' AND a.payment_reference IS NOT NULL
+      AND a.merged_into IS NULL AND a.completed_at IS NOT NULL AND a.abo_gestoppt_am IS NULL
+      AND a.type <> 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+      AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.rate_nr > 1)
+  `;
+  if (Number(offen.c) === 0) return { neu: 0 };
+  const erg = await aboNachziehen({ rueckwirkend: false });
+  if (erg.neu > 0) console.log(`[FIAON-ABO] ${erg.neu} Ratenkette(n) automatisch angelegt`);
+  return { neu: erg.neu };
+}
+
 export async function aboNachziehen(opts: { rueckwirkend?: boolean; nurZaehlen?: boolean } = {}): Promise<{
   geprueft: number; neu: number; uebersprungen: number; rueckwirkend: boolean;
 }> {
@@ -324,10 +352,35 @@ export function aboErinnerungPayload(r: any) {
 }
 
 /** Hartes Versandfenster: keine Kundenmail vor 08:00 oder nach 20:00 Berlin. */
-function imVersandfenster(): boolean {
-  const h = Number(new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false })
+/**
+ * Versandfenster in Berliner Zeit. Vorgabe 08–20 Uhr.
+ *
+ * Über die Einstellungen `abo_fenster_start` / `abo_fenster_ende` verschiebbar —
+ * nicht aus Bequemlichkeit, sondern weil dieses Fenster die einzige Bremse gegen
+ * nächtliche Kundenmails ist und deshalb sichtbar und prüfbar gehören muss,
+ * statt als Zahl im Code zu stehen. Ein Wert außerhalb 0–24 wird verworfen.
+ */
+async function versandfenster(): Promise<{ start: number; ende: number }> {
+  try {
+    const s = await getSettings();
+    const start = Number(s.abo_fenster_start);
+    const ende = Number(s.abo_fenster_ende);
+    if (Number.isInteger(start) && Number.isInteger(ende) && start >= 0 && ende <= 24 && start < ende) {
+      return { start, ende };
+    }
+  } catch { /* Vorgabe gilt */ }
+  return { start: 8, ende: 20 };
+}
+
+function berlinStunde(): number {
+  return Number(new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false })
     .formatToParts(new Date()).find((p) => p.type === "hour")?.value || "12");
-  return h >= 8 && h < 20;
+}
+
+async function imVersandfenster(): Promise<boolean> {
+  const { start, ende } = await versandfenster();
+  const h = berlinStunde();
+  return h >= start && h < ende;
 }
 
 /** Fällige Raten mit allen Kundendaten — Grundlage für Motor und Anzeige. */
@@ -367,13 +420,16 @@ export async function aboMotor(opts: { force?: boolean } = {}): Promise<{
   gesendet: number; fehlgeschlagen: number; uebersprungenFenster: boolean;
 }> {
   await ensureAboTabellen();
+  // Jede bezahlte Paketbestellung IST ein Abo. Fehlt die Ratenkette, wird sie
+  // hier still angelegt — es braucht dafür keinen Knopf und keine Entscheidung.
+  await ketteSicherstellen();
   const ergebnis = { gesendet: 0, fehlgeschlagen: 0, uebersprungenFenster: false };
   const settings = await getSettings();
   if (settings.abo_motor_enabled === "0") {
     ergebnis.uebersprungenFenster = true;
     return ergebnis;
   }
-  if (!imVersandfenster() && !opts.force) {
+  if (!(await imVersandfenster()) && !opts.force) {
     ergebnis.uebersprungenFenster = true;
     return ergebnis;
   }
@@ -408,8 +464,16 @@ export async function aboMotor(opts: { force?: boolean } = {}): Promise<{
  * Absicht aussieht. Jetzt gilt: kein Versand, keine Stufe. Der Fehlgrund wird
  * an der Rate festgehalten und in der Zahlungszentrale angezeigt.
  */
-async function rateErinnern(r: any): Promise<{ ok: boolean; grund?: string }> {
-  const stufe = Math.min(MAHNSTUFEN.length, Number(r.mahnstufe || 0) + 1);
+async function rateErinnern(r: any, opts: { stufeErhoehen?: boolean } = {}): Promise<{ ok: boolean; grund?: string }> {
+  // Die Mahnstufe steigt nur, wenn die Rate WIRKLICH fällig ist. Eine
+  // freundliche Vorabinfo drei Tage vor dem Termin ist keine Mahnung — sie
+  // würde den Kunden sonst auf Stufe 1 setzen, bevor er überhaupt zahlen musste.
+  const faellig = String(r.faellig_am ? new Date(r.faellig_am).toISOString().slice(0, 10) : "");
+  const istFaellig = !faellig || faellig <= berlinToday();
+  const stufeErhoehen = opts.stufeErhoehen ?? istFaellig;
+  const stufe = stufeErhoehen
+    ? Math.min(MAHNSTUFEN.length, Number(r.mahnstufe || 0) + 1)
+    : Number(r.mahnstufe || 0);
   const versand = await sendMakeWebhookMitGrund("abo_payment_reminder", aboErinnerungPayload(r) as any);
   if (versand.ok) {
     await sqlPool`
@@ -501,6 +565,10 @@ export async function aboUebersicht() {
     laufend: { abos: zahl(mrr.abos), cents: zahl(mrr.cents) },
     ohneKette: zahl(ohne.c),
     motorAktiv: settings.abo_motor_enabled !== "0",
+    // Das Versandfenster geht mit an die Oberfläche, damit der Fußtext nicht
+    // „08 bis 20 Uhr" behauptet, während in den Einstellungen etwas anderes steht.
+    fenster: await versandfenster(),
+    imFenster: await imVersandfenster(),
     stichtag: settings.abo_stichtag || null,
     zyklusTage: ABO_ZYKLUS_TAGE,
   };
@@ -508,6 +576,10 @@ export async function aboUebersicht() {
 
 router.get("/admin/abo/uebersicht", async (_req, res) => {
   try {
+    // Selbstheilend: Fehlt einer bezahlten Bestellung die Ratenkette, entsteht
+    // sie beim Ansehen der Tafel. Damit stimmen die Zahlen immer — ohne dass
+    // jemand einen Knopf drücken muss.
+    await ketteSicherstellen();
     res.json({ ok: true, ...(await aboUebersicht()) });
   } catch (err) {
     console.error("[FIAON-ABO] uebersicht:", err);
@@ -634,7 +706,7 @@ router.post("/admin/abo/raten/:id/erinnern", async (req: Request, res: Response)
     if (r.status !== "offen") return res.status(400).json({ ok: false, error: "Rate ist nicht offen" });
     const mail = r.email || r.contact_email || r.billing_email;
     if (!mail) return res.status(400).json({ ok: false, error: "Keine E-Mail-Adresse hinterlegt" });
-    if (!imVersandfenster()) {
+    if (!(await imVersandfenster())) {
       return res.status(400).json({ ok: false, error: "Außerhalb des Versandfensters (08–20 Uhr Berlin)" });
     }
     const erg = await rateErinnern(r);
@@ -719,6 +791,143 @@ router.post("/admin/abo/motor", async (_req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ERINNERUNGS-LAUF FÜR DIE GEÖFFNETE ANSICHT
+//
+// Vorher hing der Knopf am Motor. Der schaut ausschließlich auf „heute oder
+// früher fällig" UND respektiert den Einführungsstichtag — steht an dem Tag
+// nichts an, meldet er „0 gesendet". Für den Betreiber sah das aus wie ein
+// kaputter Knopf, obwohl die Regel griff.
+//
+// Jetzt gilt: Der Lauf verschickt an GENAU die Raten, die gerade in der Liste
+// stehen. Wer „Nächste 7 Tage" geöffnet hat, informiert die kommenden Termine
+// vorab; wer „Überfällig" geöffnet hat, mahnt die überfälligen. Das ist keine
+// Bequemlichkeit, sondern die Erwartung: Ein Knopf über einer Liste wirkt auf
+// diese Liste.
+//
+// Zwei Regeln bleiben unangetastet, weil sie den Kunden schützen:
+//   · Versand nur zwischen 08 und 20 Uhr Berliner Zeit.
+//   · Höchstens eine Mail je Rate pro 20 Stunden.
+// Beides wird jetzt AUSGEWIESEN statt stillschweigend zu 0 zu führen.
+// ═══════════════════════════════════════════════════════════════════════════
+type LaufArt = "heute" | "woche" | "ueberfaellig" | "offen" | "entscheidung" | "zustellfehler";
+
+const LAUF_TEXT: Record<LaufArt, string> = {
+  heute: "heute fällige Raten",
+  woche: "Raten der nächsten 7 Tage (Vorabinfo)",
+  ueberfaellig: "überfällige Raten",
+  offen: "alle offenen Raten",
+  entscheidung: "Raten nach Mahnstufe 3 (Entscheidung nötig)",
+  zustellfehler: "Raten, deren Erinnerung nicht zugestellt wurde",
+};
+
+/** Kandidaten der gewählten Ansicht — inklusive Begründung, was übersprungen wird. */
+async function laufKandidaten(art: LaufArt) {
+  const heute = berlinToday();
+  const wo =
+    art === "heute" ? `r.faellig_am = '${heute}'::date`
+    : art === "woche" ? `r.faellig_am > '${heute}'::date AND r.faellig_am <= '${heute}'::date + 7`
+    : art === "ueberfaellig" ? `r.faellig_am < '${heute}'::date`
+    : art === "entscheidung" ? `r.faellig_am < '${heute}'::date AND r.mahnstufe >= ${MAHNSTUFEN.length}`
+    : art === "zustellfehler" ? `r.letzter_fehler IS NOT NULL`
+    : `TRUE`;
+
+  return sqlPool.unsafe(`
+    SELECT r.*, a.first_name, a.last_name, a.contact_name, a.company_name,
+           a.email, a.contact_email, a.billing_email, a.pack_name, a.amount_due, a.ref,
+           ag.name AS agent_name,
+           COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,'')) AS ziel_mail,
+           (r.letzte_erinnerung_at IS NOT NULL AND r.letzte_erinnerung_at >= NOW() - INTERVAL '20 hours') AS gesperrt
+    FROM fiaon_abo_raten r
+    JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
+    LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
+    WHERE r.status = 'offen' AND ${wo}
+    ORDER BY r.faellig_am ASC
+    LIMIT ${ABO_BATCH}
+  `);
+}
+
+function laufAufteilen(kandidaten: any[]) {
+  const senden = kandidaten.filter((r) => r.ziel_mail && !r.gesperrt);
+  return {
+    senden,
+    ohneMail: kandidaten.filter((r) => !r.ziel_mail).length,
+    gesperrt: kandidaten.filter((r) => r.ziel_mail && r.gesperrt).length,
+  };
+}
+
+router.get("/admin/abo/lauf/vorschau", async (req: Request, res: Response) => {
+  try {
+    await ensureAboTabellen();
+    const art = (String(req.query.art || "heute") as LaufArt);
+    const kandidaten = await laufKandidaten(LAUF_TEXT[art] ? art : "heute");
+    const { senden, ohneMail, gesperrt } = laufAufteilen(kandidaten as any[]);
+    res.json({
+      ok: true,
+      art, artText: LAUF_TEXT[art] || LAUF_TEXT.heute,
+      gefunden: kandidaten.length,
+      sendbar: senden.length,
+      summeCents: senden.reduce((s, r) => s + Number(r.betrag_cents || 0), 0),
+      uebersprungen: { ohneMail, gesperrt },
+      imFenster: await imVersandfenster(),
+      // Bei künftigen Raten steigt die Mahnstufe NICHT — das muss vor dem Klick
+      // klar sein, sonst wirkt der Lauf wie eine Mahnwelle.
+      alsVorabinfo: art === "woche",
+    });
+  } catch (err) {
+    console.error("[FIAON-ABO] lauf-vorschau:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/admin/abo/lauf", async (req: Request, res: Response) => {
+  try {
+    await ensureAboTabellen();
+    const art = (String(req.body?.art || "heute") as LaufArt);
+    if (!LAUF_TEXT[art]) return res.status(400).json({ ok: false, error: "Unbekannte Ansicht" });
+    if (!(await imVersandfenster())) {
+      return res.status(400).json({
+        ok: false,
+        error: "Außerhalb des Versandfensters (08–20 Uhr Berliner Zeit). Kundenmails gehen nachts nicht raus.",
+      });
+    }
+    const kandidaten = await laufKandidaten(art);
+    const { senden, ohneMail, gesperrt } = laufAufteilen(kandidaten as any[]);
+
+    let gesendet = 0;
+    let fehlgeschlagen = 0;
+    const fehler: string[] = [];
+    for (const r of senden) {
+      // „woche" ist eine Vorabinfo: Die Rate ist noch nicht fällig, also darf
+      // die Mahnstufe nicht steigen.
+      const erg = await rateErinnern(r, { stufeErhoehen: art !== "woche" });
+      if (erg.ok) gesendet++;
+      else {
+        fehlgeschlagen++;
+        if (erg.grund && !fehler.includes(erg.grund)) fehler.push(erg.grund);
+      }
+    }
+
+    const teile = [`${gesendet} Erinnerung(en) versendet`];
+    if (fehlgeschlagen > 0) teile.push(`${fehlgeschlagen} NICHT zugestellt (Mahnstufe unverändert)`);
+    if (gesperrt > 0) teile.push(`${gesperrt} übersprungen (vor weniger als 20 Stunden schon erinnert)`);
+    if (ohneMail > 0) teile.push(`${ohneMail} ohne E-Mail-Adresse`);
+    if (kandidaten.length === 0) teile[0] = `Keine Rate in der Ansicht „${LAUF_TEXT[art]}"`;
+
+    res.json({
+      ok: true, art, artText: LAUF_TEXT[art],
+      gesendet, fehlgeschlagen,
+      uebersprungen: { ohneMail, gesperrt },
+      fehlerGruende: fehler,
+      rest: kandidaten.length === ABO_BATCH,
+      meldung: `${teile.join(" · ")}.`,
+    });
+  } catch (err) {
+    console.error("[FIAON-ABO] lauf:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 /**
  * Sammelversand für Raten VOR dem Stichtag (die der Motor bewusst nicht
  * anfasst). Mit Vorschau, weil es die einzige Stelle ist, an der eine größere
@@ -740,7 +949,7 @@ router.get("/admin/abo/sammelversand/vorschau", async (_req, res) => {
     `;
     res.json({
       ok: true, anzahl: Number(row.anzahl), summeCents: Number(row.cents),
-      stichtag, imFenster: imVersandfenster(),
+      stichtag, imFenster: await imVersandfenster(),
     });
   } catch (err) {
     console.error("[FIAON-ABO] sammel-vorschau:", err);
@@ -751,7 +960,7 @@ router.get("/admin/abo/sammelversand/vorschau", async (_req, res) => {
 router.post("/admin/abo/sammelversand", async (_req, res) => {
   try {
     await ensureAboTabellen();
-    if (!imVersandfenster()) {
+    if (!(await imVersandfenster())) {
       return res.status(400).json({ ok: false, error: "Außerhalb des Versandfensters (08–20 Uhr Berlin)" });
     }
     // Ohne Stichtag-Grenze, aber mit denselben Schutzregeln (20h-Sperre, Stufen).

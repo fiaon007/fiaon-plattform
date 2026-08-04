@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshCw, Send, Check, ChevronRight, AlertTriangle } from "lucide-react";
+import { RefreshCw, Send, Check, ChevronRight } from "lucide-react";
 import { ACCENT } from "./AdminShell";
 import { Tip } from "./PageHelp";
 import BuchenDialog from "./BuchenDialog";
@@ -41,6 +41,8 @@ interface AboUebersicht {
   laufend: { abos: number; cents: number };
   ohneKette: number;
   motorAktiv: boolean;
+  fenster?: { start: number; ende: number };
+  imFenster?: boolean;
   stichtag: string | null;
   zyklusTage: number;
 }
@@ -144,41 +146,60 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
     } finally { setBusy(null); }
   };
 
-  const nachziehen = async () => {
-    const v = await fetch("/api/fiaon/admin/abo/nachziehen/vorschau", { credentials: "include" })
-      .then((x) => x.json()).catch(() => null);
-    if (!v?.ok) return onMeldung("Vorschau fehlgeschlagen.");
-    if (!confirm(
-      `Ratenketten für ${v.neu} Bestandskunden anlegen?\n\n` +
-      `${v.uebersprungen} Bestellungen werden übersprungen (Bonitäts-Check oder Betrag unklar).\n\n` +
-      `Angelegt wird die NÄCHSTE künftige Fälligkeit — für Monate, die nie in Rechnung gestellt wurden, ` +
-      `wird niemand gemahnt. Es geht dabei KEINE E-Mail raus.`,
-    )) return;
-    const res = await fetch("/api/fiaon/admin/abo/nachziehen", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      credentials: "include", body: JSON.stringify({ rueckwirkend: false }),
-    });
-    const j = await res.json().catch(() => null);
-    if (res.ok && j?.ok) {
-      onMeldung(`${j.neu} Ratenketten angelegt (${j.uebersprungen} übersprungen) — keine Mails versendet.`);
-      await Promise.all([ladeUebersicht(), ladeRaten(art)]);
-    } else onMeldung(`Fehler: ${j?.error || res.status}`);
-  };
+  /**
+   * Erinnerungs-Lauf für GENAU die geöffnete Ansicht.
+   *
+   * Vorher hing der Knopf am Motor: der schaut nur auf „heute oder früher
+   * fällig" und respektiert zusätzlich den Einführungsstichtag. Stand an dem Tag
+   * nichts an, meldete er „0 gesendet" — für den Betreiber sah das wie ein
+   * kaputter Knopf aus. Ein Knopf über einer Liste muss auf DIESE Liste wirken.
+   *
+   * Zuerst wird gezählt, dann gefragt. Eine Mailwelle ohne vorherige Zahl wäre
+   * unverantwortlich.
+   */
+  const [laufLaeuft, setLaufLaeuft] = useState(false);
+  const erinnerungsLauf = async () => {
+    setLaufLaeuft(true);
+    try {
+      const v = await fetch(`/api/fiaon/admin/abo/lauf/vorschau?art=${art}`, { credentials: "include" })
+        .then((x) => x.json()).catch(() => null);
+      if (!v?.ok) { onMeldung("Vorschau fehlgeschlagen."); return; }
+      if (!v.imFenster) {
+        onMeldung("Versand nur zwischen 08 und 20 Uhr Berliner Zeit — Kundenmails gehen nachts nicht raus.");
+        return;
+      }
+      if (v.sendbar === 0) {
+        // Ehrlich sagen, WARUM nichts rausgeht, statt „0 gesendet".
+        const grund = v.gefunden === 0
+          ? `In der Ansicht „${v.artText}" steht keine Rate.`
+          : v.uebersprungen.gesperrt > 0
+            ? `Alle ${v.gefunden} Raten wurden vor weniger als 20 Stunden schon erinnert.`
+            : `Von ${v.gefunden} Raten hat keine eine E-Mail-Adresse.`;
+        onMeldung(grund);
+        return;
+      }
+      if (!confirm(
+        `Erinnerung an ${v.sendbar} Kunden senden?\n\n` +
+        `Ansicht: ${v.artText}\n` +
+        `Betroffen: ${v.sendbar} Rate(n) über ${eur(v.summeCents)}\n` +
+        (v.uebersprungen.gesperrt ? `Übersprungen: ${v.uebersprungen.gesperrt} (vor unter 20 Stunden schon erinnert)\n` : "") +
+        (v.uebersprungen.ohneMail ? `Übersprungen: ${v.uebersprungen.ohneMail} ohne E-Mail\n` : "") +
+        `\n${v.alsVorabinfo
+          ? "Diese Raten sind noch NICHT fällig — es geht eine Vorabinfo raus, die Mahnstufe bleibt unverändert."
+          : "Die Mahnstufe steigt um eine Stufe (höchstens bis 3)."}\n\n` +
+        `Event: abo_payment_reminder`,
+      )) return;
 
-  const motorLauf = async () => {
-    if (!confirm(
-      "Erinnerungs-Lauf jetzt starten?\n\n" +
-      "Verschickt abo_payment_reminder an alle fälligen Raten, deren Mahnstufe ansteht " +
-      "(höchstens eine Mail je Rate pro 20 Stunden, nur zwischen 08 und 20 Uhr).",
-    )) return;
-    const res = await fetch("/api/fiaon/admin/abo/motor", { method: "POST", credentials: "include" });
-    const j = await res.json().catch(() => null);
-    if (res.ok && j?.ok) {
-      onMeldung(j.uebersprungenFenster
-        ? "Lauf übersprungen — Motor aus oder außerhalb 08–20 Uhr."
-        : `${j.gesendet} Abo-Erinnerung(en) versendet${j.fehlgeschlagen ? `, ${j.fehlgeschlagen} NICHT zugestellt (Mahnstufe unverändert)` : ""}.`);
-      await Promise.all([ladeUebersicht(), ladeRaten(art)]);
-    } else onMeldung(`Fehler: ${j?.error || res.status}`);
+      const res = await fetch("/api/fiaon/admin/abo/lauf", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        credentials: "include", body: JSON.stringify({ art }),
+      });
+      const j = await res.json().catch(() => null);
+      if (res.ok && j?.ok) {
+        onMeldung(j.meldung + (j.fehlerGruende?.length ? ` Grund: ${j.fehlerGruende[0]}` : ""));
+        await Promise.all([ladeUebersicht(), ladeRaten(art)]);
+      } else onMeldung(j?.error || `Fehler: ${res.status}`);
+    } finally { setLaufLaeuft(false); }
   };
 
   const kacheln = u ? [
@@ -245,22 +266,12 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
             {!u && <p className="text-[13px] text-slate-400 col-span-full">Wird geladen …</p>}
           </div>
 
-          {/* Hinweis: Bestandskunden ohne Ratenkette */}
-          {u && u.ohneKette > 0 && (
-            <div className="mx-3.5 sm:mx-4 mb-3 px-3.5 py-3 rounded-xl flex flex-wrap items-center gap-3"
-              style={{ background: "rgba(29,78,216,.04)", border: "1px solid rgba(29,78,216,.18)" }}>
-              <AlertTriangle size={15} style={{ color: ACCENT }} className="shrink-0" />
-              <p className="text-[12.5px] text-slate-700 min-w-0 flex-1 leading-snug">
-                <b>{u.ohneKette} bezahlte Bestellungen haben noch keine Ratenkette.</b> Solange sie fehlt, ist für
-                diese Kunden keine Fälligkeit sichtbar. Das Anlegen verschickt keine E-Mail.
-              </p>
-              <button type="button" onClick={() => void nachziehen()}
-                className="shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-bold text-white"
-                style={{ background: ACCENT }}>
-                Ketten anlegen
-              </button>
-            </div>
-          )}
+          {/* Kein „Ketten anlegen"-Knopf mehr: Wer ein Paket kauft, HAT ein Abo —
+              das ist die Regel des Geschäfts und keine Einzelfallentscheidung.
+              Fehlt einer bezahlten Bestellung die Ratenkette, entsteht sie jetzt
+              beim Öffnen dieser Tafel und beim Erinnerungs-Lauf von selbst
+              (ketteSicherstellen). Ein Knopf, der um Zustimmung zu etwas bittet,
+              das ohnehin gilt, hielt bis zum Klick Umsatz unsichtbar. */}
 
           {/* Reiter + Werkzeuge */}
           <div className="px-3.5 sm:px-4 pb-3 flex flex-wrap items-center gap-2"
@@ -277,10 +288,14 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
               className="h-[30px] px-2.5 rounded-lg border bg-white text-[12px] outline-none w-[150px] sm:w-[190px]"
               style={{ borderColor: "var(--a3-linie,#e4e9f2)" }} />
             <span className="ml-auto flex items-center gap-2">
-              <button type="button" onClick={() => void motorLauf()}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border bg-white text-[11.5px] font-semibold text-slate-600"
-                style={{ borderColor: "var(--a3-linie,#e4e9f2)" }}>
-                <Send size={12} /> Erinnerungs-Lauf
+              {/* Der Knopf nennt die Ansicht, auf die er wirkt. „Erinnerungs-Lauf"
+                  allein ließ offen, WER eine Mail bekommt — die häufigste Ursache
+                  für Zögern vor einem Knopf, der Kunden anschreibt. */}
+              <button type="button" onClick={() => void erinnerungsLauf()} disabled={laufLaeuft}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border bg-white text-[11.5px] font-semibold text-slate-600 disabled:opacity-50"
+                style={{ borderColor: "var(--a3-linie,#e4e9f2)" }}
+                title={`Verschickt abo_payment_reminder an die Raten der Ansicht „${REITER.find((r) => r.art === art)?.label}"`}>
+                <Send size={12} /> {laufLaeuft ? "Läuft …" : `Erinnern: ${REITER.find((r) => r.art === art)?.label}`}
               </button>
             </span>
           </div>
@@ -356,7 +371,8 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
           <div className="px-4 py-2.5 text-[11px] text-slate-400 leading-relaxed" style={{ background: "#fbfcfe" }}>
             Fälligkeit = Buchungstag + {u?.zyklusTage || 30} Tage, danach im gleichen Abstand · Erinnerung am Fälligkeitstag
             (Stufe 1), nach 7 Tagen (Stufe 2), nach 14 Tagen (Stufe 3) · danach keine automatische Mail mehr, sondern
-            „Entscheidung nötig“ · Versand nur zwischen 08 und 20 Uhr, höchstens eine Mail je Rate pro 20 Stunden
+            „Entscheidung nötig“ · Versand nur zwischen {u?.fenster?.start ?? 8} und {u?.fenster?.ende ?? 20} Uhr
+            {u && u.imFenster === false ? " (gerade außerhalb — der Lauf sagt es dir)" : ""}, höchstens eine Mail je Rate pro 20 Stunden
             {u?.stichtag ? ` · Einführungsstichtag ${tag(u.stichtag)}: Raten, die vorher fällig waren, werden nicht automatisch angemahnt` : ""}
             {" "}· Mahnstufe steigt NUR, wenn die Mail wirklich zugestellt wurde
           </div>

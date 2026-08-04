@@ -312,6 +312,8 @@ const SETTING_DEFAULTS: Record<string, string> = {
   reminder_engine_enabled: "1",       // Not-Aus-Schalter ("1" = an)
   // ── Abo (monatliche Paketrate) ─────────────────────────────────────────────
   abo_motor_enabled: "1",             // Erinnerungs-Motor an/aus ("0" = aus)
+  abo_fenster_start: "8",             // Versandfenster Beginn (Stunde, Europe/Berlin)
+  abo_fenster_ende: "20",             // Versandfenster Ende (exklusiv) — schützt vor Nachtmails
   abo_stichtag: "",                   // wird beim ersten Motorlauf gesetzt (YYYY-MM-DD)
   // ── Kontoabgleich (CSV-Import + Bank-Zuordnung) ───────────────────────────
   // Abgeschaltet am 04.08.2026: Zahlungen werden manuell in der Zahlungszentrale

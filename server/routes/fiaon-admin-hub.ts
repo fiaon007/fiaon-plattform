@@ -362,6 +362,191 @@ router.get("/admin/hub/lage", async (_req, res) => {
   }
 });
 
+// ── Wer steckt hinter der Zahl? ──────────────────────────────────────────────
+// Eine Kennzahl ohne Namen ist nicht handlungsfähig: „11 heute angekündigt" sagt
+// nicht, wen man anrufen soll. Dieser Endpoint liefert zu jeder Kachel des
+// Dashboards die dazugehörigen Menschen — mit Betrag, Agent, Alter und der
+// Referenz, über die die Akte erreichbar ist (/admin/kunde/<ref>).
+//
+// Absichtlich NUR LESEND. Freischalten/Verbuchen bleibt in der Zahlungszentrale
+// bzw. im Kontoabgleich: ein zweiter Buchungspfad würde die Prüfungen dort
+// umgehen, und Geld verträgt keine zwei Wahrheiten.
+export type LagenListe =
+  | "angekuendigt-heute" | "angekuendigt-alle" | "angekuendigt-alt"
+  | "zusagen-heute" | "zusagen-ueberfaellig" | "zusagen-alle"
+  | "bezahlt-heute" | "bezahlt-monat";
+
+/** Anzeigename einer Antragszeile — Firma vor Person, Referenz als letzter Halt. */
+const NAME_SQL = `COALESCE(
+  NULLIF(TRIM(a.company_name), ''),
+  NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''),
+  NULLIF(TRIM(a.contact_name), ''),
+  a.ref
+)`;
+const MAIL_SQL = `COALESCE(NULLIF(TRIM(a.email),''), NULLIF(TRIM(a.contact_email),''), NULLIF(TRIM(a.billing_email),''))`;
+/** Paketnamen enthalten Zeilenumbrüche („FIAON Ultra\n(Elite Konto)") — in einer
+ *  Listenzeile zerreißt das das Layout. Deshalb hier auf eine Zeile bringen. */
+const PAKET_SQL = `NULLIF(TRIM(regexp_replace(COALESCE(a.pack_name,''), '\\s+', ' ', 'g')), '')`;
+const TEL_SQL = `NULLIF(TRIM(CONCAT(COALESCE(a.phone_country_code,''), COALESCE(a.phone,''))), '')`;
+
+router.get("/admin/hub/liste", async (req, res) => {
+  try {
+    const art = String(req.query.art || "") as LagenListe;
+    const heute = berlinToday();
+    // 500 ist die Obergrenze aus Vernunft: mehr kann man in einem Fenster nicht
+    // sinnvoll durchsehen, und der Browser soll nicht an einer Liste ersticken.
+    const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 300));
+
+    let rows: any[] = [];
+
+    if (art.startsWith("angekuendigt")) {
+      // Ältester zuerst: wer am längsten wartet, ist der dringendste Fall.
+      const nurHeute = art === "angekuendigt-heute";
+      const nurAlt = art === "angekuendigt-alt";
+      rows = await sqlPool.unsafe(`
+        SELECT a.ref, a.payment_reference, ${NAME_SQL} AS name, ${MAIL_SQL} AS email, ${TEL_SQL} AS telefon,
+               a.amount_due, ${PAKET_SQL} AS paket, a.claimed_paid_at AS datum,
+               ag.name AS agent_name,
+               FLOOR(EXTRACT(EPOCH FROM (NOW() - a.claimed_paid_at)) / 86400)::int AS tage_alt
+        FROM fiaon_applications a
+        LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
+        WHERE a.payment_status = 'claimed_paid' AND a.merged_into IS NULL
+          ${nurHeute ? `AND (a.claimed_paid_at AT TIME ZONE 'Europe/Berlin')::date = $1::date` : ""}
+          ${nurAlt ? `AND a.claimed_paid_at < NOW() - INTERVAL '7 days'` : ""}
+        ORDER BY a.claimed_paid_at ASC NULLS LAST
+        LIMIT ${limit}
+      `, nurHeute ? [heute] : []);
+    } else if (art.startsWith("zusagen")) {
+      // Wie in computeLage: pro Kunde nur die jüngste Zusage, erfüllte fallen raus.
+      const filter = art === "zusagen-heute"
+        ? `AND (n.promised_date AT TIME ZONE 'Europe/Berlin')::date = $1::date`
+        : art === "zusagen-ueberfaellig"
+          ? `AND (n.promised_date AT TIME ZONE 'Europe/Berlin')::date < $1::date`
+          : "";
+      rows = await sqlPool.unsafe(`
+        WITH neueste AS (
+          SELECT DISTINCT ON (l.ref) l.ref, l.agent_id, l.agent_name, l.promised_date, l.note
+          FROM fiaon_contact_log l
+          WHERE l.promised_date IS NOT NULL AND l.voided_at IS NULL
+          ORDER BY l.ref, l.promised_date DESC, l.id DESC
+        )
+        SELECT a.ref, a.payment_reference, ${NAME_SQL} AS name, ${MAIL_SQL} AS email, ${TEL_SQL} AS telefon,
+               a.amount_due, ${PAKET_SQL} AS paket, n.promised_date AS datum, n.note,
+               COALESCE(ag.name, n.agent_name) AS agent_name,
+               FLOOR(EXTRACT(EPOCH FROM (NOW() - n.promised_date)) / 86400)::int AS tage_alt,
+               a.payment_status
+        FROM neueste n
+        JOIN fiaon_applications a ON a.ref = n.ref
+          AND a.merged_into IS NULL
+          AND a.payment_status NOT IN ('paid', 'cancelled', 'refunded')
+        LEFT JOIN fiaon_agents ag ON ag.id = n.agent_id
+        WHERE TRUE ${filter}
+        ORDER BY n.promised_date ASC
+        LIMIT ${limit}
+      `, [heute]);
+    } else if (art.startsWith("bezahlt")) {
+      const nurHeute = art === "bezahlt-heute";
+      rows = await sqlPool.unsafe(`
+        SELECT a.ref, a.payment_reference, ${NAME_SQL} AS name, ${MAIL_SQL} AS email, ${TEL_SQL} AS telefon,
+               a.amount_due, ${PAKET_SQL} AS paket, a.completed_at AS datum,
+               ag.name AS agent_name, 0 AS tage_alt
+        FROM fiaon_applications a
+        LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
+        WHERE a.payment_status = 'paid' AND a.payment_reference IS NOT NULL
+          AND a.merged_into IS NULL AND a.completed_at IS NOT NULL
+          AND ${nurHeute
+            ? `(a.completed_at AT TIME ZONE 'Europe/Berlin')::date = $1::date`
+            : `(a.completed_at AT TIME ZONE 'Europe/Berlin')::date >= date_trunc('month', $1::date)::date`}
+        ORDER BY a.completed_at DESC
+        LIMIT ${limit}
+      `, [heute]);
+    } else {
+      return res.status(400).json({ ok: false, error: "Unbekannte Liste" });
+    }
+
+    const eintraege = rows.map((r: any) => ({
+      ref: r.ref,
+      zahlungsreferenz: r.payment_reference || null,
+      name: r.name,
+      email: r.email || null,
+      telefon: r.telefon || null,
+      betragCents: r.amount_due != null ? Math.round(Number(r.amount_due) * 100) : null,
+      paket: r.paket || null,
+      datum: r.datum || null,
+      tageAlt: r.tage_alt != null ? Number(r.tage_alt) : null,
+      agent: r.agent_name || null,
+      notiz: r.note || null,
+      status: r.payment_status || null,
+      akte: `/admin/kunde/${encodeURIComponent(r.ref)}`,
+    }));
+
+    res.json({
+      ok: true, art, anzahl: eintraege.length,
+      summeCents: eintraege.reduce((s, e) => s + (e.betragCents || 0), 0),
+      eintraege,
+    });
+  } catch (err) {
+    console.error("[FIAON-HUB] liste:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── Rangliste für einen Zeitraum (Grundlage des Teilen-Bildes) ────────────────
+// Gezählt wird der ABSCHLUSS (kind='own'), nicht der Betrag: In einer
+// Vertriebsgruppe motiviert „4 Abschlüsse" mehr als eine Provisionssumme — und
+// Gehälter gehören nicht in eine Gruppenkonversation.
+//
+// Zeitraum immer nach Berliner Tagesgrenze:
+//   tag   = heute
+//   woche = Montag dieser Woche bis heute
+//   monat = 1. des Monats bis heute
+router.get("/admin/hub/rangliste", async (req, res) => {
+  try {
+    const zeitraum = String(req.query.zeitraum || "tag");
+    const heute = berlinToday();
+    const von = zeitraum === "woche"
+      ? `date_trunc('week', ${"$1"}::date)::date`
+      : zeitraum === "monat"
+        ? `date_trunc('month', ${"$1"}::date)::date`
+        : `${"$1"}::date`;
+
+    const rows = await sqlPool.unsafe(`
+      SELECT a.id, a.name,
+        COUNT(c.id) FILTER (WHERE c.kind = 'own')::int AS abschluesse,
+        COUNT(c.id)::int AS buchungen,
+        COALESCE(SUM(c.amount_cents), 0)::bigint AS provision_cents,
+        COALESCE(SUM(c.base_amount_cents) FILTER (WHERE c.kind = 'own'), 0)::bigint AS umsatz_cents
+      FROM fiaon_agents a
+      LEFT JOIN fiaon_commissions c
+        ON c.agent_id = a.id AND c.status <> 'storniert'
+        AND (c.created_at AT TIME ZONE 'Europe/Berlin')::date >= ${von}
+        AND (c.created_at AT TIME ZONE 'Europe/Berlin')::date <= $1::date
+      WHERE a.active AND COALESCE(a.is_test_account, FALSE) = FALSE
+      GROUP BY a.id, a.name
+      ORDER BY abschluesse DESC, provision_cents DESC, a.name ASC
+    `, [heute]);
+
+    const [grenze] = await sqlPool.unsafe(`SELECT ${von} AS von`, [heute]);
+    const vonDatum = grenze.von instanceof Date
+      ? grenze.von.toISOString().slice(0, 10)
+      : String(grenze.von).slice(0, 10);
+
+    res.json({
+      ok: true, zeitraum, von: vonDatum, bis: heute,
+      agenten: rows.map((r: any) => ({
+        id: Number(r.id), name: r.name,
+        abschluesse: Number(r.abschluesse),
+        buchungen: Number(r.buchungen),
+        provisionCents: Number(r.provision_cents),
+        umsatzCents: Number(r.umsatz_cents),
+      })),
+    });
+  } catch (err) {
+    console.error("[FIAON-HUB] rangliste:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 // ── O3: Globale Schnellsuche (Cmd+K) ─────────────────────────────────────────
 // Kunden: Name / E-Mail / Referenz / Zahlungsreferenz / Telefon. Leads: Name /
 // E-Mail / Telefon. Agents: Name / E-Mail. (Kunden-IBANs existieren nicht —

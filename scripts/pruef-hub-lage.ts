@@ -4,6 +4,7 @@
 // Aufruf: npx tsx scripts/pruef-hub-lage.ts
 import "dotenv/config";
 import { computeLage } from "../server/routes/fiaon-admin-hub";
+import { sqlPool } from "../server/lib/db-pool";
 
 const eur = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €`;
 
@@ -69,6 +70,34 @@ const eur = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractio
   pruefe("Vorletzter Verlaufstag = gestern-Umsatz",
     l.umsatz.verlauf[l.umsatz.verlauf.length - 2].cents === l.umsatz.gestern.cents);
 
+  // ── Kreuzprüfung gegen die Team-Übersicht ──────────────────────────────────
+  // Die Team-Seite (fiaon-team.ts) rechnet die Provision als Summe der drei
+  // Statusgruppen bestaetigt + in_auszahlung + ausgezahlt. Das Dashboard rechnet
+  // „alles außer storniert". Beides muss dasselbe ergeben — sonst stehen im
+  // System zwei verschiedene Provisionswahrheiten, und der Betreiber kann
+  // keiner mehr trauen. Diese Prüfung schlägt an, sobald ein neuer Status
+  // eingeführt wird, den nur eine der beiden Seiten kennt.
+  const wieTeam = await sqlPool`
+    SELECT c.agent_id,
+      COALESCE(SUM(c.amount_cents) FILTER (WHERE c.status IN ('bestaetigt','in_auszahlung','ausgezahlt')), 0)::bigint AS team_summe,
+      COALESCE(SUM(c.amount_cents) FILTER (WHERE c.status <> 'storniert'), 0)::bigint AS dashboard_summe
+    FROM fiaon_commissions c GROUP BY c.agent_id
+  `;
+  const abweichungen = wieTeam.filter((r: any) => Number(r.team_summe) !== Number(r.dashboard_summe));
+  pruefe("Provision = Team-Seiten-Logik (bestätigt + in Auszahlung + ausgezahlt)",
+    abweichungen.length === 0,
+    `Abweichungen bei Agent(en): ${abweichungen.map((a: any) => a.agent_id).join(", ")}`);
+
+  for (const a of l.agenten) {
+    const t = wieTeam.find((r: any) => Number(r.agent_id) === a.id);
+    if (t) {
+      pruefe(`  ${a.name}: Gesamtprovision stimmt mit Team-Seite`,
+        Number(t.team_summe) === a.gesamtCents,
+        `(Dashboard ${eur(a.gesamtCents)} vs. Team ${eur(Number(t.team_summe))})`);
+    }
+  }
+
   console.log(rot === 0 ? "\nAlles grün." : `\n${rot} Prüfung(en) rot.`);
+  await sqlPool.end();
   process.exit(rot === 0 ? 0 : 1);
 })().catch((e) => { console.error(e); process.exit(1); });

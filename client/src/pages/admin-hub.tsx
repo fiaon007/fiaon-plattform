@@ -8,6 +8,8 @@ import {
 import { ACCENT, ADMIN_NAV } from "@/components/admin/AdminShell";
 import { Tip } from "@/components/admin/PageHelp";
 import Cockpit from "@/components/admin/Cockpit";
+import Detailfenster, { type ListenArt, type FensterReiter } from "@/components/admin/Detailfenster";
+import RanglisteTeilen from "@/components/admin/RanglisteTeilen";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /admin — DIE LAGE IN EINEM BLICK
@@ -68,7 +70,7 @@ function veraenderung(heute: number, gestern: number): number | null {
 // ═══════════════════════════════════════════════════════════════════════════
 // Geldtafel — die eine Zahl, auf die es ankommt
 // ═══════════════════════════════════════════════════════════════════════════
-function Geldtafel({ lage }: { lage: Lage | null }) {
+function Geldtafel({ lage, onZeigen }: { lage: Lage | null; onZeigen: (art: ListenArt) => void }) {
   if (!lage) {
     return <div className="a3-hero h-[232px] sm:h-[212px] mb-4 opacity-60" aria-busy="true" />;
   }
@@ -95,9 +97,11 @@ function Geldtafel({ lage }: { lage: Lage | null }) {
                 <span className="text-[22px] sm:text-[28px] text-white/55">,{rest} €</span>
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px]">
-                <span className="text-white/60">
-                  {umsatz.heute.anzahl} {umsatz.heute.anzahl === 1 ? "bestätigte Zahlung" : "bestätigte Zahlungen"}
-                </span>
+                {/* Auch die Tafel ist eine Frage wert: WER hat heute bezahlt? */}
+                <button type="button" onClick={() => onZeigen("bezahlt-heute")}
+                  className="text-white/70 hover:text-white underline decoration-white/25 hover:decoration-white/70 underline-offset-2 transition-colors">
+                  {umsatz.heute.anzahl} {umsatz.heute.anzahl === 1 ? "bestätigte Zahlung" : "bestätigte Zahlungen"} — wer?
+                </button>
                 {diff !== null && (
                   <span
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold"
@@ -174,12 +178,17 @@ function Geldtafel({ lage }: { lage: Lage | null }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Kennzahl-Kachel
 // ═══════════════════════════════════════════════════════════════════════════
-function Kachel({ href, label, wert, unter, ton, hilfe, icon: Icon, i }: {
-  href: string; label: string; wert: string; unter?: string;
+function Kachel({ onClick, label, wert, unter, ton, hilfe, icon: Icon, i }: {
+  /** Kacheln navigieren NICHT weg: sie öffnen die Namen hinter der Zahl auf
+   *  derselben Seite. Wegnavigieren hieß bisher: Kontext verlieren und
+   *  anschließend den Weg zurück suchen. */
+  onClick: () => void;
+  label: string; wert: string; unter?: string;
   ton?: "geld" | "warnung" | "offen"; hilfe: string; icon: typeof CreditCard; i: number;
 }) {
   return (
-    <Link href={href} className="a3-kachel a3-auf p-4 pl-[18px]" data-ton={ton} style={{ ["--i" as any]: i }}>
+    <button type="button" onClick={onClick} className="a3-kachel a3-auf p-4 pl-[18px] text-left w-full"
+      data-ton={ton} style={{ ["--i" as any]: i }}>
       {/* Beschriftung darf zweizeilig werden — auf 380px passt „Zusagen heute
           fällig" nicht in eine Zeile, und abgeschnitten ist sie wertlos. */}
       <span className="flex items-start gap-1.5">
@@ -191,7 +200,10 @@ function Kachel({ href, label, wert, unter, ton, hilfe, icon: Icon, i }: {
         {wert}
       </span>
       {unter && <span className="block mt-1.5 text-[12px] text-slate-500 leading-snug">{unter}</span>}
-    </Link>
+      <span className="block mt-2 text-[11px] font-semibold inline-flex items-center gap-1" style={{ color: ACCENT }}>
+        Wer? <ChevronRight size={11} />
+      </span>
+    </button>
   );
 }
 
@@ -205,6 +217,21 @@ interface Aufgabe {
 
 function AufgabenTafel({ aufgaben, geladen }: { aufgaben: Aufgabe[]; geladen: boolean }) {
   const kante = { dringend: "#dc2626", offen: "#d97706", ruhig: "#64748b" } as const;
+  // Einklappbar mit gemerktem Zustand: Wer die Liste kennt, will darunter
+  // schneller an Rangliste und Zahlen — muss sie aber jederzeit aufziehen
+  // können. Der dringende Zähler bleibt im Kopf sichtbar, auch zugeklappt.
+  const KEY = "fiaon-admin-aufgaben-offen";
+  const [offen, setOffen] = useState(true);
+  useEffect(() => {
+    try { setOffen(localStorage.getItem(KEY) !== "zu"); } catch { /* gesperrt */ }
+  }, []);
+  const um = () => setOffen((v) => {
+    const n = !v;
+    try { localStorage.setItem(KEY, n ? "offen" : "zu"); } catch { /* gesperrt */ }
+    return n;
+  });
+  const dringend = aufgaben.filter((a) => a.stufe === "dringend").length;
+
   return (
     <section className="a3-tafel mb-4">
       <header className="a3-tafel-kopf">
@@ -212,15 +239,32 @@ function AufgabenTafel({ aufgaben, geladen }: { aufgaben: Aufgabe[]; geladen: bo
           style={{ background: "var(--fi-flaeche-akzent,#f1f5ff)", color: ACCENT }}>
           <Check size={15} strokeWidth={2.2} />
         </span>
-        <h2 className="text-[14px] font-bold text-slate-900">Was ist zu tun?</h2>
-        <span className="ml-auto text-[11.5px] font-semibold text-slate-400 a3-zahl">
-          {geladen ? `${aufgaben.length} ${aufgaben.length === 1 ? "Punkt" : "Punkte"}` : "…"}
+        <button type="button" onClick={um} className="flex items-center gap-2 text-left min-w-0 flex-1">
+          <h2 className="text-[14px] font-bold text-slate-900">Was ist zu tun?</h2>
+          <ChevronRight size={14} className={`text-slate-400 transition-transform ${offen ? "rotate-90" : ""}`} />
+        </button>
+        <span className="ml-auto flex items-center gap-2 shrink-0">
+          {dringend > 0 && (
+            <span className="px-1.5 py-0.5 rounded-md text-[10.5px] font-bold"
+              style={{ background: "rgba(220,38,38,.08)", color: "#dc2626" }}>
+              {dringend} dringend
+            </span>
+          )}
+          <span className="text-[11.5px] font-semibold text-slate-400 a3-zahl">
+            {geladen ? `${aufgaben.length} ${aufgaben.length === 1 ? "Punkt" : "Punkte"}` : "…"}
+          </span>
         </span>
       </header>
 
-      {!geladen && <p className="px-[18px] py-6 text-[13px] text-slate-400">Wird geprüft …</p>}
+      {!offen && (
+        <button type="button" onClick={um} className="w-full px-[18px] py-2.5 text-left text-[12px] text-slate-400 hover:text-slate-600">
+          {geladen && aufgaben.length > 0 ? "Liste anzeigen" : geladen ? "Nichts offen — Liste anzeigen" : "…"}
+        </button>
+      )}
 
-      {geladen && aufgaben.length === 0 && (
+      {offen && !geladen && <p className="px-[18px] py-6 text-[13px] text-slate-400">Wird geprüft …</p>}
+
+      {offen && geladen && aufgaben.length === 0 && (
         <div className="px-[18px] py-8 text-center">
           <span className="inline-flex w-11 h-11 rounded-full items-center justify-center mb-2.5"
             style={{ background: "var(--fi-flaeche-erfolg,#ecfdf5)", color: "#059669" }}>
@@ -233,7 +277,7 @@ function AufgabenTafel({ aufgaben, geladen }: { aufgaben: Aufgabe[]; geladen: bo
         </div>
       )}
 
-      {aufgaben.map((a, i) => (
+      {offen && aufgaben.map((a, i) => (
         <Link
           key={`${a.href}-${a.titel}`}
           href={a.href}
@@ -291,10 +335,12 @@ function Rangliste({ agenten }: { agenten: AgentLage[] }) {
           <Users size={15} />
         </span>
         <h2 className="text-[14px] font-bold text-slate-900">Was die Agenten verdient haben</h2>
-        <Tip text="Gebuchte Provisionen: Eigenabschlüsse, Anteile aus dem eigenen Team und Boni, stornierte abgezogen. Testkonten sind ausgeblendet. Reihenfolge: bester zuerst." />
+        <Tip text="Gebuchte Provision — genau die Summe, die auch die Team-Übersicht zeigt: bestätigt + in Auszahlung + ausgezahlt. Stornierte Buchungen zählen nicht, Rückbuchungen mindern den Betrag. Enthalten sind Eigenabschlüsse, Anteile aus dem eigenen Team, Boni und manuelle Buchungen. Der Zeitpunkt ist der Tag der BUCHUNG (Berliner Zeit) — eine nachgebuchte Altzahlung erscheint also am Tag des Nachbuchens. Testkonten sind ausgeblendet." />
+        {/* Teilen zuerst: das ist die Handlung, die man hier ausführen will. */}
+        <span className="ml-auto shrink-0"><RanglisteTeilen /></span>
         {/* Umschalter: Tag / Monat / Gesamt. Segment-Optik, damit klar ist, dass
             genau eine der drei Angaben gerade gilt. */}
-        <div className="ml-auto flex rounded-lg p-0.5 shrink-0" style={{ background: "#eef2f7", boxShadow: "inset 0 1px 2px rgba(15,23,42,.07)" }}>
+        <div className="flex rounded-lg p-0.5 shrink-0" style={{ background: "#eef2f7", boxShadow: "inset 0 1px 2px rgba(15,23,42,.07)" }}>
           {(["heute", "monat", "gesamt"] as Zeitraum[]).map((z) => (
             <button
               key={z}
@@ -362,7 +408,7 @@ function Rangliste({ agenten }: { agenten: AgentLage[] }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Zahlungszusagen — „Kunde zahlt am …", aufgenommen vom Agenten
 // ═══════════════════════════════════════════════════════════════════════════
-function Zusagen({ lage }: { lage: Lage }) {
+function Zusagen({ lage, onZeigen }: { lage: Lage; onZeigen: (art: ListenArt) => void }) {
   const z = lage.zusagen;
   if (z.gesamt === 0) {
     return null;
@@ -379,16 +425,19 @@ function Zusagen({ lage }: { lage: Lage }) {
         <span className="ml-auto text-[11.5px] font-semibold text-slate-400 a3-zahl">{eur(z.summeCents)} offen</span>
       </header>
 
+      {/* Jede der drei Zahlen führt in die dazugehörige Namensliste. */}
       <div className="grid grid-cols-3" style={{ boxShadow: "inset 0 -1px 0 rgba(226,232,240,.75)" }}>
-        {[
-          { label: "Heute fällig", wert: z.heuteFaellig, farbe: "#1d4ed8" },
-          { label: "Später", wert: z.kuenftig, farbe: "#64748b" },
-          { label: "Überfällig", wert: z.ueberfaellig, farbe: "#dc2626" },
-        ].map((s) => (
-          <div key={s.label} className="px-[18px] py-3 text-center" style={{ boxShadow: "inset -1px 0 0 rgba(226,232,240,.75)" }}>
+        {([
+          { label: "Heute fällig", wert: z.heuteFaellig, farbe: "#1d4ed8", art: "zusagen-heute" as ListenArt },
+          { label: "Später", wert: z.kuenftig, farbe: "#64748b", art: "zusagen-alle" as ListenArt },
+          { label: "Überfällig", wert: z.ueberfaellig, farbe: "#dc2626", art: "zusagen-ueberfaellig" as ListenArt },
+        ]).map((s) => (
+          <button key={s.label} type="button" onClick={() => onZeigen(s.art)}
+            className="px-[18px] py-3 text-center hover:bg-slate-50/80 transition-colors"
+            style={{ boxShadow: "inset -1px 0 0 rgba(226,232,240,.75)" }}>
             <p className="text-[22px] font-bold a3-zahl leading-none" style={{ color: s.farbe }}>{s.wert}</p>
             <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-slate-400 mt-1">{s.label}</p>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -663,6 +712,52 @@ function Anleitung() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Welche Sichten gehören zu welcher Kachel — an EINER Stelle, damit Kachel,
+// Fenstertitel und Erklärung nicht auseinanderlaufen können.
+// ═══════════════════════════════════════════════════════════════════════════
+const FENSTER: Record<string, {
+  reiter: FensterReiter[]; titel: string; hinweis: string; alleLink: string; alleLabel: string;
+}> = {
+  angekuendigt: {
+    reiter: [
+      { art: "angekuendigt-heute", label: "Heute" },
+      { art: "angekuendigt-alle", label: "Alle" },
+      { art: "angekuendigt-alt", label: "Älter als 7 Tage" },
+    ],
+    titel: "Wer hat eine Zahlung angekündigt?",
+    hinweis: "Diese Kunden haben gemeldet, dass sie überwiesen haben — bestätigt ist noch keiner. Ältester zuerst.",
+    alleLink: "/admin/zahlungen?status=claimed_paid",
+    alleLabel: "In der Zahlungszentrale freischalten",
+  },
+  zusagen: {
+    reiter: [
+      { art: "zusagen-heute", label: "Heute fällig" },
+      { art: "zusagen-ueberfaellig", label: "Überfällig" },
+      { art: "zusagen-alle", label: "Alle" },
+    ],
+    titel: "Wer hat zugesagt zu zahlen?",
+    hinweis: "Termine, die Agenten im Gespräch aufgenommen haben. Pro Kunde die jüngste Zusage; bezahlte sind heraus.",
+    alleLink: "/admin/kunden",
+    alleLabel: "Alle Kunden durchsehen",
+  },
+  bezahlt: {
+    reiter: [
+      { art: "bezahlt-heute", label: "Heute" },
+      { art: "bezahlt-monat", label: "Dieser Monat" },
+    ],
+    titel: "Wer hat bezahlt?",
+    hinweis: "Bestätigte Zahlungen — das ist der Umsatz, der oben in der Tafel steht.",
+    alleLink: "/admin/verbuchungen",
+    alleLabel: "Tagesfinanzen öffnen",
+  },
+};
+
+function fensterFuer(art: ListenArt) {
+  const gruppe = art.startsWith("angekuendigt") ? "angekuendigt" : art.startsWith("zusagen") ? "zusagen" : "bezahlt";
+  return { ...FENSTER[gruppe], start: art };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Seite
 // ═══════════════════════════════════════════════════════════════════════════
 export default function AdminHubPage() {
@@ -672,6 +767,8 @@ export default function AdminHubPage() {
   const [geladen, setGeladen] = useState(false);
   const [laedt, setLaedt] = useState(false);
   const [stand, setStand] = useState<Date | null>(null);
+  // Welche Detailliste liegt gerade über der Seite? null = keine.
+  const [fenster, setFenster] = useState<ListenArt | null>(null);
 
   const holen = useCallback(async () => {
     setLaedt(true);
@@ -829,12 +926,12 @@ export default function AdminHubPage() {
       </div>
 
       {/* 1. Geld */}
-      <Geldtafel lage={lage} />
+      <Geldtafel lage={lage} onZeigen={setFenster} />
 
       {/* 2. Angekündigt und zugesagt — Geld, das noch nicht da ist */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 sm:gap-3 mb-4">
         <Kachel
-          i={0} href="/admin/zahlungen?status=claimed_paid" icon={Megaphone}
+          i={0} onClick={() => setFenster("angekuendigt-heute")} icon={Megaphone}
           label="Heute angekündigt"
           wert={a ? String(a.heute.anzahl) : "—"}
           unter={a ? `${eurGlatt(a.heute.cents)} · Kunden melden Überweisung` : undefined}
@@ -842,7 +939,7 @@ export default function AdminHubPage() {
           hilfe={'Kunden, die HEUTE gemeldet haben, dass sie überwiesen haben (Status „Zahlung angekündigt"). Noch kein Umsatz — erst nach Prüfung des Eingangs.'}
         />
         <Kachel
-          i={1} href="/admin/zahlungen?status=claimed_paid" icon={CreditCard}
+          i={1} onClick={() => setFenster("angekuendigt-alle")} icon={CreditCard}
           label="Angekündigt insgesamt"
           wert={a ? String(a.gesamt.anzahl) : "—"}
           unter={a ? `${eurGlatt(a.gesamt.cents)} offen${a.alt.anzahl > 0 ? ` · ${a.alt.anzahl} älter als 7 Tage` : ""}` : undefined}
@@ -850,7 +947,7 @@ export default function AdminHubPage() {
           hilfe="Alle noch nicht bestätigten Zahlungsankündigungen. Was älter als 7 Tage ist, ist verdächtig: entweder ist das Geld da und nicht verbucht, oder der Kunde hat nie überwiesen."
         />
         <Kachel
-          i={2} href="/admin/kunden" icon={CalendarClock}
+          i={2} onClick={() => setFenster("zusagen-heute")} icon={CalendarClock}
           label="Zusagen heute fällig"
           wert={z ? String(z.heuteFaellig) : "—"}
           unter={z ? `${z.ueberfaellig} überfällig · ${eurGlatt(z.summeCents)} Volumen` : undefined}
@@ -858,7 +955,7 @@ export default function AdminHubPage() {
           hilfe={'Termine, die Agenten im Gespräch aufgenommen haben („Kunde zahlt am …"). Heute fällig heißt: heute muss das Geld kommen oder nachgefasst werden.'}
         />
         <Kachel
-          i={3} href="/admin/verbuchungen" icon={TrendingUp}
+          i={3} onClick={() => setFenster("bezahlt-monat")} icon={TrendingUp}
           label="Monat bisher"
           wert={lage ? eurGlatt(lage.umsatz.monat.cents) : "—"}
           unter={lage ? `${lage.umsatz.monat.anzahl} Zahlungen · Provision ${eurGlatt(lage.provision.monatCents)}` : undefined}
@@ -872,7 +969,7 @@ export default function AdminHubPage() {
 
       {/* 4. Team */}
       {lage && <Rangliste agenten={lage.agenten} />}
-      {lage && <Zusagen lage={lage} />}
+      {lage && <Zusagen lage={lage} onZeigen={setFenster} />}
 
       {/* Werkzeuge */}
       <Suche />
@@ -881,6 +978,9 @@ export default function AdminHubPage() {
       </div>
       <Bereiche badges={badges} />
       <Anleitung />
+
+      {/* Die Detailliste zur angeklickten Kachel — über der Seite, nicht statt ihr. */}
+      {fenster && <Detailfenster {...fensterFuer(fenster)} onClose={() => setFenster(null)} />}
     </div>
   );
 }

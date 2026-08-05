@@ -159,6 +159,44 @@
 }
 .fi-primaerknopf:active { transform: translateZ(0) scale(0.985); }
 
+/* ── Versand-Aktion ────────────────────────────────────────────────────────
+   Zweite Hauptaktion neben „Anrufen": „Zahlungsdaten senden". Sie verdient
+   Gewicht, darf aber nicht mit dem Anruf konkurrieren — Anrufen bleibt die
+   erste Wahl. Deshalb dieselbe Tiefe und dieselbe Glanzkante wie beim
+   Primärknopf, aber in ruhigem Tintenblau statt im Markenverlauf.
+
+   Die Tiefe entsteht aus drei Schichten: gesetzter Schatten unten (das Element
+   liegt auf), weicher farbiger Streuschatten (es schwebt) und eine helle
+   Innenkante oben (Licht von oben). Beim Zeigen hebt es sich, beim Drücken
+   sinkt es ein — mehr Bewegung braucht ein Knopf nicht. */
+.fi-sendeknopf {
+  background: linear-gradient(180deg, #1e40af, #1a3a9c);
+  border-radius: var(--fi-radius-knopf);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22),
+              0 1px 2px rgba(15, 23, 42, 0.16),
+              0 6px 16px -6px rgba(30, 64, 175, 0.55);
+  transform: translateZ(0);
+  transition: transform var(--fi-mikro) var(--fi-kurve),
+              box-shadow var(--fi-mikro) var(--fi-kurve),
+              filter var(--fi-mikro) var(--fi-kurve);
+}
+.fi-sendeknopf:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28),
+              0 2px 4px rgba(15, 23, 42, 0.16),
+              0 12px 26px -8px rgba(30, 64, 175, 0.6);
+  filter: brightness(1.06);
+}
+.fi-sendeknopf:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+  box-shadow: inset 0 2px 4px rgba(9, 20, 56, 0.4), 0 1px 2px rgba(15, 23, 42, 0.14);
+}
+.fi-sendeknopf:disabled { opacity: 0.55; }
+@media (prefers-reduced-motion: reduce) {
+  .fi-sendeknopf:hover:not(:disabled) { transform: none; }
+}
+
 /* Sekundäraktion: ruhige Umrandung. Sie soll verfügbar sein, nicht werben. */
 .fi-zweitknopf {
   background: #fff;

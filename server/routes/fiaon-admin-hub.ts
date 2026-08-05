@@ -154,6 +154,9 @@ async function computeBadges(): Promise<any> {
   // zugeordneten, aber unverbuchten Eingänge bleiben sichtbar — die gehören zu
   // /admin/verbuchung und sind echte, noch zu erledigende Arbeit.
   const abgleichAn = String(settings.kontoabgleich_enabled ?? "false").toLowerCase() === "true";
+  // Die Verbuchungs-Seite ist ebenfalls abschaltbar. Ist sie aus, darf ihre
+  // Aufgabe nicht mehr im Dashboard stehen — sie würde ins Leere führen.
+  const verbuchungAn = String(settings.verbuchung_enabled ?? "false").toLowerCase() === "true";
 
   return {
     // Badges (Nav): Schlüssel = Nav-Pfad-Kürzel; 0 ⇒ Frontend blendet aus.
@@ -176,13 +179,14 @@ async function computeBadges(): Promise<any> {
     // Schalter, die die Oberfläche kennen muss (Navigation, Aufgabenliste).
     flags: {
       kontoabgleich: abgleichAn,
+      verbuchung: verbuchungAn,
       abgleichHistorie: Number(bank.unmatched) + Number(bank.matched_unapplied),
     },
     // Zusatzsignale für die Dashboard-Warn-Kacheln
     warn: {
       leadIntakeHours: leadIntake.hours != null ? Math.round(Number(leadIntake.hours)) : null,
       followupPaused: settings.lead_followup_enabled !== "1",
-      bankMatchedUnapplied: Number(bank.matched_unapplied),
+      bankMatchedUnapplied: verbuchungAn ? Number(bank.matched_unapplied) : 0,
       blockedAkten: Number(blockedAkten.c),
       blockedAktenAgent: blockedAkten.first_agent || null,
       criticalDiagnostics: Number(diag.c), // P5-D: eine Wahrheit, zwei Ansichten

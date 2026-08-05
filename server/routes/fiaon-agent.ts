@@ -319,6 +319,9 @@ const SETTING_DEFAULTS: Record<string, string> = {
   // Abgeschaltet am 04.08.2026: Zahlungen werden manuell in der Zahlungszentrale
   // gebucht. Code und Daten bleiben; Zurückschalten = 'true' setzen.
   kontoabgleich_enabled: "false",
+  // Nacharbeit zum Kontoabgleich. Abgeschaltet am 05.08.2026: keine offenen
+  // Altfälle mehr (262 Eingänge, 211 verbucht, 0 offen). Daten bleiben.
+  verbuchung_enabled: "false",
   // Paket AE1: automatische Kundenverteilung (Round-Robin auf aktive Agents)
   distribution_enabled: "1",          // Verteilung an/aus
   distribution_cap: "50",             // Obergrenze offener zugewiesener Kunden pro Agent
@@ -667,6 +670,26 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
   import("./fiaon-abo")
     .then((m) => m.aboBeiZahlungAnlegen(ref))
     .catch((e) => console.error("[FIAON-ABO] Anlage nach Zahlung:", e));
+
+  // ── DIE PERSON VERLÄSST DEN VERTRIEB ───────────────────────────────────────
+  // Ebenfalls VOR allen frühen `return` dieser Funktion. Das Tier war fachlich
+  // korrekt berechnet, wurde aber nur von einem Handskript in die Tabelle
+  // geschrieben. Zwischen zwei Läufen blieb ein bezahlter Kunde auf Tier 1
+  // („Zahlung angekündigt") — mit zwei Folgen, die die Agenten am 05.08.2026
+  // gemeldet haben:
+  //   1. Er stand am nächsten Tag wieder in der Anrufliste.
+  //   2. Die Verteilung greift Tier 1 und 2 — er wurde also an den nächsten
+  //      freien Agenten weitergegeben, obwohl er längst bezahlt hatte.
+  // Zusätzlich folgt die Person ihrer Bestellung: Zuständig ist, wem die
+  // Bestellung gehört, nicht wer sie zufällig aus der Verteilung bekam.
+  try {
+    const { personTierAktualisieren, personAgentSynchronisieren } = await import("../lib/tier");
+    await personAgentSynchronisieren(sqlPool, { ref });
+    const t = await personTierAktualisieren(sqlPool, { ref });
+    if (t) console.log(`[FIAON-AGENT] Person ${t.personId} nach Zahlung → Tier ${t.tier} (${t.grund})`);
+  } catch (e) {
+    console.error("[FIAON-TIER] Aktualisierung nach Zahlung:", e);
+  }
 
   // Idempotenz: pro Kunde maximal EIN positiver, nicht-stornierter Eintrag (own + override zusammen)
   const existing = await sqlPool`

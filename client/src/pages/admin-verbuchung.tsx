@@ -60,9 +60,19 @@ function Seite() {
   const [stapelLaeuft, setStapelLaeuft] = useState(false);
   const [stapelIndex, setStapelIndex] = useState(0);
 
+  // Die Seite ist abschaltbar (verbuchung_enabled). Der Server antwortet dann mit
+  // 410 — das muss ERKLÄRT werden. Ohne diese Weiche stünde hier eine leere
+  // Übersicht, und niemand wüsste, ob die Fälle erledigt oder die Daten weg sind.
+  const [abgeschaltet, setAbgeschaltet] = useState<{ text: string; ersatz?: string } | null>(null);
+
   const lade = useCallback(async (leise = false) => {
     if (!leise) setLaedt(true);
     const r = await apiF("/admin/verbuchung/uebersicht");
+    if (r.status === 410) {
+      setAbgeschaltet({ text: r.json?.error || "Die Seite ist abgeschaltet.", ersatz: r.json?.ersetztDurch });
+      setLaedt(false);
+      return;
+    }
     if (r.ok) setDaten(r.json.tabs);
     else zeige("fehler", "Laden fehlgeschlagen", r.json?.error || "Bitte erneut versuchen.");
     setLaedt(false);
@@ -153,6 +163,37 @@ function Seite() {
     () => (daten?.verbuchen?.zeilen || []).filter((z: any) => !erledigt[`v${z.id}`]).length,
     [daten, erledigt],
   );
+
+  if (abgeschaltet) {
+    return (
+      <div className="px-4 sm:px-6 py-6 max-w-3xl mx-auto">
+        <h1 className="text-[22px] font-bold text-slate-900 tracking-[-.02em]">Zahlungen verbuchen</h1>
+        <div className="a3-tafel mt-4 p-5">
+          <p className="text-[14px] font-bold text-slate-900">Erledigt und abgeschaltet</p>
+          <p className="text-[13px] text-slate-600 leading-relaxed mt-2">{abgeschaltet.text}</p>
+          <ul className="mt-3 space-y-1.5">
+            {[
+              "Diese Seite war die Nacharbeit zum Kontoabgleich. Der ist seit dem 04.08.2026 abgeschaltet — gebucht wird manuell in der Zahlungszentrale, mit dem tatsächlichen Zahlungsdatum.",
+              "Die offenen Altfälle sind abgearbeitet: 262 Bankeingänge, 211 verbucht, 0 zugeordnet-aber-offen.",
+              "Die Buchhaltungshistorie bleibt vollständig erhalten — es wurde nichts gelöscht.",
+              "Zurückschalten ist eine Einstellung: verbuchung_enabled auf true.",
+            ].map((t) => (
+              <li key={t} className="flex gap-2 text-[12.5px] text-slate-600 leading-snug">
+                <span className="shrink-0 mt-[7px] w-1 h-1 rounded-full bg-slate-300" />
+                <span>{t}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap gap-2 mt-4">
+            <a href={abgeschaltet.ersatz || "/admin/zahlungen"} className="a3-knopf inline-flex" data-haupt="1">
+              Zur Zahlungszentrale
+            </a>
+            <a href="/admin/einstellungen" className="a3-knopf inline-flex">Einstellungen</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen" style={{ background: "var(--fi-seite)", fontFamily: "Inter, system-ui, sans-serif" }}>

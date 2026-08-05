@@ -41,7 +41,7 @@ import {
 } from "../lib/fiaon-kontakt-ergebnis";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
-import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
+import { sendMakeWebhook, sendMakeWebhookMitGrund, makePayloadFromRow } from "../make-webhook";
 import { signInvoiceUrl } from "../fiaon-invoice";
 import { nachschub } from "./fiaon-followup";
 
@@ -422,6 +422,14 @@ router.get("/agent/crm/kunden", requireAgent, async (req: AgentRequest, res: Res
         AND p.merged_into_person_id IS NULL
         AND (${tier}::int IS NULL OR p.priority_tier = ${tier}::int)
         AND (${reason}::text IS NULL OR p.tier_reason = ${reason}::text)
+        -- ── SICHERHEITSGURT (Meldung 05.08.2026) ─────────────────────────
+        -- Anruflisten enthalten NUR Personen im Vertrieb (Tier 1 und 2).
+        -- Tier 0 heißt bezahlt, Tier -1 erstattet/storniert. Vorher fehlte diese
+        -- Bedingung: Ein bezahlter Kunde mit übrig gebliebener Wiedervorlage
+        -- stand weiter in „Heute" — Florentine sah Kunden, die bei Daniel längst
+        -- bezahlt hatten. Die Einstufung wird jetzt zwar live nachgezogen, aber
+        -- eine Liste, die sich allein darauf verlässt, ist eine Liste zu wenig.
+        AND (${state}::text IS NULL OR ${state}::text = 'alle' OR p.priority_tier BETWEEN 1 AND 2)
         AND (
           ${state}::text IS NULL
           OR (${state}::text = 'heute' AND NOT p.is_blocked
@@ -547,6 +555,14 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
     const wiedervorlage = req.body?.wiedervorlage ? String(req.body.wiedervorlage) : null;
     const zusageDatum = req.body?.zusageDatum ? String(req.body.zusageDatum) : null;
     const terminDatum = req.body?.terminDatum ? String(req.body.terminDatum) : null;
+    // Uhrzeit zum Rückruf (Meldung 05.08.2026: „kann kein Rückruf eintragen, da
+    // man keine Uhrzeit eintragen kann"). Ein Rückruf um 9 und einer um 18 Uhr
+    // sind im Tagesablauf zwei verschiedene Dinge; ohne Uhrzeit ist die Zusage
+    // gegenüber dem Kunden nicht einzuhalten.
+    const terminZeit = req.body?.terminZeit ? String(req.body.terminZeit).trim() : null;
+    const terminZeitpunkt = terminDatum
+      ? `${terminDatum}T${/^\d{2}:\d{2}$/.test(terminZeit || "") ? terminZeit : "10:00"}:00`
+      : null;
 
     // Notiz bleibt ein eigener Fall: Sie ändert keinen Zustand.
     const istNotiz = art === "notiz";
@@ -567,7 +583,7 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
       return res.status(400).json({ ok: false, error: "Bitte den vereinbarten Rückruf-Termin angeben." });
     }
     if (ergebnis === "rueckruf_termin") {
-      const fehler = pruefeTerminZukunft("rueckruf_termin", terminDatum);
+      const fehler = pruefeTerminZukunft("rueckruf_termin", terminZeitpunkt);
       if (fehler) return res.status(400).json({ ok: false, error: fehler });
     }
 
@@ -586,7 +602,7 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
         (ref, agent_id, agent_name, type, outcome, note, promised_date, scheduled_at, created_at)
       VALUES (${p.schreib_ref}, ${req.agent!.id}, ${req.agent!.name},
               ${istNotiz ? "note" : "result"}, ${ergebnis},
-              ${notiz}, ${zusageDatum || null}, ${terminDatum || null}, NOW())
+              ${notiz}, ${zusageDatum || null}, ${terminZeitpunkt || null}, NOW())
     `;
 
     // 2. Zustand anwenden — gemeinsame Regel für beide Ansichten.
@@ -729,6 +745,26 @@ router.post("/agent/crm/kunden/:personId/rechnung", requireAgent, async (req: Ag
       return res.status(400).json({ ok: false, error: "Für diesen Kunden ist keine E-Mail-Adresse hinterlegt." });
     }
 
+    // ── ERST SENDEN, DANN BUCHEN (Meldung 05.08.2026) ──────────────────────
+    // Vorher lief der Versand als Fire-and-forget NACH dem Buchen: Der Agent las
+    // „Zahlungsdetails versandt", während Make den Event vielleicht abgelehnt
+    // hatte. Florentine hat genau das gemeldet — „Button ist da, geht nur nicht".
+    // Eine Rückmeldung, die man nicht überprüfen kann, ist schlimmer als keine.
+    // Jetzt wird gesendet, das Ergebnis abgewartet, und nur bei Erfolg gezählt
+    // und protokolliert. Ein Fehlversand darf keinen Verlaufseintrag erzeugen,
+    // der später als Betreuungsnachweis für eine Provision gelesen wird.
+    const versand = await sendMakeWebhookMitGrund("payment_details", {
+      ...makePayloadFromRow(bestellung),
+      invoice_url: bestellung.payment_reference ? signInvoiceUrl(bestellung.payment_reference) : null,
+    });
+    if (!versand.ok) {
+      return res.status(502).json({
+        ok: false,
+        error: `Die Mail ging NICHT raus: ${versand.grund}`,
+        empfaenger,
+      });
+    }
+
     await sqlPool.begin(async (tx) => {
       await tx`
         UPDATE fiaon_persons
@@ -741,13 +777,6 @@ router.post("/agent/crm/kunden/:personId/rechnung", requireAgent, async (req: Ag
                 ${`Zahlungsdetails erneut versandt (${bestellung.payment_reference || bestellung.ref})`}, NOW())
       `;
     });
-
-    // Fire-and-forget wie überall: Ein Ausfall bei Make darf den Zähler und den
-    // Verlauf nicht zurückdrehen — der Agent hat die Aktion ausgelöst.
-    sendMakeWebhook("payment_details", {
-      ...makePayloadFromRow(bestellung),
-      invoice_url: bestellung.payment_reference ? signInvoiceUrl(bestellung.payment_reference) : null,
-    }).catch((e) => console.error("[AGENT-KUNDEN] payment_details:", e));
 
     const neu = await meinePerson(personId, req.agent!.id);
     res.json({

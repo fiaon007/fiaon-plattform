@@ -33,6 +33,7 @@
 import { sqlPool } from "./lib/db-pool";
 import { randomBytes } from "crypto";
 import { isAddonOrderRow, pickAccountRow, storedPasswordOf } from "./fiaon-login-logic";
+import { waehlbareNummer } from "./lib/fiaon-telefon";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEIL 1 — REINE LOGIK (keine Datenbank, testbar ohne Verbindung)
@@ -164,7 +165,23 @@ export function fillFromRow(draft: PersonDraft, row: any): PersonDraft {
   if (leer(draft.primary_phone)) {
     const d = phoneDigits(row?.phone_country_code, row?.phone) || phoneDigits(row?.contact_phone);
     if (d.length >= 7) {
-      draft.primary_phone = String(row?.phone ?? row?.contact_phone ?? "").trim() || d;
+      // ── LÄNDERVORWAHL MITNEHMEN (Meldung 05.08.2026) ───────────────────────
+      // Vorher wurde hier `row.phone` übernommen — die nationale Nummer OHNE die
+      // Vorwahl, die in `phone_country_code` daneben stand. Ergebnis: 2.058 von
+      // 4.521 Personen hatten eine Nummer, mit der kein Anruf möglich war, und
+      // jede neue Bestellung legte die nächste an. Der einmalige Reparaturlauf
+      // hätte das Problem also nur verschoben; hier ist die Quelle.
+      const tel = waehlbareNummer(
+        [
+          { nummer: row?.phone, vorwahl: row?.phone_country_code },
+          { nummer: row?.contact_phone },
+        ],
+        row?.country,
+      );
+      draft.primary_phone = tel.waehlbar || tel.anzeige
+        || String(row?.phone ?? row?.contact_phone ?? "").trim() || d;
+      // Der Vergleichsschlüssel bleibt die letzte NEUN Ziffern — die Vorwahl
+      // ändert daran nichts, alle Dubletten-Vergleiche gelten unverändert.
       draft.phone_key9 = d.slice(-9);
     }
   }

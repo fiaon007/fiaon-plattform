@@ -117,7 +117,8 @@ async function computeSyntheticEvents(): Promise<SynthEvent[]> {
       link: "/admin/kontoabgleich",
     });
   }
-  if (Number(bank?.matched_unapplied) > 0) {
+  const { verbuchungAktiv } = await import("./fiaon-verbuchung");
+  if ((await verbuchungAktiv()) && Number(bank?.matched_unapplied) > 0) {
     push({
       severity: "warnung", category: "zahlung", code: "bank_matched_unapplied", count: Number(bank.matched_unapplied),
       message: `${bank.matched_unapplied} zugeordnete(r) Bank-Eingang/Eingänge noch nicht verbucht — der Kunde gilt weiter als unbezahlt.`,

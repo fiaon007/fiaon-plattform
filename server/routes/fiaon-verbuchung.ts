@@ -25,9 +25,46 @@
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { applyTxn, payerMatchesCustomer } from "./fiaon-reconcile";
-import { ermittleProvisionsAnspruch } from "./fiaon-agent";
+import { ermittleProvisionsAnspruch, getSettings } from "./fiaon-agent";
 
 const router = Router();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ABGESCHALTET (05.08.2026)
+//
+// Diese Seite war die Nacharbeit zum Kontoabgleich: Bankeingänge, bei denen noch
+// etwas zu entscheiden war. Der Kontoabgleich ist seit dem 04.08. abgeschaltet
+// (Zahlungen werden manuell in der Zahlungszentrale gebucht), und die offenen
+// Altfälle sind abgearbeitet — geprüft am 05.08.: 262 Bankeingänge, 211 verbucht,
+// 0 zugeordnet-aber-offen. Damit hat die Seite keine Arbeit mehr zu zeigen.
+//
+// Der Code bleibt vollständig stehen und `fiaon_bank_txns` bleibt unangetastet:
+// Buchhaltungshistorie. Zurückschalten ist eine Einstellung —
+// `verbuchung_enabled` auf 'true'. Dasselbe Muster wie `kartei_enabled` und
+// `kontoabgleich_enabled`; 410 Gone und nicht 404, weil diese Endpunkte
+// existiert haben und bewusst abgeschaltet sind.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function verbuchungAktiv(): Promise<boolean> {
+  try {
+    const s = await getSettings();
+    return String(s.verbuchung_enabled ?? "false").toLowerCase() === "true";
+  } catch (err) {
+    console.error("[FIAON-VERBUCHUNG] verbuchung_enabled nicht lesbar — bleibt abgeschaltet:", err);
+    return false;
+  }
+}
+
+router.use(async (req: Request, res: Response, next) => {
+  if (!req.path.includes("/verbuchung")) return next();
+  if (await verbuchungAktiv()) return next();
+  return res.status(410).json({
+    ok: false,
+    error: "Die Verbuchungs-Seite ist abgeschaltet. Zahlungen werden in der Zahlungszentrale gebucht.",
+    ersetztDurch: "/admin/zahlungen",
+    einstellung: "verbuchung_enabled",
+    hinweis: "Die Buchhaltungshistorie (fiaon_bank_txns) bleibt vollständig erhalten.",
+  });
+});
 
 // ───────────────────────────────────────────────────────────────────────────
 // Hilfsabfragen

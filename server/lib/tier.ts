@@ -163,6 +163,164 @@ export function personTierSql(): string {
     WHERE p.merged_into_person_id IS NULL`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// LIVE-AKTUALISIERUNG — der Fehler, der die Listen durchmischt hat
+//
+// Das Tier war fachlich richtig berechnet, wurde aber NUR von einem Handskript
+// (scripts/tier-backfill.ts) in die Tabelle geschrieben. Zwischen zwei Läufen
+// lebte die Person mit einem veralteten Tier weiter. Die Folgen, gemessen am
+// 05.08.2026:
+//
+//   · Ein Kunde zahlt um 12:00 → seine Person steht weiter auf Tier 1
+//     („Zahlung angekündigt") mit Wiedervorlage auf morgen. Er erscheint am
+//     nächsten Tag wieder in der Anrufliste, obwohl er bezahlt hat.
+//   · 10 vollständig bezahlte Personen standen in Anruflisten.
+//   · Die Verteilung greift ausschließlich Tier 1 und 2 — ein bezahlter Kunde
+//     mit veraltetem Tier 1 wurde also an den NÄCHSTEN freien Agenten vergeben.
+//     So landeten Daniels bezahlte Kunden bei Florentine.
+//
+// Deshalb: Nach jeder Zustandsänderung einer Bestellung wird das Tier der
+// betroffenen Person sofort neu geschrieben. Berechnet wird es weiter mit
+// derselben Abfrage (`personTierSql`) — es gibt keine zweite Regel, nur einen
+// zusätzlichen Auslöser.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Schreibt Tier und Grund EINER Person neu und räumt dabei die Anruflisten auf.
+ *
+ * Tier 0 (bezahlt) und Tier -1 (erstattet/storniert) bedeuten: raus aus dem
+ * Vertrieb. Dann werden Zusagedatum und Wiedervorlage gelöscht — sonst bliebe
+ * der Kunde über die Tagesliste sichtbar, obwohl er nichts mehr schuldet. Der
+ * Zähler `unreachable_count` und die Sperre bleiben unangetastet: Sie sind
+ * Historie und keine Arbeitsliste.
+ *
+ * @param sql   Verbindung oder Transaktion (damit der Aufrufer die Klammer setzt)
+ * @param ref   Antragsreferenz — die Person wird daraus ermittelt
+ */
+export async function personTierAktualisieren(
+  sql: any,
+  opts: { personId?: number | null; ref?: string | null },
+): Promise<{ personId: number; tier: number; grund: string } | null> {
+  let personId = opts.personId ?? null;
+  if (!personId && opts.ref) {
+    const [row] = await sql`SELECT person_id FROM fiaon_applications WHERE ref = ${opts.ref}`;
+    personId = row?.person_id ?? null;
+  }
+  if (!personId) return null;
+
+  const [neu] = await sql.unsafe(
+    `${personTierSql()} AND p.id = $1`,
+    [personId],
+  );
+  if (!neu) return null;
+
+  await sql`
+    UPDATE fiaon_persons SET
+      priority_tier = ${Number(neu.priority_tier)},
+      tier_reason = ${String(neu.tier_reason)},
+      updated_at = NOW()
+    WHERE id = ${personId}
+  `;
+  // Zwei Schritte statt einer verschachtelten Bedingung: Das Löschen der
+  // Arbeitsdaten ist eine eigene Entscheidung und soll auch so lesbar sein.
+  if (Number(neu.priority_tier) <= 0) {
+    await sql`
+      UPDATE fiaon_persons SET promised_payment_date = NULL, follow_up_date = NULL, updated_at = NOW()
+      WHERE id = ${personId}
+    `;
+  }
+  return { personId, tier: Number(neu.priority_tier), grund: String(neu.tier_reason) };
+}
+
+/**
+ * Alle Personen auf den berechneten Stand bringen — das Sicherheitsnetz.
+ *
+ * Die Einzelaktualisierung oben deckt die Wege ab, die wir kennen. Dieser Lauf
+ * fängt alles andere ein: eine Zahlung, die per Skript gebucht wurde, ein
+ * Storno, eine abgelaufene Frist. Er läuft im Tageslauf mit und schreibt nur
+ * tatsächlich abweichende Zeilen — dieselbe Abfrage wie scripts/tier-backfill.ts,
+ * damit es keine zweite Wahrheit gibt.
+ */
+export async function alleTierAktualisieren(sql: any): Promise<{ geaendert: number }> {
+  const erg = await sql.unsafe(`
+    WITH t AS (${personTierSql()})
+    UPDATE fiaon_persons p
+    SET priority_tier = t.priority_tier,
+        tier_reason   = t.tier_reason,
+        updated_at    = NOW()
+    FROM t
+    WHERE t.person_id = p.id
+      AND (p.priority_tier IS DISTINCT FROM t.priority_tier
+        OR p.tier_reason   IS DISTINCT FROM t.tier_reason)`);
+  const geaendert = Number((erg as any)?.count ?? 0);
+  // Wer den Vertrieb verlassen hat, darf keine Arbeitsdaten mehr tragen.
+  await sql`
+    UPDATE fiaon_persons
+    SET promised_payment_date = NULL, follow_up_date = NULL, updated_at = NOW()
+    WHERE merged_into_person_id IS NULL AND priority_tier <= 0
+      AND (promised_payment_date IS NOT NULL OR follow_up_date IS NOT NULL)
+  `;
+  if (geaendert > 0) console.log(`[FIAON-TIER] Tageslauf: ${geaendert} Person(en) neu eingestuft`);
+  return { geaendert };
+}
+
+/**
+ * Die Person folgt der Bestellung.
+ *
+ * Gemessen am 05.08.2026: 53 Personen gehörten Agent A, während ihre Bestellung
+ * Agent B gehörte. Die Folge im Alltag: Florentine sah Kunden in ihrer Liste,
+ * die bei Daniel bezahlt hatten — sie konnte sie anrufen, aber nichts daran
+ * verdienen, und Daniel sah seine eigenen Kunden nicht mehr.
+ *
+ * Die Bestellung trägt den Provisionsanspruch; die Person ist nur die
+ * Anrufansicht darauf. Also gilt: Zuständig ist, wem die jüngste LEBENDE
+ * Bestellung gehört. Gibt es keine offene mehr, bleibt der Kunde bei dem, der
+ * ihn verkauft hat — dann ist er ohnehin Tier 0 und in keiner Anrufliste.
+ *
+ * Ohne Agent an der Bestellung wird NICHTS geändert: Eine bestehende Zuweisung
+ * darf nicht wegen einer herrenlosen Bestellung verloren gehen.
+ */
+export async function personAgentSynchronisieren(
+  sql: any,
+  opts: { personId?: number | null; ref?: string | null },
+): Promise<{ personId: number; agentId: number } | null> {
+  let personId = opts.personId ?? null;
+  if (!personId && opts.ref) {
+    const [row] = await sql`SELECT person_id FROM fiaon_applications WHERE ref = ${opts.ref}`;
+    personId = row?.person_id ?? null;
+  }
+  if (!personId) return null;
+
+  const [ziel] = await sql`
+    SELECT a.assigned_agent_id AS agent_id
+    FROM fiaon_applications a
+    WHERE a.person_id = ${personId} AND a.merged_into IS NULL
+      AND a.assigned_agent_id IS NOT NULL
+      AND a.payment_status <> 'superseded'
+    ORDER BY
+      CASE a.payment_status
+        WHEN 'claimed_paid' THEN 0
+        WHEN 'pending_payment' THEN 1
+        WHEN 'expired' THEN 2
+        WHEN 'paid' THEN 3
+        ELSE 4
+      END,
+      a.created_at DESC
+    LIMIT 1
+  `;
+  if (!ziel?.agent_id) return null;
+
+  const rows = await sql`
+    UPDATE fiaon_persons SET assigned_agent_id = ${ziel.agent_id}, updated_at = NOW()
+    WHERE id = ${personId} AND COALESCE(assigned_agent_id, 0) <> ${ziel.agent_id}
+    RETURNING id
+  `;
+  if (rows.length > 0) {
+    console.log(`[FIAON-TIER] Person ${personId} folgt ihrer Bestellung → Agent ${ziel.agent_id}`);
+  }
+  return { personId, agentId: Number(ziel.agent_id) };
+}
+
 /** Dieselbe Abbildung in JavaScript, für Auswertungen außerhalb der Datenbank. */
 export function tierAusRang(rang: number): { tier: number; grund: string } {
   switch (rang) {

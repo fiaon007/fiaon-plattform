@@ -279,6 +279,15 @@ export async function runFollowUpTageslauf(opts: { force?: boolean } = {}): Prom
   }
 
   try {
+    // 0 · Einstufung auf Stand bringen — VOR jeder Zuweisung.
+    //
+    // Der Tageslauf verteilt Tier-1-Personen. Läuft er auf veralteten Tiers, gibt
+    // er bezahlte Kunden an Agenten weiter — genau das ist am 05.08.2026
+    // passiert: Ein Kunde zahlte bei Daniel und landete anschließend in
+    // Florentines Liste. Die Einstufung MUSS also vor der Verteilung stehen.
+    const { alleTierAktualisieren } = await import("../lib/tier");
+    await alleTierAktualisieren(sqlPool).catch((e) => console.error("[FIAON-FOLLOWUP] Tier:", e));
+
     // 1 · Auto-Assign für herrenlose Tier-1-Personen
     const herrenlos = (await sqlPool`
       SELECT id FROM fiaon_persons

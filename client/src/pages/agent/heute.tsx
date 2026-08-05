@@ -31,7 +31,7 @@ import {
   Ebene, KURVE, Skelett, Tilt, ToastAnbieter, Zahl, ZeitAngabe,
   datum, eintritt, eur, useImBild, useReduzierteBewegung, useToast,
 } from "@/lib/fiaon-ui";
-import { LeerForm, ZeichenSchliessen, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
+import { LeerForm, ZeichenSchliessen, ZeichenSenden, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
 
 // KEINE Icon-Bibliothek und KEINE Emojis. Symbole kommen aus `fiaon-zeichen`
 // — fünf selbstgezeichnete SVG, alle nach denselben Regeln. Überall sonst
@@ -606,11 +606,13 @@ function KartenSkelett() {
 // Die Kundenkarte — Telefon, Grund, Handlungshinweis, Aktionen
 // ═══════════════════════════════════════════════════════════════════════════
 function KundenKarte({
-  kunde, index, hero, zeigeVerzug, zeigeRechnung, onAktion, onDetail,
+  kunde, index, hero, zeigeVerzug, zeigeRechnung, onAktion, onDetail, onAktualisiert,
 }: {
   kunde: Kunde; index: number; hero?: boolean; zeigeVerzug?: boolean; zeigeRechnung?: boolean;
   onAktion: (k: Kunde, pfad: string, body: any, text: string) => Promise<void>;
   onDetail: () => void;
+  /** Nach einem Versand: Zähler auf der Karte neu holen. */
+  onAktualisiert?: () => void;
 }) {
   const reduziert = useReduzierteBewegung();
   const { zeige } = useToast();
@@ -619,6 +621,7 @@ function KundenKarte({
   const [datumWert, setDatumWert] = useState("");
   const [terminOffen, setTerminOffen] = useState(false);
   const [terminWert, setTerminWert] = useState("");
+  const [terminZeit, setTerminZeit] = useState("10:00");
   const [stammOffen, setStammOffen] = useState(false);
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [fehlerShake, setFehlerShake] = useState(false);
@@ -633,13 +636,21 @@ function KundenKarte({
     setLaeuft(null);
   };
 
-  const rechnungSenden = async () => {
+  /**
+   * Zahlungsdaten und Rechnung an den Kunden senden.
+   *
+   * Der Server wartet inzwischen die Antwort von Make ab und meldet einen
+   * Fehlschlag als solchen. Deshalb steht hier keine Erfolgsmeldung „auf
+   * Verdacht" mehr: Was der Agent liest, ist der tatsächliche Ausgang.
+   */
+  const zahlungsdatenSenden = async () => {
     setLaeuft("rechnung");
     const r = await apiF(`/agent/crm/kunden/${kunde.personId}/rechnung`, { method: "POST", body: JSON.stringify({}) });
     setLaeuft(null);
     if (r.ok) {
-      zeige(r.json.warnung ? "info" : "erfolg", "Zahlungsdetails versandt",
-        r.json.warnung || `An ${r.json.versandtAn}`);
+      zeige(r.json.warnung ? "info" : "erfolg", "Zahlungsdaten versandt",
+        r.json.warnung || `An ${r.json.versandtAn} — mit Bankverbindung, Verwendungszweck und Rechnung.`);
+      onAktualisiert?.();
     } else {
       setFehlerShake(true);
       setTimeout(() => setFehlerShake(false), 320);
@@ -839,14 +850,41 @@ function KundenKarte({
               </span>
             )}
 
+            {/* ── ZAHLUNGSDATEN SENDEN (Meldung 05.08.2026) ────────────────────
+                Vorher stand hier ein „E-Mail"-Knopf mit mailto: — er öffnete das
+                Mailprogramm des Agenten. Daniel beschrieb es genau so: „wenn ich
+                auf Email klicke werde ich zu meiner Email weitergeleitet".
+                Gemeint war aber: Der Kunde soll die Zahlungsdaten von der
+                Plattform bekommen, mit Bankverbindung, Verwendungszweck und
+                Rechnung als Link.
+                Jetzt löst der Knopf genau das aus (Event payment_details) und
+                sagt hinterher, an WELCHE Adresse es ging. Das Mailprogramm
+                bleibt als kleiner Zusatz erreichbar — beschriftet, damit es
+                niemanden mehr überrascht. */}
+            <button type="button" onClick={() => void zahlungsdatenSenden()}
+                    disabled={!!laeuft || !kunde.email}
+                    title={kunde.email
+                      ? `Zahlungsdaten und Rechnung an ${kunde.email} senden`
+                      : "Für diesen Kunden ist keine E-Mail-Adresse hinterlegt"}
+                    className="fi-sendeknopf inline-flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold">
+              <ZeichenSenden size={15} />
+              {laeuft === "rechnung" ? "Sende …" : "Zahlungsdaten senden"}
+            </button>
+
             {kunde.email && (
               <a href={`mailto:${kunde.email}`}
-                 className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-2.5 text-[12.5px] font-semibold"
-                 title={kunde.email}>
-                E-Mail
+                 className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-2.5 text-[12px] font-medium"
+                 title={`Öffnet dein eigenes Mailprogramm mit ${kunde.email}`}>
+                eigenes Mailprogramm
               </a>
             )}
           </div>
+          {kunde.rechnungVersandt > 0 && (
+            <p className="mt-1.5 text-[11.5px]"
+               style={{ color: kunde.rechnungWarnung ? "var(--fi-fehler)" : "var(--fi-text-still)" }}>
+              {kunde.rechnungWarnung || `Zahlungsdaten bereits ${kunde.rechnungVersandt}× versandt`}
+            </p>
+          )}
 
           {/* ── ERGEBNIS DOKUMENTIEREN ───────────────────────────────────────
               Vorher gab es hier vier Möglichkeiten. Es fehlten „Erreicht –
@@ -941,12 +979,22 @@ function KundenKarte({
                      min={new Date().toISOString().slice(0, 10)}
                      className="px-2.5 py-2 rounded-lg border text-[13px] outline-none bg-white"
                      style={{ borderColor: "var(--fi-linie)" }} />
+              {/* Uhrzeit war der eigentliche Mangel: „Rückruf morgen" ist keine
+                  Verabredung. Vorbelegt mit 10:00, damit ein Klick genügt, wenn
+                  keine Zeit vereinbart wurde. */}
+              <label className="text-[12px] font-semibold" style={{ color: "var(--fi-text-leise)" }}>
+                um
+              </label>
+              <input type="time" value={terminZeit} onChange={(e) => setTerminZeit(e.target.value)}
+                     step={900}
+                     className="px-2.5 py-2 rounded-lg border text-[13px] outline-none bg-white"
+                     style={{ borderColor: "var(--fi-linie)" }} />
               <button
                 type="button"
                 disabled={!terminWert || !!laeuft}
                 onClick={() => fuehreAus("rueckruf", "/aktivitaet",
-                  { art: "rueckruf_termin", terminDatum: terminWert },
-                  `Rückruf am ${datum(terminWert)} vorgemerkt`, "var(--fi-tint)")}
+                  { art: "rueckruf_termin", terminDatum: terminWert, terminZeit },
+                  `Rückruf am ${datum(terminWert)} um ${terminZeit} vorgemerkt`, "var(--fi-tint)")}
                 className="px-3 py-2 rounded-lg text-[12px] font-bold text-white transition-transform duration-150
                            active:scale-[0.96] disabled:opacity-40"
                 style={{ background: "var(--fi-primaer)" }}>
@@ -995,10 +1043,14 @@ function KundenKarte({
           </div>
         )}
 
-        {/* Zahlungsdetails senden — nur auf Tier-2-Karten */}
-        {zeigeRechnung && (
+        {/* Der Versand-Knopf steht jetzt oben bei „Anrufen" — auf JEDER Karte.
+            Vorher erschien er nur auf Tier-2-Karten: Wer gerade mit einem Kunden
+            telefonierte, der „Zahlung angekündigt" war (Tier 1), hatte keine
+            Möglichkeit, ihm die Bankdaten zu schicken. Genau dieser Fall kam im
+            Team-Chat vor. */}
+        {false && (
           <div className="mt-2.5 pt-2.5 border-t flex flex-wrap items-center gap-2" style={{ borderColor: "var(--fi-linie)" }}>
-            <button type="button" onClick={rechnungSenden} disabled={!!laeuft}
+            <button type="button" onClick={() => void zahlungsdatenSenden()} disabled={!!laeuft}
                     className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[12px] font-bold
                                transition-transform duration-150 active:scale-[0.96] disabled:opacity-50"
                     style={{ borderColor: "var(--fi-linie)", color: "var(--fi-primaer)" }}>

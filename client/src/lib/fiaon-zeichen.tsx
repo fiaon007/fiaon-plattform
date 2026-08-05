@@ -45,6 +45,20 @@ export function ZeichenTelefon(p: Props) {
   );
 }
 
+/**
+ * 1b — Senden. Ein Papierflieger aus zwei Linien: die Silhouette und die
+ * Mittelfalte. Kein Briefumschlag — der stünde für „Postfach", hier geht etwas
+ * RAUS. Die Falte macht aus dem Dreieck erst einen Flieger.
+ */
+export function ZeichenSenden(p: Props) {
+  return (
+    <Rahmen {...p}>
+      <path d="M17.5 2.5 2.5 8.8l5.4 2.3 2.3 5.4z" />
+      <path d="M17.5 2.5 7.9 11.1" />
+    </Rahmen>
+  );
+}
+
 /** 2 — Schließen. Zwei Diagonalen, exakt 45 Grad. */
 export function ZeichenSchliessen(p: Props) {
   return (

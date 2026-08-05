@@ -972,6 +972,16 @@ router.post("/payment-order/:paymentRef/claim-paid", async (req, res) => {
     `;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden oder bereits abgeschlossen" });
     console.log(`[FIAON-PAYMENT] Zahlung gemeldet (claimed_paid): ${req.params.paymentRef}`);
+    // Einstufung sofort nachziehen: „Zahlung gemeldet" ist Tier 1 und damit der
+    // Zustand, der einen Kunden ganz oben in die Anrufliste hebt. Käme das erst
+    // im Tageslauf, würde der dringendste Fall einen Tag zu spät sichtbar.
+    try {
+      const { personTierAktualisieren } = await import("../lib/tier");
+      const [row] = await sqlPool`SELECT ref FROM fiaon_applications WHERE payment_reference = ${req.params.paymentRef}`;
+      if (row?.ref) await personTierAktualisieren(sqlPool, { ref: row.ref });
+    } catch (e) {
+      console.error("[FIAON-TIER] nach claim-paid:", e);
+    }
     // Paket U: Bestätigungsmail 'claim_received' — genau 1× pro Bestellung
     // (atomarer Flag-Claim; Mehrfachklick feuert NICHT erneut). Fehler blockieren nie.
     try {

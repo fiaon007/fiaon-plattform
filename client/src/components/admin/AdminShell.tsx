@@ -66,7 +66,7 @@ export const ADMIN_NAV: NavGroup[] = [
       { path: "/admin/kontoabgleich", label: "Kontoabgleich", desc: "Bank-Eingänge exakt mit Kunden abgleichen und verbuchen", icon: Landmark, badgeKey: "kontoabgleich", flagKey: "kontoabgleich" },
       // Routen-Audit 04.08.2026: diese Seite war erreichbar, stand aber in KEINEM
       // Menü — man kam nur über einen gemerkten Link hin.
-      { path: "/admin/verbuchung", label: "Zahlungen verbuchen", desc: "Vier Fälle, vier Reiter: verbuchen, Zuordnung korrigieren, fälschlich stillgelegt, ohne Zuordnung — mit Vorschau vor dem Klick", icon: Receipt },
+      { path: "/admin/verbuchung", label: "Zahlungen verbuchen", desc: "Vier Fälle, vier Reiter: verbuchen, Zuordnung korrigieren, fälschlich stillgelegt, ohne Zuordnung — mit Vorschau vor dem Klick", icon: Receipt, flagKey: "verbuchung" },
       // Eigene Seite seit 04.08.2026 — war vorher eine Sektion der
       // Zahlungszentrale und damit unter den Kundenzahlungen versteckt.
       { path: "/admin/auszahlungen", label: "Auszahlungen", desc: "Provisions-Anforderungen der Mitarbeiter freigeben", icon: Banknote, badgeKey: "auszahlungen" },

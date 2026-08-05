@@ -718,74 +718,154 @@ router.post("/agent/crm/kunden/:personId/zusage", requireAgent, async (req: Agen
 // Benutzt den BESTEHENDEN Versandweg (`payment_details` über Make, mit
 // signiertem Rechnungslink). Kein zweiter Mailpfad.
 // ───────────────────────────────────────────────────────────────────────────
+/**
+ * Zahlungsdaten und Rechnung an den Kunden senden — die Logik, EINMAL.
+ *
+ * Wird von zwei Stellen gebraucht: vom Agenten in seiner Kundenliste und von der
+ * Vertriebsleitung in der Gesamtansicht. Zwei Kopien würden auseinanderlaufen,
+ * und die Reihenfolge (erst senden, dann buchen) ist genau der Punkt, an dem der
+ * frühere Fehler saß.
+ *
+ * `pruefeBesitz` ist die Sicherheitsgrenze: Ein Agent darf nur an SEINE Kunden
+ * senden, die Vertriebsleitung an alle.
+ */
+export async function zahlungsdatenSenden(
+  personId: number,
+  agentId: number,
+  agentName: string,
+  opts: { pruefeBesitz?: boolean } = {},
+): Promise<{ ok: boolean; status?: number; error?: string; empfaenger?: string; warnung?: string | null; anzahl?: number }> {
+  if (opts.pruefeBesitz) {
+    const p = await meinePerson(personId, agentId);
+    if (!p) return { ok: false, status: 404, error: "Kunde nicht gefunden" };
+  }
+
+  // Die Bestellung, um die es geht: die jüngste noch offene.
+  const [bestellung] = await sqlPool`
+    SELECT ref, payment_reference, amount_due, first_name, last_name, contact_name,
+           email, contact_email, billing_email, pack_name, payment_status
+    FROM fiaon_applications
+    WHERE person_id = ${personId} AND merged_into IS NULL
+      AND payment_status IN ('pending_payment', 'claimed_paid', 'expired')
+    ORDER BY created_at DESC
+    LIMIT 1
+  `;
+  if (!bestellung) {
+    return {
+      ok: false, status: 400,
+      error: "Dieser Kunde hat keine offene Bestellung — es gibt keine Zahlungsdetails zu senden.",
+    };
+  }
+  const empfaenger = bestellung.email || bestellung.contact_email || bestellung.billing_email;
+  if (!empfaenger) {
+    return { ok: false, status: 400, error: "Für diesen Kunden ist keine E-Mail-Adresse hinterlegt." };
+  }
+
+  // ── ERST SENDEN, DANN BUCHEN (Meldung 05.08.2026) ────────────────────────
+  // Vorher lief der Versand als Fire-and-forget NACH dem Buchen: Der Agent las
+  // „Zahlungsdetails versandt", während Make den Event vielleicht abgelehnt
+  // hatte. Ein Fehlversand darf auch keinen Verlaufseintrag erzeugen — der würde
+  // später als Betreuungsnachweis für eine Provision gelesen.
+  const versand = await sendMakeWebhookMitGrund("payment_details", {
+    ...makePayloadFromRow(bestellung),
+    invoice_url: bestellung.payment_reference ? signInvoiceUrl(bestellung.payment_reference) : null,
+  });
+  if (!versand.ok) {
+    return { ok: false, status: 502, error: `Die Mail ging NICHT raus: ${versand.grund}`, empfaenger };
+  }
+
+  await sqlPool.begin(async (tx) => {
+    await tx`
+      UPDATE fiaon_persons SET invoice_sent_count = invoice_sent_count + 1, updated_at = NOW()
+      WHERE id = ${personId}
+    `;
+    await tx`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
+      VALUES (${bestellung.ref}, ${agentId}, ${agentName}, 'email_sent',
+              ${`Zahlungsdetails erneut versandt (${bestellung.payment_reference || bestellung.ref})`}, NOW())
+    `;
+  });
+
+  const [nachher] = await sqlPool`SELECT invoice_sent_count FROM fiaon_persons WHERE id = ${personId}`;
+  const anzahl = Number(nachher?.invoice_sent_count || 1);
+  return {
+    ok: true, empfaenger, anzahl,
+    warnung: anzahl >= RECHNUNG_WARNUNG_AB
+      ? `Das war der ${anzahl}. Versand. Weitere Mails bringen erfahrungsgemäß nichts — ruf an.`
+      : null,
+  };
+}
+
+/**
+ * Den Kunden bitten, seine Telefonnummer selbst zu korrigieren.
+ *
+ * Bewusst getrennt vom Ergebnis "Falsche Nummer": Das Ergebnis dokumentiert
+ * einen Anrufversuch und verschiebt die Wiedervorlage. Dieser Knopf verschickt
+ * NUR die Mail mit dem Korrektur-Link — etwa dann, wenn man die Nummer schon
+ * gestern als falsch erkannt hat und jetzt nur den Link nachschieben will.
+ * Zwei Dinge in einem Knopf zu buendeln, haette einen von beiden unbrauchbar
+ * gemacht.
+ */
+export async function nummerKorrekturSenden(
+  personId: number, agentId: number, agentName: string, opts: { pruefeBesitz?: boolean } = {},
+): Promise<{ ok: boolean; status?: number; error?: string; empfaenger?: string }> {
+  if (opts.pruefeBesitz) {
+    const p = await meinePerson(personId, agentId);
+    if (!p) return { ok: false, status: 404, error: "Kunde nicht gefunden" };
+  }
+  const [b] = await sqlPool`
+    SELECT ref, COALESCE(NULLIF(email,''), NULLIF(contact_email,''), NULLIF(billing_email,'')) AS email,
+           COALESCE(first_name, contact_name) AS first_name
+    FROM fiaon_applications
+    WHERE person_id = ${personId} AND merged_into IS NULL
+    ORDER BY created_at DESC LIMIT 1
+  `;
+  if (!b?.ref) return { ok: false, status: 400, error: "Keine Bestellung zu diesem Kunden" };
+  if (!b.email) {
+    return {
+      ok: false, status: 400,
+      error: "Ohne E-Mail-Adresse koennen wir den Kunden nicht um seine Nummer bitten.",
+    };
+  }
+  const { maybeSendNumberUpdateMail } = await import("../fiaon-number-update");
+  const erg = await maybeSendNumberUpdateMail("app", b.ref, { email: b.email, firstName: b.first_name });
+  if (!erg.sent) {
+    // Der Grund kommt aus der Sperre (hoechstens 1x pro Tag je Person) — das
+    // muss der Agent lesen, sonst klickt er dreimal und glaubt an einen Fehler.
+    return { ok: false, status: 400, error: erg.reason || "Die Mail wurde nicht versendet." };
+  }
+  await sqlPool`
+    INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
+    VALUES (${b.ref}, ${agentId}, ${agentName}, 'email_sent',
+            ${`Bitte um Nummern-Korrektur versandt an ${b.email}`}, NOW())
+  `.catch(() => {});
+  return { ok: true, empfaenger: b.email };
+}
+
+router.post("/agent/crm/kunden/:personId/nummer-korrektur", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const erg = await nummerKorrekturSenden(
+      Number(req.params.personId), req.agent!.id, req.agent!.name, { pruefeBesitz: true },
+    );
+    if (!erg.ok) return res.status(erg.status || 400).json({ ok: false, error: erg.error });
+    res.json({ ok: true, versandtAn: erg.empfaenger });
+  } catch (err) {
+    console.error("[AGENT-KUNDEN] nummer-korrektur:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.post("/agent/crm/kunden/:personId/rechnung", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const personId = Number(req.params.personId);
-    const p = await meinePerson(personId, req.agent!.id);
-    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
-
-    // Die Bestellung, um die es geht: die jüngste noch offene.
-    const [bestellung] = await sqlPool`
-      SELECT ref, payment_reference, amount_due, first_name, last_name, contact_name,
-             email, contact_email, billing_email, pack_name, payment_status
-      FROM fiaon_applications
-      WHERE person_id = ${personId} AND merged_into IS NULL
-        AND payment_status IN ('pending_payment', 'claimed_paid', 'expired')
-      ORDER BY created_at DESC
-      LIMIT 1
-    `;
-    if (!bestellung) {
-      return res.status(400).json({
-        ok: false,
-        error: "Dieser Kunde hat keine offene Bestellung — es gibt keine Zahlungsdetails zu senden.",
-      });
-    }
-    const empfaenger = bestellung.email || bestellung.contact_email || bestellung.billing_email;
-    if (!empfaenger) {
-      return res.status(400).json({ ok: false, error: "Für diesen Kunden ist keine E-Mail-Adresse hinterlegt." });
-    }
-
-    // ── ERST SENDEN, DANN BUCHEN (Meldung 05.08.2026) ──────────────────────
-    // Vorher lief der Versand als Fire-and-forget NACH dem Buchen: Der Agent las
-    // „Zahlungsdetails versandt", während Make den Event vielleicht abgelehnt
-    // hatte. Florentine hat genau das gemeldet — „Button ist da, geht nur nicht".
-    // Eine Rückmeldung, die man nicht überprüfen kann, ist schlimmer als keine.
-    // Jetzt wird gesendet, das Ergebnis abgewartet, und nur bei Erfolg gezählt
-    // und protokolliert. Ein Fehlversand darf keinen Verlaufseintrag erzeugen,
-    // der später als Betreuungsnachweis für eine Provision gelesen wird.
-    const versand = await sendMakeWebhookMitGrund("payment_details", {
-      ...makePayloadFromRow(bestellung),
-      invoice_url: bestellung.payment_reference ? signInvoiceUrl(bestellung.payment_reference) : null,
-    });
-    if (!versand.ok) {
-      return res.status(502).json({
-        ok: false,
-        error: `Die Mail ging NICHT raus: ${versand.grund}`,
-        empfaenger,
-      });
-    }
-
-    await sqlPool.begin(async (tx) => {
-      await tx`
-        UPDATE fiaon_persons
-           SET invoice_sent_count = invoice_sent_count + 1, updated_at = NOW()
-         WHERE id = ${personId}
-      `;
-      await tx`
-        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
-        VALUES (${bestellung.ref}, ${req.agent!.id}, ${req.agent!.name}, 'email_sent',
-                ${`Zahlungsdetails erneut versandt (${bestellung.payment_reference || bestellung.ref})`}, NOW())
-      `;
-    });
-
+    const erg = await zahlungsdatenSenden(personId, req.agent!.id, req.agent!.name, { pruefeBesitz: true });
+    if (!erg.ok) return res.status(erg.status || 400).json({ ok: false, error: erg.error });
     const neu = await meinePerson(personId, req.agent!.id);
     res.json({
       ok: true,
       kunde: kartePayload(neu, await letzteAktivitaetVon(personId)),
-      versandtAn: empfaenger,
-      warnung: neu.invoice_sent_count >= RECHNUNG_WARNUNG_AB
-        ? `Das war der ${neu.invoice_sent_count}. Versand. Weitere Mails bringen erfahrungsgemäß nichts — ruf an.`
-        : null,
+      versandtAn: erg.empfaenger,
+      warnung: erg.warnung,
     });
   } catch (err) {
     console.error("[AGENT-KUNDEN] rechnung:", err);

@@ -3,6 +3,30 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 05.08.2026 — Eine Arbeitsliste, ein Besitzer, eine Zuständigkeit
+
+Drei Meldungen aus dem Vertrieb an einem Tag, die dieselbe Ursache hatten:
+
+> „Der Bereich Heute sorgt für doppelte Arbeit. Teilweise werden Kunden anderer Mitarbeiter angezeigt." (Florentine)
+> „Axel Conrad zahlt heute, wurde von mir betreut, weiß nicht bei wem er jetzt zugeteilt ist." (Daniel)
+> „Teilweise sind Kunden in Heute, aber nicht in Meine Kunden."
+
+**Es war kein Datenleck.** Es waren drei getrennte Konstruktionsfehler, die zusammen wie eines aussahen.
+
+**1. Die Automatik nahm betreute Kunden weg.** Erstverteilung, Nachschub und Auto-Zuweisung holten Personen aus der Reserve — und in der Reserve lagen auch Kunden, die längst jemand betreute. Gemessen an Axel Conrad (Person 4492): acht dokumentierte Kontakte, alle von Daniel; am 03.08. um 17:04 nahm eine Erstverteilung ihn Daniel weg und gab ihn niemandem. In sieben Tagen geschah das 686 Mal. Jetzt gilt: Wer einmal dokumentiert betreut wurde, wird **nie** automatisch umverteilt (`fiaon_persons.betreuung_seit`, geprüft in jeder Verteil-Abfrage). Umziehen kann eine betreute Person nur ein Mensch, und das steht im Protokoll.
+
+**2. Zwei Listen über denselben Bestand sind zwei Wahrheiten.** „Heute" (personenbasiert) und „Meine Kunden" (bestellungsbasiert) zeigten denselben Kunden unterschiedlich — und zwei Mitarbeiter riefen denselben Menschen an. Aus „Heute" wurde die **Startseite** (`/agent/start`): Verdienst, Bestandszahlen, Termine — sie informiert und arbeitet nicht. Gearbeitet wird ausschließlich in **`/agent/kunden`**, der einen Liste, deren Reihenfolge die Arbeitsreihenfolge ist. Alte Adressen leiten um; kein Lesezeichen läuft ins Leere.
+
+**3. Die Zuständigkeit stand an zwei Stellen.** Person und Bestellung trugen je ein `assigned_agent_id`; bei 24 Datensätzen liefen sie auseinander. Bei 18 fehlte sie an der Bestellung — diese Kunden waren auf einer Seite da und auf der anderen weg, und das Altmodell der Provision (das die **Bestellung** liest) hätte sie niemandem zugerechnet. Abgeglichen; drei verschwundene Personen an ihren dokumentierten Betreuer zurückgegeben. Drei echte Konflikte stehen in `zustaendigkeit-entscheiden.csv` und gehören einem Menschen vorgelegt, keinem Skript.
+
+**Neue Rolle Vertriebsleitung.** Daniel und Florentine führen den Vertrieb und mussten für jede Umzuweisung nachfragen. `/agent/vertrieb` zeigt ihnen **alle** Kunden mit Zuständigem und dokumentiertem Betreuer, erlaubt Zuweisen, Stammdaten-Korrektur, Dokumentieren und Sperren. Was verschlossen bleibt: Zahlungen buchen, Provisionen ändern, Mitarbeiter anlegen, Bankdaten. Für alle anderen Konten **existiert die Seite nicht** — 404, nicht 403: Eine 403 wäre schon die Auskunft, dass es dort etwas zu holen gibt. Umgeschaltet wird die Rolle in `/admin/team`, ohne SQL.
+
+**Wichtig zur Provision:** Eine Zuweisung verschiebt die Zuständigkeit, **nicht** den Anspruch. Der Anspruch folgt dem dokumentierten Kontakt — auch im Altmodell, wo bisher allein die Zuweisung zählte. Sonst hätte die neue Umzuweisungs-Möglichkeit fremdes Geld verschieben können.
+
+**Nebenbei behoben:** Die Spalten-Sicherstellung (`ALTER TABLE`/`CREATE INDEX`) lief bei **jeder** Anfrage und sperrte dabei die Tabelle — gemessen 30 Sekunden pro Aufruf der Kundenliste, mit Sperrschlange bis in die Minuten. Sie läuft jetzt einmal pro Prozess. Startseite und Kundenliste stellen ihre Abfragen außerdem gleichzeitig statt hintereinander (9 Wege → 2).
+
+**Zu finden:** `server/routes/fiaon-agent-start.ts`, `server/routes/fiaon-vertrieb.ts`, `server/lib/tier.ts` (Besitzschutz), `client/src/pages/agent/start.tsx`, `client/src/pages/agent/kunden-neu.tsx`, `client/src/pages/agent/vertrieb.tsx`. Prüfstände: `scripts/pruef-vertrieb.ts` (79 Prüfungen), `scripts/pruef-agentansicht.ts` (Leck- und Vertriebsprobe), `scripts/abgleich-zustaendigkeit.ts`, `scripts/besitzschutz-herstellen.ts`.
+
 ## 03.08.2026 — Bezahlte Bonitätsauskünfte wurden stillschweigend gelöscht
 
 Wer eine **Bonitätsauskunft (74 €)** bestellte und danach sein Konto aktivierte, verlor die Auskunft — ohne Hinweis, ohne Eintrag, ohne dass irgendwer es merkte. Der Grund: Nach jeder Zahlung suchte das System nach „Dubletten" und legte **jede** offene Bestellung derselben E-Mail still. Es fragte nie, ob es überhaupt dasselbe Produkt war.

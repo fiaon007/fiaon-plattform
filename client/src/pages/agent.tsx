@@ -433,9 +433,12 @@ function Dashboard({ agentName }: { agentName: string }) {
  * und die Liste danach stammen aus derselben Bedingung (siehe
  * /agent/kartei/segmente im Server).
  */
+// Die Filternamen sind die der EINEN Kundenliste (05.08.2026). Vorher zeigten
+// sie auf /agent/meine-kunden mit eigenen Namen — nach der Zusammenlegung wäre
+// jeder dieser Kacheln ein Klick ins Nichts gewesen.
 const SEGMENTE: { key: keyof Segmente; label: string; filter: string }[] = [
-  { key: "betreuung", label: "In Betreuung", filter: "offen" },
-  { key: "angekuendigt", label: "Zahlung angekündigt", filter: "angekuendigt" },
+  { key: "betreuung", label: "In Betreuung", filter: "alle" },
+  { key: "angekuendigt", label: "Zahlung angekündigt", filter: "tier1" },
   { key: "abgeschlossen", label: "Abgeschlossen", filter: "bezahlt" },
 ];
 
@@ -482,7 +485,7 @@ function Bestand({ segmente, abschluesse }: { segmente: Segmente | null; abschlu
             {SEGMENTE.map((s) => (
               <Link
                 key={s.key}
-                href={`/agent/meine-kunden?filter=${s.filter}`}
+                href={`/agent/kunden?filter=${s.filter}`}
                 className="agent-tile rounded-2xl px-3 py-3 text-left"
                 style={{ minHeight: 76 }}
               >

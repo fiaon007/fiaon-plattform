@@ -37,6 +37,7 @@ router.get("/admin/agents", async (_req, res) => {
              -- Testkonten müssen erkennbar sein: Wer eine Aufgabe zuweist, soll
              -- kein Testkonto in der Auswahl sehen.
              COALESCE(a.is_test_account, FALSE) AS is_test_account,
+             COALESCE(a.rolle, 'agent') AS rolle,
              r.name AS recruited_by_name
       FROM fiaon_agents a
       LEFT JOIN fiaon_agents r ON r.id = a.recruited_by
@@ -164,6 +165,55 @@ router.post("/admin/agents/:id/update", async (req, res) => {
     res.json({ ok: true, agent: rows[0] });
   } catch (err) {
     console.error("[FIAON-TEAM] agent update:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * Rolle setzen: 'agent' oder 'vertriebsleiter'.
+ *
+ * Nur der Betreiber darf das — der Endpunkt haengt unter /admin und damit hinter
+ * dem Zugangs-Gate. Ein Vertriebsleiter kann seine eigene Rolle NICHT aendern und
+ * auch keine fremde: In /agent/vertrieb gibt es dafuer keinen Endpunkt.
+ *
+ * Damit erledigt sich die Bitte "ich will keine SQL-Befehle ausfuehren muessen":
+ * Die Umschaltung sitzt in der Team-Uebersicht.
+ */
+router.post("/admin/agents/:id/rolle", async (req, res) => {
+  try {
+    await ensureAgentTables();
+    await sqlPool`ALTER TABLE fiaon_agents ADD COLUMN IF NOT EXISTS rolle TEXT NOT NULL DEFAULT 'agent'`;
+    const id = Number(req.params.id);
+    const rolle = String(req.body?.rolle || "").trim();
+    if (rolle !== "agent" && rolle !== "vertriebsleiter") {
+      return res.status(400).json({ ok: false, error: "Rolle muss 'agent' oder 'vertriebsleiter' sein" });
+    }
+    const [vorher] = await sqlPool`SELECT rolle, name, is_test_account FROM fiaon_agents WHERE id = ${id}`;
+    if (!vorher) return res.status(404).json({ ok: false, error: "Mitarbeiter nicht gefunden" });
+    if (vorher.is_test_account && rolle === "vertriebsleiter") {
+      // Ein Testkonto mit Zugriff auf ALLE echten Kundendaten waere ein
+      // Datenleck mit Ansage.
+      return res.status(400).json({ ok: false, error: "Ein Testkonto kann nicht Vertriebsleiter werden." });
+    }
+    const rows = await sqlPool`
+      UPDATE fiaon_agents SET rolle = ${rolle} WHERE id = ${id}
+      RETURNING id, name, rolle
+    `;
+    // Rollenwechsel ist eine Rechtevergabe — sie gehoert protokolliert.
+    await sqlPool`
+      INSERT INTO fiaon_agent_events (agent_id, type, meta, actor)
+      VALUES (${id}, 'rolle_geaendert',
+              ${JSON.stringify({ alt: vorher.rolle, neu: rolle })}, 'admin')
+    `.catch(() => {});
+    console.log(`[FIAON-TEAM] Rolle von ${vorher.name}: ${vorher.rolle} → ${rolle}`);
+    res.json({
+      ok: true, agent: rows[0],
+      meldung: rolle === "vertriebsleiter"
+        ? `${vorher.name} sieht ab jetzt den Bereich „Vertrieb“: alle Kunden, zuweisen und korrigieren. Zahlungen buchen und Provisionen bleiben bei dir.`
+        : `${vorher.name} ist wieder normaler Mitarbeiter und sieht nur die eigenen Kunden.`,
+    });
+  } catch (err) {
+    console.error("[FIAON-TEAM] rolle:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

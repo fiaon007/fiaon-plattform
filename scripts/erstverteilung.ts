@@ -66,6 +66,12 @@ const ERZWINGEN = process.argv.includes("--apply");
 const GRUND = "initial_redistribution";
 
 const log = (s = "") => console.log(s);
+
+/** Besitzschutz-Spalte muss existieren, bevor irgendetwas verteilt wird. */
+async function ensureSpalte() {
+  const { ensureBetreuungSpalte } = await import("../server/lib/tier");
+  await ensureBetreuungSpalte(sqlPool);
+}
 const linie = (z = "─") => log(z.repeat(78));
 
 type Person = {
@@ -121,6 +127,9 @@ async function main() {
   log(`  Modus: ${NUR_ZEIGEN ? "nur zeigen" : ERZWINGEN ? "ausführen (Prüfung übersprungen)" : "prüfen, bei Erfolg ausführen"}`);
   linie("═");
   log();
+  await ensureSpalte();
+  log("  Besitzschutz aktiv: betreute Personen (betreuung_seit gesetzt) werden NICHT verteilt.");
+  log();
 
   // ── Einstellungen ────────────────────────────────────────────────────────
   const einstellungen = (await sqlPool`
@@ -157,6 +166,15 @@ async function main() {
     WHERE p.merged_into_person_id IS NULL
       AND p.priority_tier = ${tier}
       AND NOT p.is_blocked
+      -- ── BESITZSCHUTZ (05.08.2026) ────────────────────────────────────────
+      -- Betreute Personen bleiben, wo sie sind. Dieses Skript hat am 03.08.
+      -- 686 Personen neu verteilt und dabei Kunden ihren Betreuern
+      -- weggenommen — Axel Conrad etwa, acht dokumentierte Kontakte bei
+      -- Daniel, danach ohne Agenten. Eine faire Verteilung darf nur
+      -- UNBERÜHRTE Personen betreffen; alles andere ist Diebstahl an der
+      -- geleisteten Arbeit und führt dazu, dass zwei Leute denselben Menschen
+      -- anrufen.
+      AND p.betreuung_seit IS NULL
     ORDER BY
       CASE WHEN ${tier} = 1 THEN 0 ELSE 1 END,               -- Zweig wählen
       -- Tier 1: Zusagedatum zuerst, Personen ohne Datum danach

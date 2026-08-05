@@ -179,6 +179,16 @@ export async function ergebnisAnwenden(e: ErgebnisEingabe): Promise<ErgebnisWirk
       break;
   }
 
+  // ── BESITZSCHUTZ: Betreuung festhalten ────────────────────────────────────
+  // Ein dokumentiertes Ergebnis ist der Nachweis, dass dieser Kunde betreut
+  // wird. Ab hier darf ihn keine Automatik mehr umverteilen. Der Zeitpunkt wird
+  // nur beim ERSTEN Mal gesetzt (COALESCE) — er markiert den Beginn, nicht den
+  // letzten Anruf.
+  if (personId) {
+    const { betreuungMerken } = await import("./tier");
+    await betreuungMerken(sqlPool, { personId });
+  }
+
   // ── Person: der Zustand, auf den die Tagesliste schaut ────────────────────
   // Nur die Felder anfassen, die diese Regel wirklich betrifft: `undefined`
   // heißt „unverändert", `null` heißt ausdrücklich „löschen". Ein pauschales

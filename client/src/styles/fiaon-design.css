@@ -131,6 +131,35 @@
 }
 .fi-karte:hover { border-color: var(--fi-linie-hover); }
 
+/* Eintritt einer Listenkarte: aus 10px unten und 98,5 % Größe herauf. Gestaffelt
+   über die ersten acht Karten — danach ist die Staffelung nur noch Wartezeit. */
+@keyframes fiKarteAuf {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes fiKarteAuf { from { opacity: 0 } to { opacity: 1 } }
+}
+
+/* Karte, die ein Weg ist (Kennzahl → Liste). Sie hebt sich beim Zeigen sichtbar
+   an, damit man ihr das Klicken ansieht, statt es zu erraten. Bewusst nur zwei
+   Pixel und ein tieferer Schatten — mehr wäre Zirkus für eine Zahl. */
+.fi-karte--hebt {
+  transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1),
+              box-shadow 220ms cubic-bezier(0.32, 0.72, 0, 1),
+              border-color 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.fi-karte--hebt:hover {
+  transform: translateY(-2px);
+  border-color: rgba(29, 78, 216, 0.28);
+  box-shadow: var(--fi-schatten-hoch, 0 18px 40px -22px rgba(13, 26, 63, 0.4)),
+              var(--fi-glanzkante);
+}
+.fi-karte--hebt:active { transform: translateY(0) scale(0.994); }
+@media (prefers-reduced-motion: reduce) {
+  .fi-karte--hebt:hover { transform: none; }
+}
+
 /* Container für einen Kartenstapel: die Perspektive gehört an den Container,
    nicht an jede Karte. Sonst hat jede Karte ihren eigenen Fluchtpunkt und der
    Stapel kippt auseinander statt gemeinsam. */

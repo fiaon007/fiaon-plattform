@@ -123,7 +123,7 @@ export async function api(path: string, init?: RequestInit): Promise<any> {
 }
 
 // ── Navigation (Paket AO: 5 klare Punkte; Unterseiten markieren den Bereich) ─
-const NAV: { href: string; label: string; icon: typeof Users; match: string[] }[] = [
+const NAV: { href: string; label: string; icon: typeof Users; match: string[]; nurRolle?: string }[] = [
   // „Mein Tag“ (/agent) ist bewusst KEIN Menüpunkt mehr: Die Seite bezieht ihre
   // Zahlen aus /agent/kartei/status und /agent/kartei/segmente, und die Kartei
   // ist abgeschaltet. Sie wäre eine leere Seite mit Nullen. Angemeldete Agenten
@@ -132,16 +132,28 @@ const NAV: { href: string; label: string; icon: typeof Users; match: string[] }[
   // der Kartei suchte sich der Agent Akten aus einem gemeinsamen Bestand, hier
   // bekommt er seine Kunden zugewiesen. Der Kartei-Eintrag ist entfernt, weil
   // die Kartei abgeschaltet ist und ein Menüpunkt ins Leere zeigen würde.
-  { href: "/agent/heute", label: "Heute", icon: PhoneCall, match: ["/agent/heute"] },
+  // ── UMSTELLUNG 05.08.2026 ─────────────────────────────────────────────────
+  // Aus "Heute" wurde "Start". Der Vertrieb hat gemeldet, dass eine Tagesliste
+  // NEBEN der Kundenliste doppelte Arbeit erzeugt: Zwei Listen ueber denselben
+  // Bestand sind zwei Wahrheiten, und zwei Mitarbeiter riefen denselben Menschen
+  // an. Die Startseite informiert jetzt (Verdienst, Zahlen, Termine) und
+  // arbeitet nicht mehr — gearbeitet wird ausschliesslich unter "Kunden".
+  { href: "/agent/start", label: "Start", icon: LayoutDashboard, match: ["/agent/start", "/agent/heute"] },
   // Zeigt auf /agent/kunden, NICHT auf /agent/meine-kunden: Letztere Seite holt
   // ihre Liste aus /agent/kartei/meine, und das antwortet mit 410. Ein
   // Menüpunkt, der auf eine leere Seite führt, ist schlimmer als keiner.
-  { href: "/agent/kunden", label: "Meine Kunden", icon: Users, match: ["/agent/kunden", "/agent/meine-kunden"] },
+  // "Kunden" ist die EINZIGE Arbeitsliste. Der frueher hier verlinkte Bestand aus
+  // Bestellungen (/agent/meine-kunden) bleibt als Treffer erhalten, damit ein
+  // gemerkter Link nicht ins Leere fuehrt.
+  { href: "/agent/kunden", label: "Kunden", icon: Users, match: ["/agent/kunden", "/agent/meine-kunden"] },
   // Aufgaben stehen bewusst VOR dem Kalender: Ein zugewiesener Auftrag mit
   // Frist ist verbindlicher als ein selbst gesetzter Termin.
   { href: "/agent/aufgaben", label: "Aufgaben", icon: ListChecks, match: ["/agent/aufgaben"] },
   { href: "/agent/kalender", label: "Kalender", icon: Calendar, match: ["/agent/kalender"] },
   { href: "/agent/verdienst", label: "Verdienst", icon: Wallet, match: ["/agent/verdienst", "/agent/auszahlung", "/agent/partner-programm"] },
+  // Nur fuer die Vertriebsleitung. `nurRolle` filtert die Anzeige; die Tuer selbst
+  // schliesst der Server (404 fuer alle anderen).
+  { href: "/agent/vertrieb", label: "Vertrieb", icon: LayoutDashboard, match: ["/agent/vertrieb"], nurRolle: "vertriebsleiter" },
   { href: "/agent/mehr", label: "Mehr", icon: MoreHorizontal, match: ["/agent/mehr", "/agent/skripte", "/agent/updates", "/agent/feedback", "/agent/profil", "/agent/leistung", "/agent/dokumente"] },
 ];
 
@@ -289,13 +301,16 @@ function useReduzierteBewegung(): boolean {
  * verschobene Kopfzeile nicht verrutschen.
  */
 function AgentDrawer({
-  open, onClose, location, zaehler,
+  open, onClose, location, zaehler, rolle,
 }: {
   open: boolean;
   onClose: () => void;
   location: string;
   /** Pro Ziel-Pfad genau eine Zahl — dieselbe Quelle wie der Auslöser. */
   zaehler: Record<string, number>;
+  /** Rolle des Angemeldeten — entscheidet nur über die ANZEIGE des
+   *  Vertriebs-Punkts. Die Zugangsprüfung liegt im Server. */
+  rolle: string;
 }) {
   const reduziert = useReduzierteBewegung();
   const [zieh, setZieh] = useState(0);
@@ -356,7 +371,7 @@ function AgentDrawer({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-3">
-          {NAV.map((n, i) => {
+          {NAV.filter((n) => !n.nurRolle || n.nurRolle === rolle).map((n, i) => {
             const aktiv = n.match.includes(location);
             const Icon = n.icon;
             const zahl = zaehler[n.href] || 0;
@@ -418,6 +433,11 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
   const [neueUpdates, setNeueUpdates] = useState(0);
   const [ruecklaeufer, setRuecklaeufer] = useState(0);
   const [aufgabenFaellig, setAufgabenFaellig] = useState(0);
+  // Rolle des angemeldeten Mitarbeiters. Der Menuepunkt "Vertrieb" erscheint nur
+  // fuer die Vertriebsleitung. Die Sicherheitsgrenze liegt aber im Server: Ein
+  // normaler Agent, der die Adresse direkt aufruft, bekommt 404. Was hier
+  // passiert, ist Aufraeumen der Ansicht, nicht Schutz.
+  const [rolle, setRolle] = useState<string>("agent");
 
   const load = () => {
     api("/agent/me")
@@ -479,6 +499,13 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
     return () => clearInterval(iv);
   }, [agent]);
 
+  useEffect(() => {
+    if (!agent) return;
+    api("/agent/start")
+      .then((r) => { if (r.ok) setRolle(String(r.json.agent?.rolle || "agent")); })
+      .catch(() => {});
+  }, [agent]);
+
   // Zugewiesene Aufgaben: heute fällig + überfällig. Aktualisiert alle zwei
   // Minuten und sofort, wenn der Agent auf der Aufgabenseite abhakt.
   useEffect(() => {
@@ -529,11 +556,12 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
     if (checked && !agent && location !== "/agent") navigate("/agent");
   }, [checked, agent, location, navigate]);
 
-  // Startseite nach dem Login ist „Heute“. /agent bleibt die Anmeldeseite für
-  // Nichtangemeldete — deshalb hängt die Weiterleitung an `agent`, nicht am Pfad
-  // allein, und kann nicht in einer Schleife enden.
+  // Startseite nach dem Login ist „Start“ (bis 05.08.2026: „Heute“). /agent
+  // bleibt die Anmeldeseite für Nichtangemeldete — deshalb hängt die
+  // Weiterleitung an `agent`, nicht am Pfad allein, und kann nicht in einer
+  // Schleife enden.
   useEffect(() => {
-    if (checked && agent && location === "/agent") navigate("/agent/heute", { replace: true });
+    if (checked && agent && location === "/agent") navigate("/agent/start", { replace: true });
   }, [checked, agent, location, navigate]);
 
   const logout = async (e: React.MouseEvent) => {
@@ -551,8 +579,11 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
   // Wer hier etwas eintraegt, muss es einem Menuepunkt zuordnen — sonst kann
   // es nicht gezaehlt werden.
   const zaehler: Record<string, number> = {
-    // Kunden, die heute fällig sind — bearbeitet werden sie auf „Heute“.
-    "/agent/heute": ruecklaeufer,
+    // Kunden, die heute fällig sind. Der Zähler hängt jetzt an „Kunden“ und
+    // nicht mehr an der Startseite: Gearbeitet wird in der Kundenliste, und eine
+    // Zahl gehört dorthin, wo man sie abarbeitet — sonst schickt sie den Agenten
+    // auf eine Seite, auf der er nichts tun kann.
+    "/agent/kunden": ruecklaeufer,
     // Zugewiesene Aufgaben: gezählt wird, was heute oder früher fällig ist.
     // Eine Aufgabe für nächste Woche soll den Zähler nicht dauerhaft rot
     // halten — sonst gewöhnt man sich an die Zahl und sieht sie nicht mehr.
@@ -632,20 +663,23 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
                 <span className="ml-2 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-400">Mitarbeiter</span>
               </Link>
               <nav className="hidden md:flex items-center gap-1">
-                {NAV.map((n) => {
+                {NAV.filter((n) => !n.nurRolle || n.nurRolle === rolle).map((n) => {
                   const active = n.match.includes(location);
                   const badge = zaehler[n.href] || 0;
                   return (
                     <Link
                       key={n.href}
                       href={n.href}
-                      className={`relative px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                      className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
                         active ? "text-slate-900 bg-slate-100" : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
                       }`}
                     >
                       {n.label}
+                      {/* Die Zahl steht NEBEN der Beschriftung, nicht darüber.
+                          Absolut positioniert lag sie auf dem Wort — bei „Kunden 57"
+                          war beides gleichzeitig unlesbar. */}
                       {badge > 0 && (
-                        <span className="absolute top-0.5 right-0 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold text-white flex items-center justify-center tabular-nums" style={{ background: ACCENT }}>
+                        <span className="min-w-[17px] h-[17px] px-1 rounded-full text-[10px] font-bold text-white inline-flex items-center justify-center tabular-nums" style={{ background: ACCENT }}>
                           {badge}
                         </span>
                       )}
@@ -710,6 +744,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
           onClose={() => setMenueOffen(false)}
           location={location}
           zaehler={zaehler}
+          rolle={rolle}
         />
       </div>
     </AgentCtx.Provider>

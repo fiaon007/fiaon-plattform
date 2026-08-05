@@ -597,6 +597,33 @@ export async function ermittleProvisionsAnspruch(
   const cutoff = cutoffRaw ? new Date(cutoffRaw) : null;
   const isLegacy = !cutoff || isNaN(cutoff.getTime()) || new Date(app.created_at) < cutoff;
   if (isLegacy && app.assigned_agent_id) {
+    // ── DER BETREUER SCHLÄGT DIE ZUWEISUNG (05.08.2026) ─────────────────────
+    // Im Altmodell genügte die Zuweisung. Seit es Vertriebsleiter gibt, die
+    // Kunden umziehen dürfen, ist das eine offene Flanke: Ein Umzug hätte den
+    // Anspruch mitgenommen, obwohl ein anderer die Arbeit gemacht hat.
+    // Deshalb gilt auch hier: Gibt es einen dokumentierten Kontakt, gehört der
+    // Anspruch dem, der ihn dokumentiert hat. Nur wenn NIEMAND etwas
+    // dokumentiert hat, bleibt die Zuweisung die einzige Spur — und dann gilt
+    // sie weiter (kein rückwirkender Regelwechsel für die alte Zeit).
+    const [dok] = await sqlPool`
+      SELECT cl.agent_id, cl.created_at, ag.name
+      FROM fiaon_contact_log cl
+      JOIN fiaon_applications a ON a.ref = cl.ref
+      LEFT JOIN fiaon_agents ag ON ag.id = cl.agent_id
+      WHERE a.person_id = (SELECT person_id FROM fiaon_applications WHERE ref = ${ref})
+        AND cl.type = 'result' AND cl.voided_at IS NULL AND cl.agent_id IS NOT NULL
+      ORDER BY cl.created_at DESC
+      LIMIT 1
+    `;
+    if (dok?.agent_id && Number(dok.agent_id) !== Number(app.assigned_agent_id)) {
+      return {
+        agentId: Number(dok.agent_id),
+        basisKind: "betreut",
+        basisNote: `Altmodell, aber dokumentierte Betreuung schlägt die Zuweisung: letzter Kontakt am `
+          + `${new Date(dok.created_at).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })} durch ${dok.name || `Agent ${dok.agent_id}`}`
+          + ` (zugewiesen ist Agent ${app.assigned_agent_id} — eine Umzuweisung nimmt den Anspruch nicht mit).`,
+      };
+    }
     agentId = Number(app.assigned_agent_id);
     basisKind = "altmodell";
     basisNote = cutoff

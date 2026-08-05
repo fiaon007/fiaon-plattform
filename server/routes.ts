@@ -315,6 +315,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonPersonenRoutes = await import('./routes/fiaon-personen');
   app.use('/api/fiaon', fiaonPersonenRoutes.default);
 
+  // 🏠 FIAON Agent-Start + die EINE Kundenliste (ersetzt die Tagesliste).
+  const fiaonAgentStartRoutes = await import('./routes/fiaon-agent-start');
+  app.use('/api/fiaon', fiaonAgentStartRoutes.default);
+
+  // 🧭 FIAON Vertriebsleitung — /agent/vertrieb: Gesamtsicht für die zwei
+  //    Vertriebsleiter (zuweisen, korrigieren, dokumentieren). Normale Agenten
+  //    bekommen dort 404 — die Prüfung steht im Router, nicht in der Oberfläche.
+  const fiaonVertriebRoutes = await import('./routes/fiaon-vertrieb');
+  app.use('/api/fiaon', fiaonVertriebRoutes.default);
+
   // 📝 FIAON Vermerke — Notizen und Aufgaben an der Person, mit Frist,
   //    Zuständigem und Sichtbarkeit (privat / Team / bestimmte Personen).
   const fiaonVermerkeRoutes = await import('./routes/fiaon-vermerke');

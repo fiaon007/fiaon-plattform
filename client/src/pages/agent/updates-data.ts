@@ -40,6 +40,31 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-05-eine-kundenliste",
+    date: "2026-08-05",
+    category: "Neu",
+    important: true,
+    title: "Aus „Heute“ und „Meine Kunden“ wird EINE Liste — und dein Kunde bleibt dein Kunde",
+    summary:
+      "Es gibt nur noch eine Arbeitsliste: „Kunden“. Die neue Startseite zeigt Zahlen und Termine; gearbeitet wird an einer Stelle. Und niemand nimmt dir einen betreuten Kunden mehr weg.",
+    changes: [
+      "„Heute“ ist weg. Zwei Listen über denselben Bestand waren zwei Wahrheiten — deshalb konnte es passieren, dass zwei von euch denselben Menschen angerufen haben.",
+      "„Kunden“ ist jetzt DIE Liste. Die Reihenfolge steht schon: oben Zusagen und Rückrufe, die heute dran sind, dann gemeldete Zahlungen, dann offene Rechnungen, dann Leads. Von oben nach unten abarbeiten.",
+      "Jede Karte kann alles: anrufen, mailen, Ergebnis festhalten, Zusage eintragen, Rückruf setzen, Zahlungsdaten senden, Rufnummer korrigieren. Kein Seitenwechsel mehr.",
+      "Jede Rufnummer hat jetzt die Ländervorwahl — Antippen wählt direkt, auch bei österreichischen und schweizerischen Nummern.",
+      "BESITZSCHUTZ: Sobald du bei einem Kunden ein Ergebnis dokumentiert hast, gehört er dir. Die automatische Verteilung fasst ihn nicht mehr an. Vorher konnte sie ihn dir wegnehmen — genau das ist passiert und ist jetzt abgestellt.",
+      "18 Bestellungen hatten einen anderen Zuständigen als die Kundenakte. Das war der Grund, warum ein Kunde auf einer Seite da war und auf der anderen fehlte. Ist abgeglichen.",
+      "Die neue Startseite zeigt: Verdienst diesen Monat, Guthaben zur Auszahlung, was deine offenen Kunden wert wären, und deine Termine für heute.",
+    ],
+    howto: [
+      "Nach dem Login landest du auf „Start“. Dort stehen deine Zahlen und deine Termine — gearbeitet wird dort nicht.",
+      "Tippe auf „Kunden“. Arbeite die Liste von oben nach unten ab; die Reihenfolge ist die Arbeitsreihenfolge.",
+      "Willst du etwas Bestimmtes, nimm oben einen Filter oder die Suche (Name, Nummer, Referenz).",
+      "Deine alten Lesezeichen auf „Heute“ funktionieren weiter — sie führen jetzt auf „Start“.",
+    ],
+    link: { href: "/agent/kunden", label: "Kundenliste öffnen" },
+  },
+  {
     id: "2026-07-29-personenmodell-teil2",
     date: "2026-07-29",
     category: "Verbessert",
@@ -276,7 +301,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Öffne unten „Meine Kunden“.",
       "Oben wählst du den Filter, unten suchst du über Name, Nummer oder Referenz.",
     ],
-    link: { href: "/agent/meine-kunden", label: "Meine Kunden öffnen" },
+    link: { href: "/agent/kunden", label: "Meine Kunden öffnen" },
   },
   {
     id: "2026-07-27-popup-email",
@@ -389,7 +414,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Bei „Rückruf“ wählst du Datum und Uhrzeit direkt im Popup (deutsche Zeit).",
       "Tippe „Bestätigen“ — oder „Abbrechen“, falls du dich vertippt hast.",
     ],
-    link: { href: "/agent/meine-kunden", label: "Zu meinen Kunden" },
+    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
   },
   {
     id: "2026-07-19-kalender",
@@ -424,7 +449,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Wähle beim Kontakt-Ergebnis „Nummer falsch“.",
       "Bestätige im Popup — der Kunde erhält automatisch eine E-Mail mit Korrektur-Link.",
     ],
-    link: { href: "/agent/meine-kunden", label: "Zu meinen Kunden" },
+    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
   },
   {
     id: "2026-07-16-berlin-zeit",
@@ -458,7 +483,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Reaktivieren: In der Akte auf „Reaktivieren“ tippen und im Popup bestätigen.",
       "Aussortieren: „Akte schließen“ wählen und im Popup kurz den Grund angeben.",
     ],
-    link: { href: "/agent/meine-kunden", label: "Zu meinen Kunden" },
+    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
   },
   {
     id: "2026-07-16-soft-merge",
@@ -515,7 +540,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     howto: [
       "In deiner Kundenliste kannst du nach Status filtern und abgelaufene Kunden gezielt reaktivieren.",
     ],
-    link: { href: "/agent/meine-kunden", label: "Zu meinen Kunden" },
+    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
   },
 ];
 

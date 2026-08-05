@@ -471,13 +471,19 @@ function AgentDetailDrawer({ id, agents, autoRevealBank, onClose, onChanged, fla
     } else flash(r.json?.error || "Fehler");
   };
 
-  const action = async (e: React.MouseEvent, path: string, label: string, confirmText?: string) => {
+  const action = async (
+    e: React.MouseEvent, path: string, label: string, confirmText?: string,
+    /** Nutzdaten für Endpunkte, die mehr als nur den Pfad brauchen (z. B. Rolle). */
+    body?: Record<string, unknown>,
+  ) => {
     e.stopPropagation();
     if (confirmText && !confirm(confirmText)) return;
     setBusy(path);
-    const r = await api(path, { method: "POST" });
+    const r = await api(path, body
+      ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+      : { method: "POST" });
     setBusy(null);
-    if (r.ok) { flash(label); onChanged(); load(); }
+    if (r.ok) { flash(r.json?.meldung || label); onChanged(); load(); }
     else flash(r.json?.error || "Fehler");
   };
 
@@ -555,6 +561,42 @@ function AgentDetailDrawer({ id, agents, autoRevealBank, onClose, onChanged, fla
               {a.recruited_by_name && (
                 <p className="text-[11px] text-slate-500">Aktueller Werber: <span className="font-semibold">{a.recruited_by_name}</span></p>
               )}
+
+              {/* ── ROLLE (05.08.2026) ─────────────────────────────────────────
+                  Vertriebsleiter sehen alle Kunden, weisen zu und korrigieren
+                  Stammdaten. Sie buchen KEINE Zahlungen und ändern KEINE
+                  Provisionen — das bleibt beim Betreiber. Die Umschaltung sitzt
+                  hier, damit dafür niemand eine Datenbank anfassen muss. */}
+              <div className="pt-3 mt-1 border-t border-slate-100">
+                <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Rolle</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {([["agent", "Mitarbeiter"], ["vertriebsleiter", "Vertriebsleitung"]] as const).map(([wert, label]) => {
+                    const an = String(a.rolle || "agent") === wert;
+                    return (
+                      <button key={wert} type="button" disabled={an || !!busy}
+                        onClick={(e) => action(
+                          e, `/admin/agents/${id}/rolle`,
+                          wert === "vertriebsleiter"
+                            ? `${a.name} ist jetzt Vertriebsleitung`
+                            : `${a.name} ist wieder Mitarbeiter`,
+                          wert === "vertriebsleiter"
+                            ? `${a.name} zur Vertriebsleitung machen?\n\nSie/er sieht dann ALLE Kunden, kann zuweisen, Stammdaten korrigieren, Ergebnisse dokumentieren und sperren.\n\nNICHT möglich bleibt: Zahlungen buchen, Provisionen ändern, Mitarbeiter anlegen oder Bankdaten anderer sehen. Jede Änderung wird protokolliert.`
+                            : `${a.name} wieder auf Mitarbeiter zurückstellen?\n\nDer Bereich „Vertrieb" verschwindet; sichtbar bleiben nur die eigenen Kunden.`,
+                          { rolle: wert },
+                        )}
+                        className={`px-3 py-2 rounded-xl text-[12px] font-bold transition-all ${
+                          an ? "text-white" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300"
+                        }`}
+                        style={an ? { background: "#2563eb", boxShadow: "0 4px 12px -6px rgba(37,99,235,.6)" } : undefined}>
+                        {label}{an ? " ✓" : ""}
+                      </button>
+                    );
+                  })}
+                  {a.is_test_account && (
+                    <span className="text-[11px] text-slate-400">Testkonten können keine Vertriebsleitung sein.</span>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">

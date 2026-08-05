@@ -62,6 +62,9 @@ import AgentKundenPage from "@/pages/agent/kunden";
 // gebraucht und würde das Hauptbündel für alle anderen Besucher vergrössern.
 const AgentHeutePage = lazy(() => import("@/pages/agent/heute"));
 const AgentAufgabenPage = lazy(() => import("@/pages/agent/aufgaben"));
+const AgentStartPage = lazy(() => import("@/pages/agent/start"));
+const AgentKundenNeuPage = lazy(() => import("@/pages/agent/kunden-neu"));
+const AgentVertriebPage = lazy(() => import("@/pages/agent/vertrieb"));
 import AgentVerdienstPage from "@/pages/agent/verdienst";
 import AgentUpdatesPage from "@/pages/agent/updates";
 import AgentFeedbackPage from "@/pages/agent/feedback";
@@ -165,19 +168,31 @@ function Router() {
       {/* Offene Kartei (neu) — löst /agent/leads und /agent/kunden ab. */}
       {/* Die Arbeitsseite, die die offene Kartei abloest: zugewiesene Kunden
           nach Dringlichkeit statt gemeinsamer Bestand. */}
-      <Route path="/agent/heute" component={AgentHeutePage} />
+      {/* ── UMSTELLUNG 05.08.2026 ────────────────────────────────────────────
+          Aus der Tagesliste "Heute" wurde die Startseite. Die alte Adresse
+          bleibt bestehen und leitet um — gemerkte Links und offene Browser-Tabs
+          duerfen nicht ins Leere laufen. */}
+      <Route path="/agent/start" component={AgentStartPage} />
+      <Route path="/agent/heute"><Redirect to="/agent/start" /></Route>
+      <Route path="/agent/vertrieb" component={AgentVertriebPage} />
       {/* Aufgaben und Hinweise, die die Verwaltung dem Mitarbeiter zuweist. */}
       <Route path="/agent/aufgaben" component={AgentAufgabenPage} />
       {/* Die Kartei ist abgeschaltet. Beide Pfade zeigen NICHT mehr auf sie,
           sondern leiten weiter — ein Lesezeichen darf nicht auf einer Seite
           landen, deren Endpunkte mit 410 antworten. Die Seiten selbst bleiben
           im Repository, damit die Umschaltung rückholbar bleibt. */}
-      <Route path="/agent/kartei"><Redirect to="/agent/heute" /></Route>
+      <Route path="/agent/kartei"><Redirect to="/agent/start" /></Route>
       {/* /agent/meine-kunden speist sich aus /agent/kartei/meine — ebenfalls 410. */}
-      <Route path="/agent/meine-kunden"><Redirect to="/agent/heute" /></Route>
+      {/* Führt auf die EINE Kundenliste — nicht auf die Startseite. Wer „meine
+          Kunden" tippt, will Kunden sehen, keine Kennzahlen. */}
+      <Route path="/agent/meine-kunden"><Redirect to="/agent/kunden" /></Route>
       {/* Alte Ansichten bleiben erreichbar, bis die Kartei im Betrieb bestätigt
           ist — kein Zwischenzustand, in dem ein Agent seine Akten nicht findet. */}
-      <Route path="/agent/kunden" component={AgentKundenPage} />
+      {/* Die EINE Arbeitsliste (personenbasiert). Die alte, bestellungsbasierte
+          Ansicht bleibt unter /agent/meine-kunden erreichbar, damit nichts
+          verloren geht. */}
+      <Route path="/agent/kunden" component={AgentKundenNeuPage} />
+      <Route path="/agent/meine-kunden-alt" component={AgentKundenPage} />
       <Route path="/agent/leads" component={AgentLeadsPage} />
       <Route path="/agent/verdienst" component={AgentVerdienstPage} />
       <Route path="/agent/updates" component={AgentUpdatesPage} />

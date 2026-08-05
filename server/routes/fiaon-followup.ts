@@ -123,11 +123,21 @@ async function agentMitWenigstenTier1(): Promise<number | null> {
  * das Dashboard solche Zugänge als „neu bei dir".
  */
 export async function autoAssignTier1(personId: number): Promise<number | null> {
+  const { ensureBetreuungSpalte } = await import("../lib/tier");
+  await ensureBetreuungSpalte(sqlPool);
   const [p] = await sqlPool`
-    SELECT id, priority_tier, assigned_agent_id, is_blocked
+    SELECT id, priority_tier, assigned_agent_id, is_blocked, betreuung_seit
     FROM fiaon_persons WHERE id = ${personId} AND merged_into_person_id IS NULL
   `;
   if (!p || p.priority_tier !== 1 || p.is_blocked || p.assigned_agent_id) return null;
+  // BESITZSCHUTZ: Eine betreute Person wird nie automatisch vergeben. Sie
+  // gehört dem, der sie angerufen hat — auch wenn die Zuweisung fehlt (genau so
+  // stand Axel Conrad ohne Agent da, nachdem eine Erstverteilung ihn Daniel
+  // weggenommen hatte). Wer sie zurückholt, ist ein Mensch, nicht die Automatik.
+  if (p.betreuung_seit) {
+    console.log(`[FIAON-FOLLOWUP] Auto-Assign übersprungen: Person ${personId} ist seit ${p.betreuung_seit} betreut`);
+    return null;
+  }
 
   const agentId = await agentMitWenigstenTier1();
   if (!agentId) return null;
@@ -174,6 +184,8 @@ export async function autoAssignTier1(personId: number): Promise<number | null> 
  * @param nurAgent Nur diesen Agenten prüfen (nach einer Statusänderung).
  */
 export async function nachschub(nurAgent?: number): Promise<{ tier1: number; tier2: number }> {
+  const { ensureBetreuungSpalte } = await import("../lib/tier");
+  await ensureBetreuungSpalte(sqlPool);
   const s = await getSettings();
   const cap1 = parseInt(s.pool_cap_tier1 ?? "30", 10);
   const cap2 = parseInt(s.pool_cap_tier2 ?? "60", 10);
@@ -207,6 +219,12 @@ export async function nachschub(nurAgent?: number): Promise<{ tier1: number; tie
           AND p.merged_into_person_id IS NULL
           AND p.priority_tier = ${tier}
           AND NOT p.is_blocked
+          -- BESITZSCHUTZ (05.08.2026): Nur unberührte Personen kommen aus der
+          -- Reserve. Wer schon einmal dokumentiert betreut wurde, bleibt bei
+          -- seinem Betreuer — auch dann, wenn die Zuweisung verloren ging.
+          -- Ohne diese Zeile verteilte der Nachschub fremde Kunden weiter und
+          -- zwei Mitarbeiter riefen denselben Menschen an.
+          AND p.betreuung_seit IS NULL
         ORDER BY
           (p.promised_payment_date IS NULL),
           p.promised_payment_date ASC NULLS LAST,

@@ -164,6 +164,110 @@ export function personTierSql(): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// BESITZSCHUTZ — die eigentliche Ursache der Durchmischung
+//
+// Gemeldet am 05.08.2026:
+//   Florentine: „Der Bereich Heute sorgt für doppelte Arbeit. Teilweise werden
+//               Kunden anderer Mitarbeiter angezeigt."
+//   Daniel:     „Axel Conrad zahlt heute, wurde von mir betreut, weiß nicht bei
+//               wem er jetzt zugeteilt ist."
+//
+// Es war KEIN Datenleck. Es war die Automatik: Erstverteilung, Nachschub und
+// Auto-Assign holen Personen aus der Reserve — und in der Reserve landeten auch
+// Kunden, die längst jemand betreute. Gemessen an Axel Conrad (Person 4492):
+// acht dokumentierte Kontakte, alle von Daniel; am 03.08. um 17:04 nahm ihn eine
+// Erstverteilung Daniel weg (from 8 → null) und gab ihn niemandem. In sieben
+// Tagen: 686 solche Umverteilungen.
+//
+// DIE REGEL: Wer einmal dokumentiert betreut wurde, wird NIEMALS automatisch
+// umverteilt. `betreuung_seit` hält den Zeitpunkt des ersten dokumentierten
+// Kontakts fest und wird nie wieder geleert. Umziehen kann eine betreute Person
+// nur ein Mensch — Admin oder Vertriebsleiter, und das steht im Protokoll.
+//
+// Warum eine eigene Spalte und nicht „hat einen Log-Eintrag"? Weil die Prüfung
+// in JEDER Verteil-Abfrage steht. Ein `EXISTS` über zwei Protokolltabellen je
+// Kandidat wäre teuer und würde irgendwann aus einer Abfrage vergessen. Eine
+// Spalte ist billig, unübersehbar und indexierbar.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Spalte anlegen (idempotent) — EINMAL pro Prozess.
+ *
+ * Die Merkung ist nicht Kosmetik. `ALTER TABLE` und `CREATE INDEX` nehmen sich
+ * eine ACCESS-EXCLUSIVE-Sperre auf fiaon_persons. Beim ersten Bau stand dieser
+ * Aufruf am Anfang JEDER Listenabfrage — gemessen: 30 Sekunden pro Aufruf, und
+ * bei gleichzeitigen Anfragen eine Sperrschlange bis in die Minuten. Für den
+ * Agenten sah das aus wie „die Kundenliste lädt nicht".
+ *
+ * Ein gemerktes Promise (nicht bloß ein Bool) verhindert außerdem, dass zwei
+ * gleichzeitige erste Anfragen die DDL doppelt starten.
+ */
+let betreuungBereit: Promise<void> | null = null;
+export function ensureBetreuungSpalte(sql: any): Promise<void> {
+  if (!betreuungBereit) {
+    betreuungBereit = (async () => {
+      await sql`ALTER TABLE fiaon_persons ADD COLUMN IF NOT EXISTS betreuung_seit TIMESTAMPTZ`;
+      await sql`
+        CREATE INDEX IF NOT EXISTS fiaon_persons_betreuung_idx
+        ON fiaon_persons (betreuung_seit) WHERE betreuung_seit IS NULL
+      `;
+    })().catch((e) => {
+      betreuungBereit = null; // nächster Aufruf versucht es erneut
+      throw e;
+    });
+  }
+  return betreuungBereit;
+}
+
+/**
+ * Markiert eine Person als betreut. Aufgerufen, sobald ein Agent ein Ergebnis
+ * dokumentiert. `COALESCE` sorgt dafür, dass der ERSTE Kontakt gewinnt: Der
+ * Zeitpunkt ist der Beginn der Betreuung, nicht der letzte Anruf.
+ */
+export async function betreuungMerken(sql: any, opts: { personId?: number | null; ref?: string | null }): Promise<void> {
+  let personId = opts.personId ?? null;
+  if (!personId && opts.ref) {
+    const [row] = await sql`SELECT person_id FROM fiaon_applications WHERE ref = ${opts.ref}`;
+    personId = row?.person_id ?? null;
+  }
+  if (!personId) return;
+  await sql`
+    UPDATE fiaon_persons SET betreuung_seit = COALESCE(betreuung_seit, NOW()), updated_at = NOW()
+    WHERE id = ${personId}
+  `;
+}
+
+/**
+ * Der Betreuer einer Person: der Agent des jüngsten dokumentierten Ergebnisses.
+ *
+ * Dieselbe Definition wie beim Provisionsanspruch — es gibt nur einen Begriff
+ * von „betreut", sonst behauptet die Zuweisung etwas anderes als die Abrechnung.
+ * Kontakte zählen über ALLE Bestellungen der Person und über das Lead-Protokoll.
+ */
+export async function betreuerVon(sql: any, personId: number): Promise<{ agentId: number; am: Date } | null> {
+  const [row] = await sql`
+    SELECT agent_id, created_at FROM (
+      SELECT cl.agent_id, cl.created_at
+      FROM fiaon_contact_log cl
+      JOIN fiaon_applications a ON a.ref = cl.ref
+      WHERE a.person_id = ${personId} AND cl.type = 'result'
+        AND cl.voided_at IS NULL AND cl.agent_id IS NOT NULL
+      UNION ALL
+      SELECT ll.agent_id, ll.created_at
+      FROM fiaon_lead_log ll
+      JOIN fiaon_leads l ON l.id = ll.lead_id
+      WHERE ll.type = 'result' AND ll.agent_id IS NOT NULL
+        AND l.converted_order_id IN (
+          SELECT ref FROM fiaon_applications WHERE person_id = ${personId}
+        )
+    ) k
+    ORDER BY created_at DESC
+    LIMIT 1
+  `;
+  return row ? { agentId: Number(row.agent_id), am: row.created_at } : null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // LIVE-AKTUALISIERUNG — der Fehler, der die Listen durchmischt hat
 //
 // Das Tier war fachlich richtig berechnet, wurde aber NUR von einem Handskript
@@ -265,20 +369,28 @@ export async function alleTierAktualisieren(sql: any): Promise<{ geaendert: numb
 }
 
 /**
- * Die Person folgt der Bestellung.
+ * Zuständigkeit einer Person nachziehen — DER BETREUER HAT VORRANG.
  *
- * Gemessen am 05.08.2026: 53 Personen gehörten Agent A, während ihre Bestellung
- * Agent B gehörte. Die Folge im Alltag: Florentine sah Kunden in ihrer Liste,
- * die bei Daniel bezahlt hatten — sie konnte sie anrufen, aber nichts daran
- * verdienen, und Daniel sah seine eigenen Kunden nicht mehr.
+ * ══ KORREKTUR NOCH AM SELBEN TAG (05.08.2026) ══════════════════════════════
+ * Die erste Fassung hieß „Die Person folgt der Bestellung" und begründete das
+ * damit, dass die Bestellung den Provisionsanspruch trägt. Das war falsch, und
+ * der Fehler war teuer: Um 12:46 hat dieser Aufruf im Reparaturlauf Kunden von
+ * ihren Betreuern weggezogen. Roberto De Luca wurde um 11:56 von Lucas betreut
+ * und stand fünfzig Minuten später bei Florentine — weil die Bestellung
+ * Florentine gehörte.
  *
- * Die Bestellung trägt den Provisionsanspruch; die Person ist nur die
- * Anrufansicht darauf. Also gilt: Zuständig ist, wem die jüngste LEBENDE
- * Bestellung gehört. Gibt es keine offene mehr, bleibt der Kunde bei dem, der
- * ihn verkauft hat — dann ist er ohnehin Tier 0 und in keiner Anrufliste.
+ * Der Denkfehler: Den Anspruch trägt seit dem Stichtag NICHT die Zuweisung,
+ * sondern der dokumentierte Kontakt (siehe `ermittleProvisionsAnspruch`). Wer
+ * telefoniert hat, hat den Kunden — die Zuweisung ist nur die Ansicht darauf.
  *
- * Ohne Agent an der Bestellung wird NICHTS geändert: Eine bestehende Zuweisung
- * darf nicht wegen einer herrenlosen Bestellung verloren gehen.
+ * DIE RANGFOLGE gilt jetzt in dieser Reihenfolge:
+ *   1. Der dokumentierte Betreuer (jüngstes Ergebnis im Verlauf). Er ist die
+ *      geleistete Arbeit und der Provisionsanspruch in einer Person.
+ *   2. Nur wenn NIEMAND dokumentiert hat: der Agent der jüngsten lebenden
+ *      Bestellung. Dann ist die Zuweisung die einzige Spur, die existiert.
+ *
+ * Ohne beides wird NICHTS geändert: Eine bestehende Zuweisung darf nicht wegen
+ * einer herrenlosen Bestellung verloren gehen.
  */
 export async function personAgentSynchronisieren(
   sql: any,
@@ -291,6 +403,24 @@ export async function personAgentSynchronisieren(
   }
   if (!personId) return null;
 
+  // 1. Der Betreuer schlägt alles.
+  const betreuer = await betreuerVon(sql, personId);
+  if (betreuer) {
+    const rows = await sql`
+      UPDATE fiaon_persons
+      SET assigned_agent_id = ${betreuer.agentId},
+          betreuung_seit = COALESCE(betreuung_seit, ${betreuer.am}),
+          updated_at = NOW()
+      WHERE id = ${personId} AND COALESCE(assigned_agent_id, 0) <> ${betreuer.agentId}
+      RETURNING id
+    `;
+    if (rows.length > 0) {
+      console.log(`[FIAON-TIER] Person ${personId} bleibt bei ihrem Betreuer → Agent ${betreuer.agentId}`);
+    }
+    return { personId, agentId: betreuer.agentId };
+  }
+
+  // 2. Niemand hat dokumentiert — dann entscheidet die Bestellung.
   const [ziel] = await sql`
     SELECT a.assigned_agent_id AS agent_id
     FROM fiaon_applications a

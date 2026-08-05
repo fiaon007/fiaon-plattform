@@ -53,7 +53,12 @@ const bad = (t: string) => { fehler++; console.log(`    LECK      ${t}`); };
  * Stelle in der Antwort, an der die Datensätze stehen. Wer hier eine Seite
  * ergänzt, bekommt sie automatisch in beiden Proben geprüft.
  */
-const SEITEN: { seite: string; pfad: string; zaehle: (j: any) => number; zeilen?: (j: any) => any[] }[] = [
+const SEITEN: {
+  seite: string; pfad: string; zaehle: (j: any) => number;
+  zeilen?: (j: any) => any[];
+  /** Zeilen, deren Eigentum über `personId` geprüft wird (personenbasierte Seiten). */
+  personen?: (j: any) => any[];
+}[] = [
   { seite: "/agent/heute (Dashboard)", pfad: "/agent/crm/dashboard", zaehle: (j) => j?.zahlen?.gesamt ?? 0 },
   { seite: "/agent/heute (Tier 1)", pfad: "/agent/crm/kunden?tier=1", zaehle: (j) => j?.kunden?.length ?? 0 },
   { seite: "/agent/heute (Tier 2)", pfad: "/agent/crm/kunden?tier=2", zaehle: (j) => j?.kunden?.length ?? 0 },
@@ -61,6 +66,17 @@ const SEITEN: { seite: string; pfad: string; zaehle: (j: any) => number; zeilen?
   { seite: "/agent/kunden (Arbeitsliste)", pfad: "/agent/customers", zaehle: (j) => j?.data?.length ?? 0, zeilen: (j) => j?.data ?? [] },
   { seite: "/agent/kunden (colleagues!)", pfad: "/agent/customers", zaehle: (j) => j?.colleagues?.length ?? 0, zeilen: (j) => j?.colleagues ?? [] },
   { seite: "/agent/kunden (Gesamtbestand)", pfad: "/agent/customers/all", zaehle: (j) => j?.data?.length ?? 0, zeilen: (j) => j?.data ?? [] },
+  // ── Neu am 05.08.2026: Startseite und die EINE Kundenliste ──────────────
+  // Beide sind personenbasiert. Die Zeilen tragen kein `assigned_agent_id` mehr
+  // (die Zuständigkeit steht an der Person, nicht in der Karte), deshalb prüft
+  // die Eigentums-Probe hier über `personId` gegen den echten Bestand — siehe
+  // `eigenePersonen` weiter unten.
+  { seite: "/agent/start (Zusagen)", pfad: "/agent/start", zaehle: (j) => j?.zusagen?.length ?? 0, personen: (j) => j?.zusagen ?? [] },
+  { seite: "/agent/start (Rückrufe)", pfad: "/agent/start", zaehle: (j) => j?.rueckrufe?.length ?? 0, personen: (j) => j?.rueckrufe ?? [] },
+  { seite: "/agent/kunden (alle)", pfad: "/agent/kunden/liste?filter=alle", zaehle: (j) => j?.kunden?.length ?? 0, personen: (j) => j?.kunden ?? [] },
+  { seite: "/agent/kunden (bezahlt)", pfad: "/agent/kunden/liste?filter=bezahlt", zaehle: (j) => j?.kunden?.length ?? 0, personen: (j) => j?.kunden ?? [] },
+  { seite: "/agent/kunden (gesperrt)", pfad: "/agent/kunden/liste?filter=gesperrt", zaehle: (j) => j?.kunden?.length ?? 0, personen: (j) => j?.kunden ?? [] },
+  { seite: "/agent/kunden (Suche leer)", pfad: "/agent/kunden/liste?filter=alle&q=a", zaehle: (j) => j?.kunden?.length ?? 0, personen: (j) => j?.kunden ?? [] },
   { seite: "/agent/leads", pfad: "/agent/leads", zaehle: (j) => (j?.data?.length ?? j?.leads?.length ?? 0) },
   { seite: "/agent/kalender", pfad: "/agent/calendar", zaehle: (j) => (j?.data?.length ?? j?.termine?.length ?? 0) },
 ];
@@ -88,6 +104,14 @@ async function main() {
 
   const cTest = cookieFuer(test.id, test.session_epoch);
 
+  // Wem gehört welche Person? Einmal laden, dann gegen jede Antwort prüfen.
+  // Die Zuständigkeit steht an fiaon_persons.assigned_agent_id — genau daran
+  // hängen Startseite und Kundenliste, und genau das muss auch die Probe lesen.
+  const besitz = new Map<number, number | null>();
+  for (const r of (await sqlPool`
+    SELECT id, assigned_agent_id FROM fiaon_persons WHERE merged_into_person_id IS NULL
+  `) as any[]) besitz.set(Number(r.id), r.assigned_agent_id == null ? null : Number(r.assigned_agent_id));
+
   // ── EIGENTUMS-PROBE, beide Konten ─────────────────────────────────────
   for (const wer of [test, echt]) {
     const cookie = cookieFuer(wer.id, wer.session_epoch);
@@ -102,6 +126,24 @@ async function main() {
       const fremd = zeilen.filter(
         (z: any) => z.assigned_agent_id !== undefined && z.assigned_agent_id !== wer.id,
       );
+      // Personenbasierte Seiten: Eigentum über die Person nachschlagen.
+      const pZeilen = s.personen?.(r.json) ?? [];
+      const fremdePersonen = pZeilen.filter((z: any) => {
+        const id = Number(z.personId ?? z.person_id ?? 0);
+        return id > 0 && besitz.get(id) !== wer.id;
+      });
+      if (fremdePersonen.length > 0) {
+        bad(`${s.seite.padEnd(30)} HTTP ${r.status}  ${n} Kunden   ← ${fremdePersonen.length} davon FREMD`);
+        for (const f of fremdePersonen.slice(0, 2)) {
+          const id = Number(f.personId ?? f.person_id);
+          console.log(`              fremd: Person ${id} (${f.name}) gehört Agent ${besitz.get(id) ?? "niemandem"}`);
+        }
+        continue;
+      }
+      if (pZeilen.length > 0) {
+        ok(`${s.seite.padEnd(30)} HTTP ${r.status}  ${n} Kunden   alle ${pZeilen.length} gehören ihm`);
+        continue;
+      }
       const txt = `${s.seite.padEnd(30)} HTTP ${r.status}  ${n} Kunden`;
       if (fremd.length > 0) {
         bad(`${txt}   ← ${fremd.length} davon FREMD`);
@@ -154,6 +196,35 @@ async function main() {
       const t = `POST ${p.replace(fremdApp.ref, "<fremde-ref>").padEnd(41)} HTTP ${r.status}`;
       r.status === 404 ? ok(t) : bad(`${t}   ← fremder Datensatz veränderbar`);
     }
+  }
+
+  // ── VERTRIEBS-PROBE ──────────────────────────────────────────────────────
+  // Der Bereich /agent/vertrieb zeigt ALLE Kunden. Für ein normales Konto darf
+  // er nicht existieren — und zwar mit 404, nicht 403: Eine 403 wäre schon die
+  // Auskunft „diese Seite gibt es, du darfst nur nicht".
+  console.log("");
+  console.log("══ VERTRIEBS-PROBE — Gesamtsicht nur für die Vertriebsleitung ══");
+  console.log("");
+  await sqlPool`ALTER TABLE fiaon_agents ADD COLUMN IF NOT EXISTS rolle TEXT NOT NULL DEFAULT 'agent'`;
+  const [rolleTest] = (await sqlPool`SELECT COALESCE(rolle,'agent') AS rolle FROM fiaon_agents WHERE id = ${TEST_AGENT}`) as any[];
+  if (String(rolleTest?.rolle) === "vertriebsleiter") {
+    console.log(`    (Testkonto #${TEST_AGENT} ist selbst Vertriebsleitung — Probe übersprungen)`);
+  } else {
+    for (const p of [
+      "/agent/vertrieb/uebersicht",
+      "/agent/vertrieb/personen?filter=alle",
+      "/agent/vertrieb/person/1",
+    ]) {
+      const r = await hol(cTest, p);
+      const t = `${p.padEnd(46)} HTTP ${r.status}`;
+      r.status === 404 ? ok(t) : bad(`${t}   ← Gesamtsicht offen für ein normales Konto`);
+    }
+    const zw = await fetch(BASIS + "/agent/vertrieb/zuweisen", {
+      method: "POST", headers: { Cookie: cTest, "Content-Type": "application/json" },
+      body: JSON.stringify({ personIds: [1], agentId: TEST_AGENT }),
+    });
+    const t = `POST /agent/vertrieb/zuweisen${" ".repeat(18)}HTTP ${zw.status}`;
+    zw.status === 404 ? ok(t) : bad(`${t}   ← ein normales Konto kann Kunden umziehen`);
   }
 
   console.log("");

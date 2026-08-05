@@ -251,8 +251,8 @@ export function FirstStepsPanel({ className = "" }: { className?: string }) {
     profil: "/agent/profil",
     iban: "/agent/profil",
     skripte: "/agent/skripte",
-    anruf: "/agent/meine-kunden",
-    notiz: "/agent/meine-kunden",
+    anruf: "/agent/kunden",
+    notiz: "/agent/kunden",
   };
 
   return (

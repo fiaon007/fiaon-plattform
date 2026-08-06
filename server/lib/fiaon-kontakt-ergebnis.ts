@@ -38,6 +38,14 @@
 //   nummer_falsch          Wiedervorlage +3 Tage (die Nummer-Update-Mail
 //                          braucht Zeit). NICHT sperren — der Kunde will
 //                          vielleicht zahlen, wir erreichen ihn nur nicht.
+//   nummer_blockiert       Der Kunde hat DIESE Nummer blockiert. Kein Sperren,
+//                          keine Wiedervorlage beim bisherigen Agenten: Der
+//                          Kunde wechselt den Betreuer (siehe fiaon-uebergabe).
+//                          Für den neuen Betreuer steht die Wiedervorlage auf
+//                          heute — er soll gleich anrufen, solange der Fall
+//                          frisch ist. Gemeldet 06.08.2026: „manche Kunden
+//                          blockieren die Nummer eines Agenten, heben beim
+//                          anderen aber ab."
 //   notiz                  Ändert keinen Zustand. Eine Notiz ist kein Ergebnis.
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -51,6 +59,7 @@ export const ERGEBNISSE = [
   "mailbox",
   "rueckruf_termin",
   "nummer_falsch",
+  "nummer_blockiert",
 ] as const;
 export type Ergebnis = (typeof ERGEBNISSE)[number];
 
@@ -67,6 +76,7 @@ export const ERGEBNIS_TEXT: Record<Ergebnis, string> = {
   mailbox: "Mailbox besprochen",
   rueckruf_termin: "Rückruf vereinbart",
   nummer_falsch: "Falsche Nummer",
+  nummer_blockiert: "Anrufer blockiert",
 };
 
 /** Braucht dieses Ergebnis ein Datum? */
@@ -176,6 +186,14 @@ export async function ergebnisAnwenden(e: ErgebnisEingabe): Promise<ErgebnisWirk
     case "nummer_falsch":
       wiedervorlage = gewaehlt || tagPlus(3);
       meldung = "Falsche Nummer notiert — der Kunde wird per E-Mail um seine Nummer gebeten.";
+      break;
+    case "nummer_blockiert":
+      // Heute, nicht morgen: Der neue Betreuer soll noch am selben Tag
+      // anrufen. Eine Wiedervorlage auf morgen würde den Kunden erst einmal
+      // aus jeder Liste nehmen — und genau das ist bei einem Menschen, der
+      // grundsätzlich rangeht, die teuerste Verzögerung.
+      wiedervorlage = gewaehlt || tagPlus(0);
+      meldung = "Anrufer blockiert — der Kunde geht an einen Kollegen.";
       break;
   }
 

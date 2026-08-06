@@ -3,6 +3,26 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 06.08.2026 — „Anrufer blockiert": der Kunde geht an den nächsten Vertriebler
+
+Gemeldet: *„Manche Kunden blockieren die Nummer eines Agenten, heben beim anderen aber ab."* Bisher gab es dafür zwei schlechte Wege — ewig weiter anrufen oder beim Betreiber eine Umzuweisung erbitten. Beides kostet einen Abschluss, den ein Kollege sofort hätte machen können.
+
+Neues Ergebnis **`nummer_blockiert`** („Anrufer blockiert") in der Kundenliste. Ein Klick dokumentiert die Blockade beim Abgebenden und übergibt den Kunden an den Kollegen mit dem kleinsten offenen Bestand, **der bei diesem Kunden noch nicht blockiert wurde** — sonst wanderte der Fall im Kreis und landete wieder bei einer toten Nummer. Der Kunde wird dabei **nicht** gesperrt und steht beim neuen Betreuer sofort auf heute.
+
+Das ist die einzige Ausnahme vom Besitzschutz, und eine kontrollierte: Hier verteilt keine Automatik, sondern der Betreuer gibt selbst ab. Die Übergabe hat einen belegten Grund im Kontaktprotokoll und steht mit Akteur und Richtung in `fiaon_agent_events`. Die Bestellungen ziehen mit — sonst wäre der Kunde für den einen sichtbar und für den anderen nicht.
+
+Ist jeder verfügbare Kollege bei diesem Kunden schon blockiert, wird **nichts** verschoben; der Agent bekommt einen klaren Satz statt einer stillen Kreisbewegung. Zur Provision sagt die Rückfrage vor dem Klick die Wahrheit: Der Anspruch folgt dem zuletzt dokumentierten Kontakt — wer den Abschluss macht, bekommt ihn.
+
+**Zu finden:** `server/lib/fiaon-uebergabe.ts`, `server/lib/fiaon-kontakt-ergebnis.ts`, `server/routes/fiaon-agent-kunden.ts`, `client/src/pages/agent/kunden-neu.tsx`. Prüfstand: `scripts/pruef-uebergabe.ts` (15 Prüfungen).
+
+## 06.08.2026 — Rolle „Vertriebsleitung" ließ sich nicht umschalten
+
+Die Umschaltung speicherte korrekt — sichtbar war es nur nie. Die Team-Übersicht wird aus **drei** Endpunkten gespeist (`/admin/agents`, `/admin/team/stats`, `/admin/team/agents/:id`); ergänzt hatte ich `rolle` nur im ersten. Die Detail-Schublade las den dritten und zeigte deshalb dauerhaft „Mitarbeiter", egal was in der Datenbank stand. Nach dem Bestätigen sah es aus, als sei nichts passiert — und beim nächsten Klick wurde derselbe Wert erneut gespeichert.
+
+Alle drei liefern jetzt `rolle` und `is_test_account`, und die Spalte wird in `ensureAgentTables()` angelegt statt in einem einzelnen Endpunkt. Lehre für das nächste Feld: Wer eine Spalte ergänzt, muss prüfen, welcher Endpunkt die Ansicht wirklich speist — nicht welcher am plausibelsten klingt.
+
+**Zu finden:** `server/routes/fiaon-team.ts`, `server/routes/fiaon-agent.ts`.
+
 ## 05.08.2026 — Eine Arbeitsliste, ein Besitzer, eine Zuständigkeit
 
 Drei Meldungen aus dem Vertrieb an einem Tag, die dieselbe Ursache hatten:

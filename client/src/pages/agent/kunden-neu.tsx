@@ -92,7 +92,7 @@ const SORT: { key: string; label: string }[] = [
   { key: "name", label: "Nach Name" },
 ];
 
-/** Die sieben Ergebnisse — dieselben Namen wie im Server. */
+/** Die Ergebnisse — dieselben Namen wie im Server. */
 const ERGEBNISSE: { art: string; label: string; braucht?: "zusage" | "termin" }[] = [
   { art: "erreicht_zahlt_gleich", label: "Zahlt sofort" },
   { art: "erreicht_zahlt_am", label: "Zahlt am …", braucht: "zusage" },
@@ -101,6 +101,10 @@ const ERGEBNISSE: { art: string; label: string; braucht?: "zusage" | "termin" }[
   { art: "rueckruf_termin", label: "Rückruf vereinbart", braucht: "termin" },
   { art: "erreicht_abgelehnt", label: "Erreicht – abgelehnt" },
   { art: "nummer_falsch", label: "Falsche Nummer" },
+  // Gemeldet 06.08.2026: Manche Kunden blockieren die Nummer eines Agenten und
+  // gehen beim nächsten ran. Dieser Knopf gibt den Kunden weiter, statt ihn
+  // stumm in der Liste altern zu lassen.
+  { art: "nummer_blockiert", label: "Anrufer blockiert" },
 ];
 
 /** Ergebnis-Kürzel in Klartext — im Verlauf soll niemand Feldnamen lesen. */
@@ -112,6 +116,7 @@ const ERGEBNIS_TEXT: Record<string, string> = {
   mailbox: "Mailbox besprochen",
   rueckruf_termin: "Rückruf vereinbart",
   nummer_falsch: "Falsche Nummer",
+  nummer_blockiert: "Anrufer blockiert — an Kollegen übergeben",
 };
 
 const TIER_FARBE: Record<number, string> = {
@@ -365,12 +370,16 @@ function KundenKarte({
       zeige("fehler", "Nicht gespeichert", r.json?.error || "Bitte erneut versuchen.");
       return;
     }
-    zeige("erfolg", r.json.meldung || "Gespeichert", k.name);
+    // Eine misslungene Übergabe ist kein Erfolg: Wenn jeder Kollege schon
+    // blockiert wurde, muss der Agent das lesen und nicht ein grünes Häkchen.
+    zeige(r.json.uebergabe && !r.json.uebergabe.ok ? "info" : "erfolg",
+      r.json.meldung || "Gespeichert", k.name);
     setFeldOffen(null);
     setNotiz("");
-    // „Abgelehnt" nimmt den Kunden aus jeder Liste; alles andere bleibt sichtbar,
+    // „Abgelehnt" nimmt den Kunden aus jeder Liste; eine geglückte Übergabe
+    // ebenso — er gehört dann einem Kollegen. Alles andere bleibt sichtbar,
     // damit man den neuen Stand sieht (Zähler, Wiedervorlage, Mahnstufe).
-    if (art === "erreicht_abgelehnt") onWeg();
+    if (art === "erreicht_abgelehnt" || r.json.uebergabe?.ok) onWeg();
     else if (r.json.kunde) onNeu(r.json.kunde);
     onZaehler();
   };
@@ -507,6 +516,17 @@ function KundenKarte({
                     onClick={() => {
                       if (e.braucht === "zusage") { setFeldOffen(feldOffen === "zusage" ? null : "zusage"); return; }
                       if (e.braucht === "termin") { setFeldOffen(feldOffen === "termin" ? null : "termin"); return; }
+                      // Die Übergabe ist die einzige Aktion hier, die den Kunden
+                      // aus der eigenen Hand gibt — und sie verschiebt damit auch
+                      // die Chance auf die Provision. Das gehört vor den Klick,
+                      // nicht in eine Meldung danach.
+                      if (e.art === "nummer_blockiert" && !confirm(
+                        `${k.name} hat deine Nummer blockiert?\n\n`
+                        + `Der Kunde geht sofort an den Kollegen mit dem kleinsten Bestand, der bei `
+                        + `ihm noch nicht blockiert wurde. Er verschwindet aus deiner Liste.\n\n`
+                        + `Wichtig: Die Provision folgt dem, der den Abschluss dokumentiert. `
+                        + `Macht der Kollege den Abschluss, gehört sie ihm.`,
+                      )) return;
                       void ergebnis(e.art);
                     }}
                     className="fi-zweitknopf px-3 py-2.5 text-[12.5px] font-medium">

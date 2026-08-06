@@ -40,6 +40,27 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-06-anrufer-blockiert",
+    date: "2026-08-06",
+    category: "Neu",
+    important: true,
+    title: "Neuer Knopf: „Anrufer blockiert“ — der Kunde geht sofort an einen Kollegen",
+    summary:
+      "Wenn ein Kunde deine Nummer blockiert hat, gibst du ihn mit einem Klick weiter. Ein Kollege mit einer anderen Nummer ruft an, statt dass der Fall bei dir liegen bleibt.",
+    changes: [
+      "In der Kundenliste steht bei jedem Kunden ein achter Knopf: „Anrufer blockiert“.",
+      "Der Kunde geht an den Kollegen mit dem kleinsten Bestand, der bei diesem Kunden noch nicht blockiert wurde. Er verschwindet aus deiner Liste, du bekommst dafür Nachschub.",
+      "Der Kunde wird NICHT gesperrt und landet beim Kollegen sofort auf heute — er soll ja erreicht werden, nur eben von einer anderen Nummer.",
+      "Hat jeder Kollege bei diesem Kunden schon eine Blockade dokumentiert, wird nichts verschoben. Du bekommst dann den Hinweis, das mit der Vertriebsleitung zu klären.",
+      "Ehrlich dazu: Die Provision folgt dem, der den Abschluss dokumentiert. Macht der Kollege den Abschluss, gehört sie ihm. Das steht auch in der Rückfrage vor dem Klick.",
+    ],
+    howto: [
+      "Kunden öffnen, beim Kunden auf „Anrufer blockiert“ tippen.",
+      "Die Rückfrage lesen und bestätigen — danach siehst du, wer übernimmt.",
+    ],
+    link: { href: "/agent/kunden", label: "Kundenliste öffnen" },
+  },
+  {
     id: "2026-08-05-eine-kundenliste",
     date: "2026-08-05",
     category: "Neu",

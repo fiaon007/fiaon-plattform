@@ -283,6 +283,13 @@ router.get("/admin/team/stats", async (_req, res) => {
              a.commission_rate_bp, a.monthly_goal_cents, a.bank_iban_masked, a.bank_change_ack,
              a.invite_expires_at, a.password_hash IS NOT NULL AS has_password, a.last_login_at, a.created_at,
              a.recruited_by, a.override_rate_bp, a.distribution_active,
+             -- Rolle und Testkonto-Merkmal MÜSSEN hier mitkommen: Die
+             -- Team-Übersicht wird aus /admin/team/stats gespeist, nicht aus
+             -- /admin/agents. Fehlten sie, zeigte die Rollen-Umschaltung nach
+             -- dem Speichern weiterhin „Mitarbeiter" an — gespeichert war die
+             -- Rolle längst, nur sah man es nirgends.
+             COALESCE(a.rolle, 'agent') AS rolle,
+             COALESCE(a.is_test_account, FALSE) AS is_test_account,
              r.name AS recruited_by_name
       FROM fiaon_agents a
       LEFT JOIN fiaon_agents r ON r.id = a.recruited_by
@@ -352,6 +359,11 @@ router.get("/admin/team/agents/:id", async (req, res) => {
              a.commission_rate_bp, a.monthly_goal_cents, a.bank_iban_masked, a.bank_updated_at,
              a.invite_expires_at, a.password_hash IS NOT NULL AS has_password, a.last_login_at, a.created_at,
              a.recruited_by, a.override_rate_bp, a.distribution_active,
+             -- Die Detail-Schublade zeigt die Rollen-Umschaltung. Ohne diese
+             -- beiden Felder stand dort immer „Mitarbeiter", egal was in der
+             -- Datenbank stand: Gespeichert wurde korrekt, sichtbar war es nie.
+             COALESCE(a.rolle, 'agent') AS rolle,
+             COALESCE(a.is_test_account, FALSE) AS is_test_account,
              r.name AS recruited_by_name
       FROM fiaon_agents a
       LEFT JOIN fiaon_agents r ON r.id = a.recruited_by

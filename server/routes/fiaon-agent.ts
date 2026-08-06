@@ -151,7 +151,11 @@ export async function ensureAgentTables(): Promise<void> {
       ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS recruited_by INTEGER,
       ADD COLUMN IF NOT EXISTS override_rate_bp INTEGER,
-      ADD COLUMN IF NOT EXISTS distribution_active BOOLEAN NOT NULL DEFAULT TRUE
+      ADD COLUMN IF NOT EXISTS distribution_active BOOLEAN NOT NULL DEFAULT TRUE,
+      -- Rolle im Vertrieb: 'agent' oder 'vertriebsleiter'. Gehört hierher und
+      -- nicht in einen einzelnen Endpunkt: Jede Abfrage, die a.rolle liest,
+      -- setzt voraus, dass es die Spalte gibt.
+      ADD COLUMN IF NOT EXISTS rolle TEXT NOT NULL DEFAULT 'agent'
   `);
   await sqlPool`
     CREATE TABLE IF NOT EXISTS fiaon_contact_log (

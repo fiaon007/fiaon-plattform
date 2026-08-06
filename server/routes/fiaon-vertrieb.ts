@@ -370,8 +370,23 @@ router.post("/agent/vertrieb/person/:id/ergebnis", requireAgent, nurLeitung, asy
       zusageDatum: req.body?.zusageDatum || null,
       terminDatum: req.body?.terminDatum || null,
     });
-    await protokoll(req.agent!.id, "vertrieb_ergebnis", { person_id: id, ergebnis: art, wirkung });
-    res.json({ ok: true, wirkung, meldung: wirkung.meldung });
+    // „Anrufer blockiert" bedeutet überall dasselbe: Der Kunde wechselt den
+    // Betreuer. Täte es das hier nicht, hätte dasselbe Wort in zwei Ansichten
+    // zwei Bedeutungen — und die Vertriebsleitung müsste von Hand nachziehen,
+    // was der Agent mit einem Klick bekommt.
+    let uebergabe: { ok: boolean; an: string | null; grund: string } | undefined;
+    if (art === "nummer_blockiert") {
+      const { uebergabeAnNaechsten } = await import("../lib/fiaon-uebergabe");
+      const u = await uebergabeAnNaechsten(id, req.agent!.id, `${req.agent!.name} (Vertriebsleitung)`);
+      uebergabe = { ok: u.ok, an: u.neuerAgentName, grund: u.grund };
+    }
+    await protokoll(req.agent!.id, "vertrieb_ergebnis", { person_id: id, ergebnis: art, wirkung, uebergabe });
+    res.json({
+      ok: true, wirkung, uebergabe,
+      meldung: uebergabe
+        ? (uebergabe.ok ? `Übergeben an ${uebergabe.an}. ${uebergabe.grund}` : uebergabe.grund)
+        : wirkung.meldung,
+    });
   } catch (err) {
     console.error("[FIAON-VERTRIEB] ergebnis:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

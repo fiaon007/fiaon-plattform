@@ -635,6 +635,20 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
       });
     }
 
+    // 4. „Anrufer blockiert" gibt den Kunden weiter — das ist der eigentliche
+    //    Zweck des Knopfes. Erst dokumentieren, dann übergeben: Wäre es
+    //    umgekehrt, gehörte der Kunde beim Schreiben des Verlaufs schon einem
+    //    anderen, und die Blockade stünde nicht bei dem, der sie erlebt hat.
+    let uebergabe: { ok: boolean; an: string | null; grund: string } | undefined;
+    if (ergebnis === "nummer_blockiert") {
+      const { uebergabeAnNaechsten } = await import("../lib/fiaon-uebergabe");
+      const u = await uebergabeAnNaechsten(personId, req.agent!.id, req.agent!.name);
+      uebergabe = { ok: u.ok, an: u.neuerAgentName, grund: u.grund };
+      // Wer abgibt, bekommt Nachschub — sonst bestraft ihn die Ehrlichkeit mit
+      // einer kürzeren Liste.
+      if (u.ok) nachschub(req.agent!.id).catch((e) => console.error("[AGENT-KUNDEN] Nachschub:", e));
+    }
+
     // Nachschub nach der Statusaenderung. Vor allem "abgelehnt" senkt den
     // offenen Bestand — ohne Nachschub würde der Agent unter die Schwelle
     // fallen und bis zum nächsten Morgen mit einer halbleeren Liste arbeiten.
@@ -644,14 +658,20 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
       nachschub(req.agent!.id).catch((e) => console.error("[AGENT-KUNDEN] Nachschub:", e));
     }
 
-    const neu = await meinePerson(personId, req.agent!.id);
+    // Nach einer geglückten Übergabe gehört der Kunde nicht mehr dem Anfragenden.
+    // `meinePerson` liefert dann NULL — das ist richtig so und die Oberfläche
+    // nimmt die Karte daraufhin aus der Liste.
+    const neu = uebergabe?.ok ? null : await meinePerson(personId, req.agent!.id);
     res.json({
       ok: true,
-      kunde: kartePayload(neu, await letzteAktivitaetVon(personId)),
+      kunde: neu ? kartePayload(neu, await letzteAktivitaetVon(personId)) : null,
       wirkung,
       nummerMail,
+      uebergabe,
       // Klartext für die Rückmeldung — der Agent soll sehen, was sein Klick bewirkt hat.
-      meldung: wirkung?.meldung || (istNotiz ? "Notiz gespeichert." : ERGEBNIS_TEXT[ergebnis!]),
+      meldung: uebergabe
+        ? (uebergabe.ok ? `Übergeben an ${uebergabe.an}. ${uebergabe.grund}` : uebergabe.grund)
+        : (wirkung?.meldung || (istNotiz ? "Notiz gespeichert." : ERGEBNIS_TEXT[ergebnis!])),
     });
   } catch (err) {
     console.error("[AGENT-KUNDEN] aktivitaet:", err);

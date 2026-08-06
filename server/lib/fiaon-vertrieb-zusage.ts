@@ -38,7 +38,12 @@ import { sqlPool } from "./db-pool";
  * die alte Fassung schon angenommen hat. Datum im Namen, damit in Protokollen
  * ohne Nachschlagen erkennbar ist, wann diese Fassung galt.
  */
-export const ZUSAGE_VERSION = "1.0-2026-08-06";
+export const ZUSAGE_VERSION = "2.0-2026-08-06";
+// Fassung 2.0 (noch am selben Tag): Die Vertriebsleitung darf jetzt Zahlungen
+// buchen, Unterlagen-Stände und Zugangsprobleme einsehen. Genau dafür ist die
+// Versionierung da — Fassung 1.0 verbot das Buchen ausdrücklich, wer sie
+// angenommen hat, hat einer anderen Abmachung zugestimmt. Deshalb wird erneut
+// gefragt, statt die alte Zusage stillschweigend auszuweiten.
 
 export interface ZusageText {
   version: string;
@@ -87,10 +92,30 @@ export const ZUSAGE_TEXT: ZusageText = {
       text: "Ergebnisse festhalten wie ein Mitarbeiter, Zahlungsdaten senden, einen Kunden sperren "
         + "oder entsperren.",
     },
+    {
+      titel: "Zahlungen prüfen und buchen",
+      text: "Offene Zahlungen mit Verwendungszweck, Betrag und Frist, dazu die passenden Bankeingänge. "
+        + "Stimmt der Nachweis, setzt du den Kunden selbst auf „bezahlt“ — das schaltet sein Konto frei "
+        + "und schickt ihm die Bestätigung. Jede Buchung verlangt einen benannten Nachweis und das "
+        + "tatsächliche Eingangsdatum.",
+    },
+    {
+      titel: "Unterlagen-Stand sehen",
+      text: "Bei welchen bezahlten Kunden noch Ausweis, Kontoauszug oder SCHUFA-Auskunft fehlt. Du "
+        + "siehst, WAS fehlt — die Dokumente selbst bleiben beim Betreiber.",
+    },
+    {
+      titel: "Zugangsprobleme klären",
+      text: "Warum ein Kunde nicht in sein Konto kommt: kein Passwort gesetzt, Zahlung noch offen, Konto "
+        + "gesperrt. Die Auskunft stammt aus derselben Prüfung wie der echte Login, dazu der konkrete "
+        + "nächste Schritt für das Telefonat.",
+    },
   ],
   kannNicht: [
-    "Zahlungen buchen oder Zahlungsstatus setzen — das bleibt beim Betreiber.",
+    "Eine Buchung zurücknehmen, stornieren oder erstatten — wer buchen darf, darf nicht spurlos zurückbuchen.",
     "Provisionen, Provisionssätze oder Auszahlungen ändern.",
+    "Kundendokumente öffnen oder herunterladen (Ausweis, Kontoauszug, SCHUFA) — sichtbar ist nur, ob sie vorliegen.",
+    "Passwörter von Kunden setzen oder einsehen.",
     "Mitarbeiter anlegen, löschen oder deren Rolle ändern.",
     "Bankdaten anderer Mitarbeiter einsehen.",
   ],
@@ -127,18 +152,37 @@ export const ZUSAGE_TEXT: ZusageText = {
     {
       nr: 5,
       titel: "Grenzen der Rolle",
-      text: "Ich buche keine Zahlungen, ändere keine Provisionen und lege keine Zugänge an. Ich "
-        + "versuche nicht, diese Grenzen technisch oder über andere Personen zu umgehen.",
+      text: "Ich ändere keine Provisionen, storniere keine Buchungen, öffne keine Kundendokumente und "
+        + "lege keine Zugänge an. Ich versuche nicht, diese Grenzen technisch oder über andere Personen "
+        + "zu umgehen.",
     },
     {
       nr: 6,
+      titel: "Zahlungen nur mit Nachweis",
+      text: "Ich setze einen Kunden ausschließlich dann auf „bezahlt“, wenn mir der Geldeingang belegt "
+        + "ist — durch einen Bankeingang mit passendem Verwendungszweck oder durch einen "
+        + "Überweisungsbeleg, den ich selbst gesehen habe. Ich trage das tatsächliche Eingangsdatum ein, "
+        + "nicht das Datum meines Klicks, und beschreibe wahrheitsgemäß, was ich geprüft habe. Mir ist "
+        + "bewusst, dass eine Buchung das Konto freischaltet, eine Kundenmail auslöst, die Ratenkette "
+        + "startet und eine Provision bucht.",
+    },
+    {
+      nr: 7,
+      titel: "Keine Buchung im eigenen Interesse",
+      text: "Ich buche keine Zahlung, um einen Abschluss, eine Provision, eine Rangliste oder eine "
+        + "Zielerreichung zu beeinflussen — weder für mich noch für andere. Bin ich mir beim Nachweis "
+        + "nicht sicher, buche ich nicht, sondern frage nach. Jede Buchung wird protokolliert und vom "
+        + "Betreiber gegen den Kontoeingang geprüft.",
+    },
+    {
+      nr: 8,
       titel: "Sorgfalt gegenüber Kunden",
       text: "Was ich einem Kunden über Zahlungen, Fristen oder Verträge sage, muss der Wahrheit "
         + "entsprechen. Ich mache keine Zusagen, die durch den tatsächlichen Sachstand nicht gedeckt "
         + "sind, und dokumentiere Gespräche wahrheitsgemäß.",
     },
     {
-      nr: 7,
+      nr: 9,
       titel: "Meldepflicht",
       text: "Bemerke ich einen möglichen Datenschutzvorfall — verlorenes oder gestohlenes Gerät, "
         + "Fehlversand, unbefugter Zugriff, offener Zugang — melde ich das unverzüglich, spätestens "
@@ -146,14 +190,14 @@ export const ZUSAGE_TEXT: ZusageText = {
         + "Bewertung ist nicht meine Aufgabe.",
     },
     {
-      nr: 8,
+      nr: 10,
       titel: "Zugangsschutz",
       text: "Mein Zugang ist persönlich. Ich gebe Passwort und Sitzung an niemanden weiter, lasse "
         + "kein Gerät unbeaufsichtigt eingeloggt und nutze für die Plattform kein gemeinsam genutztes "
         + "Konto.",
     },
     {
-      nr: 9,
+      nr: 11,
       titel: "Folgen von Verstößen",
       text: "Mir ist bewusst, dass Verstöße arbeits- beziehungsweise vertragsrechtliche Folgen bis zur "
         + "Beendigung des Verhältnisses haben können und dass bei Vorsatz oder grober Fahrlässigkeit "
@@ -162,7 +206,7 @@ export const ZUSAGE_TEXT: ZusageText = {
         + "auslösen.",
     },
     {
-      nr: 10,
+      nr: 12,
       titel: "Widerruf der Rolle",
       text: "Die Vertriebsleitung kann mir jederzeit und ohne Angabe von Gründen entzogen werden. "
         + "Meine Pflicht zur Vertraulichkeit bleibt davon unberührt und besteht weiter.",
@@ -170,7 +214,7 @@ export const ZUSAGE_TEXT: ZusageText = {
   ],
   schlusssatz:
     "Ich habe diese Erklärung gelesen und verstanden. Ich nehme die zusätzliche Verantwortung an und "
-    + "verpflichte mich, mich an die Punkte 1 bis 10 zu halten.",
+    + "verpflichte mich, mich an die Punkte 1 bis 12 zu halten.",
   hinweisProtokoll:
     "Mit der Annahme werden Datum und Uhrzeit, die Fassung dieser Erklärung, ihr Prüfwert, dein "
     + "eingegebener Name, deine IP-Adresse und die Browserkennung gespeichert. Das ist der Nachweis, "

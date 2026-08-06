@@ -3,6 +3,30 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 06.08.2026 — Vertriebsleitung kann Zahlungen buchen, Unterlagen und Zugänge prüfen
+
+Gemeldet: *„Damit ich Vertrieblern bei Fragen und kleineren Kundenproblemen direkt helfen kann, ohne dass alles bei dir landet."* Drei Fragen kamen täglich beim Betreiber an: Ist das Geld da? Welche Unterlagen fehlen? Warum kommt der Kunde nicht ins Konto?
+
+**Zahlungen prüfen und buchen.** `/agent/vertrieb` hat jetzt vier Bereiche (Kunden · Zahlungen · Unterlagen · Zugang). Die Zahlungsliste zeigt offene Bestellungen mit Verwendungszweck, Betrag, Frist und Zuständigem, dazu die passenden Bankeingänge. Stimmt der Nachweis, setzt die Vertriebsleitung den Kunden selbst auf „bezahlt".
+
+**Es gibt weiterhin nur EINE Buchung.** `alsBezahltBuchen` wurde aus dem Admin-Endpunkt herausgelöst und wird von beiden Seiten aufgerufen. Ein zweiter, „kleiner" Buchungsweg im Vertriebsmodul wäre der sichere Weg in auseinanderlaufende Zustände: eine Bestellung, die bezahlt ist, aber keine Provision auslöst, oder ein Konto, das bezahlt ist und trotzdem nicht aufgeht.
+
+**Belegpflicht.** Ohne benannten Nachweis (Bankeingang mit passendem Verwendungszweck **oder** ein vom Kunden gezeigter Überweisungsbeleg), ohne tatsächliches Eingangsdatum und ohne Beschreibung in einem Satz lässt sich nicht buchen. Beim Bankeingang wird der Verwendungszweck **serverseitig gegengeprüft** — eine mitgeschickte ID allein wäre eine Behauptung, kein Beleg. Alles landet in `fiaon_agent_events`, im Kundenverlauf und als Diagnose-Eintrag mit der Bitte um Gegenkontrolle beim nächsten Kontoabgleich.
+
+**Zwei Dinge, die beim Bauen aufgefallen sind und geändert wurden:**
+
+*Der Buchungsdialog schlug fremde Zahlungen vor.* Der erste Entwurf zeigte alle Bankeingänge mit gleichem Betrag — bei einem Standardpaket zu 59,99 € ist das die halbe Kundenkartei, sechs Stück, alle längst einem anderen Kunden zugeordnet. Ein Klick darauf wäre eine Fehlbuchung mit Provision gewesen. Jetzt sind nur Referenz-Treffer auswählbar, bereits verbuchte Eingänge fallen ganz heraus, und der Rest wird gezählt und beim Namen genannt: „gehören zu anderen Kunden und sind kein Nachweis".
+
+*„Frist abgelaufen" hieß zweierlei.* Die neue Kennzahl zählte `pending_payment` mit Frist in der Vergangenheit und ergab 0, während die Kundenliste 186 solche Fälle zeigte — dort ist es `payment_status='expired'` (so entscheidet `rangSql` in `tier.ts`). Jetzt gilt überall dieselbe Definition, und die 186 Fälle stehen auch in der Zahlungsliste.
+
+**Unterlagen: Stand ja, Inhalt nein.** Sichtbar ist, WAS fehlt (Ausweis, Kontoauszug, SCHUFA), seit wann und wie groß eine vorliegende Datei ist — nicht ihr Inhalt. Für die Frage „was braucht der Kunde noch?" ist der Inhalt nicht nötig, und ein Ausweisscan ist das sensibelste Dokument im Bestand. Ob ein Dokument verlangt wird, hängt am Produkt: Eine Bonitätsauskunft braucht keinen Ausweis, sonst meldete die Liste bei jedem Bonitätskunden dauerhaft „Ausweis fehlt" und niemand würde sie mehr ernst nehmen.
+
+**Zugang: dieselbe Prüfung wie der echte Login.** Die Diagnose ruft `decideLogin` mit der echten Kontofamilie und dem gespeicherten Passwort auf — sie beantwortet damit exakt „was passiert, wenn der Kunde sein richtiges Passwort eintippt?". Eine nachgebaute Prüfung wäre hier besonders gefährlich: Genau eine solche Abweichung hat dazu geführt, dass bezahlte Kunden monatelang ausgesperrt waren, während jede Übersicht behauptete, alles sei in Ordnung. Zu jedem Fall steht der konkrete nächste Schritt für das Telefonat.
+
+**Die Verpflichtungserklärung ist auf Fassung 2.0.** Fassung 1.0 verbot das Buchen ausdrücklich — wer sie angenommen hat, hat einer anderen Abmachung zugestimmt. Deshalb wird erneut gefragt, statt die alte Zusage stillschweigend auszuweiten. Neu sind Punkt 6 („Zahlungen nur mit Nachweis") und Punkt 7 („Keine Buchung im eigenen Interesse"); ausdrücklich ausgeschlossen bleiben Storno, Erstattung, Provisionsänderungen, Dokumenteinsicht und Kundenpasswörter.
+
+**Zu finden:** `server/lib/fiaon-kundenlage.ts`, `server/routes/fiaon-vertrieb.ts`, `server/routes/fiaon-antrag.ts` (`alsBezahltBuchen`), `client/src/pages/agent/vertrieb-service.tsx`. Prüfstand: `scripts/pruef-vertrieb.ts` (132 Prüfungen; die Buchungswälle werden geprüft, eine echte Buchung führt der Prüfstand bewusst NICHT aus).
+
 ## 06.08.2026 — Übergabe der Vertriebsleitung: Glückwunsch, Einführung, Verpflichtung
 
 Eine Rolle zu vergeben und zu hoffen, dass die Verantwortung mitwächst, ist keine Grundlage. Wer den Bereich „Vertrieb" öffnet, sieht **alle** Kundendaten des Unternehmens — Namen, Rufnummern, Adressen, Geburtsdaten, Beträge, Gesprächsverläufe von Menschen, die ihn nie beauftragt haben. Das ist rechtlich eine andere Sache als der eigene Bestand.

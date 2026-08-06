@@ -4,6 +4,7 @@ import { Reveal } from "./motion";
 import { Skelett, eur, useReduzierteBewegung, useToast } from "@/lib/fiaon-ui";
 import { ZeichenSenden, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
 import { VertriebZusage, useZusage } from "./vertrieb-zusage";
+import { VertriebZahlungen, VertriebDokumente, VertriebZugang, LageTafel, ServiceZahlen } from "./vertrieb-service";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/vertrieb — Gesamtsicht für die Vertriebsleitung
@@ -111,6 +112,12 @@ function Inhalt() {
   // Die Verpflichtungserklärung. Solange sie offen ist, liefert der Server
   // ohnehin keine Daten (403) — die Tafel erklärt dem Menschen, warum.
   const { zusage, geprueft, erneutPruefen, schliessen } = useZusage();
+  // Vier Arbeiten, vier Reiter (06.08.2026). Sie sind getrennt, obwohl sie
+  // denselben Bestand betreffen: Wer Zahlungen prüft, ist in einem anderen Kopf
+  // als wer Unterlagen nachfordert. Eine gemischte Liste wäre schneller gebaut
+  // und langsamer abzuarbeiten.
+  const [bereich, setBereich] = useState<"kunden" | "zahlungen" | "dokumente" | "zugang">("kunden");
+  const [service, setService] = useState<any>(null);
   const [filter, setFilter] = useState("alle");
   const [agentFilter, setAgentFilter] = useState<number | null>(null);
   const [suche, setSuche] = useState("");
@@ -144,11 +151,17 @@ function Inhalt() {
   // Erst laden, wenn die Erklärung geklärt ist. Sonst rennen Anfragen in ein 403
   // und die Tafel stünde über einer Seite, die gerade Fehler sammelt.
   useEffect(() => { if (geprueft && !zusage) void ladeKopf(); }, [ladeKopf, geprueft, zusage]);
+
+  const ladeService = useCallback(async () => {
+    const r = await api("/agent/vertrieb/service");
+    if (r.ok) setService(r.json.zahlen);
+  }, []);
+  useEffect(() => { if (geprueft && !zusage) void ladeService(); }, [ladeService, geprueft, zusage]);
   useEffect(() => {
-    if (!geprueft || zusage) return;
+    if (!geprueft || zusage || bereich !== "kunden") return;
     const t = setTimeout(() => void ladeListe(), suche ? 280 : 0);
     return () => clearTimeout(t);
-  }, [ladeListe, suche, geprueft, zusage]);
+  }, [ladeListe, suche, geprueft, zusage, bereich]);
 
   const zuweisen = async (agentId: number | null) => {
     if (gewaehlt.length === 0) return;
@@ -214,16 +227,65 @@ function Inhalt() {
                 <span className="fi-gradient-text">Vertrieb</span>
               </h1>
               <p className="mt-1 text-[13px]" style={{ color: "var(--fi-text-leise)" }}>
-                Alle Kunden, alle Zuständigkeiten. Zuweisen, korrigieren, dokumentieren — jede Änderung wird protokolliert.
+                {bereich === "kunden"
+                  ? "Alle Kunden, alle Zuständigkeiten. Zuweisen, korrigieren, dokumentieren — jede Änderung wird protokolliert."
+                  : bereich === "zahlungen"
+                    ? "Offene Zahlungen prüfen und buchen. Jede Buchung braucht einen Nachweis und schaltet das Konto sofort frei."
+                    : bereich === "dokumente"
+                      ? "Wo bei bezahlten Kunden noch Unterlagen fehlen — damit du am Telefon sagen kannst, was gebraucht wird."
+                      : "Warum ein Kunde nicht in sein Konto kommt, und was konkret hilft."}
               </p>
             </div>
-            <input value={suche} onChange={(e) => setSuche(e.target.value)}
-                   placeholder="Name, E-Mail, Nummer, Referenz"
-                   className="h-[36px] px-3 rounded-xl border bg-white text-[13px] outline-none w-[220px] sm:w-[280px]"
-                   style={{ borderColor: "var(--fi-linie)" }} />
+            {bereich === "kunden" && (
+              <input value={suche} onChange={(e) => setSuche(e.target.value)}
+                     placeholder="Name, E-Mail, Nummer, Referenz"
+                     className="h-[36px] px-3 rounded-xl border bg-white text-[13px] outline-none w-[220px] sm:w-[280px]"
+                     style={{ borderColor: "var(--fi-linie)" }} />
+            )}
+          </div>
+
+          {/* Bereichswahl — die vier Arbeiten der Vertriebsleitung. */}
+          <div className="mt-4 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
+            <div className="flex items-center gap-1.5 pb-1" style={{ minWidth: "max-content" }}>
+              {([
+                ["kunden", "Kunden", null],
+                ["zahlungen", "Zahlungen", (service?.gemeldet ?? 0) + (service?.fristAbgelaufen ?? 0)],
+                ["dokumente", "Unterlagen", service?.dokumenteFehlen ?? 0],
+                ["zugang", "Zugang", service?.zugangOffen ?? 0],
+              ] as const).map(([k, label, zahl]) => {
+                const an = bereich === k;
+                return (
+                  <button key={k} type="button" onClick={() => setBereich(k as any)}
+                          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[13px] font-semibold whitespace-nowrap transition-all duration-150"
+                          style={an
+                            ? { background: "var(--fi-primaer)", color: "#fff", boxShadow: "0 6px 16px -8px rgba(29,78,216,.65)" }
+                            : { background: "#fff", border: "1px solid var(--fi-linie)", color: "var(--fi-text-leise)" }}>
+                    {label}
+                    {!!zahl && (
+                      <span className="text-[10.5px] font-bold px-1.5 py-0.5 rounded-full tabular-nums"
+                            style={an ? { background: "rgba(255,255,255,.22)" } : { background: "var(--fi-seite)", color: "var(--fi-text-still)" }}>
+                        {zahl}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </Reveal>
 
+        {bereich !== "kunden" && (
+          <div className="mt-5">
+            <ServiceZahlen zahlen={service} aktiv={bereich} aufReiter={(r) => setBereich(r as any)} />
+            <div className="mt-5">
+              {bereich === "zahlungen" && <VertriebZahlungen onGebucht={() => { void ladeService(); void ladeKopf(); }} />}
+              {bereich === "dokumente" && <VertriebDokumente />}
+              {bereich === "zugang" && <VertriebZugang />}
+            </div>
+          </div>
+        )}
+
+        {bereich === "kunden" && <>
         {/* Kopfzahlen */}
         <Reveal index={1}>
           <div className="mt-5 grid grid-cols-2 lg:grid-cols-5 gap-2.5">
@@ -427,6 +489,7 @@ function Inhalt() {
             </p>
           )}
         </div>
+        </>}
       </div>
 
       {akte && <Akte daten={akte} onSchliessen={() => setAkte(null)}
@@ -441,7 +504,10 @@ function Inhalt() {
 function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: () => void; onGeaendert: () => void }) {
   const { zeige } = useToast();
   const [busy, setBusy] = useState(false);
-  const [reiter, setReiter] = useState<"stammdaten" | "verlauf" | "zuweisungen">("stammdaten");
+  // „Lage" steht zuerst: Wenn ein Agent anruft, lautet die Frage fast immer
+  // „ist das Geld da / was fehlt / warum kommt er nicht rein" — und nicht
+  // „wie ist die Straße geschrieben".
+  const [reiter, setReiter] = useState<"lage" | "stammdaten" | "verlauf" | "zuweisungen">("lage");
   const [form, setForm] = useState<Record<string, string>>({});
   const p = daten.person;
 
@@ -539,7 +605,7 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
 
           {/* Reiter */}
           <div className="px-5 mt-3.5 flex items-center gap-1.5">
-            {([["stammdaten", "Stammdaten"], ["verlauf", `Verlauf (${daten.verlauf?.length || 0})`], ["zuweisungen", "Zuweisungen"]] as const).map(([k, l]) => (
+            {([["lage", "Lage"], ["stammdaten", "Stammdaten"], ["verlauf", `Verlauf (${daten.verlauf?.length || 0})`], ["zuweisungen", "Zuweisungen"]] as const).map(([k, l]) => (
               <button key={k} type="button" onClick={() => setReiter(k)}
                       className="px-3 py-1.5 rounded-xl text-[12.5px] font-semibold"
                       style={reiter === k
@@ -551,6 +617,8 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
           </div>
 
           <div className="px-5 py-4">
+            {reiter === "lage" && <LageTafel personId={Number(daten.personId)} />}
+
             {reiter === "stammdaten" && (
               <>
                 <div className="grid grid-cols-2 gap-2.5">

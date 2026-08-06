@@ -40,6 +40,25 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-06-vertrieb-service",
+    date: "2026-08-06",
+    category: "Neu",
+    title: "Vertriebsleitung hilft jetzt direkt: Zahlungen, Unterlagen, Zugang",
+    summary:
+      "Bei Zahlungsfragen, fehlenden Unterlagen oder Login-Problemen deiner Kunden musst du nicht mehr auf den Betreiber warten — die Vertriebsleitung kann das jetzt selbst klären.",
+    changes: [
+      "Sagt dein Kunde, er habe überwiesen: Die Vertriebsleitung sieht die Bankeingänge und kann ihn bei belegtem Geld selbst auf „bezahlt“ setzen. Das Konto geht sofort auf und der Kunde bekommt seine Bestätigung.",
+      "Gebucht wird nur mit Nachweis — passender Verwendungszweck im Bankeingang oder ein Überweisungsbeleg, den der Kunde gezeigt hat. Ohne Nachweis und ohne echtes Eingangsdatum geht der Knopf nicht.",
+      "Fehlende Unterlagen sind sichtbar: Bei welchen bezahlten Kunden noch Ausweis, Kontoauszug oder SCHUFA-Auskunft fehlt. Die Dokumente selbst bleiben beim Betreiber.",
+      "Login-Probleme sind erklärbar: Es steht da, WARUM ein Kunde nicht in sein Konto kommt (kein Passwort gesetzt, Zahlung offen, Konto gesperrt) und was konkret hilft.",
+      "Deine Provision bleibt deine: Eine Buchung durch die Vertriebsleitung geht auf den dokumentierten Betreuer — also auf den, der die Arbeit gemacht hat.",
+    ],
+    howto: [
+      "Ruf bei deinem Kunden etwas an, das du selbst nicht klären kannst, wende dich an die Vertriebsleitung.",
+      "Bei Zahlungen halte den Beleg des Kunden bereit — Datum, Betrag und Empfänger müssen darauf zu sehen sein.",
+    ],
+  },
+  {
     id: "2026-08-06-vertriebsleitung-zusage",
     date: "2026-08-06",
     category: "Neu",

@@ -26,6 +26,14 @@ const pruefe = (name: string, gut: boolean, hinweis = "") => {
   console.log(`  ${gut ? "PASS" : "FAIL"}  ${name}${gut ? "" : `  → ${hinweis}`}`);
 };
 
+/** Heutiges Datum in Ortszeit als JJJJ-MM-TT. Bewusst NICHT `heuteIso`: In
+ *  Abschnitt 1 heißt eine Variable so, und eine Verdeckung dieser Art kostet
+ *  eine Viertelstunde Suchen. */
+const heuteTag = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 function agentCookie(id: number, epoch: number): string {
   const secret = process.env.SESSION_SECRET || "fiaon-dev-agent-secret";
   const exp = Date.now() + 3_600_000;
@@ -221,6 +229,11 @@ async function ruf(pfad: string, cookie: string, init?: RequestInit) {
     !gesperrt.body?.zahlen && !gesperrt.body?.personen, Object.keys(gesperrt.body || {}).join(", "));
   const gesperrtListe = await ruf("/api/fiaon/agent/vertrieb/personen?filter=alle", bCookie);
   pruefe("auch die Personenliste bleibt zu", gesperrtListe.status === 403, `Status ${gesperrtListe.status}`);
+  for (const pfad of ["/api/fiaon/agent/vertrieb/service", "/api/fiaon/agent/vertrieb/zahlungen",
+                      "/api/fiaon/agent/vertrieb/dokumente", "/api/fiaon/agent/vertrieb/zugang"]) {
+    const r = await ruf(pfad, bCookie);
+    pruefe(`${pfad.replace("/api/fiaon/agent/vertrieb", "…")} ohne Annahme zu`, r.status === 403, `Status ${r.status}`);
+  }
   const gesperrtZuweisen = await ruf("/api/fiaon/agent/vertrieb/zuweisen", bCookie, {
     method: "POST", body: JSON.stringify({ personIds: [Number(personen[0]?.personId || 1)], agentId: zweiter.id }),
   });
@@ -229,8 +242,16 @@ async function ruf(pfad: string, cookie: string, init?: RequestInit) {
   const text = await ruf("/api/fiaon/agent/vertrieb/zusage", bCookie);
   pruefe("die Erklärung ist lesbar (sonst käme man nie hinein)", text.status === 200 && text.body?.ok);
   pruefe("sie ist als offen gekennzeichnet", text.body?.offen === true);
-  pruefe("sie hat zehn Punkte", (text.body?.text?.pflichten || []).length === 10,
+  // Die Zahl ist absichtlich hart geprüft: Verschwindet eine Pflicht
+  // unbemerkt, ändert sich die Abmachung, ohne dass jemand erneut zustimmt.
+  pruefe("sie hat zwölf Punkte", (text.body?.text?.pflichten || []).length === 12,
     String((text.body?.text?.pflichten || []).length));
+  pruefe("die Belegpflicht steht drin",
+    (text.body?.text?.pflichten || []).some((p: any) => /Nachweis/i.test(p.titel) || /belegt/i.test(p.text)),
+    (text.body?.text?.pflichten || []).map((p: any) => p.titel).join(", "));
+  pruefe("Storno bleibt ausdrücklich ausgeschlossen",
+    (text.body?.text?.kannNicht || []).some((t: string) => /stornier|zurücknehmen/i.test(t)),
+    (text.body?.text?.kannNicht || []).join(" | ").slice(0, 120));
   pruefe("sie nennt Fassung und Prüfwert", !!text.body?.text?.version && !!text.body?.pruefwert,
     `${text.body?.text?.version} / ${text.body?.pruefwert}`);
   pruefe("sie nennt ausdrücklich die Grenzen", (text.body?.text?.kannNicht || []).length >= 3);
@@ -306,6 +327,115 @@ async function ruf(pfad: string, cookie: string, init?: RequestInit) {
     const r = await ruf(pfad, bCookie, { method: "POST", body: JSON.stringify(koerper) });
     pruefe(`Admin-Endpunkt ${pfad.replace("/api/fiaon/admin", "…")} bleibt zu`,
       [401, 403, 404].includes(r.status), `Status ${r.status}`);
+  }
+
+  // ── 5b. Servicerechte: Zahlungen, Unterlagen, Zugang ─────────────────────
+  //
+  // WICHTIG: Hier wird KEINE echte Buchung ausgeführt. Eine Buchung schaltet ein
+  // Konto frei, schickt dem Kunden eine Mail, startet die Ratenkette und bucht
+  // eine Provision — das darf ein Prüfstand an echten Daten nicht anfassen.
+  // Geprüft werden deshalb die SCHUTZWÄLLE: Ohne benannten Nachweis, ohne
+  // Eingangsdatum, ohne Beschreibung und mit einem Bankeingang, dessen
+  // Verwendungszweck nicht passt, muss die Buchung abgelehnt werden.
+  console.log("\n5b. Servicerechte der Vertriebsleitung");
+  const service = await ruf("/api/fiaon/agent/vertrieb/service", bCookie);
+  pruefe("Servicezahlen antworten", service.status === 200 && service.body?.ok, `Status ${service.status}`);
+  for (const feld of ["gemeldet", "fristAbgelaufen", "dokumenteFehlen", "zugangOffen", "bankOffen"]) {
+    pruefe(`Kennzahl „${feld}“ vorhanden`, typeof service.body?.zahlen?.[feld] === "number",
+      JSON.stringify(service.body?.zahlen || {}).slice(0, 110));
+  }
+
+  const zahlungen = await ruf("/api/fiaon/agent/vertrieb/zahlungen?filter=alle", bCookie);
+  pruefe("offene Zahlungen antworten", zahlungen.status === 200 && zahlungen.body?.ok);
+  const zl: any[] = zahlungen.body?.zahlungen || [];
+  pruefe("Zahlungen enthalten den Verwendungszweck",
+    zl.length === 0 || zl.some((z) => z.verwendungszweck), `${zl.length} Zeilen`);
+  pruefe("keine bereits bezahlte Bestellung in der Arbeitsliste",
+    zl.every((z) => z.status !== "paid"), zl.filter((z) => z.status === "paid").length + " bezahlte");
+  const belegt = await ruf("/api/fiaon/agent/vertrieb/zahlungen?filter=bankeingang", bCookie);
+  pruefe("Filter „Geld belegt“ antwortet", belegt.status === 200 && belegt.body?.ok);
+  pruefe("bei „Geld belegt“ hat jede Zeile einen Bank-Treffer",
+    (belegt.body?.zahlungen || []).every((z: any) => Number(z.bankTreffer) > 0),
+    JSON.stringify((belegt.body?.zahlungen || []).slice(0, 1)).slice(0, 120));
+
+  const doks = await ruf("/api/fiaon/agent/vertrieb/dokumente", bCookie);
+  pruefe("Unterlagenliste antwortet", doks.status === 200 && doks.body?.ok);
+  pruefe("jede Zeile nennt, WAS fehlt",
+    (doks.body?.kunden || []).every((k: any) => Array.isArray(k.fehlt) && k.fehlt.length > 0),
+    `${(doks.body?.kunden || []).length} Zeilen`);
+  pruefe("Unterlagen-Inhalte werden NICHT ausgeliefert",
+    !JSON.stringify(doks.body || {}).match(/JVBERi0|base64|pdf_data/i), "Dokumentinhalt gefunden");
+
+  const zugang = await ruf("/api/fiaon/agent/vertrieb/zugang", bCookie);
+  pruefe("Zugangsliste antwortet", zugang.status === 200 && zugang.body?.ok);
+  pruefe("kein Kunde in der Liste, der normal hineinkommt",
+    (zugang.body?.kunden || []).every((k: any) => k.zugang?.kannRein === false),
+    `${(zugang.body?.kunden || []).length} Zeilen`);
+  pruefe("jeder Fall nennt einen konkreten nächsten Schritt",
+    (zugang.body?.kunden || []).every((k: any) => !!k.zugang?.tun || !!k.zugang?.grund),
+    "Fall ohne Handlungsweg");
+  pruefe("keine Passwörter in der Antwort",
+    !JSON.stringify(zugang.body || {}).match(/"password"|passwort":\s*"/i), "Passwortfeld gefunden");
+
+  const lage = await ruf(`/api/fiaon/agent/vertrieb/person/${vertriebsListe[0]?.personId}/lage`, bCookie);
+  pruefe("Kundenlage antwortet", lage.status === 200 && lage.body?.ok, `Status ${lage.status}`);
+  pruefe("Lage nennt Zahlung, Unterlagen und Zugang",
+    Array.isArray(lage.body?.zahlung) && !!lage.body?.dokumente && !!lage.body?.zugang,
+    Object.keys(lage.body || {}).join(", "));
+
+  // ── Die Schutzwälle der Buchung ──────────────────────────────────────────
+  const offen = zl.find((z) => z.verwendungszweck);
+  if (offen) {
+    const versuche: [string, any, string][] = [
+      ["ohne Nachweisart", { zahlungsdatum: heuteTag(), notiz: "habe alles geprüft" }, "Nachweis"],
+      ["ohne Eingangsdatum", { belegArt: "beleg", notiz: "Beleg vom Kunden gesehen" }, "Datum"],
+      ["mit zu kurzer Beschreibung", { belegArt: "beleg", zahlungsdatum: heuteTag(), notiz: "ok" }, "Beschreibung"],
+      ["Bankeingang ohne Auswahl", { belegArt: "bankeingang", zahlungsdatum: heuteTag(), notiz: "Eingang passt zum Zweck" }, "Auswahl"],
+      ["Bankeingang, der nicht existiert", { belegArt: "bankeingang", bankeingangId: 999999999, zahlungsdatum: heuteTag(), notiz: "Eingang passt zum Zweck" }, "nicht gefunden"],
+    ];
+    for (const [name, koerper] of versuche) {
+      const r = await ruf(`/api/fiaon/agent/vertrieb/zahlung/${encodeURIComponent(offen.verwendungszweck)}/bezahlt`, bCookie, {
+        method: "POST", body: JSON.stringify(koerper),
+      });
+      pruefe(`Buchung ${name} abgelehnt`, r.status === 400, `Status ${r.status} ${JSON.stringify(r.body).slice(0, 80)}`);
+    }
+    // Ein fremder Bankeingang (Verwendungszweck passt NICHT) ist der wichtigste Fall.
+    const [fremderEingang] = await sqlPool`
+      SELECT t.id FROM fiaon_bank_txns t
+      WHERE COALESCE(t.reference_raw, '') NOT ILIKE ${`%${offen.verwendungszweck}%`}
+        AND COALESCE(t.extracted_ref, '') <> ${offen.verwendungszweck}
+      ORDER BY t.id DESC LIMIT 1
+    `;
+    if (fremderEingang) {
+      const r = await ruf(`/api/fiaon/agent/vertrieb/zahlung/${encodeURIComponent(offen.verwendungszweck)}/bezahlt`, bCookie, {
+        method: "POST",
+        body: JSON.stringify({ belegArt: "bankeingang", bankeingangId: Number(fremderEingang.id), zahlungsdatum: heuteTag(), notiz: "Sieht nach dem richtigen Betrag aus" }),
+      });
+      pruefe("Bankeingang mit FALSCHEM Verwendungszweck abgelehnt", r.status === 400,
+        `Status ${r.status} ${JSON.stringify(r.body).slice(0, 90)}`);
+      pruefe("die Ablehnung erklärt den Ausweg (Beleg beschreiben)",
+        /Überweisungsbeleg/.test(String(r.body?.error)), String(r.body?.error).slice(0, 90));
+    }
+    // Bereits bezahlte Bestellung: keine zweite Buchung.
+    const [bezahlt] = await sqlPool`
+      SELECT payment_reference FROM fiaon_applications
+      WHERE payment_status = 'paid' AND payment_reference IS NOT NULL AND merged_into IS NULL LIMIT 1
+    `;
+    if (bezahlt) {
+      const r = await ruf(`/api/fiaon/agent/vertrieb/zahlung/${encodeURIComponent(bezahlt.payment_reference)}/bezahlt`, bCookie, {
+        method: "POST", body: JSON.stringify({ belegArt: "beleg", zahlungsdatum: heuteTag(), notiz: "Doppelbuchung versucht — muss scheitern" }),
+      });
+      pruefe("keine zweite Buchung derselben Bestellung", r.status === 400,
+        `Status ${r.status} ${JSON.stringify(r.body).slice(0, 80)}`);
+    }
+  } else {
+    console.log("  (keine offene Zahlung im Bestand — Buchungswälle nicht prüfbar)");
+  }
+
+  // Storno bleibt beim Betreiber.
+  for (const pfad of ["/api/fiaon/admin/payments/x/cancel", "/api/fiaon/admin/payments/x/refund"]) {
+    const r = await ruf(pfad, bCookie, { method: "POST", body: JSON.stringify({}) });
+    pruefe(`${pfad.replace("/api/fiaon/admin", "…")} bleibt zu`, [401, 403, 404].includes(r.status), `Status ${r.status}`);
   }
 
   // ── 6. Zuweisen — Zuständigkeit ja, Provision nein ───────────────────────

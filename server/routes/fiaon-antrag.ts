@@ -1204,49 +1204,80 @@ router.get("/invoice/:paymentRef.pdf", async (req, res) => {
 // gebucht — zwischen Eingang und Klick können Tage liegen. `completed_at` ist
 // der Ankerpunkt der Abo-Fälligkeit (+30 Tage); ohne dieses Feld würde jede
 // verspätete Buchung den ganzen Zahlungszyklus des Kunden nach hinten schieben.
+/**
+ * DIE EINE BUCHUNG (herausgelöst am 06.08.2026).
+ *
+ * Seit die Vertriebsleitung Zahlungen buchen darf, gibt es zwei Aufrufer: die
+ * Zahlungszentrale des Betreibers und `/agent/vertrieb`. Eine zweite, „kleine"
+ * Buchung im Vertriebsmodul wäre der sichere Weg in auseinanderlaufende
+ * Zustände — eine Bestellung, die bezahlt ist, aber keine Provision auslöst,
+ * oder ein Konto, das bezahlt ist und trotzdem nicht aufgeht.
+ *
+ * Deshalb steht hier ALLES, was „bezahlt" bedeutet, und nirgends sonst:
+ * Zahlungsstatus, Antragsstatus, Konto-Freischaltung, Eingangsdatum als Anker
+ * der Abo-Fälligkeit, Stilllegung der Schwesterbestellungen, Bestätigungsmail
+ * (genau einmal) und die Provision für den berechtigten Betreuer.
+ *
+ * `quelle` wandert nur ins Protokoll — sie darf die Wirkung nicht verändern.
+ * Eine Buchung der Vertriebsleitung muss dasselbe bewirken wie eine des
+ * Betreibers, sonst wäre sie eine halbe Buchung.
+ */
+export async function alsBezahltBuchen(
+  paymentRef: string,
+  opts: { zahlungsdatum?: string | null; quelle?: string } = {},
+): Promise<{ ok: true; data: any; zahlungsdatum: string; naechsteAboFaelligkeit: string }
+         | { ok: false; status: number; error: string }> {
+  await ensurePaymentColumns();
+  const { pruefeZahlungsdatum } = await import("./fiaon-abo");
+  const pruefung = pruefeZahlungsdatum(opts.zahlungsdatum);
+  if (pruefung.fehler) return { ok: false, status: 400, error: pruefung.fehler };
+  // 12:00 UTC: liegt in jeder Zeitzone am gemeinten Tag — mit 00:00 wäre der
+  // Eingang in Berliner Anzeige der Vortag.
+  const eingang = `${pruefung.datum}T12:00:00Z`;
+
+  // Paket Y: ATOMAR alles setzen, was der Login verlangt — kein zweiter Schritt.
+  // payment_status='paid' + finaler Antragsstatus + Konto-Aktivierung. Ein bereits
+  // suspendiertes Konto wird NICHT automatisch reaktiviert (Admin-Not-Aus bleibt).
+  const rows = await sqlPool`
+    UPDATE fiaon_applications SET
+      payment_status = 'paid',
+      status = 'payment_completed',
+      account_status = CASE WHEN account_status = 'suspended' THEN account_status ELSE 'active' END,
+      completed_at = COALESCE(completed_at, ${eingang}),
+      updated_at = NOW()
+    WHERE payment_reference = ${paymentRef}
+    RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name, account_status, completed_at
+  `;
+  if (rows.length === 0) return { ok: false, status: 404, error: "Bestellung nicht gefunden" };
+
+  console.log(`[FIAON-PAYMENT] Als bezahlt markiert: ${paymentRef} (ref=${rows[0].ref}, Quelle: ${opts.quelle || "admin"})`);
+  // Paket AD1: offene Schwester-Bestellungen derselben E-Mail automatisch superseden
+  supersedeSisterOrders(rows[0].ref).catch((e) => console.error("[FIAON-DUBLETTE] supersede:", e));
+  // Paket X: Bestätigung läuft über Make ('payment_confirmed' mit login_url) —
+  // ersetzt die frühere direkte Plattform-Freischaltmail. Genau 1× pro Bestellung
+  // (atomarer Flag-Claim), damit ALLE Kundenmails einheitlich über Make/Brevo laufen.
+  await sendPaymentConfirmedOnce(rows[0].ref);
+  // Provisions-Engine (G3): fester Eintrag für den zugewiesenen Agent (Satz wird eingefroren).
+  // Der Hook legt auch die Abo-Ratenkette an — sie rechnet ab `completed_at`.
+  import("./fiaon-agent").then((m) => m.onCustomerPaid(rows[0].ref)).catch((e) => console.error("[FIAON-COMMISSION]", e));
+
+  return {
+    ok: true,
+    data: rows[0],
+    zahlungsdatum: pruefung.datum,
+    // Damit die Oberfläche sofort sagen kann, wann die erste Monatsrate fällig ist.
+    naechsteAboFaelligkeit: new Date(new Date(rows[0].completed_at || eingang).getTime() + 30 * 86_400_000)
+      .toISOString().slice(0, 10),
+  };
+}
+
 router.post("/admin/payments/:paymentRef/mark-paid", async (req, res) => {
   try {
-    await ensurePaymentColumns();
-    const { pruefeZahlungsdatum } = await import("./fiaon-abo");
-    const pruefung = pruefeZahlungsdatum(req.body?.zahlungsdatum);
-    if (pruefung.fehler) return res.status(400).json({ ok: false, error: pruefung.fehler });
-    // 12:00 UTC: liegt in jeder Zeitzone am gemeinten Tag — mit 00:00 wäre der
-    // Eingang in Berliner Anzeige der Vortag.
-    const eingang = `${pruefung.datum}T12:00:00Z`;
-
-    // Paket Y: ATOMAR alles setzen, was der Login verlangt — kein zweiter Schritt.
-    // payment_status='paid' + finaler Antragsstatus + Konto-Aktivierung. Ein bereits
-    // suspendiertes Konto wird NICHT automatisch reaktiviert (Admin-Not-Aus bleibt).
-    const rows = await sqlPool`
-      UPDATE fiaon_applications SET
-        payment_status = 'paid',
-        status = 'payment_completed',
-        account_status = CASE WHEN account_status = 'suspended' THEN account_status ELSE 'active' END,
-        completed_at = COALESCE(completed_at, ${eingang}),
-        updated_at = NOW()
-      WHERE payment_reference = ${req.params.paymentRef}
-      RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name, account_status, completed_at
-    `;
-    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
-
-    console.log(`[FIAON-PAYMENT] Als bezahlt markiert: ${req.params.paymentRef} (ref=${rows[0].ref})`);
-    // Paket AD1: offene Schwester-Bestellungen derselben E-Mail automatisch superseden
-    supersedeSisterOrders(rows[0].ref).catch((e) => console.error("[FIAON-DUBLETTE] supersede:", e));
-    // Paket X: Bestätigung läuft über Make ('payment_confirmed' mit login_url) —
-    // ersetzt die frühere direkte Plattform-Freischaltmail. Genau 1× pro Bestellung
-    // (atomarer Flag-Claim), damit ALLE Kundenmails einheitlich über Make/Brevo laufen.
-    await sendPaymentConfirmedOnce(rows[0].ref);
-    // Provisions-Engine (G3): fester Eintrag für den zugewiesenen Agent (Satz wird eingefroren).
-    // Der Hook legt auch die Abo-Ratenkette an — sie rechnet ab `completed_at`.
-    import("./fiaon-agent").then((m) => m.onCustomerPaid(rows[0].ref)).catch((e) => console.error("[FIAON-COMMISSION]", e));
-    res.json({
-      ok: true,
-      data: rows[0],
-      zahlungsdatum: pruefung.datum,
-      // Damit die Oberfläche sofort sagen kann, wann die erste Monatsrate fällig ist.
-      naechsteAboFaelligkeit: new Date(new Date(rows[0].completed_at || eingang).getTime() + 30 * 86_400_000)
-        .toISOString().slice(0, 10),
+    const e = await alsBezahltBuchen(req.params.paymentRef, {
+      zahlungsdatum: req.body?.zahlungsdatum, quelle: "admin",
     });
+    if (!e.ok) return res.status(e.status).json({ ok: false, error: e.error });
+    res.json({ ok: true, data: e.data, zahlungsdatum: e.zahlungsdatum, naechsteAboFaelligkeit: e.naechsteAboFaelligkeit });
   } catch (err) {
     console.error("[FIAON-PAYMENT] mark-paid:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -2392,7 +2423,14 @@ router.post("/application", async (req, res) => {
  * Großschreibung und Leerzeichen. Zusätzlich werden die GEWINNER von Merges
  * geladen: nach einem Zusammenführen lebt das Konto dort weiter.
  */
-async function loadLoginFamily(normalizedEmail: string): Promise<any[]> {
+/**
+ * EXPORTIERT (06.08.2026), damit die Zugangs-Diagnose der Vertriebsleitung
+ * dieselbe Kontoauflösung liest wie der Login selbst. Eine zweite, ähnliche
+ * Abfrage würde irgendwann etwas anderes behaupten als das, was der Kunde
+ * erlebt — und genau daran ist die Login-Sperre 2026 monatelang unentdeckt
+ * geblieben.
+ */
+export async function loadLoginFamily(normalizedEmail: string): Promise<any[]> {
   const rows = await sqlPool`
     SELECT *, utm::text AS utm_string
     FROM fiaon_applications

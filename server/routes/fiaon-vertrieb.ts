@@ -586,4 +586,264 @@ router.post("/agent/vertrieb/person/:id/zahlungsdaten", requireAgent, nurLeitung
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SERVICE-RECHTE (06.08.2026)
+//
+// Gemeldet: „Damit ich Vertrieblern bei Fragen und kleineren Kundenproblemen
+// direkt helfen kann, ohne dass alles bei dir landet."
+//
+// Vier Dinge kommen täglich: Ist das Geld da? Welche Unterlagen fehlen? Warum
+// kommt der Kunde nicht ins Konto? Und was liegt insgesamt offen?
+//
+// Die Buchung einer Zahlung ist die schwerste Befugnis in diesem System — sie
+// schaltet ein Konto frei, löst eine Kundenmail aus, legt eine Ratenkette an und
+// bucht eine Provision. Deshalb gilt hier:
+//
+//   1. EINE Buchung, kein Nachbau: `alsBezahltBuchen` aus fiaon-antrag.ts,
+//      dieselbe Funktion, die der Betreiber benutzt.
+//   2. BELEGPFLICHT. Ohne benannten Nachweis (Bankeingang oder Überweisungsbeleg)
+//      und ohne echtes Eingangsdatum geht es nicht. Ein Klick „ist bezahlt" ohne
+//      Grund wäre eine Einladung, Provision auf Verdacht zu erzeugen.
+//   3. NACHVOLLZIEHBARKEIT. Wer, wann, mit welchem Beleg — in
+//      `fiaon_agent_events` UND im Kundenverlauf, damit es der Betreiber in der
+//      Zahlungszentrale sieht, ohne suchen zu müssen.
+//   4. KEINE RÜCKNAHME. Storno, Rückerstattung und Reaktivierung bleiben beim
+//      Betreiber. Wer buchen darf, darf nicht auch spurlos zurückbuchen.
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.get("/agent/vertrieb/service", requireAgent, nurLeitung, nurMitZusage, async (_req: AgentRequest, res: Response) => {
+  try {
+    const { serviceZahlen } = await import("../lib/fiaon-kundenlage");
+    res.json({ ok: true, zahlen: await serviceZahlen() });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] service:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** Offene Zahlungen. `bankeingang` zeigt die Fälle, in denen das Geld belegt ist. */
+router.get("/agent/vertrieb/zahlungen", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const { offeneZahlungen } = await import("../lib/fiaon-kundenlage");
+    const rows = await offeneZahlungen(String(req.query.filter || "alle"), String(req.query.q || ""));
+    res.json({
+      ok: true,
+      anzahl: rows.length,
+      zahlungen: rows.map((r: any) => ({
+        ref: r.ref,
+        personId: r.person_id == null ? null : Number(r.person_id),
+        name: r.name,
+        email: r.email,
+        verwendungszweck: r.payment_reference,
+        status: r.payment_status,
+        betragCent: r.amount_due != null ? Math.round(Number(r.amount_due) * 100) : null,
+        frist: r.payment_due_date,
+        zusagedatum: r.promised_payment_date,
+        paket: r.pack_name ? String(r.pack_name).split("\n")[0].trim() : null,
+        agentName: r.agent_name,
+        letzterKontakt: r.letzter_kontakt,
+        bankTreffer: Number(r.bank_treffer || 0),
+      })),
+    });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] zahlungen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** Die Lage EINES Kunden: Zahlung mit Bankeingängen, Dokumente, Zugang. */
+router.get("/agent/vertrieb/person/:id/lage", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const [p] = await sqlPool`
+      SELECT id, primary_email,
+             (SELECT COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,''))
+                FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+                ORDER BY a.created_at DESC LIMIT 1) AS app_email
+      FROM fiaon_persons p WHERE p.id = ${id} AND p.merged_into_person_id IS NULL
+    `;
+    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const { zahlungsLage, dokumentLage, zugangsLage } = await import("../lib/fiaon-kundenlage");
+    const [zahlung, dokumente, zugang] = await Promise.all([
+      zahlungsLage(id),
+      dokumentLage(id),
+      zugangsLage(p.primary_email || p.app_email || ""),
+    ]);
+    res.json({ ok: true, zahlung, dokumente, zugang });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] lage:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** Bezahlte Kunden mit fehlenden Unterlagen. */
+router.get("/agent/vertrieb/dokumente", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const { fehlendeDokumente } = await import("../lib/fiaon-kundenlage");
+    const rows = await fehlendeDokumente(String(req.query.q || ""));
+    res.json({
+      ok: true,
+      anzahl: rows.length,
+      kunden: rows.map((r: any) => ({
+        ref: r.ref,
+        personId: r.person_id == null ? null : Number(r.person_id),
+        name: r.name, email: r.email,
+        paket: r.pack_name ? String(r.pack_name).split("\n")[0].trim() : null,
+        kycStatus: r.kyc_status,
+        bezahltAm: r.completed_at,
+        profilFertigAm: r.profile_completed_at,
+        agentName: r.agent_name,
+        // Inhalte gibt es hier nicht — nur, was fehlt. Ein Ausweisscan ist das
+        // sensibelste Dokument im Bestand; für „was fehlt noch?" braucht ihn
+        // niemand zu sehen.
+        fehlt: [r.ausweis_fehlt ? "Ausweis" : null, r.auszug_fehlt ? "Kontoauszug" : null].filter(Boolean),
+      })),
+    });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] dokumente:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** Bezahlte Kunden, die nicht in ihr Konto kommen — mit echtem Login-Urteil. */
+router.get("/agent/vertrieb/zugang", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const { zugangsProbleme } = await import("../lib/fiaon-kundenlage");
+    const kunden = await zugangsProbleme(String(req.query.q || ""));
+    res.json({ ok: true, anzahl: kunden.length, kunden });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] zugang:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * Zahlung buchen — mit Beleg, oder gar nicht.
+ *
+ * `beleg.art`:
+ *   bankeingang  Ein Eingang im Bankbestand, dessen Verwendungszweck passt.
+ *                Die Referenz wird SERVERSEITIG gegengeprüft; eine ID allein
+ *                genügt nicht, sonst wäre der „Beleg" eine Behauptung.
+ *   beleg        Der Kunde hat einen Überweisungsbeleg gezeigt. Dann ist eine
+ *                Beschreibung Pflicht (was war zu sehen: Datum, Betrag, Empfänger).
+ */
+router.post("/agent/vertrieb/zahlung/:paymentRef/bezahlt", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const paymentRef = String(req.params.paymentRef);
+    const art = String(req.body?.belegArt || "");
+    const notiz = String(req.body?.notiz || "").trim();
+    const zahlungsdatum = String(req.body?.zahlungsdatum || "").trim();
+    const bankId = req.body?.bankeingangId ? Number(req.body.bankeingangId) : null;
+
+    if (!["bankeingang", "beleg"].includes(art)) {
+      return res.status(400).json({ ok: false, error: "Bitte angeben, worauf sich die Buchung stützt: Bankeingang oder Überweisungsbeleg." });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(zahlungsdatum)) {
+      return res.status(400).json({ ok: false, error: "Bitte das tatsächliche Datum des Geldeingangs angeben (JJJJ-MM-TT)." });
+    }
+    if (notiz.length < 10) {
+      return res.status(400).json({
+        ok: false,
+        error: "Bitte in einem Satz festhalten, was du geprüft hast — das ist der Nachweis für diese Buchung.",
+      });
+    }
+
+    const [app] = await sqlPool`
+      SELECT ref, payment_reference, payment_status, amount_due, person_id
+      FROM fiaon_applications WHERE payment_reference = ${paymentRef} AND merged_into IS NULL
+    `;
+    if (!app) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
+    if (app.payment_status === "paid") {
+      return res.status(400).json({ ok: false, error: "Diese Bestellung ist bereits als bezahlt gebucht." });
+    }
+
+    // Beim Bankeingang wird der Beleg GEPRÜFT, nicht geglaubt.
+    let bank: any = null;
+    if (art === "bankeingang") {
+      if (!bankId) return res.status(400).json({ ok: false, error: "Bitte den Bankeingang auswählen." });
+      [bank] = await sqlPool`
+        SELECT id, amount_cents, reference_raw, extracted_ref, matched_ref, payer_name, booked_at, applied
+        FROM fiaon_bank_txns WHERE id = ${bankId}
+      `;
+      if (!bank) return res.status(400).json({ ok: false, error: "Bankeingang nicht gefunden." });
+      const zweck = `${bank.reference_raw || ""} ${bank.extracted_ref || ""} ${bank.matched_ref || ""}`.toUpperCase();
+      const passt = zweck.includes(String(app.payment_reference || "\u0000").toUpperCase())
+        || String(bank.matched_ref || "").toUpperCase() === String(app.ref).toUpperCase();
+      if (!passt) {
+        return res.status(400).json({
+          ok: false,
+          error: `Der Verwendungszweck dieses Eingangs nennt nicht ${app.payment_reference}. `
+            + `Wenn du trotzdem sicher bist, dass das Geld zu dieser Bestellung gehört, buche über „Überweisungsbeleg" und `
+            + `beschreibe im Nachweis, woran du es erkannt hast.`,
+        });
+      }
+    }
+
+    const { alsBezahltBuchen } = await import("./fiaon-antrag");
+    const wirkung = await alsBezahltBuchen(paymentRef, {
+      zahlungsdatum,
+      quelle: `vertriebsleiter:${req.agent!.id}`,
+    });
+    if (!wirkung.ok) return res.status(wirkung.status).json({ ok: false, error: wirkung.error });
+
+    if (bank) {
+      // Den Bankeingang als verbucht markieren, damit er nicht ein zweites Mal
+      // als „offen" vorgeschlagen wird.
+      await sqlPool`
+        UPDATE fiaon_bank_txns
+        SET applied = TRUE, applied_at = NOW(), matched_ref = COALESCE(matched_ref, ${app.ref}),
+            match_status = 'manual',
+            note = CONCAT_WS(' | ', note, ${`Vertriebsleitung ${req.agent!.name}: ${notiz}`}), updated_at = NOW()
+        WHERE id = ${bank.id}
+      `.catch((e) => console.error("[FIAON-VERTRIEB] Bankeingang markieren:", e));
+    }
+
+    const beleg = {
+      art,
+      notiz,
+      zahlungsdatum,
+      bankeingang: bank ? { id: Number(bank.id), betragCent: Number(bank.amount_cents), verwendungszweck: bank.reference_raw } : null,
+      betragCent: app.amount_due != null ? Math.round(Number(app.amount_due) * 100) : null,
+    };
+    await protokoll(req.agent!.id, "vertrieb_zahlung_gebucht", { ref: app.ref, payment_reference: paymentRef, beleg });
+
+    // Auch in den Kundenverlauf — dort sucht der Betreiber, wenn er später fragt,
+    // warum diese Bestellung bezahlt ist.
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, outcome, note, created_at)
+      VALUES (${app.ref}, ${req.agent!.id}, ${`${req.agent!.name} (Vertriebsleitung)`}, 'note', NULL,
+              ${`Zahlung gebucht (Eingang ${zahlungsdatum}, Nachweis: ${art === "bankeingang" ? "Bankeingang" : "Überweisungsbeleg"}) — ${notiz}`},
+              NOW())
+    `.catch((e) => console.error("[FIAON-VERTRIEB] Verlaufseintrag:", e));
+
+    // Und in die Diagnose des Betreibers: Eine gebuchte Zahlung ohne Geld auf dem
+    // Konto fällt sonst erst beim Kontoabgleich auf — dann ist die Provision längst
+    // bestätigt. Diese Zeile ist die Bitte um Gegenkontrolle.
+    try {
+      const { logDiagnostic } = await import("../lib/fiaon-diagnostics");
+      logDiagnostic({
+        severity: art === "bankeingang" ? "info" : "warnung",
+        category: "zahlung",
+        code: "VERTRIEB-BUCHUNG",
+        message: `${req.agent!.name} hat ${paymentRef} als bezahlt gebucht (Nachweis: ${art}, Eingang ${zahlungsdatum}).`,
+        hint: art === "bankeingang"
+          ? "Nachweis war ein Bankeingang mit passendem Verwendungszweck."
+          : "Nachweis war ein vom Kunden gezeigter Überweisungsbeleg — bitte beim nächsten Kontoabgleich gegenprüfen.",
+        link: "/admin/zahlungen",
+      });
+    } catch { /* Diagnose darf eine Buchung nie verhindern */ }
+
+    res.json({
+      ok: true,
+      meldung: `Als bezahlt gebucht. Das Konto ist freigeschaltet, die Bestätigung an den Kunden ist unterwegs.`
+        + ` Erste Monatsrate fällig am ${wirkung.naechsteAboFaelligkeit}.`,
+      zahlungsdatum: wirkung.zahlungsdatum,
+      naechsteAboFaelligkeit: wirkung.naechsteAboFaelligkeit,
+    });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] zahlung buchen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 export default router;

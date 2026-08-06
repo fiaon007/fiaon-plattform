@@ -370,6 +370,14 @@ router.get("/admin/team/agents/:id", async (req, res) => {
       WHERE a.id = ${id}
     `;
     if (agents.length === 0) return res.status(404).json({ ok: false, error: "Agent nicht gefunden" });
+    // Nachweis der Verpflichtungserklärung. Er gehört sichtbar dorthin, wo die
+    // Rolle vergeben wird — ein Nachweis, den nur die Datenbank kennt, ist im
+    // Ernstfall keiner: Niemand sucht ihn dort, und niemand merkt, wenn er fehlt.
+    const zusagen = await sqlPool`
+      SELECT version, name_getippt, accepted_at, ip
+      FROM fiaon_vertrieb_zusagen WHERE agent_id = ${id}
+      ORDER BY id DESC LIMIT 5
+    `.catch(() => [] as any[]);
     const contactLog = await sqlPool`
       SELECT id, ref, type, outcome, note, scheduled_at, promised_date, created_at
       FROM fiaon_contact_log WHERE agent_id = ${id} ORDER BY created_at DESC LIMIT 200
@@ -387,7 +395,7 @@ router.get("/admin/team/agents/:id", async (req, res) => {
       WHERE assigned_agent_id = ${id} AND merged_into IS NULL AND payment_status IN ('pending_payment','claimed_paid')
       ORDER BY created_at DESC
     `;
-    res.json({ ok: true, agent: agents[0], contactLog, events, commissions, customers });
+    res.json({ ok: true, agent: agents[0], vertriebZusagen: zusagen, contactLog, events, commissions, customers });
   } catch (err) {
     console.error("[FIAON-TEAM] agent detail:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

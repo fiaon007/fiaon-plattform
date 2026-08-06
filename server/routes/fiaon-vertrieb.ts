@@ -69,6 +69,98 @@ async function nurLeitung(req: AgentRequest, res: Response, next: any) {
   return next();
 }
 
+/**
+ * Zweiter Torwächter: die angenommene Verpflichtungserklärung.
+ *
+ * Hier ist 403 richtig und 404 falsch — anders als bei der Rolle. Wer
+ * Vertriebsleiter ist, DARF wissen, dass es diesen Bereich gibt; ihm fehlt nur
+ * ein Schritt. Eine 404 würde ihn ratlos zurücklassen, statt ihn zur Erklärung
+ * zu führen. Der Code im Fehler ist die Anweisung an die Oberfläche, welche
+ * Ansicht sie zeigen muss.
+ *
+ * Die Prüfung sitzt bewusst in derselben Kette wie die Rollenprüfung. Läge sie
+ * nur in der Oberfläche, hätte ein Neugieriger die Daten mit einem einzigen
+ * Aufruf ohne Erklärung — und der Nachweis wäre wertlos.
+ */
+async function nurMitZusage(req: AgentRequest, res: Response, next: any) {
+  const { zusageStand } = await import("../lib/fiaon-vertrieb-zusage");
+  const stand = await zusageStand(req.agent!.id);
+  if (stand.offen) {
+    return res.status(403).json({
+      ok: false,
+      code: "zusage_erforderlich",
+      version: stand.version,
+      neufassung: stand.neufassung,
+      error: stand.neufassung
+        ? "Die Verpflichtungserklärung für die Vertriebsleitung wurde geändert. Bitte die neue Fassung lesen und annehmen."
+        : "Bitte die Verpflichtungserklärung für die Vertriebsleitung lesen und annehmen.",
+    });
+  }
+  return next();
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// GET/POST /agent/vertrieb/zusage — Erklärung holen und annehmen
+//
+// Diese zwei Wege liegen VOR dem Zusage-Wächter (sonst könnte man die Erklärung
+// nicht lesen, weil man sie noch nicht angenommen hat), aber HINTER der
+// Rollenprüfung: Wer nicht Vertriebsleiter ist, bekommt auch die Erklärung nicht
+// zu sehen — sonst verrät sie die Existenz des Bereichs.
+// ───────────────────────────────────────────────────────────────────────────
+router.get("/agent/vertrieb/zusage", requireAgent, nurLeitung, async (req: AgentRequest, res: Response) => {
+  try {
+    const { ZUSAGE_TEXT, zusageStand, zusageHash } = await import("../lib/fiaon-vertrieb-zusage");
+    const stand = await zusageStand(req.agent!.id);
+    res.json({
+      ok: true,
+      offen: stand.offen,
+      neufassung: stand.neufassung,
+      akzeptiertAm: stand.akzeptiertAm,
+      // Der Name wird gebraucht, weil die Unterschrift genau er sein muss.
+      name: req.agent!.name,
+      vorname: req.agent!.first_name || req.agent!.name,
+      pruefwert: zusageHash().slice(0, 16),
+      text: ZUSAGE_TEXT,
+    });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] zusage lesen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/agent/vertrieb/zusage", requireAgent, nurLeitung, async (req: AgentRequest, res: Response) => {
+  try {
+    const { zusageSpeichern } = await import("../lib/fiaon-vertrieb-zusage");
+    // IP hinter einem Reverse Proxy: der erste Eintrag der Kette ist der Client.
+    const weiter = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+    const ergebnis = await zusageSpeichern({
+      agentId: req.agent!.id,
+      agentName: req.agent!.name,
+      version: String(req.body?.version || ""),
+      nameGetippt: String(req.body?.name || ""),
+      gelesen: req.body?.gelesen === true,
+      ip: weiter || req.socket?.remoteAddress || null,
+      userAgent: String(req.headers["user-agent"] || "").slice(0, 500) || null,
+    });
+    if (!ergebnis.ok) return res.status(400).json({ ok: false, error: ergebnis.grund });
+
+    // Rechtevergabe und ihre Annahme gehören in dasselbe Protokoll wie jede
+    // andere Handlung der Vertriebsleitung.
+    await protokoll(req.agent!.id, "vertrieb_zusage_angenommen", {
+      version: String(req.body?.version || ""),
+      name_getippt: String(req.body?.name || "").trim(),
+    });
+    res.json({
+      ok: true,
+      akzeptiertAm: ergebnis.akzeptiertAm,
+      meldung: "Angenommen. Der Bereich Vertrieb ist jetzt für dich offen.",
+    });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] zusage annehmen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 /** Protokoll — ohne Ausnahme, mit altem und neuem Wert. */
 async function protokoll(
   leiterId: number,
@@ -95,7 +187,7 @@ const NAME_SQL = `COALESCE(
 // ───────────────────────────────────────────────────────────────────────────
 // GET /agent/vertrieb/uebersicht — Kopfzahlen
 // ───────────────────────────────────────────────────────────────────────────
-router.get("/agent/vertrieb/uebersicht", requireAgent, nurLeitung, async (req: AgentRequest, res: Response) => {
+router.get("/agent/vertrieb/uebersicht", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
   try {
     const [z] = await sqlPool`
       SELECT
@@ -142,7 +234,7 @@ router.get("/agent/vertrieb/uebersicht", requireAgent, nurLeitung, async (req: A
 // ───────────────────────────────────────────────────────────────────────────
 // GET /agent/vertrieb/personen — alle Personen, gefiltert
 // ───────────────────────────────────────────────────────────────────────────
-router.get("/agent/vertrieb/personen", requireAgent, nurLeitung, async (req: AgentRequest, res: Response) => {
+router.get("/agent/vertrieb/personen", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
   try {
     const filter = String(req.query.filter || "alle");
     const agent = req.query.agent ? Number(req.query.agent) : null;
@@ -240,7 +332,7 @@ router.get("/agent/vertrieb/personen", requireAgent, nurLeitung, async (req: Age
 // ───────────────────────────────────────────────────────────────────────────
 // POST /agent/vertrieb/zuweisen — einzeln oder mehrfach
 // ───────────────────────────────────────────────────────────────────────────
-router.post("/agent/vertrieb/zuweisen", requireAgent, nurLeitung, async (req: AgentRequest, res: Response) => {
+router.post("/agent/vertrieb/zuweisen", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
   try {
     const ids = Array.isArray(req.body?.personIds)
       ? req.body.personIds.map((n: any) => Number(n)).filter((n: number) => Number.isInteger(n) && n > 0)
@@ -309,7 +401,7 @@ router.post("/agent/vertrieb/zuweisen", requireAgent, nurLeitung, async (req: Ag
 // ───────────────────────────────────────────────────────────────────────────
 const STAMM_FELDER = ["first_name", "last_name", "company_name", "primary_email", "primary_phone", "street", "zip", "city"] as const;
 
-router.patch("/agent/vertrieb/person/:id", requireAgent, nurLeitung, async (req: AgentRequest, res: Response) => {
+router.patch("/agent/vertrieb/person/:id", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const [vorher] = await sqlPool`SELECT * FROM fiaon_persons WHERE id = ${id} AND merged_into_person_id IS NULL`;
@@ -345,7 +437,7 @@ router.patch("/agent/vertrieb/person/:id", requireAgent, nurLeitung, async (req:
 // ───────────────────────────────────────────────────────────────────────────
 // POST /agent/vertrieb/person/:id/ergebnis — dokumentieren wie ein Agent
 // ───────────────────────────────────────────────────────────────────────────
-router.post("/agent/vertrieb/person/:id/ergebnis", requireAgent, nurLeitung, async (req: AgentRequest, res: Response) => {
+router.post("/agent/vertrieb/person/:id/ergebnis", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const art = String(req.body?.art || "");
@@ -396,7 +488,7 @@ router.post("/agent/vertrieb/person/:id/ergebnis", requireAgent, nurLeitung, asy
 // ───────────────────────────────────────────────────────────────────────────
 // POST /agent/vertrieb/person/:id/sperre — sperren / entsperren
 // ───────────────────────────────────────────────────────────────────────────
-router.post("/agent/vertrieb/person/:id/sperre", requireAgent, nurLeitung, async (req: AgentRequest, res: Response) => {
+router.post("/agent/vertrieb/person/:id/sperre", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const sperren = req.body?.sperren !== false;
@@ -421,7 +513,7 @@ router.post("/agent/vertrieb/person/:id/sperre", requireAgent, nurLeitung, async
 // ───────────────────────────────────────────────────────────────────────────
 // GET /agent/vertrieb/person/:id — die Akte
 // ───────────────────────────────────────────────────────────────────────────
-router.get("/agent/vertrieb/person/:id", requireAgent, nurLeitung, async (req: AgentRequest, res: Response) => {
+router.get("/agent/vertrieb/person/:id", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const [p] = await sqlPool.unsafe(`
@@ -480,7 +572,7 @@ router.get("/agent/vertrieb/person/:id", requireAgent, nurLeitung, async (req: A
 });
 
 /** Zahlungsdaten senden — nutzt denselben Weg wie der Agent. */
-router.post("/agent/vertrieb/person/:id/zahlungsdaten", requireAgent, nurLeitung, async (req: AgentRequest, res: Response) => {
+router.post("/agent/vertrieb/person/:id/zahlungsdaten", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const { zahlungsdatenSenden } = await import("./fiaon-agent-kunden");

@@ -200,9 +200,76 @@ async function ruf(pfad: string, cookie: string, init?: RequestInit) {
   const ohneCookie = await fetch(`${BASIS}/api/fiaon/agent/vertrieb/uebersicht`);
   pruefe("ohne Anmeldung → 401/404", [401, 404].includes(ohneCookie.status), `Status ${ohneCookie.status}`);
 
+  // ── 4b. Verpflichtungserklärung: Rolle allein genügt nicht ───────────────
+  //
+  // Wer alle Kundendaten sehen darf, muss vorher zugestimmt haben. Diese Prüfung
+  // ist der Kern des Nachweises: Ohne Annahme KEINE Daten — und zwar aus dem
+  // Server, nicht aus der Oberfläche.
+  console.log("\n4b. Vertrieb — ohne angenommene Erklärung keine Daten");
+  await sqlPool`UPDATE fiaon_agents SET rolle = 'vertriebsleiter' WHERE id = ${zweiter.id}`;
+  await sqlPool`CREATE TABLE IF NOT EXISTS fiaon_vertrieb_zusagen (
+    id SERIAL PRIMARY KEY, agent_id INTEGER NOT NULL, version TEXT NOT NULL, text_hash TEXT NOT NULL,
+    name_getippt TEXT NOT NULL, ip TEXT, user_agent TEXT, accepted_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+  const zusagenVorher = await sqlPool`SELECT id FROM fiaon_vertrieb_zusagen WHERE agent_id = ${zweiter.id}`;
+  await sqlPool`DELETE FROM fiaon_vertrieb_zusagen WHERE agent_id = ${zweiter.id}`;
+
+  const gesperrt = await ruf("/api/fiaon/agent/vertrieb/uebersicht", bCookie);
+  pruefe("ohne Annahme: keine Daten (403)", gesperrt.status === 403, `Status ${gesperrt.status}`);
+  pruefe("403, nicht 404 — der Weg zur Erklärung muss erkennbar sein",
+    gesperrt.body?.code === "zusage_erforderlich", String(gesperrt.body?.code));
+  pruefe("die Sperre liefert KEINE Kundendaten mit",
+    !gesperrt.body?.zahlen && !gesperrt.body?.personen, Object.keys(gesperrt.body || {}).join(", "));
+  const gesperrtListe = await ruf("/api/fiaon/agent/vertrieb/personen?filter=alle", bCookie);
+  pruefe("auch die Personenliste bleibt zu", gesperrtListe.status === 403, `Status ${gesperrtListe.status}`);
+  const gesperrtZuweisen = await ruf("/api/fiaon/agent/vertrieb/zuweisen", bCookie, {
+    method: "POST", body: JSON.stringify({ personIds: [Number(personen[0]?.personId || 1)], agentId: zweiter.id }),
+  });
+  pruefe("Zuweisen ohne Annahme unmöglich", gesperrtZuweisen.status === 403, `Status ${gesperrtZuweisen.status}`);
+
+  const text = await ruf("/api/fiaon/agent/vertrieb/zusage", bCookie);
+  pruefe("die Erklärung ist lesbar (sonst käme man nie hinein)", text.status === 200 && text.body?.ok);
+  pruefe("sie ist als offen gekennzeichnet", text.body?.offen === true);
+  pruefe("sie hat zehn Punkte", (text.body?.text?.pflichten || []).length === 10,
+    String((text.body?.text?.pflichten || []).length));
+  pruefe("sie nennt Fassung und Prüfwert", !!text.body?.text?.version && !!text.body?.pruefwert,
+    `${text.body?.text?.version} / ${text.body?.pruefwert}`);
+  pruefe("sie nennt ausdrücklich die Grenzen", (text.body?.text?.kannNicht || []).length >= 3);
+
+  // Falscher Name = keine Unterschrift.
+  const falsch = await ruf("/api/fiaon/agent/vertrieb/zusage", bCookie, {
+    method: "POST", body: JSON.stringify({ version: text.body.text.version, name: "Max Mustermann", gelesen: true }),
+  });
+  pruefe("fremder Name wird abgelehnt", falsch.status === 400, `Status ${falsch.status}`);
+  // Ohne Bestätigung des Lesens ebenso.
+  const ohneHaken = await ruf("/api/fiaon/agent/vertrieb/zusage", bCookie, {
+    method: "POST", body: JSON.stringify({ version: text.body.text.version, name: zweiter.name, gelesen: false }),
+  });
+  pruefe("ohne Bestätigung des Lesens abgelehnt", ohneHaken.status === 400, `Status ${ohneHaken.status}`);
+  // Veraltete Fassung ebenso — sonst könnte man eine ältere Erklärung annehmen.
+  const alteFassung = await ruf("/api/fiaon/agent/vertrieb/zusage", bCookie, {
+    method: "POST", body: JSON.stringify({ version: "0.9-alt", name: zweiter.name, gelesen: true }),
+  });
+  pruefe("veraltete Fassung wird abgelehnt", alteFassung.status === 400, `Status ${alteFassung.status}`);
+
+  const annahme = await ruf("/api/fiaon/agent/vertrieb/zusage", bCookie, {
+    method: "POST", body: JSON.stringify({ version: text.body.text.version, name: ` ${String(zweiter.name).toLowerCase()} `, gelesen: true }),
+  });
+  pruefe("Annahme mit eigenem Namen (nachsichtig bei Schreibweise)", annahme.status === 200 && annahme.body?.ok,
+    `Status ${annahme.status} ${annahme.body?.error || ""}`);
+  const [nachweis] = await sqlPool`
+    SELECT version, text_hash, name_getippt, ip, user_agent, accepted_at
+    FROM fiaon_vertrieb_zusagen WHERE agent_id = ${zweiter.id} ORDER BY id DESC LIMIT 1
+  `;
+  pruefe("Nachweis gespeichert mit Fassung und Prüfwert",
+    !!nachweis && String(nachweis.version) === String(text.body.text.version) && String(nachweis.text_hash).length === 64,
+    JSON.stringify(nachweis || {}).slice(0, 120));
+  pruefe("Prüfwert passt zum ausgelieferten Text",
+    String(nachweis?.text_hash || "").startsWith(String(text.body.pruefwert)),
+    `${String(nachweis?.text_hash).slice(0, 16)} ≠ ${text.body.pruefwert}`);
+  pruefe("getippter Name im Wortlaut gespeichert", !!nachweis?.name_getippt, String(nachweis?.name_getippt));
+
   // ── 5. Vertriebsleitung: Tür offen, aber nicht die Kasse ─────────────────
   console.log("\n5. Vertrieb — offen für die Leitung");
-  await sqlPool`UPDATE fiaon_agents SET rolle = 'vertriebsleiter' WHERE id = ${zweiter.id}`;
   const ueber = await ruf("/api/fiaon/agent/vertrieb/uebersicht", bCookie);
   pruefe("Übersicht antwortet", ueber.status === 200 && ueber.body?.ok, `Status ${ueber.status}`);
   const vz = ueber.body?.zahlen || {};
@@ -304,6 +371,13 @@ async function ruf(pfad: string, cookie: string, init?: RequestInit) {
     WHERE person_id = ${opfer.personId} AND merged_into IS NULL
   `;
   await sqlPool`UPDATE fiaon_agents SET rolle = ${String(zweiter.rolle)} WHERE id = ${zweiter.id}`;
+  // Die im Prüflauf erzeugte Annahme wieder entfernen und den vorherigen Stand
+  // belassen: Ein Prüfstand, der einen echten Nachweis erfindet oder löscht,
+  // beschädigt genau das, was er prüfen soll.
+  await sqlPool`
+    DELETE FROM fiaon_vertrieb_zusagen
+    WHERE agent_id = ${zweiter.id} AND id NOT IN ${sqlPool([...(zusagenVorher as any[]).map((r) => r.id), -1])}
+  `;
 
   // ── 7. Alte Adressen ─────────────────────────────────────────────────────
   console.log("\n7. Alte Adressen laufen nicht ins Leere");

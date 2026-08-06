@@ -3,6 +3,24 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 06.08.2026 — Übergabe der Vertriebsleitung: Glückwunsch, Einführung, Verpflichtung
+
+Eine Rolle zu vergeben und zu hoffen, dass die Verantwortung mitwächst, ist keine Grundlage. Wer den Bereich „Vertrieb" öffnet, sieht **alle** Kundendaten des Unternehmens — Namen, Rufnummern, Adressen, Geburtsdaten, Beträge, Gesprächsverläufe von Menschen, die ihn nie beauftragt haben. Das ist rechtlich eine andere Sache als der eigene Bestand.
+
+Beim ersten Öffnen erscheint deshalb eine Tafel, die drei Dinge in dieser Reihenfolge tut: **gratulieren** (eine Beförderung, die als Fehlermeldung daherkommt, fühlt sich nicht wie eine an), **einführen** (was geht, was ausdrücklich nicht — bevor jemand herumprobiert und dabei fremde Kundendaten anfasst) und **verpflichten** (zehn Punkte: Zweckbindung, Vertraulichkeit auch nach Ende der Tätigkeit, Weisungsgebundenheit, keine Selbstbevorteilung bei Zuweisungen, Grenzen der Rolle, Sorgfalt gegenüber Kunden, Meldepflicht binnen 24 Stunden, Zugangsschutz, Folgen von Verstößen, Widerruf der Rolle).
+
+**Ohne Annahme keine Daten.** Alle acht Datenwege des Bereichs liegen hinter einem zweiten Torwächter (`nurMitZusage`) und antworten mit **403 und dem Code `zusage_erforderlich`**. Hier ist 403 richtig, wo bei der Rollenprüfung 404 richtig war: Wer Vertriebsleiter ist, darf wissen, dass es den Bereich gibt — ihm fehlt nur ein Schritt, und eine 404 würde ihn ratlos zurücklassen statt zur Erklärung zu führen.
+
+**Der Nachweis muss belastbar sein, nicht dekorativ.** Der Text liegt im Server, nicht in der Oberfläche: Läge er im Client, könnte später niemand sagen, welche Fassung auf dem Bildschirm stand. Gespeichert werden Fassung, **SHA-256 über genau diese Fassung**, der getippte Name im Wortlaut, IP und Browserkennung. Die Unterschrift muss der Name des angemeldeten Kontos sein — nachsichtig bei Schreibweise, nicht bei der Person. Die Knöpfe entsperren erst, wenn der Text bis zum Ende gescrollt wurde; eine Erklärung, die man ungesehen wegklicken kann, ist als Nachweis nichts wert. Ändert sich der Text, ändern sich Fassung und Prüfwert — dann wird erneut gefragt.
+
+Es gibt einen leisen, aber echten Ausweg („Später entscheiden"): Eine Zusage ohne Möglichkeit zum Nein ist nicht freiwillig, und eine unfreiwillige wäre wertlos. In `/admin/team` steht bei jedem Vertriebsleiter, ob und wann die Erklärung angenommen wurde — samt Fassung, Unterschrift und IP. Fehlt sie, steht das dort ausdrücklich.
+
+**Kein Icon, kein Emoji.** Die Ordnung entsteht durch Ziffernmarken, Haarlinien und Weißraum. Dieselbe Tafel mit Sternchen und Häkchen wirkt wie ein Gewinnspiel — und nimmt einer Verpflichtungserklärung den Ernst.
+
+**Nicht juristisch geprüft:** Der Text ist als betriebliche Verpflichtungserklärung formuliert (Art. 29, 32 DSGVO, § 53 BDSG). Vor breitem Einsatz sollte ihn jemand mit arbeitsrechtlicher Zulassung gegenlesen, besonders die Abschnitte zu Haftung und Folgen — deren Reichweite hängt von der Vertragsart ab.
+
+**Zu finden:** `server/lib/fiaon-vertrieb-zusage.ts`, `server/routes/fiaon-vertrieb.ts`, `client/src/pages/agent/vertrieb-zusage.tsx`, Nachweis in `/admin/team`. Prüfstand: `scripts/pruef-vertrieb.ts` (96 Prüfungen, davon 17 zur Erklärung).
+
 ## 06.08.2026 — „Anrufer blockiert": der Kunde geht an den nächsten Vertriebler
 
 Gemeldet: *„Manche Kunden blockieren die Nummer eines Agenten, heben beim anderen aber ab."* Bisher gab es dafür zwei schlechte Wege — ewig weiter anrufen oder beim Betreiber eine Umzuweisung erbitten. Beides kostet einen Abschluss, den ein Kollege sofort hätte machen können.

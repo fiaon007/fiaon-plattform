@@ -40,6 +40,25 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-06-vertriebsleitung-zusage",
+    date: "2026-08-06",
+    category: "Neu",
+    title: "Vertriebsleitung: Übergabe mit Verpflichtungserklärung",
+    summary:
+      "Zwei Kollegen führen den Vertrieb und sehen dafür alle Kunden. Bevor sie das können, müssen sie eine Erklärung annehmen — damit du weißt, woran sie gebunden sind.",
+    changes: [
+      "Wer die Vertriebsleitung übertragen bekommt, sieht beim ersten Öffnen des Bereichs eine Einführung: was dort möglich ist und was ausdrücklich nicht.",
+      "Danach folgt eine Verpflichtungserklärung in zehn Punkten — Zweckbindung, Vertraulichkeit, keine Selbstbevorteilung bei Zuweisungen, Meldepflicht bei Vorfällen. Sie muss gelesen und mit dem eigenen Namen angenommen werden.",
+      "Ohne diese Annahme bleibt der Bereich verschlossen: Der Server liefert keine Kundendaten aus. Das ist keine Formalie, sondern die Bedingung.",
+      "Die Vertriebsleitung kann Kunden zuweisen und Stammdaten berichtigen. Sie kann KEINE Zahlungen buchen, keine Provisionen ändern und keine Bankdaten sehen.",
+      "Wichtig für dich: Eine Zuweisung verschiebt die Zuständigkeit, nicht den Provisionsanspruch. Der folgt dem dokumentierten Kontakt — also deiner Arbeit.",
+    ],
+    howto: [
+      "Für dich ändert sich nichts an der Bedienung.",
+      "Fällt dir bei einem deiner Kunden etwas auf, das du nicht erklären kannst, sprich die Vertriebsleitung an — jede Änderung dort ist mit Namen und Zeit protokolliert.",
+    ],
+  },
+  {
     id: "2026-08-06-anrufer-blockiert",
     date: "2026-08-06",
     category: "Neu",

@@ -3,6 +3,7 @@ import { AgentShell } from "./shared";
 import { Reveal } from "./motion";
 import { Skelett, eur, useReduzierteBewegung, useToast } from "@/lib/fiaon-ui";
 import { ZeichenSenden, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
+import { VertriebZusage, useZusage } from "./vertrieb-zusage";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/vertrieb — Gesamtsicht für die Vertriebsleitung
@@ -107,6 +108,9 @@ function Inhalt() {
   const [personen, setPersonen] = useState<Person[]>([]);
   const [laedt, setLaedt] = useState(true);
   const [keinZugang, setKeinZugang] = useState(false);
+  // Die Verpflichtungserklärung. Solange sie offen ist, liefert der Server
+  // ohnehin keine Daten (403) — die Tafel erklärt dem Menschen, warum.
+  const { zusage, geprueft, erneutPruefen, schliessen } = useZusage();
   const [filter, setFilter] = useState("alle");
   const [agentFilter, setAgentFilter] = useState<number | null>(null);
   const [suche, setSuche] = useState("");
@@ -119,8 +123,11 @@ function Inhalt() {
   const ladeKopf = useCallback(async () => {
     const r = await api("/agent/vertrieb/uebersicht");
     if (r.status === 404) { setKeinZugang(true); setLaedt(false); return; }
+    // Erklärung noch offen (oder zwischenzeitlich neu gefasst): Tafel zeigen,
+    // nicht eine leere Seite mit unerklärlichen Nullen.
+    if (r.status === 403 && r.json?.code === "zusage_erforderlich") { void erneutPruefen(); setLaedt(false); return; }
     if (r.ok) { setZahlen(r.json.zahlen); setAgenten(r.json.agenten); }
-  }, []);
+  }, [erneutPruefen]);
 
   const ladeListe = useCallback(async (leise = false) => {
     if (!leise) setLaedt(true);
@@ -129,15 +136,19 @@ function Inhalt() {
     if (suche.trim()) p.set("q", suche.trim());
     const r = await api(`/agent/vertrieb/personen?${p.toString()}`);
     if (r.status === 404) { setKeinZugang(true); setLaedt(false); return; }
+    if (r.status === 403 && r.json?.code === "zusage_erforderlich") { void erneutPruefen(); setLaedt(false); return; }
     if (r.ok) setPersonen(r.json.personen);
     setLaedt(false);
-  }, [filter, agentFilter, suche]);
+  }, [filter, agentFilter, suche, erneutPruefen]);
 
-  useEffect(() => { void ladeKopf(); }, [ladeKopf]);
+  // Erst laden, wenn die Erklärung geklärt ist. Sonst rennen Anfragen in ein 403
+  // und die Tafel stünde über einer Seite, die gerade Fehler sammelt.
+  useEffect(() => { if (geprueft && !zusage) void ladeKopf(); }, [ladeKopf, geprueft, zusage]);
   useEffect(() => {
+    if (!geprueft || zusage) return;
     const t = setTimeout(() => void ladeListe(), suche ? 280 : 0);
     return () => clearTimeout(t);
-  }, [ladeListe, suche]);
+  }, [ladeListe, suche, geprueft, zusage]);
 
   const zuweisen = async (agentId: number | null) => {
     if (gewaehlt.length === 0) return;
@@ -181,6 +192,15 @@ function Inhalt() {
           </p>
         </div>
       </div>
+    );
+  }
+
+  if (zusage) {
+    return (
+      <VertriebZusage
+        daten={zusage}
+        onAngenommen={() => { schliessen(); void ladeKopf(); void ladeListe(); }}
+      />
     );
   }
 

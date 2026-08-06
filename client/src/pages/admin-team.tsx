@@ -596,6 +596,27 @@ function AgentDetailDrawer({ id, agents, autoRevealBank, onClose, onChanged, fla
                     <span className="text-[11px] text-slate-400">Testkonten können keine Vertriebsleitung sein.</span>
                   )}
                 </div>
+                {/* Nachweis der Verpflichtungserklärung. Ohne Annahme liefert der
+                    Bereich „Vertrieb" keine Daten — hier steht, ob und wann sie
+                    vorliegt. Das ist die Zeile, die im Zweifelsfall zählt. */}
+                {String(a.rolle || "agent") === "vertriebsleiter" && (
+                  <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+                    {data.vertriebZusagen?.length > 0 ? (
+                      <>
+                        Verpflichtungserklärung angenommen am{" "}
+                        <span className="font-semibold">
+                          {new Date(data.vertriebZusagen[0].accepted_at).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })}
+                        </span>
+                        {" "}(Fassung {data.vertriebZusagen[0].version}, unterschrieben als „{data.vertriebZusagen[0].name_getippt}"
+                        {data.vertriebZusagen[0].ip ? `, IP ${data.vertriebZusagen[0].ip}` : ""}).
+                      </>
+                    ) : (
+                      <span className="font-semibold text-amber-700">
+                        Verpflichtungserklärung noch nicht angenommen — der Bereich „Vertrieb" bleibt bis dahin verschlossen.
+                      </span>
+                    )}
+                  </p>
+                )}
               </div>
             </div>
 

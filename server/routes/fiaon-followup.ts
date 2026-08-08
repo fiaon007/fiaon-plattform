@@ -183,19 +183,24 @@ export async function autoAssignTier1(personId: number): Promise<number | null> 
  *
  * @param nurAgent Nur diesen Agenten prüfen (nach einer Statusänderung).
  */
-export async function nachschub(nurAgent?: number): Promise<{ tier1: number; tier2: number }> {
+export async function nachschub(nurAgent?: number): Promise<{ tier1: number; tier2: number; tier3: number }> {
   const { ensureBetreuungSpalte } = await import("../lib/tier");
   await ensureBetreuungSpalte(sqlPool);
   const s = await getSettings();
   const cap1 = parseInt(s.pool_cap_tier1 ?? "30", 10);
   const cap2 = parseInt(s.pool_cap_tier2 ?? "60", 10);
+  // Stufe C (Leads) hat einen eigenen, weiten Deckel. Sie ist die Kür: Sie
+  // wird erst gearbeitet, wenn A und B leer sind, kostet also keinen Platz in
+  // der Pflicht — aber ein zu enger Deckel ließe den Vorrat wieder versickern.
+  const cap3 = parseInt(s.pool_cap_tier3 ?? "800", 10);
   const schwelle = parseInt(s.pool_refill_threshold ?? "20", 10);
-  const ergebnis = { tier1: 0, tier2: 0 };
+  const ergebnis = { tier1: 0, tier2: 0, tier3: 0 };
 
   const agenten = (await sqlPool`
     SELECT a.id,
            count(p.id) FILTER (WHERE p.priority_tier = 1)::int AS offen1,
-           count(p.id) FILTER (WHERE p.priority_tier = 2)::int AS offen2
+           count(p.id) FILTER (WHERE p.priority_tier = 2)::int AS offen2,
+           count(p.id) FILTER (WHERE p.priority_tier = 3)::int AS offen3
     FROM fiaon_agents a
     LEFT JOIN fiaon_persons p
       ON p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL AND NOT p.is_blocked
@@ -205,7 +210,9 @@ export async function nachschub(nurAgent?: number): Promise<{ tier1: number; tie
   `) as any[];
 
   for (const a of agenten) {
-    for (const [tier, offen, cap] of [[1, a.offen1, cap1], [2, a.offen2, cap2]] as const) {
+    // Die Reihenfolge ist die Geschäftsregel: erst A auffüllen, dann B, dann C.
+    // Wer noch Pflicht offen hat, bekommt keine Kür nachgelegt.
+    for (const [tier, offen, cap] of [[1, a.offen1, cap1], [2, a.offen2, cap2], [3, a.offen3, cap3]] as const) {
       // Die Schwelle gilt bewusst nur für Tier 1. Tier 2 wird aufgefüllt, sobald
       // Platz ist: Dort ist der Deckel das wirksame Mittel gegen Horten, nicht
       // die Untergrenze.
@@ -245,7 +252,8 @@ export async function nachschub(nurAgent?: number): Promise<{ tier1: number; tie
         `;
       });
       if (tier === 1) ergebnis.tier1 += ids.length;
-      else ergebnis.tier2 += ids.length;
+      else if (tier === 2) ergebnis.tier2 += ids.length;
+      else ergebnis.tier3 += ids.length;
       console.log(`[FIAON-FOLLOWUP] Nachschub: Agent ${a.id} +${ids.length} Tier-${tier} (war ${offen}, Deckel ${cap})`);
     }
   }
@@ -265,6 +273,7 @@ export type Tageslauf = {
   autoAssign: number;
   nachschubTier1: number;
   nachschubTier2: number;
+  nachschubTier3: number;
 };
 
 /**
@@ -275,7 +284,7 @@ export type Tageslauf = {
 export async function runFollowUpTageslauf(opts: { force?: boolean } = {}): Promise<Tageslauf> {
   const leer: Tageslauf = {
     ausgefuehrt: false, heuteFaellig: 0, ueberfaellig: 0, eskalationen: 0,
-    autoAssign: 0, nachschubTier1: 0, nachschubTier2: 0,
+    autoAssign: 0, nachschubTier1: 0, nachschubTier2: 0, nachschubTier3: 0,
   };
 
   // Stunde in Europe/Vienna — NICHT die Serverzeit. Render läuft in UTC; ohne
@@ -395,11 +404,12 @@ export async function runFollowUpTageslauf(opts: { force?: boolean } = {}): Prom
       autoAssign,
       nachschubTier1: nach.tier1,
       nachschubTier2: nach.tier2,
+      nachschubTier3: nach.tier3,
     };
     console.log(
       `[FIAON-FOLLOWUP] Tageslauf: ${ergebnis.heuteFaellig} fällig, ${ergebnis.ueberfaellig} überfällig, ` +
       `${ergebnis.eskalationen} eskaliert, ${autoAssign} auto-zugewiesen, ` +
-      `Nachschub +${nach.tier1}/+${nach.tier2}`,
+      `Nachschub +${nach.tier1}/+${nach.tier2}/+${nach.tier3}`,
     );
     return ergebnis;
   } finally {
@@ -407,11 +417,93 @@ export async function runFollowUpTageslauf(opts: { force?: boolean } = {}): Prom
   }
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// Termin-Erinnerungen — 24 Stunden vorher, genau einmal
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Erinnert Kunden an ihren Termin am nächsten Tag.
+ *
+ * IDEMPOTENZ OHNE LOCK: Das `UPDATE … RETURNING` beansprucht die Zeilen in
+ * derselben Anweisung, in der es sie findet. Wer als zweiter kommt — ein
+ * paralleler Prozess, ein Neustart, ein zweiter Aufruf in derselben Minute —
+ * findet `erinnert_am IS NOT NULL` und bekommt nichts zurück. Dasselbe Muster
+ * benutzt `runCallbackReminders` für die Rückruf-Erinnerungen der Agenten.
+ */
+export async function runTerminErinnerungen(): Promise<number> {
+  // Ohne Kanal keine Erinnerung — und vor allem: keine Zeile, die sich
+  // `erinnert_am` setzt, ohne dass je etwas rausging. Dieselbe Falle wie beim
+  // Wiedereinstieg am 08.08.2026 (siehe fiaon-wiedereinstieg.ts).
+  if (!process.env.MAKE_WEBHOOK_URL) return 0;
+
+  const faellig = (await sqlPool`
+    UPDATE fiaon_termine SET erinnert_am = NOW()
+    WHERE id IN (
+      SELECT t.id FROM fiaon_termine t
+      WHERE t.status = 'gebucht' AND t.erinnert_am IS NULL
+        AND t.beginn BETWEEN NOW() AND NOW() + INTERVAL '24 hours'
+    )
+    RETURNING id, person_id, agent_id, beginn, storno_token
+  `) as any[];
+  if (faellig.length === 0) return 0;
+
+  const { versendenUndProtokollieren } = await import("../lib/fiaon-mail-log");
+  const { berlinDatumText, berlinUhrzeit, stornoLink } = await import("../lib/fiaon-termine");
+  let versandt = 0;
+  for (const t of faellig) {
+    const [p] = (await sqlPool`
+      SELECT COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname, p.last_name AS nachname,
+             COALESCE(NULLIF(p.primary_email, ''), (
+               SELECT NULLIF(COALESCE(a.email, a.contact_email, a.billing_email), '')
+               FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
+               ORDER BY a.created_at DESC LIMIT 1
+             )) AS email,
+             COALESCE(NULLIF(ag.first_name, ''), ag.name) AS agent_vorname,
+             (SELECT a2.ref FROM fiaon_applications a2
+               WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND a2.archived_at IS NULL
+               ORDER BY a2.created_at DESC LIMIT 1) AS ref
+      FROM fiaon_persons p LEFT JOIN fiaon_agents ag ON ag.id = ${t.agent_id}
+      WHERE p.id = ${t.person_id}
+    `) as any[];
+    if (!p) continue;
+    const ergebnis = await versendenUndProtokollieren(
+      "termin_erinnerung",
+      {
+        email: String(p.email || ""),
+        vorname: p.vorname || null,
+        nachname: p.nachname || null,
+        agent_vorname: String(p.agent_vorname || "Ihr Ansprechpartner"),
+        termin_datum: berlinDatumText(t.beginn),
+        termin_uhrzeit: berlinUhrzeit(t.beginn),
+        storno_link: t.storno_token ? stornoLink(String(t.storno_token)) : "",
+      },
+      {
+        personId: Number(t.person_id),
+        verlaufRef: p.ref || null,
+        verlaufText: `Terminerinnerung versandt (morgen ${berlinUhrzeit(t.beginn)} Uhr).`,
+      },
+    );
+    if (ergebnis.status === "versandt") versandt++;
+  }
+  if (versandt) console.log(`[FIAON-FOLLOWUP] Termin-Erinnerungen versendet: ${versandt}/${faellig.length}`);
+  return versandt;
+}
+
 // ── Registrierung im bestehenden Muster: setInterval im Web-Prozess ─────────
 // Alle 20 Minuten nachsehen, ob es 6 Uhr in Wien ist. Ein stündlicher Takt
 // könnte die Stunde bei ungünstigem Startzeitpunkt verpassen.
 setInterval(() => {
   runFollowUpTageslauf().catch((err) => console.error("[FIAON-FOLLOWUP] Tageslauf:", err));
+  // Die Terminerinnerung hängt NICHT am 6-Uhr-Tageslauf: Ein Termin um 09:20
+  // braucht seine Erinnerung am Vortag um 09:20, nicht um 6 Uhr morgens. Der
+  // 20-Minuten-Takt trifft das Fenster genau genug.
+  runTerminErinnerungen().catch((err) => console.error("[FIAON-FOLLOWUP] Termin-Erinnerungen:", err));
+  // Die Wiedereinstiegs-Staffel (Teil 4) — höchstens 50 am Tag, damit weder
+  // die Zustellbarkeit noch das Team von Rückläufern überrollt wird.
+  import("../lib/fiaon-wiedereinstieg")
+    .then((m) => m.wiedereinstiegTagesstaffel())
+    .catch((err) => console.error("[FIAON-FOLLOWUP] Wiedereinstieg:", err));
 }, 20 * 60 * 1000);
 
 // ───────────────────────────────────────────────────────────────────────────

@@ -326,6 +326,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonAgentStartRoutes = await import('./routes/fiaon-agent-start');
   app.use('/api/fiaon', fiaonAgentStartRoutes.default);
 
+  // 📅 FIAON Termine — oeffentliche Buchungsseite (signiertes Token, kein Login)
+  //    und die Agentensicht. Regeln stehen in server/lib/fiaon-termine.ts.
+  const fiaonTerminRoutes = await import('./routes/fiaon-termin');
+  app.use('/api/fiaon', fiaonTerminRoutes.default);
+
   // 🧭 FIAON Vertriebsleitung — /agent/vertrieb: Gesamtsicht für die zwei
   //    Vertriebsleiter (zuweisen, korrigieren, dokumentieren). Normale Agenten
   //    bekommen dort 404 — die Prüfung steht im Router, nicht in der Oberfläche.

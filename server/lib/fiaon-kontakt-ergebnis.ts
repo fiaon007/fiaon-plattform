@@ -107,6 +107,11 @@ export interface ErgebnisWirkung {
   gesperrt: boolean;
   /** Kurzsatz, den die Oberfläche anzeigen kann. */
   meldung: string;
+  /**
+   * Was die Nicht-erreicht-Automatik zusätzlich getan hat (Terminlink-Mail,
+   * Ruhe-Pool). `null`, wenn nichts geschah — der Normalfall.
+   */
+  automatik?: import("./fiaon-nicht-erreicht").AutomatikWirkung | null;
 }
 
 function tagPlus(n: number): string {
@@ -234,10 +239,35 @@ export async function ergebnisAnwenden(e: ErgebnisEingabe): Promise<ErgebnisWirk
     `;
   }
 
+  // ── Nicht-erreicht-Automatik ──────────────────────────────────────────────
+  // Zwei Richtungen, beide hier, weil hier JEDES Ergebnis vorbeikommt:
+  //   erreicht_*        Der Kunde hat sich gemeldet → Zähler und Ruhe zurück.
+  //   nicht erreicht    Zähler wurde eben erhöht → Schwellen prüfen (Mail bei 2,
+  //                     Ruhe bei 4). Die Regeln stehen in fiaon-nicht-erreicht.ts.
+  //
+  // „Abgelehnt" setzt den Zähler ebenfalls zurück: Der Mensch war am Apparat,
+  // er hat nur nein gesagt. Er ist gesperrt, nicht unerreichbar — und wenn er
+  // später doch bestellt, soll er nicht mit einer Altlast von vier
+  // Fehlversuchen starten.
+  let automatik: import("./fiaon-nicht-erreicht").AutomatikWirkung | null = null;
+  if (personId) {
+    const istErreicht = ergebnis.startsWith("erreicht_");
+    if (istErreicht) {
+      const { erreichtZuruecksetzen } = await import("./fiaon-nicht-erreicht");
+      await erreichtZuruecksetzen(personId);
+    } else if (zaehlerHoch) {
+      const { automatikNachFehlversuch } = await import("./fiaon-nicht-erreicht");
+      automatik = await automatikNachFehlversuch(personId);
+      if (automatik.wiedervorlage) wiedervorlage = automatik.wiedervorlage;
+      if (automatik.hinweis) meldung = `${meldung} ${automatik.hinweis}`;
+    }
+  }
+
   return {
     wiedervorlage: wiedervorlage ?? null,
     zusage: zusage ?? null,
     gesperrt,
     meldung,
+    automatik,
   };
 }

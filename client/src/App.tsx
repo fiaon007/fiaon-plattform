@@ -60,6 +60,8 @@ import AgentPartnerProgrammPage from "@/pages/agent/partner-programm";
 import AgentKundenPage from "@/pages/agent/kunden";
 // Nachgeladen statt statisch importiert: Die Seite wird nur von den Agenten
 // gebraucht und würde das Hauptbündel für alle anderen Besucher vergrössern.
+const TerminPage = lazy(() => import("@/pages/termin"));
+const TerminAbsagenPage = lazy(() => import("@/pages/termin").then((m) => ({ default: m.TerminAbsagenPage })));
 const AgentHeutePage = lazy(() => import("@/pages/agent/heute"));
 const AgentAufgabenPage = lazy(() => import("@/pages/agent/aufgaben"));
 const AgentStartPage = lazy(() => import("@/pages/agent/start"));
@@ -207,6 +209,10 @@ function Router() {
       <Route path="/admin/changelog" component={admin(AdminChangelogPage)} />
       <Route path="/admin/diagnose" component={admin(AdminDiagnosePage)} />
       <Route path="/agent/leistung" component={AgentLeistungPage} />
+      {/* Terminbuchung — oeffentlich, kein Login. Das signierte Token im Pfad
+          ist der Ausweis (Muster der signierten Rechnungs-Links). */}
+      <Route path="/termin/absagen/:stornoToken" component={TerminAbsagenPage} />
+      <Route path="/termin/:token" component={TerminPage} />
       <Route path="/zahlung/:paymentRef/danke" component={ZahlungDankePage} />
       <Route path="/zahlung/:paymentRef" component={ZahlungPage} />
       <Route path="/nummer-aktualisieren" component={NummerAktualisierenPage} />

@@ -128,6 +128,55 @@ function TrustBadges() {
   );
 }
 
+/**
+ * Der zweite Ausgang der Bestätigungsseite: einen Termin wählen.
+ *
+ * Holt das Buchungs-Token beim Server (die Seite kennt nur die
+ * Zahlungsreferenz, nicht die Person — und darf sich kein Token selbst
+ * ausstellen). Kommt keins zurück, verschwindet der Block wortlos: Ein
+ * Angebot, das ins Leere führt, ist schlimmer als keines.
+ */
+function TerminAngebot({ paymentReference }: { paymentReference: string }) {
+  const [token, setToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    let abgebrochen = false;
+    void (async () => {
+      const res = await fetch(`/api/fiaon/termin/onboarding/${encodeURIComponent(paymentReference)}`)
+        .catch(() => null);
+      const json = await res?.json().catch(() => null);
+      if (!abgebrochen && json?.ok && json.token) setToken(String(json.token));
+    })();
+    return () => { abgebrochen = true; };
+  }, [paymentReference]);
+
+  if (!token) return null;
+
+  return (
+    <div className="mb-6 grid sm:grid-cols-2 gap-3">
+      <div className="p-4 rounded-2xl border-2 border-[#1d4ed8] bg-blue-50/40">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-[#1d4ed8] mb-1">Weg 1</p>
+        <p className="text-[14px] font-bold text-slate-900 leading-tight">Jetzt überweisen</p>
+        <p className="text-[12.5px] text-slate-600 mt-1.5 leading-relaxed">
+          Die Zahlungsdaten mit deinem Verwendungszweck stehen direkt unten.
+        </p>
+      </div>
+      <div className="p-4 rounded-2xl border border-slate-200 bg-white">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Weg 2</p>
+        <p className="text-[14px] font-bold text-slate-900 leading-tight">Wunschtermin buchen</p>
+        <p className="text-[12.5px] text-slate-600 mt-1.5 leading-relaxed">
+          Lieber erst sprechen? Wähle eine Zeit — dein persönlicher Ansprechpartner ruft an.
+        </p>
+        <a href={`/termin/${token}`}
+           className="inline-flex items-center justify-center w-full mt-3 rounded-xl text-[13px] font-bold text-slate-900 border border-slate-300 bg-white hover:bg-slate-50"
+           style={{ minHeight: 44 }}>
+          Termin wählen
+        </a>
+      </div>
+    </div>
+  );
+}
+
 // ── Danke-Seite nach "Ich habe die Überweisung getätigt" ──────────────
 export function ZahlungDankePage() {
   return (
@@ -346,6 +395,14 @@ export default function ZahlungPage() {
                 <TrustBadges />
               </div>
             </div>
+
+            {/* ── ZWEI GLEICHWERTIGE WEGE ────────────────────────────────────
+                Bisher gab es hier genau einen Ausgang: bezahlen. Wer das nicht
+                sofort tun wollte oder konnte, schloss den Tab — und wurde
+                danach viermal vergeblich angerufen. Der Terminweg ist kein
+                Ausweichgleis, sondern der zweite richtige Ausgang. Deshalb
+                steht er gleichrangig oben, nicht als Kleingedrucktes unten. */}
+            <TerminAngebot paymentReference={order.paymentReference} />
 
             {order.status === "claimed_paid" && (
               <div className="mb-5 rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center">

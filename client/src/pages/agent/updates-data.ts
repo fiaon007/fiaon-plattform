@@ -40,6 +40,39 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-08-lead-pipeline-termine",
+    date: "2026-08-08",
+    category: "Neu",
+    title: "Stufen A/B/C, Schluss mit dem 5. Anruf, Kunden buchen selbst",
+    summary:
+      "Deine Liste sagt jetzt, WARUM sie so sortiert ist. Wen du zweimal nicht erreichst, bekommt automatisch einen Terminlink — und sucht sich selbst eine Uhrzeit aus.",
+    changes: [
+      "Jede Karte trägt eine Stufe: A = Zahlung gemeldet (heißester Fall), B = Antrag fertig und Rechnung offen (auch „Frist abgelaufen“), C = Lead ohne Antrag.",
+      "Oben in der Liste steht dein Vorrat je Stufe, z. B. „A: 4 · B: 31 · C: 642“ — du siehst sofort, ob du in der Pflicht (A/B) oder in der Kür (C) bist.",
+      "Stufe C war bisher leer: 2.518 Leads lagen im System, aber niemandem zugeteilt. Sie sind jetzt gleichmäßig verteilt — rund 642 pro Kopf.",
+      "Gebuchte Termine des Tages stehen ganz oben, noch vor Zusagen und Rückrufen.",
+      "Nach dem 2. erfolglosen Versuch geht automatisch eine Mail mit Terminlink raus — genau einmal je Kunde in 30 Tagen, nicht bei jedem Versuch.",
+      "Nach dem 4. erfolglosen Versuch ruht der Fall 14 Tage und verschwindet aus deiner Tagesliste. Er ist NICHT weg: Filter „Ruhend“.",
+      "Ausnahme: Stufe A ruht nie — da hängt gemeldetes Geld dran, das geprüft werden muss.",
+      "Erreichst du den Kunden oder bucht er einen Termin, springt der Zähler zurück auf 0.",
+      "Auf der Karte steht die Vorgeschichte: 4× nicht erreicht, zuletzt 21.07.2026, Terminlink versandt 22.07.2026.",
+      "Kunden ohne E-Mail: Knopf „Terminlink per WhatsApp senden“ kopiert den persönlichen Link — wie der Zahlungsdaten-Knopf.",
+      "Neu unter Profil: deine Erreichbarkeit für Termine (Vorgabe Mo–Fr 09:00–18:00, Gespräche à 20 Minuten).",
+      "Kunden können auch direkt nach dem Antrag einen Termin buchen, statt sofort zu überweisen.",
+    ],
+    howto: [
+      "Öffne „Kunden“. Ganz oben siehst du deinen Vorrat je Stufe.",
+      "Arbeite von oben nach unten. Termine und Zusagen zuerst, dann A, dann B. Stufe C ist dran, wenn A und B leer sind.",
+      "Trag deine Erreichbarkeit unter „Profil“ ein → „Erreichbarkeit für Termine“. Ohne Eintrag giltst du Mo–Fr 09:00–18:00 als buchbar.",
+      "Dokumentiere „nicht erreicht“ wie bisher — die Terminlink-Mail löst sich von selbst aus. Du musst nichts extra tun.",
+      "Hat ein Kunde keine E-Mail, nimm den Knopf „Terminlink per WhatsApp senden“ auf seiner Karte.",
+      "Steht ein Kunde auf „Ruhend“: nicht anrufen. Er hat den Link und meldet sich selbst; nach 14 Tagen ist er wieder in deiner Liste.",
+      "Erscheint ein Kunde nicht zum Termin, dokumentiere „nicht erschienen“ — das zählt wie ein erfolgloser Anruf.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu deinen Kunden" },
+    important: true,
+  },
+  {
     id: "2026-08-08-massen-zusammenfuehrung",
     date: "2026-08-08",
     category: "Verbessert",

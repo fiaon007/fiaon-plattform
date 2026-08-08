@@ -3,6 +3,73 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 08.08.2026 — Lead-Pipeline: die Liste sagt jetzt, WARUM sie so sortiert ist — und Kunden buchen selbst
+
+Ein Agent öffnete morgens eine sortierte Liste und musste raten, wonach sie sortiert ist. Ein Kunde, der dreimal nicht ans Telefon ging, wurde ein viertes und fünftes Mal angerufen. Und wer bezahlen wollte, aber gerade nicht konnte, hatte auf der Bestätigungsseite genau einen Ausgang: überweisen. Drei Lücken, ein Paket.
+
+### Die Stufen A · B · C — vorhanden, aber unbeschriftet
+
+**Es gibt keine neue Einstufung.** Die drei Fälle trennt `priority_tier` seit Monaten korrekt; was fehlte, war der Name. „Tier 2" steht nirgends auf der Oberfläche und würde auch niemandem etwas sagen.
+
+| | | |
+| --- | --- | --- |
+| **A** | Zahlung gemeldet | Der Kunde sagt, er habe überwiesen. Heißester Fall im Haus. |
+| **B** | Antrag fertig, Rechnung offen | Das Geld fehlt — „Frist abgelaufen" gehört ausdrücklich dazu. |
+| **C** | Lead ohne Antrag | Wird gearbeitet, wenn A und B leer sind. |
+
+Jede Karte trägt ihre Marke, im Kopf der Liste steht der eigene Vorrat („A: 33 · B: 82 · C: 642") mit einem Satz dazu: *„115 in der Pflicht — Stufe C wird erst danach gearbeitet."* Ganz oben stehen jetzt **gebuchte Termine des Tages** — vor Zusagen und Rückrufen, denn dort wartet jemand zu einer Uhrzeit, die er sich selbst ausgesucht hat.
+
+**Stufe C war leer, und niemandem ist es aufgefallen.** 2.518 Lead-Personen lagen im Bestand, davon **null** einem Agenten zugeteilt: `nachschub()` füllte nur Tier 1 und 2 auf. Der Filter „Leads" konnte seit seiner Einführung gar nichts anzeigen. Jetzt füllt der Nachschub **A vor B vor C** auf, und die vorhandenen **2.566 Leads sind gleichmäßig verteilt** (je rund 642 auf Daniel, Florentine, Lucas, Nikita). Umkehrbar, solange niemand angerufen hat: `scripts/leads-verteilen.ts --zuruecknehmen`.
+
+### Schluss mit dem fünften Anruf
+
+Der Zähler `unreachable_count` wurde seit jeher hochgezählt — und **nie gelesen, nie zurückgesetzt.** Im Bestand: 258 Personen mit mindestens einem Fehlversuch, 36 mit vier oder mehr, einer mit **acht**.
+
+- **Nach dem 2. Versuch** geht automatisch eine Mail mit persönlichem Terminlink raus. **Genau einmal je Kunde in 30 Tagen** — nicht bei jedem weiteren Versuch. Ohne hinterlegte E-Mail erscheint auf der Karte der Knopf **„Terminlink per WhatsApp senden"**.
+- **Nach dem 4. Versuch** sinkt der Fall in den **Ruhe-Pool**: Wiedervorlage +14 Tage, raus aus der Tagesliste. Nicht gesperrt, nicht gelöscht, Stufe bleibt. Beim Wiederauftauchen steht auf der Karte, was schon versucht wurde: *„4× nicht erreicht, zuletzt 21.07.2026, Terminlink versandt 22.07.2026."*
+- **Stufe A ruht nicht.** Dort hängt gemeldetes Geld, das jemand verifizieren muss.
+- **Jedes `erreicht_*` und jede Terminbuchung setzt den Zähler auf 0.** Sonst schleppt jemand, der vor Monaten zweimal nicht dranging, diese Vorgeschichte für immer mit sich.
+
+Der Ruhe-Pool ist ein **Filter** („Ruhend"), kein verstecktes Loch; die Vertriebsleitung sieht die Gesamtzahl im Vertriebsbereich.
+
+### Terminsystem
+
+Slots à 20 Minuten, Mo–Fr 09:00–18:00 als Vorgabe, frühestens in 2 Stunden, längstens in 14 Tagen, alles Europe/Berlin. Jeder Agent stellt seine Zeiten in `/agent/profil`; die Vertriebsleitung kann sie fürs Team setzen (ohne individuelle Zeiten stillschweigend zu überschreiben).
+
+**`/termin/:token`** ist login-frei — ein signiertes Token nach dem Muster der Rechnungs-Links. Wer einen Betreuer hat, sieht **nur dessen** Zeiten: Niemand bucht sich von seinem Betreuer weg. Wer keinen hat, sieht die Zeiten aller und wird durch die Buchung **auf den gewählten Agenten gepinnt** — über denselben `betreuung_seit`, den Nachschub und Erstverteilung längst respektieren. Kein zweiter Schutzmechanismus.
+
+**Eine Uhrzeit, ein Knopf.** Der erste Entwurf zeigte ohne Betreuer jede Zeit viermal (09:00 Daniel, 09:00 Florentine, …) — bei vier Agenten, 27 Slots und 14 Tagen rund **1.500 Knöpfe** auf einem Telefon. Ein Kunde wählt eine Zeit, keine Person; er kennt keinen der Namen. Jetzt steht jede Zeit einmal da, und es bekommt sie der Agent mit den wenigsten anstehenden Terminen. Angezeigt werden drei Tage, der Rest auf Knopfdruck: **81 statt 378 Knöpfe**, kein Überlauf bei 380 px.
+
+Auf der Bestätigungsseite nach dem Antrag stehen jetzt **zwei gleichwertige Wege**: „Jetzt überweisen" (Zahlungsdaten mit Verwendungszweck direkt darunter) und „Wunschtermin buchen". Bisher gab es genau einen Ausgang — wer ihn nicht nahm, schloss den Tab und wurde danach viermal vergeblich angerufen.
+
+Jede Bestätigung enthält einen Storno-Link; Umbuchen ist Absagen plus neu wählen auf derselben Seite. **„Kunde nicht erschienen"** zählt wie ein erfolgloser Anruf — sonst könnte jemand zehn Termine platzen lassen, ohne dass die Automatik es je bemerkt.
+
+### Drei Dinge, die dieser Bau sichtbar gemacht hat — alle dieselbe Sorte Fehler
+
+Ein interner Vorgang darf nicht als Kundenkontakt zählen. Dreimal getroffen, dreimal derselbe Kern:
+
+1. **`assigned_at` galt als „letzter Kontakt".** Die Spalte sagt, wann ein Agent die Person bekam — ein Buchhaltungsereignis. Weil die Erstverteilung am 03.–08.08. lief, sah jeder Kunde frisch kontaktiert aus: Von 283 Kandidaten für den Wiedereinstieg blieben **3** übrig.
+2. **Eine Systemnotiz galt als Kundenkontakt.** Ausgerechnet die Notiz über eine *fehlgeschlagene* Mail setzte die Stille-Uhr auf null und leerte die Zielgruppe erneut auf **0**. Gemessen wird jetzt nur, was ein **Mensch** dokumentiert hat (`type <> 'system' AND agent_id IS NOT NULL`).
+3. **Ein toter Kanal wurde wie 26 einzelne Fehlschläge behandelt.** Der Entwicklungsserver führte den neuen Tageslauf gegen die Produktion aus; ohne `MAKE_WEBHOOK_URL` ging keine einzige Mail raus — **26 echte Kunden waren trotzdem als „angeschrieben" markiert** und damit dauerhaft aus der Zielgruppe. Zurückgesetzt. Jetzt läuft die Staffel ohne Kanal gar nicht erst an und bricht ab, wenn die ersten drei ohne einen einzigen Erfolg scheitern. Dieselbe Bremse hat die Terminerinnerung bekommen.
+
+Dazu ein vierter, kleinerer: Das **Versandprotokoll schrieb an der Transaktion vorbei** (`sqlPool` statt der übergebenen Verbindung). Im Prüfstand überlebten fünf Zeilen den Rollback; in einer scheiternden Transaktion hätte „versandt" für etwas gestanden, das nie stattgefunden hat.
+
+### Wiedereinstieg statt Spät-Mahnung
+
+`scripts/wiedereinstieg.ts`: Stufe A oder B, offene Zahlung, seit 14+ Tagen still, E-Mail vorhanden. **Ausgeschlossen:** bezahlt, abgelehnt, gesperrt, DSGVO, Testkonten, Kunden mit Termin und Kunden, die den Terminlink schon über die Nicht-erreicht-Automatik bekamen. **Aktuell 34 Personen.** Höchstens 50 am Tag — nicht aus Vorsicht vor der Technik, sondern weil 269 Mails auf einmal 269 mögliche Rückrufe an einem Vormittag erzeugen und die Zustellbarkeit einer Domain ruinieren, die sonst 20 Mails am Tag verschickt. Kennzahl im Vertriebsbereich: versandt / gebucht / Quote.
+
+### Drei neue Ereignisse, ein Versandprotokoll
+
+`nicht_erreicht_termin`, `termin_bestaetigung`, `termin_erinnerung` — flach, an `MAKE_WEBHOOK_URL`, im bestehenden Muster. Fehlt die Make-Route, **stürzt nichts ab**: Der Versuch landet als `fehlgeschlagen` mit Grund in der neuen Tabelle `fiaon_mail_log` **und** im Kundenverlauf (*„… VERSAND FEHLGESCHLAGEN. Der Kunde hat nichts erhalten."*). Ohne diesen Satz liest ein Agent „Terminlink versandt" und ruft nicht mehr an, während der Kunde nie etwas bekommen hat.
+
+### Prüfstand
+
+`scripts/pruef-pipeline.ts` — **137 Prüfungen, alle grün**, in einer zurückgerollten Transaktion, Webhook auf einer `.invalid`-Attrappe. Keine echte Mail, keine bleibende Zeile. Geprüft werden unter anderem: die vollständige Sortierung mit Testdaten aller Stufen, der Aufstieg nach A durch eine Zahlungsmeldung, das Verschwinden des Selbstzahlers, genau eine Mail bei vier Fehlversuchen, der Ruhe-Pool samt Ausnahme für Stufe A, **zwei gleichzeitige Buchungen auf denselben Slot (genau eine gewinnt)**, 22:00 Berlin im Sommer wie im Winter, Vorlauf und Horizont, Raster-Umgehung über eine selbst gebaute Anfrage, Besitzschutz in beiden Richtungen, Einmaligkeit des Storno-Tokens, jede einzelne Ausschlussregel des Wiedereinstiegs und die Neustart-Festigkeit der Erinnerungen. Gegenprobe gemacht: Mit wieder eingebauter Doppelmail und abgeschaltetem Vorlauf wird der Prüfstand rot.
+
+**Zu finden:** `shared/fiaon-kundenstatus.ts` (die Stufen), `server/lib/fiaon-termine.ts` (Slots, Token, Buchung), `server/lib/fiaon-nicht-erreicht.ts` (die zwei Schwellen), `server/lib/fiaon-wiedereinstieg.ts` (Zielgruppe und Ausschlüsse), `server/lib/fiaon-mail-log.ts`, `server/routes/fiaon-termin.ts`, `client/src/pages/termin.tsx`, `db/migrations/041_termine_pipeline.sql`. Reports: `reports/leads-verteilen.csv`, `reports/wiedereinstieg.csv`, `reports/screens/`.
+
+**Noch zu tun (Betreiber):** Die drei Make-Zweige und Brevo-Vorlagen anlegen — bis dahin steht jeder Versuch als „fehlgeschlagen" im Protokoll, und der Wiedereinstieg startet bewusst nicht.
+
 ## 08.08.2026 — Massen-Zusammenführung: 652 doppelte Personensätze aufgelöst, Kandidatenliste leer
 
 Die Kartei kannte Menschen mehrfach. „Klaus Michael Laschinger" lag **zwanzigmal** — dieselbe Rufnummer, dasselbe Geburtsdatum, dieselbe Adresse, zwanzig Karten mit Tippfehlern („Mochael", „Lsschinger"). „Mario Fricker" neunmal, „Reinhold Petzsche" dreizehnmal. Über Paare war das nicht zu räumen: 1.102 Vorschläge, von denen sich neun Zehntel von selbst erledigen, sobald der erste entschieden ist. Niemand klickt das durch.

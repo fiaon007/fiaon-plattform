@@ -95,6 +95,12 @@ export default function AgentStartSeite() {
   );
 }
 
+interface AgentTermin {
+  id: number; personId: number; name: string; beginn: string;
+  datumText: string; uhrzeit: string; dauerMin: number;
+  status: string; quelle: string; heute: boolean;
+}
+
 function Inhalt() {
   const [d, setD] = useState<StartDaten | null>(null);
   const [laedt, setLaedt] = useState(true);
@@ -102,10 +108,17 @@ function Inhalt() {
   const reduziert = useReduzierteBewegung();
   const { zeige } = useToast();
 
+  const [termine, setTermine] = useState<AgentTermin[]>([]);
+  const [termineLaedt, setTermineLaedt] = useState(true);
+
   const laden = useCallback(async () => {
-    const r = await api("/agent/start");
+    // Zwei unabhängige Auskünfte gleichzeitig — die Startseite hat sich einmal
+    // fünf Sekunden Zeit gelassen, weil sie sie hintereinander geholt hat.
+    const [r, t] = await Promise.all([api("/agent/start"), api("/agent/termine")]);
     if (r.ok) setD(r.json);
+    if (t.ok) setTermine(t.json.termine || []);
     setLaedt(false);
+    setTermineLaedt(false);
   }, []);
   useEffect(() => { void laden(); }, [laden]);
 
@@ -395,8 +408,66 @@ function Inhalt() {
           </section>
         </Reveal>
 
-        {/* ── 5 · Rückrufe ──────────────────────────────────────────────── */}
+        {/* ── 5 · Gebuchte Termine ──────────────────────────────────────────
+            Ein Rückruf ist eine Notiz des Agenten; ein Termin ist eine Zusage
+            an den Kunden, der sich die Uhrzeit selbst ausgesucht hat und
+            wartet. Deshalb steht er darüber. */}
         <Reveal index={4}>
+          <section className="mt-7">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[.09em] mb-2.5"
+                style={{ color: "var(--fi-text-still)" }}>
+              Gebuchte Termine
+            </h2>
+            {termineLaedt ? (
+              <div className="fi-karte p-4"><Skelett h={20} /></div>
+            ) : termine.length === 0 ? (
+              <div className="fi-karte p-5">
+                <p className="text-[13.5px] font-semibold">Kein Termin gebucht.</p>
+                <p className="text-[12.5px] mt-1" style={{ color: "var(--fi-text-still)" }}>
+                  Kunden, die du zweimal nicht erreichst, bekommen automatisch einen Buchungslink —
+                  gewählte Zeiten stehen dann hier.
+                </p>
+              </div>
+            ) : (
+              <div className="fi-karte overflow-hidden">
+                {termine.map((t) => {
+                  const z = zeitpunkt(t.beginn);
+                  return (
+                    <Link key={t.id} href={`/agent/kunden?person=${t.personId}`}
+                          className="px-4 py-3 flex items-center gap-3 block"
+                          style={{ boxShadow: "inset 0 -1px 0 var(--fi-linie)" }}>
+                      <span className="shrink-0 w-[62px] text-center">
+                        <span className="block text-[11px] font-semibold uppercase"
+                              style={{ color: t.heute ? "#059669" : "var(--fi-text-still)" }}>
+                          {z.tag}
+                        </span>
+                        <span className="block text-[15px] font-bold fi-zahl"
+                              style={{ color: t.heute ? "#059669" : "var(--fi-text)" }}>
+                          {t.uhrzeit}
+                        </span>
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13.5px] font-semibold truncate">{t.name}</span>
+                        <span className="block text-[11.5px] truncate" style={{ color: "var(--fi-text-still)" }}>
+                          {t.dauerMin} Minuten · {t.quelle === "agent_manuell" ? "von dir angelegt" : "vom Kunden gewählt"}
+                        </span>
+                      </span>
+                      {t.heute && (
+                        <span className="shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded-md"
+                              style={{ background: "rgba(5,150,105,.10)", color: "#059669" }}>
+                          heute
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </Reveal>
+
+        {/* ── 6 · Rückrufe ──────────────────────────────────────────────── */}
+        <Reveal index={5}>
           <section className="mt-7">
             <h2 className="text-[11px] font-semibold uppercase tracking-[.09em] mb-2.5"
                 style={{ color: "var(--fi-text-still)" }}>

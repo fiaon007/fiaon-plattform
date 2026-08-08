@@ -29,6 +29,9 @@ import { requireAgent, type AgentRequest, getSettings } from "./fiaon-agent";
 import { waehlbareNummer } from "../lib/fiaon-telefon";
 import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
 import { ensureBetreuungSpalte } from "../lib/tier";
+import { stufeAusTier } from "@shared/fiaon-kundenstatus";
+import { ruhtSql } from "../lib/fiaon-nicht-erreicht";
+import { terminLink } from "../lib/fiaon-termine";
 
 const router = Router();
 
@@ -99,7 +102,11 @@ const KARTE_SQL = `
     JOIN fiaon_applications a2 ON a2.ref = cl.ref
     WHERE a2.person_id = p.id AND cl.outcome = 'rueckruf_termin'
       AND cl.voided_at IS NULL AND cl.done_at IS NULL
-    ORDER BY cl.scheduled_at DESC LIMIT 1) AS rueckruf_am
+    ORDER BY cl.scheduled_at DESC LIMIT 1) AS rueckruf_am,
+  p.ruhe_seit, p.terminlink_mail_am,
+  (SELECT t.beginn FROM fiaon_termine t
+    WHERE t.person_id = p.id AND t.status = 'gebucht' AND t.beginn > NOW()
+    ORDER BY t.beginn ASC LIMIT 1) AS termin_am
 `;
 
 /** Aus einer Zeile wird eine Karte — eine Stelle, drei Ansichten. */
@@ -132,6 +139,17 @@ export function karte(p: any) {
     nichtErreicht: Number(p.unreachable_count || 0),
     rechnungVersandt: Number(p.invoice_sent_count || 0),
     gesperrt: !!p.is_blocked,
+    // ── Stufe A/B/C ────────────────────────────────────────────────────────
+    // Kein neues Feld in der Datenbank: Die Stufe IST das Tier, nur mit einem
+    // Namen, den ein Mensch versteht (shared/fiaon-kundenstatus.ts).
+    stufe: stufeAusTier(p.priority_tier),
+    // ── Nicht-erreicht-Automatik ───────────────────────────────────────────
+    ruhtSeit: p.ruhe_seit || null,
+    terminlinkMailAm: p.terminlink_mail_am || null,
+    terminAm: p.termin_am || null,
+    // Der persoenliche Buchungslink — fuer den Kopierknopf, wenn keine
+    // E-Mail hinterlegt ist („per WhatsApp senden").
+    terminLink: terminLink(Number(p.id)),
     betreutSeit: p.betreuung_seit,
     letzterKontakt: p.letzter_kontakt,
     letztesErgebnis: p.letztes_ergebnis,
@@ -307,19 +325,31 @@ const ORDNUNG: Record<Sortierung, string> = {
   // Innerhalb jeder Gruppe: längste Wartezeit zuerst.
   arbeit: `
     CASE
-      WHEN p.promised_payment_date IS NOT NULL AND p.promised_payment_date <= CURRENT_DATE THEN 1
+      -- 1 Gebuchter Termin heute. Der Kunde hat sich die Uhrzeit selbst
+      --   ausgesucht und wartet — das schlaegt alles andere.
+      WHEN EXISTS (
+        SELECT 1 FROM fiaon_termine t
+        WHERE t.person_id = p.id AND t.status = 'gebucht'
+          AND t.beginn::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date
+      ) THEN 1
+      WHEN p.promised_payment_date IS NOT NULL AND p.promised_payment_date <= CURRENT_DATE THEN 2
       WHEN EXISTS (
         SELECT 1 FROM fiaon_contact_log cl JOIN fiaon_applications a3 ON a3.ref = cl.ref
         WHERE a3.person_id = p.id AND cl.outcome = 'rueckruf_termin' AND cl.done_at IS NULL
           AND cl.voided_at IS NULL AND cl.scheduled_at IS NOT NULL AND cl.scheduled_at <= NOW()
-      ) THEN 2
-      WHEN p.priority_tier = 1 THEN 3
-      WHEN p.priority_tier = 2 AND p.tier_reason = 'rechnung_offen' THEN 4
-      WHEN p.priority_tier = 2 AND p.tier_reason = 'zahlungsfrist_abgelaufen' THEN 5
-      WHEN p.priority_tier = 2 THEN 6
-      WHEN p.priority_tier = 3 AND p.tier_reason = 'antrag_abgebrochen' THEN 7
-      ELSE 8
+      ) THEN 3
+      -- Ab hier die Stufen: A vor B vor C. Innerhalb von B bleibt die
+      -- bewaehrte Feinsortierung (offene Rechnung vor abgelaufener Frist).
+      WHEN p.priority_tier = 1 THEN 4
+      WHEN p.priority_tier = 2 AND p.tier_reason = 'rechnung_offen' THEN 5
+      WHEN p.priority_tier = 2 AND p.tier_reason = 'zahlungsfrist_abgelaufen' THEN 6
+      WHEN p.priority_tier = 2 THEN 7
+      WHEN p.priority_tier = 3 AND p.tier_reason = 'antrag_abgebrochen' THEN 8
+      ELSE 9
     END ASC,
+    -- Innerhalb des Termin-Rangs nach Uhrzeit: 09:20 vor 14:40.
+    (SELECT MIN(t2.beginn) FROM fiaon_termine t2
+      WHERE t2.person_id = p.id AND t2.status = 'gebucht' AND t2.beginn > NOW()) ASC NULLS LAST,
     (SELECT MAX(cl.created_at) FROM fiaon_contact_log cl
       JOIN fiaon_applications a4 ON a4.ref = cl.ref
       WHERE a4.person_id = p.id AND cl.voided_at IS NULL) ASC NULLS FIRST,
@@ -364,6 +394,18 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
           WHERE a6.person_id = p.id AND cl.outcome = 'rueckruf_termin'
             AND cl.done_at IS NULL AND cl.voided_at IS NULL)`);
       } else if (filter === "nicht_erreicht") wo.push("p.unreachable_count > 0");
+      else if (filter === "ruhend") wo.push(ruhtSql("p"));
+
+      // ── DER RUHE-POOL IST KEIN VERSTECKTES LOCH ──────────────────────────
+      // Wer viermal nicht erreicht wurde, verschwindet aus der TAGESLISTE —
+      // nicht aus dem Bestand. Deshalb wird er nur in den Ansichten
+      // ausgeblendet, in denen der Agent „wen rufe ich jetzt an?" fragt.
+      // Im Filter „Ruhend" und in jeder gezielten Suche steht er weiter da;
+      // eine Suche, die einen Kunden nicht findet, den es gibt, ist der
+      // schlimmere Fehler.
+      if (!["ruhend", "nicht_erreicht", "gesperrt", "bezahlt"].includes(filter) && !q) {
+        wo.push(`NOT ${ruhtSql("p")}`);
+      }
     }
 
     // Drei unabhängige Auskünfte — gleichzeitig, nicht hintereinander. Sonst
@@ -396,9 +438,19 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
         COUNT(*) FILTER (WHERE promised_payment_date < CURRENT_DATE AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3)::int AS ueberfaellig,
         COUNT(*) FILTER (WHERE unreachable_count > 0 AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3)::int AS nicht_erreicht,
         COUNT(*) FILTER (WHERE priority_tier = 0)::int AS bezahlt,
-        COUNT(*) FILTER (WHERE is_blocked)::int AS gesperrt
-      FROM fiaon_persons
-      WHERE assigned_agent_id = ${me} AND merged_into_person_id IS NULL
+        COUNT(*) FILTER (WHERE is_blocked)::int AS gesperrt,
+        -- Der eigene Vorrat je Stufe. Die drei Zahlen im Kopf der Liste sagen
+        -- dem Agenten in einer Sekunde, ob er in der Pflicht (A/B) oder in der
+        -- Kür (C) arbeitet. Ruhende zählen NICHT mit — sie sind heute nicht dran.
+        COUNT(*) FILTER (WHERE priority_tier = 1 AND NOT is_blocked AND NOT ruht)::int AS stufe_a,
+        COUNT(*) FILTER (WHERE priority_tier = 2 AND NOT is_blocked AND NOT ruht)::int AS stufe_b,
+        COUNT(*) FILTER (WHERE priority_tier = 3 AND NOT is_blocked AND NOT ruht)::int AS stufe_c,
+        COUNT(*) FILTER (WHERE ruht)::int AS ruhend
+      FROM (
+        SELECT p.*, ${sqlPool.unsafe(ruhtSql("p"))} AS ruht
+        FROM fiaon_persons p
+        WHERE p.assigned_agent_id = ${me} AND p.merged_into_person_id IS NULL
+      ) p
     `,
       sqlPool`
       SELECT COUNT(DISTINCT a.person_id)::int AS c
@@ -422,8 +474,10 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
         frist_abgelaufen: z.frist_abgelaufen, antrag_offen: z.antrag_offen,
         leads: z.leads, zusage_heute: z.zusage_heute, ueberfaellig: z.ueberfaellig,
         rueckruf: rueckrufZahl.c, nicht_erreicht: z.nicht_erreicht,
-        bezahlt: z.bezahlt, gesperrt: z.gesperrt,
+        bezahlt: z.bezahlt, gesperrt: z.gesperrt, ruhend: z.ruhend,
       },
+      // Der Vorrat je Stufe für den Kopf der Liste.
+      vorrat: { A: Number(z.stufe_a || 0), B: Number(z.stufe_b || 0), C: Number(z.stufe_c || 0) },
       kunden: (rows as any[]).map(karte),
     });
   } catch (err) {

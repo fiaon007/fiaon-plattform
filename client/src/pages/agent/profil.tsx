@@ -13,6 +13,118 @@ import { Reveal } from "./motion";
 //   maskierte Anzeige; jede Änderung wird auditiert + beim Admin gemeldet
 // ============================================================================
 
+const WOCHENTAGE: { nr: number; kurz: string; lang: string }[] = [
+  { nr: 1, kurz: "Mo", lang: "Montag" },
+  { nr: 2, kurz: "Di", lang: "Dienstag" },
+  { nr: 3, kurz: "Mi", lang: "Mittwoch" },
+  { nr: 4, kurz: "Do", lang: "Donnerstag" },
+  { nr: 5, kurz: "Fr", lang: "Freitag" },
+  { nr: 6, kurz: "Sa", lang: "Samstag" },
+  { nr: 7, kurz: "So", lang: "Sonntag" },
+];
+
+interface Zeitfenster { wochentag: number; von: string; bis: string; aktiv: boolean }
+
+/**
+ * Wann bin ich für Kunden buchbar?
+ *
+ * Vorgabe ist Mo–Fr 09:00–18:00. Wer nichts einstellt, ist damit buchbar und
+ * NICHT unsichtbar — ein Agent, der seine Zeiten nie öffnet, wäre sonst für
+ * jeden Kunden nicht erreichbar, ohne dass es irgendwem auffällt.
+ */
+function ErreichbarkeitBlock({ flash }: { flash: (t: string) => void }) {
+  const [fenster, setFenster] = useState<Zeitfenster[]>([]);
+  const [vorgabe, setVorgabe] = useState(true);
+  const [slotMinuten, setSlotMinuten] = useState(20);
+  const [busy, setBusy] = useState(false);
+  const [laedt, setLaedt] = useState(true);
+
+  const laden = async () => {
+    const r = await api("/agent/verfuegbarkeit");
+    if (r.ok) {
+      setFenster(r.json.fenster || []);
+      setVorgabe(!!r.json.vorgabe);
+      setSlotMinuten(Number(r.json.slotMinuten) || 20);
+    }
+    setLaedt(false);
+  };
+  useEffect(() => { void laden(); }, []);
+
+  const fuerTag = (nr: number) => fenster.find((f) => f.wochentag === nr) || null;
+
+  const umschalten = (nr: number) => {
+    const da = fuerTag(nr);
+    if (da) setFenster((f) => f.filter((x) => x.wochentag !== nr));
+    else setFenster((f) => [...f, { wochentag: nr, von: "09:00", bis: "18:00", aktiv: true }]);
+  };
+
+  const aendern = (nr: number, feld: "von" | "bis", wert: string) =>
+    setFenster((f) => f.map((x) => (x.wochentag === nr ? { ...x, [feld]: wert } : x)));
+
+  const speichern = async () => {
+    const kaputt = fenster.find((f) => f.bis <= f.von);
+    if (kaputt) {
+      flash(`${WOCHENTAGE.find((w) => w.nr === kaputt.wochentag)?.lang}: „bis" muss nach „von" liegen.`);
+      return;
+    }
+    setBusy(true);
+    const r = await api("/agent/verfuegbarkeit", { method: "PUT", body: JSON.stringify({ fenster }) });
+    setBusy(false);
+    if (r.ok) { setVorgabe(false); flash("Erreichbarkeit gespeichert"); }
+    else flash(r.json?.error || "Fehler");
+  };
+
+  return (
+    <>
+      <h2 className="text-[13px] font-semibold text-slate-900 mb-1">Erreichbarkeit für Termine</h2>
+      <p className="text-[12px] text-slate-400 mb-3">
+        Kunden, die du nicht erreichst, bekommen einen Buchungslink und wählen selbst eine Zeit —
+        aus diesen Zeiten, in {slotMinuten}-Minuten-Schritten (Europe/Berlin).
+        {vorgabe && " Aktuell gilt die Vorgabe Mo–Fr 09:00–18:00."}
+      </p>
+      {laedt ? (
+        <p className="text-[12px] text-slate-400">Wird geladen …</p>
+      ) : (
+        <>
+          <div className="space-y-2">
+            {WOCHENTAGE.map((w) => {
+              const f = fuerTag(w.nr);
+              return (
+                <div key={w.nr} className="flex items-center gap-2.5">
+                  <button type="button" onClick={() => umschalten(w.nr)}
+                          className={`w-[46px] shrink-0 py-2 rounded-lg text-[12px] font-bold border transition-colors ${
+                            f ? "bg-[#1d4ed8] text-white border-[#1d4ed8]" : "bg-white text-slate-400 border-slate-200"
+                          }`}
+                          style={{ minHeight: 38 }}
+                          aria-pressed={!!f}>
+                    {w.kurz}
+                  </button>
+                  {f ? (
+                    <div className="flex items-center gap-2 min-w-0">
+                      <input type="time" value={f.von} step={60}
+                             onChange={(e) => aendern(w.nr, "von", e.target.value)}
+                             className={`${inputCls} w-[104px] font-mono`} aria-label={`${w.lang} von`} />
+                      <span className="text-[12px] text-slate-400">bis</span>
+                      <input type="time" value={f.bis} step={60}
+                             onChange={(e) => aendern(w.nr, "bis", e.target.value)}
+                             className={`${inputCls} w-[104px] font-mono`} aria-label={`${w.lang} bis`} />
+                    </div>
+                  ) : (
+                    <span className="text-[12px] text-slate-400">nicht buchbar</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <button type="button" onClick={speichern} disabled={busy} className={`${btnPrimary} mt-4`}>
+            {busy ? "…" : "Erreichbarkeit speichern"}
+          </button>
+        </>
+      )}
+    </>
+  );
+}
+
 interface Profile {
   firstName: string | null;
   lastName: string | null;
@@ -221,8 +333,13 @@ function ProfilContent() {
         </form>
       </Card></Reveal>
 
+      {/* Erreichbarkeit für Terminbuchungen */}
+      <Reveal index={4} className="block mb-4"><Card className="p-5">
+        <ErreichbarkeitBlock flash={flash} />
+      </Card></Reveal>
+
       {/* Auszahlungsdaten */}
-      <Reveal index={4} className="block"><Card className="p-5">
+      <Reveal index={5} className="block"><Card className="p-5">
         <h2 className="text-[13px] font-semibold text-slate-900 mb-1">Auszahlungsdaten</h2>
         <p className="text-[12px] text-slate-400 mb-3">
           Wird verschlüsselt gespeichert und nur maskiert angezeigt. Jede Änderung wird protokolliert und dem Administrator gemeldet.

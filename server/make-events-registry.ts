@@ -114,6 +114,52 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     },
   },
   {
+    type: "nicht_erreicht_termin",
+    label: "Nicht erreicht — Terminlink an den Kunden",
+    description:
+      "Feuert automatisch nach dem ZWEITEN erfolglosen Anrufversuch (nicht erreicht oder Mailbox), genau einmal je Kunde in 30 Tagen. Der Kunde bekommt einen persönlichen Buchungslink auf die Slots SEINES Betreuers und wählt selbst eine Uhrzeit. Ohne diese Mail folgt der dritte, vierte und fünfte Anruf ins Leere. Betreiber-TODO: Make-Zweig 'nicht_erreicht_termin' + Brevo-Template anlegen (Variablen: vorname, nachname, agent_vorname, termin_link).",
+    customerBound: true,
+    example: {
+      email: "max.mustermann@example.com",
+      vorname: "Max",
+      nachname: "Mustermann",
+      agent_vorname: "Daniel",
+      termin_link: "https://www.fiaon.com/termin/7f3a…",
+    },
+  },
+  {
+    type: "termin_bestaetigung",
+    label: "Terminbestätigung (Kunde)",
+    description:
+      "Feuert sofort nach einer Buchung — egal ob im Antrag, über den Terminlink oder vom Agenten angelegt. Enthält den Storno-Link; Umbuchen ist Absagen plus neu buchen auf derselben Seite. Betreiber-TODO: Make-Zweig 'termin_bestaetigung' + Brevo-Template anlegen (Variablen: vorname, nachname, agent_vorname, termin_datum, termin_uhrzeit, storno_link).",
+    customerBound: true,
+    example: {
+      email: "max.mustermann@example.com",
+      vorname: "Max",
+      nachname: "Mustermann",
+      agent_vorname: "Daniel",
+      termin_datum: "12.08.2026",
+      termin_uhrzeit: "14:20",
+      storno_link: "https://www.fiaon.com/termin/absagen/9b2c…",
+    },
+  },
+  {
+    type: "termin_erinnerung",
+    label: "Terminerinnerung 24 h vorher (Kunde)",
+    description:
+      "Feuert im Tageslauf 24 Stunden vor dem Termin, einmalig je Termin (die Spalte erinnert_am verhindert Doppelversand bei einem Neustart). Betreiber-TODO: Make-Zweig 'termin_erinnerung' + Brevo-Template anlegen (Variablen: vorname, nachname, agent_vorname, termin_datum, termin_uhrzeit, storno_link).",
+    customerBound: true,
+    example: {
+      email: "max.mustermann@example.com",
+      vorname: "Max",
+      nachname: "Mustermann",
+      agent_vorname: "Daniel",
+      termin_datum: "12.08.2026",
+      termin_uhrzeit: "14:20",
+      storno_link: "https://www.fiaon.com/termin/absagen/9b2c…",
+    },
+  },
+  {
     type: "claim_received",
     label: "Überweisung angekündigt (Danke)",
     description: "Feuert genau einmal, wenn der Kunde auf „Ich habe die Überweisung getätigt“ klickt — dankt und nennt das Freischalt-Zeitfenster (werktags bis 18:00 Uhr).",

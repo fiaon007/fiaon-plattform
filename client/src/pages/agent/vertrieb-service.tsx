@@ -626,3 +626,42 @@ export function ServiceZahlen({ zahlen, aktiv, aufReiter }: {
     </div>
   );
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PIPELINE — Ruhe-Pool und Wiedereinstieg
+//
+// Der Ruhe-Pool muss hier stehen, sonst ist er das versteckte Loch, das er
+// ausdrücklich nicht sein soll: Der einzelne Agent sieht seine Ruhenden im
+// Filter, aber nur die Leitung sieht, wie viele Menschen im ganzen Haus gerade
+// bewusst NICHT angerufen werden. Wächst diese Zahl, stimmt etwas mit den
+// Nummern oder mit den Anrufzeiten nicht.
+// ═══════════════════════════════════════════════════════════════════════════
+export function PipelineZahlen({ pipeline }: { pipeline: any }) {
+  const w = pipeline?.wiedereinstieg;
+  const felder = [
+    { t: "Ruhend", w: pipeline?.ruhend,
+      h: "4× nicht erreicht — ruhen 14 Tage und kommen dann von selbst zurück." },
+    { t: "Termine gebucht", w: pipeline?.termineOffen,
+      h: "Kunden, die sich selbst eine Uhrzeit ausgesucht haben." },
+    { t: "Terminlink versandt", w: pipeline?.terminlinkVersandt,
+      h: "Automatisch nach dem 2. erfolglosen Versuch, höchstens einmal je 30 Tage." },
+    { t: "Wiedereinstieg", w: w ? `${w.gebucht}/${w.versandt}` : 0,
+      h: w ? `${w.quote}% haben nach der Wiedereinstiegs-Mail einen Termin gebucht. ${w.offen} noch offen.` : "Noch nichts versandt." },
+  ];
+  return (
+    <div className="mt-2.5 grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+      {felder.map((f) => (
+        <div key={f.t} className="fi-karte p-4" title={f.h}>
+          <p className="text-[10.5px] font-semibold uppercase tracking-[.08em]" style={{ color: "var(--fi-text-still)" }}>
+            {f.t}
+          </p>
+          {pipeline ? (
+            <p className="text-[24px] font-bold leading-none mt-1.5 fi-zahl">{f.w ?? 0}</p>
+          ) : <Skelett h={26} w={48} className="mt-1.5" />}
+          <p className="mt-1.5 text-[11px] leading-snug" style={{ color: "var(--fi-text-still)" }}>{f.h}</p>
+        </div>
+      ))}
+    </div>
+  );
+}

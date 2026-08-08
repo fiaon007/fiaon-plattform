@@ -4,7 +4,7 @@ import { Reveal } from "./motion";
 import { Skelett, eur, useReduzierteBewegung, useToast } from "@/lib/fiaon-ui";
 import { ZeichenSenden, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
 import { VertriebZusage, useZusage } from "./vertrieb-zusage";
-import { VertriebZahlungen, VertriebDokumente, VertriebZugang, LageTafel, ServiceZahlen } from "./vertrieb-service";
+import { VertriebZahlungen, VertriebDokumente, VertriebZugang, LageTafel, ServiceZahlen, PipelineZahlen } from "./vertrieb-service";
 import DublettenArbeitsplatz from "@/components/admin/DublettenArbeitsplatz";
 import { statusAusTierGrund } from "@shared/fiaon-kundenstatus";
 
@@ -118,6 +118,7 @@ function Inhalt() {
   // zweimal" wirklich beurteilen kann.
   const [bereich, setBereich] = useState<"kunden" | "zahlungen" | "dokumente" | "zugang" | "dubletten">("kunden");
   const [service, setService] = useState<any>(null);
+  const [pipeline, setPipeline] = useState<any>(null);
   const [filter, setFilter] = useState("alle");
   const [agentFilter, setAgentFilter] = useState<number | null>(null);
   const [suche, setSuche] = useState("");
@@ -154,7 +155,7 @@ function Inhalt() {
 
   const ladeService = useCallback(async () => {
     const r = await api("/agent/vertrieb/service");
-    if (r.ok) setService(r.json.zahlen);
+    if (r.ok) { setService(r.json.zahlen); setPipeline(r.json.pipeline || null); }
   }, []);
   useEffect(() => { if (geprueft && !zusage) void ladeService(); }, [ladeService, geprueft, zusage]);
   useEffect(() => {
@@ -278,6 +279,7 @@ function Inhalt() {
         {bereich !== "kunden" && bereich !== "dubletten" && (
           <div className="mt-5">
             <ServiceZahlen zahlen={service} aktiv={bereich} aufReiter={(r) => setBereich(r as any)} />
+            <PipelineZahlen pipeline={pipeline} />
             <div className="mt-5">
               {bereich === "zahlungen" && <VertriebZahlungen onGebucht={() => { void ladeService(); void ladeKopf(); }} />}
               {bereich === "dokumente" && <VertriebDokumente />}

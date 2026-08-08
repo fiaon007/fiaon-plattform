@@ -3,7 +3,7 @@ import { AgentShell } from "./shared";
 import { Reveal } from "./motion";
 import { Skelett, eur, useReduzierteBewegung, useToast } from "@/lib/fiaon-ui";
 import { ZeichenSenden, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
-import { statusAusTierGrund } from "@shared/fiaon-kundenstatus";
+import { statusAusTierGrund, STUFEN, type Stufe } from "@shared/fiaon-kundenstatus";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/kunden — DIE EINE ARBEITSLISTE
@@ -19,12 +19,18 @@ import { statusAusTierGrund } from "@shared/fiaon-kundenstatus";
 // abarbeitbar — die Reihenfolge kommt vom Server (fiaon-agent-start.ts) und
 // nimmt dem Agenten die Frage ab, wen er als nächstes anruft:
 //
-//   1 Zahlungszusage heute oder überfällig
-//   2 Rückruftermin heute oder überfällig
-//   3 Zahlung gemeldet
-//   4 Rechnung offen → Frist abgelaufen → Antrag abgeschlossen
-//   5 Antrag abgebrochen → nur Lead
+//   1 Gebuchter Termin heute (der Kunde hat die Uhrzeit selbst gewählt)
+//   2 Zahlungszusage heute oder überfällig
+//   3 Rückruftermin heute oder überfällig
+//   4 Stufe A — Zahlung gemeldet
+//   5 Stufe B — Rechnung offen → Frist abgelaufen → Antrag abgeschlossen
+//   6 Stufe C — Antrag abgebrochen → nur Lead
 //   innerhalb jeder Gruppe: längste Wartezeit zuerst
+//
+// Die Stufen A/B/C sind KEINE neue Einstufung, sondern der Klartext für das
+// vorhandene `priority_tier` (shared/fiaon-kundenstatus.ts). Sie stehen als
+// Marke auf jeder Karte, damit niemand raten muss, warum die Liste so
+// sortiert ist.
 //
 // Bezahlte Kunden stehen NIE in der Standardliste. Sie sind kein Arbeitsvorrat
 // und über den Filter „Bezahlt" erreichbar.
@@ -48,6 +54,11 @@ interface Kunde {
   rueckrufAm: string | null;
   nichtErreicht: number;
   rechnungVersandt: number;
+  stufe: Stufe | null;
+  ruhtSeit: string | null;
+  terminlinkMailAm: string | null;
+  terminAm: string | null;
+  terminLink: string;
   gesperrt: boolean;
   betreutSeit: string | null;
   letzterKontakt: string | null;
@@ -87,9 +98,71 @@ const FILTER: { key: string; label: string; zaehler: string }[] = [
   { key: "antrag_offen", label: "Antrag offen", zaehler: "antrag_offen" },
   { key: "leads", label: "Leads", zaehler: "leads" },
   { key: "nicht_erreicht", label: "Nicht erreicht", zaehler: "nicht_erreicht" },
+  // Der Ruhe-Pool ist ein Filter, kein Loch: Wer viermal nicht erreicht wurde,
+  // steht hier — sichtbar, zählbar, jederzeit aufrufbar.
+  { key: "ruhend", label: "Ruhend", zaehler: "ruhend" },
   { key: "bezahlt", label: "Bezahlt (Bestand)", zaehler: "bezahlt" },
   { key: "gesperrt", label: "Gesperrt", zaehler: "gesperrt" },
 ];
+
+/**
+ * Die Stufen-Marke: ein Buchstabe, ein Klartext.
+ *
+ * Der Buchstabe allein wäre eine Geheimsprache — deshalb steht der Text
+ * daneben, wo Platz ist, und im `title`, wo keiner ist. Beides kommt aus
+ * shared/fiaon-kundenstatus.ts, damit Liste, Kopfzeile und Server denselben
+ * Wortlaut benutzen.
+ */
+function StufenMarke({ stufe, kurz = false }: { stufe: Stufe; kurz?: boolean }) {
+  const farbe = stufe.ton === "warnung" ? "var(--fi-tier1)"
+    : stufe.ton === "offen" ? "var(--fi-tier2)" : "var(--fi-tier3)";
+  return (
+    <span className="inline-flex items-center gap-1.5 shrink-0" title={`Stufe ${stufe.marke} — ${stufe.text}. ${stufe.begruendung}`}>
+      <span aria-hidden="true"
+            className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-[5px] text-[11px] font-bold leading-none"
+            style={{ background: farbe, color: "#fff" }}>
+        {stufe.marke}
+      </span>
+      {!kurz && (
+        <span className="text-[11.5px] font-semibold" style={{ color: farbe }}>
+          {stufe.text}
+        </span>
+      )}
+      <span className="sr-only">Stufe {stufe.marke}: {stufe.text}</span>
+    </span>
+  );
+}
+
+/**
+ * Der Vorrat je Stufe — „A: 4 · B: 31 · C: 120".
+ *
+ * Beantwortet die Frage, die sich ein Agent morgens stellt: Habe ich Pflicht
+ * oder Kür vor mir? Eine leere Stufe wird ausgegraut statt versteckt; dass A
+ * leer IST, ist die wichtigste Auskunft der Zeile.
+ */
+function VorratsKopf({ vorrat }: { vorrat: Record<string, number> }) {
+  const reihe = (["A", "B", "C"] as const).map((m) => ({ stufe: STUFEN[m], n: vorrat[m] ?? 0 }));
+  const pflicht = (vorrat.A ?? 0) + (vorrat.B ?? 0);
+  return (
+    <div className="fi-karte px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {reihe.map(({ stufe, n }) => (
+          <div key={stufe.marke} className="flex items-center gap-2" style={{ opacity: n === 0 ? 0.45 : 1 }}>
+            <StufenMarke stufe={stufe} />
+            <span className="fi-zahl text-[15px] font-bold leading-none">{n}</span>
+          </div>
+        ))}
+        <p className="text-[12px] ml-auto" style={{ color: "var(--fi-text-still)" }}>
+          {pflicht > 0
+            ? `${pflicht} in der Pflicht — Stufe C wird erst danach gearbeitet.`
+            : (vorrat.C ?? 0) > 0
+              ? "A und B sind leer. Jetzt sind die Leads dran."
+              : "Nichts offen."}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 const SORT: { key: string; label: string }[] = [
   { key: "arbeit", label: "Arbeitsreihenfolge" },
@@ -175,6 +248,7 @@ export default function AgentKundenSeite() {
 function Inhalt() {
   const [liste, setListe] = useState<Kunde[]>([]);
   const [zaehler, setZaehler] = useState<Zaehler>({});
+  const [vorrat, setVorrat] = useState<Record<string, number>>({});
   const [laedt, setLaedt] = useState(true);
   const [filter, setFilter] = useState("alle");
   const [sort, setSort] = useState("arbeit");
@@ -203,6 +277,7 @@ function Inhalt() {
     if (r.ok) {
       setListe(r.json.kunden);
       setZaehler(r.json.zaehler);
+      setVorrat(r.json.vorrat || {});
     }
     setLaedt(false);
   }, [filter, sort, suche]);
@@ -258,9 +333,17 @@ function Inhalt() {
           </div>
         </Reveal>
 
+        {/* Der eigene Vorrat je Stufe. Zuerst die Frage „Pflicht oder Kür?",
+            dann erst die Filter. */}
+        {!laedt && (
+          <Reveal index={1}>
+            <div className="mt-4"><VorratsKopf vorrat={vorrat} /></div>
+          </Reveal>
+        )}
+
         {/* Filter-Chips mit Zählern. Ein Chip ohne Zahl ist eine Behauptung —
             die Zahl sagt, ob sich der Klick lohnt. */}
-        <Reveal index={1}>
+        <Reveal index={2}>
           <div className="mt-4 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
             <div className="flex items-center gap-1.5 pb-1" style={{ minWidth: "max-content" }}>
               {FILTER.map((f) => {
@@ -356,6 +439,13 @@ function KundenKarte({
   const zusage = relativ(k.zusagedatum);
   const rueckruf = k.rueckrufAm ? new Date(k.rueckrufAm) : null;
   const rueckrufFaellig = rueckruf ? rueckruf.getTime() <= Date.now() : false;
+  const termin = k.terminAm ? new Date(k.terminAm) : null;
+  const heuteBerlin = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date());
+  const terminHeute = termin
+    ? new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(termin) === heuteBerlin
+    : false;
+  /** Rückmeldung für den Terminlink-Knopf — getrennt vom Zahlungsdaten-Knopf. */
+  const [linkKopiert, setLinkKopiert] = useState(false);
 
   /** Ein Ergebnis festhalten. Verschwindet der Kunde aus der Ansicht, sagt der
    *  Server das über die Wirkung — wir raten es nicht. */
@@ -433,6 +523,37 @@ function KundenKarte({
       setTimeout(() => setKopiert(false), 2500);
     } else {
       zeige("fehler", "Kopieren nicht möglich", "Bitte den Verwendungszweck von Hand übernehmen.");
+    }
+  };
+
+  /**
+   * Den persönlichen Terminlink in die Zwischenablage — für Kunden ohne
+   * E-Mail. Der Agent schickt ihn über WhatsApp, der Kunde bucht selbst.
+   * Derselbe Weg wie bei den Zahlungsdaten, damit niemand zwei Bedienungen
+   * lernen muss.
+   */
+  const terminlinkKopieren = async () => {
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(k.terminLink);
+      ok = true;
+    } catch {
+      try {
+        const feld = document.createElement("textarea");
+        feld.value = k.terminLink;
+        feld.style.position = "fixed";
+        feld.style.opacity = "0";
+        document.body.appendChild(feld);
+        feld.select();
+        ok = document.execCommand("copy");
+        document.body.removeChild(feld);
+      } catch { ok = false; }
+    }
+    if (ok) {
+      setLinkKopiert(true);
+      setTimeout(() => setLinkKopiert(false), 2500);
+    } else {
+      zeige("fehler", "Kopieren nicht möglich", "Bitte den Link von Hand aus der Adresszeile übernehmen.");
     }
   };
 
@@ -527,6 +648,8 @@ function KundenKarte({
             <p className="text-[16px] font-bold leading-tight truncate">{k.name}</p>
             <p className="mt-1 text-[12.5px] flex flex-wrap items-center gap-x-2 gap-y-0.5"
                style={{ color: "var(--fi-text-still)" }}>
+              {/* Die Stufe zuerst: Sie erklärt, warum diese Karte hier steht. */}
+              {k.stufe && <StufenMarke stufe={k.stufe} kurz />}
               <span className="font-semibold" style={{ color: TIER_FARBE[k.tier] }}>
                 {statusAusTierGrund(k.tierGrund).anzeige}
               </span>
@@ -535,6 +658,15 @@ function KundenKarte({
             </p>
           </button>
           <span className="shrink-0 flex flex-col items-end gap-1">
+            {termin && (
+              <span className="text-[11.5px] font-bold px-2 py-0.5 rounded-md"
+                    style={terminHeute
+                      ? { background: "rgba(5,150,105,.10)", color: "#059669" }
+                      : { background: "rgba(29,78,216,.07)", color: "var(--fi-primaer)" }}>
+                Termin {termin.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}{" "}
+                {termin.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })}
+              </span>
+            )}
             {zusage && (
               <span className="text-[11.5px] font-bold px-2 py-0.5 rounded-md"
                     style={zusage.dringend
@@ -559,6 +691,42 @@ function KundenKarte({
         <p className="mt-2.5 text-[12.5px] leading-relaxed" style={{ color: "var(--fi-text-leise)" }}>
           {k.hinweis}
         </p>
+
+        {/* ── Vorgeschichte: was mit diesem Kunden schon versucht wurde ───────
+            Ohne diese Zeile wählt der Agent zum fünften Mal dieselbe Nummer.
+            Sie erscheint ab dem zweiten Fehlversuch — vorher gibt es nichts zu
+            erzählen. */}
+        {(k.nichtErreicht >= 2 || k.ruhtSeit) && (
+          <div className="mt-3 p-3 rounded-xl"
+               style={{ background: k.ruhtSeit ? "rgba(100,116,139,.07)" : "rgba(217,119,6,.06)",
+                        border: `1px solid ${k.ruhtSeit ? "var(--fi-linie)" : "rgba(217,119,6,.25)"}` }}>
+            <p className="text-[12.5px] font-semibold leading-snug"
+               style={{ color: k.ruhtSeit ? "var(--fi-text-leise)" : "var(--fi-tier2)" }}>
+              {k.nichtErreicht}× nicht erreicht
+              {k.letzterKontakt && `, zuletzt ${new Date(k.letzterKontakt).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}`}
+              {k.terminlinkMailAm && `, Terminlink versandt ${new Date(k.terminlinkMailAm).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}`}
+            </p>
+            {k.ruhtSeit && (
+              <p className="mt-1 text-[11.5px] leading-relaxed" style={{ color: "var(--fi-text-still)" }}>
+                Ruht bis {k.wiedervorlage ? new Date(k.wiedervorlage).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }) : "zur Wiedervorlage"}.
+                Nicht anrufen — er hat den Terminlink und meldet sich selbst.
+              </p>
+            )}
+            {!k.email && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <p className="text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>
+                  Keine E-Mail hinterlegt — es ging keine Mail raus.
+                </p>
+                <button type="button" onClick={() => void terminlinkKopieren()}
+                        className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold"
+                        style={linkKopiert ? { borderColor: "#059669", color: "#059669" } : undefined}
+                        title="Persönlichen Buchungslink kopieren — fertig zum Einfügen in WhatsApp">
+                  {linkKopiert ? "Kopiert" : "Terminlink per WhatsApp senden"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Verwendungszweck: immer sichtbar, auch ohne E-Mail ──────────────
             Dreimal an einem Tag gemeldet: Kunde ohne E-Mail, Agent gibt die

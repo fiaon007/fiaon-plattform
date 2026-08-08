@@ -202,3 +202,79 @@ export function zahlungsstatusText(zahlungsstatus: unknown, archiviertAm?: unkno
   });
   return s.anzeige;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE STUFEN A · B · C — die Arbeitsreihenfolge, endlich beschriftet
+//
+// WARUM HIER UND WARUM KEINE NEUE SPALTE
+// Die Einstufung gibt es längst: `priority_tier` (server/lib/tier.ts) trennt
+// seit Monaten genau die drei Fälle, um die es geht. Was fehlte, war der NAME.
+// Ein Agent sah eine sortierte Liste und musste raten, warum sie so sortiert
+// ist; „Tier 2" steht nirgends auf der Oberfläche und würde auch niemandem
+// etwas sagen.
+//
+// Eine zweite Einstufung neben `priority_tier` wäre der Fehler, den dieses
+// Repo schon zweimal bezahlt hat (neun Statustabellen, zwei Personenbegriffe).
+// Deshalb ist die Stufe eine ÜBERSETZUNG, keine Berechnung: Tier 1 → A,
+// Tier 2 → B, Tier 3 → C. Ändert sich die Einstufung, ändert sich die Stufe
+// automatisch mit, weil es dieselbe Zahl ist.
+//
+//   A  Zahlung gemeldet        Der Kunde sagt, er habe überwiesen. Heißester
+//                              Fall im Haus: verifizieren und abschließen.
+//   B  Antrag fertig,          Der Antrag ist durch, das Geld fehlt. „Frist
+//      Rechnung offen          abgelaufen" gehört ausdrücklich hierher — das
+//                              ist ein Anruf, kein Abfall (siehe Teil 0).
+//   C  Lead ohne Antrag        Kampagnen-Leads und abgebrochene Anträge. Wird
+//                              NUR gearbeitet, wenn A und B leer sind.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type StufenMarke = "A" | "B" | "C";
+
+export interface Stufe {
+  marke: StufenMarke;
+  /** Klartext neben der Marke — ohne ihn ist ein Buchstabe eine Geheimsprache. */
+  text: string;
+  /** Warum diese Stufe so weit oben (oder unten) steht. Für Erklärtexte. */
+  begruendung: string;
+  ton: "warnung" | "offen" | "neutral";
+}
+
+export const STUFEN: Record<StufenMarke, Stufe> = {
+  A: {
+    marke: "A",
+    text: "Zahlung gemeldet",
+    begruendung: "Der Kunde sagt, er habe überwiesen. Beleg anfordern, Eingang prüfen, abschließen.",
+    ton: "warnung",
+  },
+  B: {
+    marke: "B",
+    text: "Antrag fertig, Rechnung offen",
+    begruendung: "Der Antrag ist durch, das Geld fehlt — auch wenn die Frist schon abgelaufen ist.",
+    ton: "offen",
+  },
+  C: {
+    marke: "C",
+    text: "Lead ohne Antrag",
+    begruendung: "Erstkontakt aus einer Kampagne. Wird gearbeitet, wenn A und B leer sind.",
+    ton: "neutral",
+  },
+};
+
+/**
+ * Stufe aus dem `priority_tier`. Tier 0 (bezahlt) und -1 (ausgeschlossen) sind
+ * KEIN Arbeitsvorrat und haben deshalb keine Stufe — sie liefern `null`.
+ */
+export function stufeAusTier(tier: unknown): Stufe | null {
+  const t = Number(tier);
+  if (t === 1) return STUFEN.A;
+  if (t === 2) return STUFEN.B;
+  if (t === 3) return STUFEN.C;
+  return null;
+}
+
+/**
+ * SQL-Ausdruck für die Stufe — damit auch Abfragen und Zähler denselben
+ * Buchstaben benutzen wie die Oberfläche.
+ */
+export const STUFE_SQL = `CASE p.priority_tier
+    WHEN 1 THEN 'A' WHEN 2 THEN 'B' WHEN 3 THEN 'C' ELSE NULL END`;

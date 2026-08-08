@@ -30,6 +30,10 @@ export type MakeEventType =
   | "number_update_request" // #23: Kunde/Lead aktualisiert Telefonnummer selbst
   | "abo_payment_reminder"  // monatliche Paketrate fällig (Abo) — Stufen 1–3
   | "aufgabe_zugewiesen"    // Betreiber weist einem Mitarbeiter eine Aufgabe zu
+  // ── Lead-Pipeline und Terminsystem ────────────────────────────────────────
+  | "nicht_erreicht_termin"  // 2× nicht erreicht → Kunde bucht selbst einen Termin
+  | "termin_bestaetigung"    // Termin gebucht — mit Storno-Link
+  | "termin_erinnerung"      // 24 h vor dem Termin
   // ── Registriert für /admin/events (Betreiber kann testen + Make-Zweig bauen).
   //    NOCH KEIN automatischer Versand im Code verdrahtet (Empfehlung, Teil 1.3):
   | "payment_cancelled"       // Bestellung storniert

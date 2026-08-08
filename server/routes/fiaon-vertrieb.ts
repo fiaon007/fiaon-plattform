@@ -633,7 +633,32 @@ router.get("/agent/vertrieb/service", requireAgent, nurLeitung, nurMitZusage, as
     // Dubletten-Kandidaten als fünfte Kopfzahl. Die Suche läuft über den ganzen
     // Bestand, darf aber die vier Zahlen nicht aufhalten, wenn sie klemmt.
     const dubletten = await kandidatenZahlen().catch(() => ({ gesamt: 0, jeStufe: null }));
-    res.json({ ok: true, zahlen: { ...zahlen, dubletten: dubletten.gesamt, dublettenStufen: dubletten.jeStufe } });
+
+    // ── Pipeline-Kennzahlen ──────────────────────────────────────────────
+    // Der Ruhe-Pool gehört in die Leitungssicht, sonst ist er genau das
+    // versteckte Loch, das er nicht sein soll: Der Agent sieht seine eigenen
+    // Ruhenden, aber nur hier steht, wie viele es im Haus insgesamt sind.
+    const { wiedereinstiegKennzahl } = await import("../lib/fiaon-wiedereinstieg");
+    const { ruhtSql } = await import("../lib/fiaon-nicht-erreicht");
+    const [ruhe] = (await sqlPool.unsafe(`
+      SELECT COUNT(*)::int AS ruhend,
+             COUNT(*) FILTER (WHERE p.terminlink_mail_am IS NOT NULL)::int AS terminlink_versandt,
+             (SELECT COUNT(*)::int FROM fiaon_termine t WHERE t.status = 'gebucht' AND t.beginn > NOW()) AS termine_offen
+      FROM fiaon_persons p
+      WHERE p.merged_into_person_id IS NULL AND ${ruhtSql("p")}
+    `)) as any[];
+    const wiedereinstieg = await wiedereinstiegKennzahl().catch(() => null);
+
+    res.json({
+      ok: true,
+      zahlen: { ...zahlen, dubletten: dubletten.gesamt, dublettenStufen: dubletten.jeStufe },
+      pipeline: {
+        ruhend: Number(ruhe?.ruhend || 0),
+        terminlinkVersandt: Number(ruhe?.terminlink_versandt || 0),
+        termineOffen: Number(ruhe?.termine_offen || 0),
+        wiedereinstieg,
+      },
+    });
   } catch (err) {
     console.error("[FIAON-VERTRIEB] service:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

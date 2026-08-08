@@ -83,21 +83,21 @@ async function meinePerson(personId: number, agentId: number) {
     SELECT p.id, p.priority_tier, p.tier_reason, p.promised_payment_date,
            p.follow_up_date, p.unreachable_count, p.invoice_sent_count,
            (SELECT a.pack_name FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
              ORDER BY a.created_at DESC LIMIT 1) AS pack_name,
            (SELECT a.amount_due FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
              ORDER BY a.created_at DESC LIMIT 1) AS amount_due,
            p.is_blocked, p.assigned_at, p.primary_phone, p.primary_email,
            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                     p.company_name, p.contact_name, p.primary_email) AS name,
            -- Für den Handlungshinweis bei abgebrochenen Anträgen
            (SELECT a.status FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
              ORDER BY a.created_at DESC LIMIT 1) AS letzter_status,
            -- Ziel für Schreibvorgänge in den Kontaktverlauf
            (SELECT a.ref FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
              ORDER BY a.created_at DESC LIMIT 1) AS schreib_ref,
            -- ── STAMMDATEN (Meldung 04.08.2026) ──────────────────────────────
            -- In „Heute" fehlten Adresse, Geburtsdatum und Zahlungsreferenz. Der
@@ -106,45 +106,45 @@ async function meinePerson(personId: number, agentId: number) {
            -- ergänzend aus der Bestellung: Was in der Person fehlt, steht oft in
            -- der Bestellung — und umgekehrt.
            COALESCE(NULLIF(p.street, ''), (SELECT NULLIF(a.street,'') FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.street,'') IS NOT NULL
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.street,'') IS NOT NULL
              ORDER BY a.created_at DESC LIMIT 1)) AS strasse,
            COALESCE(NULLIF(p.zip, ''), (SELECT NULLIF(a.zip,'') FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.zip,'') IS NOT NULL
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.zip,'') IS NOT NULL
              ORDER BY a.created_at DESC LIMIT 1)) AS plz,
            COALESCE(NULLIF(p.city, ''), (SELECT NULLIF(a.city,'') FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.city,'') IS NOT NULL
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.city,'') IS NOT NULL
              ORDER BY a.created_at DESC LIMIT 1)) AS ort,
            COALESCE(NULLIF(p.country, ''), (SELECT NULLIF(a.country,'') FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.country,'') IS NOT NULL
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.country,'') IS NOT NULL
              ORDER BY a.created_at DESC LIMIT 1)) AS country,
            COALESCE(p.birthdate, (SELECT a.birthdate FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.birthdate IS NOT NULL
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND a.birthdate IS NOT NULL
              ORDER BY a.created_at DESC LIMIT 1)) AS geburtsdatum,
            -- Telefon der Bestellung inkl. getrennter Ländervorwahl: genau die
            -- Vorwahl, die in primary_phone bei 2.058 Personen fehlt.
            (SELECT a.phone FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.phone,'') IS NOT NULL
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.phone,'') IS NOT NULL
              ORDER BY a.created_at DESC LIMIT 1) AS app_phone,
            (SELECT a.phone_country_code FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.phone,'') IS NOT NULL
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.phone,'') IS NOT NULL
              ORDER BY a.created_at DESC LIMIT 1) AS app_vorwahl,
            (SELECT NULLIF(a.contact_phone,'') FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.contact_phone,'') IS NOT NULL
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.contact_phone,'') IS NOT NULL
              ORDER BY a.created_at DESC LIMIT 1) AS app_contact_phone,
            -- Zahlung: Referenz, Status und Frist gehören auf die Karte, weil
            -- der Kunde am Telefon genau danach fragt.
            (SELECT a.payment_reference FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
              ORDER BY a.created_at DESC LIMIT 1) AS zahlungsreferenz,
            (SELECT a.payment_status FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
              ORDER BY a.created_at DESC LIMIT 1) AS zahlungsstatus,
            (SELECT a.payment_due_date FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
              ORDER BY a.created_at DESC LIMIT 1) AS zahlungsfrist,
            (SELECT COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,''))
              FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
              ORDER BY a.created_at DESC LIMIT 1) AS app_email
     FROM fiaon_persons p
     WHERE p.id = ${personId}
@@ -302,7 +302,7 @@ router.get("/agent/crm/dashboard", requireAgent, async (req: AgentRequest, res: 
                                        AND a.updated_at > NOW() - INTERVAL '30 days')::int AS bezahlt,
         count(DISTINCT p.id)::int AS betreut
       FROM fiaon_persons p
-      LEFT JOIN fiaon_applications a ON a.person_id = p.id AND a.merged_into IS NULL
+      LEFT JOIN fiaon_applications a ON a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
       WHERE p.assigned_agent_id = ${agentId} AND p.merged_into_person_id IS NULL
     `;
 
@@ -380,14 +380,14 @@ router.get("/agent/crm/kunden", requireAgent, async (req: AgentRequest, res: Res
              COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                       p.company_name, p.contact_name, p.primary_email) AS name,
              (SELECT a.status FROM fiaon_applications a
-               WHERE a.person_id = p.id AND a.merged_into IS NULL
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
                ORDER BY a.created_at DESC LIMIT 1) AS letzter_status,
              -- Paket und Betrag der jüngsten Bestellung für die Kartenzeile.
              (SELECT a.pack_name FROM fiaon_applications a
-               WHERE a.person_id = p.id AND a.merged_into IS NULL
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
                ORDER BY a.created_at DESC LIMIT 1) AS pack_name,
              (SELECT a.amount_due FROM fiaon_applications a
-               WHERE a.person_id = p.id AND a.merged_into IS NULL
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
                ORDER BY a.created_at DESC LIMIT 1) AS amount_due,
              (SELECT MAX(c.created_at) FROM fiaon_contact_log c
                JOIN fiaon_applications ap ON ap.ref = c.ref
@@ -397,25 +397,25 @@ router.get("/agent/crm/kunden", requireAgent, async (req: AgentRequest, res: Res
              -- Ländervorwahl — der gemeldete Fehler trat also genau auf der
              -- Liste auf, mit der die Agenten den ganzen Tag arbeiten.
              (SELECT a.phone FROM fiaon_applications a
-               WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.phone,'') IS NOT NULL
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.phone,'') IS NOT NULL
                ORDER BY a.created_at DESC LIMIT 1) AS app_phone,
              (SELECT a.phone_country_code FROM fiaon_applications a
-               WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.phone,'') IS NOT NULL
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.phone,'') IS NOT NULL
                ORDER BY a.created_at DESC LIMIT 1) AS app_vorwahl,
              (SELECT NULLIF(a.contact_phone,'') FROM fiaon_applications a
-               WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.contact_phone,'') IS NOT NULL
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.contact_phone,'') IS NOT NULL
                ORDER BY a.created_at DESC LIMIT 1) AS app_contact_phone,
              COALESCE(NULLIF(p.country,''), (SELECT NULLIF(a.country,'') FROM fiaon_applications a
-               WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.country,'') IS NOT NULL
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.country,'') IS NOT NULL
                ORDER BY a.created_at DESC LIMIT 1)) AS country,
              (SELECT a.payment_reference FROM fiaon_applications a
-               WHERE a.person_id = p.id AND a.merged_into IS NULL
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
                ORDER BY a.created_at DESC LIMIT 1) AS zahlungsreferenz,
              (SELECT a.payment_status FROM fiaon_applications a
-               WHERE a.person_id = p.id AND a.merged_into IS NULL
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
                ORDER BY a.created_at DESC LIMIT 1) AS zahlungsstatus,
              (SELECT a.ref FROM fiaon_applications a
-               WHERE a.person_id = p.id AND a.merged_into IS NULL
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
                ORDER BY a.created_at DESC LIMIT 1) AS schreib_ref
       FROM fiaon_persons p
       WHERE p.assigned_agent_id = ${agentId}
@@ -447,6 +447,18 @@ router.get("/agent/crm/kunden", requireAgent, async (req: AgentRequest, res: Res
                       p.company_name, p.contact_name, '') ILIKE '%' || ${q}::text || '%'
           OR COALESCE(p.primary_email, '') ILIKE '%' || ${q}::text || '%'
           OR COALESCE(p.primary_phone, '') ILIKE '%' || ${q}::text || '%'
+          -- Auch über frühere Angaben suchen. Nach einem Zusammenschluss steht
+          -- die alte E-Mail des Kunden nur noch in fiaon_person_aliases — ohne
+          -- diesen Zweig wäre der Kunde unter der Adresse, die er selbst nennt,
+          -- nicht mehr zu finden. Genau das ist der Datenverlust, den das
+          -- Zusammenführen NICHT verursachen darf.
+          OR EXISTS (
+            SELECT 1 FROM fiaon_person_aliases al
+            WHERE al.person_id = p.id
+              AND (al.value_norm ILIKE '%' || ${q}::text || '%'
+                   OR COALESCE(al.value_raw, '') ILIKE '%' || ${q}::text || '%'
+                   OR COALESCE(al.feld_wert, '') ILIKE '%' || ${q}::text || '%')
+          )
         )
       ORDER BY
         p.is_blocked ASC,
@@ -492,11 +504,16 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
       LIMIT 100
     `;
 
+    // Archivierte Bestellungen bleiben in der AKTE sichtbar (sortiert nach
+    // hinten) — nur aus Arbeits- und Zahlungslisten sind sie heraus. Eine Akte,
+    // die eine Bestellung verschweigt, ist der Grund für Rückfragen wie „ich
+    // hatte doch dreimal bestellt".
     const bestellungen = await sqlPool`
-      SELECT ref, payment_reference, pack_name, amount_due, payment_status, created_at
+      SELECT ref, payment_reference, pack_name, amount_due, payment_status, created_at,
+             archived_at, archived_reason, archived_note
       FROM fiaon_applications
       WHERE person_id = ${personId} AND merged_into IS NULL
-      ORDER BY created_at DESC
+      ORDER BY (archived_at IS NOT NULL), created_at DESC
     `;
 
     res.json({
@@ -520,6 +537,9 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
         betragCents: b.amount_due != null ? Math.round(Number(b.amount_due) * 100) : null,
         status: b.payment_status,
         am: b.created_at,
+        archiviertAm: b.archived_at ?? null,
+        archivGrund: b.archived_reason ?? null,
+        archivNotiz: b.archived_note ?? null,
       })),
     });
   } catch (err) {
@@ -889,6 +909,52 @@ router.post("/agent/crm/kunden/:personId/rechnung", requireAgent, async (req: Ag
     });
   } catch (err) {
     console.error("[AGENT-KUNDEN] rechnung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// POST /agent/crm/kunden/:personId/testeintrag-melden
+//
+// Der von Agenten gemeldete Fake-Account gehört ins Archiv — aber nicht durch
+// den Agenten selbst. Wer seine eigene Arbeitsliste kürzen kann, hat einen
+// Anreiz, unbequeme Kunden zu „Testeinträgen" zu erklären. Die Meldung geht als
+// Aufgabe an die Vertriebsleitung; die entscheidet und archiviert.
+// ───────────────────────────────────────────────────────────────────────────
+router.post("/agent/crm/kunden/:personId/testeintrag-melden", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const p = await meinePerson(personId, req.agent!.id);
+    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
+    // Der Agent meldet eine BESTELLUNG. Ohne Angabe die jüngste nicht
+    // archivierte — das ist die, die er in der Liste vor sich hat.
+    const ref = req.body?.ref ? String(req.body.ref) : null;
+    const [b] = ref
+      ? await sqlPool`SELECT ref FROM fiaon_applications WHERE ref = ${ref} AND person_id = ${personId}`
+      : await sqlPool`
+          SELECT ref FROM fiaon_applications
+          WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
+          ORDER BY created_at DESC LIMIT 1
+        `;
+    if (!b) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
+
+    const { meldeTesteintrag, ArchivVerboten } = await import("../lib/fiaon-antrag-archiv");
+    try {
+      await meldeTesteintrag(String(b.ref), String(req.body?.begruendung ?? ""), {
+        id: req.agent!.id, name: req.agent!.name,
+      });
+    } catch (err: any) {
+      if (err instanceof ArchivVerboten) return res.status(400).json({ ok: false, error: err.message });
+      throw err;
+    }
+    res.json({
+      ok: true,
+      meldung: "Gemeldet. Die Vertriebsleitung prüft und archiviert, wenn es stimmt — "
+        + "der Kunde bleibt bis dahin in deiner Liste.",
+    });
+  } catch (err) {
+    console.error("[AGENT-KUNDEN] testeintrag-melden:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

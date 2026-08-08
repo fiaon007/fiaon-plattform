@@ -159,7 +159,17 @@ async function ensurePaymentColumns(): Promise<void> {
     ADD COLUMN IF NOT EXISTS dismissed_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS dismissed_by INTEGER,
     ADD COLUMN IF NOT EXISTS dismissed_reason VARCHAR,
-    ADD COLUMN IF NOT EXISTS number_corrected_at TIMESTAMPTZ;
+    ADD COLUMN IF NOT EXISTS number_corrected_at TIMESTAMPTZ,
+    -- Archiv (Teil 3): die „Lösch"-Funktion, die keine ist. Eine archivierte
+    -- Bestellung verschwindet aus Arbeitslisten und bleibt in der Akte lesbar.
+    -- Doppelt zu db/migrations/034 — die Spalten müssen auch dann existieren,
+    -- wenn der Prozess vor dem Migrationslauf hochkommt (wie bei allen
+    -- Zahlungsspalten hier).
+    ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS archived_reason TEXT,
+    ADD COLUMN IF NOT EXISTS archived_note TEXT,
+    ADD COLUMN IF NOT EXISTS archived_by TEXT,
+    ADD COLUMN IF NOT EXISTS archived_by_agent_id INTEGER;
   `;
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_invoice_no_idx ON fiaon_applications(invoice_number)`;
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_payment_ref_idx ON fiaon_applications(payment_reference)`;
@@ -1430,9 +1440,16 @@ router.post("/admin/payments/:paymentRef/reactivate", async (req, res) => {
 // Bestellung, danach täglich im Versandfenster (Default 10:00–11:00 Uhr
 // Europe/Berlin, NIE außerhalb 08:00–20:00). Kanalübergreifende Dedupe:
 // max. 1 Reminder pro 20h via last_reminder_at (Engine + Bulk + Agent-
-// Mail zählen zusammen). Obergrenze MAX_REMINDERS (Default 6); danach
-// läuft die Bestellung regulär in 'expired' (payment_due_date, 7 Tage
-// = MAX_REMINDERS + 1). paid/expired stoppen sofort (Status-Filter).
+// Mail zählen zusammen). Obergrenze MAX_REMINDERS (Default 6) — das ist
+// eine Mengenbremse gegen Belästigung, keine Abschaltung: Der Kunde bleibt
+// danach in jeder Arbeits- und Zahlungsliste und ist ein Anruf-Kandidat.
+//
+// Seit dem 08.08.2026 beendet der Fristablauf die Erinnerungen NICHT mehr:
+// Es wird kein 'expired' mehr geschrieben, die Bestellung bleibt
+// 'pending_payment' und läuft regulär bis zur Obergrenze weiter (Teil 0).
+// paid stoppt sofort; die 196 Altbestand-Zeilen mit 'expired' bleiben aus
+// dem Versand heraus, damit aus der Umstellung keine Mail-Welle an lange
+// zurückliegende Bestellungen wird.
 
 /** Aktuelle Stunde in Europe/Berlin (0–23). formatToParts, weil format()
  *  je nach Locale Text anhängt (de-DE: „14 Uhr“ → NaN). */
@@ -1459,6 +1476,10 @@ async function claimReminderBatch(limit: number, opts: { requireAge24h: boolean;
       SELECT fa.ref FROM fiaon_applications fa
       WHERE fa.payment_status IN ('pending_payment', 'claimed_paid')
         AND fa.payment_reference IS NOT NULL AND fa.merged_into IS NULL
+        -- Archivierte Bestellungen bekommen nichts mehr: Eine Erinnerung an
+        -- einen Testeintrag oder eine doppelt angelegte Bestellung ist eine
+        -- Mail, die der Kunde nicht versteht.
+        AND fa.archived_at IS NULL
         AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL
         AND (fa.last_reminder_at IS NULL OR fa.last_reminder_at < NOW() - INTERVAL '20 hours')
         AND (${!opts.requireAge24h} OR COALESCE(fa.payment_email_sent_at, fa.created_at) < NOW() - INTERVAL '24 hours')
@@ -1488,18 +1509,35 @@ function reminderPayload(r: any) {
   };
 }
 
-async function runPaymentReminders(opts: { force?: boolean } = {}): Promise<{ expired: number; remindersSent: number; skippedWindow: boolean }> {
+async function runPaymentReminders(opts: { force?: boolean } = {}): Promise<{ expired: number; fristAbgelaufen: number; remindersSent: number; skippedWindow: boolean }> {
   await ensurePaymentColumns();
-  const result = { expired: 0, remindersSent: 0, skippedWindow: false };
+  const result = { expired: 0, fristAbgelaufen: 0, remindersSent: 0, skippedWindow: false };
 
-  // 1) Abgelaufene Bestellungen schließen (läuft IMMER, unabhängig vom Versandfenster)
-  const expiredRows = await sqlPool`
-    UPDATE fiaon_applications SET payment_status = 'expired', updated_at = NOW()
-    WHERE payment_status = 'pending_payment' AND payment_due_date < NOW()
-    RETURNING payment_reference
+  // 1) Abgelaufene Fristen ZÄHLEN — nicht mehr schreiben.
+  //
+  // Bis zum 08.08.2026 stand hier ein UPDATE auf payment_status='expired'.
+  // Das war die einzige Stelle im Haus, an der sich ein Kunde ohne jede
+  // menschliche Entscheidung selbst abgeschaltet hat: Mit 'expired' fiel er aus
+  // der Erinnerungs-Engine (Status-Filter in claimReminderBatch) und wurde in
+  // Anzeigen zum Altfall. Ein Kunde, der zahlen will und drei Tage zu spät
+  // dran ist, ist ein ANRUF — kein Abfall.
+  //
+  // „Frist abgelaufen" ist seither ein ETIKETT, das aus payment_due_date
+  // abgeleitet wird (fristAbgelaufenSql in lib/fiaon-bestand-filter.ts). Es
+  // färbt Anzeigen und speist Filter, ändert aber keinen Zustand. Die 196
+  // Altbestand-Zeilen mit 'expired' bleiben unangetastet und werden von
+  // demselben Etikett weiterhin erfasst.
+  const [frist] = await sqlPool`
+    SELECT COUNT(*)::int AS n
+    FROM fiaon_applications
+    WHERE payment_status = 'pending_payment'
+      AND payment_due_date IS NOT NULL AND payment_due_date < NOW()
+      AND merged_into IS NULL AND archived_at IS NULL
   `;
-  result.expired = expiredRows.length;
-  if (expiredRows.length) console.log(`[FIAON-PAYMENT] Abgelaufen: ${expiredRows.map((r: any) => r.payment_reference).join(", ")}`);
+  result.fristAbgelaufen = Number(frist?.n || 0);
+  if (result.fristAbgelaufen > 0) {
+    console.log(`[FIAON-PAYMENT] Frist abgelaufen (Etikett, kein Zustand): ${result.fristAbgelaufen} Bestellung(en) — bleiben in Arbeits- und Zahlungslisten`);
+  }
 
   // 2) Tägliche Reminder-Engine (Not-Aus + Versandfenster aus Admin-Einstellungen)
   const { getSettings } = await import("./fiaon-agent");
@@ -1580,6 +1618,10 @@ router.get("/admin/payments/bulk-reminder/preview", async (_req, res) => {
       FROM fiaon_applications fa
       WHERE fa.payment_status IN ('pending_payment', 'claimed_paid')
         AND fa.payment_reference IS NOT NULL AND fa.merged_into IS NULL
+        -- Archivierte Bestellungen bekommen nichts mehr: Eine Erinnerung an
+        -- einen Testeintrag oder eine doppelt angelegte Bestellung ist eine
+        -- Mail, die der Kunde nicht versteht.
+        AND fa.archived_at IS NULL
         AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL
         -- Paket AD2: E-Mails mit bezahlter Bestellung sind ausgeschlossen (wie Engine)
         AND (fa.allow_reminders_despite_paid = TRUE OR fa.email IS NULL OR TRIM(fa.email) = '' OR NOT EXISTS (
@@ -1613,6 +1655,10 @@ router.post("/admin/payments/bulk-reminder/start", async (_req, res) => {
       SELECT COUNT(*) AS eligible FROM fiaon_applications fa
       WHERE fa.payment_status IN ('pending_payment', 'claimed_paid')
         AND fa.payment_reference IS NOT NULL AND fa.merged_into IS NULL
+        -- Archivierte Bestellungen bekommen nichts mehr: Eine Erinnerung an
+        -- einen Testeintrag oder eine doppelt angelegte Bestellung ist eine
+        -- Mail, die der Kunde nicht versteht.
+        AND fa.archived_at IS NULL
         AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL
         AND (fa.last_reminder_at IS NULL OR fa.last_reminder_at < NOW() - INTERVAL '20 hours')
         -- Paket AD2: E-Mails mit bezahlter Bestellung sind ausgeschlossen (wie Engine)
@@ -1956,9 +2002,13 @@ router.get("/admin/duplicates/groups", async (_req, res) => {
     // Nummer). Wir hängen passende offene Leads an bestehende Gruppen an UND
     // erzeugen neue „Lead ↔ Antrag"-Gruppen, wo eine Person als Lead UND als
     // bezahlter/aktiver Kunde existiert. Read-only — reine Sichtbarkeit.
+    // `created_at` gibt es in fiaon_leads nicht — die Spalte heißt `erstellt_am`.
+    // Diese Abfrage warf deshalb bei JEDEM Aufruf einen 500er, und der Bereich
+    // „Bestellungen" in /admin/dubletten war unbenutzbar (gefunden am
+    // 08.08.2026 beim Bau des Personen-Arbeitsplatzes).
     const openLeads = await sqlPool`
       SELECT id, vorname, nachname, email, telefon, status, assigned_agent_id,
-             converted_order_id, in_sequence, created_at, erstellt_am
+             converted_order_id, in_sequence, erstellt_am
       FROM fiaon_leads
       WHERE status IN ('neu','kontaktiert','nicht_erreichbar')
         AND converted_order_id IS NULL
@@ -3131,6 +3181,21 @@ router.patch("/admin/applications/:ref/review", async (req, res) => {
         updated_at                 = NOW()
       WHERE ref = ${ref}
     `;
+
+    // Ein Kontozustand ist eine Entscheidung — also braucht er einen
+    // Verantwortlichen. Vorher stand eine Sperre nur in der Spalte, ohne Spur:
+    // Beim Reaktivierungslauf (Teil 0) war deshalb bei zwei gesperrten Konten
+    // nicht mehr feststellbar, ob ein Mensch das entschieden hatte oder eine
+    // Automatik. Ab jetzt ist das für jede künftige Sperrung beantwortbar.
+    if (accountStatus) {
+      await sqlPool`
+        INSERT INTO fiaon_agent_events (agent_id, type, meta, actor, reason)
+        VALUES (NULL, 'konto_status_geaendert',
+                ${JSON.stringify({ ref, accountStatus, quelle: "admin_review" })},
+                'Betreiber (Admin-Prüfung)',
+                ${`Kontozustand auf '${accountStatus}' gesetzt`})
+      `.catch((e) => console.error("[FIAON-REVIEW] Protokoll:", e));
+    }
 
     console.log(`[FIAON-REVIEW] ${ref} → kycStatus=${kycStatus} accountStatus=${accountStatus} reuploadBank=${setReuploadBank} reuploadId=${setReuploadId}`);
     res.json({ ok: true });

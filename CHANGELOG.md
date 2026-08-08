@@ -3,6 +3,104 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 08.08.2026 — Datenfundament: kein Konto schaltet sich mehr selbst ab, und Dubletten sind endlich entscheidbar
+
+Zwei Dinge haben die Kartei unglaubwürdig gemacht. Erstens standen Menschen doppelt im Bestand — „Axel Conrad" als Person 3775 **und** 4492, „Mario Fricker" neunmal, und ein Antrag lief unter „Magdalena", gehörte aber zu Konstantinos Nikoloudis. Der Dubletten-Erkenner fand diese Fälle seit Wochen; es gab nur kein Werkzeug, mit dem ein Mensch einen Zusammenschluss **entscheiden und ausführen** kann. Zweitens haben sich Konten von selbst abgeschaltet: Ein Kunde, der bezahlt hatte, war gesperrt, und niemand konnte sagen, wer das entschieden hatte.
+
+### Teil 0 — Eine Deaktivierung gibt es nur durch Menschenhand
+
+**Die Automatik ist abgestellt.** In `runPaymentReminders` (`server/routes/fiaon-antrag.ts`) stand ein stündliches `UPDATE … payment_status = 'expired'`. Es war die einzige Stelle im Haus, an der sich ein Kunde ohne jede menschliche Entscheidung selbst abgeschaltet hat: Mit `expired` fiel er aus der Erinnerungs-Engine (Status-Filter in `claimReminderBatch`) und wurde in jeder Anzeige zum Altfall. Jetzt wird an dieser Stelle nur noch **gezählt**.
+
+**„Frist abgelaufen" ist ein Etikett, kein Zustand.** Es kommt aus `fristAbgelaufenSql` in der neuen Datei `server/lib/fiaon-bestand-filter.ts` und erfasst zwei Formen: den Altbestand (`payment_status='expired'`, 196 Zeilen, unangetastet) **und** die abgeleitete Form (offene Bestellung, Frist in der Vergangenheit). Das Etikett färbt Anzeigen und speist Filter — es ändert keinen Kontozustand, entfernt niemanden aus einer Liste und stoppt keine Erinnerung. Ein Kunde mit abgelaufener Frist ist ein Anruf, kein Abfall.
+
+**Vollständige Liste der geprüften Abschalt-Stellen** (Auftrag: jede benennen):
+
+| Stelle | Auslöser | Zustand | Bewertung |
+| --- | --- | --- | --- |
+| `fiaon-antrag.ts` `runPaymentReminders` | `setInterval`, stündlich | `payment_status='expired'` | **war Automatik → entfernt**, zählt nur noch |
+| `fiaon-antrag.ts` `supersedeSisterOrders` | Zahlungsbuchung durch einen Menschen | `payment_status='superseded'` | bleibt: ausgelöst durch eine Buchung, kein Fristablauf; berührt kein Konto. Produkt-Hygiene ist Teil B |
+| `fiaon-antrag.ts` `/admin/applications/:ref/gdpr-delete` | Admin, mit Bestätigung | `account_status='suspended'` | bleibt: dokumentierte Entscheidung, rechtlich geboten |
+| `fiaon-antrag.ts` `/admin/payments/:paymentRef/cancel` | Admin | `payment_status='cancelled'` | bleibt: Entscheidung eines Menschen |
+| `fiaon-antrag.ts` `/admin/applications/:ref/review` | Admin | `account_status` frei setzbar | bleibt — **und wird jetzt protokolliert** (siehe unten) |
+| `fiaon-abo.ts` Abo-Motor | `setInterval`, stündlich | sperrt **nichts** | unverändert: mahnt und legt nach Stufe 3 eine Entscheidung vor |
+| `fiaon-reconcile.ts` | Zahlungseingang | `account_status` nur `… ELSE 'active'` | unverändert: öffnet Konten, schließt keine |
+| Lead-/CSV-Importe, `wise-csv-import.ts` | Script | keiner | unverändert: schreiben keine Kontozustände |
+| `fiaon-kontakt-ergebnis.ts`, `fiaon-agent.ts` | Agent dokumentiert „Kunde will nicht" | `is_blocked = TRUE` | bleibt: eine dokumentierte Entscheidung eines Menschen, keine Automatik |
+
+**Jede Sperrung bekommt ab jetzt einen Verantwortlichen.** Der Admin-Prüfpfad schreibt `konto_status_geaendert` nach `fiaon_agent_events`. Vorher stand eine Sperre nur in der Spalte — deshalb war beim Reaktivierungslauf bei zwei Konten nicht mehr feststellbar, ob ein Mensch oder eine Automatik sie zugemacht hatte. Damit das überhaupt möglich ist, durfte `fiaon_agent_events.agent_id` leer sein (Migration 035): Das Protokollbuch konnte bis dahin nur festhalten, was ein **Agent** tut — nicht, was der Betreiber tut.
+
+**Reaktivierungslauf `scripts/reaktivierung.ts`.** Erkennungsregel: gesperrt/inaktiv **ohne** zugehörigen Admin-Protokolleintrag. Vorschau zuerst (`reports/reaktivierung-vorschau.csv`), Ausführung nur mit `--schreiben`, **keine Mails**. Gefunden: 4 gesperrte Bestellungen und 2 gesperrte Personen. **Reaktiviert: 2 Bestellungen und 1 Person** — darunter ein Kunde, der **bezahlt hatte und trotzdem ausgesperrt war** (Konto steht wieder auf `active`). Bewusst gesperrt geblieben sind drei Fälle: eine DSGVO-Löschung (das *ist* die dokumentierte Entscheidung) und zwei interne Testkonten (ein erfundener Kunde gehört nicht in echte Arbeitslisten). Jede Öffnung steht als `konto_reaktiviert` im Protokoll.
+
+### Teil 1 — Die Merge-Maschine: ein Zusammenschluss darf nichts verlieren
+
+`server/lib/fiaon-person-merge.ts`, `personenZusammenfuehren(verliererId, gewinnerId, entscheidungen, akteur)`:
+
+**Eine Transaktion um alles.** Schlägt ein Schritt fehl, ist nichts passiert. Der schlimmste Zustand der früheren Versuche war der halb zusammengeführte Kunde, der in zwei Listen verschieden aussah.
+
+**Die Zählprobe ist Teil der Funktion, nicht ein Test daneben.** Vor dem Umhängen werden Bestellungen, Verlaufseinträge, Termine, Zusagen, Wiedervorlagen, Provisionen, Leads und Lead-Verlauf beider Personen gezählt, danach am Gewinner erneut. Stimmt die Summe nicht, **bricht der Merge ab** und ändert nichts. Die Funktion darf nicht behaupten können, sie habe nichts verloren — sie muss es bei jedem einzelnen Aufruf belegen. (Der Verlauf hängt technisch an der Bestellung und wandert „automatisch" mit. Genau diese Annahme wird hier geprüft statt geglaubt.)
+
+**Kein Wert wird überschrieben und vergessen.** Der Gewinner behält seine Stammdaten; jeder abweichende Wert des Verlierers wird in `fiaon_person_aliases` gesichert (neu: `quelle_person_id`, `feld_wert`). Wählt ein Mensch ausdrücklich den Wert des Verlierers, wird der bisherige Wert des **Gewinners** gesichert — sonst hätte die Feldwahl selbst einen Datenverlust zur Folge. **Die Suche trifft ab jetzt auch über Aliase**: Agentenliste, Vertriebsliste und Admin-Suche wurden angeschlossen; sie taten es vorher an keiner Stelle. Ohne diesen Schritt wäre jeder Zusammenschluss ein stiller Verlust — wer die alte Adresse eines Kunden eingibt, hätte ihn nicht mehr gefunden.
+
+**Zuständigkeit ist eine Geldfrage.** Hat nur eine Seite einen dokumentierten Betreuer (`betreuung_seit`), gewinnt der. Haben beide **verschiedene**, wird der Merge **abgelehnt**, bis ein Mensch ausdrücklich wählt — die Wahl wird mit Namen protokolliert. 14 der offenen Kandidaten sind solche Fälle.
+
+**Der Verlierer wird Wegweiser, nicht Leiche.** `merged_into_person_id` zeigt auf den Gewinner, nichts wird gelöscht. Geprüft und ergänzt wurde, dass ihn wirklich **jede** Liste herausfiltert: Agentenliste, Vertrieb, Admin-Suche, Erstverteilung, Nachschub, Auto-Assign, Follow-up-Tageslauf. Zwei Lücken sind dabei aufgefallen und geschlossen: Die **Admin-Suche** lieferte Bestellungen von Wegweisern (der Klick öffnete die falsche Akte), und **Sperren/Entsperren** in der Vertriebsleitung funktionierte auf zusammengeführten Personen — eine Änderung an einem Datensatz, den niemand mehr sieht.
+
+**Verboten, jeweils mit Klartext-Meldung:** Selbst-Merge, Merge auf eine bereits gemergte Person, Merge eines Wegweisers, Merge zwischen Testkonto und echtem Kunden.
+
+### Teil 2 — Der Arbeitsplatz `/admin/dubletten` (und derselbe im Vertrieb)
+
+Die Seite hat jetzt zwei Bereiche: **Personen** (Menschen vereinen, neu) und **Bestellungen** (Antragszeilen aufräumen, wie bisher). Sie bleiben getrennt, weil sie verschiedene Dinge tun; ein gemeinsamer Knopf wäre der schnellste Weg zurück zum Datenverlust.
+
+**Sortiert nach Sicherheit**, nicht nach Datum: (a) gleiche Rufnummer, (b) gleiche E-Mail, (c) ähnlicher Name + gleiches Geburtsdatum, (d) nur ähnlicher Name — und diese unterste Stufe ist ausdrücklich als **„Vermutung"** beschriftet. **E-Mail-Gleichheit ist kein Autopilot**: Im Bestand trug eine Adresse zwei Menschen. Jeder Merge ist eine Mensch-Entscheidung; es gibt bewusst keinen „alle zusammenführen"-Knopf.
+
+**Gegenüberstellung:** alle Felder nebeneinander, Abweichungen markiert, darunter beide Bestellungslisten und die letzten fünf Verlaufseinträge je Seite. Pro abweichendem Feld ein Umschalter; Vorgabe ist die Seite mit dem **jüngeren dokumentierten Kontakt** (wer zuletzt gesprochen hat, hat eher den aktuellen Stand). Vor dem Ausführen eine Rückfrage in Klartext: was passiert, dass nichts verloren geht, und dass bei einer nicht stimmenden Zählprobe abgebrochen wird. Knopf **„Keine Dublette"** hakt ein Paar dauerhaft ab (`fiaon_dubletten_entschieden`) — rücknehmbar, ohne Hard-Delete. Der Zähler im Admin-Menü zählt Personen- und Bestellungs-Dubletten zusammen.
+
+**Die Vertriebsleitung bekommt dieselbe Maschine** als fünften Bereich in `/agent/vertrieb`, hinter `nurLeitung` + `nurMitZusage`, mit denselben Protokollen. Sie telefoniert mit den Kunden und ist die Einzige, die „Axel Conrad zweimal" wirklich beurteilen kann. Archivieren darf sie, **zurückholen** bleibt beim Betreiber.
+
+**Zwei Dinge, die beim Bauen auffielen und geändert wurden:**
+
+*Die Kandidatenliste verlangte 1 740 Entscheidungen für 359 Sachverhalte.* Neun identische „Mario Fricker" ergeben paarweise 36 Vorschläge — 35 davon lösen sich von selbst, sobald der erste getroffen ist. Jetzt bekommt eine Gruppe einen Anker und je einen Vorschlag gegen die anderen (Kette statt Kreuz); ausgelassene Paare bleiben auf **jeder** Stufe ausgelassen, sonst wären sie über „ähnlicher Name" wieder hereingekommen. Dazu fallen interne Testdatensätze heraus — 32 „Dev User" teilen eine Platzhalternummer und hätten allein 496 Vorschläge erzeugt. Ergebnis: **1 104 statt 1 740**, bei gleicher Abdeckung.
+
+*Der Zähler im Menü hätte das Dashboard lahmgelegt.* Die Suche liest den ganzen Personenbestand (rund vier Sekunden); der Zähler fragt im Minutentakt. Jetzt liest er nur den Zwischenspeicher und wärmt im Hintergrund — dieselbe Quelle wie die Liste, also keine zweite Zählregel, nur bis zu zwei Minuten alt.
+
+### Teil 3 — Das Antrags-Archiv: die „Lösch"-Funktion, die keine ist
+
+`fiaon_applications` hat `archived_at`, `archived_reason`, `archived_note`, `archived_by` (Migration 034). Eine archivierte Bestellung verschwindet aus Arbeitslisten, Verteilung, Erinnerungen, Zahlungslisten und Kennzahlen — und **bleibt in der Akte sichtbar**, mit Grund, Zeitpunkt und Namen. Der Filter sitzt an einer zentralen Stelle (`antragBasisSql` in `tier.ts`, dazu Agentenliste, Vertriebsliste, Zahlungsliste, Follow-up, Erstverteilung, Erinnerungs-Engine).
+
+**Nicht archivierbar: bezahlte Bestellungen und Bestellungen mit gebuchter Provision.** Der Knopf ist dann gesperrt, mit der Begründung als Text daneben — sonst wäre das Archiv ein Werkzeug, um Umsatz zu verstecken oder den Anspruch eines Agenten stillzulegen. Grund ist Pflicht („Doppelt angelegt", „Testeintrag", „Kunde widerrufen", „Sonstiges" + Freitext); bei „Sonstiges" auch die Erklärung. Wiederherstellen nur Admin.
+
+**Agenten melden, statt selbst zu archivieren.** In der Kundenliste steht „Kein echter Kunde? Als Testeintrag melden" — die Meldung wird eine Aufgabe für die Vertriebsleitung. Wer seine eigene Arbeitsliste kürzen kann, hat einen Anreiz, unbequeme Kunden zu „Testeinträgen" zu erklären.
+
+### Teil 4 — Der Aufräum-Lauf
+
+`scripts/dubletten-aufraeumen.ts` schreibt `reports/dubletten-kandidaten.csv` und führt **nichts** zusammen, auch nicht bei gleicher Rufnummer. Gefunden am 08.08.2026:
+
+| Stufe | Paare |
+| --- | --- |
+| a) Gleiche Rufnummer | 604 |
+| b) Gleiche E-Mail | 1 |
+| c) Ähnlicher Name + gleiches Geburtsdatum | 67 |
+| d) Nur ähnlicher Name (Vermutung) | 432 |
+| **Gesamt** | **1 104** |
+| davon mit bezahlter Bestellung | 244 |
+| davon mit zwei verschiedenen Betreuern (verlangt eine Wahl) | 14 |
+
+Die CSV enthält außerdem die **55 bereits zusammengeführten Paare** als Nachweis, dass die Regeln greifen — namentlich „Axel Conrad" (3775/4492, erkannt über die Rufnummer; das Paar ist erledigt, 4492 zeigt auf 3775). **Ein Fall fällt dabei durch:** 3158/5335 („Anna Bauer") wurde früher zusammengeführt, würde von den heutigen Regeln aber **nicht** gefunden — verschiedene Nummer, verschiedene E-Mail, Name zu unterschiedlich. Das ist eine bekannte Lücke, keine stille.
+
+### Prüfstand
+
+`scripts/pruef-merge.ts` — **94 Prüfungen, alle grün.** Der Lauf läuft in **einer Transaktion, die am Ende zurückgerollt wird**: Es wird nie etwas geschrieben, also gibt es auch keine Testzeilen aufzuräumen (beim letzten Mal blieben Reste liegen). Geprüft werden Zählprobe, Alias-Sicherung samt Auffindbarkeit über die Agentensuche, das Verschwinden des Verlierers aus **jeder** Liste einzeln, alle Verbote, die Feldwahl, das Archiv samt Sperren und Wiederherstellen, und Teil 0 (Fristablauf ändert keinen Kontozustand, Kunde bleibt in Agentenliste **und** Zahlungsliste). Dazu Quelltext-Prüfungen: ob die Bedingungen wirklich in den Abfragen der Anwendung stehen — eine dynamische Prüfung, die die Bedingung selbst mitbringt, würde auch bestehen, wenn sie in der Anwendung fehlt.
+
+**Zwei Fehler hat der Prüfstand gefunden, bevor sie jemand anderes gefunden hat:** Das Protokollbuch verlangte eine Agenten-ID (Migration 035), und die Kandidatensuche unterdrückte ein zurückgenommenes „Keine Dublette" für immer.
+
+### Zwei Altlasten, die dabei aufgefallen und behoben sind
+
+*Der Bereich „Bestellungen" in `/admin/dubletten` war unbenutzbar.* `/admin/duplicates/groups` fragte `fiaon_leads.created_at` ab — die Spalte heißt `erstellt_am`. Jeder Aufruf endete mit einem 500er.
+
+*Nicht behoben, nur benannt:* `/admin/hub/badges` braucht kalt rund zehn Sekunden. Das war vorher genauso (nachgemessen) und hat mit dieser Änderung nichts zu tun — es gehört auf die Liste.
+
+**Zu finden:** `server/lib/fiaon-person-merge.ts`, `server/lib/fiaon-dubletten-kandidaten.ts`, `server/lib/fiaon-antrag-archiv.ts`, `server/lib/fiaon-bestand-filter.ts`, `server/routes/fiaon-dubletten.ts`, `client/src/components/admin/DublettenArbeitsplatz.tsx`, `client/src/components/admin/ArchivDialog.tsx`, `db/migrations/034_merge_archiv_dubletten.sql`, `035_agent_events_ohne_agent.sql`. Läufe: `scripts/reaktivierung.ts`, `scripts/dubletten-aufraeumen.ts`, Prüfstand `scripts/pruef-merge.ts`.
+
 ## 06.08.2026 — Vertriebsleitung kann Zahlungen buchen, Unterlagen und Zugänge prüfen
 
 Gemeldet: *„Damit ich Vertrieblern bei Fragen und kleineren Kundenproblemen direkt helfen kann, ohne dass alles bei dir landet."* Drei Fragen kamen täglich beim Betreiber an: Ist das Geld da? Welche Unterlagen fehlen? Warum kommt der Kunde nicht ins Konto?

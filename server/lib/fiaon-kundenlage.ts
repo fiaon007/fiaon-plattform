@@ -27,6 +27,7 @@
 // einem Datenleck mit Anlauf.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
+import { fristAbgelaufenSql, nichtArchiviertSql, offeneZahlungSql } from "./fiaon-bestand-filter";
 
 export interface ZahlungsLage {
   ref: string | null;
@@ -273,23 +274,25 @@ export async function serviceZahlen(): Promise<{
   gemeldet: number; fristAbgelaufen: number; offeneZahlungen: number;
   dokumenteFehlen: number; zugangOffen: number; bankOffen: number;
 }> {
-  const [z] = await sqlPool`
+  // „Frist abgelaufen" kommt aus fristAbgelaufenSql — der einen Definition im
+  // Haus (lib/fiaon-bestand-filter.ts). Sie umfasst den Altbestand
+  // (payment_status='expired') UND die abgeleitete Form (offene Bestellung mit
+  // Frist in der Vergangenheit). Seit dem 08.08.2026 wird 'expired' nicht mehr
+  // geschrieben; ohne die abgeleitete Form würde diese Zahl langsam einfrieren
+  // und wieder das zeigen, was am 06.08. schon einmal auseinanderlief.
+  const [z] = await sqlPool.unsafe(`
     SELECT
       COUNT(*) FILTER (WHERE payment_status = 'claimed_paid')::int AS gemeldet,
-      -- „Frist abgelaufen" ist payment_status='expired' — genau so entscheidet es
-      -- auch die Tier-Logik (rangSql in tier.ts). Zuerst stand hier
-      -- „pending_payment mit Frist in der Vergangenheit": Das ergab 0, während die
-      -- Kundenliste 186 solche Fälle zeigte. Zwei Definitionen für dasselbe Wort
-      -- sind schlimmer als eine fehlende Zahl.
-      COUNT(*) FILTER (WHERE payment_status = 'expired')::int AS frist_abgelaufen,
-      COUNT(*) FILTER (WHERE payment_status IN ('pending_payment', 'claimed_paid', 'expired'))::int AS offene_zahlungen,
+      COUNT(*) FILTER (WHERE ${fristAbgelaufenSql("fiaon_applications")})::int AS frist_abgelaufen,
+      COUNT(*) FILTER (WHERE ${offeneZahlungSql("fiaon_applications")})::int AS offene_zahlungen,
       COUNT(*) FILTER (WHERE payment_status = 'paid' AND type <> 'schufa'
                          AND (id_card_pdf IS NULL OR bank_statement_pdf IS NULL))::int AS dokumente_fehlen,
       COUNT(*) FILTER (WHERE payment_status = 'paid'
                          AND (account_status IS DISTINCT FROM 'active' OR password IS NULL))::int AS zugang_offen
     FROM fiaon_applications
     WHERE merged_into IS NULL AND gdpr_deleted_at IS NULL
-  `;
+      AND ${nichtArchiviertSql("fiaon_applications")}
+  `);
   const [b] = await sqlPool`
     SELECT COUNT(*)::int AS offen FROM fiaon_bank_txns WHERE NOT applied
   `.catch(() => [{ offen: 0 }] as any[]);
@@ -309,20 +312,20 @@ const NAME = `COALESCE(
 
 /** Offene Zahlungen — die Liste, an der die Vertriebsleitung arbeitet. */
 export async function offeneZahlungen(filter: string, q: string): Promise<any[]> {
-  const wo: string[] = ["a.merged_into IS NULL", "a.gdpr_deleted_at IS NULL"];
+  const wo: string[] = ["a.merged_into IS NULL", "a.gdpr_deleted_at IS NULL", nichtArchiviertSql("a")];
   if (filter === "gemeldet") wo.push("a.payment_status = 'claimed_paid'");
-  else if (filter === "frist_abgelaufen") wo.push("a.payment_status = 'expired'");
-  else if (filter === "zusage_heute") wo.push("a.payment_status IN ('pending_payment','claimed_paid','expired')", "p.promised_payment_date = CURRENT_DATE");
+  else if (filter === "frist_abgelaufen") wo.push(fristAbgelaufenSql("a"));
+  else if (filter === "zusage_heute") wo.push(offeneZahlungSql("a"), "p.promised_payment_date = CURRENT_DATE");
   else if (filter === "bankeingang") {
     // Die interessantesten Fälle: Es liegt ein unverbuchter Bankeingang, dessen
     // Verwendungszweck auf diese Bestellung zeigt. Hier ist das Geld belegt und
     // es fehlt nur der Klick.
-    wo.push("a.payment_status IN ('pending_payment','claimed_paid','expired')");
+    wo.push(offeneZahlungSql("a"));
     wo.push(`EXISTS (SELECT 1 FROM fiaon_bank_txns t WHERE NOT t.applied AND (
                UPPER(COALESCE(t.reference_raw,'')) LIKE '%' || UPPER(COALESCE(a.payment_reference,'#')) || '%'
                OR UPPER(COALESCE(t.extracted_ref,'')) = UPPER(COALESCE(a.payment_reference,'#'))
                OR UPPER(COALESCE(t.matched_ref,'')) = UPPER(a.ref)))`);
-  } else wo.push("a.payment_status IN ('pending_payment','claimed_paid','expired')");
+  } else wo.push(offeneZahlungSql("a"));
 
   const suche = q.trim();
   return await sqlPool.unsafe(`

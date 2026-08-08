@@ -1,11 +1,24 @@
 import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, Users, Check, Phone, Mail, MapPin, Cake, Info, Undo2, AlertTriangle, UserCheck, Link2 } from "lucide-react";
+import DublettenArbeitsplatz from "@/components/admin/DublettenArbeitsplatz";
 
 // ════════════════════════════════════════════════════════════════════
-// /admin/dubletten — Dubletten zusammenführen (P3-A Nachtrag).
-// Zeigt Gruppen (E-Mail/Telefon) mit Konfidenz, Gewinner-Vorschlag und
-// Feld-/Anrufbarkeits-Vorschau. Merge per Klick (Soft-Merge, KEIN Löschen),
-// sofort rückgängig machbar (Undo per Batch). Läuft in der AdminShell.
+// /admin/dubletten — zwei Bereiche, zwei verschiedene Fragen.
+//
+// PERSONEN (08.08.2026, Teil 2): Derselbe MENSCH liegt zweimal im Bestand —
+// „Axel Conrad" als Person 3775 und 4492, „Mario Fricker" neunmal. Hier
+// entscheidet ein Mensch Paar für Paar, und die Merge-Maschine
+// (server/lib/fiaon-person-merge.ts) führt verlustfrei aus: eine Transaktion,
+// eine Zählprobe, jede abweichende Angabe wird gesichert.
+//
+// BESTELLUNGEN (vorher): Dieselbe Person hat mehrere ANTRAGSZEILEN mit gleicher
+// E-Mail oder Telefonnummer. Dieser Bereich füllt leere Felder des Gewinners
+// (Soft-Merge) und markiert ersetzte Doppelbestellungen — er fasst Personen
+// nicht an.
+//
+// Beide Bereiche bleiben getrennt, weil sie verschiedene Dinge tun: Der eine
+// vereint MENSCHEN, der andere räumt ZEILEN auf. Ein gemeinsamer Knopf für
+// beides wäre der schnellste Weg zurück zum Datenverlust.
 // ════════════════════════════════════════════════════════════════════
 
 const ACCENT = "#2563eb";
@@ -66,6 +79,7 @@ export default function AdminDubletten() {
   const [picked, setPicked] = useState<Record<string, string>>({});     // key → gewählter Gewinner-Ref
   const [flash, setFlash] = useState<{ text: string; kind: "ok" | "err" } | null>(null);
   const [lastMerge, setLastMerge] = useState<{ batch: string; primaryRef: string; count: number } | null>(null);
+  const [bereich, setBereich] = useState<"personen" | "bestellungen">("personen");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -182,16 +196,54 @@ export default function AdminDubletten() {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
       <div className="flex flex-wrap items-center gap-3 mb-1">
         <Users size={20} className="text-slate-400" />
-        <h1 className="text-[19px] font-bold text-slate-900 flex-1 min-w-0">Dubletten zusammenführen</h1>
-        <button onClick={load} disabled={loading}
-          className="px-3 py-2 min-h-[38px] rounded-lg border border-slate-200 text-[12.5px] font-semibold text-slate-600 inline-flex items-center gap-1.5 hover:border-slate-300 disabled:opacity-50">
-          <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Aktualisieren
-        </button>
+        <h1 className="text-[19px] font-bold text-slate-900 flex-1 min-w-0">Dubletten</h1>
+        {bereich === "bestellungen" && (
+          <button onClick={load} disabled={loading}
+            className="px-3 py-2 min-h-[38px] rounded-lg border border-slate-200 text-[12.5px] font-semibold text-slate-600 inline-flex items-center gap-1.5 hover:border-slate-300 disabled:opacity-50">
+            <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Aktualisieren
+          </button>
+        )}
       </div>
+
+      {/* Zwei Bereiche: Menschen vereinen (Personen) oder Zeilen aufräumen
+          (Bestellungen). Getrennt, weil es zwei verschiedene Entscheidungen sind. */}
+      <div className="flex items-center gap-1.5 mt-3 mb-4">
+        {([["personen", "Personen"], ["bestellungen", "Bestellungen"]] as const).map(([k, text]) => {
+          const an = bereich === k;
+          return (
+            <button key={k} type="button" onClick={() => setBereich(k)}
+              className={`px-3.5 py-2 rounded-xl text-[13px] font-semibold border transition-colors ${an
+                ? "bg-slate-900 text-white border-slate-900"
+                : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`}>
+              {text}
+            </button>
+          );
+        })}
+      </div>
+
+      {bereich === "personen" ? (
+        <>
+          <p className="text-[13px] text-slate-500 mb-4 max-w-3xl">
+            Derselbe Mensch liegt mehrfach im Bestand. Die Liste ist nach Sicherheit sortiert: gleiche
+            Rufnummer zuerst, ganz unten die reine Namensvermutung. <b>Jeder Zusammenschluss ist eine
+            Entscheidung von Ihnen</b> — auch bei gleicher E-Mail, denn im Bestand trug eine Adresse
+            nachweislich zwei Menschen. Beim Zusammenführen geht nichts verloren: Bestellungen und
+            Gesprächsverlauf wandern mit, abweichende Angaben werden gesichert und bleiben über die
+            Suche auffindbar.
+          </p>
+          <DublettenArbeitsplatz pfade={{
+            liste: "/admin/dubletten/kandidaten",
+            paar: "/admin/dubletten/paar/:a/:b",
+            zusammenfuehren: "/admin/dubletten/zusammenfuehren",
+            keineDublette: "/admin/dubletten/keine-dublette",
+          }} />
+        </>
+      ) : (
+      <>
       <p className="text-[13px] text-slate-500 mb-4 max-w-3xl">
-        Mehrfach angelegte Personen erkennen (gleiche E-Mail oder Telefonnummer) und zu einem Datensatz vereinen.
-        Der Merge <b>füllt nur leere Felder</b> des Gewinners aus dem Verlierer — nichts wird überschrieben, nichts gelöscht,
-        alles ist rückgängig machbar. Bezahlte Bestellungen bleiben unangetastet.
+        Mehrfach angelegte <b>Antragszeilen</b> erkennen (gleiche E-Mail oder Telefonnummer) und zu einem
+        Datensatz vereinen. Der Merge <b>füllt nur leere Felder</b> des Gewinners aus dem Verlierer — nichts wird
+        überschrieben, nichts gelöscht, alles ist rückgängig machbar. Bezahlte Bestellungen bleiben unangetastet.
       </p>
 
       {/* Kennzahlen-Leiste */}
@@ -380,6 +432,8 @@ export default function AdminDubletten() {
             );
           })}
         </div>
+      )}
+      </>
       )}
     </div>
   );

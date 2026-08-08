@@ -5,6 +5,13 @@ import {
   AlertTriangle, FileText, ArrowLeft, Send, StickyNote, Undo2,
 } from "lucide-react";
 import VermerkTafel from "@/components/admin/VermerkTafel";
+import ArchivDialog from "@/components/admin/ArchivDialog";
+
+/** Klartext der Archivgründe — dieselbe Liste wie im Server (fiaon-antrag-archiv.ts). */
+const ARCHIV_GRUND_TEXT: Record<string, string> = {
+  doppelt: "Doppelt angelegt", testeintrag: "Testeintrag",
+  widerrufen: "Kunde widerrufen", sonstiges: "Sonstiges",
+};
 
 // ═══════════════════════════════════════════════════════════════════
 // DIE ZENTRALE KUNDENAKTE — /admin/kunde/:id (Prompt 1/2)
@@ -154,6 +161,8 @@ export default function AdminKundeAktePage() {
   const [eventPreview, setEventPreview] = useState<any>(null);
   const [lastMergeBatch, setLastMergeBatch] = useState<string | null>(null);
   const [timelineLimit, setTimelineLimit] = useState(30);
+  /** Offener Archiv-Dialog (Teil 3) — welche Bestellung wird gerade betrachtet. */
+  const [archivRef, setArchivRef] = useState<string | null>(null);
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 6000); };
 
@@ -527,15 +536,37 @@ export default function AdminKundeAktePage() {
                         {o.supersededBy ? ` · ersetzt durch ${o.supersededBy}` : ""}
                         {o.agentName ? ` · Agent: ${o.agentName}` : ""}
                       </p>
+                      {/* Archiv (08.08.2026): Eine archivierte Bestellung bleibt
+                          hier lesbar — mit Grund und Namen. Sie aus der Akte zu
+                          verstecken wäre genau das, was wir abschaffen. */}
+                      {o.archiviertAm && (
+                        <p className="text-[11.5px] text-slate-500 mt-0.5">
+                          Im Archiv seit {fmtD(o.archiviertAm)}
+                          {o.archivGrund ? ` · ${ARCHIV_GRUND_TEXT[o.archivGrund] ?? o.archivGrund}` : ""}
+                          {o.archiviertVon ? ` · ${o.archiviertVon}` : ""}
+                          {o.archivNotiz ? ` — ${o.archivNotiz}` : ""}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5">
                       <PayBadge status={o.paymentStatus} />
+                      {o.archiviertAm && (
+                        <span className="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-[11px] font-bold text-slate-500">
+                          Archiv
+                        </span>
+                      )}
                       {o.paymentReference && (
                         <a href={`/api/fiaon/admin/payments/${encodeURIComponent(o.paymentReference)}/invoice.pdf`} target="_blank" rel="noopener noreferrer"
                           className="px-2 py-1 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-slate-500 hover:border-slate-300" title="Rechnung (PDF)">
                           <FileText size={12} className="inline" />
                         </a>
                       )}
+                      {/* Gesperrt bei bezahlt oder gebuchter Provision — die
+                          Begründung steht im Dialog, nicht als stummer Klick. */}
+                      <button type="button" onClick={() => setArchivRef(o.ref)}
+                        className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-slate-500 hover:border-slate-300">
+                        {o.archiviertAm ? "Archiv ansehen" : "Archivieren"}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -731,6 +762,21 @@ export default function AdminKundeAktePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Archiv-Dialog: archivieren und (nur hier, im Admin) zurückholen. */}
+      {archivRef && (
+        <ArchivDialog
+          bestellung={archivRef}
+          offen={true}
+          aufSchliessen={() => setArchivRef(null)}
+          aufFertig={() => { void load(); flash("Archiv aktualisiert."); }}
+          pfade={{
+            pruefung: "/admin/antraege/:ref/archiv-pruefung",
+            archivieren: "/admin/antraege/:ref/archivieren",
+            wiederherstellen: "/admin/antraege/:ref/wiederherstellen",
+          }}
+        />
       )}
     </div>
   );

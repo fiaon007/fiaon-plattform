@@ -360,6 +360,9 @@ function KundenKarte({
 
   /** Ein Ergebnis festhalten. Verschwindet der Kunde aus der Ansicht, sagt der
    *  Server das über die Wirkung — wir raten es nicht. */
+  const [testOffen, setTestOffen] = useState(false);
+  const [testNotiz, setTestNotiz] = useState("");
+
   const ergebnis = async (art: string, zusatz: Record<string, unknown> = {}) => {
     setLaeuft(art);
     const r = await api(`/agent/crm/kunden/${k.personId}/aktivitaet`, {
@@ -401,6 +404,31 @@ function KundenKarte({
     setLaeuft(null);
     if (r.ok) zeige("erfolg", "Bitte um Nummer versandt", `An ${r.json.versandtAn} — mit Link zum Ändern.`);
     else zeige("fehler", "Nicht versandt", r.json?.error || "Bitte erneut versuchen.");
+  };
+
+  /**
+   * „Als Testeintrag melden" (08.08.2026).
+   *
+   * Agenten melden Fake- und Testkonten — archivieren dürfen sie sie NICHT.
+   * Wer seine eigene Arbeitsliste kürzen kann, hat einen Anreiz, unbequeme
+   * Kunden zu „Testeinträgen" zu erklären. Die Meldung landet als Aufgabe bei
+   * der Vertriebsleitung; der Kunde bleibt bis zur Entscheidung in der Liste.
+   */
+  const testeintragMelden = async () => {
+    const begruendung = testNotiz.trim();
+    if (begruendung.length < 5) {
+      zeige("fehler", "Bitte kurz begründen", "Ein Satz genügt: Woran erkennst du, dass das kein echter Kunde ist?");
+      return;
+    }
+    setLaeuft("test");
+    const r = await api(`/agent/crm/kunden/${k.personId}/testeintrag-melden`, {
+      method: "POST", body: JSON.stringify({ begruendung }),
+    });
+    setLaeuft(null);
+    if (r.ok) {
+      setTestOffen(false); setTestNotiz("");
+      zeige("erfolg", "Gemeldet", r.json.meldung || "Die Vertriebsleitung prüft.");
+    } else zeige("fehler", "Nicht gemeldet", r.json?.error || "Bitte erneut versuchen.");
   };
 
   const verlaufLaden = async () => {
@@ -640,6 +668,41 @@ function KundenKarte({
                         className="fi-zweitknopf px-3 py-2 text-[12px] font-semibold">
                   Speichern
                 </button>
+              </div>
+
+              {/* Kein echter Kunde? Melden, nicht selbst entfernen. */}
+              <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--fi-linie)" }}>
+                {!testOffen ? (
+                  <button type="button" onClick={() => setTestOffen(true)}
+                          className="text-[12px] font-semibold underline decoration-dotted"
+                          style={{ color: "var(--fi-text-still)" }}>
+                    Kein echter Kunde? Als Testeintrag melden
+                  </button>
+                ) : (
+                  <div>
+                    <p className="text-[12px] leading-snug" style={{ color: "var(--fi-text-leise)" }}>
+                      Die Vertriebsleitung prüft und legt die Bestellung ins Archiv, wenn es stimmt.
+                      Du entfernst hier nichts selbst — und der Kunde bleibt bis zur Entscheidung in
+                      deiner Liste.
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <input value={testNotiz} onChange={(e) => setTestNotiz(e.target.value)}
+                             placeholder="Woran erkennst du das? (ein Satz)"
+                             className="flex-1 min-w-0 h-[34px] px-2.5 rounded-lg border bg-white text-[12.5px] outline-none"
+                             style={{ borderColor: "var(--fi-linie)" }} />
+                      <button type="button" disabled={testNotiz.trim().length < 5 || !!laeuft}
+                              onClick={() => void testeintragMelden()}
+                              className="fi-zweitknopf px-3 py-2 text-[12px] font-semibold">
+                        {laeuft === "test" ? "Meldet …" : "Melden"}
+                      </button>
+                      <button type="button" onClick={() => { setTestOffen(false); setTestNotiz(""); }}
+                              className="text-[12px] font-semibold px-2"
+                              style={{ color: "var(--fi-text-still)" }}>
+                        Abbrechen
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

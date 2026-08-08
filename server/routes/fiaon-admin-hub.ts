@@ -85,12 +85,28 @@ async function computeBadges(): Promise<any> {
   const [dup] = await sqlPool`
     SELECT COUNT(*)::int AS c FROM (
       SELECT LOWER(TRIM(email)) FROM fiaon_applications
-      WHERE merged_into IS NULL AND email IS NOT NULL AND TRIM(email) <> ''
+      WHERE merged_into IS NULL AND archived_at IS NULL AND email IS NOT NULL AND TRIM(email) <> ''
       GROUP BY LOWER(TRIM(email))
       HAVING COUNT(*) > 1
          AND COUNT(*) FILTER (WHERE payment_status IN ('pending_payment', 'claimed_paid')) > 0
     ) x
   `;
+  // Offene PERSONEN-Kandidaten (Teil 2) — die eigentliche Arbeit am
+  // Dubletten-Arbeitsplatz. Die Zahl oben zählt doppelte BESTELLUNGEN; beide
+  // führen auf dieselbe Seite, also stehen sie in derselben Pille.
+  // Nur aus dem Speicher lesen und sonst im Hintergrund wärmen: Die Suche läuft
+  // über den ganzen Personenbestand und brauchte hier anfangs achteinhalb
+  // Sekunden — bei einem Abruf pro Minute hätte der Zähler im Menü das ganze
+  // Dashboard langsam gemacht. Die Zahl kommt aus derselben Quelle wie die
+  // Liste, ist also nie eine zweite Wahrheit, nur bis zu zwei Minuten alt.
+  let personenDubletten = 0;
+  try {
+    const { kandidatenZahlenSofort, kandidatenWaermen } = await import("../lib/fiaon-dubletten-kandidaten");
+    personenDubletten = kandidatenZahlenSofort()?.gesamt ?? 0;
+    kandidatenWaermen();
+  } catch (err) {
+    console.error("[FIAON-HUB] dubletten-kandidaten:", err);
+  }
   const [payouts] = await sqlPool`
     SELECT COUNT(*)::int AS c FROM fiaon_payouts WHERE status = 'angefordert'
   `.catch(() => [{ c: 0 }] as any);
@@ -165,7 +181,7 @@ async function computeBadges(): Promise<any> {
       auszahlungen: Number(payouts.c),
       feedback: Number(feedback.c),
       nachbuchung: Number(apps.nachbuchung),
-      dubletten: Number(dup.c),
+      dubletten: Number(dup.c) + personenDubletten,
       kontoabgleich: abgleichAn ? Number(bank.unmatched) : 0,
       diagnose: Number(diag.c), // P5-D: kritische Ereignisse (24 h)
       // Nav-Pille an „Notizen & Aufgaben": nur was DRÄNGT (heute + überfällig).
@@ -685,9 +701,18 @@ router.get("/admin/search", async (req, res) => {
     const digitsLike = qDigits.length >= 5 ? `%${qDigits}%` : null;
     const customers = await sqlPool`
       SELECT ref, payment_reference, payment_status, amount_due,
-             first_name, last_name, contact_name, company_name, email, contact_email
-      FROM fiaon_applications
-      WHERE merged_into IS NULL AND (
+             first_name, last_name, contact_name, company_name, email, contact_email,
+             archived_at
+      FROM fiaon_applications a
+      WHERE merged_into IS NULL
+        -- Eine Bestellung, deren Person in einer anderen aufgegangen ist, darf
+        -- hier nicht mehr auftauchen: Sonst öffnet die Suche die Akte des
+        -- Wegweisers statt die des Kunden.
+        AND NOT EXISTS (
+          SELECT 1 FROM fiaon_persons mp
+          WHERE mp.id = a.person_id AND mp.merged_into_person_id IS NOT NULL
+        )
+        AND (
         ref ILIKE ${like} OR payment_reference ILIKE ${like}
         OR first_name ILIKE ${like} OR last_name ILIKE ${like}
         OR company_name ILIKE ${like} OR contact_name ILIKE ${like}
@@ -695,8 +720,16 @@ router.get("/admin/search", async (req, res) => {
         OR phone ILIKE ${like}
         OR (${digitsLike}::text IS NOT NULL AND regexp_replace(COALESCE(phone_country_code,'') || COALESCE(phone,'') , '\\D', '', 'g') LIKE ${digitsLike})
         OR (first_name || ' ' || last_name) ILIKE ${like}
+        -- Frühere Angaben: Wer nach der alten E-Mail eines zusammengeführten
+        -- Kunden sucht, findet ihn weiterhin.
+        OR EXISTS (
+          SELECT 1 FROM fiaon_person_aliases al
+          WHERE al.person_id = a.person_id
+            AND (al.value_norm ILIKE ${like} OR COALESCE(al.value_raw,'') ILIKE ${like}
+                 OR COALESCE(al.feld_wert,'') ILIKE ${like})
+        )
       )
-      ORDER BY updated_at DESC NULLS LAST
+      ORDER BY (archived_at IS NOT NULL), updated_at DESC NULLS LAST
       LIMIT 8
     `;
     // Leads (nicht konvertierte) — konvertierte laufen über die Antrags-Akte
@@ -722,7 +755,8 @@ router.get("/admin/search", async (req, res) => {
       ...customers.map((c: any) => ({
         type: "kunde",
         label: c.company_name || [c.first_name, c.last_name].filter(Boolean).join(" ") || c.contact_name || c.ref,
-        sub: `${c.payment_reference || c.ref}${c.email || c.contact_email ? ` · ${c.email || c.contact_email}` : ""}`,
+        sub: `${c.payment_reference || c.ref}${c.email || c.contact_email ? ` · ${c.email || c.contact_email}` : ""}`
+          + (c.archived_at ? " · archiviert" : ""),
         status: c.payment_status,
         url: `/admin/kunde/${encodeURIComponent(c.ref)}`,
       })),

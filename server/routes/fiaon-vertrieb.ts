@@ -272,19 +272,19 @@ router.get("/agent/vertrieb/personen", requireAgent, nurLeitung, nurMitZusage, a
                WHERE a2.person_id = p.id AND cl.outcome = 'rueckruf_termin' AND cl.done_at IS NULL
                ORDER BY cl.scheduled_at DESC LIMIT 1) AS rueckruf_am,
              (SELECT a2.pack_name FROM fiaon_applications a2
-               WHERE a2.person_id = p.id AND a2.merged_into IS NULL
+               WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND a2.archived_at IS NULL
                ORDER BY a2.created_at DESC LIMIT 1) AS pack_name,
              (SELECT a2.amount_due FROM fiaon_applications a2
-               WHERE a2.person_id = p.id AND a2.merged_into IS NULL
+               WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND a2.archived_at IS NULL
                ORDER BY a2.created_at DESC LIMIT 1) AS amount_due,
              (SELECT a2.ref FROM fiaon_applications a2
-               WHERE a2.person_id = p.id AND a2.merged_into IS NULL
+               WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND a2.archived_at IS NULL
                ORDER BY a2.created_at DESC LIMIT 1) AS ref,
              (SELECT a2.phone FROM fiaon_applications a2
-               WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND NULLIF(a2.phone,'') IS NOT NULL
+               WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND a2.archived_at IS NULL AND NULLIF(a2.phone,'') IS NOT NULL
                ORDER BY a2.created_at DESC LIMIT 1) AS app_phone,
              (SELECT a2.phone_country_code FROM fiaon_applications a2
-               WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND NULLIF(a2.phone,'') IS NOT NULL
+               WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND a2.archived_at IS NULL AND NULLIF(a2.phone,'') IS NOT NULL
                ORDER BY a2.created_at DESC LIMIT 1) AS app_vorwahl
       FROM fiaon_persons p
       LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
@@ -293,7 +293,15 @@ router.get("/agent/vertrieb/personen", requireAgent, nurLeitung, nurMitZusage, a
              OR COALESCE(p.primary_email,'') ILIKE '%' || $1 || '%'
              OR COALESCE(p.primary_phone,'') ILIKE '%' || $1 || '%'
              OR EXISTS (SELECT 1 FROM fiaon_applications a3 WHERE a3.person_id = p.id
-                          AND (a3.ref ILIKE '%' || $1 || '%' OR COALESCE(a3.payment_reference,'') ILIKE '%' || $1 || '%')))
+                          AND (a3.ref ILIKE '%' || $1 || '%' OR COALESCE(a3.payment_reference,'') ILIKE '%' || $1 || '%'))
+             -- Frühere Angaben mitsuchen: Nach einem Zusammenschluss ist die alte
+             -- Adresse des Kunden nur noch ein Alias. Ohne diesen Zweig fände die
+             -- Vertriebsleitung den Kunden unter der Adresse nicht, die er am
+             -- Telefon nennt.
+             OR EXISTS (SELECT 1 FROM fiaon_person_aliases al WHERE al.person_id = p.id
+                          AND (al.value_norm ILIKE '%' || $1 || '%'
+                               OR COALESCE(al.value_raw,'') ILIKE '%' || $1 || '%'
+                               OR COALESCE(al.feld_wert,'') ILIKE '%' || $1 || '%')))
       ORDER BY p.priority_tier ASC, p.promised_payment_date ASC NULLS LAST, p.id DESC
       LIMIT ${limit}
     `, [q]);
@@ -492,7 +500,12 @@ router.post("/agent/vertrieb/person/:id/sperre", requireAgent, nurLeitung, nurMi
   try {
     const id = Number(req.params.id);
     const sperren = req.body?.sperren !== false;
-    const [vorher] = await sqlPool`SELECT is_blocked FROM fiaon_persons WHERE id = ${id}`;
+    // `merged_into_person_id IS NULL` fehlte hier: Eine zusammengeführte Person
+    // ließ sich noch sperren und entsperren — eine Änderung an einem Wegweiser,
+    // die niemand mehr sieht, während der echte Kunde unberührt bleibt.
+    const [vorher] = await sqlPool`
+      SELECT is_blocked FROM fiaon_persons WHERE id = ${id} AND merged_into_person_id IS NULL
+    `;
     if (!vorher) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
     await sqlPool`
       UPDATE fiaon_persons
@@ -614,7 +627,12 @@ router.post("/agent/vertrieb/person/:id/zahlungsdaten", requireAgent, nurLeitung
 router.get("/agent/vertrieb/service", requireAgent, nurLeitung, nurMitZusage, async (_req: AgentRequest, res: Response) => {
   try {
     const { serviceZahlen } = await import("../lib/fiaon-kundenlage");
-    res.json({ ok: true, zahlen: await serviceZahlen() });
+    const { kandidatenZahlen } = await import("../lib/fiaon-dubletten-kandidaten");
+    const zahlen = await serviceZahlen();
+    // Dubletten-Kandidaten als fünfte Kopfzahl. Die Suche läuft über den ganzen
+    // Bestand, darf aber die vier Zahlen nicht aufhalten, wenn sie klemmt.
+    const dubletten = await kandidatenZahlen().catch(() => ({ gesamt: 0, jeStufe: null }));
+    res.json({ ok: true, zahlen: { ...zahlen, dubletten: dubletten.gesamt, dublettenStufen: dubletten.jeStufe } });
   } catch (err) {
     console.error("[FIAON-VERTRIEB] service:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -842,6 +860,106 @@ router.post("/agent/vertrieb/zahlung/:paymentRef/bezahlt", requireAgent, nurLeit
     });
   } catch (err) {
     console.error("[FIAON-VERTRIEB] zahlung buchen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FÜNFTER BEREICH: DUBLETTEN
+//
+// Dieselbe Maschine wie /admin/dubletten — dieselbe Kandidatensuche, dieselbe
+// Merge-Funktion, dieselben Protokolle. Nur die Tür ist eine andere
+// (nurLeitung + nurMitZusage statt Admin-Code).
+//
+// Warum die Vertriebsleitung das darf: Sie telefoniert mit den Kunden und ist
+// die Einzige, die „Axel Conrad zweimal" tatsächlich beurteilen kann. Ein
+// Zusammenschluss ist keine Geldbuchung; er verschiebt keine Provision und
+// beendet keine Bestellung. Was er anfasst — die Zuständigkeit —, verlangt bei
+// zwei verschiedenen Betreuern ohnehin eine ausdrückliche, protokollierte Wahl.
+//
+// ARCHIVIEREN ja, WIEDERHERSTELLEN nein: Zurückholen bleibt beim Betreiber.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Klartext-Akteur für alle Protokolle dieses Bereichs. */
+const alsAkteur = (req: AgentRequest) => ({
+  name: `${req.agent!.name} (Vertriebsleitung)`,
+  agentId: req.agent!.id,
+});
+
+router.get("/agent/vertrieb/dubletten", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const { findeKandidaten, kandidatenZahlen, STUFE_TEXT } = await import("../lib/fiaon-dubletten-kandidaten");
+    const stufen = req.query.stufe ? String(req.query.stufe).split(",").filter(Boolean) : undefined;
+    const kandidaten = await findeKandidaten({ stufen: stufen as any, grenze: 200 });
+    res.json({ ok: true, kandidaten, zahlen: await kandidatenZahlen(), stufenText: STUFE_TEXT });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] dubletten:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.get("/agent/vertrieb/dubletten/paar/:a/:b", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const { gegenueberstellung } = await import("../lib/fiaon-dubletten-kandidaten");
+    const daten = await gegenueberstellung(Number(req.params.a), Number(req.params.b));
+    if (!daten) return res.status(404).json({ ok: false, error: "Paar nicht gefunden" });
+    res.json({ ok: true, ...daten });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] dubletten paar:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/agent/vertrieb/dubletten/zusammenfuehren", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  const { fuehreMergeAus } = await import("./fiaon-dubletten");
+  const { status, antwort } = await fuehreMergeAus(req.body, alsAkteur(req));
+  res.status(status).json(antwort);
+});
+
+router.post("/agent/vertrieb/dubletten/keine-dublette", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  const { merkeKeineDublette } = await import("./fiaon-dubletten");
+  const { status, antwort } = await merkeKeineDublette(req.body, alsAkteur(req));
+  res.status(status).json(antwort);
+});
+
+// ── Archiv: die Vertriebsleitung darf archivieren, nicht zurückholen ──────
+router.get("/agent/vertrieb/antrag/:ref/archiv-pruefung", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const { archivPruefung, ARCHIV_GRUENDE } = await import("../lib/fiaon-antrag-archiv");
+    const pruefung = await archivPruefung(String(req.params.ref));
+    if (!pruefung) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
+    res.json({ ok: true, pruefung, gruende: ARCHIV_GRUENDE });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] archiv-pruefung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/agent/vertrieb/antrag/:ref/archivieren", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  const { fuehreArchivierungAus } = await import("./fiaon-dubletten");
+  const { status, antwort } = await fuehreArchivierungAus(
+    String(req.params.ref), req.body, { ...alsAkteur(req), rolle: "leitung" },
+  );
+  res.status(status).json(antwort);
+});
+
+/** Offene Meldungen „Als Testeintrag melden" aus der Agentenliste. */
+router.get("/agent/vertrieb/testeintrag-meldungen", requireAgent, nurLeitung, nurMitZusage, async (_req: AgentRequest, res: Response) => {
+  try {
+    const rows = await sqlPool`
+      SELECT v.id, v.ref, v.text, v.autor_name, v.created_at, v.status,
+             a.person_id, a.payment_status, a.archived_at,
+             COALESCE(NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''),
+                      NULLIF(TRIM(a.company_name), ''), a.email, a.ref) AS kunde
+      FROM fiaon_vermerke v
+      LEFT JOIN fiaon_applications a ON a.ref = v.ref
+      WHERE v.art = 'aufgabe' AND v.entfernt_am IS NULL AND v.status = 'offen'
+        AND v.text LIKE 'Als Testeintrag gemeldet%'
+      ORDER BY v.created_at DESC LIMIT 100
+    `;
+    res.json({ ok: true, meldungen: rows });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] testeintrag-meldungen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

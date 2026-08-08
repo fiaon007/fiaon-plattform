@@ -18,6 +18,7 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { isAddonOrderRow } from "../fiaon-login-logic";
 import { nummerAusZeile } from "../lib/fiaon-telefon";
+import { fristAbgelaufenSql, nichtArchiviertSql } from "../lib/fiaon-bestand-filter";
 
 const router = Router();
 
@@ -112,7 +113,15 @@ router.get("/admin/kunden", async (req: Request, res: Response) => {
     const p = (v: any) => { params.push(v); return `$${params.length}`; };
 
     // ── Anträge (sichtbar, keine Dublette, keine ersetzten Doppel-Bestellungen) ──
-    const appWhere: string[] = [`a.merged_into IS NULL`, `a.payment_status IS DISTINCT FROM 'superseded'`];
+    // `archiv=1` zeigt ausschließlich das Archiv — sonst bleibt es draußen.
+    // Ein archivierter Antrag ist nicht gelöscht: Er ist in der Akte und über
+    // diesen Schalter erreichbar, aber nicht mehr in der Arbeitsliste.
+    const nurArchiv = req.query.archiv === "1" || req.query.archiv === "true";
+    const appWhere: string[] = [
+      `a.merged_into IS NULL`,
+      `a.payment_status IS DISTINCT FROM 'superseded'`,
+      nurArchiv ? `a.archived_at IS NOT NULL` : nichtArchiviertSql("a"),
+    ];
     if (!anonyme) {
       appWhere.push(`(COALESCE(a.email,'') <> '' OR COALESCE(a.contact_email,'') <> '' OR COALESCE(a.phone,'') <> '' OR COALESCE(a.contact_phone,'') <> '' OR a.payment_reference IS NOT NULL)`);
     }
@@ -156,7 +165,8 @@ router.get("/admin/kunden", async (req: Request, res: Response) => {
       offen: `a.payment_status = 'pending_payment'`,
       angekuendigt: `a.payment_status = 'claimed_paid'`,
       bezahlt: `a.payment_status = 'paid'`,
-      abgelaufen: `a.payment_status = 'expired'`,
+      // Etikett, kein Zustand (siehe lib/fiaon-bestand-filter.ts).
+      abgelaufen: fristAbgelaufenSql("a"),
       storniert: `a.payment_status = 'cancelled'`,
       direktzahler: `a.payment_status = 'paid' AND a.commission_basis = 'direktzahler'`,
       antrag: `a.payment_reference IS NULL AND a.payment_status IS DISTINCT FROM 'paid'`,
@@ -600,6 +610,14 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
         supersededBy: f.superseded_by,
         agentName: f.agent_name,
         isPrimary: primaryApp ? f.ref === primaryApp.ref : false,
+        // Archiv (Teil 3): Die Akte zeigt eine archivierte Bestellung weiter —
+        // getrennt und mit Grund. Sie aus der Akte zu verstecken wäre das, was
+        // wir gerade abschaffen: ein Datensatz, den es angeblich nicht gibt.
+        archiviertAm: f.archived_at ?? null,
+        archivGrund: f.archived_reason ?? null,
+        archivNotiz: f.archived_note ?? null,
+        archiviertVon: f.archived_by ?? null,
+        geldGebunden: f.payment_status === "paid",
       })),
       leads: leads.map((l) => ({
         id: l.id,

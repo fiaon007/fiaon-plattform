@@ -315,6 +315,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonPersonenRoutes = await import('./routes/fiaon-personen');
   app.use('/api/fiaon', fiaonPersonenRoutes.default);
 
+  // 🔗 FIAON Dubletten + Archiv (Admin) — der Arbeitsplatz, an dem ein MENSCH
+  //    einen Personen-Merge entscheidet und ausführt, und das Antrags-Archiv
+  //    (die „Lösch"-Funktion, die keine ist). Die Vertriebsleitung erreicht
+  //    dieselbe Maschine über /agent/vertrieb/dubletten/*.
+  const fiaonDublettenRoutes = await import('./routes/fiaon-dubletten');
+  app.use('/api/fiaon', fiaonDublettenRoutes.default);
+
   // 🏠 FIAON Agent-Start + die EINE Kundenliste (ersetzt die Tagesliste).
   const fiaonAgentStartRoutes = await import('./routes/fiaon-agent-start');
   app.use('/api/fiaon', fiaonAgentStartRoutes.default);

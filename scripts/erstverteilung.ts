@@ -183,7 +183,7 @@ async function main() {
       p.follow_up_date ASC NULLS LAST,
       -- Tier 2/3: frischester Antrag zuerst
       (SELECT MAX(a.created_at) FROM fiaon_applications a
-        WHERE a.person_id = p.id AND a.merged_into IS NULL) DESC NULLS LAST,
+        WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL) DESC NULLS LAST,
       p.id ASC
   `) as unknown as Person[];
 

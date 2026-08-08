@@ -69,7 +69,12 @@ export function antragBasisSql(a = "a"): string {
       AND NOT ${a}.ist_entwurf
       AND ${a}.merged_into IS NULL
       AND ${a}.payment_status <> 'superseded'
-      AND ${a}.gdpr_deleted_at IS NULL`;
+      AND ${a}.gdpr_deleted_at IS NULL
+      -- Archivierte Bestellungen bestimmen keine Einstufung mehr. Sonst würde
+      -- ein als Testeintrag archivierter Antrag den Kunden weiter in Tier 2
+      -- halten — und die Arbeitsliste bliebe voll mit etwas, das es fachlich
+      -- nicht gibt (Teil 3).
+      AND ${a}.archived_at IS NULL`;
 }
 
 /**

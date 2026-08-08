@@ -154,7 +154,7 @@ export async function autoAssignTier1(personId: number): Promise<number | null> 
   // Hinweis in die Timeline — an die jüngste Bestellung der Person.
   const [ref] = await sqlPool`
     SELECT ref FROM fiaon_applications
-    WHERE person_id = ${personId} AND merged_into IS NULL
+    WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
     ORDER BY created_at DESC LIMIT 1
   `;
   if (ref) {
@@ -229,7 +229,7 @@ export async function nachschub(nurAgent?: number): Promise<{ tier1: number; tie
           (p.promised_payment_date IS NULL),
           p.promised_payment_date ASC NULLS LAST,
           (SELECT MAX(ap.created_at) FROM fiaon_applications ap
-            WHERE ap.person_id = p.id AND ap.merged_into IS NULL) DESC NULLS LAST,
+            WHERE ap.person_id = p.id AND ap.merged_into IS NULL AND ap.archived_at IS NULL) DESC NULLS LAST,
           p.id ASC
         LIMIT ${luecke}
       `) as any[];
@@ -334,7 +334,7 @@ export async function runFollowUpTageslauf(opts: { force?: boolean } = {}): Prom
     const eskaliert = (await sqlPool`
       SELECT p.id, p.assigned_agent_id,
              (SELECT ap.ref FROM fiaon_applications ap
-               WHERE ap.person_id = p.id AND ap.merged_into IS NULL
+               WHERE ap.person_id = p.id AND ap.merged_into IS NULL AND ap.archived_at IS NULL
                ORDER BY ap.created_at DESC LIMIT 1) AS ref
       FROM fiaon_persons p
       WHERE p.assigned_agent_id IS NOT NULL

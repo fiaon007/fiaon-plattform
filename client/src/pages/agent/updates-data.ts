@@ -40,6 +40,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-08-dubletten-und-kein-abschalten",
+    date: "2026-08-08",
+    category: "Neu",
+    title: "Kunden liegen nicht mehr doppelt — und kein Konto schaltet sich mehr selbst ab",
+    summary:
+      "Derselbe Mensch stand mehrfach in der Kartei, mit getrennten Bestellungen und getrennten Gesprächsverläufen. Das lässt sich jetzt zusammenführen, ohne dass etwas verloren geht — und eine abgelaufene Zahlungsfrist wirft deinen Kunden nicht mehr aus dem System.",
+    changes: [
+      "Eine abgelaufene Zahlungsfrist ist ab jetzt nur noch ein Hinweis. Sie sperrt kein Konto, nimmt den Kunden aus keiner Liste und stoppt keine Erinnerung. Ein Kunde mit abgelaufener Frist ist ein Anruf — kein Abfall.",
+      "Konten, die sich in der Vergangenheit ohne Entscheidung eines Menschen abgeschaltet hatten, sind wieder offen. Darunter war ein Kunde, der bezahlt hatte und trotzdem nicht in sein Konto kam. Es wurden dafür keine Mails verschickt.",
+      "Doppelte Kunden führt die Vertriebsleitung im neuen Bereich „Dubletten“ zusammen. Beim Zusammenführen wandern ALLE Bestellungen und der GESAMTE Gesprächsverlauf mit — auch deine Einträge. Nichts wird gelöscht und nichts stillgelegt.",
+      "Abweichende Angaben gehen nicht verloren: Hatte ein Kunde zwei E-Mail-Adressen, findest du ihn weiterhin unter der alten. Die Suche in deiner Kundenliste sucht ab jetzt auch über frühere Adressen und Rufnummern.",
+      "Deine Provision bleibt deine. Ein Zusammenschluss verschiebt die Zuständigkeit, nicht den Anspruch — der folgt dem dokumentierten Kontakt. Sind bei einem Kunden zwei Betreuer dokumentiert, wird gar nichts automatisch entschieden: Die Vertriebsleitung muss ausdrücklich wählen, und die Wahl steht mit Namen im Protokoll.",
+      "Neu in der Kundenkarte: „Kein echter Kunde? Als Testeintrag melden“. Damit meldest du Fake- und Testeinträge an die Vertriebsleitung, die sie ins Archiv legt. Du entfernst selbst nichts — und der Kunde bleibt bis zur Entscheidung in deiner Liste.",
+    ],
+    howto: [
+      "Wenn dir zwei Karten mit demselben Menschen auffallen: Sag es der Vertriebsleitung mit beiden Namen. Zusammenführen ist ab jetzt ein Klick und verliert nichts.",
+      "Suchst du einen Kunden, der sich mit einer anderen E-Mail gemeldet hat: Tipp die alte Adresse in die Suche — du findest ihn trotzdem.",
+      "Findest du einen erfundenen Eintrag, öffne die Karte, klapp den Verlauf auf und meld ihn als Testeintrag. Ein Satz zur Begründung genügt.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
+    important: true,
+  },
+  {
     id: "2026-08-06-vertrieb-service",
     date: "2026-08-06",
     category: "Neu",

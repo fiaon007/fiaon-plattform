@@ -5,6 +5,7 @@ import { Skelett, eur, useReduzierteBewegung, useToast } from "@/lib/fiaon-ui";
 import { ZeichenSenden, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
 import { VertriebZusage, useZusage } from "./vertrieb-zusage";
 import { VertriebZahlungen, VertriebDokumente, VertriebZugang, LageTafel, ServiceZahlen } from "./vertrieb-service";
+import DublettenArbeitsplatz from "@/components/admin/DublettenArbeitsplatz";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/vertrieb — Gesamtsicht für die Vertriebsleitung
@@ -116,7 +117,10 @@ function Inhalt() {
   // denselben Bestand betreffen: Wer Zahlungen prüft, ist in einem anderen Kopf
   // als wer Unterlagen nachfordert. Eine gemischte Liste wäre schneller gebaut
   // und langsamer abzuarbeiten.
-  const [bereich, setBereich] = useState<"kunden" | "zahlungen" | "dokumente" | "zugang">("kunden");
+  // Seit 08.08.2026 fünf Reiter: „Dubletten" kam hinzu, weil die
+  // Vertriebsleitung telefoniert und damit die Einzige ist, die „Axel Conrad
+  // zweimal" wirklich beurteilen kann.
+  const [bereich, setBereich] = useState<"kunden" | "zahlungen" | "dokumente" | "zugang" | "dubletten">("kunden");
   const [service, setService] = useState<any>(null);
   const [filter, setFilter] = useState("alle");
   const [agentFilter, setAgentFilter] = useState<number | null>(null);
@@ -252,6 +256,7 @@ function Inhalt() {
                 ["zahlungen", "Zahlungen", (service?.gemeldet ?? 0) + (service?.fristAbgelaufen ?? 0)],
                 ["dokumente", "Unterlagen", service?.dokumenteFehlen ?? 0],
                 ["zugang", "Zugang", service?.zugangOffen ?? 0],
+                ["dubletten", "Dubletten", service?.dubletten ?? 0],
               ] as const).map(([k, label, zahl]) => {
                 const an = bereich === k;
                 return (
@@ -274,7 +279,7 @@ function Inhalt() {
           </div>
         </Reveal>
 
-        {bereich !== "kunden" && (
+        {bereich !== "kunden" && bereich !== "dubletten" && (
           <div className="mt-5">
             <ServiceZahlen zahlen={service} aktiv={bereich} aufReiter={(r) => setBereich(r as any)} />
             <div className="mt-5">
@@ -282,6 +287,39 @@ function Inhalt() {
               {bereich === "dokumente" && <VertriebDokumente />}
               {bereich === "zugang" && <VertriebZugang />}
             </div>
+          </div>
+        )}
+
+        {/* Dubletten — dieselbe Maschine wie /admin/dubletten, hinter denselben
+            Torwächtern wie der übrige Bereich (nurLeitung + nurMitZusage). Die
+            Kennzahlen-Kacheln bleiben hier bewusst weg: Sie erklären Zahlungen
+            und Unterlagen, nicht Personen. */}
+        {bereich === "dubletten" && (
+          <div className="mt-5">
+            <div className="fi-karte p-4 sm:p-5 mb-4">
+              <h2 className="text-[15px] font-bold" style={{ color: "var(--fi-text)" }}>
+                Dubletten prüfen und zusammenführen
+              </h2>
+              <p className="text-[13px] mt-1.5 leading-snug" style={{ color: "var(--fi-text-leise)" }}>
+                Derselbe Mensch liegt mehrfach im Bestand — mit getrennten Bestellungen und getrennten
+                Gesprächsverläufen. Die Liste ist nach Sicherheit sortiert. <b>Jeder Zusammenschluss ist
+                deine Entscheidung</b>, auch bei gleicher E-Mail: Im Bestand trug eine Adresse nachweislich
+                zwei Menschen. Es geht dabei nichts verloren — Bestellungen und Verlauf wandern mit,
+                abweichende Angaben werden gesichert und bleiben über die Suche auffindbar. Bestellungen
+                werden nicht gelöscht und nicht stillgelegt.
+              </p>
+              <p className="text-[12.5px] mt-2" style={{ color: "var(--fi-text-still)" }}>
+                Zur Provision: Ein Zusammenschluss verschiebt die Zuständigkeit, nicht den Anspruch. Haben
+                beide Seiten einen dokumentierten Betreuer, musst du ausdrücklich wählen — und die Wahl
+                steht mit deinem Namen im Protokoll.
+              </p>
+            </div>
+            <DublettenArbeitsplatz pfade={{
+              liste: "/agent/vertrieb/dubletten",
+              paar: "/agent/vertrieb/dubletten/paar/:a/:b",
+              zusammenfuehren: "/agent/vertrieb/dubletten/zusammenfuehren",
+              keineDublette: "/agent/vertrieb/dubletten/keine-dublette",
+            }} />
           </div>
         )}
 

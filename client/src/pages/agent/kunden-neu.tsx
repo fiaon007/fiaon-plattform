@@ -954,6 +954,17 @@ function KundenKarte({
                 ))}
               </dl>
             </div>
+            {/* ── E-Mails ─────────────────────────────────────────────────
+                Steht VOR dem Verlauf: Die häufigste Frage am Telefon ist
+                „habe ich das bekommen?", und die Antwort steht hier. */}
+            <div className="p-3 rounded-xl" style={{ background: "var(--fi-seite)" }}>
+              <p className="text-[11px] font-semibold uppercase tracking-[.07em] mb-1.5"
+                 style={{ color: "var(--fi-text-still)" }}>
+                E-Mails
+              </p>
+              <Versandzentrum personId={k.personId} />
+            </div>
+
             <div className="p-3 rounded-xl" style={{ background: "var(--fi-seite)" }}>
               <p className="text-[11px] font-semibold uppercase tracking-[.07em] mb-1.5"
                  style={{ color: "var(--fi-text-still)" }}>
@@ -1028,6 +1039,101 @@ function KundenKarte({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VERSANDZENTRUM — was ging raus, und schick es noch einmal
+//
+// „Der Kunde sagt, er hat nichts bekommen." Bisher: Nachricht an den
+// Betreiber, der sucht im Make-Protokoll. Jetzt: zwei Klicks, hier.
+//
+// Die drei Wände (Zustand, Tageslimit, Rechte) stehen im SERVER. Diese Seite
+// zeigt nur, was er zurückgibt — auch den Grund, warum ein Knopf nicht geht.
+// Ein ausgegrauter Knopf ohne Begründung erzeugt genau die Rückfrage, die das
+// hier abschaffen soll.
+// ═══════════════════════════════════════════════════════════════════════════
+export function Versandzentrum({ personId }: { personId: number }) {
+  const { zeige } = useToast();
+  const [daten, setDaten] = useState<any>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const laden = useCallback(async () => {
+    const r = await api(`/agent/versand/${personId}`);
+    setDaten(r.ok ? r.json : { fehler: r.json?.error || "Nicht ladbar." });
+  }, [personId]);
+  useEffect(() => { void laden(); }, [laden]);
+
+  const senden = async (art: string, titel: string) => {
+    if (!confirm(`„${titel}" jetzt erneut an den Kunden schicken?`)) return;
+    setBusy(art);
+    const r = await api(`/agent/versand/${personId}/${art}`, { method: "POST", body: JSON.stringify({}) });
+    setBusy(null);
+    if (r.json?.knoepfe) setDaten((d: any) => ({ ...d, knoepfe: r.json.knoepfe, historie: r.json.historie }));
+    zeige(r.ok ? "erfolg" : "info", r.ok ? "Verschickt" : "Nicht verschickt",
+      r.json?.meldung || r.json?.error || "Bitte erneut versuchen.");
+  };
+
+  if (!daten) return <Skelett h={18} />;
+  if (daten.fehler) {
+    return <p className="text-[12.5px]" style={{ color: "var(--fi-text-still)" }}>{daten.fehler}</p>;
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1.5">
+        {(daten.knoepfe || []).map((k: any) => (
+          <button key={k.art} type="button" onClick={() => void senden(k.art, k.titel)}
+                  disabled={!k.erlaubt || busy === k.art}
+                  title={k.erlaubt ? k.zweck : (k.grund || "")}
+                  className="fi-zweitknopf px-3 py-2 text-[12px] font-semibold disabled:opacity-40">
+            {busy === k.art ? "…" : k.titel}
+            {k.heute > 0 && <span className="ml-1.5 fi-zahl" style={{ opacity: 0.6 }}>{k.heute}/3</span>}
+          </button>
+        ))}
+      </div>
+      {/* Die Gründe im Klartext — nicht als Wolke am Mauszeiger, die auf dem
+          Telefon niemand sieht. */}
+      {(daten.knoepfe || []).some((k: any) => !k.erlaubt) && (
+        <ul className="mt-2 space-y-0.5">
+          {(daten.knoepfe || []).filter((k: any) => !k.erlaubt).map((k: any) => (
+            <li key={k.art} className="text-[11.5px] leading-snug" style={{ color: "var(--fi-text-still)" }}>
+              {k.titel}: {k.grund}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="mt-3.5 text-[10.5px] font-semibold uppercase tracking-[.06em]"
+         style={{ color: "var(--fi-text-still)" }}>
+        Versandhistorie
+      </p>
+      {(daten.historie || []).length === 0 ? (
+        <p className="mt-1 text-[12.5px]" style={{ color: "var(--fi-text-still)" }}>
+          Für diesen Kunden ist noch keine Mail protokolliert.
+        </p>
+      ) : (
+        <div className="mt-1">
+          {(daten.historie || []).slice(0, 12).map((h: any) => (
+            <div key={h.id} className="py-1.5 text-[12px] flex flex-wrap items-baseline gap-x-2"
+                 style={{ boxShadow: "inset 0 -1px 0 var(--fi-linie)" }}>
+              <span className="font-semibold">{h.titel}</span>
+              <span style={{ color: h.status === "versandt" ? "var(--fi-erfolg)" : "var(--fi-tier2)" }}>
+                {h.status === "versandt" ? "versandt" : h.status === "uebersprungen" ? "übersprungen" : "fehlgeschlagen"}
+              </span>
+              <span style={{ color: "var(--fi-text-still)" }}>
+                {new Date(h.am).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })}
+                {" · "}{h.ausgeloestVon}
+              </span>
+              {h.grund && (
+                <span className="block w-full text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>{h.grund}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

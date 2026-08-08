@@ -260,7 +260,7 @@ export function AdminAppDetail({ app, setApp, applications, setApplications }: P
         <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 mt-4 flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[13px] font-bold text-rose-800">Aus der Arbeitsliste aussortiert{app.dismissed_reason ? ` (${app.dismissed_reason})` : ''}</p>
-            <p className="text-[12px] text-rose-700/90">Der Kunde ist NICHT gelöscht — nur aus den Agenten-Listen genommen. Zurückholen stellt ihn wieder in die Arbeitsliste.</p>
+            <p className="text-[12px] text-rose-700/90">Der Kunde ist NICHT gelöscht — nur aus den Arbeitslisten des Teams genommen. Zurückholen stellt ihn wieder in die Arbeitsliste.</p>
           </div>
           <button type="button" onClick={restoreCustomer} disabled={dismissBusy}
             className="shrink-0 px-4 py-2.5 rounded-xl text-white text-[13px] font-semibold bg-slate-900 hover:bg-slate-700 disabled:opacity-40">
@@ -270,7 +270,7 @@ export function AdminAppDetail({ app, setApp, applications, setApplications }: P
       ) : (
         <details className="bg-white border border-slate-100 rounded-2xl p-4 mt-4 shadow-sm">
           <summary className="text-[12px] font-semibold text-slate-500 cursor-pointer hover:text-slate-700">Aus der Arbeitsliste entfernen (kein Löschen)</summary>
-          <p className="text-[12px] text-slate-500 mt-2 mb-2.5">Wird nie gelöscht — verschwindet nur aus den Agenten-Listen und ist jederzeit zurückholbar. Grund:</p>
+          <p className="text-[12px] text-slate-500 mt-2 mb-2.5">Wird nie gelöscht — verschwindet nur aus den Arbeitslisten des Teams und ist jederzeit zurückholbar. Grund:</p>
           <div className="flex flex-wrap gap-2">
             {Object.entries({ keine_nummer: 'Keine Nummer', nummer_ungueltig: 'Ungültige Nummer', abgelehnt: '100 % abgelehnt', kein_interesse: 'Kein Interesse', dublette: 'Dublette' }).map(([key, label]) => (
               <button key={key} type="button" disabled={dismissBusy} onClick={() => dismissCustomer(key)}

@@ -114,6 +114,18 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     },
   },
   {
+    type: "onboarding_einladung",
+    label: "Einladung zum Startgespräch (Kunde)",
+    description:
+      "Feuert 48 Stunden nachdem ein bezahlter Kunde das Startgespräch-Gate im Portal übersprungen hat — genau einmal. Löst der Onboarding-Bereich sie von Hand erneut aus, ist das dieselbe Vorlage. Betreiber-TODO: Make-Zweig 'onboarding_einladung' + Brevo-Template anlegen (Variablen: vorname, termin_link).",
+    customerBound: true,
+    example: {
+      email: "max.mustermann@example.com",
+      vorname: "Max",
+      termin_link: "https://www.fiaon.com/termin/7f3a…?art=start",
+    },
+  },
+  {
     type: "nicht_erreicht_termin",
     label: "Nicht erreicht — Terminlink an den Kunden",
     description:

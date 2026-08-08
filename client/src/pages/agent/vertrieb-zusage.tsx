@@ -62,7 +62,15 @@ async function api(pfad: string, init?: RequestInit) {
   return { status: res.status, ok: res.ok && json?.ok, json };
 }
 
-export function VertriebZusage({ daten, onAngenommen }: { daten: ZusageDaten; onAngenommen: () => void }) {
+export function VertriebZusage({ daten, onAngenommen, basis = "/agent/vertrieb/zusage" }: {
+  daten: ZusageDaten; onAngenommen: () => void;
+  /**
+   * Welcher Bereich seine Erklärung vorlegt. Vertriebsleitung und Onboarding
+   * benutzen dieselbe Tafel — Aufbau, Lesesperre, Unterschrift und
+   * Nachweisqualität sind identisch, nur der Text kommt von woanders.
+   */
+  basis?: string;
+}) {
   const reduziert = useReduzierteBewegung();
   const [gelesen, setGelesen] = useState(false);
   const [bisEnde, setBisEnde] = useState(false);
@@ -101,7 +109,7 @@ export function VertriebZusage({ daten, onAngenommen }: { daten: ZusageDaten; on
   const annehmen = async () => {
     setFehler(null);
     setBusy(true);
-    const r = await api("/agent/vertrieb/zusage", {
+    const r = await api(basis, {
       method: "POST",
       body: JSON.stringify({ version: daten.text.version, name, gelesen }),
     });
@@ -317,16 +325,35 @@ function Abschnitt({ nummer, titel, children }: { nummer: string; titel: string;
 }
 
 /** Lädt den Stand der Erklärung. `null` = noch unbekannt, `false` = alles gut. */
-export function useZusage() {
+export function useZusage(basis = "/agent/vertrieb/zusage") {
   const [daten, setDaten] = useState<ZusageDaten | null>(null);
   const [geprueft, setGeprueft] = useState(false);
 
   const laden = useCallback(async () => {
-    const r = await api("/agent/vertrieb/zusage");
+    const r = await api(basis);
     if (r.ok) setDaten(r.json.offen ? (r.json as ZusageDaten) : null);
     setGeprueft(true);
-  }, []);
+  }, [basis]);
 
   useEffect(() => { void laden(); }, [laden]);
   return { zusage: daten, geprueft, erneutPruefen: laden, schliessen: () => setDaten(null) };
+}
+
+/**
+ * Die Tafel als eigenständiger Block: lädt selbst, zeigt selbst.
+ *
+ * Der Vertriebsbereich hat seine eigene Verdrahtung (er braucht den Stand
+ * ohnehin für andere Zwecke). Für neue Bereiche genügt diese eine Zeile.
+ */
+export function ZusageTafel({ basis, onAngenommen }: { basis: string; onAngenommen: () => void }) {
+  const { zusage, geprueft, erneutPruefen } = useZusage(basis);
+  if (!geprueft) return null;
+  if (!zusage) { onAngenommen(); return null; }
+  return (
+    <VertriebZusage
+      daten={zusage}
+      basis={basis}
+      onAngenommen={() => { void erneutPruefen(); onAngenommen(); }}
+    />
+  );
 }

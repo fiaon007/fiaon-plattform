@@ -1071,10 +1071,14 @@ export async function runCallbackReminders(): Promise<number> {
   return sent;
 }
 
-// Anbindung an den bestehenden Stunden-Rhythmus (fail-safe, unabhängig vom Payment-Cron)
-setInterval(() => {
-  runCallbackReminders().catch((err) => console.error("[FIAON-AGENT] Reminder-Cron:", err));
-}, 60 * 60 * 1000);
+// Anbindung an den bestehenden Stunden-Rhythmus (fail-safe, unabhängig vom Payment-Cron).
+// Nur im Betrieb — ein Entwicklungsserver darf keine echten Erinnerungen
+// verschicken (siehe server/lib/fiaon-crons.ts, Vorfall vom 08.08.2026).
+import("../lib/fiaon-crons").then(({ tageslauf }) => {
+  tageslauf("agent-rueckruf-erinnerungen", () => {
+    runCallbackReminders().catch((err) => console.error("[FIAON-AGENT] Reminder-Cron:", err));
+  }, 60 * 60 * 1000);
+});
 
 // ═══════════════ AGENT: Auth (Login + Setup + Reset) ═══════════════
 

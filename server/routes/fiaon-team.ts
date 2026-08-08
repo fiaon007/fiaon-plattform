@@ -170,7 +170,7 @@ router.post("/admin/agents/:id/update", async (req, res) => {
 });
 
 /**
- * Rolle setzen: 'agent' oder 'vertriebsleiter'.
+ * Rolle setzen: 'agent', 'vertriebsleiter' oder 'onboarding'.
  *
  * Nur der Betreiber darf das — der Endpunkt haengt unter /admin und damit hinter
  * dem Zugangs-Gate. Ein Vertriebsleiter kann seine eigene Rolle NICHT aendern und
@@ -185,15 +185,15 @@ router.post("/admin/agents/:id/rolle", async (req, res) => {
     await sqlPool`ALTER TABLE fiaon_agents ADD COLUMN IF NOT EXISTS rolle TEXT NOT NULL DEFAULT 'agent'`;
     const id = Number(req.params.id);
     const rolle = String(req.body?.rolle || "").trim();
-    if (rolle !== "agent" && rolle !== "vertriebsleiter") {
-      return res.status(400).json({ ok: false, error: "Rolle muss 'agent' oder 'vertriebsleiter' sein" });
+    if (rolle !== "agent" && rolle !== "vertriebsleiter" && rolle !== "onboarding") {
+      return res.status(400).json({ ok: false, error: "Rolle muss 'agent', 'vertriebsleiter' oder 'onboarding' sein" });
     }
     const [vorher] = await sqlPool`SELECT rolle, name, is_test_account FROM fiaon_agents WHERE id = ${id}`;
     if (!vorher) return res.status(404).json({ ok: false, error: "Mitarbeiter nicht gefunden" });
-    if (vorher.is_test_account && rolle === "vertriebsleiter") {
+    if (vorher.is_test_account && rolle !== "agent") {
       // Ein Testkonto mit Zugriff auf ALLE echten Kundendaten waere ein
       // Datenleck mit Ansage.
-      return res.status(400).json({ ok: false, error: "Ein Testkonto kann nicht Vertriebsleiter werden." });
+      return res.status(400).json({ ok: false, error: `Ein Testkonto kann keine erhöhte Rolle bekommen (${rolle}).` });
     }
     const rows = await sqlPool`
       UPDATE fiaon_agents SET rolle = ${rolle} WHERE id = ${id}

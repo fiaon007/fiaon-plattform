@@ -43,15 +43,19 @@ export async function mailProtokoll(
     status: VersandStatus;
     grund?: string | null;
     payload?: Record<string, unknown> | null;
+    ausgeloestVon?: string | null;
+    ausgeloestAgentId?: number | null;
   },
   lauf: Lauf = sqlPool,
 ): Promise<void> {
   try {
     await lauf`
-      INSERT INTO fiaon_mail_log (event, person_id, empfaenger, status, grund, payload)
+      INSERT INTO fiaon_mail_log (event, person_id, empfaenger, status, grund, payload,
+                                  ausgeloest_von, ausgeloest_agent_id)
       VALUES (${eintrag.event}, ${eintrag.personId ?? null}, ${eintrag.empfaenger ?? null},
               ${eintrag.status}, ${eintrag.grund ?? null},
-              ${eintrag.payload ? JSON.stringify(eintrag.payload) : null}::jsonb)
+              ${eintrag.payload ? JSON.stringify(eintrag.payload) : null}::jsonb,
+              ${eintrag.ausgeloestVon ?? null}, ${eintrag.ausgeloestAgentId ?? null})
     `;
   } catch (err) {
     console.error("[MAIL-LOG] konnte nicht protokollieren:", err instanceof Error ? err.message : err);
@@ -79,6 +83,9 @@ export async function versendenUndProtokollieren(
      * stattgefunden hat.
      */
     lauf?: Lauf;
+    /** Wer den Versand von Hand ausgelöst hat. Leer heißt: eine Automatik. */
+    ausgeloestVon?: string | null;
+    ausgeloestAgentId?: number | null;
   } = {},
 ): Promise<VersandErgebnis> {
   const lauf = opts.lauf ?? sqlPool;
@@ -87,6 +94,7 @@ export async function versendenUndProtokollieren(
       event, personId: opts.personId, empfaenger: null,
       status: "uebersprungen", grund: "Keine E-Mail-Adresse hinterlegt",
       payload: payload as Record<string, unknown>,
+      ausgeloestVon: opts.ausgeloestVon, ausgeloestAgentId: opts.ausgeloestAgentId,
     }, lauf);
     return { status: "uebersprungen", grund: "Keine E-Mail-Adresse hinterlegt" };
   }
@@ -106,6 +114,7 @@ export async function versendenUndProtokollieren(
   await mailProtokoll({
     event, personId: opts.personId, empfaenger: String(payload.email),
     status, grund, payload: payload as Record<string, unknown>,
+    ausgeloestVon: opts.ausgeloestVon, ausgeloestAgentId: opts.ausgeloestAgentId,
   }, lauf);
 
   // In den Kundenverlauf, damit der Agent es dort sieht, wo er ohnehin liest.

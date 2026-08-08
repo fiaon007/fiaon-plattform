@@ -39,6 +39,20 @@ import { sqlPool } from "./db-pool";
  * ohne Nachschlagen erkennbar ist, wann diese Fassung galt.
  */
 export const ZUSAGE_VERSION = "2.0-2026-08-06";
+
+/**
+ * Bereiche mit eigener Verpflichtungserklärung.
+ *
+ * Die Maschinerie darunter ist dieselbe — Fassung, Prüfwert, getippter Name,
+ * Roboterabwehr, Widerruf. Nur der TEXT unterscheidet sich, weil sich die
+ * Verantwortung unterscheidet: Die Vertriebsleitung sieht den ganzen Bestand
+ * und bucht Geld, das Onboarding führt Gespräche und sieht Lagebilder.
+ *
+ * Eine zweite Kopie dieser Datei für den zweiten Bereich wäre der Anfang vom
+ * Auseinanderlaufen: Sobald jemand die Roboterabwehr an einer Stelle
+ * verbessert, fehlt sie an der anderen.
+ */
+export type ZusageBereich = "vertrieb" | "onboarding";
 // Fassung 2.0 (noch am selben Tag): Die Vertriebsleitung darf jetzt Zahlungen
 // buchen, Unterlagen-Stände und Zugangsprobleme einsehen. Genau dafür ist die
 // Versionierung da — Fassung 1.0 verbot das Buchen ausdrücklich, wer sie
@@ -229,8 +243,8 @@ export const ZUSAGE_TEXT: ZusageText = {
  * ändert, ohne die Version zu erhöhen, erzeugt einen Prüfwert, der nicht mehr
  * zu den bereits gespeicherten Annahmen passt — und genau das soll auffallen.
  */
-export function zusageHash(): string {
-  return createHash("sha256").update(JSON.stringify(ZUSAGE_TEXT)).digest("hex");
+export function zusageHash(text: ZusageText = ZUSAGE_TEXT): string {
+  return createHash("sha256").update(JSON.stringify(text)).digest("hex");
 }
 
 let bereit: Promise<void> | null = null;
@@ -263,7 +277,8 @@ export function ensureZusageTabelle(): Promise<void> {
         ALTER TABLE fiaon_vertrieb_zusagen
           ADD COLUMN IF NOT EXISTS widerrufen_am  TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS widerruf_grund TEXT,
-          ADD COLUMN IF NOT EXISTS widerrufen_von TEXT
+          ADD COLUMN IF NOT EXISTS widerrufen_von TEXT,
+          ADD COLUMN IF NOT EXISTS bereich        TEXT NOT NULL DEFAULT 'vertrieb'
       `);
     })().catch((e) => { bereit = null; throw e; });
   }
@@ -278,7 +293,11 @@ export interface ZusageStand {
   neufassung: boolean;
 }
 
-export async function zusageStand(agentId: number): Promise<ZusageStand> {
+export async function zusageStand(
+  agentId: number,
+  bereich: ZusageBereich = "vertrieb",
+  version: string = ZUSAGE_VERSION,
+): Promise<ZusageStand> {
   await ensureZusageTabelle();
   // `widerrufen_am IS NULL`: Eine entwertete Annahme zählt nicht. Am 08.08.2026
   // hatte ein Playwright-Roboter die Fassung 2.0 als „Daniel Stripling" gegen
@@ -287,19 +306,19 @@ export async function zusageStand(agentId: number): Promise<ZusageStand> {
   // sie nicht, und der Bereich fragt wieder.
   const [aktuell] = await sqlPool`
     SELECT accepted_at FROM fiaon_vertrieb_zusagen
-    WHERE agent_id = ${agentId} AND version = ${ZUSAGE_VERSION}
+    WHERE agent_id = ${agentId} AND bereich = ${bereich} AND version = ${version}
       AND widerrufen_am IS NULL
     ORDER BY id DESC LIMIT 1
   `;
   if (aktuell) {
-    return { offen: false, version: ZUSAGE_VERSION, akzeptiertAm: aktuell.accepted_at, neufassung: false };
+    return { offen: false, version, akzeptiertAm: aktuell.accepted_at, neufassung: false };
   }
   const [frueher] = await sqlPool`
     SELECT accepted_at FROM fiaon_vertrieb_zusagen
-    WHERE agent_id = ${agentId} AND widerrufen_am IS NULL
+    WHERE agent_id = ${agentId} AND bereich = ${bereich} AND widerrufen_am IS NULL
     ORDER BY id DESC LIMIT 1
   `;
-  return { offen: true, version: ZUSAGE_VERSION, akzeptiertAm: null, neufassung: !!frueher };
+  return { offen: true, version, akzeptiertAm: null, neufassung: !!frueher };
 }
 
 /**
@@ -341,9 +360,17 @@ export async function zusageSpeichern(opts: {
   gelesen: boolean;
   ip: string | null;
   userAgent: string | null;
+  bereich?: ZusageBereich;
+  /** Die Fassung, die tatsächlich auf dem Bildschirm stand. */
+  sollVersion?: string;
+  /** Der Text, über den der Prüfwert gebildet wird. */
+  text?: ZusageText;
 }): Promise<{ ok: boolean; grund?: string; akzeptiertAm?: string }> {
   await ensureZusageTabelle();
-  if (opts.version !== ZUSAGE_VERSION) {
+  const bereich: ZusageBereich = opts.bereich ?? "vertrieb";
+  const sollVersion = opts.sollVersion ?? ZUSAGE_VERSION;
+  const text = opts.text ?? ZUSAGE_TEXT;
+  if (opts.version !== sollVersion) {
     return { ok: false, grund: "Die Erklärung wurde zwischenzeitlich geändert. Bitte die Seite neu laden und die aktuelle Fassung lesen." };
   }
   if (!opts.gelesen) {
@@ -372,11 +399,11 @@ export async function zusageSpeichern(opts: {
     };
   }
   const [row] = await sqlPool`
-    INSERT INTO fiaon_vertrieb_zusagen (agent_id, version, text_hash, name_getippt, ip, user_agent)
-    VALUES (${opts.agentId}, ${ZUSAGE_VERSION}, ${zusageHash()},
+    INSERT INTO fiaon_vertrieb_zusagen (agent_id, bereich, version, text_hash, name_getippt, ip, user_agent)
+    VALUES (${opts.agentId}, ${bereich}, ${sollVersion}, ${zusageHash(text)},
             ${opts.nameGetippt.trim()}, ${opts.ip}, ${opts.userAgent})
     RETURNING accepted_at
   `;
-  console.log(`[VERTRIEB-ZUSAGE] ${opts.agentName} (#${opts.agentId}) hat Fassung ${ZUSAGE_VERSION} angenommen`);
+  console.log(`[ZUSAGE/${bereich}] ${opts.agentName} (#${opts.agentId}) hat Fassung ${sollVersion} angenommen`);
   return { ok: true, akzeptiertAm: row.accepted_at };
 }

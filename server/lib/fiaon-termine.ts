@@ -28,8 +28,42 @@ import { berlinOffsetMinutes } from "./fiaon-time";
 
 type Lauf = typeof sqlPool;
 
-/** Länge eines Gesprächs-Slots in Minuten. */
+/** Länge eines Gesprächs-Slots in Minuten (Vertriebsgespräch). */
 export const SLOT_MINUTEN = 20;
+
+/**
+ * Die Quellen einer Buchung — und wie lange das Gespräch dauert.
+ *
+ * Ein Startgespräch ist kürzer als ein Vertriebsgespräch: Es erklärt das
+ * System, es verkauft nichts. Die Dauer gehört deshalb an die QUELLE und nicht
+ * in eine zweite Terminmaschine daneben. Wer eine dritte Gesprächsart braucht
+ * (Inkasso), trägt sie hier ein und ist fertig.
+ */
+export const QUELLEN = {
+  onboarding: { minuten: 20, text: "Gespräch mit deinem persönlichen Ansprechpartner" },
+  nichterreicht_mail: { minuten: 20, text: "Gespräch mit deinem persönlichen Ansprechpartner" },
+  agent_manuell: { minuten: 20, text: "Gespräch mit deinem persönlichen Ansprechpartner" },
+  onboarding_call: { minuten: 15, text: "Dein persönliches Startgespräch" },
+} as const;
+
+export type TerminQuelle = keyof typeof QUELLEN;
+
+/** Wie lange dauert ein Gespräch dieser Quelle? */
+export function dauerFuer(quelle: TerminQuelle | string): number {
+  return (QUELLEN as Record<string, { minuten: number }>)[String(quelle)]?.minuten ?? SLOT_MINUTEN;
+}
+
+/**
+ * Welche Rolle führt Gespräche dieser Quelle?
+ *
+ * `null` heißt „der zuständige Betreuer bzw. jeder verteilende Mitarbeiter" —
+ * das bisherige Verhalten. Startgespräche dagegen führt ausschließlich das
+ * Onboarding; ein Vertriebsmitarbeiter darf dort nicht gebucht werden, sonst
+ * bekommt der Kunde statt einer Einführung ein Verkaufsgespräch.
+ */
+export function rolleFuerQuelle(quelle: TerminQuelle | string): string | null {
+  return String(quelle) === "onboarding_call" ? "onboarding" : null;
+}
 /** Frühestens buchbar: so viele Stunden ab jetzt. */
 export const VORLAUF_STUNDEN = 2;
 /** Längstens buchbar: so viele Tage ab jetzt. */
@@ -143,9 +177,16 @@ export function terminTokenPruefen(token: unknown): { personId: number; abgelauf
   return { personId, abgelaufen: exp < Date.now() };
 }
 
-/** Der vollständige Buchungslink, wie er in Mail und Zwischenablage landet. */
-export function terminLink(personId: number): string {
-  return absoluteUrl(`/termin/${terminTokenErzeugen(personId)}`);
+/**
+ * Der vollständige Buchungslink, wie er in Mail und Zwischenablage landet.
+ *
+ * Die Quelle steht im Pfad, nicht im Token: Sie ist keine Berechtigung,
+ * sondern die Auskunft, welche Art Gespräch gebucht wird (15 Minuten
+ * Startgespräch beim Onboarding, 20 Minuten beim Vertrieb).
+ */
+export function terminLink(personId: number, quelle: TerminQuelle | string = "nichterreicht_mail"): string {
+  const t = terminTokenErzeugen(personId);
+  return absoluteUrl(quelle === "onboarding_call" ? `/termin/${t}?art=start` : `/termin/${t}`);
 }
 
 /** Der Storno-Link zu einem Termin. */
@@ -231,7 +272,11 @@ export interface SlotAuskunft {
  * oder `verpasst` — ein abgesagter gibt die Zeit wieder frei) ODER wenn er
  * innerhalb des Vorlaufs liegt.
  */
-export async function freieSlots(personId: number, lauf: Lauf = sqlPool): Promise<SlotAuskunft> {
+export async function freieSlots(
+  personId: number, lauf: Lauf = sqlPool, quelle: TerminQuelle | string = "nichterreicht_mail",
+): Promise<SlotAuskunft> {
+  const takt = dauerFuer(quelle);
+  const nurRolle = rolleFuerQuelle(quelle);
   const [person] = (await lauf`
     SELECT p.id, p.assigned_agent_id,
            a.first_name AS agent_vorname, a.name AS agent_name, a.active AS agent_aktiv
@@ -244,15 +289,25 @@ export async function freieSlots(personId: number, lauf: Lauf = sqlPool): Promis
   // Wer darf angeboten werden? Bei Besitz: nur der Betreuer. Sonst: alle, die
   // im Verteilbetrieb stehen — Testkonten ausdrücklich nicht, sonst bucht ein
   // echter Kunde ein Gespräch mit einem Konto, hinter dem niemand sitzt.
-  const betreuerAktiv = person.assigned_agent_id && person.agent_aktiv;
-  const agenten = betreuerAktiv
-    ? [{ id: Number(person.assigned_agent_id), vorname: String(person.agent_vorname || person.agent_name || "Ihr Ansprechpartner") }]
-    : ((await lauf`
+  // Verlangt die Quelle eine bestimmte Rolle (Startgespräch → Onboarding), zählt
+  // NUR sie. Der Betreuer des Kunden ist dann unerheblich: Ein Startgespräch
+  // führt das Onboarding, auch wenn der Kunde längst einen Betreuer hat.
+  const betreuerAktiv = !nurRolle && person.assigned_agent_id && person.agent_aktiv;
+  const agenten = nurRolle
+    ? ((await lauf`
         SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname
         FROM fiaon_agents
-        WHERE active AND distribution_active AND NOT is_test_account
+        WHERE active AND NOT is_test_account AND rolle = ${nurRolle}
         ORDER BY id
-      `) as any[]).map((a) => ({ id: Number(a.id), vorname: String(a.vorname) }));
+      `) as any[]).map((a) => ({ id: Number(a.id), vorname: String(a.vorname) }))
+    : betreuerAktiv
+      ? [{ id: Number(person.assigned_agent_id), vorname: String(person.agent_vorname || person.agent_name || "dein Ansprechpartner") }]
+      : ((await lauf`
+          SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname
+          FROM fiaon_agents
+          WHERE active AND distribution_active AND NOT is_test_account
+          ORDER BY id
+        `) as any[]).map((a) => ({ id: Number(a.id), vorname: String(a.vorname) }));
   if (agenten.length === 0) return { slots: [], betreuer: null };
 
   const frühestens = new Date(Date.now() + VORLAUF_STUNDEN * 3600_000);
@@ -277,7 +332,7 @@ export async function freieSlots(personId: number, lauf: Lauf = sqlPool): Promis
         const von = zeitZuMinuten(f.von);
         const bis = zeitZuMinuten(f.bis);
         if (von == null || bis == null) continue;
-        for (let min = von; min + SLOT_MINUTEN <= bis; min += SLOT_MINUTEN) {
+        for (let min = von; min + takt <= bis; min += takt) {
           const beginn = berlinZeitpunkt(datum, min);
           if (beginn < frühestens || beginn > spätestens) continue;
           if (belegt.has(`${agent.id}@${beginn.toISOString()}`)) continue;
@@ -305,7 +360,7 @@ export async function freieSlots(personId: number, lauf: Lauf = sqlPool): Promis
   // wird je Zeitpunkt genau ein Slot angeboten, und zwar der des Agenten mit
   // den wenigsten anstehenden Terminen. Das verteilt die Last von selbst und
   // bleibt trotzdem deterministisch (bei Gleichstand die kleinere Kennung).
-  if (!betreuerAktiv && slots.length > 0) {
+  if ((!betreuerAktiv || nurRolle) && slots.length > 0) {
     const last = new Map<number, number>();
     for (const a of agenten) last.set(a.id, 0);
     for (const t of (await lauf`
@@ -375,7 +430,7 @@ export async function terminBuchen(
     personId: number;
     agentId: number;
     beginn: string | Date;
-    quelle: "onboarding" | "nichterreicht_mail" | "agent_manuell";
+    quelle: TerminQuelle;
   },
   lauf: Lauf = sqlPool,
 ): Promise<Buchung> {
@@ -396,11 +451,19 @@ export async function terminBuchen(
     throw new TerminFehler("zu_spaet", `Termine sind höchstens ${HORIZONT_TAGE} Tage im Voraus buchbar.`);
   }
 
+  const takt = dauerFuer(eingabe.quelle);
+  const nurRolle = rolleFuerQuelle(eingabe.quelle);
   const [agent] = (await lauf`
-    SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname, active
+    SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname, active, rolle
     FROM fiaon_agents WHERE id = ${eingabe.agentId}
   `) as any[];
   if (!agent || !agent.active) throw new TerminFehler("agent_unbekannt", "Dieser Ansprechpartner ist nicht verfügbar.");
+  // Ein Startgespräch bei jemandem ohne Onboarding-Rolle wäre kein
+  // Startgespräch. Die Prüfung steht hier und nicht nur in der Slot-Anzeige:
+  // Wer die Anfrage selbst baut, kommt sonst an der Anzeige vorbei.
+  if (nurRolle && String(agent.rolle || "agent") !== nurRolle) {
+    throw new TerminFehler("falsche_rolle", "Diese Person führt keine Startgespräche.");
+  }
 
   // Der Slot muss im Raster liegen. Ohne diese Prüfung ließe sich über einen
   // selbst gebauten Aufruf jede beliebige Minute belegen, und der eindeutige
@@ -413,7 +476,7 @@ export async function terminBuchen(
     const von = zeitZuMinuten(f.von);
     const bis = zeitZuMinuten(f.bis);
     if (von == null || bis == null) return false;
-    for (let min = von; min + SLOT_MINUTEN <= bis; min += SLOT_MINUTEN) {
+    for (let min = von; min + takt <= bis; min += takt) {
       if (berlinZeitpunkt(datum, min).getTime() === beginn.getTime()) return true;
     }
     return false;
@@ -425,7 +488,7 @@ export async function terminBuchen(
   try {
     [gebucht] = (await lauf`
       INSERT INTO fiaon_termine (person_id, agent_id, beginn, dauer_min, status, quelle, storno_token)
-      VALUES (${eingabe.personId}, ${eingabe.agentId}, ${beginn}, ${SLOT_MINUTEN}, 'gebucht',
+      VALUES (${eingabe.personId}, ${eingabe.agentId}, ${beginn}, ${takt}, 'gebucht',
               ${eingabe.quelle}, ${stornoToken})
       RETURNING id
     `) as any[];

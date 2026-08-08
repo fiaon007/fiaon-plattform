@@ -222,7 +222,7 @@ function Hero() {
    NUMBERS
    ──────────────────────────────── */
 function Numbers() {
-  const items = [["12.400+","Beratungen"],["25.000 \u20AC","Max. Limit"],["< 2 Min","Antrag starten"],["4,9 / 5","Bewertung"]];
+  const items = [["12.400+","Gespräche"],["25.000 \u20AC","Max. Limit"],["< 2 Min","Antrag starten"],["4,9 / 5","Bewertung"]];
   return (
     <section className="py-10 sm:py-12 border-y border-gray-100">
       <div className="max-w-[1120px] mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-4">
@@ -836,12 +836,12 @@ function Reviews() {
   
   const allReviews = [
     { n: "Lena M.", r: "Unternehmerin", t: "FIAON hat mir in 10 Minuten geholfen, die richtige Karte für mein Business zu finden." },
-    { n: "Tobias K.", r: "Freelancer", t: "Die Beratung war wirklich neutral. Keine versteckten Kosten, keine Tricks." },
+    { n: "Tobias K.", r: "Freelancer", t: "Die Begleitung war wirklich neutral. Keine versteckten Kosten, keine Tricks." },
     { n: "Sara W.", r: "Angestellte", t: "Endlich jemand, der mir erklärt hat, welche Karte zu meiner Situation passt." },
     { n: "Markus R.", r: "Selbstständiger", t: "Der Vergleich ist transparent. Ich weiß genau, was ich bekomme." },
     { n: "Julia B.", r: "Studentin", t: "Auch als Studentin habe ich eine passende Karte gefunden." },
     { n: "Alexander P.", r: "Geschäftsführer", t: "Für unser Unternehmen genau das Richtige. Schnelle Abwicklung." },
-    { n: "Nina S.", r: "Designerin", t: "Das Design der Seite ist modern, die Beratung ist professionell." },
+    { n: "Nina S.", r: "Designerin", t: "Das Design der Seite ist modern, die Begleitung ist professionell." },
     { n: "David H.", r: "IT-Spezialist", t: "Alles digital, keine Papierkram. Genau wie ich es wollte." },
     { n: "Maria L.", r: "Lehrerin", t: "Endlich durchblick im Kreditkarten-Dschungel. Danke FIAON!" },
     { n: "Stefan K.", r: "Vertriebler", t: "Die Cashback-Features sind genial. Spare jeden Monat Geld." },
@@ -852,7 +852,7 @@ function Reviews() {
     { n: "Sophie T.", r: "HR-Managerin", t: "Auch für unsere Mitarbeiter hat FIAON passende Lösungen." },
     { n: "Patrick S.", r: "Unternehmer", t: "Die Limit-Empfehlung war realistisch und fair." },
     { n: "Isabella R.", r: "Reisebegeisterte", t: "Mit der Reise-Versicherung fühle ich mich sicher unterwegs." },
-    { n: "Maximilian H.", r: "Investor", t: "Professionelle Beratung, kein Verkaufsgespräch. Sehr gut." },
+    { n: "Maximilian H.", r: "Investor", t: "Professionelle Begleitung, kein Verkaufsgespräch. Sehr gut." },
     { n: "Emma K.", r: "Studentin", t: "Kostenlos und unverbindlich – das überzeugt." },
     { n: "Jonas M.", r: "Musiker", t: "Der Concierge-Service ist ein echtes Premium-Feature." },
     { n: "Carla P.", r: "Freiberuflerin", t: "Schnell, einfach, transparent. So habe ich es mir gewünscht." },
@@ -945,9 +945,9 @@ function Reviews() {
 function Faq() {
   const [open, setOpen] = useState<number | null>(null);
   const items = [
-    ["Vergibt FIAON selbst Kreditkarten?", "Nein. FIAON ist ein Beratungsservice. Die Karte wird vom jeweiligen Partnerinstitut ausgegeben."],
-    ["Wird eine SCHUFA-Abfrage durchgef\u00FChrt?", "Bei der Erstberatung nicht. Erst bei der finalen Beantragung beim Anbieter kann eine Pr\u00FCfung stattfinden."],
-    ["Was kostet die Beratung?", "Die Erstberatung ist kostenlos. Die Geb\u00FChren beziehen sich auf das Kreditkarten-Paket beim Anbieter."],
+    ["Vergibt FIAON selbst Kreditkarten?", "Nein. FIAON ist ein Begleitungs- und Softwareangebot. Die Karte wird vom jeweiligen Partnerinstitut ausgegeben."],
+    ["Wird eine SCHUFA-Abfrage durchgef\u00FChrt?", "Beim Erstgespräch nicht. Erst bei der finalen Beantragung beim Anbieter kann eine Pr\u00FCfung stattfinden."],
+    ["Was kostet das Erstgespräch?", "Das Erstgespräch ist kostenlos. Die Geb\u00FChren beziehen sich auf das Kreditkarten-Paket beim Anbieter."],
     ["Welche Limits sind m\u00F6glich?", "Je nach Paket: 500 \u20AC bis 25.000 \u20AC."],
     ["F\u00FCr wen ist FIAON geeignet?", "F\u00FCr Privatpersonen, Selbstst\u00E4ndige und Unternehmen."],
     ["Wie schnell erhalte ich meine Karte?", "Digitale Karte oft sofort. Physische Karte in 3\u20135 Werktagen."],
@@ -1730,7 +1730,7 @@ function Foot() {
               <span className="text-2xl font-bold tracking-tight fiaon-gradient-text-animated">FIAON</span>
             </div>
             <p className="text-[14px] text-gray-500 leading-relaxed max-w-[260px]">
-              Unabhängige Kreditkarten-Beratung für Privatpersonen und Unternehmen.
+              Unabhängige Kreditkarten-Begleitung für Privatpersonen und Unternehmen.
             </p>
           </div>
 
@@ -1768,7 +1768,7 @@ function Foot() {
         {/* Bottom Bar */}
         <div className="pt-8 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
           <span className="text-[13px] text-gray-400">&copy; {new Date().getFullYear()} FIAON. Alle Rechte vorbehalten.</span>
-          <span className="text-[12px] text-gray-400">FIAON ist ein Beratungsservice und kein Kreditinstitut.</span>
+          <span className="text-[12px] text-gray-400">FIAON ist ein Begleitungs- und Softwareangebot und kein Kreditinstitut.</span>
         </div>
       </div>
     </footer>

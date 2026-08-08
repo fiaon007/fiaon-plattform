@@ -35,6 +35,20 @@ import { terminLink } from "../lib/fiaon-termine";
 
 const router = Router();
 
+/**
+ * HEUTE — in Europe/Berlin, nicht in UTC.
+ *
+ * `CURRENT_DATE` ist das Datum des SERVERS, und der läuft auf UTC. Zwischen
+ * Mitternacht und zwei Uhr Berliner Zeit (im Winter: eine Stunde) ist das noch
+ * der Vortag. Eine Zusage „für heute" fiel in diesem Fenster aus dem obersten
+ * Rang und rutschte hinter die Stufe A — gemessen am 09.08.2026 um 00:15 Uhr
+ * Berliner Zeit, wo UTC noch den 08.08. anzeigte.
+ *
+ * Dieselbe Tagesgrenze wie `berlinToday()` in server/lib/fiaon-time.ts, nur
+ * für SQL. Wer hier `CURRENT_DATE` schreibt, baut den Fehler neu.
+ */
+const HEUTE = `(NOW() AT TIME ZONE 'Europe/Berlin')::date`;
+
 const NAME_SQL = `COALESCE(
   NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
   NULLIF(TRIM(p.company_name), ''),
@@ -209,8 +223,8 @@ router.get("/agent/start", requireAgent, async (req: AgentRequest, res: Response
         COUNT(*) FILTER (WHERE priority_tier = 2 AND NOT is_blocked)::int AS tier2,
         COUNT(*) FILTER (WHERE priority_tier = 3 AND NOT is_blocked)::int AS tier3,
         COUNT(*) FILTER (WHERE priority_tier = 0)::int AS bezahlt,
-        COUNT(*) FILTER (WHERE promised_payment_date = CURRENT_DATE AND NOT is_blocked)::int AS zusage_heute,
-        COUNT(*) FILTER (WHERE promised_payment_date < CURRENT_DATE AND priority_tier BETWEEN 1 AND 2
+        COUNT(*) FILTER (WHERE promised_payment_date = ${sqlPool.unsafe(HEUTE)} AND NOT is_blocked)::int AS zusage_heute,
+        COUNT(*) FILTER (WHERE promised_payment_date < ${sqlPool.unsafe(HEUTE)} AND priority_tier BETWEEN 1 AND 2
                            AND NOT is_blocked)::int AS zusage_ueberfaellig
       FROM fiaon_persons
       WHERE assigned_agent_id = ${me} AND merged_into_person_id IS NULL
@@ -330,9 +344,9 @@ const ORDNUNG: Record<Sortierung, string> = {
       WHEN EXISTS (
         SELECT 1 FROM fiaon_termine t
         WHERE t.person_id = p.id AND t.status = 'gebucht'
-          AND t.beginn::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date
+          AND t.beginn::date = ${HEUTE}
       ) THEN 1
-      WHEN p.promised_payment_date IS NOT NULL AND p.promised_payment_date <= CURRENT_DATE THEN 2
+      WHEN p.promised_payment_date IS NOT NULL AND p.promised_payment_date <= ${HEUTE} THEN 2
       WHEN EXISTS (
         SELECT 1 FROM fiaon_contact_log cl JOIN fiaon_applications a3 ON a3.ref = cl.ref
         WHERE a3.person_id = p.id AND cl.outcome = 'rueckruf_termin' AND cl.done_at IS NULL
@@ -386,8 +400,8 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
       else if (filter === "frist_abgelaufen") wo.push("p.tier_reason = 'zahlungsfrist_abgelaufen'");
       else if (filter === "antrag_offen") wo.push("p.tier_reason IN ('antrag_abgeschlossen', 'antrag_abgebrochen')");
       else if (filter === "leads") wo.push("p.priority_tier = 3");
-      else if (filter === "zusage_heute") wo.push("p.promised_payment_date = CURRENT_DATE");
-      else if (filter === "ueberfaellig") wo.push("p.promised_payment_date < CURRENT_DATE");
+      else if (filter === "zusage_heute") wo.push(`p.promised_payment_date = ${HEUTE}`);
+      else if (filter === "ueberfaellig") wo.push(`p.promised_payment_date < ${HEUTE}`);
       else if (filter === "rueckruf") {
         wo.push(`EXISTS (
           SELECT 1 FROM fiaon_contact_log cl JOIN fiaon_applications a6 ON a6.ref = cl.ref
@@ -434,8 +448,8 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
         COUNT(*) FILTER (WHERE tier_reason = 'zahlungsfrist_abgelaufen' AND NOT is_blocked)::int AS frist_abgelaufen,
         COUNT(*) FILTER (WHERE tier_reason IN ('antrag_abgeschlossen','antrag_abgebrochen') AND NOT is_blocked)::int AS antrag_offen,
         COUNT(*) FILTER (WHERE priority_tier = 3 AND NOT is_blocked)::int AS leads,
-        COUNT(*) FILTER (WHERE promised_payment_date = CURRENT_DATE AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3)::int AS zusage_heute,
-        COUNT(*) FILTER (WHERE promised_payment_date < CURRENT_DATE AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3)::int AS ueberfaellig,
+        COUNT(*) FILTER (WHERE promised_payment_date = ${sqlPool.unsafe(HEUTE)} AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3)::int AS zusage_heute,
+        COUNT(*) FILTER (WHERE promised_payment_date < ${sqlPool.unsafe(HEUTE)} AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3)::int AS ueberfaellig,
         COUNT(*) FILTER (WHERE unreachable_count > 0 AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3)::int AS nicht_erreicht,
         COUNT(*) FILTER (WHERE priority_tier = 0)::int AS bezahlt,
         COUNT(*) FILTER (WHERE is_blocked)::int AS gesperrt,

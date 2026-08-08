@@ -40,6 +40,34 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-08-space-startgespraeche",
+    date: "2026-08-08",
+    category: "Neu",
+    title: "Der Space ist da, Kunden bekommen ein Startgespräch",
+    summary:
+      "Neuer Menüpunkt „Space“: unser gemeinsamer Raum. Und jeder bezahlte Kunde bekommt künftig 15 Minuten mit einem Menschen, in denen ihm das System erklärt wird.",
+    changes: [
+      "Neuer Bereich „Space“ im Menü — für alle im Team. Dort stehen Beiträge von Kolleginnen und Kollegen, der Gedanke des Tages und Hinweise der Leitung.",
+      "Du kannst schreiben, mit vier Marken reagieren (Daumen, Herz, Stern, Blitz) und antworten. Die Marke am Menüpunkt zeigt, wie viel neu ist.",
+      "WICHTIG: Keine Kundendaten im Space. Keine Namen, keine Nummern, keine Beträge. Das System weist Beiträge mit Rufnummern, IBANs oder E-Mail-Adressen ab.",
+      "Bezahlte Kunden werden beim ersten Login zu einem 15-minütigen Startgespräch eingeladen und wählen ihre Uhrzeit selbst.",
+      "Diese Gespräche führt die neue Rolle „Onboarding“ — sie hat einen eigenen Bereich und sieht die Kundenlage nur lesend.",
+      "Neu auf jeder Kundenkarte: der Bereich „E-Mails“. Du siehst, was an den Kunden rausging, und kannst es mit einem Klick erneut schicken (höchstens 3× pro Tag).",
+      "Sprache: Aus „Mitarbeiter“ wird „Team“, und die Startseite begrüßt dich mit Namen und Tageszeit.",
+      "Kundenseitig duzen wir jetzt überall — im Antrag, im Portal, auf der Terminseite.",
+    ],
+    howto: [
+      "Öffne „Space“ im Menü. Oben stehen drei angepinnte Beiträge, die erklären, was hierher gehört.",
+      "Schreib etwas ins Feld oben und klick „Veröffentlichen“. Ein Satz genügt.",
+      "Zum Reagieren tippst du eine der vier Marken unter einem Beitrag an. Nochmal tippen nimmt sie zurück.",
+      "Wenn du eine Rufnummer oder IBAN in einen Beitrag schreibst, lehnt das System ihn ab und sagt dir warum. Kundendaten gehören in die Akte.",
+      "Auf einer Kundenkarte findest du unter „E-Mails“ die Versandhistorie — dort siehst du sofort, ob der Kunde die Zahlungsdaten wirklich bekommen hat.",
+      "Steht ein Knopf auf grau, sagt der Text darunter, warum: bezahlt, gesperrt, keine E-Mail oder Tageslimit erreicht.",
+    ],
+    link: { href: "/agent/space", label: "Zum Space" },
+    important: true,
+  },
+  {
     id: "2026-08-08-lead-pipeline-termine",
     date: "2026-08-08",
     category: "Neu",

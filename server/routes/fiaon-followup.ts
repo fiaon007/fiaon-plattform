@@ -493,7 +493,20 @@ export async function runTerminErinnerungen(): Promise<number> {
 // ── Registrierung im bestehenden Muster: setInterval im Web-Prozess ─────────
 // Alle 20 Minuten nachsehen, ob es 6 Uhr in Wien ist. Ein stündlicher Takt
 // könnte die Stunde bei ungünstigem Startzeitpunkt verpassen.
+// ── KEINE TAGESLÄUFE AUF EINEM ENTWICKLUNGSRECHNER ─────────────────────────
+// Am 08.08.2026 lief hier lokal ein Entwicklungsserver gegen die
+// PRODUKTIONSDATENBANK. Der neu eingebaute Wiedereinstiegs-Lauf feuerte nach
+// zwanzig Minuten und markierte 26 echte Kunden als angeschrieben — ohne dass
+// eine einzige Mail rausging, weil die Entwicklungsmaschine keinen
+// Mail-Kanal hat. Der Schaden war reparabel, die Lehre bleibt:
+//
+// Tagesläufe starten nur, wenn dieser Prozess der Betrieb IST. Erkennbar an
+// NODE_ENV=production oder am ausdrücklichen Flag CRONS=an. Wer lokal einen
+// Lauf prüfen will, ruft ihn von Hand auf — dann weiß er auch, dass er es tut.
+import { CRONS_AN } from "../lib/fiaon-crons";
+
 setInterval(() => {
+  if (!CRONS_AN) return;
   runFollowUpTageslauf().catch((err) => console.error("[FIAON-FOLLOWUP] Tageslauf:", err));
   // Die Terminerinnerung hängt NICHT am 6-Uhr-Tageslauf: Ein Termin um 09:20
   // braucht seine Erinnerung am Vortag um 09:20, nicht um 6 Uhr morgens. Der
@@ -504,6 +517,18 @@ setInterval(() => {
   import("../lib/fiaon-wiedereinstieg")
     .then((m) => m.wiedereinstiegTagesstaffel())
     .catch((err) => console.error("[FIAON-FOLLOWUP] Wiedereinstieg:", err));
+  // Startgespräch: die eine Einladung 48 Stunden nach dem Überspringen, und
+  // das Aufräumen unerledigter Termine.
+  import("./fiaon-startgespraech")
+    .then(async (m) => { await m.runStartgespraechEinladungen(); await m.runVerpassteTermine(); })
+    .catch((err) => console.error("[FIAON-FOLLOWUP] Startgespräch:", err));
+  // Der Space bekommt seine Auto-Posts vor sieben Uhr Berliner Zeit.
+  import("../lib/fiaon-space")
+    .then(async (m) => {
+      const stunde = Number(new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }).format(new Date()));
+      if (stunde < 7) await m.spaceTageslauf();
+    })
+    .catch((err) => console.error("[FIAON-FOLLOWUP] Space:", err));
 }, 20 * 60 * 1000);
 
 // ───────────────────────────────────────────────────────────────────────────

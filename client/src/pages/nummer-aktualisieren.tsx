@@ -69,7 +69,7 @@ export default function NummerAktualisierenPage() {
               </div>
               <h1 className="text-[19px] font-bold text-slate-900 mb-2">Dieser Link ist nicht mehr gültig</h1>
               <p className="text-[13.5px] text-slate-500 leading-relaxed">
-                {error || "Der Link ist abgelaufen oder wurde bereits verwendet."} Kein Problem — unser Team meldet sich erneut bei Ihnen.
+                {error || "Der Link ist abgelaufen oder wurde bereits verwendet."} Kein Problem — unser Team meldet sich erneut bei dir.
               </p>
             </div>
           )}
@@ -80,7 +80,7 @@ export default function NummerAktualisierenPage() {
                 <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
               </div>
               <h1 className="text-[20px] font-bold text-slate-900 mb-2">Vielen Dank{firstName ? `, ${firstName}` : ""}</h1>
-              <p className="text-[14px] text-slate-500 leading-relaxed">Ihre Telefonnummer wurde gespeichert. Wir melden uns in Kürze persönlich bei Ihnen.</p>
+              <p className="text-[14px] text-slate-500 leading-relaxed">Deine Telefonnummer wurde gespeichert. Wir melden uns in Kürze persönlich bei dir.</p>
             </div>
           )}
 
@@ -90,8 +90,8 @@ export default function NummerAktualisierenPage() {
                 {firstName ? `Hallo ${firstName},` : "Hallo,"}
               </h1>
               <p className="text-[14px] text-slate-600 leading-relaxed mb-5">
-                wir haben versucht, Sie telefonisch zu erreichen — leider scheint Ihre hinterlegte Nummer nicht zu stimmen.
-                Bitte aktualisieren Sie sie, damit wir Sie persönlich beraten können. Dauert keine 30 Sekunden.
+                wir haben versucht, dich telefonisch zu erreichen — leider scheint deine hinterlegte Nummer nicht zu stimmen.
+                Bitte aktualisier sie, damit wir uns persönlich bei dir melden können. Dauert keine 30 Sekunden.
               </p>
 
               {maskedPhone && (
@@ -138,7 +138,7 @@ export default function NummerAktualisierenPage() {
                 {saving ? "Wird gespeichert …" : "Telefonnummer speichern"}
               </button>
               <p className="text-[11.5px] text-slate-400 mt-4 text-center leading-relaxed">
-                Über diesen Link lässt sich ausschließlich Ihre Telefonnummer ändern.<br />Ihre Daten werden vertraulich behandelt (DSGVO).
+                Über diesen Link lässt sich ausschließlich deine Telefonnummer ändern.<br />Deine Daten werden vertraulich behandelt (DSGVO).
               </p>
             </form>
           )}

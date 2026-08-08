@@ -3,6 +3,77 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 08.08.2026 — Menschen & Momentum: Startgespräche, ein Raum fürs Team, und „Agent" verschwindet
+
+Ein Mensch überweist 99,99 € im Monat und findet danach ein Konto vor, das er sich selbst erklären muss. Ein Team, das über vier Städte verteilt arbeitet, hat kein Treppenhaus. Und intern hieß jeder Mitarbeiter „Agent" — ein Wort aus einem Callcenter-Handbuch, nicht aus einem Startup. Drei Lücken, ein Paket.
+
+### Das Startgespräch
+
+Jeder bezahlte Kunde bekommt beim ersten Login eine Vollbild-Tafel: **„Willkommen bei FIAON, [Vorname]"** — fünfzehn Minuten mit einem Menschen, Uhrzeit selbst gewählt. Derselbe Auftritt wie die Verpflichtungserklärung im Team-Portal: Glas nur auf der schwebenden Ebene, Haarlinien statt Balken, Eintritt aus der Tiefe.
+
+**Kein hartes Gate.** „Später buchen" bleibt immer möglich — einen zahlenden Kunden aus seinem eigenen Konto auszusperren, wäre ein Eigentor. Danach bleibt ein dezenter Banner, und **48 Stunden nach dem ersten Überspringen genau eine Mail** (`onboarding_einladung`). Der Zeitstempel wird per `COALESCE` nur beim ERSTEN Klick gesetzt; sonst schöbe jeder weitere Besuch die Uhr nach hinten und die Erinnerung käme nie.
+
+### Die Rolle „Onboarding"
+
+Nach dem Muster der Vertriebsleitung: vergeben in `/admin/team`, eigener Bereich unter **/agent/startgespraeche**, für alle anderen **404** — wer die Rolle nicht hat, soll nicht einmal erfahren, dass es den Bereich gibt. Mit Rolle, aber ohne angenommene Erklärung: **403 mit Code**, denn wem nur ein Schritt fehlt, den führt man hin statt ihn wegzuschicken.
+
+**Eigene Verpflichtungserklärung, sechs Punkte statt zwölf.** Die Vertriebs-Erklärung handelt zur Hälfte von Dingen, die das Onboarding gar nicht kann — Zahlungen buchen, zuweisen, Provisionen. Eine Erklärung, in der die Hälfte nicht zutrifft, wird überflogen, und eine überflogene Erklärung ist als Nachweis wenig wert. Die **Maschinerie** dagegen ist dieselbe: Fassung, Prüfwert über den Wortlaut, getippter Name als Unterschrift, Roboterabwehr, Widerruf. Dafür bekam `fiaon_vertrieb_zusagen` eine Spalte `bereich` statt einer zweiten Tabelle.
+
+Der Bereich zeigt Termine als Liste und Kalender, die **Lage des Kunden lesend** (dieselbe Tafel wie im Vertrieb, nur über einen Endpunkt, der ausschließlich die eigenen Gesprächspartner freigibt), Ergebnis-Dokumentation und drei Kennzahlen. Was er **nicht** kann, steht nicht in der Zusage, sondern im Code: kein Import aus der Verbuchung, keine Provisionen, keine Vertriebslisten. Der Prüfstand misst genau diese Abwesenheit.
+
+Startgespräche dauern **15 Minuten** statt 20 — die Dauer hängt jetzt an der QUELLE (`QUELLEN` in `fiaon-termine.ts`), nicht an einer zweiten Terminmaschine. Wer eine dritte Gesprächsart braucht (Inkasso), trägt sie dort ein und ist fertig. Buchbar sind ausschließlich Slots der Onboarding-Rolle; ein selbst gebauter Aufruf mit fremder Agenten-Kennung wird mit `falsche_rolle` abgewiesen.
+
+### FIAON Space
+
+Ein eigener Menüpunkt für **jede** Rolle, mit Ungelesen-Marke. Feed-Karten im CI, Avatare, „vor 2 Std", angepinnte Beiträge oben. Vier Reaktionsmarken — Daumen, Herz, Stern, Blitz — als **selbst gezeichnete SVG**, 1,5 px, `currentColor`. Bewusst vier und nicht zwölf: Eine große Auswahl macht aus einer Zustimmung eine Entscheidung.
+
+**Auto-Posts vor sieben Uhr:** der „Gedanke des Tages" aus **90 kuratierten Sätzen** (kein Spruch zweimal in 90 Tagen — Ringpuffer, kein Zufall, der nach dem Geburtstagsparadox schon in Woche drei doppelt) und „Heute weltweit" über die freie Nager.Date-API, DACH ausgeschrieben, der Rest als eine Zeile. **Fällt die API aus, fällt der Post stumm aus** — ein Post „Feiertage konnten nicht geladen werden" ist Müll im Feed. Schlagzeilen aus dem tagesschau-RSS liegen hinter dem Flag `SPACE_NEWS` und sind **standardmäßig aus**: Nachrichten in einem Arbeitsraum ziehen Aufmerksamkeit und laden zu Diskussionen ein, die nicht hierher gehören. Idempotenz erzwingt ein eindeutiger Index, nicht eine Prüfung davor.
+
+**Keine Kundendaten im Space** — als stiller Hinweis am Feld UND als Wand im Server. Abgewiesen werden Rufnummern (auch mit Leerzeichen und Schrägstrichen), IBANs, E-Mail-Adressen und Verwendungszwecke im Hausformat, jeweils mit Begründung im Klartext. Das ist keine Prinzipienreiterei: Den Space sieht **jede** Rolle, auch die, die diesen einen Kunden nie betreuen darf. Was die Prüfung nicht kann, ist Namen erkennen — deshalb steht der Hinweis trotzdem am Feld. Die Wand fängt das Grobe, die Kultur den Rest.
+
+### „Agent" verschwindet aus der Sicht
+
+**Routen, Tabellen und Bezeichner bleiben unangetastet** — kein Risiko-Umbau. Geändert wurde nur, was ein Mensch liest: **162 Zeilen** in 15 Dateien.
+
+- Die Kopfzeile heißt **„Team"** statt „Mitarbeiter", die Startseite grüßt mit **Tageszeit und Vornamen** („Guten Morgen, Daniel").
+- 16 sichtbare Stellen „Agent/Agenten" → „Team", „Teammitglied", „Zuständige:r".
+- **Die Kundenstrecke duzt durchgängig.** 89 Fundstellen in sechs Dateien plus `naechste-schritte.tsx`, das bei der ersten Suche durchrutschte und erst im Screenshot auffiel („Wir beschaffen Ihre vollständige Bonitätsauskunft" — mitten im Dashboard).
+- Die automatische Ersetzung hat dabei **Grammatik zerbrochen**: „Sofern du in den letzten 6 Monaten deinen Hauptwohnsitz gewechselt **haben, geben Sie** bitte …". Elf solcher Mischformen wurden von Hand geradegezogen. Eine Textersetzung über 89 Stellen ohne anschließenden Blick auf jede einzelne wäre fahrlässig gewesen.
+
+**Compliance, ungefragt mitgeprüft und behoben:** Die öffentlichen Seiten nannten FIAON **sechsmal einen „Beratungsservice"**, warben mit „12.400+ Beratungen" und fragten „Was kostet die Beratung?". Für ein SaaS- und Begleitangebot ohne Erlaubnis nach § 34c/34f GewO ist das genau das Wort, das dort nicht stehen darf. **20 Fundstellen bereinigt** (→ „Begleitungs- und Softwareangebot", „Gespräche", „Erstgespräch"). Stehen bleibt eine Stelle in den AGB — dort steht das Wort in einem Verbotstatbestand („der Nutzer darf nicht als Berater auftreten") und ist richtig.
+
+### Versandzentrum
+
+„Der Kunde sagt, er hat die Zahlungsdaten nie bekommen" war bisher eine Nachricht an den Betreiber. Jetzt steht in der Kundenkarte unter **„E-Mails"** die Versandhistorie aus `fiaon_mail_log` — Ereignis, Zeitpunkt, Ausgang, bei Fehlschlag der Grund — und daneben Knöpfe zum erneuten Senden. Drei Wände, alle serverseitig:
+
+1. **Zustand.** Keine Zahlungsaufforderung an Bezahlte, kein Terminlink an Gesperrte, keine Zugangsmail an Unbezahlte. Der Grund steht **im Klartext unter dem Knopf**, nicht als Wolke am Mauszeiger, die auf dem Telefon niemand sieht.
+2. **Tageslimit.** Höchstens drei manuelle Sendungen je Kunde, Ereignis und Tag. Automatische Sendungen zählen nicht mit.
+3. **Rechte.** Teammitglied nur für eigene Kunden, Leitung für alle, Onboarding nur Startgespräch und Zugang.
+
+Jeder Versand steht mit Auslöser im Protokoll („erneut gesendet von Daniel") und im Kundenverlauf. Der Prüfstand belegt für fünf Dateien, dass **kein Versender am Protokoll vorbeischreibt**.
+
+### Die Lehre aus dem 26-Kunden-Vorfall ist jetzt eine Wand
+
+Am selben Tag hatte ein lokaler Entwicklungsserver einen Tageslauf gegen die Produktion gefeuert. Neu: `server/lib/fiaon-crons.ts`. **Tagesläufe starten nur bei `NODE_ENV=production` oder ausdrücklichem `CRONS=an`.** Beim Start meldet der Prozess sichtbar „Tagesläufe AUS — kein Produktionsbetrieb". Die drei mail-versendenden Schleifen (Follow-up, Rückruf-Erinnerungen, Zahlungserinnerungen) laufen jetzt durch diese eine Tür; der Abo-Motor hatte die Bremse schon.
+
+### Was die Screenshots gefunden haben
+
+Drei Fehler, die kein Test bemerkt hätte:
+
+- **Zwei Vollbild-Tafeln übereinander.** Die bestehende Willkommens-Tour und das Startgespräch-Gate erschienen gleichzeitig. Das Gate wartet jetzt auf sie.
+- **„Willkommen bei FIAON, Zafer ."** — der Vorname trug ein Leerzeichen am Ende, der Punkt rutschte in die nächste Zeile.
+- **Ein Gate, das nichts anbieten kann.** Solange niemand die Onboarding-Rolle hat, gibt es keine Slots — die Tafel zeigte „Gerade sind keine Zeiten frei" und hielt einen zahlenden Kunden auf, ohne ihm etwas zu geben. Sie erscheint jetzt gar nicht erst.
+
+### Prüfstand
+
+`scripts/pruef-menschen.ts` — **153 Prüfungen, alle grün**, in einer zurückgerollten Transaktion, Webhook auf `.invalid`. Keine echte Mail, kein bleibender Post. Gegenprobe gemacht: Mit abgeschalteter Rufnummern-Sperre und ausgehebelter Zustandsprüfung wird er rot.
+
+Auch dieser Prüfstand ist zunächst in die bekannte Falle getappt: Seine Schlusskontrolle verglich Zeilenzahlen auf **Gleichheit** und schlug fehl, weil sich während des Laufs ein echter Besucher registriert hatte. Jetzt misst er, was er verantwortet — nichts darf schrumpfen, und von den eigenen Testdaten darf keine Zeile übrig sein.
+
+**Zu finden:** `server/lib/fiaon-space.ts`, `server/lib/fiaon-gedanken.ts`, `server/lib/fiaon-versand.ts`, `server/lib/fiaon-crons.ts`, `server/lib/fiaon-onboarding-zusage.ts`, `server/routes/fiaon-startgespraech.ts`, `server/routes/fiaon-onboarding-bereich.ts`, `client/src/pages/agent/space.tsx`, `client/src/components/StartgespraechGate.tsx`, `db/migrations/042_menschen_space.sql`.
+
+**Noch zu tun (Betreiber):** Die Onboarding-Rolle vergeben — **solange sie niemand hat, kann kein Kunde ein Startgespräch buchen.** Dazu der Make-Zweig `onboarding_einladung` (Variablen: `vorname`, `termin_link`).
+
 ## 08.08.2026 — Lead-Pipeline: die Liste sagt jetzt, WARUM sie so sortiert ist — und Kunden buchen selbst
 
 Ein Agent öffnete morgens eine sortierte Liste und musste raten, wonach sie sortiert ist. Ein Kunde, der dreimal nicht ans Telefon ging, wurde ein viertes und fünftes Mal angerufen. Und wer bezahlen wollte, aber gerade nicht konnte, hatte auf der Bestätigungsseite genau einen Ausgang: überweisen. Drei Lücken, ein Paket.

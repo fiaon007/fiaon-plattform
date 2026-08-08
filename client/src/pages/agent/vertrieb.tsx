@@ -400,7 +400,7 @@ function Inhalt() {
                 <button type="button" onClick={() => setAgentFilter(null)}
                         className="px-3 py-1.5 rounded-xl text-[12.5px] font-semibold whitespace-nowrap"
                         style={{ background: "var(--fi-seite)", border: "1px solid var(--fi-linie)" }}>
-                  Nur {agenten.find((a) => a.id === agentFilter)?.name || "ohne Agent"} ✕
+                  Nur {agenten.find((a) => a.id === agentFilter)?.name || "ohne Zuständigen"} ✕
                 </button>
               )}
             </div>

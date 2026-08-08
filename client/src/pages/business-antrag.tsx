@@ -406,13 +406,13 @@ function CostSimulation({ maxLimit, packName }: { maxLimit: number; packName: st
           <div className="relative group">
             <button className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-400 hover:bg-[#2563eb]/10 hover:text-[#2563eb] transition-all">?</button>
             <div className="absolute right-0 bottom-full mb-2 w-64 bg-gray-900 text-white text-[11px] rounded-xl p-3 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-50 shadow-2xl">
-              Diese Simulation zeigt, wie hoch Ihre monatliche Teilzahlungsrate wäre, wenn Sie den gewählten Betrag über 24 Monate abbezahlen. Der tatsächliche Betrag kann variieren – Sie werden per E-Mail benachrichtigt.
+              Diese Simulation zeigt, wie hoch deine monatliche Teilzahlungsrate wäre, wenn du den gewählten Betrag über 24 Monate abbezahlen. Der tatsächliche Betrag kann variieren – Du wirst per E-Mail benachrichtigt.
               <div className="absolute right-2 bottom-[-5px] w-2.5 h-2.5 bg-gray-900 rotate-45" />
             </div>
           </div>
         </div>
         
-        <p className="text-[12px] text-gray-400 mb-4">Schieben Sie den Regler, um zu sehen, was Sie monatlich zahlen würden.</p>
+        <p className="text-[12px] text-gray-400 mb-4">Schieb den Regler, um zu sehen, was du monatlich zahlen würdest.</p>
         
         <input
           type="range"
@@ -973,9 +973,9 @@ export default function BusinessAntragPage() {
                   <p className="text-[14px] text-gray-400 mb-6">Bestätige deine Daten und nimm den Vertrag an.</p>
                   
                   <div className="mb-6 p-5 rounded-xl fiaon-glass-panel">
-                    <p className="text-sm font-semibold text-gray-900 mb-1">Ihr Business-Vertrag</p>
-                    <p className="text-xs text-gray-500 mb-2">Nach Annahme können Sie Ihren personalisierten Vertrag als PDF herunterladen.</p>
-                    <p className="text-xs font-medium text-[#2563eb]">Automatisch personalisiert mit Ihren Unternehmensdaten</p>
+                    <p className="text-sm font-semibold text-gray-900 mb-1">Dein Business-Vertrag</p>
+                    <p className="text-xs text-gray-500 mb-2">Nach Annahme kannst du deinen personalisierten Vertrag als PDF herunterladen.</p>
+                    <p className="text-xs font-medium text-[#2563eb]">Automatisch personalisiert mit deinen Unternehmensdaten</p>
                   </div>
                   
                   <div className="mb-5">
@@ -1172,7 +1172,7 @@ export default function BusinessAntragPage() {
             
             <p className="text-[15px] text-gray-500 mb-8 max-w-md">
               {verifyDone 
-                ? "Ihre Unternehmensdaten wurden erfolgreich verifiziert." 
+                ? "Deine Unternehmensdaten wurden erfolgreich verifiziert." 
                 : d.companyName}
             </p>
 
@@ -1211,7 +1211,7 @@ export default function BusinessAntragPage() {
             </div>
 
             {!verifyDone && (
-              <p className="mt-10 text-[12px] text-gray-400 max-w-sm">Bitte haben Sie einen Moment Geduld. Die Prüfung dauert ca. 10 Sekunden.</p>
+              <p className="mt-10 text-[12px] text-gray-400 max-w-sm">Bitte hab einen Moment Geduld. Die Prüfung dauert ca. 10 Sekunden.</p>
             )}
 
             {verifyDone && (
@@ -1246,8 +1246,8 @@ export default function BusinessAntragPage() {
             </div>
             
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight mb-3 fiaon-gradient-text-animated">Herzlichen Glückwunsch</h2>
-            <p className="text-[15px] text-gray-500 mb-2">Ihre Unternehmensprüfung für {d.companyName} war erfolgreich</p>
-            <p className="text-[14px] text-gray-400 mb-8">Ihr bewilligter Kreditrahmen:</p>
+            <p className="text-[15px] text-gray-500 mb-2">Deine Unternehmensprüfung für {d.companyName} war erfolgreich</p>
+            <p className="text-[14px] text-gray-400 mb-8">Dein bewilligter Kreditrahmen:</p>
             
             <div className="relative inline-block mb-10">
               <div className="absolute inset-0 bg-[#2563eb] blur-3xl opacity-10" />
@@ -1331,7 +1331,7 @@ export default function BusinessAntragPage() {
             </div>
 
             <div className="rounded-xl fiaon-glass-panel p-4 max-w-sm mx-auto mt-6 opacity-70">
-              <p className="text-[11px] font-semibold text-gray-500 mb-2">Ihr Vertrag</p>
+              <p className="text-[11px] font-semibold text-gray-500 mb-2">Dein Vertrag</p>
               <button
                 onClick={() => {
                   const now = new Date();

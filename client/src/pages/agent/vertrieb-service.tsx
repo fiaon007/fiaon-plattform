@@ -516,12 +516,22 @@ export function VertriebZugang() {
 }
 
 /** Die Lage eines Kunden — eingebettet in die Akte. */
-export function LageTafel({ personId }: { personId: number }) {
+export function LageTafel({ personId, basis = "/agent/vertrieb/person" }: {
+  personId: number;
+  /**
+   * Woher die Lage kommt. Die Vertriebsleitung liest sie über ihren Endpunkt,
+   * das Onboarding über einen eigenen, der ausschließlich die eigenen
+   * Gesprächspartner freigibt. Dieselbe DARSTELLUNG, andere Tür — deshalb ein
+   * Parameter und keine zweite Komponente.
+   */
+  basis?: string;
+}) {
   const [lage, setLage] = useState<any>(null);
 
   useEffect(() => {
-    api(`/agent/vertrieb/person/${personId}/lage`).then((r) => setLage(r.ok ? r.json : { fehler: true }));
-  }, [personId]);
+    setLage(null);
+    api(`${basis}/${personId}/lage`).then((r) => setLage(r.ok ? r.json : { fehler: true }));
+  }, [personId, basis]);
 
   if (!lage) return <div className="space-y-2">{[0, 1, 2].map((i) => <Skelett key={i} h={18} />)}</div>;
   if (lage.fehler) return <p className="text-[13px]" style={{ color: "var(--fi-text-still)" }}>Lage nicht ladbar.</p>;

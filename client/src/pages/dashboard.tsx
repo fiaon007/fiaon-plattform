@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import Clarity from "@microsoft/clarity";
+import { StartgespraechGate } from "@/components/StartgespraechGate";
 import WelcomeModal from "@/components/WelcomeModal";
 import { welcomeConfig, type WelcomeState } from "@/config/welcome";
 import RoadmapJourney from "@/components/roadmap/RoadmapJourney";
@@ -488,6 +489,16 @@ export default function DashboardPage() {
 
   return (
     <div className="flex h-screen bg-[#f8fafd] overflow-hidden" style={{ fontFamily: "'Inter',-apple-system,sans-serif" }}>
+      {/* ── Startgespräch ─────────────────────────────────────────────────
+          Beim ersten Login eines bezahlten Kunden die Vollbild-Tafel, danach
+          nur noch ein dezenter Banner. Die Komponente entscheidet das selbst
+          und liefert nichts aus, wenn nichts ansteht.
+
+          NACH der Willkommens-Tour, nicht daneben: Zwei Vollbild-Tafeln
+          übereinander sind keine Begrüßung, sondern ein Stau. Gesehen im
+          Screenshot vom 08.08.2026 — beide standen gleichzeitig da. */}
+      {user.ref && !welcomeOpen && <StartgespraechGate kundenRef={user.ref} />}
+
       {/* ── Ambient orbs ── */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute top-[-5%] right-[-5%] w-[50vw] h-[50vw] rounded-full opacity-[.04]" style={{ background: "radial-gradient(circle,#2563eb,transparent 70%)", animation: "dbOrb1 20s ease-in-out infinite" }} />
@@ -546,7 +557,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex-1 min-w-0 overflow-hidden">
               <span className="text-[12px] font-bold">Rückfrage von FIAON: </span>
-              <span className="text-[12px] truncate">{serverDocStatus.adminProfileNote || 'Bitte prüfen Sie Ihre Profilangaben unter Mein Konto.'}</span>
+              <span className="text-[12px] truncate">{serverDocStatus.adminProfileNote || 'Bitte prüf deine Profilangaben unter „Mein Konto“.'}</span>
             </div>
             <button onClick={() => setSection("account")} className="shrink-0 text-[11px] font-bold bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-lg whitespace-nowrap">
               Jetzt beantworten →
@@ -562,7 +573,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex-1 min-w-0">
               <span className="text-[12px] font-bold">Profil unvollständig: </span>
-              <span className="text-[12px]">Reisepass, Ausgaben und weitere Angaben sind für die Freischaltung Ihres Zugangs erforderlich.</span>
+              <span className="text-[12px]">Reisepass, Ausgaben und weitere Angaben sind für die Freischaltung deines Zugangs erforderlich.</span>
             </div>
             <button onClick={() => setSection("account")} className="shrink-0 text-[11px] font-bold bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-lg whitespace-nowrap">
               Jetzt ausfüllen →
@@ -607,7 +618,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-[11px] text-[#2563eb] font-bold uppercase tracking-[.18em] mb-1">Dashboard</p>
                   <h1 className="text-2xl sm:text-3xl font-bold fiaon-gradient-text-animated tracking-tight">{greeting}, {user.firstName || "—"}.</h1>
-                  <p className="text-[13px] text-slate-500 mt-1">Willkommen in Ihrem FIAON-Bereich.</p>
+                  <p className="text-[13px] text-slate-500 mt-1">Willkommen in deinem FIAON-Bereich.</p>
                 </div>
 
                 {/* ── DER BONITÄTS-CHECK — stärkstes Element der Seite ──
@@ -732,7 +743,7 @@ export default function DashboardPage() {
                     Vorher standen hier zwei Hinweis-Banner UND eine gemischte
                     Vierer-Liste („1 von 4 erledigt"), in der die Bonitätsauskunft
                     zwischen Ausweis-Upload und Prüfung verschwand. Jetzt:
-                      „Ihr Weg"          — die Produktreise, motivierend.
+                      „Dein Weg"          — die Produktreise, motivierend.
                       „Noch zu erledigen" — Verwaltung, kompakt, mit Grund.
                     Jede Aufgabe erscheint nur an EINER Stelle. */}
                 {statusLoaded && (
@@ -788,7 +799,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-[11px] text-[#2563eb] font-bold uppercase tracking-[.18em] mb-1">Profilverwaltung</p>
                   <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Mein Konto</h1>
-                  <p className="text-[13px] text-slate-500 mt-1">Ihre persönlichen Daten, Finanzangaben und Vertragsdetails.</p>
+                  <p className="text-[13px] text-slate-500 mt-1">Deine persönlichen Daten, Finanzangaben und Vertragsdetails.</p>
                 </div>
 
                 {/* ── Was fehlt Guide ── */}
@@ -800,7 +811,7 @@ export default function DashboardPage() {
                       </div>
                       <div>
                         <div className="text-[13px] font-bold text-white">Profil vervollständigen — erforderlich für die Freischaltung</div>
-                        <div className="text-[11px] text-white/70 mt-0.5">Bitte füllen Sie alle Pflichtangaben im Formular unten aus und speichern Sie.</div>
+                        <div className="text-[11px] text-white/70 mt-0.5">Bitte füll alle Pflichtangaben im Formular unten aus und speichere sie.</div>
                       </div>
                     </div>
                     <div className="bg-white px-5 py-4 space-y-2.5">
@@ -838,7 +849,7 @@ export default function DashboardPage() {
                           </div>
                         </div>
                       ))}
-                      <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-50 mt-1">Scrollen Sie nach unten zum Abschnitt „Profil vervollständigen" und klicken Sie auf „Angaben speichern".</p>
+                      <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-50 mt-1">Scroll nach unten zum Abschnitt „Profil vervollständigen" und klick auf „Angaben speichern".</p>
                     </div>
                   </div>
                 )}
@@ -852,9 +863,9 @@ export default function DashboardPage() {
                     </div>
                     <div className="px-5 py-4">
                       <p className="text-[13px] font-semibold text-amber-900 leading-relaxed">
-                        {(serverDocStatus.adminProfileNote || profileData?.adminProfileNote) || 'FIAON hat eine Rückfrage zu Ihren Profilangaben. Bitte prüfen Sie die nachfolgenden Felder und speichern Sie Ihre aktualisierten Angaben.'}
+                        {(serverDocStatus.adminProfileNote || profileData?.adminProfileNote) || 'FIAON hat eine Rückfrage zu deinen Profilangaben. Bitte prüf die nachfolgenden Felder und speichere deine aktualisierten Angaben.'}
                       </p>
-                      <p className="text-[12px] text-amber-700 mt-2">Aktualisieren Sie die entsprechenden Felder im Formular unten und klicken Sie auf <strong>„Angaben speichern"</strong>.</p>
+                      <p className="text-[12px] text-amber-700 mt-2">Aktualisiere die entsprechenden Felder im Formular unten und klick auf <strong>„Angaben speichern"</strong>.</p>
                     </div>
                   </div>
                 )}
@@ -937,7 +948,7 @@ export default function DashboardPage() {
                       <h4 className="text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2">
                         <span className="w-5 h-5 rounded-md bg-slate-900 text-white text-[9px] font-bold flex items-center justify-center">1</span>
                         Frühere Anschrift
-                        {tip('moved', 'Sofern Sie in den letzten 6 Monaten Ihren Hauptwohnsitz gewechselt haben, geben Sie bitte Ihre vorherige Adresse an. Dies ist für die Vollständigkeit Ihres Profils erforderlich.')}
+                        {tip('moved', 'Sofern du in den letzten 6 Monaten deinen Hauptwohnsitz gewechselt hast, gib bitte deine vorherige Adresse an. Das brauchen wir für die Vollständigkeit deines Profils.')}
                       </h4>
                       <label className="flex items-start gap-3 cursor-pointer select-none mb-4">
                         <input type="checkbox" checked={profileForm.movedRecently} onChange={e => setProfileForm(p => ({ ...p, movedRecently: e.target.checked }))} className="mt-0.5 w-4 h-4 accent-[#2563eb]" />
@@ -973,20 +984,20 @@ export default function DashboardPage() {
                       <h4 className="text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2">
                         <span className="w-5 h-5 rounded-md bg-slate-900 text-white text-[9px] font-bold flex items-center justify-center">2</span>
                         Reisedokument
-                        {tip('passport', 'Die Angabe Ihrer Reisedokument-Daten dient der eindeutigen Identifizierung gemäß dem Geldwäschegesetz (GwG).')}
+                        {tip('passport', 'Die Angabe deiner Reisedokument-Daten dient der eindeutigen Identifizierung gemäß dem Geldwäschegesetz (GwG).')}
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-[11px] font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1" style={{ color: profileErrors.passportNumber ? '#e11d48' : '#64748b' }}>
                             Reisepass-Nummer{profileErrors.passportNumber && <span className="font-normal normal-case">— Pflichtfeld</span>}
-                            {tip('passNum', 'Ihre Reisepassnummer befindet sich oben rechts auf der Datenseite Ihres Reisepasses. Sie beginnt in Deutschland mit einem Buchstaben gefolgt von 8 Ziffern (z. B. C01X0006).')}
+                            {tip('passNum', 'Deine Reisepassnummer befindet sich oben rechts auf der Datenseite deines Reisepasses. Sie beginnt in Deutschland mit einem Buchstaben, gefolgt von 8 Ziffern (z. B. C01X0006).')}
                           </label>
                           <input type="text" value={profileForm.passportNumber} onChange={e => { setProfileForm(p => ({...p, passportNumber: e.target.value})); if (e.target.value.trim()) setProfileErrors(p => ({...p, passportNumber: false})); }} placeholder="z. B. C01X0006" className={`w-full px-3.5 py-2.5 rounded-xl border text-[13px] text-slate-800 focus:outline-none focus:ring-2 transition-all ${profileErrors.passportNumber ? 'border-rose-400 bg-rose-50 focus:ring-rose-100' : 'border-slate-200 bg-slate-50 focus:ring-blue-100 focus:border-blue-300'}`} />
                         </div>
                         <div>
                           <label className="block text-[11px] font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1" style={{ color: profileErrors.passportExpiry ? '#e11d48' : '#64748b' }}>
                             Gültig bis (Ablaufdatum){profileErrors.passportExpiry && <span className="font-normal normal-case">— Pflichtfeld</span>}
-                            {tip('passExp', 'Das Ablaufdatum Ihres Reisepasses finden Sie auf der Datenseite unter „Gültig bis". Ihr Reisepass muss für die Antragstellung noch gültig sein.')}
+                            {tip('passExp', 'Das Ablaufdatum deines Reisepasses findest du auf der Datenseite unter „Gültig bis". Dein Reisepass muss für die Antragstellung noch gültig sein.')}
                           </label>
                           <input type="date" value={profileForm.passportExpiry} onChange={e => { setProfileForm(p => ({...p, passportExpiry: e.target.value})); if (e.target.value) setProfileErrors(p => ({...p, passportExpiry: false})); }} className={`w-full px-3.5 py-2.5 rounded-xl border text-[13px] text-slate-800 focus:outline-none focus:ring-2 transition-all ${profileErrors.passportExpiry ? 'border-rose-400 bg-rose-50 focus:ring-rose-100' : 'border-slate-200 bg-slate-50 focus:ring-blue-100 focus:border-blue-300'}`} />
                         </div>
@@ -998,7 +1009,7 @@ export default function DashboardPage() {
                       <h4 className="text-[12px] font-bold text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2">
                         <span className="w-5 h-5 rounded-md bg-slate-900 text-white text-[9px] font-bold flex items-center justify-center">3</span>
                         Weitere Einkünfte
-                        {tip('addInc', 'Weitere Einkünfte umfassen z. B. Mieteinnahmen, Kapitalerträge, Nebentätigkeiten, Unterhaltszahlungen oder sonstige regelmäßige Einnahmen neben Ihrem Hauptgehalt.')}
+                        {tip('addInc', 'Weitere Einkünfte umfassen z. B. Mieteinnahmen, Kapitalerträge, Nebentätigkeiten, Unterhaltszahlungen oder sonstige regelmäßige Einnahmen neben deinem Hauptgehalt.')}
                       </h4>
                       <label className="flex items-start gap-3 cursor-pointer select-none mb-4">
                         <input type="checkbox" checked={profileForm.hasAdditionalIncome} onChange={e => setProfileForm(p => ({...p, hasAdditionalIncome: e.target.checked}))} className="mt-0.5 w-4 h-4 accent-[#2563eb]" />
@@ -1012,14 +1023,14 @@ export default function DashboardPage() {
                           <div className="col-span-2">
                             <label className="block text-[11px] font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1" style={{ color: profileErrors.additionalIncomeSources ? '#e11d48' : '#64748b' }}>
                               Art der weiteren Einkünfte{profileErrors.additionalIncomeSources && <span className="font-normal normal-case">— Pflichtfeld</span>}
-                              {tip('incType', 'Bitte beschreiben Sie die Herkunft Ihrer zusätzlichen Einkünfte, z. B. „Vermietung Eigentumswohnung", „Dividendeneinnahmen" oder „selbstständige Nebentätigkeit".')}
+                              {tip('incType', 'Bitte beschreib die Herkunft deiner zusätzlichen Einkünfte, z. B. „Vermietung Eigentumswohnung", „Dividendeneinnahmen" oder „selbstständige Nebentätigkeit".')}
                             </label>
                             <textarea value={profileForm.additionalIncomeSources} onChange={e => { setProfileForm(p => ({...p, additionalIncomeSources: e.target.value})); if (e.target.value.trim()) setProfileErrors(p => ({...p, additionalIncomeSources: false})); }} placeholder="z. B. Mieteinnahmen aus Eigentumswohnung, freiberufliche Tätigkeit" rows={2} className={`w-full px-3.5 py-2.5 rounded-xl border text-[13px] text-slate-800 focus:outline-none focus:ring-2 transition-all resize-none ${profileErrors.additionalIncomeSources ? 'border-rose-400 bg-rose-50 focus:ring-rose-100' : 'border-slate-200 bg-slate-50 focus:ring-blue-100 focus:border-blue-300'}`} />
                           </div>
                           <div>
                             <label className="block text-[11px] font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1" style={{ color: profileErrors.additionalIncomeAmount ? '#e11d48' : '#64748b' }}>
                               Ungefährer Monatsbetrag (€){profileErrors.additionalIncomeAmount && <span className="font-normal normal-case">— Pflichtfeld</span>}
-                              {tip('incAmt', 'Geben Sie den durchschnittlichen monatlichen Nettobetrag Ihrer weiteren Einkünfte an.')}
+                              {tip('incAmt', 'Gib den durchschnittlichen monatlichen Nettobetrag deiner weiteren Einkünfte an.')}
                             </label>
                             <input type="number" min="0" value={profileForm.additionalIncomeAmount} onChange={e => { setProfileForm(p => ({...p, additionalIncomeAmount: e.target.value})); if (e.target.value) setProfileErrors(p => ({...p, additionalIncomeAmount: false})); }} placeholder="z. B. 500" className={`w-full px-3.5 py-2.5 rounded-xl border text-[13px] text-slate-800 focus:outline-none focus:ring-2 transition-all ${profileErrors.additionalIncomeAmount ? 'border-rose-400 bg-rose-50 focus:ring-rose-100' : 'border-slate-200 bg-slate-50 focus:ring-blue-100 focus:border-blue-300'}`} />
                           </div>
@@ -1038,7 +1049,7 @@ export default function DashboardPage() {
                       <p className="text-[11px] text-slate-400 mb-4 pl-7">Angaben zu deiner monatlichen Haushaltsübersicht — bitte in Euro/Monat</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {[
-                          { key: 'expensesFood',          label: 'Lebensmittel & Haushaltsbedarf',     tip: 'expF', tipText: 'Schätzung Ihrer monatlichen Ausgaben für Lebensmittel, Drogerieartikel und sonstige Haushaltswaren.' },
+                          { key: 'expensesFood',          label: 'Lebensmittel & Haushaltsbedarf',     tip: 'expF', tipText: 'Schätzung deiner monatlichen Ausgaben für Lebensmittel, Drogerieartikel und sonstige Haushaltswaren.' },
                           { key: 'expensesTransport',     label: 'Mobilität (Kfz, ÖPNV, Kraftstoff)',  tip: 'expT', tipText: 'Monatliche Kosten für Fahrzeugversicherung, Kraftstoff, ÖPNV-Tickets oder Leasing-/Kreditraten.' },
                           { key: 'expensesInsurance',     label: 'Versicherungsbeiträge',               tip: 'expI', tipText: 'Summe aller monatlichen Versicherungsbeiträge (Haftpflicht, Hausrat, Berufsunfähigkeit etc.), sofern nicht bereits als Lohnabzug ausgewiesen.' },
                           { key: 'expensesLoans',         label: 'Laufende Kredit- & Ratenverpflichtungen', tip: 'expL', tipText: 'Monatliche Raten für bestehende Darlehen, Ratenkäufe oder Leasingverträge (sofern nicht bereits unter „Verbindlichkeiten" angegeben).' },
@@ -1079,7 +1090,7 @@ export default function DashboardPage() {
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Sicherheit</p>
                   <h3 className="text-[13px] font-bold text-slate-800 mb-1">Zugangsdaten ändern</h3>
-                  <p className="text-[12px] text-slate-500 mb-3">Nutzen Sie die Passwort-Vergessen-Funktion, um Ihr Kennwort zu erneuern.</p>
+                  <p className="text-[12px] text-slate-500 mb-3">Nutze die Passwort-Vergessen-Funktion, um dein Kennwort zu erneuern.</p>
                   <a href="/passwort-vergessen" className="inline-flex items-center gap-2 text-[12px] font-semibold text-[#2563eb] hover:underline">
                     Passwort zurücksetzen →
                   </a>
@@ -1389,13 +1400,13 @@ export default function DashboardPage() {
                       <div className="rounded-xl px-4 py-3.5" style={{ background: "rgba(37,99,235,.06)", border: "1px solid rgba(37,99,235,.18)" }}>
                         <p className="text-[12.5px] font-bold text-slate-800 leading-snug">
                           {bonitaet?.zustand === "bezahlt"
-                            ? "Sie haben Ihre Auskunft bei FIAON bestellt und bezahlt."
-                            : "Sie haben Ihre Auskunft bei FIAON bestellt."}
+                            ? "Du hast deine Auskunft bei FIAON bestellt und bezahlt."
+                            : "Du hast deine Auskunft bei FIAON bestellt."}
                         </p>
                         <p className="text-[12px] text-slate-600 leading-relaxed mt-1">
                           {bonitaet?.zustand === "bezahlt"
-                            ? "Wir beschaffen sie und melden uns per E-Mail. Sie müssen hier nichts hochladen — die Angaben unten gelten nur, wenn Sie die Auskunft selbst anfordern."
-                            : "Sobald Ihre Zahlung eingeht, beschaffen wir die Auskunft für Sie."}
+                            ? "Wir beschaffen sie und melden uns per E-Mail. Du musst hier nichts hochladen — die Angaben unten gelten nur, wenn du die Auskunft selbst anfordern."
+                            : "Sobald deine Zahlung eingeht, beschaffen wir die Auskunft für dich."}
                         </p>
                         {bonitaet?.zustand === "zahlung_offen" && bonitaet?.bestellung?.paymentReference && (
                           <a href={`/zahlung/${bonitaet.bestellung.paymentReference}`} className="inline-flex items-center gap-1.5 text-[12px] font-bold mt-2" style={{ color: "#2563eb" }}>
@@ -1408,12 +1419,12 @@ export default function DashboardPage() {
                     {serverDocStatus.hasSchufa ? (
                       <div className="flex items-center gap-3 py-1">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                        <p className="text-[13px] text-emerald-700 font-semibold">Ihr SCHUFA-Nachweis wurde erfolgreich übermittelt. Vielen Dank!</p>
+                        <p className="text-[13px] text-emerald-700 font-semibold">Dein SCHUFA-Nachweis wurde erfolgreich übermittelt. Vielen Dank!</p>
                       </div>
                     ) : (
                       <>
                         <p className="text-[12px] text-slate-500 leading-relaxed">
-                          Für die Freischaltung Ihres Zugangs benötigen wir auch Ihre <strong className="text-slate-800">Bonitätsauskunft</strong>. Sie haben zwei Möglichkeiten:
+                          Für die Freischaltung deines Zugangs benötigen wir auch deine <strong className="text-slate-800">Bonitätsauskunft</strong>. Du hast zwei Möglichkeiten:
                         </p>
 
                         {/* Option A: FIAON kaufen */}
@@ -1465,15 +1476,15 @@ export default function DashboardPage() {
                             <div className="px-4 py-4 space-y-3 border-t border-slate-100">
                               <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 flex items-start gap-2">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" className="mt-0.5 shrink-0"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
-                                <p className="text-[11px] text-amber-800 leading-relaxed"><strong>Wichtig:</strong> Die kostenlose Datenkopie nach Art. 15 DSGVO kann <strong>bis zu 4 Wochen</strong> dauern. Die Lieferung erfolgt per Post. Bis zum Eingang wird Ihre Freischaltung pausiert.</p>
+                                <p className="text-[11px] text-amber-800 leading-relaxed"><strong>Wichtig:</strong> Die kostenlose Datenkopie nach Art. 15 DSGVO kann <strong>bis zu 4 Wochen</strong> dauern. Die Lieferung erfolgt per Post. Bis zum Eingang wird deine Freischaltung pausiert.</p>
                               </div>
                               <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">Schritt-für-Schritt Anleitung:</p>
                               {[
-                                { n: '1', text: 'Gehen Sie zu meineschufa.de → „Meine Schufa" → „Datenkopie nach Art. 15 DSGVO"' },
-                                { n: '2', text: 'Wählen Sie „Online beantragen" und geben Sie Ihre persönlichen Daten ein.' },
-                                { n: '3', text: 'Schicken Sie den Antrag ab. Sie erhalten eine Bestätigung per E-Mail.' },
-                                { n: '4', text: 'Die SCHUFA sendet das Dokument innerhalb von 2–4 Wochen per Post an Ihre Meldeanschrift.' },
-                                { n: '5', text: 'Scannen Sie das Dokument als PDF und laden Sie es hier hoch.' },
+                                { n: '1', text: 'Geh zu meineschufa.de → „Meine Schufa" → „Datenkopie nach Art. 15 DSGVO"' },
+                                { n: '2', text: 'Wähl „Online beantragen“ und gib deine persönlichen Daten ein.' },
+                                { n: '3', text: 'Schick den Antrag ab. Du erhältst eine Bestätigung per E-Mail.' },
+                                { n: '4', text: 'Die SCHUFA sendet das Dokument innerhalb von 2–4 Wochen per Post an deine Meldeanschrift.' },
+                                { n: '5', text: 'Scanne das Dokument als PDF und lad es hier hoch.' },
                               ].map(step => (
                                 <div key={step.n} className="flex items-start gap-3">
                                   <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{step.n}</span>
@@ -1689,7 +1700,7 @@ export default function DashboardPage() {
               <div className="rounded-2xl mb-5 overflow-hidden" style={{ border: '1px solid rgba(37,99,235,.2)', background: 'rgba(37,99,235,.08)' }}>
                 <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(37,99,235,.12)', background: 'rgba(37,99,235,.12)' }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeLinecap="round"><polyline points="4 12 10 18 20 6"/></svg>
-                  <span className="text-[11px] font-bold text-blue-300 uppercase tracking-wider">Ihre Daten wurden bereits übernommen</span>
+                  <span className="text-[11px] font-bold text-blue-300 uppercase tracking-wider">Deine Daten wurden bereits übernommen</span>
                 </div>
                 <div className="px-4 py-3 space-y-2">
                   {[
@@ -1712,7 +1723,7 @@ export default function DashboardPage() {
                   'Persönlicher Score-Verbesserungsplan von FIAON',
                   'SCHUFA-neutraler Abruf — kein Einfluss auf Score',
                   'Express: Lieferung per E-Mail am selben Werktag',
-                  'Gilt als offizieller Nachweis für Ihre Freischaltung',
+                  'Gilt als offizieller Nachweis für deine Freischaltung',
                 ].map(b => (
                   <li key={b} className="flex items-center gap-2.5 text-[12px] text-white/60">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" className="shrink-0"><polyline points="4 12 10 18 20 6"/></svg>
@@ -1862,7 +1873,7 @@ export default function DashboardPage() {
                     {
                       label: 'Zugang freigeschaltet',
                       sub: serverDocStatus.accountStatus === 'active'
-                        ? 'Ihr FIAON-Zugang ist vollständig freigeschaltet'
+                        ? 'Dein FIAON-Zugang ist vollständig freigeschaltet'
                         : 'Erfolgt nach abgeschlossener Prüfung',
                       done: serverDocStatus.accountStatus === 'active',
                       urgent: false,
@@ -1906,7 +1917,7 @@ export default function DashboardPage() {
                     )}
                     {serverDocStatus.profileChangesRequested && serverDocStatus.adminProfileNote && (
                       <button onClick={() => { setActiveModal(null); setSection('account'); }} className="w-full text-left rounded-xl p-3.5 transition-colors" style={{ background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.2)' }}>
-                        <div className="text-[11px] font-bold text-amber-300 mb-0.5">Rückfrage zu Ihren Profilangaben</div>
+                        <div className="text-[11px] font-bold text-amber-300 mb-0.5">Rückfrage zu deinen Profilangaben</div>
                         <div className="text-[11px] text-amber-400/80">„{serverDocStatus.adminProfileNote}"</div>
                         <div className="text-[10px] text-amber-400 mt-1.5 font-semibold">→ Jetzt beantworten</div>
                       </button>
@@ -1921,7 +1932,7 @@ export default function DashboardPage() {
                     {docsOk && !!serverDocStatus.profileCompletedAt && !serverDocStatus.profileChangesRequested && serverDocStatus.kycStatus !== 'changes_requested' && (
                       <div className="rounded-xl p-3.5" style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)' }}>
                         <div className="text-[11px] font-bold text-white/50 mb-0.5">Unterlagen werden geprüft</div>
-                        <p className="text-[11px] text-white/30 leading-relaxed">Alle Unterlagen und Angaben wurden eingereicht. FIAON prüft Ihre Dokumente und Profildaten — dies dauert in der Regel 1–3 Werktage.</p>
+                        <p className="text-[11px] text-white/30 leading-relaxed">Alle Unterlagen und Angaben wurden eingereicht. FIAON prüft deine Dokumente und Profildaten — dies dauert in der Regel 1–3 Werktage.</p>
                       </div>
                     )}
                   </div>
@@ -1940,7 +1951,7 @@ export default function DashboardPage() {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.5)" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </button>
                 </div>
-                <p className="text-[10px] font-bold text-white/40 uppercase tracking-[.2em] mb-1">Ihr Paket</p>
+                <p className="text-[10px] font-bold text-white/40 uppercase tracking-[.2em] mb-1">Dein Paket</p>
                 <div className="text-3xl font-bold text-white tracking-tight mb-5">{user.packName || '—'}</div>
                 <div className="space-y-0 mb-6">
                   {([

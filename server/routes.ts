@@ -331,6 +331,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonTerminRoutes = await import('./routes/fiaon-termin');
   app.use('/api/fiaon', fiaonTerminRoutes.default);
 
+  // 🤝 FIAON Onboarding — eigener Bereich fuer die Startgespraeche. 404 fuer
+  //    alle ohne die Rolle, 403 ohne angenommene Verpflichtungserklaerung.
+  const fiaonOnboardingBereich = await import('./routes/fiaon-onboarding-bereich');
+  app.use('/api/fiaon', fiaonOnboardingBereich.default);
+
+  // 👋 Startgespraech — das Gate im Kundenportal (oeffentlich ueber die Referenz,
+  //    wie die Zahlungsseite).
+  const fiaonStartgespraech = await import('./routes/fiaon-startgespraech');
+  app.use('/api/fiaon', fiaonStartgespraech.default);
+
+  // 💬 FIAON Space — der gemeinsame Raum aller Mitarbeiterrollen.
+  const fiaonSpaceRoutes = await import('./routes/fiaon-space');
+  app.use('/api/fiaon', fiaonSpaceRoutes.default);
+
+  // ✉️ Versandzentrum — Historie und erneutes Senden am Kunden.
+  const fiaonVersandRoutes = await import('./routes/fiaon-versand');
+  app.use('/api/fiaon', fiaonVersandRoutes.default);
+
   // 🧭 FIAON Vertriebsleitung — /agent/vertrieb: Gesamtsicht für die zwei
   //    Vertriebsleiter (zuweisen, korrigieren, dokumentieren). Normale Agenten
   //    bekommen dort 404 — die Prüfung steht im Router, nicht in der Oberfläche.

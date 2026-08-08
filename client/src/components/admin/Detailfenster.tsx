@@ -241,7 +241,7 @@ export default function Detailfenster({
                   ref={sucheRef}
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
-                  placeholder="Name, Referenz, Agent …"
+                  placeholder="Name, Referenz, Zuständige:r …"
                   className="w-full h-[34px] pl-7 pr-2.5 rounded-[9px] border bg-white text-[12.5px] outline-none"
                   style={{ borderColor: "#e4e9f2" }}
                 />
@@ -277,7 +277,7 @@ export default function Detailfenster({
                   <div className="min-w-0 flex-1">
                     <p className="text-[13.5px] font-bold text-slate-900 truncate">{e.name}</p>
                     <p className="text-[11.5px] text-slate-500 mt-0.5 leading-snug">
-                      {e.agent ? e.agent : <span className="text-amber-700 font-semibold">ohne Agent</span>}
+                      {e.agent ? e.agent : <span className="text-amber-700 font-semibold">ohne Zuständigen</span>}
                       {" · "}{datumKurz(e.datum)}
                       {e.tageAlt != null && e.tageAlt >= 1 && (
                         <span className={e.tageAlt > 7 ? "text-red-600 font-semibold" : ""}>

@@ -14,7 +14,7 @@ import AdminCodeGate from "./AdminCodeGate";
 // Sidebar (Desktop) / Burger (Mobile), Breadcrumb + Zurück, Cmd+K-Suche.
 // Serverseitige Guards bleiben die Wahrheit — die Shell blendet nur aus
 // und zeigt Agents auf Admin-Routen eine 403-Erklärseite (Probe unten).
-// Designsprache wie Agent-Portal: monochrom slate, Akzent #2563eb.
+// Designsprache wie Team-Portal: monochrom slate, Akzent #2563eb.
 // ═══════════════════════════════════════════════════════════════════
 
 export const ACCENT = "#2563eb";
@@ -83,9 +83,9 @@ export const ADMIN_NAV: NavGroup[] = [
       { path: "/admin/kunden", label: "Kunden — die eine Liste", desc: "Jede Person genau einmal (Leads + Kunden vereint) — jeder Treffer öffnet die Akte", icon: Users },
       { path: "/admin/database", label: "Anträge & KYC", desc: "Arbeits-Fokus: Antrags-Details, KYC-Dokumente, SCHUFA-Review", icon: Database },
       // Routen-Audit 04.08.2026: ebenfalls ohne Menüpunkt gewesen.
-      { path: "/admin/personen", label: "Kunden & Zuordnung", desc: "Wie viele Menschen sind wirklich Kunden (statt Antragszeilen) — und bei wem hängen mehrere Agenten an einer Person", icon: UserCheck },
+      { path: "/admin/personen", label: "Kunden & Zuordnung", desc: "Wie viele Menschen sind wirklich Kunden (statt Antragszeilen) — und bei wem hängen mehrere Teammitglieder an einer Person", icon: UserCheck },
       { path: "/admin/fahrplan", label: "Fahrplan / Kundenprodukt", desc: "Upload-Review, KI-Analyse freigeben, Fahrplan steuern, Ziel-Freischaltung, Audit", icon: Map },
-      { path: "/admin/kartei", label: "Offene Kartei", desc: "Ein gemeinsamer Bestand für alle Agenten — frei/vergeben, Rückläufer, Rangfolge, Notausgang", icon: Layers },
+      { path: "/admin/kartei", label: "Offene Kartei", desc: "Ein gemeinsamer Bestand für das ganze Team — frei/vergeben, Rückläufer, Rangfolge, Notausgang", icon: Layers },
       { path: "/admin/leads", label: "Leads", desc: "Interessenten aus Lead-Ads — Nachfass, Verteilung, Warteschlange", icon: Target },
       { path: "/admin/kuendigungen", label: "Kündigungen", desc: "Eingehende Kündigungsanträge prüfen, bestätigen oder ablehnen", icon: LogOut, badgeKey: "kuendigungen" },
       { path: "/admin/investoren", label: "Investoren", desc: "Investoren-Verwaltung: Anfragen, Investments, Dokumente", icon: PiggyBank },
@@ -94,14 +94,14 @@ export const ADMIN_NAV: NavGroup[] = [
   {
     title: "Team",
     items: [
-      { path: "/admin/team", label: "Team-Übersicht", desc: "Agents, Statistik, Provisionen, Zuweisungen", icon: Users },
+      { path: "/admin/team", label: "Team-Übersicht", desc: "Team, Statistik, Provisionen, Zuweisungen", icon: Users },
       { path: "/admin/vertraege", label: "Onboarding & Verträge", desc: "Zustimmungs-/Vertragsstatus, Vorlagen (Entwurf/Aktiv), Vertragsvariablen, Nachweise", icon: ScrollText },
-      { path: "/admin/leistung", label: "Leistung", desc: "Arbeitsberichte: Ergebnisse pro Agent — offen, nicht heimlich", icon: BarChart3 },
+      { path: "/admin/leistung", label: "Leistung", desc: "Arbeitsberichte: Ergebnisse pro Teammitglied — offen, nicht heimlich", icon: BarChart3 },
       { path: "/admin/nachbuchung", label: "Provisionen nachbuchen", desc: "Bezahlte Bestellungen ohne Provision erkennen und buchen", icon: HandCoins, badgeKey: "nachbuchung" },
-      { path: "/admin/team?einladen=1", label: "Agent anlegen", desc: "Neuen Mitarbeiter per E-Mail einladen", icon: UserPlus, match: "/admin/team" },
+      { path: "/admin/team?einladen=1", label: "Teammitglied anlegen", desc: "Neuen Mitarbeiter per E-Mail einladen", icon: UserPlus, match: "/admin/team" },
       { path: "/admin/team#skripte", label: "Skripte & Leitfäden", desc: "Gesprächsvorlagen verwalten", icon: BookOpen, match: "/admin/team" },
-      // P4-E: „Agent-Updates" + „Agent-Feedback" zeigten dieselbe Seite — zusammengelegt.
-      { path: "/admin/agent-portal", label: "Agent-Updates & Feedback", desc: "Portal-Updates posten, Feedback prüfen und belohnen", icon: Sparkles, badgeKey: "feedback" },
+      // P4-E: „Agent-Updates" + „Team-Feedback" zeigten dieselbe Seite — zusammengelegt.
+      { path: "/admin/agent-portal", label: "Team-Updates & Feedback", desc: "Portal-Updates posten, Feedback prüfen und belohnen", icon: Sparkles, badgeKey: "feedback" },
     ],
   },
   {
@@ -122,7 +122,7 @@ export const ADMIN_NAV: NavGroup[] = [
 export function pageMeta(location: string): { label: string; desc: string } {
   const clean = location.split("?")[0].split("#")[0];
   if (clean.startsWith("/admin/kunde/")) {
-    return { label: "Kundenakte", desc: "Eine Seite. Alles: Stammdaten, Zahlungen, Mails, Agent, Verlauf, Dubletten" };
+    return { label: "Kundenakte", desc: "Eine Seite. Alles: Stammdaten, Zahlungen, Mails, Zuständige:r, Verlauf, Dubletten" };
   }
   for (const g of ADMIN_NAV) {
     for (const it of g.items) {
@@ -394,7 +394,7 @@ function AdminShellRahmen({ children }: { children: React.ReactNode }) {
       <div className="px-5 pt-4 pb-2 border-t border-slate-100 mt-2">
         <a href="/" className="text-[11px] text-slate-400 hover:text-slate-600">Zur Website</a>
         <span className="text-slate-200 mx-2">·</span>
-        <a href="/agent" className="text-[11px] text-slate-400 hover:text-slate-600">Agent-Portal</a>
+        <a href="/agent" className="text-[11px] text-slate-400 hover:text-slate-600">Team-Portal</a>
         <span className="text-slate-200 mx-2">·</span>
         <button type="button" onClick={sperren} className="text-[11px] text-slate-400 hover:text-slate-600">Sperren</button>
       </div>

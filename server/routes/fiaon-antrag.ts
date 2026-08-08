@@ -1632,10 +1632,14 @@ async function runPaymentReminders(opts: { force?: boolean } = {}): Promise<{ ex
   return result;
 }
 
-// Stündlicher Reminder-Lauf (fail-safe)
-setInterval(() => {
-  runPaymentReminders().catch((err) => console.error("[FIAON-PAYMENT] Reminder-Cron:", err));
-}, 60 * 60 * 1000);
+// Stündlicher Reminder-Lauf (fail-safe). Nur im Betrieb: Diese Schleife
+// verschickt Zahlungserinnerungen an echte Kunden — auf einem
+// Entwicklungsrechner hat sie nichts verloren (server/lib/fiaon-crons.ts).
+import("../lib/fiaon-crons").then(({ tageslauf }) => {
+  tageslauf("zahlungserinnerungen", () => {
+    runPaymentReminders().catch((err) => console.error("[FIAON-PAYMENT] Reminder-Cron:", err));
+  }, 60 * 60 * 1000);
+});
 
 // Manueller Trigger für Tests / Admin (inkl. Rückruf-Erinnerungen, J2)
 router.post("/admin/payments/run-reminders", async (_req, res) => {

@@ -19,7 +19,7 @@ import {
   buchungAnwenden, freieSlots, stornoLink, terminAbsagen, terminBuchen,
   terminTokenPruefen, verfuegbarkeitSetzen, verfuegbarkeitVon,
   berlinDatumText, berlinUhrzeit, TerminFehler,
-  HORIZONT_TAGE, SLOT_MINUTEN, VORLAUF_STUNDEN,
+  HORIZONT_TAGE, SLOT_MINUTEN, VORLAUF_STUNDEN, dauerFuer,
 } from "../lib/fiaon-termine";
 import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
 
@@ -93,12 +93,17 @@ router.get("/termin/:token", async (req: Request, res: Response) => {
       ORDER BY t.beginn ASC LIMIT 1
     `) as any[];
 
-    const auskunft = await freieSlots(person.id);
+    // `art=start` schaltet auf das Startgespräch um: 15 Minuten statt 20 und
+    // ausschließlich Slots des Onboardings. Die Art steht im Pfad und nicht im
+    // Token, weil sie keine Berechtigung ist, sondern eine Auskunft.
+    const quelle = String(req.query.art) === "start" ? "onboarding_call" : "nichterreicht_mail";
+    const auskunft = await freieSlots(person.id, sqlPool, quelle);
     res.json({
       ok: true,
+      art: quelle,
       vorname: person.vorname || null,
       betreuer: auskunft.betreuer,
-      slotMinuten: SLOT_MINUTEN,
+      slotMinuten: dauerFuer(quelle),
       vorlaufStunden: VORLAUF_STUNDEN,
       horizontTage: HORIZONT_TAGE,
       termin: bestehend
@@ -131,7 +136,9 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
     // Der Kunde darf nur Slots buchen, die ihm auch angeboten wurden — sonst
     // ließe sich der Besitzschutz umgehen, indem man einen fremden Agenten
     // in die Anfrage schreibt.
-    const auskunft = await freieSlots(geprueft.personId);
+    const gewuenscht = quelle === "onboarding_call" ? "onboarding_call"
+      : quelle === "onboarding" ? "onboarding" : "nichterreicht_mail";
+    const auskunft = await freieSlots(geprueft.personId, sqlPool, gewuenscht);
     const erlaubt = auskunft.slots.some(
       (s) => s.beginn === new Date(beginn).toISOString() && s.agentId === Number(agentId),
     );
@@ -143,7 +150,7 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
       personId: geprueft.personId,
       agentId: Number(agentId),
       beginn: String(beginn),
-      quelle: quelle === "onboarding" ? "onboarding" : "nichterreicht_mail",
+      quelle: gewuenscht,
     });
     await buchungAnwenden(buchung);
     await bestaetigungSenden(buchung);

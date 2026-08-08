@@ -123,7 +123,7 @@ export async function api(path: string, init?: RequestInit): Promise<any> {
 }
 
 // ── Navigation (Paket AO: 5 klare Punkte; Unterseiten markieren den Bereich) ─
-const NAV: { href: string; label: string; icon: typeof Users; match: string[]; nurRolle?: string }[] = [
+const NAV: { href: string; label: string; icon: typeof Users; match: string[]; nurRolle?: string; marke?: string }[] = [
   // „Mein Tag“ (/agent) ist bewusst KEIN Menüpunkt mehr: Die Seite bezieht ihre
   // Zahlen aus /agent/kartei/status und /agent/kartei/segmente, und die Kartei
   // ist abgeschaltet. Sie wäre eine leere Seite mit Nullen. Angemeldete Agenten
@@ -153,7 +153,13 @@ const NAV: { href: string; label: string; icon: typeof Users; match: string[]; n
   { href: "/agent/verdienst", label: "Verdienst", icon: Wallet, match: ["/agent/verdienst", "/agent/auszahlung", "/agent/partner-programm"] },
   // Nur fuer die Vertriebsleitung. `nurRolle` filtert die Anzeige; die Tuer selbst
   // schliesst der Server (404 fuer alle anderen).
+  // Der Space ist fuer JEDE Rolle da — er ist der einzige Ort im Portal, der
+  // nichts abarbeitet. Die Marke zeigt ungelesene Beitraege.
+  { href: "/agent/space", label: "Space", icon: Users, match: ["/agent/space"], marke: "space" },
   { href: "/agent/vertrieb", label: "Vertrieb", icon: LayoutDashboard, match: ["/agent/vertrieb"], nurRolle: "vertriebsleiter" },
+  // Nur fuer das Onboarding. Wie beim Vertrieb: `nurRolle` blendet aus, die
+  // Tuer selbst schliesst der Server (404 fuer alle anderen).
+  { href: "/agent/startgespraeche", label: "Startgespräche", icon: Calendar, match: ["/agent/startgespraeche"], nurRolle: "onboarding" },
   { href: "/agent/mehr", label: "Mehr", icon: MoreHorizontal, match: ["/agent/mehr", "/agent/skripte", "/agent/updates", "/agent/feedback", "/agent/profil", "/agent/leistung", "/agent/dokumente"] },
 ];
 
@@ -367,7 +373,7 @@ function AgentDrawer({
       >
         <div className="px-5 pt-5 pb-4 border-b border-slate-100">
           <span className="text-[15px] font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</span>
-          <span className="ml-2 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-400">Mitarbeiter</span>
+          <span className="ml-2 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-400">Team</span>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-3">
@@ -433,6 +439,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
   const [neueUpdates, setNeueUpdates] = useState(0);
   const [ruecklaeufer, setRuecklaeufer] = useState(0);
   const [aufgabenFaellig, setAufgabenFaellig] = useState(0);
+  const [spaceNeu, setSpaceNeu] = useState(0);
   // Rolle des angemeldeten Mitarbeiters. Der Menuepunkt "Vertrieb" erscheint nur
   // fuer die Vertriebsleitung. Die Sicherheitsgrenze liegt aber im Server: Ein
   // normaler Agent, der die Adresse direkt aufruft, bekommt 404. Was hier
@@ -453,6 +460,17 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
       .then((r) => setOnboardingComplete(r.ok ? !!r.json.status?.complete : true))
       .catch(() => setOnboardingComplete(true));
   }, [agent]);
+
+  // Ungelesene Space-Beiträge. Alle zwei Minuten — häufiger wäre Unruhe für
+  // eine Zahl, die niemand sekundengenau braucht.
+  useEffect(() => {
+    if (!agent) return;
+    const hole = () => api("/agent/space/ungelesen")
+      .then((r) => { if (r.ok) setSpaceNeu(r.json.anzahl || 0); }).catch(() => {});
+    hole();
+    const t = setInterval(hole, 120_000);
+    return () => clearInterval(t);
+  }, [agent, location]);
 
   // Nav-Badge: Tickets mit ungelesener Betreiber-Antwort. Aktualisiert beim
   // Öffnen eines Threads (Event 'agent-feedback-read') und alle 60 s.
@@ -590,6 +608,10 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
     "/agent/aufgaben": aufgabenFaellig,
     // Neuerungen und Betreiber-Antworten liegen beide unter „Mehr".
     "/agent/mehr": neueUpdates + fbUnread,
+    // Ungelesene Beiträge im Space. Sie zählen bewusst mit in die Menü-Marke
+    // auf dem Telefon: Der Space ist kein Nebenschauplatz, sondern der Ort,
+    // an dem etwas vom Team steht.
+    "/agent/space": spaceNeu,
   };
   const menuBadge = Object.values(zaehler).reduce((s, n) => s + n, 0);
 
@@ -660,7 +682,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
               </button>
               <Link href="/agent" className="shrink-0">
                 <span className="text-[15px] font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</span>
-                <span className="ml-2 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-400">Mitarbeiter</span>
+                <span className="ml-2 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-400">Team</span>
               </Link>
               <nav className="hidden md:flex items-center gap-1">
                 {NAV.filter((n) => !n.nurRolle || n.nurRolle === rolle).map((n) => {

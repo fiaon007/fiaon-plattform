@@ -154,11 +154,16 @@ async function main(): Promise<void> {
         VALUES (${pTermin}, ${sortAgent}, ${berlinZeitpunkt(heute, 14 * 60)}, 'gebucht', 'onboarding')
       `;
 
+      // Dieselbe Tagesgrenze wie die Anwendung: Europe/Berlin, nicht UTC.
+      // Am 09.08.2026 um 00:15 Uhr Berliner Zeit stand in der Datenbank noch
+      // der 08.08. — eine Zusage „für heute" fiel dadurch aus dem obersten
+      // Rang und landete hinter Stufe A. Der Prüfstand hat es gefunden.
+      const HEUTE = `(NOW() AT TIME ZONE 'Europe/Berlin')::date`;
       const ORDNUNG = `
         CASE
           WHEN EXISTS (SELECT 1 FROM fiaon_termine t WHERE t.person_id = p.id AND t.status = 'gebucht'
-                        AND t.beginn::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date) THEN 1
-          WHEN p.promised_payment_date IS NOT NULL AND p.promised_payment_date <= CURRENT_DATE THEN 2
+                        AND t.beginn::date = ${HEUTE}) THEN 1
+          WHEN p.promised_payment_date IS NOT NULL AND p.promised_payment_date <= ${HEUTE} THEN 2
           WHEN EXISTS (SELECT 1 FROM fiaon_contact_log cl JOIN fiaon_applications a3 ON a3.ref = cl.ref
                         WHERE a3.person_id = p.id AND cl.outcome = 'rueckruf_termin' AND cl.done_at IS NULL
                           AND cl.voided_at IS NULL AND cl.scheduled_at IS NOT NULL AND cl.scheduled_at <= NOW()) THEN 3
@@ -176,6 +181,9 @@ async function main(): Promise<void> {
       `)) as any[];
       gleich("Reihenfolge stimmt", reihe.map((r) => r.first_name).join(" > "),
         "Termin > Zusage > StufeA > StufeB > StufeC");
+      const listenQuelle = (await import("node:fs")).readFileSync("server/routes/fiaon-agent-start.ts", "utf8");
+      ok("Die Arbeitsliste rechnet in Europe/Berlin, nicht in UTC",
+        !/CURRENT_DATE/.test(listenQuelle.split("\n").filter((z) => !/^\s*(\*|\/\/)/.test(z)).join("\n")));
 
       // Zahlungsmeldung hebt sofort auf A — auch aus Stufe C heraus.
       await tx`UPDATE fiaon_applications SET payment_status = 'claimed_paid' WHERE ref = ${REF("C")}`;

@@ -284,7 +284,7 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
               ))}
             </span>
             <input value={filter} onChange={(e) => setFilter(e.target.value)}
-              placeholder="Name, Referenz, Agent …"
+              placeholder="Name, Referenz, Zuständige:r …"
               className="h-[30px] px-2.5 rounded-lg border bg-white text-[12px] outline-none w-[150px] sm:w-[190px]"
               style={{ borderColor: "var(--a3-linie,#e4e9f2)" }} />
             <span className="ml-auto flex items-center gap-2">

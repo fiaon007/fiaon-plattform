@@ -1956,7 +1956,7 @@ export default function AntragPage() {
                   <p className="text-[14px] text-gray-400 mb-6">Bestätige deine Daten und nimm den Vertrag an.</p>
                   
                   <Field label="E-Mail-Adresse" req error={errors.email} hint="Vertragsunterlagen werden hierhin gesendet."><Inp type="email" value={d.email} onChange={(v: string) => up("email", v)} placeholder="max@beispiel.de" /></Field>
-                  <Field label="Gehaltseingang" req error={errors.salaryReceiptDay} hint="An welchem Tag erhalten Sie Ihr Gehalt?"><Sel value={d.salaryReceiptDay} onChange={(v: string) => up("salaryReceiptDay", v)}><option value="">Tag auswählen</option>{Array.from({length: 31}, (_, i) => <option key={i + 1} value={`${i + 1}`}>{i + 1}. Tag im Monat</option>)}<option value="last">Letzter Tag im Monat</option></Sel></Field>
+                  <Field label="Gehaltseingang" req error={errors.salaryReceiptDay} hint="An welchem Tag erhältst du dein Gehalt?"><Sel value={d.salaryReceiptDay} onChange={(v: string) => up("salaryReceiptDay", v)}><option value="">Tag auswählen</option>{Array.from({length: 31}, (_, i) => <option key={i + 1} value={`${i + 1}`}>{i + 1}. Tag im Monat</option>)}<option value="last">Letzter Tag im Monat</option></Sel></Field>
                   <div className="flex gap-0 rounded-xl overflow-hidden mb-5 fiaon-glass-panel">
                     {[["iban","SEPA-Lastschrift"],["paper","Papierrechnung"]].map(([k,l]) => (
                       <button key={k} onClick={() => up("billingMethod", k)} className={`flex-1 py-3 text-center text-[13px] font-semibold transition-all ${d.billingMethod === k ? "bg-white/80 text-[#2563eb]" : "text-gray-400"}`}>{l}</button>
@@ -2137,8 +2137,8 @@ export default function AntragPage() {
             
             <p className="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed mb-8 sm:mb-10 max-w-md text-center px-4">
               {verifyDone 
-                ? "Ihre Daten wurden erfolgreich verifiziert." 
-                : "Wir analysieren Ihre Bonität in Echtzeit."}
+                ? "Deine Daten wurden erfolgreich verifiziert." 
+                : "Wir analysieren deine Bonität in Echtzeit."}
             </p>
 
             {/* Progress Bar */}
@@ -2179,7 +2179,7 @@ export default function AntragPage() {
             </div>
 
             {!verifyDone && (
-              <p className="mt-12 text-xs text-slate-400 font-mono text-center mb-20">Bitte haben Sie einen Moment Geduld...</p>
+              <p className="mt-12 text-xs text-slate-400 font-mono text-center mb-20">Bitte hab einen Moment Geduld...</p>
             )}
           </div>
         )}
@@ -2195,8 +2195,8 @@ export default function AntragPage() {
             </div>
             
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight mb-3 fiaon-gradient-text-animated">Herzlichen Glückwunsch</h2>
-            <p className="text-[15px] text-gray-500 mb-2">Ihre Bonitätsprüfung war erfolgreich</p>
-            <p className="text-[14px] text-gray-400 mb-8">Ihr bewilligter Kreditrahmen:</p>
+            <p className="text-[15px] text-gray-500 mb-2">Deine Bonitätsprüfung war erfolgreich</p>
+            <p className="text-[14px] text-gray-400 mb-8">Dein bewilligter Kreditrahmen:</p>
             
             <div className="relative inline-block mb-10">
               <div className="absolute inset-0 bg-[#2563eb] blur-3xl opacity-10" />

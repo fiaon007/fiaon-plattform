@@ -133,10 +133,10 @@ function Schloss({ size = 11 }: { size?: number }) {
  * Absichtlich vier kurze Punkte: mehr liest niemand, weniger erklärt nichts.
  */
 const LEISTUNGEN = [
-  { titel: "Auskunft beschaffen", text: "Wir holen Ihre vollständige Bonitätsauskunft ein." },
+  { titel: "Auskunft beschaffen", text: "Wir holen deine vollständige Bonitätsauskunft ein." },
   { titel: "Analyse durch FIAON", text: "Wir gehen jeden Eintrag durch und erklären, was er bedeutet." },
-  { titel: "Ihr persönlicher Fahrplan", text: "Konkrete Schritte, in sinnvoller Reihenfolge, auf Ihre Lage bezogen." },
-  { titel: "Begleitete Umsetzung", text: "Sie arbeiten die Schritte ab, wir bleiben ansprechbar." },
+  { titel: "Dein persönlicher Fahrplan", text: "Konkrete Schritte, in sinnvoller Reihenfolge, auf deine Lage bezogen." },
+  { titel: "Begleitete Umsetzung", text: "Du arbeitest die Schritte ab, wir bleiben ansprechbar." },
 ];
 
 /* ════════════════ 1. Der Bonitäts-Check — Held der Seite ════════════════ */
@@ -168,13 +168,13 @@ export function BonitaetsCheck({
         {/* ── Zustand: noch nicht gekauft — hier wird der Wert erklärt ── */}
         {zustand === "offen" && (
           <>
-            <Kicker>Herzstück Ihrer Mitgliedschaft</Kicker>
+            <Kicker>Herzstück deiner Mitgliedschaft</Kicker>
             <h2 className="text-[23px] sm:text-[29px] font-black tracking-tight text-slate-900 leading-[1.14] mt-2">
-              Ihr Bonitäts-Check
+              Dein Bonitäts-Check
             </h2>
             <p className="text-[13.5px] sm:text-[14.5px] text-slate-600 leading-relaxed mt-2.5 max-w-[52ch]">
-              Wir beschaffen Ihre vollständige Bonitätsauskunft, gehen jeden einzelnen Eintrag mit
-              Ihnen durch und leiten daraus Ihre nächsten Schritte ab — verständlich erklärt,
+              Wir beschaffen deine vollständige Bonitätsauskunft, gehen jeden einzelnen Eintrag mit
+              dir durch und leiten daraus deine nächsten Schritte ab — verständlich erklärt,
               in der richtigen Reihenfolge.
             </p>
 
@@ -202,7 +202,7 @@ export function BonitaetsCheck({
               </button>
               <p className="text-[12.5px] text-slate-500 leading-snug">
                 <span className="font-bold text-slate-800">{euro(preis)}</span> einmalig · kein Abo ·
-                Ihre Daten sind bereits hinterlegt
+                Deine Daten sind bereits hinterlegt
               </p>
             </div>
 
@@ -210,7 +210,7 @@ export function BonitaetsCheck({
             <p className="text-[12px] text-slate-500 leading-relaxed mt-5 pt-4 border-t border-slate-200/80 max-w-[58ch]">
               <span className="font-semibold text-slate-700">Was wir nicht tun:</span> Wir löschen keine
               Einträge und versprechen keinen bestimmten Score. Was sich verbessert, entsteht durch die
-              Umsetzung Ihrer Schritte — dafür geben wir Ihnen die Grundlage und bleiben an Ihrer Seite.
+              Umsetzung deiner Schritte — dafür geben wir dir die Grundlage und bleiben an deiner Seite.
             </p>
           </>
         )}
@@ -223,7 +223,7 @@ export function BonitaetsCheck({
               Nur die Zahlung fehlt noch
             </h2>
             <p className="text-[13.5px] text-slate-600 leading-relaxed mt-2.5 max-w-[52ch]">
-              Sobald Ihre Zahlung bei uns eingeht, beschaffen wir Ihre Bonitätsauskunft und beginnen
+              Sobald deine Zahlung bei uns eingeht, beschaffen wir deine Bonitätsauskunft und beginnen
               mit der Auswertung.
               {status?.bestellung?.betrag && (
                 <> Offener Betrag: <span className="font-bold text-slate-900">{euro(Number(status.bestellung.betrag))}</span>.</>
@@ -255,11 +255,11 @@ export function BonitaetsCheck({
           <>
             <Kicker>Zahlung erhalten</Kicker>
             <h2 className="text-[22px] sm:text-[27px] font-black tracking-tight text-slate-900 leading-[1.15] mt-2">
-              Wir beschaffen Ihre Auskunft
+              Wir beschaffen deine Auskunft
             </h2>
             <p className="text-[13.5px] text-slate-600 leading-relaxed mt-2.5 max-w-[52ch]">
-              Ihre Bestellung ist bezahlt — vielen Dank. Wir holen Ihre Bonitätsauskunft ein und werten
-              sie aus. Sie erhalten sie per E-Mail, sobald sie vorliegt. Sie müssen dafür nichts weiter tun.
+              Deine Bestellung ist bezahlt — vielen Dank. Wir holen deine Bonitätsauskunft ein und werten
+              sie aus. Du erhältst sie per E-Mail, sobald sie vorliegt. Du musst dafür nichts weiter tun.
             </p>
             <div className="mt-5 grid gap-2">
               {[
@@ -285,12 +285,12 @@ export function BonitaetsCheck({
           <>
             <Kicker>{analyseFertig ? "Auswertung abgeschlossen" : "Auskunft liegt vor"}</Kicker>
             <h2 className="text-[22px] sm:text-[27px] font-black tracking-tight text-slate-900 leading-[1.15] mt-2">
-              {analyseFertig ? "Ihr Fahrplan steht bereit" : "Wir werten Ihre Auskunft aus"}
+              {analyseFertig ? "Dein Fahrplan steht bereit" : "Wir werten deine Auskunft aus"}
             </h2>
             <p className="text-[13.5px] text-slate-600 leading-relaxed mt-2.5 max-w-[52ch]">
               {analyseFertig
-                ? "Ihre Auswertung ist fertig. Im Fahrplan stehen Ihre Schritte in der Reihenfolge, in der sie am meisten bringen — Sie können sofort anfangen."
-                : "Ihre Auskunft ist bei uns eingegangen. Wir gehen die Einträge durch und leiten daraus Ihre Schritte ab. Sie hören von uns, sobald die Auswertung vorliegt."}
+                ? "Deine Auswertung ist fertig. Im Fahrplan stehen deine Schritte in der Reihenfolge, in der sie am meisten bringen — Du kannst sofort anfangen."
+                : "Deine Auskunft ist bei uns eingegangen. Wir gehen die Einträge durch und leiten daraus deine Schritte ab. Du hörst von uns, sobald die Auswertung vorliegt."}
             </p>
             {(analyseFertig || (status?.fahrplanSchritte ?? 0) > 0) && (
               <button
@@ -335,7 +335,7 @@ function etappen(status: BonitaetStatus | null): { kurz: string; lang: string; s
       stand: analyseFertig ? "fertig" : auskunftDa ? "aktiv" : gekauft ? "kommt" : "kommt",
     },
     {
-      kurz: "Fahrplan", lang: "Ihr persönlicher Fahrplan",
+      kurz: "Fahrplan", lang: "Dein persönlicher Fahrplan",
       stand: hatSchritte ? "aktiv" : analyseFertig ? "aktiv" : "kommt",
     },
     {
@@ -356,8 +356,8 @@ export function IhrWeg({ status }: { status: BonitaetStatus | null }) {
   return (
     <section className="db-panel db-rise rounded-3xl px-5 py-5 sm:px-6 sm:py-6" style={{ animationDelay: "140ms" }}>
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-[11px] font-bold uppercase tracking-[.16em] text-slate-400">Ihr Weg</h3>
-        <p className="text-[11.5px] text-slate-400">Sie sind hier: <span className="font-bold text-slate-600">{aktiv.lang}</span></p>
+        <h3 className="text-[11px] font-bold uppercase tracking-[.16em] text-slate-400">Dein Weg</h3>
+        <p className="text-[11.5px] text-slate-400">Du bist hier: <span className="font-bold text-slate-600">{aktiv.lang}</span></p>
       </div>
 
       {/* Reise: Punkte auf einer Linie. Die Linie ist ein Hintergrund-Verlauf,
@@ -437,7 +437,7 @@ function offeneAufgaben(v: VerwaltungsStand, gehe: { unterlagen: () => void; kon
   } else if (!v.docsOk) {
     liste.push({
       titel: "Kontoauszug und Ausweis hochladen",
-      wofuer: "Gesetzlich vorgeschrieben für die Prüfung Ihrer Identität.",
+      wofuer: "Gesetzlich vorgeschrieben für die Prüfung deiner Identität.",
       cta: "Zu den Unterlagen", dringend: false, aktion: gehe.unterlagen,
     });
   }
@@ -445,13 +445,13 @@ function offeneAufgaben(v: VerwaltungsStand, gehe: { unterlagen: () => void; kon
   if (v.profileChangesRequested) {
     liste.push({
       titel: "Rückfrage zum Profil beantworten",
-      wofuer: v.adminProfileNote ? `Rückfrage von FIAON: „${v.adminProfileNote}“` : "FIAON hat eine Rückfrage zu Ihren Angaben.",
+      wofuer: v.adminProfileNote ? `Rückfrage von FIAON: „${v.adminProfileNote}“` : "FIAON hat eine Rückfrage zu deinen Angaben.",
       cta: "Jetzt beantworten", dringend: true, aktion: gehe.konto,
     });
   } else if (!profilFertig) {
     liste.push({
       titel: "Profil vervollständigen",
-      wofuer: "Reisepass-Daten und monatliche Ausgaben — Grundlage für Ihre Prüfung.",
+      wofuer: "Reisepass-Daten und monatliche Ausgaben — Grundlage für deine Prüfung.",
       cta: "Profil ausfüllen", dringend: false, aktion: gehe.konto,
     });
   }
@@ -474,7 +474,7 @@ export function NochZuErledigen({
     <section className="db-panel db-rise rounded-3xl overflow-hidden" style={{ animationDelay: "200ms" }}>
       <div className="px-5 py-4 sm:px-6 flex items-baseline justify-between gap-3 border-b border-slate-100">
         <h3 className="text-[11px] font-bold uppercase tracking-[.16em] text-slate-400">
-          {aufgaben.length > 0 ? "Noch zu erledigen" : "Ihre Unterlagen"}
+          {aufgaben.length > 0 ? "Noch zu erledigen" : "Deine Unterlagen"}
         </h3>
         {aufgaben.length > 0 && (
           <p className="text-[11.5px] text-slate-400">
@@ -488,11 +488,11 @@ export function NochZuErledigen({
           <span className="mt-0.5"><Haken size={15} color="#16a34a" /></span>
           <div className="min-w-0">
             <p className="text-[13px] font-bold text-slate-800 leading-tight">
-              {freigeschaltet ? "Alles erledigt — Ihr Zugang ist freigeschaltet." : "Alles eingereicht — vielen Dank."}
+              {freigeschaltet ? "Alles erledigt — Dein Zugang ist freigeschaltet." : "Alles eingereicht — vielen Dank."}
             </p>
             {inPruefung && (
               <p className="text-[12px] text-slate-500 leading-relaxed mt-1">
-                FIAON prüft Ihre Unterlagen. Sie müssen nichts weiter tun; wir melden uns.
+                FIAON prüft deine Unterlagen. Du musst nichts weiter tun; wir melden uns.
               </p>
             )}
           </div>
@@ -546,9 +546,9 @@ export function NochZuErledigen({
  * Agenten-Kartei), nicht als weichgezeichneter Fantasietext.
  */
 const VORSCHAU = [
-  { titel: "Ihre Einträge im Klartext", text: "Was steht in Ihrer Auskunft — und was davon ist erledigt, offen oder strittig." },
-  { titel: "Ihre größten Hebel zuerst", text: "Welche Schritte bei Ihrer Lage erfahrungsgemäß am meisten bewegen." },
-  { titel: "Reihenfolge und Zeitplan", text: "Was Sie diese Woche tun, was später sinnvoll ist." },
+  { titel: "Deine Einträge im Klartext", text: "Was steht in deiner Auskunft — und was davon ist erledigt, offen oder strittig." },
+  { titel: "Deine größten Hebel zuerst", text: "Welche Schritte bei deiner Lage erfahrungsgemäß am meisten bewegen." },
+  { titel: "Reihenfolge und Zeitplan", text: "Was du diese Woche tust, was später sinnvoll ist." },
 ];
 
 export function FahrplanVorschau({ status, onFahrplan }: { status: BonitaetStatus | null; onFahrplan: () => void }) {
@@ -559,7 +559,7 @@ export function FahrplanVorschau({ status, onFahrplan }: { status: BonitaetStatu
       <div className="flex items-center gap-2">
         {!offen && <Schloss size={12} />}
         <h3 className="text-[11px] font-bold uppercase tracking-[.16em] text-slate-400">
-          {offen ? "In Ihrem Fahrplan" : "Was Sie danach erwartet"}
+          {offen ? "In deinem Fahrplan" : "Was Sie danach erwartet"}
         </h3>
       </div>
 
@@ -581,7 +581,7 @@ export function FahrplanVorschau({ status, onFahrplan }: { status: BonitaetStatu
       <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <p className="text-[12px] text-slate-500 leading-relaxed max-w-[62ch]">
           {offen
-            ? "Ihre Schritte stehen im Fahrplan — Sie können sie dort abhaken und Ihren Fortschritt sehen."
+            ? "Deine Schritte stehen im Fahrplan — Du kannst sie dort abhaken und deinen Fortschritt sehen."
             : "Die Auswertung und der Fahrplan sind im Preis der Auskunft enthalten — es kommt nichts hinzu."}
         </p>
         {offen && (

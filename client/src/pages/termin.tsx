@@ -11,7 +11,7 @@ import PremiumFooter from "@/components/PremiumFooter";
 // Rückruf zu vereinbaren, vereinbart keinen Rückruf.
 //
 // WORTWAHL
-// „Gespräch mit Ihrem persönlichen Ansprechpartner" — nirgends „Beratung",
+// „Gespräch mit deinem persönlichen Ansprechpartner" — nirgends „Beratung",
 // „Berater" oder „Finanzberatung". Das ist keine Kosmetik: Diese Begriffe sind
 // erlaubnispflichtig belegt, und eine Terminseite ist der letzte Ort, an dem
 // man sie versehentlich verwenden sollte.
@@ -111,7 +111,7 @@ export default function TerminPage() {
     const json = await res?.json().catch(() => null);
     setBucht(false);
     if (!json?.ok) {
-      setFehler(json?.error || "Der Termin konnte nicht gebucht werden. Bitte versuchen Sie es erneut.");
+      setFehler(json?.error || "Der Termin konnte nicht gebucht werden. Bitte versuch es erneut.");
       setGewaehlt(null);
       void laden();
       return;
@@ -150,8 +150,8 @@ export default function TerminPage() {
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3">Termin steht</h1>
             <p className="text-[15px] text-slate-600 leading-relaxed max-w-md mx-auto">
               <b className="text-slate-900">{fertig.datumText} um {fertig.uhrzeit} Uhr</b>.
-              {" "}{fertig.agentVorname} ruft Sie an. Sie bekommen gleich eine Bestätigung per E-Mail —
-              darin ist auch der Link, falls Sie den Termin verschieben möchten.
+              {" "}{fertig.agentVorname} ruft dich an. Du bekommst gleich eine Bestätigung per E-Mail —
+              darin ist auch der Link, falls du den Termin verschieben möchtest.
             </p>
           </div>
         )}
@@ -160,14 +160,14 @@ export default function TerminPage() {
         {!laedt && !fertig && daten?.termin && (
           <div className="py-8">
             <div className="text-center mb-6">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3">Ihr Termin</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3">Dein Termin</h1>
               <p className="text-[15px] text-slate-600 leading-relaxed">
                 <b className="text-slate-900">{daten.termin.datumText} um {daten.termin.uhrzeit} Uhr</b> mit {daten.termin.agentVorname}.
               </p>
             </div>
             <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 text-center">
               <p className="text-[13px] text-slate-600 mb-3">
-                Passt die Zeit nicht mehr? Sagen Sie ab und wählen Sie direkt eine neue.
+                Passt die Zeit nicht mehr? Sag ab und wähl direkt eine neue.
               </p>
               <button type="button" onClick={() => void absagen(daten.termin!.stornoToken)}
                       className="px-4 py-2.5 rounded-xl text-[13px] font-bold border border-slate-300 bg-white hover:bg-slate-50"
@@ -191,14 +191,14 @@ export default function TerminPage() {
           <>
             <div className="text-center mb-8">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3 leading-tight">
-                {daten.vorname ? `${daten.vorname}, wann passt es Ihnen?` : "Wann passt es Ihnen?"}
+                {daten.vorname ? `${daten.vorname}, wann passt es dir?` : "Wann passt es dir?"}
               </h1>
               <p className="text-[14px] text-slate-500 leading-relaxed">
-                Wählen Sie eine Zeit für ein {daten.slotMinuten}-minütiges Gespräch mit
+                Wähl eine Zeit für ein {daten.slotMinuten}-minütiges Gespräch mit
                 {" "}{daten.betreuer
-                  ? <b className="text-slate-900">{daten.betreuer.vorname}, Ihrem persönlichen Ansprechpartner</b>
-                  : <b className="text-slate-900">Ihrem persönlichen Ansprechpartner</b>}.
-                {" "}Sie werden zur gewählten Zeit angerufen.
+                  ? <b className="text-slate-900">{daten.betreuer.vorname}, deinem persönlichen Ansprechpartner</b>
+                  : <b className="text-slate-900">deinem persönlichen Ansprechpartner</b>}.
+                {" "}Wir rufen dich zur gewählten Zeit an.
               </p>
             </div>
 
@@ -206,7 +206,7 @@ export default function TerminPage() {
               <div className="p-6 rounded-2xl border border-slate-200 text-center">
                 <p className="text-[14px] font-semibold text-slate-900">Gerade sind keine Zeiten frei.</p>
                 <p className="text-[13px] text-slate-500 mt-1.5">
-                  Ihr Ansprechpartner meldet sich in den nächsten Tagen bei Ihnen.
+                  Dein Ansprechpartner meldet sich in den nächsten Tagen bei dir.
                 </p>
               </div>
             )}
@@ -250,7 +250,7 @@ export default function TerminPage() {
                 <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-lg">
                   <p className="text-[13px] text-slate-600 mb-3">
                     <b className="text-slate-900">{tagUeberschrift(gewaehlt.datum)}, {gewaehlt.uhrzeit} Uhr</b>
-                    {" "}— {gewaehlt.agentVorname} ruft Sie an
+                    {" "}— {gewaehlt.agentVorname} ruft dich an
                   </p>
                   <button type="button" onClick={() => void buchen()} disabled={bucht}
                           className="w-full rounded-xl text-[15px] font-bold text-white bg-[#1d4ed8] hover:bg-[#1e40af] disabled:opacity-60"
@@ -295,7 +295,7 @@ export function TerminAbsagenPage() {
           <>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3">Termin abgesagt</h1>
             <p className="text-[15px] text-slate-600 leading-relaxed">
-              Die Zeit ist wieder frei. Wenn Sie möchten, wählen Sie gleich eine neue.
+              Die Zeit ist wieder frei. Wenn du möchtest, wähl gleich eine neue.
             </p>
             {neuBuchen && (
               <a href={neuBuchen}
@@ -314,7 +314,7 @@ export function TerminAbsagenPage() {
           <>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3">Termin absagen?</h1>
             <p className="text-[15px] text-slate-600 leading-relaxed mb-6">
-              Ihr Ansprechpartner wird Sie dann nicht anrufen. Sie können danach jederzeit eine neue Zeit wählen.
+              Dein Ansprechpartner ruft dich dann nicht an. Du kannst danach jederzeit eine neue Zeit wählen.
             </p>
             <button type="button" onClick={() => void absagen()} disabled={stand === "laeuft"}
                     className="px-5 py-3 rounded-xl text-[14px] font-bold border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60"

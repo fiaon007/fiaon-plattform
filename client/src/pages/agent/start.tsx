@@ -95,6 +95,20 @@ export default function AgentStartSeite() {
   );
 }
 
+/**
+ * Die Tageszeit in der Anrede — „Guten Morgen" um sieben, „Guten Abend" um
+ * neun. Das kostet nichts und macht aus einer Maske einen Arbeitsplatz.
+ * Gerechnet wird in Europe/Berlin, nicht in der Zeitzone des Browsers.
+ */
+function gruss(): string {
+  const stunde = Number(new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin", hour: "2-digit", hour12: false,
+  }).format(new Date()));
+  if (stunde < 11) return "Guten Morgen";
+  if (stunde < 18) return "Guten Tag";
+  return "Guten Abend";
+}
+
 interface AgentTermin {
   id: number; personId: number; name: string; beginn: string;
   datumText: string; uhrzeit: string; dauerMin: number;
@@ -169,7 +183,7 @@ function Inhalt() {
             <div>
               <h1 className="text-[24px] sm:text-[28px] font-bold tracking-tight leading-tight">
                 <span className="fi-gradient-text">
-                  {laedt ? "Guten Tag" : `Guten Tag${d?.agent.vorname ? `, ${d.agent.vorname}` : ""}`}
+                  {laedt ? gruss() : `${gruss()}${d?.agent.vorname ? `, ${d.agent.vorname}` : ""}`}
                 </span>
               </h1>
               <p className="mt-1 text-[13px]" style={{ color: "var(--fi-text-leise)" }}>

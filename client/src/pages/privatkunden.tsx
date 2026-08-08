@@ -205,7 +205,7 @@ function Packages() {
         <div className="max-w-[2xl mb-14">
           <p className="text-[13px] font-medium text-[#2563eb] tracking-wide uppercase mb-3">Pakete</p>
           <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4"><G>Finde dein passendes Paket</G></h2>
-          <p className="text-[15px] text-gray-500 leading-relaxed">Von Einsteiger bis Premium &ndash; wir beraten dich zum optimalen Kreditkarten-Paket. Das finale Limit wird individuell berechnet.</p>
+          <p className="text-[15px] text-gray-500 leading-relaxed">Von Einsteiger bis Premium &ndash; wir begleiten dich zum optimalen Kreditkarten-Paket. Das finale Limit wird individuell berechnet.</p>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {PACKS.map((p, i) => (
@@ -238,7 +238,7 @@ function Packages() {
    NUMBERS
    ═══════════════════════════════ */
 function Numbers() {
-  const items = [["12.400+","Beratungen durchgef\u00FChrt"],["25.000 \u20AC","Max. Kreditlimit"],["< 2 Min","Antrag starten"],["4,9 / 5","Kundenbewertung"]];
+  const items = [["12.400+","Gespr\u00E4che gef\u00FChrt"],["25.000 \u20AC","Max. Kreditlimit"],["< 2 Min","Antrag starten"],["4,9 / 5","Kundenbewertung"]];
   return (
     <section className="py-10 sm:py-12 border-y border-gray-100">
       <div className="max-w-[1120px] mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-4">
@@ -323,9 +323,9 @@ function Faq() {
     ["Seid ihr wieder nur so ein Vorkassen-Betrug?", "Nein. Du zahlst f\u00FCr die Einrichtungs-Dienstleistung und das strategische Coaching. Wenn wir im Erstgespr\u00E4ch sehen, dass unser Setup bei dir nicht funktioniert, nehmen wir dich nicht als Kunden an. Punkt."],
     ["Ist das \u00FCberhaupt legal?", "Zu 100%. Die europ\u00E4ische Dienstleistungs- und Kapitalverkehrsfreiheit erlaubt es dir als EU-B\u00FCrger, Konten und Kreditkarten im gesamten SEPA-Raum zu er\u00F6ffnen. Wir navigieren dich durch diesen Prozess."],
     ["Bekomme ich garantiert ein Limit von 10.000 \u20AC?", "Wer dir das trotz harter Schufa-Eintr\u00E4ge garantiert, l\u00FCgt dich an. Das Limit h\u00E4ngt von der ausl\u00E4ndischen Partnerbank und deiner aktuellen Leistungsf\u00E4higkeit ab. Wir bauen die Struktur, die dir die h\u00F6chste Wahrscheinlichkeit auf einen starken Kreditrahmen bietet."],
-    ["Was genau ist FIAON?", "FIAON ist ein unabh\u00E4ngiger Beratungsservice. Wir vermitteln Zugang zu internationalen Finanzstrukturen und Kreditkarten \u00FCber europ\u00E4ische Partnerbanken. Wir sind kein Kreditinstitut."],
+    ["Was genau ist FIAON?", "FIAON ist ein unabh\u00E4ngiges Begleitungs- und Softwareangebot. Wir vermitteln Zugang zu internationalen Finanzstrukturen und Kreditkarten \u00FCber europ\u00E4ische Partnerbanken. Wir sind kein Kreditinstitut."],
     ["Wie l\u00E4uft der Prozess ab?", "Nach deiner kostenlosen Potenzial-Analyse bewerten wir deine Situation, erstellen eine individuelle Strategie und begleiten dich durch den gesamten Aufbauprozess \u2013 von der Kontener\u00F6ffnung bis zur Limit-Optimierung."],
-    ["Wird die Schufa bei der Anfrage abgefragt?", "Nein. Die Erstberatung und Potenzial-Analyse ist zu 100% schufaneutral. Erst bei einer konkreten Beantragung bei der Partnerbank kann eine lokale Pr\u00FCfung stattfinden \u2013 aber nicht bei der deutschen Schufa."],
+    ["Wird die Schufa bei der Anfrage abgefragt?", "Nein. Das Erstgespräch und die Potenzial-Analyse sind zu 100% schufaneutral. Erst bei einer konkreten Beantragung bei der Partnerbank kann eine lokale Pr\u00FCfung stattfinden \u2013 aber nicht bei der deutschen Schufa."],
   ];
   return (
     <section className="py-20 sm:py-28">
@@ -395,7 +395,7 @@ function Foot() {
         </div>
         <div className="pt-8 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span className="text-[12px] text-gray-400">&copy; {new Date().getFullYear()} FIAON. Alle Rechte vorbehalten.</span>
-          <span className="text-[11px] text-gray-400">FIAON ist ein Beratungsservice und kein Kreditinstitut.</span>
+          <span className="text-[11px] text-gray-400">FIAON ist ein Begleitungs- und Softwareangebot und kein Kreditinstitut.</span>
         </div>
       </div>
     </footer>

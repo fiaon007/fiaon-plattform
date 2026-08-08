@@ -134,19 +134,19 @@ export default function BonitaetAntragPage() {
     e.preventDefault();
     const err: Record<string, string> = {};
 
-    if (!formData.fullName.trim())   err.fullName   = "Bitte geben Sie Ihren vollständigen Namen ein.";
-    if (!validateDate(formData.birthDate)) err.birthDate = "Bitte geben Sie ein gültiges Geburtsdatum ein.";
-    if (!formData.birthPlace.trim()) err.birthPlace  = "Bitte geben Sie Ihren Geburtsort ein.";
-    if (!formData.street.trim())     err.street      = "Bitte geben Sie Ihre Straße ein.";
+    if (!formData.fullName.trim())   err.fullName   = "Bitte gib deinen vollständigen Namen ein.";
+    if (!validateDate(formData.birthDate)) err.birthDate = "Bitte gib ein gültiges Geburtsdatum ein.";
+    if (!formData.birthPlace.trim()) err.birthPlace  = "Bitte gib deinen Geburtsort ein.";
+    if (!formData.street.trim())     err.street      = "Bitte gib deine Straße ein.";
     if (!validatePLZ(formData.plz, formData.country))
       err.plz = formData.country === "AT"
-        ? "Bitte geben Sie eine gültige 4-stellige PLZ ein."
-        : "Bitte geben Sie eine gültige 5-stellige PLZ ein.";
-    if (!formData.city.trim())       err.city        = "Bitte geben Sie Ihren Ort ein.";
-    if (!formData.phone.trim())      err.phone       = "Bitte geben Sie Ihre Telefonnummer ein.";
-    else if (!validatePhone(formData.phone)) err.phone = "Bitte geben Sie eine gültige Telefonnummer ein (+49 oder +43).";
-    if (!formData.email.trim())      err.email       = "Bitte geben Sie Ihre E-Mail-Adresse ein.";
-    else if (!validateEmail(formData.email)) err.email = "Bitte geben Sie eine gültige E-Mail-Adresse ein.";
+        ? "Bitte gib eine gültige 4-stellige PLZ ein."
+        : "Bitte gib eine gültige 5-stellige PLZ ein.";
+    if (!formData.city.trim())       err.city        = "Bitte gib deinen Ort ein.";
+    if (!formData.phone.trim())      err.phone       = "Bitte gib deine Telefonnummer ein.";
+    else if (!validatePhone(formData.phone)) err.phone = "Bitte gib eine gültige Telefonnummer ein (+49 oder +43).";
+    if (!formData.email.trim())      err.email       = "Bitte gib deine E-Mail-Adresse ein.";
+    else if (!validateEmail(formData.email)) err.email = "Bitte gib eine gültige E-Mail-Adresse ein.";
 
     if (Object.keys(err).length > 0) { setErrors(err); return; }
 
@@ -187,7 +187,7 @@ export default function BonitaetAntragPage() {
             Bonitäts-Auszug anfordern
           </h1>
           <p className="text-[15px] sm:text-[16px] text-gray-500 leading-relaxed max-w-[500px] mx-auto">
-            Füllen Sie das Formular in unter 2 Minuten aus. Ihre Vollauskunft inkl. Handlungsplan erhalten Sie noch am selben Werktag per E-Mail.
+            Fülle das Formular in unter 2 Minuten aus. Deine Vollauskunft inkl. Handlungsplan erhältst du noch am selben Werktag per E-Mail.
           </p>
         </div>
       </header>
@@ -309,7 +309,7 @@ export default function BonitaetAntragPage() {
                         <div className="mt-2.5 p-3.5 rounded-xl bg-amber-50 border border-amber-200/70 flex gap-2.5 items-start">
                           <span className="text-[16px] shrink-0 mt-0.5">🇦🇹</span>
                           <p className="text-[12px] text-amber-800 leading-snug">
-                            Ihre Bonitätsauskunft wird bei <b>CRIF Bürgel GmbH</b> und <b>KSV1870</b> abgerufen. Sie erhalten eine auf Österreich zugeschnittene Handlungsanleitung.
+                            Deine Bonitätsauskunft wird bei <b>CRIF Bürgel GmbH</b> und <b>KSV1870</b> abgerufen. Du erhältst eine auf Österreich zugeschnittene Handlungsanleitung.
                           </p>
                         </div>
                       )}
@@ -323,7 +323,7 @@ export default function BonitaetAntragPage() {
                   <SectionHeader
                     icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.8" strokeLinecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>}
                     title="Kontaktdaten"
-                    subtitle="Hierüber senden wir Ihre Auskunft"
+                    subtitle="Hierüber senden wir deine Auskunft"
                   />
                   <div className="space-y-5">
                     <div className="grid sm:grid-cols-2 gap-5">
@@ -331,7 +331,7 @@ export default function BonitaetAntragPage() {
                         onChange={v => set("phone", v)} error={errors.phone} />
                       <Field label="E-Mail-Adresse *" placeholder="max@mustermann.de" type="email" value={formData.email}
                         onChange={v => set("email", v)} error={errors.email}
-                        hint="Ihre Auskunft wird an diese Adresse gesendet." />
+                        hint="Deine Auskunft wird an diese Adresse gesendet." />
                     </div>
                   </div>
                 </div>
@@ -377,7 +377,7 @@ export default function BonitaetAntragPage() {
               </div>
               <h2 className="text-[1.6rem] font-extrabold text-gray-900 mb-3">Daten werden geprüft…</h2>
               <p className="text-[14.5px] text-gray-500 leading-relaxed max-w-[380px] mx-auto">
-                Wir verifizieren Ihre Angaben sicher und bereiten Ihren Express-Auftrag vor
+                Wir verifizieren deine Angaben sicher und bereiten deinen Express-Auftrag vor
                 {formData.country === "AT" ? " via CRIF Bürgel & KSV1870" : " via SCHUFA"}.
               </p>
               <div className="mt-7 flex gap-1.5 justify-center">
@@ -408,7 +408,7 @@ export default function BonitaetAntragPage() {
                   Geschafft!
                 </h2>
                 <p className="text-[15.5px] sm:text-[16px] text-gray-600 leading-relaxed mb-3 max-w-[420px] mx-auto">
-                  Zahlung abschließen — Sie erhalten Ihre Selbstauskunft inkl. persönlichem Handlungsplan noch am <b className="text-gray-900">selben Werktag</b> per E-Mail.
+                  Zahlung abschließen — Du erhältst deine Selbstauskunft inkl. persönlichem Handlungsplan noch am <b className="text-gray-900">selben Werktag</b> per E-Mail.
                 </p>
                 <p className="text-[13px] text-gray-400 mb-8">
                   Lieferung an: <b className="text-gray-700">{formData.email}</b>
@@ -440,7 +440,7 @@ export default function BonitaetAntragPage() {
               {/* Data summary */}
               <div className="bg-white rounded-3xl p-7 border border-gray-100"
                 style={{ boxShadow: "0 4px 20px rgba(37,99,235,0.06)" }}>
-                <div className="text-[12px] font-bold text-gray-400 uppercase tracking-widest mb-4">Zusammenfassung Ihrer Angaben</div>
+                <div className="text-[12px] font-bold text-gray-400 uppercase tracking-widest mb-4">Zusammenfassung deiner Angaben</div>
                 <div className="space-y-0 divide-y divide-gray-50">
                   {[
                     { label: "Name", value: formData.fullName },

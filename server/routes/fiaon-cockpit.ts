@@ -61,8 +61,9 @@ function ipOf(req: Request): string {
 // Verbindliche Definitionen (siehe SYSTEM_DIAGNOSE.md D3 / fiaon-truth.ts).
 const TRUTH_DEFS = [
   "VERBINDLICHE DEFINITIONEN (immer so rechnen — müssen mit truth-check, Finanzen, Zahlungszentrale übereinstimmen):",
-  "- Bezahlter Kunde = payment_status = 'paid' AND merged_into IS NULL AND payment_reference IS NOT NULL.",
-  "- Alt-Bestand (NIE in Umsatz/Funnel) = payment_status = 'paid' AND merged_into IS NULL AND payment_reference IS NULL.",
+  "- Bezahlter Kunde = payment_status = 'paid' AND merged_into IS NULL AND NOT alt_bestand.",
+  "- Alt-Bestand (NIE in Umsatz/Funnel) = payment_status = 'paid' AND merged_into IS NULL AND alt_bestand.",
+  "- payment_reference (Verwendungszweck) hat seit 08.08.2026 JEDE Bestellung — sie ist kein Merkmal fuer 'echte Bestellung' mehr.",
   "- Umsatz = SUM(amount_due) genau der bezahlten Kunden; Zeit-Anker = COALESCE(completed_at, claimed_paid_at, created_at), NIEMALS updated_at.",
   "- Dubletten (merged_into IS NOT NULL) zählen NIE mit.",
   "- Offene Zahlung (angekündigt) = payment_status = 'claimed_paid'. Offen zu zahlen = payment_status = 'pending_payment'.",

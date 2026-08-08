@@ -146,6 +146,12 @@ router.get("/admin/verbuchung/uebersicht", async (_req: Request, res: Response) 
              a.ref, a.payment_reference, a.payment_status, a.amount_due, a.pack_name,
              a.email, a.person_id, a.created_at, a.assigned_agent_id, a.superseded_by,
              a.confirmed_email_sent_at, a.type,
+             -- Zahlungsbeleg (08.08.2026): Wer bucht, sieht Bankeingang UND
+             -- Beleg nebeneinander. Die Bytes bleiben draußen — hier zählt nur,
+             -- OB einer vorliegt und mit welchem Datum.
+             (a.payment_proof IS NOT NULL) AS beleg_da, a.payment_proof_date,
+             a.payment_proof_note, a.payment_proof_by, a.payment_proof_at,
+             a.payment_proof_typ, a.payment_proof_bytes,
              COALESCE(NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''),
                       a.contact_name, a.email) AS kundenname
       FROM fiaon_bank_txns t
@@ -181,6 +187,19 @@ router.get("/admin/verbuchung/uebersicht", async (_req: Request, res: Response) 
         betragOk: e.amount_ok !== false,
         einzahlerWeichtAb,
         personId: e.person_id,
+        beleg: e.beleg_da
+          ? {
+              vorhanden: true,
+              datum: e.payment_proof_date ? new Date(e.payment_proof_date).toISOString().slice(0, 10) : null,
+              notiz: e.payment_proof_note ?? null,
+              von: e.payment_proof_by ?? null,
+              am: e.payment_proof_at ?? null,
+              typ: e.payment_proof_typ ?? null,
+              bytes: e.payment_proof_bytes != null ? Number(e.payment_proof_bytes) : null,
+              /** Anzeige-Adresse; die Datei liegt an der Bestellung. */
+              url: `/api/fiaon/admin/antraege/${encodeURIComponent(String(e.ref))}/zahlungsbeleg`,
+            }
+          : { vorhanden: false },
       };
 
       if (zwilling) {

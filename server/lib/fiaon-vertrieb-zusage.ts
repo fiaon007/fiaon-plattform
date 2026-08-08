@@ -256,6 +256,15 @@ export function ensureZusageTabelle(): Promise<void> {
         CREATE INDEX IF NOT EXISTS fiaon_vertrieb_zusagen_agent_idx
         ON fiaon_vertrieb_zusagen (agent_id, version)
       `;
+      // Widerruf einer Annahme (08.08.2026). Doppelt zu db/migrations/036 —
+      // die Spalten müssen auch existieren, wenn der Prozess vor dem
+      // Migrationslauf hochkommt.
+      await sqlPool.unsafe(`
+        ALTER TABLE fiaon_vertrieb_zusagen
+          ADD COLUMN IF NOT EXISTS widerrufen_am  TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS widerruf_grund TEXT,
+          ADD COLUMN IF NOT EXISTS widerrufen_von TEXT
+      `);
     })().catch((e) => { bereit = null; throw e; });
   }
   return bereit;
@@ -271,18 +280,53 @@ export interface ZusageStand {
 
 export async function zusageStand(agentId: number): Promise<ZusageStand> {
   await ensureZusageTabelle();
+  // `widerrufen_am IS NULL`: Eine entwertete Annahme zählt nicht. Am 08.08.2026
+  // hatte ein Playwright-Roboter die Fassung 2.0 als „Daniel Stripling" gegen
+  // die Produktionsdatenbank angenommen (IP 127.0.0.1, HeadlessChrome). Die
+  // Zeile bleibt als Beleg stehen, dass es diese Unterschrift gab — gültig ist
+  // sie nicht, und der Bereich fragt wieder.
   const [aktuell] = await sqlPool`
     SELECT accepted_at FROM fiaon_vertrieb_zusagen
     WHERE agent_id = ${agentId} AND version = ${ZUSAGE_VERSION}
+      AND widerrufen_am IS NULL
     ORDER BY id DESC LIMIT 1
   `;
   if (aktuell) {
     return { offen: false, version: ZUSAGE_VERSION, akzeptiertAm: aktuell.accepted_at, neufassung: false };
   }
   const [frueher] = await sqlPool`
-    SELECT accepted_at FROM fiaon_vertrieb_zusagen WHERE agent_id = ${agentId} ORDER BY id DESC LIMIT 1
+    SELECT accepted_at FROM fiaon_vertrieb_zusagen
+    WHERE agent_id = ${agentId} AND widerrufen_am IS NULL
+    ORDER BY id DESC LIMIT 1
   `;
   return { offen: true, version: ZUSAGE_VERSION, akzeptiertAm: null, neufassung: !!frueher };
+}
+
+/**
+ * Kommt diese Annahme von einem Menschen an einem Browser — oder von einem Skript?
+ *
+ * Der Anlass ist echt: Ein Browser-Test hat die Erklärung angenommen, weil
+ * nichts das verhindert hat. Ein Rechtsnachweis, den ein Roboter erzeugen kann,
+ * ist keiner. Erkannt wird an zwei unbestreitbaren Merkmalen:
+ *
+ *   · Die Anfrage kommt von der Maschine selbst (127.0.0.1 / ::1). In Betrieb
+ *     sitzt vor einer echten Annahme ein Browser mit öffentlicher Adresse.
+ *   · Die Browserkennung nennt sich selbst automatisiert (HeadlessChrome,
+ *     Playwright, Puppeteer, Selenium, phantomjs, „bot").
+ *
+ * Bewusst KEIN Ausschluss über fehlende Kennung allein: Ein sparsamer Browser
+ * ohne User-Agent wäre sonst ausgesperrt.
+ */
+export function istRoboterUnterschrift(ip: string | null, userAgent: string | null): { roboter: boolean; grund: string | null } {
+  const adresse = String(ip ?? "").trim().toLowerCase().replace(/^::ffff:/, "");
+  const kennung = String(userAgent ?? "").toLowerCase();
+  if (adresse === "127.0.0.1" || adresse === "::1" || adresse === "localhost") {
+    return { roboter: true, grund: `Anfrage von der Maschine selbst (${adresse})` };
+  }
+  const automat = ["headlesschrome", "playwright", "puppeteer", "selenium", "phantomjs", "webdriver", "bot/", " bot", "curl/", "node-fetch", "axios/"]
+    .find((m) => kennung.includes(m));
+  if (automat) return { roboter: true, grund: `Automatisierte Browserkennung (${automat.trim()})` };
+  return { roboter: false, grund: null };
 }
 
 /**
@@ -311,6 +355,21 @@ export async function zusageSpeichern(opts: {
   const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
   if (norm(opts.nameGetippt) !== norm(opts.agentName)) {
     return { ok: false, grund: `Bitte den vollständigen Namen genau so eingeben, wie er im Konto steht: ${opts.agentName}` };
+  }
+  // Kein Roboter unterschreibt hier. Am 06.08.2026 hat ein Playwright-Testlauf
+  // die Fassung 2.0 als „Daniel Stripling" angenommen — gegen die
+  // Produktionsdatenbank. Der Nachweis war wertlos, aber er stand in der
+  // Tabelle und der Bereich war offen. Diese Prüfung ist die Wand davor: Sie
+  // gehört in den Server, nicht in die Testregeln, denn eine Regel, die man
+  // vergessen kann, hat man schon vergessen.
+  const roboter = istRoboterUnterschrift(opts.ip, opts.userAgent);
+  if (roboter.roboter) {
+    console.warn(`[VERTRIEB-ZUSAGE] Annahme abgelehnt (${roboter.grund}) für Agent #${opts.agentId}`);
+    return {
+      ok: false,
+      grund: "Diese Annahme kann nicht gespeichert werden: Sie kommt nicht von einem Browser eines Menschen "
+        + `(${roboter.grund}). Eine Verpflichtungserklärung muss eine Person lesen und annehmen.`,
+    };
   }
   const [row] = await sqlPool`
     INSERT INTO fiaon_vertrieb_zusagen (agent_id, version, text_hash, name_getippt, ip, user_agent)

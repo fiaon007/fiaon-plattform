@@ -116,13 +116,20 @@ function randomPaymentCode(len = 6): string {
   return out;
 }
 
+/**
+ * Ein Verwendungszweck — aus der EINEN Quelle.
+ *
+ * Vorher stand die Erzeugung hier: würfeln, Tabelle fragen, hoffen. Seit dem
+ * 08.08.2026 liegt sie in der Datenbank (`fiaon_verwendungszweck_neu()`, siehe
+ * db/migrations/037) und wird von einem BEFORE-INSERT-Trigger benutzt. Damit
+ * bekommt JEDE Bestellung eine Referenz — auch die aus einem Import oder einem
+ * `INSERT` von Hand, an die hier niemand denken kann.
+ *
+ * Diese Funktion bleibt als benannter Weg für den Anwendungscode bestehen.
+ */
 async function generateUniquePaymentReference(): Promise<string> {
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const candidate = `FIAON-${randomPaymentCode(6)}`;
-    const existing = await sqlPool`SELECT 1 FROM fiaon_applications WHERE payment_reference = ${candidate} LIMIT 1`;
-    if (existing.length === 0) return candidate;
-  }
-  throw new Error("Konnte keine eindeutige Zahlungsreferenz erzeugen");
+  const { neuerVerwendungszweck } = await import("../lib/fiaon-verwendungszweck");
+  return await neuerVerwendungszweck(sqlPool);
 }
 
 // Auto-Migration der neuen Zahlungsspalten (idempotent)
@@ -234,13 +241,34 @@ async function backfillPaidAccessOnce(): Promise<void> {
 // (Gesamtbestand „Bezahlt") und die Attribution — ohne dass hier automatisch
 // Provision gebucht wird (bewusst: Provision nur über mark-paid-Hook oder
 // manuelle Admin-Buchung, siehe /admin/agents/:id/commissions/manual).
+//
+// ── UMSTELLUNG 08.08.2026: DIE PERSON IST DER SCHLÜSSEL, NICHT DIE E-MAIL ────
+// Der Abgleich lief über `LOWER(TRIM(email))`. Das war die beste verfügbare
+// Näherung, bevor es ein Personenmodell gab — und sie ist zweifach falsch:
+//
+//   ZU BREIT: Eine E-Mail kann zwei Menschen tragen. Im Bestand lief ein Antrag
+//   unter „Magdalena" und gehörte zu Konstantinos Nikoloudis. Über die E-Mail
+//   hätte eine Zahlung des einen die offene Bestellung des anderen stillgelegt.
+//
+//   ZU SCHMAL: Derselbe Mensch bestellt beim zweiten Mal mit einer anderen
+//   Adresse. Dann blieben zwei offene Paketbestellungen stehen, der Kunde bekam
+//   zwei Rechnungen, und im Bestand liegen 9 Personen mit genau diesem Zustand.
+//
+// Seit Teil A gibt es die Person (`person_id`) und den verlustfreien Merge. Der
+// Schlüssel ist ab jetzt die Person; die E-Mail bleibt nur als Rückfall für
+// Zeilen ohne Person (Altbestand, Funnel-Abbrecher).
 export async function supersedeSisterOrders(paidRef: string): Promise<{ count: number; refs: string[] }> {
   const paid = await sqlPool`
-    SELECT ref, payment_reference, email, assigned_agent_id, pack_name, type
+    SELECT ref, payment_reference, email, assigned_agent_id, pack_name, type, person_id,
+           payment_status
     FROM fiaon_applications WHERE ref = ${paidRef}
   `;
-  if (paid.length === 0 || !paid[0].email || !String(paid[0].email).trim()) return { count: 0, refs: [] };
-  const em = String(paid[0].email).trim().toLowerCase();
+  if (paid.length === 0) return { count: 0, refs: [] };
+  const personId = paid[0].person_id != null ? Number(paid[0].person_id) : null;
+  const em = paid[0].email ? String(paid[0].email).trim().toLowerCase() : null;
+  // Ohne Person UND ohne E-Mail gibt es keinen belastbaren Schlüssel. Dann wird
+  // nichts stillgelegt — lieber eine Dublette als eine fremde Bestellung töten.
+  if (personId == null && !em) return { count: 0, refs: [] };
 
   // ── KATEGORIEGRENZE (Korrektur 03.08.2026) ───────────────────────────────
   // Es gibt zwei Arten von Bestellungen, und nur INNERHALB einer Art kann eine
@@ -269,6 +297,12 @@ export async function supersedeSisterOrders(paidRef: string): Promise<{ count: n
   const istZusatzprodukt =
     String(paid[0].type || "").toLowerCase() === "schufa" || String(paid[0].ref || "").startsWith("FIAON-SCHUFA-");
   const kategorie = istZusatzprodukt ? "Zusatzprodukt (Bonitätsauskunft)" : "Stufenpaket (Kontoaktivierung)";
+  // Der Auslöser steht im Protokoll, wie er ist: Beim Aufruf aus /payment-order
+  // ist die Bestellung noch NICHT bezahlt, und „durch bezahlte Bestellung
+  // ersetzt" wäre dort eine falsche Auskunft in der Kundenakte.
+  const anlass = String(paid[0].payment_status || "") === "paid"
+    ? "bezahlte Bestellung"
+    : "neuere Bestellung";
 
   // ── ZEIGER-PRÜFUNG ───────────────────────────────────────────────────────
   // `superseded_by` speicherte bevorzugt die kurze payment_reference. Ändert
@@ -293,10 +327,18 @@ export async function supersedeSisterOrders(paidRef: string): Promise<{ count: n
       payment_status = 'superseded',
       superseded_by = ${zeiger},
       updated_at = NOW()
-    WHERE LOWER(TRIM(email)) = ${em}
-      AND ref != ${paidRef}
+    WHERE ref != ${paidRef}
       AND merged_into IS NULL
+      AND archived_at IS NULL
       AND payment_status IN ('pending_payment', 'claimed_paid')
+      -- DERSELBE MENSCH: über die Person, wenn es eine gibt. Die E-Mail greift
+      -- nur, wenn KEINE Person am bezahlten Antrag hängt (Altbestand) — dann ist
+      -- sie das Einzige, was wir haben.
+      AND (
+        (${personId}::int IS NOT NULL AND person_id = ${personId}::int)
+        OR (${personId}::int IS NULL AND ${em}::text IS NOT NULL
+            AND person_id IS NULL AND LOWER(TRIM(email)) = ${em}::text)
+      )
       -- Nur dieselbe Kategorie. Ein bezahltes Stufenpaket beendet offene
       -- Stufenpakete (Upgrade), lässt die Bonitätsauskunft aber unberührt —
       -- und umgekehrt.
@@ -307,7 +349,7 @@ export async function supersedeSisterOrders(paidRef: string): Promise<{ count: n
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
       VALUES (${r.ref}, NULL, 'System', 'system',
-              ${`Durch bezahlte Bestellung ${zeiger} ersetzt — gleiche E-Mail und dieselbe Produktkategorie „${kategorie}“. Keine weiteren Erinnerungen.`})
+              ${`Durch ${anlass} ${zeiger} ersetzt — ${personId != null ? "dieselbe Person" : "gleiche E-Mail"} und dieselbe Produktkategorie \u201e${kategorie}\u201c. Keine weiteren Erinnerungen.`})
     `;
   }
   // Attributions-Übertrag: bezahlte Bestellung erbt den betreuenden Agent der Dublette
@@ -329,7 +371,7 @@ export async function supersedeSisterOrders(paidRef: string): Promise<{ count: n
     }
   }
   if (rows.length > 0) {
-    console.log(`[FIAON-DUBLETTE] ${rows.length} offene Schwester-Bestellung(en) von ${em} superseded (bezahlt: ${paidRef})`);
+    console.log(`[FIAON-DUBLETTE] ${rows.length} offene Schwester-Bestellung(en) von ${personId != null ? `Person #${personId}` : em} superseded (bezahlt: ${paidRef})`);
   }
   return { count: rows.length, refs: rows.map((r) => r.ref) };
 }
@@ -792,6 +834,9 @@ router.post("/payment-order", async (req, res) => {
     if (kind === "schufa") {
       // SCHUFA/Bonitätsauskunft: eigene Bestellzeile, unabhängig vom ABO
       ref = `FIAON-SCHUFA-${Date.now().toString(36).toUpperCase()}-${randomPaymentCode(4)}`;
+      // `payment_reference` wird hier NICHT mitgegeben und trotzdem gesetzt: Der
+      // Trigger aus db/migrations/037 füllt sie. Genau das ist der Punkt — eine
+      // neue Anlagestelle kann den Verwendungszweck nicht mehr vergessen.
       await sqlPool`
         INSERT INTO fiaon_applications (ref, type, status, first_name, last_name, email, pack_name, created_at, updated_at)
         VALUES (${ref}, 'schufa', 'submitted', ${firstName ?? null}, ${lastName ?? null}, ${email ?? null}, 'Bonitätsauskunft inkl. Handlungsplan', NOW(), NOW())
@@ -855,6 +900,21 @@ router.post("/payment-order", async (req, res) => {
     `;
 
     console.log(`[FIAON-PAYMENT] Bestellung angelegt: ${paymentReference} (ref=${ref}, ${amount.toFixed(2)} EUR, fällig ${dueDate.toISOString()})`);
+
+    // ── EIN KUNDE, EINE STUFE (08.08.2026) ────────────────────────────────
+    // Fordert derselbe Mensch eine Rechnung für ein Stufenpaket an, ist seine
+    // ÄLTERE offene Stufenpaket-Bestellung damit erledigt — er hat sich gerade
+    // neu entschieden. Vorher passierte das erst beim Bezahlen; bis dahin lagen
+    // zwei offene Rechnungen beim Kunden, er bekam zwei Mahnketten, und im
+    // Bestand liegen 9 Personen mit genau diesem Zustand.
+    //
+    // Der Auslöser ist bewusst die RECHNUNGSANFORDERUNG und nicht die Anlage
+    // der Zeile: Beim reinen Öffnen des Formulars hat der Kunde nichts
+    // entschieden, und eine stillgelegte Bestellung mit einer Referenz, die er
+    // schon per Mail hat, wäre eine Zahlung ohne Zuordnung.
+    // Zusatzprodukte (Bonitätsauskunft) bleiben unberührt — dieselbe
+    // Kategoriegrenze wie beim Bezahlen.
+    supersedeSisterOrders(ref).catch((e) => console.error("[FIAON-DUBLETTE] supersede bei Anlage:", e));
 
     // ══ P1-C DAUERSCHUTZ: Bestellung an bestehender Person ════════════════
     // Besonders wichtig beim Bonitäts-Kauf: Der legt bewusst eine EIGENE

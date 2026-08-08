@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { RefreshCw, Send, Users, Play, Settings2, X, Upload, Pencil, Check, Link2, Activity, Info, ChevronDown, HelpCircle, FlaskConical, Trash2, Radio, Clock, Plus } from "lucide-react";
 import ImportDialog from "./admin-leads-import";
+import { zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 
 type FlashKind = "ok" | "err" | "info";
 type Flash = { text: string; kind: FlashKind };
@@ -78,7 +79,7 @@ function fmtD(v: string | null) {
   if (!v) return "—";
   try { return new Date(v).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }); } catch { return "—"; }
 }
-const PAY_LABEL: Record<string, string> = { pending_payment: "offen", claimed_paid: "angekündigt", paid: "bezahlt", expired: "abgelaufen", refunded: "erstattet" };
+// Zahlungsstände: shared/fiaon-kundenstatus.ts (eine Quelle).
 
 function fmtDT(v: string | null) {
   if (!v) return "—";
@@ -761,7 +762,7 @@ export default function AdminLeadsPage() {
                   <td className="px-4 py-2.5 text-slate-500 hidden md:table-cell">{l.agent_name || "—"}</td>
                   <td className="px-4 py-2.5 text-slate-500 hidden lg:table-cell text-[12px]">
                     {isConv && l.converted_order_id
-                      ? <span>Kunde seit {fmtD(l.konvertiert_am)}<br /><span className="text-slate-400">{l.converted_order_id} · {PAY_LABEL[l.payment_status] || l.payment_status || "—"}{l.amount_due != null ? ` · ${eur(Math.round(Number(l.amount_due) * 100))}` : ""}</span></span>
+                      ? <span>Kunde seit {fmtD(l.konvertiert_am)}<br /><span className="text-slate-400">{l.converted_order_id} · {l.payment_status ? zahlungsstatusText(l.payment_status) : "—"}{l.amount_due != null ? ` · ${eur(Math.round(Number(l.amount_due) * 100))}` : ""}</span></span>
                       : "—"}
                   </td>
                   <td className="px-4 py-2.5">

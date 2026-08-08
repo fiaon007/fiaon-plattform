@@ -6,6 +6,7 @@ import Detailfenster, { type ListenArt, type FensterReiter } from "@/components/
 import AboTafel from "@/components/admin/AboTafel";
 import BuchenDialog from "@/components/admin/BuchenDialog";
 import VermerkTafel from "@/components/admin/VermerkTafel";
+import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 
 // ============================================================================
 // /admin/zahlungen — Zahlungszentrale (Vorkasse per Banküberweisung)
@@ -129,7 +130,7 @@ function fmtAmount(v: string | null): string {
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   pending_payment: { label: "Offen", cls: "bg-slate-100 text-slate-600" },
-  claimed_paid: { label: "Zahlung angekündigt", cls: "bg-amber-100 text-amber-700" },
+  claimed_paid: { label: zahlungsstatusText("claimed_paid"), cls: "bg-amber-100 text-amber-700" },
   paid: { label: "Bezahlt", cls: "bg-emerald-100 text-emerald-700" },
   expired: { label: "Abgelaufen", cls: "bg-rose-100 text-rose-600" },
   superseded: { label: "Ersetzt (Dublette)", cls: "bg-slate-100 text-slate-500" },
@@ -811,7 +812,7 @@ export default function AdminZahlungenPage() {
                 hilfe: "Bestellung liegt, Zahlung fehlt, und der Kunde hat sich nicht gemeldet. Nach sieben Tagen läuft sie in „abgelaufen“ — sichtbar bleibt sie trotzdem.",
               },
               {
-                label: "Zahlung angekündigt",
+                label: zahlungsstatusText("claimed_paid"),
                 wert: `${stats.claimed.sum.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €`,
                 unter: `${stats.claimed.count} warten auf Freischaltung`,
                 art: "angekuendigt-alle" as ListenArt, ton: "offen" as const,

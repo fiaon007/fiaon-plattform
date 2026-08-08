@@ -419,7 +419,7 @@ async function ruf(pfad: string, cookie: string, init?: RequestInit) {
     // Bereits bezahlte Bestellung: keine zweite Buchung.
     const [bezahlt] = await sqlPool`
       SELECT payment_reference FROM fiaon_applications
-      WHERE payment_status = 'paid' AND payment_reference IS NOT NULL AND merged_into IS NULL LIMIT 1
+      WHERE payment_status = 'paid' AND NOT COALESCE(alt_bestand, FALSE) AND merged_into IS NULL LIMIT 1
     `;
     if (bezahlt) {
       const r = await ruf(`/api/fiaon/agent/vertrieb/zahlung/${encodeURIComponent(bezahlt.payment_reference)}/bezahlt`, bCookie, {

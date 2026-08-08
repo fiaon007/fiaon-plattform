@@ -126,7 +126,7 @@ async function main() {
   const [k1] = await sql`
     SELECT COUNT(*)::int AS c, COALESCE(SUM(amount_due),0) AS summe
     FROM fiaon_applications
-    WHERE payment_status='paid' AND payment_reference IS NOT NULL AND merged_into IS NULL`;
+    WHERE payment_status = 'paid' AND NOT COALESCE(alt_bestand, FALSE) AND merged_into IS NULL`;
   log("D3.1 Zahlungszentrale (paid + payment_reference NOT NULL + merged NULL):", k1);
   const [k2] = await sql`
     SELECT COUNT(*)::int AS c FROM fiaon_applications
@@ -152,7 +152,7 @@ async function main() {
   // Erklärungen der Deltas
   const [delta] = await sql`
     SELECT
-      COUNT(*) FILTER (WHERE payment_reference IS NULL)::int AS paid_ohne_payment_ref,
+      COUNT(*) FILTER (WHERE COALESCE(alt_bestand, FALSE))::int AS paid_ohne_payment_ref,
       COUNT(*) FILTER (WHERE superseded_by IS NOT NULL)::int AS paid_mit_superseded_by,
       COUNT(*) FILTER (WHERE amount_due IS NULL OR amount_due = 0)::int AS paid_ohne_betrag
     FROM fiaon_applications WHERE payment_status='paid' AND merged_into IS NULL`;

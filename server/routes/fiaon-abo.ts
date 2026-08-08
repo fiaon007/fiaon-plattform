@@ -254,7 +254,7 @@ export async function ketteSicherstellen(): Promise<{ neu: number }> {
   const [offen] = await sqlPool`
     SELECT COUNT(*)::int AS c
     FROM fiaon_applications a
-    WHERE a.payment_status = 'paid' AND a.payment_reference IS NOT NULL
+    WHERE a.payment_status = 'paid' AND NOT COALESCE(a.alt_bestand, FALSE)
       AND a.merged_into IS NULL AND a.completed_at IS NOT NULL AND a.abo_gestoppt_am IS NULL
       AND a.type <> 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
       AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.rate_nr > 1)
@@ -273,7 +273,7 @@ export async function aboNachziehen(opts: { rueckwirkend?: boolean; nurZaehlen?:
   const apps = await sqlPool`
     SELECT a.ref, a.payment_reference, a.pack_name, a.amount_due, a.completed_at
     FROM fiaon_applications a
-    WHERE a.payment_status = 'paid' AND a.payment_reference IS NOT NULL
+    WHERE a.payment_status = 'paid' AND NOT COALESCE(a.alt_bestand, FALSE)
       AND a.merged_into IS NULL AND a.completed_at IS NOT NULL AND a.abo_gestoppt_am IS NULL
       AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.rate_nr > 1)
     ORDER BY a.completed_at DESC
@@ -548,7 +548,7 @@ export async function aboUebersicht() {
   const settings = await getSettings();
   const [ohne] = await sqlPool`
     SELECT COUNT(*)::int AS c FROM fiaon_applications a
-    WHERE a.payment_status = 'paid' AND a.payment_reference IS NOT NULL AND a.merged_into IS NULL
+    WHERE a.payment_status = 'paid' AND NOT COALESCE(a.alt_bestand, FALSE) AND a.merged_into IS NULL
       AND a.completed_at IS NOT NULL AND a.abo_gestoppt_am IS NULL
       AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.rate_nr > 1)
   `;

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "wouter";
 import { Search, Users } from "lucide-react";
 import { PageIntro } from "@/components/admin/PageHelp";
+import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 
 // ════════════════════════════════════════════════════════════════════
 // /admin/kunden — DIE EINE LISTE (Prompt 1/2, ersetzt die Fragmente).
@@ -18,7 +19,7 @@ const LIFECYCLE_CHIPS: Array<{ key: string; label: string }> = [
   { key: "", label: "Alle" },
   { key: "lead", label: "Leads" },
   { key: "offen", label: "Offen" },
-  { key: "angekuendigt", label: "Angekündigt" },
+  { key: "angekuendigt", label: zahlungsstatusText("claimed_paid") },
   { key: "bezahlt", label: "Bezahlt" },
   { key: "abgelaufen", label: "Abgelaufen" },
   { key: "storniert", label: "Storniert" },
@@ -35,10 +36,19 @@ const BADGE: Record<string, string> = {
   storniert: "bg-slate-100 text-slate-500",
   ersetzt: "bg-slate-100 text-slate-400",
 };
-const BADGE_LABEL: Record<string, string> = {
-  lead: "Lead", antrag: "Antrag", offen: "Offen", angekuendigt: "Angekündigt",
-  bezahlt: "Bezahlt", abgelaufen: "Abgelaufen", storniert: "Storniert", ersetzt: "Ersetzt",
+// Texte aus dem einen Vokabular (shared/fiaon-kundenstatus.ts). Vorher stand
+// hier „Angekündigt" für denselben Zustand, den die Agentenliste „Zahlung
+// gemeldet" nannte und der Vertrieb „Kunde sagt bezahlt".
+const LIFECYCLE_ZAHLUNG: Record<string, string | null> = {
+  lead: null, antrag: "pending", offen: "pending_payment", angekuendigt: "claimed_paid",
+  bezahlt: "paid", abgelaufen: "expired", storniert: "cancelled", ersetzt: "superseded",
 };
+const BADGE_LABEL = new Proxy({} as Record<string, string>, {
+  get: (_z, schluessel: string) =>
+    LIFECYCLE_ZAHLUNG[schluessel]
+      ? zahlungsstatusText(LIFECYCLE_ZAHLUNG[schluessel])
+      : (schluessel === "lead" ? KUNDENSTATUS.lead.text : "—"),
+});
 
 function fmtD(v: any): string {
   if (!v) return "—";

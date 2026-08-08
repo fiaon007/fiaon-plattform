@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, Users, Check, Phone, Mail, MapPin, Cake, Info, Undo2, AlertTriangle, UserCheck, Link2 } from "lucide-react";
 import DublettenArbeitsplatz from "@/components/admin/DublettenArbeitsplatz";
+import { zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 
 // ════════════════════════════════════════════════════════════════════
 // /admin/dubletten — zwei Bereiche, zwei verschiedene Fragen.
@@ -52,10 +53,7 @@ type Group = {
   leads?: Lead[]; note?: string;
 };
 
-const PAY_LABEL: Record<string, string> = {
-  paid: "bezahlt", claimed_paid: "angekündigt", pending_payment: "offen",
-  cancelled: "storniert", expired: "abgelaufen",
-};
+// Zahlungsstände: shared/fiaon-kundenstatus.ts (eine Quelle).
 const CONF: Record<string, { label: string; cls: string }> = {
   sicher: { label: "Sicher", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   wahrscheinlich: { label: "Wahrscheinlich", cls: "bg-amber-50 text-amber-700 border-amber-200" },
@@ -369,7 +367,7 @@ export default function AdminDubletten() {
                         </div>
                         <div className="text-right">
                           <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${a.payment_status === "paid" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-                            {PAY_LABEL[a.payment_status || ""] || a.payment_status || "—"}
+                            {a.payment_status ? zahlungsstatusText(a.payment_status) : "—"}
                           </span>
                           <div className="text-[11.5px] text-slate-500 mt-0.5">{eur(a.amount_due)}{a.assigned_agent_id ? " · Agent" : ""}</div>
                         </div>

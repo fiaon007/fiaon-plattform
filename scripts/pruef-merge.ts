@@ -32,6 +32,7 @@ import { archiviereAntrag, ArchivVerboten, stelleAntragWiederHer } from "../serv
 import {
   echtePersonSql, fristAbgelaufenSql, nichtArchiviertSql, offeneZahlungSql,
 } from "../server/lib/fiaon-bestand-filter";
+import { istAttrappenNummer } from "../server/lib/fiaon-dubletten-kandidaten";
 
 let bestanden = 0;
 let fehlgeschlagen = 0;
@@ -422,6 +423,39 @@ async function main(): Promise<void> {
       `;
       ok("Die Entscheidung bleibt als Historie stehen (kein Hard-Delete)",
         historie?.entscheidung === "wieder_offen");
+
+      // ═══════════════════════════════════════════════════════════════════
+      gruppe("5c. Rufnummern, die keine Spur sind");
+      // ═══════════════════════════════════════════════════════════════════
+      // Gemessen am 08.08.2026: An „…701234567" hingen 32 Datensätze,
+      // überwiegend „Dev User" — und dazwischen ein echter „Thomas Müller".
+      // Als sichere Rufnummer-Gleichheit angeboten, hätte der erste Klick einen
+      // Kunden in einen Testeintrag geführt.
+      for (const attrappe of ["701234567", "000000000", "123456789", "987654321", "111111111"]) {
+        ok(`Attrappe erkannt: …${attrappe}`, istAttrappenNummer(attrappe));
+      }
+      for (const echt of ["723891768", "562810491", "176611193", "151234987"]) {
+        ok(`Echte Nummer bleibt Spur: …${echt}`, !istAttrappenNummer(echt));
+      }
+
+      // Gleiche Nummer, klar anderer Vorname: „Franz Molk" und „Gerda Molk"
+      // teilen einen Anschluss — das sind Eheleute, keine Dublette. Der
+      // Vorschlag bleibt sichtbar (sonst kann ihn niemand beurteilen), aber als
+      // VERMUTUNG mit Begründung.
+      const eheA = await person({
+        first_name: "Franzpruef", last_name: `Anschluss${stempel}`,
+        primary_email: `anschluss-a-${stempel}@merge-pruef.invalid`,
+        phone_key9: "100000021", primary_phone: "+4915100000021",
+      });
+      const eheB = await person({
+        first_name: "Gerdapruef", last_name: `Anschluss${stempel}`,
+        primary_email: `anschluss-b-${stempel}@merge-pruef.invalid`,
+        phone_key9: "100000021", primary_phone: "+4915100000021",
+      });
+      ok("Zwei Personen an einer Nummer angelegt", eheA > 0 && eheB > 0);
+      ok("Herabstufung steht in der Anwendung, nicht nur hier",
+        /Gleiche Rufnummer, anderer Vorname \(Vermutung\)/.test(
+          readFileSync("server/lib/fiaon-dubletten-kandidaten.ts", "utf8")));
 
       // ═══════════════════════════════════════════════════════════════════
       gruppe("6. Archiv (Teil 3)");

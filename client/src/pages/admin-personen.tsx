@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Users, AlertTriangle, RefreshCw, Phone, Mail, ChevronDown, ChevronRight } from "lucide-react";
 import { ACCENT } from "@/components/admin/AdminShell";
 import { PageIntro, Tip } from "@/components/admin/PageHelp";
+import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 
 // ═══════════════════════════════════════════════════════════════════
 // /admin/personen — WIE VIELE KUNDEN HABEN WIR, UND WEM GEHÖREN SIE?
@@ -200,7 +201,7 @@ export default function AdminPersonenPage() {
           hinweis="So wurde bisher überall gezählt: bezahlte Antragszeilen. Die Differenz zur linken Kachel ist die Doppelzählung."
         />
         <Kachel
-          titel="Zahlung angekündigt"
+          titel={zahlungsstatusText("claimed_paid")}
           wert={kz ? String(kz.personen.angekuendigt) : "—"}
           unten="Personen, die „ich habe bezahlt“ gemeldet haben"
           hinweis="Auch hier: Menschen, nicht Zeilen."

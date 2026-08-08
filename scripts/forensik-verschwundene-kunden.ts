@@ -143,7 +143,7 @@ async function main() {
     SELECT COUNT(*)::int AS bezahlt,
            COALESCE(SUM(ROUND(COALESCE(amount_due::numeric,0)*100)),0)::bigint AS umsatz_cents
     FROM fiaon_applications
-    WHERE payment_status = 'paid' AND merged_into IS NULL AND payment_reference IS NOT NULL
+    WHERE payment_status = 'paid' AND merged_into IS NULL AND NOT COALESCE(alt_bestand, FALSE)
   `;
   console.log(`bezahlt: ${t.bezahlt} · Umsatz: ${(Number(t.umsatz_cents)/100).toFixed(2)} €`);
 

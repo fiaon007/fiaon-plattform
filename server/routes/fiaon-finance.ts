@@ -92,8 +92,12 @@ router.get("/admin/finance/overview", async (req: Request, res: Response) => {
     // definiert (Antrag ⊇ angekündigt ⊇ bezahlt) ⇒ Raten immer 0–100 %.
     const [gf] = await sqlPool.unsafe(`
       SELECT
-        COUNT(*) FILTER (WHERE payment_reference IS NOT NULL OR claimed_paid_at IS NOT NULL OR payment_status = 'paid')::int AS antraege,
-        COUNT(*) FILTER (WHERE payment_reference IS NOT NULL AND (claimed_paid_at IS NOT NULL OR payment_status = 'paid'))::int AS angekuendigt,
+        -- „Antrag" heißt: Rechnung angefordert (oder weiter). Vorher stand hier
+        -- die Bedingung „payment_reference IS NOT NULL"; seit 08.08.2026 hat jede
+        -- Bestellung eine Referenz, und der Funnel hätte plötzlich jeden
+        -- abgebrochenen Formularaufruf als Antrag gezählt.
+        COUNT(*) FILTER (WHERE payment_status <> 'pending' OR claimed_paid_at IS NOT NULL OR payment_status = 'paid')::int AS antraege,
+        COUNT(*) FILTER (WHERE payment_status <> 'pending' AND (claimed_paid_at IS NOT NULL OR payment_status = 'paid'))::int AS angekuendigt,
         COUNT(*) FILTER (WHERE ${PAID})::int AS bezahlt
       FROM fiaon_applications
       WHERE merged_into IS NULL AND created_at >= $1 AND created_at <= $2
@@ -320,7 +324,7 @@ router.get("/admin/truth-check", async (_req: Request, res: Response) => {
   try {
     const [r] = await sqlPool.unsafe(`
       SELECT
-        (SELECT COUNT(*) FROM fiaon_applications WHERE payment_status = 'paid' AND payment_reference IS NOT NULL AND merged_into IS NULL)::int AS zahlungszentrale,
+        (SELECT COUNT(*) FROM fiaon_applications WHERE payment_status = 'paid' AND NOT COALESCE(alt_bestand, FALSE) AND merged_into IS NULL)::int AS zahlungszentrale,
         (SELECT COUNT(*) FROM fiaon_applications WHERE ${PAID})::int AS finanzen_bestand,
         (SELECT COUNT(*) FROM fiaon_applications WHERE ${LEGACY})::int AS altbestand,
         (SELECT COUNT(DISTINCT a.ref) FROM fiaon_leads l JOIN fiaon_applications a ON a.ref = l.converted_order_id WHERE ${PAID_A})::int AS leads_zahlend

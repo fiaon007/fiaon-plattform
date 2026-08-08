@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { X, Search, ChevronRight, Phone, Mail, Copy, ExternalLink, StickyNote } from "lucide-react";
 import { ACCENT } from "./AdminShell";
 import VermerkDialog, { type AgentWahl } from "./VermerkDialog";
+import { zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Detailfenster — WER steckt hinter der Zahl?
@@ -62,14 +63,7 @@ function datumKurz(iso: string | null): string {
 }
 
 /** Klartext statt Rohstatus — „claimed_paid“ sagt niemandem etwas. */
-const STATUS_TEXT: Record<string, string> = {
-  claimed_paid: "Zahlung angekündigt",
-  pending_payment: "wartet auf Zahlung",
-  pending: "im Antrag",
-  expired: "abgelaufen",
-  paid: "bezahlt",
-  superseded: "durch andere Bestellung ersetzt",
-};
+// Zahlungsstände: shared/fiaon-kundenstatus.ts (eine Quelle).
 
 const CSS = `
 .df-hinter{
@@ -290,7 +284,7 @@ export default function Detailfenster({
                           {" · "}{e.tageAlt} {e.tageAlt === 1 ? "Tag" : "Tage"}
                         </span>
                       )}
-                      {e.status && STATUS_TEXT[e.status] && ` · ${STATUS_TEXT[e.status]}`}
+                      {e.status && ` · ${zahlungsstatusText(e.status)}`}
                     </p>
                     <p className="text-[11px] text-slate-400 mt-0.5 truncate">
                       {e.zahlungsreferenz || e.ref}{e.paket ? ` · ${e.paket}` : ""}

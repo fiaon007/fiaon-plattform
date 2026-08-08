@@ -4,6 +4,7 @@ import { ArrowRight, Wallet, Users, CheckCircle2, ChevronRight } from "lucide-re
 import { AgentShell, api, fmtCents, isToday, inputCls, ACCENT } from "./agent/shared";
 import { AuthLayout, SubmitButton, Reveal, LiveCount } from "./agent/motion";
 import { gruss, monatName } from "./agent/zeit";
+import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 
 // ============================================================================
 // /agent — die Startseite. Vier Blöcke, klare Rangfolge:
@@ -438,7 +439,7 @@ function Dashboard({ agentName }: { agentName: string }) {
 // jeder dieser Kacheln ein Klick ins Nichts gewesen.
 const SEGMENTE: { key: keyof Segmente; label: string; filter: string }[] = [
   { key: "betreuung", label: "In Betreuung", filter: "alle" },
-  { key: "angekuendigt", label: "Zahlung angekündigt", filter: "tier1" },
+  { key: "angekuendigt", label: zahlungsstatusText("claimed_paid"), filter: "tier1" },
   { key: "abgeschlossen", label: "Abgeschlossen", filter: "bezahlt" },
 ];
 

@@ -35,8 +35,8 @@ router.get("/admin/hub/stats", async (_req, res) => {
         COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE AND merged_into IS NULL AND NOT ist_entwurf) AS today_new,
         COUNT(*) FILTER (WHERE payment_status = 'claimed_paid' AND merged_into IS NULL) AS claimed_count,
         COALESCE(SUM(amount_due) FILTER (WHERE payment_status = 'claimed_paid' AND merged_into IS NULL), 0) AS claimed_sum,
-        COUNT(*) FILTER (WHERE payment_status = 'paid' AND payment_reference IS NOT NULL AND completed_at::date = CURRENT_DATE AND merged_into IS NULL) AS today_paid_count,
-        COALESCE(SUM(amount_due) FILTER (WHERE payment_status = 'paid' AND payment_reference IS NOT NULL AND completed_at::date = CURRENT_DATE AND merged_into IS NULL), 0) AS today_paid_sum,
+        COUNT(*) FILTER (WHERE payment_status = 'paid' AND NOT COALESCE(alt_bestand, FALSE) AND completed_at::date = CURRENT_DATE AND merged_into IS NULL) AS today_paid_count,
+        COALESCE(SUM(amount_due) FILTER (WHERE payment_status = 'paid' AND NOT COALESCE(alt_bestand, FALSE) AND completed_at::date = CURRENT_DATE AND merged_into IS NULL), 0) AS today_paid_sum,
         COUNT(*) FILTER (WHERE invoice_number IS NOT NULL AND merged_into IS NULL) AS invoice_count
       FROM fiaon_applications
     `;
@@ -263,7 +263,7 @@ export async function computeLage(): Promise<any> {
     FROM (
       SELECT (completed_at AT TIME ZONE 'Europe/Berlin')::date AS tag, amount_due AS betrag
       FROM fiaon_applications
-      WHERE payment_status = 'paid' AND payment_reference IS NOT NULL
+      WHERE payment_status = 'paid' AND NOT COALESCE(alt_bestand, FALSE)
         AND merged_into IS NULL AND completed_at IS NOT NULL
     ) x
   `;
@@ -281,7 +281,7 @@ export async function computeLage(): Promise<any> {
       SELECT (completed_at AT TIME ZONE 'Europe/Berlin')::date AS tag,
              COUNT(*) AS anzahl, SUM(amount_due) AS summe
       FROM fiaon_applications
-      WHERE payment_status = 'paid' AND payment_reference IS NOT NULL
+      WHERE payment_status = 'paid' AND NOT COALESCE(alt_bestand, FALSE)
         AND merged_into IS NULL AND completed_at IS NOT NULL
         AND (completed_at AT TIME ZONE 'Europe/Berlin')::date >= ${heute}::date - 13
       GROUP BY 1
@@ -524,7 +524,7 @@ router.get("/admin/hub/liste", async (req, res) => {
                ag.name AS agent_name, 0 AS tage_alt
         FROM fiaon_applications a
         LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
-        WHERE a.payment_status = 'paid' AND a.payment_reference IS NOT NULL
+        WHERE a.payment_status = 'paid' AND NOT COALESCE(a.alt_bestand, FALSE)
           AND a.merged_into IS NULL AND a.completed_at IS NOT NULL
           ${zeitraum}
         ORDER BY a.completed_at DESC
@@ -553,7 +553,7 @@ router.get("/admin/hub/liste", async (req, res) => {
         FROM fiaon_applications a
         LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
         WHERE a.payment_status IN (${status}) AND a.merged_into IS NULL
-          AND a.payment_reference IS NOT NULL AND NOT COALESCE(a.ist_entwurf, FALSE)
+          AND NOT COALESCE(a.ist_entwurf, FALSE)
           ${stille}
         ORDER BY a.created_at DESC
         LIMIT ${limit}

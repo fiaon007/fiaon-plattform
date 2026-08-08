@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Download, Plus, Trash2 } from "lucide-react";
 import { PageIntro, Tip } from "@/components/admin/PageHelp";
+import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 
 // ════════════════════════════════════════════════════════════════════
 // /admin/finanzen — Finanz- & Sales-Analytics-Zentrale (Paket BD).
@@ -91,7 +92,7 @@ function Funnels({ f, r }: { f: any; r: any }) {
           // P2-D ehrlich: Massenmail ist KEIN Kontakt — diese Stufe heißt jetzt „Angeschrieben".
           { label: "Angeschrieben (Mail)", value: lead.angeschrieben ?? lead.kontaktiert ?? 0, rate: rl.leadToKontaktiert, tip: "Lead hat mindestens eine automatische Mail erhalten (Status nicht mehr 'neu'). Das ist KEIN persönlicher Kontakt." },
           { label: "Antrag gestellt", value: lead.antraege || 0, rate: rl.kontaktiertToAntrag, tip: "Konvertierte Leads ÷ angeschriebene Leads" },
-          { label: "Zahlung angekündigt", value: lead.angekuendigt || 0, rate: rl.antragToAngekuendigt, tip: "Verknüpfte Order angekündigt/bezahlt ÷ Anträge" },
+          { label: zahlungsstatusText("claimed_paid"), value: lead.angekuendigt || 0, rate: rl.antragToAngekuendigt, tip: "Verknüpfte Order gemeldet/bezahlt ÷ Anträge" },
           { label: "Bezahlt", value: lead.bezahlt || 0, rate: rl.angekuendigtToBezahlt, tip: "Verknüpfte Order bezahlt ÷ angekündigt (nur echte, referenzierte Zahlungen)" },
         ]}
         footer={`Echt kontaktiert (dokumentiertes Agenten-Ergebnis): ${lead.kontaktiertEcht ?? "—"} von ${lead.leads || 0} Leads`}
@@ -102,7 +103,7 @@ function Funnels({ f, r }: { f: any; r: any }) {
         color="#64748b"
         stages={[
           { label: "Antrag gestellt", value: ges.antraege || 0, rate: null, tip: "Alle Anträge/Bestellungen (Bezugsgröße)" },
-          { label: "Zahlung angekündigt", value: ges.angekuendigt || 0, rate: rg.antragToAngekuendigt, tip: "Angekündigt/bezahlt ÷ Anträge" },
+          { label: zahlungsstatusText("claimed_paid"), value: ges.angekuendigt || 0, rate: rg.antragToAngekuendigt, tip: "Gemeldet/bezahlt ÷ Anträge" },
           { label: "Bezahlt", value: ges.bezahlt || 0, rate: rg.angekuendigtToBezahlt, tip: "Bezahlt ÷ angekündigt" },
         ]}
       />

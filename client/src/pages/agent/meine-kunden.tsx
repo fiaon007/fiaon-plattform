@@ -5,6 +5,7 @@ import {
 import {
   AgentShell, api, FlashMessage, inputCls, btnGhost, btnPrimary, ACCENT, fmtD, fmtDT,
 } from "./shared";
+import { zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 import { Reveal } from "./motion";
 import { CustomerDetail } from "./kunden";
 import { LeadDetail } from "./leads";
@@ -78,20 +79,16 @@ const FILTERS: { key: string; label: string }[] = [
   { key: "tot", label: "Tot" },
 ];
 
-const STATUS_LABEL: Record<string, string> = {
-  pending_payment: "Offen",
-  claimed_paid: "Zahlung angekündigt",
-  paid: "Bezahlt",
-  expired: "Abgelaufen",
-  cancelled: "Storniert",
-  superseded: "Ersetzt",
-  neu: "Neu",
-  kontaktiert: "Kontaktiert",
-  nicht_erreichbar: "Nicht erreichbar",
-  konvertiert: "Konvertiert",
-  kein_interesse: "Kein Interesse",
-  tot: "Tot",
+// Zahlungsstände kommen aus dem EINEN Vokabular; Lead-Stände bleiben lokal,
+// weil sie keinen Kundenstatus beschreiben.
+const LEAD_LABEL: Record<string, string> = {
+  neu: "Neu", kontaktiert: "Kontaktiert", nicht_erreichbar: "Nicht erreichbar",
+  konvertiert: "Konvertiert", kein_interesse: "Kein Interesse", tot: "Tot",
 };
+const STATUS_LABEL = new Proxy({} as Record<string, string>, {
+  get: (_z, schluessel: string) =>
+    LEAD_LABEL[schluessel] ?? zahlungsstatusText(schluessel),
+});
 
 function fmtBetrag(v: string | number | null): string | null {
   if (v === null || v === undefined) return null;

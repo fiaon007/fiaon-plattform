@@ -33,6 +33,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Router, type Response } from "express";
+import multer from "multer";
 import { sqlPool } from "../lib/db-pool";
 import { waehlbareNummer } from "../lib/fiaon-telefon";
 import { pruefeTerminZukunft } from "../lib/fiaon-time";
@@ -44,6 +45,8 @@ import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
 import { sendMakeWebhook, sendMakeWebhookMitGrund, makePayloadFromRow } from "../make-webhook";
 import { signInvoiceUrl } from "../fiaon-invoice";
 import { nachschub } from "./fiaon-followup";
+import { FIAON_BANK_DETAILS as BANK } from "./fiaon-antrag";
+import { zahlungstext } from "../lib/fiaon-verwendungszweck";
 
 const router = Router();
 
@@ -187,11 +190,28 @@ function kartePayload(p: any, letzteAktivitaet?: any) {
       land: p.country || null,
       geburtsdatum: p.geburtsdatum || null,
     },
+    // Der Verwendungszweck ist ab jetzt IMMER dabei — auch wenn der Kunde keine
+    // E-Mail hat. Genau dort entstand der Schaden: Der Agent konnte die
+    // Zahlungsdaten nicht mailen, hat sie am Telefon durchgegeben, und ohne
+    // Referenz kam Geld ohne Namen an. Die Bankverbindung kommt aus derselben
+    // Quelle wie die Rechnung (FIAON_BANK_DETAILS) — keine zweite, abgeschriebene
+    // IBAN im Frontend.
     zahlung: {
       referenz: p.zahlungsreferenz || null,
       status: p.zahlungsstatus || null,
       frist: p.zahlungsfrist || null,
       ref: p.schreib_ref || null,
+      empfaenger: BANK.recipient,
+      iban: BANK.ibanDisplay,
+      bic: BANK.bic,
+      /** Fertiger Text zum Einfügen in WhatsApp — serverseitig formatiert. */
+      klartext: p.zahlungsreferenz
+        ? zahlungstext({
+            empfaenger: BANK.recipient, iban: BANK.iban, ibanAnzeige: BANK.ibanDisplay,
+            bic: BANK.bic, verwendungszweck: String(p.zahlungsreferenz),
+            betragCent: p.amount_due != null ? Math.round(Number(p.amount_due) * 100) : null,
+          })
+        : null,
     },
     tier: p.priority_tier,
     tierGrund: p.tier_reason,
@@ -516,6 +536,10 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
       ORDER BY (archived_at IS NOT NULL), created_at DESC
     `;
 
+    // Produktstand als eine Zeile — dieselbe Ableitung wie in der Admin-Akte.
+    const { produktstand } = await import("../lib/fiaon-produktstand");
+    const produkt = await produktstand(personId).catch(() => null);
+
     res.json({
       ok: true,
       kunde: kartePayload(p, (verlauf as any[])[0]),
@@ -530,6 +554,7 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
         // eigene Verlauf, und bei Übernahmen ist die Vorgeschichte nötig.
         von: v.agent_name,
       })),
+      produkt: produkt ? { text: produkt.text, mehrfachStufe: produkt.mehrfachStufe } : null,
       bestellungen: (bestellungen as any[]).map((b) => ({
         ref: b.ref,
         zahlungsreferenz: b.payment_reference,
@@ -958,5 +983,51 @@ router.post("/agent/crm/kunden/:personId/testeintrag-melden", requireAgent, asyn
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// POST /agent/crm/kunden/:personId/zahlungsbeleg
+//
+// „Lass dir ein Bild der Überweisung schicken" lief über die WhatsApp-Gruppe und
+// versandete. Der Agent hängt den Beleg ab jetzt an die Bestellung — dort, wo
+// gebucht wird. Der Upload bucht NICHTS: Er beschleunigt die Prüfung.
+// ───────────────────────────────────────────────────────────────────────────
+const belegUploadAgent = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+router.post("/agent/crm/kunden/:personId/zahlungsbeleg", requireAgent,
+  belegUploadAgent.single("beleg"), async (req: AgentRequest, res: Response) => {
+    try {
+      const personId = Number(req.params.personId);
+      const p = await meinePerson(personId, req.agent!.id);
+      if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
+      // Die Bestellung, um die es geht: die jüngste offene. Auf eine bezahlte
+      // Bestellung einen Beleg zu legen ist sinnlos — sie ist schon gebucht.
+      const ref = req.body?.ref ? String(req.body.ref) : null;
+      const [b] = ref
+        ? await sqlPool`SELECT ref FROM fiaon_applications WHERE ref = ${ref} AND person_id = ${personId}`
+        : await sqlPool`
+            SELECT ref FROM fiaon_applications
+            WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
+              AND payment_status IN ('pending_payment', 'claimed_paid', 'expired')
+            ORDER BY created_at DESC LIMIT 1
+          `;
+      if (!b) {
+        return res.status(400).json({
+          ok: false,
+          error: "Dieser Kunde hat keine offene Bestellung — es gibt nichts, wozu ein Beleg gehören könnte.",
+        });
+      }
+
+      const { fuehreBelegUploadAus } = await import("./fiaon-dubletten");
+      const { status, antwort } = await fuehreBelegUploadAus(
+        String(b.ref), (req as any).file, req.body,
+        { name: req.agent!.name, agentId: req.agent!.id },
+      );
+      res.status(status).json(antwort);
+    } catch (err) {
+      console.error("[AGENT-KUNDEN] zahlungsbeleg:", err);
+      res.status(500).json({ ok: false, error: "Serverfehler" });
+    }
+  });
 
 export default router;

@@ -54,7 +54,7 @@ async function main() {
   // 2) Akte-Familie für einen bezahlten Kunden (erste bezahlte ref)
   const [paid] = await sql`
     SELECT ref, email FROM fiaon_applications
-    WHERE payment_status = 'paid' AND merged_into IS NULL AND payment_reference IS NOT NULL
+    WHERE payment_status = 'paid' AND merged_into IS NULL AND NOT COALESCE(alt_bestand, FALSE)
     ORDER BY completed_at DESC NULLS LAST LIMIT 1`;
   if (paid) {
     const family = await sql.unsafe(`

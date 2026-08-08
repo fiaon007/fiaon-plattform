@@ -14,6 +14,8 @@
  */
 
 /** Die möglichen Gründe. Entspricht `fiaon_persons.tier_reason`. */
+import { KUNDENSTATUS, ETIKETT_FRIST_ABGELAUFEN } from "../../shared/fiaon-kundenstatus";
+
 export type TierGrund =
   | "bezahlt"
   | "zahlung_angekuendigt"
@@ -49,7 +51,9 @@ export const TIER_HINWEISE: Record<TierGrund, TierHinweis> = {
   },
 
   zahlung_angekuendigt: {
-    titel: "Zahlung angekündigt",
+    // „angekündigt" klang wie eine Zusage der Bank. Der Kunde hat es GEMELDET —
+    // bankbestätigt ist es nicht, und genau das muss im Titel stehen.
+    titel: `${KUNDENSTATUS.zahlung_gemeldet.text} (${KUNDENSTATUS.zahlung_gemeldet.zusatz})`,
     hinweis:
       "Der Kunde hat angegeben, bezahlt zu haben. Prüfe, ob die Zahlung eingegangen " +
       "ist. Falls nicht: freundlich nachfassen und ein konkretes Zahlungsdatum " +
@@ -57,7 +61,12 @@ export const TIER_HINWEISE: Record<TierGrund, TierHinweis> = {
   },
 
   antrag_abgeschlossen: {
-    titel: "Antrag abgeschlossen, keine Zahlung",
+    // GEÄNDERT 08.08.2026: Hier stand „Antrag abgeschlossen, keine Zahlung" —
+    // zwei Aussagen in einer Zeile. Eine Agentin hat die erste gelesen und den
+    // Kunden für bezahlt gehalten; ein Kollege hatte den Gegenbeweis. Der Titel
+    // kommt jetzt aus dem einen Vokabular (shared/fiaon-kundenstatus.ts) und
+    // sagt, was fehlt: das Geld.
+    titel: KUNDENSTATUS.rechnung_offen.text,
     hinweis:
       "Dieser Kunde hat seinen Antrag abgeschlossen, aber noch keine Zahlung " +
       "bestätigt. Ruf ihn an und sag ihm, dass wir sein Konto gerne aktivieren — " +
@@ -73,7 +82,7 @@ export const TIER_HINWEISE: Record<TierGrund, TierHinweis> = {
   },
 
   zahlungsfrist_abgelaufen: {
-    titel: "Zahlungsfrist abgelaufen",
+    titel: `${KUNDENSTATUS.rechnung_offen.text} · ${ETIKETT_FRIST_ABGELAUFEN}`,
     hinweis:
       "Der Kunde war schon vollständig durch den Antrag, hat aber nicht rechtzeitig " +
       "gezahlt. Reaktivieren: nachfragen, was dazwischengekommen ist, und eine neue " +

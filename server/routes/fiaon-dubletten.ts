@@ -13,6 +13,7 @@
 // verursacht hat.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
+import multer from "multer";
 import { sqlPool } from "../lib/db-pool";
 import { ensurePersonTables } from "../fiaon-person-model";
 import {
@@ -25,6 +26,9 @@ import {
 import {
   ARCHIV_GRUENDE, ArchivVerboten, archiviereAntrag, archivPruefung, stelleAntragWiederHer,
 } from "../lib/fiaon-antrag-archiv";
+import {
+  BELEG_MAX_BYTES, BelegVerboten, belegAnhaengen, belegDaten, belegStand,
+} from "../lib/fiaon-zahlungsbeleg";
 
 const router = Router();
 
@@ -261,6 +265,83 @@ router.get("/admin/antraege/archiv", async (_req: Request, res: Response) => {
     console.error("[FIAON-ARCHIV] liste:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZAHLUNGSBELEG (Teil B/5) — Upload, Stand und Anzeige
+//
+// Der Beleg hängt an der Bestellung. Er ist ein HINWEIS für den Menschen, der
+// bucht — nie ein Auslöser: Ein Upload bucht nichts und schickt keine Mail.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Belege sind Fotos vom Handy — im Speicher halten, nicht auf die Platte. */
+const belegUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: BELEG_MAX_BYTES },
+});
+
+export async function fuehreBelegUploadAus(
+  ref: string,
+  datei: { buffer: Buffer; mimetype: string; originalname?: string } | undefined,
+  body: any,
+  akteur: { name: string; agentId?: number | null },
+): Promise<{ status: number; antwort: any }> {
+  try {
+    if (!datei) {
+      return { status: 400, antwort: { ok: false, error: "Es kam keine Datei an. Bitte Foto oder PDF wählen." } };
+    }
+    const ergebnis = await belegAnhaengen(ref, {
+      daten: datei.buffer,
+      typ: String(datei.mimetype || ""),
+      name: datei.originalname ? String(datei.originalname).slice(0, 200) : null,
+      datum: String(body?.datum ?? "").trim(),
+      notiz: body?.notiz != null ? String(body.notiz) : null,
+    }, akteur);
+    return {
+      status: 200,
+      antwort: {
+        ok: true, ...ergebnis,
+        meldung: ergebnis.ersetzt
+          ? "Beleg ersetzt. Der frühere Beleg ist im Verlauf vermerkt."
+          : "Beleg hinterlegt. Er steht ab jetzt neben dem Bankeingang — gebucht ist damit nichts.",
+      },
+    };
+  } catch (err) {
+    if (err instanceof BelegVerboten) {
+      return { status: 400, antwort: { ok: false, code: err.code, error: err.message } };
+    }
+    console.error("[FIAON-BELEG] upload:", err);
+    return { status: 500, antwort: { ok: false, error: "Serverfehler — der Beleg wurde nicht gespeichert." } };
+  }
+}
+
+router.post("/admin/antraege/:ref/zahlungsbeleg", belegUpload.single("beleg"), async (req: Request, res: Response) => {
+  const { status, antwort } = await fuehreBelegUploadAus(
+    String(req.params.ref), (req as any).file, req.body, { name: AKTEUR_ADMIN, agentId: null },
+  );
+  res.status(status).json(antwort);
+});
+
+router.get("/admin/antraege/:ref/zahlungsbeleg", async (req: Request, res: Response) => {
+  try {
+    const beleg = await belegDaten(String(req.params.ref));
+    if (!beleg) return res.status(404).json({ ok: false, error: "Kein Beleg hinterlegt" });
+    res.setHeader("Content-Type", beleg.typ);
+    // `inline`: Der Beleg soll neben dem Bankeingang zu SEHEN sein, nicht im
+    // Download-Ordner landen.
+    res.setHeader("Content-Disposition", `inline; filename="${beleg.name.replace(/[^\w.-]/g, "_")}"`);
+    res.setHeader("Cache-Control", "private, max-age=60");
+    res.send(beleg.daten);
+  } catch (err) {
+    console.error("[FIAON-BELEG] anzeigen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.get("/admin/antraege/:ref/zahlungsbeleg/stand", async (req: Request, res: Response) => {
+  const stand = await belegStand(String(req.params.ref));
+  if (!stand) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
+  res.json({ ok: true, beleg: stand });
 });
 
 export default router;

@@ -21,6 +21,8 @@ import { parseBerlinInput, pruefeTerminZukunft } from "../lib/fiaon-time";
 // Ohne diese Bindung zerfällt er in Lead- und Kundenkarte, und der Agent, der
 // ihn gewonnen hat, verliert ihn nach dem Antrag aus der Ansicht.
 import { bindePersonAnLead } from "../fiaon-person-model";
+import { nameTeilen } from "../lib/fiaon-name";
+import { waehlbareNummer } from "../lib/fiaon-telefon";
 import {
   requireAgent,
   getSettings,
@@ -556,7 +558,27 @@ async function logIntake(status: string, quelle: string | null, detail: string |
   }
 }
 
-type IntakeResult = { ok: true; id: number; deduped: boolean } | { ok: false; code: number; error: string };
+type IntakeResult =
+  | { ok: true; id: number; deduped: boolean; personId: number | null; neuAngelegt: boolean; mehrdeutig?: number[] }
+  | { ok: false; code: number; error: string };
+
+/**
+ * Telefon beim Eingang normalisieren — mit Länderkenntnis, wenn sie mitkommt.
+ *
+ * `normalizePhone` macht aus einer führenden Null hart „+49". Für einen
+ * österreichischen Lead („0664…") ist das die falsche Nummer. Kommt ein Land mit
+ * (Make kann es aus dem Formular mitschicken), wird dessen Vorwahl benutzt;
+ * ohne Angabe bleibt +49 — eine deutsche Mobilnummer nach Österreich zu
+ * verschieben wäre der umgekehrte Fehler, und ohne Anhaltspunkt ist Raten
+ * schlechter als die bekannte Mehrheit.
+ */
+function intakeTelefon(roh: unknown, land: unknown): string | null {
+  const nummer = String(roh ?? "").trim();
+  if (!nummer) return null;
+  const erkannt = waehlbareNummer([{ nummer }], land);
+  if (erkannt.waehlbar) return erkannt.waehlbar;
+  return normalizePhone(nummer);
+}
 
 /**
  * Kern-Ingest: normalisieren, deduplizieren, anlegen/aktualisieren, ggf. konvertieren + verteilen.
@@ -566,13 +588,25 @@ type IntakeResult = { ok: true; id: number; deduped: boolean } | { ok: false; co
 async function processIntake(b: any): Promise<IntakeResult> {
   await ensureLeadTables();
   const email = b.email ? String(b.email).trim().toLowerCase() : null;
-  const telefon = b.telefon || b.phone ? normalizePhone(String(b.telefon || b.phone)) : null;
+  const land = b.land ?? b.country ?? b.laendercode ?? null;
+  const telefon = b.telefon || b.phone ? intakeTelefon(b.telefon || b.phone, land) : null;
   if ((!email || !EMAIL_RE.test(email)) && (!telefon || telefon === "")) {
     await logIntake("invalid", String(b.quelle || b.source || "").slice(0, 120) || null, "E-Mail/Telefon fehlt");
     return { ok: false, code: 400, error: "E-Mail oder Telefon erforderlich" };
   }
-  const vorname = b.vorname || b.firstName || b.first_name || null;
-  const nachname = b.nachname || b.lastName || b.last_name || null;
+
+  // ── NAMEN TRENNEN (08.08.2026) ─────────────────────────────────────────────
+  // Der Facebook-Fluss schickt den VOLLEN Namen im Feld `vorname` (in Make ist
+  // `vollständiger_name` darauf gemappt). Ergebnis im Bestand: 3 155 Leads mit
+  // leerem Nachnamen und „Axel Conrad" im Vornamensfeld — und ein halbblinder
+  // Dubletten-Vergleich, weil derselbe Mensch mit getrenntem Namen wie ein
+  // anderer aussieht.
+  const rohVorname = b.vorname || b.firstName || b.first_name
+    || b.name || b.full_name || b.vollstaendiger_name || b["vollständiger_name"] || null;
+  const rohNachname = b.nachname || b.lastName || b.last_name || null;
+  const teile = nameTeilen(rohVorname, rohNachname);
+  const vorname = teile.vorname;
+  const nachname = teile.nachname;
   const quelle = String(b.quelle || b.source || "facebook_lead_ads").slice(0, 120);
   const kampagne = b.kampagne || b.campaign || null;
   const adset = b.adset || b.ad_set || null;
@@ -604,9 +638,16 @@ async function processIntake(b: any): Promise<IntakeResult> {
     await logIntake(quelle === "test" ? "test" : "ok", quelle, "Dublette aktualisiert");
     // Die Aktualisierung kann eine E-Mail ergänzt haben, die der Lead vorher
     // nicht hatte. Dann ist jetzt erst erkennbar, zu wem er gehört.
-    await bindePersonAnLead(id).catch((e) =>
-      console.error("[FIAON-PERSON] Zuordnung nach Lead-Aktualisierung:", e));
-    return { ok: true, id, deduped: true };
+    const zuordnung = await bindePersonAnLead(id).catch((e) => {
+      console.error("[FIAON-PERSON] Zuordnung nach Lead-Aktualisierung:", e);
+      return null;
+    });
+    return {
+      ok: true, id, deduped: true,
+      personId: zuordnung?.personId ?? null,
+      neuAngelegt: !!zuordnung?.angelegt,
+      ...(zuordnung?.mehrdeutig ? { mehrdeutig: zuordnung.mehrdeutig } : {}),
+    };
   }
 
   const inserted = await sqlPool`
@@ -622,8 +663,24 @@ async function processIntake(b: any): Promise<IntakeResult> {
   // BESTEHENDE Person gehängt — auch wenn diese aus einem Antrag stammt. Genau
   // das hält den Übergang Lead → Antrag zusammen: Agent, Verlauf und
   // Betreuungsnachweis bleiben an einer Akte statt auf zwei Karten zu zerfallen.
-  await bindePersonAnLead(id).catch((e) =>
-    console.error("[FIAON-PERSON] Zuordnung nach Lead-Eingang:", e));
+  // Der Eingang hängt sich nur an eine EINDEUTIG erkannte Person. Trifft er
+  // mehrere, entsteht eine eigene Person und das Paar liegt sofort auf dem
+  // Dubletten-Arbeitsplatz — falsches Zusammenlegen ist teurer als eine Dublette.
+  const zuordnung = await bindePersonAnLead(id, { beiMehrdeutigkeit: "neu" }).catch((e) => {
+    console.error("[FIAON-PERSON] Zuordnung nach Lead-Eingang:", e);
+    return null;
+  });
+  if (zuordnung && !zuordnung.angelegt) {
+    // Derselbe Mensch klickt ein zweites Mal auf die Anzeige. Das ist EIN Mensch
+    // mit hohem Interesse, kein zweiter Kunde — der Verlauf hält es fest und die
+    // Einstufung wird neu berechnet, damit er nach oben rückt.
+    await logLead(id, { id: null, name: "System" }, "system", {
+      note: `Lead erneut eingegangen (Quelle: ${quelle}${kampagne ? `, Kampagne: ${kampagne}` : ""}) — `
+        + `bereits bekannte Person #${zuordnung.personId}, kein neuer Kunde angelegt`,
+    }).catch(() => {});
+    const { personTierAktualisieren } = await import("../lib/tier");
+    await personTierAktualisieren(sqlPool, { personId: zuordnung.personId }).catch(() => {});
+  }
 
   // Falls bereits ein Antrag mit dieser E-Mail/Telefon existiert → sofort konvertieren
   const already = await sqlPool`
@@ -640,8 +697,14 @@ async function processIntake(b: any): Promise<IntakeResult> {
   } else {
     distributeUnassignedLeads().catch(() => {}); // fair verteilen (fire-and-forget)
   }
-  await logIntake(quelle === "test" ? "test" : "ok", quelle, "Lead angelegt");
-  return { ok: true, id, deduped: false };
+  await logIntake(quelle === "test" ? "test" : "ok", quelle,
+    zuordnung && !zuordnung.angelegt ? "Lead angelegt, bestehende Person" : "Lead angelegt");
+  return {
+    ok: true, id, deduped: false,
+    personId: zuordnung?.personId ?? null,
+    neuAngelegt: !!zuordnung?.angelegt,
+    ...(zuordnung?.mehrdeutig ? { mehrdeutig: zuordnung.mehrdeutig } : {}),
+  };
 }
 
 intakeRouter.post("/intake", async (req: Request, res: Response) => {
@@ -654,7 +717,18 @@ intakeRouter.post("/intake", async (req: Request, res: Response) => {
 
     const result = await processIntake(req.body || {});
     if (!result.ok) return res.status(result.code).json({ ok: false, error: result.error });
-    res.json({ ok: true, id: result.id, deduped: result.deduped });
+    // `id` und `deduped` bleiben — bestehende Make-Szenarien dürfen nicht brechen.
+    // Neu sind `personId` und `neuAngelegt`: Damit ist in der Make-Historie
+    // nachvollziehbar, ob ein Eingang einen neuen Menschen erzeugt hat oder an
+    // einen bekannten gegangen ist.
+    res.json({
+      ok: true,
+      id: result.id,
+      deduped: result.deduped,
+      personId: result.personId,
+      neuAngelegt: result.neuAngelegt,
+      ...(result.mehrdeutig ? { mehrdeutig: result.mehrdeutig } : {}),
+    });
   } catch (err) {
     console.error("[FIAON-LEADS] intake:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -1239,8 +1313,8 @@ router.get("/admin/leads", async (req: Request, res: Response) => {
         COUNT(*) FILTER (WHERE l.status = 'konvertiert')::int AS converted,
         COUNT(*) FILTER (WHERE l.status IN ('neu','kontaktiert','nicht_erreichbar'))::int AS open,
         -- P2-D: "Zahlend" = die EINE Wahrheit (paid + Referenz), identisch zu Finanzen/Zahlungszentrale
-        COUNT(*) FILTER (WHERE a.payment_status = 'paid' AND a.payment_reference IS NOT NULL)::int AS paying,
-        COALESCE(SUM(CASE WHEN a.payment_status = 'paid' AND a.payment_reference IS NOT NULL THEN ROUND(COALESCE(a.amount_due::numeric,0)*100) ELSE 0 END),0)::bigint AS revenue_cents
+        COUNT(*) FILTER (WHERE a.payment_status = 'paid' AND NOT COALESCE(a.alt_bestand, FALSE))::int AS paying,
+        COALESCE(SUM(CASE WHEN a.payment_status = 'paid' AND NOT COALESCE(a.alt_bestand, FALSE) THEN ROUND(COALESCE(a.amount_due::numeric,0)*100) ELSE 0 END),0)::bigint AS revenue_cents
       FROM fiaon_leads l
       LEFT JOIN fiaon_applications a ON a.ref = l.converted_order_id AND a.merged_into IS NULL
     `;

@@ -6,6 +6,7 @@ import { ZeichenSenden, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeiche
 import { VertriebZusage, useZusage } from "./vertrieb-zusage";
 import { VertriebZahlungen, VertriebDokumente, VertriebZugang, LageTafel, ServiceZahlen } from "./vertrieb-service";
 import DublettenArbeitsplatz from "@/components/admin/DublettenArbeitsplatz";
+import { statusAusTierGrund } from "@shared/fiaon-kundenstatus";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/vertrieb — Gesamtsicht für die Vertriebsleitung
@@ -76,12 +77,7 @@ const FILTER: { key: string; label: string }[] = [
   { key: "gesperrt", label: "Gesperrt" },
 ];
 
-const STATUS_TEXT: Record<string, string> = {
-  bezahlt: "Bezahlt", zahlung_angekuendigt: "Zahlung gemeldet",
-  rechnung_offen: "Rechnung offen", zahlungsfrist_abgelaufen: "Frist abgelaufen",
-  antrag_abgeschlossen: "Antrag fertig", antrag_abgebrochen: "Antrag abgebrochen",
-  nur_lead: "Lead", ausgeschlossen: "Ausgeschlossen",
-};
+// Statustexte: shared/fiaon-kundenstatus.ts (eine Quelle für Server und Client).
 const TIER_FARBE: Record<number, string> = {
   0: "var(--fi-erfolg)", 1: "var(--fi-tier1)", 2: "var(--fi-tier2)", 3: "var(--fi-tier3)",
 };
@@ -478,7 +474,7 @@ function Inhalt() {
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className="text-[12px] font-semibold" style={{ color: TIER_FARBE[p.tier] }}>
-                          {STATUS_TEXT[p.tierGrund] || p.tierGrund}
+                          {statusAusTierGrund(p.tierGrund).anzeige}
                         </span>
                         {p.gesperrt && (
                           <span className="ml-1.5 text-[10.5px] font-bold px-1.5 py-0.5 rounded-md"
@@ -615,7 +611,7 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
             <div className="min-w-0 flex-1">
               <p className="text-[16px] font-bold truncate">{p.name}</p>
               <p className="text-[12px]" style={{ color: "var(--fi-text-still)" }}>
-                {STATUS_TEXT[p.tierGrund] || p.tierGrund} · zuständig: {p.agentName || "niemand"}
+                {statusAusTierGrund(p.tierGrund).anzeige} · zuständig: {p.agentName || "niemand"}
                 {p.betreutSeit ? ` · betreut seit ${dtag(p.betreutSeit)}` : ""}
               </p>
             </div>

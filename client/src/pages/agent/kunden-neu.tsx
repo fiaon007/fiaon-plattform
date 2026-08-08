@@ -3,6 +3,7 @@ import { AgentShell } from "./shared";
 import { Reveal } from "./motion";
 import { Skelett, eur, useReduzierteBewegung, useToast } from "@/lib/fiaon-ui";
 import { ZeichenSenden, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
+import { statusAusTierGrund } from "@shared/fiaon-kundenstatus";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/kunden — DIE EINE ARBEITSLISTE
@@ -52,7 +53,12 @@ interface Kunde {
   letzterKontakt: string | null;
   letztesErgebnis: string | null;
   stammdaten: { strasse: string | null; plz: string | null; ort: string | null; land: string | null; geburtsdatum: string | null } | null;
-  zahlung: { referenz: string | null; status: string | null; ref: string | null } | null;
+  zahlung: {
+    referenz: string | null; status: string | null; ref: string | null;
+    /** Bankverbindung und fertiger Klartext kommen vom Server — eine Quelle. */
+    empfaenger?: string | null; iban?: string | null; bic?: string | null;
+    klartext?: string | null;
+  } | null;
 }
 
 type Zaehler = Record<string, number>;
@@ -123,16 +129,9 @@ const TIER_FARBE: Record<number, string> = {
   0: "var(--fi-erfolg)", 1: "var(--fi-tier1)", 2: "var(--fi-tier2)", 3: "var(--fi-tier3)",
 };
 
-const STATUS_TEXT: Record<string, string> = {
-  bezahlt: "Bezahlt",
-  zahlung_angekuendigt: "Zahlung gemeldet",
-  rechnung_offen: "Rechnung offen",
-  zahlungsfrist_abgelaufen: "Frist abgelaufen",
-  antrag_abgeschlossen: "Antrag abgeschlossen",
-  antrag_abgebrochen: "Antrag abgebrochen",
-  nur_lead: "Lead",
-  ausgeschlossen: "Ausgeschlossen",
-};
+// Statustexte kommen aus dem EINEN Vokabular (shared/fiaon-kundenstatus.ts).
+// Hier stand bis zum 08.08.2026 eine eigene Tabelle — eine von neun im Client,
+// jede mit eigener Formulierung für denselben Zustand.
 
 function heuteIso(): string {
   const d = new Date(); d.setHours(12, 0, 0, 0);
@@ -362,6 +361,80 @@ function KundenKarte({
    *  Server das über die Wirkung — wir raten es nicht. */
   const [testOffen, setTestOffen] = useState(false);
   const [testNotiz, setTestNotiz] = useState("");
+  /** Sichtbare Rückmeldung nach dem Kopieren — ein stummer Klick ist kein Klick. */
+  const [kopiert, setKopiert] = useState(false);
+  const [belegOffen, setBelegOffen] = useState(false);
+  const [belegDatum, setBelegDatum] = useState("");
+  const [belegNotiz, setBelegNotiz] = useState("");
+  const [belegDatei, setBelegDatei] = useState<File | null>(null);
+
+  /**
+   * Zahlungsbeleg hochladen.
+   *
+   * Er landet an der Bestellung und erscheint für die Vertriebsleitung neben dem
+   * Bankeingang — statt in einer WhatsApp-Gruppe zu versanden. Der Upload bucht
+   * NICHTS; er beschleunigt nur die Prüfung.
+   */
+  const belegHochladen = async () => {
+    if (!belegDatei) {
+      zeige("fehler", "Keine Datei gewählt", "Bitte das Foto oder PDF der Überweisung auswählen.");
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(belegDatum)) {
+      zeige("fehler", "Datum fehlt", "Bitte das Überweisungsdatum laut Beleg angeben.");
+      return;
+    }
+    setLaeuft("beleg");
+    const daten = new FormData();
+    daten.append("beleg", belegDatei);
+    daten.append("datum", belegDatum);
+    if (belegNotiz.trim()) daten.append("notiz", belegNotiz.trim());
+    const antwort = await fetch(`/api/fiaon/agent/crm/kunden/${k.personId}/zahlungsbeleg`, {
+      method: "POST", credentials: "include", body: daten,
+    }).then((r) => r.json()).catch(() => null);
+    setLaeuft(null);
+    if (antwort?.ok) {
+      setBelegOffen(false); setBelegDatei(null); setBelegDatum(""); setBelegNotiz("");
+      zeige("erfolg", "Beleg hinterlegt", antwort.meldung || "Er steht jetzt bei der Zahlungsprüfung.");
+    } else {
+      zeige("fehler", "Nicht hinterlegt", antwort?.error || "Bitte erneut versuchen.");
+    }
+  };
+
+  /**
+   * Zahlungsdaten in die Zwischenablage.
+   *
+   * Der Text kommt fertig formatiert vom Server (`zahlung.klartext`), damit
+   * Empfänger, IBAN und Verwendungszweck aus derselben Quelle stammen wie die
+   * Rechnung. Eine im Frontend abgeschriebene IBAN wäre irgendwann die falsche.
+   */
+  const zahlungsdatenKopieren = async () => {
+    const text = k.zahlung?.klartext;
+    if (!text) return;
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(text);
+      ok = true;
+    } catch {
+      // Rückfall für Browser ohne Clipboard-Erlaubnis (und für http://)
+      try {
+        const feld = document.createElement("textarea");
+        feld.value = text;
+        feld.style.position = "fixed";
+        feld.style.opacity = "0";
+        document.body.appendChild(feld);
+        feld.select();
+        ok = document.execCommand("copy");
+        document.body.removeChild(feld);
+      } catch { ok = false; }
+    }
+    if (ok) {
+      setKopiert(true);
+      setTimeout(() => setKopiert(false), 2500);
+    } else {
+      zeige("fehler", "Kopieren nicht möglich", "Bitte den Verwendungszweck von Hand übernehmen.");
+    }
+  };
 
   const ergebnis = async (art: string, zusatz: Record<string, unknown> = {}) => {
     setLaeuft(art);
@@ -455,7 +528,7 @@ function KundenKarte({
             <p className="mt-1 text-[12.5px] flex flex-wrap items-center gap-x-2 gap-y-0.5"
                style={{ color: "var(--fi-text-still)" }}>
               <span className="font-semibold" style={{ color: TIER_FARBE[k.tier] }}>
-                {STATUS_TEXT[k.tierGrund] || k.tierGrund}
+                {statusAusTierGrund(k.tierGrund).anzeige}
               </span>
               {k.betrag != null && <span>· {eur(k.betrag)}</span>}
               {k.produkt && <span className="truncate">· {k.produkt}</span>}
@@ -486,6 +559,85 @@ function KundenKarte({
         <p className="mt-2.5 text-[12.5px] leading-relaxed" style={{ color: "var(--fi-text-leise)" }}>
           {k.hinweis}
         </p>
+
+        {/* ── Verwendungszweck: immer sichtbar, auch ohne E-Mail ──────────────
+            Dreimal an einem Tag gemeldet: Kunde ohne E-Mail, Agent gibt die
+            Zahlungsdaten am Telefon durch, es gibt keinen Verwendungszweck — und
+            in der Buchhaltung liegt Geld ohne Namen. Seit 08.08.2026 hat jede
+            Bestellung eine Referenz, und sie steht hier. */}
+        {k.zahlung?.referenz && (
+          <div className="mt-3.5 p-3 rounded-xl" style={{ background: "var(--fi-seite)", border: "1px solid var(--fi-linie)" }}>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <div className="min-w-0">
+                <p className="text-[10.5px] font-semibold uppercase tracking-[.06em]"
+                   style={{ color: "var(--fi-text-still)" }}>
+                  Verwendungszweck
+                </p>
+                <p className="fi-zahl text-[15px] font-bold leading-tight" style={{ color: "var(--fi-text)" }}>
+                  {k.zahlung.referenz}
+                </p>
+              </div>
+              <button type="button" onClick={() => void zahlungsdatenKopieren()}
+                      disabled={!k.zahlung.klartext}
+                      className="fi-zweitknopf ml-auto inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold"
+                      style={kopiert ? { borderColor: "var(--fi-tier0, #059669)", color: "var(--fi-tier0, #059669)" } : undefined}
+                      title="Empfänger, IBAN, Betrag und Verwendungszweck als Text — fertig zum Einfügen in WhatsApp">
+                {kopiert ? "Kopiert" : "Zahlungsdaten kopieren"}
+              </button>
+            </div>
+            {kopiert && (
+              <p className="mt-1.5 text-[11.5px]" style={{ color: "var(--fi-text-leise)" }}>
+                Empfänger, IBAN, Betrag und Verwendungszweck liegen in der Zwischenablage — jetzt in
+                WhatsApp einfügen.
+              </p>
+            )}
+
+            {/* ── Zahlungsbeleg (08.08.2026) ────────────────────────────────
+                Sagt der Kunde „ich habe überwiesen", gehört sein Screenshot ins
+                System und nicht in die WhatsApp-Gruppe. Optional: Er
+                beschleunigt die Prüfung, blockiert aber nichts. */}
+            <div className="mt-2.5 pt-2.5" style={{ borderTop: "1px solid var(--fi-linie)" }}>
+              {!belegOffen ? (
+                <button type="button" onClick={() => setBelegOffen(true)}
+                        className="text-[12px] font-semibold underline decoration-dotted"
+                        style={{ color: "var(--fi-text-still)" }}>
+                  Überweisungsbeleg hinterlegen
+                </button>
+              ) : (
+                <div>
+                  <p className="text-[11.5px] leading-snug" style={{ color: "var(--fi-text-leise)" }}>
+                    Foto oder PDF der Überweisung. Es erscheint bei der Zahlungsprüfung direkt neben dem
+                    Bankeingang. Gebucht wird dadurch nichts.
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <input type="file" accept="image/*,application/pdf"
+                           onChange={(e) => setBelegDatei(e.target.files?.[0] ?? null)}
+                           className="text-[12px]" />
+                    <input type="date" value={belegDatum} onChange={(e) => setBelegDatum(e.target.value)}
+                           max={new Date().toISOString().slice(0, 10)}
+                           title="Überweisungsdatum laut Beleg"
+                           className="h-[34px] px-2 rounded-lg border bg-white text-[12.5px] outline-none"
+                           style={{ borderColor: "var(--fi-linie)" }} />
+                    <input value={belegNotiz} onChange={(e) => setBelegNotiz(e.target.value)}
+                           placeholder="Notiz (freiwillig)"
+                           className="flex-1 min-w-[140px] h-[34px] px-2.5 rounded-lg border bg-white text-[12.5px] outline-none"
+                           style={{ borderColor: "var(--fi-linie)" }} />
+                    <button type="button" disabled={!belegDatei || !belegDatum || !!laeuft}
+                            onClick={() => void belegHochladen()}
+                            className="fi-zweitknopf px-3 py-2 text-[12px] font-semibold">
+                      {laeuft === "beleg" ? "Lädt …" : "Hinterlegen"}
+                    </button>
+                    <button type="button" onClick={() => { setBelegOffen(false); setBelegDatei(null); }}
+                            className="text-[12px] font-semibold px-1"
+                            style={{ color: "var(--fi-text-still)" }}>
+                      Abbrechen
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Erste Reihe: Anrufen · Zahlungsdaten · Mail */}
         <div className="mt-3.5 flex flex-wrap items-center gap-2">

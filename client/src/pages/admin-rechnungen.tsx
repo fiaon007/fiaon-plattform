@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { FileText, Download } from "lucide-react";
 import { PageIntro } from "@/components/admin/PageHelp";
+import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 
 // ═══════════════════════════════════════════════════════════════════
 // /admin/rechnungen — read-only Übersicht des Rechnungs-Nummernkreises
@@ -29,7 +30,7 @@ function customerName(r: InvoiceRow): string {
 const STATUS_LABEL: Record<string, string> = {
   paid: "Bezahlt",
   pending_payment: "Offen",
-  claimed_paid: "Zahlung angekündigt",
+  claimed_paid: zahlungsstatusText("claimed_paid"),
   expired: "Abgelaufen",
   refunded: "Erstattet",
 };

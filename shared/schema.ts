@@ -1315,7 +1315,10 @@ export const fiaonApplications = pgTable("fiaon_applications", {
 
   paymentStatus: varchar("payment_status").default("pending"),
   // Vorkasse per Banküberweisung (Migration: Stripe → SEPA)
-  paymentReference: varchar("payment_reference").unique(),
+  // Seit 08.08.2026 PFLICHT und eindeutig: Ein BEFORE-INSERT-Trigger füllt sie
+  // (db/migrations/037), damit eine Bestellung ohne Verwendungszweck nicht mehr
+  // entstehen kann — auch nicht aus einem Import.
+  paymentReference: varchar("payment_reference").unique().notNull(),
   paymentDueDate: timestamp("payment_due_date"),
   amountDue: decimal("amount_due", { precision: 10, scale: 2 }),
   currency: varchar("currency").default("EUR"),
@@ -1345,6 +1348,34 @@ export const fiaonApplications = pgTable("fiaon_applications", {
   // einer Person. Nullable — Funnel-Abbrecher ohne jeden Kontaktdatensatz
   // bekommen bewusst keine Person und zählen nirgends als Kunde.
   personId: integer("person_id"),
+
+  // ── Archiv (08.08.2026, Teil A/3) ─────────────────────────────────────────
+  // CRITICAL: Diese Spalten MÜSSEN hier stehen, sonst wirft `drizzle-kit push`
+  // sie weg (wie oben bei den KYC-Bytea-Spalten vermerkt).
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  archivedReason: text("archived_reason"),
+  archivedNote: text("archived_note"),
+  archivedBy: text("archived_by"),
+  archivedByAgentId: integer("archived_by_agent_id"),
+
+  // ── Zahlungsbeleg (08.08.2026, Teil B/5) ──────────────────────────────────
+  // CRITICAL: BYTEA-Spalten MÜSSEN hier stehen, sonst wirft `drizzle-kit push`
+  // sie weg (wie oben bei den KYC-Unterlagen vermerkt).
+  paymentProof: bytea("payment_proof"),
+  paymentProofTyp: varchar("payment_proof_typ"),
+  paymentProofName: varchar("payment_proof_name"),
+  paymentProofBytes: integer("payment_proof_bytes"),
+  paymentProofDate: varchar("payment_proof_date"),
+  paymentProofNote: text("payment_proof_note"),
+  paymentProofBy: text("payment_proof_by"),
+  paymentProofByAgentId: integer("payment_proof_by_agent_id"),
+  paymentProofAt: timestamp("payment_proof_at", { withTimezone: true }),
+
+  // ── Alt-Bestand (08.08.2026, Teil B/1) ────────────────────────────────────
+  // Importierter Alt-Kunde ohne Zahlungsbeleg: zählt NIE in Umsatz oder Funnel.
+  // Vorher daran erkannt, dass `payment_reference` fehlte — seit jede Bestellung
+  // bedingungslos einen Verwendungszweck bekommt, braucht es ein eigenes Merkmal.
+  altBestand: boolean("alt_bestand").notNull().default(false),
 
   // Funnel-Abbrecher: weder E-Mail noch Telefon, also nicht erreichbar. 54 %
   // des Bestands. Sie zählen nirgends als Kunde. Gepflegt an genau EINER

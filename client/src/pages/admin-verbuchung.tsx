@@ -506,6 +506,33 @@ function BuchungsZeile({
             <p className="mt-0.5 text-[11px]" style={{ color: "var(--fi-text-still)" }}>
               Eingang {datum(zeile.gebuchtAm)} · Einzahler {zeile.einzahler || "—"} · Status {zeile.bestellstatus}
             </p>
+            {/* ── Zahlungsbeleg neben dem Bankeingang (08.08.2026) ───────────
+                Vorher lag der Screenshot der Überweisung in einer
+                WhatsApp-Gruppe und war beim Buchen nicht auffindbar. Wer bucht,
+                sieht ab jetzt beides an derselben Stelle. */}
+            {zeile.beleg?.vorhanden && (
+              <div className="mt-2 flex items-center gap-2.5 p-2 rounded-lg"
+                   style={{ background: "var(--fi-seite, #f8fafc)", border: "1px solid var(--fi-linie, #e2e8f0)" }}>
+                <a href={zeile.beleg.url} target="_blank" rel="noopener noreferrer"
+                   className="shrink-0 block w-12 h-12 rounded-md overflow-hidden border border-slate-200 bg-white"
+                   title="Beleg in neuem Tab öffnen">
+                  {String(zeile.beleg.typ || "").startsWith("image/") ? (
+                    <img src={zeile.beleg.url} alt="Zahlungsbeleg" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="flex w-full h-full items-center justify-center text-[9px] font-bold text-slate-400">PDF</span>
+                  )}
+                </a>
+                <div className="min-w-0">
+                  <p className="text-[11.5px] font-semibold" style={{ color: "var(--fi-text, #0f172a)" }}>
+                    Überweisungsbeleg vom {zeile.beleg.datum || "—"}
+                  </p>
+                  <p className="text-[11px]" style={{ color: "var(--fi-text-still)" }}>
+                    hinterlegt von {zeile.beleg.von || "—"}
+                    {zeile.beleg.notiz ? ` · ${zeile.beleg.notiz}` : ""}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="text-right">

@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import { useRoute, Link } from "wouter";
 import {
   User, CreditCard, Mail, Users, Clock, Copy, Pencil, Check, X,
-  AlertTriangle, FileText, ArrowLeft, Send, StickyNote, Undo2,
+  AlertTriangle, FileText, ArrowLeft, Send, StickyNote, Undo2, Info,
 } from "lucide-react";
 import VermerkTafel from "@/components/admin/VermerkTafel";
 import ArchivDialog from "@/components/admin/ArchivDialog";
+import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 
 /** Klartext der Archivgründe — dieselbe Liste wie im Server (fiaon-antrag-archiv.ts). */
 const ARCHIV_GRUND_TEXT: Record<string, string> = {
@@ -44,30 +45,58 @@ const FELD_NAME: Record<string, string> = {
   birthdate: "Geburtsdatum", nationality: "Staatsangehörigkeit",
 };
 
-const LIFECYCLE_BADGE: Record<string, { label: string; cls: string }> = {
-  lead: { label: "Lead", cls: "bg-sky-50 text-sky-700 border-sky-200" },
-  antrag: { label: "Antrag (unvollständig)", cls: "bg-slate-50 text-slate-600 border-slate-200" },
-  offen: { label: "Offen", cls: "bg-blue-50 text-blue-700 border-blue-200" },
-  angekuendigt: { label: "Zahlung angekündigt", cls: "bg-amber-50 text-amber-700 border-amber-300" },
-  bezahlt: { label: "Bezahlt", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  abgelaufen: { label: "Abgelaufen", cls: "bg-rose-50 text-rose-600 border-rose-200" },
-  storniert: { label: "Storniert", cls: "bg-slate-100 text-slate-500 border-slate-200" },
-  ersetzt: { label: "Ersetzt (Dublette)", cls: "bg-slate-100 text-slate-400 border-slate-200" },
-  unbekannt: { label: "—", cls: "bg-slate-50 text-slate-400 border-slate-200" },
+// Die TEXTE kommen aus dem einen Vokabular (shared/fiaon-kundenstatus.ts), die
+// Farben bleiben hier — sie gehören zur Ansicht, nicht zur Bedeutung.
+const LIFECYCLE_FARBE: Record<string, string> = {
+  lead: "bg-sky-50 text-sky-700 border-sky-200",
+  antrag: "bg-slate-50 text-slate-600 border-slate-200",
+  offen: "bg-blue-50 text-blue-700 border-blue-200",
+  angekuendigt: "bg-amber-50 text-amber-700 border-amber-300",
+  bezahlt: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  abgelaufen: "bg-rose-50 text-rose-600 border-rose-200",
+  storniert: "bg-slate-100 text-slate-500 border-slate-200",
+  ersetzt: "bg-slate-100 text-slate-400 border-slate-200",
+  unbekannt: "bg-slate-50 text-slate-400 border-slate-200",
 };
+/** Lebenszyklus-Kürzel der Admin-Liste → Zahlungsstand des Vokabulars. */
+const LIFECYCLE_ZAHLUNG: Record<string, string | null> = {
+  lead: null, antrag: "pending", offen: "pending_payment", angekuendigt: "claimed_paid",
+  bezahlt: "paid", abgelaufen: "expired", storniert: "cancelled", ersetzt: "superseded",
+  unbekannt: null,
+};
+const LIFECYCLE_BADGE = new Proxy({} as Record<string, { label: string; cls: string }>, {
+  get: (_z, schluessel: string) => ({
+    label: LIFECYCLE_ZAHLUNG[schluessel]
+      ? zahlungsstatusText(LIFECYCLE_ZAHLUNG[schluessel])
+      : (schluessel === "lead" ? KUNDENSTATUS.lead.text : "—"),
+    cls: LIFECYCLE_FARBE[schluessel] ?? LIFECYCLE_FARBE.unbekannt,
+  }),
+});
 
-const PAY_BADGE: Record<string, { label: string; cls: string }> = {
-  pending_payment: { label: "Offen", cls: "bg-blue-50 text-blue-700" },
-  claimed_paid: { label: "Angekündigt", cls: "bg-amber-50 text-amber-700" },
-  paid: { label: "Bezahlt", cls: "bg-emerald-50 text-emerald-700" },
-  expired: { label: "Abgelaufen", cls: "bg-rose-50 text-rose-600" },
-  cancelled: { label: "Storniert", cls: "bg-slate-100 text-slate-500" },
-  superseded: { label: "Ersetzt", cls: "bg-slate-100 text-slate-400" },
+const PAY_FARBE: Record<string, string> = {
+  pending: "bg-slate-50 text-slate-600",
+  pending_payment: "bg-blue-50 text-blue-700",
+  claimed_paid: "bg-amber-50 text-amber-700",
+  paid: "bg-emerald-50 text-emerald-700",
+  expired: "bg-rose-50 text-rose-600",
+  cancelled: "bg-slate-100 text-slate-500",
+  superseded: "bg-slate-100 text-slate-400",
 };
+const PAY_BADGE = new Proxy({} as Record<string, { label: string; cls: string }>, {
+  get: (_z, schluessel: string) => ({
+    label: zahlungsstatusText(schluessel),
+    cls: PAY_FARBE[schluessel] ?? "bg-slate-100 text-slate-500",
+  }),
+});
 
 function PayBadge({ status }: { status: string | null }) {
   const b = (status && PAY_BADGE[status]) || { label: status || "—", cls: "bg-slate-50 text-slate-500" };
-  return <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-bold whitespace-nowrap ${b.cls}`}>{b.label}</span>;
+  // Der Text darf UMBRECHEN, nicht kürzen. „Kunde meldet Zahlung (noch nicht
+  // bankbestätigt)" ist mit Absicht lang — ohne den Zusatz liest jemand
+  // „Zahlung" und hört auf zu prüfen (shared/fiaon-kundenstatus.ts). Mit
+  // `whitespace-nowrap` sprengte die Marke auf 380 px die Karte und der rechte
+  // Rand wurde abgeschnitten.
+  return <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-bold ${b.cls}`}>{b.label}</span>;
 }
 
 async function api(path: string, body?: any, method = "POST"): Promise<any> {
@@ -84,7 +113,11 @@ async function api(path: string, body?: any, method = "POST"): Promise<any> {
 // ── Abschnitts-Karte ─────────────────────────────────────────────────────────
 function Section({ title, icon: Icon, children, warn }: { title: string; icon: any; children: any; warn?: boolean }) {
   return (
-    <div className={`bg-white border rounded-2xl p-5 ${warn ? "border-amber-300" : "border-slate-200"}`}>
+    // `min-w-0`: Ohne das darf eine Rasterzelle nicht unter die Mindestbreite
+    // ihres Inhalts schrumpfen. Auf einem 380-px-Telefon wurden die Karten
+    // dadurch 477 px breit und der rechte Rand — Fristen, Datum, Beträge —
+    // schlicht abgeschnitten (gemessen am 08.08.2026).
+    <div className={`min-w-0 bg-white border rounded-2xl p-5 ${warn ? "border-amber-300" : "border-slate-200"}`}>
       <h2 className="flex items-center gap-2 text-[13px] font-bold text-slate-900 mb-4">
         <Icon size={15} className={warn ? "text-amber-500" : "text-slate-400"} /> {title}
       </h2>
@@ -319,7 +352,13 @@ export default function AdminKundeAktePage() {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
                 <h1 className="text-xl font-bold text-slate-900">{head.name}</h1>
-                <span className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold ${badge.cls}`}>{badge.label}</span>
+                {/* Der EINE Statustext. Kommt seit 08.08.2026 vom Server
+                    (head.status) — dieselbe Quelle, die Agentenliste und
+                    Vertrieb benutzen. Der Rückfall auf `badge` bleibt für
+                    Leads ohne Bestellung. */}
+                <span className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold ${badge.cls}`}>
+                  {head.status?.anzeige || badge.label}
+                </span>
                 {head.commissionBasis === "direktzahler" && (
                   <span className="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-500">Direktzahler</span>
                 )}
@@ -516,8 +555,80 @@ export default function AdminKundeAktePage() {
             )}
           </Section>
 
+          {/* ── WARUM DIESER STATUS? ──────────────────────────────────────
+              Schluss mit Raten: welche Bestellung, welches Ereignis, welches
+              Datum den Status bestimmt. Ein Status ohne Begründung ist eine
+              Behauptung — und genau daran ist am 07.08. ein Kunde als „bezahlt"
+              missverstanden worden. */}
+          {head.status?.warum && (
+            <Section title="Warum dieser Status?" icon={Info}>
+              <div className="space-y-2">
+                <p className="text-[13px] text-slate-800">
+                  <b>{head.status.anzeige}</b>
+                  {head.status.hinweis ? <span className="text-slate-500"> — {head.status.hinweis}</span> : null}
+                </p>
+                <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-2 text-[12.5px]">
+                  <div>
+                    <dt className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Maßgebliche Bestellung</dt>
+                    <dd className="text-slate-800 font-mono text-[12px]">
+                      {head.status.warum.verwendungszweck || head.status.warum.ref || "—"}
+                      {head.status.warum.paket ? <span className="font-sans text-slate-500"> · {head.status.warum.paket}</span> : null}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Letztes Ereignis</dt>
+                    <dd className="text-slate-800">
+                      {head.status.warum.ereignis || "—"}
+                      {head.status.warum.ereignisAm ? <span className="text-slate-500"> · {fmtDT(head.status.warum.ereignisAm)}</span> : null}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Zahlungsstand (roh)</dt>
+                    <dd className="text-slate-800 font-mono text-[12px]">{head.status.warum.zahlungsstatus || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Frist</dt>
+                    <dd className="text-slate-800">
+                      {head.status.warum.frist ? fmtD(head.status.warum.frist) : "—"}
+                      {head.status.etikett ? <span className="text-rose-600 font-semibold"> · {head.status.etikett}</span> : null}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="text-[12px] text-slate-500 leading-snug">{head.status.warum.begruendung}</p>
+              </div>
+            </Section>
+          )}
+
           {/* ── ZAHLUNGEN ── */}
           <Section title="Zahlungen — alle Bestellungen dieser Person" icon={CreditCard}>
+            {/* Produktstand in EINER Zeile. Ein Konto hat genau eine Stufe; alles
+                andere ist Zusatzprodukt oder stillgelegt. Vorher standen hier
+                fünf Bestellungen gleichwertig untereinander. */}
+            {head.produkt && (
+              <div className="mb-3 px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50">
+                <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Produktstand</p>
+                <p className="text-[14px] font-bold text-slate-900">{head.produkt.text}</p>
+                {head.produkt.mehrfachStufe && (
+                  <p className="text-[12px] text-rose-700 font-semibold mt-0.5">
+                    Zwei offene Stufen — das darf nicht sein. Bitte über die Produkt-Hygiene bereinigen.
+                  </p>
+                )}
+                {head.produkt.stillgelegt?.length > 0 && (
+                  <details className="mt-1.5">
+                    <summary className="text-[12px] text-slate-500 cursor-pointer">
+                      {head.produkt.stillgelegt.length} stillgelegte oder archivierte Bestellung(en)
+                    </summary>
+                    <ul className="mt-1 space-y-0.5">
+                      {head.produkt.stillgelegt.map((s: any) => (
+                        <li key={s.ref} className="text-[11.5px] text-slate-500">
+                          <span className="font-mono">{s.ref}</span> · {s.name} · {s.grund}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            )}
             {data.orders.length === 0 && <p className="text-[12.5px] text-slate-400">Noch keine Bestellung.</p>}
             <div className="space-y-2">
               {data.orders.map((o: any) => (
@@ -548,7 +659,10 @@ export default function AdminKundeAktePage() {
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    {/* `flex-wrap`: Marke, Rechnung und „Archivieren" standen in
+                        einer Zeile, die nicht umbrechen durfte — auf 380 px
+                        zusammen 409 px breit, der rechte Rand fiel weg. */}
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <PayBadge status={o.paymentStatus} />
                       {o.archiviertAm && (
                         <span className="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-[11px] font-bold text-slate-500">

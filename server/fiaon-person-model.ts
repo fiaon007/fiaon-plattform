@@ -484,6 +484,11 @@ export interface PersonZuordnung {
   zusammengefuehrt: number[];
   /** Mehrere Agenten beteiligt — markiert, nicht entschieden. */
   agentKonflikt: boolean;
+  /**
+   * Die Zeile traf mehrere bestehende Personen. Hier stehen sie — die
+   * Entscheidung trifft ein Mensch am Dubletten-Arbeitsplatz.
+   */
+  mehrdeutig?: number[];
 }
 
 export interface PersonEingabe {
@@ -499,6 +504,20 @@ export interface PersonEingabe {
   quelle: string;
   /** Erstkontakt — nur gesetzt, wenn die Person noch keinen früheren trägt. */
   firstSeenAt?: Date | null;
+  /**
+   * Was tun, wenn die Zeile MEHRERE bestehende Personen trifft?
+   *
+   *   "aeltester" — an die älteste Person hängen (Anträge: dort trägt die
+   *                 Zeile Stammdaten, die zu einer bestehenden Akte gehören).
+   *   "neu"       — eine neue Person anlegen (Lead-Intake). Ein falsches
+   *                 Zusammenlegen ist teurer als eine Dublette: Der
+   *                 Dubletten-Arbeitsplatz zeigt das Paar sofort, ein
+   *                 verschmolzener Kunde ist nur mit Aufwand zu trennen.
+   *
+   * Vorgabe ist "aeltester" — das entspricht dem Verhalten vor dem 08.08.2026,
+   * ABER OHNE das automatische Zusammenführen (siehe `aufloesen`).
+   */
+  beiMehrdeutigkeit?: "aeltester" | "neu";
 }
 
 /** Postgres: Verstoss gegen einen eindeutigen Index. */
@@ -536,37 +555,64 @@ async function aufloesen(ein: PersonEingabe, emails: string[], phones: string[])
   // ── 1. Wem gehören diese Adressen bereits? ──────────────────────────────
   // E-Mail und Telefon werden GEMEINSAM abgefragt: Genau daraus entsteht der
   // Sonderfall, bei dem eine Zeile zwei bisher getrennte Personen verbindet.
+  // Gemergte Personen sind Wegweiser, keine Treffer — eine neue Zeile darf sich
+  // nicht an einen Wegweiser hängen (sonst ist der Kunde in keiner Liste).
   const treffer = await sqlPool`
     SELECT DISTINCT a.person_id, p.created_at
     FROM fiaon_person_aliases a
     JOIN fiaon_persons p ON p.id = a.person_id
-    WHERE (a.kind = 'email' AND a.value_norm = ANY(${emails}::text[]))
-       OR (a.kind = 'phone' AND a.value_norm = ANY(${phones}::text[]))
+    WHERE p.merged_into_person_id IS NULL
+      AND ((a.kind = 'email' AND a.value_norm = ANY(${emails}::text[]))
+        OR (a.kind = 'phone' AND a.value_norm = ANY(${phones}::text[])))
     ORDER BY p.created_at ASC NULLS FIRST, a.person_id ASC
   `;
-  const ids = (treffer as any[]).map((r) => Number(r.person_id));
+  const ids = Array.from(new Set((treffer as any[]).map((r) => Number(r.person_id))));
 
   if (ids.length === 0) {
     return await neuePersonAnlegen(ein, emails, phones);
   }
 
-  // Die älteste Person gewinnt — sie trägt die längste Geschichte.
-  const zielId = ids[0];
-  const zusammengefuehrt: number[] = [];
-
-  // ── 2. Sonderfall: die Zeile verbindet mehrere Personen ─────────────────
-  // Beispiel aus der Praxis: Ein Lead ohne E-Mail wurde als Person angelegt
-  // (nur Rufnummer). Später stellt derselbe Mensch einen Antrag mit einer
-  // E-Mail, die bereits einer anderen Person gehört. Beides ist derselbe
-  // Mensch — hier ist es zum ersten Mal BEWEISBAR, weil eine Zeile beide
-  // Merkmale trägt. Also zusammenführen, statt eine dritte Person zu bauen.
-  for (const verliererId of ids.slice(1)) {
-    await personenZusammenfuehren(zielId, verliererId, ein.quelle);
-    zusammengefuehrt.push(verliererId);
+  // ── 2. Mehrere Treffer: markieren, NICHT entscheiden ────────────────────
+  //
+  // Bis zum 08.08.2026 wurden die überzähligen Personen hier automatisch
+  // zusammengeführt. Die Begründung war plausibel: Eine Zeile, die E-Mail UND
+  // Rufnummer zweier bisher getrennter Personen trägt, beweise, dass es derselbe
+  // Mensch ist.
+  //
+  // Sie ist widerlegt. Im Bestand trug eine E-Mail zwei Menschen — ein Antrag
+  // lief unter „Magdalena" und gehörte zu Konstantinos Nikoloudis. Dann verbindet
+  // die Zeile nicht zwei Datensätze eines Menschen, sondern zwei Menschen. Und
+  // ein automatisch verschmolzener Kunde ist nur mit Aufwand zu trennen, während
+  // eine Dublette seit Teil A auf einem Arbeitsplatz liegt, an dem ein Mensch
+  // sie in zehn Sekunden entscheidet.
+  //
+  // Falsches Zusammenlegen ist teurer als eine Dublette. Also: nichts merken
+  // außer der Mehrdeutigkeit selbst.
+  const mehrdeutig = ids.length > 1 ? ids.slice() : undefined;
+  if (mehrdeutig) {
+    await mehrdeutigkeitMerken(ids, ein);
+    if ((ein.beiMehrdeutigkeit ?? "aeltester") === "neu") {
+      // Lead-Intake: eine eigene Person. Die Aliase werden trotzdem gesetzt —
+      // dieselbe Adresse darf an zwei Personen hängen, genau das macht das Paar
+      // als Kandidat sichtbar.
+      const neuePerson = await neuePersonAnlegen(ein, emails, phones);
+      return { ...neuePerson, mehrdeutig };
+    }
   }
 
+  // Die älteste Person gewinnt — sie trägt die längste Geschichte.
+  const zielId = ids[0];
+
   // ── 3. Fehlende Aliase ergänzen ─────────────────────────────────────────
-  await aliaseErgaenzen(zielId, emails, phones, ein.quelle);
+  // Bei Mehrdeutigkeit NUR die Adressen, die noch keiner anderen lebenden Person
+  // gehören: Sonst würde die eine Person über die Nummer der anderen findbar —
+  // ein Datenmix, den später niemand mehr auseinanderbekommt.
+  if (mehrdeutig) {
+    const eigene = await unbeanspruchte(emails, phones, zielId);
+    await aliaseErgaenzen(zielId, eigene.emails, eigene.phones, ein.quelle);
+  } else {
+    await aliaseErgaenzen(zielId, emails, phones, ein.quelle);
+  }
 
   // ── 4. Leere Stammdatenfelder füllen — niemals überschreiben ────────────
   await stammdatenErgaenzen(zielId, ein);
@@ -579,9 +625,47 @@ async function aufloesen(ein: PersonEingabe, emails: string[], phones: string[])
     personId: zielId,
     personRef: String(p?.person_ref ?? ""),
     angelegt: false,
-    zusammengefuehrt,
+    zusammengefuehrt: [],
     agentKonflikt,
+    mehrdeutig,
   };
+}
+
+/** Adressen, die noch keiner ANDEREN lebenden Person gehören. */
+async function unbeanspruchte(
+  emails: string[], phones: string[], zielId: number,
+): Promise<{ emails: string[]; phones: string[] }> {
+  const belegt = await sqlPool`
+    SELECT a.kind, a.value_norm FROM fiaon_person_aliases a
+    JOIN fiaon_persons p ON p.id = a.person_id
+    WHERE p.merged_into_person_id IS NULL AND a.person_id <> ${zielId}
+      AND ((a.kind = 'email' AND a.value_norm = ANY(${emails}::text[]))
+        OR (a.kind = 'phone' AND a.value_norm = ANY(${phones}::text[])))
+  `;
+  const fremd = new Set((belegt as any[]).map((r) => `${r.kind}:${r.value_norm}`));
+  return {
+    emails: emails.filter((e) => !fremd.has(`email:${e}`)),
+    phones: phones.filter((t) => !fremd.has(`phone:${t}`)),
+  };
+}
+
+/**
+ * Eine Mehrdeutigkeit festhalten — damit sie nicht nur im Logfile steht.
+ *
+ * Der Dubletten-Arbeitsplatz findet das Paar ohnehin (gleiche Nummer oder
+ * gleiche E-Mail sind Stufe a und b). Dieser Eintrag sagt zusätzlich, WANN und
+ * WODURCH es entstanden ist — sonst rätselt später jemand, warum zwei
+ * gleichnamige Personen am selben Tag angelegt wurden.
+ */
+async function mehrdeutigkeitMerken(ids: number[], ein: PersonEingabe): Promise<void> {
+  console.warn(`[FIAON-PERSON] ${ein.quelle}: mehrdeutiger Treffer auf Personen ${ids.join(", ")} — nicht zusammengeführt`);
+  await sqlPool`
+    INSERT INTO fiaon_agent_events (agent_id, type, meta, actor, reason)
+    VALUES (${ein.agentId ?? null}, 'person_mehrdeutig',
+            ${JSON.stringify({ personen: ids, quelle: ein.quelle, strategie: ein.beiMehrdeutigkeit ?? "aeltester" })},
+            'System (Eingang)',
+            ${`Eingang traf ${ids.length} bestehende Personen — Entscheidung am Dubletten-Arbeitsplatz`})
+  `.catch((e) => console.error("[FIAON-PERSON] Mehrdeutigkeit protokollieren:", e));
 }
 
 async function neuePersonAnlegen(ein: PersonEingabe, emails: string[], phones: string[]): Promise<PersonZuordnung> {
@@ -807,7 +891,10 @@ export async function bindePersonAnAntrag(ref: string): Promise<PersonZuordnung 
  * den Lead gewonnen hat, sieht seinen Kunden weiterhin bei sich, einschliesslich
  * „Zahlung angekündigt". Vorher zerfiel derselbe Mensch in Lead- und Kundenkarte.
  */
-export async function bindePersonAnLead(leadId: number): Promise<PersonZuordnung | null> {
+export async function bindePersonAnLead(
+  leadId: number,
+  opts: { beiMehrdeutigkeit?: "aeltester" | "neu" } = {},
+): Promise<PersonZuordnung | null> {
   await ensurePersonTables();
   const [row] = await sqlPool`
     SELECT id, person_id, vorname, nachname, email, telefon, assigned_agent_id, erstellt_am
@@ -835,6 +922,8 @@ export async function bindePersonAnLead(leadId: number): Promise<PersonZuordnung
     agentId: row.assigned_agent_id != null ? Number(row.assigned_agent_id) : null,
     quelle: `lead:${leadId}`,
     firstSeenAt: row.erstellt_am ? new Date(row.erstellt_am) : null,
+    // Beim Lead-Eingang gilt: nur ein EINDEUTIGER Treffer wird angehängt.
+    beiMehrdeutigkeit: opts.beiMehrdeutigkeit ?? "neu",
   });
   if (!zuordnung) return null;
 
@@ -846,6 +935,17 @@ export async function bindePersonAnLead(leadId: number): Promise<PersonZuordnung
 }
 
 /**
+ * STILLGELEGT AM 08.08.2026 — wird nicht mehr aufgerufen.
+ *
+ * Diese Funktion war das automatische Zusammenführen bei mehrdeutigen Treffern
+ * (siehe `aufloesen`). Sie bleibt als Beleg stehen, WIE es früher lief, und weil
+ * ihre Sorgfalt (Aliase mitnehmen, nichts löschen) in die menschlich entschiedene
+ * Nachfolgerin eingegangen ist: `server/lib/fiaon-person-merge.ts` mit
+ * Transaktion, Zählprobe und Protokoll.
+ *
+ * Wer hier wieder einen automatischen Aufruf einbaut, hebt Teil A auf.
+ *
+ * ── Ursprüngliche Beschreibung ──────────────────────────────────────────────
  * Zwei Personen zusammenführen — der Sonderfall „Lead ohne E-Mail".
  *
  * NICHTS WIRD GELÖSCHT. Die unterlegene Person bleibt als Datensatz bestehen

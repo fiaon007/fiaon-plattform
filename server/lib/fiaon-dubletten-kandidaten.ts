@@ -87,6 +87,28 @@ export function nameSchluessel(...teile: (string | null | undefined)[]): string 
   return woerter.sort().join(" ");
 }
 
+/**
+ * Ist das eine Attrappen-Nummer statt einer Rufnummer?
+ *
+ * Erkannt wird das Muster, nicht eine Liste: sechs aufsteigende oder
+ * absteigende Ziffern in Folge (…1234567) oder sechsmal dieselbe Ziffer
+ * (…0000000). Beides kommt in echten Mobilnummern praktisch nicht vor, in
+ * Testeingaben dagegen fast immer.
+ */
+export function istAttrappenNummer(schluessel: string): boolean {
+  const z = String(schluessel).replace(/\D/g, "");
+  if (z.length < 7) return false;
+  let auf = 1, ab = 1, gleich = 1;
+  for (let i = 1; i < z.length; i++) {
+    const d = Number(z[i]) - Number(z[i - 1]);
+    auf = d === 1 ? auf + 1 : 1;
+    ab = d === -1 ? ab + 1 : 1;
+    gleich = d === 0 ? gleich + 1 : 1;
+    if (auf >= 6 || ab >= 6 || gleich >= 6) return true;
+  }
+  return false;
+}
+
 /** Levenshtein-Abstand mit Abbruch, sobald die Grenze überschritten ist. */
 export function abstand(a: string, b: string, grenze: number): number {
   if (a === b) return 0;
@@ -367,6 +389,11 @@ export async function findeKandidaten(opts: KandidatenOptionen = {}): Promise<Ka
   const nachTelefon = new Map<string, number[]>();
   for (const p of personen) {
     if (!p.phoneKey9 || p.phoneKey9.length < 7) continue;
+    // Attrappen-Nummern taugen als Spur nicht. Im Bestand hängen an
+    // „…701234567" 32 Datensätze, überwiegend „Dev User" — dazwischen ein
+    // echter „Thomas Müller". Ein Vorschlag daraus hätte einen Kunden in einen
+    // Testeintrag geführt. Die Personen bleiben in den Namensstufen prüfbar.
+    if (istAttrappenNummer(p.phoneKey9)) continue;
     const arr = nachTelefon.get(p.phoneKey9) ?? [];
     arr.push(p.id);
     nachTelefon.set(p.phoneKey9, arr);
@@ -457,12 +484,29 @@ export async function findeKandidaten(opts: KandidatenOptionen = {}): Promise<Ka
       ? (zeit(links.angelegt) <= zeit(rechts.angelegt) ? links.id : rechts.id)
       : (pl > pr ? links.id : rechts.id);
 
+    // Gleiche Nummer, aber ein anderer Mensch? Kommt vor: Unter „…723891768"
+    // liegen 19-mal „Michael Laschinger" und einmal „Klaus Laschinger" — ein
+    // Familienanschluss. Der Vorschlag verschwindet nicht (dann könnte niemand
+    // ihn beurteilen), er wird aber ausdrücklich zur VERMUTUNG herabgestuft und
+    // sagt, warum. „Gleiche Rufnummer" als belastbarer Treffer wäre hier falsch.
+    const vornameLinks = nameSchluessel(links.vorname);
+    const vornameRechts = nameSchluessel(rechts.vorname);
+    const vornamenWeichenAb = !!vornameLinks && !!vornameRechts
+      && vornameLinks !== vornameRechts
+      && abstand(vornameLinks, vornameRechts, 2) > 2;
+    const nurNummerGleich = treffer.stufe === "telefon" && vornamenWeichenAb
+      && !(links.geburtsdatum && links.geburtsdatum === rechts.geburtsdatum);
+
     liste.push({
       schluessel: k,
       stufe: treffer.stufe,
-      stufeText: STUFE_TEXT[treffer.stufe],
-      vermutung: treffer.stufe === "name",
-      merkmal: treffer.merkmal,
+      stufeText: nurNummerGleich
+        ? "Gleiche Rufnummer, anderer Vorname (Vermutung)"
+        : STUFE_TEXT[treffer.stufe],
+      vermutung: treffer.stufe === "name" || nurNummerGleich,
+      merkmal: nurNummerGleich
+        ? `${treffer.merkmal} — Vornamen weichen ab (${links.vorname ?? "—"} / ${rechts.vorname ?? "—"}), Familien- oder Firmenanschluss möglich`
+        : treffer.merkmal,
       vorschlagGewinnerId,
       links, rechts,
       betreuerStreit: !!links.betreuungSeit && !!rechts.betreuungSeit

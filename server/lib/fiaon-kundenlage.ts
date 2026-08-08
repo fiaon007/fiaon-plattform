@@ -331,6 +331,8 @@ export async function offeneZahlungen(filter: string, q: string): Promise<any[]>
   return await sqlPool.unsafe(`
     SELECT a.ref, a.payment_reference, a.payment_status, a.amount_due, a.payment_due_date,
            a.pack_name, a.email, a.person_id, ${NAME} AS name,
+           -- Zahlungsbeleg: Wer bucht, sieht Bankeingang UND Beleg nebeneinander.
+           (a.payment_proof IS NOT NULL) AS beleg_da, a.payment_proof_date, a.payment_proof_by,
            p.promised_payment_date, p.assigned_agent_id, ag.name AS agent_name,
            (SELECT MAX(cl.created_at) FROM fiaon_contact_log cl
              WHERE cl.ref = a.ref AND cl.voided_at IS NULL) AS letzter_kontakt,

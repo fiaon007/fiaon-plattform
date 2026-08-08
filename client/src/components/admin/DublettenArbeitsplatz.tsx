@@ -20,6 +20,7 @@
 // zeigt, was der Knopf tut: zwei Linien, die eine werden.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useState } from "react";
+import { zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 
 export type Stufe = "telefon" | "email" | "name_geburtsdatum" | "name";
 
@@ -84,11 +85,7 @@ const STUFE_FARBE: Record<Stufe, string> = {
   name_geburtsdatum: "bg-slate-200 text-slate-700",
   name: "bg-white text-slate-500 border border-slate-300",
 };
-const ZAHLUNG: Record<string, string> = {
-  paid: "bezahlt", claimed_paid: "angekündigt", pending_payment: "offen",
-  pending: "Antrag", expired: "Frist abgelaufen", cancelled: "storniert",
-  superseded: "ersetzt", refunded: "erstattet",
-};
+// Zahlungsstände: shared/fiaon-kundenstatus.ts (eine Quelle).
 
 const datum = (v: string | null | undefined, mitZeit = false): string => {
   if (!v) return "—";
@@ -476,7 +473,7 @@ export default function DublettenArbeitsplatz({ pfade }: { pfade: DublettenPfade
                               <li key={b.ref} className="text-[12px] text-slate-700 flex flex-wrap gap-x-2">
                                 <span className="font-mono text-[11px] text-slate-500">{b.ref}</span>
                                 <span>{b.paket ? String(b.paket).split("\n")[0] : "—"}</span>
-                                <span className="text-slate-500">{ZAHLUNG[String(b.status)] ?? b.status}</span>
+                                <span className="text-slate-500">{zahlungsstatusText(b.status, b.archiviertAm)}</span>
                                 {b.archiviertAm && <span className="text-slate-400">archiviert</span>}
                               </li>
                             ))}

@@ -40,6 +40,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-08-verwendungszweck-und-beleg",
+    date: "2026-08-08",
+    category: "Neu",
+    title: "Jeder Kunde hat ab sofort einen Verwendungszweck — auch ohne E-Mail",
+    summary:
+      "Bisher entstand der Verwendungszweck erst beim Rechnungsversand. Hattest du einen Kunden ohne E-Mail am Telefon, gab es keinen — und sein Geld lag später ohne Namen in der Buchhaltung. Jetzt steht er auf jeder Kundenkarte, fertig zum Vorlesen oder Verschicken.",
+    changes: [
+      "Auf der Kundenkarte steht der Verwendungszweck immer sichtbar — auch bei Kunden ohne E-Mail-Adresse.",
+      "Der Knopf „Zahlungsdaten kopieren“ legt Empfänger, IBAN, Betrag und Verwendungszweck als fertigen Text in die Zwischenablage. Einfügen in WhatsApp oder SMS, fertig. Am Telefon liest du dieselben Angaben vor — es gibt nur noch eine Fassung.",
+      "Neu: „Überweisungsbeleg hinterlegen“. Sagt dein Kunde „ich habe überwiesen“ und schickt dir den Screenshot, lädst du ihn direkt an der Bestellung hoch. Er liegt dann bei der Verbuchung sichtbar neben dem Bankeingang, statt in einer WhatsApp-Gruppe zu versanden.",
+      "Der Beleg ist freiwillig und beschleunigt die Prüfung — er ist aber KEIN Zahlungsnachweis. Gebucht wird weiter nur, was wirklich auf dem Konto liegt.",
+      "Die Statustexte sind überall dieselben. „Kunde meldet Zahlung“ trägt jetzt immer den Zusatz „noch nicht bankbestätigt“ — damit niemand „Zahlung“ liest und aufhört zu prüfen. Der widersprüchliche Satz „Antrag abgeschlossen, keine Zahlung“ ist weg.",
+      "Namen werden beim Eingang richtig getrennt. Kunden, bei denen der ganze Name im Vornamen stand, sind nachträglich sortiert — deshalb sehen manche Karten sauberer aus als vorher.",
+    ],
+    howto: [
+      "Kunde am Telefon, keine E-Mail: Karte öffnen, den Verwendungszweck unter „VERWENDUNGSZWECK“ vorlesen. Er ist kurz und für jeden Kunden verschieden.",
+      "Kunde hat WhatsApp: „Zahlungsdaten kopieren“ drücken und in den Chat einfügen — Empfänger, IBAN, Betrag und Zweck sind schon drin.",
+      "Kunde schickt einen Überweisungs-Screenshot: „Überweisungsbeleg hinterlegen“, Bild auswählen, kurz notieren, woher er kommt. Danach nicht auf „bezahlt“ hoffen — die Buchung macht weiterhin nur, wer das Konto sieht.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
+    important: true,
+  },
+  {
     id: "2026-08-08-dubletten-und-kein-abschalten",
     date: "2026-08-08",
     category: "Neu",

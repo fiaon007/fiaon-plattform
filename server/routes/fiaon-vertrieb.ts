@@ -28,6 +28,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Router, type Response } from "express";
+import multer from "multer";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureBetreuungSpalte } from "../lib/tier";
@@ -661,6 +662,16 @@ router.get("/agent/vertrieb/zahlungen", requireAgent, nurLeitung, nurMitZusage, 
         agentName: r.agent_name,
         letzterKontakt: r.letzter_kontakt,
         bankTreffer: Number(r.bank_treffer || 0),
+        // Der hinterlegte Beleg steht in der Liste NEBEN dem Bankeingang — wer
+        // bucht, sieht beides ohne Umweg über eine WhatsApp-Gruppe.
+        beleg: r.beleg_da
+          ? {
+              vorhanden: true,
+              datum: r.payment_proof_date ? new Date(r.payment_proof_date).toISOString().slice(0, 10) : null,
+              von: r.payment_proof_by ?? null,
+              url: `/api/fiaon/agent/vertrieb/antrag/${encodeURIComponent(String(r.ref))}/zahlungsbeleg`,
+            }
+          : { vorhanden: false },
       })),
     });
   } catch (err) {
@@ -816,12 +827,24 @@ router.post("/agent/vertrieb/zahlung/:paymentRef/bezahlt", requireAgent, nurLeit
       `.catch((e) => console.error("[FIAON-VERTRIEB] Bankeingang markieren:", e));
     }
 
+    // Liegt ein hinterlegter Beleg vor, verweist die Buchung darauf — statt nur
+    // auf eine Beschreibung. Vorher stand im Protokoll „Überweisungsbeleg" und
+    // niemand konnte nachsehen, welcher.
+    const { belegStand } = await import("../lib/fiaon-zahlungsbeleg");
+    const hinterlegt = await belegStand(String(app.ref)).catch(() => null);
     const beleg = {
       art,
       notiz,
       zahlungsdatum,
       bankeingang: bank ? { id: Number(bank.id), betragCent: Number(bank.amount_cents), verwendungszweck: bank.reference_raw } : null,
       betragCent: app.amount_due != null ? Math.round(Number(app.amount_due) * 100) : null,
+      hinterlegterBeleg: hinterlegt?.vorhanden
+        ? {
+            datum: hinterlegt.datum, von: hinterlegt.von, am: hinterlegt.am,
+            notiz: hinterlegt.notiz,
+            url: `/api/fiaon/agent/vertrieb/antrag/${encodeURIComponent(String(app.ref))}/zahlungsbeleg`,
+          }
+        : null,
     };
     await protokoll(req.agent!.id, "vertrieb_zahlung_gebucht", { ref: app.ref, payment_reference: paymentRef, beleg });
 
@@ -830,7 +853,7 @@ router.post("/agent/vertrieb/zahlung/:paymentRef/bezahlt", requireAgent, nurLeit
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, outcome, note, created_at)
       VALUES (${app.ref}, ${req.agent!.id}, ${`${req.agent!.name} (Vertriebsleitung)`}, 'note', NULL,
-              ${`Zahlung gebucht (Eingang ${zahlungsdatum}, Nachweis: ${art === "bankeingang" ? "Bankeingang" : "Überweisungsbeleg"}) — ${notiz}`},
+              ${`Zahlung gebucht (Eingang ${zahlungsdatum}, Nachweis: ${art === "bankeingang" ? "Bankeingang" : "Überweisungsbeleg"}${hinterlegt?.vorhanden ? `, hinterlegter Beleg vom ${hinterlegt.datum}` : ""}) — ${notiz}`},
               NOW())
     `.catch((e) => console.error("[FIAON-VERTRIEB] Verlaufseintrag:", e));
 
@@ -941,6 +964,33 @@ router.post("/agent/vertrieb/antrag/:ref/archivieren", requireAgent, nurLeitung,
     String(req.params.ref), req.body, { ...alsAkteur(req), rolle: "leitung" },
   );
   res.status(status).json(antwort);
+});
+
+// ── Zahlungsbeleg: hinterlegen, ansehen (Vertriebsleitung) ────────────────
+const belegUploadVertrieb = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+router.post("/agent/vertrieb/antrag/:ref/zahlungsbeleg", requireAgent, nurLeitung, nurMitZusage,
+  belegUploadVertrieb.single("beleg"), async (req: AgentRequest, res: Response) => {
+    const { fuehreBelegUploadAus } = await import("./fiaon-dubletten");
+    const { status, antwort } = await fuehreBelegUploadAus(
+      String(req.params.ref), (req as any).file, req.body, alsAkteur(req),
+    );
+    res.status(status).json(antwort);
+  });
+
+router.get("/agent/vertrieb/antrag/:ref/zahlungsbeleg", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const { belegDaten } = await import("../lib/fiaon-zahlungsbeleg");
+    const beleg = await belegDaten(String(req.params.ref));
+    if (!beleg) return res.status(404).json({ ok: false, error: "Kein Beleg hinterlegt" });
+    res.setHeader("Content-Type", beleg.typ);
+    res.setHeader("Content-Disposition", `inline; filename="${beleg.name.replace(/[^\w.-]/g, "_")}"`);
+    res.setHeader("Cache-Control", "private, max-age=60");
+    res.send(beleg.daten);
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] zahlungsbeleg:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
 });
 
 /** Offene Meldungen „Als Testeintrag melden" aus der Agentenliste. */

@@ -79,7 +79,7 @@ export async function computeLeistung(from: Date, to: Date): Promise<any> {
       COALESCE(SUM(ROUND(COALESCE(amount_due::numeric, 0) * 100)), 0)::bigint AS umsatz_cents
     FROM fiaon_applications
     WHERE assigned_agent_id IS NOT NULL AND payment_status = 'paid'
-      AND merged_into IS NULL AND payment_reference IS NOT NULL
+      AND merged_into IS NULL AND NOT COALESCE(alt_bestand, FALSE)
       AND COALESCE(completed_at, claimed_paid_at, created_at) BETWEEN ${from} AND ${to}
     GROUP BY assigned_agent_id
   `;
@@ -114,7 +114,7 @@ export async function computeLeistung(from: Date, to: Date): Promise<any> {
     FROM fiaon_leads l
     JOIN fiaon_applications a ON a.ref = l.converted_order_id AND a.merged_into IS NULL
     WHERE l.assigned_agent_id IS NOT NULL
-      AND a.payment_status = 'paid' AND a.payment_reference IS NOT NULL
+      AND a.payment_status = 'paid' AND NOT COALESCE(a.alt_bestand, FALSE)
       AND COALESCE(a.completed_at, a.claimed_paid_at, a.created_at) BETWEEN ${from} AND ${to}
     GROUP BY l.assigned_agent_id
   `;
@@ -163,7 +163,7 @@ export async function computeLeistung(from: Date, to: Date): Promise<any> {
   const seriesPaid = await sqlPool`
     SELECT (COALESCE(completed_at, claimed_paid_at, created_at) AT TIME ZONE 'Europe/Berlin')::date AS d, COUNT(*)::int AS c
     FROM fiaon_applications
-    WHERE payment_status = 'paid' AND merged_into IS NULL AND payment_reference IS NOT NULL
+    WHERE payment_status = 'paid' AND merged_into IS NULL AND NOT COALESCE(alt_bestand, FALSE)
       AND COALESCE(completed_at, claimed_paid_at, created_at) BETWEEN ${from} AND ${to}
     GROUP BY 1 ORDER BY 1
   `;
@@ -173,7 +173,7 @@ export async function computeLeistung(from: Date, to: Date): Promise<any> {
     SELECT COALESCE(NULLIF(TRIM(l.quelle), ''), 'unbekannt') AS quelle,
       COUNT(*)::int AS leads,
       COUNT(*) FILTER (WHERE l.status = 'konvertiert')::int AS konvertiert,
-      COUNT(*) FILTER (WHERE a.payment_status = 'paid' AND a.payment_reference IS NOT NULL)::int AS zahlend
+      COUNT(*) FILTER (WHERE a.payment_status = 'paid' AND NOT COALESCE(a.alt_bestand, FALSE))::int AS zahlend
     FROM fiaon_leads l
     LEFT JOIN fiaon_applications a ON a.ref = l.converted_order_id AND a.merged_into IS NULL
     WHERE l.erstellt_am BETWEEN ${from} AND ${to}

@@ -3,6 +3,63 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 08.08.2026 — Fundament B: jede Bestellung hat einen Verwendungszweck, jeder Status eine Begründung
+
+Fünf Dinge, die im Alltag Geld und Vertrauen gekostet haben. Ein Kunde ohne E-Mail bekam die Zahlungsdaten am Telefon vorgelesen — **ohne Verwendungszweck**, und in der Buchhaltung lag Geld ohne Namen. Ein ganzer Name stand in einem Feld („Vorname: NADINE MUELLER"), weshalb derselbe Mensch mehrfach angelegt wurde. Eine Agentin hielt einen Kunden für bezahlt, weil an einer Stelle „Antrag abgeschlossen, keine Zahlung" stand — ein Satz, der sich selbst widerspricht. Ein Kunde hatte zwei offene Produktstufen und damit zwei Rechnungen und zwei Mahnketten. Und wenn ein Kunde sagte „ich habe überwiesen", lag sein Screenshot in einer WhatsApp-Gruppe statt im System.
+
+### Teil 1 — Der Verwendungszweck entsteht mit der Bestellung, nicht mit der Rechnung
+
+Er wurde früher erst beim Rechnungsversand erzeugt. Wer vorher anrief, hatte keinen. Jetzt hängt er **bedingungslos** an der Bestellung: ein Datenbank-Trigger setzt ihn beim Anlegen (Migration 037), die Spalte ist `UNIQUE` **und** `NOT NULL` (Migration 039). Nachgetragen wurden **5.757 Bestellungen**; heute gilt für alle **6.597 Bestellungen: 6.597 Verwendungszwecke, alle verschieden**. Die Vergabe steht an einer Stelle (`server/lib/fiaon-verwendungszweck.ts`).
+
+**Die Umsatzdefinition ist bewusst unverändert geblieben.** Sie hing an „hat eine Zahlungsreferenz" — was gestern „Rechnung gestellt" bedeutete und ab heute „existiert" bedeuten würde. Ohne diese Trennung hätte der Funnel plötzlich jeden abgebrochenen Formularaufruf als Antrag gezählt (`server/lib/fiaon-truth.ts`, `server/routes/fiaon-finance.ts`).
+
+**Auf der Kundenkarte** steht der Verwendungszweck jetzt immer sichtbar, mit einem Knopf, der Empfänger, IBAN, Betrag und Zweck als fertigen Text in die Zwischenablage legt — Bankverbindung und Text kommen vom Server, damit Vorlesen und Mail nicht auseinanderlaufen können.
+
+### Teil 2 — Der Eingang trennt Namen und erkennt Doppelte, bevor sie entstehen
+
+`server/lib/fiaon-name.ts` trennt „NADINE MUELLER" in Vor- und Nachnamen und lässt Namensteile wie „von der", „di", „Mc" zusammen. Der Lead-Eingang benutzt das, hängt einen neuen Eintrag **nur bei eindeutigem Treffer** an eine bestehende Person und antwortet mit `personId` und `neuAngelegt` — vorher konnte der Absender nicht erkennen, ob er einen neuen Menschen erzeugt hat. **Bei Mehrdeutigkeit wird nichts zusammengeführt**, sondern ein Kandidat für den Dubletten-Arbeitsplatz hinterlassen; automatisches Zusammenführen im Personenmodell ist entfernt.
+
+Nachtrag über den Bestand (`scripts/namen-splitten.ts`, Vorschau zuerst): **2.311 Personen** und **3.162 Leads** getrennt. Jeder ursprüngliche Wert steht als Alias in `fiaon_person_aliases` (9.751 Einträge) und ist über die Suche auffindbar — der alte Schreibweise-Treffer geht nicht verloren.
+
+### Teil 3 — Ein Status, eine Quelle, und daneben steht, woraus er folgt
+
+Das Vokabular liegt in `shared/fiaon-kundenstatus.ts`, damit Server und Oberfläche **dieselben** Wörter benutzen. „Kunde meldet Zahlung" trägt den Pflicht-Zusatz **„noch nicht bankbestätigt"** — ohne ihn liest jemand „Zahlung" und hört auf zu prüfen. „Frist abgelaufen" bleibt ein Etikett und ändert den Status nicht. Der widersprüchliche Titel „Antrag abgeschlossen, keine Zahlung" ist fort. Angeschlossen sind Agentenliste, Vertrieb, Kundenakte, Kundenliste, „Meine Kunden" und das Detailfenster.
+
+**Neu in der Akte: der Block „Warum dieser Status?"** — welche Bestellung maßgeblich ist, welches Ereignis zuletzt gewirkt hat, mit Datum, dazu der rohe Zahlungsstand und die Frist. Ein Status ohne Begründung ist eine Behauptung; wer ihn anzweifelte, konnte nirgends nachsehen.
+
+### Teil 4 — Ein Konto, eine Stufe
+
+`server/lib/fiaon-produktstand.ts` fasst zusammen, was ein Kunde **hat**: eine Stufe plus Zusatzprodukte, in einer Zeile („Pro (59,99 €/M)"). Ersetztes, storniertes und archiviertes steht darunter, eingeklappt — nicht weg, nur nicht die Antwort auf die Frage. Zwei offene Stufen werden als Fehler ausgewiesen. Der Aufräum-Lauf `scripts/produkt-hygiene.ts` (Vorschau, dann `--schreiben`) hat den offenen Fall bereinigt; **heute hat kein Kunde mehr zwei offene Stufen**. Supersede läuft dabei über `person_id`, nicht über Kontaktdaten.
+
+### Teil 5 — Der Überweisungsbeleg gehört ins System
+
+Sagt ein Kunde „ich habe überwiesen", kann der Agent den Screenshot direkt an der Bestellung hinterlegen (Migration 040, `server/lib/fiaon-zahlungsbeleg.ts`). Er erscheint **neben dem Bankeingang in der Verbuchung** und im Vertriebsbereich — dort, wo entschieden wird. Er ist ausdrücklich **optional**: Er beschleunigt die Prüfung und blockiert nichts. Ein Beleg ist kein Zahlungsnachweis; gebucht wird weiter nur, was auf dem Konto liegt.
+
+### Eine Roboter-Unterschrift ist entwertet — und der Server wehrt sich jetzt selbst
+
+Am 06.08.2026 hat ein Playwright-Testlauf die Verpflichtungserklärung der Vertriebsleitung **echt angenommen**, von 127.0.0.1 mit HeadlessChrome. Diese Annahme ist widerrufen (`scripts/zusage-roboter-widerrufen.ts`, `widerrufen_am`, kein Hard-Delete) und zählt nirgends mehr. Dazu die Wand im Code: `istRoboterUnterschrift` (`server/lib/fiaon-vertrieb-zusage.ts`) lehnt Annahmen von localhost oder mit automatisierter Browserkennung ab. Und die Regel steht in `AGENTS.md` — aber eine Regel, die man vergessen kann, hat man schon vergessen; deshalb steht sie zusätzlich im Server.
+
+### Prüfstand
+
+`scripts/pruef-fundament-b.ts` — **93 Prüfungen, alle grün**, in **einer Transaktion, die zurückgerollt wird**. Am Ende zählt der Lauf gegen: keine Testzeile zurückgeblieben, Bestand nicht geschrumpft (6.597 Bestellungen, 4.803 Personen vor und nach dem Lauf).
+
+### Drei Fehler, die dieser Durchgang selbst produziert hat — und was daraus folgt
+
+*Der Serverstart hing still.* In einem SQL-Kommentar in `server/routes/fiaon-finance.ts` stand ein Wort in Backticks; das beendete das umgebende Template-Literal. `npx vite build` blieb grün — **es baut nur den Client** —, und der fehlgeschlagene Import einer Routendatei bricht den Start nicht ab, er hält ihn an: kein Fehler, keine Zeile, nur ein Prozess, der nie „serving on port" meldet. Die Lehre steht jetzt als Abnahmeschritt in `AGENTS.md`.
+
+*Die Akte widersprach sich selbst.* Oben stand „Diese Person hat genau eine Bestellung", rechts daneben standen vier. Grund: Die Akte fasst einen Menschen über gleiche E-Mail oder Rufnummer zusammen, der neue Statusblock zählte aber nach `person_id`. Beides ist vertretbar — nebeneinander ist es unbrauchbar. Status **und** Produktstand laufen jetzt über genau die Bestellungen, die die Akte anzeigt (`statusFuerBestellungen`, `produktstandFuerBestellungen`); der Fall ist im Prüfstand festgehalten. Nebenbefund: Bei dem geprüften Kunden waren es **fünf lebende Bestellungen über fünf Personensätze desselben Menschen** — sichtbar erst durch diese Korrektur.
+
+*Auf dem Telefon war die Akte abgeschnitten.* Auf 380 px wurden die Karten 477 px breit und der rechte Rand — Fristen, Datum, Beträge — schlicht weggeschnitten (174 zu breite Elemente gemessen). Drei Ursachen, alle behoben: Rasterzellen ohne `min-w-0` dürfen nicht unter die Mindestbreite ihres Inhalts schrumpfen; die Statusmarke stand auf `whitespace-nowrap`; und die Zeile aus Marke, Rechnungs-Link und „Archivieren" durfte nicht umbrechen (zusammen 409 px). Die Marke **umbricht** jetzt, statt zu kürzen — der Zusatz „noch nicht bankbestätigt" darf nicht wegfallen.
+
+*Der Dubletten-Arbeitsplatz hätte Fremde zusammengeführt.* Durch den Namens-Nachtrag wurden viel mehr Doppelte sichtbar (1.102 Kandidatenpaare, davon 600 über die Rufnummer — 357 Nummern, an denen 990 Personensätze hängen). Beim Durchsehen fielen zwei Fallen auf, beide geschlossen:
+
+- **Attrappen-Nummern.** An „…701234567" hingen **32 Datensätze**, überwiegend „Dev User" — und dazwischen ein echter „Thomas Müller". Als sichere Rufnummer-Gleichheit angeboten, hätte der erste Klick einen Kunden in einen Testeintrag geführt. Solche Nummern werden jetzt am Muster erkannt (sechs fortlaufende oder sechs gleiche Ziffern) und liefern keine Rufnummer-Kandidaten mehr; die Personen bleiben über die Namensstufen prüfbar. Paare mit „Dev User": vorher vorhanden, jetzt **null**.
+- **Ein Anschluss, zwei Menschen.** Unter „…723891768" liegen 19-mal „Michael Laschinger" und einmal **„Klaus"** Laschinger. Ebenso „Franz Molk / Gerda Molk" und „Nicole / Athanasios Xanthos" — Eheleute und Familien, keine Dubletten. Diese **10 Paare** verschwinden nicht (dann könnte sie niemand beurteilen), werden aber ausdrücklich zur **Vermutung** herabgestuft, mit Begründung in der Zeile: „Vornamen weichen ab (Franz / Gerda), Familien- oder Firmenanschluss möglich".
+
+Dazu ein neuer Prüfstand: `scripts/pruef-schmal.ts` öffnet Kundenliste, Dubletten, Verbuchung und **vier echte Akten** auf 380 px und misst, dass kein Element breiter ist als das Fenster und kein Text hart abgeschnitten wird (absichtlich rollbare Tabellen sind erlaubt). **25 Prüfungen, grün — und rot, sobald man den Fehler wieder einbaut.** Das musste erst erarbeitet werden: Die erste Fassung des Prüfstands blieb mit wieder eingebautem Fehler grün, weil sie nur Blätter im Dokument betrachtete (die zu breite Stelle war eine Zeile aus drei Knöpfen) und weil sie sich ihre Akte zufällig aussuchte. Ein Prüfstand, der nicht rot werden kann, ist eine Beruhigung, keine Prüfung.
+
+**Zu finden:** `shared/fiaon-kundenstatus.ts`, `server/lib/fiaon-kundenstatus.ts`, `server/lib/fiaon-produktstand.ts`, `server/lib/fiaon-verwendungszweck.ts`, `server/lib/fiaon-name.ts`, `server/lib/fiaon-zahlungsbeleg.ts`, `server/lib/fiaon-vertrieb-zusage.ts`, `db/migrations/036_zusage_widerruf.sql`, `037_verwendungszweck_bedingungslos.sql`, `038_altbestand_merkmal.sql`, `039_verwendungszweck_pflicht.sql`, `040_zahlungsbeleg.sql`. Läufe: `scripts/verwendungszweck-backfill.ts`, `scripts/namen-splitten.ts`, `scripts/produkt-hygiene.ts`, `scripts/zusage-roboter-widerrufen.ts`. Prüfstände: `scripts/pruef-fundament-b.ts` (93 Prüfungen, Datenbank) und `scripts/pruef-schmal.ts` (25 Prüfungen, 380-px-Ansicht).
+
 ## 08.08.2026 — Datenfundament: kein Konto schaltet sich mehr selbst ab, und Dubletten sind endlich entscheidbar
 
 Zwei Dinge haben die Kartei unglaubwürdig gemacht. Erstens standen Menschen doppelt im Bestand — „Axel Conrad" als Person 3775 **und** 4492, „Mario Fricker" neunmal, und ein Antrag lief unter „Magdalena", gehörte aber zu Konstantinos Nikoloudis. Der Dubletten-Erkenner fand diese Fälle seit Wochen; es gab nur kein Werkzeug, mit dem ein Mensch einen Zusammenschluss **entscheiden und ausführen** kann. Zweitens haben sich Konten von selbst abgeschaltet: Ein Kunde, der bezahlt hatte, war gesperrt, und niemand konnte sagen, wer das entschieden hatte.

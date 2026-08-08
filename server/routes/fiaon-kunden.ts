@@ -19,6 +19,8 @@ import { sqlPool } from "../lib/db-pool";
 import { isAddonOrderRow } from "../fiaon-login-logic";
 import { nummerAusZeile } from "../lib/fiaon-telefon";
 import { fristAbgelaufenSql, nichtArchiviertSql } from "../lib/fiaon-bestand-filter";
+import { statusFuerPerson, statusFuerBestellungen } from "../lib/fiaon-kundenstatus";
+import { produktstand, produktstandFuerBestellungen } from "../lib/fiaon-produktstand";
 
 const router = Router();
 
@@ -73,7 +75,8 @@ function lifecycleOf(app: any | null, lead: any | null): string {
       case "expired": return "abgelaufen";
       case "cancelled": return "storniert";
       case "superseded": return "ersetzt";
-      default: return app.payment_reference ? "offen" : "antrag";
+      // Vorher „hat Referenz → offen": Die Referenz gibt es jetzt immer.
+      default: return app.payment_status === "pending" ? "antrag" : "offen";
     }
   }
   return lead ? "lead" : "unbekannt";
@@ -123,7 +126,12 @@ router.get("/admin/kunden", async (req: Request, res: Response) => {
       nurArchiv ? `a.archived_at IS NOT NULL` : nichtArchiviertSql("a"),
     ];
     if (!anonyme) {
-      appWhere.push(`(COALESCE(a.email,'') <> '' OR COALESCE(a.contact_email,'') <> '' OR COALESCE(a.phone,'') <> '' OR COALESCE(a.contact_phone,'') <> '' OR a.payment_reference IS NOT NULL)`);
+      // Bis zum 08.08.2026 stand hier auch `OR a.payment_reference IS NOT NULL` als
+      // Beweis „das ist eine echte Bestellung". Seit jede Bestellung bedingungslos
+      // einen Verwendungszweck bekommt, wäre diese Bedingung immer wahr — und die
+      // Kundenliste hätte 3 522 Funnel-Abbrecher ohne jeden Kontaktweg gezeigt.
+      // Der Beweis ist jetzt: eine angeforderte Rechnung (Zahlungsstand).
+      appWhere.push(`(COALESCE(a.email,'') <> '' OR COALESCE(a.contact_email,'') <> '' OR COALESCE(a.phone,'') <> '' OR COALESCE(a.contact_phone,'') <> '' OR a.payment_status <> 'pending')`);
     }
     if (q) {
       const like = p(`%${q}%`);
@@ -169,7 +177,11 @@ router.get("/admin/kunden", async (req: Request, res: Response) => {
       abgelaufen: fristAbgelaufenSql("a"),
       storniert: `a.payment_status = 'cancelled'`,
       direktzahler: `a.payment_status = 'paid' AND a.commission_basis = 'direktzahler'`,
-      antrag: `a.payment_reference IS NULL AND a.payment_status IS DISTINCT FROM 'paid'`,
+      // „Antrag" = angefangen, aber noch keine Rechnung angefordert. Das war
+      // vorher „ohne Verwendungszweck"; seit 08.08.2026 hat den jede Bestellung,
+      // also entscheidet der Zahlungsstand: 'pending' setzt die Anlage,
+      // 'pending_payment' setzt erst /payment-order.
+      antrag: `a.payment_status = 'pending'`,
     };
     if (status && status !== "lead" && statusMap[status]) appWhere.push(statusMap[status]);
 
@@ -528,11 +540,64 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
     // Agents fürs Zuweisungs-Dropdown
     const agents = await sqlPool`SELECT id, name, active FROM fiaon_agents WHERE active = TRUE ORDER BY name ASC`;
 
+    // ── „Warum dieser Status?" (08.08.2026) ────────────────────────────────
+    // Ein Status ohne Begründung ist eine Behauptung. „Antrag abgeschlossen,
+    // keine Zahlung" hat eine Agentin einen Kunden für bezahlt halten lassen —
+    // sie konnte nirgends nachsehen, woraus der Status folgte. Ab jetzt steht
+    // daneben: welche Bestellung, welches Ereignis, welches Datum.
+    //
+    // WICHTIG: gezählt wird über `familyRefs` — also über genau die Bestellungen,
+    // die diese Akte auch anzeigt. Nach `person_id` zu zählen ergab am 08.08.2026
+    // den Widerspruch „genau eine Bestellung" neben einer Liste mit vier.
+    const statusHerkunft = familyRefs.length > 0
+      ? await statusFuerBestellungen(familyRefs).catch(() => null)
+      : primaryApp?.person_id
+        ? await statusFuerPerson(Number(primaryApp.person_id)).catch(() => null)
+        : null;
+
+    // Produktstand als EINE Zeile („Ultra (79,99 €/M) + Bonitätsauskunft").
+    // Vorher standen fünf Bestellungen gleichwertig untereinander und niemand
+    // konnte am Telefon sagen, was der Kunde eigentlich hat.
+    const produkt = familyRefs.length > 0
+      ? await produktstandFuerBestellungen(familyRefs).catch(() => null)
+      : primaryApp?.person_id
+        ? await produktstand(Number(primaryApp.person_id)).catch(() => null)
+        : null;
+
     // Kopf-Daten
     const head = {
       id: primaryApp ? primaryApp.ref : `lead-${primaryLead.id}`,
       name: primaryApp ? appName(primaryApp) : ([primaryLead.vorname, primaryLead.nachname].filter(Boolean).join(" ") || primaryLead.email || primaryLead.telefon || `Lead #${primaryLead.id}`),
       lifecycle: lifecycleOf(primaryApp, primaryLead || (leads.length ? leads[0] : null)),
+      /** Produktstand in einer Zeile — Details darunter, einklappbar. */
+      produkt: produkt
+        ? {
+            text: produkt.text, stufe: produkt.stufe, zusatz: produkt.zusatz,
+            stillgelegt: produkt.stillgelegt, mehrfachStufe: produkt.mehrfachStufe,
+          }
+        : null,
+      /** Der EINE Statustext plus Herkunft. Quelle: shared/fiaon-kundenstatus.ts. */
+      status: statusHerkunft
+        ? {
+            text: statusHerkunft.status.text,
+            zusatz: statusHerkunft.status.zusatz,
+            etikett: statusHerkunft.status.etikett,
+            anzeige: statusHerkunft.status.anzeige,
+            hinweis: statusHerkunft.status.hinweis,
+            warum: {
+              ref: statusHerkunft.ref,
+              verwendungszweck: statusHerkunft.verwendungszweck,
+              paket: statusHerkunft.paket,
+              betragCent: statusHerkunft.betragCent,
+              zahlungsstatus: statusHerkunft.zahlungsstatus,
+              ereignis: statusHerkunft.ereignis,
+              ereignisAm: statusHerkunft.ereignisAm,
+              frist: statusHerkunft.frist,
+              bestellungen: statusHerkunft.bestellungen,
+              begruendung: statusHerkunft.begruendung,
+            },
+          }
+        : null,
       email: primaryApp ? appEmail(primaryApp) : primaryLead?.email || null,
       // Nummer in wählbarer Form: Vorwahl und Nummer werden zusammengesetzt,
       // statt sie nur aneinanderzuhängen (das ergab bei fehlender Vorwahl eine

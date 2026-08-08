@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Skelett, eur, useToast } from "@/lib/fiaon-ui";
+import { zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SERVICESICHT DER VERTRIEBSLEITUNG — Zahlungen, Dokumente, Zugang
@@ -39,7 +40,7 @@ const heuteIso = () => {
 };
 
 const ZAHLUNG_FILTER = [
-  { key: "gemeldet", label: "Kunde sagt bezahlt" },
+  { key: "gemeldet", label: zahlungsstatusText("claimed_paid") },
   { key: "bankeingang", label: "Geld belegt" },
   { key: "frist_abgelaufen", label: "Frist abgelaufen" },
   { key: "zusage_heute", label: "Zusage heute" },
@@ -127,14 +128,26 @@ export function VertriebZahlungen({ onGebucht }: { onGebucht: () => void }) {
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     <span className="text-[12px] font-semibold"
                           style={{ color: z.status === "claimed_paid" ? "var(--fi-tier1)" : "var(--fi-tier2)" }}>
-                      {z.status === "claimed_paid" ? "Kunde sagt bezahlt"
-                        : z.status === "expired" ? "Frist abgelaufen" : "Rechnung offen"}
+                      {/* Ein Text je Zustand — aus shared/fiaon-kundenstatus.ts.
+                          „Kunde sagt bezahlt" hieß hier anders als in jeder
+                          anderen Ansicht; jetzt steht überall dasselbe. */}
+                      {zahlungsstatusText(z.status)}
                     </span>
                     {z.bankTreffer > 0 && (
                       <span className="ml-1.5 text-[10.5px] font-bold px-1.5 py-0.5 rounded-md"
                             style={{ background: "rgba(5,150,105,.10)", color: "var(--fi-erfolg)" }}>
                         Geld belegt
                       </span>
+                    )}
+                    {/* Hinterlegter Überweisungsbeleg — ein Klick, statt in der
+                        WhatsApp-Gruppe zu suchen. */}
+                    {z.beleg?.vorhanden && (
+                      <a href={z.beleg.url} target="_blank" rel="noopener noreferrer"
+                         className="ml-1.5 text-[10.5px] font-bold px-1.5 py-0.5 rounded-md underline decoration-dotted"
+                         style={{ background: "rgba(29,78,216,.08)", color: "var(--fi-primaer)" }}
+                         title={`Beleg vom ${z.beleg.datum || "—"}, hinterlegt von ${z.beleg.von || "—"}`}>
+                        Beleg {z.beleg.datum || ""}
+                      </a>
                     )}
                   </td>
                   <td className="px-3 py-2.5 text-[12px] whitespace-nowrap"
@@ -526,7 +539,9 @@ export function LageTafel({ personId }: { personId: number }) {
             <span className="font-semibold">{z.paket || z.ref}</span>
             <span style={{ color: "var(--fi-text-still)" }}>
               {" · "}{z.betragCent != null ? eur(z.betragCent) : "—"}
-              {" · "}{z.status === "paid" ? `bezahlt am ${dtag(z.bezahltAm)}` : z.status === "claimed_paid" ? "Kunde sagt bezahlt" : `offen (Frist ${dtag(z.frist)})`}
+              {" · "}{zahlungsstatusText(z.status)}
+              {z.status === "paid" && z.bezahltAm ? ` am ${dtag(z.bezahltAm)}` : ""}
+              {z.status !== "paid" && z.frist ? ` (Frist ${dtag(z.frist)})` : ""}
             </span>
             <span className="block text-[11.5px] font-mono" style={{ color: "var(--fi-text-still)" }}>
               {z.zahlungsreferenz || "kein Verwendungszweck"}
@@ -588,7 +603,7 @@ export function ServiceZahlen({ zahlen, aktiv, aufReiter }: {
   zahlen: any; aktiv: string; aufReiter: (r: string) => void;
 }) {
   const felder = [
-    { t: "Kunde sagt bezahlt", w: zahlen?.gemeldet, r: "zahlungen", c: "var(--fi-tier1)" },
+    { t: zahlungsstatusText("claimed_paid"), w: zahlen?.gemeldet, r: "zahlungen", c: "var(--fi-tier1)" },
     { t: "Frist abgelaufen", w: zahlen?.fristAbgelaufen, r: "zahlungen", c: "var(--fi-tier2)" },
     { t: "Unterlagen fehlen", w: zahlen?.dokumenteFehlen, r: "dokumente", c: "var(--fi-tier2)" },
     { t: "Konto nicht offen", w: zahlen?.zugangOffen, r: "zugang", c: "var(--fi-primaer)" },

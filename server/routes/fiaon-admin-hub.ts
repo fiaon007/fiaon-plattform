@@ -82,6 +82,11 @@ async function computeBadges(): Promise<any> {
       )::int AS nachbuchung
     FROM fiaon_applications
   `;
+  // Doppelte BESTELLUNGEN — aber nur, wenn sie zu VERSCHIEDENEN Menschen
+  // gehören. Seit der Massen-Zusammenführung (08.08.2026) hat ein Kunde seine
+  // Bestellungen an einer Person; fünf Zeilen sind dann seine Historie und keine
+  // Dublette. Ohne `COUNT(DISTINCT person_id) > 1` stand hier „44", während der
+  // Dubletten-Arbeitsplatz daneben „keine offenen Kandidaten" meldete.
   const [dup] = await sqlPool`
     SELECT COUNT(*)::int AS c FROM (
       SELECT LOWER(TRIM(email)) FROM fiaon_applications
@@ -89,6 +94,7 @@ async function computeBadges(): Promise<any> {
       GROUP BY LOWER(TRIM(email))
       HAVING COUNT(*) > 1
          AND COUNT(*) FILTER (WHERE payment_status IN ('pending_payment', 'claimed_paid')) > 0
+         AND COUNT(DISTINCT person_id) > 1
     ) x
   `;
   // Offene PERSONEN-Kandidaten (Teil 2) — die eigentliche Arbeit am

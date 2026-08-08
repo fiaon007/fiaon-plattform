@@ -87,6 +87,21 @@ Deshalb gilt nach jeder Änderung an `server/`:
 3. Keine Backticks in Kommentaren innerhalb von Template-Literalen. Für
    zitierte Bedingungen die deutschen Anführungszeichen „…" nehmen.
 
+## Eine Invariante darf nicht den Betrieb mitmessen
+
+Ein Massenlauf gegen die Produktion braucht Abbruchbedingungen — aber sie dürfen
+nur zählen, was der Lauf selbst anfasst. Am 08.08.2026 stoppte die
+Zusammenführung nach der ersten Welle, weil die Zahl der Bestellungen ohne
+Person von 3.550 auf 3.551 gestiegen war. Ursache: fünf echte Besucher hatten
+ein Formular begonnen. Ein Entwurf hat noch keine Person — das ist der Trichter,
+nicht der Lauf.
+
+- **Je Einheit exakt** (hier: je Gruppe, in derselben Transaktion) — dort ist die
+  Zahl aussagekräftig und immun gegen Nebenläufigkeit.
+- **Global nur „darf nicht schrumpfen"** — Wachstum ist der Betrieb.
+- Wer zweimal grundlos gestoppt wurde, schaltet die Bremse ab. Eine Bremse, die
+  falsch auslöst, ist gefährlicher als keine.
+
 ## Ein Prüfstand muss rot werden können
 
 Nach jedem neuen Prüfstand: **den Fehler absichtlich wieder einbauen und

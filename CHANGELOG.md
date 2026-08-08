@@ -3,6 +3,64 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 08.08.2026 — Massen-Zusammenführung: 652 doppelte Personensätze aufgelöst, Kandidatenliste leer
+
+Die Kartei kannte Menschen mehrfach. „Klaus Michael Laschinger" lag **zwanzigmal** — dieselbe Rufnummer, dasselbe Geburtsdatum, dieselbe Adresse, zwanzig Karten mit Tippfehlern („Mochael", „Lsschinger"). „Mario Fricker" neunmal, „Reinhold Petzsche" dreizehnmal. Über Paare war das nicht zu räumen: 1.102 Vorschläge, von denen sich neun Zehntel von selbst erledigen, sobald der erste entschieden ist. Niemand klickt das durch.
+
+**Ergebnis: 4.752 → 4.106 lebende Personen. 652 Sätze sind zu ihrem Menschen gewandert, 320 Paare sind als „keine Dublette" abgehakt, die Kandidatenliste steht auf null.** Nichts wurde gelöscht: Jeder aufgelöste Satz bleibt als Wegweiser (`merged_into_person_id`) bestehen.
+
+### Gruppen statt Paare
+
+Jede belegte Übereinstimmung ist eine Kante, jede Zusammenhangskomponente ein Mensch. Die zwanzig Laschinger-Sätze sind damit EINE Gruppe mit EINEM Ziel statt 190 Paar-Entscheidungen. Der Gewinner steht fest, bevor der erste Satz bewegt wird: **bezahlte Bestellung** (bei mehreren die jüngste Zahlung), sonst **jüngster dokumentierter Kontakt**, sonst **älteste Personen-ID**. Danach wandert jeder andere Satz einzeln über die bestehende Merge-Maschine hinein — mit Zählprobe, Alias-Sicherung und Rücknahme bei jedem Zweifel.
+
+### Was automatisch zusammengeführt wurde — und was nie
+
+Jedes Kriterium verlangt **zwei** übereinstimmende Merkmale. Ein einzelnes beweist nichts, und der Bestand hat die Gegenbeispiele selbst geliefert.
+
+| | Kriterium | Fälle |
+| --- | --- | --- |
+| A | gleiche E-Mail **und** gleiche Rufnummer | 0 |
+| B | gleiche Rufnummer **und** gleicher Nachname **und** Vornamen vereinbar | 586 |
+| C | gleiche Rufnummer **und** gleiches Geburtsdatum | 17 |
+| D | gleiche E-Mail **und** Namen vereinbar | 25 |
+| E | gleicher Nachname **und** gleiches Geburtsdatum **und** Vornamen vereinbar | 24 |
+
+„Vornamen vereinbar" heißt: gleich, Kurzform („Alex" in „Alexander"), oder ein Tippfehler-Abstand von höchstens zwei Zeichen — bei kurzen Namen nur einem, denn zwei Änderungen an vier Buchstaben sind kein Vertipper mehr, sondern ein anderer Name („Lisa"/„Lena").
+
+**Nie automatisch:** Testdatensätze, Attrappen-Nummern, DSGVO-gelöschte Bestellungen, gesperrte Konten — und vor allem **Haushalte**. „Franz Molk" und „Gerda Molk" teilen einen Anschluss und sind zwei Menschen; „Nicole" und „Athanasios Sotirios Xanthos" ebenso; „semra" und „erhan kartal" ebenso. Diese Paare verschwinden nicht stillschweigend, sie werden mit Begründung als **„keine Dublette"** hinterlegt (`fiaon_dubletten_entschieden`, rücknehmbar) — deshalb ist die Liste danach leer, ohne dass etwas übersehen wurde.
+
+**Die 14 blockierten Betreuer-Konflikte sind entschieden**: Zuständig wird, wer zuletzt dokumentiert mit dem Menschen gesprochen hat. Jede dieser Entscheidungen steht einzeln im Protokoll (`person_betreuer_entschieden`) und im Report. **Gebuchte Provisionen sind unangetastet** — sie hängen an der Bestellung, nicht an der Zuständigkeit; nachgewiesen im Prüfstand und nachgezählt: 334 vor und nach dem Lauf.
+
+### Nach jedem Gruppen-Merge
+
+Produkt-Hygiene je Gewinner (höchstens eine offene Stufe; die Bonitätsauskunft für 74 € ist ein **Zusatzprodukt** und bleibt immer daneben bestehen), genau ein Agent, `betreuung_seit` auf den ältesten dokumentierten Kontakt der Gruppe. Die Wiedervorlage: Es überlebt der **nächstliegende** Termin. „Die zuletzt geplante" wäre die andere mögliche Lesart, aber die Daten geben sie nicht her — wann eine Wiedervorlage gesetzt wurde, steht nirgends. Der nähere Termin verliert keinen zugesagten Anruf.
+
+### Wellen und Notbremse
+
+Jede Gruppe läuft in **einer** Transaktion samt Hygiene und Zuständigkeit; bricht etwas, ist diese Gruppe unberührt. Nach jeder Welle von 50 Gruppen werden Invarianten geprüft: Bestellungen, Verwendungszwecke, Provisionen und Leads exakt gleich, Verlaufseinträge nie weniger (sie wachsen — jeder Merge schreibt seine Klartext-Notiz in die Akte). Gemessen über den ganzen Lauf: **6.607 → 6.608 Bestellungen** (eine neue von einem echten Kunden), **Verwendungszwecke unverändert**, **Provisionen unverändert**, **347 bezahlte Bestellungen unverändert**.
+
+### Vier Fehler, die dieser Lauf sichtbar gemacht hat
+
+*Die Merge-Maschine scheiterte an ihrem eigenen Index.* Auf `fiaon_person_aliases.value_norm` liegt ein hausweit eindeutiger Index für E-Mails. Der Merge sicherte die abweichende Adresse des Verlierers beim Gewinner, **bevor** er dessen Alias umhängte — und kollidierte mit dem Verlierer, der sie noch hielt. Jede Gruppe mit zwei Adressen fiel aus, darunter die größten. Behoben: Aliase wandern zuerst; eine Adresse, die schon jemandem gehört, wird nicht doppelt angelegt. Eigener Test in `scripts/pruef-merge.ts`.
+
+*Die Notbremse hielt den Betrieb für einen Datenverlust.* Nach der ersten Welle stoppte der Lauf: „Bestellungen ohne Person: 3.550 → 3.551". Nachgesehen: fünf echte Besucher hatten in zwei Stunden ein Formular begonnen, kein einziger Fall kam aus einem Merge. Eine Invariante, die den laufenden Betrieb mitmisst, schlägt irgendwann grundlos Alarm — und wer zweimal grundlos gestoppt wurde, schaltet sie ab. Verwaiste Bestellungen werden jetzt **je Gruppe** geprüft, genau dort, wo der Lauf etwas anfasst.
+
+*29 Bestellungen trugen eine Adresse, die ihr eigener Personensatz nicht kannte.* Dadurch blieben 24 offensichtliche Dubletten unsichtbar — „Peter Dziuba" zweimal, „Nina Feiler" zweimal, „Marco Franz" zweimal. Die Kundenakte fasst einen Menschen ohnehin über die Kontaktdaten seiner **Bestellungen** zusammen; die Zusammenführung tat es nicht. Zwei Begriffe für „dieselbe Person" sind schlimmer als ein fehlender. Jetzt zählen auch die Kontaktdaten der Bestellungen — die 24 sind zusammengeführt.
+
+*Der Zähler im Menü meldete „44 Dubletten", während der Arbeitsplatz daneben leer war.* Er zählte doppelte **Bestellungen** — also Kunden mit mehreren Bestellungen, die seit heute an einer Person hängen. Fünf Zeilen eines Kunden sind seine Historie, keine Dublette. Zähler und Liste zeigen jetzt nur noch, was wirklich zwei Menschen betrifft: **456 → 18 Gruppen**, davon 10 bewusst getrennte Haushalte und 8 offene Leads neben einer aktiven Bestellung.
+
+Dazu ein fünfter, kleinerer: Die Akte forderte bei einem Kunden „zwei offene Stufen — bitte bereinigen", während der Aufräum-Lauf „nichts zu tun" meldete. Beide hatten recht: Ein **angefangener** Antrag (`pending`, nie eine Rechnung angefordert) ist ein Trichter-Entwurf und keine offene Stufe. Beide benutzen jetzt dieselbe Liste (`OFFENE_STUFE`).
+
+### Roboter-Unterschrift entfernt
+
+Die vom Playwright-Testlauf erzeugte Annahme der Verpflichtungserklärung (Fassung 2.0, Agent 8, 127.0.0.1, HeadlessChrome) war bisher entwertet, aber vorhanden. Sie ist jetzt **aus der Nachweistabelle entfernt** — die eine begründete Ausnahme von „keine Hard-Deletes": Die Regel schützt Daten von Menschen, und diese Zeile war keine. Damit trotzdem nichts unerklärt verschwindet, steht die **vollständige Abschrift** mit IP, Kennung, Zeitpunkt und Text-Prüfsumme als Ereignis `vertrieb_zusage_geloescht` im Protokoll. Die beiden echten Unterschriften (Daniel Stripling, Fassung 1.0, von seiner eigenen Leitung; Florentine Lombardi, Fassung 2.0) sind unberührt. Daniel Stripling wird beim nächsten Öffnen nach Fassung 2.0 gefragt — was der Wahrheit entspricht: Er hat sie nie unterschrieben.
+
+### Prüfstand
+
+`scripts/pruef-massen-merge.ts` — **84 Prüfungen, alle grün**, in einer Transaktion, die zurückgerollt wird. Geprüft werden unter anderem: die Kette (A~B über Telefon, B~C über E-Mail ergibt EINE Gruppe), der Haushalt (Franz/Gerda werden nicht zusammengeführt und sind danach abgehakt), Abo + Bonitätsauskunft nebeneinander, drei offene Stufen aus drei Sätzen werden eine, der Betreuer-Konflikt mit eingefrorener Provision, jede Regel der Gewinnerwahl, alle Invarianten einzeln — und dass eine gescheiterte Gruppe die vorherige unversehrt lässt.
+
+**Zu finden:** `server/lib/fiaon-massen-merge.ts` (Kriterien, Gruppen, Invarianten), `server/lib/fiaon-produkt-hygiene.ts` (die Hygiene-Regel, jetzt für Lauf und Merge dieselbe), `scripts/massen-merge.ts` (Vorschau, Wellen, Notbremse), `scripts/pruef-massen-merge.ts`. Reports: `reports/massen-merge-vorschau.csv`, `reports/massen-merge-ergebnis.csv`.
+
 ## 08.08.2026 — Fundament B: jede Bestellung hat einen Verwendungszweck, jeder Status eine Begründung
 
 Fünf Dinge, die im Alltag Geld und Vertrauen gekostet haben. Ein Kunde ohne E-Mail bekam die Zahlungsdaten am Telefon vorgelesen — **ohne Verwendungszweck**, und in der Buchhaltung lag Geld ohne Namen. Ein ganzer Name stand in einem Feld („Vorname: NADINE MUELLER"), weshalb derselbe Mensch mehrfach angelegt wurde. Eine Agentin hielt einen Kunden für bezahlt, weil an einer Stelle „Antrag abgeschlossen, keine Zahlung" stand — ein Satz, der sich selbst widerspricht. Ein Kunde hatte zwei offene Produktstufen und damit zwei Rechnungen und zwei Mahnketten. Und wenn ein Kunde sagte „ich habe überwiesen", lag sein Screenshot in einer WhatsApp-Gruppe statt im System.

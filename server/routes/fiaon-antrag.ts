@@ -1982,11 +1982,27 @@ router.get("/admin/duplicates/groups", async (_req, res) => {
       SELECT ref, payment_reference, payment_status, superseded_by, amount_due, pack_name,
              first_name, last_name, contact_name, email, phone, phone_country_code, contact_phone,
              street, zip, city, birthdate, assigned_agent_id, status, account_status,
-             invoice_number, created_at, gdpr_deleted_at
+             invoice_number, created_at, gdpr_deleted_at, person_id
       FROM fiaon_applications
       WHERE merged_into IS NULL
       ORDER BY created_at DESC NULLS LAST
     `;
+
+    /**
+     * Gehören diese Antragszeilen zu MEHR ALS EINEM Menschen?
+     *
+     * Seit der Massen-Zusammenführung (08.08.2026) ist die Antwort meistens
+     * nein: Ein Kunde mit fünf Bestellungen ist ein Kunde mit fünf
+     * Bestellungen — seine Historie, keine Dublette. Vorher hieß dieselbe Lage
+     * „44 Dubletten" im Menü, während der Personen-Arbeitsplatz daneben leer
+     * war. Zwei Zahlen für denselben Sachverhalt sind schlimmer als eine
+     * fehlende.
+     *
+     * Was eine Dublette bleibt: dieselbe Adresse oder Nummer bei ZWEI
+     * verschiedenen Personensätzen — dann ist wirklich etwas zu entscheiden.
+     */
+    const mehrereMenschen = (apps: any[]): boolean =>
+      new Set(apps.map((a) => a.person_id).filter((v) => v != null)).size > 1;
 
     // ── E-Mail-Gruppen ──
     const byEmail = new Map<string, any[]>();
@@ -1997,7 +2013,7 @@ router.get("/admin/duplicates/groups", async (_req, res) => {
       byEmail.get(em)!.push(r);
     }
     const emailGroups = Array.from(byEmail.entries())
-      .filter(([, apps]) => apps.length > 1)
+      .filter(([, apps]) => apps.length > 1 && mehrereMenschen(apps))
       .map(([email, apps]) => ({ matchType: "email" as const, key: `email:${email}`, label: email, email, apps }));
     // Refs, die bereits über eine E-Mail-Gruppe erfasst sind (für Redundanz-Prüfung).
     const emailRefSets = emailGroups.map((g) => new Set(g.apps.map((a) => a.ref)));
@@ -2011,7 +2027,7 @@ router.get("/admin/duplicates/groups", async (_req, res) => {
       byPhone.get(p)!.push(r);
     }
     const phoneGroups = Array.from(byPhone.entries())
-      .filter(([, apps]) => apps.length > 1)
+      .filter(([, apps]) => apps.length > 1 && mehrereMenschen(apps))
       .filter(([, apps]) => {
         // Redundant, wenn alle Anträge dieselbe (nicht-leere) E-Mail teilen → E-Mail-Gruppe deckt es ab.
         const emails = new Set(apps.map((a) => String(a.email || "").trim().toLowerCase()));

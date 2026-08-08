@@ -16,6 +16,7 @@
 // „was hat dieser Kunde?".
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
+import { OFFENE_STUFE } from "./fiaon-produkt-hygiene";
 
 type Lauf = typeof sqlPool;
 
@@ -144,6 +145,11 @@ function zeileAus(zeilen: any[]): ProduktZeile {
     // Rechnungen, zwei Verwendungszwecke, zwei Mahnketten. Eine bezahlte Stufe
     // neben einer neu bestellten ist dagegen ein Upgrade und völlig in Ordnung —
     // der erste Entwurf hat genau das als Fehler gemeldet.
-    mehrfachStufe: stufen.filter((r: any) => String(r.payment_status) !== "paid").length > 1,
+    //
+    // Maßgeblich ist dieselbe Liste, nach der die Produkt-Hygiene aufräumt
+    // (`OFFENE_STUFE`). Vorher zählte auch ein `pending`-Entwurf mit: Die Akte
+    // verlangte dann eine Bereinigung, die der Lauf zu Recht verweigerte, weil
+    // an einem nie abgeschickten Antrag nichts stillzulegen ist.
+    mehrfachStufe: stufen.filter((r: any) => OFFENE_STUFE.includes(String(r.payment_status) as any)).length > 1,
   };
 }

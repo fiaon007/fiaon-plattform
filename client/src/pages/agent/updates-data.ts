@@ -40,6 +40,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-08-massen-zusammenfuehrung",
+    date: "2026-08-08",
+    category: "Verbessert",
+    title: "Ein Mensch, eine Karte — die doppelten Kunden sind weg",
+    summary:
+      "Viele Kunden lagen mehrfach in der Kartei: derselbe Mensch als zwei, fünf, in einem Fall zwanzig Karten — mit getrennten Bestellungen und getrennten Gesprächsverläufen. Diese Sätze sind jetzt zusammengeführt. Du siehst pro Mensch eine Karte, mit allem darauf.",
+    changes: [
+      "Zusammengeführt wurde nur, was beweisbar derselbe Mensch ist: gleiche Rufnummer UND gleicher Name, gleiche Rufnummer UND gleiches Geburtsdatum, gleiche E-Mail UND passender Name. Ein einzelnes Merkmal hat nie gereicht.",
+      "Ein gemeinsamer Anschluss allein führt NICHT zusammen. Eheleute und Familien mit einer Nummer bleiben getrennte Kunden — sie sind geprüft und als „keine Dublette“ abgehakt, tauchen also auch nicht mehr als Verdacht auf.",
+      "Alles wandert mit: alle Bestellungen, der GESAMTE Gesprächsverlauf, Zusagen, Wiedervorlagen und Provisionen. Es wurde nichts gelöscht und nichts stillgelegt, was Geld betrifft.",
+      "Frühere Angaben bleiben auffindbar: Hatte ein Kunde zwei Adressen oder zwei Schreibweisen seines Namens, findest du ihn weiterhin unter beiden.",
+      "Hatte ein Mensch zwei offene Rechnungen für dasselbe Paket, bleibt jetzt eine. Eine Bonitätsauskunft (74 €) ist ein Zusatzprodukt und bleibt IMMER daneben bestehen — Abo plus Auskunft ist richtig und keine Dublette.",
+      "War bei einem zusammengeführten Kunden mehr als ein Betreuer dokumentiert, ist ab jetzt der zuständig, der zuletzt mit ihm gesprochen hat. Bereits gebuchte Provisionen bleiben unverändert — sie hängen an der Bestellung, nicht an der Zuständigkeit.",
+    ],
+    howto: [
+      "Wenn ein Kunde plötzlich mehr Bestellungen und einen längeren Verlauf hat als gestern: Das ist die Zusammenführung. Im Verlauf steht eine Zeile, welche Karten zusammengelegt wurden.",
+      "Suchst du jemanden unter einer alten Adresse oder Schreibweise: einfach eintippen, du findest ihn.",
+      "Fällt dir trotzdem noch ein doppelter Kunde auf: der Vertriebsleitung mit beiden Namen melden.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
+    important: true,
+  },
+  {
     id: "2026-08-08-verwendungszweck-und-beleg",
     date: "2026-08-08",
     category: "Neu",

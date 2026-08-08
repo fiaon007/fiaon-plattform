@@ -298,6 +298,38 @@ async function main(): Promise<void> {
       ok("Verlierer ist nicht gelöscht (kein Hard-Delete)", !!wegweiser);
 
       // ═══════════════════════════════════════════════════════════════════
+      gruppe("3b. Zwei Adressen, ein eindeutiger Index");
+      // ═══════════════════════════════════════════════════════════════════
+      // Gefunden beim Massen-Lauf am 08.08.2026: Auf
+      // `fiaon_person_aliases.value_norm` liegt ein HAUSWEIT eindeutiger Index
+      // für E-Mails. Der Merge sicherte die Adresse des Verlierers beim Gewinner,
+      // BEVOR er dessen Alias umhängte — und kollidierte so mit dem Verlierer,
+      // der sie noch hielt. Jede Gruppe mit zwei Adressen fiel aus, darunter die
+      // größten (20 Sätze „Laschinger", 9 Sätze „Fricker").
+      const mailG = `idx-g-${stempel}@merge-pruef.invalid`;
+      const mailV = `idx-v-${stempel}@merge-pruef.invalid`;
+      const idxG = await person({ first_name: "Prüf", last_name: "Index", primary_email: mailG });
+      const idxV = await person({ first_name: "Prüf", last_name: "Index", primary_email: mailV });
+      for (const [pid, mail] of [[idxG, mailG], [idxV, mailV]] as [number, string][]) {
+        await tx`
+          INSERT INTO fiaon_person_aliases (person_id, kind, value_norm, value_raw, source)
+          VALUES (${pid}, 'email', ${mail}, ${mail}, 'pruefstand')
+        `;
+      }
+      await antrag(TEST_REF("IDX-G"), { person_id: idxG });
+      let indexMergeOk = true;
+      let indexFehler = "";
+      try {
+        await personenZusammenfuehren(idxV, idxG, {}, AKTEUR, { tx });
+      } catch (e: any) { indexMergeOk = false; indexFehler = String(e?.message ?? e); }
+      ok("Merge zweier Personen mit je eigener Adresse gelingt", indexMergeOk, indexFehler);
+      const [beideAdressen] = await tx`
+        SELECT COUNT(*)::int AS n FROM fiaon_person_aliases
+        WHERE person_id = ${idxG} AND kind = 'email' AND value_norm IN (${mailG}, ${mailV})
+      `;
+      gleich("Beide Adressen führen danach zum Gewinner", Number(beideAdressen.n), 2);
+
+      // ═══════════════════════════════════════════════════════════════════
       gruppe("4. Verbote");
       // ═══════════════════════════════════════════════════════════════════
       const verboten = async (name: string, code: string, fn: () => Promise<unknown>) => {

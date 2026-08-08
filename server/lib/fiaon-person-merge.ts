@@ -262,6 +262,36 @@ async function fuehreAus(
   // ── Zählprobe, Teil 1: der Stand VOR dem Merge ──────────────────────────
   const vorher = await zaehle(lauf, [verliererId, gewinnerId]);
 
+  // ── Aliase ZUERST umhängen ──────────────────────────────────────────────
+  //
+  // Reihenfolge mit Grund (08.08.2026): Auf `fiaon_person_aliases.value_norm`
+  // liegt ein GLOBAL eindeutiger Index für `kind='email'` — eine Adresse gehört
+  // im ganzen Haus genau einer Person. Sicherte der Merge zuerst die abweichende
+  // Adresse des Verlierers beim Gewinner, kollidierte er mit dem Verlierer, der
+  // sie noch hielt: „duplicate key value violates unique constraint
+  // fiaon_person_email_unique". Bei der Massen-Zusammenführung fiel dadurch jede
+  // Gruppe mit zwei Adressen aus — darunter die größten.
+  //
+  // Hängt man die Aliase VORHER um, gehört die Adresse bereits dem Gewinner und
+  // die Sicherung findet sie vor.
+  await lauf`
+    UPDATE fiaon_person_aliases
+    SET person_id = ${gewinnerId},
+        quelle_person_id = COALESCE(quelle_person_id, ${verliererId})
+    WHERE person_id = ${verliererId}
+      AND NOT EXISTS (
+        SELECT 1 FROM fiaon_person_aliases x
+        WHERE x.person_id = ${gewinnerId} AND x.kind = fiaon_person_aliases.kind
+          AND x.value_norm = fiaon_person_aliases.value_norm
+      )
+  `;
+  // Dubletten unter den Aliasen bleiben beim Verlierer stehen (nichts löschen);
+  // sie sind über quelle_person_id weiter zuordenbar.
+  await lauf`
+    UPDATE fiaon_person_aliases SET quelle_person_id = COALESCE(quelle_person_id, ${verliererId})
+    WHERE person_id = ${verliererId}
+  `;
+
   // ── Stammdaten: nichts überschreiben, alles sichern ─────────────────────
   const gesicherteWerte: MergeErgebnis["gesicherteWerte"] = [];
   const uebernommeneFelder: MergeErgebnis["uebernommeneFelder"] = [];
@@ -340,24 +370,6 @@ async function fuehreAus(
     WHERE id = ${gewinnerId}
   `;
 
-  // ── Aliase: jede je genutzte Adresse bleibt auffindbar ──────────────────
-  await lauf`
-    UPDATE fiaon_person_aliases
-    SET person_id = ${gewinnerId},
-        quelle_person_id = COALESCE(quelle_person_id, ${verliererId})
-    WHERE person_id = ${verliererId}
-      AND NOT EXISTS (
-        SELECT 1 FROM fiaon_person_aliases x
-        WHERE x.person_id = ${gewinnerId} AND x.kind = fiaon_person_aliases.kind
-          AND x.value_norm = fiaon_person_aliases.value_norm
-      )
-  `;
-  // Dubletten unter den Aliasen bleiben beim Verlierer stehen (nichts löschen);
-  // sie sind über quelle_person_id weiter zuordenbar.
-  await lauf`
-    UPDATE fiaon_person_aliases SET quelle_person_id = COALESCE(quelle_person_id, ${verliererId})
-    WHERE person_id = ${verliererId}
-  `;
   // Primäradressen des Verlierers als Alias sichern, falls sie noch nicht drin sind.
   for (const [kind, wert] of [["email", verlierer.primary_email], ["phone", verlierer.primary_phone]] as const) {
     if (leer(wert)) continue;
@@ -365,14 +377,7 @@ async function fuehreAus(
       ? String(wert).trim().toLowerCase()
       : String(wert).replace(/\D/g, "").slice(-9);
     if (!norm) continue;
-    await lauf`
-      INSERT INTO fiaon_person_aliases (person_id, kind, value_norm, value_raw, source, quelle_person_id)
-      SELECT ${gewinnerId}, ${kind}, ${norm}, ${String(wert)}, ${"merge:" + verliererId}, ${verliererId}
-      WHERE NOT EXISTS (
-        SELECT 1 FROM fiaon_person_aliases x
-        WHERE x.person_id = ${gewinnerId} AND x.kind = ${kind} AND x.value_norm = ${norm}
-      )
-    `;
+    await sichereAlias(lauf, gewinnerId, kind, norm, String(wert), verliererId);
   }
 
   // ── Bestellungen und Leads umhängen ────────────────────────────────────
@@ -533,6 +538,34 @@ async function sichere(lauf: Lauf, personId: number, feld: string, wert: string,
   // Alias-Auflösung (fiaon-person-model) sie weiter findet. Alle anderen Felder
   // bekommen ihren Spaltennamen als Art.
   const kind = feld === "primary_email" ? "email" : feld === "primary_phone" ? "phone" : feld;
+  await sichereAlias(lauf, personId, kind, norm, wert, quellePersonId);
+}
+
+/**
+ * Einen Alias anlegen — ohne am eindeutigen Index zu zerschellen.
+ *
+ * Für `kind='email'` gilt hausweit: eine Adresse, eine Person
+ * (`fiaon_person_email_unique`). Hält sie bereits jemand, wird NICHT eingefügt:
+ *
+ *   · Hält sie der Gewinner selbst — dann ist ohnehin alles gut.
+ *   · Hält sie ein Dritter — dann wäre das Wegnehmen schlimmer als das
+ *     Auslassen. Die Adresse führt weiter zu dieser Person; der Wert bleibt
+ *     zusätzlich in `fiaon_persons` des Verlierers stehen, der als Wegweiser
+ *     erhalten bleibt. Verloren geht nichts, es wandert nur nicht mit.
+ */
+async function sichereAlias(
+  lauf: Lauf, personId: number, kind: string, norm: string, wert: string, quellePersonId: number,
+): Promise<void> {
+  if (kind === "email") {
+    await lauf`
+      INSERT INTO fiaon_person_aliases (person_id, kind, value_norm, value_raw, feld_wert, source, quelle_person_id)
+      SELECT ${personId}, ${kind}, ${norm}, ${wert}, ${wert}, ${"merge:" + quellePersonId}, ${quellePersonId}
+      WHERE NOT EXISTS (
+        SELECT 1 FROM fiaon_person_aliases x WHERE x.kind = 'email' AND x.value_norm = ${norm}
+      )
+    `;
+    return;
+  }
   await lauf`
     INSERT INTO fiaon_person_aliases (person_id, kind, value_norm, value_raw, feld_wert, source, quelle_person_id)
     SELECT ${personId}, ${kind}, ${norm}, ${wert}, ${wert}, ${"merge:" + quellePersonId}, ${quellePersonId}

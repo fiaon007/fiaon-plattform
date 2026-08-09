@@ -349,6 +349,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonVersandRoutes = await import('./routes/fiaon-versand');
   app.use('/api/fiaon', fiaonVersandRoutes.default);
 
+  // 📧 Mail — Registry, Zweig-Verifikation ueber Brevo, Sende-Menue,
+  //    Live-Vorschau und Mail-Zentrale. Ersetzt die hartcodierte
+  //    „Make-Zweig fehlt"-Liste durch gemessene Zustellwahrheit.
+  const fiaonMailRoutes = await import('./routes/fiaon-mail');
+  app.use('/api/fiaon', fiaonMailRoutes.default);
+
+  // 🔑 Zugang retten — Setz-Link, Einmal-Passwort, Freischalten.
+  const fiaonZugangRetten = await import('./routes/fiaon-zugang-retten');
+  app.use('/api/fiaon', fiaonZugangRetten.default);
+
   // 🧭 FIAON Vertriebsleitung — /agent/vertrieb: Gesamtsicht für die zwei
   //    Vertriebsleiter (zuweisen, korrigieren, dokumentieren). Normale Agenten
   //    bekommen dort 404 — die Prüfung steht im Router, nicht in der Oberfläche.

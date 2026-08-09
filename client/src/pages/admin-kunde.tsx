@@ -278,7 +278,7 @@ export default function AdminKundeAktePage() {
     setBusy(`ev-${ev.type}`);
     const r = await api(`/admin/events/send-real`, { eventType: ev.type, paymentRef: payRef, dryRun: true });
     setBusy(null);
-    if (r.ok) setEventPreview({ ...r.json, eventType: ev.type, label: ev.label, makeBranchReady: ev.makeBranchReady });
+    if (r.ok) setEventPreview({ ...r.json, eventType: ev.type, label: ev.label, verifikation: ev.verifikation });
     else flash(`Fehler: ${r.json?.error || r.status}`);
   };
   const confirmEvent = async () => {
@@ -713,14 +713,15 @@ export default function AdminKundeAktePage() {
                   <button key={ev.type} type="button" onClick={() => previewEvent(ev)} disabled={busy === `ev-${ev.type}`}
                     title={ev.description}
                     className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-[12px] font-bold text-slate-600 hover:border-slate-300 disabled:opacity-50">
-                    {ev.label}{!ev.makeBranchReady && " ⚠️"}
+                    {ev.label}
                   </button>
                 ))}
               </div>
             )}
-            {events.some((e) => !e.makeBranchReady) && payRef && (
-              <p className="text-[11px] text-amber-700 mb-3">⚠️ = Make-Zweig fehlt noch — Versand würde ins Leere laufen (Details unter E-Mail-Events).</p>
-            )}
+            {/* Die Warnzeile ist ersatzlos weg (09.08.2026). Sie behauptete, ein
+                Zweig fehle, weil in unserer eigenen Beschreibung ein Notizwort
+                stand — und lag bei 23 von 33 Ereignissen falsch. Der gemessene
+                Stand steht unter „E-Mail-Events" und im Sende-Menü. */}
             {openLeads.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-3">
                 {openLeads.map((l: any) => (
@@ -860,9 +861,10 @@ export default function AdminKundeAktePage() {
             <p className="text-[13px] text-slate-600 mb-3">
               An <b>{eventPreview.customer}</b> ({eventPreview.email}) — Status: {eventPreview.status}
             </p>
-            {eventPreview.makeBranchReady === false && (
-              <p className="text-[12px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
-                ⚠️ Für dieses Event fehlt der Make-Zweig — der Versand würde still ins Leere laufen. Erst unter E-Mail-Events den Zweig anlegen.
+            {eventPreview.verifikation && eventPreview.verifikation !== "bestaetigt" && (
+              <p className="text-[12px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-3">
+                Für dieses Ereignis ist noch nicht geprüft, ob eine Mail wirklich ankommt. Der Versand geht
+                trotzdem raus — ob er zugestellt wird, siehst du danach im Protokoll. Prüfen unter E-Mail-Events.
               </p>
             )}
             <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1">Payload (Vorschau)</p>

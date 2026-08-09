@@ -3,6 +3,93 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 09.08.2026 — Die Plattform hört auf zu behaupten: gemessene Zustellung, ein Sendeweg, Zugang retten
+
+### Der Kernfehler: eine Warnung, die den Betreiber zu Unrecht beschuldigt hat
+
+Auf `/admin/events` stand bei rund zehn Ereignissen **„MAKE-ZWEIG FEHLT"**. Diese Aussage kam aus einer einzigen Zeile:
+
+```
+makeBranchReady: !e.recommendationOnly && !/Betreiber-TODO/i.test(e.description)
+```
+
+Die Plattform prüfte also, ob in **unserer eigenen Beschreibung** das Wort „Betreiber-TODO" steht — ein Notizzettel, den frühere Pakete hinterlassen hatten. **23 von 33 Beschreibungen** enthielten den String. In Wahrheit waren alle 21 Make-Zweige aktiv. Die Plattform hat den Betreiber beschuldigt, seine Einrichtung sei falsch, und er hat es geglaubt, weil es dastand.
+
+Die Heuristik ist ersatzlos weg — samt allen vier Anzeigestellen (`admin-events`, `admin-kunde`, `admin-funktionen`, und dem Feld `makeBranchReady` selbst). An ihrer Stelle steht **gemessene Wahrheit**: Ein Zweig gilt nur dann als bestätigt, wenn ein Testversand nachweislich bei Brevo angekommen ist. Alles andere heißt „noch nicht geprüft" — eine Aussage über *unseren* Kenntnisstand, nicht über jemand anderen.
+
+**Zweig prüfen** (einzeln oder alle): Testversand über Make, danach bis zu drei Minuten die Brevo-Transactional-Events-API abfragen. Treffer → „Zweig bestätigt am [Zeit]", festgehalten in `fiaon_mail_events`. Kein Treffer → beide möglichen Ursachen im Klartext, denn von hier aus sehen sie identisch aus: *der Make-Zweig fehlt oder ist inaktiv* ODER *das Brevo-Template ist nicht aktiv oder nicht zugeordnet*. Genau diese zweite Ursache hat die alte Meldung verschwiegen und den Betreiber in die falsche Richtung geschickt. Ein späterer Fehlversuch löscht eine frühere Bestätigung nicht — er steht als Ergebnis daneben.
+
+**Stündlicher Abgleich:** Die Protokollzeilen der letzten sieben Tage werden gegen Brevos Ereignisse gehalten. Aus „versandt" (= Make hat angenommen) wird *zugestellt*, *geöffnet*, *unzustellbar* oder *blockiert*. Schluss mit „gesendet" als Hoffnung.
+
+### Anas Barghouti hatte keinen Zuständigen
+
+Er klickte am 08.08. „ich habe bezahlt" — Stufe A, der heißeste Fall im Haus — und auf seiner Karte stand „kein Agent". Zuteilung geschah bisher nur im Tageslauf um sechs Uhr (nur Tier 1) und im Nachschub. **Gemessen: 755 Personen auf Stufe A oder B ohne jeden Zuständigen.**
+
+Ab jetzt teilt `personTierAktualisieren` sofort zu — in derselben Transaktion, in der sich die Einstufung ändert, an den Mitarbeiter mit dem kleinsten offenen Bestand. Der Besitzschutz bleibt unangetastet: Wer `betreuung_seit` trägt, wird nicht umverteilt.
+
+Nachgeholt wurden die **neun dringenden Stufe-A-Fälle** (Barghouti → Nikita). Stufe A ohne Zuständigen steht jetzt auf **0**. Die **746 Stufe-B-Fälle** habe ich bewusst **nicht** verteilt: Das brächte jeden Bestand auf 920 Personen, und das ist keine Arbeitsliste mehr, sondern ein Lager. Vorschau liegt in `reports/zuteilung-backfill.csv`, Ausführung mit `--schreiben`.
+
+### Zehn „Justin Schwarzott" waren echte Kunden
+
+`fiaon_agents.is_test_account` gibt es seit langem — für Kunden gab es nichts Vergleichbares. Was wir selbst beim Ausprobieren des Antragstrichters erzeugt hatten, stand in der Arbeitsliste, in der Verteilung, in der Dublettensuche und in jeder Kennzahl.
+
+Neu: eine **admin-pflegbare Liste** (Einstellung `test_kennzeichen`) aus internen Domains, Adress-Präfixen, Namen im Haus und Testprodukten. **Sieben Einträge markiert** — vier Justin Schwarzott, „Test Test", „Dev User", Daniel Stripling. Kein Hard-Delete: Die Zeilen bleiben, sie fallen nur aus den Listen. Der Ausschluss steht in `echtePersonSql` — der einen Stelle, aus der sich jede Liste bedient.
+
+**Die harte Grenze:** Eine bezahlte Bestellung macht unantastbar, und zwar im Code, nicht in den Einstellungen. Ein Testeintrag mit echtem Geldeingang ist ein Widerspruch — entweder ist das Geld echt oder die Buchung gehört korrigiert. Im Lauf wurde **1 bezahlter Kunde** von dieser Grenze geschützt, obwohl er auf ein Kennzeichen passt.
+
+### Eine Tür für jede Mail
+
+Von 29 Sendestellen protokollierten sieben. Der Rest ging unbeobachtet raus.
+
+Die naheliegende Lösung — 29 Aufrufstellen umbauen, darunter seit Monaten laufende Zahlungswege — wäre riskant gewesen. Stattdessen protokolliert jetzt **`sendMakeWebhook` selbst**. Damit ist „kein Versand am Protokoll vorbei" keine Verabredung mehr, sondern Bauart. Doppeleinträge verhindert eine Marke, die `versendenUndProtokollieren` für die Dauer seines Aufrufs setzt und im `finally` wieder entfernt.
+
+Darüber liegt `mailSenden` als einziger Weg für Versand von Hand: Registry-Prüfung, Rechte, Zustand, Tageslimit, Protokoll, Kundenakte, Auslöser.
+
+### „E-Mail senden" am Kunden
+
+Ein Knopf in Team-Karte und Admin-Akte öffnet auf dem Bildschirm eine Glas-Ebene, auf dem Telefon ein Blatt von unten. Ereignisse nach Gruppen (Zahlung, Termin, Konto, Dokumente, Lead), je Ereignis der Klartext „was geht wann an wen raus", eine Zustands-Ampel und der Verifikationsstand. **Der Grund einer Sperre steht als Text unter dem Knopf** — nicht als Wolke am Mauszeiger, die auf dem Telefon niemand sieht.
+
+**Live-Vorschau:** Das echte Vorlagen-HTML aus Brevo (eine Stunde zwischengespeichert), `{{ params.* }}` mit den Beispielwerten der Registry gefüllt, in einem `sandbox=""`-iframe — Vorlagen sind fremdes HTML und sollen aussehen, nicht ausgeführt werden. Umschalter zwischen Bildschirm- und Telefonrahmen, letzterer mit Radius und Kerbe.
+
+### Mail-Zentrale
+
+Der Florentine-Fall in zwanzig Sekunden: „Hi {Anrede}, wie besprochen: {Zahlungsdaten}".
+
+Autocomplete ab dem ersten Zeichen, **auch über alte Adressen** (Aliase) — nach einer Zusammenführung nennt der Kunde am Telefon die alte, und ohne Alias-Suche legt der Kollege einen zweiten Datensatz an. Acht Filtergruppen mit Live-Zähler, kombinierbar. Externe Adressen als gekennzeichnete Chips.
+
+**Die Bausteine füllt der Server je Empfänger einzeln.** Das ist der ganze Punkt: Bei zwei Empfängern stehen zwei verschiedene Verwendungszwecke in zwei verschiedenen Mails. Würde der Browser das ausfüllen, bekämen beide denselben — und die Buchhaltung dürfte raten, von wem das Geld kam.
+
+Freitext geht **direkt über die Brevo-API** (Absender `welcome@fiaon.com`, CI-Rahmen mit Impressum), nicht über Make: Jede Freitextmail bräuchte dort einen eigenen Zweig. Pflicht-Vorschau ab zwei Empfängern, „Test an mich", 200 Mails je Stunde, Team höchstens zehn Empfänger. Testeinträge, DSGVO-Gelöschte und Archivierte sind **immer** ausgeschlossen — nicht als Filteroption, sondern fest.
+
+**KI-Assist** mit der vorhandenen Infrastruktur (`OPENAI_API_KEY`, kein zweiter Anbieter). Entwurf, Ton glätten, kürzen. Zwei Wände: Der Systemprompt verbietet Zusagen und Beratungssprache, und `entschaerfen()` prüft die **Antwort** — ein Prompt ist eine Bitte, kein Zaun. Die KI-Datei kann nicht senden; das ist Bauart, keine Einstellung.
+
+### Zugang retten
+
+Die Diagnose sagte längst präzise, warum jemand nicht hineinkommt. Es fehlte der Knopf daneben.
+
+- **Setz-Link:** signiert, 60 Minuten, einmalig, nicht auf einen anderen Kunden umschreibbar. Nach dem Setzen ist der Kunde **direkt eingeloggt** — die Antwort trägt dieselben Felder wie ein erfolgreicher Login.
+- **Einmal-Passwort** für den Telefonfall: 24 Stunden, genau einmal im Klartext angezeigt, **erzwungener Wechsel** beim ersten Login. Ohne Zwang bliebe ein diktiertes Passwort für immer gültig. Format ohne verwechselbare Zeichen (kein 0/O, kein 1/l/I) — am Telefon buchstabiert man sonst dreimal.
+- **Zugang freischalten** für bezahlte Kunden mit klemmendem Kontozustand. Ohne gebuchte Zahlung nicht möglich; das ist die Grenze zwischen „Schieflage geradeziehen" und „Ware verschenken". Begründung ist Pflicht, alles auditiert.
+
+### Was die Screenshots gefunden haben
+
+Zwei Fehler, die kein Test bemerkt hätte — beide Geschwindigkeit:
+
+- **Die Filtergruppen fehlten.** Acht sequentielle Zählungen über 4.800 Personen brauchten **8,4 Sekunden**; die Seite wartete noch, als der Screenshot fiel. Jetzt eine Abfrage mit `COUNT(*) FILTER` → **1,0 Sekunde**.
+- **Das Sende-Menü hing auf „Wird geladen".** Vierzehn Zustandsprüfungen nacheinander, jede mit eigener Zustandsabfrage. Neu: `versandErlaubtViele` holt den Zustand einmal und zählt in einer Abfrage → 3,7 s auf 2,6 s. Die Entscheidungsregeln stehen dabei weiterhin nur an einer Stelle (`bewerten`).
+
+### Prüfstand
+
+`scripts/pruef-mail.ts` — **135 Prüfungen, alle grün**, zurückgerollt, Make und Brevo auf Attrappe. Gegenprobe: mit ausgehebelter Zahlungs-Grenze, entferntem KI-Guardrail oder abgeschalteter Ereignis-Zuteilung wird er rot.
+
+Er ist zweimal in dieselbe Falle getappt wie am Vortag: Prüfungen, die den **eigenen Kommentar** mitmessen („Make-Zweig fehlt" steht in der Erklärung, warum es weg ist). Beide messen jetzt nur sichtbaren Text.
+
+Gesamt: **737 Prüfungen** über sieben Prüfstände, alle grün.
+
+**Zu finden:** `server/lib/fiaon-mail-events.ts`, `fiaon-brevo.ts`, `fiaon-zustellung.ts`, `fiaon-mail-senden.ts`, `fiaon-zentrale.ts`, `fiaon-mail-ki.ts`, `fiaon-zuteilung.ts`, `fiaon-testerkennung.ts`, `fiaon-zugang.ts`, `server/routes/fiaon-mail.ts`, `fiaon-zugang-retten.ts`, `client/src/components/SendeMenue.tsx`, `client/src/pages/mail-zentrale.tsx`, `db/migrations/043_mail_wahrheit.sql`.
+
+**Betreiber-TODO:** `BREVO_API_KEY` hinterlegen (Brevo → SMTP & API → API Keys). Ohne ihn kann die Plattform nicht messen, ob eine Mail ankommt — sie sagt das an jeder Stelle ausdrücklich, statt etwas zu behaupten.
+
 ## 08.08.2026 — Menschen & Momentum: Startgespräche, ein Raum fürs Team, und „Agent" verschwindet
 
 Ein Mensch überweist 99,99 € im Monat und findet danach ein Konto vor, das er sich selbst erklären muss. Ein Team, das über vier Städte verteilt arbeitet, hat kein Treppenhaus. Und intern hieß jeder Mitarbeiter „Agent" — ein Wort aus einem Callcenter-Handbuch, nicht aus einem Startup. Drei Lücken, ein Paket.

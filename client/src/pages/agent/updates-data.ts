@@ -40,6 +40,33 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-09-mail-zentrale",
+    date: "2026-08-09",
+    category: "Neu",
+    title: "E-Mails: selbst schreiben, selbst senden, wirklich sehen ob sie ankam",
+    summary:
+      "Neuer Menüpunkt „Mail“ zum Schreiben an eigene Kunden. Auf jeder Kundenkarte ein Knopf „E-Mail senden“. Und im Protokoll steht jetzt, ob eine Mail wirklich zugestellt wurde.",
+    changes: [
+      "Neuer Bereich „Mail“: Kunden suchen (auch über alte Adressen), schreiben, senden. Bis zu 10 Empfänger pro Versand.",
+      "Bausteine per Klick: Anrede, Zahlungsdaten mit Verwendungszweck, Terminlink, Portal-Login. Der Server füllt sie für JEDEN Empfänger einzeln — jeder bekommt seinen eigenen Verwendungszweck.",
+      "KI-Hilfe: Entwurf aus Stichpunkten, Ton glätten, kürzen. Die KI schlägt vor, du sendest — und Zusagen zu Limits werden automatisch entfernt.",
+      "Auf jeder Kundenkarte: „E-Mail senden“. Alle Vorlagen nach Thema sortiert, mit Klartext dazu, was wann an wen rausgeht.",
+      "Grau statt bunt: Wenn ein Knopf nicht geht, steht der Grund im Klartext darunter — bezahlt, gesperrt, keine Adresse, Tageslimit.",
+      "Im Protokoll steht jetzt der ECHTE Zustellstand: angenommen, zugestellt, geöffnet oder unzustellbar. Vorher hieß alles „gesendet“.",
+      "Kunden, die Stufe A oder B erreichen, bekommen sofort einen Zuständigen — nicht erst am nächsten Morgen.",
+      "Testeinträge aus unserer eigenen Erprobung sind aus der Kundenliste raus (7 Stück).",
+    ],
+    howto: [
+      "Öffne „Mail“ im Menü. Tipp einen Namen ins Suchfeld — schon ab dem ersten Buchstaben kommen Vorschläge.",
+      "Schreib Betreff und Text. Mit den Knöpfen unter dem Textfeld setzt du Bausteine ein, zum Beispiel {Zahlungsdaten}.",
+      "„Test an mich“ schickt die Mail zuerst an dich selbst. Ab zwei Empfängern musst du die Vorschau ansehen.",
+      "Auf einer Kundenkarte findest du „E-Mail senden“ im Bereich E-Mails. Dort siehst du auch, was schon rausging und ob es ankam.",
+      "Steht bei einer Vorlage „Zweig ungeprüft“, heißt das nur: Wir haben noch nicht nachgemessen, ob sie ankommt. Senden geht trotzdem.",
+    ],
+    link: { href: "/agent/mail-zentrale", label: "Zur Mail-Zentrale" },
+    important: true,
+  },
+  {
     id: "2026-08-08-space-startgespraeche",
     date: "2026-08-08",
     category: "Neu",

@@ -90,6 +90,24 @@ export interface MakeVersand {
  * ohne je eine Erinnerung bekommen zu haben.
  */
 export async function sendMakeWebhookMitGrund(eventType: MakeEventType, payload: MakeWebhookPayload): Promise<MakeVersand> {
+  const erg = await webhookRoh(eventType, payload);
+  // ── JEDE MAIL STEHT IM PROTOKOLL ────────────────────────────────────────
+  // Vor dem 09.08.2026 protokollierten nur sieben von 29 Sendestellen. Der
+  // Rest ging unbeobachtet raus, und wenn ein Kunde sagte „ich habe nichts
+  // bekommen", suchte der Betreiber im Make-Protokoll.
+  //
+  // Die Alternative wäre gewesen, 29 Aufrufstellen umzubauen — darunter
+  // Zahlungswege, die seit Monaten laufen. Der Eintrag steht deshalb HIER, an
+  // der einen Stelle, durch die alle müssen. Damit ist die Regel „kein
+  // Versand am Protokoll vorbei" keine Verabredung mehr, sondern Bauart.
+  //
+  // `fireAndForget`: Ein klemmendes Protokoll darf keine Mail verhindern.
+  protokollNebenbei(eventType, payload, erg);
+  return erg;
+}
+
+/** Der eigentliche Aufruf — ohne Protokoll, damit dieses ihn umschließen kann. */
+async function webhookRoh(eventType: MakeEventType, payload: MakeWebhookPayload): Promise<MakeVersand> {
   const url = process.env.MAKE_WEBHOOK_URL;
   if (!url) {
     console.warn(`[MAKE-WEBHOOK] MAKE_WEBHOOK_URL nicht gesetzt — Event '${eventType}' (${payload.antrag_id}) übersprungen`);
@@ -180,3 +198,44 @@ export function makePayloadFromRow(row: any): MakeWebhookPayload {
     paket: row.pack_name ? String(row.pack_name).replace(/\n/g, " ") : null,
   };
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROTOKOLL — nebenbei, aber lückenlos
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Trägt jeden Versand in `fiaon_mail_log` ein.
+ *
+ * DOPPELTE EINTRÄGE VERMEIDEN: `versendenUndProtokollieren` schreibt selbst
+ * und setzt dafür kurz eine Marke. Sieht dieser Helfer die Marke, hält er
+ * still — sonst stünde jede Mail aus dem Versandzentrum zweimal da.
+ */
+function protokollNebenbei(eventType: MakeEventType, payload: MakeWebhookPayload, erg: MakeVersand): void {
+  if (protokolliertSelbst.has(eventType)) return;
+  (async () => {
+    try {
+      if (!process.env.DATABASE_URL) return;
+      const { mailProtokoll } = await import("./lib/fiaon-mail-log");
+      await mailProtokoll({
+        event: eventType,
+        personId: null,
+        empfaenger: payload.email ? String(payload.email) : null,
+        status: erg.ok ? "versandt" : "fehlgeschlagen",
+        grund: erg.grund ?? null,
+        payload: payload as Record<string, unknown>,
+      });
+    } catch {
+      // Ein Protokoll, das klemmt, darf den Versand nicht mitreißen.
+    }
+  })();
+}
+
+/**
+ * Ereignisse, deren Aufrufer bereits selbst protokolliert.
+ *
+ * Die Marke wird von `versendenUndProtokollieren` für die Dauer des Aufrufs
+ * gesetzt. Ein `Set` und kein Zähler: Zwei gleichzeitige Sendungen desselben
+ * Ereignisses würden sich sonst gegenseitig die Marke wegnehmen.
+ */
+export const protokolliertSelbst = new Set<string>();

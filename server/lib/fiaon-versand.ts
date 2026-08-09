@@ -145,8 +145,19 @@ export async function versandErlaubt(
 ): Promise<{ erlaubt: boolean; grund: string | null; heute: number }> {
   const z = await zustandVon(personId, lauf);
   if (!z) return { erlaubt: false, grund: "Kunde nicht gefunden.", heute: 0 };
-  const heute = await heuteGesendet(personId, art, lauf);
+  return bewerten(z, art, await heuteGesendet(personId, art, lauf));
+}
 
+/**
+ * Die Entscheidungsregeln — die EINZIGE Fassung.
+ *
+ * Ausgelagert, damit die Sammelprüfung sie mitbenutzen kann, ohne dass sie
+ * zweimal im Haus steht. Zwei Fassungen derselben Regel wären schlimmer als
+ * eine langsame Abfrage.
+ */
+function bewerten(
+  z: NonNullable<Awaited<ReturnType<typeof zustandVon>>>, art: VersandArt, heute: number,
+): { erlaubt: boolean; grund: string | null; heute: number } {
   if (z.gdpr) return { erlaubt: false, grund: "Für diesen Kunden liegt eine Löschung nach DSGVO vor.", heute };
   if (!z.hatEmail) return { erlaubt: false, grund: "Keine E-Mail-Adresse hinterlegt.", heute };
   if (z.gesperrt && art !== "welcome") {
@@ -175,6 +186,39 @@ export async function versandErlaubt(
     return { erlaubt: false, grund: `Tageslimit erreicht (${TAGESLIMIT} Sendungen). Morgen wieder möglich.`, heute };
   }
   return { erlaubt: true, grund: null, heute };
+}
+
+/**
+ * Dieselbe Prüfung für VIELE Arten auf einmal.
+ *
+ * `versandErlaubt` holt je Aufruf den Kundenzustand und die Tageszählung. Für
+ * ein Menü mit vierzehn Ereignissen sind das achtundzwanzig Abfragen, von
+ * denen vierzehn identisch sind — gemessen 3,7 Sekunden, und das Sende-Menü
+ * stand solange auf „Wird geladen …".
+ *
+ * Hier wird der Zustand EINMAL geholt und die Tageszählung in EINER Abfrage
+ * für alle Arten. Die Entscheidungsregeln bleiben, wo sie waren: in
+ * `bewerten` — es gibt keine zweite Fassung davon.
+ */
+export async function versandErlaubtViele(
+  personId: number, arten: VersandArt[], lauf: Lauf = sqlPool,
+): Promise<Record<string, { erlaubt: boolean; grund: string | null; heute: number }>> {
+  const z = await zustandVon(personId, lauf);
+  const aus: Record<string, { erlaubt: boolean; grund: string | null; heute: number }> = {};
+  if (!z) {
+    for (const a of arten) aus[a] = { erlaubt: false, grund: "Kunde nicht gefunden.", heute: 0 };
+    return aus;
+  }
+  const zeilen = (await lauf`
+    SELECT event, COUNT(*)::int AS n FROM fiaon_mail_log
+    WHERE person_id = ${personId} AND event = ANY(${arten as string[]})
+      AND status = 'versandt' AND ausgeloest_agent_id IS NOT NULL
+      AND created_at >= date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin'
+    GROUP BY event
+  `) as any[];
+  const heuteJe = new Map(zeilen.map((r) => [String(r.event), Number(r.n)]));
+  for (const a of arten) aus[a] = bewerten(z, a, heuteJe.get(a) ?? 0);
+  return aus;
 }
 
 /** Alle Knöpfe für einen Kunden, mit Zustand und Begründung. */

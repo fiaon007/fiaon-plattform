@@ -20,7 +20,12 @@ interface EventDef {
   customerBound: boolean;
   deprecated?: boolean;
   recommendationOnly?: boolean;
-  makeBranchReady?: boolean;
+  // GEMESSENER Stand statt Heuristik (09.08.2026). Siehe
+  // server/lib/fiaon-mail-events.ts — `makeBranchReady` gibt es nicht mehr.
+  verifikation?: "bestaetigt" | "nicht_bestaetigt" | "ungeprueft";
+  verifikationsText?: string;
+  brevoTemplateId?: number | null;
+  brevoTemplateName?: string | null;
   example: Record<string, unknown>;
 }
 
@@ -54,6 +59,27 @@ export default function AdminEventsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, { ok: boolean; text: string }>>({});
   const [preview, setPreview] = useState<RealPreview | null>(null);
+  const [pruefeLaeuft, setPruefeLaeuft] = useState<string | null>(null);
+
+  /**
+   * Zweig prüfen: Testversand raus, dann bei Brevo nachsehen.
+   *
+   * Das kann bis zu drei Minuten dauern — Make arbeitet asynchron, Brevo
+   * protokolliert verzögert. Der Knopf sagt das, statt so zu tun, als ginge
+   * es sofort.
+   */
+  const zweigPruefen = useCallback(async (typ: string) => {
+    setPruefeLaeuft(typ);
+    const r = await fetch(`/api/fiaon/admin/mail/registry/${encodeURIComponent(typ)}/pruefen`, {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ testAdresse: testEmail }),
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setPruefeLaeuft(null);
+    setResults((m) => ({ ...m, [typ]: { ok: !!j?.bestaetigt, text: j?.text || j?.error || "Prüfung nicht möglich." } }));
+    load();
+  }, [testEmail]);
 
   const load = useCallback(() => {
     fetch("/api/fiaon/admin/events/registry", { credentials: "include" })
@@ -273,8 +299,14 @@ export default function AdminEventsPage() {
                       {ev.customerBound && !ev.deprecated && (
                         <span className="px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-[10px] font-bold uppercase" style={{ color: ACCENT }}>kundengebunden</span>
                       )}
-                      {!ev.deprecated && !ev.makeBranchReady && (
-                        <span className="px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-[10px] font-bold uppercase text-amber-700">Make-Zweig fehlt</span>
+                      {!ev.deprecated && ev.verifikation === "bestaetigt" && (
+                        <span className="px-1.5 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-[10px] font-bold uppercase text-emerald-700">Zweig bestätigt</span>
+                      )}
+                      {!ev.deprecated && ev.verifikation === "nicht_bestaetigt" && (
+                        <span className="px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-[10px] font-bold uppercase text-amber-700">nicht bestätigt</span>
+                      )}
+                      {!ev.deprecated && ev.verifikation === "ungeprueft" && (
+                        <span className="px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 text-[10px] font-bold uppercase text-slate-500">ungeprüft</span>
                       )}
                     </span>
                     <span className="block text-[12px] text-slate-400 mt-0.5">{ev.description}</span>
@@ -283,10 +315,27 @@ export default function AdminEventsPage() {
 
                 {open && (
                   <div className="px-4 pb-4 pt-1 border-t border-slate-100">
-                    {!ev.deprecated && !ev.makeBranchReady && (
-                      <div className="mt-3 px-3.5 py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-[12px] text-amber-800">
-                        <b>Make-Zweig fehlt noch.</b> Ein Test-Versand läuft nicht ins Leere — er sendet die Payload an Make, damit Make die Struktur lernen kann. Danach im Make-Szenario einen Zweig mit Filter <span className="font-mono">event_type = {ev.type}</span> anlegen und ein Brevo-Template verknüpfen.
-                        {ev.recommendationOnly && <><br />Dieses Event ist eine <b>Empfehlung</b> — im Code wird noch KEIN automatischer Versand ausgelöst.</>}
+                    {/* ── GEMESSEN, NICHT BEHAUPTET ─────────────────────
+                        Hier stand bis zum 09.08.2026 eine Warnung über einen
+                        angeblich fehlenden Zweig
+                        — ausgelöst davon, dass in unserer eigenen
+                        Beschreibung das Wort „Betreiber-TODO" vorkam. 23 von
+                        33 Ereignissen waren so gekennzeichnet, obwohl alle 21
+                        Zweige aktiv waren. */}
+                    {!ev.deprecated && (
+                      <div className="mt-3 px-3.5 py-2.5 rounded-xl border text-[12px] leading-relaxed"
+                           style={ev.verifikation === "bestaetigt"
+                             ? { borderColor: "#a7f3d0", background: "#ecfdf5", color: "#065f46" }
+                             : { borderColor: "#e2e8f0", background: "#f8fafc", color: "#475569" }}>
+                        {ev.verifikationsText}
+                        {ev.verifikation !== "bestaetigt" && (
+                          <button type="button" onClick={() => void zweigPruefen(ev.type)}
+                                  disabled={pruefeLaeuft === ev.type}
+                                  className="ml-2 font-bold underline disabled:opacity-50">
+                            {pruefeLaeuft === ev.type ? "prüft … (bis zu 3 Minuten)" : "Zweig prüfen"}
+                          </button>
+                        )}
+                        {ev.recommendationOnly && <><br />Für dieses Ereignis löst der Code noch keinen automatischen Versand aus — es lässt sich aber testen.</>}
                       </div>
                     )}
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5 mt-3">Payload (editierbar — Beispielwerte vorausgefüllt)</p>

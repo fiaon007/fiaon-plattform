@@ -24,7 +24,7 @@ interface EventDef {
   customerBound: boolean;
   deprecated?: boolean;
   recommendationOnly?: boolean;
-  makeBranchReady?: boolean;
+  verifikation?: "bestaetigt" | "nicht_bestaetigt" | "ungeprueft";
 }
 interface Registry {
   events: EventDef[];
@@ -118,7 +118,7 @@ const CATALOG: FnGroup[] = [
 // ── Phase-0 Verdrahtungs-Audit (Button → Event → verdrahtet?) ────────────────
 // Systematisch jeder Event-auslösende Button geprüft (server: sendMakeWebhook).
 // Ergebnis: KEIN toter/falsch verlinkter Event-Button — jeder gefeuerte Event
-// ist in der Registry (server/make-events-registry.ts). „Make-Zweig fehlt" (⚠️)
+// ist in der Registry (server/make-events-registry.ts). Der Zustellstand
 // heißt: Code feuert korrekt, aber der Make-Zweig ist noch anzulegen — kein
 // Code-Fehler. Der Live-Status steht im Selbsttest.
 const WIRING_AUDIT: { button: string; event: string; ort: string; verdrahtet: boolean }[] = [
@@ -147,14 +147,16 @@ type Status = "ok" | "warn" | "dead" | "none";
 function statusOf(def: EventDef | undefined): Status {
   if (!def) return "none";
   if (def.deprecated) return "dead";
-  if (!def.makeBranchReady) return "warn";
+  // Gemessener Stand statt Heuristik: „warn" heißt jetzt „noch nicht als
+  // zugestellt nachgewiesen" — eine Aussage über unseren Kenntnisstand.
+  if (def.verifikation !== "bestaetigt") return "warn";
   return "ok";
 }
 
 function StatusChip({ s }: { s: Status }) {
   if (s === "none") return <span className="text-slate-300 text-[12px]">—</span>;
   if (s === "dead") return <span className="inline-flex items-center gap-1 text-[11.5px] font-bold text-slate-400"><Skull size={13} /> veraltet</span>;
-  if (s === "warn") return <span className="inline-flex items-center gap-1 text-[11.5px] font-bold text-amber-600"><AlertTriangle size={13} /> Make-Zweig fehlt</span>;
+  if (s === "warn") return <span className="inline-flex items-center gap-1 text-[11.5px] font-bold text-amber-600"><AlertTriangle size={13} /> Zweig nicht bestätigt</span>;
   return <span className="inline-flex items-center gap-1 text-[11.5px] font-bold text-emerald-600"><CheckCircle2 size={13} /> läuft</span>;
 }
 
@@ -245,7 +247,7 @@ export default function AdminFunktionenPage() {
               steps={[
                 "Der Katalog listet jede Funktion mit Klartext-Erklärung und Direktlink.",
                 "Der Selbsttest zeigt Button, erwartetes Event, zuletzt gefeuert und Status — ohne an echte Kunden zu senden. Zum Testen: /admin/events.",
-                "Status läuft = Make-Zweig aktiv. Make-Zweig fehlt = Code feuert korrekt, der Zweig ist noch anzulegen. Veraltet = wird nicht mehr gefeuert.",
+                "Der Zustellstand kommt aus einer echten Messung: Zweig bestätigt heißt, ein Testversand ist nachweislich bei Brevo angekommen. Nicht bestätigt nennt beide möglichen Ursachen. Prüfen unter /admin/events.",
                 "Schulungsmodus öffnet eine aufgeräumte, druckbare Ansicht — ein Bereich pro Bildschirm.",
               ]}
             />
@@ -327,8 +329,8 @@ export default function AdminFunktionenPage() {
           <h2 className="text-[15px] font-bold text-slate-900 mb-1">Verdrahtungs-Audit (Phase 0)</h2>
           <p className="text-[12px] text-slate-400 mb-4">
             Jeder Event-auslösende Button wurde systematisch gegen die Registry geprüft. Ergebnis: kein toter oder
-            falsch verlinkter Button — jeder gefeuerte Event ist registriert. „Make-Zweig fehlt" ist kein Code-Fehler,
-            sondern ein Betreiber-TODO in Make (Live-Status im Selbsttest oben).
+            falsch verlinkter Button — jeder gefeuerte Event ist registriert. Ob eine Mail beim Kunden ankommt,
+            steht auf einem anderen Blatt: Das misst die Zweig-Prüfung unter /admin/events gegen Brevo.
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-left">

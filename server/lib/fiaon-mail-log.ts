@@ -102,9 +102,19 @@ export async function versendenUndProtokollieren(
   let status: VersandStatus = "fehlgeschlagen";
   let grund: string | null = null;
   try {
-    const versand = await sendMakeWebhookMitGrund(event, payload);
-    status = versand.ok ? "versandt" : "fehlgeschlagen";
-    grund = versand.ok ? null : (versand.grund ?? "unbekannt");
+    // Marke setzen: Der Webhook protokolliert seit dem 09.08.2026 selbst
+    // (make-webhook.ts). Hier schreiben wir aber gleich einen vollständigeren
+    // Eintrag — mit Person, Auslöser und Verlaufsbezug. Ohne die Marke stünde
+    // jede Mail aus dem Versandzentrum zweimal im Protokoll.
+    const { protokolliertSelbst } = await import("../make-webhook");
+    protokolliertSelbst.add(event);
+    try {
+      const versand = await sendMakeWebhookMitGrund(event, payload);
+      status = versand.ok ? "versandt" : "fehlgeschlagen";
+      grund = versand.ok ? null : (versand.grund ?? "unbekannt");
+    } finally {
+      protokolliertSelbst.delete(event);
+    }
   } catch (err) {
     // sendMakeWebhookMitGrund fängt eigentlich alles selbst ab. Dieser Block
     // ist die Zusicherung, dass ein neuer Fehlerweg dort hier nicht durchschlägt.

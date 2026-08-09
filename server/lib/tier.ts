@@ -338,6 +338,24 @@ export async function personTierAktualisieren(
       WHERE id = ${personId}
     `;
   }
+
+  // ── SOFORT ZUTEILEN ─────────────────────────────────────────────────────
+  // Wer gerade auf Stufe A oder B gesprungen ist und niemanden hat, bekommt
+  // JETZT jemanden — nicht morgen früh um sechs. Anas Barghouti klickte am
+  // 08.08.2026 „ich habe bezahlt" und stand danach mit „kein Agent" da; die
+  // einzige Zuteilung lief im Tageslauf und nur für Tier 1.
+  //
+  // Bewusst hier und nicht in den Aufrufern: Diese Funktion ist die eine
+  // Stelle, an der sich eine Einstufung ändert. Wer sie umgeht, umgeht auch
+  // die Zuteilung — und das fiele sofort auf.
+  //
+  // Der dynamische Import hält den Kreis auf: fiaon-zuteilung liest keine
+  // Einstufung, aber tier.ts wird von halb Haus importiert.
+  if ([1, 2].includes(Number(neu.priority_tier))) {
+    const { sofortZuteilen } = await import("./fiaon-zuteilung");
+    await sofortZuteilen(personId, sql);
+  }
+
   return { personId, tier: Number(neu.priority_tier), grund: String(neu.tier_reason) };
 }
 

@@ -67,6 +67,7 @@ const AgentAufgabenPage = lazy(() => import("@/pages/agent/aufgaben"));
 const AgentStartPage = lazy(() => import("@/pages/agent/start"));
 const AgentKundenNeuPage = lazy(() => import("@/pages/agent/kunden-neu"));
 const AgentSpacePage = lazy(() => import("@/pages/agent/space"));
+const MailZentralePage = lazy(() => import("@/pages/mail-zentrale"));
 const AgentStartgespraechePage = lazy(() => import("@/pages/agent/startgespraeche"));
 const AgentVertriebPage = lazy(() => import("@/pages/agent/vertrieb"));
 import AgentVerdienstPage from "@/pages/agent/verdienst";
@@ -180,6 +181,9 @@ function Router() {
       <Route path="/agent/heute"><Redirect to="/agent/start" /></Route>
       {/* Der Space — fuer jede Mitarbeiterrolle. */}
       <Route path="/agent/space" component={AgentSpacePage} />
+      {/* Mail-Zentrale — Team und Betreiber. Die Rolle entscheidet der Server:
+          ein Teammitglied sieht nur eigene Kunden und darf an höchstens zehn. */}
+      <Route path="/agent/mail-zentrale" component={MailZentralePage} />
       {/* Die Startgespräche. Der Pfad heißt bewusst NICHT /agent/onboarding —
           das ist seit jeher die Vertrags-Schranke für neue Mitarbeiter. Zwei
           Dinge mit demselben Namen sind eine Fehlerquelle mit Ansage. */}

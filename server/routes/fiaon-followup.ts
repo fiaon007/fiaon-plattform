@@ -104,6 +104,7 @@ async function agentMitWenigstenTier1(): Promise<number | null> {
      AND p.merged_into_person_id IS NULL
      AND p.priority_tier = 1
      AND NOT p.is_blocked
+     AND p.ist_test_am IS NULL
     WHERE a.active AND a.distribution_active AND NOT a.is_test_account
     GROUP BY a.id
     HAVING count(p.id) < ${cap1}
@@ -232,6 +233,7 @@ export async function nachschub(nurAgent?: number): Promise<{ tier1: number; tie
           -- Ohne diese Zeile verteilte der Nachschub fremde Kunden weiter und
           -- zwei Mitarbeiter riefen denselben Menschen an.
           AND p.betreuung_seit IS NULL
+          AND p.ist_test_am IS NULL
         ORDER BY
           (p.promised_payment_date IS NULL),
           p.promised_payment_date ASC NULLS LAST,
@@ -319,7 +321,7 @@ export async function runFollowUpTageslauf(opts: { force?: boolean } = {}): Prom
     const herrenlos = (await sqlPool`
       SELECT id FROM fiaon_persons
       WHERE assigned_agent_id IS NULL AND merged_into_person_id IS NULL
-        AND priority_tier = 1 AND NOT is_blocked
+        AND priority_tier = 1 AND NOT is_blocked AND ist_test_am IS NULL
       ORDER BY promised_payment_date ASC NULLS LAST, id ASC
       LIMIT 200
     `) as any[];
@@ -522,6 +524,11 @@ setInterval(() => {
   import("./fiaon-startgespraech")
     .then(async (m) => { await m.runStartgespraechEinladungen(); await m.runVerpassteTermine(); })
     .catch((err) => console.error("[FIAON-FOLLOWUP] Startgespräch:", err));
+  // Zustell-Abgleich: Was ist aus den Mails der letzten Tage geworden?
+  // Ohne Brevo-Schlüssel geht der Lauf sofort wieder schlafen.
+  import("../lib/fiaon-zustellung")
+    .then((m) => m.zustellungAbgleichen())
+    .catch((err) => console.error("[FIAON-FOLLOWUP] Zustellung:", err));
   // Der Space bekommt seine Auto-Posts vor sieben Uhr Berliner Zeit.
   import("../lib/fiaon-space")
     .then(async (m) => {

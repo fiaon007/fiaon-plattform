@@ -387,6 +387,8 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
     const wo: string[] = [
       "p.assigned_agent_id = $1",
       "p.merged_into_person_id IS NULL",
+      // Testeinträge sind keine Kunden (server/lib/fiaon-testerkennung.ts).
+      "p.ist_test_am IS NULL",
     ];
     // Bezahlte Kunden sind KEIN Arbeitsvorrat. Sie sind über den eigenen Filter
     // erreichbar, stehen aber nie in der Standardliste — sonst arbeitet man sich

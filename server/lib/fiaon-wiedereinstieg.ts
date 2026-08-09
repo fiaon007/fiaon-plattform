@@ -77,6 +77,7 @@ export async function wiedereinstiegKandidaten(
     FROM fiaon_persons p
     LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
     WHERE p.merged_into_person_id IS NULL
+      AND p.ist_test_am IS NULL
       -- ZIELGRUPPE: offene Rechnung oder fertiger Antrag (Stufe A und B).
       AND p.priority_tier IN (1, 2)
       -- ── AUSSCHLÜSSE ──────────────────────────────────────────────────────

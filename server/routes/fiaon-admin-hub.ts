@@ -1020,14 +1020,28 @@ router.get("/admin/events/registry", async (_req, res) => {
     let history: any[] = [];
     try { lastEvents = JSON.parse(settings.make_last_events || "{}"); } catch {}
     try { history = JSON.parse(settings[TEST_HISTORY_KEY] || "[]"); } catch {}
-    // makeBranchReady: heuristisch — Events mit „Betreiber-TODO" in der Beschreibung
-    // oder recommendationOnly haben (noch) keinen Make-Zweig → UI zeigt Hinweis.
-    const events = MAKE_EVENT_REGISTRY.map((e) => ({
+    // ── DIE HEURISTIK IST WEG ────────────────────────────────────────────
+    // Hier stand bis zum 09.08.2026:
+    //     makeBranchReady: !/Betreiber-TODO/i.test(e.description)
+    // Also: Die Plattform prüfte, ob in UNSERER EIGENEN Beschreibung das Wort
+    // „Betreiber-TODO" steht — ein Notizzettel aus früheren Paketen — und
+    // machte daraus die Anzeige „MAKE-ZWEIG FEHLT". 23 von 33 Beschreibungen
+    // enthielten den String; in Wahrheit waren alle 21 Zweige aktiv. Die
+    // Plattform hat den Betreiber zu Unrecht beschuldigt.
+    //
+    // Ersetzt durch GEMESSENE Wahrheit: `verifikation` kommt aus
+    // fiaon_mail_events und sagt nur dann „bestätigt", wenn ein Testversand
+    // nachweislich bei Brevo angekommen ist (server/lib/fiaon-zustellung.ts).
+    const { mailEvents, verifikationsText } = await import("../lib/fiaon-mail-events");
+    const { brevoKonfiguriert, OHNE_SCHLUESSEL } = await import("../lib/fiaon-brevo");
+    const events = (await mailEvents()).map((e) => ({
       ...e,
-      makeBranchReady: !e.deprecated && !e.recommendationOnly && !/Betreiber-TODO/i.test(e.description),
+      verifikationsText: verifikationsText(e),
     }));
     res.json({
       ok: true,
+      brevoKonfiguriert: brevoKonfiguriert(),
+      brevoHinweis: brevoKonfiguriert() ? null : OHNE_SCHLUESSEL,
       events,
       makeWebhookConfigured: Boolean(process.env.MAKE_WEBHOOK_URL),
       lastEvents,

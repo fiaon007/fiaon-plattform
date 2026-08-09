@@ -4,6 +4,7 @@ import { Reveal } from "./motion";
 import { Skelett, eur, useReduzierteBewegung, useToast } from "@/lib/fiaon-ui";
 import { ZeichenSenden, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
 import { statusAusTierGrund, STUFEN, type Stufe } from "@shared/fiaon-kundenstatus";
+import { MarkeBrief, SendeMenue } from "@/components/SendeMenue";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/kunden — DIE EINE ARBEITSLISTE
@@ -435,6 +436,10 @@ function KundenKarte({
   const [zeitWert, setZeitWert] = useState("10:00");
   const [notiz, setNotiz] = useState("");
   const [verlauf, setVerlauf] = useState<any[] | null>(null);
+  // Das Sende-Menü gehört zur Karte und nicht zur Liste: Es zeigt den Zustand
+  // GENAU dieses Kunden, und zwei geöffnete Karten sollen sich nicht in die
+  // Quere kommen.
+  const [sendeMenue, setSendeMenue] = useState<number | null>(null);
 
   const zusage = relativ(k.zusagedatum);
   const rueckruf = k.rueckrufAm ? new Date(k.rueckrufAm) : null;
@@ -958,12 +963,21 @@ function KundenKarte({
                 Steht VOR dem Verlauf: Die häufigste Frage am Telefon ist
                 „habe ich das bekommen?", und die Antwort steht hier. */}
             <div className="p-3 rounded-xl" style={{ background: "var(--fi-seite)" }}>
-              <p className="text-[11px] font-semibold uppercase tracking-[.07em] mb-1.5"
-                 style={{ color: "var(--fi-text-still)" }}>
-                E-Mails
-              </p>
+              <div className="flex items-center gap-2 mb-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[.07em] flex-1"
+                   style={{ color: "var(--fi-text-still)" }}>
+                  E-Mails
+                </p>
+                <button type="button" onClick={() => setSendeMenue(k.personId)}
+                        className="fi-primaerknopf inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold">
+                  <MarkeBrief size={14} />
+                  E-Mail senden
+                </button>
+              </div>
               <Versandzentrum personId={k.personId} />
             </div>
+            <SendeMenue personId={k.personId} offen={sendeMenue === k.personId}
+                        onSchliessen={() => setSendeMenue(null)} onGesendet={onZaehler} />
 
             <div className="p-3 rounded-xl" style={{ background: "var(--fi-seite)" }}>
               <p className="text-[11px] font-semibold uppercase tracking-[.07em] mb-1.5"

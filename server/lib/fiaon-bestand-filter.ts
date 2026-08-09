@@ -17,15 +17,22 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Eine echte Person: nicht in eine andere aufgegangen.
+ * Eine echte Person: nicht in eine andere aufgegangen — und kein Testeintrag.
  *
  * Eine zusammengeführte Person bleibt als Wegweiser bestehen (nichts wird
  * gelöscht), darf aber in KEINER Liste, Verteilung oder Automatik mehr
  * auftauchen. Ein Verlierer, der noch angerufen wird, ist genau der Grund,
  * warum dem Zusammenführen niemand traut.
+ *
+ * Seit dem 09.08.2026 gilt dasselbe für Testeinträge: Zehn Zeilen, die wir
+ * selbst beim Ausprobieren des Antragstrichters erzeugt haben, standen als
+ * echte Kunden in der Arbeitsliste, in der Verteilung, in der Dublettensuche
+ * und in jeder Kennzahl. Die Erkennung steht in
+ * server/lib/fiaon-testerkennung.ts und ist über die Einstellungen pflegbar;
+ * eine bezahlte Bestellung macht unantastbar.
  */
 export function echtePersonSql(p = "p"): string {
-  return `${p}.merged_into_person_id IS NULL`;
+  return `${p}.merged_into_person_id IS NULL AND ${p}.ist_test_am IS NULL`;
 }
 
 /**

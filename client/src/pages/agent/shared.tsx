@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, createContext, useContext, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle, Menu, ChevronRight, ListChecks } from "lucide-react";
+import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle, Menu, ChevronRight, ListChecks, Mail } from "lucide-react";
 import OnboardingGate from "./onboarding";
 import {
   AGENT_UPDATES, getUnseenCount, fmtUpdateDate,
@@ -156,6 +156,7 @@ const NAV: { href: string; label: string; icon: typeof Users; match: string[]; n
   // Der Space ist fuer JEDE Rolle da — er ist der einzige Ort im Portal, der
   // nichts abarbeitet. Die Marke zeigt ungelesene Beitraege.
   { href: "/agent/space", label: "Space", icon: Users, match: ["/agent/space"], marke: "space" },
+  { href: "/agent/mail-zentrale", label: "Mail", icon: Mail, match: ["/agent/mail-zentrale"] },
   { href: "/agent/vertrieb", label: "Vertrieb", icon: LayoutDashboard, match: ["/agent/vertrieb"], nurRolle: "vertriebsleiter" },
   // Nur fuer das Onboarding. Wie beim Vertrieb: `nurRolle` blendet aus, die
   // Tuer selbst schliesst der Server (404 fuer alle anderen).

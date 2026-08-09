@@ -3,6 +3,85 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 09.08.2026 — Zwei Zentralen statt neun Seiten: 734 Kunden verteilt, Löschen sauber definiert
+
+### 734 Menschen hatten niemanden
+
+Stufe B — fertiger Antrag, Rechnung offen — sortiert über dem Lead-Vorrat. **734 solcher Personen hatten keinen Zuständigen**; ein unsichtbarer fertiger Antrag ist liegengelassener Umsatz. Auf Entscheidung des Betreibers gleichmäßig verteilt (Snake, kleinste Last zuerst, Testkonten nie):
+
+| | vorher | nachher |
+|---|---|---|
+| Daniel | 755 | 968 |
+| Florentine | 729 | 959 |
+| Lucas | 760 | 944 |
+| Nikita | 724 | 947 |
+
+**Gegenprobe:** Stufe A und B ohne Zuständigen jetzt **0**. Bezahlte Bestellungen (347), Bestellsumme (54.713,17 €), Provisionszeilen (337) und Provisionssumme (4.596,00 €) **unverändert**. Von 589 dokumentiert betreuten Personen wurde **keine einzige** angefasst — geprüft über einen Fingerabdruck aller 589 Zuweisungen vor und nach dem Lauf.
+
+**Ein Fehler in meiner eigenen Logik kam dabei ans Licht.** Sandra Ulke-Züllich (Person 4310) lag seit dem 04.07. ohne jeden Zuständigen: `betreuung_seit` war gesetzt, also griff der Besitzschutz — zugunsten von Agent 7, einem **Testkonto**. Ein Schutz braucht jemanden, den er schützt. Er greift jetzt nur noch, wenn der dokumentierte Betreuer ein echter, aktiver Mitarbeiter ist.
+
+### Kunden-Zentrale: eine Seite statt sechs
+
+`/admin/kunden` ist jetzt die eine Liste. Suche über Namen, Adressen, Referenzen **und alte Adressen (Aliase)**; Rufnummern mit und ohne Leerzeichen (`+491746276813`, `4917 462 76813` und `6276813` finden dieselbe Person).
+
+Filter aus dem Statusvokabular, Stufen A/B/C, Zuständiger, Paket, Quelle, Zeitraum und neun Spezialfilter — **kombinierbar und in der Adresse**. Ein Kollege schickt einen Link statt „geh auf Kunden, dann Stufe B, dann ohne Agent".
+
+**Massenauswahl über Seitengrenzen.** „Alle 167 Treffer wählen" meint 167, nicht die sichtbaren 50 — der Prüfstand vergleicht beide Zahlen. Aktionen: Mail senden (öffnet die Mail-Zentrale mit vorbefüllter Auswahl), Zuweisen, Als Test markieren, Archivieren, CSV, Löschen.
+
+### Löschen, endlich sauber definiert
+
+„Löschen" bedeutet für zwei Personen zwei verschiedene Dinge, und der Unterschied ist Gesetz:
+
+- **Endgültig** — ein Lead ohne Zahlung hinterlässt keine Buchhaltungsspur und darf nach Art. 17 DSGVO vollständig verschwinden.
+- **Anonymisiert** — wer bezahlt hat, hat eine Rechnung. Die sind nach **§ 147 AO zehn Jahre** aufzubewahren. Die Person verschwindet, die Buchung bleibt lesbar.
+
+Wer beides „löschen" nennt und gleich behandelt, verletzt eines der beiden Gesetze. **Nicht der Klickende entscheidet, sondern der Zustand der Daten** — und der Dialog zeigt es vor dem Klick: zwei getrennte Zähler, je Person die Begründung im Klartext, dazu der Satz „N Einträge löschen", der wörtlich getippt werden muss. Ein Kontrollkästchen klickt man weg; einen Satz mit einer Zahl tippt man nicht versehentlich.
+
+Vorschau und Ausführung benutzen **dieselbe** Einteilungsfunktion — eine zweite daneben wäre genau der Fehler, bei dem ein Kunde verschwindet, dessen Rechnung noch gebraucht wird. Jede Löschung steht mit Vorgangskennzeichen in `fiaon_loeschungen`. Massenlöschung nur Betreiber.
+
+Im Prüfstand wird das mit echten Daten durchgespielt: Lead weg samt Bestellung, bezahlter Kunde anonymisiert, **Rechnungsnummer und Betrag weiterhin lesbar**, danach in keiner Liste, keiner Suche, keiner Mail-Zielgruppe.
+
+### Team-Zentrale
+
+Mitarbeiter-Karten mit Umsatz und Abschlüssen des Monats, Erreichbarkeitsquote, Bestand nach Stufe, Kontakten heute/Woche, Verdienst und letzter Aktivität. Rangliste umschaltbar. Im Detail: Kennzahlen, Provisionssatz, **Nachbuchung** (von `/admin/nachbuchung` hierher, über **dieselben Endpunkte** — kein zweiter Weg, der eines Tages anders prüft) und das **Protokoll**.
+
+Das Protokoll ist die „genaue Klicks"-Antwort: durchsuch- und filterbar über `fiaon_agent_events` und `fiaon_contact_log`. **Es wird nichts Neues mitgeschrieben** — alles stand seit Monaten in der Datenbank und war nur nie an einem Ort lesbar.
+
+**Nachrichten und Banner:** Eine persönliche Nachricht erscheint im Team-Portal über allem und bleibt, bis der Mensch „Verstanden" klickt oder die Frist abläuft. Der Klick ist der Zweck — die Leitung sieht danach, wer wann bestätigt hat. „Ereignis verkünden" erzeugt genau einen angepinnten Beitrag im Space, optional mit Banner.
+
+### Navigation: alt → neu
+
+| bisher | jetzt |
+|---|---|
+| Anträge & KYC | Kunden-Zentrale, Filter „KYC zu prüfen" |
+| Kunden & Zuordnung | Kunden-Zentrale, Filter „Dubletten-Verdacht" |
+| Leads | Kunden-Zentrale, Stufe C |
+| Kündigungen | Kunden-Zentrale, Filter „Kündigungen" |
+| Offene Kartei | Kunden-Zentrale (Kartei seit 03.08. stillgelegt) |
+| Provisionen nachbuchen | Team-Zentrale, Mitarbeiter-Detail |
+
+Alle sechs Adressen leiten **mit passendem Filter** um — kein Lesezeichen läuft ins Leere. Dazu ein Systempost im Space („Wo ist was hin?").
+
+**Eine bewusste Abweichung:** Die Lead-Seite trägt eine 782-zeilige Nachfass-Maschine (Sendefenster, Bulk-Versand, Verteilung, CSV-Import). Die **Liste** ist in die Zentrale gewandert, die **Maschine** steht als „Lead-Automatik" eigenständig im Menü. Sie mit umzuleiten hätte sie unerreichbar gemacht — das wäre kein Aufräumen, sondern ein Verlust. Ebenso bleiben `/admin/team-alt` und `/admin/nachbuchung-alt` erreichbar, bis die Zentrale im Betrieb bestätigt ist.
+
+### Was die Screenshots gefunden haben
+
+Drei Fehler, die kein Test bemerkt hätte:
+
+- **Die Kopfzeile erschien doppelt.** `admin()` umschließt jede Seite bereits mit `AdminShell` — meine beiden neuen Seiten taten es nochmal.
+- **„Erreichbar" stand bei allen auf einem Strich.** Ich zählte `type = 'call'` — den Wert gibt es nicht. Anrufversuche sind `type = 'result'` mit Ergebnis. Jetzt: 16 %, 19 %, 13 %, 31 %.
+- **13 px abgeschnittener Text auf 380 px** (vom Schmal-Prüfstand). Die Mobilzeile bricht jetzt um statt abzuschneiden — „Bezahlt · Bonitätsauskunft inkl. Handlun…" sagt weniger als gar nichts.
+
+### Prüfstand
+
+`scripts/pruef-zentralen.ts` — **90 Prüfungen, alle grün**, zurückgerollt. Gegenprobe: Wird die Einteilung ausgehebelt (bezahlte Kunden endgültig löschen) oder die Bestätigungspflicht entfernt, wird er rot — inklusive „Der bezahlte Kunde EXISTIERT noch".
+
+Er hat außerdem eine Regression in `pruef-mail` aufgedeckt: Der dortige Besitzschutz-Test legte eine Person ohne jeden Kontakteintrag an — also ohne echten Betreuer. Er stellt jetzt einen nach und prüft zusätzlich den Umkehrfall (Testkonto als „Betreuer" schützt nicht).
+
+Gesamt: **827 Prüfungen** über acht Prüfstände, alle grün.
+
+**Zu finden:** `server/lib/fiaon-kundenzentrale.ts`, `fiaon-loeschen.ts`, `server/routes/fiaon-zentralen.ts`, `client/src/pages/admin-kunden.tsx`, `admin-team-zentrale.tsx`, `client/src/components/Umleitung.tsx`, `db/migrations/044_zentralen.sql`.
+
 ## 09.08.2026 — Die Plattform hört auf zu behaupten: gemessene Zustellung, ein Sendeweg, Zugang retten
 
 ### Der Kernfehler: eine Warnung, die den Betreiber zu Unrecht beschuldigt hat

@@ -359,6 +359,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonZugangRetten = await import('./routes/fiaon-zugang-retten');
   app.use('/api/fiaon', fiaonZugangRetten.default);
 
+  // 🗂️ Zentralen — EINE Kundenliste statt sechs Seiten, EINE Team-Zentrale.
+  //    Filter, Massenauswahl, Loeschen (endgueltig vs. anonymisiert),
+  //    Team-Kennzahlen, Protokolle, Nachrichten und Banner.
+  const fiaonZentralen = await import('./routes/fiaon-zentralen');
+  app.use('/api/fiaon', fiaonZentralen.default);
+
   // 🧭 FIAON Vertriebsleitung — /agent/vertrieb: Gesamtsicht für die zwei
   //    Vertriebsleiter (zuweisen, korrigieren, dokumentieren). Normale Agenten
   //    bekommen dort 404 — die Prüfung steht im Router, nicht in der Oberfläche.

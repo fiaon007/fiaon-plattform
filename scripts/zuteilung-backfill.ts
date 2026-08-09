@@ -50,8 +50,15 @@ async function main(): Promise<void> {
       AND p.assigned_agent_id IS NULL
       AND NOT p.is_blocked
       AND p.ist_test_am IS NULL
-      -- BESITZSCHUTZ: Wer dokumentiert betreut wurde, gehört seinem Betreuer.
-      AND p.betreuung_seit IS NULL
+      -- BESITZSCHUTZ: Wer dokumentiert betreut wurde, gehört seinem Betreuer —
+      -- aber nur, wenn dieser ein ECHTER, aktiver Mitarbeiter ist. Ein
+      -- Testkonto als „Betreuer" ließ Sandra Ulke-Züllich (Person 4310) einen
+      -- Monat lang ohne jeden Zuständigen liegen.
+      AND (p.betreuung_seit IS NULL
+           OR NOT EXISTS (SELECT 1 FROM fiaon_contact_log cl
+                            JOIN fiaon_applications ca ON ca.ref = cl.ref
+                            JOIN fiaon_agents cg ON cg.id = cl.agent_id
+                            WHERE ca.person_id = p.id AND cg.active AND NOT cg.is_test_account))
       AND p.priority_tier IN (${NUR_A ? sqlPool`1` : sqlPool`1, 2`})
     -- Stufe A zuerst, dann die ältesten: Wer am längsten wartet, ist am
     -- ehesten verloren.
@@ -112,7 +119,7 @@ async function main(): Promise<void> {
       for (const id of welle) {
         const [r] = await tx`
           UPDATE fiaon_persons SET assigned_agent_id = ${zuteilung.get(id)!}, assigned_at = NOW()
-          WHERE id = ${id} AND assigned_agent_id IS NULL AND betreuung_seit IS NULL
+          WHERE id = ${id} AND assigned_agent_id IS NULL
           RETURNING id
         `;
         if (r) geschrieben++;

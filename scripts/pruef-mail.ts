@@ -137,9 +137,33 @@ async function main(): Promise<void> {
         first_name: "Betreut", primary_email: MAIL("bt"), priority_tier: 1, tier_reason: "zahlung_angekuendigt",
         betreuung_seit: new Date(Date.now() - 30 * 86400000),
       });
+      // Ein ECHTER Betreuer muss dokumentiert sein — seit dem 09.08.2026
+      // schützt der Besitzschutz nur, wenn es jemanden zu schützen gibt.
+      // Sandra Ulke-Züllich (Person 4310) lag einen Monat lang ohne
+      // Zuständigen, weil ihr einziger „Betreuer" ein Testkonto war.
+      const p3ref = await bestellung({ ref: REF("BETREUT"), person_id: p3 });
+      await tx`
+        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, outcome, note)
+        VALUES (${p3ref}, ${leer}, 'Leerlauf', 'result', 'nicht_erreicht', 'Prüfstand: dokumentierte Betreuung')
+      `;
       const z3 = await sofortZuteilen(p3, tx as any);
       ok("Besitzschutz: dokumentiert Betreute werden NICHT umverteilt", !z3.zugeteilt, z3.grund);
       ok("… mit dem Grund im Klartext", /Besitzschutz/.test(z3.grund));
+
+      // Der Umkehrfall: betreuung_seit gesetzt, aber nur von einem Testkonto
+      // dokumentiert → es gibt niemanden zu schützen, also wird verteilt.
+      const pTest = await person({
+        first_name: "Scheinbetreut", primary_email: MAIL("sb"), priority_tier: 2, tier_reason: "rechnung_offen",
+        betreuung_seit: new Date(Date.now() - 30 * 86400000),
+      });
+      const pTestRef = await bestellung({ ref: REF("SCHEIN"), person_id: pTest });
+      await tx`
+        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, outcome, note)
+        VALUES (${pTestRef}, ${testAgent}, 'Testkonto', 'result', 'nicht_erreicht', 'Prüfstand: Scheinbetreuung')
+      `;
+      const zTest = await sofortZuteilen(pTest, tx as any);
+      ok("Ein Testkonto als „Betreuer“ schützt NICHT — die Person wird verteilt",
+        zTest.zugeteilt, zTest.grund);
 
       const p4 = await person({ first_name: "Schon", primary_email: MAIL("sc"), priority_tier: 1, tier_reason: "zahlung_angekuendigt", assigned_agent_id: leer });
       gleich("Wer schon jemanden hat, behält ihn", (await sofortZuteilen(p4, tx as any)).zugeteilt, false);

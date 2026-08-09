@@ -1,4 +1,5 @@
 import { lazy, Suspense, type ComponentType } from "react";
+import { Umleitung } from "@/components/Umleitung";
 import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -67,6 +68,7 @@ const AgentAufgabenPage = lazy(() => import("@/pages/agent/aufgaben"));
 const AgentStartPage = lazy(() => import("@/pages/agent/start"));
 const AgentKundenNeuPage = lazy(() => import("@/pages/agent/kunden-neu"));
 const AgentSpacePage = lazy(() => import("@/pages/agent/space"));
+const AdminTeamZentralePage = lazy(() => import("@/pages/admin-team-zentrale"));
 const MailZentralePage = lazy(() => import("@/pages/mail-zentrale"));
 const AgentStartgespraechePage = lazy(() => import("@/pages/agent/startgespraeche"));
 const AgentVertriebPage = lazy(() => import("@/pages/agent/vertrieb"));
@@ -135,7 +137,10 @@ function Router() {
       <Route path="/login" component={LoginPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/admin" component={admin(AdminHubPage)} />
-      <Route path="/admin/database" component={admin(AdminAntraegePage)} />
+      {/* ── UMGEZOGEN (09.08.2026) ────────────────────────────────────
+          „Anträge & KYC" ist in der Kunden-Zentrale aufgegangen. Der Filter
+          „KYC zu prüfen" zeigt genau die Arbeit, für die es die Seite gab. */}
+      <Route path="/admin/database" component={() => <Umleitung nach="/admin/kunden?kycOffen=1" />} />
       <Route path="/admin/kunden" component={admin(AdminKundenPage)} />
       <Route path="/admin/kunde/:id" component={admin(AdminKundeAktePage)} />
       <Route path="/admin/zahlungen" component={admin(AdminZahlungenPage)} />
@@ -147,10 +152,19 @@ function Router() {
       <Route path="/admin/finanzen" component={admin(AdminFinanzenPage)} />
       <Route path="/admin/kontoabgleich" component={admin(AdminKontoabgleichPage)} />
       <Route path="/admin/verbuchung" component={admin(AdminVerbuchungPage)} />
-      <Route path="/admin/personen" component={admin(AdminPersonenPage)} />
-      <Route path="/admin/leads" component={admin(AdminLeadsPage)} />
+      {/* „Kunden & Zuordnung" war eine reine Lesesicht auf Mehrfach-
+          Zuständigkeiten — das ist jetzt der Dubletten-Filter. */}
+      <Route path="/admin/personen" component={() => <Umleitung nach="/admin/kunden?dubletten=1" />} />
+      {/* Die Lead-LISTE steht in der Zentrale unter Stufe C. Die
+          Nachfass-Automatik (Sendefenster, Bulk-Versand, Verteilung, Import)
+          bleibt vollständig erhalten und liegt unter /admin/lead-automatik —
+          sie wegzuwerfen wäre kein Aufräumen, sondern ein Verlust. */}
+      <Route path="/admin/leads" component={() => <Umleitung nach="/admin/kunden?stufe=C" />} />
+      <Route path="/admin/lead-automatik" component={admin(AdminLeadsPage)} />
       <Route path="/admin/dubletten" component={admin(AdminDublettenPage)} />
-      <Route path="/admin/kuendigungen" component={admin(AdminKuendigungenPage)} />
+      {/* Kündigungen sind ein Filter, keine Seite. Die Bearbeitung selbst
+          (bestätigen/ablehnen) liegt in der Akte. */}
+      <Route path="/admin/kuendigungen" component={() => <Umleitung nach="/admin/kunden?kuendigungen=1" />} />
       <Route path="/admin/investoren" component={admin(AdminInvestorenPage)} />
       <Route path="/admin/rechnungen" component={admin(AdminRechnungenPage)} />
       <Route path="/admin/verbuchungen" component={admin(AdminVerbuchungenPage)} />
@@ -161,7 +175,8 @@ function Router() {
       <Route path="/admin/recht" component={admin(AdminRechtPage)} />
       <Route path="/admin/funktionen" component={admin(AdminFunktionenPage)} />
       <Route path="/admin/fahrplan" component={admin(AdminFahrplanPage)} />
-      <Route path="/admin/kartei" component={admin(AdminKarteiPage)} />
+      {/* Die Kartei ist seit 03.08.2026 stillgelegt (fiaon-kartei.ts, 410). */}
+      <Route path="/admin/kartei" component={() => <Umleitung nach="/admin/kunden" />} />
       <Route path="/agent" component={AgentPortalPage} />
       <Route path="/agent/setup/:token" component={AgentSetupPage} />
       <Route path="/agent/passwort" component={AgentPasswortPage} />
@@ -214,9 +229,15 @@ function Router() {
       <Route path="/agent/mehr" component={AgentMehrPage} />
       <Route path="/agent/dokumente" component={AgentDokumentePage} />
       <Route path="/admin/agent-portal" component={admin(AdminAgentPortalPage)} />
-      <Route path="/admin/team" component={admin(AdminTeamPage)} />
+      <Route path="/admin/team" component={admin(AdminTeamZentralePage)} />
+      {/* Die alte Team-Seite bleibt erreichbar, bis alle Funktionen der
+          Zentrale im Betrieb bestätigt sind. */}
+      <Route path="/admin/team-alt" component={admin(AdminTeamPage)} />
       <Route path="/admin/vertraege" component={admin(AdminVertraegePage)} />
-      <Route path="/admin/nachbuchung" component={admin(AdminNachbuchungPage)} />
+      {/* Provisionen nachbuchen sitzt jetzt im Mitarbeiter-Detail der
+          Team-Zentrale — dort, wo auch der Provisionssatz steht. */}
+      <Route path="/admin/nachbuchung" component={() => <Umleitung nach="/admin/team?tab=nachbuchung" />} />
+      <Route path="/admin/nachbuchung-alt" component={admin(AdminNachbuchungPage)} />
       <Route path="/admin/leistung" component={admin(AdminLeistungPage)} />
       <Route path="/admin/changelog" component={admin(AdminChangelogPage)} />
       <Route path="/admin/diagnose" component={admin(AdminDiagnosePage)} />

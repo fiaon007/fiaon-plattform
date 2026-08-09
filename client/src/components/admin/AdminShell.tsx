@@ -80,24 +80,24 @@ export const ADMIN_NAV: NavGroup[] = [
   {
     title: "Kunden & Anträge",
     items: [
-      { path: "/admin/kunden", label: "Kunden — die eine Liste", desc: "Jede Person genau einmal (Leads + Kunden vereint) — jeder Treffer öffnet die Akte", icon: Users },
-      { path: "/admin/database", label: "Anträge & KYC", desc: "Arbeits-Fokus: Antrags-Details, KYC-Dokumente, SCHUFA-Review", icon: Database },
+      // ── EINE SEITE STATT SECHS (09.08.2026) ───────────────────────────
+      // „Anträge & KYC", „Kunden & Zuordnung", „Offene Kartei", „Leads" und
+      // „Kündigungen" sind in der Kunden-Zentrale aufgegangen. Ihre Adressen
+      // leiten mit dem passenden Filter dorthin um (client/src/App.tsx),
+      // damit kein Lesezeichen ins Leere läuft.
+      { path: "/admin/kunden", label: "Kunden-Zentrale", desc: "Jede Person genau einmal — Leads, Kunden, Anträge, KYC, Kündigungen. Filter sind teilbar, Massenaktionen inbegriffen", icon: Users },
+      { path: "/admin/lead-automatik", label: "Lead-Automatik", desc: "Nachfass-Maschine für Leads: Sendefenster, Bulk-Versand, Verteilung, Import — die Lead-LISTE steht in der Kunden-Zentrale unter Stufe C", icon: Target },
       // Routen-Audit 04.08.2026: ebenfalls ohne Menüpunkt gewesen.
-      { path: "/admin/personen", label: "Kunden & Zuordnung", desc: "Wie viele Menschen sind wirklich Kunden (statt Antragszeilen) — und bei wem hängen mehrere Teammitglieder an einer Person", icon: UserCheck },
       { path: "/admin/fahrplan", label: "Fahrplan / Kundenprodukt", desc: "Upload-Review, KI-Analyse freigeben, Fahrplan steuern, Ziel-Freischaltung, Audit", icon: Map },
-      { path: "/admin/kartei", label: "Offene Kartei", desc: "Ein gemeinsamer Bestand für das ganze Team — frei/vergeben, Rückläufer, Rangfolge, Notausgang", icon: Layers },
-      { path: "/admin/leads", label: "Leads", desc: "Interessenten aus Lead-Ads — Nachfass, Verteilung, Warteschlange", icon: Target },
-      { path: "/admin/kuendigungen", label: "Kündigungen", desc: "Eingehende Kündigungsanträge prüfen, bestätigen oder ablehnen", icon: LogOut, badgeKey: "kuendigungen" },
       { path: "/admin/investoren", label: "Investoren", desc: "Investoren-Verwaltung: Anfragen, Investments, Dokumente", icon: PiggyBank },
     ],
   },
   {
     title: "Team",
     items: [
-      { path: "/admin/team", label: "Team-Übersicht", desc: "Team, Statistik, Provisionen, Zuweisungen", icon: Users },
+      { path: "/admin/team", label: "Team-Zentrale", desc: "Kennzahlen, Provisionen, Nachbuchung, Protokolle und Nachrichten — alles zu einem Menschen an einem Ort", icon: Users },
       { path: "/admin/vertraege", label: "Onboarding & Verträge", desc: "Zustimmungs-/Vertragsstatus, Vorlagen (Entwurf/Aktiv), Vertragsvariablen, Nachweise", icon: ScrollText },
       { path: "/admin/leistung", label: "Leistung", desc: "Arbeitsberichte: Ergebnisse pro Teammitglied — offen, nicht heimlich", icon: BarChart3 },
-      { path: "/admin/nachbuchung", label: "Provisionen nachbuchen", desc: "Bezahlte Bestellungen ohne Provision erkennen und buchen", icon: HandCoins, badgeKey: "nachbuchung" },
       { path: "/admin/team?einladen=1", label: "Teammitglied anlegen", desc: "Neuen Mitarbeiter per E-Mail einladen", icon: UserPlus, match: "/admin/team" },
       { path: "/admin/team#skripte", label: "Skripte & Leitfäden", desc: "Gesprächsvorlagen verwalten", icon: BookOpen, match: "/admin/team" },
       // P4-E: „Agent-Updates" + „Team-Feedback" zeigten dieselbe Seite — zusammengelegt.
@@ -110,6 +110,7 @@ export const ADMIN_NAV: NavGroup[] = [
       { path: "/admin/funktionen", label: "Funktionen & Schulung", desc: "Alle Funktionen mit Klartext + Direktlink, Selbsttest (Button → Event → Status), Schulungsmodus", icon: GraduationCap },
       { path: "/admin/diagnose", label: "System-Diagnose", desc: "Was klemmt gerade? Ereignis-Konsole, Rohdaten, KI-Auswertung", icon: Activity, badgeKey: "diagnose" },
       { path: "/admin/einstellungen", label: "Einstellungen", desc: "Provisionssatz, Auszahlung, Reminder-Engine, Diagnose", icon: Settings },
+      { path: "/agent/mail-zentrale", label: "Mail-Zentrale", desc: "Freitext an Kunden und Gruppen — Bausteine, Vorschau, KI-Hilfe", icon: Send },
       { path: "/admin/events", label: "E-Mail-Events", desc: "Make-Events testen, Diagnose, Verlauf", icon: Send },
       { path: "/admin/audit", label: "Audit-Log", desc: "Alle Mitarbeiter-Aktionen durchsuchbar", icon: ScrollText },
       { path: "/admin/changelog", label: "Was ist neu?", desc: "Alle Änderungen am System in Klartext", icon: History },

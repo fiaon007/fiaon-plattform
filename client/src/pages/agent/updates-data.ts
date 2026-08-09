@@ -40,6 +40,27 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-09-zentralen",
+    date: "2026-08-09",
+    category: "Verbessert",
+    title: "Nachrichten von der Leitung — und 734 Kunden neu verteilt",
+    summary:
+      "Die Leitung kann dir jetzt eine Nachricht direkt ins Portal stellen. Und: Über 700 Kunden mit fertigem Antrag und offener Rechnung hatten niemanden — die sind jetzt verteilt.",
+    changes: [
+      "Neu: Nachrichten der Leitung erscheinen als Banner ganz oben, über allem. Mit „Verstanden“ bestätigst du, dass du sie gelesen hast.",
+      "734 Kunden auf Stufe B (fertiger Antrag, Rechnung offen) hatten keinen Zuständigen und tauchten in niemandes Liste auf. Sie sind gleichmäßig verteilt — dein Bestand ist dadurch gewachsen.",
+      "Deine bereits betreuten Kunden wurden dabei NICHT angefasst. Das wurde einzeln nachgeprüft.",
+      "Kleiner Nebeneffekt: Wer von einem Testkonto „betreut“ wurde, hing bisher in der Luft. Solche Fälle werden jetzt normal verteilt.",
+    ],
+    howto: [
+      "Ein Banner der Leitung bleibt stehen, bis du „Verstanden“ klickst — oder bis die Frist abläuft.",
+      "Deine neuen Kunden stehen in der Kundenliste unter Stufe B. Die Arbeitsreihenfolge sortiert sie automatisch ein.",
+      "Wenn dir ein Kunde zugeteilt wurde, der eigentlich zu jemand anderem gehört: melde es der Vertriebsleitung, sie kann ihn umhängen.",
+    ],
+    link: { href: "/agent/kunden", label: "Zur Kundenliste" },
+    important: true,
+  },
+  {
     id: "2026-08-09-mail-zentrale",
     date: "2026-08-09",
     category: "Neu",

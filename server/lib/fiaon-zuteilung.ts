@@ -86,11 +86,31 @@ export async function sofortZuteilen(
     if (![1, 2].includes(Number(p.priority_tier))) {
       return { zugeteilt: false, agentId: null, grund: `Stufe ${p.priority_tier} — keine Zuteilung nötig` };
     }
-    // BESITZSCHUTZ: Wer dokumentiert betreut wurde, gehört seinem Betreuer.
-    // Die Zuweisung wiederherzustellen ist Sache eines Menschen, nicht einer
-    // Automatik — sonst nimmt sie den Kunden dem Falschen.
+    // ── BESITZSCHUTZ ────────────────────────────────────────────────────
+    // Wer dokumentiert betreut wurde, gehört seinem Betreuer. Die Zuweisung
+    // wiederherzustellen ist Sache eines Menschen, nicht einer Automatik —
+    // sonst nimmt sie den Kunden dem Falschen.
+    //
+    // ABER: Ein Schutz braucht jemanden, den er schützt. Sandra Ulke-Züllich
+    // (Person 4310) wurde am 04.07.2026 dokumentiert betreut — von Agent 7,
+    // einem TESTKONTO. Seither hatte sie einen Monat lang niemanden: Der
+    // Besitzschutz hielt sie aus jeder Verteilung heraus, zugunsten eines
+    // „Betreuers", hinter dem kein Mensch sitzt.
+    //
+    // Deshalb greift der Schutz nur, wenn der dokumentierte Betreuer ein
+    // ECHTER, aktiver Mitarbeiter ist.
     if (p.betreuung_seit) {
-      return { zugeteilt: false, agentId: null, grund: `betreut seit ${p.betreuung_seit} — Besitzschutz` };
+      const [echterBetreuer] = (await lauf`
+        SELECT 1 AS ok FROM fiaon_contact_log cl
+        JOIN fiaon_applications a ON a.ref = cl.ref
+        JOIN fiaon_agents ag ON ag.id = cl.agent_id
+        WHERE a.person_id = ${personId} AND ag.active AND NOT ag.is_test_account
+        LIMIT 1
+      `) as any[];
+      if (echterBetreuer) {
+        return { zugeteilt: false, agentId: null, grund: `betreut seit ${p.betreuung_seit} — Besitzschutz` };
+      }
+      console.log(`[ZUTEILUNG] Person ${personId}: betreuung_seit gesetzt, aber kein echter Betreuer — wird verteilt.`);
     }
 
     const agentId = await agentMitKleinsterLast(lauf);

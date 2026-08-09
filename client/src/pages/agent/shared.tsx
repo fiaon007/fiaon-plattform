@@ -169,6 +169,57 @@ const NAV: { href: string; label: string; icon: typeof Users; match: string[]; n
  * veröffentlichte Updates existieren. Klick → /agent/updates (markiert dort
  * als gelesen und feuert 'agent-updates-read', der Banner verschwindet sofort).
  */
+/**
+ * Banner für persönliche Nachrichten der Leitung.
+ *
+ * Steht über allem und bleibt, bis der Mensch „Verstanden" klickt oder die
+ * Frist abläuft. Der Klick ist der eigentliche Zweck: Die Leitung sieht
+ * danach in der Team-Zentrale, wer wann bestätigt hat.
+ *
+ * Ein Fehler beim Laden bleibt STILL. Eine Nachricht, die nicht kommt, ist
+ * ärgerlich; eine Fehlermeldung über allem, wo eine Nachricht stehen sollte,
+ * ist schlimmer.
+ */
+function TeamNachrichten() {
+  const [liste, setListe] = useState<{ id: number; text: string; created_by: string }[]>([]);
+
+  useEffect(() => {
+    let weg = false;
+    fetch("/api/fiaon/agent/nachrichten", { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => { if (!weg && j?.ok) setListe(j.nachrichten || []); })
+      .catch(() => {});
+    return () => { weg = true; };
+  }, []);
+
+  if (liste.length === 0) return null;
+  const n = liste[0];
+
+  return (
+    <div className="px-4 pt-3">
+      <div className="mx-auto max-w-6xl rounded-2xl px-4 py-3 flex flex-wrap items-center gap-3"
+           style={{ background: "rgba(29,78,216,.06)", border: "1px solid rgba(29,78,216,.2)" }}>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10.5px] font-bold uppercase tracking-[.14em]" style={{ color: "var(--fi-primaer)" }}>
+            Von {n.created_by}
+          </p>
+          <p className="text-[13.5px] leading-relaxed mt-0.5" style={{ color: "var(--fi-text)" }}>{n.text}</p>
+        </div>
+        <button type="button"
+                onClick={async () => {
+                  setListe((l) => l.filter((x) => x.id !== n.id));
+                  await fetch(`/api/fiaon/agent/nachrichten/${n.id}/verstanden`, {
+                    method: "POST", credentials: "include",
+                  }).catch(() => {});
+                }}
+                className="fi-primaerknopf shrink-0 px-4 py-2 text-[13px] font-semibold">
+          Verstanden
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function UpdateBanner() {
   const [unseen, setUnseen] = useState(0);
   const [dismissed, setDismissed] = useState(false);
@@ -737,6 +788,10 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
           </div>
         </header>
 
+        {/* Persönliche Nachrichten der Leitung stehen ÜBER den Produkt-
+            Updates: Eine Ansage an genau diesen Menschen ist dringlicher als
+            eine Neuerung, die alle betrifft. */}
+        <TeamNachrichten />
         <UpdateBanner />
         <ImportantUpdateHint />
 

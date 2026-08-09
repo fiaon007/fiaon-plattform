@@ -268,16 +268,20 @@ async function main(): Promise<void> {
   gruppe("8. Space 2.0");
   // ═══════════════════════════════════════════════════════════════════════
   const space = datei("client/src/pages/agent/space.tsx");
-  ok("Drei Spalten mit Feed in der Mitte",
-    /grid-template-columns: minmax\(0, 1fr\) minmax\(0, 620px\) minmax\(0, 1fr\)/.test(space));
-  ok("Seitenspalten fallen unter 1080 px weg", /max-width: 1079px/.test(space));
-  ok("Auf 380 px randlos", /border-radius: 0; padding: 15px 16px;/.test(space));
+  // ── AUF SPACE V4 NACHGEZOGEN (11.08.2026) ─────────────────────────────
+  // Der Betreiber hat v3 abgelehnt: zu schmal, zu nah an der Kopfzeile. Der
+  // Feed ist jetzt 760 px breit und die Bühne dunkel. Diese Prüfungen maßen
+  // die alten Zahlen — sie prüften Gestaltung, die es nicht mehr gibt.
+  ok("Drei Spalten mit breitem Feed",
+    /grid-template-columns: minmax\(0, 1fr\) minmax\(0, 760px\) minmax\(0, 1fr\)/.test(space));
+  ok("Seitenspalten fallen unter 1260 px weg", /max-width: 1259px/.test(space));
+  ok("Auf 380 px randlos", /border-radius: 0; padding: 16px;/.test(space));
   // Vier Lagen Schatten: Kontakt, Streuung, Farbschein, Lichtkante. Ein
   // einzelner Schatten sieht immer nach Vorlage aus.
   ok("Karten tragen die volle Schattenstaffel",
-    /0 18px 40px -24px rgba\(11,18,38,\.44\)/.test(space)
-    && /0 0 50px -26px rgba\(29,78,216,\.4\)/.test(space)
-    && /inset 0 1px 0 rgba\(255,255,255,\.95\)/.test(space));
+    /0 26px 56px -28px rgba\(3,8,22,\.7\)/.test(space)
+    && /0 0 60px -26px rgba\(96,165,250,\.42\)/.test(space)
+    && /inset 0 1px 0 rgba\(255,255,255,1\)/.test(space));
   ok("Der Komposer öffnet sich beim Fokus", /onFocus=\{\(\) => setGross\(true\)\}/.test(space));
   ok("… und lädt ein statt zu fordern", /Was lief gut\?/.test(space));
   ok("Reaktionen mit eigenen SVG-Marken, keine Emojis",
@@ -527,25 +531,27 @@ async function main(): Promise<void> {
   // ═══════════════════════════════════════════════════════════════════════
   gruppe("15. Space-Design");
   // ═══════════════════════════════════════════════════════════════════════
-  ok("Der Raum liegt auf der Hülle, nicht in der Bühne",
-    /body:has\(\.fi-sp-buehne\) \.agent-ambient \{/.test(spaceSeite));
-  ok("… weil perspective sonst den Bezugsrahmen kapert",
-    /Bezugsrahmen für/.test(spaceSeite));
+  ok("Die Bühne liegt auf der Hülle, nicht in der Bühne selbst",
+    /body:has\(\.fi-sp-buehne\) \.agent-ambient,/.test(spaceSeite));
+  ok("… und gilt auch im Verwaltungsbereich",
+    /body:has\(\.fi-sp-buehne\) \.admin-flaeche \{/.test(spaceSeite));
+  ok("Die Bühne ist dunkles CI-Navy",
+    /linear-gradient\(178deg, #0d1c3f 0%, #0a1a3c 44%, #071129 100%\)/.test(spaceSeite));
   ok("Die Bühne hat Tiefe", /perspective: 1600px/.test(spaceSeite));
-  ok("Karten sind Glas", /backdrop-filter: blur\(28px\) saturate\(190%\)/.test(spaceSeite));
+  ok("Karten sind Glas", /backdrop-filter: blur\(26px\) saturate\(150%\)/.test(spaceSeite));
   ok("… mit Lichtkante oben", /\.fi-sp-karte::after/.test(spaceSeite));
-  ok("Beiträge treten aus der Tiefe ein", /translateZ\(-40px\) rotateX\(4deg\)/.test(spaceSeite));
-  ok("… und kommen dem Zeiger entgegen", /\.fi-sp-post:hover[\s\S]{0,80}translateZ\(10px\)/.test(spaceSeite));
-  ok("Der Komposer hebt sich beim Fokus an", /transform: translateZ\(16px\)/.test(spaceSeite));
+  ok("Beiträge treten aus der Tiefe ein", /translateZ\(-44px\) rotateX\(4deg\)/.test(spaceSeite));
+  ok("… und kommen dem Zeiger entgegen", /\.fi-sp-post:hover[\s\S]{0,80}translateZ\(12px\)/.test(spaceSeite));
+  ok("Der Komposer hebt sich beim Fokus an", /transform: translateZ\(18px\)/.test(spaceSeite));
   ok("Reaktionen haben eine Welle", /@keyframes fiSpWelle/.test(spaceSeite));
   ok("Knöpfe haben Druckgefühl",
     /\.fi-sp-senden:active[\s\S]{0,120}inset 0 2px 5px/.test(spaceSeite));
   ok("Alles auf der CI-Akzentfarbe",
-    /var\(--fi-primaer, #1d4ed8\)/.test(spaceSeite) && !/#7c3aed|#db2777|#ea580c/.test(spaceSeite));
+    /#1d4ed8/.test(spaceSeite) && !/#7c3aed|#db2777|#ea580c/.test(spaceSeite));
   ok("Keine Emojis", !/[\u{1F300}-\u{1FAFF}]/u.test(spaceSeite));
   ok("Bewegung ist abschaltbar", /prefers-reduced-motion: reduce/.test(spaceSeite));
-  ok("… die Tiefe bleibt trotzdem", /Sie ist\s+Gestaltung, keine Animation/.test(spaceSeite)
-    || /Gestaltung, keine Animation/.test(spaceSeite));
+  ok("… die Tiefe bleibt trotzdem",
+    /prefers-reduced-motion: reduce\)[\s\S]{0,400}\.fi-sp-post:hover \{ transform: none; \}/.test(spaceSeite));
 
   // ═══════════════════════════════════════════════════════════════════════
   gruppe("16. Verhalten gegen echte Daten");

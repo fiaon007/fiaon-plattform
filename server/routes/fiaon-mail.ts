@@ -544,12 +544,36 @@ router.post("/mail/zentrale/test", requireAgent, async (req: AgentRequest, res: 
   }
 });
 
+/**
+ * POST /admin/mail/zentrale/ki — derselbe Assistent für den Betreiber.
+ *
+ * ── WARUM ES DIE ÜBERHAUPT BRAUCHT ─────────────────────────────────────────
+ * Die Team-Route hängt an `requireAgent`. Der Betreiber hat keine
+ * Agent-Sitzung — von /admin/mail-zentrale lief jeder KI-Aufruf in ein 401.
+ * Genau dieselbe Lücke wie bei der Mail-Zentrale selbst; sie war nur nicht
+ * aufgefallen, weil die Fehlermeldung „KI nicht verfügbar" nach einem
+ * fehlenden Schlüssel klingt und nicht nach einer fehlenden Route.
+ */
+router.post("/admin/mail/zentrale/ki", async (req: Request, res: Response) => {
+  try {
+    const { kiEntwurf } = await import("../lib/fiaon-mail-ki");
+    const erg = await kiEntwurf(String(req.body?.art || "entwurf"), String(req.body?.eingabe || ""));
+    res.json({ ok: erg.ok, text: erg.text, betreff: erg.betreff ?? null, grund: erg.grund ?? null, entfernt: erg.entfernt ?? [] });
+  } catch (err) {
+    console.error("[MAIL] admin ki:", err);
+    res.status(500).json({ ok: false, grund: "Serverfehler beim KI-Aufruf." });
+  }
+});
+
 /** POST /mail/zentrale/ki — Entwurf, Ton glätten, kürzen. */
 router.post("/mail/zentrale/ki", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const { kiEntwurf } = await import("../lib/fiaon-mail-ki");
     const erg = await kiEntwurf(String(req.body?.art || "entwurf"), String(req.body?.eingabe || ""));
-    res.json({ ok: erg.ok, text: erg.text, grund: erg.grund ?? null });
+    res.json({
+      ok: erg.ok, text: erg.text, betreff: erg.betreff ?? null,
+      grund: erg.grund ?? null, entfernt: erg.entfernt ?? [],
+    });
   } catch (err) {
     console.error("[MAIL] ki:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

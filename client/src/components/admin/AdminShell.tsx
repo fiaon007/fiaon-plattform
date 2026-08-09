@@ -52,7 +52,11 @@ export const ADMIN_NAV: NavGroup[] = [
   {
     title: null,
     items: [
-      { path: "/admin", label: "Dashboard", desc: "Was ist zu tun? Aufgaben, Warnungen, Suche, Tageszahlen", icon: LayoutDashboard },
+      { path: "/admin/dashboard", label: "Dashboard", desc: "Was ist zu tun? Aufgaben, Warnungen, Suche, Tageszahlen", icon: LayoutDashboard },
+      // Space steht GANZ OBEN nach dem Dashboard: Es ist der Ort, an dem
+      // sichtbar wird, was das Haus heute gemacht hat — und der Betreiber
+      // landet nach der Anmeldung dort.
+      { path: "/admin/space", label: "Space", desc: "Der Feed des Teams — mitlesen, reagieren, anpinnen, moderieren", icon: Users },
       { path: "/admin/aufgaben", label: "Notizen & Aufgaben", desc: "Alles, was an Personen festgehalten oder ans Team vergeben wurde — mit Frist und Sichtbarkeit", icon: ListChecks, badgeKey: "aufgabenOffen" },
     ],
   },
@@ -110,7 +114,6 @@ export const ADMIN_NAV: NavGroup[] = [
       { path: "/admin/diagnose", label: "System-Diagnose", desc: "Was klemmt gerade? Ereignis-Konsole, Rohdaten, KI-Auswertung", icon: Activity, badgeKey: "diagnose" },
       { path: "/admin/einstellungen", label: "Einstellungen", desc: "Provisionssatz, Auszahlung, Reminder-Engine, Diagnose", icon: Settings },
       { path: "/admin/mail-zentrale", label: "Mail-Zentrale", desc: "Freitext an Kunden und Gruppen — Bausteine, Vorschau, KI-Hilfe", icon: Send },
-      { path: "/admin/space", label: "Space", desc: "Der Feed des Teams — mitlesen, reagieren, anpinnen, moderieren", icon: Users },
       { path: "/admin/events", label: "E-Mail-Events", desc: "Make-Events testen, Diagnose, Verlauf", icon: Send },
       { path: "/admin/audit", label: "Audit-Log", desc: "Alle Mitarbeiter-Aktionen durchsuchbar", icon: ScrollText },
       { path: "/admin/changelog", label: "Was ist neu?", desc: "Alle Änderungen am System in Klartext", icon: History },

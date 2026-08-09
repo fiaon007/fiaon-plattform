@@ -3,6 +3,64 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (V) — „Alle prüfen" wirklich, der KI-Entwurf landet im Feld, Space v4
+
+### Warum „Alle prüfen" beim ersten Mal nicht ankam
+
+Der Betreiber hat es zum zweiten Mal beauftragt. Ursache:
+
+**Die Server-Route war fertig, es gab nur keinen Knopf.** Der Prüfstand lautete:
+
+```ts
+ok("Die Route existiert", /router\.post\("\/admin\/mail\/alle-pruefen"/.test(mailRouten));
+```
+
+Alle vier Prüfungen dieser Gruppe sahen ausschließlich in den **Serverquelltext**. Keine einzige prüfte, ob ein Mensch etwas anklicken kann. Der Prüfstand war grün, die Funktion unerreichbar.
+
+Neue Regel in `AGENTS.md`: **Für jede Funktion, die jemand benutzt, muss ein Browsertest den Bedienknopf finden und drücken.** Ein Quelltext-Grep beweist nur, dass Code existiert.
+
+Jetzt geliefert und abgenommen: Primärknopf im Kopf von `/admin/events`, Rückfrage mit der Zahl der Probemails, Zusammenfassung (bestätigt / ohne Zweig / geprüft), Brevo-Klartext und — das eigentliche Ergebnis — die **Arbeitsliste der fehlenden Zweige mit ihren Variablennamen zum Kopieren**.
+
+### Der KI-Entwurf erschien nicht im Feld
+
+Drei Fehler auf einmal:
+
+1. **Die Adresse war fest `/mail/zentrale/ki`** — eine Route hinter `requireAgent`. Vom Verwaltungsbereich aus lief jeder Aufruf in ein 401, und „KI nicht verfügbar" klang nach fehlendem Schlüssel statt nach fehlender Route. Es gibt jetzt `/admin/mail/zentrale/ki`.
+2. **Der Betreff wurde nie gefüllt** — die KI lieferte gar keinen. Sie stellt dem Entwurf jetzt eine `BETREFF:`-Zeile voran, der Server trennt sie ab, und sie landet im Betrefffeld.
+3. **Kein Weg zurück.** Wer seine Stichpunkte durch einen Entwurf ersetzt bekam, hatte sie verloren. Jetzt „Rückgängig".
+
+Dazu: Ein `ok: true` mit leerem Text ist eine Lüge — das gibt es nicht mehr. Fehler erscheinen als Klartext-Karte, bei HTTP 401 mit dem Zusatz, dass es nicht am Text liegt.
+
+**Nachgemessen im Browser mit Attrappe:** Entwurf steht im Feld, Betreff gefüllt, Rückgängig stellt her — in beiden Rollen, und der Admin ruft jetzt den Admin-Weg.
+
+### Space v4
+
+Der Betreiber hat v3 abgelehnt: zu schmal, zu nah an der Kopfzeile, wirkt billig, der Entfernen-Dialog erschien außerhalb des Blickfelds.
+
+**Dunkle Bühne.** Tiefes CI-Navy mit Lichtschein, darauf helle Glaskarten mit Leuchtkante. Richtungsentscheidung: helle Karten auf dunklem Grund, nicht umgekehrt — der Feed enthält Fließtext, und heller Text auf Dunkel ermüdet über längere Absätze. Die Bühne trägt die Stimmung, die Karte den Inhalt. Sternkörnung nur, wenn kein Hintergrundvideo läuft.
+
+**Breiter und mit Luft:** Feed **760 px** (war 620), Bühne bis 1420 px, gemessen **165 px** Abstand zur Kopfzeile im Team und **131 px** im Verwaltungsbereich (war 55).
+
+**Die Frage steht, wo sie gestellt wurde.** „Entfernen" öffnet keinen Dialog am Seitenende mehr — die Karte selbst kippt in den Bestätigungszustand. Gemessen: innerhalb derselben Karte, ohne Scrollen sichtbar.
+
+**Space ist die Startseite für beide Rollen.** `/admin` leitet auf `/admin/space`; das Dashboard liegt auf `/admin/dashboard`. In beiden Navigationen steht Space direkt nach Start bzw. Dashboard.
+
+### Drei Messfehler in meinen eigenen Prüfungen
+
+Der Kontrast auf der dunklen Bühne meldete zuerst 16 Verstöße. Keiner war echt:
+
+1. Die Sonde nahm die **erste** Farbe eines Verlaufs — bei geschichteten Verläufen ist das der oberste Lichtschein mit 26 % Deckkraft, nicht die Grundfarbe.
+2. Sie maß die **ganze Seite** mit, auch die Admin-Seitenleiste auf weißem Grund.
+3. Sie konnte **durchscheinende Schichten nicht überlagern**. Die Pin-Leiste ist 10 % Weiß über Navy; die Sonde fand nichts Deckendes und nahm Weiß an — 1,2:1 für eine Schrift, die bei 11:1 steht.
+
+Alle drei behoben; die Sonde legt Schichten jetzt korrekt übereinander. Ergebnis: **0 Verstöße**, aus einer Messung, der man trauen kann.
+
+Und einmal mehr der Fehler aus `AGENTS.md`: Backticks in einem Kommentar innerhalb eines Template-Literals. Die Seite zeigte „flaeche is not defined".
+
+### Prüfstand
+
+`pruef-feinschliff` auf v4 nachgezogen (12 Prüfungen maßen v3-Werte) — **237**. Gesamt **1.649**.
+
 ## 11.08.2026 (IV) — Der „undefined"-Fehler, ein Raum hinter allem, nur noch FIAON
 
 ### „Das Telefon konnte nicht starten: undefined"

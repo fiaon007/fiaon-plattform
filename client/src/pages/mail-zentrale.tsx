@@ -173,6 +173,10 @@ function Inhalt() {
   // Das Ergebnis je Empfänger — mit Grund. Siehe „Fehlergründe gehören an den
   // Ort des Geschehens" im CHANGELOG vom 11.08.2026.
   const [ergebnis, setErgebnis] = useState<any>(null);
+  // KI: Fehler als Karte, alter Stand zum Zurückholen, kurzes Aufblinken.
+  const [kiFehler, setKiFehler] = useState<string | null>(null);
+  const [zurueck, setZurueck] = useState<{ betreff: string; text: string } | null>(null);
+  const [eingefuegt, setEingefuegt] = useState(false);
   const feld = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -241,21 +245,50 @@ function Inhalt() {
     if (j?.ok) { setVorschau(null); setText(""); setBetreff(""); setGewaehlt([]); setAktiveGruppen([]); }
   };
 
+  /**
+   * Der KI-Assistent.
+   *
+   * ── DREI FEHLER, DIE HIER LAGEN ──────────────────────────────────────────
+   * 1. Die Adresse war fest `/mail/zentrale/ki` — eine Route hinter
+   *    `requireAgent`. Vom Verwaltungsbereich aus lief jeder Aufruf in ein
+   *    401, und die Meldung „KI nicht verfügbar" klang nach fehlendem
+   *    Schlüssel statt nach fehlender Route. Jetzt `basis`.
+   * 2. Der BETREFF wurde nie gefüllt — die KI lieferte gar keinen. Jetzt
+   *    liefert sie eine Betreffzeile, und sie landet im Betrefffeld.
+   * 3. Kein Weg zurück. Wer seine Stichpunkte durch einen Entwurf ersetzt
+   *    bekam, hatte sie verloren. Jetzt wird der alte Stand gesichert.
+   */
   const ki = async (art: string) => {
     setBusy(`ki-${art}`);
-    const r = await fetch("/api/fiaon/mail/zentrale/ki", {
+    setKiFehler(null);
+    const vorher = { betreff, text };
+    const r = await fetch(`${basis}/ki`, {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ art, eingabe: text }),
     }).catch(() => null);
     const j = await r?.json().catch(() => null);
     setBusy(null);
-    if (!j?.ok) { setMeldung({ art: "schlecht", text: j?.grund || "KI nicht verfügbar." }); return; }
+
+    if (!j?.ok) {
+      // Klartext-Karte statt eines stummen Bandes — Hausregel: Der Grund
+      // steht am Ort des Geschehens.
+      setKiFehler(j?.grund || j?.error
+        || "Die KI war nicht erreichbar. Prüfe die Verbindung und versuche es erneut.");
+      return;
+    }
+
+    setZurueck(vorher);
     setText(j.text);
+    if (j.betreff && !betreff.trim()) setBetreff(j.betreff);
+    // Die Felder blinken kurz auf — sonst merkt niemand, dass sich etwas
+    // geändert hat, und die Meldung oben wirkt wie eine leere Behauptung.
+    setEingefuegt(true);
+    window.setTimeout(() => setEingefuegt(false), 1400);
     setMeldung({
       art: "gut",
       text: (j.entfernt?.length ?? 0) > 0
-        ? `Vorschlag steht. Entschärft wurde: ${j.entfernt.join(", ")} — solche Zusagen dürfen nicht an Kunden.`
-        : "Vorschlag steht. Bitte lies ihn, bevor du sendest.",
+        ? `Vorschlag steht im Feld. Entschärft wurde: ${j.entfernt.join(", ")} — solche Zusagen dürfen nicht an Kunden.`
+        : "Vorschlag steht im Feld. Bitte lies ihn, bevor du sendest.",
     });
   };
 
@@ -459,11 +492,22 @@ function Inhalt() {
         <Reveal index={2}>
           <div className="fi-karte mt-3 p-4">
             <input value={betreff} onChange={(e) => setBetreff(e.target.value)} placeholder="Betreff"
-                   className="w-full text-[15px] font-semibold bg-transparent outline-none pb-2.5"
+                   className={`w-full text-[15px] font-semibold bg-transparent outline-none pb-2.5 ${eingefuegt ? "fi-eingefuegt" : ""}`}
                    style={{ borderBottom: "1px solid var(--fi-linie)" }} />
             <textarea ref={feld} value={text} onChange={(e) => setText(e.target.value)} rows={9}
                       placeholder="Hi {Anrede}, wie besprochen: {Zahlungsdaten}"
-                      className="w-full mt-3 resize-none bg-transparent text-[14px] leading-relaxed outline-none" />
+                      className={`w-full mt-3 resize-none bg-transparent text-[14px] leading-relaxed outline-none ${eingefuegt ? "fi-eingefuegt" : ""}`} />
+            <style>{`
+              /* Kurzes Aufblinken, wenn die KI etwas eingesetzt hat. Ohne
+                 diesen Hinweis wirkt die Meldung oben wie eine leere
+                 Behauptung — man sieht nicht, dass sich etwas geändert hat. */
+              .fi-eingefuegt { animation: fiEingefuegt 1.4s cubic-bezier(.32,.72,0,1) both; }
+              @keyframes fiEingefuegt {
+                0%   { background: rgba(37,99,235,.16); box-shadow: 0 0 0 6px rgba(37,99,235,.1); }
+                100% { background: transparent; box-shadow: 0 0 0 0 transparent; }
+              }
+              @media (prefers-reduced-motion: reduce) { .fi-eingefuegt { animation: none; } }
+            `}</style>
 
             <div className="mt-2 pt-2.5 flex flex-wrap gap-1.5" style={{ borderTop: "1px solid var(--fi-linie)" }}>
               {bausteine.map((b) => (
@@ -474,6 +518,22 @@ function Inhalt() {
                 </button>
               ))}
             </div>
+
+            {kiFehler && (
+              <div className="mt-3 px-3.5 py-3 rounded-xl"
+                   style={{ background: "rgba(217,119,6,.08)", boxShadow: "inset 0 0 0 1px rgba(217,119,6,.22)" }}>
+                <p className="text-[12.5px] font-bold" style={{ color: "#b45309" }}>
+                  Der Entwurf ist nicht entstanden
+                </p>
+                <p className="text-[12px] mt-1 leading-relaxed" style={{ color: "#92400e" }}>{kiFehler}</p>
+                {/^Die KI antwortete mit HTTP 401/.test(kiFehler) && (
+                  <p className="text-[12px] mt-1.5 leading-relaxed" style={{ color: "#92400e" }}>
+                    Das ist kein Fehler an deinem Text: Der hinterlegte OpenAI-Schlüssel wird
+                    abgelehnt. Der Betreiber muss ihn erneuern — schreib solange von Hand.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="mt-3 pt-3 flex flex-wrap items-center gap-2" style={{ borderTop: "1px solid var(--fi-linie)" }}>
               {[
@@ -488,6 +548,16 @@ function Inhalt() {
                   {busy === `ki-${k.art}` ? "…" : k.titel}
                 </button>
               ))}
+
+              {/* Rückgängig: Wer seine Stichpunkte durch einen Entwurf
+                  ersetzt bekommt, muss sie zurückholen können. */}
+              {zurueck && (
+                <button type="button"
+                        onClick={() => { setBetreff(zurueck.betreff); setText(zurueck.text); setZurueck(null); }}
+                        className="fi-knopf-glas px-3 py-2 text-[12px]">
+                  Rückgängig
+                </button>
+              )}
             </div>
             <p className="mt-2 text-[11px] leading-snug" style={{ color: "var(--fi-text-still)" }}>
               Die KI schlägt vor, du sendest. Zusagen zu Limits und das Wort „Beratung" werden automatisch entfernt.

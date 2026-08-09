@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { FiaonEbene } from "@/components/FiaonEbene";
 import { Send, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertTriangle, User, FlaskConical } from "lucide-react";
 import { PageIntro } from "@/components/admin/PageHelp";
 
@@ -47,6 +48,198 @@ interface RealPreview {
 
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+/**
+ * Alle Zweige auf einmal prüfen.
+ *
+ * ── WAS EIN LAUF WIRKLICH TUT ──────────────────────────────────────────────
+ * Jede Prüfung SENDET eine Probemail an die Testadresse und wartet, ob Brevo
+ * eine Zustellung meldet. Bei 33 Ereignissen sind das 33 Mails. Das muss
+ * vorher dastehen — sonst wundert sich der Betreiber über ein volles
+ * Postfach und traut dem Knopf beim nächsten Mal nicht mehr.
+ *
+ * ── DIE ARBEITSLISTE IST DAS EIGENTLICHE ERGEBNIS ──────────────────────────
+ * Ein „22 von 33 bestätigt" ist eine Zahl. Was der Betreiber braucht, ist die
+ * Liste der elf fehlenden Zweige mit ihren Variablennamen — damit geht er zu
+ * Make und legt sie an. Deshalb steht sie unten, mit Kopierknopf.
+ */
+function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
+  anzahl: number; testAdresse: string; onFertig: () => void;
+}) {
+  const [frage, setFrage] = useState(false);
+  const [laeuft, setLaeuft] = useState(false);
+  const [erg, setErg] = useState<any>(null);
+  const [kopiert, setKopiert] = useState(false);
+
+  const starten = async () => {
+    setFrage(false);
+    setLaeuft(true);
+    setErg(null);
+    const r = await fetch("/api/fiaon/admin/mail/alle-pruefen", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ testAdresse }),
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setLaeuft(false);
+    setErg(j ?? { ok: false, error: "Der Lauf war nicht erreichbar." });
+    onFertig();
+  };
+
+  const fehlende = (erg?.zweige ?? []).filter((z: any) => !z.bestaetigt);
+  const liste = fehlende.map((z: any) => z.event).join("\n");
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 mb-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-[14px] font-bold text-slate-900">Alle Zweige prüfen</h2>
+          <p className="text-[12px] text-slate-500 leading-relaxed mt-0.5" style={{ maxWidth: 620 }}>
+            Sendet an jeden der {anzahl || "—"} Ereignistypen eine Probemail an deine
+            Testadresse und wartet, ob Brevo die Zustellung meldet. Danach steht hier,
+            welche Zweige in Make noch fehlen.
+          </p>
+        </div>
+        <button type="button" onClick={() => setFrage(true)} disabled={laeuft || !anzahl}
+                className="fi-knopf-primaer px-5 shrink-0">
+          {laeuft ? `Prüft ${anzahl} Zweige …` : "Alle Zweige prüfen"}
+        </button>
+      </div>
+
+      {laeuft && (
+        <div className="mt-4">
+          <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(15,23,42,.07)" }}>
+            <div style={{
+              height: "100%", width: "40%", borderRadius: 999,
+              background: "linear-gradient(90deg, transparent, #1d4ed8, transparent)",
+              animation: "fiLauf 1.4s ease-in-out infinite",
+            }} />
+          </div>
+          <style>{"@keyframes fiLauf{0%{transform:translateX(-100%)}100%{transform:translateX(320%)}}"}</style>
+          <p className="mt-2 text-[12px] text-slate-500">
+            Jeder Zweig bekommt bis zu vier Sekunden Zeit — der ganze Lauf dauert
+            etwa {Math.max(1, Math.round((anzahl * 4) / 60))} Minuten. Fenster offen lassen.
+          </p>
+        </div>
+      )}
+
+      {erg && !erg.ok && (
+        <p className="mt-4 px-3.5 py-3 rounded-xl text-[12.5px] font-semibold"
+           style={{ background: "rgba(220,38,38,.07)", color: "#b91c1c" }}>
+          {erg.error}
+        </p>
+      )}
+
+      {erg?.ok && (
+        <>
+          <div className="mt-4 grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))" }}>
+            {[
+              ["bestätigt", erg.sauber, "#059669"],
+              ["ohne Zweig", erg.beanstandet, "#d97706"],
+              ["geprüft", erg.gepruefte, "#64748b"],
+            ].map(([t, w, f]) => (
+              <div key={String(t)} className="px-3.5 py-3 rounded-xl"
+                   style={{ background: `${f}0f`, boxShadow: `inset 0 0 0 1px ${f}2e` }}>
+                <p className="text-[22px] font-bold leading-none tabular-nums" style={{ color: String(f) }}>
+                  {String(w)}
+                </p>
+                <p className="text-[11.5px] font-semibold mt-1" style={{ color: String(f) }}>{String(t)}</p>
+              </div>
+            ))}
+          </div>
+
+          {erg.brevo && (
+            <div className="mt-3 px-3.5 py-3 rounded-xl"
+                 style={{ background: "rgba(217,119,6,.08)", boxShadow: "inset 0 0 0 1px rgba(217,119,6,.22)" }}>
+              <p className="text-[12.5px] font-bold" style={{ color: "#b45309" }}>{erg.brevo.titel}</p>
+              {(erg.brevo.anleitung ?? []).map((a: string, i: number) => (
+                <p key={i} className="text-[12px] mt-1" style={{ color: "#92400e" }}>· {a}</p>
+              ))}
+            </div>
+          )}
+
+          {fehlende.length > 0 && (
+            <>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <p className="text-[11px] font-bold uppercase tracking-[.1em] text-slate-500">
+                  Diese Zweige fehlen in Make
+                </p>
+                <button type="button"
+                        onClick={() => { void navigator.clipboard.writeText(liste); setKopiert(true); }}
+                        className="fi-knopf-glas px-3 py-1.5 text-[11.5px]">
+                  {kopiert ? "Kopiert" : "Liste kopieren"}
+                </button>
+              </div>
+              <div className="mt-2 rounded-xl overflow-hidden" style={{ boxShadow: "inset 0 0 0 1px #eef2f7" }}>
+                {fehlende.map((z: any) => (
+                  <div key={z.event} className="px-3.5 py-2.5" style={{ borderBottom: "1px solid #f8fafc" }}>
+                    <p className="text-[12.5px] font-semibold text-slate-800">
+                      <span className="font-mono text-[#1d4ed8]">{z.event}</span>
+                      {z.titel && <span className="ml-2 font-normal text-slate-500">{z.titel}</span>}
+                    </p>
+                    <p className="text-[11.5px] text-slate-500 leading-snug mt-0.5">
+                      {/* BEIDE Ursachen nennen: Der Betreiber kann von hier aus
+                          nicht sehen, welche zutrifft — und eine falsche
+                          Vermutung kostet ihn eine halbe Stunde in Make. */}
+                      {z.text || "Keine Zustellung gemeldet. Entweder gibt es in Make keinen Zweig "
+                        + "für diesen Typ — oder er existiert, hat aber die Mail nicht ausgelöst."}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {fehlende.length === 0 && (
+            <p className="mt-3 px-3.5 py-3 rounded-xl text-[12.5px] font-semibold"
+               style={{ background: "rgba(5,150,105,.08)", color: "#047857" }}>
+              Jeder Zweig hat geantwortet. Alle {erg.gepruefte} Ereignisse kommen beim Kunden an.
+            </p>
+          )}
+        </>
+      )}
+
+      <FiaonEbene
+        offen={frage}
+        onZu={() => setFrage(false)}
+        titel={`${anzahl} Probemails senden?`}
+        ueberschrift="Bitte einmal bestätigen"
+        breite={480}
+        kinder={
+          <>
+            <p className="text-[13px] leading-relaxed" style={{ color: "var(--fi-text-leise)" }}>
+              Der Lauf sendet an <b>jeden</b> Ereignistyp eine Probemail — das sind{" "}
+              <b>{anzahl} Mails</b> an{" "}
+              <b style={{ fontFamily: "ui-monospace, monospace" }}>{testAdresse || "deine Testadresse"}</b>.
+              Kunden bekommen nichts davon zu sehen; jede Mail trägt <code>test: true</code>.
+            </p>
+            <p className="mt-2.5 text-[12.5px] leading-relaxed" style={{ color: "var(--fi-text-still)" }}>
+              Der Lauf braucht etwa {Math.max(1, Math.round((anzahl * 4) / 60))} Minuten.
+            </p>
+            {!testAdresse && (
+              <p className="mt-3 px-3.5 py-2.5 rounded-xl text-[12.5px] font-semibold"
+                 style={{ background: "rgba(217,119,6,.08)", color: "#b45309" }}>
+                Trag zuerst oben eine Testadresse ein — sonst weiß niemand, wohin die Mails gehen.
+              </p>
+            )}
+          </>
+        }
+        fuss={
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setFrage(false)}
+                    className="text-[13px] font-semibold" style={{ color: "var(--fi-text-still)" }}>
+              Abbrechen
+            </button>
+            <button type="button" onClick={() => void starten()} disabled={!testAdresse}
+                    className="ml-auto fi-knopf-primaer px-5">
+              {anzahl} Probemails senden
+            </button>
+          </div>
+        }
+      />
+    </div>
+  );
 }
 
 export default function AdminEventsPage() {
@@ -199,6 +392,21 @@ export default function AdminEventsPage() {
           "Steht oben „Seit X Stunden kein Lead-Eingang“ im Dashboard, prüfe hier zuerst, ob der Make-Webhook konfiguriert ist und Events ankommen.",
         ]}
       />
+
+      {/* ══════════════════════════════════════════════════════════════════
+          ALLE ZWEIGE PRÜFEN
+          Der Server konnte das seit dem 11.08. — nur klicken konnte es
+          niemand. Der Prüfstand von damals sah ausschließlich in den
+          SERVERQUELLTEXT („die Route existiert") und war grün, während die
+          Funktion für einen Menschen unerreichbar war.
+
+          Daraus die Regel, die jetzt in AGENTS.md steht: Eine Funktion gilt
+          erst als geliefert, wenn ein Browsertest den KNOPF findet und
+          drückt.
+          ══════════════════════════════════════════════════════════════════ */}
+      <AlleZweigePruefen anzahl={data?.events?.length ?? 0}
+                         testAdresse={testEmail}
+                         onFertig={() => void load()} />
 
       {data && !data.makeWebhookConfigured && (
         <div className="mb-5 px-4 py-3 rounded-xl border border-amber-300 bg-amber-50 text-[13px] text-amber-800 flex items-center gap-2">

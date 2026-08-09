@@ -40,6 +40,28 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-space-v4",
+    date: "2026-08-11",
+    category: "Neu",
+    title: "Der Space ist dunkel geworden — und deutlich breiter",
+    summary:
+      "Neue Bühne in unserem Dunkelblau, breiterer Feed, mehr Luft. Und wenn du einen Beitrag entfernst, steht die Rückfrage direkt an der Karte statt ganz unten.",
+    changes: [
+      "DUNKLE BÜHNE: Der Space liegt jetzt auf tiefem FIAON-Blau. Die Beiträge selbst bleiben helle Karten — Fließtext liest sich auf Hell einfach besser.",
+      "BREITER: Der Feed ist von 620 auf 760 Pixel gewachsen. Lange Beiträge brauchen weniger Zeilenumbrüche.",
+      "MEHR LUFT: Nichts klebt mehr an der Kopfzeile.",
+      "Wenn du „Zurücknehmen“ oder „Entfernen“ drückst, erscheint die Rückfrage IN der Karte. Vorher musstest du nach unten scrollen, um eine Frage zu beantworten, die du oben gestellt hast.",
+      "Angepinnte Beiträge stehen als schmale Leiste oben — antippen klappt sie auf.",
+      "Alles andere bleibt: Gefällt mir, Antworten auf Kommentare, Akten anhängen, Bilder, unendliches Scrollen.",
+    ],
+    howto: [
+      "Der Space ist deine Startseite. Wenn du dich anmeldest, bist du hier.",
+      "Zum Entfernen eines eigenen Beitrags: oben rechts an der Karte auf „Zurücknehmen“ — die Rückfrage erscheint direkt darunter.",
+    ],
+    link: { href: "/agent/space", label: "Zum Space" },
+    important: true,
+  },
+  {
     id: "2026-08-11-raum-telefon",
     date: "2026-08-11",
     category: "Neu",

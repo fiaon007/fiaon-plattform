@@ -35,7 +35,12 @@ STIL:
 - Keine Anrede und keine Grußformel erfinden — das Team setzt Bausteine ein.
 - Platzhalter in geschweiften Klammern ({Anrede}, {Zahlungsdaten}, {Terminlink}) unverändert stehen lassen.
 
-Antworte NUR mit dem Text der Mail, ohne Vorrede und ohne Anführungszeichen.`;
+Antworte NUR mit dem Text der Mail, ohne Vorrede und ohne Anführungszeichen.
+
+Beim ENTWURF stellst du dem Text EINE Zeile voran:
+BETREFF: <höchstens 60 Zeichen, konkret, ohne Ausrufezeichen>
+Dann eine Leerzeile, dann der Mailtext. Bei „Ton glätten" und „Kürzen" gibst du
+NUR den überarbeiteten Text zurück, ohne Betreffzeile.`;
 
 const AUFGABEN: Record<string, string> = {
   entwurf: "Schreib aus diesen Stichpunkten eine kurze Mail:",
@@ -87,7 +92,11 @@ export function entschaerfen(text: string): Entschaerft {
   return { text: aus, entfernt: Array.from(new Set(entfernt)) };
 }
 
-export interface KiErgebnis { ok: boolean; text: string; grund?: string; entfernt?: string[] }
+export interface KiErgebnis {
+  ok: boolean; text: string; grund?: string; entfernt?: string[];
+  /** Ein Betreffvorschlag — nur beim Entwurf, sonst null. */
+  betreff?: string | null;
+}
 
 export function kiKonfiguriert(): boolean {
   return !!process.env.OPENAI_API_KEY;
@@ -132,7 +141,22 @@ export async function kiEntwurf(art: string, eingabe: string): Promise<KiErgebni
     if (!roh) return { ok: false, text: "", grund: "Die KI hat nichts geliefert." };
 
     const sauber = entschaerfen(roh);
-    return { ok: true, text: sauber.text, entfernt: sauber.entfernt };
+    // Die Betreffzeile abtrennen, falls die KI eine geliefert hat. Sie steht
+    // im Text und gehört ins Betrefffeld — sonst liest der Kunde „BETREFF: …"
+    // als erste Zeile der Mail.
+    let betreff: string | null = null;
+    let rumpf = sauber.text;
+    const kopf = /^\s*BETREFF:\s*(.+?)\s*(?:\n|$)/i.exec(rumpf);
+    if (kopf) {
+      betreff = kopf[1].trim().slice(0, 120);
+      rumpf = rumpf.slice(kopf[0].length).replace(/^\s+/, "");
+    }
+    // Ein „ok" mit leerem Text ist eine Lüge: Die Oberfläche zeigte dann
+    // „Vorschlag steht" und das Feld blieb leer.
+    if (!rumpf.trim()) {
+      return { ok: false, text: "", grund: "Die KI hat einen leeren Entwurf geliefert. Bitte noch einmal versuchen." };
+    }
+    return { ok: true, text: rumpf, betreff, entfernt: sauber.entfernt };
   } catch (err) {
     return { ok: false, text: "", grund: `KI nicht erreichbar: ${err instanceof Error ? err.message : String(err)}` };
   }

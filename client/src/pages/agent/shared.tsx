@@ -209,6 +209,8 @@ const NAV: { href: string; label: string; icon: typeof Users; match: string[]; n
   // an. Die Startseite informiert jetzt (Verdienst, Zahlen, Termine) und
   // arbeitet nicht mehr — gearbeitet wird ausschliesslich unter "Kunden".
   { href: "/agent/start", label: "Start", icon: LayoutDashboard, match: ["/agent/start", "/agent/heute"] },
+  // Space steht direkt nach Start — es ist die Startseite nach dem Login.
+  { href: "/agent/space", label: "Space", icon: Users, match: ["/agent/space"], marke: "space" },
   // Zeigt auf /agent/kunden, NICHT auf /agent/meine-kunden: Letztere Seite holt
   // ihre Liste aus /agent/kartei/meine, und das antwortet mit 410. Ein
   // Menüpunkt, der auf eine leere Seite führt, ist schlimmer als keiner.
@@ -225,7 +227,6 @@ const NAV: { href: string; label: string; icon: typeof Users; match: string[]; n
   // schliesst der Server (404 fuer alle anderen).
   // Der Space ist fuer JEDE Rolle da — er ist der einzige Ort im Portal, der
   // nichts abarbeitet. Die Marke zeigt ungelesene Beitraege.
-  { href: "/agent/space", label: "Space", icon: Users, match: ["/agent/space"], marke: "space" },
   { href: "/agent/mail-zentrale", label: "Mail", icon: Mail, match: ["/agent/mail-zentrale"] },
   { href: "/agent/vertrieb", label: "Vertrieb", icon: LayoutDashboard, match: ["/agent/vertrieb"], nurRolle: "vertriebsleiter" },
   // Nur fuer das Onboarding. Wie beim Vertrieb: `nurRolle` blendet aus, die

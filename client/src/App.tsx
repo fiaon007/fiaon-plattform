@@ -141,7 +141,11 @@ function Router() {
       <Route path="/business-antrag" component={BusinessAntragPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/dashboard" component={DashboardPage} />
-      <Route path="/admin" component={admin(AdminHubPage)} />
+      {/* Nach der Anmeldung landet auch der Betreiber im SPACE — dort steht,
+          was das Haus heute gemacht hat. Das Dashboard bleibt als eigener
+          Punkt erreichbar: /admin/dashboard. */}
+      <Route path="/admin" component={() => <Umleitung nach="/admin/space" />} />
+      <Route path="/admin/dashboard" component={admin(AdminHubPage)} />
       {/* ── UMGEZOGEN (09.08.2026) ────────────────────────────────────
           „Anträge & KYC" ist in der Kunden-Zentrale aufgegangen. Der Filter
           „KYC zu prüfen" zeigt genau die Arbeit, für die es die Seite gab. */}

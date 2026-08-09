@@ -102,6 +102,37 @@ nicht der Lauf.
 - Wer zweimal grundlos gestoppt wurde, schaltet die Bremse ab. Eine Bremse, die
   falsch auslöst, ist gefährlicher als keine.
 
+## Eine Funktion ist erst geliefert, wenn ein Mensch sie anklicken kann
+
+Am 11.08.2026 meldete der Betreiber zum zweiten Mal, dass „Alle prüfen" auf
+`/admin/events` fehlt. Der Server konnte es seit Tagen — die Route
+`POST /admin/mail/alle-pruefen` war fertig, getestet und grün. Es gab nur
+keinen Knopf.
+
+Der Prüfstand von damals lautete:
+
+```ts
+ok("Die Route existiert", /router\.post\("\/admin\/mail\/alle-pruefen"/.test(mailRouten));
+```
+
+Alle vier Prüfungen dieser Gruppe sahen ausschließlich in den
+**Serverquelltext**. Keine einzige prüfte, ob ein Mensch etwas anklicken kann.
+Der Prüfstand war grün, die Funktion unerreichbar.
+
+Daraus die Regel:
+
+- **Für jede Funktion, die der Betreiber oder ein Teammitglied benutzt, muss
+  ein BROWSERTEST den Bedienknopf FINDEN und DRÜCKEN** — `getByRole("button",
+  { name: … })`, dann `click()`, dann das Ergebnis am gerenderten Text messen.
+  Ein Quelltext-Grep über die Route beweist nur, dass Code existiert.
+- **Fremde Aufrufe im Browsertest abfangen** (`page.route`), damit keine
+  echten Mails, Anrufe oder Buchungen entstehen. Die Attrappe liefert genau
+  das, was der Betreiber in Produktion sähe — inklusive Fehlerfall.
+- **Der Screenshot ist Teil der Abnahme.** Wer ihn nicht angesehen hat, hat
+  nicht geliefert. `innerText` gibt bei `text-transform: uppercase` den
+  TRANSFORMIERTEN Text zurück — Prüfungen auf Beschriftungen deshalb ohne
+  Rücksicht auf Groß- und Kleinschreibung.
+
 ## Ein Prüfstand muss rot werden können
 
 Nach jedem neuen Prüfstand: **den Fehler absichtlich wieder einbauen und

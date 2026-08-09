@@ -170,7 +170,7 @@ function KommentarZeile({ k, onAntwort, onWeg }: {
   );
 }
 
-function SystemAvatar({ size = 42 }: { size?: number }) {
+function SystemAvatar({ size = 44 }: { size?: number }) {
   return (
     <span className="fi-sp-systemavatar" style={{ width: size, height: size }} aria-label="FIAON">
       <svg viewBox="0 0 64 64" width={size * 0.62} height={size * 0.62} aria-hidden="true">
@@ -401,7 +401,16 @@ export default function AgentSpace({ alsAdmin = false }: { alsAdmin?: boolean } 
   // Beitrag unter die Falzlinie. Wer den Space öffnete, sah dreimal dieselbe
   // Hausordnung und musste scrollen, um zu erfahren, was das Team gemacht
   // hat. Jetzt: eine Zeile je Beitrag, aufklappbar.
-  const angepinnte = alle.filter((p) => p.angepinnt);
+  // ── MAX ZWEI, AUCH WENN MEHR IN DER DATENBANK STEHEN ──────────────────
+  // Die Grenze gilt seit Paket 7 beim ANPINNEN — drei ältere Zeilen stehen
+  // trotzdem noch angepinnt in der Datenbank, und die Leiste war deshalb
+  // 140 px hoch statt der geforderten 56.
+  //
+  // Die Anzeige begrenzt jetzt selbst. Die alten Zeilen werden NICHT
+  // stillschweigend gelöst: Wer sie angepinnt hat, hat es gemeint, und ein
+  // Datenbestand, den die Oberfläche eigenmächtig ändert, ist schlimmer als
+  // eine Leiste, die zwei von drei zeigt. Die neuesten zwei gewinnen.
+  const angepinnte = alle.filter((p) => p.angepinnt).slice(0, 2);
   const posts = alle.filter((p) => !p.angepinnt);
   const ich = daten?.ich;
 
@@ -421,7 +430,9 @@ export default function AgentSpace({ alsAdmin = false }: { alsAdmin?: boolean } 
           <div className="fi-sp-karte fi-sp-profil">
             {/* DAS EIGENE GESICHT — nicht die Initialen. Der Server liefert
                 `ich.avatar` seit dem 11.08.2026 mit. */}
-            <Avatar src={ich?.avatar ?? null} name={ich?.name ?? ich?.vorname ?? "?"} size={56} />
+            {/* 72 px: die Profil-Blase ist die einzige Stelle, an der das
+                Gesicht groß sein darf. Im Feed sind es 44. */}
+            <Avatar src={ich?.avatar ?? null} name={ich?.name ?? ich?.vorname ?? "?"} size={72} />
             <p className="fi-sp-profil-name">{ich?.name ?? ich?.vorname ?? ""}</p>
             <p className="fi-sp-profil-rolle">{daten?.darfVerwalten ? "Vertriebsleitung" : "Team"}</p>
             <div className="fi-sp-profil-zahlen">
@@ -457,6 +468,7 @@ export default function AgentSpace({ alsAdmin = false }: { alsAdmin?: boolean } 
           {/* ── Angepinntes: eine schmale Leiste ──────────────────────── */}
           {angepinnte.length > 0 && (
             <div className="fi-sp-pinleiste">
+              <div className="fi-sp-pinreihe">
               {angepinnte.map((p) => {
                 const offen = pinOffen === p.id;
                 const kopf = p.text.split("\n")[0].slice(0, 90);
@@ -488,13 +500,14 @@ export default function AgentSpace({ alsAdmin = false }: { alsAdmin?: boolean } 
                   </div>
                 );
               })}
+              </div>
             </div>
           )}
 
           {/* Komposer — als einladende Karte, nicht als Formular. */}
           <div className={`fi-sp-karte fi-sp-komposer ${gross ? "fi-sp-komposer-gross" : ""}`}>
             <div className="fi-sp-komposer-kopf">
-              <Avatar src={ich?.avatar ?? null} name={ich?.name ?? ich?.vorname ?? "?"} size={40} />
+              <Avatar src={ich?.avatar ?? null} name={ich?.name ?? ich?.vorname ?? "?"} size={44} />
               <textarea
                 ref={feld}
                 value={text}
@@ -642,7 +655,7 @@ export default function AgentSpace({ alsAdmin = false }: { alsAdmin?: boolean } 
               <header className="fi-sp-post-kopf">
                 {p.autorTyp === "system" || p.autoArt
                   ? <SystemAvatar />
-                  : <Avatar src={p.autorAvatar} name={p.autorName ?? "FIAON"} />}
+                  : <Avatar src={p.autorAvatar} name={p.autorName ?? "FIAON"} size={44} />}
                 <div className="min-w-0 flex-1">
                   <p className="fi-sp-autor">
                     {p.autorName ?? (p.autorTyp === "leitung" ? "Vertriebsleitung" : "FIAON")}
@@ -654,8 +667,19 @@ export default function AgentSpace({ alsAdmin = false }: { alsAdmin?: boolean } 
                 </div>
 
                 {/* Die Kennmarke: sagt in zwei Wörtern, was das hier ist. */}
+                {/* ── KEINE INLINE-FARBE MEHR ─────────────────────────────
+                    Die Marke trug `style={{ color: ART_MARKE[…].ton }}` —
+                    Töne wie #64748b und #059669, die aus der Zeit stammen,
+                    als die Marke keine Fläche hatte. Auf dem blauen Verlauf
+                    der v5-Marke war „GEDANKE DES TAGES" in Grauton praktisch
+                    unlesbar; gemessen im Schnappschuss.
+
+                    Die Hausregel gilt auch hier: Wer eine dunkle Fläche
+                    trägt, bringt seine Schriftfarbe selbst mit — weiß, aus
+                    dem CSS. Die Töne bleiben als Datenfeld erhalten (andere
+                    Stellen nutzen sie), nur hier gilt sie nicht mehr. */}
                 {p.autoArt && ART_MARKE[p.autoArt] && (
-                  <span className="fi-sp-artmarke" style={{ color: ART_MARKE[p.autoArt].ton }}>
+                  <span className="fi-sp-artmarke">
                     {ART_MARKE[p.autoArt].titel}
                   </span>
                 )}
@@ -891,314 +915,294 @@ export default function AgentSpace({ alsAdmin = false }: { alsAdmin?: boolean } 
 
 const SPACE_CSS = `
 /* ═══════════════════════════════════════════════════════════════════════════
-   SPACE V4 — die dunkle Bühne
-   Der Vorgesetzte hat v3 abgelehnt: zu schmal, zu nah an der Kopfzeile, wirkt
-   billig. Neu: tiefes CI-Navy als Fläche, helle Glaskarten darauf, deutlich
-   mehr Breite und Luft.
+   SPACE V5 — DIE BLASEN-BÜHNE
 
-   RICHTUNGSENTSCHEIDUNG: helle Karten auf dunklem Grund — nicht dunkle
-   Karten. Der Feed enthält Fließtext, und heller Text auf Dunkel ermüdet
-   beim Lesen längerer Absätze. Die Bühne trägt die Stimmung, die Karte
-   trägt den Inhalt.
+   ── WARUM V4 DUNKEL WAR UND WARUM DAS FALSCH WAR ─────────────────────────
+   V4 legte den Space auf ein deckendes Navy. Der Gedanke: eine „Premium-
+   Bühne", die den Feed vom hellen Rest des Systems abhebt.
+
+   Zwei Fehler darin. Erstens verdeckte die deckende Fläche das
+   Hintergrundvideo vollständig — genau das, was der Vorgesetzte auf jeder
+   Seite sehen wollte. Zweitens ist Dunkel für einen FEED die falsche
+   Richtung: Der Space enthält Fließtext, Kommentare, Antworten. Hell auf
+   Dunkel ermüdet über längere Absätze, und man liest hier nicht drei Zahlen,
+   sondern Sätze.
+
+   V5 macht es umgekehrt: Das VIDEO ist die Bühne, der Inhalt schwebt als
+   helle Glasblasen darüber. Dunkel bleibt genau EIN Element — der
+   FIAON-Systemavatar. Dadurch entsteht der Kontrast, den v4 mit der ganzen
+   Fläche erzwingen wollte.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Die Bühne ersetzt die helle Hülle vollständig. */
-/* Die Klasse heißt im Verwaltungsbereich „admin-flaeche“ — gemessen am
-   gerenderten Baum, nicht geraten. Der erste Versuch schrieb „admin-scope“;
-   die Klasse gibt es nicht, und der Admin-Space blieb hell.
-   (Und danach standen Backticks im Kommentar — der Fehler, vor dem
-   AGENTS.md ausdrücklich warnt: Sie beenden das Template-Literal.) */
+/* ── 1. BÜHNE: Video plus sanfter Verlauf, kein Vollton ──────────────────── */
 body:has(.fi-sp-buehne) .agent-ambient,
 body:has(.fi-sp-buehne) .admin-flaeche {
-  background:
-    radial-gradient(1300px 760px at 50% -18%, rgba(59,130,246,.26), transparent 62%),
-    radial-gradient(1000px 620px at 8% 8%, rgba(37,99,235,.16), transparent 58%),
-    radial-gradient(900px 560px at 96% 4%, rgba(29,78,216,.14), transparent 56%),
-    /* DURCHSCHEINEND, nicht deckend: Der Vorgesetzte will sein Video auf
-       jeder Seite sehen. Deckendes Navy hätte es vollständig verdeckt —
-       die Bühne ist jetzt eine Tönung, kein Vorhang. */
-    linear-gradient(178deg, rgba(13,28,63,.82) 0%, rgba(10,26,60,.86) 44%, rgba(7,17,41,.9) 100%);
+  /* Weiß oben nach CI-Hellblau unten. Beide durchscheinend, damit das Video
+     trägt — kein Navy, keine Sternkörnung. */
+  background: linear-gradient(178deg,
+    rgba(255,255,255,.85) 0%,
+    rgba(241,246,254,.76) 46%,
+    rgba(219,232,251,.65) 100%);
   background-attachment: fixed;
 }
-/* ── DIE HÜLLE BEGRENZT AUF 1152 PX ───────────────────────────────────────
-   Gemessen: Die Team-Hülle rendert ein „max-w-6xl mx-auto" um den Inhalt.
-   Der Space kann darin nie breiter als 1120 px werden — egal, was seine
-   eigene Bühne sagt. Deshalb wird die Grenze HIER aufgehoben, und nur für
-   den Space: Alle anderen Seiten leben gut mit 1152 px, Tabellen und
-   Formulare brauchen keine 1700.
 
-   Dasselbe im Verwaltungsbereich. */
-body:has(.fi-sp-buehne) main.max-w-6xl,
-body:has(.fi-sp-buehne) main[class*="max-w-"],
-body:has(.fi-sp-buehne) .admin-flaeche main,
-/* Der Verwaltungsbereich setzt die Grenze über eine eigene Variable
-   (--a3-breite in admin-3d.css) auf .max-w-6xl/.max-w-7xl. Gemessen:
-   736 px Feed statt 900. */
-body:has(.fi-sp-buehne) .admin-flaeche .max-w-6xl,
-body:has(.fi-sp-buehne) .admin-flaeche .max-w-7xl,
-body:has(.fi-sp-buehne) .admin-flaeche [class*="max-w-"] {
-  max-width: none;
-  padding-left: 0;
-  padding-right: 0;
-}
-
-/* Der Space hat seine EIGENE Tönung. Die helle Wäsche des Raums würde sie
-   aufhellen und beides zu Grau vermischen — deshalb hier aus. */
+/* Der Space schaltet die helle Wäsche des Raums ab: Er bringt seinen eigenen
+   Verlauf mit, und zwei Wäschen übereinander ergäben milchiges Grau. */
 body:has(.fi-sp-buehne) .fi-raum-waesche { display: none; }
 
-/* Sternkörnung — NUR wenn kein Hintergrundvideo läuft. Zwei bewegte
-   Schichten übereinander sind Unruhe, keine Gestaltung. */
-body:has(.fi-sp-buehne):not(:has(video)) .agent-ambient::after,
-body:has(.fi-sp-buehne):not(:has(video)) .admin-flaeche::after {
-  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  opacity: .5;
-  background-image:
-    radial-gradient(1.1px 1.1px at 18% 22%, rgba(255,255,255,.5), transparent),
-    radial-gradient(1px 1px at 62% 14%, rgba(255,255,255,.4), transparent),
-    radial-gradient(1.2px 1.2px at 84% 46%, rgba(255,255,255,.45), transparent),
-    radial-gradient(1px 1px at 34% 68%, rgba(255,255,255,.35), transparent),
-    radial-gradient(1.1px 1.1px at 72% 82%, rgba(255,255,255,.4), transparent),
-    radial-gradient(1px 1px at 12% 88%, rgba(255,255,255,.3), transparent);
+/* Die Breitengrenze der Hüllen aufheben — sonst kann der Feed nie 720 px
+   plus zwei Seitenspalten tragen. Gemessen: Die Team-Hülle rendert
+   „max-w-6xl" (1152 px), der Verwaltungsbereich eine eigene Variable. */
+body:has(.fi-sp-buehne) main[class*="max-w-"],
+body:has(.fi-sp-buehne) .admin-flaeche [class*="max-w-"] {
+  max-width: none; padding-left: 0; padding-right: 0;
 }
 
-/* ── Bühne: drei Spalten, breiter Feed, viel Luft nach oben ────────────── */
+/* ── 5. + 7. RASTER: Feed 720 px mittig, 32 px Luft unter der Kopfzeile ──── */
 .fi-sp-buehne {
   position: relative;
   display: grid;
-  /* VOLLE BREITE: Der Feed bekommt so viel, wie der Bildschirm hergibt —
-     bis 900 px. Die Seitenspalten sind breiter und tragen echte Zahlen
-     statt Hausordnungstexte. */
-  /* UNTERGRENZE FÜR DIE MITTE: Ein minmax mit Null als Untergrenze darf auf
-     null schrumpfen, und zusammen mit „justify-content: center“ bemisst das
-     Raster die Spuren nach ihrem Inhalt statt nach dem Platz. Gemessen:
-     376 px statt 900. Eine Untergrenze von 600 px verhindert das. */
-  /* GERECHNET, NICHT GERATEN: Der Verwaltungsbereich verliert 240 px an
-     seine Seitenleiste. Bei 1680 px Fenster bleiben 1440 — darin passten
-     300+900+300 plus Abstände (1604) nicht, und die Mitte schrumpfte auf
-     736. Die Seiten sind jetzt schmaler, und drei Spalten gibt es erst ab
-     1780 px Fenster; darunter zwei. */
-  grid-template-columns: 260px minmax(560px, 900px) 260px;
-  gap: 28px;
+  grid-template-columns: 260px minmax(480px, 720px) 280px;
+  gap: 20px;
   align-items: start;
-  max-width: 1720px;
+  justify-content: center;
+  max-width: 1360px;
   margin: 0 auto;
-  /* 40 px Abstand unter der Kopfzeile. In v3 klebte die erste Karte daran —
-     der Vorgesetzte hat es sofort gesehen. */
-  padding: 40px 24px 0;
+  padding: 32px 20px 0;
   perspective: 1600px;
   perspective-origin: 50% 0%;
 }
 .fi-sp-buehne > * { position: relative; z-index: 1; }
+.admin-flaeche .fi-sp-buehne { padding-top: 40px; }
 
-/* Im Verwaltungsbereich sitzt die Bühne enger unter der Kopfzeile — die
-   Admin-Hülle bringt weniger eigenen Abstand mit als die Team-Hülle.
-   Gemessen: 55 px statt 125. Hier ausgeglichen, damit beide Bereiche
-   gleich atmen. */
-.admin-flaeche .fi-sp-buehne { padding-top: 76px; }
+.fi-sp-seite { position: sticky; top: 92px; display: flex; flex-direction: column; gap: 20px; }
+.fi-sp-links { justify-self: stretch; }
+.fi-sp-rechts { justify-self: stretch; }
 
-.fi-sp-seite { position: sticky; top: 96px; display: flex; flex-direction: column; gap: 14px; }
-.fi-sp-links { justify-self: stretch; width: 100%; }
-.fi-sp-rechts { justify-self: stretch; width: 100%; }
-@media (max-width: 1779px) {
-  /* Zwei Spalten: Feed plus rechte Seite. Das Profilkärtchen wandert nach
-     rechts über die Kennzahlen. */
-  .fi-sp-buehne { grid-template-columns: minmax(560px, 900px) 260px; }
+@media (max-width: 1340px) {
+  /* Zwei Spalten: Der Feed behält seine Breite, das Profil wandert nach rechts. */
+  .fi-sp-buehne { grid-template-columns: minmax(480px, 720px) 280px; }
   .fi-sp-links { display: none; }
 }
-@media (max-width: 1279px) {
-  .fi-sp-buehne { grid-template-columns: minmax(0, 900px); justify-content: center; }
+/* ── DER VERWALTUNGSBEREICH VERLIERT 240 PX AN SEINE SEITENLEISTE ─────────
+   Gemessen: Bei 1440 px Fenster blieb der Feed dort bei 580 px statt 720,
+   weil 260 + 720 + 280 + Abstände (1320) in den verbleibenden 1200 nicht
+   passen. Die Media-Query fragt das FENSTER, nicht den verfügbaren Platz —
+   deshalb hier eine eigene Schwelle für den Verwaltungsbereich. */
+@media (max-width: 1580px) {
+  .admin-flaeche .fi-sp-buehne { grid-template-columns: minmax(480px, 720px) 280px; }
+  .admin-flaeche .fi-sp-links { display: none; }
+}
+@media (max-width: 1300px) {
+  .admin-flaeche .fi-sp-buehne { grid-template-columns: minmax(0, 720px); }
+  .admin-flaeche .fi-sp-seite { display: none; }
+}
+@media (max-width: 1060px) {
+  .fi-sp-buehne { grid-template-columns: minmax(0, 720px); }
   .fi-sp-seite { display: none; }
 }
 @media (max-width: 639px) {
-  .fi-sp-buehne { gap: 0; margin: -20px -16px 0; padding: 16px 0 0; perspective: none; }
+  /* 380 px: randnah, 12 px. App-Gefühl. */
+  .fi-sp-buehne { gap: 0; margin: -12px 0 0; padding: 16px 12px 0; perspective: none; }
 }
 
-/* ── Karten: helles Glas auf dunklem Grund, mit Leuchtkante ────────────── */
+/* ── 2. DIE BLASE ────────────────────────────────────────────────────────
+   Radius 28, Glas mit 20 px Weichzeichnung, Fläche 72 % Weiß, Haarlinie
+   oben als Lichtkante, zweistufiger Blau-Schatten. */
 .fi-sp-karte {
   position: relative;
-  background: linear-gradient(158deg, rgba(255,255,255,.97), rgba(247,250,254,.93));
-  backdrop-filter: blur(26px) saturate(150%);
-  -webkit-backdrop-filter: blur(26px) saturate(150%);
-  border-radius: 24px;
-  padding: 20px 22px;
+  border-radius: 28px;
+  padding: 24px;
+  background: rgba(255,255,255,.72);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
   box-shadow:
-    0 2px 4px rgba(3,8,22,.34),
-    0 26px 56px -28px rgba(3,8,22,.7),
-    0 0 60px -26px rgba(96,165,250,.42),
-    inset 0 1px 0 rgba(255,255,255,1),
-    inset 0 0 0 1px rgba(15,23,42,.05);
+    /* Zweistufig: ein enger Schatten für die Kante, ein weiter für die Höhe.
+       Beide im CI-Blau statt in Grau — ein grauer Schatten auf blauem Grund
+       sieht schmutzig aus. */
+    0 2px 8px -2px rgba(29,78,216,.1),
+    0 18px 44px -20px rgba(29,78,216,.24),
+    inset 0 0 0 1px rgba(255,255,255,.9);
   transform-style: preserve-3d;
 }
-/* Die Leuchtkante: auf dunklem Grund braucht eine helle Karte oben eine
-   Lichtlinie, sonst wirkt sie aufgeklebt statt beleuchtet. */
-.fi-sp-karte::after {
-  content: ""; position: absolute; inset: -1px -1px auto; height: 2px;
-  border-radius: 24px 24px 0 0;
+/* Die Lichtkante oben: 1 px, 90 % Weiß. Ohne sie wirkt die Blase aufgeklebt. */
+.fi-sp-karte::before {
+  content: ""; position: absolute; inset: 0 0 auto; height: 1px;
+  border-radius: 28px 28px 0 0;
   background: linear-gradient(90deg,
-    transparent, rgba(147,197,253,.6) 20%, rgba(255,255,255,.9) 50%, rgba(147,197,253,.6) 80%, transparent);
+    transparent, rgba(255,255,255,.9) 22%, rgba(255,255,255,1) 50%,
+    rgba(255,255,255,.9) 78%, transparent);
   pointer-events: none;
 }
 @media (max-width: 639px) {
-  .fi-sp-karte {
-    border-radius: 0; padding: 16px;
-    background: rgba(255,255,255,.97);
-    box-shadow: inset 0 -1px 0 rgba(15,23,42,.08);
-  }
-  .fi-sp-karte::after { display: none; }
+  .fi-sp-karte { border-radius: 22px; padding: 18px; }
 }
 
-/* ── Tageskopf ─────────────────────────────────────────────────────────── */
-.fi-sp-tageskopf {
-  display: grid; gap: 12px; margin-bottom: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+/* ── 3. AKZENT-VERLAUF ─────────────────────────────────────────────────── */
+.fi-sp-artmarke {
+  flex-shrink: 0; font-size: 10px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; white-space: nowrap;
+  padding: 4px 10px; border-radius: 999px;
+  /* !important, weil hier über Jahre Inline-Töne standen. Eine Fläche, die
+     ihre Schriftfarbe nicht durchsetzt, wird irgendwann unlesbar. */
+  color: #fff !important;
+  background: linear-gradient(158deg, #3b82f6, #1d4ed8);
+  box-shadow: 0 4px 12px -6px rgba(29,78,216,.7), inset 0 1px 0 rgba(255,255,255,.3);
 }
-.fi-sp-kachel {
-  padding: 14px 16px; border-radius: 18px;
-  background: linear-gradient(158deg, rgba(255,255,255,.11), rgba(255,255,255,.05));
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.16),
-    inset 0 0 0 1px rgba(255,255,255,.09),
-    0 14px 32px -20px rgba(3,8,22,.7);
-}
-.fi-sp-kachel-wert {
-  font-size: 21px; font-weight: 700; color: #f1f6fd;
-  font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1.15;
-}
-.fi-sp-kachel-titel {
-  font-size: 10.5px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase;
-  color: rgba(191,214,247,.72); margin-top: 3px;
-}
+@media (max-width: 419px) { .fi-sp-artmarke { display: none; } }
 
-/* ── Avatare ───────────────────────────────────────────────────────────── */
+/* ── 2. AVATAR: rund 44 px mit Verlaufs-Ring ───────────────────────────── */
 .fi-sp-avatar {
   border-radius: 999px; object-fit: cover; flex-shrink: 0;
+  /* Der Ring ist ein Verlauf, kein Rand: Ein einfarbiger Rand wirkt flach,
+     ein Verlauf fängt Licht. */
   box-shadow:
-    0 0 0 1px rgba(15,23,42,.08),
-    0 0 0 3px rgba(255,255,255,.9),
-    0 5px 14px -5px rgba(3,8,22,.5);
+    0 0 0 2px rgba(255,255,255,.95),
+    0 0 0 3.5px rgba(59,130,246,.42),
+    0 4px 12px -4px rgba(29,78,216,.4);
 }
 .fi-sp-avatar-text {
   display: inline-flex; align-items: center; justify-content: center;
   font-weight: 700; color: #fff; letter-spacing: -.02em;
-  background: linear-gradient(158deg, #3b82f6, #1d4ed8 62%, #1e40af);
+  background: linear-gradient(158deg, #60a5fa, #1d4ed8 66%, #1e40af);
 }
+
+/* Der Systemavatar: das EINZIGE dunkle Element. Daher der Premium-Kontrast. */
 .fi-sp-systemavatar {
-  flex-shrink: 0; border-radius: 15px;
+  flex-shrink: 0; border-radius: 14px;
   display: inline-flex; align-items: center; justify-content: center;
   background: linear-gradient(158deg, #14264f, #0a1a3c 62%, #071129);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.16),
-    inset 0 0 0 1px rgba(255,255,255,.08),
-    0 6px 16px -8px rgba(3,8,22,.8);
+    inset 0 1px 0 rgba(255,255,255,.18),
+    0 0 0 2px rgba(255,255,255,.9),
+    0 6px 16px -6px rgba(7,17,41,.6);
 }
 
-/* ── Angepinntes: schmale Leiste, jetzt auf der dunklen Bühne ──────────── */
+/* ── 6. PIN-LEISTE: schmale Glasblase, im Ruhezustand nie über 56 px ────── */
 .fi-sp-pinleiste {
-  margin-bottom: 14px; border-radius: 18px; overflow: hidden;
-  background: linear-gradient(158deg, rgba(255,255,255,.1), rgba(255,255,255,.045));
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  margin-bottom: 20px; border-radius: 22px; overflow: hidden;
+  background: rgba(255,255,255,.66);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.14),
-    inset 0 0 0 1px rgba(147,197,253,.16),
-    0 14px 32px -22px rgba(3,8,22,.7);
+    0 2px 8px -2px rgba(29,78,216,.09),
+    0 14px 34px -20px rgba(29,78,216,.22),
+    inset 0 0 0 1px rgba(255,255,255,.85);
 }
-.fi-sp-pinzeile + .fi-sp-pinzeile { box-shadow: inset 0 1px 0 rgba(255,255,255,.08); }
+/* ── EINZEILIG IM RUHEZUSTAND ─────────────────────────────────────────────
+   Die Spezifikation fordert „nie mehr als 56 px hoch im Ruhezustand" UND
+   „max 2 angepinnte Titel". Zwei untereinander liegende Zeilen ergaben
+   gemessen 94 px — beides gleichzeitig geht nur, wenn die zwei Titel
+   NEBENEINANDER stehen.
+
+   Also: Im Ruhezustand liegen beide Pins als schmale Chips in einer Reihe;
+   ist einer aufgeklappt, wächst die Leiste. Auf schmalen Geräten wird daraus
+   eine Wischleiste, statt dass die Titel umbrechen. */
+.fi-sp-pinreihe {
+  display: flex; align-items: stretch; gap: 0;
+}
+.fi-sp-pinzeile { min-width: 0; flex: 1 1 0; }
+.fi-sp-pinzeile + .fi-sp-pinzeile { box-shadow: inset 1px 0 0 rgba(15,23,42,.07); }
+/* Ist ein Pin offen, steht die Leiste wieder untereinander — der Inhalt
+   braucht die ganze Breite. */
+.fi-sp-pinreihe:has(.fi-sp-pinzeile[data-offen="1"]) { flex-direction: column; }
+.fi-sp-pinreihe:has(.fi-sp-pinzeile[data-offen="1"]) .fi-sp-pinzeile + .fi-sp-pinzeile {
+  box-shadow: inset 0 1px 0 rgba(15,23,42,.07);
+}
 .fi-sp-pinknopf {
-  width: 100%; display: flex; align-items: center; gap: 10px;
-  padding: 12px 16px; border: 0; cursor: pointer; background: none; text-align: left;
-  color: #93c5fd; transition: background 160ms;
+  width: 100%; display: flex; align-items: center; gap: 9px;
+  /* 9 + 9 + 20 Zeilenhöhe + 2×1 Rahmen = 40 px. Eine Reihe bleibt damit weit
+     unter den geforderten 56. */
+  padding: 9px 14px; border: 0; cursor: pointer; background: none;
+  text-align: left; color: var(--fi-primaer); transition: background 160ms;
+  min-height: 40px;
 }
-.fi-sp-pinknopf:hover { background: rgba(255,255,255,.06); }
+.fi-sp-pinknopf:hover { background: rgba(37,99,235,.05); }
 .fi-sp-pintext {
-  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: 12.5px; font-weight: 650; color: #dbe8fb;
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-size: 12.5px; font-weight: 650; color: var(--fi-text);
 }
 .fi-sp-pinpfeil { transition: transform 240ms cubic-bezier(.32,.72,0,1); }
 .fi-sp-pinzeile[data-offen="1"] .fi-sp-pinpfeil { transform: rotate(180deg); }
 .fi-sp-pininhalt {
-  padding: 0 16px 15px 40px;
+  padding: 0 18px 16px 42px;
   animation: fiSpAufklappen 260ms cubic-bezier(.32,.72,0,1) both;
 }
-.fi-sp-pininhalt .fi-sp-text { color: rgba(219,232,251,.86); }
 .fi-sp-pinloesen {
   margin-top: 10px; background: none; border: 0; cursor: pointer; padding: 0;
-  font-size: 11.5px; font-weight: 650; color: rgba(191,214,247,.72);
+  font-size: 11.5px; font-weight: 650; color: var(--fi-text-still);
 }
-.fi-sp-pinloesen:hover { color: #93c5fd; text-decoration: underline; }
-@media (max-width: 639px) { .fi-sp-pinleiste { border-radius: 0; } }
+.fi-sp-pinloesen:hover { color: var(--fi-primaer); text-decoration: underline; }
 
-/* ── Komposer ──────────────────────────────────────────────────────────── */
+/* ── 4. KOMPOSER: große Blase, wächst beim Fokus ───────────────────────── */
 .fi-sp-komposer {
-  margin-bottom: 16px;
-  transition: box-shadow 320ms cubic-bezier(.32,.72,0,1),
-              transform 320ms cubic-bezier(.32,.72,0,1);
+  margin-bottom: 20px;
+  transition: box-shadow 340ms cubic-bezier(.32,.72,0,1),
+              transform 340ms cubic-bezier(.32,.72,0,1);
 }
 .fi-sp-komposer-gross {
-  transform: translateZ(18px);
+  transform: translateZ(16px) scale(1.008);
   box-shadow:
-    0 2px 4px rgba(3,8,22,.34),
-    0 36px 74px -32px rgba(3,8,22,.8),
-    0 0 80px -22px rgba(96,165,250,.6),
-    inset 0 1px 0 rgba(255,255,255,1),
-    inset 0 0 0 1px rgba(37,99,235,.26);
+    0 2px 8px -2px rgba(29,78,216,.14),
+    0 30px 64px -24px rgba(29,78,216,.34),
+    inset 0 0 0 1px rgba(147,197,253,.6);
 }
-.fi-sp-komposer-kopf { display: flex; align-items: flex-start; gap: 13px; }
+.fi-sp-komposer-kopf { display: flex; align-items: flex-start; gap: 14px; }
 .fi-sp-komposer-feld {
   flex: 1 1 auto; border: 0; outline: none; resize: none; background: none;
-  font-size: 15.5px; line-height: 1.6; color: #0f172a;
-  padding: 10px 0; min-height: 42px; font-family: inherit;
+  font-size: 16px; line-height: 1.62; color: var(--fi-text);
+  padding: 10px 0; min-height: 46px; font-family: inherit;
 }
-.fi-sp-komposer-feld::placeholder { color: #64748b; }
+.fi-sp-komposer-feld::placeholder { color: var(--fi-text-still); }
 .fi-sp-komposer-fuss {
-  margin-top: 14px; padding-top: 14px;
+  margin-top: 16px; padding-top: 16px;
   box-shadow: inset 0 1px 0 rgba(15,23,42,.07);
   animation: fiSpAuf 300ms cubic-bezier(.32,.72,0,1) both;
 }
-.fi-sp-komposer-knoepfe { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
-.fi-sp-hinweis { font-size: 11.5px; color: #64748b; line-height: 1.55; margin: 0; }
-.fi-sp-hinweis b { color: #475569; font-weight: 650; }
+.fi-sp-komposer-knoepfe { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.fi-sp-hinweis { font-size: 11.5px; color: var(--fi-text-still); line-height: 1.55; margin: 0; }
+.fi-sp-hinweis b { color: var(--fi-text-leise); font-weight: 650; }
 .fi-sp-abbrechen {
   background: none; border: 0; cursor: pointer; padding: 8px 4px;
-  font-size: 13px; font-weight: 600; color: #64748b;
+  font-size: 13px; font-weight: 600; color: var(--fi-text-still);
 }
+/* Veröffentlichen: Verlaufs-Fläche mit Glanzkante. */
 .fi-sp-senden {
-  margin-left: auto; padding: 10px 22px; border: 0; cursor: pointer;
+  margin-left: auto; padding: 11px 24px; border: 0; cursor: pointer;
   border-radius: 999px; font-size: 13.5px; font-weight: 700; color: #fff;
-  background: linear-gradient(178deg, #2563eb, #1d4ed8 58%, #1b429f);
+  background: linear-gradient(178deg, #3b82f6, #1d4ed8 58%, #1b429f);
   box-shadow:
-    0 14px 28px -12px rgba(29,78,216,.8),
-    inset 0 1px 0 rgba(255,255,255,.28);
+    0 14px 30px -12px rgba(29,78,216,.68),
+    inset 0 1px 0 rgba(255,255,255,.38);
   transition: transform 140ms cubic-bezier(.32,.72,0,1), box-shadow 200ms, filter 180ms;
 }
-.fi-sp-senden:hover:not(:disabled) { filter: brightness(1.09); transform: translateY(-1.5px); }
+.fi-sp-senden:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1.5px); }
 .fi-sp-senden:active:not(:disabled) {
   transform: translateY(1px) scale(.985);
-  box-shadow: inset 0 2px 5px rgba(9,20,56,.4);
+  box-shadow: inset 0 2px 5px rgba(9,20,56,.36);
 }
 .fi-sp-senden:disabled { opacity: .32; cursor: default; box-shadow: none; }
 
-/* ── Beitrag ───────────────────────────────────────────────────────────── */
+/* ── 2. EINTRITT: Aufsteigen plus Aufblühen, 450 ms ────────────────────── */
 .fi-sp-post {
-  margin-bottom: 14px;
-  animation: fiSpPostAuf 620ms cubic-bezier(.22,.68,0,1) both;
+  margin-bottom: 20px;
+  animation: fiSpBluehen 450ms cubic-bezier(.32,.72,0,1) both;
   transition: box-shadow 280ms cubic-bezier(.32,.72,0,1),
               transform 280ms cubic-bezier(.32,.72,0,1);
 }
+@keyframes fiSpBluehen {
+  from { opacity: 0; transform: translateY(18px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+/* Hover Desktop: hebt 4 px, Schatten wächst. */
 @media (min-width: 640px) {
   .fi-sp-post:hover {
-    transform: translateZ(12px) translateY(-2px);
+    transform: translateY(-4px);
     box-shadow:
-      0 2px 4px rgba(3,8,22,.34),
-      0 34px 68px -30px rgba(3,8,22,.78),
-      0 0 76px -24px rgba(96,165,250,.55),
-      inset 0 1px 0 rgba(255,255,255,1),
-      inset 0 0 0 1px rgba(15,23,42,.06);
+      0 3px 10px -2px rgba(29,78,216,.13),
+      0 30px 62px -22px rgba(29,78,216,.34),
+      inset 0 0 0 1px rgba(255,255,255,.95);
   }
-}
-@keyframes fiSpPostAuf {
-  from { opacity: 0; transform: translateY(26px) translateZ(-44px) rotateX(4deg); }
-  to   { opacity: 1; transform: none; }
 }
 @keyframes fiSpAuf { from { opacity: 0 } to { opacity: 1 } }
 @keyframes fiSpAufklappen {
@@ -1209,151 +1213,130 @@ body:has(.fi-sp-buehne):not(:has(video)) .admin-flaeche::after {
 .fi-sp-pin {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 10.5px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase;
-  color: #1d4ed8; margin: 0 0 9px;
+  color: var(--fi-primaer); margin: 0 0 10px;
 }
-.fi-sp-post-kopf { display: flex; align-items: center; gap: 13px; margin-bottom: 12px; }
+.fi-sp-post-kopf { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
 .fi-sp-autor {
-  font-size: 14.5px; font-weight: 700; color: #0f172a;
+  font-size: 14.5px; font-weight: 700; color: var(--fi-text);
   margin: 0; line-height: 1.3; letter-spacing: -.01em;
 }
-.fi-sp-zeit { font-size: 11.5px; color: #64748b; margin: 1px 0 0; }
-.fi-sp-bearbeitet { color: #94a3b8; font-style: italic; }
+.fi-sp-zeit { font-size: 11.5px; color: var(--fi-text-still); margin: 1px 0 0; }
+.fi-sp-bearbeitet { color: var(--fi-text-still); font-style: italic; }
 .fi-sp-text {
-  font-size: 15px; line-height: 1.68; color: #334155;
+  font-size: 15px; line-height: 1.68; color: var(--fi-text-leise);
   margin: 0; white-space: pre-wrap; overflow-wrap: anywhere;
 }
-.fi-sp-text::first-line { font-weight: 650; color: #0f172a; }
+.fi-sp-text::first-line { font-weight: 650; color: var(--fi-text); }
 
-.fi-sp-artmarke {
-  flex-shrink: 0; font-size: 10px; font-weight: 700;
-  letter-spacing: .1em; text-transform: uppercase; opacity: .85; white-space: nowrap;
-}
-@media (max-width: 479px) { .fi-sp-artmarke { display: none; } }
-
-/* ── Das Kartenmenü: Aktionen AM ORT ─────────────────────────────────────
-   In v3 öffnete „Entfernen" einen Dialog am Seitenende — der Vorgesetzte
-   musste scrollen, um eine Frage zu beantworten, die er oben gestellt
-   hatte. Jetzt kippt die Karte SELBST in den Bestätigungszustand. */
+/* ── 7. INTERAKTION AN DER KARTE (aus v4 übernommen) ───────────────────── */
 .fi-sp-postmenue { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .fi-sp-postmenue-knopf {
   background: none; border: 0; cursor: pointer; border-radius: 9px;
-  padding: 6px 9px; font-size: 11.5px; font-weight: 600; color: #64748b;
+  padding: 6px 10px; font-size: 11.5px; font-weight: 600; color: var(--fi-text-still);
   transition: background 160ms, color 160ms;
 }
-.fi-sp-postmenue-knopf:hover { background: rgba(15,23,42,.055); color: #0f172a; }
+.fi-sp-postmenue-knopf:hover { background: rgba(15,23,42,.055); color: var(--fi-text); }
 .fi-sp-postmenue-weg:hover { background: rgba(185,28,28,.08); color: #b91c1c; }
 
 .fi-sp-bestaetigung {
-  margin-top: 13px; padding: 14px 16px; border-radius: 18px;
-  background: linear-gradient(158deg, rgba(185,28,28,.07), rgba(185,28,28,.025));
-  box-shadow: inset 0 0 0 1px rgba(185,28,28,.2);
+  margin-top: 14px; padding: 15px 17px; border-radius: 20px;
+  background: linear-gradient(158deg, rgba(185,28,28,.06), rgba(185,28,28,.02));
+  box-shadow: inset 0 0 0 1px rgba(185,28,28,.18);
   animation: fiSpKippen 320ms cubic-bezier(.32,.72,0,1) both;
 }
 @keyframes fiSpKippen {
-  from { opacity: 0; transform: translateY(-8px) rotateX(-6deg); }
+  from { opacity: 0; transform: translateY(-8px); }
   to   { opacity: 1; transform: none; }
 }
 .fi-sp-bestaetigung-titel { font-size: 13px; font-weight: 700; color: #b91c1c; margin: 0; }
 .fi-sp-bestaetigung-text { font-size: 12.5px; line-height: 1.55; color: #7f1d1d; margin: 4px 0 0; }
-.fi-sp-bestaetigung-knoepfe { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.fi-sp-bestaetigung-knoepfe { display: flex; align-items: center; gap: 8px; margin-top: 13px; }
 
 .fi-sp-bearbeiten { margin-top: 2px; }
 .fi-sp-bearbeiten-feld {
   width: 100%; resize: none; outline: none; border: 0;
-  padding: 12px 14px; border-radius: 15px;
-  background: rgba(255,255,255,.8);
-  box-shadow: inset 0 0 0 1px rgba(37,99,235,.26), 0 0 0 4px rgba(37,99,235,.08);
-  font-size: 15px; line-height: 1.6; font-family: inherit; color: #0f172a;
+  padding: 13px 15px; border-radius: 18px;
+  background: rgba(255,255,255,.9);
+  box-shadow: inset 0 0 0 1px rgba(37,99,235,.28), 0 0 0 4px rgba(37,99,235,.08);
+  font-size: 15px; line-height: 1.6; font-family: inherit; color: var(--fi-text);
 }
 
-/* ── Reaktionen ────────────────────────────────────────────────────────── */
+/* ── 7. REAKTIONEN: der Zähler hüpft einmal ────────────────────────────── */
 .fi-sp-reaktionen {
   display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
-  margin-top: 14px; padding-top: 13px;
-  box-shadow: inset 0 1px 0 rgba(15,23,42,.06);
+  margin-top: 16px; padding-top: 14px;
+  box-shadow: inset 0 1px 0 rgba(15,23,42,.07);
 }
 .fi-sp-reaktion {
   position: relative; overflow: hidden;
   display: inline-flex; align-items: center; gap: 6px;
-  height: 36px; padding: 0 12px; border: 0; cursor: pointer; border-radius: 999px;
-  color: #64748b; background: transparent;
+  height: 36px; padding: 0 13px; border: 0; cursor: pointer; border-radius: 999px;
+  color: var(--fi-text-still); background: transparent;
   transition: background 180ms, color 180ms, box-shadow 220ms,
               transform 160ms cubic-bezier(.32,.72,0,1);
 }
-.fi-sp-reaktion:hover { background: rgba(15,23,42,.05); color: #475569; transform: translateY(-1.5px); }
+.fi-sp-reaktion:hover { background: rgba(15,23,42,.05); color: var(--fi-text-leise); transform: translateY(-1.5px); }
 .fi-sp-reaktion:active { transform: scale(.9); }
 .fi-sp-reaktion[data-an="1"] {
-  color: #1d4ed8;
-  background: linear-gradient(160deg, rgba(59,130,246,.17), rgba(29,78,216,.07));
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.75),
-    inset 0 0 0 1px rgba(37,99,235,.22),
-    0 5px 14px -7px rgba(29,78,216,.5);
-}
-.fi-sp-reaktion[data-an="1"]::before {
-  content: ""; position: absolute; inset: 0; border-radius: 999px;
-  background: radial-gradient(circle at 50% 50%, rgba(37,99,235,.32), transparent 70%);
-  animation: fiSpWelle 620ms cubic-bezier(.22,.68,0,1) both;
-  pointer-events: none;
-}
-@keyframes fiSpWelle {
-  from { opacity: .8; transform: scale(.25); }
-  to   { opacity: 0;  transform: scale(1.9); }
+  color: #fff;
+  background: linear-gradient(158deg, #3b82f6, #1d4ed8);
+  box-shadow: 0 6px 16px -8px rgba(29,78,216,.7), inset 0 1px 0 rgba(255,255,255,.32);
 }
 .fi-sp-zaehler {
   font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
-  animation: fiSpSprung 420ms cubic-bezier(.32,.72,0,1) both;
+  /* Ein Federsprung: kurz über das Ziel hinaus, dann zurück. */
+  animation: fiSpFeder 460ms cubic-bezier(.28,1.6,.4,1) both;
 }
-@keyframes fiSpSprung {
-  0%   { transform: translateY(6px) scale(.5); opacity: 0 }
-  55%  { transform: translateY(-2.5px) scale(1.22); opacity: 1 }
+@keyframes fiSpFeder {
+  0%   { transform: translateY(7px) scale(.55); opacity: 0 }
+  58%  { transform: translateY(-3px) scale(1.24); opacity: 1 }
   100% { transform: none; opacity: 1 }
 }
 .fi-sp-kommentarknopf {
   margin-left: auto; background: none; border: 0; cursor: pointer;
   padding: 0 6px; height: 36px; font-size: 12.5px; font-weight: 600;
-  color: #64748b; transition: color 180ms;
+  color: var(--fi-text-still); transition: color 180ms;
 }
-.fi-sp-kommentarknopf:hover { color: #1d4ed8; }
+.fi-sp-kommentarknopf:hover { color: var(--fi-primaer); }
 
-/* ── Kommentare ────────────────────────────────────────────────────────── */
+/* ── Kommentare ───────────────────────────────────────────────────────── */
 .fi-sp-kommentare {
-  margin-top: 12px; padding-top: 12px;
-  box-shadow: inset 0 1px 0 rgba(15,23,42,.06);
+  margin-top: 14px; padding-top: 14px;
+  box-shadow: inset 0 1px 0 rgba(15,23,42,.07);
   animation: fiSpAufklappen 300ms cubic-bezier(.32,.72,0,1) both;
 }
-.fi-sp-kommentar { display: flex; gap: 10px; margin-bottom: 10px; }
+.fi-sp-kommentar { display: flex; gap: 11px; margin-bottom: 11px; }
 .fi-sp-kommentar-blase {
-  margin: 0; padding: 10px 14px; border-radius: 5px 17px 17px 17px;
-  background: linear-gradient(158deg, rgba(241,245,249,.95), rgba(226,232,240,.7));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.85), inset 0 0 0 1px rgba(15,23,42,.05);
-  font-size: 13.5px; line-height: 1.55; color: #334155; overflow-wrap: anywhere;
+  margin: 0; padding: 11px 15px; border-radius: 6px 20px 20px 20px;
+  background: rgba(241,246,254,.9);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9), inset 0 0 0 1px rgba(15,23,42,.05);
+  font-size: 13.5px; line-height: 1.55; color: var(--fi-text-leise); overflow-wrap: anywhere;
 }
-.fi-sp-kommentar-blase b { font-weight: 700; color: #0f172a; margin-right: 4px; }
-.fi-sp-kommentar-zeit { font-size: 10.5px; color: #64748b; margin: 3px 0 0 14px; }
+.fi-sp-kommentar-blase b { font-weight: 700; color: var(--fi-text); margin-right: 4px; }
+.fi-sp-kommentar-zeit { font-size: 10.5px; color: var(--fi-text-still); margin: 3px 0 0 15px; }
 .fi-sp-kommentar-tat {
   background: none; border: 0; cursor: pointer; padding: 0;
-  margin-left: 11px; font-size: 10.5px; font-weight: 700; color: #64748b;
+  margin-left: 11px; font-size: 10.5px; font-weight: 700; color: var(--fi-text-still);
   transition: color 160ms;
 }
-.fi-sp-kommentar-tat:hover { color: #1d4ed8; }
+.fi-sp-kommentar-tat:hover { color: var(--fi-primaer); }
 .fi-sp-antworten {
-  margin: 0 0 5px 40px; padding-left: 13px;
-  box-shadow: inset 2px 0 0 rgba(15,23,42,.08);
+  margin: 0 0 5px 42px; padding-left: 14px;
+  box-shadow: inset 2px 0 0 rgba(37,99,235,.16);
 }
 .fi-sp-mehr-kommentare {
   background: none; border: 0; cursor: pointer; padding: 4px 0 10px;
-  font-size: 12px; font-weight: 650; color: #1d4ed8;
+  font-size: 12px; font-weight: 650; color: var(--fi-primaer);
 }
 .fi-sp-mehr-kommentare:hover { text-decoration: underline; }
-.fi-sp-antwort-hinweis { font-size: 11.5px; color: #64748b; margin: 0 0 6px 40px; }
-.fi-sp-antwort-hinweis b { color: #475569; }
-.fi-sp-kommentar-neu { display: flex; gap: 10px; align-items: center; }
+.fi-sp-antwort-hinweis { font-size: 11.5px; color: var(--fi-text-still); margin: 0 0 6px 42px; }
+.fi-sp-antwort-hinweis b { color: var(--fi-text-leise); }
+.fi-sp-kommentar-neu { display: flex; gap: 11px; align-items: center; }
 .fi-sp-kommentar-feld {
-  flex: 1 1 auto; height: 40px; padding: 0 16px; border: 0; outline: none;
-  border-radius: 999px; background: rgba(15,23,42,.045);
-  box-shadow: inset 0 0 0 1px rgba(15,23,42,.055);
-  font-size: 13.5px; color: #1e293b; font-family: inherit;
+  flex: 1 1 auto; height: 42px; padding: 0 17px; border: 0; outline: none;
+  border-radius: 999px; background: rgba(241,246,254,.9);
+  box-shadow: inset 0 0 0 1px rgba(15,23,42,.06);
+  font-size: 13.5px; color: var(--fi-text); font-family: inherit;
   transition: box-shadow 200ms, background 200ms;
 }
 .fi-sp-kommentar-feld:focus {
@@ -1361,73 +1344,73 @@ body:has(.fi-sp-buehne):not(:has(video)) .admin-flaeche::after {
   box-shadow: inset 0 0 0 1px rgba(37,99,235,.34), 0 0 0 4px rgba(37,99,235,.1);
 }
 
-/* ── Bild, Akten-Chip, Aktensuche ──────────────────────────────────────── */
+/* ── Bild, Akten-Chip, Aktensuche ─────────────────────────────────────── */
 .fi-sp-bild {
-  display: block; width: 100%; margin-top: 13px;
-  border-radius: 17px; object-fit: cover; max-height: 560px;
-  box-shadow: inset 0 0 0 1px rgba(15,23,42,.08), 0 12px 30px -20px rgba(3,8,22,.6);
+  display: block; width: 100%; margin-top: 14px;
+  border-radius: 20px; object-fit: cover; max-height: 560px;
+  box-shadow: inset 0 0 0 1px rgba(15,23,42,.07), 0 12px 30px -20px rgba(29,78,216,.4);
 }
-.fi-sp-bildvorschau { position: relative; margin-top: 13px; }
+.fi-sp-bildvorschau { position: relative; margin-top: 14px; }
 .fi-sp-bildvorschau img {
   display: block; width: 100%; max-height: 280px; object-fit: cover;
-  border-radius: 17px; box-shadow: inset 0 0 0 1px rgba(15,23,42,.08);
+  border-radius: 20px; box-shadow: inset 0 0 0 1px rgba(15,23,42,.07);
 }
 .fi-sp-bildvorschau button {
   position: absolute; top: 10px; right: 10px;
   width: 30px; height: 30px; border: 0; cursor: pointer; border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: rgba(7,11,22,.6); color: #fff;
+  background: rgba(7,11,22,.55); color: #fff;
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
 .fi-sp-bildknopf {
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-  padding: 9px 15px; border-radius: 999px;
-  font-size: 12.5px; font-weight: 600; color: #64748b;
-  background: rgba(15,23,42,.045);
-  box-shadow: inset 0 0 0 1px rgba(15,23,42,.055);
+  padding: 9px 16px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 600; color: var(--fi-text-still);
+  background: rgba(241,246,254,.9);
+  box-shadow: inset 0 0 0 1px rgba(15,23,42,.06);
   transition: background 180ms, color 180ms, box-shadow 200ms, transform 160ms;
 }
 .fi-sp-bildknopf:hover {
-  background: rgba(37,99,235,.09); color: #1d4ed8;
+  background: rgba(37,99,235,.09); color: var(--fi-primaer);
   box-shadow: inset 0 0 0 1px rgba(37,99,235,.22); transform: translateY(-1px);
 }
 .fi-sp-aktechip {
-  display: flex; align-items: center; gap: 12px; margin-top: 13px;
-  padding: 12px 14px; border-radius: 17px; text-decoration: none;
+  display: flex; align-items: center; gap: 12px; margin-top: 14px;
+  padding: 13px 15px; border-radius: 20px; text-decoration: none;
   background: linear-gradient(158deg, rgba(59,130,246,.1), rgba(29,78,216,.035));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.75), inset 0 0 0 1px rgba(37,99,235,.18);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.8), inset 0 0 0 1px rgba(37,99,235,.16);
   transition: box-shadow 240ms, transform 200ms cubic-bezier(.32,.72,0,1);
 }
 a.fi-sp-aktechip:hover {
   transform: translateY(-1.5px);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.85),
-              inset 0 0 0 1px rgba(37,99,235,.36),
-              0 14px 30px -16px rgba(29,78,216,.55);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9),
+              inset 0 0 0 1px rgba(37,99,235,.34),
+              0 14px 30px -16px rgba(29,78,216,.5);
 }
-.fi-sp-aktechip-wahl { background: rgba(15,23,42,.03); box-shadow: inset 0 0 0 1px rgba(15,23,42,.075); }
+.fi-sp-aktechip-wahl { background: rgba(241,246,254,.9); box-shadow: inset 0 0 0 1px rgba(15,23,42,.07); }
 .fi-sp-aktechip-marke {
-  width: 34px; height: 34px; border-radius: 11px; flex-shrink: 0;
+  width: 34px; height: 34px; border-radius: 12px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  color: #1d4ed8; background: rgba(37,99,235,.11);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
+  color: #fff; background: linear-gradient(158deg, #3b82f6, #1d4ed8);
+  box-shadow: 0 4px 12px -6px rgba(29,78,216,.6), inset 0 1px 0 rgba(255,255,255,.28);
 }
 .fi-sp-aktechip b {
-  display: block; font-size: 12.5px; font-weight: 700; color: #1d4ed8;
+  display: block; font-size: 12.5px; font-weight: 700; color: var(--fi-primaer);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: -.01em;
 }
-.fi-sp-aktechip-hinweis { display: block; font-size: 11px; color: #64748b; margin-top: 1px; }
-.fi-sp-aktechip-pfeil { color: #64748b; flex-shrink: 0; }
+.fi-sp-aktechip-hinweis { display: block; font-size: 11px; color: var(--fi-text-still); margin-top: 1px; }
+.fi-sp-aktechip-pfeil { color: var(--fi-text-still); flex-shrink: 0; }
 .fi-sp-aktechip-weg {
   flex-shrink: 0; width: 26px; height: 26px; border: 0; cursor: pointer;
   border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
-  background: rgba(15,23,42,.07); color: #64748b;
+  background: rgba(15,23,42,.07); color: var(--fi-text-still);
 }
-.fi-sp-aktesuche { position: relative; margin-bottom: 11px; }
+.fi-sp-aktesuche { position: relative; margin-bottom: 12px; }
 .fi-sp-aktesuche-feld {
-  width: 100%; height: 42px; padding: 0 16px; border: 0; outline: none;
-  border-radius: 999px; background: rgba(15,23,42,.045);
-  box-shadow: inset 0 0 0 1px rgba(15,23,42,.055);
-  font-size: 13.5px; color: #1e293b; font-family: inherit;
+  width: 100%; height: 44px; padding: 0 17px; border: 0; outline: none;
+  border-radius: 999px; background: rgba(241,246,254,.9);
+  box-shadow: inset 0 0 0 1px rgba(15,23,42,.06);
+  font-size: 13.5px; color: var(--fi-text); font-family: inherit;
   transition: box-shadow 200ms, background 200ms;
 }
 .fi-sp-aktesuche-feld:focus {
@@ -1436,12 +1419,11 @@ a.fi-sp-aktechip:hover {
 }
 .fi-sp-aktesuche-liste {
   position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20;
-  border-radius: 17px; overflow: hidden; padding: 6px;
+  border-radius: 20px; overflow: hidden; padding: 6px;
   background: rgba(255,255,255,.97);
-  backdrop-filter: blur(26px); -webkit-backdrop-filter: blur(26px);
-  box-shadow: 0 30px 62px -26px rgba(3,8,22,.7),
-              inset 0 1px 0 rgba(255,255,255,1),
-              inset 0 0 0 1px rgba(15,23,42,.08);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 28px 60px -24px rgba(29,78,216,.42),
+              inset 0 0 0 1px rgba(255,255,255,.95);
   animation: fiSpListeAuf 220ms cubic-bezier(.32,.72,0,1) both;
 }
 @keyframes fiSpListeAuf {
@@ -1450,24 +1432,24 @@ a.fi-sp-aktechip:hover {
 }
 .fi-sp-aktesuche-zeile {
   width: 100%; display: flex; align-items: baseline; gap: 8px;
-  padding: 10px 12px; border: 0; cursor: pointer; border-radius: 12px;
+  padding: 10px 13px; border: 0; cursor: pointer; border-radius: 14px;
   background: none; text-align: left; transition: background 160ms;
 }
 .fi-sp-aktesuche-zeile:hover { background: rgba(37,99,235,.08); }
-.fi-sp-aktesuche-zeile b { font-size: 13.5px; font-weight: 600; color: #1e293b; }
+.fi-sp-aktesuche-zeile b { font-size: 13.5px; font-weight: 600; color: var(--fi-text); }
 .fi-sp-aktesuche-zeile span {
-  margin-left: auto; font-size: 11px; color: #64748b;
+  margin-left: auto; font-size: 11px; color: var(--fi-text-still);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* ── Pille, Seitenspalten, Randfälle ───────────────────────────────────── */
+/* ── Pille ────────────────────────────────────────────────────────────── */
 .fi-sp-pill {
-  position: sticky; top: 86px; z-index: 30;
-  display: flex; align-items: center; gap: 7px; margin: 0 auto 14px;
-  padding: 11px 20px; border: 0; cursor: pointer; border-radius: 999px;
+  position: sticky; top: 84px; z-index: 30;
+  display: flex; align-items: center; gap: 7px; margin: 0 auto 20px;
+  padding: 11px 21px; border: 0; cursor: pointer; border-radius: 999px;
   font-size: 12.5px; font-weight: 700; color: #fff;
-  background: linear-gradient(178deg, #2563eb, #1d4ed8 58%, #1b429f);
-  box-shadow: 0 18px 38px -14px rgba(3,8,22,.8), inset 0 1px 0 rgba(255,255,255,.3);
+  background: linear-gradient(178deg, #3b82f6, #1d4ed8 58%, #1b429f);
+  box-shadow: 0 18px 38px -14px rgba(29,78,216,.7), inset 0 1px 0 rgba(255,255,255,.34);
   animation: fiSpPillAuf 420ms cubic-bezier(.32,.72,0,1) both;
 }
 @keyframes fiSpPillAuf {
@@ -1476,71 +1458,102 @@ a.fi-sp-aktechip:hover {
 }
 .fi-sp-pill:hover { filter: brightness(1.08); transform: translateY(-1px); }
 
+/* ── 5. SEITENSPALTEN ─────────────────────────────────────────────────── */
 .fi-sp-profil { text-align: center; }
-.fi-sp-profil .fi-sp-avatar { margin: 0 auto 11px; }
-.fi-sp-profil-name { font-size: 15.5px; font-weight: 700; color: #0f172a; margin: 0; letter-spacing: -.01em; }
-.fi-sp-profil-rolle { font-size: 11.5px; color: #64748b; margin: 2px 0 0; }
+/* Avatar 72 px in der Profil-Blase. */
+.fi-sp-profil .fi-sp-avatar { margin: 0 auto 13px; }
+.fi-sp-profil-name { font-size: 16px; font-weight: 700; color: var(--fi-text); margin: 0; letter-spacing: -.015em; }
+.fi-sp-profil-rolle { font-size: 11.5px; color: var(--fi-text-still); margin: 3px 0 0; }
 .fi-sp-profil-zahlen {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-  margin-top: 15px; padding-top: 15px; box-shadow: inset 0 1px 0 rgba(15,23,42,.07);
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  margin-top: 17px; padding-top: 17px; box-shadow: inset 0 1px 0 rgba(15,23,42,.07);
 }
 .fi-sp-profil-zahlen b {
-  display: block; font-size: 19px; font-weight: 700; color: #0f172a;
-  font-variant-numeric: tabular-nums; line-height: 1.2; letter-spacing: -.02em;
+  display: block; font-size: 20px; font-weight: 700; color: var(--fi-text);
+  font-variant-numeric: tabular-nums; line-height: 1.2; letter-spacing: -.025em;
 }
-.fi-sp-profil-zahlen span { display: block; font-size: 10px; color: #64748b; line-height: 1.35; }
-/* ── Der Tag: Zahlen mit Glanz ───────────────────────────────────────────── */
+.fi-sp-profil-zahlen span { display: block; font-size: 10px; color: var(--fi-text-still); line-height: 1.35; }
+.fi-sp-profil-rechts { padding: 20px; }
+@media (min-width: 1341px) { .fi-sp-profil-rechts { display: none; } }
+
+/* „Heute"-Blase mit Verlaufs-Kacheln. */
 .fi-sp-tag-datum {
-  font-size: 13.5px; font-weight: 700; color: #0f172a;
-  margin: 0 0 14px; letter-spacing: -.01em;
-  padding-bottom: 12px; box-shadow: inset 0 -1px 0 rgba(15,23,42,.07);
+  font-size: 13.5px; font-weight: 700; color: var(--fi-text);
+  margin: 0 0 15px; letter-spacing: -.01em;
+  padding-bottom: 13px; box-shadow: inset 0 -1px 0 rgba(15,23,42,.07);
 }
-.fi-sp-tag-zahlen { display: flex; flex-direction: column; gap: 14px; }
-.fi-sp-tag-zeile { display: flex; flex-direction: column; }
+.fi-sp-tag-zahlen { display: grid; gap: 10px; }
+.fi-sp-tag-zeile {
+  display: block; padding: 12px 14px; border-radius: 16px;
+  background: linear-gradient(158deg, rgba(59,130,246,.1), rgba(29,78,216,.035));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.8), inset 0 0 0 1px rgba(37,99,235,.14);
+}
 .fi-sp-tag-wert {
-  font-size: 24px; font-weight: 700; color: #0f172a; line-height: 1.1;
+  display: block; font-size: 22px; font-weight: 700; line-height: 1.1;
   font-variant-numeric: tabular-nums; letter-spacing: -.025em;
-  /* Ein sehr feiner Verlauf über der Zahl: Sie soll wie geprägt wirken,
-     nicht wie getippt. */
-  background: linear-gradient(178deg, #0f172a 0%, #334155 100%);
+  background: linear-gradient(178deg, #1d4ed8 0%, #1e40af 100%);
   -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 .fi-sp-tag-titel {
-  font-size: 10.5px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase;
-  color: #64748b; margin-top: 4px;
+  display: block; font-size: 10px; font-weight: 700; letter-spacing: .11em;
+  text-transform: uppercase; color: var(--fi-primaer); margin-top: 4px; opacity: .78;
 }
-.fi-sp-tag-hinweis { font-size: 11.5px; color: #94a3b8; margin-top: 2px; }
-.fi-sp-profil-rechts { text-align: center; padding: 16px 18px; }
-.fi-sp-profil-rechts .fi-sp-avatar { margin: 0 auto 9px; }
-/* Auf breiten Bildschirmen steht das Profil links — dann hier nicht doppelt. */
-@media (min-width: 1780px) { .fi-sp-profil-rechts { display: none; } }
-/* Der Tageskopf über dem Feed nur, wenn die Seitenspalten weg sind. */
-@media (min-width: 1280px) { .fi-sp-tageskopf { display: none; } }
-
+.fi-sp-tag-hinweis { display: block; font-size: 11px; color: var(--fi-text-still); margin-top: 2px; }
 .fi-sp-seiten-titel {
   font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
-  color: #64748b; margin: 0 0 6px;
+  color: var(--fi-text-still); margin: 0 0 7px;
 }
-.fi-sp-seiten-datum { font-size: 14.5px; font-weight: 700; color: #0f172a; margin: 0 0 7px; letter-spacing: -.01em; }
-.fi-sp-seiten-text { font-size: 12.5px; color: #64748b; line-height: 1.6; margin: 0; }
+.fi-sp-seiten-text { font-size: 12.5px; color: var(--fi-text-still); line-height: 1.6; margin: 0; }
 
-.fi-sp-fehler {
-  padding: 13px 16px; border-radius: 16px; margin-bottom: 13px;
-  background: linear-gradient(158deg, rgba(253,230,138,.95), rgba(252,211,77,.85));
-  color: #78350f; font-size: 12.5px; font-weight: 600; line-height: 1.55;
-  box-shadow: 0 14px 30px -20px rgba(3,8,22,.6);
+/* ── 5. 380 px: Kennzahlen als Wischleiste über dem Feed ───────────────── */
+.fi-sp-tageskopf {
+  display: flex; gap: 10px; margin-bottom: 20px;
+  overflow-x: auto; scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
 }
-.fi-sp-leer { text-align: center; padding: 44px 0; font-size: 13px; color: rgba(191,214,247,.72); }
-.fi-sp-leer-karte { text-align: center; padding: 40px 26px; }
-.fi-sp-leer-titel { font-size: 15.5px; font-weight: 700; color: #0f172a; margin: 0; }
-.fi-sp-leer-text { font-size: 13.5px; color: #64748b; line-height: 1.62; margin: 8px 0 0; }
-.fi-sp-ende { text-align: center; padding: 30px 0 48px; font-size: 12px; color: rgba(191,214,247,.55); }
+.fi-sp-tageskopf::-webkit-scrollbar { height: 0; }
+.fi-sp-kachel {
+  flex: 0 0 auto; min-width: 132px; scroll-snap-align: start;
+  padding: 14px 16px; border-radius: 18px;
+  background: rgba(255,255,255,.72);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  box-shadow:
+    0 2px 8px -2px rgba(29,78,216,.1),
+    0 12px 28px -18px rgba(29,78,216,.24),
+    inset 0 0 0 1px rgba(255,255,255,.9);
+}
+.fi-sp-kachel-wert {
+  font-size: 21px; font-weight: 700; line-height: 1.15;
+  font-variant-numeric: tabular-nums; letter-spacing: -.025em; margin: 0;
+  background: linear-gradient(178deg, #1d4ed8, #1e40af);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.fi-sp-kachel-titel {
+  font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase;
+  color: var(--fi-primaer); margin: 3px 0 0; opacity: .78;
+}
+@media (min-width: 1061px) { .fi-sp-tageskopf { display: none; } }
+
+/* ── Randfälle ────────────────────────────────────────────────────────── */
+.fi-sp-fehler {
+  padding: 14px 17px; border-radius: 18px; margin-bottom: 14px;
+  background: rgba(254,243,199,.92);
+  box-shadow: inset 0 0 0 1px rgba(217,119,6,.2);
+  color: #78350f; font-size: 12.5px; font-weight: 600; line-height: 1.55;
+}
+.fi-sp-leer { text-align: center; padding: 44px 0; font-size: 13px; color: var(--fi-text-still); }
+.fi-sp-leer-karte { text-align: center; padding: 42px 26px; }
+.fi-sp-leer-titel { font-size: 16px; font-weight: 700; color: var(--fi-text); margin: 0; }
+.fi-sp-leer-text { font-size: 13.5px; color: var(--fi-text-still); line-height: 1.62; margin: 8px 0 0; }
+.fi-sp-ende { text-align: center; padding: 30px 0 48px; font-size: 12px; color: var(--fi-text-still); }
 
 @media (prefers-reduced-motion: reduce) {
   .fi-sp-post, .fi-sp-zaehler, .fi-sp-komposer-fuss, .fi-sp-kommentare,
-  .fi-sp-pill, .fi-sp-aktesuche-liste, .fi-sp-bestaetigung,
-  .fi-sp-reaktion[data-an="1"]::before { animation: none !important; }
+  .fi-sp-pill, .fi-sp-aktesuche-liste, .fi-sp-bestaetigung { animation: none !important; }
   .fi-sp-reaktion, .fi-sp-senden, .fi-sp-komposer, .fi-sp-post,
   .fi-sp-aktechip, .fi-sp-bildknopf { transition: none !important; }
   .fi-sp-post:hover { transform: none; }

@@ -3,6 +3,87 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (VIII) — Der Anruf: `callerId=""`. Space v5 nach Spezifikation. Mail-Bug behoben.
+
+### Warum der Anruf nicht durchkam
+
+Ich habe die TwiML-Route so aufgerufen, wie Twilio es tut — von außen, urlencoded, ohne Cookie. Die Antwort:
+
+```xml
+<Dial callerId="" timeout="30" …>
+  <Number>+4930123456789</Number>
+</Dial>
+```
+
+**Die Zielnummer kam an. Die Absendernummer war ein leeres Attribut.** Twilio lehnt einen `<Dial>` ohne gültige `callerId` ab — bei einem Browser-Anruf muss sie eine Nummer sein, die dem Konto gehört oder als Caller ID verifiziert ist. Nach außen sah die Antwort wohlgeformt aus; im Log stand ein Abbruch ohne erkennbaren Grund.
+
+`TWILIO_CALLER_ID` fiel stillschweigend leer durch. Jetzt prüft `twimlAusgehend()` drei Dinge und **sagt** das Ergebnis:
+
+- Fehlt die Absendernummer → Ansage „im System ist keine Absendernummer hinterlegt", dann auflegen
+- Ist sie nicht international geschrieben → Ansage nennt genau das
+- Fehlt die Zielnummer → „bitte die Seite neu laden"
+
+Eine Ansage, die den Grund nennt, ist unendlich viel besser als ein Ruf, der still verschwindet.
+
+**Diagnose-Schritt 9 „Probeantwort an Twilio"** zeigt die erzeugte Antwort. Die Schritte 1 bis 6 prüfen Einstellungen — dieser hier zeigt, was Twilio wirklich bekommt. Genau so wurde der Fehler gefunden.
+
+### Mail: die getippte Adresse ging verloren
+
+Adresse eintippen, auf Senden — „kein Empfänger". Der Text stand sichtbar im Feld und wurde ignoriert, weil er nie zum Chip geworden war.
+
+Ein Feld, das den eigenen Inhalt beim Absenden nicht mitnimmt, ist eine Falle. Jetzt übernimmt es bei **Enter, Komma, Semikolon, Verlassen des Feldes und beim Senden**. Ein Tippfehler bekommt einen Hinweis **am Feld** — nicht am Seitenkopf, denn dorthin schaut niemand.
+
+Und: Die Vorschau stürzte die ganze Seite ab, wenn die Empfängerliste in unerwarteter Form kam (`empfaenger.map is not a function`). Ein Prüflauf hat das ausgelöst; in Produktion wäre es ein weißer Bildschirm gewesen.
+
+**OpenAI-Livestatus:** Der Schlüssel liefert weiterhin **HTTP 401**. Alle drei Fälle nennen jetzt den Grund: „fehlt der Schlüssel", „antwortete mit HTTP 401", oder der Entwurf.
+
+### Space v5 — Spezifikations-Abgleich
+
+Neunzehn Werte am gerenderten Element gemessen, alle erfüllt:
+
+| Punkt | Gefordert | Gemessen |
+|---|---|---|
+| 1 | Verlauf Weiß→CI-Hellblau, kein Navy | Verlauf |
+| 1 | keine Sternkörnung | keine |
+| 1 | Video sichtbar | Deckkraft 0,75 |
+| 2 | Radius 28 | 28 px |
+| 2 | Glas blur 20 px | blur(20px) |
+| 2 | Fläche 72 % Weiß | rgba(255,255,255,0.72) |
+| 2 | Innenabstand 24 | 24 px |
+| 2 | Avatar 44 | 44 px |
+| 3 | Kennmarke mit Verlauf | ja |
+| 3 | Systemavatar navy | ja |
+| 4 | Veröffentlichen mit Verlauf | ja |
+| 4 | Komposer wächst beim Fokus | ja |
+| 5 | Feed 720 mittig | 720 px |
+| 5 | Profil-Avatar 72 | 72 px |
+| 6 | Pin-Leiste ≤ 56 px | 40 px |
+| 7 | ≥32 px Luft unter Kopfzeile | 129 px vom Rand |
+| 7 | 20 px zwischen Blasen | 20 px |
+
+**Zwei begründete Abweichungen:**
+
+1. **Die Pin-Leiste steht einzeilig, nicht untereinander.** „Max 2 Pins" und „nie mehr als 56 px hoch" gehen zusammen nur, wenn beide Titel *nebeneinander* liegen — zwei Zeilen ergaben gemessen 94 px. Aufgeklappt wechselt sie in die Spaltenform, weil der Inhalt die Breite braucht.
+2. **Auf 380 px sind die Blasen randnah (12 px), nicht randlos.** Das entspricht Punkt 5 der Spezifikation; der Radius sinkt dort von 28 auf 22, weil eine 28er-Rundung bei 356 px Innenbreite fast die halbe Kartenhöhe einnimmt.
+
+**Ein echter Fund beim Abgleich:** Die Kennmarken trugen eine Inline-Farbe (`#64748b`, `#059669`) aus der Zeit, als sie keine Fläche hatten. Auf dem neuen blauen Verlauf war „GEDANKE DES TAGES" praktisch unlesbar. Jetzt weiß per `!important` — die Hausregel gilt auch für Marken, nicht nur für Knöpfe.
+
+**Warum v4 dunkel war:** Der Gedanke war eine „Premium-Bühne", die den Feed vom hellen Rest abhebt. Zwei Fehler darin: Die deckende Fläche verdeckte das Video vollständig, und Dunkel ist für einen Feed die falsche Richtung — hier liest man Sätze, keine drei Zahlen. V5 macht es umgekehrt: Das Video ist die Bühne, dunkel bleibt genau ein Element.
+
+### Vertriebsliste entzerrt
+
+Name, Rollenmarke und vier Zahlen standen in **einer** Zeile; auf 380 px brach der Name mitten im Wort um die Marke. Jetzt zwei Zeilen, der Name wird gekürzt statt umgebrochen (ein abgeschnittener Name ist lesbar, ein zwischen Wortteilen umgebrochener nicht), Zahlen als beschriftete Paare, auf 380 px als 2×2-Raster. Gemessen: **kein Namensumbruch**, maximale Namenshöhe 21 px.
+
+Der Telefonknopf steht 12 px über der Kante, und die Chips-Leiste lässt rechts 82 px frei — gemessen per Bounding-Box: **keine Überdeckung**.
+
+### Menü
+
+Space · Start · Kunden · **Mail** · Aufgaben · Kalender · Verdienst. Es gibt nur **eine** Definition — mobil und Desktop teilen sie.
+
+### Prüfstand
+
+`scripts/pruef-space5.ts` — **87 Prüfungen**. Sechzehn Prüfungen in `pruef-space4` und `pruef-feinschliff` maßen v4-Werte und wurden nachgezogen. Gesamt **1.840**, alle grün. Drei Gegenproben: leeres `callerId`, Senden ohne Übernahme, Inline-Farbe auf der Kennmarke.
+
 ## 11.08.2026 (VII) — Telefon-Richtlinie, das Gerät, und ein Zeitzonenfehler in der Nacht
 
 ### Zuerst: zwei Nachtstunden ohne Umsatz

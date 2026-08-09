@@ -177,6 +177,9 @@ function Inhalt() {
   const [kiFehler, setKiFehler] = useState<string | null>(null);
   const [zurueck, setZurueck] = useState<{ betreff: string; text: string } | null>(null);
   const [eingefuegt, setEingefuegt] = useState(false);
+  // Hinweis DIREKT am Empfängerfeld — nicht als Meldung oben. Wer eine Adresse
+  // vertippt, schaut auf das Feld, nicht auf den Seitenkopf.
+  const [feldHinweis, setFeldHinweis] = useState<string | null>(null);
   const feld = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -218,6 +221,11 @@ function Inhalt() {
   };
 
   const vorschauHolen = async () => {
+    // ── ZUERST DAS FELD LEEREN ────────────────────────────────────────────
+    // Steht im Empfängerfeld noch eine getippte Adresse, wird sie JETZT zum
+    // Chip. Vorher meldete der Versand „kein Empfänger", während die Adresse
+    // sichtbar im Feld stand.
+    if (!adresseUebernehmen()) return;
     setBusy("vorschau");
     const r = await fetch(`${basis}/vorschau`, {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
@@ -258,6 +266,42 @@ function Inhalt() {
    * 3. Kein Weg zurück. Wer seine Stichpunkte durch einen Entwurf ersetzt
    *    bekam, hatte sie verloren. Jetzt wird der alte Stand gesichert.
    */
+  /**
+   * Den getippten Text als Chip übernehmen.
+   *
+   * ── DER BUG, DER DAS AUSGELÖST HAT ────────────────────────────────────────
+   * Der Vorgesetzte tippte eine Adresse und drückte auf Senden — ohne Enter.
+   * Der Text stand im Feld, war aber nie ein Chip geworden, und der Versand
+   * meldete „kein Empfänger". Die Adresse war da, sichtbar, und wurde
+   * ignoriert.
+   *
+   * Ein Feld, das den eigenen Inhalt beim Absenden nicht mitnimmt, ist eine
+   * Falle. Jetzt wird bei Enter, Komma, Verlassen des Feldes UND beim Senden
+   * übernommen.
+   *
+   * `still` unterdrückt den Hinweis: Beim Verlassen des Feldes ist ein
+   * halb getippter Name („Mül") kein Fehler, sondern eine Suche.
+   */
+  const adresseUebernehmen = (still = false): boolean => {
+    const wert = suche.trim().replace(/[,;]+$/, "");
+    if (!wert) return true;
+    if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(wert)) {
+      // Enthält es ein @, war eine Adresse gemeint — dann ist es ein Tippfehler
+      // und kein Suchbegriff.
+      if (!still || wert.includes("@")) {
+        setFeldHinweis(wert.includes("@")
+          ? `„${wert}" ist keine vollständige E-Mail-Adresse. Es fehlt etwas nach dem Punkt.`
+          : `„${wert}" ist weder ein Treffer noch eine E-Mail-Adresse. Wähle einen Kunden aus der Liste oder tippe eine vollständige Adresse.`);
+      }
+      return false;
+    }
+    setGewaehlt((l) => l.some((x) => x.email.toLowerCase() === wert.toLowerCase())
+      ? l
+      : [...l, { email: wert, name: wert, extern: true } as Treffer]);
+    setSuche(""); setTreffer([]); setFeldHinweis(null);
+    return true;
+  };
+
   const ki = async (art: string) => {
     setBusy(`ki-${art}`);
     setKiFehler(null);
@@ -363,17 +407,18 @@ function Inhalt() {
                 hinter EINEM Knopf daneben — wer sie nicht braucht, sieht
                 sie nicht. */}
             <div className="flex items-stretch gap-2">
-              <input value={suche} onChange={(e) => setSuche(e.target.value)}
+              <input value={suche} onChange={(e) => { setSuche(e.target.value); setFeldHinweis(null); }}
                      onKeyDown={(e) => {
-                       if (e.key !== "Enter") return;
+                       // Enter UND Komma UND Semikolon — wer eine Liste tippt,
+                       // trennt mit Komma und drückt nicht dreimal Enter.
+                       if (e.key !== "Enter" && e.key !== "," && e.key !== ";") return;
                        e.preventDefault();
-                       const wert = suche.trim();
-                       // Sieht es aus wie eine Adresse, ist es eine.
-                       if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(wert)) return;
-                       setGewaehlt((l) => l.some((x) => x.email.toLowerCase() === wert.toLowerCase())
-                         ? l
-                         : [...l, { email: wert, name: wert, extern: true } as Treffer]);
-                       setSuche(""); setTreffer([]);
+                       adresseUebernehmen();
+                     }}
+                     onBlur={() => {
+                       // Verlässt man das Feld mit einer gültigen Adresse darin,
+                       // wird sie übernommen. Wer wegklickt, hat sie gemeint.
+                       if (suche.trim()) adresseUebernehmen(true);
                      }}
                      placeholder="Name, Kundennummer oder E-Mail eintippen …"
                      aria-label="Empfänger suchen oder E-Mail eingeben"
@@ -407,11 +452,20 @@ function Inhalt() {
               </div>
             )}
 
+            {/* Der Hinweis am FELD, nicht am Seitenkopf: Wer eine Adresse
+                vertippt, schaut dorthin, wo er getippt hat. */}
+            {feldHinweis && (
+              <p className="mt-2 px-3 py-2 rounded-xl text-[12px] font-semibold leading-snug"
+                 style={{ background: "rgba(217,119,6,.08)", color: "#b45309" }}>
+                {feldHinweis}
+              </p>
+            )}
+
             {/* Eine freie Adresse braucht einen Hinweis, sonst rät man. */}
-            {suche.trim().length > 2 && treffer.length === 0 && (
+            {!feldHinweis && suche.trim().length > 2 && treffer.length === 0 && (
               <p className="mt-2 text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>
                 {/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(suche.trim())
-                  ? "Enter drücken — die Adresse wird als externer Empfänger übernommen."
+                  ? "Passt — die Adresse wird übernommen, sobald du Enter drückst, das Feld verlässt oder auf „Vorschau & senden“ gehst."
                   : "Kein Kunde gefunden. Eine vollständige E-Mail-Adresse kannst du mit Enter direkt übernehmen."}
               </p>
             )}
@@ -614,7 +668,14 @@ function Inhalt() {
                   <span className="fi-gradient-text">{vorschau.anzahl} {vorschau.anzahl === 1 ? "Empfänger" : "Empfänger"}</span>
                 </h2>
                 <p className="mt-1.5 text-[12px]" style={{ color: "var(--fi-text-still)" }}>
-                  {vorschau.empfaenger.map((e: any) => e.name).slice(0, 6).join(", ")}
+                  {/* `?? []`: Kommt die Liste in unerwarteter Form, soll die
+                      Zeile leer bleiben — nicht die ganze Seite abstürzen.
+                      Ein Prüflauf mit einer Zahl statt eines Arrays hat genau
+                      das ausgelöst („empfaenger.map is not a function"), und
+                      wer das in Produktion trifft, sieht einen weißen Bildschirm
+                      statt einer Mail-Zentrale. */}
+                  {(Array.isArray(vorschau.empfaenger) ? vorschau.empfaenger : [])
+                    .map((e: any) => e?.name ?? e?.email ?? "?").slice(0, 6).join(", ")}
                   {vorschau.anzahl > 6 && ` und ${vorschau.anzahl - 6} weitere`}
                 </p>
               </div>

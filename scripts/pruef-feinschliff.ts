@@ -282,21 +282,25 @@ async function main(): Promise<void> {
   // Volle Breite (11.08.2026): 900 px Feed, drei Spalten erst ab 1780 px
   // Fenster — der Verwaltungsbereich verliert 240 px an seine Seitenleiste,
   // und bei 1440 verfügbarer Breite passten drei feste Spalten nicht.
-  ok("Drei Spalten mit breitem Feed",
-    /grid-template-columns: 260px minmax\(560px, 900px\) 260px/.test(space));
-  ok("Zwei Spalten unter 1780 px", /max-width: 1779px/.test(space));
-  ok("Auf 380 px randlos", /border-radius: 0; padding: 16px;/.test(space));
+  // ── AUF SPACE V5 NACHGEZOGEN ──────────────────────────────────────────
+  // Feed 720 px mittig nach exakter Spezifikation; drei Spalten bis 1340 px.
+  ok("Drei Spalten mit 720-px-Feed",
+    /grid-template-columns: 260px minmax\(480px, 720px\) 280px/.test(space));
+  ok("Zwei Spalten unter 1340 px", /max-width: 1340px/.test(space));
+  // v5: randNAH (12 px), nicht randlos — App-Gefühl mit Luft an den Seiten.
+  ok("Auf 380 px randnah", /padding: 16px 12px 0/.test(space) && /border-radius: 22px; padding: 18px;/.test(space));
   // Vier Lagen Schatten: Kontakt, Streuung, Farbschein, Lichtkante. Ein
   // einzelner Schatten sieht immer nach Vorlage aus.
-  ok("Karten tragen die volle Schattenstaffel",
-    /0 26px 56px -28px rgba\(3,8,22,\.7\)/.test(space)
-    && /0 0 60px -26px rgba\(96,165,250,\.42\)/.test(space)
-    && /inset 0 1px 0 rgba\(255,255,255,1\)/.test(space));
+  ok("Blasen tragen den zweistufigen Blau-Schatten",
+    /0 2px 8px -2px rgba\(29,78,216,\.1\)/.test(space)
+    && /0 18px 44px -20px rgba\(29,78,216,\.24\)/.test(space)
+    && /inset 0 0 0 1px rgba\(255,255,255,\.9\)/.test(space));
   ok("Der Komposer öffnet sich beim Fokus", /onFocus=\{\(\) => setGross\(true\)\}/.test(space));
   ok("… und lädt ein statt zu fordern", /Was lief gut\?/.test(space));
   ok("Reaktionen mit eigenen SVG-Marken, keine Emojis",
     /REAKTIONS_MARKE/.test(space) && !/[\u{1F300}-\u{1FAFF}]/u.test(space));
-  ok("Der Zähler springt beim Ändern", /@keyframes fiSpSprung/.test(space));
+  // v5: eine FEDER statt eines Sprungs — kurz über das Ziel, dann zurück.
+  ok("Der Zähler federt beim Ändern", /@keyframes fiSpFeder/.test(space));
   // Das Feld heißt `meine` — so liefert es feedLesen(). Die erste Fassung
   // dieses Tests prüfte auf `meineReaktion`, einen Namen, den ich erfunden
   // hatte; im Feed stand deshalb bei jedem Beitrag „Invalid Date".
@@ -306,7 +310,7 @@ async function main(): Promise<void> {
     /p\.am/.test(space) && /p\.autorAvatar/.test(space) && !/createdAt|avatarUrl/.test(space));
   ok("Ein kaputter Zeitstempel zeigt kein „Invalid Date“",
     /Number\.isNaN\(d\.getTime\(\)\)\) return ""/.test(space));
-  ok("Neue Beiträge treten mit Animation ein", /@keyframes fiSpPostAuf/.test(space));
+  ok("Neue Beiträge blühen auf", /@keyframes fiSpBluehen/.test(space));
   ok("Kommentare sind einklappbar", /kommentarZu === p\.id/.test(space));
 
   const shared = datei("client/src/pages/agent/shared.tsx");
@@ -547,8 +551,9 @@ async function main(): Promise<void> {
     /body:has\(\.fi-sp-buehne\) \.admin-flaeche \{/.test(spaceSeite));
   // DURCHSCHEINEND, nicht deckend: Das Hintergrundvideo muss durch die Bühne
   // sichtbar bleiben — deckendes Navy hätte es vollständig verdeckt.
-  ok("Die Bühne ist dunkles CI-Navy, aber durchscheinend",
-    /rgba\(13,28,63,\.82\) 0%, rgba\(10,26,60,\.86\) 44%, rgba\(7,17,41,\.9\) 100%/.test(spaceSeite));
+  ok("Die Bühne ist hell und durchscheinend",
+    /rgba\(255,255,255,\.85\) 0%/.test(spaceSeite)
+    && /rgba\(219,232,251,\.65\) 100%/.test(spaceSeite));
   ok("Die helle Wäsche des Raums ist im Space aus",
     /body:has\(\.fi-sp-buehne\) \.fi-raum-waesche \{ display: none; \}/.test(spaceSeite));
   ok("Die Breitengrenze der Hülle ist aufgehoben",
@@ -560,12 +565,16 @@ async function main(): Promise<void> {
     && !/fi-sp-seiten-text">\s*\n?\s*Was hier steht/.test(spaceSeite)
     && !/<p className="fi-sp-seiten-titel">Der Raum<\/p>/.test(spaceSeite));
   ok("Die Bühne hat Tiefe", /perspective: 1600px/.test(spaceSeite));
-  ok("Karten sind Glas", /backdrop-filter: blur\(26px\) saturate\(150%\)/.test(spaceSeite));
-  ok("… mit Lichtkante oben", /\.fi-sp-karte::after/.test(spaceSeite));
-  ok("Beiträge treten aus der Tiefe ein", /translateZ\(-44px\) rotateX\(4deg\)/.test(spaceSeite));
-  ok("… und kommen dem Zeiger entgegen", /\.fi-sp-post:hover[\s\S]{0,80}translateZ\(12px\)/.test(spaceSeite));
-  ok("Der Komposer hebt sich beim Fokus an", /transform: translateZ\(18px\)/.test(spaceSeite));
-  ok("Reaktionen haben eine Welle", /@keyframes fiSpWelle/.test(spaceSeite));
+  ok("Blasen sind Glas mit 20 px", /backdrop-filter: blur\(20px\) saturate\(160%\)/.test(spaceSeite));
+  // v5 setzt die Lichtkante als ::before (::after ist frei geblieben).
+  ok("… mit Lichtkante oben", /\.fi-sp-karte::before/.test(spaceSeite));
+  ok("Beiträge steigen auf und blühen", /translateY\(18px\) scale\(\.97\)/.test(spaceSeite));
+  ok("… und heben beim Zeigen 4 px", /\.fi-sp-post:hover \{\n    transform: translateY\(-4px\)/.test(spaceSeite));
+  ok("Der Komposer wächst beim Fokus", /translateZ\(16px\) scale\(1\.008\)/.test(spaceSeite));
+  // v5: Die Welle ist weg — an ihrer Stelle trägt die aktive Reaktion einen
+  // Verlauf. Zwei Effekte auf einem 36-px-Knopf sind einer zu viel.
+  ok("Aktive Reaktionen tragen einen Verlauf",
+    /\.fi-sp-reaktion\[data-an="1"\][\s\S]{0,180}linear-gradient\(158deg, #3b82f6, #1d4ed8\)/.test(spaceSeite));
   ok("Knöpfe haben Druckgefühl",
     /\.fi-sp-senden:active[\s\S]{0,120}inset 0 2px 5px/.test(spaceSeite));
   ok("Alles auf der CI-Akzentfarbe",

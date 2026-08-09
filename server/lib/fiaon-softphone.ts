@@ -163,15 +163,56 @@ export function twimlAusgehend(opts: {
   an: string; von: string; ansage: string; aufnahmeCallback: string; statusCallback: string;
 }): string {
   const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  // ── EIN LEERES callerId IST SCHLIMMER ALS KEINES ────────────────────────
+  // Gemessen am 11.08.2026: Die Antwort enthielt `callerId=""`. Twilio
+  // bekommt damit einen leeren Wert für die Absendernummer und lehnt den Ruf
+  // ab — bei einem Client-initiierten Anruf MUSS die callerId eine Nummer
+  // sein, die dem Konto gehört oder als Caller ID verifiziert ist.
+  //
+  // Das Attribut fiel bisher stillschweigend leer aus, wenn TWILIO_CALLER_ID
+  // nicht gesetzt war. Nach außen sah die Antwort wohlgeformt aus; im
+  // Twilio-Log stand ein abgebrochener Anruf ohne erkennbaren Grund.
+  //
+  // Jetzt: Fehlt die Nummer, wird das GESAGT. Eine Ansage, die den Grund
+  // nennt, ist unendlich viel besser als ein Ruf, der still verschwindet.
+  const von = String(opts.von || "").trim();
+  if (!von) {
+    console.error("[TELEFON] TwiML ohne Absendernummer: TWILIO_CALLER_ID ist leer.");
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say language="de-DE" voice="Polly.Vicki">Dieser Anruf kann nicht aufgebaut werden, weil im System keine Absendernummer hinterlegt ist. Bitte im Verwaltungsbereich unter Einstellungen die Telefon-Diagnose öffnen.</Say>
+  <Hangup/>
+</Response>`;
+  }
+  if (!/^\+[1-9]\d{6,15}$/.test(von)) {
+    console.error(`[TELEFON] TwiML mit unbrauchbarer Absendernummer: „${von}"`);
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say language="de-DE" voice="Polly.Vicki">Dieser Anruf kann nicht aufgebaut werden, weil die hinterlegte Absendernummer nicht in internationaler Schreibweise vorliegt. Bitte im Verwaltungsbereich die Telefon-Diagnose öffnen.</Say>
+  <Hangup/>
+</Response>`;
+  }
+
+  const an = String(opts.an || "").trim();
+  if (!an) {
+    console.error("[TELEFON] TwiML ohne Zielnummer.");
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say language="de-DE" voice="Polly.Vicki">Es wurde keine Rufnummer übergeben. Bitte die Seite einmal neu laden und erneut wählen.</Say>
+  <Hangup/>
+</Response>`;
+  }
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say language="de-DE" voice="Polly.Vicki">${esc(opts.ansage)}</Say>
-  <Dial callerId="${esc(opts.von)}" timeout="30" timeLimit="${MAX_MINUTEN * 60}"
+  <Dial callerId="${esc(von)}" timeout="30" timeLimit="${MAX_MINUTEN * 60}"
         record="record-from-answer-dual"
         recordingStatusCallback="${esc(opts.aufnahmeCallback)}"
         recordingStatusCallbackEvent="completed"
         action="${esc(opts.statusCallback)}">
-    <Number>${esc(opts.an)}</Number>
+    <Number>${esc(an)}</Number>
   </Dial>
 </Response>`;
 }

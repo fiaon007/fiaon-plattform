@@ -447,7 +447,10 @@ export function Softphone() {
         aria-label={offen ? "Telefon schließen" : "Telefon öffnen"}
         className="fi-telefonknopf fixed z-[290] flex items-center justify-center"
         style={{
-          right: 20, bottom: 20, width: 58, height: 58, borderRadius: 999,
+          // 12 px über der unteren Kante statt 20: Auf 380 px steht darunter
+          // die Filterleiste, und ein Knopf, der Bedienelemente verdeckt, ist
+          // kein Knopf, sondern ein Hindernis.
+          right: 16, bottom: 12, width: 58, height: 58, borderRadius: 999,
           background: "linear-gradient(160deg, #2563eb, #1d4ed8)",
           color: "#fff",
           boxShadow: "0 18px 40px -12px rgba(29,78,216,.65), inset 0 1px 0 rgba(255,255,255,.28)",

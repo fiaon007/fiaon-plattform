@@ -351,28 +351,100 @@ function Inhalt() {
                style={{ background: "var(--fi-seite)", color: "var(--fi-text-still)" }}>
               Bestand je Mitarbeiter
             </p>
+            <style>{`
+              /* ── BESTAND JE MITARBEITER: ENTZERRT ───────────────────────── */
+              .fi-vb-zeile {
+                width: 100%; display: flex; align-items: center; gap: 12px;
+                padding: 12px 16px; border: 0; cursor: pointer; text-align: left;
+                background: none; transition: background 150ms;
+                /* Mindesthöhe: Damit nichts springt, wenn eine Rollenmarke
+                   fehlt oder ein Name kurz ist. */
+                min-height: 66px;
+              }
+              .fi-vb-zeile:hover { background: rgba(15,23,42,.028); }
+              .fi-vb-inhalt { min-width: 0; flex: 1 1 auto; display: block; }
+              .fi-vb-kopf {
+                display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+                margin-bottom: 5px;
+              }
+              .fi-vb-name {
+                font-size: 14px; font-weight: 650; color: var(--fi-text);
+                /* Der Name bricht NICHT um. Ist er zu lang, wird er gekürzt —
+                   ein abgeschnittener Name ist lesbar, ein umgebrochener
+                   zwischen Wortteilen nicht. */
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                max-width: 100%;
+              }
+              .fi-vb-marke {
+                flex-shrink: 0; font-size: 10px; font-weight: 700;
+                padding: 2px 7px; border-radius: 7px; white-space: nowrap;
+                background: rgba(29,78,216,.08); color: var(--fi-primaer);
+              }
+              .fi-vb-zahlen {
+                display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+              }
+              .fi-vb-paar {
+                display: inline-flex; align-items: baseline; gap: 4px;
+                font-size: 11.5px; color: var(--fi-text-still); white-space: nowrap;
+              }
+              .fi-vb-paar b {
+                font-size: 13px; font-weight: 700;
+                font-variant-numeric: tabular-nums;
+              }
+              .fi-vb-winkel { flex-shrink: 0; opacity: .4; align-self: center; }
+
+              /* Rechts so viel Luft, wie der Telefonknopf breit ist (58 px)
+                 plus sein Abstand zur Kante (16 px). */
+              @media (max-width: 640px) {
+                .fi-vb-chips { padding-right: 82px; }
+              }
+
+              @media (max-width: 520px) {
+                /* Zwei mal zwei: Vier Zahlen nebeneinander sind auf 380 px
+                   nicht unterzubringen, ohne dass sie aneinanderkleben. */
+                .fi-vb-zahlen {
+                  display: grid; grid-template-columns: 1fr 1fr;
+                  gap: 6px 12px;
+                }
+                .fi-vb-zeile { padding: 12px 14px; min-height: 84px; }
+              }
+            `}</style>
             <div className="divide-y" style={{ borderColor: "var(--fi-linie)" }}>
               {agenten.map((a) => (
+                /* ── ZWEI ZEILEN STATT EINER ──────────────────────────────
+                   Vorher standen Name, Rollenmarke und vier Zahlen in EINER
+                   Zeile. Auf 380 px brach der Name mitten im Wort um die
+                   Marke, und die Zahlen klebten aneinander.
+
+                   Jetzt: Zeile 1 der Name, Zeile 2 die Zahlen als
+                   beschriftete Paare mit festen Abständen. Auf schmalen
+                   Geräten werden daraus zwei mal zwei. */
                 <button key={a.id} type="button"
                         onClick={() => { setAgentFilter(agentFilter === a.id ? null : a.id); setFilter("alle"); }}
-                        className="w-full px-4 py-2.5 flex items-center gap-3 text-left transition-colors duration-150"
+                        className="fi-vb-zeile"
                         style={agentFilter === a.id ? { background: "var(--fi-flaeche-akzent, #f1f5ff)" } : undefined}>
-                  <span className="min-w-0 flex-1">
-                    <span className="text-[13.5px] font-semibold">{a.name}</span>
-                    {a.rolle === "vertriebsleiter" && (
-                      <span className="ml-2 text-[10.5px] font-bold px-1.5 py-0.5 rounded-md"
-                            style={{ background: "rgba(29,78,216,.08)", color: "var(--fi-primaer)" }}>
-                        Vertriebsleitung
-                      </span>
-                    )}
+                  <span className="fi-vb-inhalt">
+                    <span className="fi-vb-kopf">
+                      <span className="fi-vb-name">{a.name}</span>
+                      {a.rolle === "vertriebsleiter" && (
+                        <span className="fi-vb-marke">Vertriebsleitung</span>
+                      )}
+                    </span>
+                    <span className="fi-vb-zahlen">
+                      {([
+                        [a.tier1, "gemeldet", "var(--fi-tier1)"],
+                        [a.tier2, "offen", "var(--fi-tier2)"],
+                        [a.tier3, "Leads", "var(--fi-tier3)"],
+                        [a.betreut, "betreut", "var(--fi-text-still)"],
+                      ] as const).map(([wert, wort, farbe]) => (
+                        <span key={wort} className="fi-vb-paar">
+                          <b style={{ color: farbe }}>{wert}</b>
+                          <span>{wort}</span>
+                        </span>
+                      ))}
+                    </span>
                   </span>
-                  <span className="shrink-0 text-[12px] fi-zahl" style={{ color: "var(--fi-text-still)" }}>
-                    <b style={{ color: "var(--fi-tier1)" }}>{a.tier1}</b> gemeldet ·{" "}
-                    <b style={{ color: "var(--fi-tier2)" }}>{a.tier2}</b> offen ·{" "}
-                    <b style={{ color: "var(--fi-tier3)" }}>{a.tier3}</b> Leads ·{" "}
-                    {a.betreut} betreut
-                  </span>
-                  <ZeichenWinkel richtung="rechts" size={13} className="shrink-0 opacity-40" />
+                  <ZeichenWinkel richtung="rechts" size={13} className="fi-vb-winkel" />
                 </button>
               ))}
               {agenten.length === 0 && <p className="px-4 py-4 text-[13px]" style={{ color: "var(--fi-text-still)" }}>Wird geladen …</p>}
@@ -382,7 +454,12 @@ function Inhalt() {
 
         {/* Filter */}
         <Reveal index={3}>
-          <div className="mt-5 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
+          {/* ── PLATZ FÜR DEN TELEFONKNOPF ──────────────────────────────────
+              Der schwebende Knopf steht rechts unten und ist 58 px breit. Auf
+              380 px lag er über dem letzten Filter-Chip — man konnte ihn nicht
+              antippen, ohne das Telefon zu öffnen. Rechts bleibt jetzt seine
+              Breite plus Rand frei. */}
+          <div className="mt-5 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto fi-vb-chips">
             <div className="flex items-center gap-1.5 pb-1" style={{ minWidth: "max-content" }}>
               {FILTER.map((f) => {
                 const an = filter === f.key;

@@ -208,9 +208,15 @@ const NAV: { href: string; label: string; icon: typeof Users; match: string[]; n
   // Bestand sind zwei Wahrheiten, und zwei Mitarbeiter riefen denselben Menschen
   // an. Die Startseite informiert jetzt (Verdienst, Zahlen, Termine) und
   // arbeitet nicht mehr — gearbeitet wird ausschliesslich unter "Kunden".
-  { href: "/agent/start", label: "Start", icon: LayoutDashboard, match: ["/agent/start", "/agent/heute"] },
-  // Space steht direkt nach Start — es ist die Startseite nach dem Login.
+  // ── REIHENFOLGE (11.08.2026) ──────────────────────────────────────────────
+  // Space · Start · Kunden · Mail · Aufgaben · Kalender · Verdienst · Rollen · Mehr
+  //
+  // Space steht GANZ VORN: Es ist die Startseite nach dem Login und der
+  // einzige Ort im Portal, der nichts abarbeitet.
+  // Mail steht VOR Aufgaben — eine unbeantwortete Kundenmail ist dringender
+  // als eine Aufgabe mit Frist.
   { href: "/agent/space", label: "Space", icon: Users, match: ["/agent/space"], marke: "space" },
+  { href: "/agent/start", label: "Start", icon: LayoutDashboard, match: ["/agent/start", "/agent/heute"] },
   // Zeigt auf /agent/kunden, NICHT auf /agent/meine-kunden: Letztere Seite holt
   // ihre Liste aus /agent/kartei/meine, und das antwortet mit 410. Ein
   // Menüpunkt, der auf eine leere Seite führt, ist schlimmer als keiner.
@@ -218,6 +224,7 @@ const NAV: { href: string; label: string; icon: typeof Users; match: string[]; n
   // Bestellungen (/agent/meine-kunden) bleibt als Treffer erhalten, damit ein
   // gemerkter Link nicht ins Leere fuehrt.
   { href: "/agent/kunden", label: "Kunden", icon: Users, match: ["/agent/kunden", "/agent/meine-kunden"] },
+  { href: "/agent/mail-zentrale", label: "Mail", icon: Mail, match: ["/agent/mail-zentrale"] },
   // Aufgaben stehen bewusst VOR dem Kalender: Ein zugewiesener Auftrag mit
   // Frist ist verbindlicher als ein selbst gesetzter Termin.
   { href: "/agent/aufgaben", label: "Aufgaben", icon: ListChecks, match: ["/agent/aufgaben"] },
@@ -227,7 +234,6 @@ const NAV: { href: string; label: string; icon: typeof Users; match: string[]; n
   // schliesst der Server (404 fuer alle anderen).
   // Der Space ist fuer JEDE Rolle da — er ist der einzige Ort im Portal, der
   // nichts abarbeitet. Die Marke zeigt ungelesene Beitraege.
-  { href: "/agent/mail-zentrale", label: "Mail", icon: Mail, match: ["/agent/mail-zentrale"] },
   { href: "/agent/vertrieb", label: "Vertrieb", icon: LayoutDashboard, match: ["/agent/vertrieb"], nurRolle: "vertriebsleiter" },
   // Nur fuer das Onboarding. Wie beim Vertrieb: `nurRolle` blendet aus, die
   // Tuer selbst schliesst der Server (404 fuer alle anderen).

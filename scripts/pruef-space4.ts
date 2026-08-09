@@ -181,14 +181,18 @@ async function main(): Promise<void> {
   gruppe("5. Space v4");
   // ═══════════════════════════════════════════════════════════════════════
   const spQ = datei("client/src/pages/agent/space.tsx");
-  ok("Feed 900 px, Seitenspalten 260",
-    /grid-template-columns: 260px minmax\(560px, 900px\) 260px/.test(spQ));
-  ok("Die Bühne ist durchscheinend, damit das Video trägt",
-    /rgba\(13,28,63,\.82\)/.test(spQ));
+  // ── AUF V5 NACHGEZOGEN (11.08.2026) ───────────────────────────────────
+  // Der Vorgesetzte hat die dunkle Bühne abgelehnt und eine exakte
+  // Spezifikation geliefert: heller Feed über dem Video, Blasen mit Radius 28.
+  // Diese Prüfungen maßen die Zahlen von v4.
+  ok("Feed 720 px mittig, Seitenspalten 260 und 280",
+    /grid-template-columns: 260px minmax\(480px, 720px\) 280px/.test(spQ));
+  ok("Die Bühne ist hell und durchscheinend, damit das Video trägt",
+    /rgba\(255,255,255,\.85\) 0%/.test(spQ) && /rgba\(219,232,251,\.65\) 100%/.test(spQ));
   ok("Die helle Wäsche ist im Space aus",
     /\.fi-raum-waesche \{ display: none; \}/.test(spQ));
   ok("Die Breitengrenze der Hülle ist aufgehoben",
-    /main\[class\*="max-w-"\]/.test(spQ) && /\.admin-flaeche \.max-w-6xl/.test(spQ));
+    /main\[class\*="max-w-"\]/.test(spQ) && /\.admin-flaeche \[class\*="max-w-"\]/.test(spQ));
   ok("Die Bestätigung steht IN der Karte",
     /fi-sp-bestaetigung/.test(spQ) && /loesche\?\.id === p\.id/.test(spQ));
   ok("… und nicht mehr als Dialog am Seitenende",

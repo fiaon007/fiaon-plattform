@@ -376,6 +376,56 @@ export async function telefonDiagnose(): Promise<{
     });
   }
 
+  // ── 9. DIE ANTWORT, DIE TWILIO WIRKLICH BEKOMMT ─────────────────────────
+  // Der wichtigste Schritt für den Fall „alles grün und es geht trotzdem
+  // nicht". Die Schritte 1 bis 6 prüfen Einstellungen; dieser hier baut die
+  // TwiML-Antwort für eine Probenummer und zeigt sie an.
+  //
+  // Genau so wurde am 11.08.2026 der Fehler gefunden: In der Antwort stand
+  // `callerId=""` — ein leeres Attribut. Twilio lehnt einen Ruf ohne gültige
+  // Absendernummer ab, und im Log stand ein Abbruch ohne erkennbaren Grund.
+  // Keine Konfigurationsprüfung hätte das gezeigt; die Variable WAR gesetzt,
+  // nur nicht dort angekommen, wo sie hingehört.
+  try {
+    const { twimlAusgehend, ansageText } = await import("./fiaon-softphone");
+    const probe = twimlAusgehend({
+      an: "+4930111111111",
+      von: env("TWILIO_CALLER_ID"),
+      ansage: await ansageText(),
+      aufnahmeCallback: `${(process.env.PUBLIC_BASE_URL || "https://www.fiaon.com").replace(/\/+$/, "")}/api/fiaon/telefon/aufnahme`,
+      statusCallback: `${(process.env.PUBLIC_BASE_URL || "https://www.fiaon.com").replace(/\/+$/, "")}/api/fiaon/telefon/status`,
+    });
+    const hatDial = /<Dial\s/.test(probe);
+    const hatNummer = /<Number>\+\d/.test(probe);
+    const leereId = /callerId=""/.test(probe);
+    const nurAuflegen = /<Hangup\/>/.test(probe) && !hatDial;
+
+    s.push({
+      nr: 9,
+      titel: "Probeantwort an Twilio",
+      stand: hatDial && hatNummer && !leereId ? "gut" : "fehler",
+      befund: nurAuflegen
+        ? `Die Antwort enthält KEIN <Dial>, nur eine Ansage und Auflegen. `
+          + `Grund steht in der Ansage: „${(/<Say[^>]*>([^<]{0,160})/.exec(probe)?.[1] ?? "").trim()}"`
+        : leereId
+          ? "Die Antwort enthält callerId=\"\" — ein LEERES Attribut. Twilio lehnt "
+            + "einen Ruf ohne gültige Absendernummer ab."
+          : hatDial && hatNummer
+            ? `Wohlgeformt: <Dial callerId="${env("TWILIO_CALLER_ID")}"> mit <Number>. `
+              + `Aufnahme und Status zeigen auf ${process.env.PUBLIC_BASE_URL || "https://www.fiaon.com"}.`
+            : "Die Antwort enthält kein wählbares <Dial> mit <Number>.",
+      rat: hatDial && hatNummer && !leereId ? undefined
+        : "TWILIO_CALLER_ID muss eine Nummer in internationaler Schreibweise sein "
+          + "(z. B. +4930123456), die dem Twilio-Konto gehört oder dort als Caller ID "
+          + "verifiziert wurde. Ohne sie kann kein ausgehender Ruf aufgebaut werden.",
+    });
+  } catch (e) {
+    s.push({
+      nr: 9, titel: "Probeantwort an Twilio", stand: "fehler",
+      befund: `Die Antwort konnte nicht gebaut werden: ${e instanceof Error ? e.message : String(e)}`,
+    });
+  }
+
   const fehlerhaft = s.filter((x) => x.stand === "fehler");
   return {
     schritte: s,

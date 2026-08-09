@@ -40,6 +40,32 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-space-v5",
+    date: "2026-08-11",
+    category: "Neu",
+    title: "Space v5: heller Feed über dem Video — und der Mail-Bug ist weg",
+    summary:
+      "Der Space ist wieder hell: Die Beiträge schweben als Glasblasen über dem Hintergrundvideo. Und wenn du eine E-Mail-Adresse eintippst, geht sie nicht mehr verloren.",
+    changes: [
+      "SPACE: Die dunkle Bühne ist weg. Der Feed liegt jetzt als helle Glasblasen über dem Hintergrundvideo — Fließtext liest sich auf Hell einfach besser.",
+      "Die Blasen sind 720 Pixel breit, mit weichen Rundungen und einem sanften blauen Schatten. Beim Zeigen heben sie sich leicht.",
+      "Neue Beiträge blühen auf, statt einfach zu erscheinen. Der Reaktionszähler federt.",
+      "Angepinntes steht als schmale Leiste — beide Titel nebeneinander, antippen klappt auf.",
+      "MAIL: Wenn du eine Adresse eintippst und direkt auf „Vorschau & senden“ gehst, wird sie jetzt übernommen. Vorher hieß es „kein Empfänger“, obwohl die Adresse im Feld stand.",
+      "Ein Tippfehler in der Adresse bekommt einen Hinweis direkt am Feld.",
+      "Adressen lassen sich mit Komma trennen — du musst nicht mehr jedes Mal Enter drücken.",
+      "MENÜ: „Mail“ steht jetzt vor „Aufgaben“, und Space ist der erste Punkt.",
+      "VERTRIEB: Im Bestand je Mitarbeiter brechen die Namen nicht mehr um. Die Zahlen stehen in einer eigenen Zeile, auf dem Handy als Raster.",
+      "TELEFON: Der Grund, warum Anrufe nicht rausgingen, ist gefunden — die Absendernummer kam bei Twilio leer an. Wenn etwas fehlt, sagt die Ansage jetzt WAS.",
+    ],
+    howto: [
+      "Mail: Adresse eintippen und direkt senden geht jetzt. Mehrere Adressen mit Komma trennen.",
+      "Space: Der Hintergrund lässt sich abschwächen — der Vorgesetzte findet den Regler unter Einstellungen → Design.",
+    ],
+    link: { href: "/agent/space", label: "Zum Space" },
+    important: true,
+  },
+  {
     id: "2026-08-11-telefon-geraet",
     date: "2026-08-11",
     category: "Neu",

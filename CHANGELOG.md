@@ -3,6 +3,56 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 — Der Feed lebt: 1.293 Beiträge, Content-Engine, Bestellungen verwalten
+
+### Der Space hat eine Vergangenheit bekommen
+
+Ein Feed, dessen ältester Beitrag von heute Morgen ist, sieht aus wie ein frisch aufgesetztes System. Man scrollt zweimal, ist unten, und weiß: Hier war noch nie jemand. Danach kommt man nicht wieder.
+
+**1.293 Beiträge** stehen jetzt drin — 60 Tage rückdatiert. Davon **84 aus echten Protokolldaten**: die tatsächlichen Abschlüsse jedes Tages, die echten Tagesranglisten, die echten Wochenzahlen. Keine erfundenen Erfolge; das würde auffallen, und zwar dem, der dabei war.
+
+`scripts/space-seed.ts` zeigt erst eine Vorschau und schreibt nur mit `--schreiben`.
+
+### Die Content-Engine
+
+**20 Beiträge pro Tag** (einstellbar 5–100 über `space_dichte`), verteilt zwischen 07:00 und 19:00 mit mindestens 20 Minuten Abstand. Zwanzig Beiträge um Mitternacht wären kein Feed, sondern ein Datenabzug.
+
+Der Lauf prüft nicht „ist es genau 08:12", sondern „was hätte bis jetzt erscheinen sollen" — eine ausgefallene Stunde holt sich damit von selbst nach.
+
+**Die Gedanken sind von 90 auf 180 verdoppelt.** Bei einem Beitrag pro Tag reichten 90 für drei Monate; bei zwanzig wären sie in vier Wochen durch. Die Schrittweite durch den Vorrat ist 23 statt 7 — nachgemessen: **null Wiederholungen** an aufeinanderfolgenden Tagen (vorher waren es acht von zwanzig).
+
+**Ereignis-Posts kommen on top** und entstehen im Geschäftsvorgang, nicht in einem Tageslauf: Ein Abschluss steht zehn Minuten später im Feed, nicht am nächsten Morgen. Abschluss-Melder, Tagesrangliste um 18:00, Wochenrückblick montags, Meilensteine, Rekordtage. Alle idempotent, alle **ohne Kundendaten** — nur Vornamen des Teams und Zahlen. Ein Tag ohne Abschluss bekommt keine Rangliste: „Heute niemand" ist keine Nachricht, sondern ein Vorwurf.
+
+**Ein Fehler, der das alles verhindert hätte:** Der Space-Lauf war auf `if (stunde < 7)` beschränkt. Das passte für einen Beitrag am Tag — mit der Engine wäre kein einziger erschienen.
+
+### Akten-Chips statt Kundendaten
+
+Beim Schreiben lässt sich eine Kundenakte anhängen. Im Feed erscheint **nur eine neutrale Karte mit der Referenz** — kein Name, kein Betrag. Wer klickt und nicht berechtigt ist, kommt nicht rein. Die Suche zeigt einem Teammitglied nur eigene Kunden; wer eine fremde Referenz errät, kann sie trotzdem nicht anhängen.
+
+### Pin-Grenze, Bilder, Nachladen
+
+**Höchstens zwei angepinnte Beiträge.** Ist die Grenze erreicht, **fragt** das System, welcher weichen soll — es löst nichts von selbst. Ein automatisch verdrängter Beitrag wäre eine stille Änderung an etwas, das jemand ausdrücklich hochgehalten hat.
+
+**Bilder** werden im Browser auf 1400 px verkleinert, bevor irgendetwas hochgeht — ein Handyfoto hat leicht acht Megabyte. Sie werden einzeln nachgeladen, nicht in der Feed-Antwort.
+
+**Unendliches Scrollen** über einen Beobachter mit 400 px Vorlauf. Neue Beiträge werden **nicht** eingefügt, sondern als Pille angeboten — ein Feed, der beim Lesen die Zeile wegschiebt, ist ärgerlich.
+
+### Bestellungen in der Akte verwalten
+
+Der Betreiber konnte bisher nichts entfernen; eine versehentlich angelegte Bestellung blieb für immer stehen. Jetzt Mehrfachauswahl über die Bestellungen und dieselben Regeln wie bei Personen: **unbezahlt und ohne Provision** → endgültig weg, **alles andere** → archiviert (§ 147 AO). Bestätigung durch wörtliches Eintippen, jede Löschung protokolliert.
+
+### Zwei Fehler, die die Messung fand
+
+**Die Seitenschaltung des Feeds lieferte Doppelte.** Der Anker war die Kennung, sortiert wurde nach Zeit — beim Seed laufen beide auseinander. Gemessen: **Seite zwei überschnitt sich in sechs von 25 Beiträgen** mit Seite eins. Jetzt ein zusammengesetzter Vergleich `(created_at, id) < (…)`, der exakt der Sortierung folgt. Danach: null Überschneidung.
+
+**Die „Neue Beiträge"-Pille scrollte ins Leere.** Sie rief `window.scrollTo` — aber das Fenster scrollt gar nicht, der Inhalt liegt in einem inneren Behälter der Team-Hülle. Nachgemessen: `scrollY` blieb 0, egal wie weit man gerollt hatte.
+
+### Prüfstand
+
+`pruef-feinschliff.ts` von 137 auf **189 Prüfungen**. Gegenprobe: Lässt man Wiederholungen am Folgetag zu oder erlaubt das endgültige Löschen bezahlter Bestellungen, wird er rot.
+
+Gesamt: **1.315 Prüfungen** über elf Prüfstände.
+
 ## 11.08.2026 — Sechs Bugs, ein Ebenen-Standard, ein Space, der kein MVP mehr ist
 
 ### Die gemeldeten Bugs — mit Ursache, nicht mit Vermutung

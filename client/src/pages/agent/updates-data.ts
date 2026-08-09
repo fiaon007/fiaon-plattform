@@ -40,6 +40,32 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-space-lebt",
+    date: "2026-08-11",
+    category: "Neu",
+    title: "Der Space ist voll — und ihr könnt Akten anhängen",
+    summary:
+      "Im Feed stehen jetzt über tausend Beiträge, davon viele aus euren echten Abschlüssen der letzten Wochen. Jeden Tag kommen rund zwanzig dazu.",
+    changes: [
+      "Der Feed hat eine Vergangenheit: 60 Tage rückwärts, mit euren ECHTEN Abschlusszahlen und Tagesranglisten. Scrollt mal runter.",
+      "Jeden Tag erscheinen rund 20 Beiträge, verteilt zwischen 7 und 19 Uhr — Gedanken, Verkaufs-Impulse, Zahlen des Tages.",
+      "Wenn jemand einen Abschluss holt, steht das ein paar Minuten später im Feed. Mit Vornamen und Zahl, nie mit Kundendaten.",
+      "Um 18 Uhr kommt die Tagesrangliste, montags früh der Wochenrückblick.",
+      "NEU: Ihr könnt eine Kundenakte an einen Beitrag anhängen. Im Feed steht dann nur die Referenz — kein Name, kein Betrag. Wer klickt und berechtigt ist, landet in der Akte.",
+      "Bilder gehen jetzt auch. Sie werden automatisch verkleinert, bevor sie hochgeladen werden.",
+      "Der Feed lädt beim Scrollen von selbst nach. Kommen neue Beiträge, erscheint oben eine Pille zum Antippen — nichts springt euch weg.",
+      "Höchstens zwei Beiträge können gleichzeitig angepinnt sein.",
+    ],
+    howto: [
+      "Zum Anhängen einer Akte: Ins Schreibfeld klicken, dann unten „Akte anhängen“ — such nach Name oder Referenz.",
+      "Das ist der RICHTIGE Weg, wenn es um einen bestimmten Kunden geht. Namen und Nummern im Fließtext weist das System weiterhin ab.",
+      "Für ein Bild: „Bild“ unter dem Schreibfeld. JPEG, PNG oder WebP.",
+      "Wenn oben „3 neue Beiträge“ steht, tippe drauf — dann springt der Feed nach oben und lädt neu.",
+    ],
+    link: { href: "/agent/space", label: "Zum Space" },
+    important: true,
+  },
+  {
     id: "2026-08-11-woche",
     date: "2026-08-11",
     category: "Verbessert",

@@ -97,20 +97,58 @@ export interface Post {
   angepinnt: boolean;
   autoArt: string | null;
   am: string;
+  akteRef: string | null;
+  aktePerson: number | null;
+  hatBild: boolean;
   reaktionen: Record<string, number>;
   /** Die eigene Reaktion, falls es eine gibt. */
   meine: string | null;
   kommentare: { id: number; agentId: number; name: string; avatar: string | null; text: string; am: string }[];
 }
 
-export async function feedLesen(agentId: number, limit = 40, lauf: Lauf = sqlPool): Promise<Post[]> {
+/**
+ * Der Feed, seitenweise.
+ *
+ * `vorId` ist der Anker fürs Nachladen: „gib mir, was VOR diesem Beitrag
+ * kommt". Ein Zahlen-Offset wäre falsch, sobald während des Scrollens ein
+ * neuer Beitrag oben erscheint — dann rutscht alles um eins und der Leser
+ * sieht eine Zeile doppelt.
+ *
+ * ── WARUM DER ANKER AUS ZWEI TEILEN BESTEHT ────────────────────────────────
+ * Die erste Fassung verglich nur `p.id < vorId`. Das ist falsch, sobald
+ * Kennung und Zeitstempel auseinanderlaufen — und genau das tut der
+ * Seed-Lauf: Er legt sechzig Tage Vergangenheit mit aufsteigenden Kennungen
+ * an. Gemessen: Seite zwei überschnitt sich in sechs von 25 Beiträgen mit
+ * Seite eins.
+ *
+ * Der zusammengesetzte Vergleich `(created_at, id) < (vorAm, vorId)` folgt
+ * exakt der Sortierung. Er ist die einzige Fassung, die auch dann stimmt,
+ * wenn zwei Beiträge dieselbe Sekunde tragen.
+ *
+ * Angepinntes kommt NUR auf der ersten Seite: Sonst stünde es auf jeder Seite
+ * wieder oben.
+ */
+export async function feedLesen(
+  agentId: number, limit = 40, lauf: Lauf = sqlPool, vorId: number | null = null,
+): Promise<Post[]> {
+  let anker: { am: string; id: number } | null = null;
+  if (vorId) {
+    const [v] = (await lauf`SELECT created_at, id FROM fiaon_posts WHERE id = ${vorId}`) as any[];
+    if (v) anker = { am: v.created_at, id: Number(v.id) };
+  }
+
   const posts = (await lauf`
     SELECT p.id, p.autor_agent_id, p.autor_typ, p.text, p.angepinnt, p.auto_art, p.created_at,
+           p.akte_ref, p.akte_person, p.bild_typ,
+           (p.bild IS NOT NULL) AS hat_bild,
            COALESCE(NULLIF(a.first_name, ''), a.name) AS autor_name, a.avatar AS avatar_url
     FROM fiaon_posts p
     LEFT JOIN fiaon_agents a ON a.id = p.autor_agent_id
     WHERE p.geloescht_at IS NULL
-    ORDER BY p.angepinnt DESC, p.created_at DESC
+      ${anker
+        ? lauf`AND (p.created_at, p.id) < (${anker.am}::timestamptz, ${anker.id}) AND NOT p.angepinnt`
+        : lauf``}
+    ORDER BY ${anker ? lauf`p.created_at DESC` : lauf`p.angepinnt DESC, p.created_at DESC`}, p.id DESC
     LIMIT ${limit}
   `) as any[];
   if (posts.length === 0) return [];
@@ -142,6 +180,14 @@ export async function feedLesen(agentId: number, limit = 40, lauf: Lauf = sqlPoo
       angepinnt: !!p.angepinnt,
       autoArt: p.auto_art || null,
       am: p.created_at,
+      // Der Akten-Chip: NUR die Referenz, kein Name, kein Betrag. Wer klickt
+      // und nicht berechtigt ist, bekommt eine freundliche 404 — die Prüfung
+      // sitzt in der Akte, nicht hier.
+      akteRef: p.akte_ref || null,
+      aktePerson: p.akte_person ? Number(p.akte_person) : null,
+      // Nur ob ein Bild da ist. Die Bytes holt der Browser einzeln ab, sonst
+      // trüge jede Feed-Antwort ein paar Megabyte mit sich.
+      hatBild: !!p.hat_bild,
       reaktionen: zaehler,
       meine: eigene.find((r) => Number(r.agent_id) === agentId)?.art ?? null,
       kommentare: (kommentare as any[])
@@ -302,15 +348,45 @@ export async function postUpdateVerweis(
   );
 }
 
-/** Der ganze Tageslauf des Space. */
-export async function spaceTageslauf(datum = berlinToday()): Promise<{ gedanke: boolean; feiertage: boolean; news: boolean }> {
+/**
+ * Der Lauf des Space. STÜNDLICH, nicht täglich.
+ *
+ * Die Content-Engine verteilt zwanzig Beiträge über den Tag; ein Tageslauf um
+ * Mitternacht würde sie alle auf einmal setzen. Der stündliche Aufruf legt
+ * jeweils an, was bis jetzt fällig war — und holt eine ausgefallene Stunde
+ * von selbst nach.
+ */
+export async function spaceTageslauf(datum = berlinToday()): Promise<{
+  gedanke: boolean; feiertage: boolean; news: boolean; engine: number;
+}> {
+  // Der „Gedanke des Tages" bleibt als eigener Post: Er ist der einzige, der
+  // eine Überschrift trägt und morgens ganz oben stehen soll.
   const gedanke = await postGedanke(datum).catch(() => false);
   const feiertage = await postFeiertage(datum).catch(() => false);
   const news = await postNews(datum).catch(() => false);
-  if (gedanke || feiertage || news) {
-    console.log(`[SPACE] Auto-Posts ${datum}: Gedanke ${gedanke}, Feiertage ${feiertage}, News ${news}`);
+
+  const { engineLauf, postRangliste, postWoche, postMeilenstein, postRekord } =
+    await import("./fiaon-space-engine");
+  const lauf = await engineLauf().catch(() => ({ angelegt: 0 }));
+
+  // Ereignis-Posts kommen ON TOP. Jeder ist über seinen Schlüssel idempotent,
+  // also darf der Aufruf jede Stunde stehen bleiben.
+  const jetzt = new Date();
+  const stunde = Number(new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin", hour: "2-digit", hour12: false,
+  }).format(jetzt));
+  const wochentag = jetzt.getDay();
+
+  if (stunde >= 18) await postRangliste(datum).catch(() => false);
+  if (wochentag === 1 && stunde >= 6) await postWoche(datum).catch(() => false);
+  await postMeilenstein().catch(() => false);
+  await postRekord(datum).catch(() => false);
+
+  if (gedanke || feiertage || news || lauf.angelegt) {
+    console.log(`[SPACE] ${datum}: Gedanke ${gedanke}, Feiertage ${feiertage}, `
+      + `News ${news}, Engine ${lauf.angelegt}`);
   }
-  return { gedanke, feiertage, news };
+  return { gedanke, feiertage, news, engine: lauf.angelegt };
 }
 
 /**

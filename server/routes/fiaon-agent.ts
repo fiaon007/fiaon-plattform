@@ -802,6 +802,24 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
   await logAgentEvent(app.assigned_agent_id, "commission_created", { ref, amount_cents: amountCents, rate_bp: rateBp });
   console.log(`[FIAON-COMMISSION] bestätigt: ${ref} → Agent ${app.assigned_agent_id}, ${(amountCents / 100).toFixed(2)} € (${rateBp / 100} %)`);
 
+  // ── Der Space erfährt davon ──────────────────────────────────────────────
+  // HIER, im Geschäftsvorgang — nicht in einem Tageslauf, der abends
+  // zusammenfasst. Ein Erfolg, von dem das Team erst am nächsten Morgen
+  // erfährt, ist eine Statistik; einer, der zehn Minuten später im Feed steht,
+  // ist ein Erfolg.
+  //
+  // Der Post enthält NUR den Vornamen des Kollegen und eine Zahl. Keine
+  // Kundendaten — der Space sieht jede Rolle im Haus.
+  //
+  // Ein Fehler hier darf die Provisionsbuchung nicht umwerfen: Die ist die
+  // wichtigere Wahrheit.
+  try {
+    const { postAbschluss } = await import("../lib/fiaon-space-engine");
+    await postAbschluss(Number(app.assigned_agent_id));
+  } catch (e) {
+    console.error("[FIAON-COMMISSION] Space-Post:", e);
+  }
+
   // ── Paket AE2: Override für den direkten Werber — EXAKT EINE EBENE (s. o.) ──
   if (agents[0].recruited_by) {
     const recruiter = await sqlPool`SELECT id, name FROM fiaon_agents WHERE id = ${agents[0].recruited_by}`;

@@ -470,4 +470,149 @@ router.post("/agent/nachrichten/:id/verstanden", requireAgent, async (req: Agent
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// BESTELLUNGEN IN DER AKTE VERWALTEN
+//
+// Der Betreiber konnte in der Akte nichts entfernen — eine versehentlich
+// angelegte Bestellung blieb für immer stehen und verfälschte jede Zählung.
+//
+// DIESELBEN REGELN WIE BEI PERSONEN (server/lib/fiaon-loeschen.ts):
+//   ENDGÜLTIG    Unbezahlt, keine Rechnung, keine Provision → darf ganz weg.
+//   ARCHIVIEREN  Alles andere. Eine bezahlte Bestellung endgültig zu löschen
+//                hieße, den Umsatz aus der Buchhaltung zu nehmen.
+// Nicht der Klickende entscheidet, sondern der Zustand der Daten.
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface BestellKandidat {
+  ref: string;
+  art: "endgueltig" | "archivieren" | "gesperrt";
+  begruendung: string;
+  betrag: string | null;
+  paket: string | null;
+}
+
+async function bestellungenEinteilen(refs: string[]): Promise<BestellKandidat[]> {
+  if (refs.length === 0) return [];
+  const rows = (await sqlPool`
+    SELECT a.ref, a.payment_status, a.invoice_number, a.amount_due,
+           SPLIT_PART(a.pack_name, E'\n', 1) AS paket, a.archived_at, a.gdpr_deleted_at,
+           (SELECT COUNT(*)::int FROM fiaon_commissions c
+             WHERE c.ref = a.ref AND c.status <> 'storniert') AS provisionen,
+           (SELECT COUNT(*)::int FROM fiaon_abo_raten r WHERE r.ref = a.ref) AS raten
+    FROM fiaon_applications a WHERE a.ref = ANY(${refs})
+  `) as any[];
+
+  return rows.map((r) => {
+    const bezahlt = String(r.payment_status) === "paid";
+    const hatRechnung = !!r.invoice_number;
+    const hatProvision = Number(r.provisionen) > 0;
+    const hatRaten = Number(r.raten) > 0;
+
+    let art: BestellKandidat["art"] = "endgueltig";
+    let begruendung = "Unbezahlt, keine Rechnung, keine Provision — darf vollständig verschwinden.";
+
+    if (r.gdpr_deleted_at) {
+      art = "gesperrt";
+      begruendung = "Für diesen Datensatz liegt bereits eine DSGVO-Löschung vor.";
+    } else if (bezahlt || hatRechnung || hatProvision || hatRaten) {
+      art = "archivieren";
+      const teile: string[] = [];
+      if (bezahlt) teile.push("bezahlt");
+      if (hatRechnung) teile.push(`Rechnung ${r.invoice_number}`);
+      if (hatProvision) teile.push(`${r.provisionen} gebuchte Provision${Number(r.provisionen) === 1 ? "" : "en"}`);
+      if (hatRaten) teile.push(`${r.raten} Raten`);
+      begruendung = `${teile.join(", ")} — wird archiviert statt gelöscht. `
+        + "Die Buchungsdaten bleiben nach § 147 AO zehn Jahre lesbar.";
+    } else if (r.archived_at) {
+      begruendung = "Bereits archiviert, unbezahlt — darf endgültig entfernt werden.";
+    }
+    return {
+      ref: String(r.ref), art, begruendung,
+      betrag: r.amount_due != null ? `${Number(r.amount_due).toFixed(2).replace(".", ",")} €` : null,
+      paket: r.paket || null,
+    };
+  });
+}
+
+/** POST /admin/bestellungen/vorschau */
+router.post("/admin/bestellungen/vorschau", async (req: Request, res: Response) => {
+  try {
+    const refs = (req.body?.refs ?? []).map(String).filter(Boolean);
+    if (refs.length === 0) return res.status(400).json({ ok: false, error: "Keine Auswahl." });
+    const kandidaten = await bestellungenEinteilen(refs);
+    const endgueltig = kandidaten.filter((k) => k.art === "endgueltig").length;
+    const archivieren = kandidaten.filter((k) => k.art === "archivieren").length;
+    const gesperrt = kandidaten.filter((k) => k.art === "gesperrt").length;
+
+    const hinweise: string[] = [];
+    if (endgueltig > 0) {
+      hinweise.push(`${endgueltig} ${endgueltig === 1 ? "Bestellung verschwindet" : "Bestellungen verschwinden"} `
+        + "vollständig — samt Verlauf und Vermerken. Das lässt sich nicht rückgängig machen.");
+    }
+    if (archivieren > 0) {
+      hinweise.push(`${archivieren} ${archivieren === 1 ? "Bestellung wird" : "Bestellungen werden"} `
+        + "archiviert statt gelöscht: Sie sind bezahlt, haben eine Rechnung oder eine gebuchte "
+        + "Provision. Sie bleiben in der Akte lesbar — das schreibt § 147 AO vor.");
+    }
+    if (gesperrt > 0) hinweise.push(`${gesperrt} übersprungen: bereits gelöscht.`);
+
+    const wirksam = endgueltig + archivieren;
+    res.json({
+      ok: true, kandidaten, endgueltig, archivieren, gesperrt, hinweise,
+      bestaetigung: `${wirksam} ${wirksam === 1 ? "Bestellung" : "Bestellungen"} entfernen`,
+    });
+  } catch (err) {
+    console.error("[ZENTRALE] bestellungen vorschau:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /admin/bestellungen/entfernen */
+router.post("/admin/bestellungen/entfernen", async (req: Request, res: Response) => {
+  try {
+    const refs = (req.body?.refs ?? []).map(String).filter(Boolean);
+    if (refs.length === 0) return res.status(400).json({ ok: false, error: "Keine Auswahl." });
+    const kandidaten = await bestellungenEinteilen(refs);
+    const wirksam = kandidaten.filter((k) => k.art !== "gesperrt").length;
+    const soll = `${wirksam} ${wirksam === 1 ? "Bestellung" : "Bestellungen"} entfernen`;
+    if (String(req.body?.bestaetigung || "").trim() !== soll) {
+      return res.status(400).json({ ok: false, error: `Bitte zur Bestätigung genau eintippen: „${soll}“` });
+    }
+
+    const { archiviereAntrag } = await import("../lib/fiaon-antrag-archiv");
+    let geloescht = 0;
+    let archiviert = 0;
+
+    for (const k of kandidaten) {
+      if (k.art === "gesperrt") continue;
+      if (k.art === "archivieren") {
+        await archiviereAntrag(k.ref, String(req.body?.grund || "sonstiges"),
+          String(req.body?.notiz || "Aus der Akte entfernt"),
+          { name: "Betreiber", agentId: null, rolle: "admin" }).catch(() => {});
+        archiviert++;
+        continue;
+      }
+      // Endgültig: von innen nach außen, das Protokoll zuerst.
+      await sqlPool`
+        INSERT INTO fiaon_loeschungen (art, person_id, person_name, refs, grund, akteur, stapel)
+        VALUES ('endgueltig', NULL, ${`Bestellung ${k.ref}`}, ${k.ref},
+                ${String(req.body?.notiz || "Aus der Akte entfernt")}, 'Betreiber', ${`B-${k.ref}`})
+      `.catch(() => {});
+      await sqlPool`DELETE FROM fiaon_contact_log WHERE ref = ${k.ref}`;
+      await sqlPool`DELETE FROM fiaon_vermerke WHERE ref = ${k.ref}`;
+      await sqlPool`DELETE FROM fiaon_applications WHERE ref = ${k.ref}`;
+      geloescht++;
+    }
+
+    console.log(`[ZENTRALE] Bestellungen: ${geloescht} entfernt, ${archiviert} archiviert`);
+    res.json({
+      ok: true, geloescht, archiviert,
+      meldung: `${geloescht} endgültig entfernt, ${archiviert} archiviert.`,
+    });
+  } catch (err) {
+    console.error("[ZENTRALE] bestellungen entfernen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 export default router;

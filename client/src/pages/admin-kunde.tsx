@@ -5,6 +5,7 @@ import {
   AlertTriangle, FileText, ArrowLeft, Send, StickyNote, Undo2, Info,
 } from "lucide-react";
 import { DokumenteSektion } from "@/components/DokumenteSektion";
+import { FiaonEbene } from "@/components/FiaonEbene";
 import VermerkTafel from "@/components/admin/VermerkTafel";
 import ArchivDialog from "@/components/admin/ArchivDialog";
 import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
@@ -197,6 +198,11 @@ export default function AdminKundeAktePage() {
   const [timelineLimit, setTimelineLimit] = useState(30);
   /** Offener Archiv-Dialog (Teil 3) — welche Bestellung wird gerade betrachtet. */
   const [archivRef, setArchivRef] = useState<string | null>(null);
+  // Mehrfachauswahl über die Bestellungen — der Betreiber konnte bisher
+  // nichts entfernen, auch nicht eine versehentlich angelegte Zeile.
+  const [gewaehlteRefs, setGewaehlteRefs] = useState<Set<string>>(new Set());
+  const [bestellDialog, setBestellDialog] = useState<any>(null);
+  const [bestellWortlaut, setBestellWortlaut] = useState("");
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 6000); };
 
@@ -632,10 +638,44 @@ export default function AdminKundeAktePage() {
             )}
             {data.orders.length === 0 && <p className="text-[12.5px] text-slate-400">Noch keine Bestellung.</p>}
             <div className="space-y-2">
+              {gewaehlteRefs.size > 0 && (
+                <div className="mb-2 px-3 py-2.5 rounded-xl flex flex-wrap items-center gap-2"
+                     style={{ background: "rgba(29,78,216,.05)", boxShadow: "inset 0 0 0 1px rgba(29,78,216,.18)" }}>
+                  <span className="text-[12.5px] font-bold text-[#1d4ed8]">
+                    {gewaehlteRefs.size} gewählt
+                  </span>
+                  <button type="button" onClick={() => setGewaehlteRefs(new Set())}
+                          className="text-[12px] font-semibold text-slate-500">Auswahl aufheben</button>
+                  <button type="button"
+                          onClick={async () => {
+                            const r = await fetch("/api/fiaon/admin/bestellungen/vorschau", {
+                              method: "POST", credentials: "include",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ refs: Array.from(gewaehlteRefs) }),
+                            }).catch(() => null);
+                            const j = await r?.json().catch(() => null);
+                            if (j?.ok) { setBestellDialog(j); setBestellWortlaut(""); }
+                          }}
+                          className="ml-auto px-3.5 py-2 rounded-xl text-[12px] font-bold text-white bg-[#b91c1c]"
+                          style={{ boxShadow: "0 10px 22px -12px rgba(185,28,28,.5)" }}>
+                    Auswahl entfernen …
+                  </button>
+                </div>
+              )}
               {data.orders.map((o: any) => (
                 <div key={o.ref} className={`px-3 py-2.5 rounded-xl border ${o.isPrimary ? "border-slate-300 bg-white" : "border-slate-100 bg-slate-50/60"}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="min-w-0">
+                    <label className="inline-flex items-center shrink-0 mr-1"
+                           style={{ minWidth: 22, minHeight: 22 }}>
+                      <input type="checkbox" aria-label={`${o.paymentReference || o.ref} wählen`}
+                             checked={gewaehlteRefs.has(o.ref)}
+                             onChange={() => setGewaehlteRefs((g) => {
+                               const n = new Set(g);
+                               n.has(o.ref) ? n.delete(o.ref) : n.add(o.ref);
+                               return n;
+                             })} />
+                    </label>
+                    <div className="min-w-0 flex-1">
                       <p className="text-[13px] font-semibold text-slate-800">
                         <span className="font-mono text-[#2563eb]">{o.paymentReference || o.ref}</span>
                         {o.invoiceNumber && <span className="ml-2 text-[11px] text-slate-400 font-mono">{o.invoiceNumber}</span>}
@@ -904,6 +944,99 @@ export default function AdminKundeAktePage() {
           </div>
         </div>
       )}
+
+        {/* ── Bestellungen entfernen ────────────────────────────────────
+          Dieselbe Bauweise wie die Personen-Löschung: zwei Kategorien
+          getrennt gezählt, Begründung je Zeile, Bestätigung durch
+          wörtliches Eintippen. */}
+      <FiaonEbene
+        offen={!!bestellDialog}
+        onZu={() => setBestellDialog(null)}
+        titel="Was mit diesen Bestellungen passiert"
+        ueberschrift="Bitte genau lesen"
+        breite={580}
+        fuss={bestellDialog ? (
+          <>
+            <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">
+              Zur Bestätigung eintippen:{" "}
+              <span className="font-mono text-slate-900">{bestellDialog.bestaetigung}</span>
+            </label>
+            <input value={bestellWortlaut} onChange={(e) => setBestellWortlaut(e.target.value)}
+                   aria-label="Bestätigungstext"
+                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-[13px] outline-none focus:border-[#b91c1c]"
+                   style={{ minHeight: 42 }} />
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => setBestellDialog(null)}
+                      className="text-[13px] font-semibold text-slate-500">Abbrechen</button>
+              <button type="button"
+                      disabled={bestellWortlaut.trim() !== bestellDialog.bestaetigung}
+                      onClick={async () => {
+                        const r = await fetch("/api/fiaon/admin/bestellungen/entfernen", {
+                          method: "POST", credentials: "include",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            refs: Array.from(gewaehlteRefs),
+                            bestaetigung: bestellWortlaut,
+                          }),
+                        }).catch(() => null);
+                        const j = await r?.json().catch(() => null);
+                        if (j?.ok) {
+                          setBestellDialog(null);
+                          setGewaehlteRefs(new Set());
+                          void load();
+                        }
+                      }}
+                      className="ml-auto px-5 py-2.5 rounded-xl text-[14px] font-bold text-white bg-[#b91c1c] disabled:opacity-30"
+                      style={{ boxShadow: "0 12px 26px -12px rgba(185,28,28,.55)" }}>
+                Ausführen
+              </button>
+            </div>
+          </>
+        ) : undefined}
+        kinder={bestellDialog ? (
+          <>
+            <div className="grid grid-cols-2 gap-2.5 mb-4">
+              <div className="p-3.5 rounded-2xl"
+                   style={{ background: "linear-gradient(160deg, rgba(185,28,28,.09), rgba(185,28,28,.03))",
+                            boxShadow: "inset 0 0 0 1px rgba(185,28,28,.16)" }}>
+                <p className="text-[26px] font-bold leading-none text-[#b91c1c] tabular-nums">
+                  {bestellDialog.endgueltig}
+                </p>
+                <p className="text-[11.5px] font-semibold mt-1 text-[#b91c1c]">endgültig entfernt</p>
+              </div>
+              <div className="p-3.5 rounded-2xl"
+                   style={{ background: "linear-gradient(160deg, rgba(217,119,6,.09), rgba(217,119,6,.03))",
+                            boxShadow: "inset 0 0 0 1px rgba(217,119,6,.16)" }}>
+                <p className="text-[26px] font-bold leading-none text-[#b45309] tabular-nums">
+                  {bestellDialog.archivieren}
+                </p>
+                <p className="text-[11.5px] font-semibold mt-1 text-[#b45309]">archiviert</p>
+              </div>
+            </div>
+            {bestellDialog.hinweise.map((h: string, i: number) => (
+              <p key={i} className="text-[12.5px] leading-relaxed text-slate-600 mb-2.5">{h}</p>
+            ))}
+            <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mt-5 mb-2">
+              Im Einzelnen
+            </p>
+            <div className="rounded-2xl overflow-hidden" style={{ boxShadow: "inset 0 0 0 1px #eef2f7" }}>
+              {bestellDialog.kandidaten.map((k: any) => (
+                <div key={k.ref} className="px-3.5 py-2.5 text-[12px]"
+                     style={{ borderBottom: "1px solid #f8fafc" }}>
+                  <span className="font-mono font-semibold text-slate-800">{k.ref}</span>
+                  <span className="ml-2 font-bold" style={{
+                    color: k.art === "endgueltig" ? "#b91c1c" : k.art === "archivieren" ? "#b45309" : "#94a3b8",
+                  }}>
+                    {k.art === "endgueltig" ? "endgültig" : k.art === "archivieren" ? "archiviert" : "übersprungen"}
+                  </span>
+                  {k.betrag && <span className="ml-2 text-slate-500">{k.betrag}</span>}
+                  <span className="block text-[11px] text-slate-400 leading-snug mt-0.5">{k.begruendung}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : null}
+      />
 
       {/* Archiv-Dialog: archivieren und (nur hier, im Admin) zurückholen. */}
       {archivRef && (

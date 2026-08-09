@@ -15,6 +15,8 @@ wissen will, *wo* etwas liegt, liest hier.
 | **OpenAI-Schlüssel erneuern** | `OPENAI_API_KEY` | Der hinterlegte Schlüssel antwortet mit HTTP 401. Gesprächsblatt und Anruf-Zusammenfassung fallen deshalb auf Rohdaten zurück. |
 | **Brevo-IP freigeben** | app.brevo.com/security/authorised_ips | Sonst kann FIAON nicht nachsehen, ob eine Mail ankam. Die Oberfläche zeigt die Anleitung selbst an. |
 | **Vergütung Inkasso bestätigen** | Team-Zentrale → Mitarbeiter → Vergütung | Platzhalter 15,00 €/h und 2,00 € je Rate. Bis zur Bestätigung wird keine Prämie gebucht. |
+| **Space-Dichte prüfen** | Einstellung `space_dichte` | Vorgabe 20 Beiträge pro Tag. Weniger als 10 lässt den Feed leer wirken, mehr als 40 wird zur Tapete. |
+| **Drei alte Pins lösen** | Space → angepinnte Beiträge | Sie stammen aus der Zeit vor der Zwei-Grenze. Die Grenze greift erst beim nächsten Anpinnen. |
 
 ---
 
@@ -78,6 +80,10 @@ Registry mit 29 Ereignissen, ereignisgesteuerter Versand über `mailSenden`, Mai
 Rolle `inkasso` mit eigener Verpflichtungserklärung. Sichtfeld hart auf bezahlte Kunden mit laufender Ratenzahlung. Erlass, Stundung und Storno existieren im Bereich **nicht**. Vergütung: Stundensatz plus Prämie je eingezogener Rate. Geführte erste Schritte je Rolle.
 `server/lib/fiaon-inkasso.ts`, `server/routes/fiaon-inkasso-bereich.ts`, `shared/fiaon-onboarding-schritte.ts`
 
+### 6 · Space-Content und Aktenverwaltung (11.08.)
+**Der Feed lebt.** 1.293 Beiträge, davon 84 aus echten Abschlussdaten der letzten 60 Tage. Die Content-Engine setzt täglich 20 Beiträge (einstellbar 5–100), verteilt zwischen 07:00 und 19:00 mit mindestens 20 Minuten Abstand. Ereignis-Posts (Abschluss, Rangliste, Wochenrückblick, Meilenstein, Rekord) kommen on top und entstehen im jeweiligen Geschäftsvorgang. Dazu: Akten-Chips statt Kundendaten im Freitext, Pin-Grenze von zwei mit Verdrängungsfrage, Bild-Upload mit Verkleinerung im Browser, unendliches Scrollen, „Neue Beiträge"-Pille. In der Akte lassen sich Bestellungen einzeln und in Auswahl entfernen — unbezahlte endgültig, bezahlte nur archiviert.
+`server/lib/fiaon-space-engine.ts`, `scripts/space-seed.ts`
+
 ### 5 · Feinschliff und Design (11.08.)
 Sechs gemeldete Bugs behoben. **FiaonEbene**: ein Bauteil für jeden Dialog — Glas-Schleier statt schwarzem Vorhang, Eintritt aus der Tiefe, Bottom-Sheet mit Wischen auf 380 px. Filter als Dropdown mit Chips. Space als Feed mit Seitenkomposition und Startseite nach dem Login.
 `client/src/components/FiaonEbene.tsx`, `FiaonFilter.tsx`, `client/src/pages/agent/space.tsx`
@@ -96,13 +102,15 @@ Diese sind nicht verhandelbar und durch Prüfstände abgesichert:
 - **Nur DACH-Vorwahlen**, höchstens 60 Minuten je Gespräch, jede Wahl protokolliert.
 - **Bestätigte Stunden sind unveränderlich** — auch für den Betreiber.
 - **Testkonten** bekommen keine erhöhte Rolle und können nicht telefonieren.
+- **Ereignis-Posts nennen nie Kundendaten** — nur Vornamen des Teams und Zahlen.
+- **Bezahlte Bestellungen werden archiviert, nie endgültig gelöscht.**
 
 ---
 
 ## Prüfstände
 
 ```
-npx tsx scripts/pruef-feinschliff.ts     137   Bugs, Ebenen-Standard, Space
+npx tsx scripts/pruef-feinschliff.ts     189   Bugs, Ebenen, Space, Content-Engine, Akte
 npx tsx scripts/pruef-inkasso.ts         167   Rolle, Sichtfeld, Prämien, Stunden
 npx tsx scripts/pruef-telefon.ts         128   Dokumente, Softphone, Gesprächsblatt
 npx tsx scripts/pruef-zentralen.ts        90   Filter, Löschen, Team
@@ -115,5 +123,5 @@ npx tsx scripts/pruef-fundament-b.ts      93   Fundament
 npx tsx scripts/pruef-schmal.ts           25   380-px-Ansicht
 ```
 
-**1.263 Prüfungen.** Alle laufen gegen die Produktionsdatenbank in einer
+**1.315 Prüfungen.** Alle laufen gegen die Produktionsdatenbank in einer
 Transaktion, die am Ende zurückgerollt wird — es bleibt nichts stehen.

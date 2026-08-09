@@ -38,6 +38,9 @@ interface Post {
   angepinnt: boolean;
   autoArt: string | null;
   am: string;
+  akteRef: string | null;
+  aktePerson: number | null;
+  hatBild: boolean;
   reaktionen: Record<string, number>;
   meine: string | null;
   kommentare: Kommentar[];
@@ -142,26 +145,124 @@ export default function AgentSpace() {
   const [kommentarZu, setKommentarZu] = useState<number | null>(null);
   const [kommentarText, setKommentarText] = useState("");
   const feld = useRef<HTMLTextAreaElement>(null);
+  // Nachladen
+  const [mehr, setMehr] = useState(true);
+  const [laedtMehr, setLaedtMehr] = useState(false);
+  const fuehler = useRef<HTMLDivElement>(null);
+  const kopf = useRef<HTMLDivElement>(null);
+  // Neue Beiträge, während man liest
+  const [neue, setNeue] = useState(0);
+  const oberste = useRef<number | null>(null);
+  // Bild und Akten-Chip am Komposer
+  const [bild, setBild] = useState<string | null>(null);
+  const [akte, setAkte] = useState<{ ref: string; name: string } | null>(null);
+  const [akteSuche, setAkteSuche] = useState("");
+  const [akteTreffer, setAkteTreffer] = useState<any[]>([]);
 
   const laden = useCallback(async () => {
     const r = await fetch("/api/fiaon/agent/space", { credentials: "include" }).catch(() => null);
     const j = await r?.json().catch(() => null);
-    if (j?.ok) setDaten(j);
+    if (j?.ok) {
+      setDaten(j);
+      setMehr(!!j.mehr);
+      oberste.current = j.posts?.[0]?.id ?? null;
+      setNeue(0);
+    }
   }, []);
   useEffect(() => { void laden(); }, [laden]);
+
+  // ── UNENDLICHES SCROLLEN ──────────────────────────────────────────────────
+  // Über einen Beobachter am Fuß der Liste, nicht über die Scrollposition:
+  // Ein Rechenwert aus scrollTop und Höhe ist bei Zoom, Tastatur und
+  // ausklappenden Kommentaren jedes Mal woanders falsch.
+  const nachladen = useCallback(async () => {
+    if (laedtMehr || !mehr || !daten?.posts?.length) return;
+    setLaedtMehr(true);
+    const letzter = daten.posts[daten.posts.length - 1].id;
+    const r = await fetch(`/api/fiaon/agent/space?vor=${letzter}`, { credentials: "include" }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setLaedtMehr(false);
+    if (!j?.ok) { setMehr(false); return; }
+    setMehr(!!j.mehr && (j.posts?.length ?? 0) > 0);
+    setDaten((d: any) => d && { ...d, posts: [...d.posts, ...(j.posts ?? [])] });
+  }, [daten, laedtMehr, mehr]);
+
+  useEffect(() => {
+    const ziel = fuehler.current;
+    if (!ziel) return;
+    const beobachter = new IntersectionObserver((e) => {
+      if (e[0]?.isIntersecting) void nachladen();
+      // 400 px Vorlauf: Nachgeladen wird, BEVOR der Leser unten ankommt.
+    }, { rootMargin: "400px" });
+    beobachter.observe(ziel);
+    return () => beobachter.disconnect();
+  }, [nachladen]);
+
+  // ── „Neue Beiträge" ───────────────────────────────────────────────────────
+  // Alle zwei Minuten nachsehen, ob oben etwas dazugekommen ist. NICHT
+  // einfügen — das würde beim Lesen die Zeile wegschieben. Stattdessen eine
+  // Pille, die man antippt.
+  useEffect(() => {
+    const uhr = setInterval(async () => {
+      if (document.hidden || !oberste.current) return;
+      const r = await fetch("/api/fiaon/agent/space?limit=5", { credentials: "include" }).catch(() => null);
+      const j = await r?.json().catch(() => null);
+      if (!j?.ok) return;
+      const n = (j.posts ?? []).findIndex((p: Post) => p.id === oberste.current);
+      setNeue(n > 0 ? n : 0);
+    }, 120_000);
+    return () => clearInterval(uhr);
+  }, []);
 
   const senden = async () => {
     setBusy(true); setFehler(null);
     const r = await fetch("/api/fiaon/agent/space", {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, bild, akteRef: akte?.ref ?? null }),
     }).catch(() => null);
     const j = await r?.json().catch(() => null);
     setBusy(false);
     if (!j?.ok) { setFehler(j?.error || "Konnte nicht gesendet werden."); return; }
-    setText(""); setGross(false);
+    setText(""); setGross(false); setBild(null); setAkte(null); setAkteSuche("");
     void laden();
   };
+
+  /**
+   * Bild wählen — VERKLEINERT IM BROWSER, bevor irgendetwas hochgeht.
+   *
+   * Ein Handyfoto hat leicht acht Megabyte. Ungeschrumpft würde jeder Beitrag
+   * die Datenbank vollmachen und der Feed auf dem Mobilfunknetz nicht laden.
+   * 1400 px lange Kante genügt für jede Feed-Darstellung.
+   */
+  const bildWaehlen = async (datei: File) => {
+    setFehler(null);
+    if (!/^image\/(jpeg|png|webp)$/.test(datei.type)) {
+      setFehler("Nur JPEG, PNG oder WebP."); return;
+    }
+    const bitmap = await createImageBitmap(datei).catch(() => null);
+    if (!bitmap) { setFehler("Das Bild konnte nicht gelesen werden."); return; }
+    const max = 1400;
+    const faktor = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+    const leinwand = document.createElement("canvas");
+    leinwand.width = Math.round(bitmap.width * faktor);
+    leinwand.height = Math.round(bitmap.height * faktor);
+    leinwand.getContext("2d")?.drawImage(bitmap, 0, 0, leinwand.width, leinwand.height);
+    setBild(leinwand.toDataURL("image/jpeg", 0.82));
+    setGross(true);
+  };
+
+  // Akten-Suche, entprellt: Jeder Tastendruck eine Anfrage wäre bei acht
+  // Zeichen acht Abfragen über den ganzen Bestand.
+  useEffect(() => {
+    if (akteSuche.trim().length < 2) { setAkteTreffer([]); return; }
+    const uhr = setTimeout(async () => {
+      const r = await fetch(`/api/fiaon/agent/space/akte-suche?q=${encodeURIComponent(akteSuche)}`,
+        { credentials: "include" }).catch(() => null);
+      const j = await r?.json().catch(() => null);
+      setAkteTreffer(j?.ok ? j.treffer : []);
+    }, 280);
+    return () => clearTimeout(uhr);
+  }, [akteSuche]);
 
   const reagieren = async (postId: number, art: string) => {
     // Sofort umschalten, dann senden: Eine Reaktion, die eine halbe Sekunde
@@ -224,6 +325,7 @@ export default function AgentSpace() {
 
         {/* ── MITTE: der Feed ─────────────────────────────────────────────── */}
         <main className="fi-sp-feed">
+          <div ref={kopf} aria-hidden="true" />
           {/* Komposer — als einladende Karte, nicht als Formular. */}
           <div className={`fi-sp-karte fi-sp-komposer ${gross ? "fi-sp-komposer-gross" : ""}`}>
             <div className="fi-sp-komposer-kopf">
@@ -239,10 +341,79 @@ export default function AgentSpace() {
                 aria-label="Beitrag schreiben"
               />
             </div>
+            {/* Vorschau des gewählten Bildes */}
+            {bild && (
+              <div className="fi-sp-bildvorschau">
+                <img src={bild} alt="Gewähltes Bild" />
+                <button type="button" onClick={() => setBild(null)} aria-label="Bild entfernen">
+                  <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                       strokeWidth={2} strokeLinecap="round"><path d="m5 5 10 10M15 5 5 15" /></svg>
+                </button>
+              </div>
+            )}
+
+            {/* Der angehängte Akten-Chip */}
+            {akte && (
+              <div className="fi-sp-aktechip fi-sp-aktechip-wahl">
+                <span className="fi-sp-aktechip-marke" aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                       strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11.5 2.5H6a1.5 1.5 0 0 0-1.5 1.5v12A1.5 1.5 0 0 0 6 17.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5Z" />
+                    <path d="M11.5 2.5v4h4" />
+                  </svg>
+                </span>
+                <span className="min-w-0 flex-1">
+                  <b>{akte.ref}</b>
+                  <span className="fi-sp-aktechip-hinweis">
+                    Im Feed erscheint nur die Referenz — kein Name, kein Betrag.
+                  </span>
+                </span>
+                <button type="button" onClick={() => setAkte(null)} aria-label="Akte entfernen"
+                        className="fi-sp-aktechip-weg">
+                  <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                       strokeWidth={2} strokeLinecap="round"><path d="m5 5 10 10M15 5 5 15" /></svg>
+                </button>
+              </div>
+            )}
+
             {gross && (
               <div className="fi-sp-komposer-fuss">
-                <p className="fi-sp-hinweis">{daten?.hinweis}</p>
+                {/* Aktensuche */}
+                {!akte && (
+                  <div className="fi-sp-aktesuche">
+                    <input value={akteSuche} onChange={(e) => setAkteSuche(e.target.value)}
+                           placeholder="Akte anhängen (Name oder Referenz suchen) …"
+                           aria-label="Akte suchen" className="fi-sp-aktesuche-feld" />
+                    {akteTreffer.length > 0 && (
+                      <div className="fi-sp-aktesuche-liste">
+                        {akteTreffer.map((t: any) => (
+                          <button key={t.ref} type="button"
+                                  onClick={() => { setAkte({ ref: t.ref, name: t.name }); setAkteSuche(""); setAkteTreffer([]); }}
+                                  className="fi-sp-aktesuche-zeile">
+                            <b>{t.name}</b><span>{t.ref}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <p className="fi-sp-hinweis">
+                  {daten?.hinweis}{" "}
+                  <b>Wenn es um einen bestimmten Kunden geht, häng die Akte an — das ist der richtige Weg.</b>
+                </p>
                 <div className="fi-sp-komposer-knoepfe">
+                  <label className="fi-sp-bildknopf">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                         strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <rect x="2.5" y="4" width="15" height="12" rx="2.5" />
+                      <circle cx="7" cy="8" r="1.3" />
+                      <path d="m3.5 14 3.8-3.6c.5-.5 1.3-.5 1.8 0L12 13.5l1.6-1.5c.5-.5 1.3-.5 1.8 0l2.1 2" />
+                    </svg>
+                    Bild
+                    <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                           onChange={(e) => { const f = e.target.files?.[0]; if (f) void bildWaehlen(f); }} />
+                  </label>
                   <button type="button" onClick={() => { setGross(false); setText(""); setFehler(null); }}
                           className="fi-sp-abbrechen">Abbrechen</button>
                   <button type="button" onClick={() => void senden()}
@@ -254,6 +425,28 @@ export default function AgentSpace() {
               </div>
             )}
           </div>
+
+          {/* „Neue Beiträge" — antippen statt automatisch einfügen. Ein Feed,
+              der beim Lesen die Zeile wegschiebt, ist ärgerlich. */}
+          {neue > 0 && (
+            <button type="button"
+                    onClick={() => {
+                      // NICHT window.scrollTo: Der Inhalt liegt in einem
+                      // inneren Behälter der Team-Hülle, das Fenster selbst
+                      // scrollt nie. Gemessen: scrollY bleibt 0, egal wie weit
+                      // man gerollt hat. `scrollIntoView` findet den richtigen
+                      // Behälter von selbst.
+                      kopf.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      void laden();
+                    }}
+                    className="fi-sp-pill">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                   strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M10 15.5V5m0 0-4.5 4.5M10 5l4.5 4.5" />
+              </svg>
+              {neue} {neue === 1 ? "neuer Beitrag" : "neue Beiträge"}
+            </button>
+          )}
 
           {fehler && <p className="fi-sp-fehler">{fehler}</p>}
 
@@ -294,6 +487,37 @@ export default function AgentSpace() {
               </header>
 
               <p className="fi-sp-text">{p.text}</p>
+
+              {p.hatBild && (
+                <img src={`/api/fiaon/agent/space/bild/${p.id}`} alt=""
+                     loading="lazy" className="fi-sp-bild" />
+              )}
+
+              {/* ── Akten-Verweis ──────────────────────────────────────────
+                  NUR die Referenz. Wer klickt und nicht berechtigt ist,
+                  bekommt eine freundliche 404 — die Prüfung sitzt in der
+                  Akte, nicht hier. */}
+              {p.akteRef && (
+                <a href={`/agent/kunden?ref=${encodeURIComponent(p.akteRef)}`} className="fi-sp-aktechip">
+                  <span className="fi-sp-aktechip-marke" aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                         strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11.5 2.5H6a1.5 1.5 0 0 0-1.5 1.5v12A1.5 1.5 0 0 0 6 17.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5Z" />
+                      <path d="M11.5 2.5v4h4" />
+                    </svg>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <b>{p.akteRef}</b>
+                    <span className="fi-sp-aktechip-hinweis">Akte öffnen — wenn du berechtigt bist</span>
+                  </span>
+                  <span className="fi-sp-aktechip-pfeil" aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                         strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m7.5 4.5 6 5.5-6 5.5" />
+                    </svg>
+                  </span>
+                </a>
+              )}
 
               {/* ── Reaktionen ─────────────────────────────────────────── */}
               <div className="fi-sp-reaktionen">
@@ -344,6 +568,13 @@ export default function AgentSpace() {
               )}
             </article>
           ))}
+
+          {/* Der Fühler fürs Nachladen. Unsichtbar, 400 px Vorlauf. */}
+          <div ref={fuehler} aria-hidden="true" style={{ height: 1 }} />
+          {laedtMehr && <p className="fi-sp-leer">Lädt weitere Beiträge …</p>}
+          {!mehr && posts.length > 10 && (
+            <p className="fi-sp-ende">Das war alles. Willkommen ganz unten.</p>
+          )}
         </main>
 
         {/* ── RECHTS: Heute ───────────────────────────────────────────────── */}
@@ -564,6 +795,119 @@ const SPACE_CSS = `
 .fi-sp-seiten-datum { font-size: 14px; font-weight: 700; color: var(--fi-text, #0f172a); margin: 0 0 6px; }
 .fi-sp-seiten-text { font-size: 12px; color: #64748b; line-height: 1.55; margin: 0; }
 
+/* ── Bild im Beitrag ───────────────────────────────────────────────────── */
+.fi-sp-bild {
+  display: block; width: 100%; margin-top: 12px;
+  border-radius: 14px; object-fit: cover; max-height: 520px;
+  box-shadow: inset 0 0 0 1px rgba(15,23,42,.07);
+  /* Ein Bild, das beim Laden die Zeile wegschiebt, ist beim Lesen
+     unerträglich. Ein reservierter Bereich verhindert das Springen. */
+  background: linear-gradient(90deg, #f1f5f9, #e6edf7, #f1f5f9);
+  background-size: 200% 100%;
+  animation: fiGbSkelett 1.4s ease-in-out infinite;
+}
+
+/* ── Bildvorschau im Komposer ──────────────────────────────────────────── */
+.fi-sp-bildvorschau { position: relative; margin-top: 11px; }
+.fi-sp-bildvorschau img {
+  display: block; width: 100%; max-height: 260px; object-fit: cover;
+  border-radius: 14px; box-shadow: inset 0 0 0 1px rgba(15,23,42,.07);
+}
+.fi-sp-bildvorschau button {
+  position: absolute; top: 8px; right: 8px;
+  width: 28px; height: 28px; border: 0; cursor: pointer; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(7,11,22,.62); color: #fff;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+
+.fi-sp-bildknopf {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 8px 13px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 600; color: #64748b;
+  background: rgba(15,23,42,.045);
+  transition: background 150ms, color 150ms;
+}
+.fi-sp-bildknopf:hover { background: rgba(37,99,235,.09); color: #1d4ed8; }
+
+/* ── Akten-Chip ────────────────────────────────────────────────────────── */
+.fi-sp-aktechip {
+  display: flex; align-items: center; gap: 10px; margin-top: 12px;
+  padding: 10px 12px; border-radius: 14px; text-decoration: none;
+  background: linear-gradient(160deg, rgba(37,99,235,.06), rgba(37,99,235,.02));
+  box-shadow: inset 0 0 0 1px rgba(37,99,235,.15);
+  transition: box-shadow 180ms, transform 140ms;
+}
+a.fi-sp-aktechip:hover {
+  box-shadow: inset 0 0 0 1px rgba(37,99,235,.32), 0 8px 20px -12px rgba(29,78,216,.4);
+  transform: translateY(-1px);
+}
+.fi-sp-aktechip-wahl { background: rgba(15,23,42,.03); box-shadow: inset 0 0 0 1px rgba(15,23,42,.07); }
+.fi-sp-aktechip-marke {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(37,99,235,.1); color: #1d4ed8;
+}
+.fi-sp-aktechip b {
+  display: block; font-size: 12.5px; font-weight: 700; color: #1d4ed8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: -.01em;
+}
+.fi-sp-aktechip-hinweis { display: block; font-size: 11px; color: #94a3b8; margin-top: 1px; }
+.fi-sp-aktechip-pfeil { color: #94a3b8; flex-shrink: 0; }
+.fi-sp-aktechip-weg {
+  flex-shrink: 0; width: 24px; height: 24px; border: 0; cursor: pointer;
+  border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(15,23,42,.06); color: #64748b;
+}
+
+/* ── Aktensuche ────────────────────────────────────────────────────────── */
+.fi-sp-aktesuche { position: relative; margin-bottom: 10px; }
+.fi-sp-aktesuche-feld {
+  width: 100%; height: 38px; padding: 0 14px; border: 0; outline: none;
+  border-radius: 999px; background: rgba(15,23,42,.04);
+  font-size: 13px; color: #1e293b; font-family: inherit;
+}
+.fi-sp-aktesuche-liste {
+  position: absolute; top: calc(100% + 5px); left: 0; right: 0; z-index: 20;
+  border-radius: 14px; overflow: hidden; padding: 5px;
+  background: rgba(255,255,255,.92);
+  backdrop-filter: blur(20px) saturate(170%); -webkit-backdrop-filter: blur(20px) saturate(170%);
+  box-shadow: 0 22px 50px -24px rgba(11,18,38,.5), inset 0 0 0 1px rgba(15,23,42,.07);
+  animation: fiSpAuf 180ms ease both;
+}
+.fi-sp-aktesuche-zeile {
+  width: 100%; display: flex; align-items: baseline; gap: 8px;
+  padding: 8px 10px; border: 0; cursor: pointer; border-radius: 10px;
+  background: none; text-align: left; transition: background 140ms;
+}
+.fi-sp-aktesuche-zeile:hover { background: rgba(37,99,235,.08); }
+.fi-sp-aktesuche-zeile b { font-size: 13px; font-weight: 600; color: #1e293b; }
+.fi-sp-aktesuche-zeile span {
+  margin-left: auto; font-size: 11px; color: #94a3b8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ── „Neue Beiträge"-Pille ─────────────────────────────────────────────── */
+.fi-sp-pill {
+  position: sticky; top: 74px; z-index: 30;
+  display: flex; align-items: center; gap: 7px; margin: 0 auto 12px;
+  padding: 9px 17px; border: 0; cursor: pointer; border-radius: 999px;
+  font-size: 12.5px; font-weight: 700; color: #fff;
+  background: linear-gradient(160deg, #2563eb, #1d4ed8);
+  box-shadow: 0 14px 30px -12px rgba(29,78,216,.7), inset 0 1px 0 rgba(255,255,255,.24);
+  animation: fiSpPillAuf 340ms cubic-bezier(.32,.72,0,1) both;
+}
+@keyframes fiSpPillAuf {
+  from { opacity: 0; transform: translateY(-12px) scale(.9); }
+  to   { opacity: 1; transform: none; }
+}
+.fi-sp-pill:hover { filter: brightness(1.07); }
+
+.fi-sp-ende {
+  text-align: center; padding: 26px 0 40px;
+  font-size: 12px; color: #cbd5e1;
+}
+
 .fi-sp-fehler {
   padding: 11px 14px; border-radius: 14px; margin-bottom: 12px;
   background: rgba(217,119,6,.08); color: #b45309;
@@ -575,7 +919,8 @@ const SPACE_CSS = `
 .fi-sp-leer-text { font-size: 13px; color: #64748b; line-height: 1.6; margin: 6px 0 0; }
 
 @media (prefers-reduced-motion: reduce) {
-  .fi-sp-post, .fi-sp-zaehler, .fi-sp-komposer-fuss, .fi-sp-kommentare { animation: none !important; }
+  .fi-sp-post, .fi-sp-zaehler, .fi-sp-komposer-fuss, .fi-sp-kommentare,
+  .fi-sp-pill, .fi-sp-aktesuche-liste, .fi-sp-bild { animation: none !important; }
   .fi-sp-reaktion, .fi-sp-senden, .fi-sp-komposer { transition: none !important; }
 }
 `;

@@ -349,9 +349,11 @@ async function main(): Promise<void> {
       // ═══════════════════════════════════════════════════════════════════
       gruppe("6. Space: Auto-Posts sind idempotent");
       // ═══════════════════════════════════════════════════════════════════
-      gleich("90 Gedanken", GEDANKEN.length, 90);
+      // Am 11.08.2026 auf 180 verdoppelt: Die Content-Engine setzt mehrere
+      // Beiträge täglich — mit 90 wäre der Vorrat in vier Wochen durch.
+      gleich("180 Gedanken", GEDANKEN.length, 180);
       const nummern = new Set(GEDANKEN.map((g) => g.nr));
-      gleich("… mit eindeutigen Nummern", nummern.size, 90);
+      gleich("… mit eindeutigen Nummern", nummern.size, GEDANKEN.length);
       ok("… alle mit Text", GEDANKEN.every((g) => g.text.trim().length > 25));
       // Kein Spruch zweimal binnen 90 Tagen: Die Rotation ist ein Ringpuffer.
       const drei = new Set<number>();
@@ -589,7 +591,11 @@ async function main(): Promise<void> {
     UNION ALL SELECT 'agenten', COUNT(*)::int FROM fiaon_agents WHERE name = ${`Prüfmensch ${stempel}`}
     UNION ALL SELECT 'bestellungen', COUNT(*)::int FROM fiaon_applications WHERE ref LIKE ${`FIAON-MEN${stempel}%`}
     UNION ALL SELECT 'maillog', COUNT(*)::int FROM fiaon_mail_log WHERE empfaenger LIKE ${`%${stempel.toLowerCase()}@pruefstand-menschen.test`}
+    -- NUR reine Datums-Schlüssel: Der Seed-Lauf legt Beiträge mit
+    -- „seed-…" an, und als Text sortiert „s" über jede Jahreszahl — die
+    -- erste Fassung zählte deshalb 1020 fremde Beiträge als eigene Reste.
     UNION ALL SELECT 'posts', COUNT(*)::int FROM fiaon_posts WHERE auto_art = 'gedanke'
+      AND auto_schluessel ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
       AND auto_schluessel > to_char(NOW() + INTERVAL '300 days', 'YYYY-MM-DD')
   `) as any[];
   for (const r of reste) gleich(`Keine eigene Zeile übrig: ${r.was}`, Number(r.n), 0);

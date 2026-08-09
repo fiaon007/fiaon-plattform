@@ -529,12 +529,16 @@ setInterval(() => {
   import("../lib/fiaon-zustellung")
     .then((m) => m.zustellungAbgleichen())
     .catch((err) => console.error("[FIAON-FOLLOWUP] Zustellung:", err));
-  // Der Space bekommt seine Auto-Posts vor sieben Uhr Berliner Zeit.
+  // ── Space: JEDEN Lauf, nicht nur vor sieben ──────────────────────────────
+  // Bis zum 11.08.2026 stand hier `if (stunde < 7)`. Das passte, solange der
+  // Space genau einen Beitrag pro Tag bekam. Die Content-Engine verteilt
+  // zwanzig über den Tag — mit der alten Bedingung wäre kein einziger davon
+  // erschienen, und der Feed wäre wieder leer gewesen.
+  //
+  // `spaceTageslauf` entscheidet selbst, was zu dieser Stunde fällig ist, und
+  // ist über die Auto-Schlüssel idempotent.
   import("../lib/fiaon-space")
-    .then(async (m) => {
-      const stunde = Number(new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }).format(new Date()));
-      if (stunde < 7) await m.spaceTageslauf();
-    })
+    .then((m) => m.spaceTageslauf())
     .catch((err) => console.error("[FIAON-FOLLOWUP] Space:", err));
 }, 20 * 60 * 1000);
 

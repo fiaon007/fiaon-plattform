@@ -21,6 +21,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { sqlPool } from "../server/lib/db-pool";
 import { brevoKlartext, brevoNichtEingerichtet } from "../server/lib/fiaon-brevo-fehler";
 import { filterZahlen, kundenListe } from "../server/lib/fiaon-kundenzentrale";
+import { GEDANKEN } from "../server/lib/fiaon-gedanken";
+import {
+  ABSTAND_MINUTEN, DICHTE_MAX, DICHTE_MIN, DICHTE_VORGABE,
+  FENSTER_BIS, FENSTER_VON, tagesBauplan,
+} from "../server/lib/fiaon-space-engine";
+import { PIN_GRENZE } from "../server/routes/fiaon-space";
 
 let bestanden = 0;
 let fehlgeschlagen = 0;
@@ -291,7 +297,119 @@ async function main(): Promise<void> {
   ok("„Start“ bleibt als eigener Punkt", /path="\/agent\/start"/.test(app));
 
   // ═══════════════════════════════════════════════════════════════════════
-  gruppe("9. Verhalten gegen echte Daten");
+  gruppe("9. Content-Engine und Seed");
+  // ═══════════════════════════════════════════════════════════════════════
+  gleich("Es gibt 180 Gedanken", GEDANKEN.length, 180);
+  ok("Jede Nummer nur einmal", new Set(GEDANKEN.map((g) => g.nr)).size === GEDANKEN.length);
+  ok("Kein Gedanke doppelt", new Set(GEDANKEN.map((g) => g.text)).size === GEDANKEN.length);
+
+  const plan20 = tagesBauplan("2026-08-11", 20);
+  gleich("Der Bauplan liefert genau die Zielmenge", plan20.length, 20);
+  const zeiten = plan20.map((b) => b.am.getTime());
+  ok("Chronologisch sortiert", zeiten.every((t, i) => i === 0 || t >= zeiten[i - 1]));
+  const abstaende = zeiten.slice(1).map((t, i) => (t - zeiten[i]) / 60_000);
+  ok(`Mindestabstand eingehalten (${Math.min(...abstaende)} Min)`,
+    Math.min(...abstaende) >= ABSTAND_MINUTEN, String(Math.min(...abstaende)));
+  const stunden = plan20.map((b) => b.am.getUTCHours());
+  ok(`Alles im Fenster ${FENSTER_VON}–${FENSTER_BIS} Uhr`,
+    Math.min(...stunden) >= FENSTER_VON && Math.max(...stunden) <= FENSTER_BIS,
+    `${Math.min(...stunden)}–${Math.max(...stunden)}`);
+  ok("Schlüssel sind eindeutig",
+    new Set(plan20.map((b) => `${b.art}|${b.schluessel}`)).size === plan20.length);
+
+  // Der Punkt: Zwei Tage hintereinander dürfen sich nicht wiederholen.
+  const a1 = tagesBauplan("2026-08-11", 20).map((b) => b.text);
+  const a2 = tagesBauplan("2026-08-12", 20).map((b) => b.text);
+  const doppelt = a1.filter((t) => a2.includes(t)).length;
+  gleich("Kein Beitrag wiederholt sich am Folgetag", doppelt, 0);
+
+  // Die Dichte wird respektiert.
+  for (const z of [5, 12, 20, 40] as const) {
+    gleich(`Ziel ${z} ergibt ${z} Beiträge`, tagesBauplan("2026-08-11", z).length, z);
+  }
+  ok("Der Betreiber kann mindestens 10 bis 15 pro Tag einstellen",
+    DICHTE_MIN <= 10 && DICHTE_MAX >= 15 && DICHTE_VORGABE >= 15,
+    `${DICHTE_MIN}–${DICHTE_MAX}, Vorgabe ${DICHTE_VORGABE}`);
+
+  const engine = datei("server/lib/fiaon-space-engine.ts");
+  ok("Ereignis-Posts sind idempotent (ON CONFLICT)", /ON CONFLICT \(auto_art, auto_schluessel\)/.test(engine));
+  ok("Abschluss-Posts nennen NUR Vorname und Zahl",
+    /Abschluss des Tages geholt/.test(engine) && !/primary_email|person_id.*name/.test(engine));
+  ok("Testkonten erzeugen keine Abschluss-Posts", /if \(!a \|\| a\.is_test_account\) return false/.test(engine));
+  ok("Ein Tag ohne Abschluss bekommt keine Rangliste",
+    /if \(zeilen\.length === 0\) return false/.test(engine));
+
+  const seed = datei("scripts/space-seed.ts");
+  ok("Das Seed-Skript hat eine Vorschau", /VORSCHAU\. Nichts geschrieben/.test(seed));
+  ok("… und schreibt nur mit --schreiben", /const SCHREIBEN = process\.argv\.includes\("--schreiben"\)/.test(seed));
+  ok("Ereignis-Posts kommen aus ECHTEN Daten",
+    /FROM fiaon_commissions c/.test(seed) && !/Math\.random/.test(seed));
+  ok("Der Lauf benutzt denselben Bauplan wie die Engine", /tagesBauplan\(datum, ziel\)/.test(seed));
+
+  const followup = datei("server/routes/fiaon-followup.ts");
+  ok("Der Space-Lauf greift NICHT mehr nur vor sieben Uhr",
+    !/if \(stunde < 7\) await m\.spaceTageslauf/.test(followup));
+  const agentQuelle = datei("server/routes/fiaon-agent.ts");
+  ok("Der Abschluss-Post entsteht im Geschäftsvorgang", /postAbschluss\(Number\(app\.assigned_agent_id\)\)/.test(agentQuelle));
+  ok("… und wirft die Provisionsbuchung nicht um",
+    /try \{[\s\S]{0,200}postAbschluss[\s\S]{0,120}catch/.test(agentQuelle));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  gruppe("10. Space: Chips, Pin-Grenze, Bild, Nachladen");
+  // ═══════════════════════════════════════════════════════════════════════
+  const spaceRouten = datei("server/routes/fiaon-space.ts");
+  gleich("Höchstens zwei angepinnte Beiträge", PIN_GRENZE, 2);
+  ok("Bei erreichter Grenze wird GEFRAGT, nicht verdrängt",
+    /grenzeErreicht: true/.test(spaceRouten) && /Welcher soll weichen/.test(spaceRouten));
+  ok("… und der zu Lösende muss angepinnt sein",
+    /nicht angepinnt/.test(spaceRouten));
+
+  ok("Der Akten-Chip wird gegen das Sichtfeld geprüft",
+    /nur Akten anhängen, die du selbst betreust/.test(spaceRouten));
+  ok("Die Aktensuche zeigt nur eigene Kunden",
+    /nurEigene = rolle === "agent" \? req\.agent!\.id : null/.test(spaceRouten));
+  ok("Im Feed steht NUR die Referenz, kein Name",
+    /akteRef: p\.akte_ref/.test(datei("server/lib/fiaon-space.ts"))
+    && !/akte_name/.test(spaceRouten));
+
+  ok("Bilder werden einzeln abgeholt, nicht im Feed",
+    /space\/bild\/:id/.test(spaceRouten) && /\(p\.bild IS NOT NULL\) AS hat_bild/.test(datei("server/lib/fiaon-space.ts")));
+  ok("Nur JPEG, PNG, WebP", /image\\\/\(\?:jpeg\|png\|webp\)/.test(spaceRouten));
+  ok("Es gibt eine Größengrenze", /2_500_000/.test(spaceRouten));
+
+  ok("Der Feed lädt über einen Anker, nicht über ein Offset",
+    /vorId/.test(datei("server/lib/fiaon-space.ts")));
+  ok("Angepinntes nur auf der ersten Seite", /AND NOT p\.angepinnt/.test(datei("server/lib/fiaon-space.ts")));
+  ok("Nachladen markiert NICHT als gesehen", /if \(!vorId\) \{/.test(spaceRouten));
+
+  const spaceSeite = datei("client/src/pages/agent/space.tsx");
+  ok("Unendliches Scrollen über einen Beobachter", /IntersectionObserver/.test(spaceSeite));
+  ok("… mit Vorlauf", /rootMargin: "400px"/.test(spaceSeite));
+  ok("„Neue Beiträge“ als Pille, nicht eingefügt", /fi-sp-pill/.test(spaceSeite));
+  ok("Bilder werden IM BROWSER verkleinert", /createImageBitmap/.test(spaceSeite));
+  ok("Die Aktensuche ist entprellt", /setTimeout\(async \(\) => \{[\s\S]{0,200}akte-suche/.test(spaceSeite));
+  ok("Der Akten-Chip erklärt sich selbst", /Akte öffnen — wenn du berechtigt bist/.test(spaceSeite));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  gruppe("11. Akte: Bestellungen verwalten");
+  // ═══════════════════════════════════════════════════════════════════════
+  const zentralenQuelle = datei("server/routes/fiaon-zentralen.ts");
+  ok("Es gibt eine Vorschau", /admin\/bestellungen\/vorschau/.test(zentralenQuelle));
+  ok("… und eine Ausführung", /admin\/bestellungen\/entfernen/.test(zentralenQuelle));
+  ok("Bezahlte werden archiviert statt gelöscht",
+    /const bezahlt = String\(r\.payment_status\) === "paid"[\s\S]{0,600}art = "archivieren"/.test(zentralenQuelle));
+  ok("Auch mit Rechnung, Provision oder Raten",
+    /hatRechnung \|\| hatProvision \|\| hatRaten/.test(zentralenQuelle));
+  ok("§ 147 AO steht in der Begründung", /147 AO/.test(zentralenQuelle));
+  ok("Bestätigung durch wörtliches Eintippen", /Bitte zur Bestätigung genau eintippen/.test(zentralenQuelle));
+  ok("Jede Löschung wird protokolliert", /INSERT INTO fiaon_loeschungen/.test(zentralenQuelle));
+  const akte = datei("client/src/pages/admin-kunde.tsx");
+  ok("Die Akte hat Mehrfachauswahl", /gewaehlteRefs/.test(akte));
+  ok("… und den Dialog auf der FiaonEbene",
+    /<FiaonEbene[\s\S]{0,300}Was mit diesen Bestellungen passiert/.test(akte));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  gruppe("12. Verhalten gegen echte Daten");
   // ═══════════════════════════════════════════════════════════════════════
   // Die Zählprobe, die gestern den Archiv-Fehler fand — sie bleibt.
   const zahlen = await filterZahlen();
@@ -361,7 +479,7 @@ async function main(): Promise<void> {
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  gruppe("10. Gegenprobe: nichts geschrieben");
+  gruppe("13. Gegenprobe: nichts geschrieben");
   // ═══════════════════════════════════════════════════════════════════════
   const [nachher] = await sqlPool`
     SELECT (SELECT COUNT(*) FROM fiaon_agents)::int AS agenten,

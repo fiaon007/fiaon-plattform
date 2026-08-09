@@ -11,7 +11,7 @@
 // BREVO IST EINE ATTRAPPE. `BREVO_API_KEY` zeigt auf eine `.invalid`-Adresse,
 // der Make-Webhook ebenso. Es geht keine echte Mail raus, und die
 // Verifikation läuft gegen das Verhalten „Brevo nicht erreichbar" — was
-// genau der Zustand ist, in dem der Betreiber die Plattform heute vorfindet.
+// genau der Zustand ist, in dem der Vorgesetzte die Plattform heute vorfindet.
 //
 //   npx tsx scripts/pruef-mail.ts
 // ═══════════════════════════════════════════════════════════════════════════
@@ -206,7 +206,7 @@ async function main(): Promise<void> {
       // ═══════════════════════════════════════════════════════════════════
       const hub = readFileSync("server/routes/fiaon-admin-hub.ts", "utf8");
       const hubCode = hub.split("\n").filter((z) => !/^\s*(\/\/|\*|\/\*)/.test(z)).join("\n");
-      ok("Keine Heuristik über „Betreiber-TODO“ mehr", !/Betreiber-TODO\/i\.test/.test(hubCode));
+      ok("Keine Heuristik über „Vorgesetzten-TODO“ mehr", !/Vorgesetzten-TODO\/i\.test/.test(hubCode));
       ok("… und kein `makeBranchReady` im Code", !/makeBranchReady/.test(hubCode));
       // Nur SICHTBARER Text. Die Kommentare in diesen Dateien erklären, was
       // hier früher stand und warum es weg ist — genau dieser Satz enthält die
@@ -383,7 +383,7 @@ async function main(): Promise<void> {
       ok("Empfänger 2 bekommt SEINEN", t2.includes("FIAON-BBB222") && !t2.includes("FIAON-AAA111"));
       ok("Anrede je Empfänger", t1.startsWith("Hi Anna") && t2.startsWith("Hi Bert"));
       ok("Ansprechpartner je Empfänger", t1.includes("Lucas") && t2.includes("Nikita"));
-      ok("Die IBAN steht drin", t1.includes("AT02 2011 1849 5473 0900"));
+      ok("Die IBAN steht drin", t1.includes("BE09 9058 9276 3957"));
       ok("Der Florentine-Fall funktioniert", bausteineFuellen("Hi {Anrede}, wie besprochen: {Zahlungsdaten}", e1 as any).includes("Verwendungszweck: FIAON-AAA111"));
       ok("Ohne Referenz wird nichts erfunden",
         /kein Verwendungszweck vor/.test(bausteineFuellen("{Zahlungsdaten}", { ...e1, zahlungsreferenz: null } as any)));

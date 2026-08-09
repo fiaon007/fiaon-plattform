@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // BREVO-FEHLER IN KLARTEXT
 //
-// Der Betreiber sah in der Mail-Zentrale die rohe API-Antwort:
+// Der Vorgesetzte sah in der Mail-Zentrale die rohe API-Antwort:
 //
 //   {"message":"Unrecognised IP address ... unauthorized","code":"unauthorized"}
 //

@@ -19,7 +19,7 @@
 // ── WAS DIESE DATEI TUT ────────────────────────────────────────────────────
 // Sie holt aus JEDEM Fehlerobjekt das Beste heraus, was drinsteht, und
 // ergänzt für die bekannten Twilio-Codes, WAS ZU TUN IST. Ein Code allein
-// hilft dem Betreiber nicht; „31402 — der Browser hat kein Mikrofon
+// hilft dem Vorgesetzten nicht; „31402 — der Browser hat kein Mikrofon
 // freigegeben" schon.
 //
 // Geteilt zwischen Server und Browser: Beide Seiten sollen dieselbe Sprache
@@ -35,7 +35,7 @@ export interface TelefonFehler {
   rat: string;
   /** Die Rohfassung, für das Protokoll. Nie für die Oberfläche. */
   roh: string;
-  /** Kann der Betreiber das selbst beheben? */
+  /** Kann der Vorgesetzte das selbst beheben? */
   behebbar: boolean;
 }
 

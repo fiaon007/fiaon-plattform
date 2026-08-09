@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════
 // FIAON System-Diagnose (Phase 5) — /admin/diagnose (nur Admin).
 //
-// Liefert dem Betreiber eine strukturierte Ereignis-/Problem-Konsole:
+// Liefert dem Vorgesetzten eine strukturierte Ereignis-/Problem-Konsole:
 //  - GET  /admin/diagnose/events   persistierte + synthetische Ereignisse,
 //         gefiltert (severity/category/from/to/q), aggregiert nach Fingerprint.
 //  - GET  /admin/diagnose/raw      Rohdaten-Ring-Puffer (maskiert, Suche, Download).

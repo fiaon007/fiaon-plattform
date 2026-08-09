@@ -231,7 +231,7 @@ export function SendeMenue({
     <>
       {/* Auf der FiaonEbene: Glas-Schleier statt schwarzem Vorhang, Eintritt
           aus der Tiefe, Glas nur auf Kopf und Fuß. Vorher ein weißer Kasten
-          auf `rgba(7,11,22,.5)` — der Standardlook, den der Betreiber zu
+          auf `rgba(7,11,22,.5)` — der Standardlook, den der Vorgesetzte zu
           Recht abgelehnt hat. */}
       <FiaonEbene
         offen={offen} onZu={onSchliessen}

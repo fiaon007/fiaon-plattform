@@ -377,7 +377,7 @@ export async function supersedeSisterOrders(paidRef: string): Promise<{ count: n
 }
 
 // ── P3-A: Dubletten-ERKENNUNG beim Antrags-Intake (E-Mail ODER Telefon) ──────
-// Betreiber-Entscheidung (Ticket P3-A): NUR ERKENNEN + FLAGGEN.
+// Vorgesetzten-Entscheidung (Ticket P3-A): NUR ERKENNEN + FLAGGEN.
 // Es findet KEIN automatischer Merge/Reuse im Zahlungsfluss statt — Zahlungs-
 // referenz, Rechnungsnummer und Provision bleiben unangetastet. Gefundene
 // Dubletten werden ausschließlich per Audit-Log dokumentiert und erscheinen in
@@ -698,7 +698,7 @@ export async function undoMergeApplications(
 //
 // UNSICHERHEIT: Existieren ZWEI oder mehr BEZAHLTE Schwester-Datensätze, findet
 // KEIN Automatik-Merge statt — der Fall wird als „prüfen" geflaggt (Audit-Log)
-// und erscheint in /admin/dubletten zur manuellen Entscheidung des Betreibers.
+// und erscheint in /admin/dubletten zur manuellen Entscheidung des Vorgesetzten.
 //
 // SCHUFA/Bonitäts-Bestellungen sind ein EIGENES Produkt (dieselbe Person kann
 // Aktivierung UND SCHUFA kaufen) → werden bewusst NIE automatisch verknüpft.
@@ -1278,7 +1278,7 @@ router.get("/invoice/:paymentRef.pdf", async (req, res) => {
  * DIE EINE BUCHUNG (herausgelöst am 06.08.2026).
  *
  * Seit die Vertriebsleitung Zahlungen buchen darf, gibt es zwei Aufrufer: die
- * Zahlungszentrale des Betreibers und `/agent/vertrieb`. Eine zweite, „kleine"
+ * Zahlungszentrale des Vorgesetzten und `/agent/vertrieb`. Eine zweite, „kleine"
  * Buchung im Vertriebsmodul wäre der sichere Weg in auseinanderlaufende
  * Zustände — eine Bestellung, die bezahlt ist, aber keine Provision auslöst,
  * oder ein Konto, das bezahlt ist und trotzdem nicht aufgeht.
@@ -1290,7 +1290,7 @@ router.get("/invoice/:paymentRef.pdf", async (req, res) => {
  *
  * `quelle` wandert nur ins Protokoll — sie darf die Wirkung nicht verändern.
  * Eine Buchung der Vertriebsleitung muss dasselbe bewirken wie eine des
- * Betreibers, sonst wäre sie eine halbe Buchung.
+ * Vorgesetzten, sonst wäre sie eine halbe Buchung.
  */
 export async function alsBezahltBuchen(
   paymentRef: string,
@@ -2451,7 +2451,7 @@ router.post("/application", async (req, res) => {
           -- Dieselbe Ursache im Rueckfall-Speicher: utm wurde komplett durch
           -- ein Objekt mit nur dem Passwort ersetzt. Ohne Passwort im Body
           -- schrieb das ein leeres Objekt und loeschte die zweite Kopie.
-          -- (Beweis im Bestand: Betreiber-Datensatz FIAON-MNPTDV19-QYAJ hat utm leer.)
+          -- (Beweis im Bestand: Vorgesetzten-Datensatz FIAON-MNPTDV19-QYAJ hat utm leer.)
           -- Jetzt wird der Schluessel nur ERGAENZT, wenn ein Passwort mitkommt.
           utm = CASE
                   WHEN ${password ?? ''} = '' THEN utm
@@ -2587,7 +2587,7 @@ export async function loadLoginFamily(normalizedEmail: string): Promise<any[]> {
 
 // ── Protokoll jedes Login-Versuchs ──────────────────────────────────────────
 // Damit ein Aussperren nie wieder unbemerkt läuft: Grund, Zeit, maskierte
-// E-Mail. Zusätzlich ein Pseudonym (SHA-256 der E-Mail), damit der Betreiber
+// E-Mail. Zusätzlich ein Pseudonym (SHA-256 der E-Mail), damit der Vorgesetzte
 // Versuche gruppieren kann, ohne Klartext-Adressen zu speichern.
 let loginLogEnsured = false;
 async function ensureLoginLog(): Promise<void> {
@@ -3022,7 +3022,7 @@ router.get("/kyc-status/:ref", async (req, res) => {
 // Dieser Endpunkt schließt genau diese Wissenslücke — und NUR sie:
 //   - Er liest ausschließlich (kein UPDATE, kein INSERT).
 //   - Er verändert weder Zahlungs- noch Freischaltungslogik. Ob ein bezahlter
-//     Kauf den Freischaltungs-Nachweis erfüllt, entscheidet der Betreiber
+//     Kauf den Freischaltungs-Nachweis erfüllt, entscheidet der Vorgesetzte
 //     (SYSTEM_DIAGNOSE.md, Abschnitt B3) — hier wird nur berichtet, was ist.
 //   - Zuordnung über die E-Mail des Kunden, weil es keine andere Verbindung gibt.
 //
@@ -3272,7 +3272,7 @@ router.patch("/admin/applications/:ref/review", async (req, res) => {
         INSERT INTO fiaon_agent_events (agent_id, type, meta, actor, reason)
         VALUES (NULL, 'konto_status_geaendert',
                 ${JSON.stringify({ ref, accountStatus, quelle: "admin_review" })},
-                'Betreiber (Admin-Prüfung)',
+                'Vorgesetzter (Admin-Prüfung)',
                 ${`Kontozustand auf '${accountStatus}' gesetzt`})
       `.catch((e) => console.error("[FIAON-REVIEW] Protokoll:", e));
     }
@@ -4254,7 +4254,7 @@ router.get("/admin/login-lockouts", async (_req, res) => {
       if (!familyHasPassword) {
         reason = "kein Passwort hinterlegt — Kunde muss es über „Passwort vergessen\" neu setzen";
       } else if (suspended) {
-        reason = "Konto gesperrt (account_status='suspended') — Entscheidung des Betreibers";
+        reason = "Konto gesperrt (account_status='suspended') — Entscheidung des Vorgesetzten";
       } else if (!hasAccess) {
         reason = `Zugang am Konto nicht frei (status='${account.status ?? "-"}', Zahlung='${account.payment_status ?? "-"}') — bezahlt wurde eine andere Zeile`;
       } else if (oldWouldFail) {

@@ -120,7 +120,7 @@ export default function VermerkDialog({ ziel, agenten, onAbbrechen, onFertig }: 
   }, [onAbbrechen]);
 
   // Weist man eine Aufgabe zu, muss der Zuständige sie sehen können. Statt den
-  // Betreiber darauf hinzuweisen, wird die Sichtbarkeit einfach mitgezogen.
+  // Vorgesetzter darauf hinzuweisen, wird die Sichtbarkeit einfach mitgezogen.
   useEffect(() => {
     if (art === "aufgabe" && zustaendig && sicht === "auswahl" && !auswahl.includes(zustaendig)) {
       setAuswahl((a) => [...a, zustaendig]);

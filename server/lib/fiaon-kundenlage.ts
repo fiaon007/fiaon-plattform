@@ -6,7 +6,7 @@
 //    helfen kann, ohne dass alles bei dir landet."
 //
 // Drei Fragen kommen im Tagesgeschäft immer wieder, und für alle drei musste
-// bisher der Betreiber angeschrieben werden:
+// bisher der Vorgesetzte angeschrieben werden:
 //   1. Ist das Geld da? Und wenn der Kunde sagt, er habe überwiesen — stimmt das?
 //   2. Welche Unterlagen fehlen dem Kunden noch?
 //   3. Warum kommt der Kunde nicht in sein Konto?
@@ -246,8 +246,8 @@ export async function zugangsLage(email: string): Promise<ZugangsLage> {
     "AUTH-01": "Der Kunde tippt ein falsches Passwort. „Passwort vergessen“ auf der Login-Seite — Name, E-Mail und Geburtsdatum genügen.",
     "AUTH-02": "Für dieses Konto ist kein Passwort gespeichert. Der Kunde setzt es über „Passwort vergessen“ — dafür braucht er Name, E-Mail und Geburtsdatum.",
     "AUTH-03": "Die Zahlung ist noch nicht gebucht. Sobald sie steht, geht das Konto automatisch auf.",
-    "AUTH-04": "Das Konto ist vom Betreiber gesperrt. Das kann die Vertriebsleitung nicht aufheben — bitte an den Betreiber.",
-    "AUTH-05": "Technischer Fehler beim Login. Bitte an den Betreiber, mit Uhrzeit und E-Mail des Kunden.",
+    "AUTH-04": "Das Konto ist vom Vorgesetzter gesperrt. Das kann die Vertriebsleitung nicht aufheben — bitte an den Vorgesetzten.",
+    "AUTH-05": "Technischer Fehler beim Login. Bitte an den Vorgesetzten, mit Uhrzeit und E-Mail des Kunden.",
   };
 
   return {

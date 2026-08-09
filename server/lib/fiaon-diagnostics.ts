@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════
 // FIAON System-Diagnose (Phase 5) — zentraler Ereignis-/Problem-Logger.
 //
-// ZWECK: Der Betreiber sieht auf /admin/diagnose in Echtzeit, was klemmt —
+// ZWECK: Der Vorgesetzte sieht auf /admin/diagnose in Echtzeit, was klemmt —
 // technisch, bei Kunden, bei Agenten — BEVOR ein Agent ein Ticket schreibt.
 //
 // STRIKTE REGELN (nicht verhandelbar):

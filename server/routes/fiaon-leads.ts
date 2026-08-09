@@ -2078,7 +2078,7 @@ router.post("/admin/leads/followup-bulk/start", async (req: Request, res: Respon
     await ensureLeadTables();
     if (leadBulkJob?.running) return res.status(409).json({ ok: false, error: "Es läuft bereits ein Bulk-Versand" });
     const mode: BulkMode = req.body?.mode === "all" ? "all" : "eligible";
-    // "eligible" respektiert das harte Fenster; "all" wird bewusst vom Betreiber ausgelöst → kein Fensterzwang.
+    // "eligible" respektiert das harte Fenster; "all" wird bewusst vom Vorgesetzter ausgelöst → kein Fensterzwang.
     if (mode === "eligible" && !withinHardWindow()) return res.status(400).json({ ok: false, error: "Automatischer Versand nur zwischen 08:00 und 20:00 Uhr (Europa/Berlin) möglich" });
     const s = await getSettings();
     const max = Math.max(0, Math.round(Number(s.max_lead_followups)) || 5);

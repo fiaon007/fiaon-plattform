@@ -330,7 +330,7 @@ export const STRECKEN: Record<Rolle, Strecke> = {
         schema: "ergebnis",
         text:
           "Zahlt am (mit Datum), überwiesen mit Beleg, nicht erreicht, oder Weitergabe an den "
-          + "Betreiber. Was es NICHT gibt: Erlass, Stundung, Kürzung, Storno. Diese Wege "
+          + "Vorgesetzter. Was es NICHT gibt: Erlass, Stundung, Kürzung, Storno. Diese Wege "
           + "existieren in deinem Bereich nicht — nicht als gesperrter Knopf, sondern "
           + "überhaupt nicht. Wer einen Nachlass braucht, geht über die Weitergabe.",
       },

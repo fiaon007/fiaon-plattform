@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 -- FESTGEHALT UND WIRTSCHAFTLICHKEIT
 --
--- Der Betreiber: „ab jetzt bekommen unsere Angestellten (nicht jeder) einen
+-- Der Vorgesetzte: „ab jetzt bekommen unsere Angestellten (nicht jeder) einen
 -- festen Gehalt … ich muss jeden Tag auf 1 Blick sehen: Lohnt sich der
 -- Mitarbeiter? Sind die täglichen Kosten gedeckt? Ab wann macht er Gewinn?"
 --
@@ -33,7 +33,7 @@ ALTER TABLE fiaon_agents
   ADD COLUMN IF NOT EXISTS startdatum DATE;
 
 COMMENT ON COLUMN fiaon_agents.festgehalt_cents IS
-  'Monatliches Festgehalt in Cent. NUR für den Betreiber sichtbar — nie in '
+  'Monatliches Festgehalt in Cent. NUR für den Vorgesetzten sichtbar — nie in '
   'Antworten an Team oder Vertriebsleitung aufnehmen.';
 
 -- ── ARBEITSTAGE ────────────────────────────────────────────────────────────

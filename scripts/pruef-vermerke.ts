@@ -112,11 +112,11 @@ async function json(pfad: string, init?: RequestInit, cookie?: string) {
   pruefe("KEIN Agent sieht die private Notiz",
     !sicht1.some((t) => t.includes("privat —")) && !sicht2.some((t) => t.includes("privat —")));
 
-  // ── Betreiber-Sicht und Zähler ───────────────────────────────────────────
+  // ── Vorgesetzten-Sicht und Zähler ───────────────────────────────────────────
   console.log("\n── Liste und Zähler ─────────────────────");
   const liste = await json(`/api/fiaon/admin/vermerke?ref=${encodeURIComponent(kunde.ref)}`, undefined, adminCookie);
   const meine = (liste.body?.vermerke || []).filter((v: any) => String(v.text).startsWith("PRUEFUNG"));
-  pruefe("Betreiber sieht alle Vermerke der Person", meine.length >= 4, `gefunden: ${meine.length}`);
+  pruefe("Vorgesetzter sieht alle Vermerke der Person", meine.length >= 4, `gefunden: ${meine.length}`);
   const dieAufgabe = meine.find((v: any) => v.text.includes("Aufgabe für Agent 1"));
   pruefe("Aufgabe trägt Zuständigen und Frist",
     !!dieAufgabe && dieAufgabe.zustaendigName === a1.name && dieAufgabe.faelligAm === morgen,
@@ -132,7 +132,7 @@ async function json(pfad: string, init?: RequestInit, cookie?: string) {
   const erledigt = await json(`/api/fiaon/admin/vermerke/${dieAufgabe.id}`, {
     method: "PATCH", body: JSON.stringify({ status: "erledigt" }),
   }, adminCookie);
-  pruefe("Betreiber kann erledigen", erledigt.body?.ok === true);
+  pruefe("Vorgesetzter kann erledigen", erledigt.body?.ok === true);
   const [nach] = await sqlPool`SELECT status, erledigt_am FROM fiaon_vermerke WHERE id = ${dieAufgabe.id}`;
   pruefe("Status und Zeitpunkt gespeichert", nach.status === "erledigt" && !!nach.erledigt_am);
 

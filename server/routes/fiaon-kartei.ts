@@ -254,7 +254,7 @@ async function ensureKarteiIndizes(): Promise<void> {
 
 /**
  * Uebersetzt die haeufigsten Datenbankfehler in einen Satz, mit dem der
- * Betreiber sofort etwas anfangen kann — statt eines nackten „Serverfehler".
+ * Vorgesetzter sofort etwas anfangen kann — statt eines nackten „Serverfehler".
  * Enthaelt bewusst KEINE Kundendaten, nur die technische Ursache.
  */
 function karteiFehlertext(err: any): string {
@@ -901,7 +901,7 @@ router.get("/agent/kartei", requireAgent, async (req: AgentRequest, res: Respons
     });
   } catch (err: any) {
     // Der Fehlercode gehoert in die Antwort. „Serverfehler" allein hat den
-    // Betreiber vor einem Bildschirm stehen lassen, auf dem nichts stand,
+    // Vorgesetzter vor einem Bildschirm stehen lassen, auf dem nichts stand,
     // womit sich arbeiten laesst. Der SQLSTATE verraet keine Kundendaten.
     console.error("[FIAON-KARTEI] liste:", err?.code, err?.message, err);
     res.status(500).json({

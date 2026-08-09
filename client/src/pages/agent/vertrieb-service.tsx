@@ -8,7 +8,7 @@ import { zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 // Gemeldet am 06.08.2026: „Damit ich Vertrieblern bei Fragen und kleineren
 // Kundenproblemen direkt helfen kann, ohne dass alles bei dir landet."
 //
-// Drei Listen, die vorher nur der Betreiber sehen konnte. Sie sind bewusst
+// Drei Listen, die vorher nur der Vorgesetzte sehen konnte. Sie sind bewusst
 // getrennt, obwohl sie denselben Bestand betreffen: Es sind drei verschiedene
 // Arbeiten. Wer Zahlungen prüft, ist in einem anderen Kopf als wer Unterlagen
 // nachfordert — eine gemischte Liste wäre schneller gebaut und langsamer
@@ -339,7 +339,7 @@ function BuchenDialog({ zahlung, onSchliessen, onFertig }: { zahlung: any; onSch
                 <li>Der Kunde bekommt die Bestätigungsmail mit seinem Zugang.</li>
                 <li>Offene Doppelbestellungen derselben E-Mail werden stillgelegt.</li>
                 <li>Die Provision wird für den dokumentierten Betreuer gebucht — nicht für dich.</li>
-                <li>Zurücknehmen kann die Buchung nur der Betreiber.</li>
+                <li>Zurücknehmen kann die Buchung nur der Vorgesetzte.</li>
               </ul>
             </div>
           </div>
@@ -390,7 +390,7 @@ export function VertriebDokumente() {
       <div className="flex items-center justify-between gap-3 mb-3">
         <p className="text-[12.5px]" style={{ color: "var(--fi-text-leise)" }}>
           Bezahlte Kunden, bei denen Unterlagen fehlen. Du siehst, WAS fehlt — die Dokumente selbst
-          bleiben beim Betreiber.
+          bleiben beim Vorgesetzter.
         </p>
         <input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Name, E-Mail, Referenz"
                className="h-[34px] px-3 rounded-xl border bg-white text-[13px] outline-none w-[220px] shrink-0"
@@ -583,7 +583,7 @@ export function LageTafel({ personId, basis = "/agent/vertrieb/person" }: {
           </p>
         )}
         <p className="mt-1 text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>
-          Prüfstand: {lage.dokumente?.kycStatus || "—"} · Inhalte sieht nur der Betreiber.
+          Prüfstand: {lage.dokumente?.kycStatus || "—"} · Inhalte sieht nur der Vorgesetzte.
         </p>
       </div>
 

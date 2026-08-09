@@ -9,7 +9,7 @@
  *   H1  Verschluckt der Login-Endpunkt technische Fehler? (Code-Prüfung, hier nur Kontext)
  *   H2  Passwort verloren (Merge / Überschreiben durch Zwischenspeichern)?
  *   H3  Status-Filter sperrt bezahlte Kunden aus?
- *   H4  Der konkrete Fall des Betreibers.
+ *   H4  Der konkrete Fall des Vorgesetzten.
  *
  * Zusätzlich: E-Mail-Normalisierung (Groß/Kleinschreibung, Leerzeichen) und
  * die „Neueste-Zeile-gewinnt"-Falle des Logins (ORDER BY created_at DESC LIMIT 1).
@@ -170,8 +170,8 @@ async function main() {
     console.log(`      ${r.email} → Login liest ${r.neueste_ref} (${r.neueste_zahlung}${r.merged_into ? ", gemergt" : ""}), PW liegt in: ${r.refs_mit_pw}`);
   }
 
-  // ── H4: Der Fall des Betreibers ───────────────────────────────────
-  h("H4 — Betreiber-Datensatz");
+  // ── H4: Der Fall des Vorgesetzten ───────────────────────────────────
+  h("H4 — Vorgesetzten-Datensatz");
   const op = await sql`
     SELECT ref, email, first_name, last_name, status, account_status, payment_status,
            merged_into, superseded_by, created_at, updated_at,

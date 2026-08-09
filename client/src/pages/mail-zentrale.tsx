@@ -7,7 +7,7 @@ import { FiaonEbene } from "@/components/FiaonEbene";
 // MAIL-ZENTRALE — der Florentine-Fall in zwanzig Sekunden
 //
 // „Hi {Anrede}, wie besprochen: {Zahlungsdaten}" — Kunde suchen, tippen,
-// senden. Bisher war das eine Nachricht an den Betreiber und ein Wartetag.
+// senden. Bisher war das eine Nachricht an den Vorgesetzten und ein Wartetag.
 //
 // Die Bausteine werden SERVERSEITIG je Empfänger gefüllt. Das ist der ganze
 // Punkt: Bei zwei Empfängern stehen zwei verschiedene Verwendungszwecke in
@@ -31,7 +31,7 @@ interface Baustein { marke: string; titel: string; erklaerung: string }
  *
  * ── DIE HAUSREGEL DAHINTER ─────────────────────────────────────────────────
  * Wenn etwas fehlschlägt, steht der GRUND in der Meldung. Nie ein Verweis auf
- * einen anderen Ort. Der Betreiber sah „0 verschickt, 1 fehlgeschlagen (Grund
+ * einen anderen Ort. Der Vorgesetzte sah „0 verschickt, 1 fehlgeschlagen (Grund
  * steht im Protokoll)" — und musste raten, wo dieses Protokoll ist.
  *
  * Der Grund lag zu diesem Zeitpunkt bereits vor. Er wurde ins Protokoll
@@ -130,7 +130,7 @@ function MarkeFunke({ size = 15 }: { size?: number }) {
 export default function MailZentraleSeite() {
   // ── ZWEI HÜLLEN, EIN INHALT ─────────────────────────────────────────────
   // `AgentShell` prüft die Agent-Anmeldung und zeigt sonst eine
-  // Anmeldeaufforderung. Der Betreiber hat kein Agent-Konto — für ihn wäre das
+  // Anmeldeaufforderung. Der Vorgesetzte hat kein Agent-Konto — für ihn wäre das
   // eine Sackgasse, und genau die hat er gemeldet.
   //
   // Unter /admin/ kommt die Seite deshalb OHNE AgentShell: Die Admin-Hülle
@@ -145,13 +145,13 @@ export default function MailZentraleSeite() {
 
 function Inhalt() {
   // ── EINE SEITE, ZWEI WEGE ────────────────────────────────────────────────
-  // Der Betreiber hat keinen Agent-Zugang. Bis zum 11.08.2026 zeigte sein
+  // Der Vorgesetzte hat keinen Agent-Zugang. Bis zum 11.08.2026 zeigte sein
   // Menüpunkt auf /agent/mail-zentrale und verlangte eine Anmeldung für ein
   // Konto, das er nicht besitzt.
   //
   // Statt einer zweiten Seite (zwei Fassungen einer Sendestrecke) entscheidet
   // die Adresse über die Endpunkte. Die Oberfläche ist identisch — nur die
-  // Grenzen sind es nicht: Der Betreiber sendet an bis zu 5.000 Empfänger,
+  // Grenzen sind es nicht: Der Vorgesetzte sendet an bis zu 5.000 Empfänger,
   // ein Teammitglied an zehn.
   const alsAdmin = typeof window !== "undefined"
     && window.location.pathname.startsWith("/admin/");
@@ -354,7 +354,7 @@ function Inhalt() {
             )}
 
             {/* ── EIN FELD FÜR ALLES ────────────────────────────────────
-                Der Betreiber: „verdammt kompliziert". Vorher waren es DREI
+                Der Vorgesetzte: „verdammt kompliziert". Vorher waren es DREI
                 Eingaben — Kundensuche, Gruppen-Knopfwand, externes Feld —
                 und man musste wissen, welche wofür ist.
 
@@ -529,7 +529,7 @@ function Inhalt() {
                 {/^Die KI antwortete mit HTTP 401/.test(kiFehler) && (
                   <p className="text-[12px] mt-1.5 leading-relaxed" style={{ color: "#92400e" }}>
                     Das ist kein Fehler an deinem Text: Der hinterlegte OpenAI-Schlüssel wird
-                    abgelehnt. Der Betreiber muss ihn erneuern — schreib solange von Hand.
+                    abgelehnt. Der Vorgesetzte muss ihn erneuern — schreib solange von Hand.
                   </p>
                 )}
               </div>

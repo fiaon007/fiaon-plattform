@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // LOHNT SICH DIESER MENSCH?
 //
-// Der Betreiber: „ich muss jeden Tag auf 1 Blick sehen — lohnt sich der
+// Der Vorgesetzte: „ich muss jeden Tag auf 1 Blick sehen — lohnt sich der
 // Mitarbeiter? Sind die täglichen Kosten gedeckt? Ab wann macht er Gewinn?"
 //
 // ── DIE FORMEL, IN WORTEN ──────────────────────────────────────────────────
@@ -66,7 +66,7 @@ export interface Wirtschaftlichkeit {
 /**
  * Die Rechnung für einen Menschen.
  *
- * NUR für den Betreiber aufrufen. Die Funktion prüft das nicht selbst — die
+ * NUR für den Vorgesetzten aufrufen. Die Funktion prüft das nicht selbst — die
  * Rechteprüfung sitzt in der Route, weil nur dort bekannt ist, wer fragt.
  */
 export async function wirtschaftlichkeit(
@@ -210,7 +210,7 @@ export async function wirtschaftlichkeit(
     ? Math.round((beitrag / gesamtKosten) * 100)
     : (beitrag > 0 ? 100 : 0);
 
-  // ── Der Satz, den der Betreiber im Vorbeigehen liest ────────────────────
+  // ── Der Satz, den der Vorgesetzte im Vorbeigehen liest ────────────────────
   let satz: string;
   if (gesamtKosten === 0) {
     satz = "Heute keine Kosten hinterlegt — reine Provision.";

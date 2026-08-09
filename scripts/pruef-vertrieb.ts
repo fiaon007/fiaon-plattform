@@ -432,7 +432,7 @@ async function ruf(pfad: string, cookie: string, init?: RequestInit) {
     console.log("  (keine offene Zahlung im Bestand — Buchungswälle nicht prüfbar)");
   }
 
-  // Storno bleibt beim Betreiber.
+  // Storno bleibt beim Vorgesetzter.
   for (const pfad of ["/api/fiaon/admin/payments/x/cancel", "/api/fiaon/admin/payments/x/refund"]) {
     const r = await ruf(pfad, bCookie, { method: "POST", body: JSON.stringify({}) });
     pruefe(`${pfad.replace("/api/fiaon/admin", "…")} bleibt zu`, [401, 403, 404].includes(r.status), `Status ${r.status}`);

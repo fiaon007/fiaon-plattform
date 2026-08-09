@@ -21,7 +21,7 @@
 // Erlass, Stundung, Kürzung, Storno. Nicht als gesperrter Knopf, sondern
 // überhaupt nicht: Es existiert keine Funktion in dieser Datei, die einen
 // Ratenbetrag oder eine Fälligkeit ändert. Wer einen Nachlass braucht, geht
-// über die Weitergabe an den Betreiber.
+// über die Weitergabe an den Vorgesetzten.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
@@ -79,8 +79,8 @@ export const RATEN_ERGEBNISSE: {
     hinweis: "Zählt den Versuch und legt die Rate auf morgen.",
   },
   {
-    art: "eskalation", label: "Härtefall — an den Betreiber", braucht: "notiz",
-    hinweis: "Erzeugt eine Aufgabe für den Betreiber. Nachlass und Stundung entscheidet nur er.",
+    art: "eskalation", label: "Härtefall — an den Vorgesetzten", braucht: "notiz",
+    hinweis: "Erzeugt eine Aufgabe für den Vorgesetzten. Nachlass und Stundung entscheidet nur er.",
   },
 ];
 
@@ -144,7 +144,7 @@ export async function ratenErgebnisAnwenden(
     }
     case "ueberwiesen_beleg":
       // Drei Tage: So lange braucht eine Überweisung im Zweifel, bis sie im
-      // Kontoabgleich auftaucht. Bucht der Betreiber vorher, verschwindet die
+      // Kontoabgleich auftaucht. Bucht der Vorgesetzte vorher, verschwindet die
       // Rate ohnehin aus der Liste.
       wiedervorlage = berlinPlusTage(3);
       meldung = "Vermerkt. Die Buchung macht der Kontoabgleich — die Rate bleibt bis dahin offen.";
@@ -155,19 +155,19 @@ export async function ratenErgebnisAnwenden(
       break;
     case "eskalation": {
       const n = String(opts.notiz || "").trim();
-      // Pflicht-Notiz: Eine Weitergabe ohne Begründung ist für den Betreiber
+      // Pflicht-Notiz: Eine Weitergabe ohne Begründung ist für den Vorgesetzten
       // wertlos — er sieht eine Aufgabe und weiß nicht, worum es geht.
       if (n.length < 10) {
         return {
           ok: false,
-          fehler: "Bitte schreib in zwei Sätzen, was der Kunde gesagt hat. Ohne Begründung kann der Betreiber nicht entscheiden.",
+          fehler: "Bitte schreib in zwei Sätzen, was der Kunde gesagt hat. Ohne Begründung kann der Vorgesetzte nicht entscheiden.",
         };
       }
       eskaliert = true;
-      // Aus der Liste, bis der Betreiber entschieden hat — sonst ruft man den
+      // Aus der Liste, bis der Vorgesetzte entschieden hat — sonst ruft man den
       // Menschen morgen wieder an, obwohl der Fall gerade geprüft wird.
       wiedervorlage = berlinPlusTage(14);
-      meldung = "An den Betreiber weitergegeben. Die Rate ruht, bis er entschieden hat.";
+      meldung = "An den Vorgesetzten weitergegeben. Die Rate ruht, bis er entschieden hat.";
       await lauf`
         INSERT INTO fiaon_vermerke (art, ref, text, sicht, fuer_betreiber, dringend, status, autor_art, autor_agent_id, autor_name)
         VALUES ('aufgabe', ${rate.ref},
@@ -175,7 +175,7 @@ export async function ratenErgebnisAnwenden(
                   + `(${(Number(rate.betrag_cents) / 100).toFixed(2).replace(".", ",")} €, `
                   + `Verwendungszweck ${rate.zahlungsreferenz}, fällig ${String(rate.faellig_am).slice(0, 10)}, `
                   + `Mahnstufe ${rate.mahnstufe}).\n\n${n}\n\n`
-                  + `Nachlass, Stundung und Storno entscheidet nur der Betreiber — `
+                  + `Nachlass, Stundung und Storno entscheidet nur der Vorgesetzte — `
                   + `im Inkasso-Bereich gibt es diese Wege nicht.`},
                 'betreiber', TRUE, TRUE, 'offen', 'agent', ${opts.agentId}, ${opts.agentName})
       `;
@@ -278,7 +278,7 @@ export async function arbeitsliste(
   `) as any[];
 }
 
-/** Kennzahlen für den Kopf — und für die Übersichten von Leitung und Betreiber. */
+/** Kennzahlen für den Kopf — und für die Übersichten von Leitung und Vorgesetzter. */
 export async function kennzahlen(lauf: Lauf = sqlPool): Promise<Record<string, any>> {
   const heute = berlinToday();
   const frist = await anrufPflichtTage(lauf);
@@ -337,7 +337,7 @@ export async function kennzahlen(lauf: Lauf = sqlPool): Promise<Record<string, a
  * PLATZHALTER-VORGABEN.
  *
  * Absichtlich runde, auffällige Werte. Die Oberfläche schreibt daneben „vom
- * Betreiber zu bestätigen", und `verguetung_bestaetigt_am` bleibt leer, bis er
+ * Vorgesetzter zu bestätigen", und `verguetung_bestaetigt_am` bleibt leer, bis er
  * es getan hat. Ein stiller Vorgabewert, den niemand prüft, wird sonst zur
  * echten Abrechnung.
  */
@@ -390,7 +390,7 @@ export async function praemieBuchen(
   if (!agent.verguetung_bestaetigt_am) {
     return {
       gebucht: false,
-      grund: "Die Vergütung dieses Mitarbeiters ist noch nicht vom Betreiber bestätigt — "
+      grund: "Die Vergütung dieses Mitarbeiters ist noch nicht vom Vorgesetzter bestätigt — "
         + "es wird nichts gebucht, was niemand freigegeben hat.",
     };
   }

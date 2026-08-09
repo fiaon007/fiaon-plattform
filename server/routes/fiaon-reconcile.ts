@@ -35,7 +35,7 @@ const router = Router();
 // ═══════════════════════════════════════════════════════════════════════════
 // ABGESCHALTET (04.08.2026) — Zahlungen werden manuell in der Plattform gebucht
 //
-// Der Betreiber sieht den Eingang auf dem Konto und bucht in der
+// Der Vorgesetzte sieht den Eingang auf dem Konto und bucht in der
 // Zahlungszentrale. CSV-Import und Abgleich werden nicht mehr benutzt.
 //
 // Der Code bleibt VOLLSTÄNDIG stehen und die Tabelle `fiaon_bank_txns` bleibt

@@ -13,7 +13,7 @@
 //   · Drohsprache. Wer am Telefon mit Schufa, Gericht oder Inkassobüro droht,
 //     erzeugt einen Straftatbestand, keine Zahlung — und FIAON haftet dafür.
 //   · Eigenmächtige Nachlässe. Ein zugesagter Erlass ist ein Vertrag. Wer ihn
-//     ohne Betreiber zusagt, verschenkt Geld, das ihm nicht gehört.
+//     ohne Vorgesetzter zusagt, verschenkt Geld, das ihm nicht gehört.
 // Deshalb existieren Erlass, Stundung und Storno im Bereich GAR NICHT — nicht
 // als gesperrter Knopf, sondern überhaupt nicht.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -51,14 +51,14 @@ export const INKASSO_ZUSAGE_TEXT: ZusageText = {
         "Du telefonierst aus dem System heraus. Jedes Gespräch wird mit Ansage "
         + "aufgezeichnet, und du hältst am Ende fest, was dabei herauskam: Zusage "
         + "mit Datum, überwiesen mit Beleg, nicht erreicht, oder Weitergabe an den "
-        + "Betreiber.",
+        + "Vorgesetzter.",
     },
     {
       titel: "Zahlungszusagen aufnehmen und Belege annehmen",
       text:
         "Wenn der Kunde ein Datum nennt, trägst du es ein — die Rate kommt dann an "
         + "diesem Tag wieder auf deinen Tisch. Schickt er einen Beleg, hängst du ihn "
-        + "an; gebucht wird er vom Betreiber nach Kontoabgleich.",
+        + "an; gebucht wird er vom Vorgesetzter nach Kontoabgleich.",
     },
     {
       titel: "Deine Vergütung jederzeit sehen",
@@ -72,7 +72,7 @@ export const INKASSO_ZUSAGE_TEXT: ZusageText = {
   kannNicht: [
     "Forderungen erlassen, stunden, kürzen oder stornieren — diese Wege gibt es "
       + "in deinem Bereich nicht, auch nicht in Ausnahmefällen. Wer einen "
-      + "Nachlass braucht, geht über den Betreiber.",
+      + "Nachlass braucht, geht über den Vorgesetzten.",
     "Ratenbeträge, Fälligkeiten oder Verwendungszwecke ändern.",
     "Eine Zahlung als eingegangen buchen — das entscheidet der Kontoabgleich, "
       + "nicht ein Gespräch.",
@@ -117,7 +117,7 @@ export const INKASSO_ZUSAGE_TEXT: ZusageText = {
         + "unterstellst keine Absicht und nutzt keine Notlage aus, um eine "
         + "schnellere Zusage zu bekommen. Wenn jemand offensichtlich nicht zahlen "
         + "kann, ist die richtige Antwort nicht mehr Druck, sondern die Weitergabe "
-        + "an den Betreiber.",
+        + "an den Vorgesetzten.",
     },
     {
       nr: 5,
@@ -134,7 +134,7 @@ export const INKASSO_ZUSAGE_TEXT: ZusageText = {
       text:
         "Härtefälle, angekündigte Insolvenz, Todesfälle, Drohungen gegen dich, "
         + "Beschwerden über den Ton eines Gesprächs und jeden Verdacht auf einen "
-        + "Fehler in der Ratenkette meldest du sofort dem Betreiber — über die "
+        + "Fehler in der Ratenkette meldest du sofort dem Vorgesetzten — über die "
         + "Weitergabe-Funktion, mit Notiz. Ein gemeldeter Fehler ist ein Fehler "
         + "weniger; ein verschwiegener wird teuer.",
     },

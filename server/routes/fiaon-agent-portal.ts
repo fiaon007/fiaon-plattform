@@ -956,12 +956,12 @@ router.get("/admin/agent-feedback", async (_req, res) => {
     }
     const data = rows.map((r: any) => {
       const msgs = byTicket.get(r.id) || [];
-      // „Wartet auf Betreiber-Antwort" = letzter echter Beitrag (agent/admin) ist vom Agenten.
+      // „Wartet auf Vorgesetzten-Antwort" = letzter echter Beitrag (agent/admin) ist vom Agenten.
       const real = msgs.filter((m) => m.author === "agent" || m.author === "admin");
       const awaitingReply = real.length > 0 && real[real.length - 1].author === "agent";
       return { ...r, messages: msgs, awaiting_reply: awaitingReply };
     });
-    // Wartende zuerst, dann jüngste — der Betreiber sieht sofort, wo er dran ist.
+    // Wartende zuerst, dann jüngste — der Vorgesetzte sieht sofort, wo er dran ist.
     data.sort((x: any, y: any) => {
       if (x.awaiting_reply !== y.awaiting_reply) return x.awaiting_reply ? -1 : 1;
       return new Date(y.created_at).getTime() - new Date(x.created_at).getTime();
@@ -1004,7 +1004,7 @@ router.patch("/admin/agent-feedback/:id", async (req, res) => {
         updated_at = NOW()
       WHERE id = ${id}
     `;
-    // Statuswechsel wird als System-Ereignis im Verlauf sichtbar (für Agent + Betreiber).
+    // Statuswechsel wird als System-Ereignis im Verlauf sichtbar (für Agent + Vorgesetzter).
     if (status !== null && status !== cur[0].status) {
       await sqlPool`
         INSERT INTO fiaon_agent_feedback_messages (feedback_id, author, event, body, meta)
@@ -1018,7 +1018,7 @@ router.patch("/admin/agent-feedback/:id", async (req, res) => {
   }
 });
 
-// Betreiber antwortet IM Thread (ersetzt das alte Kommentarfeld). Löst eine
+// Vorgesetzter antwortet IM Thread (ersetzt das alte Kommentarfeld). Löst eine
 // Mail an den Agenten aus (Make/Brevo, Event 'agent_feedback_reply') — sonst
 // merkt der Agent die Antwort nicht. Nichts wird gelöscht, alles im Verlauf.
 router.post("/admin/agent-feedback/:id/reply", async (req, res) => {
@@ -1041,7 +1041,7 @@ router.post("/admin/agent-feedback/:id/reply", async (req, res) => {
       INSERT INTO fiaon_agent_feedback_messages (feedback_id, author, body)
       VALUES (${id}, 'admin', ${body})
     `;
-    // admin_comment spiegelt die JÜNGSTE Betreiber-Antwort (Abwärtskompatibilität).
+    // admin_comment spiegelt die JÜNGSTE Vorgesetzten-Antwort (Abwärtskompatibilität).
     await sqlPool`
       UPDATE fiaon_agent_feedback SET
         admin_comment = ${body},
@@ -1055,7 +1055,7 @@ router.post("/admin/agent-feedback/:id/reply", async (req, res) => {
         VALUES (${id}, 'system', 'status', ${`Status auf „${STATUS_LABEL_DE[newStatus] || newStatus}" gesetzt.`}, ${JSON.stringify({ status: newStatus })})
       `;
     }
-    // Betreiber-TODO (dokumentiert): Make-Zweig 'agent_feedback_reply' + Brevo-Template.
+    // Vorgesetzten-TODO (dokumentiert): Make-Zweig 'agent_feedback_reply' + Brevo-Template.
     sendMakeWebhook("agent_feedback_reply", {
       email: t.agent_email,
       vorname: t.first_name || t.agent_name,
@@ -1064,7 +1064,7 @@ router.post("/admin/agent-feedback/:id/reply", async (req, res) => {
       antwort: body.slice(0, 500),
       portal_url: "https://www.fiaon.com/agent/feedback",
     }).catch(() => {});
-    console.log(`[FIAON-FEEDBACK] Betreiber-Antwort auf Ticket #${id} → Agent ${t.agent_name}`);
+    console.log(`[FIAON-FEEDBACK] Vorgesetzten-Antwort auf Ticket #${id} → Agent ${t.agent_name}`);
     res.json({ ok: true });
   } catch (err) {
     console.error("[FIAON-AGENT-PORTAL] admin feedback reply:", err);
@@ -1143,7 +1143,7 @@ router.post("/admin/agent-feedback/:id/reward", async (req, res) => {
       VALUES (${t.id}, 'system', 'reward', ${`Feedback-Bonus über ${(amountCents / 100).toFixed(2)} € gutgeschrieben — danke für deinen Beitrag.`}, ${JSON.stringify({ amount_cents: amountCents })})
     `;
     await logAgentEvent(t.agent_id, "feedback_rewarded", { feedback_id: t.id, amount_cents: amountCents, commission_id: commission[0].id });
-    // Betreiber-TODO (dokumentiert): Make-Zweig 'agent_feedback_rewarded' + Brevo-Template
+    // Vorgesetzten-TODO (dokumentiert): Make-Zweig 'agent_feedback_rewarded' + Brevo-Template
     sendMakeWebhook("agent_feedback_rewarded", {
       email: t.agent_email,
       vorname: t.first_name || t.agent_name,

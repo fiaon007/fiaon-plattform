@@ -89,13 +89,13 @@ async function main(): Promise<void> {
   for (const weg of ["suche", "gruppen", "vorschau", "senden", "test"]) {
     ok(`Admin-Endpunkt vorhanden: ${weg}`, mailRouten.includes(`"/admin/mail/zentrale/${weg}"`));
   }
-  ok("Der Betreiber hat eine höhere Grenze", /const ADMIN_GRENZE = 5000/.test(mailRouten));
+  ok("Der Vorgesetzte hat eine höhere Grenze", /const ADMIN_GRENZE = 5000/.test(mailRouten));
   ok("Das Team bleibt bei zehn", /rolle === "admin" \|\| rolle === "vertriebsleiter" \? 5000 : 10/.test(mailRouten));
   ok("Der Admin-Weg benutzt DIESELBE Sendefunktion",
     /admin\/mail\/zentrale\/senden[\s\S]{0,1400}zentraleSenden/.test(mailRouten));
   ok("… und dieselbe Zielgruppen-Funktion",
     /admin\/mail\/zentrale\/vorschau[\s\S]{0,300}zielgruppeLaden/.test(mailRouten));
-  ok("Die Vorschau-Pflicht gilt auch für den Betreiber",
+  ok("Die Vorschau-Pflicht gilt auch für den Vorgesetzten",
     /admin\/mail\/zentrale\/senden[\s\S]{0,1200}ist eine Vorschau nötig/.test(mailRouten));
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -107,7 +107,7 @@ async function main(): Promise<void> {
   ok("… und verlangt eine Testadresse", /braucht es eine Testadresse/.test(mailRouten));
   ok("Brevo-Fehler kommen als Klartext zurück", /brevo: brevoKlar/.test(mailRouten));
 
-  // Der IP-Fehler, den der Betreiber gesehen hat.
+  // Der IP-Fehler, den der Vorgesetzte gesehen hat.
   const ipFehler = brevoKlartext(401,
     '{"message":"Unrecognised IP address 35.160.120.126, unauthorized","code":"unauthorized"}');
   ok("Der IP-Fehler wird erkannt", ipFehler.behebbar);
@@ -269,12 +269,15 @@ async function main(): Promise<void> {
   // ═══════════════════════════════════════════════════════════════════════
   const space = datei("client/src/pages/agent/space.tsx");
   // ── AUF SPACE V4 NACHGEZOGEN (11.08.2026) ─────────────────────────────
-  // Der Betreiber hat v3 abgelehnt: zu schmal, zu nah an der Kopfzeile. Der
+  // Der Vorgesetzte hat v3 abgelehnt: zu schmal, zu nah an der Kopfzeile. Der
   // Feed ist jetzt 760 px breit und die Bühne dunkel. Diese Prüfungen maßen
   // die alten Zahlen — sie prüften Gestaltung, die es nicht mehr gibt.
+  // Volle Breite (11.08.2026): 900 px Feed, drei Spalten erst ab 1780 px
+  // Fenster — der Verwaltungsbereich verliert 240 px an seine Seitenleiste,
+  // und bei 1440 verfügbarer Breite passten drei feste Spalten nicht.
   ok("Drei Spalten mit breitem Feed",
-    /grid-template-columns: minmax\(0, 1fr\) minmax\(0, 760px\) minmax\(0, 1fr\)/.test(space));
-  ok("Seitenspalten fallen unter 1260 px weg", /max-width: 1259px/.test(space));
+    /grid-template-columns: 260px minmax\(560px, 900px\) 260px/.test(space));
+  ok("Zwei Spalten unter 1780 px", /max-width: 1779px/.test(space));
   ok("Auf 380 px randlos", /border-radius: 0; padding: 16px;/.test(space));
   // Vier Lagen Schatten: Kontakt, Streuung, Farbschein, Lichtkante. Ein
   // einzelner Schatten sieht immer nach Vorlage aus.
@@ -335,7 +338,7 @@ async function main(): Promise<void> {
   for (const z of [5, 12, 20, 40] as const) {
     gleich(`Ziel ${z} ergibt ${z} Beiträge`, tagesBauplan("2026-08-11", z).length, z);
   }
-  ok("Der Betreiber kann mindestens 10 bis 15 pro Tag einstellen",
+  ok("Der Vorgesetzte kann mindestens 10 bis 15 pro Tag einstellen",
     DICHTE_MIN <= 10 && DICHTE_MAX >= 15 && DICHTE_VORGABE >= 15,
     `${DICHTE_MIN}–${DICHTE_MAX}, Vorgabe ${DICHTE_VORGABE}`);
 
@@ -446,7 +449,7 @@ async function main(): Promise<void> {
     SELECT id, is_test_account, pruefkonto FROM fiaon_agents
     WHERE LOWER(email) = 'office@schwarzott-global.com'
   `) as any[];
-  ok("Das Konto des Betreibers ist als Prüfkonto markiert", !!pk?.pruefkonto);
+  ok("Das Konto des Vorgesetzten ist als Prüfkonto markiert", !!pk?.pruefkonto);
   ok("… und bleibt zugleich als Test gekennzeichnet", !!pk?.is_test_account);
 
   const telQ = datei("server/routes/fiaon-telefonie.ts");
@@ -535,8 +538,20 @@ async function main(): Promise<void> {
     /body:has\(\.fi-sp-buehne\) \.agent-ambient,/.test(spaceSeite));
   ok("… und gilt auch im Verwaltungsbereich",
     /body:has\(\.fi-sp-buehne\) \.admin-flaeche \{/.test(spaceSeite));
-  ok("Die Bühne ist dunkles CI-Navy",
-    /linear-gradient\(178deg, #0d1c3f 0%, #0a1a3c 44%, #071129 100%\)/.test(spaceSeite));
+  // DURCHSCHEINEND, nicht deckend: Das Hintergrundvideo muss durch die Bühne
+  // sichtbar bleiben — deckendes Navy hätte es vollständig verdeckt.
+  ok("Die Bühne ist dunkles CI-Navy, aber durchscheinend",
+    /rgba\(13,28,63,\.82\) 0%, rgba\(10,26,60,\.86\) 44%, rgba\(7,17,41,\.9\) 100%/.test(spaceSeite));
+  ok("Die helle Wäsche des Raums ist im Space aus",
+    /body:has\(\.fi-sp-buehne\) \.fi-raum-waesche \{ display: none; \}/.test(spaceSeite));
+  ok("Die Breitengrenze der Hülle ist aufgehoben",
+    /max-width: none;/.test(spaceSeite) && /main\[class\*="max-w-"\]/.test(spaceSeite));
+  // Der Kommentar ZITIERT den alten Text, um zu erklären, was ersetzt wurde —
+  // er darf ihn nennen. Geprüft wird, dass er nicht mehr GERENDERT wird.
+  ok("Die Seitenspalte zeigt echte Zahlen, keine Hausordnung",
+    /fi-sp-tag-zahlen/.test(spaceSeite)
+    && !/fi-sp-seiten-text">\s*\n?\s*Was hier steht/.test(spaceSeite)
+    && !/<p className="fi-sp-seiten-titel">Der Raum<\/p>/.test(spaceSeite));
   ok("Die Bühne hat Tiefe", /perspective: 1600px/.test(spaceSeite));
   ok("Karten sind Glas", /backdrop-filter: blur\(26px\) saturate\(150%\)/.test(spaceSeite));
   ok("… mit Lichtkante oben", /\.fi-sp-karte::after/.test(spaceSeite));

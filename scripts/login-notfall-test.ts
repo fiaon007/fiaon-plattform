@@ -6,7 +6,7 @@
  * Prüft die Login-Entscheidung OHNE Datenbank und OHNE echte Kundenpasswörter:
  * `decideLogin` ist eine reine Funktion, die Fälle werden als Datensatz-Attrappen
  * gestellt. Die Attrappen sind den echten Zeilen nachgebaut, die Phase 0 im
- * Bestand gefunden hat (u. a. der Fall des Betreibers).
+ * Bestand gefunden hat (u. a. der Fall des Vorgesetzten).
  *
  *   1. Falsches Passwort → neutrale Meldung
  *   2. Unbekannte E-Mail → WORTGLEICHE Meldung (keine Enumeration)
@@ -147,7 +147,7 @@ const betreiberFamilie = [
   row({ ref: "FIAON-MNPTDV19-QYAJ", status: "completed", account_status: "pending", payment_status: "pending", password: "BetreiberPW1", utm_string: "{}", email: "office@schwarzott-global.com" }),
 ];
 const betreiber = decideLogin(betreiberFamilie, "BetreiberPW1");
-check("Betreiber kommt rein", betreiber.granted, betreiber.granted ? "" : `${(betreiber as any).code}: ${(betreiber as any).error}`);
+check("Vorgesetzter kommt rein", betreiber.granted, betreiber.granted ? "" : `${(betreiber as any).code}: ${(betreiber as any).error}`);
 if (betreiber.granted) {
   check("Login liefert das KONTO, nicht die Bonitäts-Bestellung", betreiber.account.ref === "FIAON-MNPTDV19-QYAJ", betreiber.account.ref);
 }

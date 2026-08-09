@@ -15,7 +15,7 @@
 //   auffällt.
 //
 // ── DIE DICHTE ─────────────────────────────────────────────────────────────
-// Der Betreiber stellt ein, wie viele Beiträge pro Tag erscheinen sollen
+// Der Vorgesetzte stellt ein, wie viele Beiträge pro Tag erscheinen sollen
 // (Vorgabe 20). Die Engine verteilt sie zwischen 07:00 und 19:00 und lässt
 // zwischen zwei Beiträgen mindestens zwanzig Minuten. Zwanzig Beiträge um
 // Mitternacht wären kein Feed, sondern ein Datenabzug.

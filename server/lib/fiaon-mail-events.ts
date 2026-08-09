@@ -5,13 +5,13 @@
 // Auf /admin/events stand bei rund zehn Ereignissen „MAKE-ZWEIG FEHLT". Diese
 // Behauptung kam aus einer einzigen Zeile:
 //
-//     makeBranchReady: !/Betreiber-TODO/i.test(e.description)
+//     makeBranchReady: !/Vorgesetzten-TODO/i.test(e.description)
 //
 // Die Plattform hat also geprüft, ob in UNSERER EIGENEN Beschreibung das Wort
-// „Betreiber-TODO" steht — ein Notizzettel, den frühere Pakete hinterlassen
-// haben — und daraus eine Aussage über die Einrichtung des Betreibers
+// „Vorgesetzten-TODO" steht — ein Notizzettel, den frühere Pakete hinterlassen
+// haben — und daraus eine Aussage über die Einrichtung des Vorgesetzten
 // gemacht. 23 von 33 Beschreibungen enthalten den String. In Wahrheit waren
-// alle 21 Zweige aktiv. Die Plattform hat den Betreiber zu Unrecht
+// alle 21 Zweige aktiv. Die Plattform hat den Vorgesetzten zu Unrecht
 // beschuldigt, und er hat es geglaubt, weil es dastand.
 //
 // AB HIER GILT: Die Plattform BEHAUPTET nichts über Zustellung. Sie WEISS es
@@ -44,7 +44,7 @@ export interface EventZusatz {
   zielgruppe: Zielgruppe;
   rollen: Rolle[];
   /**
-   * Kurzsatz für das Sende-Menü: WAS geht WANN an WEN raus. Der Betreiber und
+   * Kurzsatz für das Sende-Menü: WAS geht WANN an WEN raus. Der Vorgesetzte und
    * das Team lesen das im Zweifel unter Zeitdruck am Telefon.
    */
   klartext: string;
@@ -54,7 +54,7 @@ export interface EventZusatz {
  * Was die Registry an fachlicher Einordnung NICHT trägt.
  *
  * Ereignisse ohne Eintrag sind Mitarbeiter-Mails der Gruppe „team", die nur
- * der Betreiber auslöst — die sichere Vorgabe.
+ * der Vorgesetzte auslöst — die sichere Vorgabe.
  */
 const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
   welcome: {
@@ -254,7 +254,7 @@ export async function verifikationSpeichern(
  *
  * Bei „nicht bestätigt" werden BEIDE möglichen Ursachen genannt. Genau das
  * hat gefehlt: Die alte Meldung behauptete „Make-Zweig fehlt" und schickte den
- * Betreiber in die falsche Richtung, während in Wahrheit die Brevo-Vorlage
+ * Vorgesetzter in die falsche Richtung, während in Wahrheit die Brevo-Vorlage
  * nicht aktiv war.
  */
 export function verifikationsText(e: MailEvent): string {

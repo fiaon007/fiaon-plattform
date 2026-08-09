@@ -1,6 +1,6 @@
 // Setzt die Rolle „Vertriebsleiter" für die beiden Menschen, die den Vertrieb
 // führen. Läuft absichtlich über den ADMIN-ENDPUNKT und nicht per UPDATE: So
-// wird derselbe Weg benutzt, den der Betreiber im Team-Bereich klickt, und der
+// wird derselbe Weg benutzt, den der Vorgesetzte im Team-Bereich klickt, und der
 // Rollenwechsel landet im Protokoll.
 //
 // Aufruf: npx tsx scripts/vertriebsleitung-setzen.ts [--zuruecknehmen]

@@ -37,8 +37,8 @@ async function rolleVon(agentId: number): Promise<string> {
  * nicht wählen, weil am anderen Ende ein echter Kunde abhebt und ins Leere
  * spricht.
  *
- * Das PRÜFKONTO des Betreibers hat sehr wohl einen Menschen dahinter. Es
- * trägt beide Merkmale, und bis heute gewann das falsche: Der Betreiber
+ * Das PRÜFKONTO des Vorgesetzten hat sehr wohl einen Menschen dahinter. Es
+ * trägt beide Merkmale, und bis heute gewann das falsche: Der Vorgesetzte
  * konnte über sein eigenes Konto nicht telefonieren.
  *
  * Die Regel ist nicht „ist es als Test markiert", sondern „sitzt jemand da".
@@ -78,7 +78,7 @@ router.get("/telefon/stand", requireAgent, async (req: AgentRequest, res: Respon
     res.json({
       ok: true,
       ...stand,
-      // Die Liste der fehlenden Werte geht NUR an den Betreiber. Ein
+      // Die Liste der fehlenden Werte geht NUR an den Vorgesetzten. Ein
       // Teammitglied braucht die Namen von Umgebungsvariablen nicht.
       fehlend: [],
       maxMinuten: MAX_MINUTEN,
@@ -169,12 +169,34 @@ router.post("/telefon/ausweis", requireAgent, async (req: AgentRequest, res: Res
  */
 router.post("/telefon/twiml", async (req: Request, res: Response) => {
   try {
-    const an = String((req.body as any)?.An || (req.body as any)?.To || "");
+    const b = req.body as any;
+    // Reihenfolge mit Absicht: `An` und `Ziel` sind unsere eigenen, nicht
+    // reservierten Namen. `To` steht ganz hinten — Twilio setzt es bei
+    // Browser-Anrufen selbst auf die Client-Identität und überschreibt dabei
+    // einen gleichnamigen eigenen Parameter. Wer sich darauf verlässt,
+    // bekommt eine leere Nummer.
+    const an = String(b?.An || b?.Ziel || b?.PhoneNumber || b?.To || "");
+
+    // ── WAS WIRKLICH ANKAM, WIRD AUFGESCHRIEBEN ─────────────────────────
+    // Diese Route ist die einzige Stelle, an der man sieht, was Twilio
+    // übergibt. Ohne diesen Vermerk bleibt „die To-Spalte ist leer" eine
+    // Beobachtung ohne Ursache. Die Diagnose zeigt den letzten Aufruf.
+    const { letztenTwimlAufrufMerken } = await import("../lib/fiaon-telefon-diagnose");
+    await letztenTwimlAufrufMerken({
+      an, roh: Object.fromEntries(
+        Object.entries(b ?? {}).filter(([k]) => !/token|secret|signature/i.test(k)),
+      ),
+    }).catch(() => {});
+
     const pruefung = await wahlPruefen(an);
     res.type("text/xml");
     if (!pruefung.erlaubt) {
+      console.error(`[TELEFON] TwiML ohne wählbare Nummer. Angekommen: ${JSON.stringify(Object.keys(b ?? {}))}`);
       return res.send(`<?xml version="1.0" encoding="UTF-8"?>
-<Response><Say language="de-DE">Diese Nummer darf nicht gewählt werden.</Say><Hangup/></Response>`);
+<Response><Say language="de-DE">${an
+        ? "Diese Nummer darf nicht gewählt werden."
+        : "Es wurde keine Rufnummer übergeben. Bitte im Verwaltungsbereich die Telefon-Diagnose öffnen."
+      }</Say><Hangup/></Response>`);
     }
     res.send(twimlAusgehend({
       an: pruefung.nummer!,
@@ -470,7 +492,7 @@ router.get("/gespraechsblatt/:personId", requireAgent, async (req: AgentRequest,
 /**
  * GET /admin/telefon/diagnose — die Kette Schritt für Schritt.
  *
- * Nur für den Betreiber: Die Antwort nennt Kontonamen und Nummern.
+ * Nur für den Vorgesetzten: Die Antwort nennt Kontonamen und Nummern.
  */
 router.get("/admin/telefon/diagnose", async (_req: Request, res: Response) => {
   try {

@@ -351,7 +351,7 @@ async function main(): Promise<void> {
   ok("Die Lead-Automatik bleibt erreichbar", /path="\/admin\/lead-automatik"/.test(app));
   // ── AM 10.08.2026 ENTFERNT ───────────────────────────────────────────
   // Die Altseiten waren als Rückfallebene gedacht, bis die Zentralen im
-  // Betrieb bestätigt sind. Der Betreiber hat entschieden: weg damit. Zwei
+  // Betrieb bestätigt sind. Der Vorgesetzte hat entschieden: weg damit. Zwei
   // Wege zur selben Sache heißen zwei Stellen zum Ändern und eine zum
   // Vergessen. Beide Adressen leiten jetzt in die Zentrale.
   ok("Die alte Team-Adresse leitet um", /path="\/admin\/team-alt" component=\{\(\) => <Umleitung/.test(app));
@@ -379,7 +379,7 @@ async function main(): Promise<void> {
   ok("Das Protokoll schreibt nichts NEUES mit",
     /fiaon_agent_events/.test(zentralen) && /fiaon_contact_log/.test(zentralen)
       && !/INSERT INTO fiaon_agent_events/.test(zentralen.split("logs")[1] ?? ""));
-  ok("Massenlöschung ist als Betreiber-Sache gekennzeichnet", /NUR der Betreiber/.test(zentralen));
+  ok("Massenlöschung ist als Vorgesetzten-Sache gekennzeichnet", /NUR der Vorgesetzte/.test(zentralen));
 
   const loeschLib = readFileSync("server/lib/fiaon-loeschen.ts", "utf8");
   ok("Vorschau und Ausführung benutzen DIESELBE Einteilung",

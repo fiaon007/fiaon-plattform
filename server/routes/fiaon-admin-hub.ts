@@ -1022,12 +1022,12 @@ router.get("/admin/events/registry", async (_req, res) => {
     try { history = JSON.parse(settings[TEST_HISTORY_KEY] || "[]"); } catch {}
     // ── DIE HEURISTIK IST WEG ────────────────────────────────────────────
     // Hier stand bis zum 09.08.2026:
-    //     makeBranchReady: !/Betreiber-TODO/i.test(e.description)
+    //     makeBranchReady: !/Vorgesetzten-TODO/i.test(e.description)
     // Also: Die Plattform prüfte, ob in UNSERER EIGENEN Beschreibung das Wort
-    // „Betreiber-TODO" steht — ein Notizzettel aus früheren Paketen — und
+    // „Vorgesetzten-TODO" steht — ein Notizzettel aus früheren Paketen — und
     // machte daraus die Anzeige „MAKE-ZWEIG FEHLT". 23 von 33 Beschreibungen
     // enthielten den String; in Wahrheit waren alle 21 Zweige aktiv. Die
-    // Plattform hat den Betreiber zu Unrecht beschuldigt.
+    // Plattform hat den Vorgesetzten zu Unrecht beschuldigt.
     //
     // Ersetzt durch GEMESSENE Wahrheit: `verifikation` kommt aus
     // fiaon_mail_events und sagt nur dann „bestätigt", wenn ein Testversand

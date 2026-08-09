@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // TELEFON-SELBSTDIAGNOSE — die Kette Schritt für Schritt messen
 //
-// Der Betreiber hat alle sechs Werte gesetzt, das Twilio-Konto ist aktiv, die
+// Der Vorgesetzte hat alle sechs Werte gesetzt, das Twilio-Konto ist aktiv, die
 // Nummer vorhanden — und im Panel stand „Das Telefon konnte nicht starten:
 // undefined". Zwischen „alles eingetragen" und „es klingelt" liegen sieben
 // Stellen, an denen es klemmen kann. Raten hilft an keiner davon.
@@ -19,6 +19,41 @@
 //   7 Browser: SDK im Bündel, Mikrofonrecht, Geräteregistrierung
 // Schritt 7 kann der Server nicht messen — er läuft im Browser.
 // ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Der letzte TwiML-Aufruf von Twilio — was wirklich ankam.
+ *
+ * ── WARUM DAS DIE WICHTIGSTE ZEILE DER DIAGNOSE IST ────────────────────────
+ * Die Schritte 1 bis 6 prüfen die KONFIGURATION. Sie waren beim Vorgesetzter
+ * alle grün, und telefonieren ging trotzdem nicht: Twilio setzt bei
+ * Browser-Anrufen den Parameter `To` selbst und überschreibt einen
+ * gleichnamigen eigenen. Im Log stand eine leere Nummer.
+ *
+ * Keine Konfigurationsprüfung der Welt findet das. Was es findet, ist die
+ * Frage „was ist beim letzten Anruf tatsächlich übergeben worden" — deshalb
+ * schreibt die TwiML-Route es auf.
+ */
+export async function letztenTwimlAufrufMerken(daten: {
+  an: string; roh: Record<string, unknown>;
+}): Promise<void> {
+  const { sqlPool } = await import("./db-pool");
+  await sqlPool`
+    INSERT INTO fiaon_settings (key, value)
+    VALUES ('telefon_letzter_twiml', ${JSON.stringify({ ...daten, am: new Date().toISOString() })})
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+  `;
+}
+
+export async function letzterTwimlAufruf(): Promise<
+  { an: string; roh: Record<string, unknown>; am: string } | null
+> {
+  const { sqlPool } = await import("./db-pool");
+  const [r] = (await sqlPool`
+    SELECT value FROM fiaon_settings WHERE key = 'telefon_letzter_twiml'
+  `.catch(() => [] as any[])) as any[];
+  if (!r?.value) return null;
+  try { return JSON.parse(String(r.value)); } catch { return null; }
+}
 
 export interface DiagnoseSchritt {
   nr: number;
@@ -39,6 +74,21 @@ async function twilio(pfad: string): Promise<{ status: number; body: any }> {
   const tok = process.env.TWILIO_AUTH_TOKEN || "";
   const kopf = "Basic " + Buffer.from(`${sid}:${tok}`).toString("base64");
   const r = await fetch(`${BASIS}${pfad}`, {
+    headers: { Authorization: kopf },
+    signal: AbortSignal.timeout(12_000),
+  });
+  const text = await r.text();
+  let body: any = null;
+  try { body = JSON.parse(text); } catch { body = { raw: text.slice(0, 300) }; }
+  return { status: r.status, body };
+}
+
+/** Dasselbe mit der Voice-API — sie hat einen eigenen Wirt und eine eigene Fassung. */
+async function voice(pfad: string): Promise<{ status: number; body: any }> {
+  const sid = process.env.TWILIO_ACCOUNT_SID || "";
+  const tok = process.env.TWILIO_AUTH_TOKEN || "";
+  const kopf = "Basic " + Buffer.from(`${sid}:${tok}`).toString("base64");
+  const r = await fetch(`https://voice.twilio.com/v1${pfad}`, {
     headers: { Authorization: kopf },
     signal: AbortSignal.timeout(12_000),
   });
@@ -252,20 +302,30 @@ export async function telefonDiagnose(): Promise<{
 
   // ── 6. Geo-Berechtigungen DACH ──────────────────────────────────────────
   try {
-    const r = await twilio(
-      `/Accounts/${env("TWILIO_ACCOUNT_SID")}/Voice/DialingPermissions/Countries.json?IsoCode=DE`);
+    // Die Wähl-Berechtigungen liegen NICHT unter /Accounts und nicht auf
+    // api.twilio.com, sondern auf voice.twilio.com/v1. Der erste Versuch
+    // fragte die falsche Adresse und bekam HTTP 404 — was wie „keine
+    // Auskunft" aussah, aber ein Fehler auf unserer Seite war.
+    const r = await voice("/DialingPermissions/Countries/DE");
     // Diese Schnittstelle antwortet je nach Kontotyp unterschiedlich; wir
     // werten nur aus, was wir sicher lesen können, und melden sonst „offen“.
-    const land = r.body?.content?.[0] ?? r.body?.countries?.[0];
-    if (r.status === 200 && land) {
-      const erlaubt = land.low_risk_numbers_enabled !== false;
+    if (r.status === 200 && r.body) {
+      // Alle drei DACH-Länder einzeln fragen — „Deutschland geht" sagt nichts
+      // über Österreich, und der Vorgesetzte telefoniert in beide.
+      const stand: string[] = [];
+      let gesperrt = 0;
+      for (const iso of ["DE", "AT", "CH"] as const) {
+        const rr = iso === "DE" ? r : await voice(`/DialingPermissions/Countries/${iso}`);
+        const erlaubt = rr.status === 200 && rr.body?.low_risk_numbers_enabled !== false;
+        if (!erlaubt) gesperrt++;
+        stand.push(`${iso} ${erlaubt ? "frei" : "gesperrt"}`);
+      }
       s.push({
-        nr: 6, titel: "Anrufe nach DE, AT, CH erlaubt", stand: erlaubt ? "gut" : "fehler",
-        befund: erlaubt
-          ? "Deutschland ist freigeschaltet (AT und CH bitte in der Console gegenprüfen)."
-          : "Deutschland ist im Konto GESPERRT — jeder Ruf schlägt mit 21215 fehl.",
-        rat: erlaubt ? undefined
-          : "Twilio → Voice → Settings → Geographic Permissions: DE, AT und CH aktivieren.",
+        nr: 6, titel: "Anrufe nach DE, AT, CH erlaubt",
+        stand: gesperrt === 0 ? "gut" : "fehler",
+        befund: stand.join(" · "),
+        rat: gesperrt === 0 ? undefined
+          : "Twilio → Voice → Settings → Geographic Permissions: die gesperrten Länder aktivieren.",
       });
     } else {
       s.push({
@@ -287,6 +347,34 @@ export async function telefonDiagnose(): Promise<{
     nr: 7, titel: "Browser: SDK, Mikrofon, Geräteregistrierung", stand: "offen",
     befund: "Dieser Schritt läuft im Browser und wird beim Öffnen des Telefons gemessen.",
   });
+
+  // ── 8. Was beim letzten Anruf wirklich übergeben wurde ──────────────────
+  const letzter = await letzterTwimlAufruf().catch(() => null);
+  if (!letzter) {
+    s.push({
+      nr: 8, titel: "Letzter Anruf: übergebene Rufnummer", stand: "offen",
+      befund: "Noch kein Anruf über diesen Server. Sobald einer läuft, steht hier, "
+        + "welche Nummer bei Twilio angekommen ist.",
+    });
+  } else {
+    const wann = new Intl.DateTimeFormat("de-DE", {
+      timeZone: "Europe/Berlin", dateStyle: "short", timeStyle: "short",
+    }).format(new Date(letzter.am));
+    const felder = Object.keys(letzter.roh ?? {}).join(", ") || "keine";
+    s.push({
+      nr: 8,
+      titel: "Letzter Anruf: übergebene Rufnummer",
+      stand: letzter.an ? "gut" : "fehler",
+      befund: letzter.an
+        ? `${wann}: Nummer ${letzter.an} kam an. Übergebene Felder: ${felder}`
+        : `${wann}: KEINE Rufnummer angekommen. Übergebene Felder: ${felder}`,
+      rat: letzter.an ? undefined
+        : "Das Browser-SDK hat keine Nummer übergeben. Häufigste Ursache: Der Parameter "
+          + "hieß „To“ — den setzt Twilio bei Browser-Anrufen selbst und überschreibt "
+          + "dabei den eigenen. FIAON sendet deshalb „An“. Wenn hier trotzdem nichts "
+          + "steht, ist eine alte Fassung der Oberfläche im Browser — einmal hart neu laden.",
+    });
+  }
 
   const fehlerhaft = s.filter((x) => x.stand === "fehler");
   return {

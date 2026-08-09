@@ -37,7 +37,7 @@ export const OHNE_SCHLUESSEL =
  * DIE EINE STELLE, durch die jeder Brevo-Aufruf geht.
  *
  * Sie liefert neben `grund` (ein Satz für Protokolle) jetzt auch `klartext` —
- * Titel, Anleitung und die rohe Antwort. Der Betreiber sah bis zum 11.08.2026
+ * Titel, Anleitung und die rohe Antwort. Der Vorgesetzte sah bis zum 11.08.2026
  * in der Mail-Zentrale die nackte API-Antwort („Unrecognised IP address …
  * unauthorized"). Das ist kein Programmfehler, sondern eine EINSTELLUNG mit
  * bekannter Lösung — also gehört die Lösung in die Meldung.

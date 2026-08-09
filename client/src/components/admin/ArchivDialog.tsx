@@ -159,7 +159,7 @@ export default function ArchivDialog({ bestellung: bestellRef, pfade, offen, auf
                 </button>
               ) : (
                 <p className="text-[12.5px] text-slate-500">
-                  Zurückholen kann nur der Betreiber.
+                  Zurückholen kann nur der Vorgesetzte.
                 </p>
               )}
             </>
@@ -173,7 +173,7 @@ export default function ArchivDialog({ bestellung: bestellRef, pfade, offen, auf
               <p className="text-[13px] text-slate-700 leading-snug">
                 Die Bestellung verschwindet aus Arbeitslisten, Verteilung, Erinnerungen, Zahlungslisten
                 und Kennzahlen. Sie wird <b>nicht gelöscht</b> und bleibt in der Akte unter „Archiv"
-                sichtbar — mit Grund, Zeitpunkt und Namen. Zurückholen kann der Betreiber jederzeit.
+                sichtbar — mit Grund, Zeitpunkt und Namen. Zurückholen kann der Vorgesetzte jederzeit.
               </p>
 
               <div>

@@ -142,7 +142,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // ── Die Gegenprobe, die der Betreiber verlangt hat ─────────────────────
+  // ── Die Gegenprobe, die der Vorgesetzte verlangt hat ─────────────────────
   const conrad = erledigt.find((e) =>
     [Number(e.g_id), Number(e.v_id)].includes(3775) && [Number(e.g_id), Number(e.v_id)].includes(4492));
   const conradOffen = kandidaten.find((k) =>

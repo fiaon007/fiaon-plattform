@@ -32,7 +32,7 @@ import {
 
 const router = Router();
 
-const AKTEUR_ADMIN = "Betreiber (Admin)";
+const AKTEUR_ADMIN = "Vorgesetzter (Admin)";
 
 // ── Kandidatenliste ────────────────────────────────────────────────────────
 router.get("/admin/dubletten/kandidaten", async (req: Request, res: Response) => {

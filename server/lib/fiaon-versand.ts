@@ -3,7 +3,7 @@
 //
 // DER ALLTAG, DEN DAS ABSTELLT
 // „Der Kunde sagt, er hat die Zahlungsdaten nie bekommen." Bisher hieß das:
-// Nachricht an den Betreiber, der sucht im Make-Protokoll, schickt von Hand
+// Nachricht an den Vorgesetzten, der sucht im Make-Protokoll, schickt von Hand
 // nach. Dreimal am Tag. Dabei ist die Frage in zwei Klicks beantwortet — wenn
 // jemand sehen kann, WAS rausging und WANN, und es erneut auslösen darf.
 //

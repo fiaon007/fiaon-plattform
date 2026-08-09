@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // ── WAS VORHER FALSCH WAR ──────────────────────────────────────────────────
 // Jeder Dialog hatte seinen eigenen weißen Kasten über `rgba(7,11,22,.6)`.
 // Das ist der Standardlook jeder Web-App seit 2015: Der Hintergrund wird
-// erschlagen, der Kasten schwebt nicht, er klebt. Der Betreiber hat das zu
+// erschlagen, der Kasten schwebt nicht, er klebt. Der Vorgesetzte hat das zu
 // Recht abgelehnt.
 //
 // ── DIE DREI ENTSCHEIDUNGEN ────────────────────────────────────────────────

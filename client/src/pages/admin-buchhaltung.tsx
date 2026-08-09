@@ -6,7 +6,7 @@ import AdminLedgerManager from "@/components/admin/AdminLedgerManager";
 // Der P3-Report zeigt echte Daten (accounting_ledger: 143 Zeilen,
 // accounting_entries: 8, config/balance vorhanden) — daher NICHT entfernt,
 // sondern aus der aufgelösten /admin/database-Sidebar hierher übernommen.
-// Offen (Betreiber-Entscheidung): Sind das FIAON-Zahlen? Dann perspektivisch
+// Offen (Vorgesetzten-Entscheidung): Sind das FIAON-Zahlen? Dann perspektivisch
 // mit /admin/verbuchungen zusammenführen; falls Fremdprodukt → hier entfernen.
 // ════════════════════════════════════════════════════════════════════
 

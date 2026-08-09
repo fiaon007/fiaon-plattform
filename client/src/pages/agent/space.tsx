@@ -138,7 +138,7 @@ function Avatar({ src, name, size = 40 }: { src: string | null; name: string; si
  * Der Systemavatar — FIAON selbst.
  *
  * ── WAS VORHER DA STAND ────────────────────────────────────────────────────
- * Ein generischer Aufwärtspfeil mit zwei Funken. Der Betreiber: „Warum hat
+ * Ein generischer Aufwärtspfeil mit zwei Funken. Der Vorgesetzte: „Warum hat
  * FIAON links daneben so ein ekelhaftes altes ICON?" Zu Recht — es war ein
  * Allerweltszeichen, das mit der Marke nichts zu tun hatte, und es stand
  * unter jedem zweiten Beitrag im Feed.
@@ -187,7 +187,7 @@ function SystemAvatar({ size = 42 }: { size?: number }) {
 
 
 /**
- * Der Space — für Team UND Betreiber.
+ * Der Space — für Team UND Vorgesetzter.
  *
  * `alsAdmin` schaltet auf die Admin-Endpunkte um. Dieselbe Oberfläche, andere
  * Tür: Eine zweite Seite wäre eine zweite Seite zum Pflegen, und die eine
@@ -408,7 +408,7 @@ export default function AgentSpace({ alsAdmin = false }: { alsAdmin?: boolean } 
   // ── EINE OBERFLÄCHE, ZWEI TÜREN ───────────────────────────────────────────
   // Unter /admin/space liegt die Admin-Hülle schon außen herum (die Route ist
   // über `admin(…)` eingehängt). Ein zusätzliches AgentShell würde den
-  // Betreiber hinauswerfen — er hat kein Agent-Konto, und die Team-Hülle
+  // Vorgesetzter hinauswerfen — er hat kein Agent-Konto, und die Team-Hülle
   // leitet jeden ohne Konto zur Anmeldung um. Genau das ist beim ersten
   // Versuch passiert: /admin/space landete auf der Team-Anmeldung.
   const inhalt = (
@@ -440,6 +440,20 @@ export default function AgentSpace({ alsAdmin = false }: { alsAdmin?: boolean } 
         {/* ── MITTE: der Feed ─────────────────────────────────────────────── */}
         <main className="fi-sp-feed">
           <div ref={kopf} aria-hidden="true" />
+          {/* Auf schmalen Geräten stehen die Zahlen ÜBER dem Feed — dort
+              fallen die Seitenspalten weg, und ohne sie wüsste niemand,
+              wie der Tag läuft. */}
+          {(daten?.tageszahlen ?? []).length > 0 && (
+            <div className="fi-sp-tageskopf">
+              {daten.tageszahlen.map((z: any) => (
+                <div key={z.titel} className="fi-sp-kachel">
+                  <p className="fi-sp-kachel-wert">{z.wert}</p>
+                  <p className="fi-sp-kachel-titel">{z.titel}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* ── Angepinntes: eine schmale Leiste ──────────────────────── */}
           {angepinnte.length > 0 && (
             <div className="fi-sp-pinleiste">
@@ -647,7 +661,7 @@ export default function AgentSpace({ alsAdmin = false }: { alsAdmin?: boolean } 
                 )}
 
                 {/* Eigene Beiträge: ändern (15 Min) und zurücknehmen.
-                    Leitung und Betreiber dürfen jeden Beitrag entfernen. */}
+                    Leitung und Vorgesetzter dürfen jeden Beitrag entfernen. */}
                 {(p.meiner || daten?.darfVerwalten) && (
                   <div className="fi-sp-postmenue">
                     {p.meiner && p.bearbeitbarBis && new Date(p.bearbeitbarBis) > new Date() && (
@@ -711,7 +725,7 @@ export default function AgentSpace({ alsAdmin = false }: { alsAdmin?: boolean } 
 
               {/* ── DIE FRAGE STEHT DA, WO SIE GESTELLT WURDE ──────────────
                   In v3 öffnete „Entfernen" einen Dialog am Seitenende. Der
-                  Betreiber musste scrollen, um eine Frage zu beantworten,
+                  Vorgesetzter musste scrollen, um eine Frage zu beantworten,
                   die er oben gestellt hatte — und sah dabei die Karte nicht
                   mehr, über die er entscheidet. Jetzt kippt die Karte selbst
                   in den Bestätigungszustand. */}
@@ -833,21 +847,39 @@ export default function AgentSpace({ alsAdmin = false }: { alsAdmin?: boolean } 
         </main>
 
         {/* ── RECHTS: Heute ───────────────────────────────────────────────── */}
+        {/* ── RECHTS: ECHTE ZAHLEN ────────────────────────────────────────
+            Hier standen zwei Karten ohne eine einzige Zahl: „HEUTE ·
+            Sonntag, 9. August · Was hier steht, kommt aus echten Zahlen"
+            und „DER RAUM: keine Kundendaten hier" — die Hausordnung, die
+            schon am Schreibfeld steht. Der Vorgesetzte hat beide zu Recht
+            gestrichen. Jetzt löst die Spalte das Versprechen ein. */}
         <aside className="fi-sp-seite fi-sp-rechts">
-          <div className="fi-sp-karte">
-            <p className="fi-sp-seiten-titel">Heute</p>
-            <p className="fi-sp-seiten-datum">
+          <div className="fi-sp-karte fi-sp-tag">
+            <p className="fi-sp-tag-datum">
               {new Date().toLocaleDateString("de-DE", {
                 weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Berlin",
               })}
             </p>
-            <p className="fi-sp-seiten-text">
-              Was hier steht, kommt aus echten Zahlen des Teams — nie aus Kundendaten.
-            </p>
+            <div className="fi-sp-tag-zahlen">
+              {(daten?.tageszahlen ?? []).map((z: any) => (
+                <div key={z.titel} className="fi-sp-tag-zeile">
+                  <span className="fi-sp-tag-wert">{z.wert}</span>
+                  <span className="fi-sp-tag-titel">{z.titel}</span>
+                  {z.hinweis && <span className="fi-sp-tag-hinweis">{z.hinweis}</span>}
+                </div>
+              ))}
+              {(daten?.tageszahlen ?? []).length === 0 && (
+                <p className="fi-sp-seiten-text">Die Zahlen des Tages werden geladen …</p>
+              )}
+            </div>
           </div>
-          <div className="fi-sp-karte">
-            <p className="fi-sp-seiten-titel">Der Raum</p>
-            <p className="fi-sp-seiten-text">{daten?.hinweis}</p>
+
+          {/* Auf mittleren Bildschirmen wandert das Profil hierher — sonst
+              wäre es ganz weg, sobald die linke Spalte fällt. */}
+          <div className="fi-sp-karte fi-sp-profil fi-sp-profil-rechts">
+            <Avatar src={ich?.avatar ?? null} name={ich?.name ?? ich?.vorname ?? "?"} size={48} />
+            <p className="fi-sp-profil-name">{ich?.name ?? ich?.vorname ?? ""}</p>
+            <p className="fi-sp-profil-rolle">{daten?.darfVerwalten ? "Vertriebsleitung" : "Team"}</p>
           </div>
         </aside>
       </div>
@@ -860,7 +892,7 @@ export default function AgentSpace({ alsAdmin = false }: { alsAdmin?: boolean } 
 const SPACE_CSS = `
 /* ═══════════════════════════════════════════════════════════════════════════
    SPACE V4 — die dunkle Bühne
-   Der Betreiber hat v3 abgelehnt: zu schmal, zu nah an der Kopfzeile, wirkt
+   Der Vorgesetzte hat v3 abgelehnt: zu schmal, zu nah an der Kopfzeile, wirkt
    billig. Neu: tiefes CI-Navy als Fläche, helle Glaskarten darauf, deutlich
    mehr Breite und Luft.
 
@@ -882,9 +914,38 @@ body:has(.fi-sp-buehne) .admin-flaeche {
     radial-gradient(1300px 760px at 50% -18%, rgba(59,130,246,.26), transparent 62%),
     radial-gradient(1000px 620px at 8% 8%, rgba(37,99,235,.16), transparent 58%),
     radial-gradient(900px 560px at 96% 4%, rgba(29,78,216,.14), transparent 56%),
-    linear-gradient(178deg, #0d1c3f 0%, #0a1a3c 44%, #071129 100%);
+    /* DURCHSCHEINEND, nicht deckend: Der Vorgesetzte will sein Video auf
+       jeder Seite sehen. Deckendes Navy hätte es vollständig verdeckt —
+       die Bühne ist jetzt eine Tönung, kein Vorhang. */
+    linear-gradient(178deg, rgba(13,28,63,.82) 0%, rgba(10,26,60,.86) 44%, rgba(7,17,41,.9) 100%);
   background-attachment: fixed;
 }
+/* ── DIE HÜLLE BEGRENZT AUF 1152 PX ───────────────────────────────────────
+   Gemessen: Die Team-Hülle rendert ein „max-w-6xl mx-auto" um den Inhalt.
+   Der Space kann darin nie breiter als 1120 px werden — egal, was seine
+   eigene Bühne sagt. Deshalb wird die Grenze HIER aufgehoben, und nur für
+   den Space: Alle anderen Seiten leben gut mit 1152 px, Tabellen und
+   Formulare brauchen keine 1700.
+
+   Dasselbe im Verwaltungsbereich. */
+body:has(.fi-sp-buehne) main.max-w-6xl,
+body:has(.fi-sp-buehne) main[class*="max-w-"],
+body:has(.fi-sp-buehne) .admin-flaeche main,
+/* Der Verwaltungsbereich setzt die Grenze über eine eigene Variable
+   (--a3-breite in admin-3d.css) auf .max-w-6xl/.max-w-7xl. Gemessen:
+   736 px Feed statt 900. */
+body:has(.fi-sp-buehne) .admin-flaeche .max-w-6xl,
+body:has(.fi-sp-buehne) .admin-flaeche .max-w-7xl,
+body:has(.fi-sp-buehne) .admin-flaeche [class*="max-w-"] {
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Der Space hat seine EIGENE Tönung. Die helle Wäsche des Raums würde sie
+   aufhellen und beides zu Grau vermischen — deshalb hier aus. */
+body:has(.fi-sp-buehne) .fi-raum-waesche { display: none; }
+
 /* Sternkörnung — NUR wenn kein Hintergrundvideo läuft. Zwei bewegte
    Schichten übereinander sind Unruhe, keine Gestaltung. */
 body:has(.fi-sp-buehne):not(:has(video)) .agent-ambient::after,
@@ -904,13 +965,25 @@ body:has(.fi-sp-buehne):not(:has(video)) .admin-flaeche::after {
 .fi-sp-buehne {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 760px) minmax(0, 1fr);
-  gap: 26px;
+  /* VOLLE BREITE: Der Feed bekommt so viel, wie der Bildschirm hergibt —
+     bis 900 px. Die Seitenspalten sind breiter und tragen echte Zahlen
+     statt Hausordnungstexte. */
+  /* UNTERGRENZE FÜR DIE MITTE: Ein minmax mit Null als Untergrenze darf auf
+     null schrumpfen, und zusammen mit „justify-content: center“ bemisst das
+     Raster die Spuren nach ihrem Inhalt statt nach dem Platz. Gemessen:
+     376 px statt 900. Eine Untergrenze von 600 px verhindert das. */
+  /* GERECHNET, NICHT GERATEN: Der Verwaltungsbereich verliert 240 px an
+     seine Seitenleiste. Bei 1680 px Fenster bleiben 1440 — darin passten
+     300+900+300 plus Abstände (1604) nicht, und die Mitte schrumpfte auf
+     736. Die Seiten sind jetzt schmaler, und drei Spalten gibt es erst ab
+     1780 px Fenster; darunter zwei. */
+  grid-template-columns: 260px minmax(560px, 900px) 260px;
+  gap: 28px;
   align-items: start;
-  max-width: 1420px;
+  max-width: 1720px;
   margin: 0 auto;
   /* 40 px Abstand unter der Kopfzeile. In v3 klebte die erste Karte daran —
-     der Betreiber hat es sofort gesehen. */
+     der Vorgesetzte hat es sofort gesehen. */
   padding: 40px 24px 0;
   perspective: 1600px;
   perspective-origin: 50% 0%;
@@ -924,10 +997,16 @@ body:has(.fi-sp-buehne):not(:has(video)) .admin-flaeche::after {
 .admin-flaeche .fi-sp-buehne { padding-top: 76px; }
 
 .fi-sp-seite { position: sticky; top: 96px; display: flex; flex-direction: column; gap: 14px; }
-.fi-sp-links { justify-self: end; width: 100%; max-width: 268px; }
-.fi-sp-rechts { justify-self: start; width: 100%; max-width: 268px; }
-@media (max-width: 1259px) {
-  .fi-sp-buehne { grid-template-columns: minmax(0, 760px); justify-content: center; }
+.fi-sp-links { justify-self: stretch; width: 100%; }
+.fi-sp-rechts { justify-self: stretch; width: 100%; }
+@media (max-width: 1779px) {
+  /* Zwei Spalten: Feed plus rechte Seite. Das Profilkärtchen wandert nach
+     rechts über die Kennzahlen. */
+  .fi-sp-buehne { grid-template-columns: minmax(560px, 900px) 260px; }
+  .fi-sp-links { display: none; }
+}
+@media (max-width: 1279px) {
+  .fi-sp-buehne { grid-template-columns: minmax(0, 900px); justify-content: center; }
   .fi-sp-seite { display: none; }
 }
 @media (max-width: 639px) {
@@ -1152,7 +1231,7 @@ body:has(.fi-sp-buehne):not(:has(video)) .admin-flaeche::after {
 @media (max-width: 479px) { .fi-sp-artmarke { display: none; } }
 
 /* ── Das Kartenmenü: Aktionen AM ORT ─────────────────────────────────────
-   In v3 öffnete „Entfernen" einen Dialog am Seitenende — der Betreiber
+   In v3 öffnete „Entfernen" einen Dialog am Seitenende — der Vorgesetzte
    musste scrollen, um eine Frage zu beantworten, die er oben gestellt
    hatte. Jetzt kippt die Karte SELBST in den Bestätigungszustand. */
 .fi-sp-postmenue { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
@@ -1410,6 +1489,35 @@ a.fi-sp-aktechip:hover {
   font-variant-numeric: tabular-nums; line-height: 1.2; letter-spacing: -.02em;
 }
 .fi-sp-profil-zahlen span { display: block; font-size: 10px; color: #64748b; line-height: 1.35; }
+/* ── Der Tag: Zahlen mit Glanz ───────────────────────────────────────────── */
+.fi-sp-tag-datum {
+  font-size: 13.5px; font-weight: 700; color: #0f172a;
+  margin: 0 0 14px; letter-spacing: -.01em;
+  padding-bottom: 12px; box-shadow: inset 0 -1px 0 rgba(15,23,42,.07);
+}
+.fi-sp-tag-zahlen { display: flex; flex-direction: column; gap: 14px; }
+.fi-sp-tag-zeile { display: flex; flex-direction: column; }
+.fi-sp-tag-wert {
+  font-size: 24px; font-weight: 700; color: #0f172a; line-height: 1.1;
+  font-variant-numeric: tabular-nums; letter-spacing: -.025em;
+  /* Ein sehr feiner Verlauf über der Zahl: Sie soll wie geprägt wirken,
+     nicht wie getippt. */
+  background: linear-gradient(178deg, #0f172a 0%, #334155 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.fi-sp-tag-titel {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase;
+  color: #64748b; margin-top: 4px;
+}
+.fi-sp-tag-hinweis { font-size: 11.5px; color: #94a3b8; margin-top: 2px; }
+.fi-sp-profil-rechts { text-align: center; padding: 16px 18px; }
+.fi-sp-profil-rechts .fi-sp-avatar { margin: 0 auto 9px; }
+/* Auf breiten Bildschirmen steht das Profil links — dann hier nicht doppelt. */
+@media (min-width: 1780px) { .fi-sp-profil-rechts { display: none; } }
+/* Der Tageskopf über dem Feed nur, wenn die Seitenspalten weg sind. */
+@media (min-width: 1280px) { .fi-sp-tageskopf { display: none; } }
+
 .fi-sp-seiten-titel {
   font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
   color: #64748b; margin: 0 0 6px;

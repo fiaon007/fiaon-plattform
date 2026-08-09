@@ -198,7 +198,7 @@ export default function AdminKundeAktePage() {
   const [timelineLimit, setTimelineLimit] = useState(30);
   /** Offener Archiv-Dialog (Teil 3) — welche Bestellung wird gerade betrachtet. */
   const [archivRef, setArchivRef] = useState<string | null>(null);
-  // Mehrfachauswahl über die Bestellungen — der Betreiber konnte bisher
+  // Mehrfachauswahl über die Bestellungen — der Vorgesetzte konnte bisher
   // nichts entfernen, auch nicht eine versehentlich angelegte Zeile.
   const [gewaehlteRefs, setGewaehlteRefs] = useState<Set<string>>(new Set());
   const [bestellDialog, setBestellDialog] = useState<any>(null);

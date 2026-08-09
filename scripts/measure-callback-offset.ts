@@ -45,7 +45,7 @@ async function main() {
   console.log(`\nHINWEIS: Der Versatz ist NICHT einheitlich (Agenten-Eingaben waren +1/+2 h,`);
   console.log(`Admin-Eingaben je nach Browser-Standort korrekt). Daher KEINE pauschale`);
   console.log(`Korrektur. Empfehlung: neue Termine sind ab dem Fix korrekt; Alt-Termine`);
-  console.log(`nur nach ausdrücklicher Freigabe des Betreibers einzeln prüfen/korrigieren.`);
+  console.log(`nur nach ausdrücklicher Freigabe des Vorgesetzten einzeln prüfen/korrigieren.`);
   await sql.end();
 }
 main().catch((e) => { console.error(e); process.exit(1); });

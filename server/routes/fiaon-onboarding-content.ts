@@ -28,7 +28,7 @@ export const ONBOARDING_DOCS: OnboardingDoc[] = [
         <li><strong>Verschwiegenheit:</strong> Du behandelst alle Kunden- und Geschäftsdaten streng vertraulich — während und nach deiner Tätigkeit für FIAON.</li>
         <li><strong>Keine Weitergabe:</strong> Du gibst Kundendaten niemals an Dritte weiter und nutzt sie ausschließlich zur Erfüllung deiner Aufgaben für FIAON.</li>
         <li><strong>Keine Speicherung außerhalb des Systems:</strong> Du speicherst, kopierst, exportierst oder fotografierst keine Kundendaten außerhalb der FIAON-Plattform (kein Export in eigene Tabellen, Notiz-Apps, Messenger o. Ä.).</li>
-        <li><strong>DSGVO/GDPR:</strong> Du hältst die geltenden Datenschutzgesetze ein und meldest jeden Verdacht auf Datenverlust unverzüglich dem Betreiber.</li>
+        <li><strong>DSGVO/GDPR:</strong> Du hältst die geltenden Datenschutzgesetze ein und meldest jeden Verdacht auf Datenverlust unverzüglich dem Vorgesetzten.</li>
         <li><strong>Rückgabe/Löschung:</strong> Bei Beendigung der Tätigkeit endet dein Zugriff; du löschst etwaige lokale Spuren.</li>
       </ul>
     `,

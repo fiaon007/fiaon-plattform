@@ -13,7 +13,7 @@ import { statusAusTierGrund } from "@shared/fiaon-kundenstatus";
 //
 // Zwei Menschen im Team führen den Vertrieb. Sie brauchen den Blick über ALLE
 // Kunden und die Möglichkeit, selbst zuzuweisen und Daten zu korrigieren — sonst
-// müssen sie für jede Kleinigkeit beim Betreiber anfragen. Genau das war die
+// müssen sie für jede Kleinigkeit beim Vorgesetzter anfragen. Genau das war die
 // Bitte: „damit die für ihren Vertrieb selber alles machen können".
 //
 // Diese Seite ist bewusst eine TABELLE, keine Kartenliste: Hier arbeitet man
@@ -679,7 +679,7 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
                 </button>
                 <p className="mt-2 text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>
                   Jede Änderung wird mit altem und neuem Wert protokolliert. Zahlungen buchen und Provisionen ändern
-                  bleibt beim Betreiber.
+                  bleibt beim Vorgesetzter.
                 </p>
 
                 {daten.bestellungen?.length > 0 && (

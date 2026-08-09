@@ -4,7 +4,7 @@
 // Manche Schritte werden ANGEKLICKT, andere ERKANNT. „Profil vervollständigen"
 // hakt der Mensch ab; „erstes Ergebnis dokumentiert" liest der Server aus dem
 // Kontaktprotokoll. Eine Checkliste, in der man sich selbst bescheinigt,
-// gearbeitet zu haben, wäre wertlos für den Betreiber — und die Admin-Sicht
+// gearbeitet zu haben, wäre wertlos für den Vorgesetzten — und die Admin-Sicht
 // lebt genau davon.
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -47,7 +47,7 @@ async function automatisch(agentId: number): Promise<Record<string, string | nul
   // Schritt und ist schon erledigt." Bis zum 11.08.2026 hing er trotzdem an
   // der Verpflichtungserklärung, die es für die Rolle „agent" gar nicht gibt.
   // Ergebnis: Ein Schritt, der behauptete, erledigt zu sein, und offen
-  // dastand. Genau das hat der Betreiber beanstandet.
+  // dastand. Genau das hat der Vorgesetzte beanstandet.
   //
   // Die richtige Ableitung steht im Text: WER ZUGANG HAT, HAT EINEN VERTRAG.
   // Zugang heißt, das Passwort ist gesetzt — die Einladung wurde angenommen.
@@ -64,7 +64,7 @@ async function automatisch(agentId: number): Promise<Record<string, string | nul
     erstes_ergebnis: ergebnis ? String(ergebnis) : null,
     // ── DER SPACE (11.08.2026) ──────────────────────────────────────────
     // Dieser Schritt liess sich bisher NUR von Hand abhaken, obwohl die
-    // Spalte `space_gesehen_am` bei jedem Besuch gesetzt wird. Der Betreiber
+    // Spalte `space_gesehen_am` bei jedem Besuch gesetzt wird. Der Vorgesetzte
     // war Dutzende Male dort und sah den Schritt trotzdem als offen.
     // Ein Häkchen, das man setzen muss, obwohl das System es längst weiss,
     // ist kein Häkchen, sondern eine Zumutung.

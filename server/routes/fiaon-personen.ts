@@ -16,7 +16,7 @@
 //    bezahlte Bestellungen und der letzte dokumentierte Kontakt je Agent.
 //
 // Es wird hier NICHTS entschieden und NICHTS geschrieben. Die Zuordnung eines
-// Kunden ist eine Geldfrage (Provision) — die trifft der Betreiber, oder sie
+// Kunden ist eine Geldfrage (Provision) — die trifft der Vorgesetzte, oder sie
 // wird mit dem Stichtag aufgelöst. Ein Automat, der hier rät, verteilt fremdes
 // Geld um.
 // ═══════════════════════════════════════════════════════════════════

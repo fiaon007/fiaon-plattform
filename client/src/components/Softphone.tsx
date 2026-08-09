@@ -170,7 +170,16 @@ export function Softphone() {
         setMeldung(telefonFehlerText(e));
         setZustand("ergebnis");
       });
-      const c = await d.connect({ params: { To: j.nummer } });
+      // ── „To" IST BEI TWILIO RESERVIERT ────────────────────────────────
+      // Das Browser-SDK setzt `To` selbst — auf die Client-Identität, nicht
+      // auf die gewählte Nummer. Ein eigener Parameter mit diesem Namen wird
+      // dabei überschrieben. Im Twilio-Log stand deshalb bei jedem
+      // Browser-Anruf eine LEERE To-Spalte, und die TwiML-Antwort konnte
+      // keine Nummer wählen — obwohl die Selbstdiagnose alles grün meldete.
+      //
+      // `An` ist nicht reserviert und kommt unverändert an. `Ziel` geht als
+      // zweiter Name mit: kostet nichts und überlebt eine Umbenennung.
+      const c = await d.connect({ params: { An: j.nummer, Ziel: j.nummer } });
       verbindung.current = c;
       // „accept" ist der Moment, in dem der Gegenüber abnimmt — erst dann
       // läuft die Uhr. Sonst zählt sie das Klingeln mit, und die Dauer im

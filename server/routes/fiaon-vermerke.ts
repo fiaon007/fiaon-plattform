@@ -2,7 +2,7 @@
 // FIAON VERMERKE — Notizen und Aufgaben an der Person
 //
 // Bisher gab es zwei Wege, etwas festzuhalten: das Kontaktprotokoll (was am
-// Telefon passiert ist) und den Kopf des Betreibers. Was fehlte, war der
+// Telefon passiert ist) und den Kopf des Vorgesetzten. Was fehlte, war der
 // Zettel an der Akte: „Rückruf am Freitag", „Unterlagen prüfen", „Vorsicht,
 // zahlt immer spät" — mit Frist, mit Zuständigem, und mit einer Antwort auf die
 // Frage, WER das sehen darf.
@@ -15,9 +15,9 @@
 // Ansichten, die man nebeneinander lesen muss.
 //
 // SICHTBARKEIT (die eigentliche Anforderung)
-//   privat   Nur der Betreiber. Kein Agent sieht das je.
-//   team     Alle aktiven Agenten und der Betreiber.
-//   auswahl  Der Betreiber und ausdrücklich benannte Agenten.
+//   privat   Nur der Vorgesetzte. Kein Agent sieht das je.
+//   team     Alle aktiven Agenten und der Vorgesetzte.
+//   auswahl  Der Vorgesetzte und ausdrücklich benannte Agenten.
 // Eine Aufgabe, die einem Agenten zugewiesen ist, sieht dieser Agent IMMER —
 // unabhängig von der Sichtbarkeit. Eine Aufgabe, die ihr Zuständiger nicht
 // lesen darf, wäre ein Widerspruch.
@@ -244,7 +244,7 @@ router.post("/admin/vermerke", async (req: Request, res: Response) => {
     if (sicht === "auswahl" && agenten.length === 0) {
       return res.status(400).json({ ok: false, error: "Bitte mindestens eine Person auswählen." });
     }
-    // Zuständigkeit: entweder ein Agent oder der Betreiber selbst. Eine Aufgabe
+    // Zuständigkeit: entweder ein Agent oder der Vorgesetzte selbst. Eine Aufgabe
     // ohne Zuständigen erledigt niemand.
     const fuerBetreiber = art === "aufgabe" && !zustaendig;
 
@@ -386,7 +386,7 @@ router.get("/agent/vermerke", requireAgent, async (req: AgentRequest, res: Respo
       ORDER BY (v.status = 'offen') DESC, v.faellig_am ASC NULLS LAST, v.created_at DESC
       LIMIT 200
     `, ref ? [id, ref] : [id]);
-    // Die Akte-Links des Betreibers dürfen nicht ins Agent-Portal gelangen —
+    // Die Akte-Links des Vorgesetzten dürfen nicht ins Agent-Portal gelangen —
     // der Agent hat keinen Zugriff auf /admin.
     res.json({
       ok: true,

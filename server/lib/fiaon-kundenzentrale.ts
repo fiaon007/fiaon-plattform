@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // KUNDEN-ZENTRALE — eine Liste statt sechs Seiten
 //
-// Der Betreiber sprang bisher zwischen sechs sich überlappenden Seiten:
+// Der Vorgesetzte sprang bisher zwischen sechs sich überlappenden Seiten:
 // „Kunden — die eine Liste", „Anträge & KYC", „Kunden & Zuordnung", „Offene
 // Kartei" (seit 03.08. stillgelegt), „Leads" und „Kündigungen". Jede hatte
 // ihre eigene Suche, ihre eigenen Filter und ihre eigene Vorstellung davon,
@@ -237,7 +237,7 @@ export async function filterZahlen(lauf: Lauf = sqlPool): Promise<Record<string,
   // scripts/pruef-zentralen.ts.
   //
   // Eine Zahl auf einem Knopf ist ein Versprechen. Wenn sie nicht hält, sucht
-  // der Betreiber nach zwei Kunden, die es in dieser Ansicht nicht gibt.
+  // der Vorgesetzte nach zwei Kunden, die es in dieser Ansicht nicht gibt.
   const basis = `${echtePersonSql("p")}
     AND NOT EXISTS (SELECT 1 FROM fiaon_applications g
                      WHERE g.person_id = p.id AND g.gdpr_deleted_at IS NOT NULL)

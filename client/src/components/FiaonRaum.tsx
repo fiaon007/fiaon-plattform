@@ -35,7 +35,7 @@ const SCHLUESSEL = "fiaon-raum-staerke";
  * einmal zu viel. Das Video trägt jetzt mehr, die Wäsche weniger; die
  * Lesbarkeit entsteht durch die Wäsche, nicht durch ein unsichtbares Video.
  */
-const DECKKRAFT: Record<RaumStaerke, number> = { 0: 0, 1: 0.34, 2: 0.55, 3: 0.78 };
+const DECKKRAFT: Record<RaumStaerke, number> = { 0: 0, 1: 0.5, 2: 0.75, 3: 1 };
 
 export function raumStaerkeLesen(): RaumStaerke {
   if (typeof window === "undefined") return 2;
@@ -113,7 +113,7 @@ export function FiaonRaum({ dicht = false }: { dicht?: boolean }) {
   const deckkraft = Math.max(0, DECKKRAFT[staerke] - (dicht ? 0.12 : 0));
 
   return (
-    <div aria-hidden="true" style={{
+    <div aria-hidden="true" className="fi-raum" style={{
       position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden",
     }}>
       {/* Das Poster steht sofort da — es ist der sichtbare Teil des LCP. */}
@@ -143,11 +143,17 @@ export function FiaonRaum({ dicht = false }: { dicht?: boolean }) {
 
       {/* Die Wäsche: kühles CI-Blau plus Aufhellung. Ohne sie stünde weißer
           Text auf einem dunklen Planeten — und dunkler Text auf hellem
-          Himmel. Beides unlesbar. */}
-      <div style={{
+          Himmel. Beides unlesbar.
+
+          Der Space schaltet sie ab (siehe space.tsx): Er bringt seine eigene
+          dunkle Tönung mit, und zwei Wäschen übereinander ergäben Grau. */}
+      <div className="fi-raum-waesche" style={{
         position: "absolute", inset: 0,
         background:
-          "linear-gradient(178deg, rgba(234,240,251,.84) 0%, rgba(226,235,249,.79) 46%, rgba(232,239,251,.84) 100%)",
+          // Die Wäsche bleibt für die HELLEN Bereiche zuständig. Der Space
+          // bringt seine eigene dunkle Tönung mit und braucht sie nicht —
+          // deshalb dort abgeschaltet (siehe :has-Regel unten).
+          "linear-gradient(178deg, rgba(234,240,251,.8) 0%, rgba(226,235,249,.75) 46%, rgba(232,239,251,.8) 100%)",
         mixBlendMode: "normal",
       }} />
       <div style={{

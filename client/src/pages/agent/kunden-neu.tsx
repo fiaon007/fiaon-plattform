@@ -1078,7 +1078,7 @@ function KundenKarte({
 // VERSANDZENTRUM — was ging raus, und schick es noch einmal
 //
 // „Der Kunde sagt, er hat nichts bekommen." Bisher: Nachricht an den
-// Betreiber, der sucht im Make-Protokoll. Jetzt: zwei Klicks, hier.
+// Vorgesetzter, der sucht im Make-Protokoll. Jetzt: zwei Klicks, hier.
 //
 // Die drei Wände (Zustand, Tageslimit, Rechte) stehen im SERVER. Diese Seite
 // zeigt nur, was er zurückgibt — auch den Grund, warum ein Knopf nicht geht.

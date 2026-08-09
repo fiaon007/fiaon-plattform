@@ -21,7 +21,7 @@
 //     Schuldenberg aufbauen, den niemand entschieden hat.
 //  6. Mahnstufen: Erinnerung am Fälligkeitstag (Stufe 1), nach 7 Tagen
 //     (Stufe 2), nach 14 Tagen (Stufe 3). Danach KEINE weitere Mail, sondern
-//     ein Punkt „Entscheidung nötig“ für den Betreiber. Es wird NIEMALS
+//     ein Punkt „Entscheidung nötig“ für den Vorgesetzten. Es wird NIEMALS
 //     automatisch ein Konto gesperrt oder deaktiviert.
 //
 // BESTANDSKUNDEN (Einführung)
@@ -218,7 +218,7 @@ async function naechsteRateAnlegen(
   const referenz = app.payment_reference || app.ref;
   const nr = Number(letzteRate.rate_nr) + 1;
   const basis = abDatum || new Date(letzteRate.faellig_am).toISOString().slice(0, 10);
-  // Betrag immer frisch aus der Bestellung: ändert der Betreiber das Paket,
+  // Betrag immer frisch aus der Bestellung: ändert der Vorgesetzte das Paket,
   // gilt der neue Preis ab der nächsten Rate.
   const betrag = cents(app.amount_due) || Number(letzteRate.betrag_cents);
   await sqlPool`
@@ -235,14 +235,14 @@ async function naechsteRateAnlegen(
  * Fälligkeit. Für Monate, die nie in Rechnung gestellt wurden, wird niemand
  * gemahnt.
  * `rueckwirkend = true`: die offene Rate ist die letzte verstrichene Fälligkeit
- * — der Kunde ist damit sofort überfällig. Bewusste Entscheidung des Betreibers.
+ * — der Kunde ist damit sofort überfällig. Bewusste Entscheidung des Vorgesetzten.
  */
 /**
  * Stellt sicher, dass JEDE bezahlte Paketbestellung eine Ratenkette hat.
  *
  * Warum ohne Knopf: Wer ein Paket kauft, hat ein Abo — das ist keine
  * Einzelfallentscheidung, sondern die Regel des Geschäfts. Der frühere Knopf
- * „Ketten anlegen" verlangte vom Betreiber eine Zustimmung zu etwas, das
+ * „Ketten anlegen" verlangte vom Vorgesetzter eine Zustimmung zu etwas, das
  * ohnehin gilt, und ließ bis zum Klick Umsatz unsichtbar. Angelegt wird die
  * NÄCHSTE künftige Fälligkeit — für Monate, die nie in Rechnung gestellt
  * wurden, kann niemand gemahnt werden.
@@ -686,7 +686,7 @@ router.post("/admin/abo/raten/:id/bezahlt", async (req: Request, res: Response) 
     // für Zusagen bezahlen statt für Zahlungen.
     //
     // `praemieBuchen` entscheidet selbst, OB gebucht wird: Ohne dokumentierte
-    // Bearbeitung (Selbstzahler) und ohne vom Betreiber bestätigte Vergütung
+    // Bearbeitung (Selbstzahler) und ohne vom Vorgesetzter bestätigte Vergütung
     // passiert nichts. Ein Fehler hier darf die Ratenbuchung nicht umwerfen —
     // die ist die wichtigere Wahrheit.
     try {
@@ -730,7 +730,7 @@ router.post("/admin/abo/raten/:id/erinnern", async (req: Request, res: Response)
     }
     const erg = await rateErinnern(r);
     if (!erg.ok) {
-      // Ehrliche Rückmeldung: Der Betreiber muss wissen, dass NICHTS rausging.
+      // Ehrliche Rückmeldung: Der Vorgesetzte muss wissen, dass NICHTS rausging.
       return res.status(502).json({ ok: false, error: `Erinnerung konnte nicht zugestellt werden: ${erg.grund}` });
     }
     res.json({ ok: true });
@@ -815,7 +815,7 @@ router.post("/admin/abo/motor", async (_req, res) => {
 //
 // Vorher hing der Knopf am Motor. Der schaut ausschließlich auf „heute oder
 // früher fällig" UND respektiert den Einführungsstichtag — steht an dem Tag
-// nichts an, meldet er „0 gesendet". Für den Betreiber sah das aus wie ein
+// nichts an, meldet er „0 gesendet". Für den Vorgesetzten sah das aus wie ein
 // kaputter Knopf, obwohl die Regel griff.
 //
 // Jetzt gilt: Der Lauf verschickt an GENAU die Raten, die gerade in der Liste

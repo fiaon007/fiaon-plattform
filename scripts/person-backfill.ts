@@ -390,7 +390,7 @@ async function main(): Promise<void> {
       aliases,
       agents,
       // Mehrere Agenten in einer Familie: KEINE automatische Entscheidung.
-      // Markiert für die Betreiber-Liste; die Auflösung kommt mit Stichtag und
+      // Markiert für die Vorgesetzten-Liste; die Auflösung kommt mit Stichtag und
       // Basis-Provision in Phase 4. Zugewiesen bleibt der Agent der Konto-Zeile,
       // damit niemand seinen Kunden aus der Ansicht verliert.
       agentConflict: agents.length > 1,

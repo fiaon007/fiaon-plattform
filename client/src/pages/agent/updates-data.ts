@@ -40,6 +40,30 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-telefon-space-breit",
+    date: "2026-08-11",
+    category: "Behoben",
+    title: "Telefonieren geht wieder — und der Space nutzt den ganzen Bildschirm",
+    summary:
+      "Der Grund, warum Anrufe nicht rausgingen, ist gefunden: ein Parametername, den Twilio für sich reserviert. Dazu der Space in voller Breite mit euren echten Zahlen.",
+    changes: [
+      "TELEFON: Anrufe aus dem Browser kamen bei Twilio ohne Rufnummer an. Ursache: Wir haben die Nummer im Feld „To“ übergeben — das setzt Twilio bei Browser-Anrufen selbst und hat unsere Angabe überschrieben. Jetzt heißt das Feld „An“.",
+      "Wenn beim Telefonieren etwas klemmt, nennt die Meldung den Twilio-Code und was zu tun ist — kein „undefined“ mehr.",
+      "SPACE: Der Feed ist von 760 auf 900 Pixel gewachsen und nutzt den ganzen Bildschirm.",
+      "Der Hintergrund mit dem Planeten ist jetzt überall deutlich zu sehen — auch im Space.",
+      "Rechts stehen jetzt EURE Zahlen: Verdienst im Monat, Kontakte heute, offene Stufe-A-Kunden. Vorher standen dort zwei Karten ohne eine einzige Zahl.",
+      "Auf dem Handy stehen die Zahlen als Kachelreihe über dem Feed.",
+      "ZAHLUNGSDATEN: In Kunden-Mails steht jetzt das richtige Konto — FIAON LTD, BE09 9058 9276 3957. Wenn ein Kunde nach der Bankverbindung fragt, ist die aus dem System immer die richtige.",
+      "Das Wort „Betreiber“ heißt im ganzen System jetzt „Vorgesetzter“.",
+    ],
+    howto: [
+      "Falls du das Telefon offen hattest: einmal die Seite neu laden (Strg+Umschalt+R bzw. Cmd+Umschalt+R), damit die neue Fassung greift.",
+      "Den Hintergrund kann der Vorgesetzte in den Einstellungen abschwächen oder abschalten.",
+    ],
+    link: { href: "/agent/space", label: "Zum Space" },
+    important: true,
+  },
+  {
     id: "2026-08-11-space-v4",
     date: "2026-08-11",
     category: "Neu",
@@ -78,8 +102,8 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Mails gehen jetzt zweiteilig raus (Text und HTML) — sie landen dadurch seltener im Spam.",
     ],
     howto: [
-      "Wenn beim Telefonieren etwas klemmt: Der Text im Panel nennt den Grund. Schick ihn dem Betreiber, dann weiß er sofort, wo es hakt.",
-      "Der Hintergrund lässt sich abschalten — der Betreiber findet den Regler unter Einstellungen → Design.",
+      "Wenn beim Telefonieren etwas klemmt: Der Text im Panel nennt den Grund. Schick ihn dem Vorgesetzten, dann weiß er sofort, wo es hakt.",
+      "Der Hintergrund lässt sich abschalten — der Vorgesetzte findet den Regler unter Einstellungen → Design.",
     ],
     important: true,
   },
@@ -413,11 +437,11 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     category: "Neu",
     title: "Vertriebsleitung hilft jetzt direkt: Zahlungen, Unterlagen, Zugang",
     summary:
-      "Bei Zahlungsfragen, fehlenden Unterlagen oder Login-Problemen deiner Kunden musst du nicht mehr auf den Betreiber warten — die Vertriebsleitung kann das jetzt selbst klären.",
+      "Bei Zahlungsfragen, fehlenden Unterlagen oder Login-Problemen deiner Kunden musst du nicht mehr auf den Vorgesetzten warten — die Vertriebsleitung kann das jetzt selbst klären.",
     changes: [
       "Sagt dein Kunde, er habe überwiesen: Die Vertriebsleitung sieht die Bankeingänge und kann ihn bei belegtem Geld selbst auf „bezahlt“ setzen. Das Konto geht sofort auf und der Kunde bekommt seine Bestätigung.",
       "Gebucht wird nur mit Nachweis — passender Verwendungszweck im Bankeingang oder ein Überweisungsbeleg, den der Kunde gezeigt hat. Ohne Nachweis und ohne echtes Eingangsdatum geht der Knopf nicht.",
-      "Fehlende Unterlagen sind sichtbar: Bei welchen bezahlten Kunden noch Ausweis, Kontoauszug oder SCHUFA-Auskunft fehlt. Die Dokumente selbst bleiben beim Betreiber.",
+      "Fehlende Unterlagen sind sichtbar: Bei welchen bezahlten Kunden noch Ausweis, Kontoauszug oder SCHUFA-Auskunft fehlt. Die Dokumente selbst bleiben beim Vorgesetzter.",
       "Login-Probleme sind erklärbar: Es steht da, WARUM ein Kunde nicht in sein Konto kommt (kein Passwort gesetzt, Zahlung offen, Konto gesperrt) und was konkret hilft.",
       "Deine Provision bleibt deine: Eine Buchung durch die Vertriebsleitung geht auf den dokumentierten Betreuer — also auf den, der die Arbeit gemacht hat.",
     ],
@@ -667,7 +691,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     changes: [
       "Tippe oben links auf das Menü-Symbol — oder wisch einfach vom linken Bildschirmrand nach rechts.",
       "Schließen: nach links wischen, daneben tippen oder die Zurück-Taste.",
-      "Am Menü-Symbol steht eine Zahl, wenn etwas auf dich wartet: Antwort vom Betreiber, neue Neuerungen oder Akten, die bald zurück in die Kartei laufen.",
+      "Am Menü-Symbol steht eine Zahl, wenn etwas auf dich wartet: Antwort vom Vorgesetzter, neue Neuerungen oder Akten, die bald zurück in die Kartei laufen.",
       "„Nächste Akte“ bleibt immer als Knopf sichtbar, auch wenn das Menü zu ist — eine Handbewegung bis zur Arbeit.",
       "Alles ist einhändig erreichbar, alle Tippflächen mindestens 44 Pixel.",
     ],

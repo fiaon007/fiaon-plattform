@@ -94,7 +94,7 @@ export async function zweigPruefen(
 
   // ── BEIDE URSACHEN NENNEN ────────────────────────────────────────────────
   // Genau hier lag der alte Fehler: Die Plattform behauptete „Make-Zweig
-  // fehlt" und schickte den Betreiber in die falsche Richtung, während in
+  // fehlt" und schickte den Vorgesetzten in die falsche Richtung, während in
   // Wahrheit die Brevo-Vorlage nicht aktiv war. Von hier aus sehen beide
   // Ursachen identisch aus, also werden beide genannt.
   const text = `Nicht bestätigt — die Testmail kam in ${Math.round(maxWarten / 60000)} Minuten nicht bei Brevo an. `

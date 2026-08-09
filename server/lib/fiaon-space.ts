@@ -139,6 +139,77 @@ export interface Post {
  * Angepinntes kommt NUR auf der ersten Seite: Sonst stünde es auf jeder Seite
  * wieder oben.
  */
+/**
+ * Der Tageskopf — echte Zahlen, je Rolle die passenden.
+ *
+ * ── WAS HIER STAND UND WARUM ES WEG MUSSTE ─────────────────────────────────
+ * In der rechten Spalte stand „HEUTE · Sonntag, 9. August · Was hier steht,
+ * kommt aus echten Zahlen des Teams" — ein Versprechen ohne eine einzige
+ * Zahl. Und darunter „DER RAUM: keine Kundendaten hier" — die Hausordnung,
+ * die schon am Schreibfeld steht.
+ *
+ * Zwei Karten, die Platz kosten und nichts sagen. Jetzt stehen dort die
+ * Zahlen, die das Versprechen einlösen.
+ */
+export async function tageszahlen(
+  agentId: number, alsAdmin: boolean, lauf: Lauf = sqlPool,
+): Promise<{ titel: string; wert: string; hinweis?: string }[]> {
+  const heute = berlinToday();
+
+  if (alsAdmin) {
+    const [u] = (await lauf`
+      SELECT COALESCE(SUM(base_amount_cents) FILTER (WHERE COALESCE(kind,'') <> 'stunden'), 0)::bigint AS umsatz,
+             COUNT(*) FILTER (WHERE COALESCE(kind,'') <> 'stunden')::int AS abschluesse
+      FROM fiaon_commissions
+      WHERE status <> 'storniert' AND created_at >= date_trunc('day', ${heute}::date)
+    `) as any[];
+    const [z] = (await lauf`
+      SELECT COUNT(*)::int AS offen FROM fiaon_applications
+      WHERE payment_status <> 'paid' AND merged_into IS NULL AND archived_at IS NULL
+        AND claimed_paid_at IS NOT NULL
+    `) as any[];
+    const [d] = (await lauf`
+      SELECT COUNT(*)::int AS n FROM fiaon_mail_log
+      WHERE status = 'fehlgeschlagen' AND created_at > NOW() - INTERVAL '24 hours'
+    `.catch(() => [{ n: 0 }] as any[])) as any[];
+    const [k] = (await lauf`
+      SELECT COUNT(*)::int AS n FROM fiaon_contact_log
+      WHERE type <> 'system' AND created_at >= date_trunc('day', ${heute}::date)
+    `) as any[];
+    return [
+      { titel: "Umsatz heute", wert: `${(Number(u.umsatz) / 100).toFixed(2).replace(".", ",")} €`,
+        hinweis: `${u.abschluesse} ${Number(u.abschluesse) === 1 ? "Abschluss" : "Abschlüsse"}` },
+      { titel: "Zahlung angekündigt", wert: String(z.offen), hinweis: "noch nicht eingegangen" },
+      { titel: "Kontakte heute", wert: String(k.n), hinweis: "vom ganzen Team" },
+      { titel: "Mails gescheitert", wert: String(d.n), hinweis: "letzte 24 Stunden" },
+    ];
+  }
+
+  // Team: die eigenen Zahlen.
+  const [m] = (await lauf`
+    SELECT
+      COALESCE((SELECT SUM(amount_cents) FROM fiaon_commissions c
+                WHERE c.agent_id = ${agentId} AND c.status <> 'storniert'
+                  AND c.created_at >= date_trunc('month', ${heute}::date)), 0)::bigint AS verdienst,
+      (SELECT COUNT(*)::int FROM fiaon_contact_log cl
+        WHERE cl.agent_id = ${agentId} AND cl.type <> 'system'
+          AND cl.created_at >= date_trunc('day', ${heute}::date)) AS kontakte,
+      (SELECT COUNT(*)::int FROM fiaon_persons p
+        WHERE p.assigned_agent_id = ${agentId} AND p.merged_into_person_id IS NULL
+          AND p.priority_tier = 1 AND NOT p.is_blocked) AS stufe_a,
+      (SELECT COUNT(*)::int FROM fiaon_commissions c
+        WHERE c.agent_id = ${agentId} AND c.status <> 'storniert'
+          AND COALESCE(c.kind,'') <> 'stunden'
+          AND c.created_at >= date_trunc('month', ${heute}::date)) AS abschluesse
+  `) as any[];
+  return [
+    { titel: "Verdienst Monat", wert: `${(Number(m.verdienst) / 100).toFixed(2).replace(".", ",")} €`,
+      hinweis: `${m.abschluesse} ${Number(m.abschluesse) === 1 ? "Abschluss" : "Abschlüsse"}` },
+    { titel: "Kontakte heute", wert: String(m.kontakte), hinweis: "von dir dokumentiert" },
+    { titel: "Stufe A offen", wert: String(m.stufe_a), hinweis: "warten auf dich" },
+  ];
+}
+
 export async function feedLesen(
   agentId: number, limit = 40, lauf: Lauf = sqlPool, vorId: number | null = null,
 ): Promise<Post[]> {

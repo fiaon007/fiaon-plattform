@@ -91,7 +91,7 @@ router.post("/admin/mail/registry/:event/pruefen", async (req: Request, res: Res
       `;
     }
     const erg = await zweigPruefen(String(req.params.event), an,
-      { name: "Betreiber", agentId: null, rolle: "admin" },
+      { name: "Vorgesetzter", agentId: null, rolle: "admin" },
       { maxWartenMs: Number(req.body?.maxWartenMs) || undefined });
     res.json({ ok: true, ...erg });
   } catch (err) {
@@ -120,7 +120,7 @@ router.get("/admin/mail/vorschau/:event", async (req: Request, res: Response) =>
       vorschauCache.set(def.brevoTemplateId, eintrag);
     }
     // {{ params.x }} mit den Beispielwerten der Registry füllen — so sieht der
-    // Betreiber, was der Kunde sieht, und nicht ein Gerüst aus Platzhaltern.
+    // Vorgesetzter, was der Kunde sieht, und nicht ein Gerüst aus Platzhaltern.
     let html = eintrag.html;
     let betreff = eintrag.betreff;
     for (const p of def.parameter) {
@@ -176,9 +176,9 @@ router.post("/admin/mail/alle-pruefen", async (req: Request, res: Response) => {
 
     for (const e of alle) {
       const p = await zweigPruefen(e.type, an,
-        { name: "Betreiber", agentId: null, rolle: "admin" },
+        { name: "Vorgesetzter", agentId: null, rolle: "admin" },
         // Kurz warten: 29 × 20 Sekunden wären zehn Minuten, in denen der
-        // Betreiber auf einen Ladebalken schaut. Wer eine Bestätigung
+        // Vorgesetzter auf einen Ladebalken schaut. Wer eine Bestätigung
         // vermisst, prüft den Zweig einzeln nach.
         { maxWartenMs: 4000 },
       ).catch((err) => ({
@@ -358,7 +358,7 @@ router.post("/mail/zentrale/vorschau", requireAgent, async (req: AgentRequest, r
 // ADMIN-SPIEGEL DER MAIL-ZENTRALE
 //
 // DER BUG (gemeldet 11.08.2026): Der Menüpunkt „Mail-Zentrale" im Admin-Bereich
-// zeigte auf /agent/mail-zentrale. Der Betreiber hat keinen Agent-Zugang — er
+// zeigte auf /agent/mail-zentrale. Der Vorgesetzte hat keinen Agent-Zugang — er
 // landete auf einer Anmeldeaufforderung für ein Konto, das er nicht besitzt.
 //
 // Diese Routen sind KEINE zweite Mail-Zentrale. Sie rufen exakt dieselben
@@ -369,7 +369,7 @@ router.post("/mail/zentrale/vorschau", requireAgent, async (req: AgentRequest, r
 // Sie liegen hinter dem Admin-Code-Gate wie alle /admin/-Routen.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Der Betreiber hat kein Empfängerlimit — aber eine Obergrenze gegen Unfälle. */
+/** Der Vorgesetzte hat kein Empfängerlimit — aber eine Obergrenze gegen Unfälle. */
 const ADMIN_GRENZE = 5000;
 
 /** Vorschau-Merkmale. Geteilt zwischen Team- und Admin-Weg. */
@@ -392,7 +392,7 @@ router.get("/admin/mail/zentrale/gruppen", async (_req: Request, res: Response) 
       bausteine: BAUSTEINE,
       rolle: "admin",
       maxEmpfaenger: ADMIN_GRENZE,
-      absender: "Betreiber",
+      absender: "Vorgesetzter",
     });
   } catch (err) {
     console.error("[MAIL] admin gruppen:", err);
@@ -435,7 +435,7 @@ router.post("/admin/mail/zentrale/senden", async (req: Request, res: Response) =
           + "Grenze die Auswahl ein — ein Versand an alle auf einmal ist fast immer ein Versehen.",
       });
     }
-    // Die Vorschau-Pflicht gilt auch für den Betreiber: Sie ist kein Rechte-
+    // Die Vorschau-Pflicht gilt auch für den Vorgesetzten: Sie ist kein Rechte-
     // Thema, sondern der Schutz davor, eine kaputte Personalisierung an
     // tausend Menschen zu schicken.
     const merkmal = String(req.body?.merkmal || "");
@@ -452,7 +452,7 @@ router.post("/admin/mail/zentrale/senden", async (req: Request, res: Response) =
       empfaenger: ziel.empfaenger,
       betreff: String(req.body?.betreff || ""),
       text: String(req.body?.text || ""),
-      akteur: { name: "Betreiber", agentId: null },
+      akteur: { name: "Vorgesetzter", agentId: null },
     });
     vorschauMerker.delete(merkmal);
     res.json({ ok: true, ...erg });
@@ -469,7 +469,7 @@ router.post("/admin/mail/zentrale/test", async (req: Request, res: Response) => 
       return res.status(400).json({ ok: false, error: "Bitte eine gültige Adresse für den Test angeben." });
     }
     const r = await eigeneMailSenden({
-      an, name: "Betreiber",
+      an, name: "Vorgesetzter",
       betreff: `[TEST] ${String(req.body?.betreff || "")}`,
       text: String(req.body?.text || ""),
     });
@@ -545,10 +545,10 @@ router.post("/mail/zentrale/test", requireAgent, async (req: AgentRequest, res: 
 });
 
 /**
- * POST /admin/mail/zentrale/ki — derselbe Assistent für den Betreiber.
+ * POST /admin/mail/zentrale/ki — derselbe Assistent für den Vorgesetzten.
  *
  * ── WARUM ES DIE ÜBERHAUPT BRAUCHT ─────────────────────────────────────────
- * Die Team-Route hängt an `requireAgent`. Der Betreiber hat keine
+ * Die Team-Route hängt an `requireAgent`. Der Vorgesetzte hat keine
  * Agent-Sitzung — von /admin/mail-zentrale lief jeder KI-Aufruf in ein 401.
  * Genau dieselbe Lücke wie bei der Mail-Zentrale selbst; sie war nur nicht
  * aufgefallen, weil die Fehlermeldung „KI nicht verfügbar" nach einem

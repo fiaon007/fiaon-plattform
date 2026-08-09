@@ -3,7 +3,7 @@
 // (/nummer-aktualisieren) UND vom Antrags-Funnel genutzt — identische Regeln.
 // Spiegelt die Server-Normalisierung (normalizePhone in fiaon-agent.ts) und
 // fängt zusätzlich offensichtlichen Unsinn ab (z. B. 00000, zu kurz/lang).
-// KEINE SMS-Verifizierung (Betreiber-Entscheidung: Conversion-Schutz) — nur
+// KEINE SMS-Verifizierung (Vorgesetzten-Entscheidung: Conversion-Schutz) — nur
 // sofortige Formatprüfung.
 // ════════════════════════════════════════════════════════════════════
 

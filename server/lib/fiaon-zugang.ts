@@ -214,7 +214,7 @@ export async function zugangFreischalten(
     return { ok: false, grund: "Für diese Bestellung ist keine Zahlung gebucht. Erst buchen, dann öffnet sich das Konto von selbst." };
   }
   if (a.account_status === "suspended") {
-    return { ok: false, grund: "Das Konto ist gesperrt. Eine Sperre hebt nur der Betreiber auf." };
+    return { ok: false, grund: "Das Konto ist gesperrt. Eine Sperre hebt nur der Vorgesetzte auf." };
   }
   await lauf`
     UPDATE fiaon_applications SET status = 'completed', updated_at = NOW() WHERE ref = ${ref}

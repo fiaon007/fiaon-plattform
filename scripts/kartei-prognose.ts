@@ -3,7 +3,7 @@
  * KARTEI — PROGNOSE VOR DER MIGRATION (nur lesend)
  * ═══════════════════════════════════════════════════════════════════
  *
- * Beantwortet die Pflichtfragen des Betreibers, BEVOR geschrieben wird:
+ * Beantwortet die Pflichtfragen des Vorgesetzten, BEVOR geschrieben wird:
  *
  *   F1  Wie viele der zurückgehenden Datensätze erscheinen tatsächlich
  *       als freie Karte? (Die Migration löst die Zuweisung — sichtbar wird
@@ -202,7 +202,7 @@ async function main(): Promise<void> {
     const looseGesamt = looseRows.length;
     const looseFreiJetzt = looseRows.filter((r: any) => r.frei).length;
     const looseVisibleCount = releaseCardIds.filter((id: string) => looseFrei.has(id)).length;
-    console.log("ZUM VERGLEICH — wenn die strenge Regel abgeschaltet würde (Betreiber entscheidet):\n");
+    console.log("ZUM VERGLEICH — wenn die strenge Regel abgeschaltet würde (Vorgesetzter entscheidet):\n");
     console.log(`  kartei_require_full_contact = 0  →  gesamt ${looseGesamt}, frei danach ${looseFreiJetzt + looseVisibleCount}`);
     console.log(`  (Diese Karten hätten teils nur Telefon ODER nur E-Mail.)\n`);
   } else {

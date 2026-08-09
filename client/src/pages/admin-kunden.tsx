@@ -7,7 +7,7 @@ import { FiaonFilter, FiaonFilterChips } from "@/components/FiaonFilter";
 // ═══════════════════════════════════════════════════════════════════════════
 // KUNDEN-ZENTRALE — eine Seite statt sechs
 //
-// Bis zum 09.08.2026 sprang der Betreiber zwischen „Kunden — die eine Liste",
+// Bis zum 09.08.2026 sprang der Vorgesetzte zwischen „Kunden — die eine Liste",
 // „Anträge & KYC", „Kunden & Zuordnung", „Offene Kartei", „Leads" und
 // „Kündigungen". Jede hatte ihre eigene Suche, ihre eigenen Filter und ihre
 // eigene Vorstellung davon, was ein Kunde ist. Wer eine Person suchte, musste

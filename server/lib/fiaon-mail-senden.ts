@@ -3,7 +3,7 @@
 //
 // Vor diesem Paket gab es 25 Stellen, die `sendMakeWebhook` direkt riefen —
 // ohne Protokoll, ohne Zustandsprüfung, ohne Tageslimit. Danach wusste
-// niemand, was rausgegangen war: Der Betreiber suchte im Make-Protokoll, der
+// niemand, was rausgegangen war: Der Vorgesetzte suchte im Make-Protokoll, der
 // Agent riet.
 //
 // Diese Funktion ist die Tür. Sie prüft (darf das raus?), sie sendet, sie
@@ -133,7 +133,7 @@ export async function mailSenden(ein: SendeEingabe): Promise<SendeErgebnis> {
   if (!ein.personId) return abgelehnt("Kein Empfänger angegeben.");
 
   // Die Zustandsregeln kennt fiaon-versand.ts. Ereignisse, die dort keine
-  // eigene Regel haben, kommen durch — sie sind vom Betreiber ausgelöste
+  // eigene Regel haben, kommen durch — sie sind vom Vorgesetzter ausgelöste
   // Einzelfälle (Storno, DSGVO), bei denen der Mensch die Lage kennt.
   const mitRegel: VersandArt[] = [
     "payment_details", "welcome", "nicht_erreicht_termin", "onboarding_einladung", "number_update_request",

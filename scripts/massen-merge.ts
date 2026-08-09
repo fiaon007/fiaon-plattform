@@ -43,7 +43,7 @@ import { findeKandidaten, kandidatenCacheLeeren } from "../server/lib/fiaon-dubl
 const SCHREIBEN = process.argv.includes("--schreiben");
 const GRENZE = Number(process.argv.find((a) => a.startsWith("--grenze="))?.split("=")[1] ?? "0") || 0;
 const WELLE = 50;
-const AKTEUR = { name: "Betreiber (Massen-Zusammenführung 08.08.2026)", agentId: null as number | null };
+const AKTEUR = { name: "Vorgesetzter (Massen-Zusammenführung 08.08.2026)", agentId: null as number | null };
 
 const feld = (v: unknown): string => {
   const s = v == null ? "" : String(v);

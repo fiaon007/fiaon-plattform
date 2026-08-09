@@ -2,7 +2,7 @@
 // SERVER-IPs — die Adressen, unter denen dieser Dienst nach außen auftritt
 //
 // ── DAS PROBLEM ────────────────────────────────────────────────────────────
-// Brevo lehnt Anfragen von nicht freigegebenen IPs ab. Der Betreiber sah:
+// Brevo lehnt Anfragen von nicht freigegebenen IPs ab. Der Vorgesetzte sah:
 //   „0 verschickt, 1 fehlgeschlagen (Grund steht im Protokoll)"
 // Im Protokoll stand: „Brevo-Sicherheit blockiert diesen Server — die Adresse
 // 74.220.50.221 steht nicht auf der Freigabeliste."
@@ -16,7 +16,7 @@
 // aus dem eigenen Abruf beim Start und aus jeder Brevo-Fehlermeldung, die
 // eine IP nennt. Die Diagnose zeigt daraus eine Liste zum Kopieren.
 //
-// Damit hat der Betreiber zwei ehrliche Wege:
+// Damit hat der Vorgesetzte zwei ehrliche Wege:
 //   1. Alle gesehenen Adressen eintragen (hilft, solange sie sich nicht
 //      ändern — bei Render tun sie das).
 //   2. Die Beschränkung abschalten. Das ist bei einer Plattform mit

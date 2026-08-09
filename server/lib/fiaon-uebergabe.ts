@@ -6,7 +6,7 @@
 //
 // Bis jetzt gab es dafür nur zwei schlechte Wege: Der Agent ruft ewig weiter an
 // (und dokumentiert „nicht erreicht", bis der Kunde in der Liste nach unten
-// rutscht), oder er fragt beim Betreiber nach einer Umzuweisung. Beides kostet
+// rutscht), oder er fragt beim Vorgesetzter nach einer Umzuweisung. Beides kostet
 // einen Abschluss, den ein Kollege mit einer anderen Nummer sofort hätte machen
 // können.
 //

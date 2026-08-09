@@ -151,7 +151,7 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
    *
    * Vorher hing der Knopf am Motor: der schaut nur auf „heute oder früher
    * fällig" und respektiert zusätzlich den Einführungsstichtag. Stand an dem Tag
-   * nichts an, meldete er „0 gesendet" — für den Betreiber sah das wie ein
+   * nichts an, meldete er „0 gesendet" — für den Vorgesetzten sah das wie ein
    * kaputter Knopf aus. Ein Knopf über einer Liste muss auf DIESE Liste wirken.
    *
    * Zuerst wird gezählt, dann gefragt. Eine Mailwelle ohne vorherige Zahl wäre

@@ -3,7 +3,7 @@
  * P1-G — MIGRATION DES BESTANDS IN DIE OFFENE KARTEI
  * ═══════════════════════════════════════════════════════════════════
  *
- * Betreiber-Entscheidung (liegt vor):
+ * Vorgesetzten-Entscheidung (liegt vor):
  *   · Leads/Kunden MIT dokumentiertem Kontakt oder abgeschlossen/bezahlt
  *     → bleiben beim bisherigen Agenten.
  *   · Leads/Kunden OHNE jeden dokumentierten Kontakt

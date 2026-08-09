@@ -108,7 +108,7 @@ function DesignTafel() {
  * Telefon-Selbstdiagnose.
  *
  * ── WARUM SIEBEN SCHRITTE UND NICHT „bereit: ja/nein" ──────────────────────
- * Der Betreiber hatte alle sechs Werte gesetzt, das Konto war aktiv, die
+ * Der Vorgesetzte hatte alle sechs Werte gesetzt, das Konto war aktiv, die
  * Nummer vorhanden — und im Panel stand „Das Telefon konnte nicht starten:
  * undefined". Zwischen „eingetragen" und „es klingelt" liegen sieben
  * Stellen. Ein einzelnes Ampellicht sagt nicht, welche davon klemmt.

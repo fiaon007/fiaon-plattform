@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 -- SPACE V3 — bearbeiten, löschen, antworten
 --
--- Der Betreiber: „Wenn ich bei SPACE einen Post abgebe, soll ich ihn auch
+-- Der Vorgesetzte: „Wenn ich bei SPACE einen Post abgebe, soll ich ihn auch
 -- widerrufen bzw. löschen können!" — und Antworten auf Kommentare.
 -- ═══════════════════════════════════════════════════════════════════════════
 

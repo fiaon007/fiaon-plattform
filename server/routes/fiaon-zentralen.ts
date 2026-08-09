@@ -4,8 +4,8 @@
 // Die Regeln stehen in den Bibliotheken; hier steht nur, wer was darf.
 //
 // WER DARF LÖSCHEN
-//   Einzeln       Betreiber und Vertriebsleitung.
-//   In Masse      NUR der Betreiber. Eine Sammellöschung ist der einzige
+//   Einzeln       Vorgesetzter und Vertriebsleitung.
+//   In Masse      NUR der Vorgesetzte. Eine Sammellöschung ist der einzige
 //                 Knopf im Haus, der in einer Sekunde tausend Menschen aus
 //                 dem Bestand nimmt.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -106,13 +106,13 @@ router.post("/admin/zentrale/kunden/loeschen/vorschau", async (req: Request, res
   }
 });
 
-/** POST /admin/zentrale/kunden/loeschen — ausführen. Nur Betreiber. */
+/** POST /admin/zentrale/kunden/loeschen — ausführen. Nur Vorgesetzter. */
 router.post("/admin/zentrale/kunden/loeschen", async (req: Request, res: Response) => {
   try {
     const ids = (req.body?.personIds ?? []).map(Number).filter(Boolean);
     if (ids.length === 0) return res.status(400).json({ ok: false, error: "Keine Auswahl." });
     const erg = await ausfuehren(
-      ids, "Betreiber", String(req.body?.bestaetigung || ""), req.body?.grund ?? null,
+      ids, "Vorgesetzter", String(req.body?.bestaetigung || ""), req.body?.grund ?? null,
     );
     if (!erg.ok) return res.status(400).json({ ok: false, error: erg.fehler });
     res.json(erg);
@@ -151,7 +151,7 @@ router.post("/admin/zentrale/kunden/aktion", async (req: Request, res: Response)
     if (art === "test") {
       let n = 0;
       for (const id of ids) {
-        if (await alsTestMarkieren(id, String(req.body?.grund || "Von Hand markiert"), "Betreiber")) n++;
+        if (await alsTestMarkieren(id, String(req.body?.grund || "Von Hand markiert"), "Vorgesetzter")) n++;
       }
       return res.json({
         ok: true,
@@ -161,7 +161,7 @@ router.post("/admin/zentrale/kunden/aktion", async (req: Request, res: Response)
     }
 
     if (art === "test-aufheben") {
-      for (const id of ids) await testMarkierungAufheben(id, "Betreiber");
+      for (const id of ids) await testMarkierungAufheben(id, "Vorgesetzter");
       return res.json({ ok: true, meldung: `${ids.length} zurückgenommen.` });
     }
 
@@ -177,7 +177,7 @@ router.post("/admin/zentrale/kunden/aktion", async (req: Request, res: Response)
         try {
           await archiviereAntrag(String(r.ref), String(req.body?.grund || "sonstiges"),
             String(req.body?.notiz || "Massenaktion aus der Kunden-Zentrale"),
-            { name: "Betreiber", agentId: null, rolle: "admin" });
+            { name: "Vorgesetzter", agentId: null, rolle: "admin" });
           n++;
         } catch (e) {
           // Bezahlte Bestellungen und solche mit Provision sind gesperrt — das
@@ -359,7 +359,7 @@ router.post("/admin/zentrale/team/nachricht", async (req: Request, res: Response
     for (const id of ids) {
       await sqlPool`
         INSERT INTO fiaon_team_nachrichten (agent_id, text, banner_bis, created_by)
-        VALUES (${id}, ${text}, ${bis}, ${String(req.body?.von || "Betreiber")})
+        VALUES (${id}, ${text}, ${bis}, ${String(req.body?.von || "Vorgesetzter")})
       `;
     }
     res.json({ ok: true, meldung: `An ${ids.length} ${ids.length === 1 ? "Person" : "Personen"} zugestellt.` });
@@ -400,7 +400,7 @@ router.post("/admin/zentrale/team/event", async (req: Request, res: Response) =>
       for (const a of agenten) {
         await sqlPool`
           INSERT INTO fiaon_team_nachrichten (agent_id, text, banner_bis, created_by)
-          VALUES (${a.id}, ${`${titel} — ${text}`}, ${bis}, ${String(req.body?.von || "Betreiber")})
+          VALUES (${a.id}, ${`${titel} — ${text}`}, ${bis}, ${String(req.body?.von || "Vorgesetzter")})
         `;
         banner++;
       }
@@ -473,7 +473,7 @@ router.post("/agent/nachrichten/:id/verstanden", requireAgent, async (req: Agent
 // ═══════════════════════════════════════════════════════════════════════════
 // BESTELLUNGEN IN DER AKTE VERWALTEN
 //
-// Der Betreiber konnte in der Akte nichts entfernen — eine versehentlich
+// Der Vorgesetzte konnte in der Akte nichts entfernen — eine versehentlich
 // angelegte Bestellung blieb für immer stehen und verfälschte jede Zählung.
 //
 // DIESELBEN REGELN WIE BEI PERSONEN (server/lib/fiaon-loeschen.ts):
@@ -588,7 +588,7 @@ router.post("/admin/bestellungen/entfernen", async (req: Request, res: Response)
       if (k.art === "archivieren") {
         await archiviereAntrag(k.ref, String(req.body?.grund || "sonstiges"),
           String(req.body?.notiz || "Aus der Akte entfernt"),
-          { name: "Betreiber", agentId: null, rolle: "admin" }).catch(() => {});
+          { name: "Vorgesetzter", agentId: null, rolle: "admin" }).catch(() => {});
         archiviert++;
         continue;
       }
@@ -596,7 +596,7 @@ router.post("/admin/bestellungen/entfernen", async (req: Request, res: Response)
       await sqlPool`
         INSERT INTO fiaon_loeschungen (art, person_id, person_name, refs, grund, akteur, stapel)
         VALUES ('endgueltig', NULL, ${`Bestellung ${k.ref}`}, ${k.ref},
-                ${String(req.body?.notiz || "Aus der Akte entfernt")}, 'Betreiber', ${`B-${k.ref}`})
+                ${String(req.body?.notiz || "Aus der Akte entfernt")}, 'Vorgesetzter', ${`B-${k.ref}`})
       `.catch(() => {});
       await sqlPool`DELETE FROM fiaon_contact_log WHERE ref = ${k.ref}`;
       await sqlPool`DELETE FROM fiaon_vermerke WHERE ref = ${k.ref}`;

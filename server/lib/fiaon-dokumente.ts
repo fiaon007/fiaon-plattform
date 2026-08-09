@@ -51,7 +51,7 @@ export function artAusKurz(v: string): DokumentArt | null {
 /**
  * Darf diese Rolle den INHALT sehen?
  *
- * Nur der Betreiber. Für alle anderen ist ein Ausweis eine Zeile „liegt vor",
+ * Nur der Vorgesetzte. Für alle anderen ist ein Ausweis eine Zeile „liegt vor",
  * mehr nicht — so steht es in der Erklärung, die sie unterschrieben haben.
  */
 export function darfInhalt(rolle: string): boolean {
@@ -215,7 +215,7 @@ export async function dokumentInhalt(
   if (!darfInhalt(rolle)) {
     return {
       ok: false, code: 403,
-      grund: "Kundendokumente darf nur der Betreiber öffnen. Sichtbar ist für dich, ob sie vorliegen — "
+      grund: "Kundendokumente darf nur der Vorgesetzte öffnen. Sichtbar ist für dich, ob sie vorliegen — "
         + "so steht es in deiner Verpflichtungserklärung.",
     };
   }

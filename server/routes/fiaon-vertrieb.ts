@@ -12,8 +12,8 @@
 //   · Zahlungsdaten senden
 //
 // WAS SIE NICHT DÜRFEN
-//   · Zahlungen buchen        → bleibt beim Betreiber
-//   · Provisionen ändern      → bleibt beim Betreiber
+//   · Zahlungen buchen        → bleibt beim Vorgesetzter
+//   · Provisionen ändern      → bleibt beim Vorgesetzter
 //   · Agenten anlegen/löschen oder Rollen ändern
 //   · Bankdaten anderer Agenten sehen
 //
@@ -614,15 +614,15 @@ router.post("/agent/vertrieb/person/:id/zahlungsdaten", requireAgent, nurLeitung
 // bucht eine Provision. Deshalb gilt hier:
 //
 //   1. EINE Buchung, kein Nachbau: `alsBezahltBuchen` aus fiaon-antrag.ts,
-//      dieselbe Funktion, die der Betreiber benutzt.
+//      dieselbe Funktion, die der Vorgesetzte benutzt.
 //   2. BELEGPFLICHT. Ohne benannten Nachweis (Bankeingang oder Überweisungsbeleg)
 //      und ohne echtes Eingangsdatum geht es nicht. Ein Klick „ist bezahlt" ohne
 //      Grund wäre eine Einladung, Provision auf Verdacht zu erzeugen.
 //   3. NACHVOLLZIEHBARKEIT. Wer, wann, mit welchem Beleg — in
-//      `fiaon_agent_events` UND im Kundenverlauf, damit es der Betreiber in der
+//      `fiaon_agent_events` UND im Kundenverlauf, damit es der Vorgesetzte in der
 //      Zahlungszentrale sieht, ohne suchen zu müssen.
 //   4. KEINE RÜCKNAHME. Storno, Rückerstattung und Reaktivierung bleiben beim
-//      Betreiber. Wer buchen darf, darf nicht auch spurlos zurückbuchen.
+//      Vorgesetzter. Wer buchen darf, darf nicht auch spurlos zurückbuchen.
 // ═══════════════════════════════════════════════════════════════════════════
 
 router.get("/agent/vertrieb/service", requireAgent, nurLeitung, nurMitZusage, async (_req: AgentRequest, res: Response) => {
@@ -873,7 +873,7 @@ router.post("/agent/vertrieb/zahlung/:paymentRef/bezahlt", requireAgent, nurLeit
     };
     await protokoll(req.agent!.id, "vertrieb_zahlung_gebucht", { ref: app.ref, payment_reference: paymentRef, beleg });
 
-    // Auch in den Kundenverlauf — dort sucht der Betreiber, wenn er später fragt,
+    // Auch in den Kundenverlauf — dort sucht der Vorgesetzte, wenn er später fragt,
     // warum diese Bestellung bezahlt ist.
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, outcome, note, created_at)
@@ -882,7 +882,7 @@ router.post("/agent/vertrieb/zahlung/:paymentRef/bezahlt", requireAgent, nurLeit
               NOW())
     `.catch((e) => console.error("[FIAON-VERTRIEB] Verlaufseintrag:", e));
 
-    // Und in die Diagnose des Betreibers: Eine gebuchte Zahlung ohne Geld auf dem
+    // Und in die Diagnose des Vorgesetzten: Eine gebuchte Zahlung ohne Geld auf dem
     // Konto fällt sonst erst beim Kontoabgleich auf — dann ist die Provision längst
     // bestätigt. Diese Zeile ist die Bitte um Gegenkontrolle.
     try {
@@ -925,7 +925,7 @@ router.post("/agent/vertrieb/zahlung/:paymentRef/bezahlt", requireAgent, nurLeit
 // beendet keine Bestellung. Was er anfasst — die Zuständigkeit —, verlangt bei
 // zwei verschiedenen Betreuern ohnehin eine ausdrückliche, protokollierte Wahl.
 //
-// ARCHIVIEREN ja, WIEDERHERSTELLEN nein: Zurückholen bleibt beim Betreiber.
+// ARCHIVIEREN ja, WIEDERHERSTELLEN nein: Zurückholen bleibt beim Vorgesetzter.
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Klartext-Akteur für alle Protokolle dieses Bereichs. */

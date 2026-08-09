@@ -18,7 +18,7 @@ import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 //    aber sie waren nirgends einsehbar. Diese Seite ändert NICHTS an der
 //    Zuordnung — sie legt nur alles vor, was für die Entscheidung nötig
 //    ist. Wem ein Kunde gehört, ist eine Geldfrage; das entscheidet der
-//    Betreiber, oder es wird mit dem Stichtag aufgelöst.
+//    Vorgesetzter, oder es wird mit dem Stichtag aufgelöst.
 // ═══════════════════════════════════════════════════════════════════
 
 async function apiF(url: string) {

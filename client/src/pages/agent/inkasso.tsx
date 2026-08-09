@@ -13,7 +13,7 @@ import { ZusageTafel } from "./vertrieb-zusage";
 //
 // WAS ES HIER NICHT GIBT: Erlass, Stundung, Kürzung, Storno. Nicht als
 // gesperrter Knopf, sondern überhaupt nicht. Wer einen Nachlass braucht, geht
-// über „Härtefall an den Betreiber".
+// über „Härtefall an den Vorgesetzten".
 // ═══════════════════════════════════════════════════════════════════════════
 
 interface Fall {
@@ -162,12 +162,12 @@ export default function AgentInkasso() {
           {Number(v.offeneMinuten) > 0 && (
             <p className="text-[11.5px] mt-1.5" style={{ color: "var(--fi-text-still)" }}>
               {Math.floor(Number(v.offeneMinuten) / 60)} Std {Number(v.offeneMinuten) % 60} Min warten noch auf die
-              monatliche Bestätigung durch den Betreiber.
+              monatliche Bestätigung durch den Vorgesetzten.
             </p>
           )}
           {!v.verguetungBestaetigt && (
             <p className="text-[11.5px] mt-1.5 font-semibold" style={{ color: "#b45309" }}>
-              Stundensatz und Prämie sind noch nicht vom Betreiber bestätigt. Bis dahin werden
+              Stundensatz und Prämie sind noch nicht vom Vorgesetzter bestätigt. Bis dahin werden
               keine Prämien gebucht — deine Arbeit wird aber vollständig festgehalten.
             </p>
           )}
@@ -362,7 +362,7 @@ function ErgebnisDialog({
             {e?.braucht === "notiz" && (
               <div className="mt-3">
                 <label className="block text-[11.5px] font-semibold text-slate-500 mb-1">
-                  Was hat der Kunde gesagt? (Pflicht — der Betreiber entscheidet danach)
+                  Was hat der Kunde gesagt? (Pflicht — der Vorgesetzte entscheidet danach)
                 </label>
                 <textarea value={notiz} onChange={(ev) => setNotiz(ev.target.value)} rows={4}
                           placeholder="Zwei Sätze genügen. Wörtlich ist besser als zusammengefasst."
@@ -377,7 +377,7 @@ function ErgebnisDialog({
 
             <p className="mt-4 text-[11px] text-slate-400 leading-snug">
               Erlass, Stundung und Storno gibt es in diesem Bereich nicht. Wenn ein Kunde
-              wirklich nicht zahlen kann, ist „Härtefall an den Betreiber" die richtige Wahl —
+              wirklich nicht zahlen kann, ist „Härtefall an den Vorgesetzten" die richtige Wahl —
               nicht mehr Druck.
             </p>
           </div>
@@ -446,7 +446,7 @@ function Zeiten({ onMeldung }: { onMeldung: (m: { art: "gut" | "schlecht"; text:
           {busy ? "…" : "Eintragen"}
         </button>
         <p className="text-[11px] mt-2 leading-snug" style={{ color: "var(--fi-text-still)" }}>
-          Der Betreiber bestätigt einmal im Monat. Bestätigte Zeiten lassen sich danach nicht
+          Der Vorgesetzte bestätigt einmal im Monat. Bestätigte Zeiten lassen sich danach nicht
           mehr ändern — auch nicht von ihm. Das schützt deine Abrechnung.
         </p>
       </div>

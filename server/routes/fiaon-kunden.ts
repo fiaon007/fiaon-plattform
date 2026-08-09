@@ -862,7 +862,7 @@ router.post("/admin/kunden/:ref/konditionen", async (req: Request, res: Response
   }
 });
 
-// ── Notiz des Betreibers am Kunden (Kontakt-Log, bestehendes Format) ─────────
+// ── Notiz des Vorgesetzten am Kunden (Kontakt-Log, bestehendes Format) ─────────
 router.post("/admin/kunden/:ref/note", async (req: Request, res: Response) => {
   try {
     const note = String(req.body?.note || "").trim();

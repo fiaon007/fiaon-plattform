@@ -120,7 +120,7 @@ async function main() {
   console.log(`  ${pad("→ durch den Fix wieder freigeschaltet")} ${repariert}`);
   console.log(`  ${pad("brauchen „Passwort vergessen\" (nie ein Passwort)")} ${ohnePasswort}`);
   console.log(`  ${pad("Zahlung am Konto offen (AUTH-03, korrekt)")} ${zahlungOffen}`);
-  console.log(`  ${pad("gesperrt (AUTH-04, Entscheidung des Betreibers)")} ${gesperrt}`);
+  console.log(`  ${pad("gesperrt (AUTH-04, Entscheidung des Vorgesetzten)")} ${gesperrt}`);
 
   if (repairedSamples.length > 0) {
     console.log("\n  Beispiele, die der Fix repariert:");
@@ -134,7 +134,7 @@ async function main() {
   // ── Ist der Rettungsweg für die Ausgesperrten überhaupt begehbar? ─────────
   // „Passwort vergessen" verlangt Vorname + Nachname + E-Mail + Geburtsdatum.
   // Fehlt eines davon im Datensatz, kann sich der Kunde NICHT selbst befreien —
-  // dann muss der Betreiber ihn anrufen. Genau das muss er vorher wissen.
+  // dann muss der Vorgesetzte ihn anrufen. Genau das muss er vorher wissen.
   console.log("\n  Rettungsweg „Passwort vergessen\" für die Ausgesperrten:");
   let begehbar = 0, nichtBegehbar = 0;
   const blocked: string[] = [];
@@ -159,7 +159,7 @@ async function main() {
     }
   });
   console.log(`    ${pad("können sich selbst befreien")} ${begehbar}`);
-  console.log(`    ${pad("brauchen den Betreiber (Angaben fehlen)")} ${nichtBegehbar}`);
+  console.log(`    ${pad("brauchen den Vorgesetzten (Angaben fehlen)")} ${nichtBegehbar}`);
   for (const b of blocked) console.log(`      ${b}`);
 
   // Sicherheits-Gegenprobe: Der Fix darf NIEMANDEN hereinlassen, der vorher

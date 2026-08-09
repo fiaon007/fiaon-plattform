@@ -56,11 +56,11 @@ function fmtTime(iso: string): string {
  * ── WAS EIN LAUF WIRKLICH TUT ──────────────────────────────────────────────
  * Jede Prüfung SENDET eine Probemail an die Testadresse und wartet, ob Brevo
  * eine Zustellung meldet. Bei 33 Ereignissen sind das 33 Mails. Das muss
- * vorher dastehen — sonst wundert sich der Betreiber über ein volles
+ * vorher dastehen — sonst wundert sich der Vorgesetzte über ein volles
  * Postfach und traut dem Knopf beim nächsten Mal nicht mehr.
  *
  * ── DIE ARBEITSLISTE IST DAS EIGENTLICHE ERGEBNIS ──────────────────────────
- * Ein „22 von 33 bestätigt" ist eine Zahl. Was der Betreiber braucht, ist die
+ * Ein „22 von 33 bestätigt" ist eine Zahl. Was der Vorgesetzte braucht, ist die
  * Liste der elf fehlenden Zweige mit ihren Variablennamen — damit geht er zu
  * Make und legt sie an. Deshalb steht sie unten, mit Kopierknopf.
  */
@@ -179,7 +179,7 @@ function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
                       {z.titel && <span className="ml-2 font-normal text-slate-500">{z.titel}</span>}
                     </p>
                     <p className="text-[11.5px] text-slate-500 leading-snug mt-0.5">
-                      {/* BEIDE Ursachen nennen: Der Betreiber kann von hier aus
+                      {/* BEIDE Ursachen nennen: Der Vorgesetzte kann von hier aus
                           nicht sehen, welche zutrifft — und eine falsche
                           Vermutung kostet ihn eine halbe Stunde in Make. */}
                       {z.text || "Keine Zustellung gemeldet. Entweder gibt es in Make keinen Zweig "
@@ -527,7 +527,7 @@ export default function AdminEventsPage() {
                         Hier stand bis zum 09.08.2026 eine Warnung über einen
                         angeblich fehlenden Zweig
                         — ausgelöst davon, dass in unserer eigenen
-                        Beschreibung das Wort „Betreiber-TODO" vorkam. 23 von
+                        Beschreibung das Wort „Vorgesetzten-TODO" vorkam. 23 von
                         33 Ereignissen waren so gekennzeichnet, obwohl alle 21
                         Zweige aktiv waren. */}
                     {!ev.deprecated && (

@@ -54,7 +54,7 @@ export const ADMIN_NAV: NavGroup[] = [
     items: [
       { path: "/admin/dashboard", label: "Dashboard", desc: "Was ist zu tun? Aufgaben, Warnungen, Suche, Tageszahlen", icon: LayoutDashboard },
       // Space steht GANZ OBEN nach dem Dashboard: Es ist der Ort, an dem
-      // sichtbar wird, was das Haus heute gemacht hat — und der Betreiber
+      // sichtbar wird, was das Haus heute gemacht hat — und der Vorgesetzte
       // landet nach der Anmeldung dort.
       { path: "/admin/space", label: "Space", desc: "Der Feed des Teams — mitlesen, reagieren, anpinnen, moderieren", icon: Users },
       { path: "/admin/aufgaben", label: "Notizen & Aufgaben", desc: "Alles, was an Personen festgehalten oder ans Team vergeben wurde — mit Frist und Sichtbarkeit", icon: ListChecks, badgeKey: "aufgabenOffen" },

@@ -3,7 +3,7 @@
    ------------------------------------------------------------------------
    ZENTRALE, LEICHT ANPASSBARE STELLE für die Willkommens-Texte.
 
-   WICHTIG (Betreiber-Hinweis):
+   WICHTIG (Vorgesetzten-Hinweis):
    - Die REINE BEGRÜSSUNG (title + body) ist IMMER aktiv.
    - Die FEATURE-/ORIENTIERUNGS-TOUR (die Schritte-Liste) ist erst dann sinnvoll,
      wenn die erklärten Funktionen wirklich existieren. Deshalb ist sie über den

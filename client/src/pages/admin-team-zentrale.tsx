@@ -129,7 +129,7 @@ function LohntSich({ agentId, name }: { agentId: number; name: string }) {
 
   return (
     <>
-      {/* Die Kachel, die der Betreiber im Vorbeigehen liest. */}
+      {/* Die Kachel, die der Vorgesetzte im Vorbeigehen liest. */}
       <div className="p-4 rounded-2xl fi-flaeche-tief">
         <p className="text-[10.5px] font-bold uppercase tracking-[.12em] fi-leise">Heute</p>
         <p className="mt-1.5 text-[22px] font-bold leading-none tracking-tight"
@@ -488,7 +488,7 @@ function MitgliedDetail({
               <h2 className="text-[19px] font-bold tracking-tight text-slate-900" style={{ overflowWrap: "anywhere" }}>
                 {m.name}
               </h2>
-              {/* UMBRECHEN statt kürzen — der Betreiber hat abgeschnittene
+              {/* UMBRECHEN statt kürzen — der Vorgesetzte hat abgeschnittene
                   Texte gemeldet. Eine Mailadresse, die man nicht ganz sieht,
                   kann man nicht abtippen. */}
               <p className="text-[12px] text-slate-400 leading-snug" style={{ overflowWrap: "anywhere" }}>
@@ -574,7 +574,7 @@ function MitgliedDetail({
           {reiter === "verwaltung" && (
             <>
               {/* ── PORTAL ANSEHEN ─────────────────────────────────────────
-                  Der Betreiber: „ich kann mir ja nicht ein Account machen um
+                  Der Vorgesetzte: „ich kann mir ja nicht ein Account machen um
                   jede Abteilung, jedes Dashboard zu sehen." Jetzt: ein Klick,
                   neuer Tab, das Portal exakt so, wie dieser Mensch es sieht —
                   aber NUR LESEND. Jede schreibende Route lehnt die Sitzung
@@ -731,9 +731,9 @@ function NachrichtDialog({
     setBusy(true);
     const pfad = alsEvent ? "event" : "nachricht";
     const koerper = alsEvent
-      ? { titel, text, auchBanner: true, von: "Betreiber" }
+      ? { titel, text, auchBanner: true, von: "Vorgesetzter" }
       : {
-          agentIds, text, von: "Betreiber",
+          agentIds, text, von: "Vorgesetzter",
           bannerBis: tage ? new Date(Date.now() + Number(tage) * 86_400_000).toISOString() : null,
         };
     const r = await fetch(`/api/fiaon/admin/zentrale/team/${pfad}`, {
@@ -824,7 +824,7 @@ function NachrichtDialog({
 // ═══════════════════════════════════════════════════════════════════════════
 // NEU IM TEAM — wer hängt?
 //
-// Die Frage, die der Betreiber sonst nie stellt, weil sie Arbeit macht: Ist der
+// Die Frage, die der Vorgesetzte sonst nie stellt, weil sie Arbeit macht: Ist der
 // Kollege von letzter Woche eigentlich angekommen? „Vertrag ✓, Erklärung ✓,
 // Checkliste 3/7, noch keine Dokumentation" beantwortet sie in einer Zeile.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -898,7 +898,7 @@ function NeuImTeam({ onNachricht }: { onNachricht: (id: number) => void }) {
 // VERGÜTUNG & STUNDEN
 //
 // Die Platzhalter sind ABSICHTLICH auffällig und stehen unter dem Hinweis
-// „vom Betreiber zu bestätigen". Solange `verguetung_bestaetigt_am` leer ist,
+// „vom Vorgesetzter zu bestätigen". Solange `verguetung_bestaetigt_am` leer ist,
 // wird KEINE Prämie gebucht und lassen sich KEINE Stunden abrechnen — ein
 // stiller Vorgabewert, den niemand prüft, wird sonst zur echten Abrechnung.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -951,7 +951,7 @@ function VerguetungTafel({ agentId, rolle }: { agentId: number; rolle: string })
       {!v.verguetungBestaetigt && (
         <p className="mb-3 px-3.5 py-2.5 rounded-xl text-[12.5px] leading-relaxed"
            style={{ background: "rgba(217,119,6,.08)", color: "#b45309" }}>
-          <b>Vom Betreiber zu bestätigen.</b> Die Werte unten sind Platzhalter. Solange du sie
+          <b>Vom Vorgesetzter zu bestätigen.</b> Die Werte unten sind Platzhalter. Solange du sie
           nicht bestätigt hast, wird keine Prämie gebucht und lassen sich keine Stunden
           abrechnen — die Arbeit wird aber vollständig festgehalten und ist nachträglich
           abrechenbar.
@@ -1067,7 +1067,7 @@ function VerguetungTafel({ agentId, rolle }: { agentId: number; rolle: string })
 // ═══════════════════════════════════════════════════════════════════════════
 // VERWALTUNG — die Vollständigkeitsliste an einem Ort
 //
-// Der Betreiber musste bisher für Reset, Deaktivieren, Rolle, Bank und
+// Der Vorgesetzte musste bisher für Reset, Deaktivieren, Rolle, Bank und
 // Umhängen zwischen Ansichten wechseln oder auf eine gelöschte Altseite. Alles
 // davon liegt jetzt in einem Reiter im Mitarbeiter-Detail — ohne Seitenwechsel.
 //

@@ -23,7 +23,7 @@
 // maschinell war (istRoboterUnterschrift in lib/fiaon-vertrieb-zusage.ts).
 //
 // NACHTRAG 08.08.2026 — `--entfernen`
-// Der Betreiber will die gefälschte Zeile nicht entwertet, sondern WEG. Das ist
+// Der Vorgesetzte will die gefälschte Zeile nicht entwertet, sondern WEG. Das ist
 // die eine begründete Ausnahme von der Hausregel „keine Hard-Deletes": Die
 // Regel schützt Daten VON MENSCHEN. Diese Zeile ist keine; sie ist das Erzeugnis
 // eines Testlaufs, das sich als Rechtsnachweis ausgibt.
@@ -44,7 +44,7 @@ import { ensureZusageTabelle, istRoboterUnterschrift } from "../server/lib/fiaon
 
 const SCHREIBEN = process.argv.includes("--schreiben");
 const ENTFERNEN = process.argv.includes("--entfernen");
-const AKTEUR = "Betreiber (Bereinigung Roboter-Unterschriften)";
+const AKTEUR = "Vorgesetzter (Bereinigung Roboter-Unterschriften)";
 
 async function main(): Promise<void> {
   console.log("\n══ Verpflichtungserklärungen: Roboter-Unterschriften entwerten ══\n");

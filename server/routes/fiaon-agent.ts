@@ -361,7 +361,7 @@ const SETTING_DEFAULTS: Record<string, string> = {
   // Vorwarnung im Portal, X Tage bevor eine Akte zurückläuft.
   kartei_hoarding_warn_days: "2",
   // Nur vollständig kontaktierbare Karten in die FREIE Kartei legen
-  // (Betreiber-Sichtbarkeitsregel aus Phase 3: Name + Telefon + E-Mail).
+  // (Vorgesetzten-Sichtbarkeitsregel aus Phase 3: Name + Telefon + E-Mail).
   // "0" lockert die Regel auf „mindestens ein Kontaktweg".
   kartei_require_full_contact: "1",
   // „Zahlung angekündigt" steht standardmäßig immer ganz oben (Teil C).
@@ -450,7 +450,7 @@ export interface AgentRequest extends Request {
     id: number; name: string; email: string; first_name: string | null;
     avatar?: string | null; rolle?: string;
     is_test_account?: boolean; pruefkonto?: boolean;
-    /** Nur-Ansicht: Der Betreiber sieht zu, der Mensch hat sich nicht angemeldet. */
+    /** Nur-Ansicht: Der Vorgesetzte sieht zu, der Mensch hat sich nicht angemeldet. */
     ansicht?: boolean; ansichtBis?: string | null;
   };
 }
@@ -459,7 +459,7 @@ export async function requireAgent(req: AgentRequest, res: Response, next: NextF
   try {
     await ensureAgentTables();
     // ── ANSICHTS-SITZUNG (11.08.2026) ────────────────────────────────────
-    // Der Betreiber sieht das Portal mit den Augen eines Mitarbeiters. Das
+    // Der Vorgesetzte sieht das Portal mit den Augen eines Mitarbeiters. Das
     // Ansichts-Token ist ein EIGENES — niemals das echte Cookie des Menschen.
     // Es trägt nur seine Kennung und läuft nach 30 Minuten ab.
     //
@@ -473,7 +473,7 @@ export async function requireAgent(req: AgentRequest, res: Response, next: NextF
       ? { id: ansicht.agentId, epoch: -1 }
       : verifyAgentToken(req.cookies?.[AGENT_COOKIE]);
     if (!tok) return res.status(401).json({ ok: false, error: "Nicht angemeldet" });
-    // AVATAR UND ROLLE GEHÖREN DAZU (11.08.2026): Der Betreiber hatte ein
+    // AVATAR UND ROLLE GEHÖREN DAZU (11.08.2026): Der Vorgesetzte hatte ein
     // Profilbild hinterlegt und sah trotzdem überall nur seine Initialen —
     // weil die Anmeldung das Bild nie mitlud. Jede Seite hätte es einzeln
     // nachladen müssen; keine tat es. Hier geladen, stimmt es überall.

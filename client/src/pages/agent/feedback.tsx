@@ -319,7 +319,7 @@ function FeedbackContent() {
   );
 }
 
-// Chronologischer Verlauf: Agent rechts (Du), Betreiber links, System mittig.
+// Chronologischer Verlauf: Agent rechts (Du), Vorgesetzter links, System mittig.
 function ThreadView({ messages }: { messages: ThreadMessage[] }) {
   if (!messages || messages.length === 0) {
     return <p className="text-[12px] text-slate-400">Noch kein Verlauf.</p>;
@@ -343,7 +343,7 @@ function ThreadView({ messages }: { messages: ThreadMessage[] }) {
             <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 ${mine ? "text-white" : "bg-slate-50 border border-slate-100 text-slate-700"}`}
               style={mine ? { background: ACCENT } : undefined}>
               <p className={`text-[10px] font-semibold uppercase tracking-wide mb-0.5 ${mine ? "text-white/70" : "text-slate-400"}`}>
-                {mine ? "Du" : "Betreiber"} · {fmtDT(m.created_at)}
+                {mine ? "Du" : "Vorgesetzter"} · {fmtDT(m.created_at)}
               </p>
               <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">{m.body}</p>
             </div>

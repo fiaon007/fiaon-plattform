@@ -116,7 +116,7 @@ export const ZUSAGE_TEXT: ZusageText = {
     {
       titel: "Unterlagen-Stand sehen",
       text: "Bei welchen bezahlten Kunden noch Ausweis, Kontoauszug oder SCHUFA-Auskunft fehlt. Du "
-        + "siehst, WAS fehlt — die Dokumente selbst bleiben beim Betreiber.",
+        + "siehst, WAS fehlt — die Dokumente selbst bleiben beim Vorgesetzter.",
     },
     {
       titel: "Zugangsprobleme klären",
@@ -153,7 +153,7 @@ export const ZUSAGE_TEXT: ZusageText = {
     {
       nr: 3,
       titel: "Weisungsgebundenheit",
-      text: "Ich verarbeite die Daten nur im Rahmen der Weisungen des Betreibers. Bin ich unsicher, "
+      text: "Ich verarbeite die Daten nur im Rahmen der Weisungen des Vorgesetzten. Bin ich unsicher, "
         + "ob eine Handlung erlaubt ist, frage ich vorher nach, statt es zu versuchen.",
     },
     {
@@ -186,7 +186,7 @@ export const ZUSAGE_TEXT: ZusageText = {
       text: "Ich buche keine Zahlung, um einen Abschluss, eine Provision, eine Rangliste oder eine "
         + "Zielerreichung zu beeinflussen — weder für mich noch für andere. Bin ich mir beim Nachweis "
         + "nicht sicher, buche ich nicht, sondern frage nach. Jede Buchung wird protokolliert und vom "
-        + "Betreiber gegen den Kontoeingang geprüft.",
+        + "Vorgesetzter gegen den Kontoeingang geprüft.",
     },
     {
       nr: 8,

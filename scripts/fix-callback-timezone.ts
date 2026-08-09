@@ -10,7 +10,7 @@
 //
 // SICHERHEIT:
 //   • Standard = DRY-RUN (zeigt nur Vorher/Nachher, ändert NICHTS).
-//   • Änderung NUR mit  --apply  UND ausdrücklicher Freigabe des Betreibers.
+//   • Änderung NUR mit  --apply  UND ausdrücklicher Freigabe des Vorgesetzten.
 //   • Vor jeder Änderung wird ein Backup (JSON) geschrieben → manuelle Rücknahme.
 //   • Nur ZUKÜNFTIGE, offene, AGENT-eingegebene Rückrufe (contact_log + lead_log).
 //     Admin/System-Einträge und Zahlungs-Zusagen (tagesgenau) werden NICHT angefasst.

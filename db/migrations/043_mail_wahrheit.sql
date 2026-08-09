@@ -3,21 +3,21 @@
 --
 -- Bis heute stand auf /admin/events bei rund zehn Ereignissen „MAKE-ZWEIG
 -- FEHLT". Diese Aussage kam aus einer Heuristik, die prüfte, ob das Wort
--- „Betreiber-TODO" in unserer EIGENEN Beschreibung steht. Die Plattform hat
+-- „Vorgesetzten-TODO" in unserer EIGENEN Beschreibung steht. Die Plattform hat
 -- also ihre eigenen Notizzettel gelesen und daraus eine Behauptung über die
--- Einrichtung des Betreibers gemacht — bei 23 von 33 Ereignissen. Alle 21
+-- Einrichtung des Vorgesetzten gemacht — bei 23 von 33 Ereignissen. Alle 21
 -- Zweige waren in Wahrheit aktiv.
 --
 -- Ab jetzt gibt es nur noch GEMESSENE Zustellwahrheit: Ein Zweig gilt als
 -- bestätigt, wenn ein Testversand nachweislich bei Brevo angekommen ist.
 -- Alles andere heißt „noch nicht geprüft" — und das ist eine ehrliche Aussage
--- über UNSEREN Kenntnisstand, keine über den Betreiber.
+-- über UNSEREN Kenntnisstand, keine über den Vorgesetzten.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- ── Was wir über jedes Ereignis WISSEN ─────────────────────────────────────
 CREATE TABLE IF NOT EXISTS fiaon_mail_events (
   event              TEXT PRIMARY KEY,
-  -- Die Brevo-Vorlage, die dieses Ereignis rendert. Vom Betreiber in
+  -- Die Brevo-Vorlage, die dieses Ereignis rendert. Vom Vorgesetzter in
   -- /admin/events zugeordnet; NULL heißt „noch nicht zugeordnet".
   brevo_template_id  INTEGER,
   brevo_template_name TEXT,

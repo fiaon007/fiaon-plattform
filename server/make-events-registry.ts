@@ -22,7 +22,7 @@ export interface MakeEventDef {
   /** deprecated = wird nicht mehr automatisch gefeuert (nur noch Test/Migration). */
   deprecated?: boolean;
   /** true = im Code wird KEIN automatischer Versand ausgelöst — nur registriert,
-   *  damit der Betreiber das Event testen und den Make-Zweig anlegen kann. */
+   *  damit der Vorgesetzte das Event testen und den Make-Zweig anlegen kann. */
   recommendationOnly?: boolean;
   /** Vollständiges Payload-Beispiel mit realistischen Werten (email wird beim Test durch die Test-Adresse ersetzt). */
   example: Record<string, unknown>;
@@ -75,7 +75,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     type: "abo_payment_reminder",
     label: "Abo-Rate fällig (monatliche Paketrate)",
     description:
-      "Feuert für eine offene Monatsrate des Pakets: Stufe 1 am Fälligkeitstag, Stufe 2 sieben Tage später, Stufe 3 nach vierzehn Tagen. Danach keine weitere Mail, sondern ein Punkt „Entscheidung nötig“ in der Zahlungszentrale. Enthält Bankdaten UND den Verwendungszweck (Ratenreferenz) — ohne ihn lässt sich die Überweisung nicht zuordnen. Der Bonitäts-Check (74 €) ist kein Abo und löst dieses Event nie aus. Betreiber-TODO: Make-Zweig 'abo_payment_reminder' + Brevo-Template anlegen (Variablen: betrag, faellig_am_text, rate_nr, mahnstufe_text, empfaenger, iban, bic, verwendungszweck, portal_url).",
+      "Feuert für eine offene Monatsrate des Pakets: Stufe 1 am Fälligkeitstag, Stufe 2 sieben Tage später, Stufe 3 nach vierzehn Tagen. Danach keine weitere Mail, sondern ein Punkt „Entscheidung nötig“ in der Zahlungszentrale. Enthält Bankdaten UND den Verwendungszweck (Ratenreferenz) — ohne ihn lässt sich die Überweisung nicht zuordnen. Der Bonitäts-Check (74 €) ist kein Abo und löst dieses Event nie aus. Vorgesetzten-TODO: Make-Zweig 'abo_payment_reminder' + Brevo-Template anlegen (Variablen: betrag, faellig_am_text, rate_nr, mahnstufe_text, empfaenger, iban, bic, verwendungszweck, portal_url).",
     customerBound: true,
     example: {
       ...CUSTOMER_EXAMPLE,
@@ -100,7 +100,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     type: "aufgabe_zugewiesen",
     label: "Aufgabe zugewiesen (Mitarbeiter)",
     description:
-      "Feuert, wenn der Betreiber einem Mitarbeiter eine Aufgabe an einem Kunden zuweist. Ohne diese Mail fällt eine Aufgabe erst beim nächsten Portal-Besuch auf — bei einer Frist von morgen ist das zu spät. Der Mitarbeiter erledigt sie unter „Aufgaben“ in seinem Portal. Betreiber-TODO: Make-Zweig 'aufgabe_zugewiesen' + Brevo-Template anlegen (Variablen: vorname, aufgabe, kunde, faellig_am_text, dringend, portal_url).",
+      "Feuert, wenn der Vorgesetzte einem Mitarbeiter eine Aufgabe an einem Kunden zuweist. Ohne diese Mail fällt eine Aufgabe erst beim nächsten Portal-Besuch auf — bei einer Frist von morgen ist das zu spät. Der Mitarbeiter erledigt sie unter „Aufgaben“ in seinem Portal. Vorgesetzten-TODO: Make-Zweig 'aufgabe_zugewiesen' + Brevo-Template anlegen (Variablen: vorname, aufgabe, kunde, faellig_am_text, dringend, portal_url).",
     customerBound: false,
     example: {
       email: "anna.schmidt@example.com",
@@ -117,7 +117,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     type: "onboarding_einladung",
     label: "Einladung zum Startgespräch (Kunde)",
     description:
-      "Feuert 48 Stunden nachdem ein bezahlter Kunde das Startgespräch-Gate im Portal übersprungen hat — genau einmal. Löst der Onboarding-Bereich sie von Hand erneut aus, ist das dieselbe Vorlage. Betreiber-TODO: Make-Zweig 'onboarding_einladung' + Brevo-Template anlegen (Variablen: vorname, termin_link).",
+      "Feuert 48 Stunden nachdem ein bezahlter Kunde das Startgespräch-Gate im Portal übersprungen hat — genau einmal. Löst der Onboarding-Bereich sie von Hand erneut aus, ist das dieselbe Vorlage. Vorgesetzten-TODO: Make-Zweig 'onboarding_einladung' + Brevo-Template anlegen (Variablen: vorname, termin_link).",
     customerBound: true,
     example: {
       email: "max.mustermann@example.com",
@@ -129,7 +129,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     type: "nicht_erreicht_termin",
     label: "Nicht erreicht — Terminlink an den Kunden",
     description:
-      "Feuert automatisch nach dem ZWEITEN erfolglosen Anrufversuch (nicht erreicht oder Mailbox), genau einmal je Kunde in 30 Tagen. Der Kunde bekommt einen persönlichen Buchungslink auf die Slots SEINES Betreuers und wählt selbst eine Uhrzeit. Ohne diese Mail folgt der dritte, vierte und fünfte Anruf ins Leere. Betreiber-TODO: Make-Zweig 'nicht_erreicht_termin' + Brevo-Template anlegen (Variablen: vorname, nachname, agent_vorname, termin_link).",
+      "Feuert automatisch nach dem ZWEITEN erfolglosen Anrufversuch (nicht erreicht oder Mailbox), genau einmal je Kunde in 30 Tagen. Der Kunde bekommt einen persönlichen Buchungslink auf die Slots SEINES Betreuers und wählt selbst eine Uhrzeit. Ohne diese Mail folgt der dritte, vierte und fünfte Anruf ins Leere. Vorgesetzten-TODO: Make-Zweig 'nicht_erreicht_termin' + Brevo-Template anlegen (Variablen: vorname, nachname, agent_vorname, termin_link).",
     customerBound: true,
     example: {
       email: "max.mustermann@example.com",
@@ -143,7 +143,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     type: "termin_bestaetigung",
     label: "Terminbestätigung (Kunde)",
     description:
-      "Feuert sofort nach einer Buchung — egal ob im Antrag, über den Terminlink oder vom Agenten angelegt. Enthält den Storno-Link; Umbuchen ist Absagen plus neu buchen auf derselben Seite. Betreiber-TODO: Make-Zweig 'termin_bestaetigung' + Brevo-Template anlegen (Variablen: vorname, nachname, agent_vorname, termin_datum, termin_uhrzeit, storno_link).",
+      "Feuert sofort nach einer Buchung — egal ob im Antrag, über den Terminlink oder vom Agenten angelegt. Enthält den Storno-Link; Umbuchen ist Absagen plus neu buchen auf derselben Seite. Vorgesetzten-TODO: Make-Zweig 'termin_bestaetigung' + Brevo-Template anlegen (Variablen: vorname, nachname, agent_vorname, termin_datum, termin_uhrzeit, storno_link).",
     customerBound: true,
     example: {
       email: "max.mustermann@example.com",
@@ -159,7 +159,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     type: "termin_erinnerung",
     label: "Terminerinnerung 24 h vorher (Kunde)",
     description:
-      "Feuert im Tageslauf 24 Stunden vor dem Termin, einmalig je Termin (die Spalte erinnert_am verhindert Doppelversand bei einem Neustart). Betreiber-TODO: Make-Zweig 'termin_erinnerung' + Brevo-Template anlegen (Variablen: vorname, nachname, agent_vorname, termin_datum, termin_uhrzeit, storno_link).",
+      "Feuert im Tageslauf 24 Stunden vor dem Termin, einmalig je Termin (die Spalte erinnert_am verhindert Doppelversand bei einem Neustart). Vorgesetzten-TODO: Make-Zweig 'termin_erinnerung' + Brevo-Template anlegen (Variablen: vorname, nachname, agent_vorname, termin_datum, termin_uhrzeit, storno_link).",
     customerBound: true,
     example: {
       email: "max.mustermann@example.com",
@@ -256,7 +256,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "lead_followup",
     label: "Lead-Nachfass (automatisiert)",
-    description: "Feuert für nicht-konvertierte Leads (neu/kontaktiert) nach dem Nachfass-Plan im Versandfenster — auch vom Bulk-Versand genutzt. Betreiber-TODO: Make-Zweig lead_followup + Brevo-Template (+ optional WhatsApp/Superchat).",
+    description: "Feuert für nicht-konvertierte Leads (neu/kontaktiert) nach dem Nachfass-Plan im Versandfenster — auch vom Bulk-Versand genutzt. Vorgesetzten-TODO: Make-Zweig lead_followup + Brevo-Template (+ optional WhatsApp/Superchat).",
     customerBound: false,
     example: {
       email: "interessent@example.com",
@@ -272,7 +272,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "lead_application_link",
     label: "Antrags-Link an Lead (Ein-Klick durch Mitarbeiter)",
-    description: "Feuert, wenn ein Mitarbeiter im Lead-Detail „Zum Antrag bewegen“ auslöst — schickt dem Interessenten den vorbereiteten Antrags-Link. Betreiber-TODO: Make-Zweig lead_application_link + Brevo-Template.",
+    description: "Feuert, wenn ein Mitarbeiter im Lead-Detail „Zum Antrag bewegen“ auslöst — schickt dem Interessenten den vorbereiteten Antrags-Link. Vorgesetzten-TODO: Make-Zweig lead_application_link + Brevo-Template.",
     customerBound: false,
     example: {
       email: "interessent@example.com",
@@ -286,7 +286,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "agent_feedback_rewarded",
     label: "Feedback-Bonus gutgeschrieben (Mitarbeiter)",
-    description: "Feuert, wenn der Admin ein Agent-Feedback mit einer einmaligen Provisions-Gutschrift honoriert. Betreiber-TODO: Make-Zweig + Brevo-Template anlegen.",
+    description: "Feuert, wenn der Admin ein Agent-Feedback mit einer einmaligen Provisions-Gutschrift honoriert. Vorgesetzten-TODO: Make-Zweig + Brevo-Template anlegen.",
     customerBound: false,
     example: {
       email: "anna.schmidt@example.com",
@@ -298,7 +298,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "agent_feedback_reply",
     label: "Antwort auf Feedback-Ticket (Mitarbeiter)",
-    description: "Feuert, wenn der Betreiber im Feedback-Thread eines Mitarbeiters antwortet — der Agent wird per Mail informiert und antwortet im selben Ticket (kein neues Ticket). Betreiber-TODO: Make-Zweig 'agent_feedback_reply' + Brevo-Template mit Link zu portal_url anlegen.",
+    description: "Feuert, wenn der Vorgesetzte im Feedback-Thread eines Mitarbeiters antwortet — der Agent wird per Mail informiert und antwortet im selben Ticket (kein neues Ticket). Vorgesetzten-TODO: Make-Zweig 'agent_feedback_reply' + Brevo-Template mit Link zu portal_url anlegen.",
     customerBound: false,
     example: {
       email: "anna.schmidt@example.com",
@@ -312,7 +312,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "number_update_request",
     label: "Telefonnummer aktualisieren (Kunde/Lead)",
-    description: "Feuert, wenn ein Mitarbeiter das Kontakt-Ergebnis „Falsche Nummer“ wählt UND eine E-Mail hinterlegt ist — schickt dem Kunden/Lead einen Button „Nummer aktualisieren“ zu einem schlanken Formular. Neue Nummer landet direkt im Datensatz (Audit „vom Kunden selbst aktualisiert“), der Lead/Kunde wird wieder anrufbar. Max. 1× pro Tag/Person. Betreiber-TODO: Make-Zweig 'number_update_request' + Brevo-Template mit Button zu update_url anlegen.",
+    description: "Feuert, wenn ein Mitarbeiter das Kontakt-Ergebnis „Falsche Nummer“ wählt UND eine E-Mail hinterlegt ist — schickt dem Kunden/Lead einen Button „Nummer aktualisieren“ zu einem schlanken Formular. Neue Nummer landet direkt im Datensatz (Audit „vom Kunden selbst aktualisiert“), der Lead/Kunde wird wieder anrufbar. Max. 1× pro Tag/Person. Vorgesetzten-TODO: Make-Zweig 'number_update_request' + Brevo-Template mit Button zu update_url anlegen.",
     customerBound: false,
     example: {
       email: "interessent@example.com",
@@ -322,7 +322,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   },
 
   // ════════════════════════════════════════════════════════════════════
-  // EMPFEHLUNGEN (Teil 1.3) — registriert, damit der Betreiber sie auf
+  // EMPFEHLUNGEN (Teil 1.3) — registriert, damit der Vorgesetzte sie auf
   // /admin/events testen und den Make-Zweig bauen kann. Es ist bewusst NOCH
   // KEIN automatischer Versand im Code verdrahtet (recommendationOnly). Sobald
   // Template + Make-Zweig stehen, kann der Versand auf Wunsch aktiviert werden.
@@ -330,7 +330,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "payment_cancelled",
     label: "Bestellung storniert (Kunde)",
-    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn eine Bestellung storniert wird (/admin/payments/:ref/cancel). Der Betreiber vermisst hier ausdrücklich ein testbares Event. Betreiber-TODO: Make-Zweig 'payment_cancelled' + Brevo-Template.",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn eine Bestellung storniert wird (/admin/payments/:ref/cancel). Der Vorgesetzte vermisst hier ausdrücklich ein testbares Event. Vorgesetzten-TODO: Make-Zweig 'payment_cancelled' + Brevo-Template.",
     customerBound: true,
     recommendationOnly: true,
     example: { ...CUSTOMER_EXAMPLE, grund: "Auf Kundenwunsch storniert" },
@@ -338,7 +338,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "payment_reactivated",
     label: "Bestellung reaktiviert — neue Zahlungsfrist (Kunde)",
-    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn eine abgelaufene Bestellung reaktiviert wird (neue 7-Tage-Frist). Hinweis: Beim Reaktivieren wird bereits 'payment_details' erneut versendet — ein eigenes Event ist optional. Betreiber-TODO: Make-Zweig 'payment_reactivated' + Brevo-Template.",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn eine abgelaufene Bestellung reaktiviert wird (neue 7-Tage-Frist). Hinweis: Beim Reaktivieren wird bereits 'payment_details' erneut versendet — ein eigenes Event ist optional. Vorgesetzten-TODO: Make-Zweig 'payment_reactivated' + Brevo-Template.",
     customerBound: true,
     recommendationOnly: true,
     example: { ...CUSTOMER_EXAMPLE, invoice_url: INVOICE_URL_EXAMPLE, faellig_am: "2026-07-26" },
@@ -346,7 +346,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "documents_change_request",
     label: "Dokumente-Änderung angefordert (Kunde)",
-    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn der Admin eine Dokumenten-Nachbesserung anfordert (changes_requested). Betreiber-TODO: Make-Zweig 'documents_change_request' + Brevo-Template mit login_url.",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn der Admin eine Dokumenten-Nachbesserung anfordert (changes_requested). Vorgesetzten-TODO: Make-Zweig 'documents_change_request' + Brevo-Template mit login_url.",
     customerBound: true,
     recommendationOnly: true,
     example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login", hinweis: "Bitte laden Sie einen aktuellen Kontoauszug (letzte 3 Monate) hoch." },
@@ -354,7 +354,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "schufa_approved",
     label: "SCHUFA/Bonität genehmigt (Kunde)",
-    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn eine SCHUFA-/Bonitätsprüfung genehmigt wird. Betreiber-TODO: Make-Zweig 'schufa_approved' + Brevo-Template.",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn eine SCHUFA-/Bonitätsprüfung genehmigt wird. Vorgesetzten-TODO: Make-Zweig 'schufa_approved' + Brevo-Template.",
     customerBound: true,
     recommendationOnly: true,
     example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login" },
@@ -362,7 +362,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "schufa_rejected",
     label: "SCHUFA/Bonität abgelehnt (Kunde)",
-    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn eine SCHUFA-/Bonitätsprüfung abgelehnt wird. Betreiber-TODO: Make-Zweig 'schufa_rejected' + Brevo-Template.",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn eine SCHUFA-/Bonitätsprüfung abgelehnt wird. Vorgesetzten-TODO: Make-Zweig 'schufa_rejected' + Brevo-Template.",
     customerBound: true,
     recommendationOnly: true,
     example: { ...CUSTOMER_EXAMPLE, grund: "Eingereichtes Dokument nicht lesbar" },
@@ -370,7 +370,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "schufa_requested",
     label: "Neues SCHUFA-Dokument angefordert (Kunde)",
-    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn ein neues SCHUFA-/Bonitätsdokument angefordert wird. Betreiber-TODO: Make-Zweig 'schufa_requested' + Brevo-Template mit login_url.",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn ein neues SCHUFA-/Bonitätsdokument angefordert wird. Vorgesetzten-TODO: Make-Zweig 'schufa_requested' + Brevo-Template mit login_url.",
     customerBound: true,
     recommendationOnly: true,
     example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login", hinweis: "Bitte laden Sie Ihre aktuelle SCHUFA-Auskunft hoch." },
@@ -378,7 +378,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "account_activated",
     label: "Konto aktiviert (Kunde)",
-    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn ein Konto vom Admin aktiviert wird (account_status='active'). Hinweis: Bei Zahlung läuft bereits 'payment_confirmed' — dieses Event ist für manuelle Aktivierungen ohne Zahlungstrigger. Betreiber-TODO: Make-Zweig 'account_activated' + Brevo-Template.",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn ein Konto vom Admin aktiviert wird (account_status='active'). Hinweis: Bei Zahlung läuft bereits 'payment_confirmed' — dieses Event ist für manuelle Aktivierungen ohne Zahlungstrigger. Vorgesetzten-TODO: Make-Zweig 'account_activated' + Brevo-Template.",
     customerBound: true,
     recommendationOnly: true,
     example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login" },
@@ -386,7 +386,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "account_suspended",
     label: "Konto gesperrt (Kunde)",
-    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn ein Konto vom Admin gesperrt wird (account_status='suspended'). Betreiber-TODO: Make-Zweig 'account_suspended' + Brevo-Template. Sensibel — Text sorgfältig wählen.",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn ein Konto vom Admin gesperrt wird (account_status='suspended'). Vorgesetzten-TODO: Make-Zweig 'account_suspended' + Brevo-Template. Sensibel — Text sorgfältig wählen.",
     customerBound: true,
     recommendationOnly: true,
     example: { ...CUSTOMER_EXAMPLE, grund: "Rückfrage zu den eingereichten Unterlagen" },
@@ -394,7 +394,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "profile_query",
     label: "Profil-Rückfrage (Kunde)",
-    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn der Admin eine Profil-Rückfrage stellt (profile_changes_requested). Betreiber-TODO: Make-Zweig 'profile_query' + Brevo-Template mit login_url.",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn der Admin eine Profil-Rückfrage stellt (profile_changes_requested). Vorgesetzten-TODO: Make-Zweig 'profile_query' + Brevo-Template mit login_url.",
     customerBound: true,
     recommendationOnly: true,
     example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login", hinweis: "Bitte ergänzen Sie Ihre monatlichen Ausgaben im Profil." },
@@ -402,7 +402,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "gdpr_deleted",
     label: "Löschbestätigung DSGVO (Kunde)",
-    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn ein Kunde per DSGVO gelöscht/anonymisiert wird — Bestätigung der Löschung. Achtung: Nach der Anonymisierung ist die E-Mail-Adresse ggf. nicht mehr verfügbar; ggf. VOR der Anonymisierung senden. Betreiber-TODO: Make-Zweig 'gdpr_deleted' + Brevo-Template.",
+    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn ein Kunde per DSGVO gelöscht/anonymisiert wird — Bestätigung der Löschung. Achtung: Nach der Anonymisierung ist die E-Mail-Adresse ggf. nicht mehr verfügbar; ggf. VOR der Anonymisierung senden. Vorgesetzten-TODO: Make-Zweig 'gdpr_deleted' + Brevo-Template.",
     customerBound: false,
     recommendationOnly: true,
     example: { email: "max.mustermann@example.com", vorname: "Max", geloescht_am: "2026-07-19" },
@@ -410,7 +410,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "contract_signed",
     label: "Vertrag signiert (Mitarbeiter)",
-    description: "Feuert, wenn ein Agent den Handelsvertretervertrag digital signiert. Betreiber-TODO: Make-Zweig 'contract_signed' + Brevo-Template (Vertrags-PDF-Kopie an den Agenten).",
+    description: "Feuert, wenn ein Agent den Handelsvertretervertrag digital signiert. Vorgesetzten-TODO: Make-Zweig 'contract_signed' + Brevo-Template (Vertrags-PDF-Kopie an den Agenten).",
     customerBound: false,
     example: {
       email: "anna.schmidt@example.com",
@@ -425,7 +425,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "commission_statement_issued",
     label: "Provisions-Abrechnung erstellt (Mitarbeiter)",
-    description: "Feuert bei jeder bestätigten Auszahlung, sobald die Provisions-Abrechnung/Gutschrift (PDF) erzeugt wurde. Betreiber-TODO: Make-Zweig 'commission_statement_issued' + Brevo-Template.",
+    description: "Feuert bei jeder bestätigten Auszahlung, sobald die Provisions-Abrechnung/Gutschrift (PDF) erzeugt wurde. Vorgesetzten-TODO: Make-Zweig 'commission_statement_issued' + Brevo-Template.",
     customerBound: false,
     example: {
       email: "anna.schmidt@example.com",

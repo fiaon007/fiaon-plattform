@@ -277,7 +277,7 @@ router.post("/inkasso/stunden/:id/entfernen", requireAgent, async (req: AgentReq
 // BETREIBERSICHT
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** GET /admin/inkasso/kennzahlen — auch für Leitung und Betreiber. */
+/** GET /admin/inkasso/kennzahlen — auch für Leitung und Vorgesetzter. */
 router.get("/admin/inkasso/kennzahlen", async (_req, res: Response) => {
   try {
     res.json({ ok: true, zahlen: await kennzahlen() });
@@ -353,14 +353,14 @@ router.post("/admin/inkasso/stunden/:agentId/bestaetigen", async (req, res: Resp
         VALUES (${agentId}, ${`STUNDEN-${monat}-${agentId}`}, 'Arbeitszeit',
                 ${cents}, 0, ${cents}, 'bestaetigt', 'stunden',
                 ${`${Math.floor(minuten / 60)} Std ${minuten % 60} Min im ${monat} `
-                  + `zu ${(satz / 100).toFixed(2).replace(".", ",")} € — bestätigt vom Betreiber.`})
+                  + `zu ${(satz / 100).toFixed(2).replace(".", ",")} € — bestätigt vom Vorgesetzter.`})
         ON CONFLICT DO NOTHING
         RETURNING id
       `) as any[];
 
       await tx`
         UPDATE fiaon_stunden
-        SET bestaetigt_am = NOW(), bestaetigt_von = 'Betreiber', commission_id = ${c?.id ?? null}
+        SET bestaetigt_am = NOW(), bestaetigt_von = 'Vorgesetzter', commission_id = ${c?.id ?? null}
         WHERE id = ANY(${zeilen.map((z) => Number(z.id))})
       `;
       return {
@@ -404,7 +404,7 @@ router.post("/admin/inkasso/verguetung/:agentId", async (req, res: Response) => 
       INSERT INTO fiaon_agent_events (agent_id, type, meta, actor, reason)
       VALUES (${agentId}, 'verguetung_gesetzt',
               ${JSON.stringify({ stundensatzCents: satz, praemieArt: art, praemieWert: wert })},
-              'Betreiber', 'Vergütung bestätigt')
+              'Vorgesetzter', 'Vergütung bestätigt')
     `.catch(() => {});
     res.json({ ok: true, meldung: "Vergütung bestätigt. Ab jetzt werden Prämien gebucht und Stunden abrechenbar." });
   } catch (err) {

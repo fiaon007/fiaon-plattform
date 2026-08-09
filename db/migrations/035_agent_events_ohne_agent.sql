@@ -5,7 +5,7 @@
 -- eine `agent_id` — es konnte also nur festhalten, was ein AGENT getan hat.
 -- Damit war eine ganze Klasse von Entscheidungen nicht protokollierbar:
 --
---   · der Betreiber im Admin-Bereich (er hat kein Agentenkonto, sondern einen
+--   · der Vorgesetzte im Admin-Bereich (er hat kein Agentenkonto, sondern einen
 --     Zugangscode)
 --   · Läufe, die eine Entscheidung ausführen (Reaktivierung, Teil 0)
 --

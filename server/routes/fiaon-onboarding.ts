@@ -667,7 +667,7 @@ export async function generateCommissionStatement(payoutId: number): Promise<{ o
   const paidAt = payout.processed_at ? new Date(payout.processed_at) : issuedAt;
 
   // USt-Behandlung je Partner-Typ (anpassbarer Textbaustein — steuerlich vom
-  // Betreiber mit Steuerberater final zu bestätigen).
+  // Vorgesetzter mit Steuerberater final zu bestätigen).
   const isCompany = String(agent.partner_type || "private") === "company";
   const vatNote = isCompany && agent.vat_id
     ? `Reverse charge — Steuerschuldnerschaft des Leistungsempfängers (VAT-ID ${escapeHtml(agent.vat_id)}). No VAT is charged by FIAON LTD; the recipient accounts for VAT under the reverse-charge mechanism.`

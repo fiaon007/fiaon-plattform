@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 // Zweck der Sektion: Bisher musste man raten, ob ein Ausweis fehlt oder nur
 // nirgends angezeigt wird.
 //
-// WER WAS SIEHT: Der Betreiber öffnet Inhalte. Die Vertriebsleitung sieht, DASS
+// WER WAS SIEHT: Der Vorgesetzte öffnet Inhalte. Die Vertriebsleitung sieht, DASS
 // etwas vorliegt — so steht es in ihrer Verpflichtungserklärung, und seit dem
 // 10.08.2026 steht es auch im Server. Diese Komponente zeigt der Leitung
 // deshalb gar keinen Öffnen-Knopf, statt einen anzubieten, der 403 liefert.
@@ -111,7 +111,7 @@ export function DokumenteSektion({
         )}
         {!stand.inhaltErlaubt && (
           <span className="text-[11.5px] text-slate-400">
-            · Inhalte öffnet nur der Betreiber
+            · Inhalte öffnet nur der Vorgesetzte
           </span>
         )}
       </div>

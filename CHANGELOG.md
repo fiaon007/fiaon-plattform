@@ -3,6 +3,57 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (VI) — Der Telefonfehler gefunden, richtiges Bankkonto, „Vorgesetzter", Space auf volle Breite
+
+### Warum die Diagnose grün war und telefonieren trotzdem nicht ging
+
+Der Vorgesetzte hat den entscheidenden Hinweis geliefert: **Im Twilio-Log ist die „To"-Spalte bei Browser-Anrufen leer.**
+
+Ursache: **`To` ist bei Twilio ein reservierter Parameter.** `Device.connect({ params: { To: … } })` sieht richtig aus — Twilio setzt `To` bei Browser-Anrufen aber selbst auf die Client-Identität (`client:agent-2`) und **überschreibt dabei den eigenen gleichnamigen Parameter**. Die TwiML-Antwort bekam eine leere Nummer und konnte nichts wählen.
+
+Keine Konfigurationsprüfung findet das — die Konfiguration war ja in Ordnung. Deshalb sendet der Browser jetzt `An` (nicht reserviert), und die TwiML-Route liest in dieser Reihenfolge: `An`, `Ziel`, `PhoneNumber`, zuletzt `To`.
+
+**Neu: Diagnose-Schritt 8 „Letzter Anruf: übergebene Rufnummer".** Die TwiML-Route schreibt auf, was Twilio tatsächlich übergeben hat. Das ist die Zeile, die die Ursache zeigt — die Schritte 1 bis 6 prüfen nur, ob die Einstellungen stimmen.
+
+**Und ein zweiter Fehler im Geo-Schritt:** Er fragte `/Accounts/…/Voice/DialingPermissions/…` — diese API liegt auf `voice.twilio.com/v1`, nicht auf `api.twilio.com/2010-04-01`. Das HTTP 404 sah wie „keine Auskunft" aus, war aber unsere falsche Adresse. Jetzt werden **DE, AT und CH einzeln** geprüft; „Deutschland geht" sagt nichts über Österreich.
+
+### Das richtige Bankkonto
+
+In den Zahlungsanweisungen stand „Schwarzott Global" mit einem österreichischen Konto. Richtig ist und war immer:
+
+**FIAON LTD · BE09 9058 9276 3957 · TRWIBEB1XXX**
+
+Korrigiert an der einen Stelle, die es gibt (`fiaon-zentrale.ts`) — sie speist jede Mail, jede Rechnung und den Kontoabgleich.
+
+### „Betreiber" heißt jetzt „Vorgesetzter"
+
+**381 Vorkommen in 120 Dateien.** Ein blindes Ersetzen hätte falsches Deutsch ergeben („Der Vorgesetzten hat entschieden"), deshalb fallgerecht: `des Betreibers` → `des Vorgesetzten`, `der Betreiber` → `der Vorgesetzte`, `dem/den Betreiber` → `dem/den Vorgesetzten`, allein stehend → `Vorgesetzter`.
+
+**15 Stellen bleiben bewusst stehen:** `fuerBetreiber` ist eine Datenbankspalte, und im Impressum ist „**Betreiberin** der Plattform" die Rechtsbezeichnung der FIAON LTD — nicht der Vorgesetzte.
+
+### Space: volle Breite, Video sichtbar, echte Zahlen
+
+**Das Video ist jetzt auf jeder Seite zu sehen.** Die dunkle Bühne war deckend und verdeckte es vollständig; sie ist jetzt eine **Tönung** (82–90 % statt 100 %), und die helle Wäsche des Raums wird im Space abgeschaltet — zwei Wäschen übereinander ergäben Grau. Videostärke von 55 % auf 75 % (Stufe „Mittel").
+
+**Feed von 760 auf 900 px.** Dabei drei gemessene Hürden:
+
+1. `minmax(0, 900px)` mit `justify-content: center` — das Raster bemisst die Spuren nach ihrem Inhalt statt nach dem Platz. Gemessen: **376 px** statt 900.
+2. Die Team-Hülle rendert `max-w-6xl` = **1152 px** um den Inhalt. Der Space konnte darin nie breiter werden.
+3. Der Verwaltungsbereich verliert 240 px an seine Seitenleiste. Bei 1440 verfügbarer Breite passten `300 + 900 + 300` plus Abstände (1604) nicht — die Mitte schrumpfte auf **736 px**. Die Seiten sind jetzt 260 px, drei Spalten gibt es erst ab 1780 px Fenster.
+
+**Die Seitenspalten sind ersetzt.** Dort standen zwei Karten ohne eine einzige Zahl: „HEUTE · Sonntag, 9. August · Was hier steht, kommt aus echten Zahlen" und „DER RAUM: keine Kundendaten hier" — die Hausordnung, die schon am Schreibfeld steht. Jetzt echte Tageszahlen je Rolle:
+
+- **Team:** Verdienst Monat, Kontakte heute, Stufe A offen
+- **Vorgesetzter:** Umsatz heute, Zahlung angekündigt, Kontakte heute, Mails gescheitert
+
+Auf schmalen Geräten stehen sie als Kachelreihe über dem Feed. Die Zahlen sind mit einem feinen Verlauf gesetzt — geprägt, nicht getippt.
+
+### Prüfstände
+
+Fünf Prüfungen maßen Werte, die dieses Paket bewusst geändert hat (Spaltenbreiten, Bühnenfarbe, der `To`-Parameter, eine Fehlermeldung nach der Umbenennung) — alle nachgezogen. **1.653 Prüfungen**, alle grün.
+
+Und dreimal derselbe eigene Fehler: Backticks in einem Kommentar innerhalb eines Template-Literals. `AGENTS.md` warnt davor, und ich bin trotzdem dreimal hineingelaufen.
+
 ## 11.08.2026 (V) — „Alle prüfen" wirklich, der KI-Entwurf landet im Feld, Space v4
 
 ### Warum „Alle prüfen" beim ersten Mal nicht ankam

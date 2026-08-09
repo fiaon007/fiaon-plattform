@@ -220,7 +220,7 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
     if (r.ok) load(); else flash(r.json?.error || "Fehler");
   };
 
-  // Betreiber antwortet IM Thread → Agent bekommt eine Mail (Make/Brevo). Kein neues Ticket.
+  // Vorgesetzter antwortet IM Thread → Agent bekommt eine Mail (Make/Brevo). Kein neues Ticket.
   const sendReply = async (f: FeedbackRow) => {
     const body = (replies[f.id] || "").trim();
     if (!body) return;
@@ -268,7 +268,7 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
       "",
     ];
     const body = (f.messages || []).map((m) => {
-      const who = m.author === "agent" ? f.agent_name : m.author === "admin" ? "Betreiber" : "System";
+      const who = m.author === "agent" ? f.agent_name : m.author === "admin" ? "Vorgesetzter" : "System";
       return `[${who} · ${fmtDT(m.created_at)}] ${m.body}`;
     });
     const text = [...head, ...body].join("\n").trim();
@@ -349,7 +349,7 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
             </button>
             {open[f.id] && (
               <div className="mt-3 space-y-3">
-                {/* Verlauf: Agent links, Betreiber rechts, System mittig */}
+                {/* Verlauf: Agent links, Vorgesetzter rechts, System mittig */}
                 <AdminThread messages={f.messages} agentName={f.agent_name} />
 
                 {f.has_screenshot && (
@@ -429,7 +429,7 @@ function FeedbackSection({ flash }: { flash: (m: string) => void }) {
   );
 }
 
-// Chronologischer Verlauf im Admin: Agent links, Betreiber rechts, System mittig.
+// Chronologischer Verlauf im Admin: Agent links, Vorgesetzter rechts, System mittig.
 function AdminThread({ messages, agentName }: { messages: ThreadMessage[]; agentName: string }) {
   if (!messages || messages.length === 0) {
     return <p className="text-[12px] text-slate-400">Noch kein Verlauf.</p>;
@@ -452,7 +452,7 @@ function AdminThread({ messages, agentName }: { messages: ThreadMessage[]; agent
           <div key={m.id} className={`flex ${isAdmin ? "justify-end" : "justify-start"}`}>
             <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 ${isAdmin ? "bg-slate-900 text-white" : "bg-white border border-slate-200 text-slate-700"}`}>
               <p className={`text-[10px] font-semibold uppercase tracking-wide mb-0.5 ${isAdmin ? "text-white/60" : "text-slate-400"}`}>
-                {isAdmin ? "Betreiber (Du)" : agentName} · {fmtDT(m.created_at)}
+                {isAdmin ? "Vorgesetzter (Du)" : agentName} · {fmtDT(m.created_at)}
               </p>
               <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">{m.body}</p>
             </div>

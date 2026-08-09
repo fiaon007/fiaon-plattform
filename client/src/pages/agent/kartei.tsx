@@ -140,7 +140,7 @@ function KarteiContent() {
         setVereinfacht(!!c.json.vereinfacht);
       } else {
         // Der technische Code gehoert sichtbar dazu — ohne ihn steht der
-        // Betreiber vor „Serverfehler" und kann nichts damit anfangen.
+        // Vorgesetzter vor „Serverfehler" und kann nichts damit anfangen.
         const code = c.json?.code ? ` (Code ${c.json.code})` : "";
         setLadeFehler(`${c.json?.error || "Die Kartei konnte nicht geladen werden."}${code}`);
       }

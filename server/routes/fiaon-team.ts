@@ -200,7 +200,7 @@ router.post("/admin/agents/:id/update", async (req, res) => {
 /**
  * Rolle setzen: 'agent', 'vertriebsleiter' oder 'onboarding'.
  *
- * Nur der Betreiber darf das — der Endpunkt haengt unter /admin und damit hinter
+ * Nur der Vorgesetzte darf das — der Endpunkt haengt unter /admin und damit hinter
  * dem Zugangs-Gate. Ein Vertriebsleiter kann seine eigene Rolle NICHT aendern und
  * auch keine fremde: In /agent/vertrieb gibt es dafuer keinen Endpunkt.
  *
@@ -219,7 +219,7 @@ router.post("/admin/agents/:id/rolle", async (req, res) => {
     }
     const [vorher] = await sqlPool`SELECT rolle, name, is_test_account, pruefkonto FROM fiaon_agents WHERE id = ${id}`;
     if (!vorher) return res.status(404).json({ ok: false, error: "Mitarbeiter nicht gefunden" });
-    // Das PRÜFKONTO des Betreibers ist ausgenommen: Es soll jede Rolle
+    // Das PRÜFKONTO des Vorgesetzten ist ausgenommen: Es soll jede Rolle
     // annehmen können, sonst lässt sich keine davon prüfen. Für Attrappen
     // bleibt die Sperre — ein Konto ohne Menschen dahinter mit Zugriff auf
     // alle Kundendaten wäre ein Datenleck mit Ansage.
@@ -248,7 +248,7 @@ router.post("/admin/agents/:id/rolle", async (req, res) => {
           : rolle === "inkasso"
             // Der zweite Satz ist wichtig: Der Bereich öffnet sich erst nach
             // der Verpflichtungserklärung. Ohne diesen Hinweis wundert sich
-            // der Betreiber, warum die Rolle „nicht wirkt".
+            // der Vorgesetzte, warum die Rolle „nicht wirkt".
             ? `${vorher.name} arbeitet ab jetzt im Forderungsmanagement und sieht ausschließlich `
               + `bezahlte Kunden mit laufender Ratenzahlung. Der Bereich öffnet sich, sobald die `
               + `Verpflichtungserklärung angenommen ist. Trag als Nächstes Stundensatz und Prämie ein — `
@@ -367,7 +367,7 @@ router.post("/admin/agents/:id/loeschen", async (req, res) => {
         INSERT INTO fiaon_agent_events (agent_id, type, meta, actor, reason)
         VALUES (${id}, ${hatGeld ? "geloescht_anonymisiert" : "geloescht_endgueltig"},
                 ${JSON.stringify({ name: a.name, email: a.email, kundenFreigegeben: frei.length })},
-                'Betreiber', ${String(req.body?.grund || "Ohne Angabe")})
+                'Vorgesetzter', ${String(req.body?.grund || "Ohne Angabe")})
       `;
 
       if (hatGeld) {
@@ -653,7 +653,7 @@ router.post("/admin/agents/:id/commissions/manual", async (req, res) => {
 /** Findet alle bezahlten Bestellungen ohne positive Provision + belastbaren
  *  Betrag inkl. Quellenangabe. P2-B: auch FÄLLE OHNE zugewiesenen Agent —
  *  mit Vorschlag aus der dokumentierten Betreuung (letzter Agenten-Kontakt).
- *  Entscheidung trifft IMMER der Betreiber, nichts wird automatisch gebucht.
+ *  Entscheidung trifft IMMER der Vorgesetzte, nichts wird automatisch gebucht.
  *  Nur SELECT (kein Schreibzugriff). */
 async function backfillCandidates(): Promise<any[]> {
   await ensureAgentTables();
@@ -899,7 +899,7 @@ router.post("/admin/commission-backfill/book-all", async (_req, res) => {
     const results: any[] = [];
     for (const c of bookable) {
       // Sammelbuchung bucht NUR bereits zugewiesene Fälle — Vorschläge (agent_suggested)
-      // brauchen die bewusste Einzel-Entscheidung des Betreibers.
+      // brauchen die bewusste Einzel-Entscheidung des Vorgesetzten.
       if (c.agent_suggested) { skipped++; continue; }
       const r = await bookRef(c.ref);
       if (r.ok && !r.alreadyBooked) { booked++; results.push({ ref: c.ref, ok: true, amountCents: r.amountCents, source: r.source }); }
@@ -1494,7 +1494,7 @@ router.post("/admin/scripts/:id/delete", async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// WIRTSCHAFTLICHKEIT — nur für den Betreiber
+// WIRTSCHAFTLICHKEIT — nur für den Vorgesetzten
 //
 // Diese Routen liegen unter /admin/, und /admin/ ist durch den Zugangscode
 // geschützt (siehe server/routes.ts: adminGate). Die Vertriebsleitung kommt

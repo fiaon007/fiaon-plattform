@@ -86,7 +86,7 @@ function fmtDT(v: string | null): string {
  * Die Positionen — und was sie über die Vergütung bedeuten.
  *
  * ── WARUM DIE ROLLE ZUERST KOMMT ───────────────────────────────────────────
- * Der Betreiber: „wenn ich ein Mitarbeiter einlade dann muss ich vorher schon
+ * Der Vorgesetzte: „wenn ich ein Mitarbeiter einlade dann muss ich vorher schon
  * auswählen wofür sie arbeiten wird." Zu Recht: Bis heute wurde jeder als
  * „agent" angelegt und musste danach von Hand umgestellt werden — ein
  * zusätzlicher Schritt, den man vergisst, und dann sitzt jemand in der

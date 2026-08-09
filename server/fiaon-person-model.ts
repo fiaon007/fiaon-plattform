@@ -26,7 +26,7 @@
  *     49 Nummern verbinden 139 verschiedene E-Mail-Familien (Haushalte, Firmen-
  *     zentralen). Solche Treffer sind VORSCHLÄGE, nie Automatik (Lehre aus D5).
  *   · Keine Deaktivierung. Es gibt keinen Zustand, aus dem jemand „reaktiviert"
- *     werden müsste — Direktive des Betreibers. `account_status='suspended'`
+ *     werden müsste — Direktive des Vorgesetzten. `account_status='suspended'`
  *     bleibt allein der Admin-Not-Aus.
  */
 
@@ -760,7 +760,7 @@ async function stammdatenErgaenzen(personId: number, ein: PersonEingabe): Promis
  * Der Agent wird NIE umgehängt.
  *
  * Hat die Person noch keinen, bekommt sie diesen. Hat sie bereits einen
- * anderen, ist das ein Konflikt für die Betreiber-Liste — keine Entscheidung
+ * anderen, ist das ein Konflikt für die Vorgesetzten-Liste — keine Entscheidung
  * für den Automaten. Wer den Lead gewonnen hat, behält seinen Kunden sichtbar.
  */
 async function agentPruefen(personId: number, agentId: number | null): Promise<boolean> {

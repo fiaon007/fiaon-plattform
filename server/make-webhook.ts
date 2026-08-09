@@ -29,13 +29,13 @@ export type MakeEventType =
   | "lead_application_link"
   | "number_update_request" // #23: Kunde/Lead aktualisiert Telefonnummer selbst
   | "abo_payment_reminder"  // monatliche Paketrate fällig (Abo) — Stufen 1–3
-  | "aufgabe_zugewiesen"    // Betreiber weist einem Mitarbeiter eine Aufgabe zu
+  | "aufgabe_zugewiesen"    // Vorgesetzter weist einem Mitarbeiter eine Aufgabe zu
   // ── Lead-Pipeline und Terminsystem ────────────────────────────────────────
   | "nicht_erreicht_termin"  // 2× nicht erreicht → Kunde bucht selbst einen Termin
   | "termin_bestaetigung"    // Termin gebucht — mit Storno-Link
   | "termin_erinnerung"      // 24 h vor dem Termin
   | "onboarding_einladung"   // bezahlter Kunde soll sein Startgespraech buchen
-  // ── Registriert für /admin/events (Betreiber kann testen + Make-Zweig bauen).
+  // ── Registriert für /admin/events (Vorgesetzter kann testen + Make-Zweig bauen).
   //    NOCH KEIN automatischer Versand im Code verdrahtet (Empfehlung, Teil 1.3):
   | "payment_cancelled"       // Bestellung storniert
   | "payment_reactivated"     // abgelaufene Bestellung reaktiviert (neue Frist)
@@ -94,7 +94,7 @@ export async function sendMakeWebhookMitGrund(eventType: MakeEventType, payload:
   // ── JEDE MAIL STEHT IM PROTOKOLL ────────────────────────────────────────
   // Vor dem 09.08.2026 protokollierten nur sieben von 29 Sendestellen. Der
   // Rest ging unbeobachtet raus, und wenn ein Kunde sagte „ich habe nichts
-  // bekommen", suchte der Betreiber im Make-Protokoll.
+  // bekommen", suchte der Vorgesetzte im Make-Protokoll.
   //
   // Die Alternative wäre gewesen, 29 Aufrufstellen umzubauen — darunter
   // Zahlungswege, die seit Monaten laufen. Der Eintrag steht deshalb HIER, an

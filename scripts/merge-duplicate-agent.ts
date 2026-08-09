@@ -104,7 +104,7 @@ async function main() {
 
   // Schreibvorgang: EINE Transaktion (alles-oder-nichts). Unique-Kollisionen
   // (z. B. Lese-Markierungen, die beide Agenten haben) brechen sauber ab —
-  // dann bitte die betroffene Tabelle mit dem Betreiber manuell klären.
+  // dann bitte die betroffene Tabelle mit dem Vorgesetzten manuell klären.
   await sql.begin(async (tx) => {
     const nowInfo = { at: new Date().toISOString(), to: Number(target.id), sources: sources.map((s) => Number(s.id)), moved: {} as Record<string, number> };
     for (const p of plan) {

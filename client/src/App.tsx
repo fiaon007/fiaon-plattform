@@ -141,7 +141,7 @@ function Router() {
       <Route path="/business-antrag" component={BusinessAntragPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/dashboard" component={DashboardPage} />
-      {/* Nach der Anmeldung landet auch der Betreiber im SPACE — dort steht,
+      {/* Nach der Anmeldung landet auch der Vorgesetzte im SPACE — dort steht,
           was das Haus heute gemacht hat. Das Dashboard bleibt als eigener
           Punkt erreichbar: /admin/dashboard. */}
       <Route path="/admin" component={() => <Umleitung nach="/admin/space" />} />
@@ -208,15 +208,15 @@ function Router() {
           hat, bekommt vom Server 404 und die Seite zeigt „gibt es nicht". */}
       <Route path="/agent/inkasso" component={AgentInkassoPage} />
       <Route path="/agent/space">{() => <AgentSpacePage />}</Route>
-      {/* Mail-Zentrale — Team und Betreiber. Die Rolle entscheidet der Server:
+      {/* Mail-Zentrale — Team und Vorgesetzter. Die Rolle entscheidet der Server:
           ein Teammitglied sieht nur eigene Kunden und darf an höchstens zehn. */}
       <Route path="/agent/mail-zentrale" component={MailZentralePage} />
-      {/* Der Betreiber hat SEINE Mail-Zentrale: gleiche Oberflaeche, gleiche
+      {/* Der Vorgesetzte hat SEINE Mail-Zentrale: gleiche Oberflaeche, gleiche
           Bausteine, aber ohne Agent-Anmeldung und ohne 10-Empfaenger-Grenze.
           Der Menuepunkt zeigte bis zum 11.08.2026 auf die Team-Fassung und
-          verlangte einen Zugang, den der Betreiber nicht hat. */}
+          verlangte einen Zugang, den der Vorgesetzte nicht hat. */}
       <Route path="/admin/mail-zentrale" component={admin(MailZentralePage)} />
-      {/* Der Space, aus der Sicht des Betreibers: derselbe Feed, dieselbe
+      {/* Der Space, aus der Sicht des Vorgesetzten: derselbe Feed, dieselbe
           Oberfläche, volle Rechte. Eine zweite Seite wäre eine zweite Seite
           zum Pflegen — und die eine würde bei jeder Änderung vergessen. */}
       <Route path="/admin/space" component={admin(() => <AgentSpacePage alsAdmin />)} />
@@ -267,7 +267,7 @@ function Router() {
       <Route path="/admin/nachbuchung" component={() => <Umleitung nach="/admin/team?tab=nachbuchung" />} />
       {/* ── UMGEZOGEN (11.08.2026) ──────────────────────────────────────
           „Leistung" war eine eigene Seite mit denselben Zahlen, die die
-          Team-Zentrale je Mitarbeiter ohnehin zeigt. Der Betreiber hat den
+          Team-Zentrale je Mitarbeiter ohnehin zeigt. Der Vorgesetzte hat den
           Umzug zweimal angeordnet — hier ist er vollständig: Die Rangliste
           liegt in der Zentrale, die Detailzahlen im Mitarbeiter-Reiter. */}
       <Route path="/admin/leistung" component={() => <Umleitung nach="/admin/team?rang=1" />} />

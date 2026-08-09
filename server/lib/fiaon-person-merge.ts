@@ -66,7 +66,7 @@ export interface MergeEntscheidungen {
 }
 
 export interface MergeAkteur {
-  /** Klartext, steht im Protokoll: „Betreiber (Admin)" oder „Sabine M. (Vertriebsleitung)". */
+  /** Klartext, steht im Protokoll: „Vorgesetzter (Admin)" oder „Sabine M. (Vertriebsleitung)". */
   name: string;
   agentId?: number | null;
 }

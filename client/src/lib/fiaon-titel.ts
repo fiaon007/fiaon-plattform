@@ -10,7 +10,7 @@
 // herum als üblich. „Kunden · FIAON" ist brauchbar, „FIAON — Kunden…" nicht.
 //
 // Für die öffentlichen Seiten bleibt der Werbetitel: Dort liest ihn Google,
-// nicht der Betreiber.
+// nicht der Vorgesetzte.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useEffect } from "react";

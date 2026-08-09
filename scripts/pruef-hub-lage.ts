@@ -74,7 +74,7 @@ const eur = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractio
   // Die Team-Seite (fiaon-team.ts) rechnet die Provision als Summe der drei
   // Statusgruppen bestaetigt + in_auszahlung + ausgezahlt. Das Dashboard rechnet
   // „alles außer storniert". Beides muss dasselbe ergeben — sonst stehen im
-  // System zwei verschiedene Provisionswahrheiten, und der Betreiber kann
+  // System zwei verschiedene Provisionswahrheiten, und der Vorgesetzte kann
   // keiner mehr trauen. Diese Prüfung schlägt an, sobald ein neuer Status
   // eingeführt wird, den nur eine der beiden Seiten kennt.
   const wieTeam = await sqlPool`

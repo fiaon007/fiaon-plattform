@@ -22,7 +22,7 @@
 /**
  * Stunde (0–23) in Europe/Berlin — oder `null`, wenn sie nicht sicher
  * bestimmbar ist. Kein Rückfall auf die Uhr des Betrachters: Ein Agent in
- * Wien und der Betreiber in Bangkok sollen dieselbe Geschäftszeit sehen.
+ * Wien und der Vorgesetzte in Bangkok sollen dieselbe Geschäftszeit sehen.
  *
  * `hourCycle: "h23"` verhindert die „24" mancher Laufzeitumgebungen um
  * Mitternacht; die Prüfung darunter fängt sie zusätzlich ab.

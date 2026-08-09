@@ -65,7 +65,7 @@ async function main(): Promise<void> {
   ok("Die Rückstellung steht im Protokoll", !!zurueck);
   ok("… mit Begründung", /Rueckstellung|Rückstellung/.test(JSON.stringify(zurueck?.meta ?? {})));
 
-  // Der Betreiber: „Der Onboarding und Inkasso Mitarbeiter kommen erst!"
+  // Der Vorgesetzte: „Der Onboarding und Inkasso Mitarbeiter kommen erst!"
   const belegt = (await sqlPool`
     SELECT rolle, COUNT(*)::int AS n FROM fiaon_agents
     WHERE active AND rolle IN ('onboarding', 'inkasso') GROUP BY rolle
@@ -126,7 +126,7 @@ async function main(): Promise<void> {
   ok("Die Anleitung nennt die Brevo-Adresse",
     diag.anleitung.some((a) => a.includes("app.brevo.com/security/authorised_ips")));
 
-  // Der ECHTE Fehler des Betreibers — steht er in der Datenbank?
+  // Der ECHTE Fehler des Vorgesetzten — steht er in der Datenbank?
   const [echt] = (await sqlPool`
     SELECT grund FROM fiaon_mail_log WHERE grund ILIKE '%Freigabeliste%'
     ORDER BY created_at DESC LIMIT 1
@@ -388,7 +388,7 @@ async function main(): Promise<void> {
   ok("Signaturvergleich ist zeitgleich", /timingSafeEqual/.test(datei("server/lib/fiaon-ansicht.ts")));
   ok("Start und Ende werden protokolliert", /ansicht_\$\{was\}/.test(datei("server/lib/fiaon-ansicht.ts")));
   ok("Die Wand hängt VOR allen Routen", /ansichtNurLesen/.test(datei("server/routes.ts")));
-  ok("Nur der Betreiber startet sie", /admin\/team\/ansicht\/:id/.test(teamQ));
+  ok("Nur der Vorgesetzte startet sie", /admin\/team\/ansicht\/:id/.test(teamQ));
   const sharedQ = datei("client/src/pages/agent/shared.tsx");
   ok("Der Banner ist da", /function AnsichtsBanner/.test(sharedQ));
   ok("… dunkelblau und oben fixiert", /position: "fixed", top: 0/.test(sharedQ));

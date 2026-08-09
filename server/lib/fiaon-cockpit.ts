@@ -3,7 +3,7 @@
 //
 // Ablauf (verbindlich, siehe SYSTEM_DIAGNOSE.md):
 //   Frage → KI erzeugt EINE read-only SQL-Abfrage → Server PRÜFT sie hart und
-//   führt sie NUR-LESEND aus → Ergebnis geht als Tabelle an den Betreiber.
+//   führt sie NUR-LESEND aus → Ergebnis geht als Tabelle an den Vorgesetzten.
 //   Für die Erklärung gehen nur AGGREGIERTE, ANONYMISIERTE Werte an die KI —
 //   niemals Namen, E-Mails, Telefonnummern, IBANs, Adressen.
 //

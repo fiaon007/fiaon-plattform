@@ -31,7 +31,7 @@ export function fmtEur(v: string | number | null | undefined): string {
 }
 
 // Ticket #13: Anzeige IMMER in deutscher Geschäftszeit (Europe/Berlin) — unabhängig
-// vom Standort des Betrachters (Betreiber in Bangkok, Agenten in Deutschland).
+// vom Standort des Betrachters (Vorgesetzter in Bangkok, Agenten in Deutschland).
 export function fmtD(v: string | null | undefined): string {
   if (!v) return "—";
   try { return new Date(v).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }); } catch { return "—"; }
@@ -176,7 +176,7 @@ export interface AgentInfo {
   name: string; email: string;
   avatar?: string | null; rolle?: string;
   is_test_account?: boolean; pruefkonto?: boolean;
-  /** Läuft eine Ansichts-Sitzung des Betreibers? */
+  /** Läuft eine Ansichts-Sitzung des Vorgesetzten? */
   ansicht?: boolean; ansichtBis?: string | null;
 }
 const AgentCtx = createContext<{ agent: AgentInfo | null; reload: () => void }>({ agent: null, reload: () => {} });
@@ -595,7 +595,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
     return () => clearInterval(t);
   }, [agent, location]);
 
-  // Nav-Badge: Tickets mit ungelesener Betreiber-Antwort. Aktualisiert beim
+  // Nav-Badge: Tickets mit ungelesener Vorgesetzten-Antwort. Aktualisiert beim
   // Öffnen eines Threads (Event 'agent-feedback-read') und alle 60 s.
   useEffect(() => {
     if (!agent) return;
@@ -734,7 +734,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
     // Eine Aufgabe für nächste Woche soll den Zähler nicht dauerhaft rot
     // halten — sonst gewöhnt man sich an die Zahl und sieht sie nicht mehr.
     "/agent/aufgaben": aufgabenFaellig,
-    // Neuerungen und Betreiber-Antworten liegen beide unter „Mehr".
+    // Neuerungen und Vorgesetzten-Antworten liegen beide unter „Mehr".
     "/agent/mehr": neueUpdates + fbUnread,
     // Ungelesene Beiträge im Space. Sie zählen bewusst mit in die Menü-Marke
     // auf dem Telefon: Der Space ist kein Nebenschauplatz, sondern der Ort,

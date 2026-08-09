@@ -109,7 +109,13 @@ async function main(): Promise<void> {
   ok("Das Panel bindet das SDK ein", /await import\("@twilio\/voice-sdk"\)/.test(softphone));
   ok("… nachgeladen, nicht statisch importiert",
     !/^import .*@twilio\/voice-sdk/m.test(softphone));
-  ok("Es verbindet über device.connect", /\.connect\(\{ params: \{ To:/.test(softphone));
+  // NICHT „To"! Twilio setzt diesen Parameter bei Browser-Anrufen selbst auf
+  // die Client-Identität und überschreibt dabei einen gleichnamigen eigenen.
+  // Im Twilio-Log stand deshalb bei jedem Anruf eine leere Nummer.
+  ok("Es verbindet über device.connect mit einem NICHT reservierten Namen",
+    /\.connect\(\{ params: \{ An: j\.nummer, Ziel: j\.nummer \} \}\)/.test(softphone));
+  ok("… und „To“ wird nicht mehr als Parameter gesendet",
+    !/params: \{ To:/.test(softphone));
   ok("Stummschalten geht auf die Verbindung", /verbindung\.current\?\.mute\?\.\(/.test(softphone));
   ok("Tasten gehen ins Gespräch", /sendDigits\?\.\(/.test(softphone));
   ok("Beim Verlassen wird aufgelegt", /useEffect\(\(\) => \(\) => \{[\s\S]{0,200}disconnect/.test(softphone));
@@ -342,7 +348,7 @@ async function main(): Promise<void> {
         rateId: s3, ergebnis: "eskalation", agentId: Number(agentA.id), agentName: String(agentA.name),
       }, tx as any);
       ok("Eskalation ohne Begründung wird abgelehnt", !ohneNotiz.ok);
-      ok("… mit einer Erklärung, die sagt warum", /Betreiber nicht entscheiden/.test(ohneNotiz.fehler || ""));
+      ok("… mit einer Erklärung, die sagt warum", /Vorgesetzte nicht entscheiden/.test(ohneNotiz.fehler || ""));
 
       const vorVermerk = Number(((await tx`SELECT COUNT(*)::int AS n FROM fiaon_vermerke`) as any[])[0].n);
       const esk = await ratenErgebnisAnwenden({
@@ -355,13 +361,13 @@ async function main(): Promise<void> {
       const [aufgabe] = (await tx`
         SELECT art, fuer_betreiber, dringend, text, status FROM fiaon_vermerke ORDER BY id DESC LIMIT 1
       `) as any[];
-      ok("Die Aufgabe geht an den Betreiber", aufgabe.fuer_betreiber === true && aufgabe.art === "aufgabe");
+      ok("Die Aufgabe geht an den Vorgesetzten", aufgabe.fuer_betreiber === true && aufgabe.art === "aufgabe");
       ok("… ist dringend und offen", aufgabe.dringend === true && aufgabe.status === "offen");
       ok("… enthält die Notiz wörtlich", /Privatinsolvenz/.test(String(aufgabe.text)));
       ok("… nennt Rate, Betrag und Verwendungszweck",
         /Rate 1/.test(String(aufgabe.text)) && /Verwendungszweck/.test(String(aufgabe.text)));
-      ok("… und sagt, dass nur der Betreiber nachlassen darf",
-        /nur der Betreiber/.test(String(aufgabe.text)));
+      ok("… und sagt, dass nur der Vorgesetzte nachlassen darf",
+        /nur der Vorgesetzte/.test(String(aufgabe.text)));
 
       // Alles landet in der Kundenakte.
       const [akte] = (await tx`
@@ -380,7 +386,7 @@ async function main(): Promise<void> {
       `;
       const ohneFreigabe = await praemieBuchen(rateOk, tx as any);
       ok("Ohne bestätigte Vergütung wird NICHTS gebucht", !ohneFreigabe.gebucht);
-      ok("… mit dem Grund im Klartext", /nicht vom Betreiber bestätigt/.test(ohneFreigabe.grund));
+      ok("… mit dem Grund im Klartext", /nicht vom Vorgesetzter bestätigt/.test(ohneFreigabe.grund));
 
       await tx`UPDATE fiaon_agents SET verguetung_bestaetigt_am = NOW() WHERE id = ${agentA.id}`;
 
@@ -468,7 +474,7 @@ async function main(): Promise<void> {
       ok("Die Prämie zählt schon", Number(v1.praemienCents) >= 200, String(v1.praemienCents));
 
       await tx`
-        UPDATE fiaon_stunden SET bestaetigt_am = NOW(), bestaetigt_von = 'Betreiber' WHERE id = ${h1.id}
+        UPDATE fiaon_stunden SET bestaetigt_am = NOW(), bestaetigt_von = 'Vorgesetzter' WHERE id = ${h1.id}
       `;
       const v2 = await verdienst(Number(agentA.id), tx as any);
       gleich("Nach Bestätigung zählt sie", v2.bestaetigtMinuten, 210);

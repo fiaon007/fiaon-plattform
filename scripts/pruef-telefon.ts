@@ -10,7 +10,7 @@
 //
 // TWILIO UND OPENAI SIND ATTRAPPEN. Es geht kein Anruf raus, keine Mail, kein
 // API-Aufruf. Die Zugangsdaten fehlen ohnehin — genau der Zustand, in dem der
-// Betreiber die Plattform heute vorfindet.
+// Vorgesetzter die Plattform heute vorfindet.
 //
 //   npx tsx scripts/pruef-telefon.ts
 // ═══════════════════════════════════════════════════════════════════════════
@@ -101,7 +101,7 @@ async function main(): Promise<void> {
   // ═══════════════════════════════════════════════════════════════════════
   ok("Die Erklärung verbietet der Leitung Dokumenteinsicht",
     ZUSAGE_TEXT.kannNicht.some((z) => /Kundendokumente öffnen oder herunterladen/.test(z)));
-  ok("Der Betreiber darf Inhalte", darfInhalt("admin"));
+  ok("Der Vorgesetzte darf Inhalte", darfInhalt("admin"));
   ok("Die Vertriebsleitung NICHT", !darfInhalt("vertriebsleiter"));
   ok("Ein Teammitglied NICHT", !darfInhalt("agent"));
   ok("Das Onboarding NICHT", !darfInhalt("onboarding"));
@@ -252,19 +252,19 @@ async function main(): Promise<void> {
       ok("Der fehlende Kontoauszug ist eine LÜCKE", !auszug.vorhanden);
       ok("… und wird gebraucht", auszug.benoetigt);
       gleich("Der Prüfstand steht auf offen", alsAdmin!.kycStatus, "pending");
-      ok("Der Betreiber darf Inhalte", alsAdmin!.inhaltErlaubt);
+      ok("Der Vorgesetzte darf Inhalte", alsAdmin!.inhaltErlaubt);
 
       const alsLeitung = await dokumentStand({ ref: r1, rolle: "vertriebsleiter" }, tx as any);
       ok("Die Leitung sieht denselben Stand", alsLeitung!.dokumente.find((d) => d.art === "ausweis")!.vorhanden);
       ok("… aber KEINE Inhaltsfreigabe", !alsLeitung!.inhaltErlaubt);
 
       const inhaltAdmin = await dokumentInhalt(r1, "ausweis", "admin", tx as any);
-      ok("Der Betreiber bekommt die Datei", inhaltAdmin.ok);
+      ok("Der Vorgesetzte bekommt die Datei", inhaltAdmin.ok);
       const inhaltLeitung = await dokumentInhalt(r1, "ausweis", "vertriebsleiter", tx as any);
       ok("Die Leitung bekommt sie NICHT", !inhaltLeitung.ok);
       gleich("… mit 403", (inhaltLeitung as any).code, 403);
       ok("… und dem Wortlaut aus der Erklärung",
-        /nur ob sie vorliegen|nur der Betreiber öffnen/.test((inhaltLeitung as any).grund));
+        /nur ob sie vorliegen|nur der Vorgesetzte öffnen/.test((inhaltLeitung as any).grund));
       const inhaltAgent = await dokumentInhalt(r1, "ausweis", "agent", tx as any);
       ok("Ein Teammitglied ebenfalls nicht", !inhaltAgent.ok);
       const fehlt = await dokumentInhalt(r1, "kontoauszug", "admin", tx as any);

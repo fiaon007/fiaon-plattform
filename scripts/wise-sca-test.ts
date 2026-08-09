@@ -44,7 +44,7 @@ function main(): void {
   console.log("\nWISE-SIGNATUR (SCA) — TESTS");
   console.log("═".repeat(70));
 
-  // Ein echtes Schlüsselpaar, wie es der Betreiber bei Wise hinterlegt.
+  // Ein echtes Schlüsselpaar, wie es der Vorgesetzte bei Wise hinterlegt.
   const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
   const fremd = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
 

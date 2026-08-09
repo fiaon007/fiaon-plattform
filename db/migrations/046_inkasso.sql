@@ -47,7 +47,7 @@ CREATE INDEX IF NOT EXISTS fiaon_abo_raten_inkasso_idx
 -- ── Stunden ────────────────────────────────────────────────────────────────
 -- Bestätigte Stunden sind UNVERÄNDERLICH. Wer eine bestätigte Zeile noch
 -- ändern könnte, könnte eine Abrechnung nachträglich verschieben — und der
--- Betreiber hätte etwas anderes bestätigt, als am Ende ausgezahlt wird.
+-- Vorgesetzter hätte etwas anderes bestätigt, als am Ende ausgezahlt wird.
 CREATE TABLE IF NOT EXISTS fiaon_stunden (
   id             SERIAL PRIMARY KEY,
   agent_id       INTEGER NOT NULL REFERENCES fiaon_agents(id) ON DELETE CASCADE,
@@ -69,7 +69,7 @@ CREATE INDEX IF NOT EXISTS fiaon_stunden_offen_idx
 
 -- ── Vergütung je Mitarbeiter ───────────────────────────────────────────────
 -- PLATZHALTER. Die Werte sind bewusst so gesetzt, dass sie auffallen, und in
--- der Oberfläche als „vom Betreiber zu bestätigen" markiert. Ein stiller
+-- der Oberfläche als „vom Vorgesetzter zu bestätigen" markiert. Ein stiller
 -- Vorgabewert, den niemand prüft, wird sonst zur echten Abrechnung.
 ALTER TABLE fiaon_agents
   ADD COLUMN IF NOT EXISTS stundensatz_cents      INTEGER,

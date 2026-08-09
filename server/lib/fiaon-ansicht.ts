@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// ANSICHTS-SITZUNG — der Betreiber sieht das Portal mit den Augen eines
+// ANSICHTS-SITZUNG — der Vorgesetzte sieht das Portal mit den Augen eines
 // Mitarbeiters
 //
-// Der Betreiber: „ich kann mir ja nicht ein Account machen um jede Abteilung,
+// Der Vorgesetzte: „ich kann mir ja nicht ein Account machen um jede Abteilung,
 // jedes Dashboard zu sehen."
 //
 // ── DIE GEFAHR ─────────────────────────────────────────────────────────────
 // Ein Werkzeug, das jemanden in eine fremde Sitzung setzt, ist die
-// gefährlichste Funktion im ganzen System. Falsch gebaut, kann der Betreiber
+// gefährlichste Funktion im ganzen System. Falsch gebaut, kann der Vorgesetzte
 // versehentlich im Namen eines Mitarbeiters eine Verpflichtungserklärung
 // annehmen, ein Gesprächsergebnis buchen oder eine Mail an einen Kunden
 // schicken — und niemand könnte hinterher sagen, wer es war.
@@ -99,5 +99,5 @@ export async function ansichtProtokoll(
     VALUES (${agentId}, ${`ansicht_${was}`},
             ${JSON.stringify({ minuten: ANSICHT_MINUTEN })}, 'admin')
   `.catch(() => {});
-  console.log(`[ANSICHT] Portal von Agent ${agentId} ${was} (Betreiber)`);
+  console.log(`[ANSICHT] Portal von Agent ${agentId} ${was} (Vorgesetzter)`);
 }

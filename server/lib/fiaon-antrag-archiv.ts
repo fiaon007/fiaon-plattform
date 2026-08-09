@@ -197,7 +197,7 @@ export async function stelleAntragWiederHer(
 ): Promise<{ ref: string; personId: number | null }> {
   if (akteur.rolle !== "admin") {
     throw new ArchivVerboten("nur_admin",
-      "Wiederherstellen darf nur der Betreiber. Archivieren kann auch die Vertriebsleitung.");
+      "Wiederherstellen darf nur der Vorgesetzte. Archivieren kann auch die Vertriebsleitung.");
   }
   const arbeit = async (tx: Lauf) => {
     const [a] = await tx`

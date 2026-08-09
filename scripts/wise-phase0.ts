@@ -5,7 +5,7 @@
  *
  * Holt die vollständige Umsatzhistorie live bei Wise, ordnet jeden Eingang zu
  * und stellt ihn dem gegenüber, was im System steht. Am Ende stehen vier
- * Zahlen, die der Betreiber wirklich braucht:
+ * Zahlen, die der Vorgesetzte wirklich braucht:
  *
  *   1 · STIMMT              — Geld da, korrekt verbucht
  *   2 · FEHLT IM SYSTEM     — Geld da, nicht verbucht  ← das verlorene Geld

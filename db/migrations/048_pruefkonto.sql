@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- PRÜFKONTO — der Unterschied zwischen einer Attrappe und dem Betreiber
+-- PRÜFKONTO — der Unterschied zwischen einer Attrappe und dem Vorgesetzten
 --
 -- ── DAS PROBLEM ────────────────────────────────────────────────────────────
 -- `is_test_account` bedeutete bisher zwei völlig verschiedene Dinge:
@@ -12,7 +12,7 @@
 --   2. DAS PRÜFKONTO DES BETREIBERS — ein echter Mensch, der die Plattform
 --      aus der Sicht des Teams sehen und JEDE Funktion ausprobieren muss.
 --
--- Weil beides denselben Schalter benutzte, konnte der Betreiber über sein
+-- Weil beides denselben Schalter benutzte, konnte der Vorgesetzte über sein
 -- eigenes Konto nicht telefonieren („Testkonten können nicht telefonieren")
 -- und keine erhöhte Rolle bekommen. Ein Prüfkonto, das die Hälfte nicht
 -- kann, prüft nichts.
@@ -31,11 +31,11 @@ ALTER TABLE fiaon_agents
   ADD COLUMN IF NOT EXISTS pruefkonto BOOLEAN NOT NULL DEFAULT FALSE;
 
 COMMENT ON COLUMN fiaon_agents.pruefkonto IS
-  'Prüfkonto des Betreibers: darf alles wie ein Vollkonto, bekommt aber keine '
+  'Prüfkonto des Vorgesetzten: darf alles wie ein Vollkonto, bekommt aber keine '
   'automatisch verteilten Kunden. Nicht zu verwechseln mit is_test_account '
   '(Attrappe ohne Menschen dahinter).';
 
--- Das Konto des Betreibers. Über die Adresse, nicht über die Kennung: Eine
+-- Das Konto des Vorgesetzten. Über die Adresse, nicht über die Kennung: Eine
 -- Kennung kann sich beim Umzug ändern, die Adresse ist die Identität.
 UPDATE fiaon_agents
    SET pruefkonto = TRUE

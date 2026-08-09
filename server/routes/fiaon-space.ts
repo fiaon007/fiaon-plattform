@@ -2,7 +2,7 @@
 // FIAON SPACE — Routen
 //
 // Offen für JEDE Mitarbeiterrolle (requireAgent genügt). Anpinnen und Löschen
-// dürfen nur Vertriebsleitung und Betreiber — nicht aus Hierarchie, sondern
+// dürfen nur Vertriebsleitung und Vorgesetzter — nicht aus Hierarchie, sondern
 // weil ein angepinnter Post oben stehen bleibt, bis ihn jemand löst, und ein
 // gelöschter Post aus dem Blick verschwindet. Beides sind Eingriffe in einen
 // gemeinsamen Raum.
@@ -17,7 +17,7 @@ import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureRolleSpalte } from "./fiaon-vertrieb";
 import {
-  HINWEIS_AM_FELD, REAKTIONEN, feedLesen, istReaktion, pruefeBeitrag, ungelesen,
+  HINWEIS_AM_FELD, REAKTIONEN, feedLesen, istReaktion, pruefeBeitrag, tageszahlen, ungelesen,
 } from "../lib/fiaon-space";
 
 const router = Router();
@@ -56,7 +56,7 @@ router.get("/agent/space", requireAgent, async (req: AgentRequest, res: Response
       reaktionen: REAKTIONEN,
       // ── DAS EIGENE GESICHT ────────────────────────────────────────────
       // Bis zum 11.08.2026 stand hier nur der Vorname — die Oberfläche
-      // zeichnete daraus Initialen. Der Betreiber hat ein Profilbild
+      // zeichnete daraus Initialen. Der Vorgesetzte hat ein Profilbild
       // hinterlegt und sah trotzdem „JS". Es war nie ein fehlendes Bild,
       // sondern ein nicht mitgeliefertes.
       ich: {
@@ -68,6 +68,8 @@ router.get("/agent/space", requireAgent, async (req: AgentRequest, res: Response
       },
       // Gibt es noch mehr? Der Feed lädt sonst ewig weiter ins Leere.
       mehr: posts.length >= Math.min(100, Number(req.query.limit) || 25),
+      // Echte Zahlen statt Hausordnung in der Seitenspalte.
+      tageszahlen: vorId ? [] : await tageszahlen(req.agent!.id, false).catch(() => []),
     });
   } catch (err) {
     console.error("[SPACE] feed:", err);
@@ -223,7 +225,7 @@ router.post("/agent/space/:id/kommentar", requireAgent, async (req: AgentRequest
 export const PIN_GRENZE = 2;
 
 /**
- * POST /agent/space/:id/anpinnen — nur Leitung und Betreiber.
+ * POST /agent/space/:id/anpinnen — nur Leitung und Vorgesetzter.
  *
  * ── WARUM EINE GRENZE ──────────────────────────────────────────────────────
  * Ein angepinnter Beitrag bleibt oben, bis ihn jemand löst. In der Praxis löst
@@ -252,7 +254,7 @@ router.post("/agent/space/:id/anpinnen", requireAgent, async (req: AgentRequest,
       `) as any[];
 
       if (belegt.length >= PIN_GRENZE) {
-        // Der Betreiber kann die Entscheidung mitschicken: „diesen hier weg".
+        // Der Vorgesetzte kann die Entscheidung mitschicken: „diesen hier weg".
         const weichen = Number(req.body?.weichen || 0);
         if (!weichen) {
           return res.status(409).json({
@@ -451,7 +453,7 @@ router.delete("/agent/space/kommentar/:id", requireAgent, async (req: AgentReque
 // ═══════════════════════════════════════════════════════════════════════════
 // ADMIN-SPACE — /admin/space
 //
-// Der Betreiber: „In Admin fehlt die komplette Space Seite? Ich muss als
+// Der Vorgesetzte: „In Admin fehlt die komplette Space Seite? Ich muss als
 // Admin ebenfalls über jeden Post sehen, interagieren können."
 //
 // Dieselben Bausteine, andere Tür. Der Admin hat KEIN Agent-Konto, also kann
@@ -468,7 +470,7 @@ router.delete("/agent/space/kommentar/:id", requireAgent, async (req: AgentReque
 // missbrauchen.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Das Konto, unter dem der Betreiber im Feed auftritt. */
+/** Das Konto, unter dem der Vorgesetzte im Feed auftritt. */
 async function betreiberKonto(): Promise<{ id: number; name: string } | null> {
   const [a] = (await sqlPool`
     SELECT id, COALESCE(NULLIF(first_name, ''), name) AS name
@@ -488,9 +490,10 @@ router.get("/admin/space", async (req: Request, res: Response) => {
     res.json({
       ok: true, posts, darfVerwalten: true, alsAdmin: true,
       hinweis: HINWEIS_AM_FELD, reaktionen: REAKTIONEN,
-      ich: { id: konto?.id ?? 0, vorname: "Betreiber", name: "Betreiber", avatar: null, rolle: "admin" },
+      ich: { id: konto?.id ?? 0, vorname: "Vorgesetzter", name: "Vorgesetzter", avatar: null, rolle: "admin" },
       mehr: posts.length >= Math.min(100, Number(req.query.limit) || 25),
       kontoVorhanden: !!konto,
+      tageszahlen: vorId ? [] : await tageszahlen(konto?.id ?? 0, true).catch(() => []),
     });
   } catch (err) {
     console.error("[SPACE] admin feed:", err);
@@ -590,11 +593,11 @@ router.delete("/admin/space/:id", async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     await sqlPool`
       UPDATE fiaon_posts
-      SET geloescht_at = NOW(), geloescht_grund = ${String(req.body?.grund || "Moderation durch den Betreiber")},
+      SET geloescht_at = NOW(), geloescht_grund = ${String(req.body?.grund || "Moderation durch den Vorgesetzten")},
           updated_at = NOW()
       WHERE id = ${id} AND geloescht_at IS NULL
     `;
-    console.log(`[SPACE] Beitrag ${id} vom Betreiber gelöscht`);
+    console.log(`[SPACE] Beitrag ${id} vom Vorgesetzter gelöscht`);
     res.json({ ok: true });
   } catch (err) {
     console.error("[SPACE] admin loeschen:", err);
@@ -631,7 +634,7 @@ router.post("/admin/space/:id/anpinnen", async (req: Request, res: Response) => 
     }
     await sqlPool`
       UPDATE fiaon_posts SET angepinnt = ${an}, angepinnt_am = ${an ? new Date() : null},
-        angepinnt_von = ${an ? "Betreiber" : null}, updated_at = NOW()
+        angepinnt_von = ${an ? "Vorgesetzter" : null}, updated_at = NOW()
       WHERE id = ${id} AND geloescht_at IS NULL
     `;
     res.json({ ok: true, angepinnt: an });

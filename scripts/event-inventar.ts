@@ -200,7 +200,7 @@ export function collectEventSites(): EventSite[] {
   return sites;
 }
 
-/** Menschlich lesbare Aktion je Codestelle (Klartext für den Betreiber). */
+/** Menschlich lesbare Aktion je Codestelle (Klartext für den Vorgesetzten). */
 const ACTION_LABEL: Record<string, string> = {
   "server/fiaon-number-update.ts:number_update_request":
     "Kontakt-Ergebnis „Nummer falsch“ → Kunde/Lead korrigiert Nummer selbst",

@@ -176,7 +176,7 @@ async function main(): Promise<void> {
       ok("Die Rolle ist in /admin/team vergebbar",
         /const ROLLEN = \["agent", "vertriebsleiter", "onboarding", "inkasso"\]/.test(rollenQuelle));
       ok("… und wird gegen die Liste geprüft", /!ROLLEN\.includes\(rolle\)/.test(rollenQuelle));
-      // Seit dem 11.08.2026 mit Ausnahme: Das PRÜFKONTO des Betreibers ist
+      // Seit dem 11.08.2026 mit Ausnahme: Das PRÜFKONTO des Vorgesetzten ist
       // ein echter Mensch und muss jede Rolle annehmen können, sonst lässt
       // sich keine davon prüfen. Für Attrappen bleibt die Sperre.
       ok("Eine Attrappe bekommt KEINE erhöhte Rolle",

@@ -3,7 +3,7 @@
 //
 // DER FALL, DER DAS AUSGELÖST HAT
 // Florentine will einem Kunden nach dem Telefonat die Zahlungsdaten schicken.
-// Bisher: Nachricht an den Betreiber, der macht es irgendwann. Ab jetzt:
+// Bisher: Nachricht an den Vorgesetzten, der macht es irgendwann. Ab jetzt:
 // „Hi {Anrede}, wie besprochen: {Zahlungsdaten}" — zwanzig Sekunden.
 //
 // DIE DREI AUSSCHLÜSSE, DIE IMMER GELTEN
@@ -47,10 +47,23 @@ export const BAUSTEINE: { marke: string; titel: string; erklaerung: string }[] =
   { marke: "{Agent-Vorname}", titel: "Ansprechpartner", erklaerung: "Der Vorname des zuständigen Teammitglieds." },
 ];
 
+/**
+ * Das Konto, auf das Kunden zahlen.
+ *
+ * ── KORREKTUR 11.08.2026 ───────────────────────────────────────────────────
+ * Hier stand „Schwarzott Global" mit einem österreichischen Konto. Der
+ * Vorgesetzter hat klargestellt: Das Konto der FIAON LTD bei Wise ist und war
+ * immer das richtige. Der alte Eintrag war einfach falsch — und stand in
+ * jeder Zahlungsanweisung, die ein Kunde bekam.
+ *
+ * Diese Angaben sind die einzige Stelle im Haus. Wer sie ändert, ändert
+ * jede Mail, jede Rechnung und jeden Kontoabgleich gleichzeitig — deshalb
+ * gehört sie hierher und nirgends sonst.
+ */
 const BANK = {
-  empfaenger: "Schwarzott Global",
-  iban: "AT02 2011 1849 5473 0900",
-  bic: "GIBAATWWXXX",
+  empfaenger: "FIAON LTD",
+  iban: "BE09 9058 9276 3957",
+  bic: "TRWIBEB1XXX",
 };
 
 /**
@@ -320,7 +333,7 @@ export async function zentraleSenden(opts: {
   // Bis zum 11.08.2026 gab diese Funktion nur „1 fehlgeschlagen (Grund steht
   // im Protokoll)" zurück. Der Grund lag zu diesem Zeitpunkt bereits in
   // `r.grund` vor — er wurde ins Protokoll geschrieben und aus der Antwort
-  // weggeworfen. Der Betreiber musste eine Tabelle suchen, um zu erfahren,
+  // weggeworfen. Der Vorgesetzte musste eine Tabelle suchen, um zu erfahren,
   // was die Zeile darüber schon wusste.
   const ergebnisse: {
     email: string; name: string; personId: number | null;

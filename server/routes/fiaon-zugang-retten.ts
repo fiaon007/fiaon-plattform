@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // ZUGANG RETTEN — Routen
 //
-// Rechte: Betreiber und Vertriebsleitung. Jede Aktion wird protokolliert,
+// Rechte: Vorgesetzter und Vertriebsleitung. Jede Aktion wird protokolliert,
 // jede verlangt eine Begründung. Das ist keine Bürokratie: Wer einem Kunden
 // ein Passwort setzt, greift in dessen Konto ein, und in drei Wochen muss
 // nachvollziehbar sein, warum.
@@ -19,7 +19,7 @@ import { mailSenden } from "../lib/fiaon-mail-senden";
 
 const router = Router();
 
-/** Nur Betreiber und Vertriebsleitung. 403, nicht 404: Die Leitung DARF wissen, dass es das gibt. */
+/** Nur Vorgesetzter und Vertriebsleitung. 403, nicht 404: Die Leitung DARF wissen, dass es das gibt. */
 async function nurRettung(req: AgentRequest, res: Response, next: any) {
   if (!(await istVertriebsleiter(req.agent!.id))) {
     return res.status(403).json({ ok: false, error: "Zugangs-Werkzeuge sind der Vertriebsleitung vorbehalten." });

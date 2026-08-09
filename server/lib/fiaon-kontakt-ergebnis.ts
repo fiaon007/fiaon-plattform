@@ -137,11 +137,26 @@ function nurDatum(v: unknown): string | null {
  * Aufrufer, weil dort die Herkunft (Agent, Notiz, Zeitstempel) bekannt ist.
  * Diese Funktion beantwortet nur die Frage: „Was heißt das für die Tagesliste?"
  */
-export async function ergebnisAnwenden(e: ErgebnisEingabe): Promise<ErgebnisWirkung> {
+export async function ergebnisAnwenden(
+  e: ErgebnisEingabe,
+  /**
+   * Verbindung oder Transaktion.
+   *
+   * Bis zum 10.08.2026 schrieb diese Funktion fest gegen `sqlPool`. Das machte
+   * sie als einzige Schreibstelle im Haus UNPRÜFBAR: Ein Prüfstand, der seine
+   * Testdaten in einer zurückgerollten Transaktion anlegt, konnte sie nicht
+   * aufrufen — die Person existierte aus ihrer Sicht gar nicht, jedes UPDATE
+   * traf null Zeilen, und der Prüfstand meldete stillschweigend „Zähler nicht
+   * gestiegen". Genau so ist es passiert.
+   *
+   * Der Vorgabewert hält alle bestehenden Aufrufer unverändert.
+   */
+  lauf: any = sqlPool,
+): Promise<ErgebnisWirkung> {
   const { ergebnis } = e;
   let personId = e.personId ?? null;
   if (!personId && e.ref) {
-    const [row] = await sqlPool`SELECT person_id FROM fiaon_applications WHERE ref = ${e.ref}`;
+    const [row] = await lauf`SELECT person_id FROM fiaon_applications WHERE ref = ${e.ref}`;
     personId = row?.person_id ?? null;
   }
 
@@ -209,7 +224,7 @@ export async function ergebnisAnwenden(e: ErgebnisEingabe): Promise<ErgebnisWirk
   // letzten Anruf.
   if (personId) {
     const { betreuungMerken } = await import("./tier");
-    await betreuungMerken(sqlPool, { personId });
+    await betreuungMerken(lauf, { personId });
   }
 
   // ── Person: der Zustand, auf den die Tagesliste schaut ────────────────────
@@ -222,10 +237,10 @@ export async function ergebnisAnwenden(e: ErgebnisEingabe): Promise<ErgebnisWirk
     if (zusage !== undefined) patch.promised_payment_date = zusage;
     if (wiedervorlage !== undefined) patch.follow_up_date = wiedervorlage;
     if (gesperrt) patch.is_blocked = true;
-    await sqlPool`UPDATE fiaon_persons SET ${sqlPool(patch)} WHERE id = ${personId}`;
+    await lauf`UPDATE fiaon_persons SET ${lauf(patch)} WHERE id = ${personId}`;
     // Der Zähler verweist auf sich selbst und geht deshalb nicht als Wert mit.
     if (zaehlerHoch) {
-      await sqlPool`
+      await lauf`
         UPDATE fiaon_persons SET unreachable_count = unreachable_count + 1 WHERE id = ${personId}
       `;
     }
@@ -233,7 +248,7 @@ export async function ergebnisAnwenden(e: ErgebnisEingabe): Promise<ErgebnisWirk
 
   // ── Bestellung: dieselbe Zusage, damit Verwaltung und Portal übereinstimmen ─
   if (e.ref && zusage !== undefined) {
-    await sqlPool`
+    await lauf`
       UPDATE fiaon_applications SET promised_pay_date = ${zusage}, updated_at = NOW()
       WHERE ref = ${e.ref}
     `;
@@ -254,10 +269,10 @@ export async function ergebnisAnwenden(e: ErgebnisEingabe): Promise<ErgebnisWirk
     const istErreicht = ergebnis.startsWith("erreicht_");
     if (istErreicht) {
       const { erreichtZuruecksetzen } = await import("./fiaon-nicht-erreicht");
-      await erreichtZuruecksetzen(personId);
+      await erreichtZuruecksetzen(personId, lauf);
     } else if (zaehlerHoch) {
       const { automatikNachFehlversuch } = await import("./fiaon-nicht-erreicht");
-      automatik = await automatikNachFehlversuch(personId);
+      automatik = await automatikNachFehlversuch(personId, lauf);
       if (automatik.wiedervorlage) wiedervorlage = automatik.wiedervorlage;
       if (automatik.hinweis) meldung = `${meldung} ${automatik.hinweis}`;
     }

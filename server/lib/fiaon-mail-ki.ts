@@ -45,12 +45,22 @@ const AUFGABEN: Record<string, string> = {
 
 /** Formulierungen, die nie an einen Kunden gehen dürfen. */
 const VERBOTEN: { muster: RegExp; ersatz: string }[] = [
-  { muster: /\bgarantiert(e[nmrs]?)?\b/gi, ersatz: "möglich" },
-  { muster: /\bgarantie\b/gi, ersatz: "Möglichkeit" },
-  { muster: /\bzusicher(n|ung|e)\b/gi, ersatz: "Aussicht" },
-  { muster: /\bberatung\b/gi, ersatz: "Begleitung" },
-  { muster: /\bberater(in)?\b/gi, ersatz: "Ansprechpartner" },
-  { muster: /\bberaten\b/gi, ersatz: "begleiten" },
+  // ── DER WORTSTAMM, NICHT DIE FORM ─────────────────────────────────────
+  // Die erste Fassung prüfte `\bgarantiert(e[nmrs]?)?\b`. Damit kam „Wir
+  // GARANTIEREN dir ein Limit von 25.000 Euro" ungefiltert durch — der Satz,
+  // den die Wand als Allererstes hätte fangen müssen. Gefunden vom Prüfstand
+  // am 10.08.2026.
+  //
+  // Deshalb jetzt auf dem Stamm: garantie… deckt garantiert, garantieren,
+  // garantierte, Garantie, garantierst ab. Ein Filter, der die Beugung eines
+  // Verbs nicht kennt, ist kein Filter.
+  { muster: /\bgarantier\w*/gi, ersatz: "möglich" },
+  { muster: /\bgarantie\w*/gi, ersatz: "Möglichkeit" },
+  { muster: /\bzusicher\w*/gi, ersatz: "Aussicht" },
+  { muster: /\bverspreche?n?\s+(wir|ich)\b/gi, ersatz: "planen wir" },
+  { muster: /\bberatung\w*/gi, ersatz: "Begleitung" },
+  { muster: /\bberater\w*/gi, ersatz: "Ansprechpartner" },
+  { muster: /\bberat(en|e|est|et)\b/gi, ersatz: "begleiten" },
   { muster: /\bsichere[sn]? limit\b/gi, ersatz: "mögliches Limit" },
   { muster: /\bauf jeden Fall bewilligt\b/gi, ersatz: "wird geprüft" },
   { muster: /\bbewilligung garantiert\b/gi, ersatz: "Prüfung läuft" },

@@ -5,6 +5,8 @@ import { Skelett, eur, useReduzierteBewegung, useToast } from "@/lib/fiaon-ui";
 import { ZeichenSenden, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
 import { statusAusTierGrund, STUFEN, type Stufe } from "@shared/fiaon-kundenstatus";
 import { MarkeBrief, SendeMenue } from "@/components/SendeMenue";
+import { Gespraechsblatt } from "@/components/Gespraechsblatt";
+import { MarkeFunke, anrufStarten } from "@/components/Softphone";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/kunden — DIE EINE ARBEITSLISTE
@@ -440,6 +442,7 @@ function KundenKarte({
   // GENAU dieses Kunden, und zwei geöffnete Karten sollen sich nicht in die
   // Quere kommen.
   const [sendeMenue, setSendeMenue] = useState<number | null>(null);
+  const [blatt, setBlatt] = useState<number | null>(null);
 
   const zusage = relativ(k.zusagedatum);
   const rueckruf = k.rueckrufAm ? new Date(k.rueckrufAm) : null;
@@ -815,7 +818,13 @@ function KundenKarte({
         {/* Erste Reihe: Anrufen · Zahlungsdaten · Mail */}
         <div className="mt-3.5 flex flex-wrap items-center gap-2">
           {k.telefonWaehlbar ? (
+            // Ein Klick öffnet das Softphone MIT Kundenkontext — das Gespräch
+            // wird dann aufgezeichnet, zusammengefasst und dokumentiert.
+            // Solange Twilio nicht eingerichtet ist, sagt das Panel das ruhig
+            // und man wählt weiter von Hand (der Rechtsklick auf den Knopf
+            // trägt die Nummer weiterhin als tel:-Link).
             <a href={`tel:${k.telefonWaehlbar}`}
+               onClick={(e) => { e.preventDefault(); anrufStarten(k.telefonWaehlbar!, k.personId, k.name); }}
                className="fi-primaerknopf inline-flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold text-white">
               <ZeichenTelefon size={16} /> Anrufen
             </a>
@@ -968,6 +977,11 @@ function KundenKarte({
                    style={{ color: "var(--fi-text-still)" }}>
                   E-Mails
                 </p>
+                <button type="button" onClick={() => setBlatt(k.personId)}
+                        className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold">
+                  <MarkeFunke size={13} />
+                  Gesprächsblatt
+                </button>
                 <button type="button" onClick={() => setSendeMenue(k.personId)}
                         className="fi-primaerknopf inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold">
                   <MarkeBrief size={14} />
@@ -978,6 +992,8 @@ function KundenKarte({
             </div>
             <SendeMenue personId={k.personId} offen={sendeMenue === k.personId}
                         onSchliessen={() => setSendeMenue(null)} onGesendet={onZaehler} />
+            <Gespraechsblatt personId={k.personId} offen={blatt === k.personId}
+                             onZu={() => setBlatt(null)} />
 
             <div className="p-3 rounded-xl" style={{ background: "var(--fi-seite)" }}>
               <p className="text-[11px] font-semibold uppercase tracking-[.07em] mb-1.5"

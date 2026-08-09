@@ -349,8 +349,13 @@ async function main(): Promise<void> {
     ok(`${pfad} leitet um (${ziel})`, muster.test(app));
   }
   ok("Die Lead-Automatik bleibt erreichbar", /path="\/admin\/lead-automatik"/.test(app));
-  ok("Die alte Team-Seite bleibt erreichbar", /path="\/admin\/team-alt"/.test(app));
-  ok("Die alte Nachbuchung bleibt erreichbar", /path="\/admin\/nachbuchung-alt"/.test(app));
+  // ── AM 10.08.2026 ENTFERNT ───────────────────────────────────────────
+  // Die Altseiten waren als Rückfallebene gedacht, bis die Zentralen im
+  // Betrieb bestätigt sind. Der Betreiber hat entschieden: weg damit. Zwei
+  // Wege zur selben Sache heißen zwei Stellen zum Ändern und eine zum
+  // Vergessen. Beide Adressen leiten jetzt in die Zentrale.
+  ok("Die alte Team-Adresse leitet um", /path="\/admin\/team-alt" component=\{\(\) => <Umleitung/.test(app));
+  ok("Die alte Nachbuchung gibt es nicht mehr", !/path="\/admin\/nachbuchung-alt"/.test(app));
 
   const shell = readFileSync("client/src/components/admin/AdminShell.tsx", "utf8");
   for (const weg of ["/admin/database", "/admin/personen", "/admin/kartei", "/admin/kuendigungen", "/admin/nachbuchung"]) {

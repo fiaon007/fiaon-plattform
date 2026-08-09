@@ -3286,12 +3286,70 @@ router.patch("/admin/applications/:ref/review", async (req, res) => {
 });
 
 // Download KYC document
+/**
+ * POST /document-link — ein kurzlebiger Link für den KUNDEN.
+ *
+ * Prüft dieselbe Familie wie der Login: Wer die Referenz UND die zugehörige
+ * E-Mail nennt, ist mit hoher Wahrscheinlichkeit der Kontoinhaber. Das ist
+ * kein Passwort — es ist der zweite Faktor, den es vorher gar nicht gab.
+ */
+router.post("/document-link", async (req, res) => {
+  try {
+    const ref = String(req.body?.ref || "").trim();
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const art = String(req.body?.art || "");
+    const { artAusKurz, dokumentTokenErzeugen, LINK_MINUTEN } = await import("../lib/fiaon-dokumente");
+    const gewaehlt = artAusKurz(art);
+    if (!ref || !email || !gewaehlt) return res.status(400).json({ ok: false, error: "Unvollständige Anfrage." });
+
+    const [a] = await sqlPool`
+      SELECT ref FROM fiaon_applications
+      WHERE ref = ${ref} AND gdpr_deleted_at IS NULL
+        AND (LOWER(TRIM(COALESCE(email, ''))) = ${email}
+          OR LOWER(TRIM(COALESCE(contact_email, ''))) = ${email}
+          OR LOWER(TRIM(COALESCE(billing_email, ''))) = ${email})
+      LIMIT 1
+    `;
+    if (!a) return res.status(403).json({ ok: false, error: "Zugang nicht möglich." });
+    res.json({
+      ok: true,
+      url: `/api/fiaon/document/${encodeURIComponent(ref)}/${art}?t=${dokumentTokenErzeugen(ref, gewaehlt)}`,
+      gueltigMinuten: LINK_MINUTEN,
+    });
+  } catch (err) {
+    console.error("[FIAON-DOK] link:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * ── ABGESICHERT AM 10.08.2026 ──────────────────────────────────────────────
+ * Diese Route lag unter „Public (no auth)". Wer eine Bestellreferenz kannte —
+ * sie steht in jeder Zahlungs-Mail, auf jeder Rechnung, in jedem Screenshot —
+ * konnte den AUSWEIS des Kunden herunterladen. Ohne Anmeldung, ohne Spur.
+ *
+ * Sie bleibt öffentlich erreichbar, weil das Kundenportal keine Server-Sitzung
+ * hat (die Anmeldung liegt im Browser). Statt einer Sitzung verlangt sie jetzt
+ * ein SIGNIERTES, 15 Minuten gültiges Token — dasselbe Muster wie bei
+ * Rechnungs-, Termin- und Zugangslinks. Der Kunde holt es sich über
+ * POST /api/fiaon/document-link; wer nur die Referenz hat, kommt nicht weiter.
+ */
 router.get("/document/:ref/:type", async (req, res) => {
   try {
     const { ref, type } = req.params;
 
     if (type !== "bank-statement" && type !== "id-card") {
       return res.status(400).json({ error: "Ungültiger Dokumenttyp" });
+    }
+
+    const { artAusKurz, dokumentTokenPruefen } = await import("../lib/fiaon-dokumente");
+    const art = artAusKurz(String(type));
+    const token = String(req.query.t || "");
+    if (!art || !dokumentTokenPruefen(ref, art, token)) {
+      return res.status(403).json({
+        ok: false,
+        error: "Dieser Link ist abgelaufen oder ungültig. Öffne die Unterlagen bitte erneut aus deinem Konto.",
+      });
     }
 
     const apps = await sqlPool`

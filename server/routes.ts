@@ -365,6 +365,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonZentralen = await import('./routes/fiaon-zentralen');
   app.use('/api/fiaon', fiaonZentralen.default);
 
+  // ☎️ Telefonie, Dokumente, Gespraechsblatt. Ohne Twilio-Zugangsdaten
+  //    antwortet alles sauber mit einem Einrichtungs-Zustand — nichts crasht.
+  const fiaonTelefonie = await import('./routes/fiaon-telefonie');
+  app.use('/api/fiaon', fiaonTelefonie.default);
+
   // 🧭 FIAON Vertriebsleitung — /agent/vertrieb: Gesamtsicht für die zwei
   //    Vertriebsleiter (zuweisen, korrigieren, dokumentieren). Normale Agenten
   //    bekommen dort 404 — die Prüfung steht im Router, nicht in der Oberfläche.

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, createContext, useContext, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
+import { Softphone } from "@/components/Softphone";
 import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle, Menu, ChevronRight, ListChecks, Mail } from "lucide-react";
 import OnboardingGate from "./onboarding";
 import {
@@ -796,6 +797,11 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
         <ImportantUpdateHint />
 
         <main className="max-w-6xl mx-auto px-4 py-5">{children}</main>
+
+        {/* Das Telefon liegt über allem — in jeder Team-, Vertriebs- und
+            Onboarding-Ansicht. Es entscheidet selbst, ob es einsatzbereit ist
+            oder den Einrichtungs-Zustand zeigt. */}
+        <Softphone />
 
         {/* HIER STAND EIN SCHWEBENDER KNOPF „Nächste Akte" — entfernt am
             03.08.2026.

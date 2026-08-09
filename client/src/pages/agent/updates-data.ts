@@ -40,6 +40,31 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-10-telefon-blatt",
+    date: "2026-08-10",
+    category: "Neu",
+    title: "Gesprächsblatt vor dem Anruf — und ein Telefon im System",
+    summary:
+      "Ein Klick zeigt dir vor dem Anruf alles Wichtige zu einer Person. Und unten rechts wartet ein Telefon: sobald der Anschluss freigeschaltet ist, telefonierst du direkt aus FIAON.",
+    changes: [
+      "Neu auf jeder Kundenkarte: „Gesprächsblatt“. Kurzprofil, Aufhänger, was bisher besprochen wurde, der nächste Schritt und Antworten auf die häufigsten Einwände.",
+      "Der Verwendungszweck steht ganz oben im Blatt — das Feld, nach dem am Telefon am häufigsten gefragt wird.",
+      "Unten rechts liegt jetzt ein Telefon-Knopf. Solange der Anschluss nicht freigeschaltet ist, sagt er das ruhig; du telefonierst weiter wie bisher.",
+      "Wenn er freigeschaltet ist: Anrufen aus der Kundenkarte, Gespräch wird aufgezeichnet (mit Ansage zu Beginn), und nach dem Auflegen klickst du dein Ergebnis wie gewohnt.",
+      "Kein Anruf bleibt undokumentiert: Solange ein Ergebnis fehlt, steht eine Marke am Telefon-Knopf.",
+      "Nach dem Gespräch schreibt das System eine kurze Zusammenfassung in den Verlauf — beschreibend, ohne Bewertung.",
+      "In der Akte siehst du jetzt, welche Unterlagen vorliegen und welche fehlen.",
+    ],
+    howto: [
+      "Öffne eine Kundenkarte und klick „Gesprächsblatt“. Jeder Abschnitt hat einen Kopieren-Knopf.",
+      "Unter „Wenn er das sagt“ stehen fertige Antworten auf Preis-, Zweifel- und Seriositätsfragen. Sprich sie in deinen Worten.",
+      "Auf dem Blatt steht unten: automatisch erstellt. Prüf im Zweifel in der Akte nach — die Fakten kommen aus deinen eigenen Einträgen.",
+      "Der Telefon-Knopf öffnet ein Tastenfeld. Du kannst auch aus der Kundenkarte heraus anrufen, dann kennt das Telefon den Kunden schon.",
+    ],
+    link: { href: "/agent/kunden", label: "Zur Kundenliste" },
+    important: true,
+  },
+  {
     id: "2026-08-09-zentralen",
     date: "2026-08-09",
     category: "Verbessert",

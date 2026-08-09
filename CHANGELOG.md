@@ -3,6 +3,66 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 10.08.2026 — Der Ausweis lag offen. Dazu: Dokumente in der Akte, Softphone, Gesprächsblatt
+
+### Zuerst der Befund: KYC-Dokumente waren ohne Anmeldung abrufbar
+
+`GET /api/fiaon/document/:ref/:type` lag unter **„Public (no auth)"**. Wer eine Bestellreferenz kannte — sie steht in jeder Zahlungs-Mail, auf jeder Rechnung, in jedem Screenshot einer Akte — konnte den **Ausweis** und den **Kontoauszug** des Kunden herunterladen. Ohne Anmeldung, ohne Spur.
+
+Die Route war nicht aus Nachlässigkeit offen: Das Kundenportal hält seine Anmeldung nur im Browser, es gibt kein Sitzungs-Cookie, an dem eine Prüfung hängen könnte — und der Kunde muss an seine eigenen Unterlagen. Die Lösung ist dieselbe wie bei Rechnungs-, Termin- und Zugangslinks: ein **signierter Link, 15 Minuten gültig**. Der Kunde holt ihn über `POST /document-link`, das Referenz **und** E-Mail verlangt. Wer nur die Referenz hat, kommt nicht weiter. Das Kundenportal wurde mit umgestellt.
+
+**Die zweite Grenze stand bisher nur im Text.** In der Verpflichtungserklärung der Vertriebsleitung steht wörtlich: „Kundendokumente öffnen oder herunterladen (Ausweis, Kontoauszug, SCHUFA) — sichtbar ist nur, ob sie vorliegen." Im Code stand das nirgends. Jetzt gibt `darfInhalt()` für alles außer `admin` ein Nein zurück, und die Datei-Route liefert 403 mit genau diesem Wortlaut, bevor ein Byte rausgeht.
+
+### Dokumente in der Akte
+
+Ausweis, Kontoauszug und Bonitätsauskunft mit Größe, Datum, erkanntem Typ (PDF oder Foto — Kunden laden beides hoch) und Vorschau als Vollbild. **Eine Lücke sieht aus wie eine Lücke:** gestrichelter Rand, „fehlt — wird gebraucht", Knopf zum Anfordern über die bestehende Registry (`schufa_requested`, `documents_change_request`) mit Zustandsprüfung. Der Prüfstand liest dabei nie den BYTEA-Inhalt, nur `LENGTH()` und die ersten vier Bytes — sonst zöge jede Aktenansicht Megabyte durch die Leitung, um „liegt vor" anzuzeigen.
+
+### Softphone
+
+Vollständig gebaut, **Zugangsdaten fehlen** — deshalb zeigt das Panel einen ruhigen Einrichtungs-Zustand statt eines toten Knopfes: „Zum Telefonieren fehlen noch 6 Werte." Die Einrichtungs-Karte nennt jeden Wert beim Namen, wozu er da ist und wo man ihn herbekommt.
+
+Der Knopf liegt unten rechts in jeder Team-Ansicht: Glas, Blau-Schatten, und beim Zeigen kommt er dem Zeiger **entgegen** statt nur die Farbe zu wechseln. Das Panel ist auf dem Bildschirm ein **Gerät** — dunkler Körper, helle Anzeige, Wähltastatur, Eintritt aus der Tiefe; auf 380 px ein Blatt in voller Breite.
+
+**Drei Wände gegen Kosten und Missbrauch:** nur DACH-Vorwahlen plus pflegbare Freiliste, höchstens 60 Minuten je Gespräch, und **jede Wahl wird protokolliert — auch die abgelehnte.** Testkonten können nicht wählen. Die Nummernprüfung steht zusätzlich im TwiML-Weg: Wer den Ausweis abgreift, wählt trotzdem keine Auslandsnummer.
+
+**Ansage vor Aufnahme, nicht umgekehrt.** Eine Aufzeichnung, die vor dem Hinweis beginnt, hat den Hinweis nicht mehr nötig — sie ist dann schon rechtswidrig.
+
+**Kein Anruf endet undokumentiert:** Nach dem Auflegen zeigt das Panel die Ergebnis-Knöpfe aus dem bestehenden Katalog, und solange ein Ergebnis fehlt, steht eine nicht wegklickbare Marke am Telefon-Knopf. Der Klick läuft durch `ergebnisAnwenden` — dieselbe Funktion wie der Handeintrag.
+
+**Transkript und Zusammenfassung** liegen in einer Datei; ein Anbieterwechsel betrifft `transkribiere()` und sonst nichts. Scheitert die Transkription, bleibt der Anruf-Datensatz intakt, trägt den Grund und lässt sich per Knopf nachholen.
+
+### Gesprächsblatt
+
+Ein Klick vor dem Anruf: Kurzprofil mit Alter, Produkt, Betrag und **Verwendungszweck** (das Feld, nach dem am Telefon am häufigsten gefragt wird), Aufhänger aus echten Fakten, verdichtete Historie, nächste beste Aktion mit Begründung, und Einwand-Hilfen.
+
+**Die Fakten baut der Server, nicht die KI.** Deterministisch, ohne Modell — da gibt es nichts zu erfinden. Die KI bekommt genau eine Aufgabe: die letzten zwanzig Verlaufseinträge verdichten. Fällt sie aus, steht das Blatt trotzdem, mit den rohen Einträgen und einem ehrlichen Hinweis.
+
+**Die Einwand-Antworten sind kuratiert, nicht generiert** (`fiaon-einwaende.ts`). Ein Modell, das man nach einer Antwort auf „ist das seriös?" fragt, schreibt beruhigende Sätze — und beruhigend heißt schnell „garantiert" und „kein Risiko". Die KI wählt aus, sie formuliert nicht.
+
+### Zwei echte Mängel, die der Prüfstand fand
+
+**Die Guardrail-Wand hatte ein Loch.** Sie prüfte `\bgarantiert(e[nmrs]?)?\b` — damit kam **„Wir garantieren dir ein Limit von 25.000 Euro"** ungefiltert durch. Genau der Satz, den sie als Allererstes hätte fangen müssen. Ein Filter, der die Beugung eines Verbs nicht kennt, ist kein Filter; jetzt prüft er den Wortstamm (`garantier…`, `beratung…`, `berater…`).
+
+**`ergebnisAnwenden` konnte an keiner Transaktion teilnehmen.** Es schrieb fest gegen den Pool und war damit als einzige Schreibstelle im Haus unprüfbar: Ein Prüfstand, der seine Testdaten zurückrollt, konnte es nicht aufrufen — jedes UPDATE traf null Zeilen, und die Zählprobe meldete stillschweigend „Zähler nicht gestiegen". Es nimmt jetzt einen Lauf entgegen, mit unverändertem Vorgabewert für alle bestehenden Aufrufer.
+
+### Was die Screenshots gefunden haben
+
+**Die Kundenakte war weiß.** Ich hatte der Dokumente-Sektion ein Prop namens `ref` gegeben — in React reserviert. „Function components cannot have string refs" riss die ganze Seite mit, ohne dass in der Konsole etwas Naheliegendes stand. Derselbe Fehler wie zwei Tage zuvor beim Startgespräch-Gate; das Prop heißt jetzt `kundenRef`, mit Kommentar an beiden Stellen.
+
+Außerdem lieferte die Akten-Route kein `personId` — Dokumente, Anrufe und Gesprächsblatt hängen aber an der Person, nicht an der Bestellung.
+
+### Erledigt aus der letzten Runde
+
+`/admin/team-alt` und `/admin/nachbuchung-alt` sind **ersatzlos weg**; beide Adressen leiten in die Zentralen. Zwei Wege zur selben Sache heißen zwei Stellen zum Ändern und eine zum Vergessen.
+
+### Prüfstand
+
+`scripts/pruef-telefon.ts` — **128 Prüfungen, alle grün**, zurückgerollt, Twilio und OpenAI als Attrappe. Gegenprobe: Wird die Dokumentgrenze aufgehoben oder die DACH-Sperre entfernt, wird er rot.
+
+Gesamt: **955 Prüfungen** über neun Prüfstände, alle grün.
+
+**Zu finden:** `server/lib/fiaon-dokumente.ts`, `fiaon-softphone.ts`, `fiaon-transkript.ts`, `fiaon-einwaende.ts`, `fiaon-gespraechsblatt.ts`, `server/routes/fiaon-telefonie.ts`, `client/src/components/Softphone.tsx`, `Gespraechsblatt.tsx`, `DokumenteSektion.tsx`, `db/migrations/045_telefon.sql`.
+
 ## 09.08.2026 — Zwei Zentralen statt neun Seiten: 734 Kunden verteilt, Löschen sauber definiert
 
 ### 734 Menschen hatten niemanden

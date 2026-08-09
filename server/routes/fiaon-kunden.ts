@@ -658,6 +658,10 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
             accountStatus: primaryApp.account_status,
             claimedPaidAt: primaryApp.claimed_paid_at,
             completedAt: primaryApp.completed_at,
+            // Die Akte braucht die Personen-Kennung: Dokumente, Anrufe und
+            // das Gesprächsblatt hängen an der PERSON, nicht an der
+            // Bestellung. Ohne sie stand die Dokumente-Sektion leer da.
+            personId: primaryApp.person_id ?? null,
           }
         : null,
       orders: family.map((f) => ({

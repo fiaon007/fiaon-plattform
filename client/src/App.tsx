@@ -40,8 +40,6 @@ const InvestorDashboardPage = lazy(() => import("@/pages/investor-dashboard"));
 import ZahlungPage, { ZahlungDankePage } from "@/pages/zahlung";
 import NummerAktualisierenPage from "@/pages/nummer-aktualisieren";
 const AdminZahlungenPage = lazy(() => import("@/pages/admin-zahlungen"));
-const AdminTeamPage = lazy(() => import("@/pages/admin-team"));
-const AdminNachbuchungPage = lazy(() => import("@/pages/admin-nachbuchung"));
 const AdminHubPage = lazy(() => import("@/pages/admin-hub"));
 const AdminRechnungenPage = lazy(() => import("@/pages/admin-rechnungen"));
 const AdminVerbuchungenPage = lazy(() => import("@/pages/admin-verbuchungen"));
@@ -230,14 +228,16 @@ function Router() {
       <Route path="/agent/dokumente" component={AgentDokumentePage} />
       <Route path="/admin/agent-portal" component={admin(AdminAgentPortalPage)} />
       <Route path="/admin/team" component={admin(AdminTeamZentralePage)} />
-      {/* Die alte Team-Seite bleibt erreichbar, bis alle Funktionen der
-          Zentrale im Betrieb bestätigt sind. */}
-      <Route path="/admin/team-alt" component={admin(AdminTeamPage)} />
+      {/* ── ZWEITER WEG ENTFERNT (10.08.2026) ──────────────────────────
+          /admin/team-alt und /admin/nachbuchung-alt sind weg. Zwei Wege zur
+          selben Sache heißt: Zwei Stellen, die man ändern muss, und eine, die
+          man vergisst. Wer die alten Adressen im Lesezeichen hat, landet in
+          der Zentrale. */}
+      <Route path="/admin/team-alt" component={() => <Umleitung nach="/admin/team" />} />
       <Route path="/admin/vertraege" component={admin(AdminVertraegePage)} />
       {/* Provisionen nachbuchen sitzt jetzt im Mitarbeiter-Detail der
           Team-Zentrale — dort, wo auch der Provisionssatz steht. */}
       <Route path="/admin/nachbuchung" component={() => <Umleitung nach="/admin/team?tab=nachbuchung" />} />
-      <Route path="/admin/nachbuchung-alt" component={admin(AdminNachbuchungPage)} />
       <Route path="/admin/leistung" component={admin(AdminLeistungPage)} />
       <Route path="/admin/changelog" component={admin(AdminChangelogPage)} />
       <Route path="/admin/diagnose" component={admin(AdminDiagnosePage)} />

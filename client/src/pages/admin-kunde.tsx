@@ -4,6 +4,7 @@ import {
   User, CreditCard, Mail, Users, Clock, Copy, Pencil, Check, X,
   AlertTriangle, FileText, ArrowLeft, Send, StickyNote, Undo2, Info,
 } from "lucide-react";
+import { DokumenteSektion } from "@/components/DokumenteSektion";
 import VermerkTafel from "@/components/admin/VermerkTafel";
 import ArchivDialog from "@/components/admin/ArchivDialog";
 import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
@@ -703,6 +704,30 @@ export default function AdminKundeAktePage() {
             )}
           </Section>
 
+          {/* ── DOKUMENTE ──────────────────────────────────────────────────
+              Bis zum 10.08.2026 gab es in der Akte KEINE Dokumentansicht: Ob
+              ein Ausweis vorliegt, stand nirgends — man musste raten oder im
+              Kundenportal nachsehen. Eine Lücke sieht hier jetzt aus wie eine
+              Lücke, mit Knopf zum Anfordern. */}
+          <Section title="Dokumente — Ausweis, Kontoauszug, Bonitätsauskunft" icon={FileText}>
+            {app?.ref ? (
+              // Die Betreiberansicht liest über die REFERENZ — die steht immer
+              // zur Verfügung. `personId` ist nur für „Anfordern" nötig.
+              <DokumenteSektion
+                personId={Number(app?.personId ?? 0) || 0}
+                kundenRef={app.ref}
+                adminSicht
+              />
+            ) : (
+              <p className="text-[12.5px] text-slate-400">
+                Für einen Lead ohne Bestellung gibt es noch keine Unterlagen.
+              </p>
+            )}
+          </Section>
+
+          {/* ── ANRUFE ─────────────────────────────────────────────────── */}
+          {app?.personId && <AnrufeSektion personId={Number(app.personId)} />}
+
           {/* ── E-MAIL-CENTER ── */}
           <Section title="E-Mail-Center — jedes Kunden-Event mit Vorschau" icon={Mail}>
             {!payRef ? (
@@ -895,5 +920,73 @@ export default function AdminKundeAktePage() {
         />
       )}
     </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ANRUFE — was am Telefon besprochen wurde
+//
+// Zeigt Dauer, Ergebnis und die automatische Zusammenfassung. Ist die
+// Transkription gescheitert, steht der Grund da UND ein Knopf zum Nachholen —
+// ein Fehlschlag, den man nur ansehen kann, ist eine Sackgasse.
+// ═══════════════════════════════════════════════════════════════════════════
+function AnrufeSektion({ personId }: { personId: number }) {
+  const [anrufe, setAnrufe] = useState<any[] | null>(null);
+  const [busy, setBusy] = useState<number | null>(null);
+
+  const laden = useCallback(async () => {
+    const r = await fetch(`/api/fiaon/telefon/person/${personId}/anrufe`, { credentials: "include" }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setAnrufe(j?.ok ? j.anrufe : []);
+  }, [personId]);
+  useEffect(() => { void laden(); }, [laden]);
+
+  if (!anrufe || anrufe.length === 0) return null;
+
+  return (
+    <Section title="Anrufe — Dauer, Ergebnis, Zusammenfassung" icon={FileText}>
+      {anrufe.map((a) => (
+        <div key={a.id} className="py-2.5" style={{ borderBottom: "1px solid #f8fafc" }}>
+          <div className="flex flex-wrap items-baseline gap-x-2 text-[12.5px]">
+            <span className="font-semibold text-slate-800">
+              {new Date(a.beginn).toLocaleString("de-DE", {
+                day: "2-digit", month: "2-digit", year: "2-digit",
+                hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin",
+              })}
+            </span>
+            {a.dauer_sek != null && (
+              <span className="text-slate-500 tabular-nums">
+                {Math.floor(a.dauer_sek / 60)}:{String(a.dauer_sek % 60).padStart(2, "0")} Min
+              </span>
+            )}
+            {a.agent && <span className="text-slate-400">{a.agent}</span>}
+            {a.ergebnis
+              ? <span className="font-semibold text-emerald-700">{a.ergebnis}</span>
+              : <span className="font-semibold text-amber-700">Ergebnis fehlt</span>}
+          </div>
+          {a.zusammenfassung && (
+            <p className="text-[12.5px] text-slate-600 leading-relaxed mt-1">{a.zusammenfassung}</p>
+          )}
+          {a.transkript_status === "fehlgeschlagen" && (
+            <p className="text-[11.5px] text-slate-400 mt-1">
+              {a.transkript_grund}
+              <button type="button" disabled={busy === a.id}
+                      onClick={async () => {
+                        setBusy(a.id);
+                        await fetch(`/api/fiaon/telefon/${a.id}/nachbereiten`, {
+                          method: "POST", credentials: "include",
+                        }).catch(() => {});
+                        setBusy(null);
+                        void laden();
+                      }}
+                      className="ml-2 font-semibold text-[#2563eb] underline disabled:opacity-40">
+                {busy === a.id ? "läuft …" : "nachholen"}
+              </button>
+            </p>
+          )}
+        </div>
+      ))}
+    </Section>
   );
 }

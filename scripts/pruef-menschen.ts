@@ -170,7 +170,12 @@ async function main(): Promise<void> {
         ONBOARDING_ZUSAGE_TEXT.pflichten.some((p) => /berate nicht zu\s*\n?\s*Finanzen|berate nicht zu Finanzen/.test(p.text.replace(/\s+/g, " "))));
 
       const rollenQuelle = readFileSync("server/routes/fiaon-team.ts", "utf8");
-      ok("Die Rolle ist in /admin/team vergebbar", /rolle !== "onboarding"/.test(rollenQuelle));
+      // Am 10.08.2026 wurde die Kette aus Einzelvergleichen durch eine Liste
+      // ersetzt — mit der Rolle 'inkasso' als vierter wäre sie sonst vier
+      // Zeilen lang geworden, und die fünfte hätte jemand vergessen.
+      ok("Die Rolle ist in /admin/team vergebbar",
+        /const ROLLEN = \["agent", "vertriebsleiter", "onboarding", "inkasso"\]/.test(rollenQuelle));
+      ok("… und wird gegen die Liste geprüft", /!ROLLEN\.includes\(rolle\)/.test(rollenQuelle));
       ok("Ein Testkonto bekommt KEINE erhöhte Rolle",
         /is_test_account && rolle !== "agent"/.test(rollenQuelle));
 

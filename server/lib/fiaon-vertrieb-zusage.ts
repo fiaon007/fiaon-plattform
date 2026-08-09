@@ -52,7 +52,7 @@ export const ZUSAGE_VERSION = "2.0-2026-08-06";
  * Auseinanderlaufen: Sobald jemand die Roboterabwehr an einer Stelle
  * verbessert, fehlt sie an der anderen.
  */
-export type ZusageBereich = "vertrieb" | "onboarding";
+export type ZusageBereich = "vertrieb" | "onboarding" | "inkasso";
 // Fassung 2.0 (noch am selben Tag): Die Vertriebsleitung darf jetzt Zahlungen
 // buchen, Unterlagen-Stände und Zugangsprobleme einsehen. Genau dafür ist die
 // Versionierung da — Fassung 1.0 verbot das Buchen ausdrücklich, wer sie

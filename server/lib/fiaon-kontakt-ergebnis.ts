@@ -50,6 +50,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { berlinPlusTage } from "./fiaon-time";
 
 export const ERGEBNISSE = [
   "erreicht_zahlt_gleich",
@@ -114,12 +115,10 @@ export interface ErgebnisWirkung {
   automatik?: import("./fiaon-nicht-erreicht").AutomatikWirkung | null;
 }
 
-function tagPlus(n: number): string {
-  const d = new Date();
-  d.setHours(12, 0, 0, 0);
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-}
+// Die Rechnung selbst steht seit dem 10.08.2026 in fiaon-time.ts — dem Ort,
+// an dem laut Hausregel alle Berlin-Zeit-Arithmetik wohnt. Hier bleibt nur der
+// kurze Name, den die Regeln unten benutzen.
+const tagPlus = (n: number): string => berlinPlusTage(n);
 
 function nurDatum(v: unknown): string | null {
   const s = String(v ?? "").trim();

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
+import { ErsteSchritte } from "@/components/ErsteSchritte";
 import { AgentShell, ACCENT } from "./shared";
 import { Reveal } from "./motion";
 import {
@@ -90,6 +91,9 @@ const TON_FARBE: Record<string, string> = {
 export default function AgentStartSeite() {
   return (
     <AgentShell>
+      {/* Erste Schritte fuer neue Kollegen. Verschwindet von selbst,
+          sobald alles erledigt ist, und blockiert nie. */}
+      <ErsteSchritte />
       <Inhalt />
     </AgentShell>
   );

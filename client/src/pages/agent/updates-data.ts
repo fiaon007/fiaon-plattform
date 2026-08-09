@@ -40,6 +40,28 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-10-erste-schritte",
+    date: "2026-08-10",
+    category: "Neu",
+    title: "Geführte erste Schritte — und ein Bereich für Ratenzahlungen",
+    summary:
+      "Neu im Team? Auf der Startseite steht jetzt eine Tafel, die dir zeigt, was zuerst dran ist — passend zu deiner Rolle. Und: Für offene Abo-Raten gibt es einen eigenen Arbeitsbereich.",
+    changes: [
+      "Neue Kollegen sehen auf der Startseite eine Checkliste mit den ersten Schritten, dazu kurze Erklärkarten zu Stufen, Ergebnissen und Telefon.",
+      "Manche Punkte haken sich selbst ab: Sobald du dein erstes Ergebnis dokumentierst, ist der Punkt erledigt — du musst nichts bestätigen.",
+      "Die Tafel blockiert nichts. Klick sie weg, wenn du sofort loswillst; über dein Profil findest du sie jederzeit wieder.",
+      "Neu: Wer die Rolle Forderungsmanagement hat, bekommt einen eigenen Bereich für offene Abo-Raten — mit Arbeitsliste, Telefon und Zeiterfassung.",
+      "Die Verwaltung sieht jetzt, wer bei der Einarbeitung hängt, und kann dir eine Nachricht schicken statt dich zu übersehen.",
+    ],
+    howto: [
+      "Die Tafel steht oben auf „Start“. Jeder Punkt sagt in einem Satz, warum er dran ist.",
+      "Unter der Checkliste stehen drei Karten mit den wichtigsten Grundlagen. Zwei Minuten lesen spart eine Woche Rätselraten.",
+      "Ganz unten wartet die erste echte Aufgabe. Wenn du die erledigt hast, bist du drin.",
+    ],
+    link: { href: "/agent/start", label: "Zur Startseite" },
+    important: true,
+  },
+  {
     id: "2026-08-10-telefon-blatt",
     date: "2026-08-10",
     category: "Neu",

@@ -670,11 +670,20 @@ async function main(): Promise<void> {
       // ═══════════════════════════════════════════════════════════════════
       ok("Der Webhook zeigt auf die Attrappe",
         String(process.env.MAKE_WEBHOOK_URL).includes("attrappe.pruefstand.invalid"));
+      // AN DIE EIGENEN DATEN GEBUNDEN. Die erste Fassung zählte jede Mail der
+      // letzten fünf Minuten — auch die, die der laufende Betrieb an echte
+      // Kunden geschickt hat. Der Prüfstand schlug damit fehl, sobald jemand
+      // gerade bestellte: ein Alarm, der von fremder Arbeit ausgelöst wird,
+      // wird nach dem zweiten Mal ignoriert.
       const echte = (await tx`
-        SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE status = 'versandt'
-          AND created_at > NOW() - INTERVAL '5 minutes'
+        SELECT COUNT(*)::int AS n FROM fiaon_mail_log
+        WHERE status = 'versandt'
+          -- fiaon_mail_log hat KEINE ref-Spalte; die Zuordnung läuft über
+          -- person_id und die Empfängeradresse.
+          AND (person_id IN (SELECT id FROM fiaon_persons WHERE last_name = ${`Pipeline${stempel}`})
+            OR empfaenger LIKE ${`%${stempel.toLowerCase()}%`})
       `) as any[];
-      gleich("Nicht eine einzige Mail gilt als versandt", Number(echte[0].n), 0);
+      gleich("Keine einzige Mail DIESES Laufs gilt als versandt", Number(echte[0].n), 0);
 
       throw new Zurueckrollen();
     });
@@ -692,13 +701,21 @@ async function main(): Promise<void> {
            (SELECT COUNT(*) FROM fiaon_mail_log)::int AS maillog,
            (SELECT COUNT(*) FROM fiaon_agent_verfuegbarkeit)::int AS verfuegbarkeit
   `;
+  // Globale Zähler taugen dafür nicht: Die Produktion läuft weiter, und eine
+  // echte Bestellung während des Laufs sähe aus wie ein Rest. Geprüft wird
+  // deshalb, ob EIGENE Zeilen übrig sind — das ist die Frage, um die es geht.
   for (const feld of ["personen", "bestellungen", "termine", "maillog", "verfuegbarkeit"] as const) {
-    gleich(`Zurückgerollt, keine Reste: ${feld}`, Number(nachher[feld]), Number(vorher[feld]));
+    ok(`Nichts verloren: ${feld} (${vorher[feld]} → ${nachher[feld]})`,
+      Number(nachher[feld]) >= Number(vorher[feld]));
   }
-  const [reste] = await sqlPool`
-    SELECT COUNT(*)::int AS n FROM fiaon_persons WHERE last_name = ${`Pipeline${stempel}`}
-  `;
-  gleich("Keine Prüf-Person übrig", Number(reste.n), 0);
+  const reste = (await sqlPool`
+    SELECT 'personen' AS was, COUNT(*)::int AS n FROM fiaon_persons WHERE last_name = ${`Pipeline${stempel}`}
+    UNION ALL SELECT 'bestellungen', COUNT(*)::int FROM fiaon_applications WHERE ref LIKE ${`FIAON-PIP${stempel}%`}
+    -- fiaon_termine hängt an der PERSON, nicht an einer Bestellreferenz.
+    UNION ALL SELECT 'termine', COUNT(*)::int FROM fiaon_termine
+      WHERE person_id IN (SELECT id FROM fiaon_persons WHERE last_name = ${`Pipeline${stempel}`})
+  `) as any[];
+  for (const r of reste) gleich(`Keine eigene Zeile übrig: ${r.was}`, Number(r.n), 0);
 
   process.env.MAKE_WEBHOOK_URL = ECHTE_WEBHOOK_URL;
   log(`\n══ Ergebnis: ${bestanden} bestanden, ${fehlgeschlagen} fehlgeschlagen ══\n`);

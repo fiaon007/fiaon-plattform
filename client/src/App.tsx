@@ -66,6 +66,7 @@ const AgentAufgabenPage = lazy(() => import("@/pages/agent/aufgaben"));
 const AgentStartPage = lazy(() => import("@/pages/agent/start"));
 const AgentKundenNeuPage = lazy(() => import("@/pages/agent/kunden-neu"));
 const AgentSpacePage = lazy(() => import("@/pages/agent/space"));
+const AgentInkassoPage = lazy(() => import("@/pages/agent/inkasso"));
 const AdminTeamZentralePage = lazy(() => import("@/pages/admin-team-zentrale"));
 const MailZentralePage = lazy(() => import("@/pages/mail-zentrale"));
 const AgentStartgespraechePage = lazy(() => import("@/pages/agent/startgespraeche"));
@@ -193,6 +194,9 @@ function Router() {
       <Route path="/agent/start" component={AgentStartPage} />
       <Route path="/agent/heute"><Redirect to="/agent/start" /></Route>
       {/* Der Space — fuer jede Mitarbeiterrolle. */}
+      {/* Forderungsmanagement — nur fuer die Rolle 'inkasso'. Wer sie nicht
+          hat, bekommt vom Server 404 und die Seite zeigt „gibt es nicht". */}
+      <Route path="/agent/inkasso" component={AgentInkassoPage} />
       <Route path="/agent/space" component={AgentSpacePage} />
       {/* Mail-Zentrale — Team und Betreiber. Die Rolle entscheidet der Server:
           ein Teammitglied sieht nur eigene Kunden und darf an höchstens zehn. */}
@@ -233,6 +237,10 @@ function Router() {
           selben Sache heißt: Zwei Stellen, die man ändern muss, und eine, die
           man vergisst. Wer die alten Adressen im Lesezeichen hat, landet in
           der Zentrale. */}
+      {/* Am 10.08.2026 ersatzlos entfernt. Erst wurden die vier fehlenden
+          Funktionsblöcke in die Zentrale gezogen (Skripte, Partner-Anfragen,
+          Meilenstein-Prämien, Einstellungen) — dann die Altseite gelöscht.
+          Diese Reihenfolge ist der Punkt: Zuerst umziehen, dann abreißen. */}
       <Route path="/admin/team-alt" component={() => <Umleitung nach="/admin/team" />} />
       <Route path="/admin/vertraege" component={admin(AdminVertraegePage)} />
       {/* Provisionen nachbuchen sitzt jetzt im Mitarbeiter-Detail der

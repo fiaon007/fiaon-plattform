@@ -110,6 +110,24 @@ export function berlinToday(at: Date = new Date()): string {
 }
 
 /** Klartext-Anzeige eines Zeitpunkts in Berlin-Zeit, z. B. „Mi, 15.07.2026 um 12:30 Uhr". */
+/**
+ * Ein Datum N Tage in der Zukunft, als JJJJ-MM-TT in Berlin-Zeit.
+ *
+ * Stand bis zum 10.08.2026 als private `tagPlus` in fiaon-kontakt-ergebnis.ts.
+ * Mit dem Forderungsmanagement brauchte eine zweite Datei dieselbe Rechnung —
+ * und zwei Fassungen einer Datumsrechnung sind zwei Gelegenheiten, an der
+ * Sommerzeit einen Tag zu verlieren.
+ *
+ * `setHours(12)` ist Absicht: Mittags liegt man in jeder Zeitzone und über
+ * jeden Zeitumstellungssprung hinweg auf demselben Kalendertag.
+ */
+export function berlinPlusTage(n: number, ab: Date = new Date()): string {
+  const d = new Date(ab);
+  d.setHours(12, 0, 0, 0);
+  d.setDate(d.getDate() + n);
+  return berlinToday(d);
+}
+
 export function formatBerlin(at: Date | string | null | undefined, withTime = true): string {
   if (!at) return "—";
   const d = typeof at === "string" ? new Date(at) : at;

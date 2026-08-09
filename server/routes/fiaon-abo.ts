@@ -678,6 +678,25 @@ router.post("/admin/abo/raten/:id/bezahlt", async (req: Request, res: Response) 
     // Fälligkeit. Zahlt jemand zehn Tage zu spät, ist der nächste Termin
     // 30 Tage nach seiner Zahlung.
     await naechsteRateAnlegen(rate.ref, rate as any, zahlungsdatum);
+
+    // ── Inkasso-Prämie ────────────────────────────────────────────────────
+    // HIER und nur hier. Der Buchungsweg für eine Rate ist die einzige Stelle,
+    // an der zuverlässig feststeht, dass Geld angekommen ist. Eine Prämie, die
+    // woanders entsteht — beim Klick auf ein Gesprächsergebnis etwa —, würde
+    // für Zusagen bezahlen statt für Zahlungen.
+    //
+    // `praemieBuchen` entscheidet selbst, OB gebucht wird: Ohne dokumentierte
+    // Bearbeitung (Selbstzahler) und ohne vom Betreiber bestätigte Vergütung
+    // passiert nichts. Ein Fehler hier darf die Ratenbuchung nicht umwerfen —
+    // die ist die wichtigere Wahrheit.
+    try {
+      const { praemieBuchen } = await import("../lib/fiaon-inkasso");
+      const p = await praemieBuchen(id);
+      if (!p.gebucht) console.log(`[FIAON-ABO] Rate ${id}: keine Inkasso-Prämie (${p.grund})`);
+    } catch (e) {
+      console.error("[FIAON-ABO] Inkasso-Prämie:", e);
+    }
+
     // Im Kundenverlauf dokumentieren, damit die Akte die Wahrheit zeigt.
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)

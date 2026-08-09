@@ -370,6 +370,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonTelefonie = await import('./routes/fiaon-telefonie');
   app.use('/api/fiaon', fiaonTelefonie.default);
 
+  // 💼 Forderungsmanagement — eigener Bereich fuer die Rolle 'inkasso'.
+  //    Sichtfeld hart auf bezahlte Kunden mit laufender Ratenzahlung begrenzt.
+  //    Falsche Rolle bekommt 404, nicht 403.
+  const fiaonInkasso = await import('./routes/fiaon-inkasso-bereich');
+  app.use('/api/fiaon', fiaonInkasso.default);
+
+  // 🧑‍🎓 Erste Schritte — gefuehrte Einarbeitung je Rolle. Manche Schritte
+  //    werden angeklickt, andere aus dem Bestand ERKANNT.
+  const fiaonErsteSchritte = await import('./routes/fiaon-erste-schritte');
+  app.use('/api/fiaon', fiaonErsteSchritte.default);
+
   // 🧭 FIAON Vertriebsleitung — /agent/vertrieb: Gesamtsicht für die zwei
   //    Vertriebsleiter (zuweisen, korrigieren, dokumentieren). Normale Agenten
   //    bekommen dort 404 — die Prüfung steht im Router, nicht in der Oberfläche.

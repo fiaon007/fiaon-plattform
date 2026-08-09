@@ -84,8 +84,13 @@ export function Softphone() {
   const [stumm, setStumm] = useState(false);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [datumFeld, setDatumFeld] = useState<"zusage" | "termin" | null>(null);
+  const [tastenOffen, setTastenOffen] = useState(false);
   const [datum, setDatum] = useState("");
   const uhr = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Das Twilio-Gerät und die laufende Verbindung. Als Referenz, nicht als
+  // Zustand: Ein neu gerendertes Gerät würde die Verbindung abreißen.
+  const geraet = useRef<any>(null);
+  const verbindung = useRef<any>(null);
 
   const laden = useCallback(async () => {
     const r = await fetch("/api/fiaon/telefon/stand", { credentials: "include" }).catch(() => null);
@@ -94,6 +99,13 @@ export function Softphone() {
   }, []);
 
   useEffect(() => { void laden(); }, [laden]);
+
+  // Ein Gespräch, das beim Seitenwechsel weiterläuft, kostet weiter Geld und
+  // ist für den Kunden am anderen Ende eine offene Leitung ins Nichts.
+  useEffect(() => () => {
+    try { verbindung.current?.disconnect?.(); } catch { /* schon getrennt */ }
+    try { geraet.current?.destroy?.(); } catch { /* schon weg */ }
+  }, []);
 
   // Von außen anrufen: Die Kundenkarte schickt ein Ereignis mit Kontext.
   useEffect(() => {
@@ -137,15 +149,61 @@ export function Softphone() {
     }
     setCallId(j.callId);
     setSekunden(0);
-    // Hier setzt das Twilio-Browser-SDK an: `new Device(j.token).connect(...)`.
-    // Ohne Zugangsdaten kommt dieser Zweig nie zustande — die Route hat
-    // vorher abgelehnt.
-    setZustand("gespraech");
+
+    // ── Das Browser-SDK ──────────────────────────────────────────────────
+    // NACHGELADEN, nicht importiert: Das Paket bringt rund 300 KB mit. Wer
+    // nie telefoniert — und ohne Zugangsdaten telefoniert niemand — soll es
+    // auch nicht herunterladen müssen.
+    try {
+      const { Device } = await import("@twilio/voice-sdk");
+      geraet.current?.destroy?.();
+      const d = new Device(j.token, {
+        // Opus zuerst: bessere Sprachqualität bei gleicher Bandbreite.
+        codecPreferences: ["opus", "pcmu"] as any,
+        // Kein Klingeln im Browser — eingehende Rufe laufen extern.
+        allowIncomingWhileBusy: false,
+      });
+      geraet.current = d;
+      d.on("error", (e: any) => {
+        setMeldung(`Telefonfehler: ${e?.message || "unbekannt"}`);
+        setZustand("ergebnis");
+      });
+      const c = await d.connect({ params: { To: j.nummer } });
+      verbindung.current = c;
+      // „accept" ist der Moment, in dem der Gegenüber abnimmt — erst dann
+      // läuft die Uhr. Sonst zählt sie das Klingeln mit, und die Dauer im
+      // Protokoll passt nicht zur Twilio-Abrechnung.
+      c.on("accept", () => { setSekunden(0); setZustand("gespraech"); });
+      c.on("disconnect", () => { setZustand("ergebnis"); void laden(); });
+      c.on("cancel", () => { setZustand("ergebnis"); void laden(); });
+      c.on("reject", () => { setMeldung("Der Ruf wurde abgelehnt."); setZustand("ergebnis"); });
+      setZustand("gespraech");
+    } catch (err) {
+      setMeldung(`Das Telefon konnte nicht starten: ${err instanceof Error ? err.message : String(err)}`);
+      setZustand("ergebnis");
+    }
   };
 
   const auflegen = () => {
+    // Erst wirklich auflegen, dann die Oberfläche umschalten. Umgekehrt sähe
+    // es beendet aus, während das Gespräch weiterläuft — und weiter kostet.
+    try { verbindung.current?.disconnect?.(); } catch { /* schon getrennt */ }
+    try { geraet.current?.destroy?.(); } catch { /* schon weg */ }
+    verbindung.current = null;
+    geraet.current = null;
     setZustand("ergebnis");
     void laden();
+  };
+
+  const stummSchalten = () => {
+    const neu = !stumm;
+    try { verbindung.current?.mute?.(neu); } catch { /* ohne Verbindung wirkungslos */ }
+    setStumm(neu);
+  };
+
+  /** Eine Ziffer INS GESPRÄCH senden — für Sprachmenüs der Gegenseite. */
+  const tasteSenden = (t: string) => {
+    try { verbindung.current?.sendDigits?.(t); } catch { /* wirkungslos */ }
   };
 
   const dokumentieren = async (art: string) => {
@@ -324,15 +382,18 @@ export function Softphone() {
                         Zu Beginn läuft die Ansage zur Aufzeichnung. Höchstdauer {stand.maxMinuten} Minuten.
                       </p>
                       <div className="grid grid-cols-3 gap-2 mt-4">
-                        <button type="button" onClick={() => setStumm((s) => !s)}
+                        <button type="button" onClick={stummSchalten}
                                 className="rounded-xl text-[12px] font-semibold py-2.5"
                                 style={stumm
                                   ? { background: "#1d4ed8", color: "#fff" }
                                   : { background: "#fff", border: "1px solid #e8eef6", color: "#475569" }}>
                           {stumm ? "Stumm an" : "Stumm"}
                         </button>
-                        <button type="button" className="rounded-xl text-[12px] font-semibold py-2.5 bg-white text-slate-600"
-                                style={{ border: "1px solid #e8eef6" }}>
+                        <button type="button" onClick={() => setTastenOffen((t) => !t)}
+                                className="rounded-xl text-[12px] font-semibold py-2.5"
+                                style={tastenOffen
+                                  ? { background: "#1d4ed8", color: "#fff" }
+                                  : { background: "#fff", border: "1px solid #e8eef6", color: "#475569" }}>
                           Tasten
                         </button>
                         <button type="button" onClick={auflegen}
@@ -341,6 +402,19 @@ export function Softphone() {
                           Auflegen
                         </button>
                       </div>
+                      {/* Tasten INS Gespräch — für die Sprachmenüs der
+                          Gegenseite („für Buchhaltung die 2"). */}
+                      {tastenOffen && (
+                        <div className="grid grid-cols-3 gap-1.5 mt-2.5">
+                          {["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"].map((t) => (
+                            <button key={t} type="button" onClick={() => tasteSenden(t)}
+                                    className="rounded-xl text-[16px] font-semibold text-slate-800 bg-white active:scale-95 transition-transform"
+                                    style={{ height: 38, border: "1px solid #e8eef6" }}>
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 

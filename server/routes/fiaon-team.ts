@@ -185,8 +185,9 @@ router.post("/admin/agents/:id/rolle", async (req, res) => {
     await sqlPool`ALTER TABLE fiaon_agents ADD COLUMN IF NOT EXISTS rolle TEXT NOT NULL DEFAULT 'agent'`;
     const id = Number(req.params.id);
     const rolle = String(req.body?.rolle || "").trim();
-    if (rolle !== "agent" && rolle !== "vertriebsleiter" && rolle !== "onboarding") {
-      return res.status(400).json({ ok: false, error: "Rolle muss 'agent', 'vertriebsleiter' oder 'onboarding' sein" });
+    const ROLLEN = ["agent", "vertriebsleiter", "onboarding", "inkasso"];
+    if (!ROLLEN.includes(rolle)) {
+      return res.status(400).json({ ok: false, error: `Rolle muss eine von diesen sein: ${ROLLEN.join(", ")}` });
     }
     const [vorher] = await sqlPool`SELECT rolle, name, is_test_account FROM fiaon_agents WHERE id = ${id}`;
     if (!vorher) return res.status(404).json({ ok: false, error: "Mitarbeiter nicht gefunden" });
@@ -210,7 +211,17 @@ router.post("/admin/agents/:id/rolle", async (req, res) => {
       ok: true, agent: rows[0],
       meldung: rolle === "vertriebsleiter"
         ? `${vorher.name} sieht ab jetzt den Bereich „Vertrieb“: alle Kunden, zuweisen und korrigieren. Zahlungen buchen und Provisionen bleiben bei dir.`
-        : `${vorher.name} ist wieder normaler Mitarbeiter und sieht nur die eigenen Kunden.`,
+        : rolle === "onboarding"
+          ? `${vorher.name} führt ab jetzt die Startgespräche.`
+          : rolle === "inkasso"
+            // Der zweite Satz ist wichtig: Der Bereich öffnet sich erst nach
+            // der Verpflichtungserklärung. Ohne diesen Hinweis wundert sich
+            // der Betreiber, warum die Rolle „nicht wirkt".
+            ? `${vorher.name} arbeitet ab jetzt im Forderungsmanagement und sieht ausschließlich `
+              + `bezahlte Kunden mit laufender Ratenzahlung. Der Bereich öffnet sich, sobald die `
+              + `Verpflichtungserklärung angenommen ist. Trag als Nächstes Stundensatz und Prämie ein — `
+              + `ohne bestätigte Vergütung wird keine Prämie gebucht.`
+            : `${vorher.name} ist wieder normaler Mitarbeiter und sieht nur die eigenen Kunden.`,
     });
   } catch (err) {
     console.error("[FIAON-TEAM] rolle:", err);

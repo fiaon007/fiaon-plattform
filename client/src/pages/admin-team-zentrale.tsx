@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  InviteModal, MilestoneTasksCard, PartnerSuggestionsCard, ScriptsAdmin, SettingsCard,
+} from "@/components/admin/TeamVerwaltung";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEAM-ZENTRALE — alles über einen Menschen an einem Ort
@@ -27,6 +30,7 @@ interface Mitglied {
 
 const ROLLE_TEXT: Record<string, string> = {
   agent: "Vertrieb", vertriebsleiter: "Vertriebsleitung", onboarding: "Onboarding",
+  inkasso: "Forderungsmanagement",
 };
 
 function eur(cent: unknown): string {
@@ -62,6 +66,19 @@ export default function AdminTeamZentrale() {
   const [rang, setRang] = useState(false);
   const [nachrichtAn, setNachrichtAn] = useState<number[] | null>(null);
   const [meldung, setMeldung] = useState<{ art: "gut" | "schlecht"; text: string } | null>(null);
+  // Vier Blöcke, die aus der Altseite nachgezogen wurden. Reiter statt einer
+  // endlos langen Seite: Wer Skripte pflegt, will nicht an dreißig
+  // Mitarbeiterkarten vorbeiscrollen.
+  const [reiter, setReiter] = useState<
+    "menschen" | "neu" | "partner" | "praemien" | "skripte" | "einstellungen"
+  >(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    return (["menschen", "neu", "partner", "praemien", "skripte", "einstellungen"].includes(String(t))
+      ? t : "menschen") as any;
+  });
+  const [einladen, setEinladen] = useState(
+    () => new URLSearchParams(window.location.search).get("einladen") === "1",
+  );
 
   const laden = useCallback(async () => {
     setLaedt(true);
@@ -100,11 +117,37 @@ export default function AdminTeamZentrale() {
                     className="px-3.5 py-2 rounded-xl text-[12.5px] font-semibold bg-white border border-slate-200 text-slate-600">
               Nachricht ans Team
             </button>
-            <a href="/admin/team-alt" className="px-3.5 py-2 rounded-xl text-[12.5px] font-semibold bg-white border border-slate-200 text-slate-500"
-               style={{ display: "inline-flex", alignItems: "center" }}>
-              Alte Ansicht
-            </a>
+            <button type="button" onClick={() => setEinladen(true)}
+                    className="px-3.5 py-2 rounded-xl text-[12.5px] font-bold text-white bg-[#1d4ed8]">
+              Teammitglied anlegen
+            </button>
           </div>
+        </div>
+
+        {/* ── Reiter ──────────────────────────────────────────────────────── */}
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {([
+            ["menschen", "Menschen"],
+            ["neu", "Neu im Team"],
+            ["partner", "Partner-Anfragen"],
+            ["praemien", "Meilenstein-Prämien"],
+            ["skripte", "Skripte & Leitfäden"],
+            ["einstellungen", "Einstellungen"],
+          ] as const).map(([w, t]) => (
+            <button key={w} type="button"
+                    onClick={() => {
+                      setReiter(w);
+                      const p = new URLSearchParams(window.location.search);
+                      w === "menschen" ? p.delete("tab") : p.set("tab", w);
+                      window.history.replaceState(null, "", `/admin/team${p.toString() ? `?${p}` : ""}`);
+                    }}
+                    className="px-3.5 py-2 rounded-xl text-[12.5px] font-semibold"
+                    style={reiter === w
+                      ? { background: "#1d4ed8", color: "#fff" }
+                      : { background: "#fff", border: "1px solid #e2e8f0", color: "#475569" }}>
+              {t}
+            </button>
+          ))}
         </div>
 
         {meldung && (
@@ -118,6 +161,21 @@ export default function AdminTeamZentrale() {
 
         {laedt && <p className="py-10 text-center text-[13px] text-slate-400">Wird geladen …</p>}
 
+        {reiter === "neu" && <NeuImTeam onNachricht={(id) => setNachrichtAn([id])} />}
+        {reiter === "partner" && (
+          <PartnerSuggestionsCard flash={(m) => setMeldung({ art: "gut", text: m })} onChanged={laden} />
+        )}
+        {reiter === "praemien" && (
+          <MilestoneTasksCard flash={(m) => setMeldung({ art: "gut", text: m })} />
+        )}
+        {reiter === "skripte" && (
+          <ScriptsAdmin flash={(m) => setMeldung({ art: "gut", text: m })} />
+        )}
+        {reiter === "einstellungen" && (
+          <SettingsCard flash={(m) => setMeldung({ art: "gut", text: m })} onSaved={laden} />
+        )}
+
+        {reiter === "menschen" && (
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
           {sortiert.map((m, i) => (
             <div key={m.id}
@@ -179,6 +237,7 @@ export default function AdminTeamZentrale() {
             </div>
           ))}
         </div>
+        )}
         <style>{`
           @keyframes teamAuf { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
           @media (prefers-reduced-motion: reduce) { [style*="teamAuf"] { animation: none !important } }
@@ -188,6 +247,14 @@ export default function AdminTeamZentrale() {
       {offen != null && (
         <MitgliedDetail id={offen} team={team} onZu={() => setOffen(null)}
                         onNachricht={(id) => setNachrichtAn([id])} onAenderung={laden} />
+      )}
+      {einladen && (
+        <InviteModal
+          defaults={{ commissionRateBp: 1500 }}
+          onClose={() => setEinladen(false)}
+          onDone={() => { setEinladen(false); void laden(); }}
+          flash={(m: string) => setMeldung({ art: "gut", text: m })}
+        />
       )}
       {nachrichtAn && (
         <NachrichtDialog agentIds={nachrichtAn} team={team} onZu={() => setNachrichtAn(null)}
@@ -207,7 +274,7 @@ function MitgliedDetail({
   id: number; team: Mitglied[]; onZu: () => void; onNachricht: (id: number) => void; onAenderung: () => void;
 }) {
   const m = team.find((x) => x.id === id);
-  const [reiter, setReiter] = useState<"zahlen" | "protokoll" | "provision">("zahlen");
+  const [reiter, setReiter] = useState<"zahlen" | "protokoll" | "provision" | "verguetung">("zahlen");
   const [logs, setLogs] = useState<any>(null);
   const [logArt, setLogArt] = useState("");
   const [logSuche, setLogSuche] = useState("");
@@ -277,7 +344,8 @@ function MitgliedDetail({
               </button>
             </div>
             <div className="mt-3.5 flex flex-wrap gap-1.5">
-              {([["zahlen", "Zahlen & Einstellungen"], ["protokoll", "Protokoll"], ["provision", "Provisionen"]] as const)
+              {([["zahlen", "Zahlen & Einstellungen"], ["protokoll", "Protokoll"],
+                 ["provision", "Provisionen"], ["verguetung", "Vergütung & Stunden"]] as const)
                 .map(([w, t]) => (
                   <button key={w} type="button" onClick={() => setReiter(w)}
                           className="px-3 py-1.5 rounded-xl text-[12.5px] font-semibold"
@@ -379,6 +447,8 @@ function MitgliedDetail({
                 ))}
               </>
             )}
+
+            {reiter === "verguetung" && <VerguetungTafel agentId={id} rolle={m.rolle} />}
 
             {reiter === "provision" && (
               <>
@@ -536,6 +606,249 @@ function NachrichtDialog({
             </button>
           </div>
         </div>
+      </div>
+    </>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEU IM TEAM — wer hängt?
+//
+// Die Frage, die der Betreiber sonst nie stellt, weil sie Arbeit macht: Ist der
+// Kollege von letzter Woche eigentlich angekommen? „Vertrag ✓, Erklärung ✓,
+// Checkliste 3/7, noch keine Dokumentation" beantwortet sie in einer Zeile.
+// ═══════════════════════════════════════════════════════════════════════════
+function NeuImTeam({ onNachricht }: { onNachricht: (id: number) => void }) {
+  const [neue, setNeue] = useState<any[] | null>(null);
+
+  useEffect(() => {
+    fetch("/api/fiaon/admin/erste-schritte", { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => setNeue(j?.ok ? j.neue : []))
+      .catch(() => setNeue([]));
+  }, []);
+
+  if (!neue) return <p className="text-[13px] text-slate-400">Wird geladen …</p>;
+  if (neue.length === 0) {
+    return (
+      <p className="bg-white rounded-2xl border border-slate-200 p-6 text-center text-[13px] text-slate-400">
+        In den letzten 90 Tagen ist niemand neu dazugekommen.
+      </p>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <p className="px-4 pt-4 pb-2 text-[12px] text-slate-500 leading-relaxed">
+        Einarbeitung der letzten 90 Tage. „Hängt" heißt: seit über einer Woche dabei und noch
+        kein einziges Ergebnis dokumentiert — dann fehlt es meistens nicht am Willen, sondern
+        an einer Frage, die niemand gestellt hat.
+      </p>
+      {neue.map((n) => (
+        <div key={n.id} className="px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1"
+             style={{ borderTop: "1px solid #f1f5f9" }}>
+          <div className="min-w-0 flex-1">
+            <p className="text-[13.5px] font-bold text-slate-900">
+              {n.name}
+              {n.haengt && (
+                <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                      style={{ background: "rgba(217,119,6,.1)", color: "#b45309" }}>
+                  hängt
+                </span>
+              )}
+            </p>
+            <p className="text-[11.5px] text-slate-400">
+              {ROLLE_TEXT[n.rolle] ?? n.rolle} · dabei seit{" "}
+              {new Date(n.seit).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}
+              {n.letzterLogin && ` · zuletzt ${wann(n.letzterLogin)} angemeldet`}
+            </p>
+          </div>
+          <span className="text-[12px] text-slate-500">
+            Vertrag {n.vertrag ? "ja" : "—"} · Erklärung {n.zusage ? "ja" : "—"}
+          </span>
+          <span className="text-[12.5px] font-semibold tabular-nums text-slate-700">
+            Checkliste {n.fertig}/{n.gesamt}
+          </span>
+          <span className="text-[12px] text-slate-500">
+            {n.ersteDokumentation
+              ? `erste Doku ${new Date(n.ersteDokumentation).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}`
+              : "noch keine Dokumentation"}
+          </span>
+          <button type="button" onClick={() => onNachricht(n.id)}
+                  className="px-3 py-1.5 rounded-xl text-[12px] font-semibold bg-white border border-slate-200 text-slate-600">
+            Nachfassen
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VERGÜTUNG & STUNDEN
+//
+// Die Platzhalter sind ABSICHTLICH auffällig und stehen unter dem Hinweis
+// „vom Betreiber zu bestätigen". Solange `verguetung_bestaetigt_am` leer ist,
+// wird KEINE Prämie gebucht und lassen sich KEINE Stunden abrechnen — ein
+// stiller Vorgabewert, den niemand prüft, wird sonst zur echten Abrechnung.
+// ═══════════════════════════════════════════════════════════════════════════
+function VerguetungTafel({ agentId, rolle }: { agentId: number; rolle: string }) {
+  const [daten, setDaten] = useState<any>(null);
+  const [satz, setSatz] = useState("");
+  const [art, setArt] = useState("euro");
+  const [wert, setWert] = useState("");
+  const [monat, setMonat] = useState(new Date().toISOString().slice(0, 7));
+  const [busy, setBusy] = useState<string | null>(null);
+  const [hinweis, setHinweis] = useState<string | null>(null);
+
+  const laden = useCallback(async () => {
+    const r = await fetch(`/api/fiaon/admin/inkasso/stunden/${agentId}`, { credentials: "include" }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    if (j?.ok) {
+      setDaten(j);
+      const v = j.verdienst ?? {};
+      setSatz(String((Number(v.stundensatzCents ?? 0) / 100).toFixed(2)).replace(".", ","));
+      setArt(String(v.praemieArt || "euro"));
+      setWert(String((Number(v.praemieWert ?? 0) / 100).toFixed(2)).replace(".", ","));
+    }
+  }, [agentId]);
+  useEffect(() => { void laden(); }, [laden]);
+
+  if (!daten) return <p className="text-[13px] text-slate-400">Wird geladen …</p>;
+  const v = daten.verdienst ?? {};
+  const offen = (daten.stunden ?? []).filter((s: any) => !s.bestaetigt_am);
+
+  const speichern = async () => {
+    setBusy("satz");
+    const r = await fetch(`/api/fiaon/admin/inkasso/verguetung/${agentId}`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        stundensatzEuro: Number(satz.replace(",", ".")),
+        praemieArt: art,
+        praemieWert: Number(wert.replace(",", ".")),
+      }),
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setBusy(null);
+    setHinweis(j?.meldung || j?.error || "Fehler.");
+    void laden();
+  };
+
+  return (
+    <>
+      {hinweis && <p className="mb-3 text-[12.5px] font-semibold text-emerald-700">{hinweis}</p>}
+
+      {!v.verguetungBestaetigt && (
+        <p className="mb-3 px-3.5 py-2.5 rounded-xl text-[12.5px] leading-relaxed"
+           style={{ background: "rgba(217,119,6,.08)", color: "#b45309" }}>
+          <b>Vom Betreiber zu bestätigen.</b> Die Werte unten sind Platzhalter. Solange du sie
+          nicht bestätigt hast, wird keine Prämie gebucht und lassen sich keine Stunden
+          abrechnen — die Arbeit wird aber vollständig festgehalten und ist nachträglich
+          abrechenbar.
+        </p>
+      )}
+
+      <div className="grid grid-cols-2 gap-2.5 mb-4">
+        <div>
+          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+            Stundensatz (€)
+          </label>
+          <input value={satz} onChange={(e) => setSatz(e.target.value)} inputMode="decimal"
+                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-[13.5px] tabular-nums" />
+        </div>
+        <div>
+          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+            Prämie je eingezogener Rate
+          </label>
+          <div className="flex gap-1.5">
+            <input value={wert} onChange={(e) => setWert(e.target.value)} inputMode="decimal"
+                   className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-slate-200 text-[13.5px] tabular-nums" />
+            <select value={art} onChange={(e) => setArt(e.target.value)}
+                    className="px-2.5 py-2.5 rounded-xl border border-slate-200 text-[13px]">
+              <option value="euro">€</option>
+              <option value="prozent">% der Rate</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <button type="button" onClick={() => void speichern()} disabled={busy === "satz"}
+              className="px-4 py-2.5 rounded-xl text-[13px] font-bold text-white bg-[#1d4ed8] disabled:opacity-40">
+        {busy === "satz" ? "…" : v.verguetungBestaetigt ? "Vergütung ändern" : "Vergütung bestätigen"}
+      </button>
+      <p className="mt-2 text-[11.5px] text-slate-400 leading-snug">
+        Änderungen wirken auf künftige Prämien und Abrechnungen. Bereits gebuchte bleiben, wie
+        sie sind. Eine Prämie entsteht nur, wenn eine Rate <b>bankbestätigt gebucht</b> wird und
+        vorher dokumentiert bearbeitet wurde — Selbstzahler erzeugen keine.
+      </p>
+
+      {/* ── Stunden bestätigen ────────────────────────────────────────── */}
+      <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mt-5 mb-2">
+        Stunden bestätigen
+      </p>
+      <div className="grid grid-cols-3 gap-2.5 mb-3">
+        {[
+          { t: "Offen", w: `${Math.floor(Number(v.offeneMinuten ?? 0) / 60)} Std ${Number(v.offeneMinuten ?? 0) % 60} Min` },
+          { t: "Bestätigt (Monat)", w: `${Math.floor(Number(v.bestaetigtMinuten ?? 0) / 60)} Std` },
+          { t: "Prämien (Monat)", w: `${(Number(v.praemienCents ?? 0) / 100).toFixed(2).replace(".", ",")} €` },
+        ].map((k) => (
+          <div key={k.t} className="p-3 rounded-xl bg-slate-50">
+            <p className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400">{k.t}</p>
+            <p className="text-[15px] font-bold tabular-nums text-slate-900 mt-0.5">{k.w}</p>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <input type="month" value={monat} onChange={(e) => setMonat(e.target.value)}
+               className="px-3 py-2.5 rounded-xl border border-slate-200 text-[13px]" />
+        <button type="button" disabled={busy === "best" || offen.length === 0}
+                onClick={async () => {
+                  setBusy("best");
+                  const r = await fetch(`/api/fiaon/admin/inkasso/stunden/${agentId}/bestaetigen`, {
+                    method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ monat }),
+                  }).catch(() => null);
+                  const j = await r?.json().catch(() => null);
+                  setBusy(null);
+                  setHinweis(j?.meldung || j?.error || "Fehler.");
+                  void laden();
+                }}
+                className="px-4 py-2.5 rounded-xl text-[13px] font-bold text-white bg-[#047857] disabled:opacity-30">
+          {busy === "best" ? "…" : "Monat bestätigen"}
+        </button>
+      </div>
+      <p className="mt-2 text-[11.5px] text-slate-400 leading-snug">
+        Bestätigen macht die Zeilen <b>unveränderlich</b> und legt sie als Position in den
+        Auszahlungsweg. Auch du kannst sie danach nicht mehr ändern — das schützt beide Seiten.
+      </p>
+
+      <div className="mt-4">
+        {(daten.stunden ?? []).slice(0, 30).map((s: any) => (
+          <div key={s.id} className="py-2 flex flex-wrap items-center gap-x-3 text-[12.5px]"
+               style={{ borderBottom: "1px solid #f8fafc" }}>
+            <span className="font-semibold tabular-nums text-slate-800">
+              {new Date(s.tag).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}
+            </span>
+            <span className="tabular-nums text-slate-500">
+              {String(s.von).slice(0, 5)}–{String(s.bis).slice(0, 5)}
+            </span>
+            <span className="font-bold tabular-nums text-slate-800">
+              {Math.floor(s.minuten / 60)}:{String(s.minuten % 60).padStart(2, "0")}
+            </span>
+            {s.notiz && <span className="text-[11.5px] text-slate-400 truncate">{s.notiz}</span>}
+            <span className="ml-auto text-[11.5px] font-semibold"
+                  style={{ color: s.bestaetigt_am ? "#047857" : "#b45309" }}>
+              {s.bestaetigt_am ? "bestätigt" : "wartet"}
+            </span>
+          </div>
+        ))}
+        {(daten.stunden ?? []).length === 0 && (
+          <p className="text-[13px] text-slate-400">
+            {rolle === "inkasso"
+              ? "Noch keine Zeiten erfasst."
+              : "Zeiterfassung nutzt bisher nur das Forderungsmanagement."}
+          </p>
+        )}
       </div>
     </>
   );

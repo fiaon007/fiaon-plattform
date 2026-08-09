@@ -230,9 +230,20 @@ export async function alleTrefferIds(f: Filter, lauf: Lauf = sqlPool): Promise<n
 
 /** Die Zahlen für die Filterleiste — eine Abfrage, nicht zwölf. */
 export async function filterZahlen(lauf: Lauf = sqlPool): Promise<Record<string, number>> {
+  // ── DIESELBE BASIS WIE DIE LISTE ────────────────────────────────────────
+  // Die erste Fassung zählte hier OHNE die Archiv-Regel. Ergebnis: Der Knopf
+  // versprach „Stufe B 1067", die Liste lieferte 1065 — zwei Personen, deren
+  // einzige Bestellung archiviert ist. Gefunden von der Zählprobe in
+  // scripts/pruef-zentralen.ts.
+  //
+  // Eine Zahl auf einem Knopf ist ein Versprechen. Wenn sie nicht hält, sucht
+  // der Betreiber nach zwei Kunden, die es in dieser Ansicht nicht gibt.
   const basis = `${echtePersonSql("p")}
     AND NOT EXISTS (SELECT 1 FROM fiaon_applications g
-                     WHERE g.person_id = p.id AND g.gdpr_deleted_at IS NOT NULL)`;
+                     WHERE g.person_id = p.id AND g.gdpr_deleted_at IS NOT NULL)
+    AND (EXISTS (SELECT 1 FROM fiaon_applications a
+                  WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL)
+         OR NOT EXISTS (SELECT 1 FROM fiaon_applications a2 WHERE a2.person_id = p.id))`;
   const [z] = (await lauf.unsafe(`
     SELECT
       COUNT(*)::int AS alle,

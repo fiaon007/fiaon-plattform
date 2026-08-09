@@ -3,6 +3,83 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 10.08.2026 — Team-Zentrale wirklich fertig, Forderungsmanagement, geführte Einarbeitung
+
+### Zuerst der Rückstand: vier Funktionen waren unbedienbar
+
+Als am 10.08. die alte Team-Seite entfernt wurde, gingen vier Funktionsblöcke mit: **Skripte & Leitfäden, Partner-Anfragen, Meilenstein-Prämien und die Team-Einstellungen.** Sie waren nicht kaputt, sondern unerreichbar — die unangenehmere Sorte Fehler, weil sich nichts meldet.
+
+Sie sind jetzt **wörtlich** in die Zentrale gezogen: dieselben Endpunkte, dieselben Felder, dasselbe Verhalten (`client/src/components/admin/TeamVerwaltung.tsx`). Ein Umbau wäre die Gelegenheit gewesen, still etwas zu verlieren.
+
+**Vollständigkeitsliste — alt → neu:**
+
+| Funktion der Altseite | Neuer Ort | Endpunkt |
+|---|---|---|
+| Skripte anlegen, umschalten, entfernen, sortieren | Team-Zentrale → Reiter „Skripte & Leitfäden" | `/admin/scripts`, `…/update`, `…/delete`, `…/reorder` |
+| Partner-Anfragen annehmen/ablehnen | Reiter „Partner-Anfragen" | `/admin/team/partner-suggestions`, `…/reject` |
+| Meilenstein-Prämien abhaken | Reiter „Meilenstein-Prämien" | `/admin/team/milestones`, `…/done` |
+| Provisionssatz, Auszahlungsgrenzen, Skript-Zuordnung | Reiter „Einstellungen" | `/admin/settings` |
+| Teammitglied anlegen/einladen | Knopf im Kopf der Zentrale | `POST /admin/agents` |
+| Passwort-Reset, Deaktivieren, Bankdaten, Rolle | Mitarbeiter-Detail | unverändert |
+| Kunden neu zuweisen, manuelle Provision | Mitarbeiter-Detail | unverändert |
+| Provisionen nachbuchen | Mitarbeiter-Detail → „Provisionen" | `/admin/commission-backfill/…` |
+
+**Erst danach** wurden `admin-team.tsx` und `admin-nachbuchung.tsx` gelöscht. Diese Reihenfolge ist der Punkt: zuerst umziehen, dann abreißen. Der Prüfstand hält jeden dieser Endpunkte namentlich fest.
+
+### Softphone: das Browser-SDK ist da
+
+`@twilio/voice-sdk` installiert und eingebunden — **nachgeladen, nicht importiert**: Das Paket bringt rund 300 KB mit, und wer nie telefoniert, soll sie nicht herunterladen. Die Uhr startet erst bei `accept` (wenn abgenommen wird), nicht beim Klingeln — sonst passt die Dauer im Protokoll nicht zur Twilio-Abrechnung. Stummschalten und DTMF-Tasten gehen auf die echte Verbindung; beim Seitenwechsel wird aufgelegt, damit kein Gespräch im Hintergrund weiterläuft und weiter kostet.
+
+### Rolle „Inkasso" und das Forderungsmanagement
+
+Neue Rolle mit eigener Verpflichtungserklärung über die bestehende `bereich`-Maschinerie. Sie hat sieben Pflichten, drei davon sind der Kern: **keine Drohsprache** (nicht mit Schufa, nicht mit Gericht, auch nicht angedeutet), **Würde** (wer offensichtlich nicht zahlen kann, braucht keinen Druck, sondern die Weitergabe) und **keine Zusagen, die nicht zustehen** — „das kriegen wir hin" ist am Telefon eine Zusage, egal wie es gemeint war.
+
+**Das Sichtfeld ist hart begrenzt:** ausschließlich bezahlte Kunden mit laufender Ratenzahlung. Keine Leads, keine unbezahlten Bestellungen, keine Dokumentinhalte. Als WHERE-Bedingung im Server, nicht als Filter in der Oberfläche — wer eine Grenze in die Darstellung legt, hat keine Grenze, sondern eine Bitte.
+
+**Erlass, Stundung, Kürzung und Storno existieren im Bereich nicht.** Nicht als gesperrter Knopf, sondern überhaupt nicht: Es gibt keine Funktion, die einen Ratenbetrag oder eine Fälligkeit ändert. Der Prüfstand sucht danach.
+
+**Die eine Reihenfolge** — Anruf-Pflicht (Stufe 3 plus Frist, Vorgabe 7 Tage), dann gebrochene Zusagen, dann überfällig nach Mahnstufe (3 vor 2 vor 1), dann heute fällig. Eine gebrochene Zusage steigt bewusst nach oben: Man weiß, dass der Mensch erreichbar ist. Es gibt **keine Sortierumschaltung** — wer sich seine Liste selbst sortieren darf, arbeitet die bequemen Fälle zuerst.
+
+**Gearbeitet wird an der RATE, nicht an der Person.** Bei Ratenzahlung sind mehrere Raten gleichzeitig im Spiel; „zahlt am 20." muss sich auf Rate 3 beziehen. Sonst überschreibt die Zusage für Rate 4 die für Rate 3, und niemand merkt es.
+
+Die Mahnstufen-Automatik bleibt unverändert Automatik. Der Bereich **arbeitet** die Fälle, er ersetzt keine Mails.
+
+### Vergütung — konfigurierbar, mit Platzhaltern
+
+**Was Sie bestätigen müssen:** Stundensatz (Platzhalter **15,00 €/h**) und Prämie je eingezogener Rate (Platzhalter **2,00 €**, umschaltbar auf Prozent). Beides steht in der Team-Zentrale unter „Vergütung & Stunden" mit dem Hinweis „vom Betreiber zu bestätigen". Solange `verguetung_bestaetigt_am` leer ist, **wird keine Prämie gebucht** und lassen sich keine Stunden abrechnen — ein stiller Vorgabewert, den niemand prüft, wird sonst zur echten Abrechnung.
+
+Die Prämie entsteht **im bestehenden Ratenbuchungsweg** (`/admin/abo/raten/:id/bezahlt`) und nur dort: Das ist die einzige Stelle, an der feststeht, dass Geld angekommen ist. Zwei Bedingungen, beide nötig — die Rate wurde dokumentiert bearbeitet (**Selbstzahler erzeugen keine Prämie**, eine Eskalation auch nicht) und sie ist noch nicht gebucht. Der Doppelschutz sitzt in einer eindeutigen `ref` (`RATE-<id>`), nicht in einer Abfrage davor.
+
+Stunden werden monatsweise mit einem Klick bestätigt. **Bestätigen macht sie unveränderlich** — auch für den Betreiber — und legt sie als Position (`kind = 'stunden'`) in den bestehenden Auszahlungsweg. Beides in einer Transaktion: eine bestätigte Stunde ohne Position wäre Arbeit, die niemand bezahlt.
+
+### Geführte erste Schritte, je Rolle
+
+Eine Tafel mit Checkliste, 3–5 gezeichneten Anleitungskarten und einer ersten echten Aufgabe — kuratiert für Vertrieb, Vertriebsleitung, Onboarding und Inkasso. **Sie blockiert nie:** kein Vollbild-Tor, wegklickbar, im Profil wiederzufinden.
+
+Manche Schritte werden **angeklickt**, andere **erkannt**: „Profil vervollständigen" hakt der Mensch ab, „erstes Ergebnis dokumentiert" liest der Server aus dem Kontaktprotokoll. Eine Checkliste, in der man sich selbst bescheinigt gearbeitet zu haben, wäre für die Admin-Sicht wertlos. Woher ein Häkchen kommt, steht daneben.
+
+Die Schemata sind **gezeichnet, keine Screenshots** — ein Bildschirmfoto ist nach dem nächsten Umbau falsch, und niemand merkt es.
+
+**Admin-Sicht** (Team-Zentrale → „Neu im Team"): Vertrag, Erklärung, Checkliste x/y, erste Dokumentation. „Hängt" heißt: über eine Woche dabei und noch kein Ergebnis dokumentiert. Nachfassen per Team-Nachricht.
+
+Der **Willkommens-Post** im Space entsteht beim ersten Aufruf der Tafel, nicht bei der Einladung: Wer Eingeladene begrüßt, begrüßt auch die, die nie erscheinen. Genau einmal, ohne Kundendaten.
+
+### Drei echte Fehler, die die Prüfstände fanden
+
+**Die Filterzahlen der Kunden-Zentrale logen.** Der Knopf versprach „Stufe B 1067", die Liste lieferte 1065 — zwei Personen, deren einzige Bestellung archiviert ist. Die Zählung kannte die Archiv-Regel der Liste nicht. Eine Zahl auf einem Knopf ist ein Versprechen; hält sie nicht, sucht der Betreiber nach Kunden, die es in dieser Ansicht nicht gibt.
+
+**`pruef-pipeline` schlug bei fremder Arbeit Alarm.** Es zählte jede versandte Mail der letzten fünf Minuten — auch die an echte Kunden. Ein Alarm, der von der Arbeit anderer ausgelöst wird, wird nach dem zweiten Mal ignoriert. Jetzt an die eigenen Daten gebunden. Dabei fiel auf, dass `fiaon_mail_log` keine `ref`-Spalte hat und `fiaon_termine` an der Person hängt — ich hatte beides geraten.
+
+**`berlinPlusTage` existierte zweimal.** Die Datumsrechnung lag privat in `fiaon-kontakt-ergebnis.ts`; das Forderungsmanagement brauchte dieselbe. Zwei Fassungen einer Datumsrechnung sind zwei Gelegenheiten, an der Sommerzeit einen Tag zu verlieren — sie steht jetzt in `fiaon-time.ts`, dem laut Hausregel zuständigen Ort.
+
+### Prüfstand
+
+`scripts/pruef-inkasso.ts` — **167 Prüfungen, alle grün**, zurückgerollt. Gegenprobe: Wird der Doppelbuchungsschutz entfernt, das Sichtfeld auf unbezahlte Kunden geöffnet oder eine Eskalation als Einzug gezählt, wird er rot.
+
+Gesamt: **1.172 Prüfungen** über zehn Prüfstände, alle grün.
+
+**Zu finden:** `server/lib/fiaon-inkasso.ts`, `fiaon-inkasso-zusage.ts`, `server/routes/fiaon-inkasso-bereich.ts`, `fiaon-erste-schritte.ts`, `shared/fiaon-onboarding-schritte.ts`, `client/src/pages/agent/inkasso.tsx`, `client/src/components/ErsteSchritte.tsx`, `client/src/components/admin/TeamVerwaltung.tsx`, `db/migrations/046_inkasso.sql`.
+
 ## 10.08.2026 — Der Ausweis lag offen. Dazu: Dokumente in der Akte, Softphone, Gesprächsblatt
 
 ### Zuerst der Befund: KYC-Dokumente waren ohne Anmeldung abrufbar

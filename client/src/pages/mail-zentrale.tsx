@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentShell } from "./agent/shared";
 import { Reveal } from "./agent/motion";
+import { FiaonEbene } from "@/components/FiaonEbene";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIL-ZENTRALE — der Florentine-Fall in zwanzig Sekunden
@@ -25,6 +26,95 @@ interface Baustein { marke: string; titel: string; erklaerung: string }
  * für „KI" benutzt. Dies ist eine aufsteigende Linie mit drei Funken, wie ein
  * Gedanke, der Form annimmt.
  */
+/**
+ * Das Sendeergebnis — je Empfänger, mit Grund.
+ *
+ * ── DIE HAUSREGEL DAHINTER ─────────────────────────────────────────────────
+ * Wenn etwas fehlschlägt, steht der GRUND in der Meldung. Nie ein Verweis auf
+ * einen anderen Ort. Der Betreiber sah „0 verschickt, 1 fehlgeschlagen (Grund
+ * steht im Protokoll)" — und musste raten, wo dieses Protokoll ist.
+ *
+ * Der Grund lag zu diesem Zeitpunkt bereits vor. Er wurde ins Protokoll
+ * geschrieben und aus der Antwort weggeworfen.
+ */
+function ErgebnisKarte({ ergebnis, onZu }: { ergebnis: any; onZu: () => void }) {
+  const [offen, setOffen] = useState(true);
+  const misslungen = ergebnis.ergebnisse.filter((e: any) => !e.ok);
+  const geklappt = ergebnis.ergebnisse.filter((e: any) => e.ok);
+  const alleGut = misslungen.length === 0;
+
+  return (
+    <div className="mt-3 rounded-2xl overflow-hidden"
+         style={{
+           background: alleGut
+             ? "linear-gradient(158deg, rgba(5,150,105,.07), rgba(5,150,105,.02))"
+             : "linear-gradient(158deg, rgba(217,119,6,.08), rgba(217,119,6,.025))",
+           boxShadow: `inset 0 0 0 1px ${alleGut ? "rgba(5,150,105,.2)" : "rgba(217,119,6,.22)"}`,
+         }}>
+      <button type="button" onClick={() => setOffen((o) => !o)}
+              className="w-full flex items-center gap-2.5 px-4 py-3 text-left">
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-bold"
+                style={{ color: alleGut ? "#047857" : "#b45309" }}>
+            {geklappt.length} verschickt{misslungen.length > 0 && `, ${misslungen.length} nicht`}
+          </span>
+          {!alleGut && ergebnis.gruende?.length === 1 && (
+            <span className="block text-[12px] mt-0.5 leading-snug" style={{ color: "#92400e" }}>
+              {ergebnis.gruende[0]}
+            </span>
+          )}
+        </span>
+        <span className="text-[11.5px] font-semibold shrink-0" style={{ color: "var(--fi-text-still)" }}>
+          {offen ? "Zuklappen" : "Je Empfänger ansehen"}
+        </span>
+      </button>
+
+      {offen && (
+        <div className="px-4 pb-4">
+          {ergebnis.ergebnisse.map((e: any) => (
+            <div key={e.email} className="py-2.5"
+                 style={{ boxShadow: "inset 0 1px 0 rgba(15,23,42,.06)" }}>
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{ background: e.ok ? "#059669" : "#d97706" }} />
+                <span className="text-[13px] font-semibold" style={{ color: "var(--fi-text)" }}>
+                  {e.name}
+                </span>
+                <span className="text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>{e.email}</span>
+              </div>
+              {!e.ok && (
+                <>
+                  <p className="mt-1 ml-3.5 text-[12px] leading-relaxed" style={{ color: "#92400e" }}>
+                    {e.grund || "Kein Grund übermittelt — bitte im Protokoll nachsehen."}
+                  </p>
+                  {/* Der Tiefverweis: springt auf GENAU diese Zeile, nicht auf
+                      eine Liste, in der man wieder suchen muss. */}
+                  <a href={`/admin/mail-protokoll?id=${e.protokollId ?? ""}`}
+                     className="inline-block mt-1.5 ml-3.5 text-[11.5px] font-semibold underline"
+                     style={{ color: "var(--fi-primaer)" }}>
+                    Im Protokoll öffnen
+                  </a>
+                  {/^.*Freigabeliste.*$/.test(String(e.grund || "")) && (
+                    <a href="/admin/diagnose#ausgangs-ip"
+                       className="inline-block mt-1.5 ml-3 text-[11.5px] font-semibold underline"
+                       style={{ color: "var(--fi-primaer)" }}>
+                      So behebst du das
+                    </a>
+                  )}
+                </>
+              )}
+            </div>
+          ))}
+          <button type="button" onClick={onZu}
+                  className="mt-3 text-[12px] font-semibold" style={{ color: "var(--fi-text-still)" }}>
+            Ergebnis schließen
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MarkeFunke({ size = 15 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor"
@@ -79,6 +169,10 @@ function Inhalt() {
   const [vorschau, setVorschau] = useState<any>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<{ art: "gut" | "schlecht"; text: string } | null>(null);
+  const [gruppenWahl, setGruppenWahl] = useState(false);
+  // Das Ergebnis je Empfänger — mit Grund. Siehe „Fehlergründe gehören an den
+  // Ort des Geschehens" im CHANGELOG vom 11.08.2026.
+  const [ergebnis, setErgebnis] = useState<any>(null);
   const feld = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -139,7 +233,11 @@ function Inhalt() {
     }).catch(() => null);
     const j = await r?.json().catch(() => null);
     setBusy(null);
-    setMeldung({ art: j?.ok ? "gut" : "schlecht", text: j?.meldung || j?.error || "Unbekannter Fehler." });
+    setMeldung({ art: j?.ok && !j?.fehlgeschlagen ? "gut" : "schlecht",
+                 text: j?.meldung || j?.error || "Unbekannter Fehler." });
+    // Das Einzelergebnis stehen lassen, AUCH wenn alles geklappt hat: Wer
+    // fünfzig Mails schickt, will nachsehen können, wer sie bekommen hat.
+    setErgebnis(j?.ergebnisse?.length ? j : null);
     if (j?.ok) { setVorschau(null); setText(""); setBetreff(""); setGewaehlt([]); setAktiveGruppen([]); }
   };
 
@@ -178,12 +276,21 @@ function Inhalt() {
         </Reveal>
 
         {meldung && (
-          <p className="mt-4 px-3.5 py-2.5 rounded-xl text-[12.5px] font-semibold"
+          <p className="mt-4 px-3.5 py-2.5 rounded-xl text-[12.5px] font-semibold leading-relaxed"
              style={meldung.art === "gut"
                ? { background: "rgba(5,150,105,.08)", color: "#047857" }
                : { background: "rgba(217,119,6,.08)", color: "#b45309" }}>
             {meldung.text}
           </p>
+        )}
+
+        {/* ── DAS ERGEBNIS, EMPFÄNGER FÜR EMPFÄNGER ─────────────────────────
+            Bis zum 11.08.2026 stand hier „1 fehlgeschlagen (Grund steht im
+            Protokoll)". Der Grund lag zu dem Zeitpunkt schon vor — er wurde
+            ins Protokoll geschrieben und aus der Antwort weggeworfen. Wer ihn
+            wissen wollte, musste eine Tabelle suchen. */}
+        {ergebnis && ergebnis.ergebnisse?.length > 0 && (
+          <ErgebnisKarte ergebnis={ergebnis} onZu={() => setErgebnis(null)} />
         )}
 
         {/* ── Empfänger ────────────────────────────────────────────────── */}
@@ -213,10 +320,42 @@ function Inhalt() {
               </div>
             )}
 
-            <input value={suche} onChange={(e) => setSuche(e.target.value)}
-                   placeholder="Name oder E-Mail — auch alte Adressen"
-                   className="w-full rounded-xl px-3 py-2.5 text-[13.5px] outline-none"
-                   style={{ border: "1px solid var(--fi-linie)", background: "var(--fi-seite)", minHeight: 44 }} />
+            {/* ── EIN FELD FÜR ALLES ────────────────────────────────────
+                Der Betreiber: „verdammt kompliziert". Vorher waren es DREI
+                Eingaben — Kundensuche, Gruppen-Knopfwand, externes Feld —
+                und man musste wissen, welche wofür ist.
+
+                Jetzt: hier tippen. Es sucht Kunden UND nimmt jede freie
+                Adresse; Enter macht daraus einen Chip. Die Gruppen liegen
+                hinter EINEM Knopf daneben — wer sie nicht braucht, sieht
+                sie nicht. */}
+            <div className="flex items-stretch gap-2">
+              <input value={suche} onChange={(e) => setSuche(e.target.value)}
+                     onKeyDown={(e) => {
+                       if (e.key !== "Enter") return;
+                       e.preventDefault();
+                       const wert = suche.trim();
+                       // Sieht es aus wie eine Adresse, ist es eine.
+                       if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(wert)) return;
+                       setGewaehlt((l) => l.some((x) => x.email.toLowerCase() === wert.toLowerCase())
+                         ? l
+                         : [...l, { email: wert, name: wert, extern: true } as Treffer]);
+                       setSuche(""); setTreffer([]);
+                     }}
+                     placeholder="Name, Kundennummer oder E-Mail eintippen …"
+                     aria-label="Empfänger suchen oder E-Mail eingeben"
+                     className="flex-1 min-w-0 rounded-xl px-3.5 py-2.5 text-[13.5px] outline-none"
+                     style={{ border: "1px solid var(--fi-linie)", background: "var(--fi-seite)", minHeight: 46 }} />
+              <button type="button" onClick={() => setGruppenWahl(true)}
+                      className="fi-knopf-glas shrink-0 px-3.5 text-[12.5px] font-semibold whitespace-nowrap">
+                Gruppe wählen
+                {aktiveGruppen.length > 0 && (
+                  <span className="ml-1.5 fi-zahl" style={{ color: "var(--fi-primaer)" }}>
+                    {aktiveGruppen.length}
+                  </span>
+                )}
+              </button>
+            </div>
 
             {treffer.length > 0 && (
               <div className="mt-1.5 rounded-xl overflow-hidden" style={{ border: "1px solid var(--fi-linie)" }}>
@@ -226,7 +365,7 @@ function Inhalt() {
                             setGewaehlt((l) => l.some((x) => x.email === t.email) ? l : [...l, t]);
                             setSuche(""); setTreffer([]);
                           }}
-                          className="w-full text-left px-3 py-2.5 text-[13px] hover:bg-slate-50"
+                          className="w-full text-left px-3.5 py-2.5 text-[13px] hover:bg-slate-50"
                           style={{ boxShadow: "inset 0 -1px 0 var(--fi-linie)" }}>
                     <span className="font-semibold">{t.name}</span>
                     <span className="ml-2" style={{ color: "var(--fi-text-still)" }}>{t.email}</span>
@@ -235,33 +374,84 @@ function Inhalt() {
               </div>
             )}
 
-            <p className="text-[11px] font-semibold uppercase tracking-[.08em] mt-4 mb-2"
-               style={{ color: "var(--fi-text-still)" }}>Oder eine Gruppe</p>
-            <div className="flex flex-wrap gap-1.5">
-              {gruppen.map((g) => {
-                const an = aktiveGruppen.includes(g.schluessel);
-                return (
-                  <button key={g.schluessel} type="button"
-                          onClick={() => setAktiveGruppen((l) => an ? l.filter((x) => x !== g.schluessel) : [...l, g.schluessel])}
-                          disabled={g.anzahl === 0}
-                          className="px-3 py-2 rounded-xl text-[12.5px] font-semibold disabled:opacity-35"
-                          style={an
-                            ? { background: "var(--fi-primaer)", color: "#fff" }
-                            : { background: "var(--fi-seite)", border: "1px solid var(--fi-linie)", color: "var(--fi-text-leise)" }}>
-                    {g.titel} <span className="fi-zahl opacity-70">{g.anzahl}</span>
-                  </button>
-                );
-              })}
-            </div>
+            {/* Eine freie Adresse braucht einen Hinweis, sonst rät man. */}
+            {suche.trim().length > 2 && treffer.length === 0 && (
+              <p className="mt-2 text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>
+                {/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(suche.trim())
+                  ? "Enter drücken — die Adresse wird als externer Empfänger übernommen."
+                  : "Kein Kunde gefunden. Eine vollständige E-Mail-Adresse kannst du mit Enter direkt übernehmen."}
+              </p>
+            )}
 
-            <input value={extern} onChange={(e) => setExtern(e.target.value)}
-                   placeholder="Externe Adressen, mit Komma getrennt"
-                   className="w-full mt-3 rounded-xl px-3 py-2.5 text-[13px] outline-none"
-                   style={{ border: "1px solid var(--fi-linie)", background: "var(--fi-seite)", minHeight: 42 }} />
-            <p className="mt-2 text-[11px] leading-snug" style={{ color: "var(--fi-text-still)" }}>
+            <p className="mt-2.5 text-[11px] leading-snug" style={{ color: "var(--fi-text-still)" }}>
               Testeinträge, DSGVO-Gelöschte und archivierte Datensätze sind immer ausgeschlossen.
-              Deine Rolle darf an höchstens {maxEmpfaenger} Empfänger senden.
+              {maxEmpfaenger < 1000 && ` Deine Rolle darf an höchstens ${maxEmpfaenger} Empfänger senden.`}
             </p>
+
+            <FiaonEbene
+              offen={gruppenWahl}
+              onZu={() => setGruppenWahl(false)}
+              titel="Eine ganze Gruppe anschreiben"
+              ueberschrift="Zielgruppen"
+              breite={520}
+              kinder={
+                <>
+                  <p className="text-[12.5px] leading-relaxed mb-3" style={{ color: "var(--fi-text-still)" }}>
+                    Die Zahl ist der aktuelle Stand — sie wird beim Senden neu ermittelt,
+                    nicht aus dieser Ansicht übernommen.
+                  </p>
+                  <div className="flex flex-col gap-1.5">
+                    {gruppen.map((g) => {
+                      const an = aktiveGruppen.includes(g.schluessel);
+                      return (
+                        <button key={g.schluessel} type="button" disabled={g.anzahl === 0}
+                                onClick={() => setAktiveGruppen((l) =>
+                                  an ? l.filter((x) => x !== g.schluessel) : [...l, g.schluessel])}
+                                className="flex items-center gap-3 px-3.5 py-3 rounded-2xl text-left disabled:opacity-35"
+                                style={an
+                                  ? { background: "linear-gradient(158deg, rgba(59,130,246,.14), rgba(29,78,216,.05))",
+                                      boxShadow: "inset 0 0 0 1px rgba(37,99,235,.28)" }
+                                  : { background: "rgba(15,23,42,.028)", boxShadow: "inset 0 0 0 1px rgba(15,23,42,.06)" }}>
+                          <span className="w-5 h-5 rounded-md shrink-0 flex items-center justify-center"
+                                style={an
+                                  ? { background: "var(--fi-primaer)", color: "#fff" }
+                                  : { boxShadow: "inset 0 0 0 1.5px rgba(15,23,42,.16)" }}>
+                            {an && (
+                              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                                   strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+                                <path d="m4.5 10.5 3.5 3.5 7.5-8" />
+                              </svg>
+                            )}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[13.5px] font-semibold"
+                                  style={{ color: an ? "var(--fi-primaer)" : "var(--fi-text)" }}>
+                              {g.titel}
+                            </span>
+                          </span>
+                          <span className="fi-zahl text-[13px] font-bold shrink-0"
+                                style={{ color: an ? "var(--fi-primaer)" : "var(--fi-text-still)" }}>
+                            {g.anzahl}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              }
+              fuss={
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setAktiveGruppen([])}
+                          className="text-[13px] font-semibold" style={{ color: "var(--fi-text-still)" }}>
+                    Keine
+                  </button>
+                  <button type="button" onClick={() => setGruppenWahl(false)}
+                          className="ml-auto fi-knopf-primaer px-5 py-2.5 text-[14px]">
+                    Übernehmen
+                  </button>
+                </div>
+              }
+            />
           </div>
         </Reveal>
 

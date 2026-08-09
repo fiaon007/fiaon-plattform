@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentShell } from "./shared";
+import { FiaonEbene } from "@/components/FiaonEbene";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SPACE — der Raum, in dem das Team miteinander redet
@@ -26,6 +27,10 @@ import { AgentShell } from "./shared";
 interface Kommentar {
   id: number; agentId: number | null; text: string; am: string;
   name: string | null; avatar: string | null;
+  /** Auf welchen Kommentar antwortet dieser? Genau eine Ebene tief. */
+  antwortAuf: number | null;
+  bearbeitet: boolean;
+  meiner: boolean;
 }
 
 interface Post {
@@ -41,14 +46,19 @@ interface Post {
   akteRef: string | null;
   aktePerson: number | null;
   hatBild: boolean;
+  bearbeitet: boolean;
+  /** Ist das MEIN Beitrag? Der Server entscheidet das, nicht der Browser. */
+  meiner: boolean;
+  /** Bis wann sich der Beitrag noch ändern lässt (15 Minuten ab Anlage). */
+  bearbeitbarBis: string | null;
   reaktionen: Record<string, number>;
   meine: string | null;
   kommentare: Kommentar[];
 }
 
 const REAKTIONS_MARKE: Record<string, { titel: string; zeichen: React.ReactNode }> = {
-  daumen: {
-    titel: "Stark",
+  gut: {
+    titel: "Gefällt mir",
     zeichen: (
       <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor"
            strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -57,35 +67,40 @@ const REAKTIONS_MARKE: Record<string, { titel: string; zeichen: React.ReactNode 
       </svg>
     ),
   },
-  herz: {
-    titel: "Freut mich",
+  schlecht: {
+    titel: "Gefällt mir nicht",
+    // Dieselbe Zeichnung, gedreht — nicht neu gezeichnet: Zwei Daumen, die
+    // sich in der Strichführung unterscheiden, sehen aus wie zwei Symbole
+    // aus verschiedenen Sätzen.
     zeichen: (
       <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor"
-           strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M10 16.5s-6-3.7-6-7.7a3.4 3.4 0 0 1 6-2.2 3.4 3.4 0 0 1 6 2.2c0 4-6 7.7-6 7.7Z" />
+           strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+           style={{ transform: "rotate(180deg)" }}>
+        <path d="M6 17V8.6l3.2-5.1c.2-.4.7-.6 1.1-.4.7.3 1.1 1 1.1 1.8L11 8.2h3.6c1 0 1.7.9 1.5 1.9l-1 5c-.1.7-.8 1.2-1.5 1.2H6Z" />
+        <path d="M6 8.6H4.3c-.4 0-.8.4-.8.8v6.8c0 .4.4.8.8.8H6" />
       </svg>
     ),
   },
-  stern: {
-    titel: "Bemerkenswert",
-    zeichen: (
-      <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor"
-           strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="m10 3 2.2 4.5 4.9.7-3.6 3.4.9 4.9L10 14.2 5.6 16.5l.9-4.9L2.9 8.2l4.9-.7L10 3Z" />
-      </svg>
-    ),
-  },
-  blitz: {
-    titel: "Los geht's",
-    zeichen: (
-      <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor"
-           strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M3 16c2.4-1.2 4.1-3.1 5.2-5.6C9.3 7.8 11.1 5.9 13.6 5" />
-        <path d="M15.4 3.2v3.1M17 4.7h-3.1" />
-        <circle cx="6.2" cy="6.4" r="1" /><circle cx="16.4" cy="13.6" r="1" />
-      </svg>
-    ),
-  },
+};
+
+/**
+ * Die Kennmarke je Beitragsart — eine feine Zeile in der Kartenkopfzeile.
+ *
+ * Sie sagt in zwei Wörtern, WAS man da liest: eine Zahl, ein Gedanke, eine
+ * Ansage. Ohne sie sieht ein Systembeitrag aus wie der Beitrag eines Kollegen.
+ */
+const ART_MARKE: Record<string, { titel: string; ton: string }> = {
+  gedanke: { titel: "Gedanke des Tages", ton: "#64748b" },
+  impuls: { titel: "Verkaufs-Impuls", ton: "#1d4ed8" },
+  abschluss: { titel: "Abschluss", ton: "#059669" },
+  rangliste: { titel: "Der Tag in Zahlen", ton: "#059669" },
+  woche: { titel: "Wochenrückblick", ton: "#059669" },
+  meilenstein: { titel: "Meilenstein", ton: "#b45309" },
+  rekord: { titel: "Rekord", ton: "#b45309" },
+  feiertage: { titel: "Heute weltweit", ton: "#64748b" },
+  neuzugang: { titel: "Neu im Team", ton: "#1d4ed8" },
+  verkuendung: { titel: "Ansage", ton: "#1d4ed8" },
+  update: { titel: "Neu in der Plattform", ton: "#1d4ed8" },
 };
 
 /** Wann — in der Sprache, in der Menschen darüber reden. */
@@ -119,24 +134,67 @@ function Avatar({ src, name, size = 40 }: { src: string | null; name: string; si
 }
 
 /** Systembeiträge bekommen eine Marke statt eines Gesichts. */
-function AutoMarke({ art }: { art: string }) {
+/**
+ * Der Systemavatar — FIAON selbst.
+ *
+ * ── WAS VORHER DA STAND ────────────────────────────────────────────────────
+ * Ein generischer Aufwärtspfeil mit zwei Funken. Der Betreiber: „Warum hat
+ * FIAON links daneben so ein ekelhaftes altes ICON?" Zu Recht — es war ein
+ * Allerweltszeichen, das mit der Marke nichts zu tun hatte, und es stand
+ * unter jedem zweiten Beitrag im Feed.
+ *
+ * ── WAS JETZT DA STEHT ─────────────────────────────────────────────────────
+ * Dieselbe Kachel wie das Favicon: dunkles CI-Blau, das „F" der Wortmarke in
+ * Weiß, dazu die Aufwärtsgeste. Wer den Tab erkennt, erkennt den Absender.
+ */
+/** Eine Kommentarzeile — oberste Ebene wie Antwort, dieselbe Form. */
+function KommentarZeile({ k, onAntwort, onWeg }: {
+  k: Kommentar; onAntwort: () => void; onWeg: () => void;
+}) {
   return (
-    <span className="fi-sp-automarke" aria-hidden="true">
-      <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor"
-           strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-        {art === "neuzugang" ? (
-          <><circle cx="10" cy="7" r="3.2" /><path d="M4 16.5c0-3 2.7-5 6-5s6 2 6 5" /></>
-        ) : art === "verkuendung" ? (
-          <><path d="M4 8.5v3a1 1 0 0 0 1 1h2l5 3.5v-12L7 8.5H5a1 1 0 0 0-1 1Z" /><path d="M15 7.5a4 4 0 0 1 0 5" /></>
-        ) : (
-          <><path d="M3 16c2.4-1.2 4.1-3.1 5.2-5.6C9.3 7.8 11.1 5.9 13.6 5" /><path d="M15.4 3.2v3.1M17 4.7h-3.1" /></>
-        )}
+    <div className="fi-sp-kommentar">
+      <Avatar src={k.avatar} name={k.name ?? "?"} size={28} />
+      <div className="min-w-0 flex-1">
+        <p className="fi-sp-kommentar-blase">
+          <b>{k.name ?? "Jemand"}</b> {k.text}
+        </p>
+        <p className="fi-sp-kommentar-zeit">
+          {wann(k.am)}
+          <button type="button" onClick={onAntwort} className="fi-sp-kommentar-tat">Antworten</button>
+          {k.meiner && (
+            <button type="button" onClick={onWeg} className="fi-sp-kommentar-tat">Löschen</button>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function SystemAvatar({ size = 42 }: { size?: number }) {
+  return (
+    <span className="fi-sp-systemavatar" style={{ width: size, height: size }} aria-label="FIAON">
+      <svg viewBox="0 0 64 64" width={size * 0.62} height={size * 0.62} aria-hidden="true">
+        <g fill="#fff">
+          <rect x="19" y="17" width="6.5" height="30" rx="3.25" />
+          <rect x="19" y="17" width="24" height="6.5" rx="3.25" />
+          <rect x="19" y="29" width="17" height="6.5" rx="3.25" />
+        </g>
+        <path d="M40 44 L50 34" stroke="#60a5fa" strokeWidth="5" strokeLinecap="round" />
       </svg>
     </span>
   );
 }
 
-export default function AgentSpace() {
+
+/**
+ * Der Space — für Team UND Betreiber.
+ *
+ * `alsAdmin` schaltet auf die Admin-Endpunkte um. Dieselbe Oberfläche, andere
+ * Tür: Eine zweite Seite wäre eine zweite Seite zum Pflegen, und die eine
+ * würde bei jeder Änderung vergessen.
+ */
+export default function AgentSpace({ alsAdmin = false }: { alsAdmin?: boolean } = {}) {
+  const basisWeg = alsAdmin ? "/api/fiaon/admin/space" : "/api/fiaon/agent/space";
   const [daten, setDaten] = useState<any>(null);
   const [text, setText] = useState("");
   const [gross, setGross] = useState(false);
@@ -158,9 +216,17 @@ export default function AgentSpace() {
   const [akte, setAkte] = useState<{ ref: string; name: string } | null>(null);
   const [akteSuche, setAkteSuche] = useState("");
   const [akteTreffer, setAkteTreffer] = useState<any[]>([]);
+  // Eigenen Beitrag ändern und zurücknehmen
+  const [bearbeite, setBearbeite] = useState<number | null>(null);
+  const [bearbeiteText, setBearbeiteText] = useState("");
+  const [loesche, setLoesche] = useState<Post | null>(null);
+  // Auf welchen Kommentar wird geantwortet?
+  const [antwortAuf, setAntwortAuf] = useState<{ id: number; name: string } | null>(null);
+  const [alleKommentare, setAlleKommentare] = useState<Set<number>>(new Set());
+  const [pinOffen, setPinOffen] = useState<number | null>(null);
 
   const laden = useCallback(async () => {
-    const r = await fetch("/api/fiaon/agent/space", { credentials: "include" }).catch(() => null);
+    const r = await fetch(basisWeg, { credentials: "include" }).catch(() => null);
     const j = await r?.json().catch(() => null);
     if (j?.ok) {
       setDaten(j);
@@ -168,7 +234,7 @@ export default function AgentSpace() {
       oberste.current = j.posts?.[0]?.id ?? null;
       setNeue(0);
     }
-  }, []);
+  }, [basisWeg]);
   useEffect(() => { void laden(); }, [laden]);
 
   // ── UNENDLICHES SCROLLEN ──────────────────────────────────────────────────
@@ -179,13 +245,13 @@ export default function AgentSpace() {
     if (laedtMehr || !mehr || !daten?.posts?.length) return;
     setLaedtMehr(true);
     const letzter = daten.posts[daten.posts.length - 1].id;
-    const r = await fetch(`/api/fiaon/agent/space?vor=${letzter}`, { credentials: "include" }).catch(() => null);
+    const r = await fetch(`${basisWeg}?vor=${letzter}`, { credentials: "include" }).catch(() => null);
     const j = await r?.json().catch(() => null);
     setLaedtMehr(false);
     if (!j?.ok) { setMehr(false); return; }
     setMehr(!!j.mehr && (j.posts?.length ?? 0) > 0);
     setDaten((d: any) => d && { ...d, posts: [...d.posts, ...(j.posts ?? [])] });
-  }, [daten, laedtMehr, mehr]);
+  }, [daten, laedtMehr, mehr, basisWeg]);
 
   useEffect(() => {
     const ziel = fuehler.current;
@@ -205,18 +271,18 @@ export default function AgentSpace() {
   useEffect(() => {
     const uhr = setInterval(async () => {
       if (document.hidden || !oberste.current) return;
-      const r = await fetch("/api/fiaon/agent/space?limit=5", { credentials: "include" }).catch(() => null);
+      const r = await fetch(`${basisWeg}?limit=5`, { credentials: "include" }).catch(() => null);
       const j = await r?.json().catch(() => null);
       if (!j?.ok) return;
       const n = (j.posts ?? []).findIndex((p: Post) => p.id === oberste.current);
       setNeue(n > 0 ? n : 0);
     }, 120_000);
     return () => clearInterval(uhr);
-  }, []);
+  }, [basisWeg]);
 
   const senden = async () => {
     setBusy(true); setFehler(null);
-    const r = await fetch("/api/fiaon/agent/space", {
+    const r = await fetch(basisWeg, {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, bild, akteRef: akte?.ref ?? null }),
     }).catch(() => null);
@@ -264,6 +330,39 @@ export default function AgentSpace() {
     return () => clearTimeout(uhr);
   }, [akteSuche]);
 
+  const speichern = async (postId: number) => {
+    const r = await fetch(`${basisWeg}/${postId}`, {
+      method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: bearbeiteText }),
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    if (!j?.ok) { setFehler(j?.error || "Änderung abgelehnt."); return; }
+    setBearbeite(null); void laden();
+  };
+
+  const entfernen = async (postId: number) => {
+    const r = await fetch(`${basisWeg}/${postId}`, { method: "DELETE", credentials: "include" })
+      .catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setLoesche(null);
+    if (!j?.ok) { setFehler(j?.error || "Konnte nicht entfernt werden."); return; }
+    void laden();
+  };
+
+  const loesen = async (postId: number) => {
+    await fetch(`${basisWeg}/${postId}/anpinnen`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ an: false }),
+    }).catch(() => {});
+    void laden();
+  };
+
+  const kommentarWeg = async (id: number) => {
+    await fetch(`/api/fiaon/agent/space/kommentar/${id}`, { method: "DELETE", credentials: "include" })
+      .catch(() => {});
+    void laden();
+  };
+
   const reagieren = async (postId: number, art: string) => {
     // Sofort umschalten, dann senden: Eine Reaktion, die eine halbe Sekunde
     // überlegt, fühlt sich kaputt an.
@@ -278,7 +377,7 @@ export default function AgentSpace() {
         return { ...p, reaktionen: z, meine: war === art ? null : art };
       }),
     });
-    await fetch(`/api/fiaon/agent/space/${postId}/reaktion`, {
+    await fetch(`${basisWeg}/${postId}/reaktion`, {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ art }),
     }).catch(() => {});
@@ -286,21 +385,34 @@ export default function AgentSpace() {
 
   const kommentieren = async (postId: number) => {
     if (kommentarText.trim().length < 2) return;
-    const r = await fetch(`/api/fiaon/agent/space/${postId}/kommentar`, {
+    const r = await fetch(`${basisWeg}/${postId}/kommentar`, {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: kommentarText }),
+      body: JSON.stringify({ text: kommentarText, antwortAuf: antwortAuf?.id ?? null }),
     }).catch(() => null);
     const j = await r?.json().catch(() => null);
     if (!j?.ok) { setFehler(j?.error || "Kommentar abgelehnt."); return; }
-    setKommentarText("");
+    setKommentarText(""); setAntwortAuf(null);
     void laden();
   };
 
-  const posts: Post[] = daten?.posts ?? [];
+  const alle: Post[] = daten?.posts ?? [];
+  // ── ANGEPINNTES GEHÖRT IN EINE LEISTE, NICHT IN DEN FEED ─────────────────
+  // Drei angepinnte Beiträge in voller Größe schoben den ersten echten
+  // Beitrag unter die Falzlinie. Wer den Space öffnete, sah dreimal dieselbe
+  // Hausordnung und musste scrollen, um zu erfahren, was das Team gemacht
+  // hat. Jetzt: eine Zeile je Beitrag, aufklappbar.
+  const angepinnte = alle.filter((p) => p.angepinnt);
+  const posts = alle.filter((p) => !p.angepinnt);
   const ich = daten?.ich;
 
-  return (
-    <AgentShell>
+  // ── EINE OBERFLÄCHE, ZWEI TÜREN ───────────────────────────────────────────
+  // Unter /admin/space liegt die Admin-Hülle schon außen herum (die Route ist
+  // über `admin(…)` eingehängt). Ein zusätzliches AgentShell würde den
+  // Betreiber hinauswerfen — er hat kein Agent-Konto, und die Team-Hülle
+  // leitet jeden ohne Konto zur Anmeldung um. Genau das ist beim ersten
+  // Versuch passiert: /admin/space landete auf der Team-Anmeldung.
+  const inhalt = (
+    <>
       <style>{SPACE_CSS}</style>
       <div className="fi-sp-buehne">
 
@@ -328,6 +440,43 @@ export default function AgentSpace() {
         {/* ── MITTE: der Feed ─────────────────────────────────────────────── */}
         <main className="fi-sp-feed">
           <div ref={kopf} aria-hidden="true" />
+          {/* ── Angepinntes: eine schmale Leiste ──────────────────────── */}
+          {angepinnte.length > 0 && (
+            <div className="fi-sp-pinleiste">
+              {angepinnte.map((p) => {
+                const offen = pinOffen === p.id;
+                const kopf = p.text.split("\n")[0].slice(0, 90);
+                return (
+                  <div key={p.id} className="fi-sp-pinzeile" data-offen={offen ? "1" : "0"}>
+                    <button type="button" onClick={() => setPinOffen(offen ? null : p.id)}
+                            className="fi-sp-pinknopf">
+                      <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                           strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"
+                           className="shrink-0" aria-hidden="true">
+                        <path d="M12.5 2.5 17.5 7.5M11 4 4.5 8.5 3 17l8.5-1.5L16 9" />
+                      </svg>
+                      <span className="fi-sp-pintext">{kopf}</span>
+                      <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                           strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"
+                           className="shrink-0 fi-sp-pinpfeil" aria-hidden="true">
+                        <path d="m5.5 8 4.5 4.5L14.5 8" />
+                      </svg>
+                    </button>
+                    {offen && (
+                      <div className="fi-sp-pininhalt">
+                        <p className="fi-sp-text">{p.text}</p>
+                        {daten?.darfVerwalten && (
+                          <button type="button" onClick={() => void loesen(p.id)}
+                                  className="fi-sp-pinloesen">Nicht mehr anpinnen</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Komposer — als einladende Karte, nicht als Formular. */}
           <div className={`fi-sp-karte fi-sp-komposer ${gross ? "fi-sp-komposer-gross" : ""}`}>
             <div className="fi-sp-komposer-kopf">
@@ -478,17 +627,56 @@ export default function AgentSpace() {
 
               <header className="fi-sp-post-kopf">
                 {p.autorTyp === "system" || p.autoArt
-                  ? <AutoMarke art={String(p.autoArt || "")} />
+                  ? <SystemAvatar />
                   : <Avatar src={p.autorAvatar} name={p.autorName ?? "FIAON"} />}
                 <div className="min-w-0 flex-1">
                   <p className="fi-sp-autor">
                     {p.autorName ?? (p.autorTyp === "leitung" ? "Vertriebsleitung" : "FIAON")}
                   </p>
-                  <p className="fi-sp-zeit">{wann(p.am)}</p>
+                  <p className="fi-sp-zeit">
+                    {wann(p.am)}
+                    {p.bearbeitet && <span className="fi-sp-bearbeitet"> · bearbeitet</span>}
+                  </p>
                 </div>
+
+                {/* Die Kennmarke: sagt in zwei Wörtern, was das hier ist. */}
+                {p.autoArt && ART_MARKE[p.autoArt] && (
+                  <span className="fi-sp-artmarke" style={{ color: ART_MARKE[p.autoArt].ton }}>
+                    {ART_MARKE[p.autoArt].titel}
+                  </span>
+                )}
+
+                {/* Eigene Beiträge: ändern (15 Min) und zurücknehmen.
+                    Leitung und Betreiber dürfen jeden Beitrag entfernen. */}
+                {(p.meiner || daten?.darfVerwalten) && (
+                  <div className="fi-sp-postmenue">
+                    {p.meiner && p.bearbeitbarBis && new Date(p.bearbeitbarBis) > new Date() && (
+                      <button type="button" onClick={() => { setBearbeite(p.id); setBearbeiteText(p.text); }}
+                              className="fi-sp-postmenue-knopf">Ändern</button>
+                    )}
+                    <button type="button" onClick={() => setLoesche(p)}
+                            className="fi-sp-postmenue-knopf fi-sp-postmenue-weg">
+                      {p.meiner ? "Zurücknehmen" : "Entfernen"}
+                    </button>
+                  </div>
+                )}
               </header>
 
-              <p className="fi-sp-text">{p.text}</p>
+              {bearbeite === p.id ? (
+                <div className="fi-sp-bearbeiten">
+                  <textarea value={bearbeiteText} onChange={(e) => setBearbeiteText(e.target.value)}
+                            rows={4} aria-label="Beitrag ändern" className="fi-sp-bearbeiten-feld" />
+                  <div className="flex items-center gap-2 mt-2">
+                    <button type="button" onClick={() => setBearbeite(null)}
+                            className="text-[12.5px] font-semibold text-slate-500">Abbrechen</button>
+                    <button type="button" onClick={() => void speichern(p.id)}
+                            disabled={bearbeiteText.trim().length < 3}
+                            className="ml-auto fi-knopf-primaer px-4 py-2 text-[13px]">Speichern</button>
+                  </div>
+                </div>
+              ) : (
+                <p className="fi-sp-text">{p.text}</p>
+              )}
 
               {p.hatBild && (
                 <img src={`/api/fiaon/agent/space/bild/${p.id}`} alt=""
@@ -548,23 +736,58 @@ export default function AgentSpace() {
               {/* ── Kommentare ─────────────────────────────────────────── */}
               {kommentarZu === p.id && (
                 <div className="fi-sp-kommentare">
-                  {p.kommentare.map((k) => (
-                    <div key={k.id} className="fi-sp-kommentar">
-                      <Avatar src={k.avatar} name={k.name ?? "?"} size={28} />
-                      <div className="min-w-0 flex-1">
-                        <p className="fi-sp-kommentar-blase">
-                          <b>{k.name ?? "Jemand"}</b> {k.text}
-                        </p>
-                        <p className="fi-sp-kommentar-zeit">{wann(k.am)}</p>
-                      </div>
-                    </div>
-                  ))}
+                  {(() => {
+                    // Die oberste Ebene, jede mit ihren Antworten darunter.
+                    // Ab drei wird eingeklappt: Ein Beitrag mit zwanzig
+                    // Kommentaren schiebt sonst alles Folgende vom Bildschirm.
+                    const oben = p.kommentare.filter((k) => !k.antwortAuf);
+                    const alle = alleKommentare.has(p.id);
+                    const sichtbar = alle ? oben : oben.slice(0, 3);
+                    return (
+                      <>
+                        {!alle && oben.length > 3 && (
+                          <button type="button"
+                                  onClick={() => setAlleKommentare((m) => new Set(m).add(p.id))}
+                                  className="fi-sp-mehr-kommentare">
+                            {oben.length - 3} weitere {oben.length - 3 === 1 ? "Kommentar" : "Kommentare"} anzeigen
+                          </button>
+                        )}
+                        {sichtbar.map((k) => {
+                          const antworten = p.kommentare.filter((x) => x.antwortAuf === k.id);
+                          return (
+                            <div key={k.id}>
+                              <KommentarZeile k={k} onAntwort={() => setAntwortAuf({ id: k.id, name: k.name ?? "Jemand" })}
+                                              onWeg={() => void kommentarWeg(k.id)} />
+                              {antworten.length > 0 && (
+                                <div className="fi-sp-antworten">
+                                  {antworten.map((x) => (
+                                    <KommentarZeile key={x.id} k={x}
+                                                    onAntwort={() => setAntwortAuf({ id: k.id, name: x.name ?? "Jemand" })}
+                                                    onWeg={() => void kommentarWeg(x.id)} />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </>
+                    );
+                  })()}
+
+                  {antwortAuf && (
+                    <p className="fi-sp-antwort-hinweis">
+                      Antwort an <b>{antwortAuf.name}</b>
+                      <button type="button" onClick={() => setAntwortAuf(null)} className="ml-2 underline">
+                        abbrechen
+                      </button>
+                    </p>
+                  )}
                   <div className="fi-sp-kommentar-neu">
                     <Avatar src={ich?.avatar ?? null} name={ich?.name ?? ich?.vorname ?? "?"} size={28} />
                     <input value={kommentarText} onChange={(e) => setKommentarText(e.target.value)}
                            onKeyDown={(e) => { if (e.key === "Enter") void kommentieren(p.id); }}
-                           placeholder="Antworten …" aria-label="Kommentar"
-                           className="fi-sp-kommentar-feld" />
+                           placeholder={antwortAuf ? `Antwort an ${antwortAuf.name} …` : "Etwas dazu sagen …"}
+                           aria-label="Kommentar" className="fi-sp-kommentar-feld" />
                   </div>
                 </div>
               )}
@@ -597,9 +820,47 @@ export default function AgentSpace() {
             <p className="fi-sp-seiten-text">{daten?.hinweis}</p>
           </div>
         </aside>
+        {/* Zurücknehmen — mit Rückfrage. Ein Beitrag, den man versehentlich
+            entfernt, ist weg; die Rückfrage kostet eine Sekunde. */}
+        <FiaonEbene
+          offen={!!loesche}
+          onZu={() => setLoesche(null)}
+          titel={loesche?.meiner ? "Beitrag zurücknehmen?" : "Beitrag entfernen?"}
+          ueberschrift={loesche?.meiner ? "Nur du siehst diese Frage" : "Moderation"}
+          breite={460}
+          kinder={
+            <>
+              <p className="text-[13px] leading-relaxed" style={{ color: "var(--fi-text-leise)" }}>
+                {loesche?.meiner
+                  ? "Der Beitrag verschwindet aus dem Feed. Reaktionen und Kommentare darauf verschwinden mit."
+                  : "Der Beitrag verschwindet für alle. Das wird protokolliert — mit deinem Namen."}
+              </p>
+              {loesche && (
+                <p className="mt-3 px-3.5 py-3 rounded-2xl text-[12.5px] leading-relaxed"
+                   style={{ background: "rgba(15,23,42,.04)", color: "var(--fi-text-still)" }}>
+                  {loesche.text.slice(0, 180)}{loesche.text.length > 180 ? " …" : ""}
+                </p>
+              )}
+            </>
+          }
+          fuss={
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setLoesche(null)}
+                      className="text-[13px] font-semibold" style={{ color: "var(--fi-text-still)" }}>
+                Behalten
+              </button>
+              <button type="button" onClick={() => loesche && void entfernen(loesche.id)}
+                      className="ml-auto fi-knopf-gefahr fi-knopf-gefahr-voll px-5">
+                {loesche?.meiner ? "Zurücknehmen" : "Entfernen"}
+              </button>
+            </div>
+          }
+        />
       </div>
-    </AgentShell>
+    </>
   );
+
+  return alsAdmin ? inhalt : <AgentShell>{inhalt}</AgentShell>;
 }
 
 const SPACE_CSS = `
@@ -1086,6 +1347,109 @@ a.fi-sp-aktechip:hover {
 .fi-sp-seiten-text {
   font-size: 12px; color: var(--fi-text-still, #64748b); line-height: 1.58; margin: 0;
 }
+
+/* ── Angepinntes: eine Leiste, keine Kartenwand ──────────────────────────── */
+.fi-sp-pinleiste {
+  margin-bottom: 12px; border-radius: 18px; overflow: hidden;
+  background: linear-gradient(158deg, rgba(255,255,255,.74), rgba(255,255,255,.56));
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    0 10px 26px -18px rgba(11,18,38,.4),
+    inset 0 1px 0 rgba(255,255,255,.9),
+    inset 0 0 0 1px rgba(37,99,235,.14);
+}
+.fi-sp-pinzeile + .fi-sp-pinzeile { box-shadow: inset 0 1px 0 rgba(15,23,42,.06); }
+.fi-sp-pinknopf {
+  width: 100%; display: flex; align-items: center; gap: 9px;
+  padding: 11px 15px; border: 0; cursor: pointer; background: none; text-align: left;
+  color: var(--fi-primaer, #1d4ed8);
+  transition: background 160ms;
+}
+.fi-sp-pinknopf:hover { background: rgba(37,99,235,.05); }
+.fi-sp-pintext {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 12.5px; font-weight: 650; color: var(--fi-text-leise, #334155);
+}
+.fi-sp-pinpfeil { transition: transform 240ms cubic-bezier(.32,.72,0,1); }
+.fi-sp-pinzeile[data-offen="1"] .fi-sp-pinpfeil { transform: rotate(180deg); }
+.fi-sp-pininhalt {
+  padding: 0 15px 14px 36px;
+  animation: fiSpAufklappen 260ms cubic-bezier(.32,.72,0,1) both;
+}
+.fi-sp-pinloesen {
+  margin-top: 9px; background: none; border: 0; cursor: pointer; padding: 0;
+  font-size: 11.5px; font-weight: 650; color: var(--fi-text-still, #64748b);
+}
+.fi-sp-pinloesen:hover { color: var(--fi-primaer, #1d4ed8); text-decoration: underline; }
+@media (max-width: 639px) { .fi-sp-pinleiste { border-radius: 0; } }
+
+/* ── Systemavatar: dieselbe Kachel wie das Favicon ───────────────────────── */
+.fi-sp-systemavatar {
+  flex-shrink: 0; border-radius: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: linear-gradient(158deg, #14264f, #0a1a3c 62%, #071129);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.14),
+    inset 0 0 0 1px rgba(255,255,255,.07),
+    0 6px 16px -8px rgba(7,17,41,.7);
+}
+
+/* ── Kennmarke je Beitragsart ────────────────────────────────────────────── */
+.fi-sp-artmarke {
+  flex-shrink: 0; font-size: 10px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase;
+  opacity: .8; white-space: nowrap;
+}
+@media (max-width: 479px) { .fi-sp-artmarke { display: none; } }
+
+.fi-sp-bearbeitet { color: #94a3b8; font-style: italic; }
+
+/* ── Beitragsmenü ────────────────────────────────────────────────────────── */
+.fi-sp-postmenue { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.fi-sp-postmenue-knopf {
+  background: none; border: 0; cursor: pointer; border-radius: 8px;
+  padding: 5px 8px; font-size: 11.5px; font-weight: 600;
+  color: var(--fi-text-still, #64748b);
+  transition: background 160ms, color 160ms;
+}
+.fi-sp-postmenue-knopf:hover { background: rgba(15,23,42,.05); color: var(--fi-text, #0f172a); }
+.fi-sp-postmenue-weg:hover { background: rgba(185,28,28,.07); color: #b91c1c; }
+
+/* ── Bearbeiten ──────────────────────────────────────────────────────────── */
+.fi-sp-bearbeiten { margin-top: 2px; }
+.fi-sp-bearbeiten-feld {
+  width: 100%; resize: none; outline: none; border: 0;
+  padding: 11px 13px; border-radius: 14px;
+  background: rgba(255,255,255,.7);
+  box-shadow: inset 0 0 0 1px rgba(37,99,235,.24), 0 0 0 4px rgba(37,99,235,.07);
+  font-size: 14.5px; line-height: 1.6; font-family: inherit;
+  color: var(--fi-text, #0f172a);
+}
+
+/* ── Kommentare: Antworten und Aktionen ──────────────────────────────────── */
+.fi-sp-kommentar-tat {
+  background: none; border: 0; cursor: pointer; padding: 0;
+  margin-left: 10px; font-size: 10.5px; font-weight: 700;
+  color: var(--fi-text-still, #94a3b8);
+  transition: color 160ms;
+}
+.fi-sp-kommentar-tat:hover { color: var(--fi-primaer, #1d4ed8); }
+/* Eine Ebene Einzug, markiert durch eine Haarlinie — nicht durch Farbe:
+   Eine zweite Flächenfarbe im Feed macht ihn unruhig. */
+.fi-sp-antworten {
+  margin: 0 0 4px 37px; padding-left: 12px;
+  box-shadow: inset 2px 0 0 rgba(15,23,42,.07);
+}
+.fi-sp-mehr-kommentare {
+  background: none; border: 0; cursor: pointer; padding: 4px 0 9px;
+  font-size: 12px; font-weight: 650; color: var(--fi-primaer, #1d4ed8);
+}
+.fi-sp-mehr-kommentare:hover { text-decoration: underline; }
+.fi-sp-antwort-hinweis {
+  font-size: 11.5px; color: var(--fi-text-still, #64748b); margin: 0 0 6px 37px;
+}
+.fi-sp-antwort-hinweis b { color: var(--fi-text-leise, #475569); }
 
 .fi-sp-fehler {
   padding: 12px 15px; border-radius: 15px; margin-bottom: 12px;

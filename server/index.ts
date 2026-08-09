@@ -608,5 +608,13 @@ async function seedSubscriptionPlans() {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    // Die eigene Ausgangsadresse ermitteln und vormerken. Sie ist der Grund,
+    // warum Brevo Mails ablehnt („IP nicht auf der Freigabeliste") — und auf
+    // dieser Plattform wechselt sie bei jedem Neustart. Wer sie sammelt, kann
+    // sie eintragen; wer sieht, dass es viele sind, schaltet die Sperre ab.
+    void import("./lib/fiaon-server-ip")
+      .then((m) => m.eigeneIPMerken())
+      .then((ip) => { if (ip) log(`Ausgangsadresse: ${ip}`); })
+      .catch(() => {});
   });
 })();

@@ -19,6 +19,8 @@ import { FiaonEbene } from "@/components/FiaonEbene";
 // ═══════════════════════════════════════════════════════════════════════════
 
 interface Mitglied {
+  first_name?: string | null;
+  pruefkonto?: boolean;
   id: number; name: string; vorname: string; email: string; avatar: string | null;
   rolle: string; active: boolean; distribution_active: boolean; is_test_account: boolean;
   commission_rate_bp: number | null; monthly_goal_cents: number | null;
@@ -60,6 +62,151 @@ function Avatar({ src, name, size = 40 }: { src: string | null; name: string; si
         {kuerzel}
       </span>
     );
+}
+
+/**
+ * Die Summenzeile: Was kostet das Team diesen Monat, was hat es
+ * hereingeholt? Eine Zeile, im CI-Dunkelblau, ganz oben.
+ *
+ * Sie erscheint NUR, wenn überhaupt Festgehälter hinterlegt sind. Eine
+ * Deckungsquote von „unendlich Prozent", weil niemand ein Gehalt bekommt,
+ * ist keine Information — sie ist Lärm.
+ */
+function TeamKosten() {
+  const [d, setD] = useState<any>(null);
+  useEffect(() => {
+    void fetch("/api/fiaon/admin/team/wirtschaftlichkeit", { credentials: "include" })
+      .then((r) => r.json()).then((j) => setD(j?.ok ? j : null)).catch(() => setD(null));
+  }, []);
+  if (!d || d.mitGehalt === 0) return null;
+
+  const geld = (c: number) => `${(c / 100).toFixed(2).replace(".", ",")} €`;
+  const gut = d.deckung >= 100;
+  return (
+    <div className="mb-3 px-4 py-3.5 rounded-2xl fi-flaeche-tief flex flex-wrap items-center gap-x-7 gap-y-2.5">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[.12em] fi-leise">Personalkosten Monat</p>
+        <p className="text-[17px] font-bold tabular-nums leading-tight">{geld(d.personalkosten)}</p>
+      </div>
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[.12em] fi-leise">Umsatz Monat</p>
+        <p className="text-[17px] font-bold tabular-nums leading-tight">{geld(d.umsatz)}</p>
+      </div>
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[.12em] fi-leise">Deckung</p>
+        <p className="text-[17px] font-bold tabular-nums leading-tight"
+           style={{ color: gut ? "#6ee7b7" : "#fcd34d" }}>{d.deckung} %</p>
+      </div>
+      <p className="text-[11.5px] leading-snug fi-leise" style={{ flex: "1 1 200px", minWidth: 0 }}>
+        {d.satz} · {d.mitGehalt} {d.mitGehalt === 1 ? "Person" : "Personen"} mit Festgehalt.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * „Lohnt sich dieser Mensch?" — Kosten gegen Beitrag, heute und im Monat.
+ *
+ * ── WAS DIESE ZAHL IST UND WAS NICHT ───────────────────────────────────────
+ * Sie beantwortet EINE Frage: Hat dieser Mensch heute mehr hereingeholt, als
+ * er heute gekostet hat. Sie ist KEIN Deckungsbeitrag im buchhalterischen
+ * Sinn — keine Arbeitsplatzkosten, keine Abgaben, keine Werbung. Das steht
+ * auch so auf der Karte; eine Zahl, die mehr verspricht, als sie hält, führt
+ * zu Entscheidungen, die man später bereut.
+ */
+function LohntSich({ agentId, name }: { agentId: number; name: string }) {
+  const [d, setD] = useState<any>(null);
+  useEffect(() => {
+    void fetch(`/api/fiaon/admin/team/wirtschaftlichkeit/${agentId}`, { credentials: "include" })
+      .then((r) => r.json()).then((j) => setD(j?.ok ? j : null)).catch(() => setD(null));
+  }, [agentId]);
+
+  if (!d) return <p className="text-[13px] text-slate-500">Wird gerechnet …</p>;
+
+  const geld = (c: number) => `${(c / 100).toFixed(2).replace(".", ",")} €`;
+  const gut = d.deckung >= 100;
+  const hoechst = Math.max(1, ...d.verlauf.map((v: any) => Math.max(v.beitrag, v.kosten)));
+
+  return (
+    <>
+      {/* Die Kachel, die der Betreiber im Vorbeigehen liest. */}
+      <div className="p-4 rounded-2xl fi-flaeche-tief">
+        <p className="text-[10.5px] font-bold uppercase tracking-[.12em] fi-leise">Heute</p>
+        <p className="mt-1.5 text-[22px] font-bold leading-none tracking-tight"
+           style={{ color: gut ? "#6ee7b7" : d.deckung > 0 ? "#fcd34d" : "#fca5a5" }}>
+          {d.satz}
+        </p>
+        <div className="mt-3.5 grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-[11px] fi-leise">Kosten heute</p>
+            <p className="text-[16px] font-bold tabular-nums">{geld(d.kosten.gesamt)}</p>
+            <p className="text-[10.5px] fi-leise leading-snug mt-0.5">
+              {d.kosten.gehaltAnteil > 0 && `${geld(d.kosten.gehaltAnteil)} Gehaltsanteil`}
+              {d.kosten.gehaltAnteil > 0 && (d.kosten.stunden > 0 || d.kosten.provisionen > 0) && " · "}
+              {d.kosten.stunden > 0 && `${geld(d.kosten.stunden)} Stunden`}
+              {d.kosten.stunden > 0 && d.kosten.provisionen > 0 && " · "}
+              {d.kosten.provisionen > 0 && `${geld(d.kosten.provisionen)} Provision`}
+              {d.kosten.gesamt === 0 && "keine hinterlegt"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] fi-leise">Hereingeholt</p>
+            <p className="text-[16px] font-bold tabular-nums">{geld(d.beitrag)}</p>
+            <p className="text-[10.5px] fi-leise mt-0.5">Auftragswert seiner Abschlüsse</p>
+          </div>
+        </div>
+
+        {/* Die Linie: 30 Tage Beitrag gegen die Kostenlinie. */}
+        <div className="mt-4 flex items-end gap-[3px]" style={{ height: 46 }}>
+          {d.verlauf.map((v: any) => {
+            const h = Math.max(2, Math.round((v.beitrag / hoechst) * 44));
+            const gedeckt = v.kosten === 0 || v.beitrag >= v.kosten;
+            return (
+              <span key={v.tag} title={`${v.tag}: ${geld(v.beitrag)}`}
+                    style={{
+                      flex: 1, height: h, borderRadius: 2,
+                      background: v.beitrag === 0
+                        ? "rgba(255,255,255,.1)"
+                        : gedeckt ? "rgba(110,231,183,.85)" : "rgba(252,211,77,.8)",
+                    }} />
+            );
+          })}
+        </div>
+        <p className="mt-1.5 text-[10px] fi-leise">30 Tage · grün = Kosten gedeckt</p>
+      </div>
+
+      {/* Der Monat. */}
+      <div className="mt-3 p-4 rounded-2xl" style={{ background: "rgba(15,23,42,.03)", boxShadow: "inset 0 0 0 1px rgba(15,23,42,.07)" }}>
+        <p className="text-[10.5px] font-bold uppercase tracking-[.12em] text-slate-500">Dieser Monat</p>
+        <div className="mt-2 grid grid-cols-3 gap-3">
+          {[
+            ["Kosten", geld(d.monat.kosten)],
+            ["Umsatz", geld(d.monat.beitrag)],
+            ["Deckung", `${d.monat.deckung} %`],
+          ].map(([t, w]) => (
+            <div key={t}>
+              <p className="text-[11px] text-slate-500">{t}</p>
+              <p className="text-[15px] font-bold tabular-nums text-slate-900">{w}</p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-2.5 text-[12px] text-slate-600 leading-relaxed">
+          {d.monat.breakEvenTag
+            ? `Break-even am ${new Date(d.monat.breakEvenTag).toLocaleDateString("de-DE", { day: "numeric", month: "long" })} — ab da arbeitet ${name} für den Gewinn.`
+            : d.monat.kosten === 0
+              ? "Kein Festgehalt hinterlegt — dieser Mensch kostet nur, was er verdient."
+              : "Der Break-even ist diesen Monat noch nicht erreicht."}
+        </p>
+      </div>
+
+      <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
+        Diese Rechnung enthält Festgehalt, bestätigte Stunden und gebuchte Provisionen —
+        keine Arbeitsplatzkosten, keine Abgaben, keine Werbekosten. Sie beantwortet eine
+        einzige Frage: Hat dieser Mensch heute mehr hereingeholt, als er heute gekostet hat.
+        Der Umsatz kommt aus derselben Quelle wie die Rangliste, es wird nicht zweimal gezählt.
+      </p>
+    </>
+  );
 }
 
 export default function AdminTeamZentrale() {
@@ -106,7 +253,7 @@ export default function AdminTeamZentrale() {
         <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
           <div>
             <h1 className="text-[22px] font-bold tracking-tight text-slate-900">Team-Zentrale</h1>
-            <p className="text-[12.5px] text-slate-400 mt-0.5">
+            <p className="text-[12.5px] text-slate-500 mt-0.5">
               Kennzahlen, Provisionen, Protokolle und Nachrichten — alles zu einem Menschen an einem Ort.
             </p>
           </div>
@@ -251,6 +398,8 @@ export default function AdminTeamZentrale() {
         <MitgliedDetail id={offen} team={team} onZu={() => setOffen(null)}
                         onNachricht={(id) => setNachrichtAn([id])} onAenderung={laden} />
       )}
+      <TeamKosten />
+
       {einladen && (
         <InviteModal
           defaults={{ commissionRateBp: 1500 }}
@@ -278,7 +427,7 @@ function MitgliedDetail({
 }) {
   const m = team.find((x) => x.id === id);
   const [reiter, setReiter] = useState<
-    "zahlen" | "verwaltung" | "protokoll" | "provision" | "verguetung"
+    "zahlen" | "lohnt" | "verwaltung" | "protokoll" | "provision" | "verguetung"
   >("zahlen");
   const [logs, setLogs] = useState<any>(null);
   const [logArt, setLogArt] = useState("");
@@ -356,8 +505,9 @@ function MitgliedDetail({
               Reiter auf 380 px sind sonst drei Zeilen hoch. */}
           <div className="mt-3.5 flex gap-1.5 overflow-x-auto pb-0.5"
                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-            {([["zahlen", "Zahlen"], ["verwaltung", "Verwaltung"], ["provision", "Provisionen"],
-               ["verguetung", "Vergütung & Stunden"], ["protokoll", "Protokoll"]] as const)
+            {([["zahlen", "Zahlen"], ["lohnt", "Lohnt sich?"], ["verwaltung", "Verwaltung"],
+               ["provision", "Provisionen"], ["verguetung", "Vergütung & Stunden"],
+               ["protokoll", "Protokoll"]] as const)
               .map(([w, t]) => (
                 <button key={w} type="button" onClick={() => setReiter(w)}
                         className="shrink-0 px-3 py-1.5 rounded-xl text-[12.5px] font-semibold whitespace-nowrap"
@@ -378,6 +528,8 @@ function MitgliedDetail({
       kinder={
         <>
           {hinweis && <p className="mb-3 text-[12.5px] font-semibold text-emerald-700">{hinweis}</p>}
+
+          {reiter === "lohnt" && <LohntSich agentId={m.id} name={m.name} />}
 
           {reiter === "zahlen" && (
             <>
@@ -420,7 +572,47 @@ function MitgliedDetail({
           )}
 
           {reiter === "verwaltung" && (
-            <VerwaltungTafel m={m} onAenderung={onAenderung} onHinweis={setHinweis} onZu={onZu} />
+            <>
+              {/* ── PORTAL ANSEHEN ─────────────────────────────────────────
+                  Der Betreiber: „ich kann mir ja nicht ein Account machen um
+                  jede Abteilung, jedes Dashboard zu sehen." Jetzt: ein Klick,
+                  neuer Tab, das Portal exakt so, wie dieser Mensch es sieht —
+                  aber NUR LESEND. Jede schreibende Route lehnt die Sitzung
+                  serverseitig ab, an einer Stelle. */}
+              <div className="mb-4 p-4 rounded-2xl fi-flaeche-tief">
+                <p className="text-[10.5px] font-bold uppercase tracking-[.12em] fi-leise">Durchblick</p>
+                <p className="mt-1 text-[14px] font-bold">
+                  Portal ansehen als {m.first_name || m.name}
+                </p>
+                <p className="mt-1.5 text-[12px] leading-relaxed fi-leise">
+                  Öffnet das Team-Portal in einem neuen Tab, genau so, wie {m.first_name || "diese Person"} es
+                  sieht — Rolle, Kundenliste, Verdienst, Space.{" "}
+                  <b style={{ color: "#fff" }}>Nur-Ansicht:</b> Es lassen sich keine Ergebnisse buchen,
+                  keine Mails senden und keine Beiträge schreiben. Die Sitzung läuft nach
+                  30 Minuten von selbst ab und wird protokolliert.
+                </p>
+                <button type="button"
+                        onClick={async () => {
+                          const r = await fetch(`/api/fiaon/admin/team/ansicht/${m.id}`, {
+                            method: "POST", credentials: "include",
+                          }).catch(() => null);
+                          const j = await r?.json().catch(() => null);
+                          if (!j?.ok) { setHinweis(j?.error || "Ansicht konnte nicht gestartet werden."); return; }
+                          window.open(j.ziel || "/agent/start", "_blank", "noopener");
+                        }}
+                        className="mt-3 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold"
+                        style={{ background: "rgba(255,255,255,.14)", color: "#fff",
+                                 boxShadow: "inset 0 1px 0 rgba(255,255,255,.2)" }}>
+                  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                       strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M1.8 10S4.9 4.5 10 4.5 18.2 10 18.2 10 15.1 15.5 10 15.5 1.8 10 1.8 10Z" />
+                    <circle cx="10" cy="10" r="2.4" />
+                  </svg>
+                  Portal öffnen
+                </button>
+              </div>
+              <VerwaltungTafel m={m} onAenderung={onAenderung} onHinweis={setHinweis} onZu={onZu} />
+            </>
           )}
 
           {reiter === "verguetung" && <VerguetungTafel agentId={id} rolle={m.rolle} />}

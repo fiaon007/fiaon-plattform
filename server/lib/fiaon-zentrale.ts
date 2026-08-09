@@ -292,7 +292,16 @@ export async function zentraleSenden(opts: {
   text: string;
   akteur: { name: string; agentId: number | null };
   lauf?: Lauf;
-}): Promise<{ versandt: number; fehlgeschlagen: number; vertagt: number; meldung: string }> {
+}): Promise<{
+  versandt: number; fehlgeschlagen: number; vertagt: number; meldung: string;
+  /** Je Empfänger: hat es geklappt, und wenn nicht — warum. */
+  ergebnisse: {
+    email: string; name: string; personId: number | null;
+    ok: boolean; grund: string | null; protokollId: number | null;
+  }[];
+  /** Die verschiedenen Gründe, entdoppelt — für die Kopfzeile der Meldung. */
+  gruende: string[];
+}> {
   const lauf = opts.lauf ?? sqlPool;
   // ── STAFFELUNG ──────────────────────────────────────────────────────────
   // Was über 200 in der laufenden Stunde hinausgeht, wird nicht gesendet und
@@ -307,6 +316,17 @@ export async function zentraleSenden(opts: {
 
   let versandt = 0;
   let fehlgeschlagen = 0;
+  // ── DAS EINZELERGEBNIS ──────────────────────────────────────────────────
+  // Bis zum 11.08.2026 gab diese Funktion nur „1 fehlgeschlagen (Grund steht
+  // im Protokoll)" zurück. Der Grund lag zu diesem Zeitpunkt bereits in
+  // `r.grund` vor — er wurde ins Protokoll geschrieben und aus der Antwort
+  // weggeworfen. Der Betreiber musste eine Tabelle suchen, um zu erfahren,
+  // was die Zeile darüber schon wusste.
+  const ergebnisse: {
+    email: string; name: string; personId: number | null;
+    ok: boolean; grund: string | null; protokollId: number | null;
+  }[] = [];
+
   for (const e of jetzt) {
     const betreff = bausteineFuellen(opts.betreff, e);
     const text = bausteineFuellen(opts.text, e);
@@ -323,10 +343,20 @@ export async function zentraleSenden(opts: {
       ausgeloestVon: opts.akteur.name,
       ausgeloestAgentId: opts.akteur.agentId,
     }, lauf);
-    await lauf`
+    const [zeile] = (await lauf`
       UPDATE fiaon_mail_log SET betreff = ${betreff}, brevo_message_id = ${r.messageId}
       WHERE id = (SELECT MAX(id) FROM fiaon_mail_log WHERE event = 'zentrale_freitext')
-    `.catch(() => {});
+      RETURNING id
+    `.catch(() => [] as any[])) as any[];
+
+    ergebnisse.push({
+      email: e.email, name: e.name, personId: e.personId ?? null,
+      ok: r.ok, grund: r.grund ?? null,
+      // Die Kennung der Protokollzeile — damit die Oberfläche einen Knopf
+      // „Im Protokoll öffnen" bauen kann, der GENAU auf diese Zeile springt
+      // und nicht auf eine Liste, in der man wieder suchen muss.
+      protokollId: zeile?.id ? Number(zeile.id) : null,
+    });
 
     // Jede Mail in die Akte — sonst weiß der Kollege beim nächsten Anruf
     // nicht, dass der Kunde gestern angeschrieben wurde.
@@ -339,10 +369,24 @@ export async function zentraleSenden(opts: {
     }
   }
 
-  return {
-    versandt, fehlgeschlagen, vertagt,
-    meldung: vertagt > 0
-      ? `${versandt} verschickt. ${vertagt} nicht — das Stundenkontingent von ${PRO_STUNDE} ist erreicht. Bitte in einer Stunde erneut.`
-      : `${versandt} verschickt${fehlgeschlagen > 0 ? `, ${fehlgeschlagen} fehlgeschlagen (Grund steht im Protokoll)` : ""}.`,
-  };
+  // Die Meldung nennt den GRUND, nicht seinen Aufbewahrungsort. Sind alle
+  // Fehler derselbe Fehler — der Regelfall, etwa eine gesperrte Server-IP —,
+  // steht er direkt in der Zeile.
+  const gruende = Array.from(new Set(
+    ergebnisse.filter((x) => !x.ok && x.grund).map((x) => x.grund as string),
+  ));
+  let meldung: string;
+  if (vertagt > 0) {
+    meldung = `${versandt} verschickt. ${vertagt} nicht — das Stundenkontingent `
+      + `von ${PRO_STUNDE} ist erreicht. Bitte in einer Stunde erneut.`;
+  } else if (fehlgeschlagen === 0) {
+    meldung = `${versandt} verschickt.`;
+  } else if (gruende.length === 1) {
+    meldung = `${versandt} verschickt, ${fehlgeschlagen} nicht: ${gruende[0]}`;
+  } else {
+    meldung = `${versandt} verschickt, ${fehlgeschlagen} nicht — aus `
+      + `${gruende.length} verschiedenen Gründen. Sie stehen unten je Empfänger.`;
+  }
+
+  return { versandt, fehlgeschlagen, vertagt, meldung, ergebnisse, gruende };
 }

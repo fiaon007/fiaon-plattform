@@ -25,7 +25,11 @@ import { gedankeFuer } from "./fiaon-gedanken";
 type Lauf = typeof sqlPool;
 
 /** Die vier Marken. Eigene SVG im Client, hier nur die Schlüssel. */
-export const REAKTIONEN = ["daumen", "herz", "stern", "blitz"] as const;
+// ── ZWEI REAKTIONEN, NICHT VIER (11.08.2026) ───────────────────────────────
+// „Daumen, Herz, Stern, Blitz" klang nach Auswahl und war keine: Niemand
+// konnte sagen, wofür Stern statt Herz steht, und die Zahlen verteilten sich
+// auf vier Töpfe, sodass keine aussagekräftig war.
+export const REAKTIONEN = ["gut", "schlecht"] as const;
 export type Reaktion = (typeof REAKTIONEN)[number];
 export function istReaktion(v: unknown): v is Reaktion {
   return typeof v === "string" && (REAKTIONEN as readonly string[]).includes(v);
@@ -100,10 +104,17 @@ export interface Post {
   akteRef: string | null;
   aktePerson: number | null;
   hatBild: boolean;
+  bearbeitet: boolean;
+  meiner: boolean;
+  bearbeitbarBis: string | null;
   reaktionen: Record<string, number>;
   /** Die eigene Reaktion, falls es eine gibt. */
   meine: string | null;
-  kommentare: { id: number; agentId: number; name: string; avatar: string | null; text: string; am: string }[];
+  kommentare: {
+    id: number; agentId: number; name: string; avatar: string | null;
+    text: string; am: string; antwortAuf: number | null;
+    bearbeitet: boolean; meiner: boolean;
+  }[];
 }
 
 /**
@@ -139,7 +150,7 @@ export async function feedLesen(
 
   const posts = (await lauf`
     SELECT p.id, p.autor_agent_id, p.autor_typ, p.text, p.angepinnt, p.auto_art, p.created_at,
-           p.akte_ref, p.akte_person, p.bild_typ,
+           p.akte_ref, p.akte_person, p.bild_typ, p.bearbeitet_am,
            (p.bild IS NOT NULL) AS hat_bild,
            COALESCE(NULLIF(a.first_name, ''), a.name) AS autor_name, a.avatar AS avatar_url
     FROM fiaon_posts p
@@ -157,7 +168,7 @@ export async function feedLesen(
   const [reaktionen, kommentare] = await Promise.all([
     lauf`SELECT post_id, art, agent_id FROM fiaon_post_reaktionen WHERE post_id = ANY(${ids})` as any,
     lauf`
-      SELECT k.id, k.post_id, k.agent_id, k.text, k.created_at,
+      SELECT k.id, k.post_id, k.agent_id, k.text, k.created_at, k.antwort_auf, k.bearbeitet_am,
              COALESCE(NULLIF(a.first_name, ''), a.name) AS name, a.avatar AS avatar_url
       FROM fiaon_post_kommentare k
       LEFT JOIN fiaon_agents a ON a.id = k.agent_id
@@ -188,6 +199,14 @@ export async function feedLesen(
       // Nur ob ein Bild da ist. Die Bytes holt der Browser einzeln ab, sonst
       // trüge jede Feed-Antwort ein paar Megabyte mit sich.
       hatBild: !!p.hat_bild,
+      bearbeitet: !!p.bearbeitet_am,
+      // Der Autor darf löschen, und binnen 15 Minuten bearbeiten. Danach
+      // nicht mehr: Wer einen Beitrag gelesen und darauf reagiert hat, soll
+      // sich darauf verlassen können, dass er noch dasselbe sagt.
+      meiner: p.autor_agent_id != null && Number(p.autor_agent_id) === agentId,
+      bearbeitbarBis: p.autor_agent_id != null && Number(p.autor_agent_id) === agentId
+        ? new Date(new Date(p.created_at).getTime() + 15 * 60_000).toISOString()
+        : null,
       reaktionen: zaehler,
       meine: eigene.find((r) => Number(r.agent_id) === agentId)?.art ?? null,
       kommentare: (kommentare as any[])
@@ -196,6 +215,10 @@ export async function feedLesen(
           id: Number(k.id), agentId: Number(k.agent_id),
           name: k.name || "Teammitglied", avatar: k.avatar_url || null,
           text: String(k.text), am: k.created_at,
+          antwortAuf: k.antwort_auf ? Number(k.antwort_auf) : null,
+          bearbeitet: !!k.bearbeitet_am,
+          // Darf ich diesen Kommentar löschen? Der Autor immer.
+          meiner: Number(k.agent_id) === agentId,
         })),
     };
   });

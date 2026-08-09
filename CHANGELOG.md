@@ -3,6 +3,91 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (III) — Fehlergründe am Ort, Mail radikal einfach, Space v3, Durchblick
+
+### Zuerst: Nikita wurde ohne Auftrag versetzt
+
+Der Betreiber: „NIKITA ist AGENT, nicht Onboarding! Niemals einen Mitarbeiter versetzen."
+
+Nachgesehen: Nikita stand auf `inkasso`. Im Protokoll gibt es dazu **keinen einzigen Eintrag** — Rollenwechsel über `/admin/team` werden protokolliert, dieser nicht. Also wurde die Rolle per direktem SQL gesetzt, und der Einzige, der das tut, bin ich. Beim Bau der Inkasso-Rolle brauchte ich jemanden zum Testen. Das war falsch.
+
+Zurückgestellt auf `agent`, diesmal **mit** Protokolleintrag samt Begründung. Es gibt jetzt weder Onboarding- noch Inkasso-Personal — wie es sein soll. Der Prüfstand wacht darüber.
+
+### Der Link, der ins Leere führte
+
+„Zeiten eintragen" zeigte auf `/agent/verfuegbarkeit`. **Diese Seite gibt es nicht und gab es nie** — die Zeiten trägt man im Profil ein. Der Knopf stand an **vier** Stellen; drei fielen beim ersten Durchgang auf, die vierte (in „deine erste Aufgabe") fand erst die Prüfung, die alle Ziele gegen die Routentabelle hält. Diese Prüfung bleibt.
+
+### Fehlergründe gehören an den Ort des Geschehens
+
+Der Betreiber sah: *„0 verschickt, 1 fehlgeschlagen (Grund steht im Protokoll)"* — und dazu: *„WTF warum kein direkter Link dahin, wo ist dieses Protokoll???"*
+
+**Der Grund lag zu diesem Zeitpunkt bereits vor.** Er wurde ins Protokoll geschrieben und aus der Antwort weggeworfen. In der Datenbank steht seit dem 09.08.:
+
+> Brevo-Sicherheit blockiert diesen Server — die Adresse **74.220.50.221** steht nicht auf der Freigabeliste.
+
+Neue Hausregel: **Wenn etwas fehlschlägt, steht der Grund in der Meldung.** Nie ein Verweis auf einen anderen Ort. Umgebaut wurde die eine Fundstelle in `fiaon-zentrale.ts`; die anderen Treffer für „steht im Protokoll" waren Kommentare, keine Nutzertexte.
+
+Die Mail-Zentrale zeigt jetzt eine **Ergebnis-Karte**: je Empfänger Status und Klartext-Grund, dazu „Im Protokoll öffnen" mit Tiefverweis auf genau diese Zeile — und bei einer IP-Sperre „So behebst du das".
+
+**Die Ursache dauerhaft entschärft:** Der Server ermittelt beim Start seine Ausgangsadresse und merkt sich jede, die Brevo ablehnt. Die Diagnose zeigt sie zum Kopieren — und empfiehlt ehrlich, die Beschränkung abzuschalten: Diese Plattform bekommt bei jedem Neustart eine andere IP, eine Freigabeliste ist hier ein Fass ohne Boden.
+
+### Mail-Zentrale: ein Feld statt drei
+
+Vorher: Kundensuche, Gruppen-Knopfwand, externes Feld. Man musste wissen, welche wofür ist.
+
+Jetzt **ein Feld**: Tippen durchsucht Kunden, Enter macht aus einer freien Adresse einen Chip. Gruppen liegen hinter **einem** Knopf mit Zähler — wer sie nicht braucht, sieht sie nicht.
+
+### Knöpfe: weiße Schrift, Glas, Druck
+
+Der Betreiber: „Alle Schriftfarben in den blauen Button in weiß, nicht schwarz — kaum lesbar!"
+
+Neue Knopf-Familie: **Primär** mit Verlauf, Glanzkante, Farbschatten und Einsinken beim Drücken — Schrift per `!important` weiß, auch bei verschachtelten Beschriftungen. **Sekundär** als Glas. **Gefahr** zurückhaltend umrandet, Fläche erst im Bestätigungsdialog. Dazu `--fi-tief: #0A1A3C` als Flächenfarbe für dunkle Akzentkarten; darauf ist alles hell.
+
+Der Kontrast wird **gemessen**, nicht behauptet: Eine Browser-Stichprobe rechnet für jeden gerenderten Knopf das Verhältnis aus. Die erste Fassung meldete falsche Treffer — sie las nur `backgroundColor`, und ein Verlauf steht in `backgroundImage`. Korrigiert. Gefunden wurden zwei echte Fälle: `#94a3b8` auf Weiß = **2,6:1** bei „Sperren" und der Suche.
+
+### Space v3
+
+**Das alte Icon ist weg.** Der Betreiber: „Warum hat FIAON links daneben so ein ekelhaftes altes ICON?" Es war ein generischer Aufwärtspfeil. Jetzt dieselbe Kachel wie das Favicon: dunkles CI-Blau, das „F" der Wortmarke, die Aufwärtsgeste.
+
+**Reaktionen auf zwei reduziert:** Gefällt mir / Gefällt mir nicht. Vier Marken klangen nach Auswahl und waren keine — niemand konnte sagen, wofür „Stern" statt „Herz" steht. Die alten wurden **zusammengeführt, nicht gelöscht**: Eine Reaktion ist die Äußerung eines Menschen.
+
+**Angepinntes als schmale Leiste**, einzeilig und aufklappbar. Drei Riesenkarten schoben den ersten echten Beitrag unter die Falzlinie.
+
+**Eigene Beiträge:** zurücknehmen jederzeit, ändern binnen 15 Minuten mit sichtbarer Marke. Danach nicht mehr — wer zugestimmt hat, soll sich darauf verlassen können, dass der Text noch dasselbe sagt.
+
+**Antworten auf Kommentare**, genau eine Ebene tief. Wer auf eine Antwort antwortet, hängt am selben Elternteil; tiefere Bäume sind auf 380 px unlesbar. Ab drei Kommentaren wird eingeklappt.
+
+**`/admin/space`**: derselbe Feed, volle Interaktion, Moderation, Anpinnen — und ein Umschalter, ob der Betreiber als er selbst oder als FIAON schreibt.
+
+### Favicon
+
+Es gab **keins**. Auf einer Leiste mit zehn Tabs war FIAON das einzige ohne Gesicht. Jetzt SVG plus PNG 32/180 plus maskable 512, Manifest, Theme-Farbe. Und die Tabs heißen endlich unterschiedlich: „Kunden · FIAON", „Space · FIAON".
+
+### Lohnt sich der Mitarbeiter?
+
+Neue Felder je Mensch: **Festgehalt**, Vergütungsmodell, Startdatum, Monatsziel — sichtbar **nur** für den Betreiber.
+
+Die Rechnung: *Kosten heute* = Festgehalt ÷ Arbeitstage + bestätigte Stunden × Satz + heutige Provisionen. *Beitrag heute* = Auftragswert der Abschlüsse. Dazu „gedeckt ab 14:20", der Break-even-Tag des Monats und eine 30-Tage-Linie.
+
+**Keine zweite Umsatzzählung:** Der Beitrag kommt aus `base_amount_cents` — derselben Spalte wie die Rangliste. Nachgemessen: 436.751 Cent aus beiden Quellen, identisch. Die Gegenprobe wird rot, wenn man eine eigene Zählung einbaut.
+
+**Die Einladung fragt zuerst die Position** und je nach Wahl die passenden Felder. Vorher wurde jeder als „agent" angelegt und musste nachträglich umgestellt werden — ein Schritt, den man vergisst.
+
+### Als-Mitarbeiter-Ansicht
+
+„Portal ansehen als [Vorname]" öffnet das Team-Portal genau so, wie dieser Mensch es sieht. Vier Wände:
+
+1. **Eigenes Token**, 30 Minuten, niemals das echte Cookie.
+2. **Nur lesen** — als Middleware VOR allen Routen. Nicht als Liste schreibender Routen: Die müsste bei jeder neuen gepflegt werden, und genau die eine wäre das Leck. Die HTTP-Methode ist die einzige Eigenschaft, die jede Route zwangsläufig hat.
+3. **Dunkelblauer Banner** ganz oben, nicht wegklickbar, mit Namen und Restzeit.
+4. **Protokoll** bei Start und Ende. Nur der Betreiber — die Vertriebsleitung bekommt das Werkzeug nicht.
+
+Der Prüfstand leitet den Katalog schreibender Routen **aus den registrierten Routen ab** und schickt jede einzeln durch die Wand. Gegenprobe: Nimmt man die Wand heraus, kämen **79 Routen** durch.
+
+### Prüfstand
+
+`scripts/pruef-veredelung.ts` — **141 Prüfungen**, alle grün. Gesamt **1.556** über zwölf Prüfstände. `pruef-mail` und `pruef-menschen` nachgezogen (Reaktionszahl).
+
 ## 11.08.2026 — Das eigene Gesicht, ein Prüfkonto, das alles darf, und ein Space mit Tiefe
 
 ### „Bei mir steht einfach nur JS"

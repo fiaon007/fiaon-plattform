@@ -214,6 +214,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // 👤 FIAON Agent-Portal — Rollentrennung: Agent-Token auf /admin-Routen ⇒ 403 (serverseitig)
   const fiaonAgentRoutes = await import('./routes/fiaon-agent');
+  // ── NUR-ANSICHT (11.08.2026) ──────────────────────────────────────────────
+  // Läuft eine Ansichts-Sitzung, wird JEDES Schreiben abgelehnt. Hier, VOR
+  // allen Routen — nicht in jeder einzeln. Eine Liste schreibender Routen
+  // müsste bei jeder neuen gepflegt werden, und genau die eine würde
+  // vergessen. Die HTTP-Methode ist die einzige Eigenschaft, die jede Route
+  // zwangsläufig hat.
+  app.use('/api/fiaon', (await import('./lib/fiaon-ansicht')).ansichtNurLesen);
   app.use('/api/fiaon', fiaonAgentRoutes.blockAgentsFromAdmin);
 
   // 🔢 Admin-Zugang — EIN Zahlencode vor dem Verwaltungsbereich. Der Router

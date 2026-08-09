@@ -446,13 +446,32 @@ export function issueAgentCookie(res: Response, agentId: number, epoch: number):
 
 // ── Middleware ───────────────────────────────────────────────────────────────
 export interface AgentRequest extends Request {
-  agent?: { id: number; name: string; email: string; first_name: string | null };
+  agent?: {
+    id: number; name: string; email: string; first_name: string | null;
+    avatar?: string | null; rolle?: string;
+    is_test_account?: boolean; pruefkonto?: boolean;
+    /** Nur-Ansicht: Der Betreiber sieht zu, der Mensch hat sich nicht angemeldet. */
+    ansicht?: boolean; ansichtBis?: string | null;
+  };
 }
 
 export async function requireAgent(req: AgentRequest, res: Response, next: NextFunction) {
   try {
     await ensureAgentTables();
-    const tok = verifyAgentToken(req.cookies?.[AGENT_COOKIE]);
+    // ── ANSICHTS-SITZUNG (11.08.2026) ────────────────────────────────────
+    // Der Betreiber sieht das Portal mit den Augen eines Mitarbeiters. Das
+    // Ansichts-Token ist ein EIGENES — niemals das echte Cookie des Menschen.
+    // Es trägt nur seine Kennung und läuft nach 30 Minuten ab.
+    //
+    // HIER und nicht in jeder Route: `requireAgent` ist die einzige Stelle,
+    // durch die jede Team-Route läuft. Eine zweite Prüfung woanders wäre eine
+    // zweite Stelle, die jemand vergisst.
+    const { ansichtTokenPruefen, ANSICHT_COOKIE } = await import("../lib/fiaon-ansicht");
+    const ansicht = ansichtTokenPruefen(req.cookies?.[ANSICHT_COOKIE]);
+
+    const tok = ansicht
+      ? { id: ansicht.agentId, epoch: -1 }
+      : verifyAgentToken(req.cookies?.[AGENT_COOKIE]);
     if (!tok) return res.status(401).json({ ok: false, error: "Nicht angemeldet" });
     // AVATAR UND ROLLE GEHÖREN DAZU (11.08.2026): Der Betreiber hatte ein
     // Profilbild hinterlegt und sah trotzdem überall nur seine Initialen —
@@ -466,8 +485,11 @@ export async function requireAgent(req: AgentRequest, res: Response, next: NextF
     if (rows.length === 0 || !rows[0].active) {
       return res.status(401).json({ ok: false, error: "Zugang deaktiviert" });
     }
-    // Session-Epoch-Vergleich: nach Force-Reset sind alte Tokens ungültig
-    if (Number(rows[0].session_epoch) !== tok.epoch) {
+    // Session-Epoch-Vergleich: nach Force-Reset sind alte Tokens ungültig.
+    // Eine Ansichts-Sitzung (epoch -1) ist davon ausgenommen — sie hat mit
+    // der Anmeldung des Menschen nichts zu tun und darf nicht davon abhängen,
+    // ob er zwischendurch sein Passwort geändert hat.
+    if (tok.epoch !== -1 && Number(rows[0].session_epoch) !== tok.epoch) {
       return res.status(401).json({ ok: false, error: "Sitzung abgelaufen — bitte neu anmelden" });
     }
     req.agent = {
@@ -476,6 +498,10 @@ export async function requireAgent(req: AgentRequest, res: Response, next: NextF
       rolle: String(rows[0].rolle || "agent"),
       is_test_account: !!rows[0].is_test_account,
       pruefkonto: !!rows[0].pruefkonto,
+      // Läuft gerade eine Ansicht? Die Oberfläche zeigt daraufhin den Banner
+      // und der Server lehnt jedes Schreiben ab.
+      ansicht: !!ansicht,
+      ansichtBis: ansicht ? new Date(ansicht.bis).toISOString() : null,
     };
     next();
   } catch (err) {
@@ -1130,6 +1156,27 @@ router.post("/agent/login", async (req, res) => {
     res.json({ ok: true, agent: { name: rows[0].name, email: rows[0].email } });
   } catch (err) {
     console.error("[FIAON-AGENT] login:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /agent/ansicht/beenden — die Ansichts-Sitzung verlassen.
+ *
+ * Die EINZIGE schreibende Route, die während einer Ansicht erlaubt ist
+ * (siehe `ansichtNurLesen`). Ohne sie käme man nicht mehr heraus, denn jedes
+ * andere POST wird abgelehnt.
+ */
+router.post("/agent/ansicht/beenden", async (req, res) => {
+  try {
+    const { ANSICHT_COOKIE, ansichtTokenPruefen, ansichtProtokoll } =
+      await import("../lib/fiaon-ansicht");
+    const tok = ansichtTokenPruefen(req.cookies?.[ANSICHT_COOKIE]);
+    res.clearCookie(ANSICHT_COOKIE, { path: "/" });
+    if (tok) await ansichtProtokoll(tok.agentId, "beendet");
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FIAON-AGENT] ansicht beenden:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

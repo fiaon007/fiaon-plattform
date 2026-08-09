@@ -81,7 +81,9 @@ export const STRECKEN: Record<Rolle, Strecke> = {
         schluessel: "verfuegbarkeit",
         titel: "Verfügbarkeit setzen",
         warum: "Kunden buchen Gespräche in deinen Kalender. Ohne Zeiten bekommst du keine Termine.",
-        ziel: { href: "/agent/verfuegbarkeit", label: "Zeiten eintragen" },
+        // Die Zeiten trägt man im PROFIL ein — eine Seite /agent/verfuegbarkeit
+        // gibt es nicht und gab es nie. Der Knopf führte ins Leere.
+        ziel: { href: "/agent/profil#erreichbarkeit", label: "Zeiten eintragen" },
       },
       {
         schluessel: "liste_verstanden",
@@ -152,7 +154,9 @@ export const STRECKEN: Record<Rolle, Strecke> = {
         schluessel: "verfuegbarkeit",
         titel: "Verfügbarkeit setzen",
         warum: "Du führst auch selbst Gespräche.",
-        ziel: { href: "/agent/verfuegbarkeit", label: "Zeiten eintragen" },
+        // Die Zeiten trägt man im PROFIL ein — eine Seite /agent/verfuegbarkeit
+        // gibt es nicht und gab es nie. Der Knopf führte ins Leere.
+        ziel: { href: "/agent/profil#erreichbarkeit", label: "Zeiten eintragen" },
       },
       {
         schluessel: "gesamtsicht",
@@ -223,7 +227,9 @@ export const STRECKEN: Record<Rolle, Strecke> = {
         schluessel: "verfuegbarkeit",
         titel: "Verfügbarkeit setzen",
         warum: "Kunden buchen ihr Startgespräch selbst in deinen Kalender. Ohne Zeiten passiert nichts.",
-        ziel: { href: "/agent/verfuegbarkeit", label: "Zeiten eintragen" },
+        // Die Zeiten trägt man im PROFIL ein — eine Seite /agent/verfuegbarkeit
+        // gibt es nicht und gab es nie. Der Knopf führte ins Leere.
+        ziel: { href: "/agent/profil#erreichbarkeit", label: "Zeiten eintragen" },
       },
       {
         schluessel: "startgespraeche",
@@ -270,7 +276,7 @@ export const STRECKEN: Record<Rolle, Strecke> = {
       text:
         "Ohne freie Zeiten kann kein Kunde buchen, und deine Liste bleibt leer. Zwei "
         + "Nachmittage genügen für den Anfang.",
-      href: "/agent/verfuegbarkeit",
+      href: "/agent/profil#erreichbarkeit",
     },
   },
 

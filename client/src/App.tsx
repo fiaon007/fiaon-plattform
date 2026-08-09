@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ComponentType } from "react";
 import { Umleitung } from "@/components/Umleitung";
-import { Switch, Route, Redirect } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
+import { useSeitenTitel } from "@/lib/fiaon-titel";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -122,6 +123,11 @@ function SeiteLaedt() {
 }
 
 function Router() {
+  // Der Tab bekommt den Bereichsnamen. Vorher trug jeder Tab denselben
+  // Werbetitel — bei drei offenen Tabs half das niemandem.
+  const [tabPfad] = useLocation();
+  useSeitenTitel(tabPfad);
+
   return (
     <Suspense fallback={<SeiteLaedt />}>
     <Switch>
@@ -196,7 +202,7 @@ function Router() {
       {/* Forderungsmanagement — nur fuer die Rolle 'inkasso'. Wer sie nicht
           hat, bekommt vom Server 404 und die Seite zeigt „gibt es nicht". */}
       <Route path="/agent/inkasso" component={AgentInkassoPage} />
-      <Route path="/agent/space" component={AgentSpacePage} />
+      <Route path="/agent/space">{() => <AgentSpacePage />}</Route>
       {/* Mail-Zentrale — Team und Betreiber. Die Rolle entscheidet der Server:
           ein Teammitglied sieht nur eigene Kunden und darf an höchstens zehn. */}
       <Route path="/agent/mail-zentrale" component={MailZentralePage} />
@@ -205,6 +211,10 @@ function Router() {
           Der Menuepunkt zeigte bis zum 11.08.2026 auf die Team-Fassung und
           verlangte einen Zugang, den der Betreiber nicht hat. */}
       <Route path="/admin/mail-zentrale" component={admin(MailZentralePage)} />
+      {/* Der Space, aus der Sicht des Betreibers: derselbe Feed, dieselbe
+          Oberfläche, volle Rechte. Eine zweite Seite wäre eine zweite Seite
+          zum Pflegen — und die eine würde bei jeder Änderung vergessen. */}
+      <Route path="/admin/space" component={admin(() => <AgentSpacePage alsAdmin />)} />
       {/* Die Startgespräche. Der Pfad heißt bewusst NICHT /agent/onboarding —
           das ist seit jeher die Vertrags-Schranke für neue Mitarbeiter. Zwei
           Dinge mit demselben Namen sind eine Fehlerquelle mit Ansage. */}

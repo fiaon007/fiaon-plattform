@@ -40,6 +40,31 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-space-v3",
+    date: "2026-08-11",
+    category: "Neu",
+    title: "Space: Gefällt mir, Antworten, eigene Beiträge löschen",
+    summary:
+      "Ihr könnt jetzt auf Kommentare antworten, eigene Beiträge zurücknehmen und binnen 15 Minuten ändern. Dazu ein neues Gesicht für FIAON-Beiträge.",
+    changes: [
+      "REAKTIONEN: Statt vier Zeichen, deren Bedeutung niemand kannte, gibt es jetzt „Gefällt mir“ und „Gefällt mir nicht“. Eure bisherigen Reaktionen sind erhalten geblieben.",
+      "ANTWORTEN: Unter jedem Kommentar steht „Antworten“. Die Antwort hängt sichtbar am richtigen Kommentar.",
+      "EIGENE BEITRÄGE: „Zurücknehmen“ entfernt euren Beitrag. „Ändern“ geht 15 Minuten lang — danach nicht mehr, weil andere ihn inzwischen gelesen haben. Geänderte Beiträge tragen eine Marke.",
+      "Eigene Kommentare könnt ihr jederzeit löschen.",
+      "Ab drei Kommentaren wird eingeklappt — „weitere anzeigen“ holt den Rest.",
+      "Angepinnte Beiträge stehen jetzt als schmale Leiste oben statt als große Karten. Antippen klappt sie auf.",
+      "FIAON-Beiträge haben ein eigenes Zeichen bekommen — dasselbe, das ihr jetzt auch im Browser-Tab seht.",
+      "Jede Beitragsart trägt eine Kennmarke: „Gedanke des Tages“, „Der Tag in Zahlen“, „Verkaufs-Impuls“.",
+    ],
+    howto: [
+      "Antworten: unter dem Kommentar auf „Antworten“ tippen, dann unten schreiben. Über dem Feld steht, an wen die Antwort geht.",
+      "Eigenen Beitrag ändern: oben rechts an der Karte auf „Ändern“. Der Knopf verschwindet 15 Minuten nach dem Schreiben.",
+      "Wenn beim E-Mail-Versand etwas schiefgeht, steht der Grund jetzt direkt in der Meldung — nicht mehr „siehe Protokoll“.",
+    ],
+    link: { href: "/agent/space", label: "Zum Space" },
+    important: true,
+  },
+  {
     id: "2026-08-11-gesicht-tiefe",
     date: "2026-08-11",
     category: "Verbessert",

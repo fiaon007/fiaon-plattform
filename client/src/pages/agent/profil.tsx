@@ -76,7 +76,13 @@ function ErreichbarkeitBlock({ flash }: { flash: (t: string) => void }) {
 
   return (
     <>
-      <h2 className="text-[13px] font-semibold text-slate-900 mb-1">Erreichbarkeit für Termine</h2>
+      {/* Sprungmarke: Die Einarbeitung verlinkt hierher (#erreichbarkeit).
+          Vorher zeigte sie auf /agent/verfuegbarkeit — eine Seite, die es nie
+          gab. Wer auf „Zeiten eintragen" klickte, landete auf „Diese Seite
+          existiert nicht". */}
+      <h2 id="erreichbarkeit" className="text-[13px] font-semibold text-slate-900 mb-1 scroll-mt-24">
+        Erreichbarkeit für Termine
+      </h2>
       <p className="text-[12px] text-slate-400 mb-3">
         Kunden, die du nicht erreichst, bekommen einen Buchungslink und wählen selbst eine Zeit —
         aus diesen Zeiten, in {slotMinuten}-Minuten-Schritten (Europe/Berlin).

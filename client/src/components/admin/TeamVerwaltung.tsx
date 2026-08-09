@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { FiaonEbene } from "@/components/FiaonEbene";
 import { FileText, GripVertical, X } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -81,6 +82,34 @@ function fmtDT(v: string | null): string {
 }
 
 // Lesbare Labels für die Konto-Ereignisse (fiaon_agent_events) im Aktivitätslog.
+/**
+ * Die Positionen — und was sie über die Vergütung bedeuten.
+ *
+ * ── WARUM DIE ROLLE ZUERST KOMMT ───────────────────────────────────────────
+ * Der Betreiber: „wenn ich ein Mitarbeiter einlade dann muss ich vorher schon
+ * auswählen wofür sie arbeiten wird." Zu Recht: Bis heute wurde jeder als
+ * „agent" angelegt und musste danach von Hand umgestellt werden — ein
+ * zusätzlicher Schritt, den man vergisst, und dann sitzt jemand in der
+ * falschen Rolle und sieht Daten, die ihn nichts angehen.
+ */
+const POSITIONEN = [
+  { wert: "agent", titel: "Vertrieb", text: "Eigene Kundenliste, Provision je Abschluss.",
+    modelle: ["provision", "fest_plus_provision"] },
+  { wert: "vertriebsleiter", titel: "Vertriebsleitung", text: "Sieht das ganze Team, führt und schult.",
+    modelle: ["provision", "fest", "fest_plus_provision"] },
+  { wert: "onboarding", titel: "Onboarding", text: "Führt die Startgespräche mit neuen Kunden.",
+    modelle: ["fest", "stunden", "fest_plus_provision"] },
+  { wert: "inkasso", titel: "Forderungsmanagement", text: "Kümmert sich um offene Raten.",
+    modelle: ["stunden", "fest", "fest_plus_provision"] },
+] as const;
+
+const MODELLE: Record<string, { titel: string; felder: ("provision" | "stunden" | "fest")[] }> = {
+  provision: { titel: "Nur Provision", felder: ["provision"] },
+  stunden: { titel: "Nur Stundensatz", felder: ["stunden"] },
+  fest: { titel: "Nur Festgehalt", felder: ["fest"] },
+  fest_plus_provision: { titel: "Festgehalt plus Provision", felder: ["fest", "provision"] },
+};
+
 export function InviteModal({ defaults, prefill, onClose, onDone, flash }: {
   defaults: { commissionRateBp: number };
   prefill?: { firstName: string; lastName: string; email: string; phone: string; recruitedBy: number | null; suggestionId: number };
@@ -88,67 +117,154 @@ export function InviteModal({ defaults, prefill, onClose, onDone, flash }: {
   onDone: () => void;
   flash: (m: string) => void;
 }) {
+  const [schritt, setSchritt] = useState<"position" | "daten">("position");
+  const [rolle, setRolle] = useState<string>("agent");
+  const [modell, setModell] = useState<string>("provision");
   const [form, setForm] = useState({
     firstName: prefill?.firstName || "", lastName: prefill?.lastName || "",
     email: prefill?.email || "", phone: prefill?.phone || "", rate: "", goal: "",
+    fest: "", stunden: "", start: "",
   });
   const [busy, setBusy] = useState(false);
+
+  const pos = POSITIONEN.find((p) => p.wert === rolle) ?? POSITIONEN[0];
+  const felder = MODELLE[modell]?.felder ?? ["provision"];
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setBusy(true);
+    const cents = (v: string) => v === "" ? null : Math.round(Number(v.replace(",", ".")) * 100);
     const r = await api("/admin/agents", {
       method: "POST",
       body: JSON.stringify({
-        firstName: form.firstName,
-        lastName: form.lastName,
-        email: form.email,
-        phone: form.phone || null,
-        commissionRateBp: form.rate === "" ? null : Math.round(Number(form.rate.replace(",", ".")) * 100),
-        monthlyGoalCents: form.goal === "" ? null : Math.round(Number(form.goal.replace(",", ".")) * 100),
-        // Paket AE4: aus Partner-Anfrage angenommen → Werber automatisch setzen
+        firstName: form.firstName, lastName: form.lastName,
+        email: form.email, phone: form.phone || null,
+        // Die Rolle geht MIT der Einladung raus — kein Nachstellen mehr.
+        rolle,
+        verguetungsmodell: modell,
+        commissionRateBp: !felder.includes("provision") || form.rate === ""
+          ? null : Math.round(Number(form.rate.replace(",", ".")) * 100),
+        festgehaltCents: felder.includes("fest") ? cents(form.fest) : null,
+        stundensatzCents: felder.includes("stunden") ? cents(form.stunden) : null,
+        startdatum: form.start || null,
+        monthlyGoalCents: cents(form.goal),
         recruitedBy: prefill?.recruitedBy ?? null,
         suggestionId: prefill?.suggestionId ?? null,
       }),
     });
     setBusy(false);
     if (r.ok) {
-      flash(`Einladung an ${form.email} versendet (Make: agent_invite) — Link 48 h gültig`);
+      flash(`Einladung an ${form.email} versendet — als ${pos.titel}, Link 48 h gültig`);
       onDone();
     } else flash(r.json?.error || "Fehler");
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-slate-900/30" />
-      <div className="relative w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[15px] font-bold">Mitarbeiter einladen</h2>
-          <button type="button" onClick={(e) => { e.stopPropagation(); onClose(); }} className="w-8 h-8 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-600 flex items-center justify-center"><X size={15} /></button>
-        </div>
-        <p className="text-[12px] text-slate-400 mb-4">
-          Es wird KEIN Passwort gesetzt — der Mitarbeiter erhält per E-Mail einen 48 h gültigen Link, um sein Passwort selbst festzulegen.
-        </p>
-        <form onSubmit={submit} className="space-y-3">
+    <FiaonEbene
+      offen onZu={onClose}
+      titel={schritt === "position" ? "Wofür wird diese Person arbeiten?" : `${pos.titel} einladen`}
+      ueberschrift={schritt === "position" ? "Schritt 1 von 2" : "Schritt 2 von 2"}
+      breite={560}
+      kinder={schritt === "position" ? (
+        <>
+          <p className="text-[12.5px] leading-relaxed mb-3.5" style={{ color: "var(--fi-text-still)" }}>
+            Die Position entscheidet, was diese Person sieht und wie sie bezahlt wird.
+            Sie geht mit der Einladung raus — nachträglich umstellen musst du nichts.
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {POSITIONEN.map((p) => {
+              const an = rolle === p.wert;
+              return (
+                <button key={p.wert} type="button"
+                        onClick={() => { setRolle(p.wert); setModell(p.modelle[0]); }}
+                        className="px-4 py-3.5 rounded-2xl text-left"
+                        style={an
+                          ? { background: "linear-gradient(158deg, rgba(59,130,246,.14), rgba(29,78,216,.05))",
+                              boxShadow: "inset 0 0 0 1px rgba(37,99,235,.3)" }
+                          : { background: "rgba(15,23,42,.028)", boxShadow: "inset 0 0 0 1px rgba(15,23,42,.06)" }}>
+                  <span className="block text-[14px] font-bold"
+                        style={{ color: an ? "var(--fi-primaer)" : "var(--fi-text)" }}>
+                    {p.titel}
+                  </span>
+                  <span className="block text-[12px] mt-0.5" style={{ color: "var(--fi-text-still)" }}>
+                    {p.text}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="text-[10.5px] font-bold uppercase tracking-[.12em] mt-5 mb-2"
+             style={{ color: "var(--fi-text-still)" }}>Vergütung</p>
+          <div className="flex flex-wrap gap-1.5">
+            {pos.modelle.map((mo) => (
+              <button key={mo} type="button" onClick={() => setModell(mo)}
+                      className="px-3.5 py-2 rounded-xl text-[12.5px] font-semibold"
+                      style={modell === mo
+                        ? { background: "var(--fi-primaer)", color: "#fff" }
+                        : { background: "rgba(15,23,42,.04)", color: "var(--fi-text-leise)" }}>
+                {MODELLE[mo].titel}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <form id="einladen-form" onSubmit={submit} className="space-y-3">
+          <p className="text-[12px] leading-relaxed" style={{ color: "var(--fi-text-still)" }}>
+            Es wird KEIN Passwort gesetzt — die Person bekommt einen Link, der 48 Stunden gilt,
+            und legt es selbst fest.
+          </p>
           <div className="grid grid-cols-2 gap-3">
             <input type="text" value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} placeholder="Vorname" className={inputCls} required />
             <input type="text" value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} placeholder="Nachname" className={inputCls} required />
           </div>
           <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="Login-E-Mail" className={inputCls} required />
           <input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="Telefon (optional)" className={inputCls} />
+
+          {felder.includes("fest") && (
+            <input type="text" inputMode="decimal" value={form.fest}
+                   onChange={(e) => setForm((f) => ({ ...f, fest: e.target.value }))}
+                   placeholder="Festgehalt € pro Monat" className={inputCls} required />
+          )}
+          {felder.includes("stunden") && (
+            <input type="text" inputMode="decimal" value={form.stunden}
+                   onChange={(e) => setForm((f) => ({ ...f, stunden: e.target.value }))}
+                   placeholder="Stundensatz €" className={inputCls} required />
+          )}
+          {felder.includes("provision") && (
+            <input type="text" inputMode="decimal" value={form.rate}
+                   onChange={(e) => setForm((f) => ({ ...f, rate: e.target.value }))}
+                   placeholder={`Provisionssatz % (leer = ${(defaults.commissionRateBp / 100).toLocaleString("de-DE")})`}
+                   className={inputCls} />
+          )}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <input type="text" inputMode="decimal" value={form.rate} onChange={(e) => setForm((f) => ({ ...f, rate: e.target.value }))} placeholder={`Satz % (leer = ${(defaults.commissionRateBp / 100).toLocaleString("de-DE")})`} className={inputCls} />
-            </div>
+            <input type="date" value={form.start} onChange={(e) => setForm((f) => ({ ...f, start: e.target.value }))}
+                   aria-label="Startdatum" className={inputCls} />
             <input type="text" inputMode="decimal" value={form.goal} onChange={(e) => setForm((f) => ({ ...f, goal: e.target.value }))} placeholder="Monatsziel € (optional)" className={inputCls} />
           </div>
-          <button type="submit" disabled={busy} className={`${btnPrimary} w-full py-3`}>
-            {busy ? "Sende …" : "Einladung senden"}
-          </button>
         </form>
-      </div>
-    </div>
+      )}
+      fuss={
+        <div className="flex items-center gap-2">
+          {schritt === "daten" && (
+            <button type="button" onClick={() => setSchritt("position")}
+                    className="text-[13px] font-semibold" style={{ color: "var(--fi-text-still)" }}>
+              Zurück
+            </button>
+          )}
+          {schritt === "position" ? (
+            <button type="button" onClick={() => setSchritt("daten")}
+                    className="ml-auto fi-knopf-primaer px-5">Weiter</button>
+          ) : (
+            <button type="submit" form="einladen-form" disabled={busy}
+                    className="ml-auto fi-knopf-primaer px-5">
+              {busy ? "Sende …" : "Einladung senden"}
+            </button>
+          )}
+        </div>
+      }
+    />
   );
 }
 

@@ -110,6 +110,7 @@ export const ADMIN_NAV: NavGroup[] = [
       { path: "/admin/diagnose", label: "System-Diagnose", desc: "Was klemmt gerade? Ereignis-Konsole, Rohdaten, KI-Auswertung", icon: Activity, badgeKey: "diagnose" },
       { path: "/admin/einstellungen", label: "Einstellungen", desc: "Provisionssatz, Auszahlung, Reminder-Engine, Diagnose", icon: Settings },
       { path: "/admin/mail-zentrale", label: "Mail-Zentrale", desc: "Freitext an Kunden und Gruppen — Bausteine, Vorschau, KI-Hilfe", icon: Send },
+      { path: "/admin/space", label: "Space", desc: "Der Feed des Teams — mitlesen, reagieren, anpinnen, moderieren", icon: Users },
       { path: "/admin/events", label: "E-Mail-Events", desc: "Make-Events testen, Diagnose, Verlauf", icon: Send },
       { path: "/admin/audit", label: "Audit-Log", desc: "Alle Mitarbeiter-Aktionen durchsuchbar", icon: ScrollText },
       { path: "/admin/changelog", label: "Was ist neu?", desc: "Alle Änderungen am System in Klartext", icon: History },
@@ -396,7 +397,7 @@ function AdminShellRahmen({ children }: { children: React.ReactNode }) {
         <span className="text-slate-200 mx-2">·</span>
         <a href="/agent" className="text-[11px] text-slate-400 hover:text-slate-600">Team-Portal</a>
         <span className="text-slate-200 mx-2">·</span>
-        <button type="button" onClick={sperren} className="text-[11px] text-slate-400 hover:text-slate-600">Sperren</button>
+        <button type="button" onClick={sperren} className="text-[11px] text-slate-500 hover:text-slate-700">Sperren</button>
       </div>
     </nav>
   );
@@ -511,7 +512,7 @@ function AdminShellRahmen({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setSearchOpen(true); }}
-            className="hidden lg:inline-flex ml-auto items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[12px] text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-colors"
+            className="hidden lg:inline-flex ml-auto items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[12px] text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors"
           >
             <Search size={13} /> Suche
             <kbd className="text-[10px] font-semibold border border-slate-200 rounded px-1 py-0.5">⌘K</kbd>

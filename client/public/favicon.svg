@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="FIAON">
+  <!--
+    FIAON-Marke als Favicon.
+
+    WARUM EIN „F" UND KEIN BILDZEICHEN
+    Ein Favicon ist auf einem Tab 16 px gross. Jedes gezeichnete Motiv
+    zerfaellt dort zu Matsch; ein einzelner Buchstabe bleibt lesbar. Das „F"
+    ist ausserdem das, was der Nutzer im Kopf hat, wenn er den Tab sucht.
+
+    WARUM DUNKELBLAU UND NICHT WEISS
+    Tab-Leisten sind hell. Eine helle Marke auf hellem Grund verschwindet.
+    Das CI-Dunkelblau (#0A1A3C) traegt sich selbst und passt zur Wortmarke.
+
+    DIE SCHRAEGE
+    Der Balken oben rechts nimmt die Aufwaertsgeste der FIAON-Wortmarke auf —
+    dieselbe Linie, die im Systemavatar und im Ladezeichen steckt.
+  -->
+  <defs>
+    <linearGradient id="fiFlaeche" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#14264F"/>
+      <stop offset="0.62" stop-color="#0A1A3C"/>
+      <stop offset="1" stop-color="#071129"/>
+    </linearGradient>
+    <linearGradient id="fiKante" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.24"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="15" fill="url(#fiFlaeche)"/>
+  <!-- Glanzkante oben: gibt der Kachel Koerper, auch bei 16 px noch als
+       Helligkeitsunterschied wahrnehmbar. -->
+  <rect width="64" height="64" rx="15" fill="url(#fiKante)"/>
+
+  <!-- Das F: zwei Balken, bewusst ohne Serifen und mit grossen Abstaenden,
+       damit bei 16 px nichts zusammenlaeuft. -->
+  <g fill="#ffffff">
+    <rect x="19" y="17" width="6.5" height="30" rx="3.25"/>
+    <rect x="19" y="17" width="24" height="6.5" rx="3.25"/>
+    <rect x="19" y="29" width="17" height="6.5" rx="3.25"/>
+  </g>
+
+  <!-- Die Aufwaertsgeste — der gleiche Winkel wie in der Wortmarke. -->
+  <path d="M40 44 L50 34" stroke="#3B82F6" stroke-width="5" stroke-linecap="round"/>
+</svg>

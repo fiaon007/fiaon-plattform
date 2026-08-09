@@ -108,6 +108,66 @@ export function Avatar({ src, name, size = 36 }: { src?: string | null; name?: s
   );
 }
 
+/**
+ * Die Leiste während einer Ansichts-Sitzung.
+ *
+ * Sie ist absichtlich unschön laut: dunkelblau, volle Breite, oben fixiert.
+ * Ein dezenter Hinweis wäre nach zwei Minuten unsichtbar, und dann klickt
+ * jemand auf einen Knopf und wundert sich, warum nichts passiert.
+ */
+function AnsichtsBanner({ agent }: { agent: AgentInfo }) {
+  const [rest, setRest] = useState("");
+  useEffect(() => {
+    if (!agent.ansichtBis) return;
+    const rechnen = () => {
+      const m = Math.max(0, Math.round((new Date(agent.ansichtBis!).getTime() - Date.now()) / 60000));
+      setRest(m > 0 ? `noch ${m} Min` : "abgelaufen");
+    };
+    rechnen();
+    const uhr = setInterval(rechnen, 30_000);
+    return () => clearInterval(uhr);
+  }, [agent.ansichtBis]);
+
+  return (
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, zIndex: 9000,
+      display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+      padding: "8px 16px", minHeight: 44,
+      background: "linear-gradient(178deg, #14264f, #0a1a3c 62%, #071129)",
+      color: "#eef3fb",
+      boxShadow: "0 8px 22px -12px rgba(7,17,41,.7), inset 0 -1px 0 rgba(255,255,255,.08)",
+    }}>
+      <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+           strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+           style={{ flexShrink: 0, opacity: .8 }}>
+        <path d="M1.8 10S4.9 4.5 10 4.5 18.2 10 18.2 10 15.1 15.5 10 15.5 1.8 10 1.8 10Z" />
+        <circle cx="10" cy="10" r="2.4" />
+      </svg>
+      <span style={{ fontSize: 12.5, fontWeight: 700, minWidth: 0 }}>
+        Du siehst das Portal als {agent.name}
+      </span>
+      <span style={{ fontSize: 11.5, color: "rgba(226,236,250,.62)" }}>
+        Nur-Ansicht · Aktionen sind abgeschaltet{rest && ` · ${rest}`}
+      </span>
+      <button
+        type="button"
+        onClick={async () => {
+          await fetch("/api/fiaon/agent/ansicht/beenden", { method: "POST", credentials: "include" })
+            .catch(() => {});
+          window.location.href = "/admin/team";
+        }}
+        style={{
+          marginLeft: "auto", flexShrink: 0, border: 0, cursor: "pointer",
+          padding: "6px 14px", borderRadius: 999, fontSize: 12, fontWeight: 700,
+          background: "rgba(255,255,255,.14)", color: "#fff",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,.18)",
+        }}>
+        Beenden
+      </button>
+    </div>
+  );
+}
+
 // ── Auth-Context ─────────────────────────────────────────────────────────────
 // `avatar` und `rolle` liefert /agent/me seit dem 11.08.2026 mit. Vorher
 // zeichnete die Kopfzeile aus dem Namen Initialen — auch bei jedem, der ein
@@ -116,6 +176,8 @@ export interface AgentInfo {
   name: string; email: string;
   avatar?: string | null; rolle?: string;
   is_test_account?: boolean; pruefkonto?: boolean;
+  /** Läuft eine Ansichts-Sitzung des Betreibers? */
+  ansicht?: boolean; ansichtBis?: string | null;
 }
 const AgentCtx = createContext<{ agent: AgentInfo | null; reload: () => void }>({ agent: null, reload: () => {} });
 export const useAgentInfo = () => useContext(AgentCtx);
@@ -717,7 +779,12 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
     <AgentCtx.Provider value={{ agent, reload: load }}>
       {/* pb-20 hielt Platz für den entfernten schwebenden Knopf frei. Ohne ihn
           braucht die Seite unten nur noch normalen Auslauf. */}
-      <div className="agent-scope agent-ambient min-h-screen text-slate-900 pb-10">
+      {/* ── NUR-ANSICHT: der Banner, den man nicht übersehen kann ─────────
+          Dunkelblaue Leiste ganz oben, über allem, nicht wegklickbar. Wer
+          sie übersieht, hat sie nicht gesehen — deshalb trägt sie den Namen
+          des Menschen und die verbleibende Zeit. */}
+      {agent?.ansicht && <AnsichtsBanner agent={agent} />}
+      <div className={`agent-scope agent-ambient min-h-screen text-slate-900 pb-10 ${agent?.ansicht ? "pt-11" : ""}`}>
         {/* Kopfbereich ist eine SCHWEBENDE Ebene und deshalb Glas: blur(20px)
             mit saturate(180%), heller Innenrand oben, darunter eine haarfeine
             Linie. Der Inhalt darunter bleibt erahnbar — das verankert die

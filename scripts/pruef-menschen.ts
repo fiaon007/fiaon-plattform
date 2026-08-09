@@ -284,7 +284,13 @@ async function main(): Promise<void> {
       // ═══════════════════════════════════════════════════════════════════
       gruppe("4. Space: schreiben, reagieren, verwalten");
       // ═══════════════════════════════════════════════════════════════════
-      gleich("Vier Marken, nicht zwölf", REAKTIONEN.length, 4);
+      // Am 11.08.2026 von vier auf ZWEI reduziert: „Daumen, Herz, Stern,
+      // Blitz" klang nach Auswahl und war keine — niemand konnte sagen, wofür
+      // Stern statt Herz steht, und die Zahlen verteilten sich auf vier
+      // Töpfe, sodass keine aussagekräftig war.
+      gleich("Zwei Marken: gefällt mir, gefällt mir nicht", REAKTIONEN.length, 2);
+      ok("… und zwar genau diese",
+        REAKTIONEN.includes("gut" as any) && REAKTIONEN.includes("schlecht" as any));
       const [p1] = (await tx`
         INSERT INTO fiaon_posts (autor_agent_id, autor_typ, text)
         VALUES (${normal}, 'team', ${"Heute lief das dritte Gespräch richtig gut."}) RETURNING id

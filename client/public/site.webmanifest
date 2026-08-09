@@ -1,0 +1,16 @@
+{
+  "name": "FIAON",
+  "short_name": "FIAON",
+  "description": "FIAON — Plattform für Vertrieb, Kunden und Team.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A1A3C",
+  "theme_color": "#0A1A3C",
+  "lang": "de",
+  "icons": [
+    { "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any" },
+    { "src": "/favicon-32.png", "type": "image/png", "sizes": "32x32" },
+    { "src": "/apple-touch-icon.png", "type": "image/png", "sizes": "180x180" },
+    { "src": "/icon-maskable-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+  ]
+}

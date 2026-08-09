@@ -47,6 +47,14 @@ export function brevoKlartext(status: number, koerper: unknown): BrevoKlartext {
   // Der häufigste Fall, und der einzige mit einer Ein-Klick-Lösung.
   if (status === 401 && (kleiner.includes("unrecognised ip") || kleiner.includes("unrecognized ip"))) {
     const ip = roh.match(/\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/)?.[1];
+    // Die Adresse merken. Diese Funktion ist synchron und soll es bleiben —
+    // deshalb ohne await: Ein Merker darf die Fehlerübersetzung nicht
+    // aufhalten, und sein Misslingen darf sie nicht umwerfen.
+    if (ip) {
+      void import("./fiaon-server-ip")
+        .then((m) => m.ipVormerken(ip))
+        .catch(() => {});
+    }
     return {
       titel: "Brevo-Sicherheit blockiert diesen Server"
         + (ip ? ` — die Adresse ${ip} steht nicht auf der Freigabeliste.` : "."),

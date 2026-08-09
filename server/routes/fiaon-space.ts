@@ -12,7 +12,7 @@
 // hinterher nicht klären, was da eigentlich stand.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { Router, type Response } from "express";
+import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureRolleSpalte } from "./fiaon-vertrieb";
@@ -181,6 +181,14 @@ router.post("/agent/space/:id/reaktion", requireAgent, async (req: AgentRequest,
 });
 
 /** POST /agent/space/:id/kommentar */
+/**
+ * POST /agent/space/:id/kommentar — kommentieren oder auf einen Kommentar
+ * antworten (`antwortAuf`).
+ *
+ * GENAU EINE VERSCHACHTELUNGSEBENE: Wer auf eine Antwort antwortet, hängt am
+ * selben Elternteil. Tiefere Bäume sind auf 380 px unlesbar, und niemand
+ * findet mehr, worauf sich etwas bezieht.
+ */
 router.post("/agent/space/:id/kommentar", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const postId = Number(req.params.id);
@@ -189,9 +197,20 @@ router.post("/agent/space/:id/kommentar", requireAgent, async (req: AgentRequest
     if (!befund.erlaubt) return res.status(400).json({ ok: false, error: befund.grund });
     const [da] = (await sqlPool`SELECT id FROM fiaon_posts WHERE id = ${postId} AND geloescht_at IS NULL`) as any[];
     if (!da) return res.status(404).json({ ok: false, error: "Beitrag nicht gefunden." });
+    // Auf welchen Kommentar wird geantwortet? Zeigt jemand auf eine ANTWORT,
+    // hängen wir uns an deren Elternteil — eine Ebene, nicht mehr.
+    let elternteil: number | null = null;
+    if (req.body?.antwortAuf) {
+      const [e] = (await sqlPool`
+        SELECT id, antwort_auf FROM fiaon_post_kommentare
+        WHERE id = ${Number(req.body.antwortAuf)} AND post_id = ${postId} AND geloescht_at IS NULL
+      `) as any[];
+      if (e) elternteil = e.antwort_auf ? Number(e.antwort_auf) : Number(e.id);
+    }
+
     const [row] = (await sqlPool`
-      INSERT INTO fiaon_post_kommentare (post_id, agent_id, text)
-      VALUES (${postId}, ${req.agent!.id}, ${text}) RETURNING id
+      INSERT INTO fiaon_post_kommentare (post_id, agent_id, text, antwort_auf)
+      VALUES (${postId}, ${req.agent!.id}, ${text}, ${elternteil}) RETURNING id
     `) as any[];
     res.json({ ok: true, id: Number(row.id) });
   } catch (err) {
@@ -346,6 +365,278 @@ router.delete("/agent/space/:id", requireAgent, async (req: AgentRequest, res: R
     res.json({ ok: true });
   } catch (err) {
     console.error("[SPACE] loeschen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** Wie lange darf ein Beitrag noch geändert werden? */
+export const BEARBEITEN_MINUTEN = 15;
+
+/**
+ * PATCH /agent/space/:id — den eigenen Beitrag ändern.
+ *
+ * ── WARUM NUR 15 MINUTEN ───────────────────────────────────────────────────
+ * Ein Tippfehler fällt einem in der ersten Minute auf. Wer nach zwei Stunden
+ * ändert, ändert nicht mehr den Tippfehler, sondern die Aussage — und
+ * womöglich, nachdem zehn Leute zugestimmt haben. Deren Zustimmung stünde
+ * dann unter einem Text, den sie nie gelesen haben.
+ *
+ * Die geänderte Fassung trägt eine sichtbare Marke. Eine stille Änderung wäre
+ * schlimmer als gar keine.
+ */
+router.patch("/agent/space/:id", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const text = String(req.body?.text ?? "").trim();
+    const befund = pruefeBeitrag(text);
+    if (!befund.erlaubt) return res.status(400).json({ ok: false, error: befund.grund });
+
+    const [post] = (await sqlPool`
+      SELECT autor_agent_id, created_at FROM fiaon_posts
+      WHERE id = ${id} AND geloescht_at IS NULL
+    `) as any[];
+    if (!post) return res.status(404).json({ ok: false, error: "Beitrag nicht gefunden." });
+    if (Number(post.autor_agent_id) !== req.agent!.id) {
+      return res.status(403).json({ ok: false, error: "Du kannst nur eigene Beiträge ändern." });
+    }
+    const alterMinuten = (Date.now() - new Date(post.created_at).getTime()) / 60_000;
+    if (alterMinuten > BEARBEITEN_MINUTEN) {
+      return res.status(400).json({
+        ok: false,
+        error: `Ein Beitrag lässt sich ${BEARBEITEN_MINUTEN} Minuten lang ändern. `
+          + "Danach nicht mehr — andere haben ihn inzwischen gelesen. Du kannst ihn aber löschen.",
+      });
+    }
+    await sqlPool`
+      UPDATE fiaon_posts SET text = ${text}, bearbeitet_am = NOW(), updated_at = NOW()
+      WHERE id = ${id}
+    `;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[SPACE] bearbeiten:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * DELETE /agent/space/kommentar/:id — den eigenen Kommentar zurücknehmen.
+ *
+ * Weich, wie überall: Der Text verschwindet aus dem Feed, die Zeile bleibt.
+ * Antworten darauf bleiben stehen — sie gehören ihren Verfassern, nicht dem,
+ * der den ersten Kommentar geschrieben hat.
+ */
+router.delete("/agent/space/kommentar/:id", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const leitung = await darfVerwalten(req.agent!.id);
+    const [k] = (await sqlPool`
+      SELECT agent_id FROM fiaon_post_kommentare WHERE id = ${id} AND geloescht_at IS NULL
+    `) as any[];
+    if (!k) return res.status(404).json({ ok: false, error: "Kommentar nicht gefunden." });
+    if (!leitung && Number(k.agent_id) !== req.agent!.id) {
+      return res.status(403).json({ ok: false, error: "Du kannst nur eigene Kommentare löschen." });
+    }
+    await sqlPool`
+      UPDATE fiaon_post_kommentare
+      SET geloescht_at = NOW(), geloescht_von = ${req.agent!.name}
+      WHERE id = ${id}
+    `;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[SPACE] kommentar loeschen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADMIN-SPACE — /admin/space
+//
+// Der Betreiber: „In Admin fehlt die komplette Space Seite? Ich muss als
+// Admin ebenfalls über jeden Post sehen, interagieren können."
+//
+// Dieselben Bausteine, andere Tür. Der Admin hat KEIN Agent-Konto, also kann
+// er die Agent-Routen nicht benutzen — sie hängen alle an `requireAgent`.
+//
+// ── WER IST DER ADMIN IM FEED? ─────────────────────────────────────────────
+// Er hat keine Agenten-Kennung. Beiträge von ihm tragen `autor_typ = 'system'`
+// (er postet als FIAON) oder `'leitung'` (er postet unter seinem eigenen
+// Konto, falls er eines hat). Der Umschalter steht in der Oberfläche.
+//
+// Reaktionen brauchen eine Agenten-Kennung — die Tabelle verlangt sie. Der
+// Admin reagiert deshalb über sein Prüfkonto, falls vorhanden. Gibt es keins,
+// bleibt die Reaktion aus; das ist ehrlicher, als eine fremde Kennung zu
+// missbrauchen.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Das Konto, unter dem der Betreiber im Feed auftritt. */
+async function betreiberKonto(): Promise<{ id: number; name: string } | null> {
+  const [a] = (await sqlPool`
+    SELECT id, COALESCE(NULLIF(first_name, ''), name) AS name
+    FROM fiaon_agents WHERE active AND pruefkonto ORDER BY id LIMIT 1
+  `.catch(() => [] as any[])) as any[];
+  return a ? { id: Number(a.id), name: String(a.name) } : null;
+}
+
+/** GET /admin/space — derselbe Feed, volle Sicht. */
+router.get("/admin/space", async (req: Request, res: Response) => {
+  try {
+    const konto = await betreiberKonto();
+    const vorId = Number(req.query.vor) || null;
+    // Ohne Prüfkonto gibt es keine „eigene Reaktion" — dann ist 0 die
+    // richtige Kennung: Sie gehört niemandem, also stimmt kein Vergleich.
+    const posts = await feedLesen(konto?.id ?? 0, Math.min(100, Number(req.query.limit) || 25), sqlPool, vorId);
+    res.json({
+      ok: true, posts, darfVerwalten: true, alsAdmin: true,
+      hinweis: HINWEIS_AM_FELD, reaktionen: REAKTIONEN,
+      ich: { id: konto?.id ?? 0, vorname: "Betreiber", name: "Betreiber", avatar: null, rolle: "admin" },
+      mehr: posts.length >= Math.min(100, Number(req.query.limit) || 25),
+      kontoVorhanden: !!konto,
+    });
+  } catch (err) {
+    console.error("[SPACE] admin feed:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /admin/space — als FIAON oder unter dem eigenen Konto schreiben. */
+router.post("/admin/space", async (req: Request, res: Response) => {
+  try {
+    const text = String(req.body?.text ?? "").trim();
+    const befund = pruefeBeitrag(text);
+    if (!befund.erlaubt) return res.status(400).json({ ok: false, error: befund.grund });
+
+    const alsFiaon = req.body?.alsFiaon !== false;
+    const konto = await betreiberKonto();
+    if (!alsFiaon && !konto) {
+      return res.status(400).json({
+        ok: false,
+        error: "Für einen Beitrag unter eigenem Namen braucht es ein Prüfkonto. "
+          + "Poste als FIAON — oder lege dir in der Team-Zentrale ein Konto an.",
+      });
+    }
+    const [row] = (await sqlPool`
+      INSERT INTO fiaon_posts (autor_agent_id, autor_typ, text)
+      VALUES (${alsFiaon ? null : konto!.id}, ${alsFiaon ? "system" : "leitung"}, ${text})
+      RETURNING id
+    `) as any[];
+    res.json({ ok: true, id: Number(row.id) });
+  } catch (err) {
+    console.error("[SPACE] admin schreiben:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /admin/space/:id/reaktion */
+router.post("/admin/space/:id/reaktion", async (req: Request, res: Response) => {
+  try {
+    const konto = await betreiberKonto();
+    if (!konto) {
+      return res.status(400).json({
+        ok: false, error: "Zum Reagieren braucht es ein Prüfkonto — sonst gehört die Reaktion niemandem.",
+      });
+    }
+    const art = String(req.body?.art ?? "");
+    if (!istReaktion(art)) return res.status(400).json({ ok: false, error: "Unbekannte Reaktion." });
+    const postId = Number(req.params.id);
+    const [da] = (await sqlPool`
+      SELECT art FROM fiaon_post_reaktionen WHERE post_id = ${postId} AND agent_id = ${konto.id}
+    `) as any[];
+    if (da?.art === art) {
+      await sqlPool`DELETE FROM fiaon_post_reaktionen WHERE post_id = ${postId} AND agent_id = ${konto.id}`;
+    } else {
+      await sqlPool`
+        INSERT INTO fiaon_post_reaktionen (post_id, agent_id, art) VALUES (${postId}, ${konto.id}, ${art})
+        ON CONFLICT (post_id, agent_id) DO UPDATE SET art = ${art}
+      `;
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[SPACE] admin reaktion:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /admin/space/:id/kommentar */
+router.post("/admin/space/:id/kommentar", async (req: Request, res: Response) => {
+  try {
+    const konto = await betreiberKonto();
+    if (!konto) return res.status(400).json({ ok: false, error: "Zum Kommentieren braucht es ein Prüfkonto." });
+    const text = String(req.body?.text ?? "").trim();
+    const befund = pruefeBeitrag(text);
+    if (!befund.erlaubt) return res.status(400).json({ ok: false, error: befund.grund });
+    const postId = Number(req.params.id);
+    let elternteil: number | null = null;
+    if (req.body?.antwortAuf) {
+      const [e] = (await sqlPool`
+        SELECT id, antwort_auf FROM fiaon_post_kommentare
+        WHERE id = ${Number(req.body.antwortAuf)} AND post_id = ${postId} AND geloescht_at IS NULL
+      `) as any[];
+      if (e) elternteil = e.antwort_auf ? Number(e.antwort_auf) : Number(e.id);
+    }
+    await sqlPool`
+      INSERT INTO fiaon_post_kommentare (post_id, agent_id, text, antwort_auf)
+      VALUES (${postId}, ${konto.id}, ${text}, ${elternteil})
+    `;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[SPACE] admin kommentar:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** DELETE /admin/space/:id — Moderation. Immer protokolliert. */
+router.delete("/admin/space/:id", async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    await sqlPool`
+      UPDATE fiaon_posts
+      SET geloescht_at = NOW(), geloescht_grund = ${String(req.body?.grund || "Moderation durch den Betreiber")},
+          updated_at = NOW()
+      WHERE id = ${id} AND geloescht_at IS NULL
+    `;
+    console.log(`[SPACE] Beitrag ${id} vom Betreiber gelöscht`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[SPACE] admin loeschen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /admin/space/:id/anpinnen — mit derselben Zwei-Grenze. */
+router.post("/admin/space/:id/anpinnen", async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const an = req.body?.an !== false;
+    if (an) {
+      const belegt = (await sqlPool`
+        SELECT id, LEFT(text, 90) AS anriss FROM fiaon_posts
+        WHERE angepinnt AND geloescht_at IS NULL AND id <> ${id}
+        ORDER BY angepinnt_am ASC NULLS FIRST, id ASC
+      `) as any[];
+      if (belegt.length >= PIN_GRENZE) {
+        const weichen = Number(req.body?.weichen || 0);
+        if (!weichen) {
+          return res.status(409).json({
+            ok: false, grenzeErreicht: true, grenze: PIN_GRENZE,
+            angepinnte: belegt.map((b) => ({
+              id: Number(b.id), anriss: String(b.anriss).replace(/\n+/g, " ").trim(),
+            })),
+            error: `Es sind schon ${PIN_GRENZE} Beiträge angepinnt. Welcher soll weichen?`,
+          });
+        }
+        await sqlPool`
+          UPDATE fiaon_posts SET angepinnt = FALSE, angepinnt_am = NULL WHERE id = ${weichen}
+        `;
+      }
+    }
+    await sqlPool`
+      UPDATE fiaon_posts SET angepinnt = ${an}, angepinnt_am = ${an ? new Date() : null},
+        angepinnt_von = ${an ? "Betreiber" : null}, updated_at = NOW()
+      WHERE id = ${id} AND geloescht_at IS NULL
+    `;
+    res.json({ ok: true, angepinnt: an });
+  } catch (err) {
+    console.error("[SPACE] admin anpinnen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

@@ -13,7 +13,7 @@ wissen will, *wo* etwas liegt, liest hier.
 |---|---|---|
 | **Twilio einrichten** (6 Werte) | Einstellungen → Telefon | Ohne sie zeigt das Softphone einen Einrichtungs-Zustand. Alles andere ist gebaut. |
 | **OpenAI-Schlüssel erneuern** | `OPENAI_API_KEY` | Der hinterlegte Schlüssel antwortet mit HTTP 401. Gesprächsblatt und Anruf-Zusammenfassung fallen deshalb auf Rohdaten zurück. |
-| **Brevo-IP freigeben** | app.brevo.com/security/authorised_ips | Sonst kann FIAON nicht nachsehen, ob eine Mail ankam. Die Oberfläche zeigt die Anleitung selbst an. |
+| **Brevo-IP-Sperre ABSCHALTEN** | app.brevo.com/security/authorised_ips | Der echte Grund der fehlgeschlagenen Mails: `74.220.50.221` steht nicht auf der Liste. Diese Plattform bekommt bei jedem Neustart eine andere Adresse — eine Freigabeliste ist hier ein Fass ohne Boden. Diagnose → Ausgangsadressen zeigt alle gesehenen. |
 | **Vergütung Inkasso bestätigen** | Team-Zentrale → Mitarbeiter → Vergütung | Platzhalter 15,00 €/h und 2,00 € je Rate. Bis zur Bestätigung wird keine Prämie gebucht. |
 | **Twilio in Produktion prüfen** | `/admin/einstellungen` → Telefon | Lokal sind die sechs Werte nicht gesetzt, daher hier nicht messbar. Die Sperre „Testkonten können nicht telefonieren" ist aufgehoben. |
 | **Space-Dichte prüfen** | Einstellung `space_dichte` | Vorgabe 20 Beiträge pro Tag. Weniger als 10 lässt den Feed leer wirken, mehr als 40 wird zur Tapete. |
@@ -107,18 +107,23 @@ Diese sind nicht verhandelbar und durch Prüfstände abgesichert:
   bekommt aber weiterhin keine automatisch verteilten Kunden, Termine oder Mails.
 - **Ereignis-Posts nennen nie Kundendaten** — nur Vornamen des Teams und Zahlen.
 - **Bezahlte Bestellungen werden archiviert, nie endgültig gelöscht.**
+- **Fehlergründe stehen in der Meldung**, nie als Verweis auf ein Protokoll.
+- **Festgehälter sieht nur der Betreiber** — sie tauchen in keiner Team-Antwort auf.
+- **Eine Ansichts-Sitzung kann nichts schreiben** — geprüft an allen registrierten Routen.
+- **Rollen ändert man nur über /admin/team** — jede Änderung wird protokolliert.
 
 ---
 
 ## Prüfstände
 
 ```
+npx tsx scripts/pruef-veredelung.ts      141   Fehlergründe, Mail, Space v3, Ansicht, Gehalt
 npx tsx scripts/pruef-feinschliff.ts     236   Bugs, Ebenen, Space, Engine, Akte, Prüfkonto
 npx tsx scripts/pruef-inkasso.ts         174   Rolle, Sichtfeld, Prämien, Stunden
 npx tsx scripts/pruef-telefon.ts         128   Dokumente, Softphone, Gesprächsblatt
 npx tsx scripts/pruef-zentralen.ts        90   Filter, Löschen, Team
 npx tsx scripts/pruef-mail.ts            136   Registry, Versand, Zustellung
-npx tsx scripts/pruef-menschen.ts        155   Rollen, Zusagen, Onboarding
+npx tsx scripts/pruef-menschen.ts        156   Rollen, Zusagen, Onboarding
 npx tsx scripts/pruef-pipeline.ts        142   Termine, Verfügbarkeit, Automatik
 npx tsx scripts/pruef-merge.ts           107   Zusammenführen
 npx tsx scripts/pruef-massen-merge.ts     84   Massen-Zusammenführung
@@ -126,5 +131,5 @@ npx tsx scripts/pruef-fundament-b.ts      93   Fundament
 npx tsx scripts/pruef-schmal.ts           25   380-px-Ansicht
 ```
 
-**1.399 Prüfungen.** Alle laufen gegen die Produktionsdatenbank in einer
+**1.556 Prüfungen.** Alle laufen gegen die Produktionsdatenbank in einer
 Transaktion, die am Ende zurückgerollt wird — es bleibt nichts stehen.

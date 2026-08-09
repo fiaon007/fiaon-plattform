@@ -381,4 +381,22 @@ router.post("/admin/diagnose/ai", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /admin/diagnose/ausgangs-ip — die Adressen, unter denen dieser Dienst
+ * nach außen auftritt, plus die Anleitung für Brevo.
+ *
+ * Steht in der Diagnose und nicht in den Mail-Einstellungen: Es ist eine
+ * Eigenschaft des Servers, keine der Mail — und sie betrifft künftig auch
+ * jeden anderen Dienst mit IP-Freigabeliste.
+ */
+router.get("/admin/diagnose/ausgangs-ip", async (_req: Request, res: Response) => {
+  try {
+    const { ipDiagnose } = await import("../lib/fiaon-server-ip");
+    res.json({ ok: true, ...(await ipDiagnose()) });
+  } catch (err) {
+    console.error("[DIAGNOSE] ausgangs-ip:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 export default router;

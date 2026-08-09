@@ -6,7 +6,7 @@
 // Nichts wird hart gelöscht (Soft-Delete-Prinzip).
 // ═══════════════════════════════════════════════════════════════════
 
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { randomBytes } from "crypto";
 import { sendMakeWebhook } from "../make-webhook";
@@ -62,6 +62,23 @@ router.post("/admin/agents", async (req, res) => {
   try {
     await ensureAgentTables();
     const { firstName, lastName, email, phone, commissionRateBp, monthlyGoalCents, recruitedBy, overrideRateBp, suggestionId } = req.body || {};
+    // ── ROLLE UND VERGÜTUNG KOMMEN MIT DER EINLADUNG (11.08.2026) ────────
+    // Vorher wurde jeder als „agent" angelegt und musste danach von Hand
+    // umgestellt werden — ein Schritt, den man vergisst. Dann sitzt jemand in
+    // der falschen Rolle und sieht Daten, die ihn nichts angehen.
+    const ROLLEN_ERLAUBT = ["agent", "vertriebsleiter", "onboarding", "inkasso"];
+    const rolleNeu = ROLLEN_ERLAUBT.includes(String(req.body?.rolle))
+      ? String(req.body.rolle) : "agent";
+    const MODELLE_ERLAUBT = ["provision", "stunden", "fest", "fest_plus_provision"];
+    const modell = MODELLE_ERLAUBT.includes(String(req.body?.verguetungsmodell))
+      ? String(req.body.verguetungsmodell) : null;
+    const ganzeCent = (v: unknown): number | null => {
+      if (v == null || v === "") return null;
+      const n = Math.round(Number(v));
+      return Number.isFinite(n) && n >= 0 && n < 100_000_000 ? n : null;
+    };
+    const festgehalt = ganzeCent(req.body?.festgehaltCents);
+    const stundensatz = ganzeCent(req.body?.stundensatzCents);
     if (!firstName || !lastName || !email) return res.status(400).json({ ok: false, error: "Vorname, Nachname und E-Mail erforderlich" });
     const rateBp = commissionRateBp != null && commissionRateBp !== "" ? Math.round(Number(commissionRateBp)) : null;
     if (rateBp != null && (isNaN(rateBp) || rateBp < 0 || rateBp > 10000)) return res.status(400).json({ ok: false, error: "Provisionssatz ungültig (0–100 %)" });
@@ -74,15 +91,26 @@ router.post("/admin/agents", async (req, res) => {
     const token = randomBytes(32).toString("hex");
     const name = `${String(firstName).trim()} ${String(lastName).trim()}`;
     const rows = await sqlPool`
-      INSERT INTO fiaon_agents (name, first_name, last_name, email, phone, commission_rate_bp, monthly_goal_cents, invite_token_hash, invite_expires_at, recruited_by, override_rate_bp)
+      INSERT INTO fiaon_agents (name, first_name, last_name, email, phone, commission_rate_bp, monthly_goal_cents, invite_token_hash, invite_expires_at, recruited_by, override_rate_bp,
+                                rolle, verguetungsmodell, festgehalt_cents, startdatum, gehalt_ab)
       VALUES (${name}, ${String(firstName).trim()}, ${String(lastName).trim()}, ${String(email).trim().toLowerCase()},
               ${phone ? String(phone).trim() : null}, ${rateBp}, ${goal},
-              ${hashToken(token)}, ${new Date(Date.now() + INVITE_TTL_MS)}, ${recruiter}, ${ovBp})
+              ${hashToken(token)}, ${new Date(Date.now() + INVITE_TTL_MS)}, ${recruiter}, ${ovBp},
+              ${rolleNeu}, ${modell}, ${festgehalt},
+              ${req.body?.startdatum || null}, ${req.body?.startdatum || null})
       ON CONFLICT (email) DO NOTHING
       RETURNING id, name, email
     `;
     if (rows.length === 0) return res.status(409).json({ ok: false, error: "E-Mail bereits vergeben" });
-    await logAgentEvent(rows[0].id, "invited", { by: "admin", recruited_by: recruiter });
+    await logAgentEvent(rows[0].id, "invited", {
+      by: "admin", recruited_by: recruiter, rolle: rolleNeu, modell, festgehalt_cents: festgehalt,
+    });
+    // Stundensatz liegt in einer eigenen Spalte, die es nicht überall gibt —
+    // deshalb getrennt und fehlertolerant.
+    if (stundensatz != null) {
+      await sqlPool`UPDATE fiaon_agents SET stundensatz_cents = ${stundensatz} WHERE id = ${rows[0].id}`
+        .catch(() => {});
+    }
     // Paket AE4: kam der Agent über einen Partner-Vorschlag → Anfrage als angenommen markieren
     if (suggestionId != null && Number(suggestionId) > 0) {
       await sqlPool`
@@ -1461,6 +1489,125 @@ router.post("/admin/scripts/:id/delete", async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error("[FIAON-TEAM] script delete:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WIRTSCHAFTLICHKEIT — nur für den Betreiber
+//
+// Diese Routen liegen unter /admin/, und /admin/ ist durch den Zugangscode
+// geschützt (siehe server/routes.ts: adminGate). Die Vertriebsleitung kommt
+// über /agent/ herein und erreicht sie nicht.
+//
+// Zusätzlich gilt: Das FESTGEHALT taucht in KEINER anderen Antwort auf. Wer
+// die Mitarbeiterliste über /agent/ abruft, bekommt die Spalte nicht — auch
+// nicht als null. Was nicht mitgeliefert wird, kann nicht durchsickern.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** GET /admin/team/wirtschaftlichkeit/:id */
+router.get("/admin/team/wirtschaftlichkeit/:id", async (req: Request, res: Response) => {
+  try {
+    const { wirtschaftlichkeit } = await import("../lib/fiaon-wirtschaftlichkeit");
+    res.json({ ok: true, ...(await wirtschaftlichkeit(Number(req.params.id))) });
+  } catch (err) {
+    console.error("[TEAM] wirtschaftlichkeit:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** GET /admin/team/wirtschaftlichkeit — die Summenzeile im Kopf. */
+router.get("/admin/team/wirtschaftlichkeit", async (_req: Request, res: Response) => {
+  try {
+    const { teamWirtschaftlichkeit } = await import("../lib/fiaon-wirtschaftlichkeit");
+    res.json({ ok: true, ...(await teamWirtschaftlichkeit()) });
+  } catch (err) {
+    console.error("[TEAM] team-wirtschaftlichkeit:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** PUT /admin/team/agents/:id/verguetung — Festgehalt, Modell, Ziel. */
+router.put("/admin/team/agents/:id/verguetung", async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const cents = (v: unknown): number | null => {
+      if (v === "" || v == null) return null;
+      const n = Math.round(Number(String(v).replace(",", ".")) * 100);
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    };
+    const modell = String(req.body?.modell || "");
+    const ERLAUBT = ["provision", "stunden", "fest", "fest_plus_provision"];
+    if (modell && !ERLAUBT.includes(modell)) {
+      return res.status(400).json({ ok: false, error: "Unbekanntes Vergütungsmodell." });
+    }
+    const [alt] = (await sqlPool`
+      SELECT festgehalt_cents, name FROM fiaon_agents WHERE id = ${id}
+    `) as any[];
+    if (!alt) return res.status(404).json({ ok: false, error: "Mitarbeiter nicht gefunden." });
+
+    const neu = cents(req.body?.festgehalt);
+    await sqlPool`
+      UPDATE fiaon_agents SET
+        festgehalt_cents = ${neu},
+        gehalt_ab = ${req.body?.gehaltAb || null},
+        monatsziel_cents = ${cents(req.body?.monatsziel)},
+        verguetungsmodell = ${modell || null},
+        startdatum = ${req.body?.startdatum || null}
+      WHERE id = ${id}
+    `;
+    // Eine Gehaltsänderung ist eine Vertragsänderung. Sie gehört protokolliert
+    // — mit den Beträgen, damit später niemand raten muss.
+    await sqlPool`
+      INSERT INTO fiaon_agent_events (agent_id, type, meta, actor)
+      VALUES (${id}, 'verguetung_geaendert',
+              ${JSON.stringify({ alt: alt.festgehalt_cents, neu, modell })}, 'admin')
+    `.catch(() => {});
+    console.log(`[TEAM] Vergütung ${alt.name}: ${alt.festgehalt_cents ?? "—"} → ${neu ?? "—"} Cent (${modell || "unverändert"})`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[TEAM] verguetung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ALS-MITARBEITER-ANSICHT
+//
+// Nur unter /admin/ erreichbar — die Vertriebsleitung kommt über /agent/
+// herein und sieht diese Routen nie. Sie führt Menschen, sie überwacht sie
+// nicht.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** POST /admin/team/ansicht/:id — Ansicht starten. */
+router.post("/admin/team/ansicht/:id", async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const [a] = (await sqlPool`
+      SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname, name, active
+      FROM fiaon_agents WHERE id = ${id}
+    `) as any[];
+    if (!a) return res.status(404).json({ ok: false, error: "Mitarbeiter nicht gefunden." });
+    if (!a.active) {
+      return res.status(400).json({
+        ok: false,
+        error: "Das Konto ist deaktiviert. Eine Ansicht darauf zeigte eine Anmeldeseite, sonst nichts.",
+      });
+    }
+    const { ansichtTokenBauen, ANSICHT_COOKIE, ANSICHT_MINUTEN, ansichtProtokoll } =
+      await import("../lib/fiaon-ansicht");
+    res.cookie(ANSICHT_COOKIE, ansichtTokenBauen(id), {
+      httpOnly: true, sameSite: "lax", path: "/",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: ANSICHT_MINUTEN * 60_000,
+    });
+    await ansichtProtokoll(id, "gestartet");
+    res.json({
+      ok: true, vorname: a.vorname, name: a.name, minuten: ANSICHT_MINUTEN,
+      ziel: "/agent/start",
+    });
+  } catch (err) {
+    console.error("[TEAM] ansicht start:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

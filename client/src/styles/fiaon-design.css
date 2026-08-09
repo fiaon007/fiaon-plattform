@@ -395,3 +395,132 @@
     transition-duration: 150ms !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   KNOPF-FAMILIE (11.08.2026)
+   Der Betreiber: „Alle Schriftfarben in den blauen Button in weiß, nicht
+   schwarz — kaum lesbar!" Ursache waren Knöpfe, die ihre Fläche über eine
+   Hilfsklasse blau setzten und die Schriftfarbe vom Elternteil erbten.
+
+   DIE REGEL: Wer eine dunkle Fläche trägt, bringt seine Schriftfarbe selbst
+   mit. Nicht erben, nicht hoffen.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Das dunkle CI-Blau als Flächenfarbe — für Akzentkarten und dunkle
+     Kacheln. Schrift darauf ist IMMER hell. */
+  --fi-tief: #0a1a3c;
+  --fi-tief-hell: #14264f;
+}
+
+/* ── Primär: Verlauf, Glanzkante, farbiger Schatten, Druckgefühl ────────── */
+.fi-knopf-primaer {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  border: 0; cursor: pointer; border-radius: 999px;
+  padding: 10px 20px; min-height: 42px;
+  font-weight: 700; font-size: 13.5px; line-height: 1;
+  color: #fff !important;
+  background: linear-gradient(178deg, #2563eb 0%, #1d4ed8 58%, #1b429f 100%);
+  box-shadow:
+    0 12px 26px -12px rgba(29, 78, 216, 0.72),
+    0 2px 5px -2px rgba(29, 78, 216, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+  transition: transform 140ms cubic-bezier(.32,.72,0,1),
+              box-shadow 200ms cubic-bezier(.32,.72,0,1), filter 180ms;
+}
+/* Auch verschachtelte Beschriftungen bleiben hell — sonst erbt ein <span>
+   die dunkle Textfarbe der Seite und wird auf Blau unlesbar. */
+.fi-knopf-primaer * { color: inherit; }
+.fi-knopf-primaer:hover:not(:disabled) {
+  filter: brightness(1.08); transform: translateY(-1.5px);
+  box-shadow:
+    0 18px 34px -14px rgba(29, 78, 216, 0.82),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+.fi-knopf-primaer:active:not(:disabled) {
+  transform: translateY(1px) scale(.985);
+  box-shadow: inset 0 2px 5px rgba(9, 20, 56, 0.38), 0 1px 2px rgba(15, 23, 42, 0.14);
+}
+.fi-knopf-primaer:disabled { opacity: .32; cursor: default; box-shadow: none; }
+
+/* ── Sekundär: Glas auf Haarlinie ───────────────────────────────────────── */
+.fi-knopf-glas {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: 0; cursor: pointer; border-radius: 999px;
+  padding: 10px 17px; min-height: 42px;
+  font-weight: 600; font-size: 13px; line-height: 1;
+  color: var(--fi-text-leise);
+  background: linear-gradient(158deg, rgba(255,255,255,.82), rgba(255,255,255,.6));
+  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  box-shadow:
+    0 6px 16px -10px rgba(11, 18, 38, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+  transition: transform 140ms cubic-bezier(.32,.72,0,1), box-shadow 200ms, color 180ms;
+}
+.fi-knopf-glas:hover:not(:disabled) {
+  color: var(--fi-text); transform: translateY(-1px);
+  box-shadow:
+    0 12px 24px -12px rgba(11, 18, 38, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(37, 99, 235, 0.24);
+}
+.fi-knopf-glas:active:not(:disabled) { transform: scale(.97); }
+.fi-knopf-glas:disabled { opacity: .35; cursor: default; }
+
+/* ── Gefahr: zurückhaltend. Die Fläche kommt erst im Bestätigungsdialog. ── */
+.fi-knopf-gefahr {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: 0; cursor: pointer; border-radius: 999px;
+  padding: 10px 17px; min-height: 42px;
+  font-weight: 600; font-size: 13px; line-height: 1;
+  color: #b91c1c; background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(185, 28, 28, 0.28);
+  transition: background 180ms, box-shadow 200ms, transform 140ms;
+}
+.fi-knopf-gefahr:hover:not(:disabled) {
+  background: rgba(185, 28, 28, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(185, 28, 28, 0.45);
+}
+.fi-knopf-gefahr:active:not(:disabled) { transform: scale(.97); }
+/* Erst hier trägt Gefahr eine Fläche — im Dialog, wo die Folge feststeht. */
+.fi-knopf-gefahr-voll {
+  color: #fff !important;
+  background: linear-gradient(178deg, #dc2626, #b91c1c 62%, #991b1b);
+  box-shadow:
+    0 12px 26px -12px rgba(185, 28, 28, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+.fi-knopf-gefahr-voll * { color: inherit; }
+
+/* ── Dunkle Akzentfläche: Kennzahl-Kacheln, Platz 1, Gerätekörper ───────── */
+.fi-flaeche-tief {
+  background: linear-gradient(158deg, var(--fi-tief-hell), var(--fi-tief) 62%, #071129);
+  color: #eef3fb;
+  box-shadow:
+    0 22px 48px -26px rgba(7, 17, 41, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+/* Alles darin ist hell — hier gilt die Regel besonders streng, weil eine
+   geerbte dunkle Schrift auf #0A1A3C praktisch unsichtbar ist. */
+.fi-flaeche-tief, .fi-flaeche-tief * { color: inherit; }
+.fi-flaeche-tief .fi-leise { color: rgba(226, 236, 250, 0.62); }
+
+/* ── Die harte Wand gegen unlesbare Knöpfe ──────────────────────────────────
+   Jede bekannte blaue Knopfklasse bekommt weiße Schrift erzwungen. Das ist
+   bewusst ein !important: Es ist keine Gestaltung, sondern eine
+   Lesbarkeitsgrenze, und sie darf von keiner Hilfsklasse ausgehebelt werden. */
+.fi-sendeknopf, .fi-primaerknopf,
+button.fi-knopf-primaer, a.fi-knopf-primaer,
+.fi-knopf-gefahr-voll {
+  color: #fff !important;
+}
+.fi-sendeknopf *, .fi-primaerknopf *,
+button.fi-knopf-primaer *, a.fi-knopf-primaer * { color: inherit !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fi-knopf-primaer, .fi-knopf-glas, .fi-knopf-gefahr { transition: none !important; }
+  .fi-knopf-primaer:hover, .fi-knopf-glas:hover { transform: none; }
+}

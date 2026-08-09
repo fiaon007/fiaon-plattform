@@ -116,7 +116,7 @@ export default function AdminTeamZentrale() {
                     style={rang ? { background: "#1d4ed8", color: "#fff" } : { background: "#fff", border: "1px solid #e2e8f0", color: "#475569" }}>
               Rangliste Monat
             </button>
-            <button type="button" onClick={() => setNachrichtAn(team.filter((m) => m.active && !m.is_test_account).map((m) => m.id))}
+            <button type="button" onClick={() => setNachrichtAn(team.filter((m) => m.active && (!m.is_test_account || m.pruefkonto)).map((m) => m.id))}
                     className="px-3.5 py-2 rounded-xl text-[12.5px] font-semibold bg-white border border-slate-200 text-slate-600">
               Nachricht ans Team
             </button>

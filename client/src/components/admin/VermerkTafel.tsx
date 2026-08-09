@@ -159,7 +159,7 @@ export default function VermerkTafel({ ziel, kompakt, onMeldung }: {
       .then((r) => r.json())
       .then((j) => {
         const roh = j?.ok ? (j.data ?? j.agents ?? []) : [];
-        setAgenten(roh.filter((a: any) => a.active !== false && !a.is_test_account)
+        setAgenten(roh.filter((a: any) => a.active !== false && (!a.is_test_account || a.pruefkonto))
           .map((a: any) => ({ id: Number(a.id), name: a.name })));
       })
       .catch(() => setAgenten([]));

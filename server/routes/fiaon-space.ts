@@ -36,6 +36,10 @@ router.get("/agent/space", requireAgent, async (req: AgentRequest, res: Response
       req.agent!.id, Math.min(100, Number(req.query.limit) || 25), sqlPool, vorId,
     );
     const verwalten = await darfVerwalten(req.agent!.id);
+    const [ichZeile] = (await sqlPool`
+      SELECT avatar FROM fiaon_agents WHERE id = ${req.agent!.id}
+    `) as any[];
+    const ichAvatar = ichZeile?.avatar || null;
     // Erst lesen, DANN als gesehen markieren: Sonst wäre die Ungelesen-Zahl
     // beim ersten Laden schon null und der Feed könnte nicht zeigen, was neu ist.
     // Beim NACHLADEN nicht: Wer seite drei holt, hat seite eins längst gesehen,
@@ -50,7 +54,18 @@ router.get("/agent/space", requireAgent, async (req: AgentRequest, res: Response
       darfVerwalten: verwalten,
       hinweis: HINWEIS_AM_FELD,
       reaktionen: REAKTIONEN,
-      ich: { id: req.agent!.id, vorname: req.agent!.first_name || req.agent!.name },
+      // ── DAS EIGENE GESICHT ────────────────────────────────────────────
+      // Bis zum 11.08.2026 stand hier nur der Vorname — die Oberfläche
+      // zeichnete daraus Initialen. Der Betreiber hat ein Profilbild
+      // hinterlegt und sah trotzdem „JS". Es war nie ein fehlendes Bild,
+      // sondern ein nicht mitgeliefertes.
+      ich: {
+        id: req.agent!.id,
+        vorname: req.agent!.first_name || req.agent!.name,
+        name: req.agent!.name,
+        avatar: ichAvatar,
+        rolle: verwalten ? "vertriebsleiter" : "team",
+      },
       // Gibt es noch mehr? Der Feed lädt sonst ewig weiter ins Leere.
       mehr: posts.length >= Math.min(100, Number(req.query.limit) || 25),
     });

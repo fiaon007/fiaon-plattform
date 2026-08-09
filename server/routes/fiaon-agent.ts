@@ -454,7 +454,15 @@ export async function requireAgent(req: AgentRequest, res: Response, next: NextF
     await ensureAgentTables();
     const tok = verifyAgentToken(req.cookies?.[AGENT_COOKIE]);
     if (!tok) return res.status(401).json({ ok: false, error: "Nicht angemeldet" });
-    const rows = await sqlPool`SELECT id, name, email, first_name, active, session_epoch FROM fiaon_agents WHERE id = ${tok.id}`;
+    // AVATAR UND ROLLE GEHÖREN DAZU (11.08.2026): Der Betreiber hatte ein
+    // Profilbild hinterlegt und sah trotzdem überall nur seine Initialen —
+    // weil die Anmeldung das Bild nie mitlud. Jede Seite hätte es einzeln
+    // nachladen müssen; keine tat es. Hier geladen, stimmt es überall.
+    const rows = await sqlPool`
+      SELECT id, name, email, first_name, active, session_epoch, avatar, rolle,
+             is_test_account, pruefkonto
+      FROM fiaon_agents WHERE id = ${tok.id}
+    `;
     if (rows.length === 0 || !rows[0].active) {
       return res.status(401).json({ ok: false, error: "Zugang deaktiviert" });
     }
@@ -462,7 +470,13 @@ export async function requireAgent(req: AgentRequest, res: Response, next: NextF
     if (Number(rows[0].session_epoch) !== tok.epoch) {
       return res.status(401).json({ ok: false, error: "Sitzung abgelaufen — bitte neu anmelden" });
     }
-    req.agent = { id: rows[0].id, name: rows[0].name, email: rows[0].email, first_name: rows[0].first_name };
+    req.agent = {
+      id: rows[0].id, name: rows[0].name, email: rows[0].email,
+      first_name: rows[0].first_name, avatar: rows[0].avatar ?? null,
+      rolle: String(rows[0].rolle || "agent"),
+      is_test_account: !!rows[0].is_test_account,
+      pruefkonto: !!rows[0].pruefkonto,
+    };
     next();
   } catch (err) {
     console.error("[FIAON-AGENT] auth:", err);

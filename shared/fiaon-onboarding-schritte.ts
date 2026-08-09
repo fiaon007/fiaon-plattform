@@ -42,17 +42,17 @@ export interface Strecke {
   ersteAufgabe: { titel: string; text: string; href: string };
 }
 
+// ── WAS ALLE ROLLEN GEMEINSAM HABEN ────────────────────────────────────────
+// Die Verpflichtungserklärung steht hier NICHT MEHR (11.08.2026). Sie gibt es
+// nur für Vertriebsleitung, Onboarding und Forderungsmanagement — die Rolle
+// „agent" hat keine Stelle, an der man sie annehmen könnte. Der Schritt stand
+// trotzdem in jeder Liste und war für drei von sechs Menschen im Team eine
+// Sackgasse: ein Häkchen, das sich nicht setzen ließ, egal was man tat.
 const GEMEINSAM: Schritt[] = [
   {
     schluessel: "vertrag",
     titel: "Vertrag unterschrieben",
     warum: "Ohne Vertrag kein Zugang — das war der erste Schritt und ist schon erledigt.",
-    automatisch: true,
-  },
-  {
-    schluessel: "zusage",
-    titel: "Verpflichtungserklärung angenommen",
-    warum: "Sie beschreibt, was du darfst und was nicht. Auch erledigt.",
     automatisch: true,
   },
   {
@@ -140,6 +140,13 @@ export const STRECKEN: Record<Rolle, Strecke> = {
       "Willkommen in der Vertriebsleitung. Du siehst mehr als die anderen — und trägst "
       + "dafür die Verantwortung, dass niemand liegen bleibt.",
     schritte: [
+      {
+        schluessel: "zusage",
+        titel: "Verpflichtungserklärung annehmen",
+        warum: "Sie beschreibt, was du in dieser Rolle darfst und was nicht. Ohne sie bleibt der Bereich zu.",
+        automatisch: true,
+        ziel: { href: "/agent/vertrieb", label: "Erklärung lesen" },
+      },
       ...GEMEINSAM,
       {
         schluessel: "verfuegbarkeit",
@@ -204,6 +211,13 @@ export const STRECKEN: Record<Rolle, Strecke> = {
       "Willkommen. Du führst die Startgespräche — das erste Gespräch, das ein Kunde nach "
       + "seiner Zahlung mit einem Menschen hat. Was du hier tust, entscheidet, ob er bleibt.",
     schritte: [
+      {
+        schluessel: "zusage",
+        titel: "Verpflichtungserklärung annehmen",
+        warum: "Sie beschreibt, was du in dieser Rolle darfst und was nicht. Ohne sie bleibt der Bereich zu.",
+        automatisch: true,
+        ziel: { href: "/agent/startgespraeche", label: "Erklärung lesen" },
+      },
       ...GEMEINSAM,
       {
         schluessel: "verfuegbarkeit",
@@ -267,6 +281,13 @@ export const STRECKEN: Record<Rolle, Strecke> = {
       + "bezahlt haben — meistens nicht, weil sie nicht wollen, sondern weil sie nicht "
       + "können. Dieser Unterschied ist dein wichtigstes Werkzeug.",
     schritte: [
+      {
+        schluessel: "zusage",
+        titel: "Verpflichtungserklärung annehmen",
+        warum: "Sie beschreibt, was du in dieser Rolle darfst und was nicht. Ohne sie bleibt der Bereich zu.",
+        automatisch: true,
+        ziel: { href: "/agent/inkasso", label: "Erklärung lesen" },
+      },
       ...GEMEINSAM,
       {
         schluessel: "liste_verstanden",

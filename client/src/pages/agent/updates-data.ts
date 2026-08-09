@@ -40,6 +40,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-gesicht-tiefe",
+    date: "2026-08-11",
+    category: "Verbessert",
+    title: "Dein Profilbild ist jetzt überall zu sehen",
+    summary:
+      "Wer ein Bild hinterlegt hat, sieht es ab sofort in der Kopfzeile, im Space und unter jedem Beitrag. Dazu: der Space hat Tiefe bekommen, und die ersten Schritte erkennen mehr von selbst.",
+    changes: [
+      "PROFILBILD: Bisher standen überall nur deine Initialen — auch wenn du längst ein Bild hochgeladen hattest. Das lag daran, dass die Anmeldung das Bild gar nicht mitgeladen hat. Jetzt schon, an einer Stelle für alle Seiten.",
+      "Der Space hat Tiefe: Beiträge treten beim Laden nach vorn, kommen dir beim Überfahren entgegen, und das Schreibfeld hebt sich an, sobald du hineinklickst.",
+      "Alles in Glas — der Hintergrund scheint durch die Karten.",
+      "ERSTE SCHRITTE: „Im Space vorbeischauen“ hakt sich jetzt von selbst ab, sobald du dort warst. Vorher musstest du es zusätzlich von Hand bestätigen.",
+      "Wenn du auf den Knopf eines Schritts klickst, gilt der Schritt als gemacht. Du musst nicht mehr zurückkommen und abhaken.",
+      "Der Schritt „Verpflichtungserklärung“ stand fälschlich in jeder Liste. Es gibt sie nur für Vertriebsleitung, Onboarding und Forderungsmanagement — im Vertrieb war es ein Häkchen, das sich nie setzen ließ. Ist raus.",
+      "Der Schritt „Vertrag unterschrieben“ stand offen, obwohl daneben stand, dass er erledigt ist. Behoben.",
+    ],
+    howto: [
+      "Bild hochladen: „Mehr“ → „Profil“ → Bild wählen. Danach siehst du es sofort oben rechts.",
+      "Deine offenen Schritte stehen unter „Start“ ganz oben. Was dort noch offen ist, ist auch wirklich offen.",
+    ],
+    link: { href: "/agent/profil", label: "Zum Profil" },
+    important: true,
+  },
+  {
     id: "2026-08-11-space-lebt",
     date: "2026-08-11",
     category: "Neu",

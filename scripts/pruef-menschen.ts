@@ -176,8 +176,12 @@ async function main(): Promise<void> {
       ok("Die Rolle ist in /admin/team vergebbar",
         /const ROLLEN = \["agent", "vertriebsleiter", "onboarding", "inkasso"\]/.test(rollenQuelle));
       ok("… und wird gegen die Liste geprüft", /!ROLLEN\.includes\(rolle\)/.test(rollenQuelle));
-      ok("Ein Testkonto bekommt KEINE erhöhte Rolle",
-        /is_test_account && rolle !== "agent"/.test(rollenQuelle));
+      // Seit dem 11.08.2026 mit Ausnahme: Das PRÜFKONTO des Betreibers ist
+      // ein echter Mensch und muss jede Rolle annehmen können, sonst lässt
+      // sich keine davon prüfen. Für Attrappen bleibt die Sperre.
+      ok("Eine Attrappe bekommt KEINE erhöhte Rolle",
+        /vorher\.is_test_account && !vorher\.pruefkonto && rolle !== "agent"/.test(rollenQuelle));
+      ok("… das Prüfkonto schon", /!vorher\.pruefkonto/.test(rollenQuelle));
 
       // ═══════════════════════════════════════════════════════════════════
       gruppe("2. Startgespräch: 15 Minuten, nur Onboarding");

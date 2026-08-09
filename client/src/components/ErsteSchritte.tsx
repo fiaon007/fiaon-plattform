@@ -252,7 +252,20 @@ export function ErsteSchritte({ erzwingen = false }: { erzwingen?: boolean }) {
               )}
             </div>
             {s.ziel && !s.erledigt && (
-              <a href={s.ziel.href} className="fi-zweitknopf shrink-0 px-3 py-1.5 text-[12px] font-semibold">
+              <a href={s.ziel.href}
+                 // WER HINGEHT, HAT DEN SCHRITT GEMACHT (11.08.2026).
+                 // Vorher musste man erst hingehen UND danach zurückkommen,
+                 // um von Hand abzuhaken. Das tut niemand — die Tafel stand
+                 // deshalb mit offenen Schritten da, die längst erledigt
+                 // waren. Der Besuch wird beim Klick gemeldet; die Seite
+                 // wechselt trotzdem sofort, weil der Aufruf nicht abgewartet
+                 // wird.
+                 onClick={() => {
+                   void fetch(`/api/fiaon/agent/erste-schritte/besucht/${s.schluessel}`, {
+                     method: "POST", credentials: "include",
+                   }).catch(() => {});
+                 }}
+                 className="fi-zweitknopf shrink-0 px-3 py-1.5 text-[12px] font-semibold">
                 {s.ziel.label}
               </a>
             )}

@@ -271,9 +271,13 @@ async function main(): Promise<void> {
   ok("Drei Spalten mit Feed in der Mitte",
     /grid-template-columns: minmax\(0, 1fr\) minmax\(0, 620px\) minmax\(0, 1fr\)/.test(space));
   ok("Seitenspalten fallen unter 1080 px weg", /max-width: 1079px/.test(space));
-  ok("Auf 380 px randlos", /border-radius: 0; box-shadow: inset 0 -1px 0/.test(space));
-  ok("Karten ohne Rahmen, mit weichem Schatten",
-    /0 10px 28px -20px rgba\(11,18,38,\.34\)/.test(space));
+  ok("Auf 380 px randlos", /border-radius: 0; padding: 15px 16px;/.test(space));
+  // Vier Lagen Schatten: Kontakt, Streuung, Farbschein, Lichtkante. Ein
+  // einzelner Schatten sieht immer nach Vorlage aus.
+  ok("Karten tragen die volle Schattenstaffel",
+    /0 18px 40px -24px rgba\(11,18,38,\.44\)/.test(space)
+    && /0 0 50px -26px rgba\(29,78,216,\.4\)/.test(space)
+    && /inset 0 1px 0 rgba\(255,255,255,\.95\)/.test(space));
   ok("Der Komposer öffnet sich beim Fokus", /onFocus=\{\(\) => setGross\(true\)\}/.test(space));
   ok("… und lädt ein statt zu fordern", /Was lief gut\?/.test(space));
   ok("Reaktionen mit eigenen SVG-Marken, keine Emojis",
@@ -409,7 +413,142 @@ async function main(): Promise<void> {
     /<FiaonEbene[\s\S]{0,300}Was mit diesen Bestellungen passiert/.test(akte));
 
   // ═══════════════════════════════════════════════════════════════════════
-  gruppe("12. Verhalten gegen echte Daten");
+  gruppe("12. Das eigene Gesicht");
+  // ═══════════════════════════════════════════════════════════════════════
+  const agentQ = datei("server/routes/fiaon-agent.ts");
+  ok("Die Anmeldung lädt den Avatar mit",
+    /SELECT id, name, email, first_name, active, session_epoch, avatar, rolle/.test(agentQ));
+  ok("… und legt ihn an den Request", /avatar: rows\[0\]\.avatar \?\? null/.test(agentQ));
+  ok("Der Space liefert das eigene Bild aus", /avatar: ichAvatar/.test(spaceRouten));
+  ok("Die Space-Oberfläche benutzt es",
+    (spaceSeite.match(/src=\{ich\?\.avatar/g) || []).length >= 3);
+  ok("Keine erzwungenen Initialen mehr im Space", !/<Avatar src=\{null\}/.test(spaceSeite));
+  const sharedQ = datei("client/src/pages/agent/shared.tsx");
+  ok("Auch die Kopfzeile zeigt das Bild", /<Avatar src=\{agent\.avatar \?\? null\}/.test(sharedQ));
+  ok("Der Typ kennt das Feld", /avatar\?: string \| null/.test(sharedQ));
+
+  // Gegen echte Daten: Wer ein Bild hat, muss es geliefert bekommen.
+  const [mitBild] = (await sqlPool`
+    SELECT id, LENGTH(avatar) AS n FROM fiaon_agents
+    WHERE active AND avatar IS NOT NULL ORDER BY id LIMIT 1
+  `) as any[];
+  ok("Es gibt Konten mit hinterlegtem Bild", !!mitBild && Number(mitBild.n) > 1000,
+    mitBild ? `${mitBild.n} Zeichen` : "keins");
+
+  // ═══════════════════════════════════════════════════════════════════════
+  gruppe("13. Prüfkonto statt Attrappe");
+  // ═══════════════════════════════════════════════════════════════════════
+  const [pk] = (await sqlPool`
+    SELECT id, is_test_account, pruefkonto FROM fiaon_agents
+    WHERE LOWER(email) = 'office@schwarzott-global.com'
+  `) as any[];
+  ok("Das Konto des Betreibers ist als Prüfkonto markiert", !!pk?.pruefkonto);
+  ok("… und bleibt zugleich als Test gekennzeichnet", !!pk?.is_test_account);
+
+  const telQ = datei("server/routes/fiaon-telefonie.ts");
+  ok("Telefonie fragt nach BEIDEM", /is_test_account, pruefkonto FROM fiaon_agents/.test(telQ));
+  ok("… und lässt das Prüfkonto durch",
+    /return !!a\?\.is_test_account && !a\?\.pruefkonto;/.test(telQ));
+  const teamQ = datei("server/routes/fiaon-team.ts");
+  ok("Die Rollensperre nimmt das Prüfkonto aus",
+    /vorher\.is_test_account && !vorher\.pruefkonto && rolle !== "agent"/.test(teamQ));
+  ok("Für echte Attrappen bleibt sie", /keine erhöhte Rolle bekommen/.test(teamQ));
+
+  // Die Sperren, die BLEIBEN müssen: Ein echter Kunde darf nie auf einem
+  // Prüfkonto landen. Das ist keine Vergesslichkeit, das ist die Grenze.
+  for (const [name, pfad, muster] of [
+    ["Automatische Verteilung", "server/lib/fiaon-zuteilung.ts", "AND NOT a.is_test_account"],
+    ["Terminangebote", "server/lib/fiaon-termine.ts", "AND NOT is_test_account"],
+    ["Wiedereinstiegs-Mails", "server/lib/fiaon-wiedereinstieg.ts", "tg.is_test_account"],
+    ["Kundenübergabe", "server/lib/fiaon-uebergabe.ts", "COALESCE(a.is_test_account, FALSE) = FALSE"],
+  ] as const) {
+    ok(`Bleibt gesperrt (Kundenkontakt): ${name}`, datei(pfad).includes(muster), muster);
+  }
+
+  // Die Prüfung selbst, gegen echte Daten.
+  const konten = (await sqlPool`
+    SELECT id, is_test_account, pruefkonto FROM fiaon_agents WHERE active
+  `) as any[];
+  const darfTelefonieren = (k: any) => !(!!k.is_test_account && !k.pruefkonto);
+  ok("Das Prüfkonto darf telefonieren",
+    darfTelefonieren(konten.find((k) => Number(k.id) === Number(pk.id))));
+  const attrappen = konten.filter((k) => k.is_test_account && !k.pruefkonto);
+  ok(`Attrappen bleiben gesperrt (${attrappen.length} Stück)`,
+    attrappen.every((k) => !darfTelefonieren(k)));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  gruppe("14. Erste Schritte: erledigt heißt erledigt");
+  // ═══════════════════════════════════════════════════════════════════════
+  const schritteQ = datei("shared/fiaon-onboarding-schritte.ts");
+  const esQ = datei("server/routes/fiaon-erste-schritte.ts");
+
+  // Der Sackgassen-Fund: Die Zusage gab es für die Rolle „agent" nirgends.
+  ok("Die Zusage steht NICHT mehr in der gemeinsamen Liste",
+    !/const GEMEINSAM: Schritt\[\] = \[[\s\S]{0,400}schluessel: "zusage"/.test(schritteQ));
+  gleich("Sie steht bei genau drei Rollen",
+    (schritteQ.match(/schluessel: "zusage"/g) || []).length, 3);
+  ok("… und jede davon hat einen Weg dorthin",
+    /schluessel: "zusage"[\s\S]{0,300}ziel: \{ href: "\/agent\/vertrieb"/.test(schritteQ)
+    && /schluessel: "zusage"[\s\S]{0,300}ziel: \{ href: "\/agent\/startgespraeche"/.test(schritteQ)
+    && /schluessel: "zusage"[\s\S]{0,300}ziel: \{ href: "\/agent\/inkasso"/.test(schritteQ));
+
+  ok("Der Space wird automatisch erkannt", /space: a\.space_gesehen_am/.test(esQ));
+  ok("Der Vertrag folgt seinem eigenen Text (Zugang = Vertrag)",
+    /a\.hat_passwort \? a\.beitritt : null/.test(esQ));
+  ok("Ein Besuch der Zielseite zählt", /erste-schritte\/besucht\/:schluessel/.test(esQ));
+  ok("… und wird beim Klick gemeldet",
+    /erste-schritte\/besucht\/\$\{s\.schluessel\}/.test(datei("client/src/components/ErsteSchritte.tsx")));
+  ok("Die Besuchsmeldung kann nur echte Schritte setzen",
+    /if \(!erlaubt\.includes\(schluessel\)\) return res\.json\(\{ ok: true, vermerkt: false \}\)/.test(esQ));
+
+  // Gegen echte Daten: Kein Mensch darf einen Schritt haben, den er nicht
+  // erreichen kann.
+  const { streckeFuer } = await import("../shared/fiaon-onboarding-schritte");
+  const menschen = (await sqlPool`
+    SELECT a.id, a.rolle,
+           (SELECT COUNT(*)::int FROM fiaon_vertrieb_zusagen z
+             WHERE z.agent_id = a.id AND z.widerrufen_am IS NULL) AS zusagen
+    FROM fiaon_agents a WHERE a.active AND NOT a.is_test_account
+  `) as any[];
+  const sackgasse = menschen.filter((m) => {
+    const hat = streckeFuer(String(m.rolle)).schritte.some((sc) => sc.schluessel === "zusage");
+    // Eine Zusage im Weg zu haben ist nur dann in Ordnung, wenn es die Rolle
+    // auch wirklich gibt — sonst ist es ein Häkchen ohne Knopf.
+    return hat && String(m.rolle) === "agent";
+  });
+  gleich("Niemand hat einen unerreichbaren Schritt", sackgasse.length, 0);
+  for (const rolle of ["agent", "vertriebsleiter", "onboarding", "inkasso"] as const) {
+    const st = streckeFuer(rolle).schritte;
+    ok(`Strecke ${rolle}: jeder Schritt ist erreichbar`,
+      st.every((sc) => sc.automatisch || sc.ziel || sc.schluessel === "liste_verstanden"),
+      st.filter((sc) => !sc.automatisch && !sc.ziel).map((sc) => sc.schluessel).join(", "));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  gruppe("15. Space-Design");
+  // ═══════════════════════════════════════════════════════════════════════
+  ok("Der Raum liegt auf der Hülle, nicht in der Bühne",
+    /body:has\(\.fi-sp-buehne\) \.agent-ambient \{/.test(spaceSeite));
+  ok("… weil perspective sonst den Bezugsrahmen kapert",
+    /Bezugsrahmen für/.test(spaceSeite));
+  ok("Die Bühne hat Tiefe", /perspective: 1600px/.test(spaceSeite));
+  ok("Karten sind Glas", /backdrop-filter: blur\(28px\) saturate\(190%\)/.test(spaceSeite));
+  ok("… mit Lichtkante oben", /\.fi-sp-karte::after/.test(spaceSeite));
+  ok("Beiträge treten aus der Tiefe ein", /translateZ\(-40px\) rotateX\(4deg\)/.test(spaceSeite));
+  ok("… und kommen dem Zeiger entgegen", /\.fi-sp-post:hover[\s\S]{0,80}translateZ\(10px\)/.test(spaceSeite));
+  ok("Der Komposer hebt sich beim Fokus an", /transform: translateZ\(16px\)/.test(spaceSeite));
+  ok("Reaktionen haben eine Welle", /@keyframes fiSpWelle/.test(spaceSeite));
+  ok("Knöpfe haben Druckgefühl",
+    /\.fi-sp-senden:active[\s\S]{0,120}inset 0 2px 5px/.test(spaceSeite));
+  ok("Alles auf der CI-Akzentfarbe",
+    /var\(--fi-primaer, #1d4ed8\)/.test(spaceSeite) && !/#7c3aed|#db2777|#ea580c/.test(spaceSeite));
+  ok("Keine Emojis", !/[\u{1F300}-\u{1FAFF}]/u.test(spaceSeite));
+  ok("Bewegung ist abschaltbar", /prefers-reduced-motion: reduce/.test(spaceSeite));
+  ok("… die Tiefe bleibt trotzdem", /Sie ist\s+Gestaltung, keine Animation/.test(spaceSeite)
+    || /Gestaltung, keine Animation/.test(spaceSeite));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  gruppe("16. Verhalten gegen echte Daten");
   // ═══════════════════════════════════════════════════════════════════════
   // Die Zählprobe, die gestern den Archiv-Fehler fand — sie bleibt.
   const zahlen = await filterZahlen();
@@ -479,7 +618,7 @@ async function main(): Promise<void> {
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  gruppe("13. Gegenprobe: nichts geschrieben");
+  gruppe("17. Gegenprobe: nichts geschrieben");
   // ═══════════════════════════════════════════════════════════════════════
   const [nachher] = await sqlPool`
     SELECT (SELECT COUNT(*) FROM fiaon_agents)::int AS agenten,

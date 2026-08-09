@@ -68,7 +68,7 @@ router.get("/admin/zentrale/kunden", async (req: Request, res: Response) => {
       filterZahlen(),
       sqlPool`
         SELECT id, COALESCE(NULLIF(first_name, ''), name) AS name FROM fiaon_agents
-        WHERE active AND NOT is_test_account ORDER BY name
+        WHERE active AND (NOT is_test_account OR pruefkonto) ORDER BY name
       `,
     ]);
     res.json({ ok: true, ...liste, zahlen, agenten });
@@ -394,7 +394,7 @@ router.post("/admin/zentrale/team/event", async (req: Request, res: Response) =>
     let banner = 0;
     if (req.body?.auchBanner) {
       const agenten = (await sqlPool`
-        SELECT id FROM fiaon_agents WHERE active AND NOT is_test_account
+        SELECT id FROM fiaon_agents WHERE active AND (NOT is_test_account OR pruefkonto)
       `) as any[];
       const bis = new Date(Date.now() + 7 * 86_400_000);
       for (const a of agenten) {

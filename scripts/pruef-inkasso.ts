@@ -166,9 +166,18 @@ async function main(): Promise<void> {
     ok(`${rolle}: Strecke vorhanden`, !!s && s.schritte.length >= 5, String(s?.schritte.length));
     ok(`${rolle}: 3 bis 5 Anleitungskarten`, s.karten.length >= 3 && s.karten.length <= 5, String(s.karten.length));
     ok(`${rolle}: erste Aufgabe mit Ziel`, !!s.ersteAufgabe.href && s.ersteAufgabe.text.length > 40);
-    ok(`${rolle}: Vertrag und Erklärung werden erkannt`,
-      s.schritte.some((x) => x.schluessel === "vertrag" && x.automatisch)
-      && s.schritte.some((x) => x.schluessel === "zusage" && x.automatisch));
+    ok(`${rolle}: Der Vertrag wird erkannt`,
+      s.schritte.some((x) => x.schluessel === "vertrag" && x.automatisch));
+    // Die Verpflichtungserklärung gibt es NUR dort, wo man sie annehmen kann
+    // (11.08.2026). Für die Rolle „agent" existiert keine solche Stelle — der
+    // Schritt stand trotzdem in ihrer Liste und war eine Sackgasse.
+    const hatZusage = s.schritte.some((x) => x.schluessel === "zusage");
+    ok(`${rolle}: Erklärung nur, wo es sie gibt`,
+      rolle === "agent" ? !hatZusage : hatZusage);
+    if (hatZusage) {
+      ok(`${rolle}: … mit einem Weg dorthin`,
+        !!s.schritte.find((x) => x.schluessel === "zusage")?.ziel?.href);
+    }
     ok(`${rolle}: „erstes Ergebnis“ wird erkannt, nicht geklickt`,
       s.schritte.some((x) => x.schluessel === "erstes_ergebnis" && x.automatisch));
   }

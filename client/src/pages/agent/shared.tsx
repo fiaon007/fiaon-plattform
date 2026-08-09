@@ -109,7 +109,14 @@ export function Avatar({ src, name, size = 36 }: { src?: string | null; name?: s
 }
 
 // ── Auth-Context ─────────────────────────────────────────────────────────────
-export interface AgentInfo { name: string; email: string }
+// `avatar` und `rolle` liefert /agent/me seit dem 11.08.2026 mit. Vorher
+// zeichnete die Kopfzeile aus dem Namen Initialen — auch bei jedem, der ein
+// Profilbild hinterlegt hatte.
+export interface AgentInfo {
+  name: string; email: string;
+  avatar?: string | null; rolle?: string;
+  is_test_account?: boolean; pruefkonto?: boolean;
+}
 const AgentCtx = createContext<{ agent: AgentInfo | null; reload: () => void }>({ agent: null, reload: () => {} });
 export const useAgentInfo = () => useContext(AgentCtx);
 
@@ -780,7 +787,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
                 </button>
               )}
               <Link href="/agent/profil" className="hidden sm:block">
-                <Avatar name={agent.name} size={32} />
+                <Avatar src={agent.avatar ?? null} name={agent.name} size={32} />
               </Link>
               <button
                 type="button"

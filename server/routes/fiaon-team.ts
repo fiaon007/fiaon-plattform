@@ -189,9 +189,13 @@ router.post("/admin/agents/:id/rolle", async (req, res) => {
     if (!ROLLEN.includes(rolle)) {
       return res.status(400).json({ ok: false, error: `Rolle muss eine von diesen sein: ${ROLLEN.join(", ")}` });
     }
-    const [vorher] = await sqlPool`SELECT rolle, name, is_test_account FROM fiaon_agents WHERE id = ${id}`;
+    const [vorher] = await sqlPool`SELECT rolle, name, is_test_account, pruefkonto FROM fiaon_agents WHERE id = ${id}`;
     if (!vorher) return res.status(404).json({ ok: false, error: "Mitarbeiter nicht gefunden" });
-    if (vorher.is_test_account && rolle !== "agent") {
+    // Das PRÜFKONTO des Betreibers ist ausgenommen: Es soll jede Rolle
+    // annehmen können, sonst lässt sich keine davon prüfen. Für Attrappen
+    // bleibt die Sperre — ein Konto ohne Menschen dahinter mit Zugriff auf
+    // alle Kundendaten wäre ein Datenleck mit Ansage.
+    if (vorher.is_test_account && !vorher.pruefkonto && rolle !== "agent") {
       // Ein Testkonto mit Zugriff auf ALLE echten Kundendaten waere ein
       // Datenleck mit Ansage.
       return res.status(400).json({ ok: false, error: `Ein Testkonto kann keine erhöhte Rolle bekommen (${rolle}).` });

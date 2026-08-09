@@ -29,9 +29,25 @@ async function rolleVon(agentId: number): Promise<string> {
   return String(a?.rolle || "agent");
 }
 
+/**
+ * Darf dieses Konto NICHT telefonieren?
+ *
+ * ── ATTRAPPE ODER PRÜFKONTO (11.08.2026) ───────────────────────────────────
+ * Eine Attrappe (`is_test_account`) hat keinen Menschen dahinter — sie darf
+ * nicht wählen, weil am anderen Ende ein echter Kunde abhebt und ins Leere
+ * spricht.
+ *
+ * Das PRÜFKONTO des Betreibers hat sehr wohl einen Menschen dahinter. Es
+ * trägt beide Merkmale, und bis heute gewann das falsche: Der Betreiber
+ * konnte über sein eigenes Konto nicht telefonieren.
+ *
+ * Die Regel ist nicht „ist es als Test markiert", sondern „sitzt jemand da".
+ */
 async function istTestkonto(agentId: number): Promise<boolean> {
-  const [a] = (await sqlPool`SELECT is_test_account FROM fiaon_agents WHERE id = ${agentId}`) as any[];
-  return !!a?.is_test_account;
+  const [a] = (await sqlPool`
+    SELECT is_test_account, pruefkonto FROM fiaon_agents WHERE id = ${agentId}
+  `) as any[];
+  return !!a?.is_test_account && !a?.pruefkonto;
 }
 
 /** Darf dieser Mensch diesen Kunden anfassen? Dieselbe Grenze wie beim Mailversand. */

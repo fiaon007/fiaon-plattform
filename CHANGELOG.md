@@ -3,6 +3,59 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 — Das eigene Gesicht, ein Prüfkonto, das alles darf, und ein Space mit Tiefe
+
+### „Bei mir steht einfach nur JS"
+
+Der Betreiber hat ein Profilbild hinterlegt. Es lag als 38 KB in der Datenbank und war trotzdem nirgends zu sehen — weder in der Kopfzeile noch im Space.
+
+Ursache: **`requireAgent` lud die Spalte gar nicht erst.** Jede Anmeldung reichte nur Name, Adresse und Vorname weiter; die Oberfläche zeichnete daraus Initialen. Jede Seite hätte das Bild einzeln nachladen müssen, keine tat es.
+
+Jetzt lädt die Anmeldung `avatar` und `rolle` mit. Damit stimmt es an **einer** Stelle und überall auf einmal: Kopfzeile, Profilkarte, Schreibfeld, Kommentare. Gemessen: 5 echte Bilder, 0 Initialen.
+
+### „Testkonten können nicht telefonieren"
+
+`is_test_account` bedeutete zwei völlig verschiedene Dinge:
+
+1. **Attrappe** — ein Konto ohne Menschen dahinter. Es darf keine Kunden bekommen und nicht telefonieren; am anderen Ende hebt sonst ein echter Kunde ab und spricht ins Leere.
+2. **Das Prüfkonto des Betreibers** — ein echter Mensch, der jede Funktion ausprobieren muss.
+
+Weil beides denselben Schalter benutzte, gewann das falsche. Neu: **`pruefkonto`**, gesetzt für `office@schwarzott-global.com`.
+
+**Aufgehoben** (betrifft Menschen): telefonieren, jede Rolle annehmen, in Auswahllisten erscheinen, Team-Nachrichten empfangen, in der Einarbeitungs-Übersicht stehen.
+
+**Bleibt bestehen** (betrifft echte Kunden): automatische Kundenverteilung, Terminangebote, Wiedereinstiegs-Mails, Kundenübergabe. Ein Kunde, der auf einem Prüfkonto landet, ist ein verlorener Kunde — egal wie echt der Mensch dahinter ist. Wer das testen will, weist sich einen Kunden von Hand zu.
+
+### Zwei echte Fehler in der Einarbeitung
+
+**Ein Häkchen ohne Knopf.** Der Schritt „Verpflichtungserklärung angenommen" stand in der Liste **jeder** Rolle. Es gibt sie aber nur für Vertriebsleitung, Onboarding und Forderungsmanagement — für die Rolle `agent` existiert keine Stelle, an der man sie annehmen könnte. Nachgezählt: **kein einziger der drei aktiven Agenten** hatte eine, und keiner konnte je eine bekommen. Der Schritt steht jetzt nur noch bei den drei Rollen, die ihn wirklich haben, jeweils mit einem Weg dorthin.
+
+**Ein Schritt, der sich selbst widersprach.** „Vertrag unterschrieben — das war der erste Schritt und **ist schon erledigt**" stand offen da. Ursache: Er hing an der Verpflichtungserklärung, die es für `agent` nicht gibt. Die richtige Ableitung stand im eigenen Text: **Wer Zugang hat, hat einen Vertrag** — also am gesetzten Passwort.
+
+**Der Space wurde nie erkannt.** Die Spalte `space_gesehen_am` wird bei jedem Besuch gesetzt. Der Schritt ließ sich trotzdem nur von Hand abhaken. Und: **Wer auf den Knopf eines Schritts klickt, hat ihn gemacht** — der Besuch wird jetzt gemeldet, statt zu verlangen, dass man hingeht und zum Abhaken zurückkommt.
+
+Ergebnis für das Konto des Betreibers: **von 3 von 7 auf 4 von 6.** Die zwei offenen sind wirklich offen — keine Verfügbarkeitszeiten hinterlegt, Kundenliste nicht bestätigt.
+
+### Der Space bekommt Tiefe
+
+**Der Raum hinter allem.** Statt `#f8fafc` jetzt drei weite Lichtkegel in der Akzentfarbe über einem kühlen Verlauf, dazu eine feine Körnung gegen Farbstufen. Das ist kein Schmuck: **Auf reinem Weiß ist Glas unsichtbar** — es gibt nichts, was durchscheinen könnte, und jede Milchglasfläche sieht aus wie ein grauer Kasten.
+
+Der erste Versuch war wirkungslos. Der Hintergrund lag als `position: fixed` **in** der Bühne — und die trägt `perspective`, was sie zum Bezugsrahmen für feste Positionierung macht. Er deckte die Bühne ab, nicht den Bildschirm. Jetzt über `:has()` direkt auf der Hülle.
+
+**Karten sind Glas:** 28 px Unschärfe, 190 % Sättigung, vier Lagen Schatten (Kontakt, Streuung, Farbschein, Lichtkante). Ein einzelner Schatten sieht immer nach Vorlage aus.
+
+**Bewegung mit Absicht:** Beiträge treten aus 40 px Tiefe leicht gekippt ein. Beim Überfahren kommt die Karte dem Zeiger 10 px entgegen. Der Komposer hebt sich beim Fokus an. Reaktionen bekommen eine Welle, die vom Knopf ausgeht. Knöpfe sinken beim Drücken ein.
+
+Alles auf `--fi-primaer` (#1d4ed8) — keine zweite Akzentfarbe, keine Emojis. Wer Bewegung abgestellt hat, bekommt keine; die **Tiefe bleibt**, sie ist Gestaltung, keine Animation.
+
+### Prüfstand
+
+`pruef-feinschliff.ts` von 189 auf **236 Prüfungen**. Darunter eine, die gegen die Produktionsdaten fragt: **„Hat jemand einen Schritt, den er nicht erreichen kann?"** — genau der Fund von oben. Gegenprobe: Holt man die Zusage in die gemeinsame Liste zurück, meldet sie wieder eine Sackgasse.
+
+`pruef-inkasso` und `pruef-menschen` nachgezogen — sie prüften die alten Regeln.
+
+Gesamt: **1.399 Prüfungen** über elf Prüfstände.
+
 ## 11.08.2026 — Der Feed lebt: 1.293 Beiträge, Content-Engine, Bestellungen verwalten
 
 ### Der Space hat eine Vergangenheit bekommen

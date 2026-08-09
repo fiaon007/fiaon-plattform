@@ -145,7 +145,7 @@ export default function Detailfenster({
   useEffect(() => {
     fetch("/api/fiaon/admin/agents", { credentials: "include" })
       .then((r) => r.json())
-      .then((j) => setAgenten((j?.ok ? j.data : []).filter((a: any) => a.active !== false && !a.is_test_account)
+      .then((j) => setAgenten((j?.ok ? j.data : []).filter((a: any) => a.active !== false && (!a.is_test_account || a.pruefkonto))
         .map((a: any) => ({ id: Number(a.id), name: a.name }))))
       .catch(() => setAgenten([]));
   }, []);

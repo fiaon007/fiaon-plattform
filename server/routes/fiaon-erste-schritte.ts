@@ -25,6 +25,8 @@ const router = Router();
 async function automatisch(agentId: number): Promise<Record<string, string | null>> {
   const [a] = (await sqlPool`
     SELECT a.id, a.rolle, a.avatar, a.phone,
+           (a.password_hash IS NOT NULL) AS hat_passwort,
+           a.created_at AS beitritt,
            (SELECT MIN(accepted_at) FROM fiaon_vertrieb_zusagen z
              WHERE z.agent_id = a.id AND z.widerrufen_am IS NULL) AS zusage_am,
            (SELECT MIN(cl.created_at) FROM fiaon_contact_log cl
@@ -32,16 +34,24 @@ async function automatisch(agentId: number): Promise<Record<string, string | nul
            (SELECT MIN(created_at) FROM fiaon_agent_events e
              WHERE e.agent_id = a.id AND e.type = 'vertrag_unterschrieben') AS vertrag_am,
            (SELECT MIN(w.created_at) FROM fiaon_raten_arbeit w WHERE w.agent_id = a.id) AS erste_rate,
-           (SELECT COUNT(*)::int FROM fiaon_agent_verfuegbarkeit v WHERE v.agent_id = a.id) AS zeiten
+           (SELECT COUNT(*)::int FROM fiaon_agent_verfuegbarkeit v WHERE v.agent_id = a.id) AS zeiten,
+           a.space_gesehen_am,
+           (SELECT COUNT(*)::int FROM fiaon_persons p
+             WHERE p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL) AS kunden
     FROM fiaon_agents a WHERE a.id = ${agentId}
   `) as any[];
   if (!a) return {};
 
-  // Der Vertrag: Es gibt kein einheitliches Ereignis dafür in allen
-  // Altbeständen. Wer angemeldet ist und eine Zusage hat, hat auch einen
-  // Vertrag — anders käme er nicht so weit. Lieber diese ehrliche Ableitung
-  // als ein Häkchen, das immer fehlt.
-  const vertrag = a.vertrag_am ?? a.zusage_am ?? null;
+  // ── DER VERTRAG ────────────────────────────────────────────────────────
+  // Der Schritt sagt selbst: „Ohne Vertrag kein Zugang — das war der erste
+  // Schritt und ist schon erledigt." Bis zum 11.08.2026 hing er trotzdem an
+  // der Verpflichtungserklärung, die es für die Rolle „agent" gar nicht gibt.
+  // Ergebnis: Ein Schritt, der behauptete, erledigt zu sein, und offen
+  // dastand. Genau das hat der Betreiber beanstandet.
+  //
+  // Die richtige Ableitung steht im Text: WER ZUGANG HAT, HAT EINEN VERTRAG.
+  // Zugang heißt, das Passwort ist gesetzt — die Einladung wurde angenommen.
+  const vertrag = a.vertrag_am ?? a.zusage_am ?? (a.hat_passwort ? a.beitritt : null);
   const ergebnis = String(a.rolle) === "inkasso" ? (a.erste_rate ?? a.erstes_ergebnis) : a.erstes_ergebnis;
 
   return {
@@ -52,7 +62,33 @@ async function automatisch(agentId: number): Promise<Record<string, string | nul
     profil: a.avatar || a.phone ? "erkannt" : null,
     verfuegbarkeit: Number(a.zeiten) > 0 ? "erkannt" : null,
     erstes_ergebnis: ergebnis ? String(ergebnis) : null,
+    // ── DER SPACE (11.08.2026) ──────────────────────────────────────────
+    // Dieser Schritt liess sich bisher NUR von Hand abhaken, obwohl die
+    // Spalte `space_gesehen_am` bei jedem Besuch gesetzt wird. Der Betreiber
+    // war Dutzende Male dort und sah den Schritt trotzdem als offen.
+    // Ein Häkchen, das man setzen muss, obwohl das System es längst weiss,
+    // ist kein Häkchen, sondern eine Zumutung.
+    space: a.space_gesehen_am ? String(a.space_gesehen_am) : null,
   };
+}
+
+/**
+ * Ein Schritt, der auf eine Seite zeigt, gilt als erledigt, sobald man dort
+ * WAR. Nicht als „gelesen und verstanden" — das kann keine Software prüfen —
+ * sondern als „hingegangen".
+ *
+ * Der Besuch wird von der Seite selbst gemeldet (POST .../besucht). Er landet
+ * in derselben Tabelle wie das Abhaken von Hand: Für die Auswertung ist es
+ * derselbe Vorgang, nur ohne Klick.
+ */
+export async function besuchVermerken(
+  agentId: number, schluessel: string,
+): Promise<void> {
+  await sqlPool`
+    INSERT INTO fiaon_onboarding_schritte (agent_id, schluessel)
+    VALUES (${agentId}, ${schluessel})
+    ON CONFLICT (agent_id, schluessel) DO NOTHING
+  `;
 }
 
 /** GET /agent/erste-schritte */
@@ -124,6 +160,31 @@ router.get("/agent/erste-schritte", requireAgent, async (req: AgentRequest, res:
 });
 
 /** POST /agent/erste-schritte/:schluessel — abhaken. */
+/**
+ * POST /agent/erste-schritte/besucht/:schluessel
+ *
+ * Meldet, dass die Zielseite eines Schritts geöffnet wurde. Absichtlich eine
+ * eigene Adresse und nicht dieselbe wie das Abhaken: Der Aufruf kommt
+ * automatisch beim Laden einer Seite, und ein automatischer Aufruf soll nie
+ * versehentlich etwas abhaken können, was gar nicht gemeint war.
+ */
+router.post("/agent/erste-schritte/besucht/:schluessel", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const schluessel = String(req.params.schluessel);
+    // Nur Schritte, die es in der Strecke dieser Rolle wirklich gibt.
+    const [a] = (await sqlPool`SELECT rolle FROM fiaon_agents WHERE id = ${req.agent!.id}`) as any[];
+    const erlaubt = streckeFuer(String(a?.rolle || "agent")).schritte
+      .filter((sc) => !sc.automatisch && sc.ziel)
+      .map((sc) => sc.schluessel);
+    if (!erlaubt.includes(schluessel)) return res.json({ ok: true, vermerkt: false });
+    await besuchVermerken(req.agent!.id, schluessel);
+    res.json({ ok: true, vermerkt: true });
+  } catch (err) {
+    console.error("[ERSTE-SCHRITTE] besucht:", err);
+    res.json({ ok: true, vermerkt: false });
+  }
+});
+
 router.post("/agent/erste-schritte/:schluessel", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     await sqlPool`
@@ -151,7 +212,7 @@ router.get("/admin/erste-schritte", async (_req: Request, res: Response) => {
     const agenten = (await sqlPool`
       SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname, name, rolle, created_at, last_login_at
       FROM fiaon_agents
-      WHERE active AND NOT is_test_account AND created_at > NOW() - INTERVAL '90 days'
+      WHERE active AND (NOT is_test_account OR pruefkonto) AND created_at > NOW() - INTERVAL '90 days'
       ORDER BY created_at DESC
     `) as any[];
 

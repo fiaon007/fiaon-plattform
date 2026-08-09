@@ -81,7 +81,6 @@ const AdminFinanzenPage = lazy(() => import("@/pages/admin-finanzen"));
 const AdminKontoabgleichPage = lazy(() => import("@/pages/admin-kontoabgleich"));
 const AdminVerbuchungPage = lazy(() => import("@/pages/admin-verbuchung"));
 const AdminPersonenPage = lazy(() => import("@/pages/admin-personen"));
-const AdminLeistungPage = lazy(() => import("@/pages/admin-leistung"));
 const AdminChangelogPage = lazy(() => import("@/pages/admin-changelog"));
 const AdminDiagnosePage = lazy(() => import("@/pages/admin-diagnose"));
 const AdminDublettenPage = lazy(() => import("@/pages/admin-dubletten"));
@@ -201,6 +200,11 @@ function Router() {
       {/* Mail-Zentrale — Team und Betreiber. Die Rolle entscheidet der Server:
           ein Teammitglied sieht nur eigene Kunden und darf an höchstens zehn. */}
       <Route path="/agent/mail-zentrale" component={MailZentralePage} />
+      {/* Der Betreiber hat SEINE Mail-Zentrale: gleiche Oberflaeche, gleiche
+          Bausteine, aber ohne Agent-Anmeldung und ohne 10-Empfaenger-Grenze.
+          Der Menuepunkt zeigte bis zum 11.08.2026 auf die Team-Fassung und
+          verlangte einen Zugang, den der Betreiber nicht hat. */}
+      <Route path="/admin/mail-zentrale" component={admin(MailZentralePage)} />
       {/* Die Startgespräche. Der Pfad heißt bewusst NICHT /agent/onboarding —
           das ist seit jeher die Vertrags-Schranke für neue Mitarbeiter. Zwei
           Dinge mit demselben Namen sind eine Fehlerquelle mit Ansage. */}
@@ -246,7 +250,12 @@ function Router() {
       {/* Provisionen nachbuchen sitzt jetzt im Mitarbeiter-Detail der
           Team-Zentrale — dort, wo auch der Provisionssatz steht. */}
       <Route path="/admin/nachbuchung" component={() => <Umleitung nach="/admin/team?tab=nachbuchung" />} />
-      <Route path="/admin/leistung" component={admin(AdminLeistungPage)} />
+      {/* ── UMGEZOGEN (11.08.2026) ──────────────────────────────────────
+          „Leistung" war eine eigene Seite mit denselben Zahlen, die die
+          Team-Zentrale je Mitarbeiter ohnehin zeigt. Der Betreiber hat den
+          Umzug zweimal angeordnet — hier ist er vollständig: Die Rangliste
+          liegt in der Zentrale, die Detailzahlen im Mitarbeiter-Reiter. */}
+      <Route path="/admin/leistung" component={() => <Umleitung nach="/admin/team?rang=1" />} />
       <Route path="/admin/changelog" component={admin(AdminChangelogPage)} />
       <Route path="/admin/diagnose" component={admin(AdminDiagnosePage)} />
       <Route path="/agent/leistung" component={AgentLeistungPage} />

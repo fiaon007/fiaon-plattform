@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { FiaonEbene } from "./FiaonEbene";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // „E-MAIL SENDEN" — ein Menü, zwei Geräte
@@ -228,28 +229,18 @@ export function SendeMenue({
 
   return (
     <>
-      <div className="fixed inset-0 z-[300]" onClick={onSchliessen} aria-hidden="true"
-           style={{ background: "rgba(7,11,22,.5)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }} />
-      {/* Bildschirm: schwebende Ebene. Telefon: Blatt von unten. */}
-      <div className="fixed inset-0 z-[301] flex items-end sm:items-center justify-center sm:p-6 pointer-events-none">
-        <div role="dialog" aria-modal="true" aria-label="E-Mail senden"
-             className="w-full flex flex-col overflow-hidden pointer-events-auto"
-             style={{
-               maxWidth: 560,
-               maxHeight: "88vh",
-               background: "var(--fi-karte, #fff)",
-               borderRadius: "22px 22px 0 0",
-               boxShadow: "0 40px 120px -24px rgba(13,26,63,.5), inset 0 1px 0 rgba(255,255,255,.7)",
-               animation: "sendeAuf 420ms cubic-bezier(.32,.72,0,1) both",
-             }}>
-          <style>{`
-            @media (min-width: 640px) { [role="dialog"][aria-label="E-Mail senden"] { border-radius: 22px !important; } }
-            @keyframes sendeAuf { from { opacity: 0; transform: translateY(28px) } to { opacity: 1; transform: none } }
-            @media (prefers-reduced-motion: reduce) { [role="dialog"][aria-label="E-Mail senden"] { animation: none !important } }
-          `}</style>
-          {inhalt}
-        </div>
-      </div>
+      {/* Auf der FiaonEbene: Glas-Schleier statt schwarzem Vorhang, Eintritt
+          aus der Tiefe, Glas nur auf Kopf und Fuß. Vorher ein weißer Kasten
+          auf `rgba(7,11,22,.5)` — der Standardlook, den der Betreiber zu
+          Recht abgelehnt hat. */}
+      <FiaonEbene
+        offen={offen} onZu={onSchliessen}
+        titel="E-Mail senden"
+        ueberschrift="An diesen Kunden"
+        marke={<MarkeBrief size={17} />}
+        breite={580}
+        kinder={inhalt}
+      />
       {vorschau && <MailVorschau event={vorschau} onZu={() => setVorschau(null)} />}
     </>
   );
@@ -278,91 +269,76 @@ export function MailVorschau({ event, onZu }: { event: string; onZu: () => void 
   }, [event]);
 
   return (
-    <>
-      <div className="fixed inset-0 z-[400]" onClick={onZu} aria-hidden="true"
-           style={{ background: "rgba(7,11,22,.62)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }} />
-      <div className="fixed inset-0 z-[401] flex items-center justify-center p-3 sm:p-6 pointer-events-none">
-        <div role="dialog" aria-modal="true" aria-label="Mail-Vorschau"
-             className="w-full flex flex-col overflow-hidden pointer-events-auto"
-             style={{ maxWidth: 780, maxHeight: "92vh", background: "var(--fi-karte,#fff)", borderRadius: 22,
-                      boxShadow: "0 40px 120px -24px rgba(13,26,63,.55)" }}>
-          <div className="px-5 sm:px-7 pt-5 pb-4 shrink-0 fi-glas">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="min-w-0 flex-1">
-                <p className="text-[10.5px] font-semibold uppercase tracking-[.2em]" style={{ color: "var(--fi-text-still)" }}>
-                  So sieht der Kunde sie
-                </p>
-                <h2 className="mt-1 text-[17px] font-bold tracking-tight truncate">
-                  {daten?.betreff || event}
-                </h2>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {(["desktop", "handy"] as const).map((g) => (
-                  <button key={g} type="button" onClick={() => setGeraet(g)}
-                          className="px-3 py-1.5 rounded-xl text-[12px] font-semibold"
-                          style={geraet === g
-                            ? { background: "var(--fi-primaer)", color: "#fff" }
-                            : { background: "var(--fi-seite)", color: "var(--fi-text-leise)" }}>
-                    {g === "desktop" ? "Bildschirm" : "Telefon"}
-                  </button>
-                ))}
-                <button type="button" onClick={onZu} aria-label="Schließen"
-                        className="w-8 h-8 rounded-full flex items-center justify-center"
-                        style={{ background: "var(--fi-seite)", color: "var(--fi-text-leise)" }}>
-                  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
-                    <path d="m5 5 10 10M15 5 5 15" />
-                  </svg>
-                </button>
-              </div>
-            </div>
+    <FiaonEbene
+      offen onZu={onZu}
+      titel={daten?.betreff || event}
+      ueberschrift="So sieht der Kunde sie"
+      breite={800}
+      kopf={
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <p className="fi-ebene-ueberschrift">So sieht der Kunde sie</p>
+            <h2 className="fi-ebene-titel" style={{ overflowWrap: "anywhere" }}>
+              {daten?.betreff || event}
+            </h2>
           </div>
-
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex justify-center" style={{ background: "var(--fi-seite)" }}>
-            {!daten && <p className="text-[13px]" style={{ color: "var(--fi-text-still)" }}>Wird geladen …</p>}
-            {daten && !daten.html && (
-              <div className="text-center py-10 max-w-sm">
-                <p className="text-[14px] font-semibold">Keine Vorlage zugeordnet.</p>
-                <p className="text-[12.5px] mt-1.5 leading-relaxed" style={{ color: "var(--fi-text-still)" }}>
-                  {daten.grund}
-                </p>
-                <a href="/admin/events" className="fi-primaerknopf inline-block mt-4 px-4 py-2.5 text-[13px] font-semibold">
-                  Template zuordnen
-                </a>
-              </div>
-            )}
-            {daten?.html && (
-              <div style={geraet === "handy"
-                ? {
-                    width: 390, maxWidth: "100%", borderRadius: 38, padding: 10,
-                    background: "#0f172a", boxShadow: "0 24px 60px -18px rgba(13,26,63,.5)", position: "relative",
-                  }
-                : {
-                    width: "100%", maxWidth: 680, borderRadius: 14, padding: 0,
-                    border: "1px solid var(--fi-linie)", background: "#fff", overflow: "hidden",
-                    boxShadow: "0 12px 40px -14px rgba(13,26,63,.25)",
-                  }}>
-                {geraet === "handy" && (
-                  <span aria-hidden="true" style={{
-                    position: "absolute", top: 18, left: "50%", transform: "translateX(-50%)",
-                    width: 92, height: 22, borderRadius: 99, background: "#0f172a", zIndex: 2,
-                  }} />
-                )}
-                <iframe
-                  title="Mail-Vorschau"
-                  // Kein allow-scripts, kein allow-same-origin: Vorlagen-HTML
-                  // ist fremder Code. Es soll aussehen, nicht ausgeführt werden.
-                  sandbox=""
-                  srcDoc={daten.html}
-                  style={{
-                    width: "100%", height: geraet === "handy" ? 640 : 560, border: 0,
-                    borderRadius: geraet === "handy" ? 30 : 14, background: "#fff", display: "block",
-                  }}
-                />
-              </div>
-            )}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {(["desktop", "handy"] as const).map((g) => (
+              <button key={g} type="button" onClick={() => setGeraet(g)}
+                      className="px-3 py-1.5 rounded-xl text-[12px] font-semibold"
+                      style={geraet === g
+                        ? { background: "var(--fi-primaer)", color: "#fff" }
+                        : { background: "rgba(15,23,42,.05)", color: "var(--fi-text-leise)" }}>
+                {g === "desktop" ? "Bildschirm" : "Telefon"}
+              </button>
+            ))}
+            <button type="button" onClick={onZu} aria-label="Schließen" className="fi-ebene-kreuz">
+              <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                   strokeWidth={1.6} strokeLinecap="round"><path d="m5 5 10 10M15 5 5 15" /></svg>
+            </button>
           </div>
         </div>
-      </div>
-    </>
+      }
+      kinder={<VorschauInhalt daten={daten} geraet={geraet} />}
+    />
+  );
+}
+
+/**
+ * Der Inhalt der Vorschau: das echte Vorlagen-HTML in einem abgeschotteten
+ * iframe. Vorlagen enthalten fremdes HTML — ohne `sandbox` könnte darin
+ * Skriptcode laufen, der die Verwaltung mitliest.
+ */
+function VorschauInhalt({ daten, geraet }: { daten: any; geraet: "desktop" | "handy" }) {
+  if (!daten) {
+    return <p className="text-[13px]" style={{ color: "var(--fi-text-still)" }}>Wird geladen …</p>;
+  }
+  if (!daten.html) {
+    return (
+      <p className="text-[13px] leading-relaxed" style={{ color: "var(--fi-text-still)" }}>
+        {daten.grund || "Für dieses Ereignis liegt keine Vorlage vor."}
+      </p>
+    );
+  }
+  return (
+    <div style={{
+      margin: "0 auto",
+      maxWidth: geraet === "handy" ? 390 : "100%",
+      // Die Telefonansicht bekommt eine angedeutete Gerätekante — sonst sieht
+      // eine schmale Spalte einfach nach kaputtem Layout aus.
+      borderRadius: geraet === "handy" ? 20 : 14,
+      overflow: "hidden",
+      boxShadow: geraet === "handy"
+        ? "0 22px 50px -24px rgba(11,18,38,.5), inset 0 0 0 1px rgba(15,23,42,.09)"
+        : "inset 0 0 0 1px rgba(15,23,42,.07)",
+      transition: "max-width 320ms cubic-bezier(.32,.72,0,1)",
+    }}>
+      <iframe
+        title="Mail-Vorschau"
+        srcDoc={daten.html}
+        sandbox=""
+        style={{ width: "100%", height: geraet === "handy" ? 620 : 560, border: 0, background: "#fff" }}
+      />
+    </div>
   );
 }

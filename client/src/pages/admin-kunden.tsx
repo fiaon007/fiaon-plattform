@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { statusAusTierGrund, stufeAusTier } from "@shared/fiaon-kundenstatus";
+import { FiaonEbene } from "@/components/FiaonEbene";
+import { FiaonFilter, FiaonFilterChips } from "@/components/FiaonFilter";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // KUNDEN-ZENTRALE — eine Seite statt sechs
@@ -47,17 +49,31 @@ const STUFEN_KNOPF: { wert: string; titel: string; schluessel: string }[] = [
   { wert: "bezahlt", titel: "Bezahlt", schluessel: "bezahlt" },
 ];
 
-const SPEZIAL: { schluessel: string; titel: string; zahl: string }[] = [
-  { schluessel: "ohneAgent", titel: "Ohne Agent", zahl: "ohne_agent" },
-  { schluessel: "ohneTelefon", titel: "Ohne Telefon", zahl: "ohne_telefon" },
-  { schluessel: "zahlungUnbestaetigt", titel: "Zahlung >7 Tage offen", zahl: "zahlung_unbestaetigt" },
-  { schluessel: "kycOffen", titel: "KYC zu prüfen", zahl: "kyc_offen" },
-  { schluessel: "kuendigungen", titel: "Kündigungen", zahl: "kuendigungen" },
-  { schluessel: "dubletten", titel: "Dubletten-Verdacht", zahl: "" },
-  { schluessel: "anonyme", titel: "Anonyme Abbrecher", zahl: "anonyme" },
-  { schluessel: "ruhend", titel: "Ruhend", zahl: "ruhend" },
-  { schluessel: "tests", titel: "Testeinträge", zahl: "tests" },
-];
+/**
+ * Die Spezialfilter — Schlüssel und Klartext getrennt.
+ *
+ * Der Schlüssel steht in der Adresse, der Titel auf dem Chip. Eine gemeinsame
+ * Liste wäre bequem und hätte die Folge, dass jemand den Titel ändert und die
+ * Adressen aller geteilten Links kaputtgehen.
+ */
+const SPEZIAL_SCHLUESSEL = [
+  "ohneAgent", "kycOffen", "zahlungUnbestaetigt", "kuendigungen", "ruhend",
+  "ohneTelefon", "dubletten", "anonyme", "tests", "archiv",
+] as const;
+
+const SPEZIAL_TITEL: Record<string, string> = {
+  ohneAgent: "Ohne Agent",
+  kycOffen: "KYC zu prüfen",
+  zahlungUnbestaetigt: "Zahlung über 7 Tage offen",
+  kuendigungen: "Kündigungen",
+  ruhend: "Ruhend",
+  ohneTelefon: "Ohne Telefon",
+  dubletten: "Dubletten-Verdacht",
+  anonyme: "Anonyme Abbrecher",
+  tests: "Testeinträge",
+  archiv: "Archiviertes",
+};
+
 
 const SORTIERUNG = [
   { wert: "arbeit", titel: "Arbeitsreihenfolge" },
@@ -109,13 +125,25 @@ export default function AdminKundenZentrale() {
   // ── Filter aus der Adresse ───────────────────────────────────────────────
   // Einzige Wahrheit: die Adresszeile. Kein zweiter Zustand daneben, der
   // auseinanderlaufen könnte.
-  const params = useMemo(() => new URLSearchParams(window.location.search), [
-    typeof window !== "undefined" ? window.location.search : "",
-  ]);
+  // ── DER BUG, DEN DER BETREIBER GEMELDET HAT (11.08.2026) ────────────────
+  // Hier stand `useMemo(() => new URLSearchParams(window.location.search), [
+  //   window.location.search ])`. Das sieht richtig aus und ist es nicht:
+  // `window.location.search` ist keine reaktive Quelle. React erfährt nichts
+  // von einer Adressänderung, also wurde die Abhängigkeit nie neu bewertet und
+  // der Lade-Effekt nie erneut ausgelöst. Ein Filterklick änderte die Adresse
+  // und sonst nichts — die Liste kam erst nach einem Vollreload.
+  //
+  // `useSearch()` aus wouter ABONNIERT den Suchteil der Adresse. Damit rendert
+  // die Komponente neu, sobald sich ein Filter ändert, und der Effekt läuft.
+  const suche = useSearch();
+  const params = useMemo(() => new URLSearchParams(suche), [suche]);
   const [suchtext, setSuchtext] = useState(params.get("q") ?? "");
 
   const setzeFilter = useCallback((aenderungen: Record<string, string | null>) => {
-    const p = new URLSearchParams(window.location.search);
+    // Vom ABONNIERTEN Stand ausgehen, nicht von window.location: Zwei Klicks
+    // in schneller Folge lesen sonst beide den Stand VOR dem ersten — und der
+    // erste Filter fällt still wieder heraus.
+    const p = new URLSearchParams(suche);
     for (const [k, v] of Object.entries(aenderungen)) {
       if (v === null || v === "") p.delete(k);
       else p.set(k, v);
@@ -124,21 +152,23 @@ export default function AdminKundenZentrale() {
     // einer Liste, die nur noch drei Seiten hat, und sieht nichts.
     if (!("offset" in aenderungen)) p.delete("offset");
     navigate(`/admin/kunden${p.toString() ? `?${p}` : ""}`, { replace: true });
-  }, [navigate]);
+  }, [navigate, suche]);
 
   const laden = useCallback(async () => {
     setLaedt(true);
-    const p = new URLSearchParams(window.location.search);
-    const r = await fetch(`/api/fiaon/admin/zentrale/kunden?${p}`, { credentials: "include" }).catch(() => null);
+    // Aus dem ABONNIERTEN Suchteil, nicht aus window.location: Sonst liest
+    // der Aufruf denselben veralteten Stand, den der Effekt gerade verlassen
+    // hat.
+    const r = await fetch(`/api/fiaon/admin/zentrale/kunden?${suche}`, { credentials: "include" }).catch(() => null);
     const j = await r?.json().catch(() => null);
     if (j?.ok) setDaten(j);
     setLaedt(false);
-  }, []);
+  }, [suche]);
 
-  useEffect(() => { void laden(); }, [laden, params.toString()]);
+  useEffect(() => { void laden(); }, [laden, suche]);
   // Auswahl fällt weg, wenn sich die Treffermenge ändert — sonst löscht man
   // Zeilen, die man gar nicht mehr sieht.
-  useEffect(() => { setGewaehlt(new Set()); setAlleTreffer(null); }, [params.toString()]);
+  useEffect(() => { setGewaehlt(new Set()); setAlleTreffer(null); }, [suche]);
 
   const zahlen = daten?.zahlen ?? {};
   const zeilen: Zeile[] = daten?.zeilen ?? [];
@@ -259,30 +289,78 @@ export default function AdminKundenZentrale() {
           })}
         </div>
 
-        {/* ── Spezialfilter ────────────────────────────────────────────── */}
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          {SPEZIAL.map((f) => {
-            const an = anKnopf(f.schluessel);
-            const n = f.zahl ? zahlen[f.zahl] : null;
-            return (
-              <button key={f.schluessel} type="button"
-                      onClick={() => setzeFilter({ [f.schluessel]: an ? null : "1" })}
-                      className="px-2.5 py-1.5 rounded-lg text-[12px] font-semibold"
-                      style={an
-                        ? { background: "rgba(29,78,216,.1)", color: "#1d4ed8" }
-                        : { background: "#f8fafc", color: "#64748b" }}>
-                {f.titel}{n != null && <span className="ml-1 tabular-nums opacity-70">{n}</span>}
-              </button>
-            );
-          })}
+        {/* ── Filter-Knopf und aktive Chips ─────────────────────────────
+            Vorher standen hier vierzehn Knöpfe in zwei Reihen. Das ist keine
+            Leiste, das ist eine Wand: Man liest sie nicht, man sucht darin.
+            Jetzt EIN Knopf mit Zahl — und was eingestellt ist, steht als Chip
+            daneben, nicht als Farbe unter dreizehn anderen. */}
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <FiaonFilter
+            gruppen={[
+              {
+                titel: "Arbeitslage",
+                art: "schalter",
+                optionen: [
+                  { schluessel: "ohneAgent", titel: "Ohne Agent", anzahl: zahlen.ohne_agent,
+                    erklaerung: "Niemand ist zuständig — die teuerste Lücke im Haus." },
+                  { schluessel: "kycOffen", titel: "KYC zu prüfen", anzahl: zahlen.kyc_offen,
+                    erklaerung: "Unterlagen liegen vor, geprüft ist nichts." },
+                  { schluessel: "zahlungUnbestaetigt", titel: "Zahlung über 7 Tage offen",
+                    anzahl: zahlen.zahlung_unbestaetigt,
+                    erklaerung: "Gemeldet, aber nicht gebucht." },
+                  { schluessel: "kuendigungen", titel: "Kündigungen", anzahl: zahlen.kuendigungen },
+                  { schluessel: "ruhend", titel: "Ruhend", anzahl: zahlen.ruhend },
+                ],
+              },
+              {
+                titel: "Datenqualität",
+                art: "schalter",
+                optionen: [
+                  { schluessel: "ohneTelefon", titel: "Ohne Telefon", anzahl: zahlen.ohne_telefon,
+                    erklaerung: "Nicht anrufbar — nur per Mail erreichbar." },
+                  { schluessel: "dubletten", titel: "Dubletten-Verdacht", anzahl: null,
+                    erklaerung: "Gleiche Nummer oder Adresse wie jemand anderes." },
+                  { schluessel: "anonyme", titel: "Anonyme Abbrecher", anzahl: zahlen.anonyme,
+                    erklaerung: "Weder Mail noch Nummer hinterlegt." },
+                ],
+              },
+              {
+                titel: "Sonderansichten",
+                art: "schalter",
+                optionen: [
+                  { schluessel: "tests", titel: "Testeinträge", anzahl: zahlen.tests,
+                    erklaerung: "Nur mit diesem Schalter sichtbar." },
+                  { schluessel: "archiv", titel: "Archiviertes", anzahl: null,
+                    erklaerung: "Zeigt stillgelegte Bestellungen statt der aktiven." },
+                ],
+              },
+            ]}
+            aktiv={Object.fromEntries(
+              SPEZIAL_SCHLUESSEL.filter((k) => params.get(k) === "1").map((k) => [k, true]),
+            )}
+            onAendern={(k, w) => setzeFilter({ [k]: w ? "1" : null })}
+            onZuruecksetzen={() => setzeFilter(
+              Object.fromEntries(SPEZIAL_SCHLUESSEL.map((k) => [k, null])),
+            )}
+          />
+
           {daten?.agenten?.length > 0 && (
             <select value={params.get("agent") ?? ""}
                     onChange={(e) => setzeFilter({ agent: e.target.value || null })}
-                    className="px-2.5 py-1.5 rounded-lg text-[12px] font-semibold bg-slate-50 text-slate-600 border-0">
+                    aria-label="Zuständiger"
+                    className="px-3 rounded-xl text-[13px] font-semibold bg-white text-slate-600 border-0"
+                    style={{ height: 42, boxShadow: "inset 0 0 0 1px #e2e8f0" }}>
               <option value="">Alle Zuständigen</option>
               {daten.agenten.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           )}
+
+          <FiaonFilterChips
+            chips={SPEZIAL_SCHLUESSEL.filter((k) => params.get(k) === "1")
+              .map((k) => ({ schluessel: k, titel: SPEZIAL_TITEL[k] ?? k }))}
+            onEntfernen={(k) => setzeFilter({ [k]: null })}
+            onAlle={() => setzeFilter(Object.fromEntries(SPEZIAL_SCHLUESSEL.map((k) => [k, null])))}
+          />
         </div>
 
         {/* ── Massenauswahl ────────────────────────────────────────────── */}
@@ -295,7 +373,7 @@ export default function AdminKundenZentrale() {
             {!alleTreffer && gesamt > zeilen.length && (
               <button type="button"
                       onClick={async () => {
-                        const r = await fetch(`/api/fiaon/admin/zentrale/kunden/alle-ids?${params}`, { credentials: "include" });
+                        const r = await fetch(`/api/fiaon/admin/zentrale/kunden/alle-ids?${suche}`, { credentials: "include" });
                         const j = await r.json();
                         if (j?.ok) setAlleTreffer(j.ids);
                       }}
@@ -337,7 +415,7 @@ export default function AdminKundenZentrale() {
                style={{ gridTemplateColumns: "28px 1.6fr 90px 1fr 1.1fr 110px 96px 70px" }}>
             <span />
             <span>Name</span><span>Stufe</span><span>Produkt</span><span>Kontakt</span>
-            <span>Zuständig</span><span>Referenz</span><span>Kontakt</span>
+            <span>Zuständig</span><span>Referenz</span><span>Letzter Kontakt</span>
           </div>
 
           {laedt && <p className="px-4 py-10 text-center text-[13px] text-slate-400">Wird geladen …</p>}
@@ -426,94 +504,94 @@ export default function AdminKundenZentrale() {
         )}
       </div>
 
-      {/* ── Lösch-Dialog ──────────────────────────────────────────────── */}
-      {loeschDialog && (
-        <>
-          <div className="fixed inset-0 z-[400]" onClick={() => setLoeschDialog(null)} aria-hidden="true"
-               style={{ background: "rgba(7,11,22,.6)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }} />
-          <div className="fixed inset-0 z-[401] flex items-end sm:items-center justify-center sm:p-6 pointer-events-none">
-            <div role="dialog" aria-modal="true" aria-labelledby="loesch-titel"
-                 className="w-full flex flex-col overflow-hidden pointer-events-auto"
-                 style={{ maxWidth: 580, maxHeight: "90vh", background: "#fff", borderRadius: 22,
-                          boxShadow: "0 40px 120px -24px rgba(13,26,63,.5)" }}>
-              <div className="px-5 sm:px-7 pt-5 pb-4 shrink-0" style={{ borderBottom: "1px solid #f1f5f9" }}>
-                <p className="text-[10.5px] font-semibold uppercase tracking-[.2em] text-slate-400">
-                  Bitte genau lesen
+      {/* ── Lösch-Dialog auf der FiaonEbene ───────────────────────────
+          Vorher ein weißer Kasten auf schwarzem Schleier. Der gefährlichste
+          Knopf im Haus verdient die beste Darstellung: Wer hier hastig klickt,
+          löscht Menschen. */}
+      <FiaonEbene
+        offen={!!loeschDialog}
+        onZu={() => setLoeschDialog(null)}
+        titel="Was mit dieser Auswahl passiert"
+        ueberschrift="Bitte genau lesen"
+        breite={600}
+        marke={<Zeichen art="muell" size={17} />}
+        fuss={loeschDialog ? (
+          <>
+            {/* Ein Kontrollkästchen klickt man weg. Einen Satz mit einer Zahl
+                darin tippt man nicht versehentlich. */}
+            <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">
+              Zur Bestätigung eintippen:{" "}
+              <span className="font-mono text-slate-900">{loeschDialog.bestaetigung}</span>
+            </label>
+            <input value={bestaetigung} onChange={(e) => setBestaetigung(e.target.value)}
+                   aria-label="Bestätigungstext"
+                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-[13px] outline-none focus:border-[#b91c1c]"
+                   style={{ minHeight: 42 }} />
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => setLoeschDialog(null)}
+                      className="text-[13px] font-semibold text-slate-500">Abbrechen</button>
+              <button type="button" onClick={() => void loeschen()}
+                      disabled={busy === "loeschen" || bestaetigung.trim() !== loeschDialog.bestaetigung}
+                      className="ml-auto px-5 py-2.5 rounded-xl text-[14px] font-bold text-white bg-[#b91c1c] disabled:opacity-30"
+                      style={{ boxShadow: "0 12px 26px -12px rgba(185,28,28,.55)" }}>
+                {busy === "loeschen" ? "Läuft …" : "Endgültig ausführen"}
+              </button>
+            </div>
+          </>
+        ) : undefined}
+        kinder={loeschDialog ? (
+          <>
+            {/* Zwei Kategorien, getrennt gezählt. Ein einziger Zähler
+                „N Einträge" würde verschleiern, dass mit der Hälfte etwas
+                völlig anderes geschieht. */}
+            <div className="grid grid-cols-2 gap-2.5 mb-4">
+              <div className="p-3.5 rounded-2xl"
+                   style={{ background: "linear-gradient(160deg, rgba(185,28,28,.09), rgba(185,28,28,.03))",
+                            boxShadow: "inset 0 0 0 1px rgba(185,28,28,.16)" }}>
+                <p className="text-[26px] font-bold leading-none text-[#b91c1c] tabular-nums">
+                  {loeschDialog.endgueltig}
                 </p>
-                <h2 id="loesch-titel" className="mt-1 text-[20px] font-bold tracking-tight text-slate-900">
-                  Was mit dieser Auswahl passiert
-                </h2>
+                <p className="text-[11.5px] font-semibold mt-1 text-[#b91c1c]">endgültig gelöscht</p>
               </div>
-
-              <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-4">
-                {/* Zwei Kategorien, getrennt gezählt. Ein einziger Zähler
-                    „N Einträge" würde verschleiern, dass mit der Hälfte etwas
-                    völlig anderes geschieht. */}
-                <div className="grid grid-cols-2 gap-2.5 mb-4">
-                  <div className="p-3 rounded-xl" style={{ background: "rgba(185,28,28,.06)" }}>
-                    <p className="text-[24px] font-bold leading-none text-[#b91c1c] tabular-nums">
-                      {loeschDialog.endgueltig}
-                    </p>
-                    <p className="text-[11.5px] font-semibold mt-1 text-[#b91c1c]">endgültig gelöscht</p>
-                  </div>
-                  <div className="p-3 rounded-xl" style={{ background: "rgba(217,119,6,.06)" }}>
-                    <p className="text-[24px] font-bold leading-none text-[#b45309] tabular-nums">
-                      {loeschDialog.anonymisiert}
-                    </p>
-                    <p className="text-[11.5px] font-semibold mt-1 text-[#b45309]">anonymisiert</p>
-                  </div>
-                </div>
-
-                {loeschDialog.hinweise.map((h: string, i: number) => (
-                  <p key={i} className="text-[12.5px] leading-relaxed text-slate-600 mb-2.5">{h}</p>
-                ))}
-
-                <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mt-4 mb-1.5">
-                  Im Einzelnen
+              <div className="p-3.5 rounded-2xl"
+                   style={{ background: "linear-gradient(160deg, rgba(217,119,6,.09), rgba(217,119,6,.03))",
+                            boxShadow: "inset 0 0 0 1px rgba(217,119,6,.16)" }}>
+                <p className="text-[26px] font-bold leading-none text-[#b45309] tabular-nums">
+                  {loeschDialog.anonymisiert}
                 </p>
-                <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #f1f5f9" }}>
-                  {loeschDialog.kandidaten.slice(0, 40).map((k: LoeschKandidat) => (
-                    <div key={k.personId} className="px-3 py-2 text-[12px]" style={{ borderBottom: "1px solid #f8fafc" }}>
-                      <span className="font-semibold text-slate-800">{k.name}</span>
-                      <span className="ml-2 font-bold" style={{
-                        color: k.art === "endgueltig" ? "#b91c1c" : k.art === "anonymisiert" ? "#b45309" : "#94a3b8",
-                      }}>
-                        {k.art === "endgueltig" ? "endgültig" : k.art === "anonymisiert" ? "anonymisiert" : "übersprungen"}
-                      </span>
-                      <span className="block text-[11px] text-slate-400 leading-snug">{k.begruendung}</span>
-                    </div>
-                  ))}
-                  {loeschDialog.kandidaten.length > 40 && (
-                    <p className="px-3 py-2 text-[11.5px] text-slate-400">
-                      … und {loeschDialog.kandidaten.length - 40} weitere.
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="px-5 sm:px-7 py-4 shrink-0" style={{ borderTop: "1px solid #f1f5f9" }}>
-                {/* Ein Kontrollkästchen klickt man weg, ohne es zu lesen. Einen
-                    Satz mit einer Zahl darin tippt man nicht versehentlich. */}
-                <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">
-                  Zur Bestätigung eintippen: <span className="font-mono text-slate-900">{loeschDialog.bestaetigung}</span>
-                </label>
-                <input value={bestaetigung} onChange={(e) => setBestaetigung(e.target.value)}
-                       className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-[13px] outline-none focus:border-[#b91c1c]"
-                       style={{ minHeight: 42 }} />
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <button type="button" onClick={() => setLoeschDialog(null)}
-                          className="text-[13px] font-semibold text-slate-500">Abbrechen</button>
-                  <button type="button" onClick={() => void loeschen()}
-                          disabled={busy === "loeschen" || bestaetigung.trim() !== loeschDialog.bestaetigung}
-                          className="ml-auto px-5 py-2.5 rounded-xl text-[14px] font-bold text-white bg-[#b91c1c] disabled:opacity-30">
-                    {busy === "loeschen" ? "Läuft …" : "Endgültig ausführen"}
-                  </button>
-                </div>
+                <p className="text-[11.5px] font-semibold mt-1 text-[#b45309]">anonymisiert</p>
               </div>
             </div>
-          </div>
-        </>
-      )}
+
+            {loeschDialog.hinweise.map((h: string, i: number) => (
+              <p key={i} className="text-[12.5px] leading-relaxed text-slate-600 mb-2.5">{h}</p>
+            ))}
+
+            <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mt-5 mb-2">
+              Im Einzelnen
+            </p>
+            <div className="rounded-2xl overflow-hidden" style={{ boxShadow: "inset 0 0 0 1px #eef2f7" }}>
+              {loeschDialog.kandidaten.slice(0, 40).map((k: LoeschKandidat) => (
+                <div key={k.personId} className="px-3.5 py-2.5 text-[12px]"
+                     style={{ borderBottom: "1px solid #f8fafc" }}>
+                  <span className="font-semibold text-slate-800">{k.name}</span>
+                  <span className="ml-2 font-bold" style={{
+                    color: k.art === "endgueltig" ? "#b91c1c" : k.art === "anonymisiert" ? "#b45309" : "#94a3b8",
+                  }}>
+                    {k.art === "endgueltig" ? "endgültig" : k.art === "anonymisiert" ? "anonymisiert" : "übersprungen"}
+                  </span>
+                  <span className="block text-[11px] text-slate-400 leading-snug mt-0.5">{k.begruendung}</span>
+                </div>
+              ))}
+              {loeschDialog.kandidaten.length > 40 && (
+                <p className="px-3.5 py-2.5 text-[11.5px] text-slate-400">
+                  … und {loeschDialog.kandidaten.length - 40} weitere.
+                </p>
+              )}
+            </div>
+          </>
+        ) : null}
+      />
     </>
   );
 }

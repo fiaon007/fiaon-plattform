@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   InviteModal, MilestoneTasksCard, PartnerSuggestionsCard, ScriptsAdmin, SettingsCard,
 } from "@/components/admin/TeamVerwaltung";
+import { FiaonEbene } from "@/components/FiaonEbene";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEAM-ZENTRALE — alles über einen Menschen an einem Ort
@@ -26,6 +27,8 @@ interface Mitglied {
   heute: number; woche: number; erreichbarkeit: number | null;
   abschluesse_monat: number; umsatz_monat_cents: string;
   offen_cents: string; ausgezahlt_cents: string; letzte_aktivitaet: string | null;
+  /** Maskiert — die vollständige IBAN kommt nur über den eigenen Endpunkt. */
+  bank_iban_masked: string | null;
 }
 
 const ROLLE_TEXT: Record<string, string> = {
@@ -274,7 +277,9 @@ function MitgliedDetail({
   id: number; team: Mitglied[]; onZu: () => void; onNachricht: (id: number) => void; onAenderung: () => void;
 }) {
   const m = team.find((x) => x.id === id);
-  const [reiter, setReiter] = useState<"zahlen" | "protokoll" | "provision" | "verguetung">("zahlen");
+  const [reiter, setReiter] = useState<
+    "zahlen" | "verwaltung" | "protokoll" | "provision" | "verguetung"
+  >("zahlen");
   const [logs, setLogs] = useState<any>(null);
   const [logArt, setLogArt] = useState("");
   const [logSuche, setLogSuche] = useState("");
@@ -319,181 +324,198 @@ function MitgliedDetail({
   };
 
   return (
-    <>
-      <div className="fixed inset-0 z-[400]" onClick={onZu} aria-hidden="true"
-           style={{ background: "rgba(7,11,22,.55)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }} />
-      <div className="fixed inset-0 z-[401] flex items-end sm:items-center justify-center sm:p-6 pointer-events-none">
-        <div role="dialog" aria-modal="true" aria-label={`Detail zu ${m.name}`}
-             className="w-full flex flex-col overflow-hidden pointer-events-auto"
-             style={{ maxWidth: 720, maxHeight: "92vh", background: "#fff", borderRadius: 22,
-                      boxShadow: "0 40px 120px -24px rgba(13,26,63,.5)" }}>
-          <div className="px-5 sm:px-7 pt-5 pb-4 shrink-0" style={{ borderBottom: "1px solid #f1f5f9" }}>
-            <div className="flex items-start gap-3">
-              <Avatar src={m.avatar} name={m.name} size={44} />
-              <div className="min-w-0 flex-1">
-                <h2 className="text-[19px] font-bold tracking-tight text-slate-900 truncate">{m.name}</h2>
-                <p className="text-[12px] text-slate-400 truncate">
-                  {m.email} · {ROLLE_TEXT[m.rolle] ?? m.rolle} · zuletzt {wann(m.last_login_at)} angemeldet
-                </p>
+    <FiaonEbene
+      offen onZu={onZu}
+      titel={m.name}
+      ueberschrift={ROLLE_TEXT[m.rolle] ?? m.rolle}
+      unterzeile={`${m.email} · zuletzt ${wann(m.last_login_at)} angemeldet`}
+      breite={760}
+      marke={<Avatar src={m.avatar} name={m.name} size={36} />}
+      kopf={
+        <>
+          <div className="flex items-start gap-3">
+            <Avatar src={m.avatar} name={m.name} size={44} />
+            <div className="min-w-0 flex-1">
+              <h2 className="text-[19px] font-bold tracking-tight text-slate-900" style={{ overflowWrap: "anywhere" }}>
+                {m.name}
+              </h2>
+              {/* UMBRECHEN statt kürzen — der Betreiber hat abgeschnittene
+                  Texte gemeldet. Eine Mailadresse, die man nicht ganz sieht,
+                  kann man nicht abtippen. */}
+              <p className="text-[12px] text-slate-400 leading-snug" style={{ overflowWrap: "anywhere" }}>
+                {ROLLE_TEXT[m.rolle] ?? m.rolle} · {m.email}
+                <br />zuletzt {wann(m.last_login_at)} angemeldet
+              </p>
+            </div>
+            <button type="button" onClick={onZu} aria-label="Schließen" className="fi-ebene-kreuz shrink-0">
+              <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                   strokeWidth={1.6} strokeLinecap="round"><path d="m5 5 10 10M15 5 5 15" /></svg>
+            </button>
+          </div>
+          {/* Die Reiterleiste rollt waagerecht, statt umzubrechen: Sechs
+              Reiter auf 380 px sind sonst drei Zeilen hoch. */}
+          <div className="mt-3.5 flex gap-1.5 overflow-x-auto pb-0.5"
+               style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+            {([["zahlen", "Zahlen"], ["verwaltung", "Verwaltung"], ["provision", "Provisionen"],
+               ["verguetung", "Vergütung & Stunden"], ["protokoll", "Protokoll"]] as const)
+              .map(([w, t]) => (
+                <button key={w} type="button" onClick={() => setReiter(w)}
+                        className="shrink-0 px-3 py-1.5 rounded-xl text-[12.5px] font-semibold whitespace-nowrap"
+                        style={reiter === w
+                          ? { background: "#1d4ed8", color: "#fff", boxShadow: "0 8px 18px -10px rgba(29,78,216,.6)" }
+                          : { background: "rgba(15,23,42,.045)", color: "#64748b" }}>
+                  {t}
+                </button>
+              ))}
+            <button type="button" onClick={() => onNachricht(m.id)}
+                    className="shrink-0 ml-auto px-3 py-1.5 rounded-xl text-[12.5px] font-semibold bg-white text-slate-600"
+                    style={{ boxShadow: "inset 0 0 0 1px #e2e8f0" }}>
+              Nachricht
+            </button>
+          </div>
+        </>
+      }
+      kinder={
+        <>
+          {hinweis && <p className="mb-3 text-[12.5px] font-semibold text-emerald-700">{hinweis}</p>}
+
+          {reiter === "zahlen" && (
+            <>
+              <div className="grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))" }}>
+                {[
+                  { t: "Umsatz Monat", w: eur(m.umsatz_monat_cents) },
+                  { t: "Abschlüsse", w: String(m.abschluesse_monat) },
+                  { t: "Kontakte Woche", w: String(m.woche) },
+                  { t: "Erreichbarkeit", w: m.erreichbarkeit != null ? `${m.erreichbarkeit} %` : "—" },
+                  { t: "Bestand A", w: String(m.stufe_a) },
+                  { t: "Bestand B", w: String(m.stufe_b) },
+                  { t: "Bestand C", w: String(m.stufe_c) },
+                  { t: "Offen", w: eur(m.offen_cents) },
+                ].map((k) => (
+                  <div key={k.t} className="p-3 rounded-xl bg-slate-50">
+                    <p className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 leading-tight">{k.t}</p>
+                    <p className="text-[17px] font-bold text-slate-900 tabular-nums leading-tight mt-0.5">{k.w}</p>
+                  </div>
+                ))}
               </div>
-              <button type="button" onClick={onZu} aria-label="Schließen"
-                      className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-slate-50 text-slate-400">
-                <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
-                  <path d="m5 5 10 10M15 5 5 15" />
-                </svg>
-              </button>
-            </div>
-            <div className="mt-3.5 flex flex-wrap gap-1.5">
-              {([["zahlen", "Zahlen & Einstellungen"], ["protokoll", "Protokoll"],
-                 ["provision", "Provisionen"], ["verguetung", "Vergütung & Stunden"]] as const)
-                .map(([w, t]) => (
-                  <button key={w} type="button" onClick={() => setReiter(w)}
-                          className="px-3 py-1.5 rounded-xl text-[12.5px] font-semibold"
-                          style={reiter === w
-                            ? { background: "#1d4ed8", color: "#fff" }
-                            : { background: "#f8fafc", color: "#64748b" }}>
-                    {t}
-                  </button>
-                ))}
-              <button type="button" onClick={() => onNachricht(m.id)}
-                      className="ml-auto px-3 py-1.5 rounded-xl text-[12.5px] font-semibold bg-white border border-slate-200 text-slate-600">
-                Nachricht
-              </button>
-            </div>
-          </div>
 
-          <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-4">
-            {hinweis && <p className="mb-3 text-[12.5px] font-semibold text-emerald-700">{hinweis}</p>}
+              <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mt-5 mb-2">
+                Provisionssatz
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <input value={satz} onChange={(e) => setSatz(e.target.value)} inputMode="decimal"
+                       aria-label="Provisionssatz in Prozent"
+                       className="w-24 px-3 py-2.5 rounded-xl border border-slate-200 text-[13.5px] tabular-nums outline-none"
+                       style={{ minHeight: 42 }} />
+                <span className="text-[13px] text-slate-400">Prozent</span>
+                <button type="button" onClick={() => void satzSpeichern()} disabled={busy === "satz"}
+                        className="px-4 py-2.5 rounded-xl text-[13px] font-bold text-white bg-[#1d4ed8] disabled:opacity-40">
+                  {busy === "satz" ? "…" : "Speichern"}
+                </button>
+              </div>
+              <p className="mt-2 text-[11.5px] text-slate-400 leading-snug">
+                Änderungen wirken auf künftige Buchungen. Bereits gebuchte Provisionen bleiben, wie sie sind.
+              </p>
+            </>
+          )}
 
-            {reiter === "zahlen" && (
-              <>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  {[
-                    { t: "Umsatz Monat", w: eur(m.umsatz_monat_cents) },
-                    { t: "Abschlüsse", w: String(m.abschluesse_monat) },
-                    { t: "Kontakte Woche", w: String(m.woche) },
-                    { t: "Erreichbarkeit", w: m.erreichbarkeit != null ? `${m.erreichbarkeit} %` : "—" },
-                    { t: "Bestand A", w: String(m.stufe_a) },
-                    { t: "Bestand B", w: String(m.stufe_b) },
-                    { t: "Bestand C", w: String(m.stufe_c) },
-                    { t: "Offen", w: eur(m.offen_cents) },
-                  ].map((k) => (
-                    <div key={k.t} className="p-3 rounded-xl bg-slate-50">
-                      <p className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400">{k.t}</p>
-                      <p className="text-[17px] font-bold text-slate-900 tabular-nums leading-tight mt-0.5">{k.w}</p>
-                    </div>
-                  ))}
-                </div>
+          {reiter === "verwaltung" && (
+            <VerwaltungTafel m={m} onAenderung={onAenderung} onHinweis={setHinweis} onZu={onZu} />
+          )}
 
-                <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mt-5 mb-2">
-                  Provisionssatz
-                </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <input value={satz} onChange={(e) => setSatz(e.target.value)} inputMode="decimal"
-                         className="w-28 px-3 py-2.5 rounded-xl border border-slate-200 text-[13.5px] tabular-nums outline-none"
-                         style={{ minHeight: 42 }} />
-                  <span className="text-[13px] text-slate-400">Prozent</span>
-                  <button type="button" onClick={() => void satzSpeichern()} disabled={busy === "satz"}
-                          className="px-4 py-2.5 rounded-xl text-[13px] font-bold text-white bg-[#1d4ed8] disabled:opacity-40">
-                    {busy === "satz" ? "…" : "Speichern"}
-                  </button>
-                </div>
-                <p className="mt-2 text-[11.5px] text-slate-400 leading-snug">
-                  Änderungen wirken auf künftige Buchungen. Bereits gebuchte Provisionen bleiben, wie sie sind.
-                </p>
-              </>
-            )}
+          {reiter === "verguetung" && <VerguetungTafel agentId={id} rolle={m.rolle} />}
 
-            {reiter === "protokoll" && (
-              <>
-                {/* Die „genaue Klicks"-Ansicht. Alles hier steht seit Monaten
-                    in der Datenbank — es war nur nie an einem Ort lesbar. */}
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <input value={logSuche} onChange={(e) => setLogSuche(e.target.value)}
-                         onKeyDown={(e) => { if (e.key === "Enter") void logsLaden(); }}
-                         placeholder="Im Protokoll suchen …"
-                         className="flex-1 min-w-[160px] px-3 py-2 rounded-xl border border-slate-200 text-[13px] outline-none"
-                         style={{ minHeight: 40 }} />
-                  <select value={logArt} onChange={(e) => setLogArt(e.target.value)}
-                          className="px-3 py-2 rounded-xl border border-slate-200 text-[12.5px]" style={{ minHeight: 40 }}>
-                    <option value="">Alle Arten</option>
-                    <option value="kontakt">Kundenkontakte</option>
-                    {(logs?.arten ?? []).map((a: string) => <option key={a} value={a}>{a}</option>)}
-                  </select>
-                </div>
-                {!logs && <p className="text-[13px] text-slate-400">Wird geladen …</p>}
-                {logs?.eintraege?.length === 0 && (
-                  <p className="text-[13px] text-slate-400">Kein Eintrag für diese Filter.</p>
-                )}
-                {(logs?.eintraege ?? []).map((e: any) => (
-                  <div key={`${e.quelle}-${e.id}`} className="py-2 text-[12.5px]" style={{ borderBottom: "1px solid #f8fafc" }}>
-                    <div className="flex flex-wrap items-baseline gap-x-2">
-                      <span className="font-mono text-[11px] text-slate-400 tabular-nums">
-                        {new Date(e.created_at).toLocaleString("de-DE", {
-                          day: "2-digit", month: "2-digit", year: "2-digit",
-                          hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin",
-                        })}
-                      </span>
-                      <span className="font-bold text-slate-800">{e.art}</span>
-                      {e.ref && <span className="font-mono text-[11px] text-slate-400">{e.ref}</span>}
-                      {e.actor && <span className="text-[11px] text-slate-400">durch {e.actor}</span>}
-                    </div>
-                    {(e.reason || e.notiz || e.meta) && (
-                      <p className="text-[11.5px] text-slate-500 leading-snug mt-0.5 break-words">
-                        {e.reason || e.notiz || String(e.meta).slice(0, 200)}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </>
-            )}
-
-            {reiter === "verguetung" && <VerguetungTafel agentId={id} rolle={m.rolle} />}
-
-            {reiter === "provision" && (
-              <>
-                <p className="text-[12.5px] text-slate-500 leading-relaxed mb-3">
-                  Bezahlte Bestellungen ohne gebuchte Provision. Früher eine eigene Seite
-                  (<span className="font-mono text-[11.5px]">/admin/nachbuchung</span>) — jetzt hier, wo auch der Satz steht.
-                </p>
-                {!kandidaten && <p className="text-[13px] text-slate-400">Wird geladen …</p>}
-                {kandidaten?.length === 0 && (
-                  <p className="text-[13px] text-slate-400">Nichts offen — jede bezahlte Bestellung hat ihre Provision.</p>
-                )}
-                {(kandidaten ?? []).filter((k: any) => !k.agent_id || k.agent_id === id).slice(0, 40).map((k: any) => (
-                  <div key={k.ref} className="py-2.5 flex flex-wrap items-center gap-2 text-[12.5px]"
-                       style={{ borderBottom: "1px solid #f8fafc" }}>
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-semibold text-slate-800 truncate">{k.customer_name || k.ref}</span>
-                      <span className="block text-[11px] text-slate-400">
-                        {k.pack_name} · {k.amount_cents ? eur(k.amount_cents) : "Betrag unklar"}
-                        {k.agent_suggested && " · Agent vorgeschlagen"}
-                      </span>
+          {reiter === "protokoll" && (
+            <>
+              {/* Die „genaue Klicks"-Ansicht. Alles hier steht seit Monaten
+                  in der Datenbank — es war nur nie an einem Ort lesbar. */}
+              <div className="flex flex-wrap gap-2 mb-3">
+                <input value={logSuche} onChange={(e) => setLogSuche(e.target.value)}
+                       onKeyDown={(e) => { if (e.key === "Enter") void logsLaden(); }}
+                       placeholder="Im Protokoll suchen …"
+                       className="flex-1 min-w-[150px] px-3 py-2 rounded-xl border border-slate-200 text-[13px] outline-none"
+                       style={{ minHeight: 40 }} />
+                <select value={logArt} onChange={(e) => setLogArt(e.target.value)}
+                        aria-label="Art"
+                        className="px-3 py-2 rounded-xl border border-slate-200 text-[12.5px]" style={{ minHeight: 40 }}>
+                  <option value="">Alle Arten</option>
+                  <option value="kontakt">Kundenkontakte</option>
+                  {(logs?.arten ?? []).map((a: string) => <option key={a} value={a}>{a}</option>)}
+                </select>
+              </div>
+              {!logs && <p className="text-[13px] text-slate-400">Wird geladen …</p>}
+              {logs?.eintraege?.length === 0 && (
+                <p className="text-[13px] text-slate-400">Kein Eintrag für diese Filter.</p>
+              )}
+              {(logs?.eintraege ?? []).map((e: any) => (
+                <div key={`${e.quelle}-${e.id}`} className="py-2 text-[12.5px]" style={{ borderBottom: "1px solid #f8fafc" }}>
+                  <div className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="font-mono text-[11px] text-slate-400 tabular-nums">
+                      {new Date(e.created_at).toLocaleString("de-DE", {
+                        day: "2-digit", month: "2-digit", year: "2-digit",
+                        hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin",
+                      })}
                     </span>
-                    <button type="button" disabled={busy === k.ref || k.status === "betrag_unklar"}
-                            onClick={async () => {
-                              setBusy(k.ref);
-                              const r = await fetch(`/api/fiaon/admin/commission-backfill/${encodeURIComponent(k.ref)}/book`, {
-                                method: "POST", credentials: "include",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ agentId: k.agent_id ?? id }),
-                              }).catch(() => null);
-                              const j = await r?.json().catch(() => null);
-                              setBusy(null);
-                              setHinweis(j?.ok ? `${k.ref} gebucht.` : (j?.error || "Fehler."));
-                              setKandidaten(null);
-                            }}
-                            className="px-3 py-2 rounded-xl text-[12px] font-semibold text-white bg-[#1d4ed8] disabled:opacity-30">
-                      {busy === k.ref ? "…" : "Buchen"}
-                    </button>
+                    <span className="font-bold text-slate-800">{e.art}</span>
+                    {e.ref && <span className="font-mono text-[11px] text-slate-400">{e.ref}</span>}
+                    {e.actor && <span className="text-[11px] text-slate-400">durch {e.actor}</span>}
                   </div>
-                ))}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    </>
+                  {(e.reason || e.notiz || e.meta) && (
+                    <p className="text-[11.5px] text-slate-500 leading-snug mt-0.5"
+                       style={{ overflowWrap: "anywhere" }}>
+                      {e.reason || e.notiz || String(e.meta).slice(0, 200)}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+
+          {reiter === "provision" && (
+            <>
+              <p className="text-[12.5px] text-slate-500 leading-relaxed mb-3">
+                Bezahlte Bestellungen ohne gebuchte Provision. Früher eine eigene Seite
+                (<span className="font-mono text-[11.5px]">/admin/nachbuchung</span>) — jetzt hier, wo auch der Satz steht.
+              </p>
+              {!kandidaten && <p className="text-[13px] text-slate-400">Wird geladen …</p>}
+              {kandidaten?.length === 0 && (
+                <p className="text-[13px] text-slate-400">Nichts offen — jede bezahlte Bestellung hat ihre Provision.</p>
+              )}
+              {(kandidaten ?? []).filter((k: any) => !k.agent_id || k.agent_id === id).slice(0, 40).map((k: any) => (
+                <div key={k.ref} className="py-2.5 flex flex-wrap items-center gap-2 text-[12.5px]"
+                     style={{ borderBottom: "1px solid #f8fafc" }}>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-semibold text-slate-800" style={{ overflowWrap: "anywhere" }}>
+                      {k.customer_name || k.ref}
+                    </span>
+                    <span className="block text-[11px] text-slate-400">
+                      {k.pack_name} · {k.amount_cents ? eur(k.amount_cents) : "Betrag unklar"}
+                      {k.agent_suggested && " · Agent vorgeschlagen"}
+                    </span>
+                  </span>
+                  <button type="button" disabled={busy === k.ref || k.status === "betrag_unklar"}
+                          onClick={async () => {
+                            setBusy(k.ref);
+                            const r = await fetch(`/api/fiaon/admin/commission-backfill/${encodeURIComponent(k.ref)}/book`, {
+                              method: "POST", credentials: "include",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ agentId: k.agent_id ?? id }),
+                            }).catch(() => null);
+                            const j = await r?.json().catch(() => null);
+                            setBusy(null);
+                            setHinweis(j?.ok ? `${k.ref} gebucht.` : (j?.error || "Fehler."));
+                            setKandidaten(null);
+                          }}
+                          className="px-3 py-2 rounded-xl text-[12px] font-semibold text-white bg-[#1d4ed8] disabled:opacity-30">
+                    {busy === k.ref ? "…" : "Buchen"}
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
+        </>
+      }
+    />
   );
 }
 
@@ -535,80 +557,75 @@ function NachrichtDialog({
   const namen = team.filter((m) => agentIds.includes(m.id)).map((m) => m.vorname);
 
   return (
-    <>
-      <div className="fixed inset-0 z-[410]" onClick={onZu} aria-hidden="true"
-           style={{ background: "rgba(7,11,22,.6)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }} />
-      <div className="fixed inset-0 z-[411] flex items-end sm:items-center justify-center sm:p-6 pointer-events-none">
-        <div role="dialog" aria-modal="true" aria-label="Nachricht ans Team"
-             className="w-full flex flex-col overflow-hidden pointer-events-auto"
-             style={{ maxWidth: 560, maxHeight: "90vh", background: "#fff", borderRadius: 22,
-                      boxShadow: "0 40px 120px -24px rgba(13,26,63,.5)" }}>
-          <div className="px-5 sm:px-7 pt-5 pb-4 shrink-0" style={{ borderBottom: "1px solid #f1f5f9" }}>
-            <p className="text-[10.5px] font-semibold uppercase tracking-[.2em] text-slate-400">
-              {alsEvent ? "Alle sehen es im Space" : `An ${agentIds.length} ${agentIds.length === 1 ? "Person" : "Personen"}`}
-            </p>
-            <h2 className="mt-1 text-[19px] font-bold tracking-tight text-slate-900">
-              {alsEvent ? "Ereignis verkünden" : "Persönliche Nachricht"}
-            </h2>
-            {!alsEvent && (
-              <p className="text-[12px] text-slate-400 mt-1 truncate">{namen.join(", ")}</p>
-            )}
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-4">
-            {fehler && <p className="mb-3 text-[12.5px] font-semibold text-amber-700">{fehler}</p>}
-
-            <div className="flex gap-1.5 mb-3">
-              {([[false, "Nachricht"], [true, "Ereignis"]] as const).map(([w, t]) => (
-                <button key={String(w)} type="button" onClick={() => setAlsEvent(w)}
-                        className="px-3 py-1.5 rounded-xl text-[12.5px] font-semibold"
-                        style={alsEvent === w
-                          ? { background: "#1d4ed8", color: "#fff" }
-                          : { background: "#f8fafc", color: "#64748b" }}>
-                  {t}
-                </button>
-              ))}
-            </div>
-
-            {alsEvent && (
-              <input value={titel} onChange={(e) => setTitel(e.target.value)} placeholder="Überschrift"
-                     className="w-full mb-2 px-3 py-2.5 rounded-xl border border-slate-200 text-[14px] font-semibold outline-none"
-                     style={{ minHeight: 42 }} />
-            )}
-            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5}
-                      placeholder={alsEvent
-                        ? "Was gibt es zu verkünden? Landet als angepinnter Beitrag im Space."
-                        : "Was soll die Person lesen? Erscheint als Banner über allem, bis sie „Verstanden“ klickt."}
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-[13.5px] leading-relaxed outline-none resize-none" />
-
-            {!alsEvent && (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <label className="text-[12.5px] text-slate-500">Banner läuft nach</label>
-                <input value={tage} onChange={(e) => setTage(e.target.value)} inputMode="numeric"
-                       className="w-16 px-2.5 py-2 rounded-xl border border-slate-200 text-[13px] tabular-nums outline-none" />
-                <span className="text-[12.5px] text-slate-500">Tagen ab — oder sobald bestätigt wurde.</span>
-              </div>
-            )}
-            <p className="mt-3 text-[11.5px] text-slate-400 leading-snug">
-              {alsEvent
-                ? "Ein angepinnter Beitrag im Space, sichtbar für das ganze Team, dazu ein Banner für sieben Tage."
-                : "Wer wann bestätigt hat, steht danach in der Team-Zentrale. Das ist der Zweck: nicht das Senden, sondern der Nachweis des Ankommens."}
-            </p>
-          </div>
-
-          <div className="px-5 sm:px-7 py-4 shrink-0 flex flex-wrap items-center gap-2"
-               style={{ borderTop: "1px solid #f1f5f9" }}>
-            <button type="button" onClick={onZu} className="text-[13px] font-semibold text-slate-500">Abbrechen</button>
-            <button type="button" onClick={() => void senden()}
-                    disabled={busy || text.trim().length < 3 || (alsEvent && titel.trim().length < 3)}
-                    className="ml-auto px-5 py-2.5 rounded-xl text-[14px] font-bold text-white bg-[#1d4ed8] disabled:opacity-30">
-              {busy ? "…" : alsEvent ? "Verkünden" : "Zustellen"}
-            </button>
-          </div>
+    <FiaonEbene
+      offen onZu={onZu}
+      titel={alsEvent ? "Ereignis verkünden" : "Persönliche Nachricht"}
+      ueberschrift={alsEvent
+        ? "Alle sehen es im Space"
+        : `An ${agentIds.length} ${agentIds.length === 1 ? "Person" : "Personen"}`}
+      unterzeile={alsEvent ? undefined : namen.join(", ")}
+      breite={560}
+      fuss={
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={onZu} className="text-[13px] font-semibold text-slate-500">
+            Abbrechen
+          </button>
+          <button type="button" onClick={() => void senden()}
+                  disabled={busy || text.trim().length < 3 || (alsEvent && titel.trim().length < 3)}
+                  className="ml-auto px-5 py-2.5 rounded-xl text-[14px] font-bold text-white bg-[#1d4ed8] disabled:opacity-30"
+                  style={{ boxShadow: "0 12px 26px -12px rgba(29,78,216,.6)" }}>
+            {busy ? "…" : alsEvent ? "Verkünden" : "Zustellen"}
+          </button>
         </div>
-      </div>
-    </>
+      }
+      kinder={
+        <>
+          {fehler && <p className="mb-3 text-[12.5px] font-semibold text-amber-700">{fehler}</p>}
+
+          <div className="flex gap-1.5 mb-3">
+            {([[false, "Nachricht"], [true, "Ereignis"]] as const).map(([w, t]) => (
+              <button key={String(w)} type="button" onClick={() => setAlsEvent(w)}
+                      className="px-3 py-1.5 rounded-xl text-[12.5px] font-semibold"
+                      style={alsEvent === w
+                        ? { background: "#1d4ed8", color: "#fff" }
+                        : { background: "rgba(15,23,42,.045)", color: "#64748b" }}>
+                {t}
+              </button>
+            ))}
+          </div>
+
+          {alsEvent && (
+            <input value={titel} onChange={(e) => setTitel(e.target.value)} placeholder="Überschrift"
+                   aria-label="Überschrift"
+                   className="w-full mb-2 px-3 py-2.5 rounded-xl border border-slate-200 text-[14px] font-semibold outline-none"
+                   style={{ minHeight: 42 }} />
+          )}
+          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5}
+                    aria-label="Text"
+                    placeholder={alsEvent
+                      ? "Was gibt es zu verkünden? Landet als angepinnter Beitrag im Space."
+                      : "Was soll die Person lesen? Erscheint als Banner über allem, bis sie „Verstanden“ klickt."}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-[13.5px] leading-relaxed outline-none resize-none" />
+
+          {!alsEvent && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <label className="text-[12.5px] text-slate-500">Banner läuft nach</label>
+              <input value={tage} onChange={(e) => setTage(e.target.value)} inputMode="numeric"
+                     aria-label="Tage"
+                     className="w-16 px-2.5 py-2 rounded-xl border border-slate-200 text-[13px] tabular-nums outline-none" />
+              <span className="text-[12.5px] text-slate-500">Tagen ab — oder sobald bestätigt wurde.</span>
+            </div>
+          )}
+          <p className="mt-3 text-[11.5px] text-slate-400 leading-snug">
+            {alsEvent
+              ? "Ein angepinnter Beitrag im Space, sichtbar für das ganze Team, dazu ein Banner für sieben Tage."
+              : "Wer wann bestätigt hat, steht danach in der Team-Zentrale. Das ist der Zweck: nicht das Senden, sondern der Nachweis des Ankommens."}
+          </p>
+        </>
+      }
+    />
   );
+
 }
 
 
@@ -850,6 +867,191 @@ function VerguetungTafel({ agentId, rolle }: { agentId: number; rolle: string })
           </p>
         )}
       </div>
+    </>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VERWALTUNG — die Vollständigkeitsliste an einem Ort
+//
+// Der Betreiber musste bisher für Reset, Deaktivieren, Rolle, Bank und
+// Umhängen zwischen Ansichten wechseln oder auf eine gelöschte Altseite. Alles
+// davon liegt jetzt in einem Reiter im Mitarbeiter-Detail — ohne Seitenwechsel.
+//
+// Die Endpunkte sind unverändert die bestehenden. Neu gebaut wurde nur die
+// LÖSCHUNG, weil es sie noch nicht gab.
+// ═══════════════════════════════════════════════════════════════════════════
+function VerwaltungTafel({
+  m, onAenderung, onHinweis, onZu,
+}: {
+  m: Mitglied; onAenderung: () => void;
+  onHinweis: (t: string) => void; onZu: () => void;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [bank, setBank] = useState<any>(null);
+  const [loeschen, setLoeschen] = useState<any>(null);
+  const [wortlaut, setWortlaut] = useState("");
+
+  const ruf = async (pfad: string, koerper?: any, name = pfad) => {
+    setBusy(name);
+    const r = await fetch(`/api/fiaon${pfad}`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(koerper ?? {}),
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setBusy(null);
+    onHinweis(j?.meldung || j?.error || (j?.ok ? "Erledigt." : "Fehler."));
+    if (j?.ok) onAenderung();
+    return j;
+  };
+
+  const ROLLEN: { wert: string; text: string; erklaerung: string }[] = [
+    { wert: "agent", text: "Vertrieb", erklaerung: "Sieht nur die eigenen Kunden." },
+    { wert: "vertriebsleiter", text: "Vertriebsleitung", erklaerung: "Sieht alle Kunden, kann zuweisen und korrigieren." },
+    { wert: "onboarding", text: "Onboarding", erklaerung: "Führt die Startgespräche." },
+    { wert: "inkasso", text: "Forderungsmanagement", erklaerung: "Sieht nur bezahlte Kunden mit laufender Ratenzahlung." },
+  ];
+
+  return (
+    <>
+      {/* ── Rolle ────────────────────────────────────────────────────────── */}
+      <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-2">Rolle</p>
+      <div className="space-y-1.5 mb-5">
+        {ROLLEN.map((r) => {
+          const aktiv = String(m.rolle) === r.wert;
+          return (
+            <button key={r.wert} type="button" disabled={aktiv || busy != null}
+                    onClick={() => void ruf(`/admin/agents/${m.id}/rolle`, { rolle: r.wert }, r.wert)}
+                    className="w-full text-left px-3.5 py-2.5 rounded-xl disabled:cursor-default"
+                    style={aktiv
+                      ? { background: "rgba(29,78,216,.07)", boxShadow: "inset 0 0 0 1px rgba(29,78,216,.28)" }
+                      : { background: "#f8fafc", boxShadow: "inset 0 0 0 1px transparent" }}>
+              <span className="flex items-baseline gap-2">
+                <span className="text-[13px] font-bold" style={{ color: aktiv ? "#1d4ed8" : "#0f172a" }}>
+                  {r.text}
+                </span>
+                {aktiv && <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#1d4ed8]">aktuell</span>}
+              </span>
+              <span className="block text-[11.5px] text-slate-500 leading-snug mt-0.5">{r.erklaerung}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Zugang ───────────────────────────────────────────────────────── */}
+      <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-2">Zugang</p>
+      <div className="flex flex-wrap gap-1.5 mb-1.5">
+        <button type="button" disabled={busy != null}
+                onClick={() => void ruf(`/admin/agents/${m.id}/force-reset`, {}, "reset")}
+                className="px-3 py-2 rounded-xl text-[12.5px] font-semibold bg-white text-slate-700 disabled:opacity-40"
+                style={{ boxShadow: "inset 0 0 0 1px #e2e8f0" }}>
+          {busy === "reset" ? "…" : "Passwort-Reset erzwingen"}
+        </button>
+        <button type="button" disabled={busy != null}
+                onClick={() => void ruf(`/admin/agents/${m.id}/reinvite`, {}, "reinvite")}
+                className="px-3 py-2 rounded-xl text-[12.5px] font-semibold bg-white text-slate-700 disabled:opacity-40"
+                style={{ boxShadow: "inset 0 0 0 1px #e2e8f0" }}>
+          {busy === "reinvite" ? "…" : "Einladung erneut senden"}
+        </button>
+        <button type="button" disabled={busy != null}
+                onClick={() => void ruf(`/admin/agents/${m.id}/toggle`, {}, "toggle")}
+                className="px-3 py-2 rounded-xl text-[12.5px] font-semibold disabled:opacity-40"
+                style={m.active
+                  ? { background: "rgba(217,119,6,.08)", color: "#b45309" }
+                  : { background: "rgba(5,150,105,.08)", color: "#047857" }}>
+          {busy === "toggle" ? "…" : m.active ? "Deaktivieren" : "Wieder aktivieren"}
+        </button>
+      </div>
+      <p className="text-[11.5px] text-slate-400 leading-snug mb-5">
+        Ein Reset entwertet alle Sitzungen sofort und schickt einen Link, der eine Stunde gilt.
+      </p>
+
+      {/* ── Bankdaten ────────────────────────────────────────────────────── */}
+      <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-2">Bankdaten</p>
+      {bank ? (
+        <p className="text-[13px] font-mono text-slate-800 mb-1.5" style={{ overflowWrap: "anywhere" }}>
+          {bank.holder} · {bank.iban}{bank.bic ? ` · ${bank.bic}` : ""}
+        </p>
+      ) : (
+        <p className="text-[12.5px] text-slate-500 mb-1.5">
+          {m.bank_iban_masked || "Keine Bankdaten hinterlegt."}
+        </p>
+      )}
+      {!bank && m.bank_iban_masked && (
+        <button type="button" disabled={busy === "bank"}
+                onClick={async () => {
+                  setBusy("bank");
+                  const r = await fetch(`/api/fiaon/admin/team/agents/${m.id}/bank`, { credentials: "include" }).catch(() => null);
+                  const j = await r?.json().catch(() => null);
+                  setBusy(null);
+                  if (j?.ok) setBank(j.bank ?? j);
+                  else onHinweis(j?.error || "Nicht abrufbar.");
+                }}
+                className="px-3 py-2 rounded-xl text-[12.5px] font-semibold bg-white text-slate-700"
+                style={{ boxShadow: "inset 0 0 0 1px #e2e8f0" }}>
+          {busy === "bank" ? "…" : "Vollständig anzeigen"}
+        </button>
+      )}
+      <p className="text-[11.5px] text-slate-400 leading-snug mt-1.5 mb-5">
+        Das vollständige Anzeigen wird protokolliert — eine IBAN ist ein Zahlungsziel.
+      </p>
+
+      {/* ── Löschen ──────────────────────────────────────────────────────── */}
+      <p className="text-[10.5px] font-bold uppercase tracking-wider mb-2" style={{ color: "#b91c1c" }}>
+        Mitarbeiter löschen
+      </p>
+      {!loeschen ? (
+        <>
+          <button type="button" disabled={busy === "vorschau"}
+                  onClick={async () => {
+                    setBusy("vorschau");
+                    const r = await fetch(`/api/fiaon/admin/agents/${m.id}/loesch-vorschau`, { credentials: "include" }).catch(() => null);
+                    const j = await r?.json().catch(() => null);
+                    setBusy(null);
+                    if (j?.ok) { setLoeschen(j); setWortlaut(""); }
+                    else onHinweis(j?.error || "Vorschau nicht möglich.");
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-[12.5px] font-bold text-white disabled:opacity-40"
+                  style={{ background: "#b91c1c", boxShadow: "0 10px 22px -12px rgba(185,28,28,.5)" }}>
+            {busy === "vorschau" ? "…" : "Löschen …"}
+          </button>
+          <p className="text-[11.5px] text-slate-400 leading-snug mt-1.5">
+            Wer Provisionen hat, wird anonymisiert statt entfernt — die Buchungen bleiben nach
+            § 147 AO zehn Jahre lesbar. Die Vorschau zeigt vorher, was gilt.
+          </p>
+        </>
+      ) : (
+        <div className="p-3.5 rounded-2xl"
+             style={{ background: "rgba(185,28,28,.045)", boxShadow: "inset 0 0 0 1px rgba(185,28,28,.16)" }}>
+          <p className="text-[13px] font-bold" style={{ color: "#b91c1c" }}>
+            {loeschen.art === "endgueltig" ? "Wird vollständig entfernt" : "Wird anonymisiert"}
+          </p>
+          {loeschen.hinweise.map((h: string, i: number) => (
+            <p key={i} className="text-[12px] text-slate-600 leading-relaxed mt-1.5">{h}</p>
+          ))}
+          <label className="block text-[12px] font-semibold text-slate-600 mt-3 mb-1">
+            Zur Bestätigung eintippen: <span className="font-mono text-slate-900">{loeschen.bestaetigung}</span>
+          </label>
+          <input value={wortlaut} onChange={(e) => setWortlaut(e.target.value)}
+                 aria-label="Bestätigungstext"
+                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-[13px] outline-none" />
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setLoeschen(null)}
+                    className="text-[12.5px] font-semibold text-slate-500">Abbrechen</button>
+            <button type="button"
+                    disabled={busy === "loeschen" || wortlaut.trim() !== loeschen.bestaetigung}
+                    onClick={async () => {
+                      const j = await ruf(`/admin/agents/${m.id}/loeschen`, { bestaetigung: wortlaut }, "loeschen");
+                      if (j?.ok) onZu();
+                    }}
+                    className="ml-auto px-4 py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-30"
+                    style={{ background: "#b91c1c" }}>
+              {busy === "loeschen" ? "Läuft …" : "Ausführen"}
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

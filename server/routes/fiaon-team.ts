@@ -244,6 +244,147 @@ router.post("/admin/agents/:id/toggle", async (req, res) => {
 });
 
 /** F2: Passwort-Reset erzwingen — invalidiert ALLE Sessions (Epoch+1) + Reset-Mail (1h-Token). */
+/**
+ * GET /admin/agents/:id/loesch-vorschau — was passiert mit diesem Menschen?
+ *
+ * Dieselbe Einteilung wie bei Kunden (server/lib/fiaon-loeschen.ts):
+ *
+ *   ENDGÜLTIG      Wer nie eine Provision gebucht bekam und keine Auszahlung
+ *                  hatte, hinterlässt keine Buchhaltungsspur. Er darf ganz weg.
+ *   ANONYMISIERT   Wer Provisionen oder Auszahlungen hat, gehört in die
+ *                  Buchhaltung — zehn Jahre, § 147 AO. Die PERSON verschwindet,
+ *                  die BUCHUNG bleibt lesbar und dem Konto zugeordnet.
+ *
+ * Nicht der Klickende entscheidet, sondern der Zustand der Daten.
+ */
+router.get("/admin/agents/:id/loesch-vorschau", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [a] = await sqlPool`
+      SELECT id, name, email, active, rolle,
+             (SELECT COUNT(*)::int FROM fiaon_commissions c WHERE c.agent_id = a.id) AS provisionen,
+             (SELECT COALESCE(SUM(c.amount_cents), 0)::bigint FROM fiaon_commissions c WHERE c.agent_id = a.id) AS provision_cents,
+             (SELECT COUNT(*)::int FROM fiaon_payouts p WHERE p.agent_id = a.id) AS auszahlungen,
+             (SELECT COUNT(*)::int FROM fiaon_persons p WHERE p.assigned_agent_id = a.id
+               AND p.merged_into_person_id IS NULL) AS kunden,
+             (SELECT COUNT(*)::int FROM fiaon_contact_log cl WHERE cl.agent_id = a.id) AS kontakte
+      FROM fiaon_agents a WHERE a.id = ${id}
+    `;
+    if (!a) return res.status(404).json({ ok: false, error: "Mitarbeiter nicht gefunden" });
+
+    const hatGeld = Number(a.provisionen) > 0 || Number(a.auszahlungen) > 0;
+    const art = hatGeld ? "anonymisiert" : "endgueltig";
+    const begruendung = hatGeld
+      ? `${a.provisionen} Provisionszeilen (${(Number(a.provision_cents) / 100).toFixed(2).replace(".", ",")} €) `
+        + `und ${a.auszahlungen} Auszahlungen — die Person wird anonymisiert, die Buchungen bleiben `
+        + "aufbewahrungspflichtig lesbar (§ 147 AO, zehn Jahre)."
+      : "Keine Provision, keine Auszahlung — darf vollständig verschwinden.";
+
+    const hinweise: string[] = [begruendung];
+    if (Number(a.kunden) > 0) {
+      hinweise.push(`${a.kunden} Kunden hängen an diesem Konto. Sie werden freigegeben und `
+        + "über die normale Verteilung neu zugeteilt — sie verschwinden nicht.");
+    }
+    if (Number(a.kontakte) > 0) {
+      hinweise.push(`${a.kontakte} Verlaufseinträge bleiben in den Kundenakten stehen. `
+        + "Der Name wird darin durch „Ehemaliger Mitarbeiter“ ersetzt — eine Akte ohne "
+        + "Vorgeschichte wäre für den nächsten Betreuer wertlos.");
+    }
+    res.json({
+      ok: true, name: a.name, art, begruendung, hinweise,
+      bestaetigung: `${a.name} löschen`,
+      kunden: Number(a.kunden), provisionen: Number(a.provisionen),
+    });
+  } catch (err) {
+    console.error("[FIAON-TEAM] loesch-vorschau:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /admin/agents/:id/loeschen — ausführen. */
+router.post("/admin/agents/:id/loeschen", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const bestaetigung = String(req.body?.bestaetigung || "").trim();
+    const [a] = await sqlPool`
+      SELECT id, name, email,
+             (SELECT COUNT(*)::int FROM fiaon_commissions c WHERE c.agent_id = a.id) AS provisionen,
+             (SELECT COUNT(*)::int FROM fiaon_payouts p WHERE p.agent_id = a.id) AS auszahlungen
+      FROM fiaon_agents a WHERE a.id = ${id}
+    `;
+    if (!a) return res.status(404).json({ ok: false, error: "Mitarbeiter nicht gefunden" });
+    if (bestaetigung !== `${a.name} löschen`) {
+      return res.status(400).json({
+        ok: false, error: `Bitte zur Bestätigung genau eintippen: „${a.name} löschen“`,
+      });
+    }
+
+    const hatGeld = Number(a.provisionen) > 0 || Number(a.auszahlungen) > 0;
+
+    const erg = await sqlPool.begin(async (tx) => {
+      // Kunden ZUERST freigeben — in beiden Fällen. Ein Kunde, der an einem
+      // gelöschten Konto hängt, taucht in keiner Liste mehr auf.
+      const frei = (await tx`
+        UPDATE fiaon_persons SET assigned_agent_id = NULL, updated_at = NOW()
+        WHERE assigned_agent_id = ${id} RETURNING id
+      `) as any[];
+
+      // Das Protokoll VOR der Änderung — sonst fehlt es, wenn danach etwas
+      // schiefgeht.
+      await tx`
+        INSERT INTO fiaon_agent_events (agent_id, type, meta, actor, reason)
+        VALUES (${id}, ${hatGeld ? "geloescht_anonymisiert" : "geloescht_endgueltig"},
+                ${JSON.stringify({ name: a.name, email: a.email, kundenFreigegeben: frei.length })},
+                'Betreiber', ${String(req.body?.grund || "Ohne Angabe")})
+      `;
+
+      if (hatGeld) {
+        // Der Name in den Kundenakten bleibt lesbar als Rolle, nicht als
+        // Person: Eine Akte ohne Vorgeschichte ist für den Nachfolger wertlos.
+        await tx`
+          UPDATE fiaon_contact_log SET agent_name = 'Ehemaliger Mitarbeiter' WHERE agent_id = ${id}
+        `;
+        await tx`
+          UPDATE fiaon_agents SET
+            name = ${`Gelöscht #${id}`}, first_name = 'Gelöscht', last_name = ${`#${id}`},
+            email = ${`geloescht-${id}@anonym.invalid`}, phone = NULL, avatar = NULL,
+            bank_holder_enc = NULL, bank_iban_enc = NULL, bank_bic_enc = NULL, bank_iban_masked = NULL,
+            password_hash = NULL, invite_token_hash = NULL,
+            active = FALSE, distribution_active = FALSE, rolle = 'agent',
+            -- Sitzungen entwerten: Ein gelöschtes Konto darf nicht weiter
+            -- angemeldet bleiben, bis das Token abläuft.
+            session_epoch = COALESCE(session_epoch, 0) + 1
+          WHERE id = ${id}
+        `;
+        return { art: "anonymisiert", kunden: frei.length };
+      }
+
+      // Endgültig: von innen nach außen.
+      await tx`DELETE FROM fiaon_onboarding_schritte WHERE agent_id = ${id}`;
+      await tx`DELETE FROM fiaon_team_nachrichten WHERE agent_id = ${id}`;
+      await tx`DELETE FROM fiaon_stunden WHERE agent_id = ${id}`;
+      await tx`DELETE FROM fiaon_vertrieb_zusagen WHERE agent_id = ${id}`;
+      await tx`UPDATE fiaon_contact_log SET agent_id = NULL, agent_name = 'Ehemaliger Mitarbeiter' WHERE agent_id = ${id}`;
+      await tx`UPDATE fiaon_agents SET recruited_by = NULL WHERE recruited_by = ${id}`;
+      await tx`DELETE FROM fiaon_agent_verfuegbarkeit WHERE agent_id = ${id}`;
+      await tx`DELETE FROM fiaon_agents WHERE id = ${id}`;
+      return { art: "endgueltig", kunden: frei.length };
+    });
+
+    console.log(`[FIAON-TEAM] ${a.name} (#${id}) ${erg.art}, ${erg.kunden} Kunden freigegeben`);
+    res.json({
+      ok: true, ...erg,
+      meldung: erg.art === "endgueltig"
+        ? `${a.name} vollständig entfernt.${erg.kunden ? ` ${erg.kunden} Kunden wurden freigegeben.` : ""}`
+        : `${a.name} anonymisiert — die Provisionen bleiben für die Buchhaltung lesbar.`
+          + `${erg.kunden ? ` ${erg.kunden} Kunden wurden freigegeben.` : ""}`,
+    });
+  } catch (err) {
+    console.error("[FIAON-TEAM] loeschen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.post("/admin/agents/:id/force-reset", async (req, res) => {
   try {
     await ensureAgentTables();

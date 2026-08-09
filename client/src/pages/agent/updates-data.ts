@@ -40,6 +40,31 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-woche",
+    date: "2026-08-11",
+    category: "Verbessert",
+    title: "Was sich diese Woche geändert hat",
+    summary:
+      "Der Space ist jetzt deine Startseite und sieht aus wie ein richtiges Netzwerk. Dazu: alle Dialoge neu gebaut, Filter aufgeräumt, ein Gesprächsblatt, das man in fünf Sekunden liest.",
+    changes: [
+      "SPACE IST DIE STARTSEITE. Nach dem Anmelden landest du im Space statt bei den Zahlen. „Start“ mit Verdienst und Terminen liegt direkt daneben.",
+      "Der Space sieht aus wie ein soziales Netzwerk: Beiträge als Karten, Reaktionen mit Animation, Kommentare zum Aufklappen, links dein Profil, rechts „Heute“.",
+      "Auf dem Handy ist der Space randlos — wie eine App, nicht wie eine Webseite.",
+      "Alle Fenster wurden neu gebaut: E-Mail senden, Gesprächsblatt, Telefon. Statt eines weißen Kastens auf schwarzem Hintergrund kommen sie jetzt aus der Tiefe, mit Glas-Optik.",
+      "Auf dem Handy kannst du jedes Fenster nach unten wegwischen.",
+      "Das Gesprächsblatt beginnt mit drei Zeilen: wer, wie steht es, was ist der nächste Schritt. Die Einwände sind Karten zum Aufklappen statt einer Textwand.",
+      "Das Telefon-Panel sieht aus wie ein Gerät — mit Tasten, die sich drücken lassen, und einer Statuszeile mit Gesprächsdauer.",
+    ],
+    howto: [
+      "Nach dem Anmelden bist du im Space. Schreib etwas ins Feld oben — es öffnet sich, sobald du hineinklickst.",
+      "Zum Reagieren tippst du eines der vier Zeichen unter einem Beitrag. Nochmal tippen nimmt es zurück.",
+      "„Kommentieren“ klappt die Antworten auf. Enter schickt deinen Kommentar.",
+      "Denk an die Regel: keine Kundendaten im Space. Keine Namen, keine Nummern, keine Beträge. Die gehören in die Akte.",
+    ],
+    link: { href: "/agent/space", label: "Zum Space" },
+    important: true,
+  },
+  {
     id: "2026-08-10-erste-schritte",
     date: "2026-08-10",
     category: "Neu",

@@ -3,6 +3,76 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 — Sechs Bugs, ein Ebenen-Standard, ein Space, der kein MVP mehr ist
+
+### Die gemeldeten Bugs — mit Ursache, nicht mit Vermutung
+
+**1. Der Filterklick blieb wirkungslos.** Ursache: `useMemo(() => new URLSearchParams(window.location.search), [window.location.search])`. Das sieht richtig aus und ist es nicht — `window.location.search` ist keine reaktive Quelle. React erfuhr nichts von der Adressänderung, die Abhängigkeit wurde nie neu bewertet, der Lade-Effekt lief nie. Jetzt `useSearch()` aus wouter, das den Suchteil **abonniert**. Nachgemessen im Browser: **4155 → 170 Treffer ohne Reload.**
+
+**2. Die Admin-Mail-Zentrale verlangte einen Agent-Zugang.** Der Menüpunkt zeigte auf `/agent/mail-zentrale`, und die Seite steckte in `AgentShell`. Jetzt gibt es `/admin/mail-zentrale`: **dieselbe Seite, dieselben Bausteine** — die Adresse entscheidet über die Endpunkte. Der Betreiber sendet an bis zu 5.000 Empfänger, das Team weiter an zehn. Eine zweite Seite wäre eine zweite Sendestrecke zum Pflegen.
+
+**3. „Alle prüfen" gab es nicht.** Es existierte nur die Einzelprüfung je Ereignis — also hat niemand geprüft. Jetzt ein Knopf, der jeden der 29 Zweige durchgeht. Und: **Brevo-Fehler erscheinen als Anleitung.** Der Betreiber sah `{"message":"Unrecognised IP address 35.160.120.126, unauthorized"}`; jetzt steht da, welche IP fehlt, wo sie einzutragen ist (`app.brevo.com/security/authorised_ips`) und dass man die Beschränkung auch abschalten kann. Übersetzt wird an **einer** Stelle, durch die jeder Brevo-Aufruf läuft.
+
+**4. `/admin/leistung` ist weg** — Rangliste und Detailzahlen liegen in der Team-Zentrale.
+
+**5. Team-Zentrale vollständig und ohne abgeschnittene Texte.** Alle Texte brechen um statt zu kürzen, die Reiterleiste rollt waagerecht statt dreizeilig zu werden. „Teammitglied anlegen" steht als Knopf im Kopf. Im Mitarbeiter-Detail neu: **Verwaltung** mit Rolle (alle vier), Passwort-Reset, Einladung erneut, Deaktivieren, Bankdaten und **Löschen**.
+
+**6. Die letzte Spalte** heißt „Letzter Kontakt" statt zweimal „Kontakt".
+
+### Mitarbeiter löschen — nach denselben Regeln wie bei Kunden
+
+Wer nie eine Provision oder Auszahlung hatte, verschwindet vollständig. Wer welche hat, wird **anonymisiert**: Name, Adresse und Bankdaten weg, die Buchungen bleiben zehn Jahre lesbar und dem Konto zugeordnet. Kunden werden in beiden Fällen freigegeben, nicht mitgelöscht. In den Akten steht statt des Namens „Ehemaliger Mitarbeiter" — eine Akte ohne Vorgeschichte wäre für den Nachfolger wertlos.
+
+### FiaonEbene — ein Bauteil für jeden Dialog
+
+Der Betreiber hat die Popups abgelehnt: weiße Kästen auf schwarzem Schleier, der Hintergrund erschlagen. Das ist der Standardlook jeder Web-App seit 2015.
+
+Drei Entscheidungen:
+
+**Der Schleier hellt auf, statt zu verdunkeln.** Statt Schwarz eine kühle Aufhellung mit 22 px Unschärfe und Sättigung. Der Hintergrund bleibt als Struktur lesbar — man weiß, wo man ist. Ein schwarzer Schleier sagt „hier ist nichts mehr"; Glas sagt „das hier liegt darüber".
+
+**Die Ebene tritt aus der Tiefe ein.** Eine `perspective`-Bühne, 140 px hinter dem Bildschirm, leicht gekippt, dem Auge entgegen. Der Unterschied ist derselbe wie zwischen einer Tür, die aufgeht, und einem Zettel, der hochgeschoben wird.
+
+**Glas nur auf den schwebenden Schichten.** Kopf und Fuß sind Glas, der Körper ist massiv — Text auf Glas ist auf einem 380-px-Telefon bei Sonne unlesbar, und Lesbarkeit gewinnt gegen Effekt.
+
+Auf 380 px ein Blatt mit Grabber, das man nach unten wischen kann. Vier Schatten übereinander für die Höhe; ein einzelner sieht immer nach Vorlage aus.
+
+**Migriert:** E-Mail-Menü, Mail-Vorschau, Gesprächsblatt, Softphone, Lösch-Dialog, Mitarbeiter-Detail, Nachricht-Dialog, Filter-Blatt.
+
+### Gesprächsblatt: ein Briefing statt eines Textexports
+
+Oben ein **Kern aus drei Zeilen** — wer, Zustand, nächster Schritt. Wenn man nur das liest, kann man das Gespräch führen. Darunter die Belege. Die Einwände sind **geschlossene Karten**, von denen man die eine öffnet, die gerade kommt — statt einer Endloswand.
+
+### Softphone: ein Gerät, kein Formular
+
+Dunkle Fassung um eine helle Anzeige. Tasten mit Druckgefühl: Sie gehen beim Drücken nach unten und der Schatten darunter verschwindet. Statuspunkt im Kopf, der im Gespräch pulst, mit Dauer daneben. Der Einrichtungs-Zustand ist eine elegante Karte statt eines Fehlertextes. Der schwebende Knopf kommt dem Zeiger auf einer eigenen `perspective`-Bühne **entgegen**.
+
+### Filter: eine Reihe statt einer Wand
+
+Vierzehn Knöpfe in zwei Reihen sind keine Leiste — man liest sie nicht, man sucht darin. Jetzt Schnell-Chips für die Stufen, alles Übrige hinter **einem** Knopf mit Zahl (Glas-Popover mit Gruppen, Zählern und Erklärungen; auf 380 px ein Blatt). Was eingestellt ist, steht als **entfernbarer Chip** neben dem Suchfeld.
+
+### Space 2.0
+
+Drei Spalten wie in jedem guten sozialen Netzwerk: links ein Profilkärtchen, in der Mitte der Feed mit **620 px** (darüber wird eine Zeile länger, als das Auge in einem Sprung erfasst), rechts „Heute". Unter 1080 px fallen die Seitenspalten weg, auf 380 px wird es randlos wie eine native App.
+
+Karten **ohne Rahmen** — ein Rahmen sagt „Formular", ein weicher Schatten sagt „liegt darauf". Der Komposer öffnet sich beim Fokus und fragt „Was lief gut?". Reaktionen mit eigenen SVG-Marken; der Zähler **springt** beim Ändern, und die Reaktion wirkt sofort, ohne auf den Server zu warten.
+
+**Space ist die Startseite nach dem Login.** Bisher landete jede Rolle auf „Start" — Zahlen und Termine. Das ist die Pflicht, nicht der Grund, morgens hier zu sein.
+
+### Was der Screenshot fand
+
+**„Invalid Date" unter jedem Beitrag.** Ich hatte die Feldnamen des Feeds geraten (`createdAt`, `meineReaktion`, `avatarUrl`); `feedLesen` liefert `am`, `meine`, `autorAvatar`. Korrigiert — und `wann()` gibt bei einem kaputten Zeitstempel jetzt nichts zurück statt „Invalid Date": Ein Programmfehler im Gesicht des Nutzers ist schlimmer als eine fehlende Zeile.
+
+### Prüfstand
+
+`scripts/pruef-feinschliff.ts` — **137 Prüfungen, alle grün**. Gegenprobe: Wird der Filter-Bug wieder eingebaut oder der schwarze Schleier zurückgeholt, wird er rot.
+
+Gesamt: **1.263 Prüfungen** über elf Prüfstände.
+
+**Neu:** `docs/GESAMTSTAND.md` — die eine Seite, auf der steht, was existiert und wo.
+
+**Zu finden:** `client/src/components/FiaonEbene.tsx`, `FiaonFilter.tsx`, `server/lib/fiaon-brevo-fehler.ts`, `client/src/pages/agent/space.tsx`.
+
 ## 10.08.2026 — Team-Zentrale wirklich fertig, Forderungsmanagement, geführte Einarbeitung
 
 ### Zuerst der Rückstand: vier Funktionen waren unbedienbar

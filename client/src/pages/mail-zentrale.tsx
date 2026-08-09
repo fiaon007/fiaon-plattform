@@ -38,10 +38,34 @@ function MarkeFunke({ size = 15 }: { size?: number }) {
 }
 
 export default function MailZentraleSeite() {
+  // ── ZWEI HÜLLEN, EIN INHALT ─────────────────────────────────────────────
+  // `AgentShell` prüft die Agent-Anmeldung und zeigt sonst eine
+  // Anmeldeaufforderung. Der Betreiber hat kein Agent-Konto — für ihn wäre das
+  // eine Sackgasse, und genau die hat er gemeldet.
+  //
+  // Unter /admin/ kommt die Seite deshalb OHNE AgentShell: Die Admin-Hülle
+  // (AdminShell) liegt schon außen herum, weil die Route über `admin(…)`
+  // eingehängt ist. Der INHALT ist in beiden Fällen derselbe — eine zweite
+  // Fassung wäre eine zweite Sendestrecke zum Pflegen.
+  const alsAdmin = typeof window !== "undefined"
+    && window.location.pathname.startsWith("/admin/");
+  if (alsAdmin) return <Inhalt />;
   return <AgentShell><Inhalt /></AgentShell>;
 }
 
 function Inhalt() {
+  // ── EINE SEITE, ZWEI WEGE ────────────────────────────────────────────────
+  // Der Betreiber hat keinen Agent-Zugang. Bis zum 11.08.2026 zeigte sein
+  // Menüpunkt auf /agent/mail-zentrale und verlangte eine Anmeldung für ein
+  // Konto, das er nicht besitzt.
+  //
+  // Statt einer zweiten Seite (zwei Fassungen einer Sendestrecke) entscheidet
+  // die Adresse über die Endpunkte. Die Oberfläche ist identisch — nur die
+  // Grenzen sind es nicht: Der Betreiber sendet an bis zu 5.000 Empfänger,
+  // ein Teammitglied an zehn.
+  const alsAdmin = typeof window !== "undefined"
+    && window.location.pathname.startsWith("/admin/");
+  const basis = alsAdmin ? "/api/fiaon/admin/mail/zentrale" : "/api/fiaon/mail/zentrale";
   const [suche, setSuche] = useState("");
   const [treffer, setTreffer] = useState<Treffer[]>([]);
   const [gewaehlt, setGewaehlt] = useState<Treffer[]>([]);
@@ -58,7 +82,7 @@ function Inhalt() {
   const feld = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    fetch("/api/fiaon/mail/zentrale/gruppen", { credentials: "include" })
+    fetch(`${basis}/gruppen`, { credentials: "include" })
       .then((r) => r.json())
       .then((j) => {
         if (!j?.ok) return;
@@ -73,7 +97,7 @@ function Inhalt() {
   useEffect(() => {
     if (suche.trim().length < 1) { setTreffer([]); return; }
     const t = setTimeout(() => {
-      fetch(`/api/fiaon/mail/zentrale/suche?q=${encodeURIComponent(suche)}`, { credentials: "include" })
+      fetch(`${basis}/suche?q=${encodeURIComponent(suche)}`, { credentials: "include" })
         .then((r) => r.json())
         .then((j) => setTreffer(j?.ok ? j.treffer : []))
         .catch(() => {});
@@ -97,7 +121,7 @@ function Inhalt() {
 
   const vorschauHolen = async () => {
     setBusy("vorschau");
-    const r = await fetch("/api/fiaon/mail/zentrale/vorschau", {
+    const r = await fetch(`${basis}/vorschau`, {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...auswahl(), betreff, text }),
     }).catch(() => null);
@@ -109,7 +133,7 @@ function Inhalt() {
 
   const senden = async () => {
     setBusy("senden");
-    const r = await fetch("/api/fiaon/mail/zentrale/senden", {
+    const r = await fetch(`${basis}/senden`, {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...auswahl(), betreff, text, merkmal: vorschau?.merkmal }),
     }).catch(() => null);
@@ -287,7 +311,7 @@ function Inhalt() {
             <button type="button"
                     onClick={async () => {
                       setBusy("test");
-                      const r = await fetch("/api/fiaon/mail/zentrale/test", {
+                      const r = await fetch(`${basis}/test`, {
                         method: "POST", credentials: "include",
                         headers: { "Content-Type": "application/json" }, body: JSON.stringify({ betreff, text }),
                       }).catch(() => null);

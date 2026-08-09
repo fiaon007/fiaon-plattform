@@ -15,6 +15,7 @@ import {
 import { mailSenden } from "../lib/fiaon-mail-senden";
 import { brevoKonfiguriert, eigeneMailSenden, OHNE_SCHLUESSEL, rahmen, vorlagen, vorlagenHtml } from "../lib/fiaon-brevo";
 import { zustellungAbgleichen, zweigPruefen, ZUSTELL_TEXT } from "../lib/fiaon-zustellung";
+import { brevoKlartext } from "../lib/fiaon-brevo-fehler";
 import { versandErlaubt, versandErlaubtViele, versandHistorie, type VersandArt } from "../lib/fiaon-versand";
 import { empfaengerSuche, filterGruppen, zielgruppeLaden, bausteineFuellen, BAUSTEINE } from "../lib/fiaon-zentrale";
 
@@ -145,6 +146,72 @@ router.post("/admin/mail/abgleich", async (_req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /admin/mail/alle-pruefen — jeden Zweig der Registry durchsehen.
+ *
+ * GEMELDET 11.08.2026: Der Knopf war nirgends sichtbar. Es gab die Einzelprüfung
+ * je Ereignis, aber keinen Weg, alle auf einmal zu befragen — also hat es
+ * niemand getan, und der Zustand blieb unbekannt.
+ *
+ * Scheitert etwas an Brevo, kommt hier KEINE rohe API-Antwort zurück, sondern
+ * der Klartext mit Anleitung (fiaon-brevo-fehler.ts).
+ */
+router.post("/admin/mail/alle-pruefen", async (req: Request, res: Response) => {
+  try {
+    const an = String(req.body?.testAdresse || "").trim() || (await testAdresse());
+    if (!an) {
+      return res.status(400).json({
+        ok: false,
+        error: "Für die Prüfung braucht es eine Testadresse — sonst weiß niemand, wohin die Probemails gehen.",
+      });
+    }
+    // Jede Prüfung SENDET eine Probemail. Bei 29 Zweigen sind das 29 Mails an
+    // die Testadresse — das muss vorher klar sein, deshalb steht die Zahl in
+    // der Antwort und der Knopf fragt vorher.
+    const alle = await mailEvents();
+    const zweige: any[] = [];
+    let sauber = 0;
+    let beanstandet = 0;
+    let brevoKlar: any = null;
+
+    for (const e of alle) {
+      const p = await zweigPruefen(e.type, an,
+        { name: "Betreiber", agentId: null, rolle: "admin" },
+        // Kurz warten: 29 × 20 Sekunden wären zehn Minuten, in denen der
+        // Betreiber auf einen Ladebalken schaut. Wer eine Bestätigung
+        // vermisst, prüft den Zweig einzeln nach.
+        { maxWartenMs: 4000 },
+      ).catch((err) => ({
+        event: e.type, bestaetigt: false, gewartetSekunden: 0,
+        text: err instanceof Error ? err.message : String(err),
+      }));
+      if (p.bestaetigt) sauber++; else beanstandet++;
+      // Sobald Brevo einmal blockt, blockt es überall — die Anleitung genügt
+      // einmal, statt neunundzwanzigmal dieselbe Zeile.
+      if (!brevoKlar && /brevo/i.test(String(p.text))) {
+        brevoKlar = brevoKlartext(/HTTP (\d{3})/.exec(String(p.text)) ? Number(RegExp.$1) : 401, p.text);
+      }
+      zweige.push({ ...p, titel: e.label, beschreibung: e.description });
+    }
+
+    const abgleich = await zustellungAbgleichen().catch((err) => ({
+      ok: false, grund: err instanceof Error ? err.message : String(err),
+    })) as any;
+    if (!brevoKlar && abgleich?.klartext) brevoKlar = abgleich.klartext;
+
+    res.json({
+      ok: true,
+      gepruefte: zweige.length, sauber, beanstandet,
+      testAdresse: an, zweige, abgleich,
+      // Klartext statt roher API-Antwort — überall, wo Brevo im Spiel ist.
+      brevo: brevoKlar,
+    });
+  } catch (err) {
+    console.error("[MAIL] alle-pruefen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // SENDE-MENÜ AM KUNDEN (Team und Admin)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -261,7 +328,6 @@ router.get("/mail/zentrale/gruppen", requireAgent, async (req: AgentRequest, res
  * Liefert die Empfängerliste UND die fertig personalisierte erste Mail. Ohne
  * diesen Schritt gibt es kein Versand-Merkmal, und der Versand lehnt ab.
  */
-const vorschauMerker = new Map<string, { anzahl: number; bis: number }>();
 router.post("/mail/zentrale/vorschau", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const rolle = await rolleVon(req.agent!.id);
@@ -284,6 +350,132 @@ router.post("/mail/zentrale/vorschau", requireAgent, async (req: AgentRequest, r
     });
   } catch (err) {
     console.error("[MAIL] zentrale vorschau:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADMIN-SPIEGEL DER MAIL-ZENTRALE
+//
+// DER BUG (gemeldet 11.08.2026): Der Menüpunkt „Mail-Zentrale" im Admin-Bereich
+// zeigte auf /agent/mail-zentrale. Der Betreiber hat keinen Agent-Zugang — er
+// landete auf einer Anmeldeaufforderung für ein Konto, das er nicht besitzt.
+//
+// Diese Routen sind KEINE zweite Mail-Zentrale. Sie rufen exakt dieselben
+// Funktionen (`empfaengerSuche`, `filterGruppen`, `zielgruppeLaden`,
+// `bausteineFuellen`) mit fest gesetzter Rolle 'admin'. Eine eigene Fassung
+// wäre die sichere Quelle für zwei unterschiedliche Sendeverhalten.
+//
+// Sie liegen hinter dem Admin-Code-Gate wie alle /admin/-Routen.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Der Betreiber hat kein Empfängerlimit — aber eine Obergrenze gegen Unfälle. */
+const ADMIN_GRENZE = 5000;
+
+/** Vorschau-Merkmale. Geteilt zwischen Team- und Admin-Weg. */
+const vorschauMerker = new Map<string, { anzahl: number; bis: number }>();
+
+router.get("/admin/mail/zentrale/suche", async (req: Request, res: Response) => {
+  try {
+    res.json({ ok: true, treffer: await empfaengerSuche(String(req.query.q || ""), null) });
+  } catch (err) {
+    console.error("[MAIL] admin suche:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.get("/admin/mail/zentrale/gruppen", async (_req: Request, res: Response) => {
+  try {
+    res.json({
+      ok: true,
+      gruppen: await filterGruppen(null),
+      bausteine: BAUSTEINE,
+      rolle: "admin",
+      maxEmpfaenger: ADMIN_GRENZE,
+      absender: "Betreiber",
+    });
+  } catch (err) {
+    console.error("[MAIL] admin gruppen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/admin/mail/zentrale/vorschau", async (req: Request, res: Response) => {
+  try {
+    const ziel = await zielgruppeLaden(req.body || {}, null);
+    if (ziel.empfaenger.length === 0) {
+      return res.json({ ok: false, error: "Kein Empfänger — die Auswahl ist leer." });
+    }
+    const erster = ziel.empfaenger[0];
+    const betreff = bausteineFuellen(String(req.body?.betreff || ""), erster);
+    const text = bausteineFuellen(String(req.body?.text || ""), erster);
+    const merkmal = `admin-${Date.now().toString(36)}`;
+    vorschauMerker.set(merkmal, { anzahl: ziel.empfaenger.length, bis: Date.now() + 20 * 60_000 });
+    res.json({
+      ok: true, merkmal,
+      anzahl: ziel.empfaenger.length,
+      empfaenger: ziel.empfaenger.slice(0, 25).map((e) => ({ name: e.name, email: e.email, extern: e.extern })),
+      ausgeschlossen: ziel.ausgeschlossen,
+      betreff, html: rahmen(betreff, text),
+    });
+  } catch (err) {
+    console.error("[MAIL] admin vorschau:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/admin/mail/zentrale/senden", async (req: Request, res: Response) => {
+  try {
+    const ziel = await zielgruppeLaden(req.body || {}, null);
+    if (ziel.empfaenger.length === 0) return res.status(400).json({ ok: false, error: "Kein Empfänger." });
+    if (ziel.empfaenger.length > ADMIN_GRENZE) {
+      return res.status(400).json({
+        ok: false,
+        error: `${ziel.empfaenger.length} Empfänger sind mehr als die Obergrenze von ${ADMIN_GRENZE}. `
+          + "Grenze die Auswahl ein — ein Versand an alle auf einmal ist fast immer ein Versehen.",
+      });
+    }
+    // Die Vorschau-Pflicht gilt auch für den Betreiber: Sie ist kein Rechte-
+    // Thema, sondern der Schutz davor, eine kaputte Personalisierung an
+    // tausend Menschen zu schicken.
+    const merkmal = String(req.body?.merkmal || "");
+    const merker = vorschauMerker.get(merkmal);
+    if (ziel.empfaenger.length > 1 && (!merker || merker.bis < Date.now())) {
+      return res.status(400).json({
+        ok: false,
+        error: "Für mehr als einen Empfänger ist eine Vorschau nötig. Sieh dir die erste Mail an, dann sende.",
+      });
+    }
+    // DIESELBE Funktion wie der Team-Weg — inklusive Staffelung und Protokoll.
+    const { zentraleSenden } = await import("../lib/fiaon-zentrale");
+    const erg = await zentraleSenden({
+      empfaenger: ziel.empfaenger,
+      betreff: String(req.body?.betreff || ""),
+      text: String(req.body?.text || ""),
+      akteur: { name: "Betreiber", agentId: null },
+    });
+    vorschauMerker.delete(merkmal);
+    res.json({ ok: true, ...erg });
+  } catch (err) {
+    console.error("[MAIL] admin senden:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/admin/mail/zentrale/test", async (req: Request, res: Response) => {
+  try {
+    const an = String(req.body?.email || "").trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(an)) {
+      return res.status(400).json({ ok: false, error: "Bitte eine gültige Adresse für den Test angeben." });
+    }
+    const r = await eigeneMailSenden({
+      an, name: "Betreiber",
+      betreff: `[TEST] ${String(req.body?.betreff || "")}`,
+      text: String(req.body?.text || ""),
+    });
+    res.json(r.ok ? { ok: true, meldung: `Testmail an ${an} unterwegs.` } : { ok: false, error: r.grund });
+  } catch (err) {
+    console.error("[MAIL] admin test:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

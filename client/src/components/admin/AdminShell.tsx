@@ -97,7 +97,6 @@ export const ADMIN_NAV: NavGroup[] = [
     items: [
       { path: "/admin/team", label: "Team-Zentrale", desc: "Kennzahlen, Provisionen, Nachbuchung, Protokolle und Nachrichten — alles zu einem Menschen an einem Ort", icon: Users },
       { path: "/admin/vertraege", label: "Onboarding & Verträge", desc: "Zustimmungs-/Vertragsstatus, Vorlagen (Entwurf/Aktiv), Vertragsvariablen, Nachweise", icon: ScrollText },
-      { path: "/admin/leistung", label: "Leistung", desc: "Arbeitsberichte: Ergebnisse pro Teammitglied — offen, nicht heimlich", icon: BarChart3 },
       { path: "/admin/team?einladen=1", label: "Teammitglied anlegen", desc: "Neuen Mitarbeiter per E-Mail einladen", icon: UserPlus, match: "/admin/team" },
       { path: "/admin/team#skripte", label: "Skripte & Leitfäden", desc: "Gesprächsvorlagen verwalten", icon: BookOpen, match: "/admin/team" },
       // P4-E: „Agent-Updates" + „Team-Feedback" zeigten dieselbe Seite — zusammengelegt.
@@ -110,7 +109,7 @@ export const ADMIN_NAV: NavGroup[] = [
       { path: "/admin/funktionen", label: "Funktionen & Schulung", desc: "Alle Funktionen mit Klartext + Direktlink, Selbsttest (Button → Event → Status), Schulungsmodus", icon: GraduationCap },
       { path: "/admin/diagnose", label: "System-Diagnose", desc: "Was klemmt gerade? Ereignis-Konsole, Rohdaten, KI-Auswertung", icon: Activity, badgeKey: "diagnose" },
       { path: "/admin/einstellungen", label: "Einstellungen", desc: "Provisionssatz, Auszahlung, Reminder-Engine, Diagnose", icon: Settings },
-      { path: "/agent/mail-zentrale", label: "Mail-Zentrale", desc: "Freitext an Kunden und Gruppen — Bausteine, Vorschau, KI-Hilfe", icon: Send },
+      { path: "/admin/mail-zentrale", label: "Mail-Zentrale", desc: "Freitext an Kunden und Gruppen — Bausteine, Vorschau, KI-Hilfe", icon: Send },
       { path: "/admin/events", label: "E-Mail-Events", desc: "Make-Events testen, Diagnose, Verlauf", icon: Send },
       { path: "/admin/audit", label: "Audit-Log", desc: "Alle Mitarbeiter-Aktionen durchsuchbar", icon: ScrollText },
       { path: "/admin/changelog", label: "Was ist neu?", desc: "Alle Änderungen am System in Klartext", icon: History },

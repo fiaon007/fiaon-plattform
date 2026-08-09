@@ -632,7 +632,12 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
   // Weiterleitung an `agent`, nicht am Pfad allein, und kann nicht in einer
   // Schleife enden.
   useEffect(() => {
-    if (checked && agent && location === "/agent") navigate("/agent/start", { replace: true });
+    // ── SPACE IST DIE STARTSEITE (11.08.2026) ─────────────────────────────
+    // Vorher landete jede Rolle auf „Start" — Zahlen und Termine. Das ist die
+    // Pflicht, nicht der Grund, morgens hier zu sein. Der Space zeigt zuerst,
+    // was das Team gemacht hat; die Zahlen sind einen Klick entfernt und
+    // stehen als Tagesleiste ohnehin über dem Feed.
+    if (checked && agent && location === "/agent") navigate("/agent/space", { replace: true });
   }, [checked, agent, location, navigate]);
 
   const logout = async (e: React.MouseEvent) => {

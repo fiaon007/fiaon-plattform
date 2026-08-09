@@ -1,0 +1,74 @@
+feat(design): Ebenen-Standard, Space 2.0, sechs gemeldete Bugs behoben
+
+DIE BUGS, jeder mit Ursache statt Vermutung:
+
+1. FILTERKLICK OHNE WIRKUNG. Ursache: useMemo mit window.location.search als
+   Abhaengigkeit. Das ist keine reaktive Quelle — React erfuhr nichts von der
+   Adressaenderung, die Abhaengigkeit wurde nie neu bewertet, der Ladeeffekt
+   lief nie. Jetzt useSearch() aus wouter, das den Suchteil ABONNIERT. Im
+   Browser nachgemessen: 4155 -> 170 Treffer ohne Reload.
+
+2. ADMIN-MAIL-ZENTRALE verlangte einen Agent-Zugang, den der Betreiber nicht
+   hat. Jetzt /admin/mail-zentrale: dieselbe Seite, dieselben Bausteine, die
+   Adresse entscheidet ueber die Endpunkte. 5.000 statt 10 Empfaenger. Eine
+   zweite Seite waere eine zweite Sendestrecke zum Pflegen.
+
+3. "ALLE PRUEFEN" gab es nicht — nur die Einzelpruefung, also hat niemand
+   geprueft. Und: Brevo-Fehler erscheinen als ANLEITUNG. Der Betreiber sah
+   "Unrecognised IP address 35.160.120.126"; jetzt steht da, welche IP fehlt,
+   wo sie einzutragen ist und dass man die Beschraenkung abschalten kann.
+   Uebersetzt wird an EINER Stelle, durch die jeder Brevo-Aufruf laeuft.
+
+4. /admin/leistung entfernt, Inhalte in der Team-Zentrale.
+
+5. TEAM-ZENTRALE vollstaendig: Texte brechen um statt zu kuerzen, Reiterleiste
+   rollt waagerecht, "Teammitglied anlegen" als Knopf im Kopf. Neuer
+   Verwaltungs-Reiter mit Rolle (alle vier), Reset, Reinvite, Deaktivieren,
+   Bank und LOESCHEN — nach denselben Regeln wie bei Kunden: ohne Provision
+   endgueltig, mit Provision anonymisiert (§ 147 AO). Kunden werden
+   freigegeben, nicht mitgeloescht.
+
+6. Spaltenname "Letzter Kontakt" statt zweimal "Kontakt".
+
+FIAONEBENE — ein Bauteil fuer jeden Dialog. Drei Entscheidungen:
+- Der Schleier HELLT AUF statt zu verdunkeln. Der Hintergrund bleibt als
+  Struktur lesbar. Ein schwarzer Schleier sagt "hier ist nichts mehr", Glas
+  sagt "das hier liegt darueber".
+- Die Ebene tritt AUS DER TIEFE ein: perspective-Buehne, 140 px dahinter,
+  leicht gekippt, dem Auge entgegen.
+- Glas nur auf Kopf und Fuss. Der Koerper ist massiv — Text auf Glas ist auf
+  einem 380-px-Telefon bei Sonne unlesbar, und Lesbarkeit gewinnt.
+Auf 380 px ein Blatt mit Grabber und Wischen-zum-Schliessen. Migriert:
+E-Mail-Menue, Mail-Vorschau, Gespraechsblatt, Softphone, Loesch-Dialog,
+Mitarbeiter-Detail, Nachricht-Dialog, Filter.
+
+GESPRAECHSBLATT: Kern aus drei Zeilen oben (wer, Zustand, naechster Schritt).
+Einwaende als geschlossene Karten statt Endloswand.
+
+SOFTPHONE: dunkle Fassung um helle Anzeige, Tasten mit Druckgefuehl,
+Statuspunkt mit Dauer, Einrichtungs-Zustand als Karte statt Fehlertext.
+
+FILTER: vierzehn Knoepfe in zwei Reihen sind keine Leiste, sondern eine Wand.
+Jetzt Schnell-Chips plus EIN Knopf mit Zahl; aktive Filter als entfernbare
+Chips neben dem Suchfeld.
+
+SPACE 2.0: drei Spalten, Feed mit 620 px (darueber wird eine Zeile laenger als
+das Auge in einem Sprung erfasst), Karten ohne Rahmen, Reaktionen mit
+springendem Zaehler und sofortiger Wirkung. Space ist die STARTSEITE nach dem
+Login — Zahlen sind die Pflicht, nicht der Grund, morgens hier zu sein.
+
+Der Screenshot fand: "Invalid Date" unter jedem Beitrag. Ich hatte die
+Feldnamen des Feeds geraten (createdAt, meineReaktion, avatarUrl); feedLesen
+liefert am, meine, autorAvatar.
+
+Pruefstaende: pruef-feinschliff 137, pruef-inkasso 167, pruef-telefon 128,
+pruef-zentralen 90, pruef-mail 136, pruef-menschen 154, pruef-pipeline 142,
+pruef-merge 107, pruef-massen-merge 84, pruef-fundament-b 93, pruef-schmal 25
+— 1.263 gesamt, alle gruen. Gegenprobe rot bei wieder eingebautem Filter-Bug
+und zurueckgeholtem schwarzem Schleier.
+
+Neu: docs/GESAMTSTAND.md — die eine Seite, auf der steht, was existiert und wo.
+
+Generated with [Devin](https://devin.ai)
+
+Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>

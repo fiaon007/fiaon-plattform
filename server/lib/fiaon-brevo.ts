@@ -19,6 +19,8 @@
 // Fehler, kein leerer Bildschirm.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { brevoKlartext, brevoNichtEingerichtet, type BrevoKlartext } from "./fiaon-brevo-fehler";
+
 const BASIS = "https://api.brevo.com/v3";
 
 export function brevoKonfiguriert(): boolean {
@@ -31,11 +33,23 @@ export const OHNE_SCHLUESSEL =
   + "Umgebungsvariablen ab (Brevo → SMTP & API → API Keys), dann kann die Plattform bei "
   + "Brevo nachsehen, ob eine Mail wirklich angekommen ist.";
 
+/**
+ * DIE EINE STELLE, durch die jeder Brevo-Aufruf geht.
+ *
+ * Sie liefert neben `grund` (ein Satz für Protokolle) jetzt auch `klartext` —
+ * Titel, Anleitung und die rohe Antwort. Der Betreiber sah bis zum 11.08.2026
+ * in der Mail-Zentrale die nackte API-Antwort („Unrecognised IP address …
+ * unauthorized"). Das ist kein Programmfehler, sondern eine EINSTELLUNG mit
+ * bekannter Lösung — also gehört die Lösung in die Meldung.
+ */
 async function brevo<T>(pfad: string, init: RequestInit = {}): Promise<
-  { ok: true; daten: T } | { ok: false; grund: string }
+  { ok: true; daten: T } | { ok: false; grund: string; klartext: BrevoKlartext }
 > {
   const key = process.env.BREVO_API_KEY;
-  if (!key) return { ok: false, grund: OHNE_SCHLUESSEL };
+  if (!key) {
+    const k = brevoNichtEingerichtet();
+    return { ok: false, grund: OHNE_SCHLUESSEL, klartext: k };
+  }
   try {
     const res = await fetch(`${BASIS}${pfad}`, {
       ...init,
@@ -44,11 +58,18 @@ async function brevo<T>(pfad: string, init: RequestInit = {}): Promise<
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      return { ok: false, grund: `Brevo antwortete mit HTTP ${res.status}${text ? `: ${text.slice(0, 200)}` : ""}` };
+      const k = brevoKlartext(res.status, text);
+      return {
+        ok: false,
+        // Der Titel ist der Satz, der überall angezeigt werden kann.
+        grund: k.titel,
+        klartext: k,
+      };
     }
     return { ok: true, daten: (await res.json()) as T };
   } catch (err) {
-    return { ok: false, grund: `Brevo nicht erreichbar: ${err instanceof Error ? err.message : String(err)}` };
+    const k = brevoKlartext(0, err instanceof Error ? err.message : String(err));
+    return { ok: false, grund: k.titel, klartext: k };
   }
 }
 

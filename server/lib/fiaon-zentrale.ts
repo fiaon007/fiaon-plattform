@@ -330,7 +330,11 @@ export async function zentraleSenden(opts: {
   for (const e of jetzt) {
     const betreff = bausteineFuellen(opts.betreff, e);
     const text = bausteineFuellen(opts.text, e);
-    const r = await eigeneMailSenden({ an: e.email, name: e.name, betreff, text });
+    // Mehr als ein Empfänger heißt Gruppenversand — dann gehört ein
+    // Abmelde-Hinweis in die Fußzeile.
+    const r = await eigeneMailSenden({
+      an: e.email, name: e.name, betreff, text, gruppe: jetzt.length > 1,
+    });
     if (r.ok) versandt++; else fehlgeschlagen++;
 
     await mailProtokoll({

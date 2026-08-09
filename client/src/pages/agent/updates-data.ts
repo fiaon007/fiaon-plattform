@@ -40,6 +40,28 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-raum-telefon",
+    date: "2026-08-11",
+    category: "Neu",
+    title: "Ein Hintergrund für FIAON — und klare Telefon-Fehler",
+    summary:
+      "Hinter der Oberfläche dreht sich jetzt langsam ein Planet. Und wenn das Telefon nicht startet, steht endlich da, warum.",
+    changes: [
+      "HINTERGRUND: Ein ruhig drehender Planet liegt hinter allen Seiten — im Team-Portal, in der Verwaltung, im Kundenportal.",
+      "Er lädt NACH dem Seiteninhalt, damit nichts langsamer wird. Auf dem Handy kommt eine kleinere Fassung.",
+      "Wer im Browser „Bewegung reduzieren“ eingestellt hat oder im Datensparmodus surft, sieht nur ein Standbild.",
+      "TELEFON: Statt „Das Telefon konnte nicht starten: undefined“ steht jetzt der echte Grund da — mit Twilio-Code und dem Handgriff, der ihn behebt.",
+      "Wenn der Browser das Mikrofon nicht freigegeben hat, steht das jetzt genau so da, statt dass der Anruf stumm scheitert.",
+      "E-MAILS an Kunden tragen jetzt nur noch FIAON in der Fußzeile, dazu Impressum und Datenschutz. Bei Sammelmails steht ein Abmelde-Hinweis dabei.",
+      "Mails gehen jetzt zweiteilig raus (Text und HTML) — sie landen dadurch seltener im Spam.",
+    ],
+    howto: [
+      "Wenn beim Telefonieren etwas klemmt: Der Text im Panel nennt den Grund. Schick ihn dem Betreiber, dann weiß er sofort, wo es hakt.",
+      "Der Hintergrund lässt sich abschalten — der Betreiber findet den Regler unter Einstellungen → Design.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-11-space-v3",
     date: "2026-08-11",
     category: "Neu",

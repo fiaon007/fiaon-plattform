@@ -558,11 +558,15 @@ html {
 }
 
 /* — Ambient-Hintergrund fürs Dashboard: ruhige CI-Radials, kein Neon — */
+/* ── DURCHLÄSSIG FÜR DEN RAUM (11.08.2026) ──────────────────────────────────
+   Die Hülle setzte #f8fafc als deckende Grundfarbe. Damit lag sie ÜBER der
+   Ambient-Schicht und das Hintergrundvideo war nirgends zu sehen.
+   Die Farbwäsche liegt jetzt in FiaonRaum; hier bleibt nur ein Hauch. */
 .agent-ambient {
   background:
-    radial-gradient(1000px 460px at 85% -10%, rgba(37,99,235,.07), transparent 62%),
-    radial-gradient(760px 400px at -12% 22%, rgba(100,116,139,.06), transparent 60%),
-    #f8fafc;
+    radial-gradient(1000px 460px at 85% -10%, rgba(37,99,235,.05), transparent 62%),
+    radial-gradient(760px 400px at -12% 22%, rgba(100,116,139,.04), transparent 60%),
+    rgba(248,250,252,.55);
 }
 
 /* — Frosted-Glass-Karten: feine 1px-Border + Innen-Glow, weiche Schatten — */

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { telefonFehlerText } from "@shared/fiaon-telefon-fehler";
 import { FiaonEbene } from "./FiaonEbene";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -166,7 +167,7 @@ export function Softphone() {
       });
       geraet.current = d;
       d.on("error", (e: any) => {
-        setMeldung(`Telefonfehler: ${e?.message || "unbekannt"}`);
+        setMeldung(telefonFehlerText(e));
         setZustand("ergebnis");
       });
       const c = await d.connect({ params: { To: j.nummer } });
@@ -180,7 +181,10 @@ export function Softphone() {
       c.on("reject", () => { setMeldung("Der Ruf wurde abgelehnt."); setZustand("ergebnis"); });
       setZustand("gespraech");
     } catch (err) {
-      setMeldung(`Das Telefon konnte nicht starten: ${err instanceof Error ? err.message : String(err)}`);
+      // NICHT `err.message`: Twilio-Fehler SIND Error-Instanzen, tragen ihre
+      // Aussage aber in code/description/explanation. In Produktion stand
+      // deshalb „Das Telefon konnte nicht starten: undefined".
+      setMeldung(telefonFehlerText(err));
       setZustand("ergebnis");
     }
   };

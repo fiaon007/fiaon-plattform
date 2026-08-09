@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { raumStaerkeLesen, raumStaerkeSetzen, type RaumStaerke } from "@/components/FiaonRaum";
 import { Link } from "wouter";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -22,6 +23,185 @@ const MAKE_EVENTS = [
 function fmtDT(v: string | null | undefined): string {
   if (!v) return "—";
   try { return new Date(v).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return "—"; }
+}
+
+/**
+ * Design — der Raum-Regler und die Knopf-Familie zum Ansehen.
+ *
+ * ── WARUM EIN STYLEGUIDE IM PRODUKT UND NICHT IN EINER DATEI ───────────────
+ * Ein Styleguide, der neben dem Produkt liegt, veraltet still. Dieser hier
+ * rendert dieselben Klassen, die überall benutzt werden — wenn ein Knopf
+ * hier falsch aussieht, sieht er überall falsch aus.
+ */
+function DesignTafel() {
+  const [staerke, setStaerke] = useState<RaumStaerke>(() => raumStaerkeLesen());
+  const setzen = (v: RaumStaerke) => { raumStaerkeSetzen(v); setStaerke(v); };
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">
+      <h2 className="text-[14px] font-bold text-slate-900 mb-1">Design</h2>
+      <p className="text-[12px] text-slate-500 mb-4">
+        Der Hintergrund und die Knopf-Familie. Was hier steht, ist dasselbe,
+        was überall im System benutzt wird.
+      </p>
+
+      {/* ── Der Raum ─────────────────────────────────────────────────── */}
+      <p className="text-[11px] font-bold uppercase tracking-[.1em] text-slate-500 mb-2">
+        Hintergrund
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {([[0, "Aus"], [1, "Zurückhaltend"], [2, "Mittel"], [3, "Deutlich"]] as const).map(([v, t]) => (
+          <button key={v} type="button" onClick={() => setzen(v as RaumStaerke)}
+                  className="px-3.5 py-2 rounded-xl text-[12.5px] font-semibold"
+                  style={staerke === v
+                    ? { background: "var(--fi-primaer)", color: "#fff" }
+                    : { background: "rgba(15,23,42,.04)", color: "#475569" }}>
+            {t}
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-[11.5px] text-slate-500 leading-relaxed" style={{ maxWidth: 560 }}>
+        Das Video lädt erst nach dem Seiteninhalt. Wer im Browser reduzierte Bewegung
+        eingestellt hat oder im Datensparmodus surft, bekommt nur das Standbild — auf
+        inhaltsdichten Seiten ist der Hintergrund automatisch schwächer.
+        Die Einstellung gilt für dieses Gerät.
+      </p>
+
+      {/* ── Die Knopf-Familie ────────────────────────────────────────── */}
+      <p className="text-[11px] font-bold uppercase tracking-[.1em] text-slate-500 mt-6 mb-2">
+        Knöpfe
+      </p>
+      <div className="rounded-2xl p-4" style={{ background: "rgba(15,23,42,.025)" }}>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button type="button" className="fi-knopf-primaer px-5">Primär</button>
+          <button type="button" className="fi-knopf-glas px-4">Sekundär (Glas)</button>
+          <button type="button" className="fi-knopf-gefahr px-4">Gefahr</button>
+          <button type="button" className="fi-knopf-gefahr fi-knopf-gefahr-voll px-4">
+            Gefahr im Dialog
+          </button>
+          <button type="button" className="fi-knopf-primaer px-5" disabled>Gesperrt</button>
+        </div>
+        <p className="mt-3 text-[11.5px] text-slate-500 leading-relaxed">
+          Regel: Wer eine dunkle Fläche trägt, bringt seine Schriftfarbe selbst mit — weiß,
+          per <code className="font-mono">!important</code>. Nicht erben, nicht hoffen.
+          Der Mindestkontrast von 4,5:1 wird im Prüfstand am gerenderten Knopf gemessen.
+        </p>
+      </div>
+
+      {/* ── Dunkle Fläche ────────────────────────────────────────────── */}
+      <p className="text-[11px] font-bold uppercase tracking-[.1em] text-slate-500 mt-6 mb-2">
+        Dunkle Akzentfläche
+      </p>
+      <div className="p-4 rounded-2xl fi-flaeche-tief">
+        <p className="text-[10.5px] font-bold uppercase tracking-[.12em] fi-leise">Beispiel</p>
+        <p className="mt-1 text-[17px] font-bold">2.520,00 €</p>
+        <p className="mt-1 text-[12px] fi-leise">
+          #0A1A3C aus der CI. Alles darin ist hell — eine geerbte dunkle Schrift wäre hier
+          praktisch unsichtbar.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Telefon-Selbstdiagnose.
+ *
+ * ── WARUM SIEBEN SCHRITTE UND NICHT „bereit: ja/nein" ──────────────────────
+ * Der Betreiber hatte alle sechs Werte gesetzt, das Konto war aktiv, die
+ * Nummer vorhanden — und im Panel stand „Das Telefon konnte nicht starten:
+ * undefined". Zwischen „eingetragen" und „es klingelt" liegen sieben
+ * Stellen. Ein einzelnes Ampellicht sagt nicht, welche davon klemmt.
+ *
+ * Jeder Schritt fragt TWILIO SELBST. Ob eine Variable gesetzt ist, sagt
+ * nichts darüber, ob sie stimmt.
+ */
+function TelefonDiagnose() {
+  const [d, setD] = useState<any>(null);
+  const [laeuft, setLaeuft] = useState(false);
+
+  const pruefen = async () => {
+    setLaeuft(true);
+    const r = await fetch("/api/fiaon/admin/telefon/diagnose", { credentials: "include" }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setLaeuft(false);
+    setD(j ?? { ok: false, error: "Die Diagnose war nicht erreichbar." });
+  };
+
+  const marke = (stand: string) => {
+    const farbe = stand === "gut" ? "#059669" : stand === "fehler" ? "#dc2626"
+      : stand === "warnung" ? "#d97706" : "#94a3b8";
+    return (
+      <span className="shrink-0 mt-0.5 inline-flex items-center justify-center"
+            style={{ width: 18, height: 18, borderRadius: 999, background: `${farbe}1a`, color: farbe }}>
+        <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+             strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          {stand === "gut" ? <path d="m4.5 10.5 3.5 3.5 7.5-8" />
+            : stand === "fehler" ? <path d="m5.5 5.5 9 9M14.5 5.5l-9 9" />
+            : stand === "warnung" ? <><path d="M10 5.5v5" /><circle cx="10" cy="14" r=".6" fill="currentColor" /></>
+            : <circle cx="10" cy="10" r="3.2" />}
+        </svg>
+      </span>
+    );
+  };
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-[14px] font-bold text-slate-900 mb-1">Telefon — Verbindung prüfen</h2>
+          <p className="text-[12px] text-slate-500 leading-relaxed" style={{ maxWidth: 560 }}>
+            Läuft die ganze Kette bis Twilio durch und zeigt je Schritt, was gemessen wurde.
+            Jeder Schritt fragt Twilio selbst — ob ein Wert gesetzt ist, sagt nichts darüber,
+            ob er stimmt.
+          </p>
+        </div>
+        <button type="button" onClick={() => void pruefen()} disabled={laeuft}
+                className="fi-knopf-primaer px-4 shrink-0">
+          {laeuft ? "Prüft …" : "Verbindung prüfen"}
+        </button>
+      </div>
+
+      {d && !d.ok && (
+        <p className="mt-4 px-3.5 py-3 rounded-xl text-[12.5px] font-semibold"
+           style={{ background: "rgba(220,38,38,.07)", color: "#b91c1c" }}>
+          {d.error}
+        </p>
+      )}
+
+      {d?.ok && (
+        <>
+          <p className="mt-4 px-3.5 py-3 rounded-xl text-[12.5px] font-semibold leading-relaxed"
+             style={d.bereit
+               ? { background: "rgba(5,150,105,.08)", color: "#047857" }
+               : { background: "rgba(220,38,38,.07)", color: "#b91c1c" }}>
+            {d.zusammenfassung}
+          </p>
+          <div className="mt-3 rounded-xl overflow-hidden" style={{ boxShadow: "inset 0 0 0 1px #eef2f7" }}>
+            {d.schritte.map((s2: any) => (
+              <div key={s2.nr} className="flex gap-3 px-3.5 py-3"
+                   style={{ borderBottom: "1px solid #f8fafc" }}>
+                {marke(s2.stand)}
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12.5px] font-semibold text-slate-800">
+                    {s2.nr}. {s2.titel}
+                  </p>
+                  <p className="text-[12px] text-slate-600 leading-snug mt-0.5"
+                     style={{ overflowWrap: "anywhere" }}>{s2.befund}</p>
+                  {s2.rat && (
+                    <p className="text-[12px] leading-relaxed mt-1.5 px-3 py-2 rounded-lg"
+                       style={{ background: "rgba(29,78,216,.05)", color: "#1e40af", overflowWrap: "anywhere" }}>
+                      {s2.rat}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 export default function AdminEinstellungenPage() {
@@ -250,6 +430,9 @@ export default function AdminEinstellungenPage() {
         <p className="text-[10px] text-slate-400 mt-2">Sachprämien werden NIE automatisch als Geld gebucht — erreichte Meilensteine erscheinen als Aufgabe „Prämie ausliefern" in der Team-Übersicht.</p>
         <button type="submit" disabled={busy} className={`${btnPrimary} mt-4`}>{busy ? "…" : "Speichern"}</button>
       </form>
+
+      <DesignTafel />
+      <TelefonDiagnose />
 
       {/* System-Diagnose */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">

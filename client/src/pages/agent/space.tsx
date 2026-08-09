@@ -883,7 +883,7 @@ body:has(.fi-sp-buehne) .agent-ambient {
     radial-gradient(1240px 720px at 14% -12%, rgba(59,130,246,.26), transparent 58%),
     radial-gradient(1020px 640px at 92% 4%, rgba(29,78,216,.2), transparent 54%),
     radial-gradient(820px 560px at 50% 106%, rgba(96,165,250,.2), transparent 56%),
-    linear-gradient(176deg, #e8effa 0%, #dfe9f8 46%, #e6edfa 100%);
+    linear-gradient(176deg, rgba(232,239,250,.72) 0%, rgba(223,233,248,.68) 46%, rgba(230,237,250,.72) 100%);
   background-attachment: fixed;
 }
 /* Eine sehr feine Körnung über dem Verlauf. Einzeln nicht zu sehen, nimmt ihm

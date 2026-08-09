@@ -467,4 +467,22 @@ router.get("/gespraechsblatt/:personId", requireAgent, async (req: AgentRequest,
   }
 });
 
+/**
+ * GET /admin/telefon/diagnose — die Kette Schritt für Schritt.
+ *
+ * Nur für den Betreiber: Die Antwort nennt Kontonamen und Nummern.
+ */
+router.get("/admin/telefon/diagnose", async (_req: Request, res: Response) => {
+  try {
+    const { telefonDiagnose } = await import("../lib/fiaon-telefon-diagnose");
+    res.json({ ok: true, ...(await telefonDiagnose()) });
+  } catch (err) {
+    console.error("[TELEFON] diagnose:", err);
+    res.status(500).json({
+      ok: false,
+      error: `Die Diagnose selbst ist gescheitert: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+});
+
 export default router;

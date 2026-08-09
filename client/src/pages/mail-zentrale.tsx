@@ -513,10 +513,14 @@ function Inhalt() {
                     className="fi-zweitknopf px-4 py-2.5 text-[13px] font-semibold disabled:opacity-40">
               {busy === "test" ? "…" : "Test an mich"}
             </button>
+            {/* EIN Primärweg: Die Vorschau IST der Sendeknopf. Vorher waren
+                es zwei Schritte mit zwei Knöpfen — und der zweite hieß
+                „Vorschau (Pflicht)", was wie eine Hürde klang statt wie der
+                Weg zum Ziel. */}
             <button type="button" onClick={() => void vorschauHolen()}
                     disabled={!!busy || !betreff || !text || gewaehltGesamt === 0}
-                    className="fi-primaerknopf ml-auto px-5 py-2.5 text-[13.5px] font-semibold disabled:opacity-40">
-              {busy === "vorschau" ? "…" : `Vorschau${gewaehltGesamt > 1 ? " (Pflicht)" : ""}`}
+                    className="fi-knopf-primaer ml-auto px-5">
+              {busy === "vorschau" ? "…" : "Vorschau & senden"}
             </button>
           </div>
         </Reveal>

@@ -398,7 +398,107 @@ async function main(): Promise<void> {
     /Portal ansehen als \{m\.first_name/.test(datei("client/src/pages/admin-team-zentrale.tsx")));
 
   // ═══════════════════════════════════════════════════════════════════════
-  gruppe("10. Verhalten gegen echte Daten");
+  gruppe("10. Telefon: Fehler in Klartext");
+  // ═══════════════════════════════════════════════════════════════════════
+  const { telefonFehler, telefonFehlerText } = await import("../shared/fiaon-telefon-fehler");
+
+  // DER Fall, der in Produktion „undefined" ergab: ein Error OHNE message.
+  const leer = new Error();
+  ok("Ein Fehler ohne Text ergibt nie „undefined“",
+    !/undefined/.test(telefonFehlerText(leer)), telefonFehlerText(leer));
+  for (const attrappe of [null, undefined, {}, "", 0, { code: 0 }, new Error("")]) {
+    const t = telefonFehlerText(attrappe);
+    ok(`Kein „undefined“ bei ${JSON.stringify(attrappe) ?? "undefined"}`,
+      t.length > 10 && !/undefined/.test(t));
+  }
+  gleich("Twilio 31402 wird erkannt", telefonFehler({ code: 31402 }).code, 31402);
+  ok("… mit Klartext", /Mikrofon/.test(telefonFehler({ code: 31402 }).titel));
+  ok("… und einem Handgriff", telefonFehler({ code: 31402 }).rat.length > 20);
+  ok("Ein verschachtelter Code wird gefunden",
+    telefonFehler({ originalError: { code: 21215 } }).code === 21215);
+  ok("Geo-Sperre nennt die Console-Stelle",
+    /Geographic Permissions/.test(telefonFehler({ code: 21215 }).rat));
+  ok("Die Rohfassung bleibt fürs Protokoll",
+    telefonFehler({ code: 31000, message: "x" }).roh.includes("31000"));
+  ok("Softphone benutzt die Normalisierung",
+    /telefonFehlerText/.test(datei("client/src/components/Softphone.tsx")));
+  ok("… und NICHT mehr err.message",
+    !/err instanceof Error \? err\.message : String\(err\)/.test(datei("client/src/components/Softphone.tsx")));
+
+  const diagQ = datei("server/lib/fiaon-telefon-diagnose.ts");
+  for (const [nr, was] of [[1, "Zugangsdaten"], [2, "Konto erreichbar"], [3, "API-Key"],
+                           [4, "TwiML-App"], [5, "Absendernummer"], [6, "Geo"], [7, "Browser"]] as const) {
+    ok(`Diagnose prüft Schritt ${nr}: ${was}`, new RegExp(`nr: ${nr},`).test(diagQ));
+  }
+  ok("Die Diagnose fragt Twilio SELBST, nicht die eigene Konfiguration",
+    /api\.twilio\.com/.test(diagQ) && /Applications\/\$\{env/.test(diagQ));
+  ok("Die TwiML-Soll-Adresse ist definiert",
+    /telefon\/twiml/.test(diagQ) && /export function twimlSollUrl/.test(diagQ));
+  ok("Es gibt eine Route dafür", /admin\/telefon\/diagnose/.test(datei("server/routes/fiaon-telefonie.ts")));
+  ok("… und eine Karte in den Einstellungen",
+    /Verbindung prüfen/.test(datei("client/src/pages/admin-einstellungen.tsx")));
+
+  const { telefonDiagnose, twimlSollUrl } = await import("../server/lib/fiaon-telefon-diagnose");
+  gleich("Die Soll-Adresse ist die öffentliche",
+    twimlSollUrl(), "https://www.fiaon.com/api/fiaon/telefon/twiml");
+  const dg = await telefonDiagnose();
+  ok("Die Diagnose läuft durch und meldet konkret",
+    dg.schritte.length >= 1 && dg.schritte.every((x: any) => x.befund.length > 10));
+  ok("… und nennt bei Fehlern, was zu tun ist",
+    dg.schritte.filter((x: any) => x.stand === "fehler").every((x: any) => !!x.rat));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  gruppe("11. E-Mail-Rahmen: nur FIAON");
+  // ═══════════════════════════════════════════════════════════════════════
+  const { rahmen, rahmenText } = await import("../server/lib/fiaon-brevo");
+  const mailHtml = rahmen("Test", "Hallo,\n\ndas ist ein Text.", false);
+  ok("„Schwarzott“ steht in keiner Kundenmail", !/Schwarzott/i.test(mailHtml));
+  ok("Die Marke steht im Kopf", /FIAON<\/div>/.test(mailHtml));
+  ok("Impressum verlinkt", /fiaon\.com\/impressum/.test(mailHtml));
+  ok("Datenschutz verlinkt", /fiaon\.com\/datenschutz/.test(mailHtml));
+  ok("Kein Abmelde-Hinweis bei einer persönlichen Mail", !/keine Mails/.test(mailHtml));
+  const htmlG = rahmen("Test", "Hallo", true);
+  ok("… aber bei Gruppenversand schon", /keine Mails/.test(htmlG));
+  const txt = rahmenText("Hallo,\n\ndas ist ein Text.", false);
+  ok("Es gibt eine Textfassung", txt.includes("FIAON") && txt.includes("Impressum:"));
+  ok("… ohne Schwarzott", !/Schwarzott/i.test(txt));
+  const brevoQ = datei("server/lib/fiaon-brevo.ts");
+  ok("Mehrteilig gesendet", /textContent: rahmenText/.test(brevoQ));
+  ok("Absendername ist die Marke", /sender: \{ name: "FIAON"/.test(brevoQ));
+  ok("Reply-To gesetzt", /replyTo: \{ name: "FIAON"/.test(brevoQ));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  gruppe("12. Der Raum");
+  // ═══════════════════════════════════════════════════════════════════════
+  for (const f of ["raum-1080.mp4", "raum-720.mp4", "raum-1080.webm", "raum-poster.jpg"]) {
+    ok(`Vorhanden: ${f}`, existsSync(`client/public/${f}`));
+  }
+  const { statSync } = await import("node:fs");
+  const mb = (f: string) => statSync(`client/public/${f}`).size / 1048576;
+  ok(`Desktop unter 4 MB (${mb("raum-1080.mp4").toFixed(2)})`, mb("raum-1080.mp4") < 4);
+  ok(`Mobil unter 2 MB (${mb("raum-720.mp4").toFixed(2)})`, mb("raum-720.mp4") < 2);
+  const raumQ = datei("client/src/components/FiaonRaum.tsx");
+  ok("Poster steht sofort im Markup", /raum-poster\.jpg/.test(raumQ));
+  // Nicht bloß „das Wort kommt vor": Die Startfunktion MUSS über den
+  // Leerlauf-Rückruf laufen. Die erste Fassung dieser Prüfung blieb grün,
+  // als ich den Rückruf auf null setzte — das Wort stand ja noch im
+  // Kommentar daneben.
+  ok("Video kommt erst nach dem Inhalt",
+    /const ric = \(window as any\)\.requestIdleCallback;/.test(raumQ)
+    && /ric \? ric\(start, \{ timeout: 2500 \}\)/.test(raumQ));
+  ok("Reduzierte Bewegung liefert KEIN Video", /prefers-reduced-motion: reduce\)"\)\.matches\) return/.test(raumQ));
+  ok("Datensparmodus wird geachtet", /saveData/.test(raumQ));
+  ok("Schmal nutzt die 720er-Fassung", /schmal \? "\/raum-720\.mp4"/.test(raumQ));
+  ok("Inhaltsdichte Seiten bekommen weniger", /dicht \? 0\.12 : 0/.test(raumQ));
+  ok("Der Regler steht in den Einstellungen",
+    /raumStaerkeSetzen/.test(datei("client/src/pages/admin-einstellungen.tsx")));
+  ok("Die Vorgabe ist NICHT „aus“ (Number(null) === 0)",
+    /if \(roh === null \|\| roh === ""\) return 2;/.test(raumQ));
+  ok("Der Raum liegt hinter allem, einmal für alle Bereiche",
+    /<FiaonRaum \/>/.test(app));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  gruppe("13. Verhalten gegen echte Daten");
   // ═══════════════════════════════════════════════════════════════════════
   try {
     await sqlPool.begin(async (tx) => {
@@ -441,7 +541,7 @@ async function main(): Promise<void> {
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  gruppe("11. Gegenprobe: nichts geschrieben");
+  gruppe("14. Gegenprobe: nichts geschrieben");
   // ═══════════════════════════════════════════════════════════════════════
   const [nachher] = await sqlPool`
     SELECT (SELECT COUNT(*) FROM fiaon_agents)::int AS agenten,

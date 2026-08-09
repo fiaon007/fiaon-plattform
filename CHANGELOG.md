@@ -3,6 +3,66 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (IV) — Der „undefined"-Fehler, ein Raum hinter allem, nur noch FIAON
+
+### „Das Telefon konnte nicht starten: undefined"
+
+Die schlechteste aller Fehlermeldungen. Ursache gefunden:
+
+```
+err instanceof Error ? err.message : String(err)
+```
+
+Fehler des Twilio-Browser-SDK **sind** Error-Instanzen — aber ihre Aussage steckt nicht in `message`, sondern in `code`, `description`, `explanation` oder einem verschachtelten `originalError`. Bei einigen Klassen ist `message` schlicht leer. Der Ausdruck lief in den ersten Zweig und lieferte `undefined`.
+
+Neu: `shared/fiaon-telefon-fehler.ts` holt aus **jedem** geworfenen Ding das Beste heraus und ergänzt für 14 bekannte Twilio-Codes, **was zu tun ist**. Der Prüfstand wirft `null`, `undefined`, `{}`, `""`, `0` und einen leeren `Error` hinein — keiner davon darf je „undefined" ergeben.
+
+### Sieben Schritte statt eines Ampellichts
+
+Alle sechs Werte gesetzt, Konto aktiv, Nummer vorhanden — und es geht trotzdem nicht. Zwischen „eingetragen" und „es klingelt" liegen sieben Stellen. **Einstellungen → Telefon → Verbindung prüfen** geht jede einzeln durch:
+
+1. Werte vorhanden **und wohlgeformt** (SID beginnt mit `AC`, Key mit `SK` …)
+2. Konto erreichbar mit diesen Zugangsdaten
+3. API-Key gehört zu **diesem** Konto
+4. **TwiML-App existiert und ihre Voice-URL zeigt hierher** — der Hauptverdächtige
+5. Absendernummer gehört dem Konto und kann Sprache
+6. Geo-Berechtigungen für DE, AT, CH
+7. Browser: SDK, Mikrofon, Geräteregistrierung
+
+Jeder Schritt fragt **Twilio selbst**. Ob eine Variable gesetzt ist, sagt nichts darüber, ob sie stimmt.
+
+### Nur noch FIAON
+
+In der Fußzeile jeder Freitext-Mail stand „FIAON — Schwarzott Global". In der Kommunikation mit Kunden existiert ausschließlich FIAON — wer eine zweite Firma liest, fragt sich, mit wem er einen Vertrag hat.
+
+Jetzt: FIAON allein, Impressum und Datenschutz verlinkt, Abmelde-Hinweis **nur** bei Gruppenversand (von einem persönlichen Gespräch meldet man sich nicht ab). Dazu eine **Textfassung** — wer HTML abgeschaltet hat, sah bisher eine leere Mail, und jeder Spamfilter bewertet eine Mail ohne Textteil schlechter. Reply-To auf `welcome@fiaon.com`.
+
+**Eine Stelle bleibt bewusst stehen:** Der Kontoinhaber in den Zahlungsanweisungen lautet „Schwarzott Global". Das ist ein Bankfakt — dort geht das Geld hin. Eine falsche Angabe lässt Überweisungen scheitern. Entscheidung des Betreibers.
+
+### Der Raum
+
+Ein langsam drehender Planet, weit hinter allem, unter einer CI-Wäsche.
+
+**Aufbereitet:** 1080p MPF (0,87 MB), 1080p WebM (0,65 MB), 720p für schmale Geräte (0,37 MB), Poster (0,08 MB). Das Budget lag bei 4 MB — es sind 0,87.
+
+**Vier Regeln im Code:** Der Inhalt kommt zuerst (Poster sofort, Video über `requestIdleCallback`). Wer reduzierte Bewegung eingestellt hat, bekommt **gar kein** `<video>` — nicht nur ein pausiertes. Bei Datensparmodus oder langsamer Verbindung bleibt es beim Poster. Über dem Video liegt immer eine Aufhellung; auf inhaltsdichten Seiten stärker.
+
+**Ein Ein-Zeichen-Fehler, den die Messung fand:** `Number(null)` ist `0`, und `0` bedeutet in meiner Stufenliste „aus" — der Raum war bei jedem abgeschaltet, der die Einstellung nie angefasst hatte. Also bei allen. Erst prüfen, ob überhaupt etwas gespeichert ist, dann umwandeln.
+
+**Und ein Justierfehler:** Mit 18 % Video unter 90 % Wäsche ahnte man den Planeten nur noch am Rand. Zweimal reduziert ist einmal zu viel. Jetzt trägt das Video mehr, die Wäsche weniger — die Lesbarkeit entsteht durch die Wäsche, nicht durch ein unsichtbares Video.
+
+Regler unter **Einstellungen → Design** (Aus / Zurückhaltend / Mittel / Deutlich).
+
+### Styleguide im Produkt
+
+Einstellungen → Design zeigt die Knopf-Familie — dieselben Klassen, die überall benutzt werden. Ein Styleguide neben dem Produkt veraltet still; dieser kann es nicht.
+
+### Prüfstand
+
+`pruef-veredelung.ts` von 141 auf **197 Prüfungen**. Gesamt **1.612**. Drei Gegenproben: Der `undefined`-Bug, „Schwarzott" in der Fußzeile und das Video im kritischen Pfad machen ihn rot.
+
+Eine der Gegenproben deckte eine **schwache Prüfung** auf: Sie suchte nur das Wort `requestIdleCallback` — das stand nach der Sabotage noch im Kommentar daneben. Jetzt prüft sie den Mechanismus.
+
 ## 11.08.2026 (III) — Fehlergründe am Ort, Mail radikal einfach, Space v3, Durchblick
 
 ### Zuerst: Nikita wurde ohne Auftrag versetzt

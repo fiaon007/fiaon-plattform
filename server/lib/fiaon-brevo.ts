@@ -191,6 +191,8 @@ export interface EigeneMail {
   betreff: string;
   /** Reiner Text. Der CI-Rahmen kommt aus `rahmen()`. */
   text: string;
+  /** Ging diese Mail an mehrere? Dann trägt sie einen Abmelde-Hinweis. */
+  gruppe?: boolean;
 }
 
 /**
@@ -207,11 +209,16 @@ export async function eigeneMailSenden(
   const r = await brevo<{ messageId?: string }>("/smtp/email", {
     method: "POST",
     body: JSON.stringify({
+      // Absendername ist die MARKE, nicht die Domain — im Posteingang steht
+      // dann „FIAON" und nicht „welcome@fiaon.com".
       sender: { name: "FIAON", email: "welcome@fiaon.com" },
+      replyTo: { name: "FIAON", email: "welcome@fiaon.com" },
       to: [{ email: mail.an, ...(mail.name ? { name: mail.name } : {}) }],
       subject: mail.betreff,
-      htmlContent: rahmen(mail.betreff, mail.text),
-      textContent: mail.text,
+      htmlContent: rahmen(mail.betreff, mail.text, mail.gruppe === true),
+      // Mehrteilig: Wer HTML abgeschaltet hat, sähe sonst eine leere Mail —
+      // und jeder Spamfilter bewertet eine Mail ohne Textteil schlechter.
+      textContent: rahmenText(mail.text, mail.gruppe === true),
     }),
   });
   if (!r.ok) return { ok: false, messageId: null, grund: r.grund };
@@ -225,7 +232,41 @@ export async function eigeneMailSenden(
  * persönliche Nachricht und kein Newsletter. Was sie braucht, ist eine
  * erkennbare Absenderidentität und einen Fuß, der die Pflichtangaben trägt.
  */
-export function rahmen(betreff: string, text: string): string {
+/**
+ * Der FIAON-Rahmen um einen Freitext.
+ *
+ * ── ENTITÄTEN-TRENNUNG IST GESCHÄFTSREGEL (11.08.2026) ─────────────────────
+ * In der Fußzeile stand „FIAON — Schwarzott Global". In der Kommunikation
+ * mit Kunden existiert AUSSCHLIESSLICH FIAON. Wer eine zweite Firma in der
+ * Fußzeile liest, fragt sich, mit wem er eigentlich einen Vertrag hat — und
+ * genau diese Frage soll nie entstehen.
+ *
+ * `gruppe` setzt den Abmelde-Hinweis. Bei einer persönlichen Nachricht an
+ * eine Person wäre er falsch: Man meldet sich nicht von einem Gespräch ab.
+ */
+/**
+ * Die reine Textfassung derselben Mail.
+ *
+ * Mehrteilig zu senden ist kein Luxus: Manche Postfächer (und jeder
+ * Spamfilter) bewerten eine Mail ohne Textteil schlechter, und wer HTML
+ * abgeschaltet hat, sähe sonst eine leere Nachricht.
+ */
+export function rahmenText(text: string, gruppe = false): string {
+  return [
+    text.trim(),
+    "",
+    "—",
+    "FIAON",
+    "Impressum: https://www.fiaon.com/impressum",
+    "Datenschutz: https://www.fiaon.com/datenschutz",
+    ...(gruppe
+      ? ["", "Diese Mail ging an mehrere Empfänger. Wenn du keine solchen",
+         "Nachrichten mehr möchtest, antworte kurz mit „keine Mails“."]
+      : []),
+  ].join("\n");
+}
+
+export function rahmen(betreff: string, text: string, gruppe = false): string {
   const html = text
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .split(/\n{2,}/)
@@ -246,10 +287,12 @@ export function rahmen(betreff: string, text: string): string {
     </td></tr>
     <tr><td style="padding:0 32px 28px;font-size:15px;color:#0f172a;">${html}</td></tr>
     <tr><td style="padding:20px 32px 28px;border-top:1px solid #e2e8f0;font-size:11.5px;color:#64748b;line-height:1.6;">
-      FIAON — Schwarzott Global<br>
+      <strong style="color:#475569;">FIAON</strong><br>
       Diese Nachricht wurde persönlich an dich geschickt.<br>
       <a href="https://www.fiaon.com/impressum" style="color:#64748b;">Impressum</a> ·
-      <a href="https://www.fiaon.com/datenschutz" style="color:#64748b;">Datenschutz</a>
+      <a href="https://www.fiaon.com/datenschutz" style="color:#64748b;">Datenschutz</a>${
+        gruppe ? `<br><span style="color:#94a3b8;">Diese Mail ging an mehrere Empfänger. `
+          + `Wenn du keine solchen Nachrichten mehr möchtest, antworte kurz mit „keine Mails“.</span>` : ""}
     </td></tr>
   </table>
 </td></tr></table></body></html>`;

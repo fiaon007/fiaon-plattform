@@ -2,6 +2,7 @@ import { lazy, Suspense, type ComponentType } from "react";
 import { Umleitung } from "@/components/Umleitung";
 import { Switch, Route, Redirect, useLocation } from "wouter";
 import { useSeitenTitel } from "@/lib/fiaon-titel";
+import { FiaonRaum } from "@/components/FiaonRaum";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -301,7 +302,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="relative min-h-screen bg-white">
+      {/* Der Raum liegt HINTER allem — eine Ebene, für Verwaltung,
+          Team-Portal, Kundenportal und die öffentlichen Seiten gleichermaßen.
+          Er lädt nach dem Inhalt und verschwindet bei reduzierter Bewegung
+          oder Datensparmodus ganz. */}
+      <FiaonRaum />
+      <div className="relative min-h-screen" style={{ background: "transparent" }}>
         <MaintenanceBanner />
         <Toaster />
         <Router />

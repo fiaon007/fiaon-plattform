@@ -3,6 +3,72 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (VII) — Telefon-Richtlinie, das Gerät, und ein Zeitzonenfehler in der Nacht
+
+### Zuerst: zwei Nachtstunden ohne Umsatz
+
+Beim Bauen fiel der Prüfstand um 00:31 Berliner Zeit auf die Nase:
+
+```
+FAIL  Beitrag ist der Auftragswert  → ist 0, soll 20000
+```
+
+Eine Provision, die eine Sekunde vorher gebucht worden war, zählte nicht. Ursache:
+
+```sql
+c.created_at >= date_trunc('day', ${datum}::date)
+```
+
+`datum` kam aus `berlinToday()` und war korrekt. Aber `date_trunc('day', '2026-08-10'::date)` ergibt einen Zeitstempel **ohne Zonenbezug**, und Postgres vergleicht ihn gegen ein `timestamptz`, als wäre er UTC. Das Fenster lag damit von **02:00 bis 02:00 Berliner Zeit**.
+
+Folge: Jede Nacht zwischen Mitternacht und zwei Uhr zeigte die Wirtschaftlichkeit für **jeden** Mitarbeiter null Umsatz, null Abschlüsse und kein „gedeckt ab". Kein Absturz, keine Meldung — nur falsche Zahlen, zwei Stunden lang, jeden Tag. Die Art Fehler, die niemand bemerkt, weil um Mitternacht keiner hinsieht.
+
+Neu: `server/lib/fiaon-tagfenster.ts` spannt Tages- und Monatsfenster in Berliner Zeit auf und übergibt echte Zeitpunkte. Der Sommer-/Winterversatz kommt aus der Zeitzonendatenbank, nicht aus einem festen `+02:00` — das wäre die Hälfte des Jahres falsch, und zwar in der Hälfte, in der niemand daran denkt. Sieben Abfragen umgestellt, auch die Tagesgruppierung im Verlauf.
+
+`AGENTS.md` sagt: Zeitzone über `fiaon-time.ts`, nie über rohe Datumsarithmetik. Die Regel stand da — die Abfrage hielt sich nicht daran, weil es auf der SQL-Seite passierte.
+
+### Die Telefon-Richtlinie
+
+Ein Softphone in fremden Händen ist zweierlei: eine Kreditkarte und ein Aufnahmegerät. Das Zweite ist gefährlicher. Wer ein Gespräch aufzeichnet, ohne den anderen zu informieren, verletzt **§ 201 StGB** — und zwar persönlich, nicht die Firma.
+
+Deshalb ist die Richtlinie eine **Zusage mit Nachweis**, kein Hinweistext:
+
+- **Sechs Zusagen** in Klartext: Hinweis vor dem Gespräch, Widerspruch beendet die Aufzeichnung sofort, Rechtsgrundlage (§ 201 StGB und Art. 13 DSGVO), nur wer im System steht, Aufnahmen wie Kundenakten, Verstoß ist ein Disziplinarfall.
+- **Keine Kaltakquise, keine privaten Anrufe** stehen ausdrücklich unter „was nicht geht".
+- **Annahme mit getipptem Namen und Haken**, festgehalten mit Zeitpunkt, Fassung, IP und Browserkennung — dieselbe Maschinerie wie die Verpflichtungserklärung, inklusive Roboter-Wand.
+- **Das Wählen ist serverseitig gesperrt**, bis sie angenommen ist. Der abgelehnte Versuch steht im Wahlprotokoll.
+- Fußnote: „Fassung 1.0 — zur Prüfung durch die Rechtsberatung freigegeben."
+
+**„Ohne Aufzeichnung fortsetzen":** Widerspricht der Kunde, stoppt ein Knopf im Gespräch die Twilio-Aufnahme sofort. Der Vermerk am Anruf wird **auch dann** gesetzt, wenn Twilio nicht erreichbar ist — der Wille des Kunden ist festgehalten, selbst wenn die Technik klemmt.
+
+**Der Pflichtsatz steht über dem Anrufknopf**, nicht im Kleingedruckten: „Dieses Gespräch wird zur Qualitätssicherung aufgezeichnet — sind Sie damit einverstanden?" Änderbar in den Einstellungen, aber nie leer.
+
+**Aufbewahrungsfrist:** 90 Tage als Vorgabe, Spalten für Löschzeitpunkt angelegt.
+
+### Das Gerät
+
+Das Telefon lag als Ebene rechts unten am Rand. Jetzt ein zentriertes Gerät, ganz aus CSS und SVG — scharf auf jeder Auflösung, in den CI-Farben, ohne ein einziges Bitmap:
+
+**Vier Schichten:** Titanrahmen als Verlauf (oben Licht, unten Schatten — so verhält sich Metall), Kantenlicht innen, vertieftes Displaybett im CI-Navy, und ein Glasreflex bei **sechs Prozent** — mehr ist ein Effekt, weniger ist unsichtbar. Dazu Dynamic-Island-Aussparung, vier angedeutete Seitentasten und eine 3D-Neigung beim Öffnen.
+
+**Die Wähltastatur** mit Buchstabenzeile (2 ABC, 7 PQRS). Die Buchstaben sind nicht Nostalgie: Sie sind der Grund, warum die Tasten unterschiedlich aussehen und man sie blind findet. Beim Drücken sinkt die Taste ein und der Schatten darunter verschwindet.
+
+**Kundensuche im Display:** Man ruft einen Menschen an, nicht eine Nummer. Die Suche liegt im Sichtfeld der Rolle — wer nur eigene Kunden betreut, findet auch nur eigene.
+
+**Auf 380 px gibt es keinen Gerätekörper.** Dort *ist* das Gerät das Gerät; ein gezeichnetes Telefon im Telefon wäre albern und würde den Platz halbieren. Stattdessen ein Bottom-Sheet mit Wischgriff — und einer Schwelle von 110 px, damit es nicht bei jedem Scrollversuch zugeht.
+
+### Ein Fehler, der die Seite weiß machte
+
+Meine zwei neuen `useEffect` standen hinter `if (!stand) return null`. React zählt dann in zwei Durchläufen unterschiedlich viele Hooks und bricht ab: „Rendered more hooks than during the previous render." Der Browsertest hat es sofort gezeigt — ein Quelltext-Grep hätte es nie gefunden.
+
+### Prüfstand
+
+`scripts/pruef-space4.ts` — **90 Prüfungen**. Die Wand wird **direkt aufgerufen**, nicht über die Route: Die Route prüft zuerst die Twilio-Einrichtung und antwortet ohne Zugangsdaten mit 503, die Richtlinie kommt dann nie an die Reihe. Genau daran ist mein erster Prüfversuch gescheitert.
+
+Drei Gegenproben: Wand entfernen (3 rot), reservierten `To`-Parameter zurückholen (1 rot), Pflichtsatz unter den Knopf schieben (1 rot).
+
+Gesamt **1.743 Prüfungen**, alle grün.
+
 ## 11.08.2026 (VI) — Der Telefonfehler gefunden, richtiges Bankkonto, „Vorgesetzter", Space auf volle Breite
 
 ### Warum die Diagnose grün war und telefonieren trotzdem nicht ging

@@ -129,6 +129,25 @@ router.post("/telefon/ausweis", requireAgent, async (req: AgentRequest, res: Res
     if (!["agent", "vertriebsleiter", "onboarding"].includes(rolle)) {
       return ablehnen("Deine Rolle darf nicht telefonieren.");
     }
+
+    // ── DIE RICHTLINIE IST EINE WAND, KEIN HINWEIS ────────────────────────
+    // Serverseitig geprüft, nicht in der Oberfläche versteckt. Wer ein
+    // Gespräch ohne Hinweis aufzeichnet, macht sich nach § 201 StGB
+    // persönlich strafbar — und FIAON hat die Aufzeichnung eingeschaltet.
+    // Ein Knopf, den man in der Konsole umgehen kann, wäre hier keine
+    // Absicherung, sondern eine Ausrede.
+    const { darfWaehlen } = await import("../lib/fiaon-telefon-zusage");
+    const richtlinie = await darfWaehlen(req.agent!.id);
+    if (!richtlinie.erlaubt) {
+      await wahlProtokoll({
+        agentId: req.agent!.id, agentName: req.agent!.name, nummer: nummerRoh,
+        personId, erlaubt: false, grund: "Telefon-Richtlinie nicht angenommen",
+      });
+      return res.status(412).json({
+        ok: false, richtlinieOffen: true,
+        neufassung: richtlinie.neufassung, error: richtlinie.grund,
+      });
+    }
     const pruefung = await wahlPruefen(nummerRoh);
     if (!pruefung.erlaubt) return ablehnen(pruefung.grund!, 400);
     if (personId && !(await darfAnKunde(req.agent!.id, rolle, personId))) {
@@ -504,6 +523,207 @@ router.get("/admin/telefon/diagnose", async (_req: Request, res: Response) => {
       ok: false,
       error: `Die Diagnose selbst ist gescheitert: ${err instanceof Error ? err.message : String(err)}`,
     });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TELEFON-RICHTLINIE
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Der Satz, den das Team am Gesprächsbeginn vorliest.
+ *
+ * Änderbar in den Einstellungen — aber nie leer: Fällt der Eintrag weg, gilt
+ * die Vorgabe. Ein leerer Pflichtsatz wäre schlimmer als ein unpassender.
+ */
+async function hinweisSatz(): Promise<string> {
+  const { HINWEIS_VORGABE } = await import("../lib/fiaon-telefon-zusage");
+  const [r] = (await sqlPool`
+    SELECT value FROM fiaon_settings WHERE key = 'telefon_hinweis_satz'
+  `.catch(() => [] as any[])) as any[];
+  const v = String(r?.value ?? "").trim();
+  return v.length > 10 ? v : HINWEIS_VORGABE;
+}
+
+/**
+ * GET /telefon/suche — Kunden für die Wählanzeige.
+ *
+ * NUR im Sichtfeld der Rolle: Wer nur eigene Kunden betreut, findet auch nur
+ * eigene. Eine Telefonsuche über den ganzen Bestand wäre selbst schon ein
+ * Leck — man bekäme Namen und Rufnummern von Menschen, mit denen man nichts
+ * zu tun hat.
+ */
+router.get("/telefon/suche", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const q = String(req.query.q || "").trim();
+    if (q.length < 2) return res.json({ ok: true, treffer: [] });
+    const rolle = await rolleVon(req.agent!.id);
+    const nurEigene = rolle === "agent" ? req.agent!.id : null;
+    // Rufnummern mit und ohne Leerzeichen finden — der eine tippt 0176…,
+    // der andere +49 176 …, und beide meinen denselben Menschen.
+    const roh = q.replace(/[^0-9+]/g, "");
+    const treffer = (await sqlPool`
+      SELECT p.id AS person_id,
+             TRIM(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')) AS name,
+             COALESCE(p.primary_phone, '') AS nummer
+      FROM fiaon_persons p
+      WHERE p.merged_into_person_id IS NULL AND NOT p.is_blocked
+        AND COALESCE(p.primary_phone, '') <> ''
+        AND (${nurEigene}::int IS NULL OR p.assigned_agent_id = ${nurEigene}::int)
+        AND (
+          (COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) ILIKE ${`%${q}%`}
+          OR (${roh.length >= 4} AND regexp_replace(COALESCE(p.primary_phone,''), '[^0-9+]', '', 'g') LIKE ${`%${roh}%`})
+        )
+      ORDER BY p.priority_tier NULLS LAST, p.last_name
+      LIMIT 8
+    `) as any[];
+    res.json({
+      ok: true,
+      treffer: treffer.map((t) => ({
+        personId: Number(t.person_id), name: String(t.name).trim() || "Ohne Namen",
+        nummer: String(t.nummer),
+      })),
+    });
+  } catch (err) {
+    console.error("[TELEFON] suche:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** GET /telefon/richtlinie — Text und eigener Stand. */
+router.get("/telefon/richtlinie", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const { zusageStand, zusageHash } = await import("../lib/fiaon-vertrieb-zusage");
+    const { TELEFON_ZUSAGE_TEXT, TELEFON_ZUSAGE_VERSION, HINWEIS_VORGABE } =
+      await import("../lib/fiaon-telefon-zusage");
+    const stand = await zusageStand(req.agent!.id, "telefon", TELEFON_ZUSAGE_VERSION);
+    res.json({
+      ok: true, ...stand,
+      text: TELEFON_ZUSAGE_TEXT,
+      // Der Prüfwert belegt, dass der angezeigte Text derselbe ist, der
+      // gespeichert wurde. Ohne ihn könnte man den Wortlaut später ändern
+      // und behaupten, es sei immer so gewesen.
+      pruefwert: zusageHash(TELEFON_ZUSAGE_TEXT).slice(0, 16),
+      hinweisSatz: await hinweisSatz(),
+      hinweisVorgabe: HINWEIS_VORGABE,
+    });
+  } catch (err) {
+    console.error("[TELEFON] richtlinie:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /telefon/richtlinie — annehmen. */
+router.post("/telefon/richtlinie", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const { zusageSpeichern, istRoboterUnterschrift, zusageHash } =
+      await import("../lib/fiaon-vertrieb-zusage");
+    const { TELEFON_ZUSAGE_TEXT, TELEFON_ZUSAGE_VERSION } =
+      await import("../lib/fiaon-telefon-zusage");
+
+    const ip = String(req.headers["x-forwarded-for"] || req.ip || "").split(",")[0].trim();
+    const ua = String(req.headers["user-agent"] || "");
+    // Dieselbe Wand wie bei der Verpflichtungserklärung: Ein Rechtsnachweis,
+    // den ein Skript erzeugen kann, ist keiner. Am 08.08.2026 hat ein
+    // Browser-Test eine Erklärung echt angenommen.
+    const roboter = istRoboterUnterschrift(ip || null, ua || null);
+    if (roboter.roboter) {
+      return res.status(403).json({ ok: false, error: `Annahme abgelehnt: ${roboter.grund}` });
+    }
+    if (String(req.body?.pruefwert || "") !== zusageHash(TELEFON_ZUSAGE_TEXT).slice(0, 16)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Der angezeigte Text passt nicht zur gespeicherten Fassung. Bitte die Seite neu laden.",
+      });
+    }
+    // Der getippte Name ist Teil des Nachweises — wie bei der
+    // Verpflichtungserklärung. Wer seinen Namen schreibt, hat gelesen.
+    const getippt = String(req.body?.name || "").trim();
+    if (getippt.length < 3) {
+      return res.status(400).json({
+        ok: false,
+        error: "Bitte schreib deinen Namen in das Feld. Das ist die Unterschrift.",
+      });
+    }
+    await zusageSpeichern({
+      agentId: req.agent!.id, agentName: req.agent!.name, bereich: "telefon",
+      version: TELEFON_ZUSAGE_VERSION, sollVersion: TELEFON_ZUSAGE_VERSION,
+      text: TELEFON_ZUSAGE_TEXT, nameGetippt: getippt,
+      gelesen: req.body?.gelesen === true,
+      ip: ip || null, userAgent: ua || null,
+    });
+    console.log(`[TELEFON] Richtlinie angenommen: ${req.agent!.name} (${TELEFON_ZUSAGE_VERSION})`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[TELEFON] richtlinie annehmen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /telefon/:id/ohne-aufzeichnung — der Kunde hat widersprochen.
+ *
+ * Stoppt die laufende Twilio-Aufnahme SOFORT und vermerkt es am Anruf. Das
+ * Gespräch läuft weiter — man legt nicht auf, weil jemand nicht aufgezeichnet
+ * werden will.
+ */
+router.post("/telefon/:id/ohne-aufzeichnung", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const [c] = (await sqlPool`
+      SELECT id, twilio_sid, agent_id FROM fiaon_calls WHERE id = ${id}
+    `) as any[];
+    if (!c) return res.status(404).json({ ok: false, error: "Anruf nicht gefunden." });
+    if (Number(c.agent_id) !== req.agent!.id) {
+      return res.status(403).json({ ok: false, error: "Das ist nicht dein Anruf." });
+    }
+
+    // Twilio anweisen, die Aufnahme zu beenden. Schlägt das fehl, wird der
+    // Vermerk TROTZDEM gesetzt: Der Wille des Kunden ist festgehalten, auch
+    // wenn die Technik gerade klemmt — und der Vermerk ist der Nachweis.
+    let gestoppt = false;
+    if (c.twilio_sid && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+      const kopf = "Basic " + Buffer.from(
+        `${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`,
+      ).toString("base64");
+      const r = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}`
+        + `/Calls/${c.twilio_sid}/Recordings.json`,
+        { headers: { Authorization: kopf }, signal: AbortSignal.timeout(8000) },
+      ).catch(() => null);
+      const j = await r?.json().catch(() => null) as any;
+      for (const rec of j?.recordings ?? []) {
+        await fetch(
+          `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}`
+          + `/Recordings/${rec.sid}.json`,
+          {
+            method: "POST", headers: { Authorization: kopf, "Content-Type": "application/x-www-form-urlencoded" },
+            body: "Status=stopped", signal: AbortSignal.timeout(8000),
+          },
+        ).catch(() => null);
+        gestoppt = true;
+      }
+    }
+
+    await sqlPool`
+      UPDATE fiaon_calls
+      SET ohne_aufzeichnung_am = NOW(),
+          transkript_status = 'entfaellt',
+          transkript_grund = 'Der Kunde hat der Aufzeichnung widersprochen.',
+          updated_at = NOW()
+      WHERE id = ${id}
+    `;
+    console.log(`[TELEFON] Aufnahme auf Kundenwunsch beendet (Anruf ${id}, Twilio ${gestoppt ? "gestoppt" : "nicht erreicht"})`);
+    res.json({
+      ok: true, gestoppt,
+      meldung: gestoppt
+        ? "Die Aufnahme ist beendet. Am Anruf steht, dass der Kunde widersprochen hat."
+        : "Am Anruf steht, dass der Kunde widersprochen hat. Die Aufnahme konnte nicht "
+          + "bestätigt gestoppt werden — bitte dem Vorgesetzten Bescheid geben.",
+    });
+  } catch (err) {
+    console.error("[TELEFON] ohne-aufzeichnung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
 

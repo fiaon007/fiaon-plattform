@@ -40,6 +40,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-telefon-geraet",
+    date: "2026-08-11",
+    category: "Neu",
+    title: "Das Telefon ist ein Telefon geworden — und es gibt eine Richtlinie",
+    summary:
+      "Beim Klick auf den Telefonknopf erscheint jetzt ein echtes Gerat mit Wähltastatur. Vorher musst du einmal die Telefon-Richtlinie lesen und annehmen.",
+    changes: [
+      "DAS GERÄT: Der Telefonknopf öffnet ein zentriertes Gerät mit Wähltastatur, Kundensuche und Gesprächsanzeige. Am Handy ist es ein Blatt, das von unten hochkommt.",
+      "KUNDENSUCHE: Tippe den Namen, statt die Nummer zu suchen. Du findest nur Kunden aus deinem eigenen Bereich.",
+      "RICHTLINIE: Vor dem ersten Anruf musst du die Telefon-Richtlinie einmal lesen und annehmen. Das ist keine Formalie — wer ein Gespräch ohne Hinweis aufzeichnet, macht sich nach § 201 StGB PERSÖNLICH strafbar.",
+      "Solange du sie nicht angenommen hast, ist das Wählen gesperrt.",
+      "DER PFLICHTSATZ steht über dem Anrufknopf: „Dieses Gespräch wird zur Qualitätssicherung aufgezeichnet — sind Sie damit einverstanden?“ Sag ihn zu Beginn, jedes Mal.",
+      "OHNE AUFZEICHNUNG: Widerspricht der Kunde, drückst du im Gespräch auf „Ohne Aufzeichnung fortsetzen“. Die Aufnahme stoppt sofort, das Gespräch läuft weiter, und am Anruf steht, dass es so war. Kein Nachfragen, kein Überreden.",
+      "Aufnahmen werden nach 90 Tagen automatisch gelöscht.",
+    ],
+    howto: [
+      "Lies die Richtlinie in Ruhe — es sind sechs Punkte, und sie betreffen dich, nicht die Firma.",
+      "Zum Annehmen brauchst du den Haken und deinen vollen Namen. Beides wird mit Zeitpunkt festgehalten.",
+      "Wenn ein Kunde bei der Aufzeichnung zögert: Knopf drücken, weiterreden. Das ist der richtige Weg, nicht die Ausnahme.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-11-telefon-space-breit",
     date: "2026-08-11",
     category: "Behoben",

@@ -243,8 +243,15 @@ async function main(): Promise<void> {
 
   // ── Softphone-Gerät ──────────────────────────────────────────────────
   const tel = datei("client/src/components/Softphone.tsx");
-  ok("Das Gerät hat eine dunkle Fassung", /linear-gradient\(172deg, #101a2f/.test(tel));
-  ok("Tasten haben Druckgefühl", /\.fi-tel-taste:active[\s\S]{0,140}inset 0 2px 5px/.test(tel));
+  // ── AUF DAS GERÄT NACHGEZOGEN (11.08.2026) ────────────────────────────
+  // Das Telefon liegt nicht mehr als Ebene am Rand, sondern in einem
+  // Gerätekörper (FiaonGeraet.tsx). Display und Tastatur sind dorthin
+  // gewandert; diese zwei Prüfungen maßen Gestaltung, die es nicht mehr gibt.
+  const geraet = datei("client/src/components/FiaonGeraet.tsx");
+  ok("Das Display ist dunkles CI-Navy",
+    /#0d1c3f 0%, #0a1a3c 46%, #070f22/.test(geraet));
+  ok("Tasten haben Druckgefühl",
+    /\.fi-tast-taste:active[\s\S]{0,140}inset 0 2px 6px/.test(geraet));
   ok("Eine Statuszeile mit Punkt", /fi-tel-punkt\[data-zustand="gespraech"\]/.test(tel));
   ok("… mit Dauer im Gespräch", /Im Gespräch · \$\{dauerText\(sekunden\)\}/.test(tel));
   ok("Der Einrichtungs-Zustand ist eine Karte", /fi-tel-karte-titel/.test(tel));

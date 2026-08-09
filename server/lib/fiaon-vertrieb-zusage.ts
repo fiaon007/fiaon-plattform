@@ -52,7 +52,11 @@ export const ZUSAGE_VERSION = "2.0-2026-08-06";
  * Auseinanderlaufen: Sobald jemand die Roboterabwehr an einer Stelle
  * verbessert, fehlt sie an der anderen.
  */
-export type ZusageBereich = "vertrieb" | "onboarding" | "inkasso";
+// „telefon" kam am 11.08.2026 dazu. Es ist kein Bereich mit eigener Seite,
+// sondern eine Funktion — aber die Zusage ist derselbe Vorgang: ein Text, eine
+// Annahme, ein Nachweis. Eine zweite Maschinerie dafür zu bauen hieße, den
+// Widerruf, die Versionierung und die Roboter-Wand doppelt zu pflegen.
+export type ZusageBereich = "vertrieb" | "onboarding" | "inkasso" | "telefon";
 // Fassung 2.0 (noch am selben Tag): Die Vertriebsleitung darf jetzt Zahlungen
 // buchen, Unterlagen-Stände und Zugangsprobleme einsehen. Genau dafür ist die
 // Versionierung da — Fassung 1.0 verbot das Buchen ausdrücklich, wer sie

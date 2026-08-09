@@ -33,6 +33,7 @@
 
 import { sqlPool } from "./db-pool";
 import { berlinToday } from "./fiaon-time";
+import { monatsfenster, tagfenster } from "./fiaon-tagfenster";
 
 type Lauf = typeof sqlPool;
 
@@ -91,20 +92,26 @@ export async function wirtschaftlichkeit(
   const gehaltAnteil = gehaltAktiv ? Math.round(gehalt / tage) : 0;
 
   // ── Kosten des Tages ────────────────────────────────────────────────────
+  // ── DAS FENSTER IN BERLINER ZEIT ────────────────────────────────────────
+  // NICHT `date_trunc('day', datum::date)`: Das ergibt einen Zeitstempel ohne
+  // Zonenbezug, den Postgres als UTC liest — das Fenster lag von 02:00 bis
+  // 02:00 Berliner Zeit. Zwischen Mitternacht und zwei Uhr zählte jede Nacht
+  // keine einzige Provision. Gefunden am 10.08.2026 um 00:31.
+  const fenster = tagfenster(datum);
+  const monat = monatsfenster(datum);
+
   const [heute] = (await lauf`
     SELECT
       COALESCE((
         SELECT SUM(c.amount_cents) FROM fiaon_commissions c
         WHERE c.agent_id = ${agentId} AND c.status <> 'storniert'
-          AND c.created_at >= date_trunc('day', ${datum}::date)
-          AND c.created_at <  date_trunc('day', ${datum}::date) + INTERVAL '1 day'
+          AND c.created_at >= ${fenster.von} AND c.created_at < ${fenster.bis}
       ), 0)::bigint AS provisionen,
       COALESCE((
         SELECT SUM(c.base_amount_cents) FROM fiaon_commissions c
         WHERE c.agent_id = ${agentId} AND c.status <> 'storniert'
           AND COALESCE(c.kind, '') <> 'stunden'
-          AND c.created_at >= date_trunc('day', ${datum}::date)
-          AND c.created_at <  date_trunc('day', ${datum}::date) + INTERVAL '1 day'
+          AND c.created_at >= ${fenster.von} AND c.created_at < ${fenster.bis}
       ), 0)::bigint AS beitrag
   `) as any[];
 
@@ -138,8 +145,7 @@ export async function wirtschaftlichkeit(
     const schritte = (await lauf`
       SELECT created_at, base_amount_cents FROM fiaon_commissions
       WHERE agent_id = ${agentId} AND status <> 'storniert' AND COALESCE(kind, '') <> 'stunden'
-        AND created_at >= date_trunc('day', ${datum}::date)
-        AND created_at <  date_trunc('day', ${datum}::date) + INTERVAL '1 day'
+        AND created_at >= ${fenster.von} AND created_at < ${fenster.bis}
       ORDER BY created_at
     `) as any[];
     let summe = 0;
@@ -159,11 +165,12 @@ export async function wirtschaftlichkeit(
     SELECT
       COALESCE(SUM(base_amount_cents) FILTER (WHERE COALESCE(kind,'') <> 'stunden'), 0)::bigint AS beitrag,
       COALESCE(SUM(amount_cents), 0)::bigint AS provisionen,
-      COUNT(DISTINCT date_trunc('day', created_at))::int AS tage_mit_abschluss
+      -- Auch die Gruppierung in Berliner Zeit: Ein Abschluss um 00:30 gehoert
+      -- zum neuen Tag, nicht zum alten.
+      COUNT(DISTINCT date_trunc('day', created_at AT TIME ZONE 'Europe/Berlin'))::int AS tage_mit_abschluss
     FROM fiaon_commissions
     WHERE agent_id = ${agentId} AND status <> 'storniert'
-      AND created_at >= date_trunc('month', ${datum}::date)
-      AND created_at < date_trunc('day', ${datum}::date) + INTERVAL '1 day'
+      AND created_at >= ${monat.von} AND created_at < ${fenster.bis}
   `) as any[];
 
   const tagImMonat = Number(datum.slice(8, 10));
@@ -182,7 +189,7 @@ export async function wirtschaftlichkeit(
              SUM(base_amount_cents) FILTER (WHERE COALESCE(kind,'') <> 'stunden') AS beitrag
       FROM fiaon_commissions
       WHERE agent_id = ${agentId} AND status <> 'storniert'
-        AND created_at >= date_trunc('month', ${datum}::date)
+        AND created_at >= ${monat.von}
       GROUP BY tag ORDER BY tag
     `) as any[];
     let auf = 0;
@@ -250,6 +257,11 @@ export async function teamWirtschaftlichkeit(
   const tage = await arbeitstage(lauf);
   const tagImMonat = Number(datum.slice(8, 10));
   const verstrichen = Math.max(1, Math.round((tagImMonat / 30) * tage));
+  // Auch die Summenzeile rechnet in Berliner Zeit — sonst weicht sie zwischen
+  // Mitternacht und zwei Uhr von den Einzelzahlen ab, und zwei Zahlen auf
+  // derselben Seite, die sich widersprechen, kosten mehr Vertrauen als die
+  // ganze Ansicht wert ist.
+  const monat = monatsfenster(datum);
 
   const [g] = (await lauf`
     SELECT COALESCE(SUM(festgehalt_cents), 0)::bigint AS gehalt,
@@ -264,7 +276,7 @@ export async function teamWirtschaftlichkeit(
            COALESCE(SUM(c.amount_cents), 0)::bigint AS provisionen
     FROM fiaon_commissions c
     JOIN fiaon_agents a ON a.id = c.agent_id AND NOT a.is_test_account
-    WHERE c.status <> 'storniert' AND c.created_at >= date_trunc('month', ${datum}::date)
+    WHERE c.status <> 'storniert' AND c.created_at >= ${monat.von}
   `) as any[];
 
   const gehaltAnteil = Math.round((Number(g.gehalt) / tage) * verstrichen);

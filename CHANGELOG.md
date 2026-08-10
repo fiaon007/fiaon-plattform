@@ -3,6 +3,71 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (XI) — `register()` war der Fehler, die Liste hält still, Inkasso-Zuteilung
+
+### Der Anruf: mein eigener Fehler von heute Morgen
+
+Diagnose-Schritt 10 zeigte es: *„bei register: ohne Name, Rohfassung: undefined."*
+
+Ich hatte heute Morgen `await d.register()` ergänzt, in der Annahme, das mache den Aufbau verlässlicher. **Es machte ihn kaputt.**
+
+`Device.register()` meldet das Gerät für **eingehende** Anrufe an. Der Ausweis, den FIAON ausstellt, trägt aber ausdrücklich `incomingAllow: false` — im Browser soll es nicht klingeln, eingehende Rufe laufen extern.
+
+Eine Anmeldung für Eingang auf einem Ausweis **ohne** Eingangsrecht scheitert. Und zwar mit einem leeren Fehler: Der geworfene Wert war buchstäblich `undefined`. Genau das stand in Schritt 10.
+
+Für einen ausgehenden Anruf ist `register()` nicht nötig — `connect()` baut die Verbindung selbst auf. Es ist heraus.
+
+**Die Lehre:** Eine Absicherung, die man einbaut, ohne zu prüfen, ob sie zum Rest passt, ist keine Absicherung.
+
+Ohne diesen Diagnoseschritt hätte ich weiter geraten. Er hat sich beim ersten Einsatz bezahlt.
+
+### Die Arbeitsliste hält still
+
+Ein Agent: *„Wenn ich bei jemandem ‚zahlt sofort' oder ‚nicht erreicht' drücke, rutscht er einfach 2–3 Leute runter — komme so echt durcheinander."*
+
+Ursache: Die Liste sortiert nach `promised_payment_date` und `follow_up_date` — **genau den Feldern, die ein Ergebnis setzt**. Nach dem Buchen wurde die ganze Liste neu geholt, und der Kunde ordnete sich selbst weg.
+
+Das ist kein Sortierfehler, sondern ein Denkfehler: Wer eine Liste von oben nach unten abarbeitet, braucht eine Liste, die stillhält.
+
+Jetzt holt das Buchen **nur die Zähler**. Die Karte bleibt an ihrer Stelle — gedämpft, mit Marke „Ergebnis gebucht". Gedämpft und **nicht durchgestrichen**: Der Kunde ist nicht abgehakt, sein Ergebnis ist gebucht. Man muss ihn vielleicht gleich noch einmal ansehen.
+
+Neuordnen ist ein eigener Schritt: „3 Ergebnisse gebucht — die Reihenfolge ist absichtlich stehen geblieben, damit du deine Zeile behältst."
+
+**Gemessen im Browser:** 300 Karten, nach dem Buchen dieselbe Reihenfolge, eine Karte markiert.
+
+### Inkasso-Zuteilung
+
+Die Frage: *„Hans-Jürgen Gerhold ist unser Inkasso-Mitarbeiter — wie teile ich ihm Kunden zu? Wir bekommen noch 1–2 weitere."*
+
+Die Antwort: **normalerweise gar nicht.** Neuer Reiter in der Team-Zentrale, und die Verteilung läuft **lastgerecht** — wer weniger offene Fälle hat, bekommt mehr neue. Nach jeder Zuteilung wird neu sortiert, damit sich ein Rückstand von selbst ausgleicht statt zu verfestigen.
+
+**Zugeteilt wird eine RATE, nicht ein Kunde.** Ein Kunde hat zwölf Raten; wenn Rate 3 überfällig ist und Rate 7 später auch, muss nicht derselbe Mensch dran sein — er ist vielleicht im Urlaub oder nicht mehr da.
+
+Die Vorschau zeigt jede Rate mit Kunde, Referenz, Tagen überfällig, Betrag und Empfänger. **Ohne `schreiben` passiert nichts.** Beim Verteilen sichert `inkasso_agent_id IS NULL` gegen zwei gleichzeitige Läufe ab.
+
+**Gemessen:** 29 überfällige Raten warten, alle würden zu Hans-Jürgen gehen.
+
+### Mitarbeiter-Zugang auf der Website
+
+Dezent in der Fußzeile, neben dem Systemstatus — nicht in der Hauptnavigation. Ein Kunde, der „Mitarbeiter-Login" oben im Menü sieht, fragt sich, ob er hier richtig ist. Wer den Zugang braucht, sind zehn Menschen, die ihn kennen.
+
+Keine Nennung von „Agent" oder „Vertrieb": Die Fußzeile einer Kundenseite soll nicht verraten, wie das Haus innen gebaut ist.
+
+### Zwei eigene Prüffehler
+
+1. **Mein Test klickte den Filter-Chip** „Nicht erreicht 72" statt des Ergebnis-Knopfes in der Karte. Die Liste lud neu, und ich hielt das für das Springen.
+2. **Meine Attrappe fing die falsche Adresse ab** — `kontakt-ergebnis` gibt es nicht, die Route heißt `/agent/crm/kunden/:id/aktivitaet`. Der echte Aufruf ging durch und hätte fast ein echtes Ergebnis geschrieben. Nur weil die Antwort nicht zur Attrappe passte, fiel es auf.
+
+### Und ein Verstoß gegen meine eigene Regel
+
+`pruef-veredelung` prüfte „gleich viele Provisionen wie vorher" und war rot: 346 statt 344. **Zwei Provisionen sind während des Laufs entstanden** — echte Kunden haben gezahlt.
+
+`AGENTS.md` sagt es selbst: *Global nur „darf nicht schrumpfen", je Einheit exakt.* Ich habe gegen meine eigene Regel geprüft. Jetzt wird die eigene Zeile namentlich gesucht.
+
+### Prüfstand
+
+`pruef-rueckstand` von 124 auf **155**, `pruef-space4` auf **110**. Sechs Gegenproben: `register()` wieder einbauen, Liste springen lassen, Nebenläufigkeits-Schutz entfernen, Vorschau schreiben lassen, Mikrofon-Anfrage entfernen, leeren Wurf ohne Aussage — jede wird rot. Gesamt **2.043**, alle grün.
+
 ## 11.08.2026 (X) — Warum der Anruf nicht startete: zwei Fehler, beide gemessen
 
 ### Der Befund

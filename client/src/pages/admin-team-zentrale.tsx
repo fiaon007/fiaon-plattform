@@ -80,6 +80,180 @@ function Avatar({ src, name, size = 40 }: { src: string | null; name: string; si
  * Aufklappmenü kosten. Deshalb liegen die drei Stufen als Chips offen da, und
  * der Lösch-Zähler ist selbst ein Filter: Antippen zeigt die Löschungen.
  */
+/**
+ * Inkasso-Zuteilung.
+ *
+ * ── DIE FRAGE, DIE DAS BEANTWORTET ─────────────────────────────────────────
+ * „Hans-Jürgen Gerhold ist unser neuer Mitarbeiter für Inkasso — wie teile ich
+ * ihm Kunden zu? Wir bekommen noch 1–2 weitere, wie mache ich das mit den
+ * überfälligen Zahlungen?"
+ *
+ * Die Antwort ist: normalerweise gar nicht. Die Verteilung läuft lastgerecht
+ * von selbst — wer weniger offene Fälle hat, bekommt mehr neue. Von Hand
+ * eingreifen muss man nur im Ausnahmefall.
+ *
+ * Zugeteilt wird eine RATE, nicht ein Kunde: Ein Kunde hat zwölf Raten, und
+ * wenn Rate 3 überfällig ist und Rate 7 später auch, muss nicht derselbe
+ * Mensch dran sein.
+ */
+function InkassoZuteilung() {
+  const [d, setD] = useState<any>(null);
+  const [laeuft, setLaeuft] = useState(false);
+  const [frage, setFrage] = useState(false);
+  const [nurAgent, setNurAgent] = useState("");
+
+  const holen = useCallback(async () => {
+    const p = new URLSearchParams();
+    if (nurAgent) p.set("agent", nurAgent);
+    const r = await fetch(`/api/fiaon/admin/inkasso/zuteilung?${p}`, { credentials: "include" }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setD(j?.ok ? j : { hinweis: j?.error || "Nicht erreichbar." });
+  }, [nurAgent]);
+  useEffect(() => { void holen(); }, [holen]);
+
+  const verteilen = async () => {
+    setFrage(false);
+    setLaeuft(true);
+    const r = await fetch("/api/fiaon/admin/inkasso/zuteilung", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schreiben: true, agent: nurAgent || null }),
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setLaeuft(false);
+    setD(j?.ok ? j : { hinweis: j?.error || "Fehlgeschlagen." });
+  };
+
+  const geld = (c: number) => `${(c / 100).toFixed(2).replace(".", ",")} €`;
+  const tage = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+
+  return (
+    <div>
+      {/* ── Die Mannschaft ─────────────────────────────────────────────── */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">
+        <h2 className="text-[14px] font-bold text-slate-900 mb-1">Wer bearbeitet Inkasso?</h2>
+        <p className="text-[12px] text-slate-500 leading-relaxed mb-4" style={{ maxWidth: 620 }}>
+          Die Verteilung läuft <b>lastgerecht</b>: Wer weniger offene Fälle hat, bekommt mehr neue.
+          So gleicht sich ein Rückstand von selbst aus, statt sich zu verfestigen. Von Hand
+          eingreifen musst du nur im Ausnahmefall.
+        </p>
+        {(d?.mannschaft ?? []).length === 0 ? (
+          <p className="px-3.5 py-3 rounded-xl text-[12.5px] leading-relaxed"
+             style={{ background: "rgba(217,119,6,.08)", color: "#b45309" }}>
+            {d?.hinweis || "Kein aktiver Mitarbeiter mit der Rolle Inkasso."}
+          </p>
+        ) : (
+          <div className="grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))" }}>
+            {d.mannschaft.map((m: any) => (
+              <div key={m.id} className="px-4 py-3.5 rounded-2xl"
+                   style={{ background: "rgba(37,99,235,.05)", boxShadow: "inset 0 0 0 1px rgba(37,99,235,.16)" }}>
+                <p className="text-[13.5px] font-bold text-slate-800">{m.name}</p>
+                <p className="text-[22px] font-bold leading-none tabular-nums mt-1.5"
+                   style={{ color: "var(--fi-primaer)" }}>{m.offen}</p>
+                <p className="text-[11.5px] font-semibold" style={{ color: "var(--fi-primaer)" }}>
+                  offene {m.offen === 1 ? "Rate" : "Raten"}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Heute bearbeitet: {m.heuteBearbeitet}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Was liegt herum? ───────────────────────────────────────────── */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-[14px] font-bold text-slate-900">Überfällige Raten ohne Zuständigen</h2>
+            <p className="text-[12px] text-slate-500 mt-0.5 leading-relaxed" style={{ maxWidth: 560 }}>
+              {d?.hinweis || "Wird geladen …"}
+            </p>
+          </div>
+          {(d?.mannschaft ?? []).length > 0 && (d?.vorschlag ?? []).length > 0 && (
+            <button type="button" onClick={() => setFrage(true)} disabled={laeuft}
+                    className="fi-knopf-primaer px-5 shrink-0">
+              {laeuft ? "Verteilt …" : `${d.vorschlag.length} verteilen`}
+            </button>
+          )}
+        </div>
+
+        {(d?.mannschaft ?? []).length > 1 && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="text-[11.5px] text-slate-500">Nur an:</span>
+            {([["", "Alle (lastgerecht)"], ...d.mannschaft.map((m: any) => [String(m.id), m.name])] as any[])
+              .map(([w, t]) => (
+                <button key={w} type="button" onClick={() => setNurAgent(w)}
+                        className="px-3 py-1.5 rounded-xl text-[12px] font-semibold"
+                        style={nurAgent === w
+                          ? { background: "var(--fi-primaer)", color: "#fff" }
+                          : { background: "rgba(15,23,42,.04)", color: "#475569" }}>
+                  {t}
+                </button>
+              ))}
+          </div>
+        )}
+
+        {(d?.vorschlag ?? []).length > 0 && (
+          <div className="mt-3.5 rounded-xl overflow-hidden" style={{ boxShadow: "inset 0 0 0 1px #eef2f7" }}>
+            {d.vorschlag.slice(0, 25).map((v: any) => (
+              <div key={v.rateId} className="px-3.5 py-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1"
+                   style={{ borderBottom: "1px solid #f8fafc" }}>
+                <span className="text-[13px] font-semibold text-slate-800">{v.kunde}</span>
+                <span className="text-[11.5px] font-mono" style={{ color: "var(--fi-primaer)" }}>{v.ref}</span>
+                <span className="text-[12px] font-semibold tabular-nums" style={{ color: "#b45309" }}>
+                  {tage(v.faelligAm)} Tage überfällig
+                </span>
+                <span className="text-[12px] tabular-nums text-slate-600">{geld(v.betragCents)}</span>
+                <span className="ml-auto shrink-0 text-[12px] font-semibold" style={{ color: "var(--fi-primaer)" }}>
+                  → {v.anAgentName}
+                </span>
+              </div>
+            ))}
+            {d.vorschlag.length > 25 && (
+              <p className="px-3.5 py-2.5 text-[11.5px] text-slate-400">
+                … und {d.vorschlag.length - 25} weitere. Verteilt werden alle {d.vorschlag.length}.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      <FiaonEbene
+        offen={frage} onZu={() => setFrage(false)}
+        titel={`${d?.vorschlag?.length ?? 0} Raten verteilen?`}
+        ueberschrift="Bitte einmal bestätigen"
+        breite={480}
+        kinder={
+          <>
+            <p className="text-[13px] leading-relaxed" style={{ color: "var(--fi-text-leise)" }}>
+              {d?.vorschlag?.length ?? 0} überfällige Raten werden{" "}
+              {nurAgent ? "einem Mitarbeiter" : `auf ${d?.mannschaft?.length ?? 0} Mitarbeiter`} verteilt.
+              Sie erscheinen dann in dessen Arbeitsliste.
+            </p>
+            <p className="mt-2.5 text-[12.5px] leading-relaxed" style={{ color: "var(--fi-text-still)" }}>
+              Der Kunde merkt davon nichts — es wird keine Mail verschickt und keine Mahnung
+              ausgelöst. Nur die Zuständigkeit wird gesetzt.
+            </p>
+          </>
+        }
+        fuss={
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setFrage(false)}
+                    className="text-[13px] font-semibold" style={{ color: "var(--fi-text-still)" }}>
+              Abbrechen
+            </button>
+            <button type="button" onClick={() => void verteilen()} className="ml-auto fi-knopf-primaer px-5">
+              Jetzt verteilen
+            </button>
+          </div>
+        }
+      />
+    </div>
+  );
+}
+
 function AktivitaetTafel() {
   const [d, setD] = useState<any>(null);
   const [schwere, setSchwere] = useState<"" | "hoch" | "mittel">("");
@@ -394,10 +568,10 @@ export default function AdminTeamZentrale() {
   // endlos langen Seite: Wer Skripte pflegt, will nicht an dreißig
   // Mitarbeiterkarten vorbeiscrollen.
   const [reiter, setReiter] = useState<
-    "menschen" | "aktivitaet" | "neu" | "partner" | "praemien" | "skripte" | "einstellungen"
+    "menschen" | "aktivitaet" | "inkasso" | "neu" | "partner" | "praemien" | "skripte" | "einstellungen"
   >(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
-    return (["menschen", "aktivitaet", "neu", "partner", "praemien", "skripte", "einstellungen"].includes(String(t))
+    return (["menschen", "aktivitaet", "inkasso", "neu", "partner", "praemien", "skripte", "einstellungen"].includes(String(t))
       ? t : "menschen") as any;
   });
   const [einladen, setEinladen] = useState(
@@ -455,6 +629,7 @@ export default function AdminTeamZentrale() {
             // Aktivität steht an ZWEITER Stelle: Sie ist die Aufsicht, und
             // eine Aufsicht, die man suchen muss, wird nicht benutzt.
             ["aktivitaet", "Aktivität"],
+            ["inkasso", "Inkasso-Zuteilung"],
             ["neu", "Neu im Team"],
             ["partner", "Partner-Anfragen"],
             ["praemien", "Meilenstein-Prämien"],
@@ -503,6 +678,7 @@ export default function AdminTeamZentrale() {
         )}
 
         {reiter === "aktivitaet" && <AktivitaetTafel />}
+        {reiter === "inkasso" && <InkassoZuteilung />}
 
         {reiter === "menschen" && (
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>

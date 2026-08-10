@@ -40,6 +40,27 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-liste-haelt-still",
+    date: "2026-08-11",
+    category: "Behoben",
+    title: "Die Kundenliste springt nicht mehr — und Telefonieren geht",
+    summary:
+      "Wenn du ein Ergebnis buchst, bleibt der Kunde da, wo er war. Vorher rutschte er zwei bis drei Plätze weg.",
+    changes: [
+      "DIE LISTE HÄLT STILL: Einer von euch hat gemeldet: „Wenn ich ‚zahlt sofort‘ oder ‚nicht erreicht‘ drücke, rutscht er einfach 2–3 Leute runter, komme so echt durcheinander.“ Das war ein echter Fehler.",
+      "Ursache: Die Liste sortiert nach Zusagedatum und Wiedervorlage — also nach genau den Feldern, die dein Ergebnis setzt. Wer bucht, verschob damit den Kunden.",
+      "Jetzt bleibt die Karte, wo sie ist. Sie wird nur blasser und bekommt die Marke „Ergebnis gebucht“.",
+      "Oben erscheint ein Knopf „3 Ergebnisse gebucht“. Erst wenn du DEN drückst, wird neu geordnet. Deine Zeile bleibt, bis du sie aufgibst.",
+      "TELEFON: Der Anruf geht jetzt. Der Grund war ein Anmeldeschritt, der für eingehende Anrufe gedacht ist — unser Zugang erlaubt aber nur ausgehende. Er ist raus.",
+      "Falls du das Telefon offen hattest: einmal hart neu laden (Strg+Umschalt+R bzw. Cmd+Umschalt+R).",
+    ],
+    howto: [
+      "Arbeite die Liste von oben nach unten ab. Nach jedem Ergebnis bleibt die Karte an ihrer Stelle — du musst nicht suchen, wo du warst.",
+      "Wenn du eine Runde fertig hast: oben auf „Ergebnisse gebucht“ tippen, dann ist die Liste wieder frisch sortiert.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-11-mikrofon",
     date: "2026-08-11",
     category: "Behoben",

@@ -524,3 +524,104 @@ button.fi-knopf-primaer *, a.fi-knopf-primaer * { color: inherit !important; }
   .fi-knopf-primaer, .fi-knopf-glas, .fi-knopf-gefahr { transition: none !important; }
   .fi-knopf-primaer:hover, .fi-knopf-glas:hover { transform: none; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIE ARBEITSLISTE HÄLT STILL
+
+   ── DER ANLASS ─────────────────────────────────────────────────────────────
+   Ein Agent: „Wenn ich bei jemandem ‚zahlt sofort‘ oder ‚nicht erreicht‘
+   drücke, rutscht er einfach 2–3 Leute runter — komme so echt durcheinander."
+
+   Die Liste sortiert nach Zusagedatum und Wiedervorlage — genau den Feldern,
+   die ein Ergebnis setzt. Wer bucht, verschiebt damit den Kunden.
+
+   Jetzt bleibt die Karte an ihrer Stelle, gedämpft und mit Marke. Das
+   Neuordnen ist ein eigener, bewusster Schritt.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.fi-kk-erledigt {
+  /* Gedämpft, nicht durchgestrichen: Der Kunde ist nicht abgehakt, sein
+     Ergebnis ist gebucht. Der Unterschied ist wichtig — man muss ihn
+     vielleicht gleich noch einmal ansehen. */
+  opacity: .62;
+  transition: opacity 420ms cubic-bezier(.32, .72, 0, 1);
+}
+.fi-kk-erledigt:hover { opacity: 1; }
+
+.fi-kk-marke {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #047857;
+  background: rgba(5, 150, 105, .1);
+  box-shadow: inset 0 0 0 1px rgba(5, 150, 105, .22);
+  animation: fiKkMarke 460ms cubic-bezier(.28, 1.6, .4, 1) both;
+}
+@keyframes fiKkMarke {
+  from { opacity: 0; transform: translateY(-6px) scale(.8); }
+  to   { opacity: 1; transform: none; }
+}
+
+.fi-kk-neuordnen {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 14px;
+  padding: 13px 16px;
+  border: 0;
+  cursor: pointer;
+  border-radius: 18px;
+  text-align: left;
+  background: linear-gradient(158deg, rgba(59, 130, 246, .09), rgba(29, 78, 216, .035));
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, .18);
+  transition: box-shadow 200ms, transform 160ms;
+}
+.fi-kk-neuordnen:hover {
+  transform: translateY(-1px);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, .4);
+}
+.fi-kk-neuordnen-zahl {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(158deg, #3b82f6, #1d4ed8);
+  box-shadow: 0 5px 14px -6px rgba(29, 78, 216, .6);
+}
+.fi-kk-neuordnen-titel {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--fi-primaer);
+}
+.fi-kk-neuordnen-text {
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--fi-text-still);
+  margin-top: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fi-kk-erledigt, .fi-kk-neuordnen { transition: none !important; }
+  .fi-kk-marke { animation: none !important; }
+}

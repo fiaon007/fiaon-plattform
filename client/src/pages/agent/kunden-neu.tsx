@@ -252,6 +252,10 @@ function Inhalt() {
   const [liste, setListe] = useState<Kunde[]>([]);
   const [zaehler, setZaehler] = useState<Zaehler>({});
   const [vorrat, setVorrat] = useState<Record<string, number>>({});
+  // Welche Karten in dieser Sitzung schon ein Ergebnis bekommen haben. Sie
+  // bleiben an ihrer Stelle stehen — gedämpft und mit Marke — statt sich
+  // wegzusortieren.
+  const [erledigt, setErledigt] = useState<Set<number>>(new Set());
   const [laedt, setLaedt] = useState(true);
   const [filter, setFilter] = useState("alle");
   const [sort, setSort] = useState("arbeit");
@@ -272,13 +276,38 @@ function Inhalt() {
     if (person) { setOffen(Number(person)); gesprungen.current = Number(person); }
   }, []);
 
-  const laden = useCallback(async (leise = false) => {
+  /**
+   * Die Liste holen.
+   *
+   * ── DER FEHLER, DEN DAS BEHEBT ────────────────────────────────────────────
+   * Ein Agent: „Wenn ich bei jemandem ‚zahlt sofort‘ oder ‚nicht erreicht‘
+   * drücke, rutscht er einfach 2–3 Leute runter — komme so echt durcheinander."
+   *
+   * Ursache: Die Liste sortiert nach `promised_payment_date` und
+   * `follow_up_date` — genau den Feldern, die ein Ergebnis SETZT. Nach dem
+   * Buchen wurde die ganze Liste neu geholt, und der Kunde ordnete sich
+   * selbst an eine andere Stelle. Zwei Karten weiter unten stand plötzlich
+   * jemand anderes, und der Agent verlor die Zeile, an der er war.
+   *
+   * Das ist kein Sortierfehler, sondern ein Denkfehler: Wer eine Liste von
+   * oben nach unten abarbeitet, braucht eine Liste, die stillhält. Eine
+   * Reihenfolge, die sich unter den Händen ändert, macht Fließbandarbeit
+   * unmöglich — man muss nach jeder Buchung neu suchen, wo man war.
+   *
+   * `nurZaehler` holt deshalb nur die Zahlen. Die Reihenfolge bleibt, wie sie
+   * war, bis der Agent sie BEWUSST neu ordnet.
+   */
+  const laden = useCallback(async (leise = false, nurZaehler = false) => {
     if (!leise) setLaedt(true);
     const p = new URLSearchParams({ filter, sort });
     if (suche.trim()) p.set("q", suche.trim());
     const r = await api(`/agent/kunden/liste?${p.toString()}`);
     if (r.ok) {
-      setListe(r.json.kunden);
+      // Die Liste NUR ersetzen, wenn es ausdrücklich gewollt ist.
+      if (!nurZaehler) {
+        setListe(r.json.kunden);
+        setErledigt(new Set());
+      }
       setZaehler(r.json.zaehler);
       setVorrat(r.json.vorrat || {});
     }
@@ -291,7 +320,10 @@ function Inhalt() {
   }, [laden, suche]);
 
   /** Eine Karte aus der Liste nehmen, ohne die ganze Liste neu zu holen. */
-  const entfernen = (personId: number) => setListe((l) => l.filter((k) => k.personId !== personId));
+  const entfernen = (personId: number) => {
+    setListe((l) => l.filter((k) => k.personId !== personId));
+    setErledigt((e) => { const n = new Set(e); n.delete(personId); return n; });
+  };
   const ersetzen = (k: Kunde) => setListe((l) => l.map((x) => (x.personId === k.personId ? k : x)));
 
   const geoeffnet = useMemo(() => liste.find((k) => k.personId === offen) || null, [liste, offen]);
@@ -404,10 +436,33 @@ function Inhalt() {
               onOeffnen={() => setOffen(offen === k.personId ? null : k.personId)}
               onWeg={() => entfernen(k.personId)}
               onNeu={(neu) => ersetzen(neu)}
-              onZaehler={() => void laden(true)}
+              erledigt={erledigt.has(k.personId)}
+              onErledigt={() => setErledigt((e) => new Set(e).add(k.personId))}
+              onZaehler={() => void laden(true, true)}
             />
           ))}
         </div>
+
+        {/* ── DER BEWUSSTE SCHRITT ─────────────────────────────────────────
+            Die Liste ordnet sich nicht mehr selbst neu. Wer fertig ist,
+            drückt hier — dann verschwinden die erledigten Karten und die
+            Reihenfolge stimmt wieder. Das ist der Unterschied zwischen einer
+            Liste, die man abarbeitet, und einer, die sich unter den Händen
+            bewegt. */}
+        {erledigt.size > 0 && (
+          <button type="button" onClick={() => void laden()} className="fi-kk-neuordnen">
+            <span className="fi-kk-neuordnen-zahl">{erledigt.size}</span>
+            <span className="min-w-0 flex-1 text-left">
+              <span className="fi-kk-neuordnen-titel">
+                {erledigt.size === 1 ? "Ein Ergebnis gebucht" : `${erledigt.size} Ergebnisse gebucht`}
+              </span>
+              <span className="fi-kk-neuordnen-text">
+                Die Reihenfolge ist absichtlich stehen geblieben, damit du deine Zeile behältst.
+                Hier tippen, wenn du neu ordnen willst.
+              </span>
+            </span>
+          </button>
+        )}
 
         {!laedt && liste.length > 0 && (
           <p className="mt-5 text-[11.5px] leading-relaxed" style={{ color: "var(--fi-text-still)" }}>
@@ -425,10 +480,13 @@ function Inhalt() {
 // Eine Karte — sie trägt ALLES, was zum Arbeiten nötig ist
 // ═══════════════════════════════════════════════════════════════════════════
 function KundenKarte({
-  k, index, offen, onOeffnen, onWeg, onNeu, onZaehler,
+  k, index, offen, erledigt, onOeffnen, onWeg, onNeu, onErledigt, onZaehler,
 }: {
   k: Kunde; index: number; offen: boolean;
-  onOeffnen: () => void; onWeg: () => void; onNeu: (k: Kunde) => void; onZaehler: () => void;
+  /** Hat diese Karte in dieser Sitzung schon ein Ergebnis bekommen? */
+  erledigt: boolean;
+  onOeffnen: () => void; onWeg: () => void; onNeu: (k: Kunde) => void;
+  onErledigt: () => void; onZaehler: () => void;
 }) {
   const { zeige } = useToast();
   const reduziert = useReduzierteBewegung();
@@ -586,6 +644,9 @@ function KundenKarte({
     // damit man den neuen Stand sieht (Zähler, Wiedervorlage, Mahnstufe).
     if (art === "erreicht_abgelehnt" || r.json.uebergabe?.ok) onWeg();
     else if (r.json.kunde) onNeu(r.json.kunde);
+    // Die Karte bleibt STEHEN, wo sie ist — nur gedämpft und mit Marke. Der
+    // Agent behält seine Zeile, und was erledigt ist, sieht man sofort.
+    onErledigt();
     onZaehler();
   };
 
@@ -642,9 +703,25 @@ function KundenKarte({
   useEffect(() => { if (offen) void verlaufLaden(); }, [offen]);
 
   return (
-    <div id={`kunde-${k.personId}`} className="fi-karte relative overflow-hidden"
+    <div id={`kunde-${k.personId}`}
+         className={`fi-karte relative overflow-hidden ${erledigt ? "fi-kk-erledigt" : ""}`}
          style={reduziert ? undefined : { animation: "fiKarteAuf 340ms cubic-bezier(.32,.72,0,1) both", animationDelay: `${Math.min(index, 8) * 35}ms` }}
-         data-fi-kunde={k.personId}>
+         data-fi-kunde={k.personId} data-erledigt={erledigt ? "1" : "0"}>
+      {/* ── DIE ERLEDIGT-MARKE ──────────────────────────────────────────────
+          Ein Agent: „rutscht einfach 2–3 Leute runter, komme durcheinander."
+          Die Karte bleibt jetzt an ihrer Stelle. Damit man trotzdem sieht,
+          was schon getan ist, wird sie gedämpft und trägt diese Marke —
+          statt sich stillschweigend woanders einzuordnen. */}
+      {erledigt && (
+        <span className="fi-kk-marke">
+          <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+               strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m4.5 10.5 3.5 3.5 7.5-8" />
+          </svg>
+          Ergebnis gebucht
+        </span>
+      )}
+
       {/* Statuskante — die einzige Fläche mit Statusfarbe. */}
       <span aria-hidden="true" className="absolute left-0 top-0 bottom-0 w-[3px]"
             style={{ background: zusage?.dringend || rueckrufFaellig ? "var(--fi-tier1)" : TIER_FARBE[k.tier] || "var(--fi-linie)" }} />

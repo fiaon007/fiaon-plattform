@@ -323,6 +323,85 @@ async function main(): Promise<void> {
   ok("… und auf 380 px randnah", /padding-left: 12px; padding-right: 12px/.test(mQ));
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5b. Die Arbeitsliste hält still");
+  // ═══════════════════════════════════════════════════════════════════════
+  // ── DER ANLASS ────────────────────────────────────────────────────────
+  // Ein Agent: „Wenn ich bei jemandem ‚zahlt sofort' oder ‚nicht erreicht'
+  // drücke, rutscht er einfach 2–3 Leute runter — komme so echt durcheinander."
+  //
+  // Die Liste sortiert nach `promised_payment_date` und `follow_up_date` —
+  // genau den Feldern, die ein Ergebnis SETZT. Wer bucht, verschiebt damit
+  // den Kunden. Und danach wurde die ganze Liste neu geholt.
+  const knQ = datei("client/src/pages/agent/kunden-neu.tsx");
+  ok("Die Sortierung nutzt wirklich die Ergebnis-Felder",
+    /p\.promised_payment_date ASC NULLS LAST/.test(datei("server/routes/fiaon-agent-kunden.ts"))
+    && /p\.follow_up_date ASC NULLS LAST/.test(datei("server/routes/fiaon-agent-kunden.ts")));
+  ok("`laden` kann NUR die Zähler holen", /nurZaehler = false/.test(knQ));
+  ok("… und lässt die Liste dann unberührt", /if \(!nurZaehler\) \{/.test(knQ));
+  ok("Nach dem Buchen wird nur gezählt, nicht neu geordnet",
+    /onZaehler=\{\(\) => void laden\(true, true\)\}/.test(knQ));
+  ok("Die Karte bekommt eine Erledigt-Marke", /onErledigt\(\);/.test(knQ) && /fi-kk-marke/.test(knQ));
+  ok("… und wird gedämpft, nicht ausgeblendet",
+    /\.fi-kk-erledigt \{[\s\S]{0,200}opacity: \.62/.test(datei("client/src/styles/fiaon-design.css")));
+  ok("… gedämpft, NICHT durchgestrichen — der Kunde ist nicht abgehakt",
+    /Gedämpft, nicht durchgestrichen/.test(datei("client/src/styles/fiaon-design.css")));
+  ok("Neuordnen ist ein eigener, bewusster Schritt",
+    /fi-kk-neuordnen/.test(knQ) && /erledigt\.size > 0/.test(knQ));
+  ok("… und setzt die Marken zurück", /setErledigt\(new Set\(\)\)/.test(knQ));
+  ok("Wer aus der Liste fällt, verliert auch seine Marke",
+    /n\.delete\(personId\)/.test(knQ));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c. Inkasso-Zuteilung");
+  // ═══════════════════════════════════════════════════════════════════════
+  const { inkassoMannschaft, inkassoVerteilen } = await import("../server/lib/fiaon-inkasso");
+  const mann = await inkassoMannschaft();
+  ok(`${mann.length} Inkasso-Mitarbeiter gefunden`, mann.length >= 1,
+    mann.map((m) => `${m.name} (${m.offen} offen)`).join(" · "));
+  ok("Nach Last sortiert — wer wenig hat, steht vorn",
+    mann.every((m, i) => i === 0 || mann[i - 1].offen <= m.offen));
+  const v = await inkassoVerteilen({ schreiben: false });
+  ok("Die Vorschau ändert nichts", v.verteilt === 0);
+  ok(`${v.vorschlag.length} Raten im Vorschlag`, v.vorschlag.length >= 0,
+    v.hinweis);
+  ok("Jeder Vorschlag nennt Kunde, Referenz und Empfänger",
+    v.vorschlag.every((x) => x.kunde && x.ref && x.anAgentName));
+  ok("Nur wirklich ÜBERFÄLLIGE Raten",
+    v.vorschlag.every((x) => new Date(x.faelligAm) < new Date()));
+  const iQ = datei("server/lib/fiaon-inkasso.ts");
+  ok("Zugeteilt wird eine RATE, nicht ein Kunde",
+    /Zugeteilt wird eine RATE, nicht ein Kunde/.test(iQ));
+  ok("Der Rundlauf ist lastgerecht, nicht stur",
+    /lastgerecht/i.test(iQ) && /Nach jeder Zuteilung wird neu/.test(iQ));
+  ok("Ohne `schreiben` passiert nichts", /if \(!opts\.schreiben\)/.test(iQ));
+  ok("Nebenläufigkeit abgesichert",
+    /WHERE id = \$\{v\.rateId\} AND inkasso_agent_id IS NULL/.test(iQ));
+  ok("Von Hand zuweisen nur an die Rolle Inkasso",
+    /Nur ein Mensch mit der Rolle Inkasso kann Raten bearbeiten/.test(iQ));
+  const ibQ = datei("server/routes/fiaon-inkasso-bereich.ts");
+  ok("Die Routen liegen unter /admin",
+    /admin\/inkasso\/zuteilung/.test(ibQ) && /admin\/inkasso\/rate\/:id\/zuweisen/.test(ibQ));
+  ok("Die Verteilung wird protokolliert", /aktivitaetSchreiben/.test(ibQ));
+  ok("Die Oberfläche erklärt „lastgerecht“",
+    /lastgerecht/.test(datei("client/src/pages/admin-team-zentrale.tsx")));
+  ok("… und sagt, dass der Kunde nichts merkt",
+    /Der Kunde merkt davon nichts/.test(datei("client/src/pages/admin-team-zentrale.tsx")));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5d. Mitarbeiter-Zugang auf der Website");
+  // ═══════════════════════════════════════════════════════════════════════
+  const fQ = datei("client/src/components/PremiumFooter.tsx");
+  ok("Der Link steht in der Fußzeile", /Mitarbeiter-Zugang/.test(fQ));
+  ok("… und zeigt auf /agent", /href="\/agent"/.test(fQ));
+  ok("… dezent, in Grau", /text-gray-500 hover:text-gray-300/.test(fQ));
+  ok("… mit eigenem Schloss-Zeichen, keine Bibliothek",
+    /<rect x="4\.5" y="8\.5" width="11" height="8" rx="2" \/>/.test(fQ));
+  ok("Er nennt NICHT „Agent“ oder „Vertrieb“",
+    !/Agent-Login|Vertrieb-Login/.test(fQ));
+  ok("Der Grund für die Fußzeile steht dabei",
+    /fragt sich, ob er hier richtig ist/.test(fQ));
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("6. Verhalten gegen echte Daten");
   // ═══════════════════════════════════════════════════════════════════════
   try {

@@ -269,14 +269,31 @@ async function main(): Promise<void> {
   ok("„NotSupportedError“ nennt die https-Ursache",
     /window\.location\.protocol !== "https:"/.test(sQ2));
 
-  ok("Die Registrierung wird ABGEWARTET", /await d\.register\(\);/.test(sQ2));
-  ok("… und ihr Fehler NICHT verschluckt",
-    !/await d\.register\(\)\.catch/.test(sQ2) && /\} catch \(e: any\) \{[\s\S]{0,200}fehlerMelden\("register"/.test(sQ2));
+  // ── KEIN register() ────────────────────────────────────────────────────
+  // Ich hatte es heute Morgen eingebaut, in der Annahme, es mache den Aufbau
+  // verlässlicher. Es machte ihn kaputt: `register()` meldet für EINGEHENDE
+  // Anrufe an, und der Ausweis trägt `incomingAllow: false`. Die Anmeldung
+  // scheiterte mit einem leeren Wurf — genau dem `undefined`, das in
+  // Diagnose-Schritt 10 stand.
+  //
+  // Für einen ausgehenden Anruf ist register() nicht nötig.
+  ok("KEIN register() im Wählweg — der Ausweis erlaubt keinen Eingang",
+    !/await d\.register\(\)/.test(sQ2.replace(/\/\/[^\n]*/g, "")));
+  ok("… und der Grund steht dabei",
+    /incomingAllow: false/.test(sQ2) && /Fuer einen AUSGEHENDEN Anruf ist register\(\) nicht noetig|Für einen AUSGEHENDEN Anruf ist register\(\) nicht nötig/.test(sQ2));
+  ok("Der Ausweis verbietet Eingang wirklich",
+    /incomingAllow: false/.test(datei("server/lib/fiaon-softphone.ts")));
   ok("Ein leerer Wurf hat eine eigene Aussage",
     /err === undefined \|\| err === null/.test(sQ2) && /Firewall blockt WebRTC/.test(sQ2));
   ok("… mit drei Ursachen nach Häufigkeit", /1\. Eine Firewall/.test(sQ2) && /3\. Eine alte Fassung/.test(sQ2));
+  // Der zweite Prüfpunkt lautete `if (codeGesehen.current) return;` — den gab
+  // es im register-Zweig, und der ist mit register() selbst weggefallen.
+  // Geblieben ist die Stelle, wo es zählt: im catch von connect().
   ok("Eine Meldung MIT Twilio-Code hat Vorrang",
-    /codeGesehen\.current = true/.test(sQ2) && /if \(codeGesehen\.current\) return;/.test(sQ2));
+    /codeGesehen\.current = true/.test(sQ2)
+    && /if \(codeGesehen\.current\) \{ setZustand\("ergebnis"\); return; \}/.test(sQ2));
+  ok("… und der Merker wird bei jedem Wahlversuch zurückgesetzt",
+    /codeGesehen\.current = false;/.test(sQ2));
   ok("Browser-Fehler werden an den Server gemeldet",
     /const fehlerMelden = async/.test(sQ2) && /telefon\/browser-fehler/.test(sQ2));
   ok("… mit Browserkennung, damit iPhone erkennbar ist", /navigator\.userAgent\.slice/.test(sQ2));

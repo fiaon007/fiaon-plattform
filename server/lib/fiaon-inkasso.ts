@@ -457,3 +457,177 @@ export async function verdienst(agentId: number, lauf: Lauf = sqlPool): Promise<
     praemieWert: Number(a?.inkasso_praemie_wert ?? VERGUETUNG_VORGABE.praemieWert),
   };
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZUTEILUNG — wer bearbeitet welche überfällige Rate?
+//
+// ── DIE FRAGE DES VORGESETZTEN ─────────────────────────────────────────────
+// „Hans-Jürgen Gerhold ist unser neuer Mitarbeiter für Inkasso — wie teile
+// ich ihm Kunden zu? Wir bekommen noch 1–2 weitere, wie mache ich das mit
+// den überfälligen Zahlungen?"
+//
+// ── WARUM DAS NICHT WIE BEIM VERTRIEB LÄUFT ────────────────────────────────
+// Im Vertrieb gehört ein KUNDE dauerhaft einem Menschen. Beim Inkasso ist
+// das falsch: Zugeteilt wird eine RATE, nicht ein Kunde. Ein Kunde hat zwölf
+// Raten, und wenn Rate 3 überfällig ist und Rate 7 später auch, muss nicht
+// derselbe Mensch dran sein — er ist vielleicht im Urlaub oder nicht mehr da.
+//
+// Zweiter Unterschied: Eine überfällige Rate ist DRINGEND. Sie darf nicht
+// warten, bis jemand sie von Hand verteilt. Deshalb läuft die Verteilung
+// automatisch, und die Zuteilung von Hand ist der Ausnahmefall.
+//
+// ── DER RUNDLAUF ───────────────────────────────────────────────────────────
+// Gleichmäßig, aber nicht stur: Wer schon mehr offene Fälle hat, bekommt
+// weniger neue. Sonst hätte der eine 40 Fälle und der andere 8, nur weil
+// einer davon zwei Wochen krank war.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Die aktiven Inkasso-Mitarbeiter, nach aktueller Last sortiert. */
+export async function inkassoMannschaft(lauf: Lauf = sqlPool): Promise<{
+  id: number; name: string; offen: number; heuteBearbeitet: number;
+}[]> {
+  const r = (await lauf`
+    SELECT a.id, a.name,
+           (SELECT COUNT(*)::int FROM fiaon_abo_raten r
+             WHERE r.inkasso_agent_id = a.id AND r.status <> 'bezahlt') AS offen,
+           (SELECT COUNT(*)::int FROM fiaon_raten_arbeit w
+             WHERE w.agent_id = a.id
+               AND w.created_at >= (CURRENT_DATE)::timestamp AT TIME ZONE 'Europe/Berlin') AS heute
+    FROM fiaon_agents a
+    WHERE a.active AND a.rolle = 'inkasso' AND NOT a.is_test_account
+    ORDER BY offen ASC, a.id ASC
+  `) as any[];
+  return r.map((x) => ({
+    id: Number(x.id), name: String(x.name),
+    offen: Number(x.offen), heuteBearbeitet: Number(x.heute),
+  }));
+}
+
+/**
+ * Überfällige Raten verteilen.
+ *
+ * ── OHNE `schreiben` PASSIERT NICHTS ───────────────────────────────────────
+ * Eine Verteilung greift in die Arbeit mehrerer Menschen ein. Wer sie zum
+ * ersten Mal anschaut, will sehen, was passieren WÜRDE — nicht, was passiert
+ * IST. Dieselbe Regel wie bei jedem Massenlauf im Haus.
+ */
+export async function inkassoVerteilen(
+  opts: { schreiben?: boolean; nurAgentId?: number | null; anzahl?: number } = {},
+  lauf: Lauf = sqlPool,
+): Promise<{
+  mannschaft: { id: number; name: string; offen: number }[];
+  unverteilt: number;
+  vorschlag: { rateId: number; ref: string; kunde: string; faelligAm: string; betragCents: number;
+               anAgentId: number; anAgentName: string }[];
+  verteilt: number;
+  hinweis: string;
+}> {
+  const mannschaft = await inkassoMannschaft(lauf);
+  if (mannschaft.length === 0) {
+    return {
+      mannschaft: [], unverteilt: 0, vorschlag: [], verteilt: 0,
+      hinweis: "Es gibt keinen aktiven Mitarbeiter mit der Rolle Inkasso. Lege zuerst "
+        + "einen an — in der Team-Zentrale unter „Teammitglied anlegen“, Position „Inkasso“.",
+    };
+  }
+
+  // ── DIE OFFENEN FÄLLE ───────────────────────────────────────────────────
+  // Nur was WIRKLICH überfällig ist und noch niemandem gehört. Eine Rate, die
+  // heute fällig wird, ist nicht überfällig — sie ist fällig.
+  const offen = (await lauf`
+    SELECT r.id, r.ref, r.faellig_am, r.betrag_cents,
+           TRIM(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')) AS kunde
+    FROM fiaon_abo_raten r
+    LEFT JOIN fiaon_applications a ON a.ref = r.ref
+    LEFT JOIN fiaon_persons p ON p.id = a.person_id
+    WHERE ${lauf.unsafe(SICHTFELD)}
+      AND r.status <> 'bezahlt'
+      AND r.faellig_am < CURRENT_DATE
+      AND r.inkasso_agent_id IS NULL
+    ORDER BY r.faellig_am ASC, r.id ASC
+    LIMIT ${Math.min(500, Math.max(1, opts.anzahl ?? 200))}
+  `) as any[];
+
+  // ── DER RUNDLAUF, LASTGERECHT ───────────────────────────────────────────
+  // Jeder Mensch bekommt der Reihe nach einen Fall — aber die Reihe beginnt
+  // bei dem mit den WENIGSTEN offenen Fällen. Nach jeder Zuteilung wird neu
+  // sortiert. So gleicht sich ein Rückstand von selbst aus, statt sich zu
+  // verfestigen.
+  const last = new Map(mannschaft.map((m) => [m.id, m.offen]));
+  const ziel = opts.nurAgentId
+    ? mannschaft.filter((m) => m.id === opts.nurAgentId)
+    : mannschaft;
+  if (ziel.length === 0) {
+    return {
+      mannschaft, unverteilt: offen.length, vorschlag: [], verteilt: 0,
+      hinweis: "Dieser Mensch hat nicht die Rolle Inkasso.",
+    };
+  }
+
+  const vorschlag = offen.map((r) => {
+    const naechster = [...ziel].sort((a, b) =>
+      (last.get(a.id) ?? 0) - (last.get(b.id) ?? 0) || a.id - b.id)[0];
+    last.set(naechster.id, (last.get(naechster.id) ?? 0) + 1);
+    return {
+      rateId: Number(r.id), ref: String(r.ref),
+      kunde: String(r.kunde ?? "").trim() || "Ohne Namen",
+      faelligAm: new Date(r.faellig_am).toISOString().slice(0, 10),
+      betragCents: Number(r.betrag_cents ?? 0),
+      anAgentId: naechster.id, anAgentName: naechster.name,
+    };
+  });
+
+  if (!opts.schreiben) {
+    return {
+      mannschaft, unverteilt: offen.length, vorschlag, verteilt: 0,
+      hinweis: offen.length === 0
+        ? "Es gibt keine überfällige Rate ohne Zuständigen. Alles ist verteilt."
+        : `${offen.length} überfällige ${offen.length === 1 ? "Rate" : "Raten"} ohne Zuständigen. `
+          + "Das ist die Vorschau — es wurde nichts geändert.",
+    };
+  }
+
+  let verteilt = 0;
+  for (const v of vorschlag) {
+    // `inkasso_agent_id IS NULL` in der Bedingung: Läuft die Verteilung
+    // zweimal gleichzeitig, gewinnt der erste Lauf. Ohne diese Bedingung
+    // könnte der zweite eine bereits zugeteilte Rate übernehmen.
+    const r = await lauf`
+      UPDATE fiaon_abo_raten
+      SET inkasso_agent_id = ${v.anAgentId}, updated_at = NOW()
+      WHERE id = ${v.rateId} AND inkasso_agent_id IS NULL
+      RETURNING id
+    `;
+    if ((r as any[]).length > 0) verteilt++;
+  }
+
+  console.log(`[INKASSO] ${verteilt} Raten verteilt auf ${ziel.length} Menschen.`);
+  return {
+    mannschaft: await inkassoMannschaft(lauf),
+    unverteilt: offen.length - verteilt, vorschlag, verteilt,
+    hinweis: `${verteilt} ${verteilt === 1 ? "Rate" : "Raten"} zugeteilt.`,
+  };
+}
+
+/** Eine einzelne Rate von Hand zuweisen — für den Ausnahmefall. */
+export async function inkassoRateZuweisen(
+  rateId: number, agentId: number | null, wer: string, lauf: Lauf = sqlPool,
+): Promise<{ ok: boolean; grund?: string }> {
+  if (agentId !== null) {
+    const [a] = (await lauf`
+      SELECT id, rolle FROM fiaon_agents WHERE id = ${agentId} AND active
+    `) as any[];
+    if (!a) return { ok: false, grund: "Diesen Mitarbeiter gibt es nicht." };
+    if (String(a.rolle) !== "inkasso") {
+      return { ok: false, grund: "Nur ein Mensch mit der Rolle Inkasso kann Raten bearbeiten." };
+    }
+  }
+  const r = await lauf`
+    UPDATE fiaon_abo_raten SET inkasso_agent_id = ${agentId}, updated_at = NOW()
+    WHERE id = ${rateId} RETURNING ref
+  `;
+  if ((r as any[]).length === 0) return { ok: false, grund: "Diese Rate gibt es nicht." };
+  console.log(`[INKASSO] Rate ${rateId} ${agentId ? `an ${agentId}` : "freigegeben"} von ${wer}.`);
+  return { ok: true };
+}

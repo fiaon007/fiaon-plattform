@@ -529,41 +529,29 @@ export function Softphone() {
       });
 
       // ══════════════════════════════════════════════════════════════════
-      // SCHRITT 3: REGISTRIEREN — UND DEN FEHLER NICHT VERSCHLUCKEN
+      // KEIN register() — UND WARUM
       //
-      // ── WAS HIER SCHIEFGING ──────────────────────────────────────────
-      // Die erste Fassung fing den Registrierungsfehler mit `.catch()` und
-      // machte weiter. Danach schlug `connect()` fehl — und zwar mit einem
-      // LEEREN Fehler: Der geworfene Wert war buchstäblich `undefined`.
-      // Gemessen mit einem Browsertest: `roh: undefined`.
+      // ── MEIN EIGENER FEHLER, HEUTE MORGEN EINGEBAUT ───────────────────
+      // Ich hatte hier `await d.register()` ergänzt, in der Annahme, das
+      // mache den Aufbau verlässlicher. Es machte ihn kaputt.
       //
-      // Zwei Fehler in einem: Der echte Grund lag im Registrierungsschritt
-      // und wurde weggeworfen, und der Folgefehler hatte nichts zu sagen.
-      // Genau so entstand die Meldung „der Fehler nennt keinen Grund".
+      // `Device.register()` meldet das Gerät für EINGEHENDE Anrufe an. Der
+      // Ausweis, den FIAON ausstellt, trägt aber ausdrücklich
+      // `incomingAllow: false` (siehe fiaon-softphone.ts) — im Browser soll
+      // es nicht klingeln, eingehende Rufe laufen extern.
       //
-      // Ein weggeschluckter Fehler ist schlimmer als ein abgebrochener
-      // Versuch: Er verlegt den Schaden an eine Stelle, die ihn nicht
-      // erklären kann.
+      // Eine Anmeldung für Eingang auf einem Ausweis ohne Eingangsrecht
+      // scheitert. Und zwar mit einem LEEREN Fehler: Der geworfene Wert war
+      // buchstäblich `undefined`. Genau das stand in Schritt 10 der
+      // Diagnose: „bei register: ohne Name, Rohfassung: undefined".
+      //
+      // Für einen AUSGEHENDEN Anruf ist register() nicht nötig.
+      // `connect()` baut die Verbindung selbst auf.
+      //
+      // Die Lehre: Eine Absicherung, die man einbaut, ohne zu prüfen, ob sie
+      // zum Rest passt, ist keine Absicherung.
       // ══════════════════════════════════════════════════════════════════
-      try {
-        await d.register();
-      } catch (e: any) {
-        setZustand("bereit");
-        void fehlerMelden("register", e);
-        const rf = telefonFehler(e);
-        // Hat der Device-Fehler schon einen Twilio-Code geliefert, bleibt der
-        // stehen: Ein Code ist immer genauer als eine Vermutung.
-        if (codeGesehen.current) return;
-        setMeldung(
-          rf.code
-            ? telefonFehlerText(e)
-            : "Twilio hat den Zugangsausweis nicht angenommen. Das ist fast immer ein "
-              + "API-Key, der nicht zum Konto gehört, oder ein abgelaufener Ausweis — "
-              + "der Vorgesetzte sieht es unter Einstellungen → Telefon → „Verbindung prüfen“."
-              + (rf.roh && rf.roh !== "undefined" ? `\n\nRohfassung: ${rf.roh.slice(0, 200)}` : ""),
-        );
-        return;
-      }
+
       // ── „To" IST BEI TWILIO RESERVIERT ────────────────────────────────
       // Das Browser-SDK setzt `To` selbst — auf die Client-Identität, nicht
       // auf die gewählte Nummer. Ein eigener Parameter mit diesem Namen wird

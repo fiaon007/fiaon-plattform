@@ -577,8 +577,23 @@ async function main(): Promise<void> {
            (SELECT COUNT(*) FROM fiaon_posts)::int AS posts,
            (SELECT COUNT(*) FROM fiaon_commissions)::int AS provisionen
   `;
-  gleich("Kein Mitarbeiter übrig", nachher.agenten, vorher.agenten);
-  gleich("Keine Provision übrig", nachher.provisionen, vorher.provisionen);
+  // Auch hier: Ein neuer Mitarbeiter kann echt eingeladen worden sein.
+  ok(`Mitarbeiter nur gewachsen (${vorher.agenten} → ${nachher.agenten})`,
+    Number(nachher.agenten) >= Number(vorher.agenten));
+  // ── EINE INVARIANTE DARF DEN BETRIEB NICHT MITMESSEN ──────────────────
+  // „Gleich viele Provisionen wie vorher" war rot: 346 statt 344. Zwei
+  // Provisionen sind WÄHREND des Laufs entstanden — echte Kunden haben
+  // gezahlt. Das ist der Trichter, nicht der Prüfstand.
+  //
+  // AGENTS.md sagt es selbst: Global nur „darf nicht schrumpfen", je Einheit
+  // exakt. Ich habe gegen meine eigene Regel geprüft. Was zählt, ist die
+  // eigene Zeile — und die wird unten namentlich gesucht.
+  ok(`Provisionen nur gewachsen (${vorher.provisionen} → ${nachher.provisionen})`,
+    Number(nachher.provisionen) >= Number(vorher.provisionen));
+  const [eigene] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_commissions WHERE ref LIKE ${`V-${stempel}%`}
+  `) as any[];
+  gleich("Keine eigene Provision übrig", Number(eigene.n), 0);
   ok(`Beiträge nicht verloren (${vorher.posts} → ${nachher.posts})`,
     Number(nachher.posts) >= Number(vorher.posts));
   const [r2] = (await sqlPool`

@@ -159,10 +159,36 @@ export default function PremiumFooter() {
             © 2026 FIAON – FIAON LTD, Registered in England and Wales, Companies House No. 17318250 · Director: Justin Schwarzott. Alle Rechte vorbehalten. / All rights reserved.
           </span>
 
-          {/* System Status */}
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-500" style={{ animation: "pulse 2s ease-in-out infinite" }} />
-            <span className="text-[12px] text-gray-500">System Status: All Systems Operational</span>
+          {/* ── MITARBEITER-ZUGANG ────────────────────────────────────────────
+              Dezent in der Fußzeile, neben dem Systemstatus — nicht in der
+              Hauptnavigation.
+
+              Der Grund: Ein Kunde, der „Mitarbeiter-Login" oben im Menü
+              sieht, fragt sich, ob er hier richtig ist. Wer den Zugang
+              braucht, sind zehn Menschen, die ihn kennen — und die suchen
+              unten, nicht oben.
+
+              Keine Nennung von „Agent" oder „Vertrieb": Die Fußzeile einer
+              Kundenseite soll nicht verraten, wie das Haus innen gebaut ist. */}
+          <div className="flex items-center gap-5">
+            <a href="/agent"
+               className="group inline-flex items-center gap-1.5 text-[12px] text-gray-500 hover:text-gray-300 transition-colors duration-200"
+               title="Zugang für FIAON-Mitarbeiter">
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                   strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
+                   className="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"
+                   aria-hidden="true">
+                <rect x="4.5" y="8.5" width="11" height="8" rx="2" />
+                <path d="M7.5 8.5V6.5a2.5 2.5 0 0 1 5 0v2" />
+              </svg>
+              Mitarbeiter-Zugang
+            </a>
+
+            {/* System Status */}
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-green-500" style={{ animation: "pulse 2s ease-in-out infinite" }} />
+              <span className="text-[12px] text-gray-500">System Status: All Systems Operational</span>
+            </div>
           </div>
         </div>
       </div>

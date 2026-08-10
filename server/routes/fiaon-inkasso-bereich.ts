@@ -11,7 +11,7 @@
 // an einer Stelle anders.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { Router, type Response } from "express";
+import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureRolleSpalte } from "./fiaon-vertrieb";
@@ -409,6 +409,79 @@ router.post("/admin/inkasso/verguetung/:agentId", async (req, res: Response) => 
     res.json({ ok: true, meldung: "Vergütung bestätigt. Ab jetzt werden Prämien gebucht und Stunden abrechenbar." });
   } catch (err) {
     console.error("[INKASSO] verguetung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZUTEILUNG — nur der Vorgesetzte
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /admin/inkasso/zuteilung — wer hat wie viel, was liegt herum?
+ *
+ * Die Antwort ist eine VORSCHAU: Sie zeigt, wer welche Rate bekäme, ohne
+ * etwas zu ändern. Eine Verteilung greift in die Arbeit mehrerer Menschen
+ * ein — wer sie zum ersten Mal ansieht, will sehen, was passieren würde.
+ */
+router.get("/admin/inkasso/zuteilung", async (req: Request, res: Response) => {
+  try {
+    const { inkassoVerteilen } = await import("../lib/fiaon-inkasso");
+    const erg = await inkassoVerteilen({
+      schreiben: false,
+      nurAgentId: req.query.agent ? Number(req.query.agent) : null,
+      anzahl: req.query.anzahl ? Number(req.query.anzahl) : 200,
+    });
+    res.json({ ok: true, ...erg });
+  } catch (err) {
+    console.error("[INKASSO] zuteilung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /admin/inkasso/zuteilung — jetzt wirklich verteilen. */
+router.post("/admin/inkasso/zuteilung", async (req: Request, res: Response) => {
+  try {
+    const { inkassoVerteilen } = await import("../lib/fiaon-inkasso");
+    const erg = await inkassoVerteilen({
+      // `schreiben` muss ausdrücklich true sein. Ein Massenlauf, der beim
+      // ersten Klick zuschlägt, ist bei mehreren betroffenen Menschen die
+      // falsche Voreinstellung.
+      schreiben: req.body?.schreiben === true,
+      nurAgentId: req.body?.agent ? Number(req.body.agent) : null,
+      anzahl: req.body?.anzahl ? Number(req.body.anzahl) : 200,
+    });
+    if (erg.verteilt > 0) {
+      const { aktivitaetSchreiben } = await import("../lib/fiaon-aktivitaet");
+      await aktivitaetSchreiben({
+        typ: "vertrieb_zuweisung", wer: "Vorgesetzter",
+        grund: `${erg.verteilt} überfällige Raten auf ${erg.mannschaft.length} Inkasso-Mitarbeiter verteilt.`,
+        meta: { bereich: "inkasso", anzahl: erg.verteilt },
+      });
+    }
+    res.json({ ok: true, ...erg });
+  } catch (err) {
+    console.error("[INKASSO] verteilen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /admin/inkasso/rate/:id/zuweisen — eine einzelne Rate. */
+router.post("/admin/inkasso/rate/:id/zuweisen", async (req: Request, res: Response) => {
+  try {
+    const { inkassoRateZuweisen } = await import("../lib/fiaon-inkasso");
+    const agentId = req.body?.agent === null || req.body?.agent === ""
+      ? null : Number(req.body?.agent);
+    const erg = await inkassoRateZuweisen(Number(req.params.id), agentId, "Vorgesetzter");
+    if (!erg.ok) return res.status(400).json({ ok: false, error: erg.grund });
+    res.json({
+      ok: true,
+      meldung: agentId === null
+        ? "Die Rate ist wieder frei und geht in die nächste Verteilung."
+        : "Zugewiesen.",
+    });
+  } catch (err) {
+    console.error("[INKASSO] rate zuweisen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

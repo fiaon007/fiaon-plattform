@@ -40,6 +40,28 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-nicht-erreicht-raus",
+    date: "2026-08-11",
+    category: "Behoben",
+    title: "„Nicht erreicht“ nimmt den Kunden jetzt aus der Liste",
+    summary:
+      "Wer nicht erreichbar war, verschwindet aus der Anrufliste und bekommt einen Buchungslink. Du rufst niemanden mehr zweimal an.",
+    changes: [
+      "Einer von euch hat gemeldet: „Wenn ich den Kunden nicht erreicht klicke, bleibt er trotzdem in der Liste — verschwinden tut er bei mir nicht.“ Das war ein echter Fehler: 311 Kunden standen doppelt drin.",
+      "Jetzt: Nach „nicht erreicht“, „Mailbox“, „Rückruf vereinbart“ oder „falsche Nummer“ geht die Karte raus. Du siehst kurz die Marke, dann gleitet sie aus.",
+      "Bei „zahlt sofort“ bleibt der Kunde — sein Geld wird ja erwartet.",
+      "Oben steht eine grüne Leiste: „90 warten auf ihren Termin“. Antippen zeigt sie. Die haben ihren Buchungslink und wählen selbst eine Uhrzeit — ruf sie nicht erneut an.",
+      "KALENDER: Wenn ein Kunde selbst einen Termin buchst, steht er jetzt in DEINEM Kalender mit der Marke „Kunde hat gebucht“. Vorher fehlte er dort komplett — der Kunde hatte eine Bestätigung, du wusstest nichts davon.",
+      "Diesen Termin kannst du nicht verschieben: Der Kunde hat die Zeit gewählt. Passt sie nicht, ruf ihn an.",
+      "FORDERUNGSMANAGEMENT: Die Liste zeigt nur noch, was überfällig, heute fällig oder in den nächsten 7 Tagen fällig ist. Vorher standen dort 153 Raten, bei denen es nichts zu tun gab.",
+    ],
+    howto: [
+      "Nach „nicht erreicht“ ist der Kunde für heute fertig. Er kommt von selbst zurück, wenn er einen Termin bucht — dann steht er in deinem Kalender.",
+      "Die grüne Leiste oben ist keine Aufgabe, sondern eine Auskunft: Diese Leute sind dran, aber nicht bei dir.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-11-liste-haelt-still",
     date: "2026-08-11",
     category: "Behoben",

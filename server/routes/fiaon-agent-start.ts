@@ -421,6 +421,37 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
       // schlimmere Fehler.
       if (!["ruhend", "nicht_erreicht", "gesperrt", "bezahlt"].includes(filter) && !q) {
         wo.push(`NOT ${ruhtSql("p")}`);
+
+        // ══════════════════════════════════════════════════════════════════
+        // WER EINE VERABREDUNG IN DER ZUKUNFT HAT, IST HEUTE FERTIG
+        //
+        // ── DER ANLASS ────────────────────────────────────────────────────
+        // Ein Agent: „Wenn ich den Kunden ‚nicht erreicht' klicke, bleibt er
+        // trotzdem in der Liste — verschwinden tut er bei mir nicht."
+        //
+        // Gemessen am 11.08.2026: **311 Kunden** hatten eine Wiedervorlage in
+        // der Zukunft und standen trotzdem in den Arbeitslisten. Das Ergebnis
+        // setzte `follow_up_date = morgen`, aber die Liste sah es nicht an.
+        //
+        // Die Folge ist genau die, die der Agent beschreibt: Er ruft denselben
+        // Menschen zweimal an. Für den Kunden ist das aufdringlich, für den
+        // Agenten Zeitverlust, und die Liste wird nie kürzer — sie ist ein
+        // Eimer ohne Boden.
+        //
+        // ── DIE REGEL ─────────────────────────────────────────────────────
+        // Eine Wiedervorlage in der Zukunft ist eine VERABREDUNG. Wer sie hat,
+        // gehört heute nicht in die Frage „wen rufe ich jetzt an?".
+        //
+        // Ausgenommen: eine Zahlungszusage. Wer für den 20. zugesagt hat, muss
+        // trotzdem sichtbar bleiben — nicht zum Anrufen, sondern weil sein
+        // Geld erwartet wird. Dafür gibt es die Filter „Zusage heute" und
+        // „Überfällig".
+        //
+        // Der Kunde ist NICHT weg: Er steht im Filter „Nicht erreicht" und in
+        // jeder Suche. Eine Liste, die einen Kunden versteckt, den es gibt,
+        // wäre der schlimmere Fehler.
+        // ══════════════════════════════════════════════════════════════════
+        wo.push(`(p.follow_up_date IS NULL OR p.follow_up_date <= ${HEUTE})`);
       }
     }
 
@@ -453,6 +484,18 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
         COUNT(*) FILTER (WHERE promised_payment_date = ${sqlPool.unsafe(HEUTE)} AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3)::int AS zusage_heute,
         COUNT(*) FILTER (WHERE promised_payment_date < ${sqlPool.unsafe(HEUTE)} AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3)::int AS ueberfaellig,
         COUNT(*) FILTER (WHERE unreachable_count > 0 AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3)::int AS nicht_erreicht,
+        -- ── WER WARTET AUF SEINEN TERMIN? ──────────────────────────────────
+        -- Die Zahl beantwortet die Frage, die entsteht, sobald Karten
+        -- verschwinden: „Wo sind die Leute hin, die ich nicht erreicht habe?"
+        -- Ohne sie fühlt sich das Verschwinden wie ein Verlust an — und genau
+        -- dieses Gefühl hat dazu geführt, dieselben Menschen zweimal
+        -- anzurufen.
+        COUNT(*) FILTER (WHERE follow_up_date > CURRENT_DATE AND NOT is_blocked
+                         AND priority_tier BETWEEN 1 AND 3)::int AS wartet,
+        -- Wer wartet auf eine Terminbuchung? Diese Zahl beantwortet die Frage
+        -- „wo sind die Leute hin, die ich nicht erreicht habe".
+        COUNT(*) FILTER (WHERE follow_up_date > CURRENT_DATE AND NOT is_blocked
+                         AND priority_tier BETWEEN 1 AND 3)::int AS wartet,
         COUNT(*) FILTER (WHERE priority_tier = 0)::int AS bezahlt,
         COUNT(*) FILTER (WHERE is_blocked)::int AS gesperrt,
         -- Der eigene Vorrat je Stufe. Die drei Zahlen im Kopf der Liste sagen
@@ -489,7 +532,7 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
         alle: z.alle, tier1: z.tier1, rechnung_offen: z.rechnung_offen,
         frist_abgelaufen: z.frist_abgelaufen, antrag_offen: z.antrag_offen,
         leads: z.leads, zusage_heute: z.zusage_heute, ueberfaellig: z.ueberfaellig,
-        rueckruf: rueckrufZahl.c, nicht_erreicht: z.nicht_erreicht,
+        rueckruf: rueckrufZahl.c, nicht_erreicht: z.nicht_erreicht, wartet: z.wartet,
         bezahlt: z.bezahlt, gesperrt: z.gesperrt, ruhend: z.ruhend,
       },
       // Der Vorrat je Stufe für den Kopf der Liste.

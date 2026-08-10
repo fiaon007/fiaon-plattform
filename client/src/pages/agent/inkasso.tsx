@@ -66,16 +66,20 @@ export default function AgentInkasso() {
   const [blatt, setBlatt] = useState<number | null>(null);
   const [offenerFall, setOffenerFall] = useState<Fall | null>(null);
   const [meldung, setMeldung] = useState<{ art: "gut" | "schlecht"; text: string } | null>(null);
+  // Das Fristfenster. Vorgabe „überfällig": Wer die Seite öffnet, soll dort
+  // anfangen, wo es brennt — nicht bei einer Rate, die in sechs Tagen fällig
+  // wird.
+  const [frist, setFrist] = useState<"ueberfaellig" | "heute" | "woche" | "alle">("ueberfaellig");
 
   const laden = useCallback(async () => {
     setLaedt(true);
-    const r = await fetch("/api/fiaon/inkasso/liste", { credentials: "include" }).catch(() => null);
+    const r = await fetch(`/api/fiaon/inkasso/liste?frist=${frist}`, { credentials: "include" }).catch(() => null);
     if (r?.status === 404) { setZugang("kein"); setLaedt(false); return; }
     const j = await r?.json().catch(() => null);
     if (j?.zusageOffen) { setZugang("offen"); setLaedt(false); return; }
     if (j?.ok) { setDaten(j); setZugang("frei"); }
     setLaedt(false);
-  }, []);
+  }, [frist]);
   useEffect(() => { void laden(); }, [laden]);
 
   if (zugang === "pruefe" || laedt) {
@@ -188,10 +192,59 @@ export default function AgentInkasso() {
 
         {reiter === "stunden" && <Zeiten onMeldung={setMeldung} />}
 
+        {/* ══════════════════════════════════════════════════════════════════
+            DAS FRISTFENSTER
+
+            ── DER ANLASS ────────────────────────────────────────────────────
+            Der Vorgesetzte: „Die Mitarbeiter von Forderungsmanagement
+            erhalten AUSSCHLIESSLICH die Kunden, deren Abo-Raten überfällig
+            sind — nur diese! Aktuell haben sie irgendwelche anderen Kunden."
+
+            Gemessen: 153 von 251 Raten im Sichtfeld waren erst SPÄTER als in
+            sieben Tagen fällig. Eine Arbeitsliste, in der drei von fünf
+            Zeilen nichts zu tun geben, wird überflogen — und dann übersieht
+            man auch die zwei, bei denen es brennt.
+
+            Die Zahl steht am Knopf: Ein Filter ohne Zahl ist eine Frage, mit
+            Zahl eine Auskunft.
+            ══════════════════════════════════════════════════════════════════ */}
+        {reiter === "liste" && (
+          <div className="flex flex-wrap items-center gap-1.5 mb-3.5">
+            {([
+              ["ueberfaellig", "Überfällig", daten?.fenster?.ueberfaellig ?? 0, "#b91c1c"],
+              ["heute", "Heute fällig", daten?.fenster?.heute ?? 0, "#b45309"],
+              ["woche", "Nächste 7 Tage", daten?.fenster?.woche ?? 0, "#1d4ed8"],
+              ["alle", "Alle drei", daten?.fenster?.alle ?? 0, "#475569"],
+            ] as const).map(([w, t, n, farbe]) => (
+              <button key={w} type="button" onClick={() => setFrist(w as any)}
+                      className="px-3.5 py-2 rounded-xl text-[12.5px] font-semibold inline-flex items-center gap-2"
+                      style={frist === w
+                        ? { background: farbe, color: "#fff" }
+                        : { background: "rgba(15,23,42,.04)", color: "#475569" }}>
+                {t}
+                <span className="tabular-nums font-bold"
+                      style={{ opacity: frist === w ? .9 : .6 }}>{n}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {reiter === "liste" && daten?.nurMeine && (
+          <p className="mb-3 text-[11.5px] leading-relaxed" style={{ color: "var(--fi-text-still)" }}>
+            Du siehst deine zugeteilten Fälle. Weiter oben ist keine Rate mehr, die niemandem gehört.
+          </p>
+        )}
+
         {/* ── Arbeitsliste ────────────────────────────────────────────────── */}
         {reiter === "liste" && liste.length === 0 && (
           <p className="fi-karte p-8 text-center text-[13px]" style={{ color: "var(--fi-text-still)" }}>
-            Nichts offen. Alle fälligen Raten sind bearbeitet oder haben eine Wiedervorlage in der Zukunft.
+            {frist === "ueberfaellig"
+              ? "Keine überfällige Rate. Das ist die beste Nachricht des Tages — schau in „Heute fällig“ oder „Nächste 7 Tage“, was ansteht."
+              : frist === "heute"
+                ? "Heute wird keine Rate fällig."
+                : frist === "woche"
+                  ? "In den nächsten sieben Tagen wird keine Rate fällig."
+                  : "Nichts offen. Alle fälligen Raten sind bearbeitet oder haben eine Wiedervorlage in der Zukunft."}
           </p>
         )}
 

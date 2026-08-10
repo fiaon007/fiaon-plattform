@@ -113,12 +113,26 @@ router.post("/inkasso/zusage", requireAgent, async (req: AgentRequest, res: Resp
 router.get("/inkasso/liste", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     if (!(await wand(req, res))) return;
-    const [liste, zahlen, geld] = await Promise.all([
-      arbeitsliste({ limit: Number(req.query.limit) || 60 }),
+    // ── NUR DIE EIGENEN, WENN ZUGETEILT ─────────────────────────────────
+    // Ein Mitarbeiter mit zugeteilten Raten sieht seine. Wer noch keine hat,
+    // sieht alle unzugeteilten — sonst stünde er vor einer leeren Liste und
+    // könnte nicht arbeiten, obwohl Arbeit da ist.
+    const { fristZaehler } = await import("../lib/fiaon-inkasso");
+    const meine = await fristZaehler({ nurMeine: req.agent!.id });
+    const nurMeine = meine.alle > 0 ? req.agent!.id : null;
+    const frist = String(req.query.frist || "") || null;
+
+    const [liste, zahlen, geld, fenster] = await Promise.all([
+      arbeitsliste({ limit: Number(req.query.limit) || 60, nurMeine, frist }),
       kennzahlen(),
       verdienst(req.agent!.id),
+      fristZaehler({ nurMeine }),
     ]);
-    res.json({ ok: true, liste, zahlen, verdienst: geld, ergebnisse: RATEN_ERGEBNISSE, heute: berlinToday() });
+    res.json({
+      ok: true, liste, zahlen, verdienst: geld, ergebnisse: RATEN_ERGEBNISSE,
+      heute: berlinToday(), fenster, frist,
+      nurMeine: nurMeine !== null,
+    });
   } catch (err) {
     console.error("[INKASSO] liste:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

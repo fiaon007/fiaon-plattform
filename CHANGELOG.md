@@ -3,6 +3,75 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (XII) — Forderungsmanagement sieht nur Fälliges, „nicht erreicht" räumt die Liste
+
+### Forderungsmanagement: 153 von 251 Raten gehörten nicht dorthin
+
+Der Vorgesetzte: *„Die Mitarbeiter von Forderungsmanagement erhalten AUSSCHLIESSLICH die Kunden, deren Abo-Raten überfällig sind — nur diese! Aktuell haben sie irgendwelche anderen Kunden."*
+
+Gemessen: **153 von 251 Raten** im Sichtfeld waren erst *später* als in sieben Tagen fällig. Das Sichtfeld prüfte nur „offen" und „Kunde hat bezahlt" — nicht, ob überhaupt etwas ansteht.
+
+Eine Arbeitsliste, in der drei von fünf Zeilen nichts zu tun geben, ist keine Arbeitsliste. Wer sie benutzt, lernt sie zu überfliegen — und übersieht dann auch die zwei, bei denen es brennt.
+
+**Die Grenze steht jetzt im Sichtfeld selbst:** `r.faellig_am <= CURRENT_DATE + 7`. Nicht enger, weil eine Rate, die übermorgen fällig wird, den freundlichen Anruf **vorher** verdient — das ist der Unterschied zwischen Forderungsmanagement und Mahnwesen. Nicht weiter, weil alles darüber hinaus noch keine Aufgabe ist.
+
+**Drei Fristknöpfe** mit Zahl: Überfällig **29** · Heute fällig **0** · Nächste 7 Tage **69**. Ein Filter ohne Zahl ist eine Frage, mit Zahl eine Auskunft. Vorgabe ist „Überfällig" — wer die Seite öffnet, soll dort anfangen, wo es brennt.
+
+Wer zugeteilte Fälle hat, sieht **seine**. Wer noch keine hat, sieht die unzugeteilten — sonst stünde er vor einer leeren Liste, obwohl Arbeit da ist.
+
+### „Nicht erreicht": 311 Kunden standen doppelt in der Liste
+
+Ein Agent: *„Wenn ich den Kunden ‚nicht erreicht' klicke, bleibt er trotzdem in der Liste — verschwinden tut er bei mir nicht."*
+
+Gemessen: **311 Kunden** hatten eine Wiedervorlage in der Zukunft und standen trotzdem in den Arbeitslisten. Das Ergebnis setzte `follow_up_date = morgen`, aber die Liste sah es nicht an.
+
+Die Folge ist genau die, die der Agent beschreibt: Derselbe Mensch wird zweimal angerufen. Für den Kunden aufdringlich, für den Agenten Zeitverlust — und die Liste wird nie kürzer. Sie war ein Eimer ohne Boden.
+
+**Die Regel:** Eine Wiedervorlage in der Zukunft ist eine **Verabredung**. Wer sie hat, gehört heute nicht in die Frage „wen rufe ich jetzt an?".
+
+**Ausgenommen: die Zahlungszusage.** Wer für den 20. zugesagt hat, bleibt sichtbar — nicht zum Anrufen, sondern weil sein Geld erwartet wird.
+
+Der Kunde ist **nicht weg**: Er steht im Filter „Nicht erreicht" und in jeder Suche. Eine Liste, die einen Kunden versteckt, den es gibt, wäre der schlimmere Fehler.
+
+**Zwei Arten von Ergebnis, zwei Arten damit umzugehen:**
+
+| Ergebnis | Was passiert |
+|---|---|
+| Nicht erreicht, Mailbox, Rückruf, falsche Nummer | Marke zeigen, dann ausgleiten — heute ist fertig |
+| Zahlt sofort, zahlt am … | Karte bleibt, gedämpft und markiert — Geld wird erwartet |
+
+Das Ausgleiten dauert 900 ms. Ein Verschwinden ohne Rückmeldung fühlt sich wie ein Fehler an; der Agent soll **sehen**, dass sein Klick angekommen ist.
+
+**Eine grüne Leiste sagt, wohin sie gegangen sind:** „90 warten auf ihren Termin — nicht erreicht, sie haben den Buchungslink und wählen selbst eine Uhrzeit. Ruf sie nicht erneut an."
+
+Sie stand zuerst **unter** der Liste. Bei 937 Kunden sieht das niemand — gemessen: Der Zähler stand mit „90" im Dokument, im Bild war er nicht. Eine Auskunft, die man erst nach 937 Karten findet, ist keine.
+
+### Der Kalendereintrag, den es nicht gab
+
+Der Vorgesetzte: *„Wenn er dann den Termin bucht, hat der Agent einen Kalendereintrag!"*
+
+**Hatte er nicht.** Die Kalender-Route las ausschließlich `fiaon_contact_log` — also nur, was ein Agent selbst eingetragen hat. Die Termine, die ein Kunde über seinen Buchungslink wählt, stehen in `fiaon_termine` und tauchten im Agenten-Kalender **nicht** auf.
+
+Die Wirkung war die schlimmste Art von Lücke: Der Kunde bekam eine Bestätigung mit Uhrzeit, hielt sie ein — und der Agent wusste nichts davon. **Ein Termin, von dem nur eine Seite weiß, ist kein Termin.**
+
+Jetzt stehen sie im Kalender, mit grüner Marke „Kunde hat gebucht" — verbindlicher als eine Notiz, die sich der Agent selbst gemacht hat. Verschieben geht nicht: Der Kunde hat die Zeit gewählt, und eine Verschiebung hinter seinem Rücken wäre ein Wortbruch.
+
+### Was Sie noch tun müssen
+
+**Hans-Jürgen Gerhold hat die Verpflichtungserklärung noch nicht angenommen.** Der Bereich ist verschlossen — die Wand funktioniert. Er muss sich einmal anmelden und die Erklärung annehmen; ich habe sie im Test **nicht** angenommen (`AGENTS.md`, Vorfall vom 06.08.2026).
+
+Danach: Team-Zentrale → Inkasso-Zuteilung → „29 verteilen".
+
+### Ein Zeitzonen-Fehler in meinem eigenen Prüfstand
+
+Der Filter „Nächste 7 Tage" wurde rot, obwohl er richtig arbeitete. Mein Vergleich lautete `new Date(faellig_am) >= new Date(new Date().toISOString().slice(0,10))` — **`toISOString()` ist UTC**, `faellig_am` ein Datum in Berliner Rechnung. Genau der Fehler, vor dem `AGENTS.md` warnt, in meinem eigenen Prüfstand.
+
+Die Prüfung läuft jetzt in SQL, wo `CURRENT_DATE` per Definition stimmt.
+
+### Prüfstand
+
+`pruef-rueckstand` von 155 auf **184**. Drei Gegenproben: Fristgrenze entfernen (findet die 153 wieder), Wiedervorlage ignorieren, Karte stehen lassen — jede wird rot. Gesamt **2.072**, alle grün.
+
 ## 11.08.2026 (XI) — `register()` war der Fehler, die Liste hält still, Inkasso-Zuteilung
 
 ### Der Anruf: mein eigener Fehler von heute Morgen

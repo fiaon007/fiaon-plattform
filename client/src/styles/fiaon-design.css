@@ -625,3 +625,57 @@ button.fi-knopf-primaer *, a.fi-knopf-primaer * { color: inherit !important; }
   .fi-kk-erledigt, .fi-kk-neuordnen { transition: none !important; }
   .fi-kk-marke { animation: none !important; }
 }
+
+
+/* ── WER WARTET, WIRD NICHT ANGERUFEN ──────────────────────────────────────
+   Ein Agent: „Wenn ich den Kunden ‚nicht erreicht' klicke, bleibt er trotzdem
+   in der Liste." Er verschwindet jetzt — und diese Leiste sagt, wohin.
+
+   Grün, nicht blau: Das ist keine Aufgabe, sondern eine erledigte Sache. Wer
+   hier steht, wurde erreicht ODER hat einen Buchungslink; in beiden Fällen
+   ist der nächste Schritt beim Kunden. */
+.fi-kk-wartet {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 14px;
+  padding: 13px 16px;
+  border: 0;
+  cursor: pointer;
+  border-radius: 18px;
+  text-align: left;
+  background: linear-gradient(158deg, rgba(5, 150, 105, .08), rgba(4, 120, 87, .03));
+  box-shadow: inset 0 0 0 1px rgba(5, 150, 105, .18);
+  transition: box-shadow 200ms, transform 160ms;
+}
+.fi-kk-wartet:hover {
+  transform: translateY(-1px);
+  box-shadow: inset 0 0 0 1px rgba(5, 150, 105, .4);
+}
+.fi-kk-wartet-zahl {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(158deg, #10b981, #047857);
+  box-shadow: 0 5px 14px -6px rgba(4, 120, 87, .6);
+}
+.fi-kk-wartet-titel { display: block; font-size: 13.5px; font-weight: 700; color: #047857; }
+.fi-kk-wartet-text {
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--fi-text-still);
+  margin-top: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fi-kk-wartet { transition: none !important; }
+}

@@ -69,7 +69,16 @@ function KalenderContent() {
 
   const load = useCallback(() => {
     api("/agent/calendar").then((r) => {
-      if (r.ok) setAppointments(r.json.data);
+      if (r.ok) {
+        // ── ZWEI QUELLEN, EINE LISTE ──────────────────────────────────────
+        // `data` sind die eigenen Notizen (Rückrufe, Zusagen).
+        // `gebuchteTermine` sind die, die der KUNDE selbst über seinen
+        // Buchungslink gewählt hat. Sie standen bis zum 11.08.2026 in einer
+        // eigenen Tabelle und tauchten hier NICHT auf: Der Kunde bekam eine
+        // Bestätigung mit Uhrzeit, hielt sie ein — und der Agent wusste
+        // nichts davon. Ein Termin, von dem nur eine Seite weiß, ist keiner.
+        setAppointments([...(r.json.data ?? []), ...(r.json.gebuchteTermine ?? [])]);
+      }
       setLoading(false);
     });
   }, []);
@@ -131,7 +140,19 @@ function KalenderContent() {
               {apptName(a)}
             </p>
             <p className="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap mt-0.5">
-              <span>{a.scheduled_at ? "Rückruf" : "Zahlungs-Zusage"}</span>
+              {/* ── DER KUNDE HAT SELBST GEWÄHLT ──────────────────────────
+                  Das ist verbindlicher als eine Notiz, die sich der Agent
+                  selbst gemacht hat: Der Kunde hat eine Uhrzeit angeklickt
+                  und eine Bestätigung bekommen. Deshalb eine eigene Marke,
+                  keine graue Zeile. */}
+              {(a as any).quelle === "termin" ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold"
+                      style={{ background: "rgba(5,150,105,.1)", color: "#047857" }}>
+                  Kunde hat gebucht
+                </span>
+              ) : (
+                <span>{a.scheduled_at ? "Rückruf" : "Zahlungs-Zusage"}</span>
+              )}
               <Badge status={a.payment_status} />
               {isOverdue && <span className="inline-flex items-center gap-1"><Clock size={10} /> überfällig</span>}
             </p>
@@ -145,8 +166,16 @@ function KalenderContent() {
             )}
             <button
               type="button"
+              // Ein vom Kunden gebuchter Termin wird nicht vom Agenten
+              // verschoben: Der Kunde hat die Zeit gewählt, und eine
+              // Verschiebung hinter seinem Rücken wäre ein Wortbruch. Er
+              // bekommt seinen Absage-Link in der Bestätigungsmail.
+              disabled={(a as any).quelle === "termin"}
+              title={(a as any).quelle === "termin"
+                ? "Diesen Termin hat der Kunde selbst gewählt. Ruf ihn an, wenn er nicht passt."
+                : undefined}
               onClick={(e) => { e.stopPropagation(); setReschedule({ id: a.id, value: "" }); }}
-              className={`${btnGhost} px-3 py-2 text-[12px]`}
+              className={`${btnGhost} px-3 py-2 text-[12px] disabled:opacity-30`}
             >
               Verschieben
             </button>

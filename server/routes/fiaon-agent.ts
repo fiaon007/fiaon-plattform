@@ -2468,7 +2468,57 @@ router.get("/agent/calendar", requireAgent, async (req: AgentRequest, res) => {
         )
       ORDER BY COALESCE(l.scheduled_at, l.promised_date) ASC
     `;
-    res.json({ ok: true, data: rows });
+
+    // ══════════════════════════════════════════════════════════════════════
+    // DIE VOM KUNDEN SELBST GEBUCHTEN TERMINE
+    //
+    // ── DER ANLASS ────────────────────────────────────────────────────────
+    // Der Vorgesetzte: „Wenn er dann den Termin bucht, hat der Agent einen
+    // Kalendereintrag!"
+    //
+    // Hatte er nicht. Diese Route las AUSSCHLIESSLICH `fiaon_contact_log` —
+    // also nur, was ein Agent selbst eingetragen hat. Die Termine, die ein
+    // Kunde über seinen Buchungslink selbst wählt, stehen in `fiaon_termine`
+    // und tauchten im Agenten-Kalender NICHT auf.
+    //
+    // Die Wirkung war die schlimmste Art von Lücke: Der Kunde bekam eine
+    // Bestätigung mit Uhrzeit, hielt sie ein — und der Agent wusste nichts
+    // davon. Ein Termin, von dem nur eine Seite weiß, ist kein Termin.
+    //
+    // Bewusst eine ZWEITE Abfrage und kein UNION: Die beiden Quellen haben
+    // verschiedene Schlüssel (`fiaon_contact_log.id` gegen
+    // `fiaon_termine.id`), und ein UNION über zwei Zahlenräume erzeugt
+    // doppelte Kennungen. Der Client unterscheidet über `quelle`.
+    // ══════════════════════════════════════════════════════════════════════
+    const gebucht = await sqlPool`
+      SELECT t.id, t.beginn AS scheduled_at, t.dauer_min, t.status, t.quelle AS buchungsquelle,
+             t.storno_token,
+             (SELECT a.ref FROM fiaon_applications a
+               WHERE a.person_id = t.person_id AND a.merged_into IS NULL AND a.archived_at IS NULL
+               ORDER BY a.created_at DESC LIMIT 1) AS ref,
+             p.first_name, p.last_name, p.company_name, p.contact_name,
+             p.primary_phone AS phone, p.primary_email
+      FROM fiaon_termine t
+      JOIN fiaon_persons p ON p.id = t.person_id
+      WHERE t.agent_id = ${me}
+        AND t.status = 'gebucht'
+        AND t.beginn BETWEEN ${from} AND ${to}
+        AND p.merged_into_person_id IS NULL
+      ORDER BY t.beginn ASC
+    `;
+
+    res.json({
+      ok: true,
+      data: rows,
+      // Getrennt geliefert, damit der Client sie eigens kennzeichnen kann:
+      // Ein Termin, den der KUNDE gewählt hat, ist verbindlicher als eine
+      // Notiz, die der Agent sich selbst gemacht hat.
+      gebuchteTermine: (gebucht as any[]).map((t) => ({
+        ...t,
+        outcome: "kunde_hat_gebucht",
+        quelle: "termin",
+      })),
+    });
   } catch (err) {
     console.error("[FIAON-AGENT] calendar:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

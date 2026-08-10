@@ -401,6 +401,47 @@ function Inhalt() {
         </Reveal>
 
         {/* Liste */}
+        {/* ── WOHIN SIND SIE GEGANGEN? ──────────────────────────────────────
+            Wer eine Karte verschwinden sieht, muss wissen, wo sie geblieben
+            ist. Sonst entsteht das Gefühl, etwas verloren zu haben — und
+            genau dieses Gefühl hat den Agenten dazu gebracht, dieselben
+            Leute zweimal anzurufen. */}
+        {(zaehler?.wartet ?? 0) > 0 && filter !== "nicht_erreicht" && (
+          <button type="button" onClick={() => setFilter("nicht_erreicht")}
+                  className="fi-kk-wartet">
+            <span className="fi-kk-wartet-zahl">{zaehler.wartet}</span>
+            <span className="min-w-0 flex-1 text-left">
+              <span className="fi-kk-wartet-titel">
+                {zaehler.wartet === 1 ? "Einer wartet auf seinen Termin" : `${zaehler.wartet} warten auf ihren Termin`}
+              </span>
+              <span className="fi-kk-wartet-text">
+                Nicht erreicht — sie haben den Buchungslink und wählen selbst eine Uhrzeit.
+                Ruf sie nicht erneut an. Antippen, um sie zu sehen.
+              </span>
+            </span>
+          </button>
+        )}
+
+        {erledigt.size > 0 && (
+          <button type="button" onClick={() => void laden()} className="fi-kk-neuordnen">
+            <span className="fi-kk-neuordnen-zahl">{erledigt.size}</span>
+            <span className="min-w-0 flex-1 text-left">
+              <span className="fi-kk-neuordnen-titel">
+                {erledigt.size === 1 ? "Ein Ergebnis gebucht" : `${erledigt.size} Ergebnisse gebucht`}
+              </span>
+              <span className="fi-kk-neuordnen-text">
+                Die Reihenfolge ist absichtlich stehen geblieben, damit du deine Zeile behältst.
+                Hier tippen, wenn du neu ordnen willst.
+              </span>
+            </span>
+          </button>
+        )}
+
+        {/* ── DIE LEISTEN STEHEN ÜBER DER LISTE ───────────────────────────
+            Sie standen zuerst DARUNTER. Bei 937 Kunden sieht das niemand —
+            gemessen: Der Zähler stand mit „90" im Dokument, im Bild war er
+            nicht. Eine Auskunft, die man erst nach 937 Karten findet, ist
+            keine Auskunft. */}
         <div className="mt-4 space-y-2.5">
           {laedt && [0, 1, 2, 3].map((i) => (
             <div key={i} className="fi-karte p-4 sm:p-5">
@@ -449,21 +490,6 @@ function Inhalt() {
             Reihenfolge stimmt wieder. Das ist der Unterschied zwischen einer
             Liste, die man abarbeitet, und einer, die sich unter den Händen
             bewegt. */}
-        {erledigt.size > 0 && (
-          <button type="button" onClick={() => void laden()} className="fi-kk-neuordnen">
-            <span className="fi-kk-neuordnen-zahl">{erledigt.size}</span>
-            <span className="min-w-0 flex-1 text-left">
-              <span className="fi-kk-neuordnen-titel">
-                {erledigt.size === 1 ? "Ein Ergebnis gebucht" : `${erledigt.size} Ergebnisse gebucht`}
-              </span>
-              <span className="fi-kk-neuordnen-text">
-                Die Reihenfolge ist absichtlich stehen geblieben, damit du deine Zeile behältst.
-                Hier tippen, wenn du neu ordnen willst.
-              </span>
-            </span>
-          </button>
-        )}
-
         {!laedt && liste.length > 0 && (
           <p className="mt-5 text-[11.5px] leading-relaxed" style={{ color: "var(--fi-text-still)" }}>
             Diese Liste ist dein Bestand. Kunden, die du dokumentiert hast, bleiben bei dir — die automatische
@@ -642,11 +668,45 @@ function KundenKarte({
     // „Abgelehnt" nimmt den Kunden aus jeder Liste; eine geglückte Übergabe
     // ebenso — er gehört dann einem Kollegen. Alles andere bleibt sichtbar,
     // damit man den neuen Stand sieht (Zähler, Wiedervorlage, Mahnstufe).
+    // ══════════════════════════════════════════════════════════════════════
+    // ZWEI ARTEN VON ERGEBNIS — ZWEI ARTEN, DAMIT UMZUGEHEN
+    //
+    // ── DER ANLASS ────────────────────────────────────────────────────────
+    // Ein Agent: „Wenn ich den Kunden ‚nicht erreicht' klicke, bleibt er
+    // trotzdem in der Liste — verschwinden tut er bei mir nicht."
+    //
+    // Das ist richtig und war falsch. Der Unterschied:
+    //
+    //   VERABREDET  → Der Kunde ist heute FERTIG. „Nicht erreicht" setzt eine
+    //                 Wiedervorlage auf morgen und schickt ab dem zweiten Mal
+    //                 einen Terminlink. Es gibt heute nichts mehr zu tun, also
+    //                 muss die Karte WEG — sonst ruft man denselben Menschen
+    //                 zweimal an. Für den Kunden aufdringlich, für den Agenten
+    //                 Zeitverlust, und die Liste wird nie kürzer.
+    //
+    //   IN DER PFLICHT → „Zahlt sofort" heißt: Das Geld wird erwartet. Der
+    //                 Kunde bleibt sichtbar, gedämpft und mit Marke, damit der
+    //                 Agent seine Zeile behält.
+    //
+    // Die Karte ist nicht verloren: Sie steht im Filter „Nicht erreicht" und
+    // in jeder Suche. Nur die Frage „wen rufe ich JETZT an?" beantwortet sie
+    // nicht mehr.
+    // ══════════════════════════════════════════════════════════════════════
+    const VERABREDET = [
+      "nicht_erreicht", "mailbox", "rueckruf_termin", "nummer_falsch", "nummer_blockiert",
+    ];
+
     if (art === "erreicht_abgelehnt" || r.json.uebergabe?.ok) onWeg();
-    else if (r.json.kunde) onNeu(r.json.kunde);
-    // Die Karte bleibt STEHEN, wo sie ist — nur gedämpft und mit Marke. Der
-    // Agent behält seine Zeile, und was erledigt ist, sieht man sofort.
-    onErledigt();
+    else if (VERABREDET.includes(art)) {
+      // Kurz die Marke zeigen, dann ausgleiten. Ein Verschwinden ohne
+      // Rückmeldung fühlt sich wie ein Fehler an — der Agent soll SEHEN, dass
+      // sein Klick angekommen ist, bevor die Karte geht.
+      onErledigt();
+      setTimeout(() => onWeg(), 900);
+    } else if (r.json.kunde) {
+      onNeu(r.json.kunde);
+      onErledigt();
+    } else onErledigt();
     onZaehler();
   };
 

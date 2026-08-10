@@ -388,6 +388,113 @@ async function main(): Promise<void> {
     /Der Kunde merkt davon nichts/.test(datei("client/src/pages/admin-team-zentrale.tsx")));
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c2. Forderungsmanagement sieht NUR Fälliges");
+  // ═══════════════════════════════════════════════════════════════════════
+  // ── DER ANLASS ────────────────────────────────────────────────────────
+  // Der Vorgesetzte: „Die Mitarbeiter von Forderungsmanagement erhalten
+  // AUSSCHLIESSLICH die Kunden, deren Abo-Raten überfällig sind — nur diese!
+  // Aktuell haben sie irgendwelche anderen Kunden."
+  //
+  // Gemessen vorher: 153 von 251 Raten im Sichtfeld waren erst SPÄTER als in
+  // sieben Tagen fällig. Das Sichtfeld prüfte nur „offen" und „bezahlt" —
+  // nicht, ob überhaupt etwas ansteht.
+  const { SICHTFELD, fristZaehler, fristBedingung, arbeitsliste: iListe } =
+    await import("../server/lib/fiaon-inkasso");
+  ok("Das Sichtfeld hat eine Fristgrenze",
+    /r\.faellig_am <= CURRENT_DATE \+ 7/.test(SICHTFELD));
+  const [sf] = (await sqlPool.unsafe(`
+    SELECT COUNT(*)::int AS drin,
+           COUNT(*) FILTER (WHERE r.faellig_am > CURRENT_DATE + 7)::int AS zu_spaet
+    FROM fiaon_abo_raten r WHERE ${SICHTFELD}`)) as any[];
+  gleich("KEINE Rate, die später als in 7 Tagen fällig wird", Number(sf.zu_spaet), 0);
+  ok(`${sf.drin} Raten im Sichtfeld (vorher 251)`, Number(sf.drin) > 0 && Number(sf.drin) < 251);
+
+  const fz = await fristZaehler();
+  ok("Die drei Fristfenster werden gezählt",
+    typeof fz.ueberfaellig === "number" && typeof fz.heute === "number" && typeof fz.woche === "number",
+    `überfällig ${fz.ueberfaellig} · heute ${fz.heute} · Woche ${fz.woche}`);
+  gleich("Die Summe stimmt", fz.ueberfaellig + fz.heute + fz.woche, fz.alle);
+  // ── DIE PRÜFUNG GEHÖRT IN SQL, NICHT IN JAVASCRIPT ────────────────────
+  // Erster Versuch: `new Date(faellig_am) >= new Date(new Date().toISOString()
+  // .slice(0,10))`. Der Filter „woche" wurde rot, obwohl er richtig arbeitete —
+  // `toISOString()` ist UTC, `faellig_am` ein Datum in Berliner Rechnung. Genau
+  // der Fehler, vor dem AGENTS.md warnt, in meinem eigenen Prüfstand.
+  //
+  // In SQL gilt CURRENT_DATE in der Zeitzone der Datenbank. Dort stimmt der
+  // Vergleich per Definition.
+  for (const [f, bedingung] of [
+    ["ueberfaellig", "r.faellig_am < CURRENT_DATE"],
+    ["heute", "r.faellig_am = CURRENT_DATE"],
+    ["woche", "r.faellig_am > CURRENT_DATE AND r.faellig_am <= CURRENT_DATE + 7"],
+  ] as const) {
+    const l = await iListe({ frist: f, limit: 200 });
+    if (l.length === 0) { ok(`Filter „${f}“ ist leer — nichts zu prüfen`, true); continue; }
+    const ids = l.map((r: any) => Number(r.rate_id));
+    const [treffer] = (await sqlPool.unsafe(`
+      SELECT COUNT(*)::int AS passt FROM fiaon_abo_raten r
+      WHERE r.id = ANY($1::int[]) AND (${bedingung})`, [ids as any])) as any[];
+    gleich(`Filter „${f}“ liefert NUR passende Raten (${l.length})`,
+      Number(treffer.passt), l.length);
+  }
+  ok("Ein unbekannter Filter fällt auf „alle“ zurück, statt zu leeren",
+    fristBedingung("quatsch") === "TRUE");
+  const inkQ = datei("client/src/pages/agent/inkasso.tsx");
+  ok("Die Oberfläche hat drei Fristknöpfe",
+    /Überfällig/.test(inkQ) && /Heute fällig/.test(inkQ) && /Nächste 7 Tage/.test(inkQ));
+  ok("… mit Zahl am Knopf — ein Filter ohne Zahl ist eine Frage",
+    /Ein Filter ohne Zahl ist eine Frage/.test(inkQ));
+  ok("„Überfällig“ ist die Vorgabe", /useState<"ueberfaellig" \| "heute"/.test(inkQ));
+  ok("Wer eigene Fälle hat, sieht nur die eigenen",
+    /nurMeine = meine\.alle > 0/.test(datei("server/routes/fiaon-inkasso-bereich.ts")));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c3. „Nicht erreicht“ nimmt den Kunden aus der Liste");
+  // ═══════════════════════════════════════════════════════════════════════
+  // Ein Agent: „Wenn ich den Kunden ‚nicht erreicht' klicke, bleibt er
+  // trotzdem in der Liste — verschwinden tut er bei mir nicht."
+  //
+  // Gemessen vorher: 311 Kunden hatten eine Wiedervorlage in der Zukunft und
+  // standen trotzdem in den Arbeitslisten. Die Folge: Derselbe Mensch wurde
+  // zweimal angerufen, und die Liste wurde nie kürzer.
+  const asQ = datei("server/routes/fiaon-agent-start.ts");
+  ok("Eine Wiedervorlage in der Zukunft nimmt den Kunden aus der Anrufliste",
+    /p\.follow_up_date IS NULL OR p\.follow_up_date <= \$\{HEUTE\}/.test(asQ));
+  ok("… und der Grund steht dabei",
+    /Eine Wiedervorlage in der Zukunft ist eine VERABREDUNG/.test(asQ));
+  ok("Der Filter „Nicht erreicht“ zeigt ihn weiter",
+    /\["ruhend", "nicht_erreicht", "gesperrt", "bezahlt"\]\.includes\(filter\)/.test(asQ));
+  ok("Es gibt einen Zähler für die Wartenden", /AS wartet,/.test(asQ) && /wartet: z\.wartet/.test(asQ));
+  ok("Die Karte verschwindet bei „nicht erreicht“",
+    /const VERABREDET = \[/.test(knQ) && /setTimeout\(\(\) => onWeg\(\), 900\)/.test(knQ));
+  ok("… aber NICHT bei „zahlt sofort“ — dort wird Geld erwartet",
+    /IN DER PFLICHT/.test(knQ));
+  ok("… und erst nach kurzer Rückmeldung",
+    /Ein Verschwinden ohne\n    \/\/ Rückmeldung fühlt sich wie ein Fehler an|Rückmeldung fühlt sich wie ein Fehler an/.test(knQ));
+  ok("Eine Leiste sagt, wohin sie gegangen sind", /fi-kk-wartet/.test(knQ));
+  ok("… mit der Anweisung, nicht erneut anzurufen", /Ruf sie nicht erneut an/.test(knQ));
+  ok("… und sie steht ÜBER der Kartenliste",
+    knQ.indexOf("fi-kk-wartet") < knQ.indexOf('<div className="mt-4 space-y-2.5">'));
+
+  // ── Der Kalendereintrag ────────────────────────────────────────────────
+  const kaQ = datei("server/routes/fiaon-agent.ts");
+  ok("Der Kalender liest AUCH die gebuchten Termine",
+    /FROM fiaon_termine t\n      JOIN fiaon_persons p ON p\.id = t\.person_id/.test(kaQ));
+  ok("… als eigene Liste, nicht als UNION",
+    /gebuchteTermine:/.test(kaQ) && /ein UNION über zwei Zahlenräume erzeugt/.test(kaQ));
+  ok("Der Client lädt beide Quellen",
+    /\[\.\.\.\(r\.json\.data \?\? \[\]\), \.\.\.\(r\.json\.gebuchteTermine \?\? \[\]\)\]/
+      .test(datei("client/src/pages/agent/kalender.tsx")));
+  ok("Ein vom Kunden gebuchter Termin ist gekennzeichnet",
+    /Kunde hat gebucht/.test(datei("client/src/pages/agent/kalender.tsx")));
+  ok("… und wird nicht vom Agenten verschoben",
+    /wäre ein Wortbruch/.test(datei("client/src/pages/agent/kalender.tsx")));
+  const [tz] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_termine
+    WHERE status = 'gebucht' AND beginn > NOW() - INTERVAL '14 days'
+  `) as any[];
+  ok(`${tz.n} gebuchte Termine, die jetzt im Kalender stehen`, Number(tz.n) >= 0);
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");
   // ═══════════════════════════════════════════════════════════════════════
   const fQ = datei("client/src/components/PremiumFooter.tsx");

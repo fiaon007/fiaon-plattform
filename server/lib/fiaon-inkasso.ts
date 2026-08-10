@@ -50,8 +50,28 @@ export async function anrufPflichtTage(lauf: Lauf = sqlPool): Promise<number> {
  * Als Textbaustein, weil er in vier Abfragen gebraucht wird — vier Fassungen
  * wären vier Gelegenheiten, eine zu vergessen.
  */
+/**
+ * ── DIE FRISTGRENZE, DIE HIER GEFEHLT HAT ──────────────────────────────────
+ * Der Vorgesetzte: „Die Mitarbeiter von Forderungsmanagement erhalten
+ * AUSSCHLIESSLICH die Kunden, deren Abo-Raten überfällig sind — nur diese!
+ * Aktuell haben sie irgendwelche anderen Kunden."
+ *
+ * Gemessen am 11.08.2026: **153 von 251** Raten im Sichtfeld waren erst
+ * SPÄTER als in sieben Tagen fällig. Das Sichtfeld prüfte nur „offen" und
+ * „Kunde hat bezahlt" — nicht, ob überhaupt etwas ansteht.
+ *
+ * Eine Arbeitsliste, in der drei von fünf Zeilen nichts zu tun geben, ist
+ * keine Arbeitsliste. Wer sie benutzt, lernt sie zu überfliegen — und
+ * übersieht dann auch die zwei, bei denen es brennt.
+ *
+ * Die Grenze: bis SIEBEN TAGE in die Zukunft. Nicht enger, weil eine Rate,
+ * die übermorgen fällig wird, den freundlichen Anruf VORHER verdient — das
+ * ist der Unterschied zwischen Forderungsmanagement und Mahnwesen. Nicht
+ * weiter, weil alles darüber hinaus noch keine Aufgabe ist.
+ */
 export const SICHTFELD = `
   r.status = 'offen'
+  AND r.faellig_am <= CURRENT_DATE + 7
   AND EXISTS (
     SELECT 1 FROM fiaon_applications a
     WHERE a.ref = r.ref
@@ -60,6 +80,25 @@ export const SICHTFELD = `
       AND a.archived_at IS NULL
       AND a.gdpr_deleted_at IS NULL
   )`;
+
+/**
+ * Die drei Fristfenster.
+ *
+ * Nicht als Zahl, sondern als Bedingung: So kann die Oberfläche filtern, ohne
+ * dass jemand ein Datum berechnet — und die Grenze steht an einer Stelle.
+ */
+export const FRIST_FILTER = {
+  alle: "TRUE",
+  ueberfaellig: "r.faellig_am < CURRENT_DATE",
+  heute: "r.faellig_am = CURRENT_DATE",
+  woche: "r.faellig_am > CURRENT_DATE AND r.faellig_am <= CURRENT_DATE + 7",
+} as const;
+
+export type FristFenster = keyof typeof FRIST_FILTER;
+
+export function fristBedingung(f?: string | null): string {
+  return f && f in FRIST_FILTER ? FRIST_FILTER[f as FristFenster] : FRIST_FILTER.alle;
+}
 
 export type RatenErgebnis = "zahlt_am" | "ueberwiesen_beleg" | "nicht_erreicht" | "eskalation";
 
@@ -232,7 +271,8 @@ export async function ratenErgebnisAnwenden(
  * 5. Alles andere.
  */
 export async function arbeitsliste(
-  opts: { limit?: number; nurMeine?: number | null } = {}, lauf: Lauf = sqlPool,
+  opts: { limit?: number; nurMeine?: number | null; frist?: string | null } = {},
+  lauf: Lauf = sqlPool,
 ): Promise<any[]> {
   const heute = berlinToday();
   const frist = await anrufPflichtTage(lauf);
@@ -263,6 +303,9 @@ export async function arbeitsliste(
     FROM fiaon_abo_raten r
     JOIN fiaon_applications a ON a.ref = r.ref
     WHERE ${lauf.unsafe(SICHTFELD)}
+      -- Das Fristfenster: überfällig, heute fällig, oder in den nächsten
+      -- sieben Tagen. Ohne Angabe alle drei.
+      AND (${lauf.unsafe(fristBedingung(opts.frist))})
       -- Eine Wiedervorlage in der Zukunft nimmt die Rate vom Tisch. Wer eine
       -- Zusage für den 20. hat, ruft nicht am 15. wieder an.
       AND (r.inkasso_wiedervorlage IS NULL OR r.inkasso_wiedervorlage <= ${heute}::date)
@@ -276,6 +319,33 @@ export async function arbeitsliste(
       r.id ASC
     LIMIT ${Math.min(200, opts.limit ?? 60)}
   `) as any[];
+}
+
+/**
+ * Wie viele Raten stehen in jedem Fristfenster?
+ *
+ * Ein Filterknopf ohne Zahl ist eine Frage; mit Zahl ist er eine Auskunft.
+ * Wer sieht „Überfällig 29", weiß, wo er anfängt.
+ */
+export async function fristZaehler(
+  opts: { nurMeine?: number | null } = {}, lauf: Lauf = sqlPool,
+): Promise<{ ueberfaellig: number; heute: number; woche: number; alle: number }> {
+  const heute = berlinToday();
+  const [z] = (await lauf`
+    SELECT
+      COUNT(*) FILTER (WHERE r.faellig_am < CURRENT_DATE)::int AS ueberfaellig,
+      COUNT(*) FILTER (WHERE r.faellig_am = CURRENT_DATE)::int AS heute,
+      COUNT(*) FILTER (WHERE r.faellig_am > CURRENT_DATE)::int AS woche,
+      COUNT(*)::int AS alle
+    FROM fiaon_abo_raten r
+    WHERE ${lauf.unsafe(SICHTFELD)}
+      AND (r.inkasso_wiedervorlage IS NULL OR r.inkasso_wiedervorlage <= ${heute}::date)
+      ${opts.nurMeine ? lauf`AND r.inkasso_agent_id = ${opts.nurMeine}` : lauf``}
+  `) as any[];
+  return {
+    ueberfaellig: Number(z.ueberfaellig), heute: Number(z.heute),
+    woche: Number(z.woche), alle: Number(z.alle),
+  };
 }
 
 /** Kennzahlen für den Kopf — und für die Übersichten von Leitung und Vorgesetzter. */

@@ -72,6 +72,180 @@ function Avatar({ src, name, size = 40 }: { src: string | null; name: string; si
  * Deckungsquote von „unendlich Prozent", weil niemand ein Gehalt bekommt,
  * ist keine Information — sie ist Lärm.
  */
+/**
+ * Aktivität — was die Leitung getan hat.
+ *
+ * ── WARUM DIE FILTER OBEN UND NICHT IN EINEM MENÜ STEHEN ───────────────────
+ * Die häufigste Frage ist „was wurde gelöscht". Sie darf keinen Klick in ein
+ * Aufklappmenü kosten. Deshalb liegen die drei Stufen als Chips offen da, und
+ * der Lösch-Zähler ist selbst ein Filter: Antippen zeigt die Löschungen.
+ */
+function AktivitaetTafel() {
+  const [d, setD] = useState<any>(null);
+  const [schwere, setSchwere] = useState<"" | "hoch" | "mittel">("");
+  const [typ, setTyp] = useState("");
+  const [agent, setAgent] = useState("");
+  const [von, setVon] = useState("");
+  const [bis, setBis] = useState("");
+  const [team, setTeam] = useState<any[]>([]);
+  const [laedt, setLaedt] = useState(true);
+
+  const holen = useCallback(async () => {
+    setLaedt(true);
+    const p = new URLSearchParams();
+    if (schwere) p.set("schwere", schwere);
+    if (typ) p.set("typ", typ);
+    if (agent) p.set("agent", agent);
+    if (von) p.set("von", von);
+    if (bis) p.set("bis", bis);
+    const r = await fetch(`/api/fiaon/admin/team/aktivitaet?${p}`, { credentials: "include" }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setD(j?.ok ? j : null);
+    setLaedt(false);
+  }, [schwere, typ, agent, von, bis]);
+  useEffect(() => { void holen(); }, [holen]);
+
+  useEffect(() => {
+    void fetch("/api/fiaon/admin/zentrale/team", { credentials: "include" })
+      .then((r) => r.json()).then((j) => setTeam(j?.team ?? [])).catch(() => {});
+  }, []);
+
+  const zeit = (s: string) => new Date(s).toLocaleString("de-DE", {
+    day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+    timeZone: "Europe/Berlin",
+  });
+
+  const stufe = (w: string) => w === "hoch"
+    ? { farbe: "#b91c1c", flaeche: "rgba(185,28,28,.08)", wort: "Sensibel" }
+    : w === "mittel"
+      ? { farbe: "#b45309", flaeche: "rgba(217,119,6,.08)", wort: "Beachten" }
+      : { farbe: "#64748b", flaeche: "rgba(15,23,42,.045)", wort: "Notiz" };
+
+  // Löschungen sind eine eigene Frage — der Katalog kennt sie.
+  const loeschTypen = (d?.katalog ?? [])
+    .filter((k: any) => /gelöscht|Löschung|archiviert|entfernt|zusammengeführt/i.test(k.titel))
+    .map((k: any) => k.typ);
+
+  return (
+    <div>
+      {/* ── Die Zahlen ─────────────────────────────────────────────────── */}
+      {d?.zahlen && (
+        <div className="mb-4 grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))" }}>
+          <button type="button"
+                  onClick={() => { setSchwere(""); setTyp(loeschTypen[0] ?? ""); }}
+                  className="px-4 py-3.5 rounded-2xl text-left"
+                  style={{ background: "rgba(185,28,28,.06)", boxShadow: "inset 0 0 0 1px rgba(185,28,28,.18)" }}>
+            <p className="text-[24px] font-bold leading-none tabular-nums" style={{ color: "#b91c1c" }}>
+              {d.zahlen.loeschungenWoche}
+            </p>
+            <p className="text-[11.5px] font-semibold mt-1" style={{ color: "#b91c1c" }}>
+              {d.zahlen.loeschungenWoche === 1 ? "Löschung" : "Löschungen"} diese Woche
+            </p>
+            {d.zahlen.letzteLoeschung && (
+              <p className="text-[11px] mt-1 leading-snug" style={{ color: "#7f1d1d" }}>
+                Letzte: {d.zahlen.letzteLoeschung.titel} von {d.zahlen.letzteLoeschung.wer},{" "}
+                {zeit(d.zahlen.letzteLoeschung.am)}
+              </p>
+            )}
+            <p className="text-[11px] mt-1.5 font-semibold" style={{ color: "#b91c1c" }}>Ansehen</p>
+          </button>
+
+          {([["Sensible Aktionen (7 Tage)", d.zahlen.hochWoche, "#b45309"],
+             ["Heute insgesamt", d.zahlen.heute, "#1d4ed8"]] as const).map(([t, w, f]) => (
+            <div key={t} className="px-4 py-3.5 rounded-2xl"
+                 style={{ background: `${f}0f`, boxShadow: `inset 0 0 0 1px ${f}26` }}>
+              <p className="text-[24px] font-bold leading-none tabular-nums" style={{ color: f }}>{w}</p>
+              <p className="text-[11.5px] font-semibold mt-1" style={{ color: f }}>{t}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Filter ─────────────────────────────────────────────────────── */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-4">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {([["", "Alles"], ["hoch", "Nur sensibel"], ["mittel", "Nur beachten"]] as const).map(([w, t]) => (
+            <button key={w} type="button" onClick={() => { setSchwere(w); setTyp(""); }}
+                    className="px-3.5 py-2 rounded-xl text-[12.5px] font-semibold"
+                    style={schwere === w && !typ
+                      ? { background: "var(--fi-primaer)", color: "#fff" }
+                      : { background: "rgba(15,23,42,.04)", color: "#475569" }}>
+              {t}
+            </button>
+          ))}
+          <select value={typ} onChange={(e) => { setTyp(e.target.value); setSchwere(""); }}
+                  aria-label="Aktionsart"
+                  className="px-3 py-2 rounded-xl text-[12.5px] font-semibold"
+                  style={{ background: "rgba(15,23,42,.04)", color: "#475569", border: 0 }}>
+            <option value="">Jede Aktionsart</option>
+            {(d?.katalog ?? []).map((k: any) => (
+              <option key={k.typ} value={k.typ}>{k.titel}</option>
+            ))}
+          </select>
+          <select value={agent} onChange={(e) => setAgent(e.target.value)} aria-label="Person"
+                  className="px-3 py-2 rounded-xl text-[12.5px] font-semibold"
+                  style={{ background: "rgba(15,23,42,.04)", color: "#475569", border: 0 }}>
+            <option value="">Jede Person</option>
+            {team.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+          <input type="date" value={von} onChange={(e) => setVon(e.target.value)} aria-label="Von"
+                 className="px-3 py-2 rounded-xl text-[12.5px]"
+                 style={{ background: "rgba(15,23,42,.04)", color: "#475569", border: 0 }} />
+          <input type="date" value={bis} onChange={(e) => setBis(e.target.value)} aria-label="Bis"
+                 className="px-3 py-2 rounded-xl text-[12.5px]"
+                 style={{ background: "rgba(15,23,42,.04)", color: "#475569", border: 0 }} />
+          {(schwere || typ || agent || von || bis) && (
+            <button type="button"
+                    onClick={() => { setSchwere(""); setTyp(""); setAgent(""); setVon(""); setBis(""); }}
+                    className="text-[12px] font-semibold" style={{ color: "var(--fi-primaer)" }}>
+              Filter aufheben
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Die Liste ──────────────────────────────────────────────────── */}
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+        {laedt && <p className="px-4 py-6 text-[13px] text-slate-500">Wird geladen …</p>}
+        {!laedt && (d?.zeilen ?? []).length === 0 && (
+          <p className="px-4 py-8 text-[13px] text-slate-500 text-center">
+            Keine Aktion in diesem Zeitraum. Das ist eine gute Nachricht.
+          </p>
+        )}
+        {(d?.zeilen ?? []).map((z: any) => {
+          const st = stufe(z.schwere);
+          return (
+            <div key={z.id} className="px-4 py-3 flex flex-wrap items-baseline gap-x-3 gap-y-1"
+                 style={{ borderBottom: "1px solid #f8fafc" }}>
+              <span className="shrink-0 text-[9.5px] font-bold uppercase tracking-[.1em] px-2 py-1 rounded-md"
+                    style={{ background: st.flaeche, color: st.farbe }}>
+                {st.wort}
+              </span>
+              <span className="text-[13px] font-semibold text-slate-800">{z.titel}</span>
+              <span className="text-[12.5px] text-slate-600">
+                von <b className="font-semibold">{z.wer}</b>
+                {z.wen && <> · betrifft <b className="font-semibold">{z.wen}</b></>}
+              </span>
+              {z.referenz && (
+                <span className="text-[11.5px] font-mono" style={{ color: "var(--fi-primaer)" }}>{z.referenz}</span>
+              )}
+              <span className="ml-auto shrink-0 text-[11.5px] tabular-nums text-slate-400">{zeit(z.am)}</span>
+              {z.grund && (
+                <p className="w-full text-[12px] leading-snug text-slate-500 mt-0.5">{z.grund}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {(d?.zeilen ?? []).length >= 120 && (
+        <p className="mt-2 text-[11.5px] text-slate-400">
+          Die neuesten 120 Einträge. Für ältere den Zeitraum eingrenzen.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function TeamKosten() {
   const [d, setD] = useState<any>(null);
   useEffect(() => {
@@ -220,10 +394,10 @@ export default function AdminTeamZentrale() {
   // endlos langen Seite: Wer Skripte pflegt, will nicht an dreißig
   // Mitarbeiterkarten vorbeiscrollen.
   const [reiter, setReiter] = useState<
-    "menschen" | "neu" | "partner" | "praemien" | "skripte" | "einstellungen"
+    "menschen" | "aktivitaet" | "neu" | "partner" | "praemien" | "skripte" | "einstellungen"
   >(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
-    return (["menschen", "neu", "partner", "praemien", "skripte", "einstellungen"].includes(String(t))
+    return (["menschen", "aktivitaet", "neu", "partner", "praemien", "skripte", "einstellungen"].includes(String(t))
       ? t : "menschen") as any;
   });
   const [einladen, setEinladen] = useState(
@@ -278,6 +452,9 @@ export default function AdminTeamZentrale() {
         <div className="flex flex-wrap gap-1.5 mb-4">
           {([
             ["menschen", "Menschen"],
+            // Aktivität steht an ZWEITER Stelle: Sie ist die Aufsicht, und
+            // eine Aufsicht, die man suchen muss, wird nicht benutzt.
+            ["aktivitaet", "Aktivität"],
             ["neu", "Neu im Team"],
             ["partner", "Partner-Anfragen"],
             ["praemien", "Meilenstein-Prämien"],
@@ -324,6 +501,8 @@ export default function AdminTeamZentrale() {
         {reiter === "einstellungen" && (
           <SettingsCard flash={(m) => setMeldung({ art: "gut", text: m })} onSaved={laden} />
         )}
+
+        {reiter === "aktivitaet" && <AktivitaetTafel />}
 
         {reiter === "menschen" && (
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>

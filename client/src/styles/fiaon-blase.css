@@ -1,0 +1,167 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIE BLASE — eine Gestaltung, ein Ort
+
+   ── WARUM DIESE DATEI EXISTIERT ──────────────────────────────────────────
+   Die Blasen-Werte (Radius 28, Glas mit 20 px Weichzeichnung, Fläche 72 %
+   Weiß, Haarlinie oben, zweistufiger Blau-Schatten) wurden für den Space
+   festgelegt. Die Mail-Zentrale und die Kundenschublade sollen dieselbe
+   Gestaltung tragen.
+
+   Man könnte die Werte kopieren. Dann stehen sie an drei Stellen, und beim
+   nächsten „Radius etwas kleiner" ändert man zwei davon. Nach dem dritten
+   Mal sieht jede Fläche anders aus, und niemand weiß mehr, welche richtig
+   ist. Deshalb: eine Datei, drei Nutzer.
+
+   ── DIE WERTE ────────────────────────────────────────────────────────────
+   Sie stehen als Variablen, damit eine Fläche sie im Ausnahmefall anpassen
+   kann (schmale Geräte brauchen kleinere Rundungen), ohne die Datei zu
+   ändern.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --fi-blase-radius: 28px;
+  --fi-blase-blur: 20px;
+  --fi-blase-flaeche: rgba(255, 255, 255, .72);
+  --fi-blase-innen: 24px;
+  /* Der Schatten ist zweistufig und BLAU, nicht grau: Ein grauer Schatten
+     auf blauem Grund sieht schmutzig aus. */
+  --fi-blase-schatten:
+    0 2px 8px -2px rgba(29, 78, 216, .1),
+    0 18px 44px -20px rgba(29, 78, 216, .24),
+    inset 0 0 0 1px rgba(255, 255, 255, .9);
+  --fi-blase-schatten-hoch:
+    0 3px 10px -2px rgba(29, 78, 216, .13),
+    0 30px 62px -22px rgba(29, 78, 216, .34),
+    inset 0 0 0 1px rgba(255, 255, 255, .95);
+}
+
+.fi-blase {
+  position: relative;
+  border-radius: var(--fi-blase-radius);
+  padding: var(--fi-blase-innen);
+  background: var(--fi-blase-flaeche);
+  backdrop-filter: blur(var(--fi-blase-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--fi-blase-blur)) saturate(160%);
+  box-shadow: var(--fi-blase-schatten);
+}
+
+/* Die Lichtkante oben. Ohne sie wirkt die Blase aufgeklebt statt beleuchtet:
+   Eine echte gewölbte Fläche fängt oben Licht. */
+.fi-blase::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  border-radius: var(--fi-blase-radius) var(--fi-blase-radius) 0 0;
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(255, 255, 255, .9) 22%,
+    rgba(255, 255, 255, 1) 50%,
+    rgba(255, 255, 255, .9) 78%,
+    transparent);
+  pointer-events: none;
+}
+
+/* Anhebbar: hebt beim Zeigen 4 px, der Schatten wächst mit. Nur auf Geräten
+   mit Zeiger — auf einem Telefon gibt es kein „Zeigen", und eine
+   Hover-Regel bleibt dort nach dem Antippen hängen. */
+@media (min-width: 640px) and (hover: hover) {
+  .fi-blase-hebt {
+    transition:
+      box-shadow 280ms cubic-bezier(.32, .72, 0, 1),
+      transform 280ms cubic-bezier(.32, .72, 0, 1);
+  }
+  .fi-blase-hebt:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--fi-blase-schatten-hoch);
+  }
+}
+
+/* Eintritt: Aufsteigen plus leichtes Aufblühen. 450 ms ist die Haus-Kurve —
+   lang genug, dass man die Bewegung sieht, kurz genug, dass sie nicht wartet. */
+.fi-blase-tritt-ein {
+  animation: fiBlaseBluehen 450ms cubic-bezier(.32, .72, 0, 1) both;
+}
+@keyframes fiBlaseBluehen {
+  from { opacity: 0; transform: translateY(18px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Auf schmalen Geräten kleinere Rundung und weniger Innenabstand: Eine
+   28er-Rundung nimmt bei 356 px Innenbreite fast die halbe Kartenhöhe ein. */
+@media (max-width: 639px) {
+  .fi-blase {
+    --fi-blase-radius: 22px;
+    --fi-blase-innen: 18px;
+  }
+}
+
+/* ── DIE BÜHNE, AUF DER BLASEN SCHWEBEN ──────────────────────────────────
+   Ein sanfter Verlauf von Weiß nach CI-Hellblau, beide durchscheinend,
+   damit das Hintergrundvideo trägt. Wer diese Klasse auf die Hülle setzt,
+   bekommt dieselbe Bühne wie der Space. */
+.fi-blasenbuehne {
+  background: linear-gradient(178deg,
+    rgba(255, 255, 255, .85) 0%,
+    rgba(241, 246, 254, .76) 46%,
+    rgba(219, 232, 251, .65) 100%);
+  background-attachment: fixed;
+}
+
+/* ── DER PRIMÄRKNOPF DER BLASENWELT ─────────────────────────────────────
+   Verlaufsfläche mit Glanzkante, weiße Schrift erzwungen. Die Hausregel:
+   Wer eine dunkle Fläche trägt, bringt seine Schriftfarbe selbst mit. */
+.fi-blase-knopf {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 24px;
+  border: 0;
+  cursor: pointer;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #fff !important;
+  background: linear-gradient(178deg, #3b82f6, #1d4ed8 58%, #1b429f);
+  box-shadow:
+    0 14px 30px -12px rgba(29, 78, 216, .68),
+    inset 0 1px 0 rgba(255, 255, 255, .38);
+  transition:
+    transform 140ms cubic-bezier(.32, .72, 0, 1),
+    box-shadow 200ms,
+    filter 180ms;
+}
+.fi-blase-knopf * { color: inherit; }
+.fi-blase-knopf:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1.5px); }
+.fi-blase-knopf:active:not(:disabled) {
+  transform: translateY(1px) scale(.985);
+  box-shadow: inset 0 2px 5px rgba(9, 20, 56, .36);
+}
+.fi-blase-knopf:disabled { opacity: .32; cursor: default; box-shadow: none; }
+
+/* Eine Kennmarke: Verlauf, weiße Schrift, klein und rund.
+   Am 11.08.2026 trugen die Space-Kennmarken Inline-Farben aus der Zeit, als
+   sie keine Fläche hatten — „GEDANKE DES TAGES" in Graublau auf blauem
+   Verlauf war praktisch unlesbar. Deshalb hier !important. */
+.fi-blase-marke {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: #fff !important;
+  background: linear-gradient(158deg, #3b82f6, #1d4ed8);
+  box-shadow:
+    0 4px 12px -6px rgba(29, 78, 216, .7),
+    inset 0 1px 0 rgba(255, 255, 255, .3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fi-blase-tritt-ein { animation: none !important; }
+  .fi-blase-hebt, .fi-blase-knopf { transition: none !important; }
+  .fi-blase-hebt:hover { transform: none; }
+}

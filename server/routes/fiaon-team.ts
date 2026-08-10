@@ -1612,4 +1612,41 @@ router.post("/admin/team/ansicht/:id", async (req: Request, res: Response) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// AKTIVITÄT
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /admin/team/aktivitaet — sensible Aktionen, gefiltert.
+ *
+ * NUR unter /admin: Die Liste nennt, wer wem was getan hat. In den Händen der
+ * Vertriebsleitung wäre sie ein Werkzeug, um zu sehen, wer beobachtet wird.
+ */
+router.get("/admin/team/aktivitaet", async (req: Request, res: Response) => {
+  try {
+    const { aktivitaet, aktivitaetZahlen, KATALOG } = await import("../lib/fiaon-aktivitaet");
+    const [zeilen, zahlen] = await Promise.all([
+      aktivitaet({
+        agentId: req.query.agent ? Number(req.query.agent) : null,
+        typ: req.query.typ ? String(req.query.typ) : null,
+        von: req.query.von ? String(req.query.von) : null,
+        bis: req.query.bis ? String(req.query.bis) : null,
+        nurSchwere: req.query.schwere === "hoch" || req.query.schwere === "mittel"
+          ? req.query.schwere : null,
+        limit: req.query.limit ? Number(req.query.limit) : 120,
+      }),
+      aktivitaetZahlen(),
+    ]);
+    res.json({
+      ok: true, zeilen, zahlen,
+      // Der Katalog wandert mit: Die Oberfläche baut daraus ihre Filter, statt
+      // eine zweite Liste zu pflegen, die beim nächsten neuen Typ veraltet.
+      katalog: KATALOG.map((k) => ({ typ: k.typ, titel: k.titel, schwere: k.schwere })),
+    });
+  } catch (err) {
+    console.error("[TEAM] aktivitaet:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 export default router;

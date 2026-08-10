@@ -3,6 +3,10 @@
 /* FIAON Design-Tokens (Farben, Kurven, Zeiten, Skeleton/Haken/Shake-Keyframes).
    Muss vor @tailwind stehen: @import ist nur am Dateianfang gültig. */
 @import "./styles/fiaon-design.css";
+/* Die Blasen-Gestaltung: eine Datei für Space, Mail-Zentrale und die
+   Kundenschublade. Kopieren hieße, sie beim nächsten „Radius etwas kleiner"
+   an zwei von drei Stellen zu ändern. */
+@import "./styles/fiaon-blase.css";
 
 /* Tiefe und einheitliche Abstände für ALLE /admin-Seiten. Wirkt nur innerhalb
    von `.admin-flaeche` (setzt AdminShell) — Kunden- und Agentenbereich bleiben

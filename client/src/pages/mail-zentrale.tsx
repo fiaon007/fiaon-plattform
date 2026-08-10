@@ -127,6 +127,31 @@ function MarkeFunke({ size = 15 }: { size?: number }) {
   );
 }
 
+const MAIL_CSS = `
+/* ── DIE BÜHNE ──────────────────────────────────────────────────────────
+   Derselbe Verlauf wie im Space. Er liegt auf der HÜLLE, nicht auf dieser
+   Seite: Die Seite ist nur der Inhalt, die Fläche gehört der Hülle.
+   Die Blasen-Werte selbst stehen in fiaon-blase.css — hier wird nichts
+   kopiert, sonst hätte man beim nächsten „Radius etwas kleiner" zwei
+   Stellen zu ändern und würde eine vergessen. */
+body:has(.fi-mail-buehne) .agent-ambient,
+body:has(.fi-mail-buehne) .admin-flaeche {
+  background: linear-gradient(178deg,
+    rgba(255,255,255,.85) 0%,
+    rgba(241,246,254,.76) 46%,
+    rgba(219,232,251,.65) 100%);
+  background-attachment: fixed;
+}
+/* Zwei Wäschen übereinander ergeben milchiges Grau — deshalb die des Raums
+   hier aus, genau wie im Space. */
+body:has(.fi-mail-buehne) .fi-raum-waesche { display: none; }
+
+/* Auf 380 px randnah, wie im Space: 12 px Luft an den Seiten. */
+@media (max-width: 639px) {
+  .fi-mail-buehne > div { padding-left: 12px; padding-right: 12px; }
+}
+`;
+
 export default function MailZentraleSeite() {
   // ── ZWEI HÜLLEN, EIN INHALT ─────────────────────────────────────────────
   // `AgentShell` prüft die Agent-Anmeldung und zeigt sonst eine
@@ -341,7 +366,12 @@ function Inhalt() {
     + extern.split(/[,;\s]+/).filter(Boolean).length;
 
   return (
-    <div className="pb-24 md:pb-10">
+    /* ── DIESELBE BÜHNE WIE DER SPACE ────────────────────────────────────
+       Die Marke `fi-mail-buehne` schaltet unten per :has den Verlauf auf der
+       HÜLLE ein — die Seite selbst ist nicht die Seitenfläche. Die Werte für
+       Blasen und Bühne stehen in fiaon-blase.css; hier wird nichts kopiert. */
+    <div className="pb-24 md:pb-10 fi-mail-buehne">
+      <style>{MAIL_CSS}</style>
       <div className="mx-auto" style={{ maxWidth: 860 }}>
         <Reveal index={0}>
           <h1 className="text-[24px] sm:text-[28px] font-bold tracking-tight leading-tight">
@@ -372,7 +402,7 @@ function Inhalt() {
 
         {/* ── Empfänger ────────────────────────────────────────────────── */}
         <Reveal index={1}>
-          <div className="fi-karte mt-4 p-4">
+          <div className="fi-blase mt-4">
             <p className="text-[11px] font-semibold uppercase tracking-[.08em] mb-2.5"
                style={{ color: "var(--fi-text-still)" }}>
               Empfänger {gewaehltGesamt > 0 && <span className="fi-zahl">· {gewaehltGesamt}</span>}
@@ -544,7 +574,7 @@ function Inhalt() {
 
         {/* ── Inhalt ───────────────────────────────────────────────────── */}
         <Reveal index={2}>
-          <div className="fi-karte mt-3 p-4">
+          <div className="fi-blase mt-3">
             <input value={betreff} onChange={(e) => setBetreff(e.target.value)} placeholder="Betreff"
                    className={`w-full text-[15px] font-semibold bg-transparent outline-none pb-2.5 ${eingefuegt ? "fi-eingefuegt" : ""}`}
                    style={{ borderBottom: "1px solid var(--fi-linie)" }} />
@@ -643,7 +673,7 @@ function Inhalt() {
                 Weg zum Ziel. */}
             <button type="button" onClick={() => void vorschauHolen()}
                     disabled={!!busy || !betreff || !text || gewaehltGesamt === 0}
-                    className="fi-knopf-primaer ml-auto px-5">
+                    className="fi-blase-knopf ml-auto">
               {busy === "vorschau" ? "…" : "Vorschau & senden"}
             </button>
           </div>

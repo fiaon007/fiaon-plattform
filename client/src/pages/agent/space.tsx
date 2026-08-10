@@ -935,10 +935,11 @@ const SPACE_CSS = `
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── 1. BÜHNE: Video plus sanfter Verlauf, kein Vollton ──────────────────── */
+/* Dieselbe Bühne, die auch die Mail-Zentrale trägt — der Verlauf steht in
+   fiaon-blase.css als „.fi-blasenbuehne". Hier wird er auf die HÜLLEN
+   gelegt, weil der Space nicht selbst die Seitenfläche ist. */
 body:has(.fi-sp-buehne) .agent-ambient,
 body:has(.fi-sp-buehne) .admin-flaeche {
-  /* Weiß oben nach CI-Hellblau unten. Beide durchscheinend, damit das Video
-     trägt — kein Navy, keine Sternkörnung. */
   background: linear-gradient(178deg,
     rgba(255,255,255,.85) 0%,
     rgba(241,246,254,.76) 46%,
@@ -1009,26 +1010,27 @@ body:has(.fi-sp-buehne) .admin-flaeche [class*="max-w-"] {
 /* ── 2. DIE BLASE ────────────────────────────────────────────────────────
    Radius 28, Glas mit 20 px Weichzeichnung, Fläche 72 % Weiß, Haarlinie
    oben als Lichtkante, zweistufiger Blau-Schatten. */
+/* ── DIE BLASE KOMMT AUS fiaon-blase.css ─────────────────────────────────
+   Radius 28, Glas mit 20 px Weichzeichnung, Fläche 72 % Weiß, Haarlinie oben,
+   zweistufiger Blau-Schatten — die Werte stehen an EINER Stelle, damit die
+   Mail-Zentrale und die Kundenschublade dieselben tragen.
+
+   Hier bleibt nur, was den Space von den anderen unterscheidet. */
 .fi-sp-karte {
   position: relative;
-  border-radius: 28px;
-  padding: 24px;
-  background: rgba(255,255,255,.72);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  box-shadow:
-    /* Zweistufig: ein enger Schatten für die Kante, ein weiter für die Höhe.
-       Beide im CI-Blau statt in Grau — ein grauer Schatten auf blauem Grund
-       sieht schmutzig aus. */
-    0 2px 8px -2px rgba(29,78,216,.1),
-    0 18px 44px -20px rgba(29,78,216,.24),
-    inset 0 0 0 1px rgba(255,255,255,.9);
+  border-radius: var(--fi-blase-radius);
+  padding: var(--fi-blase-innen);
+  background: var(--fi-blase-flaeche);
+  backdrop-filter: blur(var(--fi-blase-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--fi-blase-blur)) saturate(160%);
+  box-shadow: var(--fi-blase-schatten);
+  /* Nur der Space braucht das: Beiträge kommen dem Zeiger auf einer
+     perspective-Bühne entgegen. */
   transform-style: preserve-3d;
 }
-/* Die Lichtkante oben: 1 px, 90 % Weiß. Ohne sie wirkt die Blase aufgeklebt. */
 .fi-sp-karte::before {
   content: ""; position: absolute; inset: 0 0 auto; height: 1px;
-  border-radius: 28px 28px 0 0;
+  border-radius: var(--fi-blase-radius) var(--fi-blase-radius) 0 0;
   background: linear-gradient(90deg,
     transparent, rgba(255,255,255,.9) 22%, rgba(255,255,255,1) 50%,
     rgba(255,255,255,.9) 78%, transparent);
@@ -1198,10 +1200,7 @@ body:has(.fi-sp-buehne) .admin-flaeche [class*="max-w-"] {
 @media (min-width: 640px) {
   .fi-sp-post:hover {
     transform: translateY(-4px);
-    box-shadow:
-      0 3px 10px -2px rgba(29,78,216,.13),
-      0 30px 62px -22px rgba(29,78,216,.34),
-      inset 0 0 0 1px rgba(255,255,255,.95);
+    box-shadow: var(--fi-blase-schatten-hoch);
   }
 }
 @keyframes fiSpAuf { from { opacity: 0 } to { opacity: 1 } }

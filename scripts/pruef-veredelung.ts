@@ -386,7 +386,11 @@ async function main(): Promise<void> {
     /ANSICHT_COOKIE = "fiaon_ansicht"/.test(datei("server/lib/fiaon-ansicht.ts"))
     && !/fiaon_agent_token/.test(datei("server/lib/fiaon-ansicht.ts")));
   ok("Signaturvergleich ist zeitgleich", /timingSafeEqual/.test(datei("server/lib/fiaon-ansicht.ts")));
-  ok("Start und Ende werden protokolliert", /ansicht_\$\{was\}/.test(datei("server/lib/fiaon-ansicht.ts")));
+  // Der Typ wird AUSGESCHRIEBEN, nicht zusammengesetzt: Ein Ereignistyp aus
+  // einem Template ist im Quelltext nicht suchbar, und der Aktivitäts-
+  // Prüfstand hielt ihn deshalb für erfunden.
+  ok("Start und Ende werden protokolliert",
+    /"ansicht_gestartet" : "ansicht_beendet"/.test(datei("server/lib/fiaon-ansicht.ts")));
   ok("Die Wand hängt VOR allen Routen", /ansichtNurLesen/.test(datei("server/routes.ts")));
   ok("Nur der Vorgesetzte startet sie", /admin\/team\/ansicht\/:id/.test(teamQ));
   const sharedQ = datei("client/src/pages/agent/shared.tsx");

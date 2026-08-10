@@ -40,6 +40,31 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-pipeline-cockpit",
+    date: "2026-08-11",
+    category: "Neu",
+    title: "Gespräche anhören, Transkripte lesen — und das Cockpit für die Leitung",
+    summary:
+      "In der Kundenakte kannst du jetzt Aufnahmen abspielen und Transkripte lesen. Du siehst auf einen Blick, wie weit die Nachbereitung ist.",
+    changes: [
+      "AUFNAHMEN: In der Akte unter „Anrufe“ gibt es einen Player. Dass du eine Aufnahme angehört hast, steht im Kundenverlauf — das ist Absicht, es geht um Kundengespräche.",
+      "TRANSKRIPT: Aufklappbar unter jedem Anruf.",
+      "STATUSKETTE: Drei Punkte zeigen, wie weit es ist — aufgezeichnet, transkribiert, zusammengefasst. Vorher stand da entweder eine Zusammenfassung oder nichts, und „nichts“ konnte dreierlei bedeuten.",
+      "Wenn ein Transkript gescheitert ist, steht der Grund da und ein Knopf zum Nachholen.",
+      "Hat ein Kunde der Aufzeichnung widersprochen, steht das als eigener Zustand — keine Lücke.",
+      "AUFBEWAHRUNG: Aufnahmen werden nach 90 Tagen automatisch gelöscht. Transkript und Zusammenfassung bleiben — sie sind das Arbeitsergebnis.",
+      "FÜR DIE LEITUNG: Die Kundenschublade in /agent/vertrieb hat jetzt sieben Reiter — Lage, Zugang, Zahlung, Verwaltung, Stammdaten, Verlauf, Zuweisungen.",
+      "„Ich komme nicht rein“: Der Reiter „Zugang“ sagt dir, WAS los ist und welcher der drei Wege der richtige ist. Jeder braucht einen Grund, der im Protokoll steht.",
+      "„Anrufen“ öffnet jetzt überall das FIAON-Telefon statt der Telefon-App — nur so landet das Gespräch in der Akte.",
+      "MAIL-ZENTRALE trägt dieselbe Gestaltung wie der Space: helle Glasblasen über dem Hintergrund.",
+    ],
+    howto: [
+      "Aufnahme anhören: Akte öffnen, Abschnitt „Anrufe“, dann „Aufnahme anhören“.",
+      "Die drei Punkte je Anruf: grün heißt fertig, gelb läuft noch, rot ist gescheitert, grau steht noch aus.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-11-space-v5",
     date: "2026-08-11",
     category: "Neu",

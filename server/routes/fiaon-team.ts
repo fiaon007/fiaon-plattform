@@ -1649,4 +1649,160 @@ router.get("/admin/team/aktivitaet", async (req: Request, res: Response) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FIRMIERUNG UND ABRECHNUNGS-PDF
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** GET /admin/team/firmierung — die Angaben für Dokumente. */
+router.get("/admin/team/firmierung", async (_req: Request, res: Response) => {
+  const { firmierung, FIRMIERUNG_VORGABE } = await import("../lib/fiaon-firmierung");
+  res.json({ ok: true, firmierung: await firmierung(), vorgabe: FIRMIERUNG_VORGABE });
+});
+
+/** POST /admin/team/firmierung — ändern. */
+router.post("/admin/team/firmierung", async (req: Request, res: Response) => {
+  try {
+    const { firmierungSetzen } = await import("../lib/fiaon-firmierung");
+    const neu = await firmierungSetzen(req.body ?? {});
+    console.log(`[TEAM] Firmierung geändert: ${neu.name}, ${neu.strasse}, ${neu.ort}`);
+    res.json({
+      ok: true, firmierung: neu,
+      meldung: "Gespeichert. Neue Dokumente tragen die Angaben; bestehende PDFs bleiben unverändert — "
+        + "ein ausgestelltes Dokument ändert man nicht nachträglich.",
+    });
+  } catch (err) {
+    console.error("[TEAM] firmierung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /admin/team/abrechnung/:id/neu-erzeugen — PDF neu bauen.
+ *
+ * ── WAS SICH ÄNDERT UND WAS NICHT ──────────────────────────────────────────
+ * NUR die Form. Positionen, Summen, Abrechnungsnummer und das
+ * Original-Erstellungsdatum bleiben unverändert — sie stehen in
+ * `lines_json`, `gross_cents` und `issued_at` und werden nicht neu gerechnet.
+ *
+ * Das ist der Kern: Eine Abrechnung, deren Summe sich beim Neu-Erzeugen
+ * ändern könnte, wäre kein Dokument, sondern eine Momentaufnahme. Der
+ * Prüfstand vergleicht die Summen vorher und nachher.
+ */
+router.post("/admin/team/abrechnung/:id/neu-erzeugen", async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const [st] = (await sqlPool`
+      SELECT s.*, a.name AS agent_name, a.email AS agent_email,
+             a.legal_name, a.address_line, a.postal_code, a.city, a.country,
+             a.vat_id, a.tax_id, a.partner_type
+      FROM fiaon_commission_statements s
+      JOIN fiaon_agents a ON a.id = s.agent_id
+      WHERE s.id = ${id}
+    `) as any[];
+    if (!st) return res.status(404).json({ ok: false, error: "Abrechnung nicht gefunden." });
+
+    const { renderDocumentPdf } = await import("../lib/fiaon-html-pdf");
+    const { absenderBlock, firmierung, fussZeile } = await import("../lib/fiaon-firmierung");
+    const firma = await firmierung();
+
+    const zeilen: any[] = (() => {
+      try { return typeof st.lines_json === "string" ? JSON.parse(st.lines_json) : (st.lines_json ?? []); }
+      catch { return []; }
+    })();
+    const cent = (c: number) => (Number(c) / 100).toLocaleString("de-DE",
+      { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+    const esc = (t: unknown) => String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const tag = (d: unknown) => d
+      ? new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", dateStyle: "short" }).format(new Date(String(d)))
+      : "—";
+
+    const empfaenger = [
+      esc(st.legal_name || st.agent_name),
+      esc(st.address_line), esc([st.postal_code, st.city].filter(Boolean).join(" ")),
+      esc(st.country),
+      st.vat_id ? `VAT-ID: ${esc(st.vat_id)}` : "",
+      st.tax_id ? `Tax no.: ${esc(st.tax_id)}` : "",
+      `Email: ${esc(st.agent_email)}`,
+    ].filter(Boolean).join("<br/>");
+
+    const body = `
+      <table style="border:none;margin-bottom:14px;">
+        <tr style="border:none;">
+          <td style="border:none;width:50%;vertical-align:top;">
+            <div style="font-weight:700;">Issued by</div>${absenderBlock(firma)}
+          </td>
+          <td style="border:none;width:50%;vertical-align:top;">
+            <div style="font-weight:700;">Recipient</div>${empfaenger}
+          </td>
+        </tr>
+      </table>
+      <table style="border:none;margin-bottom:12px;">
+        <tr style="border:none;">
+          <td style="border:none;width:50%;"><b>Statement no.</b> ${esc(st.statement_no)}</td>
+          <td style="border:none;width:50%;"><b>Period</b> ${tag(st.period_start)} – ${tag(st.period_end)}</td>
+        </tr>
+        <tr style="border:none;">
+          <td style="border:none;"><b>Originally issued</b> ${tag(st.issued_at)}</td>
+          <td style="border:none;"><b>Reissued</b> ${tag(new Date())}</td>
+        </tr>
+      </table>
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Order</th><th class="num">Sale value</th>
+          <th class="num">Rate</th><th class="num">Commission</th>
+        </tr></thead>
+        <tbody>${zeilen.map((l) => `
+          <tr${Number(l.commissionCents) < 0 ? ' class="negative"' : ""}>
+            <td>${tag(l.date)}</td>
+            <td>${esc(l.reference)}${l.pack ? `<div class="muted" style="font-size:8pt;">${esc(l.pack)}</div>` : ""}</td>
+            <td class="num">${l.saleCents ? cent(l.saleCents) : "—"}</td>
+            <td class="num">${l.rateBp ? (Number(l.rateBp) / 100).toLocaleString("de-DE", { maximumFractionDigits: 2 }) + " %" : "—"}</td>
+            <td class="num">${cent(l.commissionCents)}</td>
+          </tr>`).join("")}</tbody>
+        <tfoot><tr>
+          <td colspan="4">Total</td><td class="num">${cent(st.gross_cents)}</td>
+        </tr></tfoot>
+      </table>
+      <div class="box" style="font-size:8.5pt;">
+        <div style="font-weight:700;margin-bottom:4px;">Tax treatment</div>${esc(firma.steuerhinweis)}
+      </div>
+      <div class="box" style="font-size:8.5pt;">
+        <div style="font-weight:700;margin-bottom:4px;">Status and self-billing</div>${esc(firma.gutschriftHinweis)}
+      </div>
+      <p class="hash" style="margin-top:12px;">Document hash (SHA-256): ${esc(st.doc_hash)}</p>
+      <p class="meta">Reissued in the current layout. Amounts, positions and statement number are unchanged.</p>`;
+
+    const pdf = await renderDocumentPdf({
+      documentTitle: "Commission Statement",
+      subtitle: `${st.statement_no} · self-billed credit note`,
+      bodyHtml: body,
+      markenzeile: fussZeile(firma),
+      fusszeile: fussZeile(firma),
+    });
+
+    // NUR das PDF wird ersetzt. gross_cents, lines_json, statement_no und
+    // issued_at bleiben unangetastet — sonst wäre es eine neue Abrechnung.
+    await sqlPool`
+      UPDATE fiaon_commission_statements SET pdf_base64 = ${pdf.toString("base64")}
+      WHERE id = ${id}
+    `;
+    const { aktivitaetSchreiben } = await import("../lib/fiaon-aktivitaet");
+    await aktivitaetSchreiben({
+      typ: "commission_statement_issued", wer: "Vorgesetzter",
+      agentId: Number(st.agent_id), referenz: String(st.statement_no),
+      grund: "PDF im aktuellen Layout neu erzeugt; Inhalte unverändert.",
+    });
+
+    res.json({
+      ok: true,
+      meldung: `${st.statement_no} neu erzeugt. Summe unverändert: ${cent(st.gross_cents)}.`,
+      summeCents: Number(st.gross_cents),
+      positionen: zeilen.length,
+    });
+  } catch (err) {
+    console.error("[TEAM] abrechnung neu:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler beim Neu-Erzeugen." });
+  }
+});
+
 export default router;

@@ -3,6 +3,77 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (IX) — Der Rückstand abgearbeitet: Aufsicht, Pipeline, Cockpit, Abrechnungen
+
+### Aktivität — was die Leitung tut
+
+Neuer zweiter Reiter in der Team-Zentrale. **Keine neue Tabelle:** `fiaon_agent_events` sammelt seit Monaten alles, 8.900 Zeilen. Eine zweite daneben wären zwei Wahrheiten über dasselbe.
+
+Was fehlte, war nicht die Erfassung, sondern die **Sicht**: Aus 8.900 Zeilen, von denen 7.100 automatische Massenläufe sind, die zwanzig herausbekommen, bei denen ein Mensch etwas Schwerwiegendes getan hat.
+
+**Der Katalog ist die eigentliche Arbeit.** 40 Aktionen in drei Stufen — sensibel (unumkehrbar, Geld, Zugang, Verantwortung), beachten, Notiz. Bewusst eine Liste und keine Regel: „alles mit `delete` im Namen" übersieht `person_merge` und `antrag_archiviert` und fängt `leads_verteilen_08082026` mit ein.
+
+**Die Namen sind nachgesehen, nicht erfunden.** Mein erster Katalog enthielt `kunde_geloescht`, `zahlung_gebucht`, `zugang_gerettet`, `einmal_passwort` — **keiner dieser Typen existiert**. Die Wirklichkeit heißt `geloescht_endgueltig`, `vertrieb_zahlung_gebucht`, `zugang_setzlink`, `zugang_einmalpasswort`.
+
+Ein Katalog aus erfundenen Namen hätte eine **leere** Liste ergeben — und die sieht aus wie „es ist nichts passiert". Das ist der schlimmste Fehler, den eine Aufsicht machen kann.
+
+Der Lösch-Zähler zählt die **Woche**, nicht den Tag: „0 Löschungen heute" sagt nichts, weil an den meisten Tagen nichts gelöscht wird. Er ist selbst ein Filter.
+
+### Gesprächs-Pipeline
+
+**Die Twilio-URL gehört nie ins Frontend.** Sie ist unbefristet gültig und öffnet mit den Konto-Zugangsdaten die Aufnahme eines Kundengesprächs. Wer sie einmal aus dem Netzwerkprotokoll kopiert, kann das Gespräch morgen noch abspielen — auch ohne Zugang.
+
+Neu: Die Aufnahme wird serverseitig geholt und durchgereicht. Rechteprüfung vor dem Abruf, kein Zwischenspeichern, und **wer zuhört, steht im Kundenverlauf**.
+
+**Die Statuskette.** Vorher stand in der Akte entweder eine Zusammenfassung oder nichts. „Nichts" konnte **dreierlei** bedeuten: keine Aufnahme, Transkript läuft, KI gescheitert — drei Lagen, drei Handgriffe, kein sichtbarer Unterschied. Jetzt: aufgezeichnet → transkribiert → zusammengefasst, mit Punkt und Klartext-Hinweis.
+
+**Aufbewahrungsfrist, 90 Tage.** Eine Gesprächsaufnahme ist die intimste Art von Kundendaten, die dieses Haus speichert. Der Lauf löscht **bei Twilio**, nicht nur die URL — eine vergessene URL ist keine Löschung. Schlägt Twilio fehl, wird **nicht** als gelöscht vermerkt; der nächste Lauf versucht es erneut. Transkript und Zusammenfassung bleiben: Sie sind das Arbeitsergebnis, die Aufnahme das Rohmaterial.
+
+### Vertriebsleitungs-Cockpit
+
+Sieben Reiter: Lage, **Zugang**, **Zahlung**, **Verwaltung**, Stammdaten, Verlauf, Zuweisungen. Jede Route existierte schon oder ruft die bestehende Logik auf.
+
+„Anrufen" öffnet jetzt das **Softphone mit Kundenkontext** statt eines `tel:`-Verweises — auch in der Liste. Der Unterschied ist nicht Bequemlichkeit: Nur so landet das Gespräch mit Aufnahme, Transkript und Ergebnis in der Akte.
+
+**Zugang:** Der häufigste Anruf ist „ich komme nicht rein" — dahinter stecken vier Lagen. Die neue Diagnose nennt den Befund **mit dem passenden Weg dahinter** und erkennt ein noch laufendes Einmal-Passwort (dann soll man das alte vorlesen).
+
+**Zahlung:** Ein Belegfeld statt eines Häkchens. Wenn später jemand fragt „warum steht der auf bezahlt", muss die Antwort in der Akte stehen.
+
+**Löschung:** Anonymisiert **alle** Bestellungen der Person — eine halb gelöschte Person ist keine gelöschte Person. Rechnungen und Zahlungen bleiben. Massenlöschung bleibt dem Vorgesetzten.
+
+**Rechte-Matrix gemessen:** Acht Wege, zwei Rollen. Der Agent wird bei **allen acht** verweigert. Mit echten Tokens gegen den laufenden Server, ohne einen einzigen Schreibvorgang.
+
+### Abrechnungen und Firmierung
+
+Firmenname, Anschrift, Company No. und **der Steuerhinweis** standen hart im Code. Beim Umzug hätte jemand eine TypeScript-Datei ändern müssen — für eine Hausnummer. Schlimmer beim Steuerhinweis: Sein Wortlaut kommt vom Steuerberater, und ein Text, den nur ein Entwickler ändern kann, wird nicht geändert — er bleibt falsch stehen.
+
+Jetzt pflegbar, mit Vorgabe im Code als letzte Verteidigungslinie. Ein leeres Feld fällt **einzeln** zurück: Wer nur die Anschrift gepflegt hat, verliert nicht den Steuerhinweis.
+
+**Neu-Erzeugung ändert nur die Form.** Positionen, Summen, Abrechnungsnummer und Original-Erstellungsdatum bleiben — sie werden nicht neu gerechnet. Eine Abrechnung, deren Summe sich beim Neu-Erzeugen ändern könnte, wäre kein Dokument, sondern eine Momentaufnahme.
+
+### Gemeinsame Blasen-Klassen
+
+`client/src/styles/fiaon-blase.css`: Radius 28, Glas 20 px, Fläche 72 % Weiß, Haarlinie oben, zweistufiger Blau-Schatten — als **Variablen**. Space und Mail-Zentrale nutzen dieselben. Kopieren hätte bedeutet, sie beim nächsten „Radius etwas kleiner" an zwei von drei Stellen zu ändern.
+
+### Drei eigene Fehler
+
+1. **Die Spalte heißt `password`, nicht `password_hash`.** Die Diagnose warf HTTP 500.
+2. **Backticks in einem SQL-Kommentar** — sie beenden das Template-Literal, und der Serverstart hing **still**. Vierter Fall desselben Fehlers.
+3. **Ein JSX-Kommentar innerhalb von `&& (`** ist kein Kommentar, sondern ein Ausdruck.
+
+### Zwei Prüfungen, die nicht rot werden konnten
+
+Die Gegenprobe deckte auf:
+
+- Die Prüfung „kein erfundener Ereignistyp" durchsuchte **alle** Serverdateien — auch die Katalogdatei selbst. Ein Zirkelschluss: Sie fand sich selbst.
+- Die Prüfung „Rechte vor dem Datenstrom" suchte ab dem Routenanfang. „Nicht dein Kunde" kommt mehrfach vor; der Treffer stammte aus einer **anderen** Route.
+
+Beide korrigiert. Und die geschärfte Prüfung fand einen echten Mangel: `ansicht_gestartet` wurde als `ansicht_${was}` zusammengesetzt und war im Quelltext nicht suchbar. Jetzt ausgeschrieben — wer einen Typ sucht, muss ihn finden können.
+
+### Prüfstand
+
+`scripts/pruef-rueckstand.ts` — **124 Prüfungen**. Sieben Prüfungen in drei anderen Prüfständen maßen Werte, die in die gemeinsame Blasen-Datei gewandert sind, und wurden nachgezogen. Gesamt **1.964**, alle grün.
+
 ## 11.08.2026 (VIII) — Der Anruf: `callerId=""`. Space v5 nach Spezifikation. Mail-Bug behoben.
 
 ### Warum der Anruf nicht durchkam

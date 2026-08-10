@@ -23,6 +23,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Router, type Request, type Response, type NextFunction } from "express";
+import { absenderBlock, firmierung, fussZeile } from "../lib/fiaon-firmierung";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, logAgentEvent, getSettings, type AgentRequest } from "./fiaon-agent";
 import { sendMakeWebhook } from "../make-webhook";
@@ -690,12 +691,20 @@ export async function generateCommissionStatement(payoutId: number): Promise<{ o
     `Email: ${escapeHtml(agent.email)}`,
   ].filter(Boolean).join("<br/>");
 
+  // ── FIRMIERUNG UND STEUERHINWEIS AUS DEN EINSTELLUNGEN ─────────────────
+  // Beide standen hart im Code. Beim Umzug in ein anderes Büro hätte jemand
+  // eine TypeScript-Datei ändern müssen — für eine Hausnummer. Und der
+  // Steuerhinweis, dessen Wortlaut vom Steuerberater kommt, wäre nur von
+  // einem Entwickler änderbar gewesen. Ein solcher Text wird nicht geändert;
+  // er bleibt falsch stehen.
+  const firma = await firmierung();
+
   const bodyHtml = `
     <table style="border:none;margin-bottom:14px;">
       <tr style="border:none;">
         <td style="border:none;width:50%;vertical-align:top;">
           <div style="font-weight:700;">Issued by</div>
-          FIAON LTD<br/>Company No. 17318250<br/>128 City Road<br/>London, EC1V 2NX<br/>United Kingdom
+          ${absenderBlock(firma)}
         </td>
         <td style="border:none;width:50%;vertical-align:top;">
           <div style="font-weight:700;">Agent</div>
@@ -735,7 +744,19 @@ export async function generateCommissionStatement(payoutId: number): Promise<{ o
     const pdf = await renderDocumentPdf({
       documentTitle: "Commission Statement",
       subtitle: `${statementNo} · self-billed credit note`,
-      bodyHtml: bodyHtml + `<p class="hash" style="margin-top:14px;">Document hash (SHA-256): ${hash}</p>`,
+      // Steuerhinweis und Gutschriftverfahren gehören AUF das Dokument, nicht
+      // in eine Fußnote im Portal: Wer die Abrechnung seinem Steuerberater
+      // vorlegt, legt ein PDF vor und nicht einen Bildschirm.
+      bodyHtml: bodyHtml
+        + `<div class="box" style="margin-top:16px;font-size:8.5pt;">`
+        + `<div style="font-weight:700;margin-bottom:4px;">Tax treatment</div>`
+        + `${escapeHtml(firma.steuerhinweis)}</div>`
+        + `<div class="box" style="font-size:8.5pt;">`
+        + `<div style="font-weight:700;margin-bottom:4px;">Status and self-billing</div>`
+        + `${escapeHtml(firma.gutschriftHinweis)}</div>`
+        + `<p class="hash" style="margin-top:14px;">Document hash (SHA-256): ${hash}</p>`,
+      markenzeile: fussZeile(firma),
+      fusszeile: fussZeile(firma),
     });
     pdfBase64 = pdf.toString("base64");
   } catch (e) {

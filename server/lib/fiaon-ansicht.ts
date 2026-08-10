@@ -96,7 +96,12 @@ export async function ansichtProtokoll(
 ): Promise<void> {
   await sqlPool`
     INSERT INTO fiaon_agent_events (agent_id, type, meta, actor)
-    VALUES (${agentId}, ${`ansicht_${was}`},
+    -- AUSGESCHRIEBEN, nicht zusammengesetzt: Ein Ereignistyp, der aus einem
+    -- Template entsteht, ist im Quelltext nicht suchbar. Der Aktivitäts-
+    -- Prüfstand konnte „ansicht_gestartet" deshalb nicht als echten Typ
+    -- erkennen und hielt ihn für erfunden — zu Recht: Wer einen Typ sucht,
+    -- muss ihn finden können.
+    VALUES (${agentId}, ${was === "gestartet" ? "ansicht_gestartet" : "ansicht_beendet"},
             ${JSON.stringify({ minuten: ANSICHT_MINUTEN })}, 'admin')
   `.catch(() => {});
   console.log(`[ANSICHT] Portal von Agent ${agentId} ${was} (Vorgesetzter)`);

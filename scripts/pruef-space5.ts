@@ -150,14 +150,24 @@ async function main(): Promise<void> {
   ok("Die helle Wäsche des Raums ist im Space aus",
     /\.fi-raum-waesche \{ display: none; \}/.test(spQ));
   // 2. Blase
-  ok("Radius 28", /border-radius: 28px;/.test(spQ));
-  ok("Glas: blur 20 px", /backdrop-filter: blur\(20px\) saturate\(160%\)/.test(spQ));
-  ok("Fläche 72 % Weiß", /background: rgba\(255,255,255,\.72\)/.test(spQ));
+  // ── DIE WERTE LIEGEN JETZT IN fiaon-blase.css ──────────────────────────
+  // Space, Mail-Zentrale und Kundenschublade teilen eine Datei. Diese
+  // Prüfungen suchten die Zahlen im Space — dort stehen jetzt nur noch die
+  // Variablen. Geprüft wird beides: dass die Variablen die richtigen Werte
+  // tragen UND dass der Space sie benutzt statt eigene zu setzen.
+  const blaseQ = datei("client/src/styles/fiaon-blase.css");
+  ok("Radius 28 (in der gemeinsamen Datei)", /--fi-blase-radius: 28px/.test(blaseQ));
+  ok("Glas: blur 20 px", /--fi-blase-blur: 20px/.test(blaseQ));
+  ok("Fläche 72 % Weiß", /--fi-blase-flaeche: rgba\(255, 255, 255, \.72\)/.test(blaseQ));
+  ok("Der Space benutzt die Variablen, statt Werte zu kopieren",
+    /border-radius: var\(--fi-blase-radius\)/.test(spQ)
+    && /background: var\(--fi-blase-flaeche\)/.test(spQ));
   ok("Haarlinie oben als Lichtkante",
     /\.fi-sp-karte::before/.test(spQ) && /rgba\(255,255,255,\.9\) 22%/.test(spQ));
   ok("Zweistufiger Blau-Schatten",
-    /0 2px 8px -2px rgba\(29,78,216,\.1\)/.test(spQ) && /0 18px 44px -20px rgba\(29,78,216,\.24\)/.test(spQ));
-  ok("Innenabstand 24", /border-radius: 28px;\n  padding: 24px;/.test(spQ));
+    /0 2px 8px -2px rgba\(29, 78, 216, \.1\)/.test(blaseQ)
+    && /0 18px 44px -20px rgba\(29, 78, 216, \.24\)/.test(blaseQ));
+  ok("Innenabstand 24", /--fi-blase-innen: 24px/.test(blaseQ));
   ok("Eintritt: Aufsteigen und Aufblühen, 450 ms",
     /fiSpBluehen 450ms/.test(spQ) && /scale\(\.97\)/.test(spQ));
   ok("Hover hebt 4 px", /\.fi-sp-post:hover \{\n    transform: translateY\(-4px\)/.test(spQ));

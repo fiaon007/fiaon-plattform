@@ -579,11 +579,18 @@ function Inhalt() {
                       </td>
                       <td className="px-3 py-2.5">
                         <span className="flex items-center gap-1.5">
+                          {/* Auch die Schnellwahl aus der Liste geht über das Softphone: Ein
+                              tel-Verweis öffnet irgendein Programm und hinterlässt keine
+                              Akte — kein Anruf, kein Transkript, kein Ergebnis.
+                              (Der Kommentar stand zuerst INNERHALB von `&& (` — dort ist ein
+                              JSX-Kommentar kein Kommentar, sondern ein Ausdruck.) */}
                           {p.telefonWaehlbar && (
-                            <a href={`tel:${p.telefonWaehlbar}`} className="fi-zweitknopf inline-flex items-center px-2 py-1.5"
+                            <button type="button"
+                                    onClick={(e) => { e.stopPropagation(); anrufStarten(String(p.telefonWaehlbar), p.personId, p.name); }}
+                                    className="fi-zweitknopf inline-flex items-center px-2 py-1.5"
                                title={`${p.name} anrufen`} aria-label={`${p.name} anrufen`}>
                               <ZeichenTelefon size={13} />
-                            </a>
+                            </button>
                           )}
                           <button type="button" onClick={() => void akteOeffnen(p.personId)}
                                   className="fi-zweitknopf px-2.5 py-1.5 text-[11.5px] font-semibold whitespace-nowrap">

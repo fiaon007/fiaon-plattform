@@ -291,10 +291,13 @@ async function main(): Promise<void> {
   ok("Auf 380 px randnah", /padding: 16px 12px 0/.test(space) && /border-radius: 22px; padding: 18px;/.test(space));
   // Vier Lagen Schatten: Kontakt, Streuung, Farbschein, Lichtkante. Ein
   // einzelner Schatten sieht immer nach Vorlage aus.
+  // Die Blasen-Werte liegen in fiaon-blase.css — eine Datei für Space,
+  // Mail-Zentrale und Kundenschublade.
+  const blasenCss = datei("client/src/styles/fiaon-blase.css");
   ok("Blasen tragen den zweistufigen Blau-Schatten",
-    /0 2px 8px -2px rgba\(29,78,216,\.1\)/.test(space)
-    && /0 18px 44px -20px rgba\(29,78,216,\.24\)/.test(space)
-    && /inset 0 0 0 1px rgba\(255,255,255,\.9\)/.test(space));
+    /0 2px 8px -2px rgba\(29, 78, 216, \.1\)/.test(blasenCss)
+    && /0 18px 44px -20px rgba\(29, 78, 216, \.24\)/.test(blasenCss)
+    && /inset 0 0 0 1px rgba\(255, 255, 255, \.9\)/.test(blasenCss));
   ok("Der Komposer öffnet sich beim Fokus", /onFocus=\{\(\) => setGross\(true\)\}/.test(space));
   ok("… und lädt ein statt zu fordern", /Was lief gut\?/.test(space));
   ok("Reaktionen mit eigenen SVG-Marken, keine Emojis",
@@ -565,7 +568,9 @@ async function main(): Promise<void> {
     && !/fi-sp-seiten-text">\s*\n?\s*Was hier steht/.test(spaceSeite)
     && !/<p className="fi-sp-seiten-titel">Der Raum<\/p>/.test(spaceSeite));
   ok("Die Bühne hat Tiefe", /perspective: 1600px/.test(spaceSeite));
-  ok("Blasen sind Glas mit 20 px", /backdrop-filter: blur\(20px\) saturate\(160%\)/.test(spaceSeite));
+  ok("Blasen sind Glas mit 20 px",
+    /--fi-blase-blur: 20px/.test(datei("client/src/styles/fiaon-blase.css"))
+    && /blur\(var\(--fi-blase-blur\)\)/.test(spaceSeite));
   // v5 setzt die Lichtkante als ::before (::after ist frei geblieben).
   ok("… mit Lichtkante oben", /\.fi-sp-karte::before/.test(spaceSeite));
   ok("Beiträge steigen auf und blühen", /translateY\(18px\) scale\(\.97\)/.test(spaceSeite));

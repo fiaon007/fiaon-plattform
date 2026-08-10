@@ -81,8 +81,15 @@ export function wrapFiaonDocument(opts: {
   subtitle?: string;
   bodyHtml: string;
   watermark?: string | null;
+  /** Firmenname und Anschrift. Fehlt sie, greift die Vorgabe im Code —
+      eine Abrechnung ohne Absender darf nicht entstehen. */
+  markenzeile?: string;
+  fusszeile?: string;
 }): string {
   const { documentTitle, subtitle, bodyHtml, watermark } = opts;
+  const markenzeile = opts.markenzeile
+    ?? "FIAON LTD · Company No. 17318250 · London, United Kingdom";
+  const fusszeile = opts.fusszeile ?? FIAON_FOOTER;
   const watermarkHtml = watermark
     ? `<div class="watermark">${escapeHtml(watermark)}</div>`
     : "";
@@ -93,8 +100,14 @@ export function wrapFiaonDocument(opts: {
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
+  /* ── SEITENZAHLEN ────────────────────────────────────────────────────────
+     Playwright rendert @page-Ränder; die Zahl selbst kommt über die
+     Kopf-/Fußvorlage (siehe htmlToPdf). Hier bleibt Platz dafür. */
+  @page { margin: 18mm 16mm 22mm; }
   body {
-    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    /* Inter, wo verfügbar — sonst die Systemschrift. Ein PDF, das eine
+       Webschrift nachladen muss, hat sie beim Rendern oft noch nicht. */
+    font-family: Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
     color: #0f172a;
     font-size: 10.5pt;
     line-height: 1.55;
@@ -136,13 +149,13 @@ export function wrapFiaonDocument(opts: {
   <div class="content">
     <header class="doc">
       <div class="wordmark">FIAON</div>
-      <div class="brandline">FIAON LTD · Company No. 17318250 · London, United Kingdom</div>
+      <div class="brandline">${escapeHtml(markenzeile)}</div>
     </header>
     <h1 class="doc-title">${escapeHtml(documentTitle)}</h1>
     ${subtitle ? `<p class="doc-subtitle">${escapeHtml(subtitle)}</p>` : ""}
     ${bodyHtml}
   </div>
-  <footer class="doc">${FIAON_FOOTER}</footer>
+  <footer class="doc">${escapeHtml(fusszeile)}</footer>
 </body>
 </html>`;
 }
@@ -153,6 +166,8 @@ export interface DocumentPdfOptions {
   subtitle?: string;
   bodyHtml: string;
   watermark?: string | null;
+  markenzeile?: string;
+  fusszeile?: string;
 }
 
 /**

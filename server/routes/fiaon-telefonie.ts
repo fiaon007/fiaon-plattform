@@ -6,11 +6,12 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Router, type Request, type Response } from "express";
+import { tageslauf } from "../lib/fiaon-crons";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureRolleSpalte } from "./fiaon-vertrieb";
 import {
-  ansageText, einrichtungsStand, MAX_MINUTEN, offeneAnrufe, telefonBereit,
+  ansageText, aufnahmeFrist, aufnahmenAufraeumen, einrichtungsStand, MAX_MINUTEN, offeneAnrufe, telefonBereit,
   twimlAusgehend, wahlProtokoll, wahlPruefen, zugangsAusweis,
 } from "../lib/fiaon-softphone";
 import { dokumentInhalt, dokumentStand, istDokumentArt } from "../lib/fiaon-dokumente";
@@ -347,16 +348,99 @@ router.get("/telefon/person/:personId/anrufe", requireAgent, async (req: AgentRe
       ok: true,
       anrufe: await sqlPool`
         SELECT c.id, c.nummer, c.beginn, c.dauer_sek, c.status, c.ergebnis, c.ergebnis_am,
-               c.transkript_status, c.transkript_grund, c.zusammenfassung,
+               c.transkript_status, c.transkript_grund, c.zusammenfassung, c.transkript,
                (c.transkript IS NOT NULL) AS hat_transkript,
+               -- Die Twilio-URL selbst kommt NIE ins Frontend: Sie ist ohne
+               -- Ablauf gültig und öffnet mit Basic-Auth die Aufnahme. Nach
+               -- außen geht nur, OB es eine gibt.
+               (c.recording_url IS NOT NULL AND c.aufnahme_geloescht_am IS NULL) AS hat_aufnahme,
+               c.aufnahme_geloescht_am, c.ohne_aufzeichnung_am,
                COALESCE(NULLIF(a.first_name, ''), a.name) AS agent
         FROM fiaon_calls c LEFT JOIN fiaon_agents a ON a.id = c.agent_id
         WHERE c.person_id = ${personId}
         ORDER BY c.beginn DESC LIMIT 50
       `,
+      // Die Frist muss in der Akte stehen: „Diese Aufnahme wird am 12.11.
+      // gelöscht" ist eine Information, „Aufnahmen werden irgendwann
+      // gelöscht" ist keine.
+      fristTage: await aufnahmeFrist(),
     });
   } catch (err) {
     console.error("[TELEFON] anrufe:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * GET /telefon/:id/aufnahme — die Aufnahme abspielen.
+ *
+ * ── WARUM DIE TWILIO-URL NIE INS FRONTEND GEHÖRT ───────────────────────────
+ * Sie ist unbefristet gültig und öffnet mit den Konto-Zugangsdaten die
+ * Aufnahme eines Kundengesprächs. Wer sie einmal aus dem Netzwerkprotokoll
+ * kopiert, kann das Gespräch morgen noch abspielen — auch wenn er längst
+ * keinen Zugang mehr hat.
+ *
+ * Deshalb wird sie hier SERVERSEITIG geholt und der Datenstrom durchgereicht.
+ * Die Rechteprüfung sitzt vor dem Abruf, und der Abruf wird protokolliert:
+ * Wer ein Gespräch anhört, soll das nachvollziehbar tun.
+ */
+router.get("/telefon/:id/aufnahme", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const [c] = (await sqlPool`
+      SELECT c.id, c.recording_url, c.person_id, c.agent_id, c.aufnahme_geloescht_am
+      FROM fiaon_calls c WHERE c.id = ${id}
+    `) as any[];
+    if (!c) return res.status(404).json({ ok: false, error: "Anruf nicht gefunden." });
+    if (c.aufnahme_geloescht_am) {
+      return res.status(410).json({
+        ok: false,
+        error: "Diese Aufnahme ist nach Ablauf der Aufbewahrungsfrist gelöscht worden.",
+      });
+    }
+    if (!c.recording_url) {
+      return res.status(404).json({ ok: false, error: "Zu diesem Anruf gibt es keine Aufnahme." });
+    }
+
+    const rolle = await rolleVon(req.agent!.id);
+    if (c.person_id && !(await darfAnKunde(req.agent!.id, rolle, Number(c.person_id)))) {
+      return res.status(403).json({ ok: false, error: "Nicht dein Kunde." });
+    }
+
+    const sid = process.env.TWILIO_ACCOUNT_SID || "";
+    const tok = process.env.TWILIO_AUTH_TOKEN || "";
+    if (!sid || !tok) {
+      return res.status(503).json({ ok: false, error: "Telefonie ist nicht eingerichtet." });
+    }
+    const quelle = String(c.recording_url).endsWith(".mp3")
+      ? String(c.recording_url)
+      : `${c.recording_url}.mp3`;
+    const r = await fetch(quelle, {
+      headers: { Authorization: "Basic " + Buffer.from(`${sid}:${tok}`).toString("base64") },
+      signal: AbortSignal.timeout(25_000),
+    }).catch(() => null);
+    if (!r || !r.ok || !r.body) {
+      return res.status(502).json({
+        ok: false,
+        error: `Die Aufnahme war bei Twilio nicht abrufbar (HTTP ${r?.status ?? "keine Antwort"}).`,
+      });
+    }
+
+    // Wer hört zu? Das gehört in die Akte.
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, created_at)
+      VALUES (${c.person_id ?? null}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+              ${`Aufnahme von Anruf ${id} angehört.`}, NOW())
+    `.catch(() => {});
+
+    res.setHeader("Content-Type", "audio/mpeg");
+    // Kein Zwischenspeichern: Die Aufnahme kann jederzeit gelöscht werden, und
+    // ein Browser-Cache würde sie überleben.
+    res.setHeader("Cache-Control", "no-store, private");
+    const { Readable } = await import("node:stream");
+    Readable.fromWeb(r.body as any).pipe(res);
+  } catch (err) {
+    console.error("[TELEFON] aufnahme:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -726,5 +810,60 @@ router.post("/telefon/:id/ohne-aufzeichnung", requireAgent, async (req: AgentReq
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
+
+/**
+ * POST /admin/telefon/aufnahmen-aufraeumen — der Löschlauf von Hand.
+ *
+ * Ohne `--schreiben` gibt es nur die Vorschau. Ein Lauf, der beim ersten
+ * Klick löscht, ist bei unumkehrbaren Vorgängen die falsche Voreinstellung.
+ */
+router.post("/admin/telefon/aufnahmen-aufraeumen", async (req: Request, res: Response) => {
+  try {
+    const erg = await aufnahmenAufraeumen(req.body?.schreiben !== true);
+    res.json({ ok: true, ...erg });
+  } catch (err) {
+    console.error("[TELEFON] aufraeumen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** GET /admin/telefon/frist — die Frist lesen. POST — setzen. */
+router.get("/admin/telefon/frist", async (_req: Request, res: Response) => {
+  const { aufnahmenAufraeumen: lauf } = await import("../lib/fiaon-softphone");
+  const vorschau = await lauf(true).catch(() => null);
+  res.json({ ok: true, tage: await aufnahmeFrist(), faellig: vorschau?.faellig ?? 0 });
+});
+
+router.post("/admin/telefon/frist", async (req: Request, res: Response) => {
+  const n = Number(req.body?.tage);
+  if (!Number.isFinite(n) || n < 7 || n > 365) {
+    return res.status(400).json({
+      ok: false,
+      error: "Die Frist muss zwischen 7 und 365 Tagen liegen. Unter 7 Tagen kann man keine "
+        + "Beschwerde mehr prüfen; über 365 wäre es kein Ablauf, sondern ein Archiv.",
+    });
+  }
+  await sqlPool`
+    INSERT INTO fiaon_settings (key, value) VALUES ('aufnahme_frist_tage', ${String(Math.round(n))})
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+  `;
+  res.json({ ok: true, tage: Math.round(n) });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER TAGESLAUF
+//
+// Einmal am Tag löschen, was älter als die Frist ist. Über `tageslauf()`
+// registriert — die eine Tür, die im Nicht-Produktionsbetrieb zu bleibt.
+// Ein Löschlauf, der auf einem Entwicklungsrechner gegen die Produktion
+// läuft, wäre unumkehrbarer Schaden.
+// ═══════════════════════════════════════════════════════════════════════════
+tageslauf("aufnahmen-aufraeumen", () => {
+  void aufnahmenAufraeumen(false).then((e) => {
+    if (e.geloescht > 0 || e.fehler > 0) {
+      console.log(`[TELEFON] Tageslauf: ${e.geloescht} Aufnahmen gelöscht (Frist ${e.frist} Tage), ${e.fehler} Fehler.`);
+    }
+  }).catch((err) => console.error("[TELEFON] Tageslauf Aufnahmen:", err));
+}, 24 * 60 * 60 * 1000);
 
 export default router;

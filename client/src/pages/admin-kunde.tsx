@@ -1068,17 +1068,71 @@ function AnrufeSektion({ personId }: { personId: number }) {
   const [anrufe, setAnrufe] = useState<any[] | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
 
+  const [frist, setFrist] = useState(90);
+  const [offen, setOffen] = useState<number | null>(null);
+
   const laden = useCallback(async () => {
     const r = await fetch(`/api/fiaon/telefon/person/${personId}/anrufe`, { credentials: "include" }).catch(() => null);
     const j = await r?.json().catch(() => null);
     setAnrufe(j?.ok ? j.anrufe : []);
+    if (j?.fristTage) setFrist(Number(j.fristTage));
   }, [personId]);
   useEffect(() => { void laden(); }, [laden]);
 
   if (!anrufe || anrufe.length === 0) return null;
 
+  /**
+   * Die Statuskette: aufgezeichnet → transkribiert → zusammengefasst.
+   *
+   * ── WARUM DREI PUNKTE UND NICHT EIN WORT ──────────────────────────────────
+   * Vorher stand hier entweder eine Zusammenfassung oder nichts. „Nichts"
+   * konnte dreierlei bedeuten: keine Aufnahme, Transkript läuft noch, oder
+   * die KI ist gescheitert. Drei völlig verschiedene Lagen, die drei
+   * verschiedene Handgriffe brauchen — und man sah keinen Unterschied.
+   */
+  const kette = (a: any) => {
+    if (a.ohne_aufzeichnung_am) {
+      return [{ wort: "Ohne Aufzeichnung", stand: "aus" as const,
+                hinweis: "Der Kunde hat widersprochen." }];
+    }
+    const t = String(a.transkript_status ?? "offen");
+    return [
+      {
+        wort: "aufgezeichnet",
+        stand: a.aufnahme_geloescht_am ? "aus" as const : a.hat_aufnahme ? "gut" as const : "offen" as const,
+        hinweis: a.aufnahme_geloescht_am
+          ? `Aufnahme nach ${frist} Tagen gelöscht.`
+          : a.hat_aufnahme ? null : "Noch keine Aufnahme eingegangen.",
+      },
+      {
+        wort: "transkribiert",
+        stand: t === "fertig" || a.hat_transkript ? "gut" as const
+          : t === "laeuft" ? "laeuft" as const
+          : t === "fehlgeschlagen" ? "fehler" as const
+          : t === "entfaellt" ? "aus" as const : "offen" as const,
+        hinweis: t === "fehlgeschlagen" ? String(a.transkript_grund ?? "Grund unbekannt.") : null,
+      },
+      {
+        wort: "zusammengefasst",
+        stand: a.zusammenfassung ? "gut" as const
+          : t === "fehlgeschlagen" ? "fehler" as const
+          : t === "entfaellt" ? "aus" as const
+          : t === "laeuft" ? "laeuft" as const : "offen" as const,
+        hinweis: null,
+      },
+    ];
+  };
+
+  const punkt = (stand: string) => stand === "gut" ? "#059669"
+    : stand === "fehler" ? "#b91c1c"
+    : stand === "laeuft" ? "#d97706" : "#cbd5e1";
+
   return (
-    <Section title="Anrufe — Dauer, Ergebnis, Zusammenfassung" icon={FileText}>
+    <Section title="Anrufe — Aufnahme, Transkript, Zusammenfassung" icon={FileText}>
+      <p className="text-[11.5px] text-slate-400 mb-2.5 leading-snug">
+        Aufnahmen werden nach {frist} Tagen automatisch gelöscht. Transkript und
+        Zusammenfassung bleiben — sie sind das Arbeitsergebnis, die Aufnahme ist das Rohmaterial.
+      </p>
       {anrufe.map((a) => (
         <div key={a.id} className="py-2.5" style={{ borderBottom: "1px solid #f8fafc" }}>
           <div className="flex flex-wrap items-baseline gap-x-2 text-[12.5px]">
@@ -1117,6 +1171,67 @@ function AnrufeSektion({ personId }: { personId: number }) {
                 {busy === a.id ? "läuft …" : "nachholen"}
               </button>
             </p>
+          )}
+
+          {/* ── DIE STATUSKETTE ─────────────────────────────────────────── */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
+            {kette(a).map((k, i) => (
+              <span key={k.wort} className="inline-flex items-center gap-1.5">
+                {i > 0 && <span className="text-slate-300 mr-1" aria-hidden="true">→</span>}
+                <span aria-hidden="true" style={{
+                  width: 7, height: 7, borderRadius: 999, background: punkt(k.stand),
+                  display: "inline-block", flexShrink: 0,
+                }} />
+                <span className="text-[11px] font-semibold"
+                      style={{ color: k.stand === "gut" ? "#047857"
+                        : k.stand === "fehler" ? "#b91c1c"
+                        : k.stand === "laeuft" ? "#b45309" : "#94a3b8" }}>
+                  {k.wort}
+                </span>
+              </span>
+            ))}
+            {a.hat_aufnahme && (
+              <button type="button" onClick={() => setOffen(offen === a.id ? null : a.id)}
+                      className="ml-auto text-[11.5px] font-semibold" style={{ color: "#2563eb" }}>
+                {offen === a.id ? "Player schließen" : "Aufnahme anhören"}
+              </button>
+            )}
+            {a.hat_transkript && (
+              <button type="button" onClick={() => setOffen(offen === -a.id ? null : -a.id)}
+                      className="text-[11.5px] font-semibold" style={{ color: "#2563eb" }}>
+                {offen === -a.id ? "Transkript zu" : "Transkript"}
+              </button>
+            )}
+          </div>
+          {kette(a).filter((k) => k.hinweis).map((k) => (
+            <p key={k.wort} className="text-[11px] text-slate-400 mt-1">{k.hinweis}</p>
+          ))}
+
+          {/* ── DER PLAYER ──────────────────────────────────────────────────
+              Die Quelle zeigt auf UNSERE Route, nicht auf Twilio: Die
+              Twilio-URL ist unbefristet gültig und öffnet mit den
+              Konto-Zugangsdaten die Aufnahme. Wer sie aus dem
+              Netzwerkprotokoll kopiert, könnte das Gespräch morgen noch
+              abspielen. Unsere Route prüft die Rechte und protokolliert,
+              wer zuhört. */}
+          {offen === a.id && (
+            <div className="mt-2">
+              <audio controls preload="none" className="w-full" style={{ height: 36 }}
+                     src={`/api/fiaon/telefon/${a.id}/aufnahme`}>
+                Dein Browser kann kein Audio abspielen.
+              </audio>
+              <p className="text-[10.5px] text-slate-400 mt-1">
+                Dass du diese Aufnahme angehört hast, steht im Kundenverlauf.
+              </p>
+            </div>
+          )}
+          {offen === -a.id && a.transkript && (
+            <div className="mt-2 px-3.5 py-3 rounded-xl"
+                 style={{ background: "rgba(15,23,42,.03)", maxHeight: 280, overflowY: "auto" }}>
+              <p className="text-[12px] leading-relaxed text-slate-600" style={{ whiteSpace: "pre-wrap" }}>
+                {a.transkript}
+              </p>
+            </div>
           )}
         </div>
       ))}

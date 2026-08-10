@@ -280,3 +280,108 @@ export async function offeneAnrufe(agentId: number, lauf: Lauf = sqlPool): Promi
     LIMIT 20
   `) as any[];
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUFBEWAHRUNG — eine Aufnahme braucht ein Ablaufdatum
+//
+// ── WARUM DAS NICHT AUFSCHIEBBAR IST ───────────────────────────────────────
+// Eine Gesprächsaufnahme ist die intimste Art von Kundendaten, die dieses
+// Haus speichert: eine Stimme, ein Tonfall, ein Zögern. Sie liegt bei Twilio
+// in der Cloud, und die URL dazu stand unbefristet in der Datenbank.
+//
+// Ohne Löschlauf wird das Archiv nur älter. Nach zwei Jahren liegen dort
+// zehntausend Gespräche, für die niemand eine Rechtsgrundlage benennen kann —
+// und die im Fall einer Auskunftsanfrage alle herausgegeben werden müssten.
+//
+// 90 Tage: lang genug, um ein Gespräch nachzuhören oder eine Beschwerde zu
+// prüfen; kurz genug, dass kein Archiv entsteht.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Die Frist in Tagen, aus den Einstellungen. */
+export async function aufnahmeFrist(): Promise<number> {
+  const { sqlPool } = await import("./db-pool");
+  const [r] = (await sqlPool`
+    SELECT value FROM fiaon_settings WHERE key = 'aufnahme_frist_tage'
+  `.catch(() => [] as any[])) as any[];
+  const n = Number(r?.value);
+  // Grenzen mit Absicht: 7 Tage sind das Minimum, um eine Beschwerde zu
+  // prüfen; über 365 wäre kein Ablauf mehr, sondern ein Archiv mit Verzögerung.
+  return Number.isFinite(n) && n >= 7 && n <= 365 ? Math.round(n) : 90;
+}
+
+/**
+ * Der Löschlauf.
+ *
+ * ── IDEMPOTENT UND PROTOKOLLIERT ───────────────────────────────────────────
+ * Zweimal am selben Tag gestartet passiert beim zweiten Mal nichts: Der
+ * Vermerk `aufnahme_geloescht_am` schließt die Zeile aus. Das ist wichtig,
+ * weil ein Tageslauf bei einem Neustart doppelt anlaufen kann.
+ *
+ * Die Aufnahme wird bei TWILIO gelöscht, nicht nur die URL vergessen. Eine
+ * vergessene URL ist keine Löschung — die Datei liegt weiter in der Cloud.
+ *
+ * Transkript und Zusammenfassung BLEIBEN. Sie sind das Arbeitsergebnis, das
+ * in der Akte steht; die Aufnahme ist das Rohmaterial. Wer beides löscht,
+ * verliert die Nachvollziehbarkeit der eigenen Notizen.
+ */
+export async function aufnahmenAufraeumen(nurZeigen = false): Promise<{
+  frist: number; faellig: number; geloescht: number; fehler: number; hinweise: string[];
+}> {
+  const { sqlPool } = await import("./db-pool");
+  const frist = await aufnahmeFrist();
+  const hinweise: string[] = [];
+
+  const faellig = (await sqlPool`
+    SELECT id, recording_sid, beginn FROM fiaon_calls
+    WHERE recording_url IS NOT NULL
+      AND aufnahme_geloescht_am IS NULL
+      AND beginn < NOW() - (${frist} || ' days')::interval
+    ORDER BY beginn
+    LIMIT 500
+  `) as any[];
+
+  if (nurZeigen) {
+    return { frist, faellig: faellig.length, geloescht: 0, fehler: 0,
+      hinweise: [`${faellig.length} Aufnahmen älter als ${frist} Tage. Nichts gelöscht (Vorschau).`] };
+  }
+
+  const sid = process.env.TWILIO_ACCOUNT_SID || "";
+  const tok = process.env.TWILIO_AUTH_TOKEN || "";
+  let geloescht = 0;
+  let fehler = 0;
+
+  for (const c of faellig) {
+    let weg = false;
+    if (c.recording_sid && sid && tok) {
+      const r = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${sid}/Recordings/${c.recording_sid}.json`,
+        {
+          method: "DELETE",
+          headers: { Authorization: "Basic " + Buffer.from(`${sid}:${tok}`).toString("base64") },
+          signal: AbortSignal.timeout(15_000),
+        },
+      ).catch(() => null);
+      // 404 zählt als Erfolg: Die Aufnahme ist weg, egal wer sie entfernt hat.
+      weg = !!r && (r.status === 204 || r.status === 404);
+      if (!weg) {
+        fehler++;
+        hinweise.push(`Anruf ${c.id}: Twilio antwortete mit HTTP ${r?.status ?? "nichts"}.`);
+        // NICHT als gelöscht vermerken — sonst gilt eine Aufnahme als weg,
+        // die noch in der Cloud liegt. Der nächste Lauf versucht es erneut.
+        continue;
+      }
+    }
+    await sqlPool`
+      UPDATE fiaon_calls
+      SET aufnahme_geloescht_am = NOW(), recording_url = NULL, updated_at = NOW()
+      WHERE id = ${c.id}
+    `;
+    geloescht++;
+  }
+
+  if (geloescht > 0 || fehler > 0) {
+    console.log(`[TELEFON] Löschlauf: ${geloescht} Aufnahmen entfernt, ${fehler} Fehler (Frist ${frist} Tage).`);
+  }
+  return { frist, faellig: faellig.length, geloescht, fehler, hinweise };
+}

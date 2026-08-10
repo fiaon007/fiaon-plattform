@@ -107,6 +107,75 @@ router.post("/agent/zugang/:ref/freischalten", requireAgent, nurRettung, async (
   }
 });
 
+/**
+ * GET /agent/zugang/:ref/stand — die Zugangs-Diagnose.
+ *
+ * ── WARUM DAS DIE ERSTE FRAGE IST ──────────────────────────────────────────
+ * Der häufigste Anruf lautet „ich komme nicht rein". Dahinter stecken vier
+ * völlig verschiedene Lagen: kein Konto angelegt, Konto angelegt aber nie
+ * bestätigt, Passwort vergessen, oder gesperrt. Jede braucht einen anderen
+ * Handgriff — und ohne Diagnose rät die Leitung und probiert alle drei
+ * Knöpfe durch.
+ */
+router.get("/agent/zugang/:ref/stand", requireAgent, nurRettung, async (req: AgentRequest, res: Response) => {
+  try {
+    const ref = String(req.params.ref);
+    const [a] = (await sqlPool`
+      SELECT a.ref, a.person_id, a.account_status, a.payment_status,
+             COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,'')) AS email,
+             -- Die Spalte heisst „password", nicht „password_hash" — nachgesehen
+             -- mit information_schema, nicht geraten. Die erste Fassung warf
+             -- HTTP 500, und der Grund stand nur in der Serverkonsole.
+             -- (Und dann standen hier Backticks im SQL-Kommentar: Sie beenden
+             -- das Template-Literal, und der Serverstart hing still. Vierter
+             -- Fall desselben Fehlers — AGENTS.md warnt davor.)
+             (NULLIF(a.password, '') IS NOT NULL) AS hat_passwort,
+             (a.einmal_passwort_bis IS NOT NULL AND a.einmal_passwort_bis > NOW()) AS einmal_offen,
+             a.passwort_wechsel_noetig,
+             a.gdpr_deleted_at
+      FROM fiaon_applications a WHERE a.ref = ${ref}
+    `) as any[];
+    if (!a) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden." });
+    if (a.gdpr_deleted_at) {
+      return res.json({ ok: true, konto: { status: "gelöscht" },
+        hinweis: "Diese Bestellung wurde nach DSGVO gelöscht. Ein Zugang ist nicht möglich." });
+    }
+
+    // Der Befund in Klartext, mit dem passenden Handgriff dahinter.
+    const status = String(a.account_status || "");
+    const hinweis = a.einmal_offen
+      ? "Es läuft noch ein Einmal-Passwort. Der Kunde kann sich damit anmelden und muss "
+        + "danach ein eigenes setzen — kein neues erzeugen, sondern das alte vorlesen."
+      : !a.email
+      ? "Es ist KEINE E-Mail-Adresse hinterlegt. Ohne Adresse gibt es keinen Zugang — "
+        + "zuerst unter Stammdaten eine eintragen."
+      : !a.hat_passwort
+        ? "Der Kunde hat nie ein Passwort gesetzt. Richtiger Weg: Setz-Link schicken."
+        : status === "blocked" || status === "gesperrt"
+          ? "Das Konto ist gesperrt. Richtiger Weg: Zugang freischalten."
+          : status === "pending"
+            ? "Das Konto ist angelegt, aber nicht bestätigt. Richtiger Weg: Zugang freischalten."
+            : "Konto und Passwort sind vorhanden. Wenn der Kunde trotzdem nicht hineinkommt, "
+              + "ist es das Passwort — Setz-Link schicken oder am Telefon ein Einmal-Passwort.";
+
+    res.json({
+      ok: true,
+      konto: {
+        status: status || "aktiv",
+        email: a.email ?? null,
+        hatPasswort: !!a.hat_passwort,
+        einmalOffen: !!a.einmal_offen,
+        wechselNoetig: !!a.passwort_wechsel_noetig,
+        zahlung: a.payment_status ?? null,
+      },
+      hinweis,
+    });
+  } catch (err) {
+    console.error("[ZUGANG] stand:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ÖFFENTLICH — der Kunde löst den Link ein
 // ═══════════════════════════════════════════════════════════════════════════

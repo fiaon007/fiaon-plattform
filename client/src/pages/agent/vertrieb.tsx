@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { anrufStarten } from "@/components/Softphone";
 import { AgentShell } from "./shared";
 import { Reveal } from "./motion";
 import { Skelett, eur, useReduzierteBewegung, useToast } from "@/lib/fiaon-ui";
@@ -620,7 +621,14 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
   // „Lage" steht zuerst: Wenn ein Agent anruft, lautet die Frage fast immer
   // „ist das Geld da / was fehlt / warum kommt er nicht rein" — und nicht
   // „wie ist die Straße geschrieben".
-  const [reiter, setReiter] = useState<"lage" | "stammdaten" | "verlauf" | "zuweisungen">("lage");
+  const [reiter, setReiter] = useState<
+    "lage" | "zugang" | "zahlung" | "verwaltung" | "stammdaten" | "verlauf" | "zuweisungen"
+  >("lage");
+  // Ein Grund ist Pflicht bei allem, was Zugang verschafft oder Geld bewegt.
+  const [grund, setGrund] = useState("");
+  const [einmalPasswort, setEinmalPasswort] = useState<{ pw: string; bis: string } | null>(null);
+  const [loeschFrage, setLoeschFrage] = useState(false);
+  const [zugangStand, setZugangStand] = useState<any>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const p = daten.person;
 
@@ -669,6 +677,66 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
     else zeige("fehler", "Nicht möglich", r.json?.error || "");
   };
 
+  /**
+   * Die Aktionen der Leitung.
+   *
+   * ── EINGEBETTET, NICHT NEU GEBAUT ─────────────────────────────────────────
+   * Jede dieser Routen existiert seit Wochen und wird an anderer Stelle
+   * benutzt. Sie hier nachzubauen hieße, zwei Wege zum selben Ziel zu
+   * pflegen — und beim nächsten „die Löschung braucht noch einen Grund"
+   * einen davon zu vergessen.
+   *
+   * Die Rechte prüft in jedem Fall der SERVER. Was diese Oberfläche tut, ist
+   * anbieten; was erlaubt ist, entscheidet die Route.
+   */
+  const zugangPruefen = async () => {
+    setBusy(true);
+    const r = await api(`/agent/zugang/${p.ref}/stand`).catch(() => null as any);
+    setBusy(false);
+    setZugangStand(r?.ok ? r.json : { fehler: r?.json?.error || "Diagnose nicht verfügbar." });
+  };
+
+  const setzLink = async () => {
+    if (grund.trim().length < 5) { zeige("fehler", "Grund fehlt", "Bitte in einem Satz begründen."); return; }
+    setBusy(true);
+    const r = await api(`/agent/zugang/${p.ref}/setz-link`, { method: "POST", body: JSON.stringify({ grund }) });
+    setBusy(false);
+    if (r.ok) { zeige("erfolg", "Setz-Link verschickt", r.json.hinweis); setGrund(""); onGeaendert(); }
+    else zeige("fehler", "Nicht verschickt", r.json?.error || "");
+  };
+
+  const einmalPw = async () => {
+    if (grund.trim().length < 5) { zeige("fehler", "Grund fehlt", "Bitte in einem Satz begründen."); return; }
+    setBusy(true);
+    const r = await api(`/agent/zugang/${p.ref}/einmal-passwort`, { method: "POST", body: JSON.stringify({ grund }) });
+    setBusy(false);
+    if (r.ok) {
+      // EINMAL sichtbar: Es wird bewusst nicht in den Zustand geschrieben, der
+      // beim Neuladen zurückkommt. Wer es wegklickt, muss ein neues erzeugen.
+      setEinmalPasswort({ pw: r.json.passwort, bis: r.json.gueltigBis });
+      setGrund("");
+    } else zeige("fehler", "Nicht erzeugt", r.json?.error || "");
+  };
+
+  const freischalten = async () => {
+    if (grund.trim().length < 5) { zeige("fehler", "Grund fehlt", "Bitte in einem Satz begründen."); return; }
+    setBusy(true);
+    const r = await api(`/agent/zugang/${p.ref}/freischalten`, { method: "POST", body: JSON.stringify({ grund }) });
+    setBusy(false);
+    if (r.ok) { zeige("erfolg", "Freigeschaltet", r.json.meldung); setGrund(""); onGeaendert(); }
+    else zeige("fehler", "Nicht möglich", r.json?.error || "");
+  };
+
+  const zahlungBuchen = async () => {
+    if (grund.trim().length < 5) { zeige("fehler", "Beleg fehlt", "Bitte notieren, woher du weißt, dass gezahlt wurde."); return; }
+    setBusy(true);
+    const r = await api(`/agent/vertrieb/person/${p.personId}/zahlung-gebucht`,
+      { method: "POST", body: JSON.stringify({ grund }) });
+    setBusy(false);
+    if (r.ok) { zeige("erfolg", "Gebucht", r.json.meldung ?? "Die Zahlung ist vermerkt."); setGrund(""); onGeaendert(); }
+    else zeige("fehler", "Nicht gebucht", r.json?.error || "");
+  };
+
   const zahlungsdaten = async () => {
     setBusy(true);
     const r = await api(`/agent/vertrieb/person/${p.personId}/zahlungsdaten`, { method: "POST", body: JSON.stringify({}) });
@@ -699,13 +767,27 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
             </button>
           </div>
 
-          {/* Schnellaktionen */}
+          {/* ── KOPFAKTIONEN ────────────────────────────────────────────────
+              „Anrufen" öffnet das Softphone MIT Kundenkontext, nicht die
+              Telefon-App des Rechners: Nur so landet das Gespräch mit Aufnahme,
+              Transkript und Ergebnis in der Akte. Ein `tel:`-Verweis öffnet
+              irgendein Programm und hinterlässt keine Spur. */}
           <div className="px-5 pt-3.5 flex flex-wrap items-center gap-2">
             {p.telefonWaehlbar && (
-              <a href={`tel:${p.telefonWaehlbar}`} className="fi-primaerknopf inline-flex items-center gap-2 px-3.5 py-2 text-[12.5px] font-semibold text-white">
+              <button type="button"
+                      onClick={() => {
+                        anrufStarten(p.telefonWaehlbar, p.personId, p.name);
+                        onSchliessen();
+                      }}
+                      className="fi-primaerknopf inline-flex items-center gap-2 px-3.5 py-2 text-[12.5px] font-semibold text-white">
                 <ZeichenTelefon size={14} /> Anrufen
-              </a>
+              </button>
             )}
+            <button type="button"
+                    onClick={() => { window.open(`/agent/gespraech/${p.personId}`, "_blank", "noopener"); }}
+                    className="fi-zweitknopf px-3 py-2 text-[12.5px] font-semibold">
+              Gesprächsblatt
+            </button>
             <button type="button" onClick={() => void zahlungsdaten()} disabled={busy}
                     className="fi-sendeknopf inline-flex items-center gap-2 px-3.5 py-2 text-[12.5px] font-semibold">
               <ZeichenSenden size={14} /> Zahlungsdaten
@@ -718,7 +800,10 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
 
           {/* Reiter */}
           <div className="px-5 mt-3.5 flex items-center gap-1.5">
-            {([["lage", "Lage"], ["stammdaten", "Stammdaten"], ["verlauf", `Verlauf (${daten.verlauf?.length || 0})`], ["zuweisungen", "Zuweisungen"]] as const).map(([k, l]) => (
+            {([["lage", "Lage"], ["zugang", "Zugang"], ["zahlung", "Zahlung"],
+               ["verwaltung", "Verwaltung"], ["stammdaten", "Stammdaten"],
+               ["verlauf", `Verlauf (${daten.verlauf?.length || 0})`],
+               ["zuweisungen", "Zuweisungen"]] as const).map(([k, l]) => (
               <button key={k} type="button" onClick={() => setReiter(k)}
                       className="px-3 py-1.5 rounded-xl text-[12.5px] font-semibold"
                       style={reiter === k
@@ -731,6 +816,229 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
 
           <div className="px-5 py-4">
             {reiter === "lage" && <LageTafel personId={Number(daten.personId)} />}
+
+            {/* ══════════════════════════════════════════════════════════════
+                ZUGANG
+                Der häufigste Anruf der Leitung ist „ich komme nicht rein".
+                Drei Wege, gestuft: Der Setz-Link ist der normale (der Kunde
+                wählt selbst), das Einmal-Passwort der für das Telefonat, die
+                Freischaltung der für ein gesperrtes Konto.
+                ══════════════════════════════════════════════════════════════ */}
+            {reiter === "zugang" && (
+              <div className="space-y-3">
+                <button type="button" onClick={() => void zugangPruefen()} disabled={busy}
+                        className="fi-zweitknopf px-3.5 py-2 text-[12.5px] font-semibold">
+                  {busy ? "Prüft …" : "Zugang prüfen"}
+                </button>
+                {zugangStand && (
+                  <div className="px-3.5 py-3 rounded-xl text-[12.5px] leading-relaxed"
+                       style={{ background: "rgba(15,23,42,.035)" }}>
+                    {zugangStand.fehler
+                      ? <span style={{ color: "#b45309" }}>{zugangStand.fehler}</span>
+                      : (
+                        <>
+                          <p><b>Konto:</b> {zugangStand.konto?.status ?? "unbekannt"}</p>
+                          {zugangStand.konto?.email && <p><b>Adresse:</b> {zugangStand.konto.email}</p>}
+                          {zugangStand.hinweis && (
+                            <p className="mt-1" style={{ color: "var(--fi-text-still)" }}>{zugangStand.hinweis}</p>
+                          )}
+                        </>
+                      )}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-[.08em] mb-1.5"
+                         style={{ color: "var(--fi-text-still)" }}>
+                    Grund (Pflicht — steht im Protokoll)
+                  </label>
+                  <input value={grund} onChange={(e) => setGrund(e.target.value)}
+                         placeholder="z. B. Kunde am Telefon, Passwort vergessen"
+                         className="w-full rounded-xl px-3.5 py-2.5 text-[13px] outline-none"
+                         style={{ border: "1px solid var(--fi-linie)", background: "var(--fi-seite)" }} />
+                </div>
+
+                {([
+                  ["Setz-Link schicken", setzLink,
+                   "Der Kunde bekommt eine Mail und wählt sein Passwort selbst. Der normale Weg."],
+                  ["Einmal-Passwort erzeugen", einmalPw,
+                   "Für das Telefonat: einmal sichtbar, 24 Stunden gültig, der Kunde muss danach ein eigenes setzen."],
+                  ["Zugang freischalten", freischalten,
+                   "Nur bei einem gesperrten oder nicht bestätigten Konto."],
+                ] as const).map(([t, fn, erklaerung]) => (
+                  <div key={t} className="px-3.5 py-3 rounded-xl"
+                       style={{ boxShadow: "inset 0 0 0 1px var(--fi-linie)" }}>
+                    <button type="button" onClick={() => void fn()} disabled={busy || grund.trim().length < 5}
+                            className="fi-primaerknopf px-3.5 py-2 text-[12.5px] font-semibold text-white disabled:opacity-40">
+                      {t}
+                    </button>
+                    <p className="text-[11.5px] mt-1.5 leading-snug" style={{ color: "var(--fi-text-still)" }}>
+                      {erklaerung}
+                    </p>
+                  </div>
+                ))}
+
+                {/* Das Passwort steht EINMAL da. Bewusst nicht im Zustand, der
+                    beim Neuladen zurückkommt — wer es wegklickt, erzeugt ein
+                    neues. Ein Passwort, das man wiederfinden kann, ist keins. */}
+                {einmalPasswort && (
+                  <div className="px-3.5 py-3 rounded-xl"
+                       style={{ background: "rgba(5,150,105,.07)", boxShadow: "inset 0 0 0 1px rgba(5,150,105,.22)" }}>
+                    <p className="text-[11px] font-bold uppercase tracking-[.1em]" style={{ color: "#047857" }}>
+                      Jetzt aufschreiben oder vorlesen
+                    </p>
+                    <p className="text-[20px] font-bold font-mono mt-1" style={{ color: "#047857" }}>
+                      {einmalPasswort.pw}
+                    </p>
+                    <p className="text-[11.5px] mt-1" style={{ color: "#065f46" }}>
+                      Gültig bis {new Date(einmalPasswort.bis).toLocaleString("de-DE", {
+                        day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                        timeZone: "Europe/Berlin",
+                      })}. Es wird nicht wieder angezeigt.
+                    </p>
+                    <button type="button" onClick={() => setEinmalPasswort(null)}
+                            className="mt-2 text-[11.5px] font-semibold" style={{ color: "#047857" }}>
+                      Gemerkt, ausblenden
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════
+                ZAHLUNG
+                „Als bezahlt buchen" ist die Aktion mit den größten Folgen:
+                Sie schaltet Leistungen frei und erzeugt Provisionen. Deshalb
+                ein Beleg-Feld statt eines Häkchens.
+                ══════════════════════════════════════════════════════════════ */}
+            {reiter === "zahlung" && (
+              <div className="space-y-3">
+                <div className="px-3.5 py-3 rounded-xl text-[12.5px] leading-relaxed"
+                     style={{ background: "rgba(15,23,42,.035)" }}>
+                  <p><b>Stand:</b> {p.zahlungStatus ?? "unbekannt"}</p>
+                  {p.betragCents != null && (
+                    <p><b>Betrag:</b> {(Number(p.betragCents) / 100).toFixed(2).replace(".", ",")} €</p>
+                  )}
+                  {p.ref && <p><b>Referenz:</b> <span className="font-mono">{p.ref}</span></p>}
+                </div>
+
+                <button type="button" onClick={() => void zahlungsdaten()} disabled={busy}
+                        className="fi-sendeknopf inline-flex items-center gap-2 px-3.5 py-2 text-[12.5px] font-semibold">
+                  <ZeichenSenden size={14} /> Zahlungsdaten erneut schicken
+                </button>
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-[.08em] mb-1.5"
+                         style={{ color: "var(--fi-text-still)" }}>
+                    Beleg (Pflicht)
+                  </label>
+                  <input value={grund} onChange={(e) => setGrund(e.target.value)}
+                         placeholder="z. B. Überweisung am 09.08. im Kontoauszug gesehen"
+                         className="w-full rounded-xl px-3.5 py-2.5 text-[13px] outline-none"
+                         style={{ border: "1px solid var(--fi-linie)", background: "var(--fi-seite)" }} />
+                  <p className="text-[11.5px] mt-1.5 leading-snug" style={{ color: "var(--fi-text-still)" }}>
+                    Woher weißt du, dass gezahlt wurde? Der Satz steht dauerhaft am Kunden — er
+                    ist der Beleg, wenn später jemand fragt.
+                  </p>
+                </div>
+                <button type="button" onClick={() => void zahlungBuchen()}
+                        disabled={busy || grund.trim().length < 5}
+                        className="fi-primaerknopf px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-40">
+                  Als bezahlt buchen
+                </button>
+              </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════
+                VERWALTUNG
+                Sperren, umhängen, löschen. Die Löschung ist die einzige
+                unumkehrbare Aktion in dieser Schublade — deshalb steht sie
+                unten, hinter einer Rückfrage in Klartext, und die
+                Massenlöschung bleibt dem Vorgesetzten.
+                ══════════════════════════════════════════════════════════════ */}
+            {reiter === "verwaltung" && (
+              <div className="space-y-3">
+                <div className="px-3.5 py-3 rounded-xl" style={{ boxShadow: "inset 0 0 0 1px var(--fi-linie)" }}>
+                  <button type="button" onClick={() => void sperre(!p.gesperrt)} disabled={busy}
+                          className="fi-zweitknopf px-3.5 py-2 text-[12.5px] font-semibold">
+                    {p.gesperrt ? "Sperre aufheben" : "Kunde sperren"}
+                  </button>
+                  <p className="text-[11.5px] mt-1.5 leading-snug" style={{ color: "var(--fi-text-still)" }}>
+                    Ein gesperrter Kunde erscheint in keiner Arbeitsliste mehr und bekommt keine
+                    automatischen Mails. Die Akte bleibt.
+                  </p>
+                </div>
+
+                <div className="px-3.5 py-3 rounded-xl" style={{ boxShadow: "inset 0 0 0 1px var(--fi-linie)" }}>
+                  <button type="button" onClick={() => setReiter("zuweisungen")}
+                          className="fi-zweitknopf px-3.5 py-2 text-[12.5px] font-semibold">
+                    Zuständigkeit ändern
+                  </button>
+                  <p className="text-[11.5px] mt-1.5 leading-snug" style={{ color: "var(--fi-text-still)" }}>
+                    Jede Umhängung wird mit vorherigem und neuem Zuständigen protokolliert.
+                  </p>
+                </div>
+
+                {/* ── LÖSCHUNG ────────────────────────────────────────────── */}
+                <div className="px-3.5 py-3 rounded-xl"
+                     style={{ background: "rgba(185,28,28,.04)", boxShadow: "inset 0 0 0 1px rgba(185,28,28,.16)" }}>
+                  {!loeschFrage ? (
+                    <>
+                      <button type="button" onClick={() => setLoeschFrage(true)}
+                              className="fi-knopf-gefahr px-3.5 text-[12.5px]">
+                        Kunde löschen
+                      </button>
+                      <p className="text-[11.5px] mt-1.5 leading-snug" style={{ color: "#7f1d1d" }}>
+                        Nach den DSGVO-Regeln: Die Person wird anonymisiert, Bestellungen und
+                        Zahlungen bleiben als Zahlen erhalten. Nicht umkehrbar.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[13px] font-bold" style={{ color: "#b91c1c" }}>
+                        {p.name} wirklich löschen?
+                      </p>
+                      <p className="text-[12.5px] mt-1 leading-relaxed" style={{ color: "#7f1d1d" }}>
+                        Name, Adresse, Telefon und E-Mail werden unwiderruflich anonymisiert.
+                        Bestellungen, Zahlungen und Provisionen bleiben als Zahlen bestehen —
+                        die Buchhaltung darf nicht Löcher bekommen. Der Vorgang steht mit deinem
+                        Namen im Aktivitäts-Protokoll.
+                      </p>
+                      <input value={grund} onChange={(e) => setGrund(e.target.value)}
+                             placeholder="Grund (Pflicht): z. B. Löschantrag des Kunden vom 09.08."
+                             className="w-full mt-2.5 rounded-xl px-3.5 py-2.5 text-[13px] outline-none"
+                             style={{ border: "1px solid rgba(185,28,28,.3)", background: "#fff" }} />
+                      <div className="flex items-center gap-2 mt-2.5">
+                        <button type="button" onClick={() => { setLoeschFrage(false); setGrund(""); }}
+                                className="text-[12.5px] font-semibold" style={{ color: "var(--fi-text-still)" }}>
+                          Behalten
+                        </button>
+                        <button type="button"
+                                onClick={async () => {
+                                  if (grund.trim().length < 8) {
+                                    zeige("fehler", "Grund fehlt", "Bei einer Löschung braucht es einen vollständigen Satz.");
+                                    return;
+                                  }
+                                  setBusy(true);
+                                  const r = await api(`/agent/vertrieb/person/${p.personId}/loeschen`,
+                                    { method: "POST", body: JSON.stringify({ grund }) });
+                                  setBusy(false);
+                                  if (r.ok) {
+                                    zeige("erfolg", "Gelöscht", r.json.meldung ?? "Die Person ist anonymisiert.");
+                                    onGeaendert(); onSchliessen();
+                                  } else zeige("fehler", "Nicht gelöscht", r.json?.error || "");
+                                }}
+                                disabled={busy || grund.trim().length < 8}
+                                className="ml-auto fi-knopf-gefahr fi-knopf-gefahr-voll px-4 disabled:opacity-40"
+                                style={{ minHeight: 38, fontSize: 12.5 }}>
+                          Endgültig löschen
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
             {reiter === "stammdaten" && (
               <>

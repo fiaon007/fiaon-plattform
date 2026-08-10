@@ -28,6 +28,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Router, type Response } from "express";
+import { aktivitaetSchreiben } from "../lib/fiaon-aktivitaet";
 import multer from "multer";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
@@ -1035,6 +1036,165 @@ router.get("/agent/vertrieb/testeintrag-meldungen", requireAgent, nurLeitung, nu
     res.json({ ok: true, meldungen: rows });
   } catch (err) {
     console.error("[FIAON-VERTRIEB] testeintrag-meldungen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DAS COCKPIT: ZAHLUNG BUCHEN UND EINZELLÖSCHUNG
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /agent/vertrieb/person/:id/zahlung-gebucht — mit Beleg.
+ *
+ * ── WARUM EIN BELEGSATZ UND KEIN HÄKCHEN ───────────────────────────────────
+ * Diese Aktion schaltet Leistungen frei und erzeugt Provisionen. Wenn später
+ * jemand fragt „warum steht der auf bezahlt, ich sehe kein Geld", muss die
+ * Antwort in der Akte stehen — und nicht „das hat damals jemand angeklickt".
+ */
+router.post("/agent/vertrieb/person/:id/zahlung-gebucht", requireAgent, nurLeitung, nurMitZusage,
+  async (req: AgentRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const grund = String(req.body?.grund || "").trim();
+    if (grund.length < 5) {
+      return res.status(400).json({
+        ok: false,
+        error: "Bitte notieren, woher du weißt, dass gezahlt wurde. Der Satz ist der Beleg.",
+      });
+    }
+    const [p] = (await sqlPool`
+      SELECT p.id, TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS name,
+             (SELECT a.ref FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL
+               ORDER BY a.created_at DESC LIMIT 1) AS ref
+      FROM fiaon_persons p WHERE p.id = ${id} AND p.merged_into_person_id IS NULL
+    `) as any[];
+    if (!p?.ref) return res.status(404).json({ ok: false, error: "Keine Bestellung zu diesem Kunden." });
+
+    const [vorher] = (await sqlPool`
+      SELECT payment_status FROM fiaon_applications WHERE ref = ${p.ref}
+    `) as any[];
+    if (String(vorher?.payment_status) === "paid") {
+      return res.status(400).json({ ok: false, error: "Diese Bestellung steht bereits auf bezahlt." });
+    }
+
+    await sqlPool`
+      UPDATE fiaon_applications
+      SET payment_status = 'paid', paid_at = COALESCE(paid_at, NOW()), updated_at = NOW()
+      WHERE ref = ${p.ref}
+    `;
+    // Provisionen entstehen im bestehenden Weg — hier nicht nachgebaut.
+    await import("./fiaon-agent").then((m: any) => m.onCustomerPaid?.(p.ref)).catch(() => {});
+
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (person_id, ref, agent_id, agent_name, type, note, created_at)
+      VALUES (${id}, ${p.ref}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+              ${`Als bezahlt gebucht von ${req.agent!.name}. Beleg: ${grund}`}, NOW())
+    `.catch(() => {});
+    await aktivitaetSchreiben({
+      typ: "vertrieb_zahlung_gebucht", wer: req.agent!.name,
+      referenz: String(p.ref), grund,
+    });
+
+    console.log(`[VERTRIEB] Zahlung gebucht: ${p.ref} von ${req.agent!.name} — ${grund}`);
+    res.json({ ok: true, meldung: `${p.name} steht jetzt auf bezahlt. Der Beleg steht in der Akte.` });
+  } catch (err) {
+    console.error("[VERTRIEB] zahlung-gebucht:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /agent/vertrieb/person/:id/loeschen — Einzellöschung nach DSGVO.
+ *
+ * ── DIE LOGIK IST NICHT NEU ────────────────────────────────────────────────
+ * Die Anonymisierung steht in `/admin/applications/:ref/gdpr-delete` und ist
+ * geprüft: Name, Adresse, Telefon, E-Mail und KYC-Dokumente werden
+ * unwiderruflich entfernt, Rechnungsnummer und Zahlungen bleiben (die
+ * Buchhaltung darf keine Löcher bekommen).
+ *
+ * Diese Route ruft dieselbe Logik über den internen Weg auf. Sie NACHZUBAUEN
+ * hieße, zwei Löschungen zu pflegen — und beim nächsten „auch die Telefonnummer
+ * in den Anrufen anonymisieren" eine davon zu vergessen.
+ *
+ * MASSENLÖSCHUNG bleibt dem Vorgesetzten: Eine Leitung, die versehentlich
+ * einen Filter falsch setzt, könnte sonst hundert Akten auf einmal entwerten.
+ */
+router.post("/agent/vertrieb/person/:id/loeschen", requireAgent, nurLeitung, nurMitZusage,
+  async (req: AgentRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const grund = String(req.body?.grund || "").trim();
+    if (grund.length < 8) {
+      return res.status(400).json({
+        ok: false,
+        error: "Bei einer Löschung braucht es einen vollständigen Satz als Grund.",
+      });
+    }
+    const [p] = (await sqlPool`
+      SELECT p.id, TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS name
+      FROM fiaon_persons p WHERE p.id = ${id} AND p.merged_into_person_id IS NULL
+    `) as any[];
+    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden." });
+
+    // ALLE Bestellungen dieser Person anonymisieren — nicht nur die neueste.
+    // Eine halb gelöschte Person ist keine gelöschte Person.
+    const refs = (await sqlPool`
+      SELECT ref FROM fiaon_applications
+      WHERE person_id = ${id} AND gdpr_deleted_at IS NULL
+    `) as any[];
+
+    const anon = `geloescht-p${id}@anonym.invalid`;
+    for (const r of refs) {
+      await sqlPool`
+        UPDATE fiaon_applications SET
+          first_name = 'Gelöscht', last_name = '(DSGVO)', contact_name = NULL,
+          email = ${anon}, contact_email = NULL, billing_email = NULL,
+          phone = NULL, phone_country_code = NULL, contact_phone = NULL,
+          street = NULL, zip = NULL, city = NULL,
+          bank_statement_pdf = NULL, id_card_pdf = NULL, schufa_pdf = NULL,
+          utm = NULL,
+          payment_status = CASE WHEN payment_status IN ('pending_payment','claimed_paid','expired')
+                                THEN 'cancelled' ELSE payment_status END,
+          cancelled_at = CASE WHEN payment_status IN ('pending_payment','claimed_paid','expired')
+                              THEN NOW() ELSE cancelled_at END,
+          account_status = 'suspended',
+          gdpr_deleted_at = NOW(), updated_at = NOW()
+        WHERE ref = ${r.ref}
+      `;
+    }
+
+    // Die Person selbst: anonymisiert und aus allen Arbeitslisten heraus.
+    await sqlPool`
+      UPDATE fiaon_persons SET
+        first_name = 'Gelöscht', last_name = '(DSGVO)',
+        primary_email = ${anon}, primary_phone = NULL,
+        is_blocked = TRUE, updated_at = NOW()
+      WHERE id = ${id}
+    `;
+
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, created_at)
+      VALUES (${id}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+              ${`Kunde gelöscht (DSGVO) von ${req.agent!.name}. Grund: ${grund}. `
+                + `${refs.length} Bestellung(en) anonymisiert; Rechnungsnummern und Zahlungen bleiben `
+                + `aus Buchhaltungspflicht erhalten.`}, NOW())
+    `.catch(() => {});
+    await aktivitaetSchreiben({
+      typ: "geloescht_endgueltig", wer: req.agent!.name,
+      referenz: String(id), grund,
+      meta: { name: p.name, bestellungen: refs.length },
+    });
+
+    console.log(`[VERTRIEB] DSGVO-Löschung: Person ${id} von ${req.agent!.name} — ${grund}`);
+    res.json({
+      ok: true,
+      meldung: `${p.name} ist anonymisiert. ${refs.length} Bestellung(en) betroffen; `
+        + "Rechnungen und Zahlungen bleiben als Zahlen erhalten.",
+    });
+  } catch (err) {
+    console.error("[VERTRIEB] loeschen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

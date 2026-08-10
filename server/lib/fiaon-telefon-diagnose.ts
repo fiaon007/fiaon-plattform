@@ -426,6 +426,53 @@ export async function telefonDiagnose(): Promise<{
     });
   }
 
+  // ── 10. WAS IM BROWSER GEWORFEN WURDE ───────────────────────────────────
+  // Der Ort, in den ich aus der Ferne nie hineinsehen konnte. Im Panel stand
+  // „der Fehler nennt keinen Grund" — hier steht das Objekt.
+  try {
+    const { sqlPool } = await import("./db-pool");
+    const [b] = (await sqlPool`
+      SELECT value FROM fiaon_settings WHERE key = 'telefon_letzter_browserfehler'
+    `.catch(() => [] as any[])) as any[];
+    if (!b?.value) {
+      s.push({
+        nr: 10, titel: "Letzter Fehler im Browser", stand: "offen",
+        befund: "Seit dem Einbau der Meldung ist im Browser kein Fehler aufgetreten.",
+      });
+    } else {
+      const f = JSON.parse(String(b.value));
+      const wann = new Intl.DateTimeFormat("de-DE", {
+        timeZone: "Europe/Berlin", dateStyle: "short", timeStyle: "short",
+      }).format(new Date(f.am));
+      const istMikrofon = /NotAllowedError|PermissionDenied|NotFoundError|NotReadableError/.test(
+        `${f.name ?? ""} ${f.message ?? ""}`);
+      s.push({
+        nr: 10,
+        titel: "Letzter Fehler im Browser",
+        stand: "fehler",
+        befund: `${wann}, ${f.agent}, bei „${f.wo}“: `
+          + `${f.name ?? "ohne Name"}${f.code ? ` (Code ${f.code})` : ""}`
+          + `${f.message ? ` — ${f.message}` : ""}`
+          + `${f.description ? ` · ${f.description}` : ""}`
+          + `\nBrowser: ${f.browser}`
+          + `\nRohfassung: ${f.roh}`,
+        rat: istMikrofon
+          ? "Das ist ein MIKROFONRECHT, kein Telefonfehler. Im Browser links in der Adresszeile "
+            + "auf das Schloss (am iPhone auf „aA“) und das Mikrofon erlauben, dann die Seite neu laden."
+          : /iPhone|iPad/.test(String(f.browser))
+            ? "Auf iPhone und iPad braucht das Telefon Safari, eine https-Verbindung und ein "
+              + "erteiltes Mikrofonrecht. Andere Browser auf iOS können kein WebRTC-Audio."
+            : "Die Rohfassung nennt, was geworfen wurde. Wenn sie leer ist, hat das SDK ein "
+              + "leeres Objekt geworfen — dann ist fast immer das Mikrofonrecht die Ursache.",
+      });
+    }
+  } catch (e) {
+    s.push({
+      nr: 10, titel: "Letzter Fehler im Browser", stand: "warnung",
+      befund: `Konnte nicht gelesen werden: ${e instanceof Error ? e.message : String(e)}`,
+    });
+  }
+
   const fehlerhaft = s.filter((x) => x.stand === "fehler");
   return {
     schritte: s,

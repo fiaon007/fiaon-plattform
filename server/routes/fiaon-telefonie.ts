@@ -674,6 +674,51 @@ router.get("/telefon/suche", requireAgent, async (req: AgentRequest, res: Respon
   }
 });
 
+/**
+ * POST /telefon/browser-fehler — was im Browser geworfen wurde.
+ *
+ * ── WARUM DAS DIE LETZTE LÜCKE SCHLIESST ───────────────────────────────────
+ * Die Diagnose prüft neun Stellen — alle auf dem Server. Der zehnte Ort ist
+ * der Browser des Nutzers, und dort konnte ich nie hineinsehen. Im Panel
+ * stand „der Fehler nennt keinen Grund", und aus der Ferne war nicht zu
+ * klären, WAS geworfen wurde: ein Mikrofon-Nein, ein Modulfehler, ein
+ * Twilio-Code oder ein leeres Objekt.
+ *
+ * Jetzt schickt der Browser es her. Die Diagnose zeigt es als Schritt 10.
+ */
+router.post("/telefon/browser-fehler", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const b = req.body ?? {};
+    const eintrag = {
+      am: new Date().toISOString(),
+      agent: req.agent!.name,
+      wo: String(b.wo ?? "unbekannt").slice(0, 40),
+      name: b.name ? String(b.name).slice(0, 60) : null,
+      code: b.code ?? null,
+      message: b.message ? String(b.message).slice(0, 300) : null,
+      description: b.description ? String(b.description).slice(0, 300) : null,
+      explanation: b.explanation ? String(b.explanation).slice(0, 300) : null,
+      causes: Array.isArray(b.causes) ? b.causes.slice(0, 4) : null,
+      browser: String(b.browser ?? "").slice(0, 200),
+      roh: String(b.roh ?? "").slice(0, 600),
+    };
+    await sqlPool`
+      INSERT INTO fiaon_settings (key, value)
+      VALUES ('telefon_letzter_browserfehler', ${JSON.stringify(eintrag)})
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+    `;
+    // Auch in die Serverkonsole: Beim nächsten Bericht steht es dort, ohne
+    // dass jemand eine Diagnose öffnen muss.
+    console.error(`[TELEFON] Browser-Fehler bei „${eintrag.wo}" (${eintrag.agent}): `
+      + `${eintrag.name ?? "ohne Name"} ${eintrag.code ?? ""} ${eintrag.message ?? ""} `
+      + `| ${eintrag.roh}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[TELEFON] browser-fehler:", err);
+    res.status(500).json({ ok: false });
+  }
+});
+
 /** GET /telefon/richtlinie — Text und eigener Stand. */
 router.get("/telefon/richtlinie", requireAgent, async (req: AgentRequest, res: Response) => {
   try {

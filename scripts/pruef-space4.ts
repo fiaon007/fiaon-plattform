@@ -242,6 +242,51 @@ async function main(): Promise<void> {
   ok("Kein „undefined“ als Fehlertext", !/undefined/.test(telefonFehlerText(new Error())));
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("6b. Der Wählweg: Mikrofon, Registrierung, Fehlerbild");
+  // ═══════════════════════════════════════════════════════════════════════
+  // ── DER FEHLER, DEN DIESE GRUPPE FESTHÄLT ─────────────────────────────
+  // Im Panel stand „Das Telefon konnte nicht starten, und der Fehler nennt
+  // keinen Grund". Zwei Ursachen dahinter, beide gemessen:
+  //
+  //   1. Es gab KEINEN getUserMedia-Aufruf. Das Mikrofonrecht wurde nie
+  //      angefragt, und Twilios connect() scheiterte daran.
+  //   2. Der Registrierungsfehler wurde mit .catch() verschluckt. Danach
+  //      warf connect() den Wert `undefined` — buchstäblich. Der echte
+  //      Grund (AccessTokenInvalid 20101) war weggeworfen.
+  const sQ2 = datei("client/src/components/Softphone.tsx");
+  ok("Das Mikrofon wird ANGEFRAGT, nicht vorausgesetzt",
+    /navigator\.mediaDevices\.getUserMedia\(\{ audio: true \}\)/.test(sQ2));
+  ok("… VOR dem SDK und vor connect()",
+    sQ2.indexOf("getUserMedia({ audio: true })") < sQ2.indexOf('await import("@twilio/voice-sdk")'));
+  ok("… und der Strom wird gleich wieder freigegeben",
+    /for \(const spur of strom\.getTracks\(\)\) spur\.stop\(\)/.test(sQ2));
+  ok("Es gibt einen eigenen Schritt im Panel", /fi-tel-mikrofon/.test(sQ2));
+  ok("… der auch ohne eingerichtetes Twilio sichtbar ist",
+    sQ2.indexOf('{mikrofon !== "erlaubt" && (') < sQ2.indexOf("{!stand.bereit && ("));
+  ok("Sieben Mikrofon-Fälle in Klartext",
+    ["NotAllowedError", "NotFoundError", "NotReadableError", "NotSupportedError",
+     "OverconstrainedError", "SecurityError"].every((n) => sQ2.includes(n)));
+  ok("„NotSupportedError“ nennt die https-Ursache",
+    /window\.location\.protocol !== "https:"/.test(sQ2));
+
+  ok("Die Registrierung wird ABGEWARTET", /await d\.register\(\);/.test(sQ2));
+  ok("… und ihr Fehler NICHT verschluckt",
+    !/await d\.register\(\)\.catch/.test(sQ2) && /\} catch \(e: any\) \{[\s\S]{0,200}fehlerMelden\("register"/.test(sQ2));
+  ok("Ein leerer Wurf hat eine eigene Aussage",
+    /err === undefined \|\| err === null/.test(sQ2) && /Firewall blockt WebRTC/.test(sQ2));
+  ok("… mit drei Ursachen nach Häufigkeit", /1\. Eine Firewall/.test(sQ2) && /3\. Eine alte Fassung/.test(sQ2));
+  ok("Eine Meldung MIT Twilio-Code hat Vorrang",
+    /codeGesehen\.current = true/.test(sQ2) && /if \(codeGesehen\.current\) return;/.test(sQ2));
+  ok("Browser-Fehler werden an den Server gemeldet",
+    /const fehlerMelden = async/.test(sQ2) && /telefon\/browser-fehler/.test(sQ2));
+  ok("… mit Browserkennung, damit iPhone erkennbar ist", /navigator\.userAgent\.slice/.test(sQ2));
+  ok("Die Route dafür gibt es", /router\.post\("\/telefon\/browser-fehler"/.test(telQ));
+  ok("Diagnose-Schritt 10 zeigt ihn", /nr: 10,/.test(dQ));
+  ok("… und erkennt ein Mikrofonproblem als solches",
+    /Das ist ein MIKROFONRECHT, kein Telefonfehler/.test(dQ));
+  ok("… und iPhone/iPad eigens", /iPhone\|iPad/.test(dQ));
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("7. Verhalten gegen echte Daten");
   // ═══════════════════════════════════════════════════════════════════════
   try {

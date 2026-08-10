@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FiaonGeraet, FiaonTastatur } from "@/components/FiaonGeraet";
-import { telefonFehlerText } from "@shared/fiaon-telefon-fehler";
+import { telefonFehler, telefonFehlerText } from "@shared/fiaon-telefon-fehler";
 import { FiaonEbene } from "./FiaonEbene";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -231,6 +231,11 @@ export function Softphone() {
   const [nameGetippt, setNameGetippt] = useState("");
   const [gelesen, setGelesen] = useState(false);
   const [ohneAufnahme, setOhneAufnahme] = useState(false);
+  // Der Stand des Mikrofonrechts. Wird VOR dem ersten Wählversuch geklärt.
+  const [mikrofon, setMikrofon] = useState<"offen" | "erlaubt" | "verweigert">("offen");
+  // Hat das SDK schon einen Fehler MIT Twilio-Code gemeldet? Dann bleibt der
+  // stehen — ein Code ist genauer als jede Vermutung.
+  const codeGesehen = useRef(false);
   const uhr = useRef<ReturnType<typeof setInterval> | null>(null);
   // Das Twilio-Gerät und die laufende Verbindung. Als Referenz, nicht als
   // Zustand: Ein neu gerendertes Gerät würde die Verbindung abreißen.
@@ -318,6 +323,86 @@ export function Softphone() {
     setRichtlinie((v: any) => v && { ...v, offen: false });
   };
 
+  /**
+   * Einen Browser-Fehler an den Server melden.
+   *
+   * ── WARUM DAS NÖTIG IST ───────────────────────────────────────────────────
+   * Ein Fehler, der nur im Browser des Nutzers erscheint, ist aus der Ferne
+   * nicht einkreisbar. Der Vorgesetzte kann einen Schnappschuss schicken —
+   * aber ein Schnappschuss zeigt den Text, nicht das Objekt.
+   *
+   * Diese Meldung landet in der Telefon-Diagnose als Schritt 10. Beim
+   * nächsten Mal kann ich sagen, WAS geworfen wurde, statt zu raten.
+   */
+  const fehlerMelden = async (wo: string, err: unknown) => {
+    const e = (err ?? {}) as any;
+    await fetch("/api/fiaon/telefon/browser-fehler", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        wo,
+        name: e?.name ?? null,
+        code: e?.code ?? null,
+        message: e?.message ?? null,
+        description: e?.description ?? null,
+        explanation: e?.explanation ?? null,
+        causes: Array.isArray(e?.causes) ? e.causes.slice(0, 4) : null,
+        // Die Browserkennung sagt, ob es ein iPhone ist — dort gelten
+        // eigene Regeln für Mikrofon und Autoplay.
+        browser: navigator.userAgent.slice(0, 200),
+        roh: (() => {
+          try { return JSON.stringify(err, Object.getOwnPropertyNames(e ?? {})).slice(0, 600); }
+          catch { return String(err).slice(0, 600); }
+        })(),
+      }),
+    }).catch(() => {});
+  };
+
+  /**
+   * Warum ging das Mikrofon nicht auf?
+   *
+   * Die Browser werfen hier fünf verschiedene Namen, und jeder bedeutet etwas
+   * anderes für den Menschen davor. „NotSupportedError" ist der tückischste:
+   * Er heißt fast immer „keine https-Verbindung" — und niemand käme von dem
+   * Wort auf diese Ursache.
+   */
+  const mikrofonGrund = (err: unknown): string => {
+    const name = (err as any)?.name ?? "";
+    switch (name) {
+      case "NotAllowedError":
+      case "PermissionDeniedError":
+        return "Der Browser hat das Mikrofon nicht freigegeben. Klicke links in der Adresszeile "
+          + "auf das Schloss (am iPhone auf „aA“) und erlaube das Mikrofon — danach die Seite "
+          + "einmal neu laden.";
+      case "NotFoundError":
+      case "DevicesNotFoundError":
+        return "Es ist kein Mikrofon angeschlossen. Ohne Mikrofon kann dich niemand hören.";
+      case "NotReadableError":
+      case "TrackStartError":
+        return "Das Mikrofon ist von einem anderen Programm belegt. Schließe andere Telefon- "
+          + "oder Besprechungsprogramme und versuche es erneut.";
+      case "NotSupportedError":
+        // Der häufigste Grund ist eine unsichere Herkunft. Browser geben für
+        // getUserMedia auf http:// kein Mikrofon heraus — und melden das mit
+        // diesem völlig unverständlichen Namen.
+        return window.location.protocol !== "https:"
+          ? `Diese Seite läuft über ${window.location.protocol.replace(":", "")} statt https. `
+            + "Browser geben ein Mikrofon nur über eine gesicherte Verbindung heraus. "
+            + "Öffne das Portal über https://www.fiaon.com."
+          : "Dieser Browser unterstützt keinen Mikrofonzugriff. Auf dem iPhone braucht es Safari; "
+            + "andere Browser auf iOS können kein WebRTC-Audio.";
+      case "OverconstrainedError":
+        return "Das angeschlossene Mikrofon passt nicht zu den Anforderungen. Wähle in den "
+          + "Systemeinstellungen ein anderes Eingabegerät.";
+      case "SecurityError":
+        return "Der Browser hat den Zugriff aus Sicherheitsgründen blockiert. Das passiert bei "
+          + "eingebetteten Seiten — öffne das Portal in einem eigenen Tab.";
+      default:
+        return `Das Mikrofon konnte nicht geöffnet werden${name ? ` (${name})` : ""}. `
+          + "Der Vorgesetzte sieht den genauen Grund unter Einstellungen → Telefon.";
+    }
+  };
+
   const aufnahmeStoppen = async () => {
     if (!callId) return;
     const r = await fetch(`/api/fiaon/telefon/${callId}/ohne-aufzeichnung`, {
@@ -353,13 +438,73 @@ export function Softphone() {
     setCallId(j.callId);
     setSekunden(0);
     setOhneAufnahme(false);
+    codeGesehen.current = false;
 
     // ── Das Browser-SDK ──────────────────────────────────────────────────
     // NACHGELADEN, nicht importiert: Das Paket bringt rund 300 KB mit. Wer
     // nie telefoniert — und ohne Zugangsdaten telefoniert niemand — soll es
     // auch nicht herunterladen müssen.
+    // ══════════════════════════════════════════════════════════════════════
+    // SCHRITT 1: DAS MIKROFON — VOR ALLEM ANDEREN
+    //
+    // ── DER FEHLER, DEN DAS BEHEBT ────────────────────────────────────────
+    // Im Panel stand „Das Telefon konnte nicht starten, und der Fehler nennt
+    // keinen Grund". Das ist mein eigener Rückfalltext für ein Fehlerobjekt,
+    // in dem nichts Brauchbares steht.
+    //
+    // Ursache: Es gab KEINEN EINZIGEN getUserMedia-Aufruf im ganzen Panel.
+    // Das Mikrofonrecht wurde nie angefragt. Twilios `connect()` fragt es
+    // intern nach — und wenn der Nutzer es nie erteilt hat, wirft das SDK
+    // einen Fehler, der je nach Browser und Fassung LEER sein kann. Genau
+    // dieser leere Fehler landete in meinem Rückfalltext.
+    //
+    // Jetzt wird zuerst gefragt, und zwar mit eigener Meldung. Ein
+    // Mikrofonrecht, das der Browser verweigert, ist kein Telefonfehler —
+    // es ist eine Einstellung, die der Mensch selbst ändern kann.
+    // ══════════════════════════════════════════════════════════════════════
     try {
-      const { Device } = await import("@twilio/voice-sdk");
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setZustand("bereit");
+        setMeldung(
+          "Dieser Browser kann kein Mikrofon freigeben. Auf dem iPhone braucht es Safari, "
+          + "auf dem Rechner Chrome, Edge oder Safari — und in jedem Fall eine "
+          + "https-Verbindung.",
+        );
+        return;
+      }
+      const strom = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Sofort wieder freigeben: Twilio holt sich seinen eigenen Strom. Wer
+      // den hier offen lässt, hat in manchen Browsern zwei belegte Mikrofone
+      // und eine leuchtende Anzeige, die nach dem Auflegen bleibt.
+      for (const spur of strom.getTracks()) spur.stop();
+      setMikrofon("erlaubt");
+    } catch (err) {
+      setZustand("bereit");
+      setMikrofon("verweigert");
+      setMeldung(mikrofonGrund(err));
+      void fehlerMelden("mikrofon-vor-wahl", err);
+      return;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // SCHRITT 2: DAS SDK
+    // ══════════════════════════════════════════════════════════════════════
+    let Device: any;
+    try {
+      ({ Device } = await import("@twilio/voice-sdk"));
+    } catch (err) {
+      // Ein fehlgeschlagenes Nachladen ist KEIN Telefonfehler: Es ist eine
+      // Netzsache oder eine veraltete Fassung im Browser-Zwischenspeicher.
+      setZustand("bereit");
+      setMeldung(
+        "Das Telefon-Modul konnte nicht geladen werden. Lade die Seite einmal hart neu "
+        + "(Strg+Umschalt+R bzw. Cmd+Umschalt+R). Bleibt es dabei, ist die Verbindung gestört.",
+      );
+      void fehlerMelden("sdk-laden", err);
+      return;
+    }
+
+    try {
       geraet.current?.destroy?.();
       const d = new Device(j.token, {
         // Opus zuerst: bessere Sprachqualität bei gleicher Bandbreite.
@@ -369,9 +514,56 @@ export function Softphone() {
       });
       geraet.current = d;
       d.on("error", (e: any) => {
+        // ── DIESE MELDUNG HAT VORRANG ───────────────────────────────────
+        // Der Device-Fehler trägt den TWILIO-CODE — er ist immer genauer als
+        // meine Vermutung im catch-Zweig. Gemessen: Hier kam
+        // „AccessTokenInvalid (20101)", während die Vermutung nur „fast immer
+        // ein API-Key" sagen konnte. Der Code nennt es genau.
+        //
+        // `codeGesehen` merkt sich das, damit der nachfolgende catch-Zweig
+        // die genaue Meldung nicht durch eine allgemeine ersetzt.
+        codeGesehen.current = true;
         setMeldung(telefonFehlerText(e));
+        void fehlerMelden("device-error", e);
         setZustand("ergebnis");
       });
+
+      // ══════════════════════════════════════════════════════════════════
+      // SCHRITT 3: REGISTRIEREN — UND DEN FEHLER NICHT VERSCHLUCKEN
+      //
+      // ── WAS HIER SCHIEFGING ──────────────────────────────────────────
+      // Die erste Fassung fing den Registrierungsfehler mit `.catch()` und
+      // machte weiter. Danach schlug `connect()` fehl — und zwar mit einem
+      // LEEREN Fehler: Der geworfene Wert war buchstäblich `undefined`.
+      // Gemessen mit einem Browsertest: `roh: undefined`.
+      //
+      // Zwei Fehler in einem: Der echte Grund lag im Registrierungsschritt
+      // und wurde weggeworfen, und der Folgefehler hatte nichts zu sagen.
+      // Genau so entstand die Meldung „der Fehler nennt keinen Grund".
+      //
+      // Ein weggeschluckter Fehler ist schlimmer als ein abgebrochener
+      // Versuch: Er verlegt den Schaden an eine Stelle, die ihn nicht
+      // erklären kann.
+      // ══════════════════════════════════════════════════════════════════
+      try {
+        await d.register();
+      } catch (e: any) {
+        setZustand("bereit");
+        void fehlerMelden("register", e);
+        const rf = telefonFehler(e);
+        // Hat der Device-Fehler schon einen Twilio-Code geliefert, bleibt der
+        // stehen: Ein Code ist immer genauer als eine Vermutung.
+        if (codeGesehen.current) return;
+        setMeldung(
+          rf.code
+            ? telefonFehlerText(e)
+            : "Twilio hat den Zugangsausweis nicht angenommen. Das ist fast immer ein "
+              + "API-Key, der nicht zum Konto gehört, oder ein abgelaufener Ausweis — "
+              + "der Vorgesetzte sieht es unter Einstellungen → Telefon → „Verbindung prüfen“."
+              + (rf.roh && rf.roh !== "undefined" ? `\n\nRohfassung: ${rf.roh.slice(0, 200)}` : ""),
+        );
+        return;
+      }
       // ── „To" IST BEI TWILIO RESERVIERT ────────────────────────────────
       // Das Browser-SDK setzt `To` selbst — auf die Client-Identität, nicht
       // auf die gewählte Nummer. Ein eigener Parameter mit diesem Namen wird
@@ -395,7 +587,30 @@ export function Softphone() {
       // NICHT `err.message`: Twilio-Fehler SIND Error-Instanzen, tragen ihre
       // Aussage aber in code/description/explanation. In Produktion stand
       // deshalb „Das Telefon konnte nicht starten: undefined".
-      setMeldung(telefonFehlerText(err));
+      void fehlerMelden("connect", err);
+      if (codeGesehen.current) { setZustand("ergebnis"); return; }
+      const f = telefonFehler(err);
+      // ── EIN LEERER WURF IST EINE EIGENE AUSSAGE ───────────────────────
+      // Gemessen: Der geworfene Wert war `undefined` — kein Objekt, keine
+      // Nachricht, nichts. Das passiert beim Twilio-SDK, wenn die Verbindung
+      // abbricht, bevor sie zustande kam: kein Netz zu Twilio, ein Ausweis,
+      // den der Dienst ablehnt, oder eine Firewall, die WebRTC blockt.
+      //
+      // Vorher endete der Weg bei „der Fehler nennt keinen Grund". Das war
+      // ehrlich und nutzlos. Jetzt stehen die drei Ursachen da, die es sein
+      // können — und die Reihenfolge ist nach Häufigkeit sortiert.
+      setMeldung(err === undefined || err === null
+        ? "Das Telefon hat die Verbindung zu Twilio nicht aufbauen können und keinen Grund "
+          + "genannt. Die drei häufigsten Ursachen, in dieser Reihenfolge:\n\n"
+          + "1. Eine Firewall blockt WebRTC (UDP 10000–20000). Probiere ein anderes Netz — "
+          + "am Handy einmal über Mobilfunk statt WLAN.\n"
+          + "2. Der Zugangsausweis wurde abgelehnt. Der Vorgesetzte prüft das unter "
+          + "Einstellungen → Telefon.\n"
+          + "3. Eine alte Fassung im Browser. Lade die Seite hart neu "
+          + "(Strg+Umschalt+R bzw. Cmd+Umschalt+R)."
+        : f.code === null && !/Twilio-Fehler/.test(f.titel)
+          ? `${telefonFehlerText(err)}\n\nRohfassung: ${f.roh.slice(0, 300)}`
+          : telefonFehlerText(err));
       setZustand("ergebnis");
     }
   };
@@ -573,6 +788,58 @@ export function Softphone() {
 
         {kunde && <p className="fi-tel-kunde">{kunde.name}</p>}
 
+        {/* ══════════════════════════════════════════════════════════════════
+            DAS MIKROFON — UNABHÄNGIG VON ALLEM ANDEREN
+            Der Knopf stand zuerst INNERHALB des Wähl-Bereichs und war damit
+            nur sichtbar, wenn Twilio eingerichtet ist. Zwei Fehler darin:
+            Das Mikrofonrecht hat mit Twilio nichts zu tun, und ich konnte es
+            lokal nicht prüfen, weil dort keine Zugangsdaten liegen.
+
+            Jetzt steht er ganz oben. Wer das Panel öffnet, kann das Recht
+            erteilen — während er den Kunden sucht, nicht in der Sekunde, in
+            der er anrufen will.
+            ══════════════════════════════════════════════════════════════════ */}
+            {/* ── DAS MIKROFON, BEVOR ES DARAUF ANKOMMT ───────────────────
+            Der Nutzer soll das Recht erteilen, während er den Kunden
+            sucht — nicht in der Sekunde, in der er anrufen will. Wer
+            erst beim Wählen gefragt wird, hat den Kunden im Kopf und
+            klickt die Frage weg. */}
+        {mikrofon !== "erlaubt" && (
+          <button type="button"
+                  onClick={async () => {
+                    try {
+                      const st = await navigator.mediaDevices.getUserMedia({ audio: true });
+                      for (const t of st.getTracks()) t.stop();
+                      setMikrofon("erlaubt");
+                      setMeldung(null);
+                    } catch (e) {
+                      setMikrofon("verweigert");
+                      setMeldung(mikrofonGrund(e));
+                      void fehlerMelden("mikrofon-knopf", e);
+                    }
+                  }}
+                  className="fi-tel-mikrofon" data-stand={mikrofon}>
+            <span className="fi-tel-mikrofon-marke" aria-hidden="true">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z" />
+                <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+              </svg>
+            </span>
+            <span className="min-w-0 flex-1 text-left">
+              <span className="fi-tel-mikrofon-titel">
+            {mikrofon === "verweigert" ? "Mikrofon ist gesperrt" : "Mikrofon erlauben"}
+              </span>
+              <span className="fi-tel-mikrofon-text">
+            {mikrofon === "verweigert"
+                  ? "Ohne Mikrofon kann dich niemand hören. Erlaube es im Browser und tippe hier erneut."
+                  : "Einmal antippen, damit der Browser fragt. Ohne Freigabe kann kein Anruf aufgebaut werden."}
+              </span>
+            </span>
+          </button>
+        )}
+
+
         {/* ── Nicht eingerichtet ──────────────────────────────────────── */}
         {!stand.bereit && (
           <div className="fi-tel-karte">
@@ -633,7 +900,8 @@ export function Softphone() {
               </p>
             )}
 
-            <button type="button" onClick={() => void waehlen()} disabled={nummer.length < 4}
+            <button type="button" onClick={() => void waehlen()}
+                    disabled={nummer.length < 4 || mikrofon === "verweigert"}
                     className="fi-tel-gruen">
               <MarkeHoerer size={19} /> Anrufen
             </button>
@@ -822,6 +1090,33 @@ const TELEFON_CSS = `
 }
 .fi-tel-sperre-titel { display: block; font-size: 13.5px; font-weight: 700; color: #fde68a; }
 .fi-tel-sperre-text { display: block; font-size: 11.5px; color: rgba(253,230,138,.72); margin-top: 2px; line-height: 1.45; }
+
+/* ── Mikrofon-Schritt ──────────────────────────────────────────────────── */
+.fi-tel-mikrofon {
+  width: 100%; display: flex; align-items: center; gap: 12px;
+  margin: 16px 0 0; padding: 13px 15px; border: 0; cursor: pointer; border-radius: 18px;
+  background: linear-gradient(158deg, rgba(147,197,253,.16), rgba(59,130,246,.07));
+  box-shadow: inset 0 0 0 1px rgba(147,197,253,.28);
+  transition: box-shadow 200ms, transform 160ms;
+}
+.fi-tel-mikrofon:hover { transform: translateY(-1px); box-shadow: inset 0 0 0 1px rgba(147,197,253,.5); }
+.fi-tel-mikrofon[data-stand="verweigert"] {
+  background: linear-gradient(158deg, rgba(252,211,77,.16), rgba(217,119,6,.08));
+  box-shadow: inset 0 0 0 1px rgba(252,211,77,.3);
+}
+.fi-tel-mikrofon-marke {
+  width: 34px; height: 34px; border-radius: 12px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(147,197,253,.2); color: #93c5fd;
+}
+.fi-tel-mikrofon[data-stand="verweigert"] .fi-tel-mikrofon-marke {
+  background: rgba(252,211,77,.2); color: #fcd34d;
+}
+.fi-tel-mikrofon-titel { display: block; font-size: 13.5px; font-weight: 700; color: #eef3fb; }
+.fi-tel-mikrofon-text {
+  display: block; font-size: 11.5px; color: rgba(191,214,247,.76);
+  margin-top: 2px; line-height: 1.45;
+}
 
 /* ── Kundensuche und Anzeige ───────────────────────────────────────────── */
 .fi-tel-suche-feld { position: relative; margin-bottom: 12px; }

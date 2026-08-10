@@ -40,6 +40,27 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-mikrofon",
+    date: "2026-08-11",
+    category: "Behoben",
+    title: "Telefon: Mikrofon wird jetzt gefragt — das war der Grund",
+    summary:
+      "Der Anruf startete nicht, weil das Mikrofon nie freigegeben wurde. Das Panel fragt jetzt danach, bevor du wählst.",
+    changes: [
+      "MIKROFON: Ganz oben im Telefon steht jetzt „Mikrofon erlauben“. Einmal antippen, der Browser fragt, fertig. Ohne Freigabe kann kein Anruf aufgebaut werden — das war der Grund, warum nichts passierte.",
+      "Wenn der Browser ablehnt, steht da WARUM und was du tun kannst — je nach Fall sieben verschiedene Erklärungen.",
+      "Kein Mikrofon angeschlossen? Von einem anderen Programm belegt? Keine gesicherte Verbindung? Jeder Fall hat seinen eigenen Satz.",
+      "FEHLERMELDUNGEN: Statt „der Fehler nennt keinen Grund“ steht jetzt der echte Twilio-Grund da — oder, wenn es wirklich keinen gibt, die drei häufigsten Ursachen zum Durchprobieren.",
+      "Wenn beim Telefonieren etwas klemmt, wird der Fehler automatisch an den Vorgesetzten gemeldet. Du musst nichts abschreiben.",
+    ],
+    howto: [
+      "Telefon öffnen, oben „Mikrofon erlauben“ antippen, im Browser auf „Zulassen“. Der Knopf verschwindet dann.",
+      "Am iPhone: Es muss Safari sein. Andere Browser auf dem iPhone können kein Telefon.",
+      "Wenn du im Firmen-WLAN keine Verbindung bekommst: einmal über Mobilfunk versuchen. Manche Netze blockieren Telefonie.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-11-pipeline-cockpit",
     date: "2026-08-11",
     category: "Neu",

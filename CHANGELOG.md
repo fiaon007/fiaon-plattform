@@ -3,6 +3,66 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (X) — Warum der Anruf nicht startete: zwei Fehler, beide gemessen
+
+### Der Befund
+
+Im Panel stand: *„Das Telefon konnte nicht starten, und der Fehler nennt keinen Grund."* Das ist mein eigener Rückfalltext für ein Fehlerobjekt, in dem nichts Brauchbares steht.
+
+Ich habe den Fall **im Browser reproduziert** — mit einem Testlauf, der einen erfundenen Zugangsausweis unterschiebt. Genau dieselbe Meldung. Und dann sichtbar gemacht, was tatsächlich geworfen wurde:
+
+```
+wo=connect  name=null  code=null  message=null  roh=undefined
+```
+
+**Der geworfene Wert war buchstäblich `undefined`.** Kein Objekt, keine Nachricht, nichts.
+
+### Ursache 1: Das Mikrofon wurde nie angefragt
+
+Im ganzen Panel gab es **keinen einzigen `getUserMedia`-Aufruf**. Das Mikrofonrecht wurde nie erbeten. Twilios `connect()` fragt es intern nach — und wenn der Nutzer es nie erteilt hat, wirft das SDK einen Fehler, der je nach Browser und Fassung leer sein kann.
+
+Jetzt steht das Mikrofon als **eigener Schritt ganz oben** im Panel, sichtbar auch dann, wenn Twilio noch nicht eingerichtet ist. Wer das Panel öffnet, erteilt das Recht, während er den Kunden sucht — nicht in der Sekunde, in der er anrufen will.
+
+**Sieben Fälle in Klartext.** Der tückischste ist `NotSupportedError`: Er heißt fast immer „keine https-Verbindung", und niemand käme von dem Wort auf diese Ursache. Jetzt steht es da, mit dem tatsächlich verwendeten Protokoll in der Meldung.
+
+### Ursache 2: Der echte Grund wurde verschluckt
+
+Meine eigene Fassung von heute Morgen lautete:
+
+```js
+await d.register().catch((e) => { console.warn(e); void fehlerMelden("register", e); });
+```
+
+Der Registrierungsfehler wurde gemeldet — und der Ablauf ging **weiter**. Danach schlug `connect()` fehl, mit dem leeren Wurf. Der echte Grund war weggeworfen.
+
+Er lautet: **`AccessTokenInvalid (20101)` — Twilio konnte den Zugangsausweis nicht prüfen.** Der Code stand in meinem Katalog, mit Handgriff: „Der API-Key gehört nicht zu diesem Twilio-Konto, oder das Secret stimmt nicht."
+
+Ein weggeschluckter Fehler ist schlimmer als ein abgebrochener Versuch: Er verlegt den Schaden an eine Stelle, die ihn nicht erklären kann.
+
+Jetzt bricht die Registrierung ab, und **eine Meldung mit Twilio-Code hat Vorrang** vor jeder Vermutung.
+
+### Und wenn doch nichts drinsteht
+
+Ein leerer Wurf ist eine eigene Aussage. Statt „nennt keinen Grund" stehen die drei Ursachen da, nach Häufigkeit sortiert: eine Firewall, die WebRTC blockt (UDP 10000–20000), ein abgelehnter Ausweis, eine alte Fassung im Browser.
+
+### Der zehnte Diagnoseschritt
+
+Die Diagnose prüfte neun Stellen — alle auf dem Server. Der zehnte Ort ist der Browser des Nutzers, und dort konnte ich aus der Ferne nie hineinsehen.
+
+Jetzt meldet der Browser jeden Telefonfehler an den Server: Name, Code, Nachricht, Beschreibung, Ursachenkette, Browserkennung und die Rohfassung. **Schritt 10 zeigt es** — und erkennt ein Mikrofonproblem als solches („das ist ein Mikrofonrecht, kein Telefonfehler") sowie iPhone und iPad eigens.
+
+### Eine Prüfung, die die Welt überholt hat
+
+`pruef-veredelung` prüfte: „Niemand sitzt auf Onboarding oder Inkasso." Sie war rot.
+
+Nachgesehen: **Hans-Jürgen Gerhold wurde am 10.08. um 09:01 angelegt** — Passwort um 09:02, drei Einwilligungen, Vertrag um 09:06 unterschrieben. Ein vollständiges, echtes Onboarding auf `inkasso`. Die Rolle ist zu Recht besetzt.
+
+Der eigentliche Punkt war nie „diese Rollen müssen leer bleiben", sondern **„niemand wird ohne Auftrag versetzt"**. Genau das prüft die Gruppe jetzt: Wer eine Sonderrolle trägt, braucht einen unterschriebenen Vertrag oder einen protokollierten Rollenwechsel. Wer ohne beides dort sitzt, wurde per direktem SQL dorthin gesetzt — und das war mein Fehler bei Nikita.
+
+### Prüfstand
+
+`pruef-space4` von 90 auf **108 Prüfungen**. Drei Gegenproben: Mikrofon-Anfrage entfernen, Registrierungsfehler verschlucken, leeren Wurf ohne Aussage lassen — jede wird rot. Gesamt **1.984**, alle grün.
+
 ## 11.08.2026 (IX) — Der Rückstand abgearbeitet: Aufsicht, Pipeline, Cockpit, Abrechnungen
 
 ### Aktivität — was die Leitung tut

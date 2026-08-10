@@ -65,12 +65,37 @@ async function main(): Promise<void> {
   ok("Die Rückstellung steht im Protokoll", !!zurueck);
   ok("… mit Begründung", /Rueckstellung|Rückstellung/.test(JSON.stringify(zurueck?.meta ?? {})));
 
-  // Der Vorgesetzte: „Der Onboarding und Inkasso Mitarbeiter kommen erst!"
-  const belegt = (await sqlPool`
-    SELECT rolle, COUNT(*)::int AS n FROM fiaon_agents
-    WHERE active AND rolle IN ('onboarding', 'inkasso') GROUP BY rolle
+  // ── ÜBERHOLT, WEIL DIE WELT SICH GEÄNDERT HAT (10.08.2026) ─────────────
+  // Ursprünglich: „Niemand sitzt auf Onboarding oder Inkasso" — der
+  // Vorgesetzte hatte gesagt „Der Onboarding und Inkasso Mitarbeiter kommen
+  // erst!", und ich hatte Nikita ohne Auftrag dorthin gesetzt.
+  //
+  // Am 10.08. um 09:01 wurde Hans-Jürgen Gerhold angelegt: Passwort um 09:02,
+  // drei Einwilligungen, Vertrag um 09:06 unterschrieben. Ein vollständiges,
+  // echtes Onboarding auf `inkasso`. Die Rolle IST jetzt besetzt, und das ist
+  // richtig so.
+  //
+  // Der eigentliche Punkt war nie „diese Rollen müssen leer bleiben", sondern
+  // „niemand wird ohne Auftrag versetzt". Genau das prüft diese Gruppe jetzt:
+  // Wer eine Sonderrolle trägt, muss entweder ein eigenes Onboarding
+  // durchlaufen haben (Vertrag unterschrieben) oder einen protokollierten
+  // Rollenwechsel haben. Ein Mensch, der ohne beides dort sitzt, wurde per
+  // direktem SQL dorthin gesetzt — und das war der Fehler.
+  const sonderrollen = (await sqlPool`
+    SELECT a.id, a.name, a.rolle,
+           EXISTS (SELECT 1 FROM fiaon_agent_events e
+                    WHERE e.agent_id = a.id AND e.type = 'contract_signed') AS vertrag,
+           EXISTS (SELECT 1 FROM fiaon_agent_events e
+                    WHERE e.agent_id = a.id AND e.type = 'rolle_geaendert') AS wechsel
+    FROM fiaon_agents a
+    WHERE a.active AND a.rolle IN ('onboarding', 'inkasso')
   `) as any[];
-  gleich("Niemand sitzt auf Onboarding oder Inkasso", belegt.length, 0);
+  const ohneNachweis = sonderrollen.filter((r) => !r.vertrag && !r.wechsel);
+  gleich("Keine Sonderrolle ohne Nachweis (Vertrag oder Protokoll)",
+    ohneNachweis.map((r) => `${r.name}:${r.rolle}`).join(", "), "");
+  ok(`Sonderrollen besetzt: ${sonderrollen.length}`,
+    sonderrollen.every((r) => r.vertrag || r.wechsel),
+    sonderrollen.map((r) => `${r.name} (${r.rolle}, ${r.vertrag ? "Vertrag" : "Protokoll"})`).join(" · "));
 
   // ═══════════════════════════════════════════════════════════════════════
   gruppe("2. Tote Links");

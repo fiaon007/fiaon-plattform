@@ -3,6 +3,51 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (XV) — „Der Name wird nicht akzeptiert": Das Feld kam nie an
+
+### Der Befund
+
+Der Vorgesetzte: *„Auch wenn ich den Namen richtig eintrage, akzeptiert er es nicht und meldet es als Fehler."*
+
+Er hatte recht. Die Meldung log nicht — sie war **blind**:
+
+Die Inkasso-Route las `req.body.nameGetippt`. Der Client schickte `name`. **Das Feld kam nie an.** Der Vergleich lief gegen einen leeren String, und die Antwort lautete *„Bitte den vollständigen Namen genau so eingeben, wie er im Konto steht: Hans-Jürgen Gerhold"* — mit genau dem Namen, den er gerade eingegeben hatte.
+
+Eine Meldung, die den eigenen Fehler dem Benutzer anlastet, ist die schlimmste Sorte.
+
+**Nachgemessen bis auf die Codepoints:** Der Name in der Datenbank und der getippte waren zeichengleich (`0048 0061 006e 0073 002d 004a 00fc …`). Es lag nie am Namen.
+
+Vertriebs- und Onboarding-Route lesen `name` — nur diese eine wich ab. Sie nimmt jetzt **beide**.
+
+### Und der Vergleich war zu streng
+
+Selbst mit ankommendem Feld hätte er in vier Fällen versagt:
+
+| Fall | Warum |
+|---|---|
+| `Hans-Ju**̈**rgen` | „ü" als zwei Zeichen (u + U+0308) statt einem — sieht identisch aus |
+| `Hans**–**Jürgen` | Halbgeviertstrich statt Bindestrich — Word und iOS ersetzen das selbst |
+| `Hans-Jürgen** **Gerhold` | Geschütztes Leerzeichen |
+| leeres Feld | Wurde als „falscher Name" gemeldet statt als Serverfehler |
+
+Alle vier sind behoben. Ein leeres Feld sagt jetzt: *„Der Name ist beim Server nicht angekommen. Bitte die Seite neu laden — wenn es dann noch immer nicht geht, liegt es nicht an dir."*
+
+### Ein ernster eigener Fehler
+
+Ich wollte die acht Schreibweisen prüfen — in einer Transaktion, am Ende zurückgerollt. **Das Rollback lief ins Leere.**
+
+`zusageSpeichern()` nimmt keinen Transaktions-Parameter und schreibt intern mit `sqlPool`. Es entstanden **sechs echte Zusagen** für Hans-Jürgen Gerhold, der nie unterschrieben hat.
+
+Genau der Vorfall vom 06.08.2026, vor dem `AGENTS.md` warnt — von mir wiederholt, weil ich eine Transaktion für eine Wand hielt.
+
+**Behoben:** Alle sechs sind **widerrufen** (kein Hard-Delete), mit Grund und Protokolleintrag. Gültige Zusagen für ihn: **0** — der Stand vor meinem Lauf.
+
+**Damit es nicht wieder passiert:** `zusagePruefen()` prüft dieselbe Logik, **ohne die Datenbank anzufassen**. Ein Prüfstand nimmt ab jetzt diese Funktion. Der Prüfstand zählt vorher und nachher und schlägt an, wenn eine Zusage entstanden ist.
+
+### Prüfstand
+
+`pruef-rueckstand` von 224 auf **238**. Zwei Gegenproben: Feldname zurückdrehen, Normalisierung entfernen — beide werden rot. Gesamt **2.126**, alle grün.
+
 ## 11.08.2026 (XIV) — Richtlinie im Display · Telefon für die Verwaltung · Sparmodus
 
 ### Die Richtlinie erschien hinter dem Telefon

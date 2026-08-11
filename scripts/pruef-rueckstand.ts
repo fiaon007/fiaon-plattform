@@ -638,6 +638,74 @@ async function main(): Promise<void> {
     && /Jedes Gespräch trägt einen Menschen/.test(datei("server/routes/fiaon-agent.ts")));
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c7. Die Unterschrift wird angenommen");
+  // ═══════════════════════════════════════════════════════════════════════
+  // ── DER BEFUND ────────────────────────────────────────────────────────
+  // Der Vorgesetzte: „Auch wenn ich den Namen richtig eintrage, akzeptiert er
+  // es nicht und meldet es als Fehler."
+  //
+  // Er hatte recht, und die Meldung log nicht — sie war blind: Die
+  // Inkasso-Route las `req.body.nameGetippt`, der Client schickte `name`. Das
+  // Feld kam NIE an. Der Vergleich lief gegen einen leeren String, und die
+  // Antwort lautete „Bitte den vollständigen Namen genau so eingeben" — mit
+  // genau dem Namen, den er gerade eingegeben hatte.
+  //
+  // Eine Meldung, die den eigenen Fehler dem Benutzer anlastet, ist die
+  // schlimmste Sorte.
+  const { zusagePruefen } = await import("../server/lib/fiaon-vertrieb-zusage");
+  const ibQ2 = datei("server/routes/fiaon-inkasso-bereich.ts");
+  ok("Die Route nimmt BEIDE Feldnamen",
+    /req\.body\?\.name \?\? req\.body\?\.nameGetippt/.test(ibQ2));
+  ok("… und der Grund steht dabei", /kam NIE an/.test(ibQ2));
+
+  // ── ACHT SCHREIBWEISEN, KEINE EINZIGE ZEILE GESCHRIEBEN ────────────────
+  // `zusagePruefen` fasst die Datenbank nicht an. Der erste Entwurf rief
+  // `zusageSpeichern` in einer Transaktion auf und rollte sie zurück — das
+  // Rollback lief ins Leere, weil die Funktion intern mit `sqlPool` schreibt.
+  // Es entstanden SECHS echte Zusagen für einen Menschen, der nie
+  // unterschrieben hat. (Widerrufen und protokolliert.)
+  const vorZusagen = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_vertrieb_zusagen WHERE widerrufen_am IS NULL
+  `) as any[];
+  const schreib: [string, string, boolean][] = [
+    ["exakt", "Hans-Jürgen Gerhold", true],
+    ["klein geschrieben", "hans-jürgen gerhold", true],
+    ["Leerzeichen am Rand", "  Hans-Jürgen Gerhold  ", true],
+    ["Halbgeviertstrich", "Hans\u2013Jürgen Gerhold", true],
+    ["u + Umlautpunkte (NFD)", "Hans-Ju\u0308rgen Gerhold", true],
+    ["geschütztes Leerzeichen", "Hans-Jürgen\u00A0Gerhold", true],
+    ["FALSCHER Name", "Max Mustermann", false],
+    ["LEER — Feld kam nicht an", "", false],
+  ];
+  for (const [was, name, soll] of schreib) {
+    const e = zusagePruefen({
+      agentName: "Hans-Jürgen Gerhold", nameGetippt: name, gelesen: true,
+      ip: "203.0.113.7", userAgent: "Mozilla/5.0 (Macintosh) Safari/605",
+      version: "1.0", sollVersion: "1.0",
+    });
+    ok(`„${was}“ → ${soll ? "angenommen" : "abgelehnt"}`, e.ok === soll,
+      e.ok ? "" : String(e.grund).slice(0, 70));
+  }
+  ok("Ein leeres Feld wird als SERVERFEHLER benannt, nicht als Tippfehler",
+    /Der Name ist beim Server nicht angekommen/
+      .test(zusagePruefen({ agentName: "X Y", nameGetippt: "", gelesen: true,
+        ip: "203.0.113.7", userAgent: "Safari", version: "1.0" }).grund ?? ""));
+  ok("Ein Roboter unterschreibt weiterhin nicht",
+    zusagePruefen({ agentName: "Hans-Jürgen Gerhold", nameGetippt: "Hans-Jürgen Gerhold",
+      gelesen: true, ip: "127.0.0.1", userAgent: "HeadlessChrome",
+      version: "1.0" }).ok === false);
+  const nachZusagen = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_vertrieb_zusagen WHERE widerrufen_am IS NULL
+  `) as any[];
+  gleich("KEINE Zusage durch den Prüfstand entstanden",
+    Number(nachZusagen[0].n), Number(vorZusagen[0].n));
+  const [pruefArtefakt] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_vertrieb_zusagen
+    WHERE ip = '203.0.113.7' AND widerrufen_am IS NULL
+  `) as any[];
+  gleich("Kein Prüfstand-Artefakt mehr gültig", Number(pruefArtefakt.n), 0);
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");
   // ═══════════════════════════════════════════════════════════════════════
   const fQ = datei("client/src/components/PremiumFooter.tsx");

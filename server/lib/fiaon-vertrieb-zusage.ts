@@ -356,6 +356,59 @@ export function istRoboterUnterschrift(ip: string | null, userAgent: string | nu
  * Annahme speichern. Gibt einen Klartext-Grund zurück, wenn sie nicht gilt —
  * eine stillschweigend verworfene Zusage wäre schlimmer als keine.
  */
+/**
+ * Prüft eine Annahme, OHNE sie zu speichern.
+ *
+ * ── WARUM ES DIESE FUNKTION GIBT ───────────────────────────────────────────
+ * Am 11.08.2026 wollte ich den Namensvergleich prüfen — acht Schreibweisen,
+ * in einer Transaktion, am Ende zurückgerollt. Das Rollback lief ins Leere:
+ * `zusageSpeichern()` nimmt keinen Transaktions-Parameter und schreibt intern
+ * mit `sqlPool`. Es entstanden SECHS echte Zusagen für einen Menschen, der
+ * nie unterschrieben hat. (Widerrufen, protokolliert.)
+ *
+ * Genau der Vorfall vom 06.08.2026, vor dem AGENTS.md warnt — von mir
+ * wiederholt, weil ich eine Transaktion für eine Wand hielt.
+ *
+ * Ein Prüfstand nimmt ab jetzt DIESE Funktion. Sie kann nichts schreiben,
+ * weil sie die Datenbank gar nicht anfasst.
+ */
+export function zusagePruefen(opts: {
+  agentName: string;
+  nameGetippt: string;
+  gelesen: boolean;
+  ip: string | null;
+  userAgent: string | null;
+  sollVersion?: string;
+  version: string;
+}): { ok: boolean; grund?: string } {
+  if (opts.sollVersion && opts.version !== opts.sollVersion) {
+    return { ok: false, grund: "Die Erklärung wurde zwischenzeitlich geändert. Bitte die Seite neu laden und die aktuelle Fassung lesen." };
+  }
+  if (!opts.gelesen) {
+    return { ok: false, grund: "Bitte bestätige, dass du die Erklärung gelesen und verstanden hast." };
+  }
+  const norm = (s: string) => s
+    .normalize("NFC")
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g, "-")
+    .replace(/[\u00A0\u202F\u2007]/g, " ")
+    .trim().toLowerCase().replace(/\s+/g, " ");
+  if (!opts.nameGetippt || !opts.nameGetippt.trim()) {
+    return {
+      ok: false,
+      grund: "Der Name ist beim Server nicht angekommen. Bitte die Seite neu laden — "
+        + "wenn es dann noch immer nicht geht, liegt es nicht an dir.",
+    };
+  }
+  if (norm(opts.nameGetippt) !== norm(opts.agentName)) {
+    return { ok: false, grund: `Bitte den vollständigen Namen genau so eingeben, wie er im Konto steht: ${opts.agentName}` };
+  }
+  const roboter = istRoboterUnterschrift(opts.ip, opts.userAgent);
+  if (roboter.roboter) {
+    return { ok: false, grund: `Annahme abgelehnt: ${roboter.grund}` };
+  }
+  return { ok: true };
+}
+
 export async function zusageSpeichern(opts: {
   agentId: number;
   agentName: string;
@@ -383,7 +436,31 @@ export async function zusageSpeichern(opts: {
   // Der getippte Name ist die Unterschrift. Verglichen wird nachsichtig
   // (Groß-/Kleinschreibung, doppelte Leerzeichen), aber er MUSS der Name des
   // angemeldeten Kontos sein: Eine Unterschrift mit fremdem Namen ist keine.
-  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+  //   NFC: „ü" kann ein Zeichen sein (U+00FC) oder zwei (u + U+0308). Beides
+  //        sieht gleich aus, ist aber verschieden — je nach Tastatur, Gerät
+  //        und Zwischenablage. Ohne diese Zeile scheitert ein Mensch, der
+  //        seinen eigenen Namen richtig tippt.
+  //   Bindestriche: U+2010, U+2011 und U+2013 sehen aus wie U+002D. Word und
+  //        iOS ersetzen sie beim Tippen von selbst.
+  const norm = (s: string) => s
+    .normalize("NFC")
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g, "-")
+    .replace(/[\u00A0\u202F\u2007]/g, " ")
+    .trim().toLowerCase().replace(/\s+/g, " ");
+
+  // ── EIN LEERES FELD IST KEIN FALSCHER NAME ──────────────────────────────
+  // Am 11.08.2026 las eine Route `nameGetippt`, während der Client `name`
+  // schickte. Das Feld kam nie an — und der Mensch bekam „Bitte den
+  // vollständigen Namen genau so eingeben" zu sehen, mit genau dem Namen, den
+  // er gerade eingegeben hatte. Eine Meldung, die den eigenen Fehler dem
+  // Benutzer anlastet, ist die schlimmste Sorte.
+  if (!opts.nameGetippt || !opts.nameGetippt.trim()) {
+    return {
+      ok: false,
+      grund: "Der Name ist beim Server nicht angekommen. Bitte die Seite neu laden — "
+        + "wenn es dann noch immer nicht geht, liegt es nicht an dir.",
+    };
+  }
   if (norm(opts.nameGetippt) !== norm(opts.agentName)) {
     return { ok: false, grund: `Bitte den vollständigen Namen genau so eingeben, wie er im Konto steht: ${opts.agentName}` };
   }

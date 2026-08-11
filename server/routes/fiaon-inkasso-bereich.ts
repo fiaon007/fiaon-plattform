@@ -97,7 +97,28 @@ router.post("/inkasso/zusage", requireAgent, async (req: AgentRequest, res: Resp
     const erg = await zusageSpeichern({
       agentId: req.agent!.id,
       agentName: req.agent!.name,
-      nameGetippt: String(req.body?.nameGetippt || ""),
+      // ══════════════════════════════════════════════════════════════════
+      // ZWEI NAMEN FÜR DASSELBE FELD
+      //
+      // ── DER BEFUND (11.08.2026) ───────────────────────────────────────
+      // Der Vorgesetzte: „Auch wenn ich den Namen richtig eintrage, akzeptiert
+      // er es nicht und meldet es als Fehler."
+      //
+      // Er hatte recht — und die Meldung log nicht, sie war nur blind: Diese
+      // Route las `req.body.nameGetippt`, der Client schickte `name`. Das Feld
+      // kam NIE an, der Vergleich lief also immer gegen einen leeren String,
+      // und die Antwort lautete „Bitte den vollständigen Namen genau so
+      // eingeben, wie er im Konto steht" — mit genau dem Namen, den er gerade
+      // eingegeben hatte.
+      //
+      // Die Namen in der Datenbank und im Feld waren zeichengleich; gemessen
+      // bis auf die Codepoints (0048 0061 006e 0073 002d 004a 00fc …).
+      //
+      // Die Vertriebs- und Onboarding-Routen lesen `name` — nur diese eine
+      // wich ab. Sie nimmt jetzt BEIDE: Ein Feldname, den man umbenennt,
+      // während irgendwo noch der alte gesendet wird, ist genau diese Falle.
+      // ══════════════════════════════════════════════════════════════════
+      nameGetippt: String(req.body?.name ?? req.body?.nameGetippt ?? ""),
       version: String(req.body?.version || ""),
       // Das Häkchen „gelesen" gehört zur Erklärung, nicht zur Rolle.
       gelesen: req.body?.gelesen === true,

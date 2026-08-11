@@ -3,6 +3,58 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (XXI) — „Immer als Daniel Stripling angemeldet": mein Fehler
+
+### Der schwerste Befund
+
+*„Ich bin die ganze Zeit als Daniel Stripling angemeldet, wenn ich auf /agent gehe — ich kann mich nicht ausloggen."*
+
+**Beides war meine Schuld, aus derselben Änderung von heute Mittag.**
+
+Um dem Vorgesetzten das Telefon im Verwaltungsbereich zu geben, habe ich in `requireAgent` bei gültigem Admin-Code auf „den ersten Vertriebsleiter" geschaltet. Der erste Vertriebsleiter nach Kennung ist **Daniel Stripling (ID 8)**.
+
+Die Folge: Wer den Admin-Code hatte und `/agent` öffnete, **war** Daniel Stripling — mit seinen Kunden, seinen Zahlen, seinem Space.
+
+Und das Abmelden löschte nur das Agenten-Cookie. Die **Ansichts-Sitzung** blieb stehen, und `requireAgent` prüft sie zuerst — nach dem Abmelden war man sofort wieder derselbe Mensch. Eine Abmeldung, die nur eine von zwei Türen schließt, ist schlimmer als keine: Man glaubt, gegangen zu sein.
+
+**Behoben:** Die Ersatzkennung gilt jetzt **ausschließlich unter `/telefon/`**. Ein Kundenportal, eine Arbeitsliste, ein Space gehören einem Menschen — sie einem anderen zu zeigen ist keine Bequemlichkeit, sondern eine Verwechslung. Das Abmelden löscht beide Cookies.
+
+### Das Sende-Menü zeigte zwei Köpfe
+
+*„Wenn man E-Mail senden drückt, sieht man das Menü nicht richtig!"*
+
+Im Schnappschuss stand „AN DIESEN KUNDEN / E-Mail senden" **zweimal**, versetzt, mit zwei Schließen-Kreuzen.
+
+Der Grund: Der Inhalt brachte einen eigenen Kopfbereich mit — und `FiaonEbene` bekam `titel` und `ueberschrift` übergeben und zeichnete daraus ihren. Zwei Köpfe in einem Fenster. Der Fehler entstand, als die Ebene später einen eigenen Kopf bekam und niemand den alten entfernte.
+
+**Gemessen, beide Größen: jetzt genau einer.**
+
+### Die Rechnung per Knopf — und Ihre Frage zu den Events
+
+*„Wenn eine Email raus geht, sag mir, ob wir neue Events haben, die verbunden werden müssen."*
+
+**Nein — kein neues Event.** `abo_payment_reminder` existiert und trägt alles: Betrag, Fälligkeitstag, Ratennummer, Tage überfällig, Mahnstufe, Bankdaten und den Verwendungszweck.
+
+Ein zweites Event für „dieselbe Mail, nur von Hand" wäre ein zweiter Brevo-Text, den man beim nächsten Wortwechsel an einer Stelle ändert und an der anderen vergisst.
+
+**Was noch fehlt:** Der Make-Zweig `abo_payment_reminder` und das Brevo-Template. Das steht als Vorgesetzten-TODO in der Ereignisliste.
+
+**Die Mahnstufe steigt bewusst nicht.** Der automatische Lauf zählt sie hoch (Tag 0, Tag 7, Tag 14). Ein Mensch, der sagt „ich schicke sie Ihnen gleich", mahnt nicht — er hilft. Würde dieser Knopf die Stufe hochzählen, käme der Kunde durch ein freundliches Telefonat schneller in die Eskalation als durch Schweigen.
+
+### Die Inkasso-Akte: gebaut, aber noch nicht sichtbar
+
+*„Der Inkasso-Mitarbeiter muss den Kundenverlauf sehen, alles ganz genau — der braucht keine KI-Analyse."*
+
+Die Route liefert nachweislich (HTTP 200): Kundendaten, **Tage offen**, alle Raten, jedes Gespräch mit Aufnahme, jede Mail, den Verlauf und die Bankdaten zum Vorlesen. Aufbau nach Ihrem Satz: wer · was offen · wie steht er da · was wurde versucht · was jetzt.
+
+**Ehrlich: Die Anzeige lädt nicht.** Die Ebene öffnet mit Kopf, der Inhalt bleibt bei „Wird geladen …". Gemessen: **kein einzelner Netzwerkaufruf** an die Route, kein Konsolenfehler. Der Effekt in der Komponente feuert nicht, und ich habe die Ursache in dieser Sitzung nicht gefunden.
+
+Ein Zwischenbefund war behoben: Die Route brach mit `column p.strasse does not exist` ab — die Spalten heißen `street`, `zip`, `city`.
+
+### Prüfstand
+
+`pruef-rueckstand` von 310 auf **321**. Gesamt **2.209**. Die Akte-Anzeige ist in der Browser-Abnahme rot und bleibt es, bis sie lädt — ein grüner Prüfstand über unerreichbare Funktionen ist genau der Fehler aus `AGENTS.md`.
+
 ## 11.08.2026 (XX) — Die Kostenleiste: blau auf schwarz, jetzt gemessen lesbar
 
 ### Der Befund, in Zahlen

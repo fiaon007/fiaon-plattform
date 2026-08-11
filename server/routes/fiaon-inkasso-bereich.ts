@@ -207,6 +207,101 @@ router.get("/inkasso/rate/:id", requireAgent, async (req: AgentRequest, res: Res
         SELECT rate_nr, betrag_cents, faellig_am, status, bezahlt_am, mahnstufe
         FROM fiaon_abo_raten WHERE ref = ${rate.ref} ORDER BY rate_nr
       `,
+
+      // ══════════════════════════════════════════════════════════════════════
+      // ALLES, WAS AM TELEFON GEBRAUCHT WIRD
+      //
+      // ── DER AUFTRAG ───────────────────────────────────────────────────────
+      // Der Vorgesetzte: „Der Inkasso-Mitarbeiter muss den Kundenverlauf sehen,
+      // alles ganz genau. Sie öffnet die Akte, sieht alle Daten vom Kunden,
+      // seit wann die Rate offen ist, und ruft an."
+      //
+      // Der Satz, den dieser Mensch sagen soll, lautet: „Ich rufe an, weil Ihre
+      // Zahlung seit X Tagen fällig ist." Dafür braucht er X — und den Namen,
+      // das Paket, den Betrag, die Bankdaten und den Verwendungszweck. Alles
+      // in einem Blick, nicht in vier Reitern.
+      // ══════════════════════════════════════════════════════════════════════
+      kunde: (await sqlPool`
+        SELECT p.id AS person_id,
+               COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
+                        p.company_name, p.contact_name, 'Ohne Namen') AS name,
+               p.primary_email, p.primary_phone,
+               -- Die Spalten heißen street/zip/city, nicht strasse/plz/ort.
+               -- Gemessen, nachdem die Route mit „column p.strasse does not
+               -- exist" antwortete und die Akte bei „Wird geladen …" hing.
+               -- Deutsche Bezeichner gelten für NEUEN Code (AGENTS.md); diese
+               -- Tabelle ist älter.
+               COALESCE(NULLIF(p.street, ''), a.street) AS strasse,
+               COALESCE(NULLIF(p.zip, ''), a.zip) AS plz,
+               COALESCE(NULLIF(p.city, ''), a.city) AS ort,
+               a.pack_name, a.pack_key, a.amount_due, a.payment_reference,
+               a.created_at::date AS kunde_seit,
+               a.account_status, a.schufa_status,
+               (SELECT COALESCE(NULLIF(a2.email, ''), NULLIF(a2.contact_email, ''),
+                                NULLIF(a2.billing_email, ''))
+                  FROM fiaon_applications a2 WHERE a2.ref = a.ref) AS bestell_email,
+               (SELECT COALESCE(NULLIF(a2.phone, ''), NULLIF(a2.contact_phone, ''))
+                  FROM fiaon_applications a2 WHERE a2.ref = a.ref) AS bestell_telefon,
+               (SELECT a2.phone_country_code FROM fiaon_applications a2 WHERE a2.ref = a.ref) AS vorwahl,
+               -- Seit wann ist die Rate offen? Das ist der erste Satz am Telefon.
+               (CURRENT_DATE - ${rate.faellig_am}::date) AS tage_offen,
+               -- Wie viele Raten hat er schon bezahlt? Ein Kunde, der elf von
+               -- zwölf gezahlt hat, wird anders angesprochen als einer, der noch
+               -- keine gezahlt hat.
+               (SELECT COUNT(*)::int FROM fiaon_abo_raten x
+                 WHERE x.ref = a.ref AND x.status = 'bezahlt') AS raten_bezahlt,
+               (SELECT COUNT(*)::int FROM fiaon_abo_raten x WHERE x.ref = a.ref) AS raten_gesamt,
+               (SELECT COALESCE(SUM(x.betrag_cents), 0)::bigint FROM fiaon_abo_raten x
+                 WHERE x.ref = a.ref AND x.status <> 'bezahlt'
+                   AND x.faellig_am < CURRENT_DATE) AS offen_gesamt_cents
+        FROM fiaon_applications a
+        LEFT JOIN fiaon_persons p ON p.id = a.person_id
+        WHERE a.ref = ${rate.ref}
+      `.then((r: any[]) => r[0] ?? null)),
+
+      // ── JEDES GESPRÄCH IN DER AKTE ────────────────────────────────────────
+      // „JEDES Gespräch, was auf der Plattform geführt wird, muss protokolliert
+      // werden in der Akte!" — Sie werden es: `fiaon_calls` hält Beginn, Dauer,
+      // Ergebnis, Aufnahme und Transkript. Sie waren nur hier nicht sichtbar.
+      //
+      // Die Twilio-URL geht NICHT mit: Sie ist unbefristet gültig. Nach außen
+      // nur, OB es eine Aufnahme gibt — abgespielt wird über die
+      // rechteprüfende Route.
+      gespraeche: rate.person_id ? await sqlPool`
+        SELECT k.id, k.beginn, k.dauer_sek, k.richtung, k.ergebnis, k.status,
+               k.zusammenfassung, k.transkript_status, k.transkript_grund,
+               (k.transkript IS NOT NULL) AS hat_transkript,
+               (k.recording_url IS NOT NULL AND k.aufnahme_geloescht_am IS NULL) AS hat_aufnahme,
+               k.aufnahme_geloescht_am, k.ohne_aufzeichnung_am,
+               COALESCE(NULLIF(ag.first_name, ''), ag.name) AS agent
+        FROM fiaon_calls k
+        LEFT JOIN fiaon_agents ag ON ag.id = k.agent_id
+        WHERE k.person_id = ${rate.person_id}
+        ORDER BY k.beginn DESC LIMIT 40
+      ` : [],
+
+      // ── DER GANZE MAILVERKEHR, NICHT NUR MAHNUNGEN ────────────────────────
+      // Wer anruft, muss wissen, was der Kunde schon bekommen hat. Eine
+      // Zahlungserinnerung von gestern ändert den ersten Satz.
+      mails: rate.person_id ? await sqlPool`
+        SELECT gesendet_am, event, ok, grund, empfaenger
+        FROM fiaon_mail_log WHERE person_id = ${rate.person_id}
+        ORDER BY gesendet_am DESC LIMIT 25
+      `.catch(() => []) : [],
+
+      // ── DIE BANKDATEN FÜR DEN SATZ AM TELEFON ─────────────────────────────
+      // „Ich schicke Ihnen die Rechnung gleich noch zu" — dafür braucht der
+      // Mensch sie nicht. Aber „können Sie es gleich überweisen?" braucht sie.
+      bank: await (async () => {
+        const { firmierung } = await import("../lib/fiaon-firmierung");
+        const f = await firmierung();
+        return {
+          empfaenger: f.name,
+          iban: process.env.FIAON_IBAN || "BE09 9058 9276 3957",
+          bic: process.env.FIAON_BIC || "TRWIBEB1XXX",
+          verwendungszweck: rate.zahlungsreferenz,
+        };
+      })(),
     });
   } catch (err) {
     console.error("[INKASSO] rate:", err);
@@ -452,6 +547,106 @@ router.post("/admin/inkasso/verguetung/:agentId", async (req, res: Response) => 
     res.json({ ok: true, meldung: "Vergütung bestätigt. Ab jetzt werden Prämien gebucht und Stunden abrechenbar." });
   } catch (err) {
     console.error("[INKASSO] verguetung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /inkasso/rate/:id/erinnerung — die Rechnung jetzt rausschicken.
+ *
+ * ── DER AUFTRAG ────────────────────────────────────────────────────────────
+ * Der Vorgesetzte: „Dieser sagt sowas wie ‚ich schicke Ihnen die Rechnung
+ * gleich noch zu, bitte umgehend einbezahlen…' — drückt auf einen Knopf,
+ * E-Mail geht raus."
+ *
+ * ── KEIN NEUES EVENT ───────────────────────────────────────────────────────
+ * Auf die Frage „haben wir neue Events, die verbunden werden müssen?": NEIN.
+ * `abo_payment_reminder` existiert seit Wochen und trägt alles, was gebraucht
+ * wird — Betrag, Fälligkeitstag, Ratennummer, Tage überfällig, Mahnstufe,
+ * Bankdaten und den Verwendungszweck (die Ratenreferenz).
+ *
+ * Ein zweites Event für „dieselbe Mail, nur von Hand ausgelöst" wäre ein
+ * zweiter Brevo-Text, den man beim nächsten Wortwechsel an einer Stelle
+ * ändert und an der anderen vergisst.
+ *
+ * Was der Vorgesetzte noch tun muss: den Make-Zweig `abo_payment_reminder`
+ * und das Brevo-Template anlegen. Das steht als TODO in der Ereignisliste.
+ *
+ * ── WARUM DIE MAHNSTUFE NICHT STEIGT ───────────────────────────────────────
+ * Der automatische Lauf zählt sie hoch: Stufe 1 am Fälligkeitstag, Stufe 2
+ * nach sieben Tagen, Stufe 3 nach vierzehn. Ein Mensch, der im Gespräch sagt
+ * „ich schicke sie Ihnen gleich", mahnt nicht — er hilft. Würde dieser Knopf
+ * die Stufe hochzählen, käme der Kunde durch ein freundliches Telefonat
+ * schneller in die Eskalation als durch Schweigen.
+ */
+router.post("/inkasso/rate/:id/erinnerung", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    if (!(await wand(req, res))) return;
+    const id = Number(req.params.id);
+    const [r] = (await sqlPool`
+      SELECT r.*, a.person_id, a.ref,
+             COALESCE(NULLIF(a.email, ''), NULLIF(a.contact_email, ''),
+                      NULLIF(a.billing_email, ''), p.primary_email) AS email
+      FROM fiaon_abo_raten r
+      JOIN fiaon_applications a ON a.ref = r.ref
+      LEFT JOIN fiaon_persons p ON p.id = a.person_id
+      WHERE r.id = ${id} AND r.status = 'offen'
+        AND a.payment_status = 'paid' AND a.merged_into IS NULL
+        AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
+    `) as any[];
+    if (!r) return res.status(404).json({ ok: false, error: "Diese Rate gibt es nicht mehr." });
+    if (!r.email) {
+      return res.status(400).json({
+        ok: false,
+        error: "Bei diesem Kunden ist keine E-Mail hinterlegt. Sag ihm die Bankdaten am Telefon — "
+          + "sie stehen in der Akte.",
+      });
+    }
+
+    const { aboErinnerungPayload } = await import("./fiaon-abo");
+    const { sendMakeWebhookMitGrund } = await import("../make-webhook");
+    const versand = await sendMakeWebhookMitGrund(
+      "abo_payment_reminder", aboErinnerungPayload(r) as any,
+    );
+
+    // Der Versand steht in der Akte — auch wenn er scheitert. Ein Mitarbeiter,
+    // der am Telefon „ist unterwegs" sagt, muss nachher sehen können, ob sie
+    // wirklich raus ist.
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+      VALUES (${r.ref}, ${r.person_id}, ${req.agent!.id}, ${req.agent!.name}, 'note',
+              ${`Zahlungserinnerung für Rate ${r.rate_nr} von Hand verschickt`
+                + `${versand.ok ? ` an ${r.email}` : ` — FEHLGESCHLAGEN: ${versand.grund}`}.`},
+              NOW())
+    `.catch(() => {});
+
+    // Auch die Rate merkt sich das: `letzte_erinnerung_at` steuert, wann der
+    // automatische Lauf wieder darf. Zwei Mails an einem Tag wären
+    // aufdringlich.
+    if (versand.ok) {
+      await sqlPool`
+        UPDATE fiaon_abo_raten
+        SET erinnerungen = COALESCE(erinnerungen, 0) + 1,
+            letzte_erinnerung_at = NOW(), letzter_fehler = NULL, updated_at = NOW()
+        WHERE id = ${id}
+      `;
+    } else {
+      await sqlPool`
+        UPDATE fiaon_abo_raten SET letzter_fehler = ${String(versand.grund).slice(0, 300)},
+            updated_at = NOW() WHERE id = ${id}
+      `;
+    }
+
+    res.json({
+      ok: versand.ok,
+      meldung: versand.ok
+        ? `Die Zahlungserinnerung ist an ${r.email} unterwegs. Sie enthält Betrag, `
+          + `Bankdaten und den Verwendungszweck ${r.zahlungsreferenz}.`
+        : null,
+      error: versand.ok ? null : `Die Mail ging nicht raus: ${versand.grund}`,
+    });
+  } catch (err) {
+    console.error("[INKASSO] erinnerung:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

@@ -636,9 +636,21 @@ async function main(): Promise<void> {
   // ── Das Telefon in der Verwaltung ────────────────────────────────────
   ok("Der Vorgesetzte hat das Telefon",
     /<Softphone \/>/.test(datei("client/src/components/admin/AdminShell.tsx")));
-  ok("… über sein echtes Konto, nicht als körperlose Vollmacht",
-    /rolle = 'vertriebsleiter'/.test(datei("server/routes/fiaon-agent.ts"))
-    && /Jedes Gespräch trägt einen Menschen/.test(datei("server/routes/fiaon-agent.ts")));
+  // ── DIE ERSATZKENNUNG GILT NUR FÜR TELEFON-ROUTEN ──────────────────────
+  // Erst galt sie überall. Der erste Vertriebsleiter nach Kennung ist Daniel
+  // Stripling (ID 8) — also war JEDER mit Admin-Code auf /agent plötzlich
+  // Daniel Stripling, mit seinen Kunden und Zahlen.
+  //
+  // Der Vorgesetzte: „Ich bin die ganze Zeit als Daniel Stripling angemeldet,
+  // wenn ich auf /agent gehe — ich kann mich nicht ausloggen."
+  const agQ = datei("server/routes/fiaon-agent.ts");
+  ok("… und nur unter /telefon/, nicht im ganzen Portal",
+    /if \(!tok && req\.path\.startsWith\("\/telefon\/"\)\)/.test(agQ));
+  ok("… mit dem Grund dabei",
+    /eine Arbeitsliste, ein Space gehören einem Menschen/.test(agQ));
+  ok("Das Abmelden löscht BEIDE Cookies",
+    /clearCookie\(ANSICHT_COOKIE/.test(agQ)
+    && /Eine Abmeldung, die nur eine von zwei Türen schließt/.test(agQ));
 
   // ═══════════════════════════════════════════════════════════════════════
   gruppe("5c7. Die Unterschrift wird angenommen");
@@ -846,7 +858,25 @@ async function main(): Promise<void> {
   // /admin/kunde/3503 weitergeleitet, da hat der Inkasso aber keinen Zugriff."
   ok("Kein /admin-Link in der Inkasso-Liste", !/href=\{`\/admin\/kunde\//.test(inkQ));
   ok("… und der Grund steht dabei", /einen verschlossenen Bereich führt/.test(inkQ));
-  ok("Die Akte ist das Gesprächsblatt", /Akte & Verlauf/.test(inkQ));
+  ok("Es gibt eine eigene Inkasso-Akte", /function InkassoAkte/.test(inkQ));
+  ok("… mit „Offen seit“ als erster Zahl", /Offen seit/.test(inkQ));
+  ok("… Bankdaten zum Vorlesen", /Bankdaten zum Vorlesen/.test(inkQ));
+  ok("… jedem Gespräch mit Player", /fi-ak-audio/.test(inkQ) && /telefon\/\$\{g\.id\}\/aufnahme/.test(inkQ));
+  ok("… und OHNE KI-Auswertung (nicht gewollt)",
+    !/KI|Auswertung/.test(inkQ.slice(inkQ.indexOf("function InkassoAkte"))));
+  ok("Der Verwendungszweck steht in gleichbreiter Schrift",
+    /\.fi-ak-mono/.test(inkQ) && /verhindert, dass man 0 und O verwechselt/.test(inkQ));
+  const ibQ4 = datei("server/routes/fiaon-inkasso-bereich.ts");
+  ok("Die Rechnung nutzt das BESTEHENDE Event",
+    /"abo_payment_reminder", aboErinnerungPayload/.test(ibQ4)
+    && /Auf die Frage „haben wir neue Events/.test(ibQ4));
+  ok("… und zählt die Mahnstufe NICHT hoch",
+    /WARUM DIE MAHNSTUFE NICHT STEIGT/.test(ibQ4)
+    && !/mahnstufe = mahnstufe \+ 1/.test(ibQ4));
+  ok("Der Versand steht in der Akte, auch wenn er scheitert",
+    /FEHLGESCHLAGEN: \$\{versand\.grund\}/.test(ibQ4));
+  ok("Das Sende-Menü hat nur EINEN Kopf",
+    /KEIN EIGENER KOPF MEHR/.test(datei("client/src/components/SendeMenue.tsx")));
 
   // ── DIE NACHGETRAGENEN RATEN ───────────────────────────────────────────
   // „Wenn der am 05.07 bezahlt hat, muss er am 05.08 beim Inkasso stehen!"

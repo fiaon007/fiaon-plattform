@@ -474,29 +474,34 @@ export async function requireAgent(req: AgentRequest, res: Response, next: NextF
       : verifyAgentToken(req.cookies?.[AGENT_COOKIE]);
 
     // ══════════════════════════════════════════════════════════════════════
-    // DER VORGESETZTE BRAUCHT DAS TELEFON AUCH
+    // DER VORGESETZTE BRAUCHT DAS TELEFON — ABER NICHT EIN FREMDES PORTAL
     //
-    // ── DIE BITTE ─────────────────────────────────────────────────────────
-    // „Admin braucht auch das Telefon mit Admin-Rechten, also auf alle Kunden
-    // und so."
+    // ── MEIN FEHLER VON HEUTE MITTAG ──────────────────────────────────────
+    // Um dem Vorgesetzten das Telefon im Verwaltungsbereich zu geben, habe ich
+    // hier bei gültigem Admin-Code auf „den ersten Vertriebsleiter" geschaltet.
+    // Der erste Vertriebsleiter nach Kennung ist Daniel Stripling (ID 8).
     //
-    // Bisher: Wer im Admin-Bereich sitzt, hat kein Agenten-Cookie — und jede
-    // Telefonroute antwortete mit 401. Der Vorgesetzte musste sich in einem
-    // zweiten Fenster als Mitarbeiter anmelden, um zu telefonieren.
+    // Die Folge: Wer den Admin-Code hatte und /agent öffnete, war Daniel
+    // Stripling — mit seinen Kunden, seinen Zahlen, seinem Space. Und er kam
+    // nicht heraus, weil der Admin-Code bleibt.
     //
-    // ── WARUM ÜBER EIN ECHTES KONTO UND NICHT „ALS ADMIN" ─────────────────
-    // Ein Anruf braucht einen Absender: Das Gespräch wird aufgezeichnet, dem
-    // Kunden zugeordnet, protokolliert und abgerechnet. Ein Ruf „vom System"
-    // hätte keinen Namen in der Akte — und niemanden, den man fragen kann.
+    // Der Vorgesetzte: „Ich bin die ganze Zeit als Daniel Stripling angemeldet,
+    // wenn ich auf /agent gehe — ich kann mich nicht ausloggen."
     //
-    // Deshalb: Der Admin-Code schaltet auf das VORGESETZTEN-KONTO, nicht auf
-    // eine körperlose Vollmacht. Jedes Gespräch trägt einen Menschen.
+    // ── DIE GRENZE LIEGT AN DEN ROUTEN, NICHT AM MENSCHEN ─────────────────
+    // Das Telefon braucht eine Absenderkennung — das war der richtige
+    // Gedanke. Aber es braucht sie NUR für die Telefon-Routen. Ein
+    // Kundenportal, eine Arbeitsliste, ein Space gehören einem Menschen; sie
+    // einem anderen zu zeigen ist keine Bequemlichkeit, sondern eine
+    // Verwechslung.
     //
-    // Die Rechte kommen aus der Rolle dieses Kontos — steht dort
-    // „vertriebsleiter", darf er an jeden Kunden. Es entsteht KEINE neue
-    // Rechteklasse: eine Definition, ein Ort.
+    // Deshalb: Die Ersatzkennung gilt ausschließlich unter /telefon/. Alles
+    // andere antwortet mit 401 und schickt zur Anmeldung — dort gehört der
+    // Vorgesetzte hin, wenn er das Portal sehen will. Für „mit den Augen eines
+    // Mitarbeiters" gibt es die Ansichts-Sitzung, die sich sichtbar ankündigt
+    // und nach 30 Minuten endet.
     // ══════════════════════════════════════════════════════════════════════
-    if (!tok) {
+    if (!tok && req.path.startsWith("/telefon/")) {
       const { hasAdminCode } = await import("./fiaon-admin-zugang");
       if (hasAdminCode(req as any)) {
         const [chef] = (await sqlPool`
@@ -1217,8 +1222,27 @@ router.post("/agent/ansicht/beenden", async (req, res) => {
   }
 });
 
-router.post("/agent/logout", (_req, res) => {
+/**
+ * POST /agent/logout — abmelden.
+ *
+ * ── DER BEFUND (11.08.2026) ────────────────────────────────────────────────
+ * Der Vorgesetzte: „Ich bin die ganze Zeit als Daniel Stripling angemeldet,
+ * wenn ich auf /agent gehe — ich kann mich nicht ausloggen."
+ *
+ * Hier wurde NUR das Agenten-Cookie gelöscht. Die ANSICHTS-Sitzung blieb
+ * stehen — und `requireAgent` prüft sie ZUERST. Nach dem Abmelden war er also
+ * sofort wieder derselbe Mensch, weil das zweite Cookie ihn dorthin
+ * zurückbrachte.
+ *
+ * Eine Abmeldung, die nur eine von zwei Türen schließt, ist keine Abmeldung.
+ * Sie ist schlimmer als keine: Man glaubt, gegangen zu sein.
+ */
+router.post("/agent/logout", async (_req, res) => {
   res.clearCookie(AGENT_COOKIE, { path: "/" });
+  // Auch die Ansichts-Sitzung. Wer sich abmeldet, will WEG — nicht in eine
+  // andere Rolle rutschen.
+  const { ANSICHT_COOKIE } = await import("../lib/fiaon-ansicht");
+  res.clearCookie(ANSICHT_COOKIE, { path: "/" });
   res.json({ ok: true });
 });
 

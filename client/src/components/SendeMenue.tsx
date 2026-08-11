@@ -117,27 +117,26 @@ export function SendeMenue({
 
   const inhalt = (
     <>
-      <div className="px-5 sm:px-7 pt-5 pb-4 shrink-0 fi-glas" style={{ transform: "translateZ(20px)" }}>
-        <div className="flex items-start gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-[10.5px] font-semibold uppercase tracking-[.2em]" style={{ color: "var(--fi-text-still)" }}>
-              An diesen Kunden
-            </p>
-            <h2 className="mt-1 text-[19px] sm:text-[22px] font-bold tracking-tight leading-tight">
-              <span className="fi-gradient-text">E-Mail senden</span>
-            </h2>
-          </div>
-          <button type="button" onClick={onSchliessen} aria-label="Schließen"
-                  className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
-                  style={{ background: "var(--fi-seite)", color: "var(--fi-text-leise)" }}>
-            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
-              <path d="m5 5 10 10M15 5 5 15" />
-            </svg>
-          </button>
-        </div>
-        <div className="mt-3.5" style={{ height: 1, background: "linear-gradient(90deg, rgba(29,78,216,.28), rgba(15,23,42,.06) 40%, transparent)" }} />
-      </div>
+      {/* ══════════════════════════════════════════════════════════════════
+          KEIN EIGENER KOPF MEHR
 
+          ── DER BEFUND (11.08.2026) ────────────────────────────────────────
+          Der Vorgesetzte: „Wenn man E-Mail senden drückt, sieht man das Menü,
+          das sich öffnet, nicht richtig!"
+
+          Im Schnappschuss stand „AN DIESEN KUNDEN / E-Mail senden" ZWEIMAL,
+          versetzt übereinander — mit zwei Schließen-Kreuzen.
+
+          Der Grund: Hier stand ein eigener Kopfbereich mit Überschrift, Titel
+          und Schließen-Knopf. Gleichzeitig bekommt `FiaonEbene` `titel` und
+          `ueberschrift` übergeben und zeichnet daraus IHREN Kopf. Zwei Köpfe
+          in einem Fenster.
+
+          Der Fehler entstand, als die Ebene später einen eigenen Kopf
+          bekam — und niemand den alten entfernte. Ein Bauteil, das seine
+          Aufgabe übernimmt, muss die alte Stelle mitnehmen; sonst sieht man
+          beides.
+          ══════════════════════════════════════════════════════════════════ */}
       <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-4">
         {meldung && (
           <p className="mb-3 px-3 py-2.5 rounded-xl text-[12.5px] font-semibold"

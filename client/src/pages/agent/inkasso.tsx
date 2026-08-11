@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { AgentShell } from "./shared";
-import { Gespraechsblatt } from "@/components/Gespraechsblatt";
+import { FiaonEbene } from "@/components/FiaonEbene";
 import { MarkeBrief, SendeMenue } from "@/components/SendeMenue";
 import { MarkeFunke, MarkeHoerer, anrufStarten } from "@/components/Softphone";
 import { ZusageTafel } from "./vertrieb-zusage";
@@ -64,12 +64,13 @@ export default function AgentInkasso() {
   const [reiter, setReiter] = useState<"liste" | "stunden">(
     () => (new URLSearchParams(window.location.search).get("tab") === "stunden" ? "stunden" : "liste"),
   );
-  const [blatt, setBlatt] = useState<number | null>(null);
   // Das Sende-Menü gehört zur ZEILE, nicht zur Seite: Es zeigt den Stand genau
   // dieses Kunden, und zwei geöffnete Zeilen sollen sich nicht in die Quere
   // kommen.
   const [sendeMenue, setSendeMenue] = useState<number | null>(null);
   const [offenerFall, setOffenerFall] = useState<Fall | null>(null);
+  // Die Akte: alles zu diesem Fall an einem Ort, für das Gespräch am Telefon.
+  const [akte, setAkte] = useState<Fall | null>(null);
   const [meldung, setMeldung] = useState<{ art: "gut" | "schlecht"; text: string } | null>(null);
   // Das Fristfenster. Vorgabe „überfällig": Wer die Seite öffnet, soll dort
   // anfangen, wo es brennt — nicht bei einer Rate, die in sechs Tagen fällig
@@ -325,9 +326,19 @@ export default function AgentInkasso() {
                     <MarkeHoerer size={14} /> Anrufen
                   </button>
                 )}
-                <button type="button" onClick={() => setBlatt(f.person_id)}
+                {/* ── DIE AKTE, NICHT DAS GESPRÄCHSBLATT ────────────────────
+                    Der Vorgesetzte: „Der Inkasso-Mitarbeiter muss den
+                    Kundenverlauf sehen, alles ganz genau … der braucht keine
+                    KI-Analyse."
+
+                    Das Gesprächsblatt ist für den VERTRIEB gebaut: Es schlägt
+                    nächste Schritte vor und deutet Signale. Wer wegen einer
+                    offenen Rate anruft, braucht etwas anderes — seit wann sie
+                    offen ist, was schon geschickt wurde, was zuletzt gesprochen
+                    wurde. */}
+                <button type="button" onClick={() => setAkte(f)}
                         className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold">
-                  <MarkeFunke size={13} /> Akte & Verlauf
+                  <MarkeFunke size={13} /> Akte öffnen
                 </button>
                 {/* ══════════════════════════════════════════════════════════
                     DIE AKTIONEN, DIE GEFEHLT HABEN
@@ -359,10 +370,11 @@ export default function AgentInkasso() {
                     einen verschlossenen Bereich führt, ist schlimmer als kein
                     Knopf — er sieht wie eine Möglichkeit aus.
 
-                    Die Akte für diesen Menschen IST das Gesprächsblatt: Es
-                    liest über `/api/fiaon/gespraechsblatt/:personId` und
-                    prüft die Rechte mit derselben `darfAnKunde`-Funktion.
-                    Deshalb heißt der Knopf jetzt, was er tut. */}
+                    Erst zeigte hier das Gesprächsblatt — aber das ist für den
+                    VERTRIEB gebaut: Es schlägt nächste Schritte vor und deutet
+                    Signale. Wer wegen einer offenen Rate anruft, braucht
+                    Tatsachen, keine Ratschläge. Deshalb jetzt eine eigene
+                    Akte (siehe InkassoAkte weiter unten). */}
                 <button type="button" onClick={() => setOffenerFall(f)}
                         className="fi-zweitknopf px-3 py-2 text-[12px] font-semibold">
                   Ergebnis festhalten
@@ -385,9 +397,12 @@ export default function AgentInkasso() {
         `}</style>
       </div>
 
-      {blatt != null && (
-        <Gespraechsblatt personId={blatt} offen onZu={() => setBlatt(null)} />
+      {akte && (
+        <InkassoAkte fall={akte} onZu={() => setAkte(null)}
+                     onGeaendert={() => void laden()}
+                     onAnrufen={(nummer, name) => { void anrufStarten(nummer, akte.person_id, name); }} />
       )}
+
       {offenerFall && (
         <ErgebnisDialog fall={offenerFall} ergebnisse={daten?.ergebnisse ?? []}
                         onZu={() => setOffenerFall(null)}
@@ -602,3 +617,425 @@ function Zeiten({ onMeldung }: { onMeldung: (m: { art: "gut" | "schlecht"; text:
     </div>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE INKASSO-AKTE — alles für das Gespräch, in einem Blick
+//
+// ── DER AUFTRAG ────────────────────────────────────────────────────────────
+// Der Vorgesetzte: „Der Inkasso-Mitarbeiter muss den Kundenverlauf sehen, alles
+// ganz genau — der braucht keine KI-Analyse. Der muss alles einsehen können,
+// was wichtig ist: ‚Ich rufe an, weil ihre Zahlung seit X Tagen fällig ist —
+// dürfte ich Sie bitten, diese zu bezahlen, sonst ist das schlecht für Ihre
+// SCHUFA, die wir gerade optimieren, das wäre ja schade.'"
+//
+// Der Satz gibt die Reihenfolge vor:
+//
+//   1. WER ist das (Name, Paket, seit wann Kunde)
+//   2. WAS ist offen (Betrag, seit wie vielen Tagen)
+//   3. WIE steht er da (bezahlte Raten, SCHUFA-Stand)
+//   4. WAS wurde schon versucht (Mails, Gespräche, Ergebnisse)
+//   5. WAS jetzt (anrufen, Rechnung schicken, Ergebnis festhalten)
+//
+// Keine Vorschläge, keine Deutung, keine KI. Ein Mensch, der zwanzig solcher
+// Gespräche am Tag führt, weiß besser als jedes Modell, was er sagen muss —
+// er braucht die Tatsachen, nicht Ratschläge.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function InkassoAkte({
+  fall, onZu, onGeaendert, onAnrufen,
+}: {
+  fall: Fall;
+  onZu: () => void;
+  onGeaendert: () => void;
+  onAnrufen: (nummer: string, name: string) => void;
+}) {
+  const [d, setD] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const [meldung, setMeldung] = useState<{ art: "gut" | "schlecht"; text: string } | null>(null);
+  const [player, setPlayer] = useState<number | null>(null);
+
+  const laden = useCallback(async () => {
+    const r = await fetch(`/api/fiaon/inkasso/rate/${fall.rate_id}`, { credentials: "include" })
+      .catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setD(j?.ok ? j : null);
+  }, [fall.rate_id]);
+  useEffect(() => { void laden(); }, [laden]);
+
+  const k = d?.kunde;
+  const eur = (c: any) => `${(Number(c || 0) / 100).toFixed(2).replace(".", ",")} €`;
+  const tag = (x: any) => x ? new Date(x).toLocaleDateString("de-DE", {
+    day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "Europe/Berlin",
+  }) : "—";
+  const zeit = (x: any) => x ? new Date(x).toLocaleString("de-DE", {
+    day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin",
+  }) : "—";
+
+  const erinnerungSenden = async () => {
+    setBusy(true); setMeldung(null);
+    const r = await fetch(`/api/fiaon/inkasso/rate/${fall.rate_id}/erinnerung`, {
+      method: "POST", credentials: "include",
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setBusy(false);
+    setMeldung(j?.ok
+      ? { art: "gut", text: j.meldung }
+      : { art: "schlecht", text: j?.error || "Die Mail ging nicht raus." });
+    if (j?.ok) { void laden(); onGeaendert(); }
+  };
+
+  const nummer = k?.bestell_telefon || k?.primary_phone;
+  const volleNummer = nummer
+    ? `${k?.vorwahl || "+49"}${String(nummer).replace(/^0/, "")}`
+    : null;
+
+  return (
+    <FiaonEbene
+      offen onZu={onZu}
+      titel={k?.name ?? fall.name}
+      ueberschrift={`Rate ${fall.rate_nr} · ${eur(fall.betrag_cents)}`}
+      breite={720}
+      kinder={
+        <div className="px-5 sm:px-7 py-4">
+          <style>{AKTE_CSS}</style>
+
+          {!d && <p className="text-[13px]" style={{ color: "var(--fi-text-still)" }}>Wird geladen …</p>}
+
+          {d && (
+            <>
+              {/* ── 1. DER ERSTE SATZ AM TELEFON ──────────────────────────────
+                  „Ihre Zahlung ist seit X Tagen fällig." Diese Zahl steht
+                  ganz oben und groß — sie ist der Grund des Anrufs. */}
+              <div className="fi-ak-kopf">
+                <div>
+                  <p className="fi-ak-marke">Offen seit</p>
+                  <p className="fi-ak-gross">
+                    {Number(k?.tage_offen ?? 0)} {Number(k?.tage_offen) === 1 ? "Tag" : "Tagen"}
+                  </p>
+                  <p className="fi-ak-klein">fällig war {tag(d.rate?.faellig_am)}</p>
+                </div>
+                <div>
+                  <p className="fi-ak-marke">Diese Rate</p>
+                  <p className="fi-ak-gross">{eur(fall.betrag_cents)}</p>
+                  <p className="fi-ak-klein">Rate {fall.rate_nr} von {k?.raten_gesamt ?? "?"}</p>
+                </div>
+                {Number(k?.offen_gesamt_cents) > Number(fall.betrag_cents) && (
+                  <div>
+                    <p className="fi-ak-marke">Gesamt überfällig</p>
+                    <p className="fi-ak-gross" style={{ color: "#b45309" }}>
+                      {eur(k?.offen_gesamt_cents)}
+                    </p>
+                    <p className="fi-ak-klein">mehrere Raten offen</p>
+                  </div>
+                )}
+                <div>
+                  <p className="fi-ak-marke">Schon bezahlt</p>
+                  <p className="fi-ak-gross" style={{ color: Number(k?.raten_bezahlt) > 0 ? "#047857" : undefined }}>
+                    {k?.raten_bezahlt ?? 0}
+                  </p>
+                  <p className="fi-ak-klein">
+                    {Number(k?.raten_bezahlt) > 0 ? "zahlt sonst zuverlässig" : "noch keine Rate"}
+                  </p>
+                </div>
+              </div>
+
+              {/* ── 2. WAS ZU TUN IST ─────────────────────────────────────── */}
+              <div className="fi-ak-tun">
+                {volleNummer && (
+                  <button type="button" onClick={() => onAnrufen(volleNummer, k?.name ?? fall.name)}
+                          className="fi-primaerknopf inline-flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-semibold">
+                    Anrufen · {volleNummer}
+                  </button>
+                )}
+                <button type="button" onClick={() => void erinnerungSenden()} disabled={busy}
+                        className="fi-zweitknopf px-3.5 py-2.5 text-[12.5px] font-semibold">
+                  {busy ? "Geht raus …" : "Rechnung jetzt schicken"}
+                </button>
+                {!k?.bestell_email && !k?.primary_email && (
+                  <span className="text-[11.5px]" style={{ color: "#b45309" }}>
+                    Keine E-Mail hinterlegt — Bankdaten am Telefon durchgeben.
+                  </span>
+                )}
+              </div>
+
+              {meldung && (
+                <p className="fi-ak-meldung" data-art={meldung.art}>{meldung.text}</p>
+              )}
+
+              {/* ── 3. DIE BANKDATEN ZUM VORLESEN ─────────────────────────── */}
+              <details className="fi-ak-block">
+                <summary className="fi-ak-titel">Bankdaten zum Vorlesen</summary>
+                <div className="fi-ak-bank">
+                  {([
+                    ["Empfänger", d.bank?.empfaenger],
+                    ["IBAN", d.bank?.iban],
+                    ["BIC", d.bank?.bic],
+                    ["Verwendungszweck", d.bank?.verwendungszweck],
+                  ] as const).map(([t, w]) => (
+                    <div key={t}>
+                      <p className="fi-ak-marke">{t}</p>
+                      <p className="fi-ak-mono">{w ?? "—"}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="fi-ak-hinweis">
+                  Der Verwendungszweck ist wichtig: Ohne ihn lässt sich die Überweisung nicht
+                  dieser Rate zuordnen, und die Mahnung läuft weiter.
+                </p>
+              </details>
+
+              {/* ── 4. WER IST DAS ───────────────────────────────────────── */}
+              <div className="fi-ak-block">
+                <p className="fi-ak-titel">Kunde</p>
+                <div className="fi-ak-daten">
+                  {([
+                    ["Name", k?.name],
+                    ["Paket", k?.pack_name],
+                    ["Kunde seit", tag(k?.kunde_seit)],
+                    ["E-Mail", k?.bestell_email || k?.primary_email],
+                    ["Telefon", volleNummer],
+                    ["Adresse", [k?.strasse, [k?.plz, k?.ort].filter(Boolean).join(" ")]
+                      .filter(Boolean).join(", ")],
+                    ["Zugang", k?.account_status],
+                    ["Bonität", k?.schufa_status],
+                  ] as const).filter(([, w]) => w).map(([t, w]) => (
+                    <div key={t}>
+                      <p className="fi-ak-marke">{t}</p>
+                      <p className="fi-ak-wert">{w}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── 5. ALLE RATEN ────────────────────────────────────────── */}
+              <div className="fi-ak-block">
+                <p className="fi-ak-titel">Alle Raten</p>
+                <div className="fi-ak-raten">
+                  {(d.raten ?? []).map((r: any) => (
+                    <div key={r.rate_nr} className="fi-ak-rate"
+                         data-jetzt={r.rate_nr === fall.rate_nr ? "1" : "0"}
+                         data-stand={r.status === "bezahlt" ? "bezahlt"
+                           : new Date(r.faellig_am) < new Date() ? "ueberfaellig" : "offen"}>
+                      <span className="fi-ak-rate-nr">{r.rate_nr}</span>
+                      <span className="fi-ak-rate-geld">{eur(r.betrag_cents)}</span>
+                      <span className="fi-ak-rate-tag">{tag(r.faellig_am)}</span>
+                      <span className="fi-ak-rate-stand">
+                        {r.status === "bezahlt" ? `bezahlt ${tag(r.bezahlt_am)}`
+                          : new Date(r.faellig_am) < new Date() ? "überfällig" : "kommt noch"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── 6. JEDES GESPRÄCH ────────────────────────────────────── */}
+              <div className="fi-ak-block">
+                <p className="fi-ak-titel">
+                  Gespräche {(d.gespraeche ?? []).length > 0 && `(${d.gespraeche.length})`}
+                </p>
+                {(d.gespraeche ?? []).length === 0 && (
+                  <p className="fi-ak-leer">Mit diesem Kunden wurde über die Plattform noch nicht telefoniert.</p>
+                )}
+                {(d.gespraeche ?? []).map((g: any) => (
+                  <div key={g.id} className="fi-ak-zeile">
+                    <div className="fi-ak-zeile-kopf">
+                      <span className="fi-ak-zeit">{zeit(g.beginn)}</span>
+                      {g.dauer_sek != null && (
+                        <span className="fi-ak-dauer">
+                          {Math.floor(g.dauer_sek / 60)}:{String(g.dauer_sek % 60).padStart(2, "0")}
+                        </span>
+                      )}
+                      {g.agent && <span className="fi-ak-wer">{g.agent}</span>}
+                      {g.ergebnis && <span className="fi-ak-erg">{ERG_TEXT[g.ergebnis] ?? g.ergebnis}</span>}
+                      {g.hat_aufnahme && !g.ohne_aufzeichnung_am && (
+                        <button type="button" className="fi-ak-hoeren"
+                                onClick={() => setPlayer(player === g.id ? null : g.id)}>
+                          {player === g.id ? "zu" : "anhören"}
+                        </button>
+                      )}
+                    </div>
+                    {g.zusammenfassung && <p className="fi-ak-fass">{g.zusammenfassung}</p>}
+                    {player === g.id && (
+                      <audio controls preload="none" className="fi-ak-audio"
+                             src={`/api/fiaon/telefon/${g.id}/aufnahme`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* ── 7. WAS SCHON RAUSGING ───────────────────────────────── */}
+              <div className="fi-ak-block">
+                <p className="fi-ak-titel">Verschickte Mails</p>
+                {(d.mails ?? []).length === 0 && (
+                  <p className="fi-ak-leer">Noch keine Mail an diesen Kunden.</p>
+                )}
+                {(d.mails ?? []).map((m: any, i: number) => (
+                  <div key={i} className="fi-ak-zeile">
+                    <div className="fi-ak-zeile-kopf">
+                      <span className="fi-ak-zeit">{zeit(m.gesendet_am)}</span>
+                      <span className="fi-ak-wer">{MAIL_TEXT[m.event] ?? m.event}</span>
+                      {!m.ok && <span className="fi-ak-fehler">nicht angekommen: {m.grund}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── 8. DER VERLAUF ──────────────────────────────────────── */}
+              <div className="fi-ak-block">
+                <p className="fi-ak-titel">Verlauf</p>
+                {[...(d.arbeit ?? []).map((a: any) => ({
+                  wann: a.created_at, wer: a.agent_name,
+                  was: `${ERG_TEXT[a.ergebnis] ?? a.ergebnis}`
+                    + (a.zusage_am ? ` · Zusage ${tag(a.zusage_am)}` : "")
+                    + (a.wiedervorlage ? ` · wieder ${tag(a.wiedervorlage)}` : ""),
+                  notiz: a.notiz,
+                })), ...(d.kontakte ?? []).map((c: any) => ({
+                  wann: c.created_at, wer: c.agent_name,
+                  was: c.outcome || c.type, notiz: c.note,
+                }))]
+                  .sort((a, b) => new Date(b.wann).getTime() - new Date(a.wann).getTime())
+                  .slice(0, 30)
+                  .map((e: any, i: number) => (
+                    <div key={i} className="fi-ak-zeile">
+                      <div className="fi-ak-zeile-kopf">
+                        <span className="fi-ak-zeit">{zeit(e.wann)}</span>
+                        {e.wer && <span className="fi-ak-wer">{e.wer}</span>}
+                        <span className="fi-ak-erg">{e.was}</span>
+                      </div>
+                      {e.notiz && <p className="fi-ak-fass">{e.notiz}</p>}
+                    </div>
+                  ))}
+                {(d.arbeit ?? []).length === 0 && (d.kontakte ?? []).length === 0 && (
+                  <p className="fi-ak-leer">Noch kein Eintrag.</p>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      }
+    />
+  );
+}
+
+/** Ergebnisse in Klartext — kein Mensch soll Feldnamen lesen müssen. */
+const ERG_TEXT: Record<string, string> = {
+  erreicht_zahlt_gleich: "zahlt sofort",
+  erreicht_zahlt_am: "zahlt zum Termin",
+  erreicht_abgelehnt: "abgelehnt",
+  nicht_erreicht: "nicht erreicht",
+  mailbox: "Mailbox besprochen",
+  rueckruf_termin: "Rückruf vereinbart",
+  nummer_falsch: "falsche Nummer",
+  nummer_blockiert: "Nummer blockiert",
+  notiz: "Notiz",
+  zusage: "Zahlung zugesagt",
+  zusage_gebrochen: "Zusage gebrochen",
+};
+
+const MAIL_TEXT: Record<string, string> = {
+  abo_payment_reminder: "Zahlungserinnerung (Rate)",
+  payment_reminder: "Zahlungserinnerung (Erstzahlung)",
+  payment_details: "Zahlungsdaten",
+  payment_confirmed: "Zahlung bestätigt",
+  welcome: "Willkommen",
+  followup_48h: "Nachfassen nach 48 Std",
+};
+
+const AKTE_CSS = `
+/* ── DIE AKTE ──────────────────────────────────────────────────────────────
+   Ruhig und dicht: Wer telefoniert, überfliegt — er liest nicht. Deshalb
+   kleine Beschriftungen, große Zahlen und klare Blöcke. */
+.fi-ak-kopf {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  padding: 14px 16px; margin-bottom: 14px;
+  border-radius: 16px;
+  background: linear-gradient(150deg, rgba(37,99,235,.06), rgba(37,99,235,.02));
+  box-shadow: inset 0 0 0 1px rgba(37,99,235,.14);
+}
+.fi-ak-marke {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--fi-text-still); margin-bottom: 2px;
+}
+.fi-ak-gross {
+  font-size: 22px; font-weight: 700; line-height: 1.05;
+  font-variant-numeric: tabular-nums; color: var(--fi-text);
+}
+.fi-ak-klein { font-size: 11px; color: var(--fi-text-still); margin-top: 2px; line-height: 1.35; }
+
+.fi-ak-tun { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+
+.fi-ak-meldung {
+  padding: 10px 13px; border-radius: 12px; margin-bottom: 12px;
+  font-size: 12.5px; line-height: 1.5;
+}
+.fi-ak-meldung[data-art="gut"] { background: rgba(5,150,105,.08); color: #047857; }
+.fi-ak-meldung[data-art="schlecht"] { background: rgba(217,119,6,.08); color: #b45309; }
+
+.fi-ak-block { padding-top: 13px; margin-top: 13px; border-top: 1px solid rgba(15,23,42,.07); }
+.fi-ak-titel {
+  font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--fi-text-still); margin-bottom: 8px; cursor: default;
+}
+details.fi-ak-block > summary { cursor: pointer; list-style: none; }
+details.fi-ak-block > summary::-webkit-details-marker { display: none; }
+details.fi-ak-block > summary::after { content: " ▾"; opacity: .5; }
+details.fi-ak-block[open] > summary::after { content: " ▴"; }
+
+.fi-ak-daten, .fi-ak-bank {
+  display: grid; gap: 10px 16px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.fi-ak-wert { font-size: 13px; color: var(--fi-text); overflow-wrap: anywhere; line-height: 1.4; }
+/* Der Verwendungszweck wird vorgelesen — eine Schrift mit gleichen Breiten
+   verhindert, dass man 0 und O verwechselt. */
+.fi-ak-mono {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px; font-weight: 600; color: var(--fi-text);
+  overflow-wrap: anywhere; line-height: 1.4;
+  user-select: all;
+}
+.fi-ak-hinweis { font-size: 11.5px; color: var(--fi-text-still); margin-top: 9px; line-height: 1.5; }
+
+.fi-ak-raten { display: flex; flex-direction: column; gap: 1px; }
+.fi-ak-rate {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding: 6px 9px; border-radius: 9px; font-size: 12.5px;
+}
+.fi-ak-rate[data-jetzt="1"] { background: rgba(37,99,235,.07); font-weight: 600; }
+.fi-ak-rate-nr {
+  width: 20px; height: 20px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 6px; font-size: 10.5px; font-weight: 700;
+  background: rgba(15,23,42,.06); color: var(--fi-text-leise);
+}
+.fi-ak-rate[data-stand="bezahlt"] .fi-ak-rate-nr { background: rgba(5,150,105,.14); color: #047857; }
+.fi-ak-rate[data-stand="ueberfaellig"] .fi-ak-rate-nr { background: rgba(185,28,28,.12); color: #b91c1c; }
+.fi-ak-rate-geld { font-variant-numeric: tabular-nums; font-weight: 600; }
+.fi-ak-rate-tag { font-variant-numeric: tabular-nums; color: var(--fi-text-still); font-size: 11.5px; }
+.fi-ak-rate-stand { margin-left: auto; font-size: 11.5px; color: var(--fi-text-still); }
+.fi-ak-rate[data-stand="bezahlt"] .fi-ak-rate-stand { color: #047857; }
+.fi-ak-rate[data-stand="ueberfaellig"] .fi-ak-rate-stand { color: #b91c1c; font-weight: 600; }
+
+.fi-ak-zeile { padding: 6px 0; border-bottom: 1px solid rgba(15,23,42,.045); }
+.fi-ak-zeile:last-child { border-bottom: 0; }
+.fi-ak-zeile-kopf { display: flex; flex-wrap: wrap; align-items: baseline; gap: 9px; font-size: 12.5px; }
+.fi-ak-zeit { font-variant-numeric: tabular-nums; color: var(--fi-text-still); font-size: 11.5px; }
+.fi-ak-dauer { font-variant-numeric: tabular-nums; font-weight: 600; }
+.fi-ak-wer { color: var(--fi-text-leise); }
+.fi-ak-erg { font-weight: 600; color: var(--fi-text); }
+.fi-ak-fehler { color: #b91c1c; font-size: 11.5px; }
+.fi-ak-hoeren {
+  margin-left: auto; border: 0; background: none; cursor: pointer;
+  font-size: 11.5px; font-weight: 600; color: var(--fi-primaer);
+}
+.fi-ak-fass { font-size: 12.5px; color: var(--fi-text-leise); line-height: 1.5; margin-top: 3px; }
+.fi-ak-audio { width: 100%; height: 32px; margin-top: 6px; }
+.fi-ak-leer { font-size: 12.5px; color: var(--fi-text-still); }
+
+@media (max-width: 639px) {
+  .fi-ak-kopf { padding: 12px 13px; gap: 10px; }
+  .fi-ak-gross { font-size: 19px; }
+  .fi-ak-rate-stand { margin-left: 0; width: 100%; }
+}
+`;

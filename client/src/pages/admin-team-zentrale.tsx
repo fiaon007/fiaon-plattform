@@ -689,27 +689,191 @@ function TeamKosten() {
 
   const geld = (c: number) => `${(c / 100).toFixed(2).replace(".", ",")} €`;
   const gut = d.deckung >= 100;
+  // Der Balken zeigt die Deckung, aber gedeckelt bei 100 %: Ein Balken, der
+  // bei 461 % viermal aus dem Kasten läuft, sagt nichts mehr. Die Zahl steht
+  // daneben und darf so groß sein, wie sie ist.
+  const balken = Math.max(4, Math.min(100, Number(d.deckung) || 0));
+
   return (
-    <div className="mb-3 px-4 py-3.5 rounded-2xl fi-flaeche-tief flex flex-wrap items-center gap-x-7 gap-y-2.5">
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-[.12em] fi-leise">Personalkosten Monat</p>
-        <p className="text-[17px] font-bold tabular-nums leading-tight">{geld(d.personalkosten)}</p>
+    <>
+      <style>{KOSTEN_CSS}</style>
+      {/* ══════════════════════════════════════════════════════════════════════
+          DIE KOSTENBÜHNE
+
+          ── DER BEFUND ────────────────────────────────────────────────────────
+          Der Vorgesetzte: „Die Schriftfarbe ist blau auf schwarz — mach das
+          moderner, Animationen, 3D-Elemente und vor allem LESBAR!"
+
+          Gemessen: Die Zahlen trugen `rgb(17, 24, 39)` (Tailwinds
+          text-gray-900) auf `rgb(10, 26, 60)`. Kontrast praktisch null.
+
+          Der Grund lag in der Hausregel selbst: `.fi-flaeche-tief * { color:
+          inherit }` hat dieselbe Spezifität wie eine Tailwind-Utility, und
+          Tailwind wird SPÄTER eingefügt. Bei gleichem Gewicht gewinnt das
+          Spätere. Der Kommentar behauptete Strenge, das CSS hatte keine.
+
+          Jetzt: eigene Klassen mit erzwungener Farbe, ein Deckungsbalken, der
+          beim Erscheinen einläuft, gestaffelte Tiefe statt flacher Fläche.
+          ══════════════════════════════════════════════════════════════════════ */}
+      <div className="fi-kosten" data-gut={gut ? "1" : "0"}>
+        <div className="fi-kosten-glanz" aria-hidden="true" />
+
+        <div className="fi-kosten-zahlen">
+          <div className="fi-kosten-block">
+            <p className="fi-kosten-marke">Personalkosten Monat</p>
+            <p className="fi-kosten-wert">{geld(d.personalkosten)}</p>
+          </div>
+          <span className="fi-kosten-teiler" aria-hidden="true" />
+          <div className="fi-kosten-block">
+            <p className="fi-kosten-marke">Umsatz Monat</p>
+            <p className="fi-kosten-wert">{geld(d.umsatz)}</p>
+          </div>
+          <span className="fi-kosten-teiler" aria-hidden="true" />
+          <div className="fi-kosten-block">
+            <p className="fi-kosten-marke">Deckung</p>
+            <p className="fi-kosten-wert fi-kosten-deckung">{d.deckung} %</p>
+          </div>
+        </div>
+
+        {/* ── DER BALKEN ─────────────────────────────────────────────────────
+            Er läuft beim Erscheinen von null auf seinen Wert. Nicht als
+            Verzierung: Eine Zahl allein sagt „461 %", der Balken sagt „das
+            ist weit über der Linie". Zwei Sinne für dieselbe Auskunft. */}
+        <div className="fi-kosten-balken" role="img"
+             aria-label={`Deckung ${d.deckung} Prozent`}>
+          <span className="fi-kosten-balken-fuell"
+                style={{ ["--ziel" as any]: `${balken}%` }} />
+          <span className="fi-kosten-balken-linie" aria-hidden="true" />
+        </div>
+
+        <p className="fi-kosten-satz">
+          {d.satz} · {d.mitGehalt} {d.mitGehalt === 1 ? "Person" : "Personen"} mit Festgehalt.
+        </p>
       </div>
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-[.12em] fi-leise">Umsatz Monat</p>
-        <p className="text-[17px] font-bold tabular-nums leading-tight">{geld(d.umsatz)}</p>
-      </div>
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-[.12em] fi-leise">Deckung</p>
-        <p className="text-[17px] font-bold tabular-nums leading-tight"
-           style={{ color: gut ? "#6ee7b7" : "#fcd34d" }}>{d.deckung} %</p>
-      </div>
-      <p className="text-[11.5px] leading-snug fi-leise" style={{ flex: "1 1 200px", minWidth: 0 }}>
-        {d.satz} · {d.mitGehalt} {d.mitGehalt === 1 ? "Person" : "Personen"} mit Festgehalt.
-      </p>
-    </div>
+    </>
   );
 }
+
+const KOSTEN_CSS = `
+/* ── DIE KOSTENBÜHNE ────────────────────────────────────────────────────────
+   Dunkel, aber lesbar: Jede Schriftfarbe steht ausdrücklich, keine wird
+   geerbt. Die Hausregel „inherit" hat gegen Tailwind verloren. */
+.fi-kosten {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 14px;
+  padding: 18px 20px 16px;
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 140% at 8% 0%, rgba(59,130,246,.22), transparent 58%),
+    linear-gradient(158deg, #16305f, #0b1b3f 58%, #071129);
+  /* Gestaffelte Tiefe: ein enger Schatten für die Kante, ein weiter für die
+     Höhe, eine Lichtkante oben. Drei Ebenen ergeben eine Fläche, die über
+     der Seite zu schweben scheint statt aufgeklebt zu sein. */
+  box-shadow:
+    0 2px 8px -3px rgba(7,17,41,.5),
+    0 26px 54px -28px rgba(7,17,41,.8),
+    inset 0 1px 0 rgba(255,255,255,.14),
+    inset 0 0 0 1px rgba(255,255,255,.07);
+  animation: fiKostenAuf 520ms cubic-bezier(.32,.72,0,1) both;
+}
+@keyframes fiKostenAuf {
+  from { opacity: 0; transform: translateY(10px) scale(.995); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Ein wandernder Glanz — sehr dezent, einmal alle acht Sekunden. Er macht die
+   Fläche lebendig, ohne die Aufmerksamkeit zu fordern. */
+.fi-kosten-glanz {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,.055) 48%, transparent 58%);
+  transform: translateX(-120%);
+  animation: fiKostenGlanz 8s ease-in-out 1.2s infinite;
+}
+@keyframes fiKostenGlanz {
+  0%, 72%, 100% { transform: translateX(-120%); }
+  86% { transform: translateX(120%); }
+}
+
+.fi-kosten-zahlen {
+  position: relative; z-index: 1;
+  display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0 22px;
+}
+.fi-kosten-block { min-width: 0; }
+.fi-kosten-teiler {
+  width: 1px; height: 30px; align-self: center;
+  background: linear-gradient(180deg, transparent, rgba(255,255,255,.16), transparent);
+}
+.fi-kosten-marke {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
+  color: rgba(191,214,247,.72) !important;
+  margin-bottom: 3px;
+}
+/* Die Zahl: ausdrücklich weiß, mit tabellarischen Ziffern. Ohne das
+   !important gewinnt Tailwinds text-gray-900 — gemessen. */
+.fi-kosten-wert {
+  font-size: 21px; font-weight: 700; line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: #f4f8ff !important;
+  text-shadow: 0 1px 0 rgba(7,17,41,.5);
+}
+.fi-kosten[data-gut="1"] .fi-kosten-deckung { color: #6ee7b7 !important; }
+.fi-kosten[data-gut="0"] .fi-kosten-deckung { color: #fcd34d !important; }
+
+/* ── DER BALKEN ─────────────────────────────────────────────────────────── */
+.fi-kosten-balken {
+  position: relative; z-index: 1;
+  height: 7px; margin: 13px 0 11px;
+  border-radius: 999px; overflow: hidden;
+  background: rgba(7,17,41,.55);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.4);
+}
+.fi-kosten-balken-fuell {
+  display: block; height: 100%; width: var(--ziel, 0%);
+  border-radius: 999px;
+  background: linear-gradient(90deg, #3b82f6, #34d399);
+  box-shadow: 0 0 14px -2px rgba(52,211,153,.55);
+  animation: fiKostenBalken 900ms cubic-bezier(.32,.72,0,1) 180ms both;
+}
+.fi-kosten[data-gut="0"] .fi-kosten-balken-fuell {
+  background: linear-gradient(90deg, #f59e0b, #fcd34d);
+  box-shadow: 0 0 14px -2px rgba(252,211,77,.5);
+}
+@keyframes fiKostenBalken { from { width: 0; } to { width: var(--ziel, 0%); } }
+/* Die 100-Prozent-Linie: Ohne sie ist der Balken eine Länge ohne Maßstab. */
+.fi-kosten-balken-linie {
+  position: absolute; top: -2px; bottom: -2px; left: calc(100% - 1.5px);
+  width: 1.5px; background: rgba(255,255,255,.4);
+}
+
+.fi-kosten-satz {
+  position: relative; z-index: 1;
+  font-size: 11.5px; line-height: 1.5;
+  color: rgba(191,214,247,.74) !important;
+}
+/* ── PLATZ FÜR DEN TELEFONKNOPF ────────────────────────────────────────────
+   Er schwebt rechts unten und überdeckte auf 390 px den Satz „2 Personen mit
+   Festgehalt". Derselbe Fehler wie am 11.08. in der Vertriebsliste: Ein
+   schwebendes Element gehört in die Platzrechnung, nicht darüber hinweg.
+   Gemessen per Bounding-Box: 64 px breit, 14 px vom Rand — 82 px genügen. */
+@media (max-width: 639px) {
+  .fi-kosten-satz { padding-right: 82px; }
+}
+
+@media (max-width: 639px) {
+  .fi-kosten { padding: 15px 16px 14px; border-radius: 18px; }
+  .fi-kosten-zahlen { gap: 0 16px; }
+  .fi-kosten-wert { font-size: 18px; }
+  .fi-kosten-teiler { display: none; }
+  .fi-kosten-block { flex: 1 1 44%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fi-kosten, .fi-kosten-balken-fuell { animation: none !important; }
+  .fi-kosten-glanz { display: none; }
+  .fi-kosten-balken-fuell { width: var(--ziel, 0%); }
+}
+`;
 
 /**
  * „Lohnt sich dieser Mensch?" — Kosten gegen Beitrag, heute und im Monat.

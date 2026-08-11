@@ -503,10 +503,22 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.09),
     inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
-/* Alles darin ist hell — hier gilt die Regel besonders streng, weil eine
-   geerbte dunkle Schrift auf #0A1A3C praktisch unsichtbar ist. */
-.fi-flaeche-tief, .fi-flaeche-tief * { color: inherit; }
-.fi-flaeche-tief .fi-leise { color: rgba(226, 236, 250, 0.62); }
+/* ── DIE REGEL BRAUCHT !important, SONST GILT SIE NICHT ────────────────────
+   Hier stand `color: inherit` ohne Nachdruck — mit einem Kommentar, der
+   behauptete, die Regel sei „besonders streng". Sie war es nicht.
+
+   Gemessen am 11.08.2026 in der Kostenleiste: Die Zahlen hatten
+   `rgb(17, 24, 39)` — Tailwinds text-gray-900, fast schwarz — auf
+   `rgb(10, 26, 60)`. Der Vorgesetzte: „Die Schriftfarbe ist blau auf schwarz."
+
+   Der Grund: Eine Utility-Klasse wie `text-slate-900` hat dieselbe
+   Spezifität wie `.fi-flaeche-tief *`, und Tailwind wird SPÄTER eingefügt.
+   Bei gleichem Gewicht gewinnt das Spätere.
+
+   Ein Kommentar, der Strenge behauptet, ersetzt kein !important. */
+.fi-flaeche-tief { color: #eef3fb !important; }
+.fi-flaeche-tief *:not(.fi-eigene-farbe) { color: inherit !important; }
+.fi-flaeche-tief .fi-leise { color: rgba(226, 236, 250, 0.66) !important; }
 
 /* ── Die harte Wand gegen unlesbare Knöpfe ──────────────────────────────────
    Jede bekannte blaue Knopfklasse bekommt weiße Schrift erzwungen. Das ist

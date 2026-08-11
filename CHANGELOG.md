@@ -3,6 +3,55 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (XX) — Die Kostenleiste: blau auf schwarz, jetzt gemessen lesbar
+
+### Der Befund, in Zahlen
+
+*„Die Schriftfarbe ist blau auf schwarz — mach das moderner, Animationen, 3D-Elemente und vor allem LESBAR!"*
+
+Gemessen an den gerenderten Elementen:
+
+| | vorher | jetzt |
+|---|---|---|
+| Zahlen | `rgb(17,24,39)` auf `rgb(10,26,60)` | `rgb(244,248,255)` |
+| Kontrast Zahlen | praktisch null | **17,59** |
+| Kontrast Beschriftung | — | **12,64** |
+
+`rgb(17,24,39)` ist Tailwinds `text-gray-900` — fast schwarz auf dunkelblau.
+
+### Warum die Hausregel nicht griff
+
+Im Stylesheet stand:
+
+```css
+/* Alles darin ist hell — hier gilt die Regel besonders streng */
+.fi-flaeche-tief, .fi-flaeche-tief * { color: inherit; }
+```
+
+**Der Kommentar behauptete Strenge, das CSS hatte keine.** Eine Utility-Klasse wie `text-slate-900` hat dieselbe Spezifität wie `.fi-flaeche-tief *` — und Tailwind wird **später** eingefügt. Bei gleichem Gewicht gewinnt das Spätere.
+
+Ein Kommentar, der Strenge behauptet, ersetzt kein `!important`.
+
+### Die neue Kostenbühne
+
+**Lesbar:** Jede Schriftfarbe steht ausdrücklich mit `!important`, keine wird geerbt.
+
+**Der Deckungsbalken** läuft beim Erscheinen von null auf seinen Wert — gedeckelt bei 100 %. Ein Balken, der bei 461 % viermal aus dem Kasten läuft, sagt nichts mehr; die Zahl steht daneben und darf so groß sein, wie sie ist. Eine Linie markiert die 100-Prozent-Grenze, sonst wäre der Balken eine Länge ohne Maßstab.
+
+**Tiefe statt Fläche:** Drei Schattenebenen — ein enger für die Kante, ein weiter für die Höhe, eine Lichtkante oben. Dazu ein radialer Lichtschein von links oben.
+
+**Ein wandernder Glanz**, einmal alle acht Sekunden. Dezent: Er macht die Fläche lebendig, ohne Aufmerksamkeit zu fordern.
+
+**Auf 390 px** als 2×2-Raster, ohne Teiler, mit 82 px Platz rechts unten — der schwebende Telefonknopf überdeckte den Satz „2 Personen mit Festgehalt". Derselbe Fehler wie heute Vormittag in der Vertriebsliste: Ein schwebendes Element gehört in die Platzrechnung.
+
+Bei `prefers-reduced-motion` fallen Glanz und Einlauf weg.
+
+### Prüfstand
+
+`pruef-rueckstand` von 299 auf **310**. Drei Gegenproben: `!important` entfernen, Balken ohne Deckelung, weiße Zahlenfarbe raus — jede wird rot. Kontrast an beiden Größen gemessen, nicht behauptet.
+
+Gesamt **2.198**.
+
 ## 11.08.2026 (XIX) — Die Team-Zentrale zeigte SQL statt Zahlen
 
 ### Mein Fehler, im Screenshot sichtbar

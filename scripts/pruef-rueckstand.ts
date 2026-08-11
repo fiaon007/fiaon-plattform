@@ -962,6 +962,47 @@ async function main(): Promise<void> {
     probe.ok ? "Auswertung erstellt" : probe.grund);
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c11. Die Kostenbühne: lesbar, animiert, mit Tiefe");
+  // ═══════════════════════════════════════════════════════════════════════
+  // ── DER BEFUND ────────────────────────────────────────────────────────
+  // Der Vorgesetzte: „Die Schriftfarbe ist blau auf schwarz — mach das
+  // moderner, Animationen, 3D-Elemente und vor allem LESBAR!"
+  //
+  // Gemessen: Die Zahlen trugen rgb(17,24,39) — Tailwinds text-gray-900 — auf
+  // rgb(10,26,60). Kontrast praktisch null.
+  //
+  // Der Grund lag in der Hausregel selbst: `.fi-flaeche-tief * { color:
+  // inherit }` hat dieselbe Spezifität wie eine Tailwind-Utility, und Tailwind
+  // wird SPÄTER eingefügt. Bei gleichem Gewicht gewinnt das Spätere. Der
+  // Kommentar behauptete „besonders streng" — das CSS war es nicht.
+  const dsQ = datei("client/src/styles/fiaon-design.css");
+  ok("Die Hausregel hat jetzt Nachdruck",
+    /\.fi-flaeche-tief \{ color: #eef3fb !important; \}/.test(dsQ));
+  ok("… und der Grund steht dabei",
+    /Ein Kommentar, der Strenge behauptet, ersetzt kein !important/.test(dsQ));
+
+  ok("Die Kostenbühne hat eigene Klassen", /\.fi-kosten \{/.test(tzQ2));
+  ok("Jede Schriftfarbe steht ausdrücklich",
+    (tzQ2.match(/color: [^;]+ !important;/g) || []).length >= 4);
+  ok("Die Zahlen sind weiß", /\.fi-kosten-wert[\s\S]{0,200}color: #f4f8ff !important/.test(tzQ2));
+  ok("Es gibt einen Deckungsbalken", /\.fi-kosten-balken-fuell/.test(tzQ2));
+  ok("… der beim Erscheinen einläuft", /@keyframes fiKostenBalken/.test(tzQ2));
+  ok("… und bei 100 % gedeckelt ist",
+    /Math\.min\(100, Number\(d\.deckung\)/.test(tzQ2)
+    && /viermal aus dem Kasten läuft/.test(tzQ2));
+  ok("Die 100-Prozent-Linie gibt Maßstab", /\.fi-kosten-balken-linie/.test(tzQ2));
+  ok("Gestaffelte Tiefe statt flacher Fläche",
+    /0 2px 8px -3px rgba\(7,17,41,\.5\)/.test(tzQ2)
+    && /0 26px 54px -28px rgba\(7,17,41,\.8\)/.test(tzQ2));
+  ok("Ein wandernder Glanz", /@keyframes fiKostenGlanz/.test(tzQ2));
+  ok("Auf 380 px als Raster, ohne Teiler",
+    /\.fi-kosten-teiler \{ display: none; \}/.test(tzQ2));
+  ok("Platz für den Telefonknopf gelassen",
+    /\.fi-kosten-satz \{ padding-right: 82px; \}/.test(tzQ2));
+  ok("Reduzierte Bewegung wird geachtet",
+    /prefers-reduced-motion[\s\S]{0,200}\.fi-kosten-glanz \{ display: none; \}/.test(tzQ2));
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");
   // ═══════════════════════════════════════════════════════════════════════
   const fQ = datei("client/src/components/PremiumFooter.tsx");

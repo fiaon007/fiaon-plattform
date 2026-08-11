@@ -26,6 +26,9 @@ interface Mitglied {
   commission_rate_bp: number | null; monthly_goal_cents: number | null;
   last_login_at: string | null;
   stufe_a: number; stufe_b: number; stufe_c: number; bestand: number;
+  // Was davon HEUTE ansteht — ohne Ruhende und ohne Verabredungen in der
+  // Zukunft. Der Bestand allein fuehrt in die Irre.
+  stufe_a_heute?: number; stufe_b_heute?: number; stufe_c_heute?: number;
   heute: number; woche: number; erreichbarkeit: number | null;
   abschluesse_monat: number; umsatz_monat_cents: string;
   offen_cents: string; ausgezahlt_cents: string; letzte_aktivitaet: string | null;
@@ -1010,14 +1013,34 @@ function MitgliedDetail({
                   { t: "Abschlüsse", w: String(m.abschluesse_monat) },
                   { t: "Kontakte Woche", w: String(m.woche) },
                   { t: "Erreichbarkeit", w: m.erreichbarkeit != null ? `${m.erreichbarkeit} %` : "—" },
-                  { t: "Bestand A", w: String(m.stufe_a) },
-                  { t: "Bestand B", w: String(m.stufe_b) },
-                  { t: "Bestand C", w: String(m.stufe_c) },
+                  // ── ZWEI ZAHLEN, WEIL EINE IRREFÜHRT ─────────────────────
+                  // Der Vorgesetzte: „In meiner Ansicht steht, dass er so und
+                  // so viele A-, B- und C-Kunden hat — in seiner Ansicht steht
+                  // aber was ganz anderes!"
+                  //
+                  // Gemessen für Daniel Stripling, Stufe A: hier 58, in seiner
+                  // Kundenliste 30, in seiner Arbeitsliste 4. Keine Zahl war
+                  // falsch — falsch war, dass sie dieselbe Überschrift trugen.
+                  //
+                  // Wer 58 sieht und fragt, warum nur vier abgearbeitet
+                  // wurden, stellt die falsche Frage. Und der Agent kann sich
+                  // nicht wehren, weil er die 58 nie gesehen hat.
+                  { t: "Bestand A", w: String(m.stufe_a),
+                    zusatz: m.stufe_a_heute != null ? `${m.stufe_a_heute} heute dran` : null },
+                  { t: "Bestand B", w: String(m.stufe_b),
+                    zusatz: m.stufe_b_heute != null ? `${m.stufe_b_heute} heute dran` : null },
+                  { t: "Bestand C", w: String(m.stufe_c),
+                    zusatz: m.stufe_c_heute != null ? `${m.stufe_c_heute} heute dran` : null },
                   { t: "Offen", w: eur(m.offen_cents) },
                 ].map((k) => (
                   <div key={k.t} className="p-3 rounded-xl bg-slate-50">
                     <p className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 leading-tight">{k.t}</p>
                     <p className="text-[17px] font-bold text-slate-900 tabular-nums leading-tight mt-0.5">{k.w}</p>
+                    {(k as any).zusatz && (
+                      <p className="text-[10px] leading-tight mt-0.5" style={{ color: "var(--fi-primaer)" }}>
+                        {(k as any).zusatz}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>

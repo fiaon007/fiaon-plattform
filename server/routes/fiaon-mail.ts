@@ -7,6 +7,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { darfAnKunde } from "../lib/fiaon-kundenzugriff";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureRolleSpalte } from "./fiaon-vertrieb";
 import {
@@ -216,21 +217,12 @@ router.post("/admin/mail/alle-pruefen", async (req: Request, res: Response) => {
 // SENDE-MENÜ AM KUNDEN (Team und Admin)
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function darfAnKunde(agentId: number, rolle: Rolle, personId: number): Promise<boolean> {
-  if (rolle === "vertriebsleiter" || rolle === "admin") return true;
-  if (rolle === "onboarding") {
-    const [t] = (await sqlPool`
-      SELECT 1 AS ok FROM fiaon_termine
-      WHERE person_id = ${personId} AND agent_id = ${agentId} AND quelle = 'onboarding_call' LIMIT 1
-    `) as any[];
-    return !!t;
-  }
-  const [p] = (await sqlPool`
-    SELECT 1 AS ok FROM fiaon_persons
-    WHERE id = ${personId} AND assigned_agent_id = ${agentId} AND merged_into_person_id IS NULL
-  `) as any[];
-  return !!p;
-}
+// ── DIE ZUGRIFFSFRAGE STEHT IN fiaon-kundenzugriff.ts ─────────────────────
+// Sie wurde hier UND in der jeweils anderen Datei beantwortet — zwei Kopien
+// mit derselben Lücke: Das Forderungsmanagement fiel in den letzten Zweig
+// (nach `assigned_agent_id`) und durfte niemanden anrufen und niemandem
+// schreiben. Zweimal repariert wäre beim nächsten Mal wieder zweimal zu
+// reparieren, und eine Stelle vergisst man.
 
 /** GET /agent/mail/:personId — das Sende-Menü: Ereignisse, Ampel, Historie. */
 router.get("/agent/mail/:personId", requireAgent, async (req: AgentRequest, res: Response) => {

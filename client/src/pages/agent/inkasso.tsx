@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AgentShell } from "./shared";
 import { Gespraechsblatt } from "@/components/Gespraechsblatt";
+import { MarkeBrief, SendeMenue } from "@/components/SendeMenue";
 import { MarkeFunke, MarkeHoerer, anrufStarten } from "@/components/Softphone";
 import { ZusageTafel } from "./vertrieb-zusage";
 
@@ -64,6 +65,10 @@ export default function AgentInkasso() {
     () => (new URLSearchParams(window.location.search).get("tab") === "stunden" ? "stunden" : "liste"),
   );
   const [blatt, setBlatt] = useState<number | null>(null);
+  // Das Sende-Menü gehört zur ZEILE, nicht zur Seite: Es zeigt den Stand genau
+  // dieses Kunden, und zwei geöffnete Zeilen sollen sich nicht in die Quere
+  // kommen.
+  const [sendeMenue, setSendeMenue] = useState<number | null>(null);
   const [offenerFall, setOffenerFall] = useState<Fall | null>(null);
   const [meldung, setMeldung] = useState<{ art: "gut" | "schlecht"; text: string } | null>(null);
   // Das Fristfenster. Vorgabe „überfällig": Wer die Seite öffnet, soll dort
@@ -310,11 +315,43 @@ export default function AgentInkasso() {
                         className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold">
                   <MarkeFunke size={13} /> Gesprächsblatt
                 </button>
+                {/* ══════════════════════════════════════════════════════════
+                    DIE AKTIONEN, DIE GEFEHLT HABEN
+
+                    Der Vorgesetzte: „Diese müssen die Kundenakte aufmachen
+                    können, Funktionen durchführen können (E-Mails senden,
+                    Zahlungen senden, Beitrag senden)."
+
+                    Hier standen drei Knöpfe: Anrufen, Gesprächsblatt,
+                    Ergebnis. Wer telefoniert und hört „schicken Sie mir die
+                    Daten nochmal", konnte genau das nicht tun — er musste
+                    einen Kollegen bitten.
+
+                    Es sind DIESELBEN Bausteine wie im Vertrieb, nicht
+                    nachgebaute: `SendeMenue` mit derselben Adresse, dieselbe
+                    Kundenakte. Ein zweiter Weg zur selben Mail wäre ein
+                    zweiter Weg, den man beim nächsten Textwechsel vergisst.
+                    ══════════════════════════════════════════════════════════ */}
+                <button type="button" onClick={() => setSendeMenue(f.person_id)}
+                        className="fi-sendeknopf inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold">
+                  <MarkeBrief size={13} /> Senden
+                </button>
+                <a href={`/admin/kunde/${f.person_id}`} target="_blank" rel="noopener"
+                   className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold">
+                  Kundenakte
+                </a>
                 <button type="button" onClick={() => setOffenerFall(f)}
                         className="fi-zweitknopf px-3 py-2 text-[12px] font-semibold">
                   Ergebnis festhalten
                 </button>
               </div>
+
+              {sendeMenue === f.person_id && (
+                <SendeMenue personId={f.person_id} offen
+                            basis="/api/fiaon/agent/mail"
+                            onSchliessen={() => setSendeMenue(null)}
+                            onGesendet={() => { setSendeMenue(null); void laden(); }} />
+              )}
             </div>
           );
         })}

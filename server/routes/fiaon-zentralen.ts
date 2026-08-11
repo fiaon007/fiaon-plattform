@@ -12,6 +12,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { bestandHeuteSql, bestandSql } from "../lib/fiaon-bestand-filter";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { istVertriebsleiter } from "./fiaon-vertrieb";
 import { alleTrefferIds, filterZahlen, kundenListe, type Filter } from "../lib/fiaon-kundenzentrale";
@@ -238,15 +239,20 @@ router.get("/admin/zentrale/team", async (_req: Request, res: Response) => {
       SELECT a.id, a.name, COALESCE(NULLIF(a.first_name, ''), a.name) AS vorname, a.email,
              a.avatar, a.rolle, a.active, a.distribution_active, a.is_test_account,
              a.commission_rate_bp, a.monthly_goal_cents, a.last_login_at, a.bank_iban_masked,
-             (SELECT COUNT(*)::int FROM fiaon_persons p
-               WHERE p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL
-                 AND p.ist_test_am IS NULL AND p.priority_tier = 1) AS stufe_a,
-             (SELECT COUNT(*)::int FROM fiaon_persons p
-               WHERE p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL
-                 AND p.ist_test_am IS NULL AND p.priority_tier = 2) AS stufe_b,
-             (SELECT COUNT(*)::int FROM fiaon_persons p
-               WHERE p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL
-                 AND p.ist_test_am IS NULL AND p.priority_tier = 3) AS stufe_c,
+             -- ── EINE DEFINITION, EIN ORT (11.08.2026) ────────────────────
+             -- Hier stand eine eigene Zählung ohne „NOT is_blocked". Der
+             -- Vorgesetzte sah für Daniel Stripling 58 A-Kunden, der Agent
+             -- selbst 30, seine Arbeitsliste 4. Drei Zahlen, eine Frage.
+             --
+             -- Jetzt aus fiaon-bestand-filter.ts. Zusätzlich die Zahl, die
+             -- heute wirklich ansteht — beide nebeneinander sind die ehrliche
+             -- Auskunft, eine allein ist immer irreführend.
+             ${bestandSql(1)} AS stufe_a,
+             ${bestandSql(2)} AS stufe_b,
+             ${bestandSql(3)} AS stufe_c,
+             ${bestandHeuteSql(1)} AS stufe_a_heute,
+             ${bestandHeuteSql(2)} AS stufe_b_heute,
+             ${bestandHeuteSql(3)} AS stufe_c_heute,
              (SELECT COUNT(*)::int FROM fiaon_contact_log cl
                WHERE cl.agent_id = a.id AND cl.type <> 'system'
                  AND cl.created_at >= date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin') AS heute,

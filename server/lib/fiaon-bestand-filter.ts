@@ -87,3 +87,70 @@ export function geldGebundenSql(a = "a"): string {
       OR EXISTS (SELECT 1 FROM fiaon_commissions k
                   WHERE k.ref = ${a}.ref AND COALESCE(k.status, '') <> 'storniert'))`;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER BESTAND EINES MITARBEITERS — EINE DEFINITION
+//
+// ── DER BEFUND (11.08.2026) ────────────────────────────────────────────────
+// Der Vorgesetzte: „In meiner Ansicht steht, dass er so und so viele A-, B-
+// und C-Kunden hat — in seiner Ansicht steht aber was ganz anderes!"
+//
+// Er hatte recht. Für Daniel Stripling, Stufe A, gemessen:
+//
+//     Team-Zentrale (Vorgesetzter):     58
+//     Kundenliste (der Agent selbst):   30
+//     Arbeitsliste (was heute ansteht):  4
+//
+// Drei Zahlen für eine Frage. Die Team-Zentrale zählte roh — mit Gesperrten
+// und mit Menschen, die eine Verabredung in der Zukunft haben. Der Agent sah
+// nur, was er anfassen darf.
+//
+// Keine der Zahlen war „falsch". Falsch war, dass sie dieselbe Überschrift
+// trugen. Ein Vorgesetzter, der 58 sieht und einen Agenten fragt, warum er
+// nur vier abgearbeitet hat, stellt die falsche Frage — und der Agent kann
+// sich nicht wehren, weil er die 58 nie gesehen hat.
+//
+// AGENTS.md sagt es: „Zwei Definitionen für dasselbe Wort sind schlimmer als
+// eine fehlende Zahl."
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Zählt einen Bestand so, wie der Mitarbeiter ihn sieht.
+ *
+ * `stufe` ist 1, 2 oder 3. `p` ist das Tabellenkürzel.
+ *
+ * Ausgeschlossen: Gesperrte (kann man nicht anrufen), Testkunden (gibt es
+ * nicht wirklich), Zusammengeführte (sind woanders).
+ *
+ * NICHT ausgeschlossen: Ruhende und Verabredete. Sie gehören zum Bestand —
+ * sie stehen nur heute nicht auf der Arbeitsliste. Dafür gibt es
+ * `bestandHeuteSql`.
+ */
+export function bestandSql(stufe: 1 | 2 | 3, p = "p"): string {
+  return `(SELECT COUNT(*)::int FROM fiaon_persons ${p}
+    WHERE ${p}.assigned_agent_id = a.id
+      AND ${p}.merged_into_person_id IS NULL
+      AND ${p}.ist_test_am IS NULL
+      AND NOT ${p}.is_blocked
+      AND ${p}.priority_tier = ${stufe})`;
+}
+
+/**
+ * Was davon steht HEUTE an?
+ *
+ * Ohne Ruhende und ohne Verabredungen in der Zukunft — also genau die Zahl,
+ * die der Agent in seiner Arbeitsliste vor sich hat.
+ *
+ * Beide Zahlen nebeneinander sind die ehrliche Auskunft: „58 im Bestand,
+ * davon 4 heute dran." Eine allein ist immer irreführend.
+ */
+export function bestandHeuteSql(stufe: 1 | 2 | 3, p = "p"): string {
+  return `(SELECT COUNT(*)::int FROM fiaon_persons ${p}
+    WHERE ${p}.assigned_agent_id = a.id
+      AND ${p}.merged_into_person_id IS NULL
+      AND ${p}.ist_test_am IS NULL
+      AND NOT ${p}.is_blocked
+      AND ${p}.ruhe_seit IS NULL
+      AND (${p}.follow_up_date IS NULL OR ${p}.follow_up_date <= CURRENT_DATE)
+      AND ${p}.priority_tier = ${stufe})`;
+}

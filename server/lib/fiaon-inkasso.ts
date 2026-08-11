@@ -68,9 +68,22 @@ export async function anrufPflichtTage(lauf: Lauf = sqlPool): Promise<number> {
  * die übermorgen fällig wird, den freundlichen Anruf VORHER verdient — das
  * ist der Unterschied zwischen Forderungsmanagement und Mahnwesen. Nicht
  * weiter, weil alles darüber hinaus noch keine Aufgabe ist.
+ *
+ * NACH HINTEN gibt es KEINE Grenze. Der Vorgesetzte: „ALLE Kunden, die
+ * ÜBERFÄLLIG sind oder waren, egal welche Mahnstufe." Eine Rate, die seit
+ * neunzig Tagen offen ist, ist dringender als eine von gestern — sie fällt
+ * nicht aus dem Blick, nur weil sie alt ist.
+ *
+ * ── „status <> bezahlt“ STATT „status = offen“ ─────────────────────────────
+ * Die erste Fassung fragte nach „offen". Eine Rate, die auf „gemahnt",
+ * „eskaliert" oder sonst einen Zwischenstand gesetzt wird, verschwand damit
+ * lautlos aus dem Forderungsmanagement — genau die, um die man sich am
+ * meisten kümmern muss. Heute steht dort zwar bei allen 29 „offen"; die
+ * Bedingung darf aber nicht davon abhängen, dass niemand je einen neuen
+ * Status einführt.
  */
 export const SICHTFELD = `
-  r.status = 'offen'
+  r.status <> 'bezahlt'
   AND r.faellig_am <= CURRENT_DATE + 7
   AND EXISTS (
     SELECT 1 FROM fiaon_applications a

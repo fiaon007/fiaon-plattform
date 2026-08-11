@@ -3,6 +3,70 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (XVI) — Vier Befunde: A/B/C, fehlende E-Mails, Inkasso, Telefon für alle
+
+### 1. Drei Zahlen für eine Frage
+
+*„In meiner Ansicht steht, dass er so und so viele A-, B- und C-Kunden hat — in seiner Ansicht steht aber was ganz anderes!"*
+
+Für Daniel Stripling, Stufe A, gemessen:
+
+| Wo | Zahl |
+|---|---|
+| Team-Zentrale (Vorgesetzter) | **58** |
+| Kundenliste (der Agent selbst) | **30** |
+| Arbeitsliste (was heute ansteht) | **4** |
+
+Die Zentrale zählte roh — mit Gesperrten und mit Menschen, die eine Verabredung in der Zukunft haben. Der Agent sah nur, was er anfassen darf.
+
+**Keine Zahl war falsch. Falsch war, dass sie dieselbe Überschrift trugen.** Wer 58 sieht und fragt, warum nur vier abgearbeitet wurden, stellt die falsche Frage — und der Agent kann sich nicht wehren, weil er die 58 nie gesehen hat.
+
+Die Definition steht jetzt in `fiaon-bestand-filter.ts`. Die Zentrale zeigt **beide** Zahlen: „29 im Bestand, 4 heute dran". Eine allein führt immer in die Irre.
+
+### 2. 407 Kunden ohne E-Mail — aber alle mit Telefonnummer
+
+Gemessen: 446 Kunden in Stufe 1–3 haben keine `primary_email`; bei **407** steht auch im Antrag keine. Kein Datenverlust: **Alle 407 haben eine Telefonnummer**, und 355 davon einen abgeschlossenen Antrag.
+
+Es ist eine **Erfassungslücke**, kein Verlust — sie kamen über einen Weg herein, der keine E-Mail verlangt. Ich habe nichts geändert: Was mit ihnen geschehen soll (nachfragen, ausschließen, per Telefon erfassen), ist eine Entscheidung, nicht ein Fehler.
+
+### 3. Inkasso: die eigentliche Lücke
+
+*„Inkasso hat völlig falsche und viel zu wenig Kunden."*
+
+**Gemessen: 100 bezahlte Kunden haben gar keine Abo-Raten** — 28 davon mit überfälligem Fälligkeitsdatum. Sie tauchten im Forderungsmanagement nie auf, nicht weil sie in Ordnung waren, sondern weil für sie **nie eine Rate angelegt wurde**.
+
+`status = 'offen'` wurde zu `status <> 'bezahlt'`: Eine Rate, die auf „gemahnt" oder „eskaliert" gesetzt wird, verschwand lautlos — genau die, um die man sich am meisten kümmern muss.
+
+**Nach hinten gibt es keine Grenze mehr.** Eine Rate, die seit neunzig Tagen offen ist, ist dringender als eine von gestern.
+
+**Die Aktionen, die fehlten:** Es gab drei Knöpfe (Anrufen, Gesprächsblatt, Ergebnis). Wer telefonierte und hörte „schicken Sie mir die Daten nochmal", konnte das nicht tun. Jetzt: **Senden** (Zahlungsdaten, Beitrag, Mahnungen — dieselbe `SendeMenue` wie im Vertrieb) und **Kundenakte**.
+
+### 4. Das Telefon für jeden Mitarbeiter
+
+*„Das Handy soll für JEDEN funktionieren, der Mitarbeiter ist!"*
+
+Es stand eine Liste aus drei Rollen. Das Forderungsmanagement fehlte — ein Mensch, dessen ganze Arbeit im Anrufen besteht, bekam: *„Deine Rolle darf nicht telefonieren."*
+
+Jetzt eine **Sperrliste statt einer Erlaubnisliste**. Eine Erlaubnisliste muss man bei jeder neuen Rolle erweitern, und genau das vergisst man — der Fehler fällt erst auf, wenn jemand vor einer verschlossenen Tür steht.
+
+### Zwei Kopien derselben Funktion
+
+`darfAnKunde` stand in `fiaon-telefonie.ts` **und** in `fiaon-mail.ts`. Beide hatten dieselbe Lücke: Inkasso fiel in den letzten Zweig (nach `assigned_agent_id`) und durfte niemanden anrufen und niemandem schreiben.
+
+Ich hätte sie zweimal reparieren können. Beim nächsten Mal wären es wieder zwei Stellen. Jetzt steht sie in `fiaon-kundenzugriff.ts` — einmal.
+
+### Backticks im SQL-Kommentar: siebter Fall
+
+Diesmal in Sekunden von `esbuild` gefangen. Ich prüfe die geänderten Dateien jetzt reflexartig mit einem Regex auf `--.*\``.
+
+### Was offen bleibt
+
+Die 28 Kunden ohne angelegte Rate erscheinen jetzt in der **Zugriffsprüfung** (Inkasso darf sie anrufen und ihnen schreiben), aber noch **nicht in der Arbeitsliste** — die liest ausschließlich `fiaon_abo_raten`. Der saubere Weg wäre, die fehlenden Raten nachzutragen; das ist ein Schreibvorgang mit Mahnfolgen und braucht Ihre Entscheidung.
+
+### Prüfstand
+
+**238 Prüfungen** in `pruef-rueckstand`, alle grün. Gesamt **2.126**.
+
 ## 11.08.2026 (XV) — „Der Name wird nicht akzeptiert": Das Feld kam nie an
 
 ### Der Befund

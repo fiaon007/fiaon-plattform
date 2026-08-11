@@ -8,6 +8,7 @@
 import { Router, type Request, type Response } from "express";
 import { tageslauf } from "../lib/fiaon-crons";
 import { sqlPool } from "../lib/db-pool";
+import { darfAnKunde } from "../lib/fiaon-kundenzugriff";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureRolleSpalte } from "./fiaon-vertrieb";
 import {
@@ -52,21 +53,12 @@ async function istTestkonto(agentId: number): Promise<boolean> {
 }
 
 /** Darf dieser Mensch diesen Kunden anfassen? Dieselbe Grenze wie beim Mailversand. */
-async function darfAnKunde(agentId: number, rolle: string, personId: number): Promise<boolean> {
-  if (rolle === "vertriebsleiter" || rolle === "admin") return true;
-  if (rolle === "onboarding") {
-    const [t] = (await sqlPool`
-      SELECT 1 AS ok FROM fiaon_termine
-      WHERE person_id = ${personId} AND agent_id = ${agentId} AND quelle = 'onboarding_call' LIMIT 1
-    `) as any[];
-    return !!t;
-  }
-  const [p] = (await sqlPool`
-    SELECT 1 AS ok FROM fiaon_persons
-    WHERE id = ${personId} AND assigned_agent_id = ${agentId} AND merged_into_person_id IS NULL
-  `) as any[];
-  return !!p;
-}
+// ── DIE ZUGRIFFSFRAGE STEHT IN fiaon-kundenzugriff.ts ─────────────────────
+// Sie wurde hier UND in der jeweils anderen Datei beantwortet — zwei Kopien
+// mit derselben Lücke: Das Forderungsmanagement fiel in den letzten Zweig
+// (nach `assigned_agent_id`) und durfte niemanden anrufen und niemandem
+// schreiben. Zweimal repariert wäre beim nächsten Mal wieder zweimal zu
+// reparieren, und eine Stelle vergisst man.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SOFTPHONE
@@ -127,7 +119,33 @@ router.post("/telefon/ausweis", requireAgent, async (req: AgentRequest, res: Res
     if (await istTestkonto(req.agent!.id)) {
       return ablehnen("Testkonten können nicht telefonieren.");
     }
-    if (!["agent", "vertriebsleiter", "onboarding"].includes(rolle)) {
+    // ══════════════════════════════════════════════════════════════════════
+    // JEDER MITARBEITER DARF TELEFONIEREN
+    //
+    // ── DER BEFUND (11.08.2026) ───────────────────────────────────────────
+    // Der Vorgesetzte: „Das Handy soll für JEDEN funktionieren, der
+    // Mitarbeiter ist!"
+    //
+    // Hier stand eine Liste aus drei Rollen — „agent", „vertriebsleiter",
+    // „onboarding". Das Forderungsmanagement fehlte. Ein Mensch, dessen
+    // ganze Arbeit darin besteht, Kunden wegen offener Raten anzurufen,
+    // bekam: „Deine Rolle darf nicht telefonieren."
+    //
+    // ── WARUM JETZT EINE SPERRLISTE STATT EINER ERLAUBNISLISTE ────────────
+    // Eine Erlaubnisliste muss man bei jeder neuen Rolle erweitern — und
+    // genau das vergisst man. Der Fehler fällt erst auf, wenn ein Mensch vor
+    // einer verschlossenen Tür steht und nicht arbeiten kann.
+    //
+    // Umgekehrt herum ist die Voreinstellung richtig: Wer ein aktives Konto
+    // hat, darf telefonieren. Wer NICHT darf, muss namentlich hier stehen —
+    // und das fällt beim Eintragen auf, nicht Wochen später.
+    //
+    // Die eigentlichen Grenzen sind ohnehin andere und stehen weiter unten:
+    // die Richtlinie (Wand), das Testkonto (Wand) und die Frage, ob dieser
+    // Mensch an DIESEN Kunden darf.
+    // ══════════════════════════════════════════════════════════════════════
+    const OHNE_TELEFON: string[] = [];
+    if (OHNE_TELEFON.includes(rolle)) {
       return ablehnen("Deine Rolle darf nicht telefonieren.");
     }
 

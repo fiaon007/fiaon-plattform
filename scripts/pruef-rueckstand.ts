@@ -22,6 +22,9 @@ import {
 import {
   FIRMIERUNG_VORGABE, absenderBlock, firmierung, fussZeile,
 } from "../server/lib/fiaon-firmierung";
+import {
+  bestandHeuteSql as bestandHeuteSqlP, bestandSql as bestandSqlP,
+} from "../server/lib/fiaon-bestand-filter";
 import { aufnahmeFrist, aufnahmenAufraeumen } from "../server/lib/fiaon-softphone";
 
 let bestanden = 0;
@@ -881,6 +884,82 @@ async function main(): Promise<void> {
       SELECT COUNT(*)::int AS n FROM fiaon_abo_raten r
       WHERE r.rate_nr >= 2 AND r.zahlungsreferenz NOT LIKE ('%-' || r.rate_nr::text)
     ` as any[])[0].n === 0);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c10. Die Team-Zentrale zeigt Zahlen, nicht Quelltext");
+  // ═══════════════════════════════════════════════════════════════════════
+  // ── DER BEFUND ────────────────────────────────────────────────────────
+  // Der Vorgesetzte: „Wie schaut denn die /admin/team Seite aus? Die
+  // Schriftfarbe kann man nicht lesen, alles ungeordnet."
+  //
+  // Im Screenshot stand statt „58" der SQL-Quelltext:
+  // „(SELECT COUNT(*)::int FROM fiaon_persons p WHERE …" — drei Absätze pro
+  // Karte.
+  //
+  // Die Ursache war meine: `bestandSql(1)` in ein GETAGGTES Template gesetzt.
+  // Dort wird jedes ${…} als PARAMETER gebunden, nicht als SQL eingesetzt —
+  // der Ausdruck landete als Text-Literal in der Antwort.
+  //
+  // Und der eigentliche Fehler war die Abnahme: `tsc --noEmit` und `esbuild`
+  // waren grün, weil es weder ein Typ- noch ein Syntaxfehler ist. Nur der
+  // Browser hätte es gezeigt.
+  const zenQ = datei("server/routes/fiaon-zentralen.ts");
+  ok("Die Team-Abfrage nutzt `unsafe`, weil sie SQL-Bausteine einsetzt",
+    /const zeilen = \(await sqlPool\.unsafe\(`/.test(zenQ));
+  ok("… und der Grund steht dabei",
+    /wird jedes \$\{…\} als PARAMETER gebunden|als PARAMETER gebunden/.test(zenQ));
+
+  // Das Verhalten, nicht der Quelltext: Kommen ZAHLEN zurück?
+  const proben = (await sqlPool.unsafe(`
+    SELECT a.id, a.name, ${bestandSqlP(1)} AS stufe_a, ${bestandHeuteSqlP(1)} AS stufe_a_heute
+    FROM fiaon_agents a WHERE a.active AND a.rolle IN ('agent','vertriebsleiter')
+    ORDER BY a.id LIMIT 5
+  `)) as any[];
+  ok(`${proben.length} Mitarbeiter geprüft — alle liefern Zahlen`,
+    proben.length > 0 && proben.every((p) => typeof p.stufe_a === "number"),
+    proben.map((p) => `${String(p.name).split(" ")[0]} A${p.stufe_a}/${p.stufe_a_heute}`).join(" · "));
+  ok("Kein Ergebnis ist ein String mit SELECT darin",
+    proben.every((p) => !String(p.stufe_a).includes("SELECT")));
+
+  // ── DIE AKTE ──────────────────────────────────────────────────────────
+  const teamQ2 = datei("server/routes/fiaon-team.ts");
+  ok("Es gibt eine Akte-Route", /admin\/team\/:id\/akte/.test(teamQ2));
+  ok("… mit Provisionsverlauf", /FROM fiaon_commissions c/.test(teamQ2));
+  ok("… mit Summen", /provisionSummen/.test(teamQ2));
+  ok("… mit den Gesprächen des Menschen", /FROM fiaon_calls k[\s\S]{0,400}WHERE k\.agent_id/.test(teamQ2));
+  ok("… und die Twilio-URL geht NICHT mit",
+    /\(k\.recording_url IS NOT NULL AND k\.aufnahme_geloescht_am IS NULL\) AS hat_aufnahme/.test(teamQ2)
+    && !/SELECT[^;]{0,600}k\.recording_url,/.test(teamQ2));
+  ok("Alle sechs Abfragen laufen gleichzeitig", /await Promise\.all\(\[/.test(teamQ2));
+
+  const tzQ2 = datei("client/src/pages/admin-team-zentrale.tsx");
+  ok("Der Reiter „Gespräche“ gibt es", /\["gespraeche", "Gespräche"\]/.test(tzQ2));
+  ok("Der Provisionsverlauf wird gezeigt", /akte\.provisionen\.map/.test(tzQ2));
+  ok("… mit Summenzeile", /akte\?\.provisionSummen &&/.test(tzQ2));
+  ok("Ergebnisse stehen in Klartext, nicht als Feldname",
+    /nicht_erreicht: "nicht erreicht"/.test(tzQ2));
+  ok("„Anhören“ nur, wenn es etwas zu hören gibt",
+    /a\.hat_aufnahme && !a\.ohne_aufzeichnung_am/.test(tzQ2));
+
+  // ── DIE KI-AUSWERTUNG ─────────────────────────────────────────────────
+  const gaQ = datei("server/lib/fiaon-gespraechsanalyse.ts");
+  ok("Die Auswertung nennt Beobachtungen, keine Note",
+    /BEOBACHTUNGEN, keine Bewertung/.test(gaQ) && /Keine Note/.test(gaQ));
+  ok("… mit fünf festen Abschnitten",
+    ["WAS GUT LÄUFT", "WO GESPRÄCHE ABBRECHEN", "WAS UNGESAGT BLEIBT", "RISIKO",
+     "EIN SATZ FÜR DAS NÄCHSTE GESPRÄCH"].every((a) => gaQ.includes(a)));
+  ok("… und fragt nach unzulässigen Zusagen",
+    /Erlass, Stundung,\nRatenänderung|Erlass, Stundung/.test(gaQ));
+  ok("Ohne Transkripte wird der GRUND genannt, keine Antwort erfunden",
+    /Ohne Aufnahme gibt es kein/.test(gaQ)
+    && /Eine KI, die aus nichts eine Beurteilung baut, ist schlimmer als keine/.test(gaQ));
+  ok("Der HTTP-Code steht in der Fehlermeldung",
+    /OpenAI antwortete mit HTTP \$\{r\.status\}/.test(gaQ));
+  const { gespraecheAuswerten } = await import("../server/lib/fiaon-gespraechsanalyse");
+  const probe = await gespraecheAuswerten(10, { tage: 30, max: 2 });
+  ok("Die Auswertung antwortet mit einem Grund statt zu schweigen",
+    probe.ok || (!!probe.grund && probe.grund.length > 30),
+    probe.ok ? "Auswertung erstellt" : probe.grund);
 
   // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");

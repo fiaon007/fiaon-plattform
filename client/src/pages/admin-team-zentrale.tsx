@@ -986,9 +986,27 @@ export default function AdminTeamZentrale() {
 
                 <div className="mt-3 pt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-slate-500"
                      style={{ borderTop: "1px solid #f1f5f9" }}>
+                  {/* ── BESTAND UND WAS HEUTE ANSTEHT ─────────────────────────
+                      Hier stand bis zum 11.08.2026 der SQL-Quelltext statt der
+                      Zahl: `bestandSql(1)` wurde in ein getaggtes Template
+                      eingesetzt, wo jedes ${…} als PARAMETER gebunden wird —
+                      der Ausdruck landete als Text-Literal in der Antwort.
+                      Jede Karte zeigte drei Absätze SQL.
+
+                      Mein Fehler dabei war nicht der Ausdruck, sondern die
+                      Abnahme: `tsc` und `esbuild` waren grün, weil es weder
+                      ein Typ- noch ein Syntaxfehler ist. Nur der Browser
+                      hätte es gezeigt. */}
                   <span>Bestand <b className="text-slate-800 tabular-nums">{m.bestand}</b></span>
-                  <span className="tabular-nums">A {m.stufe_a} · B {m.stufe_b} · C {m.stufe_c}</span>
-                  <span>heute <b className="text-slate-800 tabular-nums">{m.heute}</b></span>
+                  <span className="tabular-nums">
+                    A {m.stufe_a} · B {m.stufe_b} · C {m.stufe_c}
+                    {m.stufe_a_heute != null && (
+                      <b className="ml-1.5" style={{ color: "var(--fi-primaer)" }}>
+                        ({Number(m.stufe_a_heute) + Number(m.stufe_b_heute ?? 0) + Number(m.stufe_c_heute ?? 0)} heute dran)
+                      </b>
+                    )}
+                  </span>
+                  <span>Kontakte heute <b className="text-slate-800 tabular-nums">{m.heute}</b></span>
                   <span className="ml-auto">{wann(m.letzte_aktivitaet)}</span>
                 </div>
 
@@ -1041,8 +1059,15 @@ function MitgliedDetail({
 }) {
   const m = team.find((x) => x.id === id);
   const [reiter, setReiter] = useState<
-    "zahlen" | "lohnt" | "verwaltung" | "protokoll" | "provision" | "verguetung"
+    "zahlen" | "lohnt" | "verwaltung" | "protokoll" | "provision" | "verguetung" | "gespraeche"
   >("zahlen");
+  // ── DIE AKTE: PROVISIONSVERLAUF UND GESPRÄCHE ──────────────────────────
+  // Beides lag längst in der Datenbank — 98 Provisionen, Anrufe mit agent_id.
+  // Es gab nur keinen Ort, wo man sie sieht.
+  const [akte, setAkte] = useState<any>(null);
+  const [auswertung, setAuswertung] = useState<any>(null);
+  const [wertetAus, setWertetAus] = useState(false);
+  const [offenerAnruf, setOffenerAnruf] = useState<number | null>(null);
   const [logs, setLogs] = useState<any>(null);
   const [logArt, setLogArt] = useState("");
   const [logSuche, setLogSuche] = useState("");
@@ -1061,6 +1086,17 @@ function MitgliedDetail({
   }, [id, logArt, logSuche]);
 
   useEffect(() => { if (reiter === "protokoll") void logsLaden(); }, [reiter, logsLaden]);
+
+  // ── DIE AKTE ────────────────────────────────────────────────────────────
+  // Eine Abfrage für alles: Provisionsverlauf, Gespräche, Auszahlungen,
+  // Kundenbewegungen, Ereignisse. Wer eine Akte öffnet, will nicht sechsmal
+  // warten.
+  useEffect(() => {
+    if (!id) return;
+    setAkte(null); setAuswertung(null); setOffenerAnruf(null);
+    void fetch(`/api/fiaon/admin/team/${id}/akte`, { credentials: "include" })
+      .then((r) => r.json()).then((j) => setAkte(j?.ok ? j : null)).catch(() => {});
+  }, [id]);
 
   useEffect(() => {
     if (reiter !== "provision" || kandidaten) return;
@@ -1119,8 +1155,18 @@ function MitgliedDetail({
               Reiter auf 380 px sind sonst drei Zeilen hoch. */}
           <div className="mt-3.5 flex gap-1.5 overflow-x-auto pb-0.5"
                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-            {([["zahlen", "Zahlen"], ["lohnt", "Lohnt sich?"], ["verwaltung", "Verwaltung"],
-               ["provision", "Provisionen"], ["verguetung", "Vergütung & Stunden"],
+            {([["zahlen", "Zahlen"], ["lohnt", "Lohnt sich?"],
+               // ── GESPRÄCHE UND PROVISIONSVERLAUF ──────────────────────────
+               // Der Vorgesetzte: „Unter ‚Provisionen' findet man keine
+               // Verläufe. Ich muss die Gespräche beim Agenten zugewiesen
+               // haben, der sie geführt hat. Ich muss KI-Auswertungen machen
+               // können."
+               //
+               // Beides lag in der Datenbank: 98 Provisionen und die Anrufe
+               // mit `agent_id`. Es gab nur keinen Ort, wo man sie sieht.
+               ["gespraeche", "Gespräche"],
+               ["provision", "Provisionen"], ["verwaltung", "Verwaltung"],
+               ["verguetung", "Vergütung & Stunden"],
                ["protokoll", "Protokoll"]] as const)
               .map(([w, t]) => (
                 <button key={w} type="button" onClick={() => setReiter(w)}
@@ -1297,8 +1343,248 @@ function MitgliedDetail({
             </>
           )}
 
+          {/* ══════════════════════════════════════════════════════════════════
+              GESPRÄCHE ÜBER DAS PLATTFORM-TELEFON
+
+              „Ich muss die Gespräche, die durch das Plattform-Telefon geführt
+              wurden, beim Agenten zugewiesen haben, der sie geführt hat. Ich
+              muss KI-Auswertungen machen können."
+
+              Sie waren zugewiesen — über `fiaon_calls.agent_id`. Sie waren nur
+              nie sichtbar.
+              ══════════════════════════════════════════════════════════════════ */}
+          {reiter === "gespraeche" && (
+            <>
+              {akte?.anrufZahlen && (
+                <div className="grid gap-2 mb-3.5"
+                     style={{ gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))" }}>
+                  {([
+                    ["Gespräche", String(akte.anrufZahlen.anrufe)],
+                    ["Erreicht", `${akte.anrufZahlen.erreicht}`],
+                    ["Gesprächszeit", `${Math.round(Number(akte.anrufZahlen.sekunden) / 60)} Min`],
+                    ["Aufnahmen", String(akte.anrufZahlen.aufnahmen)],
+                    ["Ausgewertet", String(akte.anrufZahlen.ausgewertet)],
+                  ] as const).map(([t, w]) => (
+                    <div key={t} className="px-3 py-2.5 rounded-xl bg-slate-50">
+                      <p className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 leading-tight">{t}</p>
+                      <p className="text-[16px] font-bold text-slate-900 tabular-nums leading-tight mt-0.5">{w}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── DIE KI-AUSWERTUNG ─────────────────────────────────────────
+                  Beobachtungen, keine Note. Eine Zahl von eins bis zehn über
+                  einen Menschen beendet das Gespräch mit ihm; eine Beobachtung
+                  eröffnet es. */}
+              <div className="rounded-2xl p-4 mb-3.5"
+                   style={{ background: "rgba(37,99,235,.05)", boxShadow: "inset 0 0 0 1px rgba(37,99,235,.16)" }}>
+                <div className="flex flex-wrap items-start justify-between gap-2.5">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-bold" style={{ color: "var(--fi-primaer)" }}>
+                      Gespräche auswerten lassen
+                    </p>
+                    <p className="text-[11.5px] text-slate-500 mt-0.5 leading-relaxed" style={{ maxWidth: 460 }}>
+                      Die KI liest die Transkripte der letzten 30 Tage und nennt Beobachtungen —
+                      was gut läuft, wo Gespräche abbrechen, was ungesagt bleibt. Keine Note:
+                      Ein Transkript hat keinen Tonfall.
+                    </p>
+                  </div>
+                  <button type="button" disabled={wertetAus}
+                          onClick={async () => {
+                            setWertetAus(true); setAuswertung(null);
+                            const r = await fetch(`/api/fiaon/admin/team/${id}/gespraeche-auswerten`, {
+                              method: "POST", credentials: "include",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ tage: 30, max: 12 }),
+                            }).catch(() => null);
+                            const j = await r?.json().catch(() => null);
+                            setWertetAus(false);
+                            setAuswertung(j?.auswertung ?? { ok: false, grund: "Keine Antwort vom Server." });
+                          }}
+                          className="fi-knopf-primaer px-4 shrink-0" style={{ minHeight: 38 }}>
+                    {wertetAus ? "Liest …" : "Auswerten"}
+                  </button>
+                </div>
+                {auswertung && (
+                  <div className="mt-3 px-3.5 py-3 rounded-xl bg-white"
+                       style={{ boxShadow: "inset 0 0 0 1px rgba(37,99,235,.12)" }}>
+                    {auswertung.ok ? (
+                      <>
+                        <p className="text-[11px] font-semibold mb-2" style={{ color: "var(--fi-primaer)" }}>
+                          {auswertung.gespraeche} Gespräche · {auswertung.minuten} Minuten ·{" "}
+                          {auswertung.von} bis {auswertung.bis}
+                        </p>
+                        <p className="text-[13px] leading-relaxed text-slate-700"
+                           style={{ whiteSpace: "pre-wrap" }}>{auswertung.text}</p>
+                        <p className="text-[11px] text-slate-400 mt-2.5 leading-relaxed">
+                          Beruht auf Transkripten. Ein Transkript hat keinen Tonfall, keine Pause,
+                          kein Zögern — das Anhören ersetzt es nicht.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-[12.5px] leading-relaxed" style={{ color: "#b45309" }}>
+                        {auswertung.grund}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* ── DIE GESPRÄCHE ─────────────────────────────────────────── */}
+              {!akte && <p className="text-[13px] text-slate-400">Wird geladen …</p>}
+              {akte && (akte.anrufe ?? []).length === 0 && (
+                <p className="text-[13px] text-slate-400">
+                  Über das Plattform-Telefon wurde noch kein Gespräch geführt.
+                </p>
+              )}
+              {(akte?.anrufe ?? []).map((a: any) => (
+                <div key={a.id} className="py-2.5" style={{ borderBottom: "1px solid #f8fafc" }}>
+                  <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 text-[12.5px]">
+                    <span className="font-semibold text-slate-800">{a.kunde}</span>
+                    <span className="text-slate-400 tabular-nums">
+                      {new Date(a.beginn).toLocaleString("de-DE", {
+                        day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                        timeZone: "Europe/Berlin",
+                      })}
+                    </span>
+                    {a.dauer_sek != null && (
+                      <span className="text-slate-500 tabular-nums">
+                        {Math.floor(a.dauer_sek / 60)}:{String(a.dauer_sek % 60).padStart(2, "0")} Min
+                      </span>
+                    )}
+                    {/* ── ERGEBNISSE IN KLARTEXT ────────────────────────────
+                        Im Schnappschuss stand „nicht_erreicht" — die Kennung
+                        aus der Datenbank. Ein Vorgesetzter, der eine Akte
+                        liest, soll keine Feldnamen entziffern. */}
+                    {a.ergebnis
+                      ? <span className="font-semibold"
+                              style={{ color: /zahlt|erreicht_zahlt/.test(a.ergebnis) ? "#047857"
+                                : /nicht_erreicht|mailbox/.test(a.ergebnis) ? "#b45309" : "#475569" }}>
+                          {({
+                            erreicht_zahlt_gleich: "zahlt sofort",
+                            erreicht_zahlt_am: "zahlt am …",
+                            erreicht_abgelehnt: "abgelehnt",
+                            nicht_erreicht: "nicht erreicht",
+                            mailbox: "Mailbox besprochen",
+                            rueckruf_termin: "Rückruf vereinbart",
+                            nummer_falsch: "falsche Nummer",
+                            nummer_blockiert: "Nummer blockiert",
+                            notiz: "Notiz",
+                          } as Record<string, string>)[a.ergebnis] ?? a.ergebnis}
+                        </span>
+                      : <span className="font-semibold text-amber-700">ohne Ergebnis</span>}
+                    <span className="ml-auto flex items-center gap-2 shrink-0">
+                      {/* „Anhören" nur, wenn es wirklich etwas zu hören gibt.
+                          Im Schnappschuss stand beides nebeneinander: der Knopf
+                          UND „ohne Aufzeichnung". Ein Widerspruch, den man erst
+                          durch Klicken auflöst. */}
+                      {a.hat_aufnahme && !a.ohne_aufzeichnung_am && (
+                        <button type="button"
+                                onClick={() => setOffenerAnruf(offenerAnruf === a.id ? null : a.id)}
+                                className="text-[11.5px] font-semibold" style={{ color: "var(--fi-primaer)" }}>
+                          {offenerAnruf === a.id ? "Player zu" : "Anhören"}
+                        </button>
+                      )}
+                      {a.aufnahme_geloescht_am && (
+                        <span className="text-[11px] text-slate-400">Aufnahme gelöscht</span>
+                      )}
+                      {a.ohne_aufzeichnung_am && (
+                        <span className="text-[11px] text-slate-400">ohne Aufzeichnung</span>
+                      )}
+                    </span>
+                  </div>
+                  {a.zusammenfassung && (
+                    <p className="text-[12.5px] text-slate-600 leading-relaxed mt-1">{a.zusammenfassung}</p>
+                  )}
+                  {a.transkript_status === "fehlgeschlagen" && (
+                    <p className="text-[11.5px] text-slate-400 mt-1">{a.transkript_grund}</p>
+                  )}
+                  {offenerAnruf === a.id && (
+                    <div className="mt-2">
+                      <audio controls preload="none" className="w-full" style={{ height: 34 }}
+                             src={`/api/fiaon/telefon/${a.id}/aufnahme`}>
+                        Dein Browser kann kein Audio abspielen.
+                      </audio>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+
           {reiter === "provision" && (
             <>
+              {/* ══════════════════════════════════════════════════════════════
+                  DER VERLAUF — er fehlte ganz
+
+                  „Unter ‚Provisionen' findet man keine Verläufe."
+
+                  Hier standen NUR offene Nachbuchungen, also das, was fehlt.
+                  Was gebucht IST, stand nirgends: 98 Zeilen in der Datenbank,
+                  keine einzige sichtbar. Ein Mensch, der fragt „womit habe ich
+                  meine 2.221 € verdient", fand keine Antwort.
+                  ══════════════════════════════════════════════════════════════ */}
+              {akte?.provisionSummen && (
+                <div className="grid gap-2 mb-3.5"
+                     style={{ gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))" }}>
+                  {([
+                    ["Gesamt", eur(akte.provisionSummen.gesamt), "#0f172a"],
+                    ["Ausgezahlt", eur(akte.provisionSummen.ausgezahlt), "#047857"],
+                    ["Offen", eur(akte.provisionSummen.offen), "#b45309"],
+                    ["Buchungen", String(akte.provisionSummen.anzahl), "#64748b"],
+                  ] as const).map(([t, w, f]) => (
+                    <div key={t} className="px-3 py-2.5 rounded-xl bg-slate-50">
+                      <p className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 leading-tight">{t}</p>
+                      <p className="text-[16px] font-bold tabular-nums leading-tight mt-0.5"
+                         style={{ color: f }}>{w}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {(akte?.provisionen ?? []).length > 0 && (
+                <div className="rounded-xl overflow-hidden mb-4"
+                     style={{ boxShadow: "inset 0 0 0 1px #eef2f7", maxHeight: 340, overflowY: "auto" }}>
+                  {akte.provisionen.map((c: any) => (
+                    <div key={c.id} className="px-3.5 py-2 flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5"
+                         style={{ borderBottom: "1px solid #f8fafc" }}>
+                      <span className="text-[12.5px] font-semibold text-slate-800">
+                        {c.kunde || c.ref}
+                      </span>
+                      <span className="text-[11px] text-slate-400">{c.pack_name}</span>
+                      {c.kind && c.kind !== "sale" && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                              style={{ background: "rgba(37,99,235,.08)", color: "var(--fi-primaer)" }}>
+                          {c.kind === "override" ? `Leitung${c.quelle_name ? ` · ${c.quelle_name}` : ""}` : c.kind}
+                        </span>
+                      )}
+                      {c.rate_bp != null && (
+                        <span className="text-[11px] text-slate-400 tabular-nums">
+                          {(Number(c.rate_bp) / 100).toLocaleString("de-DE", { maximumFractionDigits: 2 })} %
+                        </span>
+                      )}
+                      <span className="ml-auto shrink-0 flex items-baseline gap-2.5">
+                        <span className="text-[11px] text-slate-400 tabular-nums">
+                          {new Date(c.created_at).toLocaleDateString("de-DE", {
+                            day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "Europe/Berlin",
+                          })}
+                        </span>
+                        <span className="text-[12.5px] font-bold tabular-nums"
+                              style={{ color: c.payout_id ? "#047857" : c.status === "cancelled" ? "#b91c1c" : "#0f172a" }}>
+                          {eur(c.amount_cents)}
+                        </span>
+                        <span className="text-[10px] font-semibold w-[68px] text-right"
+                              style={{ color: c.payout_id ? "#047857" : "#94a3b8" }}>
+                          {c.payout_id ? "ausgezahlt" : c.status === "cancelled" ? "storniert" : "offen"}
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-[12.5px] font-bold text-slate-800 mb-1.5">Nachbuchen</p>
               <p className="text-[12.5px] text-slate-500 leading-relaxed mb-3">
                 Bezahlte Bestellungen ohne gebuchte Provision. Früher eine eigene Seite
                 (<span className="font-mono text-[11.5px]">/admin/nachbuchung</span>) — jetzt hier, wo auch der Satz steht.

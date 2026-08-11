@@ -1839,4 +1839,163 @@ router.post("/admin/team/sonderrollen-bereinigen", async (req: Request, res: Res
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE AKTE EINES MITARBEITERS — ALLES AN EINEM ORT
+//
+// ── DER AUFTRAG ────────────────────────────────────────────────────────────
+// Der Vorgesetzte: „Das ist die Zentrale für alle Dienstnehmer, diese muss
+// reibungslos laufen. Unter ‚Provisionen' findet man keine Verläufe. Ich muss
+// die Gespräche, die durch das Plattform-Telefon geführt wurden, beim Agenten
+// zugewiesen haben, der sie geführt hat. Ich muss KI-Auswertungen machen
+// können, Provisionen buchen, Mails senden — einfach alles."
+//
+// ── WARUM EINE ROUTE UND NICHT SECHS ───────────────────────────────────────
+// Wer eine Akte öffnet, will nicht sechsmal warten. Zwölf Mitarbeiter × sechs
+// Abfragen wären zweiundsiebzig Runden zur Datenbank; hier sind es sechs
+// gleichzeitige für EINEN Menschen.
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.get("/admin/team/:id/akte", async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ ok: false, error: "Ungültige Kennung." });
+    }
+
+    const [
+      provisionen, anrufe, auszahlungen, kunden, ereignisse, zahlen,
+    ] = await Promise.all([
+      // ── PROVISIONSVERLAUF ─────────────────────────────────────────────
+      // Der Reiter zeigte bisher NUR offene Nachbuchungen — also das, was
+      // fehlt. Was gebucht IST, stand nirgends. Ein Mensch, der fragt „womit
+      // habe ich meine 2.221 € verdient", fand keine einzige Zeile.
+      sqlPool`
+        SELECT c.id, c.ref, c.payment_reference, c.pack_name, c.kind,
+               c.base_amount_cents, c.rate_bp, c.amount_cents, c.status,
+               c.note, c.created_at, c.payout_id,
+               COALESCE(NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''),
+                        a.company_name, a.contact_name) AS kunde,
+               q.name AS quelle_name
+        FROM fiaon_commissions c
+        LEFT JOIN fiaon_applications a ON a.ref = c.ref
+        LEFT JOIN fiaon_agents q ON q.id = c.source_agent_id
+        WHERE c.agent_id = ${id}
+        ORDER BY c.created_at DESC
+        LIMIT 200
+      `,
+
+      // ── GESPRÄCHE ÜBER DAS PLATTFORM-TELEFON ──────────────────────────
+      // „Ich muss die Gespräche beim Agenten zugewiesen haben, der sie geführt
+      // hat." Sie sind zugewiesen — über `fiaon_calls.agent_id`. Sie waren nur
+      // nie sichtbar.
+      //
+      // Die Twilio-URL geht NICHT mit: Sie ist unbefristet gültig und öffnet
+      // mit den Konto-Zugangsdaten die Aufnahme. Nach außen geht nur, OB es
+      // eine gibt — abgespielt wird über /telefon/:id/aufnahme.
+      sqlPool`
+        SELECT k.id, k.person_id, k.ref, k.nummer, k.richtung, k.beginn, k.ende,
+               k.dauer_sek, k.status, k.ergebnis, k.ergebnis_am,
+               k.transkript_status, k.transkript_grund, k.zusammenfassung,
+               (k.transkript IS NOT NULL) AS hat_transkript,
+               (k.recording_url IS NOT NULL AND k.aufnahme_geloescht_am IS NULL) AS hat_aufnahme,
+               k.aufnahme_geloescht_am, k.ohne_aufzeichnung_am,
+               COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
+                        p.company_name, p.contact_name, k.nummer) AS kunde
+        FROM fiaon_calls k
+        LEFT JOIN fiaon_persons p ON p.id = k.person_id
+        WHERE k.agent_id = ${id}
+        ORDER BY k.beginn DESC
+        LIMIT 120
+      `,
+
+      // ── AUSZAHLUNGEN ──────────────────────────────────────────────────
+      sqlPool`
+        SELECT id, status, amount_cents, requested_at, paid_at, note
+        FROM fiaon_payouts WHERE agent_id = ${id}
+        ORDER BY requested_at DESC LIMIT 40
+      `.catch(() => [] as any[]),
+
+      // ── DIE ZEHN JÜNGSTEN KUNDENBEWEGUNGEN ────────────────────────────
+      sqlPool`
+        SELECT cl.id, cl.ref, cl.type, cl.outcome, cl.note, cl.created_at,
+               COALESCE(NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''),
+                        a.company_name, a.contact_name, cl.ref) AS kunde
+        FROM fiaon_contact_log cl
+        LEFT JOIN fiaon_applications a ON a.ref = cl.ref
+        WHERE cl.agent_id = ${id} AND cl.type <> 'system'
+        ORDER BY cl.created_at DESC LIMIT 30
+      `,
+
+      // ── SENSIBLE EREIGNISSE ───────────────────────────────────────────
+      sqlPool`
+        SELECT e.id, e.type, e.meta, e.actor, e.reason, e.created_at
+        FROM fiaon_agent_events e
+        WHERE e.agent_id = ${id} OR e.from_agent_id = ${id} OR e.to_agent_id = ${id}
+        ORDER BY e.created_at DESC LIMIT 40
+      `,
+
+      // ── DIE ZAHLEN ZU DEN GESPRÄCHEN ──────────────────────────────────
+      sqlPool`
+        SELECT COUNT(*)::int AS anrufe,
+               COUNT(*) FILTER (WHERE dauer_sek >= 30)::int AS erreicht,
+               COALESCE(SUM(dauer_sek), 0)::int AS sekunden,
+               COUNT(*) FILTER (WHERE recording_url IS NOT NULL
+                                AND aufnahme_geloescht_am IS NULL)::int AS aufnahmen,
+               COUNT(*) FILTER (WHERE zusammenfassung IS NOT NULL)::int AS ausgewertet,
+               COUNT(*) FILTER (WHERE transkript_status = 'fehlgeschlagen')::int AS gescheitert
+        FROM fiaon_calls WHERE agent_id = ${id}
+      `,
+    ]);
+
+    const p = provisionen as any[];
+    const summe = (f: (x: any) => boolean) =>
+      p.filter(f).reduce((s, x) => s + Number(x.amount_cents || 0), 0);
+
+    res.json({
+      ok: true,
+      provisionen: p,
+      // Die Summen gehören dazu: Eine Liste aus 98 Zeilen ohne Summe ist
+      // eine Zumutung — man rechnet sie im Kopf nach oder glaubt sie nicht.
+      provisionSummen: {
+        gesamt: summe(() => true),
+        gebucht: summe((x) => x.status === "booked" || x.status === "gebucht"),
+        ausgezahlt: summe((x) => !!x.payout_id),
+        offen: summe((x) => !x.payout_id && x.status !== "cancelled"),
+        storniert: summe((x) => x.status === "cancelled"),
+        anzahl: p.length,
+      },
+      anrufe,
+      anrufZahlen: (zahlen as any[])[0] ?? null,
+      auszahlungen,
+      kunden,
+      ereignisse,
+    });
+  } catch (err) {
+    console.error("[TEAM] akte:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /admin/team/:id/gespraeche-auswerten — die KI liest die Transkripte.
+ *
+ * Beobachtungen, keine Note: Eine Zahl von eins bis zehn über einen Menschen
+ * beendet das Gespräch mit ihm; eine Beobachtung eröffnet es.
+ */
+router.post("/admin/team/:id/gespraeche-auswerten", async (req: Request, res: Response) => {
+  try {
+    const { gespraecheAuswerten } = await import("../lib/fiaon-gespraechsanalyse");
+    const erg = await gespraecheAuswerten(Number(req.params.id), {
+      tage: req.body?.tage ? Number(req.body.tage) : 30,
+      max: req.body?.max ? Number(req.body.max) : 12,
+    });
+    // Auch ein Fehlschlag geht mit HTTP 200 zurück: Der Grund ist die
+    // eigentliche Auskunft, und ein 500er würde ihn im Client verschlucken.
+    res.json({ ok: true, auswertung: erg });
+  } catch (err) {
+    console.error("[TEAM] auswertung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 export default router;

@@ -235,7 +235,25 @@ router.get("/admin/zentrale/team", async (_req: Request, res: Response) => {
   try {
     // EINE Abfrage für alle Kennzahlen. Zwölf Mitarbeiter × sechs
     // Einzelabfragen wären zweiundsiebzig Runden zur Datenbank.
-    const zeilen = (await sqlPool`
+    // ══════════════════════════════════════════════════════════════════════
+    // `unsafe`, WEIL HIER SQL-BAUSTEINE EINGESETZT WERDEN
+    //
+    // ── DER FEHLER, DEN DAS BEHEBT ────────────────────────────────────────
+    // Diese Abfrage lief als getaggtes Template (sqlPool`…`). Dort wird jedes
+    // ${…} als PARAMETER gebunden, nicht als SQL eingesetzt. Mein
+    // `bestandSql(1)` ist aber ein SQL-Ausdruck — er landete als Text-Literal
+    // in der Antwort.
+    //
+    // Das Ergebnis stand im Screenshot des Vorgesetzten: Wo „58" stehen
+    // sollte, stand „(SELECT COUNT(*)::int FROM fiaon_persons p WHERE …".
+    // Jede Mitarbeiterkarte zeigte drei Absätze Quelltext.
+    //
+    // Und der eigentliche Fehler war meiner: Ich habe die Änderung mit
+    // `tsc --noEmit` und `esbuild` geprüft — beide waren grün, weil es kein
+    // Typ- und kein Syntaxfehler ist. Nur der Browser hätte es gezeigt, und
+    // dorthin habe ich nicht geschaut.
+    // ══════════════════════════════════════════════════════════════════════
+    const zeilen = (await sqlPool.unsafe(`
       SELECT a.id, a.name, COALESCE(NULLIF(a.first_name, ''), a.name) AS vorname, a.email,
              a.avatar, a.rolle, a.active, a.distribution_active, a.is_test_account,
              a.commission_rate_bp, a.monthly_goal_cents, a.last_login_at, a.bank_iban_masked,
@@ -281,7 +299,7 @@ router.get("/admin/zentrale/team", async (_req: Request, res: Response) => {
              (SELECT MAX(cl.created_at) FROM fiaon_contact_log cl WHERE cl.agent_id = a.id) AS letzte_aktivitaet
       FROM fiaon_agents a
       ORDER BY a.active DESC, a.is_test_account ASC, a.id
-    `) as any[];
+    `)) as any[];
     res.json({
       ok: true,
       team: zeilen.map((r) => ({

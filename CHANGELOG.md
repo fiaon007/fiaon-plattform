@@ -3,6 +3,65 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (XIX) — Die Team-Zentrale zeigte SQL statt Zahlen
+
+### Mein Fehler, im Screenshot sichtbar
+
+Wo „58" stehen sollte, stand in jeder Mitarbeiterkarte:
+
+```
+(SELECT COUNT(*)::int FROM fiaon_persons p WHERE p.assigned_agent_id = a.id AND …
+```
+
+Drei Absätze Quelltext, achtmal untereinander.
+
+**Die Ursache:** Ich hatte `bestandSql(1)` in ein **getaggtes Template** (`sqlPool\`…\``) gesetzt. Dort wird jedes `${…}` als **Parameter gebunden**, nicht als SQL eingesetzt — mein Ausdruck landete als Text-Literal in der Antwort.
+
+**Der eigentliche Fehler war die Abnahme.** `tsc --noEmit` und `esbuild` waren grün, weil es weder ein Typ- noch ein Syntaxfehler ist. Nur der Browser hätte es gezeigt, und dorthin habe ich nicht geschaut. Ich habe eine Änderung an der Team-Zentrale ausgeliefert, ohne die Team-Zentrale anzusehen.
+
+Jetzt `sqlPool.unsafe()` — dort wird der Baustein wirklich eingesetzt. Gemessen: echte Zahlen bei acht Mitarbeitern.
+
+### Provisionen: der Verlauf fehlte ganz
+
+*„Unter ‚Provisionen' findet man keine Verläufe."*
+
+Der Reiter zeigte **nur offene Nachbuchungen** — also das, was fehlt. Was gebucht **ist**, stand nirgends: **200 Zeilen** in der Datenbank, keine einzige sichtbar. Ein Mensch, der fragt „womit habe ich meine 1.691 € verdient", fand keine Antwort.
+
+Jetzt: Summenzeile (**gesamt · ausgezahlt · offen · Anzahl**) und jede Buchung mit Kunde, Paket, Art (eigener Abschluss oder Leitungsprovision mit Namen der Quelle), Satz, Datum, Betrag und Zustand.
+
+### Gespräche: ein neuer Reiter
+
+*„Ich muss die Gespräche, die durch das Plattform-Telefon geführt wurden, beim Agenten zugewiesen haben, der sie geführt hat."*
+
+Sie **waren** zugewiesen — über `fiaon_calls.agent_id`. Sie waren nur nie sichtbar.
+
+Jetzt mit Kennzahlen (Gespräche, erreicht, Gesprächszeit, Aufnahmen, ausgewertet), jedem Anruf mit Kunde, Dauer, Ergebnis **in Klartext** und einem Player für die Aufnahme.
+
+Die Twilio-URL geht **nicht** mit: Nach außen geht nur, *ob* es eine Aufnahme gibt — abgespielt wird über die rechteprüfende Route.
+
+### KI-Auswertung: Beobachtungen, keine Note
+
+*„Ich muss KI-Auswertungen machen können."*
+
+Die KI liest die Transkripte der letzten 30 Tage und antwortet in fünf Abschnitten: **Was gut läuft · Wo Gespräche abbrechen · Was ungesagt bleibt · Risiko · Ein Satz für das nächste Gespräch.**
+
+**Bewusst keine Note.** Eine Zahl von eins bis zehn über einen Menschen lädt dazu ein, Leistung zu vergleichen, ohne zu wissen, welche Kunden jemand hatte. Und sie **beendet** das Gespräch mit dem Mitarbeiter; eine Beobachtung eröffnet es.
+
+Der Abschnitt „Risiko" fragt gezielt nach unzulässigen Zusagen: Erlass, Stundung, Ratenänderung, Renditeversprechen, Rechts- oder Steuerberatung.
+
+**Ohne Transkripte wird der Grund genannt, keine Antwort erfunden:** „6 Gespräche, aber keine Aufnahmen — ohne Aufnahme gibt es kein Transkript." Eine KI, die aus nichts eine Beurteilung baut, ist schlimmer als keine.
+
+### Zwei sichtbare Mängel behoben
+
+- `nicht_erreicht` stand als **Feldname** in der Akte. Ein Vorgesetzter soll keine Datenbankspalten entziffern.
+- „Anhören" **und** „ohne Aufzeichnung" standen nebeneinander — ein Widerspruch, den man erst durch Klicken auflöst.
+
+### Prüfstand
+
+`pruef-rueckstand` von 278 auf **299**. Drei Gegenproben: getaggtes Template zurück, Twilio-URL ins Frontend, KI gibt eine Note — jede wird rot. Vierzehn Browser-Messungen auf Desktop und 390 px, alle grün.
+
+Gesamt **2.187**.
+
 ## 11.08.2026 (XVIII) — Inkasso fertig: 90 Raten angelegt, 86 überfällig statt 29
 
 ### Die Raten sind angelegt

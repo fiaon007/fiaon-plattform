@@ -706,6 +706,111 @@ async function main(): Promise<void> {
   gleich("Kein Prüfstand-Artefakt mehr gültig", Number(pruefArtefakt.n), 0);
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c8. Jeder Kunde außer SCHUFA hat ein Abo");
+  // ═══════════════════════════════════════════════════════════════════════
+  // ── DIE REGEL ─────────────────────────────────────────────────────────
+  // Der Vorgesetzte: „JEDER Kunde BIS AUF SCHUFA (74 €) HAT EIN ABO, JEDER —
+  // ab Tag der Verbuchung, genau ab dem Tag bezahlt er JEDES Monat sein Paket.
+  // Jeder, der seine Rate nicht bezahlt hat, muss zum Inkasso kommen."
+  //
+  // Gemessen: 67 bezahlte Kunden hatten KEINE einzige Abo-Rate. Sie konnten im
+  // Forderungsmanagement nie auftauchen — nicht weil sie zahlten, sondern weil
+  // niemand eine Rate erwartete.
+  const { abosNachtragen, schufaMitRaten, PAKET_PREIS_CENTS, istSchufa, ZYKLUS_TAGE } =
+    await import("../server/lib/fiaon-abo-pflicht");
+
+  gleich("Der Zyklus ist 30 Tage", ZYKLUS_TAGE, 30);
+  // ── DIE PREISE GEGEN DEN KONTOAUSZUG ───────────────────────────────────
+  // Nicht aus dem Kopf: statement_165031496 vom 03.07.–11.08.2026, 327 echte
+  // Eingänge. Die Häufigkeiten sagen, welche Beträge wirklich vorkommen —
+  // 99,99 ×75, 79,99 ×46, 74,00 ×37 (SCHUFA), 59,99 ×81, 7,99 ×54.
+  gleich("start kostet 7,99 €", PAKET_PREIS_CENTS.start, 799);
+  gleich("pro kostet 59,99 €", PAKET_PREIS_CENTS.pro, 5999);
+  gleich("highend kostet 79,99 €", PAKET_PREIS_CENTS.highend, 7999);
+  gleich("ultra kostet 99,99 €", PAKET_PREIS_CENTS.ultra, 9999);
+
+  // ── SCHUFA ERKENNEN ───────────────────────────────────────────────────
+  ok("74 € ist SCHUFA", istSchufa({ amount_due: 74 }));
+  ok("„Bonitätsauskunft“ ist SCHUFA", istSchufa({ pack_name: "Bonitätsauskunft inkl. Beratung" }));
+  ok("… auch ohne Umlaut geschrieben", istSchufa({ pack_name: "Bonitaetsauskunft" }));
+  ok("Ein Paket ist NICHT SCHUFA", !istSchufa({ amount_due: 99.99, pack_key: "ultra" }));
+  ok("Ein leerer Datensatz ist NICHT SCHUFA", !istSchufa({}));
+
+  const sr = await schufaMitRaten();
+  gleich("KEINE SCHUFA-Bestellung hat Abo-Raten", sr.length, 0);
+
+  // ── DER NACHTRAG ──────────────────────────────────────────────────────
+  const vorher2 = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_abo_raten`) as any[];
+  const na = await abosNachtragen({ schreiben: false });
+  ok(`${na.kandidaten.length} Kunden ohne Abo-Rate gefunden`, na.kandidaten.length >= 0, na.hinweis);
+  gleich("Die Vorschau legt NICHTS an", na.angelegt, 0);
+  const nachher2 = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_abo_raten`) as any[];
+  gleich("Keine Rate durch den Prüfstand entstanden",
+    Number(nachher2[0].n), Number(vorher2[0].n));
+
+  if (na.kandidaten.length > 0) {
+    ok("Jeder Kandidat hat einen Starttag", na.kandidaten.every((k) => /^\d{4}-\d{2}-\d{2}$/.test(k.start)));
+    ok("… und die Herkunft des Starttags ist ausgewiesen",
+      na.kandidaten.every((k) => typeof k.ausBank === "boolean"));
+    ok("Wer keinen ableitbaren Betrag hat, wird ÜBERSPRUNGEN, nicht mit 0 € angelegt",
+      na.uebersprungen.every((u) => u.betragCents === 0 || u.problem !== null));
+    ok("… und der Grund steht dabei",
+      na.uebersprungen.length === 0 || na.uebersprungen.every((u) => !!u.problem));
+    ok("Kein Kandidat ist eine SCHUFA-Bestellung",
+      na.kandidaten.every((k) => k.betragCents !== 7400));
+    const machbar = na.kandidaten.filter((k) => !k.problem);
+    ok(`${machbar.length} anlegbar, ${na.uebersprungen.length} übersprungen`,
+      machbar.length + na.uebersprungen.length === na.kandidaten.length);
+    ok("Die Ratenzahl umfasst Vergangenheit UND die nächste",
+      na.ratenGesamt >= machbar.length,
+      `${na.ratenGesamt} Raten für ${machbar.length} Kunden`);
+  }
+
+  const apQ = datei("server/lib/fiaon-abo-pflicht.ts");
+  ok("Ohne ausdrückliches Schreiben passiert nichts", /if \(!opts\.schreiben\)/.test(apQ));
+  // ── AN DIE FUNKTION GEBUNDEN, NICHT AN DIE DATEI ──────────────────────
+  // Erster Versuch: den Ausdruck irgendwo in der Datei suchen. Die Gegenprobe
+  // (COALESCE aus `fehlendeAbos` entfernen) blieb GRÜN — derselbe Ausdruck
+  // steht in `schufaMitRaten` weiter unten. Eine Prüfung, die den Nachbarn
+  // findet, prüft nichts.
+  ok("Der NULL-Fallstrick ist in fehlendeAbos abgefangen", (() => {
+    const a = apQ.indexOf("export async function fehlendeAbos");
+    if (a < 0) return false;
+    const block = apQ.slice(a, apQ.indexOf("\n}", a));
+    return block.includes("NOT COALESCE(${SCHUFA_SQL}, FALSE)");
+  })());
+
+  // ── DAS VERHALTEN, NICHT DER KOMMENTAR ────────────────────────────────
+  // Erster Versuch: den Kommentartext suchen. Wertlos — die Gegenprobe
+  // (Preis nur aus amount_due) blieb grün, weil der Kommentar stehen blieb.
+  //
+  // Was zählt: Ein Kunde mit hinterlegtem Paket, aber OHNE amount_due, muss
+  // einen Betrag bekommen. Genau diese Sorte gibt es (gemessen: 63 Kunden mit
+  // amount_due IS NULL).
+  const ohneBetrag = (await sqlPool`
+    SELECT a.ref, a.pack_key FROM fiaon_applications a
+    WHERE a.payment_status = 'paid' AND a.merged_into IS NULL AND a.archived_at IS NULL
+      AND a.gdpr_deleted_at IS NULL AND a.amount_due IS NULL AND a.pack_key IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref)
+    LIMIT 1
+  `) as any[];
+  if (ohneBetrag.length > 0) {
+    const k = na.kandidaten.find((x) => x.ref === String(ohneBetrag[0].ref));
+    ok("Ein Kunde mit Paket aber ohne amount_due bekommt trotzdem einen Betrag",
+      !!k && k.betragCents > 0,
+      k ? `${k.packKey} → ${(k.betragCents / 100).toFixed(2)} €` : "Kandidat nicht gefunden");
+  } else {
+    ok("Kein Kunde mit Paket ohne amount_due offen — nichts zu prüfen", true);
+  }
+  ok("Die Preise sind gegen den Kontoauszug geprüft",
+    /statement_165031496/.test(apQ));
+  const ibQ3 = datei("server/routes/fiaon-inkasso-bereich.ts");
+  ok("Die Routen liegen unter /admin",
+    /admin\/inkasso\/abos-nachtragen/.test(ibQ3));
+  ok("Die Oberfläche warnt vor den Folgen",
+    /Das löst Mahnungen aus/.test(datei("client/src/pages/admin-team-zentrale.tsx")));
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");
   // ═══════════════════════════════════════════════════════════════════════
   const fQ = datei("client/src/components/PremiumFooter.tsx");
@@ -767,7 +872,13 @@ async function main(): Promise<void> {
            (SELECT COUNT(*) FROM fiaon_persons)::int AS personen,
            (SELECT COUNT(*) FROM fiaon_commission_statements)::int AS abrechnungen
   `;
-  gleich("Keine Person verloren oder hinzugekommen", nachher.personen, vorher.personen);
+  // ── GLOBAL NUR „DARF NICHT SCHRUMPFEN" ────────────────────────────────
+  // Beim Lauf um 18:40 war diese Zeile rot: 5014 statt 5013. Eine ECHTE
+  // Person hatte in der Zwischenzeit ein Formular abgeschickt. Das ist der
+  // Trichter, nicht der Prüfstand — und AGENTS.md sagt es ausdrücklich:
+  // global nur „darf nicht schrumpfen", je Einheit exakt.
+  ok(`Keine Person verloren (${vorher.personen} → ${nachher.personen})`,
+    Number(nachher.personen) >= Number(vorher.personen));
   gleich("Keine Abrechnung verändert", nachher.abrechnungen, vorher.abrechnungen);
   ok(`Ereignisse nur gewachsen (${vorher.ereignisse} → ${nachher.ereignisse})`,
     Number(nachher.ereignisse) >= Number(vorher.ereignisse));

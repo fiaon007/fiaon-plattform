@@ -3,6 +3,73 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (XVII) — Jeder Kunde außer SCHUFA hat ein Abo: 67 hatten keine Rate
+
+### Die Regel, gegen den Kontoauszug geprüft
+
+*„JEDER Kunde BIS AUF SCHUFA (74 €) HAT EIN ABO, JEDER — ab Tag der Verbuchung, genau ab dem Tag bezahlt er JEDES Monat sein Paket. Jeder, der seine Rate nicht bezahlt hat, muss zum Inkasso kommen."*
+
+Die Preise stehen jetzt an **einer** Stelle — und sie sind nicht aus dem Kopf, sondern gegen `statement_165031496_EUR_2026-07-03_2026-08-11.csv` geprüft: **327 echte Eingänge über 23.244,82 €**.
+
+| Betrag | Häufigkeit | Paket |
+|---|---|---|
+| 99,99 € | ×75 | ultra |
+| 79,99 € | ×46 | highend |
+| **74,00 €** | **×37** | **SCHUFA — kein Abo** |
+| 59,99 € | ×81 | pro |
+| 7,99 € | ×54 | start |
+
+Alles andere im Auszug sind Einzelfälle: Teilzahlungen (0,88 €, 8 €, 10 €, 20 €, 50 €), Rundungen (59,90 €, 76,12 €) und drei große Posten aus dem Geschäftskundenbereich.
+
+### 67 bezahlte Kunden hatten keine einzige Abo-Rate
+
+Sie konnten im Forderungsmanagement **nie** auftauchen — nicht weil sie zahlten, sondern weil niemand eine Rate erwartete.
+
+**33 sind anlegbar**, 34 nicht: Bei ihnen ist weder Paket noch Betrag hinterlegt. Sie werden **übersprungen und benannt**, nicht mit 0 € angelegt.
+
+Der Starttag kommt aus der ersten zugeordneten **Bankbuchung** (`fiaon_bank_txns.booked_at`). Fehlt sie — und bei allen 67 fehlt sie —, bleibt das Anlagedatum als schlechtere, aber einzige Auskunft. Das wird **ausgewiesen**, nicht verschwiegen.
+
+Angelegt werden **alle fälligen Raten plus die nächste**. Wer im April verbucht wurde, hat drei überfällige — nur die nächste anzulegen würde die Vergangenheit unter den Teppich kehren.
+
+### Ein NULL-Fallstrick, der 63 Kunden gekostet hat
+
+Meine erste Abfrage schloss SCHUFA mit `NOT (amount_due = 74 OR ...)` aus. **Bei 63 bezahlten Kunden ist `amount_due` NULL** — und `NOT NULL` ist in SQL nicht `TRUE`, sondern `NULL`. Diese 63 fielen durch **beide** Filter: weder SCHUFA noch abopflichtig.
+
+Die Rechnung ging nicht auf: 34 + 261 = 295, nicht 358. Erst diese Lücke führte zu den 67.
+
+Deshalb kommt der Preis jetzt aus dem **Paket**, nicht aus `amount_due`. Der Preis gehört zum Paket, nicht zur einzelnen Bestellung.
+
+### Der Kontoauszug 1:1
+
+**254 von 327 Eingängen** sind zuordenbar — über `payment_reference` (`FIAON-X2U268`), nicht über `ref` (`FIAON-MSKI4FY6-YUQU`). Zwei Formate; mein erster Abgleich prüfte das falsche und fand **0 von 273**.
+
+**45 Bank-Buchungen sind nicht zugeordnet.** Kategorisiert:
+
+- 1.000 € Gesellschafterdarlehen (kein Kundengeld)
+- 131,73 € Kartentransaktion
+- `fison-P2W2V6` — Tippfehler des Kunden
+- `R97E28` — ohne FIAON-Präfix
+- Mehrere mit **gültigem** Format (`FIAON-UXUZ39`, `FIAON-VA2NA7`, `FIAON-3DWTPH`), die trotzdem nicht zugeordnet wurden
+
+Die letzte Gruppe ist der interessante Fall — dort lohnt ein Blick in der Zahlungszentrale.
+
+### SCHUFA: die Gegenprobe
+
+**0 SCHUFA-Bestellungen haben Abo-Raten.** Die Regel wird eingehalten — und sie wird jetzt geprüft: Eine Regel, die man nicht prüft, gilt nur, bis jemand sie vergisst.
+
+### Zwei Prüfungen, die nichts prüften
+
+- „Der NULL-Fallstrick ist abgefangen" fand den Ausdruck in der **Nachbarfunktion**.
+- „Der Preis kommt aus dem Paket" prüfte nur den **Kommentar** — nicht das Verhalten.
+
+Beide korrigiert: Die erste ist an `fehlendeAbos` gebunden, die zweite prüft einen echten Kunden mit Paket ohne `amount_due` (`ultra → 99,99 €`).
+
+Und eine dritte Invariante misst nicht mehr den Betrieb mit: „Keine Person verloren" war rot, weil während des Laufs **ein echter Mensch** ein Formular abgeschickt hatte.
+
+### Prüfstand
+
+`pruef-rueckstand` von 238 auf **265**. Drei Gegenproben: NULL-Fallstrick, Preis aus `amount_due`, SCHUFA nur über den Betrag — jede wird rot. Gesamt **2.153**, alle grün.
+
 ## 11.08.2026 (XVI) — Vier Befunde: A/B/C, fehlende E-Mails, Inkasso, Telefon für alle
 
 ### 1. Drei Zahlen für eine Frage

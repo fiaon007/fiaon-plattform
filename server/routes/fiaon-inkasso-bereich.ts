@@ -529,4 +529,60 @@ router.post("/admin/inkasso/rate/:id/zuweisen", async (req: Request, res: Respon
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FEHLENDE ABOS NACHTRAGEN
+//
+// Der Vorgesetzte: „JEDER Kunde BIS AUF SCHUFA (74 €) HAT EIN ABO, JEDER — ab
+// Tag der Verbuchung, genau ab dem Tag bezahlt er JEDES Monat sein Paket.
+// Jeder, der seine Rate nicht bezahlt hat, muss zum Inkasso kommen."
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** GET /admin/inkasso/abos-nachtragen — Vorschau. */
+router.get("/admin/inkasso/abos-nachtragen", async (_req: Request, res: Response) => {
+  try {
+    const { abosNachtragen, schufaMitRaten, PAKET_PREIS_CENTS } =
+      await import("../lib/fiaon-abo-pflicht");
+    const [erg, schufa] = await Promise.all([
+      abosNachtragen({ schreiben: false }),
+      schufaMitRaten(),
+    ]);
+    res.json({
+      ok: true, ...erg,
+      // Die Gegenprobe wandert mit: Eine SCHUFA-Bestellung mit Raten wäre ein
+      // Fehler in der anderen Richtung, und man sieht ihn nur, wenn man ihn
+      // zeigt.
+      schufaMitRaten: schufa,
+      preise: PAKET_PREIS_CENTS,
+    });
+  } catch (err) {
+    console.error("[INKASSO] abos-vorschau:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /admin/inkasso/abos-nachtragen — jetzt wirklich anlegen. */
+router.post("/admin/inkasso/abos-nachtragen", async (req: Request, res: Response) => {
+  try {
+    const { abosNachtragen } = await import("../lib/fiaon-abo-pflicht");
+    const erg = await abosNachtragen({
+      // Angelegte Raten lösen Mahnungen aus. Ein Massenlauf, der beim ersten
+      // Klick zuschlägt, ist hier die falsche Voreinstellung.
+      schreiben: req.body?.schreiben === true,
+      nurRef: req.body?.ref ? String(req.body.ref) : null,
+    });
+    if (erg.angelegt > 0) {
+      const { aktivitaetSchreiben } = await import("../lib/fiaon-aktivitaet");
+      await aktivitaetSchreiben({
+        typ: "commission_statement_issued", wer: "Vorgesetzter",
+        grund: `${erg.angelegt} Kunden bekamen Abo-Raten nachgetragen (${erg.ratenGesamt} Raten).`,
+        meta: { bereich: "abo_nachtrag", kunden: erg.angelegt, raten: erg.ratenGesamt },
+      });
+    }
+    res.json({ ok: true, ...erg });
+  } catch (err) {
+    console.error("[INKASSO] abos-nachtragen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 export default router;

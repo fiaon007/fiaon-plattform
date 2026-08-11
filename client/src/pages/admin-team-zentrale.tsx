@@ -103,6 +103,9 @@ function InkassoZuteilung() {
   const [d, setD] = useState<any>(null);
   const [rein, setRein] = useState<any>(null);
   const [reinFrage, setReinFrage] = useState(false);
+  const [abos, setAbos] = useState<any>(null);
+  const [aboFrage, setAboFrage] = useState(false);
+  const [aboLaeuft, setAboLaeuft] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
   const [frage, setFrage] = useState(false);
   const [nurAgent, setNurAgent] = useState("");
@@ -124,6 +127,31 @@ function InkassoZuteilung() {
     void fetch("/api/fiaon/admin/team/sonderrollen-bereinigen", { credentials: "include" })
       .then((r) => r.json()).then((j) => setRein(j?.ok ? j : null)).catch(() => {});
   }, []);
+
+  // ── FEHLENDE ABOS ─────────────────────────────────────────────────────
+  // „JEDER Kunde BIS AUF SCHUFA (74 €) HAT EIN ABO, JEDER."
+  const abosHolen = useCallback(async () => {
+    const r = await fetch("/api/fiaon/admin/inkasso/abos-nachtragen", { credentials: "include" })
+      .catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setAbos(j?.ok ? j : null);
+  }, []);
+  useEffect(() => { void abosHolen(); }, [abosHolen]);
+
+  const abosAnlegen = async () => {
+    setAboFrage(false);
+    setAboLaeuft(true);
+    const r = await fetch("/api/fiaon/admin/inkasso/abos-nachtragen", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schreiben: true }),
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setAboLaeuft(false);
+    if (j?.ok) setAbos(j);
+    void abosHolen();
+    void holen();
+  };
 
   const bereinigen = async () => {
     setReinFrage(false);
@@ -155,6 +183,118 @@ function InkassoZuteilung() {
 
   return (
     <div>
+      {/* ══════════════════════════════════════════════════════════════════
+          FEHLENDE ABOS
+
+          Der Vorgesetzte: „JEDER Kunde BIS AUF SCHUFA (74 €) HAT EIN ABO,
+          JEDER — ab Tag der Verbuchung, genau ab dem Tag bezahlt er JEDES
+          Monat sein Paket. Jeder, der seine Rate nicht bezahlt hat, muss zum
+          Inkasso kommen."
+
+          Gemessen: 67 bezahlte Kunden hatten KEINE einzige Abo-Rate. Sie
+          konnten im Forderungsmanagement nie auftauchen — nicht weil sie
+          zahlten, sondern weil niemand eine Rate erwartete.
+          ══════════════════════════════════════════════════════════════════ */}
+      {(abos?.kandidaten ?? []).length > 0 && (
+        <div className="rounded-2xl p-5 mb-4"
+             style={{ background: "rgba(217,119,6,.05)", boxShadow: "inset 0 0 0 1px rgba(217,119,6,.22)" }}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-[14px] font-bold" style={{ color: "#b45309" }}>
+                {abos.kandidaten.length} bezahlte Kunden haben keine Abo-Rate
+              </h2>
+              <p className="text-[12px] mt-1 leading-relaxed" style={{ color: "#92400e", maxWidth: 660 }}>
+                Jeder Kunde außer SCHUFA (74 €) zahlt ab dem Tag der Verbuchung monatlich sein Paket.
+                Für diese hier wurde nie eine Rate angelegt — sie konnten im Forderungsmanagement
+                nie auftauchen, egal wie lange sie nicht gezahlt haben.
+                {abos.uebersprungen?.length > 0 && (
+                  <> <b>{abos.uebersprungen.length}</b> davon haben weder Paket noch Betrag hinterlegt;
+                  für die kann der Monatsbeitrag nicht abgeleitet werden.</>
+                )}
+              </p>
+              <p className="text-[11.5px] mt-1.5" style={{ color: "#92400e" }}>
+                Preise: {Object.entries(abos.preise ?? {}).map(([k, c]) =>
+                  `${k} ${(Number(c) / 100).toFixed(2)} €`).join(" · ")}
+              </p>
+            </div>
+            <button type="button" onClick={() => setAboFrage(true)} disabled={aboLaeuft}
+                    className="fi-knopf-primaer px-5 shrink-0">
+              {aboLaeuft ? "Legt an …" : `${abos.ratenGesamt} Raten anlegen`}
+            </button>
+          </div>
+          <div className="mt-3.5 rounded-xl overflow-hidden bg-white"
+               style={{ boxShadow: "inset 0 0 0 1px rgba(217,119,6,.16)", maxHeight: 280, overflowY: "auto" }}>
+            {abos.kandidaten.map((k: any) => (
+              <div key={k.ref} className="px-3.5 py-2 flex flex-wrap items-baseline gap-x-3 gap-y-0.5"
+                   style={{ borderBottom: "1px solid #fffbeb", opacity: k.problem ? .55 : 1 }}>
+                <span className="text-[12.5px] font-semibold text-slate-800">{k.name}</span>
+                <span className="text-[11px] font-mono text-slate-400">{k.ref}</span>
+                <span className="text-[11.5px] font-semibold"
+                      style={{ color: k.problem ? "#b91c1c" : "var(--fi-primaer)" }}>
+                  {k.problem ? "kein Betrag ableitbar" : `${k.packKey} · ${(k.betragCents / 100).toFixed(2)} €`}
+                </span>
+                <span className="ml-auto shrink-0 text-[11.5px] text-slate-500">
+                  ab {k.start} {k.ausBank ? "(Bankbuchung)" : "(Anlagedatum)"} ·{" "}
+                  <b style={{ color: k.ratenFaellig > 0 ? "#b45309" : "inherit" }}>
+                    {k.ratenFaellig} überfällig
+                  </b>
+                </span>
+              </div>
+            ))}
+          </div>
+          {!abos.kandidaten.some((k: any) => k.ausBank) && (
+            <p className="text-[11.5px] mt-2 leading-relaxed" style={{ color: "#92400e" }}>
+              Für keinen dieser Kunden gibt es eine zugeordnete Bankbuchung — der Starttag kommt
+              vom Anlagedatum der Bestellung. Das ist die schlechtere, aber einzige Auskunft.
+            </p>
+          )}
+        </div>
+      )}
+
+      {(abos?.schufaMitRaten ?? []).length > 0 && (
+        <p className="mb-4 px-4 py-3 rounded-xl text-[12.5px] leading-relaxed"
+           style={{ background: "rgba(185,28,28,.06)", color: "#b91c1c" }}>
+          <b>{abos.schufaMitRaten.length} SCHUFA-Bestellungen haben Abo-Raten.</b> Eine
+          Bonitätsauskunft ist eine Einmalzahlung — sie darf keine monatliche Rate haben.
+        </p>
+      )}
+
+      <FiaonEbene
+        offen={aboFrage} onZu={() => setAboFrage(false)}
+        titel={`${abos?.ratenGesamt ?? 0} Raten anlegen?`}
+        ueberschrift="Das löst Mahnungen aus"
+        breite={520}
+        kinder={
+          <>
+            <p className="text-[13px] leading-relaxed" style={{ color: "var(--fi-text-leise)" }}>
+              Für {abos?.kandidaten?.filter((k: any) => !k.problem).length ?? 0} Kunden werden
+              zusammen {abos?.ratenGesamt ?? 0} Raten angelegt — alle, die seit dem Starttag fällig
+              geworden sind, plus die nächste.
+            </p>
+            <p className="mt-2.5 text-[12.5px] leading-relaxed" style={{ color: "var(--fi-text-still)" }}>
+              <b>Was danach passiert:</b> Jeder mit einer überfälligen Rate steht im
+              Forderungsmanagement und bekommt die üblichen Zahlungserinnerungen. Das ist gewollt —
+              aber es ist ein Vorgang, der beim Kunden ankommt.
+            </p>
+            <p className="mt-2.5 text-[12.5px] leading-relaxed" style={{ color: "var(--fi-text-still)" }}>
+              SCHUFA-Bestellungen (74 €) bleiben unberührt. Kunden ohne hinterlegtes Paket werden
+              übersprungen — für sie ist der Beitrag nicht ableitbar.
+            </p>
+          </>
+        }
+        fuss={
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setAboFrage(false)}
+                    className="text-[13px] font-semibold" style={{ color: "var(--fi-text-still)" }}>
+              Abbrechen
+            </button>
+            <button type="button" onClick={() => void abosAnlegen()} className="ml-auto fi-knopf-primaer px-5">
+              Jetzt anlegen
+            </button>
+          </div>
+        }
+      />
+
       {/* ══════════════════════════════════════════════════════════════════
           FALSCH ZUGEWIESENE VERTRIEBSKUNDEN
 

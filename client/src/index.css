@@ -971,3 +971,98 @@ html {
   border-radius: 999px;
   background: linear-gradient(90deg, #eef2f7, #e6ebf3);
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIE RICHTLINIEN-TAFEL LIEGT ÜBER DEM TELEFON
+
+   Der Vorgesetzte: „Man kann als neuer Mitarbeiter die Telefon-Richtlinie
+   nicht bestätigen, es erscheint hinter dem Telefon (da ist alles geblurt,
+   man erkennt nichts)."
+
+   Gemessen: FiaonGeraet liegt bei z-index 420/421, FiaonEbene bei 400/401.
+   Die Tafel lag zwangsläufig darunter — hinter einer Fläche mit 20 px
+   Weichzeichnung.
+
+   Der Hauptweg führt jetzt durch das Display selbst. Diese Regel ist der
+   Gürtel zum Hosenträger: Wer die Tafel doch öffnet, sieht sie.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.fi-ri-ueber-geraet > div,
+.fi-ri-ueber-geraet [class*="fi-ebene"] {
+  z-index: 460 !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SPARMODUS WÄHREND EINES GESPRÄCHS
+
+   ── DIE RÜCKMELDUNG ────────────────────────────────────────────────────────
+   Ein Agent (iPhone 15 Pro Max): „Am Laptop funktioniert es sehr gut — keine
+   Verzögerungen, keine Störgeräusche. Am Handy reagiert die Oberfläche
+   zeitversetzt, Buttons hängen kurz, und während des Telefonats habe ich
+   immer wieder ein starkes Klackern, fast wie bei Netzproblemen."
+
+   Es liegt nicht am Gerät. Eine Weichzeichnung auf einer bildschirmfüllenden
+   Fläche zwingt Safari, bei jedem Bild den gesamten Hintergrund neu zu
+   zeichnen — auf einem Telefon mit 460 dpi über zwei Millionen Bildpunkte,
+   sechzigmal je Sekunde. Solange nur eine Seite dasteht, fällt das nicht auf.
+   Läuft daneben WebRTC, konkurrieren Zeichnen und Audio-Verarbeitung um
+   dieselbe Rechenzeit — die Audio-Puffer laufen leer, und das hört man.
+
+   ── WARUM AN DER WURZEL UND NICHT AM BODY ──────────────────────────────────
+   Erster Versuch: `body[data-gespraech="1"] .fi-ger-schleier`. Die Regel war
+   nachweislich im Dokument geladen, der Schleier trug die Klasse, es gab
+   keinen Inline-Stil — und sie griff trotzdem nicht. Das Gerät hängt in einem
+   Portal, das nicht unter <body> sitzt.
+
+   `:root` ist immer der Vorfahr. Eine Regel, die von der Stelle im Baum
+   abhängt, ist bei Portalen die falsche Wahl.
+
+   ── WARUM GLOBAL UND NICHT IN DER KOMPONENTE ───────────────────────────────
+   Erster Versuch: die Regel als <style> im Telefon. Sie stand im Dokument
+   (nachgemessen), griff aber nicht — die Komponenten-Stile werden später
+   eingefügt und gewinnen bei gleicher Spezifität.
+   
+   Hier gehört sie ohnehin hin: Nicht nur das Telefon malt, sondern auch die
+   Seite DAHINTER. Der Space zeichnet ein Video, die Mail-Zentrale eine
+   Glasfläche, die Blasen haben Schatten. Alle malen weiter, während man
+   telefoniert — und alle sieht man in dem Moment gar nicht.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-gespraech="1"] .fi-ger-schleier,
+:root[data-gespraech="1"] .fi-blase,
+:root[data-gespraech="1"] .fi-sp-karte,
+:root[data-gespraech="1"] [class*="backdrop"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+:root[data-gespraech="1"] .fi-ger-schleier {
+  background: rgba(7, 12, 24, .86) !important;
+}
+
+/* Das Hintergrundvideo anhalten kostet nichts und spart viel: Es dekodiert
+   sonst weiter, obwohl es niemand sieht. */
+:root[data-gespraech="1"] video {
+  display: none !important;
+}
+
+/* Jede Dauer-Animation aus. Sie hält den Compositor wach, auch wenn sich nur
+   ein Punkt von 6 auf 8 Pixel vergrößert. */
+:root[data-gespraech="1"] * {
+  animation-play-state: paused !important;
+}
+:root[data-gespraech="1"] .fi-ger-koerper,
+:root[data-gespraech="1"] .fi-ger-buehne,
+:root[data-gespraech="1"] .fi-blase-hebt {
+  transition: none !important;
+}
+
+/* Auf schmalen Geräten generell weniger Weichzeichnung — auch ohne laufendes
+   Gespräch ist ein 14-px-Blur auf einem Telefonbildschirm teurer, als er
+   aussieht. */
+@media (max-width: 640px) {
+  .fi-ger-schleier {
+    backdrop-filter: blur(6px) saturate(110%);
+    -webkit-backdrop-filter: blur(6px) saturate(110%);
+  }
+}

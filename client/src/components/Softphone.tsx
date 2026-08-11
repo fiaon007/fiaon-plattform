@@ -317,6 +317,46 @@ export function Softphone() {
   }, [suche]);
 
 
+  /**
+   * Der Sparmodus.
+   *
+   * ── WARUM DIESER HAKEN HIER OBEN STEHT ────────────────────────────────────
+   * Er stand zuerst hinter `if (!stand) return null;`. Der Browser meldete
+   * „Rendered more hooks than during the previous render", und das ganze
+   * Telefon verschwand hinter einem roten Fehlerfenster.
+   *
+   * React zählt Haken. Läuft einer nicht bei JEDEM Durchgang, verrutscht die
+   * Zuordnung aller folgenden. Weder `tsc --noEmit` noch `vite build` finden
+   * das — beide waren grün. Erst der laufende Browser zeigte es.
+   *
+   * ── DIE RÜCKMELDUNG ───────────────────────────────────────────────────────
+   * Ein Agent (iPhone 15 Pro Max): „Am Laptop funktioniert es sehr gut — keine
+   * Verzögerungen, keine Störgeräusche. Am Handy reagiert die Oberfläche
+   * zeitversetzt, Buttons hängen kurz, und während des Telefonats habe ich
+   * immer wieder ein starkes Klackern."
+   *
+   * Es liegt nicht am Gerät. Ein `backdrop-filter` auf einer
+   * bildschirmfüllenden Fläche zwingt Safari, bei jedem Bild den gesamten
+   * Hintergrund neu zu zeichnen. Läuft daneben WebRTC, konkurrieren Zeichnen
+   * und Audio-Verarbeitung um dieselbe Rechenzeit — die Audio-Puffer laufen
+   * leer, und das hört man als Klackern.
+   *
+   * Diese Marke am <body> schaltet die teuren Effekte ab, solange ein Ruf
+   * läuft. Sie steht am body und nicht an einer Komponente, weil auch die
+   * Seite DAHINTER Effekte hat: Der Space zeichnet ein Video, die
+   * Mail-Zentrale eine Glasfläche. Beide malen weiter, während man
+   * telefoniert — und beide sieht man in dem Moment gar nicht.
+   */
+  useEffect(() => {
+    const laeuft = zustand === "waehlt" || zustand === "gespraech";
+    // An der WURZEL, nicht am <body>: Das Gerät hängt in einem Portal, das
+    // nicht unter <body> sitzt — eine body-Regel griff nachweislich nicht.
+    const wurzel = document.documentElement;
+    if (laeuft) wurzel.setAttribute("data-gespraech", "1");
+    else wurzel.removeAttribute("data-gespraech");
+    return () => wurzel.removeAttribute("data-gespraech");
+  }, [zustand]);
+
   if (!stand) return null;
 
   const offeneAnzahl = stand.offene?.length ?? 0;
@@ -793,6 +833,10 @@ export function Softphone() {
           ══════════════════════════════════════════════════════════════════ */}
       <FiaonGeraet offen={offen} onZu={() => setOffen(false)} titel="Telefon">
         <style>{TELEFON_CSS}</style>
+        {/* Der Sparmodus steht in index.css, nicht hier: Er gilt auch für die
+            Seite DAHINTER — Space-Video, Mail-Glasflächen, Blasen-Schatten.
+            Als Komponenten-Stil griff er nicht; die Stile der Komponenten
+            werden später eingefügt und gewinnen bei gleicher Spezifität. */}
 
         {/* ── Statuszeile im Display ──────────────────────────────────── */}
         <div className="fi-tel-statuszeile">
@@ -811,24 +855,91 @@ export function Softphone() {
         </div>
 
         {/* ── Die Richtlinie ist nicht angenommen ─────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════════════
+            DIE RICHTLINIE STEHT IM DISPLAY
+
+            ── DER BEFUND ────────────────────────────────────────────────────
+            Der Vorgesetzte: „Man kann als neuer Mitarbeiter die Telefon-
+            Richtlinie nicht bestätigen, es erscheint hinter dem Telefon (da
+            ist alles geblurt, man erkennt nichts). Wenn man dann rausgeht und
+            das bestätigt und seinen Namen eintippt, geht es noch immer nicht!"
+
+            Zwei Fehler in einem:
+            1. Die Tafel lag bei z-index 400, das Gerät bei 420. Sie erschien
+               zwangsläufig HINTER einer Fläche mit 20 px Weichzeichnung.
+            2. Wer sie doch erreichte, musste das Telefon verlassen — und kam
+               in einen Zustand, in dem zwei Fenster übereinander um dieselbe
+               Entscheidung baten.
+
+            Die Lösung ist keine höhere Zahl, sondern ein anderer Ort: Die
+            Annahme gehört DORTHIN, wo sie gebraucht wird. Wer das Telefon
+            öffnet und noch nicht angenommen hat, liest und unterschreibt im
+            Display — ohne es zu verlassen.
+            ══════════════════════════════════════════════════════════════════ */}
         {richtlinie?.offen && zustand === "bereit" && (
-          <button type="button" onClick={() => setTafelOffen(true)} className="fi-tel-sperre">
-            <span className="fi-tel-sperre-marke" aria-hidden="true">
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor"
-                   strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-                <rect x="4.5" y="9" width="11" height="8" rx="2" />
-                <path d="M7 9V6.8a3 3 0 0 1 6 0V9" />
-              </svg>
-            </span>
-            <span className="min-w-0 flex-1 text-left">
-              <span className="fi-tel-sperre-titel">
-                {richtlinie.neufassung ? "Neue Fassung der Richtlinie" : "Telefon-Richtlinie lesen"}
-              </span>
-              <span className="fi-tel-sperre-text">
-                Bevor du zum ersten Mal wählst — vier Absätze, sie betreffen dich persönlich.
-              </span>
-            </span>
-          </button>
+          <div className="fi-tel-richtlinie">
+            <p className="fi-tel-ri-kopf">
+              {richtlinie.neufassung ? "Neue Fassung — bitte erneut lesen" : "Vor dem ersten Anruf"}
+            </p>
+            <p className="fi-tel-ri-titel">
+              {richtlinie.text?.ueberschrift ?? "Telefon-Richtlinie"}
+            </p>
+
+            {/* Der volle Text, rollbar. Nicht gekürzt: Eine Erklärung, die man
+                unterschreibt, muss man auch lesen können. */}
+            <div className="fi-tel-ri-text">
+              {richtlinie.text?.gratulation && (
+                <p className="fi-tel-ri-stark">{richtlinie.text.gratulation}</p>
+              )}
+              {richtlinie.text?.einleitung && <p>{richtlinie.text.einleitung}</p>}
+
+              {(richtlinie.text?.kann ?? []).length > 0 && (
+                <>
+                  <p className="fi-tel-ri-zwisch">Was du kannst</p>
+                  {richtlinie.text.kann.map((k: any) => (
+                    <p key={k.titel}><b>{k.titel}.</b> {k.text}</p>
+                  ))}
+                </>
+              )}
+              {(richtlinie.text?.kannNicht ?? []).length > 0 && (
+                <>
+                  <p className="fi-tel-ri-zwisch">Was ausdrücklich nicht geht</p>
+                  {richtlinie.text.kannNicht.map((x: string) => (
+                    <p key={x} className="fi-tel-ri-nicht">{x}</p>
+                  ))}
+                </>
+              )}
+              {(richtlinie.text?.pflichten ?? []).length > 0 && (
+                <>
+                  <p className="fi-tel-ri-zwisch">Deine Zusagen</p>
+                  {richtlinie.text.pflichten.map((pf: any) => (
+                    <p key={pf.nr}><b>{pf.nr}. {pf.titel}.</b> {pf.text}</p>
+                  ))}
+                </>
+              )}
+              {richtlinie.text?.schlusssatz && <p>{richtlinie.text.schlusssatz}</p>}
+              {richtlinie.text?.hinweisProtokoll && (
+                <p className="fi-tel-ri-leise">{richtlinie.text.hinweisProtokoll}</p>
+              )}
+            </div>
+
+            <label className="fi-tel-ri-haken">
+              <input type="checkbox" checked={gelesen}
+                     onChange={(e) => setGelesen(e.target.checked)} />
+              <span>Ich habe die Richtlinie gelesen und verstanden.</span>
+            </label>
+            <input value={nameGetippt} onChange={(e) => setNameGetippt(e.target.value)}
+                   placeholder="Dein vollständiger Name" aria-label="Vollständiger Name"
+                   className="fi-tel-ri-name" autoComplete="name" />
+            <button type="button" onClick={() => void richtlinieAnnehmen()}
+                    disabled={!gelesen || nameGetippt.trim().length < 3}
+                    className="fi-tel-ri-knopf">
+              Annehmen und telefonieren
+            </button>
+            <p className="fi-tel-ri-fuss">
+              Festgehalten mit Zeitpunkt, Fassung {richtlinie.text?.version ?? "—"} und Gerätekennung.
+            </p>
+          </div>
         )}
 
         {kunde && <p className="fi-tel-kunde">{kunde.name}</p>}
@@ -1098,7 +1209,17 @@ export function Softphone() {
         )}
       </FiaonGeraet>
 
-      {/* ── Die Richtlinien-Tafel ───────────────────────────────────────── */}
+      {/* ── DIE TAFEL ALS RÜCKFALL, ÜBER DEM GERÄT ───────────────────────
+          Der Vorgesetzte: „Es erscheint hinter dem Telefon (da ist alles
+          geblurt, man erkennt nichts)."
+
+          Gemessen: Das Gerät liegt bei z-index 420, die Ebene bei 400. Die
+          Tafel lag zwangsläufig darunter.
+
+          Der Hauptweg führt jetzt durch das Display selbst — diese Tafel
+          bleibt für den Fall, dass jemand sie von anderswo öffnet. Die
+          Hülle hebt sie über das Gerät. */}
+      <div className="fi-ri-ueber-geraet">
       <RichtlinienTafel
         offen={tafelOffen}
         daten={richtlinie}
@@ -1107,6 +1228,7 @@ export function Softphone() {
         onZu={() => setTafelOffen(false)}
         onAnnehmen={() => void richtlinieAnnehmen()}
       />
+      </div>
     </>
   );
 }
@@ -1175,6 +1297,75 @@ const TELEFON_CSS = `
 }
 .fi-tel-sperre-titel { display: block; font-size: 13.5px; font-weight: 700; color: #fde68a; }
 .fi-tel-sperre-text { display: block; font-size: 11.5px; color: rgba(253,230,138,.72); margin-top: 2px; line-height: 1.45; }
+
+/* ── Die Richtlinie IM Display ─────────────────────────────────────────────
+   Sie lag zuerst als eigene Ebene HINTER dem Gerät (z-index 400 gegen 420) —
+   sichtbar nur als Schemen hinter einer Weichzeichnung. Jetzt steht sie dort,
+   wo sie gebraucht wird. */
+.fi-tel-richtlinie {
+  margin-bottom: 14px; padding: 16px 16px 14px; border-radius: 20px;
+  background: linear-gradient(178deg, rgba(252,211,77,.1), rgba(217,119,6,.05));
+  box-shadow: inset 0 0 0 1px rgba(252,211,77,.26);
+}
+.fi-tel-ri-kopf {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase;
+  color: #fcd34d; margin-bottom: 4px;
+}
+.fi-tel-ri-titel {
+  font-size: 15.5px; font-weight: 700; color: #eef3fb; line-height: 1.3; margin-bottom: 10px;
+}
+/* Rollbar mit fester Höhe: Der volle Text passt nicht in ein Telefondisplay,
+   und ihn zu kürzen wäre bei einer Erklärung, die man unterschreibt, falsch. */
+.fi-tel-ri-text {
+  max-height: 232px; overflow-y: auto; padding-right: 8px;
+  font-size: 12.5px; line-height: 1.62; color: rgba(203,222,248,.86);
+  -webkit-overflow-scrolling: touch;
+}
+.fi-tel-ri-text p { margin: 0 0 8px; }
+.fi-tel-ri-text b { color: #eef3fb; font-weight: 650; }
+.fi-tel-ri-stark { font-weight: 650; color: #eef3fb !important; }
+.fi-tel-ri-zwisch {
+  margin: 13px 0 6px !important; font-size: 10px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; color: rgba(148,183,236,.8);
+}
+.fi-tel-ri-nicht { padding-left: 14px; position: relative; }
+.fi-tel-ri-nicht::before {
+  content: ""; position: absolute; left: 2px; top: 8px;
+  width: 5px; height: 5px; border-radius: 999px; background: rgba(252,165,165,.7);
+}
+.fi-tel-ri-leise { font-size: 11.5px; color: rgba(148,183,236,.62); }
+.fi-tel-ri-text::-webkit-scrollbar { width: 4px; }
+.fi-tel-ri-text::-webkit-scrollbar-thumb {
+  background: rgba(148,183,236,.28); border-radius: 999px;
+}
+
+.fi-tel-ri-haken {
+  display: flex; align-items: flex-start; gap: 9px; margin-top: 13px; cursor: pointer;
+  font-size: 12.5px; line-height: 1.45; color: #eef3fb;
+}
+.fi-tel-ri-haken input {
+  width: 17px; height: 17px; margin-top: 1px; flex-shrink: 0; accent-color: #3b82f6;
+}
+.fi-tel-ri-name {
+  width: 100%; margin-top: 10px; padding: 11px 14px; border: 0; border-radius: 14px;
+  font-size: 14px; color: #eef3fb; background: rgba(9,17,34,.5);
+  box-shadow: inset 0 0 0 1px rgba(148,183,236,.24); outline: none;
+}
+.fi-tel-ri-name::placeholder { color: rgba(148,183,236,.42); }
+.fi-tel-ri-name:focus { box-shadow: inset 0 0 0 1.5px rgba(59,130,246,.6); }
+.fi-tel-ri-knopf {
+  width: 100%; margin-top: 11px; padding: 13px; border: 0; cursor: pointer;
+  border-radius: 16px; font-size: 14.5px; font-weight: 700; color: #fff;
+  background: linear-gradient(178deg, #3b82f6, #1d4ed8);
+  box-shadow: 0 12px 26px -12px rgba(29,78,216,.7);
+  transition: filter 160ms, transform 140ms;
+}
+.fi-tel-ri-knopf:hover:not(:disabled) { filter: brightness(1.08); }
+.fi-tel-ri-knopf:active:not(:disabled) { transform: translateY(1px); }
+.fi-tel-ri-knopf:disabled { opacity: .3; cursor: default; box-shadow: none; }
+.fi-tel-ri-fuss {
+  margin-top: 8px; font-size: 10.5px; line-height: 1.45; color: rgba(148,183,236,.6);
+}
 
 /* ── Mikrofon-Schritt ──────────────────────────────────────────────────── */
 .fi-tel-mikrofon {

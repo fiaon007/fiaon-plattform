@@ -146,6 +146,24 @@ const GERAET_CSS = `
   background: radial-gradient(1200px 800px at 50% 40%, rgba(7,17,41,.62), rgba(3,8,22,.82));
   backdrop-filter: blur(14px) saturate(120%);
   -webkit-backdrop-filter: blur(14px) saturate(120%);
+  /* ── WÄHREND EINES GESPRÄCHS AUS ────────────────────────────────────────
+     Rückmeldung eines Agenten (iPhone 15 Pro Max): „Die Oberfläche reagiert
+     zeitversetzt, Buttons hängen kurz, und während des Telefonats habe ich
+     immer wieder ein starkes Klackern, fast wie bei Netzproblemen. Am Laptop
+     läuft es einwandfrei."
+
+     Es liegt nicht am Gerät. Die Weichzeichnung auf einer bildschirmfüllenden
+     Fläche zwingt Safari, bei JEDEM Bild den gesamten Hintergrund neu zu
+     zeichnen — auf einem Telefon mit 460 dpi sind das über zwei Millionen
+     Bildpunkte, sechzigmal je Sekunde. Solange nur eine Seite dasteht, fällt
+     das nicht auf. Läuft daneben WebRTC, konkurrieren Zeichnen und
+     Audio-Verarbeitung um dieselbe Zeit — und die Audio-Puffer laufen leer.
+     Das hört man als Klackern.
+
+     Deshalb: Sobald ein Ruf aufgebaut wird, geht die Weichzeichnung aus. Eine
+     matte Fläche sieht ein wenig schlichter aus; ein knackendes Gespräch
+     kostet einen Kunden. */
+  transition: backdrop-filter 200ms, background 200ms;
   animation: fiGerAuf 320ms ease both;
 }
 @keyframes fiGerAuf { from { opacity: 0 } to { opacity: 1 } }
@@ -380,5 +398,40 @@ const TASTATUR_CSS = `
 
 @media (prefers-reduced-motion: reduce) {
   .fi-tast-taste, .fi-tast-weg { transition: none !important; }
+}
+`;
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SPARMODUS WÄHREND EINES GESPRÄCHS
+
+   Gesetzt wird `data-gespraech="1"` am <body>, sobald ein Ruf aufgebaut wird
+   (siehe Softphone.tsx). Drei Dinge fallen dann weg:
+
+     1. Die Weichzeichnung des Schleiers — der teuerste Effekt überhaupt.
+     2. Jede Dauer-Animation — sie hält den Compositor wach.
+     3. Die Übergänge — sie erzeugen bei jeder Zustandsänderung neue Bilder.
+
+   Alles drei ist auf einem Rechner unmerklich und auf einem Telefon der
+   Unterschied zwischen einem sauberen und einem knackenden Gespräch.
+   ═══════════════════════════════════════════════════════════════════════════ */
+export const GERAET_SPARMODUS_CSS = `
+body[data-gespraech="1"] .fi-ger-schleier {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: rgba(7, 12, 24, .84) !important;
+}
+body[data-gespraech="1"] .fi-ger-koerper,
+body[data-gespraech="1"] .fi-ger-buehne { transition: none !important; }
+body[data-gespraech="1"] *[style*="animation"],
+body[data-gespraech="1"] .fi-tel-punkt { animation: none !important; }
+
+/* Auf schmalen Geräten generell weniger: Auch ohne laufendes Gespräch ist ein
+   14-px-Blur auf einem Telefonbildschirm teurer, als er aussieht. */
+@media (max-width: 640px) {
+  .fi-ger-schleier {
+    backdrop-filter: blur(6px) saturate(110%);
+    -webkit-backdrop-filter: blur(6px) saturate(110%);
+  }
 }
 `;

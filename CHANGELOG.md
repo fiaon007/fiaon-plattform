@@ -3,6 +3,52 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (XIV) — Richtlinie im Display · Telefon für die Verwaltung · Sparmodus
+
+### Die Richtlinie erschien hinter dem Telefon
+
+Der Vorgesetzte: *„Man kann als neuer Mitarbeiter die Telefon-Richtlinie nicht bestätigen, es erscheint hinter dem Telefon (da ist alles geblurt, man erkennt nichts). Wenn man dann rausgeht und das bestätigt und seinen Namen eintippt, geht es noch immer nicht!"*
+
+Gemessen: Das Gerät liegt bei **z-index 420**, die Tafel bei **400**. Sie lag zwangsläufig hinter einer Fläche mit 20 px Weichzeichnung.
+
+**Die Lösung ist keine höhere Zahl, sondern ein anderer Ort.** Die Annahme gehört dorthin, wo sie gebraucht wird: Wer das Telefon öffnet und noch nicht angenommen hat, liest und unterschreibt **im Display** — ohne es zu verlassen.
+
+Der volle Text, rollbar (gemessen: 2.021 px Inhalt). Nicht gekürzt: Eine Erklärung, die man unterschreibt, muss man auch lesen können. Haken, Namensfeld, Knopf — alles an einer Stelle.
+
+Die alte Tafel bleibt als Rückfall und liegt jetzt bei z-index 460, also über dem Gerät.
+
+**Gemessen, beide Geräte:** Richtlinie sichtbar und obenauf, Knopf gesperrt ohne Haken und Namen, nach Eingabe frei. **Nicht gedrückt** — eine Rechtserklärung erzeugt kein Testlauf (`AGENTS.md`).
+
+### Ein Fehler, den nur der Browser zeigte
+
+Mein Sparmodus-Haken stand hinter `if (!stand) return null;`. Der Browser meldete *„Rendered more hooks than during the previous render"* — und das ganze Telefon verschwand hinter einem roten Fehlerfenster.
+
+React zählt Haken. Läuft einer nicht bei **jedem** Durchgang, verrutscht die Zuordnung aller folgenden. **Weder `tsc --noEmit` noch `vite build` finden das** — beide waren grün. Erst der Schnappschuss zeigte es.
+
+### Mobile Leistung: der Sparmodus
+
+Rückmeldung eines Agenten (iPhone 15 Pro Max): *„Am Laptop funktioniert es sehr gut. Am Handy reagiert die Oberfläche zeitversetzt, Buttons hängen kurz, und während des Telefonats habe ich immer wieder ein starkes Klackern."*
+
+**Es liegt nicht am Gerät.** Eine Weichzeichnung auf einer bildschirmfüllenden Fläche zwingt Safari, bei jedem Bild den gesamten Hintergrund neu zu zeichnen — auf einem Telefon mit 460 dpi über zwei Millionen Bildpunkte, sechzigmal je Sekunde. Läuft daneben WebRTC, konkurrieren Zeichnen und Audio-Verarbeitung um dieselbe Rechenzeit; die Audio-Puffer laufen leer, und das hört man.
+
+Sobald ein Ruf läuft, trägt die Wurzel `data-gespraech="1"`. Dann fallen weg: Weichzeichnung, Hintergrundvideo, alle Dauer-Animationen, alle Übergänge. Auf schmalen Geräten generell nur noch 6 px statt 14 px Blur.
+
+**Ehrlich: Die Wirkung habe ich nicht nachweisen können.** Die Regel ist nachweislich im Dokument geladen, der Schleier trägt die Klasse, es gibt keinen Inline-Stil — und `getComputedStyle` zeigt trotzdem unveränderte 14 px. Ich habe `body` gegen `:root` getauscht (das Gerät hängt in einem Portal) und den Server neu gestartet; beides half nicht. Der Code schadet nicht, aber ich kann nicht behaupten, dass er hilft.
+
+### Das Telefon für die Verwaltung
+
+*„Admin braucht auch das Telefon mit Admin-Rechten, also auf alle Kunden und so."*
+
+Es steckte nur in der Mitarbeiter-Hülle. Jetzt auch in der Verwaltung — **dieselbe Komponente**, kein Nachbau.
+
+Der Server schaltet bei gültiger Admin-Sitzung auf das **Vorgesetzten-Konto**, nicht auf eine körperlose Vollmacht. Ein Anruf braucht einen Absender: Das Gespräch wird aufgezeichnet, zugeordnet, protokolliert und abgerechnet. Ein Ruf „vom System" hätte keinen Namen in der Akte — und niemanden, den man fragen kann.
+
+Die Rechte kommen aus der Rolle dieses Kontos. Es entsteht keine neue Rechteklasse.
+
+### Prüfstand
+
+`pruef-rueckstand` von 208 auf **224**. Gesamt **2.112**, alle grün. Elf Browser-Messungen, zehn grün — der Sparmodus ist die eine offene.
+
 ## 11.08.2026 (XIII) — Forderungsmanagement bekam Vertriebskunden · Auto-Advance im Telefon
 
 ### 22 Vertriebskunden lagen beim Forderungsmanagement

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation } from "wouter";
+import { Softphone } from "@/components/Softphone";
 import {
   LayoutDashboard, CreditCard, Banknote, FileText, Users, UserPlus,
   BookOpen, Settings, ScrollText, Scale, Database, Search, Menu, X,
@@ -525,6 +526,23 @@ function AdminShellRahmen({ children }: { children: React.ReactNode }) {
       </div>
 
       <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
+
+      {/* ══════════════════════════════════════════════════════════════════
+          DAS TELEFON IM VERWALTUNGSBEREICH
+
+          „Admin braucht auch das Telefon mit Admin-Rechten, also auf alle
+          Kunden und so."
+
+          Bisher steckte es nur in der Mitarbeiter-Hülle. Wer in der
+          Verwaltung saß und anrufen wollte, musste sich in einem zweiten
+          Fenster als Mitarbeiter anmelden.
+
+          Es ist dieselbe Komponente — kein Nachbau. Der Server schaltet bei
+          einer gültigen Admin-Sitzung auf das Vorgesetzten-Konto, damit jedes
+          Gespräch einen Namen in der Akte trägt. Ein Ruf „vom System" hätte
+          niemanden, den man fragen kann.
+          ══════════════════════════════════════════════════════════════════ */}
+      <Softphone />
     </div>
   );
 }

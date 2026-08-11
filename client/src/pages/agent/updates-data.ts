@@ -40,6 +40,24 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-richtlinie-im-display",
+    date: "2026-08-11",
+    category: "Behoben",
+    title: "Telefon-Richtlinie lässt sich jetzt annehmen",
+    summary:
+      "Sie stand hinter dem Telefon und war nicht erreichbar. Jetzt liest und unterschreibst du sie direkt im Display.",
+    changes: [
+      "Neue Mitarbeiter kamen nicht weiter: Die Richtlinie erschien HINTER dem Telefon-Fenster — man sah nur einen verschwommenen Schemen.",
+      "Jetzt steht sie im Display selbst. Volltext zum Scrollen, Haken, Namensfeld und Knopf an einer Stelle.",
+      "Du musst das Telefon nicht mehr verlassen, um sie anzunehmen.",
+      "MOBIL: Während eines Gesprächs schalten wir jetzt Hintergrundvideo, Weichzeichnung und Animationen ab. Das soll das Klackern am Handy beheben — sag uns bitte, ob es besser ist.",
+    ],
+    howto: [
+      "Telefon öffnen, Richtlinie lesen, Haken setzen, vollständigen Namen eintippen, „Annehmen und telefonieren“.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-11-auto-advance",
     date: "2026-08-11",
     category: "Neu",

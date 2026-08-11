@@ -591,6 +591,53 @@ async function main(): Promise<void> {
     /Nächsten aus meiner Liste holen/.test(spQ3));
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c6. Telefon-Richtlinie im Display");
+  // ═══════════════════════════════════════════════════════════════════════
+  // ── DER BEFUND ────────────────────────────────────────────────────────
+  // Der Vorgesetzte: „Man kann als neuer Mitarbeiter die Telefon-Richtlinie
+  // nicht bestätigen, es erscheint hinter dem Telefon (da ist alles geblurt,
+  // man erkennt nichts). Wenn man dann rausgeht und das bestätigt und seinen
+  // Namen eintippt, geht es noch immer nicht!"
+  //
+  // Gemessen: FiaonGeraet liegt bei z-index 420/421, FiaonEbene bei 400/401.
+  // Die Tafel lag zwangsläufig hinter einer Fläche mit 20 px Weichzeichnung.
+  const sQ4 = datei("client/src/components/Softphone.tsx");
+  ok("Die Annahme steht IM Display", /className="fi-tel-richtlinie"/.test(sQ4));
+  ok("… mit dem vollen Text, nicht gekürzt",
+    /richtlinie\.text\.kann\.map/.test(sQ4) && /richtlinie\.text\.pflichten\.map/.test(sQ4));
+  ok("… rollbar statt abgeschnitten",
+    /max-height: 232px; overflow-y: auto/.test(sQ4));
+  ok("… mit Haken und Namensfeld", /fi-tel-ri-haken/.test(sQ4) && /fi-tel-ri-name/.test(sQ4));
+  ok("… und dem Knopf direkt darunter",
+    /fi-tel-ri-knopf/.test(sQ4) && /Annehmen und telefonieren/.test(sQ4));
+  ok("Der Knopf bleibt gesperrt ohne Haken und Namen",
+    /disabled=\{!gelesen \|\| nameGetippt\.trim\(\)\.length < 3\}/.test(sQ4));
+  ok("Die alte Tafel liegt jetzt ÜBER dem Gerät",
+    /fi-ri-ueber-geraet/.test(sQ4) && /z-index: 460/.test(datei("client/src/index.css")));
+  ok("Der Grund steht dabei",
+    /Die Tafel lag bei z-index 400, das Gerät bei 420/.test(sQ4));
+
+  // ── Der Sparmodus ────────────────────────────────────────────────────
+  ok("Es gibt eine Marke für laufende Gespräche",
+    /wurzel\.setAttribute\("data-gespraech", "1"\)/.test(sQ4));
+  ok("… an der WURZEL, nicht am body",
+    /document\.documentElement/.test(sQ4) && /hängt in einem Portal/.test(sQ4));
+  const cssQ = datei("client/src/index.css");
+  ok("Die Weichzeichnung geht im Gespräch aus",
+    /:root\[data-gespraech="1"\][\s\S]{0,200}backdrop-filter: none !important/.test(cssQ));
+  ok("… das Hintergrundvideo auch", /:root\[data-gespraech="1"\] video/.test(cssQ));
+  ok("… und die Dauer-Animationen", /animation-play-state: paused !important/.test(cssQ));
+  ok("Auf schmalen Geräten generell weniger Blur",
+    /@media \(max-width: 640px\)[\s\S]{0,200}blur\(6px\) saturate\(110%\)/.test(cssQ));
+
+  // ── Das Telefon in der Verwaltung ────────────────────────────────────
+  ok("Der Vorgesetzte hat das Telefon",
+    /<Softphone \/>/.test(datei("client/src/components/admin/AdminShell.tsx")));
+  ok("… über sein echtes Konto, nicht als körperlose Vollmacht",
+    /rolle = 'vertriebsleiter'/.test(datei("server/routes/fiaon-agent.ts"))
+    && /Jedes Gespräch trägt einen Menschen/.test(datei("server/routes/fiaon-agent.ts")));
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");
   // ═══════════════════════════════════════════════════════════════════════
   const fQ = datei("client/src/components/PremiumFooter.tsx");

@@ -469,9 +469,45 @@ export async function requireAgent(req: AgentRequest, res: Response, next: NextF
     const { ansichtTokenPruefen, ANSICHT_COOKIE } = await import("../lib/fiaon-ansicht");
     const ansicht = ansichtTokenPruefen(req.cookies?.[ANSICHT_COOKIE]);
 
-    const tok = ansicht
+    let tok = ansicht
       ? { id: ansicht.agentId, epoch: -1 }
       : verifyAgentToken(req.cookies?.[AGENT_COOKIE]);
+
+    // ══════════════════════════════════════════════════════════════════════
+    // DER VORGESETZTE BRAUCHT DAS TELEFON AUCH
+    //
+    // ── DIE BITTE ─────────────────────────────────────────────────────────
+    // „Admin braucht auch das Telefon mit Admin-Rechten, also auf alle Kunden
+    // und so."
+    //
+    // Bisher: Wer im Admin-Bereich sitzt, hat kein Agenten-Cookie — und jede
+    // Telefonroute antwortete mit 401. Der Vorgesetzte musste sich in einem
+    // zweiten Fenster als Mitarbeiter anmelden, um zu telefonieren.
+    //
+    // ── WARUM ÜBER EIN ECHTES KONTO UND NICHT „ALS ADMIN" ─────────────────
+    // Ein Anruf braucht einen Absender: Das Gespräch wird aufgezeichnet, dem
+    // Kunden zugeordnet, protokolliert und abgerechnet. Ein Ruf „vom System"
+    // hätte keinen Namen in der Akte — und niemanden, den man fragen kann.
+    //
+    // Deshalb: Der Admin-Code schaltet auf das VORGESETZTEN-KONTO, nicht auf
+    // eine körperlose Vollmacht. Jedes Gespräch trägt einen Menschen.
+    //
+    // Die Rechte kommen aus der Rolle dieses Kontos — steht dort
+    // „vertriebsleiter", darf er an jeden Kunden. Es entsteht KEINE neue
+    // Rechteklasse: eine Definition, ein Ort.
+    // ══════════════════════════════════════════════════════════════════════
+    if (!tok) {
+      const { hasAdminCode } = await import("./fiaon-admin-zugang");
+      if (hasAdminCode(req as any)) {
+        const [chef] = (await sqlPool`
+          SELECT id FROM fiaon_agents
+          WHERE active AND rolle = 'vertriebsleiter' AND NOT COALESCE(is_test_account, FALSE)
+          ORDER BY id LIMIT 1
+        `) as any[];
+        if (chef) tok = { id: Number(chef.id), epoch: -1 };
+      }
+    }
+
     if (!tok) return res.status(401).json({ ok: false, error: "Nicht angemeldet" });
     // AVATAR UND ROLLE GEHÖREN DAZU (11.08.2026): Der Vorgesetzte hatte ein
     // Profilbild hinterlegt und sah trotzdem überall nur seine Initialen —

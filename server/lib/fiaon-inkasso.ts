@@ -322,8 +322,27 @@ export async function arbeitsliste(
       -- Eine Wiedervorlage in der Zukunft nimmt die Rate vom Tisch. Wer eine
       -- Zusage für den 20. hat, ruft nicht am 15. wieder an.
       AND (r.inkasso_wiedervorlage IS NULL OR r.inkasso_wiedervorlage <= ${heute}::date)
-      ${opts.nurMeine ? lauf`AND r.inkasso_agent_id = ${opts.nurMeine}` : lauf``}
+      -- ══════════════════════════════════════════════════════════════════
+      -- SEINE FÄLLE UND DIE, DIE NIEMANDEM GEHÖREN
+      --
+      -- ── DER BEFUND (11.08.2026) ───────────────────────────────────────
+      -- Der Vorgesetzte: „ALLE Kunden, die ÜBERFÄLLIG sind oder waren."
+      --
+      -- Gemessen: Die Oberfläche zeigte 29, serverseitig waren 86 überfällig.
+      -- Der Grund war diese Zeile: die Gleichheit auf inkasso_agent_id sperrte
+      -- den Menschen auf seine zugeteilten Fälle ein. Die 57 neu
+      -- nachgetragenen gehörten noch niemandem — und lagen damit unsichtbar.
+      --
+      -- Eine überfällige Rate, die niemandem gehört, ist keine Ruhe, sondern
+      -- liegengebliebene Arbeit. Wer den Bereich öffnet, muss sie sehen.
+      ${opts.nurMeine
+        ? lauf`AND (r.inkasso_agent_id = ${opts.nurMeine} OR r.inkasso_agent_id IS NULL)`
+        : lauf``}
     ORDER BY
+      -- Die eigenen zuerst: Wer zugeteilt ist, hat Vorrang vor dem, was
+      -- herumliegt — sonst arbeitet man an fremden Fällen, während die eigenen
+      -- warten.
+      ${opts.nurMeine ? lauf`(r.inkasso_agent_id = ${opts.nurMeine}) DESC,` : lauf``}
       (r.mahnstufe >= 3 AND r.faellig_am < (${heute}::date - ${14 + frist}::int)) DESC,
       (r.inkasso_zusage_am IS NOT NULL AND r.inkasso_zusage_am < ${heute}::date) DESC,
       (r.faellig_am < ${heute}::date) DESC,
@@ -353,7 +372,12 @@ export async function fristZaehler(
     FROM fiaon_abo_raten r
     WHERE ${lauf.unsafe(SICHTFELD)}
       AND (r.inkasso_wiedervorlage IS NULL OR r.inkasso_wiedervorlage <= ${heute}::date)
-      ${opts.nurMeine ? lauf`AND r.inkasso_agent_id = ${opts.nurMeine}` : lauf``}
+      -- Dieselbe Regel wie in der Arbeitsliste: eigene UND unzugeteilte. Ein
+      -- Zähler, der eine andere Menge zählt als die Liste zeigt, ist der
+      -- schlimmere Fehler — dann traut man keiner Zahl mehr.
+      ${opts.nurMeine
+        ? lauf`AND (r.inkasso_agent_id = ${opts.nurMeine} OR r.inkasso_agent_id IS NULL)`
+        : lauf``}
   `) as any[];
   return {
     ueberfaellig: Number(z.ueberfaellig), heute: Number(z.heute),
@@ -381,13 +405,40 @@ export async function kennzahlen(lauf: Lauf = sqlPool): Promise<Record<string, a
     FROM fiaon_abo_raten r WHERE ${SICHTFELD}
   `, [heute, 14 + frist])) as any[];
 
-  // Eingezogen: bezahlte Raten dieses Monats. Berlin-Zeit, nicht UTC — sonst
-  // gehören die ersten zwei Stunden des Ersten noch zum Vormonat.
+  // ══════════════════════════════════════════════════════════════════════
+  // EINGEZOGEN HEISST: WAR ÜBERFÄLLIG UND IST JETZT BEZAHLT
+  //
+  // ── DER BEFUND (11.08.2026) ───────────────────────────────────────────
+  // Der Vorgesetzte: „Woher nimmst du ‚Diesen Monat eingezogen 4.833,28 €,
+  // 74 Raten'? Wie kommst du auf das?"
+  //
+  // Die Abfrage zählte JEDE bezahlte Rate des Monats — ohne Sichtfeld, ohne
+  // jeden Bezug zum Forderungsmanagement. Die meisten dieser 74 Raten wurden
+  // pünktlich und von selbst bezahlt; das Inkasso hat sie nie gesehen.
+  //
+  // „Eingezogen" ist ein Leistungswort. Es darf nur zählen, was ohne
+  // Nachfassen NICHT gekommen wäre: eine Rate, die überfällig WAR und danach
+  // bezahlt wurde. Alles andere ist normaler Zahlungseingang und gehört in
+  // die Buchhaltung, nicht in die Kennzahl einer Abteilung.
+  // ══════════════════════════════════════════════════════════════════════
   const [m] = (await lauf`
     SELECT COUNT(*)::int AS anzahl, COALESCE(SUM(betrag_cents), 0)::bigint AS cents
     FROM fiaon_abo_raten
     WHERE status = 'bezahlt'
       AND bezahlt_am >= date_trunc('month', ${heute}::date)
+      -- Die Rate war überfällig, als sie bezahlt wurde. Ohne diese Zeile ist
+      -- es keine Einzugsleistung, sondern ein Zahlungseingang.
+      AND bezahlt_am::date > faellig_am
+  `) as any[];
+
+  // Der Zahlungseingang OHNE Nachfassen — getrennt ausgewiesen. Beide Zahlen
+  // nebeneinander sind ehrlich; eine allein führt in die Irre.
+  const [puenktlich] = (await lauf`
+    SELECT COUNT(*)::int AS anzahl, COALESCE(SUM(betrag_cents), 0)::bigint AS cents
+    FROM fiaon_abo_raten
+    WHERE status = 'bezahlt'
+      AND bezahlt_am >= date_trunc('month', ${heute}::date)
+      AND bezahlt_am::date <= faellig_am
   `) as any[];
 
   // Einzugsquote: Von allen Raten, die diesen Monat fällig WAREN, wie viele
@@ -405,6 +456,8 @@ export async function kennzahlen(lauf: Lauf = sqlPool): Promise<Record<string, a
     ...z,
     eingezogen_monat_anzahl: Number(m.anzahl),
     eingezogen_monat_cents: Number(m.cents),
+    puenktlich_monat_anzahl: Number(puenktlich.anzahl),
+    puenktlich_monat_cents: Number(puenktlich.cents),
     quote: Number(q.faellig_gewesen) > 0
       ? Math.round((Number(q.davon_bezahlt) / Number(q.faellig_gewesen)) * 100) : null,
     quote_nenner: Number(q.faellig_gewesen),

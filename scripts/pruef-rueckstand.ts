@@ -811,6 +811,78 @@ async function main(): Promise<void> {
     /Das löst Mahnungen aus/.test(datei("client/src/pages/admin-team-zentrale.tsx")));
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c9. „Eingezogen“ ist eine Leistung, kein Zahlungseingang");
+  // ═══════════════════════════════════════════════════════════════════════
+  // ── DER BEFUND ────────────────────────────────────────────────────────
+  // Der Vorgesetzte: „Woher nimmst du ‚Diesen Monat eingezogen 4.833,28 €,
+  // 74 Raten'? Wie kommst du auf das?"
+  //
+  // Die Abfrage zählte JEDE bezahlte Rate des Monats. Gemessen: alle 74 wurden
+  // PÜNKTLICH bezahlt — keine einzige durch Nachfassen. Eine
+  // Leistungskennzahl, die fremde Leistung mitzählt, ist wertlos.
+  const inkQ2 = datei("server/lib/fiaon-inkasso.ts");
+  ok("„Eingezogen“ zählt nur überfällig gewesene Raten", (() => {
+    const a = inkQ2.indexOf("EINGEZOGEN HEISST: WAR ÜBERFÄLLIG");
+    if (a < 0) return false;
+    const block = inkQ2.slice(a, a + 1800);
+    return block.includes("AND bezahlt_am::date > faellig_am");
+  })());
+  ok("Der pünktliche Eingang steht getrennt daneben",
+    /puenktlich_monat_cents/.test(inkQ2)
+    && /bezahlt_am::date <= faellig_am/.test(inkQ2));
+  const kz = await (await import("../server/lib/fiaon-inkasso")).kennzahlen();
+  ok("Beide Zahlen kommen an",
+    typeof kz.eingezogen_monat_cents === "number" && typeof kz.puenktlich_monat_cents === "number",
+    `eingezogen ${(Number(kz.eingezogen_monat_cents)/100).toFixed(2)} € · pünktlich ${(Number(kz.puenktlich_monat_cents)/100).toFixed(2)} €`);
+  ok("Die Oberfläche zeigt beide",
+    /Eingezogen \(war überfällig\)/.test(inkQ)
+    && /Pünktlich eingegangen/.test(inkQ));
+
+  // ── KEIN LINK IN DEN VERWALTUNGSBEREICH ────────────────────────────────
+  // Der Vorgesetzte: „Wenn man auf Akte klickt, wird man auf
+  // /admin/kunde/3503 weitergeleitet, da hat der Inkasso aber keinen Zugriff."
+  ok("Kein /admin-Link in der Inkasso-Liste", !/href=\{`\/admin\/kunde\//.test(inkQ));
+  ok("… und der Grund steht dabei", /einen verschlossenen Bereich führt/.test(inkQ));
+  ok("Die Akte ist das Gesprächsblatt", /Akte & Verlauf/.test(inkQ));
+
+  // ── DIE NACHGETRAGENEN RATEN ───────────────────────────────────────────
+  // „Wenn der am 05.07 bezahlt hat, muss er am 05.08 beim Inkasso stehen!"
+  const [ueber] = (await sqlPool`
+    SELECT COUNT(DISTINCT a.person_id)::int AS kunden,
+           COUNT(*)::int AS raten,
+           COALESCE(SUM(r.betrag_cents), 0)::bigint AS cents
+    FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
+    WHERE r.status <> 'bezahlt' AND r.faellig_am < CURRENT_DATE
+      AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
+  `) as any[];
+  // ── EIGENE UND UNZUGETEILTE ────────────────────────────────────────────
+  // Die Oberfläche zeigte 29, serverseitig waren 86 überfällig. Der Filter
+  // `inkasso_agent_id = <ich>` sperrte den Menschen auf seine zugeteilten
+  // Fälle ein — die neu nachgetragenen gehörten noch niemandem und lagen
+  // unsichtbar. Eine überfällige Rate ohne Zuständigen ist keine Ruhe,
+  // sondern liegengebliebene Arbeit.
+  ok("Er sieht auch die unzugeteilten Fälle",
+    /r\.inkasso_agent_id = \$\{opts\.nurMeine\} OR r\.inkasso_agent_id IS NULL/.test(inkQ2));
+  ok("… und der Zähler zählt dieselbe Menge wie die Liste",
+    (inkQ2.match(/inkasso_agent_id IS NULL\)`/g) || []).length >= 2);
+  ok("Die eigenen stehen zuerst",
+    /\(r\.inkasso_agent_id = \$\{opts\.nurMeine\}\) DESC/.test(inkQ2));
+
+  ok(`${ueber.kunden} Kunden mit überfälliger Rate (vorher 29)`,
+    Number(ueber.kunden) >= 29,
+    `${ueber.raten} Raten · ${(Number(ueber.cents) / 100).toFixed(2)} €`);
+  ok("Jede nachgetragene Rate hat einen Verwendungszweck",
+    (await sqlPool`
+      SELECT COUNT(*)::int AS n FROM fiaon_abo_raten
+      WHERE zahlungsreferenz IS NULL OR zahlungsreferenz = ''
+    ` as any[])[0].n === 0);
+  ok("Das Muster stimmt: Rate 1 ohne Zusatz, ab Rate 2 mit -N",
+    (await sqlPool`
+      SELECT COUNT(*)::int AS n FROM fiaon_abo_raten r
+      WHERE r.rate_nr >= 2 AND r.zahlungsreferenz NOT LIKE ('%-' || r.rate_nr::text)
+    ` as any[])[0].n === 0);
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");
   // ═══════════════════════════════════════════════════════════════════════
   const fQ = datei("client/src/components/PremiumFooter.tsx");

@@ -139,7 +139,21 @@ export default function AgentInkasso() {
           {[
             { t: "Heute fällig", w: eur(z.heute_cents), z: `${z.heute_anzahl ?? 0} Raten` },
             { t: "Überfällig", w: eur(z.ueberfaellig_cents), z: `${z.ueberfaellig_anzahl ?? 0} Raten` },
-            { t: "Diesen Monat eingezogen", w: eur(z.eingezogen_monat_cents), z: `${z.eingezogen_monat_anzahl ?? 0} Raten` },
+            // ── EINGEZOGEN HEISST: WAR ÜBERFÄLLIG UND IST JETZT BEZAHLT ─────
+            // Der Vorgesetzte: „Woher nimmst du ‚Diesen Monat eingezogen
+            // 4.833,28 €, 74 Raten'? Wie kommst du auf das?"
+            //
+            // Die Zahl war jede bezahlte Rate des Monats — gemessen: alle 74
+            // wurden PÜNKTLICH bezahlt, keine einzige durch Nachfassen. Eine
+            // Leistungskennzahl, die fremde Leistung mitzählt, ist wertlos.
+            //
+            // Jetzt getrennt: „eingezogen" nur, was ohne Nachfassen nicht
+            // gekommen wäre. Der pünktliche Eingang steht daneben — er ist
+            // eine gute Nachricht, nur nicht die des Forderungsmanagements.
+            { t: "Eingezogen (war überfällig)", w: eur(z.eingezogen_monat_cents),
+              z: `${z.eingezogen_monat_anzahl ?? 0} ${(z.eingezogen_monat_anzahl ?? 0) === 1 ? "Rate" : "Raten"}` },
+            { t: "Pünktlich eingegangen", w: eur(z.puenktlich_monat_cents ?? 0),
+              z: `${z.puenktlich_monat_anzahl ?? 0} Raten · ohne Nachfassen` },
             {
               t: "Einzugsquote", w: z.quote != null ? `${z.quote} %` : "—",
               z: z.quote_nenner ? `von ${z.quote_nenner} fällig` : "keine Basis",
@@ -313,7 +327,7 @@ export default function AgentInkasso() {
                 )}
                 <button type="button" onClick={() => setBlatt(f.person_id)}
                         className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold">
-                  <MarkeFunke size={13} /> Gesprächsblatt
+                  <MarkeFunke size={13} /> Akte & Verlauf
                 </button>
                 {/* ══════════════════════════════════════════════════════════
                     DIE AKTIONEN, DIE GEFEHLT HABEN
@@ -336,10 +350,19 @@ export default function AgentInkasso() {
                         className="fi-sendeknopf inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold">
                   <MarkeBrief size={13} /> Senden
                 </button>
-                <a href={`/admin/kunde/${f.person_id}`} target="_blank" rel="noopener"
-                   className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold">
-                  Kundenakte
-                </a>
+                {/* ── KEIN LINK IN DEN VERWALTUNGSBEREICH ────────────────────
+                    Hier stand `/admin/kunde/…`. Der Vorgesetzte: „Wenn man auf
+                    Akte klickt, wird man auf /admin/kunde/3503 weitergeleitet,
+                    da hat der Inkasso aber keinen Zugriff."
+
+                    Er hat recht, und es war mein Fehler: Ein Knopf, der in
+                    einen verschlossenen Bereich führt, ist schlimmer als kein
+                    Knopf — er sieht wie eine Möglichkeit aus.
+
+                    Die Akte für diesen Menschen IST das Gesprächsblatt: Es
+                    liest über `/api/fiaon/gespraechsblatt/:personId` und
+                    prüft die Rechte mit derselben `darfAnKunde`-Funktion.
+                    Deshalb heißt der Knopf jetzt, was er tut. */}
                 <button type="button" onClick={() => setOffenerFall(f)}
                         className="fi-zweitknopf px-3 py-2 text-[12px] font-semibold">
                   Ergebnis festhalten

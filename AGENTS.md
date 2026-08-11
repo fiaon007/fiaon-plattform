@@ -86,6 +86,9 @@ Deshalb gilt nach jeder Änderung an `server/`:
    Serverdateien. Ein Syntaxfehler fällt dort in Sekunden auf.
 3. Keine Backticks in Kommentaren innerhalb von Template-Literalen. Für
    zitierte Bedingungen die deutschen Anführungszeichen „…" nehmen.
+   **`npx tsx scripts/pruef-backticks.ts` prüft das.** Die Regel wurde seit
+   dem 08.08.2026 neunmal vergessen — eine Regel, die man neunmal vergisst,
+   braucht keine zehnte Erinnerung, sondern eine Wand.
 
 ## Eine Invariante darf nicht den Betrieb mitmessen
 

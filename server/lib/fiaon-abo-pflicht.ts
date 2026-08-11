@@ -90,6 +90,8 @@ export interface FehlendeAbo {
   ratenFaellig: number;
   /** Wie viele davon liegen in der Vergangenheit — also sofort überfällig? */
   ratenUeberfaellig: number;
+  /** Der Verwendungszweck, aus dem die Ratenreferenzen gebildet werden. */
+  zahlungsreferenz: string;
   /** Warum kein Betrag ableitbar war (dann wird nichts angelegt). */
   problem: string | null;
 }
@@ -106,6 +108,7 @@ export interface FehlendeAbo {
 export async function fehlendeAbos(lauf: Lauf = sqlPool): Promise<FehlendeAbo[]> {
   const zeilen = (await lauf.unsafe(`
     SELECT a.ref, a.person_id, a.pack_key, a.pack_name, a.amount_due,
+           a.payment_reference,
            TRIM(COALESCE(a.first_name, '') || ' ' || COALESCE(a.last_name, '')) AS name,
            (SELECT MIN(t.booked_at)::date FROM fiaon_bank_txns t
              WHERE t.matched_ref = a.ref AND t.applied) AS bank_tag,
@@ -139,6 +142,17 @@ export async function fehlendeAbos(lauf: Lauf = sqlPool): Promise<FehlendeAbo[]>
       ? Math.round(Number(z.amount_due) * 100) : undefined;
     const betragCents = ausPaket ?? ausBestellung ?? 0;
 
+    // ── DER VERWENDUNGSZWECK IST PFLICHT ─────────────────────────────────
+    // `fiaon_abo_raten.zahlungsreferenz` ist NOT NULL. Das Muster steht in den
+    // bestehenden 514 Raten: Rate 1 trägt die `payment_reference` der
+    // Bestellung, Rate 2 dieselbe mit „-2", Rate 3 mit „-3". So erkennt die
+    // Bankzuordnung, WELCHE Rate ein Kunde gezahlt hat.
+    //
+    // Fehlt die payment_reference, wird aus der langen `ref` eine gebildet —
+    // sonst bricht der Eintrag ab, und der Kunde bleibt unsichtbar.
+    const zahlungsreferenz = String(z.payment_reference ?? "").trim()
+      || `FIAON-${String(z.ref).split("-").slice(1).join("").slice(0, 8)}`;
+
     const problem = betragCents === 0
       ? (z.pack_key
         ? `Paket „${z.pack_key}" hat keinen hinterlegten Preis.`
@@ -161,6 +175,7 @@ export async function fehlendeAbos(lauf: Lauf = sqlPool): Promise<FehlendeAbo[]>
       betragCents,
       ratenFaellig,
       ratenUeberfaellig: ratenFaellig,
+      zahlungsreferenz,
       problem,
     };
   });
@@ -213,10 +228,15 @@ export async function abosNachtragen(
     // Alle fälligen plus die nächste.
     for (let i = 1; i <= k.ratenFaellig + 1; i++) {
       const faellig = new Date(start.getTime() + i * ZYKLUS_TAGE * 86_400_000);
+      // Dasselbe Muster wie die bestehenden Raten: Rate 1 ohne Zusatz,
+      // ab Rate 2 mit „-N". Danach erkennt die Bankzuordnung, welche Rate
+      // gezahlt wurde.
+      const zr = i === 1 ? k.zahlungsreferenz : `${k.zahlungsreferenz}-${i}`;
       await lauf`
-        INSERT INTO fiaon_abo_raten (ref, rate_nr, betrag_cents, faellig_am, status, created_at)
+        INSERT INTO fiaon_abo_raten
+          (ref, rate_nr, betrag_cents, faellig_am, status, zahlungsreferenz, created_at)
         VALUES (${k.ref}, ${i}, ${k.betragCents},
-                ${faellig.toISOString().slice(0, 10)}::date, 'offen', NOW())
+                ${faellig.toISOString().slice(0, 10)}::date, 'offen', ${zr}, NOW())
         ON CONFLICT DO NOTHING
       `;
     }

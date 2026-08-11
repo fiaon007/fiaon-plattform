@@ -3,6 +3,57 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (XVIII) — Inkasso fertig: 90 Raten angelegt, 86 überfällig statt 29
+
+### Die Raten sind angelegt
+
+*„Wenn der am 05.07 bezahlt hat, muss er am 05.08 beim Inkasso stehen!!!!"*
+
+**90 Raten für 33 Kunden** nachgetragen — alle seit dem Starttag fälligen plus die nächste.
+
+Das Forderungsmanagement sieht jetzt **86 überfällige Raten bei 61 Kunden über 5.675,14 €**. Vorher: 29.
+
+**34 Kunden bleiben offen.** Sie stehen auf `payment_status = paid` und `status = payment_completed` — echte Kunden, die bezahlt haben —, aber weder Paket noch Betrag ist hinterlegt. In der CSV vom 03.07.–11.08. stehen sie nicht; sie sind vom 29.05. bis 02.07. Der Monatsbeitrag ist nicht ableitbar, und ich rate ihn nicht. Sie stehen namentlich in der Karte.
+
+### „Diesen Monat eingezogen: 4.833,28 €" war erfunden
+
+*„Woher nimmst du das? Wie kommst du auf das?"*
+
+Die Abfrage zählte **jede** bezahlte Rate des Monats — ohne Sichtfeld, ohne Bezug zum Forderungsmanagement.
+
+Nachgerechnet: Von den 74 Raten wurde **keine einzige** durch Nachfassen eingezogen. Alle 74 kamen pünktlich.
+
+„Eingezogen" ist ein Leistungswort. Es zählt jetzt nur, was ohne Nachfassen nicht gekommen wäre: `bezahlt_am > faellig_am`. Der pünktliche Eingang steht **getrennt** daneben — er ist eine gute Nachricht, nur nicht die des Forderungsmanagements.
+
+### Der Knopf führte in einen verschlossenen Raum
+
+*„Wenn man auf Akte klickt, wird man auf /admin/kunde/3503 weitergeleitet, da hat der Inkasso aber keinen Zugriff."*
+
+Mein Fehler. Ein Knopf, der in einen gesperrten Bereich führt, ist schlimmer als kein Knopf — er sieht wie eine Möglichkeit aus.
+
+Die Akte für diesen Menschen **ist** das Gesprächsblatt: Es liest über `/api/fiaon/gespraechsblatt/:personId` und prüft die Rechte mit derselben `darfAnKunde`-Funktion. Der Knopf heißt jetzt „Akte & Verlauf".
+
+### Er sah 29, es waren 86
+
+Die Oberfläche filterte `inkasso_agent_id = <ich>` — das sperrte ihn auf seine zugeteilten Fälle ein. Die 57 neu nachgetragenen gehörten noch niemandem und lagen **unsichtbar**.
+
+Eine überfällige Rate ohne Zuständigen ist keine Ruhe, sondern liegengebliebene Arbeit. Er sieht jetzt **seine und die unzugeteilten** — die eigenen zuerst.
+
+### Eine Wand gegen meinen neunten Fehler
+
+`scripts/pruef-backticks.ts`. Ein Backtick in einem SQL-Kommentar beendet das Template-Literal; der Serverstart hängt still. `AGENTS.md` warnt seit dem 08.08. — ich bin **neunmal** hineingelaufen.
+
+Zwei Entwürfe waren wertlos:
+
+1. Ein Zustandsautomat über die Datei — **22 Fundstellen**, fast alle harmlose JSDoc-Kommentare. Eine Bremse, die falsch auslöst, wird abgeschaltet.
+2. Die Literale suchen und darin nach Kommentaren schauen — **fand meinen echten Fehler nicht**. Henne und Ei: Genau der Backtick, den ich suche, beendet das Literal und macht es unauffindbar.
+
+Der dritte ist der einfachste: **Eine Zeile, die mit `--` beginnt, ist ein SQL-Kommentar** — und die gibt es in TypeScript nur innerhalb von Template-Literalen. Steht ein Backtick darin, ist es immer der Fehler. Kein Zustand, keine Vermutung, keine Fehlalarme. Gegengeprüft: Er findet meinen echten Fall und meldet sonst nichts.
+
+### Prüfstand
+
+`pruef-rueckstand` von 265 auf **278**, dazu der neue Backtick-Prüfstand. Gesamt **2.166**, alle grün.
+
 ## 11.08.2026 (XVII) — Jeder Kunde außer SCHUFA hat ein Abo: 67 hatten keine Rate
 
 ### Die Regel, gegen den Kontoauszug geprüft

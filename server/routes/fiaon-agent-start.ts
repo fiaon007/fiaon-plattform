@@ -376,6 +376,35 @@ const ORDNUNG: Record<Sortierung, string> = {
 
 router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
+    // ══════════════════════════════════════════════════════════════════════
+    // DAS FORDERUNGSMANAGEMENT SIEHT DIESE LISTE NICHT
+    //
+    // ── DER BEFUND ────────────────────────────────────────────────────────
+    // Der Vorgesetzte: „Die Abteilung Forderungsmanagement hat Kunden drinnen,
+    // die die Agenten abgelehnt haben oder auf nicht erreicht. Das ist falsch!
+    // Das Forderungsmanagement hat NUR ausschließlich die Kunden, die ihr Abo
+    // nicht bezahlt haben."
+    //
+    // Die Rate-Liste selbst war sauber — gemessen: alle 100 Zeilen `tier 0
+    // (bezahlt)`, keine abgelehnte, keine nicht erreichte. Das Leck war ein
+    // anderes: Der Menüpunkt „Kunden" trug KEINE Rollenbeschränkung. Ein
+    // Inkasso-Konto meldet sich an, sieht „Kunden" im Menü und öffnet damit
+    // die volle Vertriebsliste — mit Ablehnungen, Leads und allem.
+    //
+    // ── DIE WAND STEHT IM SERVER, NICHT IM MENÜ ───────────────────────────
+    // Einen Menüpunkt auszublenden ist keine Grenze, sondern eine Bitte: Die
+    // Adresse steht weiter offen, und wer sie einmal gesehen hat, ruft sie
+    // wieder auf. Dieselbe Bauweise wie beim Vertrieb und beim Onboarding.
+    // ══════════════════════════════════════════════════════════════════════
+    const { istInkasso } = await import("./fiaon-inkasso-bereich");
+    if (await istInkasso(req.agent!.id)) {
+      return res.status(404).json({
+        ok: false,
+        error: "Diese Liste gibt es für dich nicht. Deine Arbeit steht unter „Forderungen“ — "
+          + "dort stehen ausschließlich Kunden mit einer offenen Rate.",
+      });
+    }
+
     await ensureBetreuungSpalte(sqlPool);
     const me = req.agent!.id;
     const filter = String(req.query.filter || "alle");

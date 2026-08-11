@@ -3,6 +3,63 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 11.08.2026 (XIII) — Forderungsmanagement bekam Vertriebskunden · Auto-Advance im Telefon
+
+### 22 Vertriebskunden lagen beim Forderungsmanagement
+
+Der Vorgesetzte: *„Die Abteilung Forderungsmanagement hat Kunden drinnen, die die Agenten abgelehnt haben oder auf nicht erreicht. Das ist falsch!"*
+
+**Die Rate-Liste war sauber** — gemessen: alle 100 Zeilen `tier 0 (bezahlt)`, keine abgelehnte, keine nicht erreichte. Das Leck lag woanders, an drei Stellen:
+
+**1. Die Lead-Zuteilung prüfte die Rolle nicht.** `agentMitKleinsterLast()` fragte nach `active` und `distribution_active` — aber nicht danach, *was* jemand macht. Ein neu angelegtes Inkasso-Konto hat null Kunden und war damit **immer** „der Agent mit der kleinsten Last". Es bekam jeden neuen Lead.
+
+Gemessen: **Hans-Jürgen Gerhold 11, Diana Zeller 11** — mit Stufen wie `zahlungsfrist_abgelaufen` und `antrag_abgeschlossen`. Hergekommen von Nikita Boychenko (9), Daniel Stripling (8), Lucas Böhnert (3).
+
+Dieselbe Lücke steckte in der **Terminvergabe** (ein Kunde, der bucht, will einen Verkäufer sprechen) und in der **Übergabe bei blockierter Nummer**. Alle drei sind zu.
+
+**2. Der Menüpunkt „Kunden" trug keine Rollenbeschränkung.** Ein Inkasso-Konto meldet sich an, sieht „Kunden" und öffnet damit die volle Vertriebsliste. Jetzt: kein Menüpunkt — und, wichtiger, **die Route antwortet mit 404**. Einen Menüpunkt auszublenden ist keine Grenze, sondern eine Bitte.
+
+Dafür gibt es jetzt „Forderungen" im Menü. Der Punkt fehlte ganz; Hans-Jürgen hätte die Adresse von Hand eintippen müssen.
+
+**3. Die 22 bestehenden Fälle.** Der Hahn ist zu, aber das Wasser steht noch im Becken. Neue Karte in der Team-Zentrale zeigt jeden mit Name, Stufe, Herkunft und Ziel — und einem Knopf. **Ich habe nicht gedrückt:** Es betrifft drei andere Agenten, die morgen früh unerklärt mehr Arbeit hätten.
+
+Zurück geht es an den früheren Betreuer, wenn es einen gibt, sonst gleichmäßig verteilt.
+
+### Auto-Advance: zwei Klicks weniger je Gespräch
+
+Ein Agent, sinngemäß: *„Wenn ich ‚Nicht erreicht' klicke, lande ich wieder auf der Wähltastatur — mit der Nummer desselben Kunden. Um zum nächsten zu kommen, muss ich auf ‚Anderen Kunden wählen', und dort steht ein leeres Suchfeld."*
+
+Bisher: `setZustand("bereit")` — und die Nummer blieb stehen. Zwei Klicks und eine Sucheingabe zwischen zwei Anrufen. Bei sechzig Gesprächen am Tag sind das zwei Minuten reines Klicken; schlimmer ist der Bruch im Rhythmus.
+
+Jetzt steht der Nächste schon da: Name, Nummer, ein Griff zum grünen Knopf. Mit Marke „Nächster aus deiner Liste" — ein Kunde, der ungefragt im Wählfeld auftaucht, verunsichert mehr, als er hilft.
+
+**Er wird geladen, nicht angerufen.** Ein Telefon, das von selbst wählt, nimmt dem Menschen die Entscheidung — und wer noch eine Notiz zu Ende schreiben will, hat schon einen klingelnden Hörer am Ohr. Ein Klick bleibt; zwei fallen weg.
+
+Die Reihenfolge ist **dieselbe wie in der Kundenliste**, samt der Regel für Verabredungen. Zwei Reihenfolgen für dieselbe Arbeit wären schlimmer als gar keine Hilfe. Wer schon dokumentiert wurde, wird übersprungen.
+
+Eine unwählbare Nummer wird **benannt**, nicht verschwiegen: „Der nächste wäre Hutanu Doina-Tatiana, aber seine Nummer ist nicht wählbar."
+
+### Fünf eigene Fehler
+
+1. **Backticks im SQL-Kommentar** — fünfter Fall. Diesmal in Sekunden von `esbuild` gefangen.
+2. **`waehlbareNummer()` nimmt ein Array**, keinen String.
+3. **`meta` ist `text`, nicht `jsonb`** — Cast nötig.
+4. **Das Feld heißt `person_id`, nicht `personId`.** Mit dem falschen Namen fand die Abfrage niemanden, und alle 22 Kunden wären an **denselben** Menschen gegangen.
+5. **Der Rundlauf war keiner.** `agentMitKleinsterLast()` fragt die Datenbank — und die weiß nichts von Zuteilungen, die in derselben Schleife erst geplant werden. Alle 22 gingen an Lucas Böhnert. Jetzt zählt ein `geplant`-Zähler mit: **8 · 7 · 7**.
+
+### Drei Prüfungen, die nichts prüften
+
+Die Gegenprobe deckte auf, dass zwei Prüfungen den gesuchten Text an **anderer Stelle derselben Datei** fanden:
+
+- „Die Lead-Zuteilung prüft die Rolle" fand die Bedingung in `sonderrollenBereinigen` weiter unten.
+- „Nach dem Ergebnis wird der Nächste geholt" fand den Pfad im „Nächsten holen"-Knopf.
+
+Beide sind jetzt an ihre Funktion gebunden. **Eine Prüfung, die im Nachbarhaus nachsieht, prüft nichts.**
+
+### Prüfstand
+
+`pruef-rueckstand` von 184 auf **208**. Drei Gegenproben, jede wird rot. Gesamt **2.096**, alle grün.
+
 ## 11.08.2026 (XII) — Forderungsmanagement sieht nur Fälliges, „nicht erreicht" räumt die Liste
 
 ### Forderungsmanagement: 153 von 251 Raten gehörten nicht dorthin

@@ -495,6 +495,102 @@ async function main(): Promise<void> {
   ok(`${tz.n} gebuchte Termine, die jetzt im Kalender stehen`, Number(tz.n) >= 0);
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c4. Sonderrollen bekommen keine Vertriebskunden");
+  // ═══════════════════════════════════════════════════════════════════════
+  // ── DER BEFUND ────────────────────────────────────────────────────────
+  // Der Vorgesetzte: „Die Abteilung Forderungsmanagement hat Kunden drinnen,
+  // die die Agenten abgelehnt haben oder auf nicht erreicht."
+  //
+  // Die Rate-Liste war sauber (alle 100 Zeilen `tier 0`). Das Leck lag
+  // woanders: Die Lead-Zuteilung prüfte „aktiv" und „nimmt teil", aber NICHT
+  // die Rolle. Ein neues Inkasso-Konto hat null Kunden und war damit immer
+  // „der Agent mit der kleinsten Last". Gemessen: 22 Vertriebskunden.
+  const zuQ = datei("server/lib/fiaon-zuteilung.ts");
+  // ── IN DER RICHTIGEN FUNKTION ────────────────────────────────────────
+  // Erster Versuch: die Zeile irgendwo in der Datei suchen. Die Gegenprobe
+  // (Rollenprüfung aus `agentMitKleinsterLast` entfernen) blieb GRÜN — dieselbe
+  // Bedingung steht weiter unten in `sonderrollenBereinigen`, und der Test fand
+  // sie dort. Eine Prüfung, die im Nachbarhaus nachsieht, prüft nichts.
+  ok("Die Lead-Zuteilung prüft die Rolle", (() => {
+    const a = zuQ.indexOf("export async function agentMitKleinsterLast");
+    if (a < 0) return false;
+    const block = zuQ.slice(a, zuQ.indexOf("\n}", a));
+    return /AND COALESCE\(a\.rolle, 'agent'\) IN \('agent', 'vertriebsleiter'\)/.test(block);
+  })());
+  ok("Die Terminvergabe auch",
+    /AND COALESCE\(rolle, 'agent'\) IN \('agent', 'vertriebsleiter'\)/
+      .test(datei("server/lib/fiaon-termine.ts")));
+  ok("Die Übergabe auch",
+    /AND COALESCE\(a\.rolle, 'agent'\) IN \('agent', 'vertriebsleiter'\)/
+      .test(datei("server/lib/fiaon-uebergabe.ts")));
+  ok("Ein Inkasso-Konto sieht die Vertriebsliste NICHT",
+    /if \(await istInkasso\(req\.agent!\.id\)\) \{/.test(asQ)
+    && /Diese Liste gibt es für dich nicht/.test(asQ));
+  ok("… und die Wand steht im SERVER, nicht im Menü",
+    /Einen Menüpunkt auszublenden ist keine Grenze, sondern eine Bitte/.test(asQ));
+  const shQ = datei("client/src/pages/agent/shared.tsx");
+  ok("Das Menü blendet „Kunden“ für Inkasso aus", /nichtRolle: \["inkasso"\]/.test(shQ));
+  ok("… und zeigt stattdessen „Forderungen“",
+    /label: "Forderungen"[\s\S]{0,120}nurRolle: "inkasso"/.test(shQ));
+
+  const { sonderrollenBereinigen } = await import("../server/lib/fiaon-zuteilung");
+  const br = await sonderrollenBereinigen({ schreiben: false });
+  ok("Die Bereinigung findet die falsch zugewiesenen Kunden",
+    Array.isArray(br.zeilen), `${br.zeilen.length} Kunden · ${br.hinweis}`);
+  ok("Die Vorschau ändert nichts", br.verschoben === 0);
+  if (br.zeilen.length > 0) {
+    ok("Jede Zeile nennt Herkunft und Ziel",
+      br.zeilen.every((z) => z.vonName && z.anName));
+    // ── LASTGERECHT, NICHT ZWANZIGMAL DERSELBE ───────────────────────────
+    // Der erste Entwurf schickte alle 22 an denselben Menschen:
+    // `agentMitKleinsterLast()` fragt die Datenbank, und die wusste nichts von
+    // den Zuteilungen, die in derselben Schleife erst geplant wurden.
+    const ziele = new Set(br.zeilen.map((z) => z.anAgentId));
+    ok(`Verteilt auf ${ziele.size} Agenten, nicht auf einen`,
+      br.zeilen.length < 3 || ziele.size >= 2,
+      Array.from(ziele).join(", "));
+    ok("Kein Ziel trägt selbst eine Sonderrolle",
+      br.zeilen.every((z) => z.anAgentId !== z.vonAgentId));
+  }
+  ok("Das Metadaten-Feld heißt person_id, nicht personId",
+    /meta::jsonb->>'person_id'/.test(zuQ) && !/meta::jsonb->>'personId'/.test(zuQ));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c5. Auto-Advance: der nächste Kunde kommt von selbst");
+  // ═══════════════════════════════════════════════════════════════════════
+  // Ein Agent: „Wenn ich ‚Nicht erreicht' klicke, lande ich wieder auf der
+  // Wähltastatur — mit der Nummer DESSELBEN Kunden. Um zum nächsten zu kommen,
+  // muss ich auf ‚Anderen Kunden wählen', und dort steht ein leeres Suchfeld."
+  ok("Es gibt eine Route für den nächsten Kunden",
+    /router\.get\("\/telefon\/naechster"/.test(telQ));
+  ok("… mit Ausnahmeliste, damit keiner doppelt kommt", /req\.query\.ausser/.test(telQ));
+  ok("… und derselben Reihenfolge wie die Kundenliste",
+    /p\.priority_tier ASC,\n        p\.promised_payment_date ASC NULLS LAST/.test(telQ));
+  ok("… und derselben Regel für Verabredungen",
+    /p\.follow_up_date IS NULL OR p\.follow_up_date <= CURRENT_DATE/.test(telQ));
+  ok("Eine unwählbare Nummer wird benannt, nicht verschwiegen",
+    /aber seine Nummer ist nicht wählbar/.test(telQ));
+  const spQ3 = datei("client/src/components/Softphone.tsx");
+  // ── DIE STELLE, WO ES ZÄHLT ─────────────────────────────────────────
+  // Erster Versuch: nur den Pfad suchen. Die Gegenprobe (Auto-Advance
+  // ausbauen) blieb GRÜN — denselben Pfad ruft auch der „Nächsten holen"-Knopf
+  // auf, und der Test fand ihn dort. Eine Prüfung, die den Nachbarn findet,
+  // prüft nichts. Gesucht wird jetzt der Aufruf INNERHALB von `dokumentieren`.
+  ok("Nach dem Ergebnis wird der Nächste geholt", (() => {
+    const a = spQ3.indexOf("const dokumentieren = async");
+    if (a < 0) return false;
+    const block = spQ3.slice(a, spQ3.indexOf("\n  };", a));
+    return block.includes("telefon/naechster?ausser=${erledigtJetzt");
+  })());
+  ok("… und die Erledigten gemerkt", /const \[erledigte, setErledigte\]/.test(spQ3));
+  ok("… aber NICHT automatisch gewählt",
+    /WARUM NICHT AUTOMATISCH WÄHLEN/.test(spQ3));
+  ok("Eine Marke sagt, woher der Kunde kommt", /Nächster aus deiner Liste/.test(spQ3));
+  ok("… und man kann ihn wegklicken", /fi-tel-naechster-weg/.test(spQ3));
+  ok("Es gibt einen Knopf zum Wiedereinsteigen",
+    /Nächsten aus meiner Liste holen/.test(spQ3));
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");
   // ═══════════════════════════════════════════════════════════════════════
   const fQ = datei("client/src/components/PremiumFooter.tsx");

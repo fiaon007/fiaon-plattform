@@ -98,6 +98,8 @@ function Avatar({ src, name, size = 40 }: { src: string | null; name: string; si
  */
 function InkassoZuteilung() {
   const [d, setD] = useState<any>(null);
+  const [rein, setRein] = useState<any>(null);
+  const [reinFrage, setReinFrage] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
   const [frage, setFrage] = useState(false);
   const [nurAgent, setNurAgent] = useState("");
@@ -110,6 +112,27 @@ function InkassoZuteilung() {
     setD(j?.ok ? j : { hinweis: j?.error || "Nicht erreichbar." });
   }, [nurAgent]);
   useEffect(() => { void holen(); }, [holen]);
+
+  // ── DIE BEREINIGUNG ────────────────────────────────────────────────────
+  // Vertriebskunden, die bei Sonderrollen gelandet sind. Sie werden GEZEIGT,
+  // nicht stillschweigend verschoben: Es betrifft drei andere Agenten, die
+  // sonst morgen früh unerklärt mehr Arbeit hätten.
+  useEffect(() => {
+    void fetch("/api/fiaon/admin/team/sonderrollen-bereinigen", { credentials: "include" })
+      .then((r) => r.json()).then((j) => setRein(j?.ok ? j : null)).catch(() => {});
+  }, []);
+
+  const bereinigen = async () => {
+    setReinFrage(false);
+    const r = await fetch("/api/fiaon/admin/team/sonderrollen-bereinigen", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schreiben: true }),
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setRein(j?.ok ? j : rein);
+    void holen();
+  };
 
   const verteilen = async () => {
     setFrage(false);
@@ -129,6 +152,99 @@ function InkassoZuteilung() {
 
   return (
     <div>
+      {/* ══════════════════════════════════════════════════════════════════
+          FALSCH ZUGEWIESENE VERTRIEBSKUNDEN
+
+          Der Vorgesetzte: „Die Abteilung Forderungsmanagement hat Kunden
+          drinnen, die die Agenten abgelehnt haben oder auf nicht erreicht."
+
+          Gemessen: 22 Vertriebskunden lagen bei den beiden
+          Inkasso-Mitarbeitern. Ursache war die Lead-Zuteilung — sie prüfte
+          „aktiv" und „nimmt an der Verteilung teil", aber NICHT die Rolle.
+          Ein neues Inkasso-Konto hat null Kunden und war damit immer „der
+          Agent mit der kleinsten Last".
+
+          Der Hahn ist zu. Diese Karte räumt auf, was durchgelaufen ist.
+          ══════════════════════════════════════════════════════════════════ */}
+      {(rein?.zeilen ?? []).length > 0 && (
+        <div className="rounded-2xl p-5 mb-4"
+             style={{ background: "rgba(185,28,28,.045)", boxShadow: "inset 0 0 0 1px rgba(185,28,28,.2)" }}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-[14px] font-bold" style={{ color: "#b91c1c" }}>
+                {rein.zeilen.length} Vertriebskunden liegen beim Forderungsmanagement
+              </h2>
+              <p className="text-[12px] mt-1 leading-relaxed" style={{ color: "#7f1d1d", maxWidth: 640 }}>
+                Sie kamen über die Lead-Zuteilung dorthin: Die hat geprüft, wer aktiv ist und an der
+                Verteilung teilnimmt — aber nicht, welche Rolle jemand hat. Ein neues Inkasso-Konto
+                hat null Kunden und war damit immer „der mit der kleinsten Last".
+                <b> Das ist behoben — neue kommen keine mehr dazu.</b> Diese hier gehen zurück in den
+                Vertrieb, gleichmäßig verteilt.
+              </p>
+            </div>
+            <button type="button" onClick={() => setReinFrage(true)}
+                    className="fi-knopf-gefahr fi-knopf-gefahr-voll px-5 shrink-0"
+                    style={{ minHeight: 40 }}>
+              {rein.zeilen.length} zurückgeben
+            </button>
+          </div>
+          <div className="mt-3.5 rounded-xl overflow-hidden bg-white"
+               style={{ boxShadow: "inset 0 0 0 1px rgba(185,28,28,.14)", maxHeight: 260, overflowY: "auto" }}>
+            {rein.zeilen.map((z: any) => (
+              <div key={z.personId} className="px-3.5 py-2 flex flex-wrap items-baseline gap-x-3 gap-y-0.5"
+                   style={{ borderBottom: "1px solid #fef2f2" }}>
+                <span className="text-[12.5px] font-semibold text-slate-800">{z.name}</span>
+                <span className="text-[11.5px]" style={{ color: "#b45309" }}>
+                  Stufe {z.stufe}{z.grund ? ` · ${z.grund}` : ""}
+                </span>
+                <span className="ml-auto shrink-0 text-[11.5px] text-slate-500">
+                  {z.vonName} <span style={{ color: "var(--fi-primaer)" }}>→ {z.anName}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {rein && (rein.zeilen ?? []).length === 0 && (
+        <p className="mb-4 px-4 py-3 rounded-xl text-[12.5px] leading-relaxed"
+           style={{ background: "rgba(5,150,105,.07)", color: "#047857" }}>
+          Keine Sonderrolle hat Vertriebskunden. Das Forderungsmanagement sieht ausschließlich
+          Kunden mit offener Rate.
+        </p>
+      )}
+
+      <FiaonEbene
+        offen={reinFrage} onZu={() => setReinFrage(false)}
+        titel={`${rein?.zeilen?.length ?? 0} Kunden zurückgeben?`}
+        ueberschrift="Bitte einmal bestätigen"
+        breite={520}
+        kinder={
+          <>
+            <p className="text-[13px] leading-relaxed" style={{ color: "var(--fi-text-leise)" }}>
+              Diese Kunden wechseln zurück in den Vertrieb — an ihren früheren Betreuer, wenn es
+              einen gibt, sonst gleichmäßig an die Agenten mit der geringsten Last.
+            </p>
+            <p className="mt-2.5 text-[12.5px] leading-relaxed" style={{ color: "var(--fi-text-still)" }}>
+              Drei Agenten bekommen dadurch mehr Arbeit. Jede Umhängung steht mit altem und neuem
+              Zuständigen im Protokoll. Der Kunde merkt nichts — es geht keine Mail raus.
+            </p>
+          </>
+        }
+        fuss={
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setReinFrage(false)}
+                    className="text-[13px] font-semibold" style={{ color: "var(--fi-text-still)" }}>
+              Abbrechen
+            </button>
+            <button type="button" onClick={() => void bereinigen()}
+                    className="ml-auto fi-knopf-primaer px-5">
+              Jetzt zurückgeben
+            </button>
+          </div>
+        }
+      />
+
       {/* ── Die Mannschaft ─────────────────────────────────────────────── */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">
         <h2 className="text-[14px] font-bold text-slate-900 mb-1">Wer bearbeitet Inkasso?</h2>

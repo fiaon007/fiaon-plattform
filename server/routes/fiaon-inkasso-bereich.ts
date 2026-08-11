@@ -25,7 +25,15 @@ import { berlinToday } from "../lib/fiaon-time";
 
 const router = Router();
 
-async function istInkasso(agentId: number): Promise<boolean> {
+/**
+ * Traegt dieser Mensch die Rolle Inkasso?
+ *
+ * Exportiert, damit die Vertriebsrouten ihn aussperren koennen: Ein
+ * Inkasso-Konto darf die Kundenliste des Vertriebs nicht sehen — dort stehen
+ * Ablehnungen und Leads, und mit denen hat das Forderungsmanagement nichts zu
+ * tun.
+ */
+export async function istInkasso(agentId: number): Promise<boolean> {
   await ensureRolleSpalte();
   const [a] = (await sqlPool`
     SELECT rolle FROM fiaon_agents WHERE id = ${agentId} AND active

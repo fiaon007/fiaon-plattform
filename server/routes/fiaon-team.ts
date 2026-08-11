@@ -1805,4 +1805,38 @@ router.post("/admin/team/abrechnung/:id/neu-erzeugen", async (req: Request, res:
   }
 });
 
+/**
+ * GET/POST /admin/team/sonderrollen-bereinigen — Vertriebskunden zurückgeben.
+ *
+ * GET zeigt, was passieren würde. POST mit `schreiben: true` tut es.
+ */
+router.get("/admin/team/sonderrollen-bereinigen", async (_req: Request, res: Response) => {
+  try {
+    const { sonderrollenBereinigen } = await import("../lib/fiaon-zuteilung");
+    res.json({ ok: true, ...(await sonderrollenBereinigen({ schreiben: false })) });
+  } catch (err) {
+    console.error("[TEAM] sonderrollen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/admin/team/sonderrollen-bereinigen", async (req: Request, res: Response) => {
+  try {
+    const { sonderrollenBereinigen } = await import("../lib/fiaon-zuteilung");
+    const erg = await sonderrollenBereinigen({ schreiben: req.body?.schreiben === true });
+    if (erg.verschoben > 0) {
+      const { aktivitaetSchreiben } = await import("../lib/fiaon-aktivitaet");
+      await aktivitaetSchreiben({
+        typ: "person_owner_changed", wer: "Vorgesetzter",
+        grund: `${erg.verschoben} Vertriebskunden von Sonderrollen zurueckgegeben.`,
+        meta: { anzahl: erg.verschoben, art: "sonderrolle_bereinigt" },
+      });
+    }
+    res.json({ ok: true, ...erg });
+  } catch (err) {
+    console.error("[TEAM] sonderrollen POST:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 export default router;

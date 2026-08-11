@@ -87,6 +87,9 @@ export async function uebergabeAnNaechsten(
     WHERE a.active
       AND COALESCE(a.is_test_account, FALSE) = FALSE
       AND COALESCE(a.distribution_active, TRUE) = TRUE
+      -- Nur Vertrieb: Ein Kunde, der einen Agenten blockiert hat, wird an
+      -- einen anderen VERKÄUFER übergeben — nicht an das Forderungsmanagement.
+      AND COALESCE(a.rolle, 'agent') IN ('agent', 'vertriebsleiter')
       AND a.password_hash IS NOT NULL
     ORDER BY offen ASC, a.id ASC
   `;

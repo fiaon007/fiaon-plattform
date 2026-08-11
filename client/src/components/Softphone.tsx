@@ -214,6 +214,15 @@ export function Softphone() {
   const [offen, setOffen] = useState(false);
   const [nummer, setNummer] = useState("");
   const [kunde, setKunde] = useState<{ personId: number; name: string } | null>(null);
+  // ── AUTO-ADVANCE ────────────────────────────────────────────────────────
+  // Wen haben wir in dieser Sitzung schon dokumentiert? Ohne diese Liste
+  // schlägt das Telefon denselben Menschen wieder vor — die Wiedervorlage
+  // steht zwar auf morgen, aber die Kundenliste im Server kennt sie erst nach
+  // dem nächsten Ladevorgang.
+  const [erledigte, setErledigte] = useState<number[]>([]);
+  // Kam dieser Kunde aus der Liste (statt von Hand eingetippt)? Nur dann
+  // zeigen wir die Marke „Nächster aus deiner Liste".
+  const [ausListe, setAusListe] = useState(false);
   const [zustand, setZustand] = useState<"bereit" | "waehlt" | "gespraech" | "ergebnis">("bereit");
   const [callId, setCallId] = useState<number | null>(null);
   const [sekunden, setSekunden] = useState(0);
@@ -638,7 +647,55 @@ export function Softphone() {
     const j = await r?.json().catch(() => null);
     setMeldung(j?.meldung || j?.error || null);
     setDatumFeld(null); setDatum("");
-    if (j?.ok) { setZustand("bereit"); setCallId(null); void laden(); }
+    if (!j?.ok) return;
+
+    setCallId(null);
+    void laden();
+
+    // ══════════════════════════════════════════════════════════════════════
+    // AUTO-ADVANCE: DER NÄCHSTE KOMMT VON SELBST
+    //
+    // ── DER ANLASS ────────────────────────────────────────────────────────
+    // Ein Agent, sinngemäß: „Wenn ich ‚Nicht erreicht' klicke, lande ich
+    // wieder auf der Wähltastatur — mit der Nummer DESSELBEN Kunden. Um zum
+    // nächsten zu kommen, muss ich auf ‚Anderen Kunden wählen', und dort steht
+    // ein leeres Suchfeld. Ich muss die Nummer von Hand eintippen."
+    //
+    // Bisher: `setZustand("bereit")` — und `nummer` blieb stehen. Zwei Klicks
+    // und eine Sucheingabe zwischen zwei Anrufen. Bei sechzig Gesprächen am
+    // Tag sind das zwei Minuten reines Klicken; schlimmer ist der Bruch im
+    // Rhythmus. Wer abarbeitet, will nicht suchen.
+    //
+    // ── WARUM NICHT AUTOMATISCH WÄHLEN ────────────────────────────────────
+    // Der nächste Kunde wird GELADEN, nicht angerufen. Ein Telefon, das von
+    // selbst wählt, nimmt dem Menschen die Entscheidung — und wer gerade
+    // Luft holen oder eine Notiz zu Ende schreiben will, hat schon einen
+    // klingelnden Hörer am Ohr. Ein Klick bleibt; zwei fallen weg.
+    // ══════════════════════════════════════════════════════════════════════
+    const erledigtJetzt = kunde?.personId ? [...erledigte, kunde.personId] : erledigte;
+    setErledigte(erledigtJetzt);
+
+    const n = await fetch(
+      `/api/fiaon/telefon/naechster?ausser=${erledigtJetzt.join(",")}`,
+      { credentials: "include" },
+    ).catch(() => null);
+    const nj = await n?.json().catch(() => null);
+
+    if (nj?.ok && nj.kunde) {
+      // Die Nummer steht, der Name steht — es fehlt nur noch der Griff zum
+      // grünen Knopf. Die Marke „Nächster aus deiner Liste" sagt, woher er
+      // kommt: Ein Kunde, der ungefragt im Wählfeld auftaucht, verunsichert.
+      setNummer(nj.kunde.nummer);
+      setKunde({ personId: nj.kunde.personId, name: nj.kunde.name });
+      setAusListe(true);
+      setZustand("bereit");
+    } else {
+      setNummer("");
+      setKunde(null);
+      setAusListe(false);
+      setZustand("bereit");
+      if (nj?.hinweis) setMeldung(`${j?.meldung ? `${j.meldung} ` : ""}${nj.hinweis}`);
+    }
   };
 
   return (
@@ -845,8 +902,47 @@ export function Softphone() {
         {/* ── Wählen ──────────────────────────────────────────────────── */}
         {stand.bereit && !stand.testkonto && zustand === "bereit" && !richtlinie?.offen && (
           <>
+            {/* ── DER NÄCHSTE AUS DER LISTE ─────────────────────────────────
+                Nach einem dokumentierten Ergebnis steht er hier schon: Name,
+                Nummer, ein Griff zum grünen Knopf. Die Marke sagt, woher er
+                kommt — ein Kunde, der ungefragt im Wählfeld auftaucht,
+                verunsichert mehr, als er hilft. */}
+            {kunde && ausListe && (
+              <div className="fi-tel-naechster">
+                <span className="fi-tel-naechster-marke">Nächster aus deiner Liste</span>
+                <span className="fi-tel-naechster-name">{kunde.name}</span>
+                <button type="button"
+                        onClick={() => { setKunde(null); setNummer(""); setAusListe(false); }}
+                        className="fi-tel-naechster-weg">
+                  Anderen wählen
+                </button>
+              </div>
+            )}
+
             {/* Kundensuche zuerst: Man ruft einen Menschen an, nicht eine
                 Nummer. Die Nummer ist das Ergebnis, nicht der Anfang. */}
+            {!kunde && (
+              <button type="button"
+                      onClick={async () => {
+                        // Für den Fall, dass jemand mitten in der Liste
+                        // aussteigt und wieder einsteigen will.
+                        const n = await fetch(
+                          `/api/fiaon/telefon/naechster?ausser=${erledigte.join(",")}`,
+                          { credentials: "include" },
+                        ).catch(() => null);
+                        const nj = await n?.json().catch(() => null);
+                        if (nj?.ok && nj.kunde) {
+                          setNummer(nj.kunde.nummer);
+                          setKunde({ personId: nj.kunde.personId, name: nj.kunde.name });
+                          setAusListe(true);
+                          setMeldung(null);
+                        } else setMeldung(nj?.hinweis || "Keiner mehr offen.");
+                      }}
+                      className="fi-tel-holen">
+                Nächsten aus meiner Liste holen
+              </button>
+            )}
+
             {!kunde && (
               <div className="fi-tel-suche-feld">
                 <input value={suche} onChange={(e) => setSuche(e.target.value)}
@@ -859,6 +955,7 @@ export function Softphone() {
                               onClick={() => {
                                 setKunde({ personId: t.personId, name: t.name });
                                 setNummer(t.nummer || "");
+                                setAusListe(false);
                                 setSuche(""); setTreffer([]);
                               }}>
                         <b>{t.name}</b><span>{t.nummer}</span>
@@ -1105,6 +1202,37 @@ const TELEFON_CSS = `
   display: block; font-size: 11.5px; color: rgba(191,214,247,.76);
   margin-top: 2px; line-height: 1.45;
 }
+
+/* ── Der Nächste aus der Liste ─────────────────────────────────────────── */
+.fi-tel-naechster {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  margin-bottom: 12px; padding: 11px 14px; border-radius: 16px;
+  background: linear-gradient(158deg, rgba(16,185,129,.16), rgba(5,150,105,.07));
+  box-shadow: inset 0 0 0 1px rgba(16,185,129,.28);
+}
+.fi-tel-naechster-marke {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: #6ee7b7; white-space: nowrap;
+}
+.fi-tel-naechster-name {
+  width: 100%; font-size: 15px; font-weight: 700; color: #eef3fb;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fi-tel-naechster-weg {
+  margin-left: auto; border: 0; background: none; cursor: pointer;
+  font-size: 11.5px; font-weight: 600; color: rgba(191,214,247,.7);
+}
+.fi-tel-naechster-weg:hover { color: #eef3fb; }
+
+.fi-tel-holen {
+  width: 100%; margin-bottom: 10px; padding: 10px 14px; border: 0; cursor: pointer;
+  border-radius: 14px; font-size: 12.5px; font-weight: 600;
+  color: rgba(191,214,247,.86);
+  background: rgba(148,183,236,.08);
+  box-shadow: inset 0 0 0 1px rgba(148,183,236,.16);
+  transition: background 180ms, color 180ms;
+}
+.fi-tel-holen:hover { background: rgba(148,183,236,.14); color: #eef3fb; }
 
 /* ── Kundensuche und Anzeige ───────────────────────────────────────────── */
 .fi-tel-suche-feld { position: relative; margin-bottom: 12px; }

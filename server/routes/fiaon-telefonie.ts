@@ -719,6 +719,108 @@ router.post("/telefon/browser-fehler", requireAgent, async (req: AgentRequest, r
   }
 });
 
+/**
+ * GET /telefon/naechster — wer ist als Nächstes dran?
+ *
+ * ── DER ANLASS ─────────────────────────────────────────────────────────────
+ * Ein Agent, sinngemäß: „Wenn ich ‚Nicht erreicht' klicke, lande ich wieder
+ * auf der Wähltastatur — mit der Nummer DESSELBEN Kunden. Um zum nächsten zu
+ * kommen, muss ich auf ‚Anderen Kunden wählen', und dort steht ein leeres
+ * Suchfeld. Ich muss die Nummer von Hand eintippen."
+ *
+ * Zwei Klicks und eine Sucheingabe zwischen zwei Anrufen. Bei sechzig
+ * Gesprächen am Tag sind das zwei Minuten reines Klicken — und, schlimmer, ein
+ * Bruch im Rhythmus. Wer abarbeitet, will nicht suchen.
+ *
+ * ── DIESELBE REIHENFOLGE WIE DIE KUNDENLISTE ──────────────────────────────
+ * Bewusst nicht „irgendein offener Fall": Der Agent hat seine Liste vor Augen
+ * und erwartet, dass das Telefon ihr folgt. Zwei Reihenfolgen für dieselbe
+ * Arbeit wären schlimmer als gar keine Hilfe.
+ */
+router.get("/telefon/naechster", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    // Wen wir gerade erledigt haben, überspringen wir — sonst schlägt das
+    // Telefon denselben Menschen vor, den man eben dokumentiert hat.
+    const ausser = String(req.query.ausser || "")
+      .split(",").map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0);
+
+    const [k] = (await sqlPool`
+      SELECT p.id AS person_id,
+             COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
+                      p.company_name, p.contact_name, 'Ohne Namen') AS name,
+             p.primary_phone, p.priority_tier, p.tier_reason,
+             p.promised_payment_date, p.follow_up_date,
+             (SELECT a.ref FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
+               ORDER BY a.created_at DESC LIMIT 1) AS ref,
+             (SELECT COALESCE(NULLIF(a.phone, ''), NULLIF(a.contact_phone, ''))
+                FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL
+               ORDER BY a.created_at DESC LIMIT 1) AS app_phone
+      FROM fiaon_persons p
+      WHERE p.assigned_agent_id = ${req.agent!.id}
+        AND p.merged_into_person_id IS NULL
+        AND NOT p.is_blocked
+        AND p.priority_tier BETWEEN 1 AND 3
+        AND p.ruhe_seit IS NULL
+        -- Wer eine Verabredung in der Zukunft hat, ist heute fertig. Dieselbe
+        -- Regel wie in der Kundenliste — eine Definition, ein Ort.
+        AND (p.follow_up_date IS NULL OR p.follow_up_date <= CURRENT_DATE)
+        AND NOT (p.id = ANY(${ausser}::int[]))
+        AND COALESCE(NULLIF(p.primary_phone, ''), (
+              SELECT NULLIF(COALESCE(a.phone, a.contact_phone), '')
+              FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+              ORDER BY a.created_at DESC LIMIT 1
+            )) IS NOT NULL
+      ORDER BY
+        p.priority_tier ASC,
+        p.promised_payment_date ASC NULLS LAST,
+        p.follow_up_date ASC NULLS LAST,
+        p.id ASC
+      LIMIT 1
+    `) as any[];
+
+    if (!k) {
+      return res.json({
+        ok: true, kunde: null,
+        hinweis: "Keiner mehr offen. Entweder ist die Liste leer, oder alle haben eine "
+          + "Verabredung in der Zukunft — beides heißt: für heute fertig.",
+      });
+    }
+
+    // Dieselbe Aufbereitung wie in der Kundenliste — eine Definition, ein Ort.
+    const { waehlbareNummer } = await import("../lib/fiaon-telefon");
+    const tel = waehlbareNummer([
+      { nummer: k.primary_phone },
+      { nummer: k.app_phone },
+    ], null);
+    if (!tel.waehlbar) {
+      // Eine unbrauchbare Nummer ist kein „kein Kunde": Der Agent soll sehen,
+      // dass hier etwas zu tun ist — nur nicht am Telefon.
+      return res.json({
+        ok: true, kunde: null,
+        hinweis: `Der nächste wäre ${k.name}, aber seine Nummer ist nicht wählbar. `
+          + "Öffne ihn in der Kundenliste und lass sie korrigieren.",
+      });
+    }
+
+    res.json({
+      ok: true,
+      kunde: {
+        personId: Number(k.person_id),
+        name: String(k.name),
+        nummer: tel.waehlbar,
+        ref: k.ref ?? null,
+        stufe: Number(k.priority_tier),
+        grund: k.tier_reason ?? null,
+      },
+    });
+  } catch (err) {
+    console.error("[TELEFON] naechster:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 /** GET /telefon/richtlinie — Text und eigener Stand. */
 router.get("/telefon/richtlinie", requireAgent, async (req: AgentRequest, res: Response) => {
   try {

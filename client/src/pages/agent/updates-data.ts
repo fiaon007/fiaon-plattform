@@ -40,6 +40,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-auto-advance",
+    date: "2026-08-11",
+    category: "Neu",
+    title: "Telefon: Der nächste Kunde steht schon da",
+    summary:
+      "Nach „Nicht erreicht“ lädt das Telefon direkt den nächsten aus deiner Liste. Zwei Klicks weniger pro Gespräch.",
+    changes: [
+      "Bisher: Ergebnis buchen → du landest wieder auf der Tastatur, mit der Nummer DESSELBEN Kunden. Dann „Anderen Kunden wählen“, dann suchen, dann tippen.",
+      "Jetzt: Ergebnis buchen → der Nächste steht da, mit Name und Nummer. Ein Griff zum grünen Knopf.",
+      "Er wird geladen, nicht automatisch angerufen — du entscheidest, wann es losgeht. Wenn du noch eine Notiz fertig schreiben willst, hast du Zeit.",
+      "Die Reihenfolge ist dieselbe wie in deiner Kundenliste. Wen du gerade dokumentiert hast, kommt nicht nochmal.",
+      "Wenn du zwischendurch jemanden von Hand anrufst: Der Knopf „Nächsten aus meiner Liste holen“ bringt dich zurück in den Takt.",
+      "Hat der Nächste eine kaputte Nummer, steht das da — mit Namen, damit du sie korrigieren lassen kannst.",
+      "FORDERUNGSMANAGEMENT: Die Kollegen dort sehen ab jetzt ausschließlich Kunden mit offener Abo-Rate. Vertriebskunden landen nicht mehr bei ihnen.",
+    ],
+    howto: [
+      "Anrufen, Ergebnis klicken, nächster Kunde steht da, wieder anrufen. Du musst zwischendurch nichts suchen.",
+      "Willst du jemand anderen: „Anderen wählen“ neben dem Namen tippen.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu den Kunden" },
+    important: true,
+  },
+  {
     id: "2026-08-11-nicht-erreicht-raus",
     date: "2026-08-11",
     category: "Behoben",

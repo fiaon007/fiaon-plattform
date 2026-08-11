@@ -306,6 +306,11 @@ export async function freieSlots(
           SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname
           FROM fiaon_agents
           WHERE active AND distribution_active AND NOT is_test_account
+            -- Nur Vertrieb: Ein Kunde, der einen Termin bucht, will einen
+            -- Verkäufer sprechen. Dass ein Inkasso-Konto in dieser Liste stand,
+            -- war dieselbe Lücke wie in der Lead-Zuteilung — die Rolle wurde
+            -- nicht geprüft.
+            AND COALESCE(rolle, 'agent') IN ('agent', 'vertriebsleiter')
           ORDER BY id
         `) as any[]).map((a) => ({ id: Number(a.id), vorname: String(a.vorname) }));
   if (agenten.length === 0) return { slots: [], betreuer: null };

@@ -193,7 +193,16 @@ export async function api(path: string, init?: RequestInit): Promise<any> {
 }
 
 // ── Navigation (Paket AO: 5 klare Punkte; Unterseiten markieren den Bereich) ─
-const NAV: { href: string; label: string; icon: typeof Users; match: string[]; nurRolle?: string; marke?: string }[] = [
+const NAV: {
+  href: string; label: string; icon: typeof Users; match: string[];
+  /** Nur diese Rolle sieht den Punkt. */
+  nurRolle?: string;
+  /** Diese Rollen sehen ihn NICHT. Gegenstück zu `nurRolle` — nötig, weil ein
+      Punkt für alle da sein kann AUSSER für eine Abteilung. Das Menü blendet
+      aus, die Tür schließt der Server. */
+  nichtRolle?: string[];
+  marke?: string;
+}[] = [
   // „Mein Tag“ (/agent) ist bewusst KEIN Menüpunkt mehr: Die Seite bezieht ihre
   // Zahlen aus /agent/kartei/status und /agent/kartei/segmente, und die Kartei
   // ist abgeschaltet. Sie wäre eine leere Seite mit Nullen. Angemeldete Agenten
@@ -223,7 +232,19 @@ const NAV: { href: string; label: string; icon: typeof Users; match: string[]; n
   // "Kunden" ist die EINZIGE Arbeitsliste. Der frueher hier verlinkte Bestand aus
   // Bestellungen (/agent/meine-kunden) bleibt als Treffer erhalten, damit ein
   // gemerkter Link nicht ins Leere fuehrt.
-  { href: "/agent/kunden", label: "Kunden", icon: Users, match: ["/agent/kunden", "/agent/meine-kunden"] },
+  // ── NICHT FÜR DAS FORDERUNGSMANAGEMENT ──────────────────────────────────
+  // Der Vorgesetzte: „Die Abteilung Forderungsmanagement hat Kunden drinnen,
+  // die die Agenten abgelehnt haben oder auf nicht erreicht. Das ist falsch!"
+  //
+  // Genau hier kam es her: Der Punkt trug keine Rollenbeschränkung. Ein
+  // Inkasso-Konto sah „Kunden" und öffnete damit die volle Vertriebsliste —
+  // mit Ablehnungen, Leads und allem. Die Rate-Liste selbst war sauber.
+  { href: "/agent/kunden", label: "Kunden", icon: Users,
+    match: ["/agent/kunden", "/agent/meine-kunden"], nichtRolle: ["inkasso"] },
+  // Der eigene Bereich des Forderungsmanagements. Er fehlte im Menü ganz —
+  // Hans-Jürgen hätte die Adresse von Hand eintippen müssen.
+  { href: "/agent/inkasso", label: "Forderungen", icon: Wallet,
+    match: ["/agent/inkasso"], nurRolle: "inkasso" },
   { href: "/agent/mail-zentrale", label: "Mail", icon: Mail, match: ["/agent/mail-zentrale"] },
   // Aufgaben stehen bewusst VOR dem Kalender: Ein zugewiesener Auftrag mit
   // Frist ist verbindlicher als ein selbst gesetzter Termin.
@@ -506,7 +527,8 @@ function AgentDrawer({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-3">
-          {NAV.filter((n) => !n.nurRolle || n.nurRolle === rolle).map((n, i) => {
+          {NAV.filter((n) => (!n.nurRolle || n.nurRolle === rolle)
+              && !(n.nichtRolle ?? []).includes(String(rolle))).map((n, i) => {
             const aktiv = n.match.includes(location);
             const Icon = n.icon;
             const zahl = zaehler[n.href] || 0;
@@ -824,7 +846,8 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
                 <span className="ml-2 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-400">Team</span>
               </Link>
               <nav className="hidden md:flex items-center gap-1">
-                {NAV.filter((n) => !n.nurRolle || n.nurRolle === rolle).map((n) => {
+                {NAV.filter((n) => (!n.nurRolle || n.nurRolle === rolle)
+                  && !(n.nichtRolle ?? []).includes(String(rolle))).map((n) => {
                   const active = n.match.includes(location);
                   const badge = zaehler[n.href] || 0;
                   return (

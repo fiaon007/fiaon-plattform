@@ -40,6 +40,28 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-inkasso-akte",
+    date: "2026-08-11",
+    category: "Neu",
+    title: "Forderungsmanagement: die Akte zum Telefonieren",
+    summary:
+      "Ein Klick auf „Akte öffnen“ zeigt sofort, seit wann die Rate offen ist, den Betrag, die Mahnstufe — und die Nummer zum Anrufen.",
+    changes: [
+      "Ganz oben: seit wie vielen Tagen die Rate offen ist. Das ist dein erster Satz am Telefon.",
+      "Daneben: Betrag, Mahnstufe, wie viele Erinnerungen schon raus sind, wie viele Raten der Kunde schon bezahlt hat.",
+      "„Anrufen“ mit der richtigen Nummer und „Rechnung jetzt schicken“ — beides ohne Wartezeit bedienbar.",
+      "Bankdaten zum Vorlesen, mit dem Verwendungszweck in gleichbreiter Schrift (damit man 0 und O nicht verwechselt).",
+      "Alle Raten auf einen Blick: bezahlt grün, überfällig rot.",
+      "Jedes Gespräch, das über die Plattform geführt wurde — mit Dauer, Ergebnis und der Aufnahme zum Anhören.",
+      "Dazu: verschickte Mails und der ganze Verlauf.",
+    ],
+    howto: [
+      "Forderungen öffnen, bei einem Fall auf „Akte öffnen“ — der Kopf steht sofort, der Rest lädt nach.",
+      "„Rechnung jetzt schicken“ verschickt die Zahlungserinnerung mit Betrag, Bankdaten und Verwendungszweck. Die Mahnstufe steigt dadurch NICHT.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-11-richtlinie-im-display",
     date: "2026-08-11",
     category: "Behoben",

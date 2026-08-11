@@ -653,12 +653,14 @@ function InkassoAkte({
   const [busy, setBusy] = useState(false);
   const [meldung, setMeldung] = useState<{ art: "gut" | "schlecht"; text: string } | null>(null);
   const [player, setPlayer] = useState<number | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
 
   const laden = useCallback(async () => {
     const r = await fetch(`/api/fiaon/inkasso/rate/${fall.rate_id}`, { credentials: "include" })
       .catch(() => null);
     const j = await r?.json().catch(() => null);
-    setD(j?.ok ? j : null);
+    if (j?.ok) setD(j);
+    else setFehler(j?.error || "Die Akte konnte nicht geladen werden. Bitte noch einmal öffnen.");
   }, [fall.rate_id]);
   useEffect(() => { void laden(); }, [laden]);
 
@@ -681,12 +683,31 @@ function InkassoAkte({
     setMeldung(j?.ok
       ? { art: "gut", text: j.meldung }
       : { art: "schlecht", text: j?.error || "Die Mail ging nicht raus." });
-    if (j?.ok) { void laden(); onGeaendert(); }
+    // ── DIE MELDUNG MUSS STEHEN BLEIBEN ──────────────────────────────────
+    // Erst rief das hier sofort `onGeaendert()` — das lädt die Arbeitsliste
+    // neu, die Akte wird dabei neu aufgebaut, und die Erfolgsmeldung war
+    // verschwunden, bevor jemand sie lesen konnte. Gemessen: nach zwei
+    // Sekunden war nichts mehr da.
+    //
+    // Ein Mensch, der am Telefon sagt „die Rechnung ist unterwegs", muss sehen
+    // dürfen, DASS sie unterwegs ist.
+    if (j?.ok) {
+      void laden();
+      window.setTimeout(() => onGeaendert(), 4000);
+    }
   };
 
-  const nummer = k?.bestell_telefon || k?.primary_phone;
-  const volleNummer = nummer
-    ? `${k?.vorwahl || "+49"}${String(nummer).replace(/^0/, "")}`
+  // ── BEIDES KOMMT AUS DEM LISTENEINTRAG ──────────────────────────────────
+  // `tage_ueberfaellig` und die Nummer stehen schon in der Arbeitsliste. Sie
+  // erst aus der Akte-Antwort zu holen hieße, zwei Sekunden auf etwas zu
+  // warten, was man hat.
+  const tageOffen = Number(
+    fall.tage_ueberfaellig ?? k?.tage_offen
+    ?? Math.max(0, Math.floor((Date.now() - new Date(fall.faellig_am).getTime()) / 86_400_000)),
+  );
+  const rohNummer = fall.phone || k?.bestell_telefon || k?.primary_phone;
+  const sofortNummer = rohNummer
+    ? `${fall.phone_country_code || k?.vorwahl || "+49"}${String(rohNummer).replace(/^0/, "")}`
     : null;
 
   return (
@@ -699,69 +720,106 @@ function InkassoAkte({
         <div className="px-5 sm:px-7 py-4">
           <style>{AKTE_CSS}</style>
 
-          {!d && <p className="text-[13px]" style={{ color: "var(--fi-text-still)" }}>Wird geladen …</p>}
+          {/* ══════════════════════════════════════════════════════════════
+              WAS SCHON DA IST, WIRD SOFORT GEZEIGT
+
+              ── DER BEFUND (11.08.2026) ────────────────────────────────────
+              Die Akte stand bei „Wird geladen …" — und ich habe lange nach
+              einem Fehler gesucht, der keiner war. Gemessen: Die Route
+              brauchte 5.434 ms, weil zehn Abfragen als `await` INNERHALB des
+              Antwort-Objekts standen und deshalb NACHEINANDER liefen.
+
+              Parallel sind es 2.000 ms. Immer noch zwei Sekunden, in denen
+              ein Mensch auf ein leeres Fenster starrt — obwohl Name, Betrag,
+              Tage überfällig und Mahnstufe längst in der Liste standen, aus
+              der er geklickt hat.
+
+              Deshalb: Der Kopf kommt aus dem Listeneintrag und steht sofort.
+              Nachgeladen wird nur, was es dort nicht gibt — Adresse, Raten,
+              Gespräche, Mails, Verlauf. Ein Ladebalken für Daten, die man
+              schon hat, ist eine selbstgemachte Wartezeit.
+              ══════════════════════════════════════════════════════════════ */}
+          <div className="fi-ak-kopf">
+            <div>
+              <p className="fi-ak-marke">Offen seit</p>
+              <p className="fi-ak-gross">
+                {tageOffen} {tageOffen === 1 ? "Tag" : "Tagen"}
+              </p>
+              <p className="fi-ak-klein">fällig war {tag(fall.faellig_am)}</p>
+            </div>
+            <div>
+              <p className="fi-ak-marke">Diese Rate</p>
+              <p className="fi-ak-gross">{eur(fall.betrag_cents)}</p>
+              <p className="fi-ak-klein">
+                Rate {fall.rate_nr}{k?.raten_gesamt ? ` von ${k.raten_gesamt}` : ""}
+              </p>
+            </div>
+            {Number(k?.offen_gesamt_cents) > Number(fall.betrag_cents) && (
+              <div>
+                <p className="fi-ak-marke">Gesamt überfällig</p>
+                <p className="fi-ak-gross" style={{ color: "#b45309" }}>
+                  {eur(k?.offen_gesamt_cents)}
+                </p>
+                <p className="fi-ak-klein">mehrere Raten offen</p>
+              </div>
+            )}
+            <div>
+              <p className="fi-ak-marke">Mahnstufe</p>
+              <p className="fi-ak-gross" style={{ color: fall.mahnstufe >= 2 ? "#b91c1c" : undefined }}>
+                {fall.mahnstufe}
+              </p>
+              <p className="fi-ak-klein">
+                {fall.erinnerungen} {fall.erinnerungen === 1 ? "Erinnerung" : "Erinnerungen"} raus
+              </p>
+            </div>
+            {k && (
+              <div>
+                <p className="fi-ak-marke">Schon bezahlt</p>
+                <p className="fi-ak-gross" style={{ color: Number(k.raten_bezahlt) > 0 ? "#047857" : undefined }}>
+                  {k.raten_bezahlt}
+                </p>
+                <p className="fi-ak-klein">
+                  {Number(k.raten_bezahlt) > 0 ? "zahlt sonst zuverlässig" : "noch keine Rate"}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* ── DIE AKTIONEN STEHEN AUCH SOFORT ───────────────────────────
+              Anrufen und Rechnung schicken brauchen nur die Nummer und die
+              Ratennummer — beides ist im Listeneintrag. Wer sofort anrufen
+              will, soll nicht auf eine Adresse warten. */}
+          <div className="fi-ak-tun">
+            {sofortNummer && (
+              <button type="button" onClick={() => onAnrufen(sofortNummer, fall.name)}
+                      className="fi-primaerknopf inline-flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-semibold">
+                Anrufen · {sofortNummer}
+              </button>
+            )}
+            <button type="button" onClick={() => void erinnerungSenden()} disabled={busy}
+                    className="fi-zweitknopf px-3.5 py-2.5 text-[12.5px] font-semibold">
+              {busy ? "Geht raus …" : "Rechnung jetzt schicken"}
+            </button>
+            {!fall.email && d && !k?.bestell_email && !k?.primary_email && (
+              <span className="text-[11.5px]" style={{ color: "#b45309" }}>
+                Keine E-Mail hinterlegt — Bankdaten am Telefon durchgeben.
+              </span>
+            )}
+          </div>
+
+          {meldung && (
+            <p className="fi-ak-meldung" data-art={meldung.art}>{meldung.text}</p>
+          )}
+          {fehler && <p className="fi-ak-meldung" data-art="schlecht">{fehler}</p>}
+
+          {/* Der Rest wird nachgeladen. Ein schmaler Hinweis statt eines
+              leeren Fensters — man sieht, dass noch etwas kommt. */}
+          {!d && !fehler && (
+            <p className="fi-ak-laedt">Kundendaten, Raten und Verlauf werden geladen …</p>
+          )}
 
           {d && (
             <>
-              {/* ── 1. DER ERSTE SATZ AM TELEFON ──────────────────────────────
-                  „Ihre Zahlung ist seit X Tagen fällig." Diese Zahl steht
-                  ganz oben und groß — sie ist der Grund des Anrufs. */}
-              <div className="fi-ak-kopf">
-                <div>
-                  <p className="fi-ak-marke">Offen seit</p>
-                  <p className="fi-ak-gross">
-                    {Number(k?.tage_offen ?? 0)} {Number(k?.tage_offen) === 1 ? "Tag" : "Tagen"}
-                  </p>
-                  <p className="fi-ak-klein">fällig war {tag(d.rate?.faellig_am)}</p>
-                </div>
-                <div>
-                  <p className="fi-ak-marke">Diese Rate</p>
-                  <p className="fi-ak-gross">{eur(fall.betrag_cents)}</p>
-                  <p className="fi-ak-klein">Rate {fall.rate_nr} von {k?.raten_gesamt ?? "?"}</p>
-                </div>
-                {Number(k?.offen_gesamt_cents) > Number(fall.betrag_cents) && (
-                  <div>
-                    <p className="fi-ak-marke">Gesamt überfällig</p>
-                    <p className="fi-ak-gross" style={{ color: "#b45309" }}>
-                      {eur(k?.offen_gesamt_cents)}
-                    </p>
-                    <p className="fi-ak-klein">mehrere Raten offen</p>
-                  </div>
-                )}
-                <div>
-                  <p className="fi-ak-marke">Schon bezahlt</p>
-                  <p className="fi-ak-gross" style={{ color: Number(k?.raten_bezahlt) > 0 ? "#047857" : undefined }}>
-                    {k?.raten_bezahlt ?? 0}
-                  </p>
-                  <p className="fi-ak-klein">
-                    {Number(k?.raten_bezahlt) > 0 ? "zahlt sonst zuverlässig" : "noch keine Rate"}
-                  </p>
-                </div>
-              </div>
-
-              {/* ── 2. WAS ZU TUN IST ─────────────────────────────────────── */}
-              <div className="fi-ak-tun">
-                {volleNummer && (
-                  <button type="button" onClick={() => onAnrufen(volleNummer, k?.name ?? fall.name)}
-                          className="fi-primaerknopf inline-flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-semibold">
-                    Anrufen · {volleNummer}
-                  </button>
-                )}
-                <button type="button" onClick={() => void erinnerungSenden()} disabled={busy}
-                        className="fi-zweitknopf px-3.5 py-2.5 text-[12.5px] font-semibold">
-                  {busy ? "Geht raus …" : "Rechnung jetzt schicken"}
-                </button>
-                {!k?.bestell_email && !k?.primary_email && (
-                  <span className="text-[11.5px]" style={{ color: "#b45309" }}>
-                    Keine E-Mail hinterlegt — Bankdaten am Telefon durchgeben.
-                  </span>
-                )}
-              </div>
-
-              {meldung && (
-                <p className="fi-ak-meldung" data-art={meldung.art}>{meldung.text}</p>
-              )}
-
               {/* ── 3. DIE BANKDATEN ZUM VORLESEN ─────────────────────────── */}
               <details className="fi-ak-block">
                 <summary className="fi-ak-titel">Bankdaten zum Vorlesen</summary>
@@ -793,11 +851,16 @@ function InkassoAkte({
                     ["Paket", k?.pack_name],
                     ["Kunde seit", tag(k?.kunde_seit)],
                     ["E-Mail", k?.bestell_email || k?.primary_email],
-                    ["Telefon", volleNummer],
+                    ["Telefon", sofortNummer],
                     ["Adresse", [k?.strasse, [k?.plz, k?.ort].filter(Boolean).join(" ")]
                       .filter(Boolean).join(", ")],
-                    ["Zugang", k?.account_status],
-                    ["Bonität", k?.schufa_status],
+                    // ── KEINE ROHWERTE ─────────────────────────────────────
+                    // Im Schnappschuss stand „ZUGANG active" und „BONITÄT
+                    // pending" — die englischen Werte aus der Spalte. Wer am
+                    // Telefon sitzt, soll nicht raten müssen, was „pending"
+                    // für diesen Kunden bedeutet.
+                    ["Zugang", ZUGANG_TEXT[String(k?.account_status ?? "")] ?? k?.account_status],
+                    ["Bonität", BONITAET_TEXT[String(k?.schufa_status ?? "")] ?? k?.schufa_status],
                   ] as const).filter(([, w]) => w).map(([t, w]) => (
                     <div key={t}>
                       <p className="fi-ak-marke">{t}</p>
@@ -930,6 +993,32 @@ const ERG_TEXT: Record<string, string> = {
   notiz: "Notiz",
   zusage: "Zahlung zugesagt",
   zusage_gebrochen: "Zusage gebrochen",
+};
+
+/**
+ * Die Zustände in Worten.
+ *
+ * Der Zugang ist wichtig fürs Gespräch: Wer keinen Zugang hat, fragt zu Recht,
+ * wofür er zahlen soll. Und die Bonitätsoptimierung ist das Argument aus dem
+ * Satz des Vorgesetzten — „schlecht für Ihre SCHUFA, die wir gerade
+ * optimieren". Wer sie noch nicht laufen hat, darf das nicht behaupten.
+ */
+const ZUGANG_TEXT: Record<string, string> = {
+  active: "freigeschaltet",
+  pending: "noch nicht freigeschaltet",
+  suspended: "gesperrt",
+  cancelled: "gekündigt",
+  invited: "eingeladen, noch nicht angemeldet",
+};
+
+const BONITAET_TEXT: Record<string, string> = {
+  pending: "beauftragt, läuft noch",
+  ordered: "angefordert",
+  received: "liegt vor",
+  optimizing: "wird optimiert",
+  done: "abgeschlossen",
+  none: "nicht beauftragt",
+  failed: "gescheitert — nachfassen",
 };
 
 const MAIL_TEXT: Record<string, string> = {

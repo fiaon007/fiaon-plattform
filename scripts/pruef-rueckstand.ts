@@ -878,6 +878,36 @@ async function main(): Promise<void> {
   ok("Das Sende-Menü hat nur EINEN Kopf",
     /KEIN EIGENER KOPF MEHR/.test(datei("client/src/components/SendeMenue.tsx")));
 
+  // ── DIE AKTE MUSS SOFORT ETWAS ZEIGEN ──────────────────────────────────
+  // Der erste Entwurf schrieb zehn Abfragen als `await` INNERHALB des
+  // Antwort-Objekts. JavaScript wertet Felder der Reihe nach aus — sie liefen
+  // nacheinander, gemessen 5.434 ms. Die Akte blieb bei „Wird geladen …", und
+  // ich habe lange nach einem Fehler gesucht, der keiner war.
+  ok("Alle Abfragen der Akte laufen gleichzeitig",
+    /\] = await Promise\.all\(\[/.test(ibQ4)
+    && /JavaScript wertet die Felder\n    \/\/ der Reihe nach aus|der Reihe nach aus/.test(ibQ4));
+  ok("… und der gemessene Wert steht dabei", /5\.434 ms/.test(ibQ4));
+
+  // Parallel sind es noch zwei Sekunden. Deshalb kommt der Kopf aus dem
+  // LISTENEINTRAG und steht sofort — Name, Betrag, Tage offen und Mahnstufe
+  // stehen dort längst.
+  ok("Der Kopf kommt aus dem Listeneintrag, nicht vom Server",
+    /const tageOffen = Number\(\n    fall\.tage_ueberfaellig/.test(inkQ));
+  ok("… ebenso die Rufnummer", /const rohNummer = fall\.phone \|\|/.test(inkQ));
+  ok("… mit dem Grund dabei", /selbstgemachte Wartezeit/.test(inkQ));
+  ok("Anrufen und Rechnung stehen sofort bereit",
+    /Anrufen und Rechnung schicken brauchen nur die Nummer/.test(inkQ));
+  ok("Der Rest meldet sich als „wird geladen“, statt leer zu bleiben",
+    /Kundendaten, Raten und Verlauf werden geladen/.test(inkQ));
+  ok("Ein Fehler beim Laden wird benannt",
+    /Die Akte konnte nicht geladen werden/.test(inkQ));
+  ok("Die Erfolgsmeldung bleibt lesbar stehen",
+    /window\.setTimeout\(\(\) => onGeaendert\(\), 4000\)/.test(inkQ)
+    && /DASS sie unterwegs ist/.test(inkQ));
+  ok("Zustände stehen in Worten, nicht als Rohwert",
+    /ZUGANG_TEXT/.test(inkQ) && /BONITAET_TEXT/.test(inkQ)
+    && /noch nicht freigeschaltet/.test(inkQ));
+
   // ── DIE NACHGETRAGENEN RATEN ───────────────────────────────────────────
   // „Wenn der am 05.07 bezahlt hat, muss er am 05.08 beim Inkasso stehen!"
   const [ueber] = (await sqlPool`

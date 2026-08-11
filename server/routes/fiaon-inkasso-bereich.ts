@@ -186,68 +186,81 @@ router.get("/inkasso/rate/:id", requireAgent, async (req: AgentRequest, res: Res
     `) as any[];
     if (!rate) return res.status(404).json({ ok: false, error: "Nicht gefunden." });
 
-    res.json({
-      ok: true, rate,
-      // Nur MAHNUNGEN, nicht der ganze Mailverkehr des Kunden.
-      mahnungen: await sqlPool`
+    // ══════════════════════════════════════════════════════════════════════
+    // ALLE ABFRAGEN GLEICHZEITIG
+    //
+    // ── DER BEFUND (11.08.2026) ───────────────────────────────────────────
+    // Der erste Entwurf schrieb die Abfragen als `await` INNERHALB des
+    // Antwort-Objekts:
+    //
+    //     res.json({ mahnungen: await sqlPool`…`, kontakte: await sqlPool`…` })
+    //
+    // Das sieht kompakt aus und ist eine Falle: JavaScript wertet die Felder
+    // der Reihe nach aus. Zehn Abfragen liefen nacheinander, jede mit ihrer
+    // eigenen Runde nach Oregon — gemessen: 5.434 ms.
+    //
+    // Die Akte blieb deshalb bei „Wird geladen …" stehen, und ich habe eine
+    // Stunde nach einem Fehler gesucht, der keiner war: Sie lud, nur zu
+    // langsam für jeden, der zusieht.
+    //
+    // Ein Mensch, der zwanzig Akten am Tag öffnet, wartet so fast zwei
+    // Minuten am Tag auf nichts.
+    // ══════════════════════════════════════════════════════════════════════
+    const [
+      mahnungen, kontakte, arbeit, raten, kunde, gespraeche, mails, bank,
+    ] = await Promise.all([
+      // Nur MAHNUNGEN, nicht der ganze Mailverkehr.
+      sqlPool`
         SELECT gesendet_am, event, ok, grund FROM fiaon_mail_log
         WHERE person_id = ${rate.person_id} AND event LIKE 'abo_payment%'
         ORDER BY gesendet_am DESC LIMIT 20
-      `.catch(() => []),
-      kontakte: await sqlPool`
+      `.catch(() => [] as any[]),
+
+      sqlPool`
         SELECT created_at, type, outcome, note, agent_name FROM fiaon_contact_log
         WHERE ref = ${rate.ref} AND type <> 'system'
         ORDER BY created_at DESC LIMIT 15
-      `,
-      arbeit: await sqlPool`
+      `.catch(() => [] as any[]),
+
+      sqlPool`
         SELECT created_at, ergebnis, zusage_am, wiedervorlage, notiz, agent_name
         FROM fiaon_raten_arbeit WHERE rate_id = ${id} ORDER BY created_at DESC LIMIT 20
-      `,
-      raten: await sqlPool`
+      `.catch(() => [] as any[]),
+
+      sqlPool`
         SELECT rate_nr, betrag_cents, faellig_am, status, bezahlt_am, mahnstufe
         FROM fiaon_abo_raten WHERE ref = ${rate.ref} ORDER BY rate_nr
-      `,
+      `.catch(() => [] as any[]),
 
-      // ══════════════════════════════════════════════════════════════════════
-      // ALLES, WAS AM TELEFON GEBRAUCHT WIRD
-      //
-      // ── DER AUFTRAG ───────────────────────────────────────────────────────
-      // Der Vorgesetzte: „Der Inkasso-Mitarbeiter muss den Kundenverlauf sehen,
-      // alles ganz genau. Sie öffnet die Akte, sieht alle Daten vom Kunden,
+      // ── ALLES, WAS AM TELEFON GEBRAUCHT WIRD ────────────────────────────
+      // Der Vorgesetzte: „Sie öffnet die Akte, sieht alle Daten vom Kunden,
       // seit wann die Rate offen ist, und ruft an."
       //
-      // Der Satz, den dieser Mensch sagen soll, lautet: „Ich rufe an, weil Ihre
-      // Zahlung seit X Tagen fällig ist." Dafür braucht er X — und den Namen,
-      // das Paket, den Betrag, die Bankdaten und den Verwendungszweck. Alles
-      // in einem Blick, nicht in vier Reitern.
-      // ══════════════════════════════════════════════════════════════════════
-      kunde: (await sqlPool`
+      // Der Satz, den dieser Mensch sagt, lautet: „Ich rufe an, weil Ihre
+      // Zahlung seit X Tagen fällig ist." Dafür braucht er X — und Name,
+      // Paket, Betrag, Bankdaten, Verwendungszweck. In einem Blick.
+      sqlPool`
         SELECT p.id AS person_id,
                COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                         p.company_name, p.contact_name, 'Ohne Namen') AS name,
                p.primary_email, p.primary_phone,
-               -- Die Spalten heißen street/zip/city, nicht strasse/plz/ort.
-               -- Gemessen, nachdem die Route mit „column p.strasse does not
-               -- exist" antwortete und die Akte bei „Wird geladen …" hing.
-               -- Deutsche Bezeichner gelten für NEUEN Code (AGENTS.md); diese
-               -- Tabelle ist älter.
+               -- Die Spalten heißen street/zip/city. Die Route brach erst mit
+               -- „column p.strasse does not exist" ab; deutsche Bezeichner
+               -- gelten für NEUEN Code (AGENTS.md), diese Tabelle ist älter.
                COALESCE(NULLIF(p.street, ''), a.street) AS strasse,
                COALESCE(NULLIF(p.zip, ''), a.zip) AS plz,
                COALESCE(NULLIF(p.city, ''), a.city) AS ort,
                a.pack_name, a.pack_key, a.amount_due, a.payment_reference,
                a.created_at::date AS kunde_seit,
                a.account_status, a.schufa_status,
-               (SELECT COALESCE(NULLIF(a2.email, ''), NULLIF(a2.contact_email, ''),
-                                NULLIF(a2.billing_email, ''))
-                  FROM fiaon_applications a2 WHERE a2.ref = a.ref) AS bestell_email,
-               (SELECT COALESCE(NULLIF(a2.phone, ''), NULLIF(a2.contact_phone, ''))
-                  FROM fiaon_applications a2 WHERE a2.ref = a.ref) AS bestell_telefon,
-               (SELECT a2.phone_country_code FROM fiaon_applications a2 WHERE a2.ref = a.ref) AS vorwahl,
-               -- Seit wann ist die Rate offen? Das ist der erste Satz am Telefon.
+               COALESCE(NULLIF(a.email, ''), NULLIF(a.contact_email, ''),
+                        NULLIF(a.billing_email, '')) AS bestell_email,
+               COALESCE(NULLIF(a.phone, ''), NULLIF(a.contact_phone, '')) AS bestell_telefon,
+               a.phone_country_code AS vorwahl,
+               -- Seit wann offen? Der erste Satz am Telefon.
                (CURRENT_DATE - ${rate.faellig_am}::date) AS tage_offen,
-               -- Wie viele Raten hat er schon bezahlt? Ein Kunde, der elf von
-               -- zwölf gezahlt hat, wird anders angesprochen als einer, der noch
-               -- keine gezahlt hat.
+               -- Wer elf von zwölf Raten gezahlt hat, wird anders angesprochen
+               -- als jemand, der noch keine gezahlt hat.
                (SELECT COUNT(*)::int FROM fiaon_abo_raten x
                  WHERE x.ref = a.ref AND x.status = 'bezahlt') AS raten_bezahlt,
                (SELECT COUNT(*)::int FROM fiaon_abo_raten x WHERE x.ref = a.ref) AS raten_gesamt,
@@ -257,17 +270,17 @@ router.get("/inkasso/rate/:id", requireAgent, async (req: AgentRequest, res: Res
         FROM fiaon_applications a
         LEFT JOIN fiaon_persons p ON p.id = a.person_id
         WHERE a.ref = ${rate.ref}
-      `.then((r: any[]) => r[0] ?? null)),
+      `.then((r: any[]) => r[0] ?? null).catch(() => null),
 
-      // ── JEDES GESPRÄCH IN DER AKTE ────────────────────────────────────────
-      // „JEDES Gespräch, was auf der Plattform geführt wird, muss protokolliert
-      // werden in der Akte!" — Sie werden es: `fiaon_calls` hält Beginn, Dauer,
-      // Ergebnis, Aufnahme und Transkript. Sie waren nur hier nicht sichtbar.
+      // ── JEDES GESPRÄCH IN DER AKTE ──────────────────────────────────────
+      // „JEDES Gespräch, was auf der Plattform geführt wird, muss
+      // protokolliert werden in der Akte!" — Sie werden es: `fiaon_calls` hält
+      // Beginn, Dauer, Ergebnis, Aufnahme und Transkript. Sie waren nur hier
+      // nicht sichtbar.
       //
       // Die Twilio-URL geht NICHT mit: Sie ist unbefristet gültig. Nach außen
-      // nur, OB es eine Aufnahme gibt — abgespielt wird über die
-      // rechteprüfende Route.
-      gespraeche: rate.person_id ? await sqlPool`
+      // nur, OB es eine Aufnahme gibt.
+      rate.person_id ? sqlPool`
         SELECT k.id, k.beginn, k.dauer_sek, k.richtung, k.ergebnis, k.status,
                k.zusammenfassung, k.transkript_status, k.transkript_grund,
                (k.transkript IS NOT NULL) AS hat_transkript,
@@ -278,23 +291,21 @@ router.get("/inkasso/rate/:id", requireAgent, async (req: AgentRequest, res: Res
         LEFT JOIN fiaon_agents ag ON ag.id = k.agent_id
         WHERE k.person_id = ${rate.person_id}
         ORDER BY k.beginn DESC LIMIT 40
-      ` : [],
+      `.catch(() => [] as any[]) : Promise.resolve([] as any[]),
 
-      // ── DER GANZE MAILVERKEHR, NICHT NUR MAHNUNGEN ────────────────────────
+      // ── DER GANZE MAILVERKEHR, NICHT NUR MAHNUNGEN ──────────────────────
       // Wer anruft, muss wissen, was der Kunde schon bekommen hat. Eine
       // Zahlungserinnerung von gestern ändert den ersten Satz.
-      mails: rate.person_id ? await sqlPool`
+      rate.person_id ? sqlPool`
         SELECT gesendet_am, event, ok, grund, empfaenger
         FROM fiaon_mail_log WHERE person_id = ${rate.person_id}
         ORDER BY gesendet_am DESC LIMIT 25
-      `.catch(() => []) : [],
+      `.catch(() => [] as any[]) : Promise.resolve([] as any[]),
 
-      // ── DIE BANKDATEN FÜR DEN SATZ AM TELEFON ─────────────────────────────
-      // „Ich schicke Ihnen die Rechnung gleich noch zu" — dafür braucht der
-      // Mensch sie nicht. Aber „können Sie es gleich überweisen?" braucht sie.
-      bank: await (async () => {
+      // ── DIE BANKDATEN ZUM VORLESEN ──────────────────────────────────────
+      (async () => {
         const { firmierung } = await import("../lib/fiaon-firmierung");
-        const f = await firmierung();
+        const f = await firmierung().catch(() => ({ name: "Fiaon Ltd" } as any));
         return {
           empfaenger: f.name,
           iban: process.env.FIAON_IBAN || "BE09 9058 9276 3957",
@@ -302,6 +313,11 @@ router.get("/inkasso/rate/:id", requireAgent, async (req: AgentRequest, res: Res
           verwendungszweck: rate.zahlungsreferenz,
         };
       })(),
+    ]);
+
+    res.json({
+      ok: true, rate, mahnungen, kontakte, arbeit, raten,
+      kunde, gespraeche, mails, bank,
     });
   } catch (err) {
     console.error("[INKASSO] rate:", err);

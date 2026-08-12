@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, createContext, useContext, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { Softphone } from "@/components/Softphone";
+import { TerminErinnerung } from "@/components/TerminErinnerung";
 import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle, Menu, ChevronRight, ListChecks, Mail } from "lucide-react";
 import OnboardingGate from "./onboarding";
 import {
@@ -933,6 +934,9 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
         {/* Das Telefon liegt über allem — in jeder Team-, Vertriebs- und
             Onboarding-Ansicht. Es entscheidet selbst, ob es einsatzbereit ist
             oder den Einrichtungs-Zustand zeigt. */}
+        {/* Die Erinnerungsleiste: Sie zeigt anstehende und überfällige Termine
+            im Portal — unabhängig von Make und einem offenen Postfach. */}
+        <TerminErinnerung />
         <Softphone />
 
         {/* HIER STAND EIN SCHWEBENDER KNOPF „Nächste Akte" — entfernt am

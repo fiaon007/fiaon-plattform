@@ -1395,6 +1395,136 @@ async function main(): Promise<void> {
       .test(datei("client/src/components/Softphone.tsx")));
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c15. Agenten-Rückmeldung, zweiter Teil");
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // ── PUNKT 4: EIN KUNDE HAT BUCHUNGEN, NICHT EINE BESTELLUNG ───────────
+  // „Jetzt ist das Paket bei mir komplett verschwunden und er taucht nur noch
+  // wegen der Schufa auf." Gemessen: Person #5144 hat zwei Bestellungen —
+  // ultra (79,99 €, 23.07.) und Bonität (74 €, 31.07.). Die Karte holte mit
+  // „ORDER BY created_at DESC LIMIT 1" die neuere.
+  const { buchungenVon, buchungsZeile, alleBezahlt, artVon } =
+    await import("../server/lib/fiaon-buchungen");
+  const b5144 = await buchungenVon(5144);
+  gleich("Shahed Mohammad hat ZWEI Buchungen", b5144.length, 2);
+  ok("… Paket UND Bonitätsauskunft",
+    b5144.some((x) => x.art === "paket") && b5144.some((x) => x.art === "bonitaet"),
+    buchungsZeile(b5144));
+  ok("… und beide sind offen", b5144.every((x) => x.offen));
+  gleich("Eine SCHUFA-Referenz wird als Zusatz erkannt",
+    artVon("FIAON-SCHUFA-X", null, null, 74), "bonitaet");
+  gleich("Ein Paket bleibt Paket", artVon("FIAON-ABC", "ultra", "FIAON Ultra", 99.99), "paket");
+  const [mehrfach] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM (
+      SELECT p.id FROM fiaon_persons p JOIN fiaon_applications a ON a.person_id = p.id
+      WHERE p.merged_into_person_id IS NULL AND a.merged_into IS NULL
+        AND a.archived_at IS NULL AND a.payment_status <> 'paid'
+      GROUP BY p.id HAVING COUNT(*) > 1) x
+  `) as any[];
+  ok(`${mehrfach.n} Kunden haben mehr als eine offene Buchung`,
+    Number(mehrfach.n) > 0, "Die sahen bisher nur eine");
+  ok("Die Karte holt ALLE Buchungen",
+    /buchungen_roh/.test(datei("server/routes/fiaon-agent-start.ts")));
+  ok("… und zeigt sie in der Liste",
+    /\(k\.buchungen \?\? \[\]\)\.filter\(\(b\) => !b\.erledigt\)\.map/
+      .test(datei("client/src/pages/agent/kunden-neu.tsx")));
+
+  // ── PUNKT 3: BUCHUNGEN IN DEN STAMMDATEN ──────────────────────────────
+  // „Es wäre wichtig, dass jeder Mitarbeiter sieht: welches Paket, welche
+  // Zusatzleistungen, was bezahlt bzw. offen ist, wann der Antrag gestellt
+  // wurde."
+  const knQ15 = datei("client/src/pages/agent/kunden-neu.tsx");
+  ok("Der Buchungs-Block zeigt alle vier Angaben",
+    />\s*Buchungen\s*<\/p>/.test(knQ15) && /gestellt \{b\.gestelltAm/.test(knQ15)
+    && /\{b\.zahlungText\}/.test(knQ15) && /b\.art === "bonitaet" \? "Zusatz" : "Paket"/.test(knQ15));
+  ok("… mit der Summe des Offenen", /Offen insgesamt:/.test(knQ15));
+  ok("… und dem Verwendungszweck", /Verwendungszweck: \{b\.verwendungszweck\}/.test(knQ15));
+
+  // ── PUNKT 2: „BEZAHLT" HEISST ALLES BEZAHLT ───────────────────────────
+  // „Unter Bezahlt befinden sich Kunden, bei denen das Paket bezahlt, die
+  // Schufa aber noch offen ist."
+  const tierQ15 = datei("server/lib/tier.ts");
+  ok("Eine offene RECHNUNG schlägt „bezahlt“",
+    /rang BETWEEN 35 AND 50/.test(tierQ15));
+  ok("… aber ein alter abgebrochener Antrag NICHT",
+    /nie eine Rechnung gestellt/.test(tierQ15));
+  ok("Der erste Entwurf ist als zu scharf benannt",
+    /134 bezahlte Kunden wären zurück in den Vertrieb gewandert/.test(tierQ15));
+  const [falschBezahlt] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_persons p
+    WHERE p.priority_tier = 0 AND p.merged_into_person_id IS NULL
+      AND EXISTS (SELECT 1 FROM fiaon_applications a
+        WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
+          AND a.payment_status IN ('pending_payment','claimed_paid','expired'))
+  `) as any[];
+  gleich("KEIN Kunde steht auf „bezahlt“ mit offener Rechnung",
+    Number(falschBezahlt.n), 0);
+  // ── DIE LOGIK, NICHT NUR DER IST-ZUSTAND ──────────────────────────────
+  // Die Zahl oben ist heute null, WEIL die Regel greift. Nimmt man sie
+  // heraus, bleibt die Zahl bis zum nächsten Tageslauf trotzdem null — die
+  // Gegenprobe blieb deshalb grün. Diese Prüfung rechnet die Einstufung
+  // frisch aus und vergleicht sie mit dem, was in der Tabelle steht.
+  const { personTierSql } = await import("../server/lib/tier");
+  const [abweichung] = (await sqlPool.unsafe(`
+    WITH neu AS (${personTierSql()})
+    SELECT COUNT(*)::int AS n
+    FROM fiaon_persons p JOIN neu n ON n.person_id = p.id
+    WHERE p.merged_into_person_id IS NULL
+      AND p.priority_tier = 0
+      AND n.priority_tier > 0
+  `)) as any[];
+  gleich("Die Einstufung berechnet dasselbe, was in der Tabelle steht",
+    Number(abweichung.n), 0);
+  ok("alleBezahlt() erkennt gemischte Fälle", !alleBezahlt(b5144));
+
+  // ── PUNKT 1: „RECHNUNG OFFEN" OHNE RECHNUNG ───────────────────────────
+  const [ohneRechnung] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_persons p
+    WHERE p.tier_reason = 'rechnung_offen' AND p.merged_into_person_id IS NULL
+      AND NOT EXISTS (SELECT 1 FROM fiaon_applications a
+        WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
+          AND a.payment_status IN ('pending_payment','claimed_paid','expired'))
+  `) as any[];
+  gleich("Unter „Rechnung offen“ steht keiner OHNE Rechnung", Number(ohneRechnung.n), 0);
+  ok("„Antrag fertig“ verspricht keine Rechnung mehr",
+    /titel: "Antrag fertig — Rechnung noch nicht gestellt"/.test(datei("server/lib/tier-hinweise.ts")));
+  ok("… und der Hinweis sagt, was zu tun ist",
+    /schicke über\n      „Zahlungsdetails senden|die erste Rechnung/.test(datei("server/lib/tier-hinweise.ts")));
+
+  // ── PUNKT 8: TERMIN ÖFFNET DEN KUNDEN ─────────────────────────────────
+  ok("Ein angesprungener Kunde steht immer in der Liste",
+    /const nurPerson = req\.query\.person/.test(datei("server/routes/fiaon-agent-start.ts")));
+  ok("… und die Rechteprüfung bleibt",
+    /Die Rechteprüfung bleibt/.test(datei("server/routes/fiaon-agent-start.ts")));
+  ok("Der Client fordert ihn an", /p\.set\("person", String\(nurPerson\)\)/.test(knQ15));
+
+  // ── PUNKT 7: ERINNERUNG IM PORTAL ─────────────────────────────────────
+  const teQ = datei("client/src/components/TerminErinnerung.tsx");
+  ok("Es gibt eine Erinnerungsleiste", /export function TerminErinnerung/.test(teQ));
+  ok("… sie zeigt auch ÜBERFÄLLIGE", /überfällig/.test(teQ));
+  ok("… führt direkt zum Kunden", /\/agent\/kunden\?person=\$\{erste\.personId\}/.test(teQ));
+  ok("… blockiert nichts", /Sie blockiert nichts, sie klingelt nicht/.test(teQ));
+  ok("… und der Grund für „im Portal statt nur Mail“ steht dabei",
+    /externen Dienst/.test(teQ));
+  ok("Die Route liefert Rückrufe UND Startgespräche",
+    /agent\/termine\/faellig/.test(datei("server/routes/fiaon-agent-start.ts")));
+
+  // ── PUNKT 10: DIE ANSAGE HÖRT DER KUNDE ───────────────────────────────
+  // „Die angekündigte Durchsage scheint nur ich zu hören, nicht der Kunde."
+  const spQ15 = datei("server/lib/fiaon-softphone.ts");
+  ok("Die Ansage steht am <Number>, nicht vor dem <Dial>",
+    /<Number url="\$\{esc\(opts\.ansageUrl\)\}">/.test(spQ15));
+  ok("… und der Rechtsgrund steht dabei",
+    /§201 StGB strafbar/.test(spQ15));
+  ok("Es gibt eine Ansage-Route",
+    /router\.all\("\/telefon\/ansage"/.test(datei("server/routes/fiaon-telefonie.ts")));
+  ok("… mit Rückfallansage, falls der Text nicht lädt",
+    /Lieber eine kurze Standardansage als gar keine/.test(datei("server/routes/fiaon-telefonie.ts")));
+  ok("Die Stammdaten stehen im Gespräch",
+    /fi-tel-daten/.test(datei("client/src/components/Softphone.tsx"))
+    && /telefon\/kunde\/\$\{kunde\.personId\}/.test(datei("client/src/components/Softphone.tsx")));
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");
   // ═══════════════════════════════════════════════════════════════════════
   const fQ = datei("client/src/components/PremiumFooter.tsx");

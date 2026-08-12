@@ -331,6 +331,91 @@ router.get("/telefon/eingehend/wer-ist-zustaendig", requireAgent, async (req: Ag
 });
 
 /**
+ * GET /telefon/kunde/:personId — die Stammdaten fürs laufende Gespräch.
+ *
+ * ── DER BEFUND (11.08.2026) ───────────────────────────────────────────────
+ * Ein Agent: „Während des Anrufs kann ich die Stammdaten und Kundendetails
+ * nicht vernünftig einsehen."
+ *
+ * Das Telefon zeigte Name, Dauer und Nummer. Wer gefragt wird „welches Paket
+ * habe ich denn gebucht", musste das Gespräch verlassen.
+ *
+ * Diese Route liefert genau das, was am Telefon gebraucht wird — nicht die
+ * ganze Akte: Buchungen, offener Betrag, Verwendungszweck, Ort. Wenige Felder,
+ * damit die Antwort in Millisekunden da ist.
+ */
+router.get("/telefon/kunde/:personId", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const rolle = await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+      return res.status(403).json({ ok: false, error: "Kein Zugriff auf diesen Kunden." });
+    }
+    const { buchungenVon, offenCents } = await import("../lib/fiaon-buchungen");
+    const [p] = (await sqlPool`
+      SELECT COALESCE(NULLIF(p.primary_email, ''), (
+               SELECT NULLIF(COALESCE(a.email, a.contact_email, a.billing_email), '')
+               FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+               ORDER BY a.created_at DESC LIMIT 1)) AS email,
+             NULLIF(TRIM(CONCAT_WS(' ', p.zip, p.city)), '') AS ort,
+             (SELECT MIN(a.created_at)::date FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL) AS kunde_seit
+      FROM fiaon_persons p WHERE p.id = ${personId}
+    `) as any[];
+    const buchungen = await buchungenVon(personId);
+    res.json({
+      ok: true,
+      kunde: {
+        email: p?.email ?? null,
+        ort: p?.ort ?? null,
+        kundeSeit: p?.kunde_seit
+          ? new Date(p.kunde_seit).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })
+          : null,
+        buchungen: buchungen.filter((b) => !b.erledigt),
+        offenCents: offenCents(buchungen),
+        // Der Verwendungszweck der ältesten offenen Buchung — den braucht man,
+        // wenn der Kunde sagt „ich überweise gleich".
+        verwendungszweck: buchungen.find((b) => b.offen)?.verwendungszweck ?? null,
+      },
+    });
+  } catch (err) {
+    console.error("[TELEFON] kunde:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /telefon/ansage — was der ANGERUFENE hört, bevor verbunden wird.
+ *
+ * ── WARUM DAS EINE EIGENE ADRESSE BRAUCHT ─────────────────────────────────
+ * Ein Agent: „Die angekündigte Durchsage scheint nur ich zu hören, nicht der
+ * Kunde."
+ *
+ * Die Ansage stand als <Say> VOR dem <Dial> — bei einem Anruf aus dem Browser
+ * ist der Agent der Anrufer, also hörte nur er sie. Der Kunde wurde ohne
+ * Hinweis aufgezeichnet; §201 StGB verlangt aber, dass der Hinweis den
+ * erreicht, der aufgezeichnet wird.
+ *
+ * Twilio ruft diese Adresse auf, sobald der Kunde abnimmt. Was hier steht,
+ * hört er — dann werden beide Seiten verbunden.
+ */
+router.all("/telefon/ansage", async (_req: Request, res: Response) => {
+  try {
+    const text = await ansageText();
+    res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response><Say language="de-DE" voice="Polly.Vicki">${
+      String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    }</Say></Response>`);
+  } catch (err) {
+    console.error("[TELEFON] ansage:", err);
+    // Lieber eine kurze Standardansage als gar keine: Ohne Hinweis darf nicht
+    // aufgezeichnet werden.
+    res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response><Say language="de-DE" voice="Polly.Vicki">Dieses Gespräch wird zur Qualitätssicherung aufgezeichnet.</Say></Response>`);
+  }
+});
+
+/**
  * POST /telefon/twiml — Twilio fragt, was zu tun ist.
  *
  * Kommt von außen. Deshalb wird die Nummer HIER noch einmal geprüft: Wer den
@@ -373,6 +458,8 @@ router.post("/telefon/twiml", async (req: Request, res: Response) => {
       ansage: await ansageText(),
       aufnahmeCallback: absoluteUrl("/api/fiaon/telefon/aufnahme"),
       statusCallback: absoluteUrl("/api/fiaon/telefon/status"),
+      // Die Ansage wird dem ANGERUFENEN vorgelesen, sobald er abnimmt.
+      ansageUrl: absoluteUrl("/api/fiaon/telefon/ansage"),
     }));
   } catch (err) {
     console.error("[TELEFON] twiml:", err);

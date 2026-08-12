@@ -161,6 +161,8 @@ export async function ansageText(lauf: Lauf = sqlPool): Promise<string> {
  */
 export function twimlAusgehend(opts: {
   an: string; von: string; ansage: string; aufnahmeCallback: string; statusCallback: string;
+  /** Wohin Twilio greift, wenn der ANGERUFENE abnimmt. Dort steht die Ansage. */
+  ansageUrl: string;
 }): string {
   const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -204,15 +206,44 @@ export function twimlAusgehend(opts: {
 </Response>`;
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIE ANSAGE MUSS DER KUNDE HÖREN, NICHT DER AGENT
+  //
+  // ── DER BEFUND (11.08.2026) ───────────────────────────────────────────────
+  // Ein Agent: „Die angekündigte Durchsage scheint nur ich zu hören, nicht der
+  // Kunde."
+  //
+  // Er hat recht, und es ist ernster als ein Bedienfehler. Hier stand:
+  //
+  //     <Say>Dieses Gespräch wird aufgezeichnet…</Say>
+  //     <Dial><Number>+49…</Number></Dial>
+  //
+  // Bei einem Anruf AUS DEM BROWSER ist der Agent der Anrufer. Ein <Say> vor
+  // dem <Dial> wird deshalb IHM vorgelesen — der Kunde wird erst danach
+  // gewählt und hat nichts gehört.
+  //
+  // ── WARUM DAS KEIN SCHÖNHEITSFEHLER IST ───────────────────────────────────
+  // Die Aufzeichnung läuft ab dem Abnehmen (`record-from-answer-dual`). Ein
+  // Gespräch ohne Hinweis aufzuzeichnen ist nach §201 StGB strafbar — und der
+  // Hinweis muss den erreichen, der aufgezeichnet wird.
+  //
+  // ── DIE LÖSUNG: `url` AM <Number> ─────────────────────────────────────────
+  // Twilio spielt die dort hinterlegte TwiML ab, sobald der ANGERUFENE
+  // abnimmt — bevor die beiden Seiten verbunden werden. Genau dafür ist das
+  // Attribut da.
+  //
+  // Der Agent hört die Ansage nicht mehr; er weiß ohnehin, dass aufgezeichnet
+  // wird, und musste bisher bei jedem Anruf zwölf Sekunden warten.
+  // ══════════════════════════════════════════════════════════════════════════
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say language="de-DE" voice="Polly.Vicki">${esc(opts.ansage)}</Say>
   <Dial callerId="${esc(von)}" timeout="30" timeLimit="${MAX_MINUTEN * 60}"
         record="record-from-answer-dual"
         recordingStatusCallback="${esc(opts.aufnahmeCallback)}"
         recordingStatusCallbackEvent="completed"
+        answerOnBridge="true"
         action="${esc(opts.statusCallback)}">
-    <Number>${esc(an)}</Number>
+    <Number url="${esc(opts.ansageUrl)}">${esc(an)}</Number>
   </Dial>
 </Response>`;
 }

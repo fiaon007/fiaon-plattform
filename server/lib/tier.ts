@@ -152,10 +152,59 @@ export function personTierSql(): string {
       WHERE ${antragBasisSql("a")}
     ),
     gewinner AS (
+      -- ══════════════════════════════════════════════════════════════════════
+      -- WER NOCH ETWAS OFFEN HAT, IST NICHT FERTIG
+      --
+      -- ── DER BEFUND (11.08.2026) ───────────────────────────────────────────
+      -- Ein Agent: „Unter Bezahlt befinden sich Kunden, bei denen das Paket
+      -- bezahlt, die Schufa aber noch offen ist. Links steht Bezahlt,
+      -- gleichzeitig steht rechts Zusage seit 7 Tagen überfällig."
+      --
+      -- Beides stimmte — es bezog sich nur auf verschiedene Vorgänge. Hier
+      -- stand „ORDER BY rang DESC": der HÖCHSTE Rang gewann. Ein bezahltes
+      -- Paket (60) schlug damit eine offene Bonitätsauskunft (40), und der
+      -- Kunde landete unter „Bezahlt" — mit einer offenen Rechnung.
+      --
+      -- ── DIE RICHTIGE REGEL ────────────────────────────────────────────────
+      -- „Bezahlt" heißt: ALLES bezahlt. Solange ein Vorgang offen ist, ist der
+      -- Kunde Arbeitsvorrat, und der OFFENE Vorgang bestimmt, warum.
+      --
+      -- Also: Gibt es eine offene Buchung, gewinnt die dringlichste davon
+      -- (kleinster Rang unter 60 = weiteste Entfernung vom Abschluss). Gibt es
+      -- keine, bleibt es bei „bezahlt".
+      --
+      -- Gemessen am 11.08.2026: 410 Kunden haben mehr als eine offene Buchung.
+      -- ══════════════════════════════════════════════════════════════════════
       SELECT DISTINCT ON (person_id) person_id, rang, status, ref
       FROM bewertet
       WHERE rang > 0
-      ORDER BY person_id, rang DESC, ref
+      ORDER BY person_id,
+        -- ── NUR EINE OFFENE RECHNUNG SCHLÄGT „BEZAHLT" ────────────────────
+        -- Der erste Entwurf ließ JEDEN offenen Vorgang gewinnen. Gemessen:
+        -- 134 bezahlte Kunden wären zurück in den Vertrieb gewandert — die
+        -- meisten wegen eines ALTEN, ABGEBROCHENEN Antrags ohne
+        -- Zahlungsaufforderung. Das wäre schlimmer als der Fehler: Ein Kunde,
+        -- der bezahlt hat, gehört nicht in die Anrufliste.
+        --
+        -- Eine offene RECHNUNG ist etwas anderes als ein liegengebliebener
+        -- Antrag:
+        --   50  Zahlung angekündigt, Geld fehlt  → echte offene Rechnung
+        --   40  Rechnung offen                   → echte offene Rechnung
+        --   35  Zahlungsfrist abgelaufen         → echte offene Rechnung
+        --   30  Antrag abgeschlossen             → nie eine Rechnung gestellt
+        --   20  Antrag abgebrochen               → nie eine Rechnung gestellt
+        --
+        -- Nur die ersten drei verdecken ein „bezahlt".
+        (rang = 60 AND NOT EXISTS (
+          SELECT 1 FROM bewertet b2
+          WHERE b2.person_id = bewertet.person_id AND b2.rang BETWEEN 35 AND 50
+        )) DESC,
+        (rang BETWEEN 35 AND 50) DESC,
+        -- Unter den offenen Rechnungen die dringlichste. „Zahlung angekündigt"
+        -- (50) ist näher am Abschluss als „Frist abgelaufen" (35) — der höhere
+        -- Rang beschreibt den Zustand, in dem der Kunde wirklich ist.
+        rang DESC,
+        ref
     )
     SELECT p.id                        AS person_id,
            COALESCE(g.rang, 0)         AS rang,

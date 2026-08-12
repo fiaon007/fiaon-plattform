@@ -25,6 +25,7 @@
 
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { aufbereiten } from "../lib/fiaon-buchungen";
 import { requireAgent, type AgentRequest, getSettings } from "./fiaon-agent";
 import { waehlbareNummer } from "../lib/fiaon-telefon";
 import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
@@ -74,6 +75,34 @@ const KARTE_SQL = `
   (SELECT a.pack_name FROM fiaon_applications a
     WHERE a.person_id = p.id AND a.merged_into IS NULL
     ORDER BY a.created_at DESC LIMIT 1) AS pack_name,
+  -- ══════════════════════════════════════════════════════════════════════════
+  -- ALLE BUCHUNGEN, NICHT NUR DIE NEUESTE
+  --
+  -- Ein Agent (11.08.2026) über Shahed Mohammad: „Ursprünglich war er wegen
+  -- seines Pakets bei mir hinterlegt. Jetzt ist das Paket komplett verschwunden
+  -- und er taucht nur noch wegen der Schufa auf."
+  --
+  -- Gemessen: Er hat ZWEI Bestellungen — ultra (79,99 €, 23.07.) und
+  -- Bonitätsauskunft (74 €, 31.07.). Die Karte holte mit
+  -- „ORDER BY created_at DESC LIMIT 1" die neueste; das Paket verschwand.
+  --
+  -- 410 Kunden haben mehr als eine offene Buchung. Alle sahen nur eine.
+  --
+  -- Ein Kunde hat BUCHUNGEN, nicht eine Bestellung. Die Aufbereitung steht in
+  -- server/lib/fiaon-buchungen.ts — hier nur die Rohdaten in einem Rutsch,
+  -- damit es keine Abfrage je Kunde braucht.
+  -- ══════════════════════════════════════════════════════════════════════════
+  (SELECT COALESCE(JSON_AGG(JSON_BUILD_OBJECT(
+            'ref', a.ref, 'pack_key', a.pack_key, 'pack_name', a.pack_name,
+            'amount_due', a.amount_due, 'payment_status', a.payment_status,
+            'status', a.status, 'created_at', a.created_at,
+            'payment_due_date', a.payment_due_date,
+            'payment_reference', a.payment_reference,
+            'cancelled_at', a.cancelled_at, 'refunded_at', a.refunded_at
+          ) ORDER BY a.created_at), '[]'::json)
+     FROM fiaon_applications a
+     WHERE a.person_id = p.id AND a.merged_into IS NULL
+       AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL) AS buchungen_roh,
   (SELECT a.amount_due FROM fiaon_applications a
     WHERE a.person_id = p.id AND a.merged_into IS NULL
     ORDER BY a.created_at DESC LIMIT 1) AS amount_due,
@@ -146,6 +175,10 @@ export function karte(p: any) {
     titel: h.titel,
     hinweis: h.hinweis,
     produkt: p.pack_name ? String(p.pack_name).split("\n")[0].trim() : null,
+    // ── ALLE BUCHUNGEN ────────────────────────────────────────────────────
+    // Damit der Agent sieht, was gebucht wurde, was bezahlt ist und was offen
+    // — auch wenn es zwei Vorgänge sind (Paket + Bonitätsauskunft).
+    buchungen: aufbereiten(p.buchungen_roh),
     betrag: p.amount_due != null ? Math.round(Number(p.amount_due) * 100) : null,
     zusagedatum: p.promised_payment_date,
     wiedervorlage: p.follow_up_date,
@@ -374,6 +407,86 @@ const ORDNUNG: Record<Sortierung, string> = {
   name: `${NAME_SQL} ASC`,
 };
 
+/**
+ * GET /agent/termine/faellig — was steht in der nächsten halben Stunde an?
+ *
+ * ── DER AUFTRAG (11.08.2026) ───────────────────────────────────────────────
+ * Ein Agent: „Bei gebuchten Terminen/Rückrufen gibt es aktuell keine
+ * Erinnerung, wodurch Termine schnell übersehen oder verpasst werden können."
+ *
+ * Eine Mail-Erinnerung gibt es bereits (`runCallbackReminders`, 60 Minuten
+ * vorher über Make). Sie hängt an einem externen Dienst, einer
+ * Zweig-Konfiguration und einem offenen Postfach.
+ *
+ * Diese Route bedient die Leiste IM PORTAL — sie braucht nichts davon.
+ *
+ * ── AUCH DAS ÜBERFÄLLIGE ───────────────────────────────────────────────────
+ * Ein Termin, der vor zwanzig Minuten war, ist wichtiger als einer in zwanzig
+ * Minuten. Deshalb reicht das Fenster zwei Stunden zurück: Wer gerade
+ * telefoniert hat und danach ins Portal schaut, soll sehen, was er verpasst
+ * hat — nicht nur, was kommt.
+ */
+router.get("/agent/termine/faellig", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const vorlauf = Math.min(120, Math.max(5, Number(req.query.vorlauf) || 30));
+    const me = req.agent!.id;
+
+    const [rueckrufe, gespraeche] = await Promise.all([
+      // Rückrufe aus dem Kontaktverlauf.
+      sqlPool`
+        SELECT DISTINCT ON (a.person_id)
+               cl.id AS log_id, a.person_id, cl.scheduled_at, cl.note,
+               COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
+                        p.company_name, p.contact_name, p.primary_phone, 'Ohne Namen') AS name
+        FROM fiaon_contact_log cl
+        JOIN fiaon_applications a ON a.ref = cl.ref
+        JOIN fiaon_persons p ON p.id = a.person_id
+        WHERE cl.agent_id = ${me}
+          AND cl.outcome = 'rueckruf_termin'
+          AND cl.done_at IS NULL AND cl.voided_at IS NULL
+          AND cl.scheduled_at IS NOT NULL
+          AND cl.scheduled_at BETWEEN NOW() - INTERVAL '2 hours'
+                                  AND NOW() + (${vorlauf} || ' minutes')::interval
+          AND p.merged_into_person_id IS NULL
+        ORDER BY a.person_id, cl.scheduled_at DESC
+      `,
+      // Und gebuchte Startgespräche.
+      sqlPool`
+        SELECT t.id AS log_id, t.person_id, t.beginn AS scheduled_at, NULL::text AS note,
+               COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
+                        p.company_name, p.contact_name, 'Ohne Namen') AS name
+        FROM fiaon_termine t
+        JOIN fiaon_persons p ON p.id = t.person_id
+        WHERE t.agent_id = ${me} AND t.status = 'gebucht'
+          AND t.beginn BETWEEN NOW() - INTERVAL '2 hours'
+                           AND NOW() + (${vorlauf} || ' minutes')::interval
+          AND p.merged_into_person_id IS NULL
+      `.catch(() => [] as any[]),
+    ]);
+
+    const bauen = (r: any, art: "rueckruf" | "startgespraech") => ({
+      logId: Number(r.log_id),
+      personId: Number(r.person_id),
+      name: String(r.name),
+      wann: new Date(r.scheduled_at).toISOString(),
+      inMinuten: Math.round((new Date(r.scheduled_at).getTime() - Date.now()) / 60_000),
+      notiz: r.note ? String(r.note).slice(0, 90) : null,
+      art,
+    });
+
+    res.json({
+      ok: true,
+      termine: [
+        ...(rueckrufe as any[]).map((r) => bauen(r, "rueckruf")),
+        ...(gespraeche as any[]).map((r) => bauen(r, "startgespraech")),
+      ].sort((a, b) => a.inMinuten - b.inMinuten),
+    });
+  } catch (err) {
+    console.error("[AGENT] termine/faellig:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     // ══════════════════════════════════════════════════════════════════════
@@ -412,6 +525,24 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
     const sort: Sortierung = ORDNUNG[sortRoh] ? sortRoh : "arbeit";
     const q = String(req.query.q || "").trim();
     const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 300));
+
+    // ══════════════════════════════════════════════════════════════════════
+    // EIN ANGESPRUNGENER KUNDE STEHT IMMER IN DER LISTE
+    //
+    // ── DER BEFUND (11.08.2026) ───────────────────────────────────────────
+    // Ein Agent: „Wenn ich auf einen gebuchten Termin klicke, lande ich zwar
+    // im Bereich Kunden, aber nicht beim entsprechenden Kunden und muss ihn
+    // anschließend nochmal manuell suchen."
+    //
+    // Der Sprung (?person=) war gebaut — er ging nur ins Leere, wenn der Kunde
+    // nicht in der gefilterten Liste steht. Ein Rückruf kann bei jemandem
+    // liegen, der ruht, bezahlt hat oder in einer anderen Stufe ist.
+    //
+    // Diese eine Kennung hebt jeden Filter auf. Die Rechteprüfung bleibt:
+    // `assigned_agent_id = $1` steht unverändert davor, also sieht niemand
+    // einen fremden Kunden.
+    // ══════════════════════════════════════════════════════════════════════
+    const nurPerson = req.query.person ? Number(req.query.person) : null;
 
     const wo: string[] = [
       "p.assigned_agent_id = $1",
@@ -490,7 +621,8 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
       sqlPool.unsafe(`
       SELECT ${KARTE_SQL}
       FROM fiaon_persons p
-      WHERE ${wo.join(" AND ")}
+      WHERE (${wo.join(" AND ")}${nurPerson && Number.isFinite(nurPerson)
+        ? `\n             OR (p.assigned_agent_id = $1 AND p.id = ${Math.trunc(nurPerson)})` : ""})
         AND ($2 = '' OR ${NAME_SQL} ILIKE '%' || $2 || '%'
              OR COALESCE(p.primary_email, '') ILIKE '%' || $2 || '%'
              OR COALESCE(p.primary_phone, '') ILIKE '%' || $2 || '%'

@@ -51,6 +51,16 @@ interface Kunde {
   titel: string;
   hinweis: string;
   produkt: string | null;
+  // ── ALLE BUCHUNGEN, NICHT NUR DIE NEUESTE ────────────────────────────────
+  // Ein Agent über Shahed Mohammad: „Jetzt ist das Paket bei mir komplett
+  // verschwunden und er taucht nur noch wegen der Schufa auf." Er hatte beides
+  // gebucht — die Karte zeigte nur den jüngeren Vorgang.
+  buchungen?: {
+    ref: string; art: "paket" | "bonitaet" | "sonstiges"; bezeichnung: string;
+    betragCents: number | null; zahlungText: string; bezahlt: boolean; offen: boolean;
+    gestelltAm: string | null; faelligAm: string | null;
+    verwendungszweck: string | null; erledigt: boolean;
+  }[];
   betrag: number | null;
   zusagedatum: string | null;
   wiedervorlage: string | null;
@@ -268,6 +278,9 @@ function Inhalt() {
   const [erledigt, setErledigt] = useState<Set<number>>(new Set());
   const [laedt, setLaedt] = useState(true);
   const [filter, setFilter] = useState("alle");
+  // Wer über ?person= angesprungen wurde, muss in der Liste sein — auch wenn
+  // der Filter ihn sonst ausblendet.
+  const [nurPerson, setNurPerson] = useState<number | null>(null);
   const [sort, setSort] = useState("arbeit");
   const [suche, setSuche] = useState("");
   const [offen, setOffen] = useState<number | null>(null);
@@ -283,7 +296,22 @@ function Inhalt() {
     const f = p.get("filter");
     if (f && FILTER.some((x) => x.key === f)) setFilter(f);
     const person = p.get("person");
-    if (person) { setOffen(Number(person)); gesprungen.current = Number(person); }
+    if (person) {
+      setOffen(Number(person));
+      gesprungen.current = Number(person);
+      // ── DER GESUCHTE KUNDE MUSS IN DER LISTE SEIN ────────────────────────
+      // Ein Agent: „Wenn ich auf einen gebuchten Termin klicke, lande ich zwar
+      // im Bereich Kunden, aber nicht beim entsprechenden Kunden und muss ihn
+      // anschließend nochmal manuell suchen."
+      //
+      // Der Sprung war gebaut — er ging nur ins Leere, wenn der Kunde nicht in
+      // der gerade gefilterten Liste steht. Ein Rückruf kann bei jemandem
+      // liegen, der ruht, bezahlt hat oder in einer anderen Stufe ist.
+      //
+      // `nurPerson` sagt dem Server: Diesen einen liefere mir auf jeden Fall,
+      // unabhängig vom Filter.
+      setNurPerson(Number(person));
+    }
   }, []);
 
   /**
@@ -311,6 +339,7 @@ function Inhalt() {
     if (!leise) setLaedt(true);
     const p = new URLSearchParams({ filter, sort });
     if (suche.trim()) p.set("q", suche.trim());
+    if (nurPerson) p.set("person", String(nurPerson));
     const r = await api(`/agent/kunden/liste?${p.toString()}`);
     if (r.ok) {
       // Die Liste NUR ersetzen, wenn es ausdrücklich gewollt ist.
@@ -322,7 +351,7 @@ function Inhalt() {
       setVorrat(r.json.vorrat || {});
     }
     setLaedt(false);
-  }, [filter, sort, suche]);
+  }, [filter, sort, suche, nurPerson]);
 
   useEffect(() => {
     const t = setTimeout(() => void laden(), suche ? 280 : 0);
@@ -808,8 +837,21 @@ function KundenKarte({
               <span className="font-semibold" style={{ color: TIER_FARBE[k.tier] }}>
                 {statusAusTierGrund(k.tierGrund).anzeige}
               </span>
-              {k.betrag != null && <span>· {eur(k.betrag)}</span>}
-              {k.produkt && <span className="truncate">· {k.produkt}</span>}
+              {/* ── WAS IST GEBUCHT UND WAS DAVON OFFEN ────────────────────
+                  Statt „ein Produkt, ein Betrag" jetzt alle nicht stornierten
+                  Buchungen. Bei Shahed Mohammad steht damit wieder das Paket
+                  da, nicht nur die Bonitätsauskunft. */}
+              {(k.buchungen ?? []).filter((b) => !b.erledigt).map((b) => (
+                <span key={b.ref} className="truncate"
+                      style={{ color: b.bezahlt ? "#059669" : undefined }}>
+                  · {b.bezeichnung}
+                  {b.betragCents != null && ` ${eur(b.betragCents)}`}
+                  {b.bezahlt ? " ✓" : ""}
+                </span>
+              ))}
+              {(k.buchungen ?? []).length === 0 && k.produkt && (
+                <span className="truncate">· {k.produkt}</span>
+              )}
             </p>
           </button>
           <span className="shrink-0 flex flex-col items-end gap-1">
@@ -1104,6 +1146,76 @@ function KundenKarte({
 
         {offen && (
           <div className="mt-2.5 grid gap-3 sm:grid-cols-2">
+            {/* ══════════════════════════════════════════════════════════════
+                BUCHUNGEN — WAS HAT ER BESTELLT, WAS IST OFFEN
+
+                ── DER AUFTRAG (11.08.2026) ──────────────────────────────────
+                Ein Agent: „Es wäre wichtig, dass jeder Mitarbeiter in den
+                Stammdaten sehen kann: welches Paket gebucht wurde, welche
+                Zusatzleistungen (z. B. Schufa), was bezahlt bzw. noch offen
+                ist, wann der Antrag gestellt wurde. Aktuell kann teilweise nur
+                der Vertriebsleiter diese Informationen einsehen."
+
+                Alle vier Angaben stehen jetzt hier — für jeden, der den
+                Kunden betreut, ohne Umweg über die Vertriebsleitung.
+                ══════════════════════════════════════════════════════════════ */}
+            {(k.buchungen ?? []).length > 0 && (
+              <div className="p-3 rounded-xl sm:col-span-2"
+                   style={{ background: "var(--fi-seite)" }}>
+                <p className="text-[11px] font-semibold uppercase tracking-[.07em] mb-2"
+                   style={{ color: "var(--fi-text-still)" }}>
+                  Buchungen
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {(k.buchungen ?? []).map((b) => (
+                    <div key={b.ref}
+                         className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 px-2.5 py-1.5 rounded-lg"
+                         style={{
+                           background: b.bezahlt ? "rgba(5,150,105,.06)"
+                             : b.erledigt ? "rgba(15,23,42,.03)" : "rgba(217,119,6,.06)",
+                           opacity: b.erledigt ? .6 : 1,
+                         }}>
+                      <span className="text-[12.5px] font-semibold" style={{ color: "var(--fi-text)" }}>
+                        {b.bezeichnung}
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                            style={b.art === "bonitaet"
+                              ? { background: "rgba(124,58,237,.1)", color: "#6d28d9" }
+                              : { background: "rgba(29,78,216,.08)", color: "var(--fi-primaer)" }}>
+                        {b.art === "bonitaet" ? "Zusatz" : "Paket"}
+                      </span>
+                      {b.betragCents != null && (
+                        <span className="text-[12.5px] font-bold tabular-nums">{eur(b.betragCents)}</span>
+                      )}
+                      <span className="text-[11.5px] font-semibold"
+                            style={{ color: b.bezahlt ? "#059669" : b.erledigt ? "var(--fi-text-still)" : "#b45309" }}>
+                        {b.zahlungText}
+                      </span>
+                      <span className="ml-auto shrink-0 text-[11px] tabular-nums"
+                            style={{ color: "var(--fi-text-still)" }}>
+                        gestellt {b.gestelltAm ? dtag(b.gestelltAm) : "—"}
+                        {b.faelligAm && !b.bezahlt && ` · fällig ${dtag(b.faelligAm)}`}
+                      </span>
+                      {b.verwendungszweck && !b.bezahlt && (
+                        <span className="w-full text-[11px] font-mono"
+                              style={{ color: "var(--fi-text-still)" }}>
+                          Verwendungszweck: {b.verwendungszweck}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {/* Die Summe beantwortet die Frage, die am Telefon kommt:
+                    „Was schulde ich Ihnen denn insgesamt?" */}
+                {(k.buchungen ?? []).some((b) => b.offen) && (
+                  <p className="mt-2 text-[12px]" style={{ color: "#b45309" }}>
+                    Offen insgesamt:{" "}
+                    <b>{eur((k.buchungen ?? []).filter((b) => b.offen)
+                      .reduce((s, b) => s + (b.betragCents ?? 0), 0))}</b>
+                  </p>
+                )}
+              </div>
+            )}
             <div className="p-3 rounded-xl" style={{ background: "var(--fi-seite)" }}>
               <p className="text-[11px] font-semibold uppercase tracking-[.07em] mb-1.5"
                  style={{ color: "var(--fi-text-still)" }}>Stammdaten</p>

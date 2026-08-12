@@ -66,12 +66,32 @@ export const TIER_HINWEISE: Record<TierGrund, TierHinweis> = {
     // Kunden für bezahlt gehalten; ein Kollege hatte den Gegenbeweis. Der Titel
     // kommt jetzt aus dem einen Vokabular (shared/fiaon-kundenstatus.ts) und
     // sagt, was fehlt: das Geld.
-    titel: KUNDENSTATUS.rechnung_offen.text,
+    // ── GEÄNDERT 11.08.2026: „RECHNUNG OFFEN" WAR IRREFÜHREND ─────────────
+    // Ein Agent: „Bei vielen Kunden in ‚Antrag fertig – Rechnung offen' gibt es
+    // keine offene Zahlung/Rechnung. Dadurch gibt es auch keine Zahlungsdaten
+    // und die Zahlungsdaten-E-Mail kann nicht verschickt werden. Außerdem sind
+    // ‚Lead' und ‚Antrag fertig – Rechnung offen' aktuell teilweise praktisch
+    // identisch."
+    //
+    // Er hat recht, und der Titel war schuld: Hier stand wörtlich
+    // KUNDENSTATUS.rechnung_offen — also „Rechnung offen". Gemessen: Von 866
+    // Kunden mit diesem Grund hat GENAU EINER eine offene Rechnung. Bei allen
+    // anderen wurde nie eine gestellt.
+    //
+    // Der Agent sucht also eine Rechnung, die es nicht gibt, findet keinen
+    // Verwendungszweck und kann nichts verschicken.
+    //
+    // Am 08.08. war der Titel schon einmal geändert worden, weil „Antrag
+    // abgeschlossen, keine Zahlung" für „bezahlt" gehalten wurde. Beide Male
+    // dasselbe Problem: Der Titel muss sagen, was ZU TUN ist — hier eine
+    // Rechnung stellen, nicht eine nachfassen.
+    titel: "Antrag fertig — Rechnung noch nicht gestellt",
     hinweis:
-      "Dieser Kunde hat seinen Antrag abgeschlossen, aber noch keine Zahlung " +
-      "bestätigt. Ruf ihn an und sag ihm, dass wir sein Konto gerne aktivieren — " +
-      "dafür muss er nur die Zahlung durchführen. Über den Button " +
-      "„Zahlungsdetails senden\" schickst du ihm direkt seine Rechnung.",
+      "Der Antrag ist vollständig, aber es wurde noch keine Rechnung " +
+      "verschickt — es gibt also auch keinen Verwendungszweck, unter dem Geld " +
+      "ankommen könnte. Ruf an, bestätige das Paket, und schicke über " +
+      "„Zahlungsdetails senden\" die erste Rechnung. Erst danach wird aus " +
+      "diesem Kunden ein Fall für die Nachfass-Liste.",
   },
 
   rechnung_offen: {

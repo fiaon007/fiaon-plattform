@@ -40,6 +40,30 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-rueckmeldung-umgesetzt",
+    date: "2026-08-11",
+    category: "Behoben",
+    title: "Eure Rückmeldung ist umgesetzt — zehn Punkte",
+    summary:
+      "Termine speichern die richtige Uhrzeit, Buchungen sind vollständig sichtbar, die Aufzeichnungs-Ansage hört jetzt der Kunde.",
+    changes: [
+      "TERMINE: Rückrufe verschoben sich um zwei Stunden beim Speichern. Behoben. Prüft bitte eure bestehenden Termine — acht standen noch falsch.",
+      "BUCHUNGEN: Wenn ein Kunde Paket UND Bonitätsauskunft hat, seht ihr jetzt beides. Vorher wurde nur die neuere Bestellung angezeigt — bei 410 Kunden fehlte etwas.",
+      "STAMMDATEN: Aufgeklappt steht jetzt alles — welches Paket, welche Zusatzleistung, was bezahlt und was offen ist, wann der Antrag gestellt wurde, der Verwendungszweck und die Summe des Offenen.",
+      "BEZAHLT: Wer eine offene Rechnung hat, steht nicht mehr unter „Bezahlt“. 39 Kunden sind zurück in den Vertrieb.",
+      "ANTRAG FERTIG: Heißt jetzt „Antrag fertig — Rechnung noch nicht gestellt“. Dort ist eure Aufgabe, die ERSTE Rechnung zu schicken.",
+      "ERGEBNIS: Wenn ein Wählversuch abbricht und ihr es nochmal probiert, gilt euer Ergebnis jetzt für beide Versuche. Vorher blieb einer offen.",
+      "ERREICHT – SONSTIGES: Neuer Status für Gespräche ohne klares Ergebnis. Öffnet direkt die Notiz und zählt als bearbeitet.",
+      "TERMIN-ERINNERUNG: Eine Leiste oben zeigt anstehende und überfällige Termine. Ein Klick führt direkt zum Kunden.",
+      "TELEFON: Die Aufzeichnungs-Ansage hört jetzt der KUNDE, nicht ihr. Vorher wurde er ohne Hinweis aufgezeichnet.",
+      "TELEFON: Während des Gesprächs seht ihr Paket, offenen Betrag und Verwendungszweck — ohne das Gespräch zu verlassen.",
+    ],
+    howto: [
+      "Nichts einzurichten. Wenn euch weiter etwas auffällt: sagt es — genau so ist das hier entstanden.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-11-eingehende-anrufe",
     date: "2026-08-11",
     category: "Neu",

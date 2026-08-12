@@ -254,6 +254,10 @@ export function Softphone() {
   } | null>(null);
   const [gelesen, setGelesen] = useState(false);
   const [ohneAufnahme, setOhneAufnahme] = useState(false);
+  // ── DIE KUNDENDATEN FÜRS GESPRÄCH ──────────────────────────────────────
+  // „Während des Anrufs kann ich die Stammdaten nicht vernünftig einsehen."
+  // Erst beim Verbinden geholt, damit die Wähltastatur nicht wartet.
+  const [gespraechsDaten, setGespraechsDaten] = useState<any>(null);
   // Der Stand des Mikrofonrechts. Wird VOR dem ersten Wählversuch geklärt.
   const [mikrofon, setMikrofon] = useState<"offen" | "erlaubt" | "verweigert">("offen");
   // Hat das SDK schon einen Fehler MIT Twilio-Code gemeldet? Dann bleibt der
@@ -294,6 +298,12 @@ export function Softphone() {
   }, []);
 
   useEffect(() => {
+    if (zustand === "gespraech" && kunde?.personId && !gespraechsDaten) {
+      void fetch(`/api/fiaon/telefon/kunde/${kunde.personId}`, { credentials: "include" })
+        .then((r) => r.json())
+        .then((j) => { if (j?.ok) setGespraechsDaten(j.kunde); })
+        .catch(() => {});
+    }
     if (zustand === "gespraech") {
       uhr.current = setInterval(() => setSekunden((s) => s + 1), 1000);
     } else if (uhr.current) {
@@ -1009,6 +1019,7 @@ export function Softphone() {
           ══════════════════════════════════════════════════════════════════ */}
       <FiaonGeraet offen={offen} onZu={() => setOffen(false)} titel="Telefon">
         <style>{TELEFON_CSS}</style>
+        <style>{TELEFON_DATEN_CSS}</style>
         {/* Der Sparmodus steht in index.css, nicht hier: Er gilt auch für die
             Seite DAHINTER — Space-Video, Mail-Glasflächen, Blasen-Schatten.
             Als Komponenten-Stil griff er nicht; die Stile der Komponenten
@@ -1296,6 +1307,47 @@ export function Softphone() {
             <p className="fi-tel-gross-name">{kunde?.name ?? nummer}</p>
             <p className="fi-tel-uhr">{zustand === "gespraech" ? dauerText(sekunden) : "···"}</p>
             {kunde && <p className="fi-tel-nummer">{nummer}</p>}
+
+            {/* ══════════════════════════════════════════════════════════════
+                DIE STAMMDATEN WÄHREND DES GESPRÄCHS
+
+                ── DER BEFUND (11.08.2026) ────────────────────────────────────
+                Ein Agent: „Während des Anrufs kann ich die Stammdaten und
+                Kundendetails nicht vernünftig einsehen."
+
+                Er hat recht: Hier stand nur Name, Dauer und Nummer. Wer am
+                Telefon gefragt wird „welches Paket habe ich denn gebucht?",
+                musste das Gespräch verlassen.
+
+                Jetzt steht das Wichtigste da — Paket, offener Betrag,
+                Verwendungszweck. Eingeklappt, damit die große Uhr bleibt: Wer
+                sie braucht, tippt einmal.
+                ══════════════════════════════════════════════════════════════ */}
+            {kunde && (
+              <details className="fi-tel-daten">
+                <summary>Kundendaten</summary>
+                {!gespraechsDaten && <p className="fi-tel-daten-laedt">Wird geladen …</p>}
+                {gespraechsDaten && (
+                  <div className="fi-tel-daten-raster">
+                    {([
+                      ["Paket", gespraechsDaten.buchungen?.map((b: any) =>
+                        `${b.bezeichnung}${b.bezahlt ? " ✓" : ""}`).join(", ")],
+                      ["Offen", gespraechsDaten.offenCents
+                        ? `${(gespraechsDaten.offenCents / 100).toFixed(2).replace(".", ",")} €` : null],
+                      ["Verwendungszweck", gespraechsDaten.verwendungszweck],
+                      ["E-Mail", gespraechsDaten.email],
+                      ["Ort", gespraechsDaten.ort],
+                      ["Kunde seit", gespraechsDaten.kundeSeit],
+                    ] as const).filter(([, w]) => w).map(([t, w]) => (
+                      <div key={t}>
+                        <span className="fi-tel-daten-marke">{t}</span>
+                        <span className="fi-tel-daten-wert">{w}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </details>
+            )}
 
             {!ohneAufnahme ? (
               <button type="button" onClick={() => void aufnahmeStoppen()} className="fi-tel-widerspruch">
@@ -1906,5 +1958,41 @@ const EINGEHEND_CSS = `
 @media (prefers-reduced-motion: reduce) {
   .fi-ein { animation: none; }
   .fi-ein-puls { animation: none; box-shadow: 0 0 0 3px rgba(52,211,153,.35); }
+}
+`;
+
+const TELEFON_DATEN_CSS = `
+/* ── STAMMDATEN IM GESPRÄCH ────────────────────────────────────────────────
+   Eingeklappt, damit die große Uhr sichtbar bleibt. Wer sie braucht, tippt
+   einmal — das ist schneller, als das Gespräch zu verlassen. */
+.fi-tel-daten {
+  margin: 12px 14px 0; text-align: left;
+  border-radius: 12px; overflow: hidden;
+  background: rgba(255,255,255,.06);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.09);
+}
+.fi-tel-daten > summary {
+  padding: 8px 12px; cursor: pointer; list-style: none;
+  font-size: 11.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  color: rgba(191,214,247,.8) !important;
+}
+.fi-tel-daten > summary::-webkit-details-marker { display: none; }
+.fi-tel-daten > summary::after { content: " ▾"; opacity: .55; }
+.fi-tel-daten[open] > summary::after { content: " ▴"; }
+.fi-tel-daten-raster { padding: 2px 12px 10px; display: flex; flex-direction: column; gap: 6px; }
+.fi-tel-daten-raster > div { display: flex; gap: 9px; align-items: baseline; }
+.fi-tel-daten-marke {
+  width: 92px; flex-shrink: 0;
+  font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: rgba(191,214,247,.6) !important;
+}
+.fi-tel-daten-wert {
+  min-width: 0; flex: 1; font-size: 12.5px; line-height: 1.4;
+  overflow-wrap: anywhere;
+  color: #eef4ff !important;
+}
+.fi-tel-daten-laedt {
+  padding: 2px 12px 10px; font-size: 12px;
+  color: rgba(191,214,247,.6) !important;
 }
 `;

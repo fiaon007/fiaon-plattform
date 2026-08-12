@@ -37,7 +37,13 @@ type Lauf = typeof sqlPool;
 export type Zielgruppe = "kunde" | "mitarbeiter";
 export type Gruppe = "zahlung" | "termin" | "konto" | "dokumente" | "team" | "lead";
 /** Wer darf dieses Ereignis von Hand auslösen? */
-export type Rolle = "admin" | "vertriebsleiter" | "agent" | "onboarding";
+// ── „inkasso" GEHÖRT DAZU (11.08.2026) ─────────────────────────────────────
+// Der Vorgesetzte: „Wenn der Inkasso-Mitarbeiter auf ‚senden' klickt … es geht
+// nicht!" Nach dem Beheben der Rollenprüfung öffnete sich das Menü — LEER.
+// Kein einziges Ereignis war für diese Rolle freigegeben.
+//
+// Ein Sende-Menü ohne Auswahl ist so nutzlos wie ein verschlossenes.
+export type Rolle = "admin" | "vertriebsleiter" | "agent" | "onboarding" | "inkasso";
 
 export interface EventZusatz {
   gruppe: Gruppe;
@@ -62,7 +68,10 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     klartext: "Begrüßung mit dem Weg ins Konto. Geht automatisch nach der Zahlungsbuchung — von Hand, wenn der Kunde sie nicht findet.",
   },
   payment_details: {
-    gruppe: "zahlung", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent"],
+    // Das Forderungsmanagement braucht genau diese Mail am häufigsten:
+    // „Ich schicke Ihnen die Daten gleich noch zu."
+    gruppe: "zahlung", zielgruppe: "kunde",
+    rollen: ["admin", "vertriebsleiter", "agent", "inkasso"],
     klartext: "Bankverbindung, Betrag und Verwendungszweck. Geht nach dem Antrag automatisch raus.",
   },
   payment_reminder: {
@@ -74,12 +83,20 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     klartext: "Bestätigung, dass die Zahlungsmeldung angekommen ist — noch keine Freischaltung.",
   },
   payment_confirmed: {
-    gruppe: "zahlung", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter"],
+    // Wer die Zahlung einholt, darf ihren Eingang auch bestätigen.
+    gruppe: "zahlung", zielgruppe: "kunde",
+    rollen: ["admin", "vertriebsleiter", "inkasso"],
     klartext: "Das Geld ist da, das Konto ist offen. Geht bei der Buchung automatisch raus.",
   },
   abo_payment_reminder: {
-    gruppe: "zahlung", zielgruppe: "kunde", rollen: ["admin"],
-    klartext: "Monatliche Rate fällig oder überfällig, in drei Mahnstufen.",
+    // ── DIE WICHTIGSTE MAIL DES FORDERUNGSMANAGEMENTS ────────────────────
+    // Sie war nur für „admin" freigegeben — also für niemanden, der
+    // tatsächlich anruft. Der Mensch, dessen ganze Arbeit darin besteht,
+    // offene Raten einzuholen, konnte die Rate-Erinnerung nicht verschicken.
+    gruppe: "zahlung", zielgruppe: "kunde",
+    rollen: ["admin", "vertriebsleiter", "inkasso"],
+    klartext: "Monatliche Rate fällig oder überfällig, in drei Mahnstufen. "
+      + "Enthält Betrag, Bankdaten und den Verwendungszweck der Rate.",
   },
   nicht_erreicht_termin: {
     gruppe: "termin", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent"],

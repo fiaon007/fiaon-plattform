@@ -8,7 +8,7 @@
 import { Router, type Request, type Response } from "express";
 import { tageslauf } from "../lib/fiaon-crons";
 import { sqlPool } from "../lib/db-pool";
-import { darfAnKunde } from "../lib/fiaon-kundenzugriff";
+import { darfAnKunde, rolleVon } from "../lib/fiaon-kundenzugriff";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureRolleSpalte } from "./fiaon-vertrieb";
 import {
@@ -23,13 +23,10 @@ import { absoluteUrl } from "../fiaon-base-url";
 
 const router = Router();
 
-async function rolleVon(agentId: number): Promise<string> {
-  await ensureRolleSpalte();
-  const [a] = (await sqlPool`
-    SELECT rolle, is_test_account FROM fiaon_agents WHERE id = ${agentId} AND active
-  `) as any[];
-  return String(a?.rolle || "agent");
-}
+// ── DIE ROLLE KOMMT AUS fiaon-kundenzugriff.ts ───────────────────────────
+// Hier stand eine eigene Fassung. Die in fiaon-mail.ts deutete „inkasso"
+// stillschweigend zu „agent" um — eine Erlaubnisliste aus drei Namen, die
+// niemand erweiterte. Der Inkasso-Mitarbeiter bekam beim Senden 403.
 
 /**
  * Darf dieses Konto NICHT telefonieren?

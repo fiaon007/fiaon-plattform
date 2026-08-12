@@ -28,6 +28,46 @@ import { sqlPool } from "./db-pool";
 
 type Lauf = typeof sqlPool;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WELCHE ROLLE HAT DIESER MENSCH?
+//
+// ── DER BEFUND (11.08.2026) ────────────────────────────────────────────────
+// Der Vorgesetzte: „Wenn der Inkasso-Mitarbeiter auf ‚senden' klickt, öffnet
+// sich das E-Mail-PopUp … und es geht nicht!"
+//
+// Gemessen: HTTP 403 „Dieser Kunde wird von jemand anderem betreut."
+//
+// Die Ursache stand in `fiaon-mail.ts`:
+//
+//     return (["vertriebsleiter", "onboarding", "agent"].includes(r)
+//       ? r : "agent") as Rolle;
+//
+// „inkasso" war nicht in der Liste und wurde stillschweigend zu „agent"
+// umgedeutet. Damit fragte `darfAnKunde` nach `assigned_agent_id` — und
+// Inkasso-Mitarbeiter haben keine zugewiesenen Vertriebskunden.
+//
+// Dieselbe Falle wie heute Mittag beim Telefon: eine ERLAUBNISLISTE, die man
+// bei jeder neuen Rolle erweitern muss und genau dann vergisst. Der Fehler
+// fällt erst auf, wenn ein Mensch vor einer verschlossenen Tür steht.
+//
+// Die Funktion stand in DREI Dateien (fiaon-mail, fiaon-telefonie,
+// fiaon-versand) — mit drei verschiedenen Fassungen. Jetzt hier, einmal.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Die Rolle, wie sie in der Datenbank steht — ohne Umdeutung.
+ *
+ * Wer keine Rolle hat, ist „agent": Das ist die Voreinstellung seit dem ersten
+ * Tag und die engste. Wer eine hat, bekommt SIE — auch eine, die es beim
+ * Schreiben dieser Zeilen noch nicht gab.
+ */
+export async function rolleVon(agentId: number, lauf: Lauf = sqlPool): Promise<string> {
+  const [a] = (await lauf`
+    SELECT rolle FROM fiaon_agents WHERE id = ${agentId} AND active
+  `) as any[];
+  return String(a?.rolle || "agent");
+}
+
 export async function darfAnKunde(
   agentId: number, rolle: string, personId: number, lauf: Lauf = sqlPool,
 ): Promise<boolean> {

@@ -75,11 +75,37 @@ export function SendeMenue({
   const [busy, setBusy] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<{ art: "gut" | "schlecht"; text: string } | null>(null);
   const [vorschau, setVorschau] = useState<string | null>(null);
+  const [ladeFehler, setLadeFehler] = useState<string | null>(null);
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // EIN FEHLER MUSS SICHTBAR WERDEN
+  //
+  // ── DER BEFUND (11.08.2026) ───────────────────────────────────────────────
+  // Der Vorgesetzte: „Wenn der Inkasso-Mitarbeiter auf ‚senden' klickt, öffnet
+  // sich das E-Mail-PopUp … und es geht nicht!"
+  //
+  // Es stand ewig „Wird geladen …". Der Server hatte längst geantwortet — mit
+  // HTTP 403, weil `rolleVon` in fiaon-mail.ts die Rolle „inkasso" zu „agent"
+  // umdeutete.
+  //
+  // Hier stand nur `if (j?.ok) setDaten(…)`. Ohne `else` blieb `daten` auf
+  // null, und das Fenster zeigte für immer den Ladehinweis.
+  //
+  // Ein verschluckter Fehler ist schlimmer als ein sichtbarer: Der Mensch
+  // wartet, versucht es nochmal, wartet wieder — und meldet am Ende „geht
+  // nicht", ohne dass jemand weiß, woran es lag.
+  // ══════════════════════════════════════════════════════════════════════════
   const laden = useCallback(async () => {
+    setLadeFehler(null);
     const r = await fetch(`${basis}/${personId}`, { credentials: "include" }).catch(() => null);
-    const j = await r?.json().catch(() => null);
-    if (j?.ok) setDaten({ events: j.events || [], historie: j.historie || [] });
+    if (!r) { setLadeFehler("Keine Verbindung zum Server. Bitte noch einmal versuchen."); return; }
+    const j = await r.json().catch(() => null);
+    if (j?.ok) { setDaten({ events: j.events || [], historie: j.historie || [] }); return; }
+    setLadeFehler(
+      j?.error
+        ? `${j.error} (Antwort ${r.status})`
+        : `Der Server antwortete mit ${r.status}. Bitte den Vorgesetzten informieren.`,
+    );
   }, [basis, personId]);
 
   useEffect(() => { if (offen) void laden(); }, [offen, laden]);
@@ -137,7 +163,27 @@ export function SendeMenue({
           Aufgabe übernimmt, muss die alte Stelle mitnehmen; sonst sieht man
           beides.
           ══════════════════════════════════════════════════════════════════ */}
-      <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-4">
+      {/* ══════════════════════════════════════════════════════════════════
+          KEIN ZWEITER SCROLL-KASTEN
+
+          ── DER BEFUND (11.08.2026) ────────────────────────────────────────
+          Der Vorgesetzte: „Es sieht schrecklich aus vom Design, es schneidet
+          oben und unten alles ab."
+
+          Hier stand `flex-1 overflow-y-auto`. Der Elternknoten der Ebene
+          (.fi-ebene-koerper) hat aber bereits `flex: 1 1 auto; min-height: 0;
+          overflow-y: auto` — und ER ist der Kasten mit Höhenbegrenzung.
+
+          Ein zweiter Scroll-Container darin hat keine eigene Höhe: `flex-1`
+          wirkt nur in einem Flex-Elternteil, den es hier nicht gibt. Also
+          wuchs er ungebremst, und der Inhalt lief unten aus dem Fenster
+          heraus — im Schnappschuss schwebte ein „Senden"-Knopf über der
+          Kundenliste.
+
+          Das eigene Innenmaß bleibt: Die Ebene bringt ihres mit, aber die
+          Kacheln brauchen etwas mehr Luft an den Seiten.
+          ══════════════════════════════════════════════════════════════════ */}
+      <div className="px-0.5 sm:px-1.5">
         {meldung && (
           <p className="mb-3 px-3 py-2.5 rounded-xl text-[12.5px] font-semibold"
              style={meldung.art === "gut"
@@ -147,7 +193,19 @@ export function SendeMenue({
           </p>
         )}
 
-        {!daten && <p className="text-[13px]" style={{ color: "var(--fi-text-still)" }}>Wird geladen …</p>}
+        {ladeFehler && (
+          <div className="px-3.5 py-3 rounded-xl mb-3"
+               style={{ background: "rgba(217,119,6,.08)", color: "#b45309" }}>
+            <p className="text-[12.5px] font-semibold leading-relaxed">{ladeFehler}</p>
+            <button type="button" onClick={() => void laden()}
+                    className="mt-2 text-[12px] font-bold underline">
+              Noch einmal versuchen
+            </button>
+          </div>
+        )}
+        {!daten && !ladeFehler && (
+          <p className="text-[13px]" style={{ color: "var(--fi-text-still)" }}>Wird geladen …</p>
+        )}
 
         {daten && GRUPPEN.filter((g) => nachGruppe.has(g.schluessel)).map((g) => (
           <div key={g.schluessel} className="mb-5">

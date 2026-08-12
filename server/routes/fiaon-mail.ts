@@ -7,7 +7,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
-import { darfAnKunde } from "../lib/fiaon-kundenzugriff";
+import { darfAnKunde, rolleVon } from "../lib/fiaon-kundenzugriff";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureRolleSpalte } from "./fiaon-vertrieb";
 import {
@@ -22,12 +22,10 @@ import { empfaengerSuche, filterGruppen, zielgruppeLaden, bausteineFuellen, BAUS
 
 const router = Router();
 
-async function rolleVon(agentId: number): Promise<Rolle> {
-  await ensureRolleSpalte();
-  const [a] = (await sqlPool`SELECT rolle FROM fiaon_agents WHERE id = ${agentId} AND active`) as any[];
-  const r = String(a?.rolle || "agent");
-  return (["vertriebsleiter", "onboarding", "agent"].includes(r) ? r : "agent") as Rolle;
-}
+// ── DIE ROLLE KOMMT AUS fiaon-kundenzugriff.ts ───────────────────────────
+// Hier stand eine eigene Fassung. Die in fiaon-mail.ts deutete „inkasso"
+// stillschweigend zu „agent" um — eine Erlaubnisliste aus drei Namen, die
+// niemand erweiterte. Der Inkasso-Mitarbeiter bekam beim Senden 403.
 
 /** Testadresse aus den Einstellungen — eine Stelle, nicht drei. */
 async function testAdresse(): Promise<string> {
@@ -228,6 +226,9 @@ router.post("/admin/mail/alle-pruefen", async (req: Request, res: Response) => {
 router.get("/agent/mail/:personId", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const personId = Number(req.params.personId);
+    // Die Rolle kommt als Text, ungefiltert. Der enge Typ `Rolle` war genau
+    // das Problem: Er zwang zu einer Erlaubnisliste, und „inkasso" fiel
+    // hindurch.
     const rolle = await rolleVon(req.agent!.id);
     if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
       return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
@@ -235,7 +236,7 @@ router.get("/agent/mail/:personId", requireAgent, async (req: AgentRequest, res:
     // Registry und Historie hängen nicht voneinander ab — also nebeneinander.
     // Jede Runde zur Datenbank kostet rund eine Viertelsekunde (Oregon).
     const [alleEvents, historie] = await Promise.all([
-      eventsFuerRolle(rolle),
+      eventsFuerRolle(rolle as any),
       versandHistorie(personId),
     ]);
     const events = alleEvents.filter((x) => x.zielgruppe === "kunde");
@@ -265,13 +266,16 @@ router.get("/agent/mail/:personId", requireAgent, async (req: AgentRequest, res:
 router.post("/agent/mail/:personId/:event", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const personId = Number(req.params.personId);
+    // Die Rolle kommt als Text, ungefiltert. Der enge Typ `Rolle` war genau
+    // das Problem: Er zwang zu einer Erlaubnisliste, und „inkasso" fiel
+    // hindurch.
     const rolle = await rolleVon(req.agent!.id);
     if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
       return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
     }
     const erg = await mailSenden({
       event: String(req.params.event), personId,
-      akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle },
+      akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: rolle as any },
     });
     res.json({ ...erg, historie: await versandHistorie(personId) });
   } catch (err) {

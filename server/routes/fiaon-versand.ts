@@ -8,6 +8,7 @@
 
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { rolleVon } from "../lib/fiaon-kundenzugriff";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureRolleSpalte } from "./fiaon-vertrieb";
 import {
@@ -19,11 +20,10 @@ import { terminLink } from "../lib/fiaon-termine";
 
 const router = Router();
 
-async function rolleVon(agentId: number): Promise<string> {
-  await ensureRolleSpalte();
-  const [a] = (await sqlPool`SELECT rolle FROM fiaon_agents WHERE id = ${agentId} AND active`) as any[];
-  return String(a?.rolle || "agent");
-}
+// ── DIE ROLLE KOMMT AUS fiaon-kundenzugriff.ts ───────────────────────────
+// Hier stand eine eigene Fassung. Die in fiaon-mail.ts deutete „inkasso"
+// stillschweigend zu „agent" um — eine Erlaubnisliste aus drei Namen, die
+// niemand erweiterte. Der Inkasso-Mitarbeiter bekam beim Senden 403.
 
 /**
  * Darf dieser Mitarbeiter an diesen Kunden senden?

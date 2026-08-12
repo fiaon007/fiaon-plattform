@@ -904,6 +904,56 @@ async function main(): Promise<void> {
   ok("Die Erfolgsmeldung bleibt lesbar stehen",
     /window\.setTimeout\(\(\) => onGeaendert\(\), 4000\)/.test(inkQ)
     && /DASS sie unterwegs ist/.test(inkQ));
+  // ═══════════════════════════════════════════════════════════════════════
+  // DAS SENDE-MENÜ DES FORDERUNGSMANAGEMENTS
+  //
+  // ── DER BEFUND (11.08.2026) ───────────────────────────────────────────
+  // Der Vorgesetzte: „Wenn der Inkasso-Mitarbeiter auf ‚senden' klickt, öffnet
+  // sich das E-Mail-PopUp. 1. sieht es schrecklich aus vom Design, es
+  // schneidet oben und unten alles ab und 2. geht es nicht!"
+  //
+  // Drei Fehler übereinander:
+  const mailQ = datei("server/routes/fiaon-mail.ts");
+  const kzQ = datei("server/lib/fiaon-kundenzugriff.ts");
+  const evQ = datei("server/lib/fiaon-mail-events.ts");
+  const smQ = datei("client/src/components/SendeMenue.tsx");
+
+  // 1. HTTP 403: `rolleVon` deutete „inkasso" zu „agent" um.
+  ok("Die Rolle wird nicht mehr umgedeutet",
+    /export async function rolleVon/.test(kzQ)
+    && !/\["vertriebsleiter", "onboarding", "agent"\]\.includes\(r\)/.test(mailQ));
+  ok("… und sie steht an EINEM Ort statt in drei Dateien",
+    /Die Funktion stand in DREI Dateien/.test(kzQ)
+    && !/async function rolleVon/.test(mailQ)
+    && !/async function rolleVon/.test(datei("server/routes/fiaon-telefonie.ts"))
+    && !/async function rolleVon/.test(datei("server/routes/fiaon-versand.ts")));
+
+  // 2. Leeres Menü: kein Ereignis war für „inkasso" freigegeben.
+  ok("„inkasso“ ist eine bekannte Mail-Rolle", /\| "inkasso";/.test(evQ));
+  const { eventsFuerRolle } = await import("../server/lib/fiaon-mail-events");
+  const inkEvents = await eventsFuerRolle("inkasso" as any);
+  ok(`${inkEvents.length} Mail-Ereignisse für das Forderungsmanagement`,
+    inkEvents.length >= 3,
+    inkEvents.map((e: any) => e.type).join(", "));
+  ok("… darunter die Raten-Erinnerung",
+    inkEvents.some((e: any) => e.type === "abo_payment_reminder"));
+  ok("… und die Zahlungsdaten", inkEvents.some((e: any) => e.type === "payment_details"));
+
+  // 3. Ewiges „Wird geladen": der Fehler wurde verschluckt.
+  ok("Ein Ladefehler wird angezeigt, nicht verschluckt",
+    /setLadeFehler/.test(smQ) && /Noch einmal versuchen/.test(smQ));
+  ok("… mit dem HTTP-Code darin", /\(Antwort \$\{r\.status\}\)/.test(smQ));
+  ok("Der Grund steht dabei",
+    /Ein verschluckter Fehler ist schlimmer als ein sichtbarer/.test(smQ));
+
+  // 4. Abgeschnitten: transform auf der Karte brach `position: fixed`.
+  ok("Das Sende-Menü steht auf Seitenebene, nicht in der Karte",
+    /\{sendeMenue != null && \(/.test(inkQ)
+    && /Vorfahren macht aus/.test(inkQ));
+  ok("… und es gibt keinen zweiten Scroll-Kasten",
+    /KEIN ZWEITER SCROLL-KASTEN/.test(smQ)
+    && !/flex-1 overflow-y-auto px-5/.test(smQ));
+
   ok("Zustände stehen in Worten, nicht als Rohwert",
     /ZUGANG_TEXT/.test(inkQ) && /BONITAET_TEXT/.test(inkQ)
     && /noch nicht freigeschaltet/.test(inkQ));

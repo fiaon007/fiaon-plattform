@@ -381,12 +381,6 @@ export default function AgentInkasso() {
                 </button>
               </div>
 
-              {sendeMenue === f.person_id && (
-                <SendeMenue personId={f.person_id} offen
-                            basis="/api/fiaon/agent/mail"
-                            onSchliessen={() => setSendeMenue(null)}
-                            onGesendet={() => { setSendeMenue(null); void laden(); }} />
-              )}
             </div>
           );
         })}
@@ -396,6 +390,33 @@ export default function AgentInkasso() {
           @media (prefers-reduced-motion: reduce) { [style*="inkAuf"] { animation: none !important } }
         `}</style>
       </div>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          DAS SENDE-MENÜ GEHÖRT HIERHER, NICHT IN DIE KARTE
+
+          ── DER BEFUND (11.08.2026) ────────────────────────────────────────
+          Der Vorgesetzte: „Es sieht schrecklich aus vom Design, es schneidet
+          oben und unten alles ab."
+
+          Gemessen: Die Bühne des Fensters war 147 px hoch statt
+          bildschirmfüllend, und das Fenster darin 634 px — es ragte oben und
+          unten heraus.
+
+          Der Grund ist eine CSS-Eigenheit: Die Kundenkarte trägt eine
+          Einblend-Animation mit `transform`. Ein `transform` auf einem
+          Vorfahren macht aus `position: fixed` ein `position: absolute`
+          relativ zu DIESEM Element. Die Bühne, die den ganzen Bildschirm
+          bedecken sollte, bedeckte nur die Karte.
+
+          Deshalb steht das Menü jetzt auf Seitenebene — außerhalb jeder
+          Karte, jeder Animation, jedes Transforms. Genau wie die Akte.
+          ══════════════════════════════════════════════════════════════════ */}
+      {sendeMenue != null && (
+        <SendeMenue personId={sendeMenue} offen
+                    basis="/api/fiaon/agent/mail"
+                    onSchliessen={() => setSendeMenue(null)}
+                    onGesendet={() => { setSendeMenue(null); void laden(); }} />
+      )}
 
       {akte && (
         <InkassoAkte fall={akte} onZu={() => setAkte(null)}

@@ -242,8 +242,26 @@ export async function zugangsAusweis(agentId: number): Promise<{ ok: boolean; to
     );
     ausweis.addGrant(new AccessToken.VoiceGrant({
       outgoingApplicationSid: process.env.TWILIO_TWIML_APP_SID!,
-      // Ausdrücklich KEINE eingehenden Rufe: Der Browser soll nicht klingeln.
-      incomingAllow: false,
+      // ══════════════════════════════════════════════════════════════════════
+      // JETZT AUCH EINGEHEND
+      //
+      // ── DER AUFTRAG (11.08.2026) ─────────────────────────────────────────
+      // Der Vorgesetzte: „Wir brauchen jetzt die Funktion, dass der Kunde uns
+      // auch anrufen kann. Wichtig: Wenn der Kunde anruft, muss stehen, wer
+      // dafür zuständig ist, damit der richtige rangeht!"
+      //
+      // Hier stand `incomingAllow: false` mit der Begründung, ein Browser, der
+      // klingeln soll, müsse offen sein. Das stimmt — und ist kein Grund,
+      // eingehende Rufe unmöglich zu machen. Wer den Tab offen hat, soll
+      // erreichbar sein; wer nicht, dessen Anruf geht weiter an die nächste
+      // Stelle (siehe fiaon-anruf-eingehend.ts).
+      //
+      // ── DIE IDENTITÄT IST DIE ADRESSE ────────────────────────────────────
+      // `agent-<id>` ist die Kennung, unter der Twilio diesen Browser erreicht.
+      // Das TwiML für eingehende Rufe wählt genau diese Kennung — deshalb muss
+      // sie stabil bleiben und darf nie geraten werden.
+      // ══════════════════════════════════════════════════════════════════════
+      incomingAllow: true,
     }));
     return { ok: true, token: ausweis.toJwt(), identitaet };
   } catch (err) {

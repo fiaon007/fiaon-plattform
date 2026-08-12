@@ -1150,6 +1150,105 @@ async function main(): Promise<void> {
     /prefers-reduced-motion[\s\S]{0,200}\.fi-kosten-glanz \{ display: none; \}/.test(tzQ2));
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c12. Der Kunde kann uns anrufen");
+  // ═══════════════════════════════════════════════════════════════════════
+  // ── DER AUFTRAG ───────────────────────────────────────────────────────
+  // Der Vorgesetzte: „Wir brauchen jetzt die Funktion, dass der Kunde uns auch
+  // anrufen kann. Wichtig: Wenn der Kunde anruft, muss stehen, wer dafür
+  // zuständig ist, damit der richtige rangeht! Irgendwie bauen, dass es smart
+  // ist und nicht stört!"
+  const eiQ = datei("server/lib/fiaon-anruf-eingehend.ts");
+  const spQ2 = datei("server/lib/fiaon-softphone.ts");
+  const telQ2 = datei("server/routes/fiaon-telefonie.ts");
+  const sofQ = datei("client/src/components/Softphone.tsx");
+
+  ok("Der Ausweis erlaubt eingehende Anrufe", /incomingAllow: true/.test(spQ2));
+  ok("Das Gerät meldet sich bei Twilio an", /void d\.register\(\)/.test(sofQ));
+  ok("… und ein Fehlschlag verhindert das Telefonieren NICHT",
+    /Ein ausgehender Anruf braucht register\(\) NICHT/.test(sofQ));
+  ok("Es klingelt nicht, während man telefoniert",
+    /allowIncomingWhileBusy: false/.test(sofQ));
+  ok("Ein Anruf wird NICHT automatisch angenommen",
+    /ein Lautsprecher im Büro/.test(sofQ));
+
+  ok("Es gibt eine Route für eingehende Anrufe",
+    /router\.post\("\/telefon\/eingehend"/.test(telQ2));
+  ok("… und die Twilio-Einrichtung steht dabei",
+    /A call comes in:  Webhook/.test(telQ2));
+  ok("Auch ein Fehler lässt den Anrufer nicht ins Leere laufen",
+    /technische Störung vor/.test(telQ2));
+
+  // ── DIE ZUSTÄNDIGKEIT ─────────────────────────────────────────────────
+  const { zustaendigFuer, nummerKern } = await import("../server/lib/fiaon-anruf-eingehend");
+  gleich("Nummernkern: +49-Form", nummerKern("+49 176 1234 5678"), "612345678");
+  gleich("Nummernkern: 0176-Form ergibt DASSELBE", nummerKern("0176/12345678"), "612345678");
+  ok("Zu kurze Eingaben ergeben nichts", nummerKern("12345") === null);
+  ok("Die indexierte Spalte phone_key9 wird genutzt",
+    /p\.phone_key9 = \$\{kern\}/.test(eiQ)
+    && /Eine zweite Fassung wäre nicht nur doppelt, sondern LANGSAMER/.test(eiQ));
+
+  const [mitRate] = (await sqlPool`
+    SELECT p.primary_phone AS n FROM fiaon_persons p
+    JOIN fiaon_applications a ON a.person_id = p.id JOIN fiaon_abo_raten r ON r.ref = a.ref
+    WHERE r.status <> 'bezahlt' AND r.faellig_am < CURRENT_DATE
+      AND p.primary_phone IS NOT NULL LIMIT 1
+  `) as any[];
+  if (mitRate) {
+    const z = await zustaendigFuer(String(mitRate.n));
+    ok("Ein Kunde mit offener Rate landet beim Forderungsmanagement",
+      z.rolle === "inkasso", `${z.agentName} · ${z.grund}`);
+    ok("… und der Grund nennt Tage und Betrag",
+      /Rate seit \d+ Tag/.test(z.grund) && /€/.test(z.grund));
+    ok("… weitergegeben wird an Inkasso-Kollegen, nicht an den Vertrieb",
+      z.weiterAn.length >= 0 && /nicht an den Vertrieb/.test(eiQ));
+  }
+  const unbekannt = await zustaendigFuer("+4930999999999");
+  ok("Eine unbekannte Nummer erzeugt KEIN Klingeln",
+    unbekannt.agentId === null && unbekannt.grundKennung === "niemand");
+
+  // ── DAS TwiML ─────────────────────────────────────────────────────────
+  const { twimlEingehend, twimlNachDial } = await import("../server/lib/fiaon-anruf-eingehend");
+  const xmlLeer = twimlEingehend({
+    z: unbekannt, ansage: "Test.", aufnahmeCallback: "https://x/a",
+    statusCallback: "https://x/s", verpasstCallback: "https://x/v",
+  });
+  ok("Ohne Zuständigen: Ansage statt Klingeln",
+    !xmlLeer.includes("<Dial") && xmlLeer.includes("<Say"));
+  ok("… und es beginnt mit einer gültigen XML-Zeile", xmlLeer.startsWith("<?xml"));
+  if (mitRate) {
+    const z = await zustaendigFuer(String(mitRate.n));
+    const xml = twimlEingehend({
+      z, ansage: "Guten Tag. Dieses Gespräch wird aufgezeichnet.",
+      aufnahmeCallback: "https://x/a", statusCallback: "https://x/s",
+      verpasstCallback: "https://x/v",
+    });
+    ok("Es klingelt beim Zuständigen ZUERST",
+      xml.indexOf(`agent-${z.agentId}`) > 0
+      && xml.indexOf(`agent-${z.agentId}`) < (xml.indexOf("Einen Moment") > 0 ? xml.indexOf("Einen Moment") : xml.length));
+    ok("Die Aufzeichnung ist an", /record="record-from-answer-dual"/.test(xml));
+    ok("… und die Ansage begrüßt nur EINMAL",
+      (xml.match(/Guten Tag/g) || []).length === 1,
+      "Vorher stand zweimal „Guten Tag“.");
+    ok("Es gibt eine Endansage, wenn niemand rangeht",
+      /Leider ist gerade niemand frei/.test(xml));
+  }
+  ok("Nach einem angenommenen Anruf kommt keine Ansage mehr",
+    /<Hangup\/>/.test(twimlNachDial("completed"))
+    && !/<Say/.test(twimlNachDial("completed")));
+  ok("Nach „nicht angenommen“ läuft die Kette weiter",
+    twimlNachDial("no-answer").includes("<Response/>"));
+
+  // ── DIE ANZEIGE ───────────────────────────────────────────────────────
+  ok("Das Klingelfenster nennt Kunde, Grund und Vertretung",
+    /fi-ein-name/.test(sofQ) && /fi-ein-grund/.test(sofQ) && /fi-ein-vertretung/.test(sofQ));
+  ok("… „Weitergeben“ gibt weiter, statt zu beenden",
+    /sagt Twilio „nicht bei mir/.test(sofQ));
+  ok("… und die Erreichbarkeit steht im Display",
+    /Bereit · erreichbar/.test(sofQ));
+  ok("Ein Puls, kein Blinken",
+    /Ein Puls, kein Blinken/.test(sofQ) && /@keyframes fiEinPuls/.test(sofQ));
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");
   // ═══════════════════════════════════════════════════════════════════════
   const fQ = datei("client/src/components/PremiumFooter.tsx");

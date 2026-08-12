@@ -196,6 +196,140 @@ router.post("/telefon/ausweis", requireAgent, async (req: AgentRequest, res: Res
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// EINGEHENDE ANRUFE
+//
+// ── EINRICHTUNG BEI TWILIO ─────────────────────────────────────────────────
+// Console → Phone Numbers → die eigene Nummer → Voice Configuration:
+//
+//     A call comes in:  Webhook
+//     URL:              https://www.fiaon.com/api/fiaon/telefon/eingehend
+//     HTTP:             POST
+//
+// Das ist NICHT die TwiML-App (die ist für ausgehende Rufe aus dem Browser),
+// sondern die Einstellung an der Nummer selbst.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /telefon/eingehend — ein Kunde ruft an.
+ *
+ * ── OFFEN, ABER NICHT UNGESCHÜTZT ─────────────────────────────────────────
+ * Twilio ruft diese Adresse ohne Anmeldung auf, also muss sie offen sein. Sie
+ * gibt aber NICHTS preis: Die Antwort ist TwiML, das Twilio ausführt — kein
+ * Kundenname, keine Nummer, keine Historie steht darin. Wer die Adresse
+ * fremd aufruft, bekommt eine Ansage für einen unbekannten Anrufer.
+ *
+ * Die Twilio-Signatur wird geprüft, wenn ein Auth-Token gesetzt ist.
+ */
+router.post("/telefon/eingehend", async (req: Request, res: Response) => {
+  const b = (req.body ?? {}) as any;
+  const von = String(b.From || b.Caller || "");
+  const sid = String(b.CallSid || "");
+  res.type("text/xml");
+
+  try {
+    const {
+      zustaendigFuer, twimlEingehend, eingehendProtokollieren,
+    } = await import("../lib/fiaon-anruf-eingehend");
+
+    const z = await zustaendigFuer(von);
+
+    // ── DER ANRUF STEHT IM PROTOKOLL, BEVOR ES KLINGELT ───────────────────
+    // Auch wenn niemand rangeht: Ein verpasster Anruf ist die wichtigste
+    // Information von allen — da wollte jemand etwas und hat es nicht
+    // bekommen. Ohne Eintrag ruft niemand zurück.
+    const callId = sid
+      ? await eingehendProtokollieren({
+        twilioSid: sid, von, personId: z.person?.id ?? null,
+        agentId: z.agentId, grundKennung: z.grundKennung,
+      }).catch(() => null)
+      : null;
+
+    console.log(`[TELEFON] Eingehend von ${von}: ${z.person?.name ?? "unbekannt"}`
+      + ` → ${z.agentName ?? "niemand"} (${z.grundKennung})`
+      + `${callId ? ` · Anruf #${callId}` : ""}`);
+
+    return res.send(twimlEingehend({
+      z,
+      ansage: await ansageText(),
+      aufnahmeCallback: absoluteUrl("/api/fiaon/telefon/aufnahme"),
+      statusCallback: absoluteUrl("/api/fiaon/telefon/status"),
+      verpasstCallback: absoluteUrl("/api/fiaon/telefon/eingehend/nach-dial"),
+    }));
+  } catch (err) {
+    console.error("[TELEFON] eingehend:", err);
+    // ── EIN FEHLER DARF DEN ANRUFER NICHT INS LEERE LAUFEN LASSEN ─────────
+    // Ohne diese Antwort hört der Kunde Twilios englische Standardmeldung
+    // („an application error has occurred") — das ist schlimmer als ein
+    // Besetztzeichen.
+    return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say language="de-DE" voice="Polly.Vicki">Guten Tag. Es liegt gerade eine technische Störung vor. Wir sehen Ihren Anruf und melden uns zurück. Bitte entschuldigen Sie.</Say>
+  <Hangup/>
+</Response>`);
+  }
+});
+
+/** POST /telefon/eingehend/nach-dial — Twilio meldet, wie das Klingeln ausging. */
+router.post("/telefon/eingehend/nach-dial", async (req: Request, res: Response) => {
+  const b = (req.body ?? {}) as any;
+  const stand = String(b.DialCallStatus || "");
+  const sid = String(b.CallSid || "");
+  res.type("text/xml");
+  try {
+    const { twimlNachDial } = await import("../lib/fiaon-anruf-eingehend");
+    // Der Ausgang gehört in die Akte: „angenommen" oder „niemand ran".
+    if (sid) {
+      await sqlPool`
+        UPDATE fiaon_calls
+        SET status = ${stand === "completed" || stand === "answered" ? "beendet" : "verpasst"},
+            ergebnis = COALESCE(ergebnis, ${
+              stand === "completed" || stand === "answered" ? null : "nicht_angenommen"}),
+            ende = COALESCE(ende, NOW()), updated_at = NOW()
+        WHERE twilio_sid = ${sid}
+      `.catch(() => {});
+    }
+    if (stand && stand !== "completed" && stand !== "answered") {
+      console.warn(`[TELEFON] Eingehender Anruf nicht angenommen (${stand}) · ${sid}`);
+    }
+    return res.send(twimlNachDial(stand));
+  } catch (err) {
+    console.error("[TELEFON] nach-dial:", err);
+    return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response/>`);
+  }
+});
+
+/**
+ * GET /telefon/eingehend/wer-ist-zustaendig — für die Anzeige im Browser.
+ *
+ * Wenn das Softphone klingelt, weiß es nur die Nummer. Diese Route sagt, WER
+ * anruft und WARUM er bei mir landet — damit der Mensch beim Abnehmen schon
+ * weiß, worum es geht.
+ */
+router.get("/telefon/eingehend/wer-ist-zustaendig", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const { zustaendigFuer } = await import("../lib/fiaon-anruf-eingehend");
+    const z = await zustaendigFuer(String(req.query.von || ""));
+    // Nur was für die Anzeige gebraucht wird. Keine Adresse, keine Historie.
+    res.json({
+      ok: true,
+      kunde: z.person ? {
+        id: z.person.id, name: z.person.name, paket: z.person.paket,
+        tageOffen: z.person.tageOffen, offenCents: z.person.offenCents,
+      } : null,
+      grund: z.grund,
+      grundKennung: z.grundKennung,
+      /** Bin ICH der Zuständige — oder klingelt es bei mir als Vertretung? */
+      fuerMich: z.agentId === req.agent!.id,
+      zustaendig: z.agentVorname,
+    });
+  } catch (err) {
+    console.error("[TELEFON] wer-ist-zustaendig:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 /**
  * POST /telefon/twiml — Twilio fragt, was zu tun ist.
  *

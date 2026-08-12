@@ -238,6 +238,17 @@ export function Softphone() {
   const [richtlinie, setRichtlinie] = useState<any>(null);
   const [tafelOffen, setTafelOffen] = useState(false);
   const [nameGetippt, setNameGetippt] = useState("");
+  // ── ERREICHBARKEIT UND EINGEHENDE ANRUFE ────────────────────────────────
+  // „Erreichbar" heißt: Twilio kennt diesen Browser und kann ihn klingeln
+  // lassen. Es steht klein im Display — wer es nicht ist, soll das wissen,
+  // bevor ein Kunde vergeblich anruft.
+  const [erreichbar, setErreichbar] = useState(false);
+  const [eingehend, setEingehend] = useState<{
+    ruf: any; von: string;
+    kunde: { id: number; name: string; paket: string | null; tageOffen: number | null; offenCents: number } | null;
+    grund: string | null;
+    fuerMich: boolean | null;
+  } | null>(null);
   const [gelesen, setGelesen] = useState(false);
   const [ohneAufnahme, setOhneAufnahme] = useState(false);
   // Der Stand des Mikrofonrechts. Wird VOR dem ersten Wählversuch geklärt.
@@ -297,6 +308,40 @@ export function Softphone() {
   // Die Richtlinie beim Öffnen holen — nicht beim Wählen. Wer erst beim
   // Druck auf „Anrufen" erfährt, dass er etwas lesen muss, hat den Kunden
   // schon im Kopf.
+  // ══════════════════════════════════════════════════════════════════════════
+  // EIN HAKEN FÜR DIE ABNAHME
+  //
+  // ── WARUM ER NICHT AM GERÄT HÄNGT ────────────────────────────────────────
+  // Erster Versuch: den Haken beim Aufbau des Twilio-Geräts setzen. Er wurde
+  // nie gesetzt — das Gerät entsteht erst beim WÄHLEN, und lokal fehlen die
+  // Zugangsdaten. Die Abnahme meldete „Testhaken fehlt".
+  //
+  // Ein echter eingehender Anruf braucht Twilio und einen Anrufer. Geprüft
+  // werden soll aber die OBERFLÄCHE: Erscheint das Fenster, steht der richtige
+  // Name darin, sind die Knöpfe zu treffen. Dafür genügt derselbe Zustand,
+  // den das Ereignis setzen würde.
+  //
+  // Die Attrappe erzeugt KEINEN Anruf: `accept` und `reject` tun nichts.
+  // ══════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    (window as any).__fiaonTelefonTest = (von: string) => {
+      setEingehend({
+        ruf: { accept: () => {}, reject: () => {}, on: () => {} },
+        von, kunde: null, grund: null, fuerMich: null,
+      });
+      void fetch(`/api/fiaon/telefon/eingehend/wer-ist-zustaendig?von=${encodeURIComponent(von)}`,
+        { credentials: "include" })
+        .then((r) => r.json())
+        .then((j) => {
+          if (!j?.ok) return;
+          setEingehend((v) => v && v.von === von
+            ? { ...v, kunde: j.kunde, grund: j.grund, fuerMich: j.fuerMich } : v);
+        })
+        .catch(() => {});
+    };
+    return () => { delete (window as any).__fiaonTelefonTest; };
+  }, []);
+
   useEffect(() => {
     if (!offen) return;
     void fetch("/api/fiaon/telefon/richtlinie", { credentials: "include" })
@@ -558,7 +603,11 @@ export function Softphone() {
       const d = new Device(j.token, {
         // Opus zuerst: bessere Sprachqualität bei gleicher Bandbreite.
         codecPreferences: ["opus", "pcmu"] as any,
-        // Kein Klingeln im Browser — eingehende Rufe laufen extern.
+        // ── NICHT KLINGELN, WÄHREND MAN TELEFONIERT ────────────────────
+        // Der Vorgesetzte: „Irgendwie bauen, dass es smart ist und nicht
+        // stört!" Genau das ist hier gemeint: Wer gerade im Gespräch ist,
+        // wird nicht unterbrochen. Twilio geht dann selbst zur nächsten
+        // Stelle in der Kette weiter (siehe fiaon-anruf-eingehend.ts).
         allowIncomingWhileBusy: false,
       });
       geraet.current = d;
@@ -578,28 +627,63 @@ export function Softphone() {
       });
 
       // ══════════════════════════════════════════════════════════════════
-      // KEIN register() — UND WARUM
+      // register() — JETZT RICHTIG
       //
-      // ── MEIN EIGENER FEHLER, HEUTE MORGEN EINGEBAUT ───────────────────
-      // Ich hatte hier `await d.register()` ergänzt, in der Annahme, das
-      // mache den Aufbau verlässlicher. Es machte ihn kaputt.
+      // ── DIE GESCHICHTE DIESER ZEILE ───────────────────────────────────
+      // Heute Morgen hatte ich hier `await d.register()` eingebaut, in der
+      // Annahme, es mache den Aufbau verlässlicher. Es machte ihn kaputt:
+      // `register()` meldet das Gerät für EINGEHENDE Anrufe an, und der
+      // Ausweis trug damals `incomingAllow: false`. Eine Anmeldung für
+      // Eingang auf einem Ausweis ohne Eingangsrecht scheitert — mit einem
+      // LEEREN Fehler, der geworfene Wert war buchstäblich `undefined`.
       //
-      // `Device.register()` meldet das Gerät für EINGEHENDE Anrufe an. Der
-      // Ausweis, den FIAON ausstellt, trägt aber ausdrücklich
-      // `incomingAllow: false` (siehe fiaon-softphone.ts) — im Browser soll
-      // es nicht klingeln, eingehende Rufe laufen extern.
+      // Jetzt trägt der Ausweis `incomingAllow: true`, weil der Vorgesetzte
+      // eingehende Anrufe braucht. Damit ist register() nicht nur erlaubt,
+      // sondern NÖTIG: Ohne Anmeldung weiß Twilio nicht, dass dieser Browser
+      // erreichbar ist, und das TwiML findet den Client „agent-<id>" nicht.
       //
-      // Eine Anmeldung für Eingang auf einem Ausweis ohne Eingangsrecht
-      // scheitert. Und zwar mit einem LEEREN Fehler: Der geworfene Wert war
-      // buchstäblich `undefined`. Genau das stand in Schritt 10 der
-      // Diagnose: „bei register: ohne Name, Rohfassung: undefined".
-      //
-      // Für einen AUSGEHENDEN Anruf ist register() nicht nötig.
-      // `connect()` baut die Verbindung selbst auf.
-      //
-      // Die Lehre: Eine Absicherung, die man einbaut, ohne zu prüfen, ob sie
-      // zum Rest passt, ist keine Absicherung.
+      // ── ES SCHEITERT LEISE, WENN ES SCHEITERT ─────────────────────────
+      // Ein ausgehender Anruf braucht register() NICHT. Wenn die Anmeldung
+      // also fehlschlägt, darf sie das Telefonieren nicht verhindern — dann
+      // ist man eben nur nicht erreichbar. Deshalb `.catch()` mit Vermerk
+      // statt eines Abbruchs.
       // ══════════════════════════════════════════════════════════════════
+      void d.register().then(() => {
+        setErreichbar(true);
+      }).catch((e: any) => {
+        setErreichbar(false);
+        // Kein setMeldung: Der Mensch wollte anrufen, nicht erreichbar sein.
+        // Eine Fehlermeldung über die Erreichbarkeit würde hier nur den
+        // Wählvorgang überdecken.
+        console.warn("[TELEFON] Anmeldung für eingehende Anrufe fehlgeschlagen:", e);
+        void fehlerMelden("register", e);
+      });
+
+      // ── EIN EINGEHENDER ANRUF ─────────────────────────────────────────
+      // Er wird NICHT automatisch angenommen. Der Mensch sieht, wer anruft
+      // und warum, und entscheidet. Ein Telefon, das von selbst abhebt, ist
+      // ein Lautsprecher im Büro.
+      d.on("incoming", (ruf: any) => {
+        const von = String(ruf?.parameters?.From || "");
+        setEingehend({ ruf, von, kunde: null, grund: null, fuerMich: null });
+        // Wer ist das? Die Antwort kommt in Millisekunden und steht dann im
+        // Klingelfenster — der Mensch weiß beim Abnehmen schon, worum es geht.
+        void fetch(`/api/fiaon/telefon/eingehend/wer-ist-zustaendig?von=${encodeURIComponent(von)}`,
+          { credentials: "include" })
+          .then((r) => r.json())
+          .then((j) => {
+            if (!j?.ok) return;
+            setEingehend((v) => v && v.von === von
+              ? { ...v, kunde: j.kunde, grund: j.grund, fuerMich: j.fuerMich } : v);
+          })
+          .catch(() => {});
+        // Legt der Anrufer auf, bevor jemand abnimmt, verschwindet das
+        // Fenster von selbst. Ein Klingelfenster, das stehen bleibt, ist ein
+        // Fehlalarm, den man wegklicken muss.
+        ruf.on("cancel", () => setEingehend(null));
+        ruf.on("disconnect", () => setEingehend(null));
+        ruf.on("reject", () => setEingehend(null));
+      });
 
       // ── „To" IST BEI TWILIO RESERVIERT ────────────────────────────────
       // Das Browser-SDK setzt `To` selbst — auf die Client-Identität, nicht
@@ -740,6 +824,95 @@ export function Softphone() {
 
   return (
     <>
+      <style>{EINGEHEND_CSS}</style>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          DAS KLINGELFENSTER
+
+          ── DER AUFTRAG (11.08.2026) ─────────────────────────────────────────
+          Der Vorgesetzte: „Wenn der Kunde anruft, muss stehen, wer dafür
+          zuständig ist, damit der richtige rangeht! Irgendwie bauen, dass es
+          smart ist und nicht stört!"
+
+          Also: KEIN Vollbild, keine Musik, kein Blockieren der Seite. Eine
+          Karte oben rechts, die sagt, was man wissen muss, um in zwei Sekunden
+          zu entscheiden:
+
+            WER ruft an (Name, nicht nur die Nummer)
+            WARUM landet er bei MIR (offene Rate? mein Kunde? Vertretung?)
+            WAS ist offen (Betrag und Tage — der erste Satz am Telefon)
+
+          Und wenn es NICHT für mich ist, steht das dort: „Vertretung für
+          Diana". Dann weiß man, dass man nur einspringt.
+          ══════════════════════════════════════════════════════════════════════ */}
+      {eingehend && (
+        <div className="fi-ein" role="alertdialog" aria-live="assertive"
+             aria-label={`Anruf von ${eingehend.kunde?.name ?? eingehend.von}`}>
+          <div className="fi-ein-kopf">
+            <span className="fi-ein-puls" aria-hidden="true" />
+            <span className="fi-ein-marke">
+              {eingehend.fuerMich === false ? "Anruf · Vertretung" : "Anruf"}
+            </span>
+            <span className="fi-ein-nummer">{eingehend.von}</span>
+          </div>
+
+          <p className="fi-ein-name">
+            {eingehend.kunde?.name ?? "Unbekannte Nummer"}
+          </p>
+
+          {/* Der Grund steht groß: Er entscheidet, wie das Gespräch beginnt. */}
+          {eingehend.grund && (
+            <p className="fi-ein-grund"
+               data-dringend={eingehend.kunde?.tageOffen != null ? "1" : "0"}>
+              {eingehend.grund}
+            </p>
+          )}
+
+          {eingehend.kunde?.paket && (
+            <p className="fi-ein-paket">{eingehend.kunde.paket}</p>
+          )}
+
+          {eingehend.fuerMich === false && (
+            <p className="fi-ein-vertretung">
+              Eigentlich zuständig ist jemand anderes — du springst ein.
+            </p>
+          )}
+
+          <div className="fi-ein-tun">
+            <button type="button" className="fi-ein-an"
+                    onClick={() => {
+                      // ── ANNEHMEN ─────────────────────────────────────────
+                      // Das Telefon geht auf, damit man Notizen und Ergebnis
+                      // gleich zur Hand hat. Ohne das müsste man während des
+                      // Gesprächs erst suchen.
+                      try { eingehend.ruf.accept(); } catch { /* schon weg */ }
+                      setOffen(true);
+                      setZustand("gespraech");
+                      if (eingehend.kunde) {
+                        // Der Kunde ist damit gesetzt: Ergebnis festhalten,
+                        // Notiz und Akte beziehen sich auf ihn.
+                        setKunde({ personId: eingehend.kunde.id, name: eingehend.kunde.name });
+                        setNummer(eingehend.von);
+                      }
+                      setEingehend(null);
+                    }}>
+              Annehmen
+            </button>
+            <button type="button" className="fi-ein-ab"
+                    onClick={() => {
+                      // ── ABLEHNEN GIBT WEITER, ES BEENDET NICHT ───────────
+                      // `reject()` sagt Twilio „nicht bei mir" — die Kette
+                      // läuft dann zur nächsten Stelle. Der Kunde landet also
+                      // nicht im Nichts, sondern beim Kollegen.
+                      try { eingehend.ruf.reject(); } catch { /* schon weg */ }
+                      setEingehend(null);
+                    }}>
+              Weitergeben
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Der schwebende Knopf ─────────────────────────────────────────── */}
       <button
         type="button"
@@ -845,7 +1018,11 @@ export function Softphone() {
             {zustand === "gespraech" ? `Im Gespräch · ${dauerText(sekunden)}`
               : zustand === "waehlt" ? "Wird verbunden"
               : zustand === "ergebnis" ? "Wie lief es?"
-              : stand.bereit ? "Bereit" : "Bald verfügbar"}
+              // ── ERREICHBAR HEISST: ES KANN KLINGELN ─────────────────────
+              // Wer den Tab schließt, ist nicht erreichbar — und ein Kunde
+              // ruft dann vergeblich an. Das steht hier, damit es niemand
+              // erst merkt, wenn sich jemand beschwert.
+              : stand.bereit ? (erreichbar ? "Bereit · erreichbar" : "Bereit") : "Bald verfügbar"}
           </span>
           <button type="button" onClick={() => setOffen(false)} aria-label="Schließen"
                   className="fi-tel-zu">
@@ -1619,3 +1796,112 @@ const TELEFON_CSS = `
 }
 `;
 
+
+const EINGEHEND_CSS = `
+/* ═══════════════════════════════════════════════════════════════════════════
+   DAS KLINGELFENSTER
+
+   „Irgendwie bauen, dass es smart ist und nicht stört!"
+
+   Eine Karte oben rechts. Sie überdeckt keine Arbeit, blockiert keine Eingabe
+   und verschwindet von selbst, wenn der Anrufer auflegt. Was sie hat:
+
+     * einen ruhigen Puls (kein Blinken — Blinken ist Alarm, nicht Anruf)
+     * genug Kontrast, um im Augenwinkel aufzufallen
+     * zwei Knöpfe, groß genug für den Daumen
+   ═══════════════════════════════════════════════════════════════════════════ */
+.fi-ein {
+  position: fixed; z-index: 300;
+  top: 14px; right: 14px; width: min(340px, calc(100vw - 28px));
+  padding: 14px 16px 13px;
+  border-radius: 20px;
+  background: linear-gradient(158deg, #16305f, #0b1b3f 58%, #071129);
+  box-shadow:
+    0 2px 8px -3px rgba(7,17,41,.5),
+    0 28px 60px -26px rgba(7,17,41,.85),
+    inset 0 1px 0 rgba(255,255,255,.14),
+    inset 0 0 0 1px rgba(255,255,255,.08);
+  animation: fiEinAuf 340ms cubic-bezier(.32,.72,0,1) both;
+}
+@keyframes fiEinAuf {
+  from { opacity: 0; transform: translateY(-12px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+.fi-ein-kopf { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+/* Ein Puls, kein Blinken: Er atmet zweimal je Sekunde und zieht das Auge an,
+   ohne zu hetzen. */
+.fi-ein-puls {
+  width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0;
+  background: #34d399; box-shadow: 0 0 0 0 rgba(52,211,153,.7);
+  animation: fiEinPuls 1.6s ease-out infinite;
+}
+@keyframes fiEinPuls {
+  0%   { box-shadow: 0 0 0 0 rgba(52,211,153,.6); }
+  70%  { box-shadow: 0 0 0 9px rgba(52,211,153,0); }
+  100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); }
+}
+.fi-ein-marke {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  color: rgba(191,214,247,.8) !important;
+}
+.fi-ein-nummer {
+  margin-left: auto; font-size: 11px; font-variant-numeric: tabular-nums;
+  color: rgba(191,214,247,.6) !important;
+}
+
+/* Der Name ist die wichtigste Zeile — er entscheidet, ob man rangeht. */
+.fi-ein-name {
+  font-size: 18px; font-weight: 700; line-height: 1.2;
+  color: #f4f8ff !important;
+  overflow-wrap: anywhere;
+}
+.fi-ein-grund {
+  margin-top: 4px; font-size: 12.5px; line-height: 1.45;
+  color: rgba(214,231,255,.86) !important;
+}
+/* Eine offene Rate ist der Grund, bei dem der erste Satz anders klingt. */
+.fi-ein-grund[data-dringend="1"] { color: #fcd34d !important; font-weight: 600; }
+.fi-ein-paket {
+  margin-top: 2px; font-size: 11.5px;
+  color: rgba(191,214,247,.66) !important;
+}
+.fi-ein-vertretung {
+  margin-top: 7px; padding: 6px 9px; border-radius: 9px;
+  background: rgba(255,255,255,.07);
+  font-size: 11.5px; line-height: 1.45;
+  color: rgba(214,231,255,.82) !important;
+}
+
+.fi-ein-tun { display: flex; gap: 8px; margin-top: 12px; }
+.fi-ein-an, .fi-ein-ab {
+  flex: 1 1 0; min-height: 42px; border: 0; border-radius: 13px; cursor: pointer;
+  font-size: 13.5px; font-weight: 700;
+  transition: transform 120ms ease, filter 120ms ease;
+}
+.fi-ein-an {
+  background: linear-gradient(180deg, #34d399, #10b981);
+  color: #04231a !important;
+  box-shadow: 0 8px 18px -8px rgba(16,185,129,.7), inset 0 1px 0 rgba(255,255,255,.3);
+}
+.fi-ein-ab {
+  background: rgba(255,255,255,.1);
+  color: #e8f0fc !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.14);
+}
+.fi-ein-an:active, .fi-ein-ab:active { transform: scale(.97); }
+.fi-ein-an:hover { filter: brightness(1.06); }
+
+@media (max-width: 639px) {
+  /* Auf dem Telefon oben über die ganze Breite: Dort ist rechts oben kein
+     ruhiger Platz, und eine schmale Karte wäre schwer zu treffen. */
+  .fi-ein { top: 10px; right: 10px; left: 10px; width: auto; border-radius: 18px; }
+  .fi-ein-name { font-size: 17px; }
+  .fi-ein-an, .fi-ein-ab { min-height: 46px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fi-ein { animation: none; }
+  .fi-ein-puls { animation: none; box-shadow: 0 0 0 3px rgba(52,211,153,.35); }
+}
+`;

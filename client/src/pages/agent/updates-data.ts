@@ -40,6 +40,27 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-eingehende-anrufe",
+    date: "2026-08-11",
+    category: "Neu",
+    title: "Kunden können dich jetzt anrufen",
+    summary:
+      "Wenn ein Kunde anruft, klingelt es beim Zuständigen — und du siehst sofort, wer dran ist und worum es geht.",
+    changes: [
+      "Es klingelt NICHT bei allen. Zuerst beim Zuständigen: bei offener Rate im Forderungsmanagement, sonst beim betreuenden Ansprechpartner.",
+      "Im Klingelfenster steht der Name des Kunden, sein Paket und der Grund — zum Beispiel „Rate seit 75 Tagen offen (179,97 €)“.",
+      "Steht dort „Vertretung“, ist eigentlich jemand anderes zuständig und du springst nur ein.",
+      "„Weitergeben“ beendet den Anruf NICHT — er geht an den nächsten Kollegen.",
+      "Während du telefonierst, klingelt es bei dir nicht. Der Anruf läuft automatisch weiter.",
+      "Im Display steht „Bereit · erreichbar“, wenn Anrufe bei dir ankommen können. Schließt du den Tab, bist du nicht erreichbar.",
+    ],
+    howto: [
+      "Nichts einzurichten. Halte das Portal offen, dann bist du erreichbar.",
+      "Beim Annehmen öffnet sich das Telefon mit dem Kunden — Ergebnis und Notiz gleich zur Hand.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-11-inkasso-akte",
     date: "2026-08-11",
     category: "Neu",

@@ -828,7 +828,7 @@ export async function zahlungsdatenSenden(
   }
 
   // Die Bestellung, um die es geht: die jüngste noch offene.
-  const [bestellung] = await sqlPool`
+  let [bestellung] = await sqlPool`
     SELECT ref, payment_reference, amount_due, first_name, last_name, contact_name,
            email, contact_email, billing_email, pack_name, payment_status
     FROM fiaon_applications
@@ -837,10 +837,68 @@ export async function zahlungsdatenSenden(
     ORDER BY created_at DESC
     LIMIT 1
   `;
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // NOCH KEINE RECHNUNG? DANN WIRD SIE JETZT GESTELLT.
+  //
+  // ── DER BEFUND (11.08.2026) ───────────────────────────────────────────────
+  // Ein Agent: „Bei vielen Kunden in ‚Antrag fertig – Rechnung offen' gibt es
+  // keine offene Zahlung/Rechnung. Dadurch gibt es auch keine Zahlungsdaten und
+  // die Zahlungsdaten-E-Mail kann nicht verschickt werden."
+  //
+  // Hier war die Ursache: Die Suche oben verlangt `pending_payment`,
+  // `claimed_paid` oder `expired`. Ein fertiger Antrag steht aber auf
+  // `pending` — es wurde ja nie eine Rechnung gestellt. Der Agent bekam
+  // „Dieser Kunde hat keine offene Bestellung" und stand davor.
+  //
+  // Gemessen: 264 Kunden mit fertigem Antrag und E-Mail warten darauf.
+  //
+  // ── EIN KNOPF, DER IMMER DAS RICHTIGE TUT ─────────────────────────────────
+  // Ein zweiter Knopf „Rechnung stellen" neben „Zahlungsdaten senden" wäre eine
+  // Unterscheidung, die den Agenten nichts angeht: Er will, dass der Kunde
+  // weiß, was er zahlen soll. Ob dafür erst ein Betrag gesetzt werden muss, ist
+  // Sache des Systems.
+  //
+  // `rechnungStellen` setzt Betrag (aus dem Paket), Frist (+7 Tage) und den
+  // Zustand — und verschickt gleich mit.
+  // ══════════════════════════════════════════════════════════════════════════
   if (!bestellung) {
+    const { rechnungStellen, RECHNUNGSREIF } = await import("../lib/fiaon-rechnung-stellen");
+    const [reif] = (await sqlPool`
+      SELECT ref FROM fiaon_applications
+      WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
+        AND payment_status = 'pending'
+        AND status = ANY(${RECHNUNGSREIF as unknown as string[]})
+      ORDER BY created_at DESC LIMIT 1
+    `) as any[];
+
+    if (reif) {
+      const erg = await rechnungStellen(String(reif.ref), { akteur: agentName, agentId });
+      if (!erg.ok) return { ok: false, status: 400, error: erg.grund };
+      return {
+        ok: true,
+        empfaenger: erg.empfaenger!,
+        warnung: `Erste Rechnung gestellt und an ${erg.empfaenger} verschickt — `
+          + "mit Betrag, Verwendungszweck und sieben Tagen Zahlungsfrist.",
+      };
+    }
+
+    // ── DER GRUND, WARUM ES NICHT GEHT, IN WORTEN ─────────────────────────
+    // „Keine offene Bestellung" sagt einem Agenten nicht, was er tun kann.
+    const [warum] = (await sqlPool`
+      SELECT status, payment_status FROM fiaon_applications
+      WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
+      ORDER BY created_at DESC LIMIT 1
+    `) as any[];
     return {
       ok: false, status: 400,
-      error: "Dieser Kunde hat keine offene Bestellung — es gibt keine Zahlungsdetails zu senden.",
+      error: !warum
+        ? "Dieser Kunde hat keine Bestellung — es gibt nichts zu berechnen."
+        : warum.payment_status === "paid"
+          ? "Dieser Kunde hat bereits bezahlt."
+          : `Der Antrag ist noch nicht abgeschlossen (Stand: ${warum.status}). `
+            + "Ruf an und hilf ihm, ihn fertigzustellen — danach lässt sich eine "
+            + "Rechnung stellen.",
     };
   }
   const empfaenger = bestellung.email || bestellung.contact_email || bestellung.billing_email;
@@ -1051,5 +1109,66 @@ router.post("/agent/crm/kunden/:personId/zahlungsbeleg", requireAgent,
       res.status(500).json({ ok: false, error: "Serverfehler" });
     }
   });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ERSTE RECHNUNG
+//
+// Der Vorgesetzte: „ALLE die einen Antrag bei uns gestellt haben brauchen eine
+// Rechnung und müssen täglich versendet werden und den Agenten eben passend
+// angezeigt werden und mit Knopfdruck versendbar sein für den Agenten!"
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** GET /agent/rechnungen/offen — wer braucht eine erste Rechnung? */
+router.get("/agent/rechnungen/offen", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const { rechnungsKandidaten } = await import("../lib/fiaon-rechnung-stellen");
+    // Ein Agent sieht SEINE Kunden. Die Leitung sieht alle — sie muss wissen,
+    // wie viel Arbeit im Haus liegt.
+    const rolle = String(req.agent!.rolle || "agent");
+    const alle = await rechnungsKandidaten({
+      agentId: ["vertriebsleiter", "admin"].includes(rolle) ? null : req.agent!.id,
+      grenze: 500,
+    });
+    res.json({
+      ok: true,
+      kandidaten: alle,
+      zahlen: {
+        gesamt: alle.length,
+        versendbar: alle.filter((k) => !k.hindernis).length,
+        ohneMail: alle.filter((k) => k.hindernis?.startsWith("Keine E-Mail")).length,
+        ohnePaket: alle.filter((k) => k.hindernis?.includes("Paket")).length,
+      },
+    });
+  } catch (err) {
+    console.error("[RECHNUNG] offen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /agent/rechnungen/:ref/stellen — eine Rechnung mit Knopfdruck.
+ *
+ * ── WARUM DER AGENT DAS SELBST AUSLÖST ────────────────────────────────────
+ * Die versendbaren Anträge sind im Schnitt 48 Tage alt, 79 davon älter als 60
+ * Tage. Eine Rechnung nach zwei Monaten kommt für den Kunden aus dem Nichts —
+ * ein Anruf davor ist mehr wert als jede Automatik.
+ *
+ * Der Tageslauf arbeitet deshalb nur den Rest ab; der Knopf gehört dem
+ * Menschen, der gerade telefoniert hat.
+ */
+router.post("/agent/rechnungen/:ref/stellen", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const { rechnungStellen } = await import("../lib/fiaon-rechnung-stellen");
+    const erg = await rechnungStellen(String(req.params.ref), {
+      akteur: req.agent!.name, agentId: req.agent!.id,
+    });
+    res.json(erg.ok
+      ? { ok: true, meldung: `Rechnung an ${erg.empfaenger} verschickt.` }
+      : { ok: false, error: erg.grund });
+  } catch (err) {
+    console.error("[RECHNUNG] stellen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
 
 export default router;

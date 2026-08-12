@@ -558,6 +558,25 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
     else {
       wo.push("p.priority_tier BETWEEN 1 AND 3", "NOT p.is_blocked");
       if (filter === "tier1") wo.push("p.priority_tier = 1");
+      // ── WER BRAUCHT EINE ERSTE RECHNUNG? ────────────────────────────────
+      // Der Vorgesetzte: „ALLE die einen Antrag bei uns gestellt haben brauchen
+      // eine Rechnung und müssen den Agenten eben passend angezeigt werden und
+      // mit Knopfdruck versendbar sein!"
+      //
+      // Die Zustandsliste steht in fiaon-rechnung-stellen.ts (RECHNUNGSREIF) —
+      // hier nur die Auswahl. Angefangene Formulare (personal_data, contract,
+      // finances) sind NICHT dabei: Gemessen haben von 3.626 personal_data-
+      // Einträgen genau 6 eine E-Mail. Das sind Spuren im Trichter, keine
+      // Anträge.
+      else if (filter === "rechnung_stellen") {
+        wo.push(`EXISTS (
+          SELECT 1 FROM fiaon_applications ar
+          WHERE ar.person_id = p.id AND ar.merged_into IS NULL
+            AND ar.archived_at IS NULL AND ar.gdpr_deleted_at IS NULL
+            AND ar.payment_status = 'pending'
+            AND ar.status IN ('completed','approved','submitted','documents_submitted','verifying','processing')
+        )`);
+      }
       else if (filter === "rechnung_offen") wo.push("p.tier_reason = 'rechnung_offen'");
       else if (filter === "frist_abgelaufen") wo.push("p.tier_reason = 'zahlungsfrist_abgelaufen'");
       else if (filter === "antrag_offen") wo.push("p.tier_reason IN ('antrag_abgeschlossen', 'antrag_abgebrochen')");
@@ -664,6 +683,31 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
         COUNT(*) FILTER (WHERE tier_reason IN ('antrag_abgeschlossen','antrag_abgebrochen') AND NOT is_blocked AND ist_test_am IS NULL)::int AS antrag_offen,
         COUNT(*) FILTER (WHERE priority_tier = 3 AND NOT is_blocked
           AND ist_test_am IS NULL)::int AS leads,
+        -- ── WER BRAUCHT EINE ERSTE RECHNUNG? ────────────────────────────
+        -- Dieselbe Bedingung wie im Filter.
+        --
+        -- Der Bezug MUSS qualifiziert sein: Ein blankes „id" bindet in der
+        -- korrelierten Unterabfrage an fiaon_applications.id, nicht an die
+        -- Person. Gemessen am 11.08.2026: Der Zähler stand auf 0, während die
+        -- Liste 21 Kunden zeigte — beide Abfragen sahen aus wie dieselbe
+        -- Bedingung und meinten Verschiedenes.
+        -- Und „NOT ruht" wie in der Liste: Gemessen stand der Zähler auf 67,
+        -- während die Liste 21 zeigte — genau der Fehler, den der Agent
+        -- gemeldet hat („Zahlung gemeldet zeigt 23, im Ordner sind nur 2").
+        -- Ihn beim Bauen der Abhilfe zu wiederholen wäre besonders bitter.
+        -- Und die Wiedervorlage: Wer eine Verabredung in der Zukunft hat, ist
+        -- heute fertig — die Liste blendet ihn aus, der Zähler muss das auch.
+        -- Nach „NOT ruht" standen immer noch 66 gegen 21 in der Liste.
+        COUNT(*) FILTER (WHERE NOT is_blocked AND ist_test_am IS NULL AND NOT ruht
+          AND (follow_up_date IS NULL OR follow_up_date <= CURRENT_DATE)
+          AND priority_tier BETWEEN 1 AND 3
+          AND EXISTS (
+          SELECT 1 FROM fiaon_applications ar
+          WHERE ar.person_id = p.id AND ar.merged_into IS NULL
+            AND ar.archived_at IS NULL AND ar.gdpr_deleted_at IS NULL
+            AND ar.payment_status = 'pending'
+            AND ar.status IN ('completed','approved','submitted','documents_submitted','verifying','processing')
+          ))::int AS rechnung_stellen,
         COUNT(*) FILTER (WHERE promised_payment_date = ${sqlPool.unsafe(HEUTE)} AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3
           AND ist_test_am IS NULL)::int AS zusage_heute,
         COUNT(*) FILTER (WHERE promised_payment_date < ${sqlPool.unsafe(HEUTE)} AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3
@@ -716,6 +760,7 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
       filter,
       zaehler: {
         alle: z.alle, tier1: z.tier1, rechnung_offen: z.rechnung_offen,
+        rechnung_stellen: z.rechnung_stellen,
         frist_abgelaufen: z.frist_abgelaufen, antrag_offen: z.antrag_offen,
         leads: z.leads, zusage_heute: z.zusage_heute, ueberfaellig: z.ueberfaellig,
         rueckruf: rueckrufZahl.c, nicht_erreicht: z.nicht_erreicht, wartet: z.wartet,

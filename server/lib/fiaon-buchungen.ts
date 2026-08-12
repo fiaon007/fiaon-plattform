@@ -37,6 +37,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { PAKET_PREIS_CENTS } from "./fiaon-abo-pflicht";
 
 type Lauf = typeof sqlPool;
 
@@ -93,6 +94,10 @@ export function artVon(ref: string, packKey: unknown, packName: unknown, betrag:
 /** Zahlungsstände in Worten. Ein Agent soll keine Feldnamen entziffern. */
 export const ZAHLUNG_TEXT: Record<string, string> = {
   paid: "bezahlt",
+  // „pending" heißt: Der Antrag steht, aber es wurde nie eine Rechnung
+  // geschickt. Gemessen am 11.08.2026 stand in der Karte das nackte Wort
+  // „pending" — ein Agent kann damit nichts anfangen.
+  pending: "Rechnung noch nicht gestellt",
   pending_payment: "offen",
   claimed_paid: "Zahlung gemeldet, noch nicht eingegangen",
   expired: "Zahlungsfrist abgelaufen",
@@ -143,7 +148,17 @@ export async function buchungenVon(
       bezeichnung: String(r.pack_name ?? "").split("\n")[0].trim()
         || (String(r.ref).includes("SCHUFA") ? "Bonitätsauskunft" : "Ohne Bezeichnung"),
       packKey: r.pack_key ?? null,
-      betragCents: r.amount_due != null ? Math.round(Number(r.amount_due) * 100) : null,
+      // ── DER BETRAG KOMMT AUS DEM PAKET, WENN ER FEHLT ─────────────────
+      // Gemessen: Von 1.140 Bestellungen mit fertigem Antrag hatten ZWEI einen
+      // `amount_due`. Die Karte zeigte deshalb „Offen insgesamt: 0,00 €",
+      // obwohl 59,99 € offen sind — eine Zahl, die schlimmer ist als keine.
+      //
+      // Der Paketpreis ist dieselbe Quelle, aus der `rechnungStellen` den
+      // Betrag setzt (server/lib/fiaon-rechnung-stellen.ts). Zwei Wege zum
+      // selben Wert wären zwei Gelegenheiten, sich zu widersprechen.
+      betragCents: r.amount_due != null && Number(r.amount_due) > 0
+        ? Math.round(Number(r.amount_due) * 100)
+        : (r.pack_key ? PAKET_PREIS_CENTS[String(r.pack_key)] ?? null : null),
       zahlungsstand: zahlung || null,
       zahlungText: ZAHLUNG_TEXT[zahlung] ?? (zahlung || "unbekannt"),
       bezahlt,
@@ -224,7 +239,17 @@ export function aufbereiten(roh: unknown): Buchung[] {
       bezeichnung: String(r.pack_name ?? "").split("\n")[0].trim()
         || (String(r.ref).includes("SCHUFA") ? "Bonitätsauskunft" : "Ohne Bezeichnung"),
       packKey: r.pack_key ?? null,
-      betragCents: r.amount_due != null ? Math.round(Number(r.amount_due) * 100) : null,
+      // ── DER BETRAG KOMMT AUS DEM PAKET, WENN ER FEHLT ─────────────────
+      // Gemessen: Von 1.140 Bestellungen mit fertigem Antrag hatten ZWEI einen
+      // `amount_due`. Die Karte zeigte deshalb „Offen insgesamt: 0,00 €",
+      // obwohl 59,99 € offen sind — eine Zahl, die schlimmer ist als keine.
+      //
+      // Der Paketpreis ist dieselbe Quelle, aus der `rechnungStellen` den
+      // Betrag setzt (server/lib/fiaon-rechnung-stellen.ts). Zwei Wege zum
+      // selben Wert wären zwei Gelegenheiten, sich zu widersprechen.
+      betragCents: r.amount_due != null && Number(r.amount_due) > 0
+        ? Math.round(Number(r.amount_due) * 100)
+        : (r.pack_key ? PAKET_PREIS_CENTS[String(r.pack_key)] ?? null : null),
       zahlungsstand: zahlung || null,
       zahlungText: ZAHLUNG_TEXT[zahlung] ?? (zahlung || "unbekannt"),
       bezahlt,

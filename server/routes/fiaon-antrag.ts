@@ -1646,6 +1646,17 @@ router.post("/admin/payments/run-reminders", async (_req, res) => {
   try {
     const result = await runPaymentReminders({ force: true });
     const callbackReminders = await import("./fiaon-agent").then((m) => m.runCallbackReminders()).catch(() => 0);
+
+    // ── DIE ERSTEN RECHNUNGEN ─────────────────────────────────────────────
+    // Der Vorgesetzte: „ALLE die einen Antrag bei uns gestellt haben brauchen
+    // eine Rechnung und müssen täglich versendet werden."
+    //
+    // Höchstens fünfzig am Tag: Beim ersten Lauf warten 264. Alle auf einmal
+    // wären ein Versandschub, der in jedem Spamfilter auffällt — und wenn
+    // etwas falsch läuft, sind es fünfzig statt aller.
+    const rechnungen = await import("../lib/fiaon-rechnung-stellen")
+      .then((m) => m.rechnungenTageslauf({ schreiben: true, grenze: 50 }))
+      .catch((e) => { console.error("[RECHNUNG] Tageslauf:", e); return { versendet: 0 }; });
     res.json({ ok: true, ...result, callbackReminders });
   } catch (err) {
     console.error("[FIAON-PAYMENT] run-reminders:", err);

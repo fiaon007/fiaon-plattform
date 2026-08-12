@@ -106,6 +106,9 @@ const FILTER: { key: string; label: string; zaehler: string }[] = [
   { key: "ueberfaellig", label: "Überfällig", zaehler: "ueberfaellig" },
   { key: "rueckruf", label: "Rückruf", zaehler: "rueckruf" },
   { key: "tier1", label: "Zahlung gemeldet", zaehler: "tier1" },
+  // Wer einen fertigen Antrag hat, aber nie eine Rechnung bekam. Hier liegt
+  // die groesste Menge unerledigter Arbeit im Haus.
+  { key: "rechnung_stellen", label: "Rechnung stellen", zaehler: "rechnung_stellen" },
   { key: "rechnung_offen", label: "Rechnung offen", zaehler: "rechnung_offen" },
   { key: "frist_abgelaufen", label: "Frist abgelaufen", zaehler: "frist_abgelaufen" },
   { key: "antrag_offen", label: "Antrag offen", zaehler: "antrag_offen" },

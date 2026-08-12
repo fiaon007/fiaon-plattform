@@ -127,5 +127,44 @@ if (gefunden === 0) {
     console.log(`\n  ${kaputt} Datei(en) übersetzen sich nicht. Häufigste Ursache:`);
     console.log("  ein Regex-Literal mit Zeilenumbruch oder ein Backtick im Kommentar.\n");
   }
-  if (gefunden > 0 || kaputt > 0) process.exit(1);
+  // ═══════════════════════════════════════════════════════════════════════
+  // DRITTE WAND: INTERPOLATIONEN IN SQL-KOMMENTAREN
+  //
+  // ── DER FALL (11.08.2026) ─────────────────────────────────────────────
+  // In einem UPDATE stand ein erklärender SQL-Kommentar, der zur Erläuterung
+  // eines früheren Fehlers eine Interpolation enthielt — Dollarzeichen,
+  // geschweifte Klammer, Wert. Innerhalb eines Template-Literals ist das keine
+  // Beschreibung, sondern eine echte Einsetzung: postgres.js schickte einen
+  // zusätzlichen Parameter ohne Typ.
+  //
+  // PostgreSQL antwortete „could not determine data type of parameter" —
+  // dieselbe Meldung wie beim eigentlichen Problem, das der Kommentar erklären
+  // sollte. Vier Anläufe gingen dafür drauf.
+  //
+  // esbuild findet das nicht: Die Datei ist syntaktisch einwandfrei. Nur die
+  // Datenbank merkt es, und erst zur Laufzeit.
+  // ═══════════════════════════════════════════════════════════════════════
+  let interpolationen = 0;
+  const interMeldungen: string[] = [];
+  for (const datei of kandidaten) {
+    const quelle = readFileSync(datei, "utf8");
+    const zeilen = quelle.split("\n");
+    for (let i = 0; i < zeilen.length; i++) {
+      const z = zeilen[i];
+      if (!/^\s*--/.test(z)) continue;
+      if (!z.includes("${")) continue;
+      interpolationen++;
+      interMeldungen.push(`${datei}:${i + 1}\n    ${z.trim().slice(0, 110)}`);
+    }
+  }
+  console.log(`══ Interpolationen in SQL-Kommentaren ══\n`);
+  if (interpolationen === 0) {
+    console.log("  Keine. Kommentare erklären, sie setzen nichts ein.\n");
+  } else {
+    for (const m of interMeldungen) console.log(`  FAIL  ${m}`);
+    console.log(`\n  ${interpolationen} SQL-Kommentar(e) enthalten eine Interpolation.`);
+    console.log("  Die Erklärung gehört ÜBER die Abfrage, nicht hinein.\n");
+  }
+
+  if (gefunden > 0 || kaputt > 0 || interpolationen > 0) process.exit(1);
 }

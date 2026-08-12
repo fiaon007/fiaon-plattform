@@ -40,6 +40,27 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-erste-rechnung",
+    date: "2026-08-11",
+    category: "Neu",
+    title: "Neuer Filter „Rechnung stellen“ — hier liegt Arbeit",
+    summary:
+      "Kunden mit fertigem Antrag, die nie eine Rechnung bekamen. Ein Knopf stellt sie und verschickt sie.",
+    changes: [
+      "Der neue Filter zeigt Kunden, deren Antrag vollständig ist, denen aber nie eine Rechnung geschickt wurde. Bei manchen liegt das über zwei Monate zurück.",
+      "„Zahlungsdaten senden“ tut jetzt beides: Es setzt Betrag (aus dem Paket) und Zahlungsfrist (sieben Tage) und verschickt die Rechnung. Vorher kam dort „Dieser Kunde hat keine offene Bestellung“ — das war der Grund, warum bei euch nichts ging.",
+      "Wo es nicht geht, steht warum: „Keine E-Mail hinterlegt“ oder „Der Antrag ist noch nicht abgeschlossen (Stand: contract)“. Dann ist ein Anruf dran, keine Mail.",
+      "In den Buchungen steht jetzt der Preis aus dem Paket, auch wenn noch kein Betrag gebucht ist. Vorher stand dort „Offen insgesamt: 0,00 €“, obwohl 59,99 € offen waren.",
+      "Zusätzlich läuft täglich ein Versand für höchstens 50 Kunden. Euer Knopf ist trotzdem wichtiger: Bei einem zwei Monate alten Antrag ist ein Anruf vor der Rechnung mehr wert als jede Automatik.",
+    ],
+    howto: [
+      "Kundenliste öffnen, Filter „Rechnung stellen“ antippen.",
+      "Kunden anrufen, Paket bestätigen, dann „Zahlungsdaten senden“ drücken.",
+      "Steht ein Hindernis dabei: erst das lösen — meist fehlt die E-Mail-Adresse.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-11-rueckmeldung-punkt-1-5",
     date: "2026-08-11",
     category: "Behoben",

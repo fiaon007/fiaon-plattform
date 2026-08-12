@@ -1525,6 +1525,96 @@ async function main(): Promise<void> {
     && /telefon\/kunde\/\$\{kunde\.personId\}/.test(datei("client/src/components/Softphone.tsx")));
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c16. Die erste Rechnung");
+  // ═══════════════════════════════════════════════════════════════════════
+  // Der Vorgesetzte: „ALLE die einen Antrag bei uns gestellt haben brauchen
+  // eine Rechnung und müssen täglich versendet werden und den Agenten eben
+  // passend angezeigt werden und mit Knopfdruck versendbar sein!"
+  const { rechnungsKandidaten, rechnungStellen, RECHNUNGSREIF, ZAHLUNGSFRIST_TAGE } =
+    await import("../server/lib/fiaon-rechnung-stellen");
+
+  const kand = await rechnungsKandidaten({ grenze: 2000 });
+  const versendbar = kand.filter((k) => !k.hindernis);
+  ok(`${kand.length} rechnungsreife Anträge, ${versendbar.length} sofort versendbar`,
+    kand.length > 0);
+  ok("Jeder nicht versendbare nennt seinen Grund IN WORTEN",
+    kand.filter((k) => k.hindernis).every((k) => k.hindernis!.length > 25));
+  ok("Jeder versendbare hat Betrag, Zweck und Empfänger",
+    versendbar.every((k) => k.betragCents > 0 && !!k.verwendungszweck && !!k.email));
+
+  // ── ANGEFANGENE FORMULARE SIND KEINE ANTRÄGE ──────────────────────────
+  // Gemessen: Von 3.626 Einträgen im Zustand „personal_data" haben SECHS eine
+  // E-Mail. Das sind Spuren im Trichter, keine gestellten Anträge.
+  ok("„personal_data“ ist NICHT rechnungsreif",
+    !(RECHNUNGSREIF as readonly string[]).includes("personal_data"));
+  ok("„contract“ und „finances“ ebenso wenig",
+    !(RECHNUNGSREIF as readonly string[]).includes("contract")
+    && !(RECHNUNGSREIF as readonly string[]).includes("finances"));
+  ok("„completed“ und „approved“ schon",
+    (RECHNUNGSREIF as readonly string[]).includes("completed")
+    && (RECHNUNGSREIF as readonly string[]).includes("approved"));
+
+  // ── DAS VERHALTEN, IN EINER TRANSAKTION ───────────────────────────────
+  // AGENTS.md: „Prüfstände laufen in einer Transaktion, die am Ende
+  // zurückgerollt wird." Genau hier ist das nötig — die Funktion schreibt.
+  if (versendbar.length > 0) {
+    class Rollback extends Error {}
+    const probe = versendbar[0];
+    let ergebnis: any = null;
+    try {
+      await sqlPool.begin(async (tx: any) => {
+        await rechnungStellen(probe.ref, { akteur: "Prüfstand", nurBuchen: true }, tx);
+        const [n] = (await tx`
+          SELECT amount_due, payment_due_date, payment_status
+          FROM fiaon_applications WHERE ref = ${probe.ref}
+        `) as any[];
+        const nochKandidat = (await rechnungsKandidaten({ grenze: 2000 }, tx))
+          .some((x: any) => x.ref === probe.ref);
+        ergebnis = {
+          betrag: Number(n.amount_due),
+          tage: n.payment_due_date
+            ? Math.round((new Date(n.payment_due_date).getTime() - Date.now()) / 86_400_000)
+            : null,
+          stand: n.payment_status,
+          nochKandidat,
+        };
+        throw new Rollback();
+      });
+    } catch (e) { if (!(e instanceof Rollback)) throw e; }
+
+    gleich("Der Betrag kommt aus dem Paket",
+      ergebnis.betrag, probe.betragCents / 100);
+    ok(`Die Frist liegt bei ${ZAHLUNGSFRIST_TAGE} Tagen`,
+      ergebnis.tage !== null && Math.abs(ergebnis.tage - ZAHLUNGSFRIST_TAGE) <= 1,
+      `gemessen: ${ergebnis.tage}`);
+    gleich("Der Zustand wechselt auf „Rechnung offen“",
+      ergebnis.stand, "pending_payment");
+    ok("… und er bekommt KEINE zweite erste Rechnung", !ergebnis.nochKandidat);
+  }
+
+  // ── DER KNOPF DES AGENTEN ─────────────────────────────────────────────
+  const akQ16 = datei("server/routes/fiaon-agent-kunden.ts");
+  ok("Der bestehende Knopf stellt die Rechnung gleich mit",
+    /const \{ rechnungStellen, RECHNUNGSREIF \} = await import/.test(akQ16));
+  ok("… statt „keine offene Bestellung“ zu melden",
+    /Der Antrag ist noch nicht abgeschlossen \(Stand: \$\{warum\.status\}\)/.test(akQ16));
+  ok("Es gibt eine Liste für die Agenten",
+    /router\.get\("\/agent\/rechnungen\/offen"/.test(akQ16));
+  ok("… und einen Knopf je Bestellung",
+    /router\.post\("\/agent\/rechnungen\/:ref\/stellen"/.test(akQ16));
+  ok("Der Filter „Rechnung stellen“ steht in der Liste",
+    /key: "rechnung_stellen"/.test(datei("client/src/pages/agent/kunden-neu.tsx")));
+  ok("… mit Zähler aus derselben Bedingung",
+    /rechnung_stellen,/.test(datei("server/routes/fiaon-agent-start.ts")));
+
+  // ── DER TAGESLAUF ─────────────────────────────────────────────────────
+  ok("Der Tageslauf läuft mit den anderen",
+    /rechnungenTageslauf\(\{ schreiben: true, grenze: 50 \}\)/
+      .test(datei("server/routes/fiaon-antrag.ts")));
+  ok("… mit Obergrenze und Begründung dafür",
+    /in jedem Spamfilter auffällt/.test(datei("server/lib/fiaon-rechnung-stellen.ts")));
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");
   // ═══════════════════════════════════════════════════════════════════════
   const fQ = datei("client/src/components/PremiumFooter.tsx");

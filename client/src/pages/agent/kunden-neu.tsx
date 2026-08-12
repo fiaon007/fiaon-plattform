@@ -175,13 +175,22 @@ const SORT: { key: string; label: string }[] = [
 ];
 
 /** Die Ergebnisse — dieselben Namen wie im Server. */
-const ERGEBNISSE: { art: string; label: string; braucht?: "zusage" | "termin" }[] = [
+const ERGEBNISSE: { art: string; label: string; braucht?: "zusage" | "termin" | "notiz" }[] = [
   { art: "erreicht_zahlt_gleich", label: "Zahlt sofort" },
   { art: "erreicht_zahlt_am", label: "Zahlt am …", braucht: "zusage" },
   { art: "nicht_erreicht", label: "Nicht erreicht" },
   { art: "mailbox", label: "Mailbox besprochen" },
   { art: "rueckruf_termin", label: "Rückruf vereinbart", braucht: "termin" },
   { art: "erreicht_abgelehnt", label: "Erreicht – abgelehnt" },
+  // ── ERREICHT, ABER NOCH OHNE ERGEBNIS ──────────────────────────────────
+  // Ein Agent: „Mir fehlt ein Status fuer Kunden, die ich erreicht habe, bei
+  // denen aber noch kein klares Ergebnis vorliegt. Wenn ich nur eine Notiz
+  // hinterlege, zaehlt der Kunde nicht als angerufen."
+  //
+  // `braucht: "notiz"` oeffnet beim Anklicken direkt das Notizfeld — genau
+  // wie er es vorgeschlagen hat. Ohne Text kein Speichern: Ein Gespraech ohne
+  // Ergebnis UND ohne Vermerk waere nur ein Haken.
+  { art: "erreicht_sonstiges", label: "Erreicht – Sonstiges", braucht: "notiz" },
   { art: "nummer_falsch", label: "Falsche Nummer" },
   // Gemeldet 06.08.2026: Manche Kunden blockieren die Nummer eines Agenten und
   // gehen beim nächsten ran. Dieser Knopf gibt den Kunden weiter, statt ihn
@@ -194,6 +203,7 @@ const ERGEBNIS_TEXT: Record<string, string> = {
   erreicht_zahlt_gleich: "Zahlt sofort",
   erreicht_zahlt_am: "Zahlt am vereinbarten Datum",
   erreicht_abgelehnt: "Erreicht – abgelehnt",
+  erreicht_sonstiges: "Erreicht – Sonstiges",
   nicht_erreicht: "Nicht erreicht",
   mailbox: "Mailbox besprochen",
   rueckruf_termin: "Rückruf vereinbart",
@@ -1015,6 +1025,19 @@ function KundenKarte({
                     onClick={() => {
                       if (e.braucht === "zusage") { setFeldOffen(feldOffen === "zusage" ? null : "zusage"); return; }
                       if (e.braucht === "termin") { setFeldOffen(feldOffen === "termin" ? null : "termin"); return; }
+                      // ── „ERREICHT – SONSTIGES" ÖFFNET DIE NOTIZ ───────────
+                      // Der Vorschlag des Agenten wörtlich: „Beim Anklicken
+                      // öffnet sich direkt die Notiz, in der eingetragen werden
+                      // kann, was besprochen wurde und wie man verblieben ist."
+                      //
+                      // Ohne Text wird nicht gespeichert: Ein Gespräch ohne
+                      // Ergebnis UND ohne Vermerk wäre nur ein Haken, und in
+                      // drei Tagen weiß niemand mehr, worum es ging.
+                      if (e.braucht === "notiz") {
+                        if (!notiz.trim()) { setFeldOffen("notiz"); return; }
+                        void ergebnis(e.art);
+                        return;
+                      }
                       // Die Übergabe ist die einzige Aktion hier, die den Kunden
                       // aus der eigenen Hand gibt — und sie verschiebt damit auch
                       // die Chance auf die Provision. Das gehört vor den Klick,

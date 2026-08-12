@@ -31,6 +31,7 @@ import { Router, type Response } from "express";
 import { aktivitaetSchreiben } from "../lib/fiaon-aktivitaet";
 import multer from "multer";
 import { sqlPool } from "../lib/db-pool";
+import { parseBerlinInput } from "../lib/fiaon-time";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureBetreuungSpalte } from "../lib/tier";
 import { ERGEBNISSE, ergebnisAnwenden, istErgebnis } from "../lib/fiaon-kontakt-ergebnis";
@@ -461,11 +462,35 @@ router.post("/agent/vertrieb/person/:id/ergebnis", requireAgent, nurLeitung, nur
     `;
     if (!ref?.ref) return res.status(400).json({ ok: false, error: "Keine Bestellung, an der der Verlauf hängen könnte" });
 
+    // ══════════════════════════════════════════════════════════════════════
+    // BERLIN-ZEIT, NICHT UTC
+    //
+    // ── DER BEFUND (11.08.2026) ───────────────────────────────────────────
+    // Ein Agent: „Datum und Uhrzeit verändern sich teilweise beim Speichern.
+    // Morgen 10:00 Uhr wird 12:00 Uhr. Heute 20:00 Uhr landet plötzlich am
+    // 18.08. um 22:00 Uhr."
+    //
+    // Gemessen in fiaon_contact_log: Eintrag #8884 steht als
+    // „2026-08-18T20:00:00.000Z" — also 20:00 UTC, was in Berlin 22:00 ist.
+    // Genau der gemeldete Fall.
+    //
+    // Hier stand der Rohwert aus dem Formular direkt im INSERT. Ein
+    // „2026-08-18T20:00" ohne Zeitzone deutet PostgreSQL bei einer
+    // `timestamptz`-Spalte als UTC — nicht als Wandzeit des Nutzers.
+    //
+    // `parseBerlinInput` (server/lib/fiaon-time.ts) macht genau diese
+    // Umrechnung und behandelt auch die Zeitumstellung. `logAction` nutzt sie
+    // seit Langem; nur diese Stelle schrieb daran vorbei.
+    //
+    // AGENTS.md sagt es: „Zeitzone ist Europe/Berlin — über
+    // server/lib/fiaon-time.ts, nie über new Date()."
+    // ══════════════════════════════════════════════════════════════════════
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, outcome, note, promised_date, scheduled_at, created_at)
       VALUES (${ref.ref}, ${req.agent!.id}, ${`${req.agent!.name} (Vertriebsleitung)`}, 'result', ${art},
               ${req.body?.notiz ? String(req.body.notiz).slice(0, 4000) : null},
-              ${req.body?.zusageDatum || null}, ${req.body?.terminDatum || null}, NOW())
+              ${parseBerlinInput(req.body?.zusageDatum)},
+              ${parseBerlinInput(req.body?.terminDatum)}, NOW())
     `;
     const wirkung = await ergebnisAnwenden({
       ref: ref.ref, personId: id, ergebnis: art,

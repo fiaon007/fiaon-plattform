@@ -292,7 +292,17 @@ export async function offeneAnrufe(agentId: number, lauf: Lauf = sqlPool): Promi
                     p.company_name, p.contact_name, c.nummer) AS name
     FROM fiaon_calls c LEFT JOIN fiaon_persons p ON p.id = c.person_id
     WHERE c.agent_id = ${agentId} AND c.ergebnis IS NULL
-      AND c.status IN ('beendet', 'laeuft')
+      AND (
+        c.status = 'beendet'
+        -- EIN HAENGENDER VERSUCH IST KEIN OFFENES GESPRAECH.
+        -- Gemessen am 11.08.2026: Vier Anrufe standen auf „laeuft" und tauchten
+        -- dauerhaft als „ohne Ergebnis" auf. Sie laufen nicht — der Browser
+        -- wurde geschlossen oder die Verbindung brach ab, bevor Twilio den
+        -- Schlussvermerk schicken konnte.
+        -- Nach einer Stunde ist kein Telefonat mehr im Gange: Die Hoechstdauer
+        -- liegt bei 60 Minuten.
+        OR (c.status = 'laeuft' AND c.beginn > NOW() - INTERVAL '1 hour')
+      )
       AND c.beginn > NOW() - INTERVAL '3 days'
     ORDER BY c.beginn DESC
     LIMIT 20

@@ -42,6 +42,9 @@ const ERGEBNISSE: { art: string; label: string; braucht?: "zusage" | "termin" }[
   { art: "mailbox", label: "Mailbox besprochen" },
   { art: "rueckruf_termin", label: "Rückruf vereinbart", braucht: "termin" },
   { art: "erreicht_abgelehnt", label: "Erreicht – abgelehnt" },
+  // Erreicht, aber noch kein klares Ergebnis. Zaehlt als Gespraech, setzt
+  // keine Zusage und keine Sperre — nur eine Wiedervorlage in drei Tagen.
+  { art: "erreicht_sonstiges", label: "Erreicht – Sonstiges" },
   { art: "nummer_falsch", label: "Falsche Nummer" },
 ];
 

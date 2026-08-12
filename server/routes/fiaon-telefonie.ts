@@ -474,10 +474,51 @@ router.post("/telefon/:id/ergebnis", requireAgent, async (req: AgentRequest, res
         })
       : { meldung: "Ergebnis festgehalten.", wiedervorlage: null, zusage: null, gesperrt: false };
 
-    await sqlPool`
-      UPDATE fiaon_calls SET ergebnis = ${ergebnis}, ergebnis_am = NOW(), updated_at = NOW()
+    // ══════════════════════════════════════════════════════════════════════
+    // EIN ERGEBNIS GILT FÜR DAS GESPRÄCH, NICHT FÜR DEN VERBINDUNGSVERSUCH
+    //
+    // ── DER BEFUND (11.08.2026) ───────────────────────────────────────────
+    // Ein Agent: „Trotz dass ich nach dem Telefonat ein Ergebnis gedrückt habe,
+    // steht die Person ohne Ergebnis da. Beim Telefon steht dann 1 Person ohne
+    // Ergebnis, obwohl ein Ergebnis festgehalten wurde."
+    //
+    // Gemessen: Von zwölf Anrufen ohne Ergebnis hatten FÜNF einen anderen
+    // Anruf MIT Ergebnis beim selben Kunden im selben Zeitfenster. Der Agent
+    // hat also festgehalten — nur an einem von zwei Einträgen.
+    //
+    // Woher die zwei kommen: Ein Wählversuch, der nach drei Sekunden abbricht
+    // (besetzt, Mailbox, Fehlverbindung), erzeugt eine Zeile. Der zweite
+    // Versuch, der klappt, eine weitere. Das Ergebnis landet am zweiten — der
+    // erste bleibt für immer „offen".
+    //
+    // ── DAS ERGEBNIS GILT FÜR ALLE VERSUCHE DESSELBEN GESPRÄCHS ───────────
+    // Zwei Stunden Fenster: Wer denselben Menschen morgens und nachmittags
+    // anruft, hat zwei Gespräche und braucht zwei Ergebnisse. Wer es dreimal
+    // in fünf Minuten versucht, hat EIN Gespräch.
+    // ══════════════════════════════════════════════════════════════════════
+    const mitErfasst = (await sqlPool`
+      UPDATE fiaon_calls
+      SET ergebnis = ${ergebnis}, ergebnis_am = NOW(), updated_at = NOW(),
+          -- Ein Versuch, der auf „läuft" hängen blieb, ist mit dem Ergebnis
+          -- beendet. Sonst steht er morgen noch in der Liste.
+          status = CASE WHEN status = 'laeuft' THEN 'beendet' ELSE status END,
+          ende = COALESCE(ende, NOW())
       WHERE id = ${id}
-    `;
+         OR (
+           ergebnis IS NULL
+           AND agent_id = ${req.agent!.id}
+           AND person_id IS NOT NULL
+           AND person_id = ${c.person_id}
+           AND beginn BETWEEN
+             (SELECT beginn FROM fiaon_calls WHERE id = ${id}) - INTERVAL '2 hours'
+             AND (SELECT beginn FROM fiaon_calls WHERE id = ${id}) + INTERVAL '2 hours'
+         )
+      RETURNING id
+    `) as any[];
+    if (mitErfasst.length > 1) {
+      console.log(`[TELEFON] Ergebnis „${ergebnis}" für ${mitErfasst.length} Versuche `
+        + `desselben Gesprächs (Anruf #${id}, Person ${c.person_id}).`);
+    }
     res.json({ ok: true, ...wirkung, offene: await offeneAnrufe(req.agent!.id) });
   } catch (err) {
     console.error("[TELEFON] ergebnis:", err);

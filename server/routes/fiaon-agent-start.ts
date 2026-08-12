@@ -504,15 +504,40 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
       // zehn Anfragen kosten.
       sqlPool`
       SELECT
-        COUNT(*) FILTER (WHERE priority_tier BETWEEN 1 AND 3 AND NOT is_blocked)::int AS alle,
-        COUNT(*) FILTER (WHERE priority_tier = 1 AND NOT is_blocked)::int AS tier1,
-        COUNT(*) FILTER (WHERE tier_reason = 'rechnung_offen' AND NOT is_blocked)::int AS rechnung_offen,
-        COUNT(*) FILTER (WHERE tier_reason = 'zahlungsfrist_abgelaufen' AND NOT is_blocked)::int AS frist_abgelaufen,
-        COUNT(*) FILTER (WHERE tier_reason IN ('antrag_abgeschlossen','antrag_abgebrochen') AND NOT is_blocked)::int AS antrag_offen,
-        COUNT(*) FILTER (WHERE priority_tier = 3 AND NOT is_blocked)::int AS leads,
-        COUNT(*) FILTER (WHERE promised_payment_date = ${sqlPool.unsafe(HEUTE)} AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3)::int AS zusage_heute,
-        COUNT(*) FILTER (WHERE promised_payment_date < ${sqlPool.unsafe(HEUTE)} AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3)::int AS ueberfaellig,
-        COUNT(*) FILTER (WHERE unreachable_count > 0 AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3)::int AS nicht_erreicht,
+        -- ══════════════════════════════════════════════════════════════════
+        -- DIE ZÄHLER MÜSSEN DIESELBE MENGE ZÄHLEN WIE DIE LISTE ZEIGT
+        --
+        -- ── DER BEFUND (11.08.2026) ───────────────────────────────────────
+        -- Ein Agent: „Die Zahlen oben stimmen teilweise nicht mit den
+        -- tatsächlich enthaltenen Kunden überein. Beispiel: Zahlung gemeldet
+        -- zeigt 23, im Ordner befinden sich aber nur 2."
+        --
+        -- Die Liste filtert zwei Dinge zusätzlich, die hier fehlten:
+        --   ist_test_am IS NULL   Testeinträge sind keine Kunden
+        --   NOT ruht              wer viermal nicht erreicht wurde, ruht
+        --
+        -- Heute ergibt beides zufällig dieselbe Zahl (gemessen bei allen fünf
+        -- Agenten: keine Lücke). Das ist kein Zustand, auf den man baut —
+        -- sobald ein Kunde in den Ruhe-Pool wandert, klafft sie wieder.
+        --
+        -- Ein Zähler, der eine andere Menge zählt als die Liste zeigt, ist der
+        -- schlimmere Fehler: Dann traut man keiner Zahl mehr.
+        -- ══════════════════════════════════════════════════════════════════
+        COUNT(*) FILTER (WHERE priority_tier BETWEEN 1 AND 3 AND NOT is_blocked
+          AND ist_test_am IS NULL)::int AS alle,
+        COUNT(*) FILTER (WHERE priority_tier = 1 AND NOT is_blocked
+          AND ist_test_am IS NULL)::int AS tier1,
+        COUNT(*) FILTER (WHERE tier_reason = 'rechnung_offen' AND NOT is_blocked AND ist_test_am IS NULL)::int AS rechnung_offen,
+        COUNT(*) FILTER (WHERE tier_reason = 'zahlungsfrist_abgelaufen' AND NOT is_blocked AND ist_test_am IS NULL)::int AS frist_abgelaufen,
+        COUNT(*) FILTER (WHERE tier_reason IN ('antrag_abgeschlossen','antrag_abgebrochen') AND NOT is_blocked AND ist_test_am IS NULL)::int AS antrag_offen,
+        COUNT(*) FILTER (WHERE priority_tier = 3 AND NOT is_blocked
+          AND ist_test_am IS NULL)::int AS leads,
+        COUNT(*) FILTER (WHERE promised_payment_date = ${sqlPool.unsafe(HEUTE)} AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3
+          AND ist_test_am IS NULL)::int AS zusage_heute,
+        COUNT(*) FILTER (WHERE promised_payment_date < ${sqlPool.unsafe(HEUTE)} AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3
+          AND ist_test_am IS NULL)::int AS ueberfaellig,
+        COUNT(*) FILTER (WHERE unreachable_count > 0 AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3
+          AND ist_test_am IS NULL)::int AS nicht_erreicht,
         -- ── WER WARTET AUF SEINEN TERMIN? ──────────────────────────────────
         -- Die Zahl beantwortet die Frage, die entsteht, sobald Karten
         -- verschwinden: „Wo sind die Leute hin, die ich nicht erreicht habe?"

@@ -1321,6 +1321,80 @@ async function main(): Promise<void> {
     "Die Rücknahme braucht eine Entscheidung des Vorgesetzten");
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c14. Agenten-Rückmeldung vom 11.08.2026");
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // ── PUNKT 6: TERMINE VERSCHIEBEN SICH ─────────────────────────────────
+  // „Datum und Uhrzeit verändern sich beim Speichern. Morgen 10:00 wird 12:00.
+  // Heute 20:00 landet am 18.08. um 22:00."
+  //
+  // Gemessen: Eintrag #8884 stand als „2026-08-18T20:00:00.000Z" — 20:00 UTC,
+  // in Berlin 22:00. Zwei Routen schrieben den Rohwert direkt in eine
+  // timestamptz-Spalte, die ihn als UTC deutet.
+  const { parseBerlinInput: pbi } = await import("../server/lib/fiaon-time");
+  gleich("10:00 Berlin wird als 08:00 UTC gespeichert",
+    pbi("2026-08-20T10:00")?.toISOString(), "2026-08-20T08:00:00.000Z");
+  gleich("… auch mit Sekunden", pbi("2026-08-20T10:00:00")?.toISOString(),
+    "2026-08-20T08:00:00.000Z");
+  const akQ = datei("server/routes/fiaon-agent-kunden.ts");
+  const vtQ = datei("server/routes/fiaon-vertrieb.ts");
+  ok("Die Kunden-Route wandelt in Berlin-Zeit",
+    /\$\{parseBerlinInput\(terminZeitpunkt\)\}/.test(akQ));
+  ok("Die Vertriebs-Route ebenfalls",
+    /\$\{parseBerlinInput\(req\.body\?\.terminDatum\)\}/.test(vtQ));
+  ok("Der Grund steht dabei", /in Berlin 22:00/.test(akQ));
+
+  // ── PUNKT 5: ZÄHLER UND LISTE ─────────────────────────────────────────
+  // „Zahlung gemeldet zeigt 23, im Ordner befinden sich aber nur 2."
+  const asQ14 = datei("server/routes/fiaon-agent-start.ts");
+  ok("Die Zähler filtern Testeinträge wie die Liste",
+    (asQ14.match(/ist_test_am IS NULL\)::int AS/g) || []).length >= 6);
+  ok("… und der Grund steht dabei",
+    /Ein Zähler, der eine andere Menge zählt als die Liste zeigt/.test(asQ14));
+
+  // ── PUNKT 10: ERGEBNIS WIRD NICHT ÜBERNOMMEN ──────────────────────────
+  // „Trotz dass ich ein Ergebnis gedrückt habe, steht die Person ohne Ergebnis
+  // da." Gemessen: 5 von 12 Anrufen ohne Ergebnis hatten einen ANDEREN Anruf
+  // mit Ergebnis beim selben Kunden im selben Zeitfenster.
+  const telQ3 = datei("server/routes/fiaon-telefonie.ts");
+  ok("Ein Ergebnis gilt für alle Versuche desselben Gesprächs",
+    /OR \(\n           ergebnis IS NULL/.test(telQ3)
+    && /INTERVAL '2 hours'/.test(telQ3));
+  ok("… und ein hängender Versuch wird dabei beendet",
+    /status = CASE WHEN status = 'laeuft' THEN 'beendet' ELSE status END/.test(telQ3));
+  const spQ14 = datei("server/lib/fiaon-softphone.ts");
+  ok("Anrufe auf „läuft“ verschwinden nach einer Stunde aus der Liste",
+    /c\.status = 'laeuft' AND c\.beginn > NOW\(\) - INTERVAL '1 hour'/.test(spQ14));
+
+  // ── PUNKT 9: „ERREICHT – SONSTIGES" ───────────────────────────────────
+  // „Mir fehlt ein Status für Kunden, die ich erreicht habe, bei denen aber
+  // noch kein klares Ergebnis vorliegt."
+  const { ERGEBNISSE: ERG, ERGEBNIS_TEXT, istErgebnis } =
+    await import("../server/lib/fiaon-kontakt-ergebnis");
+  ok("Das Ergebnis „erreicht_sonstiges“ gibt es", istErgebnis("erreicht_sonstiges"));
+  gleich("… mit Klartext", (ERGEBNIS_TEXT as any).erreicht_sonstiges, "Erreicht — Sonstiges");
+  ok("… es zählt als GESPRÄCH, nicht als Fehlversuch", (() => {
+    const q = datei("server/lib/fiaon-kontakt-ergebnis.ts");
+    const i = q.indexOf('case "erreicht_sonstiges":');
+    const j = q.indexOf('case "nicht_erreicht":', i);
+    return i > 0 && j > i && !q.slice(i, j).includes("zaehlerHoch = true");
+  })());
+  ok("… mit Wiedervorlage in drei Tagen", (() => {
+    const q = datei("server/lib/fiaon-kontakt-ergebnis.ts");
+    const i = q.indexOf('case "erreicht_sonstiges":');
+    return i > 0 && q.slice(i, i + 700).includes("tagPlus(3)");
+  })());
+  ok("In der Kundenliste öffnet es die Notiz",
+    /\{ art: "erreicht_sonstiges", label: "Erreicht – Sonstiges", braucht: "notiz" \}/
+      .test(datei("client/src/pages/agent/kunden-neu.tsx")));
+  ok("… und ohne Text wird nicht gespeichert",
+    /if \(!notiz\.trim\(\)\) \{ setFeldOffen\("notiz"\); return; \}/
+      .test(datei("client/src/pages/agent/kunden-neu.tsx")));
+  ok("Auch das Telefon kennt es",
+    /\{ art: "erreicht_sonstiges", label: "Erreicht – Sonstiges" \}/
+      .test(datei("client/src/components/Softphone.tsx")));
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");
   // ═══════════════════════════════════════════════════════════════════════
   const fQ = datei("client/src/components/PremiumFooter.tsx");

@@ -56,6 +56,23 @@ export const ERGEBNISSE = [
   "erreicht_zahlt_gleich",
   "erreicht_zahlt_am",
   "erreicht_abgelehnt",
+  // ══════════════════════════════════════════════════════════════════════════
+  // ERREICHT, ABER OHNE KLARES ERGEBNIS
+  //
+  // Ein Agent (11.08.2026): „Mir fehlt ein Status fuer Kunden, die ich erreicht
+  // habe, bei denen aber noch kein klares Ergebnis wie ‚Zahlt sofort', ‚Zahlt
+  // am …', ‚Rueckruf' oder ‚Abgelehnt' vorliegt. Es gibt zwar bereits die
+  // Notizfunktion, aber wenn ich nur eine Notiz hinterlege, zaehlt der Kunde
+  // nicht als angerufen/bearbeitet, obwohl ein Gespraech stattgefunden hat."
+  //
+  // Er hat recht: Eine Notiz ist ein Vermerk, kein Ergebnis. Der Zaehler
+  // „heute bearbeitet" sah sie nicht, und der Kunde stand morgen wieder oben.
+  //
+  // Dieses Ergebnis zaehlt als Gespraech, setzt aber KEINE Zusage und KEINE
+  // Sperre — nur eine Wiedervorlage in drei Tagen. Wer ein Gespraech ohne
+  // Ergebnis hatte, braucht Zeit, aber er darf nicht vergessen werden.
+  // ══════════════════════════════════════════════════════════════════════════
+  "erreicht_sonstiges",
   "nicht_erreicht",
   "mailbox",
   "rueckruf_termin",
@@ -73,6 +90,7 @@ export const ERGEBNIS_TEXT: Record<Ergebnis, string> = {
   erreicht_zahlt_gleich: "Erreicht — zahlt sofort",
   erreicht_zahlt_am: "Erreicht — zahlt am …",
   erreicht_abgelehnt: "Erreicht — abgelehnt",
+  erreicht_sonstiges: "Erreicht — Sonstiges",
   nicht_erreicht: "Nicht erreicht",
   mailbox: "Mailbox besprochen",
   rueckruf_termin: "Rückruf vereinbart",
@@ -187,6 +205,15 @@ export async function ergebnisAnwenden(
       zusage = null;
       wiedervorlage = null;
       meldung = "Abgelehnt — der Kunde erscheint in keiner Anrufliste mehr.";
+      break;
+    case "erreicht_sonstiges":
+      // Erreicht heisst: der Zaehler „nicht erreicht" wird NICHT hochgezaehlt,
+      // und der Ruhe-Pool bleibt aussen vor. Es war ja ein Gespraech.
+      //
+      // Drei Tage Wiedervorlage: Zwei waeren zu hektisch fuer ein Gespraech
+      // ohne Ergebnis, eine Woche zu lang, um den Faden zu halten.
+      wiedervorlage = gewaehlt || tagPlus(3);
+      meldung = "Gespraech festgehalten — in drei Tagen wieder auf der Liste.";
       break;
     case "nicht_erreicht":
       zaehlerHoch = true;

@@ -36,7 +36,7 @@ import { Router, type Response } from "express";
 import multer from "multer";
 import { sqlPool } from "../lib/db-pool";
 import { waehlbareNummer } from "../lib/fiaon-telefon";
-import { pruefeTerminZukunft } from "../lib/fiaon-time";
+import { parseBerlinInput, pruefeTerminZukunft } from "../lib/fiaon-time";
 import {
   ERGEBNISSE, ERGEBNIS_TEXT, brauchtDatum, ergebnisAnwenden, istErgebnis, type Ergebnis,
 } from "../lib/fiaon-kontakt-ergebnis";
@@ -641,13 +641,35 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
       });
     }
 
-    // 1. Verlauf schreiben — die Herkunft kennt nur dieser Aufrufer.
+    // ══════════════════════════════════════════════════════════════════════
+    // BERLIN-ZEIT, NICHT UTC
+    //
+    // ── DER BEFUND (11.08.2026) ───────────────────────────────────────────
+    // Ein Agent: „Datum und Uhrzeit verändern sich teilweise beim Speichern.
+    // Morgen 10:00 Uhr wird 12:00 Uhr. Heute 20:00 Uhr landet plötzlich am
+    // 18.08. um 22:00 Uhr."
+    //
+    // Gemessen in fiaon_contact_log: Eintrag #8884 steht als
+    // „2026-08-18T20:00:00.000Z" — 20:00 UTC, in Berlin 22:00. Genau der Fall.
+    //
+    // Hier stand `terminZeitpunkt` roh im INSERT. Der Wert ist
+    // „2026-08-18T20:00:00" ohne Zeitzone; eine `timestamptz`-Spalte deutet
+    // das als UTC — nicht als Wandzeit des Menschen, der es eingetippt hat.
+    //
+    // `parseBerlinInput` macht genau diese Umrechnung und beherrscht die
+    // Zeitumstellung. `logAction` nutzt sie seit Langem; diese Route und die
+    // in fiaon-vertrieb.ts schrieben daran vorbei.
+    //
+    // AGENTS.md: „Zeitzone ist Europe/Berlin — über server/lib/fiaon-time.ts,
+    // nie über new Date()."
+    // ══════════════════════════════════════════════════════════════════════
     await sqlPool`
       INSERT INTO fiaon_contact_log
         (ref, agent_id, agent_name, type, outcome, note, promised_date, scheduled_at, created_at)
       VALUES (${p.schreib_ref}, ${req.agent!.id}, ${req.agent!.name},
               ${istNotiz ? "note" : "result"}, ${ergebnis},
-              ${notiz}, ${zusageDatum || null}, ${terminZeitpunkt || null}, NOW())
+              ${notiz}, ${parseBerlinInput(zusageDatum)},
+              ${parseBerlinInput(terminZeitpunkt)}, NOW())
     `;
 
     // 2. Zustand anwenden — gemeinsame Regel für beide Ansichten.

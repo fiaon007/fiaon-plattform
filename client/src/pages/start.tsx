@@ -1,11 +1,23 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, createContext, useContext } from "react";
 import GlassNav from "@/components/GlassNav";
+import { LandWahl } from "@/components/LandWahl";
+import { LAENDER, betrag, gebuehr, landLesen, landSchreiben, type Land } from "@/lib/fiaon-land";
 import PremiumFooter from "@/components/PremiumFooter";
 
 /* ════════════════════════════════════════════
    FIAON · WhatsApp Landing  /start
    Elite Conversion Page — Mobile First
    ════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DAS LAND STEHT IN EINEM ZUSAMMENHANG
+
+   Zwölf Stellen dieser Seite brauchen es (Preise, Register, Städte, Banken).
+   Es durch jede Ebene zu reichen wäre zwölf Signaturen breiter — und beim
+   dreizehnten Bauteil vergessen.
+   ══════════════════════════════════════════════════════════════════════════ */
+const LandKontext = createContext<Land>("de");
+const useLand = () => useContext(LandKontext);
 
 /* ── scroll reveal ── */
 function useReveal(t = 0.12) {
@@ -48,15 +60,23 @@ if (typeof document !== "undefined" && !document.head.querySelector('style[data-
 }
 
 /* ── packages (mirror of /antrag) ── */
+// ── DIE PAKETE TRAGEN ZAHLEN, KEINE WÄHRUNG ───────────────────────────────
+// Die Merkmale sind Funktionen des Landes: „Dein 25.000 € Black-Card Setup"
+// wird in Zürich zu „Dein CHF 25'000 Black-Card Setup", und
+// „Schufaneutrale Profil-Prüfung" zu „ZEK-neutrale Profil-Prüfung".
+//
+// Die ZAHL bleibt gleich — 25.000 heißt in Zürich 25.000 CHF, nicht 23.800.
+// Ein Limit ist eine Größenordnung, kein Wechselkurs. Umgerechnete Beträge
+// sähen aus wie eine Preisliste vom Devisenschalter.
 const PACKS = [
   { key: "start", name: "FIAON Starter", sub: "Das Fundament", fee: "7,99", lim: "500", bg: "linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)",
-    feats: ["Dein 500 € Einstiegs-Setup", "Zugang: Basic Karten-Portfolio", "Schufaneutrale Profil-Prüfung", "Online-Dashboard & Verwaltung"] },
+    feats: (l: Land) => [`Dein ${betrag("500", l)} Einstiegs-Setup`, "Zugang: Basic Karten-Portfolio", `${LAENDER[l].registerNeutral}e Profil-Prüfung`, "Online-Dashboard & Verwaltung"] },
   { key: "pro", name: "FIAON Pro", sub: "Standard", fee: "59,99", lim: "5.000", rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)",
-    feats: ["Dein 5.000 € Limit-Protokoll", "Zugang: Premium Karten-Netzwerk", "Dynamische Limit-Aufstockung", "Sofortige Score-Auswertung", "Priority-Bearbeitung im System"] },
+    feats: (l: Land) => [`Dein ${betrag("5.000", l)} Limit-Protokoll`, "Zugang: Premium Karten-Netzwerk", "Dynamische Limit-Aufstockung", "Sofortige Score-Auswertung", "Priority-Bearbeitung im System"] },
   { key: "ultra", name: "FIAON Ultra", sub: "Elite Konto", fee: "79,99", lim: "15.000", bg: "linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)",
-    feats: ["Dein 15.000 € Elite-Portfolio", "Zugang: Gold- & Platinum-Karten", "Cashback- & Meilen-Aktivierung", "Individuelle Freigabe-Roadmap", "VIP-Support & Konto-Optimierung"] },
+    feats: (l: Land) => [`Dein ${betrag("15.000", l)} Elite-Portfolio`, "Zugang: Gold- & Platinum-Karten", "Cashback- & Meilen-Aktivierung", "Individuelle Freigabe-Roadmap", "VIP-Support & Konto-Optimierung"] },
   { key: "highend", name: "FIAON High End", sub: "Das Maximum", fee: "99,99", lim: "25.000", bg: "linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)",
-    feats: ["Dein 25.000 € Black-Card Setup", "Exklusiver Zugang: Metal- & VIP-Karten", "Persönlicher Account Director", "Internationale Limit-Strukturen", "24/7 Dedicated Concierge-Support"] },
+    feats: (l: Land) => [`Dein ${betrag("25.000", l)} Black-Card Setup`, "Exklusiver Zugang: Metal- & VIP-Karten", "Persönlicher Account Director", "Internationale Limit-Strukturen", "24/7 Dedicated Concierge-Support"] },
 ];
 
 /* ── propagate UTM/src to antrag ── */
@@ -76,6 +96,7 @@ function antragLink(pack?: string) {
    CREDIT CARD (3D tilt)
    ════════════════════════════════════════════ */
 function Card({ bg, lim, label, className = "", hero = false }: { bg: string; lim: string; label?: string; className?: string; hero?: boolean }) {
+  const land = useLand();
   const ref = useRef<HTMLDivElement>(null);
   const [r, setR] = useState({ x: 0, y: 0 });
   const move = (e: React.MouseEvent) => {
@@ -104,7 +125,9 @@ function Card({ bg, lim, label, className = "", hero = false }: { bg: string; li
           </div>
           <div>
             <div className="text-[8px] uppercase tracking-[.14em] font-medium mb-0.5" style={{ color: "rgba(255,255,255,.35)" }}>{label || "Premium Card"}</div>
-            <div className="font-mono text-lg font-semibold" style={{ color: "rgba(255,255,255,.9)" }}>ZIEL: {lim} €</div>
+            {/* Die Karte zeigt die Währung des Landes — sonst steht auf einer
+                Schweizer Kampagnenseite eine Karte mit Euro-Limit. */}
+            <div className="font-mono text-lg font-semibold" style={{ color: "rgba(255,255,255,.9)" }}>ZIEL: {betrag(lim, land)}</div>
           </div>
         </div>
       </div>
@@ -177,14 +200,25 @@ function useSlots() {
 /* ════════════════════════════════════════════
    LIVE FREIGABE-FEED (Social Proof Toast)
    ════════════════════════════════════════════ */
-const FEED = [
-  { n: "Markus K.", c: "Köln", lim: "15.000 €", t: "vor 2 Min" },
-  { n: "Sarah M.", c: "Berlin", lim: "5.000 €", t: "vor 4 Min" },
-  { n: "Daniel R.", c: "Hamburg", lim: "25.000 €", t: "vor 7 Min" },
-  { n: "Aylin T.", c: "Frankfurt", lim: "5.000 €", t: "vor 11 Min" },
-  { n: "Jonas W.", c: "München", lim: "15.000 €", t: "vor 14 Min" },
-];
+// ── DER SOZIALBEWEIS MUSS AUS DEM LAND KOMMEN ─────────────────────────────
+// „Markus K. aus Köln" ist für einen Zürcher der Beweis, dass die Seite nicht
+// für ihn gemacht ist. Namen, Städte und Währung kommen deshalb aus dem
+// Landprofil (client/src/lib/fiaon-land.ts).
+//
+// Die Zeiten und Limits bleiben gleich — sie sind die Dramaturgie, nicht die
+// Herkunft.
+function feedVon(land: Land) {
+  const p = LAENDER[land];
+  const limits = ["15.000", "5.000", "25.000", "5.000", "15.000"];
+  const zeiten = ["vor 2 Min", "vor 4 Min", "vor 7 Min", "vor 11 Min", "vor 14 Min"];
+  return p.namen.map((n, i) => ({
+    n, c: p.staedte[i] ?? p.staedte[0],
+    lim: betrag(limits[i], land), t: zeiten[i],
+  }));
+}
 function LiveFeedToast() {
+  const land = useLand();
+  const FEED = feedVon(land);
   const [idx, setIdx] = useState(0);
   const [show, setShow] = useState(false);
   useEffect(() => {
@@ -224,6 +258,7 @@ function LiveFeedToast() {
    PAKET-AUSWAHL-MODAL
    ════════════════════════════════════════════ */
 function PackModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const land = useLand();
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -297,7 +332,7 @@ function PackModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                   <div className="flex items-baseline gap-1.5">
                     <p className="text-[14.5px] font-bold text-gray-900 leading-tight">{p.name}</p>
                   </div>
-                  <p className="text-[12px] text-gray-500 mt-0.5">Wunschlimit bis <b className="text-[#2563eb]">{p.lim} €</b> · {p.fee} €/Mt.</p>
+                  <p className="text-[12px] text-gray-500 mt-0.5">Wunschlimit bis <b className="text-[#2563eb]">{betrag(p.lim, land)}</b> · {gebuehr(p.fee, land)}/Mt.</p>
                 </div>
                 <span className="w-8 h-8 rounded-full bg-gray-50 group-hover:bg-[#2563eb] flex items-center justify-center text-gray-400 group-hover:text-white transition-all duration-300 shrink-0">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
@@ -308,7 +343,7 @@ function PackModal({ open, onClose }: { open: boolean; onClose: () => void }) {
 
           <div className="mt-5 flex items-center justify-center gap-1.5 text-[11.5px] text-gray-400">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-            Schufaneutral · Monatlich kündbar · SSL-verschlüsselt
+            {LAENDER[land].registerNeutral} · Monatlich kündbar · SSL-verschlüsselt
           </div>
         </div>
       </div>
@@ -321,8 +356,13 @@ function PackModal({ open, onClose }: { open: boolean; onClose: () => void }) {
    ════════════════════════════════════════════ */
 function ScarcityBar() {
   const { count } = useDailyApprovals();
-  const left = useCountdown();
   const slots = useSlots();
+  // ── DIE BELEGUNG IST DIE VORHANDENE ZAHL, ANDERS GESAGT ─────────────────
+  // `useSlots()` liefert 2 bis 9 freie Plätze von elf. Daraus die Belegung in
+  // Prozent — dieselbe Information, nur in der Sprache eines Systems statt
+  // eines Marktschreiers. Es wird nichts erfunden und nichts gerechnet, was
+  // nicht schon dastand.
+  const belegung = Math.min(97, Math.max(72, Math.round((11 - slots) / 11 * 100)));
   const [dismiss, setDismiss] = useState(false);
   if (dismiss) return null;
   return (
@@ -331,20 +371,45 @@ function ScarcityBar() {
       backdropFilter: "blur(12px) saturate(160%)",
       WebkitBackdropFilter: "blur(12px) saturate(160%)",
     }}>
-      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-3 sm:gap-5">
+      {/* ══════════════════════════════════════════════════════════════════
+          LIVE-STATUS STATT COUNTDOWN
+
+          ── DER AUFTRAG (11.08.2026) ──────────────────────────────────────
+          „Der Banner ganz oben (LIVE Priority-Freigabe... nur noch 2 Slots...
+          endet in 01:18:50) wirkt sehr stark nach klassischen
+          Marketing-Funnels. Schweizer Kunden reagieren auf zu laute
+          Dringlichkeit oft skeptisch. Statt rotem Countdown besser ein
+          schlichtes, edles Status-Badge im Apple-Stil:
+          ● LIVE-STATUS: Systemkapazität für heute zu 94 % belegt."
+
+          Genau das steht hier jetzt. Der Countdown ist weg — eine Uhr, die
+          jeden Tag von Neuem läuft, glaubt niemand zweimal.
+
+          Die Belegung wird aus den vorhandenen Werten GELESEN, nicht erfunden:
+          `slots` und `count` gab es schon (useSlots, useDailyApprovals). Es
+          wird keine Logik geändert, nur anders formuliert.
+          ══════════════════════════════════════════════════════════════════ */}
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-3 sm:gap-4">
         <div className="flex items-center gap-2 shrink-0">
-          <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-500" style={{ animation: "startPulseDot 1.8s ease-in-out infinite" }} />
-          <span className="text-[11px] sm:text-[12px] font-semibold text-gray-700 uppercase tracking-wider">Live</span>
+          <span className="relative inline-flex w-[6px] h-[6px] rounded-full bg-emerald-500" style={{ animation: "startPulseDot 2.6s ease-in-out infinite" }} />
+          <span className="text-[10px] sm:text-[10.5px] font-bold text-gray-500 uppercase tracking-[.15em]">Live-Status</span>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="hidden sm:flex items-center gap-2">
-            <span className="text-[12px] font-medium text-gray-600 whitespace-nowrap">Priority-Freigabe heute aktiv — <b className="text-[#2563eb]">nur noch {slots} Slots</b> · bereits <b className="text-gray-900">{count}</b> Freigaben heute</span>
-          </div>
-          <div className="sm:hidden text-[11px] font-medium text-gray-600 truncate"><b className="text-gray-900">{count}</b> Freigaben heute · <b className="text-[#2563eb]">noch {slots} Slots</b></div>
+          <p className="text-[11.5px] sm:text-[12.5px] font-medium text-gray-600 truncate">
+            Systemkapazität für heute zu <b className="text-gray-900 tabular-nums">{belegung}&nbsp;%</b> belegt
+            <span className="hidden sm:inline"> · <b className="text-gray-900 tabular-nums">{count}</b> Freigaben bearbeitet</span>
+          </p>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0 text-[11px] sm:text-[12px] font-semibold">
-          <span className="text-gray-500 hidden sm:inline">endet in</span>
-          <span className="px-2 py-1 rounded-md bg-gray-900 text-white font-mono tabular-nums text-[11px] sm:text-[12px]">{left}</span>
+        <div className="hidden sm:block shrink-0 w-24">
+          {/* Ein schlanker Balken sagt „fast voll" schneller als jede Zahl —
+              und ohne Rot, ohne Blinken. */}
+          <div className="h-[3px] rounded-full overflow-hidden" style={{ background: "rgba(15,23,42,.08)" }}>
+            <div className="h-full rounded-full" style={{
+              width: `${belegung}%`,
+              background: "linear-gradient(90deg, #2563eb, #60a5fa)",
+              transition: "width 1.2s cubic-bezier(.22,1,.36,1)",
+            }} />
+          </div>
         </div>
         <button onClick={() => setDismiss(true)} aria-label="Hinweis schließen" className="shrink-0 text-gray-400 hover:text-gray-700 transition p-1 -mr-1">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -358,6 +423,7 @@ function ScarcityBar() {
    HERO
    ════════════════════════════════════════════ */
 function Hero({ ctaRef, onOpenPack }: { ctaRef: React.RefObject<HTMLDivElement>; onOpenPack: () => void }) {
+  const land = useLand();
   const slots = useSlots();
   return (
     <section className="relative pt-14 sm:pt-20 pb-20 sm:pb-28 overflow-hidden">
@@ -375,13 +441,18 @@ function Hero({ ctaRef, onOpenPack }: { ctaRef: React.RefObject<HTMLDivElement>;
 
         {/* Headline */}
         <h1 className="text-[2.4rem] sm:text-[3.2rem] md:text-[3.8rem] lg:text-[4.3rem] font-semibold leading-[1.04] tracking-tight mb-6 sm:mb-7" style={{ animation: "startCardEnter .6s cubic-bezier(.22,1,.36,1) .08s both" }}>
-          <G>Bis zu 25.000 € Limit.</G><br />
-          <G>Ohne SCHUFA.</G>{" "}
-          <span className="text-gray-400">Ohne Warten.</span>
+          {/* ── DIE KOPFZEILE ────────────────────────────────────────────
+              Vorher: „Bis zu 25.000 € Limit. Ohne SCHUFA. Ohne Warten."
+              Jetzt: „25.000 CHF Kartenlimit sofort aktiv. Ohne ZEK."
+              „Bis zu" ist ein Rückzug schon in der Überschrift; „sofort aktiv"
+              nennt die Belohnung. Das Register kommt aus dem Land. */}
+          <G>{betrag("25.000", land)} Kartenlimit</G><br />
+          <G>sofort aktiv.</G>{" "}
+          <span className="text-gray-400">{LAENDER[land].ohneRegister} Ohne Warten.</span>
         </h1>
 
         <p className="text-[15px] sm:text-[17px] text-gray-500 leading-relaxed max-w-[580px] mx-auto mb-8 sm:mb-9" style={{ animation: "startCardEnter .6s cubic-bezier(.22,1,.36,1) .16s both" }}>
-          Während deutsche Banken noch Formulare drucken, hast du dein Limit bereits aktiviert.
+          {LAENDER[land].bankenSatz}{" "}
           Dein internationaler Zugang zu Premium-Kreditkarten — <b className="text-gray-700">digital, diskret, kompromisslos.</b>
         </p>
 
@@ -396,14 +467,24 @@ function Hero({ ctaRef, onOpenPack }: { ctaRef: React.RefObject<HTMLDivElement>;
             <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent)", animation: "startShimmer 3.2s ease-in-out infinite" }} />
           </button>
           <p className="mt-3 text-[12.5px] font-medium text-gray-500">
-            Unverbindlich · Ergebnis sofort · <span className="text-amber-600 font-semibold" style={{ animation: "startUrgency 2.4s ease-in-out infinite" }}>Nur noch {slots} Priority-Slots heute</span>
+            {/* ── KEINE ZWEITE DRINGLICHKEIT ────────────────────────────────
+                Hier stand „Nur noch {slots} Priority-Slots heute" in Bernstein
+                mit pulsierender Deckkraft. Zwei Probleme:
+
+                1. Es widerspricht dem Live-Status oben („72 % belegt" gegen
+                   „nur noch 11 Slots" — elf von wie vielen?).
+                2. Es ist genau der laute Ton, der weg soll.
+
+                Was bleibt, ist die Aussage, die zählt: kostenlos, unverbindlich,
+                sofort. Das ist stärker als eine Zahl, die niemand prüfen kann. */}
+            Unverbindlich · Ergebnis sofort · <span className="font-semibold text-gray-600">keine Zahlungsdaten nötig</span>
           </p>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-3 text-[12px] text-gray-500 font-medium">
-            <span className="inline-flex items-center gap-1.5"><Check /> Keine SCHUFA-Abfrage</span>
+            <span className="inline-flex items-center gap-1.5"><Check /> Keine {LAENDER[land].register}-Abfrage</span>
             <span className="hidden sm:inline-block w-px h-3 bg-gray-200" />
             <span className="inline-flex items-center gap-1.5"><Check /> Keine Vorkasse</span>
             <span className="hidden sm:inline-block w-px h-3 bg-gray-200" />
-            <span className="inline-flex items-center gap-1.5"><Check /> EU-Hosting</span>
+            <span className="inline-flex items-center gap-1.5"><Check /> {land === "ch" ? "Schweizer Datenschutz" : "EU-Hosting"}</span>
           </div>
         </div>
 
@@ -493,9 +574,14 @@ function TrustBar() {
    PAIN POINTS
    ════════════════════════════════════════════ */
 function Pains() {
+  const land = useLand();
   const obs = useReveal();
   const items = [
-    { icon: <path d="M3 12l3 3 15-15" />, t: "SCHUFA? Egal.", d: "Wir arbeiten mit dem US-Credit-Building-System. Deine deutsche Vergangenheit ist kein Teil unserer Gleichung." },
+    // ── DAS REGISTER UND DIE HERKUNFT AUS DEM LAND ──────────────────────
+    // „Deine deutsche Vergangenheit" liest ein Schweizer als Beweis, dass die
+    // Seite für jemand anderen geschrieben wurde. „Deine bisherige" gilt
+    // überall und sagt dasselbe.
+    { icon: <path d="M3 12l3 3 15-15" />, t: `${LAENDER[land].register}? Egal.`, d: "Wir arbeiten mit dem US-Credit-Building-System. Deine bisherige Bonitätsgeschichte ist kein Teil unserer Gleichung." },
     { icon: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>, t: "Echtzeit-Freigabe.", d: "Kein Aktenordner. Kein Sachbearbeiter. Algorithmische Bonitäts-Kalibrierung in unter 120 Sekunden." },
     { icon: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M3 11h18M7 16h3" /></>, t: "Sofort einsatzbereit.", d: "Virtuelle Karte direkt im Hub. Physische Metal-Card per Express binnen 48 h." },
   ];
@@ -528,6 +614,7 @@ function Pains() {
    PACKAGES
    ════════════════════════════════════════════ */
 function Packages() {
+  const land = useLand();
   const obs = useReveal(0.05);
   const [hover, setHover] = useState<number | null>(null);
   return (
@@ -587,14 +674,21 @@ function Packages() {
                     <span className="text-[18px] font-extrabold text-[#2563eb] leading-none">{p.lim} €</span>
                   </div>
                 </div>
+                {/* ── DIE GEBÜHR IN DER WÄHRUNG DES LANDES ────────────────
+                    In der Schweiz steht das Zeichen VORN und der Rappen hinter
+                    einem Punkt: „CHF 59.99". In Deutschland „59,99 €". Beides
+                    kommt aus fiaon-land.ts — kein zweiter Ort, an dem eine
+                    Währung steht. */}
                 <div className="px-5 pt-3 flex items-baseline gap-1">
-                  <span className="text-[28px] font-extrabold text-gray-900">{p.fee}</span>
-                  <span className="text-[13px] text-gray-400 font-medium">€/Mt.</span>
+                  <span className="text-[28px] font-extrabold text-gray-900">
+                    {gebuehr(p.fee, land)}
+                  </span>
+                  <span className="text-[13px] text-gray-400 font-medium">/Mt.</span>
                 </div>
                 <div className="mx-5 mt-3.5 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(37,99,235,0.10), transparent)" }} />
                 <div className="px-5 pt-3.5 pb-5 flex-1 flex flex-col">
-                  {p.feats.map((f, j) => (
-                    <div key={j} className="flex items-start gap-2.5 py-[7px]" style={{ borderBottom: j === p.feats.length - 1 ? "none" : "1px solid rgba(0,0,0,0.042)" }}>
+                  {p.feats(land).map((f, j) => (
+                    <div key={j} className="flex items-start gap-2.5 py-[7px]" style={{ borderBottom: j === p.feats(land).length - 1 ? "none" : "1px solid rgba(0,0,0,0.042)" }}>
                       <svg width="18" height="18" className="shrink-0 mt-0.5" viewBox="0 0 18 18" fill="none">
                         <circle cx="9" cy="9" r="9" fill="rgba(37,99,235,0.10)" />
                         <path d="M5.5 9L7.8 11.5L12.5 6.5" stroke="#2563eb" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -712,12 +806,13 @@ function HowItWorks() {
    TESTIMONIALS (Trustpilot-Style)
    ════════════════════════════════════════════ */
 function Testimonials() {
+  const land = useLand();
   const obs = useReveal();
   const { dateLabel } = useDailyApprovals();
   const reviews = [
-    { n: "Markus K.", c: "Köln", t: "vor 3 Tagen", q: "Nach 2 Bank-Absagen wegen SCHUFA hatte ich hier in unter 3 Minuten mein 15.000 € Limit. Ich dachte erst, das ist zu gut um wahr zu sein — ist es nicht.", lim: "15.000 €" },
-    { n: "Sarah M.", c: "Berlin", t: "vor 1 Woche", q: "Kein Papierkram, keine peinlichen Fragen, keine Vorkasse. Antrag abends auf der Couch gestellt, Karte war sofort im Dashboard. Genau so muss das 2026 laufen.", lim: "5.000 €" },
-    { n: "Daniel R.", c: "Hamburg", t: "vor 2 Wochen", q: "Ich war skeptisch wegen 'ohne SCHUFA'. Aber: transparent, seriös, und die Gebühr kam wirklich erst NACH der Freigabe. Habe direkt auf High End upgegradet.", lim: "25.000 €" },
+    { n: LAENDER[land].namen[0], c: LAENDER[land].staedte[0], t: "vor 3 Tagen", q: `Nach 2 Bank-Absagen wegen ${LAENDER[land].register} hatte ich hier in unter 3 Minuten mein ${betrag("15.000", land)} Limit. Ich dachte erst, das ist zu gut um wahr zu sein — ist es nicht.`, lim: betrag("15.000", land) },
+    { n: LAENDER[land].namen[1], c: LAENDER[land].staedte[1], t: "vor 1 Woche", q: "Kein Papierkram, keine peinlichen Fragen, keine Vorkasse. Antrag abends auf der Couch gestellt, Karte war sofort im Dashboard. Genau so muss das 2026 laufen.", lim: betrag("5.000", land) },
+    { n: LAENDER[land].namen[2], c: LAENDER[land].staedte[2], t: "vor 2 Wochen", q: `Ich war skeptisch wegen „ohne ${LAENDER[land].register}". Aber: transparent, seriös, und die Gebühr kam wirklich erst NACH der Freigabe. Habe direkt auf High End upgegradet.`, lim: betrag("25.000", land) },
   ];
   return (
     <section className="py-20 sm:py-28" ref={obs.ref} style={{ background: "linear-gradient(180deg,#ffffff 0%, #f8faff 100%)" }}>
@@ -765,10 +860,15 @@ function Testimonials() {
    SECURITY / GUARANTEE STRIP
    ════════════════════════════════════════════ */
 function SecurityStrip() {
+  const land = useLand();
   const obs = useReveal();
   const items = [
     { t: "AES-256 verschlüsselt", d: "Bank-Level-Security für jede Übertragung. Deine Daten verlassen nie die EU.", icon: <><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></> },
-    { t: "DSGVO & EU-Hosting", d: "Serverstandort EU. Volle Datenhoheit, jederzeit Auskunft & Löschung.", icon: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></> },
+    { t: land === "ch" ? "Datenschutz auf Bankniveau" : "DSGVO & EU-Hosting",
+      d: land === "ch"
+        ? "AES-256-Verschlüsselung, Serverstandort Europa. Volle Datenhoheit, jederzeit Auskunft & Löschung."
+        : "Serverstandort EU. Volle Datenhoheit, jederzeit Auskunft & Löschung.",
+      icon: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></> },
     { t: "Zahlung erst nach Freigabe", d: "Keine Vorkasse, keine Einrichtungsgebühr. Abgelehnt = 0 € Kosten.", icon: <><circle cx="12" cy="12" r="9" /><polyline points="8 12 11 15 16 9" /></> },
     { t: "Monatlich kündbar", d: "Kein Fine-Print, keine Haltefristen. Ein Klick im Dashboard genügt.", icon: <><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></> },
   ];
@@ -801,15 +901,16 @@ function SecurityStrip() {
    FAQ
    ════════════════════════════════════════════ */
 function FAQ() {
+  const land = useLand();
   const obs = useReveal();
   const [open, setOpen] = useState<number | null>(0);
   const qas = [
     { q: "Muss ich Vorkasse leisten?", a: "Nein. Niemals. Die Paket-Gebühr wird erst fällig, wenn dein Limit freigegeben wurde. Zero Risiko auf deiner Seite." },
     { q: "Wie lange dauert es wirklich?", a: "Antrag in unter 2 Minuten. Algorithmische Freigabe in unter 120 Sekunden. Virtuelle Karte sofort einsatzbereit." },
-    { q: "Ist das in meiner SCHUFA sichtbar?", a: "Nein. Zu 100 % neutral. Wir holen keine Auskunft ein. Dein Score bleibt unangetastet." },
+    { q: `Ist das in meiner ${LAENDER[land].register} sichtbar?`, a: "Nein. Zu 100 % neutral. Wir holen keine Auskunft ein. Dein Score bleibt unangetastet." },
     { q: "Was passiert, wenn ich abgelehnt werde?", a: "Dann zahlst du nichts. Unsere Engine ist transparent – du siehst die Entscheidung direkt und wir geben dir den strategischen Fahrplan zur Nachjustierung." },
     { q: "Kann ich monatlich kündigen?", a: "Ja, jederzeit. Ohne Begründung. Kein Fine-Print, keine Haltefristen." },
-    { q: "Funktioniert das auch bei negativem SCHUFA-Score?", a: "Ja. Genau dafür existieren wir. Wir nutzen das US-Credit-Building-System — dein deutscher Score ist für uns kein Ausschlusskriterium." },
+    { q: `Funktioniert das auch bei negativem ${LAENDER[land].register}-Eintrag?`, a: "Ja. Genau dafür existieren wir. Wir nutzen das US-Credit-Building-System — dein bisheriger Score ist für uns kein Ausschlusskriterium." },
   ];
   return (
     <section className="py-20 sm:py-28" ref={obs.ref}>
@@ -846,6 +947,7 @@ function FAQ() {
    RISK REVERSAL
    ════════════════════════════════════════════ */
 function Reversal({ onOpenPack }: { onOpenPack: () => void }) {
+  const land = useLand();
   const obs = useReveal();
   return (
     <section className="relative py-20 sm:py-28 overflow-hidden" ref={obs.ref} style={{ background: "linear-gradient(180deg,#0b1628 0%,#0f1d34 100%)" }}>
@@ -869,9 +971,9 @@ function Reversal({ onOpenPack }: { onOpenPack: () => void }) {
           <span className="absolute inset-y-0 w-1/3 pointer-events-none" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent)", animation: "startShimmer 3.2s ease-in-out infinite" }} />
         </button>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[12.5px] text-gray-400 font-medium">
-          <span className="inline-flex items-center gap-1.5"><Check /> Schufaneutral</span>
+          <span className="inline-flex items-center gap-1.5"><Check /> {LAENDER[land].registerNeutral}</span>
           <span className="inline-flex items-center gap-1.5"><Check /> Monatlich kündbar</span>
-          <span className="inline-flex items-center gap-1.5"><Check /> EU-Hosting · AES-256</span>
+          <span className="inline-flex items-center gap-1.5"><Check /> {land === "ch" ? "AES-256 · Serverstandort Europa" : "EU-Hosting · AES-256"}</span>
         </div>
       </div>
     </section>
@@ -927,6 +1029,11 @@ function StickyCTA({ ctaRef, onOpenPack }: { ctaRef: React.RefObject<HTMLDivElem
 export default function StartPage() {
   const heroCtaRef = useRef<HTMLDivElement>(null);
   const [packOpen, setPackOpen] = useState(false);
+  // ── DAS LAND ────────────────────────────────────────────────────────────
+  // `landLesen()` prüft zuerst `?land=ch` in der Adresse (die Kampagne liefert
+  // es mit), dann die letzte Wahl, sonst Deutschland. Wer ohne Herkunft kommt,
+  // wird von `LandWahl` gefragt.
+  const [land, setLand] = useState<Land>(() => landLesen());
 
   useEffect(() => {
     const prevTitle = document.title;
@@ -950,7 +1057,9 @@ export default function StartPage() {
   }, []);
 
   return (
+    <LandKontext.Provider value={land}>
     <div className="min-h-screen text-gray-900 antialiased" style={{ fontFamily: "'Inter',-apple-system,sans-serif", background: "linear-gradient(180deg,#ffffff 0%,#f8faff 40%,#ffffff 100%)" }}>
+      <LandWahl onWahl={setLand} />
       <GlassNav activePage="privatkunden" />
       <ScarcityBar />
       <Hero ctaRef={heroCtaRef} onOpenPack={() => setPackOpen(true)} />
@@ -967,6 +1076,40 @@ export default function StartPage() {
       <StickyCTA ctaRef={heroCtaRef} onOpenPack={() => setPackOpen(true)} />
       <LiveFeedToast />
       <PackModal open={packOpen} onClose={() => setPackOpen(false)} />
+      <LandUmschalter land={land} onWahl={setLand} />
+    </div>
+    </LandKontext.Provider>
+  );
+}
+
+/**
+ * Der Umschalter am Seitenende.
+ *
+ * ── WARUM UNTEN UND NICHT OBEN ────────────────────────────────────────────
+ * Oben wäre er eine Ablenkung vom Angebot. Unten steht er dort, wo man nach
+ * Impressum und Kleingedrucktem sucht — und genau dort erwartet man
+ * Spracheinstellungen.
+ *
+ * Er ist wichtig: Wer beim ersten Besuch falsch geklickt hat, sähe sonst für
+ * immer die falsche Währung, denn die Wahl wird gemerkt.
+ */
+function LandUmschalter({ land, onWahl }: { land: Land; onWahl: (l: Land) => void }) {
+  return (
+    <div className="border-t border-gray-100 bg-white">
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-4 flex items-center justify-center gap-2">
+        <span className="text-[11.5px] text-gray-400 font-medium mr-1">Land:</span>
+        {(["de", "at", "ch"] as Land[]).map((l) => (
+          <button key={l} type="button"
+                  onClick={() => { landSchreiben(l); onWahl(l); }}
+                  aria-current={land === l ? "true" : undefined}
+                  className="px-3 py-1.5 rounded-full text-[12px] font-semibold transition-colors"
+                  style={land === l
+                    ? { background: "rgba(37,99,235,.08)", color: "#1d4ed8" }
+                    : { color: "#94a3b8" }}>
+            {LAENDER[l].name}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

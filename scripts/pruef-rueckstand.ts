@@ -1707,6 +1707,57 @@ async function main(): Promise<void> {
     spanne < 150, "Mehr als 150 Unterschied wäre ungerecht verteilt");
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c18. Schweiz-Kampagne");
+  // ═══════════════════════════════════════════════════════════════════════
+  // „Wir starten mit der Werbekampagne in der Schweiz. Wenn Schweizer Nutzer
+  // auf diese Seite kommen, entlarven derzeit mehrere Details die Plattform
+  // sofort als importiertes deutsches System."
+  const { LAENDER: LP, betrag: bet, gebuehr: geb } =
+    await import("../client/src/lib/fiaon-land");
+
+  gleich("Ein Limit in der Schweiz trägt CHF und Apostroph",
+    bet("25.000", "ch"), "CHF 25'000");
+  gleich("… in Deutschland Euro mit Punkt", bet("25.000", "de"), "25.000 €");
+  gleich("Eine Gebühr in der Schweiz: Rappen mit Punkt",
+    geb("59,99", "ch"), "CHF 59.99");
+  gleich("… in Österreich Euro mit Komma", geb("59,99", "at"), "59,99 €");
+  gleich("Das Schweizer Register ist die ZEK", LP.ch.register, "ZEK");
+  gleich("Das österreichische der KSV", LP.at.register, "KSV");
+  ok("Die Zahlen werden NICHT umgerechnet",
+    bet("25.000", "ch").includes("25") && bet("25.000", "de").includes("25"),
+    "25.000 heißt in Zürich 25.000 CHF — ein Limit ist keine Größe zum Wechseln");
+  ok("Jedes Land hat eigene Städte",
+    LP.ch.staedte[0] === "Zürich" && LP.de.staedte[0] === "Köln"
+    && LP.at.staedte[0] === "Wien");
+  ok("Kein „deutsche Banken“ mehr in irgendeinem Profil",
+    !Object.values(LP).some((x: any) => /deutsche Banken/.test(x.bankenSatz)));
+
+  const stQ = datei("client/src/pages/start.tsx");
+  ok("Auf /start steht kein festes SCHUFA mehr",
+    !/>\s*Keine SCHUFA-Abfrage/.test(stQ));
+  ok("… kein festes Euro-Zeichen in den Preisen",
+    !/€\/Mt\./.test(stQ));
+  ok("… und keine festen deutschen Städte im Feed",
+    !/c: "Köln"/.test(stQ));
+  ok("Der Countdown ist durch einen Live-Status ersetzt",
+    /Systemkapazität für heute zu/.test(stQ) && !/const left = useCountdown/.test(stQ));
+  // Die Fundstelle darf nicht im eigenen ERKLAERTEXT liegen: Der Kommentar
+  // zitiert die alte Zeile, damit man weiss, was ersetzt wurde. Geprueft wird
+  // deshalb der ausgegebene Text, nicht das Zitat.
+  ok("… und die zweite Dringlichkeit unter dem Knopf ist weg",
+    /keine Zahlungsdaten nötig<\/span>/.test(stQ)
+    && !/startUrgency 2\.4s ease-in-out infinite" \}\}>Nur noch/.test(stQ));
+  ok("Die Länderwahl erscheint nur ohne Herkunft",
+    /if \(landGewaehlt\(\)\) return;/.test(datei("client/src/components/LandWahl.tsx")));
+  ok("… mit gezeichneten Flaggen, keinen Emojis",
+    /function FlaggeCH/.test(datei("client/src/components/LandWahl.tsx")));
+  ok("… und der Grund gegen IP-Erkennung steht dabei",
+    /bei VPN und Mobilfunk oft falsch|bei VPN, Mobilfunk/
+      .test(datei("client/src/components/LandWahl.tsx")));
+  ok("Am Seitenende kann man das Land wechseln",
+    /function LandUmschalter/.test(stQ));
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");
   // ═══════════════════════════════════════════════════════════════════════
   const fQ = datei("client/src/components/PremiumFooter.tsx");

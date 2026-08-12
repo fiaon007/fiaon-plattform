@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, createContext, useContext, type ReactNode 
 import { Link, useLocation } from "wouter";
 import { Softphone } from "@/components/Softphone";
 import { TerminErinnerung } from "@/components/TerminErinnerung";
+import { VerkaufsstartBanner } from "@/components/VerkaufsstartBanner";
 import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle, Menu, ChevronRight, ListChecks, Mail } from "lucide-react";
 import OnboardingGate from "./onboarding";
 import {
@@ -925,6 +926,11 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
         {/* Persönliche Nachrichten der Leitung stehen ÜBER den Produkt-
             Updates: Eine Ansage an genau diesen Menschen ist dringlicher als
             eine Neuerung, die alle betrifft. */}
+        {/* ── DER VERKAUFSSTART STEHT GANZ OBEN ──────────────────────────
+            Über allem, auch über den Team-Nachrichten: Er ist die Ansage, die
+            heute den Arbeitstag ändert. Wer ihn gelesen hat, sieht ihn nie
+            wieder — anders als die Update-Zeile, die eine Zahl hochzählt. */}
+        <VerkaufsstartBanner rolle={rolle} />
         <TeamNachrichten />
         <UpdateBanner />
         <ImportantUpdateHint />

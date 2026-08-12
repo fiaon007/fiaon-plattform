@@ -303,18 +303,23 @@ export async function rechnungStellen(
  * damit aus dieser Menge heraus und bekommt die Erinnerungen des normalen
  * Mahnlaufs — nicht jeden Tag eine neue erste Rechnung.
  *
- * ── WARUM EINE OBERGRENZE ──────────────────────────────────────────────────
- * Beim ersten Lauf warten über hundert Rechnungen. Alle auf einmal wären ein
- * Versandschub, der in jedem Spamfilter auffällt. Fünfzig am Tag verteilen es
- * auf eine Woche — und wenn etwas falsch läuft, sind es fünfzig und nicht
- * alle.
+ * ── DIE OBERGRENZE IST AUFGEHOBEN ──────────────────────────────────────────
+ * Hier standen fünfzig am Tag, mit der Begründung, ein Versandschub falle in
+ * jedem Spamfilter auf. Der Vorgesetzte am 11.08.2026: „Die 50 am Tag erhöhen
+ * wir auf unlimitiert."
+ *
+ * Das ist seine Entscheidung und sie ist vertretbar: Die Anträge sind im
+ * Schnitt 48 Tage alt. Wer zwei Monate auf eine Rechnung wartet, wartet nicht
+ * noch eine Woche, weil ein Zustellrisiko besteht.
+ *
+ * Die Grenze bleibt als PARAMETER erhalten — wer sie braucht, setzt sie. Ohne
+ * Angabe gibt es keine.
  */
 export async function rechnungenTageslauf(
   opts: { schreiben?: boolean; grenze?: number } = {}, lauf: Lauf = sqlPool,
 ): Promise<{ versendet: number; gescheitert: number; offen: number; hinweis: string }> {
-  const grenze = Math.min(200, Math.max(1, opts.grenze ?? 50));
-  const alle = await rechnungsKandidaten({ nurVersendbar: true, grenze: 500 }, lauf);
-  const dran = alle.slice(0, grenze);
+  const alle = await rechnungsKandidaten({ nurVersendbar: true, grenze: 5000 }, lauf);
+  const dran = opts.grenze && opts.grenze > 0 ? alle.slice(0, opts.grenze) : alle;
 
   if (!opts.schreiben) {
     return {
@@ -334,8 +339,8 @@ export async function rechnungenTageslauf(
       console.warn(`[RECHNUNG] ${k.ref}: ${e.grund}`);
     }
   }
-  console.log(`[RECHNUNG] Tageslauf: ${versendet} verschickt, ${gescheitert} gescheitert, `
-    + `${alle.length - dran.length} bleiben für morgen.`);
+  console.log(`[RECHNUNG] Lauf: ${versendet} verschickt, ${gescheitert} gescheitert`
+    + (alle.length > dran.length ? `, ${alle.length - dran.length} bleiben` : "") + ".");
   return {
     versendet, gescheitert, offen: alle.length - dran.length,
     hinweis: `${versendet} Rechnungen verschickt.`

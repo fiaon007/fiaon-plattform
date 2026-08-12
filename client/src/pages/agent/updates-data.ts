@@ -40,6 +40,30 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-11-verkaufsstart",
+    date: "2026-08-11",
+    category: "Neu",
+    title: "Verkaufsstart: 264 Kunden warten auf ihre erste Rechnung",
+    summary:
+      "Kunden mit fertigem Antrag, denen nie jemand eine Rechnung geschickt hat. Ab heute stehen sie in eurer Liste.",
+    changes: [
+      "WORUM ES GEHT: 450 Kunden haben einen vollständigen Antrag gestellt — Paket gewählt, Daten eingetragen, abgeschickt. Und dann? Nichts. Ihnen wurde nie eine Rechnung geschickt. Manche warten seit über zwei Monaten.",
+      "WARUM DAS PASSIERT IST: Das System hat diese Kunden unter „Antrag fertig – Rechnung offen“ geführt. Der Name war falsch: Es gab keine Rechnung. Der Knopf „Zahlungsdaten senden“ meldete deshalb „Dieser Kunde hat keine offene Bestellung“ — und niemand kam weiter.",
+      "WAS SICH GEÄNDERT HAT: Derselbe Knopf stellt die Rechnung jetzt selbst. Er setzt den Betrag aus dem gebuchten Paket, eine Zahlungsfrist von sieben Tagen und den Verwendungszweck — und verschickt alles.",
+      "EURE LISTE: Der neue Filter „Rechnung stellen“ zeigt genau diese Kunden. Die Zahl daneben ist eure eigene, nicht die vom ganzen Haus.",
+      "ALLE KUNDEN SIND VERTEILT: 22 Kunden hatten keinen Betreuer. Sie sind auf die Kollegen mit der kleinsten Last aufgeteilt.",
+      "WAS DAS FÜR EUCH HEISST: Das sind keine kalten Leads. Diese Menschen haben sich ENTSCHIEDEN und einen Antrag gestellt. Sie warten nur darauf, zahlen zu können.",
+    ],
+    howto: [
+      "Kundenliste öffnen, Filter „Rechnung stellen“ antippen.",
+      "WICHTIG: Erst anrufen, dann senden. Bei einem zwei Monate alten Antrag kommt eine Rechnung aus dem Nichts — ein kurzer Anruf („Ihr Antrag liegt bei uns, ich schicke Ihnen jetzt die Zahlungsdaten“) macht den Unterschied zwischen Zahlung und Rückfrage.",
+      "Dann „Zahlungsdaten senden“ drücken. Betrag, Verwendungszweck und Frist gehen automatisch mit.",
+      "Steht ein Hindernis an der Karte — meist „Keine E-Mail hinterlegt“ — erfragt die Adresse am Telefon und tragt sie in der Akte nach.",
+      "Nach dem Senden steht der Kunde unter „Rechnung offen“. Ab da läuft der normale Nachfass-Weg.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-11-erste-rechnung",
     date: "2026-08-11",
     category: "Neu",

@@ -1651,11 +1651,12 @@ router.post("/admin/payments/run-reminders", async (_req, res) => {
     // Der Vorgesetzte: „ALLE die einen Antrag bei uns gestellt haben brauchen
     // eine Rechnung und müssen täglich versendet werden."
     //
-    // Höchstens fünfzig am Tag: Beim ersten Lauf warten 264. Alle auf einmal
-    // wären ein Versandschub, der in jedem Spamfilter auffällt — und wenn
-    // etwas falsch läuft, sind es fünfzig statt aller.
+    // OHNE OBERGRENZE. Hier standen fuenfzig am Tag; der Vorgesetzte am
+    // 11.08.2026: „Die 50 am Tag erhoehen wir auf unlimitiert." Die Antraege
+    // sind im Schnitt 48 Tage alt — wer zwei Monate auf eine Rechnung wartet,
+    // wartet nicht noch eine Woche, weil ein Zustellrisiko besteht.
     const rechnungen = await import("../lib/fiaon-rechnung-stellen")
-      .then((m) => m.rechnungenTageslauf({ schreiben: true, grenze: 50 }))
+      .then((m) => m.rechnungenTageslauf({ schreiben: true }))
       .catch((e) => { console.error("[RECHNUNG] Tageslauf:", e); return { versendet: 0 }; });
     res.json({ ok: true, ...result, callbackReminders });
   } catch (err) {
@@ -1683,6 +1684,101 @@ interface BulkJobState {
 let bulkJob: BulkJobState | null = null;
 
 /** Zählung für den Bestätigungsdialog: wer bekommt die Erinnerung, wer wird übersprungen. */
+// ═══════════════════════════════════════════════════════════════════════════
+// ERSTE RECHNUNGEN — DER KNOPF FÜR ALLE
+//
+// ── DER AUFTRAG (11.08.2026) ───────────────────────────────────────────────
+// Der Vorgesetzte: „Ich möchte als Admin eine eigene Seite, wo ich ALLE
+// Rechnungen mit einem Knopfdruck versenden kann (oder in der Zahlungszentrale
+// hinzufügen, da gibt es schon einen — aber schau, dass der dann für alle
+// anderen geht, also ALLE die einen Antrag gestellt haben!)"
+//
+// ── WARUM NICHT DER BESTEHENDE KNOPF ───────────────────────────────────────
+// „Zahlungserinnerung an alle offenen senden" schickt `payment_reminder` an
+// Kunden mit `pending_payment` — also an solche, die eine Rechnung HABEN und
+// nicht zahlen. Das ist eine Mahnung.
+//
+// Die 264 hier haben nie eine bekommen. Eine Mahnung an jemanden, dem man nie
+// eine Rechnung geschickt hat, ist eine Unverschämtheit — und der Text der
+// Vorlage („Ihre Zahlung steht noch aus") wäre schlicht falsch.
+//
+// Deshalb ein eigener Lauf mit eigener Vorlage (`payment_details`). Danach
+// stehen sie auf `pending_payment` und der bestehende Mahnlauf greift von
+// selbst.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** GET /admin/rechnungen/erste/vorschau — wer bekäme eine erste Rechnung? */
+router.get("/admin/rechnungen/erste/vorschau", async (_req, res) => {
+  try {
+    const { rechnungsKandidaten } = await import("../lib/fiaon-rechnung-stellen");
+    const alle = await rechnungsKandidaten({ grenze: 5000 });
+    const versendbar = alle.filter((k) => !k.hindernis);
+    // Die Hindernisse gruppiert — damit der Betreiber sieht, was fehlt.
+    const hindernisse: Record<string, number> = {};
+    for (const k of alle) {
+      if (!k.hindernis) continue;
+      const kurz = k.hindernis.split("—")[0].trim();
+      hindernisse[kurz] = (hindernisse[kurz] ?? 0) + 1;
+    }
+    const summe = versendbar.reduce((s, k) => s + k.betragCents, 0);
+    res.json({
+      ok: true,
+      gesamt: alle.length,
+      versendbar: versendbar.length,
+      summeCents: summe,
+      hindernisse,
+      // Die ältesten zuerst — sie warten am längsten.
+      aelteste: versendbar.slice(0, 5).map((k) => ({
+        name: k.name, paket: k.bezeichnung, tageAlt: k.tageAlt,
+        betragCents: k.betragCents,
+      })),
+      laeuft: ersteRechnungenLaeuft,
+      letzterLauf: ersteRechnungenErgebnis,
+    });
+  } catch (err) {
+    console.error("[RECHNUNG] vorschau:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** Läuft gerade ein Lauf? Ein zweiter parallel wäre doppelter Versand. */
+let ersteRechnungenLaeuft = false;
+let ersteRechnungenErgebnis: { am: string; versendet: number; gescheitert: number } | null = null;
+
+/**
+ * POST /admin/rechnungen/erste/senden — alle auf einen Knopfdruck.
+ *
+ * ── WARUM IM HINTERGRUND ───────────────────────────────────────────────────
+ * 264 Rechnungen brauchen bei einer Sekunde je Mail über vier Minuten. Eine
+ * HTTP-Antwort, die so lange offen bleibt, läuft in jedes Zeitlimit — und der
+ * Betreiber sieht einen Fehler, während der Lauf weiterläuft.
+ *
+ * Deshalb: sofort antworten, im Hintergrund arbeiten, Fortschritt über die
+ * Vorschau-Route.
+ */
+router.post("/admin/rechnungen/erste/senden", async (_req, res) => {
+  if (ersteRechnungenLaeuft) {
+    return res.status(409).json({ ok: false, error: "Es läuft bereits ein Versand." });
+  }
+  ersteRechnungenLaeuft = true;
+  res.json({ ok: true, meldung: "Der Versand läuft. Der Fortschritt steht oben auf der Seite." });
+
+  void (async () => {
+    try {
+      const { rechnungenTageslauf } = await import("../lib/fiaon-rechnung-stellen");
+      const erg = await rechnungenTageslauf({ schreiben: true });
+      ersteRechnungenErgebnis = {
+        am: new Date().toISOString(),
+        versendet: erg.versendet, gescheitert: erg.gescheitert,
+      };
+    } catch (err) {
+      console.error("[RECHNUNG] Massenversand:", err);
+    } finally {
+      ersteRechnungenLaeuft = false;
+    }
+  })();
+});
+
 router.get("/admin/payments/bulk-reminder/preview", async (_req, res) => {
   try {
     await ensurePaymentColumns();

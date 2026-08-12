@@ -1609,10 +1609,102 @@ async function main(): Promise<void> {
 
   // ── DER TAGESLAUF ─────────────────────────────────────────────────────
   ok("Der Tageslauf läuft mit den anderen",
-    /rechnungenTageslauf\(\{ schreiben: true, grenze: 50 \}\)/
+    /rechnungenTageslauf\(\{ schreiben: true \}\)/
       .test(datei("server/routes/fiaon-antrag.ts")));
-  ok("… mit Obergrenze und Begründung dafür",
-    /in jedem Spamfilter auffällt/.test(datei("server/lib/fiaon-rechnung-stellen.ts")));
+  // Die Obergrenze von 50 wurde am 11.08.2026 aufgehoben („Die 50 am Tag
+  // erhöhen wir auf unlimitiert"). Die Prüfung dazu ist mitgegangen — eine
+  // Prüfung auf eine abgeschaffte Regel ist schlimmer als keine.
+  ok("… und die Begründung für die Aufhebung steht dabei",
+    /Die 50 am Tag erhoehen wir auf unlimitiert|auf unlimitiert/
+      .test(datei("server/lib/fiaon-rechnung-stellen.ts")));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c17. Verkaufsstart");
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // ── KEINE OBERGRENZE MEHR ─────────────────────────────────────────────
+  // „Die 50 am Tag erhöhen wir auf unlimitiert."
+  const rsQ = datei("server/lib/fiaon-rechnung-stellen.ts");
+  ok("Der Lauf hat keine feste Obergrenze",
+    /const dran = opts\.grenze && opts\.grenze > 0 \? alle\.slice\(0, opts\.grenze\) : alle;/.test(rsQ));
+  ok("… und der Tageslauf ruft ihn ohne Grenze",
+    /rechnungenTageslauf\(\{ schreiben: true \}\)/.test(datei("server/routes/fiaon-antrag.ts")));
+
+  // ── DER KNOPF IN DER ZAHLUNGSZENTRALE ─────────────────────────────────
+  const anQ = datei("server/routes/fiaon-antrag.ts");
+  ok("Es gibt eine Vorschau-Route",
+    /router\.get\("\/admin\/rechnungen\/erste\/vorschau"/.test(anQ));
+  ok("… und eine zum Senden", /router\.post\("\/admin\/rechnungen\/erste\/senden"/.test(anQ));
+  ok("Ein zweiter Lauf parallel wird abgewiesen",
+    /if \(ersteRechnungenLaeuft\) \{/.test(anQ));
+  ok("Der Lauf antwortet sofort und arbeitet im Hintergrund",
+    /WARUM IM HINTERGRUND/.test(anQ) && /void \(async \(\) => \{/.test(anQ));
+  const azQ = datei("client/src/pages/admin-zahlungen.tsx");
+  ok("Der Knopf steht in der Zahlungszentrale",
+    /onClick=\{oeffneErsteRechnungen\}/.test(azQ));
+  ok("… mit eigener Vorschau statt Mahnung",
+    /sachlich falsch und unhöflich/.test(azQ));
+  ok("… und der Dialog nennt Summe und Hindernisse",
+    /zusammen\{" "\}/.test(azQ) && /übersprungen: \{grund\.toLowerCase\(\)\}/.test(azQ));
+  ok("… und sagt ehrlich, dass die Anträge alt sind",
+    /liegen zwei Monate und länger/.test(azQ));
+
+  // ── DER BANNER ────────────────────────────────────────────────────────
+  const vbQ = datei("client/src/components/VerkaufsstartBanner.tsx");
+  ok("Es gibt einen Verkaufsstart-Banner", /export function VerkaufsstartBanner/.test(vbQ));
+  ok("… er zeigt die EIGENE Zahl, nicht die vom Haus",
+    /Bei dir liegen 66|„66 Kunden in deiner Liste"|ist ein Auftrag/.test(vbQ));
+  ok("… mit Link auf die Update-Seite", /href="\/agent\/updates"/.test(vbQ));
+  ok("… und direkt in die Liste",
+    /href="\/agent\/kunden\?filter=rechnung_stellen"/.test(vbQ));
+  ok("Das Forderungsmanagement sieht ihn NICHT",
+    /rolle === "inkasso"/.test(vbQ));
+  ok("Wer ihn gelesen hat, sieht ihn nicht wieder",
+    /localStorage\.setItem\(SCHLUESSEL, "gelesen"\)/.test(vbQ));
+  ok("Er hängt nur im Agentenrahmen",
+    /<VerkaufsstartBanner rolle=\{rolle\} \/>/.test(datei("client/src/pages/agent/shared.tsx")));
+
+  // ── ALLE KUNDEN SIND VERTEILT ─────────────────────────────────────────
+  // ── DIESE ZAHL DARF NICHT NULL VERLANGEN ──────────────────────────────
+  // Erster Entwurf: „gleich(…, 0)". Beim zweiten Lauf stand dort 1 — ein
+  // echter Besucher hatte in der Zwischenzeit einen Antrag begonnen.
+  //
+  // AGENTS.md: „Eine Invariante darf nicht den Betrieb mitmessen. Global nur
+  // ‚darf nicht schrumpfen‘ — Wachstum ist der Betrieb." Hier ist es
+  // umgekehrt: Ein paar Unverteilte sind normal, sie werden beim nächsten
+  // Lauf zugeteilt. Ein RÜCKSTAU wäre das Problem.
+  const [ohne] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_persons p
+    WHERE p.merged_into_person_id IS NULL AND NOT p.is_blocked
+      AND p.assigned_agent_id IS NULL AND p.priority_tier BETWEEN 1 AND 3
+      AND p.ist_test_am IS NULL
+      -- Nur was länger als einen Tag liegt: Frische Anträge sind unterwegs.
+      AND p.created_at < NOW() - INTERVAL '1 day'
+  `) as any[];
+  ok("Kein Rückstau unverteilter Kunden (älter als ein Tag)",
+    Number(ohne.n) <= 5, `${ohne.n} liegen unverteilt`);
+
+  // ── NUR ARBEITSKONTEN VERGLEICHEN ─────────────────────────────────────
+  // Erster Entwurf verglich alle mit Rolle „agent" oder „vertriebsleiter".
+  // Dabei war ein Konto mit ZWEI Kunden — das des Betreibers, der nicht im
+  // Vertrieb arbeitet. Die Spanne betrug 966 und die Prüfung schlug fehl,
+  // obwohl die vier Arbeitskonten auf 15 Kunden genau gleich lagen.
+  //
+  // Ein Vergleich, der Äpfel mit Birnen misst, meldet Fehler, die keine sind —
+  // und wer zweimal grundlos gestoppt wurde, schaltet die Prüfung ab.
+  const last = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_persons p
+    JOIN fiaon_agents a ON a.id = p.assigned_agent_id
+    WHERE a.active AND a.rolle IN ('agent','vertriebsleiter')
+      AND p.merged_into_person_id IS NULL AND NOT p.is_blocked
+      AND p.priority_tier BETWEEN 1 AND 3
+    GROUP BY a.id
+    HAVING COUNT(*) > 50
+  `) as any[];
+  const lastZahlen = last.map((x: any) => Number(x.n));
+  const spanne = Math.max(...lastZahlen) - Math.min(...lastZahlen);
+  ok(`Die Last ist ausgeglichen (Spanne ${spanne} bei ${lastZahlen.join("/")})`,
+    spanne < 150, "Mehr als 150 Unterschied wäre ungerecht verteilt");
 
   // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");

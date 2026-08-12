@@ -589,6 +589,56 @@ export default function AdminZahlungenPage() {
     }
   };
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // ERSTE RECHNUNGEN
+  //
+  // Kunden mit fertigem Antrag, denen nie eine Rechnung geschickt wurde. Sie
+  // stehen auf `payment_status = pending` und werden vom Mahnlauf deshalb nicht
+  // erfasst — der sucht `pending_payment`.
+  // ══════════════════════════════════════════════════════════════════════════
+  const [ersteVorschau, setErsteVorschau] = useState<{
+    gesamt: number; versendbar: number; summeCents: number;
+    hindernisse: Record<string, number>;
+    aelteste: { name: string; paket: string; tageAlt: number; betragCents: number }[];
+    laeuft: boolean;
+    letzterLauf: { am: string; versendet: number; gescheitert: number } | null;
+  } | null>(null);
+  const [ersteDialog, setErsteDialog] = useState(false);
+  const [ersteLaeuft, setErsteLaeuft] = useState(false);
+
+  const ersteVorschauHolen = useCallback(async () => {
+    const r = await fetch("/api/fiaon/admin/rechnungen/erste/vorschau", { credentials: "include" })
+      .catch(() => null);
+    const j = await r?.json().catch(() => null);
+    if (j?.ok) { setErsteVorschau(j); setErsteLaeuft(!!j.laeuft); }
+  }, []);
+
+  useEffect(() => { void ersteVorschauHolen(); }, [ersteVorschauHolen]);
+
+  // Während ein Lauf läuft, jede fünf Sekunden nachsehen. Ein Versand von 264
+  // Mails dauert Minuten — ohne Rückmeldung klickt der Betreiber ein zweites Mal.
+  useEffect(() => {
+    if (!ersteLaeuft) return;
+    const uhr = window.setInterval(() => void ersteVorschauHolen(), 5000);
+    return () => window.clearInterval(uhr);
+  }, [ersteLaeuft, ersteVorschauHolen]);
+
+  const oeffneErsteRechnungen = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    await ersteVorschauHolen();
+    setErsteDialog(true);
+  };
+
+  const ersteRechnungenSenden = async () => {
+    setErsteLaeuft(true);
+    setErsteDialog(false);
+    const r = await fetch("/api/fiaon/admin/rechnungen/erste/senden",
+      { method: "POST", credentials: "include" }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    flash(j?.ok ? j.meldung : `Fehler: ${j?.error ?? "Netzwerk"}`);
+    if (!j?.ok) setErsteLaeuft(false);
+  };
+
   // ── Paket W: Bulk-Versand ──
   const openBulkDialog = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -872,6 +922,94 @@ export default function AdminZahlungenPage() {
         <AboTafel onMeldung={flash} />
 
         {/* Paket W: Bestätigungsdialog Bulk-Versand */}
+        {/* ══════════════════════════════════════════════════════════════════
+            ERSTE RECHNUNGEN — DER DIALOG
+
+            Er zeigt, was passiert, BEVOR es passiert: wie viele, wie viel Geld,
+            wer am längsten wartet und was die anderen blockiert. Ein Knopf, der
+            264 Mails auslöst, ohne zu sagen an wen, ist eine Zumutung.
+            ══════════════════════════════════════════════════════════════════ */}
+        {ersteDialog && ersteVorschau && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center px-4" onClick={() => setErsteDialog(false)}>
+            <div className="absolute inset-0 bg-slate-900/40" />
+            <div className="relative w-full max-w-lg bg-white border border-slate-200 rounded-2xl p-6 shadow-xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-[15px] font-bold text-slate-900 mb-1">
+                Erste Rechnung an alle mit fertigem Antrag
+              </h3>
+              <p className="text-[12.5px] text-slate-500 mb-4">
+                Diese Kunden haben einen abgeschlossenen Antrag, aber nie eine Rechnung
+                bekommen. Sie erhalten Betrag, Verwendungszweck und sieben Tage Frist
+                (Make: <code className="font-mono text-[12px]">payment_details</code>).
+              </p>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 mb-4 text-[13px] space-y-1">
+                <p>
+                  <b className="tabular-nums">{ersteVorschau.versendbar}</b> Kunden bekommen
+                  jetzt ihre erste Rechnung — zusammen{" "}
+                  <b className="tabular-nums">
+                    {(ersteVorschau.summeCents / 100).toLocaleString("de-DE",
+                      { minimumFractionDigits: 2 })} €
+                  </b>.
+                </p>
+                {Object.entries(ersteVorschau.hindernisse).map(([grund, n]) => (
+                  <p key={grund} className="text-slate-500">
+                    <b className="tabular-nums">{n}</b> übersprungen: {grund.toLowerCase()}.
+                  </p>
+                ))}
+              </div>
+
+              {ersteVorschau.aelteste.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[.07em] text-slate-400 mb-1.5">
+                    Die am längsten warten
+                  </p>
+                  <div className="space-y-1">
+                    {ersteVorschau.aelteste.map((a, i) => (
+                      <p key={i} className="text-[12.5px] flex gap-2">
+                        <span className="font-medium text-slate-700 truncate">{a.name}</span>
+                        <span className="text-slate-400">{a.paket}</span>
+                        <span className="ml-auto shrink-0 tabular-nums text-slate-500">
+                          {a.tageAlt} Tage
+                        </span>
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Der ehrliche Hinweis: Das sind alte Anträge. */}
+              <p className="text-[12px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+                Viele dieser Anträge liegen zwei Monate und länger. Für den Kunden kommt
+                die Rechnung aus dem Nichts — die Agenten sollten die ältesten Fälle
+                vorher anrufen. Der Filter „Rechnung stellen“ in der Kundenliste zeigt
+                sie ihnen.
+              </p>
+
+              {ersteVorschau.letzterLauf && (
+                <p className="text-[12px] text-slate-500 mb-4">
+                  Letzter Lauf: {ersteVorschau.letzterLauf.versendet} verschickt
+                  {ersteVorschau.letzterLauf.gescheitert > 0
+                    && `, ${ersteVorschau.letzterLauf.gescheitert} gescheitert`}.
+                </p>
+              )}
+
+              <div className="flex gap-2 justify-end">
+                <button type="button"
+                        onClick={(e) => { e.stopPropagation(); setErsteDialog(false); }}
+                        className="px-4 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-600 hover:border-slate-300">
+                  Abbrechen
+                </button>
+                <button type="button"
+                        onClick={(e) => { e.stopPropagation(); void ersteRechnungenSenden(); }}
+                        disabled={ersteVorschau.versendbar === 0 || ersteVorschau.laeuft}
+                        className="px-4 py-2.5 rounded-xl text-white text-[13px] font-semibold bg-[#2563eb] hover:bg-[#1d4fd7] disabled:opacity-40">
+                  Jetzt {ersteVorschau.versendbar} Rechnungen stellen
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {bulkDialog && bulkPreview && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center px-4" onClick={() => setBulkDialog(false)}>
             <div className="absolute inset-0 bg-slate-900/40" />
@@ -942,6 +1080,36 @@ export default function AdminZahlungenPage() {
               <button type="button" data-an={!sortNeu ? "1" : undefined} onClick={() => setSortNeu(false)}>Längste Wartezeit</button>
             </span>
             <span className="flex items-center gap-2 shrink-0">
+              {/* ══════════════════════════════════════════════════════════════
+                  ERSTE RECHNUNGEN
+
+                  ── DER AUFTRAG (11.08.2026) ──────────────────────────────────
+                  „Ich möchte als Admin eine eigene Seite, wo ich ALLE Rechnungen
+                  mit einem Knopfdruck versenden kann — oder in der
+                  Zahlungszentrale hinzufügen."
+
+                  Hier, nicht auf einer eigenen Seite: Wer über Zahlungen
+                  nachdenkt, ist genau hier. Eine zweite Seite für einen Knopf
+                  wäre ein Ort mehr, an dem man nachsehen muss.
+
+                  ── WARUM NICHT DER KNOPF DANEBEN ─────────────────────────────
+                  „Erinnerung an alle offenen" mahnt Kunden, die eine Rechnung
+                  HABEN. Diese hier haben nie eine bekommen — eine Mahnung wäre
+                  sachlich falsch und unhöflich.
+                  ══════════════════════════════════════════════════════════════ */}
+              <button
+                type="button"
+                onClick={oeffneErsteRechnungen}
+                disabled={ersteLaeuft}
+                className="a3-knopf inline-flex"
+                data-haupt="1"
+                title="Stellt allen Kunden mit fertigem Antrag die ERSTE Rechnung — mit Betrag, Verwendungszweck und Zahlungsfrist"
+              >
+                {ersteLaeuft ? "Rechnungen laufen …"
+                  : ersteVorschau?.versendbar
+                    ? `Erste Rechnung an ${ersteVorschau.versendbar}`
+                    : "Erste Rechnungen"}
+              </button>
               <button
                 type="button"
                 onClick={openBulkDialog}

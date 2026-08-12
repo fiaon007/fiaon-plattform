@@ -470,6 +470,37 @@ export async function terminBuchen(
     throw new TerminFehler("falsche_rolle", "Diese Person führt keine Startgespräche.");
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // DAS FORDERUNGSMANAGEMENT BEKOMMT KEINE TERMINE
+  //
+  // ── DER BEFUND (11.08.2026) ───────────────────────────────────────────────
+  // Der Vorgesetzte: „Die Mitarbeiter aus dem Inkasso, warum haben die
+  // Termine? Die können keine Termine bekommen, da sie ja nur die Leute
+  // anrufen, die ihre Abo-Rate nicht bezahlt haben!"
+  //
+  // Gemessen: Hans-Jürgen Gerhold hatte zwei Termine der Quelle
+  // „nichterreicht_mail" — Vertriebs-Rückrufe.
+  //
+  // Die Prüfung oben griff nicht: `rolleFuerQuelle` fordert nur beim
+  // Startgespräch eine Rolle. Für alle anderen Quellen war `nurRolle` null,
+  // und dann prüfte niemand, WER da gebucht wird.
+  //
+  // ── WARUM DAS FORDERUNGSMANAGEMENT KEINE TERMINE HAT ──────────────────────
+  // Es arbeitet eine Liste ab, die sich nach Dringlichkeit ordnet: die älteste
+  // offene Rate zuerst. Ein Termin um 14:30 würde diese Reihenfolge umgehen.
+  //
+  // Was es stattdessen gibt: die Wiedervorlage an der Rate
+  // (`inkasso_wiedervorlage`). Sie erscheint am gesetzten Tag von selbst in
+  // der Arbeitsliste — ohne Uhrzeit, ohne zweites System.
+  // ══════════════════════════════════════════════════════════════════════════
+  if (String(agent.rolle || "agent") === "inkasso") {
+    throw new TerminFehler(
+      "falsche_rolle",
+      "Das Forderungsmanagement nimmt keine Termine an. Für einen späteren Anruf "
+        + "setzt man dort eine Wiedervorlage an der Rate.",
+    );
+  }
+
   // Der Slot muss im Raster liegen. Ohne diese Prüfung ließe sich über einen
   // selbst gebauten Aufruf jede beliebige Minute belegen, und der eindeutige
   // Index (agent, beginn) verhindert dann keine Überschneidung mehr.

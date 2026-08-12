@@ -249,7 +249,30 @@ const NAV: {
   // Aufgaben stehen bewusst VOR dem Kalender: Ein zugewiesener Auftrag mit
   // Frist ist verbindlicher als ein selbst gesetzter Termin.
   { href: "/agent/aufgaben", label: "Aufgaben", icon: ListChecks, match: ["/agent/aufgaben"] },
-  { href: "/agent/kalender", label: "Kalender", icon: Calendar, match: ["/agent/kalender"] },
+  // ══════════════════════════════════════════════════════════════════════════
+  // KEIN KALENDER FÜR DAS FORDERUNGSMANAGEMENT
+  //
+  // ── DER BEFUND (11.08.2026) ───────────────────────────────────────────────
+  // Der Vorgesetzte: „Die Mitarbeiter aus dem Inkasso, warum haben die
+  // Termine? Die können keine Termine bekommen, da sie ja nur die Leute
+  // anrufen, die ihre Abo-Rate nicht bezahlt haben!"
+  //
+  // Gemessen: Hans-Jürgen Gerhold hatte ZWEI Termine, Quelle
+  // „nichterreicht_mail" — Vertriebs-Rückrufe, die ihn nie betrafen.
+  //
+  // ── WARUM DAS FORDERUNGSMANAGEMENT KEINE TERMINE HAT ──────────────────────
+  // Ein Termin ist eine Verabredung zu einer bestimmten Zeit. Das
+  // Forderungsmanagement arbeitet eine Liste ab, die sich nach Dringlichkeit
+  // ordnet: die älteste offene Rate zuerst. Wer stattdessen um 14:30 einen
+  // Rückruf hätte, würde die Reihenfolge des Systems umgehen.
+  //
+  // Was es stattdessen gibt: die WIEDERVORLAGE an der Rate
+  // (`inkasso_wiedervorlage`). Sie taucht am gesetzten Tag von selbst in der
+  // Arbeitsliste auf — ohne Uhrzeit, ohne Kalendereintrag, ohne zweites
+  // System, das man pflegen muss.
+  // ══════════════════════════════════════════════════════════════════════════
+  { href: "/agent/kalender", label: "Kalender", icon: Calendar,
+    match: ["/agent/kalender"], nichtRolle: ["inkasso"] },
   { href: "/agent/verdienst", label: "Verdienst", icon: Wallet, match: ["/agent/verdienst", "/agent/auszahlung", "/agent/partner-programm"] },
   // Nur fuer die Vertriebsleitung. `nurRolle` filtert die Anzeige; die Tuer selbst
   // schliesst der Server (404 fuer alle anderen).

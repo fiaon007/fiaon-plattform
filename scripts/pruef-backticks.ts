@@ -68,11 +68,64 @@ for (const ort of ORTE) {
 }
 
 console.log("\n══ Backticks in Kommentaren innerhalb von Template-Literalen ══\n");
+// KEIN vorzeitiger Ausstieg: Darunter folgt die zweite Wand (Regex-Literale
+// mit Zeilenumbruch). Ein `process.exit(0)` hier hätte sie nie laufen lassen —
+// und genau das ist beim ersten Versuch passiert: Der Prüfstand meldete
+// „Keiner" und war fertig, obwohl der zweite Teil nie startete.
 if (gefunden === 0) {
   console.log("  Keiner. Für zitierte Bedingungen die deutschen „…\u201c nehmen.\n");
-  process.exit(0);
+} else {
+  for (const t of treffer) console.log(`  FAIL  ${t}`);
+  console.log(`\n  ${gefunden} Fundstelle(n). Jede beendet das Template-Literal und`);
+  console.log("  hängt den Serverstart still auf. Ersetze den Backtick durch „…\u201c.\n");
 }
-for (const t of treffer) console.log(`  FAIL  ${t}`);
-console.log(`\n  ${gefunden} Fundstelle(n). Jede beendet das Template-Literal und`);
-console.log("  hängt den Serverstart still auf. Ersetze den Backtick durch „…\u201c.\n");
-process.exit(1);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZWEITE WAND: DIE DATEIEN MÜSSEN SICH ÜBERSETZEN LASSEN
+//
+// ── DIE GESCHICHTE ─────────────────────────────────────────────────────────
+// Ein Regex-Literal /…/ darf keinen Zeilenumbruch enthalten. Wer aus einem
+// mehrzeiligen Kommentar zitiert und den Text hineinkopiert, bekommt
+// „Unterminated regular expression" — und der ganze Prüfstand startet nicht.
+//
+// Am 11.08.2026 ist mir das ZEHNMAL passiert, immer beim Zitieren eines
+// Kommentars als Beweis.
+//
+// ── WARUM NICHT SELBST NACH REGEXEN SUCHEN ─────────────────────────────────
+// Erster Versuch: Zeilen finden, die ein /…/ öffnen und nicht schließen.
+// Ergebnis: 13 Fundstellen, ALLE Fehlalarme — bei
+// `/UPDATE … SET pdf_base64 = /.test(x)` sah der Erkenner das „= /" INNERHALB
+// des Regex als Anfang und fand danach kein Ende.
+//
+// Eine Bremse, die falsch auslöst, ist gefährlicher als keine (AGENTS.md).
+//
+// Also lasse ich esbuild urteilen — es weiß genau, was ein Regex ist. Ein
+// Aufruf je Datei, in Sekunden, ohne einen einzigen Fehlalarm.
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  const { execFileSync } = await import("node:child_process");
+  const kandidaten = ORTE.flatMap((o) => dateien(o))
+    .filter((d) => d.startsWith("scripts/") || d.startsWith("server/"));
+  let kaputt = 0;
+  const meldungen: string[] = [];
+  for (const datei of kandidaten) {
+    try {
+      execFileSync("npx", ["esbuild", "--log-level=error", datei], { stdio: "pipe" });
+    } catch (e: any) {
+      kaputt++;
+      const roh = String(e?.stderr ?? e?.message ?? "").split("\n")
+        .filter((z) => z.includes("ERROR") || z.includes("error:"))
+        .slice(0, 2).join(" | ");
+      meldungen.push(`${datei}\n    ${roh.slice(0, 150)}`);
+    }
+  }
+  console.log(`══ Übersetzbarkeit (${kandidaten.length} Dateien) ══\n`);
+  if (kaputt === 0) {
+    console.log("  Alle übersetzen sich. Zitate aus Kommentaren immer EINZEILIG.\n");
+  } else {
+    for (const m of meldungen) console.log(`  FAIL  ${m}`);
+    console.log(`\n  ${kaputt} Datei(en) übersetzen sich nicht. Häufigste Ursache:`);
+    console.log("  ein Regex-Literal mit Zeilenumbruch oder ein Backtick im Kommentar.\n");
+  }
+  if (gefunden > 0 || kaputt > 0) process.exit(1);
+}

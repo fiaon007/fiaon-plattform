@@ -86,6 +86,15 @@ Deshalb gilt nach jeder Änderung an `server/`:
    Serverdateien. Ein Syntaxfehler fällt dort in Sekunden auf.
 3. Keine Backticks in Kommentaren innerhalb von Template-Literalen. Für
    zitierte Bedingungen die deutschen Anführungszeichen „…" nehmen.
+4. **Regex-Literale niemals über zwei Zeilen.** Wer aus einem mehrzeiligen
+   Kommentar zitiert, muss den Text einzeilig machen — sonst
+   „Unterminated regular expression", und der Prüfstand startet nicht.
+   Am 11.08.2026 zehnmal passiert.
+
+**`npx tsx scripts/pruef-backticks.ts` prüft beides.** Der zweite Teil lässt
+`esbuild` über alle 321 Dateien in `scripts/` und `server/` laufen — es weiß
+besser als jeder Regex, was ein Regex ist. Ein erster Entwurf suchte selbst
+danach und meldete 13 Fehlalarme.
    **`npx tsx scripts/pruef-backticks.ts` prüft das.** Die Regel wurde seit
    dem 08.08.2026 neunmal vergessen — eine Regel, die man neunmal vergisst,
    braucht keine zehnte Erinnerung, sondern eine Wand.

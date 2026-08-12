@@ -954,6 +954,43 @@ async function main(): Promise<void> {
     /KEIN ZWEITER SCROLL-KASTEN/.test(smQ)
     && !/flex-1 overflow-y-auto px-5/.test(smQ));
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // DAS FORDERUNGSMANAGEMENT BEKOMMT KEINE TERMINE
+  //
+  // ── DER BEFUND (11.08.2026) ───────────────────────────────────────────
+  // Der Vorgesetzte: „Die Mitarbeiter aus dem Inkasso, warum haben die
+  // Termine? Die können keine Termine bekommen, da sie ja nur die Leute
+  // anrufen, die ihre Abo-Rate nicht bezahlt haben!"
+  //
+  // Gemessen: Hans-Jürgen Gerhold hatte ZWEI Termine (Quelle
+  // „nichterreicht_mail") mit Kunden, die Lucas Böhnert und Nikita Boychenko
+  // betreuen. Und beide Inkasso-Konten hatten je einen zugewiesenen
+  // Vertriebskunden.
+  const trmQ = datei("server/lib/fiaon-termine.ts");
+  ok("Ein Termin bei einem Inkasso-Konto wird abgewiesen",
+    /String\(agent\.rolle \|\| "agent"\) === "inkasso"/.test(trmQ)
+    && /Das Forderungsmanagement nimmt keine Termine an/.test(trmQ));
+  ok("… und die Meldung nennt den richtigen Weg",
+    /setzt man dort eine Wiedervorlage an der Rate/.test(trmQ));
+  ok("Die alte Lücke ist benannt", /fordert nur beim/.test(trmQ));
+  ok("Der Kalender ist für Inkasso ausgeblendet",
+    /match: \["\/agent\/kalender"\], nichtRolle: \["inkasso"\]/
+      .test(datei("client/src/pages/agent/shared.tsx")));
+
+  const [inkTermine] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_termine t
+    JOIN fiaon_agents a ON a.id = t.agent_id
+    WHERE a.rolle = 'inkasso' AND t.status = 'gebucht'
+  `) as any[];
+  gleich("KEIN gebuchter Termin liegt bei einem Inkasso-Konto", Number(inkTermine.n), 0);
+
+  const [inkKunden] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_persons p
+    JOIN fiaon_agents a ON a.id = p.assigned_agent_id
+    WHERE a.rolle = 'inkasso' AND p.merged_into_person_id IS NULL
+  `) as any[];
+  gleich("KEIN Vertriebskunde ist einem Inkasso-Konto zugewiesen", Number(inkKunden.n), 0);
+
   ok("Zustände stehen in Worten, nicht als Rohwert",
     /ZUGANG_TEXT/.test(inkQ) && /BONITAET_TEXT/.test(inkQ)
     && /noch nicht freigeschaltet/.test(inkQ));

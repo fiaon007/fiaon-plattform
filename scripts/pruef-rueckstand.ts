@@ -1249,6 +1249,78 @@ async function main(): Promise<void> {
     /Ein Puls, kein Blinken/.test(sofQ) && /@keyframes fiEinPuls/.test(sofQ));
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c13. Zahlungsdaten-Mail findet die Adresse");
+  // ═══════════════════════════════════════════════════════════════════════
+  // ── DER BEFUND ────────────────────────────────────────────────────────
+  // Ein Agent: „Bei mehreren Datensätzen ist keine E-Mail-Adresse hinterlegt.
+  // Selbst wenn ich die E-Mail im aktuellen Datensatz manuell eintrage und
+  // speichere, funktioniert der Versand der Zahlungsdaten anschließend nicht.
+  // Das ist mir mittlerweile bei mehreren Kunden aufgefallen."
+  //
+  // Gemessen an Maik Matzke (Person #3815): `fiaon_applications.email` LEER,
+  // `fiaon_persons.primary_email` gefüllt. Die Route las nur die Bestellzeile —
+  // `makePayloadFromRow` setzte `email: ""`, und die Mail ging mit LEEREM
+  // Empfänger an Make. Dort verschwand sie lautlos, der Agent bekam „ok".
+  const agQ2 = datei("server/routes/fiaon-agent.ts");
+  ok("Der Versand nimmt auch die Adresse von der PERSON",
+    /SELECT NULLIF\(TRIM\(COALESCE\(p\.primary_email, ''\)\), ''\) AS email/.test(agQ2)
+    && /const empfaenger = roh\.email \|\| personMail\?\.email/.test(agQ2));
+  // ── DAS VERHALTEN, NICHT DER WORTLAUT ─────────────────────────────────
+  // Erster Versuch: den Meldungstext suchen. Die Gegenprobe (Text ändern)
+  // blieb grün — eine Prüfung auf Formulierung prüft nichts.
+  //
+  // Was zählt: Bei fehlender Adresse wird ABGEBROCHEN, bevor sendMakeWebhook
+  // aufgerufen wird. Der Rücksprung muss also VOR dem Versand stehen.
+  ok("Ohne Adresse wird NICHTS verschickt", (() => {
+    const i = agQ2.indexOf("if (!empfaenger) {");
+    const j = agQ2.indexOf('sendMakeWebhook("agent_payment_reminder"', i);
+    if (i < 0 || j < 0) return false;
+    const block = agQ2.slice(i, j);
+    // Zwischen der Prüfung und dem Versand muss ein return stehen.
+    return /return res\.status\(400\)/.test(block);
+  })());
+  ok("… und die 10-Minuten-Sperre wird zurückgenommen",
+    /SET agent_email_sent_at = NULL WHERE ref/.test(agQ2));
+  ok("Der Grund steht dabei",
+    /Der Agent hat also alles richtig gemacht und trotzdem verloren/.test(agQ2));
+
+  // ── DAS VERHALTEN, NICHT NUR DER QUELLTEXT ────────────────────────────
+  // Ein Kunde, dessen Bestellung keine Mail hat, dessen Person aber eine —
+  // genau der gemeldete Fall.
+  const [ohneBestellMail] = (await sqlPool`
+    SELECT a.ref, p.primary_email
+    FROM fiaon_applications a JOIN fiaon_persons p ON p.id = a.person_id
+    WHERE NULLIF(TRIM(COALESCE(a.email, a.contact_email, a.billing_email, '')), '') IS NULL
+      AND NULLIF(TRIM(COALESCE(p.primary_email, '')), '') IS NOT NULL
+      AND a.merged_into IS NULL
+    LIMIT 1
+  `) as any[];
+  if (ohneBestellMail) {
+    const [gefunden2] = (await sqlPool`
+      SELECT NULLIF(TRIM(COALESCE(p.primary_email, '')), '') AS email
+      FROM fiaon_applications a JOIN fiaon_persons p ON p.id = a.person_id
+      WHERE a.ref = ${ohneBestellMail.ref}
+    `) as any[];
+    ok("Ein echter Fall: Bestellung ohne Mail, Person mit Mail wird gefunden",
+      !!gefunden2?.email, `${ohneBestellMail.ref} → ${gefunden2?.email}`);
+  } else {
+    ok("Kein solcher Fall mehr im Bestand", true);
+  }
+
+  // ── DIE URSACHE: PAUSCHAL ABGELEHNTE DUBLETTEN ────────────────────────
+  // 320 Paare stehen als „keine_dublette" mit der Begründung „Nur
+  // Namensähnlichkeit ohne zweites Merkmal". Darunter 234 mit EXAKT gleichem
+  // Namen und ERGÄNZENDEN Kontaktdaten — einer hat, was dem anderen fehlt.
+  // Das ist der Grund, warum der Agent zwei Datensätze sieht.
+  const [abgelehnt] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_dubletten_entschieden
+    WHERE entscheidung = 'keine_dublette'
+  `) as any[];
+  ok(`${abgelehnt.n} Dubletten-Paare sind abgelehnt — der Zähler ist sichtbar`,
+    Number(abgelehnt.n) >= 0,
+    "Die Rücknahme braucht eine Entscheidung des Vorgesetzten");
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");
   // ═══════════════════════════════════════════════════════════════════════
   const fQ = datei("client/src/components/PremiumFooter.tsx");

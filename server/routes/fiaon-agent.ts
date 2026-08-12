@@ -2182,8 +2182,60 @@ router.post("/agent/customers/:ref/send-payment-email", requireAgent, requireEig
       return res.status(429).json({ ok: false, error: "E-Mail wurde vor Kurzem gesendet (10-Minuten-Sperre)", lockedUntil });
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // DIE ADRESSE KANN AN DER PERSON STEHEN, NICHT AN DER BESTELLUNG
+    //
+    // ── DER BEFUND (11.08.2026) ───────────────────────────────────────────
+    // Ein Agent: „Bei mehreren Datensätzen ist keine E-Mail-Adresse hinterlegt.
+    // Selbst wenn ich die E-Mail im aktuellen Datensatz manuell eintrage und
+    // speichere, funktioniert der Versand der Zahlungsdaten anschließend nicht."
+    //
+    // Gemessen an Maik Matzke: `fiaon_applications.email` ist LEER,
+    // `fiaon_persons.primary_email` gefüllt. Diese Route las nur die
+    // Bestellzeile — `makePayloadFromRow` setzte `email: ""`, und die Mail ging
+    // mit leerem Empfänger an Make. Dort verschwand sie lautlos.
+    //
+    // Der Agent hat also alles richtig gemacht und trotzdem verloren.
+    //
+    // ── WARUM DIE PERSON DER BESSERE ORT IST ──────────────────────────────
+    // Eine Bestellung ist ein Vorgang, eine Person ein Mensch. Wer seine
+    // Adresse ändert, ändert sie am Menschen — nicht an einem alten Vorgang.
+    // `mailSenden` in fiaon-mail-senden.ts macht es seit Wochen richtig
+    // (COALESCE über Person, dann Bestellung); nur diese Route wich ab.
+    // ══════════════════════════════════════════════════════════════════════
+    const [personMail] = (await sqlPool`
+      SELECT NULLIF(TRIM(COALESCE(p.primary_email, '')), '') AS email
+      FROM fiaon_applications a
+      JOIN fiaon_persons p ON p.id = a.person_id
+      WHERE a.ref = ${req.params.ref}
+    `) as any[];
+
+    const roh = makePayloadFromRow(claimed[0]);
+    const empfaenger = roh.email || personMail?.email || "";
+
+    // ── OHNE ADRESSE WIRD NICHTS VERSCHICKT, UND ES WIRD GESAGT ───────────
+    // Vorher ging die Anfrage mit leerem `email` raus und der Agent bekam
+    // „ok". Eine Rückmeldung, die Erfolg meldet, ohne dass etwas passiert,
+    // ist schlimmer als ein Fehler.
+    //
+    // Die Sperre wird zurückgenommen: Wer nichts verschickt hat, soll es nach
+    // dem Nachtragen der Adresse gleich versuchen dürfen, nicht erst in zehn
+    // Minuten.
+    if (!empfaenger) {
+      await sqlPool`
+        UPDATE fiaon_applications SET agent_email_sent_at = NULL WHERE ref = ${req.params.ref}
+      `.catch(() => {});
+      return res.status(400).json({
+        ok: false,
+        error: "Bei diesem Kunden ist keine E-Mail-Adresse hinterlegt — weder an der "
+          + "Bestellung noch am Kundendatensatz. Trage sie in der Kundenakte ein, oder "
+          + "gib die Bankdaten mit dem Verwendungszweck am Telefon durch.",
+      });
+    }
+
     const payload = {
-      ...makePayloadFromRow(claimed[0]),
+      ...roh,
+      email: empfaenger,
       agent_name: req.agent!.name,
       invoice_url: claimed[0].payment_reference ? signInvoiceUrl(claimed[0].payment_reference) : null,
     };

@@ -23,7 +23,12 @@ interface AboRate {
   mahnstufe: number; erinnerungen: number; letzteErinnerung: string | null;
   bezahltAm: string | null; tageUeberfaellig: number;
   name: string; email: string | null; telefon: string | null;
-  paket: string | null; agent: string | null; notiz: string | null; akte: string;
+  paket: string | null;
+  /** Der INKASSO-Zuständige — nicht der Vertriebsagent. */
+  agent: string | null;
+  /** Wer den Kunden gewonnen hat. Provisionsgeschichte, keine Zuständigkeit. */
+  vertrieb?: string | null;
+  notiz: string | null; akte: string;
   /** Gesetzt, wenn der Versand der Erinnerung fehlgeschlagen ist — dann steht
    *  die Mahnstufe bewusst still, der Kunde hat KEINE Mail bekommen. */
   letzterFehler: string | null;
@@ -326,7 +331,30 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
                         ? `bezahlt am ${r.bezahltAm ? new Date(r.bezahltAm).toLocaleDateString("de-DE") : "—"}`
                         : <>fällig {tag(r.faelligAm)}{ueberfaellig && <span className="text-red-600 font-semibold"> · {r.tageUeberfaellig} Tage überfällig</span>}</>}
                       {r.mahnstufe > 0 && ` · Mahnstufe ${r.mahnstufe}`}
-                      {r.agent ? ` · ${r.agent}` : ""}
+                      {/* ══════════════════════════════════════════════════════
+                          WER IST ZUSTÄNDIG — UND WENN NIEMAND, DANN STEHT DAS DA
+
+                          ── DER BEFUND (13.08.2026) ─────────────────────────────
+                          Hier stand der VERTRIEBSAGENT der Bestellung — also der,
+                          der den Kunden gewonnen hat. Neben „fällig 14.08.26"
+                          gelesen sah das aus wie eine Zuständigkeit für die Rate.
+
+                          Der Vorgesetzte hat es genau so gelesen: „Warum haben die
+                          Agenten die Kunden drinnen? DAS DÜRFEN SIE NICHT!"
+
+                          Gemessen war die Zuteilung korrekt — keine einzige Rate
+                          lag bei einem Vertriebsagenten. Falsch war die ANZEIGE.
+
+                          Jetzt steht der Inkasso-Zuständige da. Und wenn keiner
+                          zugeteilt ist, sagt es das: 265 Raten hatten niemanden,
+                          zwölf davon überfällig. Eine leere Stelle, die aussieht
+                          wie „erledigt", ist die gefährlichste Art Lücke.
+                          ══════════════════════════════════════════════════════ */}
+                      {r.agent
+                        ? <> · <span className="font-medium text-slate-600">{r.agent}</span></>
+                        : r.status !== "bezahlt"
+                          ? <> · <span className="font-semibold text-amber-700">noch nicht zugeteilt</span></>
+                          : ""}
                     </p>
                     <p className="text-[11px] text-slate-400 mt-0.5 truncate">
                       {r.zahlungsreferenz}{r.paket ? ` · ${r.paket}` : ""}

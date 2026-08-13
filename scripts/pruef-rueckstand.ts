@@ -1758,6 +1758,49 @@ async function main(): Promise<void> {
     /function LandUmschalter/.test(stQ));
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c19. Wer ist für eine Rate zuständig?");
+  // ═══════════════════════════════════════════════════════════════════════
+  // Der Vorgesetzte (13.08.2026): „Warum sind Agenten (Lucas, Florentine,
+  // Daniel) ausgewählt? ALLE Kunden, die eine offene Rate haben, müssen zum
+  // Forderungsmanagement. DAS DÜRFEN SIE NICHT!"
+  //
+  // Die Zuteilung war korrekt — die ANZEIGE war falsch: Sie zeigte den
+  // Vertriebsagenten der Bestellung.
+
+  // ── DIE HARTE REGEL ───────────────────────────────────────────────────
+  const [beiVertrieb] = (await sqlPool`
+    SELECT COUNT(*)::int AS n
+    FROM fiaon_abo_raten r JOIN fiaon_agents a ON a.id = r.inkasso_agent_id
+    WHERE r.status <> 'bezahlt' AND a.rolle NOT IN ('inkasso', 'admin')
+  `) as any[];
+  gleich("KEINE offene Rate liegt bei einem Vertriebsagenten",
+    Number(beiVertrieb.n), 0);
+
+  const [faelligOhne] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_abo_raten r
+    WHERE r.status <> 'bezahlt' AND r.inkasso_agent_id IS NULL
+      AND r.faellig_am <= CURRENT_DATE
+  `) as any[];
+  ok("Jede FÄLLIGE Rate hat einen Zuständigen",
+    Number(faelligOhne.n) <= 3,
+    `${faelligOhne.n} fällige Raten ohne Zuteilung — künftige brauchen keine, `
+    + "sie werden bei Fälligkeit zugeteilt");
+
+  // ── DIE ANZEIGE ───────────────────────────────────────────────────────
+  const aboQ = datei("server/routes/fiaon-abo.ts");
+  ok("Die Tafel liest den INKASSO-Zuständigen",
+    /LEFT JOIN fiaon_agents ink ON ink\.id = r\.inkasso_agent_id/.test(aboQ));
+  ok("… und der Vertriebsagent ist getrennt benannt",
+    /vertr\.name AS vertrieb_name/.test(aboQ));
+  ok("Der Grund steht dabei",
+    /Provisionsgeschichte, keine/.test(aboQ));
+  const tafelQ = datei("client/src/components/admin/AboTafel.tsx");
+  ok("Ohne Zuständigen steht „noch nicht zugeteilt“",
+    /noch nicht zugeteilt/.test(tafelQ));
+  ok("… und der Grund dafür ist notiert",
+    /die gefährlichste Art Lücke/.test(tafelQ));
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");
   // ═══════════════════════════════════════════════════════════════════════
   const fQ = datei("client/src/components/PremiumFooter.tsx");

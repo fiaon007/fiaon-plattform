@@ -615,11 +615,37 @@ router.get("/admin/abo/raten", async (req, res) => {
              COALESCE(NULLIF(TRIM(a.email),''), NULLIF(TRIM(a.contact_email),''), NULLIF(TRIM(a.billing_email),'')) AS email,
              NULLIF(TRIM(CONCAT(COALESCE(a.phone_country_code,''), COALESCE(a.phone,''))),'') AS telefon,
              NULLIF(TRIM(regexp_replace(COALESCE(a.pack_name,''), '\\s+', ' ', 'g')),'') AS paket,
-             ag.name AS agent_name,
+             -- ══════════════════════════════════════════════════════════════
+             -- WER IST FÜR DIESE RATE ZUSTÄNDIG?
+             --
+             -- ── DER BEFUND (13.08.2026) ───────────────────────────────────
+             -- Der Vorgesetzte, mit Recht alarmiert: „Bei ‚Abo — monatliche
+             -- Paketrate' — warum sind Agenten (Lucas, Florentine, Daniel)
+             -- ausgewählt? ALLE Kunden, die eine offene Rate haben, müssen zum
+             -- Forderungsmanagement. Warum haben die Agenten die Kunden
+             -- drinnen? DAS DÜRFEN SIE NICHT!"
+             --
+             -- Gemessen: KEINE Rate ist einem Vertriebsagenten zugeteilt. Die
+             -- Zuteilung war korrekt — 86 Raten bei Diana und Hans-Jürgen.
+             --
+             -- Hier stand „a.assigned_agent_id": der Vertriebsagent, der den
+             -- Kunden GEWONNEN hat. Das ist Provisionsgeschichte, keine
+             -- Zuständigkeit. Neben „fällig 14.08.26" gelesen sah es aus wie
+             -- eine Zuweisung — und der Vorgesetzte hat es genau so gelesen.
+             --
+             -- Eine Anzeige, die einen Verantwortlichen suggeriert, wo keiner
+             -- steht, ist schlimmer als eine leere Spalte.
+             --
+             -- Jetzt steht hier der INKASSO-Zuständige. Ist keiner zugeteilt,
+             -- bleibt das Feld leer und die Oberfläche sagt es ausdrücklich.
+             -- ══════════════════════════════════════════════════════════════
+             ink.name AS agent_name,
+             vertr.name AS vertrieb_name,
              ($1::date - r.faellig_am) AS tage_ueberfaellig
       FROM fiaon_abo_raten r
       JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL
-      LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
+      LEFT JOIN fiaon_agents ink ON ink.id = r.inkasso_agent_id
+      LEFT JOIN fiaon_agents vertr ON vertr.id = a.assigned_agent_id
       WHERE ${filter}
       ORDER BY ${sortierung}
       LIMIT ${limit}
@@ -639,7 +665,14 @@ router.get("/admin/abo/raten", async (req, res) => {
         fehlversuche: Number(r.fehlversuche || 0),
         tageUeberfaellig: Number(r.tage_ueberfaellig || 0),
         name: r.name, email: r.email || null, telefon: r.telefon || null,
-        paket: r.paket || null, agent: r.agent_name || null, notiz: r.notiz || null,
+        paket: r.paket || null,
+        // Der INKASSO-Zustaendige. Leer heisst: noch niemand — das sagt die
+        // Oberflaeche dann ausdruecklich, statt einen Namen zu erfinden.
+        agent: r.agent_name || null,
+        // Der Vertriebsagent bleibt sichtbar, aber getrennt benannt: Er ist die
+        // Provisionsgeschichte, nicht der Verantwortliche fuer die Rate.
+        vertrieb: r.vertrieb_name || null,
+        notiz: r.notiz || null,
         akte: `/admin/kunde/${encodeURIComponent(r.ref)}`,
       })),
     });

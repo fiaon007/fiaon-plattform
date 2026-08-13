@@ -752,6 +752,39 @@ function KundenKarte({
     onZaehler();
   };
 
+  /**
+   * Eine doppelte Buchung aus der Liste nehmen.
+   *
+   * ── DIE RÜCKFRAGE IST PFLICHT ─────────────────────────────────────────
+   * Es ist kein Löschen, aber es ändert, was der Kunde bezahlen soll. Wer
+   * versehentlich die falsche wegräumt, merkt es erst, wenn das Geld für die
+   * andere Referenz eintrifft.
+   */
+  const buchungWegraeumen = async (b: { ref: string; bezeichnung: string; betragCents: number | null }) => {
+    const betrag = b.betragCents != null ? eur(b.betragCents) : "ohne Betrag";
+    if (!confirm(
+      `„${b.bezeichnung}" (${betrag}) aus der Liste nehmen?\n\n`
+      + `Der Kunde behält seine anderen Buchungen. Diese hier verschwindet aus `
+      + `deiner Liste — sie wird archiviert, nicht gelöscht, und die `
+      + `Vertriebsleitung kann sie zurückholen.\n\n`
+      + `Referenz: ${b.ref}`,
+    )) return;
+    setLaeuft(`arch-${b.ref}`);
+    const r = await api(`/agent/buchungen/${encodeURIComponent(b.ref)}/archivieren`,
+      { method: "POST", body: JSON.stringify({ grund: "doppelt" }) });
+    setLaeuft(null);
+    if (!r.ok) {
+      zeige("fehler", "Nicht möglich", r.json?.error || "Bitte erneut versuchen.");
+      return;
+    }
+    zeige("erfolg", "Buchung weggeräumt", r.json.meldung);
+    // Die Karte neu holen: Der Server liefert die Buchungen mit, und ohne
+    // dieses Nachladen stünde die weggeräumte Zeile weiter da.
+    const frisch = await api(`/agent/crm/kunden/${k.personId}`);
+    if (frisch.ok && frisch.json?.kunde) onNeu(frisch.json.kunde);
+    onZaehler();
+  };
+
   const zahlungsdaten = async () => {
     setLaeuft("rechnung");
     const r = await api(`/agent/crm/kunden/${k.personId}/rechnung`, { method: "POST", body: JSON.stringify({}) });
@@ -1205,9 +1238,69 @@ function KundenKarte({
                           Verwendungszweck: {b.verwendungszweck}
                         </span>
                       )}
+                      {/* ══════════════════════════════════════════════════════
+                          EINE DOPPELTE BUCHUNG WEGRÄUMEN
+
+                          ── DER AUFTRAG (13.08.2026) ────────────────────────
+                          Daniel Stripling um 00:30: „Man sieht hier jetzt alle
+                          Anträge. Fragt man dann am Telefon nach, welchen die
+                          Person möchte, löscht die anderen und sendet dann die
+                          Zahlungsdaten-E-Mail? Weil Anträge rauslöschen geht
+                          nicht."
+
+                          Jetzt geht es. Es wird ARCHIVIERT, nicht gelöscht
+                          (AGENTS.md) — für den Agenten sieht es gleich aus, die
+                          Buchung verschwindet aus seiner Liste. Sie ist nur
+                          nicht weg: Provisionsnachweis, Zahlungsspur und die
+                          Möglichkeit zur Rücknahme bleiben.
+
+                          Nur bei UNBEZAHLTEN und nur, wenn mehr als eine
+                          Buchung übrig ist — der Server prüft beides erneut.
+                          ══════════════════════════════════════════════════════ */}
+                      {!b.bezahlt && !b.erledigt && (k.buchungen ?? []).filter((x) => !x.erledigt).length > 1 && (
+                        <button type="button"
+                                className="ml-auto shrink-0 text-[11px] font-semibold px-2 py-1 rounded-md"
+                                style={{ color: "#b45309", background: "rgba(180,83,9,.08)" }}
+                                disabled={laeuft === `arch-${b.ref}`}
+                                onClick={() => void buchungWegraeumen(b)}>
+                          {laeuft === `arch-${b.ref}` ? "…" : "Doppelt — wegräumen"}
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
+                {/* ══════════════════════════════════════════════════════════
+                    WELCHE IST DIE RICHTIGE?
+
+                    ── DANIELS ZWEITE FRAGE (13.08.2026, 00:30) ──────────────
+                    „Oder wird dann die E-Mail geschickt bei dem Antrag, wo steht
+                    ‚Zahlung gemeldet'?"
+
+                    Ja — und bei 59 von 420 Kunden mit mehreren offenen
+                    Buchungen weiß das System es schon: Wer bei einer Bestellung
+                    „Zahlung gemeldet" hat, hat sich für DIESE entschieden.
+
+                    Statt den Agenten raten zu lassen, steht es da. Bei den
+                    übrigen bleibt die Frage am Telefon — aber dann weiß er
+                    wenigstens, dass es eine gibt.
+                    ══════════════════════════════════════════════════════════ */}
+                {(() => {
+                  const offen = (k.buchungen ?? []).filter((b) => b.offen);
+                  const gemeldet = offen.filter((b) => b.zahlungText?.startsWith("Zahlung gemeldet"));
+                  if (offen.length < 2) return null;
+                  return (
+                    <p className="mt-2 text-[12px] px-2.5 py-1.5 rounded-lg"
+                       style={{ background: "rgba(29,78,216,.06)", color: "var(--fi-primaer)" }}>
+                      {gemeldet.length === 1
+                        ? <>Der Kunde hat für <b>{gemeldet[0].bezeichnung}</b> eine Zahlung
+                            gemeldet — das ist mit hoher Wahrscheinlichkeit die gewollte
+                            Buchung. Die anderen kannst du wegräumen.</>
+                        : <>{offen.length} offene Buchungen. Frag am Telefon, welche der
+                            Kunde will — die anderen räumst du hier weg.</>}
+                    </p>
+                  );
+                })()}
+
                 {/* Die Summe beantwortet die Frage, die am Telefon kommt:
                     „Was schulde ich Ihnen denn insgesamt?" */}
                 {(k.buchungen ?? []).some((b) => b.offen) && (

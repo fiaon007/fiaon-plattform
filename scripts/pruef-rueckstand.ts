@@ -1801,6 +1801,76 @@ async function main(): Promise<void> {
     /die gefährlichste Art Lücke/.test(tafelQ));
 
   // ═══════════════════════════════════════════════════════════════════════
+  gruppe("5c20. Doppelte Buchungen wegräumen");
+  // ═══════════════════════════════════════════════════════════════════════
+  // Der Vorgesetzte (13.08.2026): „Agenten, Vertriebsleiter, Onboarding,
+  // Forderungsmanagement sollen ab sofort Produkte/Buchungen löschen können."
+  //
+  // Daniel Stripling, 00:30: „Man sieht hier jetzt alle Anträge. Fragt man dann
+  // am Telefon nach, welchen die Person möchte, löscht die anderen? Weil
+  // Anträge rauslöschen geht nicht."
+  const [mehrfach20] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM (
+      SELECT p.id FROM fiaon_persons p JOIN fiaon_applications a ON a.person_id = p.id
+      WHERE p.merged_into_person_id IS NULL AND a.merged_into IS NULL
+        AND a.archived_at IS NULL
+        AND a.payment_status NOT IN ('paid', 'cancelled', 'refunded')
+      GROUP BY p.id HAVING COUNT(*) > 1) x
+  `) as any[];
+  ok(`${mehrfach20.n} Kunden haben mehrere offene Buchungen`, Number(mehrfach20.n) > 0,
+    "Genau der Fall, den Daniel gemeldet hat");
+
+  const akQ20 = datei("server/routes/fiaon-agent-kunden.ts");
+  ok("Es gibt eine Route zum Wegräumen",
+    /router\.post\("\/agent\/buchungen\/:ref\/archivieren"/.test(akQ20));
+  ok("… sie ARCHIVIERT, sie löscht nicht",
+    /archiviereAntrag\(/.test(akQ20) && !/DELETE FROM fiaon_applications/.test(akQ20));
+  ok("… und der Grund dafür steht dabei",
+    /Eine gelöschte Bestellung nimmt drei Dinge mit/.test(akQ20));
+  // ── DAS VERHALTEN, NICHT DER WORTLAUT ─────────────────────────────────
+  // Erster Versuch suchte den Meldungstext. Die Gegenprobe (Bedingung auf
+  // `false` setzen) blieb gruen — der Text stand ja weiter da. Geprueft wird
+  // deshalb, dass die ZAEHLPRUEFUNG mit Ruecksprung VOR dem Archivieren steht.
+  ok("Die LETZTE Buchung bleibt stehen", (() => {
+    const i = akQ20.indexOf("if (Number(zahl.n) <= 1) {");
+    const j = akQ20.indexOf("archiviereAntrag(", i);
+    if (i < 0 || j < 0) return false;
+    return /return res\.status\(400\)/.test(akQ20.slice(i, j));
+  })());
+  ok("Der Kundenzugriff wird geprüft",
+    /darfAnKunde\(req\.agent!\.id, rolle, Number\(b\.person_id\)\)/.test(akQ20));
+
+  // ── DIE WÄNDE IM ARCHIV ───────────────────────────────────────────────
+  const { archivPruefung: ap } = await import("../server/lib/fiaon-antrag-archiv");
+  const [bezahlt20] = (await sqlPool`
+    SELECT ref FROM fiaon_applications
+    WHERE payment_status = 'paid' AND merged_into IS NULL AND archived_at IS NULL
+    LIMIT 1
+  `) as any[];
+  if (bezahlt20) {
+    const pruef = await ap(String(bezahlt20.ref));
+    ok("Eine BEZAHLTE Bestellung lässt sich nicht wegräumen",
+      !!pruef?.sperrgrund, String(pruef?.sperrgrund ?? "").slice(0, 50));
+  }
+  ok("Ein Mitarbeiter darf archivieren, aber nicht wiederherstellen",
+    /rolle: "admin" \| "leitung" \| "mitarbeiter"/
+      .test(datei("server/lib/fiaon-antrag-archiv.ts"))
+    && /if \(akteur\.rolle !== "admin"\)/.test(datei("server/lib/fiaon-antrag-archiv.ts")));
+  ok("… und der Grund dafür steht dabei",
+    /nicht selbst zurückholen und damit die Spur/
+      .test(datei("server/lib/fiaon-antrag-archiv.ts")));
+
+  // ── DIE OBERFLÄCHE ────────────────────────────────────────────────────
+  const knQ20 = datei("client/src/pages/agent/kunden-neu.tsx");
+  ok("An jeder doppelten Buchung steht ein Knopf",
+    /Doppelt — wegräumen/.test(knQ20));
+  ok("… mit Rückfrage vor dem Klick", /aus der Liste nehmen\?/.test(knQ20));
+  ok("… und er erscheint nur bei mehr als einer Buchung",
+    /\(k\.buchungen \?\? \[\]\)\.filter\(\(x\) => !x\.erledigt\)\.length > 1/.test(knQ20));
+  ok("Daniels zweite Frage ist in der Oberfläche beantwortet",
+    /das ist mit hoher/.test(knQ20));
+
+  // ═══════════════════════════════════════════════════════════════════════
   gruppe("5d. Mitarbeiter-Zugang auf der Website");
   // ═══════════════════════════════════════════════════════════════════════
   const fQ = datei("client/src/components/PremiumFooter.tsx");

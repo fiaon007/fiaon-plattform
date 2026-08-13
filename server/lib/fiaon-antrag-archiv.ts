@@ -101,8 +101,27 @@ export async function archivPruefung(ref: string, lauf: Lauf = sqlPool): Promise
 export interface ArchivAkteur {
   name: string;
   agentId?: number | null;
-  /** 'admin' darf wiederherstellen, 'leitung' nur archivieren. */
-  rolle: "admin" | "leitung";
+  /**
+   * Wer handelt — und was er darf.
+   *
+   * `admin`       archivieren UND wiederherstellen
+   * `leitung`     nur archivieren
+   * `mitarbeiter` nur archivieren
+   *
+   * ── WARUM „mitarbeiter" DAZUKAM (13.08.2026) ────────────────────────────
+   * Der Vorgesetzte: „Agenten, Vertriebsleiter, Onboarding,
+   * Forderungsmanagement sollen ab sofort Buchungen löschen können. Es kommt
+   * oft vor, dass ein Kunde doppelte oder dreifache Buchungen hat."
+   *
+   * Vorher hätte ein Agent als „leitung" auftreten müssen — eine Notlüge im
+   * Protokoll. Wer später liest, wer eine Bestellung archiviert hat, soll die
+   * Wahrheit sehen.
+   *
+   * Die Wiederherstellung bleibt beim Admin: Wer eine falsche Buchung
+   * weggeräumt hat, soll sie nicht selbst zurückholen und damit die Spur
+   * verwischen können. Er meldet es, und die Leitung entscheidet.
+   */
+  rolle: "admin" | "leitung" | "mitarbeiter";
 }
 
 /**

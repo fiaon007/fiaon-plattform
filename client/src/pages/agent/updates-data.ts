@@ -40,6 +40,30 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-13-doppelte-buchungen",
+    date: "2026-08-13",
+    category: "Neu",
+    title: "Doppelte Buchungen kannst du selbst wegräumen",
+    summary:
+      "Hat ein Kunde denselben Antrag mehrfach gestellt? Frag am Telefon, welchen er will — die anderen räumst du weg.",
+    changes: [
+      "Daniels Frage: „Man sieht jetzt alle Anträge. Fragt man dann am Telefon nach, welchen die Person möchte, löscht die anderen und sendet die Zahlungsdaten? Weil Anträge rauslöschen geht nicht.“ Ab jetzt geht es.",
+      "An jeder doppelten Buchung steht „Doppelt — wegräumen“. Sie verschwindet aus deiner Liste. Alle Rollen dürfen das: Vertrieb, Vertriebsleitung, Onboarding und Forderungsmanagement.",
+      "WICHTIG: Es wird archiviert, nicht gelöscht. Für dich sieht es gleich aus — aber Provisionsnachweis und Zahlungsspur bleiben, und die Vertriebsleitung kann eine falsch weggeräumte Buchung zurückholen.",
+      "Bezahlte Buchungen lassen sich NICHT wegräumen. Sie stehen in den Umsatzzahlen; eine bezahlte Bestellung herauszunehmen wäre eine Umsatzkorrektur, keine Aufräumarbeit.",
+      "Die letzte Buchung bleibt immer stehen. Ein Kunde ohne Bestellung hat keinen Anlass mehr — wenn er ganz weg soll, melde ihn als Testeintrag.",
+      "Daniels zweite Frage („oder wird die E-Mail bei dem Antrag geschickt, wo Zahlung gemeldet steht?“): Ja. Wenn eine der Buchungen „Zahlung gemeldet“ trägt, steht das jetzt im Buchungs-Block — der Kunde hat sich für DIESE entschieden. Bei 59 Kunden ist das so.",
+      "Gemessen: 420 Kunden haben mehrere offene Buchungen. Einer hat 19.",
+    ],
+    howto: [
+      "Kunde aufklappen, Abschnitt „Buchungen“ ansehen.",
+      "Am Telefon fragen, welches Paket er wirklich will — oder nachsehen, ob eine Buchung „Zahlung gemeldet“ trägt.",
+      "Bei den anderen „Doppelt — wegräumen“ drücken.",
+      "Dann „Zahlungsdaten senden“ für die richtige Buchung.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-11-verkaufsstart",
     date: "2026-08-11",
     category: "Neu",

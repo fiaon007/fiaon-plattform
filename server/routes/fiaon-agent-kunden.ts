@@ -1171,4 +1171,127 @@ router.post("/agent/rechnungen/:ref/stellen", requireAgent, async (req: AgentReq
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// EINE DOPPELTE BUCHUNG AUS DEM WEG RÄUMEN
+//
+// ── DER AUFTRAG (13.08.2026) ───────────────────────────────────────────────
+// Der Vorgesetzte: „Agenten, Vertriebsleiter, Onboarding, Forderungsmanagement
+// sollen ab sofort Produkte/Buchungen löschen können. Es kommt oft vor, dass ein
+// Kunde doppelte oder dreifache Buchungen hat, jeder soll es markieren und
+// löschen können."
+//
+// Daniel Stripling, 00:30: „Man sieht hier jetzt alle Anträge. Fragt man dann am
+// Telefon nach, welchen die Person möchte, löscht die anderen und sendet dann
+// entsprechend die Zahlungsdaten-E-Mail? Weil Anträge rauslöschen geht nicht."
+//
+// ── ES WIRD ARCHIVIERT, NICHT GELÖSCHT ─────────────────────────────────────
+// AGENTS.md: „Keine Hard-Deletes, nirgends. Nicht bei Kunden, nicht bei
+// Bestellungen, nicht bei Nachweisen."
+//
+// Das ist kein Formalismus. Eine gelöschte Bestellung nimmt drei Dinge mit:
+// den Provisionsnachweis, die Spur im Zahlungsabgleich (Geld, das später unter
+// dieser Referenz eintrifft, wäre nicht zuzuordnen) und die Möglichkeit, einen
+// Fehlklick zurückzunehmen.
+//
+// Für den Agenten sieht es aus wie Löschen: Die Buchung verschwindet aus seiner
+// Liste. Sie ist nur nicht weg.
+//
+// ── DREI WÄNDE ─────────────────────────────────────────────────────────────
+//   1. BEZAHLTES bleibt. `archivPruefung` sperrt es — eine bezahlte Bestellung
+//      aus den Zahlen zu nehmen wäre eine Umsatzkorrektur, keine Aufräumarbeit.
+//   2. DIE LETZTE Buchung bleibt. Ein Kunde ohne Bestellung ist ein Datensatz
+//      ohne Anlass; wer wirklich alles wegräumen will, hat einen anderen Fall.
+//   3. JEDER SCHRITT STEHT IM PROTOKOLL — mit Namen. Wer seine eigene
+//      Arbeitsliste kürzen kann, hat einen Anreiz, unbequeme Kunden
+//      wegzuräumen. Deshalb war es bisher gesperrt. Jetzt ist es offen, aber
+//      nachvollziehbar: Die Vertriebsleitung sieht in der Dublettenansicht,
+//      wer was archiviert hat, und kann es zurücknehmen.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** GET /agent/buchungen/:personId — alle Buchungen mit Archiv-Auskunft. */
+router.get("/agent/buchungen/:personId", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+      return res.status(403).json({ ok: false, error: "Kein Zugriff auf diesen Kunden." });
+    }
+    const { buchungenVon } = await import("../lib/fiaon-buchungen");
+    const { archivPruefung, ARCHIV_GRUENDE } = await import("../lib/fiaon-antrag-archiv");
+    const buchungen = await buchungenVon(personId);
+    // Je Buchung: Darf sie weg? Und wenn nicht, warum nicht?
+    const mitPruefung = await Promise.all(buchungen.map(async (b) => {
+      const p = await archivPruefung(b.ref).catch(() => null);
+      return {
+        ...b,
+        darfWeg: !!p && !p.sperrgrund && buchungen.filter((x) => !x.erledigt).length > 1,
+        sperrgrund: p?.sperrgrund
+          ?? (buchungen.filter((x) => !x.erledigt).length <= 1
+            ? "Das ist die einzige Buchung — ein Kunde ohne Bestellung hat keinen Anlass mehr."
+            : null),
+      };
+    }));
+    res.json({ ok: true, buchungen: mitPruefung, gruende: ARCHIV_GRUENDE });
+  } catch (err) {
+    console.error("[AGENT-KUNDEN] buchungen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /agent/buchungen/:ref/archivieren — die doppelte Buchung wegräumen. */
+router.post("/agent/buchungen/:ref/archivieren", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const ref = String(req.params.ref);
+    const [b] = (await sqlPool`
+      SELECT person_id FROM fiaon_applications WHERE ref = ${ref}
+    `) as any[];
+    if (!b?.person_id) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden." });
+
+    const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, Number(b.person_id)))) {
+      return res.status(403).json({ ok: false, error: "Kein Zugriff auf diesen Kunden." });
+    }
+
+    // ── DIE LETZTE BUCHUNG BLEIBT ─────────────────────────────────────────
+    const [zahl] = (await sqlPool`
+      SELECT COUNT(*)::int AS n FROM fiaon_applications
+      WHERE person_id = ${Number(b.person_id)} AND merged_into IS NULL
+        AND archived_at IS NULL AND payment_status NOT IN ('cancelled', 'refunded')
+    `) as any[];
+    if (Number(zahl.n) <= 1) {
+      return res.status(400).json({
+        ok: false,
+        error: "Das ist die einzige Buchung dieses Kunden. Sie bleibt — ein Kunde "
+          + "ohne Bestellung hat keinen Anlass mehr. Wenn der Kunde ganz weg soll, "
+          + "melde ihn als Testeintrag oder gib ihn zurück.",
+      });
+    }
+
+    const { archiviereAntrag, ArchivVerboten } = await import("../lib/fiaon-antrag-archiv");
+    try {
+      await archiviereAntrag(
+        ref,
+        String(req.body?.grund || "doppelt"),
+        req.body?.notiz ? String(req.body.notiz).slice(0, 500) : null,
+        { name: req.agent!.name, agentId: req.agent!.id, rolle: "mitarbeiter" },
+      );
+    } catch (err: any) {
+      if (err instanceof ArchivVerboten) {
+        return res.status(400).json({ ok: false, error: err.message });
+      }
+      throw err;
+    }
+    res.json({
+      ok: true,
+      meldung: "Buchung aus der Liste genommen. Sie ist archiviert, nicht gelöscht — "
+        + "die Vertriebsleitung kann sie zurückholen, falls es die falsche war.",
+    });
+  } catch (err) {
+    console.error("[AGENT-KUNDEN] archivieren:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 export default router;

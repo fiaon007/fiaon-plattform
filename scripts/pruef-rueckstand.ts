@@ -1751,6 +1751,37 @@ async function main(): Promise<void> {
     /if \(landGewaehlt\(\)\) return;/.test(datei("client/src/components/LandWahl.tsx")));
   ok("… mit gezeichneten Flaggen, keinen Emojis",
     /function FlaggeCH/.test(datei("client/src/components/LandWahl.tsx")));
+
+  // ── 3D, GLAS, GLANZ (13.08.2026) ──────────────────────────────────────
+  // „Das muss besser aussehen: 3D, Glas, Animationen, die Flaggen alle gleich
+  // groß — glänzend vielleicht?"
+  const lwQ = datei("client/src/components/LandWahl.tsx");
+  ok("Alle drei Flaggen teilen EINEN Rahmen",
+    /function FlaggenRahmen/.test(lwQ)
+    && (lwQ.match(/<FlaggenRahmen>/g) || []).length === 3);
+  ok("… die Schweizer füllt die Fläche (kein weißer Rand)",
+    /<rect width="60" height="40" fill="#D52B1E" \/>/.test(lwQ));
+  ok("… und der Grund für die gedehnte Darstellung steht dabei",
+    /Gleiche Fläche schlägt amtliche Proportion/.test(lwQ));
+  ok("Jede Flagge hat Glanz und Tiefe",
+    /id="fl-glanz"/.test(lwQ) && /id="fl-streif"/.test(lwQ) && /id="fl-tief"/.test(lwQ));
+  ok("Die Bühne hat Perspektive", /perspective: 1400px/.test(lwQ));
+  ok("Die Karten kippen unter der Maus",
+    /rotateX\(var\(--rx, 0deg\)\) rotateY\(var\(--ry, 0deg\)\)/.test(lwQ));
+  ok("… und ein Lichtpunkt folgt dem Zeiger",
+    /radial-gradient\(200px circle at var\(--mx/.test(lwQ));
+  ok("Der Auftritt kommt aus der Tiefe, nicht von unten",
+    /translate3d\(0, 30px, -140px\) rotateX\(9deg\)/.test(lwQ));
+  ok("… die Knöpfe gestaffelt",
+    /calc\(340ms \+ var\(--i, 0\) \* 85ms\)/.test(lwQ));
+  ok("Das Glanzband läuft EINMAL, nicht dauernd",
+    /ist Kirmes, nicht Wertigkeit/.test(lwQ)
+    && /animation: fiLwStreif 1500ms/.test(lwQ));
+  ok("Der Satz je Land bricht nicht um",
+    /white-space: nowrap/.test(lwQ) && /ungleiche Höhen sind das Erste/.test(lwQ));
+  ok("Wer weniger Bewegung will, bekommt keine",
+    /prefers-reduced-motion: reduce/.test(lwQ)
+    && /animation: none !important/.test(lwQ));
   ok("… und der Grund gegen IP-Erkennung steht dabei",
     /bei VPN und Mobilfunk oft falsch|bei VPN, Mobilfunk/
       .test(datei("client/src/components/LandWahl.tsx")));

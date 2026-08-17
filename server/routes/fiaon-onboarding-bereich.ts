@@ -316,6 +316,28 @@ router.post("/agent/onboarding/termine/:id/ergebnis", requireAgent, nurOnboardin
           console.error("[ONBOARDING] account_activated:", e);
         }
       }
+
+      // ══════════════════════════════════════════════════════════════════
+      // DIE VERGÜTUNG — nach der Freischaltung, nicht davor
+      //
+      // Reihenfolge mit Absicht: Erst ist das Konto frei (das schuldet man dem
+      // Kunden), dann entsteht die Gutschrift. Und sie WIRFT NICHT — ein
+      // Fehler in der Vergütung darf ein geführtes Gespräch nicht ungültig
+      // machen. Der Mitarbeiter erfährt im Hinweis, was passiert ist.
+      //
+      // Genau eine je Kunde: Ein zweites Gespräch mit demselben Menschen
+      // erzeugt keine zweite Gutschrift (Teilindex in Migration 057).
+      // ══════════════════════════════════════════════════════════════════
+      const { onboardingGutschrift } = await import("../lib/fiaon-onboarding-verguetung");
+      const geld = await onboardingGutschrift({
+        personId: Number(termin.person_id),
+        agentId: req.agent!.id,
+        agentName: req.agent!.name,
+        terminId: id,
+        ref: ref?.ref ?? null,
+      });
+      if (geld.gutgeschrieben) hinweis += ` ${geld.grund}`;
+      else if (geld.cents > 0) hinweis += ` (${geld.grund})`;
     }
 
     if (ref) {

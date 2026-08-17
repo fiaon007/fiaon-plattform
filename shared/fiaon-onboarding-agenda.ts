@@ -97,6 +97,44 @@ export const AGENDA: AgendaSchritt[] = [
     ],
     notizFrage: "Wollte der Kunde die Auskunft? Wenn nein: warum nicht?",
   },
+  // ═════════════════════════════════════════════════════════════════════
+  // ABO-KLARHEIT — DER PFLICHTSCHRITT (18.08.2026)
+  //
+  // ── DER AUFTRAG DES BETREIBERS ──────────────────────────────────────
+  // „Ein Pflichtpunkt: Der Kunde bestätigt, dass er versteht, dass es ein
+  // laufendes Abo ist, wie es kündbar ist, und dass die Bonitätsauskunft
+  // einmalig extra kostet."
+  //
+  // ── WARUM ER VOR DEM ABSCHLUSS STEHT UND NICHT DANACH ───────────────
+  // Nach dem Abschluss („Ihr Konto ist freigeschaltet") ist der Kunde
+  // gedanklich fertig. Wer DANN noch über Zahlungspflichten spricht, klingt,
+  // als hätte er etwas zurückgehalten. Vor dem Abschluss ist es Teil der
+  // Aufklärung; danach wäre es ein Nachtrag.
+  //
+  // ── WARUM DAS DER TEUERSTE MISSVERSTAND IST ─────────────────────────
+  // Jede Rückbuchung, jede Beschwerde und jeder Inkassofall dieses Hauses
+  // beginnt mit demselben Satz: „Ich dachte, das war einmalig." Fünfzehn
+  // Sekunden im Startgespräch verhindern Monate Auseinandersetzung. Deshalb
+  // ist dieser Schritt nicht nur Pflicht, er verlangt auch eine NOTIZ — der
+  // Mitarbeiter muss festhalten, dass der Kunde es bestätigt hat.
+  // ═════════════════════════════════════════════════════════════════════
+  {
+    key: "abo_klarheit",
+    titel: "Abo-Klarheit — laufende Kosten bestätigen",
+    zweck: "Der häufigste Streitfall beginnt mit „Ich dachte, das war einmalig\u201c. "
+      + "Dieser Schritt räumt ihn aus, bevor er entsteht.",
+    punkte: [
+      "„Ihr Paket ist ein laufendes Abo: Der Betrag kommt jeden Monat, nicht einmalig.“ "
+        + "Den Betrag NENNEN und das Datum der nächsten Abbuchung.",
+      "„Kündbar zum Ende des laufenden Monats — schriftlich per E-Mail, formlos, "
+        + "kein Grund nötig.“ Keine Mindestlaufzeit erfinden.",
+      "„Die Bonitätsauskunft ist davon getrennt: 74 € EINMALIG, kein Abo.“ "
+        + "Wenn er sie nicht will, ändert das nichts an seinem Paket.",
+      "Rückfragen: „Ist das so für Sie in Ordnung?“ — die Antwort in die Notiz.",
+    ],
+    notizPflicht: true,
+    notizFrage: "Hat der Kunde die laufenden Kosten und den Kündigungsweg bestätigt? Wörtlich, was er gesagt hat.",
+  },
   {
     key: "abschluss",
     titel: "Nächste Schritte & Erreichbarkeit",

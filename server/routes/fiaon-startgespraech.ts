@@ -34,6 +34,10 @@ export const ERINNERUNG_STUNDEN = 48;
 interface Lage {
   personId: number;
   vorname: string | null;
+  /** Für die Bonitäts-Bestellung auf derselben Bühne (18.08.2026): Der Kunde
+      soll seine Daten nicht erneut eintippen, die wir schon haben. */
+  nachname: string | null;
+  email: string | null;
   bezahlt: boolean;
   termin: { beginn: string; datumText: string; uhrzeit: string; agentVorname: string } | null;
   erledigt: boolean;
@@ -47,6 +51,9 @@ interface Lage {
 async function lageZu(ref: string): Promise<Lage | null> {
   const [row] = (await sqlPool`
     SELECT p.id, COALESCE(NULLIF(p.first_name, ''), p.contact_name, a.first_name) AS vorname,
+           COALESCE(NULLIF(p.last_name, ''), a.last_name) AS nachname,
+           COALESCE(NULLIF(p.primary_email, ''), NULLIF(a.email, ''),
+                    NULLIF(a.contact_email, ''), NULLIF(a.billing_email, '')) AS email,
            p.startgespraech_spaeter_am,
            EXISTS (SELECT 1 FROM fiaon_applications x WHERE x.person_id = p.id
                      AND x.merged_into IS NULL AND x.payment_status = 'paid') AS bezahlt,
@@ -88,6 +95,8 @@ async function lageZu(ref: string): Promise<Lage | null> {
   return {
     personId: Number(row.id),
     vorname: row.vorname || null,
+    nachname: row.nachname || null,
+    email: row.email || null,
     bezahlt: !!row.bezahlt,
     termin: termin
       ? {
@@ -151,6 +160,8 @@ router.get("/kunde/:ref/startgespraech", async (req: Request, res: Response) => 
       banner: offen && !pflicht && !!lage.spaeterAm,
       pflicht,
       vorname: lage.vorname,
+      nachname: lage.nachname,
+      email: lage.email,
       termin: lage.termin,
       erledigt: lage.erledigt,
       vollAktiv: lage.vollAktiv,

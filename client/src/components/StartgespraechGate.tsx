@@ -38,6 +38,10 @@ interface Lage {
   /** Harte Pflicht: kein „Später", buchen oder ausloggen. */
   pflicht?: boolean;
   vorname: string | null;
+  /** Für die Bonitäts-Bestellung auf derselben Bühne — sonst müsste der
+      Kunde seine Adresse noch einmal eintippen, die wir schon haben. */
+  nachname?: string | null;
+  email?: string | null;
   termin: { datumText: string; uhrzeit: string; agentVorname: string } | null;
   token: string | null;
 }
@@ -52,6 +56,189 @@ function tagText(datumISO: string): string {
   if (datumISO === morgen) return "Morgen";
   const dt = new Date(Date.UTC(y, m - 1, d));
   return `${WOCHENTAG[dt.getUTCDay()]}, ${d}. ${dt.toLocaleDateString("de-DE", { month: "long", timeZone: "UTC" })}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER SCHUFA-MOMENT — die zweite Karte auf derselben Bühne (18.08.2026)
+//
+// ── DER AUFTRAG DES BETREIBERS ──────────────────────────────────────────────
+// „Beim ersten Login sieht der bezahlte, wartende Kunde eine kuratierte Bühne:
+// Startgespräch buchen UND die Bonitätsauskunft (74 €, einmalig)."
+//
+// ── WARUM AUF DERSELBEN BÜHNE UND NICHT AUF EINER ZWEITEN ──────────────────
+// Zwei Vollbild-Tafeln beim ersten Login wären ein Kampf: Die zweite käme,
+// wenn der Kunde die erste gerade geschafft hat, und würde als Nachforderung
+// gelesen. GEMESSEN: 287 bezahlte Paketkunden haben keine Auskunft — der Markt
+// ist da, aber er wird nicht durch Bedrängen erschlossen.
+//
+// ── WARUM ERST NACH DER BUCHUNG ────────────────────────────────────────────
+// Vorher steht sie in Konkurrenz zum Termin, und der Termin ist der Pflicht-
+// schritt. Nachher steht sie im richtigen Licht: „Termin steht. Und solange du
+// darauf wartest, kannst du schon den Grundstein legen."
+//
+// ── DIE KOPIERKNÖPFE ───────────────────────────────────────────────────────
+// IBAN und Verwendungszweck zum Antippen. Wer eine IBAN von Hand abschreibt,
+// vertippt sich — und eine Zahlung ohne passenden Verwendungszweck ist genau
+// die Arbeit, die das Haus danach von Hand aufräumt.
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface BonitaetLage {
+  zustand: "offen" | "zahlung_offen" | "bezahlt" | "geliefert";
+  preisEuro: number;
+  bestellung: { paymentReference: string | null } | null;
+}
+
+/** Kopieren mit Rückmeldung — ohne Rückmeldung weiß niemand, ob es klappte. */
+function KopierKnopf({ wert, was }: { wert: string; was: string }) {
+  const [kopiert, setKopiert] = useState(false);
+  return (
+    <button type="button"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(wert);
+                setKopiert(true);
+                setTimeout(() => setKopiert(false), 1800);
+              } catch {
+                // Ohne Clipboard-Recht (alte Browser, kein HTTPS): markieren,
+                // damit der Mensch selbst kopieren kann. Ein Knopf, der nichts
+                // tut und nichts sagt, ist schlimmer als kein Knopf.
+                const el = document.createElement("textarea");
+                el.value = wert; document.body.appendChild(el);
+                el.select(); document.execCommand("copy"); el.remove();
+                setKopiert(true);
+                setTimeout(() => setKopiert(false), 1800);
+              }
+            }}
+            aria-label={`${was} kopieren`}
+            className="shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-md border transition-colors"
+            style={{
+              borderColor: kopiert ? "rgba(21,128,61,.4)" : "rgba(15,23,42,.14)",
+              color: kopiert ? "#15803d" : "#475569",
+              background: kopiert ? "rgba(21,128,61,.06)" : "#fff",
+            }}>
+      {kopiert ? "Kopiert" : "Kopieren"}
+    </button>
+  );
+}
+
+function BonitaetsKarte({ kundenRef, email, vorname, nachname }: {
+  kundenRef: string; email: string; vorname: string; nachname: string;
+}) {
+  const [lage, setLage] = useState<BonitaetLage | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [bank, setBank] = useState<{ iban: string; empfaenger: string; zweck: string; betrag: string } | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+
+  useEffect(() => {
+    let weg = false;
+    void fetch(`/api/fiaon/bonitaet-status/${kundenRef}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => { if (!weg && j?.ok) setLage(j); })
+      .catch(() => {});
+    return () => { weg = true; };
+  }, [kundenRef]);
+
+  /** Zeigt die Bankdaten einer bestehenden oder neu angelegten Bestellung. */
+  const zahlwegOeffnen = useCallback(async (zweck: string) => {
+    const r = await fetch(`/api/fiaon/payment-order/${zweck}`).then((x) => x.json()).catch(() => null);
+    if (r?.ok) {
+      setBank({
+        iban: r.bank?.ibanDisplay ?? r.bank?.iban ?? "",
+        empfaenger: r.bank?.recipient ?? "Fiaon Ltd",
+        zweck,
+        betrag: `${Number(r.order?.amountDue ?? 74).toFixed(2).replace(".", ",")} €`,
+      });
+    } else {
+      setFehler("Die Bankdaten konnten nicht geladen werden. Du findest sie auch in deinem Konto unter „Bonitätsauskunft“.");
+    }
+  }, []);
+
+  const bestellen = useCallback(async () => {
+    setBusy(true); setFehler(null);
+    try {
+      const r = await fetch("/api/fiaon/payment-order", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "schufa", email, firstName: vorname, lastName: nachname }),
+      });
+      const j = await r.json().catch(() => null);
+      if (j?.ok && j.paymentReference) await zahlwegOeffnen(String(j.paymentReference));
+      else setFehler(j?.error ?? "Die Bestellung hat nicht funktioniert.");
+    } catch {
+      setFehler("Verbindung fehlgeschlagen.");
+    } finally { setBusy(false); }
+  }, [email, vorname, nachname, zahlwegOeffnen]);
+
+  // Wer sie schon hat, sieht kein Angebot. Ein Angebot für etwas, das man
+  // besitzt, sagt dem Kunden: Die kennen mich nicht.
+  if (!lage || lage.zustand === "bezahlt" || lage.zustand === "geliefert") return null;
+
+  const zweckDa = lage.bestellung?.paymentReference ?? null;
+
+  return (
+    <div className="mt-6 rounded-2xl p-5" style={{ border: "1px solid rgba(15,23,42,.09)", background: "linear-gradient(180deg,rgba(29,78,216,.03),transparent)" }}>
+      <p className="text-[10.5px] font-semibold uppercase tracking-[.2em] text-slate-400">
+        Der Grundstein
+      </p>
+      <h3 className="mt-1.5 text-[16px] font-bold text-slate-900 leading-snug">
+        Deine Bonitätsauskunft — {lage.preisEuro} € einmalig
+      </h3>
+      <p className="mt-2 text-[13.5px] leading-relaxed text-slate-600">
+        Bevor irgendetwas anderes Sinn hat, braucht es einen Überblick: Was steht
+        eigentlich über dich in den Auskunfteien? Du bekommst eine tagesaktuelle
+        Auskunft plus einen Handlungsplan. Der Abruf ist{" "}
+        <b className="text-slate-900">neutral</b> — er verändert deinen Score nicht.
+      </p>
+      <p className="mt-2 text-[12px] text-slate-500">
+        Einmalig, kein Abo. Getrennt von deinem Paket.
+      </p>
+
+      {fehler && <p className="mt-3 text-[12.5px] font-semibold text-amber-700">{fehler}</p>}
+
+      {bank ? (
+        // ── DIE ZAHLKARTE ────────────────────────────────────────────────
+        // Sie steht HIER und nicht auf einer Folgeseite: Wer weitergeleitet
+        // wird, verliert den Moment. Und der Verwendungszweck ist der Grund,
+        // warum Zahlungen zugeordnet werden können — er steht deshalb zuerst.
+        <div className="mt-4 rounded-xl p-4 bg-white" style={{ border: "1px solid rgba(15,23,42,.1)" }}>
+          <p className="text-[12px] font-semibold text-slate-900 mb-3">
+            Überweise {bank.betrag} — mit diesem Verwendungszweck:
+          </p>
+          {[
+            { was: "Verwendungszweck", wert: bank.zweck, wichtig: true },
+            { was: "IBAN", wert: bank.iban },
+            { was: "Empfänger", wert: bank.empfaenger },
+            { was: "Betrag", wert: bank.betrag },
+          ].map((z) => (
+            <div key={z.was} className="flex items-center gap-2 py-1.5"
+                 style={{ borderTop: "1px solid rgba(15,23,42,.05)" }}>
+              <span className="text-[11px] uppercase tracking-wider text-slate-400 w-[104px] shrink-0">
+                {z.was}
+              </span>
+              <span className={`flex-1 text-[13px] tabular-nums ${z.wichtig ? "font-bold text-slate-900" : "text-slate-700"}`}
+                    style={{ wordBreak: "break-all" }}>
+                {z.wert}
+              </span>
+              <KopierKnopf wert={z.wert} was={z.was} />
+            </div>
+          ))}
+          <p className="mt-3 text-[11.5px] leading-relaxed text-slate-500">
+            Ohne den Verwendungszweck können wir die Zahlung nicht zuordnen —
+            dann dauert es unnötig lange. Sobald das Geld da ist, geht es los.
+          </p>
+        </div>
+      ) : (
+        <button type="button"
+                onClick={() => (zweckDa ? void zahlwegOeffnen(zweckDa) : void bestellen())}
+                disabled={busy}
+                className="mt-4 w-full rounded-xl text-[14px] font-bold text-white bg-[#1d4ed8] hover:bg-[#1e40af] disabled:opacity-50 transition-colors"
+                style={{ minHeight: 46 }}>
+          {busy ? "Einen Moment …"
+            : zweckDa ? "Zahlungsdaten anzeigen"
+            : `Auskunft bestellen — ${lage.preisEuro} €`}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function StartgespraechGate({ kundenRef }: { kundenRef: string }) {
@@ -180,10 +367,21 @@ export function StartgespraechGate({ kundenRef }: { kundenRef: string }) {
 
           <div className="flex-1 overflow-y-auto px-6 sm:px-9 py-6">
             {fertig ? (
-              <p className="text-[15px] text-slate-700 leading-relaxed">
-                <b className="text-slate-900">{fertig.datumText} um {fertig.uhrzeit} Uhr</b> — {fertig.agentVorname} ruft dich an.
-                Du bekommst gleich eine Bestätigung per E-Mail, mit einem Link zum Verschieben.
-              </p>
+              <>
+                <p className="text-[15px] text-slate-700 leading-relaxed">
+                  <b className="text-slate-900">{fertig.datumText} um {fertig.uhrzeit} Uhr</b> — {fertig.agentVorname} ruft dich an.
+                  Du bekommst gleich eine Bestätigung per E-Mail, mit einem Link zum Verschieben.
+                </p>
+                {/* ── DER SCHUFA-MOMENT ────────────────────────────────────
+                    Jetzt, nicht vorher: Der Termin steht, der Pflichtschritt
+                    ist getan. Solange der Kunde auf das Gespräch wartet, kann
+                    er den Grundstein legen — das ist ein Angebot im richtigen
+                    Augenblick, keine Nachforderung. */}
+                <BonitaetsKarte kundenRef={kundenRef}
+                                email={lage.email ?? ""}
+                                vorname={lage.vorname ?? ""}
+                                nachname={lage.nachname ?? ""} />
+              </>
             ) : (
               <>
                 <p className="text-[15px] text-slate-700 leading-relaxed">

@@ -3,6 +3,78 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 18.08.2026 — Der Kundenweg als Maschine: eine Strecke ohne Ende, fünf Termine statt siebenundzwanzig
+
+### Zuerst gemessen, dann gebaut
+
+Fünf Aufträge, und für jeden zuerst die Zahl:
+
+| Was | Vorher gemessen |
+|---|---|
+| Leads insgesamt | **3.820**, davon 3.686 in einer Strecke |
+| Leads am ENDE der Strecke (Mail 8, bekommen nichts mehr) | **1.483** |
+| Lebende Leads ohne Antrag, die auf eine Fortsetzung warten | **2.700** |
+| Kunden, die erst NACH der achten Mail kamen | **23** — die verliert man, wenn man bei sechs aufhört |
+| Freie Termine, die ein Kunde je Tag sah | **27** (260 über zehn Tage) |
+| Bezahlte Paketkunden ohne Bonitätsauskunft | **287** |
+| Personen mit MEHREREN Auskunft-Bestellungen | **14** |
+
+### 1. Die Lead-Strecke endet nicht mehr
+
+**Vorher:** Sechs Mails an Tag 1, 2, 4, 7, 14, 21 — danach wurde der Lead als „tot" markiert. 1.483 Menschen standen an diesem Ende.
+
+**Jetzt:** T+1, T+3, T+7, T+14, T+30, danach **einmal im Monat, ohne Ende**. Zwölf Inhalts-Varianten rotieren; wer in die zweite Runde kommt, bekommt sie in anderer Reihenfolge als sein Nachbar. Höchstens 200 Mails am Tag, damit kein Spamfilter das für einen Angriff hält.
+
+**„Nie endend" heißt nicht „egal".** Sechs Gründe beenden die Strecke endgültig — Antrag gestellt, Kunde geworden, abgemeldet, Adresse existiert nicht, gelöscht, Testeintrag. Die Prüfung steht in **einer** Funktion, nicht in der Auswahl-Bedingung: Sonst prüft der Tageslauf sechs Dinge und der Handversand keines.
+
+**Neu: die Abmeldung.** Sie stand vorher nirgends — eine Endlos-Strecke ohne Ausgang ist rechtlich heikel und praktisch respektlos. Jetzt trägt **jede** Mail den Link, ein Klick genügt, keine Rückfrage, kein Anmelden. Der Link enthält einen Zufallsschlüssel, keine Lead-Nummer: Sonst könnte man durch Hochzählen fremde Menschen abmelden.
+
+**Die alte Strecke steht als Rückfall bereit.** Der Schalter `lead_strecke_ewig` in den Einstellungen legt um, ohne dass ein Entwickler nötig ist. Zwei Dinge mussten dafür still werden: die „tot"-Markierung (sie hätte genau die Leads getötet, für die die Strecke gebaut ist) und der alte Stapelversand (zwei Motoren an einer Liste = zwei Mails am selben Morgen).
+
+### 2. Fünf Termine statt siebenundzwanzig
+
+Siebenundzwanzig freie Zeiten sagen dem Kunden: hier ist nichts los. Fünf sagen: da ist Betrieb, nimm einen. **Dieselbe Verfügbarkeit, ein anderer Eindruck** — und der Eindruck entscheidet, ob er bucht.
+
+Gezeigt werden **höchstens fünf je Tag, gleichmäßig über den Tag gestreut** (bei 27 freien Zeiten die Positionen 1, 7, 14, 20, 27 — erste, letzte und drei dazwischen). Nicht die ersten fünf: Die wären alle vor 10:30, und wer nachmittags Zeit hat, findet nichts.
+
+**Die versteckten sind nicht buchbar.** Die Buchungsannahme rechnet mit derselben Funktion — sonst wäre die Knappheit eine Behauptung in der Oberfläche, und wer die Adresse errät, bucht daneben. Einstellbar über `slots_pro_tag` (1–12).
+
+**Gemessen nachher:** 51 Zeiten über elf Tage statt 260 über zehn.
+
+### 3. Die Bonitätsauskunft im richtigen Augenblick
+
+287 bezahlte Kunden haben keine Auskunft. Der Markt ist da — er wird aber nicht durch Bedrängen erschlossen.
+
+Die Karte steht jetzt auf **derselben** Bühne wie das Startgespräch, und zwar **nach** der Buchung: „Termin steht. Und solange du wartest, kannst du den Grundstein legen." Vorher stünde sie in Konkurrenz zum Pflichtschritt; auf einer zweiten Tafel wäre sie eine Nachforderung.
+
+**Mit Kopierknöpfen für Verwendungszweck, IBAN, Empfänger und Betrag** — der Verwendungszweck zuerst, weil ohne ihn keine Zahlung zugeordnet werden kann. Wer eine IBAN abschreibt, vertippt sich; die Arbeit räumt danach das Haus von Hand auf. Wer die Auskunft schon hat, sieht kein Angebot: Ein Angebot für etwas, das man besitzt, sagt dem Kunden „die kennen mich nicht".
+
+### 4. Abo-Klarheit als Pflichtschritt — und 15 € für das Gespräch
+
+**Jeder Streitfall dieses Hauses beginnt mit demselben Satz: „Ich dachte, das war einmalig."** Deshalb hat das Startgespräch einen siebten Schritt, und zwar einen mit Notizpflicht: Der Mitarbeiter nennt Betrag und nächstes Abbuchungsdatum, erklärt den Kündigungsweg (formlos per E-Mail, zum Monatsende), trennt die 74 € ausdrücklich vom Abo — und hält fest, was der Kunde geantwortet hat. Ohne diese Notiz lässt sich das Gespräch nicht abschließen.
+
+Er steht **vor** dem Abschluss. Danach wäre er ein Nachtrag: Wer nach „Ihr Konto ist freigeschaltet" noch über Zahlungspflichten spricht, klingt, als hätte er etwas zurückgehalten.
+
+**Die Vergütung:** 15 € je erledigtes Startgespräch (einstellbar, 0 = keine). **Genau eine je Kunde** — auch wenn ein zweites Gespräch nötig war. Diese Grenze steht als eindeutiger Index in der Datenbank, nicht als Prüfung im Code: Zwei gleichzeitige Abschlüsse würden eine Prüfung beide passieren. Sie entsteht **nach** der Freischaltung und wirft nie: Erst gehört das Konto dem Kunden, dann entsteht das Geld.
+
+### 5. Die Provisions-Wand stand schon — und sie greift
+
+Der Auftrag lautete, sie zu bauen. **Sie war schon da**, seit dem Stichtag 15.07.2026, und die Zahlen zeigen, dass sie arbeitet: **106 Bestellungen** sind als Selbstzahler vermerkt (keine Provision), 135 als betreut (Provision), 52 laufen im Altmodell vor dem Stichtag, 10 wurden von der Verwaltung ausdrücklich entschieden. Jede Entscheidung trägt ihren Grund in `commission_basis_note`.
+
+Statt eine zweite Fassung derselben Regel zu bauen, ist sie jetzt **geprüft**: Nach dem Stichtag existiert keine einzige Provision an einer Bestellung, die als Selbstzahler vermerkt ist.
+
+**Zur Kenntnis, nicht zum Handeln:** Nach einem strengeren Maßstab (Kontakt genau dieses Agenten, an genau dieser Bestellung) hätten **220 der 370** Vertriebsprovisionen im Bestand keinen Anspruch — 1.874,30 €, davon 1.619,60 € schon ausgezahlt. Der Unterschied zu den 106 sind Altbestand vor dem Stichtag und Kontakte an Schwester-Bestellungen desselben Menschen. **Nichts davon wurde angetastet.** Rückwirkend zu stornieren ist eine Entscheidung des Betreibers, keine eines Wartungslaufs; die Liste liegt in `reports/mess-selbstzahler-provisionen.csv`.
+
+### Geprüft
+
+`scripts/pruef-kundenweg.ts` — **64 Prüfungen**, alle grün. Schreibende laufen in einer Transaktion, die zurückgerollt wird. `scripts/pruef-kundenweg-browser.ts` — **12 Prüfungen** am gerenderten Bild, mit Screenshots in `reports/kundenweg/`.
+
+**Rot-Probe:** Drei Fehler absichtlich eingebaut (Verknappung aus, Kadenz endet wieder, Abo-Klarheit ohne Pflicht) → **zehn Prüfungen wurden rot**, an genau den richtigen Stellen.
+
+Zwei eigene Fehler fielen dabei auf und sind behoben: Ein Teilindex mit einer Bedingung zu viel machte die Wand für die Vergütung unbenutzbar (PostgreSQL kann ihn dann nicht für `ON CONFLICT` verwenden — Fehler 42P10). Und eine Attrappe im Browsertest lieferte weniger als der Server, worauf auf der Seite „ein -minütiges Gespräch" stand: **Eine Attrappe, die weniger liefert als der Server, erzeugt Fehler, die es nicht gibt.**
+
+**Wo zu finden:** `shared/fiaon-lead-strecke.ts` (Kadenz, zwölf Varianten) · `server/lib/fiaon-lead-strecke.ts` (Motor, Stopps) · `client/src/pages/abmelden.tsx` · `server/lib/fiaon-termine.ts` (`slotsVerknappen`) · `client/src/components/StartgespraechGate.tsx` (Bonitätskarte) · `shared/fiaon-onboarding-agenda.ts` (Abo-Klarheit) · `server/lib/fiaon-onboarding-verguetung.ts` · `db/migrations/056`, `057`.
+
 ## 17.08.2026 — Das Team-Bild gehört dem Team, der Weg zur Nachbuchung endet nicht mehr im Leeren
 
 ### Zuerst: 43 Testkonten neben 6 Menschen — meine Altlast

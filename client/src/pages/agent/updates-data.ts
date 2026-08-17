@@ -40,6 +40,32 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-18-kundenweg",
+    date: "2026-08-18",
+    category: "Neu",
+    title: "Deine Leads bekommen jetzt dauerhaft Post · Nur noch 5 Termine je Tag · 15 € je Startgespräch",
+    summary:
+      "Die Mail-Strecke an Leads endet nicht mehr nach sechs Mails. Kunden sehen weniger freie Termine — das lässt den Kalender voll wirken. Und Startgespräche werden vergütet.",
+    changes: [
+      "LEADS BEKOMMEN DAUERHAFT POST: Bisher endete die Strecke nach sechs Mails, danach war Funkstille. Gemessen: 1.483 deiner Leads standen an diesem Ende und bekamen nichts mehr — 2.700 warten insgesamt auf eine Fortsetzung. Und 23 Kunden kamen erst NACH der achten Mail.",
+      "Neuer Takt: Tag 1, 3, 7, 14, 30 — danach einmal im Monat, ohne Ende. Zwölf verschiedene Texte wechseln sich ab, damit nie zweimal dasselbe kommt.",
+      "STOPP HEISST STOPP: Sobald ein Lead einen Antrag stellt, hört die Strecke auf — dann rufst DU an, und niemand bekommt beides. Ebenso bei Zahlung, Abmeldung oder toter Adresse.",
+      "Jede Mail hat jetzt einen Abmelde-Link. Wer klickt, ist sofort draußen. Das ist besser als der Spam-Knopf, der alle unsere Mails mit runterzieht.",
+      "NUR NOCH 5 TERMINE JE TAG: Ein Kunde sah 27 freie Zeiten pro Tag — das sagt „hier ist nichts los“. Jetzt sieht er fünf, verteilt über den Tag. Deine Verfügbarkeit ändert sich NICHT, nur was der Kunde sieht.",
+      "BONITÄTSAUSKUNFT AN DER RICHTIGEN STELLE: Nach dem Buchen des Startgesprächs sieht der Kunde die Auskunft (74 €) mit Kopierknöpfen für IBAN und Verwendungszweck. Gemessen: 287 bezahlte Kunden haben noch keine.",
+      "STARTGESPRÄCH: Neuer Pflichtschritt „Abo-Klarheit“ — laufende Kosten, Kündigungsweg, und dass die 74 € einmalig sind. Mit Notizpflicht. Jeder Streitfall beginnt mit „Ich dachte, das war einmalig“.",
+      "15 € JE ERLEDIGTES STARTGESPRÄCH, automatisch gutgeschrieben. Genau eine Gutschrift je Kunde — ein zweites Gespräch mit demselben Menschen bringt keine zweite.",
+    ],
+    howto: [
+      "Für die Lead-Strecke musst du nichts tun — sie läuft von selbst. Wenn ein Lead antwortet oder bestellt, hört sie automatisch auf.",
+      "Startgespräch führen: Die Agenda hat jetzt sieben Schritte. Bei „Abo-Klarheit“ Betrag und nächstes Abbuchungsdatum nennen, Kündigungsweg erklären, und die Antwort des Kunden in die Notiz.",
+      "Ohne diese Notiz lässt sich das Gespräch nicht abschließen — das ist Absicht.",
+      "Deine Onboarding-Vergütung steht in der Provisionsübersicht als eigene Zeile.",
+    ],
+    link: { href: "/agent/onboarding", label: "Zum Onboarding-Bereich" },
+    important: true,
+  },
+  {
     id: "2026-08-17-betrieb",
     date: "2026-08-17",
     category: "Behoben",

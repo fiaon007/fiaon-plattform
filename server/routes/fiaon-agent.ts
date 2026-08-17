@@ -325,6 +325,34 @@ const SETTING_DEFAULTS: Record<string, string> = {
   // ist die Entscheidung des Betreibers und keine Zahl im Quelltext. Deshalb
   // hier und nicht dort.
   abo_vorab_tage: "3",
+
+  // ── KNAPPE TERMINE (18.08.2026) ───────────────────────────────────────
+  // Höchstens so viele freie Zeiten je Tag, gleichmäßig über den Tag gestreut.
+  // GEMESSEN vorher: 27 Zeiten pro Tag. Siebenundzwanzig freie Termine sagen
+  // dem Kunden „hier ist nichts los"; fünf sagen „da ist Betrieb".
+  //
+  // Die Zahl steht hier und nicht im Quelltext, weil sie eine Entscheidung des
+  // Betreibers ist. Grenzen 1–12 prüft `slotsProTag` — ein Tippfehler darf die
+  // Terminwahl nicht unbrauchbar machen.
+  slots_pro_tag: "5",
+
+  // ── DIE EWIGE LEAD-STRECKE (18.08.2026) ───────────────────────────────
+  // „1" = die ewige Strecke fährt (Kadenz T+1,3,7,14,30, danach monatlich, ohne
+  // Ende). „0" = der alte Sechser-Nachfass, der nach Mail 6 auf „tot" setzt.
+  // GEMESSEN vorher: 1.483 Leads standen am Ende der alten Strecke und bekamen
+  // nichts mehr; 23 Kunden kamen erst nach der achten Mail.
+  lead_strecke_ewig: "1",
+  // Wie viele Strecken-Mails am Tag? Gestaffelt, damit nicht 2.700 Mails in
+  // einer Stunde rausgehen — das wäre für jeden Spamfilter ein Angriff.
+  lead_strecke_pro_tag: "200",
+
+  // ── ONBOARDING-VERGÜTUNG (18.08.2026) ─────────────────────────────────
+  // Was ist ein erledigtes Startgespräch dem Haus wert? In Cent, damit keine
+  // Kommastelle verloren geht. 0 heißt ausdrücklich „keine Vergütung".
+  // Genau EINE Gutschrift je Kunde — erzwungen durch einen Teilindex
+  // (db/migrations/057), nicht durch eine Prüfung, die zwei gleichzeitige
+  // Abschlüsse beide passieren würden.
+  onboarding_verguetung_cent: "1500",
   // ── Kontoabgleich (CSV-Import + Bank-Zuordnung) ───────────────────────────
   // Abgeschaltet am 04.08.2026: Zahlungen werden manuell in der Zahlungszentrale
   // gebucht. Code und Daten bleiben; Zurückschalten = 'true' setzen.

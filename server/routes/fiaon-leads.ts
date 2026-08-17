@@ -466,8 +466,44 @@ function followupPayload(l: any) {
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ABLÖSUNG DURCH DIE EWIGE STRECKE (18.08.2026)
+//
+// ── DER AUFTRAG ──────────────────────────────────────────────────────────
+// „Leads ohne Antrag bekommen eine E-Mail-Strecke, die NIE endet."
+//
+// ── WARUM DIE ALTE STRECKE DAFÜR IM WEG STAND ────────────────────────────
+// Zwei Dinge hätten die ewige Strecke sofort abgewürgt:
+//
+//   1. `markExhaustedLeadsDead` setzt nach sechs Mails `status = 'tot'`. Die
+//      ewige Strecke überspringt tote Leads — sie hätte also genau die
+//      verloren, für die sie gebaut wurde.
+//   2. `runLeadFollowups` würde WEITER senden. Zwei Motoren an einer Liste
+//      heißt: derselbe Mensch bekommt zwei Mails am selben Morgen.
+//
+// GEMESSEN vorher: 1.483 Leads standen bei Mail 8 — am Ende der Strecke.
+// 2.700 lebende Leads ohne Antrag warteten auf eine Fortsetzung.
+//
+// ── DIE LÖSUNG: EIN SCHALTER, KEIN LÖSCHEN ───────────────────────────────
+// `lead_strecke_ewig` (Vorgabe „1") legt fest, wer fährt. Ist er an, hält sich
+// die alte Strecke still und der Tageslauf delegiert. Ist er aus, läuft alles
+// wie vorher. Der alte Motor bleibt vollständig erhalten — als Rückfall, den
+// der Betreiber in den Einstellungen umlegen kann, ohne einen Entwickler.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Fährt die ewige Strecke? Nur dann hält sich der alte Motor still. */
+async function ewigeStreckeAn(): Promise<boolean> {
+  const s = await getSettings();
+  return String(s.lead_strecke_ewig ?? "1") === "1";
+}
+
 /** Erschöpfte/übergrenzte Leads auf `tot` setzen (kein Versand mehr). */
 async function markExhaustedLeadsDead(maxFollowups: number, planDays: number[]): Promise<number> {
+  // ── DIE EWIGE STRECKE KENNT KEIN „TOT" ─────────────────────────────────
+  // Sie hört auf, wenn ein Antrag kommt, wenn jemand zahlt, wenn er sich
+  // abmeldet oder wenn die Adresse nicht existiert — nicht, weil eine Zahl
+  // erreicht ist.
+  if (await ewigeStreckeAn()) return 0;
   const lastDay = planDays.length ? planDays[planDays.length - 1] : 7;
   const rows = await sqlPool`
     UPDATE fiaon_leads SET status = 'tot', updated_at = NOW()
@@ -496,6 +532,27 @@ export async function runLeadFollowups(opts: { force?: boolean } = {}): Promise<
 
   // „Tot"-Markierung läuft immer (unabhängig vom Fenster)
   result.markedDead = await markExhaustedLeadsDead(maxFollowups, planDays);
+
+  // ── DELEGATION AN DIE EWIGE STRECKE ────────────────────────────────────
+  // Sie bringt ihre eigene Kadenz, ihre eigene Rotation und ihre eigenen
+  // Stopps mit. Der alte Batch-Weg darf danach nicht mehr laufen, sonst
+  // bekommt derselbe Mensch zwei Mails.
+  if (String(settings.lead_strecke_ewig ?? "1") === "1") {
+    if (settings.lead_followup_enabled !== "1") {
+      result.skippedWindow = true;
+      return result;
+    }
+    // Das Sendefenster gilt weiter: Eine Strecke, die um 3 Uhr morgens
+    // schreibt, wirkt maschinell — und sie ist es dann auch.
+    if (!opts.force && !withinHardWindow()) {
+      result.skippedWindow = true;
+      return result;
+    }
+    const { streckeTageslauf } = await import("../lib/fiaon-lead-strecke");
+    const erg = await streckeTageslauf();
+    result.sent = erg.versandt;
+    return result;
+  }
 
   if (settings.lead_followup_enabled !== "1") {
     result.skippedWindow = true;
@@ -2143,4 +2200,105 @@ router.get("/admin/leads/followup-bulk/status", async (_req: Request, res: Respo
 });
 
 export { intakeRouter };
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ABMELDUNG — öffentlich, ein Klick, ohne Rückfrage
+//
+// ── WARUM DAS ZUR EWIGEN STRECKE GEHÖRT ────────────────────────────────────
+// Eine Strecke, die nie endet, MUSS einen Ausgang haben. Ohne ihn ist sie
+// rechtlich angreifbar und praktisch respektlos: Der einzige Weg, sie zu
+// beenden, wäre eine Beschwerde — oder der Spam-Knopf, der jede andere Mail
+// des Hauses mit hinunterzieht.
+//
+// ── KEIN „BESTÄTIGEN SIE NOCH EINMAL" ──────────────────────────────────────
+// Wer abbestellt, hat sich entschieden. Eine Zwischenseite mit „Sind Sie
+// sicher?" ist ein Versuch, ihn umzustimmen — und genau das erzeugt die
+// Beschwerde, die man vermeiden wollte.
+//
+// ── WARUM EIN ZUFALLSSCHLÜSSEL UND KEINE KENNUNG ───────────────────────────
+// Stünde die Lead-Nummer im Link, könnte jemand durch Hochzählen fremde
+// Menschen abmelden. Der Schlüssel ist ein Zufallswert je Lead.
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.get("/abmelden/:schluessel", async (req: Request, res: Response) => {
+  try {
+    const schluessel = String(req.params.schluessel || "").trim();
+    if (schluessel.length < 20) return res.status(404).json({ ok: false, error: "Unbekannter Link." });
+    const [lead] = (await sqlPool`
+      SELECT id, vorname, email, abgemeldet_am FROM fiaon_leads
+      WHERE abmelde_schluessel = ${schluessel}
+    `) as any[];
+    // Ein unbekannter Schlüssel bekommt dieselbe Antwort wie ein bekannter:
+    // Sonst ließe sich über die Antwort prüfen, ob eine Adresse bei uns liegt.
+    if (!lead) return res.json({ ok: true, schonAbgemeldet: false });
+    res.json({
+      ok: true,
+      vorname: lead.vorname ?? null,
+      schonAbgemeldet: lead.abgemeldet_am != null,
+    });
+  } catch (err) {
+    console.error("[LEAD-STRECKE] Abmelde-Auskunft:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/abmelden/:schluessel", async (req: Request, res: Response) => {
+  try {
+    const schluessel = String(req.params.schluessel || "").trim();
+    if (schluessel.length < 20) return res.status(404).json({ ok: false, error: "Unbekannter Link." });
+    const grund = String(req.body?.grund || "").trim().slice(0, 500) || null;
+
+    const zeilen = (await sqlPool`
+      UPDATE fiaon_leads SET
+        abgemeldet_am = COALESCE(abgemeldet_am, NOW()),
+        abgemeldet_grund = COALESCE(abgemeldet_grund, ${grund}),
+        -- BEIDE Motoren stoppen: die ewige Strecke und den alten Nachfass.
+        strecke_stopp = COALESCE(strecke_stopp, 'abgemeldet'),
+        strecke_stopp_am = COALESCE(strecke_stopp_am, NOW()),
+        in_sequence = FALSE,
+        updated_at = NOW()
+      WHERE abmelde_schluessel = ${schluessel}
+      RETURNING id, email
+    `) as any[];
+    if (zeilen.length === 0) {
+      // Auch hier: keine Auskunft darüber, ob der Schlüssel existiert.
+      return res.json({ ok: true });
+    }
+    await logLead(zeilen[0].id, { id: null, name: "System" }, "system", {
+      note: `Abmeldung über den Link in der E-Mail${grund ? `: ${grund}` : ""}. Strecke beendet.`,
+    }).catch(() => {});
+    console.log(`[LEAD-STRECKE] Abmeldung: Lead ${zeilen[0].id}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[LEAD-STRECKE] Abmeldung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── DIE KENNZAHLEN DER STRECKE ────────────────────────────────────────────
+// „Manche kommen erst bei Mail 20" ist eine Behauptung, bis man sie zählt.
+router.get("/admin/leads/strecke", async (_req: Request, res: Response) => {
+  try {
+    const { streckeZahlen } = await import("../lib/fiaon-lead-strecke");
+    const { kadenzText, VARIANTEN } = await import("../../shared/fiaon-lead-strecke");
+    const z = await streckeZahlen();
+    res.json({ ok: true, ...z, kadenz: kadenzText(), varianten: VARIANTEN.length });
+  } catch (err) {
+    console.error("[LEAD-STRECKE] Zahlen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── DIE STRECKE VON HAND ANSTOSSEN ────────────────────────────────────────
+router.post("/admin/leads/strecke/lauf", async (req: Request, res: Response) => {
+  try {
+    const hoechstens = Math.min(500, Math.max(1, Math.round(Number(req.body?.hoechstens)) || 200));
+    const { streckeTageslauf } = await import("../lib/fiaon-lead-strecke");
+    const erg = await streckeTageslauf({ hoechstens });
+    res.json({ ok: true, ...erg });
+  } catch (err) {
+    console.error("[LEAD-STRECKE] Handlauf:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 export default router;

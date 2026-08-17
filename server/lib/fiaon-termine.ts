@@ -272,6 +272,92 @@ export interface SlotAuskunft {
  * oder `verpasst` — ein abgesagter gibt die Zeit wieder frei) ODER wenn er
  * innerhalb des Vorlaufs liegt.
  */
+// ═══════════════════════════════════════════════════════════════════════════
+// KNAPPHEIT — HÖCHSTENS FÜNF ZEITEN JE TAG
+//
+// ── DER AUFTRAG DES BETREIBERS (18.08.2026) ────────────────────────────────
+// „Die Terminwahl zeigt je Tag höchstens 5 freie Slots — auch wenn mehr frei
+// sind. Kein Ausklappen: Wer keinen passenden findet, wählt den nächsten Tag."
+//
+// GEMESSEN vorher: 260 angebotene Zeiten über zehn Tage, **27 pro Tag**.
+// Siebenundzwanzig freie Termine sagen dem Kunden: hier ist nichts los. Fünf
+// sagen: da ist Betrieb, nimm einen. Dieselbe Verfügbarkeit, ein anderer
+// Eindruck — und der Eindruck entscheidet, ob er bucht.
+//
+// ── WARUM GESTREUT UND NICHT DIE ERSTEN FÜNF ───────────────────────────────
+// Die ersten fünf wären 09:00, 09:20, 09:40, 10:00, 10:20 — ein Kunde, der
+// nachmittags Zeit hat, findet nichts und geht. Gestreut über früh, vormittag,
+// mittag, nachmittag, spät trifft jede Tageshälfte.
+//
+// ── UND DIE VERSTECKTEN? ───────────────────────────────────────────────────
+// Nicht buchbar. Der Server filtert bei der ANNAHME identisch (dieselbe
+// Funktion) — sonst wäre die Knappheit eine Behauptung in der Oberfläche, und
+// wer die Adresse errät, bucht daneben.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Vorgabe, wenn die Einstellung fehlt. */
+export const SLOTS_PRO_TAG_VORGABE = 5;
+
+/**
+ * Nimmt je Tag höchstens `hoechstens` Zeiten — gleichmäßig über den Tag.
+ *
+ * Deterministisch: Dieselbe Eingabe ergibt dieselbe Auswahl. Das ist Pflicht,
+ * weil die Buchungsannahme dieselbe Rechnung anstellt und zum selben Ergebnis
+ * kommen muss.
+ */
+export function slotsVerknappen(slots: Slot[], hoechstens = SLOTS_PRO_TAG_VORGABE): Slot[] {
+  if (hoechstens <= 0) return slots;
+
+  const jeTag = new Map<string, Slot[]>();
+  for (const s of slots) {
+    const tag = s.datum;
+    if (!jeTag.has(tag)) jeTag.set(tag, []);
+    jeTag.get(tag)!.push(s);
+  }
+
+  const raus: Slot[] = [];
+  for (const tag of Array.from(jeTag.keys()).sort()) {
+    const alle = jeTag.get(tag)!.slice().sort((a, b) => a.beginn.localeCompare(b.beginn));
+    if (alle.length <= hoechstens) { raus.push(...alle); continue; }
+
+    // Gleichmäßig greifen: Bei 27 Zeiten und fünf Plätzen sind das die
+    // Positionen 0, 6, 13, 19, 26 — erste, letzte und drei dazwischen.
+    // (n-1)/(k-1) als Schrittweite trifft immer beide Ränder.
+    const gewaehlt: Slot[] = [];
+    const schritt = (alle.length - 1) / (hoechstens - 1);
+    for (let i = 0; i < hoechstens; i++) {
+      const pos = Math.round(i * schritt);
+      const s = alle[Math.min(pos, alle.length - 1)];
+      // Bei kleinen Mengen kann dieselbe Position zweimal getroffen werden.
+      if (!gewaehlt.includes(s)) gewaehlt.push(s);
+    }
+    // Falls durch Rundung einer fehlt: von vorn auffüllen, damit es immer
+    // genau `hoechstens` sind, solange genug da ist.
+    for (const s of alle) {
+      if (gewaehlt.length >= hoechstens) break;
+      if (!gewaehlt.includes(s)) gewaehlt.push(s);
+    }
+    gewaehlt.sort((a, b) => a.beginn.localeCompare(b.beginn));
+    raus.push(...gewaehlt);
+  }
+  return raus;
+}
+
+/** Wie viele Zeiten zeigt ein Tag? Einstellbar in /admin/einstellungen. */
+export async function slotsProTag(lauf: Lauf = sqlPool): Promise<number> {
+  try {
+    const [z] = (await lauf`
+      SELECT value FROM fiaon_settings WHERE key = 'slots_pro_tag'
+    `) as any[];
+    const n = Math.round(Number(z?.value));
+    // Grenzen: unter 1 wäre keine Buchung möglich, über 12 ist die Knappheit
+    // dahin. Ein Tippfehler in den Einstellungen darf die Terminwahl nicht
+    // unbrauchbar machen.
+    if (Number.isFinite(n) && n >= 1 && n <= 12) return n;
+  } catch { /* Vorgabe */ }
+  return SLOTS_PRO_TAG_VORGABE;
+}
+
 export async function freieSlots(
   personId: number, lauf: Lauf = sqlPool, quelle: TerminQuelle | string = "nichterreicht_mail",
 ): Promise<SlotAuskunft> {
@@ -392,11 +478,13 @@ export async function freieSlots(
       jeZeit.set(zeit, beste);
     }
     const eindeutig = Array.from(jeZeit.values()).sort((a, b) => a.beginn.localeCompare(b.beginn));
-    return { slots: eindeutig, betreuer: null };
+    // Verknappen erst NACH der Lastverteilung: Sonst würde die Auswahl der
+    // fünf Zeiten die Verteilung verzerren.
+    return { slots: slotsVerknappen(eindeutig, await slotsProTag(lauf)), betreuer: null };
   }
 
   return {
-    slots,
+    slots: slotsVerknappen(slots, await slotsProTag(lauf)),
     betreuer: betreuerAktiv
       ? { id: Number(person.assigned_agent_id), vorname: String(person.agent_vorname || person.agent_name || "") }
       : null,

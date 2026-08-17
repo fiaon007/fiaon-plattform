@@ -63,6 +63,7 @@ import AgentKundenPage from "@/pages/agent/kunden";
 // gebraucht und würde das Hauptbündel für alle anderen Besucher vergrössern.
 const TerminPage = lazy(() => import("@/pages/termin"));
 const TerminAbsagenPage = lazy(() => import("@/pages/termin").then((m) => ({ default: m.TerminAbsagenPage })));
+const AbmeldenPage = lazy(() => import("@/pages/abmelden"));
 const AgentHeutePage = lazy(() => import("@/pages/agent/heute"));
 const AgentAufgabenPage = lazy(() => import("@/pages/agent/aufgaben"));
 const AgentStartPage = lazy(() => import("@/pages/agent/start"));
@@ -276,6 +277,8 @@ function Router() {
       <Route path="/agent/leistung" component={AgentLeistungPage} />
       {/* Terminbuchung — oeffentlich, kein Login. Das signierte Token im Pfad
           ist der Ausweis (Muster der signierten Rechnungs-Links). */}
+      {/* Abmeldung von der Lead-Strecke — kein Login, ein Klick. */}
+      <Route path="/abmelden/:schluessel" component={AbmeldenPage} />
       <Route path="/termin/absagen/:stornoToken" component={TerminAbsagenPage} />
       <Route path="/termin/:token" component={TerminPage} />
       <Route path="/zahlung/:paymentRef/danke" component={ZahlungDankePage} />

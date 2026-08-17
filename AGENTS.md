@@ -229,6 +229,60 @@ Gefunden hat es der Screenshot der Browser-Abnahme.
 Deshalb: Neue `useState`/`useEffect` immer zu den anderen Haken oben in die
 Komponente, nie an die Stelle, wo man sie gerade braucht.
 
+## Eine Attrappe muss liefern, was der Server liefert
+
+Am 18.08.2026 zeigte ein Browsertest die Terminwahl mit dem Satz „Wähl eine Zeit
+für ein **-minütiges** Gespräch". Es sah nach einem Fehler in der Oberfläche aus.
+Es war die Attrappe: Sie lieferte `slots` und `betreuer`, aber nicht
+`slotMinuten` — ein Feld, das der echte Server immer mitschickt.
+
+Eine Attrappe, die WENIGER liefert als der Server, erzeugt Fehler, die es nicht
+gibt — und verdeckt die, die es gibt. Wer sie schreibt, liest vorher die
+Antwortform der echten Route und liefert **alle** Felder, die die Oberfläche
+liest.
+
+## Ein Teilindex mit einer Bedingung zu viel ist keine Wand
+
+Die Onboarding-Vergütung soll genau einmal je Kunde entstehen. Die Grenze gehört
+in die Datenbank und nicht in den Code: Zwei gleichzeitige Abschlüsse lesen beide
+„noch keine da" und schreiben beide.
+
+Der erste Entwurf lautete:
+
+```sql
+CREATE UNIQUE INDEX … ON fiaon_commissions (onboarding_person_id)
+  WHERE kind = 'onboarding' AND onboarding_person_id IS NOT NULL;
+```
+
+Fachlich richtig, technisch unbrauchbar: PostgreSQL verwendet einen Teilindex für
+`ON CONFLICT` nur, wenn das `WHERE` der Anweisung dem Index-Prädikat
+**entspricht**. Der Aufruf scheiterte mit `infer_arbiter_indexes` (42P10) — die
+Wand stand, aber niemand konnte sie benutzen.
+
+- **Index-Prädikat und `ON CONFLICT … WHERE` müssen übereinstimmen.**
+- `IS NOT NULL` ist in einem Unique-Index überflüssig: Mehrere NULL-Werte sind
+  dort ohnehin erlaubt.
+- Und: **Eine Wand, die man nicht benutzen kann, wird beim ersten Fehlschlag
+  umgangen.** Deshalb prüft `scripts/pruef-kundenweg.ts` sie zweimal — einmal
+  gegen `pg_indexes`, einmal durch einen echten doppelten Aufruf in einer
+  Transaktion, die zurückgerollt wird.
+
+## Zwei Motoren an einer Liste schicken zwei Mails
+
+Die ewige Lead-Strecke (18.08.2026) hat die alte Sechser-Strecke abgelöst. Beim
+Einbau standen zwei Fallen im Weg, die beide leicht zu übersehen waren:
+
+1. Die alte Strecke markierte Leads nach sechs Mails als „tot". Die neue
+   überspringt tote Leads — sie hätte also **genau die verloren, für die sie
+   gebaut wurde** (gemessen: 1.483).
+2. Der alte Stapelversand hätte weiter gesendet. Derselbe Mensch bekäme zwei
+   Mails am selben Morgen.
+
+Wer einen bestehenden Automatismus ersetzt, sucht deshalb zuerst dessen
+**Abbruch- und Markierungslogik** — nicht nur seine Sendestelle. Und der Ersatz
+bekommt einen Schalter in den Einstellungen (`lead_strecke_ewig`), damit der
+Betreiber zurückkann, ohne einen Entwickler zu brauchen.
+
 ## Bekannter Bestand, damit niemand erschrickt
 
 - `npx tsc --noEmit` meldet rund **240 Alt-Typfehler** (u. a. aus

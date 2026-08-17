@@ -350,6 +350,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonAgentAnlageRoutes = await import('./routes/fiaon-agent-anlage');
   app.use('/api/fiaon', fiaonAgentAnlageRoutes.default);
 
+  // ── DIE TERMIN-ZENTRALE (26.08.2026) ──────────────────────────────────────
+  // Eine Übersicht über ALLE Termine ALLER Mitarbeiter, mit dem
+  // Quoten-Vergleich, der bisher in keiner Ansicht stand: Zwei Mitarbeiter
+  // hatten bei 64 Terminen keinen einzigen abgeschlossen.
+  const fiaonTerminZentraleRoutes = await import('./routes/fiaon-termin-zentrale');
+  app.use('/api/fiaon', fiaonTerminZentraleRoutes.default);
+
   // 📅 FIAON Termine — oeffentliche Buchungsseite (signiertes Token, kein Login)
   //    und die Agentensicht. Regeln stehen in server/lib/fiaon-termine.ts.
   const fiaonTerminRoutes = await import('./routes/fiaon-termin');

@@ -75,12 +75,25 @@ const TON: Record<string, string> = {
 };
 
 export function TeamKalenderSchmal({
-  termine, tage = 14, onTerminClick,
+  termine, tage = 14, onTerminClick, auchVergangene = false,
 }: {
   termine: SchmalTermin[];
-  /** Wie viele Tage nach vorn. 14 ist eine Bildschirmlänge Scrollen. */
+  /** Wie viele Tage. 14 ist eine Bildschirmlänge Scrollen. */
   tage?: number;
   onTerminClick?: (t: SchmalTermin) => void;
+  /**
+   * Vergangene Tage MIT anzeigen.
+   *
+   * ── WARUM DIESE OPTION KAM (26.08.2026) ─────────────────────────────────
+   * Der erste Entwurf ließ Vergangenes immer weg — richtig für einen Ausblick
+   * („was kommt heute noch?").
+   *
+   * In der Termin-Zentrale ist es falsch: Dort sind gerade die VERPASSTEN
+   * Termine die Arbeit (43 von 120). Die Kartenliste zeigte auf 380 px „keine
+   * Termine", während die Tabelle daneben 52 auflistete — der Browsertest fand
+   * die Kartenliste nicht, und erst der Screenshot erklärte, warum.
+   */
+  auchVergangene?: boolean;
 }) {
   const abschnitte = useMemo(() => {
     // ── HEUTE 0 UHR IN BERLINER ZEIT ────────────────────────────────────
@@ -94,9 +107,9 @@ export function TeamKalenderSchmal({
       const d = alsDatum(t.start);
       if (Number.isNaN(d.getTime())) continue;
       const key = TAG_KEY.format(d);
-      // Vergangene Tage nicht: Sie kosten Platz, und am Telefon scrollt
-      // niemand nach oben.
-      if (key < heuteKey) continue;
+      // Vergangene Tage kosten Platz, und am Telefon scrollt niemand nach
+      // oben — es sei denn, gerade dort liegt die Arbeit (verpasste Termine).
+      if (!auchVergangene && key < heuteKey) continue;
       const liste = gruppen.get(key) ?? [];
       liste.push(t);
       gruppen.set(key, liste);
@@ -108,16 +121,19 @@ export function TeamKalenderSchmal({
       .map(([key, liste]) => ({
         key,
         istHeute: key === heuteKey,
+        // Vorbei: Der Abschnittskopf wird blasser, damit man beim Scrollen
+        // sieht, wo „heute" anfängt.
+        vorbei: key < heuteKey,
         beschriftung: TAG_LANG.format(alsDatum(liste[0].start)),
         termine: liste.sort((a, b) =>
           alsDatum(a.start).getTime() - alsDatum(b.start).getTime()),
       }));
-  }, [termine, tage]);
+  }, [termine, tage, auchVergangene]);
 
   if (abschnitte.length === 0) {
     return (
       <p className="px-4 py-8 text-center text-[13px] text-slate-400">
-        Keine Termine in den nächsten {tage} Tagen.
+        {auchVergangene ? "Keine Termine in diesem Zeitraum." : `Keine Termine in den nächsten ${tage} Tagen.`}
       </p>
     );
   }
@@ -127,7 +143,7 @@ export function TeamKalenderSchmal({
       {abschnitte.map((a) => (
         <section key={a.key}>
           <h3 className="text-[11px] font-bold uppercase tracking-[.12em] mb-1.5"
-              style={{ color: a.istHeute ? "#2563eb" : "#94a3b8" }}>
+              style={{ color: a.istHeute ? "#2563eb" : a.vorbei ? "#b8c0cc" : "#94a3b8" }}>
             {a.istHeute ? `Heute · ${a.beschriftung}` : a.beschriftung}
             <span className="ml-1.5 font-semibold tabular-nums">({a.termine.length})</span>
           </h3>

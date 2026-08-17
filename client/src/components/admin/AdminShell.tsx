@@ -7,6 +7,7 @@ import {
   ArrowLeft, ChevronRight, ShieldAlert, Wallet, Send, Sparkles,
   Target, TrendingUp, Landmark, HandCoins, Copy, BarChart3, History, Activity,
   LogOut, PiggyBank, GraduationCap, Map, Layers, Receipt, UserCheck, ListChecks,
+  CalendarClock,
 } from "lucide-react";
 import { ZeichenMailPruefung } from "./ZeichenMailPruefung";
 import AdminCodeGate from "./AdminCodeGate";
@@ -105,6 +106,11 @@ export const ADMIN_NAV: NavGroup[] = [
       // leiten mit dem passenden Filter dorthin um (client/src/App.tsx),
       // damit kein Lesezeichen ins Leere läuft.
       { path: "/admin/kunden", label: "Kunden-Zentrale", desc: "Jede Person genau einmal — Leads, Kunden, Anträge, KYC, Kündigungen. Filter sind teilbar, Massenaktionen inbegriffen", icon: Users },
+      // ── DIE TERMIN-ZENTRALE (26.08.2026) ────────────────────────────
+      // GEMESSEN: Zwei Mitarbeiter hatten bei 50 vergangenen Terminen keinen
+      // einzigen als erledigt markiert, zwei andere 67 % und 78 %. Und 336
+      // bezahlte Kunden hatten keinen Termin. Beides stand in keiner Ansicht.
+      { path: "/admin/termine", label: "Termin-Zentrale", desc: "Alle Termine aller Mitarbeiter — Heute/Woche/Monat, Erledigt- und No-Show-Quote je Mensch, und die bezahlten Kunden ohne Termin", icon: CalendarClock },
       { path: "/admin/lead-automatik", label: "Lead-Automatik", desc: "Nachfass-Maschine für Leads: Sendefenster, Bulk-Versand, Verteilung, Import — die Lead-LISTE steht in der Kunden-Zentrale unter Stufe C", icon: Target },
       // Routen-Audit 04.08.2026: ebenfalls ohne Menüpunkt gewesen.
       { path: "/admin/fahrplan", label: "Fahrplan / Kundenprodukt", desc: "Upload-Review, KI-Analyse freigeben, Fahrplan steuern, Ziel-Freischaltung, Audit", icon: Map },

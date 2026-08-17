@@ -70,6 +70,7 @@ const AgentHeutePage = lazy(() => import("@/pages/agent/heute"));
 const AgentAufgabenPage = lazy(() => import("@/pages/agent/aufgaben"));
 const AgentStartPage = lazy(() => import("@/pages/agent/start"));
 const AgentKundenNeuPage = lazy(() => import("@/pages/agent/kunden-neu"));
+const AdminTerminePage = lazy(() => import("@/pages/admin-termine"));
 const AgentSpacePage = lazy(() => import("@/pages/agent/space"));
 const AgentInkassoPage = lazy(() => import("@/pages/agent/inkasso"));
 const AdminTeamZentralePage = lazy(() => import("@/pages/admin-team-zentrale"));
@@ -182,6 +183,10 @@ function Router() {
       <Route path="/admin/verbuchungen" component={admin(AdminVerbuchungenPage)} />
       <Route path="/admin/buchhaltung" component={admin(AdminBuchhaltungPage)} />
       <Route path="/admin/events" component={admin(AdminEventsPage)} />
+      {/* ── DIE TERMIN-ZENTRALE (26.08.2026) ────────────────────────────────
+          Alle Termine aller Mitarbeiter mit dem Quoten-Vergleich, der bisher
+          in keiner Ansicht stand. */}
+      <Route path="/admin/termine" component={admin(AdminTerminePage)} />
       <Route path="/admin/einstellungen" component={admin(AdminEinstellungenPage)} />
       <Route path="/admin/audit" component={admin(AdminAuditPage)} />
       <Route path="/admin/recht" component={admin(AdminRechtPage)} />

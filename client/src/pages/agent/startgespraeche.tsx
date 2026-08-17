@@ -4,6 +4,8 @@ import { Reveal } from "./motion";
 import { Skelett, useToast } from "@/lib/fiaon-ui";
 import { LageTafel } from "./vertrieb-service";
 import { ZusageTafel } from "./vertrieb-zusage";
+import { OnboardingCockpit } from "@/components/agent/OnboardingCockpit";
+import { anrufStarten } from "@/components/Softphone";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/startgespraeche — der Onboarding-Bereich
@@ -37,6 +39,9 @@ interface Termin {
 interface Kennzahlen {
   dieseWoche: number; offen: number; erledigt: number; verpasst: number;
   erledigungsquote: number | null; noShowQuote: number | null;
+  /** Neu: der Kennzahlen-Kopf des Bereichs (Teil 2.4). */
+  heuteGeplant?: number; heuteErledigt?: number; heuteNoShow?: number;
+  dauerSchnittMin?: number | null; freigeschaltetWoche?: number;
 }
 
 export default function AgentStartgespraecheSeite() {
@@ -52,6 +57,10 @@ function Inhalt() {
   const [zusageOffen, setZusageOffen] = useState(false);
   const [ansicht, setAnsicht] = useState<"liste" | "kalender">("liste");
   const [offen, setOffen] = useState<number | null>(null);
+  // ── DIE GESPRÄCHSBÜHNE ──────────────────────────────────────────────────
+  // Ein Startgespräch wird GEFÜHRT, nicht abgehakt. Das Cockpit hat die Agenda,
+  // die Uhr, den Anrufen-Knopf und den einen Abschluss-Knopf, der freischaltet.
+  const [cockpit, setCockpit] = useState<Termin | null>(null);
 
   const laden = useCallback(async () => {
     const r = await api("/agent/startgespraeche".replace("/startgespraeche", "/onboarding/termine"));
@@ -124,14 +133,20 @@ function Inhalt() {
 
         {/* ── Kennzahlen ─────────────────────────────────────────────────── */}
         <Reveal index={1}>
-          <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+          <div className="mt-4 grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5">
             {[
-              { t: "Diese Woche", w: zahlen?.dieseWoche, h: "Gebuchte Gespräche seit Montag." },
-              { t: "Offen", w: zahlen?.offen, h: "Termine, die noch bevorstehen." },
+              { t: "Heute geplant", w: zahlen?.heuteGeplant ?? 0,
+                h: "Startgespräche, die HEUTE stattfinden sollen. Die Zahl, mit der der Tag anfängt." },
+              { t: "Heute erledigt", w: zahlen?.heuteErledigt ?? 0,
+                h: "Heute geführte Gespräche. Jedes davon hat ein Konto freigeschaltet." },
+              { t: "Nicht erschienen", w: zahlen?.heuteNoShow ?? 0,
+                h: "Heute nicht erschienen. Diese Kunden werden automatisch erneut eingeladen." },
+              { t: "Ø Dauer", w: zahlen?.dauerSchnittMin != null ? `${zahlen.dauerSchnittMin} min` : "—",
+                h: "Durchschnittliche Gesprächsdauer der letzten Gespräche. Zugesagt sind 15 Minuten." },
+              { t: "Freigeschaltet (7 Tage)", w: zahlen?.freigeschaltetWoche ?? 0,
+                h: "Konten, die in den letzten sieben Tagen nach dem Startgespräch voll freigeschaltet wurden." },
               { t: "Erledigungsquote", w: zahlen?.erledigungsquote != null ? `${zahlen.erledigungsquote} %` : "—",
                 h: "Anteil geführter Gespräche an allen, die stattfinden sollten." },
-              { t: "Nicht erschienen", w: zahlen?.noShowQuote != null ? `${zahlen.noShowQuote} %` : "—",
-                h: "Anteil der Kunden, die nicht ans Telefon gegangen sind." },
             ].map((f) => (
               <div key={f.t} className="fi-karte p-4" title={f.h}>
                 <p className="text-[10.5px] font-semibold uppercase tracking-[.08em]" style={{ color: "var(--fi-text-still)" }}>
@@ -192,22 +207,49 @@ function Inhalt() {
                 {liste.map((t, i) => (
                   <TerminKarte key={t.id} termin={t} index={i} offen={offen === t.id}
                                onOeffnen={() => setOffen(offen === t.id ? null : t.id)}
-                               onFertig={laden} zeige={zeige} />
+                               onFertig={laden} onCockpit={() => setCockpit(t)} zeige={zeige} />
                 ))}
               </div>
             </div>
           ))}
         </div>
       </div>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          DIE GESPRÄCHSBÜHNE
+          Sie liegt ÜBER der Seite, nicht statt ihr: Wer sie schließt, steht
+          wieder in seiner Liste und hat den Überblick nicht verloren.
+          ══════════════════════════════════════════════════════════════ */}
+      {cockpit && (
+        <OnboardingCockpit
+          termin={{
+            id: cockpit.id, personId: cockpit.personId, name: cockpit.name,
+            telefon: cockpit.telefon ?? null, email: cockpit.email ?? null,
+            beginn: cockpit.beginn, datumText: cockpit.datumText, uhrzeit: cockpit.uhrzeit,
+            dauerMin: cockpit.dauerMin, status: cockpit.status,
+          }}
+          onZu={() => setCockpit(null)}
+          onFertig={(meldung) => {
+            setCockpit(null);
+            zeige("erfolg", "Startgespräch abgeschlossen", meldung);
+            void laden();
+          }}
+          // Das BESTEHENDE Softphone mit Kundenkontext — kein zweites Telefon
+          // und kein selbst erfundenes Ereignis. `anrufStarten` ist der Weg,
+          // den auch das Forderungsmanagement benutzt.
+          onAnrufen={(nummer, personId, name) => { anrufStarten(nummer, personId, name); }}
+        />
+      )}
     </div>
   );
 }
 
 function TerminKarte({
-  termin, index, offen, onOeffnen, onFertig, zeige,
+  termin, index, offen, onOeffnen, onFertig, onCockpit, zeige,
 }: {
   termin: Termin; index: number; offen: boolean;
-  onOeffnen: () => void; onFertig: () => void; zeige: ReturnType<typeof useToast>["zeige"];
+  onOeffnen: () => void; onFertig: () => void; onCockpit: () => void;
+  zeige: ReturnType<typeof useToast>["zeige"];
 }) {
   const [notiz, setNotiz] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -276,9 +318,17 @@ function TerminKarte({
                             className="w-full resize-none rounded-xl px-3 py-2 text-[13px] outline-none"
                             style={{ border: "1px solid var(--fi-linie)", background: "var(--fi-seite)" }} />
                   <div className="mt-2.5 flex flex-wrap gap-2">
-                    <button type="button" onClick={() => void dokumentieren("erledigt")} disabled={!!busy}
+                    {/* ── DER WEG INS COCKPIT ──────────────────────────────
+                        Der Hauptweg. „Gespräch geführt" daneben bleibt für
+                        den Fall, dass jemand ohne Cockpit telefoniert hat —
+                        wer nachträgt, soll nicht durch eine Bühne müssen. */}
+                    <button type="button" onClick={onCockpit} disabled={!!busy}
                             className="fi-primaerknopf px-4 py-2 text-[13px] font-semibold disabled:opacity-40">
-                      {busy === "erledigt" ? "…" : "Gespräch geführt"}
+                      Gespräch führen
+                    </button>
+                    <button type="button" onClick={() => void dokumentieren("erledigt")} disabled={!!busy}
+                            className="fi-zweitknopf px-4 py-2 text-[13px] font-semibold disabled:opacity-40">
+                      {busy === "erledigt" ? "…" : "Nachtragen: geführt"}
                     </button>
                     <button type="button" onClick={() => void dokumentieren("verpasst")} disabled={!!busy}
                             className="fi-zweitknopf px-4 py-2 text-[13px] font-semibold disabled:opacity-40">

@@ -30,6 +30,7 @@ import {
   normalizePhone,
   type AgentRequest,
 } from "./fiaon-agent";
+import { tageslauf } from "../lib/fiaon-crons";
 
 const router = Router();       // mount: /api/fiaon  (/admin/leads*, /agent/leads*)
 const intakeRouter = Router(); // mount: /api/leads  (/intake)
@@ -523,9 +524,28 @@ export async function runLeadFollowups(opts: { force?: boolean } = {}): Promise<
   return result;
 }
 
-// Paket CF: Takt alle 5 Min. Nachfass läuft NUR an konfigurierten Sendezeiten +
-// aktiven Wochentagen (Doppellauf-Schutz per Slot-Merker). Verteilung als fail-safe.
-setInterval(() => {
+// ═══════════════════════════════════════════════════════════════════════════
+// DIESER LAUF GING AN DER BREMSE VORBEI — bis zum 17.08.2026
+//
+// ── DER BEFUND ─────────────────────────────────────────────────────────────
+// Hier stand ein nacktes `setInterval` ohne jede Prüfung. Von sieben
+// zeitgesteuerten Läufen im Haus war dieser der einzige, der auf einem
+// ENTWICKLUNGSRECHNER losgelaufen wäre — und er verschickt Lead-Nachfassmails
+// und verteilt Leads an Menschen.
+//
+// Genau das ist der Vorfall vom 08.08.2026, wegen dem `CRONS_AN` existiert: Ein
+// `npm run dev` gegen die Produktionsdatenbank markierte 26 echte Kunden als
+// angeschrieben, ohne dass eine Mail rausging. Die Bremse wurde daraufhin
+// gebaut — an dieser Stelle aber nie eingehängt.
+//
+// Dass es nie passiert ist, liegt an der Sendezeit-Prüfung in
+// `maybeRunScheduledFollowups`: Sie schickt nur zu konfigurierten Zeiten. Das
+// ist Glück, keine Absicherung. Und `distributeUnassignedLeads` hätte auf einem
+// Entwicklungsrechner jederzeit echte Leads an echte Menschen verteilt.
+//
+// Ab jetzt über die EINE Registratur — dort steht die Bremse einmal.
+// ═══════════════════════════════════════════════════════════════════════════
+tageslauf("lead-nachfass-und-verteilung", () => {
   maybeRunScheduledFollowups().catch((err) => console.error("[FIAON-LEADS] Followup-Cron:", err));
   distributeUnassignedLeads().catch((err) => console.error("[FIAON-LEADS] Verteilung-Cron:", err));
 }, SCHEDULE_TICK_MIN * 60 * 1000);

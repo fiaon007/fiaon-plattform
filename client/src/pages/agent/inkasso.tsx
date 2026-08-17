@@ -31,6 +31,33 @@ interface Fall {
   letzter_bearbeiter: string | null; letztes_ergebnis: string | null;
 }
 
+/**
+ * Ein MENSCH mit seinen Raten — nicht eine Rate.
+ *
+ * Team: „Zusner dreimal, Namen wiederholen sich beim Scrollen." Gemessen
+ * waren es 213 Zeilen für 180 Menschen; Peter Zußner stand fünfmal da, weil
+ * er zwei bezahlte Bestellungen mit je drei offenen Raten hat.
+ *
+ * Wer denselben Menschen fünfmal in der Liste hat, ruft ihn fünfmal an — oder
+ * einmal, und die restlichen vier Zeilen bleiben als unerledigt stehen.
+ */
+interface Mensch {
+  personId: number | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  phoneCountryCode: string | null;
+  raten: Fall[];
+  anzahl: number;
+  summeCents: number;
+  dringendste: Fall;
+  bestellungen: number;
+  zweitAbo: boolean;
+  /** „Abo aktiv seit 05.07. · nächste Rate 05.09. · Rechnung geht automatisch raus" */
+  zyklusText?: string;
+  anker?: string | null;
+}
+
 function eur(cent: unknown): string {
   return `${(Number(cent ?? 0) / 100).toFixed(2).replace(".", ",")} €`;
 }
@@ -71,6 +98,9 @@ export default function AgentInkasso() {
   const [offenerFall, setOffenerFall] = useState<Fall | null>(null);
   // Die Akte: alles zu diesem Fall an einem Ort, für das Gespräch am Telefon.
   const [akte, setAkte] = useState<Fall | null>(null);
+  // Welche Personenkarten sind aufgeklappt? Vorgabe: zu. Die dringendste Rate
+  // steht ohnehin auf der Karte — wer mehr will, klappt auf.
+  const [aufgeklappt, setAufgeklappt] = useState<string[]>([]);
   const [meldung, setMeldung] = useState<{ art: "gut" | "schlecht"; text: string } | null>(null);
   // Das Fristfenster. Vorgabe „überfällig": Wer die Seite öffnet, soll dort
   // anfangen, wo es brennt — nicht bei einer Rate, die in sechs Tagen fällig
@@ -113,6 +143,10 @@ export default function AgentInkasso() {
   const z = daten?.zahlen ?? {};
   const v = daten?.verdienst ?? {};
   const liste: Fall[] = daten?.liste ?? [];
+  // Eine Karte je Mensch. Fehlt `personen` (alter Server), wird aus der
+  // Ratenliste gruppiert — damit die Seite nie leer bleibt, nur weil eine
+  // Antwort ein Feld weniger hat.
+  const menschen: Mensch[] = daten?.personen ?? [];
 
   return (
     <AgentShell>
@@ -256,6 +290,15 @@ export default function AgentInkasso() {
         )}
 
         {/* ── Arbeitsliste ────────────────────────────────────────────────── */}
+        {/* Die Zahl, die das Teamfeedback ausgelöst hat: Zeilen gegen
+            Menschen. Wer sie sieht, weiß, dass die Liste gruppiert ist. */}
+        {reiter === "liste" && menschen.length > 0 && (
+          <p className="mb-2.5 text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>
+            {menschen.length} {menschen.length === 1 ? "Mensch" : "Menschen"} · {liste.length}{" "}
+            {liste.length === 1 ? "offene Rate" : "offene Raten"} · eine Karte je Mensch
+          </p>
+        )}
+
         {reiter === "liste" && liste.length === 0 && (
           <p className="fi-karte p-8 text-center text-[13px]" style={{ color: "var(--fi-text-still)" }}>
             {frist === "ueberfaellig"
@@ -268,10 +311,15 @@ export default function AgentInkasso() {
           </p>
         )}
 
-        {reiter === "liste" && liste.map((f, i) => {
+        {reiter === "liste" && menschen.map((m, i) => {
+          // Die Karte zeigt die DRINGENDSTE Rate. Alles Weitere liegt darunter
+          // und wird aufgeklappt — sichtbar, aber nicht im Weg.
+          const f = m.dringendste;
           const stufe = STUFE_TON[Math.min(3, Number(f.mahnstufe))] ?? STUFE_TON[0];
+          const schluessel = m.personId != null ? `p:${m.personId}` : `ref:${f.ref}`;
+          const offenKarte = aufgeklappt.includes(schluessel);
           return (
-            <div key={f.rate_id} className="fi-karte p-4 mb-2.5"
+            <div key={schluessel} className="fi-karte p-4 mb-2.5"
                  style={{ animation: `inkAuf 380ms cubic-bezier(.32,.72,0,1) ${Math.min(i, 8) * 40}ms both` }}>
               {/* Dringlichkeitsband — zuerst lesen, dann entscheiden. */}
               {(f.anruf_pflicht || f.zusage_gebrochen) && (
@@ -282,18 +330,30 @@ export default function AgentInkasso() {
                     : `Zusage gebrochen — zugesagt war der ${datum(f.inkasso_zusage_am)}`}
                 </p>
               )}
+              {/* ── ZWEITES ABO ────────────────────────────────────────────
+                  Zwei Bestellungen mit offenen Raten heißt: Der Mensch zahlt
+                  zweimal für dasselbe. Das ist keine Inkasso-Aufgabe — wer
+                  hier mahnt, mahnt eine Doppelbelastung ein. Deshalb steht es
+                  als Warnung oben und nicht als Fußnote. */}
+              {m.zweitAbo && (
+                <p className="text-[10.5px] font-bold uppercase tracking-wider mb-1.5"
+                   style={{ color: "#b45309" }}>
+                  Zweites Abo — {m.bestellungen} Bestellungen laufen parallel. Vor dem Mahnen klären.
+                </p>
+              )}
 
               <div className="flex flex-wrap items-start gap-x-4 gap-y-1">
                 <div className="min-w-0 flex-1">
-                  <p className="text-[14.5px] font-bold" style={{ color: "var(--fi-text)" }}>{f.name}</p>
+                  <p className="text-[14.5px] font-bold" style={{ color: "var(--fi-text)" }}>{m.name}</p>
                   <p className="text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>
-                    Rate {f.rate_nr} von {f.raten_gesamt} · {f.paket || "—"}
-                    {" · "}{f.raten_bezahlt} bezahlt
+                    {m.anzahl === 1
+                      ? `Rate ${f.rate_nr} von ${f.raten_gesamt} · ${f.paket || "—"} · ${f.raten_bezahlt} bezahlt`
+                      : `${m.anzahl} offene Raten · ${f.paket || "—"} · ${f.raten_bezahlt} bezahlt`}
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="text-[17px] font-bold tabular-nums" style={{ color: "var(--fi-text)" }}>
-                    {eur(f.betrag_cents)}
+                    {eur(m.summeCents)}
                   </p>
                   <p className="text-[11px]" style={{ color: f.ueberfaellig ? "#b45309" : "var(--fi-text-still)" }}>
                     {f.ueberfaellig
@@ -314,6 +374,69 @@ export default function AgentInkasso() {
                 {f.inkasso_versuche > 0 && <span>{f.inkasso_versuche} Anrufversuche</span>}
                 {f.letzter_bearbeiter && <span>zuletzt: {f.letzter_bearbeiter}</span>}
               </div>
+
+              {/* ── DER ABO-ZYKLUS IM KLARTEXT ──────────────────────────────
+                  Am Telefon ist die erste Rückfrage des Kunden: „Wieso schon
+                  wieder?" Wer diesen Satz vor sich hat, kann ihn beantworten,
+                  ohne die Akte zu öffnen. Derselbe Wortlaut steht in der
+                  Kundenakte und in der Zahlungszentrale — aus derselben
+                  Funktion, damit niemand etwas anderes vorliest. */}
+              {m.zyklusText && (
+                <p className="mt-1.5 text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>
+                  {m.zyklusText}
+                </p>
+              )}
+
+              {/* ══════════════════════════════════════════════════════════════
+                  DIE WEITEREN RATEN — AUFKLAPPBAR
+                  Die Arbeit hängt weiter an der EINZELNEN Rate: „zahlt am 20."
+                  muss sich auf Rate 3 beziehen, nicht auf den Menschen. Deshalb
+                  hat jede Rate hier ihren eigenen Ergebnis-Knopf.
+                  ══════════════════════════════════════════════════════════ */}
+              {m.anzahl > 1 && (
+                <div className="mt-2.5">
+                  <button type="button"
+                          onClick={() => setAufgeklappt((v) => (
+                            v.includes(schluessel) ? v.filter((x) => x !== schluessel) : [...v, schluessel]
+                          ))}
+                          className="text-[11.5px] font-semibold underline underline-offset-2"
+                          style={{ color: "var(--fi-text-still)" }}>
+                    {offenKarte
+                      ? "Raten zuklappen"
+                      : `Alle ${m.anzahl} Raten zeigen (${eur(m.summeCents)})`}
+                  </button>
+                  {offenKarte && (
+                    <ul className="mt-2 space-y-1.5">
+                      {m.raten.map((r) => (
+                        <li key={r.rate_id}
+                            className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 pl-3 text-[11.5px]"
+                            style={{
+                              color: "var(--fi-text-still)",
+                              borderLeft: `2px solid ${r.rate_id === f.rate_id ? "#b45309" : "var(--a3-linie,#e4e9f2)"}`,
+                            }}>
+                          <span className="font-semibold" style={{ color: "var(--fi-text)" }}>
+                            Rate {r.rate_nr}
+                          </span>
+                          <span className="tabular-nums">{eur(r.betrag_cents)}</span>
+                          <span>
+                            {r.ueberfaellig
+                              ? `seit ${r.tage_ueberfaellig} ${Number(r.tage_ueberfaellig) === 1 ? "Tag" : "Tagen"} offen`
+                              : `fällig ${datum(r.faellig_am)}`}
+                          </span>
+                          <span className="fi-ak-mono text-[11px]">{r.zahlungsreferenz}</span>
+                          {/* Verschiedene Bestellungen sichtbar machen — sonst
+                              sieht ein Zweit-Abo aus wie eine lange Ratenkette. */}
+                          {m.zweitAbo && <span className="fi-ak-mono text-[10.5px]">{r.ref}</span>}
+                          <button type="button" onClick={() => setOffenerFall(r)}
+                                  className="ml-auto fi-zweitknopf px-2.5 py-1 text-[11px] font-semibold">
+                            Ergebnis
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
 
               <div className="mt-3 flex flex-wrap gap-2">
                 {f.phone && (

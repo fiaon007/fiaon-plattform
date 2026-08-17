@@ -109,7 +109,7 @@ const CATALOG: FnGroup[] = [
       { name: "Agent anlegen / einladen", desc: "Neuen Mitarbeiter per E-Mail einladen (Setup-Link 48h gültig).", href: "/admin/team", event: "agent_invite", button: "Agent anlegen" },
       { name: "Passwort zurücksetzen", desc: "Force-Reset oder Passwort vergessen — signierter Link (1h gültig).", href: "/admin/team", event: "agent_password_reset", button: "Passwort zurücksetzen" },
       { name: "Auszahlung ablehnen", desc: "Auszahlungs-Anforderung mit Begründung ablehnen.", href: "/admin/zahlungen#auszahlungen", event: "agent_payout_rejected", button: "Auszahlung ablehnen" },
-      { name: "Provision nachbuchen", desc: "Bezahlte Bestellungen ohne Provision erkennen und einzeln/gesammelt buchen.", href: "/admin/nachbuchung" },
+      { name: "Provision nachbuchen", desc: "Bezahlte Bestellungen ohne Provision erkennen und einzeln/gesammelt buchen.", href: "/admin/team?tab=nachbuchung" },
       { name: "Feedback beantworten / belohnen", desc: "Vorgesetzten-Antwort im Feedback-Thread bzw. Bonus gutschreiben.", href: "/admin/agent-portal", event: "agent_feedback_reply", button: "Feedback-Antwort / Bonus" },
     ],
   },

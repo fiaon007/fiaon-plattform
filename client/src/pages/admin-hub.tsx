@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import {
   CreditCard, Banknote, ChevronRight, Search, Landmark, HandCoins, Copy,
   Sparkles, AlertTriangle, RefreshCw, ArrowUpRight, ArrowDownRight, Users, Receipt, ListChecks,
-  CalendarClock, Megaphone, TrendingUp, Check, X,
+  CalendarClock, Megaphone, TrendingUp, Check, X, Mail,
 } from "lucide-react";
 import { ACCENT, ADMIN_NAV } from "@/components/admin/AdminShell";
 import { Tip } from "@/components/admin/PageHelp";
@@ -48,7 +48,10 @@ interface AboLage {
   laufend: { abos: number; cents: number };
   ohneKette: number;
   motorAktiv: boolean;
-  zyklusTage: number;
+  /** Der Zyklus in Worten: „monatlich zum Jahrestag der Buchung". Keine
+   *  Tageszahl mehr — der Zyklus ist eine Kalenderregel, keine Zahl. */
+  zyklus?: string;
+  vorabTage?: number;
 }
 interface Lage {
   umsatz: { heute: Betrag; gestern: Betrag; monat: Betrag; gesamt: Betrag; verlauf: { tag: string; anzahl: number; cents: number }[] };
@@ -797,6 +800,10 @@ export default function AdminHubPage() {
   const [lage, setLage] = useState<Lage | null>(null);
   const [badges, setBadges] = useState<Record<string, number>>({});
   const [warn, setWarn] = useState<any>(null);
+  // Die Zustellkarte: was ging heute raus, was nicht, und wen erreichen
+  // wir gar nicht. Kommt aus /admin/hub/badges, damit das Dashboard
+  // keine siebte Abfrage auslöst.
+  const [zustellung, setZustellung] = useState<any>(null);
   const [aufgabenZahlen, setAufgabenZahlen] = useState<{ offen: number; ueberfaellig: number; heute: number; zugewiesen: number } | null>(null);
   const [geladen, setGeladen] = useState(false);
   const [laedt, setLaedt] = useState(false);
@@ -812,7 +819,10 @@ export default function AdminHubPage() {
         fetch("/api/fiaon/admin/hub/badges", { credentials: "include" }).then((r) => r.json()).catch(() => null),
       ]);
       if (l?.ok) setLage(l);
-      if (b?.ok) { setBadges(b.badges || {}); setWarn(b.warn || null); setAufgabenZahlen(b.aufgaben || null); }
+      if (b?.ok) {
+        setBadges(b.badges || {}); setWarn(b.warn || null);
+        setAufgabenZahlen(b.aufgaben || null); setZustellung(b.zustellung || null);
+      }
       setStand(new Date());
       setGeladen(true);
     } finally { setLaedt(false); }
@@ -887,7 +897,7 @@ export default function AdminHubPage() {
     }
     if ((badges.nachbuchung || 0) > 0) {
       liste.push({
-        href: "/admin/nachbuchung", anzahl: badges.nachbuchung,
+        href: "/admin/team?tab=nachbuchung", anzahl: badges.nachbuchung,
         titel: "Bezahlte Bestellungen ohne Provision",
         erklaerung: "Der Kunde hat gezahlt, der Agent hat nichts bekommen — nachbuchen, bevor es auffällt.",
         aktion: "nachbuchen", stufe: "offen", icon: HandCoins,
@@ -1025,9 +1035,9 @@ export default function AdminHubPage() {
             i={0} onClick={() => setFenster("abo-woche")} icon={RefreshCw}
             label="Abo — laufender Monatsumsatz"
             wert={eurGlatt(lage.abo.laufend.cents)}
-            unter={`${lage.abo.laufend.abos} aktive Abos · ${lage.abo.zyklusTage} Tage Zyklus`}
+            unter={`${lage.abo.laufend.abos} aktive Abos · ${lage.abo.zyklus ?? "monatlich"}`}
             ton="geld"
-            hilfe="Summe der monatlichen Paketraten aller laufenden Abos — der Umsatz, der bei gleichbleibendem Bestand jeden Monat wiederkommt. Fällig ist eine Rate 30 Tage nach der Buchung der letzten Zahlung."
+            hilfe="Summe der monatlichen Paketraten aller laufenden Abos — der Umsatz, der bei gleichbleibendem Bestand jeden Monat wiederkommt. Fällig ist eine Rate am monatlichen Jahrestag der Buchung: gebucht am 05.07. heißt fällig am 05.08., 05.09. und so weiter."
           />
           <Kachel
             i={1} onClick={() => setFenster("abo-heute")} icon={CalendarClock}
@@ -1052,6 +1062,50 @@ export default function AdminHubPage() {
             ton="geld"
             hilfe="Bereits gebuchte Monatsraten im laufenden Kalendermonat — ohne Erstzahlungen, die stehen oben in der Tafel."
           />
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════
+          ZUSTELLUNG — DAMIT EINE MAIL NICHT LAUTLOS VERSCHWINDET
+
+          Betreiber: „Make-Routen gehen bei Tests alle durch — aber viele
+          bekommen dann keine E-Mail."
+
+          Ein Fehlschlag stand bisher nur im Protokoll. Niemand sucht nach
+          etwas, von dem er nicht weiß, dass es passiert ist. Deshalb steht
+          die Zahl hier, und der Knopf führt auf das GEFILTERTE Protokoll —
+          nicht auf die Startseite des Protokolls, wo man wieder suchen muss.
+          ══════════════════════════════════════════════════════════════ */}
+      {zustellung && (
+        <div className="mb-4">
+          <div className="a3-kachel a3-auf p-4 pl-[18px]"
+               data-ton={zustellung.fehlgeschlagenHeute > 0 || zustellung.personenOhneMail > 0 ? "warnung" : "neutral"}>
+            <div className="flex items-start gap-1.5">
+              <Mail size={13} className="text-slate-400 shrink-0 mt-[1px]" />
+              <span className="flex-1 min-w-0 text-[10.5px] sm:text-[11px] font-semibold uppercase tracking-[.07em] text-slate-500 leading-tight">
+                Zustellung heute
+              </span>
+              <Tip text={"Jede Mail, die das Haus verlässt, steht im Protokoll — auch die, die nicht rausging. "
+                + "Die Empfängeradresse wird über die PERSON aufgelöst (aktuelle Adresse, dann frühere), nicht über die Bestellzeile. "
+                + "Findet sich gar keine Adresse, wird nicht gesendet und der Grund steht im Protokoll."} />
+            </div>
+            <span className="block mt-2 text-[24px] sm:text-[27px] font-bold text-slate-900 tracking-[-.02em] leading-none a3-zahl">
+              {zustellung.versandtHeute} versandt
+            </span>
+            <span className="block mt-1.5 text-[12px] text-slate-500 leading-snug">
+              {zustellung.fehlgeschlagenHeute > 0
+                ? `${zustellung.fehlgeschlagenHeute} fehlgeschlagen`
+                : "keine Fehlschläge"}
+              {zustellung.fehlgeschlagenWoche > 0 && ` · ${zustellung.fehlgeschlagenWoche} in sieben Tagen`}
+              {zustellung.personenOhneMail > 0
+                && ` · ${zustellung.personenOhneMail} Kunde${zustellung.personenOhneMail === 1 ? "" : "n"} mit offener Rate ohne zustellbare E-Mail`}
+            </span>
+            <a href={zustellung.link}
+               className="mt-2 text-[11px] font-semibold inline-flex items-center gap-1"
+               style={{ color: ACCENT }}>
+              Ansehen <ChevronRight size={11} />
+            </a>
+          </div>
         </div>
       )}
 

@@ -3,6 +3,302 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 17.08.2026 — Das Team-Bild gehört dem Team, der Weg zur Nachbuchung endet nicht mehr im Leeren
+
+### Zuerst: 43 Testkonten neben 6 Menschen — meine Altlast
+
+Der Betreiber öffnete seine Team-Zentrale und sah **11 Karten**. Sechs davon sind Menschen, fünf waren Prüfstands-Konten. **Gemessen: 49 Mitarbeiter-Konten insgesamt, 43 davon Testkonten.**
+
+Die habe ich selbst angelegt: Jeder Browser-Prüfstand braucht eine Anmeldung, und er darf keine echte benutzen (Vorfall 06.08.2026). Sie waren stillgelegt und markiert — die Team-Ansichten haben nur nie danach gefragt. `ORDER BY … is_test_account` schob sie nach unten; **Sortieren ist keine Grenze.** Sie standen weiter da, und jede Zahl zählte sie mit.
+
+Jetzt: Die Grenze steht in der WHERE-Bedingung (`echteMitarbeiterSql()`), nicht in der Oberfläche. Ein Filter „Testkonten 43" zeigt sie ausdrücklich — sie sind nicht verboten, nur nicht im Weg. Der Untertitel sagt: „6 Menschen im Team · 43 Testkonten ausgeblendet (2 davon noch aktiv)".
+
+**Aufgeräumt:** 3 Prüfstands-Konten stillgelegt. Die zwei Konten des Betreibers („Justin Schwarzott", 6 echte Kunden und 6 Provisionen daran) wurden **geschont** — sie bleiben nutzbar und behalten ihre Last. Eine Entscheidung über echte Kunden gehört in die Team-Zentrale, nicht in einen Aufräum-Lauf.
+
+**Die sechs echten, bestätigt:** Daniel Stripling (Vertriebsleitung) · Florentine Lombardi (Vertriebsleitung) · Nikita Boychenko (Vertrieb) · Lucas Böhnert (Vertrieb) · Diana Zeller (Forderungsmanagement) · Hans-Jürgen Gerhold (Forderungsmanagement). **Alle sechs Rollen stimmen exakt** mit der Vorgabe.
+
+**Und die Regel steht jetzt in AGENTS.md**, damit es nicht wieder passiert: Jeder Lauf ruft am Ende `testkontoStilllegen(id)` — sie setzt stillgelegt **und** markiert. Drei Prüfstände hatten drei handgeschriebene Fassungen, und keine setzte die Marke.
+
+### „Ich kann keine Provisionen mehr nachbuchen" — der Weg war kaputt, nicht die Funktion
+
+Die Nachbuchung war **nicht weg**. Sie war unerreichbar, und zwar dreifach:
+
+1. `/admin/nachbuchung` leitet seit dem 10.08. um auf `/admin/team?tab=nachbuchung` — **diesen Reiter gab es nicht.** Die Zentrale kennt acht Reiter, „nachbuchung" war keiner. Ein unbekannter Wert fällt auf „menschen" zurück: Der Betreiber landete auf der Mitarbeiterliste, ohne jeden Hinweis.
+2. `/admin/funktionen` verlinkte auf `/admin/nachbuchung` — also im Kreis. Dazu drei weitere Stellen (Kundenakte, Startseite, Auszahlungen).
+3. Der Knopf saß **vier Ebenen tief**: Zentrale → Karte klicken → Reiter „Provisionen" → nach unten scrollen.
+
+Am 10.08. wurde die Altseite abgerissen, **nachdem** die Funktion umgezogen war — die Reihenfolge war richtig. Nur der Weg blieb kaputt, und ein Prüfstand, der „die alte Seite existiert nicht mehr" prüft, wird davon grün. **Das ist die Lehre: Eine Prüfung auf das Fehlen einer Seite ersetzt keine Prüfung auf die Erreichbarkeit der Funktion.**
+
+Jetzt gibt es den Reiter **„Provisionen nachbuchen"** mit allen Fällen an einem Ort: 21 offene, 2 eindeutig buchbar, 19 mit unklarem Betrag, Provisionssumme. Einzeln oder gesammelt. Die eindeutigen stehen **oben** — im ersten Entwurf standen die 19 unklaren zuerst, und der Betreiber hätte neunzehn gesperrte Knöpfe gesehen.
+
+**Fehlende Funktion nachgebaut:** Von den fünfzehn Funktionen der Vollständigkeitsliste fehlte genau eine — **„Kunden umhängen"**. Es gab `POST /admin/team/reassign`, aber die Route fasst nur die **Bestellung** an. Die Arbeitslisten filtern auf die **Person**. Ein Umhängen darüber hätte die Karten nicht bewegt: Der scheidende Mitarbeiter hätte sie weiter in seiner Liste gehabt, der neue nicht. Der neue Weg nimmt beide mit, in einer Transaktion, mit Vorschau und Pflicht-Grund.
+
+*(Nebenbefund vom Prüfstand: Auf `fiaon_persons` liegt ein Trigger `fiaon_person_owner_propagate`, der Bestellungen automatisch nachzieht. Die richtige Richtung war also längst gebaut — nur die falsche stand offen.)*
+
+### Die 68 verbrauchten Termin-Erinnerungen
+
+**Gemessen: 91 Termine mit gesetzter Erinnerungs-Marke, nur 56 mit erfolgreichem Versand. 35 Erinnerungen verbraucht, ohne dass der Kunde etwas bekam** — 33 wegen fehlendem Versandkanal, 2 ohne E-Mail-Adresse.
+
+Von 63 vergangenen erinnerten Terminen wurden **54 zu No-Shows: 86 %.** Wie viele davon erschienen wären, wenn die Erinnerung angekommen wäre, weiß niemand — und genau das ist der Punkt.
+
+**Zur Ursache, ehrlich:** Der Lauf prüft `MAKE_WEBHOOK_URL` am Anfang und steigt ohne Kanal aus. Trotzdem stehen 33 Protokollzeilen mit genau diesem Grund im Log. Welcher Prozess das war, lässt sich nachträglich **nicht beweisen** — lokal ist die Variable nicht gesetzt und die Bremse aus, in Produktion soll sie gesetzt sein. Deshalb habe ich nicht die Ursache geraten, sondern beides abgestellt:
+
+- **Eine Kanalprüfung vor jedem Versandlauf.** Ohne Kanal steht einmal am Tag „übersprungen (kein Kanal)" im Zustellprotokoll — vorher verhinderte die Prüfung den Lauf **still**, und der Betreiber sah nirgends, dass eine Automatik seit Tagen nicht arbeitet.
+- **Die Marke wird bei Fehlschlag zurückgenommen** — aber nur für Termine in der Zukunft. Eine Erinnerung an ein Gespräch von vorgestern ist peinlich.
+
+**Nachgeholt:** 5 Erinnerungen neu eingeplant (Zählprobe 5 von 5). Für die 30 vergangenen wurde **nichts** nachgesendet.
+
+**Und die Bremse selbst:** Von sieben zeitgesteuerten Läufen gingen **zwei ganz an ihr vorbei** — `fiaon-leads.ts` mit Lead-Nachfassmails und Lead-Verteilung. Auf einem Entwicklungsrechner wären sie losgelaufen; genau der Vorfall vom 08.08.2026, wegen dem `CRONS_AN` existiert. Dass es nie passiert ist, lag an einer Sendezeit-Prüfung — das ist Glück, keine Absicherung. Zwei weitere Läufe prüften selbst, drei nahmen die Registratur: **vier Fassungen derselben Regel.** Jetzt gehen alle durch `tageslauf`, und der Abo-Motor behält seinen lokalen Testschalter (`auchWenn`).
+
+### Badge-Wahrheit: drei Zahlen für dieselbe Sache
+
+| Marke | vorher | Zielseite | jetzt |
+|---|---|---|---|
+| Notizen & Aufgaben | **0** | 8 offene | 8 |
+| Zustellung | **0** (nur heute) | 70 (14 Tage) | 70 |
+| Provision nachbuchen | **14** | 21 Fälle | 21 |
+| Zahlungen | 237 | 237 | 237 ✓ |
+| Auszahlungen | 0 | 0 | 0 ✓ |
+
+Die Aufgaben-Marke stand auf 0, während acht Aufgaben warteten: Sie zählte nur „heute + überfällig". **Eine Marke, die schweigt, wenn es Arbeit gibt, ist schlimmer als eine, die zu viel zeigt.**
+
+Bei der Nachbuchung gab es **drei** Zahlen: 14 (Menü-Marke), 160 (mein erster Entwurf) und 21 (`backfillCandidates()` — die Funktion, die der Betreiber sieht). Jede war eine eigene, nachgebaute Abfrage. Jetzt ruft die Marke **die Funktion der Zielseite**, statt deren Bedingungen nachzubauen: Beim Nachbauen vergisst man einen Filter, und niemand merkt es.
+
+Im alten Kommentar stand, eine permanent hohe Marke werde ignoriert. Das stimmt — aber die Antwort darauf ist nicht, sie kleiner zu rechnen. Wenn 70 Mails in zwei Wochen scheitern, ist nicht die Marke zu hoch, sondern die Zahl.
+
+### Mehrfachauswahl beim Wegräumen (aus 13B nachgeholt)
+
+**Gemessen: 406 Personen mit 1.083 offenen Buchungen**, ein Fall mit **18**. Einzeln wegräumen heißt 18 Bestätigungsdialoge für einen Kunden — und wer das dreimal macht, klickt beim vierten Mal blind durch.
+
+Jetzt: Häkchen an den unbezahlten Buchungen, **ein** Dialog mit Zahl und Summe. Der Reihe nach, **nicht parallel**: Die Wand „das ist die letzte Buchung" rechnet mit dem Stand nach den vorherigen — parallel gerechnet würden alle gleichzeitig prüfen, alle durchkommen, und der Kunde stünde ohne jede Bestellung da. Teilerfolge werden **benannt**: „7 weggeräumt, 2 blieben stehen, weil …".
+
+### Die vier „Zuordnung prüfen"-Anrufe sind jetzt findbar
+
+Sie standen als Marke im Feld `transkript_grund` — der Betreiber hätte in der Datenbank suchen müssen. **Eine Marke, die niemand findet, ist keine Marke.** Sie stehen jetzt in der Team-Zentrale unter „Aktivität", mit Nummer, Zeit, Grund, Aufnahme-Hinweis und Weg zur Akte.
+
+### Was NICHT nötig war
+
+**Die Rechnungs-PDFs der 166 preiskorrigierten Bestellungen müssen nicht neu erzeugt werden.** Geprüft: Es gibt **keine** Tabelle `fiaon_rechnungen` und keine gespeicherten PDFs — nur `invoice_number` und `invoice_date` an der Bestellung. Die Rechnung entsteht bei **jedem Abruf** frisch aus den aktuellen Daten. Die korrigierten Preise stehen also automatisch in jeder Rechnung, die ab jetzt abgerufen wird. Ein Neu-Erzeugungslauf hätte nichts geändert.
+
+### Zwei Fehler, die ich selbst gemacht und der Screenshot gefunden hat
+
+- **Die Team-Zentrale war leer.** Ich habe `sqlPool.unsafe(...)` in eine Abfrage gesetzt, die **selbst** über `sqlPool.unsafe(...)` läuft — dort wird `${…}` als Text eingesetzt, und im SQL landete „[object Object]". Die Route antwortete mit 500, keine einzige Mitarbeiterkarte war da. **Genau dieser Fehler steht zwanzig Zeilen weiter oben in derselben Datei beschrieben.** Typcheck und esbuild waren grün — es ist weder ein Typ- noch ein Syntaxfehler.
+- **Backticks in SQL-Kommentaren, dreimal an einem Tag.** `-- „`spalte`"` beendet das umgebende Template-Literal. AGENTS.md ist jetzt um diesen Fall geschärft.
+
+### Wo zu finden
+
+- **Testkonten-Grenze:** `server/lib/fiaon-mitarbeiter-sicht.ts` · **Aufräumen:** `npx tsx scripts/testkonten-aufraeumen.ts`
+- **Nachbuch-Tafel:** `client/src/components/admin/NachbuchenTafel.tsx` → `/admin/team?tab=nachbuchung`
+- **Kanalprüfung:** `server/lib/fiaon-versandkanal.ts` · **Registratur:** `server/lib/fiaon-crons.ts`
+- **Marken:** `server/lib/fiaon-marken.ts` (eine Zählung, eine Quelle)
+- **Nachholen:** `npx tsx scripts/termin-erinnerung-nachholen.ts` (Vorschau ohne `--schreiben`)
+- **Messung:** `npx tsx scripts/mess-betrieb.ts` (nur lesend, CSVs in `reports/`)
+- **Prüfstände:** `pruef-betrieb.ts` (123) · `pruef-betrieb-browser.ts` (33, Screenshots)
+
+## 16.08.2026 — Die Onboarding-Pflicht, das Gesprächs-Cockpit, und sieben Arbeitsfluss-Fixes
+
+### Die Regel, die jetzt im Code steht
+
+*„Antrag → Zahlung gebucht → Kunde bekommt Zugang → PFLICHT-Termin mit dem Onboarding-Team → erst nach ERLEDIGTEM Startgespräch wird der Account voll freigeschaltet."*
+
+Ein Konto hat ab jetzt zwei Stufen nach der Zahlung. Sie unterscheiden sich nicht darin, **ob** der Kunde hereinkommt, sondern **was** er drinnen sieht:
+
+| Stufe | Was er sieht |
+|---|---|
+| `wartet_auf_onboarding` | Startgespräch buchen · seine Rechnungen und Zahlungsdaten · Stand seiner Unterlagen · Bonitätsauskunft samt Zahlweg. Fahrplan und Inhalte warten mit ihm — hinter einer **Sperrkarte, die den Grund nennt**, nicht hinter einer 404. |
+| `voll_aktiv` | Alles. |
+
+Freigeschaltet wird **auf genau einem Weg**: Das Onboarding-Team schließt das Startgespräch ab. Dazu ein ausdrücklicher Admin-Übergang mit Grund, protokolliert. Ein dritter Weg würde die Pflicht zu einer Bitte machen — und dann hätte niemand je ein Startgespräch geführt.
+
+Die Stufe liegt in einer **eigenen** Spalte, nicht in `account_status`. Dort steht die harte Zugangssperre, und an rund zwanzig Stellen wird auf `'active'` geprüft. Wer die Onboarding-Stufe dort hineinschreibt, sperrt bei der nächsten dieser Abfragen einen zahlenden Kunden aus, der nur sein Gespräch noch vor sich hat.
+
+### Die Entscheidung zum Bestand — mit ihrer Zahl
+
+**Gemessen: 349 bezahlte Paketkunden, davon null mit einem Startgespräch.** Es gab in der ganzen Datenbank keinen einzigen Termin der Quelle `onboarding_call`.
+
+Eine harte Pflicht für alle hätte am Tag des Deploys **349 zahlende Menschen** vor eine verschlossene Tür gestellt — mit der Aufforderung zu einem Gespräch, für das es noch kein Team-Verfahren gab. Deshalb:
+
+- **Neu aktivierte Kunden:** Pflicht. Kein „Später" — buchen oder ausloggen. Die Wand steht im **Server** (HTTP 403), nicht in der Oberfläche.
+- **Bestand:** kein Aussperren. Dauerhafter Banner („Dein Startgespräch steht noch aus") und Einladung. Der Zugang bleibt.
+- Der Betreiber kann die Härte pro Fall über die Akte setzen (`onboarding_pflicht`).
+
+**Veto möglich.** Wer es anders will, sagt es — die Umstellung ist eine Spalte.
+
+### Das Onboarding-Cockpit
+
+`/agent/startgespraeche` → Termin öffnen → **„Gespräch führen"**. Eine Gesprächsbühne auf `FiaonEbene`-Niveau, alles darin und nichts daneben:
+
+- **Kopf:** Kunde, Paket, Zahlungsstand, mitlaufende Uhr (überzogen = andere Farbe), Anrufen-Knopf über das **bestehende** Softphone mit Kundenkontext, Gesprächsblatt.
+- **Geführte Agenda,** sechs abhakbare Schritte mit je zwei bis drei Stichpunkten zum Vorlesen: Begrüßung & Erwartung · Plattform-Tour · Fahrplan · Unterlagen · Bonitätsauskunft (74 €, Zahlweg) · nächste Schritte. Fortschrittsbalken, Notizfeld je Schritt.
+- **Abschluss:** ein Knopf — „Gespräch abschließen & freischalten". Er setzt den Termin erledigt, das Konto auf `voll_aktiv`, schreibt die gesammelten Notizen als **ein** Protokoll in die Akte und zählt Dauer und Quote. „Kunde nicht erschienen" bleibt daneben.
+- **Kennzahlen-Kopf:** heute geplant · heute erledigt · nicht erschienen · Ø Dauer · freigeschaltet (7 Tage) · Erledigungsquote.
+
+Die Agenda-Texte stehen im Repo (`shared/fiaon-onboarding-agenda.ts`), nicht im Kopf des Mitarbeiters: Ein Startgespräch, das jeder anders führt, ist sechsmal ein anderes Produkt.
+
+**Worthygiene, geprüft statt geschult.** Die 74 € sind eine **Auskunft** — kein Rat, keine Beratung. Eine Verbotsliste („beraten", „Empfehlung", „garantiert", „Score verbessern") läuft im Prüfstand über jeden Schritttext. Eine Regel, die nur in einer Schulung steht, gilt bis zur ersten Vertretung.
+
+### Sieben Fixes aus dem Teamfeedback — jeder zuerst gemessen
+
+**1. Der Termin-Haken traf den FALSCHEN Menschen.** Gemeldet war „kundengebuchte Termine lassen sich nicht abhaken". Gemessen ist es schlimmer: Der Kalender mischt zwei Tabellen in eine Liste — eigene Rückrufe (`fiaon_contact_log`) und Kundentermine (`fiaon_termine`) —, und beide zählen ihre Kennungen ab 1 hoch. Der Haken rief blind den Weg für Verlaufseinträge.
+
+**101 Termine tragen eine Kennung, die auch ein Verlaufseintrag trägt. Bei 33 davon gehört dieser Verlaufseintrag einem ANDEREN Menschen.** Ein Klick hätte den Rückruf eines fremden Kunden als erledigt abgestempelt. Eingetreten ist das noch nicht (0 von 71 erledigten Rückrufen betroffen) — der Weg stand aber jederzeit offen. Der Serverkommentar sagte übrigens schon „der Client unterscheidet über `quelle`"; der Client tat es nur nicht.
+
+Dazu zwei kleinere Gründe: `agent_id = ich` schloss jeden aus, der den Kunden heute betreut, ohne den Termin zu besitzen; und das Abhaken verlangte `status = 'gebucht'`, während die Liste auch `'verpasst'` zeigte — **54 Termine** ließen sich ansehen, aber nie abschließen und tauchten nach jedem Neuladen wieder auf.
+
+**2. Absagen verschwanden lautlos.** Gemessen: **10 abgesagte Termine, keine einzige Absage jemandem gemeldet.** Der Termin war im selben Augenblick aus jeder Ansicht weg (der Kalender filterte auf „gebucht") — der Zuständige saß zur vereinbarten Zeit da. Jetzt: Mail an den Zuständigen bei **Buchung und Absage** (direkt über Brevo im FIAON-Rahmen: Kunde, Datum, Uhrzeit, Quelle, Akten-Link), Verlaufseintrag, und der Termin bleibt **sieben Tage** im Kalender stehen — „Abgesagt am 16.08., 14:22 Uhr durch den Kunden".
+
+**3. Telefon-Ergebnis wirkte nicht auf die Liste.** Vermutet war, das Panel rufe den gemeinsamen Weg nicht auf. Es ruft ihn auf — aber der Listenweg tut **fünf** Dinge und das Panel eines. `ergebnisAnwenden` schreibt bewusst keinen Verlaufseintrag; den schrieben die Listenrouten selbst.
+
+**Gemessen: 554 von 842 Anrufen mit festgehaltenem Ergebnis haben keinen Verlaufseintrag beim Kunden.** Der Agent hat dokumentiert, die Akte weiß nichts davon. Am teuersten sind die Rückrufe: ohne Verlaufseintrag mit Zeitpunkt erscheint ein vereinbarter Rückruf **nie** im Kalender und nie in der Erinnerungsleiste — er ist verloren. Ebenso ging „Falsche Nummer" aus dem Panel **13-mal** ohne die Nummern-Korrektur-Mail raus, die der Listenweg verschickt.
+
+Es gibt jetzt **eine** Kette (`ergebnisNachbereiten`): Verlauf, Zustand, Nummern-Mail, Übergabe, Nachschub. Panel und Liste rufen dieselbe.
+
+**4. „Erreicht — Sonstiges" ohne Notiz.** Im Panel gab es überhaupt kein Notizfeld — **siebenmal** gedrückt, und in der Akte stand „Sonstiges". Jetzt Pflichtfeld (min. 10 Zeichen, „Was wurde besprochen oder vereinbart?"), serverseitig erzwungen; bei allen anderen Ergebnissen ein freiwilliges Feld. Die Notiz landet im Verlauf **und** am Anruf neben der Aufnahme.
+
+**5. Nummern-Korrektur ohne Ende.** Gemessen: **224 verschickte Anfragen, 185 ohne Antwort, 120 davon länger als sieben Tage** — und alle 185 standen weiter **jeden Tag** in der Arbeitsliste. Bei einem Kunden, dessen Nummer nicht stimmt, kann niemand etwas tun. Eine Karte, bei der man nichts tun kann, ist keine Aufgabe, sondern ein Übungsstück im Überblättern — und wer das gelernt hat, überblättert auch die zwei, bei denen es brennt.
+
+Jetzt: Wartezustand „Wartet auf Kunde (Nummer)", raus aus der Tagesliste, Wiedervorlage +7 Tage, sichtbar unter dem neuen Filter **„Wartend (Kunde)"**. Die Karte kommt von selbst zurück, sobald der Kunde die Nummer einträgt **oder** einen Termin bucht. Die Mail trägt jetzt zusätzlich den Termin-Link.
+
+**6. Rückrufe ohne Frist — das Loch, durch das Kunden fielen.** Ein Kunde rief an, es wurde „notiert", niemand meldete sich. Gemessen: **23 offene Rückruf-Termine, 19 überfällig, 18 länger als 24 Stunden** — ohne Eskalation, ohne dass es irgendwo auffiel. Eingehende Support-Mails wurden gespeichert und **keinem** zugeteilt.
+
+Jetzt bekommt jeder Rückruf-Wunsch **24 Stunden Frist und einen Menschen** (Betreuer, sonst Vertriebsleitung) plus eine dringende Aufgabe. Reißt die Frist: Karte für den Betreiber **und** Mail an die Leitung. Erledigen geht **nur mit Ergebnis-Notiz** — ein Rückruf, der ohne Ergebnis abgehakt wird, ist genau der Ausgangsfehler.
+
+**7. Ein Prüfstands-Fund, der vier Nachweise gekostet hat.** Beim Bauen fiel auf: An vier Stellen im Bestand steht `INSERT INTO fiaon_contact_log (person_id, …)` — **die Spalte gab es nicht**, und ein `.catch(() => {})` schluckte den Fehler. Gemessen sind deshalb **nie entstanden**:
+
+- 0 × „Als bezahlt gebucht von … Beleg: …" (Buchung durch die Vertriebsleitung)
+- 0 × „Stammdaten der Person aktualisiert" (Änderungsnachweis)
+- 0 × „Aufnahme von Anruf … angehört." — **ein Datenschutz-Zugriffsnachweis**
+
+Die beiden letzten sind Nachweise. Wer eine Anrufaufnahme anhört, sollte eine Spur hinterlassen; das war die Absicht und hat nie funktioniert. Behoben an der Ursache (Migration 055 ergänzt die Spalte und füllt sie rückwärts, wo der Bezug eindeutig ist), nicht an vier Symptomen — zwei der vier Stellen haben gar keine Bestellung, an der der Vermerk hängen könnte.
+
+### Ein Fund, den nur die Nachtstunde sichtbar macht
+
+Beim Abschlusslauf um 00:20 Berliner Zeit fiel der Abo-Prüfstand um: „keine Zuteilung erfolgt". Ursache: Das Forderungsmanagement rechnete mit `CURRENT_DATE` — dem Datum der **Datenbank**, und die läuft in UTC. Zwischen 00:00 und 02:00 Berliner Sommerzeit zeigt das auf den **Vortag**.
+
+Folgen: Eine Rate, die heute überfällig wird, galt in diesem Fenster als „heute fällig" und wurde **nicht zugeteilt**. Und die Zahlen im Kopf der Liste waren nachts andere als morgens — gemessen **113 gegen 97 überfällig, 12 gegen 0 heute fällig**. Wer um 00:30 arbeitete, sah eine andere Wahrheit als sein Kollege um 03:00.
+
+Der Tageslauf läuft stündlich, der Fehler heilte sich also um 02:00 von selbst. Bemerkt hätte ihn deshalb nie jemand. Alle Fälligkeitsvergleiche rechnen jetzt über einen Ausdruck an **einer** Stelle (`HEUTE_BERLIN` in `server/lib/fiaon-inkasso.ts`).
+
+**Dazu vier Prüfungen berichtigt, die einen Wortlaut statt einer Absicht suchten** — etwa `/r\.faellig_am <= CURRENT_DATE \+ 7/`. Sie wurden rot, weil die Sache **besser** wurde. Eine Prüfung, die an einer Formulierung hängt, erzieht dazu, sie abzuschalten.
+
+### Der Knopf-Durchgang — die systematische Antwort auf „Buttons gehen nicht"
+
+„Buttons gehen nicht" ist keine Fehlermeldung, sondern eine Stimmung. Wer ihr einzeln nachjagt, findet drei Knöpfe und übersieht dreißig.
+
+`scripts/pruef-knopf-durchgang.ts` geht je Rolle (Verwaltung, agent, vertriebsleiter, onboarding, inkasso) über die Kernseiten und **drückt jeden sichtbaren Aktionsknopf** — alles Schreibende in Attrappen, keine echten Vorgänge, Zustimmungsstrecken werden nie durchlaufen. Erfasst werden Handler-Fehler, 403/404/500 und Knöpfe ohne jede Wirkung.
+
+**Ergebnis: 177 Knöpfe gedrückt, ein echter Fehler.** `/agent/start` wurde **weiß**, wenn man „Gelesen" drückte: „Cannot read properties of undefined (reading 'guthabenCents')". Unten stand neunmal `v!.guthabenCents` — das Ausrufezeichen **behauptet**, der Wert sei da, geprüft wurde nur `laedt`. Antwortet der Server mit einem Objekt ohne `verdienst`, ist `laedt` false und `v` undefined; React reißt den Baum ab, und der Mensch sieht nichts. Kein Fehlertext, keine Meldung — eine weiße Seite. Gefunden hat das kein Typcheck (das `!` schaltet ihn ab) und kein Test, sondern das Drücken.
+
+Der erste Lauf meldete außerdem **sieben Fehler, die keine waren**: Zugangswände, die bei einem frischen Testkonto korrekt greifen. Sie werden jetzt als solche erkannt und getrennt gezählt — eine Bremse, die falsch auslöst, ist gefährlicher als keine.
+
+### Was NICHT geliefert ist
+
+**Die Mehrfachauswahl beim Wegräumen doppelter Buchungen (Teil 3f) fehlt.** Das Wegräumen aktualisiert schon heute nur die Karte und nicht die Seite, mehrere nacheinander gehen also ohne Neuladen. Checkboxen mit „Auswahl wegräumen" und einem Sammeldialog sind **nicht** gebaut. Gemessen wären sie es wert: **406 Personen mit mehreren offenen Buchungen, 1.083 betroffene Buchungen** (ein Fall mit 18).
+
+### Betreiber-TODOs
+
+- **Make-Zweig `account_activated`** prüfen. Der Ereignistyp existiert; ob der Zweig bei Make angelegt ist, sieht man ab jetzt im Zustellprotokoll (`/admin/events`). Variablen: `email`, `vorname`, `portal_url`, `freigeschaltet_am_text`, `pack_name`, `ref`.
+- **Brevo-Vorlage T23** (Nummern-Korrektur) um `{{params.termin_link}}` ergänzen — die Variable fährt jetzt mit, wird aber ohne Einbau nicht angezeigt.
+- **`CRONS_AN` und der Terminlauf:** Im Zustellprotokoll stehen 68 gescheiterte `termin_erinnerung` — ein Prozess ohne Make-Zugangsdaten hat sie abgearbeitet und als erledigt verbraucht. Das gehört geprüft (siehe Eintrag oben).
+
+### Wo zu finden
+
+- **Konto-Stufen:** `server/lib/fiaon-kontostufe.ts` · **Agenda:** `shared/fiaon-onboarding-agenda.ts`
+- **Cockpit:** `client/src/components/agent/OnboardingCockpit.tsx` · **Sperrkarte:** `client/src/components/PortalSperre.tsx`
+- **Eine Ergebnis-Kette:** `ergebnisNachbereiten` in `server/lib/fiaon-kontakt-ergebnis.ts`
+- **Termin-Meldungen:** `server/lib/fiaon-termin-meldung.ts` · **Wartezustand:** `server/lib/fiaon-warten.ts`
+- **Rückrufe:** `server/lib/fiaon-rueckruf.ts`, `server/routes/fiaon-rueckrufe.ts`
+- **Migrationen:** `054_onboarding_pflicht.sql`, `055_contact_log_person.sql`
+- **Messung:** `npx tsx scripts/mess-arbeitsfluss.ts` (nur lesend, CSVs in `reports/`)
+- **Prüfstände:** `pruef-onboarding-pflicht.ts` (146) · `pruef-onboarding-browser.ts` (39, Bilder) · `pruef-knopf-durchgang.ts` (177 Knöpfe)
+
+## 16.08.2026 — Der Abo-Motor nach der Geschäftsregel, und vier Befunde aus dem Teamfeedback
+
+### Die Regel, die jetzt im Code steht
+
+*„Jeder Kunde mit einem Paket hat ein Abo. Anker ist der Tag der bankbestätigten Buchung. Zahlung gebucht am 05.07. → am 05.08. bekommt er automatisch seine Monatsrechnung. Ist die Rate am 06.08. nicht gebucht, steht er im Forderungsmanagement. Die 74-€-Auskunft ist kein Abo."*
+
+**Vorher rechnete das System mit „alle 30 Tage".** Zwölf Monate zu 30 Tagen sind 360 — der Termin wandert jedes Jahr fünf Tage nach vorn. **Gemessen: 266 von 289 offenen Raten lagen NICHT auf dem Jahrestag ihrer Buchung.** Ein Kunde, der am 5. bezahlt hat, bekam seine Rechnung am 4., dann am 2., dann am 31. des Vormonats. Wer das auf dem Kontoauszug wiederfinden soll, findet es nicht.
+
+Jetzt gilt der **monatliche Jahrestag**, gerechnet an einer Stelle: `server/lib/fiaon-abo-zyklus.ts`. Motor, Kundenakte, Inkasso-Karte und Prüfstand rufen dieselben Funktionen. Der 31. wird nur für den jeweiligen Monat gekappt (Februar → 28./29.) und ist im März **wieder der 31.** — wer von Fälligkeit zu Fälligkeit weiterrechnet, verliert ihn nach dem ersten Februar für immer.
+
+**Der Tageslauf** (`aboTageslauf`, stündlich, idempotent) macht drei Dinge: Am Fälligkeitstag legt er die Rate an und verschickt die Monatsrechnung über den **bestehenden** Make-Zweig `abo_payment_reminder`. X Tage vorher (Vorgabe 3, in den Einstellungen über `abo_vorab_tage` abschaltbar) geht eine freundliche Vorabinfo raus, die die Mahnstufe **nicht** anfasst. Am Tag danach wird die unbezahlte Rate überfällig und dem Inkasso-Menschen mit der kleinsten Last zugeteilt.
+
+**Die Wand gegen Doppelrechnungen steht in der Datenbank**, nicht in einem `if`: ein eindeutiger Index auf `(ref, faellig_am)` für alles, was nicht storniert ist. Ein zweiter Lauf — auch gleichzeitig in einem anderen Prozess — prallt dort ab. Der Prüfstand weist es nach.
+
+### Was das Team gemeldet hat, und was wirklich war
+
+Vier Meldungen, alle zuerst **gemessen**. Zwei davon waren anders als beschrieben.
+
+**„3. Mahnung, ohne je eine Rate gezahlt zu haben."** Gemessen: **0 Fälle** auf Mahnstufe 3. Aber die Ursache war echt: Ein Bestandsnachtrag hatte für Monate, in denen nie eine Rechnung rausging, offene Raten mit Mahnstufe 1 angelegt. Der Spitzenfall heißt **Peter Zußner** — zwei bezahlte Pro-Bestellungen, je drei offene Raten, alle Stufe 1, keine davon je in Rechnung gestellt. Das war keine Zahlungsverweigerung, das war unsere Buchhaltung. Rückwirkende Raten entstehen jetzt nur noch auf ausdrückliche Anweisung, und eine Mahnstufe steigt nur, wenn eine vorherige Mahnung **wirklich versandt** wurde.
+
+**„Zusner dreimal, Namen wiederholen sich beim Scrollen."** Gemessen: **213 Zeilen für 180 Menschen**, 21 Namen mehrfach. Keine Personen-Dublette — jede Rate war eine eigene Zeile. Die Liste zeigt jetzt **eine Karte je Mensch** mit aufklappbaren Raten; die Arbeit (Zusage, Wiedervorlage, Prämie) hängt weiter an der einzelnen Rate. Nebenbefund: Zußner hat **zwei parallele Abos** und wird doppelt abgerechnet — solche Fälle tragen jetzt die Warnung „Zweites Abo — vor dem Mahnen klären".
+
+**„Diana — Mailbox gesprochen, aber die Aufnahme gehört zu einer anderen Person."** Ursache gefunden: `POST /telefon/ausweis` nahm die Person aus dem **Request-Body** — also aus der offenen Kundenkarte. Wer eine Karte offen hatte und eine fremde Nummer eintippte, hängte Aufnahme, Transkript und KI-Notiz an die falsche Akte. Im Bestand war der Schaden klein (**5 von 1.002** Anrufen, davon 1 mit Aufnahme) — der Weg dorthin stand aber jederzeit offen, und es geht um Gesprächsaufzeichnungen. Jetzt entscheidet die **gewählte Nummer** (samt Aliasnummern), das Panel sagt **vor** dem Wählen „Du rufst [Name] an", und eine unbekannte Nummer hängt an niemandem.
+
+**„Make-Routen gehen bei Tests alle — aber viele bekommen keine E-Mail."** Die Lücke lag **vor** Make: Die Adresse kam aus der Bestellzeile. Stand dort nichts, ging `email: ""` an Make, Make antwortete 200, und die Mail verschwand lautlos. Gemessen: 3 Bestellungen mit offener Rate ohne Adresse an der Zeile — **alle drei über die Person auflösbar** — und **99 Bestellzeilen, deren Adresse von der der Person abweicht**. Jeder Versand geht jetzt durch **eine** Auflösung (`server/lib/fiaon-empfaenger.ts`): aktuelle Adresse der Person, dann Aliase, dann Bestellzeile. Findet sich nichts, geht **nichts** raus, und der Grund steht im Protokoll.
+
+### Die alte Nummer, die der Kollege sah
+
+Stammdaten wurden nur an der **Bestellzeile** gespeichert. Die Person behielt ihren alten Wert — und jede Liste, jede Suche und jeder Mailversand, die über die Person gehen, zeigten weiter das Alte. **Gemessen: 89 Bestellungen mit einer anderen Nummer als ihre Person, 99 mit einer anderen E-Mail.** Die Korrektur schreibt jetzt auf die Person durch, setzt `phone_key9` mit (sonst wird der Rückruf nicht erkannt) und sichert den bisherigen Wert als **Alias** — er geht nicht verloren, der Kunde wird unter beiden Nummern erkannt.
+
+**Und: Bearbeiten war für die halbe Firma gesperrt.** Der Torwächter `requireEigenerKunde` kannte nur die Regel für die Rolle `agent` und wandte sie auf alle an. Vertriebsleitung, Forderungsmanagement und Onboarding bekamen **404** bei Kunden, die sie laut Berechtigung sehen dürfen — das Forderungsmanagement durfte anrufen, aber eine falsche Telefonnummer nicht korrigieren. Es gab die richtige Antwort längst: `darfAnKunde` kennt alle fünf Rollen. Die zweite Definition ist weg.
+
+### Ultra und High End waren vertauscht
+
+Es gab **zwei** Preislisten. Die eine bestimmte den Kaufpreis (Ultra 79,99), die andere den Ratenbetrag (Ultra 99,99). Ein Ultra-Kunde kaufte für 79,99 € und bekam Rechnungen über 99,99 €.
+
+Die Begründung der zweiten Liste war eine Häufigkeitsauszählung des Kontoauszugs: 99,99 € kam 75-mal vor, also sei das Ultra. Das ist der Fehler — eine Häufigkeit sagt, welche **Beträge** vorkommen, nicht, zu welchem **Paket** sie gehören.
+
+**Entscheidung des Betreibers: Ultra 79,99 €, High End 99,99 €.** Eine Quelle: `shared/fiaon-pakete.ts`.
+
+### Was am Bestand geändert wurde (jeweils Vorschau, dann geschrieben, dann gezählt)
+
+| Lauf | Ergebnis | Zählprobe |
+|---|---|---|
+| Raten ohne bezahltes Paket storniert | **4** (kein Hard-Delete, Mahnstufe neutralisiert) | 0 offene Raten ohne bezahltes Paket |
+| Fälligkeiten auf den Jahrestag gezogen | **266** (meist ±1 Tag, nie ein Monatssprung) | 0 Doppelrechnungen |
+| Preise korrigiert | **166** offene Bestellungen, **51** offene Raten | 0 offene Raten mit falschem Betrag |
+| Anrufe umgehängt | **2** eindeutig, **4** als „Zuordnung prüfen" markiert | — |
+
+**Bezahltes wurde nicht angefasst.** 8 bereits bezahlte oder angekündigte Bestellungen mit abweichendem Betrag stehen nur im Report: Ein bezahlter Betrag ist eine Tatsache, wer ihn nachträglich ändert, fälscht die Buchhaltung. Die Rechnungs-PDFs der 166 korrigierten Bestellungen müssen neu erzeugt werden (`reports/bestand-preise.csv` enthält die Referenzen).
+
+**Nicht angefasst — und das ist eine Entscheidung:** 192 Raten über 12.916 € hängen an Bestellungen, die als bezahlt gebucht sind, aber **keine Bankzeile** haben. Der Bank-Import deckt nur den 03.07. bis 03.08. ab; von 130 im August verbuchten Bestellungen haben nur 24 eine Bankzeile. Diese Raten zu entwerten hieße, echte Forderungen zu vernichten, weil eine CSV fehlt.
+
+### Was die neue Karte am ersten Tag zeigte
+
+Es gab **keine Anzeige** für das Zustellprotokoll. `mail-zentrale.tsx` verlinkte auf `/admin/mail-protokoll` — eine Seite, die nie existiert hat. Ein Link ins Leere sieht wie eine Möglichkeit aus. Also gebaut: `/admin/events` zeigt jetzt „Zustellprotokoll — letzte 14 Tage", vorgefiltert auf das, weswegen man kommt.
+
+**Und sofort sichtbar geworden — 70 fehlgeschlagene Mails in 14 Tagen:**
+
+- **68 × „MAKE_WEBHOOK_URL ist nicht gesetzt — es kann keine Mail rausgehen."** Fast alle sind `termin_erinnerung`. Ein Prozess **ohne** Make-Zugangsdaten hat Termin-Erinnerungen abgearbeitet und dabei jede als „erledigt" verbraucht. Die Kunden haben **keine Erinnerung bekommen**, und niemand hat es gemerkt — es gab keine Anzeige dafür. (Dieselbe Ursache wie der Vorfall vom 08.08.2026, weshalb `CRONS_AN` existiert; der Terminlauf hängt offenbar nicht an dieser Bremse. **Das gehört als Nächstes geprüft.**)
+- **2 × „Brevo-Sicherheit blockiert diesen Server — die Adresse 74.220.50.221 steht nicht auf der Freigabeliste."** Betreiber-Aufgabe: die Adresse in Brevo freigeben.
+
+Das ist der eigentliche Wert der Karte: Sie hat am ersten Tag ein Problem gezeigt, das seit zwei Wochen lief.
+
+### Zwei Dinge, die erst der Screenshot gefunden hat
+
+**Die halbe Verwaltung war weiß.** Der neue Haken „wem gehört diese Nummer" stand hinter `if (!stand) return null` — React meldete „Rendered more hooks than during the previous render". Kein Test hat das gesehen, kein Typcheck; der Screenshot der Browser-Abnahme hat es gezeigt. Dieselbe Falle stand ein paar Zeilen tiefer in derselben Datei schon dokumentiert.
+
+**34 von 325 bezahlten Bestellungen mit offener Rate haben ÜBERHAUPT keinen Buchungstag** — `paid_at`, Bankbuchung und `completed_at` alle leer. Ohne Anker hätte der Tageslauf sie übersprungen: 34 Kunden hätten ab jetzt lautlos keine Rechnung mehr bekommen. Sie bekommen einen ausdrücklich als **abgeleitet** benannten Anker aus ihrem bestehenden Rhythmus; die Akte sagt es, und der Betreiber kann den echten Buchungstag nachtragen.
+
+**Nebenbefund:** `server/routes/fiaon-vertrieb.ts` schrieb in eine Spalte `paid_at`, die es nicht gab — „Als bezahlt buchen" der Vertriebsleitung lief in einen Serverfehler. Die Spalte gibt es jetzt (Migration 052) und sie ist der Anker des Zyklus.
+
+### Wo zu finden
+
+- **Rechnung:** `server/lib/fiaon-abo-zyklus.ts` · **Motor:** `server/routes/fiaon-abo.ts` (`aboTageslauf`)
+- **Empfänger:** `server/lib/fiaon-empfaenger.ts` · **Anrufe:** `server/lib/fiaon-anruf-zuordnung.ts`
+- **Preise:** `shared/fiaon-pakete.ts` · **Personen-Gruppierung:** `arbeitslistePersonen` in `server/lib/fiaon-inkasso.ts`
+- **Messung vorher:** `npx tsx scripts/mess-abo-motor.ts` → `reports/mess-abo-motor.json`
+- **Bestandsläufe:** `npx tsx scripts/abo-bestand.ts [storno|zyklus|preise|anrufe] [--schreiben]`
+- **Zustellprotokoll:** `/admin/events` → „Zustellprotokoll" · Route `GET /admin/mail/protokoll?status=fehlgeschlagen`
+- **Migrationen:** `052_abo_motor.sql` (Anker, Storno, Eindeutigkeit) · `053_zustellprotokoll_index.sql` (Protokoll war 3,8 s langsam, jetzt 1,9 s)
+- **Prüfstände:** `npx tsx scripts/pruef-abo-motor.ts` (119 Prüfungen) · `npx tsx scripts/pruef-abo-browser.ts` (36 Prüfungen, Screenshots in `reports/bilder-abo/`)
+
+**Für den Betreiber sichtbar:** Zahlungszentrale → Karte „Abo-Motor: heute X Rechnungen versandt, Y überfällig geworden" mit Knopf „Tageslauf jetzt". Dashboard → Karte „Zustellung heute" mit Deep-Link auf das gefilterte Protokoll. Kundenakte und Inkasso-Karte → „Abo aktiv seit 05.07. · nächste Rate 05.09. · Rechnung geht automatisch raus".
+
+**Offenes Vorgesetzten-TODO bleibt:** Der Make-Zweig `abo_payment_reminder` und das Brevo-Template. Ohne sie erzeugt der Motor Raten und Protokolleinträge, aber es kommt keine Mail an — sichtbar als Zustellfehler auf der Motor-Karte.
+
 ## 11.08.2026 (XXI) — „Immer als Daniel Stripling angemeldet": mein Fehler
 
 ### Der schwerste Befund

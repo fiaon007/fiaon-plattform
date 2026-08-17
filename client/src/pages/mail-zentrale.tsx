@@ -89,7 +89,7 @@ function ErgebnisKarte({ ergebnis, onZu }: { ergebnis: any; onZu: () => void }) 
                   </p>
                   {/* Der Tiefverweis: springt auf GENAU diese Zeile, nicht auf
                       eine Liste, in der man wieder suchen muss. */}
-                  <a href={`/admin/mail-protokoll?id=${e.protokollId ?? ""}`}
+                  <a href={`/admin/events?status=alle#zustellung`}
                      className="inline-block mt-1.5 ml-3.5 text-[11.5px] font-semibold underline"
                      style={{ color: "var(--fi-primaer)" }}>
                     Im Protokoll öffnen

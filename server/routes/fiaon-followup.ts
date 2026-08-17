@@ -32,6 +32,7 @@
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { getSettings } from "./fiaon-agent";
+import { versandErlaubtOderProtokoll } from "../lib/fiaon-versandkanal";
 
 const router = Router();
 
@@ -433,10 +434,12 @@ export async function runFollowUpTageslauf(opts: { force?: boolean } = {}): Prom
  * benutzt `runCallbackReminders` für die Rückruf-Erinnerungen der Agenten.
  */
 export async function runTerminErinnerungen(): Promise<number> {
-  // Ohne Kanal keine Erinnerung — und vor allem: keine Zeile, die sich
-  // `erinnert_am` setzt, ohne dass je etwas rausging. Dieselbe Falle wie beim
-  // Wiedereinstieg am 08.08.2026 (siehe fiaon-wiedereinstieg.ts).
-  if (!process.env.MAKE_WEBHOOK_URL) return 0;
+  // ── OHNE KANAL LÄUFT NICHTS, UND ES WIRD PROTOKOLLIERT ────────────────
+  // Hier stand nur „if (!process.env.MAKE_WEBHOOK_URL) return 0". Das
+  // verhinderte den Lauf — aber STILL: Der Betreiber sah nirgends, dass eine
+  // Automatik seit Tagen nicht arbeitet. Jetzt steht einmal am Tag eine Zeile
+  // „übersprungen (kein Kanal)" im Zustellprotokoll.
+  if (!(await versandErlaubtOderProtokoll("Termin-Erinnerungen"))) return 0;
 
   const faellig = (await sqlPool`
     UPDATE fiaon_termine SET erinnert_am = NOW()
@@ -452,6 +455,8 @@ export async function runTerminErinnerungen(): Promise<number> {
   const { versendenUndProtokollieren } = await import("../lib/fiaon-mail-log");
   const { berlinDatumText, berlinUhrzeit, stornoLink } = await import("../lib/fiaon-termine");
   let versandt = 0;
+  let fehlgeschlagen = 0;
+  let nochmal = 0;
   for (const t of faellig) {
     const [p] = (await sqlPool`
       SELECT COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname, p.last_name AS nachname,
@@ -486,9 +491,42 @@ export async function runTerminErinnerungen(): Promise<number> {
         verlaufText: `Terminerinnerung versandt (morgen ${berlinUhrzeit(t.beginn)} Uhr).`,
       },
     );
-    if (ergebnis.status === "versandt") versandt++;
+    if (ergebnis.status === "versandt") {
+      versandt++;
+      continue;
+    }
+    // ══════════════════════════════════════════════════════════════════════
+    // EINE ERINNERUNG, DIE NICHT RAUSGING, IST NICHT VERBRAUCHT
+    //
+    // ── DER BEFUND (17.08.2026) ───────────────────────────────────────────
+    // Das UPDATE oben setzt `erinnert_am` für ALLE fälligen Termine, BEVOR
+    // gesendet wird. Das ist gegen Doppelversand richtig — aber es fehlte die
+    // Gegenbewegung: Scheitert der Versand, blieb die Marke stehen.
+    //
+    // GEMESSEN: 91 Termine mit Marke, nur 56 mit erfolgreichem Versand.
+    // **35 Erinnerungen verbraucht, ohne dass der Kunde etwas bekam.** Acht
+    // der Termine lagen noch in der Zukunft.
+    //
+    // Jetzt wird die Marke zurückgenommen — aber nur, wenn der Termin noch
+    // in der ZUKUNFT liegt. Eine Erinnerung an einen vergangenen Termin ist
+    // peinlich; sie darf nicht beim nächsten Lauf doch noch rausgehen.
+    // ══════════════════════════════════════════════════════════════════════
+    const zurueck = (await sqlPool`
+      UPDATE fiaon_termine SET erinnert_am = NULL, updated_at = NOW()
+      WHERE id = ${t.id} AND beginn > NOW() + INTERVAL '30 minutes'
+      RETURNING id
+    `) as any[];
+    fehlgeschlagen++;
+    if (zurueck.length > 0) nochmal++;
+    console.warn(`[FIAON-FOLLOWUP] Termin ${t.id}: Erinnerung ${ergebnis.status} `
+      + `(${ergebnis.grund ?? "ohne Grund"})`
+      + `${zurueck.length > 0 ? " — Marke zurückgenommen, wird erneut versucht" : ""}`);
   }
   if (versandt) console.log(`[FIAON-FOLLOWUP] Termin-Erinnerungen versendet: ${versandt}/${faellig.length}`);
+  if (fehlgeschlagen) {
+    console.warn(`[FIAON-FOLLOWUP] ${fehlgeschlagen} Erinnerung(en) nicht versandt, `
+      + `${nochmal} davon werden erneut versucht.`);
+  }
   return versandt;
 }
 
@@ -505,10 +543,19 @@ export async function runTerminErinnerungen(): Promise<number> {
 // Tagesläufe starten nur, wenn dieser Prozess der Betrieb IST. Erkennbar an
 // NODE_ENV=production oder am ausdrücklichen Flag CRONS=an. Wer lokal einen
 // Lauf prüfen will, ruft ihn von Hand auf — dann weiß er auch, dass er es tut.
-import { CRONS_AN } from "../lib/fiaon-crons";
+import { tageslauf } from "../lib/fiaon-crons";
 
-setInterval(() => {
-  if (!CRONS_AN) return;
+// ── EINE REGISTRATUR FÜR ALLE LÄUFE (17.08.2026) ──────────────────────────
+// Hier stand `setInterval` mit einer eigenen `if (!CRONS_AN) return`-Zeile.
+// Sie war richtig — aber sie war eine Kopie. Von sieben zeitgesteuerten Läufen
+// im Haus gingen zwei an der Bremse VORBEI (fiaon-leads.ts), einer prüfte
+// selbst (fiaon-abo.ts), einer hatte diese Kopie hier, und nur drei nahmen die
+// Registratur.
+//
+// Eine Regel, die an fünf Stellen anders geschrieben ist, ist keine Regel. Ab
+// jetzt geht jeder Lauf durch `tageslauf` — dort steht die Bremse EINMAL, und
+// eine neue Aufrufstelle kann sie nicht vergessen.
+tageslauf("followup-und-termine", () => {
   runFollowUpTageslauf().catch((err) => console.error("[FIAON-FOLLOWUP] Tageslauf:", err));
   // Die Terminerinnerung hängt NICHT am 6-Uhr-Tageslauf: Ein Termin um 09:20
   // braucht seine Erinnerung am Vortag um 09:20, nicht um 6 Uhr morgens. Der

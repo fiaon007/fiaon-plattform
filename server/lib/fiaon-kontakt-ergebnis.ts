@@ -312,3 +312,156 @@ export async function ergebnisAnwenden(
     automatik,
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE VOLLSTÄNDIGE NACHBEREITUNG — ein Ergebnis ist mehr als ein Zustand
+//
+// ── DER BEFUND (16.08.2026) ────────────────────────────────────────────────
+// Team: „‚Nicht erreicht' aus dem Telefon-Panel wirkt nicht auf die
+// Kundenliste; über die Liste direkt schon."
+//
+// Vermutet war, das Panel rufe `ergebnisAnwenden` nicht auf. Es RUFT es auf.
+// Der Unterschied liegt woanders: Die Listenroute tut FÜNF Dinge, das Panel
+// nur eines.
+//
+//   1. Verlaufseintrag in `fiaon_contact_log`          ← fehlte im Panel
+//   2. `ergebnisAnwenden` (Zähler, Wiedervorlage)      ← hatte das Panel
+//   3. „Falsche Nummer" → Nummern-Mail an den Kunden   ← fehlte im Panel
+//   4. „Blockiert" → Übergabe an den nächsten Betreuer ← fehlte im Panel
+//   5. Nachschub für die Liste des Agenten             ← fehlte im Panel
+//
+// `ergebnisAnwenden` schreibt bewusst KEINEN Verlaufseintrag — das taten die
+// Listenrouten selbst. Genau daran ist es auseinandergelaufen.
+//
+// GEMESSEN: 554 von 842 Anrufen mit festgehaltenem Ergebnis haben KEINEN
+// Verlaufseintrag beim Kunden. Der Agent hat dokumentiert, die Akte weiß
+// nichts davon. Am teuersten sind die Rückrufe: Ohne Verlaufseintrag mit
+// `scheduled_at` erscheint ein vereinbarter Rückruf NIE im Kalender und NIE
+// in der Erinnerungsleiste — er ist verloren. Drei solche Fälle gemessen.
+//
+// Ab hier gibt es EINE Kette, und beide Wege gehen sie.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface NachbereitungEingabe {
+  ref: string;
+  personId: number;
+  /** null = reine Notiz, ändert keinen Zustand. */
+  ergebnis: Ergebnis | null;
+  notiz?: string | null;
+  zusageDatum?: string | null;
+  /** Voller Zeitpunkt „JJJJ-MM-TTTHH:MM:SS" — Berliner Wandzeit. */
+  terminZeitpunkt?: string | null;
+  wiedervorlage?: string | null;
+  akteur: { id: number | null; name: string };
+  /** Woher der Klick kam — steht im Verlauf, damit man beide Wege unterscheiden kann. */
+  herkunft?: "liste" | "telefon" | "vertrieb";
+}
+
+export interface NachbereitungErgebnis {
+  wirkung: ErgebnisWirkung | null;
+  nummerMail?: { sent: boolean; reason?: string };
+  uebergabe?: { ok: boolean; an: string | null; grund: string };
+  meldung: string;
+}
+
+/**
+ * Die ganze Kette: Verlauf, Zustand, Nummern-Mail, Übergabe, Nachschub.
+ *
+ * Wirft nie für die Nebenwirkungen — ein klemmender Nachschub darf ein
+ * dokumentiertes Ergebnis nicht zurücknehmen.
+ */
+export async function ergebnisNachbereiten(
+  ein: NachbereitungEingabe,
+): Promise<NachbereitungErgebnis> {
+  const { parseBerlinInput } = await import("./fiaon-time");
+  const istNotiz = ein.ergebnis == null;
+
+  // ── 1. DER VERLAUFSEINTRAG ────────────────────────────────────────────
+  // Er ist das, was ein Mensch später liest. Ohne ihn hat der Kunde in der
+  // Akte kein Ergebnis, und ein Rückruf bekommt keinen Kalendereintrag.
+  await sqlPool`
+    INSERT INTO fiaon_contact_log
+      (ref, agent_id, agent_name, type, outcome, note, promised_date, scheduled_at, created_at)
+    VALUES (${ein.ref}, ${ein.akteur.id}, ${ein.akteur.name},
+            ${istNotiz ? "note" : "result"}, ${ein.ergebnis},
+            ${ein.notiz ? String(ein.notiz).slice(0, 4000) : null},
+            ${parseBerlinInput(ein.zusageDatum ?? null)},
+            ${parseBerlinInput(ein.terminZeitpunkt ?? null)}, NOW())
+  `;
+
+  // ── 2. DER ZUSTAND ────────────────────────────────────────────────────
+  let wirkung: ErgebnisWirkung | null = null;
+  if (ein.ergebnis) {
+    wirkung = await ergebnisAnwenden({
+      ref: ein.ref, personId: ein.personId, ergebnis: ein.ergebnis,
+      zusageDatum: ein.zusageDatum ?? null,
+      terminDatum: ein.terminZeitpunkt ?? null,
+      wiedervorlage: ein.wiedervorlage ?? null,
+    });
+  } else if (ein.wiedervorlage) {
+    await sqlPool`
+      UPDATE fiaon_persons SET follow_up_date = ${ein.wiedervorlage}::date, updated_at = NOW()
+      WHERE id = ${ein.personId}
+    `;
+  }
+
+  // ── 3. „FALSCHE NUMMER" BITTET DEN KUNDEN UM SEINE NUMMER ─────────────
+  let nummerMail: { sent: boolean; reason?: string } | undefined;
+  if (ein.ergebnis === "nummer_falsch") {
+    try {
+      const [c] = (await sqlPool`
+        SELECT COALESCE(NULLIF(email,''), NULLIF(contact_email,''), NULLIF(billing_email,'')) AS email,
+               COALESCE(first_name, contact_name) AS first_name
+        FROM fiaon_applications WHERE ref = ${ein.ref}
+      `) as any[];
+      const { maybeSendNumberUpdateMail } = await import("../fiaon-number-update");
+      nummerMail = await maybeSendNumberUpdateMail("app", ein.ref, {
+        email: c?.email, firstName: c?.first_name,
+      });
+      // ── DER WARTEZUSTAND ───────────────────────────────────────────────
+      // Ging die Bitte raus, wartet der Fall auf den KUNDEN. GEMESSEN: 185
+      // verschickte Anfragen ohne Antwort standen weiter jeden Tag in der
+      // Arbeitsliste, 120 davon länger als sieben Tage. Eine Karte, bei der
+      // man nichts tun kann, lehrt das Überblättern.
+      if (nummerMail?.sent) {
+        const { wartenAufKunde } = await import("./fiaon-warten");
+        await wartenAufKunde(ein.personId, "nummer");
+      }
+    } catch (e) {
+      console.error("[ERGEBNIS] Nummern-Mail:", e);
+    }
+  }
+
+  // ── 4. „BLOCKIERT" GIBT DEN KUNDEN WEITER ─────────────────────────────
+  let uebergabe: { ok: boolean; an: string | null; grund: string } | undefined;
+  if (ein.ergebnis === "nummer_blockiert" && ein.akteur.id) {
+    try {
+      const { uebergabeAnNaechsten } = await import("./fiaon-uebergabe");
+      const u = await uebergabeAnNaechsten(ein.personId, ein.akteur.id, ein.akteur.name);
+      uebergabe = { ok: u.ok, an: u.neuerAgentName, grund: u.grund };
+    } catch (e) {
+      console.error("[ERGEBNIS] Übergabe:", e);
+    }
+  }
+
+  // ── 5. NACHSCHUB ──────────────────────────────────────────────────────
+  // Wer einen Fall abschließt, verliert eine Karte. Ohne Nachschub bestraft
+  // die Ehrlichkeit den Fleißigen mit einer kürzeren Liste.
+  if (ein.akteur.id && (uebergabe?.ok
+      || ein.ergebnis === "erreicht_abgelehnt"
+      || ein.ergebnis === "erreicht_zahlt_gleich"
+      || ein.ergebnis === "erreicht_zahlt_am")) {
+    void import("../routes/fiaon-followup")
+      .then((m) => m.nachschub(ein.akteur.id!))
+      .catch((e) => console.error("[ERGEBNIS] Nachschub:", e));
+  }
+
+  return {
+    wirkung,
+    nummerMail,
+    uebergabe,
+    meldung: uebergabe
+      ? (uebergabe.ok ? `Übergeben an ${uebergabe.an}. ${uebergabe.grund}` : uebergabe.grund)
+      : (wirkung?.meldung || (istNotiz ? "Notiz gespeichert." : "Ergebnis festgehalten.")),
+  };
+}

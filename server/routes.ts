@@ -399,6 +399,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonVermerkeRoutes = await import('./routes/fiaon-vermerke');
   app.use('/api/fiaon', fiaonVermerkeRoutes.default);
 
+  // ☎ FIAON Rückrufe — jeder Wunsch bekommt 24 Stunden Frist und einen
+  //   Menschen. Reißt die Frist, eskaliert es sichtbar (Karte + Nachricht an
+  //   die Leitung). Hintergrund: „Kunde rief an, wird notiert, niemand meldete
+  //   sich" — gemessen waren 18 Rückrufe über 24 Stunden überfällig.
+  const fiaonRueckrufRoutes = await import('./routes/fiaon-rueckrufe');
+  app.use('/api/fiaon', fiaonRueckrufRoutes.default);
+
   // 🔁 FIAON Abo — die monatliche Paketrate: Ratenketten, Fälligkeiten,
   //    Mahnstufen und der Erinnerungs-Motor (Event `abo_payment_reminder`).
   const fiaonAboRoutes = await import('./routes/fiaon-abo');

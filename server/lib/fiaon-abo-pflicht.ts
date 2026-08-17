@@ -9,20 +9,19 @@
 // „Die SCHUFA-Zahlungen brauchen auch kein Datum fürs Abo, nur das Paket, und
 // ab Tag der Einzahlung 30 Tage Zyklus."
 //
-// ── DIE PREISE SIND GEGEN DEN KONTOAUSZUG GEPRÜFT ──────────────────────────
-// Nicht aus dem Kopf, sondern gegen `statement_165031496_EUR_2026-07-03_
-// 2026-08-11.csv` — 327 echte Eingänge über 23.244,82 €. Die Häufigkeiten
-// sagen, welche Beträge wirklich vorkommen:
+// ── DIE PREISE STEHEN NICHT MEHR HIER ──────────────────────────────────────
+// Hier stand eine zweite Preisliste, und sie war bei Ultra und High End
+// VERTAUSCHT gegenüber der Kaufpreisliste in `server/routes/fiaon-antrag.ts`:
+// Ein Ultra-Kunde kaufte für 79,99 € und bekam Monatsrechnungen über 99,99 €.
 //
-//      99,99 €  ×75      ultra
-//      79,99 €  ×46      highend
-//      74,00 €  ×37      SCHUFA — KEIN ABO
-//      59,99 €  ×81      pro
-//       7,99 €  ×54      start (und die Monatsrate der Zugänge)
+// Die Begründung war eine Häufigkeitsauszählung des Kontoauszugs
+// (`statement_165031496_EUR_2026-07-03_2026-08-11.csv`, 327 Eingänge):
+// 99,99 € kam 75-mal vor, 79,99 € 46-mal. Daraus wurde geschlossen, 99,99 €
+// sei Ultra. Das ist der Fehler: Eine Häufigkeit sagt, welche BETRÄGE
+// vorkommen — nicht, zu welchem PAKET sie gehören.
 //
-// Alles andere im Auszug sind Einzelfälle: Teilzahlungen (0,88 €, 8 €, 10 €,
-// 20 €, 50 €), Rundungen (59,90 €, 59,95 €, 76,12 €) und drei große Posten
-// (249,99 €, 500 €, 1.000 €) aus dem Geschäftskundenbereich.
+// Entscheidung des Betreibers (16.08.2026): Ultra 79,99 €, High End 99,99 €.
+// Eine Quelle, in `shared/fiaon-pakete.ts`.
 //
 // ── WARUM DER PREIS NICHT AUS `amount_due` KOMMT ───────────────────────────
 // Gemessen am 11.08.2026: **63 bezahlte Kunden haben `amount_due IS NULL`**,
@@ -34,21 +33,31 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { PAKET_PREISE_CENTS } from "@shared/fiaon-pakete";
 
 type Lauf = typeof sqlPool;
 
-/** Der Monatspreis je Paket, in Cent. */
-export const PAKET_PREIS_CENTS: Record<string, number> = {
-  start: 799,
-  pro: 5999,
-  highend: 7999,
-  ultra: 9999,
-  business_pro: 9999,
-  business_enterprise: 24999,
-};
+/**
+ * Der Monatspreis je Paket, in Cent.
+ *
+ * Nur noch ein Durchreichen an den Katalog. Der Export bleibt, damit
+ * bestehende Aufrufer nicht brechen — aber der Wert kommt von genau einer
+ * Stelle.
+ */
+export const PAKET_PREIS_CENTS: Record<string, number> = PAKET_PREISE_CENTS;
 
-/** Wie viele Tage liegen zwischen zwei Raten? */
-export const ZYKLUS_TAGE = 30;
+/**
+ * Der Zyklus ist KEINE Tageszahl mehr.
+ *
+ * Er ist der monatliche Jahrestag des Buchungstags und wird in
+ * `server/lib/fiaon-abo-zyklus.ts` gerechnet. Die alte Konstante `ZYKLUS_TAGE`
+ * (30) ist absichtlich entfernt: Wer sie noch importiert, soll es beim
+ * Typcheck merken und nicht in einem stillen Rechenfehler.
+ */
+export { faelligkeit as aboFaelligkeit } from "./fiaon-abo-zyklus";
+
+import { ankerTag, faelligkeit, zyklenBis } from "./fiaon-abo-zyklus";
+import { berlinToday } from "./fiaon-time";
 
 /**
  * Ist das eine SCHUFA-Bestellung — also OHNE Abo?
@@ -112,7 +121,8 @@ export async function fehlendeAbos(lauf: Lauf = sqlPool): Promise<FehlendeAbo[]>
            TRIM(COALESCE(a.first_name, '') || ' ' || COALESCE(a.last_name, '')) AS name,
            (SELECT MIN(t.booked_at)::date FROM fiaon_bank_txns t
              WHERE t.matched_ref = a.ref AND t.applied) AS bank_tag,
-           a.created_at::date AS anlage_tag
+           a.paid_at::date AS verbucht_tag,
+           a.completed_at::date AS anlage_tag
     FROM fiaon_applications a
     WHERE a.payment_status = 'paid'
       AND a.merged_into IS NULL
@@ -124,17 +134,20 @@ export async function fehlendeAbos(lauf: Lauf = sqlPool): Promise<FehlendeAbo[]>
       -- der mich 63 Kunden gekostet hat. Deshalb COALESCE.
       AND NOT COALESCE(${SCHUFA_SQL}, FALSE)
       AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref)
-    ORDER BY COALESCE(
+    ORDER BY COALESCE(a.paid_at::date,
       (SELECT MIN(t.booked_at)::date FROM fiaon_bank_txns t
-        WHERE t.matched_ref = a.ref AND t.applied), a.created_at::date)
+        WHERE t.matched_ref = a.ref AND t.applied), a.completed_at::date)
   `)) as any[];
 
-  const heute = new Date();
-  heute.setHours(0, 0, 0, 0);
+  const heute = berlinToday();
 
-  return zeilen.map((z) => {
-    const startDatum: Date = new Date(z.bank_tag ?? z.anlage_tag);
-    startDatum.setHours(0, 0, 0, 0);
+  return zeilen.flatMap((z) => {
+    // Der Anker in derselben Rangfolge wie überall: Verbuchung, dann
+    // Bankbuchung, dann Antragsabschluss. `created_at` steht bewusst NICHT
+    // mehr dabei — der Tag, an dem jemand ein Formular geöffnet hat, ist kein
+    // Zahlungstag, und er hat Kunden um Wochen verschoben.
+    const start = ankerTag(z.verbucht_tag) ?? ankerTag(z.bank_tag) ?? ankerTag(z.anlage_tag);
+    if (!start) return [];
 
     // Der Betrag: erst das Paket, dann der Bestellbetrag, dann nichts.
     const ausPaket = z.pack_key ? PAKET_PREIS_CENTS[String(z.pack_key)] : undefined;
@@ -160,35 +173,49 @@ export async function fehlendeAbos(lauf: Lauf = sqlPool): Promise<FehlendeAbo[]>
       : null;
 
     // Wie viele Raten wären seit dem Start fällig geworden? Die erste liegt
-    // einen Zyklus NACH der Verbuchung: Am Tag der Verbuchung hat er gezahlt.
-    const tageSeitStart = Math.floor((heute.getTime() - startDatum.getTime()) / 86_400_000);
-    const ratenFaellig = Math.max(0, Math.floor(tageSeitStart / ZYKLUS_TAGE));
+    // einen Monat NACH der Verbuchung: Am Tag der Verbuchung hat er gezahlt.
+    const ratenFaellig = zyklenBis(start, heute);
 
-    return {
+    return [{
       ref: String(z.ref),
       personId: z.person_id != null ? Number(z.person_id) : null,
       name: String(z.name).trim() || "Ohne Namen",
       packKey: z.pack_key ?? null,
       packName: z.pack_name ?? null,
-      start: startDatum.toISOString().slice(0, 10),
+      start,
       ausBank: z.bank_tag != null,
       betragCents,
       ratenFaellig,
       ratenUeberfaellig: ratenFaellig,
       zahlungsreferenz,
       problem,
-    };
+    }];
   });
 }
 
 /**
  * Die fehlenden Raten anlegen.
  *
- * ── WIE VIELE RATEN? ───────────────────────────────────────────────────────
- * Alle, die seit der Verbuchung fällig geworden sind, PLUS die nächste. Wer
- * im Juni verbucht wurde, hat im Juli und August je eine Rate — beide
- * überfällig, beide gehören ins Forderungsmanagement. Nur die nächste
- * anzulegen würde die Vergangenheit unter den Teppich kehren.
+ * ── WIE VIELE RATEN? GENAU EINE ────────────────────────────────────────────
+ * Die NÄCHSTE Fälligkeit. Nicht mehr.
+ *
+ * Hier stand bis zum 16.08.2026 „alle seit der Verbuchung fälligen plus die
+ * nächste", mit der Begründung, sonst kehre man die Vergangenheit unter den
+ * Teppich. Das Ergebnis stand dann im Forderungsmanagement:
+ *
+ *   Peter Zußner, person_id 3417, zwei bezahlte Pro-Bestellungen,
+ *   je DREI offene Raten auf Mahnstufe 1 — für Monate, in denen ihm nie
+ *   jemand eine Rechnung geschickt hat.
+ *
+ * Genau das meldete das Team als „Mahnung, ohne je eine Rate gezahlt zu
+ * haben". Es war keine Zahlungsverweigerung, es war unsere Buchhaltung.
+ *
+ * Für einen Monat, in dem keine Rechnung rausging, kann man niemanden mahnen.
+ * Rechnungen entstehen ab jetzt AM FÄLLIGKEITSTAG durch den Tageslauf — dann
+ * mit Mail, und deshalb mahnbar.
+ *
+ * `rueckwirkend: true` legt die verstrichenen Monate trotzdem an. Das ist eine
+ * bewusste Entscheidung des Betreibers und bekommt eine Notiz an der Rate.
  *
  * ── OHNE `schreiben` PASSIERT NICHTS ───────────────────────────────────────
  * Angelegte Raten lösen Mahnungen aus und stellen Kunden ins
@@ -196,7 +223,8 @@ export async function fehlendeAbos(lauf: Lauf = sqlPool): Promise<FehlendeAbo[]>
  * was passieren WÜRDE.
  */
 export async function abosNachtragen(
-  opts: { schreiben?: boolean; nurRef?: string | null } = {}, lauf: Lauf = sqlPool,
+  opts: { schreiben?: boolean; nurRef?: string | null; rueckwirkend?: boolean } = {},
+  lauf: Lauf = sqlPool,
 ): Promise<{
   kandidaten: FehlendeAbo[];
   angelegt: number;
@@ -209,14 +237,17 @@ export async function abosNachtragen(
   const machbar = kandidaten.filter((k) => !k.problem && k.betragCents > 0);
   const uebersprungen = kandidaten.filter((k) => k.problem || k.betragCents === 0);
 
-  const ratenGesamt = machbar.reduce((s, k) => s + k.ratenFaellig + 1, 0);
+  // Eine Rate je Kunde — außer der Betreiber will die Vergangenheit.
+  const ratenJe = (k: FehlendeAbo) => (opts.rueckwirkend ? Math.max(1, k.ratenFaellig) : 1);
+  const ratenGesamt = machbar.reduce((s, k) => s + ratenJe(k), 0);
 
   if (!opts.schreiben) {
     return {
       kandidaten, angelegt: 0, ratenGesamt, uebersprungen,
       hinweis: kandidaten.length === 0
         ? "Jeder abopflichtige Kunde hat Raten. Nichts nachzutragen."
-        : `${machbar.length} Kunden bekommen zusammen ${ratenGesamt} Raten. `
+        : `${machbar.length} Kunden bekommen zusammen ${ratenGesamt} Raten `
+          + `(${opts.rueckwirkend ? "rückwirkend, sofort überfällig" : "nur die nächste Fälligkeit"}). `
           + `${uebersprungen.length} übersprungen (kein ableitbarer Betrag). `
           + "Das ist die Vorschau — es wurde nichts angelegt.",
     };
@@ -224,19 +255,24 @@ export async function abosNachtragen(
 
   let angelegt = 0;
   for (const k of machbar) {
-    const start = new Date(`${k.start}T00:00:00Z`);
-    // Alle fälligen plus die nächste.
-    for (let i = 1; i <= k.ratenFaellig + 1; i++) {
-      const faellig = new Date(start.getTime() + i * ZYKLUS_TAGE * 86_400_000);
+    // Welche Zyklusnummern werden angelegt? Ohne `rueckwirkend` genau eine:
+    // die nächste, die noch nicht verstrichen ist.
+    const von = opts.rueckwirkend ? 1 : k.ratenFaellig + 1;
+    const bis = opts.rueckwirkend ? Math.max(1, k.ratenFaellig) : k.ratenFaellig + 1;
+    for (let i = von; i <= bis; i++) {
       // Dasselbe Muster wie die bestehenden Raten: Rate 1 ohne Zusatz,
       // ab Rate 2 mit „-N". Danach erkennt die Bankzuordnung, welche Rate
       // gezahlt wurde.
       const zr = i === 1 ? k.zahlungsreferenz : `${k.zahlungsreferenz}-${i}`;
       await lauf`
         INSERT INTO fiaon_abo_raten
-          (ref, rate_nr, betrag_cents, faellig_am, status, zahlungsreferenz, created_at)
+          (ref, rate_nr, betrag_cents, faellig_am, status, zahlungsreferenz, quelle, notiz, created_at)
         VALUES (${k.ref}, ${i}, ${k.betragCents},
-                ${faellig.toISOString().slice(0, 10)}::date, 'offen', ${zr}, NOW())
+                ${faelligkeit(k.start, i)}::date, 'offen', ${zr}, 'nachgezogen',
+                ${opts.rueckwirkend
+                  ? "Bestandsaufnahme, rückwirkend angelegt — für diesen Monat ging nie eine Rechnung raus"
+                  : "Bestandsaufnahme (nächste Fälligkeit)"},
+                NOW())
         ON CONFLICT DO NOTHING
       `;
     }

@@ -83,11 +83,41 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
   /** Rate, für die der Buchen-Dialog offen ist. */
   const [buchen, setBuchen] = useState<AboRate | null>(null);
 
+  // ── DER MOTOR MUSS SICHTBAR ARBEITEN ──────────────────────────────────
+  // Ein Automatismus, von dem man nur erfährt, wenn er versagt, wird nicht
+  // geglaubt. Beim ersten Zweifel fängt jemand an, Rechnungen von Hand zu
+  // schicken — und dann bekommt der Kunde zwei.
+  const [motor, setMotor] = useState<any>(null);
+  const [motorLaeuft, setMotorLaeuft] = useState(false);
+
   const ladeUebersicht = useCallback(async () => {
-    const r = await fetch("/api/fiaon/admin/abo/uebersicht", { credentials: "include" })
-      .then((x) => x.json()).catch(() => null);
+    const [r, m] = await Promise.all([
+      fetch("/api/fiaon/admin/abo/uebersicht", { credentials: "include" })
+        .then((x) => x.json()).catch(() => null),
+      fetch("/api/fiaon/admin/abo/motor/heute", { credentials: "include" })
+        .then((x) => x.json()).catch(() => null),
+    ]);
     if (r?.ok) setU(r);
+    if (m?.ok) setMotor(m);
   }, []);
+
+  /** Den Tageslauf von Hand anstoßen. Idempotent — ein zweiter Klick erzeugt nichts. */
+  const tageslauf = async () => {
+    if (!confirm(
+      "Tageslauf jetzt ausführen?\n\n"
+      + "· Heute fällige Raten werden angelegt (falls noch nicht vorhanden)\n"
+      + "· Die Monatsrechnungen gehen raus\n"
+      + "· Gestern fällige, unbezahlte Raten werden überfällig und dem Forderungsmanagement zugeteilt\n\n"
+      + "Der Lauf ist idempotent: Ein zweiter Klick erzeugt keine zweite Rechnung.",
+    )) return;
+    setMotorLaeuft(true);
+    try {
+      const res = await fetch("/api/fiaon/admin/abo/tageslauf", { method: "POST", credentials: "include" });
+      const j = await res.json().catch(() => null);
+      if (res.ok && j?.ok) { onMeldung(j.meldung); await ladeUebersicht(); }
+      else onMeldung(j?.error || `Fehler: ${res.status}`);
+    } finally { setMotorLaeuft(false); }
+  };
 
   const ladeRaten = useCallback(async (a: Art) => {
     setLaedt(true);
@@ -232,7 +262,7 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
           <h2 className="text-[14px] font-bold text-slate-900">Abo — monatliche Paketrate</h2>
           <ChevronRight size={14} className={`text-slate-400 transition-transform ${offen ? "rotate-90" : ""}`} />
         </button>
-        <Tip text={`Jeder Kunde zahlt sein Paket monatlich. Fällig ist er ${u?.zyklusTage || 30} Tage nach dem Tag, an dem seine Zahlung als bezahlt gebucht wurde, danach im gleichen Abstand. Der Bonitäts-Check (74 €) ist ein Einmalkauf und erzeugt keine Rate. Jede Rate hat ihre eigene Referenz (Bestellreferenz + „-Ratennummer“) — nur damit lässt sich eine Überweisung eindeutig zuordnen.`} />
+        <Tip text={`Jeder Kunde mit einem Paket hat ein Abo. Fällig ist die Rate am monatlichen JAHRESTAG des Buchungstags: gebucht am 05.07. heißt fällig am 05.08., 05.09. und so weiter. Monate ohne diesen Tag (der 31.) werden auf den letzten Monatstag gekappt, der Anker bleibt der 31. Der Bonitäts-Check (74 €) ist ein Einmalkauf und erzeugt NIE eine Rate. Jede Rate hat ihre eigene Referenz (Bestellreferenz + „-Ratennummer“) — nur damit lässt sich eine Überweisung eindeutig zuordnen.`} />
         <span className="ml-auto flex items-center gap-2 shrink-0">
           {u && !u.motorAktiv && (
             <span className="px-1.5 py-0.5 rounded-md text-[10.5px] font-bold" style={{ background: "rgba(217,119,6,.1)", color: "#b45309" }}>
@@ -270,6 +300,45 @@ export default function AboTafel({ onMeldung }: { onMeldung: (text: string) => v
             ))}
             {!u && <p className="text-[13px] text-slate-400 col-span-full">Wird geladen …</p>}
           </div>
+
+          {/* ══════════════════════════════════════════════════════════════
+              ABO-MOTOR — WAS HAT ER HEUTE GETAN?
+              Nicht „läuft" oder „läuft nicht", sondern Zahlen des Tages.
+              ══════════════════════════════════════════════════════════ */}
+          {motor && (
+            <div className="mx-3.5 sm:mx-4 mb-3.5 rounded-xl border px-4 py-3"
+                 style={{ borderColor: "var(--a3-linie,#e4e9f2)", background: "var(--fi-flaeche-akzent,#f8faff)" }}>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <p className="text-[13px] font-bold text-slate-900">
+                  Abo-Motor: heute {motor.rechnungenVersandt} Rechnung(en) versandt,
+                  {" "}{motor.ueberfaelligGeworden} überfällig geworden
+                </p>
+                <Tip text={"Der Tageslauf legt am Fälligkeitstag die Rate an, verschickt die Monatsrechnung "
+                  + "über den Make-Zweig abo_payment_reminder und stellt am Tag danach unbezahlte Raten ins "
+                  + "Forderungsmanagement. Er läuft stündlich und ist idempotent — ein zweiter Lauf erzeugt nichts."} />
+                <button type="button" onClick={() => void tageslauf()} disabled={motorLaeuft}
+                        className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border bg-white text-[11.5px] font-semibold text-slate-600 disabled:opacity-50"
+                        style={{ borderColor: "var(--a3-linie,#e4e9f2)" }}>
+                  {motorLaeuft ? "Läuft …" : "Tageslauf jetzt"}
+                </button>
+              </div>
+              <p className="mt-1 text-[11.5px] text-slate-500">
+                {motor.ratenErzeugt} Rate(n) heute angelegt · {motor.faelligHeute} heute fällig
+                {motor.vorabVersandt > 0 && ` · ${motor.vorabVersandt} Vorabinfo(s)`}
+                {motor.vorabTage > 0
+                  ? ` · Vorab-Erinnerung ${motor.vorabTage} Tage vorher`
+                  : " · Vorab-Erinnerung abgeschaltet"}
+                {!motor.motorAktiv && " · MOTOR AUS"}
+                {!motor.imFenster && " · außerhalb des Versandfensters"}
+              </p>
+              {motor.zustellfehler > 0 && (
+                <p className="mt-1 text-[11.5px] font-semibold" style={{ color: "#b45309" }}>
+                  {motor.zustellfehler} Rate(n) mit Zustellfehler — diese Kunden haben KEINE Mail bekommen,
+                  ihre Mahnstufe steht bewusst still.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Kein „Ketten anlegen"-Knopf mehr: Wer ein Paket kauft, HAT ein Abo —
               das ist die Regel des Geschäfts und keine Einzelfallentscheidung.

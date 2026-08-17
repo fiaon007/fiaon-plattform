@@ -19,6 +19,9 @@ import { alleTrefferIds, filterZahlen, kundenListe, type Filter } from "../lib/f
 import { ausfuehren, vorschau } from "../lib/fiaon-loeschen";
 import { alsTestMarkieren, testMarkierungAufheben } from "../lib/fiaon-testerkennung";
 import { agentMitKleinsterLast } from "../lib/fiaon-zuteilung";
+import {
+  echteMitarbeiterSql, nurTestkontenSql, testkontenZaehlen,
+} from "../lib/fiaon-mitarbeiter-sicht";
 
 const router = Router();
 
@@ -233,6 +236,35 @@ router.get("/admin/zentrale/kunden/export", async (req: Request, res: Response) 
 /** GET /admin/zentrale/team — Übersicht mit Kennzahlen je Mitarbeiter. */
 router.get("/admin/zentrale/team", async (_req: Request, res: Response) => {
   try {
+    // ══════════════════════════════════════════════════════════════════════
+    // DAS TEAM-BILD ZEIGT MENSCHEN, KEINE WERKZEUGE
+    //
+    // ── DER BEFUND (17.08.2026, Screenshot des Betreibers) ────────────────
+    // Diese Route speist die Team-Zentrale. Sie holte ALLE Konten.
+    // GEMESSEN: 49 Mitarbeiter-Konten, davon **43 Testkonten** aus
+    // Prüfständen und Knopf-Durchgängen — und 6 echte Menschen. Der Betreiber
+    // sah 11 Karten und musste seine Leute dazwischen suchen.
+    //
+    // Die Testkonten habe ich selbst angelegt: Jeder Browser-Prüfstand braucht
+    // eine Anmeldung, und er darf keine echte benutzen. Sie waren stillgelegt
+    // und markiert — hier wurde nur nie danach gefragt.
+    //
+    // `ORDER BY … is_test_account ASC` schob sie nach unten. Sortieren ist
+    // keine Grenze: Sie standen weiter da, und jede Zahl zählte sie mit.
+    // ══════════════════════════════════════════════════════════════════════
+    // ── EIN TEXTBAUSTEIN, KEIN sqlPool.unsafe() ───────────────────────────
+    // Die Abfrage unten läuft selbst über `sqlPool.unsafe(...)` — sie ist ein
+    // NORMALES Template-Literal, in dem ${…} als Text eingesetzt wird. Hier
+    // stand `sqlPool.unsafe(...)`; das ergibt ein Objekt, und im SQL landete
+    // „[object Object]". Die Route antwortete mit 500, und die Team-Zentrale
+    // zeigte keine einzige Mitarbeiterkarte.
+    //
+    // Genau dieser Fehler steht zwanzig Zeilen weiter oben schon einmal
+    // beschrieben — ich habe ihn trotzdem wiederholt. Gefunden hat es der
+    // Screenshot: leere Fläche unter der Wirtschaftlichkeits-Leiste. Typcheck
+    // und esbuild waren grün, denn es ist weder ein Typ- noch ein Syntaxfehler.
+    const nurTest = String((_req.query as any)?.test ?? "") === "1";
+    const kontenGrenze = nurTest ? nurTestkontenSql() : echteMitarbeiterSql();
     // EINE Abfrage für alle Kennzahlen. Zwölf Mitarbeiter × sechs
     // Einzelabfragen wären zweiundsiebzig Runden zur Datenbank.
     // ══════════════════════════════════════════════════════════════════════
@@ -298,10 +330,14 @@ router.get("/admin/zentrale/team", async (_req: Request, res: Response) => {
                WHERE c.agent_id = a.id AND c.status = 'ausgezahlt') AS ausgezahlt_cents,
              (SELECT MAX(cl.created_at) FROM fiaon_contact_log cl WHERE cl.agent_id = a.id) AS letzte_aktivitaet
       FROM fiaon_agents a
+      WHERE ${kontenGrenze}
       ORDER BY a.active DESC, a.is_test_account ASC, a.id
     `)) as any[];
     res.json({
       ok: true,
+      nurTest,
+      // Für den Filter-Knopf: Wie viele Testkonten gibt es überhaupt?
+      testkonten: await testkontenZaehlen(),
       team: zeilen.map((r) => ({
         ...r,
         erreichbarkeit: Number(r.anrufe30) > 0

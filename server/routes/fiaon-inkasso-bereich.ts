@@ -151,16 +151,27 @@ router.get("/inkasso/liste", requireAgent, async (req: AgentRequest, res: Respon
     const nurMeine = meine.alle > 0 ? req.agent!.id : null;
     const frist = String(req.query.frist || "") || null;
 
-    const [liste, zahlen, geld, fenster] = await Promise.all([
+    // ── EINE KARTE JE MENSCH ────────────────────────────────────────────
+    // `liste` (eine Zeile je Rate) bleibt in der Antwort: Die Ergebnis- und
+    // Zusage-Wege arbeiten weiter an der einzelnen Rate, und ein Umbau der
+    // Datenform wäre die Gelegenheit, dabei etwas zu verlieren. Neu ist
+    // `personen` — dieselben Raten, gruppiert.
+    const { arbeitslistePersonen } = await import("../lib/fiaon-inkasso");
+    const [liste, personen, zahlen, geld, fenster] = await Promise.all([
       arbeitsliste({ limit: Number(req.query.limit) || 60, nurMeine, frist }),
+      arbeitslistePersonen({ limit: Number(req.query.limit) || 60, nurMeine, frist }),
       kennzahlen(),
       verdienst(req.agent!.id),
       fristZaehler({ nurMeine }),
     ]);
     res.json({
-      ok: true, liste, zahlen, verdienst: geld, ergebnisse: RATEN_ERGEBNISSE,
+      ok: true, liste, personen, zahlen, verdienst: geld, ergebnisse: RATEN_ERGEBNISSE,
       heute: berlinToday(), fenster, frist,
       nurMeine: nurMeine !== null,
+      // Die Zahl, die der Betreiber im Teamfeedback gemeint hat: Wie viele
+      // Zeilen standen da, und wie viele Menschen sind es wirklich?
+      zeilen: liste.length,
+      menschen: personen.length,
     });
   } catch (err) {
     console.error("[INKASSO] liste:", err);

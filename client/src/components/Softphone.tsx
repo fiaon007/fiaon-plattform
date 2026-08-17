@@ -35,7 +35,11 @@ interface Stand {
 }
 
 /** Die Ergebnisse — Wortlaut wie in der Kundenliste, damit nichts auseinanderläuft. */
-const ERGEBNISSE: { art: string; label: string; braucht?: "zusage" | "termin" }[] = [
+const ERGEBNISSE: {
+  art: string; label: string; braucht?: "zusage" | "termin";
+  /** Notiz ist PFLICHT: Ohne sie sagt das Ergebnis dem nächsten Menschen nichts. */
+  notizPflicht?: boolean;
+}[] = [
   { art: "erreicht_zahlt_gleich", label: "Zahlt sofort" },
   { art: "erreicht_zahlt_am", label: "Zahlt am …", braucht: "zusage" },
   { art: "nicht_erreicht", label: "Nicht erreicht" },
@@ -44,7 +48,7 @@ const ERGEBNISSE: { art: string; label: string; braucht?: "zusage" | "termin" }[
   { art: "erreicht_abgelehnt", label: "Erreicht – abgelehnt" },
   // Erreicht, aber noch kein klares Ergebnis. Zaehlt als Gespraech, setzt
   // keine Zusage und keine Sperre — nur eine Wiedervorlage in drei Tagen.
-  { art: "erreicht_sonstiges", label: "Erreicht – Sonstiges" },
+  { art: "erreicht_sonstiges", label: "Erreicht – Sonstiges", notizPflicht: true },
   { art: "nummer_falsch", label: "Falsche Nummer" },
 ];
 
@@ -217,6 +221,14 @@ export function Softphone() {
   const [offen, setOffen] = useState(false);
   const [nummer, setNummer] = useState("");
   const [kunde, setKunde] = useState<{ personId: number; name: string } | null>(null);
+  // ── WEN RUFE ICH GLEICH AN? ─────────────────────────────────────────────
+  // Der Server beantwortet das anhand der GEWÄHLTEN NUMMER, nicht anhand der
+  // offenen Kundenkarte. Beides kann auseinandergehen: Wer eine Karte offen
+  // hat und nebenher eine andere Nummer eintippt, hätte sonst geglaubt, er
+  // ruft den Kunden auf der Karte an — und die Aufnahme landete dort.
+  const [wem, setWem] = useState<{
+    person: { id: number; name: string } | null; anzeige: string; mehrdeutig: boolean;
+  } | null>(null);
   // ── AUTO-ADVANCE ────────────────────────────────────────────────────────
   // Wen haben wir in dieser Sitzung schon dokumentiert? Ohne diese Liste
   // schlägt das Telefon denselben Menschen wieder vor — die Wiedervorlage
@@ -232,6 +244,13 @@ export function Softphone() {
   const [stumm, setStumm] = useState(false);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [datumFeld, setDatumFeld] = useState<"zusage" | "termin" | null>(null);
+  // ── DIE NOTIZ ZUM ERGEBNIS ──────────────────────────────────────────────
+  // Bei „Erreicht — Sonstiges" Pflicht (min. 10 Zeichen), bei allen anderen
+  // freiwillig. GEMESSEN: siebenmal im Panel gedrückt — es gab hier gar kein
+  // Feld dafür, und in der Akte stand nur „Sonstiges".
+  const [notiz, setNotiz] = useState("");
+  const [notizFuer, setNotizFuer] = useState<string | null>(null);
+  const [notizFehler, setNotizFehler] = useState<string | null>(null);
   const [tastenOffen, setTastenOffen] = useState(false);
   const [datum, setDatum] = useState("");
   // Kundensuche im Display — man wählt einen Menschen, nicht eine Nummer.
@@ -415,6 +434,36 @@ export function Softphone() {
     return () => wurzel.removeAttribute("data-gespraech");
   }, [zustand]);
 
+  // ── WEM GEHÖRT DIE GETIPPTE NUMMER? ───────────────────────────────────
+  // Fragt den Server, sobald die Nummer lang genug ist, um etwas zu bedeuten.
+  // 350 ms Verzögerung, damit nicht bei jedem Tastendruck eine Abfrage geht.
+  //
+  // ── WARUM DIESER HAKEN HIER OBEN STEHT ────────────────────────────────
+  // Er stand zuerst weiter unten, HINTER „if (!stand) return null". Der
+  // Browser meldete daraufhin „Rendered more hooks than during the previous
+  // render" und die halbe Verwaltung war weiß — sichtbar geworden erst auf
+  // dem Screenshot der Browser-Abnahme. React zählt Haken in jedem Durchlauf,
+  // und hinter einem Ausstieg werden es unterschiedlich viele.
+  //
+  // Dieselbe Falle steht ein paar Zeilen weiter unten schon einmal
+  // dokumentiert. Eine Regel, die man zweimal vergisst, gehört an die Stelle,
+  // an der man sie vergisst.
+  useEffect(() => {
+    const ziffern = nummer.replace(/\D/g, "");
+    if (ziffern.length < 7) { setWem(null); return; }
+    let abgebrochen = false;
+    const t = setTimeout(() => {
+      void fetch(`/api/fiaon/telefon/wem?nummer=${encodeURIComponent(nummer)}`, { credentials: "include" })
+        .then((r) => r.json())
+        .then((j) => {
+          if (abgebrochen || !j?.ok) return;
+          setWem({ person: j.person ?? null, anzeige: String(j.anzeige || ""), mehrdeutig: !!j.mehrdeutig });
+        })
+        .catch(() => {});
+    }, 350);
+    return () => { abgebrochen = true; clearTimeout(t); };
+  }, [nummer]);
+
   if (!stand) return null;
 
   const offeneAnzahl = stand.offene?.length ?? 0;
@@ -523,6 +572,9 @@ export function Softphone() {
   const waehlen = async () => {
     setMeldung(null);
     setZustand("waehlt");
+    // `personId` ist nur noch ein VORSCHLAG aus der offenen Karte. Der Server
+    // entscheidet anhand der gewählten Nummer und schickt in `anruftPerson`
+    // zurück, wem der Anruf wirklich gehört.
     const r = await fetch("/api/fiaon/telefon/ausweis", {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ nummer, personId: kunde?.personId ?? null }),
@@ -546,6 +598,15 @@ export function Softphone() {
     setSekunden(0);
     setOhneAufnahme(false);
     codeGesehen.current = false;
+    // Die Wahrheit über den Anruf kommt vom Server: Er folgt der gewählten
+    // Nummer. Weicht sie von der offenen Karte ab, wird die Anzeige HIER
+    // korrigiert — sonst stünde während des Gesprächs ein falscher Name.
+    if (j.anruftPerson) {
+      setKunde({ personId: Number(j.anruftPerson.id), name: String(j.anruftPerson.name) });
+    } else if (j.zuordnungPflicht) {
+      setKunde(null);
+      setMeldung("Unbekannte Nummer — bitte im Ergebnis-Schritt zuordnen, zu wem dieser Anruf gehört.");
+    }
 
     // ── Das Browser-SDK ──────────────────────────────────────────────────
     // NACHGELADEN, nicht importiert: Das Paket bringt rund 300 KB mit. Wer
@@ -777,13 +838,22 @@ export function Softphone() {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ergebnis: art,
+        notiz: notiz.trim() || null,
         zusageDatum: datumFeld === "zusage" ? datum : null,
         terminDatum: datumFeld === "termin" ? datum : null,
       }),
     }).catch(() => null);
     const j = await r?.json().catch(() => null);
+    // Verlangt der Server eine Notiz, bleibt das Feld offen und sagt warum —
+    // statt das Ergebnis stillschweigend zu verwerfen.
+    if (j?.brauchtNotiz) {
+      setNotizFuer(art);
+      setNotizFehler(j.error || "Bitte eine Notiz eintragen.");
+      return;
+    }
     setMeldung(j?.meldung || j?.error || null);
     setDatumFeld(null); setDatum("");
+    setNotiz(""); setNotizFuer(null); setNotizFehler(null);
     if (!j?.ok) return;
 
     setCallId(null);
@@ -1136,6 +1206,20 @@ export function Softphone() {
         {kunde && <p className="fi-tel-kunde">{kunde.name}</p>}
 
         {/* ══════════════════════════════════════════════════════════════════
+            „DU RUFST [NAME] AN" — VOR DEM WÄHLEN
+            Der Satz steht hier und nicht in einer Meldung nach dem Verbinden.
+            Eine Warnung, die kommt, wenn es schon klingelt, ist keine.
+            Grün: bekannte Nummer. Gelb: unbekannt — dann muss die Zuordnung
+            im Ergebnis-Schritt nachgeholt werden.
+            ══════════════════════════════════════════════════════════════ */}
+        {wem && zustand === "bereit" && (
+          <p className="fi-tel-wem" data-unbekannt={wem.person ? undefined : "ja"}
+             data-mehrdeutig={wem.mehrdeutig ? "ja" : undefined}>
+            {wem.anzeige}
+          </p>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
             DAS MIKROFON — UNABHÄNGIG VON ALLEM ANDEREN
             Der Knopf stand zuerst INNERHALB des Wähl-Bereichs und war damit
             nur sichtbar, wenn Twilio eingerichtet ist. Zwei Fehler darin:
@@ -1405,18 +1489,53 @@ export function Softphone() {
               <input type="date" value={datum} onChange={(e) => setDatum(e.target.value)}
                      aria-label="Datum" className="fi-tel-datum" />
             )}
+            {/* ── DAS NOTIZFELD ──────────────────────────────────────────
+                Es erscheint, sobald ein Ergebnis eine Notiz braucht — oder
+                wenn der Mensch es selbst aufklappt. Der Text landet im
+                Verlauf der Akte UND am Anruf neben der Aufnahme. */}
+            {notizFuer && (
+              <div style={{ marginBottom: 10 }}>
+                <textarea value={notiz} onChange={(e) => { setNotiz(e.target.value); setNotizFehler(null); }}
+                          rows={3} autoFocus
+                          placeholder="Was wurde besprochen oder vereinbart?"
+                          aria-label="Notiz zum Ergebnis"
+                          className="fi-tel-notiz" />
+                <p className="fi-tel-notiz-fuss" data-fehler={notizFehler ? "ja" : undefined}>
+                  {notizFehler
+                    ?? (ERGEBNISSE.find((e) => e.art === notizFuer)?.notizPflicht
+                      ? `Pflicht — noch ${Math.max(0, 10 - notiz.trim().length)} Zeichen`
+                      : "Freiwillig. Steht danach im Verlauf der Akte.")}
+                </p>
+              </div>
+            )}
             <div className="fi-tel-ergebnisse">
               {ERGEBNISSE.map((e) => (
                 <button key={e.art} type="button"
                         onClick={() => {
                           if (e.braucht && datumFeld !== e.braucht) { setDatumFeld(e.braucht); return; }
+                          // Pflicht-Notiz: erst das Feld zeigen, dann senden.
+                          if (e.notizPflicht && notiz.trim().length < 10) {
+                            setNotizFuer(e.art);
+                            setNotizFehler(notiz.trim().length > 0
+                              ? "Noch etwas ausführlicher, bitte (mindestens 10 Zeichen)."
+                              : null);
+                            return;
+                          }
                           void dokumentieren(e.art);
                         }}
-                        className="fi-tel-ergebnis">
+                        className="fi-tel-ergebnis"
+                        data-pflicht={e.notizPflicht ? "ja" : undefined}>
                   {e.label}
                 </button>
               ))}
             </div>
+            {/* Freiwillige Notiz zu JEDEM anderen Ergebnis. */}
+            {!notizFuer && (
+              <button type="button" onClick={() => setNotizFuer("frei")}
+                      className="fi-tel-notiz-auf">
+                Notiz hinzufügen
+              </button>
+            )}
           </>
         )}
 
@@ -1686,9 +1805,41 @@ const TELEFON_CSS = `
   font-variant-numeric: tabular-nums;
 }
 
+.fi-tel-notiz {
+  width: 100%; border-radius: 10px; padding: 9px 11px; font-size: 13px; line-height: 1.5;
+  color: #eef3fb; background: rgba(255,255,255,.06); border: 0; outline: none; resize: vertical;
+  box-shadow: inset 0 0 0 1px rgba(191,214,247,.18);
+}
+.fi-tel-notiz:focus { box-shadow: inset 0 0 0 1px rgba(120,170,240,.42); }
+.fi-tel-notiz-fuss {
+  margin: 5px 0 0; font-size: 11px; color: rgba(191,214,247,.62);
+}
+.fi-tel-notiz-fuss[data-fehler="ja"] { color: #f3b9b9; font-weight: 600; }
+.fi-tel-notiz-auf {
+  margin-top: 10px; font-size: 11.5px; font-weight: 600; color: rgba(191,214,247,.72);
+  background: none; border: 0; text-decoration: underline; text-underline-offset: 2px;
+}
+.fi-tel-ergebnis[data-pflicht="ja"]::after {
+  content: "·"; margin-left: 5px; color: rgba(240,220,180,.9);
+}
 .fi-tel-kunde {
   text-align: center; font-size: 15px; font-weight: 700; color: #eef3fb;
   margin: 0 0 12px; letter-spacing: -.01em;
+}
+/* „Du rufst [Name] an." — die Auskunft, wem die Nummer gehört. */
+.fi-tel-wem {
+  text-align: center; font-size: 12.5px; font-weight: 600; margin: 0 0 12px;
+  padding: 7px 10px; border-radius: 9px; line-height: 1.35;
+  color: #bfe3c8; background: rgba(48,132,74,.16);
+  box-shadow: inset 0 0 0 1px rgba(120,200,150,.24);
+}
+.fi-tel-wem[data-unbekannt="ja"] {
+  color: #f0dcb4; background: rgba(160,120,30,.18);
+  box-shadow: inset 0 0 0 1px rgba(220,180,90,.26);
+}
+.fi-tel-wem[data-mehrdeutig="ja"] {
+  color: #f3cfcf; background: rgba(150,50,50,.18);
+  box-shadow: inset 0 0 0 1px rgba(220,120,120,.28);
 }
 .fi-tel-anzeige {
   width: 100%; text-align: center; border: 0; outline: none; background: none;

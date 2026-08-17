@@ -247,6 +247,19 @@ export default function AdminKundeAktePage() {
   const reactivate = () => {
     act("react", () => api(`/admin/payments/${encodeURIComponent(payRef)}/reactivate`, {}), "✓ Reaktiviert — neue 7-Tage-Frist, Zahlungsdaten-Mail erneut versendet.");
   };
+  // Der Abo-Zyklus dieser Bestellung — eigener Aufruf, weil er nicht zu den
+  // Stammdaten gehört und die Akte auch ohne ihn vollständig ist.
+  const [zyklus, setZyklus] = useState<any>(null);
+  useEffect(() => {
+    if (!ref) { setZyklus(null); return; }
+    let weg = false;
+    void fetch(`/api/fiaon/admin/abo/${encodeURIComponent(ref)}/zyklus`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => { if (!weg && j?.ok) setZyklus(j); })
+      .catch(() => {});
+    return () => { weg = true; };
+  }, [ref]);
+
   const saveStammdaten = (field: string) => async (v: string): Promise<string | null> => {
     const r = await api(`/admin/kunden/${encodeURIComponent(ref)}/stammdaten`, { [field]: v });
     if (!r.ok) return r.json?.error || "Fehler";
@@ -435,6 +448,40 @@ export default function AdminKundeAktePage() {
         </div>
 
         <div className="grid lg:grid-cols-2 gap-4">
+          {/* ══════════════════════════════════════════════════════════════
+              DER ABO-ZYKLUS IM KLARTEXT
+
+              „Abo aktiv seit 05.07. · nächste Rate 05.09. · Rechnung geht
+              automatisch raus."
+
+              Der Satz kommt vom Server (server/lib/fiaon-abo-zyklus.ts) und
+              steht wortgleich auf der Inkasso-Karte. Wer ihn hier liest und
+              am Telefon vorliest, sagt dasselbe wie der Kollege im
+              Forderungsmanagement — und dasselbe, was der Kunde in seiner
+              Rechnung sieht.
+              ══════════════════════════════════════════════════════════ */}
+          {zyklus?.text && (
+            <div className="lg:col-span-2 rounded-xl border bg-white px-4 py-3"
+                 style={{ borderColor: "var(--a3-linie,#e4e9f2)" }}>
+              <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Abo</p>
+              <p className="mt-1 text-[13px] font-semibold text-slate-800">{zyklus.text}</p>
+              {zyklus.offeneRate && (
+                <p className="mt-1 text-[11.5px] text-slate-500">
+                  Offen: {(Number(zyklus.offeneRate.betragCents) / 100).toFixed(2).replace(".", ",")} €
+                  {" · fällig "}{zyklus.offeneRate.faelligAm}
+                  {" · Verwendungszweck "}
+                  <span className="fi-ak-mono">{zyklus.offeneRate.verwendungszweck}</span>
+                </p>
+              )}
+              {zyklus.anker == null && (
+                <p className="mt-1 text-[11.5px]" style={{ color: "#b45309" }}>
+                  Ohne Buchungstag lässt sich keine Fälligkeit berechnen. Zahlung über die
+                  Verbuchung buchen, dann entsteht der Zyklus von selbst.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* ── STAMMDATEN ── */}
           {app ? (
             <Section title="Stammdaten — alles editierbar, alles mit Audit" icon={User}>
@@ -520,7 +567,7 @@ export default function AdminKundeAktePage() {
                 <p className="text-[12.5px] text-slate-500">Direktzahler — keine Provision (keine dokumentierte Betreuung vor Zahlung).</p>
               ) : app?.paymentStatus === "paid" ? (
                 <p className="text-[12.5px] text-amber-700">
-                  Bezahlt, aber keine Provision gebucht — <a href="/admin/nachbuchung" className="font-semibold text-[#2563eb] hover:underline">im Nachbuchungs-Center prüfen</a>.
+                  Bezahlt, aber keine Provision gebucht — <a href="/admin/team?tab=nachbuchung" className="font-semibold text-[#2563eb] hover:underline">im Nachbuchungs-Center prüfen</a>.
                 </p>
               ) : (
                 <p className="text-[12.5px] text-slate-400">Noch keine Provision (Bestellung nicht bezahlt).</p>

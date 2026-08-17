@@ -18,7 +18,7 @@ import {
 import { dokumentInhalt, dokumentStand, istDokumentArt } from "../lib/fiaon-dokumente";
 import { gespraechsblatt } from "../lib/fiaon-gespraechsblatt";
 import { anrufNachbereiten } from "../lib/fiaon-transkript";
-import { ergebnisAnwenden, istErgebnis } from "../lib/fiaon-kontakt-ergebnis";
+import { ergebnisNachbereiten, istErgebnis } from "../lib/fiaon-kontakt-ergebnis";
 import { absoluteUrl } from "../fiaon-base-url";
 
 const router = Router();
@@ -87,6 +87,41 @@ router.get("/admin/telefon/einrichtung", async (_req: Request, res: Response) =>
     res.json({ ok: true, ...einrichtungsStand(), ansage: await ansageText(), maxMinuten: MAX_MINUTEN });
   } catch (err) {
     console.error("[TELEFON] einrichtung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * GET /telefon/wem?nummer=… — „Du rufst [Name] an", VOR dem Wählen.
+ *
+ * Der Mensch muss sehen, wen er gleich am Apparat hat, BEVOR er drückt. Eine
+ * Warnung nach dem Verbinden ist keine Warnung, sondern ein Protokoll.
+ *
+ * Absichtlich sparsam: Nur Name und ob die Nummer bekannt ist. Wer eine
+ * fremde Nummer eintippt, soll nicht die halbe Akte eines Menschen sehen, zu
+ * dem er keinen Auftrag hat.
+ */
+router.get("/telefon/wem", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const roh = String(req.query.nummer || "");
+    const { wahlPruefen } = await import("../lib/fiaon-softphone");
+    const pruefung = await wahlPruefen(roh);
+    if (!pruefung.nummer) {
+      return res.json({ ok: true, nummer: null, person: null, anzeige: "Noch keine gültige Rufnummer." });
+    }
+    const { personZurNummer } = await import("../lib/fiaon-anruf-zuordnung");
+    const z = await personZurNummer(pruefung.nummer);
+    res.json({
+      ok: true,
+      nummer: pruefung.nummer,
+      waehlbar: pruefung.erlaubt,
+      grund: pruefung.grund,
+      person: z.person ? { id: z.person.personId, name: z.person.name } : null,
+      mehrdeutig: z.mehrdeutig,
+      anzeige: z.anzeige,
+    });
+  } catch (err) {
+    console.error("[TELEFON] wem:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -166,8 +201,41 @@ router.post("/telefon/ausweis", requireAgent, async (req: AgentRequest, res: Res
     }
     const pruefung = await wahlPruefen(nummerRoh);
     if (!pruefung.erlaubt) return ablehnen(pruefung.grund!, 400);
-    if (personId && !(await darfAnKunde(req.agent!.id, rolle, personId))) {
+
+    // ══════════════════════════════════════════════════════════════════════
+    // DER ANRUF FOLGT DER GEWÄHLTEN NUMMER — NICHT DER OFFENEN KARTE
+    //
+    // ── DER BEFUND (16.08.2026) ───────────────────────────────────────────
+    // Team: „Mehrfach ‚Diana — Mailbox gesprochen', aber die Aufnahme gehört
+    // zu einer komplett anderen Person."
+    //
+    // Hier stand ausschließlich `req.body.personId` — also das, was in der
+    // Oberfläche gerade als Kundenkarte offen war. Wer eine Karte offen
+    // hatte und eine fremde Nummer eintippte, hängte Aufnahme, Transkript
+    // und KI-Notiz an die falsche Akte. Ein Datenschutzproblem, kein
+    // Anzeigefehler.
+    //
+    // Jetzt entscheidet die Nummer. Die Karte ist nur noch ein Vorschlag,
+    // dem widersprochen werden darf — und der Widerspruch steht im
+    // Wahlprotokoll, damit man sieht, wie oft nebenher gewählt wird.
+    // ══════════════════════════════════════════════════════════════════════
+    const { anrufZuordnen } = await import("../lib/fiaon-anruf-zuordnung");
+    const zuordnung = await anrufZuordnen(pruefung.nummer!, personId);
+    const echtePersonId = zuordnung.person?.personId ?? null;
+
+    // Die Zugriffsprüfung gilt für die Person, die WIRKLICH angerufen wird.
+    // Vorher wurde die offene Karte geprüft — man konnte also einen fremden
+    // Kunden anrufen, solange man eine eigene Karte offen hatte.
+    if (echtePersonId && !(await darfAnKunde(req.agent!.id, rolle, echtePersonId))) {
       return ablehnen("Dieser Kunde wird von jemand anderem betreut.");
+    }
+    if (zuordnung.widerspruch) {
+      await wahlProtokoll({
+        agentId: req.agent!.id, agentName: req.agent!.name, nummer: pruefung.nummer!,
+        personId: echtePersonId, erlaubt: true,
+        grund: `Kartenkontext war Person ${personId}, gewählt wurde die Nummer von `
+          + `${zuordnung.person!.name} (Person ${echtePersonId}) — der Anruf folgt der Nummer.`,
+      });
     }
 
     const ausweis = await zugangsAusweis(req.agent!.id);
@@ -175,20 +243,34 @@ router.post("/telefon/ausweis", requireAgent, async (req: AgentRequest, res: Res
 
     await wahlProtokoll({
       agentId: req.agent!.id, agentName: req.agent!.name, nummer: pruefung.nummer!,
-      personId, erlaubt: true, grund: null,
+      personId: echtePersonId, erlaubt: true, grund: null,
     });
     // Der Anruf-Datensatz entsteht JETZT, nicht erst beim Rückruf von Twilio:
     // Bricht die Verbindung ab, bevor Twilio sich meldet, gäbe es sonst gar
     // keine Spur — und die Ergebnis-Pflicht liefe ins Leere.
+    //
+    // `ref` kommt aus der Zuordnung, nicht aus dem Body: Sonst hinge der
+    // Verlaufseintrag weiter an der Bestellung der offenen Karte, während der
+    // Anruf schon der richtigen Person gehört.
     const [c] = (await sqlPool`
       INSERT INTO fiaon_calls (person_id, ref, agent_id, nummer, status)
-      VALUES (${personId}, ${req.body?.ref ?? null}, ${req.agent!.id}, ${pruefung.nummer!}, 'gewaehlt')
+      VALUES (${echtePersonId}, ${zuordnung.person?.ref ?? null}, ${req.agent!.id},
+              ${pruefung.nummer!}, 'gewaehlt')
       RETURNING id
     `) as any[];
 
     res.json({
       ok: true, token: ausweis.token, identitaet: ausweis.identitaet,
       nummer: pruefung.nummer, callId: Number(c.id), maxMinuten: MAX_MINUTEN,
+      // Damit das Panel „Du rufst [Name] an" anzeigen kann — und bei einer
+      // unbekannten Nummer ausdrücklich sagt, dass die Zuordnung im
+      // Ergebnis-Schritt nachgeholt werden muss.
+      anruftPerson: zuordnung.person
+        ? { id: zuordnung.person.personId, name: zuordnung.person.name, ref: zuordnung.person.ref }
+        : null,
+      anzeige: zuordnung.anzeige,
+      mehrdeutig: zuordnung.mehrdeutig,
+      zuordnungPflicht: zuordnung.person == null,
     });
   } catch (err) {
     console.error("[TELEFON] ausweis:", err);
@@ -553,13 +635,58 @@ router.post("/telefon/:id/ergebnis", requireAgent, async (req: AgentRequest, res
       ref = a?.ref ?? null;
     }
 
-    const wirkung = c.person_id || ref
-      ? await ergebnisAnwenden({
-          ref, personId: c.person_id ?? null, ergebnis: ergebnis as any,
+    // ══════════════════════════════════════════════════════════════════════
+    // DERSELBE WEG WIE DIE LISTE — NICHT NUR DERSELBE ZUSTAND
+    //
+    // ── DER BEFUND (16.08.2026) ───────────────────────────────────────────
+    // Team: „‚Nicht erreicht' aus dem Panel wirkt nicht auf die Kundenliste;
+    // über die Liste direkt schon."
+    //
+    // Hier stand `ergebnisAnwenden` — das ist der ZUSTAND (Zähler,
+    // Wiedervorlage), aber nicht der VERLAUF. Den schrieben die Listenrouten
+    // selbst. Also: Der Zähler stieg, die Akte blieb leer, die Karte sah
+    // unverändert aus, und der Agent hielt das Panel für kaputt.
+    //
+    // GEMESSEN: 554 von 842 Anrufen mit Ergebnis hatten keinen
+    // Verlaufseintrag. Drei vereinbarte Rückrufe hatten keinen
+    // Kalendereintrag — sie wären nie fällig geworden.
+    //
+    // `ergebnisNachbereiten` ist ab jetzt die EINE Kette: Verlauf, Zustand,
+    // Nummern-Mail, Übergabe, Nachschub. Panel und Liste rufen dieselbe.
+    // ══════════════════════════════════════════════════════════════════════
+    const notiz = req.body?.notiz ? String(req.body.notiz).trim() : null;
+
+    // ── „ERREICHT — SONSTIGES" BRAUCHT EINE NOTIZ ────────────────────────
+    // Ohne sie ist das Ergebnis ein erledigter Haken und keine Auskunft:
+    // „Erreicht, Sonstiges" sagt dem nächsten Menschen am Telefon NICHTS.
+    // GEMESSEN: siebenmal im Panel gedrückt — dort gab es gar kein Notizfeld.
+    if (ergebnis === "erreicht_sonstiges" && (notiz ?? "").length < 10) {
+      return res.status(400).json({
+        ok: false,
+        error: "Bei „Erreicht — Sonstiges“ ist eine Notiz Pflicht: Was wurde besprochen "
+          + "oder vereinbart? (mindestens 10 Zeichen)",
+        brauchtNotiz: true,
+      });
+    }
+
+    const terminZeitpunkt = req.body?.terminDatum
+      ? (/T\d{2}:\d{2}/.test(String(req.body.terminDatum))
+          ? String(req.body.terminDatum)
+          : `${String(req.body.terminDatum)}T10:00:00`)
+      : null;
+
+    const nach = c.person_id && ref
+      ? await ergebnisNachbereiten({
+          ref, personId: Number(c.person_id), ergebnis: ergebnis as any,
+          notiz,
           zusageDatum: req.body?.zusageDatum || null,
-          terminDatum: req.body?.terminDatum || null,
+          terminZeitpunkt,
+          akteur: { id: req.agent!.id, name: req.agent!.name },
+          herkunft: "telefon",
         })
-      : { meldung: "Ergebnis festgehalten.", wiedervorlage: null, zusage: null, gesperrt: false };
+      : null;
+    const wirkung = nach?.wirkung
+      ?? { meldung: nach?.meldung ?? "Ergebnis festgehalten.", wiedervorlage: null, zusage: null, gesperrt: false };
 
     // ══════════════════════════════════════════════════════════════════════
     // EIN ERGEBNIS GILT FÜR DAS GESPRÄCH, NICHT FÜR DEN VERBINDUNGSVERSUCH
@@ -606,7 +733,21 @@ router.post("/telefon/:id/ergebnis", requireAgent, async (req: AgentRequest, res
       console.log(`[TELEFON] Ergebnis „${ergebnis}" für ${mitErfasst.length} Versuche `
         + `desselben Gesprächs (Anruf #${id}, Person ${c.person_id}).`);
     }
-    res.json({ ok: true, ...wirkung, offene: await offeneAnrufe(req.agent!.id) });
+    // Die Notiz gehört auch an den ANRUF: Wer die Aufnahme später anhört,
+    // findet daneben, was der Agent verstanden hat.
+    if (notiz) {
+      await sqlPool`
+        UPDATE fiaon_calls SET ergebnis_notiz = ${notiz.slice(0, 4000)}, updated_at = NOW()
+        WHERE id = ${id}
+      `.catch(() => {});
+    }
+    res.json({
+      ok: true, ...wirkung,
+      meldung: nach?.meldung ?? (wirkung as any).meldung,
+      nummerMail: nach?.nummerMail,
+      uebergabe: nach?.uebergabe,
+      offene: await offeneAnrufe(req.agent!.id),
+    });
   } catch (err) {
     console.error("[TELEFON] ergebnis:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

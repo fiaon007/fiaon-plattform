@@ -38,7 +38,7 @@ import { sqlPool } from "../lib/db-pool";
 import { waehlbareNummer } from "../lib/fiaon-telefon";
 import { parseBerlinInput, pruefeTerminZukunft } from "../lib/fiaon-time";
 import {
-  ERGEBNISSE, ERGEBNIS_TEXT, brauchtDatum, ergebnisAnwenden, istErgebnis, type Ergebnis,
+  ERGEBNISSE, ERGEBNIS_TEXT, brauchtDatum, ergebnisNachbereiten, istErgebnis, type Ergebnis,
 } from "../lib/fiaon-kontakt-ergebnis";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
@@ -663,67 +663,36 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
     // AGENTS.md: „Zeitzone ist Europe/Berlin — über server/lib/fiaon-time.ts,
     // nie über new Date()."
     // ══════════════════════════════════════════════════════════════════════
-    await sqlPool`
-      INSERT INTO fiaon_contact_log
-        (ref, agent_id, agent_name, type, outcome, note, promised_date, scheduled_at, created_at)
-      VALUES (${p.schreib_ref}, ${req.agent!.id}, ${req.agent!.name},
-              ${istNotiz ? "note" : "result"}, ${ergebnis},
-              ${notiz}, ${parseBerlinInput(zusageDatum)},
-              ${parseBerlinInput(terminZeitpunkt)}, NOW())
-    `;
-
-    // 2. Zustand anwenden — gemeinsame Regel für beide Ansichten.
-    let wirkung = null;
-    if (ergebnis) {
-      wirkung = await ergebnisAnwenden({
-        ref: p.schreib_ref, personId, ergebnis,
-        zusageDatum, terminDatum, wiedervorlage,
-      });
-    } else if (wiedervorlage) {
-      // Notiz mit Wiedervorlage: erlaubt, aber ohne Ergebnis-Wirkung.
-      await sqlPool`
-        UPDATE fiaon_persons SET follow_up_date = ${wiedervorlage}::date, updated_at = NOW()
-        WHERE id = ${personId}
-      `;
-    }
-
-    // 3. „Falsche Nummer" bittet den Kunden per Mail um seine Nummer — derselbe
-    //    Weg wie in „Meine Kunden", damit beide Ansichten gleich handeln.
-    let nummerMail: { sent: boolean; reason?: string } | undefined;
-    if (ergebnis === "nummer_falsch") {
-      const [c] = await sqlPool`
-        SELECT COALESCE(NULLIF(email,''), NULLIF(contact_email,''), NULLIF(billing_email,'')) AS email,
-               COALESCE(first_name, contact_name) AS first_name
-        FROM fiaon_applications WHERE ref = ${p.schreib_ref}
-      `;
-      const { maybeSendNumberUpdateMail } = await import("../fiaon-number-update");
-      nummerMail = await maybeSendNumberUpdateMail("app", p.schreib_ref, {
-        email: c?.email, firstName: c?.first_name,
-      });
-    }
-
-    // 4. „Anrufer blockiert" gibt den Kunden weiter — das ist der eigentliche
-    //    Zweck des Knopfes. Erst dokumentieren, dann übergeben: Wäre es
-    //    umgekehrt, gehörte der Kunde beim Schreiben des Verlaufs schon einem
-    //    anderen, und die Blockade stünde nicht bei dem, der sie erlebt hat.
-    let uebergabe: { ok: boolean; an: string | null; grund: string } | undefined;
-    if (ergebnis === "nummer_blockiert") {
-      const { uebergabeAnNaechsten } = await import("../lib/fiaon-uebergabe");
-      const u = await uebergabeAnNaechsten(personId, req.agent!.id, req.agent!.name);
-      uebergabe = { ok: u.ok, an: u.neuerAgentName, grund: u.grund };
-      // Wer abgibt, bekommt Nachschub — sonst bestraft ihn die Ehrlichkeit mit
-      // einer kürzeren Liste.
-      if (u.ok) nachschub(req.agent!.id).catch((e) => console.error("[AGENT-KUNDEN] Nachschub:", e));
-    }
-
-    // Nachschub nach der Statusaenderung. Vor allem "abgelehnt" senkt den
-    // offenen Bestand — ohne Nachschub würde der Agent unter die Schwelle
-    // fallen und bis zum nächsten Morgen mit einer halbleeren Liste arbeiten.
-    // Fire-and-forget: Der Nachschub darf die Antwort nicht verzögern und ein
-    // Fehler dabei darf die dokumentierte Aktivität nicht zurücknehmen.
-    if (ergebnis === "erreicht_abgelehnt" || ergebnis === "erreicht_zahlt_gleich" || ergebnis === "erreicht_zahlt_am") {
-      nachschub(req.agent!.id).catch((e) => console.error("[AGENT-KUNDEN] Nachschub:", e));
-    }
+    // ══════════════════════════════════════════════════════════════════════
+    // EINE KETTE FÜR BEIDE WEGE
+    //
+    // Hier standen fünf Schritte hintereinander: Verlaufseintrag, Zustand,
+    // Nummern-Mail, Übergabe, Nachschub. Das Telefon-Panel machte nur den
+    // zweiten — deshalb wirkte ein Ergebnis aus dem Panel nicht auf die Liste
+    // (GEMESSEN: 554 von 842 Anrufen ohne Verlaufseintrag).
+    //
+    // Die Kette steht jetzt in `ergebnisNachbereiten`
+    // (server/lib/fiaon-kontakt-ergebnis.ts). Beide Wege rufen sie. Eine
+    // zweite Fassung wäre die zweite Gelegenheit, wieder auseinanderzulaufen —
+    // genau so ist dieser Fehler entstanden.
+    //
+    // Die Zeitzone kommt mit: `ergebnisNachbereiten` benutzt
+    // `parseBerlinInput` (AGENTS.md), nicht den rohen Wert.
+    // ══════════════════════════════════════════════════════════════════════
+    const nach = await ergebnisNachbereiten({
+      ref: p.schreib_ref,
+      personId,
+      ergebnis: ergebnis ?? null,
+      notiz,
+      zusageDatum,
+      terminZeitpunkt,
+      wiedervorlage,
+      akteur: { id: req.agent!.id, name: req.agent!.name },
+      herkunft: "liste",
+    });
+    const wirkung = nach.wirkung;
+    const nummerMail = nach.nummerMail;
+    const uebergabe = nach.uebergabe;
 
     // Nach einer geglückten Übergabe gehört der Kunde nicht mehr dem Anfragenden.
     // `meinePerson` liefert dann NULL — das ist richtig so und die Oberfläche
@@ -736,9 +705,11 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
       nummerMail,
       uebergabe,
       // Klartext für die Rückmeldung — der Agent soll sehen, was sein Klick bewirkt hat.
-      meldung: uebergabe
-        ? (uebergabe.ok ? `Übergeben an ${uebergabe.an}. ${uebergabe.grund}` : uebergabe.grund)
-        : (wirkung?.meldung || (istNotiz ? "Notiz gespeichert." : ERGEBNIS_TEXT[ergebnis!])),
+      // Die Kette formuliert die Meldung; der Ergebnistext dieser Ansicht
+      // bleibt als Rückfall, weil er die freundlichere Fassung ist.
+      meldung: nach.meldung !== "Ergebnis festgehalten."
+        ? nach.meldung
+        : (istNotiz ? "Notiz gespeichert." : ERGEBNIS_TEXT[ergebnis!]),
     });
   } catch (err) {
     console.error("[AGENT-KUNDEN] aktivitaet:", err);

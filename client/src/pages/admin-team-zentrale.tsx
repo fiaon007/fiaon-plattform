@@ -3,6 +3,7 @@ import {
   InviteModal, MilestoneTasksCard, PartnerSuggestionsCard, ScriptsAdmin, SettingsCard,
 } from "@/components/admin/TeamVerwaltung";
 import { FiaonEbene } from "@/components/FiaonEbene";
+import { NachbuchenTafel } from "@/components/admin/NachbuchenTafel";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEAM-ZENTRALE — alles über einen Menschen an einem Ort
@@ -543,6 +544,16 @@ function AktivitaetTafel() {
       .then((r) => r.json()).then((j) => setTeam(j?.team ?? [])).catch(() => {});
   }, []);
 
+  // ── ANRUFE, DIE EINE KLÄRUNG BRAUCHEN ──────────────────────────────────
+  // Beim Umbau der Anruf-Zuordnung (16.08.2026) blieben vier Anrufe übrig, bei
+  // denen sich nicht eindeutig sagen ließ, wem sie gehören. Sie tragen eine
+  // Marke in der Datenbank — die niemand gefunden hätte. Hier ist sie sichtbar.
+  const [pruefAnrufe, setPruefAnrufe] = useState<any>(null);
+  useEffect(() => {
+    void fetch("/api/fiaon/admin/team/anrufe-pruefen", { credentials: "include" })
+      .then((r) => r.json()).then((j) => { if (j?.ok) setPruefAnrufe(j); }).catch(() => {});
+  }, []);
+
   const zeit = (s: string) => new Date(s).toLocaleString("de-DE", {
     day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
     timeZone: "Europe/Berlin",
@@ -591,6 +602,53 @@ function AktivitaetTafel() {
               <p className="text-[11.5px] font-semibold mt-1" style={{ color: f }}>{t}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════
+          ANRUFE MIT MARKE „ZUORDNUNG PRÜFEN"
+
+          Vier Anrufe aus dem Umbau vom 16.08.2026, bei denen die gewählte
+          Nummer keinen oder mehrere Menschen traf. Sie standen als Marke in
+          der Datenbank — sichtbar war sie nirgends. Eine Marke, die niemand
+          findet, ist keine Marke.
+          ══════════════════════════════════════════════════════════════════ */}
+      {pruefAnrufe && pruefAnrufe.anzahl > 0 && (
+        <div className="rounded-2xl p-4 mb-4"
+             style={{ background: "rgba(180,83,9,.055)", boxShadow: "inset 0 0 0 1px rgba(180,83,9,.24)" }}>
+          <p className="text-[13.5px] font-bold" style={{ color: "#92400e" }}>
+            {pruefAnrufe.anzahl} {pruefAnrufe.anzahl === 1 ? "Anruf braucht" : "Anrufe brauchen"} eine Klärung
+          </p>
+          <p className="text-[12px] mt-1 leading-relaxed" style={{ color: "#92400e" }}>
+            {pruefAnrufe.hinweis}
+          </p>
+          <ul className="mt-3 space-y-1.5">
+            {pruefAnrufe.anrufe.map((a: any) => (
+              <li key={a.id}
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-white px-3 py-2"
+                  style={{ boxShadow: "inset 0 0 0 1px rgba(180,83,9,.16)" }}>
+                <span className="text-[11.5px] font-mono text-slate-500">{zeit(a.beginn)}</span>
+                <span className="text-[12.5px] font-semibold text-slate-900">{a.nummer}</span>
+                <span className="text-[12px] text-slate-600">{a.kunde}</span>
+                {a.agent && <span className="text-[11.5px] text-slate-400">durch {a.agent}</span>}
+                <span className="text-[11.5px] font-semibold" style={{ color: "#b45309" }}>
+                  {String(a.marke).replace(/^Zuordnung prüfen:\s*/, "")}
+                </span>
+                {a.hatAufnahme && (
+                  <span className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded"
+                        style={{ background: "rgba(15,23,42,.06)", color: "#475569" }}>
+                    Aufnahme da
+                  </span>
+                )}
+                {a.akte && (
+                  <a href={a.akte} className="ml-auto text-[11.5px] font-semibold"
+                     style={{ color: "#1d4ed8" }}>
+                    Zur Akte
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -990,24 +1048,51 @@ export default function AdminTeamZentrale() {
   // Vier Blöcke, die aus der Altseite nachgezogen wurden. Reiter statt einer
   // endlos langen Seite: Wer Skripte pflegt, will nicht an dreißig
   // Mitarbeiterkarten vorbeiscrollen.
+  // ── „NACHBUCHUNG“ IST EIN REITER, KEIN GERÜCHT ──────────────────────────
+  // `/admin/nachbuchung` leitet seit dem 10.08.2026 um auf
+  // „/admin/team?tab=nachbuchung“ — und diesen Reiter gab es NICHT. Ein
+  // unbekannter Wert fällt hier auf „menschen“ zurück: Der Betreiber landete
+  // auf der Mitarbeiterliste, ohne jeden Hinweis, und meldete zu Recht „ich
+  // kann keine Provisionen mehr nachbuchen“.
+  //
+  // Die Funktion war die ganze Zeit da — vier Ebenen tief im Mitarbeiter-
+  // Detail. Jetzt ist sie da, wo der Weg schon hinzeigte.
   const [reiter, setReiter] = useState<
-    "menschen" | "aktivitaet" | "inkasso" | "neu" | "partner" | "praemien" | "skripte" | "einstellungen"
+    "menschen" | "nachbuchung" | "aktivitaet" | "inkasso" | "neu" | "partner"
+    | "praemien" | "skripte" | "einstellungen"
   >(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
-    return (["menschen", "aktivitaet", "inkasso", "neu", "partner", "praemien", "skripte", "einstellungen"].includes(String(t))
+    return (["menschen", "nachbuchung", "aktivitaet", "inkasso", "neu", "partner", "praemien", "skripte", "einstellungen"].includes(String(t))
       ? t : "menschen") as any;
   });
   const [einladen, setEinladen] = useState(
     () => new URLSearchParams(window.location.search).get("einladen") === "1",
   );
 
+  // ── TESTKONTEN SIND EIN FILTER, KEIN DAUERGAST ──────────────────────────
+  // GEMESSEN am 17.08.2026: 49 Mitarbeiter-Konten, davon 43 Testkonten aus
+  // Prüfständen — und 6 echte Menschen. Der Betreiber sah 11 Karten.
+  //
+  // Der Server entscheidet, was hereinkommt (echteMitarbeiterSql). Hier ist
+  // nur der Umschalter, damit die Konten nicht verschwinden, sondern
+  // WEGGERÄUMT sind: Wer wissen will, was ein Prüfstand angelegt hat, sieht es.
+  const [nurTest, setNurTest] = useState(false);
+  const [testZahl, setTestZahl] = useState<{ test: number; echt: number; testAktiv: number } | null>(null);
+
   const laden = useCallback(async () => {
     setLaedt(true);
-    const r = await fetch("/api/fiaon/admin/zentrale/team", { credentials: "include" }).catch(() => null);
+    // ── BEIM UMSCHALTEN DIE ALTEN KARTEN WEGNEHMEN ────────────────────────
+    // Aufgefallen auf dem Screenshot: Der Kopf stand schon auf „Testkonten“,
+    // darunter standen weiter die sechs Menschen und dazwischen „Wird geladen“.
+    // Zwei Aussagen auf einem Bildschirm, die sich widersprechen, kosten mehr
+    // Vertrauen als eine halbe Sekunde Leerraum.
+    setTeam([]);
+    const r = await fetch(`/api/fiaon/admin/zentrale/team${nurTest ? "?test=1" : ""}`,
+      { credentials: "include" }).catch(() => null);
     const j = await r?.json().catch(() => null);
-    if (j?.ok) setTeam(j.team || []);
+    if (j?.ok) { setTeam(j.team || []); if (j.testkonten) setTestZahl(j.testkonten); }
     setLaedt(false);
-  }, []);
+  }, [nurTest]);
   useEffect(() => { void laden(); }, [laden]);
 
   const sortiert = useMemo(() => {
@@ -1025,7 +1110,16 @@ export default function AdminTeamZentrale() {
           <div>
             <h1 className="text-[22px] font-bold tracking-tight text-slate-900">Team-Zentrale</h1>
             <p className="text-[12.5px] text-slate-500 mt-0.5">
-              Kennzahlen, Provisionen, Protokolle und Nachrichten — alles zu einem Menschen an einem Ort.
+              {nurTest
+                ? "Testkonten aus Prüfständen und Knopf-Durchgängen — sie zählen in keiner Kennzahl mit."
+                : "Kennzahlen, Provisionen, Protokolle und Nachrichten — alles zu einem Menschen an einem Ort."}
+              {!nurTest && testZahl && testZahl.test > 0 && (
+                <span className="block mt-0.5 text-[11.5px] text-slate-400">
+                  {testZahl.echt} {testZahl.echt === 1 ? "Mensch" : "Menschen"} im Team ·{" "}
+                  {testZahl.test} Testkonten ausgeblendet
+                  {testZahl.testAktiv > 0 && ` (${testZahl.testAktiv} davon noch aktiv)`}
+                </span>
+              )}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1038,6 +1132,20 @@ export default function AdminTeamZentrale() {
                     className="px-3.5 py-2 rounded-xl text-[12.5px] font-semibold bg-white border border-slate-200 text-slate-600">
               Nachricht ans Team
             </button>
+            {/* Nur zeigen, wenn es überhaupt Testkonten gibt — ein Filter für
+                eine leere Menge ist ein Knopf ins Leere. */}
+            {testZahl && testZahl.test > 0 && (
+              <button type="button" onClick={() => setNurTest((v) => !v)}
+                      title={nurTest
+                        ? "Zurück zu den echten Menschen"
+                        : `${testZahl.test} Konten aus Prüfständen und Knopf-Durchgängen ansehen`}
+                      className="px-3.5 py-2 rounded-xl text-[12.5px] font-semibold"
+                      style={nurTest
+                        ? { background: "#475569", color: "#fff" }
+                        : { background: "#fff", border: "1px solid #e2e8f0", color: "#64748b" }}>
+                {nurTest ? `Testkonten (${testZahl.test}) — zurück zum Team` : `Testkonten ${testZahl.test}`}
+              </button>
+            )}
             <button type="button" onClick={() => setEinladen(true)}
                     className="px-3.5 py-2 rounded-xl text-[12.5px] font-bold text-white bg-[#1d4ed8]">
               Teammitglied anlegen
@@ -1049,6 +1157,7 @@ export default function AdminTeamZentrale() {
         <div className="flex flex-wrap gap-1.5 mb-4">
           {([
             ["menschen", "Menschen"],
+            ["nachbuchung", "Provisionen nachbuchen"],
             // Aktivität steht an ZWEITER Stelle: Sie ist die Aufsicht, und
             // eine Aufsicht, die man suchen muss, wird nicht benutzt.
             ["aktivitaet", "Aktivität"],
@@ -1100,6 +1209,9 @@ export default function AdminTeamZentrale() {
           <SettingsCard flash={(m) => setMeldung({ art: "gut", text: m })} onSaved={laden} />
         )}
 
+        {reiter === "nachbuchung" && (
+          <NachbuchenTafel onMeldung={(art, text) => setMeldung({ art, text })} />
+        )}
         {reiter === "aktivitaet" && <AktivitaetTafel />}
         {reiter === "inkasso" && <InkassoZuteilung />}
 
@@ -2168,6 +2280,10 @@ function VerwaltungTafel({
   const [bank, setBank] = useState<any>(null);
   const [loeschen, setLoeschen] = useState<any>(null);
   const [wortlaut, setWortlaut] = useState("");
+  // Kundenstand und Ziel für das Umhängen — erst auf Knopfdruck geladen: Die
+  // Zahl kostet fünf Abfragen, und sie interessiert nur, wenn jemand geht.
+  const [umhaengen, setUmhaengen] = useState<any>(null);
+  const [umhaengenGrund, setUmhaengenGrund] = useState("");
 
   const ruf = async (pfad: string, koerper?: any, name = pfad) => {
     setBusy(name);
@@ -2242,6 +2358,118 @@ function VerwaltungTafel({
       <p className="text-[11.5px] text-slate-400 leading-snug mb-5">
         Ein Reset entwertet alle Sitzungen sofort und schickt einen Link, der eine Stunde gilt.
       </p>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          KUNDEN UMHÄNGEN — der Fall „ein Mensch geht"
+
+          Die EINZIGE der fünfzehn Funktionen aus Paket 8, die hier wirklich
+          fehlte. Es gab die Route `/admin/team/reassign`, aber die hängt nur
+          die BESTELLUNG um — die Arbeitslisten filtern auf die PERSON. Ein
+          Umhängen darüber hätte die Karten nicht bewegt.
+          ══════════════════════════════════════════════════════════════════ */}
+      <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+        Kunden umhängen
+      </p>
+      {!umhaengen ? (
+        <button type="button" disabled={busy === "kundenstand"}
+                onClick={async () => {
+                  setBusy("kundenstand");
+                  const r = await fetch(`/api/fiaon/admin/team/agents/${m.id}/kunden`,
+                    { credentials: "include" }).catch(() => null);
+                  const j = await r?.json().catch(() => null);
+                  setBusy(null);
+                  if (j?.ok) setUmhaengen(j);
+                  else onHinweis(j?.error || "Der Kundenstand ist nicht abrufbar.");
+                }}
+                className="px-3 py-2 rounded-xl text-[12.5px] font-semibold bg-white text-slate-700 mb-4"
+                style={{ boxShadow: "inset 0 0 0 1px #e2e8f0" }}>
+          {busy === "kundenstand" ? "…" : "Kundenstand ansehen"}
+        </button>
+      ) : (
+        <div className="mb-4 rounded-xl border p-3" style={{ borderColor: "#e2e8f0" }}>
+          <p className="text-[12.5px] text-slate-700 leading-relaxed">{umhaengen.hinweis}</p>
+          {umhaengen.stand.personen > 0 && (
+            <>
+              <p className="text-[11.5px] text-slate-500 mt-1.5 leading-relaxed">
+                {umhaengen.stand.bestellungen} Bestellungen
+                {umhaengen.stand.termine > 0 && ` · ${umhaengen.stand.termine} gebuchte Termine`}
+                {umhaengen.stand.offeneRaten > 0 && ` · ${umhaengen.stand.offeneRaten} offene Raten`}
+              </p>
+              <p className="text-[11.5px] text-slate-400 mt-1 leading-relaxed">
+                Termine und Raten bleiben bei ihm — sie hängen an Vereinbarungen mit
+                Menschen, nicht an einer Zuteilung.
+              </p>
+              <input type="text" value={umhaengenGrund}
+                     onChange={(e) => setUmhaengenGrund(e.target.value)}
+                     placeholder="Grund (steht im Verlauf jedes Kunden)"
+                     className="w-full mt-2.5 rounded-lg px-3 py-2 text-[12.5px] outline-none"
+                     style={{ border: "1px solid #e2e8f0" }} />
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {/* Der Regelfall zuerst: zurück in die Verteilung. Ein Mensch
+                    von Hand verteilt nicht gleichmäßig, der Rundlauf schon. */}
+                <button type="button" disabled={busy === "umhaengen" || umhaengenGrund.trim().length < 5}
+                        onClick={async () => {
+                          if (!confirm(
+                            `Alle ${umhaengen.stand.personen} Kunden von ${m.name} `
+                            + "zurück in die Verteilung geben?\n\nSie werden beim nächsten "
+                            + "Lauf gleichmäßig neu vergeben.",
+                          )) return;
+                          setBusy("umhaengen");
+                          const r = await fetch(
+                            `/api/fiaon/admin/team/agents/${m.id}/kunden-umhaengen`,
+                            {
+                              method: "POST", credentials: "include",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ zielId: null, grund: umhaengenGrund.trim() }),
+                            },
+                          ).catch(() => null);
+                          const j = await r?.json().catch(() => null);
+                          setBusy(null);
+                          onHinweis(j?.meldung || j?.error || "Nicht umgehängt.");
+                          if (j?.ok) { setUmhaengen(null); setUmhaengenGrund(""); onAenderung(); }
+                        }}
+                        className="px-3 py-2 rounded-xl text-[12px] font-semibold text-white disabled:opacity-30"
+                        style={{ background: "#1d4ed8" }}>
+                  {busy === "umhaengen" ? "…" : "Zurück in die Verteilung"}
+                </button>
+                {(umhaengen.ziele ?? []).slice(0, 6).map((z: any) => (
+                  <button key={z.id} type="button"
+                          disabled={busy === "umhaengen" || umhaengenGrund.trim().length < 5}
+                          title={`${z.name} betreut aktuell ${z.last} Kunden im Bestand`}
+                          onClick={async () => {
+                            if (!confirm(
+                              `Alle ${umhaengen.stand.personen} Kunden von ${m.name} `
+                              + `auf ${z.name} umhängen?`,
+                            )) return;
+                            setBusy("umhaengen");
+                            const r = await fetch(
+                              `/api/fiaon/admin/team/agents/${m.id}/kunden-umhaengen`,
+                              {
+                                method: "POST", credentials: "include",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ zielId: z.id, grund: umhaengenGrund.trim() }),
+                              },
+                            ).catch(() => null);
+                            const j = await r?.json().catch(() => null);
+                            setBusy(null);
+                            onHinweis(j?.meldung || j?.error || "Nicht umgehängt.");
+                            if (j?.ok) { setUmhaengen(null); setUmhaengenGrund(""); onAenderung(); }
+                          }}
+                          className="px-3 py-2 rounded-xl text-[12px] font-semibold bg-white text-slate-700 disabled:opacity-30"
+                          style={{ boxShadow: "inset 0 0 0 1px #e2e8f0" }}>
+                    → {z.name} <span className="text-slate-400">({z.last})</span>
+                  </button>
+                ))}
+              </div>
+              {umhaengenGrund.trim().length < 5 && (
+                <p className="mt-1.5 text-[11px] text-slate-400">
+                  Der Grund fehlt noch — er steht später im Verlauf jedes Kunden.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── Bankdaten ────────────────────────────────────────────────────── */}
       <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-2">Bankdaten</p>

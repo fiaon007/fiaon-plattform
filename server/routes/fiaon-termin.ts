@@ -276,11 +276,45 @@ router.post("/agent/termine/:id/ergebnis", requireAgent, async (req: AgentReques
     if (!["erledigt", "verpasst"].includes(String(ergebnis))) {
       return res.status(400).json({ ok: false, error: "Ergebnis muss 'erledigt' oder 'verpasst' sein." });
     }
+    // ══════════════════════════════════════════════════════════════════════
+    // JEDER ZUSTÄNDIGE HAKT JEDEN TERMIN AB — EGAL, WER IHN GEBUCHT HAT
+    //
+    // ── DER BEFUND (16.08.2026) ───────────────────────────────────────────
+    // Team: „Kundengebuchte Termine lassen sich nicht abhaken — nur die
+    // selbst angelegten."
+    //
+    // Zwei Gründe standen in dieser einen Zeile:
+    //
+    //   `agent_id = req.agent.id`  Ein Termin, den der Kunde über seinen
+    //                             Buchungslink gewählt hat, gehört dem
+    //                             zugeteilten Betreuer. Wer den Kunden heute
+    //                             betreut, weil zugeteilt wurde, bekam 404.
+    //   `status = 'gebucht'`      GEMESSEN: 54 Termine stehen auf „verpasst",
+    //                             weil ein Tageslauf sie nach zwölf Stunden
+    //                             umsetzt. Die Liste zeigt sie („gebucht"
+    //                             ODER „verpasst"), das Abhaken verlangte
+    //                             „gebucht". Sie ließen sich also ansehen,
+    //                             aber nie abschließen — und tauchten nach
+    //                             jedem Neuladen wieder auf.
+    //
+    // Jetzt: Zuständigkeit über `darfAnKunde` (die EINE Definition, siehe
+    // server/lib/fiaon-kundenzugriff.ts), und ein verpasster Termin darf
+    // nachträglich auf „erledigt" gesetzt werden — der Kunde hat sich
+    // vielleicht abends doch gemeldet.
+    // ══════════════════════════════════════════════════════════════════════
     const [termin] = (await sqlPool`
-      SELECT id, person_id, beginn FROM fiaon_termine
-      WHERE id = ${id} AND agent_id = ${req.agent!.id} AND status = 'gebucht'
+      SELECT id, person_id, beginn, agent_id, quelle, status FROM fiaon_termine
+      WHERE id = ${id} AND status IN ('gebucht', 'verpasst')
     `) as any[];
     if (!termin) return res.status(404).json({ ok: false, error: "Termin nicht gefunden." });
+
+    if (Number(termin.agent_id) !== req.agent!.id) {
+      const { darfAnKunde, rolleVon } = await import("../lib/fiaon-kundenzugriff");
+      const rolle = await rolleVon(req.agent!.id);
+      if (!(await darfAnKunde(req.agent!.id, rolle, Number(termin.person_id)))) {
+        return res.status(404).json({ ok: false, error: "Termin nicht gefunden." });
+      }
+    }
 
     await sqlPool`
       UPDATE fiaon_termine SET status = ${String(ergebnis)}, erledigt_am = NOW(),

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "../db";
 import { fiaonApplications, fiaonClickEvents } from "@shared/schema";
+import { PAKET_PREISE_EURO, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
 import { eq } from "drizzle-orm";
 import PDFDocument from "pdfkit";
 import { ZipArchive } from "archiver";
@@ -73,13 +74,14 @@ export const FIAON_BANK_DETAILS = {
 };
 
 // Serverseitige Preisliste — Beträge werden NIE vom Client übernommen.
-const PACK_PRICES: Record<string, number> = {
-  // Privat
-  start: 7.99, pro: 59.99, ultra: 79.99, highend: 99.99,
-  // Business
-  business_starter: 49.99, business_pro: 99.99, business_ultra: 149.99, business_enterprise: 249.99,
-};
-const SCHUFA_PRICE = 74.0;
+//
+// Seit dem 16.08.2026 steht sie nicht mehr hier, sondern in
+// `shared/fiaon-pakete.ts`. Es gab zwei Listen mit vertauschten Preisen für
+// Ultra und High End: Der Kunde kaufte für 79,99 € und bekam Rechnungen über
+// 99,99 €. Zwei Preislisten sind schlimmer als eine falsche — bei einer
+// falschen merkt man es.
+const PACK_PRICES: Record<string, number> = PAKET_PREISE_EURO;
+const SCHUFA_PRICE = SCHUFA_PREIS_EURO;
 const PAYMENT_DUE_DAYS = 7;
 
 // ── #20: Kanonische Paket-Kreditlimits (Headline „bis zu X €", identisch zu den

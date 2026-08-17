@@ -437,6 +437,62 @@ async function handleGmailInbound(req: Request, res: Response) {
       }
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // 4c. AUS EINER MAIL WIRD EINE AUFGABE MIT FRIST
+    //
+    // ── DAS LOCH (16.08.2026) ─────────────────────────────────────────────
+    // Eine eingehende Support-Mail wurde gespeichert — und dann nichts. Kein
+    // Zuständiger, keine Aufgabe, keine Frist. Sie lag.
+    //
+    // Hintergrund aus dem Teamfeedback: Ein Kunde rief an, „wird notiert",
+    // niemand meldete sich. GEMESSEN waren 18 Rückrufe länger als 24 Stunden
+    // überfällig, ohne dass es irgendwo auffiel.
+    //
+    // Ab jetzt: Jede neue Mail erzeugt einen Rückruf mit 24-Stunden-Frist beim
+    // Zuständigen des Absenders (sonst bei der Vertriebsleitung). Reißt die
+    // Frist, eskaliert es sichtbar.
+    //
+    // Fire-and-forget und nur für NEUE Mails: Ein zweiter Zustellversuch
+    // derselben Mail darf keinen zweiten Rückruf erzeugen — das verhindert
+    // zusätzlich der Schlüssel (quelle, quelle_id).
+    // ══════════════════════════════════════════════════════════════════════
+    if (isNew && payload.fromEmail) {
+      void (async () => {
+        try {
+          const { sqlPool } = await import('../lib/db-pool');
+          const { rueckrufAufnehmen } = await import('../lib/fiaon-rueckruf');
+          // Gehört die Absenderadresse zu einem Kunden? Über die PERSON, mit
+          // Aliasen — dieselbe Auflösung wie beim Versand.
+          const [treffer] = (await sqlPool`
+            SELECT p.id AS person_id,
+                   (SELECT a.ref FROM fiaon_applications a
+                     WHERE a.person_id = p.id AND a.merged_into IS NULL
+                     ORDER BY a.created_at DESC LIMIT 1) AS ref
+            FROM fiaon_persons p
+            WHERE p.merged_into_person_id IS NULL
+              AND (LOWER(TRIM(p.primary_email)) = ${payload.fromEmail.toLowerCase()}
+                OR EXISTS (SELECT 1 FROM fiaon_person_aliases al
+                            WHERE al.person_id = p.id AND al.kind = 'email'
+                              AND al.value_norm = ${payload.fromEmail.toLowerCase()}))
+            LIMIT 1
+          `) as any[];
+          await rueckrufAufnehmen({
+            personId: treffer?.person_id ? Number(treffer.person_id) : null,
+            ref: treffer?.ref ?? null,
+            quelle: 'mail_inbound',
+            quelleId: String(resultId),
+            // Der Wortlaut des Kunden, nicht eine Zusammenfassung: Wer
+            // zurückruft, soll lesen, was der Mensch geschrieben hat.
+            anliegen: `${payload.subject || '(ohne Betreff)'}\n\n`
+              + String(payload.bodyText || payload.snippet || '').slice(0, 1500),
+            kontakt: payload.fromEmail,
+          });
+        } catch (e) {
+          logger.warn(`[MAIL-INBOUND-WEBHOOK] Rückruf nicht angelegt: ${(e as Error).message}`);
+        }
+      })();
+    }
+
     logger.info(`[MAIL-INBOUND-WEBHOOK] Processed mail: id=${resultId}, isNew=${isNew}, from=${payload.fromEmail}, snipLen=${debugInfo.snipLen}, txtLen=${debugInfo.txtLen}, htmlLen=${debugInfo.htmlLen}`);
 
     // 5. Response (with optional debug info)

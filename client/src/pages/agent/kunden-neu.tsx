@@ -117,6 +117,11 @@ const FILTER: { key: string; label: string; zaehler: string }[] = [
   // Der Ruhe-Pool ist ein Filter, kein Loch: Wer viermal nicht erreicht wurde,
   // steht hier — sichtbar, zählbar, jederzeit aufrufbar.
   { key: "ruhend", label: "Ruhend", zaehler: "ruhend" },
+  // ── WARTET AUF DEN KUNDEN ────────────────────────────────────────────────
+  // Nummern-Anfrage raus, Antwort steht beim Kunden. GEMESSEN: 185 solche
+  // Fälle standen weiter JEDEN TAG in der Arbeitsliste, 120 davon länger als
+  // sieben Tage. Sie sind jetzt hier — sichtbar, zählbar, nicht im Weg.
+  { key: "wartend", label: "Wartend (Kunde)", zaehler: "wartend" },
   { key: "bezahlt", label: "Bezahlt (Bestand)", zaehler: "bezahlt" },
   { key: "gesperrt", label: "Gesperrt", zaehler: "gesperrt" },
 ];
@@ -760,6 +765,74 @@ function KundenKarte({
    * versehentlich die falsche wegräumt, merkt es erst, wenn das Geld für die
    * andere Referenz eintrifft.
    */
+  // ══════════════════════════════════════════════════════════════════════
+  // MEHRFACHAUSWAHL — 406 Menschen mit 1.083 Buchungen
+  //
+  // ── DER BEFUND (16.08.2026, gemessen) ────────────────────────────────
+  // 406 Personen haben mehr als eine offene Buchung, insgesamt 1.083 Zeilen.
+  // Ein Fall hatte 18. Einzeln wegräumen heißt: 18 Bestätigungsdialoge für
+  // einen Kunden — und wer das dreimal macht, klickt beim vierten Mal blind
+  // durch.
+  //
+  // Jetzt: Häkchen an den unbezahlten Buchungen, EIN Dialog mit Zähler. Die
+  // drei Wände gelten je Buchung weiter (nicht bezahlt, nicht die letzte,
+  // Zugriff erlaubt) — sie stehen im Server und werden hier nicht umgangen.
+  // Teilerfolge werden benannt: „7 weggeräumt, 2 blieben stehen, weil …".
+  // ══════════════════════════════════════════════════════════════════════
+  const [auswahl, setAuswahl] = useState<Set<string>>(new Set());
+  const umschalten = (ref: string) => setAuswahl((v) => {
+    const n = new Set(v);
+    if (n.has(ref)) n.delete(ref); else n.add(ref);
+    return n;
+  });
+
+  const auswahlWegraeumen = async () => {
+    const refs = Array.from(auswahl);
+    if (refs.length === 0) return;
+    const zeilen = (k.buchungen ?? []).filter((b) => refs.includes(b.ref));
+    const summe = zeilen.reduce((s, b) => s + Number(b.betragCents ?? 0), 0);
+    if (!confirm(
+      `${refs.length} ${refs.length === 1 ? "Buchung" : "Buchungen"} aus der Liste nehmen?\n\n`
+      + `${zeilen.map((b) => `· ${b.bezeichnung}${b.betragCents != null ? ` (${eur(b.betragCents)})` : ""}`).join("\n")}\n\n`
+      + `Summe: ${eur(summe)}\n\n`
+      + "Sie werden archiviert, nicht gelöscht — die Vertriebsleitung kann sie "
+      + "zurückholen. Bezahlte Buchungen und die letzte verbleibende bleiben "
+      + "in jedem Fall stehen.",
+    )) return;
+
+    setLaeuft("arch-auswahl");
+    // Der Reihe nach, nicht parallel: Die Wand „das ist die letzte Buchung"
+    // rechnet mit dem Stand NACH den vorherigen. Parallel gerechnet würden
+    // alle gleichzeitig prüfen und alle durchkommen — der Kunde stünde ohne
+    // jede Bestellung da.
+    const geschafft: string[] = [];
+    const geblieben: { ref: string; grund: string }[] = [];
+    for (const ref of refs) {
+      const r = await api(`/agent/buchungen/${encodeURIComponent(ref)}/archivieren`,
+        { method: "POST", body: JSON.stringify({ grund: "doppelt" }) });
+      if (r.ok) geschafft.push(ref);
+      else geblieben.push({ ref, grund: r.json?.error || "unbekannter Grund" });
+    }
+    setLaeuft(null);
+    setAuswahl(new Set());
+
+    if (geblieben.length === 0) {
+      zeige("erfolg", "Weggeräumt",
+        `${geschafft.length} ${geschafft.length === 1 ? "Buchung" : "Buchungen"} archiviert.`);
+    } else {
+      // Teilerfolge werden BENANNT. „Es hat nicht ganz geklappt" ist keine
+      // Auskunft; der Mensch muss wissen, welche und warum.
+      zeige(geschafft.length > 0 ? "info" : "fehler",
+        geschafft.length > 0
+          ? `${geschafft.length} weggeräumt, ${geblieben.length} blieben stehen`
+          : "Keine weggeräumt",
+        geblieben.map((g) => `${g.ref}: ${g.grund}`).join(" · ").slice(0, 400));
+    }
+    const frisch = await api(`/agent/crm/kunden/${k.personId}`);
+    if (frisch.ok && frisch.json?.kunde) onNeu(frisch.json.kunde);
+    onZaehler();
+  };
+
   const buchungWegraeumen = async (b: { ref: string; bezeichnung: string; betragCents: number | null }) => {
     const betrag = b.betragCents != null ? eur(b.betragCents) : "ohne Betrag";
     if (!confirm(
@@ -1198,10 +1271,32 @@ function KundenKarte({
             {(k.buchungen ?? []).length > 0 && (
               <div className="p-3 rounded-xl sm:col-span-2"
                    style={{ background: "var(--fi-seite)" }}>
-                <p className="text-[11px] font-semibold uppercase tracking-[.07em] mb-2"
-                   style={{ color: "var(--fi-text-still)" }}>
-                  Buchungen
-                </p>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[.07em]"
+                     style={{ color: "var(--fi-text-still)" }}>
+                    Buchungen
+                  </p>
+                  {/* ── DER SAMMELKNOPF ──────────────────────────────────────
+                      Erscheint erst, wenn etwas ausgewählt ist: Ein Knopf, der
+                      immer da ist und meistens nichts tut, wird übersehen. */}
+                  {auswahl.size > 0 && (
+                    <>
+                      <button type="button" disabled={laeuft === "arch-auswahl"}
+                              onClick={() => void auswahlWegraeumen()}
+                              className="text-[11px] font-bold px-2.5 py-1 rounded-md disabled:opacity-40"
+                              style={{ color: "#fff", background: "#b45309" }}>
+                        {laeuft === "arch-auswahl"
+                          ? "Wird weggeräumt …"
+                          : `Auswahl wegräumen (${auswahl.size})`}
+                      </button>
+                      <button type="button" onClick={() => setAuswahl(new Set())}
+                              className="text-[11px] font-semibold"
+                              style={{ color: "var(--fi-text-still)" }}>
+                        Auswahl aufheben
+                      </button>
+                    </>
+                  )}
+                </div>
                 <div className="flex flex-col gap-1.5">
                   {(k.buchungen ?? []).map((b) => (
                     <div key={b.ref}
@@ -1258,13 +1353,26 @@ function KundenKarte({
                           Buchung übrig ist — der Server prüft beides erneut.
                           ══════════════════════════════════════════════════════ */}
                       {!b.bezahlt && !b.erledigt && (k.buchungen ?? []).filter((x) => !x.erledigt).length > 1 && (
-                        <button type="button"
-                                className="ml-auto shrink-0 text-[11px] font-semibold px-2 py-1 rounded-md"
-                                style={{ color: "#b45309", background: "rgba(180,83,9,.08)" }}
-                                disabled={laeuft === `arch-${b.ref}`}
-                                onClick={() => void buchungWegraeumen(b)}>
-                          {laeuft === `arch-${b.ref}` ? "…" : "Doppelt — wegräumen"}
-                        </button>
+                        <span className="ml-auto shrink-0 flex items-center gap-2">
+                          {/* Das Häkchen für die Mehrfachauswahl. Ein echtes
+                              Kontrollkästchen, kein nachgebautes: Tastatur und
+                              Screenreader kennen es. */}
+                          <label className="flex items-center gap-1.5 text-[11px] font-semibold cursor-pointer"
+                                 style={{ color: "var(--fi-text-still)" }}>
+                            <input type="checkbox" checked={auswahl.has(b.ref)}
+                                   onChange={() => umschalten(b.ref)}
+                                   aria-label={`${b.bezeichnung} zum Wegräumen auswählen`}
+                                   style={{ width: 14, height: 14, accentColor: "#b45309" }} />
+                            wählen
+                          </label>
+                          <button type="button"
+                                  className="text-[11px] font-semibold px-2 py-1 rounded-md"
+                                  style={{ color: "#b45309", background: "rgba(180,83,9,.08)" }}
+                                  disabled={laeuft === `arch-${b.ref}` || laeuft === "arch-auswahl"}
+                                  onClick={() => void buchungWegraeumen(b)}>
+                            {laeuft === `arch-${b.ref}` ? "…" : "Doppelt — wegräumen"}
+                          </button>
+                        </span>
                       )}
                     </div>
                   ))}

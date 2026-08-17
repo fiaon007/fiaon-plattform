@@ -38,6 +38,10 @@ interface Lage {
   termin: { beginn: string; datumText: string; uhrzeit: string; agentVorname: string } | null;
   erledigt: boolean;
   spaeterAm: string | null;
+  /** Ist das Konto schon voll freigeschaltet? */
+  vollAktiv: boolean;
+  /** Gilt die HARTE Pflicht — buchen oder ausloggen, kein „Später"? */
+  pflicht: boolean;
 }
 
 async function lageZu(ref: string): Promise<Lage | null> {
@@ -45,7 +49,20 @@ async function lageZu(ref: string): Promise<Lage | null> {
     SELECT p.id, COALESCE(NULLIF(p.first_name, ''), p.contact_name, a.first_name) AS vorname,
            p.startgespraech_spaeter_am,
            EXISTS (SELECT 1 FROM fiaon_applications x WHERE x.person_id = p.id
-                     AND x.merged_into IS NULL AND x.payment_status = 'paid') AS bezahlt
+                     AND x.merged_into IS NULL AND x.payment_status = 'paid') AS bezahlt,
+           -- ── DIE KONTO-STUFE ────────────────────────────────────────────
+           -- Über ALLE bezahlten Bestellungen dieses Menschen: Wer EINE voll
+           -- aktive hat, ist voll aktiv. Eine Zweitbestellung darf einen
+           -- freigeschalteten Kunden nicht zurück in den Wartezustand werfen.
+           EXISTS (SELECT 1 FROM fiaon_applications x2 WHERE x2.person_id = p.id
+                     AND x2.merged_into IS NULL AND x2.payment_status = 'paid'
+                     AND x2.onboarding_stufe = 'voll_aktiv') AS voll_aktiv,
+           -- Die HARTE Pflicht gilt, wenn sie an einer wartenden Bestellung
+           -- gesetzt ist. Der Bestand hat sie nicht (siehe Migration 054).
+           EXISTS (SELECT 1 FROM fiaon_applications x3 WHERE x3.person_id = p.id
+                     AND x3.merged_into IS NULL AND x3.payment_status = 'paid'
+                     AND x3.onboarding_stufe = 'wartet_auf_onboarding'
+                     AND x3.onboarding_pflicht) AS pflicht
     FROM fiaon_applications a
     JOIN fiaon_persons p ON p.id = a.person_id
     WHERE (a.payment_reference = ${ref} OR a.ref = ${ref})
@@ -82,6 +99,8 @@ async function lageZu(ref: string): Promise<Lage | null> {
       : null,
     erledigt: !!erledigt,
     spaeterAm: row.startgespraech_spaeter_am || null,
+    vollAktiv: !!row.voll_aktiv,
+    pflicht: !!row.pflicht,
   };
 }
 
@@ -102,13 +121,39 @@ router.get("/kunde/:ref/startgespraech", async (req: Request, res: Response) => 
     // und nicht zusätzlich zu einem Termin — zwei Aufforderungen auf einmal
     // beantwortet niemand.
     const offen = lage.bezahlt && !lage.termin && !lage.erledigt;
+
+    // ══════════════════════════════════════════════════════════════════════
+    // PFLICHT FÜR NEUE, BANNER FÜR DEN BESTAND
+    //
+    // ── DIE ENTSCHEIDUNG UND IHRE ZAHL ────────────────────────────────────
+    // GEMESSEN am 16.08.2026: 349 bezahlte Paketkunden — und **null** mit
+    // einem Startgespräch. Es gab in der ganzen Datenbank keinen einzigen
+    // Termin der Quelle „onboarding_call".
+    //
+    // Eine harte Pflicht für alle hätte also am Tag des Deploys 349 ZAHLENDE
+    // Kunden vor eine verschlossene Tür gestellt, mit der Aufforderung zu
+    // einem Gespräch, für das es noch kein Team-Verfahren gab. Das ist
+    // Support-Feuer, kein Onboarding.
+    //
+    // Deshalb:
+    //   NEU aktiviert (`onboarding_pflicht`) → `pflicht: true`, kein „Später".
+    //   BESTAND                              → Banner und Einladung, Zugang
+    //                                          bleibt. Der Betreiber kann die
+    //                                          Härte pro Fall über die Akte
+    //                                          setzen.
+    // ══════════════════════════════════════════════════════════════════════
+    const pflicht = offen && lage.pflicht;
     res.json({
       ok: true,
-      faellig: offen && !lage.spaeterAm,
-      banner: offen && !!lage.spaeterAm,
+      // Bei Pflicht bleibt die Tafel stehen, auch wenn schon „Später" geklickt
+      // wurde: Ein „Später" von gestern hebt eine Pflicht von heute nicht auf.
+      faellig: offen && (pflicht || !lage.spaeterAm),
+      banner: offen && !pflicht && !!lage.spaeterAm,
+      pflicht,
       vorname: lage.vorname,
       termin: lage.termin,
       erledigt: lage.erledigt,
+      vollAktiv: lage.vollAktiv,
       // Das Buchungs-Token wird NUR mitgegeben, wenn wirklich etwas ansteht.
       token: offen ? terminTokenErzeugen(lage.personId) : null,
     });
@@ -123,6 +168,17 @@ router.post("/kunde/:ref/startgespraech/spaeter", async (req: Request, res: Resp
   try {
     const lage = await lageZu(String(req.params.ref));
     if (!lage) return res.status(404).json({ ok: false, error: "Nicht gefunden" });
+    // ── BEI PFLICHT GIBT ES KEIN „SPÄTER" ────────────────────────────────
+    // Die Wand steht im SERVER, nicht in der Oberfläche. Ein Knopf, den man
+    // in der Konsole nachbauen kann, ist keine Pflicht, sondern eine Bitte.
+    if (lage.pflicht && !lage.termin && !lage.erledigt) {
+      return res.status(403).json({
+        ok: false,
+        pflicht: true,
+        error: "Das Startgespräch ist Voraussetzung für die Freischaltung. "
+          + "Bitte wähle einen Termin — es dauert 15 Minuten.",
+      });
+    }
     // COALESCE: Der ERSTE Klick zählt. Sonst schöbe jeder weitere Besuch die
     // 48-Stunden-Uhr nach hinten, und die Erinnerung käme nie.
     await sqlPool`

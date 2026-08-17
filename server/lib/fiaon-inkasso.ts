@@ -82,9 +82,33 @@ export async function anrufPflichtTage(lauf: Lauf = sqlPool): Promise<number> {
  * Bedingung darf aber nicht davon abhängen, dass niemand je einen neuen
  * Status einführt.
  */
+// ═══════════════════════════════════════════════════════════════════════════
+// „HEUTE" IST BERLIN, NICHT UTC
+//
+// ── DER BEFUND (17.08.2026, nachts vom Prüfstand gefunden) ────────────────
+// Hier stand überall „CURRENT_DATE“. Das ist das Datum der DATENBANK, und die
+// läuft in UTC. Zwischen 00:00 und 02:00 Berliner Sommerzeit (im Winter 00:00
+// bis 01:00) ist „CURRENT_DATE“ noch der VORTAG.
+//
+// Was das heißt: Eine Rate, die heute überfällig wird, gilt in diesem Fenster
+// als „heute fällig“ und wird NICHT zugeteilt — die Bedingung
+// „faellig_am < CURRENT_DATE“ ist falsch, obwohl der Tag in Berlin längst
+// gewechselt hat. Der Tageslauf
+// läuft stündlich, der Fehler heilt sich also um 02:00 von selbst; aber die
+// Zahlen im Kopf der Liste („X überfällig, Y heute") waren nachts falsch, und
+// wer um 00:30 arbeitet, sah eine andere Wahrheit als sein Kollege um 03:00.
+//
+// Gefunden hat es der Prüfstand scripts/pruef-abo-motor.ts, der eine Rate auf
+// „gestern" nach BERLINER Rechnung setzt — und dann keine Zuteilung sah.
+//
+// AGENTS.md: „Zeitzone ist Europe/Berlin — über server/lib/fiaon-time.ts, nie
+// über new Date()." Das gilt für das SQL-Datum genauso.
+// ═══════════════════════════════════════════════════════════════════════════
+const HEUTE_BERLIN = "(NOW() AT TIME ZONE 'Europe/Berlin')::date";
+
 export const SICHTFELD = `
   r.status <> 'bezahlt'
-  AND r.faellig_am <= CURRENT_DATE + 7
+  AND r.faellig_am <= ${HEUTE_BERLIN} + 7
   AND EXISTS (
     SELECT 1 FROM fiaon_applications a
     WHERE a.ref = r.ref
@@ -102,9 +126,9 @@ export const SICHTFELD = `
  */
 export const FRIST_FILTER = {
   alle: "TRUE",
-  ueberfaellig: "r.faellig_am < CURRENT_DATE",
-  heute: "r.faellig_am = CURRENT_DATE",
-  woche: "r.faellig_am > CURRENT_DATE AND r.faellig_am <= CURRENT_DATE + 7",
+  ueberfaellig: `r.faellig_am < ${HEUTE_BERLIN}`,
+  heute: `r.faellig_am = ${HEUTE_BERLIN}`,
+  woche: `r.faellig_am > ${HEUTE_BERLIN} AND r.faellig_am <= ${HEUTE_BERLIN} + 7`,
 } as const;
 
 export type FristFenster = keyof typeof FRIST_FILTER;
@@ -353,6 +377,130 @@ export async function arbeitsliste(
   `) as any[];
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// EINE ZEILE PRO MENSCH
+//
+// ── DER BEFUND (16.08.2026) ────────────────────────────────────────────────
+// Team: „Zusner dreimal, Namen wiederholen sich beim Scrollen."
+//
+// Gemessen: 213 Zeilen in der Arbeitsliste für 180 Menschen. 21 Namen kamen
+// mehrfach vor. Der Spitzenfall heißt Peter Zußner (mit ß), person_id 3417 —
+// EINE Person, ZWEI bezahlte Pro-Bestellungen, je drei offene Raten.
+//
+// Also KEINE Personen-Dublette: Weder gibt es zwei Datensätze zu ihm, noch
+// hilft die Merge-Maschine hier. Es sind zwei echte parallele Abos desselben
+// Menschen — er wird doppelt abgerechnet — und die Liste zeigte jede Rate als
+// eigene Zeile.
+//
+// ── WARUM DAS MEHR IST ALS EINE ANSICHTSFRAGE ──────────────────────────────
+// Wer dieselbe Person fünfmal in der Liste hat, ruft sie fünfmal an. Oder er
+// ruft sie einmal an, dokumentiert an EINER Rate, und die anderen vier bleiben
+// als „unbearbeitet" stehen. Beides ist falsch, und beides sieht in der
+// Statistik aus wie fleißige Arbeit.
+//
+// ── DIE ARBEIT BLEIBT AN DER RATE ──────────────────────────────────────────
+// Gruppiert wird nur die ANZEIGE. Zusage, Wiedervorlage und Prämie hängen
+// weiter an der einzelnen Rate — sonst überschriebe die Zusage für Rate 4 die
+// für Rate 3, und genau das steht oben in dieser Datei als Begründung.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface InkassoPerson {
+  personId: number | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  phoneCountryCode: string | null;
+  /** Die Raten dieses Menschen, dringendste zuerst. */
+  raten: any[];
+  /** Wie viele Raten, wie viel Geld. */
+  anzahl: number;
+  summeCents: number;
+  /** Die dringendste Rate — sie bestimmt die Sortierung der Karte. */
+  dringendste: any;
+  /** Mehr als eine BESTELLUNG mit offenen Raten: paralleles Zweit-Abo. */
+  bestellungen: number;
+  zweitAbo: boolean;
+  /** „Abo aktiv seit 05.07. · nächste Rate 05.09. · Rechnung geht automatisch raus" */
+  zyklusText?: string;
+  anker?: string | null;
+}
+
+/**
+ * Die Arbeitsliste, nach Menschen gruppiert.
+ *
+ * Die Reihenfolge der Karten ist die Reihenfolge der jeweils DRINGENDSTEN
+ * Rate. `arbeitsliste` sortiert bereits richtig — die erste Rate einer Person
+ * ist damit ihre dringendste, und die Reihenfolge des ersten Auftretens ist
+ * die richtige Kartenreihenfolge. Ein zweites Sortierkriterium hier wäre eine
+ * zweite Definition von „dringend".
+ */
+export async function arbeitslistePersonen(
+  opts: { limit?: number; nurMeine?: number | null; frist?: string | null } = {},
+  lauf: Lauf = sqlPool,
+): Promise<InkassoPerson[]> {
+  const raten = await arbeitsliste(opts, lauf);
+  const karten: InkassoPerson[] = [];
+  const index = new Map<string, InkassoPerson>();
+
+  for (const r of raten) {
+    // Ohne person_id gibt es keinen Menschen, an dem man gruppieren könnte —
+    // dann bleibt die Bestellung die Einheit. Gemessen: 0 solche Fälle, aber
+    // eine Gruppierung, die bei NULL alle in einen Topf wirft, wäre eine
+    // Karte mit fremden Menschen darin.
+    const schluessel = r.person_id != null ? `p:${r.person_id}` : `ref:${r.ref}`;
+    let karte = index.get(schluessel);
+    if (!karte) {
+      karte = {
+        personId: r.person_id != null ? Number(r.person_id) : null,
+        name: String(r.name ?? "Ohne Namen"),
+        email: r.email ?? null,
+        phone: r.phone ?? null,
+        phoneCountryCode: r.phone_country_code ?? null,
+        raten: [], anzahl: 0, summeCents: 0, dringendste: r,
+        bestellungen: 0, zweitAbo: false,
+      };
+      index.set(schluessel, karte);
+      karten.push(karte);
+    }
+    karte.raten.push(r);
+    karte.anzahl++;
+    karte.summeCents += Number(r.betrag_cents || 0);
+  }
+
+  // ── DER ZYKLUS IM KLARTEXT ──────────────────────────────────────────────
+  // „Abo aktiv seit 05.07. · nächste Rate 05.09. · Rechnung geht automatisch
+  // raus." Derselbe Satz wie in der Akte und in der Zahlungszentrale, aus
+  // derselben Funktion — wer am Telefon etwas anderes vorliest als das, was
+  // im Kundenportal steht, hat ein Gespräch verloren, bevor es anfängt.
+  const { ankerTag, zyklusText } = await import("./fiaon-abo-zyklus");
+  const ankerJeRef = new Map<string, string | null>();
+  const alleRefs = Array.from(new Set(raten.map((r) => String(r.ref))));
+  if (alleRefs.length > 0) {
+    for (const a of (await lauf`
+      SELECT a.ref, a.abo_gestoppt_am,
+             COALESCE(a.paid_at, (SELECT MIN(t.booked_at) FROM fiaon_bank_txns t
+                                   WHERE t.matched_ref = a.ref AND t.applied),
+                      a.completed_at) AS anker_at
+      FROM fiaon_applications a WHERE a.ref = ANY(${alleRefs}::text[])
+    `) as any[]) {
+      ankerJeRef.set(String(a.ref), a.abo_gestoppt_am ? null : ankerTag(a.anker_at));
+    }
+  }
+
+  for (const k of karten) {
+    const refs = new Set(k.raten.map((r) => String(r.ref)));
+    k.bestellungen = refs.size;
+    const anker = ankerJeRef.get(String(k.dringendste.ref)) ?? null;
+    (k as any).zyklusText = zyklusText(anker);
+    (k as any).anker = anker;
+    // Zwei Bestellungen mit offenen Raten heißt: Der Mensch zahlt zweimal für
+    // dasselbe. Das ist keine Inkasso-Aufgabe, sondern eine Frage an den
+    // Betreiber — deshalb nur eine Marke, kein automatischer Stopp.
+    k.zweitAbo = refs.size > 1;
+  }
+  return karten;
+}
+
 /**
  * Wie viele Raten stehen in jedem Fristfenster?
  *
@@ -365,9 +513,9 @@ export async function fristZaehler(
   const heute = berlinToday();
   const [z] = (await lauf`
     SELECT
-      COUNT(*) FILTER (WHERE r.faellig_am < CURRENT_DATE)::int AS ueberfaellig,
-      COUNT(*) FILTER (WHERE r.faellig_am = CURRENT_DATE)::int AS heute,
-      COUNT(*) FILTER (WHERE r.faellig_am > CURRENT_DATE)::int AS woche,
+      COUNT(*) FILTER (WHERE r.faellig_am < ${sqlPool.unsafe(HEUTE_BERLIN)})::int AS ueberfaellig,
+      COUNT(*) FILTER (WHERE r.faellig_am = ${sqlPool.unsafe(HEUTE_BERLIN)})::int AS heute,
+      COUNT(*) FILTER (WHERE r.faellig_am > ${sqlPool.unsafe(HEUTE_BERLIN)})::int AS woche,
       COUNT(*)::int AS alle
     FROM fiaon_abo_raten r
     WHERE ${lauf.unsafe(SICHTFELD)}
@@ -629,7 +777,7 @@ export async function inkassoMannschaft(lauf: Lauf = sqlPool): Promise<{
              WHERE r.inkasso_agent_id = a.id AND r.status <> 'bezahlt') AS offen,
            (SELECT COUNT(*)::int FROM fiaon_raten_arbeit w
              WHERE w.agent_id = a.id
-               AND w.created_at >= (CURRENT_DATE)::timestamp AT TIME ZONE 'Europe/Berlin') AS heute
+               AND w.created_at >= ${lauf.unsafe(HEUTE_BERLIN)}::timestamp AT TIME ZONE 'Europe/Berlin') AS heute
     FROM fiaon_agents a
     WHERE a.active AND a.rolle = 'inkasso' AND NOT a.is_test_account
     ORDER BY offen ASC, a.id ASC
@@ -679,7 +827,7 @@ export async function inkassoVerteilen(
     LEFT JOIN fiaon_persons p ON p.id = a.person_id
     WHERE ${lauf.unsafe(SICHTFELD)}
       AND r.status <> 'bezahlt'
-      AND r.faellig_am < CURRENT_DATE
+      AND r.faellig_am < ${lauf.unsafe(HEUTE_BERLIN)}
       AND r.inkasso_agent_id IS NULL
     ORDER BY r.faellig_am ASC, r.id ASC
     LIMIT ${Math.min(500, Math.max(1, opts.anzahl ?? 200))}

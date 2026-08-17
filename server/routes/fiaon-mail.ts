@@ -576,4 +576,106 @@ router.post("/mail/zentrale/ki", requireAgent, async (req: AgentRequest, res: Re
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DAS ZUSTELLPROTOKOLL — was ging raus, was nicht, und warum nicht
+//
+// ── WARUM ES DIESE ROUTE BRAUCHTE ──────────────────────────────────────────
+// Die Dashboard-Karte „Zustellung heute" nennt die Zahl der Fehlschläge. Eine
+// Zahl ohne Weg dahin zwingt zum Suchen, und dann sucht niemand.
+//
+// Es gab dafür KEINE Anzeige. `client/src/pages/mail-zentrale.tsx` verlinkte
+// auf „/admin/mail-protokoll" — diese Seite existiert nicht und hat nie
+// existiert. Ein Link ins Leere sieht wie eine Möglichkeit aus; das ist
+// schlimmer als kein Link.
+//
+// `status = fehlgeschlagen` ist der einzige Filter, der zählt: Wer das
+// Protokoll öffnet, will wissen, was NICHT angekommen ist.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/admin/mail/protokoll", async (req: Request, res: Response) => {
+  try {
+    const { sqlPool } = await import("../lib/db-pool");
+    const status = String(req.query.status || "").trim();
+    const erlaubt = ["versandt", "fehlgeschlagen", "ausstehend", "uebersprungen"];
+    const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
+    const tage = Math.min(90, Math.max(1, Number(req.query.tage) || 14));
+
+    const zeilen = (await sqlPool`
+      SELECT l.id, l.event, l.person_id, l.empfaenger, l.status, l.grund,
+             l.created_at, l.ausgeloest_von, l.betreff, l.art,
+             l.zustellung, l.zustellung_grund,
+             TRIM(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')) AS name
+      FROM fiaon_mail_log l
+      LEFT JOIN fiaon_persons p ON p.id = l.person_id
+      WHERE l.created_at > NOW() - (${tage}::int * INTERVAL '1 day')
+        AND (${erlaubt.includes(status) ? status : null}::text IS NULL
+             OR l.status = ${erlaubt.includes(status) ? status : null})
+      ORDER BY l.created_at DESC
+      LIMIT ${limit}
+    `) as any[];
+
+    // ── DIE AKTEN-VERWEISE IN EINER ABFRAGE ────────────────────────────
+    // Als Unterabfrage JE ZEILE gerechnet brauchte die Route 3,2 Sekunden
+    // (200 Zeilen × eine Suche über fiaon_applications). Eine Seite, die drei
+    // Sekunden braucht, öffnet niemand zweimal — und dann sieht niemand die
+    // fehlgeschlagenen Mails.
+    const personIds = Array.from(new Set(
+      zeilen.map((z) => z.person_id).filter((v) => v != null).map(Number),
+    ));
+    const refJePerson = new Map<number, string>();
+    if (personIds.length > 0) {
+      for (const r of (await sqlPool`
+        SELECT DISTINCT ON (person_id) person_id, ref
+        FROM fiaon_applications
+        WHERE person_id = ANY(${personIds}::int[]) AND merged_into IS NULL
+        ORDER BY person_id, created_at DESC
+      `) as any[]) {
+        refJePerson.set(Number(r.person_id), String(r.ref));
+      }
+    }
+
+    const [zahlen] = (await sqlPool`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'versandt')::int AS versandt,
+        COUNT(*) FILTER (WHERE status = 'fehlgeschlagen')::int AS fehlgeschlagen,
+        COUNT(*) FILTER (WHERE status = 'uebersprungen')::int AS uebersprungen,
+        COUNT(*) FILTER (WHERE status = 'ausstehend')::int AS ausstehend
+      FROM fiaon_mail_log
+      WHERE created_at > NOW() - (${tage}::int * INTERVAL '1 day')
+    `) as any[];
+
+    res.json({
+      ok: true,
+      status: erlaubt.includes(status) ? status : "alle",
+      tage,
+      anzahl: zeilen.length,
+      zahlen,
+      // Die häufigsten Gründe zuerst: Zwanzig Zeilen „Make nicht erreichbar"
+      // sind EIN Problem, nicht zwanzig.
+      gruende: Array.from(
+        zeilen.filter((z) => z.status === "fehlgeschlagen")
+          .reduce((m: Map<string, number>, z: any) => {
+            const g = String(z.grund || "Ohne Grund");
+            return m.set(g, (m.get(g) ?? 0) + 1);
+          }, new Map<string, number>())
+          .entries(),
+      ).sort((a, b) => b[1] - a[1]).map(([grund, anzahl]) => ({ grund, anzahl })),
+      zeilen: zeilen.map((z) => ({
+        id: Number(z.id), event: z.event, status: z.status,
+        empfaenger: z.empfaenger || null, grund: z.grund || null,
+        name: String(z.name || "").trim() || null,
+        personId: z.person_id != null ? Number(z.person_id) : null,
+        ref: z.person_id != null ? refJePerson.get(Number(z.person_id)) ?? null : null,
+        akte: z.person_id != null && refJePerson.has(Number(z.person_id))
+          ? `/admin/kunde/${encodeURIComponent(refJePerson.get(Number(z.person_id))!)}` : null,
+        wann: z.created_at, ausgeloestVon: z.ausgeloest_von || null,
+        betreff: z.betreff || null, art: z.art || null,
+        zustellung: z.zustellung || null, zustellungGrund: z.zustellung_grund || null,
+      })),
+    });
+  } catch (err) {
+    console.error("[MAIL] protokoll:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 export default router;

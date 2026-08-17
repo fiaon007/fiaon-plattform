@@ -159,8 +159,62 @@ async function computeBadges(): Promise<any> {
     FROM fiaon_diagnostics
     WHERE severity = 'kritisch' AND created_at > NOW() - INTERVAL '24 hours'
   `.catch(() => [{ c: 0 }] as any);
+  // ── ZUSTELLUNG: WAS IST HEUTE RAUSGEGANGEN, WAS NICHT? ──────────────────
+  // Betreiber: „Make-Routen gehen bei Tests alle durch — aber viele bekommen
+  // dann keine E-Mail."
+  //
+  // Eine gescheiterte Mail war bisher nur im Protokoll zu finden, wenn man
+  // ausdrücklich danach suchte. Niemand sucht nach etwas, von dem er nicht
+  // weiß, dass es passiert ist. Deshalb steht die Zahl jetzt auf dem
+  // Dashboard — und `personenOhneMail` sagt, bei wie vielen Menschen mit
+  // offener Rechnung es gar nicht erst versucht werden kann.
+  const [zustellung] = await sqlPool`
+    SELECT
+      COUNT(*) FILTER (WHERE status = 'versandt'
+        AND (created_at AT TIME ZONE 'Europe/Berlin')::date
+            = (NOW() AT TIME ZONE 'Europe/Berlin')::date)::int AS versandt_heute,
+      COUNT(*) FILTER (WHERE status = 'fehlgeschlagen'
+        AND (created_at AT TIME ZONE 'Europe/Berlin')::date
+            = (NOW() AT TIME ZONE 'Europe/Berlin')::date)::int AS fehl_heute,
+      COUNT(*) FILTER (WHERE status = 'fehlgeschlagen'
+        AND created_at > NOW() - INTERVAL '7 days')::int AS fehl_woche
+    FROM fiaon_mail_log
+  `.catch(() => [{ versandt_heute: 0, fehl_heute: 0, fehl_woche: 0 }] as any);
+  // Menschen mit offener Rate, für die keine Adresse auffindbar ist — weder
+  // an der Person, noch als Alias, noch an einer Bestellung.
+  const [ohneMail] = await sqlPool`
+    SELECT COUNT(DISTINCT a.person_id)::int AS c
+    FROM fiaon_abo_raten r
+    JOIN fiaon_applications a ON a.ref = r.ref
+    WHERE r.status = 'offen' AND r.storniert_am IS NULL
+      AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
+      AND a.person_id IS NOT NULL
+      AND COALESCE(NULLIF(TRIM(a.email),''), NULLIF(TRIM(a.contact_email),''),
+                   NULLIF(TRIM(a.billing_email),'')) IS NULL
+      AND NOT EXISTS (SELECT 1 FROM fiaon_persons p
+                       WHERE p.id = a.person_id AND NULLIF(TRIM(p.primary_email),'') IS NOT NULL)
+      AND NOT EXISTS (SELECT 1 FROM fiaon_person_aliases al
+                       WHERE al.person_id = a.person_id AND al.kind = 'email')
+  `.catch(() => [{ c: 0 }] as any);
+
   // Eigene offene Aufgaben (Notizen/Aufgaben-Modul) — sie gehören in dieselbe
   // Liste wie alles andere, was liegen geblieben ist.
+  // ── DIE MARKEN AUS DER EINEN QUELLE ────────────────────────────────────
+  // server/lib/fiaon-marken.ts zählt jede Marke EINMAL — dieselbe Funktion
+  // benutzt auch die Zielseite. Ein Fehler dabei darf die Kacheln nicht
+  // umwerfen, deshalb ein Rückfall auf Nullen.
+  const { alleMarken } = await import("../lib/fiaon-marken");
+  let marken = await alleMarken().catch((err) => {
+    console.error("[FIAON-HUB] marken:", err);
+    return {
+      aufgaben: { wert: 0, ziel: "/admin/aufgaben", text: "" },
+      zustellung: { wert: 0, ziel: "/admin/events", text: "" },
+      zahlungen: { wert: 0, ziel: "/admin/zahlungen", text: "" },
+      auszahlungen: { wert: 0, ziel: "/admin/auszahlungen", text: "" },
+      nachbuchung: { wert: 0, ziel: "/admin/team?tab=nachbuchung", text: "" },
+    };
+  });
+
   let aufgaben = { offen: 0, ueberfaellig: 0, heute: 0, zugewiesen: 0 };
   try {
     const { vermerkZahlen } = await import("./fiaon-vermerke");
@@ -182,18 +236,52 @@ async function computeBadges(): Promise<any> {
 
   return {
     // Badges (Nav): Schlüssel = Nav-Pfad-Kürzel; 0 ⇒ Frontend blendet aus.
+    // Alle Marken aus der EINEN Quelle. Ein zweites Zählen daneben wäre die
+    // zweite Gelegenheit, auseinanderzulaufen — genau so ist dieser Fehler
+    // entstanden.
+    marken,
     badges: {
       zahlungen: Number(apps.zahlungen),
       auszahlungen: Number(payouts.c),
       feedback: Number(feedback.c),
-      nachbuchung: Number(apps.nachbuchung),
+      // Vorher „Number(apps.nachbuchung)" — eine eigene Abfrage, die 14 zählte,
+      // während die Zielseite 21 Fälle zeigte. Jetzt dieselbe Funktion.
+      nachbuchung: marken.nachbuchung.wert,
       dubletten: Number(dup.c) + personenDubletten,
       kontoabgleich: abgleichAn ? Number(bank.unmatched) : 0,
       diagnose: Number(diag.c), // P5-D: kritische Ereignisse (24 h)
       // Nav-Pille an „Notizen & Aufgaben": nur was DRÄNGT (heute + überfällig).
       // Alle offenen zu zählen würde die Zahl dauerhaft hoch halten, und eine
       // Zahl, die immer da ist, liest niemand mehr.
-      aufgabenOffen: aufgaben.heute + aufgaben.ueberfaellig,
+      // ── DIE MARKE ZÄHLT, WAS DIE ZIELSEITE ZEIGT (17.08.2026) ─────────
+      // Hier stand „aufgaben.heute + aufgaben.ueberfaellig". GEMESSEN stand
+      // die Marke damit auf 0, während /admin/aufgaben ACHT offene Aufgaben
+      // zeigte. Eine Marke, die schweigt, wenn es Arbeit gibt, ist schlimmer
+      // als eine, die zu viel zeigt.
+      //
+      // Die Zählung steht jetzt in server/lib/fiaon-marken.ts — einmal, für
+      // Marke und Zielseite.
+      aufgabenOffen: marken.aufgaben.wert,
+      // Nur die Fehlschläge sind eine Aufgabe. „Versandt" gehört auf die
+      // Karte, nicht an die Navigation — eine Zahl, die immer da ist, liest
+      // nach drei Tagen niemand mehr.
+      // Vorher „fehl_heute": Die Marke stand auf 0, im Protokoll lagen 70
+      // Fehlschläge aus 14 Tagen — darunter 68 verbrauchte Termin-
+      // Erinnerungen, die niemand bemerkt hatte. Das Protokoll zeigt 14 Tage,
+      // also zählt die Marke 14 Tage.
+      zustellung: marken.zustellung.wert,
+    },
+    // ── Die Zustellkarte fürs Dashboard ──────────────────────────────────
+    zustellung: {
+      versandtHeute: Number(zustellung.versandt_heute),
+      fehlgeschlagenHeute: Number(zustellung.fehl_heute),
+      fehlgeschlagenWoche: Number(zustellung.fehl_woche),
+      personenOhneMail: Number(ohneMail.c),
+      // Deep-Link auf das GEFILTERTE Protokoll. Eine Karte, die nur eine Zahl
+      // zeigt, zwingt zum Suchen — und dann sucht niemand.
+      link: "/admin/events?status=fehlgeschlagen#zustellung",
+      meldung: `Zustellung: ${Number(zustellung.versandt_heute)} versandt, `
+        + `${Number(zustellung.fehl_heute)} fehlgeschlagen`,
     },
     // Aufgaben: eigene offene, davon überfällig/heute, plus die an Agenten
     // vergebenen (die erledigt der Agent, sie stehen hier nur zur Übersicht).

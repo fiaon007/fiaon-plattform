@@ -90,6 +90,27 @@ export interface MakeVersand {
  * ohne je eine Erinnerung bekommen zu haben.
  */
 export async function sendMakeWebhookMitGrund(eventType: MakeEventType, payload: MakeWebhookPayload): Promise<MakeVersand> {
+  // ── DIE ADRESSE KOMMT VON DER PERSON, NICHT VON DER BESTELLZEILE ────────
+  // Siehe server/lib/fiaon-empfaenger.ts. Die Auflösung steht HIER, an der
+  // einen Tür, durch die jeder Versand muss — und nicht in den 29
+  // Aufrufstellen, von denen man beim nächsten Umbau eine vergisst.
+  //
+  // Zwei Dinge passieren dabei:
+  //   1. Eine leere oder schlechtere Adresse wird durch die bessere ersetzt.
+  //   2. Ist ÜBERHAUPT keine Adresse auffindbar, geht nichts raus — und der
+  //      Fehlschlag steht mit Grund im Protokoll. Vorher wurde `email: ""`
+  //      an Make geschickt, Make antwortete 200, und die Mail verschwand
+  //      lautlos. Das ist der gemeldete Fall „viele bekommen keine Mail".
+  const aufgeloest = await adresseBestimmen(payload);
+  if (!aufgeloest.email) {
+    const erg: MakeVersand = { ok: false, grund: aufgeloest.grund! };
+    protokollNebenbei(eventType, payload, erg);
+    console.warn(`[MAKE-WEBHOOK] '${eventType}' NICHT gesendet: ${aufgeloest.grund}`);
+    return erg;
+  }
+  if (aufgeloest.email !== payload.email) {
+    payload = { ...payload, email: aufgeloest.email, empfaenger_quelle: aufgeloest.quelle };
+  }
   const erg = await webhookRoh(eventType, payload);
   // ── JEDE MAIL STEHT IM PROTOKOLL ────────────────────────────────────────
   // Vor dem 09.08.2026 protokollierten nur sieben von 29 Sendestellen. Der
@@ -104,6 +125,40 @@ export async function sendMakeWebhookMitGrund(eventType: MakeEventType, payload:
   // `fireAndForget`: Ein klemmendes Protokoll darf keine Mail verhindern.
   protokollNebenbei(eventType, payload, erg);
   return erg;
+}
+
+/**
+ * Bestimmt die Zieladresse einer Nutzlast über die Person.
+ *
+ * Wirft nie und blockiert nie: Ist die Datenbank nicht erreichbar, gilt die
+ * Adresse aus der Nutzlast. Eine Auflösung, die den Versand verhindern kann,
+ * wäre schlimmer als die alte Rangfolge.
+ *
+ * `test: true` (Prüfversand aus /admin/events) wird durchgereicht — dort ist
+ * die Adresse ausdrücklich vom Menschen gewählt und darf nicht überschrieben
+ * werden.
+ */
+async function adresseBestimmen(
+  payload: MakeWebhookPayload,
+): Promise<{ email: string | null; quelle?: string; grund?: string }> {
+  const roh = String(payload.email ?? "").trim();
+  if (payload.test) return { email: roh || null, quelle: "test", grund: roh ? undefined : "Prüfversand ohne Testadresse." };
+  try {
+    if (!process.env.DATABASE_URL) return { email: roh || null, quelle: "nutzlast" };
+    const { empfaengerAufloesen } = await import("./lib/fiaon-empfaenger");
+    const personId = payload.person_id != null ? Number(payload.person_id) : null;
+    const ref = payload.antrag_id ? String(payload.antrag_id) : null;
+    const treffer = await empfaengerAufloesen({ personId, ref, ausNutzlast: roh });
+    if (treffer) return { email: treffer.email, quelle: treffer.quelle };
+    return {
+      email: null,
+      grund: "Keine zustellbare E-Mail-Adresse — weder an der Person, noch als Alias, noch an der Bestellung.",
+    };
+  } catch (err) {
+    console.warn("[MAKE-WEBHOOK] Empfänger-Auflösung nicht möglich:",
+      err instanceof Error ? err.message : err);
+    return { email: roh || null, quelle: "nutzlast" };
+  }
 }
 
 /** Der eigentliche Aufruf — ohne Protokoll, damit dieses ihn umschließen kann. */
@@ -189,6 +244,11 @@ function recordLastSent(eventType: MakeEventType): void {
 export function makePayloadFromRow(row: any): MakeWebhookPayload {
   const contactParts = (row.contact_name || "").split(" ");
   return {
+    // Die Adresse hier ist nur ein VORSCHLAG. Wer wirklich angeschrieben
+    // wird, entscheidet `adresseBestimmen` über die Person — siehe oben.
+    // `person_id` mitzugeben ist deshalb keine Zierde, sondern die
+    // Voraussetzung dafür, dass die Auflösung den Menschen findet.
+    person_id: row.person_id != null ? Number(row.person_id) : null,
     email: row.email || row.contact_email || row.billing_email || "",
     vorname: row.first_name || contactParts[0] || null,
     nachname: row.last_name || (contactParts.length > 1 ? contactParts.slice(1).join(" ") : null),
@@ -219,7 +279,9 @@ function protokollNebenbei(eventType: MakeEventType, payload: MakeWebhookPayload
       const { mailProtokoll } = await import("./lib/fiaon-mail-log");
       await mailProtokoll({
         event: eventType,
-        personId: null,
+        // Ohne person_id ist ein Protokolleintrag nicht auffindbar: Die Akte
+        // filtert danach, und die Zustellkarte verlinkt darauf.
+        personId: payload.person_id != null ? Number(payload.person_id) : null,
         empfaenger: payload.email ? String(payload.email) : null,
         status: erg.ok ? "versandt" : "fehlgeschlagen",
         grund: erg.grund ?? null,

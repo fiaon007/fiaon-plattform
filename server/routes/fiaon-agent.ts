@@ -319,6 +319,12 @@ const SETTING_DEFAULTS: Record<string, string> = {
   abo_fenster_start: "8",             // Versandfenster Beginn (Stunde, Europe/Berlin)
   abo_fenster_ende: "20",             // Versandfenster Ende (exklusiv) — schützt vor Nachtmails
   abo_stichtag: "",                   // wird beim ersten Motorlauf gesetzt (YYYY-MM-DD)
+  // Vorab-Erinnerung X Tage vor Fälligkeit. „0" schaltet sie ab.
+  //
+  // Sie hebt die Zahlquote — aber ob die Kunden zweimal im Monat von uns hören,
+  // ist die Entscheidung des Betreibers und keine Zahl im Quelltext. Deshalb
+  // hier und nicht dort.
+  abo_vorab_tage: "3",
   // ── Kontoabgleich (CSV-Import + Bank-Zuordnung) ───────────────────────────
   // Abgeschaltet am 04.08.2026: Zahlungen werden manuell in der Zahlungszentrale
   // gebucht. Code und Daten bleiben; Zurückschalten = 'true' setzen.
@@ -783,6 +789,22 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
     .then((m) => m.aboBeiZahlungAnlegen(ref))
     .catch((e) => console.error("[FIAON-ABO] Anlage nach Zahlung:", e));
 
+  // ── DIE ONBOARDING-STUFE ─────────────────────────────────────────────────
+  // Die Geschäftsregel: „Zahlung gebucht → Kunde bekommt Zugang → PFLICHT-
+  // Termin mit dem Onboarding-Team → erst nach ERLEDIGTEM Startgespräch wird
+  // der Account voll freigeschaltet."
+  //
+  // Aus demselben Grund wie das Abo an DIESER Stelle: Hier gehen ALLE
+  // Buchungswege durch (mark-paid, Kontoabgleich, Buchung der
+  // Vertriebsleitung). Weiter unten stehen mehrere frühe `return` — ein
+  // Direktzahler hätte dort keine Stufe bekommen und wäre sofort voll aktiv
+  // gewesen, ohne je ein Gespräch geführt zu haben.
+  //
+  // Fire-and-forget: Eine Zahlung darf nicht daran scheitern.
+  import("../lib/fiaon-kontostufe")
+    .then((m) => m.aufWartestufeSetzen(ref))
+    .catch((e) => console.error("[KONTOSTUFE] nach Zahlung:", e));
+
   // ── DIE PERSON VERLÄSST DEN VERTRIEB ───────────────────────────────────────
   // Ebenfalls VOR allen frühen `return` dieser Funktion. Das Tier war fachlich
   // korrekt berechnet, wurde aber nur von einem Handskript in die Tabelle
@@ -1094,6 +1116,35 @@ export async function updateCustomerContact(
     WHERE ref = ${ref}
   `;
 
+  // ══════════════════════════════════════════════════════════════════════
+  // DIE ÄNDERUNG MUSS AN DER PERSON ANKOMMEN — SONST SIEHT SIE NUR EINER
+  //
+  // ── DER BEFUND (16.08.2026) ─────────────────────────────────────────────
+  // Team: „Kollege sieht die alte Nummer."
+  //
+  // Hier wurde ausschließlich `fiaon_applications` beschrieben. Die PERSON
+  // (`fiaon_persons.primary_phone`, `primary_email`) blieb, wie sie war.
+  // Jede Liste, jede Suche und jeder Mailversand, die über die Person gehen,
+  // zeigten weiter den alten Wert. Gemessen: 89 Bestellungen trugen eine
+  // andere Nummer als ihre Person, 99 eine andere E-Mail.
+  //
+  // Zwei Wahrheiten über die Rufnummer eines Menschen sind keine Redundanz,
+  // sondern eine Verabredung darüber, wer sich irrt.
+  //
+  // ── DER ALTE WERT GEHT NICHT VERLOREN ───────────────────────────────────
+  // Er wandert als ALIAS in `fiaon_person_aliases`. Ruft der Kunde von der
+  // alten Nummer an, wird er weiter erkannt; schrieb er von der alten
+  // Adresse, findet ihn die Suche. Ein überschriebener Wert wäre ein
+  // Hard-Delete mit anderem Namen.
+  await personDurchschreiben(ref, {
+    firstName, lastName, email: emailRaw, phone,
+    street, zip, city,
+  }, actor).catch((e) => {
+    // Ein Fehler hier darf die Korrektur nicht umwerfen — aber er muss
+    // auffallen, sonst laufen die beiden Wahrheiten wieder auseinander.
+    console.error(`[FIAON-CONTACT-EDIT] Person-Durchschrift für ${ref} fehlgeschlagen:`, e);
+  });
+
   // Audit: ein Timeline-Eintrag pro geändertem Feld (alt → neu, Akteur, Zeit)
   for (const c of changes) {
     await sqlPool`
@@ -1112,6 +1163,85 @@ export async function updateCustomerContact(
 
   console.log(`[FIAON-CONTACT-EDIT] ${ref} durch ${actor.name}: ${changes.map((c) => c.field).join(", ")}${duplicate ? ` (DUBLETTE mit ${duplicate.ref})` : ""}`);
   return { changes, duplicate, loginEmailChanged };
+}
+
+/**
+ * Schreibt eine Stammdaten-Korrektur auf die PERSON durch.
+ *
+ * Was hier passiert, und warum in dieser Reihenfolge:
+ *   1. Der bisherige Wert wird als Alias gesichert (E-Mail und Telefon).
+ *      Erst sichern, dann überschreiben — andersherum wäre der alte Wert
+ *      zwischen zwei Anweisungen weg.
+ *   2. Die Person bekommt den neuen Wert, inklusive `phone_key9`. Ohne den
+ *      Schlüssel erkennt die Anrufzuordnung die neue Nummer nicht, und der
+ *      nächste Rückruf landet wieder bei niemandem.
+ *   3. Ein Vermerk im Verlauf der Person, nicht nur an der Bestellung.
+ *
+ * Leere Werte löschen NICHTS an der Person: Wer an einer von vier
+ * Bestellungen das Adressfeld leert, hat damit keine Aussage über den
+ * Menschen getroffen.
+ */
+async function personDurchschreiben(
+  ref: string,
+  neu: {
+    firstName: string | null; lastName: string | null; email: string | null;
+    phone: string | null; street: string | null; zip: string | null; city: string | null;
+  },
+  actor: { id: number | null; name: string },
+): Promise<void> {
+  const [p] = (await sqlPool`
+    SELECT p.id, p.first_name, p.last_name, p.primary_email, p.primary_phone
+    FROM fiaon_applications a JOIN fiaon_persons p ON p.id = a.person_id
+    WHERE a.ref = ${ref} AND p.merged_into_person_id IS NULL
+  `) as any[];
+  if (!p) return; // Ein Entwurf ohne Person — dann ist die Bestellzeile alles.
+
+  const alias = async (kind: "email" | "phone", wert: unknown) => {
+    const roh = String(wert ?? "").trim();
+    if (!roh) return;
+    const norm = kind === "email" ? roh.toLowerCase() : roh.replace(/[^\d+]/g, "");
+    if (!norm) return;
+    await sqlPool`
+      INSERT INTO fiaon_person_aliases (person_id, kind, value_norm, value_raw, source)
+      SELECT ${p.id}, ${kind}, ${norm}, ${roh}, ${`edit:${ref}`}
+      WHERE NOT EXISTS (
+        SELECT 1 FROM fiaon_person_aliases
+        WHERE person_id = ${p.id} AND kind = ${kind} AND value_norm = ${norm}
+      )
+    `;
+  };
+
+  if (neu.email && neu.email !== String(p.primary_email ?? "").toLowerCase()) {
+    await alias("email", p.primary_email);
+    await sqlPool`UPDATE fiaon_persons SET primary_email = ${neu.email}, updated_at = NOW() WHERE id = ${p.id}`;
+  }
+  if (neu.phone && neu.phone !== String(p.primary_phone ?? "")) {
+    await alias("phone", p.primary_phone);
+    // `phone_key9` ist die indexierte Vergleichsspalte für eingehende Anrufe
+    // und die Anrufzuordnung. Sie hier zu vergessen hieße: neue Nummer
+    // gespeichert, Kunde beim Rückruf trotzdem unbekannt.
+    const kern = neu.phone.replace(/\D/g, "").slice(-9) || null;
+    await sqlPool`
+      UPDATE fiaon_persons
+      SET primary_phone = ${neu.phone}, phone_key9 = ${kern}, updated_at = NOW()
+      WHERE id = ${p.id}
+    `;
+  }
+  if (neu.firstName) {
+    await sqlPool`UPDATE fiaon_persons SET first_name = ${neu.firstName}, updated_at = NOW() WHERE id = ${p.id}`;
+  }
+  if (neu.lastName) {
+    await sqlPool`UPDATE fiaon_persons SET last_name = ${neu.lastName}, updated_at = NOW() WHERE id = ${p.id}`;
+  }
+  if (neu.street) await sqlPool`UPDATE fiaon_persons SET street = ${neu.street}, updated_at = NOW() WHERE id = ${p.id}`;
+  if (neu.zip) await sqlPool`UPDATE fiaon_persons SET zip = ${neu.zip}, updated_at = NOW() WHERE id = ${p.id}`;
+  if (neu.city) await sqlPool`UPDATE fiaon_persons SET city = ${neu.city}, updated_at = NOW() WHERE id = ${p.id}`;
+
+  await sqlPool`
+    INSERT INTO fiaon_contact_log (person_id, ref, agent_id, agent_name, type, note)
+    VALUES (${p.id}, ${ref}, ${actor.id}, ${actor.name}, 'edit',
+            ${`Stammdaten der Person aktualisiert (${actor.name}). Der bisherige Wert bleibt als Alias erhalten.`})
+  `.catch(() => {});
 }
 
 // ═══════════════ PAKET AE1 — Automatische Kundenverteilung (Round-Robin) ═══════════════
@@ -1603,28 +1733,47 @@ router.get("/agent/customers", requireAgent, async (req: AgentRequest, res) => {
  * 404 statt 403: Ein 403 bestätigt, dass die Referenz existiert. Das ist
  * schon eine Auskunft — dieselbe Regel wie in /agent/crm.
  */
+// ── DIE ZWEITE DEFINITION, DIE HIER STAND (behoben 16.08.2026) ─────────────
+// Diese Prüfung kannte nur EINE Regel: „assigned_agent_id ist mein" oder „die
+// Person gehört mir". Das ist die Regel für die Rolle `agent` — und sie galt
+// hier für ALLE.
+//
+// Folge, und genau das meldete der Betreiber mit „Kundendaten können nicht
+// bearbeitet werden — all sowas":
+//   · Die VERTRIEBSLEITUNG bekam 404 bei jedem Kunden, den sie nicht selbst
+//     zugeteilt hatte — obwohl sie laut `darfAnKunde` alle sehen darf.
+//   · Das FORDERUNGSMANAGEMENT bekam 404 bei jedem seiner Inkasso-Fälle. Es
+//     durfte den Menschen anrufen, aber seine Telefonnummer nicht korrigieren
+//     — bei einer falschen Nummer also genau nichts tun.
+//   · ONBOARDING ebenso, für seine Startgespräch-Kunden.
+//
+// Es gab die richtige Antwort längst: `darfAnKunde` in
+// server/lib/fiaon-kundenzugriff.ts kennt alle fünf Rollen. Zwei Definitionen
+// derselben Frage sind schlimmer als eine fehlende — bei der fehlenden merkt
+// man es sofort.
 async function requireEigenerKunde(req: AgentRequest, res: Response, next: NextFunction) {
   try {
     const ref = String(req.params.ref || "");
-    // Besitz gilt über die Bestellung ODER über die Person. Beides ist derselbe
-    // Nachweis — und wer einen Kunden in der Liste sieht, muss ihn auch
-    // bearbeiten können. Stünde hier nur die Bestellung, wäre der Kunde
-    // sichtbar, aber jede Dokumentation würde mit „nicht gefunden" abgewiesen.
     const [app] = await sqlPool`
-      SELECT a.assigned_agent_id,
-             EXISTS (
-               SELECT 1 FROM fiaon_persons p
-               WHERE p.id = a.person_id AND p.merged_into_person_id IS NULL
-                 AND p.assigned_agent_id = ${req.agent!.id}
-             ) AS person_gehoert_mir
+      SELECT a.assigned_agent_id, a.person_id
       FROM fiaon_applications a
       WHERE a.ref = ${ref} AND a.merged_into IS NULL
       LIMIT 1
     `;
-    if (!app || (app.assigned_agent_id !== req.agent!.id && !app.person_gehoert_mir)) {
-      return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    if (!app) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
+    // Der direkte Besitz an der BESTELLUNG bleibt: Ein Entwurf ohne
+    // `person_id` hat keine Person, über die `darfAnKunde` urteilen könnte.
+    if (app.assigned_agent_id === req.agent!.id) return next();
+
+    if (app.person_id != null) {
+      const { darfAnKunde, rolleVon } = await import("../lib/fiaon-kundenzugriff");
+      const rolle = await rolleVon(req.agent!.id);
+      if (await darfAnKunde(req.agent!.id, rolle, Number(app.person_id))) return next();
     }
-    return next();
+    // 404 statt 403: Ein 403 bestätigt, dass die Referenz existiert. Das ist
+    // schon eine Auskunft — dieselbe Regel wie in /agent/crm.
+    return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
   } catch (err) {
     console.error("[FIAON-AGENT] Eigentumsprüfung:", err);
     return res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -2603,8 +2752,9 @@ router.get("/agent/calendar", requireAgent, async (req: AgentRequest, res) => {
     // doppelte Kennungen. Der Client unterscheidet über `quelle`.
     // ══════════════════════════════════════════════════════════════════════
     const gebucht = await sqlPool`
-      SELECT t.id, t.beginn AS scheduled_at, t.dauer_min, t.status, t.quelle AS buchungsquelle,
-             t.storno_token,
+      SELECT t.id, t.person_id, t.beginn AS scheduled_at, t.dauer_min, t.status,
+             t.quelle AS buchungsquelle, t.storno_token,
+             t.abgesagt_am, t.abgesagt_von, t.erledigt_am,
              (SELECT a.ref FROM fiaon_applications a
                WHERE a.person_id = t.person_id AND a.merged_into IS NULL AND a.archived_at IS NULL
                ORDER BY a.created_at DESC LIMIT 1) AS ref,
@@ -2613,7 +2763,22 @@ router.get("/agent/calendar", requireAgent, async (req: AgentRequest, res) => {
       FROM fiaon_termine t
       JOIN fiaon_persons p ON p.id = t.person_id
       WHERE t.agent_id = ${me}
-        AND t.status = 'gebucht'
+        -- ══════════════════════════════════════════════════════════════════
+        -- ABGESAGTE TERMINE VERSCHWINDEN NICHT MEHR
+        --
+        -- Hier stand „status = 'gebucht'". Sagte ein Kunde ab, war der Termin
+        -- im selben Augenblick aus jeder Ansicht verschwunden — der
+        -- Zuständige erfuhr es nie und saß zur vereinbarten Zeit da.
+        -- GEMESSEN: 10 abgesagte Termine, keiner davon je jemandem gemeldet.
+        --
+        -- Sieben Tage sichtbar, dann ist die Absage Geschichte. „verpasst"
+        -- bleibt ebenfalls: Ein Termin, den der Kunde platzen ließ, ist
+        -- Arbeit, nicht Vergangenheit.
+        -- ══════════════════════════════════════════════════════════════════
+        AND (
+          t.status IN ('gebucht', 'verpasst')
+          OR (t.status = 'abgesagt' AND t.abgesagt_am > NOW() - INTERVAL '7 days')
+        )
         AND t.beginn BETWEEN ${from} AND ${to}
         AND p.merged_into_person_id IS NULL
       ORDER BY t.beginn ASC
@@ -2621,7 +2786,17 @@ router.get("/agent/calendar", requireAgent, async (req: AgentRequest, res) => {
 
     res.json({
       ok: true,
-      data: rows,
+      data: (rows as any[]).map((r) => ({
+        ...r,
+        // ── DER EINDEUTIGE SCHLÜSSEL ──────────────────────────────────────
+        // Beide Tabellen zählen ihre Kennungen ab 1 hoch. GEMESSEN: 101
+        // Termine tragen eine Kennung, die auch ein Verlaufseintrag trägt —
+        // bei 33 davon gehört der Verlaufseintrag einem ANDEREN Menschen.
+        // Ein Klick auf den Haken hätte den Rückruf eines fremden Kunden
+        // erledigt. Deshalb reist die Herkunft ab jetzt MIT der Kennung.
+        art: "verlauf",
+        schluessel: `verlauf:${r.id}`,
+      })),
       // Getrennt geliefert, damit der Client sie eigens kennzeichnen kann:
       // Ein Termin, den der KUNDE gewählt hat, ist verbindlicher als eine
       // Notiz, die der Agent sich selbst gemacht hat.
@@ -2629,6 +2804,16 @@ router.get("/agent/calendar", requireAgent, async (req: AgentRequest, res) => {
         ...t,
         outcome: "kunde_hat_gebucht",
         quelle: "termin",
+        art: "termin",
+        schluessel: `termin:${t.id}`,
+        abgesagt: t.status === "abgesagt",
+        // Der Klartext, der auf der Karte steht — an einer Stelle formuliert.
+        absageText: t.status === "abgesagt" && t.abgesagt_am
+          ? `Abgesagt am ${new Date(t.abgesagt_am).toLocaleString("de-DE", {
+              timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit",
+              hour: "2-digit", minute: "2-digit",
+            })} Uhr${t.abgesagt_von === "kunde" ? " durch den Kunden" : t.abgesagt_von ? ` durch ${t.abgesagt_von}` : ""}`
+          : null,
       })),
     });
   } catch (err) {

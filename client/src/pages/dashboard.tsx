@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import Clarity from "@microsoft/clarity";
 import { StartgespraechGate } from "@/components/StartgespraechGate";
+import { PortalSperre } from "@/components/PortalSperre";
 import WelcomeModal from "@/components/WelcomeModal";
 import { welcomeConfig, type WelcomeState } from "@/config/welcome";
 import RoadmapJourney from "@/components/roadmap/RoadmapJourney";
@@ -195,6 +196,15 @@ const BANKS = {
 ═══════════════════════════════════════ */
 export default function DashboardPage() {
   const [section, setSection] = useState<NavSection>("overview");
+  // ── DIE KONTO-STUFE ─────────────────────────────────────────────────────
+  // Solange das Startgespräch fehlt, sind Fahrplan und Inhalte gesperrt — mit
+  // einer Karte, die den Grund nennt, nicht mit einer leeren Seite. Die Stufe
+  // entscheidet der SERVER (server/lib/fiaon-kontostufe.ts); hier wird nur
+  // gezeichnet.
+  const [stufe, setStufe] = useState<{
+    vollAktiv: boolean; pflicht: boolean;
+    termin: { datumText: string; uhrzeit: string; agentVorname: string } | null;
+  } | null>(null);
   const [mounted, setMounted] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [bankStatementFile, setBankStatementFile] = useState<File | null>(null);
@@ -230,6 +240,27 @@ export default function DashboardPage() {
   const fileInputRef2 = useRef<HTMLInputElement>(null);
   const fileInputRef3 = useRef<HTMLInputElement>(null);
   const [user, setUser] = useState<SessionUser>(() => { try { return JSON.parse(sessionStorage.getItem("fiaon_user") || "{}"); } catch { return {} as SessionUser; } });
+
+  // Die Stufe kommt vom Server — hier wird nur gezeichnet.
+  useEffect(() => {
+    if (!user?.ref) return;
+    let weg = false;
+    void fetch(`/api/fiaon/kunde/${encodeURIComponent(user.ref)}/startgespraech`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (weg || !j?.ok) return;
+        setStufe({
+          // Kein Wert vom Server heißt: nicht einschränken. Ein Kunde, dessen
+          // Stufe wir nicht kennen, darf nicht aus Versehen gesperrt werden.
+          vollAktiv: j.vollAktiv !== false || j.erledigt === true,
+          pflicht: j.pflicht === true,
+          termin: j.termin ?? null,
+        });
+      })
+      .catch(() => {});
+    return () => { weg = true; };
+  }, [user?.ref]);
+
   // Zustand des Bonitäts-Checks (nur lesend) — steuert den Held-Bereich der
   // Übersicht: Angebot, offene Zahlung, in Arbeit oder Auswertung fertig.
   // Muss NACH `user` stehen, sonst Zugriff vor der Initialisierung.
@@ -629,8 +660,27 @@ export default function DashboardPage() {
 
             {/* ════════════════ FAHRPLAN (Kundenprodukt) ════════════════ */}
             {section === "roadmap" && (
+              /* ── DER FAHRPLAN WARTET AUF DAS STARTGESPRÄCH ──────────────
+                 Die Geschäftsregel: „Erst nach ERLEDIGTEM Startgespräch wird
+                 der Account voll freigeschaltet." Der Fahrplan ist genau das,
+                 was im Gespräch erklärt wird — ihn vorher zu zeigen, hieße das
+                 Gespräch zu entwerten. */
+              stufe && !stufe.vollAktiv ? (
+                <PortalSperre
+                  titel="Dein Fahrplan wartet auf das Startgespräch"
+                  text="Im Fahrplan steht Schritt für Schritt, was wann passiert. Wir gehen ihn
+                        gemeinsam durch — fünfzehn Minuten am Telefon, danach ist er hier
+                        dauerhaft offen. So weiß du, was die einzelnen Schritte für DICH
+                        bedeuten, statt eine Liste zu lesen."
+                  termin={stufe.termin}
+                  aktion={stufe.termin ? null : {
+                    text: "Termin wählen",
+                    onClick: () => { window.location.reload(); },
+                  }}
+                />
+              ) : (
               <RoadmapJourney userRef={user.ref} firstName={user.firstName} />
-            )}
+            ))}
 
             {/* ════════════════ OVERVIEW ════════════════ */}
             {section === "overview" && (

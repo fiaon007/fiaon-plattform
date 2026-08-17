@@ -16,6 +16,9 @@ import {
   onCustomerRefunded, onCustomerPaid, searchCustomersAndLeads,
   eurToCents, commissionCents,
 } from "./fiaon-agent";
+import {
+  echteMitarbeiterSql, nurTestkontenSql, testkontenZaehlen,
+} from "../lib/fiaon-mitarbeiter-sicht";
 
 const router = Router();
 
@@ -24,6 +27,11 @@ const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
 // ═══════════════ AGENTS: Verwaltung + Onboarding (F1) ═══════════════
 
 router.get("/admin/agents", async (_req, res) => {
+  // Die Grenze wird VOR der Abfrage entschieden, nicht mitten im
+  // Template-Literal: Ein mehrzeiliger Ausdruck dort ist schwer zu lesen und
+  // war schon zweimal die Ursache eines Syntaxfehlers.
+  const nurTest = String(_req.query?.test ?? "") === "1";
+  const kontenGrenze = nurTest ? nurTestkontenSql() : echteMitarbeiterSql();
   try {
     await ensureAgentTables();
     const settings = await getSettings();
@@ -41,11 +49,29 @@ router.get("/admin/agents", async (_req, res) => {
              r.name AS recruited_by_name
       FROM fiaon_agents a
       LEFT JOIN fiaon_agents r ON r.id = a.recruited_by
+      -- ══════════════════════════════════════════════════════════════════
+      -- TESTKONTEN GEHÖREN NICHT INS TEAM-BILD
+      --
+      -- GEMESSEN am 17.08.2026: 49 Mitarbeiter-Konten, davon 43 Testkonten
+      -- aus Prüfständen und Knopf-Durchgängen — und 6 echte Menschen. Der
+      -- Betreiber sah 11 Karten und musste seine Leute suchen.
+      --
+      -- Die Grenze steht in der WHERE-Bedingung, nicht in der Oberfläche:
+      -- Sonst holt die Abfrage die Zeilen, die Anzeige wirft sie weg, und
+      -- jede Kennzahl hat schon mitgezählt.
+      --
+      -- „?test=1“ zeigt sie ausdrücklich — sie sind nicht verboten, nur
+      -- nicht im Weg.
+      -- ══════════════════════════════════════════════════════════════════
+      WHERE ${sqlPool.unsafe(kontenGrenze)}
       ORDER BY a.created_at ASC
     `;
     res.json({
       ok: true,
       data: agents,
+      // Damit die Zentrale einen Filter mit Zähler zeichnen kann.
+      testkonten: await testkontenZaehlen(),
+      nurTest,
       defaults: {
         commissionRateBp: Number(settings.default_commission_rate_bp),
         payoutMinCents: Number(settings.payout_min_cents),
@@ -459,6 +485,8 @@ router.post("/admin/agents/bank-changes/ack", async (_req, res) => {
 // ═══════════════ TEAM: Statistik (K) ═══════════════
 
 router.get("/admin/team/stats", async (_req, res) => {
+  const nurTest = String(_req.query?.test ?? "") === "1";
+  const kontenGrenze = nurTest ? nurTestkontenSql() : echteMitarbeiterSql();
   try {
     await ensureAgentTables();
     const settings = await getSettings();
@@ -477,6 +505,10 @@ router.get("/admin/team/stats", async (_req, res) => {
              r.name AS recruited_by_name
       FROM fiaon_agents a
       LEFT JOIN fiaon_agents r ON r.id = a.recruited_by
+      -- Dieselbe Grenze wie in /admin/agents. Die Team-Übersicht wird aus
+      -- DIESER Route gespeist — hier fehlte sie also dort, wo der Betreiber
+      -- hinsieht.
+      WHERE ${sqlPool.unsafe(kontenGrenze)}
       ORDER BY a.created_at ASC
     `;
     const assigned = await sqlPool`
@@ -655,7 +687,16 @@ router.post("/admin/agents/:id/commissions/manual", async (req, res) => {
  *  mit Vorschlag aus der dokumentierten Betreuung (letzter Agenten-Kontakt).
  *  Entscheidung trifft IMMER der Vorgesetzte, nichts wird automatisch gebucht.
  *  Nur SELECT (kein Schreibzugriff). */
-async function backfillCandidates(): Promise<any[]> {
+/**
+ * Die nachbuchbaren Fälle — die EINE Wahrheit.
+ *
+ * Exportiert seit dem 17.08.2026, weil die Menü-Marke sie braucht: Sie hatte
+ * eine eigene, nachgebaute Abfrage und zählte **14**, während diese Funktion
+ * **21** Fälle fand und die Marke in fiaon-marken.ts **160**. Drei Zahlen für
+ * dieselbe Sache — und der Betreiber klickte auf eine Marke, hinter der etwas
+ * anderes stand.
+ */
+export async function backfillCandidates(): Promise<any[]> {
   await ensureAgentTables();
   const rows = await sqlPool`
     SELECT
@@ -980,6 +1021,159 @@ router.get("/admin/team/agents/:id/bank", async (req, res) => {
     });
   } catch (err) {
     console.error("[FIAON-TEAM] agent bank view:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KUNDEN UMHÄNGEN — der Fall „ein Mensch geht"
+//
+// ── DER BEFUND (17.08.2026) ────────────────────────────────────────────────
+// Auf der Vollständigkeitsliste aus Paket 8 stand „Kunden umhängen". Es war die
+// EINZIGE der fünfzehn Funktionen, die im Mitarbeiter-Detail wirklich fehlte.
+//
+// Es gab `POST /admin/team/reassign` — aber die Route hängt nur die
+// BESTELLUNG um (`fiaon_applications.assigned_agent_id`). Die Arbeitslisten
+// filtern seit dem Personen-Umbau auf `fiaon_persons.assigned_agent_id`. Ein
+// Umhängen über die alte Route hätte die Karten also NICHT bewegt: Der
+// scheidende Mitarbeiter hätte sie weiter in seiner Liste gehabt, der neue
+// nicht. Ein Knopf, der etwas anderes tut als er sagt, ist schlimmer als keiner.
+//
+// Deshalb hier ein eigener Weg, der BEIDE Seiten mitnimmt — und eine Vorschau,
+// wie bei jedem Massenlauf im Haus.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** GET /admin/team/agents/:id/kunden — was hängt an diesem Menschen? (Vorschau) */
+router.get("/admin/team/agents/:id/kunden", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const [z] = (await sqlPool`
+      SELECT
+        (SELECT COUNT(*)::int FROM fiaon_persons
+          WHERE assigned_agent_id = ${id} AND merged_into_person_id IS NULL) AS personen,
+        (SELECT COUNT(*)::int FROM fiaon_persons
+          WHERE assigned_agent_id = ${id} AND merged_into_person_id IS NULL
+            AND priority_tier BETWEEN 1 AND 3) AS im_bestand,
+        (SELECT COUNT(*)::int FROM fiaon_applications
+          WHERE assigned_agent_id = ${id} AND merged_into IS NULL) AS bestellungen,
+        (SELECT COUNT(*)::int FROM fiaon_abo_raten r
+          WHERE r.inkasso_agent_id = ${id} AND r.status <> 'bezahlt') AS offene_raten,
+        (SELECT COUNT(*)::int FROM fiaon_termine
+          WHERE agent_id = ${id} AND status = 'gebucht' AND beginn > NOW()) AS termine
+    `) as any[];
+
+    // Wer kann übernehmen? Nur echte, aktive Menschen — ein Testkonto darf
+    // keine Kunden bekommen (siehe fiaon-mitarbeiter-sicht.ts).
+    const ziele = (await sqlPool.unsafe(`
+      SELECT a.id, a.name, COALESCE(a.rolle, 'agent') AS rolle,
+             (SELECT COUNT(*)::int FROM fiaon_persons p
+               WHERE p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL
+                 AND p.priority_tier BETWEEN 1 AND 3) AS last
+      FROM fiaon_agents a
+      WHERE a.active AND a.id <> $1 AND ${echteMitarbeiterSql()}
+      ORDER BY last ASC, a.name ASC
+    `, [id])) as any[];
+
+    res.json({
+      ok: true,
+      stand: {
+        personen: Number(z.personen), imBestand: Number(z.im_bestand),
+        bestellungen: Number(z.bestellungen), offeneRaten: Number(z.offene_raten),
+        termine: Number(z.termine),
+      },
+      ziele,
+      hinweis: Number(z.personen) === 0
+        ? "An diesem Menschen hängt kein Kunde."
+        : `${z.personen} ${Number(z.personen) === 1 ? "Kunde" : "Kunden"} hängen an ihm, `
+          + `${z.im_bestand} davon im aktiven Bestand.`,
+    });
+  } catch (err) {
+    console.error("[FIAON-TEAM] kunden vorschau:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /admin/team/agents/:id/kunden-umhaengen — alle Kunden an einen anderen.
+ *
+ * `zielId = null` heißt: Zuteilung entfernen, damit die Verteilung sie neu
+ * vergibt. Das ist der Regelfall, wenn jemand geht — der Rundlauf verteilt
+ * gleichmäßig, ein Mensch von Hand nicht.
+ */
+router.post("/admin/team/agents/:id/kunden-umhaengen", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const zielId = req.body?.zielId == null ? null : Number(req.body.zielId);
+    const grund = String(req.body?.grund || "").trim();
+    if (grund.length < 5) {
+      return res.status(400).json({
+        ok: false,
+        error: "Bitte einen Grund angeben (mindestens 5 Zeichen). Er steht später "
+          + "im Verlauf jedes betroffenen Kunden.",
+      });
+    }
+    let zielName = "die Verteilung";
+    if (zielId != null) {
+      const [t] = (await sqlPool.unsafe(`
+        SELECT id, name FROM fiaon_agents a
+        WHERE a.id = $1 AND a.active AND ${echteMitarbeiterSql()}
+      `, [zielId])) as any[];
+      if (!t) {
+        return res.status(404).json({
+          ok: false,
+          error: "Dieses Ziel gibt es nicht, ist stillgelegt oder ein Testkonto.",
+        });
+      }
+      zielName = String(t.name);
+    }
+    const [von] = (await sqlPool`SELECT name FROM fiaon_agents WHERE id = ${id}`) as any[];
+
+    // ── EINE TRANSAKTION ─────────────────────────────────────────────────
+    // Person und Bestellung müssen GEMEINSAM umziehen. Bliebe die Person beim
+    // Alten und die Bestellung beim Neuen, sähe die Arbeitsliste des einen
+    // etwas anderes als die Akte des anderen.
+    const erg = await sqlPool.begin(async (tx) => {
+      const personen = (await tx`
+        UPDATE fiaon_persons
+        SET assigned_agent_id = ${zielId},
+            assigned_at = ${zielId == null ? null : new Date()},
+            -- Die Betreuungssperre fällt: Sonst schützt sie einen Menschen,
+            -- der den Kunden nicht mehr betreut.
+            betreuung_seit = ${zielId == null ? null : new Date()},
+            -- Wiedervorlage auf heute: Der neue Betreuer soll den Fall sehen,
+            -- nicht erst in drei Wochen von ihm erfahren.
+            follow_up_date = NULL,
+            updated_at = NOW()
+        WHERE assigned_agent_id = ${id} AND merged_into_person_id IS NULL
+        RETURNING id
+      `) as any[];
+      const bestellungen = (await tx`
+        UPDATE fiaon_applications
+        SET assigned_agent_id = ${zielId}, locked_by_agent_id = NULL,
+            locked_until = NULL, updated_at = NOW()
+        WHERE assigned_agent_id = ${id} AND merged_into IS NULL
+        RETURNING ref
+      `) as any[];
+      for (const b of bestellungen) {
+        await tx`
+          INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+          VALUES (${b.ref}, ${zielId}, ${zielName}, 'claim',
+                  ${`Betreuung umgehängt von ${von?.name ?? `Konto ${id}`} auf ${zielName}. Grund: ${grund.slice(0, 400)}`})
+        `.catch(() => {});
+      }
+      return { personen: personen.length, bestellungen: bestellungen.length };
+    });
+
+    console.log(`[FIAON-TEAM] ${erg.personen} Kunden von ${id} auf ${zielId ?? "die Verteilung"} umgehängt.`);
+    res.json({
+      ok: true, ...erg,
+      meldung: `${erg.personen} ${erg.personen === 1 ? "Kunde" : "Kunden"} und `
+        + `${erg.bestellungen} ${erg.bestellungen === 1 ? "Bestellung" : "Bestellungen"} `
+        + `umgehängt auf ${zielName}.`
+        + (zielId == null ? " Die Verteilung vergibt sie beim nächsten Lauf neu." : ""),
+    });
+  } catch (err) {
+    console.error("[FIAON-TEAM] kunden-umhaengen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -1622,6 +1816,62 @@ router.post("/admin/team/ansicht/:id", async (req: Request, res: Response) => {
  * NUR unter /admin: Die Liste nennt, wer wem was getan hat. In den Händen der
  * Vertriebsleitung wäre sie ein Werkzeug, um zu sehen, wer beobachtet wird.
  */
+// ═══════════════════════════════════════════════════════════════════════════
+// ANRUFE MIT MARKE „ZUORDNUNG PRÜFEN"
+//
+// ── WOHER SIE KOMMEN ───────────────────────────────────────────────────────
+// Am 16.08.2026 wurde die Anruf-Zuordnung umgebaut: Nicht mehr die offene
+// Kundenkarte entscheidet, wem ein Anruf gehört, sondern die GEWÄHLTE NUMMER.
+// Beim Bestandslauf blieben vier Anrufe übrig, bei denen sich das nicht
+// eindeutig klären ließ — sie bekamen eine Marke im Feld `transkript_grund`.
+//
+// ── DAS PROBLEM ────────────────────────────────────────────────────────────
+// Eine Marke, die niemand findet, ist keine Marke. Der Betreiber hätte in der
+// Datenbank suchen müssen. Diese Route macht sie in der Team-Zentrale sichtbar,
+// im Reiter „Aktivität" — dort, wo er ohnehin nach Unstimmigkeiten sieht.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/admin/team/anrufe-pruefen", async (_req: Request, res: Response) => {
+  try {
+    const zeilen = (await sqlPool`
+      SELECT c.id, c.beginn, c.nummer, c.richtung, c.dauer_sek,
+             c.transkript_grund AS marke, c.person_id, c.agent_id,
+             c.recording_url IS NOT NULL AS hat_aufnahme,
+             ag.name AS agent,
+             COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
+                      p.company_name, p.contact_name, 'ohne Zuordnung') AS kunde,
+             (SELECT a.ref FROM fiaon_applications a
+               WHERE a.person_id = c.person_id AND a.merged_into IS NULL
+               ORDER BY a.created_at DESC LIMIT 1) AS ref
+      FROM fiaon_calls c
+      LEFT JOIN fiaon_agents ag ON ag.id = c.agent_id
+      LEFT JOIN fiaon_persons p ON p.id = c.person_id
+      WHERE c.transkript_grund ILIKE '%uordnung prüfen%'
+      ORDER BY c.beginn DESC
+      LIMIT 100
+    `) as any[];
+    res.json({
+      ok: true,
+      anzahl: zeilen.length,
+      anrufe: zeilen.map((z) => ({
+        id: Number(z.id), beginn: z.beginn, nummer: z.nummer,
+        richtung: z.richtung, dauerSek: Number(z.dauer_sek ?? 0),
+        marke: z.marke, kunde: z.kunde, agent: z.agent,
+        hatAufnahme: z.hat_aufnahme === true,
+        personId: z.person_id != null ? Number(z.person_id) : null,
+        akte: z.ref ? `/admin/kunde/${encodeURIComponent(String(z.ref))}` : null,
+      })),
+      hinweis: zeilen.length === 0
+        ? "Kein Anruf braucht eine Klärung."
+        : `${zeilen.length} ${zeilen.length === 1 ? "Anruf" : "Anrufe"} aus dem Umbau der `
+          + "Anruf-Zuordnung (16.08.2026), bei denen sich der Mensch nicht eindeutig "
+          + "bestimmen ließ. Wer die Aufnahme anhört, kann es entscheiden.",
+    });
+  } catch (err) {
+    console.error("[FIAON-TEAM] anrufe-pruefen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.get("/admin/team/aktivitaet", async (req: Request, res: Response) => {
   try {
     const { aktivitaet, aktivitaetZahlen, KATALOG } = await import("../lib/fiaon-aktivitaet");

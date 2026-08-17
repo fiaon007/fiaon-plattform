@@ -27,6 +27,7 @@ import { ensureRolleSpalte } from "./fiaon-vertrieb";
 import { ONBOARDING_ZUSAGE_TEXT, ONBOARDING_ZUSAGE_VERSION } from "../lib/fiaon-onboarding-zusage";
 import { berlinDatumText, berlinUhrzeit, berlinDatum, terminLink } from "../lib/fiaon-termine";
 import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
+import { absoluteUrl } from "../fiaon-base-url";
 
 const router = Router();
 
@@ -217,16 +218,31 @@ router.post("/agent/onboarding/termine/:id/ergebnis", requireAgent, nurOnboardin
     if (!["erledigt", "verpasst"].includes(String(ergebnis))) {
       return res.status(400).json({ ok: false, error: "Ergebnis muss 'erledigt' oder 'verpasst' sein." });
     }
+    // Der Stand der Agenda und die Gesprächsdauer kommen aus dem Cockpit.
+    // Beides ist freiwillig: Ein Gespräch, das ohne das Cockpit geführt wurde
+    // (Telefon klingelte einfach), muss trotzdem abschließbar sein.
+    const agendaStand = req.body?.agenda && typeof req.body.agenda === "object"
+      ? req.body.agenda : null;
+    const dauerSek = Number.isFinite(Number(req.body?.dauerSek))
+      ? Math.max(0, Math.min(4 * 3600, Number(req.body.dauerSek))) : null;
+
+    // ── AUCH EIN VERPASSTER TERMIN LÄSST SICH NACHTRAGEN ─────────────────
+    // Hier stand `status = 'gebucht'`. Ein Tageslauf setzt Termine nach zwölf
+    // Stunden auf „verpasst" — danach war der Termin nicht mehr abschließbar,
+    // auch wenn der Kunde sich abends doch gemeldet hatte.
     const [termin] = (await sqlPool`
       SELECT id, person_id, beginn FROM fiaon_termine
       WHERE id = ${id} AND agent_id = ${req.agent!.id} AND quelle = 'onboarding_call'
-        AND status = 'gebucht'
+        AND status IN ('gebucht', 'verpasst')
     `) as any[];
     if (!termin) return res.status(404).json({ ok: false, error: "Termin nicht gefunden." });
 
     await sqlPool`
       UPDATE fiaon_termine SET status = ${String(ergebnis)}, erledigt_am = NOW(),
-             notiz = ${notiz ? String(notiz).slice(0, 4000) : null}, updated_at = NOW()
+             notiz = ${notiz ? String(notiz).slice(0, 4000) : null},
+             agenda_stand = ${agendaStand ? JSON.stringify(agendaStand) : null}::jsonb,
+             dauer_sek = ${dauerSek},
+             updated_at = NOW()
       WHERE id = ${id}
     `;
 
@@ -257,6 +273,49 @@ router.post("/agent/onboarding/termine/:id/ergebnis", requireAgent, nurOnboardin
     } else {
       const { erreichtZuruecksetzen } = await import("../lib/fiaon-nicht-erreicht");
       await erreichtZuruecksetzen(Number(termin.person_id));
+
+      // ══════════════════════════════════════════════════════════════════
+      // HIER UND NUR HIER WIRD FREIGESCHALTET
+      //
+      // Die Geschäftsregel: „Erst nach ERLEDIGTEM Startgespräch wird der
+      // Account voll freigeschaltet." Das ist der eine Weg. Ein zweiter —
+      // etwa „bei der Zahlung gleich mit" — würde die Pflicht zu einer Bitte
+      // machen, und niemand hätte je ein Startgespräch geführt.
+      //
+      // Der ausdrückliche Admin-Übergang bleibt als Ausnahme, mit Grund und
+      // protokolliert (siehe POST /admin/kunden/:ref/freischalten).
+      // ══════════════════════════════════════════════════════════════════
+      const { vollFreischalten } = await import("../lib/fiaon-kontostufe");
+      const frei = await vollFreischalten(Number(termin.person_id), {
+        name: req.agent!.name,
+        grund: `Startgespräch geführt am ${berlinDatumText(termin.beginn)}`,
+      });
+      if (frei.freigeschaltet > 0) {
+        hinweis = "Startgespräch erledigt — das Konto ist jetzt VOLL freigeschaltet. "
+          + "Der Kunde sieht ab sofort seinen Fahrplan und alle Inhalte.";
+        // Der Kunde erfährt es: Der Zweig `account_activated` steht in der
+        // Ereignisliste. Fehlt er bei Make, scheitert der Versand SICHTBAR im
+        // Zustellprotokoll — besser als ein Kunde, der nicht weiß, dass er
+        // jetzt darf.
+        try {
+          const { sendMakeWebhookMitGrund } = await import("../make-webhook");
+          const [k] = (await sqlPool`
+            SELECT a.ref, a.person_id, a.email, a.first_name, a.last_name,
+                   a.payment_reference, a.amount_due, a.pack_name
+            FROM fiaon_applications a WHERE a.ref = ${frei.refs[0]}
+          `) as any[];
+          if (k) {
+            const { makePayloadFromRow } = await import("../make-webhook");
+            await sendMakeWebhookMitGrund("account_activated", {
+              ...makePayloadFromRow(k),
+              portal_url: absoluteUrl("/dashboard"),
+              freigeschaltet_am_text: berlinDatumText(new Date()),
+            } as any);
+          }
+        } catch (e) {
+          console.error("[ONBOARDING] account_activated:", e);
+        }
+      }
     }
 
     if (ref) {
@@ -315,24 +374,54 @@ router.post("/agent/onboarding/person/:id/einladung", requireAgent, nurOnboardin
 /** GET /agent/onboarding/kennzahlen — Woche, Erledigungsquote, No-Show-Quote. */
 router.get("/agent/onboarding/kennzahlen", requireAgent, nurOnboarding, nurMitZusage, async (req: AgentRequest, res: Response) => {
   try {
+    // ── DER KENNZAHLEN-KOPF DES BEREICHS (Teil 2.4) ──────────────────────
+    // Sechs Zahlen, mit denen ein Onboarding-Mensch seinen Tag anfängt und
+    // beendet. „Heute" ist die Berliner Tagesgrenze, nicht UTC — sonst zählt
+    // ein Gespräch um 01:30 zum Vortag.
     const [z] = (await sqlPool`
       SELECT
         COUNT(*) FILTER (WHERE beginn >= date_trunc('week', NOW() AT TIME ZONE 'Europe/Berlin'))::int AS diese_woche,
         COUNT(*) FILTER (WHERE status = 'gebucht' AND beginn > NOW())::int AS offen,
         COUNT(*) FILTER (WHERE status = 'erledigt')::int AS erledigt,
-        COUNT(*) FILTER (WHERE status = 'verpasst')::int AS verpasst
+        COUNT(*) FILTER (WHERE status = 'verpasst')::int AS verpasst,
+        -- Heute
+        COUNT(*) FILTER (WHERE (beginn AT TIME ZONE 'Europe/Berlin')::date
+                             = (NOW() AT TIME ZONE 'Europe/Berlin')::date)::int AS heute_geplant,
+        COUNT(*) FILTER (WHERE status = 'erledigt'
+                           AND (erledigt_am AT TIME ZONE 'Europe/Berlin')::date
+                             = (NOW() AT TIME ZONE 'Europe/Berlin')::date)::int AS heute_erledigt,
+        COUNT(*) FILTER (WHERE status = 'verpasst'
+                           AND (erledigt_am AT TIME ZONE 'Europe/Berlin')::date
+                             = (NOW() AT TIME ZONE 'Europe/Berlin')::date)::int AS heute_noshow,
+        -- Die Ø-Dauer nur über Gespräche, bei denen sie GEMESSEN wurde (Cockpit).
+        -- Ein Mittelwert über Nullen wäre keine Auskunft, sondern eine Zahl.
+        AVG(dauer_sek) FILTER (WHERE status = 'erledigt' AND dauer_sek > 0) AS dauer_schnitt
       FROM fiaon_termine
       WHERE agent_id = ${req.agent!.id} AND quelle = 'onboarding_call'
     `) as any[];
     const erledigt = Number(z?.erledigt || 0);
     const verpasst = Number(z?.verpasst || 0);
     const gefuehrt = erledigt + verpasst;
+    // Wie viele Konten wurden diese Woche freigeschaltet? Das ist die Zahl, die
+    // den Zweck des Bereichs misst — nicht die Zahl der Gespräche.
+    const { wartendeZaehlen } = await import("../lib/fiaon-kontostufe");
+    const stufen = await wartendeZaehlen();
     res.json({
       ok: true,
       dieseWoche: Number(z?.diese_woche || 0),
       offen: Number(z?.offen || 0),
       erledigt,
       verpasst,
+      heuteGeplant: Number(z?.heute_geplant || 0),
+      heuteErledigt: Number(z?.heute_erledigt || 0),
+      heuteNoShow: Number(z?.heute_noshow || 0),
+      dauerSchnittMin: z?.dauer_schnitt != null
+        ? Math.round(Number(z.dauer_schnitt) / 60) : null,
+      freigeschaltetWoche: stufen.freigeschaltetWoche,
+      // Wer wartet insgesamt noch auf sein Gespräch? Das ist die Arbeit, die
+      // vor dem Bereich liegt.
+      wartend: stufen.wartend,
+      wartendOhneTermin: stufen.ohneTermin,
       // Ohne ein einziges abgeschlossenes Gespräch gibt es keine Quote. Eine
       // „0 %" wäre an dieser Stelle eine Behauptung über nichts.
       erledigungsquote: gefuehrt > 0 ? Math.round((erledigt / gefuehrt) * 1000) / 10 : null,

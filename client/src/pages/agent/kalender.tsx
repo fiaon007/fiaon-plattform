@@ -26,6 +26,26 @@ interface Appointment {
   phone: string | null;
   phone_country_code: string | null;
   contact_phone: string | null;
+  // ── DIE HERKUNFT REIST MIT ──────────────────────────────────────────────
+  // Diese Liste mischt ZWEI Tabellen: eigene Notizen (fiaon_contact_log) und
+  // Termine, die der KUNDE gebucht hat (fiaon_termine). Beide zählen ihre
+  // Kennungen ab 1 hoch.
+  //
+  // GEMESSEN am 16.08.2026: 101 Termine tragen eine Kennung, die auch ein
+  // Verlaufseintrag trägt — bei 33 davon gehört der Verlaufseintrag einem
+  // ANDEREN Menschen. Der Haken rief blind `/agent/calendar/:id/done`, also
+  // den Weg für Verlaufseinträge. Ein Klick auf einen Kundentermin hätte den
+  // Rückruf eines fremden Kunden als erledigt abgestempelt.
+  //
+  // Der Kommentar im Server sagte schon „der Client unterscheidet über
+  // quelle" — der Client tat es nur nicht.
+  art?: "verlauf" | "termin";
+  schluessel?: string;
+  status?: string;
+  abgesagt?: boolean;
+  absageText?: string | null;
+  buchungsquelle?: string;
+  person_id?: number | null;
 }
 
 function apptName(a: Appointment): string {
@@ -103,13 +123,47 @@ function KalenderContent() {
     return { overdue, today, week };
   }, [appointments]);
 
-  const markDone = async (e: React.MouseEvent, id: number) => {
+  /**
+   * Erledigt — auf dem Weg, der zur HERKUNFT gehört.
+   *
+   * Ein Kundentermin liegt in `fiaon_termine` und wird über
+   * `/agent/termine/:id/ergebnis` abgeschlossen. Ein eigener Rückruf liegt in
+   * `fiaon_contact_log` und geht über `/agent/calendar/:id/done`. Beide
+   * Kennungen überlappen — wer den falschen Weg nimmt, trifft einen fremden
+   * Menschen.
+   */
+  const markDone = async (e: React.MouseEvent, a: Appointment) => {
     e.stopPropagation();
-    setBusy(id);
-    const r = await api(`/agent/calendar/${id}/done`, { method: "POST" });
+    setBusy(a.id);
+    const r = a.art === "termin"
+      ? await api(`/agent/termine/${a.id}/ergebnis`, {
+          method: "POST", body: JSON.stringify({ ergebnis: "erledigt" }),
+        })
+      : await api(`/agent/calendar/${a.id}/done`, { method: "POST" });
     setBusy(null);
-    if (r.ok) { flash("Termin als erledigt markiert"); load(); }
-    else flash(r.json?.error || "Fehler");
+    if (r.ok) {
+      flash(r.json?.hinweis || "Termin als erledigt markiert");
+      // Sofort aus der Ansicht nehmen, nicht erst nach dem Neuladen: Der
+      // Mensch soll sehen, dass sein Klick gewirkt hat.
+      setAppointments((v) => v.filter((x) => (x.schluessel ?? String(x.id)) !== (a.schluessel ?? String(a.id))));
+      load();
+    } else flash(r.json?.error || "Fehler");
+  };
+
+  /** Nicht erschienen — zählt als Fehlversuch (bestehende Logik). */
+  const markVerpasst = async (e: React.MouseEvent, a: Appointment) => {
+    e.stopPropagation();
+    if (a.art !== "termin") return;
+    setBusy(a.id);
+    const r = await api(`/agent/termine/${a.id}/ergebnis`, {
+      method: "POST", body: JSON.stringify({ ergebnis: "verpasst" }),
+    });
+    setBusy(null);
+    if (r.ok) {
+      flash(r.json?.hinweis || "Als nicht erschienen vermerkt");
+      setAppointments((v) => v.filter((x) => (x.schluessel ?? String(x.id)) !== (a.schluessel ?? String(a.id))));
+      load();
+    } else flash(r.json?.error || "Fehler");
   };
 
   const doReschedule = async (e: React.MouseEvent) => {
@@ -139,6 +193,20 @@ function KalenderContent() {
               <span className="tabular-nums text-slate-500 mr-2">{showDate ? fmtDT(a.scheduled_at || a.promised_date) : fmtTime(a.scheduled_at || a.promised_date)}</span>
               {apptName(a)}
             </p>
+            {/* ── DIE ABSAGE STEHT DA, MIT ZEIT UND URHEBER ──────────────
+                Bis zum 16.08.2026 verschwand ein abgesagter Termin sofort aus
+                jeder Ansicht. Der Zuständige erfuhr es nie und saß zur
+                vereinbarten Zeit da. Sieben Tage sichtbar. */}
+            {a.absageText && (
+              <p className="text-[11px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#b45309" }}>
+                {a.absageText}
+              </p>
+            )}
+            {a.status === "verpasst" && (
+              <p className="text-[11px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#b91c1c" }}>
+                Nicht erschienen — bitte abschließen
+              </p>
+            )}
             <p className="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap mt-0.5">
               {/* ── DER KUNDE HAT SELBST GEWÄHLT ──────────────────────────
                   Das ist verbindlicher als eine Notiz, die sich der Agent
@@ -179,11 +247,27 @@ function KalenderContent() {
             >
               Verschieben
             </button>
+            {/* ── NICHT ERSCHIENEN ──────────────────────────────────────
+                Nur bei Kundenterminen: Ein Rückruf, den man sich selbst
+                notiert hat, kann nicht „nicht erscheinen". */}
+            {a.art === "termin" && !a.abgesagt && (
+              <button
+                type="button"
+                onClick={(e) => markVerpasst(e, a)}
+                disabled={busy === a.id}
+                title="Kunde ist nicht erschienen — zählt als Fehlversuch"
+                className={`${btnGhost} px-3 py-2 text-[12px] disabled:opacity-30`}
+              >
+                Nicht erschienen
+              </button>
+            )}
             <button
               type="button"
-              onClick={(e) => markDone(e, a.id)}
-              disabled={busy === a.id}
-              title="Erledigt"
+              onClick={(e) => markDone(e, a)}
+              /* Ein abgesagter Termin ist nichts, was man erledigen kann. Er
+                 steht nur noch da, damit der Zuständige die Absage SIEHT. */
+              disabled={busy === a.id || a.abgesagt === true}
+              title={a.abgesagt ? "Dieser Termin ist abgesagt." : "Erledigt"}
               className="w-9 h-9 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-700 hover:border-slate-400 flex items-center justify-center transition-colors disabled:opacity-40"
             >
               <Check size={15} strokeWidth={2} />

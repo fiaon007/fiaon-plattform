@@ -423,6 +423,8 @@ export interface Buchung {
   datumText: string;
   uhrzeit: string;
   stornoToken: string;
+  /** Woher der Termin kommt — die Meldung an den Zuständigen nennt es. */
+  quelle: string;
 }
 
 /**
@@ -544,6 +546,7 @@ export async function terminBuchen(
     datumText: berlinDatumText(beginn),
     uhrzeit: berlinUhrzeit(beginn),
     stornoToken,
+    quelle: eingabe.quelle,
   };
 }
 
@@ -584,19 +587,25 @@ export async function buchungAnwenden(buchung: Buchung, lauf: Lauf = sqlPool): P
     `;
   }
 
-  const [ref] = (await lauf`
-    SELECT ref FROM fiaon_applications
-    WHERE person_id = ${buchung.personId} AND merged_into IS NULL AND archived_at IS NULL
-    ORDER BY created_at DESC LIMIT 1
-  `) as any[];
-  if (ref) {
-    await lauf`
-      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
-      VALUES (${ref.ref}, NULL, 'System', 'system',
-              ${`Termin gebucht: ${buchung.datumText} um ${buchung.uhrzeit} Uhr mit ${buchung.agentVorname}. Der Kunde hat die Zeit selbst gewählt.`},
-              NOW())
-    `.catch(() => {});
-  }
+  // ══════════════════════════════════════════════════════════════════════
+  // DER ZUSTÄNDIGE ERFÄHRT ES — SOFORT
+  //
+  // Hier stand nur ein Verlaufseintrag in der Akte des Kunden. Den liest
+  // niemand, der nicht ohnehin schon hinsieht. Der Kunde bekam eine
+  // Bestätigung mit Uhrzeit, hielt sie ein — und der Zuständige wusste
+  // nichts davon.
+  //
+  // Der Verlaufseintrag entsteht jetzt in `buchungMelden` (mit derselben
+  // Aussage), zusammen mit der Mail an den Zuständigen. Fire-and-forget:
+  // Eine Buchung darf nicht daran scheitern, dass ein Mailserver hustet.
+  void import("./fiaon-termin-meldung")
+    .then((m) => m.buchungMelden(buchung.id, buchung.beginn, buchung.quelle, lauf))
+    .catch((e) => console.error("[TERMINE] Buchungsmeldung:", e));
+
+  // Ein gebuchter Termin beendet einen Wartezustand: Der Kunde hat reagiert.
+  void import("./fiaon-warten")
+    .then((m) => m.nichtMehrWarten(buchung.personId))
+    .catch(() => {});
 }
 
 /** Sagt einen Termin ab. Der Slot wird dadurch wieder frei. */
@@ -604,24 +613,30 @@ export async function terminAbsagen(
   stornoToken: string, wer: "kunde" | "agent", lauf: Lauf = sqlPool,
 ): Promise<{ ok: boolean; termin?: any }> {
   const [termin] = (await lauf`
-    UPDATE fiaon_termine SET status = 'abgesagt', abgesagt_am = NOW(), updated_at = NOW()
+    UPDATE fiaon_termine
+    SET status = 'abgesagt', abgesagt_am = NOW(), abgesagt_von = ${wer}, updated_at = NOW()
     WHERE storno_token = ${stornoToken} AND status = 'gebucht'
-    RETURNING id, person_id, agent_id, beginn
+    RETURNING id, person_id, agent_id, beginn, quelle
   `) as any[];
   if (!termin) return { ok: false };
 
-  const [ref] = (await lauf`
-    SELECT ref FROM fiaon_applications
-    WHERE person_id = ${termin.person_id} AND merged_into IS NULL AND archived_at IS NULL
-    ORDER BY created_at DESC LIMIT 1
-  `) as any[];
-  if (ref) {
-    await lauf`
-      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
-      VALUES (${ref.ref}, NULL, 'System', 'system',
-              ${`Termin abgesagt (${wer === "kunde" ? "vom Kunden" : "vom Betreuer"}): ${berlinDatumText(termin.beginn)} um ${berlinUhrzeit(termin.beginn)} Uhr.`},
-              NOW())
-    `.catch(() => {});
-  }
+  // ══════════════════════════════════════════════════════════════════════
+  // EINE ABSAGE, DIE NIEMAND ERFÄHRT, IST SCHLIMMER ALS KEIN TERMIN
+  //
+  // GEMESSEN: 10 abgesagte Termine, keine einzige Absage jemandem gemeldet.
+  // Der Termin verschwand im selben Augenblick aus jeder Ansicht — der
+  // Kalender filterte auf „gebucht". Der Zuständige saß zur vereinbarten
+  // Zeit da und wartete auf jemanden, der abgesagt hatte.
+  //
+  // Ab jetzt: Mail an den Zuständigen, Verlaufseintrag, und der Termin bleibt
+  // sieben Tage im Kalender stehen — mit „Abgesagt am … durch den Kunden".
+  // ══════════════════════════════════════════════════════════════════════
+  void import("./fiaon-termin-meldung")
+    .then((m) => m.absageMelden(
+      Number(termin.id), termin.beginn, String(termin.quelle),
+      wer === "kunde" ? "kunde" : "agent", lauf,
+    ))
+    .catch((e) => console.error("[TERMINE] Absagemeldung:", e));
+
   return { ok: true, termin };
 }

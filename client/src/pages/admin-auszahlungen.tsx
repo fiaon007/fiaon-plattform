@@ -253,7 +253,7 @@ export default function AdminAuszahlungenPage() {
           <span className="block mt-2 text-[15px] font-bold text-slate-900 leading-tight">Team-Übersicht</span>
           <span className="block mt-1.5 text-[11.5px] text-slate-500">Provisionssätze, Bankdaten, Guthaben</span>
         </a>
-        <a href="/admin/nachbuchung" className="a3-kachel a3-auf p-4 pl-[18px]" style={{ ["--i" as any]: 3 }}>
+        <a href="/admin/team?tab=nachbuchung" className="a3-kachel a3-auf p-4 pl-[18px]" style={{ ["--i" as any]: 3 }}>
           <span className="text-[10px] font-semibold uppercase tracking-[.07em] text-slate-500">Fehlt eine Provision?</span>
           <span className="block mt-2 text-[15px] font-bold text-slate-900 leading-tight">Nachbuchen</span>
           <span className="block mt-1.5 text-[11.5px] text-slate-500">Bezahlte Bestellungen ohne Provision</span>

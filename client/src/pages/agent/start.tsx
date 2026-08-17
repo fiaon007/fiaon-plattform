@@ -176,7 +176,33 @@ function Inhalt() {
     return { ueber, heute, morgen, woche, spaeter };
   }, [d]);
 
-  const v = d?.verdienst;
+  // ══════════════════════════════════════════════════════════════════════
+  // DIE NICHT-NULL-ZUSICHERUNG HAT GELOGEN
+  //
+  // ── DER BEFUND (16.08.2026, Knopf-Durchgang) ─────────────────────────
+  // Der Knopf „Gelesen" auf /agent/start ließ die Seite weiß werden:
+  //   „Cannot read properties of undefined (reading 'guthabenCents')"
+  //
+  // Ursache: Unten stand dreimal `v.guthabenCents`. Das Ausrufezeichen
+  // BEHAUPTET, `v` sei da — geprüft wurde nur `laedt`. Antwortet der Server
+  // aber mit einem Objekt OHNE `verdienst` (Teilfehler, 403 auf einer der
+  // Unterabfragen, Rechteproblem), ist `laedt` false und `v` undefined. Der
+  // Zugriff wirft, React reißt den ganzen Baum ab, und der Mensch sieht:
+  // nichts. Kein Fehlertext, keine Meldung — eine weiße Seite.
+  //
+  // Gefunden hat das kein Typcheck (das `!` schaltet ihn ja ab) und kein
+  // Test, sondern der Knopf-Durchgang: drücken und zusehen.
+  //
+  // Der Rückfall auf 0 ist hier richtig: „0,00 €" ist eine Aussage, die der
+  // Mensch prüfen kann. Eine weiße Seite ist keine.
+  // ══════════════════════════════════════════════════════════════════════
+  const v: NonNullable<typeof d>["verdienst"] = d?.verdienst ?? {
+    guthabenCents: 0, angefordertCents: 0, ausgezahltCents: 0,
+    monatCents: 0, moeglichCents: 0, moeglichAnzahl: 0,
+    monatszielCents: null, satzBp: 0, mindestCents: 0,
+    auszahlbar: false, bankHinterlegt: false, offenerAntrag: null,
+  };
+  const verdienstFehlt = !laedt && !d?.verdienst;
 
   return (
     <div className="pb-10">
@@ -224,11 +250,14 @@ function Inhalt() {
                       </p>
                       {laedt ? <Skelett h={34} w={140} /> : (
                         <p className="text-[30px] sm:text-[34px] font-bold leading-none mt-1 fi-zahl">
-                          {eur(v!.guthabenCents)}
+                          {eur(v.guthabenCents)}
                         </p>
                       )}
-                      <p className="mt-1 text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>
-                        bestätigt und auszahlbar
+                      <p className="mt-1 text-[11.5px]"
+                         style={{ color: verdienstFehlt ? "#b45309" : "var(--fi-text-still)" }}>
+                        {verdienstFehlt
+                          ? "Die Verdienstzahlen konnten nicht geladen werden — bitte neu laden."
+                          : "bestätigt und auszahlbar"}
                       </p>
                     </div>
                     <div>
@@ -237,11 +266,11 @@ function Inhalt() {
                         Diesen Monat
                       </p>
                       {laedt ? <Skelett h={24} w={100} /> : (
-                        <p className="text-[22px] font-bold leading-none mt-1 fi-zahl">{eur(v!.monatCents)}</p>
+                        <p className="text-[22px] font-bold leading-none mt-1 fi-zahl">{eur(v.monatCents)}</p>
                       )}
-                      {!laedt && v!.monatszielCents ? (
+                      {!laedt && v.monatszielCents ? (
                         <p className="mt-1 text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>
-                          Ziel {eur(v!.monatszielCents)}
+                          Ziel {eur(v.monatszielCents)}
                         </p>
                       ) : null}
                     </div>
@@ -251,22 +280,22 @@ function Inhalt() {
                         Möglich
                       </p>
                       {laedt ? <Skelett h={24} w={100} /> : (
-                        <p className="text-[22px] font-bold leading-none mt-1 fi-zahl">{eur(v!.moeglichCents)}</p>
+                        <p className="text-[22px] font-bold leading-none mt-1 fi-zahl">{eur(v.moeglichCents)}</p>
                       )}
                       <p className="mt-1 text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>
-                        {laedt ? "" : `aus ${v!.moeglichAnzahl} offenen Kunden`}
+                        {laedt ? "" : `aus ${v.moeglichAnzahl} offenen Kunden`}
                       </p>
                     </div>
                   </div>
                 </Ebene>
 
                 {/* Fortschrittsbalken zum Monatsziel — nur wenn ein Ziel gesetzt ist. */}
-                {!laedt && v!.monatszielCents ? (
+                {!laedt && v.monatszielCents ? (
                   <div className="mt-4">
                     <div className="h-[6px] rounded-full overflow-hidden" style={{ background: "var(--fi-seite)" }}>
                       <div className="h-full rounded-full"
                            style={{
-                             width: `${Math.min(100, Math.round((v!.monatCents / v!.monatszielCents) * 100))}%`,
+                             width: `${Math.min(100, Math.round((v.monatCents / v.monatszielCents) * 100))}%`,
                              background: "var(--fi-verlauf-primaer)",
                              transition: "width 600ms cubic-bezier(0.32,0.72,0,1)",
                            }} />
@@ -278,7 +307,7 @@ function Inhalt() {
                 {!laedt && (
                   <div className="mt-5 pt-5 flex flex-wrap items-center gap-3"
                        style={{ borderTop: "1px solid var(--fi-linie)" }}>
-                    {!v!.bankHinterlegt ? (
+                    {!v.bankHinterlegt ? (
                       <>
                         <p className="text-[12.5px] flex-1 min-w-[220px]" style={{ color: "var(--fi-tier2)" }}>
                           Für eine Auszahlung fehlen deine Bankdaten. Ohne IBAN kann die Verwaltung nicht überweisen.
@@ -287,21 +316,21 @@ function Inhalt() {
                           Bankdaten hinterlegen
                         </Link>
                       </>
-                    ) : v!.offenerAntrag ? (
+                    ) : v.offenerAntrag ? (
                       <>
                         <p className="text-[12.5px] flex-1 min-w-[220px]" style={{ color: "var(--fi-text-leise)" }}>
-                          Ein Antrag über <b>{eur(v!.offenerAntrag.cents)}</b> liegt zur Freigabe bei der Verwaltung
-                          (eingereicht {new Date(v!.offenerAntrag.am).toLocaleDateString("de-DE")}).
+                          Ein Antrag über <b>{eur(v.offenerAntrag.cents)}</b> liegt zur Freigabe bei der Verwaltung
+                          (eingereicht {new Date(v.offenerAntrag.am).toLocaleDateString("de-DE")}).
                         </p>
                         <Link href="/agent/auszahlung" className="fi-zweitknopf px-4 py-2.5 text-[12.5px] font-semibold">
                           Stand ansehen
                         </Link>
                       </>
-                    ) : v!.auszahlbar ? (
+                    ) : v.auszahlbar ? (
                       <>
                         <button type="button" onClick={() => void auszahlungEinleiten()} disabled={busy}
                                 className="fi-sendeknopf px-5 py-2.5 text-[13px] font-semibold">
-                          {busy ? "Wird eingereicht …" : `Auszahlung einleiten · ${eur(v!.guthabenCents)}`}
+                          {busy ? "Wird eingereicht …" : `Auszahlung einleiten · ${eur(v.guthabenCents)}`}
                         </button>
                         <Link href="/agent/auszahlung" className="fi-zweitknopf px-4 py-2.5 text-[12.5px] font-semibold">
                           Verlauf
@@ -310,8 +339,8 @@ function Inhalt() {
                     ) : (
                       <>
                         <p className="text-[12.5px] flex-1 min-w-[220px]" style={{ color: "var(--fi-text-leise)" }}>
-                          Auszahlung ab {eur(v!.mindestCents)} möglich — dir fehlen noch{" "}
-                          <b>{eur(Math.max(0, v!.mindestCents - v!.guthabenCents))}</b>.
+                          Auszahlung ab {eur(v.mindestCents)} möglich — dir fehlen noch{" "}
+                          <b>{eur(Math.max(0, v.mindestCents - v.guthabenCents))}</b>.
                         </p>
                         <Link href="/agent/auszahlung" className="fi-zweitknopf px-4 py-2.5 text-[12.5px] font-semibold">
                           Verdienst ansehen

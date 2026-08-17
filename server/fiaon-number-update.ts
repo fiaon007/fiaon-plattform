@@ -95,12 +95,32 @@ export async function maybeSendNumberUpdateMail(
     await sql`
       INSERT INTO fiaon_number_update_requests (kind, target_id, email) VALUES (${kind}, ${id}, ${email})
     `;
+    // ── DER TERMIN-LINK GEHÖRT MIT IN DIE MAIL ───────────────────────────
+    // Wer keine erreichbare Nummer hat, soll ZWEI Wege haben: die Nummer
+    // nachtragen ODER gleich einen Termin wählen. Ohne den zweiten Weg wartet
+    // ein Kunde, der lieber einen Termin will, auf einen Anruf, der nicht
+    // kommen kann.
+    //
+    // BETREIBER-TODO: In der Brevo-Vorlage T23 muss `{{params.termin_link}}`
+    // eingebaut werden — sonst fährt die Variable mit und wird nicht gezeigt.
+    let terminLink: string | null = null;
+    try {
+      const [personId] = kind === "app"
+        ? ((await sql`SELECT person_id FROM fiaon_applications WHERE ref = ${id}`) as any[])
+        : ((await sql`SELECT person_id FROM fiaon_leads WHERE id = ${Number(id)}`) as any[]);
+      if (personId?.person_id) {
+        const { terminLink: linkFuer } = await import("./lib/fiaon-termine");
+        terminLink = linkFuer(Number(personId.person_id));
+      }
+    } catch { /* ohne Termin-Link ist die Mail nicht falsch, nur ärmer */ }
+
     await sendMakeWebhook("number_update_request", {
       email,
       vorname: opts.firstName || null,
       antrag_id: kind === "app" ? id : undefined,
       lead_id: kind === "lead" ? Number(id) : undefined,
       update_url: url,
+      termin_link: terminLink,
     });
     console.log(`[FIAON-NUMUPDATE] Anfrage gesendet: ${kind}:${id} → ${email}`);
     return { sent: true };
@@ -118,5 +138,21 @@ export async function markNumberUpdated(kind: NumTokenKind, id: string): Promise
       UPDATE fiaon_number_update_requests SET updated_at = NOW()
       WHERE kind = ${kind} AND target_id = ${id} AND updated_at IS NULL
     `;
+    // ── DIE KARTE KOMMT ZURÜCK ─────────────────────────────────────────────
+    // Der Kunde hat gerade reagiert — das ist der beste Moment für einen
+    // Anruf. `nichtMehrWarten` setzt die Wiedervorlage auf heute und nimmt
+    // den Wartezustand weg. Ohne das würde die Karte noch sieben Tage liegen,
+    // obwohl die Nummer längst stimmt.
+    try {
+      const [p] = kind === "app"
+        ? ((await sql`SELECT person_id FROM fiaon_applications WHERE ref = ${id}`) as any[])
+        : ((await sql`SELECT person_id FROM fiaon_leads WHERE id = ${Number(id)}`) as any[]);
+      if (p?.person_id) {
+        const { nichtMehrWarten } = await import("./lib/fiaon-warten");
+        await nichtMehrWarten(Number(p.person_id), "nummer");
+      }
+    } catch (e) {
+      console.error("[FIAON-NUMUPDATE] Wartezustand:", e);
+    }
   } catch { /* nicht kritisch */ }
 }

@@ -403,11 +403,23 @@ async function main(): Promise<void> {
   // nicht, ob überhaupt etwas ansteht.
   const { SICHTFELD, fristZaehler, fristBedingung, arbeitsliste: iListe } =
     await import("../server/lib/fiaon-inkasso");
-  ok("Das Sichtfeld hat eine Fristgrenze",
-    /r\.faellig_am <= CURRENT_DATE \+ 7/.test(SICHTFELD));
+  // ── DIE ABSICHT PRÜFEN, NICHT DEN WORTLAUT (17.08.2026) ────────────────
+  // Hier stand die wörtliche Suche nach „CURRENT_DATE + 7". Am 17.08.2026
+  // wurde das Sichtfeld auf die BERLINER Tagesgrenze umgestellt (CURRENT_DATE
+  // ist das UTC-Datum der Datenbank und zeigt zwischen 00:00 und 02:00
+  // Berliner Zeit noch auf den Vortag). Die Fristgrenze war weiter da — die
+  // Prüfung suchte nur eine Schreibweise.
+  //
+  // Eine Prüfung, die an einer Formulierung hängt, wird bei jeder Verbesserung
+  // rot und erzieht dazu, sie abzuschalten.
+  ok("Das Sichtfeld hat eine Fristgrenze von 7 Tagen",
+    /r\.faellig_am <= .{0,60} \+ 7/.test(SICHTFELD), SICHTFELD.slice(0, 120));
+  ok("… und sie rechnet in Berliner Zeit, nicht in UTC",
+    /Europe\/Berlin/.test(SICHTFELD) && !/<= CURRENT_DATE/.test(SICHTFELD));
   const [sf] = (await sqlPool.unsafe(`
     SELECT COUNT(*)::int AS drin,
-           COUNT(*) FILTER (WHERE r.faellig_am > CURRENT_DATE + 7)::int AS zu_spaet
+           COUNT(*) FILTER (WHERE r.faellig_am
+             > (NOW() AT TIME ZONE 'Europe/Berlin')::date + 7)::int AS zu_spaet
     FROM fiaon_abo_raten r WHERE ${SICHTFELD}`)) as any[];
   gleich("KEINE Rate, die später als in 7 Tagen fällig wird", Number(sf.zu_spaet), 0);
   ok(`${sf.drin} Raten im Sichtfeld (vorher 251)`, Number(sf.drin) > 0 && Number(sf.drin) < 251);
@@ -425,11 +437,20 @@ async function main(): Promise<void> {
   //
   // In SQL gilt CURRENT_DATE in der Zeitzone der Datenbank. Dort stimmt der
   // Vergleich per Definition.
+  // ── DIE GEGENPROBE RECHNET IN BERLINER ZEIT ──────────────────────────────
+  // Hier stand dreimal „CURRENT_DATE". Das ist das UTC-Datum der Datenbank;
+  // zwischen 00:00 und 02:00 Berliner Zeit zeigt es auf den VORTAG. Die
+  // Filter selbst wurden am 17.08.2026 auf Berlin umgestellt — die Gegenprobe
+  // verglich danach nachts zwei verschiedene Tage und meldete „113 statt 97".
+  //
+  // Genau dieser Unterschied war der Fund: Es sind wirklich andere Raten.
+  // Also muss die Prüfung dasselbe Datum benutzen wie die Sache, die sie prüft.
   for (const [f, bedingung] of [
-    ["ueberfaellig", "r.faellig_am < CURRENT_DATE"],
-    ["heute", "r.faellig_am = CURRENT_DATE"],
-    ["woche", "r.faellig_am > CURRENT_DATE AND r.faellig_am <= CURRENT_DATE + 7"],
-  ] as const) {
+    ["ueberfaellig", "r.faellig_am < (NOW() AT TIME ZONE 'Europe/Berlin')::date"],
+    ["heute", "r.faellig_am = (NOW() AT TIME ZONE 'Europe/Berlin')::date"],
+    ["woche", "r.faellig_am > (NOW() AT TIME ZONE 'Europe/Berlin')::date"
+      + " AND r.faellig_am <= (NOW() AT TIME ZONE 'Europe/Berlin')::date + 7"],
+    ] as const) {
     const l = await iListe({ frist: f, limit: 200 });
     if (l.length === 0) { ok(`Filter „${f}“ ist leer — nichts zu prüfen`, true); continue; }
     const ids = l.map((r: any) => Number(r.rate_id));
@@ -464,8 +485,14 @@ async function main(): Promise<void> {
     /p\.follow_up_date IS NULL OR p\.follow_up_date <= \$\{HEUTE\}/.test(asQ));
   ok("… und der Grund steht dabei",
     /Eine Wiedervorlage in der Zukunft ist eine VERABREDUNG/.test(asQ));
+  // Die Ausnahmeliste wuchs am 17.08.2026 um „wartend" (Kunde soll antworten).
+  // Die Prüfung sucht deshalb die EINZELNEN Namen, nicht die genaue Schreibweise
+  // der Liste — sonst wird sie bei jeder neuen Ansicht rot.
   ok("Der Filter „Nicht erreicht“ zeigt ihn weiter",
-    /\["ruhend", "nicht_erreicht", "gesperrt", "bezahlt"\]\.includes\(filter\)/.test(asQ));
+    /"nicht_erreicht"[\s\S]{0,80}\]\.includes\(filter\)/.test(asQ)
+    && /"ruhend"[\s\S]{0,80}\]\.includes\(filter\)/.test(asQ));
+  ok("… und der neue Filter „Wartend“ ebenfalls",
+    /"wartend"[\s\S]{0,60}\]\.includes\(filter\)/.test(asQ));
   ok("Es gibt einen Zähler für die Wartenden", /AS wartet,/.test(asQ) && /wartet: z\.wartet/.test(asQ));
   ok("Die Karte verschwindet bei „nicht erreicht“",
     /const VERABREDET = \[/.test(knQ) && /setTimeout\(\(\) => onWeg\(\), 900\)/.test(knQ));
@@ -731,18 +758,33 @@ async function main(): Promise<void> {
   // Gemessen: 67 bezahlte Kunden hatten KEINE einzige Abo-Rate. Sie konnten im
   // Forderungsmanagement nie auftauchen — nicht weil sie zahlten, sondern weil
   // niemand eine Rate erwartete.
-  const { abosNachtragen, schufaMitRaten, PAKET_PREIS_CENTS, istSchufa, ZYKLUS_TAGE } =
+  const { abosNachtragen, schufaMitRaten, PAKET_PREIS_CENTS, istSchufa } =
     await import("../server/lib/fiaon-abo-pflicht");
+  const { faelligkeit } = await import("../server/lib/fiaon-abo-zyklus");
 
-  gleich("Der Zyklus ist 30 Tage", ZYKLUS_TAGE, 30);
-  // ── DIE PREISE GEGEN DEN KONTOAUSZUG ───────────────────────────────────
-  // Nicht aus dem Kopf: statement_165031496 vom 03.07.–11.08.2026, 327 echte
-  // Eingänge. Die Häufigkeiten sagen, welche Beträge wirklich vorkommen —
-  // 99,99 ×75, 79,99 ×46, 74,00 ×37 (SCHUFA), 59,99 ×81, 7,99 ×54.
+  // ── DER ZYKLUS IST KEINE TAGESZAHL MEHR (16.08.2026) ───────────────────
+  // Hier stand „Der Zyklus ist 30 Tage". Genau diese Zahl war der Fehler:
+  // Zwölf Monate zu 30 Tagen sind 360, der Termin wanderte jedes Jahr fünf
+  // Tage nach vorn — 266 von 289 offenen Raten lagen daneben.
+  //
+  // Es gilt der monatliche Jahrestag der Buchung. Ein Prüfstand, der die alte
+  // Zahl verteidigt, verteidigt den Fehler.
+  gleich("Gebucht am 05.07. → fällig am 05.08.", faelligkeit("2026-07-05", 1), "2026-08-05");
+  gleich("… und dann am 05.09.", faelligkeit("2026-07-05", 2), "2026-09-05");
+
+  // ── DIE PREISE, WIE DER BETREIBER SIE FESTGELEGT HAT ───────────────────
+  // Hier stand „ultra kostet 99,99 €", begründet mit einer Häufigkeits-
+  // auszählung des Kontoauszugs (99,99 ×75, 79,99 ×46). Das war ein
+  // Fehlschluss: Eine Häufigkeit sagt, welche BETRÄGE vorkommen, nicht, zu
+  // welchem PAKET sie gehören. Der Kaufpreis in fiaon-antrag.ts sagte seit
+  // immer das Gegenteil — ein Ultra-Kunde kaufte für 79,99 € und bekam
+  // Rechnungen über 99,99 €.
+  //
+  // Entscheidung des Betreibers (16.08.2026): Ultra 79,99 · High End 99,99.
   gleich("start kostet 7,99 €", PAKET_PREIS_CENTS.start, 799);
   gleich("pro kostet 59,99 €", PAKET_PREIS_CENTS.pro, 5999);
-  gleich("highend kostet 79,99 €", PAKET_PREIS_CENTS.highend, 7999);
-  gleich("ultra kostet 99,99 €", PAKET_PREIS_CENTS.ultra, 9999);
+  gleich("ultra kostet 79,99 €", PAKET_PREIS_CENTS.ultra, 7999);
+  gleich("highend kostet 99,99 €", PAKET_PREIS_CENTS.highend, 9999);
 
   // ── SCHUFA ERKENNEN ───────────────────────────────────────────────────
   ok("74 € ist SCHUFA", istSchufa({ amount_due: 74 }));
@@ -1338,8 +1380,18 @@ async function main(): Promise<void> {
     "2026-08-20T08:00:00.000Z");
   const akQ = datei("server/routes/fiaon-agent-kunden.ts");
   const vtQ = datei("server/routes/fiaon-vertrieb.ts");
-  ok("Die Kunden-Route wandelt in Berlin-Zeit",
-    /\$\{parseBerlinInput\(terminZeitpunkt\)\}/.test(akQ));
+  // ── DIE WANDLUNG STEHT JETZT IN DER GEMEINSAMEN KETTE ──────────────────
+  // Am 17.08.2026 sind Liste und Telefon-Panel auf EINEN Weg gelegt worden
+  // (`ergebnisNachbereiten`), weil 554 von 842 Anrufen mit Ergebnis keinen
+  // Verlaufseintrag hatten. Die Berlin-Wandlung wanderte damit aus der Route
+  // in die Kette — die Prüfung muss dort nachsehen, sonst verteidigt sie eine
+  // Verdopplung, die gerade beseitigt wurde.
+  const ketteQ = datei("server/lib/fiaon-kontakt-ergebnis.ts");
+  ok("Die gemeinsame Kette wandelt in Berlin-Zeit",
+    /parseBerlinInput\(ein\.terminZeitpunkt \?\? null\)/.test(ketteQ)
+    && /parseBerlinInput\(ein\.zusageDatum \?\? null\)/.test(ketteQ));
+  ok("… und die Kundenliste ruft diese Kette",
+    /await ergebnisNachbereiten\(\{/.test(akQ));
   ok("Die Vertriebs-Route ebenfalls",
     /\$\{parseBerlinInput\(req\.body\?\.terminDatum\)\}/.test(vtQ));
   ok("Der Grund steht dabei", /in Berlin 22:00/.test(akQ));
@@ -1390,8 +1442,15 @@ async function main(): Promise<void> {
   ok("… und ohne Text wird nicht gespeichert",
     /if \(!notiz\.trim\(\)\) \{ setFeldOffen\("notiz"\); return; \}/
       .test(datei("client/src/pages/agent/kunden-neu.tsx")));
+  // Der Eintrag trägt seit dem 17.08.2026 zusätzlich `notizPflicht: true` —
+  // im Panel gab es vorher gar kein Notizfeld, und in der Akte stand nur
+  // „Sonstiges" (siebenmal gemessen). Die Prüfung sucht das Ergebnis, nicht
+  // die vollständige Zeile.
   ok("Auch das Telefon kennt es",
-    /\{ art: "erreicht_sonstiges", label: "Erreicht – Sonstiges" \}/
+    /art: "erreicht_sonstiges", label: "Erreicht – Sonstiges"/
+      .test(datei("client/src/components/Softphone.tsx")));
+  ok("… und verlangt dort jetzt eine Notiz",
+    /art: "erreicht_sonstiges"[^\n]*notizPflicht: true/
       .test(datei("client/src/components/Softphone.tsx")));
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1810,7 +1869,22 @@ async function main(): Promise<void> {
   const [faelligOhne] = (await sqlPool`
     SELECT COUNT(*)::int AS n FROM fiaon_abo_raten r
     WHERE r.status <> 'bezahlt' AND r.inkasso_agent_id IS NULL
-      AND r.faellig_am <= CURRENT_DATE
+      -- ── „<" UND NICHT „<=" (16.08.2026) ──────────────────────────────
+      -- Die Geschäftsregel des Betreibers: „Ist die Rate am 06.08. nicht als
+      -- bezahlt gebucht, steht er im Forderungsmanagement." Also am Tag NACH
+      -- der Fälligkeit. Eine Rate, die HEUTE fällig wird, ist nicht überfällig
+      -- — sie ist fällig, und der Kunde hat den ganzen Tag Zeit.
+      --
+      -- Hier stand „<=". Damit verlangte der Prüfstand einen Zuständigen für
+      -- die 16 Raten, die heute fällig werden — die Zuteilung vergibt sie
+      -- bewusst erst morgen. Eine Prüfung, die etwas fordert, was die Regel
+      -- verbietet, kann nur rot sein.
+      AND r.faellig_am < CURRENT_DATE
+      -- Eine STORNIERTE Rate braucht keinen Zuständigen (Migration 052): Sie
+      -- ist entwertet, nicht offen. Ohne diese Zeile zählte der Prüfstand die
+      -- vier am 16.08.2026 zu Recht entwerteten Raten als liegengebliebene
+      -- Arbeit — eine Bremse, die auf einen Aufräumvorgang anspringt.
+      AND r.storniert_am IS NULL
   `) as any[];
   ok("Jede FÄLLIGE Rate hat einen Zuständigen",
     Number(faelligOhne.n) <= 3,

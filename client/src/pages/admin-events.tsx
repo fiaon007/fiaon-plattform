@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { FiaonEbene } from "@/components/FiaonEbene";
 import { Send, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertTriangle, User, FlaskConical } from "lucide-react";
-import { PageIntro } from "@/components/admin/PageHelp";
+import { PageIntro, Tip } from "@/components/admin/PageHelp";
 
 // ═══════════════════════════════════════════════════════════════════
 // /admin/events — Event-Test-Konsole (Paket T)
@@ -242,6 +242,129 @@ function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
   );
 }
 
+/**
+ * ══════════════════════════════════════════════════════════════════════════
+ * DAS ZUSTELLPROTOKOLL — der Weg, den die Dashboard-Karte verspricht
+ *
+ * Die Karte „Zustellung heute" nennt die Zahl der Fehlschläge und verlinkt
+ * hierher. Es gab dafür KEINE Anzeige: `mail-zentrale.tsx` verlinkte auf
+ * „/admin/mail-protokoll", eine Seite, die nie existiert hat. Ein Link ins
+ * Leere sieht wie eine Möglichkeit aus — schlimmer als kein Link.
+ *
+ * Vorgabe ist der Filter aus der Adresse (`?status=fehlgeschlagen`): Wer aus
+ * der Karte kommt, will genau das sehen und nicht erst filtern.
+ * ══════════════════════════════════════════════════════════════════════════
+ */
+function Zustellprotokoll() {
+  const [status, setStatus] = useState<string>(
+    () => new URLSearchParams(window.location.search).get("status") || "fehlgeschlagen",
+  );
+  const [daten, setDaten] = useState<any>(null);
+  const [laedt, setLaedt] = useState(true);
+
+  useEffect(() => {
+    let weg = false;
+    setLaedt(true);
+    void fetch(`/api/fiaon/admin/mail/protokoll?status=${encodeURIComponent(status)}&tage=14`,
+      { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => { if (!weg) { setDaten(j?.ok ? j : null); setLaedt(false); } })
+      .catch(() => { if (!weg) setLaedt(false); });
+    return () => { weg = true; };
+  }, [status]);
+
+  const FILTER: { wert: string; text: string }[] = [
+    { wert: "fehlgeschlagen", text: "Fehlgeschlagen" },
+    { wert: "versandt", text: "Versandt" },
+    { wert: "uebersprungen", text: "Übersprungen" },
+    { wert: "alle", text: "Alle" },
+  ];
+
+  return (
+    <section id="zustellung" className="a3-tafel mb-4">
+      <header className="a3-tafel-kopf">
+        <h2 className="text-[14px] font-bold text-slate-900">Zustellprotokoll — letzte 14 Tage</h2>
+        <Tip text={"Jede Mail, die das Haus verlässt, steht hier — auch die, die NICHT rausging, mit Grund. "
+          + "Die Empfängeradresse wird über die Person aufgelöst (aktuelle Adresse, dann früher benutzte). "
+          + "Findet sich keine, wird nicht gesendet, und genau das steht dann hier."} />
+      </header>
+
+      <div className="p-3.5 sm:p-4">
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {FILTER.map((f) => (
+            <button key={f.wert} type="button" onClick={() => setStatus(f.wert)}
+              className="px-2.5 py-1.5 rounded-lg border text-[11.5px] font-semibold"
+              style={{
+                borderColor: "var(--a3-linie,#e4e9f2)",
+                background: status === f.wert ? ACCENT : "#fff",
+                color: status === f.wert ? "#fff" : "#475569",
+              }}>
+              {f.text}
+              {daten?.zahlen && f.wert !== "alle" && ` ${daten.zahlen[f.wert] ?? 0}`}
+            </button>
+          ))}
+        </div>
+
+        {laedt && <p className="text-[13px] text-slate-400">Wird geladen …</p>}
+        {/* Ein Ladefehler wird angezeigt, nicht verschluckt — sonst steht hier
+            ewig „Wird geladen" und niemand weiß, ob es etwas zu sehen gäbe. */}
+        {!laedt && !daten && (
+          <p className="text-[13px]" style={{ color: "#b45309" }}>
+            Das Protokoll konnte nicht geladen werden. Bitte die Seite neu laden.
+          </p>
+        )}
+
+        {daten && daten.gruende?.length > 0 && (
+          <div className="mb-3 rounded-lg border px-3 py-2"
+               style={{ borderColor: "var(--a3-linie,#e4e9f2)", background: "#fffbf5" }}>
+            <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">
+              Woran es liegt
+            </p>
+            {daten.gruende.slice(0, 4).map((g: any) => (
+              <p key={g.grund} className="mt-1 text-[12px] text-slate-700">
+                <b className="tabular-nums">{g.anzahl}×</b> {g.grund}
+              </p>
+            ))}
+          </div>
+        )}
+
+        {daten && daten.zeilen.length === 0 && (
+          <p className="text-[13px] text-slate-500">
+            {status === "fehlgeschlagen"
+              ? "Keine fehlgeschlagene Mail in den letzten 14 Tagen."
+              : "Keine Einträge in diesem Filter."}
+          </p>
+        )}
+
+        {daten && daten.zeilen.length > 0 && (
+          <ul className="space-y-1.5">
+            {daten.zeilen.map((z: any) => (
+              <li key={z.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 pl-3 text-[12px]"
+                  style={{
+                    borderLeft: `2px solid ${z.status === "fehlgeschlagen" ? "#b91c1c"
+                      : z.status === "versandt" ? "#15803d" : "#94a3b8"}`,
+                  }}>
+                <span className="font-mono text-[11px] text-slate-500">{fmtTime(z.wann)}</span>
+                <span className="font-semibold text-slate-800">{z.event}</span>
+                <span className="text-slate-600">{z.empfaenger || "— keine Adresse —"}</span>
+                {z.name && <span className="text-slate-500">{z.name}</span>}
+                {z.grund && (
+                  <span className="w-full sm:w-auto" style={{ color: "#b91c1c" }}>{z.grund}</span>
+                )}
+                {z.akte && (
+                  <a href={z.akte} className="ml-auto text-[11.5px] font-semibold" style={{ color: ACCENT }}>
+                    Akte
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default function AdminEventsPage() {
   const [data, setData] = useState<RegistryResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -392,6 +515,8 @@ export default function AdminEventsPage() {
           "Steht oben „Seit X Stunden kein Lead-Eingang“ im Dashboard, prüfe hier zuerst, ob der Make-Webhook konfiguriert ist und Events ankommen.",
         ]}
       />
+
+      <Zustellprotokoll />
 
       {/* ══════════════════════════════════════════════════════════════════
           ALLE ZWEIGE PRÜFEN

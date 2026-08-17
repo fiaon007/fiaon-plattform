@@ -7,10 +7,22 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 // der Moment, ihm fünfzehn Minuten mit einem Menschen anzubieten — später
 // öffnet er das Konto seltener, und irgendwann gar nicht mehr.
 //
-// KEIN HARTES GATE. „Später buchen" bleibt immer möglich. Einen zahlenden
-// Kunden aus seinem eigenen Konto auszusperren, weil er gerade keinen Termin
-// wählen will, wäre ein Eigentor. Danach bleibt ein dezenter Banner stehen,
-// bis gebucht oder erledigt ist.
+// ── ZWEI HÄRTEN, UND WARUM (16.08.2026) ────────────────────────────────────
+// Hier stand: „KEIN HARTES GATE. Später buchen bleibt immer möglich." Für den
+// BESTAND gilt das weiter, und zwar mit einer Zahl: GEMESSEN hatten 349
+// bezahlte Kunden **null** Startgespräche. Eine harte Pflicht für alle hätte
+// am Tag des Deploys 349 zahlende Menschen vor eine verschlossene Tür
+// gestellt — das ist Support-Feuer, kein Onboarding.
+//
+// Für NEU aktivierte Kunden ist das Startgespräch dagegen PFLICHT: Der Account
+// wird erst danach voll freigeschaltet, also ist der Termin kein Angebot,
+// sondern der nächste Schritt. Dann gibt es kein „Später" — buchen oder
+// ausloggen. Der Server verweigert das „Später" ebenfalls (HTTP 403); die
+// Wand steht nicht in dieser Datei.
+//
+// Ausgesperrt ist deshalb niemand: Wer wartet, sieht sein Konto, seine
+// Rechnungen, seine Unterlagen und die Bonitätsauskunft. Nur Fahrplan und
+// Inhalte warten mit ihm.
 //
 // Der Auftritt ist derselbe wie bei der Verpflichtungserklärung im
 // Mitarbeiterportal: Glas nur auf der schwebenden Ebene, Haarlinien statt
@@ -23,6 +35,8 @@ interface Slot { beginn: string; datum: string; uhrzeit: string; agentId: number
 interface Lage {
   faellig: boolean;
   banner: boolean;
+  /** Harte Pflicht: kein „Später", buchen oder ausloggen. */
+  pflicht?: boolean;
   vorname: string | null;
   termin: { datumText: string; uhrzeit: string; agentVorname: string } | null;
   token: string | null;
@@ -228,10 +242,28 @@ export function StartgespraechGate({ kundenRef }: { kundenRef: string }) {
               </button>
             ) : (
               <>
-                <button type="button" onClick={() => void spaeter()}
-                        className="text-[13px] font-semibold text-slate-500 hover:text-slate-800">
-                  Später buchen
-                </button>
+                {lage?.pflicht ? (
+                  /* ── PFLICHT: BUCHEN ODER AUSLOGGEN ───────────────────────
+                     Kein „Später". Der Kunde ist bezahlt und eingelassen —
+                     aber der Fahrplan öffnet sich erst nach dem Gespräch.
+                     Abmelden bleibt immer möglich: Eine Tafel, aus der man
+                     nicht herauskommt, ist eine Falle. */
+                  <button type="button"
+                          onClick={() => {
+                            // Derselbe Weg wie der Abmelden-Knopf im Portal —
+                            // nicht ein zweiter, der die Sitzung anders räumt.
+                            sessionStorage.removeItem("fiaon_user");
+                            window.location.href = "/login";
+                          }}
+                          className="text-[13px] font-semibold text-slate-400 hover:text-slate-700">
+                    Abmelden
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => void spaeter()}
+                          className="text-[13px] font-semibold text-slate-500 hover:text-slate-800">
+                    Später buchen
+                  </button>
+                )}
                 <button type="button" onClick={() => void buchen()} disabled={!gewaehlt || bucht}
                         className="ml-auto px-5 rounded-xl text-[15px] font-bold text-white bg-[#1d4ed8] hover:bg-[#1e40af] disabled:opacity-40"
                         style={{ minHeight: 48 }}>

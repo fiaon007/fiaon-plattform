@@ -8,8 +8,16 @@
 //
 // DIE REGELN (bewusst hier dokumentiert, weil sie Geld betreffen)
 //
-//  1. Fälligkeit: 30 Tage nach dem Tag, an dem die Zahlung GEBUCHT wurde
-//     (payment_status = 'paid'). Danach alle 30 Tage.
+//  1. Fälligkeit: der MONATLICHE JAHRESTAG des Buchungstags (`paid_at`), in
+//     Berliner Zeit. Gebucht am 05.07. → fällig am 05.08., 05.09., …
+//     Monate ohne diesen Tag (der 31.) werden auf den letzten Monatstag
+//     gekappt, der Anker bleibt aber der 31. Gerechnet wird das an EINER
+//     Stelle: `server/lib/fiaon-abo-zyklus.ts`. Motor, Anzeige und Prüfstand
+//     rufen dieselben Funktionen.
+//
+//     Bis zum 16.08.2026 stand hier „alle 30 Tage". Zwölf Monate zu 30 Tagen
+//     sind 360 — der Termin wanderte jedes Jahr fünf Tage nach vorn. Gemessen
+//     lagen 266 von 289 offenen Raten NICHT auf dem Jahrestag ihrer Buchung.
 //  2. Betrag: der Paketpreis, den der Kunde bezahlt hat (amount_due).
 //  3. Der Bonitäts-Check (74 €) ist KEIN Abo — Einmalkauf, erzeugt keine Rate.
 //  4. Referenz je Rate: Zahlungsreferenz der Bestellung + „-<Ratennummer>",
@@ -42,18 +50,51 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { sendMakeWebhookMitGrund, makePayloadFromRow } from "../make-webhook";
 import { berlinToday } from "../lib/fiaon-time";
+import {
+  ankerTag, faelligkeit, kurzTag, naechsteFaelligkeit, tagMinus, zyklenBis, zyklusText,
+} from "../lib/fiaon-abo-zyklus";
+import { paketPreisCents } from "@shared/fiaon-pakete";
 import { FIAON_BANK_DETAILS } from "./fiaon-antrag";
 import { getSettings, setSetting } from "./fiaon-agent";
 import { absoluteUrl } from "../fiaon-base-url";
+import { tageslauf } from "../lib/fiaon-crons";
 
 const router = Router();
 
-/** Zykluslänge in Tagen. Bewusst 30 Tage und nicht „Monatserster“: der Kunde
- *  hat an seinem Tag bezahlt, und an seinem Tag ist wieder fällig. */
-export const ABO_ZYKLUS_TAGE = 30;
+/** Ein Datenbankgriff — der gemeinsame Pool oder eine Transaktion des Prüfstands. */
+type Lauf = typeof sqlPool;
+
+/**
+ * Die Zykluslänge steht NICHT mehr hier.
+ *
+ * Sie ist keine Zahl, sondern eine Kalenderregel: der monatliche Jahrestag.
+ * Der Export bleibt als Auskunft für Anzeigen, die „monatlich" schreiben
+ * wollen — als Rechengröße darf ihn niemand mehr benutzen.
+ */
+export const ABO_ZYKLUS = "monatlich zum Jahrestag der Buchung";
 /** Mahnstufen: Tage nach Fälligkeit, an denen die jeweilige Stufe rausgeht. */
 export const MAHNSTUFEN = [0, 7, 14] as const;
 const ABO_BATCH = 40;
+
+/** Vorab-Erinnerung: Vorgabe drei Tage vor Fälligkeit, abschaltbar (0). */
+export const VORAB_TAGE_VORGABE = 3;
+
+/**
+ * Wie viele Tage vor der Fälligkeit geht die freundliche Vorabinfo raus?
+ *
+ * Einstellbar in /admin/einstellungen (`abo_vorab_tage`). 0 schaltet sie ab.
+ * Sie hebt die Zahlquote — aber es ist die Entscheidung des Betreibers, ob
+ * seine Kunden zweimal im Monat von ihm hören.
+ */
+export async function vorabTage(): Promise<number> {
+  try {
+    const s = await getSettings();
+    if (s.abo_vorab_tage == null || s.abo_vorab_tage === "") return VORAB_TAGE_VORGABE;
+    const n = Number(s.abo_vorab_tage);
+    if (Number.isInteger(n) && n >= 0 && n <= 28) return n;
+  } catch { /* Vorgabe gilt */ }
+  return VORAB_TAGE_VORGABE;
+}
 
 let tabelleGeprueft = false;
 
@@ -92,10 +133,100 @@ export async function ensureAboTabellen(): Promise<void> {
   await sqlPool`
     ALTER TABLE fiaon_applications
     ADD COLUMN IF NOT EXISTS abo_gestoppt_am TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS abo_stopp_grund TEXT
+    ADD COLUMN IF NOT EXISTS abo_stopp_grund TEXT,
+    -- Der Anker des Zyklus (Migration 052). Auch hier, damit ein Server, der
+    -- vor dem Migrationslauf startet, nicht an jeder Buchung scheitert.
+    ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ
   `;
+  // Storno, Rechnungs- und Überfällig-Stempel (Migration 052). Laufzeitnetz.
+  await sqlPool`
+    ALTER TABLE fiaon_abo_raten
+    ADD COLUMN IF NOT EXISTS storniert_am TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS storno_grund TEXT,
+    ADD COLUMN IF NOT EXISTS rechnung_am TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS vorab_am TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS ueberfaellig_seit DATE
+  `;
+  // Die Wand gegen Doppelrechnungen: eine offene Rate je Bestellung und
+  // Fälligkeit. Der Tageslauf darf dadurch beliebig oft laufen.
+  await sqlPool`
+    CREATE UNIQUE INDEX IF NOT EXISTS fiaon_abo_raten_ref_faellig_uidx
+    ON fiaon_abo_raten (ref, faellig_am) WHERE storniert_am IS NULL
+  `.catch((e) => console.warn("[FIAON-ABO] Eindeutigkeits-Index:", e?.message));
   tabelleGeprueft = true;
 }
+
+/**
+ * Der Ankertag einer Bestellung — der Tag, ab dem monatlich gerechnet wird.
+ *
+ * Rangfolge, und sie ist wichtig:
+ *   1. `paid_at`      — der Tag, an dem ein Mensch die Zahlung gegen den
+ *                       Kontoauszug bestätigt hat. Das ist „die Verbuchung".
+ *   2. die früheste angewendete Bankbuchung — falls `paid_at` fehlt.
+ *   3. `completed_at` — die schlechteste Auskunft, aber die einzige übrige.
+ *
+ * `completed_at` wird beim Abschluss des Antrags gesetzt, nicht beim
+ * Geldeingang. Wer am 01.07. abschickt und am 05.07. überweist, hätte damit
+ * einen Anker vier Tage vor seinem Geld — und bekäme jede Rechnung zu früh.
+ */
+export async function aboAnker(ref: string): Promise<{ tag: string | null; quelle: string }> {
+  const [a] = (await sqlPool`
+    SELECT a.paid_at, a.completed_at,
+           (SELECT MIN(t.booked_at) FROM fiaon_bank_txns t
+             WHERE t.matched_ref = a.ref AND t.applied) AS bank,
+           (SELECT MIN(r.faellig_am) FROM fiaon_abo_raten r
+             WHERE r.ref = a.ref AND r.storniert_am IS NULL) AS erste_faelligkeit
+    FROM fiaon_applications a WHERE a.ref = ${ref}
+  `) as any[];
+  if (!a) return { tag: null, quelle: "Bestellung nicht gefunden" };
+  const ausPaid = ankerTag(a.paid_at);
+  if (ausPaid) return { tag: ausPaid, quelle: "Verbuchung (paid_at)" };
+  const ausBank = ankerTag(a.bank);
+  if (ausBank) return { tag: ausBank, quelle: "Bankbuchung" };
+  const ausAbschluss = ankerTag(a.completed_at);
+  if (ausAbschluss) return { tag: ausAbschluss, quelle: "Antragsabschluss (ersatzweise)" };
+  // ── LETZTER HALT: DER RHYTHMUS, DER SCHON LÄUFT ────────────────────────
+  // Gemessen am 16.08.2026: 34 von 325 bezahlten Bestellungen mit offener
+  // Rate haben ÜBERHAUPT keinen Buchungstag — paid_at, Bankbuchung und
+  // completed_at sind alle leer. Ihre Raten stammen aus einem alten
+  // Nachtrag, der `created_at` benutzte.
+  //
+  // Ohne Anker würde der Tageslauf sie überspringen: Diese 34 Kunden
+  // bekämen ab jetzt lautlos keine Rechnung mehr. Ein Abo, das aufhört, weil
+  // ein Feld leer ist, ist schlimmer als ein Termin, der einen Tag daneben
+  // liegt.
+  //
+  // Deshalb wird der Anker aus der ERSTEN bestehenden Fälligkeit abgeleitet
+  // (ein Monat davor) — das ist der Rhythmus, den der Kunde ohnehin kennt.
+  // Ausdrücklich als „abgeleitet" benannt: Die Akte zeigt es an, und der
+  // Betreiber sieht in reports/mess-ohne-anker.csv, wo er den echten
+  // Buchungstag nachtragen sollte.
+  const ausKette = ankerTag(a.erste_faelligkeit);
+  if (ausKette) {
+    const d = new Date(`${ausKette}T12:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() - 1);
+    return {
+      tag: d.toISOString().slice(0, 10),
+      quelle: "abgeleitet aus der bestehenden Ratenkette — Buchungstag fehlt, bitte nachtragen",
+    };
+  }
+  return { tag: null, quelle: "kein Buchungstag hinterlegt" };
+}
+
+/**
+ * Derselbe Anker als SQL-Ausdruck, für Abfragen über viele Zeilen.
+ *
+ * Muss dieselbe Rangfolge treffen wie `aboAnker`. Zwei Fassungen wären zwei
+ * Gelegenheiten, verschieden zu antworten — deshalb steht der Ausdruck hier
+ * neben der Funktion und nicht in drei Abfragen.
+ */
+export const ABO_ANKER_SQL = `COALESCE(
+  a.paid_at,
+  (SELECT MIN(t.booked_at) FROM fiaon_bank_txns t WHERE t.matched_ref = a.ref AND t.applied),
+  a.completed_at,
+  (SELECT MIN(r0.faellig_am) - INTERVAL '1 month' FROM fiaon_abo_raten r0
+    WHERE r0.ref = a.ref AND r0.storniert_am IS NULL)
+)`;
 
 // ── Was ist überhaupt ein Abo? ───────────────────────────────────────────────
 /** Der Bonitäts-Check ist ein Einmalkauf — Paketname oder 74-€-Betrag verraten ihn. */
@@ -158,39 +289,47 @@ export async function aboBeiZahlungAnlegen(ref: string): Promise<{ angelegt: boo
   try {
     await ensureAboTabellen();
     const [app] = await sqlPool`
-      SELECT ref, payment_reference, pack_name, amount_due, payment_status, completed_at,
-             merged_into, abo_gestoppt_am
+      SELECT ref, type, pack_key, payment_reference, pack_name, amount_due, payment_status,
+             completed_at, paid_at, merged_into, abo_gestoppt_am
       FROM fiaon_applications WHERE ref = ${ref}
     `;
     if (!app) return { angelegt: false, grund: "Bestellung nicht gefunden" };
+    // ── RATEN NUR FÜR BEZAHLTE PAKETE ────────────────────────────────────
+    // Der Betreiber: „Rate entsteht NUR bei bankbestätigt bezahltem Paket."
+    // `payment_status = 'paid'` wird ausschließlich von den drei Buchungswegen
+    // gesetzt, an denen ein Mensch oder der Kontoabgleich die Zahlung gegen den
+    // Kontoauszug bestätigt hat (mark-paid, Kontoabgleich, Vertriebsleitung).
     if (app.payment_status !== "paid") return { angelegt: false, grund: "nicht bezahlt" };
     if (app.merged_into) return { angelegt: false, grund: "zusammengeführt" };
     if (app.abo_gestoppt_am) return { angelegt: false, grund: "Abo gestoppt" };
     if (istBonitaetsCheck(app)) return { angelegt: false, grund: "Bonitäts-Check ist kein Abo" };
-    const betrag = cents(app.amount_due);
+    const betrag = cents(app.amount_due) || paketPreisCents(app.pack_key);
     if (betrag <= 0) return { angelegt: false, grund: "Betrag unklar" };
     const referenz = app.payment_reference || app.ref;
 
-    const startTag = (app.completed_at ? new Date(app.completed_at) : new Date()).toISOString().slice(0, 10);
+    const { tag: anker } = await aboAnker(ref);
+    if (!anker) return { angelegt: false, grund: "Kein Buchungstag — der Zyklus ist nicht berechenbar" };
 
     // Rate 1: die Startzahlung, als bezahlt dokumentiert. Ohne sie fehlt der
     // Ankerpunkt, von dem alle weiteren Fälligkeiten ausgehen.
     await sqlPool`
       INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, bezahlt_am, quelle, notiz)
-      VALUES (${ref}, 1, ${referenz}, ${betrag}, ${startTag}::date, 'bezahlt', ${app.completed_at || new Date()}, 'auto', 'Startzahlung')
+      VALUES (${ref}, 1, ${referenz}, ${betrag}, ${anker}::date, 'bezahlt',
+              ${app.paid_at || app.completed_at || new Date()}, 'auto', 'Startzahlung')
       ON CONFLICT (ref, rate_nr) DO NOTHING
     `;
 
-    // Rate 2: erste Monatsrate.
+    // Rate 2: erste Monatsrate — am Jahrestag des Buchungstags.
     const [vorhanden] = await sqlPool`
-      SELECT COUNT(*)::int AS c FROM fiaon_abo_raten WHERE ref = ${ref} AND rate_nr > 1
+      SELECT COUNT(*)::int AS c FROM fiaon_abo_raten
+      WHERE ref = ${ref} AND rate_nr > 1 AND storniert_am IS NULL
     `;
     if (Number(vorhanden.c) > 0) return { angelegt: false, grund: "Kette existiert bereits" };
 
     await sqlPool`
       INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, quelle)
-      VALUES (${ref}, 2, ${`${referenz}-2`}, ${betrag}, ${plusTage(startTag, ABO_ZYKLUS_TAGE)}::date, 'offen', 'auto')
-      ON CONFLICT (ref, rate_nr) DO NOTHING
+      VALUES (${ref}, 2, ${`${referenz}-2`}, ${betrag}, ${faelligkeit(anker, 1)}::date, 'offen', 'auto')
+      ON CONFLICT DO NOTHING
     `;
     return { angelegt: true };
   } catch (err) {
@@ -202,9 +341,19 @@ export async function aboBeiZahlungAnlegen(ref: string): Promise<{ angelegt: boo
 /**
  * Nächste Rate nach einer bezahlten Rate — die Kette wächst nur nach Zahlung.
  *
- * `abDatum` ist das tatsächliche Zahlungsdatum. Ohne es würde ab der alten
- * Fälligkeit gerechnet: Wer zehn Tage zu spät zahlt, hätte dann schon nach
- * 20 Tagen die nächste Rate offen.
+ * ── DER TERMIN WANDERT NICHT MIT DER ZAHLUNG ───────────────────────────────
+ * Hier wurde bis zum 16.08.2026 „30 Tage ab Zahlungseingang" gerechnet, mit
+ * der Begründung, ein Säumiger dürfe nicht schon nach 20 Tagen wieder fällig
+ * sein. Der Nebeneffekt: Wer dreimal eine Woche zu spät zahlt, hat seinen
+ * Abo-Tag um drei Wochen verschoben — und niemand hat das entschieden.
+ *
+ * Der Anker ist der Buchungstag der ERSTZAHLUNG und bleibt es. Wer am 05.07.
+ * gekauft hat, ist am 05. jedes Monats fällig, auch wenn er im August erst am
+ * 19. gezahlt hat. Der Betreiber hat dafür einen Namen: „sein Tag".
+ *
+ * `abDatum` bleibt als Parameter erhalten, wird aber nur noch gebraucht, um
+ * die richtige nächste Fälligkeit zu FINDEN (welcher Jahrestag ist der
+ * nächste?), nicht um sie zu VERSCHIEBEN.
  */
 async function naechsteRateAnlegen(
   ref: string,
@@ -212,19 +361,25 @@ async function naechsteRateAnlegen(
   abDatum?: string,
 ) {
   const [app] = await sqlPool`
-    SELECT payment_reference, ref, abo_gestoppt_am, amount_due FROM fiaon_applications WHERE ref = ${ref}
+    SELECT payment_reference, ref, abo_gestoppt_am, amount_due, pack_key
+    FROM fiaon_applications WHERE ref = ${ref}
   `;
   if (!app || app.abo_gestoppt_am) return;
+  const { tag: anker } = await aboAnker(ref);
+  if (!anker) return;
   const referenz = app.payment_reference || app.ref;
   const nr = Number(letzteRate.rate_nr) + 1;
-  const basis = abDatum || new Date(letzteRate.faellig_am).toISOString().slice(0, 10);
-  // Betrag immer frisch aus der Bestellung: ändert der Vorgesetzte das Paket,
-  // gilt der neue Preis ab der nächsten Rate.
-  const betrag = cents(app.amount_due) || Number(letzteRate.betrag_cents);
+  // Betrag immer frisch aus dem Katalog bzw. der Bestellung: ändert der
+  // Betreiber das Paket, gilt der neue Preis ab der nächsten Rate.
+  const betrag = paketPreisCents(app.pack_key) || cents(app.amount_due) || Number(letzteRate.betrag_cents);
+  // Der nächste Jahrestag NACH der gerade bezahlten Fälligkeit. Nicht nach
+  // dem Zahlungstag — sonst überspringt eine sehr späte Zahlung einen Monat.
+  const bisher = ankerTag(letzteRate.faellig_am) ?? abDatum ?? berlinToday();
+  const faellig = naechsteFaelligkeit(anker, bisher);
   await sqlPool`
     INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, quelle)
-    VALUES (${ref}, ${nr}, ${`${referenz}-${nr}`}, ${betrag}, ${plusTage(basis, ABO_ZYKLUS_TAGE)}::date, 'offen', 'auto')
-    ON CONFLICT (ref, rate_nr) DO NOTHING
+    VALUES (${ref}, ${nr}, ${`${referenz}-${nr}`}, ${betrag}, ${faellig}::date, 'offen', 'auto')
+    ON CONFLICT DO NOTHING
   `;
 }
 
@@ -255,9 +410,12 @@ export async function ketteSicherstellen(): Promise<{ neu: number }> {
     SELECT COUNT(*)::int AS c
     FROM fiaon_applications a
     WHERE a.payment_status = 'paid' AND NOT COALESCE(a.alt_bestand, FALSE)
-      AND a.merged_into IS NULL AND a.completed_at IS NOT NULL AND a.abo_gestoppt_am IS NULL
-      AND a.type <> 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
-      AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.rate_nr > 1)
+      AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
+      AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
+      AND a.type IS DISTINCT FROM 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+      AND a.pack_key IS DISTINCT FROM 'schufa'
+      AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r
+                       WHERE r.ref = a.ref AND r.rate_nr > 1 AND r.storniert_am IS NULL)
   `;
   if (Number(offen.c) === 0) return { neu: 0 };
   const erg = await aboNachziehen({ rueckwirkend: false });
@@ -271,41 +429,54 @@ export async function aboNachziehen(opts: { rueckwirkend?: boolean; nurZaehlen?:
   await ensureAboTabellen();
   const heute = berlinToday();
   const apps = await sqlPool`
-    SELECT a.ref, a.payment_reference, a.pack_name, a.amount_due, a.completed_at
+    SELECT a.ref, a.type, a.pack_key, a.payment_reference, a.pack_name, a.amount_due,
+           a.completed_at, a.paid_at,
+           (SELECT MIN(t.booked_at) FROM fiaon_bank_txns t
+             WHERE t.matched_ref = a.ref AND t.applied) AS bank_at
     FROM fiaon_applications a
     WHERE a.payment_status = 'paid' AND NOT COALESCE(a.alt_bestand, FALSE)
-      AND a.merged_into IS NULL AND a.completed_at IS NOT NULL AND a.abo_gestoppt_am IS NULL
-      AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.rate_nr > 1)
-    ORDER BY a.completed_at DESC
+      AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
+      AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
+      -- SCHUFA erzeugt NIE eine Rate. Dreifach abgesichert (Typ, Referenz,
+      -- Paketname/Betrag), weil jedes einzelne Merkmal irgendwo fehlt.
+      AND a.type IS DISTINCT FROM 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+      AND a.pack_key IS DISTINCT FROM 'schufa'
+      AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r
+                       WHERE r.ref = a.ref AND r.rate_nr > 1 AND r.storniert_am IS NULL)
+    ORDER BY COALESCE(a.paid_at, a.completed_at) DESC
   `;
   let neu = 0, uebersprungen = 0;
   for (const app of apps) {
-    if (istBonitaetsCheck(app) || cents(app.amount_due) <= 0) { uebersprungen++; continue; }
-    const referenz = app.payment_reference || app.ref;
-    const betrag = cents(app.amount_due);
-    const startTag = new Date(app.completed_at).toISOString().slice(0, 10);
+    if (istBonitaetsCheck(app)) { uebersprungen++; continue; }
+    const betrag = paketPreisCents(app.pack_key) || cents(app.amount_due);
+    if (betrag <= 0) { uebersprungen++; continue; }
+    // Derselbe Anker wie überall — ohne ihn ist der Zyklus nicht berechenbar
+    // und der Kunde bekäme einen erfundenen Termin.
+    const anker = ankerTag(app.paid_at) ?? ankerTag(app.bank_at) ?? ankerTag(app.completed_at);
+    if (!anker) { uebersprungen++; continue; }
 
-    // Wie viele Zyklen sind seit der Startzahlung vergangen?
-    const tage = tageZwischen(startTag, heute);
-    const zyklen = Math.floor(tage / ABO_ZYKLUS_TAGE);
+    const referenz = app.payment_reference || app.ref;
     // Rate 2 ist die erste Monatsrate. Vergangene Zyklen zählen mit, damit die
     // Ratennummer zum tatsächlichen Alter passt (und nicht jeder Bestandskunde
     // wieder bei Rate 2 anfängt).
-    const rateNr = 2 + Math.max(0, opts.rueckwirkend ? zyklen - 1 : zyklen);
-    const faellig = plusTage(startTag, ABO_ZYKLUS_TAGE * (rateNr - 1));
+    const vergangen = zyklenBis(anker, heute);
+    const zyklusNr = opts.rueckwirkend ? Math.max(1, vergangen) : vergangen + 1;
+    const rateNr = zyklusNr + 1;
+    const faellig = faelligkeit(anker, zyklusNr);
 
     if (opts.nurZaehlen) { neu++; continue; }
 
     await sqlPool`
       INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, bezahlt_am, quelle, notiz)
-      VALUES (${app.ref}, 1, ${referenz}, ${betrag}, ${startTag}::date, 'bezahlt', ${app.completed_at}, 'auto', 'Startzahlung')
+      VALUES (${app.ref}, 1, ${referenz}, ${betrag}, ${anker}::date, 'bezahlt',
+              ${app.paid_at || app.bank_at || app.completed_at}, 'auto', 'Startzahlung')
       ON CONFLICT (ref, rate_nr) DO NOTHING
     `;
     await sqlPool`
       INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, quelle, notiz)
       VALUES (${app.ref}, ${rateNr}, ${`${referenz}-${rateNr}`}, ${betrag}, ${faellig}::date, 'offen', 'nachgezogen',
               ${opts.rueckwirkend ? "Bestandsaufnahme (rückwirkend fällig)" : "Bestandsaufnahme (nächste Fälligkeit)"})
-      ON CONFLICT (ref, rate_nr) DO NOTHING
+      ON CONFLICT DO NOTHING
     `;
     neu++;
   }
@@ -388,15 +559,30 @@ async function faelligeRaten(limit: number, opts: { abStichtag?: string | null }
   const heute = berlinToday();
   return sqlPool`
     SELECT r.*, a.first_name, a.last_name, a.contact_name, a.company_name,
-           a.email, a.contact_email, a.billing_email, a.pack_name, a.amount_due, a.ref,
+           a.person_id, a.email, a.contact_email, a.billing_email, a.pack_name,
+           a.amount_due, a.ref,
            ag.name AS agent_name
     FROM fiaon_abo_raten r
     JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
     LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
     WHERE r.status = 'offen'
+      AND r.storniert_am IS NULL
       AND r.faellig_am <= ${heute}::date
       AND r.mahnstufe < ${MAHNSTUFEN.length}
-      AND COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,'')) IS NOT NULL
+      -- ══════════════════════════════════════════════════════════════════
+      -- HIER STAND EIN FILTER AUF DIE E-MAIL DER BESTELLZEILE.
+      --
+      -- Er hat Raten, an deren Bestellung keine Adresse steht, LAUTLOS aus
+      -- dem Lauf genommen. Nicht als Fehler, nicht als Hinweis — sie waren
+      -- einfach nicht dabei. Genau das ist der gemeldete Fall: „Die E-Mail
+      -- war am zweiten Lead vorhanden, am Antrag leer, und der Versand
+      -- scheiterte trotz Nachtrag."
+      --
+      -- Die Adresse löst jetzt „server/lib/fiaon-empfaenger.ts" über die
+      -- PERSON auf (aktuelle Adresse, dann Aliase). Findet auch die nichts,
+      -- scheitert der Versand SICHTBAR und steht mit Grund im Protokoll.
+      -- Ein Kunde, den wir nicht erreichen können, muss auffallen.
+      -- ══════════════════════════════════════════════════════════════════
       AND (r.letzte_erinnerung_at IS NULL OR r.letzte_erinnerung_at < NOW() - INTERVAL '20 hours')
       -- Stufe erst, wenn der Abstand erreicht ist (0 / 7 / 14 Tage nach Fälligkeit)
       AND (${heute}::date - r.faellig_am) >= (CASE r.mahnstufe WHEN 0 THEN 0 WHEN 1 THEN 7 ELSE 14 END)
@@ -455,6 +641,258 @@ export async function aboMotor(opts: { force?: boolean } = {}): Promise<{
   return ergebnis;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DER TAGESLAUF
+//
+// Drei Aufgaben, jeden Tag, in dieser Reihenfolge — und jede davon so gebaut,
+// dass ein zweiter Lauf am selben Tag nichts doppelt macht:
+//
+//   1. AM FÄLLIGKEITSTAG entsteht die Rate (falls nicht vorhanden) und die
+//      Monatsrechnung geht raus.
+//   2. VORAB, X Tage davor, geht die freundliche Erinnerung raus. Sie ist
+//      keine Mahnung: Die Mahnstufe bleibt, wo sie ist.
+//   3. AM TAG DANACH wird die unbezahlte Rate überfällig, kommt in die
+//      Inkasso-Arbeitsliste und bekommt einen Menschen zugeteilt.
+//
+// ── WARUM IDEMPOTENZ HIER KEIN FEINSCHLIFF IST ─────────────────────────────
+// Der Lauf erzeugt RECHNUNGEN. Läuft er zweimal, bekommt ein Kunde zwei
+// Rechnungen für denselben Monat — und ruft an. Die Wand steht deshalb nicht
+// in diesem Code, sondern in der Datenbank: ein eindeutiger Index auf
+// (ref, faellig_am) für alles, was nicht storniert ist. Ein zweiter Lauf
+// prallt dort ab, auch wenn er gleichzeitig in einem anderen Prozess läuft.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface TageslaufErgebnis {
+  tag: string;
+  ratenErzeugt: number;
+  rechnungenVersandt: number;
+  rechnungenFehlgeschlagen: number;
+  vorabVersandt: number;
+  ueberfaelligNeu: number;
+  zugeteilt: number;
+  uebersprungenFenster: boolean;
+  meldung: string;
+}
+
+/**
+ * Erzeugt die heute fälligen Raten. Gibt zurück, wie viele NEU entstanden.
+ *
+ * Eine Rate entsteht nur für ein bezahltes Paket. `aboNachziehen` hält diese
+ * Grenze (payment_status = 'paid', kein SCHUFA, kein Abo-Stopp) — hier wird
+ * sie deshalb nicht ein zweites Mal formuliert.
+ */
+async function ratenFuerHeuteErzeugen(heute: string, lauf: Lauf = sqlPool): Promise<number> {
+  const kandidaten = (await lauf.unsafe(`
+    SELECT a.ref, a.payment_reference, a.pack_key, a.amount_due,
+           ${ABO_ANKER_SQL} AS anker_at,
+           (SELECT MAX(r.rate_nr) FROM fiaon_abo_raten r WHERE r.ref = a.ref) AS letzte_nr
+    FROM fiaon_applications a
+    WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
+      AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
+      AND a.abo_gestoppt_am IS NULL AND NOT COALESCE(a.alt_bestand, FALSE)
+      AND a.type IS DISTINCT FROM 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+      AND a.pack_key IS DISTINCT FROM 'schufa'
+      -- Nichts anlegen, solange noch eine offene Rate im Raum steht: Es soll
+      -- kein Schuldenberg entstehen, den niemand entschieden hat.
+      AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r
+                       WHERE r.ref = a.ref AND r.status = 'offen' AND r.storniert_am IS NULL)
+  `)) as any[];
+
+  let erzeugt = 0;
+  for (const k of kandidaten) {
+    const anker = ankerTag(k.anker_at);
+    if (!anker) continue;
+    // Ist HEUTE ein Fälligkeitstag dieses Kunden?
+    const nr = zyklenBis(anker, heute);
+    if (nr < 1 || faelligkeit(anker, nr) !== heute) continue;
+
+    const betrag = paketPreisCents(k.pack_key) || cents(k.amount_due);
+    if (betrag <= 0) continue;
+    const referenz = k.payment_reference || k.ref;
+    const rateNr = Math.max(Number(k.letzte_nr || 1) + 1, 2);
+    const [neu] = (await lauf`
+      INSERT INTO fiaon_abo_raten
+        (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, quelle, notiz)
+      VALUES (${k.ref}, ${rateNr}, ${`${referenz}-${rateNr}`}, ${betrag}, ${heute}::date,
+              'offen', 'tageslauf', ${`Monatsrate zum Jahrestag der Buchung (${kurzTag(anker)})`})
+      ON CONFLICT DO NOTHING
+      RETURNING id
+    `) as any[];
+    if (neu) erzeugt++;
+  }
+  return erzeugt;
+}
+
+/**
+ * Die freundliche Vorabinfo, X Tage vor der Fälligkeit.
+ *
+ * Sie hebt die Zahlquote — aber sie ist KEINE Mahnung. `stufeErhoehen: false`
+ * ist deshalb nicht optional: Ein Kunde, der drei Tage vor dem Termin auf
+ * Mahnstufe 1 gesetzt wird, steht nach zwei Wochen auf „Entscheidung nötig",
+ * obwohl er nie zu spät war.
+ *
+ * `vorab_am` verhindert, dass sie zweimal rausgeht.
+ */
+async function vorabErinnern(heute: string, tage: number): Promise<number> {
+  if (tage <= 0) return 0;
+  const zielTag = tagMinus(heute, -tage); // heute + tage
+  const batch = (await sqlPool`
+    SELECT r.*, a.first_name, a.last_name, a.contact_name, a.company_name,
+           a.person_id, a.email, a.contact_email, a.billing_email, a.pack_name,
+           a.amount_due, a.ref
+    FROM fiaon_abo_raten r
+    JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
+    WHERE r.status = 'offen' AND r.storniert_am IS NULL
+      AND r.faellig_am = ${zielTag}::date
+      AND r.vorab_am IS NULL
+    ORDER BY r.id
+    LIMIT ${ABO_BATCH}
+  `) as any[];
+
+  let raus = 0;
+  for (const r of batch) {
+    const erg = await rateErinnern(r, { stufeErhoehen: false });
+    // Der Stempel wird auch bei einem Fehlschlag NICHT gesetzt — sonst
+    // verlöre der Kunde seine Vorabinfo, weil Make einmal hustete.
+    if (erg.ok) {
+      await sqlPool`UPDATE fiaon_abo_raten SET vorab_am = NOW() WHERE id = ${r.id}`;
+      raus++;
+    }
+  }
+  return raus;
+}
+
+/**
+ * Was gestern fällig war und nicht bezahlt ist, ist ab heute überfällig.
+ *
+ * Der Betreiber: „Ist die Rate am 06.08. nicht als bezahlt gebucht, steht er
+ * im Forderungsmanagement." Genau dieser eine Tag Abstand — nicht drei, nicht
+ * sieben.
+ */
+async function ueberfaelligStellen(
+  heute: string, lauf: Lauf = sqlPool,
+): Promise<{ neu: number; zugeteilt: number }> {
+  const neu = (await lauf`
+    UPDATE fiaon_abo_raten r
+    SET ueberfaellig_seit = r.faellig_am + 1, updated_at = NOW()
+    FROM fiaon_applications a
+    WHERE a.ref = r.ref AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
+      AND a.payment_status = 'paid'
+      AND r.status = 'offen' AND r.storniert_am IS NULL
+      AND r.faellig_am < ${heute}::date
+      AND r.ueberfaellig_seit IS NULL
+    RETURNING r.id
+  `) as any[];
+
+  // Zuteilung an den Inkasso-Menschen mit der kleinsten Last — die bestehende
+  // Logik, nicht eine zweite daneben.
+  let zugeteilt = 0;
+  try {
+    const { inkassoVerteilen } = await import("../lib/fiaon-inkasso");
+    const erg = await inkassoVerteilen({ schreiben: true, anzahl: 200 }, lauf);
+    zugeteilt = erg.verteilt;
+  } catch (e) {
+    console.error("[FIAON-ABO] Zuteilung im Tageslauf:", e);
+  }
+  return { neu: neu.length, zugeteilt };
+}
+
+/**
+ * Der Tageslauf. Einmal am Tag, idempotent, mit Klartext-Meldung.
+ *
+ * Der Versand hält sich ans Versandfenster (08–20 Uhr Berlin). Das ERZEUGEN
+ * der Raten und das Überfälligstellen tun das NICHT: Eine Fälligkeit ist eine
+ * Tatsache und hat keine Uhrzeit. Nur Mails an Menschen haben eine.
+ */
+/**
+ * `lauf` ist der Griff in die Datenbank. In der Produktion der gemeinsame
+ * Pool, im Prüfstand eine Transaktion, die am Ende zurückgerollt wird —
+ * anders ließe sich ein Lauf, der Rechnungen erzeugt, nicht gegen die
+ * Produktionsdatenbank prüfen.
+ */
+export async function aboTageslauf(
+  opts: { force?: boolean; lauf?: Lauf } = {},
+): Promise<TageslaufErgebnis> {
+  const lauf = opts.lauf ?? sqlPool;
+  // Die Tabellenprüfung läuft NICHT, wenn ein eigener Griff mitgegeben wurde.
+  // Sie führt ALTER TABLE und CREATE INDEX aus — über den globalen Pool, also
+  // auf einer ZWEITEN Verbindung. Hält der Prüfstand gerade eine Transaktion
+  // auf fiaon_abo_raten offen, warten sich beide gegenseitig tot, bis das
+  // Statement-Zeitlimit zuschlägt. Genau das ist am 16.08.2026 passiert.
+  // Wer einen eigenen Griff mitgibt, hat die Tabellen ohnehin schon.
+  if (!opts.lauf) await ensureAboTabellen();
+  const heute = berlinToday();
+  const erg: TageslaufErgebnis = {
+    tag: heute, ratenErzeugt: 0, rechnungenVersandt: 0, rechnungenFehlgeschlagen: 0,
+    vorabVersandt: 0, ueberfaelligNeu: 0, zugeteilt: 0, uebersprungenFenster: false,
+    meldung: "",
+  };
+
+  // 1. Die Raten des Tages — immer, unabhängig vom Versandfenster.
+  erg.ratenErzeugt = await ratenFuerHeuteErzeugen(heute, lauf);
+
+  // 3. Überfällig und zuteilen — ebenfalls uhrzeitunabhängig. Bewusst VOR dem
+  //    Versand: Wer heute überfällig wird, soll auch heute jemandem gehören.
+  const ueber = await ueberfaelligStellen(heute, lauf);
+  erg.ueberfaelligNeu = ueber.neu;
+  erg.zugeteilt = ueber.zugeteilt;
+
+  // 2. Der Versand — nur im Fenster und nur mit eingeschaltetem Motor.
+  const settings = await getSettings();
+  if (settings.abo_motor_enabled === "0" || (!(await imVersandfenster()) && !opts.force)) {
+    erg.uebersprungenFenster = true;
+    erg.meldung = `${erg.ratenErzeugt} Rate(n) angelegt, ${erg.ueberfaelligNeu} überfällig geworden. `
+      + `Versand ausgesetzt (${settings.abo_motor_enabled === "0" ? "Motor aus" : "außerhalb 08–20 Uhr"}).`;
+    return erg;
+  }
+
+  const motor = await aboMotor({ force: opts.force });
+  erg.rechnungenVersandt = motor.gesendet;
+  erg.rechnungenFehlgeschlagen = motor.fehlgeschlagen;
+  erg.vorabVersandt = await vorabErinnern(heute, await vorabTage());
+
+  const teile = [
+    `${erg.ratenErzeugt} Rate(n) angelegt`,
+    `${erg.rechnungenVersandt} Rechnung(en) versandt`,
+  ];
+  if (erg.vorabVersandt > 0) teile.push(`${erg.vorabVersandt} Vorabinfo(s)`);
+  if (erg.rechnungenFehlgeschlagen > 0) teile.push(`${erg.rechnungenFehlgeschlagen} NICHT zugestellt`);
+  teile.push(`${erg.ueberfaelligNeu} überfällig geworden`);
+  if (erg.zugeteilt > 0) teile.push(`${erg.zugeteilt} zugeteilt`);
+  erg.meldung = `${teile.join(" · ")}.`;
+  console.log(`[FIAON-ABO] Tageslauf ${heute}: ${erg.meldung}`);
+  return erg;
+}
+
+/**
+ * Welche Mahnstufe gilt nach dieser Erinnerung?
+ *
+ * ── EINE STUFE SPRINGT NIE ────────────────────────────────────────────────
+ * Zwei Bedingungen, und beide müssen erfüllt sein:
+ *
+ *   1. Genau EINE Stufe weiter. `Math.min(…, bisher + 1)` allein reicht
+ *      nicht — es verhindert nur den Sprung nach oben, nicht den Fall, dass
+ *      Stufe 2 vergeben wird, ohne dass Stufe 1 je verschickt wurde.
+ *   2. Wer auf Stufe 1 oder höher steht, MUSS eine versandte Erinnerung
+ *      vorweisen können (`letzte_erinnerung_at`). Steht dort nichts, ist die
+ *      Stufe aus einem Bestandsnachtrag gekommen und nicht aus einer Mail —
+ *      dann wird sie NICHT weitergezählt, sondern auf 1 gesetzt.
+ *
+ * Der Grund steht im Teamfeedback: Kunden trugen Mahnstufe 1 aus dem
+ * Bestandsnachtrag, ohne je eine Mahnung gesehen zu haben. Wer darauf
+ * aufbaut, schickt jemandem als ERSTE Nachricht eine zweite Mahnung.
+ *
+ * Als eigene, reine Funktion — damit der Prüfstand sie durchspielen kann,
+ * ohne eine Mail zu verschicken.
+ */
+export function naechsteMahnstufe(
+  bisher: number, stufeErhoehen: boolean, hatEchteVorstufe: boolean,
+): number {
+  if (!stufeErhoehen) return bisher;
+  if (bisher >= 1 && !hatEchteVorstufe) return 1;
+  return Math.min(MAHNSTUFEN.length, bisher + 1);
+}
+
 /**
  * Eine Rate erinnern — und die Mahnstufe NUR bei erfolgreichem Versand erhöhen.
  *
@@ -471,9 +909,9 @@ async function rateErinnern(r: any, opts: { stufeErhoehen?: boolean } = {}): Pro
   const faellig = String(r.faellig_am ? new Date(r.faellig_am).toISOString().slice(0, 10) : "");
   const istFaellig = !faellig || faellig <= berlinToday();
   const stufeErhoehen = opts.stufeErhoehen ?? istFaellig;
-  const stufe = stufeErhoehen
-    ? Math.min(MAHNSTUFEN.length, Number(r.mahnstufe || 0) + 1)
-    : Number(r.mahnstufe || 0);
+  const stufe = naechsteMahnstufe(
+    Number(r.mahnstufe || 0), stufeErhoehen, r.letzte_erinnerung_at != null,
+  );
   const versand = await sendMakeWebhookMitGrund("abo_payment_reminder", aboErinnerungPayload(r) as any);
   if (versand.ok) {
     await sqlPool`
@@ -506,12 +944,20 @@ async function rateErinnern(r: any, opts: { stufeErhoehen?: boolean } = {}): Pro
 // Serverstart 90 Sekunden später echte Mahnmails an echte Kunden geschickt.
 // Lokal testen geht über POST /admin/abo/motor (bewusster Klick) oder
 // ABO_MOTOR_LOKAL=1.
-if (process.env.NODE_ENV === "production" || process.env.ABO_MOTOR_LOKAL === "1") {
-  setInterval(() => { void aboMotor().catch((e) => console.error("[FIAON-ABO] Motor:", e)); }, 60 * 60 * 1000);
-  setTimeout(() => { void aboMotor().catch(() => {}); }, 90_000);
-} else {
-  console.log("[FIAON-ABO] Motor pausiert (kein Produktionsbetrieb) — manueller Lauf über /admin/abo/motor");
-}
+// ── ÜBER DIE EINE REGISTRATUR (17.08.2026) ─────────────────────────────────
+// Hier stand eine eigene `if (NODE_ENV === "production" || ABO_MOTOR_LOKAL)`-
+// Prüfung. Sie war richtig — aber die vierte Fassung derselben Regel im Haus.
+// Der lokale Testschalter bleibt: `tageslauf` nimmt ihn als `auchWenn` auf.
+//
+// Der Tageslauf läuft STÜNDLICH, nicht einmal am Tag: Er ist idempotent, und
+// ein Prozess, der um 03:00 neu startet, hätte bei einem echten Tageslauf den
+// Tag verpasst. Stündlich heißt: Der Lauf holt sich selbst ein.
+tageslauf(
+  "abo-motor",
+  () => { void aboTageslauf().catch((e) => console.error("[FIAON-ABO] Tageslauf:", e)); },
+  60 * 60 * 1000,
+  { auchWenn: process.env.ABO_MOTOR_LOKAL === "1", beimStartNach: 90_000 },
+);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Endpoints (alle unter /admin — Agent-403 und Zugangscode greifen davor)
@@ -570,7 +1016,8 @@ export async function aboUebersicht() {
     fenster: await versandfenster(),
     imFenster: await imVersandfenster(),
     stichtag: settings.abo_stichtag || null,
-    zyklusTage: ABO_ZYKLUS_TAGE,
+    zyklus: ABO_ZYKLUS,
+    vorabTage: await vorabTage(),
   };
 }
 
@@ -736,7 +1183,11 @@ router.post("/admin/abo/raten/:id/bezahlt", async (req: Request, res: Response) 
       VALUES (${rate.ref}, NULL, 'System', 'system',
               ${`Abo-Rate ${rate.rate_nr} (${rate.zahlungsreferenz}) als bezahlt gebucht — Zahlungseingang ${zahlungsdatum}`})
     `.catch(() => {});
-    res.json({ ok: true, zahlungsdatum, naechsteFaelligkeit: plusTage(zahlungsdatum, ABO_ZYKLUS_TAGE) });
+    const { tag: anker } = await aboAnker(rate.ref);
+    res.json({
+      ok: true, zahlungsdatum,
+      naechsteFaelligkeit: anker ? naechsteFaelligkeit(anker, zahlungsdatum) : null,
+    });
   } catch (err) {
     console.error("[FIAON-ABO] bezahlt:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -750,14 +1201,26 @@ router.post("/admin/abo/raten/:id/erinnern", async (req: Request, res: Response)
     const id = Number(req.params.id);
     const [r] = await sqlPool`
       SELECT r.*, a.first_name, a.last_name, a.contact_name, a.company_name,
-             a.email, a.contact_email, a.billing_email, a.pack_name, a.amount_due, a.ref
+             a.person_id, a.email, a.contact_email, a.billing_email, a.pack_name,
+             a.amount_due, a.ref
       FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
       WHERE r.id = ${id}
     `;
     if (!r) return res.status(404).json({ ok: false, error: "Rate nicht gefunden" });
     if (r.status !== "offen") return res.status(400).json({ ok: false, error: "Rate ist nicht offen" });
-    const mail = r.email || r.contact_email || r.billing_email;
-    if (!mail) return res.status(400).json({ ok: false, error: "Keine E-Mail-Adresse hinterlegt" });
+    // Die Adresse kommt von der PERSON, nicht von der Bestellzeile. Vorher
+    // wurde hier abgelehnt, sobald die Bestellzeile leer war — auch wenn die
+    // Person längst eine gültige Adresse trug.
+    const { empfaengerAufloesen } = await import("../lib/fiaon-empfaenger");
+    const ziel = await empfaengerAufloesen({
+      personId: r.person_id ?? null, ref: r.ref, ausNutzlast: r.email,
+    });
+    if (!ziel) {
+      return res.status(400).json({
+        ok: false,
+        error: "Keine zustellbare E-Mail-Adresse — weder an der Person, noch als Alias, noch an der Bestellung.",
+      });
+    }
     if (!(await imVersandfenster())) {
       return res.status(400).json({ ok: false, error: "Außerhalb des Versandfensters (08–20 Uhr Berlin)" });
     }
@@ -843,6 +1306,112 @@ router.post("/admin/abo/motor", async (_req, res) => {
   }
 });
 
+/** Den ganzen Tageslauf von Hand anstoßen — Raten, Rechnungen, Überfällig. */
+router.post("/admin/abo/tageslauf", async (_req, res) => {
+  try {
+    res.json({ ok: true, ...(await aboTageslauf({ force: true })) });
+  } catch (err) {
+    console.error("[FIAON-ABO] tageslauf:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * Was hat der Motor heute getan? — die Karte in der Zahlungszentrale.
+ *
+ * Der Betreiber soll den Motor arbeiten SEHEN. Ein Automatismus, von dem man
+ * nur erfährt, wenn er versagt, wird nicht geglaubt: Beim ersten Zweifel
+ * fängt jemand an, Rechnungen von Hand zu schicken — und dann bekommt der
+ * Kunde zwei.
+ */
+router.get("/admin/abo/motor/heute", async (_req, res) => {
+  try {
+    await ensureAboTabellen();
+    const heute = berlinToday();
+    const [k] = (await sqlPool`
+      SELECT
+        COUNT(*) FILTER (WHERE r.created_at::date = ${heute}::date
+                           AND r.quelle = 'tageslauf')::int AS raten_heute,
+        COUNT(*) FILTER (WHERE (r.letzte_erinnerung_at AT TIME ZONE 'Europe/Berlin')::date = ${heute}::date)::int AS rechnungen_heute,
+        COUNT(*) FILTER (WHERE (r.vorab_am AT TIME ZONE 'Europe/Berlin')::date = ${heute}::date)::int AS vorab_heute,
+        COUNT(*) FILTER (WHERE r.ueberfaellig_seit = ${heute}::date)::int AS ueberfaellig_heute,
+        COUNT(*) FILTER (WHERE r.status = 'offen' AND r.storniert_am IS NULL
+                           AND r.faellig_am = ${heute}::date)::int AS faellig_heute,
+        COUNT(*) FILTER (WHERE r.status = 'offen' AND r.storniert_am IS NULL
+                           AND r.letzter_fehler IS NOT NULL)::int AS zustellfehler
+      FROM fiaon_abo_raten r
+    `) as any[];
+    const settings = await getSettings();
+    res.json({
+      ok: true,
+      tag: heute,
+      ratenErzeugt: Number(k.raten_heute),
+      rechnungenVersandt: Number(k.rechnungen_heute),
+      vorabVersandt: Number(k.vorab_heute),
+      ueberfaelligGeworden: Number(k.ueberfaellig_heute),
+      faelligHeute: Number(k.faellig_heute),
+      zustellfehler: Number(k.zustellfehler),
+      motorAktiv: settings.abo_motor_enabled !== "0",
+      vorabTage: await vorabTage(),
+      imFenster: await imVersandfenster(),
+      // Der eine Satz, den der Betreiber lesen soll.
+      meldung: `Abo-Motor: heute ${Number(k.rechnungen_heute)} Rechnung(en) versandt, `
+        + `${Number(k.ueberfaellig_heute)} überfällig geworden.`,
+    });
+  } catch (err) {
+    console.error("[FIAON-ABO] motor/heute:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * Der Zyklus einer Bestellung im Klartext — für Akte und Inkasso-Karte.
+ *
+ * Die Formulierung kommt aus `fiaon-abo-zyklus.ts`, damit alle drei Orte
+ * denselben Satz zeigen.
+ */
+router.get("/admin/abo/:ref/zyklus", async (req: Request, res: Response) => {
+  try {
+    await ensureAboTabellen();
+    const ref = String(req.params.ref);
+    const [a] = (await sqlPool`
+      SELECT abo_gestoppt_am, abo_stopp_grund, payment_status, pack_key
+      FROM fiaon_applications WHERE ref = ${ref}
+    `) as any[];
+    if (!a) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
+    const { tag: anker, quelle } = await aboAnker(ref);
+    const settings = await getSettings();
+    const [naechste] = (await sqlPool`
+      SELECT faellig_am, betrag_cents, zahlungsreferenz FROM fiaon_abo_raten
+      WHERE ref = ${ref} AND status = 'offen' AND storniert_am IS NULL
+      ORDER BY faellig_am ASC LIMIT 1
+    `) as any[];
+    res.json({
+      ok: true,
+      ref,
+      anker,
+      ankerQuelle: quelle,
+      gestoppt: a.abo_gestoppt_am != null,
+      stoppGrund: a.abo_stopp_grund || null,
+      naechsteFaelligkeit: anker ? naechsteFaelligkeit(anker) : null,
+      offeneRate: naechste
+        ? {
+            faelligAm: ankerTag(naechste.faellig_am),
+            betragCents: Number(naechste.betrag_cents),
+            verwendungszweck: naechste.zahlungsreferenz,
+          }
+        : null,
+      text: zyklusText(anker, {
+        gestoppt: a.abo_gestoppt_am != null,
+        automatik: settings.abo_motor_enabled !== "0",
+      }),
+    });
+  } catch (err) {
+    console.error("[FIAON-ABO] zyklus:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ERINNERUNGS-LAUF FÜR DIE GEÖFFNETE ANSICHT
 //
@@ -884,16 +1453,27 @@ async function laufKandidaten(art: LaufArt) {
     : art === "zustellfehler" ? `r.letzter_fehler IS NOT NULL`
     : `TRUE`;
 
+  // `ziel_mail` prüft jetzt dieselbe Rangfolge wie der Versand: Person,
+  // Alias, Bestellzeile. Eine Vorschau, die anders urteilt als der Lauf,
+  // verspricht Zahlen, die hinterher nicht stimmen.
+  const { zustellbarSql } = await import("../lib/fiaon-empfaenger");
   return sqlPool.unsafe(`
     SELECT r.*, a.first_name, a.last_name, a.contact_name, a.company_name,
-           a.email, a.contact_email, a.billing_email, a.pack_name, a.amount_due, a.ref,
+           a.person_id, a.email, a.contact_email, a.billing_email, a.pack_name,
+           a.amount_due, a.ref,
            ag.name AS agent_name,
-           COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,'')) AS ziel_mail,
+           COALESCE(
+             (SELECT NULLIF(TRIM(p.primary_email),'') FROM fiaon_persons p WHERE p.id = a.person_id),
+             (SELECT al.value_norm FROM fiaon_person_aliases al
+               WHERE al.person_id = a.person_id AND al.kind = 'email'
+               ORDER BY al.created_at DESC LIMIT 1),
+             NULLIF(TRIM(a.email),''), NULLIF(TRIM(a.contact_email),''), NULLIF(TRIM(a.billing_email),'')
+           ) AS ziel_mail,
            (r.letzte_erinnerung_at IS NOT NULL AND r.letzte_erinnerung_at >= NOW() - INTERVAL '20 hours') AS gesperrt
     FROM fiaon_abo_raten r
     JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
     LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
-    WHERE r.status = 'offen' AND ${wo}
+    WHERE r.status = 'offen' AND r.storniert_am IS NULL AND ${wo}
     ORDER BY r.faellig_am ASC
     LIMIT ${ABO_BATCH}
   `);

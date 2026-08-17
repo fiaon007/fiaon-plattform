@@ -33,6 +33,7 @@ import { ensureBetreuungSpalte } from "../lib/tier";
 import { stufeAusTier } from "@shared/fiaon-kundenstatus";
 import { ruhtSql } from "../lib/fiaon-nicht-erreicht";
 import { terminLink } from "../lib/fiaon-termine";
+import { wartetSql, warteZahlen } from "../lib/fiaon-warten";
 
 const router = Router();
 
@@ -590,6 +591,16 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
             AND cl.done_at IS NULL AND cl.voided_at IS NULL)`);
       } else if (filter === "nicht_erreicht") wo.push("p.unreachable_count > 0");
       else if (filter === "ruhend") wo.push(ruhtSql("p"));
+      // ── WARTET AUF DEN KUNDEN ────────────────────────────────────────────
+      // GEMESSEN: 185 verschickte Nummern-Anfragen ohne Antwort, 120 davon
+      // länger als sieben Tage — und alle standen weiter jeden Tag in der
+      // Arbeitsliste. Bei einem Kunden, dessen Nummer nicht stimmt, kann
+      // niemand etwas tun. Eine Karte, bei der man nichts tun kann, ist keine
+      // Aufgabe, sondern ein Übungsstück im Überblättern.
+      //
+      // Der Filter ist nötig, damit die Fälle SICHTBAR bleiben: Sie sind nicht
+      // weg, sie sind nur nicht heute.
+      else if (filter === "wartend") wo.push(wartetSql("p"));
 
       // ── DER RUHE-POOL IST KEIN VERSTECKTES LOCH ──────────────────────────
       // Wer viermal nicht erreicht wurde, verschwindet aus der TAGESLISTE —
@@ -598,8 +609,11 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
       // Im Filter „Ruhend" und in jeder gezielten Suche steht er weiter da;
       // eine Suche, die einen Kunden nicht findet, den es gibt, ist der
       // schlimmere Fehler.
-      if (!["ruhend", "nicht_erreicht", "gesperrt", "bezahlt"].includes(filter) && !q) {
+      if (!["ruhend", "nicht_erreicht", "gesperrt", "bezahlt", "wartend"].includes(filter) && !q) {
         wo.push(`NOT ${ruhtSql("p")}`);
+        // Wer auf den Kunden wartet, ist heute nicht dran — aber im Filter
+        // „Wartend" und in jeder Suche steht er weiter da.
+        wo.push(`NOT ${wartetSql("p")}`);
 
         // ══════════════════════════════════════════════════════════════════
         // WER EINE VERABREDUNG IN DER ZUKUNFT HAT, IST HEUTE FERTIG
@@ -722,10 +736,17 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
         -- anzurufen.
         COUNT(*) FILTER (WHERE follow_up_date > CURRENT_DATE AND NOT is_blocked
                          AND priority_tier BETWEEN 1 AND 3)::int AS wartet,
-        -- Wer wartet auf eine Terminbuchung? Diese Zahl beantwortet die Frage
-        -- „wo sind die Leute hin, die ich nicht erreicht habe".
-        COUNT(*) FILTER (WHERE follow_up_date > CURRENT_DATE AND NOT is_blocked
-                         AND priority_tier BETWEEN 1 AND 3)::int AS wartet,
+        -- ── HIER STAND DIESELBE ZEILE ZWEIMAL (behoben 16.08.2026) ────────
+        -- Zwei Spalten mit dem Namen „wartet", identische Bedingung, und der
+        -- Kommentar der zweiten behauptete etwas anderes („wartet auf eine
+        -- Terminbuchung"). Postgres nimmt das hin, im Ergebnisobjekt überlebt
+        -- die letzte — also war der Kommentar eine Beschreibung von nichts.
+        --
+        -- Jetzt zählt die zweite Zahl, was sie sagt: Menschen, die auf eine
+        -- ANTWORT DES KUNDEN warten (Nummer nachtragen oder Termin wählen).
+        -- GEMESSEN: 185 verschickte Nummern-Anfragen ohne Antwort.
+        COUNT(*) FILTER (WHERE wartet_auf IS NOT NULL AND NOT is_blocked
+                         AND priority_tier BETWEEN 1 AND 3)::int AS wartend,
         COUNT(*) FILTER (WHERE priority_tier = 0)::int AS bezahlt,
         COUNT(*) FILTER (WHERE is_blocked)::int AS gesperrt,
         -- Der eigene Vorrat je Stufe. Die drei Zahlen im Kopf der Liste sagen
@@ -764,6 +785,8 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
         frist_abgelaufen: z.frist_abgelaufen, antrag_offen: z.antrag_offen,
         leads: z.leads, zusage_heute: z.zusage_heute, ueberfaellig: z.ueberfaellig,
         rueckruf: rueckrufZahl.c, nicht_erreicht: z.nicht_erreicht, wartet: z.wartet,
+        // Wartet auf den KUNDEN (Nummer oder Termin) — eigener Filter.
+        wartend: z.wartend,
         bezahlt: z.bezahlt, gesperrt: z.gesperrt, ruhend: z.ruhend,
       },
       // Der Vorrat je Stufe für den Kopf der Liste.

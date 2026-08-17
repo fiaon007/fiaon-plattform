@@ -39,6 +39,32 @@ Deshalb gilt:
    automatisierter Browserkennung ab. Eine Regel, die man vergessen kann, hat man
    schon vergessen — die Wand steht im Code.
 
+## Test-Mitarbeiterkonten legen sich am Ende selbst still
+
+Jeder Browser-Prüfstand braucht eine Anmeldung, und er darf **keine echte**
+benutzen (siehe die Regel darüber). Also legt er ein Mitarbeiterkonto an. Am
+17.08.2026 stand der Betreiber vor seiner Team-Zentrale und sah **11 Karten**:
+sechs Menschen und fünf Prüfstands-Konten. Insgesamt lagen **43 Testkonten**
+neben den 6 echten in der Tabelle.
+
+Drei Prüfstände hatten drei handgeschriebene Fassungen des Abschlusses — und
+keine setzte `is_test_account`. Ein Konto ohne diese Marke fällt durch jeden
+Filter.
+
+Deshalb:
+
+- **Am Ende jedes Laufs `testkontoStilllegen(id)` aufrufen**
+  (`server/lib/fiaon-mitarbeiter-sicht.ts`). Sie setzt `active = FALSE`,
+  `is_test_account = TRUE`, löscht das Passwort und nimmt das Konto aus der
+  Verteilung. **Nicht löschen** — an einem Konto hängen Provisionen, Stunden
+  und Verlaufseinträge.
+- **Jede Team-Ansicht filtert über `echteMitarbeiterSql()`.** Die Grenze steht
+  in der WHERE-Bedingung, nicht in der Oberfläche: Sonst holt die Abfrage die
+  Zeilen, die Anzeige wirft sie weg — und die Kennzahl hat schon gezählt.
+  `ORDER BY … is_test_account` ist **keine** Grenze, sondern eine Sortierung.
+- Testkonten sind nicht verboten, nur nicht im Weg: Der Filter „Testkonten" in
+  der Team-Zentrale zeigt sie ausdrücklich.
+
 ## Handwerk
 
 - **Jede Änderung bekommt einen `CHANGELOG.md`-Eintrag** im selben Commit:
@@ -86,6 +112,11 @@ Deshalb gilt nach jeder Änderung an `server/`:
    Serverdateien. Ein Syntaxfehler fällt dort in Sekunden auf.
 3. Keine Backticks in Kommentaren innerhalb von Template-Literalen. Für
    zitierte Bedingungen die deutschen Anführungszeichen „…" nehmen.
+   **Das gilt auch für SQL-Kommentare (`-- …`) innerhalb einer Abfrage** — sie
+   stehen im Template-Literal und beenden es genauso. Am 17.08.2026 dreimal
+   an einem Tag passiert: einmal in einem `-- …`-Kommentar in fiaon-team.ts,
+   zweimal in `--`-Kommentaren mitten in einem UPDATE. Jedes Mal fiel es erst
+   auf, als der Lauf nicht startete.
 4. **Regex-Literale niemals über zwei Zeilen.** Wer aus einem mehrzeiligen
    Kommentar zitiert, muss den Text einzeilig machen — sonst
    „Unterminated regular expression", und der Prüfstand startet nicht.
@@ -160,6 +191,43 @@ Daraus die zwei Regeln:
 - **Erst warten, dann messen.** Eine Seite, die noch lädt, hat nichts, was
   falsch sein könnte. Auf eine Marke im Inhalt warten — und ihr Ausbleiben als
   Fehlschlag melden, nicht als Übersprungen.
+
+## Ein Prüfstand in einer Transaktion trifft auf drei Fallen
+
+Am 16.08.2026 beim Bau von `scripts/pruef-abo-motor.ts` — alle drei kosten
+Minuten, wenn man sie kennt, und eine halbe Stunde, wenn nicht:
+
+1. **DDL wartet auf die offene Transaktion.** `ensureAboTabellen` und
+   `ensureAgentTables` führen `ALTER TABLE` über den GLOBALEN Pool aus, also
+   auf einer zweiten Verbindung. Hat der Prüfstand dieselbe Tabelle in seiner
+   Transaktion schon angefasst, warten beide aufeinander bis zum
+   Statement-Zeitlimit — ohne Fehlermeldung, die das erklärt. **Beide Prüfungen
+   vor `sqlPool.begin` einmal aufrufen**; sie merken sich, dass sie gelaufen
+   sind.
+2. **Eine Gegenprobe, die einen Constraint verletzt, tötet die ganze
+   Transaktion.** Danach scheitert jede weitere Abfrage mit „current
+   transaction is aborted". Solche Prüfungen gehören in einen
+   **`tx.savepoint(...)`**, dann überlebt der Rest.
+3. **Funktionen, die den Bestand ändern, brauchen einen `lauf`-Parameter**
+   (`lauf: Lauf = sqlPool`). Ohne ihn arbeiten sie am globalen Pool und sehen
+   die Testdaten der Transaktion nicht — der Prüfstand prüft dann die
+   Produktion statt seines Prüffalls.
+
+Und: **Ein Prüfstand darf nicht am ersten Fehler abbrechen.** Ein `[rate]` aus
+einem leeren Ergebnis wirft beim nächsten Feldzugriff einen TypeError, und alle
+folgenden Prüfungen bleiben ungeprüft. Rückfallobjekt anhängen, dann werden sie
+rot statt unsichtbar.
+
+## React-Haken stehen ÜBER dem ersten `return`
+
+Am 16.08.2026 zum zweiten Mal in `client/src/components/Softphone.tsx`
+passiert: ein `useEffect` hinter `if (!stand) return null;`. Der Browser meldet
+„Rendered more hooks than during the previous render", die halbe Verwaltung ist
+weiß — und **weder Typcheck noch Client-Build noch der Serverstart sehen es**.
+Gefunden hat es der Screenshot der Browser-Abnahme.
+
+Deshalb: Neue `useState`/`useEffect` immer zu den anderen Haken oben in die
+Komponente, nie an die Stelle, wo man sie gerade braucht.
 
 ## Bekannter Bestand, damit niemand erschrickt
 

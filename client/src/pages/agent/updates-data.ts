@@ -40,6 +40,34 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-20-ablauf",
+    date: "2026-08-20",
+    category: "Neu",
+    title: "Der Kundenstatus stimmt jetzt · Kundenakte mit Ablauf-Leiste · 364 Kunden warten auf ihr Startgespräch",
+    summary:
+      "Bisher stand bei fast jedem bezahlten Kunden „Aktiv“ — auch ohne Startgespräch. "
+      + "Jetzt wird der Status aus dem echten Ablauf berechnet, und du siehst in einer Sekunde, wo ein Kunde steht.",
+    changes: [
+      "DER STATUS WAR FALSCH: Bei 364 von 365 bezahlten Kunden stand „Aktiv · Freigeschaltet“ — obwohl NULL davon je ein Startgespräch geführt hatte. Die Anzeige las eine gespeicherte Spalte statt zu rechnen.",
+      "Jetzt gibt es drei klare Zustände: „Kein Zugang“ (nicht bezahlt), „Wartet auf Startgespräch“ (bezahlt, Gespräch fehlt), „Voll aktiv“ (Gespräch geführt). Portal, Akte und dein Cockpit zeigen ALLE dasselbe.",
+      "364 KUNDEN SEHEN JETZT DAS GATE: Alle bezahlten Kunden ohne Startgespräch sehen beim nächsten Login die Terminwahl — Bestand eingeschlossen. Sie bekommen keine Mail-Flut: Die Einladung läuft gestaffelt mit höchstens 50 am Tag.",
+      "Und sie können wirklich buchen: Weil es noch keinen Onboarding-Mitarbeiter gibt, stellen Vertrieb und Leitung die Termine (5 Zeiten je Tag). Ohne diesen Rückfall hätten 364 Menschen vor einer Tür ohne Termine gestanden.",
+      "DEINE KUNDENAKTE: Im Kopf steht jetzt eine ABLAUF-LEISTE — Antrag ✓ · Zahlung ✓ · Startgespräch ○ · Auskunft ○ · Voll aktiv ○ · Abo läuft. Darunter „Nächster Schritt“ mit Knopf. Du siehst in einer Sekunde, was zu tun ist.",
+      "Derselbe Kopf steht in deiner Kunden-Schublade im Vertriebs-Cockpit — ein Bauteil, keine zwei Fassungen mehr.",
+      "GATE MIT ZWEI KARTEN: Der Kunde sieht Startgespräch UND Bonitätsauskunft (74 €) gleichzeitig, mit Fortschrittsleiste. Die Auskunft ist als „freiwillig“ gekennzeichnet — sie ist keine Bedingung für die Freischaltung.",
+      "HÄRTEFÄLLE: In der Akte gibt es „Onboarding-Pflicht aussetzen“ — mit Grund (Pflicht) und deinem Namen, im Kundenverlauf protokolliert. Für Kunden, die wirklich kein Gespräch führen können.",
+    ],
+    howto: [
+      "Kundenakte öffnen: Im Kopf steht die Ablauf-Leiste und darunter „Nächster Schritt“.",
+      "Steht dort „Startgespräch einladen“, drück „Einladung senden“ — der Kunde bekommt den Terminlink.",
+      "Im Vertriebs-Cockpit: Kunde anklicken, der Kopf zeigt dasselbe Bild.",
+      "Härtefall: Akte → „Onboarding-Pflicht aussetzen“ → Grund eintragen. Ohne Grund geht es nicht.",
+      "Startgespräche führen kannst du selbst — solange es keinen Onboarding-Mitarbeiter gibt, kommen die Termine zu Vertrieb und Leitung.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
+    important: true,
+  },
+  {
     id: "2026-08-19-datenkosmetik",
     date: "2026-08-19",
     category: "Behoben",

@@ -64,6 +64,62 @@ export function dauerFuer(quelle: TerminQuelle | string): number {
 export function rolleFuerQuelle(quelle: TerminQuelle | string): string | null {
   return String(quelle) === "onboarding_call" ? "onboarding" : null;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EIN GATE OHNE SLOTS IST EINE VERSCHLOSSENE TÜR
+//
+// ── DER BEFUND (20.08.2026) ────────────────────────────────────────────────
+// Vor der Bestands-Migration gemessen: Die Rollen im Haus sind
+// vertriebsleiter (2), agent (2), inkasso (2). **Kein einziger
+// Onboarding-Mitarbeiter.** Und `freieSlots(..., "onboarding_call")` filtert
+// nach genau dieser Rolle — es kamen NULL Slots heraus.
+//
+// Hätte ich die 364 bezahlten Kunden auf „wartet_auf_onboarding" gesetzt,
+// stünden sie beim nächsten Login vor einem Pflicht-Gate, das keine Termine
+// anbietet: buchen unmöglich, „Später" abgeschafft, nur noch Abmelden. 364
+// zahlende Menschen ausgesperrt — genau der Vorfall, den AGENTS.md unter
+// „349 Menschen vor einer verschlossenen Tür" beschreibt.
+//
+// ── DIE LÖSUNG IST TECHNISCH, NICHT PERSONELL ──────────────────────────────
+// Man könnte sagen: „Der Betreiber soll einen Onboarding-Mitarbeiter anlegen."
+// Richtig — aber solange er es nicht getan hat, darf das System nicht kaputt
+// sein. Ein Startgespräch, das ein Vertriebsmitarbeiter führt, ist ein
+// geführtes Startgespräch; ein Gate ohne Slots ist ein Ausfall.
+//
+// Deshalb: Gibt es keinen aktiven Onboarding-Menschen, fallen die Slots auf
+// Vertrieb und Leitung zurück. Die Rückfall-Entscheidung wird protokolliert,
+// damit sie nicht unbemerkt zum Dauerzustand wird.
+// ═══════════════════════════════════════════════════════════════════════════
+
+let rueckfallGemeldet = false;
+
+/**
+ * Welche Rollen dürfen Slots für diese Quelle stellen?
+ *
+ * Normalfall: die eine zuständige Rolle. Ausnahme: Gibt es davon keinen
+ * aktiven Menschen, treten Vertrieb und Leitung ein — sonst hätte der Kunde
+ * keine Wahl.
+ */
+export async function rollenMitRueckfall(
+  quelle: TerminQuelle | string, lauf: Lauf = sqlPool,
+): Promise<{ rollen: string[] | null; rueckfall: boolean }> {
+  const soll = rolleFuerQuelle(quelle);
+  if (!soll) return { rollen: null, rueckfall: false };
+
+  const [z] = (await lauf`
+    SELECT COUNT(*)::int AS n FROM fiaon_agents
+    WHERE active AND NOT COALESCE(is_test_account, FALSE) AND rolle = ${soll}
+  `) as any[];
+  if (Number(z?.n ?? 0) > 0) return { rollen: [soll], rueckfall: false };
+
+  if (!rueckfallGemeldet) {
+    console.warn(`[TERMINE] Kein aktiver Mitarbeiter mit der Rolle „${soll}" — `
+      + "Startgespräch-Slots kommen aus Vertrieb und Leitung. "
+      + "Sobald ein Onboarding-Konto existiert, greift wieder die Rolle.");
+    rueckfallGemeldet = true;
+  }
+  return { rollen: ["agent", "vertriebsleiter"], rueckfall: true };
+}
 /** Frühestens buchbar: so viele Stunden ab jetzt. */
 export const VORLAUF_STUNDEN = 2;
 /** Längstens buchbar: so viele Tage ab jetzt. */
@@ -362,7 +418,11 @@ export async function freieSlots(
   personId: number, lauf: Lauf = sqlPool, quelle: TerminQuelle | string = "nichterreicht_mail",
 ): Promise<SlotAuskunft> {
   const takt = dauerFuer(quelle);
-  const nurRolle = rolleFuerQuelle(quelle);
+  // ── DER RÜCKFALL ────────────────────────────────────────────────────────
+  // `rolleFuerQuelle` allein hätte bei fehlendem Onboarding-Konto null Slots
+  // ergeben — siehe die Begründung bei `rollenMitRueckfall`.
+  const { rollen: nurRollen } = await rollenMitRueckfall(quelle, lauf);
+  const nurRolle = nurRollen ? nurRollen[0] : null;
   const [person] = (await lauf`
     SELECT p.id, p.assigned_agent_id,
            a.first_name AS agent_vorname, a.name AS agent_name, a.active AS agent_aktiv
@@ -379,11 +439,11 @@ export async function freieSlots(
   // NUR sie. Der Betreuer des Kunden ist dann unerheblich: Ein Startgespräch
   // führt das Onboarding, auch wenn der Kunde längst einen Betreuer hat.
   const betreuerAktiv = !nurRolle && person.assigned_agent_id && person.agent_aktiv;
-  const agenten = nurRolle
+  const agenten = nurRollen
     ? ((await lauf`
         SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname
         FROM fiaon_agents
-        WHERE active AND NOT is_test_account AND rolle = ${nurRolle}
+        WHERE active AND NOT is_test_account AND COALESCE(rolle, 'agent') = ANY(${nurRollen})
         ORDER BY id
       `) as any[]).map((a) => ({ id: Number(a.id), vorname: String(a.vorname) }))
     : betreuerAktiv

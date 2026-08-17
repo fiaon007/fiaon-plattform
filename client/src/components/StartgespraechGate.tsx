@@ -45,6 +45,13 @@ interface Lage {
   email?: string | null;
   termin: { datumText: string; uhrzeit: string; agentVorname: string } | null;
   token: string | null;
+  /** Die abgeleitete Stufe und der Stand des Ablaufs (20.08.2026). */
+  stufe?: "kein_zugang" | "wartet_auf_onboarding" | "voll_aktiv" | null;
+  ablauf?: {
+    antrag: boolean; zahlung: boolean; startgespraech: boolean;
+    auskunft: boolean; vollAktiv: boolean; aboLaeuft: boolean;
+  } | null;
+  auskunftBezahlt?: boolean;
 }
 
 const WOCHENTAG = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
@@ -176,7 +183,10 @@ function BonitaetsKarte({ kundenRef, email, vorname, nachname }: {
   const zweckDa = lage.bestellung?.paymentReference ?? null;
 
   return (
-    <div className="mt-6 rounded-2xl p-5" style={{ border: "1px solid rgba(15,23,42,.09)", background: "linear-gradient(180deg,rgba(29,78,216,.03),transparent)" }}>
+    // `mt-6` ist weg: In der zweiten Spalte soll die Karte oben mit dem
+    // Gesprächsblock abschließen, nicht darunter hängen. Auf 380 px sorgt der
+    // Gitter-Abstand (`gap-5`) für die Trennung.
+    <div className="rounded-2xl p-5" style={{ border: "1px solid rgba(15,23,42,.09)", background: "linear-gradient(180deg,rgba(29,78,216,.03),transparent)" }}>
       <p className="text-[10.5px] font-semibold uppercase tracking-[.2em] text-slate-400">
         Der Grundstein
       </p>
@@ -238,6 +248,74 @@ function BonitaetsKarte({ kundenRef, email, vorname, nachname }: {
             : `Auskunft bestellen — ${lage.preisEuro} €`}
         </button>
       )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE FORTSCHRITTSLEISTE — vier Stationen, eine Zeile
+//
+// ── WOZU (20.08.2026) ──────────────────────────────────────────────────────
+// Der Kunde hat bezahlt und sieht eine Pflichtaufgabe. Ohne Einordnung fühlt
+// sich das an wie eine Hürde: „Ich habe gezahlt, und jetzt noch das?"
+//
+// Mit der Leiste sieht er, WO er steht und wie viel noch kommt: Zahlung ist
+// erledigt (Haken), zwei Dinge stehen an, dann ist er durch. Vier Punkte, kein
+// Fortschrittsbalken in Prozent — Prozente bei vier Schritten sind eine
+// Genauigkeit, die es nicht gibt.
+//
+// ── WARUM DIE AUSKUNFT MIT DRINSTEHT, OBWOHL SIE FREIWILLIG IST ────────────
+// Weil sie zum Weg gehört und der Kunde sie sonst für eine Nebenbemerkung
+// hält. Sie ist NICHT Bedingung für die Freischaltung — das steht darunter in
+// Worten, damit niemand glaubt, er müsse 74 € zahlen, um sein Konto zu öffnen.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function Fortschritt({ zahlung, gespraech, auskunft, vollAktiv }: {
+  zahlung: boolean; gespraech: boolean; auskunft: boolean; vollAktiv: boolean;
+}) {
+  const stationen = [
+    { text: "Zahlung", fertig: zahlung },
+    { text: "Startgespräch", fertig: gespraech },
+    { text: "Auskunft", fertig: auskunft, freiwillig: true },
+    { text: "Freischaltung", fertig: vollAktiv },
+  ];
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap" role="list"
+         aria-label="Dein Weg bei FIAON">
+      {stationen.map((st, i) => (
+        <div key={st.text} className="flex items-center gap-1.5" role="listitem">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold"
+                style={{
+                  background: st.fertig ? "rgba(4,120,87,.09)" : "rgba(15,23,42,.045)",
+                  color: st.fertig ? "#047857" : "#64748b",
+                  boxShadow: st.fertig
+                    ? "inset 0 0 0 1px rgba(4,120,87,.22)"
+                    : "inset 0 0 0 1px rgba(15,23,42,.08)",
+                }}>
+            {st.fertig ? (
+              <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                   strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m4.5 10.5 3.6 3.6L15.5 6.5" />
+              </svg>
+            ) : (
+              <span aria-hidden="true" style={{
+                width: 9, height: 9, borderRadius: 999,
+                boxShadow: "inset 0 0 0 1.5px currentColor", opacity: .45,
+              }} />
+            )}
+            {st.text}
+            {st.freiwillig && !st.fertig && (
+              <span style={{ fontSize: 10, opacity: .7 }}>freiwillig</span>
+            )}
+          </span>
+          {i < stationen.length - 1 && (
+            <span aria-hidden="true" style={{
+              width: 10, height: 1,
+              background: st.fertig ? "rgba(4,120,87,.3)" : "rgba(15,23,42,.12)",
+            }} />
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -346,7 +424,11 @@ export function StartgespraechGate({ kundenRef }: { kundenRef: string }) {
         <div role="dialog" aria-modal="true" aria-labelledby="start-titel"
              className="w-full flex flex-col overflow-hidden"
              style={{
-               maxWidth: 640, maxHeight: "92vh", background: "#fff", borderRadius: 24,
+               // 640 px reichten für eine Spalte. Seit beide Karten
+               // gleichzeitig stehen (20.08.2026), braucht die Bühne Platz —
+               // sonst quetschen sich Slot-Raster und Zahlkarte gegenseitig.
+               // Auf schmalen Geräten greift `maxWidth: 100%` der Umgebung.
+               maxWidth: 980, maxHeight: "92vh", background: "#fff", borderRadius: 24,
                boxShadow: "0 40px 120px -24px rgba(13,26,63,.55), inset 0 1px 0 rgba(255,255,255,.7)",
                animation: "zusageAuf 620ms cubic-bezier(.32,.72,0,1) both",
                transformStyle: "preserve-3d",
@@ -363,10 +445,46 @@ export function StartgespraechGate({ kundenRef }: { kundenRef: string }) {
                   : `Willkommen bei FIAON${lage.vorname ? `, ${lage.vorname.trim()}` : ""}.`}
               </span>
             </h1>
+            {/* ── DIE FORTSCHRITTSLEISTE ────────────────────────────────
+                Sie steht im Kopf, weil sie die Einordnung ist: Wer sie erst
+                unter den Karten sieht, hat die Aufgabe schon als Hürde
+                gelesen. */}
+            <div className="mt-3.5">
+              <Fortschritt
+                zahlung={lage.ablauf?.zahlung ?? true}
+                gespraech={lage.ablauf?.startgespraech ?? !!fertig}
+                auskunft={lage.ablauf?.auskunft ?? false}
+                vollAktiv={lage.ablauf?.vollAktiv ?? false} />
+            </div>
             <div className="mt-4" style={{ height: 1, background: "linear-gradient(90deg, rgba(29,78,216,.28), rgba(15,23,42,.06) 40%, transparent)" }} />
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 sm:px-9 py-6">
+            {/* ══════════════════════════════════════════════════════════════
+                BEIDE KARTEN GLEICHZEITIG (20.08.2026)
+
+                ── DER AUFTRAG ─────────────────────────────────────────────
+                „Erster Login zeigt ZWEI Dinge gleichzeitig: Startgespräch
+                buchen (Pflicht) und Bonitätsauskunft kaufen (74 €)."
+
+                ── WAS VORHER WAR ─────────────────────────────────────────
+                Die Auskunft erschien erst NACH der Buchung. Die Begründung
+                damals: „vorher stünde sie in Konkurrenz zum Pflichtschritt."
+                Der Betreiber entscheidet anders — und er hat den besseren
+                Grund: Wer nach dem Buchen die Tafel schließt, hat die Auskunft
+                nie gesehen. GEMESSEN: 287 bezahlte Kunden ohne Auskunft.
+
+                ── WIE DIE KONKURRENZ VERMIEDEN WIRD ──────────────────────
+                Nicht durch Verstecken, sondern durch GEWICHT: Links, zuerst
+                und breiter steht das Gespräch (Pflicht). Rechts, schmaler und
+                ruhiger die Auskunft (freiwillig). Auf 380 px stehen sie
+                untereinander — das Gespräch oben.
+
+                Beide sind unabhängig bedienbar. Die Freischaltung hängt NUR am
+                Gespräch; das steht in der Fortschrittsleiste als „freiwillig".
+                ══════════════════════════════════════════════════════════════ */}
+            <div className="grid gap-5 lg:grid-cols-[1.35fr_1fr] items-start">
+            <div className="min-w-0">
             {fertig ? (
               <>
                 <p className="text-[15px] text-slate-700 leading-relaxed">
@@ -390,15 +508,6 @@ export function StartgespraechGate({ kundenRef }: { kundenRef: string }) {
                     <span style={{ color: "rgba(30,58,138,.72)" }}>{ABSAGE_HINWEIS}</span>
                   </span>
                 </div>
-                {/* ── DER SCHUFA-MOMENT ────────────────────────────────────
-                    Jetzt, nicht vorher: Der Termin steht, der Pflichtschritt
-                    ist getan. Solange der Kunde auf das Gespräch wartet, kann
-                    er den Grundstein legen — das ist ein Angebot im richtigen
-                    Augenblick, keine Nachforderung. */}
-                <BonitaetsKarte kundenRef={kundenRef}
-                                email={lage.email ?? ""}
-                                vorname={lage.vorname ?? ""}
-                                nachname={lage.nachname ?? ""} />
               </>
             ) : (
               <>
@@ -456,6 +565,18 @@ export function StartgespraechGate({ kundenRef }: { kundenRef: string }) {
                 </div>
               </>
             )}
+            </div>
+
+            {/* ── ZWEITE SPALTE: DIE AUSKUNFT ───────────────────────────────
+                Immer sichtbar, unabhängig davon, ob schon gebucht wurde. Sie
+                zeigt sich selbst nicht, wenn der Kunde sie bereits hat. */}
+            <div className="min-w-0">
+              <BonitaetsKarte kundenRef={kundenRef}
+                              email={lage.email ?? ""}
+                              vorname={lage.vorname ?? ""}
+                              nachname={lage.nachname ?? ""} />
+            </div>
+            </div>
           </div>
 
           <div className="px-6 sm:px-9 py-5 shrink-0 flex flex-wrap items-center gap-3"

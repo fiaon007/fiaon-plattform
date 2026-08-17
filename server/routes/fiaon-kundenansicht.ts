@@ -224,4 +224,161 @@ router.post("/kundenansicht/beenden", async (req: Request, res: Response) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE EINLADUNG ZUM STARTGESPRÄCH — aus der Akte heraus
+//
+// ── WOZU (20.08.2026) ──────────────────────────────────────────────────────
+// Nach der Bestands-Migration warten 364 Kunden auf ihr Startgespräch. Die
+// Akte sagt „Nächster Schritt: Startgespräch einladen" — und dann soll man es
+// dort tun können, nicht erst eine Sektion suchen.
+//
+// ── EINGEBETTET, NICHT NACHGEBAUT ──────────────────────────────────────────
+// Der Versandweg ist `mailSenden()` mit dem Ereignis `onboarding_einladung`.
+// Er kennt Rechte, Grenzen, Protokoll und den Termin-Link. Hier wird nur
+// entschieden, WER darf und für WEN.
+//
+// ── UND KEINE FLUT ─────────────────────────────────────────────────────────
+// Das ist ein Einzelversand von Hand — für die 364 übernimmt die bestehende
+// Staffel mit ihrer Grenze von 50 Mails am Tag. Wer hier 364-mal klickt, hat
+// eine andere Entscheidung getroffen als der Tageslauf.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/admin/kunden/:ref/startgespraech-einladen",
+  async (req: Request, res: Response) => {
+    try {
+      const ref = String(req.params.ref || "").trim();
+      const [a] = (await sqlPool`
+        SELECT a.ref, a.person_id, a.payment_status
+        FROM fiaon_applications a
+        WHERE (a.ref = ${ref} OR a.payment_reference = ${ref}) AND a.merged_into IS NULL
+        LIMIT 1
+      `) as any[];
+      if (!a) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden." });
+      if (!a.person_id) {
+        return res.status(409).json({
+          ok: false,
+          error: "Zu dieser Bestellung gehört kein Kundenkonto — es gibt niemanden einzuladen.",
+        });
+      }
+
+      // ── DIE STUFE ENTSCHEIDET, NICHT DER KLICK ─────────────────────────
+      // Eine Einladung an einen Kunden, der sein Gespräch längst geführt hat,
+      // wäre peinlich. Die Ableitung sagt, ob es ansteht.
+      const { stufeAbleiten } = await import("../lib/fiaon-kundenstufe");
+      const lage = await stufeAbleiten(String(a.ref));
+      if (lage?.stufe === "voll_aktiv") {
+        return res.status(409).json({
+          ok: false,
+          error: lage.gespraechErledigt
+            ? "Das Startgespräch ist bereits geführt — eine Einladung wäre verwirrend."
+            : "Für diesen Kunden ist die Onboarding-Pflicht ausgesetzt.",
+        });
+      }
+      if (lage?.stufe === "kein_zugang") {
+        return res.status(409).json({
+          ok: false,
+          error: "Die Zahlung ist noch nicht gebucht. Zwei Aufforderungen auf einmal "
+            + "beantwortet niemand — erst die Zahlung, dann der Termin.",
+        });
+      }
+
+      const { mailSenden } = await import("../lib/fiaon-mail-senden");
+      const erg = await mailSenden({
+        event: "onboarding_einladung",
+        personId: Number(a.person_id),
+        akteur: { name: "Verwaltung", agentId: null, rolle: "admin" as any },
+      });
+      if (!erg.ok) return res.status(409).json({ ok: false, error: erg.meldung ?? erg.grund });
+      res.json({ ok: true, hinweis: erg.meldung ?? "Einladung versandt." });
+    } catch (err) {
+      console.error("[AKTE] Startgespräch-Einladung:", err);
+      res.status(500).json({ ok: false, error: "Serverfehler" });
+    }
+  });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ONBOARDING-PFLICHT AUSSETZEN — für Härtefälle, mit Grund und Namen
+//
+// ── WOZU (20.08.2026) ──────────────────────────────────────────────────────
+// Nach der Bestands-Migration warten 364 Kunden auf ihr Startgespräch. Die
+// meisten werden es führen. Aber es gibt Fälle, in denen es nicht geht: ein
+// Kunde im Krankenhaus, einer, der ausdrücklich kein Telefonat will, einer, mit
+// dem längst gesprochen wurde, ohne dass es je einen Termin gab.
+//
+// ── WARUM DAS BESSER IST ALS DIE ALTERNATIVEN ──────────────────────────────
+// Ohne diesen Schalter müsste die Verwaltung entweder einen Termin FÄLSCHEN
+// (einen „erledigten" Termin anlegen, den es nie gab) oder den Kunden
+// aussperren. Ein gefälschter Termin verdirbt jede Onboarding-Statistik und
+// jede Vergütungsrechnung; ein ausgesperrter zahlender Kunde ruft an.
+//
+// ── DER GRUND IST PFLICHT ──────────────────────────────────────────────────
+// Ein Schalter ohne Begründung wird zur Gewohnheit: Nach drei Monaten steht er
+// bei zweihundert Kunden, und niemand weiß mehr, warum. Deshalb lehnt die Route
+// ohne Grund ab, und der Grund steht in der Akte, wo die nächste Person ihn
+// liest — samt Namen dessen, der ihn gesetzt hat. Nicht als Misstrauen,
+// sondern damit man ihn fragen kann.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/admin/kunden/:ref/onboarding-ausnahme",
+  async (req: Request, res: Response) => {
+    try {
+      const ref = String(req.params.ref || "").trim();
+      const setzen = req.body?.setzen !== false;
+      const grund = String(req.body?.grund || "").trim().slice(0, 500);
+      const wer = String(req.body?.wer || "Verwaltung").trim().slice(0, 80);
+
+      if (setzen && grund.length < 10) {
+        return res.status(400).json({
+          ok: false,
+          error: "Bitte einen Grund angeben (mindestens 10 Zeichen). Er steht später in der "
+            + "Akte — ohne ihn weiß in drei Monaten niemand mehr, warum die Pflicht aus ist.",
+        });
+      }
+
+      const [a] = (await sqlPool`
+        SELECT ref, person_id FROM fiaon_applications
+        WHERE (ref = ${ref} OR payment_reference = ${ref}) AND merged_into IS NULL LIMIT 1
+      `) as any[];
+      if (!a) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden." });
+
+      await sqlPool`
+        UPDATE fiaon_applications SET
+          onboarding_pflicht = ${!setzen},
+          onboarding_ausnahme_grund = ${setzen ? grund : null},
+          onboarding_ausnahme_von = ${setzen ? wer : null},
+          onboarding_ausnahme_am = ${setzen ? new Date() : null},
+          updated_at = NOW()
+        WHERE ref = ${a.ref}
+      `;
+
+      // Die Stufe zieht nach: Eine gesetzte Ausnahme macht aus „wartet" ein
+      // „voll aktiv" — und der Kunde sieht beim nächsten Login kein Gate mehr.
+      const { stufeAbgleichen, stufeAbleiten } = await import("../lib/fiaon-kundenstufe");
+      await stufeAbgleichen(String(a.ref));
+      const lage = await stufeAbleiten(String(a.ref));
+
+      // ── DAS PROTOKOLL ────────────────────────────────────────────────────
+      // Im KUNDENverlauf, nicht in einer Verwaltungsliste: Die Frage lautet
+      // später „warum musste dieser Mensch kein Startgespräch führen?".
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
+        VALUES (${a.ref}, NULL, ${wer}, 'system',
+                ${setzen
+                  ? `Onboarding-Pflicht AUSGESETZT durch ${wer}: ${grund}`
+                  : `Onboarding-Pflicht wieder in Kraft gesetzt durch ${wer}.`},
+                NOW())
+      `.catch(() => {});
+      console.log(`[ONBOARDING-AUSNAHME] ${a.ref}: ${setzen ? "gesetzt" : "aufgehoben"} von ${wer}`);
+
+      res.json({
+        ok: true,
+        hinweis: setzen
+          ? `Onboarding-Pflicht ausgesetzt. Der Kunde sieht kein Gate mehr. Stufe: ${lage?.stufe}.`
+          : `Onboarding-Pflicht gilt wieder. Stufe: ${lage?.stufe}.`,
+        stufe: lage?.stufe ?? null,
+      });
+    } catch (err) {
+      console.error("[AKTE] Onboarding-Ausnahme:", err);
+      res.status(500).json({ ok: false, error: "Serverfehler" });
+    }
+  });
+
 export default router;

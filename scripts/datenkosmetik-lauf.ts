@@ -230,6 +230,29 @@ async function main(): Promise<void> {
     }
   }
 
+  if (SCHREIBEN) {
+    // ══════════════════════════════════════════════════════════════════════
+    // DER LAUF MERKT SICH SEINEN ZEITPUNKT
+    //
+    // ── WARUM (20.08.2026) ──────────────────────────────────────────────
+    // Der Prüfstand trennte Altbestand von Neuzugang über „älter als eine
+    // Stunde". Das hielt genau eine Stunde: Danach waren die Zeilen, die der
+    // noch nicht ausgelieferte Produktionsserver erzeugt hatte, „Altbestand"
+    // — und der Prüfstand wurde rot, obwohl nichts kaputt war.
+    //
+    // Jetzt steht hier ein Datum. Der Prüfstand vergleicht damit und meldet
+    // alles Neuere als „nach dem Lauf entstanden, Deploy fehlt noch". Das ist
+    // die Wahrheit, und sie hält, bis der Lauf wieder gelaufen ist.
+    // ══════════════════════════════════════════════════════════════════════
+    await sqlPool`
+      INSERT INTO fiaon_settings (key, value)
+      VALUES ('datenkosmetik_letzter_lauf', ${new Date().toISOString()})
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+    `.catch((e) => console.error("  (Zeitpunkt nicht gemerkt:", e, ")"));
+    log(`\n  Zeitpunkt gemerkt: ${new Date().toISOString()}`);
+    log("  Der Prüfstand rechnet ab jetzt damit. Nach dem Deploy erneut laufen lassen.");
+  }
+
   if (!SCHREIBEN) {
     log("\n  ─────────────────────────────────────────────────────────────────");
     log("  Das war die VORSCHAU. Die CSVs in reports/ zeigen jede Änderung.");

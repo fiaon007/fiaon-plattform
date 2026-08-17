@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { KundenKopf } from "@/components/kunde/AblaufLeiste";
 import { anrufStarten } from "@/components/Softphone";
 import { AgentShell } from "./shared";
 import { Reveal } from "./motion";
@@ -639,6 +640,27 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
   const [form, setForm] = useState<Record<string, string>>({});
   const p = daten.person;
 
+  // ── DIE ABGELEITETE STUFE ──────────────────────────────────────────────
+  // Eigener Aufruf, weil die Liste sie nicht mitliefert (sie hätte sie für
+  // vierzig Kunden holen müssen). Für die geöffnete Akte ist eine Abfrage
+  // richtig — und dieselbe, die die Verwaltung benutzt.
+  const [stufenlage, setStufenlage] = useState<any>(null);
+  useEffect(() => {
+    if (!p?.ref) { setStufenlage(null); return; }
+    let weg = false;
+    void fetch(`/api/fiaon/kunde/${encodeURIComponent(p.ref)}/startgespraech`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (weg || !j?.ok || !j.stufe) return;
+        setStufenlage({
+          stufe: j.stufe, ablauf: j.ablauf,
+          naechsterSchritt: j.naechsterSchritt, ausnahme: j.ausnahme,
+        });
+      })
+      .catch(() => {});
+    return () => { weg = true; };
+  }, [p?.ref]);
+
   useEffect(() => {
     const taste = (e: KeyboardEvent) => { if (e.key === "Escape") onSchliessen(); };
     document.addEventListener("keydown", taste);
@@ -778,8 +800,32 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
           <div className="sticky top-0 z-10 px-5 py-3.5 flex items-start gap-3"
                style={{ background: "rgba(255,255,255,.92)", backdropFilter: "blur(8px)", boxShadow: "inset 0 -1px 0 var(--fi-linie)" }}>
             <div className="min-w-0 flex-1">
-              <p className="text-[16px] font-bold truncate">{p.name}</p>
-              <p className="text-[12px]" style={{ color: "var(--fi-text-still)" }}>
+              {/* ══════════════════════════════════════════════════════════
+                  DERSELBE KOPF WIE IN DER VERWALTUNGS-AKTE (20.08.2026)
+
+                  ── WARUM ────────────────────────────────────────────────
+                  Vorher stand hier eine eigene Fassung: Name, Statustext,
+                  Zuständigkeit. Die Verwaltungs-Akte hatte ihre eigene. Zwei
+                  Fassungen für denselben Kunden gehen auseinander — und weil
+                  beide für sich richtig aussehen, merkt es niemand.
+
+                  `KundenKopf` ist EIN Bauteil, `dicht` für die schmale
+                  Schublade. Die Zuständigkeit bleibt darunter: Sie ist eine
+                  Eigenschaft der Betreuung, keine Station des Ablaufs.
+                  ══════════════════════════════════════════════════════════ */}
+              {stufenlage ? (
+                <KundenKopf
+                  name={p.name}
+                  stufe={stufenlage.stufe}
+                  stand={stufenlage.ablauf}
+                  naechsterSchritt={stufenlage.naechsterSchritt}
+                  ausnahme={stufenlage.ausnahme}
+                  dicht
+                />
+              ) : (
+                <p className="text-[16px] font-bold truncate">{p.name}</p>
+              )}
+              <p className="text-[12px] mt-1.5" style={{ color: "var(--fi-text-still)" }}>
                 {statusAusTierGrund(p.tierGrund).anzeige} · zuständig: {p.agentName || "niemand"}
                 {p.betreutSeit ? ` · betreut seit ${dtag(p.betreutSeit)}` : ""}
               </p>

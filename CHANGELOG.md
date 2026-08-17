@@ -3,6 +3,100 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 20.08.2026 — Ein Ablauf für alle: die Stufe wird abgeleitet, nicht geglaubt
+
+### Der Screenshot-Fehler war der Normalzustand
+
+Im Portal stand „Status: Aktiv · Freigeschaltet" bei einem Kunden, der nie ein Startgespräch geführt hatte. Gemessen:
+
+| | |
+|---|---|
+| Bezahlte Paket-Bestellungen | **365** |
+| … Spalte sagte „voll_aktiv" | **359** |
+| … Startgespräch **wirklich** erledigt | **0** |
+| **Zeigten „voll aktiv" ohne Gespräch** | **364** |
+| … hatten nie einen Termin | **365** |
+
+Kein Einzelfall. Bei 364 von 365 zahlenden Kunden stand überall etwas Falsches.
+
+**Die Ursache:** Es gab drei Quellen für „ist dieser Kunde freigeschaltet".
+1. Die Status-Kachel las `account_status` — das heißt nur „nicht gesperrt".
+2. Die Kontostufe las die **Spalte** `onboarding_stufe`.
+3. Die Akte las einen Statustext über die Zahlung.
+
+Drei Quellen, drei Wahrheiten. Eine Spalte ist ein Merker, keine Wahrheit — steht dort etwas Falsches, zeigt das Portal etwas Falsches.
+
+### 1. Die Zustandsmaschine: eine Ableitung, drei Zustände
+
+`server/lib/fiaon-kundenstufe.ts` rechnet die Stufe aus dem Ablauf:
+
+- **kein_zugang** — nicht bezahlt
+- **wartet_auf_onboarding** — Paket bezahlt, Startgespräch nicht erledigt
+- **voll_aktiv** — Startgespräch erledigt **oder** Ausnahme mit Grund
+
+Alle Anzeigen lesen sie: Portal-Kachel, Sperrkarten, Akte, Leitungs-Schublade, Als-Kunde-Ansicht. Die Spalte bleibt als **Abschrift** für Listen (360 Kunden einzeln ableiten wären 360 Abfragen) — und `stufeAbgleichen()` zieht sie nach. Weicht sie ab, zeigt die Akte es an, statt es zu verschweigen.
+
+Jede Stufe bringt ihren **Grund** und den **nächsten Schritt** in Worten mit: „Bezahlt, aber das Startgespräch ist noch nicht geführt" · „Startgespräch einladen: Der Kunde sieht das Gate beim nächsten Login."
+
+### 2. Der Bestand: 364 Menschen kommen ins Gate — aber die Tür hat einen Schlüssel
+
+**Vor dem Schreiben fiel etwas auf, das den ganzen Auftrag gekippt hätte:** Die Rollen im Haus sind vertriebsleiter (2), agent (2), inkasso (2). **Kein einziger Onboarding-Mitarbeiter.** Und `freieSlots(…, "onboarding_call")` filtert nach genau dieser Rolle — es kamen **null Slots**.
+
+Hätte ich die 364 auf `wartet_auf_onboarding` gesetzt, stünden sie beim nächsten Login vor einem Pflicht-Gate ohne Termine: buchen unmöglich, „Später" abgeschafft, nur noch Abmelden. **364 zahlende Menschen ausgesperrt** — genau der Vorfall, den AGENTS.md unter „349 Menschen vor einer verschlossenen Tür" beschreibt.
+
+Zwei Dinge sind daraus geworden:
+
+- **Ein Rückfall:** Gibt es keinen aktiven Onboarding-Menschen, stellen Vertrieb und Leitung die Slots. Aus 0 wurden **60 Zeiten über 12 Tage**. Die Entscheidung wird protokolliert, damit sie nicht unbemerkt zum Dauerzustand wird. Ein Gespräch, das ein Vertriebsmitarbeiter führt, ist ein geführtes Gespräch; ein Gate ohne Slots ist ein Ausfall.
+- **Eine Wand im Lauf:** `scripts/ablauf-bestand-lauf.ts` prüft VOR dem Schreiben, ob ein echter wartender Kunde buchen kann — und **bricht ab**, wenn nicht. Getestet: Mit entferntem Rückfall bricht er trotz `--schreiben` ab. Eine Migration, die eine Tür zumacht, muss beweisen, dass es einen Schlüssel gibt.
+
+**Geschrieben:** 365 Stufen (359 × voll_aktiv → wartet, 5 × leer → wartet, 1 × leer → voll_aktiv). Zählprobe und Gegenprobe je 0. **Keine Mail aus dem Lauf** — die Einladung übernimmt die bestehende Staffel mit ihrer Grenze von 50 am Tag.
+
+**Für Härtefälle** gibt es „Onboarding-Pflicht aussetzen" in der Akte: mit Grund (Pflicht, mindestens 10 Zeichen), mit Namen, im Kundenverlauf protokolliert. Ohne Grund greift die Ausnahme **nicht** — sonst wäre der Schalter eine Hintertür ohne Spur. Die Alternative wäre gewesen, einen Termin zu **fälschen**; das verdirbt jede Onboarding-Statistik und jede Vergütungsrechnung.
+
+### 3. Das Gate: beide Karten gleichzeitig
+
+Links das Startgespräch (Pflicht, breiter, zuerst), rechts die Bonitätsauskunft (74 €, freiwillig, ruhiger). Oben eine Fortschrittsleiste: **Zahlung ✓ · Startgespräch ○ · Auskunft ○ freiwillig · Freischaltung ○**.
+
+Die Auskunft erschien vorher erst **nach** der Buchung — mit der Begründung, sie stünde sonst in Konkurrenz zum Pflichtschritt. Der Betreiber entscheidet anders, und er hat den besseren Grund: Wer nach dem Buchen die Tafel schließt, hat die Auskunft nie gesehen (287 bezahlte Kunden ohne Auskunft). Die Konkurrenz wird jetzt durch **Gewicht** vermieden, nicht durch Verstecken. Und „freiwillig" steht ausdrücklich dran, damit niemand glaubt, er müsse 74 € zahlen, um sein Konto zu öffnen.
+
+**Nebenbefund aus dem Screenshot:** Vor dem Gate lag die Begrüßungstafel („Hallo Yvonne, schön, dass du da bist!"). Zwei Tafeln hintereinander liest niemand — die zweite wird weggeklickt. Solange das Gate ansteht, tritt die Begrüßung zurück; sie erscheint, sobald das Gespräch geführt ist.
+
+### 4. Die Akte als Kommandozentrale
+
+Der Kopf ist ein **gemeinsames Bauteil** (`KundenKopf`) für Verwaltungs-Akte und Leitungs-Schublade: Name, Stufen-Marke aus der einen Ableitung, Ablauf-Leiste (Antrag ✓ · Zahlung ✓ · Startgespräch ○ · Auskunft ○ · Voll aktiv ○ · Abo läuft) und der nächste Schritt mit Knopf.
+
+**Warum ein Bauteil:** Die Akte hat 1.324 Zeilen, das Cockpit 1.172. Beide zeichneten denselben Kunden mit eigenem Quelltext. Eine Änderung an einer Stelle erreichte die andere nicht — und niemand merkte es, weil beide für sich richtig aussahen.
+
+**Ehrlich zum Umfang:** Kopf, Ablauf-Leiste, nächster Schritt und die Aktionen sind zusammengeführt. Die **Sektionen** (Abo & Raten, Dokumente, E-Mails, Termine, Anrufe, Verlauf, Notizen) sind noch zwei Fassungen. Das ist ein eigener Auftrag — ich habe das Fundament gelegt, damit sie **hier hinein** wandern und nicht in eine dritte Datei.
+
+### 5. SCHUFA-nur-Bestellungen
+
+**3 Menschen** haben eine Auskunft gekauft, aber kein Paket. Sie bekommen kein Abo und kein Gate: Für dieses Produkt gibt es kein Startgespräch, und sie ins Gate zu schicken wäre eine Aufforderung zu einem Termin über nichts. Geprüft: **0 Abo-Raten** an Auskunft-Bestellungen im ganzen Bestand.
+
+Insgesamt 110 Auskunft-Bestellungen (44 bezahlt, 17 gemeldet, 49 offen). **Betreiber-Entscheidung:** ob diese 3 aktiv auf ein Paket geführt werden sollen.
+
+### Geprüft — der ganze Ablauf an einer Testperson
+
+`scripts/pruef-ablauf.ts` — **62 Prüfungen**, alle grün. Acht Stationen in **einer Transaktion, die zurückgerollt wird**: Antrag → Zahlung → wartet_auf_onboarding → Gate mit beiden Karten und Slot-Grenze → Termin gebucht (gebucht ≠ geführt) → Abschluss → voll_aktiv + 15-€-Gutschrift genau einmal → Abo-Rate am Jahrestag → T+1 überfällig → Zuteilung ins Forderungsmanagement → Ausnahme mit und ohne Grund. Danach: **keine Testperson, keine Testbestellung, keine Testgutschrift** übrig (nachgezählt).
+
+`scripts/pruef-ablauf-browser.ts` — **36 Prüfungen** am gerenderten Bild, Desktop und 380 px, Screenshots in `reports/ablauf/`.
+
+**Rot-Probe:** Ableitung liest wieder die Spalte, Ausnahme greift ohne Grund → **7 Prüfungen rot**, darunter die Abweichung zwischen Einzel- und Sammelfassung.
+
+### Vier eigene Fehler, die der Weg zutage brachte
+
+1. **`aboBeiZahlungAnlegen()` schreibt mit `sqlPool`, nicht mit dem übergebenen Lauf.** Ein Aufruf im Prüfstand hätte **außerhalb** der Transaktion geschrieben — eine echte Testbestellung mit echten Raten in der Produktionsdatenbank. Aufgefallen ist es nur, weil die Funktion zusätzlich DDL macht und in einen Lock-Timeout lief. Der Timeout war ein Glücksfall.
+2. **Ein falsch-grüner Browsertest.** „Karte Bonitätsauskunft da" las den `innerText` des ganzen Body und wurde grün durch einen Satz, der im Dashboard **hinter** der Bühne steht. Jetzt wird **in der Bühne** gemessen. Aufgefallen ist es, weil die 74-€-Prüfung ihre Fundstelle mit ausgab — eine Prüfung, die nur „rot" sagt, schickt einen auf die falsche Suche.
+3. **`created_at` war das falsche Kriterium.** Ein laufender Antrag wird bei **jedem Formularschritt** neu geschrieben: `created_at` bleibt alt, `pack_name` wird vom noch nicht ausgelieferten Client erneut mit Umbruch gesetzt. Die Grenze prüft jetzt `updated_at` — und der Bereinigungslauf **merkt sich seinen Zeitpunkt** in den Einstellungen, statt „vor einer Stunde" zu raten.
+4. **Die Begrüßungstafel entschied, bevor die Stufe bekannt war** (asynchrone Abfrage). Jetzt wartet sie.
+
+**Betreiber-TODOs:**
+- Ein Konto mit der Rolle **onboarding** anlegen — dann greift wieder die Rolle statt des Rückfalls.
+- Nach dem Deploy: `npx tsx scripts/datenkosmetik-lauf.ts --schreiben` (der alte Client verschmutzt bis dahin weiter).
+- Entscheiden, ob die **3 SCHUFA-nur-Fälle** auf ein Paket geführt werden.
+
+**Wo zu finden:** `server/lib/fiaon-kundenstufe.ts` · `scripts/ablauf-bestand-lauf.ts` · `client/src/components/kunde/AblaufLeiste.tsx` · `db/migrations/058_onboarding_ausnahme.sql` · `scripts/mess-ablauf.ts`.
+
 ## 19.08.2026 (später) — Datenkosmetik: 7.163 Paketnamen einzeilig, 2.642 Namen sauber — und der eigentliche Fehler war ein anderer
 
 ### Was der Screenshot zeigte, und was wirklich dahinter lag

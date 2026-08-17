@@ -208,6 +208,12 @@ export default function DashboardPage() {
   const [stufe, setStufe] = useState<{
     vollAktiv: boolean; pflicht: boolean;
     termin: { datumText: string; uhrzeit: string; agentVorname: string } | null;
+    // ── DIE ABGELEITETE STUFE (20.08.2026) ────────────────────────────────
+    // Die Status-Kachel las vorher `accountStatus` — das heißt „nicht
+    // gesperrt", nicht „voll freigeschaltet". Deshalb stand dort „Aktiv ·
+    // Freigeschaltet" bei einem Kunden ohne Startgespräch.
+    kundenstufe?: "kein_zugang" | "wartet_auf_onboarding" | "voll_aktiv" | null;
+    stufenGrund?: string | null;
   } | null>(null);
   const [mounted, setMounted] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -258,6 +264,8 @@ export default function DashboardPage() {
           // Stufe wir nicht kennen, darf nicht aus Versehen gesperrt werden.
           vollAktiv: j.vollAktiv !== false || j.erledigt === true,
           pflicht: j.pflicht === true,
+          kundenstufe: j.stufe ?? null,
+          stufenGrund: j.stufenGrund ?? null,
           termin: j.termin ?? null,
         });
       })
@@ -288,6 +296,40 @@ export default function DashboardPage() {
      Merker in localStorage, damit es nicht nervt (version bricht bei Textänderung um). */
   useEffect(() => {
     if (!statusLoaded) return;
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ZWEI TAFELN HINTEREINANDER SIND EINE ZU VIEL (20.08.2026)
+    //
+    // ── WAS DER SCREENSHOT ZEIGTE ────────────────────────────────────────
+    // Beim ersten Login erschien die Begrüßungs-Tafel („Hallo Yvonne, schön,
+    // dass du da bist!") — und DAHINTER, verdeckt, das Pflicht-Gate mit
+    // Startgespräch und Bonitätsauskunft. Der Kunde muss also erst eine Tafel
+    // wegklicken, um die nächste zu sehen.
+    //
+    // ── WARUM DAS SCHLECHTER IST ALS EINE ───────────────────────────────
+    // Die Begrüßung erklärt, wo man was findet. Das Gate sagt, was JETZT zu
+    // tun ist. Wer beides hintereinander bekommt, liest das Zweite nicht mehr
+    // — er hat gerade eine Tafel geschlossen und erwartet Ruhe.
+    //
+    // Und der Auftrag lautet ausdrücklich: „Erster Login zeigt ZWEI Dinge
+    // gleichzeitig." Nicht drei Dinge in zwei Tafeln.
+    //
+    // ── DIE ENTSCHEIDUNG ────────────────────────────────────────────────
+    // Solange das Gate ansteht, tritt die Begrüßung zurück. Sie ist nicht
+    // verloren: Sobald das Startgespräch geführt ist, erscheint sie beim
+    // nächsten Login — dann hat sie Platz und Aufmerksamkeit.
+    // ══════════════════════════════════════════════════════════════════════
+    // ── ERST WARTEN, DANN ENTSCHEIDEN ─────────────────────────────────
+    // Der erste Versuch prüfte nur `stufe?.kundenstufe === "wartet…"` und
+    // wirkte nicht: Die Stufe kommt aus einer eigenen Abfrage und ist beim
+    // ersten Durchlauf noch `null`. Die Begrüßung öffnete also, BEVOR
+    // bekannt war, ob ein Gate ansteht — und lag dann darüber.
+    //
+    // Solange die Stufe unbekannt ist, wird nichts geöffnet. Das kostet eine
+    // Zehntelsekunde und verhindert zwei Tafeln übereinander.
+    if (stufe === null) return;
+    if (stufe.kundenstufe === "wartet_auf_onboarding") return;
+
     const v = welcomeConfig.version;
     const firstKey = `fiaon_welcome_first_v${v}`;
     if (!localStorage.getItem(firstKey)) {
@@ -301,7 +343,7 @@ export default function DashboardPage() {
       setWelcomeState(st);
       setWelcomeOpen(true);
     }
-  }, [statusLoaded, computeWelcomeState]);
+  }, [statusLoaded, computeWelcomeState, stufe]);
 
   const closeWelcome = useCallback(() => {
     const v = welcomeConfig.version;
@@ -722,28 +764,58 @@ export default function DashboardPage() {
                   />
 
                   {/* Status */}
+                  {/* ══════════════════════════════════════════════════════
+                      DIE STATUS-KACHEL LIEST DIE ABGELEITETE STUFE (20.08.2026)
+
+                      ── DER FEHLER, DEN DER BETREIBER SAH ────────────────
+                      Hier stand `serverDocStatus.accountStatus === 'active'`
+                      → „Aktiv · Freigeschaltet". Aber `account_status` sagt
+                      nur, dass das Konto NICHT GESPERRT ist. Über die
+                      Freischaltung entscheidet das Startgespräch.
+
+                      GEMESSEN: 364 von 365 bezahlten Kunden sahen „Aktiv ·
+                      Freigeschaltet", ohne dass EIN EINZIGES Startgespräch
+                      geführt worden war.
+
+                      ── DIE REIHENFOLGE ─────────────────────────────────
+                      Eine Sperre schlägt alles (sie ist der Not-Aus). Danach
+                      gilt die Stufe. Nur wenn beide unbekannt sind, bleibt
+                      „In Prüfung".
+                      ══════════════════════════════════════════════════════ */}
                   <PremiumStatCard
                     label="Status"
-                    value={serverDocStatus.accountStatus === 'active' ? 'Aktiv' : serverDocStatus.accountStatus === 'suspended' ? 'Gesperrt' : 'In Prüfung'}
-                    sub={serverDocStatus.accountStatus === 'active' ? 'Freigeschaltet' : serverDocStatus.accountStatus === 'suspended' ? 'Konto gesperrt' : 'Wird geprüft'}
+                    value={
+                      serverDocStatus.accountStatus === 'suspended' ? 'Gesperrt'
+                      : stufe?.kundenstufe === 'voll_aktiv' ? 'Voll aktiv'
+                      : stufe?.kundenstufe === 'wartet_auf_onboarding' ? 'Startgespräch offen'
+                      : stufe?.kundenstufe === 'kein_zugang' ? 'Zahlung offen'
+                      : serverDocStatus.accountStatus === 'active' ? 'Aktiv' : 'In Prüfung'
+                    }
+                    sub={
+                      serverDocStatus.accountStatus === 'suspended' ? 'Konto gesperrt'
+                      : stufe?.kundenstufe === 'voll_aktiv' ? 'Freigeschaltet'
+                      : stufe?.kundenstufe === 'wartet_auf_onboarding' ? 'Termin buchen'
+                      : stufe?.kundenstufe === 'kein_zugang' ? 'Wir warten auf die Zahlung'
+                      : 'Wird geprüft'
+                    }
                     bg={
-                      serverDocStatus.accountStatus === 'active'
-                        ? 'linear-gradient(145deg,#064e3b,#065f46,#047857)'
-                        : serverDocStatus.accountStatus === 'suspended'
+                      serverDocStatus.accountStatus === 'suspended'
                         ? 'linear-gradient(145deg,#4c0519,#7f1d1d,#991b1b)'
+                        : stufe?.kundenstufe === 'voll_aktiv'
+                        ? 'linear-gradient(145deg,#064e3b,#065f46,#047857)'
                         : 'linear-gradient(145deg,#451a03,#78350f,#92400e)'
                     }
                     glow={
-                      serverDocStatus.accountStatus === 'active' ? '#065f46'
-                      : serverDocStatus.accountStatus === 'suspended' ? '#7f1d1d'
+                      serverDocStatus.accountStatus === 'suspended' ? '#7f1d1d'
+                      : stufe?.kundenstufe === 'voll_aktiv' ? '#065f46'
                       : '#78350f'
                     }
                     onClick={() => setActiveModal('status')}
                     badge={
                       <div className="flex items-center gap-1.5 mt-2">
                         <div className={`w-1.5 h-1.5 rounded-full ${
-                          serverDocStatus.accountStatus === 'active' ? 'bg-emerald-400 animate-pulse'
-                          : serverDocStatus.accountStatus === 'suspended' ? 'bg-rose-400'
+                          serverDocStatus.accountStatus === 'suspended' ? 'bg-rose-400'
+                          : stufe?.kundenstufe === 'voll_aktiv' ? 'bg-emerald-400 animate-pulse'
                           : 'bg-amber-400 animate-pulse'
                         }`} />
                         <span className="text-[10px] font-bold text-white/60">

@@ -151,9 +151,49 @@ router.get("/kunde/:ref/startgespraech", async (req: Request, res: Response) => 
     //                                          Härte pro Fall über die Akte
     //                                          setzen.
     // ══════════════════════════════════════════════════════════════════════
-    const pflicht = offen && lage.pflicht;
+    // ══════════════════════════════════════════════════════════════════════
+    // DIE STUFE KOMMT AB JETZT AUS DER ABLEITUNG (20.08.2026)
+    //
+    // ── DER SCREENSHOT-FEHLER ────────────────────────────────────────────
+    // Im Portal stand „Status: Aktiv · Freigeschaltet" bei einem Kunden, der
+    // nie ein Startgespräch hatte. Ursache: Die Status-Kachel las
+    // `account_status` („nicht gesperrt"), nicht die Kontostufe. Und die
+    // Kontostufe selbst las eine SPALTE, die bei 364 von 365 Bestellungen
+    // falsch stand.
+    //
+    // Jetzt liefert `stufeAbleiten()` die Wahrheit, und alle Anzeigen lesen
+    // sie: Portal-Kachel, Sperrkarten, Akte, Listen, Als-Kunde-Ansicht.
+    //
+    // ── UND DIE PFLICHT GILT JETZT FÜR ALLE ──────────────────────────────
+    // Die alte Ausnahme für den Bestand ist weg (Entscheidung des Betreibers
+    // vom 20.08.2026). Wer bezahlt hat und kein Gespräch geführt hat, sieht
+    // das Gate — Bestand eingeschlossen. Für Härtefälle gibt es den
+    // Ausnahme-Schalter in der Akte, mit Grund und Namen.
+    //
+    // Die Tür hat einen Schlüssel: Der Migrationslauf bricht ab, wenn keine
+    // Termine buchbar sind (siehe scripts/ablauf-bestand-lauf.ts).
+    // ══════════════════════════════════════════════════════════════════════
+    const { stufeAbleiten } = await import("../lib/fiaon-kundenstufe");
+    // ── DIE KONTO-BESTELLUNG, NICHT DIE ANGEFRAGTE ──────────────────────
+    // Der Pfad-Parameter kann eine `ref` ODER eine `payment_reference` sein,
+    // und er kann auf eine Bonitäts-Bestellzeile zeigen. Die Stufe gehört zum
+    // KONTO dieses Menschen — `kontoBestellungVon` findet es (dieselbe
+    // Funktion, die die Als-Kunde-Ansicht benutzt).
+    const { kontoBestellungVon } = await import("../lib/fiaon-kundenansicht");
+    const konto = await kontoBestellungVon(lage.personId);
+    const abgeleitet = konto ? await stufeAbleiten(konto.ref) : null;
+
+    // Die Pflicht folgt der Stufe, nicht mehr einer Spalte: Wer wartet, muss.
+    const pflicht = abgeleitet ? abgeleitet.stufe === "wartet_auf_onboarding" : (offen && lage.pflicht);
     res.json({
       ok: true,
+      // ── DIE ABGELEITETE STUFE, FÜR ALLE ANZEIGEN ──────────────────────
+      stufe: abgeleitet?.stufe ?? null,
+      stufenGrund: abgeleitet?.grund ?? null,
+      naechsterSchritt: abgeleitet?.naechsterSchritt ?? null,
+      ablauf: abgeleitet?.ablauf ?? null,
+      auskunftBezahlt: abgeleitet?.auskunftBezahlt ?? false,
+      ausnahme: abgeleitet?.ausnahme ?? null,
       // Bei Pflicht bleibt die Tafel stehen, auch wenn schon „Später" geklickt
       // wurde: Ein „Später" von gestern hebt eine Pflicht von heute nicht auf.
       faellig: offen && (pflicht || !lage.spaeterAm),
@@ -164,7 +204,8 @@ router.get("/kunde/:ref/startgespraech", async (req: Request, res: Response) => 
       email: lage.email,
       termin: lage.termin,
       erledigt: lage.erledigt,
-      vollAktiv: lage.vollAktiv,
+      // NICHT mehr `lage.vollAktiv` (das las die Spalte) — die Ableitung gilt.
+      vollAktiv: abgeleitet ? abgeleitet.stufe === "voll_aktiv" : lage.vollAktiv,
       // Das Buchungs-Token wird NUR mitgegeben, wenn wirklich etwas ansteht.
       token: offen ? terminTokenErzeugen(lage.personId) : null,
     });

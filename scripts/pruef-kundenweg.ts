@@ -147,19 +147,32 @@ async function main(): Promise<void> {
   // ═════════════════════════════════════════════════════════════════════════
   const gate = lies("client/src/components/StartgespraechGate.tsx");
   pruef("Die Bonitätskarte steht auf der Bühne", /function BonitaetsKarte/.test(gate));
-  // ── REIHENFOLGE ÜBER DIE POSITION, NICHT ÜBER DEN ABSTAND ─────────────
-  // Hier stand ein Regex mit „{0,1200}". Er wurde am 19.08.2026 rot, als der
-  // „Wir rufen an"-Hinweis zwischen Buchung und Bonitätskarte kam — er misst
-  // die Länge des Textes dazwischen, nicht die Reihenfolge. Dieselbe Falle wie
-  // bei der Onboarding-Vergütung einen Tag vorher; also diesmal so, dass sie
-  // nicht wiederkommt.
-  const iFertig = gate.indexOf("{fertig ? (");
-  const iKarte = gate.indexOf("<BonitaetsKarte");
-  const iSonst = gate.indexOf(") : (", iFertig > 0 ? iFertig : 0);
-  pruef("Sie erscheint NACH der Buchung",
-    iFertig > 0 && iKarte > iFertig && (iSonst < 0 || iKarte < iSonst),
-    `fertig@${iFertig}, Karte@${iKarte}, sonst-Zweig@${iSonst} — `
-    + "die Karte muss im fertig-Zweig stehen, sonst konkurriert sie mit dem Pflichtschritt");
+  // ══════════════════════════════════════════════════════════════════════
+  // DIESE REGEL HAT DER BETREIBER ERSETZT (20.08.2026)
+  //
+  // Hier stand: „Sie erscheint NACH der Buchung" — mit der Begründung, die
+  // Auskunft stünde sonst in Konkurrenz zum Pflichtschritt.
+  //
+  // Der Betreiber entscheidet anders, und er hat den besseren Grund: Wer nach
+  // dem Buchen die Tafel schließt, hat die Auskunft nie gesehen. GEMESSEN: 287
+  // bezahlte Kunden ohne Auskunft.
+  //
+  // Beide Karten stehen jetzt GLEICHZEITIG. Die Konkurrenz wird durch GEWICHT
+  // vermieden statt durch Verstecken: links, breiter und zuerst das Gespräch
+  // (Pflicht), rechts schmaler die Auskunft (freiwillig).
+  //
+  // ── WARUM DIE ALTE PRÜFUNG NICHT EINFACH GELÖSCHT WIRD ──────────────
+  // Weil sonst niemand mehr weiß, dass die Reihenfolge einmal eine Entscheidung
+  // war. Sie wird ERSETZT, mit dem Grund daneben.
+  // ══════════════════════════════════════════════════════════════════════
+  pruef("Beide Karten stehen gleichzeitig in einem Gitter",
+    /lg:grid-cols-\[1\.35fr_1fr\]/.test(gate),
+    "links das Gespräch (breiter, Pflicht), rechts die Auskunft (freiwillig)");
+  pruef("Das Gespräch hat das größere Gewicht",
+    gate.indexOf("Buch dein persönliches Startgespräch") < gate.indexOf("<BonitaetsKarte"),
+    "es ist der Pflichtschritt und steht zuerst");
+  pruef("Die Auskunft steht in der zweiten Spalte",
+    /ZWEITE SPALTE: DIE AUSKUNFT/.test(gate));
   pruef("Kopierknöpfe für IBAN und Verwendungszweck", /function KopierKnopf/.test(gate));
   pruef("Der Verwendungszweck steht ZUERST",
     /was: "Verwendungszweck"[\s\S]{0,120}was: "IBAN"/.test(gate),

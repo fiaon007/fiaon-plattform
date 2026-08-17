@@ -623,9 +623,56 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
       dismissedAt: primaryApp?.dismissed_at || primaryLead?.dismissed_at || null,
     };
 
+    // ══════════════════════════════════════════════════════════════════════
+    // DIE EINE ABLEITUNG, AUCH IN DER AKTE (20.08.2026)
+    //
+    // ── DER FEHLER, DEN DER BETREIBER SAH ───────────────────────────────
+    // Die Akte zeigte einen Statustext („Aktiv"), das Portal eine Spalte, die
+    // Status-Kachel `account_status`. Drei Quellen, drei Wahrheiten — und bei
+    // 364 von 365 bezahlten Kunden stand überall etwas Falsches, weil keiner
+    // von ihnen ein Startgespräch geführt hatte.
+    //
+    // Der bestehende Statustext BLEIBT: Er beschreibt die Zahlung und den
+    // Produktstand, und dafür ist er richtig. Die STUFE kommt daneben, aus der
+    // einen Ableitung — und die Ablauf-Leiste zeigt beides zusammen.
+    // ══════════════════════════════════════════════════════════════════════
+    let stufenlage: any = null;
+    if (primaryApp?.ref) {
+      try {
+        const { stufeAbleiten } = await import("../lib/fiaon-kundenstufe");
+        const { kontoBestellungVon } = await import("../lib/fiaon-kundenansicht");
+        // Die Stufe gehört zum KONTO des Menschen, nicht zur angeklickten
+        // Zeile: Wer auf einer Bonitäts-Bestellung steht, will trotzdem den
+        // Stand des Kontos sehen.
+        const konto = primaryApp.person_id
+          ? await kontoBestellungVon(Number(primaryApp.person_id))
+          : null;
+        const lage = await stufeAbleiten(konto?.ref ?? String(primaryApp.ref));
+        if (lage) {
+          stufenlage = {
+            stufe: lage.stufe,
+            grund: lage.grund,
+            naechsterSchritt: lage.naechsterSchritt,
+            ablauf: lage.ablauf,
+            ausnahme: lage.ausnahme,
+            nurAuskunft: lage.nurAuskunft,
+            // Weicht die gespeicherte Spalte ab? Dann stimmt etwas nicht, und
+            // die Akte soll es zeigen statt es zu verschweigen.
+            spalteWeichtAb: lage.spalteWeichtAb,
+          };
+        }
+      } catch (e) {
+        // Eine fehlende Ableitung darf die Akte nicht leer lassen — sie hat
+        // dreißig andere Angaben, die weiter stimmen.
+        console.error("[AKTE] Stufen-Ableitung:", e);
+      }
+    }
+
     res.json({
       ok: true,
       head,
+      /** Die abgeleitete Stufe samt Ablauf-Stand — für Kopf und Leiste. */
+      stufenlage,
       // Welche Felder aus einer Schwesterbestellung ergänzt wurden — die Akte
       // zeigt das an, damit niemand rätselt, woher ein Wert kommt.
       ergaenzt,

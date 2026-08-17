@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { KundenKopf } from "@/components/kunde/AblaufLeiste";
 import { useRoute, Link } from "wouter";
 import {
   User, CreditCard, Mail, Users, Clock, Copy, Pencil, Check, X,
@@ -224,6 +225,8 @@ export default function AdminKundeAktePage() {
 
   const app = data?.app;
   const head = data?.head;
+  /** Die abgeleitete Stufe — eine Quelle für Portal, Akte und Listen. */
+  const stufenlage = data?.stufenlage;
   const ref = app?.ref;
   const payRef = app?.paymentReference;
 
@@ -252,6 +255,53 @@ export default function AdminKundeAktePage() {
     } else {
       flash(`Portal-Ansicht nicht möglich: ${r.json?.error || r.status}`);
     }
+  };
+
+  // ── DIE EINLADUNG ZUM STARTGESPRÄCH ────────────────────────────────────
+  // Der Knopf steht im Kopf, direkt am nächsten Schritt: Wer liest „Nächster
+  // Schritt: Startgespräch einladen", soll es dort tun können und nicht erst
+  // eine Sektion suchen.
+  //
+  // Die Route existiert (Onboarding-Bereich) — sie wird EINGEBETTET, nicht
+  // nachgebaut.
+  const einladungSenden = async () => {
+    setBusy("einladung");
+    const r = await api(`/admin/kunden/${encodeURIComponent(ref)}/startgespraech-einladen`, {});
+    setBusy(null);
+    if (r.ok) { flash(r.json?.hinweis || "✓ Einladung versandt."); load(); }
+    else flash(`Einladung nicht möglich: ${r.json?.error || r.status}`);
+  };
+
+  // ── DIE ONBOARDING-PFLICHT AUSSETZEN ───────────────────────────────────
+  // Für Härtefälle. Der Grund wird ABGEFRAGT, nicht optional: Ohne ihn weiß in
+  // drei Monaten niemand mehr, warum dieser Kunde kein Gespräch führen musste
+  // — und der Schalter wird zur Gewohnheit.
+  const ausnahmeSetzen = async () => {
+    const gesetzt = stufenlage?.ausnahme?.gesetzt === true;
+    if (gesetzt) {
+      if (!confirm("Onboarding-Pflicht wieder IN KRAFT setzen?\n\n"
+        + "Der Kunde sieht dann beim nächsten Login wieder das Startgespräch-Gate.")) return;
+      setBusy("ausnahme");
+      const r = await api(`/admin/kunden/${encodeURIComponent(ref)}/onboarding-ausnahme`,
+        { setzen: false, wer: "Verwaltung" });
+      setBusy(null);
+      if (r.ok) { flash(r.json?.hinweis || "✓ Pflicht gilt wieder."); load(); }
+      else flash(`Nicht möglich: ${r.json?.error || r.status}`);
+      return;
+    }
+    const grund = prompt(
+      "Warum muss dieser Kunde KEIN Startgespräch führen?\n\n"
+      + "Der Grund steht später in der Akte — bitte in einem Satz, den auch "
+      + "ein Kollege in drei Monaten versteht.\n"
+      + "(mindestens 10 Zeichen)",
+    );
+    if (grund == null) return;
+    setBusy("ausnahme");
+    const r = await api(`/admin/kunden/${encodeURIComponent(ref)}/onboarding-ausnahme`,
+      { setzen: true, grund, wer: "Verwaltung" });
+    setBusy(null);
+    if (r.ok) { flash(r.json?.hinweis || "✓ Pflicht ausgesetzt."); load(); }
+    else flash(`Nicht möglich: ${r.json?.error || r.status}`);
   };
 
   const markPaid = () => {
@@ -388,6 +438,42 @@ export default function AdminKundeAktePage() {
         <div className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
+              {/* ══════════════════════════════════════════════════════════
+                  DER KOPF KOMMT AUS DEM GEMEINSAMEN BAUTEIL (20.08.2026)
+
+                  ── WARUM ────────────────────────────────────────────────
+                  GEMESSEN: Diese Akte hat 1.324 Zeilen, das Vertriebs-Cockpit
+                  1.172. Beide zeichnen denselben Kunden mit eigenem Quelltext.
+                  Eine Änderung hier erreicht das Cockpit nicht — und niemand
+                  merkt es, weil beide für sich richtig aussehen.
+
+                  `KundenKopf` ist der Anfang der Zusammenführung: Name, Marke,
+                  Ablauf-Leiste und nächster Schritt sind ab jetzt EINE Fassung.
+
+                  Die alten Marken (Direktzahler, DSGVO, Aussortiert) fahren als
+                  `marken` mit — sie sind Eigenschaften dieser Ansicht, nicht
+                  des Ablaufs.
+                  ══════════════════════════════════════════════════════════ */}
+              {stufenlage ? (
+                <KundenKopf
+                  name={head.name}
+                  stufe={stufenlage.stufe}
+                  stand={stufenlage.ablauf}
+                  naechsterSchritt={stufenlage.naechsterSchritt}
+                  ausnahme={stufenlage.ausnahme}
+                  marken={[
+                    ...(head.commissionBasis === "direktzahler" ? [{ text: "Direktzahler — keine Provision" }] : []),
+                    ...(head.gdprDeleted ? [{ text: "DSGVO gelöscht" }] : []),
+                    ...(head.dismissedAt ? [{ text: "Aussortiert" }] : []),
+                    ...(stufenlage.spalteWeichtAb ? [{ text: "Stufe wird nachgezogen" }] : []),
+                  ]}
+                  aktion={stufenlage.stufe === "wartet_auf_onboarding" ? {
+                    text: "Einladung senden",
+                    onClick: einladungSenden,
+                    laeuft: busy === "einladung",
+                  } : null}
+                />
+              ) : (
               <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
                 <h1 className="text-xl font-bold text-slate-900">{head.name}</h1>
                 {/* Der EINE Statustext. Kommt seit 08.08.2026 vom Server
@@ -403,6 +489,7 @@ export default function AdminKundeAktePage() {
                 {head.gdprDeleted && <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-[11px] font-bold text-slate-500">DSGVO gelöscht</span>}
                 {head.dismissedAt && <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-[11px] font-bold text-slate-500">Aussortiert</span>}
               </div>
+              )}
               <p className="text-[12.5px] text-slate-500">
                 {head.email || "keine E-Mail"} · {head.phone || "kein Telefon"} · seit {fmtD(head.seit)}
                 {head.agentName ? <> · betreut von <b className="text-slate-700">{head.agentName}</b></> : " · kein Agent"}
@@ -418,6 +505,17 @@ export default function AdminKundeAktePage() {
                   NEUER TAB mit Absicht: Der Betreiber verliert die Akte nicht,
                   auf der er gerade arbeitet — er hat beide Bilder nebeneinander.
                   Der Nur-Ansicht-Banner steht im Portal, nicht hier. */}
+              {/* Der Ausnahme-Schalter steht bei den Aktionen, nicht in einer
+                  Sektion: Wer im Kopf „Wartet auf Startgespräch" liest und weiß,
+                  dass dieser Kunde es nicht führen kann, will hier handeln. */}
+              {stufenlage && !stufenlage.nurAuskunft && stufenlage.stufe !== "kein_zugang" && (
+                <button type="button" onClick={ausnahmeSetzen} disabled={busy === "ausnahme"}
+                  className="px-4 py-2.5 rounded-xl bg-white border border-amber-200 text-amber-700 hover:bg-amber-50 text-[12.5px] font-bold disabled:opacity-50">
+                  {busy === "ausnahme" ? "…"
+                    : stufenlage.ausnahme?.gesetzt ? "Onboarding-Pflicht wieder setzen"
+                    : "Onboarding-Pflicht aussetzen"}
+                </button>
+              )}
               <button type="button" onClick={portalAnsehen} disabled={busy === "ansicht"}
                 className="px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-[12.5px] font-bold disabled:opacity-50">
                 {/* Der Vorname aus dem Namen — `head` liefert keinen eigenen.

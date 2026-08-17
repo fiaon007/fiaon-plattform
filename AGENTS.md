@@ -394,6 +394,84 @@ sein (`\u201c`), sonst beendet es den umgebenden String — und `esbuild` meldet
 kaputt ist und der Übersetzungsversuch schon vorher scheitert. Wer einen deutschen
 Zitatanfang tippt, tippt das Ende gleich mit.
 
+## Eine Spalte ist ein Merker, keine Wahrheit
+
+Am 20.08.2026 stand im Portal „Status: Aktiv · Freigeschaltet" bei einem Kunden
+ohne Startgespräch. GEMESSEN: **364 von 365** bezahlten Bestellungen zeigten das,
+und **null** davon hatte je ein Startgespräch geführt.
+
+Es gab drei Quellen für „ist dieser Kunde freigeschaltet": `account_status`
+(heißt nur „nicht gesperrt"), die Spalte `onboarding_stufe`, und einen
+Statustext über die Zahlung. Drei Quellen, drei Wahrheiten.
+
+- **Zustände, die sich ausrechnen lassen, werden AUSGERECHNET.** „Bezahlt und
+  Gespräch erledigt" ist eine Rechnung, kein Wert, den man speichert und hofft.
+- Wo eine Abschrift aus Geschwindigkeitsgründen nötig ist (Listen mit 360
+  Kunden), ist sie ausdrücklich eine ABSCHRIFT: Ein Abgleich zieht sie nach, und
+  eine Abweichung wird ANGEZEIGT, nicht stillschweigend korrigiert.
+- Zwei Fassungen derselben Regel (TypeScript für die Akte, SQL für die Liste)
+  sind nur zulässig, wenn ein Prüfstand sie **gegeneinander** hält — an jeder
+  Konstellation.
+
+## Eine Migration, die eine Tür zumacht, muss den Schlüssel vorzeigen
+
+Vor der Bestands-Migration auf „wartet_auf_onboarding" fiel auf: Es gab keinen
+Mitarbeiter mit der Rolle `onboarding`, und `freieSlots(…, "onboarding_call")`
+filtert nach genau dieser Rolle — **null Slots**.
+
+364 zahlende Menschen hätten beim nächsten Login vor einem Pflicht-Gate ohne
+Termine gestanden: buchen unmöglich, „Später" abgeschafft, nur noch Abmelden.
+
+- **Ein Lauf, der eine Pflicht einschaltet, prüft VORHER, ob sie erfüllbar ist**
+  — und bricht ab, wenn nicht. Auch mit `--schreiben`.
+- **Fehlende Personalentscheidungen dürfen das System nicht kaputt machen.**
+  Gibt es die zuständige Rolle nicht, tritt ein begründeter Rückfall ein (hier:
+  Vertrieb und Leitung stellen die Slots) — protokolliert, damit er nicht
+  unbemerkt zum Dauerzustand wird.
+
+## Wer eine Tafel im Vordergrund prüft, misst IN der Tafel
+
+Ein Browsertest prüfte „Karte Bonitätsauskunft da" über den `innerText` des
+ganzen Body — und wurde GRÜN durch einen Satz, der im Dashboard **hinter** der
+Bühne stand. Die Karte in der Bühne war zu diesem Zeitpunkt noch nicht geladen.
+
+Aufgefallen ist es nur, weil eine zweite Prüfung („die 74 € stehen dabei") ihre
+**Fundstelle mit ausgab**.
+
+- **Am Container messen** (`[role="dialog"]`), nicht am Body.
+- **Fehlermeldungen nennen den gefundenen Text.** Eine Prüfung, die nur „rot"
+  sagt, schickt einen auf die falsche Suche.
+
+## `created_at` sagt nicht, wann eine Zeile verschmutzt wurde
+
+Ein Bereinigungslauf meldete „0 übrig". Zwei Minuten später trug eine Zeile mit
+`created_at` von vor zwei Stunden wieder einen Zeilenumbruch.
+
+Die Erklärung: Ein laufender Antrag wird bei **jedem Formularschritt** neu
+geschrieben. `created_at` bleibt alt, der Inhalt kommt frisch vom noch nicht
+ausgelieferten Client.
+
+- Bestandsprüfungen fragen nach `updated_at` — „wann wurde die Zeile zuletzt
+  angefasst", nicht „wann entstand sie".
+- Und der Lauf **merkt sich seinen Zeitpunkt** (`fiaon_settings`), statt dass
+  der Prüfstand „vor einer Stunde" rät. Eine geratene Grenze hält genau eine
+  Stunde.
+
+## Eine Funktion mit `lauf = sqlPool` benutzt vielleicht trotzdem sqlPool
+
+`aboBeiZahlungAnlegen(ref, lauf)` nimmt einen Lauf-Parameter — und schreibt
+intern mit `sqlPool`. In einem Prüfstand, der in einer Transaktion arbeitet,
+hätte der Aufruf also AUSSERHALB geschrieben: eine echte Testbestellung mit
+echten Raten in der Produktionsdatenbank, die kein Rollback entfernt.
+
+Aufgefallen ist es nur, weil dieselbe Funktion zusätzlich DDL macht und in einen
+Lock-Timeout lief.
+
+- **Wer in einer Transaktion eine fremde Funktion ruft, liest deren Rumpf** —
+  nicht ihre Signatur.
+- Ist sie nicht transaktionsfähig, wird ihre Wirkung im Prüfstand
+  nachgezogen und ihre Regel am Quelltext plus am echten Bestand geprüft.
+
 ## Bekannter Bestand, damit niemand erschrickt
 
 - `npx tsc --noEmit` meldet rund **240 Alt-Typfehler** (u. a. aus

@@ -97,11 +97,37 @@ async function main(): Promise<void> {
   // Report als Betreiber-TODO — und diese Prüfung erinnert daran, solange es
   // nicht passiert ist.
   // ══════════════════════════════════════════════════════════════════════
+  // ── DIE GRENZE IST DER LETZTE LAUF, NICHT „EINE STUNDE" ───────────────
+  // Erster Entwurf: „älter als eine Stunde". Hielt eine Stunde — dann galten
+  // die Zeilen des noch nicht ausgelieferten Produktionsservers als
+  // Altbestand, und die Prüfung wurde rot, obwohl nichts kaputt war.
+  //
+  // `datenkosmetik-lauf.ts --schreiben` merkt sich seinen Zeitpunkt. Alles
+  // davor MUSS sauber sein; alles danach ist Betrieb ohne Deploy und wird
+  // gemeldet, nicht gewertet.
+  const [lauf] = (await sqlPool`
+    SELECT value FROM fiaon_settings WHERE key = 'datenkosmetik_letzter_lauf'
+  `.catch(() => [] as any[])) as any[];
+  const grenze = lauf?.value ? new Date(String(lauf.value)) : new Date(Date.now() - 3600_000);
+  console.log(`  Grenze: ${grenze.toISOString()} `
+    + `(${lauf?.value ? "letzter Bereinigungslauf" : "Rückfall: vor einer Stunde"})`);
+  // ── UND ZWAR AUF `updated_at`, NICHT `created_at` ─────────────────────
+  // Dritter Anlauf. Eine Zeile mit `created_at` von 18:53 trug wieder einen
+  // Umbruch, obwohl der Lauf um 18:56 gemeldet hatte: „0 übrig".
+  //
+  // Die Erklärung: Ein laufender Antrag wird bei JEDEM Schritt neu
+  // geschrieben („Weiter" im Formular → UPDATE mit allen Feldern). Der noch
+  // nicht ausgelieferte Produktionsserver setzt `pack_name` dabei erneut mit
+  // Umbruch — `created_at` bleibt alt, der Inhalt ist wieder verschmutzt.
+  //
+  // Also ist `created_at` das falsche Kriterium. Es zählt, wann die Zeile
+  // ZULETZT ANGEFASST wurde.
+
   const [p] = (await sqlPool`
     SELECT COUNT(*) FILTER (WHERE pack_name ~ E'[\n\r\t]'
-             AND created_at < NOW() - INTERVAL '1 hour')::int AS umbruch,
+             AND updated_at < ${grenze})::int AS umbruch,
            COUNT(*) FILTER (WHERE pack_name ~ E'[\n\r\t]'
-             AND created_at >= NOW() - INTERVAL '1 hour')::int AS umbruch_neu,
+             AND updated_at >= ${grenze})::int AS umbruch_neu,
            COUNT(*) FILTER (WHERE pack_name <> BTRIM(pack_name))::int AS rand,
            COUNT(*) FILTER (WHERE pack_name ~ '  ')::int AS doppelt
     FROM fiaon_applications
@@ -110,7 +136,9 @@ async function main(): Promise<void> {
     `${p.umbruch} übrig — der Bestandslauf war unvollständig`);
   if (Number(p.umbruch_neu) > 0) {
     console.log(`        HINWEIS: ${p.umbruch_neu} Zeile(n) aus der letzten Stunde tragen einen `
-      + "Umbruch.\n        Der Produktionsserver läuft noch mit dem alten Code. Nach dem Deploy:"
+      + "Umbruch — sie wurden NACH dem letzten Lauf angefasst.\n"
+      + "        Der Produktionsserver läuft noch mit dem alten Code und setzt den Namen\n"
+      + "        bei jedem Formularschritt neu. Nach dem Deploy:"
       + "\n        npx tsx scripts/datenkosmetik-lauf.ts --nur=pakete --schreiben");
   }
   pruef("Kein Paketname mit Leerraum am Rand", Number(p.rand) === 0, `${p.rand} übrig`);
@@ -124,7 +152,7 @@ async function main(): Promise<void> {
       SELECT COUNT(*)::int AS n FROM ${tabelle}
       -- Nur Altbestand: Neuzugänge kommen vom Produktionsserver, der den Fix
       -- noch nicht hat (siehe oben).
-      WHERE created_at < NOW() - INTERVAL '1 hour' AND ${filter}
+      WHERE updated_at < '${grenze.toISOString()}'::timestamptz AND ${filter}
         AND (first_name <> BTRIM(first_name) OR last_name <> BTRIM(last_name)
           OR contact_name <> BTRIM(contact_name) OR company_name <> BTRIM(company_name)
           OR first_name ~ '  ' OR last_name ~ '  ')
@@ -172,7 +200,7 @@ async function main(): Promise<void> {
   const [kachel] = (await sqlPool`
     SELECT COUNT(*)::int AS n FROM fiaon_applications
     WHERE merged_into IS NULL AND pack_name IS NOT NULL
-      AND created_at < NOW() - INTERVAL '1 hour' 
+      AND updated_at < ${grenze}
       -- Die Paket-Kachel schneidet am Umbruch ab und zeigte „Maximum)".
       AND SPLIT_PART(pack_name, E'\\n', 2) <> ''
   `) as any[];

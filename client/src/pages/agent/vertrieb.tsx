@@ -676,6 +676,21 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
     } else zeige("fehler", "Nicht gespeichert", r.json?.error || "");
   };
 
+  // ── PORTAL ANSEHEN ──────────────────────────────────────────────────────
+  // Kein `onGeaendert()`: Es ändert sich nichts am Kunden. Und kein
+  // Erfolgshinweis in der Schublade — das Ergebnis ist der neue Tab.
+  //
+  // Der Server entscheidet über das Recht (eigene und zugewiesene Kunden). Bei
+  // einer Ablehnung steht sein Satz hier, nicht ein selbst erfundener: Er weiß,
+  // WARUM es nicht geht, die Oberfläche nicht.
+  const portalAnsehen = async () => {
+    setBusy(true);
+    const r = await api(`/agent/vertrieb/person/${p.personId}/ansicht`, { method: "POST" });
+    setBusy(false);
+    if (r.ok) window.open("/als-kunde", "_blank", "noopener");
+    else zeige("fehler", "Ansicht nicht möglich", r.json?.error || "");
+  };
+
   const sperre = async (sperren: boolean) => {
     setBusy(true);
     const r = await api(`/agent/vertrieb/person/${p.personId}/sperre`, { method: "POST", body: JSON.stringify({ sperren }) });
@@ -965,6 +980,27 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
                 ══════════════════════════════════════════════════════════════ */}
             {reiter === "verwaltung" && (
               <div className="space-y-3">
+                {/* ── PORTAL ANSEHEN (19.08.2026) ─────────────────────────
+                    Steht bewusst GANZ OBEN in der Verwaltung: Es ist die
+                    einzige Handlung hier, die nichts verändert. Wer eine Frage
+                    zum Konto eines Kunden hat, soll zuerst nachsehen können —
+                    und nicht erst sperren oder umhängen müssen, um zu
+                    verstehen, was der Kunde sieht.
+
+                    Nur eigene und zugewiesene Kunden. Ein Agent ohne
+                    Leitungsrolle bekommt vom Server 403 mit Begründung. */}
+                <div className="px-3.5 py-3 rounded-xl" style={{ boxShadow: "inset 0 0 0 1px var(--fi-linie)" }}>
+                  <button type="button" onClick={() => void portalAnsehen()} disabled={busy}
+                          className="fi-zweitknopf px-3.5 py-2 text-[12.5px] font-semibold">
+                    Portal ansehen{p.vorname ? ` als ${p.vorname}` : ""}
+                  </button>
+                  <p className="text-[11.5px] mt-1.5 leading-snug" style={{ color: "var(--fi-text-still)" }}>
+                    Öffnet das Kundenportal in einem neuen Tab, genau so, wie der Kunde es sieht —
+                    Nur-Ansicht, 30 Minuten. Es entstehen keine Aktionen in seinem Namen, und
+                    Start und Ende stehen in seinem Verlauf.
+                  </p>
+                </div>
+
                 <div className="px-3.5 py-3 rounded-xl" style={{ boxShadow: "inset 0 0 0 1px var(--fi-linie)" }}>
                   <button type="button" onClick={() => void sperre(!p.gesperrt)} disabled={busy}
                           className="fi-zweitknopf px-3.5 py-2 text-[12.5px] font-semibold">

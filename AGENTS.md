@@ -283,6 +283,61 @@ Wer einen bestehenden Automatismus ersetzt, sucht deshalb zuerst dessen
 bekommt einen Schalter in den Einstellungen (`lead_strecke_ewig`), damit der
 Betreiber zurückkann, ohne einen Entwickler zu brauchen.
 
+## Eine Rot-Probe an einer Sicherheitswand richtet echten Schaden an
+
+Am 19.08.2026 wurde für die Rot-Probe die Nur-Lesen-Wand der Als-Kunde-Ansicht
+absichtlich entfernt. Prompt antwortete „Bonitätsauskunft bestellen (74 €)" mit
+**HTTP 200** — der Prüfstand hatte eine echte SCHUFA-Bestellzeile in der
+Produktionsdatenbank angelegt. Sie ist archiviert, nicht gelöscht.
+
+Das war kein Unglück, sondern der Beweis, dass die Matrix echte Wege prüft. Aber
+daraus folgt eine Regel:
+
+- **Ein Prüfstand, der eine Sicherheitswand testet, MUSS damit rechnen, dass sie
+  fällt.** Sonst räumt er im Erfolgsfall nichts auf (weil nichts entsteht) und im
+  Fehlerfall auch nicht (weil er es nicht kann) — und der Fehlerfall ist genau
+  der, in dem etwas entsteht.
+- **Erkennbare, garantiert fremde Nutzlasten.** Adressen auf `.invalid` (nach
+  RFC 2606 reserviert, kann niemandem gehören), Kennungen mit `PRUEFSTAND` im
+  Namen.
+- **Aufräumen läuft immer**, nicht nur bei Durchbrüchen: Ein Aufräumen, das nur
+  im Fehlerfall läuft, läuft nie, weil man den Fehlerfall nicht plant.
+
+## Eine Wand für zwei Dinge, nicht zwei Wände
+
+Es gab `ansichtNurLesen` für die Mitarbeiter-Ansicht. Für die Kundensicht wäre
+eine zweite Middleware daneben der naheliegende Weg gewesen — und der falsche:
+
+Zwei Middlewares, die dasselbe tun, gehen auseinander. Jemand nimmt eine
+Ausnahme in die eine auf und vergisst die andere. Dann ist eine der beiden
+Ansichten plötzlich schreibend, und **beide Prüfstände bleiben grün**, weil jeder
+nur seine eigene Wand prüft.
+
+`nurLesenWand` prüft deshalb beide Cookies. Die alte Funktion bleibt als
+dokumentierter Hinweis stehen (ein entfernter Export ließe Importe ins Leere
+laufen), aber sie ist nicht mehr eingehängt.
+
+Gleiches gilt für Texte: Der Satz „… ruft dich zur vereinbarten Zeit an" steht
+in `shared/fiaon-termin-text.ts` und wird an vier Stellen benutzt — Portal,
+Tafel, Bestätigung, Mail-Payload. Vier Fassungen würden auseinanderlaufen, und
+dann verspricht die Mail etwas anderes als die Seite.
+
+## Ein Kommentar, der mehr behauptet als der Code tut, ist eine Lüge
+
+`server/lib/fiaon-ansicht.ts` verspricht ein Token, „das den ANSEHENDEN
+mitträgt". Der Code trägt nur die Kennung des ANGESEHENEN. Folge: Wer die
+Zeichenkette abschreibt, kann sie in einem anderen Browser einsetzen, bis sie
+abläuft.
+
+Beim Bauen der Kundensicht wäre dieser Kommentar beinahe als Vorlage
+übernommen worden — mit derselben Lücke, aber schwereren Folgen (fremde
+Unterlagen, Rechnungen, Zahlungsdaten).
+
+- **Wer ein Muster kopiert, liest den Code, nicht den Kommentar darüber.**
+- Und wer eine Sicherheitseigenschaft behauptet, **prüft sie**: Der Prüfstand
+  der Kundensicht verlangt ausdrücklich, dass ein Cookie ohne den passenden
+  Zugang des Ansehenden nichts zeigt.
+
 ## Bekannter Bestand, damit niemand erschrickt
 
 - `npx tsc --noEmit` meldet rund **240 Alt-Typfehler** (u. a. aus

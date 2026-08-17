@@ -220,7 +220,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // müsste bei jeder neuen gepflegt werden, und genau die eine würde
   // vergessen. Die HTTP-Methode ist die einzige Eigenschaft, die jede Route
   // zwangsläufig hat.
-  app.use('/api/fiaon', (await import('./lib/fiaon-ansicht')).ansichtNurLesen);
+  //
+  // ── EINE WAND FÜR BEIDE ANSICHTEN (19.08.2026) ───────────────────────────
+  // Seit es die Als-Kunde-Ansicht gibt, prüft `nurLesenWand` BEIDE Cookies.
+  // Zwei Middlewares, die dasselbe tun, gehen irgendwann auseinander: Eine wird
+  // um eine Ausnahme erweitert, die andere nicht — und dann ist eine Ansicht
+  // schreibend, ohne dass es jemand merkt.
+  app.use('/api/fiaon', (await import('./lib/fiaon-kundenansicht')).nurLesenWand);
   app.use('/api/fiaon', fiaonAgentRoutes.blockAgentsFromAdmin);
 
   // 🔢 Admin-Zugang — EIN Zahlencode vor dem Verwaltungsbereich. Der Router
@@ -285,6 +291,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/fiaon', fiaonKarteiRoutes.default);
 
   // 🎯 FIAON Lead-Management (Admin/Agent) — Auto-Konversion, Nachfass, Anrufliste
+  // 👁 FIAON Als-Kunde-Ansicht — Portal mit den Augen eines Kunden (Nur-Ansicht)
+  const fiaonKundenansichtRoutes = await import('./routes/fiaon-kundenansicht');
+  app.use('/api/fiaon', fiaonKundenansichtRoutes.default);
+
   const fiaonLeadsRoutes = await import('./routes/fiaon-leads');
   app.use('/api/fiaon', fiaonLeadsRoutes.default);
   // 🎯 FIAON Lead-Intake — Public Webhook (Secret-geschützt, für Make „FIAON Lead #1")

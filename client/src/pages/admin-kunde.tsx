@@ -236,6 +236,24 @@ export default function AdminKundeAktePage() {
     else flash(`Fehler: ${r.json?.error || r.status}`);
   };
 
+  // ── PORTAL ANSEHEN ────────────────────────────────────────────────────
+  // Nicht über `act()`: Das dortige `load()` würde die Akte neu laden, während
+  // der neue Tab schon aufgeht — unnötige Last und ein Flackern. Und es soll
+  // KEIN Erfolgshinweis in der Akte aufblitzen: Das Ergebnis dieser Handlung
+  // ist der neue Tab, nicht eine Zeile hier.
+  const portalAnsehen = async () => {
+    setBusy("ansicht");
+    const r = await api(`/admin/kunden/${encodeURIComponent(ref)}/ansicht`, {});
+    setBusy(null);
+    if (r.ok) {
+      // Erst öffnen, dann nichts weiter: Das Cookie ist gesetzt, die Schleuse
+      // holt sich die Kundendaten selbst.
+      window.open("/als-kunde", "_blank", "noopener");
+    } else {
+      flash(`Portal-Ansicht nicht möglich: ${r.json?.error || r.status}`);
+    }
+  };
+
   const markPaid = () => {
     if (!confirm(`„${head?.name}" als BEZAHLT markieren?\n\nDas schaltet den Zugang frei, sendet die Bestätigungs-Mail und bucht die Provision exakt wie der bestehende „bezahlt"-Button.`)) return;
     act("paid", () => api(`/admin/payments/${encodeURIComponent(payRef)}/mark-paid`, {}), "✓ Als bezahlt markiert — Freischaltung, Mail und Provisions-Hook sind gelaufen.");
@@ -391,6 +409,24 @@ export default function AdminKundeAktePage() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {/* ── PORTAL ANSEHEN (19.08.2026) ─────────────────────────────
+                  „Warum sieht der Kunde seinen Fahrplan nicht?" lässt sich ohne
+                  die Kundensicht nicht beantworten. Ein Kundenpasswort
+                  zurückzusetzen, nur um nachzusehen, sperrt einen zahlenden
+                  Menschen aus seinem Konto aus.
+
+                  NEUER TAB mit Absicht: Der Betreiber verliert die Akte nicht,
+                  auf der er gerade arbeitet — er hat beide Bilder nebeneinander.
+                  Der Nur-Ansicht-Banner steht im Portal, nicht hier. */}
+              <button type="button" onClick={portalAnsehen} disabled={busy === "ansicht"}
+                className="px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-[12.5px] font-bold disabled:opacity-50">
+                {/* Der Vorname aus dem Namen — `head` liefert keinen eigenen.
+                    Bei einer Firma ohne Leerzeichen steht der ganze Name da;
+                    das ist richtig, denn „Portal ansehen als Muster GmbH" liest
+                    sich korrekt. */}
+                {busy === "ansicht" ? "…" : `Portal ansehen${
+                  head.name ? ` als ${String(head.name).trim().split(/\s+/)[0]}` : ""}`}
+              </button>
               {payRef && (app.paymentStatus === "pending_payment" || app.paymentStatus === "claimed_paid") && (
                 <button type="button" onClick={markPaid} disabled={busy === "paid"}
                   className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[12.5px] font-bold disabled:opacity-50">

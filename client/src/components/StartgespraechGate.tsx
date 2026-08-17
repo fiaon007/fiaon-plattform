@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { anrufHinweis, ABSAGE_HINWEIS } from "@shared/fiaon-termin-text";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // STARTGESPRÄCH — die Tafel beim ersten Login
@@ -369,9 +370,26 @@ export function StartgespraechGate({ kundenRef }: { kundenRef: string }) {
             {fertig ? (
               <>
                 <p className="text-[15px] text-slate-700 leading-relaxed">
-                  <b className="text-slate-900">{fertig.datumText} um {fertig.uhrzeit} Uhr</b> — {fertig.agentVorname} ruft dich an.
-                  Du bekommst gleich eine Bestätigung per E-Mail, mit einem Link zum Verschieben.
+                  <b className="text-slate-900">{fertig.datumText} um {fertig.uhrzeit} Uhr</b>.
+                  {" "}Du bekommst gleich eine Bestätigung per E-Mail.
                 </p>
+                {/* ── DER ANRUF-SATZ ────────────────────────────────────────
+                    Eigene Zeile, Telefon-Zeichen, hervorgehoben: Wer einen Link
+                    erwartet, überliest ihn im Fließtext — und wartet dann vor
+                    dem Rechner, während sein Telefon klingelt. */}
+                <div className="mt-3.5 flex items-start gap-2.5 px-4 py-3 rounded-xl"
+                     style={{ background: "rgba(29,78,216,.05)", boxShadow: "inset 0 0 0 1px rgba(29,78,216,.16)" }}>
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="#1d4ed8" strokeWidth={1.5}
+                       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                       style={{ flexShrink: 0, marginTop: 2 }}>
+                    <path d="M6.2 3.6c.7 0 1.3.5 1.5 1.2l.5 2a1.6 1.6 0 0 1-.5 1.6l-.9.8a9 9 0 0 0 4 4l.8-.9a1.6 1.6 0 0 1 1.6-.5l2 .5c.7.2 1.2.8 1.2 1.5v1.7c0 .9-.8 1.6-1.7 1.5C8.3 16.7 3.3 11.7 2.7 5.3c-.1-.9.6-1.7 1.5-1.7h2Z" />
+                  </svg>
+                  <span className="text-[13.5px] leading-relaxed" style={{ color: "#1e3a8a" }}>
+                    <b>{anrufHinweis(fertig.agentVorname)}</b>
+                    <br />
+                    <span style={{ color: "rgba(30,58,138,.72)" }}>{ABSAGE_HINWEIS}</span>
+                  </span>
+                </div>
                 {/* ── DER SCHUFA-MOMENT ────────────────────────────────────
                     Jetzt, nicht vorher: Der Termin steht, der Pflichtschritt
                     ist getan. Solange der Kunde auf das Gespräch wartet, kann
@@ -387,7 +405,17 @@ export function StartgespraechGate({ kundenRef }: { kundenRef: string }) {
                 <p className="text-[15px] text-slate-700 leading-relaxed">
                   Buch dein persönliches Startgespräch — <b className="text-slate-900">15 Minuten</b>, in denen
                   dir jemand zeigt, wie du FIAON nutzt und worauf es bei deinen Unterlagen ankommt.
-                  Du wählst die Uhrzeit, wir rufen dich an.
+                  Du wählst die Uhrzeit.
+                </p>
+                {/* Der Anruf-Satz VOR der Wahl — dieselbe Begründung wie oben. */}
+                <p className="mt-3 flex items-start gap-2 text-[13px] font-semibold"
+                   style={{ color: "#1e3a8a" }}>
+                  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                       strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                       style={{ flexShrink: 0, marginTop: 2 }}>
+                    <path d="M6.2 3.6c.7 0 1.3.5 1.5 1.2l.5 2a1.6 1.6 0 0 1-.5 1.6l-.9.8a9 9 0 0 0 4 4l.8-.9a1.6 1.6 0 0 1 1.6-.5l2 .5c.7.2 1.2.8 1.2 1.5v1.7c0 .9-.8 1.6-1.7 1.5C8.3 16.7 3.3 11.7 2.7 5.3c-.1-.9.6-1.7 1.5-1.7h2Z" />
+                  </svg>
+                  <span>{anrufHinweis(lage.termin?.agentVorname)}</span>
                 </p>
 
                 {fehler && (

@@ -3,6 +3,74 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 19.08.2026 — Das Portal mit den Augen des Kunden, und „wir rufen an" endlich unübersehbar
+
+### 1. Als-Kunde-Ansicht — 360 Konten, die man jetzt ansehen kann
+
+„Warum sieht der Kunde seinen Fahrplan nicht?" ließ sich bisher nicht beantworten. Der Betreiber kann sich kein Konto je Kontostufe anlegen, und ein Kundenpasswort zurückzusetzen, nur um nachzusehen, sperrt einen zahlenden Menschen aus.
+
+**Jetzt:** In der Kundenakte und in der Cockpit-Schublade der Leitung steht „Portal ansehen als [Vorname]". Neuer Tab, das echte Kundenportal, im echten Zustand dieses Menschen — Kontostufe, Gate, Bonitätskarte, Sperrkarten, Unterlagen, Rechnungen.
+
+**Die Gefahr ist hier größer als bei der Mitarbeiter-Ansicht.** Im Kundenportal liegen Knöpfe, die Geld und Recht bewegen: 74 € bestellen, „Ich habe überwiesen" melden, kündigen, Unterlagen hochladen. Ein versehentlicher Klick wäre eine Handlung **im Namen** des Kunden, und niemand könnte hinterher sagen, dass der Kunde sie nicht selbst getan hat. Deshalb fünf Wände:
+
+1. **Eigenes Token**, signiert, 30 Minuten. Niemals die echte Kunden-Anmeldung.
+2. **An den Ansehenden gebunden.** Das Token trägt, wer ansieht, und die Prüfung verlangt, dass dessen Zugang noch gilt. Ein weitergegebener Link öffnet nichts. *(Das Token der Mitarbeiter-Ansicht kann das nicht — sein Kommentar behauptet es, der Code tut es nicht.)*
+3. **Nur lesen**, an einer Stelle nach der HTTP-Methode. Eine Liste schreibender Routen müsste man pflegen, und genau die eine würde man vergessen.
+4. **Banner über dem ganzen Portal**, nicht wegklickbar, mit Namen und Restzeit. Er steht in `App.tsx`, nicht in `dashboard.tsx`: Ein Banner nur auf der Übersicht wäre auf jeder Unterseite weg — und genau dort klickt man dann etwas an.
+5. **Protokoll im Kundenverlauf.** Die Frage lautet später „wer hat in mein Konto gesehen?", und die beantwortet ein Eintrag beim Kunden, nicht einer in einer Mitarbeiterliste.
+
+**Rechte:** Verwaltung alle Konten, Vertriebsleitung nur eigene und zugewiesene, ein Agent nie — mit einem Satz, der erklärt, warum („Deine Kunden siehst du in deiner Liste"), statt „Keine Berechtigung".
+
+**Und eine Wand statt zwei:** `nurLesenWand` prüft jetzt beide Ansichts-Cookies. Zwei Middlewares für dasselbe gehen auseinander — jemand nimmt eine Ausnahme in die eine auf und vergisst die andere, und dann ist eine Ansicht schreibend, während beide Prüfstände grün bleiben.
+
+### 2. „Wir rufen an" — der Satz, der No-Shows verhindert
+
+Wer heute einen Termin bucht, erwartet einen Link. Videokonferenzen haben diese Erwartung gesetzt. Bei FIAON ruft ein Mensch an — und wer das nicht liest, sitzt vor dem Rechner, während das Telefon klingelt. Er glaubt dann, **wir** hätten uns nicht gemeldet.
+
+Der Satz „[Name] ruft dich zur vereinbarten Zeit an — halte dein Telefon bereit" steht jetzt an vier Stellen, alle aus **einer** Quelle (`shared/fiaon-termin-text.ts`): Buchungsseite, Startgespräch-Tafel, Bestätigungsansicht und als fertige Variable in den Mail-Payloads.
+
+Er stand vorher schon da — aber am Ende eines Absatzes. Wer einen Link erwartet, liest keine Absätze, sondern sucht eine Adresse. Jetzt steht er allein, in einem Rahmen, mit dem Telefon-Zeichen, plus dem Absage-Hinweis: Ein Termin, den man nicht absagen kann, wird nicht abgesagt, sondern verpasst.
+
+**Betreiber-TODO:** In den Brevo-Vorlagen T31 (`termin_bestaetigung`) und T32 (`termin_erinnerung`) `{{params.hinweis_anruf}}` einsetzen. Der Satz fährt fertig mit — ihn in der Vorlage zu schreiben hieße, ihn zweimal im Haus zu haben, und dann laufen Portal und Mail auseinander.
+
+**Im Cockpit** steht die Rufnummer jetzt **groß** im Kopf (19 px, tabellarische Ziffern, in Gruppen), mit Anrufen-Knopf daneben. Vorher gab es nur den Knopf — der reicht, solange das Softphone tut, aber die Terminzeit ist der schlechteste Moment für „das Telefon lädt nicht". Fehlt die Nummer ganz, sagt der Kopf das in Bernstein: Dieses Gespräch kann nicht stattfinden.
+
+### 3. Die Zweig-Ampel pflegt sich selbst
+
+„Alle Zweige prüfen" verschickt 35 Probemails und dauert zwei Minuten. Der echte Betrieb liefert dieselbe Auskunft kostenlos: Wenn eine echte Kundenmail über einen Zweig **zugestellt** wurde, existiert der Zweig. Der Zustell-Abgleich setzt den Status jetzt selbst.
+
+Als Beweis gilt nur „zugestellt", „geöffnet" oder „geklickt" — **nicht** „angenommen": Das heißt lediglich, dass Brevo die Mail entgegengenommen hat, sie kann danach noch bouncen. Eine grüne Ampel für einen Weg, an dessen Ende nichts ankommt, wäre die falsche Auskunft.
+
+**Betreiber-TODO, und das ist der wichtige Teil:** **Gemessen: 10.431 Mails in 30 Tagen, davon 0 abgeglichen.** Der Zustell-Abgleich braucht `BREVO_API_KEY`, und der ist nicht gesetzt. Die Verdrahtung steht, das Tor ist zu — solange der Schlüssel fehlt, kann sich die Ampel nicht pflegen, und auch der Prüfen-Knopf kann nichts bestätigen (0 von 35 Zweigen bestätigt). **Ein Schlüssel in den Umgebungsvariablen, und beides beginnt zu arbeiten.**
+
+### 4. Kleinigkeiten aus dem Betrieb
+
+- **`followup_48h`** trägt auf `/admin/events` jetzt „Zweig in Make kann gelöscht werden — wird nie mehr gefeuert". **Gemessen: null Versände**, und es gibt keine Stelle im Quelltext, die es auslöst. „VERALTET" allein ließ den Betreiber rätseln, ob er den Zweig noch braucht.
+- Die **Bestätigungsansicht** nach der Buchung zeigt Anruf-Satz und Absage-Hinweis.
+
+### Was die Kundensicht als Erstes gezeigt hat
+
+Genau ihr Zweck, sofort erfüllt — zwei Datenfehler, die von außen unsichtbar waren:
+
+| Befund | Ausmaß |
+|---|---|
+| Paketnamen mit **Zeilenumbruch** (`FIAON High End\n(Das Maximum)`) | **6.588 von 6.851** |
+| Vor- oder Nachnamen mit Leerzeichen am Rand | **1.417** |
+
+Im Portal steht deshalb „Guten Abend, Vitor Manuel ." und in der Paket-Kachel nur „Maximum)". Der Umbruch ist in der Paketdefinition **gewollt** (zweizeilige Darstellung auf der Verkaufsseite) — er bricht nur überall, wo der Name einzeilig gebraucht wird: Kacheln, Betreffzeilen, Listen.
+
+**Nicht angetastet.** Das ist ein eigener Auftrag: 6.588 Datensätze zu ändern oder ein Dutzend Anzeigestellen umzubauen, gehört nicht in eine Nebenbemerkung. Die Zahl steht hier, damit sie entschieden werden kann.
+
+### Geprüft
+
+`scripts/pruef-kundenansicht.ts` — **70 Prüfungen**, alle grün. Der Kern ist eine **Schreibrouten-Matrix**: Elf echte Schreibwege des Kundenportals werden mit einem echten Ansichts-Cookie angegangen, jeder muss 403 antworten.
+
+**Rot-Probe:** Wand entfernt und Signaturprüfung abgeschaltet → **16 Prüfungen rot**, darunter alle elf Matrix-Einträge. Und sie hat den Schaden gezeigt: „Bonitätsauskunft bestellen (74 €)" antwortete **HTTP 200** und legte eine echte Bestellzeile an. Sie ist archiviert (nicht gelöscht), und der Prüfstand räumt jetzt selbst auf — ein Prüfstand, der eine Sicherheitswand testet, muss damit rechnen, dass sie fällt.
+
+`scripts/pruef-kundenansicht-browser.ts` — **8 Prüfungen** am gerenderten Bild, Screenshots in `reports/kundenansicht/`. Prüffall ist bewusst der Kunde mit dem **längsten Namen** (28 Zeichen), weil der Banner ihn trägt und auf 380 px lesbar bleiben muss.
+
+**Wo zu finden:** `server/lib/fiaon-kundenansicht.ts` (Token, Wand, Rechte, Protokoll) · `server/routes/fiaon-kundenansicht.ts` · `client/src/pages/als-kunde.tsx` (Schleuse) · `client/src/components/KundenansichtBanner.tsx` · `shared/fiaon-termin-text.ts` (der eine Satz) · `server/lib/fiaon-zustellung.ts` (Zweig-Pflege).
+
 ## 18.08.2026 — Der Kundenweg als Maschine: eine Strecke ohne Ende, fünf Termine statt siebenundzwanzig
 
 ### Zuerst gemessen, dann gebaut

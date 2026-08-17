@@ -40,6 +40,33 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-19-kundensicht",
+    date: "2026-08-19",
+    category: "Neu",
+    title: "Portal ansehen als Kunde (Leitung) · „Wir rufen an“ steht jetzt überall · Nummer groß im Cockpit",
+    summary:
+      "Die Vertriebsleitung kann das Kundenportal so sehen, wie der Kunde es sieht — Nur-Ansicht. Und auf der Terminseite steht unübersehbar, dass angerufen wird.",
+    changes: [
+      "PORTAL ANSEHEN (nur Vertriebsleitung): In der Kunden-Schublade unter „Verwaltung“ steht „Portal ansehen als [Vorname]“. Öffnet das echte Kundenportal in einem neuen Tab — genau so, wie der Kunde es sieht.",
+      "NUR-ANSICHT: In dieser Sitzung ist JEDE Aktion abgeschaltet. Du kannst nichts bestellen, melden, hochladen oder ändern — auch nicht versehentlich. Ein blauer Balken oben zeigt durchgehend, dass du im Portal eines anderen bist.",
+      "30 MINUTEN, dann ist Schluss. Start und Ende stehen im Verlauf des Kunden — das ist Absicht: Wenn ein Kunde fragt, wer in sein Konto gesehen hat, muss die Antwort dort stehen.",
+      "NUR EIGENE UND ZUGEWIESENE Kunden. Bei einem fremden Kunden sagt der Server, warum es nicht geht. Agenten ohne Leitungsrolle haben diesen Knopf nicht.",
+      "„WIR RUFEN AN“: Auf der Terminseite und in der Startgespräch-Tafel steht jetzt in einer eigenen Zeile mit Telefon-Zeichen: „[Name] ruft dich zur vereinbarten Zeit an — halte dein Telefon bereit.“ Vorher stand das am Ende eines Absatzes und wurde überlesen.",
+      "Der Grund: Wer heute einen Termin bucht, erwartet einen Video-Link und sitzt dann vor dem Rechner, während sein Telefon klingelt. Danach glaubt er, WIR hätten uns nicht gemeldet.",
+      "Derselbe Satz fährt jetzt auch in der Bestätigungs- und Erinnerungsmail mit.",
+      "COCKPIT: Die Rufnummer steht GROSS im Kopf, in Gruppen und zum Ablesen — mit Anrufen-Knopf daneben. Wenn das Softphone gerade nicht will, wählst du vom Handy, ohne im Gesprächsblatt zu suchen.",
+      "Fehlt die Nummer ganz, steht das jetzt als Warnung im Kopf statt als leere Stelle.",
+    ],
+    howto: [
+      "Kunden-Schublade öffnen → Reiter „Verwaltung“ → „Portal ansehen als …“. Neuer Tab geht auf.",
+      "Oben im blauen Balken steht der Name des Kunden und die Restzeit. „Beenden“ bringt dich zurück.",
+      "Wenn du im Portal etwas anklickst, das etwas verändern würde, kommt ein Hinweis „Nur-Ansicht“ — nichts passiert.",
+      "Startgespräch: Die Nummer im Kopf ist antippbar (wählt am Gerät) — oder „Anrufen“ für das Softphone.",
+    ],
+    link: { href: "/agent/vertrieb", label: "Zum Vertriebs-Cockpit" },
+    important: true,
+  },
+  {
     id: "2026-08-18-kundenweg",
     date: "2026-08-18",
     category: "Neu",

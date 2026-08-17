@@ -115,11 +115,11 @@ export async function zweigPruefen(
  */
 export async function zustellungAbgleichen(
   opts: { maxZeilen?: number } = {}, lauf: Lauf = sqlPool,
-): Promise<{ geprueft: number; aktualisiert: number; grund?: string }> {
+): Promise<{ geprueft: number; aktualisiert: number; grund?: string; zweigeBestaetigt?: string[] }> {
   if (!brevoKonfiguriert()) return { geprueft: 0, aktualisiert: 0, grund: OHNE_SCHLUESSEL };
 
   const zeilen = (await lauf`
-    SELECT id, empfaenger, created_at, zustellung
+    SELECT id, event, empfaenger, created_at, zustellung
     FROM fiaon_mail_log
     WHERE status = 'versandt'
       AND empfaenger IS NOT NULL
@@ -130,7 +130,7 @@ export async function zustellungAbgleichen(
     ORDER BY created_at DESC
     LIMIT ${opts.maxZeilen ?? 120}
   `) as any[];
-  if (zeilen.length === 0) return { geprueft: 0, aktualisiert: 0 };
+  if (zeilen.length === 0) return { geprueft: 0, aktualisiert: 0, zweigeBestaetigt: [] };
 
   // Nach Adresse bündeln: Eine Brevo-Abfrage je Adresse statt je Zeile.
   const jeAdresse = new Map<string, any[]>();
@@ -140,6 +140,9 @@ export async function zustellungAbgleichen(
   }
 
   let aktualisiert = 0;
+  // Welche Zweige hat dieser Lauf bestätigt? Für das Protokoll — eine Zahl
+  // ohne Namen sagt dem Betreiber nicht, ob seine Arbeit angekommen ist.
+  const zweigeBestaetigt = new Set<string>();
   for (const [adresse, gruppe] of Array.from(jeAdresse.entries())) {
     const aelteste = gruppe.reduce((a, b) => (new Date(a.created_at) < new Date(b.created_at) ? a : b));
     const r = await ereignisseFuer(adresse, new Date(new Date(aelteste.created_at).getTime() - 3600_000));
@@ -163,11 +166,77 @@ export async function zustellungAbgleichen(
         WHERE id = ${zeile.id}
       `;
       if (zustand && zustand.zustand !== zeile.zustellung) aktualisiert++;
+
+      // ══════════════════════════════════════════════════════════════════
+      // DER ZWEIG PFLEGT SICH SELBST (19.08.2026)
+      //
+      // ── DER AUFTRAG ──────────────────────────────────────────────────
+      // „Nach jedem erfolgreichen echten Versand wird der Zweig automatisch
+      // als bestätigt markiert — nicht nur über den manuellen Prüfen-Knopf.
+      // So pflegt sich die Ampel selbst, während der Betreiber die fehlenden
+      // Zweige anlegt."
+      //
+      // ── WARUM DAS BESSER IST ALS DER KNOPF ───────────────────────────
+      // „Alle Zweige prüfen" verschickt 35 Probemails an die Testadresse und
+      // wartet je Zweig vier Sekunden — ein Lauf von rund zwei Minuten, den
+      // jemand anstoßen muss. Der ECHTE Betrieb liefert dieselbe Auskunft
+      // kostenlos: Wenn eine echte Kundenmail über diesen Zweig zugestellt
+      // wurde, existiert der Zweig. Beweis erbracht, ohne eine einzige
+      // zusätzliche Mail.
+      //
+      // ── WAS ALS BEWEIS GILT ──────────────────────────────────────────
+      // Nur „zugestellt", „geöffnet" oder „geklickt". NICHT „angenommen":
+      // Das heißt lediglich, dass Brevo die Mail entgegengenommen hat — sie
+      // kann danach noch bouncen. Ein Zweig, der auf „angenommen" hin als
+      // bestätigt gilt, wäre eine grüne Ampel für einen Weg, an dessen Ende
+      // nichts ankommt.
+      //
+      // ── UND KEIN ÜBERSCHREIBEN NACH UNTEN ────────────────────────────
+      // `verifikationSpeichern(..., true, ...)` löscht nichts. Eine
+      // fehlgeschlagene Zustellung setzt hier gar nichts — sonst würde eine
+      // einzelne Mail an ein volles Postfach einen funktionierenden Zweig
+      // als kaputt melden.
+      // ══════════════════════════════════════════════════════════════════
+      if (zeile.event && zustand && ZUSTELLUNG_BEWEIST_ZWEIG.includes(zustand.zustand as any)) {
+        try {
+          const { verifikationSpeichern } = await import("./fiaon-mail-events");
+          await verifikationSpeichern(
+            String(zeile.event), true,
+            `Im Betrieb bestätigt: eine echte Mail wurde am `
+            + `${new Date(zustand.am ?? Date.now()).toLocaleString("de-DE")} ${zustand.zustand}.`,
+            lauf,
+          );
+          zweigeBestaetigt.add(String(zeile.event));
+        } catch (e) {
+          // Ein Fehler in der Zweig-Pflege darf den Zustell-Abgleich nicht
+          // anhalten: Der Zustand der Mail ist die wichtigere Auskunft.
+          console.error("[ZUSTELLUNG] Zweig-Pflege:", e);
+        }
+      }
     }
   }
   if (aktualisiert) console.log(`[ZUSTELLUNG] ${aktualisiert} von ${zeilen.length} Zeilen aktualisiert`);
-  return { geprueft: zeilen.length, aktualisiert };
+  if (zweigeBestaetigt.size > 0) {
+    console.log(`[ZUSTELLUNG] Zweige im Betrieb bestätigt: ${Array.from(zweigeBestaetigt).join(", ")}`);
+  }
+  return {
+    geprueft: zeilen.length, aktualisiert,
+    zweigeBestaetigt: Array.from(zweigeBestaetigt),
+  };
 }
+
+/**
+ * Welche Zustellzustände BEWEISEN, dass ein Make-Zweig existiert?
+ *
+ * Bewusst als Liste und nicht als Bedingung im Code: Wer sie ändert, sieht
+ * hier, dass „angenommen" fehlt — und die Begründung steht daneben. Eine
+ * Bedingung mitten in einer Schleife hätte man erweitert, ohne nachzudenken.
+ *
+ * „angenommen" fehlt, weil es nur heißt: Brevo hat die Mail entgegengenommen.
+ * Sie kann danach noch bouncen oder blockiert werden. Eine grüne Ampel dafür
+ * wäre die falsche Auskunft.
+ */
+export const ZUSTELLUNG_BEWEIST_ZWEIG = ["zugestellt", "geoeffnet", "geklickt"] as const;
 
 /** Klartext für die Oberfläche. */
 export const ZUSTELL_TEXT: Record<string, string> = {

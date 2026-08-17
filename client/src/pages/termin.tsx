@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { anrufHinweis, anrufHinweisKurz, ABSAGE_HINWEIS } from "@shared/fiaon-termin-text";
 import { useRoute } from "wouter";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
@@ -150,9 +151,27 @@ export default function TerminPage() {
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3">Termin steht</h1>
             <p className="text-[15px] text-slate-600 leading-relaxed max-w-md mx-auto">
               <b className="text-slate-900">{fertig.datumText} um {fertig.uhrzeit} Uhr</b>.
-              {" "}{fertig.agentVorname} ruft dich an. Du bekommst gleich eine Bestätigung per E-Mail —
-              darin ist auch der Link, falls du den Termin verschieben möchtest.
+              {" "}Du bekommst gleich eine Bestätigung per E-Mail.
             </p>
+            {/* ── DER ANRUF-SATZ, HERVORGEHOBEN ────────────────────────────
+                Er stand vorher mitten im Absatz („… ruft dich an. Du bekommst
+                gleich …") — dort liest ihn niemand, der die Seite überfliegt.
+                Wer einen Link erwartet, sucht nach einem Link und übersieht
+                Fließtext. Deshalb steht der Satz jetzt allein, in einem Rahmen,
+                mit dem Telefon-Zeichen davor. */}
+            <div className="mt-4 mx-auto max-w-md flex items-start gap-2.5 text-left px-4 py-3 rounded-xl"
+                 style={{ background: "rgba(29,78,216,.05)", boxShadow: "inset 0 0 0 1px rgba(29,78,216,.16)" }}>
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="#1d4ed8" strokeWidth={1.5}
+                   strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                   style={{ flexShrink: 0, marginTop: 2 }}>
+                <path d="M6.2 3.6c.7 0 1.3.5 1.5 1.2l.5 2a1.6 1.6 0 0 1-.5 1.6l-.9.8a9 9 0 0 0 4 4l.8-.9a1.6 1.6 0 0 1 1.6-.5l2 .5c.7.2 1.2.8 1.2 1.5v1.7c0 .9-.8 1.6-1.7 1.5C8.3 16.7 3.3 11.7 2.7 5.3c-.1-.9.6-1.7 1.5-1.7h2Z" />
+              </svg>
+              <span className="text-[13.5px] leading-relaxed" style={{ color: "#1e3a8a" }}>
+                <b>{anrufHinweis(fertig.agentVorname)}</b>
+                <br />
+                <span style={{ color: "rgba(30,58,138,.72)" }}>{ABSAGE_HINWEIS}</span>
+              </span>
+            </div>
           </div>
         )}
 
@@ -198,7 +217,22 @@ export default function TerminPage() {
                 {" "}{daten.betreuer
                   ? <b className="text-slate-900">{daten.betreuer.vorname}, deinem persönlichen Ansprechpartner</b>
                   : <b className="text-slate-900">deinem persönlichen Ansprechpartner</b>}.
-                {" "}Wir rufen dich zur gewählten Zeit an.
+              </p>
+              {/* ── DER ANRUF-SATZ, VOR DER WAHL ─────────────────────────────
+                  Hier stand „Wir rufen dich zur gewählten Zeit an." am Ende des
+                  Absatzes. Richtig, aber zu leise: Wer einen Link erwartet,
+                  liest den Absatz nicht bis zum Punkt, sondern sucht nach einer
+                  Adresse. Der Satz steht jetzt in einer eigenen Zeile, mit dem
+                  Telefon-Zeichen — und er nennt ausdrücklich „halte dein
+                  Telefon bereit", weil das die Handlung ist, die zählt. */}
+              <p className="mt-3 flex items-start justify-center gap-2 text-[13px] font-semibold"
+                 style={{ color: "#1e3a8a" }}>
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                     strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                     style={{ flexShrink: 0, marginTop: 2 }}>
+                  <path d="M6.2 3.6c.7 0 1.3.5 1.5 1.2l.5 2a1.6 1.6 0 0 1-.5 1.6l-.9.8a9 9 0 0 0 4 4l.8-.9a1.6 1.6 0 0 1 1.6-.5l2 .5c.7.2 1.2.8 1.2 1.5v1.7c0 .9-.8 1.6-1.7 1.5C8.3 16.7 3.3 11.7 2.7 5.3c-.1-.9.6-1.7 1.5-1.7h2Z" />
+                </svg>
+                <span>{anrufHinweis(daten.betreuer?.vorname)}</span>
               </p>
             </div>
 
@@ -250,7 +284,7 @@ export default function TerminPage() {
                 <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-lg">
                   <p className="text-[13px] text-slate-600 mb-3">
                     <b className="text-slate-900">{tagUeberschrift(gewaehlt.datum)}, {gewaehlt.uhrzeit} Uhr</b>
-                    {" "}— {gewaehlt.agentVorname} ruft dich an
+                    {" "}— {anrufHinweisKurz(gewaehlt.agentVorname)}
                   </p>
                   <button type="button" onClick={() => void buchen()} disabled={bucht}
                           className="w-full rounded-xl text-[15px] font-bold text-white bg-[#1d4ed8] hover:bg-[#1e40af] disabled:opacity-60"

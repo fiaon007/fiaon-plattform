@@ -147,9 +147,19 @@ async function main(): Promise<void> {
   // ═════════════════════════════════════════════════════════════════════════
   const gate = lies("client/src/components/StartgespraechGate.tsx");
   pruef("Die Bonitätskarte steht auf der Bühne", /function BonitaetsKarte/.test(gate));
+  // ── REIHENFOLGE ÜBER DIE POSITION, NICHT ÜBER DEN ABSTAND ─────────────
+  // Hier stand ein Regex mit „{0,1200}". Er wurde am 19.08.2026 rot, als der
+  // „Wir rufen an"-Hinweis zwischen Buchung und Bonitätskarte kam — er misst
+  // die Länge des Textes dazwischen, nicht die Reihenfolge. Dieselbe Falle wie
+  // bei der Onboarding-Vergütung einen Tag vorher; also diesmal so, dass sie
+  // nicht wiederkommt.
+  const iFertig = gate.indexOf("{fertig ? (");
+  const iKarte = gate.indexOf("<BonitaetsKarte");
+  const iSonst = gate.indexOf(") : (", iFertig > 0 ? iFertig : 0);
   pruef("Sie erscheint NACH der Buchung",
-    /\{fertig \? \([\s\S]{0,1200}<BonitaetsKarte/.test(gate),
-    "vorher stünde sie in Konkurrenz zum Pflichtschritt");
+    iFertig > 0 && iKarte > iFertig && (iSonst < 0 || iKarte < iSonst),
+    `fertig@${iFertig}, Karte@${iKarte}, sonst-Zweig@${iSonst} — `
+    + "die Karte muss im fertig-Zweig stehen, sonst konkurriert sie mit dem Pflichtschritt");
   pruef("Kopierknöpfe für IBAN und Verwendungszweck", /function KopierKnopf/.test(gate));
   pruef("Der Verwendungszweck steht ZUERST",
     /was: "Verwendungszweck"[\s\S]{0,120}was: "IBAN"/.test(gate),

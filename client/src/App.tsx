@@ -7,6 +7,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import MaintenanceBanner from "@/components/MaintenanceBanner";
+import { KundenansichtBanner } from "@/components/KundenansichtBanner";
 import FiaonHome from "@/pages/fiaon-home";
 import FiaonLanding from "@/pages/fiaon-landing";
 import StartPage from "@/pages/start";
@@ -64,6 +65,7 @@ import AgentKundenPage from "@/pages/agent/kunden";
 const TerminPage = lazy(() => import("@/pages/termin"));
 const TerminAbsagenPage = lazy(() => import("@/pages/termin").then((m) => ({ default: m.TerminAbsagenPage })));
 const AbmeldenPage = lazy(() => import("@/pages/abmelden"));
+const AlsKundePage = lazy(() => import("@/pages/als-kunde"));
 const AgentHeutePage = lazy(() => import("@/pages/agent/heute"));
 const AgentAufgabenPage = lazy(() => import("@/pages/agent/aufgaben"));
 const AgentStartPage = lazy(() => import("@/pages/agent/start"));
@@ -277,6 +279,8 @@ function Router() {
       <Route path="/agent/leistung" component={AgentLeistungPage} />
       {/* Terminbuchung — oeffentlich, kein Login. Das signierte Token im Pfad
           ist der Ausweis (Muster der signierten Rechnungs-Links). */}
+      {/* Die Schleuse in die Kundensicht (Verwaltung/Leitung, Nur-Ansicht). */}
+      <Route path="/als-kunde" component={AlsKundePage} />
       {/* Abmeldung von der Lead-Strecke — kein Login, ein Klick. */}
       <Route path="/abmelden/:schluessel" component={AbmeldenPage} />
       <Route path="/termin/absagen/:stornoToken" component={TerminAbsagenPage} />
@@ -316,6 +320,15 @@ function App() {
       <FiaonRaum />
       <div className="relative min-h-screen" style={{ background: "transparent" }}>
         <MaintenanceBanner />
+        {/* ── DIE KUNDENSICHT-WARNUNG ─────────────────────────────────────
+            Hier und nicht in `dashboard.tsx`: Die Ansicht umfasst das GANZE
+            Portal — Unterlagen, Rechnungen, Fahrplan, Konto. Ein Banner, der
+            nur auf der Übersicht steht, wäre auf jeder Unterseite weg, und
+            genau dort klickt man dann etwas an.
+
+            Die Komponente zeigt sich selbst nur, wenn wirklich eine Ansicht
+            läuft — sonst gibt sie `null` zurück und kostet nichts. */}
+        <KundenansichtBanner />
         <Toaster />
         <Router />
       </div>

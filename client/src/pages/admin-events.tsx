@@ -643,6 +643,19 @@ export default function AdminEventsPage() {
                       )}
                     </span>
                     <span className="block text-[12px] text-slate-400 mt-0.5">{ev.description}</span>
+                    {/* ── DER AUFRÄUM-HINWEIS (19.08.2026) ────────────────
+                        „VERALTET" allein lässt den Betreiber rätseln, ob er den
+                        Zweig in Make noch braucht. Bei followup_48h ist die
+                        Antwort gemessen: null Versände, keine auslösende Stelle
+                        im Quelltext. Also kann er weg — und das steht hier, wo
+                        er die Entscheidung trifft, nicht in einem Changelog. */}
+                    {ev.deprecated && (
+                      <span className="block mt-1.5 px-2.5 py-1.5 rounded-lg text-[11.5px] font-semibold leading-snug"
+                            style={{ background: "rgba(100,116,139,.07)", color: "#475569",
+                                     boxShadow: "inset 0 0 0 1px rgba(100,116,139,.16)" }}>
+                        Zweig in Make kann gelöscht werden — wird nie mehr gefeuert.
+                      </span>
+                    )}
                   </span>
                 </button>
 

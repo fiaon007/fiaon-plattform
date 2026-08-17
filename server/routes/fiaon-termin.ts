@@ -22,6 +22,7 @@ import {
   HORIZONT_TAGE, SLOT_MINUTEN, VORLAUF_STUNDEN, dauerFuer,
 } from "../lib/fiaon-termine";
 import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
+import { anrufHinweis, ABSAGE_HINWEIS } from "../../shared/fiaon-termin-text";
 
 const router = Router();
 
@@ -53,6 +54,18 @@ async function bestaetigungSenden(buchung: Awaited<ReturnType<typeof terminBuche
       termin_datum: buchung.datumText,
       termin_uhrzeit: buchung.uhrzeit,
       storno_link: stornoLink(buchung.stornoToken),
+      // ── „WIR RUFEN AN" ALS FERTIGER SATZ (19.08.2026) ──────────────────
+      // Der Kunde, der einen Videokonferenz-Link erwartet, sitzt zur
+      // vereinbarten Zeit vor seinem Rechner, während das Telefon klingelt.
+      // Der Satz kommt AUSFORMULIERT mit, damit die Brevo-Vorlage ihn nur
+      // einsetzen muss: {{params.hinweis_anruf}}
+      //
+      // Warum fertig und nicht in der Vorlage geschrieben: Dann stünde er
+      // zweimal im Haus — einmal im Portal, einmal bei Brevo — und die beiden
+      // würden auseinanderlaufen. Die eine Fassung steht in
+      // shared/fiaon-termin-text.ts.
+      hinweis_anruf: anrufHinweis(buchung.agentVorname),
+      hinweis_absage: ABSAGE_HINWEIS,
     },
     {
       personId: buchung.personId,

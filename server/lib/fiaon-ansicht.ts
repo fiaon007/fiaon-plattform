@@ -90,6 +90,23 @@ export function ansichtNurLesen(req: Request, res: Response, next: NextFunction)
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SEIT DEM 19.08.2026 STEHT DIE WAND WOANDERS
+//
+// `nurLesenWand` in server/lib/fiaon-kundenansicht.ts prüft BEIDE Ansichts-
+// Cookies — die Mitarbeiter- und die Kundenansicht — und ist in server/routes.ts
+// eingehängt. Diese Funktion hier bleibt bestehen, weil sie in Prüfständen
+// vorkommt und weil ein entfernter Export einen Import ins Leere laufen ließe.
+//
+// ── WARUM NICHT ZWEI WÄNDE NEBENEINANDER ─────────────────────────────────
+// Zwei Middlewares, die dasselbe tun, gehen auseinander: Jemand nimmt eine
+// Ausnahme in die eine auf und vergisst die andere. Dann ist eine der beiden
+// Ansichten plötzlich schreibend, und niemand merkt es, weil beide Prüfstände
+// grün bleiben — jeder prüft seine eigene Wand.
+//
+// Wer hier etwas ändert, ändert es in `nurLesenWand`.
+// ═══════════════════════════════════════════════════════════════════════════
+
 /** Start und Ende protokollieren. Ohne Ausnahme. */
 export async function ansichtProtokoll(
   agentId: number, was: "gestartet" | "beendet",

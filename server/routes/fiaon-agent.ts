@@ -454,7 +454,12 @@ export function signAgentToken(agentId: number, epoch: number): string {
   return `${payload}.${sig}`;
 }
 
-function verifyAgentToken(token: string | undefined): { id: number; epoch: number } | null {
+// Exportiert seit dem 19.08.2026: Die Als-Kunde-Ansicht bindet ihr Token an die
+// Anmeldung des Ansehenden — sonst wäre ein weitergegebenes Cookie ein
+// Dauerzugang in ein fremdes Kundenkonto. Dafür muss sie prüfen können, ob
+// dieselbe Person noch angemeldet ist. Eine zweite Fassung dieser Prüfung wäre
+// die gefährlichere Lösung.
+export function verifyAgentToken(token: string | undefined): { id: number; epoch: number } | null {
   if (!token) return null;
   const parts = token.split(".");
   if (parts.length !== 4) return null;

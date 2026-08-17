@@ -36,6 +36,23 @@ function Haken({ size = 14 }: { size?: number }) {
   );
 }
 
+/**
+ * Eine Rufnummer zum ABLESEN gruppieren: +49 176 1234 5678.
+ *
+ * Ohne Gruppen ist eine zwölfstellige Zahl eine Wand, und wer sie abtippt,
+ * verliert die Stelle. Die Gruppierung folgt der deutschen Lesegewohnheit
+ * (Land · Vorwahl · Rest in Vierergruppen) und lässt unbekannte Formate
+ * unverändert — eine falsch gruppierte Nummer ist schlimmer als eine
+ * ungruppierte.
+ */
+function nummerGruppiert(nummer: string): string {
+  const roh = String(nummer).replace(/\s+/g, "");
+  const m = /^\+49(\d{3,4})(\d+)$/.exec(roh);
+  if (!m) return nummer;
+  const rest = m[2].replace(/(\d{4})(?=\d)/g, "$1 ");
+  return `+49 ${m[1]} ${rest}`;
+}
+
 /** Hörer — für den Anrufen-Knopf. */
 function Hoerer({ size = 15 }: { size?: number }) {
   return (
@@ -189,6 +206,45 @@ export function OnboardingCockpit({
               lage?.zahlungsstand || termin.zahlungsstand,
             ].filter(Boolean).join(" · ") || "Bezahlt — wartet auf die Freischaltung"}
           </p>
+
+          {/* ══════════════════════════════════════════════════════════════
+              DIE NUMMER GROSS (19.08.2026)
+
+              ── WARUM SIE VORHER FEHLTE UND WARUM DAS EIN PROBLEM WAR ────
+              Es gab nur den Anrufen-Knopf. Der reicht, solange das Softphone
+              tut — aber genau zur Terminzeit ist der schlechteste Moment für
+              „das Telefon lädt nicht". Dann braucht der Mitarbeiter die Nummer
+              zum ABLESEN, um vom Diensthandy zu wählen. Sie im
+              Gesprächsblatt zu suchen, kostet die Minute, in der der Kunde
+              bereitsitzt.
+
+              ── WARUM GROSS UND MIT ZIFFERNABSTAND ───────────────────────
+              Sie wird ABGETIPPT. Eine Nummer in 12,5 px Grau, ohne Gruppen,
+              vertippt sich — und ein Vertipper ruft einen fremden Menschen an.
+              Deshalb 19 px, tabellarische Ziffern, in Gruppen.
+
+              Der Anrufen-Knopf steht direkt daneben: Wer klicken kann, klickt.
+              Wer nicht kann, liest. ══════════════════════════════════════ */}
+          {termin.telefon ? (
+            <div className="fi-ob-nummer-zeile">
+              <a href={`tel:${termin.telefon}`} className="fi-ob-nummer"
+                 title="Am Telefon dieses Geräts wählen">
+                {nummerGruppiert(termin.telefon)}
+              </a>
+              {onAnrufen && (
+                <button type="button"
+                        onClick={() => onAnrufen(termin.telefon!, termin.personId, termin.name)}
+                        className="fi-ob-nummer-knopf">
+                  <Hoerer size={14} /> Anrufen
+                </button>
+              )}
+            </div>
+          ) : (
+            <p className="fi-ob-nummer-fehlt">
+              Keine Telefonnummer hinterlegt — dieses Gespräch kann nicht geführt werden.
+              Bitte im Gesprächsblatt nachtragen.
+            </p>
+          )}
         </div>
       }
       fuss={
@@ -321,6 +377,30 @@ export function OnboardingCockpit({
 }
 
 const COCKPIT_CSS = `
+/* ── DIE NUMMER IM KOPF (19.08.2026) ─────────────────────────────────────
+   Sie wird zur Terminzeit abgelesen und abgetippt. Deshalb 19 px,
+   tabellarische Ziffern (damit die Gruppen untereinander stehen) und genug
+   Abstand, um sie mit dem Finger zu treffen. */
+.fi-ob-nummer-zeile{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+.fi-ob-nummer{
+  font-size:19px;font-weight:700;letter-spacing:.01em;
+  font-variant-numeric:tabular-nums;color:#0f172a;text-decoration:none;
+  padding:2px 0;border-bottom:1px solid rgba(15,23,42,.14);
+}
+.fi-ob-nummer:hover{border-bottom-color:#1d4ed8;color:#1d4ed8}
+.fi-ob-nummer-knopf{
+  display:inline-flex;align-items:center;gap:6px;flex-shrink:0;
+  padding:5px 12px;border-radius:999px;border:0;cursor:pointer;
+  font-size:12px;font-weight:700;color:#fff;background:#1d4ed8;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18);
+}
+.fi-ob-nummer-knopf:hover{background:#1e40af}
+/* Keine Nummer heißt: Dieses Gespräch kann nicht stattfinden. Das ist ein
+   Hinweis in Bernstein, keine graue Nebenbemerkung. */
+.fi-ob-nummer-fehlt{
+  margin-top:8px;font-size:12.5px;font-weight:600;line-height:1.45;color:#b45309;
+}
+
 .fi-ob-ueber { margin:0; font-size:11px; font-weight:700; letter-spacing:.08em;
   text-transform:uppercase; color:rgba(71,85,105,.7); }
 .fi-ob-titel { margin:3px 0 0; font-size:19px; font-weight:800; letter-spacing:-.02em; color:#0f172a; }

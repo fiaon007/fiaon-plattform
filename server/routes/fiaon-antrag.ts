@@ -3164,42 +3164,46 @@ router.get("/bonitaet-status/:ref", async (req, res) => {
   try {
     const { ref } = req.params;
 
-    const rows = await sqlPool`
-      SELECT email, contact_email, billing_email,
-             CASE WHEN schufa_pdf IS NOT NULL THEN true ELSE false END AS has_schufa
-      FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
-    `;
-    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Antrag nicht gefunden" });
-    const me = rows[0];
+    // ══════════════════════════════════════════════════════════════════════
+    // EINE ABLEITUNG STATT DREI TEILWAHRHEITEN (22.08.2026)
+    //
+    // Hier stand eine eigene Rechnung: Sie las `schufa_pdf`, suchte die
+    // Auskunft-Bestellung über die E-MAIL und setzte daraus vier Zustände
+    // zusammen. Dieselbe Rechnung stand in anderer Form in der Kundenakte, in
+    // der Verwalten-Tabelle und im Gate — jede etwas anders.
+    //
+    // GEMESSEN: 30 zahlende Kunden hatten die Auskunft BEZAHLT, aber kein
+    // Dokument — und das Portal forderte sie weiter zum Kaufen auf. 31 hatten
+    // selbst hochgeladen und sahen ebenfalls „kaufen". 35 Dokumente lagen zur
+    // Prüfung, 0 waren geprüft.
+    //
+    // Jetzt rechnet `server/lib/fiaon-bonitaet-status.ts` — eine Stelle, sechs
+    // Stufen, mit Klartext für Verwaltung UND Kunde, und mit `darfKaufen`.
+    // Die Zuordnung läuft über die PERSON (die E-Mail bleibt Rückfall für die
+    // 9 alten Bestellungen ohne person_id).
+    // ══════════════════════════════════════════════════════════════════════
+    const { bonitaetFuer, BONITAET_MARKE, BONITAET_TON } =
+      await import("../lib/fiaon-bonitaet-status");
+    const stand = await bonitaetFuer(ref);
+    if (!stand) return res.status(404).json({ ok: false, error: "Antrag nicht gefunden" });
 
-    // Alle bekannten E-Mail-Felder des Kunden — kleingeschrieben, ohne Leere.
-    const mails = [me.email, me.contact_email, me.billing_email]
-      .map((m: string | null) => String(m || "").trim().toLowerCase())
-      .filter(Boolean);
-
-    // Jüngste Bonitäts-Bestellung dieser Person. LOWER(...) statt Gleichheit,
-    // weil Adressen im Bestand gemischt geschrieben sind.
-    let order: any = null;
-    if (mails.length > 0) {
-      const orders = await sqlPool`
-        SELECT ref, payment_status, payment_reference, amount_due, currency,
-               payment_due_date, created_at
-        FROM fiaon_applications
-        WHERE (COALESCE(type,'') = 'schufa' OR ref LIKE 'FIAON-SCHUFA-%')
-          AND LOWER(COALESCE(NULLIF(email,''), NULLIF(contact_email,''), NULLIF(billing_email,''), '')) = ANY(${mails})
-        ORDER BY created_at DESC
-        LIMIT 1
+    // Die Bestelldaten für die Anzeige (Verwendungszweck, Frist).
+    let bestellung: any = null;
+    if (stand.bestellRef) {
+      const [o] = await sqlPool`
+        SELECT payment_reference, payment_status, amount_due, payment_due_date, created_at
+        FROM fiaon_applications WHERE ref = ${stand.bestellRef} LIMIT 1
       `;
-      order = orders[0] || null;
+      if (o) {
+        bestellung = {
+          paymentReference: o.payment_reference,
+          status: o.payment_status,
+          betrag: o.amount_due != null ? String(o.amount_due) : null,
+          faelligAm: o.payment_due_date,
+          bestelltAm: o.created_at,
+        };
+      }
     }
-
-    const bezahlt = order?.payment_status === "paid";
-    const zahlungOffen = ["pending_payment", "claimed_paid"].includes(String(order?.payment_status || ""));
-
-    const zustand = me.has_schufa ? "geliefert"
-      : bezahlt ? "bezahlt"
-      : zahlungOffen ? "zahlung_offen"
-      : "offen";
 
     // Fahrplan-Anschluss: Ist für diesen Kunden schon eine Analyse freigegeben?
     // Die Tabellen gehören zum Fahrplan-Produkt und existieren evtl. noch nicht —
@@ -3207,24 +3211,39 @@ router.get("/bonitaet-status/:ref", async (req, res) => {
     let analyse = "keine";
     let fahrplanSchritte = 0;
     try {
-      const a = await sqlPool`SELECT status FROM fiaon_analysis WHERE ref = ${ref} LIMIT 1`;
-      if (a[0]?.status === "approved") analyse = "fertig";
-      else if (a[0]) analyse = "laeuft";
-      const s = await sqlPool`SELECT COUNT(*)::int AS c FROM fiaon_roadmap_steps WHERE ref = ${ref}`;
-      fahrplanSchritte = s[0]?.c ?? 0;
+      const a2 = await sqlPool`SELECT status FROM fiaon_analysis WHERE ref = ${ref} LIMIT 1`;
+      if (a2[0]?.status === "approved") analyse = "fertig";
+      else if (a2[0]) analyse = "laeuft";
+      const st = await sqlPool`SELECT COUNT(*)::int AS c FROM fiaon_roadmap_steps WHERE ref = ${ref}`;
+      fahrplanSchritte = st[0]?.c ?? 0;
     } catch { /* Fahrplan noch nie benutzt — bleibt 'keine' */ }
 
     res.json({
       ok: true,
-      zustand,
+      // ── DIE ALTEN NAMEN BLEIBEN BEDIENT ────────────────────────────────
+      // `zustand` lesen zwei Oberflächen (naechste-schritte.tsx,
+      // StartgespraechGate.tsx). Ein Umbenennen hätte sie stumm kaputt
+      // gemacht — die alten Werte werden also weiter geliefert, abgeleitet
+      // aus der neuen Stufe.
+      zustand: stand.stufe === "geprueft" || stand.stufe === "liegt_zur_pruefung"
+        ? "geliefert"
+        : stand.stufe === "beschaffung_laeuft" ? "bezahlt"
+        : stand.stufe === "zahlung_offen" ? "zahlung_offen"
+        : "offen",
+      // ── UND DAS NEUE, VOLLSTÄNDIGE BILD ───────────────────────────────
+      stufe: stand.stufe,
+      marke: BONITAET_MARKE[stand.stufe],
+      ton: BONITAET_TON[stand.stufe],
+      grund: stand.grund,
+      fuerKunden: stand.fuerKunden,
+      naechsterSchritt: stand.naechsterSchritt,
+      // Der Kern: Das Portal fragt DIESES Feld, statt selbst zu rechnen.
+      darfKaufen: stand.darfKaufen,
+      darfHochladen: stand.darfHochladen,
+      bezahlt: stand.bezahlt,
+      hatDokument: stand.hatDokument,
       preisEuro: SCHUFA_PRICE,
-      bestellung: order ? {
-        paymentReference: order.payment_reference,
-        status: order.payment_status,
-        betrag: order.amount_due != null ? String(order.amount_due) : null,
-        faelligAm: order.payment_due_date,
-        bestelltAm: order.created_at,
-      } : null,
+      bestellung,
       analyse,
       fahrplanSchritte,
     });

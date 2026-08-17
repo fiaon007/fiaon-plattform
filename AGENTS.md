@@ -394,6 +394,57 @@ sein (`\u201c`), sonst beendet es den umgebenden String — und `esbuild` meldet
 kaputt ist und der Übersetzungsversuch schon vorher scheitert. Wer einen deutschen
 Zitatanfang tippt, tippt das Ende gleich mit.
 
+## Ein Gedankenstrich sagt nicht dasselbe wie eine Lücke
+
+39 bezahlte Bestellungen trugen keine Paketbezeichnung. In der Liste stand ein
+„—“. Das sieht aus wie „kein Paket bestellt“ — bei einer BEZAHLTEN
+Bestellung heißt es aber „wir wissen es nicht“, und das muss eine Nachfrage
+auslösen.
+
+- **Fehlende Information wird ANGEZEIGT, nicht gefüllt.** Fünf Pakete ließen
+  sich aus dem Betrag ableiten (exakter Preistreffer). Die 34 übrigen hatten
+  keinen Hinweis und bekamen KEINEN geratenen Namen: Ein geratenes Paket landet
+  in der Rechnung, in der Abo-Rate und in der Provisionsrechnung, und niemand
+  kann hinterher sagen, ob es stimmt.
+- **Eine sichtbare Lücke ist ehrlich; eine gefüllte Lücke ist eine Behauptung.**
+
+## Drei Schreibweisen für denselben Status finden sich erst beim ersten Klick
+
+Die Prüfroute validiert `approved | pending | changes_requested`. Die
+Verwaltungsansicht schreibt `rejected` und `requested` — Werte, die keine andere
+Anzeige kennt.
+
+Aufgefallen ist es nur, weil eine neue Ableitung alle Werte abbilden musste.
+GEMESSEN: Im Bestand steht ausschließlich `pending` (6.890 Zeilen) — es hat also
+noch nie jemand geprüft, und der Widerspruch war folgenlos. Beim ersten Klick
+wäre er es nicht mehr gewesen.
+
+- **Wer einen Status schreibt, prüft, welche Werte die Leser kennen.** Am besten
+  aus einer gemeinsamen Liste, nicht aus einem Zeichenkettenliteral im Knopf.
+- Und eine neue Ableitung nimmt die Werte aus der WIRKLICHKEIT auf, nicht die
+  aus der Spezifikation.
+
+## Die Zahlen im Auftrag sind Hinweise, nicht Messwerte
+
+Am 22.08.2026 nannte ein Auftrag vier Kundennamen, eine Zahl 99,99 €, eine
+Betragsmeldung und „185 offene Fälle“. Gemessen:
+
+- Drei der vier Namen existierten im Bestand nicht.
+- Der Mensch hieß „Branics“, nicht „Brannix“, und sein Paket kostet
+  79,99 €.
+- Die Betragsmeldung betraf einen Kunden, dem GAR KEIN Bankeingang zugeordnet
+  war — er hatte nach Datenlage nicht bezahlt.
+- Aus 185 wurden 12.
+
+Der KERN jeder Meldung war richtig: Es gibt Bestellungen ohne Paketbezeichnung,
+es gibt Betragsverwirrung, es gibt Wartezustände. Die Zahlen und Namen daneben
+sind aus der Erinnerung — und wer sie ungeprüft übernimmt, sucht am falschen
+Ort und behebt am falschen Fall.
+
+**Erst messen, dann beheben** — und die Abweichung zwischen Auftrag und Messung
+in den Bericht schreiben. Sie ist keine Kritik am Auftraggeber, sondern die
+Beschreibung des wirklichen Problems.
+
 ## HTTP 400 heißt: WIR haben den Fehler
 
 Am 21.08.2026 setzte der Betreiber BREVO_API_KEY. Die Zweigprüfung scheiterte bei

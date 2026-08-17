@@ -3,6 +3,82 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 22.08.2026 — Eine Bonitäts-Wahrheit, und fünf Pakete zurück
+
+### Teil 1: Drei Teilwahrheiten wurden eine Ableitung
+
+Für die Frage „wie steht dieser Kunde bei der Bonitätsauskunft?" gab es **drei** Felder, und jede Anzeige mischte sie anders:
+
+| Teilwahrheit | wo |
+|---|---|
+| **bezahlt** | eigene Bestellzeile `type='schufa'` |
+| **Dokument da** | `schufa_pdf` am Kundendatensatz |
+| **geprüft** | `schufa_status` |
+
+**Gemessen, und das ist der Schaden:**
+
+| | |
+|---|---|
+| Zahlende Kunden mit **bezahlter** Auskunft, aber ohne Dokument | **35** |
+| … sie sahen im Portal weiter **„Bonitäts-Check starten"** | ja |
+| Kunden, die ihr Dokument **selbst** hochgeladen hatten | **31** |
+| … sie sahen ebenfalls „kaufen" | ja |
+| Dokumente, die zur Prüfung liegen | **35** |
+| … davon geprüft | **0** |
+| Code-Stellen, die die drei Felder einzeln lasen | **60** |
+
+`server/lib/fiaon-bonitaet-status.ts` rechnet jetzt **sechs Stufen** aus den drei Teilen: kein Eintrag · Zahlung offen · bezahlt, wird beschafft · liegt zur Prüfung · geprüft · beanstandet. Jede bringt drei Sätze mit: einen für die Verwaltung, einen **für den Kunden** (direkte Anrede, kein Fachwort) und den nächsten Schritt mit Zuständigkeit.
+
+Und ein Feld, das den Kern trifft: **`darfKaufen`**. Es ist nur wahr, wenn wirklich nichts da ist. Wer bezahlt hat, wird nicht mehr zum Kaufen aufgefordert — wer selbst hochgeladen hat, auch nicht. Hochladen darf beide Gruppen weiter: Wenn der Kunde schneller ist als wir, soll ihn nichts hindern.
+
+**Nebenbefund:** Die Verwaltungsansicht schreibt `'rejected'` und `'requested'`, die Prüfroute kennt `'changes_requested'` — **drei Schreibweisen für dasselbe**. Im Bestand steht ausschließlich `'pending'` (6.890 Zeilen), der Widerspruch war also folgenlos. Er ist trotzdem aufgelöst, statt auf den ersten Klick zu warten.
+
+**Die Zuordnung läuft jetzt über die Person.** Die alte Route verband Kauf und Kunde über die **E-Mail** — „weil es keine andere Verbindung gibt". Seit dem Kontakt-Umzug (20.08.) hängen **104 von 113** Bestellungen an einer `person_id`. Die E-Mail bleibt Rückfall für die 9 alten Zeilen.
+
+**Im Portal** steht neben dem Kauf jetzt ein zweiter, ruhiger Weg: *„Du hast deine Auskunft schon? Dann lade sie einfach hoch — du musst nichts kaufen."* Mit Sprunganker zum Upload.
+
+### Teil 2: Fünf Pakete zurückgeholt, 34 Lücken sichtbar gemacht
+
+**39 bezahlte** Bestellungen trugen keine Paketbezeichnung. Fünf ließen sich aus dem Betrag ableiten — **exakter** Preistreffer, keine Schätzung:
+
+| | |
+|---|---|
+| Patrick Ellmer | 79,99 € → Ultra |
+| Iris Gamauf · Dirk Ladewig · Nizam gökay Terzi | 99,99 € → High End |
+| Ostap Lemishka | 7,99 € → Starter |
+
+Nachgetragen mit Eintrag im Kundenverlauf. Die **34 übrigen** haben *keinen* Hinweis: kein Betrag, kein Bankeingang, kein Paket-Schlüssel — alle aus Ende Juni / Anfang Juli 2026.
+
+**Sie bekommen keinen geratenen Namen.** Ein geratenes Paket landet in der Rechnung, in der Abo-Rate und in der Provisionsrechnung, und niemand könnte hinterher sagen, ob es stimmt. Statt eines Gedankenstrichs (der aussieht wie „kein Paket bestellt") steht dort jetzt **„Paket unbekannt · nachtragen"** in Bernstein — eine sichtbare Lücke ist ehrlich, eine gefüllte ist eine Behauptung.
+
+### Was die Messung an den Auftragsannahmen korrigiert hat
+
+Drei Zahlen im Auftrag stimmten nicht mit dem Bestand überein — hier die gemessenen:
+
+| Auftrag | gemessen |
+|---|---|
+| Imzerovic, Felkovic, Gammow | **nicht im Bestand.** Nur **Stefanescu** existiert (4 Bestellungen, Auskunft-Kauf jeweils `expired`) |
+| Brannix mit 99,99 € | Der Mensch heißt **Natascha Branics**, Paket **Ultra 79,99 €**, Zahlung offen |
+| Toth: „erhalten 59,99, nicht korrekt" | **Kein Bankeingang zugeordnet.** Beide Bestellungen (Pro 59,99 und Ultra 79,99) stehen auf `pending_payment` — er hat nach Datenlage *nicht* bezahlt |
+| Bauer & Kovic „bezahlt ohne Bezeichnung" | Beide haben Bezeichnungen. Das Problem existiert, aber bei **39 anderen** |
+| 185 offene `number_update_request` | **12** Einträge in `fiaon_contact_log` |
+
+Der Kern jeder Meldung war richtig — die Zahlen und Namen waren es nicht. Deshalb steht am Anfang jedes Auftrags eine Messung.
+
+### Geprüft
+
+`scripts/pruef-bonitaet.ts` — **71 Prüfungen**, alle grün: elf Konstellationen (inklusive der drei Schreibweisen und „Kauf abgelaufen"), `darfKaufen` je Fall, Klartext ohne Fachwort, **Einzel- gegen Sammelfassung an 40 echten Fällen** (ungünstigster zuerst: Dokument *und* Kauf), die Route mit alten *und* neuen Feldnamen, der Portal-Anker.
+
+**Rot-Probe:** „bezahlt darf wieder kaufen" und „Dokument-Fall entfernt" → **9 Prüfungen rot**, darunter beide Kern-Aussagen.
+
+### Nicht angefangen
+
+- **Teil 3** — Pflichtnotiz im Listen-Weg, die 12 Wartezustände
+- **Teil 4** — Zustellprotokoll mit Filtern, aufklappbaren Zeilen, Seiten, CSV
+- **Teil 5** — Der Kalender: Gefunden ist `client/src/components/internal/team-calendar.tsx` mit `grid-cols-7` (7 Spalten à ~50 px auf 380 px). Der **Agenten**-Kalender (`/agent/kalender`) ist bereits eine gestapelte Liste und braucht nichts.
+
+**Betreiber-TODO:** **35 Dokumente liegen ungeprüft.** Sie stehen jetzt mit „Ein Mitarbeiter muss das Dokument prüfen" in der Akte — vorher sah das niemand.
+
 ## 21.08.2026 — Der HTTP 400, der 35 Make-Zweige zu Unrecht beschuldigte
 
 ### Der Befund

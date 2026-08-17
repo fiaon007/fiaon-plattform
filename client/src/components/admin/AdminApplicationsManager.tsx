@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { PaketName } from "./PaketName";
 import { useLocation } from "wouter";
 import { AdminAppDetail } from "./AdminAppDetail";
 import { AdminAppSubComponents } from "./AdminAppSubComponents";
@@ -492,7 +493,8 @@ export default function AdminApplicationsManager() {
                         <td className="py-3 px-4"><div className="flex items-center gap-1.5">{isDup && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" title="Duplikat" />}<span className="text-[11px] font-mono text-slate-500">{app.ref || '—'}</span></div></td>
                         <td className="py-3 px-4"><div className="flex items-center gap-3 min-w-0"><div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-white text-[11px] font-semibold shrink-0">{(fullName?.[0] || '?').toUpperCase()}</div><div className="min-w-0"><p className="text-[13px] font-semibold text-slate-900 truncate max-w-[200px]">{fullName}</p><p className="text-[11px] text-slate-400 truncate lg:hidden max-w-[180px]">{app.email || '—'}</p></div></div></td>
                         <td className="py-3 px-4 hidden lg:table-cell"><span className="text-[12px] text-slate-600 truncate block max-w-[220px]">{app.email || '—'}</span></td>
-                        <td className="py-3 px-4"><span className="text-[12px] font-medium text-slate-700">{app.pack_name || '—'}</span></td>
+                        <td className="py-3 px-4">{/* Der Gedankenstrich sah aus wie „kein Paket bestellt". Bei einer BEZAHLTEN Bestellung heißt er aber „wir wissen es nicht" — 34 solche Fälle im Bestand. */}
+                        <PaketName name={app.pack_name} bezahlt={app.payment_status === 'paid'} /></td>
                         <td className="py-3 px-4"><span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${st.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />{st.label}</span></td>
                         <td className="py-3 px-4 hidden md:table-cell">{(() => { const has = !!(app.has_schufa_pdf ?? app.schufa_pdf); const approved = app.schufa_status === 'approved'; if (approved) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700"><span className="w-1.5 h-1.5 rounded-full bg-teal-500"/>Geprüft</span>; if (has) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"/>Hochgel.</span>; return <span className="text-[11px] text-slate-400">—</span>; })()}</td>
                         <td className="py-3 px-4">{isExpired

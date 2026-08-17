@@ -24,6 +24,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { PaketName } from "./PaketName";
 
 interface Kandidat {
   ref: string;
@@ -212,7 +213,7 @@ export function NachbuchenTafel({
                     {k.customer_name ?? "Ohne Namen"}
                   </span>
                   <span className="font-mono text-[10.5px] text-slate-400">{k.ref}</span>
-                  <span className="text-[12px] text-slate-500">{k.pack_name ?? "—"}</span>
+                  <PaketName name={k.pack_name} bezahlt />
                   <span className="text-[11.5px] text-slate-400">bezahlt {datum(k.paid_at)}</span>
                   <span className="text-[12px] text-slate-600">
                     {wer ? `→ ${wer}` : "kein Betreuer erkennbar"}

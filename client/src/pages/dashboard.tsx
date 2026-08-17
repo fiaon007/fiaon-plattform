@@ -1644,8 +1644,13 @@ export default function DashboardPage() {
                           )}
                         </div>
 
-                        {/* SCHUFA Upload */}
-                        <div>
+                        {/* ── SCHUFA Upload ─────────────────────────────────
+                            Der Anker `#dokumente` wird von der Bonitäts-Karte
+                            im Kopf angesprungen („Du hast deine Auskunft
+                            schon? Auskunft hochladen"). scrollMarginTop hält
+                            die Überschrift unter der festen Kopfzeile
+                            sichtbar. */}
+                        <div id="dokumente" style={{ scrollMarginTop: 90 }}>
                           <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Erhaltene SCHUFA hier hochladen:</p>
                           {!schufaFile ? (
                             <div onClick={() => fileInputRef3.current?.click()} className="h-20 rounded-xl border-2 border-dashed border-slate-200 hover:border-[#2563eb] hover:bg-blue-50/30 flex items-center justify-center gap-3 cursor-pointer transition-all group">

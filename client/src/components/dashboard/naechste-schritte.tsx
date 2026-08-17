@@ -206,6 +206,42 @@ export function BonitaetsCheck({
               </p>
             </div>
 
+            {/* ══════════════════════════════════════════════════════════════
+                DER ZWEITE WEG: WER SEINE AUSKUNFT HAT, MUSS NICHTS KAUFEN
+                (22.08.2026)
+
+                ── DER BEFUND ──────────────────────────────────────────────
+                Diese Karte kannte nur einen Weg: kaufen. GEMESSEN im Bestand:
+                31 Menschen hatten ihre Auskunft SELBST hochgeladen und sahen
+                trotzdem „Bonitäts-Check starten" — ein Angebot für etwas, das
+                sie schon hatten. Weitere 30 hatten BEZAHLT und sahen dasselbe.
+
+                Die beiden Gruppen sind jetzt versorgt: Die Ableitung
+                (server/lib/fiaon-bonitaet-status.ts) schickt sie in einen
+                anderen Zustand, und diese Karte erscheint bei ihnen nicht mehr.
+
+                ── UND FÜR ALLE ÜBRIGEN ───────────────────────────────────
+                Wer seine Auskunft schon zu Hause liegen hat, soll sie
+                hochladen können, ohne 74 € auszugeben. Das ist ehrlicher — und
+                die Auskunft ist ausdrücklich freiwillig (Gate, 20.08.2026).
+                Deshalb steht der Weg hier, ruhig und ohne Knopffarbe, damit er
+                den Pflichtschritt nicht überstrahlt.
+                ══════════════════════════════════════════════════════════════ */}
+            <div className="mt-4 px-4 py-3 rounded-2xl"
+                 style={{ background: "rgba(15,23,42,.035)" }}>
+              <p className="text-[12.5px] text-slate-600 leading-relaxed">
+                <span className="font-semibold text-slate-800">Du hast deine Auskunft schon?</span>{" "}
+                Dann lade sie einfach hoch — du musst nichts kaufen. Wir gehen sie
+                genauso mit dir durch.
+              </p>
+              <a href="#dokumente"
+                 className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-semibold no-underline"
+                 style={{ color: ACCENT }}>
+                Auskunft hochladen
+                <Pfeil size={13} />
+              </a>
+            </div>
+
             {/* Ehrlichkeit als Unterscheidungsmerkmal — bewusst NICHT kleingedruckt. */}
             <p className="text-[12px] text-slate-500 leading-relaxed mt-5 pt-4 border-t border-slate-200/80 max-w-[58ch]">
               <span className="font-semibold text-slate-700">Was wir nicht tun:</span> Wir löschen keine

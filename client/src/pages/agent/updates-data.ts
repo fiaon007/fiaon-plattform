@@ -40,6 +40,30 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-22-bonitaet",
+    date: "2026-08-22",
+    category: "Behoben",
+    title: "Kunden wurden zum Kauf aufgefordert, obwohl sie schon bezahlt hatten",
+    summary:
+      "35 zahlende Kunden hatten ihre Bonit\u00e4tsauskunft bezahlt und sahen im Portal trotzdem "
+      + "„Bonit\u00e4ts-Check starten“. 31 weitere hatten ihre Auskunft selbst hochgeladen \u2014 und sahen dasselbe.",
+    changes: [
+      "DAS WAR DAS PROBLEM: Es gab DREI getrennte Angaben \u2014 „hat bezahlt“, „Dokument liegt vor“, „Dokument gepr\u00fcft“. Jede Ansicht mischte sie anders. Deshalb forderte das Portal Menschen zum Kauf auf, die l\u00e4ngst bezahlt hatten.",
+      "Jetzt gibt es EINEN Status mit sechs Stufen: keine Auskunft \u00b7 bestellt, Zahlung offen \u00b7 bezahlt, wird beschafft \u00b7 liegt zur Pr\u00fcfung \u00b7 gepr\u00fcft \u00b7 beanstandet. Portal, Akte und Verwaltung zeigen dasselbe.",
+      "WICHTIG F\u00dcR EUCH: 35 Auskunft-Dokumente liegen zur Pr\u00fcfung \u2014 und KEINES ist gepr\u00fcft. In der Akte steht jetzt „Ein Mitarbeiter muss das Dokument pr\u00fcfen“. Vorher hat das niemand gesehen.",
+      "Im Portal steht neben dem Kauf jetzt: „Du hast deine Auskunft schon? Dann lade sie einfach hoch \u2014 du musst nichts kaufen.“ Wer seine Auskunft zu Hause hat, muss keine 74 \u20ac ausgeben.",
+      "PAKET-BEZEICHNUNGEN: 39 bezahlte Bestellungen zeigten kein Paket. F\u00fcnf konnten wir aus dem Betrag zur\u00fcckholen (7,99 / 79,99 / 99,99 \u20ac sind eindeutig). Bei den anderen 34 gibt es keinen Hinweis \u2014 dort steht jetzt „Paket unbekannt \u00b7 nachtragen“ statt eines Striches.",
+      "Wir raten das Paket NICHT: Ein geratener Name landet in der Rechnung und in der Provisionsrechnung. Bitte im Gespr\u00e4ch kl\u00e4ren und eintragen.",
+    ],
+    howto: [
+      "Auskunft-Dokumente pr\u00fcfen: Kundenakte \u2192 Reiter SCHUFA \u2192 „SCHUFA genehmigen“ oder „Neues Dokument anfordern“.",
+      "Steht in einer Liste „Paket unbekannt \u00b7 nachtragen“: Kunde anrufen, Paket kl\u00e4ren, in der Akte eintragen.",
+      "Fragt ein Kunde nach seiner Auskunft: Die Akte sagt jetzt genau, woran es liegt und wer dran ist.",
+    ],
+    link: { href: "/admin/kunden", label: "Zur Kunden-Zentrale" },
+    important: true,
+  },
+  {
     id: "2026-08-21-zweigampel",
     date: "2026-08-21",
     category: "Behoben",

@@ -40,6 +40,33 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-20-eine-quelle",
+    date: "2026-08-20",
+    category: "Behoben",
+    title: "Warum eure E-Mail-Probleme jetzt vorbei sind",
+    summary:
+      "169 Kunden konnten keine Mail bekommen — obwohl ihre Adresse im System stand. "
+      + "Sie stand nur an der falschen Stelle. Das ist behoben, und es kann nicht wiederkommen.",
+    changes: [
+      "DAS WAR DAS PROBLEM: Eine E-Mail-Adresse konnte an der BESTELLUNG stehen, aber nicht am KUNDEN. Der Versand liest den Kunden — also fand er keine Adresse und tat nichts. Gemessen: 169 Menschen betroffen, davon 17 zahlende Kunden.",
+      "Genau das waren die Fälle, die ihr gemeldet habt: Pietro Bianco und Joachim Rechtsteiner. Beide haben jetzt ihre Adresse am Kunden — der Versand findet sie.",
+      "ES KANN NICHT WIEDERKOMMEN: Ab jetzt wandert jede Adresse und jede Nummer automatisch an den Kunden, egal wo sie eingetragen wird — Antragsformular, Lead, Kundenakte, Import. Es gibt keinen Weg mehr daran vorbei.",
+      "Trägt jemand eine ZWEITE Adresse ein, behält der Kunde seine erste, und die neue wird als Nebenadresse gespeichert. Die Suche findet beide. Nichts geht verloren, nichts überschreibt sich.",
+      "DOPPELTE KUNDEN: Weil die Adressen jetzt am Kunden stehen, findet das System Doppelgänger, die vorher unsichtbar waren. Aus 3 Vorschlägen wurden 37 — darunter Maik Matzke, Manuela Schlabs und Pietro Bianco.",
+      "Ein Teil davon war früher schon abgelehnt worden („nur der Name passt, kein zweiter Beweis“) — damals richtig, weil die E-Mail fehlte. Jetzt gibt es den zweiten Beweis, und die Vorschläge kommen wieder.",
+      "E-MAIL-EVENTS: Die gelben Marken „nicht bestätigt“ bedeuten NICHT, dass Zweige fehlen. Es fehlt ein Zugangsschlüssel zum Mail-Anbieter — ohne ihn kann die Plattform die Zustellung nicht nachprüfen. Das steht jetzt als Karte ganz oben, statt euch rätseln zu lassen.",
+      "Und „E-Mail-Events“ hat ein eigenes Zeichen im Menü — vorher dasselbe wie „Mail-Zentrale“ direkt darüber.",
+    ],
+    howto: [
+      "Nichts zu tun — die Umstellung ist gelaufen.",
+      "Wenn ihr eine Adresse oder Nummer ändert: Einfach wie bisher in der Kundenakte. Sie landet automatisch an der richtigen Stelle.",
+      "Doppelte Kunden: Verwaltung → Dubletten. Dort stehen die 37 Vorschläge mit Begründung.",
+      "Wichtig: Zusammenführen ist nicht umkehrbar. Bei Zweifel „keine Dublette“ mit Begründung — Vater und Sohn heißen manchmal gleich.",
+    ],
+    link: { href: "/admin/dubletten", label: "Zu den Dubletten" },
+    important: true,
+  },
+  {
     id: "2026-08-20-ablauf",
     date: "2026-08-20",
     category: "Neu",

@@ -227,9 +227,53 @@ export async function ladeEntschieden(): Promise<Set<string>> {
   // NUR 'keine_dublette' unterdrückt einen Vorschlag. Ein zurückgenommenes Paar
   // steht als 'wieder_offen' in derselben Tabelle (kein Hard-Delete) und muss
   // wieder vorgeschlagen werden — sonst wäre ein Fehlklick unumkehrbar.
+  //
+  // ══════════════════════════════════════════════════════════════════════════
+  // EINE ENTSCHEIDUNG GILT NUR FÜR DEN WISSENSSTAND, ZU DEM SIE FIEL
+  //
+  // ── DER FALL BIANCO (20.08.2026) ────────────────────────────────────────
+  // Der Betreiber meldete Pietro Bianco als Doppelgänger. Die Suche zeigte ihn
+  // nicht — weil das Paar (3598, 5564) am 08.08.2026 abgehakt worden war, mit
+  // der Begründung:
+  //
+  //     „Nur Namensähnlichkeit ohne zweites Merkmal (Abstand 0).
+  //      Kein Beweis für denselben Menschen."
+  //
+  // Das war damals RICHTIG: Person 3598 hatte keine E-Mail — sie stand nur an
+  // der Bestellzeile. Es gab wirklich kein zweites Merkmal.
+  //
+  // Seit dem Kontakt-Umzug steht die Adresse an der Person, und beide tragen
+  // pietro.bianco@web.de. Das Merkmal, dessen Fehlen die Ablehnung begründete,
+  // ist da.
+  //
+  // ── DIE REGEL ───────────────────────────────────────────────────────────
+  // Eine Ablehnung „nur Name, kein zweites Merkmal" wird UNGÜLTIG, sobald ein
+  // belastbares Merkmal auftaucht (gleiche E-Mail, gleiche Rufnummer). Sonst
+  // konserviert das System einen alten Wissensstand und verbirgt einen Fund,
+  // den es selbst gemacht hat.
+  //
+  // Ablehnungen mit einer ANDEREN Begründung bleiben gültig: Wer „Vater und
+  // Sohn, verschiedene Menschen" geschrieben hat, hat das Merkmal gesehen und
+  // trotzdem entschieden. Diese Entscheidung wird nicht überstimmt.
+  // ══════════════════════════════════════════════════════════════════════════
   const rows = await sqlPool`
-    SELECT person_a, person_b FROM fiaon_dubletten_entschieden
-    WHERE entscheidung = 'keine_dublette'
+    SELECT e.person_a, e.person_b FROM fiaon_dubletten_entschieden e
+    WHERE e.entscheidung = 'keine_dublette'
+      AND NOT (
+        -- Abgelehnt, WEIL ein zweites Merkmal fehlte …
+        e.begruendung ILIKE '%ohne zweites Merkmal%'
+        -- … und heute teilen die beiden eines.
+        AND EXISTS (
+          SELECT 1 FROM fiaon_persons pa, fiaon_persons pb
+          WHERE pa.id = e.person_a AND pb.id = e.person_b
+            AND pa.merged_into_person_id IS NULL AND pb.merged_into_person_id IS NULL
+            AND ((LOWER(BTRIM(COALESCE(pa.primary_email, ''))) <> ''
+                  AND LOWER(BTRIM(COALESCE(pa.primary_email, '')))
+                    = LOWER(BTRIM(COALESCE(pb.primary_email, ''))))
+              OR (COALESCE(pa.phone_key9, '') <> ''
+                  AND pa.phone_key9 = pb.phone_key9))
+        )
+      )
   `.catch(() => []);
   return new Set((rows as any[]).map((r) => paarSchluessel(Number(r.person_a), Number(r.person_b))));
 }

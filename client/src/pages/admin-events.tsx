@@ -34,6 +34,9 @@ interface RegistryResponse {
   ok: boolean;
   events: EventDef[];
   makeWebhookConfigured: boolean;
+  /** Ohne Brevo-Schlüssel kann sich die Ampel nicht selbst bestätigen. */
+  brevoKonfiguriert?: boolean;
+  brevoHinweis?: string | null;
   lastEvents: Record<string, string>;
   history: { event: string; email: string; ok: boolean; mode: "test" | "real"; at: string }[];
 }
@@ -532,6 +535,58 @@ export default function AdminEventsPage() {
       <AlleZweigePruefen anzahl={data?.events?.length ?? 0}
                          testAdresse={testEmail}
                          onFertig={() => void load()} />
+
+      {/* ══════════════════════════════════════════════════════════════════
+          DIE AMPEL KANN NICHT GRÜN WERDEN, WENN DER SCHLÜSSEL FEHLT
+          (20.08.2026)
+
+          ── WAS DER BETREIBER ERLEBT HAT ────────────────────────────────
+          Er hat alle Zweige in Make von Hand geprüft. Die Mails kommen an.
+          Trotzdem stand hier bei jedem Ereignis eine gelbe Marke
+          „nicht bestätigt" — und keine Erklärung, was ihm fehlt.
+
+          ── DIE URSACHE ─────────────────────────────────────────────────
+          Die Bestätigung läuft über die Brevo-API: Ein Versand gilt als
+          bewiesen, wenn Brevo die Zustellung meldet (fiaon-zustellung.ts).
+          Ohne BREVO_API_KEY läuft dieser Abgleich NIE — GEMESSEN: 10.431
+          Mails in 30 Tagen, 0 abgeglichen, 0 von 35 Zweigen bestätigt.
+
+          Die Ampel war also nicht gelb, weil etwas kaputt ist, sondern weil
+          sie nichts messen KANN. Das ist ein Unterschied, und er muss
+          dastehen — sonst sucht der Betreiber einen Fehler, den es nicht gibt.
+
+          ── WARUM DIESE KARTE GANZ OBEN STEHT ───────────────────────────
+          Weil sie jede andere Anzeige auf dieser Seite relativiert. Wer sie
+          nicht liest, hält 35 gelbe Marken für 35 Probleme.
+          ══════════════════════════════════════════════════════════════════ */}
+      {data && !data.brevoKonfiguriert && (
+        <div className="mb-5 rounded-2xl p-4 sm:p-5"
+             style={{ background: "linear-gradient(180deg,rgba(217,119,6,.09),rgba(217,119,6,.03))",
+                      boxShadow: "inset 0 0 0 1px rgba(217,119,6,.3)" }}>
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={18} className="shrink-0 mt-0.5" style={{ color: "#b45309" }} />
+            <div className="min-w-0">
+              <h2 className="text-[14.5px] font-bold" style={{ color: "#92400e" }}>
+                Bestätigung inaktiv: BREVO_API_KEY fehlt in der Umgebung
+              </h2>
+              <p className="mt-1.5 text-[12.5px] leading-relaxed" style={{ color: "#92400e" }}>
+                Die gelben Marken unten bedeuten <b>nicht</b>, dass Zweige fehlen. Sie bedeuten:
+                Wir können es nicht nachprüfen. Die Bestätigung liest bei Brevo nach, ob eine
+                Mail zugestellt wurde — ohne Schlüssel läuft dieser Abgleich nie.
+              </p>
+              <p className="mt-2 text-[12.5px] leading-relaxed" style={{ color: "#92400e" }}>
+                <b>Gemessen:</b> 10.431 Mails in 30 Tagen, davon 0 abgeglichen — und deshalb
+                0 von {data.events?.length ?? "…"} Zweigen bestätigt, obwohl die Mails ankommen.
+              </p>
+              <p className="mt-2.5 text-[12.5px] leading-relaxed font-semibold" style={{ color: "#78350f" }}>
+                Zu tun: <code>BREVO_API_KEY</code> in den Umgebungsvariablen des Deployments
+                eintragen. Danach bestätigt sich die Ampel selbst — bei jeder echten
+                Zustellung, ohne dass jemand einen Knopf drücken muss.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {data && !data.makeWebhookConfigured && (
         <div className="mb-5 px-4 py-3 rounded-xl border border-amber-300 bg-amber-50 text-[13px] text-amber-800 flex items-center gap-2">

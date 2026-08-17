@@ -394,6 +394,100 @@ sein (`\u201c`), sonst beendet es den umgebenden String — und `esbuild` meldet
 kaputt ist und der Übersetzungsversuch schon vorher scheitert. Wer einen deutschen
 Zitatanfang tippt, tippt das Ende gleich mit.
 
+## Eine Regel gegen 400 Code-Stellen gehört in die Datenbank
+
+Am 20.08.2026 sollten die Kontakt-Spalten an `fiaon_applications` und
+`fiaon_leads` verschwinden — „nie wieder E-Mail am Antrag, aber nicht an der
+Person". Die Inventur ergab: **397 Zugriffe in 62 Serverdateien**, davon 36
+schreibende. Login, Rechnungen und Mail-Versand lesen mit.
+
+Ein `DROP COLUMN` vor dem Code-Umzug hätte den Serverstart beendet.
+
+Das Ziel war aber nie „die Spalte ist weg", sondern „die Werte können nicht
+auseinanderlaufen". Das leistet ein **Trigger**:
+
+- Er sitzt HINTER allen Wegen — Antragsstrecke, Lead-Intake, Admin-Anlage,
+  CSV-Import, Webhook, ein Skript von Hand, ein alter Client, der noch nicht
+  ausgeliefert wurde. Eine Regel im Code müsste 397 Stellen kennen.
+- Die Spalten werden damit **Abschriften**. Der `DROP` ist eine Aufräumarbeit
+  ohne Eile, kein Rennen gegen neue Fehler.
+- **Der Arbeitsvorrat wird geschrieben, nicht erinnert:**
+  `reports/arbeitsvorrat-kontaktspalten.md`, nach Datei, schreibende zuerst.
+
+Und die Falle dabei: **`AFTER UPDATE OF spalte` feuert nur, wenn die Spalte in
+der Anweisung STEHT.** Ein `SET updated_at = updated_at` löst ihn nicht aus. Der
+Bestandslauf meldete 98 angefasste Zeilen und änderte nichts.
+
+## Eine Ablehnung gilt nur für den Wissensstand, zu dem sie fiel
+
+Der Betreiber meldete Pietro Bianco als Doppelgänger. Die Dubletten-Ansicht
+zeigte ihn nicht — das Paar war am 08.08.2026 abgehakt worden:
+
+> „Nur Namensähnlichkeit ohne zweites Merkmal (Abstand 0). Kein Beweis für
+> denselben Menschen."
+
+**Das war damals richtig.** Person 3598 hatte keine E-Mail; sie stand nur an der
+Bestellzeile. Es gab wirklich kein zweites Merkmal. Seit die Adresse an der
+Person steht, tragen beide dieselbe.
+
+- **Eine Ablehnung, die mit FEHLENDEN Daten begründet wurde, wird ungültig,
+  sobald die Daten da sind.** Sonst konserviert das System einen alten
+  Wissensstand und verbirgt einen Fund, den es selbst gemacht hat.
+- **Ablehnungen mit anderer Begründung bleiben gültig.** Wer „Vater und Sohn"
+  geschrieben hat, hat das Merkmal gesehen und trotzdem entschieden.
+- Wirkung hier: 3 Kandidaten → 18 nach dem Umzug → **37** nach dieser Korrektur.
+  **19 Doppelgänger waren durch überholte Entscheidungen verdeckt.**
+
+## Vor dem Bau einer Liste: die bestehende suchen
+
+Für die Dubletten-Kandidaten wurde eine neue Tabelle angelegt und mit 170 Paaren
+gefüllt. Es gab längst `server/lib/fiaon-dubletten-kandidaten.ts` — vier Stufen
+(Rufnummer, E-Mail, Name+Geburtsdatum, Name), live suchend, unter
+`/admin/dubletten` bedienbar.
+
+Zwei Listen für dieselbe Frage sind das Doppelmodell, das der Auftrag beseitigen
+sollte — der Fehler wäre **im Namen der Reparatur** entstanden. Die Einträge
+stehen jetzt auf `in_bestehender_ansicht` (kein Hard-Delete), und die neue
+Tabelle hält nur noch, was die Live-Suche nicht sehen kann: eine Kollision im
+Moment des Schreibens.
+
+## Eine gelbe Marke ohne Erklärung schickt Menschen auf falsche Suche
+
+Der Betreiber hat 35 Make-Zweige von Hand geprüft. Die Mails kommen an. Die
+Ampel blieb gelb — „nicht bestätigt", ohne einen Hinweis, was fehlt.
+
+Die Bestätigung läuft über die Brevo-API. Ohne `BREVO_API_KEY` läuft der
+Abgleich nie: 10.431 Mails in 30 Tagen, 0 abgeglichen, 0 von 35 Zweigen
+bestätigt.
+
+**Eine Anzeige muss zwischen „es ist kaputt" und „ich kann es nicht messen"
+unterscheiden.** Sonst sucht jemand einen Fehler, den es nicht gibt. Der Satz,
+der den Unterschied macht, gehört ÜBER die Marken: „Die gelben Marken bedeuten
+nicht, dass Zweige fehlen. Sie bedeuten: Wir können es nicht nachprüfen."
+
+## Zwei Navigationseinträge mit demselben Zeichen sind einer zu viel
+
+„Mail-Zentrale" und „E-Mail-Events" trugen beide `Send` aus lucide-react, direkt
+untereinander. Die eine verschickt Freitext, die andere PRÜFT Zweige. Wer schnell
+klickt, landet falsch.
+
+Der Typ der Navigation war `typeof LayoutDashboard` — also genau die Bauform
+eines lucide-Icons. Eine eigene SVG-Komponente passte nicht hinein, obwohl sie
+dieselben Eigenschaften nimmt. **Ein Typ, der nur eine Bibliothek zulässt,
+erzwingt die Bibliothek** — und AGENTS.md verlangt das Gegenteil.
+
+## Eine Wartebedingung, die auf das Gerüst passt, wartet nicht
+
+Ein Browsertest wartete auf `/BREVO_API_KEY|E-Mail-Events|Ereignis/`. Der
+Ausdruck traf „E-Mail-Events" im MENÜ — das steht sofort da, lange vor den
+Daten. Sechs Prüfungen wurden rot; dieselben Prüfungen auf 380 px waren grün,
+weil das Menü dort eingeklappt ist.
+
+**Auf eine Marke im INHALT warten**, am besten auf die geprüfte Überschrift
+selbst (`getByRole("heading", …)`). Und: **Ein geratener Zugangscode prüft die
+Anmeldeseite.** Der Rückfallwert gehört aus dem Quelltext gelesen, nicht
+geraten — nur der Screenshot verrät es sonst.
+
 ## Eine Spalte ist ein Merker, keine Wahrheit
 
 Am 20.08.2026 stand im Portal „Status: Aktiv · Freigeschaltet" bei einem Kunden

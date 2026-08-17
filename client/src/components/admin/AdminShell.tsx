@@ -8,6 +8,7 @@ import {
   Target, TrendingUp, Landmark, HandCoins, Copy, BarChart3, History, Activity,
   LogOut, PiggyBank, GraduationCap, Map, Layers, Receipt, UserCheck, ListChecks,
 } from "lucide-react";
+import { ZeichenMailPruefung } from "./ZeichenMailPruefung";
 import AdminCodeGate from "./AdminCodeGate";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -24,7 +25,20 @@ interface NavItem {
   path: string;
   label: string;
   desc: string;
-  icon: typeof LayoutDashboard;
+  // ── AUCH EIGENE ZEICHEN, NICHT NUR LUCIDE (20.08.2026) ────────────────
+  // Vorher: `typeof LayoutDashboard` — also genau die Bauform eines
+  // lucide-Icons (ForwardRef mit `$$typeof`). Eine eigene SVG-Komponente
+  // passte nicht hinein, obwohl sie dieselben Eigenschaften nimmt.
+  //
+  // Jetzt genügt, was die Navigation wirklich braucht: eine Komponente, die
+  // `size` und `className` versteht. Das lässt lucide-Icons UND eigene
+  // Zeichen zu — und eigene sind für FIAON die Regel (AGENTS.md: keine
+  // Icon-Bibliotheken im Kundenbereich).
+  // Beide Bauformen: die von lucide-react UND eine eigene SVG-Komponente.
+  // Ein enger Eigen-Typ allein hätte alle 30 lucide-Icons abgelehnt (sie tragen
+  // mehr Eigenschaften), ein lucide-Typ allein die eigene Marke.
+  icon: typeof LayoutDashboard
+    | React.ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
   /** exakter Router-Pfad für Aktiv-Markierung (Query/Hash ignoriert) */
   match?: string;
   /** P4-A: Schlüssel im /admin/hub/badges-Objekt — Zähler-Pill am Menüpunkt */
@@ -115,7 +129,12 @@ export const ADMIN_NAV: NavGroup[] = [
       { path: "/admin/diagnose", label: "System-Diagnose", desc: "Was klemmt gerade? Ereignis-Konsole, Rohdaten, KI-Auswertung", icon: Activity, badgeKey: "diagnose" },
       { path: "/admin/einstellungen", label: "Einstellungen", desc: "Provisionssatz, Auszahlung, Reminder-Engine, Diagnose", icon: Settings },
       { path: "/admin/mail-zentrale", label: "Mail-Zentrale", desc: "Freitext an Kunden und Gruppen — Bausteine, Vorschau, KI-Hilfe", icon: Send },
-      { path: "/admin/events", label: "E-Mail-Events", desc: "Make-Events testen, Diagnose, Verlauf", icon: Send },
+      // ── EIGENE MARKE (20.08.2026) ─────────────────────────────────────
+      // Hier stand `icon: Send` — dasselbe Zeichen wie eine Zeile darüber bei
+      // der Mail-Zentrale. Zwei Einträge untereinander mit gleichem Bild: Wer
+      // schnell klickt, landet im falschen Bereich. Die beiden tun auch
+      // Verschiedenes — die eine schreibt Mails, die andere PRÜFT Zweige.
+      { path: "/admin/events", label: "E-Mail-Events", desc: "Make-Events testen, Diagnose, Verlauf", icon: ZeichenMailPruefung },
       { path: "/admin/audit", label: "Audit-Log", desc: "Alle Mitarbeiter-Aktionen durchsuchbar", icon: ScrollText },
       { path: "/admin/changelog", label: "Was ist neu?", desc: "Alle Änderungen am System in Klartext", icon: History },
       { path: "/admin/recht", label: "Rechtstexte-Status", desc: "LEGAL-Review-Stand (read-only)", icon: Scale },

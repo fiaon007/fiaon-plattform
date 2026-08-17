@@ -3,6 +3,83 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 20.08.2026 (später) — Eine Datenquelle: die Kontaktdaten gehören der Person
+
+### Der Auftrag
+
+„Das Doppel-Datenmodell muss STERBEN. Nie wieder ‚E-Mail am Antrag, aber nicht an der Person', nie wieder Doppel-Datensätze aus Antrag+Lead, nie wieder stilles Scheitern beim Versand."
+
+### Die Inventur zuerst — sie hat den Weg bestimmt
+
+| | |
+|---|---|
+| Code-Zugriffe auf die Kontakt-Spalten | **397** in **62 Dateien** |
+| … davon **schreibende** Anweisungen | **36** in **7 Dateien** |
+| Bestellungen: Nummer nicht an der Person | **2.387** |
+| Bestellungen: E-Mail nicht an der Person | **293** |
+| Leads: E-Mail nicht an der Person | **189** |
+| **Menschen ohne E-Mail, obwohl eine am Antrag stand** | **169** (17 zahlend) |
+
+Ein `DROP COLUMN` vor dem Code-Umzug hätte den Server nicht mehr starten lassen — Login, Rechnungen und Mail-Versand lesen diese Spalten. Die 169 sind der teure Teil: **Diese Menschen konnten keine Mail bekommen**, obwohl ihre Adresse im System stand. Genau die Fälle Bianco und Rechtsteiner.
+
+### 1. Die Wand: Divergenz kann nicht mehr ENTSTEHEN
+
+Ein Datenbank-Trigger (Migration 059) schreibt **jeden** Kontaktwert an die Person durch:
+
+- Person leer → **sie übernimmt ihn**
+- Person gleich → nichts
+- Person abweichend → **sie behält**, der Zeilenwert wird **Alias** (die Suche findet ihn weiter)
+
+**Warum in der Datenbank und nicht im Code:** Eine Regel im Code müsste 397 Stellen kennen, eine in der Datenbank keine. Der Trigger sitzt *hinter* allen Wegen — Antragsstrecke, Lead-Intake, Admin-Anlage, CSV-Import, Make-Webhook, ein Skript von Hand, ein alter Client, der noch nicht ausgeliefert ist. **Es gibt keinen Weg daran vorbei.**
+
+Damit sind die Spalten reine **Abschriften**. Der `DROP` ist eine Aufräumarbeit ohne Eile geworden, kein Rennen gegen neue Fehler. Die vollständige Liste der 397 Stellen liegt als Arbeitsvorrat in `reports/arbeitsvorrat-kontaktspalten.md` — nach Datei, schreibende zuerst.
+
+**Rot-Probe:** Trigger abgeschaltet → **6 Prüfungen rot**, genau die Wand-Prüfungen. Danach wieder eingeschaltet und grün.
+
+### 2. Der Umzug: 0 Menschen ohne erreichbare Adresse
+
+Nach dem Lauf (`scripts/eine-quelle-lauf.ts`): **0** Bestellungen mit unbekannter E-Mail, **0** mit unbekannter Nummer, **0** Menschen ohne E-Mail trotz Adresse am Antrag. **11.514 Werte** liegen als Forensik-Kopie in `fiaon_kontakt_archiv` — für den späteren `DROP`, von der Anwendung nie gelesen.
+
+**Rechtsteiner** hat jetzt `euro-tec@t-online.de` an der Person. Vorher: keine Adresse, kein Versand möglich.
+
+### 3. Die Dubletten-Wurzel — und ein Fund, den niemand erwartet hat
+
+Der Trigger stieß auf eine Adresse, die schon **einem anderen Menschen** gehörte. Vorher scheiterte das Einfügen still (`ON CONFLICT DO NOTHING`) und der Hinweis war weg. Jetzt schreibt er einen **Doppelgänger-Hinweis**: Der Unique-Index auf Alias-Adressen ist ein Detektor.
+
+**Und dann der eigentliche Fund.** Bianco erschien trotzdem nicht in der Dubletten-Ansicht. Der Grund stand in der Datenbank:
+
+> Paar (3598, 5564), abgehakt am 08.08.2026: *„Nur Namensähnlichkeit ohne zweites Merkmal (Abstand 0). Kein Beweis für denselben Menschen."*
+
+Das war **damals richtig** — Person 3598 hatte keine E-Mail, sie stand nur an der Bestellzeile. Seit dem Umzug tragen beide `pietro.bianco@web.de`. **Das Merkmal, dessen Fehlen die Ablehnung begründete, ist da.**
+
+Also gilt jetzt: Eine Ablehnung „nur Name, kein zweites Merkmal" wird **ungültig**, sobald ein belastbares Merkmal auftaucht. Ablehnungen mit anderer Begründung bleiben gültig — wer „Vater und Sohn" geschrieben hat, hat das Merkmal gesehen und trotzdem entschieden.
+
+**Wirkung:** Die Dubletten-Ansicht zeigte **3** Kandidaten. Nach dem Umzug **18**. Nach dieser Korrektur **37** — davon 34 über die E-Mail. **19 Doppelgänger waren durch überholte Entscheidungen verdeckt.** Matzke, Schlabs und Bianco sind dabei; Natascha **Branics** (im Auftrag als „Brannix") steht an erster Stelle.
+
+### 4. Die Zweig-Ampel sagt die Wahrheit
+
+Der Betreiber hat alle Make-Zweige von Hand geprüft, die Mails kommen an — und sah trotzdem 35 gelbe Marken „nicht bestätigt" ohne Erklärung.
+
+`/admin/events` zeigt jetzt ganz oben: **„Bestätigung inaktiv: BREVO_API_KEY fehlt in der Umgebung"** — mit dem Satz, der den Unterschied macht: *„Die gelben Marken bedeuten nicht, dass Zweige fehlen. Sie bedeuten: Wir können es nicht nachprüfen."* Dazu die Messung (10.431 Mails, 0 abgeglichen) und die Handlung. Die Ampel war nicht gelb, weil etwas kaputt ist, sondern weil sie **nichts messen kann**.
+
+**Und „E-Mail-Events" hat eine eigene Marke** — vorher trug es dasselbe Zeichen wie „Mail-Zentrale", eine Zeile darüber. Ein Umschlag mit Prüfhaken, selbst gezeichnet, 1,5 px, `currentColor`.
+
+### Fünf eigene Fehler
+
+1. **Der Umzug lief ins Leere.** `SET updated_at = updated_at` nennt keine Kontakt-Spalte — und der Trigger ist `AFTER UPDATE OF email, phone, …`. Er feuert nur, wenn eine dieser Spalten in der Anweisung *steht*. Der Lauf meldete 98 angefasste Zeilen und änderte nichts.
+2. **Zwei Fassungen der Nummern-Regel.** Der Trigger setzte Vorwahl und Nummer zusammen, die Zählprobe prüfte `phone` allein — 74 Fehlmeldungen. Jetzt eine SQL-Funktion, die beide benutzen. (Sie stand erst im Skript, dann am Ende einer schon angewendeten Migration — beides falsch. Eine angewendete Migration wird nicht verändert, sie bekommt eine Nachfolgerin.)
+3. **Ich baute eine zweite Dubletten-Liste.** Es gibt längst eine Maschine mit vier Stufen unter `/admin/dubletten`. 170 Einträge sind auf `in_bestehender_ansicht` gesetzt (nicht gelöscht). Der Fehler wäre im Namen der Reparatur entstanden.
+4. **Der Browsertest prüfte die Anmeldeseite.** Geratener Zugangscode → alle neun Prüfungen rot. Nur der Screenshot verriet es.
+5. **Die Wartebedingung passte auf das Gerüst.** `/E-Mail-Events/` traf den Menü-Eintrag, der sofort da ist. Sechs Prüfungen rot auf Desktop, grün auf 380 px — dort ist das Menü eingeklappt.
+
+### Was NICHT fertig ist
+
+- **Der `DROP` der Spalten** — er braucht den Code-Umzug der 397 Stellen (36 schreibende zuerst). Arbeitsvorrat liegt vor. Die Eile ist weg, weil die Wand steht.
+- **Teil 4 (eine SCHUFA-Wahrheit)** und **Teil 5** (Toth, Bauer, Kovic, „Erreicht — Sonstiges" im Listenweg, 185 Wartezustände, Kalender auf 380 px) sind **nicht angefangen**.
+- **Brannix** ist gefunden (Natascha Branics), aber nicht zusammengeführt — das ist eine Entscheidung für die Dubletten-Ansicht.
+
+**Geprüft:** 36 Prüfungen in `scripts/pruef-eine-quelle.ts`, 12 im Browser (`scripts/pruef-ampel-browser.ts`), Screenshots in `reports/ampel/`.
+
 ## 20.08.2026 — Ein Ablauf für alle: die Stufe wird abgeleitet, nicht geglaubt
 
 ### Der Screenshot-Fehler war der Normalzustand

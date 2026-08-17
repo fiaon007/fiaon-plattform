@@ -40,6 +40,31 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-24-reste",
+    date: "2026-08-24",
+    category: "Behoben",
+    title: "Sieben zahlende Kunden standen t\u00e4glich auf der Liste \u2014 ohne dass ihr etwas tun konntet",
+    summary:
+      "Wer per Mail um seine Nummer gebeten wird, verschwindet f\u00fcr sieben Tage aus der Tagesliste. "
+      + "Bei sieben Kunden war das nie gesetzt worden \u2014 sie kamen jeden Morgen wieder.",
+    changes: [
+      "DAS WAR DAS PROBLEM: Ihr habt einem Kunden die Nummer-Korrektur-Mail geschickt. Danach k\u00f6nnt ihr nichts tun \u2014 die Nummer stimmt nicht, die Antwort steht beim Kunden. Sieben solche F\u00e4lle standen trotzdem jeden Tag auf der Liste, alle mit gemeldeter Zahlung.",
+      "Jetzt sind sie f\u00fcr sieben Tage im Wartezustand und kommen von selbst zur\u00fcck: wenn der Kunde seine Nummer eintr\u00e4gt, wenn er einen Termin bucht, oder wenn die sieben Tage um sind. Niemand muss daran denken.",
+      "Sie sind NICHT verschwunden: Filter „Wartend“ zeigt sie. Es wurde auch keine zweite Mail geschickt \u2014 die Anfrage ist ja raus.",
+      "NOTIZPFLICHT BEI „ERREICHT \u2014 SONSTIGES“: In der Kundenliste konnte man dieses Ergebnis ohne Notiz speichern (im Softphone ging das nie). Jetzt braucht es \u00fcberall mindestens 10 Zeichen \u2014 mit Z\u00e4hler, der sagt, wie viele noch fehlen.",
+      "Warum: „Sonstiges“ ohne Notiz ist ein verlorenes Gespr\u00e4ch. Der n\u00e4chste Anrufer f\u00e4ngt bei Null an und fragt dasselbe noch mal.",
+      "ZUSTELLPROTOKOLL DURCHSUCHBAR (Verwaltung): Filter nach Zeitraum, Ereignis und Empf\u00e4nger (Name ODER Adresse), 50 je Seite, CSV-Export des gefilterten Ausschnitts. Jede Zeile klappt auf und zeigt die Zustellkette mit Zeiten.",
+    ],
+    howto: [
+      "Falsche Nummer wie bisher erfassen \u2014 der Wartezustand wird automatisch gesetzt.",
+      "Wartende sehen: Kundenliste \u2192 Filter „Wartend“.",
+      "Bei „Erreicht \u2014 Sonstiges“: kurz schreiben, was besprochen wurde. Ein Satz gen\u00fcgt.",
+      "Protokoll: Verwaltung \u2192 E-Mail-Events \u2192 ganz unten (oder „Zum Zustellprotokoll“ oben).",
+    ],
+    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
+    important: true,
+  },
+  {
     id: "2026-08-23-geduld",
     date: "2026-08-23",
     category: "Behoben",

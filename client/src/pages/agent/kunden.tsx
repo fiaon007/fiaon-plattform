@@ -631,7 +631,7 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
   // PROMPT 2/2 · A: EIN Bestätigungsdialog statt Doppel-Tap. `pending` hält das
   // gewählte Kontakt-Ergebnis (inkl. optionalem Datum), bis der Nutzer im Dialog
   // bestätigt. `voidConfirmId` und `confirmReactivate` steuern die übrigen Dialoge.
-  const [pending, setPending] = useState<{ key: string; date: string } | null>(null);
+  const [pending, setPending] = useState<{ key: string; date: string; notiz?: string } | null>(null);
   const [voidConfirmId, setVoidConfirmId] = useState<number | null>(null);
   const [confirmReactivate, setConfirmReactivate] = useState(false);
   // PROMPT 2/2 · A: Auch die Zahlungsdaten-Mail und das Aussortieren laufen jetzt
@@ -735,6 +735,25 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
 
   const outcomeNeedsDate = (o: string) => o === "rueckruf_termin" || o === "erreicht_zahlt_am";
 
+  // ══════════════════════════════════════════════════════════════════════
+  // DIE NOTIZPFLICHT — IM LISTEN-WEG HAT SIE GEFEHLT (24.08.2026)
+  //
+  // „Erreicht — Sonstiges" heißt wörtlich: „Gespräch geführt, passt in keine
+  // Schublade." Ohne Notiz ist das kein Ergebnis, sondern ein verlorenes
+  // Gespräch — der nächste Anrufer fängt bei Null an.
+  //
+  // Die Pflicht stand in Softphone.tsx (`notizPflicht: true`) und in
+  // kunden-neu.tsx (`braucht: "notiz"`) — hier NICHT. Dieser Weg kam ohne
+  // Notiz durch.
+  //
+  // Seit heute prüft der SERVER sie (server/lib/fiaon-kontakt-ergebnis.ts,
+  // `pruefeNotiz`). Die Oberfläche muss es deshalb nicht mehr erzwingen — aber
+  // sie soll es SAGEN, statt den Mitarbeiter in einen 400er laufen zu lassen.
+  // Eine Sperre ohne Erklärung ist eine Sackgasse.
+  // ══════════════════════════════════════════════════════════════════════
+  const NOTIZ_MIN = 10;
+  const outcomeNeedsNotiz = (o: string) => o === "erreicht_sonstiges";
+
   // PROMPT 2/2 · A: Ein Tap öffnet den Bestätigungsdialog (Datum ist dort eingebettet) —
   // kein blinder Doppel-Tap mehr. Der Schutz vor Versehen bleibt, wird nur sichtbar.
   const pickOutcome = (e: React.MouseEvent, outcome: string) => {
@@ -747,10 +766,13 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
     const outcome = pending.key;
     const dateValue = pending.date;
     if (outcomeNeedsDate(outcome) && !dateValue) return;
+    const notizText = String(pending.notiz ?? "").trim();
+    if (outcomeNeedsNotiz(outcome) && notizText.length < NOTIZ_MIN) return;
     setBusy(outcome);
     const body: any = { outcome };
     if (outcome === "rueckruf_termin") body.scheduledAt = dateValue;
     if (outcome === "erreicht_zahlt_am") body.promisedDate = dateValue;
+    if (notizText) body.note = notizText;
     const r = await api(`/agent/customers/${encodeURIComponent(refId)}/contact-result`, { method: "POST", body: JSON.stringify(body) });
     setBusy(null);
     setPending(null);
@@ -1277,13 +1299,41 @@ export function CustomerDetail({ refId, onClose, onChanged, flash }: {
       confirmLabel="Speichern"
       busy={busy !== null}
       confirmDisabled={
-        !!pending && outcomeNeedsDate(pending.key) &&
-        (!pending.date ||
-          (pending.key === "rueckruf_termin" && new Date(pending.date).getTime() < Date.now() - 5 * 60_000))
+        !!pending && (
+          (outcomeNeedsDate(pending.key) &&
+            (!pending.date ||
+              (pending.key === "rueckruf_termin" && new Date(pending.date).getTime() < Date.now() - 5 * 60_000)))
+          // Ohne Notiz kein Speichern — dieselbe Grenze, die der Server zieht.
+          || (outcomeNeedsNotiz(pending.key) && String(pending.notiz ?? "").trim().length < NOTIZ_MIN)
+        )
       }
       onConfirm={saveOutcome}
       onCancel={() => setPending(null)}
     >
+      {pending && outcomeNeedsNotiz(pending.key) && (
+        <div>
+          <label className="block text-[12px] font-medium text-slate-500 mb-1.5">
+            Was war das Ergebnis? <span style={{ color: "#b45309" }}>(Pflicht)</span>
+          </label>
+          <textarea
+            value={pending.notiz ?? ""}
+            onChange={(e) => setPending((p) => (p ? { ...p, notiz: e.target.value } : p))}
+            rows={3}
+            placeholder="z. B. Will erst mit seiner Frau sprechen, ruft Freitag zurück"
+            className={inputCls}
+            style={{ minHeight: 76, resize: "vertical" }}
+          />
+          {/* Der Zähler steht dabei, damit niemand rät, wie viel „genug" ist. */}
+          <p className="text-[11.5px] mt-1.5 leading-snug"
+             style={{ color: String(pending.notiz ?? "").trim().length >= NOTIZ_MIN ? "#64748b" : "#b45309" }}>
+            {String(pending.notiz ?? "").trim().length >= NOTIZ_MIN
+              ? "Danke — der nächste Anrufer weiß damit, wo er ansetzt."
+              : `Noch ${NOTIZ_MIN - String(pending.notiz ?? "").trim().length} Zeichen. `
+                + "Ohne Notiz ist das Gespräch verloren."}
+          </p>
+        </div>
+      )}
+
       {pending && outcomeNeedsDate(pending.key) && (
         <div>
           <label className="block text-[12px] font-medium text-slate-500 mb-1.5">

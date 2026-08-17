@@ -646,26 +646,98 @@ router.post("/mail/zentrale/ki", requireAgent, async (req: AgentRequest, res: Re
 // `status = fehlgeschlagen` ist der einzige Filter, der zählt: Wer das
 // Protokoll öffnet, will wissen, was NICHT angekommen ist.
 // ═══════════════════════════════════════════════════════════════════════════
+/**
+ * Ein Auszug der Nutzlast — ohne sensible Werte.
+ *
+ * ── WARUM NICHT ALLES ─────────────────────────────────────────────────────
+ * Die Nutzlast enthält Bankdaten, Rechnungs-Links mit Kennung und
+ * Geburtsdaten. Ein Protokoll ist zum Nachsehen da, nicht zum Ausleiten. Also
+ * werden die Felder gezeigt, die eine Zuordnung erlauben — und der Rest wird
+ * gezählt, nicht gezeigt.
+ */
+function nutzlastAuszug(rohe: unknown): Record<string, unknown> | null {
+  if (rohe == null) return null;
+  let o: any;
+  try { o = typeof rohe === "string" ? JSON.parse(rohe) : rohe; } catch { return null; }
+  if (!o || typeof o !== "object") return null;
+  const HARMLOS = ["event_type", "ref", "payment_reference", "pack_name", "amount_due",
+                   "currency", "termin_datum", "termin_uhrzeit", "test", "first_name"];
+  const SENSIBEL = /iban|bic|konto|geburt|birth|passwort|password|token|secret|schufa|invoice_url/i;
+  const raus: Record<string, unknown> = {};
+  let verborgen = 0;
+  for (const [k, v] of Object.entries(o)) {
+    if (SENSIBEL.test(k)) { verborgen++; continue; }
+    if (!HARMLOS.includes(k)) { verborgen++; continue; }
+    raus[k] = typeof v === "object" ? "…" : v;
+  }
+  if (verborgen > 0) raus["… weitere Felder"] = `${verborgen} (nicht angezeigt)`;
+  return raus;
+}
+
 router.get("/admin/mail/protokoll", async (req: Request, res: Response) => {
   try {
     const { sqlPool } = await import("../lib/db-pool");
     const status = String(req.query.status || "").trim();
     const erlaubt = ["versandt", "fehlgeschlagen", "ausstehend", "uebersprungen"];
-    const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
+    // ══════════════════════════════════════════════════════════════════════
+    // DREI FILTER MEHR — UND SEITEN STATT EINER OBERGRENZE (24.08.2026)
+    //
+    // Bisher gab es nur den Status. Wer wissen wollte „was ist mit Herrn X"
+    // oder „welche Terminbestätigungen sind gescheitert", musste 200 Zeilen
+    // durchsehen. Bei 10.446 Mails in 30 Tagen ist das keine Suche, sondern
+    // Blättern.
+    //
+    // Neu: Ereignis, Empfänger (Name ODER Adresse), Zeitraum in Tagen, und
+    // eine Seite (50 je Seite). Alles über die Adresszeile, damit ein Fund
+    // weitergegeben werden kann.
+    // ══════════════════════════════════════════════════════════════════════
+    const proSeite = Math.min(200, Math.max(10, Number(req.query.proSeite) || 50));
+    const seite = Math.max(0, Number(req.query.seite) || 0);
     const tage = Math.min(90, Math.max(1, Number(req.query.tage) || 14));
+    // Nur bekannte Ereignisnamen zulassen: Ein freier String hier wäre eine
+    // Einladung, in der Tabelle zu suchen, wo nichts zu suchen ist.
+    const eventFilter = String(req.query.event || "").trim().slice(0, 60);
+    const suche = String(req.query.suche || "").trim().slice(0, 120);
+    const statusOk = erlaubt.includes(status) ? status : null;
+    // Für CSV wird die Grenze angehoben: Ein Export über eine Seite ist kein
+    // Export. 5.000 ist die Grenze, an der eine Tabellenkalkulation noch
+    // arbeitet.
+    const alsCsv = String(req.query.format || "") === "csv";
+    const grenze = alsCsv ? 5000 : proSeite;
+    const versatz = alsCsv ? 0 : seite * proSeite;
 
     const zeilen = (await sqlPool`
       SELECT l.id, l.event, l.person_id, l.empfaenger, l.status, l.grund,
              l.created_at, l.ausgeloest_von, l.betreff, l.art,
-             l.zustellung, l.zustellung_grund,
+             l.zustellung, l.zustellung_am, l.zustellung_grund,
+             l.brevo_message_id, l.abgeglichen_am, l.payload,
              TRIM(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')) AS name
       FROM fiaon_mail_log l
       LEFT JOIN fiaon_persons p ON p.id = l.person_id
       WHERE l.created_at > NOW() - (${tage}::int * INTERVAL '1 day')
-        AND (${erlaubt.includes(status) ? status : null}::text IS NULL
-             OR l.status = ${erlaubt.includes(status) ? status : null})
+        AND (${statusOk}::text IS NULL OR l.status = ${statusOk})
+        AND (${eventFilter || null}::text IS NULL OR l.event = ${eventFilter || null})
+        -- Die Empfänger-Suche trifft Adresse UND Namen: Der Betreiber kennt
+        -- meist den Namen, das Protokoll führt die Adresse.
+        AND (${suche || null}::text IS NULL
+             OR l.empfaenger ILIKE ${`%${suche}%`}
+             OR TRIM(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')) ILIKE ${`%${suche}%`})
       ORDER BY l.created_at DESC
-      LIMIT ${limit}
+      LIMIT ${grenze} OFFSET ${versatz}
+    `) as any[];
+
+    // Wie viele gibt es insgesamt? Ohne diese Zahl weiß niemand, ob eine
+    // zweite Seite existiert.
+    const [gesamt] = (await sqlPool`
+      SELECT COUNT(*)::int AS n
+      FROM fiaon_mail_log l
+      LEFT JOIN fiaon_persons p ON p.id = l.person_id
+      WHERE l.created_at > NOW() - (${tage}::int * INTERVAL '1 day')
+        AND (${statusOk}::text IS NULL OR l.status = ${statusOk})
+        AND (${eventFilter || null}::text IS NULL OR l.event = ${eventFilter || null})
+        AND (${suche || null}::text IS NULL
+             OR l.empfaenger ILIKE ${`%${suche}%`}
+             OR TRIM(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')) ILIKE ${`%${suche}%`})
     `) as any[];
 
     // ── DIE AKTEN-VERWEISE IN EINER ABFRAGE ────────────────────────────
@@ -686,6 +758,52 @@ router.get("/admin/mail/protokoll", async (req: Request, res: Response) => {
       `) as any[]) {
         refJePerson.set(Number(r.person_id), String(r.ref));
       }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // CSV — DER GEFILTERTE AUSSCHNITT, NICHT ALLES
+    //
+    // Ein Export, der immer alles zieht, ist unbrauchbar: Wer nach einem
+    // Empfänger gefiltert hat, will DIESE Zeilen. Deshalb geht der Export durch
+    // dieselben Filter wie die Anzeige — nur mit höherer Grenze.
+    //
+    // Semikolon als Trennzeichen: Excel in deutscher Einstellung erwartet es
+    // so; ein Komma landet in einer einzigen Spalte.
+    // ══════════════════════════════════════════════════════════════════════
+    if (alsCsv) {
+      const feld = (v: unknown) => {
+        const t = v == null ? "" : String(v).replace(/[\r\n]+/g, " ");
+        return /[";]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+      };
+      // ── DAS DATUM MUSS EINE TABELLENKALKULATION LESEN KÖNNEN ───────────
+      // Erster Entwurf schrieb `z.created_at` direkt: „Mon Aug 17 2026 18:39:09
+      // GMT+0200 (Central European Summer Time)". Damit kann Excel nichts
+      // anfangen — es steht als Text da, und Sortieren nach Datum geht nicht.
+      //
+      // AGENTS.md: Zeitzone ist Europe/Berlin. Format TT.MM.JJJJ HH:MM, das
+      // erkennt eine deutsche Tabellenkalkulation als Zeitstempel.
+      const zeitpunkt = (v: unknown) => {
+        const t = new Date(String(v));
+        if (Number.isNaN(t.getTime())) return "";
+        return new Intl.DateTimeFormat("de-DE", {
+          timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric",
+          hour: "2-digit", minute: "2-digit",
+        }).format(t).replace(",", "");
+      };
+      const kopf = ["zeitpunkt", "ereignis", "status", "empfaenger", "name",
+                    "betreff", "art", "ausgeloest_von", "zustellung", "grund"];
+      const csv = [kopf.join(";"), ...zeilen.map((z) => [
+        feld(zeitpunkt(z.created_at)), feld(z.event), feld(z.status), feld(z.empfaenger),
+        feld(String(z.name || "").trim()), feld(z.betreff), feld(z.art),
+        feld(z.ausgeloest_von), feld(z.zustellung),
+        feld(z.grund || z.zustellung_grund),
+      ].join(";"))].join("\n");
+      const name = `zustellprotokoll-${new Date().toISOString().slice(0, 10)}`
+        + `${statusOk ? `-${statusOk}` : ""}${eventFilter ? `-${eventFilter}` : ""}.csv`;
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
+      // BOM, damit Excel die Umlaute richtig liest.
+      return res.send(`\uFEFF${csv}\n`);
     }
 
     const [zahlen] = (await sqlPool`
@@ -725,7 +843,19 @@ router.get("/admin/mail/protokoll", async (req: Request, res: Response) => {
         wann: z.created_at, ausgeloestVon: z.ausgeloest_von || null,
         betreff: z.betreff || null, art: z.art || null,
         zustellung: z.zustellung || null, zustellungGrund: z.zustellung_grund || null,
+        // ── DIE ZUSTELLKETTE UND DER AUSLÖSER ──────────────────────────────
+        // Für die aufklappbare Zeile: Wann an Make übergeben, wann von Brevo
+        // bestätigt, wann abgeglichen. Und ein Auszug der Nutzlast, damit man
+        // sieht, WAS geschickt wurde.
+        zustellungAm: z.zustellung_am || null,
+        brevoMessageId: z.brevo_message_id || null,
+        abgeglichenAm: z.abgeglichen_am || null,
+        payloadAuszug: nutzlastAuszug(z.payload),
       })),
+      // Für die Seitenschaltung und die Filterleiste.
+      gesamt: Number(gesamt?.n ?? 0),
+      seite, proSeite,
+      filter: { status: statusOk, event: eventFilter || null, suche: suche || null, tage },
     });
   } catch (err) {
     console.error("[MAIL] protokoll:", err);

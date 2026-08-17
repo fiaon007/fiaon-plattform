@@ -23,7 +23,7 @@ import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
 import { renderInvoicePdf, signInvoiceUrl, ensureInvoiceNumber } from "../fiaon-invoice";
 import { fiaonBaseUrl } from "../fiaon-base-url";
 import { parseBerlinInput, formatBerlin, pruefeTerminZukunft } from "../lib/fiaon-time";
-import { ERGEBNISSE, ergebnisAnwenden, type Ergebnis } from "../lib/fiaon-kontakt-ergebnis";
+import { ERGEBNISSE, ergebnisAnwenden, type Ergebnis, pruefeNotiz } from "../lib/fiaon-kontakt-ergebnis";
 import { nummerAusZeile } from "../lib/fiaon-telefon";
 
 const router = Router();
@@ -2214,6 +2214,12 @@ router.post("/agent/customers/:ref/contact-result", requireAgent, requireEigener
   try {
     const { outcome, scheduledAt, promisedDate, note } = req.body || {};
     if (!VALID_OUTCOMES.has(outcome)) return res.status(400).json({ ok: false, error: "Ungültiges Kontakt-Ergebnis" });
+    // ── DIE NOTIZPFLICHT STEHT IM SERVER, NICHT IN DER OBERFLÄCHE ─────────
+    // Sie stand in Softphone.tsx und kunden-neu.tsx, aber NICHT im Listen-Weg
+    // (kunden.tsx) — und in keinem Fall im Server. Eine Pflicht, die drei
+    // Oberflächen einzeln kennen müssen, wird an der vierten vergessen.
+    const notizFehler = pruefeNotiz(String(outcome), note);
+    if (notizFehler) return res.status(400).json({ ok: false, error: notizFehler });
     if (outcome === "rueckruf_termin" && !scheduledAt) return res.status(400).json({ ok: false, error: "Termin-Datum erforderlich" });
     if (outcome === "erreicht_zahlt_am" && !promisedDate) return res.status(400).json({ ok: false, error: "Zusage-Datum erforderlich" });
     // Ein Rueckruf ist eine Wiedervorlage. Ein Termin in der Vergangenheit kann

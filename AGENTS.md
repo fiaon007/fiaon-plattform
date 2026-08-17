@@ -445,6 +445,74 @@ Ort und behebt am falschen Fall.
 in den Bericht schreiben. Sie ist keine Kritik am Auftraggeber, sondern die
 Beschreibung des wirklichen Problems.
 
+## Vor dem Bauen prüfen, ob es benutzt wird
+
+Ein Auftrag lautete: „team-calendar.tsx (3.870 Zeilen, grid-cols-7) unter
+768 px als Kartenliste“. Die Messung danach:
+
+- `TeamCalendar` wird in KEINER Seite eingebunden — kein Import, nirgends.
+- Die Tabelle `team_calendar` dahinter hat **0 Einträge**.
+- Die echten Termine liegen in `fiaon_termine`: **120 Stück**.
+
+Eine Mobil-Fassung für eine leere, nicht eingebundene Ansicht ist Arbeit, die
+niemand sieht.
+
+- **`grep` auf den Komponentennamen, bevor man ihn anfasst.** Zwei Befehle, und
+  sie entscheiden über Stunden.
+- **Und die Tabelle zählen.** Eine Ansicht ohne Daten hat kein Darstellungs-
+  problem.
+- Der KERN der Bitte gilt weiter („Termine am Telefon lesbar“) — nur für
+  die richtigen Daten. Das Bauteil wurde datenquellen-frei gebaut, damit die
+  Termin-Zentrale es benutzen kann.
+
+## Eine Pflicht in der Oberfläche ist keine Pflicht
+
+„Erreicht — Sonstiges“ braucht eine Notiz. Die Pflicht stand in
+`Softphone.tsx` und in `kunden-neu.tsx` — aber NICHT im Listen-Weg
+(`kunden.tsx`) und in keinem Fall im Server. Der Listen-Weg kam ohne Notiz
+durch, und jeder direkte Routen-Aufruf ebenfalls.
+
+- **Eine Regel, die drei Oberflächen einzeln kennen müssen, wird an der vierten
+  vergessen.** Sie gehört in den Server, einmal — dieselbe Regel wie bei
+  Filterbedingungen (`WHERE`, nicht Anzeige).
+- Die Oberfläche muss sie dann nicht ERZWINGEN, aber SAGEN: Zeichenzähler und
+  Begründung. Eine Sperre ohne Erklärung ist eine Sackgasse.
+- **Und genau eine Pflicht, nicht mehr.** Jede weitere Hürde erzeugt
+  Ausweichverhalten: Dann klickt jemand „nicht erreicht“, weil das
+  schneller geht — und die Statistik ist verdorben.
+
+## Ein Datum im CSV muss eine Tabellenkalkulation lesen können
+
+Der Export schrieb `z.created_at` direkt: `Mon Aug 17 2026 18:39:09 GMT+0200
+(Central European Summer Time)`. Excel nimmt das als Text — Sortieren nach Datum
+geht nicht, und der halbe Nutzen des Exports ist weg.
+
+- **`TT.MM.JJJJ HH:MM` in Europe/Berlin**, über `Intl.DateTimeFormat`.
+- **Semikolon als Trennzeichen** (deutsches Excel) und **BOM** voranstellen,
+  sonst stehen Umlaute als Buchstabensalat.
+- **Der Export folgt den Filtern der Anzeige.** Wer nach einem Empfänger
+  gefiltert hat, will DIESE Zeilen — nicht alles.
+
+## Ein Protokoll ist zum Nachsehen da, nicht zum Ausleiten
+
+Beim Aufklappen einer Protokollzeile lag es nahe, die ganze Nutzlast zu zeigen.
+Sie enthält IBAN, Geburtsdatum und Rechnungs-Links mit Kennung.
+
+- **Weißliste statt Schwarzliste:** Nur bekannte, harmlose Felder werden
+  gezeigt. Eine Schwarzliste vergisst das nächste sensible Feld.
+- **Und die Zahl der verborgenen dazu** („6 weitere Felder (nicht
+  angezeigt)“) — sonst wirkt der Auszug vollständig, und niemand fragt nach.
+
+## Wer eine Reihenfolge im Quelltext prüft, schneidet den Block heraus
+
+Eine Prüfung verglich `indexOf("const notizFehler")` mit
+`indexOf("const entry = await logAction")` über die GANZE Datei. Das zweite
+Muster kommt dreimal vor, und der erste Treffer stand 120 Zeilen weiter oben in
+einer anderen Route. Die Prüfung wurde rot, obwohl der Code stimmte.
+
+Erst den relevanten Ausschnitt herausschneiden (`slice` ab der Routendefinition),
+dann darin vergleichen.
+
 ## Eine fremde API antwortet nicht sofort — Tempo darf keine Wahrheit kosten
 
 Am 22.08.2026 wurde der Zweig-Prüflauf von 140 auf 34 Sekunden gebracht: alle

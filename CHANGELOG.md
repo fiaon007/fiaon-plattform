@@ -48,6 +48,86 @@ Die Prüfung ist wieder entfernt, mit Begründung im Quelltext. **Der esbuild-Du
 
 **Teil 2 (Agent als Vollpfleger)** und **Teil 3** (Pflichtnotiz im Listen-Weg, 12 Wartezustände, Zustellprotokoll mit Filtern, Team-Kalender auf 380 px) sind offen.
 
+## 24.08.2026 — Wartezustand, Notizpflicht, Protokoll-Filter
+
+### Teil 2a: Sieben zahlende Kunden wurden täglich vergeblich angerufen
+
+Der Wartezustand existiert seit dem 16.08.2026 (`fiaon-warten.ts`): Wer per Mail um seine Nummer gebeten wird, verschwindet für sieben Tage aus der Tagesliste und kommt von selbst zurück.
+
+Die Fälle von **vorher** haben ihn nie bekommen. Gemessen: 11 Personen mit einer Nummern-Anfrage, davon standen **7 heute in der Tagesliste** — alle sieben mit `claimed_paid`, also zahlende Kunden, deren Nummer nicht stimmt. Der Agent kann dort nichts tun als überblättern.
+
+Nachgetragen mit `scripts/warten-bestand.ts`, **ohne eine einzige Mail** (die Anfrage ist längst raus — eine zweite wäre eine Belästigung). Zählprobe danach: **0** Nummern-Anfragen in der Tagesliste, 16 Personen sichtbar unter „Wartend".
+
+**Meine Messung von gestern war falsch:** Ich prüfte `fiaon_applications` auf die Wartezustand-Spalte — sie liegt an `fiaon_persons`. Deshalb stand im Bericht „Spalte fehlt", obwohl sie seit acht Tagen existiert.
+
+### Teil 2b: Eine Pflicht in der Oberfläche ist keine Pflicht
+
+„Erreicht — Sonstiges" braucht eine Notiz. Die Pflicht stand an **zwei von drei** Stellen:
+
+| Weg | Pflicht |
+|---|---|
+| `Softphone.tsx` | ✔ `notizPflicht: true` |
+| `kunden-neu.tsx` | ✔ `braucht: "notiz"` |
+| `kunden.tsx` (Listen-Weg) | **✘ nichts** |
+| Server | **✘ nichts** |
+
+Der Listen-Weg kam ohne Notiz durch — und jeder direkte Routen-Aufruf ebenfalls. Die Regel steht jetzt **einmal im Server** (`pruefeNotiz`, mindestens 10 Zeichen, nur für dieses eine Ergebnis) und greift damit überall. Der Listen-Weg hat zusätzlich ein Notizfeld mit Zeichenzähler, damit niemand in einen 400er läuft.
+
+**Genau eine Pflicht, nicht mehr:** Jede weitere Hürde erzeugt Ausweichverhalten — dann klickt jemand „nicht erreicht", weil das schneller geht, und die Statistik ist verdorben.
+
+### Teil 2c: Das Zustellprotokoll ist durchsuchbar
+
+Bei **9.881 Mails** in 7 Tagen war ein Status-Filter keine Suche, sondern Blättern. Neu: **Zeitraum** (heute/7/14/30/90), **Ereignis** (aus der Registry), **Empfänger** (Name *oder* Adresse, mit 350 ms Verzögerung — sonst schickt jeder Tastendruck eine Abfrage über 10.000 Zeilen), **50 je Seite** mit Gesamtzahl, **CSV** des *gefilterten* Ausschnitts.
+
+Alle Filter stehen in der Adresszeile: Wer einen Fund weitergeben will, schickt den Link.
+
+**Jede Zeile klappt auf:** Zustellkette mit Zeiten (an Make übergeben → von Brevo bestätigt → abgeglichen), Auslöser, Betreff, Brevo-Kennung — und ein **Nutzlast-Auszug ohne sensible Werte**. IBAN, Geburtsdatum und Rechnungs-Links werden gezählt, nicht gezeigt: „6 weitere Felder (nicht angezeigt)". Ein Protokoll ist zum Nachsehen da, nicht zum Ausleiten.
+
+**Ein Fehler beim Bauen:** Der CSV-Export schrieb das Datum als `Mon Aug 17 2026 18:39:09 GMT+0200 (Central European Summer Time)`. Damit kann Excel nichts anfangen — es steht als Text da, Sortieren nach Datum geht nicht. Jetzt `17.08.2026 18:39` in Berliner Zeit, mit BOM für die Umlaute.
+
+### Teil 2d: Der Auftrag hat sich beim Messen aufgelöst
+
+Der Auftrag: „`team-calendar.tsx` (3.870 Zeilen, `grid-cols-7`) unter 768 px als Kartenliste — nicht umbauen, eine Fassung daneben."
+
+Die Messung:
+
+- **`TeamCalendar` wird in keiner Seite eingebunden** — kein Import, nirgends.
+- Die Tabelle `team_calendar` dahinter hat **0 Einträge**.
+- Die echten Termine liegen in **`fiaon_termine`: 120 Stück**.
+
+Eine Mobil-Fassung für eine leere, nicht eingebundene Ansicht wäre Arbeit, die niemand sieht. Das Bauteil `TeamKalenderSchmal.tsx` ist gebaut, aber **datenquellen-frei** — es nimmt eine Terminliste und zeigt sie als Tagesabschnitte mit 44-px-Zielen. Die Termin-Zentrale (Teil 1) kann es für ihre 380-px-Ansicht benutzen.
+
+### Die Zahlen für Teil 1 (Termin-Zentrale) sind gemessen
+
+| | |
+|---|---|
+| Termine insgesamt | **120** |
+| heute / diese Woche | **33 / 52** |
+| erledigt / abgesagt / verpasst | 32 / 16 / **7** |
+| Quelle | **alle 120 aus `nichterreicht_mail`** — der Hebel funktioniert |
+| **Bezahlte Kunden ohne Termin** | **336** |
+
+**Je Mitarbeiter — und hier steht ein Führungsbefund:**
+
+| | Termine | erledigt | verpasst |
+|---|---:|---:|---:|
+| Nikita Boychenko | 34 | **0** | 1 |
+| Lucas Böhnert | 30 | **0** | 6 |
+| Florentine Lombardi | 27 | 14 | 0 |
+| Daniel Stripling | 27 | 18 | 0 |
+
+Nikita und Lucas haben bei 64 Terminen **keinen einzigen** als erledigt markiert, die beiden Vertriebsleiter dagegen 32 von 54. Entweder werden die Gespräche nicht geführt oder nicht abgeschlossen — beides braucht ein Gespräch, keinen Code. **Die Termin-Zentrale würde das sichtbar machen; sie ist nicht gebaut.**
+
+### Geprüft
+
+`scripts/pruef-reste.ts` — **32 Prüfungen** grün: Wartezustand (Frist begrenzt, Rückweg ohne Menschenhand, Wiedervorlage nur nach hinten, Spur im Verlauf, keine Mail), Notizpflicht an allen Grenzfällen (leer, nur Leerzeichen, zu kurz, genau 10, echte Notiz), Route prüft *vor* dem Speichern, alle drei Oberflächen.
+
+**Rot-Probe:** Pflicht-Satz geleert und Routenprüfung entfernt → **10 Prüfungen rot**.
+
+### Nicht gebaut
+
+**Teil 1 (Termin-Zentrale `/admin/termine`)** — die Zahlen sind gemessen, die Schmal-Ansicht ist gebaut, die Seite selbst fehlt.
+
 ## 23.08.2026 (später) — Die Rechte-Matrix: was ein Agent heute kann
 
 Vor dem Öffnen von Rechten muss dastehen, welche es gibt. `scripts/mess-agentenrechte.ts` liest die Routen aus fünf Dateien und ordnet sie nach Wache ein.

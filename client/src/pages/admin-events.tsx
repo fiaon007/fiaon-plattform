@@ -421,23 +421,64 @@ function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
  * der Karte kommt, will genau das sehen und nicht erst filtern.
  * ══════════════════════════════════════════════════════════════════════════
  */
-function Zustellprotokoll() {
-  const [status, setStatus] = useState<string>(
-    () => new URLSearchParams(window.location.search).get("status") || "fehlgeschlagen",
-  );
+function Zustellprotokoll({ eventNamen }: { eventNamen?: string[] }) {
+  // ══════════════════════════════════════════════════════════════════════════
+  // FILTER, DIE IN DER ADRESSE STEHEN (24.08.2026)
+  //
+  // Bisher gab es nur den Status. Bei 10.446 Mails in 30 Tagen ist das keine
+  // Suche, sondern Blättern.
+  //
+  // Alle Filter stehen in der Adresszeile: Wer einen Fund weitergeben will,
+  // schickt den Link. Ein Filter, der nur im Kopf des Browsers lebt, ist beim
+  // Neuladen weg — und dann sucht der nächste von vorn.
+  // ══════════════════════════════════════════════════════════════════════════
+  const ausAdresse = (name: string, vorgabe = "") =>
+    new URLSearchParams(window.location.search).get(name) || vorgabe;
+
+  const [status, setStatus] = useState<string>(() => ausAdresse("status", "fehlgeschlagen"));
+  const [event, setEvent] = useState<string>(() => ausAdresse("event"));
+  const [suche, setSuche] = useState<string>(() => ausAdresse("suche"));
+  const [tage, setTage] = useState<number>(() => Number(ausAdresse("tage", "14")) || 14);
+  const [seite, setSeite] = useState<number>(() => Number(ausAdresse("seite", "0")) || 0);
   const [daten, setDaten] = useState<any>(null);
   const [laedt, setLaedt] = useState(true);
+
+  /** Die Filter als Abfrage — einmal gebaut, für Anzeige UND CSV benutzt. */
+  const abfrage = (extra: Record<string, string> = {}) => {
+    const p = new URLSearchParams({ status, tage: String(tage), seite: String(seite), ...extra });
+    if (event) p.set("event", event);
+    if (suche) p.set("suche", suche);
+    return p.toString();
+  };
+
+  // Die Adresszeile mitführen, ohne einen Verlaufseintrag je Tastendruck.
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    for (const [k, v] of Object.entries({ status, event, suche, tage: String(tage), seite: String(seite) })) {
+      if (v && v !== "0") p.set(k, v); else p.delete(k);
+    }
+    window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}#zustellprotokoll`);
+  }, [status, event, suche, tage, seite]);
 
   useEffect(() => {
     let weg = false;
     setLaedt(true);
-    void fetch(`/api/fiaon/admin/mail/protokoll?status=${encodeURIComponent(status)}&tage=14`,
-      { credentials: "include" })
-      .then((r) => r.json())
-      .then((j) => { if (!weg) { setDaten(j?.ok ? j : null); setLaedt(false); } })
-      .catch(() => { if (!weg) setLaedt(false); });
-    return () => { weg = true; };
-  }, [status]);
+    // ── DIE SUCHE WARTET EINEN MOMENT ──────────────────────────────────────
+    // Ohne Verzögerung schickt jeder Tastendruck eine Abfrage über 10.000
+    // Zeilen. Bei „Müller" wären das sechs Abfragen, von denen fünf niemand
+    // sehen will.
+    const zeit = setTimeout(() => {
+      void fetch(`/api/fiaon/admin/mail/protokoll?${abfrage()}`, { credentials: "include" })
+        .then((r) => r.json())
+        .then((j) => { if (!weg) { setDaten(j?.ok ? j : null); setLaedt(false); } })
+        .catch(() => { if (!weg) setLaedt(false); });
+    }, suche ? 350 : 0);
+    return () => { weg = true; clearTimeout(zeit); };
+  }, [status, event, suche, tage, seite]);
+
+  // Ein neuer Filter fängt bei Seite 1 an — sonst zeigt die Liste „keine
+  // Treffer", weil Seite 5 des alten Filters leer ist.
+  useEffect(() => { setSeite(0); }, [status, event, suche, tage]);
 
   const FILTER: { wert: string; text: string }[] = [
     { wert: "fehlgeschlagen", text: "Fehlgeschlagen" },
@@ -456,6 +497,59 @@ function Zustellprotokoll() {
       </header>
 
       <div className="p-3.5 sm:p-4">
+        {/* ── DIE DREI NEUEN FILTER ──────────────────────────────────────
+            Zeitraum, Ereignis, Empfänger. Auf 380 px stapeln sie sich
+            (flex-wrap), auf Desktop stehen sie in einer Zeile. */}
+        <div className="flex flex-wrap items-end gap-2 mb-3">
+          <label className="block">
+            <span className="block text-[11px] font-semibold text-slate-500 mb-1">Zeitraum</span>
+            <select value={tage} onChange={(e) => setTage(Number(e.target.value))}
+                    className="px-2.5 py-2 rounded-lg border text-[12px] bg-white"
+                    style={{ borderColor: "var(--a3-linie,#e4e9f2)", minHeight: 38 }}>
+              <option value={1}>Heute</option>
+              <option value={7}>7 Tage</option>
+              <option value={14}>14 Tage</option>
+              <option value={30}>30 Tage</option>
+              <option value={90}>90 Tage</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="block text-[11px] font-semibold text-slate-500 mb-1">Ereignis</span>
+            <select value={event} onChange={(e) => setEvent(e.target.value)}
+                    className="px-2.5 py-2 rounded-lg border text-[12px] bg-white"
+                    style={{ borderColor: "var(--a3-linie,#e4e9f2)", minHeight: 38, maxWidth: 220 }}>
+              <option value="">Alle Ereignisse</option>
+              {(eventNamen ?? []).map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+          <label className="block flex-1" style={{ minWidth: 180 }}>
+            <span className="block text-[11px] font-semibold text-slate-500 mb-1">
+              Empfänger (Name oder Adresse)
+            </span>
+            <input value={suche} onChange={(e) => setSuche(e.target.value)}
+                   placeholder="z. B. Müller oder @gmx.de"
+                   className="w-full px-2.5 py-2 rounded-lg border text-[12px]"
+                   style={{ borderColor: "var(--a3-linie,#e4e9f2)", minHeight: 38 }} />
+          </label>
+          {/* ── CSV DES GEFILTERTEN AUSSCHNITTS ─────────────────────────
+              Ein Export, der immer alles zieht, ist unbrauchbar: Wer gefiltert
+              hat, will DIESE Zeilen. */}
+          <a href={`/api/fiaon/admin/mail/protokoll?${abfrage({ format: "csv" })}`}
+             className="px-3 py-2 rounded-lg border text-[12px] font-semibold no-underline"
+             style={{ borderColor: "var(--a3-linie,#e4e9f2)", color: "#475569", minHeight: 38 }}
+             title="Lädt genau die gefilterten Zeilen als CSV (Semikolon, für Excel).">
+            CSV
+          </a>
+          {(event || suche || tage !== 14) && (
+            <button type="button"
+                    onClick={() => { setEvent(""); setSuche(""); setTage(14); }}
+                    className="px-3 py-2 rounded-lg text-[12px] font-semibold"
+                    style={{ color: "#64748b", minHeight: 38 }}>
+              Filter zurücksetzen
+            </button>
+          )}
+        </div>
+
         <div className="flex flex-wrap gap-1.5 mb-3">
           {FILTER.map((f) => (
             <button key={f.wert} type="button" onClick={() => setStatus(f.wert)}
@@ -505,26 +599,100 @@ function Zustellprotokoll() {
         {daten && daten.zeilen.length > 0 && (
           <ul className="space-y-1.5">
             {daten.zeilen.map((z: any) => (
-              <li key={z.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 pl-3 text-[12px]"
-                  style={{
-                    borderLeft: `2px solid ${z.status === "fehlgeschlagen" ? "#b91c1c"
-                      : z.status === "versandt" ? "#15803d" : "#94a3b8"}`,
-                  }}>
-                <span className="font-mono text-[11px] text-slate-500">{fmtTime(z.wann)}</span>
-                <span className="font-semibold text-slate-800">{z.event}</span>
-                <span className="text-slate-600">{z.empfaenger || "— keine Adresse —"}</span>
-                {z.name && <span className="text-slate-500">{z.name}</span>}
-                {z.grund && (
-                  <span className="w-full sm:w-auto" style={{ color: "#b91c1c" }}>{z.grund}</span>
-                )}
-                {z.akte && (
-                  <a href={z.akte} className="ml-auto text-[11.5px] font-semibold" style={{ color: ACCENT }}>
-                    Akte
-                  </a>
-                )}
+              /* ── JEDE ZEILE AUFKLAPPBAR ────────────────────────────────
+                 Oben das, was man beim Überfliegen braucht (Zeit, Ereignis,
+                 Empfänger, Grund). Aufgeklappt die Zustellkette mit Zeiten,
+                 der Auslöser und ein Nutzlast-Auszug OHNE sensible Werte —
+                 keine IBAN, kein Geburtsdatum, kein Rechnungs-Link. Ein
+                 Protokoll ist zum Nachsehen da, nicht zum Ausleiten. */
+              <li key={z.id} style={{
+                borderLeft: `2px solid ${z.status === "fehlgeschlagen" ? "#b91c1c"
+                  : z.status === "versandt" ? "#15803d" : "#94a3b8"}`,
+              }}>
+                <details>
+                  <summary className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 pl-3 text-[12px] cursor-pointer">
+                    <span className="font-mono text-[11px] text-slate-500">{fmtTime(z.wann)}</span>
+                    <span className="font-semibold text-slate-800">{z.event}</span>
+                    <span className="text-slate-600">{z.empfaenger || "— keine Adresse —"}</span>
+                    {z.name && <span className="text-slate-500">{z.name}</span>}
+                    {z.grund && (
+                      <span className="w-full sm:w-auto" style={{ color: "#b91c1c" }}>{z.grund}</span>
+                    )}
+                  </summary>
+                  <div className="ml-3 mb-2.5 px-3 py-2.5 rounded-xl text-[12px]"
+                       style={{ background: "rgba(15,23,42,.035)" }}>
+                    {/* ── DIE ZUSTELLKETTE ──────────────────────────────── */}
+                    <p className="text-[11px] font-bold uppercase tracking-[.1em] text-slate-500 mb-1.5">
+                      Zustellkette
+                    </p>
+                    <ol className="space-y-0.5 text-slate-600">
+                      <li>1. An Make übergeben — {fmtTime(z.wann)}
+                        {z.status !== "versandt" && z.grund ? ` · ${z.status}: ${z.grund}` : ""}</li>
+                      <li>2. Von Brevo bestätigt — {z.zustellung
+                        ? `${z.zustellung}${z.zustellungAm ? ` (${fmtTime(z.zustellungAm)})` : ""}`
+                        : z.abgeglichenAm
+                          ? `kein Ereignis gefunden (abgeglichen ${fmtTime(z.abgeglichenAm)})`
+                          : "noch nicht abgeglichen"}</li>
+                      {z.zustellungGrund && (
+                        <li style={{ color: "#b91c1c" }}>Grund: {z.zustellungGrund}</li>
+                      )}
+                    </ol>
+                    <p className="mt-2 text-slate-600">
+                      <b>Ausgelöst von:</b>{" "}
+                      {z.ausgeloestVon || "Automatik"}
+                      {z.art === "test" ? " · Probemail (test: true)" : ""}
+                    </p>
+                    {z.betreff && <p className="mt-1 text-slate-600"><b>Betreff:</b> {z.betreff}</p>}
+                    {z.brevoMessageId && (
+                      <p className="mt-1 text-[11px] font-mono text-slate-400">{z.brevoMessageId}</p>
+                    )}
+                    {z.payloadAuszug && (
+                      <>
+                        <p className="mt-2.5 text-[11px] font-bold uppercase tracking-[.1em] text-slate-500">
+                          Nutzlast (Auszug)
+                        </p>
+                        <pre className="mt-1 text-[11px] overflow-x-auto whitespace-pre-wrap text-slate-600">
+                          {JSON.stringify(z.payloadAuszug, null, 1)}
+                        </pre>
+                      </>
+                    )}
+                    {z.akte && (
+                      <a href={z.akte} className="inline-block mt-2 text-[12px] font-semibold no-underline"
+                         style={{ color: ACCENT }}>
+                        Zur Kundenakte →
+                      </a>
+                    )}
+                  </div>
+                </details>
               </li>
             ))}
           </ul>
+        )}
+
+        {/* ── SEITEN ─────────────────────────────────────────────────────
+            50 je Seite. Ohne die Gesamtzahl daneben weiß niemand, ob eine
+            zweite Seite existiert — und sucht dann auf der ersten weiter. */}
+        {daten && Number(daten.gesamt ?? 0) > Number(daten.proSeite ?? 50) && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button type="button" disabled={seite === 0}
+                    onClick={() => setSeite((v) => Math.max(0, v - 1))}
+                    className="px-3 py-2 rounded-lg border text-[12px] font-semibold disabled:opacity-35"
+                    style={{ borderColor: "var(--a3-linie,#e4e9f2)", minHeight: 38 }}>
+              ← Zurück
+            </button>
+            <span className="text-[12px] text-slate-500 tabular-nums">
+              {seite * Number(daten.proSeite ?? 50) + 1}
+              –{Math.min(Number(daten.gesamt), (seite + 1) * Number(daten.proSeite ?? 50))}
+              {" von "}{Number(daten.gesamt).toLocaleString("de-DE")}
+            </span>
+            <button type="button"
+                    disabled={(seite + 1) * Number(daten.proSeite ?? 50) >= Number(daten.gesamt)}
+                    onClick={() => setSeite((v) => v + 1)}
+                    className="px-3 py-2 rounded-lg border text-[12px] font-semibold disabled:opacity-35"
+                    style={{ borderColor: "var(--a3-linie,#e4e9f2)", minHeight: 38 }}>
+              Weiter →
+            </button>
+          </div>
         )}
       </div>
     </section>
@@ -1026,7 +1194,9 @@ export default function AdminEventsPage() {
           einer 14-Tage-Liste vorbei, um an die Arbeitsfläche zu kommen.
           ══════════════════════════════════════════════════════════════════ */}
       <div id="zustellprotokoll" className="mt-8 pt-2" style={{ scrollMarginTop: 84 }}>
-        <Zustellprotokoll />
+        {/* Die Ereignisnamen kommen aus der Registry, die diese Seite schon
+            geladen hat — eine zweite Abfrage dafür wäre Verschwendung. */}
+        <Zustellprotokoll eventNamen={(data?.events ?? []).map((e: any) => String(e.type))} />
       </div>
 
       {/* Bestätigungsdialog „Für echten Kunden senden" */}

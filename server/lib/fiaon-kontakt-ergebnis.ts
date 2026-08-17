@@ -85,6 +85,55 @@ export function istErgebnis(v: unknown): v is Ergebnis {
   return typeof v === "string" && (ERGEBNISSE as readonly string[]).includes(v);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WELCHE ERGEBNISSE EINE NOTIZ BRAUCHEN — UND ZWAR SERVERSEITIG
+//
+// ── DER BEFUND (24.08.2026) ────────────────────────────────────────────────
+// „Erreicht — Sonstiges" heißt wörtlich: „Ich habe mit ihm gesprochen, aber es
+// passt in keine Schublade." Ohne Notiz ist das kein Ergebnis, sondern ein
+// verlorenes Gespräch — der nächste Anrufer fängt bei Null an.
+//
+// Die Pflicht stand in der OBERFLÄCHE, und zwar an zwei von drei Stellen:
+//   client/src/components/Softphone.tsx        notizPflicht: true   ✔
+//   client/src/pages/agent/kunden-neu.tsx      braucht: "notiz"     ✔
+//   client/src/pages/agent/kunden.tsx          — nichts —           ✘
+//
+// Der Listen-Weg kam also ohne Notiz durch. Und jeder direkte Aufruf der Route
+// ebenfalls.
+//
+// ── DIE REGEL AUS AGENTS.MD ────────────────────────────────────────────────
+// „Die Grenze steht in der WHERE-Bedingung, nicht in der Oberfläche." Eine
+// Pflicht, die drei Oberflächen einzeln kennen müssen, wird an der vierten
+// vergessen. Sie steht jetzt HIER, einmal — und die Oberflächen lesen sie.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Mindestlänge einer Pflichtnotiz. Kürzer ist keine Auskunft, sondern ein Haken. */
+export const NOTIZ_MINDESTLAENGE = 10;
+
+/**
+ * Ergebnisse, die ohne Notiz nichts aussagen.
+ *
+ * Bewusst KURZ gehalten: Jede weitere Pflicht ist eine Hürde, und Hürden
+ * erzeugen Ausweichverhalten (dann klickt jemand „nicht erreicht", weil das
+ * schneller geht — und die Statistik ist verdorben).
+ */
+export const BRAUCHT_NOTIZ: ReadonlySet<Ergebnis> = new Set<Ergebnis>([
+  "erreicht_sonstiges",
+]);
+
+/**
+ * Prüft die Notizpflicht. Gibt `null` zurück, wenn alles in Ordnung ist,
+ * sonst den Satz, der dem Mitarbeiter angezeigt wird.
+ */
+export function pruefeNotiz(ergebnis: string, notiz: unknown): string | null {
+  if (!BRAUCHT_NOTIZ.has(ergebnis as Ergebnis)) return null;
+  const text = String(notiz ?? "").trim();
+  if (text.length >= NOTIZ_MINDESTLAENGE) return null;
+  return `Für „${ERGEBNIS_TEXT[ergebnis as Ergebnis] ?? ergebnis}" braucht es eine Notiz `
+    + `(mindestens ${NOTIZ_MINDESTLAENGE} Zeichen). Ohne sie ist das Gespräch verloren — `
+    + "der nächste Anrufer fängt bei Null an.";
+}
+
 /** Klartext für Oberfläche, Protokoll und Meldungen — eine Quelle für alle. */
 export const ERGEBNIS_TEXT: Record<Ergebnis, string> = {
   erreicht_zahlt_gleich: "Erreicht — zahlt sofort",

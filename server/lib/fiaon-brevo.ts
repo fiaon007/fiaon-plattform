@@ -145,17 +145,63 @@ export interface ZustellEreignis {
 /**
  * Zustell-Ereignisse für eine Adresse in einem Zeitfenster.
  *
- * @param seit  frühester Zeitpunkt (ISO)
+ * ══════════════════════════════════════════════════════════════════════════
+ * DER 400-FEHLER, DER 35 ZWEIGE ZU UNRECHT BESCHULDIGTE (21.08.2026)
+ *
+ * Hier stand:
+ *
+ *     const bis = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+ *     …&startDate=${von}&endDate=${bis}&limit=100&sort=desc
+ *
+ * `endDate` lag also einen Tag in der ZUKUNFT — „damit heute sicher mitgezählt
+ * wird". Brevo lehnt das mit HTTP 400 ab.
+ *
+ * Die Folge: Der Betreiber setzte BREVO_API_KEY, und die Prüfung scheiterte bei
+ * ALLEN 35 Ereignissen identisch — während seine Testmails ankamen. Die Kachel
+ * meldete „35 ohne Zweig". Eine falsche Anschuldigung; der Versand war gesund,
+ * nur die Nachschau war kaputt.
+ *
+ * ── DIE KORREKTUR: `days` STATT DATUMSBEREICH ─────────────────────────────
+ * Brevo bietet genau dafür einen Parameter (API-Referenz zu
+ * GET /smtp/statistics/events): „days — Number of days in the past INCLUDING
+ * TODAY (positive integer, maximum 90). Not compatible with startDate and
+ * endDate."
+ *
+ * `days` kann per Bauart kein Zukunftsdatum enthalten und schließt heute ein —
+ * genau das, was der Datumsbereich erreichen wollte. Und es ist EIN Parameter
+ * statt zweier, die zueinander passen müssen.
+ *
+ * Wichtig: `days` NICHT mit startDate/endDate zusammen senden — laut Referenz
+ * unzulässig, und unzulässige Kombinationen sind der zweite häufige 400-Grund.
+ *
+ * ── UND `limit` ───────────────────────────────────────────────────────────
+ * Der Vorgabewert ist 2500. Bei einem Sammellauf über 35 Ereignisse sind 100 zu
+ * wenig — dann fehlen Treffer, und das sähe wieder aus wie „Zweig fehlt".
+ * ══════════════════════════════════════════════════════════════════════════
+ *
+ * @param seit  frühester Zeitpunkt (wird in ganze Tage umgerechnet)
  */
 export async function ereignisseFuer(
-  email: string, seit: Date,
-): Promise<{ ok: boolean; ereignisse: ZustellEreignis[]; grund?: string }> {
-  const von = seit.toISOString().slice(0, 10);
-  const bis = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  email: string, seit: Date, grenze = 500,
+): Promise<{ ok: boolean; ereignisse: ZustellEreignis[]; grund?: string; klartext?: BrevoKlartext }> {
+  // Ganze Tage zurück, mindestens 1 (= heute), höchstens 90 (Brevos Grenze).
+  const tage = Math.min(90, Math.max(1,
+    Math.ceil((Date.now() - seit.getTime()) / 86_400_000) + 1));
   const r = await brevo<{ events?: any[] }>(
-    `/smtp/statistics/events?email=${encodeURIComponent(email)}&startDate=${von}&endDate=${bis}&limit=100&sort=desc`,
+    `/smtp/statistics/events?email=${encodeURIComponent(email)}`
+    + `&days=${tage}&limit=${Math.min(2500, grenze)}&sort=desc`,
   );
-  if (!r.ok) return { ok: false, ereignisse: [], grund: r.grund };
+  if (!r.ok) {
+    // ── DIE VOLLE ANTWORT INS LOG ───────────────────────────────────────
+    // Der Auftrag verlangt sie ausdrücklich. Eine Fehlermeldung ohne die
+    // Antwort des Gegenübers schickt den nächsten Leser auf dieselbe Suche.
+    console.error("[BREVO-NACHSCHAU] Abfrage gescheitert:",
+      JSON.stringify({
+        pfad: `/smtp/statistics/events?email=${email}&days=${tage}&limit=${grenze}&sort=desc`,
+        titel: r.grund, wer: r.klartext.wer, antwort: r.klartext.roh,
+      }));
+    return { ok: false, ereignisse: [], grund: r.grund, klartext: r.klartext };
+  }
   return {
     ok: true,
     ereignisse: (r.daten.events || []).map((e) => ({
@@ -164,9 +210,42 @@ export async function ereignisseFuer(
       am: String(e.date ?? ""),
       betreff: e.subject ? String(e.subject) : null,
       grund: e.reason ? String(e.reason) : null,
-      messageId: e["message-id"] ? String(e["message-id"]) : null,
+      // Brevo liefert `messageId` (Referenz), ältere Antworten „message-id".
+      // Beide lesen — sonst bleibt die Verknüpfung leer und ein Treffer wird
+      // nicht erkannt.
+      messageId: e.messageId ? String(e.messageId)
+        : e["message-id"] ? String(e["message-id"]) : null,
     })),
   };
+}
+
+/**
+ * EINE Nachschau für VIELE Ereignisse — der schnelle Prüflauf.
+ *
+ * ── WARUM (21.08.2026) ────────────────────────────────────────────────────
+ * Der Prüflauf ging 35-mal durch (senden → warten → fragen). Das dauerte
+ * Minuten und sah aus, als hinge er.
+ *
+ * Brevo liefert alle Ereignisse einer Adresse in EINER Antwort. Also: alle 35
+ * Mails abschicken, kurz warten, EINMAL fragen, dann zuordnen. Ein Abruf statt
+ * 35 — und keine 35 Wartezeiten.
+ *
+ * Die Zuordnung läuft über den Betreff: Jede Probemail trägt ihren
+ * Ereignisnamen darin. Über die messageId wäre es genauer, aber Make gibt sie
+ * uns nicht zurück — der Betreff ist das, was wir haben.
+ */
+export async function nachschauSammel(
+  email: string, seit: Date,
+): Promise<{
+  ok: boolean;
+  ereignisse: ZustellEreignis[];
+  grund?: string;
+  klartext?: BrevoKlartext;
+}> {
+  // Höheres Limit: 35 Mails erzeugen je mehrere Ereignisse (requests,
+  // delivered, opened). Mit 100 wären es zu wenige, und fehlende Treffer sähen
+  // wieder aus wie „Zweig fehlt".
+  return ereignisseFuer(email, seit, 1000);
 }
 
 /** Aus mehreren Ereignissen den aussagekräftigsten Zustand wählen. */

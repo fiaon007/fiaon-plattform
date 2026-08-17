@@ -394,6 +394,66 @@ sein (`\u201c`), sonst beendet es den umgebenden String — und `esbuild` meldet
 kaputt ist und der Übersetzungsversuch schon vorher scheitert. Wer einen deutschen
 Zitatanfang tippt, tippt das Ende gleich mit.
 
+## HTTP 400 heißt: WIR haben den Fehler
+
+Am 21.08.2026 setzte der Betreiber BREVO_API_KEY. Die Zweigprüfung scheiterte bei
+ALLEN 35 Ereignissen identisch mit „Brevo hat mit HTTP 400 geantwortet“ —
+während seine Testmails ankamen. Die Kachel meldete „35 ohne Zweig“.
+
+Ursache war eine Zeile in `ereignisseFuer()`: `endDate` lag einen Tag in der
+ZUKUNFT (`Date.now() + 86_400_000`), und Brevo lehnt das ab. Der Versand war
+gesund; nur die Nachschau war kaputt.
+
+- **Statuscodes nach VERURSACHER trennen, nicht nur nach Nummer.** 400/404/422 =
+  unsere Abfrage. 401/403 = eine Einstellung. 429/5xx = die Gegenseite.
+  `BrevoKlartext` trägt dafür ein Feld `wer`.
+- **Ein Zustand „konnte nicht prüfen“ ist nicht derselbe wie „ist
+  kaputt“.** Wer beides zusammenzählt, beschuldigt den Betreiber für einen
+  Fehler im eigenen Code. Das ist bei FIAON zweimal passiert (09.08. und
+  21.08.2026).
+- **Eine Prüfung, die nicht stattfand, darf nichts als gescheitert
+  markieren** — kein `verifikationSpeichern(…, false, …)`, wenn die Abfrage
+  selbst scheiterte.
+- **Die volle Antwort des Gegenübers ins Log UND aufklappbar in die Oberfläche.**
+  Eine Fehlermeldung ohne sie schickt den nächsten Leser auf dieselbe Suche.
+- Und bei fremden APIs: **die Referenz lesen, statt Parameter zu raten.** Brevo
+  bietet `days` („in the past including today", max 90) — genau für diesen Zweck,
+  und per Bauart ohne Zukunftsdatum. Aber NICHT zusammen mit startDate/endDate:
+  laut Referenz unzulässig, und unzulässige Kombinationen sind der zweite
+  häufige 400-Grund.
+
+## Ein Grep auf die Abwesenheit von Code trifft die Begründung
+
+Die Prüfung „das Zukunftsdatum ist weg“ wurde rot, obwohl es weg war: Sie
+fand den alten Code in dem Kommentar, der erklärt, WARUM er weg ist.
+
+Die naheliegende Reaktion wäre, die Begründung zu löschen. Genau falsch.
+
+- **Wer prüft, dass etwas NICHT im Code steht, prüft den kommentarfreien Text.**
+- **Und man verbietet keine Zahl, sondern ihren falschen Gebrauch.** Ein Verbot
+  von `86_400_000` traf auch `(Date.now() - seit) / 86_400_000` — Millisekunden
+  pro Tag. Der Fehler war das PLUS, nicht die Zahl.
+
+## Dieselbe Zahl an zwei Stellen wird einmal korrigiert
+
+Der Prüflauf wurde von „35 × 4 Sekunden“ auf einen Sammellauf umgebaut. Die
+Fortschrittsleiste nannte danach die neue Zeit; der Bestätigungsdialog sagte
+weiter „etwa 2 Minuten“.
+
+Gefunden hat es der SCREENSHOT der Abnahme — kein Prüfstand, kein Typcheck.
+Wer eine Angabe ändert, sucht sie im ganzen Bauteil (`grep` auf die Zahl und auf
+das Wort „Minuten“).
+
+## Ein Prüfstand muss die Bedingungen herstellen, die ein Mensch herstellt
+
+Der Browsertest klickte „Alle Zweige prüfen“ und wurde achtmal rot. Grund:
+Der Knopf im Dialog war deaktiviert — „Trag zuerst oben eine Testadresse
+ein“. Das ist RICHTIGES Verhalten der Seite (ohne Adresse weiß niemand, wohin
+35 Mails gehen).
+
+Ein Prüfstand, der die Vorbedingungen nicht herstellt, prüft eine Sperre und
+meldet sie als Fehler. Und wieder: **nur der Screenshot verriet es.**
+
 ## Eine Regel gegen 400 Code-Stellen gehört in die Datenbank
 
 Am 20.08.2026 sollten die Kontakt-Spalten an `fiaon_applications` und

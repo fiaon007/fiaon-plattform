@@ -40,6 +40,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-21-zweigampel",
+    date: "2026-08-21",
+    category: "Behoben",
+    title: "Die „35 Zweige fehlen“-Meldung war unser Fehler, nicht euer",
+    summary:
+      "Die Zweigpr\u00fcfung meldete bei allen 35 Ereignissen einen Fehler \u2014 obwohl die Mails ankamen. "
+      + "Schuld war eine falsche Abfrage in unserem Code. Und der Pr\u00fcflauf dauert jetzt 30 Sekunden statt zwei Minuten.",
+    changes: [
+      "DAS WAR DAS PROBLEM: Unsere Abfrage an Brevo fragte nach Daten „bis morgen“. Brevo lehnt Zukunftsdaten ab \u2014 mit einem Fehler, den die Seite als „35 Zweige fehlen“ anzeigte. Die Zweige waren die ganze Zeit in Ordnung.",
+      "DREI ZUST\u00c4NDE STATT ZWEI: Die Ampel unterscheidet jetzt „best\u00e4tigt“, „Zweig fehlt“ und „Pr\u00fcfung gest\u00f6rt“. Der dritte z\u00e4hlt NICHT als fehlender Zweig \u2014 er hei\u00dft nur: Wir konnten nicht nachsehen.",
+      "Ist der Fehler bei uns, steht das jetzt dran: eine violette Marke „unser Fehler“, dazu der Satz „Nichts in Make zu tun“ und Brevos Originalantwort zum Aufklappen.",
+      "SCHNELLER: Der Pr\u00fcflauf schickte 35 Mails einzeln und wartete jedes Mal. Jetzt gehen alle sofort raus, dann wird EINMAL bei Brevo nachgesehen \u2014 etwa 30 Sekunden statt zwei Minuten.",
+      "NEUE SEITENORDNUNG: Oben die Ampel und „Alle Zweige pr\u00fcfen“, dann die Ereignisliste, GANZ UNTEN das Zustellprotokoll. Ihr musstet vorher an einer 14-Tage-Liste vorbeiscrollen. Ein Sprungknopf f\u00fchrt direkt zum Protokoll.",
+    ],
+    howto: [
+      "Verwaltung \u2192 E-Mail-Events \u2192 „Alle Zweige pr\u00fcfen“. Vorher oben eine Testadresse eintragen.",
+      "Steht „Pr\u00fcfung gest\u00f6rt“: Nichts tun \u2014 das ist unsere Baustelle, nicht Make.",
+      "Steht „Zweig fehlt“: Dann lohnt der Blick ins Make-Szenario. Die Liste zum Kopieren steht darunter.",
+    ],
+    link: { href: "/admin/events", label: "Zu den E-Mail-Events" },
+    important: true,
+  },
+  {
     id: "2026-08-20-eine-quelle",
     date: "2026-08-20",
     category: "Behoben",

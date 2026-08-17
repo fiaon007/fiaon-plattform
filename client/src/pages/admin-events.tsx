@@ -90,7 +90,25 @@ function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
     onFertig();
   };
 
-  const fehlende = (erg?.zweige ?? []).filter((z: any) => !z.bestaetigt);
+  // ══════════════════════════════════════════════════════════════════════
+  // „NICHT BESTÄTIGT" IST NICHT DASSELBE WIE „ZWEIG FEHLT" (21.08.2026)
+  //
+  // Hier stand: `filter((z) => !z.bestaetigt)` — und die Kachel darüber hieß
+  // „ohne Zweig". Als die Nachschau selbst kaputt war (endDate in der Zukunft
+  // → HTTP 400), meldete diese Seite „35 ohne Zweig", während der Betreiber
+  // die Testmails EMPFING und die Zweige längst gebaut hatte.
+  //
+  // Eine Anschuldigung gegen den Betreiber für einen Fehler in unserem Code.
+  // Dasselbe Muster wie am 09.08.2026, als die Plattform aus einem Wort in
+  // ihrer eigenen Beschreibung „MAKE-ZWEIG FEHLT" machte.
+  //
+  // Jetzt werden drei Dinge getrennt: bestätigt · Zweig fehlt · Prüfung
+  // gestört. Und nur das MITTLERE gehört in die Liste „fehlt in Make".
+  // ══════════════════════════════════════════════════════════════════════
+  const alleZweige = (erg?.zweige ?? []) as any[];
+  const fehlende = alleZweige.filter((z: any) =>
+    z.zustand ? z.zustand === "zweig_fehlt" : !z.bestaetigt);
+  const gestoerte = alleZweige.filter((z: any) => z.zustand === "pruefung_gestoert");
   const liste = fehlende.map((z: any) => z.event).join("\n");
 
   return (
@@ -120,9 +138,14 @@ function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
             }} />
           </div>
           <style>{"@keyframes fiLauf{0%{transform:translateX(-100%)}100%{transform:translateX(320%)}}"}</style>
-          <p className="mt-2 text-[12px] text-slate-500">
-            Jeder Zweig bekommt bis zu vier Sekunden Zeit — der ganze Lauf dauert
-            etwa {Math.max(1, Math.round((anzahl * 4) / 60))} Minuten. Fenster offen lassen.
+          {/* ── DIE ZEITANGABE STIMMT JETZT ────────────────────────────────
+              Vorher: „jeder Zweig bekommt vier Sekunden" — bei 35 Zweigen über
+              zwei Minuten. Der Lauf schickt jetzt alle Mails gestaffelt ab,
+              wartet EINMAL und fragt EINMAL bei Brevo. */}
+          <p className="mt-2 text-[12px] text-slate-500 leading-relaxed">
+            Alle {anzahl} Probemails gehen sofort hintereinander raus, dann wird
+            <b> einmal</b> bei Brevo nachgesehen — zusammen etwa
+            {" "}{Math.round((anzahl * 0.2) + 27)} Sekunden. Fenster offen lassen.
           </p>
         </div>
       )}
@@ -139,7 +162,10 @@ function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
           <div className="mt-4 grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))" }}>
             {[
               ["bestätigt", erg.sauber, "#059669"],
-              ["ohne Zweig", erg.beanstandet, "#d97706"],
+              ["Zweig fehlt", erg.beanstandet, "#d97706"],
+              // Der dritte Zustand. Er zählt NICHT als „ohne Zweig" — über
+              // diese Zweige ist nichts gesagt, weil die Prüfung nicht lief.
+              ["Prüfung gestört", erg.gestoert ?? gestoerte.length, "#7c3aed"],
               ["geprüft", erg.gepruefte, "#64748b"],
             ].map(([t, w, f]) => (
               <div key={String(t)} className="px-3.5 py-3 rounded-xl"
@@ -152,13 +178,57 @@ function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
             ))}
           </div>
 
-          {erg.brevo && (
+          {erg.brevo && (() => {
+            // ── DIE FARBE SAGT, WER DEN FEHLER HAT ──────────────────────
+            // Violett = wir (Programmfehler). Bernstein = Einstellung oder
+            // Brevo. Dieselbe Farbe für beides hätte den Betreiber wieder in
+            // Make suchen lassen.
+            const wirSchuld = erg.brevo.wer === "wir";
+            const ton = wirSchuld ? "#7c3aed" : "#d97706";
+            const dunkel = wirSchuld ? "#5b21b6" : "#92400e";
+            return (
+              <div className="mt-3 px-3.5 py-3 rounded-xl"
+                   style={{ background: `${ton}14`, boxShadow: `inset 0 0 0 1px ${ton}38` }}>
+                <p className="text-[12.5px] font-bold" style={{ color: dunkel }}>
+                  {wirSchuld && (
+                    <span className="mr-1.5 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-[.08em]"
+                          style={{ background: `${ton}22`, color: dunkel }}>
+                      unser Fehler
+                    </span>
+                  )}
+                  {erg.brevo.titel}
+                </p>
+                {(erg.brevo.anleitung ?? []).map((a: string, i: number) => (
+                  <p key={i} className="text-[12px] mt-1 leading-relaxed" style={{ color: dunkel }}>· {a}</p>
+                ))}
+                {erg.brevo.roh && (
+                  <details className="mt-2">
+                    <summary className="text-[11.5px] font-semibold cursor-pointer" style={{ color: dunkel }}>
+                      Vollständige Antwort von Brevo
+                    </summary>
+                    {/* Der Auftrag verlangt sie ausdrücklich aufklappbar: Ohne
+                        sie sucht der nächste Leser dieselbe Ursache von vorn. */}
+                    <pre className="mt-1.5 p-2.5 rounded-lg text-[11px] overflow-x-auto whitespace-pre-wrap"
+                         style={{ background: "rgba(15,23,42,.05)", color: "#334155" }}>
+                      {erg.brevo.roh}
+                    </pre>
+                  </details>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* ── DIE GESTÖRTEN GETRENNT AUFFÜHREN ────────────────────────── */}
+          {gestoerte.length > 0 && (
             <div className="mt-3 px-3.5 py-3 rounded-xl"
-                 style={{ background: "rgba(217,119,6,.08)", boxShadow: "inset 0 0 0 1px rgba(217,119,6,.22)" }}>
-              <p className="text-[12.5px] font-bold" style={{ color: "#b45309" }}>{erg.brevo.titel}</p>
-              {(erg.brevo.anleitung ?? []).map((a: string, i: number) => (
-                <p key={i} className="text-[12px] mt-1" style={{ color: "#92400e" }}>· {a}</p>
-              ))}
+                 style={{ background: "rgba(124,58,237,.07)", boxShadow: "inset 0 0 0 1px rgba(124,58,237,.2)" }}>
+              <p className="text-[12px] font-bold" style={{ color: "#5b21b6" }}>
+                Bei {gestoerte.length} Ereignis{gestoerte.length === 1 ? "" : "sen"} konnte nicht geprüft werden
+              </p>
+              <p className="text-[12px] mt-1 leading-relaxed" style={{ color: "#5b21b6" }}>
+                Das heißt <b>nicht</b>, dass diese Zweige fehlen — es heißt, dass wir es nicht
+                nachsehen konnten. Sie stehen deshalb nicht in der Liste unten.
+              </p>
             </div>
           )}
 
@@ -218,7 +288,14 @@ function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
               Kunden bekommen nichts davon zu sehen; jede Mail trägt <code>test: true</code>.
             </p>
             <p className="mt-2.5 text-[12.5px] leading-relaxed" style={{ color: "var(--fi-text-still)" }}>
-              Der Lauf braucht etwa {Math.max(1, Math.round((anzahl * 4) / 60))} Minuten.
+              {/* ── DIE ANGABE STAND AUF DER ALTEN LAUFZEIT ──────────────
+                  Gefunden im Screenshot der Browser-Abnahme: Die
+                  Fortschrittsleiste war schon umgestellt, dieser Dialog nicht.
+                  Zwei Angaben derselben Zahl an zwei Stellen — die eine wurde
+                  korrigiert, die andere vergessen. */}
+              Der Lauf braucht etwa {Math.round((anzahl * 0.2) + 27)} Sekunden:
+              Alle Mails gehen sofort hintereinander raus, dann wird einmal bei
+              Brevo nachgesehen.
             </p>
             {!testAdresse && (
               <p className="mt-3 px-3.5 py-2.5 rounded-xl text-[12.5px] font-semibold"
@@ -519,7 +596,19 @@ export default function AdminEventsPage() {
         ]}
       />
 
-      <Zustellprotokoll />
+      {/* ══════════════════════════════════════════════════════════════════
+          DIE ARBEITSFLÄCHE NACH OBEN, DAS NACHSCHLAGEWERK NACH UNTEN
+          (21.08.2026)
+
+          Hier stand `<Zustellprotokoll />` — als ERSTES, direkt unter der
+          Einleitung. Der Betreiber musste an einer 14-Tage-Liste vorbeiscrollen,
+          um an „Alle Zweige prüfen" und die Ereignisliste zu kommen. Das sind
+          die beiden Dinge, für die er die Seite öffnet.
+
+          Neue Ordnung: (1) Ampel und Prüfknopf, (2) die Ereignisse, (3) ganz
+          unten das Protokoll zum Nachschlagen. Ein Sprunganker im Kopf führt
+          direkt hin, für die Fälle, in denen er wirklich nachschlagen will.
+          ══════════════════════════════════════════════════════════════════ */}
 
       {/* ══════════════════════════════════════════════════════════════════
           ALLE ZWEIGE PRÜFEN
@@ -559,6 +648,19 @@ export default function AdminEventsPage() {
           Weil sie jede andere Anzeige auf dieser Seite relativiert. Wer sie
           nicht liest, hält 35 gelbe Marken für 35 Probleme.
           ══════════════════════════════════════════════════════════════════ */}
+      {/* ── SPRUNGANKER ────────────────────────────────────────────────────
+          Das Protokoll steht jetzt unten. Wer wirklich nachschlagen will,
+          soll nicht scrollen müssen. */}
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <a href="#zustellprotokoll"
+           className="fi-knopf-glas px-3.5 py-2 text-[12px] no-underline">
+          Zum Zustellprotokoll ↓
+        </a>
+        <span className="text-[11.5px] text-slate-400">
+          Die Arbeitsfläche steht oben, das Nachschlagewerk unten.
+        </span>
+      </div>
+
       {data && !data.brevoKonfiguriert && (
         <div className="mb-5 rounded-2xl p-4 sm:p-5"
              style={{ background: "linear-gradient(180deg,rgba(217,119,6,.09),rgba(217,119,6,.03))",
@@ -733,7 +835,7 @@ export default function AdminEventsPage() {
                           <button type="button" onClick={() => void zweigPruefen(ev.type)}
                                   disabled={pruefeLaeuft === ev.type}
                                   className="ml-2 font-bold underline disabled:opacity-50">
-                            {pruefeLaeuft === ev.type ? "prüft … (bis zu 3 Minuten)" : "Zweig prüfen"}
+                            {pruefeLaeuft === ev.type ? "prüft … (etwa 30 Sekunden)" : "Zweig prüfen"}
                           </button>
                         )}
                         {ev.recommendationOnly && <><br />Für dieses Ereignis löst der Code noch keinen automatischen Versand aus — es lässt sich aber testen.</>}
@@ -831,6 +933,15 @@ export default function AdminEventsPage() {
           )}
         </div>
       </section>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          DAS PROTOKOLL — GANZ UNTEN, ZUM NACHSCHLAGEN
+          Es stand vorher als ERSTES auf der Seite. Der Betreiber scrollte an
+          einer 14-Tage-Liste vorbei, um an die Arbeitsfläche zu kommen.
+          ══════════════════════════════════════════════════════════════════ */}
+      <div id="zustellprotokoll" className="mt-8 pt-2" style={{ scrollMarginTop: 84 }}>
+        <Zustellprotokoll />
+      </div>
 
       {/* Bestätigungsdialog „Für echten Kunden senden" */}
       {preview && (

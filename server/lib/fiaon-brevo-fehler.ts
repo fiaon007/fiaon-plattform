@@ -24,6 +24,24 @@ export interface BrevoKlartext {
   behebbar: boolean;
   /** Die rohe Antwort, aufklappbar für den Fall, dass jemand sie braucht. */
   roh: string;
+  /**
+   * WER hat den Fehler gemacht? Die wichtigste Unterscheidung überhaupt.
+   *
+   * ── WARUM DAS EIN EIGENES FELD IST (21.08.2026) ─────────────────────────
+   * Der Betreiber setzte BREVO_API_KEY, und die Zweigprüfung scheiterte bei
+   * ALLEN 35 Ereignissen gleich: „Brevo hat mit HTTP 400 geantwortet."
+   * Gleichzeitig kamen die Testmails bei ihm an. Der Versand war gesund.
+   *
+   * Die Anzeige machte daraus „35 ohne Zweig" — eine Anschuldigung gegen den
+   * Betreiber, obwohl UNSERE Abfrage falsch war. Genau das Muster, das schon
+   * einmal in dieser Datei stand („Vorgesetzten-TODO", 09.08.2026).
+   *
+   *   "wir"   — unsere Abfrage ist falsch. Nichts am Versand ist kaputt, und
+   *             niemand muss in Make nachsehen. Ein Programmfehler.
+   *   "brevo" — Brevos Seite (Ausfall, Bremse, Sicherheit).
+   *   "einstellung" — etwas ist nicht eingerichtet (Schlüssel, IP-Freigabe).
+   */
+  wer: "wir" | "brevo" | "einstellung";
 }
 
 const IP_ANLEITUNG = [
@@ -61,7 +79,7 @@ export function brevoKlartext(status: number, koerper: unknown): BrevoKlartext {
       anleitung: ip
         ? [`Trage ${ip} auf app.brevo.com/security/authorised_ips ein`, ...IP_ANLEITUNG.slice(1)]
         : IP_ANLEITUNG,
-      behebbar: true, roh,
+      behebbar: true, roh, wer: "einstellung",
     };
   }
   if (status === 401) {
@@ -71,7 +89,7 @@ export function brevoKlartext(status: number, koerper: unknown): BrevoKlartext {
         "Prüfe, ob BREVO_API_KEY noch gültig ist (app.brevo.com → SMTP & API → API keys).",
         "Ein neu erzeugter Schlüssel ersetzt den alten sofort — der alte gilt dann nicht mehr.",
       ],
-      behebbar: true, roh,
+      behebbar: true, roh, wer: "einstellung",
     };
   }
   if (status === 403) {
@@ -81,7 +99,7 @@ export function brevoKlartext(status: number, koerper: unknown): BrevoKlartext {
         "Der Schlüssel braucht Leserechte auf die Transaktions-Statistik.",
         "Erzeuge in Brevo einen Schlüssel mit vollem Zugriff und trage ihn als BREVO_API_KEY ein.",
       ],
-      behebbar: true, roh,
+      behebbar: true, roh, wer: "einstellung",
     };
   }
   if (status === 429) {
@@ -92,7 +110,7 @@ export function brevoKlartext(status: number, koerper: unknown): BrevoKlartext {
         "Der Abgleich läuft ohnehin stündlich von selbst; ein Ausfall holt sich beim nächsten Lauf nach.",
       ],
       // Kein Einstellungsfehler, aber auch kein Ausfall — es löst sich selbst.
-      behebbar: true, roh,
+      behebbar: true, roh, wer: "brevo",
     };
   }
   if (status === 0) {
@@ -102,7 +120,7 @@ export function brevoKlartext(status: number, koerper: unknown): BrevoKlartext {
         "Das kann eine kurze Störung sein. Der stündliche Abgleich versucht es von selbst erneut.",
         "Hält es an, prüfe status.brevo.com.",
       ],
-      behebbar: false, roh,
+      behebbar: false, roh, wer: "brevo",
     };
   }
   if (status >= 500) {
@@ -112,13 +130,58 @@ export function brevoKlartext(status: number, koerper: unknown): BrevoKlartext {
         "Das liegt nicht an FIAON. Der stündliche Abgleich versucht es erneut.",
         "Hält es an, prüfe status.brevo.com.",
       ],
-      behebbar: false, roh,
+      behebbar: false, roh, wer: "brevo",
     };
   }
+  // ══════════════════════════════════════════════════════════════════════
+  // HTTP 400 HEISST: UNSERE ABFRAGE IST FALSCH
+  //
+  // ── DER VORFALL (21.08.2026) ─────────────────────────────────────────
+  // Der Betreiber setzte BREVO_API_KEY. Die Zweigprüfung scheiterte bei ALLEN
+  // 35 Ereignissen identisch mit „Brevo hat mit HTTP 400 geantwortet" —
+  // während das Zustellprotokoll alle Testmails als versandt zeigte und der
+  // Betreiber sie EMPFING.
+  //
+  // Ursache: `ereignisseFuer()` schickte `endDate` auf MORGEN
+  // (Date.now() + 86_400_000). Brevo lehnt ein Enddatum in der Zukunft mit 400
+  // ab. Der Versand war die ganze Zeit gesund; nur die Nachschau war kaputt.
+  //
+  // ── WARUM DAS EINEN EIGENEN FALL BRAUCHT ────────────────────────────
+  // Vorher fiel 400 in den Sammelfall unten: „Brevo hat mit HTTP 400
+  // geantwortet … gehört in eine Rückfrage an Brevo." Das ist falsch und
+  // schickt den Betreiber zum Anbieter, während der Fehler bei uns liegt.
+  //
+  // Und schlimmer: Die Kachel machte daraus „35 ohne Zweig" — eine
+  // Anschuldigung gegen den Betreiber, der die Zweige längst gebaut hatte.
+  // Dasselbe Muster wie am 09.08.2026 („Vorgesetzten-TODO").
+  // ══════════════════════════════════════════════════════════════════════
+  if (status === 400 || status === 404 || status === 422) {
+    // Brevo nennt in `message` meist den beanstandeten Parameter.
+    const brevoSatz = (() => {
+      try {
+        const j = JSON.parse(roh);
+        return typeof j?.message === "string" ? j.message : null;
+      } catch { return null; }
+    })();
+    return {
+      titel: "Die Prüfung selbst ist gestört — nicht der Versand."
+        + (brevoSatz ? ` Brevo beanstandet: „${brevoSatz}“` : ""),
+      anleitung: [
+        `Das ist ein Programmfehler bei uns (HTTP ${status}): Brevo hat die Abfrage `
+          + "abgelehnt, nicht die Mail. Der Versand läuft weiter, und Zweige fehlen deswegen nicht.",
+        "Nichts in Make zu tun. Die vollständige Antwort steht unten und gehört in eine "
+          + "Fehlermeldung an die Entwicklung.",
+        "Der Abgleich holt alles nach, sobald die Abfrage stimmt — es geht keine Zustellung verloren.",
+      ],
+      // Behebbar, aber nicht vom Betreiber.
+      behebbar: false, roh, wer: "wir",
+    };
+  }
+
   return {
     titel: `Brevo hat mit HTTP ${status} geantwortet.`,
     anleitung: ["Die vollständige Antwort steht unten — sie gehört in eine Rückfrage an Brevo."],
-    behebbar: false, roh,
+    behebbar: false, roh, wer: "brevo",
   };
 }
 
@@ -132,6 +195,6 @@ export function brevoNichtEingerichtet(): BrevoKlartext {
       "Schlüssel holen: app.brevo.com → SMTP & API → API keys → Generate a new API key.",
       "Als BREVO_API_KEY in die Umgebung eintragen und den Server neu starten.",
     ],
-    behebbar: true, roh: "BREVO_API_KEY fehlt",
+    behebbar: true, roh: "BREVO_API_KEY fehlt", wer: "einstellung",
   };
 }

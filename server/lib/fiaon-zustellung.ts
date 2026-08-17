@@ -21,8 +21,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
-import { besterZustand, brevoKonfiguriert, ereignisseFuer, OHNE_SCHLUESSEL } from "./fiaon-brevo";
-import { mailEvent, verifikationSpeichern } from "./fiaon-mail-events";
+import { besterZustand, brevoKonfiguriert, ereignisseFuer, nachschauSammel, OHNE_SCHLUESSEL } from "./fiaon-brevo";
+import type { BrevoKlartext } from "./fiaon-brevo-fehler";
+import { mailEvent, mailEvents, verifikationSpeichern } from "./fiaon-mail-events";
 import { mailSenden } from "./fiaon-mail-senden";
 import type { Rolle } from "./fiaon-mail-events";
 
@@ -103,6 +104,201 @@ export async function zweigPruefen(
     + "ist nicht aktiv oder nicht zugeordnet. Prüfe beides — Make hat die Anfrage angenommen, danach verliert sich die Spur.";
   await verifikationSpeichern(event, false, text);
   return { event, bestaetigt: false, text, gewartetSekunden: Math.round((Date.now() - start) / 1000) };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER SAMMELLAUF: ALLE ZWEIGE IN EINEM DURCHGANG
+//
+// ── WARUM (21.08.2026) ─────────────────────────────────────────────────────
+// Der alte Lauf ging 35-mal durch `zweigPruefen`: senden → warten → fragen.
+// Bei 4 Sekunden Mindestwartezeit je Zweig sind das über zwei Minuten, in denen
+// die Seite aussieht, als hinge sie. Und 35 einzelne Brevo-Abrufe reizen die
+// Bremse (HTTP 429).
+//
+// Brevo liefert alle Ereignisse einer Adresse in EINER Antwort. Also:
+//   1. alle 35 Probemails abschicken (gestaffelt gegen Make-Drosselung)
+//   2. einmal warten
+//   3. EINMAL bei Brevo fragen
+//   4. zuordnen
+//
+// Ein Abruf statt 35, eine Wartezeit statt 35.
+//
+// ── DIE DREI ZUSTÄNDE ──────────────────────────────────────────────────────
+// Der eigentliche Grund für diesen Umbau ist nicht die Zeit, sondern die
+// WAHRHEIT. Vorher gab es zwei Zustände: bestätigt oder „nicht bestätigt" — und
+// die Kachel zählte alles Zweite als „ohne Zweig".
+//
+// Als die Nachschau selbst kaputt war (endDate in der Zukunft → HTTP 400),
+// meldete die Seite „35 ohne Zweig", während die Mails ankamen. Eine falsche
+// Anschuldigung gegen den Betreiber, der die Zweige längst gebaut hatte.
+//
+//   "bestaetigt"  Die Mail ist nachweislich bei Brevo angekommen.
+//   "zweig_fehlt" Sie kam NICHT an, obwohl die Abfrage funktionierte. Jetzt
+//                 lohnt der Blick in Make oder auf das Brevo-Template.
+//   "pruefung_gestoert" WIR konnten nicht nachsehen. Über den Zweig ist damit
+//                 NICHTS gesagt — dieser Zustand zählt NICHT als „ohne Zweig".
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type ZweigZustand = "bestaetigt" | "zweig_fehlt" | "pruefung_gestoert";
+
+export interface SammelZweig {
+  event: string;
+  zustand: ZweigZustand;
+  text: string;
+  /** Wann bei Brevo gesehen (nur bei „bestaetigt"). */
+  gesehenAm: string | null;
+  brevoZustand: string | null;
+}
+
+export interface SammelErgebnis {
+  ok: boolean;
+  zweige: SammelZweig[];
+  bestaetigt: number;
+  zweigFehlt: number;
+  gestoert: number;
+  /** Sekunden, die der ganze Lauf gebraucht hat. */
+  dauerSekunden: number;
+  /** Steht nur bei einem Problem an der Prüfung selbst. */
+  klartext?: BrevoKlartext;
+  testAdresse: string;
+}
+
+/**
+ * Alle Zweige in einem Durchgang prüfen.
+ *
+ * @param wartenMs Wie lange nach dem Versand gewartet wird, bevor gefragt wird.
+ *                 Brevo braucht typisch 5–20 Sekunden, bis ein Ereignis in der
+ *                 Statistik steht.
+ * @param fortschritt Wird nach jedem Abschnitt gerufen, damit die Oberfläche
+ *                 eine Leiste zeigen kann statt eines Wartekreises.
+ */
+export async function alleZweigePruefen(
+  testAdresse: string,
+  akteur: { name: string; agentId: number | null; rolle: Rolle },
+  opts: {
+    wartenMs?: number;
+    staffelMs?: number;
+    /**
+     * Nur diese Ereignisse prüfen. Damit ist die Einzelprüfung DERSELBE Code
+     * mit einem Element — eine Logik, nicht zwei. Der Auftrag verlangt das
+     * ausdrücklich, und der Grund ist bekannt: Zwei Fassungen derselben
+     * Prüfung gehen auseinander, und beide Prüfstände bleiben grün.
+     */
+    nur?: string[];
+    fortschritt?: (s: { schritt: string; versandt: number; gesamt: number }) => void;
+  } = {},
+): Promise<SammelErgebnis> {
+  const start = Date.now();
+  const alleEvents = await mailEvents();
+  const events = opts.nur?.length
+    ? alleEvents.filter((e) => opts.nur!.includes(e.type))
+    : alleEvents;
+  const warten = opts.wartenMs ?? 25_000;
+  const staffel = opts.staffelMs ?? 200;
+  const melde = opts.fortschritt ?? (() => {});
+
+  if (!brevoKonfiguriert()) {
+    // Ohne Schlüssel ist JEDER Zweig „Prüfung gestört", nicht „Zweig fehlt".
+    // Das ist der Kern des Auftrags: Über die Zweige ist nichts gesagt.
+    const { brevoNichtEingerichtet } = await import("./fiaon-brevo-fehler");
+    const k = brevoNichtEingerichtet();
+    return {
+      ok: false,
+      zweige: events.map((e) => ({
+        event: e.type, zustand: "pruefung_gestoert" as ZweigZustand,
+        text: OHNE_SCHLUESSEL, gesehenAm: null, brevoZustand: null,
+      })),
+      bestaetigt: 0, zweigFehlt: 0, gestoert: events.length,
+      dauerSekunden: 0, klartext: k, testAdresse,
+    };
+  }
+
+  // ── 1. ALLE SENDEN ───────────────────────────────────────────────────────
+  // Gestaffelt: Make drosselt bei zu vielen Anfragen gleichzeitig, und ein
+  // gedrosselter Versand sähe später aus wie ein fehlender Zweig.
+  const versandFehler = new Map<string, string>();
+  let versandt = 0;
+  for (const e of events) {
+    const v = await mailSenden({
+      event: e.type, akteur, test: true, testAdresse,
+      zusatz: { pruef_marke: `fiaon-zweigpruefung-${e.type}-${start}` },
+    }).catch((err) => ({ ok: false, grund: err instanceof Error ? err.message : String(err) }));
+    if (!v.ok) versandFehler.set(e.type, String((v as any).grund ?? "unbekannt"));
+    versandt++;
+    melde({ schritt: "senden", versandt, gesamt: events.length });
+    if (staffel > 0) await new Promise((r) => setTimeout(r, staffel));
+  }
+
+  // ── 2. EINMAL WARTEN ─────────────────────────────────────────────────────
+  melde({ schritt: "warten", versandt, gesamt: events.length });
+  await new Promise((r) => setTimeout(r, warten));
+
+  // ── 3. EINMAL FRAGEN ─────────────────────────────────────────────────────
+  melde({ schritt: "nachschau", versandt, gesamt: events.length });
+  const nachschau = await nachschauSammel(testAdresse, new Date(start - 120_000));
+
+  // ── 4. ZUORDNEN ──────────────────────────────────────────────────────────
+  const zweige: SammelZweig[] = [];
+  let bestaetigt = 0;
+  let zweigFehlt = 0;
+  let gestoert = 0;
+
+  for (const e of events) {
+    // Ein Versandfehler ist weder das eine noch das andere: Make hat die Mail
+    // nicht angenommen, also ist über den ZWEIG nichts gesagt.
+    const vf = versandFehler.get(e.type);
+    if (vf) {
+      gestoert++;
+      const text = `Der Testversand ging schon an Make nicht raus: ${vf}. `
+        + "Über den Zweig ist damit nichts gesagt — erst muss der Webhook erreichbar sein.";
+      await verifikationSpeichern(e.type, false, text);
+      zweige.push({ event: e.type, zustand: "pruefung_gestoert", text, gesehenAm: null, brevoZustand: null });
+      continue;
+    }
+
+    // Konnte gar nicht nachgesehen werden? Dann ist JEDER Zweig „gestört".
+    if (!nachschau.ok) {
+      gestoert++;
+      const text = nachschau.klartext?.titel ?? `Bei Brevo konnte nicht nachgesehen werden: ${nachschau.grund}`;
+      // BEWUSST NICHT als „geprüft und gescheitert" speichern: Eine Prüfung,
+      // die nicht stattfand, darf keinen Zweig als fehlend markieren.
+      zweige.push({ event: e.type, zustand: "pruefung_gestoert", text, gesehenAm: null, brevoZustand: null });
+      continue;
+    }
+
+    // Die Zuordnung: frische Ereignisse, deren Betreff den Ereignisnamen trägt.
+    // Der Betreff ist das, was wir haben — Make gibt uns keine messageId zurück.
+    const frisch = nachschau.ereignisse.filter((x) =>
+      x.am && new Date(x.am).getTime() >= start - 120_000);
+    const meine = frisch.filter((x) =>
+      (x.betreff ?? "").toLowerCase().includes(e.type.toLowerCase())
+      || (x.betreff ?? "").toLowerCase().includes(String(e.label ?? "").toLowerCase()));
+
+    if (meine.length > 0) {
+      bestaetigt++;
+      const z = besterZustand(meine);
+      const text = `Zweig bestätigt: Der Testversand ist bei Brevo angekommen (${z?.zustand ?? "angenommen"}).`;
+      await verifikationSpeichern(e.type, true, text);
+      zweige.push({ event: e.type, zustand: "bestaetigt", text, gesehenAm: z?.am ?? null, brevoZustand: z?.zustand ?? null });
+      continue;
+    }
+
+    zweigFehlt++;
+    const text = `Nicht bestätigt — die Testmail kam in ${Math.round(warten / 1000)} Sekunden nicht bei Brevo an. `
+      + "Zwei mögliche Ursachen, beide gleich wahrscheinlich: (1) Im Make-Szenario fehlt der Zweig mit dem Filter "
+      + `event_type = ${e.type}, oder er ist inaktiv. (2) Der Zweig existiert, aber das verknüpfte Brevo-Template `
+      + "ist nicht aktiv oder nicht zugeordnet. Make hat die Anfrage angenommen, danach verliert sich die Spur.";
+    await verifikationSpeichern(e.type, false, text);
+    zweige.push({ event: e.type, zustand: "zweig_fehlt", text, gesehenAm: null, brevoZustand: null });
+  }
+
+  return {
+    ok: nachschau.ok,
+    zweige, bestaetigt, zweigFehlt, gestoert,
+    dauerSekunden: Math.round((Date.now() - start) / 1000),
+    klartext: nachschau.klartext,
+    testAdresse,
+  };
 }
 
 /**

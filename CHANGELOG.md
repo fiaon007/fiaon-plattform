@@ -3,6 +3,73 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 21.08.2026 — Der HTTP 400, der 35 Make-Zweige zu Unrecht beschuldigte
+
+### Der Befund
+
+Der Betreiber setzte `BREVO_API_KEY`. Die Zweig-Prüfung scheiterte trotzdem bei **allen 35 Ereignissen identisch** mit „Brevo hat mit HTTP 400 geantwortet" — während das Zustellprotokoll alle Testmails als versandt zeigte und er sie **empfing**.
+
+Die Kachel meldete **„35 ohne Zweig"**. Der Versand war die ganze Zeit gesund.
+
+### Die Ursache — in einer Zeile
+
+```
+const bis = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+…&startDate=${von}&endDate=${bis}&limit=100&sort=desc
+```
+
+`endDate` lag **einen Tag in der Zukunft** — gut gemeint („damit heute sicher mitgezählt wird"), aber Brevo lehnt das mit 400 ab.
+
+**Die Korrektur** kommt aus der Brevo-Referenz zu `GET /smtp/statistics/events`:
+
+> `days` — Number of days in the past **including today** (positive integer, maximum 90). *Not compatible with 'startDate' and 'endDate'.*
+
+`days` kann per Bauart kein Zukunftsdatum enthalten und schließt heute ein — genau das, was der Datumsbereich erreichen wollte, mit *einem* Parameter statt zweier, die zueinander passen müssen. Dazu: `limit` von 100 auf 1.000 (35 Mails erzeugen je mehrere Ereignisse — fehlende Treffer sähen wieder aus wie „Zweig fehlt"), und `messageId` wird jetzt in beiden Schreibweisen gelesen.
+
+### Der eigentliche Schaden war nicht der 400, sondern die Anschuldigung
+
+Ein 400 fiel in den Sammelfall: *„Brevo hat mit HTTP 400 geantwortet … gehört in eine Rückfrage an Brevo."* Falsch in beide Richtungen — der Fehler lag bei **uns**, und der Betreiber wurde zum Anbieter geschickt. Schlimmer: Alles, was nicht „bestätigt" war, zählte als „ohne Zweig".
+
+**Das ist dasselbe Muster wie am 09.08.2026**, als die Plattform aus einem Wort in ihrer *eigenen* Beschreibung „MAKE-ZWEIG FEHLT" machte.
+
+Deshalb gibt es jetzt **drei Zustände** statt zwei:
+
+| Zustand | Bedeutung | Zählt als „ohne Zweig"? |
+|---|---|---|
+| **bestätigt** | Die Mail ist nachweislich bei Brevo angekommen | — |
+| **Zweig fehlt** | Sie kam nicht an, obwohl die Abfrage funktionierte | **ja** |
+| **Prüfung gestört** | *Wir* konnten nicht nachsehen | **nein** |
+
+Der dritte Zustand ist der Kern. Und `BrevoKlartext` trägt jetzt ein Feld `wer: "wir" | "brevo" | "einstellung"` — die Oberfläche zeigt bei `"wir"` eine violette Marke **„unser Fehler"** samt Brevos Originalsatz und aufklappbarer Rohantwort. Dazu der Satz, der die falsche Suche beendet: *„Nichts in Make zu tun."*
+
+**Und eine gestörte Prüfung markiert keinen Zweig mehr als fehlend** — vorher schrieb sie „geprüft und gescheitert" in die Datenbank, obwohl nichts geprüft wurde.
+
+### Der Prüflauf: aus über zwei Minuten werden ~34 Sekunden
+
+Vorher 35 × (senden → 4 s warten → bei Brevo fragen) = **über 140 Sekunden** und 35 Brevo-Abrufe, die die Bremse reizen (HTTP 429).
+
+Jetzt: alle 35 Mails gestaffelt (200 ms gegen Make-Drosselung) → **einmal** warten → **einmal** fragen. Brevo liefert alle Ereignisse einer Adresse in einer Antwort. **Ein Abruf statt 35.**
+
+Die Einzelprüfung „Zweig prüfen" benutzt **dieselbe Funktion** mit einem Element — zwei Fassungen derselben Prüfung gehen auseinander, und beide Prüfstände bleiben grün.
+
+### Die Seite neu geordnet
+
+Das Zustellprotokoll stand als **erstes** auf der Seite. Der Betreiber scrollte an einer 14-Tage-Liste vorbei, um an „Alle Zweige prüfen" zu kommen — die beiden Dinge, für die er die Seite öffnet. Neue Ordnung: Ampel und Prüfknopf, dann die Ereignisse, **ganz unten** das Protokoll. Ein Sprunganker im Kopf führt direkt hin.
+
+### Drei eigene Fehler beim Bauen
+
+1. **Ein Quelltext-Grep traf meinen eigenen Kommentar.** Die Prüfung „das Zukunftsdatum ist weg" wurde rot — sie fand den alten Code in der Begründung, warum er weg ist. Wer die *Abwesenheit* von Code prüft, muss Kommentare ausschließen; sonst ist gute Dokumentation ein Fehlalarm, und die naheliegende Reaktion wäre, die Begründung zu löschen.
+2. **Ein Verbot der Zahl traf ihren richtigen Gebrauch.** `86_400_000` steht auch in `(Date.now() - seit) / 86_400_000` — Millisekunden pro Tag. Der Fehler war nicht die Zahl, sondern das **Plus**.
+3. **Die alte Laufzeit stand an zwei Stellen.** Ich korrigierte die Fortschrittsleiste; im Bestätigungsdialog stand weiter „etwa 2 Minuten". Gefunden hat es der **Screenshot** der Abnahme, nicht der Prüfstand.
+
+### Was NICHT fertig ist
+
+**Teil 4 (Zustellprotokoll mit Filtern, aufklappbaren Zeilen, Seitenweise, CSV-Export, 380-px-Karten) ist nicht angefangen.** Das Protokoll ist verschoben und erreichbar, aber inhaltlich unverändert.
+
+**Geprüft:** 36 Prüfungen (`scripts/pruef-zweigampel.ts`) mit Rot-Probe (Zukunftsdatum zurückgebaut → 6 rot), 24 im Browser (`scripts/pruef-ampel-browser.ts`) mit Attrappe für alle drei Zustände. Screenshots in `reports/ampel/`.
+
+**Betreiber-TODO:** Nach dem Deploy „Alle Zweige prüfen" erneut drücken — die Ampel sollte sich jetzt selbst bestätigen.
+
 ## 20.08.2026 (später) — Eine Datenquelle: die Kontaktdaten gehören der Person
 
 ### Der Auftrag

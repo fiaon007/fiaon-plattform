@@ -15,7 +15,7 @@ import {
 } from "../lib/fiaon-mail-events";
 import { mailSenden } from "../lib/fiaon-mail-senden";
 import { brevoKonfiguriert, eigeneMailSenden, OHNE_SCHLUESSEL, rahmen, vorlagen, vorlagenHtml } from "../lib/fiaon-brevo";
-import { zustellungAbgleichen, zweigPruefen, ZUSTELL_TEXT } from "../lib/fiaon-zustellung";
+import { alleZweigePruefen, zustellungAbgleichen, ZUSTELL_TEXT } from "../lib/fiaon-zustellung";
 import { brevoKlartext } from "../lib/fiaon-brevo-fehler";
 import { versandErlaubt, versandErlaubtViele, versandHistorie, type VersandArt } from "../lib/fiaon-versand";
 import { empfaengerSuche, filterGruppen, zielgruppeLaden, bausteineFuellen, BAUSTEINE } from "../lib/fiaon-zentrale";
@@ -89,10 +89,33 @@ router.post("/admin/mail/registry/:event/pruefen", async (req: Request, res: Res
         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
       `;
     }
-    const erg = await zweigPruefen(String(req.params.event), an,
+    // ── DIESELBE LOGIK WIE DER SAMMELLAUF ────────────────────────────────
+    // Vorher rief die Einzelprüfung `zweigPruefen`, der Sammellauf eine eigene
+    // Schleife. Zwei Fassungen derselben Prüfung gehen auseinander — jemand
+    // korrigiert die eine (hier: das Zukunftsdatum) und vergisst die andere,
+    // und beide Prüfstände bleiben grün.
+    //
+    // Jetzt ist die Einzelprüfung der Sammellauf mit einem Element.
+    const lauf = await alleZweigePruefen(an,
       { name: "Vorgesetzter", agentId: null, rolle: "admin" },
-      { maxWartenMs: Number(req.body?.maxWartenMs) || undefined });
-    res.json({ ok: true, ...erg });
+      {
+        nur: [String(req.params.event)],
+        wartenMs: Number(req.body?.maxWartenMs) || undefined,
+        // Bei einem einzelnen Ereignis gibt es nichts zu staffeln.
+        staffelMs: 0,
+      });
+    const z = lauf.zweige[0];
+    res.json({
+      ok: true,
+      event: String(req.params.event),
+      zustand: z?.zustand ?? "pruefung_gestoert",
+      bestaetigt: z?.zustand === "bestaetigt",
+      text: z?.text ?? "Unbekanntes Ereignis.",
+      gewartetSekunden: lauf.dauerSekunden,
+      gesehenAm: z?.gesehenAm ?? null,
+      brevoZustand: z?.brevoZustand ?? null,
+      brevo: lauf.klartext ?? null,
+    });
   } catch (err) {
     console.error("[MAIL] pruefen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -164,46 +187,53 @@ router.post("/admin/mail/alle-pruefen", async (req: Request, res: Response) => {
         error: "Für die Prüfung braucht es eine Testadresse — sonst weiß niemand, wohin die Probemails gehen.",
       });
     }
-    // Jede Prüfung SENDET eine Probemail. Bei 29 Zweigen sind das 29 Mails an
-    // die Testadresse — das muss vorher klar sein, deshalb steht die Zahl in
-    // der Antwort und der Knopf fragt vorher.
+    // ══════════════════════════════════════════════════════════════════════
+    // EIN SAMMELLAUF STATT 35 EINZELPRÜFUNGEN (21.08.2026)
+    //
+    // Hier stand eine Schleife: 35 × (senden → 4 s warten → bei Brevo fragen).
+    // Das dauerte über zwei Minuten und machte 35 Brevo-Abrufe, die die Bremse
+    // reizen (HTTP 429).
+    //
+    // `alleZweigePruefen` schickt alle Mails gestaffelt ab, wartet EINMAL und
+    // fragt EINMAL — Brevo liefert alle Ereignisse einer Adresse in einer
+    // Antwort. Und es liefert DREI Zustände statt zwei; das ist der wichtigere
+    // Teil (siehe fiaon-zustellung.ts).
+    // ══════════════════════════════════════════════════════════════════════
+    const lauf = await alleZweigePruefen(an,
+      { name: "Vorgesetzter", agentId: null, rolle: "admin" });
     const alle = await mailEvents();
-    const zweige: any[] = [];
-    let sauber = 0;
-    let beanstandet = 0;
-    let brevoKlar: any = null;
-
-    for (const e of alle) {
-      const p = await zweigPruefen(e.type, an,
-        { name: "Vorgesetzter", agentId: null, rolle: "admin" },
-        // Kurz warten: 29 × 20 Sekunden wären zehn Minuten, in denen der
-        // Vorgesetzter auf einen Ladebalken schaut. Wer eine Bestätigung
-        // vermisst, prüft den Zweig einzeln nach.
-        { maxWartenMs: 4000 },
-      ).catch((err) => ({
-        event: e.type, bestaetigt: false, gewartetSekunden: 0,
-        text: err instanceof Error ? err.message : String(err),
-      }));
-      if (p.bestaetigt) sauber++; else beanstandet++;
-      // Sobald Brevo einmal blockt, blockt es überall — die Anleitung genügt
-      // einmal, statt neunundzwanzigmal dieselbe Zeile.
-      if (!brevoKlar && /brevo/i.test(String(p.text))) {
-        brevoKlar = brevoKlartext(/HTTP (\d{3})/.exec(String(p.text)) ? Number(RegExp.$1) : 401, p.text);
-      }
-      zweige.push({ ...p, titel: e.label, beschreibung: e.description });
-    }
+    // Schlüssel bewusst als string: `z.event` kommt aus dem Sammellauf und ist
+    // dort ein string. Eine Map<MakeEventType, …> würde ihn ablehnen, obwohl es
+    // dieselben Werte sind.
+    const beschriftung = new Map<string, (typeof alle)[number]>(
+      alle.map((e) => [String(e.type), e]));
 
     const abgleich = await zustellungAbgleichen().catch((err) => ({
       ok: false, grund: err instanceof Error ? err.message : String(err),
     })) as any;
-    if (!brevoKlar && abgleich?.klartext) brevoKlar = abgleich.klartext;
 
     res.json({
       ok: true,
-      gepruefte: zweige.length, sauber, beanstandet,
-      testAdresse: an, zweige, abgleich,
+      gepruefte: lauf.zweige.length,
+      // ── DIE ZÄHLUNG TRENNT JETZT DREI DINGE ────────────────────────────
+      // `beanstandet` hieß vorher „alles, was nicht bestätigt ist" — und die
+      // Kachel machte daraus „35 ohne Zweig", auch wenn nur unsere Abfrage
+      // kaputt war. Diese falsche Anschuldigung ist der Grund für den Umbau.
+      sauber: lauf.bestaetigt,
+      beanstandet: lauf.zweigFehlt,
+      gestoert: lauf.gestoert,
+      dauerSekunden: lauf.dauerSekunden,
+      testAdresse: an,
+      zweige: lauf.zweige.map((z) => ({
+        ...z,
+        // Die alte Oberfläche liest `bestaetigt` — sie bleibt bedient.
+        bestaetigt: z.zustand === "bestaetigt",
+        titel: beschriftung.get(z.event)?.label ?? z.event,
+        beschreibung: beschriftung.get(z.event)?.description ?? "",
+      })),
+      abgleich,
       // Klartext statt roher API-Antwort — überall, wo Brevo im Spiel ist.
-      brevo: brevoKlar,
+      brevo: lauf.klartext ?? abgleich?.klartext ?? null,
     });
   } catch (err) {
     console.error("[MAIL] alle-pruefen:", err);

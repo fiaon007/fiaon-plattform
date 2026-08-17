@@ -143,8 +143,15 @@ async function main(): Promise<void> {
   // ═════════════════════════════════════════════════════════════════════════
   titel("3. DREI ZUSTÄNDE — und „gestört“ zählt nicht als „ohne Zweig“");
   // ═════════════════════════════════════════════════════════════════════════
-  pruef("Es gibt drei Zustände im Typ",
-    /"bestaetigt" \| "zweig_fehlt" \| "pruefung_gestoert"/.test(zustellung));
+  // ── AUS DREI WURDEN VIER ZUSTÄNDE (23.08.2026) ─────────────────────────
+  // Diese Prüfung stand auf der Einzeiler-Schreibweise der Vereinigung. Mit dem
+  // vierten Zustand („veraltet") steht sie über mehrere Zeilen — ein Regex auf
+  // die Formatierung wäre beim nächsten Zustand wieder rot. Also auf die
+  // BESTANDTEILE prüfen, nicht auf ihre Anordnung.
+  pruef("Es gibt vier Zustände im Typ",
+    ["\"bestaetigt\"", "\"zweig_fehlt\"", "\"pruefung_gestoert\"", "\"veraltet\""]
+      .every((z) => zustellung.includes(z)),
+    "bestätigt · Zweig fehlt · Prüfung gestört · veraltet");
   pruef("Der Sammellauf zählt sie getrennt",
     /bestaetigt: number;/.test(zustellung) && /zweigFehlt: number;/.test(zustellung)
       && /gestoert: number;/.test(zustellung));
@@ -176,9 +183,14 @@ async function main(): Promise<void> {
   // ═════════════════════════════════════════════════════════════════════════
   titel("4. DER LAUF IST SCHNELL — und eine Logik, nicht zwei");
   // ═════════════════════════════════════════════════════════════════════════
-  pruef("Alle Mails werden gestaffelt abgeschickt, dann EINMAL gewartet",
-    /1\. ALLE SENDEN/.test(zustellung) && /2\. EINMAL WARTEN/.test(zustellung)
-      && /3\. EINMAL FRAGEN/.test(zustellung));
+  // ── DIE ÜBERHOLTE REGEL ────────────────────────────────────────────────
+  // Hier stand „dann EINMAL gewartet, EINMAL gefragt". Genau das war der Fehler
+  // vom 22.08.2026: 34 falsche Rot-Marken, weil Brevo 1–3 Minuten braucht.
+  // Die Regel ist ersetzt, nicht gelöscht — damit niemand meint, das Polling
+  // sei ein Versehen.
+  pruef("Alle Mails werden gestaffelt abgeschickt, dann MEHRMALS gefragt",
+    /1\. ALLE SENDEN/.test(zustellung)
+      && /GEDULD: MEHRMALS NACHFRAGEN, NICHT EINMAL/.test(zustellung));
   pruef("Es gibt EINEN Brevo-Abruf für alle Zweige",
     (zustellung.match(/await nachschauSammel\(/g) ?? []).length === 1,
     "35 Abrufe reizen die Bremse (HTTP 429)");
@@ -186,8 +198,9 @@ async function main(): Promise<void> {
     /staffelMs \?\? 200/.test(zustellung),
     "ein gedrosselter Versand sähe aus wie ein fehlender Zweig");
   pruef("Der Fortschritt wird gemeldet",
-    /fortschritt\?: \(s: \{ schritt: string/.test(zustellung),
-    "sonst sieht die Seite aus, als hinge sie");
+    /fortschritt\?: \(s: \{/.test(zustellung)
+      && /bestaetigt\?: number; naechsteFrageInMs\?: number; runde\?: number;/.test(zustellung),
+    "sonst sieht die Seite aus, als hinge sie — und ein Abbruch erzeugt falsche Rot-Marken");
   pruef("Die Dauer steht in der Antwort",
     /dauerSekunden: lauf\.dauerSekunden,/.test(route),
     "damit die Verbesserung nachweisbar ist");
@@ -208,6 +221,95 @@ async function main(): Promise<void> {
   console.log(`        Vorher: ~${vorher} s (35 × 4 s Wartezeit, 35 Brevo-Abrufe)`);
   console.log(`        Jetzt:  ~${jetzt} s (7 s Staffel + 25 s Wartezeit + 1 Abruf)`);
   pruef("Der Lauf bleibt unter 90 Sekunden", jetzt < 90, `${jetzt} s gerechnet`);
+
+  // ═════════════════════════════════════════════════════════════════════════
+  titel("5. DIE GEDULD — mehrmals nachfragen statt einmal");
+  // ═════════════════════════════════════════════════════════════════════════
+  // ── DER FEHLER VOM 22.08.2026 ──────────────────────────────────────────
+  // Der Lauf wartete EINMAL 25 Sekunden und meldete dann für 34 von 35
+  // Ereignissen „die Testmail kam nicht bei Brevo an" — während die Mails im
+  // Postfach lagen. Brevo trägt Ereignisse mit 1–3 MINUTEN Verzug ein.
+  const zCode = ohneKommentare(zustellung);
+  // Das Fenster zählt ab „wartenAb“ (nach dem Versand), nicht ab „start“ —
+  // ein erster Entwurf zählte ab Lauf-Beginn, und die 34 Probemails
+  // verbrauchten einen Teil davon. Der Prüfstand hat das gefunden.
+  pruef("Es wird MEHRMALS nachgefragt, nicht einmal",
+    /while \(Date\.now\(\) - wartenAb < bisMs\)/.test(zCode),
+    "eine einzige Abfrage nach 25 s war der Fehler");
+  pruef("Das Wartefenster beginnt NACH dem Versand",
+    /const wartenAb = Date\.now\(\);/.test(zCode),
+    "sonst verbrauchen die 34 gestaffelten Probemails einen Teil davon");
+  pruef("Das Zeitfenster geht bis 4 Minuten",
+    /opts\.maxWartenMs \?\? 240_000/.test(zCode),
+    "Brevos Verzug ist 1–3 Minuten");
+  pruef("Der Takt ist 30 Sekunden",
+    /opts\.taktMs \?\? 30_000/.test(zCode));
+  pruef("Bestätigtes bleibt bestätigt",
+    /bestaetigteEreignisse\.set\(e\.type, meine\)/.test(zCode)
+      && /!bestaetigteEreignisse\.has\(e\.type\)/.test(zCode),
+    "sonst könnte ein späterer Durchgang ein Ergebnis wieder verwerfen");
+  pruef("Sind alle da, endet der Lauf sofort",
+    /if \(nochOffen\(\)\.length === 0\) break;/.test(zCode),
+    "Tempo bleibt, wenn alles in Ordnung ist");
+  pruef("Bei kaputter Abfrage wird NICHT weitergepollt",
+    /if \(!nachschau\.ok\) \{[\s\S]{0,120}break;/.test(zCode),
+    "4 Minuten denselben HTTP-400 zu wiederholen hilft niemandem");
+  pruef("Der Fortschritt meldet den Zählerstand",
+    /bestaetigt: bestaetigteEreignisse\.size/.test(zCode));
+
+  // ── DIE DIAGNOSE ────────────────────────────────────────────────────────
+  pruef("Bei Misserfolg steht die gesuchte Adresse dabei",
+    /Diagnose: gesucht wurde/.test(zustellung));
+  pruef("… und das Zeitfenster", /ab \$\{suchAb\.toLocaleTimeString/.test(zustellung));
+  pruef("… und die Zahl der gefundenen Brevo-Ereignisse",
+    /Brevo lieferte \$\{gefundeneGesamt\} Ereignisse/.test(zustellung));
+  pruef("Bei 0 gefundenen sagt sie, dass es NICHT am Zweig liegt",
+    /also NICHTS\. Dann liegt es nicht am einzelnen Zweig/.test(zustellung),
+    "sonst sucht der Betreiber wieder in Make");
+
+  // ── „NUR NACHSEHEN" ─────────────────────────────────────────────────────
+  pruef("Es gibt einen Weg OHNE neue Probemails",
+    /nurNachsehen\?: boolean;/.test(zustellung)
+      && /for \(const e of opts\.nurNachsehen \? \[\] : events\)/.test(zCode),
+    "35 unnötige Mails kosten Zustellreputation");
+  pruef("Er wartet beim ersten Durchgang nicht",
+    /if \(!\(opts\.nurNachsehen && runden === 0\)\)/.test(zCode),
+    "die Mails sind von vorhin — es gibt nichts, worauf man wartet");
+  pruef("Er sucht ab dem letzten Versand, nicht ab jetzt",
+    /opts\.suchAb \?\? new Date\(start - 120_000\)/.test(zCode));
+  pruef("Die Route bietet ihn an",
+    /const nurNachsehen = req\.body\?\.nurNachsehen === true;/.test(route));
+  pruef("Sie sucht den letzten TEST-Versand",
+    /art = 'test'/.test(route),
+    "die Spalte heißt art, nicht ist_test — ein erster Entwurf fiel still zurück");
+  pruef("Der Knopf steht in der Oberfläche",
+    /Nur nachsehen/.test(lies("client/src/pages/admin-events.tsx")));
+
+  // ── DAS VERALTETE EREIGNIS ──────────────────────────────────────────────
+  pruef("Veraltete Ereignisse werden nicht geprüft",
+    /const lebende = alleEvents\.filter\(\(e\) => !e\.deprecated\)/.test(zCode),
+    "followup_48h bekam eine Probemail und zählte als „Zweig fehlt“");
+  pruef("Sie bekommen einen eigenen Zustand",
+    /\| "veraltet"/.test(zustellung));
+  pruef("Sie zählen in KEINER Summe mit",
+    /veraltet: veraltete\.length,/.test(zCode)
+      && !/zweigFehlt \+= .*veraltet/.test(zCode),
+    "eine Ampel, die einen gelöschten Zweig anmahnt, wird ignoriert");
+  const events = lies("client/src/pages/admin-events.tsx");
+  pruef("Die Oberfläche zeigt sie als erledigt",
+    /ist veraltet und/.test(events) && /gelöscht<\/b> werden/.test(events));
+
+  // ── DIE ZEITANGABEN STIMMEN ÜBEREIN ────────────────────────────────────
+  // Zweimal in zwei Tagen ist eine Angabe an einer Stelle korrigiert und an der
+  // anderen vergessen worden. Also wird es geprüft.
+  pruef("Der Dialog nennt 4 Minuten, nicht mehr 34 Sekunden",
+    /bis zu 4 Minuten/.test(events) && !/\{Math\.round\(\(anzahl \* 0\.2\) \+ 27\)\} Sekunden/.test(events),
+    "dieselbe Zahl an zwei Stellen wird einmal korrigiert");
+  pruef("Die Leiste nennt denselben Takt",
+    /alle 30 Sekunden<\/b> bei Brevo nach/.test(events));
+  pruef("Die Leiste bewegt sich (Sekundenzähler)",
+    /setVerstrichen\(\(v\) => v \+ 1\)/.test(events),
+    "eine Anzeige, die stillsteht, wird abgebrochen");
 
   console.log(`\n${"═".repeat(72)}`);
   console.log(`  ${ok} ok · ${rot} rot`);

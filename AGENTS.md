@@ -445,6 +445,74 @@ Ort und behebt am falschen Fall.
 in den Bericht schreiben. Sie ist keine Kritik am Auftraggeber, sondern die
 Beschreibung des wirklichen Problems.
 
+## Eine fremde API antwortet nicht sofort — Tempo darf keine Wahrheit kosten
+
+Am 22.08.2026 wurde der Zweig-Prüflauf von 140 auf 34 Sekunden gebracht: alle
+Mails senden, EINMAL warten, EINMAL fragen. Am nächsten Tag meldete er für 34
+von 35 Ereignissen „die Testmail kam nicht bei Brevo an“ — während die Mails
+im Postfach lagen.
+
+Brevos Events-API trägt Ereignisse mit **1–3 Minuten** Verzug ein.
+
+- **Wer eine fremde API nach einem Ergebnis fragt, POLLT** — erste Frage nach
+  30 s, dann im Takt, mit Obergrenze. Ein einmal gefundenes Ergebnis bleibt
+  gefunden.
+- **Tempo entsteht durch frühes Aufhören, nicht durch frühes Fragen.** Sind alle
+  Antworten da, endet der Lauf sofort; die volle Wartezeit braucht nur der
+  Fehlerfall.
+- **Und das Wartefenster beginnt NACH dem Versand.** Ein erster Entwurf zählte
+  ab Lauf-Start — die 34 gestaffelten Mails verbrauchten einen Teil davon.
+- **Eine Anzeige, die stillsteht, wird abgebrochen.** Ein Abbruch erzeugte hier
+  34 falsche Rot-Marken. Also Sekundenzähler und „nächste Nachfrage in n s“.
+
+## Ein Prüfstand am Quelltext beweist nicht das Verhalten
+
+`pruef-zweigampel.ts` prüfte: Steht dort eine Schleife, steht dort die Zahl
+240_000. Beides war grün, als der Lauf trotzdem zu früh aufgab — weil niemand
+GEMESSEN hatte, ob Brevo bis dahin antwortet.
+
+- **Für Zeit- und Wiederholungslogik gehört ein Verhaltenstest dazu**: echter
+  Code, Attrappe am Rand, verkürzte Zeiten.
+- **Die Attrappe sitzt am `fetch`, nicht am Modul.** ES-Module sind
+  schreibgeschützt (`Cannot assign to read only property of object '[object
+  Module]'`) — und der fetch-Abfang prüft mehr: Registry, Payload, URL-Bau und
+  Fehlerübersetzung laufen echt durch.
+- **Der Import kommt NACH dem Abfang.** Sonst hat das Modul sich `fetch` schon
+  gemerkt.
+- **Zeiten an Abfragen messen, nicht an der Uhr.** Ein Vergleich der Gesamtdauer
+  mit dem Fenster wurde rot, weil Versand und Attrappe selbst Zeit kosten. Die
+  Zahl der Abfragen sagt dasselbe und ist maschinenunabhängig.
+
+## Ein Prüfstand mit Attrappe darf nichts bestätigen
+
+`pruef-geduld.ts` ließ den echten Sammellauf gegen eine Attrappe laufen — und
+schrieb dabei 34 echte Verifikationen in die Produktionsdatenbank, darunter
+„Zweig bestätigt“ für Ereignisse, die nur die ATTRAPPE bestätigt hatte.
+
+**Eine falsche Bestätigung ist schlimmer als keine:** Sie macht die Ampel grün,
+ohne dass ein Zweig geprüft wurde. Aufgefallen ist es an den Laufzeiten (34
+Schreibvorgänge kosten Sekunden), nicht an einer Prüfung.
+
+- **Funktionen, die einen Zustand festschreiben, brauchen einen Schalter
+  dagegen** (`nichtSpeichern`) — und der Prüfstand setzt ihn.
+- **Danach nachzählen**, dass wirklich nichts geschrieben wurde.
+
+## Eine Prüfung mit Fehlalarmen ist schlechter als keine
+
+Nach dem vierten halb-offenen deutschen Zitat in einer Sitzung sollte
+`pruef-backticks.ts` das finden: „Zahl der „ muss zur Zahl der “ passen“.
+Ergebnis: **365 Treffer, fast alle falsch** — JSX-Text, mehrzeilige Literale,
+Fortsetzungszeilen von Kommentaren.
+
+Eine Prüfung mit 365 Fehlalarmen wird nach dem dritten Mal abgeschaltet, und
+dann fängt sie auch die echten Fälle nicht mehr.
+
+- **Ein Regex beurteilt keinen Quelltext.** Der esbuild-Durchgang im selben
+  Prüfstand fand alle vier Fälle — er weiß, was ein String ist und was
+  JSX-Text.
+- Die Lehre war nicht „mehr Regex“, sondern: **den Prüfstand fragen.** Er
+  konnte es längst.
+
 ## HTTP 400 heißt: WIR haben den Fehler
 
 Am 21.08.2026 setzte der Betreiber BREVO_API_KEY. Die Zweigprüfung scheiterte bei

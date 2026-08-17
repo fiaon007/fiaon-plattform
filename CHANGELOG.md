@@ -3,6 +3,51 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 23.08.2026 — Die Zweig-Prüfung hat Geduld gelernt
+
+### Der Befund
+
+Der Lauf meldete für **34 von 35** Ereignissen: *„Die Testmail kam in 25 Sekunden nicht bei Brevo an."* Gleichzeitig lagen die Mails im Postfach des Betreibers, und das Zustellprotokoll zählte **10.446 Versände**.
+
+**Die Ursache:** Brevos Events-API trägt Ereignisse mit **1–3 Minuten Verzug** ein. Die auf Tempo optimierte Nachschau — gestern von 140 s auf 34 s gebracht — fragte, bevor Brevo geschrieben hatte.
+
+Das ist derselbe Fehler wie vorgestern beim `endDate` in der Zukunft, nur andersherum: **Beide Male behauptete die Anzeige „Zweig fehlt", während unsere Abfrage nicht passte.** Und beide Male traf es den Betreiber, der seine Zweige längst gebaut hatte.
+
+### Was jetzt anders ist
+
+**Es wird gepollt statt einmal gefragt:** erste Abfrage nach 30 s, dann alle 30 s, bis maximal 4 Minuten. Ein einmal bestätigtes Ereignis **bleibt** bestätigt. Sind alle da, endet der Lauf sofort — Tempo bleibt also, wenn alles in Ordnung ist. Die vollen vier Minuten braucht nur, wer wirklich einen fehlenden Zweig hat.
+
+**Und die Anzeige bewegt sich:** Sekundenzähler, „nächste Nachfrage in n s". Eine Anzeige, die stillsteht, wird abgebrochen — und ein Abbruch erzeugte bisher 34 falsche Rot-Marken.
+
+**„Nur nachsehen"** ist ein zweiter Knopf: Er fragt Brevo über das Zeitfenster des *letzten* Versands erneut ab, **ohne neue Probemails**. Genau für den Fall von gestern — die Mails sind längst da, es fehlt nur der Abgleich. 35 unnötige Mails an die Testadresse kosten Zustellreputation.
+
+**`followup_48h` fällt heraus.** Es ist als veraltet gekennzeichnet (gemessen 19.08.: null Versände, keine auslösende Stelle im Code), bekam aber weiter eine Probemail und zählte als „Zweig fehlt". Eine Ampel, die einen absichtlich gelöschten Zweig anmahnt, wird ignoriert — und mit ihr die echten Funde. Aus 35 werden **34 lebende** Ereignisse, plus eine eigene Zeile: *„veraltet — der Zweig kann in Make gelöscht werden."*
+
+**Die Diagnose steht bei jedem Misserfolg dabei:** gesuchte Adresse, Zeitfenster, Anzahl der insgesamt gefundenen Brevo-Ereignisse. Stehen dort 0, sagt der Text ausdrücklich: *„Dann liegt es nicht am einzelnen Zweig, sondern am Versand oder an der Adresse."* Damit wird nicht mehr geraten.
+
+### Der Prüfstand hat zwei eigene Fehler gefunden
+
+`scripts/pruef-geduld.ts` lässt den **echten** Sammellauf gegen eine `fetch`-Attrappe laufen — die volle Kette bis zum Netzwerkaufruf, mit Brevos echter Antwortform. Vier Fälle: Ereignis erscheint spät → grün · erscheint nie → „Zweig fehlt" erst nach Ablauf · Abfrage scheitert (HTTP 400) → „Prüfung gestört" nach **einer** Abfrage · „Nur nachsehen" ohne Versand.
+
+Dabei kam heraus:
+
+1. **Das Wartefenster begann beim Lauf-Start, nicht nach dem Versand.** Die 34 gestaffelten Mails verbrauchten einen Teil davon. In Produktion 7 von 240 Sekunden — im Prüfstand das ganze Fenster: 0 Abfragen, 34-mal „Prüfung gestört". Fachlich ist es ohnehin richtig, nach dem Versand zu zählen.
+2. **Der Prüfstand schrieb 34 echte Verifikationen in die Produktionsdatenbank** — darunter „Zweig bestätigt" für Ereignisse, die nur die *Attrappe* bestätigt hatte. Eine falsche Bestätigung ist schlimmer als keine: Sie macht die Ampel grün, ohne dass geprüft wurde. Aufgefallen an den Laufzeiten (34 Schreibvorgänge kosten Sekunden). Es gibt jetzt `nichtSpeichern`, und die 35 Zeilen sind mit Begründung zurückgesetzt.
+
+**24 Prüfungen** grün, und der Beweis danach: `geprueft=0, bestaetigt=0` — der Stand schreibt nichts mehr. Dazu **60 Prüfungen** am Quelltext (`pruef-zweigampel.ts`).
+
+### Und eine „Wand", die keine war
+
+Nach dem vierten halb-offenen deutschen Zitat in einer Sitzung (öffnend `„`, schließend ASCII-`"` → beendet den String) sollte `pruef-backticks.ts` das finden. Ergebnis: **365 Treffer, fast alle Fehlalarme** — JSX-Text (`<b>„QR-Code speichern"</b>`), mehrzeilige Literale, Fortsetzungszeilen.
+
+Die Prüfung ist wieder entfernt, mit Begründung im Quelltext. **Der esbuild-Durchgang im selben Prüfstand fängt diese Fehler bereits** — er weiß als Übersetzer, was ein String ist und was JSX-Text. Die Lehre ist nicht „mehr Regex", sondern: den Prüfstand nach jeder Änderung *fragen*. Er hätte alle vier Fälle gefunden.
+
+**Betreiber-TODO:** Nach dem Deploy einmal **„Nur nachsehen"** drücken — die Mails von gestern liegen bei Brevo, die 34 sollten grün werden. Danach zeigt die Ampel den echten Stand.
+
+### Nicht angefangen
+
+**Teil 2 (Agent als Vollpfleger)** und **Teil 3** (Pflichtnotiz im Listen-Weg, 12 Wartezustände, Zustellprotokoll mit Filtern, Team-Kalender auf 380 px) sind offen.
+
 ## 22.08.2026 — Eine Bonitäts-Wahrheit, und fünf Pakete zurück
 
 ### Teil 1: Drei Teilwahrheiten wurden eine Ableitung

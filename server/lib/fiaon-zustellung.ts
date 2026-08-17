@@ -21,7 +21,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
-import { besterZustand, brevoKonfiguriert, ereignisseFuer, nachschauSammel, OHNE_SCHLUESSEL } from "./fiaon-brevo";
+import { besterZustand, brevoKonfiguriert, ereignisseFuer, nachschauSammel, OHNE_SCHLUESSEL,
+         type ZustellEreignis } from "./fiaon-brevo";
 import type { BrevoKlartext } from "./fiaon-brevo-fehler";
 import { mailEvent, mailEvents, verifikationSpeichern } from "./fiaon-mail-events";
 import { mailSenden } from "./fiaon-mail-senden";
@@ -139,7 +140,33 @@ export async function zweigPruefen(
 //                 NICHTS gesagt — dieser Zustand zählt NICHT als „ohne Zweig".
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type ZweigZustand = "bestaetigt" | "zweig_fehlt" | "pruefung_gestoert";
+export type ZweigZustand =
+  | "bestaetigt"
+  | "zweig_fehlt"
+  | "pruefung_gestoert"
+  /**
+   * Absichtlich abgeschafft — wird nie mehr gefeuert, der Zweig darf in Make
+   * gelöscht werden. Zählt in KEINE Summe: Eine Ampel, die einen bewusst
+   * gelöschten Zweig anmahnt, wird ignoriert, und mit ihr die echten Funde.
+   */
+  | "veraltet";
+
+/**
+ * Gehört dieses Brevo-Ereignis zu diesem Registry-Eintrag?
+ *
+ * Über den BETREFF, weil Make uns keine messageId zurückgibt. Der Betreff einer
+ * Probemail trägt den Ereignisnamen oder die Beschriftung — je nachdem, welche
+ * Brevo-Vorlage dranhängt. Beide werden geprüft.
+ */
+function passtZuEreignis(x: ZustellEreignis, e: { type: string; label?: string }): boolean {
+  const betreff = (x.betreff ?? "").toLowerCase();
+  if (!betreff) return false;
+  if (betreff.includes(e.type.toLowerCase())) return true;
+  const label = String(e.label ?? "").toLowerCase();
+  // Kurze Beschriftungen wie „Willkommen" passen zu vielen Betreffs — erst ab
+  // vier Zeichen zählt der Vergleich, sonst bestätigt ein Zufall den Zweig.
+  return label.length >= 4 && betreff.includes(label);
+}
 
 export interface SammelZweig {
   event: string;
@@ -156,6 +183,8 @@ export interface SammelErgebnis {
   bestaetigt: number;
   zweigFehlt: number;
   gestoert: number;
+  /** Absichtlich abgeschaffte Ereignisse — in keiner Summe enthalten. */
+  veraltet: number;
   /** Sekunden, die der ganze Lauf gebraucht hat. */
   dauerSekunden: number;
   /** Steht nur bei einem Problem an der Prüfung selbst. */
@@ -178,6 +207,35 @@ export async function alleZweigePruefen(
   opts: {
     wartenMs?: number;
     staffelMs?: number;
+    /** Wie lange insgesamt nachgefragt wird. Vorgabe 4 Minuten. */
+    maxWartenMs?: number;
+    /** Abstand zwischen zwei Nachfragen. Vorgabe 30 Sekunden. */
+    taktMs?: number;
+    /**
+     * KEINE neuen Probemails schicken — nur nachsehen, was schon bei Brevo
+     * liegt. Für den Fall, dass der Lauf zu früh aufgegeben hat: Die Mails von
+     * vorhin sind längst angekommen, es fehlt nur der Abgleich.
+     */
+    nurNachsehen?: boolean;
+    /** Ab wann gesucht wird. Nur mit `nurNachsehen` sinnvoll. */
+    suchAb?: Date;
+    /**
+     * NICHT in fiaon_mail_events schreiben.
+     *
+     * ── WARUM ES DIESE OPTION GIBT (23.08.2026) ───────────────────────────
+     * Der Prüfstand `pruef-geduld.ts` lässt den echten Sammellauf gegen eine
+     * fetch-Attrappe laufen. Beim ersten Durchgang schrieb er dabei 34 echte
+     * Verifikationen in die Produktionsdatenbank — darunter „Zweig bestätigt"
+     * für Ereignisse, die nur die Attrappe bestätigt hatte.
+     *
+     * Eine falsche Bestätigung ist schlimmer als keine: Sie macht die Ampel
+     * grün, ohne dass ein Zweig geprüft wurde. Gefunden hat es der Prüfstand
+     * selbst — an seinen eigenen Laufzeiten (34 Schreibvorgänge kosten
+     * Sekunden).
+     *
+     * AGENTS.md: Ein Prüfstand darf keine echten Vorgänge erzeugen.
+     */
+    nichtSpeichern?: boolean;
     /**
      * Nur diese Ereignisse prüfen. Damit ist die Einzelprüfung DERSELBE Code
      * mit einem Element — eine Logik, nicht zwei. Der Auftrag verlangt das
@@ -185,14 +243,35 @@ export async function alleZweigePruefen(
      * Prüfung gehen auseinander, und beide Prüfstände bleiben grün.
      */
     nur?: string[];
-    fortschritt?: (s: { schritt: string; versandt: number; gesamt: number }) => void;
+    fortschritt?: (s: {
+      schritt: string; versandt: number; gesamt: number;
+      bestaetigt?: number; naechsteFrageInMs?: number; runde?: number;
+    }) => void;
   } = {},
 ): Promise<SammelErgebnis> {
   const start = Date.now();
   const alleEvents = await mailEvents();
+  // ══════════════════════════════════════════════════════════════════════════
+  // VERALTETE EREIGNISSE WERDEN NICHT GEPRÜFT UND NICHT GEZÄHLT
+  //
+  // ── WARUM (23.08.2026) ──────────────────────────────────────────────────
+  // `followup_48h` ist als `deprecated` gekennzeichnet: GEMESSEN am 19.08.2026
+  // null Versände, und es gibt keine Stelle im Quelltext, die es auslöst. Der
+  // Zweig in Make kann gelöscht werden.
+  //
+  // Trotzdem lief es mit: Es bekam eine Probemail, kam nie bei Brevo an (weil
+  // der Zweig zu Recht fehlt) und zählte als „Zweig fehlt". Eine Ampel, die
+  // einen absichtlich gelöschten Zweig anmahnt, wird ignoriert — und mit ihr
+  // die echten Funde daneben.
+  //
+  // Aus 35 werden damit 34 lebende Ereignisse. Das veraltete bekommt eine
+  // eigene Zeile mit dem Hinweis, dass es weg darf.
+  // ══════════════════════════════════════════════════════════════════════════
+  const lebende = alleEvents.filter((e) => !e.deprecated);
+  const veraltete = alleEvents.filter((e) => e.deprecated);
   const events = opts.nur?.length
-    ? alleEvents.filter((e) => opts.nur!.includes(e.type))
-    : alleEvents;
+    ? lebende.filter((e) => opts.nur!.includes(e.type))
+    : lebende;
   const warten = opts.wartenMs ?? 25_000;
   const staffel = opts.staffelMs ?? 200;
   const melde = opts.fortschritt ?? (() => {});
@@ -209,16 +288,26 @@ export async function alleZweigePruefen(
         text: OHNE_SCHLUESSEL, gesehenAm: null, brevoZustand: null,
       })),
       bestaetigt: 0, zweigFehlt: 0, gestoert: events.length,
+      veraltet: veraltete.length,
       dauerSekunden: 0, klartext: k, testAdresse,
     };
   }
 
-  // ── 1. ALLE SENDEN ───────────────────────────────────────────────────────
-  // Gestaffelt: Make drosselt bei zu vielen Anfragen gleichzeitig, und ein
-  // gedrosselter Versand sähe später aus wie ein fehlender Zweig.
+  // ══════════════════════════════════════════════════════════════════════════
+  // 1. ALLE SENDEN — ODER EBEN NICHT
+  //
+  // ── „NUR NACHSEHEN" (23.08.2026) ────────────────────────────────────────
+  // Der Lauf von gestern gab nach 25 Sekunden auf und meldete 34 fehlende
+  // Zweige. Die Mails lagen aber längst bei Brevo — es fehlte nur der Abgleich.
+  //
+  // Für genau diesen Fall gibt es `nurNachsehen`: Es fragt Brevo über das
+  // Zeitfenster des LETZTEN Versands erneut ab, OHNE neue Probemails zu
+  // schicken. 35 unnötige Mails an die Testadresse sind kein Kavaliersdelikt —
+  // sie kosten Zustellreputation und verwirren den Empfänger.
+  // ══════════════════════════════════════════════════════════════════════════
   const versandFehler = new Map<string, string>();
   let versandt = 0;
-  for (const e of events) {
+  for (const e of opts.nurNachsehen ? [] : events) {
     const v = await mailSenden({
       event: e.type, akteur, test: true, testAdresse,
       zusatz: { pruef_marke: `fiaon-zweigpruefung-${e.type}-${start}` },
@@ -229,13 +318,112 @@ export async function alleZweigePruefen(
     if (staffel > 0) await new Promise((r) => setTimeout(r, staffel));
   }
 
-  // ── 2. EINMAL WARTEN ─────────────────────────────────────────────────────
-  melde({ schritt: "warten", versandt, gesamt: events.length });
-  await new Promise((r) => setTimeout(r, warten));
+  // ══════════════════════════════════════════════════════════════════════════
+  // 2. + 3. GEDULD: MEHRMALS NACHFRAGEN, NICHT EINMAL
+  //
+  // ── DER FEHLER VON GESTERN (22.08.2026) ─────────────────────────────────
+  // Hier stand: einmal 25 Sekunden warten, einmal fragen, fertig. Der Lauf
+  // meldete daraufhin für 34 von 35 Ereignissen „die Testmail kam in 25
+  // Sekunden nicht bei Brevo an" — während die Mails im Postfach des
+  // Betreibers lagen und das Zustellprotokoll 10.446 Versände zählte.
+  //
+  // Brevos Events-API trägt Ereignisse mit 1–3 MINUTEN Verzug ein. Die auf
+  // Tempo optimierte Nachschau fragte, bevor Brevo geschrieben hatte.
+  //
+  // Das ist derselbe Fehler wie vorgestern beim `endDate` in der Zukunft, nur
+  // andersherum: Beide Male behauptete die Anzeige „Zweig fehlt", während in
+  // Wahrheit UNSERE Abfrage nicht passte. Und beide Male traf es den
+  // Betreiber, der seine Zweige längst gebaut hatte.
+  //
+  // ── DIE KORREKTUR ───────────────────────────────────────────────────────
+  // Es wird gepollt: erste Abfrage nach 30 s, dann alle 30 s, bis maximal 4
+  // Minuten. Ein einmal bestätigtes Ereignis BLEIBT bestätigt (die Menge wächst
+  // nur), und die Leiste zählt live hoch. Erst nach Ablauf gilt ein Ereignis
+  // als „Zweig fehlt".
+  //
+  // Tempo ist damit nicht verloren: Sind alle Zweige in Ordnung, endet der Lauf
+  // beim ersten oder zweiten Durchgang — die vollen 4 Minuten braucht nur, wer
+  // wirklich einen fehlenden Zweig hat.
+  // ══════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
+  // DAS WARTEFENSTER BEGINNT NACH DEM VERSAND, NICHT BEIM START
+  //
+  // ── GEFUNDEN VOM PRÜFSTAND (23.08.2026) ─────────────────────────────────
+  // Erster Entwurf: `while (Date.now() - start < bisMs)`. `start` liegt VOR dem
+  // Versand — die 34 gestaffelten Mails verbrauchen also einen Teil des
+  // Fensters, bevor die erste Nachfrage überhaupt läuft.
+  //
+  // In Produktion sind das etwa 7 von 240 Sekunden, also verkraftbar. Im
+  // Prüfstand mit verkürzten Zeiten war das Fenster VOLLSTÄNDIG aufgebraucht:
+  // 0 Abfragen, 34-mal „Prüfung gestört". Der Prüfstand hat einen echten, wenn
+  // auch kleinen Fehler gefunden — genau dafür ist er da.
+  //
+  // Fachlich ist es ohnehin richtig so: „Vier Minuten auf Brevo warten" heißt
+  // vier Minuten NACH dem letzten Versand. Vorher gibt es nichts, worauf man
+  // warten könnte.
+  // ══════════════════════════════════════════════════════════════════════════
+  const wartenAb = Date.now();
 
-  // ── 3. EINMAL FRAGEN ─────────────────────────────────────────────────────
-  melde({ schritt: "nachschau", versandt, gesamt: events.length });
-  const nachschau = await nachschauSammel(testAdresse, new Date(start - 120_000));
+  const bestaetigteEreignisse = new Map<string, ZustellEreignis[]>();
+  let nachschau: Awaited<ReturnType<typeof nachschauSammel>> = {
+    ok: false, ereignisse: [], grund: "noch nicht gefragt",
+  };
+  const bisMs = opts.maxWartenMs ?? 240_000;   // 4 Minuten
+  const taktMs = opts.taktMs ?? 30_000;
+  // Bei „nur nachsehen" wird ab dem übergebenen Zeitpunkt gesucht (dem letzten
+  // Versand), nicht ab jetzt — sonst sucht die Abfrage in einem Fenster, in dem
+  // niemand etwas verschickt hat.
+  const suchAb = opts.suchAb ?? new Date(start - 120_000);
+  let runden = 0;
+
+  const nochOffen = () => events.filter((e) =>
+    !versandFehler.has(e.type) && !bestaetigteEreignisse.has(e.type));
+
+  while (Date.now() - wartenAb < bisMs) {
+    melde({
+      schritt: runden === 0 ? "warten" : "nachfragen",
+      versandt, gesamt: events.length,
+      bestaetigt: bestaetigteEreignisse.size,
+      naechsteFrageInMs: taktMs,
+      runde: runden,
+    });
+    // Beim ersten Durchgang im Modus „nur nachsehen" NICHT warten: Die Mails
+    // sind von vorhin, es gibt nichts, worauf man warten müsste.
+    if (!(opts.nurNachsehen && runden === 0)) {
+      await new Promise((r) => setTimeout(r, taktMs));
+    }
+    runden++;
+
+    nachschau = await nachschauSammel(testAdresse, suchAb);
+    if (!nachschau.ok) {
+      // Die Abfrage selbst ist kaputt (z. B. HTTP 400). Weiterpollen wäre
+      // sinnlos — es würde 4 Minuten lang derselbe Fehler.
+      break;
+    }
+
+    // Zuordnen, was NEU dazugekommen ist. Bestätigtes bleibt bestätigt.
+    const frisch = nachschau.ereignisse.filter((x) =>
+      x.am && new Date(x.am).getTime() >= start - 120_000);
+    for (const e of nochOffen()) {
+      const meine = frisch.filter((x) => passtZuEreignis(x, e));
+      if (meine.length > 0) bestaetigteEreignisse.set(e.type, meine);
+    }
+
+    melde({
+      schritt: "nachfragen", versandt, gesamt: events.length,
+      bestaetigt: bestaetigteEreignisse.size,
+      naechsteFrageInMs: taktMs, runde: runden,
+    });
+
+    // Alle da? Dann ist Warten Verschwendung.
+    if (nochOffen().length === 0) break;
+    // Beim Nur-Nachsehen liegt der Versand in der Vergangenheit. Zwei
+    // Durchgänge genügen; länger zu warten hilft nur, wenn gerade gesendet
+    // wurde, und das war hier nicht der Fall.
+    if (opts.nurNachsehen && runden >= 2) break;
+  }
+
+  const gefundeneGesamt = nachschau.ok ? nachschau.ereignisse.length : 0;
 
   // ── 4. ZUORDNEN ──────────────────────────────────────────────────────────
   const zweige: SammelZweig[] = [];
@@ -251,7 +439,7 @@ export async function alleZweigePruefen(
       gestoert++;
       const text = `Der Testversand ging schon an Make nicht raus: ${vf}. `
         + "Über den Zweig ist damit nichts gesagt — erst muss der Webhook erreichbar sein.";
-      await verifikationSpeichern(e.type, false, text);
+      if (!opts.nichtSpeichern) await verifikationSpeichern(e.type, false, text);
       zweige.push({ event: e.type, zustand: "pruefung_gestoert", text, gesehenAm: null, brevoZustand: null });
       continue;
     }
@@ -266,35 +454,61 @@ export async function alleZweigePruefen(
       continue;
     }
 
-    // Die Zuordnung: frische Ereignisse, deren Betreff den Ereignisnamen trägt.
-    // Der Betreff ist das, was wir haben — Make gibt uns keine messageId zurück.
-    const frisch = nachschau.ereignisse.filter((x) =>
-      x.am && new Date(x.am).getTime() >= start - 120_000);
-    const meine = frisch.filter((x) =>
-      (x.betreff ?? "").toLowerCase().includes(e.type.toLowerCase())
-      || (x.betreff ?? "").toLowerCase().includes(String(e.label ?? "").toLowerCase()));
+    // Das Polling hat schon zugeordnet — hier wird nur ausgewertet.
+    const meine = bestaetigteEreignisse.get(e.type) ?? [];
 
     if (meine.length > 0) {
       bestaetigt++;
       const z = besterZustand(meine);
       const text = `Zweig bestätigt: Der Testversand ist bei Brevo angekommen (${z?.zustand ?? "angenommen"}).`;
-      await verifikationSpeichern(e.type, true, text);
+      if (!opts.nichtSpeichern) await verifikationSpeichern(e.type, true, text);
       zweige.push({ event: e.type, zustand: "bestaetigt", text, gesehenAm: z?.am ?? null, brevoZustand: z?.zustand ?? null });
       continue;
     }
 
     zweigFehlt++;
-    const text = `Nicht bestätigt — die Testmail kam in ${Math.round(warten / 1000)} Sekunden nicht bei Brevo an. `
-      + "Zwei mögliche Ursachen, beide gleich wahrscheinlich: (1) Im Make-Szenario fehlt der Zweig mit dem Filter "
-      + `event_type = ${e.type}, oder er ist inaktiv. (2) Der Zweig existiert, aber das verknüpfte Brevo-Template `
-      + "ist nicht aktiv oder nicht zugeordnet. Make hat die Anfrage angenommen, danach verliert sich die Spur.";
-    await verifikationSpeichern(e.type, false, text);
+    // ── DIE DIAGNOSE STEHT DABEI ───────────────────────────────────────────
+    // Der Auftrag verlangt sie ausdrücklich: gesuchte Adresse, Zeitfenster,
+    // Anzahl der insgesamt gefundenen Brevo-Ereignisse. Ohne diese drei Zahlen
+    // wird geraten — genau das ist zweimal passiert (endDate in der Zukunft,
+    // und dann das zu kurze Wartefenster).
+    //
+    // Stehen dort 0 gefundene Ereignisse, liegt es an uns oder am Versand.
+    // Stehen dort viele und keins passt, liegt es am Zweig oder am Betreff.
+    const text = (opts.nurNachsehen
+      ? `Nicht bestätigt — auch bei erneutem Nachsehen (${runden} Nachfragen) liegt bei Brevo `
+        + "nichts vor. Es wurden keine neuen Probemails geschickt. "
+      : `Nicht bestätigt — in ${Math.round((Date.now() - start) / 1000)} Sekunden `
+        + `(${runden} Nachfragen) kam nichts bei Brevo an. `)
+      + "Zwei mögliche Ursachen: (1) Im Make-Szenario fehlt der Zweig mit dem Filter "
+      + `event_type = ${e.type}, oder er ist inaktiv. (2) Der Zweig existiert, aber die `
+      + "verknüpfte Brevo-Vorlage ist nicht aktiv. Make hat die Anfrage angenommen, "
+      + "danach verliert sich die Spur."
+      + `\n\nDiagnose: gesucht wurde „${testAdresse}“ ab ${suchAb.toLocaleTimeString("de-DE")}; `
+      + `Brevo lieferte ${gefundeneGesamt} Ereignisse für diese Adresse insgesamt`
+      + (gefundeneGesamt === 0
+        ? " — also NICHTS. Dann liegt es nicht am einzelnen Zweig, sondern am Versand oder an der Adresse."
+        : `, davon passte keins zum Betreff dieses Ereignisses.`);
+    if (!opts.nichtSpeichern) await verifikationSpeichern(e.type, false, text);
     zweige.push({ event: e.type, zustand: "zweig_fehlt", text, gesehenAm: null, brevoZustand: null });
+  }
+
+  // ── DIE VERALTETEN ALS EIGENE ZEILEN ─────────────────────────────────────
+  // Sie zählen in KEINE der drei Summen: nicht bestätigt, nicht fehlend, nicht
+  // gestört. Sie sind erledigt.
+  for (const e of opts.nur?.length ? [] : veraltete) {
+    zweige.push({
+      event: e.type, zustand: "veraltet",
+      text: "Veraltet — wird nie mehr gefeuert. Der Zweig kann in Make GELÖSCHT werden. "
+        + "Dieses Ereignis wird nicht geprüft und zählt in keiner Summe mit.",
+      gesehenAm: null, brevoZustand: null,
+    });
   }
 
   return {
     ok: nachschau.ok,
     zweige, bestaetigt, zweigFehlt, gestoert,
+    veraltet: veraltete.length,
     dauerSekunden: Math.round((Date.now() - start) / 1000),
     klartext: nachschau.klartext,
     testAdresse,

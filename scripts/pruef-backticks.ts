@@ -197,5 +197,35 @@ if (gefunden === 0) {
     console.log("  Die Erklärung gehört ÜBER die Abfrage, nicht hinein.\n");
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // HALB-OFFENE DEUTSCHE ANFÜHRUNGSZEICHEN — WARUM HIER KEINE EIGENE PRÜFUNG
+  //
+  // ── DER VERSUCH UND SEIN ERGEBNIS (23.08.2026) ───────────────────────
+  // Viermal in einer Sitzung ist dasselbe passiert: Das öffnende Zeichen ist
+  // deutsch („), das schließende bleibt ein ASCII-" — und beendet damit den
+  // String. Der Übersetzungsfehler erscheint an einer Stelle, die mit dem
+  // Zitat nichts zu tun hat („Expected ) but found oder").
+  //
+  // Also wurde hier eine Prüfung gebaut: „Zahl der „ muss zur Zahl der “
+  // passen." Ergebnis: 365 Treffer, davon fast alle FALSCHE ALARME —
+  //   · JSX-Text: <b>„QR-Code speichern"</b> — dort ist " harmlos
+  //   · mehrzeilige Template-Literale, die in der nächsten Zeile schließen
+  //   · Fortsetzungszeilen mehrzeiliger Kommentare
+  //
+  // Das ist genau die Falle, die weiter oben schon beschrieben steht: Ein
+  // Regex, der Quelltext ohne Parser beurteilt, meldet Rauschen. Eine Prüfung
+  // mit 365 Fehlalarmen wird nach dem dritten Mal abgeschaltet — und dann
+  // fängt sie auch die echten Fälle nicht mehr.
+  //
+  // ── WAS STATTDESSEN GILT ─────────────────────────────────────────────
+  // Der esbuild-Durchgang WEITER OBEN fängt diese Fehler bereits: Ein
+  // beendeter String macht die Datei syntaktisch kaputt, und esbuild weiß als
+  // Übersetzer genau, was ein String ist und was JSX-Text.
+  //
+  // Die Lehre ist also nicht „mehr Regex", sondern: Nach jeder Änderung an
+  // scripts/ oder server/ diesen Prüfstand laufen lassen. Er hätte alle vier
+  // Fälle gefunden — er wurde nur nicht gefragt.
+  // ═══════════════════════════════════════════════════════════════════════
+
   if (gefunden > 0 || kaputt > 0 || interpolationen > 0) process.exit(1);
 }

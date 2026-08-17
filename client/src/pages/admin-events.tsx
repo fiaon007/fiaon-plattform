@@ -71,21 +71,32 @@ function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
   anzahl: number; testAdresse: string; onFertig: () => void;
 }) {
   const [frage, setFrage] = useState(false);
-  const [laeuft, setLaeuft] = useState(false);
+  const [laeuft, setLaeuft] = useState<null | "voll" | "nachsehen">(null);
   const [erg, setErg] = useState<any>(null);
   const [kopiert, setKopiert] = useState(false);
+  // ── DIE LEISTE ZÄHLT MIT ──────────────────────────────────────────────
+  // Der Lauf dauert bis zu vier Minuten (Brevo trägt Ereignisse mit 1–3
+  // Minuten Verzug ein). Ohne eine Anzeige, die sich BEWEGT, sieht das aus
+  // wie ein Hänger — und wer abbricht, sieht danach 34 falsche Rot-Marken.
+  const [verstrichen, setVerstrichen] = useState(0);
 
-  const starten = async () => {
+  useEffect(() => {
+    if (!laeuft) { setVerstrichen(0); return; }
+    const t = setInterval(() => setVerstrichen((v) => v + 1), 1000);
+    return () => clearInterval(t);
+  }, [laeuft]);
+
+  const starten = async (nurNachsehen = false) => {
     setFrage(false);
-    setLaeuft(true);
+    setLaeuft(nurNachsehen ? "nachsehen" : "voll");
     setErg(null);
     const r = await fetch("/api/fiaon/admin/mail/alle-pruefen", {
       method: "POST", credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ testAdresse }),
+      body: JSON.stringify({ testAdresse, nurNachsehen }),
     }).catch(() => null);
     const j = await r?.json().catch(() => null);
-    setLaeuft(false);
+    setLaeuft(null);
     setErg(j ?? { ok: false, error: "Der Lauf war nicht erreichbar." });
     onFertig();
   };
@@ -109,6 +120,12 @@ function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
   const fehlende = alleZweige.filter((z: any) =>
     z.zustand ? z.zustand === "zweig_fehlt" : !z.bestaetigt);
   const gestoerte = alleZweige.filter((z: any) => z.zustand === "pruefung_gestoert");
+  // ── VERALTETE STEHEN FÜR SICH ────────────────────────────────────────────
+  // `followup_48h` wird nie mehr gefeuert (gemessen: null Versände) und der
+  // Zweig darf in Make gelöscht werden. Bis heute bekam es eine Probemail, kam
+  // nie an und zählte als „Zweig fehlt". Eine Ampel, die einen absichtlich
+  // gelöschten Zweig anmahnt, wird ignoriert — und mit ihr die echten Funde.
+  const veraltete = alleZweige.filter((z: any) => z.zustand === "veraltet");
   const liste = fehlende.map((z: any) => z.event).join("\n");
 
   return (
@@ -122,10 +139,31 @@ function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
             welche Zweige in Make noch fehlen.
           </p>
         </div>
-        <button type="button" onClick={() => setFrage(true)} disabled={laeuft || !anzahl}
-                className="fi-knopf-primaer px-5 shrink-0">
-          {laeuft ? `Prüft ${anzahl} Zweige …` : "Alle Zweige prüfen"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {/* ══════════════════════════════════════════════════════════════
+              „NUR NACHSEHEN" (23.08.2026)
+
+              Der Lauf vom 22.08. gab nach 25 Sekunden auf und meldete 34
+              fehlende Zweige — während die Mails im Postfach lagen. Brevo
+              trägt Ereignisse mit 1–3 Minuten Verzug ein.
+
+              Dieser Knopf fragt Brevo über das Zeitfenster des LETZTEN
+              Versands erneut ab, OHNE neue Probemails. Genau für den Fall,
+              dass der Lauf zu früh aufgab: Die Mails sind längst da, es fehlt
+              nur der Abgleich. 35 unnötige Mails an die Testadresse kosten
+              Zustellreputation.
+              ══════════════════════════════════════════════════════════════ */}
+          <button type="button" onClick={() => void starten(true)}
+                  disabled={!!laeuft}
+                  title="Fragt Brevo erneut über das Zeitfenster des letzten Versands ab — ohne neue Probemails zu schicken."
+                  className="fi-knopf-glas px-4 py-2.5 text-[12.5px]">
+            {laeuft === "nachsehen" ? "Sieht nach …" : "Nur nachsehen"}
+          </button>
+          <button type="button" onClick={() => setFrage(true)} disabled={!!laeuft || !anzahl}
+                  className="fi-knopf-primaer px-5">
+            {laeuft === "voll" ? `Prüft ${anzahl} Zweige …` : "Alle Zweige prüfen"}
+          </button>
+        </div>
       </div>
 
       {laeuft && (
@@ -138,14 +176,31 @@ function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
             }} />
           </div>
           <style>{"@keyframes fiLauf{0%{transform:translateX(-100%)}100%{transform:translateX(320%)}}"}</style>
-          {/* ── DIE ZEITANGABE STIMMT JETZT ────────────────────────────────
-              Vorher: „jeder Zweig bekommt vier Sekunden" — bei 35 Zweigen über
-              zwei Minuten. Der Lauf schickt jetzt alle Mails gestaffelt ab,
-              wartet EINMAL und fragt EINMAL bei Brevo. */}
+          {/* ── DIE ZEITANGABE STIMMT JETZT — UND SIE BEWEGT SICH ──────────
+              Erst hieß es „jeder Zweig bekommt vier Sekunden" (über zwei
+              Minuten). Dann „einmal nachsehen, 34 Sekunden" — und der Lauf
+              meldete 34 falsche Rot-Marken, weil Brevo 1–3 Minuten braucht.
+
+              Jetzt wird MEHRMALS nachgefragt, und die Anzeige zeigt, dass
+              etwas passiert. Eine Anzeige, die stillsteht, wird abgebrochen. */}
           <p className="mt-2 text-[12px] text-slate-500 leading-relaxed">
-            Alle {anzahl} Probemails gehen sofort hintereinander raus, dann wird
-            <b> einmal</b> bei Brevo nachgesehen — zusammen etwa
-            {" "}{Math.round((anzahl * 0.2) + 27)} Sekunden. Fenster offen lassen.
+            {laeuft === "nachsehen" ? (
+              <>Es werden <b>keine neuen Mails</b> geschickt — wir sehen nur nach,
+              was von vorhin schon bei Brevo liegt.</>
+            ) : (
+              <>Alle {anzahl} Probemails gehen sofort hintereinander raus. Danach
+              fragen wir <b>alle 30 Sekunden</b> bei Brevo nach, bis zu 4 Minuten —
+              Brevo trägt Zustellungen mit 1–3 Minuten Verzug ein.</>
+            )}
+            {" "}Läuft seit <b className="tabular-nums">{verstrichen} s</b>.
+            {verstrichen > 40 && (
+              <> Nächste Nachfrage in{" "}
+                <b className="tabular-nums">{30 - (verstrichen % 30)} s</b>.</>
+            )}
+          </p>
+          <p className="mt-1 text-[11.5px] text-slate-400">
+            Fenster offen lassen. Ein Abbruch verwirft nur die Anzeige — die
+            Zweige bleiben, wie sie sind.
           </p>
         </div>
       )}
@@ -167,6 +222,10 @@ function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
               // diese Zweige ist nichts gesagt, weil die Prüfung nicht lief.
               ["Prüfung gestört", erg.gestoert ?? gestoerte.length, "#7c3aed"],
               ["geprüft", erg.gepruefte, "#64748b"],
+              // Nur zeigen, wenn es welche gibt — eine Null-Kachel ist Rauschen.
+              ...(Number(erg.veraltet ?? veraltete.length) > 0
+                ? [["veraltet (darf weg)", erg.veraltet ?? veraltete.length, "#94a3b8"] as [string, number, string]]
+                : []),
             ].map(([t, w, f]) => (
               <div key={String(t)} className="px-3.5 py-3 rounded-xl"
                    style={{ background: `${f}0f`, boxShadow: `inset 0 0 0 1px ${f}2e` }}>
@@ -217,6 +276,23 @@ function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
               </div>
             );
           })()}
+
+          {/* ── DIE VERALTETEN: ERLEDIGT, NICHT OFFEN ───────────────────── */}
+          {veraltete.length > 0 && (
+            <div className="mt-3 px-3.5 py-3 rounded-xl"
+                 style={{ background: "rgba(15,23,42,.04)" }}>
+              <p className="text-[12px] font-bold text-slate-600">
+                {veraltete.length} Ereignis{veraltete.length === 1 ? "" : "se"} ist veraltet und
+                wird nicht mehr geprüft
+              </p>
+              {veraltete.map((z: any) => (
+                <p key={z.event} className="text-[12px] text-slate-500 mt-1 leading-relaxed">
+                  <code className="text-[11.5px]">{z.event}</code> — wird nie mehr gefeuert.
+                  Der Zweig kann in Make <b>gelöscht</b> werden. Zählt in keiner Summe mit.
+                </p>
+              ))}
+            </div>
+          )}
 
           {/* ── DIE GESTÖRTEN GETRENNT AUFFÜHREN ────────────────────────── */}
           {gestoerte.length > 0 && (
@@ -293,9 +369,19 @@ function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
                   Fortschrittsleiste war schon umgestellt, dieser Dialog nicht.
                   Zwei Angaben derselben Zahl an zwei Stellen — die eine wurde
                   korrigiert, die andere vergessen. */}
-              Der Lauf braucht etwa {Math.round((anzahl * 0.2) + 27)} Sekunden:
-              Alle Mails gehen sofort hintereinander raus, dann wird einmal bei
-              Brevo nachgesehen.
+              {/* ── ZUM ZWEITEN MAL DIESELBE FALLE ────────────────────────
+                  Gestern stand hier „etwa 2 Minuten", während die Leiste schon
+                  die neue Zeit nannte. Heute stand hier „34 Sekunden", während
+                  der Lauf auf Polling umgestellt wurde.
+
+                  Dieselbe Zahl an zwei Stellen wird einmal korrigiert
+                  (AGENTS.md). Deshalb steht sie jetzt hier UND in der Leiste
+                  aus derselben Rechnung — und der Prüfstand hält beide
+                  gegeneinander. */}
+              Der Lauf dauert <b>bis zu 4 Minuten</b>: Alle {anzahl} Mails gehen
+              sofort hintereinander raus, danach fragen wir alle 30 Sekunden bei
+              Brevo nach. Sind alle Zweige in Ordnung, ist er nach etwa einer
+              Minute fertig — Brevo trägt Zustellungen mit 1–3 Minuten Verzug ein.
             </p>
             {!testAdresse && (
               <p className="mt-3 px-3.5 py-2.5 rounded-xl text-[12.5px] font-semibold"

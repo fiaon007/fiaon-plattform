@@ -40,6 +40,31 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-23-geduld",
+    date: "2026-08-23",
+    category: "Behoben",
+    title: "Die Zweig-Pr\u00fcfung gab zu fr\u00fch auf \u2014 34 Zweige waren zu Unrecht rot",
+    summary:
+      "Der Pr\u00fcflauf meldete „Testmail kam nicht an“ f\u00fcr 34 Ereignisse \u2014 obwohl die Mails "
+      + "im Postfach lagen. Brevo tr\u00e4gt Zustellungen mit 1\u20133 Minuten Verzug ein, wir fragten nach 25 Sekunden.",
+    changes: [
+      "DAS WAR DAS PROBLEM: Wir haben den Lauf schneller gemacht (von 2 Minuten auf 34 Sekunden) \u2014 und dabei zu schnell. Brevo braucht 1 bis 3 Minuten, bis eine Zustellung in seiner Statistik steht.",
+      "JETZT FRAGEN WIR MEHRMALS: Erste Nachfrage nach 30 Sekunden, dann alle 30 Sekunden, bis zu 4 Minuten. Sind alle Zweige in Ordnung, ist der Lauf nach etwa einer Minute fertig \u2014 nur bei echten L\u00fccken wartet er l\u00e4nger.",
+      "Die Anzeige z\u00e4hlt jetzt mit: „L\u00e4uft seit 45 s \u00b7 n\u00e4chste Nachfrage in 15 s“. Bitte NICHT abbrechen \u2014 ein Abbruch war der Grund f\u00fcr die falschen roten Marken.",
+      "NEUER KNOPF „NUR NACHSEHEN“: Fragt Brevo erneut, OHNE neue Probemails zu schicken. Falls ein Lauf zu fr\u00fch aufgegeben hat: einmal dr\u00fccken, dann werden die Zweige gr\u00fcn, deren Mails inzwischen angekommen sind.",
+      "FOLLOW-UP 48H F\u00c4LLT RAUS: Dieses Ereignis wird nie mehr gefeuert (gemessen: null Vers\u00e4nde). Es bekam trotzdem eine Probemail und z\u00e4hlte als „Zweig fehlt“. Jetzt steht es als „veraltet \u2014 darf in Make gel\u00f6scht werden“ und z\u00e4hlt nirgends mit. Aus 35 werden 34 echte Ereignisse.",
+      "BESSERE FEHLERMELDUNG: Klemmt es, steht jetzt dabei, welche Adresse gesucht wurde, in welchem Zeitfenster und wie viele Brevo-Ereignisse insgesamt gefunden wurden. Bei 0 gefundenen sagt der Text ausdr\u00fccklich, dass es NICHT am Zweig liegt.",
+    ],
+    howto: [
+      "Verwaltung \u2192 E-Mail-Events. Zuerst einmal „Nur nachsehen“ dr\u00fccken \u2014 das holt die Ergebnisse der letzten L\u00e4ufe nach, ohne neue Mails.",
+      "F\u00fcr einen frischen Lauf: Testadresse oben eintragen, dann „Alle Zweige pr\u00fcfen“. Fenster offen lassen, bis zu 4 Minuten.",
+      "Steht „Zweig fehlt“: Die Liste zum Kopieren steht darunter \u2014 damit in Make nachsehen.",
+      "Steht „Pr\u00fcfung gest\u00f6rt“: Nichts tun, das ist unsere Baustelle.",
+    ],
+    link: { href: "/admin/events", label: "Zu den E-Mail-Events" },
+    important: true,
+  },
+  {
     id: "2026-08-22-bonitaet",
     date: "2026-08-22",
     category: "Behoben",

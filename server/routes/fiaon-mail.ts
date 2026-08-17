@@ -199,8 +199,30 @@ router.post("/admin/mail/alle-pruefen", async (req: Request, res: Response) => {
     // Antwort. Und es liefert DREI Zustände statt zwei; das ist der wichtigere
     // Teil (siehe fiaon-zustellung.ts).
     // ══════════════════════════════════════════════════════════════════════
+    // ── „NUR NACHSEHEN" ────────────────────────────────────────────────────
+    // Ohne neue Probemails: Der Lauf von gestern gab nach 25 Sekunden auf,
+    // während die Mails längst bei Brevo lagen. 35 unnötige Mails an die
+    // Testadresse kosten Zustellreputation.
+    const nurNachsehen = req.body?.nurNachsehen === true;
+    // Beim Nachsehen wird ab dem letzten Versand gesucht, nicht ab jetzt.
+    const [letzter] = nurNachsehen
+      ? (await sqlPool`
+          -- Der Beginn des letzten Test-Versandschubs. Die Spalte heißt art
+          -- mit den Werten 'echt' und 'test' — ein erster Entwurf fragte nach
+          -- ist_test und fiel still auf „vor einer Stunde“ zurück. Ein
+          -- stiller Rückfall ist schlimmer als ein Fehler: Er sucht im falschen
+          -- Fenster und meldet dann „Zweig fehlt".
+          SELECT MIN(created_at) AS ab FROM fiaon_mail_log
+          WHERE created_at > NOW() - INTERVAL '2 hours' AND art = 'test'
+        `.catch(() => [{ ab: null }])) as any[]
+      : [{ ab: null }];
+    const suchAb = letzter?.ab
+      ? new Date(new Date(String(letzter.ab)).getTime() - 300_000)
+      : new Date(Date.now() - 3600_000);
+
     const lauf = await alleZweigePruefen(an,
-      { name: "Vorgesetzter", agentId: null, rolle: "admin" });
+      { name: "Vorgesetzter", agentId: null, rolle: "admin" },
+      nurNachsehen ? { nurNachsehen: true, suchAb } : {});
     const alle = await mailEvents();
     // Schlüssel bewusst als string: `z.event` kommt aus dem Sammellauf und ist
     // dort ein string. Eine Map<MakeEventType, …> würde ihn ablehnen, obwohl es
@@ -222,7 +244,10 @@ router.post("/admin/mail/alle-pruefen", async (req: Request, res: Response) => {
       sauber: lauf.bestaetigt,
       beanstandet: lauf.zweigFehlt,
       gestoert: lauf.gestoert,
+      // Veraltete zählen in keiner Summe mit — sie stehen nur als Zeile da.
+      veraltet: lauf.veraltet,
       dauerSekunden: lauf.dauerSekunden,
+      nurNachgesehen: nurNachsehen,
       testAdresse: an,
       zweige: lauf.zweige.map((z) => ({
         ...z,

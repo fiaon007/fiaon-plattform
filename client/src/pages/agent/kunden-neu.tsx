@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { KundeAnlegen } from "@/components/agent/KundeAnlegen";
 import { AgentShell } from "./shared";
 import { Reveal } from "./motion";
 import { Skelett, eur, useReduzierteBewegung, useToast } from "@/lib/fiaon-ui";
@@ -291,6 +292,9 @@ function Inhalt() {
   const [nurPerson, setNurPerson] = useState<number | null>(null);
   const [sort, setSort] = useState("arbeit");
   const [suche, setSuche] = useState("");
+  // Der Anlage-Dialog. Aufgeklappt bleibt er offen, bis der Agent schließt — er
+  // arbeitet darin mehrere Schritte ab (anlegen → Zahlungsdaten → Termin).
+  const [anlageOffen, setAnlageOffen] = useState(false);
   const [offen, setOffen] = useState<number | null>(null);
   // Wurde die Karte über die Adresse angesprungen (?person=), muss sie sichtbar
   // werden. Bei 150 Zeilen liegt sie sonst weit unter dem Bildrand, und der
@@ -412,6 +416,33 @@ function Inhalt() {
                      className="h-[36px] px-3 rounded-xl border bg-white text-[13px] outline-none w-[190px] sm:w-[250px]"
                      style={{ borderColor: "var(--fi-linie)" }} />
             </div>
+          </div>
+        </Reveal>
+
+        {/* ══════════════════════════════════════════════════════════════
+            KUNDE ANLEGEN (25.08.2026)
+
+            ── DER FEHLGRIFF DAVOR ─────────────────────────────────────
+            Dieser Knopf stand zuerst in `pages/agent/kunden.tsx`. Die Route
+            /agent/kunden zeigt aber DIESE Datei (kunden-neu.tsx) — die alte
+            liegt unter /agent/meine-kunden-alt. Der Browsertest fand den Knopf
+            nicht, und erst der SCREENSHOT zeigte, dass eine ganz andere Seite
+            geladen war.
+            Zwei Dateien mit fast gleichem Namen: Wer eine Seite ändert, prüft
+            zuerst in App.tsx, welche die Route bedient.
+
+            ── WARUM HIER OBEN ────────────────────────────────────────
+            GEMESSEN am 23.08.: Es gab KEINE Route, mit der ein Mitarbeiter
+            einen Kunden anlegen konnte. Der Agent hatte den Menschen am
+            Telefon und musste die Verwaltung bitten.
+            ══════════════════════════════════════════════════════════════ */}
+        <Reveal index={1}>
+          <div className="mt-4">
+            <KundeAnlegen
+              offen={anlageOffen}
+              aufKlappen={setAnlageOffen}
+              fertig={() => { void laden(true); }}
+            />
           </div>
         </Reveal>
 

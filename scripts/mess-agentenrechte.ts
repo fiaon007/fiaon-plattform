@@ -27,6 +27,11 @@ const lies = (p: string) => { try { return readFileSync(p, "utf8"); } catch { re
 
 /** Alle Routendateien, die Kundenpflege betreffen. */
 const DATEIEN = [
+  // ── NEU AM 25.08.2026 ──────────────────────────────────────────────────
+  // Der Vollpfleger-Bereich. Ohne diesen Eintrag zeigte die Matrix „nachher"
+  // dasselbe wie „vorher" — eine Messung, die die neue Datei nicht liest,
+  // beweist nichts.
+  "server/routes/fiaon-agent-anlage.ts",
   "server/routes/fiaon-agent.ts",
   "server/routes/fiaon-vertrieb.ts",
   "server/routes/fiaon-kunden.ts",
@@ -70,9 +75,11 @@ async function main(): Promise<void> {
   titel("1. DIE FÄHIGKEITEN AUS DEM AUFTRAG — gibt es sie?");
   // ═════════════════════════════════════════════════════════════════════════
   const faehigkeiten: [string, RegExp][] = [
-    ["Neukunde anlegen (Mitarbeiter)", /\/(agent|vertrieb)\/(kunden|customers)\/?(neu|anlegen)?$/],
-    ["Produkt an bestehende Akte", /(produkt|nachbuch|bestellung)/i],
-    ["Stammdaten ändern", /(stammdaten|person|profil)/i],
+    ["Neukunde anlegen (Mitarbeiter)", /\/(agent|vertrieb)\/(kunden|customers)\/(neu|pruefen)$/],
+    ["Produkt an bestehende Akte", /\/produkt$|nachbuch/i],
+    ["Stammdaten ändern (Kunde)", /customers\/:ref\/stammdaten|kunden\/:ref\/stammdaten/],
+    ["Termin anbieten", /termin-anbieten/],
+    ["Preiskatalog lesen", /agent\/katalog/],
     ["Zahlungsdaten senden", /send-payment-email|zahlungsdaten/i],
     ["Kontaktergebnis erfassen", /contact-result/],
     ["Unbezahlte Buchung wegräumen", /(wegraeumen|storn|dismiss)/i],

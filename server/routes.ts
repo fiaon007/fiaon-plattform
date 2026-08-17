@@ -343,6 +343,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonAgentStartRoutes = await import('./routes/fiaon-agent-start');
   app.use('/api/fiaon', fiaonAgentStartRoutes.default);
 
+  // ── DER AGENT ALS VOLLPFLEGER (25.08.2026) ────────────────────────────────
+  // Anlegen, Produkt aus dem Katalog, Stammdaten, Termin anbieten. Eigene
+  // Datei, weil fiaon-agent.ts schon 3.000 Zeilen hat — und weil ein neuer
+  // Bereich mit eigenen Wänden auch eigene Nachbarschaft verdient.
+  const fiaonAgentAnlageRoutes = await import('./routes/fiaon-agent-anlage');
+  app.use('/api/fiaon', fiaonAgentAnlageRoutes.default);
+
   // 📅 FIAON Termine — oeffentliche Buchungsseite (signiertes Token, kein Login)
   //    und die Agentensicht. Regeln stehen in server/lib/fiaon-termine.ts.
   const fiaonTerminRoutes = await import('./routes/fiaon-termin');

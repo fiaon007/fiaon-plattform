@@ -48,6 +48,62 @@ Die Prüfung ist wieder entfernt, mit Begründung im Quelltext. **Der esbuild-Du
 
 **Teil 2 (Agent als Vollpfleger)** und **Teil 3** (Pflichtnotiz im Listen-Weg, 12 Wartezustände, Zustellprotokoll mit Filtern, Team-Kalender auf 380 px) sind offen.
 
+## 25.08.2026 — Der Agent legt Kunden an: anlegen → Produkt → Zahlung → Termin
+
+### Die Rechte-Matrix vorher und nachher
+
+| Fähigkeit | vorher (23.08.) | nachher |
+|---|---|---|
+| Neukunde anlegen | **keine Route** | `POST /agent/kunden/neu` + `/pruefen` |
+| Produkt an bestehende Akte | **keine Route** | `POST /agent/customers/:ref/produkt` |
+| Stammdaten des Kunden | nur *eigenes* Profil | `POST /agent/customers/:ref/stammdaten` |
+| Termin anbieten | — | `POST /agent/customers/:ref/termin-anbieten` |
+| Preiskatalog | — | `GET /agent/katalog` |
+
+Es gab nichts freizuschalten — die Funktionen existierten nicht. Genau diese Unterscheidung war der Grund, am 23.08. zuerst zu messen.
+
+### Der Fluss endet nicht bei der Anlage
+
+Der Agent hat den Menschen **am Telefon**. Er kann nicht viermal die Seite wechseln. Nach dem Anlegen bleibt derselbe Dialog offen und zeigt drei Schritte:
+
+1. **Zahlungsdaten** — senden (Mail) *oder* kopieren (der WhatsApp-Weg; ohne diesen Knopf tippt der Agent den Verwendungszweck ab und vertippt sich) *oder* Rechnung als PDF
+2. **Termin anbieten** — Link senden oder kopieren. Mit der gemessenen Begründung: *„Alle 120 gebuchten Termine kamen aus einem verschickten Link."* Der Hebel funktionierte — er wurde am Telefon nur nie angeboten.
+3. **Zur Akte** oder **nächsten Kunden anlegen**
+
+### Der Dubletten-Check läuft während des Tippens
+
+Nicht erst beim Speichern: Wer alles eingetippt hat und dann hört „gibt es bereits", hat umsonst gearbeitet. Sobald E-Mail oder Nummer vollständig sind (450 ms Verzug), erscheint der Hinweis — mit dem **Treffer-Merkmal** („über E-Mail", „über frühere Rufnummer"), dem betreuenden Kollegen und einem Weg zur Akte.
+
+Gesucht wird über E-Mail *und* Rufnummer, **inklusive Aliase** — wer früher eine andere Adresse hatte, ist derselbe Mensch.
+
+### Die vier Wände, jede im Prüfstand bewiesen
+
+| Wand | Umsetzung |
+|---|---|
+| **Bezahltes unantastbar** | Die Hygiene fasst nur `pending_payment`/`claimed_paid` an — und prüft es beim Stilllegen ein **zweites Mal**, weil zwischen Lesen und Schreiben eine Zahlung eingehen kann |
+| **Preise nur Katalog** | Ein mitgeschickter Betrag wird **abgelehnt**, nicht ignoriert. Kein stiller Fehlschlag |
+| **Provisions-Wand** | Die Anlage bucht nichts. `onCustomerPaid` entscheidet weiter nach der bestehenden Regel |
+| **Alles im Verlauf** | Kundenverlauf *und* Aktivitätsprotokoll (`kunde_angelegt`, `produkt_angelegt` — beide im Katalog, sonst erscheinen sie in der Ansicht nicht) |
+
+**Paket-Hygiene:** Ein zweites Stufenpaket legt die alte offene Bestellung still — sonst bekommt der Kunde zwei Zahlungsaufforderungen. Die Bonitätsauskunft ist davon **ausgenommen** (Einmalkauf neben dem Konto; diese Kategoriegrenze fehlte einmal und kostete 583,98 € offenen Umsatz), aber es gibt sie nur **einmal lebend**.
+
+### Vier eigene Fehler — und was sie gelehrt haben
+
+1. **Ich habe in die falsche Datei gebaut.** Der Knopf stand in `pages/agent/kunden.tsx`; die Route `/agent/kunden` zeigt aber `kunden-neu.tsx` (die alte liegt unter `/agent/meine-kunden-alt`). Der Browsertest fand ihn nicht — und erst der **Screenshot** zeigte, dass eine ganz andere Seite geladen war. *Dabei stellte sich heraus:* Meine Notizpflicht-Meldung von gestern betraf ebenfalls die alte Datei. Die echte Seite hatte sie längst; nur der **Server** hatte sie nicht, und das war der wichtige Teil.
+2. **Der Prüfstand benutzte in jedem Lauf dieselbe Rufnummer.** Ab dem zweiten Lauf hängte die Anlage an die Person des ersten — dieselbe Nummer, derselbe Mensch, völlig richtig. Nur war diese Person vom Aufräumen als Testperson markiert, und die Dublettensuche überspringt Testpersonen (auch richtig). Fünf Prüfungen wurden rot.
+3. **Zwei Selektoren trafen die falschen Elemente.** `locator("select").first()` traf die Sortier-Auswahl der Seite, `getByPlaceholder("E-Mail")` zusätzlich das Suchfeld. Das Bauteil hat jetzt ein Kennzeichen (`data-fiaon="kunde-anlegen"`).
+4. **Drei stille `.catch()` kosteten zwei Durchläufe.** Erst die falsche Tabelle (`fiaon_agent_contract_templates`), dann die falsche Spalte (`active` statt `status`) — beide Fehler wurden verschluckt, und der Prüfstand meldete „keine aktive Vorlage" statt „die Abfrage ist kaputt".
+
+### Geprüft
+
+`scripts/pruef-vollpfleger.ts` — **50 Prüfungen** über echte HTTP-Routen, mit erkennbaren Prüfdaten und Aufräumen, das **immer** läuft. Darunter die Kernwand: **„ES ENTSTAND KEINE ZWEITE PERSON"** (Personenzahl vor und nach dem Doppel-Versuch).
+
+`scripts/pruef-vollpfleger-browser.ts` — **35 Prüfungen** am gerenderten Bild, Desktop und 380 px: Knopf finden, Formular füllen, Dubletten-Hinweis abwarten, anlegen, Terminlink senden. Alle schreibenden Aufrufe abgefangen — ein Browsertest darf keine echten Kunden anlegen.
+
+**Rot-Probe:** Dubletten-Check ausgeschaltet, Preisprüfung entfernt, Hygiene auf bezahlte Bestellungen ausgeweitet → **10 Prüfungen rot**.
+
+Screenshots: `reports/vollpfleger/` (Formular mit Dubletten-Hinweis, Abschluss mit drei Schritten, 380 px).
+
 ## 24.08.2026 — Wartezustand, Notizpflicht, Protokoll-Filter
 
 ### Teil 2a: Sieben zahlende Kunden wurden täglich vergeblich angerufen

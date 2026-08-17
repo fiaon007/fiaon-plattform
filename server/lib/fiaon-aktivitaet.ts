@@ -67,6 +67,14 @@ export const KATALOG: Eintrag[] = [
   { typ: "antrag_archiviert", titel: "Antrag archiviert", schwere: "mittel", loeschung: true },
   { typ: "person_merge", titel: "Kunden zusammengeführt", schwere: "mittel", loeschung: true },
   { typ: "dubletten_verworfen", titel: "Dubletten verworfen", schwere: "notiz" },
+  // ── DIE TELEFON-ANLAGE (25.08.2026) ─────────────────────────────────────
+  // Ein Agent legt am Telefon einen Kunden an. Das ist keine Löschung und
+  // nichts Heikles — aber es erzeugt eine Bestellung mit einem Preis, und wer
+  // sie angelegt hat, muss nachvollziehbar sein. Ohne diesen Eintrag stünde
+  // die Anlage nur im Kundenverlauf, und die Aufsicht über Mitarbeiter
+  // (Aktivitäts-Ansicht) sähe sie nicht.
+  { typ: "kunde_angelegt", titel: "Kunde angelegt (Telefon)", schwere: "notiz" },
+  { typ: "produkt_angelegt", titel: "Produkt hinzugefügt", schwere: "mittel" },
   { typ: "vertrieb_zusage_geloescht", titel: "Zusage gelöscht", schwere: "hoch", loeschung: true },
   { typ: "vertrieb_zusage_widerrufen", titel: "Zusage entwertet", schwere: "hoch" },
   { typ: "kunde_als_test_markiert", titel: "Als Testkunde markiert", schwere: "mittel" },

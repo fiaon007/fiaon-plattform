@@ -40,6 +40,33 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-25-vollpfleger",
+    date: "2026-08-25",
+    category: "Neu",
+    title: "Ihr k\u00f6nnt jetzt Kunden komplett anlegen \u2014 so geht's",
+    summary:
+      "Kunde am Telefon? Anlegen, Paket w\u00e4hlen, Zahlungsdaten schicken, Termin anbieten \u2014 "
+      + "alles in einem Fenster, ohne die Verwaltung zu fragen.",
+    changes: [
+      "DAS GING VORHER NICHT: Es gab keine M\u00f6glichkeit, einen Kunden selbst anzulegen. Ihr hattet den Menschen am Telefon und musstet die Verwaltung bitten.",
+      "JETZT: Kunden \u2192 Knopf „+ Kunde anlegen“. Vorname, Nachname, dazu E-Mail ODER Telefon. Paket aus der Liste (Preise stehen fest, nichts zu tippen). Fertig.",
+      "WIR PR\u00dcFEN AUF DOPPELG\u00c4NGER, W\u00c4HREND IHR TIPPT: Steht der Mensch schon im System, seht ihr es sofort \u2014 mit dem Grund (E-Mail oder Nummer), dem betreuenden Kollegen und einem Knopf zur Akte. Kein zweiter Datensatz.",
+      "DANACH BLEIBT DAS FENSTER OFFEN und zeigt drei Schritte: 1. Zahlungsdaten senden ODER kopieren (f\u00fcr WhatsApp) 2. Terminlink senden ODER kopieren 3. Zur Akte.",
+      "WARUM DER TERMIN WICHTIG IST: Alle 120 gebuchten Termine kamen aus einem verschickten Link. Wer im Gespr\u00e4ch einen bekommt, bucht \u2014 sp\u00e4ter erreicht ihn niemand mehr.",
+      "PRODUKT AN BESTEHENDE KUNDEN: In der Akte l\u00e4sst sich ein Paket hinzuf\u00fcgen. Ein Upgrade legt die alte offene Bestellung still \u2014 der Kunde bekommt nur EINE Zahlungsaufforderung. Die Bonit\u00e4tsauskunft geht zus\u00e4tzlich, aber nur einmal.",
+      "STAMMDATEN: Name, E-Mail, Telefon, Adresse und Geburtsdatum k\u00f6nnt ihr bei euren Kunden \u00e4ndern. Jede \u00c4nderung steht im Verlauf, und die alte Nummer bleibt als Nebennummer erhalten \u2014 ruft der Kunde von ihr an, wird er erkannt.",
+      "WAS NICHT GEHT: Preise tippen (die kommen aus dem Katalog) und bezahlte Bestellungen \u00e4ndern. Beides w\u00fcrde in Rechnung und Provision landen.",
+    ],
+    howto: [
+      "Kunden \u2192 „+ Kunde anlegen“ \u2192 Name + E-Mail oder Telefon \u2192 Paket \u2192 anlegen.",
+      "Erscheint der Doppelg\u00e4nger-Hinweis: Ist es derselbe Mensch? Dann „Akte \u00f6ffnen“ und dort ein Produkt hinzuf\u00fcgen.",
+      "Nach dem Anlegen: Zahlungsdaten senden (oder kopieren und in WhatsApp einf\u00fcgen), dann Terminlink.",
+      "Am Handy geht alles genauso \u2014 die Felder stapeln sich, die Kn\u00f6pfe sind gro\u00df genug.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
+    important: true,
+  },
+  {
     id: "2026-08-24-reste",
     date: "2026-08-24",
     category: "Behoben",

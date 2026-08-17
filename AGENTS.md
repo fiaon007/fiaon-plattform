@@ -445,6 +445,69 @@ Ort und behebt am falschen Fall.
 in den Bericht schreiben. Sie ist keine Kritik am Auftraggeber, sondern die
 Beschreibung des wirklichen Problems.
 
+## Zwei Dateien mit fast gleichem Namen — welche bedient die Route?
+
+Der Anlage-Knopf entstand in `client/src/pages/agent/kunden.tsx`. Die Route
+`/agent/kunden` zeigt aber `kunden-neu.tsx`; die alte liegt unter
+`/agent/meine-kunden-alt`. Der Browsertest fand den Knopf nicht — und erst der
+SCREENSHOT zeigte, dass eine völlig andere Seite geladen war.
+
+Dabei fiel auf: Ein Befund vom Vortag („der Listen-Weg hat keine
+Notizpflicht“) betraf ebenfalls die alte Datei. Die echte Seite hatte sie
+längst.
+
+- **Vor jeder Änderung an einer Seite: `grep` in `App.tsx`**, welche Datei die
+  Route bedient. Zwei Befehle.
+- **Ein Befund an einer Datei, die niemand lädt, ist kein Befund.** Er sieht nur
+  wie einer aus — und die Reparatur wirkt nirgends.
+
+## Ein Prüfstand darf über Läufe hinweg nicht dieselben Merkmale benutzen
+
+`pruef-vollpfleger.ts` legte in jedem Lauf einen Kunden mit derselben Rufnummer
+an. Ab dem zweiten Lauf hängte die Anlage die Bestellung an die Person des
+ERSTEN — dieselbe Nummer, derselbe Mensch, völlig richtig.
+
+Nur war diese Person vom Aufräumen als Testperson markiert, und die
+Dublettensuche überspringt Testpersonen (auch richtig: ein Testdatensatz darf
+keine echte Anlage blockieren). Ergebnis: Der Check fand nichts, HTTP 200 statt
+409, fünf Prüfungen rot.
+
+- **Merkmale je Lauf einmalig machen** (Zeitstempel in Nummer und Adresse).
+- Ein Prüfstand, der beim zweiten Mal etwas anderes prüft als beim ersten, ist
+  kein Prüfstand.
+
+## Ein stilles `.catch()` kostet zwei Durchläufe
+
+Beim Onboarding des Prüf-Testkontos: erst die falsche Tabelle
+(`fiaon_agent_contract_templates`), dann die falsche Spalte (`active` statt
+`status`). Beide Fehler landeten in einem `.catch(() => [])`, und der Prüfstand
+meldete „keine aktive Vertragsvorlage“ — statt zu sagen, dass die Abfrage
+kaputt ist.
+
+- **Ein `.catch()` um eine Abfrage schreibt den Fehler mit**, wenigstens auf die
+  Konsole. Sonst verwandelt es einen Programmfehler in eine falsche Auskunft.
+
+## Ein Bauteil, das ein Browsertest prüft, braucht ein Kennzeichen
+
+`locator("select").first()` traf die Sortier-Auswahl der Seite,
+`getByPlaceholder("E-Mail")` zusätzlich das Suchfeld („Name, E-Mail, Nummer,
+Referenz“). Zwei Fehlalarme, die wie Fehler aussahen.
+
+- **`data-fiaon="…"` am Bauteil**, und der Test sucht darin. Dieselbe Lehre wie
+  bei der Bühne im Vordergrund (20.08.2026): Wer eine Tafel prüft, misst IN der
+  Tafel.
+
+## Wer am Telefon arbeitet, kann nicht die Seite wechseln
+
+Der Agent hat den Menschen in der Leitung. Anlegen, Zahlungsdaten, Termin —
+das sind für ihn EIN Vorgang, nicht drei Seiten.
+
+- **Ein Erfolgs-Dialog, der offen bleibt und die nächsten Schritte anbietet**,
+  ist mehr wert als drei perfekte Einzelseiten.
+- **Und jede Aktion braucht beide Wege: senden UND kopieren.** Viele Kunden
+  bekommen die Daten über WhatsApp; ohne Kopierknopf tippt der Agent den
+  Verwendungszweck ab und vertippt sich.
+
 ## Vor dem Bauen prüfen, ob es benutzt wird
 
 Ein Auftrag lautete: „team-calendar.tsx (3.870 Zeilen, grid-cols-7) unter

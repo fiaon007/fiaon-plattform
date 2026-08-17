@@ -40,6 +40,34 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-19-datenkosmetik",
+    date: "2026-08-19",
+    category: "Behoben",
+    title: "Paketnamen und Kundennamen werden jetzt richtig angezeigt",
+    summary:
+      "Im Kundenportal stand „Guten Abend, Justin .\u201c mit hängendem Punkt und in der "
+      + "Paket-Kachel nur „Maximum)\u201c. Beides ist behoben — auch in Mails und Listen.",
+    changes: [
+      "PAKETNAMEN: 6.589 von 6.852 Bestellungen trugen einen Zeilenumbruch mitten im Paketnamen "
+      + "(„FIAON High End\u201c / „(Das Maximum)\u201c). Überall, wo der Name einzeilig gebraucht wird "
+      + "— Kacheln, Betreffzeilen, Listen, Rechnungen — brach die Anzeige ab.",
+      "7.163 Zeilen bereinigt. Und die Ursache ist weg: Die Paketliste im Antrag trennt jetzt Namen und Beisatz, und der Server räumt beim Speichern zusätzlich auf.",
+      "KUNDENNAMEN: 1.247 Vornamen und 1.122 Nachnamen hatten ein Leerzeichen am Rand "
+      + "(„Violeta \u201c). Daraus wurde in jeder Anrede „Hallo Violeta ,\u201c und im Portal "
+      + "„Guten Abend, Violeta .\u201c.",
+      "2.642 Felder bereinigt, in Bestellungen und Personen. Ab jetzt räumt der Server bei JEDEM Weg auf: Antrag, deine Stammdaten-Korrektur, Lead-Eingang und Lead-Import.",
+      "Geändert wird nur Leerraum — kein Buchstabe, keine Groß-/Kleinschreibung. Ein Name gehört dem Menschen.",
+      "PAKET-KACHEL: Sie zeigte „Maximum)\u201c — das letzte Wort samt Klammer. Jetzt steht dort "
+      + "„High End\u201c. Das war ein eigener Fehler, den der Zeilenumbruch nur verdeckt hatte.",
+    ],
+    howto: [
+      "Du musst nichts tun. Wenn du einen Namen korrigierst, räumt der Server Leerzeichen automatisch weg.",
+      "Falls dir irgendwo noch ein abgeschnittener Paketname auffällt: melde ihn — dann ist dort "
+      + "noch eine Stelle, die den Namen zerlegt.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
+  },
+  {
     id: "2026-08-19-kundensicht",
     date: "2026-08-19",
     category: "Neu",

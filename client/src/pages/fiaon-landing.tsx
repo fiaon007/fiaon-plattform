@@ -41,6 +41,22 @@ if (!document.head.querySelector('style[data-card-enter]')) {
 }
 
 /* ── packages ── */
+// ══════════════════════════════════════════════════════════════════════════
+// ACHTUNG: DIESE NAMEN TRAGEN EINEN ZEILENUMBRUCH — UND DAS IST HIER OK
+//
+// Der `\n` macht die Karte zweizeilig. Diese Seite ist reine Darstellung: Sie
+// VERLINKT auf /antrag und schreibt selbst nichts in die Datenbank.
+//
+// ── WARUM DER HINWEIS TROTZDEM HIER STEHT (19.08.2026) ──────────────────
+// In `antrag.tsx` stand dieselbe Liste — und die schreibt. GEMESSEN: 6.589
+// Bestellungen trugen den Umbruch im Paketnamen, im Portal stand in der
+// Paket-Kachel nur „Maximum)". Dort sind Name und Beisatz jetzt getrennt.
+//
+// Wer diese Liste hier kopiert, um irgendwo zu SPEICHERN, nimmt den Umbruch
+// mit. Dafür gibt es `paketNameEinzeilig()` und `paketNameFuerDaten()` in
+// shared/fiaon-paketname.ts. Der Server reinigt zusätzlich beim Schreiben —
+// aber sich darauf zu verlassen, hieße, die Wand als Entschuldigung zu nehmen.
+// ══════════════════════════════════════════════════════════════════════════
 const PACKS = [
   { name: "FIAON Starter\n(Das Fundament)", fee: "7,99", lim: "500", bg: "linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats: ["Dein 500 € Einstiegs-Setup", "Zugang: Basic Karten-Portfolio", "Schufaneutrale Profil-Prüfung", "Online-Dashboard & Verwaltung"] },
   { name: "FIAON Pro\n(Standard)", fee: "59,99", lim: "5.000", rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats: ["Dein 5.000 € Limit-Protokoll", "Zugang: Premium Karten-Netzwerk", "Dynamische Limit-Aufstockung", "Sofortige Score-Auswertung", "Priority-Bearbeitung im System"] },

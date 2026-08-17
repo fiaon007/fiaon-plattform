@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import { paketKurz } from "@shared/fiaon-paketname";
 import Clarity from "@microsoft/clarity";
 import { StartgespraechGate } from "@/components/StartgespraechGate";
 import { PortalSperre } from "@/components/PortalSperre";
@@ -87,7 +88,10 @@ function CreditCard3D({ user }: { user: SessionUser }) {
           <div className="flex justify-between items-start">
             <span className="text-xl font-bold tracking-tight text-white/90">FIAON</span>
             <span className="text-[10px] font-semibold tracking-[.18em] uppercase text-white/50">
-              {user.packName?.split(" ").pop() || "Mitglied"}
+              {/* `split(" ").pop()` stand hier und ergab bei „FIAON High End
+                  (Das Maximum)" das Wort „Maximum)" — letztes Wort samt
+                  schließender Klammer. Siehe paketKurz(). */}
+              {paketKurz(user.packName) || "Mitglied"}
             </span>
           </div>
           <div className="w-11 h-8 rounded" style={{ background: "linear-gradient(135deg,#d4af37,#f0d875,#c9a227)", boxShadow: "0 1px 4px rgba(0,0,0,.25)" }}>
@@ -774,7 +778,7 @@ export default function DashboardPage() {
                   {/* Paket */}
                   <PremiumStatCard
                     label="Paket"
-                    value={user.packName?.split(' ').pop() || '—'}
+                    value={paketKurz(user.packName) || '—'}
                     sub="Mitgliedschaft"
                     bg="linear-gradient(145deg,#1a0533,#2d1065,#3b0764)"
                     glow="#2d1065"

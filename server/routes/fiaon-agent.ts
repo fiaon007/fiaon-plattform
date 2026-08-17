@@ -15,6 +15,7 @@
 
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { nameSauber } from "../../shared/fiaon-namen";
 import bcrypt from "bcryptjs";
 import { createHmac, createHash, randomBytes, createCipheriv, createDecipheriv } from "crypto";
 import PDFDocument from "pdfkit";
@@ -1087,8 +1088,12 @@ export async function updateCustomerContact(
     if (body[k] !== undefined) return { error: { code: 403, msg: `Feld '${k}' darf hier nicht geändert werden` } };
   }
 
-  const firstName = body.firstName !== undefined ? String(body.firstName).trim() : null;
-  const lastName = body.lastName !== undefined ? String(body.lastName).trim() : null;
+  // ── EINE REINIGUNG, NICHT ZWEI (19.08.2026) ───────────────────────────
+  // Hier stand `String(...).trim()`. Das räumt den Rand, aber nicht doppelte
+  // Leerzeichen innen — und es war eine zweite Fassung derselben Regel neben
+  // der im Antrag. `nameSauber` ist die eine (shared/fiaon-namen.ts).
+  const firstName = body.firstName !== undefined ? nameSauber(body.firstName) : null;
+  const lastName = body.lastName !== undefined ? nameSauber(body.lastName) : null;
   const emailRaw = body.email !== undefined ? String(body.email).trim().toLowerCase() : null;
   const phoneRaw = body.phone !== undefined ? String(body.phone) : null;
   // Paket DE: Adresse (Straße/PLZ/Ort) — leere Eingabe = Feld leeren (erlaubt)
@@ -1096,8 +1101,16 @@ export async function updateCustomerContact(
   const zip = body.zip !== undefined ? String(body.zip).trim().slice(0, 10) : null;
   const city = body.city !== undefined ? String(body.city).trim().slice(0, 80) : null;
 
-  if (firstName !== null && !firstName) return { error: { code: 400, msg: "Vorname darf nicht leer sein" } };
-  if (lastName !== null && !lastName) return { error: { code: 400, msg: "Nachname darf nicht leer sein" } };
+  // ── EIN FELD, DAS NUR LEERRAUM ENTHIELT, IST LEER ─────────────────────
+  // `nameSauber` gibt dafür `null` zurück. Die alte Prüfung („!firstName")
+  // fing den Leerstring; jetzt muss sie unterscheiden, ob das Feld ÜBERGEBEN
+  // wurde (dann ist leer ein Fehler) oder nicht (dann bleibt der alte Wert).
+  if (body.firstName !== undefined && !firstName) {
+    return { error: { code: 400, msg: "Vorname darf nicht leer sein" } };
+  }
+  if (body.lastName !== undefined && !lastName) {
+    return { error: { code: 400, msg: "Nachname darf nicht leer sein" } };
+  }
   if (emailRaw !== null && !EMAIL_RE.test(emailRaw)) return { error: { code: 400, msg: "E-Mail-Format ungültig" } };
   if (zip !== null && zip && !/^[0-9]{4,5}$/.test(zip)) return { error: { code: 400, msg: "PLZ ungültig (4–5 Ziffern)" } };
   let phone: string | null = null;

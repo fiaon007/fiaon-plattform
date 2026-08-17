@@ -14,6 +14,7 @@
 
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { nameSauber } from "../../shared/fiaon-namen";
 import { sendMakeWebhook } from "../make-webhook";
 import { fiaonBaseUrl } from "../fiaon-base-url";
 import { parseBerlinInput, pruefeTerminZukunft } from "../lib/fiaon-time";
@@ -682,8 +683,13 @@ async function processIntake(b: any): Promise<IntakeResult> {
     || b.name || b.full_name || b.vollstaendiger_name || b["vollständiger_name"] || null;
   const rohNachname = b.nachname || b.lastName || b.last_name || null;
   const teile = nameTeilen(rohVorname, rohNachname);
-  const vorname = teile.vorname;
-  const nachname = teile.nachname;
+  // ── DIE REINIGUNG (19.08.2026) ────────────────────────────────────────
+  // Ein Lead aus einer Werbeanzeige bringt oft Leerraum mit: „Violeta ".
+  // GEMESSEN: 1.247 Vornamen im Bestand trugen ihn. Aus „Violeta " wird in
+  // jeder Anrede „Hallo Violeta ," und im Portal „Guten Abend, Violeta .".
+  // `nameSauber` ist die EINE Reinigung im Haus (shared/fiaon-namen.ts).
+  const vorname = nameSauber(teile.vorname);
+  const nachname = nameSauber(teile.nachname);
   const quelle = String(b.quelle || b.source || "facebook_lead_ads").slice(0, 120);
   const kampagne = b.kampagne || b.campaign || null;
   const adset = b.adset || b.ad_set || null;
@@ -1272,8 +1278,11 @@ async function updateLeadContact(id: number, body: any, actor: { id: number | nu
     const rows = await sqlPool`SELECT vorname, nachname, email, telefon FROM fiaon_leads WHERE id = ${id}`;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Lead nicht gefunden" });
     const cur = rows[0];
-    const vorname = body.vorname !== undefined ? String(body.vorname).trim() : null;
-    const nachname = body.nachname !== undefined ? String(body.nachname).trim() : null;
+    // `nameSauber` statt `.trim()`: Es räumt auch doppelte Leerzeichen innen
+    // und macht aus einem Feld mit nur Leerraum ein leeres. Und es ist die
+    // EINE Fassung — ein eigenes `.trim()` hier wäre die zweite.
+    const vorname = body.vorname !== undefined ? nameSauber(body.vorname) : null;
+    const nachname = body.nachname !== undefined ? nameSauber(body.nachname) : null;
     const email = body.email !== undefined ? String(body.email).trim().toLowerCase() : null;
     const phoneRaw = body.telefon !== undefined ? String(body.telefon) : null;
     if (email !== null && email !== "" && !EMAIL_RE.test(email)) return res.status(400).json({ ok: false, error: "E-Mail-Format ungültig" });
@@ -1769,7 +1778,7 @@ router.post("/admin/leads/import", async (req: Request, res: Response) => {
     const skipped: Array<{ email?: string; telefon?: string; reason: string }> = [];
 
     for (const raw of rows) {
-      const vorname = raw.vorname ? String(raw.vorname).trim().slice(0, 200) : null;
+      const vorname = raw.vorname ? (nameSauber(raw.vorname) ?? "").slice(0, 200) || null : null;
       const nachname = raw.nachname ? String(raw.nachname).trim().slice(0, 200) : null;
       let email: string | null = raw.email ? String(raw.email).trim().toLowerCase() : null;
       if (email && !EMAIL_RE.test(email)) email = null;

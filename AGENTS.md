@@ -338,6 +338,62 @@ Unterlagen, Rechnungen, Zahlungsdaten).
   der Kundensicht verlangt ausdrücklich, dass ein Cookie ohne den passenden
   Zugang des Ansehenden nichts zeigt.
 
+## Ein grüner Prüfstand, der die Spalte prüft, sagt nichts über das Bild
+
+Am 19.08.2026 stand im Portal „Guten Abend, Vitor Manuel ." und in der
+Paket-Kachel „Maximum)". Die Datenbereinigung räumte 7.163 Paketnamen und 2.642
+Namensfelder, die Zählproben standen auf 0, **38 Prüfungen waren grün**.
+
+Der Screenshot zeigte danach weiter „Maximum)".
+
+Die Ursache war nicht der Umbruch in den Daten, sondern eine Zeile im Portal:
+`user.packName?.split(" ").pop()`. Bei „FIAON Pro" ergibt das „Pro" — richtig,
+und deshalb fiel es jahrelang nicht auf. Bei „FIAON High End (Das Maximum)"
+ergibt es „Maximum)". **Der Datenfehler hat den Anzeigefehler verdeckt**, und
+das Bereinigen der Daten legte ihn bloß, ohne ihn zu beheben.
+
+- **Wenn der Auftrag aus einem BILD kommt, ist das Bild die Abnahme.** Alle 38
+  Prüfungen sahen Spalten an. Keine sah, was ein Mensch liest.
+- **Ein Symptom kann zwei Ursachen haben.** „Beide Symptome kommen vom Umbruch"
+  war eine Vermutung, die nach dem ersten Fix nicht mehr überprüft wurde.
+- Der Browsertest prüft jetzt auf **Klammer-Waisen**: ein „)" ohne öffnende
+  Klammer im Text. Das ist eindeutig und trifft genau diese Fehlerklasse.
+
+## Ein Prüfstand, der wegen laufendem Betrieb rot wird, wird abgeschaltet
+
+Zwanzig Minuten nach dem Bereinigungslauf standen wieder drei Zeilen mit
+Zeilenumbruch in der Datenbank — angelegt 15:12 und 15:15 Uhr, Status
+`personal_data`: echte Besucher, die gerade einen Antrag ausfüllten. Keine
+Lücke im Fix, sondern seine Auslieferung — der Produktionsserver lief noch mit
+dem alten Code.
+
+Der Prüfstand hätte ab jetzt bei jedem Lauf rot gezeigt, und beim dritten Mal
+hätte ihn jemand abgeschaltet.
+
+- **Bestandsprüfungen trennen Altbestand von Neuzugang.** Alt (älter als eine
+  Stunde) muss sauber sein; frisch wird GEMELDET, nicht gewertet.
+- **Ein Bestandslauf braucht einen zweiten Termin.** Zwischen Commit und Deploy
+  schreibt die alte Fassung weiter. Das gehört als Betreiber-TODO in den
+  Report, nicht in eine Fußnote.
+- Verwandt mit der Regel weiter oben: Eine Invariante darf nicht den Betrieb
+  mitmessen.
+
+## Halb-deutsche Anführungszeichen brechen den String
+
+Zweimal am selben Tag ist derselbe Fehler passiert:
+
+```ts
+"„Keine Berechtigung" bringt niemanden weiter"   // ← bricht ab
+```
+
+Das öffnende „ ist ungefährlich. Das SCHLIESSENDE muss ebenfalls typografisch
+sein (`\u201c`), sonst beendet es den umgebenden String — und `esbuild` meldet
+„Expected ) but found …" in einer Zeile, die harmlos aussieht.
+
+`npx tsx scripts/pruef-backticks.ts` findet das nicht, weil die Datei syntaktisch
+kaputt ist und der Übersetzungsversuch schon vorher scheitert. Wer einen deutschen
+Zitatanfang tippt, tippt das Ende gleich mit.
+
 ## Bekannter Bestand, damit niemand erschrickt
 
 - `npx tsc --noEmit` meldet rund **240 Alt-Typfehler** (u. a. aus

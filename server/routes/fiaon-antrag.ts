@@ -7,6 +7,9 @@ import PDFDocument from "pdfkit";
 import { ZipArchive } from "archiver";
 import postgres from "postgres";
 import { sqlPool } from "../lib/db-pool";
+// Die zwei Reinigungen — eine Definition, ein Ort (siehe AGENTS.md).
+import { paketNameEinzeilig } from "../../shared/fiaon-paketname";
+import { nameSauber } from "../../shared/fiaon-namen";
 import Stripe from "stripe";
 import multer from "multer";
 import { randomBytes, createHash } from "crypto";
@@ -2471,16 +2474,36 @@ router.post("/application", async (req, res) => {
     // Try update first
     const existing = await db.select().from(fiaonApplications).where(eq(fiaonApplications.ref, ref)).limit(1);
     
+    // ══════════════════════════════════════════════════════════════════════
+    // DIE REINIGUNG AN DER SCHREIBSTELLE (19.08.2026)
+    //
+    // ── ZWEI BEFUNDE, EINE STELLE ────────────────────────────────────────
+    // GEMESSEN: 6.589 Bestellungen mit ZEILENUMBRUCH im Paketnamen
+    // („FIAON High End\n(Das Maximum)") und 1.247 Vornamen mit Leerraum am
+    // Rand („Violeta "). Im Portal stand deshalb in der Paket-Kachel nur
+    // „Maximum)" und in der Begrüßung „Guten Abend, Vitor Manuel .".
+    //
+    // ── WARUM HIER UND NICHT IM FORMULAR ─────────────────────────────────
+    // Es gibt vier Antragsstrecken, mehrere Editoren, einen Lead-Import und
+    // eine Selbstauskunft. Wer im Formular reinigt, hat den nächsten Weg schon
+    // vergessen — und den Import sowieso. Diese Stelle ist die, durch die alles
+    // geht, was ein Kunde selbst einträgt.
+    //
+    // Und man darf dem Client ohnehin nicht glauben: Selbst wenn alle vier
+    // Strecken sauber senden würden, ist die Wand hier die einzige, die hält.
+    // ══════════════════════════════════════════════════════════════════════
     const values: any = {
       ref, type: type || "private", status: status || "started", currentStep: currentStep || 0,
-      packKey, packName,
+      packKey, packName: paketNameEinzeilig(packName),
       // Private customer fields
-      firstName, lastName, birthdate, phone, phoneCountryCode, street, zip, city, country, nationality,
+      firstName: nameSauber(firstName), lastName: nameSauber(lastName),
+      birthdate, phone, phoneCountryCode, street, zip, city, country, nationality,
       employment, employer, employedSince, income: income || null, rent: rent || null, debts: debts || null, housing,
       // Password for login
       password,
       // Business customer fields
-      companyName, legalForm, taxId, establishedYear, contactName, contactEmail, contactPhone, businessType, industry, annualRevenue: annualRevenue || null, employees: employees || null, monthlyExpenses: monthlyExpenses || null, billingEmail,
+      companyName: nameSauber(companyName), legalForm, taxId, establishedYear,
+      contactName: nameSauber(contactName), contactEmail, contactPhone, businessType, industry, annualRevenue: annualRevenue || null, employees: employees || null, monthlyExpenses: monthlyExpenses || null, billingEmail,
       // Common fields
       wantedLimit: wantedLimit || null, purpose, billing, addon, nfc,
       approvedLimit: approvedLimit || null, email, iban, billingMethod, salaryReceiptDay,

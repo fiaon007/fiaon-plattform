@@ -3,6 +3,98 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 19.08.2026 (später) — Datenkosmetik: 7.163 Paketnamen einzeilig, 2.642 Namen sauber — und der eigentliche Fehler war ein anderer
+
+### Was der Screenshot zeigte, und was wirklich dahinter lag
+
+Im Portal stand „Guten Abend, Vitor Manuel ." mit hängendem Punkt und in der Paket-Kachel nur „Maximum)". Zwei Symptome, und ich vermutete eine Ursache: den Zeilenumbruch in den Daten.
+
+Beim Bereinigen stellte sich heraus: **Es waren zwei verschiedene Ursachen, und die zweite hatte mit dem Umbruch nichts zu tun.**
+
+| Was | Gemessen | Behoben |
+|---|---|---|
+| Paketnamen mit Zeilenumbruch | **6.589** von 6.852 | **7.163** Zeilen bereinigt (inkl. zusammengeführter) |
+| Vor-/Nachnamen mit Leerraum am Rand | **1.247** + 1.122 | **2.642** Felder in zwei Tabellen |
+| Davon aus den letzten 7 Tagen | **689** | Quelle gefixt — die Verschmutzung lief weiter |
+
+### 1. Der Umbruch — gefixt an der Quelle, nicht nur im Bestand
+
+Die Paketliste im Antrag definierte `name: "FIAON High End\n(Das Maximum)"` — ein Feld mit Umbruch, weil die Verkaufskarte zwei Zeilen zeigen soll. Der Umbruch ging mit in die Datenbank.
+
+**Jetzt:** Name und Beisatz sind getrennt (`name` + `sub`), die Karte setzt sie untereinander, die Daten bekommen `FIAON High End (Das Maximum)` — einzeilig. Genau so machen es `start.tsx` und `fiaon-home.tsx` seit immer; nur die zwei Seiten, die in die Datenbank schreiben, taten es nicht.
+
+**Und die Wand steht an der Schreibstelle**, nicht im Formular: `paketNameEinzeilig()` läuft im Server, bevor geschrieben wird. Es gibt vier Antragsstrecken — wer nur den Client säubert, hat den nächsten Weg schon vergessen.
+
+An einer Stelle im Antrag stand übrigens schon `pack.name.replace(/\n/g, " ")`. Jemand hatte das Problem gesehen und dort behoben, wo es weh tat. **So entstehen Fehler, die überall sonst bleiben:** Die Reparatur an der Fundstelle nimmt den Druck weg, die Ursache zu beheben.
+
+### 2. Die Namen — eine Funktion, alle Schreibwege
+
+`nameSauber()` räumt Leerraum: Rand weg, doppelte Leerzeichen innen zu einem, Umbrüche zu Leerzeichen. **Sonst nichts** — keine Großschreibungs-Korrektur, keine Umlautersetzung. Ein Name gehört dem Menschen; „mcdonald" zu „McDonald" zu verbessern trifft manchmal richtig und manchmal falsch, und eine falsche Verbesserung am eigenen Namen ist ärgerlicher als eine fehlende.
+
+Vier Schreibwege benutzen sie jetzt: Antrag, Stammdaten-Korrektur (Agent + Verwaltung), Lead-Eingang, Lead-Import. Zwei davon hatten ihr **eigenes** `.trim()` — das räumt den Rand, aber nicht die doppelten Leerzeichen innen, und es war die zweite Fassung derselben Regel. Der Prüfstand verbietet eigene `trim()`-Aufrufe auf Namensfelder jetzt ausdrücklich.
+
+**Kein Alias:** „Violeta " ist nicht ein anderer Name als „Violeta", sondern derselbe, sauber geschrieben. Der Lauf prüft trotzdem bei jedem Feld, ob sich mehr als Leerraum ändert — und würde dann überspringen. Es kam nicht vor.
+
+### 3. Der eigentliche Fehler in der Kachel — und wie er beinahe durchgekommen wäre
+
+Nach dem Bestandslauf war die Zählprobe bei 0, der Prüfstand **38-mal grün**. Dann habe ich den Screenshot angesehen: In der Paket-Kachel stand weiter **„Maximum)"**.
+
+Die Ursache war nicht der Umbruch, sondern eine Zeile im Portal:
+
+```
+user.packName?.split(" ").pop()
+```
+
+Bei „FIAON Pro" ergibt das „Pro" — richtig, und deshalb fiel es jahrelang nicht auf. Bei „FIAON High End (Das Maximum)" ergibt es „Maximum)": das letzte Wort samt schließender Klammer. **Der Umbruch hat den Fehler nur verdeckt.**
+
+Jetzt macht `paketKurz()` daraus „High End": Beisatz in Klammern weg, Marke weg, übrig bleibt, was das Paket unterscheidet. Was dem Muster nicht folgt, wird nur gekürzt und nicht geraten — bei „Bonitätsauskunft inkl. Handlungsplan" wäre jede Kurzform eine Erfindung.
+
+**Die Lehre steht in AGENTS.md:** 38 grüne Prüfungen sahen alle die SPALTE an. Keine sah das BILD.
+
+### 4. Portal-Zugang ohne Zahlung — gemessen, nicht angetastet
+
+Die Geschäftsregel lautet: Zugang nach Zahlung. Gemessen:
+
+| | |
+|---|---|
+| Konten mit Passwort (anmeldbar) | **950** |
+| … bezahlt | 305 |
+| **… Zugang OHNE Zahlung** | **619** |
+
+**Die Herkunft:** `LOGIN_ACCESS_STATUSES` in `server/fiaon-login-logic.ts` enthält `completed` — und `status = 'completed'` setzt der **Antragsabschluss**, also vor der Zahlung. Der Login prüft danach nur noch den Status.
+
+**Und es ist kein Altbestandsproblem:** Nur **12** sind älter als 90 Tage, aber **169 jünger als 7 Tage**. Es entsteht weiter.
+
+**Die schwerwiegenden Fälle** — Zahlung beendet, Zugang offen:
+
+| Zahlungsstand | Anzahl |
+|---|---|
+| abgelaufen (`expired`) | **145** |
+| ersetzt (`superseded`) | 15 |
+| storniert (`cancelled`) | 2 |
+| **erstattet (`refunded`)** | **1** |
+
+Bei diesen ist die Geschäftsbeziehung beendet oder nie zustande gekommen — und der Zugang steht offen. **Nichts geändert:** 619 Menschen an einem Morgen auszusperren ist eine Entscheidung des Betreibers, kein Wartungsschritt. Liste in `reports/mess-zugang-ohne-zahlung.csv`.
+
+### Nebenbefund
+
+**3.889 Bestellzeilen tragen keinen Namen** — Formularentwürfe, bei denen niemand etwas eingetippt hat. Davon sind **2 bezahlt**. Diese zwei gehören angesehen: Eine bezahlte Bestellung ohne Namen lässt sich keinem Menschen zuordnen.
+
+### Geprüft
+
+`scripts/pruef-datenkosmetik.ts` — **38 Prüfungen** grün. `scripts/pruef-datenkosmetik-browser.ts` — **11 Prüfungen** am gerenderten Bild, Prüffall ist **derselbe Kunde wie im Screenshot** (nicht ein beliebiger, dem der Fehler nie passiert wäre).
+
+**Rot-Probe:** Drei Fehler eingebaut (Umbruch wird entfernt statt ersetzt, Kurzform nimmt wieder das letzte Wort, Reinigung tut nichts) → **10 Prüfungen rot**.
+
+**Und die Rot-Probe brachte noch etwas:** Zwanzig Minuten nach dem Lauf standen wieder drei Zeilen mit Umbruch da — angelegt 15:12 und 15:15 Uhr, Status „personal_data": echte Besucher, die gerade ausfüllen. Keine Lücke im Fix, sondern seine Auslieferung: **Der Produktionsserver läuft noch mit dem alten Code.**
+
+**Betreiber-TODO:** Nach dem Deploy den Lauf einmal wiederholen —
+`npx tsx scripts/datenkosmetik-lauf.ts --nur=pakete --schreiben`
+
+Der Prüfstand trennt deshalb Altbestand (muss 0 sein) von Neuzugang der letzten Stunde (wird gemeldet, nicht gewertet). Ein Prüfstand, der wegen laufendem Betrieb rot wird, wird abgeschaltet.
+
+**Wo zu finden:** `shared/fiaon-paketname.ts` · `shared/fiaon-namen.ts` · `scripts/datenkosmetik-lauf.ts` (Vorschau + `--schreiben`) · `scripts/mess-datenkosmetik.ts`.
+
 ## 19.08.2026 — Das Portal mit den Augen des Kunden, und „wir rufen an" endlich unübersehbar
 
 ### 1. Als-Kunde-Ansicht — 360 Konten, die man jetzt ansehen kann

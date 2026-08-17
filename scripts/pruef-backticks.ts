@@ -113,10 +113,41 @@ if (gefunden === 0) {
       execFileSync("npx", ["esbuild", "--log-level=error", datei], { stdio: "pipe" });
     } catch (e: any) {
       kaputt++;
-      const roh = String(e?.stderr ?? e?.message ?? "").split("\n")
+      const stderr = String(e?.stderr ?? e?.message ?? "");
+      const roh = stderr.split("\n")
         .filter((z) => z.includes("ERROR") || z.includes("error:"))
         .slice(0, 2).join(" | ");
-      meldungen.push(`${datei}\n    ${roh.slice(0, 150)}`);
+
+      // ── DIE URSACHE BENENNEN, NICHT NUR DEN ORT ────────────────────────
+      // esbuild meldet „Expected ) but found …" — und man sucht an der
+      // falschen Stelle. Am 19.08.2026 war es DREIMAL dasselbe: ein deutsches
+      // Zitat, das mit einem GERADEN Anführungszeichen endet und damit den
+      // umgebenden String beendet.
+      //
+      // Diese Prüfung sieht nur in Zeilen, die esbuild schon abgelehnt hat.
+      // Deshalb kann sie keinen Fehlalarm erzeugen — ein erster Entwurf prüfte
+      // ALLE Zeilen und meldete 343 Treffer, fast alle davon mehrzeilige
+      // Zitate. Eine Bremse, die falsch auslöst, ist gefährlicher als keine.
+      let hinweis = "";
+      // Das esbuild-Format lautet:
+      //   ✘ [ERROR] Expected ")" but found "—"
+      //       scripts/mess-datenkosmetik.ts:44:46:
+      // Die Zeilennummer steht also in der ZWEITEN Zeile, nach dem Dateinamen —
+      // nicht davor. Ein erster Entwurf suchte „:44:46: ERROR" und fand nichts.
+      const zeilenNr = Number(
+        new RegExp(`${datei.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:(\\d+):\\d+:`)
+          .exec(stderr)?.[1] ?? 0,
+      );
+      if (zeilenNr > 0) {
+        const zeile = readFileSync(datei, "utf8").split("\n")[zeilenNr - 1] ?? "";
+        const auf = (zeile.match(/\u201e/g) ?? []).length;
+        const zu = (zeile.match(/\u201c/g) ?? []).length;
+        if (auf > zu) {
+          hinweis = "\n    → In dieser Zeile öffnet ein deutsches Zitat („) und schließt nicht. "
+            + "Das schließende Zeichen ist \u201c — ein gerades \" beendet den String.";
+        }
+      }
+      meldungen.push(`${datei}\n    ${roh.slice(0, 150)}${hinweis}`);
     }
   }
   console.log(`══ Übersetzbarkeit (${kandidaten.length} Dateien) ══\n`);

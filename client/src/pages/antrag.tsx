@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
+import { paketNameFuerDaten } from "@shared/fiaon-paketname";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import { checkPhone } from "@/lib/phone";
@@ -339,11 +340,25 @@ function PremiumButton({ children, onClick, disabled = false }: { children: Reac
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// NAME UND BEISATZ GETRENNT (19.08.2026)
+//
+// Hier stand `name:"FIAON High End\n(Das Maximum)"` — ein Feld mit
+// Zeilenumbruch, weil die Karte zwei Zeilen zeigen soll. Der Umbruch ging
+// mit in die Datenbank: GEMESSEN 6.589 Bestellungen, und im Portal stand in
+// der Paket-Kachel nur „Maximum)".
+//
+// Jetzt zwei Felder. Die Karte setzt sie untereinander (unverändertes Bild),
+// die Daten bekommen `${name} (${sub})` — einzeilig.
+//
+// So machen es `start.tsx` und `fiaon-home.tsx` seit immer. Nur diese Seite
+// und `fiaon-landing.tsx` nicht — und genau die schreiben in die Datenbank.
+// ══════════════════════════════════════════════════════════════════════════
 const PACKS = [
-  { key:"start", name:"FIAON Starter\n(Das Fundament)", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["Dein 500 € Einstiegs-Setup","Zugang: Basic Karten-Portfolio","Schufaneutrale Profil-Prüfung","Online-Dashboard & Verwaltung"] },
-  { key:"pro", name:"FIAON Pro\n(Standard)", fee:59.99, lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:["Dein 5.000 € Limit-Protokoll","Zugang: Premium Karten-Netzwerk","Dynamische Limit-Aufstockung","Sofortige Score-Auswertung","Priority-Bearbeitung im System"] },
-  { key:"ultra", name:"FIAON Ultra\n(Elite Konto)", fee:79.99, lim:15000, bg:"linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats:["Dein 15.000 € Elite-Portfolio","Zugang: Gold- & Platinum-Karten","Cashback- & Meilen-Aktivierung","Individuelle Freigabe-Roadmap","VIP-Support & Konto-Optimierung"] },
-  { key:"highend", name:"FIAON High End\n(Das Maximum)", fee:99.99, lim:25000, bg:"linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats:["Dein 25.000 € Black-Card Setup","Exklusiver Zugang: Metal- & VIP-Karten","Persönlicher Account Director","Internationale Limit-Strukturen","24/7 Dedicated Concierge-Support"] },
+  { key:"start", name:"FIAON Starter", sub:"Das Fundament", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["Dein 500 € Einstiegs-Setup","Zugang: Basic Karten-Portfolio","Schufaneutrale Profil-Prüfung","Online-Dashboard & Verwaltung"] },
+  { key:"pro", name:"FIAON Pro", sub:"Standard", fee:59.99, lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:["Dein 5.000 € Limit-Protokoll","Zugang: Premium Karten-Netzwerk","Dynamische Limit-Aufstockung","Sofortige Score-Auswertung","Priority-Bearbeitung im System"] },
+  { key:"ultra", name:"FIAON Ultra", sub:"Elite Konto", fee:79.99, lim:15000, bg:"linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats:["Dein 15.000 € Elite-Portfolio","Zugang: Gold- & Platinum-Karten","Cashback- & Meilen-Aktivierung","Individuelle Freigabe-Roadmap","VIP-Support & Konto-Optimierung"] },
+  { key:"highend", name:"FIAON High End", sub:"Das Maximum", fee:99.99, lim:25000, bg:"linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats:["Dein 25.000 € Black-Card Setup","Exklusiver Zugang: Metal- & VIP-Karten","Persönlicher Account Director","Internationale Limit-Strukturen","24/7 Dedicated Concierge-Support"] },
 ];
 
 /* === CHECK ICON COMPONENT === */
@@ -551,7 +566,8 @@ export default function AntragPage() {
           currentStep: 8,
           ...d,
           packKey: pack.key,
-          packName: pack.name,
+          // Einzeilig in die Daten — der Beisatz gehört dazu, der Umbruch nicht.
+          packName: paketNameFuerDaten(pack.key) ?? pack.name,
           approvedLimit: approved,
         }),
       }).catch(() => {});
@@ -678,7 +694,7 @@ export default function AntragPage() {
   useEffect(() => {
     if (step > 0) {
       const status = ["started","personal_data","finances","config","verifying","approved","contract","processing","completed"][step] || "started";
-      fetch("/api/fiaon/application", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref, type: "private", status, currentStep: step, ...d, packKey: pack?.key, packName: pack?.name, approvedLimit: approved }) }).catch(() => {});
+      fetch("/api/fiaon/application", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref, type: "private", status, currentStep: step, ...d, packKey: pack?.key, packName: pack ? (paketNameFuerDaten(pack.key) ?? pack.name) : null, approvedLimit: approved }) }).catch(() => {});
     }
   }, [step]);
 
@@ -986,8 +1002,12 @@ export default function AntragPage() {
                       fontWeight: "700",
                       color: "#111827",
                       lineHeight: "1.3",
-                      whiteSpace: "pre-line"
-                    }}>{p.name}</div>
+                    }}>
+                      {p.name}
+                      {/* Der Beisatz in eigener Zeile — vorher machte das ein
+                          `\n` im Namen, das mit in die Datenbank wanderte. */}
+                      <div style={{ fontSize: "17px", fontWeight: 700 }}>({p.sub})</div>
+                    </div>
                   </div>
 
                   {/* SECTION C: WUNSCHLIMIT-BOX (Kompakt) */}
@@ -1775,7 +1795,8 @@ export default function AntragPage() {
                         <rect x="2" y="7" width="20" height="12" rx="2"/>
                         <path d="M2 11h20"/>
                       </svg>
-                      <span className="truncate max-w-[160px] sm:max-w-none">{pack.name.replace(/\n/g, " ")}</span>
+                      {/* Kein `.replace()` mehr nötig: Der Name trägt keinen Umbruch. */}
+                      <span className="truncate max-w-[160px] sm:max-w-none">{pack.name} ({pack.sub})</span>
                       <span className="text-blue-400">·</span>
                       <span>ändern</span>
                     </button>
@@ -2407,7 +2428,7 @@ export default function AntragPage() {
                         password,
                         ...d,
                         packKey: pack?.key,
-                        packName: pack?.name,
+                        packName: pack ? (paketNameFuerDaten(pack.key) ?? pack.name) : null,
                         approvedLimit: approved,
                       }),
                     });
@@ -2506,7 +2527,10 @@ export default function AntragPage() {
                     )}
 
                     <div className="mb-3">
-                      <p className="text-[14px] sm:text-[15px] font-bold text-slate-900 leading-tight whitespace-pre-line">{p.name}</p>
+                      <p className="text-[14px] sm:text-[15px] font-bold text-slate-900 leading-tight">
+                        {p.name}
+                        <br />({p.sub})
+                      </p>
                     </div>
 
                     <div className="flex items-baseline gap-1 mb-3">

@@ -48,6 +48,38 @@ Die Prüfung ist wieder entfernt, mit Begründung im Quelltext. **Der esbuild-Du
 
 **Teil 2 (Agent als Vollpfleger)** und **Teil 3** (Pflichtnotiz im Listen-Weg, 12 Wartezustände, Zustellprotokoll mit Filtern, Team-Kalender auf 380 px) sind offen.
 
+## 23.08.2026 (später) — Die Rechte-Matrix: was ein Agent heute kann
+
+Vor dem Öffnen von Rechten muss dastehen, welche es gibt. `scripts/mess-agentenrechte.ts` liest die Routen aus fünf Dateien und ordnet sie nach Wache ein.
+
+### Teil 2 fängt bei Null an
+
+| Fähigkeit aus dem Auftrag | Stand heute |
+|---|---|
+| Neukunde anlegen (Mitarbeiter) | **keine Route** — nur `GET /agent/customers` |
+| Produkt an bestehende Akte | **keine Route** |
+| Stammdaten ändern | nur das **eigene** Profil (`/agent/profile/*`) |
+| Zahlungsdaten senden | `POST /agent/customers/:ref/send-payment-email` ✔ mit Besitzschutz |
+| Kontaktergebnis erfassen | ✔ mit Besitzschutz |
+| Unbezahlte Buchung wegräumen | ✔ mit Besitzschutz |
+
+**145 Routen** in den fünf Dateien, **56** für Agenten — davon nur **9 mit Besitzschutz** (`requireEigenerKunde`). Die vollständige Liste liegt in `reports/mess-agentenrechte.csv`.
+
+Die beiden Kern-Fähigkeiten (Neukunde anlegen, Produkt hinzufügen) **existieren nicht**. Das ist kein Rechteproblem, sondern fehlende Funktionalität — ein eigener Auftrag, kein Freischalten.
+
+**Wer heute arbeitet** (letzte 30 Tage): Florentine 1.964 Kontakte / 674 Kunden · Daniel 1.670 / 626 · Lucas 977 / 541 · Nikita 700 / 608. Zwei Vertriebsleiter, zwei Agenten, zwei im Forderungsmanagement.
+
+### Teil 3: was wirklich offen ist
+
+| | Stand |
+|---|---|
+| Pflichtnotiz bei „Sonstiges" | **erkennbar vorhanden** (3 Stellen in Karte/Liste) — der Browsertest-Beweis fehlt |
+| `number_update_request`-Fälle | **12** Einträge, 11 Bestellungen (im Auftrag: 185) |
+| Spalte für den Wartezustand | **fehlt** — muss angelegt werden |
+| Zustellprotokoll: aufklappbar, seitenweise | vorhanden |
+| Zustellprotokoll: Zeitraum-, Event-, Empfänger-Filter, CSV | **fehlen** |
+| Team-Kalender | `grid-cols-7`, **keine** Schmal-Fassung — **3.870 Zeilen** |
+
 ## 22.08.2026 — Eine Bonitäts-Wahrheit, und fünf Pakete zurück
 
 ### Teil 1: Drei Teilwahrheiten wurden eine Ableitung

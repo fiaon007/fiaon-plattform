@@ -202,9 +202,24 @@ function KalenderContent() {
                 {a.absageText}
               </p>
             )}
+            {/* ── EINE AUFFORDERUNG MUSS ERFÜLLBAR SEIN (30.08.2026) ───────
+                Hier stand „Nicht erschienen — bitte abschließen". Der Satz
+                erschien bei JEDEM verpassten Termin, auch bei den längst
+                abgearbeiteten — und es gab kein „Abschließen". Wer auf „Nicht
+                erschienen" drückte, schrieb denselben Zustand erneut; die Karte
+                verschwand kurz und war nach dem nächsten Laden wieder da.
+                GEMESSEN: 19 der 47 verpassten Termine waren fertig und standen
+                trotzdem mit dieser Aufforderung da, 26 davon bei einem Menschen.
+
+                Die Liste zeigt jetzt nur noch UNBEARBEITETE (erledigt_am IS
+                NULL, gesetzt vom 12-Stunden-Nachlauf). Für die ist der Satz
+                richtig — und der Knopf „Nicht erschienen" daneben ist das
+                Abschließen: Er zählt den Fehlversuch und löst die
+                Folge-Einladung aus. Deshalb sagt der Text jetzt, WAS zu tun
+                ist, statt eine Handlung zu verlangen, die es nicht gibt. */}
             {a.status === "verpasst" && (
               <p className="text-[11px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#b91c1c" }}>
-                Nicht erschienen — bitte abschließen
+                Der Termin ist ohne Ergebnis verstrichen — mit „Nicht erschienen“ abschließen
               </p>
             )}
             <p className="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap mt-0.5">
@@ -213,13 +228,32 @@ function KalenderContent() {
                   selbst gemacht hat: Der Kunde hat eine Uhrzeit angeklickt
                   und eine Bestätigung bekommen. Deshalb eine eigene Marke,
                   keine graue Zeile. */}
-              {(a as any).quelle === "termin" ? (
+              {/* ── DIE TERMIN-ART (30.08.2026) ──────────────────────────
+                  „Man sieht nicht, was für ein Termin das ist." Vorher stand
+                  hier „Kunde hat gebucht" — das beschreibt den WEG, nicht das
+                  Gespräch. Ein Startgespräch und ein Beratungsgespräch sind
+                  beide „vom Kunden gebucht" und trotzdem zwei verschiedene
+                  Vorbereitungen.
+
+                  Die Marke kommt aus shared/fiaon-termin-art.ts, derselben
+                  Ableitung wie Termin-Zentrale, obere Leiste und Mail. */}
+              {(a as any).terminArtText && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold"
-                      style={{ background: "rgba(5,150,105,.1)", color: "#047857" }}>
-                  Kunde hat gebucht
+                      title={(a as any).terminArtErklaerung || undefined}
+                      style={{
+                        background: `${(a as any).terminArtTon || "#64748b"}14`,
+                        color: (a as any).terminArtTon || "#64748b",
+                      }}>
+                  {(a as any).terminArtText}
                 </span>
+              )}
+              {/* Der Weg bleibt daneben: „vom Kunden gebucht" ist verbindlicher
+                  als eine selbst notierte Wiedervorlage — das soll man weiter
+                  sehen, nur nicht ANSTELLE der Art. */}
+              {(a as any).quelle === "termin" ? (
+                <span className="text-emerald-700">Kunde hat gebucht</span>
               ) : (
-                <span>{a.scheduled_at ? "Rückruf" : "Zahlungs-Zusage"}</span>
+                <span>{a.scheduled_at ? "selbst notiert" : "Zahlungs-Zusage"}</span>
               )}
               <Badge status={a.payment_status} />
               {isOverdue && <span className="inline-flex items-center gap-1"><Clock size={10} /> überfällig</span>}

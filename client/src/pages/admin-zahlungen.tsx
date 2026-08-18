@@ -7,6 +7,7 @@ import AboTafel from "@/components/admin/AboTafel";
 import BuchenDialog from "@/components/admin/BuchenDialog";
 import VermerkTafel from "@/components/admin/VermerkTafel";
 import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
+import { LABEL_VERTRIEB, zustaendigText } from "@shared/fiaon-zustaendigkeit-text";
 
 // ============================================================================
 // /admin/zahlungen — Zahlungszentrale (Vorkasse per Banküberweisung)
@@ -1273,9 +1274,45 @@ export default function AdminZahlungenPage() {
                           {c.company_name || [c.first_name, c.last_name].filter(Boolean).join(" ") || c.contact_name || "—"}
                           <span className="ml-2 font-mono text-[11px] text-slate-400">{c.payment_reference || c.ref}</span>
                         </p>
+                        {/* Beschriftet, nicht nur „Betreut von" (30.08.2026):
+                            In der Zahlungsansicht kann derselbe Mensch einen
+                            Vertriebs- UND einen Inkasso-Zuständigen haben. Ein
+                            Name ohne Rolle liest sich wie ein Widerspruch. */}
                         <p className="text-[11px] text-slate-400 truncate">
-                          {c.email || "—"}{c.assigned_agent_name ? ` · Betreut von ${c.assigned_agent_name}` : ""}
+                          {c.email || "—"} · {LABEL_VERTRIEB}: {zustaendigText(c.assigned_agent_name)}
                         </p>
+                        {/* ── PROVISION ODER WAND, NIE EIN LEERES FELD ──────
+                            „Wenn eine Provision existiert, wird sie angezeigt;
+                            wenn die Wand griff (Selbstzahler), steht DAS da."
+                            GEMESSEN an 409 bezahlten Bestellungen: 244 mit
+                            Provision, 104 als Direktzahler vermerkt, 61 ohne
+                            beides. Für die 61 steht jetzt „kein Vermerk" da —
+                            eine sichtbare Lücke ist ehrlich, eine gefüllte
+                            wäre eine Behauptung. */}
+                        {(c.payment_status === "paid" || c.payment_status === "claimed_paid") && (
+                          <p className="text-[11px] truncate">
+                            <span className="text-slate-400">Provision: </span>
+                            {c.provision_cents != null && c.provision_cents !== 0 ? (
+                              <span className="font-semibold text-emerald-700">
+                                {(c.provision_cents / 100).toFixed(2).replace(".", ",")} €
+                              </span>
+                            ) : c.commission_basis === "direktzahler" ? (
+                              <span className="text-slate-500"
+                                    title={c.commission_basis_note || undefined}>
+                                Direktzahler — keine Provision
+                              </span>
+                            ) : c.commission_basis ? (
+                              <span className="text-slate-500"
+                                    title={c.commission_basis_note || undefined}>
+                                {c.commission_basis} — nicht gebucht
+                              </span>
+                            ) : (
+                              <span className="text-amber-700">
+                                kein Vermerk — bitte prüfen
+                              </span>
+                            )}
+                          </p>
+                        )}
                       </div>
                       <span className="flex items-center gap-2 shrink-0">
                         <StatusBadge status={c.payment_status} />

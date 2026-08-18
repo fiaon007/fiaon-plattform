@@ -153,7 +153,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     type: "termin_bestaetigung",
     label: "Terminbestätigung (Kunde)",
     description:
-      "Feuert sofort nach einer Buchung — egal ob im Antrag, über den Terminlink oder vom Agenten angelegt. Enthält den Storno-Link; Umbuchen ist Absagen plus neu buchen auf derselben Seite. Vorgesetzten-TODO: Make-Zweig 'termin_bestaetigung' + Brevo-Template anlegen (Variablen: vorname, nachname, agent_vorname, termin_datum, termin_uhrzeit, storno_link, hinweis_anruf, hinweis_absage). SEIT 19.08.2026 fährt hinweis_anruf mit — bitte in der Vorlage als {{params.hinweis_anruf}} einsetzen, damit niemand einen Meeting-Link erwartet.",
+      "Feuert sofort nach einer Buchung — egal ob im Antrag, über den Terminlink oder vom Agenten angelegt. Enthält den Storno-Link; Umbuchen ist Absagen plus neu buchen auf derselben Seite. Vorgesetzten-TODO: Make-Zweig 'termin_bestaetigung' + Brevo-Template anlegen (Variablen: vorname, nachname, agent_vorname, termin_datum, termin_uhrzeit, storno_link, hinweis_anruf, hinweis_absage, termin_art). SEIT 30.08.2026 faehrt termin_art mit (Onboarding / Vertrieb / Rueckruf) — bitte als {{params.termin_art}} einsetzen. SEIT 19.08.2026 faehrt hinweis_anruf mit — bitte in der Vorlage als {{params.hinweis_anruf}} einsetzen, damit niemand einen Meeting-Link erwartet.",
     customerBound: true,
     example: {
       email: "max.mustermann@example.com",
@@ -162,6 +162,11 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       agent_vorname: "Daniel",
       termin_datum: "12.08.2026",
       termin_uhrzeit: "14:20",
+      // ── NEU 30.08.2026: die Terminart ─────────────────────────────────
+      // „Man sieht nicht, was fuer ein Termin das ist." Der Wert kommt aus
+      // shared/fiaon-termin-art.ts — derselben Ableitung wie die Marke in
+      // der Oberflaeche. Betreiber-TODO: als {{params.termin_art}} einsetzen.
+      termin_art: "Onboarding",
       storno_link: "https://www.fiaon.com/termin/absagen/9b2c…",
       // ── NEU 19.08.2026: der fertige „Wir rufen an"-Satz ──────────────
       // Der Kunde, der einen Videokonferenz-Link erwartet, wartet vor seinem
@@ -175,7 +180,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     type: "termin_erinnerung",
     label: "Terminerinnerung 24 h vorher (Kunde)",
     description:
-      "Feuert im Tageslauf 24 Stunden vor dem Termin, einmalig je Termin (die Spalte erinnert_am verhindert Doppelversand bei einem Neustart). Vorgesetzten-TODO: Make-Zweig 'termin_erinnerung' + Brevo-Template anlegen (Variablen: vorname, nachname, agent_vorname, termin_datum, termin_uhrzeit, storno_link, hinweis_anruf, hinweis_absage). SEIT 19.08.2026 fährt hinweis_anruf mit — bitte in der Vorlage als {{params.hinweis_anruf}} einsetzen, damit niemand einen Meeting-Link erwartet.",
+      "Feuert im Tageslauf 24 Stunden vor dem Termin, einmalig je Termin (die Spalte erinnert_am verhindert Doppelversand bei einem Neustart). Vorgesetzten-TODO: Make-Zweig 'termin_erinnerung' + Brevo-Template anlegen (Variablen: vorname, nachname, agent_vorname, termin_datum, termin_uhrzeit, storno_link, hinweis_anruf, hinweis_absage, termin_art). SEIT 30.08.2026 faehrt termin_art mit (Onboarding / Vertrieb / Rueckruf) — bitte als {{params.termin_art}} einsetzen. SEIT 19.08.2026 faehrt hinweis_anruf mit — bitte in der Vorlage als {{params.hinweis_anruf}} einsetzen, damit niemand einen Meeting-Link erwartet.",
     customerBound: true,
     example: {
       email: "max.mustermann@example.com",
@@ -184,6 +189,11 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       agent_vorname: "Daniel",
       termin_datum: "12.08.2026",
       termin_uhrzeit: "14:20",
+      // ── NEU 30.08.2026: die Terminart ─────────────────────────────────
+      // „Man sieht nicht, was fuer ein Termin das ist." Der Wert kommt aus
+      // shared/fiaon-termin-art.ts — derselben Ableitung wie die Marke in
+      // der Oberflaeche. Betreiber-TODO: als {{params.termin_art}} einsetzen.
+      termin_art: "Onboarding",
       storno_link: "https://www.fiaon.com/termin/absagen/9b2c…",
       // ── NEU 19.08.2026: der fertige „Wir rufen an"-Satz ──────────────
       // Der Kunde, der einen Videokonferenz-Link erwartet, wartet vor seinem

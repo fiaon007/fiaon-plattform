@@ -102,8 +102,19 @@ export function TerminErinnerung() {
       <div className="fi-erin" role="status" aria-live="polite"
            data-ueberfaellig={erste.inMinuten < 0 ? "1" : "0"}>
         <span className="fi-erin-punkt" aria-hidden="true" />
-        <span className="fi-erin-art">
-          {erste.art === "startgespraech" ? "Startgespräch" : "Rückruf"}
+        {/* ── DIE ART AUS DER EINEN ABLEITUNG (30.08.2026) ────────────────
+            Hier stand „Startgespräch" / „Rückruf" aus einem Feld, das nur
+            diese Leiste kennt — die dritte Fassung derselben Frage. Jetzt
+            kommt der Text vom Server aus shared/fiaon-termin-art.ts, damit
+            Leiste, Kalender, Termin-Zentrale und Mail dasselbe Wort benutzen.
+            Der Rückfall bleibt, damit ein alter Client nichts Leeres zeigt. */}
+        <span className="fi-erin-art"
+              title={(erste as any).terminArtErklaerung || undefined}
+              style={(erste as any).terminArtTon
+                ? { color: (erste as any).terminArtTon }
+                : undefined}>
+          {(erste as any).terminArtText
+            || (erste.art === "startgespraech" ? "Onboarding" : "Rückruf")}
         </span>
         <span className="fi-erin-zeit">{zeit(erste)}</span>
 

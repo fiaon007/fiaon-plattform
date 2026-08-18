@@ -28,6 +28,7 @@ import { ONBOARDING_ZUSAGE_TEXT, ONBOARDING_ZUSAGE_VERSION } from "../lib/fiaon-
 import { berlinDatumText, berlinUhrzeit, berlinDatum, terminLink } from "../lib/fiaon-termine";
 import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
 import { absoluteUrl } from "../fiaon-base-url";
+import { terminArtAusQuelle } from "../../shared/fiaon-termin-art";
 
 const router = Router();
 
@@ -148,6 +149,12 @@ router.get("/agent/onboarding/termine", requireAgent, nurOnboarding, nurMitZusag
         dauerMin: Number(t.dauer_min),
         status: t.status,
         notiz: t.notiz,
+        // Die Art wird auch hier mitgeliefert. Diese Liste zeigt fast immer
+        // Onboarding-Gespräche — aber „fast immer" ist der Grund, warum die
+        // Marke dasteht: Eine Ausnahme ohne Kennzeichen sieht wie die Regel aus.
+        terminArt: terminArtAusQuelle(t.quelle).art,
+        terminArtText: terminArtAusQuelle(t.quelle).text,
+        terminArtTon: terminArtAusQuelle(t.quelle).ton,
         heute: berlinDatum(new Date(t.beginn)) === heute,
         vorbei: new Date(t.beginn).getTime() < Date.now(),
       })),

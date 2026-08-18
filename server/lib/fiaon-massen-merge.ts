@@ -59,6 +59,9 @@ export interface MassenPerson extends KandidatPerson {
   mails: string[];
   /** Alle je genutzten Rufnummern als 9-Ziffern-Schlüssel (inkl. Aliase). */
   nummern: string[];
+  /** Wohnadresse — hartes Zweitmerkmal für die Widerspruchsprüfung. */
+  strasse: string | null;
+  plz: string | null;
   /** Jüngste bankbestätigte Zahlung dieser Person. */
   letzteZahlung: string | null;
   /** Eine Bestellung dieser Person ist DSGVO-gelöscht — Finger weg. */
@@ -169,12 +172,105 @@ const schnitt = (a: string[], b: string[]): string | null => {
   return null;
 };
 
+// ── DIE WIDERSPRUCHS-WAND (30.08.2026) ─────────────────────────────────────
+//
+// ── WAS SIE SOLL ───────────────────────────────────────────────────────────
+// Bisher war jedes Kriterium für sich zuständig: B und E prüften den Nachnamen,
+// A, C und D nicht. Zwei Sätze mit gleicher E-Mail und gleicher Nummer galten
+// als bewiesen — auch wenn sie verschiedene Nachnamen und verschiedene
+// Geburtsdaten trugen. Ein gemeinsamer Anschluss und ein gemeinsames Postfach
+// sind in einem Haushalt aber der Normalfall, nicht der Beweis.
+//
+// Diese Funktion prüft deshalb VOR allen Kriterien, ob ein hartes Zweitmerkmal
+// WIDERSPRICHT. Tut es das, entsteht keine Kante — das Paar bleibt Kandidat in
+// /admin/dubletten und wartet auf einen Menschen. Es wird nicht verworfen.
+//
+// ── WARUM „WIDERSPRICHT" UND NICHT „STIMMT ÜBEREIN" ────────────────────────
+// GEMESSEN an den 742 protokollierten Merges (`scripts/mess-merge-regel.ts`):
+//   · „Nachname muß gleich sein"        hätte 27 blockiert — 4 davon nur, weil
+//     ein Nachname FEHLTE.
+//   · „Nachname darf nicht widersprechen" blockiert 23.
+// Eine Lücke ist keine Aussage. Genau so behandelt `vornamenVereinbar` seit dem
+// ersten Tag die Vornamen; zwei verschiedene Maßstäbe für Vor- und Nachname
+// wären eine zweite Wahrheit im selben Modul.
+//
+// Insgesamt macht die Wand 52 der 742 Merges (7 %) zu Kandidaten. Das ist der
+// Grund, warum sie so und nicht strenger gebaut ist: Eine Bremse, die bei jedem
+// dritten Fall grundlos auslöst, schaltet nach dem zweiten Lauf jemand ab.
+//
+// Die Zahl kommt aus `scripts/mess-merge-regel.ts`, und der Lauf ruft DIESE
+// Funktion auf — nicht eine Nachbildung. Wer die Regel ändert, bekommt die
+// neue Zahl, ohne die Messung anzufassen.
+const strassePlz = (v: string | null | undefined): string =>
+  String(v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+
+/** An wie vielen Stellen unterscheiden sich zwei Datumsangaben? 1 = Tippfehler. */
+function datumStellen(a: string, b: string): number {
+  let n = 0;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) if (a[i] !== b[i]) n++;
+  return n;
+}
+
+/**
+ * Widerspricht ein hartes Zweitmerkmal? Dann ist es kein Beweis mehr, sondern
+ * ein Fall für einen Menschen. Rückgabe ist der Klartext-Grund oder `null`.
+ */
+export function harterWiderspruch(p: MassenPerson, q: MassenPerson): string | null {
+  // ── Nachname ──────────────────────────────────────────────────────────────
+  //
+  // EIN UNBRAUCHBARER NAME WIDERSPRICHT NICHT. Der Prüfstand hat diese Lücke
+  // sofort gefunden: „Ortsfall Ortsfall" (nachgebaut nach dem echten Satz
+  // „Wien Wien" — eine Stadt in beiden Namensfeldern) gegen „Milan Acimovic"
+  // ist derselbe Mensch, und der Lauf übernimmt danach ausdrücklich den
+  // saubereren Namen (`besserenNamenFinden`). Ein strenger Nachnamen-Vergleich
+  // hätte genau diese Reparatur verhindert — und zwei Prüfungen, die es seit
+  // Wochen gibt, wurden rot.
+  //
+  // `namensGuete` beurteilt schon die FORM eines Namens (Ziffern drin, Vor- und
+  // Nachname identisch, einbuchstabige Teile). Ist sie negativ, ist der Name
+  // Datenmüll und trägt keine Aussage — dieselbe Behandlung wie eine Lücke.
+  const na = nameSchluessel(p.nachname);
+  const nb = nameSchluessel(q.nachname);
+  const brauchbar = namensGuete(p.vorname, p.nachname) >= 0 && namensGuete(q.vorname, q.nachname) >= 0;
+  if (brauchbar && na && nb && na !== nb && abstand(na, nb, 2) > 2) {
+    return `Nachname „${p.nachname}" widerspricht „${q.nachname}"`;
+  }
+
+  // ── Geburtsdatum ──────────────────────────────────────────────────────────
+  // Eine Abweichung an EINER Stelle ist ein Tippfehler (GEMESSEN: 11 Fälle,
+  // alle mit gleicher Adresse und gleicher Nummer). Ab zwei Stellen ist es
+  // eine andere Angabe — und bei Vater und Sohn genau das entscheidende Merkmal.
+  const da = p.geburtsdatum ? String(p.geburtsdatum).slice(0, 10) : "";
+  const db = q.geburtsdatum ? String(q.geburtsdatum).slice(0, 10) : "";
+  if (da && db && da !== db && datumStellen(da, db) > 1) {
+    return `Geburtsdatum ${da} widerspricht ${db}`;
+  }
+
+  // ── Adresse ───────────────────────────────────────────────────────────────
+  // Nur wenn BEIDE Teile auf BEIDEN Seiten stehen und BEIDE abweichen. Eine
+  // andere Straße bei gleicher PLZ ist ein Umzug im Ort oder ein Tippfehler;
+  // eine andere Straße in einer anderen PLZ sind zwei Haushalte.
+  const sa = strassePlz(p.strasse); const sb = strassePlz(q.strasse);
+  const za = strassePlz(p.plz); const zb = strassePlz(q.plz);
+  if (sa && sb && za && zb && sa !== sb && za !== zb) {
+    return `Adresse ${p.strasse}, ${p.plz} widerspricht ${q.strasse}, ${q.plz}`;
+  }
+
+  return null;
+}
+
 /**
  * Welches Kriterium beweist, dass diese zwei Sätze derselbe Mensch sind?
  *
  * Reihenfolge ist Absicht: A ist der härteste Beweis. Der erste Treffer gilt.
+ *
+ * VOR jedem Kriterium steht die Widerspruchs-Wand: Ein hartes Zweitmerkmal, das
+ * widerspricht, schlägt jedes gemeinsame Merkmal. Ein Anschluss und ein
+ * Postfach werden geteilt; ein Geburtsdatum nicht.
  */
 export function kriteriumFuer(p: MassenPerson, q: MassenPerson): { kriterium: Kriterium; merkmal: string } | null {
+  if (harterWiderspruch(p, q)) return null;
+
   const mail = schnitt(p.mails, q.mails);
   const nummer = schnitt(p.nummern, q.nummern);
 
@@ -236,6 +332,7 @@ export async function ladeMassenPersonen(lauf: Lauf = sqlPool): Promise<MassenPe
     )
     SELECT p.id, p.person_ref, p.first_name, p.last_name, p.company_name, p.contact_name,
            p.primary_email, p.primary_phone, p.phone_key9, p.birthdate, p.account_status,
+           p.street, p.zip,
            p.assigned_agent_id, p.betreuung_seit, p.created_at,
            ag.name AS agent_name,
            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
@@ -315,6 +412,8 @@ export async function ladeMassenPersonen(lauf: Lauf = sqlPool): Promise<MassenPe
       telefon: r.primary_phone ?? null,
       phoneKey9: r.phone_key9 ?? null,
       geburtsdatum: r.birthdate ?? null,
+      strasse: r.street ?? null,
+      plz: r.zip ?? null,
       betreuerId: r.assigned_agent_id != null ? Number(r.assigned_agent_id) : null,
       betreuerName: r.agent_name ?? null,
       betreuungSeit: r.betreuung_seit ?? null,
@@ -665,11 +764,18 @@ export function bildeGruppen(alle: MassenPerson[]): { gruppen: Gruppe[]; ausschl
     if (!a || !b) continue;
     const nummer = schnitt(a.nummern, b.nummern);
     const mail = schnitt(a.mails, b.mails);
-    const grund = nummer
-      ? `Gemeinsamer Anschluss …${nummer}, aber verschiedene Menschen (${a.vorname ?? "—"} / ${b.vorname ?? "—"}) — Haushalt oder Firmennummer`
-      : mail
-        ? `Gemeinsame E-Mail ${mail}, aber verschiedene Menschen (${a.name} / ${b.name})`
-        : `Gleicher Nachname und Geburtsdatum, aber verschiedene Vornamen (${a.vorname ?? "—"} / ${b.vorname ?? "—"})`;
+    // Hat die Widerspruchs-Wand gegriffen, steht IHR Grund da — nicht der
+    // allgemeine. Sonst liest ein Mensch „Haushalt oder Firmennummer", während
+    // der Ausschlag aus einem abweichenden Geburtsdatum kam, und sucht falsch.
+    const widerspruch = harterWiderspruch(a, b);
+    const grund = widerspruch
+      ? `${widerspruch} — gemeinsames Merkmal ${nummer ? `Anschluss …${nummer}` : mail ? `E-Mail ${mail}` : "Name und Geburtsdatum"}, `
+        + `aber ein hartes Zweitmerkmal spricht dagegen. Entscheidung gehört einem Menschen.`
+      : nummer
+        ? `Gemeinsamer Anschluss …${nummer}, aber verschiedene Menschen (${a.vorname ?? "—"} / ${b.vorname ?? "—"}) — Haushalt oder Firmennummer`
+        : mail
+          ? `Gemeinsame E-Mail ${mail}, aber verschiedene Menschen (${a.name} / ${b.name})`
+          : `Gleicher Nachname und Geburtsdatum, aber verschiedene Vornamen (${a.vorname ?? "—"} / ${b.vorname ?? "—"})`;
     ausschluesse.push({ a, b, grund });
   }
 

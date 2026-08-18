@@ -471,6 +471,101 @@ async function main(): Promise<void> {
       });
       ok("Attrappen-Nummer verbindet niemanden", !attrappeVerbunden);
 
+      // ═══════════════════════════════════════════════════════════════════
+      gruppe("8. Die Widerspruchs-Wand: hartes Zweitmerkmal schlägt jedes Merkmal");
+      // ═══════════════════════════════════════════════════════════════════
+      // Der Auftrag vom 30.08.2026: „Auto-Merge nur, wenn kein hartes
+      // Zweitmerkmal widerspricht." Geprüft wird an der GRUPPENBILDUNG, nicht
+      // nur an `harterWiderspruch` — eine Wand, die die Maschine nicht
+      // benutzt, ist keine.
+      //
+      // Jeder Prüffall gibt den Paaren das STÄRKSTE gemeinsame Merkmal
+      // (Kriterium A: gleiche E-Mail UND gleiche Nummer). Wäre die Wand nicht
+      // da, würden alle drei verbunden. Das ist die Rot-Probe: Entfernt man
+      // `if (harterWiderspruch(p, q)) return null;` aus `kriteriumFuer`,
+      // werden diese drei Prüfungen rot — nachgestellt und bestätigt.
+      const verbunden = async (
+        felderA: Record<string, unknown>, felderB: Record<string, unknown>, marke: string,
+      ): Promise<boolean> => {
+        const mail = MAIL(`wand-${marke}`);
+        const tel9 = `9173${marke.slice(0, 5).padEnd(5, "0")}`.slice(-9);
+        const a = await person({ primary_email: mail, primary_phone: `+4915${tel9}`, phone_key9: tel9, ...felderA });
+        const b = await person({ primary_email: mail, primary_phone: `+4915${tel9}`, phone_key9: tel9, ...felderB });
+        await bestellung({ ref: REF(`WAND-${marke}-1`), person_id: a });
+        await bestellung({ ref: REF(`WAND-${marke}-2`), person_id: b });
+        const p = await ladeMassenPersonen(tx as any);
+        return bildeGruppen(p).gruppen.some((g) => {
+          const ids = [g.gewinner.id, ...g.verlierer.map((x) => x.person.id)];
+          return ids.includes(a) && ids.includes(b);
+        });
+      };
+
+      // Der ungünstigste Fall, nicht der erstbeste: gleiche E-Mail UND gleiche
+      // Nummer UND gleicher Nachname — nur das Geburtsdatum trennt. Genau die
+      // Lage von Vater und Sohn.
+      const geburtWiderspruch = await verbunden(
+        { first_name: "Josef", last_name: `Wandgeb${stempel}`, birthdate: "1966-06-07" },
+        { first_name: "Josef", last_name: `Wandgeb${stempel}`, birthdate: "1994-03-21" },
+        "GEB",
+      );
+      ok("Widersprechendes Geburtsdatum verhindert die Zusammenführung", !geburtWiderspruch);
+
+      // Der Tippfehler daneben MUSS durchgehen — sonst ist die Wand eine
+      // Bremse, die falsch auslöst (GEMESSEN: 11 solche Fälle im Bestand).
+      const geburtTippfehler = await verbunden(
+        { first_name: "Dirk", last_name: `Wandtipp${stempel}`, birthdate: "1978-02-22" },
+        { first_name: "Dirk", last_name: `Wandtipp${stempel}`, birthdate: "1978-03-22" },
+        "TIPP",
+      );
+      ok("Geburtsdatum-Tippfehler an EINER Stelle bleibt zusammenführbar", geburtTippfehler);
+
+      const nameWiderspruch = await verbunden(
+        { first_name: "Ana", last_name: `Weber${stempel}`, birthdate: "1980-05-05" },
+        { first_name: "Ana", last_name: `Nikoloudis${stempel}`, birthdate: "1980-05-05" },
+        "NAME",
+      );
+      ok("Widersprechender Nachname verhindert die Zusammenführung", !nameWiderspruch);
+
+      const adresseWiderspruch = await verbunden(
+        { first_name: "Eva", last_name: `Wandadr${stempel}`, street: "Billrothstr. 117", zip: "4600" },
+        { first_name: "Eva", last_name: `Wandadr${stempel}`, street: "Ramsauer Str 40", zip: "4591" },
+        "ADR",
+      );
+      ok("Straße UND PLZ widersprechen: keine Zusammenführung", !adresseWiderspruch);
+
+      // Nur die STRASSE abweichend, PLZ gleich: Umzug im Ort oder Tippfehler.
+      // Das darf die Wand nicht treffen.
+      const nurStrasse = await verbunden(
+        { first_name: "Udo", last_name: `Wandstr${stempel}`, street: "Talstraße 32", zip: "85293" },
+        { first_name: "Udo", last_name: `Wandstr${stempel}`, street: "Talstraße 12", zip: "85293" },
+        "STR",
+      );
+      ok("Nur die Straße weicht ab (gleiche PLZ): bleibt zusammenführbar", nurStrasse);
+
+      // Eine LÜCKE ist kein Widerspruch — dieselbe Regel wie bei den Vornamen.
+      const lueckeGeburt = await verbunden(
+        { first_name: "Ivo", last_name: `Wandluecke${stempel}`, birthdate: "1970-01-01" },
+        { first_name: "Ivo", last_name: `Wandluecke${stempel}`, birthdate: null },
+        "LUE",
+      );
+      ok("Fehlendes Geburtsdatum ist kein Widerspruch", lueckeGeburt);
+
+      // Und der Grund muss im Ausschluss STEHEN — sonst sucht ein Mensch
+      // „Haushalt oder Firmennummer", während das Geburtsdatum den Ausschlag gab.
+      const mailW = MAIL("wand-grund");
+      const wA = await person({ first_name: "Rolf", last_name: `Wandgrund${stempel}`, birthdate: "1960-01-01", primary_email: mailW, primary_phone: "+4915917342999", phone_key9: "917342999" });
+      const wB = await person({ first_name: "Rolf", last_name: `Wandgrund${stempel}`, birthdate: "1988-12-24", primary_email: mailW, primary_phone: "+4915917342999", phone_key9: "917342999" });
+      await bestellung({ ref: REF("WAND-GRUND-1"), person_id: wA });
+      await bestellung({ ref: REF("WAND-GRUND-2"), person_id: wB });
+      const pGrund = await ladeMassenPersonen(tx as any);
+      const ausGrund = bildeGruppen(pGrund).ausschluesse.find((x) =>
+        (x.a.id === wA && x.b.id === wB) || (x.a.id === wB && x.b.id === wA));
+      ok("Das Paar steht als Ausschluss da (nicht verschwunden)", !!ausGrund,
+        `gefunden: ${ausGrund ? "ja" : "nein"}`);
+      ok("Der Ausschlussgrund nennt das Geburtsdatum",
+        /Geburtsdatum/i.test(String(ausGrund?.grund ?? "")),
+        `Grund: ${String(ausGrund?.grund ?? "—").slice(0, 110)}`);
+
       throw new Zurueckrollen();
     });
   } catch (e) {

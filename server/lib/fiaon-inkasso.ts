@@ -26,6 +26,8 @@
 
 import { sqlPool } from "./db-pool";
 import { berlinToday, berlinPlusTage } from "./fiaon-time";
+// EINE Normalisierung für Anzeige UND Wahl — dieselbe, die der Vertrieb benutzt.
+import { waehlbareNummer } from "./fiaon-telefon";
 
 type Lauf = typeof sqlPool;
 
@@ -137,7 +139,18 @@ export function fristBedingung(f?: string | null): string {
   return f && f in FRIST_FILTER ? FRIST_FILTER[f as FristFenster] : FRIST_FILTER.alle;
 }
 
-export type RatenErgebnis = "zahlt_am" | "ueberwiesen_beleg" | "nicht_erreicht" | "eskalation";
+export type RatenErgebnis = "zahlt_am" | "ueberwiesen_beleg" | "nicht_erreicht"
+  | "nummer_blockiert" | "eskalation";
+
+/**
+ * Wie viele Tage ruht eine Rate, deren Nummer uns blockiert?
+ *
+ * Nicht `null`: Die Arbeitsliste zeigt Raten mit LEERER Wiedervorlage sofort
+ * wieder an („IS NULL OR <= heute"). „Aussetzen" heißt hier also ein Datum in
+ * der Zukunft, nicht das Löschen des Datums — sonst stünde der Fall morgen
+ * wieder da, und der Agent wählt eine Nummer, die ihn wegdrückt.
+ */
+const BLOCKIERT_RUHE_TAGE = 30;
 
 export const RATEN_ERGEBNISSE: {
   art: RatenErgebnis; label: string; braucht?: "datum" | "notiz"; hinweis: string;
@@ -153,6 +166,17 @@ export const RATEN_ERGEBNISSE: {
   {
     art: "nicht_erreicht", label: "Nicht erreicht",
     hinweis: "Zählt den Versuch und legt die Rate auf morgen.",
+  },
+  // ── DIE BLOCKIER-MARKE, JETZT AUCH HIER (30.08.2026) ────────────────────
+  // Der Vertrieb hat sie seit Wochen, das Forderungsmanagement nicht — und
+  // gerade dort blockieren Menschen die Nummer. Ohne diesen Knopf blieb dem
+  // Agenten nur „Nicht erreicht", und die Rate kam am nächsten Tag wieder auf
+  // den Tisch: Er wählte dieselbe Nummer, die ihn wegdrückt, bis zur
+  // Eskalationsstufe.
+  {
+    art: "nummer_blockiert", label: "Nummer blockiert uns",
+    hinweis: `Die Nummer wird markiert und die Rate ruht ${BLOCKIERT_RUHE_TAGE} Tage. `
+      + "Anrufen bringt hier nichts mehr — der Weg läuft über Mail und Mahnung.",
   },
   {
     art: "eskalation", label: "Härtefall — an den Vorgesetzten", braucht: "notiz",
@@ -229,6 +253,11 @@ export async function ratenErgebnisAnwenden(
       wiedervorlage = berlinPlusTage(1);
       meldung = "Nicht erreicht — morgen erneut.";
       break;
+    case "nummer_blockiert":
+      wiedervorlage = berlinPlusTage(BLOCKIERT_RUHE_TAGE);
+      meldung = `Nummer blockiert uns — die Rate ruht ${BLOCKIERT_RUHE_TAGE} Tage. `
+        + "Die Mahnungen laufen weiter, der Anrufweg ist zu.";
+      break;
     case "eskalation": {
       const n = String(opts.notiz || "").trim();
       // Pflicht-Notiz: Eine Weitergabe ohne Begründung ist für den Vorgesetzten
@@ -277,11 +306,33 @@ export async function ratenErgebnisAnwenden(
     WHERE id = ${rate.id}
   `;
 
-  // In die Kundenakte — der Vertrieb soll sehen, dass hier gearbeitet wird.
+  // ── IN DIE KUNDENAKTE ───────────────────────────────────────────────────
+  // Der Vertrieb soll sehen, dass hier gearbeitet wird.
+  //
+  // ── EINE AUSNAHME BEI DER SCHREIBWEISE, UND ZWAR MIT GRUND ──────────────
+  // Alle Ratenergebnisse landen als `rate_<art>` im Verlauf — so ist erkennbar,
+  // dass sie aus dem Forderungsmanagement kommen und nicht aus dem Vertrieb.
+  //
+  // „Nummer blockiert uns" ist der eine Fall, wo das schaden würde. Diese
+  // Tatsache wird nämlich GELESEN: `server/lib/fiaon-uebergabe.ts` fragt
+  //
+  //     WHERE cl.outcome = 'nummer_blockiert'
+  //
+  // um zu wissen, bei welchem Kollegen der Kunde schon blockiert hat. Ein
+  // Eintrag als `rate_nummer_blockiert` wäre für diese Abfrage unsichtbar —
+  // zwei Schreibweisen für dieselbe Tatsache, und die Übergabe schickt den
+  // Kunden an jemanden, der längst weggedrückt wurde. AGENTS.md nennt genau
+  // das: „Wer einen Status schreibt, prüft, welche Werte die Leser kennen."
+  //
+  // Deshalb trägt dieser eine Fall die HAUSWEITE Schreibweise, und die Herkunft
+  // steht im Text. Die Marke ist die Tatsache, nicht die Abteilung.
+  const outcomeFuerAkte = opts.ergebnis === "nummer_blockiert"
+    ? "nummer_blockiert"
+    : `rate_${opts.ergebnis}`;
   await lauf`
     INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, outcome, note)
     VALUES (${rate.ref}, ${opts.agentId}, ${opts.agentName}, 'result',
-            ${`rate_${opts.ergebnis}`},
+            ${outcomeFuerAkte},
             ${`Forderungsmanagement, Rate ${rate.rate_nr}: ${meldung}`
               + (opts.notiz ? `\n${opts.notiz}` : "")})
   `;
@@ -314,7 +365,7 @@ export async function arbeitsliste(
   const heute = berlinToday();
   const frist = await anrufPflichtTage(lauf);
 
-  return (await lauf`
+  const zeilen = (await lauf`
     SELECT r.id AS rate_id, r.ref, r.rate_nr, r.betrag_cents, r.zahlungsreferenz,
            r.faellig_am, r.mahnstufe, r.erinnerungen, r.letzte_erinnerung_at,
            r.inkasso_wiedervorlage, r.inkasso_zusage_am, r.inkasso_versuche,
@@ -323,7 +374,10 @@ export async function arbeitsliste(
            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''),
                     a.contact_name, a.email) AS name,
            COALESCE(NULLIF(a.email, ''), a.contact_email) AS email,
-           a.phone, a.phone_country_code,
+           -- Die Rohwerte bleiben in der Antwort (Anzeige „so steht es in der
+           -- Akte“), aber die WÄHLBARE Form entsteht unten aus
+           -- „waehlbareNummer“ — nicht in der Oberfläche. Begründung dort.
+           a.phone, a.phone_country_code, a.contact_phone, a.country,
            (r.faellig_am < ${heute}::date) AS ueberfaellig,
            (${heute}::date - r.faellig_am) AS tage_ueberfaellig,
            -- Anruf-Pflicht: höchste Stufe erreicht UND die Frist verstrichen.
@@ -375,6 +429,59 @@ export async function arbeitsliste(
       r.id ASC
     LIMIT ${Math.min(200, opts.limit ?? 60)}
   `) as any[];
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DIE WÄHLBARE NUMMER ENTSTEHT HIER, NICHT IN DER OBERFLÄCHE (30.08.2026)
+  //
+  // ── DIE MELDUNG ───────────────────────────────────────────────────────────
+  // „Im Forderungsmanagement steht +49 +49 vor der Nummer. Im Vertrieb ist sie
+  // richtig."
+  //
+  // ── DIE URSACHE ───────────────────────────────────────────────────────────
+  // Diese Liste lieferte nur die Rohwerte, und die Oberfläche setzte sie selbst
+  // zusammen — an zwei Stellen in inkasso.tsx:
+  //
+  //     ${"$"}{f.phone_country_code || "+49"}${"$"}{String(f.phone).replace(/^0/, "")}
+  //
+  // Steht in `phone` schon „+436642204641" und daneben „+43", ergibt das
+  // „+43+436642204641". Das `replace(/^0/)` greift nicht, weil die Nummer mit
+  // einem Plus beginnt und nicht mit einer Null.
+  //
+  // GEMESSEN (scripts/mess-doppelpraefix.ts): 21 von 385 Zeilen der Arbeitsliste
+  // zeigten ein Doppelpräfix.
+  //
+  // ── UND DER GEFÄHRLICHERE TEIL DERSELBEN ZEILE ────────────────────────────
+  // Der Rückfall „|| '+49'" hängte eine DEUTSCHE Vorwahl an österreichische
+  // Nummern (gemessen: „Christa Kainz", phone „+436641924910", keine getrennte
+  // Vorwahl → „+49+436641924910"). Hätte man nur das doppelte Plus entfernt,
+  // wäre „+4943664…" gewählt worden — ein fremder Teilnehmer. AGENTS.md sagt es
+  // seit dem ersten Tag: Eine geratene Vorwahl ruft einen fremden Menschen an.
+  //
+  // `waehlbareNummer` hat für genau diesen Fall Regel 5: Ohne Vorwahl wird die
+  // Nummer ANGEZEIGT, aber nicht wählbar gemacht, und der Grund steht dabei.
+  // Deshalb gibt es hier keinen Rückfall auf „+49".
+  // ═══════════════════════════════════════════════════════════════════════════
+  return zeilen.map((r) => ({ ...r, ...telefonFelder(r) }));
+}
+
+/**
+ * Die drei Telefon-Felder aus EINER Quelle — für Rate-Zeilen und Personenkarten.
+ *
+ * Reihenfolge der Quellen wie in `nummerAusZeile`: die Nummer der Bestellung mit
+ * ihrer getrennten Vorwahl zuerst, dann die Kontaktnummer. Zwei Reihenfolgen für
+ * dieselbe Frage wären zwei Wahrheiten.
+ */
+function telefonFelder(r: any): {
+  telefonAnzeige: string | null; telefonWaehlbar: string | null; telefonHinweis: string | null;
+} {
+  const t = waehlbareNummer(
+    [
+      { nummer: r?.phone, vorwahl: r?.phone_country_code },
+      { nummer: r?.contact_phone },
+    ],
+    r?.country,
+  );
+  return { telefonAnzeige: t.anzeige, telefonWaehlbar: t.waehlbar, telefonHinweis: t.hinweis };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -410,6 +517,12 @@ export interface InkassoPerson {
   email: string | null;
   phone: string | null;
   phoneCountryCode: string | null;
+  /** Anzeigeform, z. B. „+43 664 2204641". Nie selbst zusammensetzen. */
+  telefonAnzeige: string | null;
+  /** Für den Anruf — nur gesetzt, wenn die Nummer wirklich wählbar ist. */
+  telefonWaehlbar: string | null;
+  /** Warum nicht wählbar? Klartext für die Oberfläche. */
+  telefonHinweis: string | null;
   /** Die Raten dieses Menschen, dringendste zuerst. */
   raten: any[];
   /** Wie viele Raten, wie viel Geld. */
@@ -456,6 +569,11 @@ export async function arbeitslistePersonen(
         email: r.email ?? null,
         phone: r.phone ?? null,
         phoneCountryCode: r.phone_country_code ?? null,
+        // Dieselben Felder wie an der Rate-Zeile, aus derselben Funktion. Die
+        // Karte darf nicht anders wählen als die Zeile darunter.
+        telefonAnzeige: r.telefonAnzeige ?? null,
+        telefonWaehlbar: r.telefonWaehlbar ?? null,
+        telefonHinweis: r.telefonHinweis ?? null,
         raten: [], anzahl: 0, summeCents: 0, dringendste: r,
         bestellungen: 0, zweitAbo: false,
       };
@@ -751,11 +869,35 @@ export async function verdienst(agentId: number, lauf: Lauf = sqlPool): Promise<
 // ich ihm Kunden zu? Wir bekommen noch 1–2 weitere, wie mache ich das mit
 // den überfälligen Zahlungen?"
 //
-// ── WARUM DAS NICHT WIE BEIM VERTRIEB LÄUFT ────────────────────────────────
-// Im Vertrieb gehört ein KUNDE dauerhaft einem Menschen. Beim Inkasso ist
-// das falsch: Zugeteilt wird eine RATE, nicht ein Kunde. Ein Kunde hat zwölf
-// Raten, und wenn Rate 3 überfällig ist und Rate 7 später auch, muss nicht
-// derselbe Mensch dran sein — er ist vielleicht im Urlaub oder nicht mehr da.
+// ── DIE ALTE REGEL, UND WARUM SIE ERSETZT WURDE (30.08.2026) ───────────────
+// Hier stand bis zum 30.08.2026:
+//
+//   „Im Vertrieb gehört ein KUNDE dauerhaft einem Menschen. Beim Inkasso ist
+//    das falsch: Zugeteilt wird eine RATE, nicht ein Kunde. Ein Kunde hat
+//    zwölf Raten, und wenn Rate 3 überfällig ist und Rate 7 später auch, muss
+//    nicht derselbe Mensch dran sein — er ist vielleicht im Urlaub oder nicht
+//    mehr da."
+//
+// Der Gedanke war die Vertretung, und die ist richtig. Die Folge war es nicht:
+// Weil JEDE Rate einzeln an den mit der kleinsten Last ging, landete ein Kunde
+// mit mehreren offenen Raten bei ZWEI Menschen. Das Team hat es gemeldet
+// („bei Hans UND Diana"), und die Messung hat es bestätigt — GEMESSEN am
+// 30.08.2026: 7 Personen mit offenen Raten bei zwei Zuständigen, jedes Mal im
+// Muster „Hans-Jürgen 1 Rate, Diana der Rest".
+//
+// Für den Kunden heißt das zwei Mahnanrufe von zwei Fremden, die nichts
+// voneinander wissen. Für das Haus heißt es doppelte Arbeit an einer Forderung.
+//
+// ── DIE NEUE REGEL: EIN MENSCH, EIN ZUSTÄNDIGER ────────────────────────────
+//   1. Hat die PERSON schon einen Inkasso-Zuständigen (irgendeine ihrer Raten),
+//      folgen alle weiteren Raten diesem Menschen.
+//   2. Erst wenn die Person niemanden hat, greift die kleinste Last.
+//   3. Innerhalb eines Laufs zählt die Person als EINE Einheit — nicht als
+//      so viele Einheiten, wie sie Raten hat.
+//
+// Die Vertretung bleibt möglich: `inkassoRateZuweisen` und die Zuteilung von
+// Hand sind unberührt. Sie ist eine ENTSCHEIDUNG eines Menschen, nicht das
+// Ergebnis eines Rundlaufs.
 //
 // Zweiter Unterschied: Eine überfällige Rate ist DRINGEND. Sie darf nicht
 // warten, bis jemand sie von Hand verteilt. Deshalb läuft die Verteilung
@@ -803,7 +945,9 @@ export async function inkassoVerteilen(
   mannschaft: { id: number; name: string; offen: number }[];
   unverteilt: number;
   vorschlag: { rateId: number; ref: string; kunde: string; faelligAm: string; betragCents: number;
-               anAgentId: number; anAgentName: string }[];
+               anAgentId: number; anAgentName: string;
+               /** „person" = folgt dem bestehenden Zuständigen, „last" = neu über die kleinste Last. */
+               grund: "person" | "last" }[];
   verteilt: number;
   hinweis: string;
 }> {
@@ -820,8 +964,20 @@ export async function inkassoVerteilen(
   // Nur was WIRKLICH überfällig ist und noch niemandem gehört. Eine Rate, die
   // heute fällig wird, ist nicht überfällig — sie ist fällig.
   const offen = (await lauf`
-    SELECT r.id, r.ref, r.faellig_am, r.betrag_cents,
-           TRIM(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')) AS kunde
+    SELECT r.id, r.ref, r.faellig_am, r.betrag_cents, a.person_id,
+           TRIM(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')) AS kunde,
+           -- Der schon zuständige Mensch DIESER PERSON: irgendeine ihrer noch
+           -- nicht bezahlten Raten, die bereits jemandem gehört. Steht hier ein
+           -- Wert, ist die Zuteilung entschieden — die kleinste Last kommt gar
+           -- nicht mehr zum Zug.
+           (SELECT r2.inkasso_agent_id
+              FROM fiaon_abo_raten r2
+              JOIN fiaon_applications a2 ON a2.ref = r2.ref
+             WHERE a2.person_id = a.person_id
+               AND r2.inkasso_agent_id IS NOT NULL
+               AND r2.status <> 'bezahlt'
+             ORDER BY r2.faellig_am ASC, r2.id ASC
+             LIMIT 1) AS person_agent_id
     FROM fiaon_abo_raten r
     LEFT JOIN fiaon_applications a ON a.ref = r.ref
     LEFT JOIN fiaon_persons p ON p.id = a.person_id
@@ -849,16 +1005,55 @@ export async function inkassoVerteilen(
     };
   }
 
+  // ── EIN MENSCH, EIN ZUSTÄNDIGER ─────────────────────────────────────────
+  // `jePerson` merkt sich die Entscheidung für die Dauer des Laufs. Ohne diese
+  // Karte würde die zweite Rate derselben Person erneut in den Rundlauf gehen
+  // und bei einem anderen landen — genau der gemeldete Fehler, nur innerhalb
+  // eines Laufs statt über zwei Läufe hinweg.
+  const jePerson = new Map<number, { id: number; name: string }>();
+  const nameVon = new Map(mannschaft.map((m) => [m.id, m.name]));
+
+  // Bestehende Zuständigkeiten ZUERST eintragen: Sie sind die stärkste Regel
+  // und dürfen nicht davon abhängen, in welcher Reihenfolge die Raten kommen.
+  for (const r of offen) {
+    const pid = r.person_id != null ? Number(r.person_id) : null;
+    const schon = r.person_agent_id != null ? Number(r.person_agent_id) : null;
+    if (pid == null || schon == null || jePerson.has(pid)) continue;
+    // Nur wenn dieser Mensch noch in der Mannschaft ist. Ist er ausgeschieden,
+    // wird die Person neu zugeteilt — eine Forderung darf nicht an einem Konto
+    // hängen, das niemand mehr öffnet.
+    const name = nameVon.get(schon);
+    if (name) jePerson.set(pid, { id: schon, name });
+  }
+
   const vorschlag = offen.map((r) => {
-    const naechster = [...ziel].sort((a, b) =>
-      (last.get(a.id) ?? 0) - (last.get(b.id) ?? 0) || a.id - b.id)[0];
-    last.set(naechster.id, (last.get(naechster.id) ?? 0) + 1);
+    const pid = r.person_id != null ? Number(r.person_id) : null;
+    const schonZugeteilt = pid != null ? jePerson.get(pid) : undefined;
+
+    let naechster: { id: number; name: string };
+    let grund: "person" | "last";
+    if (schonZugeteilt && (!opts.nurAgentId || schonZugeteilt.id === opts.nurAgentId)) {
+      naechster = schonZugeteilt;
+      grund = "person";
+    } else {
+      naechster = [...ziel].sort((a, b) =>
+        (last.get(a.id) ?? 0) - (last.get(b.id) ?? 0) || a.id - b.id)[0];
+      grund = "last";
+      // Die Last wächst nur bei einer NEUEN Person. Folgt eine Rate dem
+      // bestehenden Zuständigen, ist das keine zusätzliche Zuteilung — sonst
+      // würde ein Kunde mit zwölf Raten die Mannschaft zwölffach belasten und
+      // die Verteilung der übrigen Kunden verzerren.
+      last.set(naechster.id, (last.get(naechster.id) ?? 0) + 1);
+      if (pid != null) jePerson.set(pid, naechster);
+    }
+
     return {
       rateId: Number(r.id), ref: String(r.ref),
       kunde: String(r.kunde ?? "").trim() || "Ohne Namen",
       faelligAm: new Date(r.faellig_am).toISOString().slice(0, 10),
       betragCents: Number(r.betrag_cents ?? 0),
       anAgentId: naechster.id, anAgentName: naechster.name,
+      grund,
     };
   });
 

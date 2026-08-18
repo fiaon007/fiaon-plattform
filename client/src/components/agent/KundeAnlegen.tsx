@@ -30,6 +30,7 @@
 // Ultra-Kunden für 79,99 kauften und 99,99 in Rechnung bekamen.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
+import { LABEL_VERTRIEB } from "@shared/fiaon-zustaendigkeit-text";
 
 interface Paket {
   key: string; label: string; preisEuro: number;
@@ -338,7 +339,9 @@ export function KundeAnlegen({ offen, aufKlappen, fertig }: {
                 {treffer.map((t) => (
                   <li key={t.personId} className="text-[12px]" style={{ color: "#92400e" }}>
                     <b>{t.name}</b> — Treffer über {t.treffer}
-                    {t.agentName ? ` · betreut von ${t.agentName}` : ""}
+                    {/* Beschriftet statt „betreut von" (30.08.2026) — siehe
+                        shared/fiaon-zustaendigkeit-text.ts. */}
+                    {t.agentName ? ` · ${LABEL_VERTRIEB}: ${t.agentName}` : ""}
                     {t.bezahlt ? " · zahlender Kunde" : ""}
                     {t.ref && (
                       <a href={`/agent/kunden?ref=${encodeURIComponent(t.ref)}`}

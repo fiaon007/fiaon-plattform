@@ -139,6 +139,78 @@ export async function wahlPruefen(roh: string, lauf: Lauf = sqlPool): Promise<Wa
 /** Höchstdauer eines Gesprächs. Twilio rechnet je angefangener Minute. */
 export const MAX_MINUTEN = 60;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WIE OFT DARF EINE NUMMER AM TAG GEWÄHLT WERDEN?
+//
+// ── WARUM ES DIESE GRENZE GIBT ─────────────────────────────────────────────
+// Gemeldet wurde: „Von 158 Anrufen kamen 2 durch." Eine der möglichen Ursachen
+// ist ein Spam-Flag beim Netzbetreiber — und die entsteht unter anderem durch
+// VIELE Anrufe von einer Nummer in kurzer Zeit. Wer das nicht drosselt, kann
+// eine Rufnummer verbrennen, und dann klingelt sie nirgends mehr durch.
+//
+// Die Grenze ist ein SCHUTZ, keine Arbeitsbremse: 100 Anrufe je Nummer und Tag
+// erreicht im Normalbetrieb niemand. Sie greift genau dann, wenn etwas aus dem
+// Ruder läuft — ein Wählautomat, ein Versehen, eine Schleife.
+//
+// ── WARUM JE NUMMER UND NICHT JE MITARBEITER ──────────────────────────────
+// Der Netzbetreiber sieht die ABSENDERNUMMER, nicht den Menschen. Vier
+// Mitarbeiter auf derselben Nummer sind für ihn ein Anrufer.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Vorgabe, wenn die Einstellung nicht gesetzt ist. */
+export const MAX_ANRUFE_JE_NUMMER_VORGABE = 100;
+
+export async function maxAnrufeJeNummer(lauf: Lauf = sqlPool): Promise<number> {
+  const [r] = (await lauf`
+    SELECT value FROM fiaon_settings WHERE key = 'max_anrufe_je_nummer_tag'
+  `) as any[];
+  const n = Number(r?.value);
+  // 0 heißt ausdrücklich „keine Grenze" — der Betreiber muss sie abschalten
+  // können, ohne einen Entwickler zu brauchen.
+  if (Number.isFinite(n) && n >= 0) return Math.trunc(n);
+  return MAX_ANRUFE_JE_NUMMER_VORGABE;
+}
+
+export interface NummerKontingent {
+  /** Wie viele Anrufe gingen heute schon über diese Absendernummer? */
+  heute: number;
+  grenze: number;
+  /** Noch frei. Bei abgeschalteter Grenze: null (unbegrenzt). */
+  frei: number | null;
+  erschoepft: boolean;
+}
+
+/**
+ * Der Tagesstand einer ABSENDERNUMMER.
+ *
+ * Gezählt werden ausgehende Anrufe ab Mitternacht Berliner Zeit — nicht die
+ * letzten 24 Stunden. Ein Kontingent, das sich gleitend erneuert, kann ein
+ * Mensch nicht im Kopf behalten; „ab morgen wieder 100" kann er.
+ */
+export async function nummerKontingent(
+  absender: string, lauf: Lauf = sqlPool,
+): Promise<NummerKontingent> {
+  const grenze = await maxAnrufeJeNummer(lauf);
+  // ── WARUM NULL MITGEZÄHLT WIRD ──────────────────────────────────────────
+  // `von_nummer` gibt es erst seit Migration 063. Alle Zeilen davor sind NULL —
+  // und liefen über die damals EINZIGE Absendernummer. Sie als „andere Nummer"
+  // zu behandeln würde den Schutz am ersten Tag um die halbe Zählung bringen.
+  //
+  // Wird später eine zweite Nummer eingerichtet, trägt jede neue Zeile ihre
+  // Absendernummer, und die Zählung trennt sauber. Nur die Altlast bleibt der
+  // ersten Nummer zugerechnet — das ist die Wahrheit über diese Daten.
+  const [r] = (await lauf`
+    SELECT COUNT(*)::int AS n FROM fiaon_calls
+    WHERE richtung = 'raus'
+      AND (von_nummer = ${absender}
+           OR (von_nummer IS NULL AND ${absender} = ${process.env.TWILIO_CALLER_ID || ""}))
+      AND beginn >= (NOW() AT TIME ZONE 'Europe/Berlin')::date
+  `.catch(() => [{ n: 0 }])) as any[];
+  const heute = Number(r?.n ?? 0);
+  if (grenze <= 0) return { heute, grenze: 0, frei: null, erschoepft: false };
+  return { heute, grenze, frei: Math.max(0, grenze - heute), erschoepft: heute >= grenze };
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // Ansage
 // ───────────────────────────────────────────────────────────────────────────

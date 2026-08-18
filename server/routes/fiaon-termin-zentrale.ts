@@ -25,6 +25,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+// Die Grund-Texte stehen bei der Protokollfunktion, nicht hier — sonst gibt es
+// zwei Wörterbücher für dieselben Codes.
+import { VERSUCH_GRUND_TEXT } from "../lib/fiaon-termine";
+import { terminArtAusQuelle } from "../../shared/fiaon-termin-art";
 
 const router = Router();
 
@@ -124,6 +128,108 @@ router.get("/admin/termine", async (req: Request, res: Response) => {
       FROM fiaon_termine
     `) as any[];
 
+    // ── BUCHUNGSVERSUCHE DER LETZTEN SIEBEN TAGE (30.08.2026) ──────────────
+    //
+    // Die Meldung war: „Die Buchung funktioniert unabhängig von der Uhrzeit
+    // nicht zuverlässig." Bis zur Migration 062 hinterließ ein Fehlschlag
+    // nichts — die Aussage war weder zu belegen noch zu widerlegen.
+    //
+    // Diese Karte ist der Beleg. Sie zeigt beides: gebucht UND abgelehnt, denn
+    // eine Ablehnzahl ohne ihren Bezug ist keine Messung. Und sie schlüsselt
+    // die Gründe auf, weil „unzuverlässig" kein Grund ist, sondern ein Gefühl.
+    const [versucheGesamt] = (await sqlPool`
+      SELECT COUNT(*)::int AS gesamt,
+             COUNT(*) FILTER (WHERE ergebnis = 'gebucht')::int AS gebucht,
+             COUNT(*) FILTER (WHERE ergebnis = 'abgelehnt')::int AS abgelehnt,
+             COUNT(*) FILTER (WHERE akteur = 'kunde')::int AS von_kunden,
+             MIN(versucht_am) AS erster
+      FROM fiaon_termin_versuche
+      WHERE versucht_am > NOW() - INTERVAL '7 days'
+    `) as any[];
+
+    const versucheGruende = (await sqlPool`
+      SELECT grund, COUNT(*)::int AS n
+      FROM fiaon_termin_versuche
+      WHERE versucht_am > NOW() - INTERVAL '7 days' AND ergebnis = 'abgelehnt'
+      GROUP BY grund ORDER BY n DESC
+    `) as any[];
+
+    // Die Uhrzeit-Frage direkt beantwortet: Häufen sich Ablehnungen zu
+    // bestimmten Stunden? „Unabhängig von der Uhrzeit" ist eine Behauptung,
+    // die diese Zeile prüfbar macht.
+    const versucheStunden = (await sqlPool`
+      SELECT EXTRACT(HOUR FROM versucht_am AT TIME ZONE 'Europe/Berlin')::int AS stunde,
+             COUNT(*) FILTER (WHERE ergebnis = 'gebucht')::int AS gebucht,
+             COUNT(*) FILTER (WHERE ergebnis = 'abgelehnt')::int AS abgelehnt
+      FROM fiaon_termin_versuche
+      WHERE versucht_am > NOW() - INTERVAL '7 days'
+      GROUP BY 1 ORDER BY 1
+    `) as any[];
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ANRUFE DER LETZTEN SIEBEN TAGE — AUS VORHANDENEN DATEN
+    //
+    // ── DIE MELDUNG ────────────────────────────────────────────────────────
+    // „Von 158 Anrufen kamen 2 durch." Die Frage dahinter: Liegt es an der
+    // Nummern-Reputation (Spam-Flag) oder an der Technik?
+    //
+    // ── WAS DIESE ZAHLEN KÖNNEN UND WAS NICHT ─────────────────────────────
+    // `fiaon_calls` hat `beginn`, `ende`, `dauer_sek` und `status`. Der Status
+    // kommt aus Twilios Rückruf und ist auf fünf deutsche Werte abgebildet:
+    //   'gewaehlt'        gewählt, kein Rückruf angekommen (hängengeblieben)
+    //   'beendet'         completed — angenommen und normal beendet
+    //   'abgelehnt'       no-answer ODER busy
+    //   'fehlgeschlagen'  alles andere (failed, canceled)
+    //   'verpasst'        eingehend, nicht angenommen
+    //
+    // WICHTIG für die Deutung: Twilio schickt 'no-answer' und 'busy', aber die
+    // Zuordnung wirft beide auf 'abgelehnt'. „Klingelt durch" und „besetzt"
+    // sind danach nicht mehr zu unterscheiden — und eine ECHTE Klingeldauer
+    // gibt es nicht, weil kein Zeitstempel für „angenommen" gespeichert wird.
+    // `dauer_sek` ist die GESPRÄCHSZEIT, nicht die Klingelzeit.
+    //
+    // Deshalb steht hier, was die Daten hergeben, und nicht mehr: Versuche,
+    // angenommen, Ø Gesprächsdauer der angenommenen, abgelehnt/besetzt,
+    // fehlgeschlagen und „ohne Rückmeldung". Eine erfundene Klingeldauer wäre
+    // schlimmer als keine — sie würde die Reputationsfrage falsch beantworten.
+    // Der Betreiber-TODO dazu steht im Report.
+    const [anrufe] = (await sqlPool`
+      SELECT COUNT(*)::int AS versuche,
+             COUNT(*) FILTER (WHERE status = 'beendet')::int AS angenommen,
+             COUNT(*) FILTER (WHERE status = 'abgelehnt')::int AS abgelehnt_besetzt,
+             COUNT(*) FILTER (WHERE status = 'fehlgeschlagen')::int AS fehlgeschlagen,
+             COUNT(*) FILTER (WHERE status = 'gewaehlt')::int AS ohne_rueckmeldung,
+             COUNT(*) FILTER (WHERE status = 'verpasst')::int AS eingehend_verpasst,
+             -- Nur über die ANGENOMMENEN: Eine Durchschnittsdauer über
+             -- Fehlversuche wäre eine Zahl ohne Bedeutung.
+             ROUND(AVG(dauer_sek) FILTER (WHERE status = 'beendet' AND dauer_sek > 0))::int AS schnitt_sek,
+             -- Sehr kurze Gespräche: „abgenommen und sofort aufgelegt" ist das
+             -- Muster eines Spam-Verdachts. Das ist ein HINWEIS, kein Beweis.
+             COUNT(*) FILTER (WHERE status = 'beendet' AND dauer_sek BETWEEN 1 AND 5)::int AS unter_5s
+      FROM fiaon_calls
+      WHERE beginn > NOW() - INTERVAL '7 days' AND richtung = 'raus'
+    `) as any[];
+
+    const anrufeJeAgent = (await sqlPool`
+      SELECT ag.name,
+             COUNT(*)::int AS versuche,
+             COUNT(*) FILTER (WHERE c.status = 'beendet')::int AS angenommen,
+             ROUND(AVG(c.dauer_sek) FILTER (WHERE c.status = 'beendet' AND c.dauer_sek > 0))::int AS schnitt_sek
+      FROM fiaon_calls c JOIN fiaon_agents ag ON ag.id = c.agent_id
+      WHERE c.beginn > NOW() - INTERVAL '7 days' AND c.richtung = 'raus'
+        AND NOT ag.is_test_account
+      GROUP BY ag.name ORDER BY versuche DESC
+    `) as any[];
+
+    const anrufeJeTag = (await sqlPool`
+      SELECT (beginn AT TIME ZONE 'Europe/Berlin')::date AS tag,
+             COUNT(*)::int AS versuche,
+             COUNT(*) FILTER (WHERE status = 'beendet')::int AS angenommen
+      FROM fiaon_calls
+      WHERE beginn > NOW() - INTERVAL '7 days' AND richtung = 'raus'
+      GROUP BY 1 ORDER BY 1 DESC
+    `) as any[];
+
     // ── JE MITARBEITER — DER VERGLEICH ─────────────────────────────────────
     // Ohne Nebeneinander ist eine Quote nicht lesbar: Sie kann niedrig sein,
     // weil viele Termine noch in der Zukunft liegen. 0 von 34 neben 18 von 27
@@ -203,6 +309,13 @@ router.get("/admin/termine", async (req: Request, res: Response) => {
         ton: STATUS_TEXT[String(z.status)]?.ton ?? "#64748b",
         quelle: z.quelle,
         quelleText: QUELLE_TEXT[String(z.quelle)] ?? String(z.quelle),
+        // Die ART neben der Quelle: Die Quelle sagt, WOHER der Termin kommt,
+        // die Art sagt, WAS gleich passiert. Beides ist nützlich, aber nur die
+        // Art beantwortet „worauf stelle ich mich ein?".
+        art: terminArtAusQuelle(z.quelle).art,
+        artText: terminArtAusQuelle(z.quelle).text,
+        artTon: terminArtAusQuelle(z.quelle).ton,
+        artErklaerung: terminArtAusQuelle(z.quelle).erklaerung,
         agentId: z.agent_id != null ? Number(z.agent_id) : null,
         agentName: z.agent_name ?? "— niemand zugewiesen —",
         personId: z.person_id != null ? Number(z.person_id) : null,
@@ -217,6 +330,56 @@ router.get("/admin/termine", async (req: Request, res: Response) => {
         abgesagtVon: z.abgesagt_von ?? null,
         notiz: z.notiz ?? null,
       })),
+      // ── DIE BUCHUNGSVERSUCHE ─────────────────────────────────────────────
+      // `seit` sagt, ab wann protokolliert wird. Ohne diese Angabe liest man
+      // „0 abgelehnt" als „alles gut", obwohl es „wir zählen erst seit heute"
+      // heißt — der Unterschied zwischen „ist in Ordnung" und „ich kann es
+      // nicht messen" (AGENTS.md, 21.08.2026).
+      versuche: {
+        gesamt: Number(versucheGesamt?.gesamt ?? 0),
+        gebucht: Number(versucheGesamt?.gebucht ?? 0),
+        abgelehnt: Number(versucheGesamt?.abgelehnt ?? 0),
+        vonKunden: Number(versucheGesamt?.von_kunden ?? 0),
+        seit: versucheGesamt?.erster ?? null,
+        ablehnQuote: Number(versucheGesamt?.gesamt ?? 0) > 0
+          ? Math.round((Number(versucheGesamt.abgelehnt) / Number(versucheGesamt.gesamt)) * 100)
+          : 0,
+        gruende: versucheGruende.map((g) => ({
+          grund: g.grund,
+          text: VERSUCH_GRUND_TEXT[String(g.grund)] ?? String(g.grund),
+          n: Number(g.n),
+        })),
+        stunden: versucheStunden.map((s) => ({
+          stunde: Number(s.stunde), gebucht: Number(s.gebucht), abgelehnt: Number(s.abgelehnt),
+        })),
+      },
+      // ── DIE ANRUFSTATISTIK ───────────────────────────────────────────────
+      // `annahmeQuote` beantwortet die Meldung „2 von 158" direkt. `hinweis`
+      // sagt, was die Zahlen NICHT hergeben — sonst liest jemand eine fehlende
+      // Klingeldauer als „0 Sekunden Klingeln".
+      anrufe: {
+        versuche: Number(anrufe?.versuche ?? 0),
+        angenommen: Number(anrufe?.angenommen ?? 0),
+        abgelehntBesetzt: Number(anrufe?.abgelehnt_besetzt ?? 0),
+        fehlgeschlagen: Number(anrufe?.fehlgeschlagen ?? 0),
+        ohneRueckmeldung: Number(anrufe?.ohne_rueckmeldung ?? 0),
+        eingehendVerpasst: Number(anrufe?.eingehend_verpasst ?? 0),
+        schnittSek: Number(anrufe?.schnitt_sek ?? 0),
+        unter5s: Number(anrufe?.unter_5s ?? 0),
+        annahmeQuote: Number(anrufe?.versuche ?? 0) > 0
+          ? Math.round((Number(anrufe.angenommen) / Number(anrufe.versuche)) * 100) : 0,
+        jeAgent: anrufeJeAgent.map((a) => ({
+          name: a.name, versuche: Number(a.versuche), angenommen: Number(a.angenommen),
+          schnittSek: Number(a.schnitt_sek ?? 0),
+        })),
+        jeTag: anrufeJeTag.map((t) => ({
+          tag: t.tag, versuche: Number(t.versuche), angenommen: Number(t.angenommen),
+        })),
+        hinweis: "Eine echte KLINGELDAUER ist nicht messbar: Es wird kein Zeitpunkt "
+          + "für „angenommen“ gespeichert, und Twilios „no-answer“ und „besetzt“ "
+          + "landen beide auf demselben Wert. Ø-Dauer meint die GESPRÄCHSZEIT der "
+          + "angenommenen Anrufe.",
+      },
       jeAgent: jeAgent.map((a) => ({
         id: Number(a.id), name: a.name, rolle: a.rolle,
         termine: Number(a.termine),

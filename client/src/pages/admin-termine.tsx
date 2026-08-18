@@ -148,6 +148,73 @@ function AdminTerminePage() {
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
+            BUCHUNGSVERSUCHE — 7 TAGE (30.08.2026)
+
+            Die Meldung war: „Die Buchung funktioniert unabhängig von der
+            Uhrzeit nicht zuverlässig." Bis heute hinterließ ein Fehlschlag
+            NICHTS — die Aussage war weder zu belegen noch zu widerlegen.
+
+            Diese Karte ist der Beleg. Sie zeigt beides — gebucht UND
+            abgelehnt —, denn eine Ablehnzahl ohne ihren Bezug ist keine
+            Messung. Und sie unterscheidet „ist in Ordnung" von „ich kann es
+            noch nicht messen": Solange nichts aufgelaufen ist, sagt sie das
+            ausdrücklich, statt eine grüne Null zu zeigen.
+            ══════════════════════════════════════════════════════════════════ */}
+        {daten?.versuche && (
+          <section className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 mb-5">
+            <h2 className="text-[14px] font-bold text-slate-900">Buchungsversuche · 7 Tage</h2>
+            {Number(daten.versuche.gesamt) === 0 ? (
+              <p className="text-[12.5px] mt-1.5 leading-relaxed" style={{ color: "#92400e" }}>
+                Noch keine Versuche protokolliert. Das bedeutet <b>nicht</b>, dass
+                alles klappt — die Aufzeichnung ist am 30.08.2026 eingebaut worden
+                und füllt sich erst mit dem nächsten Buchungsversuch. Sobald hier
+                Zahlen stehen, lässt sich die Meldung „Buchung unzuverlässig"
+                belegen oder widerlegen.
+              </p>
+            ) : (
+              <>
+                <p className="text-[12.5px] text-slate-600 mt-1 mb-3 leading-relaxed">
+                  <b className="tabular-nums">{daten.versuche.gebucht}</b> gebucht ·{" "}
+                  <b className="tabular-nums">{daten.versuche.abgelehnt}</b> abgelehnt
+                  {Number(daten.versuche.gesamt) > 0 && (
+                    <> — Ablehnquote <b className="tabular-nums">{daten.versuche.ablehnQuote} %</b></>
+                  )}
+                  . Davon <b className="tabular-nums">{daten.versuche.vonKunden}</b> von
+                  Kunden (der Rest von Mitarbeitern — für die gilt kein Vorlauf).
+                </p>
+                {Array.isArray(daten.versuche.gruende) && daten.versuche.gruende.length > 0 && (
+                  <div className="mb-1">
+                    <p className="text-[11px] uppercase tracking-[.08em] text-slate-500 mb-1.5">
+                      Gründe der Ablehnungen
+                    </p>
+                    {daten.versuche.gruende.map((g: any) => (
+                      <div key={String(g.grund)}
+                           className="flex items-baseline justify-between gap-3 py-1 border-b border-slate-100 last:border-0">
+                        <span className="text-[12.5px] text-slate-700">{g.text}</span>
+                        <span className="text-[12.5px] font-bold tabular-nums text-slate-900">{g.n}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Die Uhrzeit-Frage direkt beantwortet — „unabhängig von der
+                    Uhrzeit" ist eine Behauptung, und hier steht sie zur Probe. */}
+                {Array.isArray(daten.versuche.stunden) && daten.versuche.stunden.length > 0 && (
+                  <p className="text-[11.5px] text-slate-500 mt-2.5 leading-relaxed">
+                    Nach Stunde (Berlin):{" "}
+                    {daten.versuche.stunden.map((s: any, i: number) => (
+                      <span key={s.stunde}>
+                        {i > 0 && " · "}
+                        {String(s.stunde).padStart(2, "0")} Uhr: {s.gebucht}/{s.gebucht + s.abgelehnt}
+                      </span>
+                    ))}
+                  </p>
+                )}
+              </>
+            )}
+          </section>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
             JE MITARBEITER — DER VERGLEICH
             Eine Quote allein sagt wenig. Erst das Nebeneinander macht sie
             lesbar: 0 % neben 78 % ist eine Aussage.
@@ -325,6 +392,7 @@ function AdminTerminePage() {
                     <th className="pb-2 pr-3 font-bold">Zeit</th>
                     <th className="pb-2 px-2 font-bold">Kunde</th>
                     <th className="pb-2 px-2 font-bold">Mitarbeiter</th>
+                    <th className="pb-2 px-2 font-bold">Art</th>
                     <th className="pb-2 px-2 font-bold">Quelle</th>
                     <th className="pb-2 pl-2 font-bold">Status</th>
                   </tr>
@@ -347,6 +415,20 @@ function AdminTerminePage() {
                         )}
                       </td>
                       <td className="py-2.5 px-2 text-slate-600">{t.agentName}</td>
+                      {/* Die ART neben der Quelle (30.08.2026): Die Quelle sagt,
+                          WOHER der Termin kommt, die Art sagt, WAS gleich
+                          passiert. Nur die Art beantwortet „worauf stelle ich
+                          mich ein?" — und sie kommt aus derselben Ableitung wie
+                          im Kalender und in der Mail. */}
+                      <td className="py-2.5 px-2">
+                        {t.artText && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold"
+                                title={t.artErklaerung || undefined}
+                                style={{ background: `${t.artTon || "#64748b"}14`, color: t.artTon || "#64748b" }}>
+                            {t.artText}
+                          </span>
+                        )}
+                      </td>
                       <td className="py-2.5 px-2 text-slate-500">{t.quelleText}</td>
                       <td className="py-2.5 pl-2">
                         <span className="px-2 py-0.5 rounded text-[11.5px] font-semibold"

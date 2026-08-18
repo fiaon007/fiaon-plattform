@@ -14,6 +14,7 @@ import { ensureRolleSpalte } from "./fiaon-vertrieb";
 import {
   ansageText, aufnahmeFrist, aufnahmenAufraeumen, einrichtungsStand, MAX_MINUTEN, offeneAnrufe, telefonBereit,
   twimlAusgehend, wahlProtokoll, wahlPruefen, zugangsAusweis,
+  nummerKontingent,
 } from "../lib/fiaon-softphone";
 import { dokumentInhalt, dokumentStand, istDokumentArt } from "../lib/fiaon-dokumente";
 import { gespraechsblatt } from "../lib/fiaon-gespraechsblatt";
@@ -74,6 +75,11 @@ router.get("/telefon/stand", requireAgent, async (req: AgentRequest, res: Respon
       maxMinuten: MAX_MINUTEN,
       offene: await offeneAnrufe(req.agent!.id),
       testkonto: await istTestkonto(req.agent!.id),
+      // ── DER TAGESSTAND DER RUFNUMMER (30.08.2026) ─────────────────────
+      // Sichtbar im Panel, nicht erst in der Ablehnung: Wer bei 98 von 100
+      // steht, soll es wissen, BEVOR der Knopf nicht mehr geht. Eine Grenze,
+      // die erst beim Anschlagen sichtbar wird, ist eine Überraschung.
+      kontingent: await nummerKontingent(process.env.TWILIO_CALLER_ID || ""),
     });
   } catch (err) {
     console.error("[TELEFON] stand:", err);
@@ -203,6 +209,37 @@ router.post("/telefon/ausweis", requireAgent, async (req: AgentRequest, res: Res
     if (!pruefung.erlaubt) return ablehnen(pruefung.grund!, 400);
 
     // ══════════════════════════════════════════════════════════════════════
+    // DIE TAGESGRENZE JE ABSENDERNUMMER (30.08.2026)
+    //
+    // ── WARUM ──────────────────────────────────────────────────────────────
+    // Gemeldet: „Von 158 Anrufen kamen 2 durch." Eine der möglichen Ursachen
+    // ist ein Spam-Flag beim Netzbetreiber, und der entsteht unter anderem
+    // durch viele Anrufe von einer Nummer in kurzer Zeit. Eine verbrannte
+    // Rufnummer klingelt nirgends mehr durch — und das merkt niemand am Tag,
+    // an dem es passiert.
+    //
+    // ── WARUM HIER UND NICHT IM CLIENT ────────────────────────────────────
+    // Diese Route stellt den Zugangsausweis aus. Ohne ihn kann der Browser
+    // nicht wählen — ein Schutz in der Oberfläche wäre eine Bitte, dieser hier
+    // ist eine Wand.
+    //
+    // Die Grenze steht VOR der Ausweis-Ausstellung und NACH der Nummernprüfung:
+    // Eine ungültige Nummer soll ihren eigenen Grund bekommen und nicht das
+    // Kontingent verbrauchen.
+    const absender = process.env.TWILIO_CALLER_ID || "";
+    const kontingent = await nummerKontingent(absender);
+    if (kontingent.erschoepft) {
+      return ablehnen(
+        `Die Tagesgrenze für diese Rufnummer ist erreicht: ${kontingent.heute} von `
+        + `${kontingent.grenze} Anrufen. Das ist ein Schutz — sehr viele Anrufe von `
+        + "einer Nummer führen beim Netzbetreiber zu einer Spam-Markierung, und danach "
+        + "klingelt sie bei niemandem mehr durch. Morgen ist das Kontingent wieder frei. "
+        + "Die Grenze steht in den Einstellungen unter „max. Anrufe je Nummer je Tag“.",
+        429,
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
     // DER ANRUF FOLGT DER GEWÄHLTEN NUMMER — NICHT DER OFFENEN KARTE
     //
     // ── DER BEFUND (16.08.2026) ───────────────────────────────────────────
@@ -253,9 +290,9 @@ router.post("/telefon/ausweis", requireAgent, async (req: AgentRequest, res: Res
     // Verlaufseintrag weiter an der Bestellung der offenen Karte, während der
     // Anruf schon der richtigen Person gehört.
     const [c] = (await sqlPool`
-      INSERT INTO fiaon_calls (person_id, ref, agent_id, nummer, status)
+      INSERT INTO fiaon_calls (person_id, ref, agent_id, nummer, status, von_nummer)
       VALUES (${echtePersonId}, ${zuordnung.person?.ref ?? null}, ${req.agent!.id},
-              ${pruefung.nummer!}, 'gewaehlt')
+              ${pruefung.nummer!}, 'gewaehlt', ${absender || null})
       RETURNING id
     `) as any[];
 
@@ -611,6 +648,56 @@ router.post("/telefon/aufnahme", async (req: Request, res: Response) => {
  * Läuft durch `ergebnisAnwenden` — denselben Weg wie der Handeintrag in der
  * Kundenliste. Kein zweiter Weg, der eines Tages anders rechnet.
  */
+// ═══════════════════════════════════════════════════════════════════════════
+// VERBINDUNGSZUSTÄNDE EINES LAUFENDEN ANRUFS
+//
+// ── WARUM DIESE ROUTE EXISTIERT ────────────────────────────────────────────
+// Meldung: „Der Kunde nimmt ab, aber es spricht niemand." Bei Einweg-Audio ist
+// meist der Medienpfad in eine Richtung nicht aufgebaut — sichtbar NUR im
+// ICE-Zustand der Verbindung, und der lebt im Browser und ist nach dem Auflegen
+// weg. Wer hinterher fragt, hat keine Daten.
+//
+// Die Zustände landen als Notiz am Anruf. Absichtlich KEINE eigene Tabelle: Es
+// sind wenige Zeilen je Gespräch, sie gehören zum Anruf, und eine Tabelle für
+// Diagnose-Schnipsel wäre eine Tabelle, die niemand pflegt.
+//
+// ── WAS HIER NICHT PASSIERT ────────────────────────────────────────────────
+// Keine Deutung. Der Server schreibt auf, was der Browser gesehen hat. Ob es
+// die Region, der Codec oder eine Firewall war, entscheidet ein Mensch mit
+// Twilios Sicht daneben — die Vermutungen stehen im Report, nicht im Code.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/telefon/:id/verbindung", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const art = String(req.body?.art || "").slice(0, 24);
+    const wert = String(req.body?.wert || "").slice(0, 64);
+    if (!id || !art || !wert) return res.status(400).json({ ok: false, error: "Unvollständig." });
+
+    // Nur am EIGENEN Anruf. Ohne diese Bedingung könnte jeder Agent Notizen an
+    // fremde Gespräche hängen.
+    const pegel = req.body?.pegel;
+    const zeile = `[${new Date().toISOString().slice(11, 19)}] ${art}=${wert}`
+      + (typeof pegel === "number" ? ` pegel=${Math.round(pegel)}` : "");
+    const rows = await sqlPool`
+      UPDATE fiaon_calls
+      SET transkript_grund = LEFT(COALESCE(transkript_grund || ' | ', '') || ${zeile}, 2000),
+          updated_at = NOW()
+      WHERE id = ${id} AND agent_id = ${req.agent!.id}
+      RETURNING id
+    `;
+    if ((rows as any[]).length === 0) return res.status(404).json({ ok: false, error: "Anruf nicht gefunden." });
+    // Auch ins Log: Bei einem gehäuften Muster sucht man nicht 200 Anrufe
+    // einzeln durch.
+    if (art === "ice" && wert === "failed") {
+      console.warn(`[TELEFON] ICE failed an Anruf ${id} (Agent ${req.agent!.id}) — Einweg-Audio-Verdacht.`);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[TELEFON] verbindung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.post("/telefon/:id/ergebnis", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const id = Number(req.params.id);

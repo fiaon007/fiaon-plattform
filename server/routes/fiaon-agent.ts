@@ -25,6 +25,7 @@ import { fiaonBaseUrl } from "../fiaon-base-url";
 import { parseBerlinInput, formatBerlin, pruefeTerminZukunft } from "../lib/fiaon-time";
 import { ERGEBNISSE, ergebnisAnwenden, type Ergebnis, pruefeNotiz } from "../lib/fiaon-kontakt-ergebnis";
 import { nummerAusZeile } from "../lib/fiaon-telefon";
+import { terminArtAusQuelle, terminArtRueckruf } from "../../shared/fiaon-termin-art";
 
 const router = Router();
 
@@ -336,6 +337,9 @@ const SETTING_DEFAULTS: Record<string, string> = {
   // Betreibers ist. Grenzen 1–12 prüft `slotsProTag` — ein Tippfehler darf die
   // Terminwahl nicht unbrauchbar machen.
   slots_pro_tag: "5",
+  // Schutz gegen Carrier-Spamflags: höchstens so viele Anrufe je Absendernummer
+  // und Tag. 0 = keine Grenze. Begründung in server/lib/fiaon-softphone.ts.
+  max_anrufe_je_nummer_tag: "100",
 
   // ── DIE EWIGE LEAD-STRECKE (18.08.2026) ───────────────────────────────
   // „1" = die ewige Strecke fährt (Kadenz T+1,3,7,14,30, danach monatlich, ohne
@@ -1948,9 +1952,49 @@ export async function searchCustomersAndLeads(q: string, opts: { agentId?: numbe
            COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,'')) AS email,
            a.phone, a.phone_country_code, a.contact_phone, a.pack_name, a.amount_due,
            a.payment_reference, a.payment_status, a.created_at, a.completed_at,
-           a.assigned_agent_id, ag.name AS assigned_agent_name
+           -- ══════════════════════════════════════════════════════════════════
+           -- DIE ZUSTÄNDIGKEIT STEHT AN DER PERSON, NICHT AN DER BESTELLUNG
+           --
+           -- ── DIE MELDUNG (Team, 30.08.2026) ─────────────────────────────
+           -- „Zahlung eingegangen — ohne Betreuer."
+           --
+           -- Hier stand nur „a.assigned_agent_id". Die Bestellung trägt eine
+           -- eigene Abschrift der Zuständigkeit, und die läuft auseinander:
+           -- Nach einer Zusammenführung hängen die Bestellungen an der neuen
+           -- Person, ihre Agentenspalte bleibt aber stehen.
+           --
+           -- GEMESSEN an 662 bezahlten Bestellungen: 59 haben an der Bestellung
+           -- einen anderen Agenten als an der Person, und bei 36 hat NUR die
+           -- Person einen. Genau diese 36 zeigten „ohne Betreuer", obwohl ein
+           -- Zuständiger eingetragen war — die Anzeige hat die falsche Quelle
+           -- gelesen, es fehlte niemand.
+           --
+           -- Die Person ist die Wahrheit (Migration 033 zieht die Bestellungen
+           -- über einen Trigger nach). Die Bestellung bleibt als Rückfall
+           -- stehen, damit eine Bestellung ohne Person nicht plötzlich
+           -- zuständigkeitslos wird.
+           -- ══════════════════════════════════════════════════════════════════
+           COALESCE(p.assigned_agent_id, a.assigned_agent_id) AS assigned_agent_id,
+           COALESCE(agp.name, ag.name) AS assigned_agent_name,
+           -- Woher der Name kommt — damit ein Auseinanderlaufen sichtbar ist
+           -- und nicht stillschweigend überdeckt wird.
+           CASE WHEN p.assigned_agent_id IS NOT NULL THEN 'person'
+                WHEN a.assigned_agent_id IS NOT NULL THEN 'bestellung'
+                ELSE NULL END AS agent_quelle,
+           -- ── PROVISION ODER WAND, ABER NIE EIN LEERES FELD ────────────────
+           -- „Wenn eine Provision existiert, wird sie angezeigt; wenn die Wand
+           -- griff (Selbstzahler), steht DAS da — nie ein leeres Feld."
+           -- GEMESSEN: 409 bezahlte Bestellungen, 244 mit Provision, 104 als
+           -- Direktzahler vermerkt, 61 ohne beides. Für die 61 sagt die Anzeige
+           -- jetzt ausdrücklich, dass es keinen Vermerk gibt — eine sichtbare
+           -- Lücke ist ehrlich, eine gefüllte wäre eine Behauptung.
+           a.commission_basis, a.commission_basis_note,
+           (SELECT SUM(k.amount_cents)::int FROM fiaon_commissions k
+             WHERE k.ref = a.ref AND k.status <> 'storniert') AS provision_cents
     FROM fiaon_applications a
     LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
+    LEFT JOIN fiaon_persons p ON p.id = a.person_id
+    LEFT JOIN fiaon_agents agp ON agp.id = p.assigned_agent_id
     WHERE a.merged_into IS NULL AND ${custCond}${custScope}
     ORDER BY (a.payment_status IN ('pending_payment','claimed_paid')) DESC, a.created_at DESC
     LIMIT $${custParams.length}
@@ -2841,12 +2885,35 @@ router.get("/agent/calendar", requireAgent, async (req: AgentRequest, res) => {
         -- Zuständige erfuhr es nie und saß zur vereinbarten Zeit da.
         -- GEMESSEN: 10 abgesagte Termine, keiner davon je jemandem gemeldet.
         --
-        -- Sieben Tage sichtbar, dann ist die Absage Geschichte. „verpasst"
-        -- bleibt ebenfalls: Ein Termin, den der Kunde platzen ließ, ist
-        -- Arbeit, nicht Vergangenheit.
+        -- Sieben Tage sichtbar, dann ist die Absage Geschichte.
+        --
+        -- ── „VERPASST" IST ZWEI ZUSTÄNDE, NICHT EINER (30.08.2026) ────────
+        -- Hier stand „t.status IN ('gebucht', 'verpasst')" mit der Begründung:
+        -- „Ein Termin, den der Kunde platzen ließ, ist Arbeit, nicht
+        -- Vergangenheit." Das ist richtig — aber nur, solange die Arbeit noch
+        -- nicht getan ist.
+        --
+        -- Das Team meldete: „Nicht erschienen — bitte abschließen hängt."
+        -- GEMESSEN: 47 Termine auf „verpasst", davon 19 mit gesetztem
+        -- erledigt_am. Genau diese 19 waren ABGEARBEITET und standen trotzdem
+        -- weiter da, mit einer Aufforderung, die niemand erfüllen konnte:
+        -- Ein weiterer Klick auf „Nicht erschienen" schrieb denselben Zustand
+        -- noch einmal, die Karte verschwand kurz und kam beim nächsten Laden
+        -- zurück. Bei Lucas Böhnert lagen 26 solche Karten.
+        --
+        -- Die Unterscheidung steckt in erledigt_am:
+        --   · erledigt_am IS NULL  → der 12-Stunden-Nachlauf
+        --     (runVerpassteTermine in fiaon-startgespraech.ts) hat den Termin
+        --     als verpasst markiert. Ein Mensch hat ihn NICHT bearbeitet, die
+        --     Folge-Einladung ist nicht gelaufen. Das ist offene Arbeit — die
+        --     Karte bleibt, und der Klick erledigt sie.
+        --   · erledigt_am IS NOT NULL → ein Mensch hat geklickt, der
+        --     Fehlversuch ist gezählt und die Folge-Einladung ist gelaufen.
+        --     Fertig. Die Karte geht.
         -- ══════════════════════════════════════════════════════════════════
         AND (
-          t.status IN ('gebucht', 'verpasst')
+          t.status = 'gebucht'
+          OR (t.status = 'verpasst' AND t.erledigt_am IS NULL)
           OR (t.status = 'abgesagt' AND t.abgesagt_am > NOW() - INTERVAL '7 days')
         )
         AND t.beginn BETWEEN ${from} AND ${to}
@@ -2866,6 +2933,15 @@ router.get("/agent/calendar", requireAgent, async (req: AgentRequest, res) => {
         // erledigt. Deshalb reist die Herkunft ab jetzt MIT der Kennung.
         art: "verlauf",
         schluessel: `verlauf:${r.id}`,
+        // ── DIE TERMIN-ART (30.08.2026) ──────────────────────────────────
+        // `art` ist hier schon belegt (Herkunft: Verlauf oder Termin) und
+        // bleibt es — sie steckt in `schluessel` und entscheidet, welche Route
+        // der Haken anspricht. Die ART DES GESPRÄCHS kommt als eigenes Feld
+        // daneben. Ein Verlaufseintrag ist immer ein selbst notierter Rückruf.
+        terminArt: terminArtRueckruf().art,
+        terminArtText: terminArtRueckruf().text,
+        terminArtTon: terminArtRueckruf().ton,
+        terminArtErklaerung: terminArtRueckruf().erklaerung,
       })),
       // Getrennt geliefert, damit der Client sie eigens kennzeichnen kann:
       // Ein Termin, den der KUNDE gewählt hat, ist verbindlicher als eine
@@ -2876,6 +2952,13 @@ router.get("/agent/calendar", requireAgent, async (req: AgentRequest, res) => {
         quelle: "termin",
         art: "termin",
         schluessel: `termin:${t.id}`,
+        // Die Art kommt aus der ECHTEN Quelle (buchungsquelle), nicht aus dem
+        // Wort „termin" darüber: Ein Startgespräch und ein Beratungsgespräch
+        // sind beide „vom Kunden gebucht" und trotzdem zwei Gespräche.
+        terminArt: terminArtAusQuelle(t.buchungsquelle).art,
+        terminArtText: terminArtAusQuelle(t.buchungsquelle).text,
+        terminArtTon: terminArtAusQuelle(t.buchungsquelle).ton,
+        terminArtErklaerung: terminArtAusQuelle(t.buchungsquelle).erklaerung,
         abgesagt: t.status === "abgesagt",
         // Der Klartext, der auf der Karte steht — an einer Stelle formuliert.
         absageText: t.status === "abgesagt" && t.abgesagt_am

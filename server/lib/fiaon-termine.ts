@@ -562,6 +562,89 @@ export class TerminFehler extends Error {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// JEDER VERSUCH WIRD PROTOKOLLIERT — AUCH DER ERFOLGREICHE
+//
+// ── DIE MELDUNG (Team, 30.08.2026) ─────────────────────────────────────────
+// „Die Buchung funktioniert unabhängig von der Uhrzeit nicht zuverlässig."
+//
+// Diese Aussage war bis heute weder zu belegen noch zu widerlegen: Ein
+// gescheiterter Versuch hinterließ eine Zeile auf der Konsole und sonst nichts.
+// Die Tabelle `fiaon_termin_versuche` (Migration 062) macht ihn zählbar.
+//
+// ── WARUM AUCH DIE ERFOLGE ────────────────────────────────────────────────
+// Ohne sie gibt es keine Quote. 12 Ablehnungen sind bei 15 Versuchen ein
+// Notfall und bei 4.000 ein Rundungsfehler — eine Zahl ohne ihren Bezug ist
+// keine Messung.
+//
+// ── WARUM DAS PROTOKOLL NIE EINEN VORGANG STOPPT ──────────────────────────
+// Es wird in ein `.catch()` gesetzt, und das ist hier ausdrücklich richtig:
+// Eine Buchung darf nicht scheitern, weil ihre Protokollzeile scheitert. Der
+// Fehler wird aber GESCHRIEBEN, nicht verschluckt — ein stilles `.catch()`
+// verwandelt einen Programmfehler in eine falsche Auskunft (AGENTS.md).
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type VersuchErgebnis = "gebucht" | "abgelehnt";
+
+/**
+ * Einen Buchungsversuch festhalten.
+ *
+ * @param opts.grund Der Grund-CODE bei einer Ablehnung (nicht der Anzeigetext).
+ *   Codes bleiben stabil, Texte werden umformuliert — eine Statistik über Texte
+ *   bricht bei der ersten Verbesserung der Formulierung.
+ */
+export async function versuchProtokollieren(
+  opts: {
+    ergebnis: VersuchErgebnis;
+    personId?: number | null;
+    leadId?: number | null;
+    slotBeginn?: string | Date | null;
+    agentId?: number | null;
+    grund?: string | null;
+    quelle?: string | null;
+    akteur?: "kunde" | "agent";
+  },
+  lauf: Lauf = sqlPool,
+): Promise<void> {
+  try {
+    const beginn = opts.slotBeginn ? new Date(opts.slotBeginn) : null;
+    await lauf`
+      INSERT INTO fiaon_termin_versuche
+        (person_id, lead_id, slot_beginn, agent_id, ergebnis, grund, quelle, akteur)
+      VALUES (${opts.personId ?? null}, ${opts.leadId ?? null},
+              ${beginn && !Number.isNaN(beginn.getTime()) ? beginn : null},
+              ${opts.agentId ?? null}, ${opts.ergebnis},
+              ${opts.ergebnis === "gebucht" ? null : (opts.grund ?? "unbekannt")},
+              ${opts.quelle ?? null}, ${opts.akteur ?? "kunde"})
+    `;
+  } catch (e) {
+    console.error("[TERMINE] Versuch-Protokoll fehlgeschlagen:", e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * Der Klartext für einen Grund-Code — für die Karte in der Termin-Zentrale.
+ *
+ * Die Codes stehen in Migration 062. Ein unbekannter Code wird ANGEZEIGT, nicht
+ * unterschlagen: Eine Ablehnung, die in keiner Kategorie landet, ist genau die,
+ * die man sehen will.
+ */
+export const VERSUCH_GRUND_TEXT: Record<string, string> = {
+  belegt: "Slot war im selben Moment weg",
+  nicht_angeboten: "Slot stand nicht (mehr) in der Auswahl",
+  kein_slot: "Zu dieser Zeit gibt es kein Angebot",
+  zu_frueh: "Weniger als 2 Stunden Vorlauf",
+  vergangenheit: "Zeitpunkt lag in der Vergangenheit",
+  zu_spaet: "Mehr als 14 Tage im Voraus",
+  agent_unbekannt: "Ansprechpartner nicht verfügbar",
+  falsche_rolle: "Ansprechpartner nimmt diese Terminart nicht",
+  zeit_unlesbar: "Zeitangabe unlesbar",
+  link_ungueltig: "Link ungültig oder abgelaufen",
+  keine_auswahl: "Kein Slot ausgewählt",
+  serverfehler: "Serverfehler",
+  unbekannt: "ohne Grund-Code",
+};
+
 export interface Buchung {
   id: number;
   personId: number;

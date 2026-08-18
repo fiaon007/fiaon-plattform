@@ -308,6 +308,43 @@ async function computeBadges(): Promise<any> {
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE TAGESLÄUFE — WELCHE AUTOMATIK LEBT, UND WELCHE STEHT?
+//
+// ── DER ANLASS (30.08.2026) ────────────────────────────────────────────────
+// Der Folgelauf stand FÜNFZEHN TAGE still, und niemand hat es gemerkt. Es gab
+// keine Stelle, an der man „läuft die Automatik?" hätte nachsehen können — die
+// Antwort musste man aus erzeugten Raten und verschickten Mails erraten.
+//
+// ── WARUM DIE FOLGE MITKOMMT ──────────────────────────────────────────────
+// Eine Ampel ohne Folge ist eine Farbe. Wer „rot" sieht und nicht weiß, was
+// dadurch liegen bleibt, priorisiert nicht — und eine Warnung, die man nicht
+// priorisieren kann, wird weggeklickt. Der Satz steht deshalb in
+// `LAUF_FOLGEN` neben der Ampel und kommt hier mit.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/admin/hub/laeufe", async (_req, res) => {
+  try {
+    const { alleLaufAmpeln, AMPEL_GELB_STUNDEN, AMPEL_ROT_STUNDEN, CRONS_AN } =
+      await import("../lib/fiaon-crons");
+    const laeufe = await alleLaufAmpeln();
+    res.json({
+      ok: true,
+      // Ohne diese Angabe liest man auf einem Entwicklungsrechner acht rote
+      // Ampeln und sucht einen Fehler, den es nicht gibt: Dort ist die
+      // Automatik ABSICHTLICH aus (server/lib/fiaon-crons.ts).
+      cronsAn: CRONS_AN,
+      grenzen: { gelb: AMPEL_GELB_STUNDEN, rot: AMPEL_ROT_STUNDEN },
+      laeufe,
+      rot: laeufe.filter((l) => l.ampel === "rot").length,
+      gelb: laeufe.filter((l) => l.ampel === "gelb").length,
+      unbekannt: laeufe.filter((l) => l.ampel === "unbekannt").length,
+    });
+  } catch (err) {
+    console.error("[HUB] laeufe:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.get("/admin/hub/badges", async (_req, res) => {
   try {
     if (badgeCache && Date.now() - badgeCache.at < BADGE_CACHE_MS) {

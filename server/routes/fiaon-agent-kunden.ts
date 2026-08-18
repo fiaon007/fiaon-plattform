@@ -47,6 +47,7 @@ import { signInvoiceUrl } from "../fiaon-invoice";
 import { nachschub } from "./fiaon-followup";
 import { FIAON_BANK_DETAILS as BANK } from "./fiaon-antrag";
 import { zahlungstext } from "../lib/fiaon-verwendungszweck";
+import { aufbereiten } from "../lib/fiaon-buchungen";
 
 const router = Router();
 
@@ -148,7 +149,47 @@ async function meinePerson(personId: number, agentId: number) {
            (SELECT COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,''))
              FROM fiaon_applications a
              WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
-             ORDER BY a.created_at DESC LIMIT 1) AS app_email
+             ORDER BY a.created_at DESC LIMIT 1) AS app_email,
+           -- ══════════════════════════════════════════════════════════════════
+           -- DIE BUCHUNGEN GEHÖREN AN DIE KARTE (30.08.2026)
+           --
+           -- ── DIE MELDUNGEN, DIE HIER ZUSAMMENLAUFEN ──────────────────────
+           -- „E-Mail ergänzt — Versand bleibt trotzdem gesperrt."
+           -- „Produkt anlegen: keine Bestellung vorhanden."
+           --
+           -- Beides war DERSELBE Fehler, und er saß nicht dort, wo er auftrat.
+           -- Die Oberfläche leitet den Sperrgrund aus „k.buchungen“ ab. Dieses
+           -- Feld lieferte NUR die Listenabfrage (buchungen_roh in
+           -- fiaon-agent-start.ts). „kartePayload“ kannte es nicht.
+           --
+           -- Nach dem Ergänzen einer E-Mail und nach dem Anlegen eines Produkts
+           -- holt die Karte sich frisch über GET /agent/crm/kunden/:personId —
+           -- und bekam eine Antwort OHNE buchungen. Die Karte wurde ersetzt, das
+           -- Feld war danach „undefined“, und „k.buchungen ?? []“ ergab eine
+           -- LEERE Liste. Die Ableitung sagte daraufhin folgerichtig „Keine
+           -- Bestellung vorhanden" — und der Produkt-Dialog „Diese Akte hat
+           -- keine Bestellung".
+           --
+           -- Die Aktualisierung hat die Daten also nicht bloß nicht erneuert,
+           -- sie hat sie GELÖSCHT. Deshalb wurde es schlimmer, je mehr der
+           -- Agent tat: Wer die E-Mail nachtrug, sperrte sich damit den Versand.
+           --
+           -- Dieselben Spalten, dieselbe Reihenfolge wie in der Listenabfrage —
+           -- beide Wege gehen danach durch „aufbereiten“ aus
+           -- server/lib/fiaon-buchungen.ts. Zwei Fassungen derselben Liste
+           -- wären genau die zweite Wahrheit, die diesen Fehler erzeugt hat.
+           -- ══════════════════════════════════════════════════════════════════
+           (SELECT COALESCE(JSON_AGG(JSON_BUILD_OBJECT(
+                     'ref', a.ref, 'pack_key', a.pack_key, 'pack_name', a.pack_name,
+                     'amount_due', a.amount_due, 'payment_status', a.payment_status,
+                     'status', a.status, 'created_at', a.created_at,
+                     'payment_due_date', a.payment_due_date,
+                     'payment_reference', a.payment_reference,
+                     'cancelled_at', a.cancelled_at, 'refunded_at', a.refunded_at
+                   ) ORDER BY a.created_at), '[]'::json)
+              FROM fiaon_applications a
+              WHERE a.person_id = p.id AND a.merged_into IS NULL
+                AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL) AS buchungen_roh
     FROM fiaon_persons p
     WHERE p.id = ${personId}
       AND p.assigned_agent_id = ${agentId}
@@ -174,6 +215,11 @@ function kartePayload(p: any, letzteAktivitaet?: any) {
   return {
     personId: p.id,
     name: p.name,
+    // Die Buchungen der Person — dieselbe Aufbereitung wie in der Liste.
+    // Fehlte dieses Feld, löschte jede Kartenaktualisierung die Buchungen der
+    // Karte und sperrte damit den Zahlungsdaten-Versand (Begründung an der
+    // Abfrage oben). `aufbereiten` verträgt auch `undefined`.
+    buchungen: aufbereiten(p.buchungen_roh),
     // `telefon` bleibt die Anzeige (abwärtskompatibel), `telefonWaehlbar` ist
     // die Form für den Anruf. Getrennt, weil eine Nummer ohne Vorwahl angezeigt
     // werden soll, aber NICHT gewählt.

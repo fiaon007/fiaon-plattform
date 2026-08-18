@@ -3,6 +3,427 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 30.08.2026 — Der Tageslauf überwacht sich jetzt selbst
+
+Der 15-Tage-Ausfall aus dem letzten Lauf war der Anlass. Ein stiller Ausfall dieser Läufe kostet direkt Geld, und es gab keine Stelle, an der man ihn sehen konnte.
+
+### Die Diagnose — und zwei Fehlalarme, die ich fast gemeldet hätte
+
+Acht Läufe sind registriert. Von ihnen schrieben **drei** irgendwo hin, dass sie liefen — und jeder anders (ein Datum, ein Slot-Text, noch ein Datum). Fünf schrieben **nichts**. Ob sie liefen, war nur an ihren Wirkungen zu erraten, und „nichts getan" sieht dabei genauso aus wie „nicht gelaufen".
+
+`scripts/mess-tageslaeufe.ts` rekonstruiert deshalb je Lauf, was er hinterlassen hat — und stellt daneben die Gegenfrage „wartet überhaupt Arbeit?". Erst „keine Spur **und** Arbeit wartet" ist ein Ausfall. Diese Gegenfrage hat zwei falsche Befunde verhindert:
+
+| Lauf | erster Befund | nach Prüfung |
+|---|---|---|
+| `rueckruf-eskalation` | „nie gelaufen" | **0** Rückrufe mit gerissener Frist — nichts zu tun |
+| `aufnahmen-aufraeumen` | „nie gelaufen" | **0** Aufnahmen über der Frist — nichts zu tun |
+
+Und zwei Zahlen im ersten Entwurf waren schlicht falsch:
+
+**„154 fällige Raten ohne Rechnung — 10.622,46 €."** Das las sich wie ein Loch in der Kasse. Gemessen: `rechnung_am` ist bei **0 von 690** Raten gesetzt. Die Spalte wird in einer Migration angelegt und im ganzen Haus **nirgends beschrieben** — sie ist tot. Gleichzeitig tragen 174 Raten `erinnerungen > 0` (bis zu 7) und Mahnstufen bis 2: Diese Raten sind sehr wohl angemahnt. Der echte Fingerabdruck ist `letzte_erinnerung_at`, die Spalte, auf die der Motor selbst prüft. Ein Nachlauf auf die tote Spalte hätte **154 Kunden eine Rechnung geschickt, die sie längst haben.**
+
+**„3.232 unverteilte Leads."** Der Filter suchte `status NOT IN ('converted','lost')` — die echten Werte sind deutsch: 2.760 `kontaktiert`, 449 `konvertiert`, **23 `neu`**. Der Rückstand ist 23. Ein Filter mit erfundenen Werten meldet den ganzen Bestand als Rückstand.
+
+### Die echte Schadensbilanz
+
+**Ein** Lauf ist wirklich ausgefallen: das Tageswerk im Folgelauf, 15 Tage.
+
+| Liegengeblieben | Zahl |
+|---|---|
+| Überfällige Zahlungszusagen, nicht eskaliert | **96** (älteste 33 Tage; Florentine 43, Daniel 27, Lucas 17, Nikita 9) |
+| Stufe-A/B-Kunden ohne Zuständigen | 4 |
+| Gedriftete Stufen | 8 (die 188 aus dem Vorlauf sind bereits nachgezogen) |
+| Neue Leads ohne Zuständigen | 23 |
+| Fällige Raten nie angemahnt | 15 (1.359,85 €) |
+
+Die 96 überfälligen Zusagen sind der eigentliche Schaden: Jede ist ein Kunde, der Zahlung versprochen hat und seit bis zu 33 Tagen niemandem auf den Tisch gekommen ist.
+
+### Nachgeholt — Datenstände, keine Mails
+
+`scripts/tageslauf-nachholen.ts`: 8 Stufen nachgezogen, 4 Kunden zugeteilt. Die 96 Zusagen brauchen keinen Schreibvorgang — sie stehen über „Überfällig" in jeder Arbeitsliste; gefehlt hat die tägliche Wiedervorlage, und die entsteht mit dem nächsten Tageswerk.
+
+**Kein rückwirkender Mailversand.** 15 Tage Mahnungen auf einmal sind für den Kunden eine Lawine und für die Absenderdomain ein Reputationsschaden, von dem sie sich monatelang nicht erholt — wer drei Mahnungen aus der vorletzten Woche bekommt, meldet sie als Spam, und danach kommt auch die richtige Mail nicht mehr an. Rückwirkende **Termin**-Erinnerungen gibt es gar nicht: Eine Erinnerung an einen Termin von letzter Woche ist keine Erinnerung, sondern eine Verwirrung.
+
+Zur Entscheidung des Betreibers steht die Liste im Report: 15 Zahlungserinnerungen wären im Zeitraum fällig gewesen, 0 Abo-Mahnungen, 1 vergangener Termin ohne Erinnerung. **Empfehlung: nichts nachsenden** — die laufenden Mahnstufen holen die Fälle in den nächsten Tagen ohnehin ein.
+
+### Der eigentliche Fix: Fälligkeit statt Uhrzeit
+
+Hier stand `if (wienStunde !== LAUF_STUNDE) return`. Der Gedanke war richtig — Mahnungen laufen morgens, nicht mitten am Tag. Die Folge war es nicht: **Ein Fenster ohne Nachhol-Logik ist eine Wette darauf, dass der Server zur richtigen Minute wach ist.** Diese Wette hat das Haus 15 Tage lang verloren.
+
+Die Bedingung heißt jetzt: „Liegt der letzte **erfolgreiche** Durchlauf mehr als 20 Stunden zurück?" Damit läuft der Lauf weiter einmal täglich, holt aber nach, wenn er den Morgen verpasst — und zwar **genau einmal**. Gezählt wird ab dem letzten Erfolg, nicht ab dem letzten Versuch: Ein Lauf, der dreimal scheitert, bleibt fällig. Zählte man Versuche, hätte ein kaputter Lauf sich selbst stillgelegt.
+
+20 statt 24 Stunden, weil bei exakt 24 ein Lauf von 06:05 am nächsten Morgen um 06:00 als „noch nicht fällig" gälte — die Stunde würde täglich nach hinten wandern.
+
+Beides sitzt in `server/lib/fiaon-crons.ts`, nicht in acht Aufrufstellen: dasselbe Argument wie bei der Produktionsbremse darüber. Eine Regel, die jede Aufrufstelle selbst kennen muss, wird an der neunten vergessen.
+
+### Selbstüberwachung
+
+Migration 064 legt `fiaon_lauf_historie` an — eine Zeile je **Ausführung** mit Start, Ende, Dauer und Ergebnis. Drei Ergebnisse, und die Unterscheidung ist der ganze Punkt: `erfolg`, `fehler`, `uebersprungen`. Ein Lauf, der zehnmal am Tag „noch nicht fällig" sagt, ist gesund; einer, der zehnmal „Fehler" sagt, nicht. Wer beides als „lief nicht" zählt, bekommt eine Ampel, die immer rot ist — und die wird abgeschaltet.
+
+Der Fehler wird **geschrieben**, nicht verschluckt. Genau ein stilles `.catch()` hat den Ausfall unsichtbar gemacht.
+
+**Auf dem Dashboard** eine Karte mit Ampel je Lauf (grün < 26 h, gelb < 50 h, rot darüber) — und dem Satz, **was ausfällt**, wenn er steht. Eine Ampel ohne Folge ist eine Farbe; wer nicht weiß, was liegen bleibt, priorisiert nicht. Läuft alles, verschwindet die Karte: Eine Dauer-Anzeige „alles gut" wird nach zwei Wochen nicht gelesen, und dann wird auch die Warnung an ihrer Stelle nicht gelesen.
+
+**Eine Warn-Mail** an den Betreiber, direkt über Brevo. Bewusst nicht über einen Make-Zweig: Diese Mail meldet, dass die Automatik steht — und der Make-Zweig ist selbst Automatik. Eine Störungsmeldung, die denselben Weg nimmt wie das Gestörte, kommt genau dann nicht an, wenn man sie braucht. Höchstens eine Mail je Lauf und Tag, sonst wären es bei einem 20-Minuten-Takt 72 am Tag, und die 73. würde ungelesen weggewischt. Dazu immer ein Eintrag ins Protokoll — eine Mail kann im Spam landen, ein Eintrag nicht.
+
+Der Wächter hängt am bestehenden 20-Minuten-Takt und ist **kein eigener Tageslauf**: Ein eigener hätte genau dieselbe Ausfallart wie das, was er bewacht.
+
+### Prüfstand
+
+`scripts/pruef-lauf-ueberwachung.ts`, **51 Prüfungen**, darunter die beiden vom Auftrag verlangten Fälle:
+
+- **Künstlich alter Zeitstempel** (Erfolg vor 15 Tagen) → Ampel rot, Überwachung erkennt ihn, Warnung würde ausgelöst, Folgensatz nennt was ausfällt. Danach wird der echte Bestand nachgezählt: unverändert.
+- **Server startet um 14 Uhr nach zwei Tagen Stillstand** → erster Takt holt nach, zweiter und dritter nicht mehr, insgesamt genau einmal.
+
+Dazu: Fehler landet mit Text in der Historie, Sperre hält Parallelläufe auseinander und verfällt nach zwei Stunden (eine Sperre ohne Verfall hält irgendwann alles an), und jeder registrierte Lauf braucht einen Folgensatz.
+
+Diese letzte Prüfung fand zwei eigene Lücken: Sie druckte im ersten Entwurf **nichts** (die Schleife lief über eine leere Liste, weil `REGISTRIERT` sich in einem Skript nie füllt — ein Ausbleiben, das wie ein Bestehen aussieht), und nach dem Umbau auf Quelltext-Prüfung fehlte **`abo-motor`**: Er wird mehrzeilig registriert, und `grep` arbeitet zeilenweise. Genau der Lauf, an dem das Geld hängt.
+
+### Wo zu finden
+
+| Datei | Zweck |
+|---|---|
+| `db/migrations/064_lauf_historie.sql` | Historie + Warn-Sperre |
+| `server/lib/fiaon-crons.ts` | `istFaellig`, `laufMitHistorie`, `laeufeUeberwachen`, `LAUF_FOLGEN` |
+| `scripts/mess-tageslaeufe.ts` | Diagnose und Schadensbilanz |
+| `scripts/tageslauf-nachholen.ts` | Nachholen, Vorschau + `--schreiben`, ohne Mailversand |
+| `scripts/pruef-lauf-ueberwachung.ts` | 51 Prüfungen |
+| `GET /admin/hub/laeufe` + `client/src/pages/admin-hub.tsx` | die Karte |
+
+### Betreiber-TODOs
+
+1. **`BETREIBER_MAIL` setzen.** Ohne diese Adresse geht keine Warn-Mail raus — der Protokolleintrag entsteht trotzdem, aber niemand wird geweckt. Das ist der wichtigste Handgriff aus diesem Lauf.
+2. **Render-Uptime prüfen.** Die Läufe holen sich jetzt selbst ein, aber sie brauchen einen laufenden Prozess. Bei einem Dienst, der bei Inaktivität einschläft (Free/Starter), hilft ein externer Aufwecker (Cron-Ping auf eine harmlose Route) oder ein Plan ohne Spin-down. **Das ist die eigentliche Ursache des 15-Tage-Ausfalls** — der Umbau macht ihn nur verzeihlich, nicht unmöglich.
+3. **Die Karte einmal ansehen.** Am ersten Tag nach dem Deploy stehen alle Läufe auf „unbekannt", weil die Historie leer ist. Nach 24 Stunden muss jeder Lauf grün sein; steht dann einer auf rot, ist er wirklich tot.
+4. Der Wächter `pruef-stufen-waechter.ts` meldet weiter rot, solange `followup_last_run` alt ist. Er wird grün, sobald das Tageswerk in Produktion einmal durchgelaufen ist.
+
+## 30.08.2026 — Teamfeedback, Teil 3: messbar machen, statt zu raten
+
+Die letzten fünf Punkte. Zwei Messbefunde aus dem Vorlauf haben die Arbeit bestimmt: Es gibt **keine** Slot-Reservierung, und Buchungs-Fehlschläge werden **nirgends** gespeichert. Also wurde zuerst die Messbarkeit gebaut.
+
+### Der Fund, der 15 Tage alt war
+
+Gemeldet war nichts davon — er fiel bei der Frage auf, wie 188 Stufen driften konnten, obwohl der Nachzug im Tageslauf liegt.
+
+**Gemessen:** `followup_last_run` stand auf **2026-08-03**, der Kalender zeigte den 18.08. **Fünfzehn Tage.**
+
+Ausgeschlossen wurde der Reihe nach: die Funktion (`alleTierAktualisieren` direkt aufgerufen läuft durch und korrigierte weitere 3 Zeilen) und der Takt (`runVerpassteTermine` aus demselben 20-Minuten-Lauf hat am 18.08. um 02:53 gearbeitet). Übrig blieben die drei Rückgaben **über** dem Nachzug:
+
+```
+if (wienStunde !== LAUF_STUNDE) return …   // nur in der 6-Uhr-Stunde
+if (s.followup_last_run === heute) return …
+if (!(await holeLock(…))) return …
+```
+
+Zwei Dinge waren in einem Zeitfenster zusammengebunden, die nicht zusammengehören. Die **Verteilung** und die Mahn-Staffel dürfen genau einmal am Tag laufen — zweimal hieße zwei Mails an denselben Menschen. Die **Einstufung** ist eine Korrektur: idempotent, sie schreibt nur abweichende Zeilen, sie kostet eine Abfrage. Sie an dasselbe Fenster zu binden heißt, dass ein verpasster Morgen einen Tag falscher Arbeitslisten kostet — und bei fünfzehn verpassten Morgen liegen 142 Kunden mit offener Rechnung im kalten Fach.
+
+Die Einstufung steht jetzt **vor** den Sperren und läuft bei jedem Takt. Und das `.catch()`, das den Fehler nur auf die Konsole schrieb, ist weg: Ein stiller Programmfehler an dieser Stelle hätte genau diesen Schaden erzeugt, ohne dass jemand es merkt.
+
+`scripts/pruef-stufen-waechter.ts` ist der Wächter für den Tageslauf: 0 Abweichungen im Altbestand, keine Zahlung auf Stufe C, kein Bezahlter ohne Zuständigen — und die Frage, die 15 Tage niemand gestellt hat: **ist der Tageslauf durchgekommen?** Diese eine Prüfung ist derzeit **rot** und soll es bleiben, bis der Betreiber sie grün gemacht hat.
+
+Der Wächter hat sich dabei selbst korrigiert: Sein erster Entwurf meldete „Person 5123 steht auf Stufe C mit bezahlter Bestellung". Nachgesehen — die Ableitung sagt ebenfalls Stufe 3, und zwar zu Recht: Die bezahlte Bestellung ist **archiviert**. Eine Prüfung mit einem weiteren Begriff als die geprüfte Regel meldet Fehler, die es nicht gibt, und ein Wächter mit Fehlalarmen wird abgeschaltet. Er benutzt jetzt `antragBasisSql` — denselben Ausschnitt wie die Regel.
+
+### Buchungsversuche sind jetzt zählbar
+
+„Die Buchung funktioniert unabhängig von der Uhrzeit nicht zuverlässig" war **nicht prüfbar**: Ein Fehlschlag hinterließ eine Konsolenzeile und sonst nichts — keine Häufigkeit, kein Grund, kein Muster über die Uhrzeit.
+
+Migration 062 legt `fiaon_termin_versuche` an. **Jeder** Ausgang der Buchungsroute schreibt eine Zeile, der erfolgreiche auch: 12 Ablehnungen sind bei 15 Versuchen ein Notfall und bei 4.000 ein Rundungsfehler — eine Zahl ohne ihren Bezug ist keine Messung. Gespeichert werden Zeitpunkt, Person, gewählter Slot, Ergebnis, Grund-**Code** und Quelle; Codes bleiben stabil, Texte werden umformuliert.
+
+Die Karte „Buchungsversuche · 7 Tage" steht in der Termin-Zentrale, mit Gründen und einer Aufschlüsselung nach Stunde — die Uhrzeit-Behauptung ist damit direkt prüfbar. Solange nichts aufgelaufen ist, sagt sie das ausdrücklich, statt eine grüne Null zu zeigen: der Unterschied zwischen „ist in Ordnung" und „ich kann es nicht messen".
+
+**Und sofort, unabhängig von der Messung:** Jede Ablehnung nennt dem Kunden einen Grund, den er versteht. Statt „Dieser Termin ist nicht mehr frei" steht dort jetzt, wie viele Zeiten noch zur Auswahl stehen — oder, wenn alle belegt sind, dass er die Seite später neu laden soll. Ein abgelaufener Link sagt, dass sein Ansprechpartner einen neuen schickt. Ein Serverfehler sagt ausdrücklich, dass der Fehler bei uns liegt und nicht bei ihm.
+
+`scripts/pruef-termin-versuche.ts`: **35 Prüfungen** — doppelte Buchung desselben Slots wird abgelehnt, mit Grund-Code, mit einem Text, der zum Handeln auffordert, und mit Protokollzeile. Dazu der Nachweis, dass jeder Grund-Code einen Klartext hat, und eine Quelltext-Prüfung, dass kein Ausgang ohne Protokoll bleibt.
+
+**Keine Slot-Reservierung gebaut** — wie besprochen. Die Messung aus dem Vorlauf hatte gezeigt, dass `slotsVerknappen` auch bei der Buchung läuft: Anzeige und Prüfung sehen dieselbe verengte Liste, der vermutete 5er-Fenster-Effekt ist nicht der Fehler. Eine Reservierung hätte ein Problem gelöst, das nicht existiert, und dabei Slots blockiert.
+
+### Die Termin-Art steht überall
+
+Vier Anzeigen hatten vier eigene Erfindungen aus derselben Spalte: „Kunde hat gebucht", „Nicht erreicht — Terminlink", „Startgespräch", nichts. Keine sagte dem Agenten, worauf er sich einstellt — „Kunde hat gebucht" beschreibt den **Weg**, nicht das Gespräch.
+
+`shared/fiaon-termin-art.ts` leitet aus der Quelle drei Arten ab: **Onboarding** (bezahlt, freischalten), **Vertrieb** (noch nicht bezahlt, beraten), **Rückruf** (selbst notiert). Ein unbekannter Quellwert wird nicht geraten — er läuft auf „Vertrieb" und sagt das im Grund, damit er auffällt.
+
+Sichtbar in Kalender, oberer Leiste, Termin-Zentrale (neue Spalte „Art") und Startgespräch-Liste. Der Weg bleibt daneben stehen: „vom Kunden gebucht" ist verbindlicher als eine eigene Notiz — das soll man weiter sehen, nur nicht **anstelle** der Art.
+
+In den Mail-Payloads `termin_bestaetigung` und `termin_erinnerung` fährt `termin_art` mit, ebenso im Ereignis-Register. **Betreiber-TODO:** in Brevo als `{{params.termin_art}}` einsetzen. Bis dahin wird das Feld übertragen und nicht angezeigt — es schadet nichts und wartet.
+
+### Blockier-Marke im Forderungsmanagement
+
+Der Vertrieb hatte sie, das Inkasso nicht — und gerade dort blockieren Menschen die Nummer. Ohne den Knopf blieb nur „Nicht erreicht", und die Rate kam am nächsten Tag wieder auf den Tisch: Der Agent wählte dieselbe Nummer, die ihn wegdrückt, bis zur Eskalationsstufe.
+
+„Nummer blockiert uns" markiert die Nummer und legt die Rate **30 Tage** still. Nicht `NULL`: Die Arbeitsliste zeigt Raten mit leerer Wiedervorlage sofort wieder an — „aussetzen" heißt hier ein Datum in der Zukunft, nicht das Löschen des Datums.
+
+Eine Feinheit mit Folgen: Alle Ratenergebnisse landen als `rate_<art>` im Verlauf. Dieser eine Fall trägt die **hausweite** Schreibweise `nummer_blockiert`, weil `fiaon-uebergabe.ts` genau darauf abfragt, um zu wissen, bei welchem Kollegen ein Kunde schon blockiert hat. Als `rate_nummer_blockiert` wäre die Tatsache für diese Abfrage unsichtbar gewesen — zwei Schreibweisen für dasselbe, und die Übergabe schickt den Kunden an jemanden, der längst weggedrückt wurde.
+
+### Einweg-Audio: sehen statt vermuten
+
+„Der Kunde nimmt ab, aber es spricht niemand." Das Panel wusste bisher nur, ob das Mikrofon **erlaubt** ist. Erlaubt heißt nicht, dass es liefert: stummes Headset, falsches Eingabegerät, Schalter am Kabel — in allen drei Fällen sagt der Browser „erlaubt" und überträgt Stille.
+
+**Ein Pegelbalken vor dem ersten Anruf.** Keine automatische Prüfung: Stille ist ein zulässiger Zustand, solange niemand spricht. Der Mensch sagt „Test" und sieht in einer halben Sekunde, ob es ankommt. Bernstein bei Stille, nicht Rot — Stille ist ein Hinweis, kein Fehler.
+
+**Eine Warnung im Gespräch**, wenn der Eingang über **10 Sekunden** bei null liegt. Kürzer wäre ein Fehlalarm bei jeder Sprechpause.
+
+**Und der Weg dazu:** ICE- und Verbindungszustände werden am Anruf festgehalten (`failed`, `disconnected`, `connected`) samt Twilios eigenen Warnungen. Bei Einweg-Audio ist typischerweise der Medienpfad in eine Richtung nicht aufgebaut — sichtbar nur im ICE-Zustand, und der lebt im Browser und ist nach dem Auflegen weg. Der Server **deutet nicht**, er hält fest.
+
+### Anrufstatistik — und was sie nicht kann
+
+Die 7-Tage-Tabelle steht in der Termin-Zentrale: Versuche, angenommen, Annahmequote, abgelehnt/besetzt, fehlgeschlagen, ohne Rückmeldung, Ø-Dauer, je Mitarbeiter, je Tag.
+
+**Was sie nicht kann, steht dabei.** Eine echte Klingeldauer ist nicht messbar: Es gibt keinen Zeitstempel für „angenommen", und Twilios `no-answer` und `busy` landen beide auf demselben Wert `abgelehnt`. `dauer_sek` ist die **Gesprächszeit**. Eine erfundene Klingeldauer hätte die Reputationsfrage falsch beantwortet.
+
+Ein Hinweis ist enthalten, kein Urteil: die Zahl der Gespräche unter 5 Sekunden. „Abgenommen und sofort aufgelegt" ist das Muster eines Spam-Verdachts.
+
+**Der Schutz:** Einstellung „max. Anrufe je Nummer je Tag", Vorgabe **100**, 0 = keine Grenze. Sie sitzt in der Route, die den Zugangsausweis ausstellt — ohne ihn kann der Browser nicht wählen. Ein Schutz in der Oberfläche wäre eine Bitte. Der Zähler ist im Panel sichtbar, **bevor** der Knopf nicht mehr geht: Eine Grenze, die erst beim Anschlagen sichtbar wird, ist eine Überraschung.
+
+Migration 063 ergänzt `fiaon_calls.von_nummer`. Die Spalte fehlte: `nummer` ist die **gewählte** Nummer. Alte Zeilen bleiben NULL und werden der heute konfigurierten Nummer zugerechnet — damals gab es genau eine. Ein rückwirkendes Befüllen wäre eine Behauptung über Daten, die wir nicht haben. Sobald eine zweite Nummer dazukommt, trennt die Zählung sauber.
+
+### Der Testkonto-Schalter
+
+Bestätigt: `Justin Schwarzott` trägt die Marke `is_test_account` **zweimal** (Agent 2 und 7), beides echte Konten, angelegt am 04.07.2026. Da jede Team-Ansicht über `echteMitarbeiterSql()` filtert, fallen sie aus der Zentrale, aus den Kennzahlen und aus der Verteilung heraus — sie existieren und kommen nirgends vor.
+
+Ein Skript hätte die zwei Zeilen korrigiert. Aber die Marke wird weiter gesetzt — von jedem Prüfstand, der ein Konto stilllegt —, und irgendwann trifft es wieder ein echtes Konto. Deshalb ein Schalter in der Team-Zentrale, wo der Betreiber das Konto sieht.
+
+Er weckt **kein** stillgelegtes Konto auf: `testkontoStilllegen` setzt drei Dinge (Marke, `active = FALSE`, gelöschtes Passwort). Nur die Marke zurückzunehmen würde ein Konto in die Zentrale holen, das niemand benutzen kann — die Antwort sagt das ausdrücklich. Und greift noch das Namensmuster, steht auch das dabei, statt den Betreiber rätseln zu lassen.
+
+### Wo zu finden
+
+| Datei | Zweck |
+|---|---|
+| `db/migrations/062_termin_versuche.sql` | Protokoll der Buchungsversuche |
+| `db/migrations/063_anruf_absendernummer.sql` | `von_nummer` für die Tagesgrenze |
+| `server/lib/fiaon-termine.ts` | `versuchProtokollieren`, `VERSUCH_GRUND_TEXT` |
+| `scripts/pruef-termin-versuche.ts` | 35 Prüfungen |
+| `shared/fiaon-termin-art.ts` | die drei Arten, an einem Ort |
+| `server/lib/fiaon-inkasso.ts` | `nummer_blockiert` als Ratenergebnis |
+| `client/src/components/Softphone.tsx` | Pegelbalken, Stille-Warnung, ICE-Protokoll |
+| `server/lib/fiaon-softphone.ts` | `nummerKontingent`, `maxAnrufeJeNummer` |
+| `server/routes/fiaon-team.ts` | `POST /admin/agents/:id/testkonto` |
+| `scripts/pruef-stufen-waechter.ts` | der tägliche Wächter |
+
+### Betreiber-TODOs
+
+1. **Der Tageslauf ist seit dem 03.08.2026 nicht durchgekommen** (`followup_last_run`). Die Einstufung läuft jetzt unabhängig davon, aber **Verteilung, Mahn-Staffel und Eskalationen hängen weiter am 6-Uhr-Fenster** — das ist der dringendste Punkt aus diesem Lauf. Der Wächter meldet es täglich. Verdacht: Der Dienst läuft in der 6-Uhr-Stunde (Wien) nicht. Ein Blick in die Render-Uptime beantwortet es.
+2. **`{{params.termin_art}}`** in die Brevo-Vorlagen `termin_bestaetigung` und `termin_erinnerung` aufnehmen.
+3. **Nummern-Reputation prüfen** (tellows, CleverDialer), SHAKEN/CNAM beim Anbieter klären. Twilio-seitige Verdächtige für Einweg-Audio, die nur der Betreiber sehen kann: **Region** des Twilio-Edge (bei DACH-Kunden auf `de1`/`dublin` statt US), **Codec** (Opus gegen PCMU im TwiML) und die **Media-Berechtigungen** des SIP-Trunks. Der ICE-Zustand aus dem Panel sagt jetzt, in welchen Gesprächen es passiert ist — die Ursache steht in Twilios Console daneben.
+4. **Zweite Absendernummer** erwägen. Die Tagesgrenze schützt eine Nummer, ersetzt sie aber nicht.
+5. **Agent 2 und 7** über den neuen Schalter entmarkieren, falls sie im Team erscheinen sollen.
+
+## 30.08.2026 — Teamfeedback, Teil 2: Telefonie, Termine, Stufen
+
+Fortsetzung des Feedback-Auftrags. Reihenfolge nach klarer Spur: erst das Doppelpräfix, dann der hängende Termin-Abschluss, dann Stufen und Betreuer.
+
+### Das Doppelpräfix +49 +49 war ZWEI Fehler, und der zweite war der gefährlichere
+
+Gemeldet: *„Im Forderungsmanagement steht +49 +49 vor der Nummer. Im Vertrieb ist sie richtig."*
+
+Der Unterschied lag nicht in den Daten, sondern im Weg: Der Vertrieb bekommt vom Server ein fertiges Feld, das durch `waehlbareNummer` gelaufen ist. Das Inkasso bekam die Rohwerte und setzte sie in der Oberfläche selbst zusammen — an **zwei** Stellen:
+
+```
+${vorwahl || "+49"}${nummer.replace(/^0/, "")}
+```
+
+Trug die Nummer schon ein „+", entstand `+43+436642204641`. Das `replace(/^0/)` greift nicht, weil die Nummer mit einem Plus beginnt und nicht mit einer Null.
+
+**Gemessen** (`scripts/mess-doppelpraefix.ts`):
+
+| Befund | Zahl |
+|---|---|
+| Zeilen in der Arbeitsliste | 385 |
+| davon mit Doppelpräfix in der Anzeige | **21** |
+| Bestellungen mit Doppelpräfix im Rohwert | 0 |
+| Personen mit Doppelpräfix in `primary_phone` | **39** |
+| Bestellungen mit Nummer **und** getrennter Vorwahl | 3.248 |
+| davon: Nummer trägt schon ein „+" | 20 |
+
+**Der zweite Fehler in derselben Zeile:** Der Rückfall `|| "+49"` hängte eine **deutsche** Vorwahl an **österreichische** Nummern. Bei „Christa Kainz" stand `+436641924910` ohne getrennte Vorwahl — die Oberfläche baute `+49+436641924910`. Hätte man nur das doppelte Plus entfernt, wäre `+4943664…` gewählt worden: ein fremder Teilnehmer. AGENTS.md sagt es seit dem ersten Tag, und `waehlbareNummer` hat dafür Regel 5 — ohne Vorwahl wird die Nummer angezeigt, aber **nicht** wählbar gemacht, und der Grund steht dabei.
+
+Die Arbeitsliste liefert jetzt `telefonAnzeige`, `telefonWaehlbar` und `telefonHinweis` aus derselben Funktion wie der Vertrieb. Beide Stellen in der Oberfläche sind entfernt; wo keine wählbare Nummer existiert, steht der Grund statt eines Knopfes, der ins Leere ruft. Der Bestand ist bereinigt: **39 → 0**, alte Werte als Alias gesichert.
+
+`scripts/pruef-inkasso-nummer.ts`: **40 Prüfungen** über fünf Konstellationen (AT mit/ohne Vorwahl, DE mit Plus, national, `0049`) — jede gegen die echte Antwort der Arbeitsliste, nicht gegen die Hilfsfunktion allein. Ein Prüfstand an `waehlbareNummer` wäre grün geblieben, während der Fehler bestand.
+
+### „Nicht erschienen — bitte abschließen" war eine Aufforderung ohne Handlung
+
+Gemeldet: *„Der Abschluss-Schritt ist nicht erreichbar."*
+
+**Gemessen:** 47 Termine auf `verpasst`, davon **19 mit gesetztem `erledigt_am`** — also abgearbeitet. Sie standen trotzdem im Kalender, mit einem Satz, der eine Handlung verlangte, die es nicht gab: Ein weiterer Klick auf „Nicht erschienen" schrieb denselben Zustand noch einmal, die Karte verschwand kurz und war beim nächsten Laden zurück. Bei **Lucas Böhnert lagen 26** solche Karten.
+
+`verpasst` ist **zwei** Zustände, und die Kalenderabfrage hat sie in einen Topf geworfen:
+
+- `erledigt_am IS NULL` → der 12-Stunden-Nachlauf hat markiert, **kein Mensch** hat es bearbeitet, die Folge-Einladung ist nicht gelaufen. Offene Arbeit — die Karte bleibt.
+- `erledigt_am IS NOT NULL` → geklickt, Fehlversuch gezählt, Folge-Einladung gelaufen. **Fertig** — die Karte geht.
+
+Beide Listen (Kalender und Terminliste) grenzen jetzt so ein, mit demselben Wortlaut. Die alte Begründung („ein verpasster Termin ist Arbeit, nicht Vergangenheit") steht als Kommentar darüber — sie war richtig, sie galt nur für einen der zwei Zustände. Der Text am Termin sagt jetzt, **was** zu tun ist, statt eine Handlung zu verlangen, die nicht existiert.
+
+`scripts/pruef-nicht-erschienen.ts`: **14 Prüfungen** über den ganzen Weg (gebucht → Nachlauf → sichtbar → Klick → weg), plus die Gegenprobe, dass der Abschluss den Fehlversuch **zählt** und nicht bloß versteckt. Rot-Probe mit der alten Bedingung: genau die eine entscheidende Prüfung wird rot.
+
+### Stufen: der gemeldete Fall existiert nicht — ein größerer schon
+
+Gemeldet: *„Kunden mit gemeldeter oder eingegangener Zahlung stehen auf Stufe C."*
+
+**Gemessen: 0.** Die Ableitung kann das nicht: `claimed_paid` → Stufe 1 (A), `paid` → Stufe 0 (Bestandskunde). Aber `priority_tier` ist eine **Spalte**, keine Rechnung — und der Vergleich mit der Ableitung fand **181 Abweichungen**, darunter:
+
+- **142** gespeichert als Stufe 3 (kalt), abgeleitet Stufe 2 („Rechnung offen") — 142 Kunden mit offener Rechnung lagen im kalten Fach.
+- **6** gespeichert als Stufe 0 (bezahlt), abgeleitet Stufe 2 — eine offene Rechnung, verdeckt von einer bezahlten Bestellung.
+
+Der **Kern** der Meldung war also richtig (Kunden im falschen Fach), der genannte Zahlungsstatus nicht. `scripts/tier-backfill.ts --apply` hat **188 Zeilen** nachgezogen, verbleibende Abweichungen **0**. Der Nachzug liegt bereits im Tageslauf (`fiaon-followup.ts`) — dass 188 driften konnten, gehört als Betreiber-TODO in die Beobachtung.
+
+### Bezahlte ohne Betreuer: 88, und die Ursache war eine Zeile mit guter Absicht
+
+**Gemessen:** 88 bezahlte oder gemeldete Personen ohne Zuständigen — und nur **eine** davon hatte einen Agenten an der Bestellung. Es fehlte also wirklich.
+
+`sofortZuteilen` schloss Stufe 0 aus, mit der Begründung „ein Bestandskunde ist aus dem Vertrieb heraus". Wer als Stufe 1 oder 2 zugeteilt worden wäre, ist beim Bezahlen längst zugeteilt; übrig blieben die **Direktzahler**. Für die griff die Zuteilung nie, und nach dem Bezahlen nie wieder. Ein bezahlter Kunde ohne Zuständigen hat niemanden, der sein Startgespräch führt.
+
+Zweiter Fund im selben Zweig: Der **Besitzschutz** lehnte 28 Personen ab („betreut seit … — Besitzschutz"), ohne den Betreuer einzutragen. Diese Stelle wird nur erreicht, wenn `assigned_agent_id` **leer** ist — die Personen blieben also bei niemandem, geschützt für einen Betreuer, der nirgends stand. Der Betreuer ist ableitbar (`betreuerVon`) und wird jetzt nachgetragen.
+
+**Zählprobe: 0 bezahlte Personen ohne Zuständigen.**
+
+### Ein Fehler, den dieser Lauf selbst gemacht hat
+
+Der erste Entwurf des Betreuer-Nachtrags fragte nur „aktiv und kein Testkonto" — und schrieb daraufhin **28 bezahlte Kunden dem Forderungsmanagement zu** (Hans-Jürgen Gerhold, Diana Zeller). Denn `betreuerVon` liest jeden dokumentierten Kontakt, und wer eine Rate eingetrieben hat, steht auch im Verlauf.
+
+Das widerspricht einer Regel, die seit dem 11.08.2026 im Code steht: *„Das Forderungsmanagement hat NUR die Kunden, die ihr Abo nicht bezahlt haben."* Die 28 Zuteilungen sind zurückgenommen und neu verteilt; der Bestand bei Sonderrollen ist wieder bei 3 (dem Stand von vorher).
+
+Aufgefallen ist es an den **Namen im Protokoll** — nicht an einer Prüfung. Deshalb gibt es jetzt eine: `scripts/pruef-zuteilung-rollen.ts`, **21 Prüfungen**, darunter „ein Inkasso-Kontakt macht niemanden zum Vertriebs-Betreuer" und die Gegenprobe „ein Vertriebs-Kontakt wird sehr wohl nachgetragen". Rot-Probe ohne den Rollenfilter: genau die zwei Prüfungen werden rot. Eine Regel, die ich selbst gebrochen habe, braucht keine Erinnerung, sondern eine Wand.
+
+### Die Zahlungsansicht las die falsche Quelle
+
+Gemeldet: *„Zahlung eingegangen — ohne Betreuer."* Teilweise war das ein Anzeigefehler.
+
+**Gemessen** an 662 bezahlten Bestellungen: **59** tragen an der Bestellung einen anderen Agenten als an der Person, und bei **36** hat **nur die Person** einen. Genau diese 36 zeigten „ohne Betreuer", obwohl ein Zuständiger eingetragen war. Die Bestellung führt eine Abschrift der Zuständigkeit, und die läuft nach Zusammenführungen auseinander. Die Suche liest jetzt die **Person** zuerst, die Bestellung als Rückfall, und liefert die Quelle mit.
+
+Dazu die Provision: Von 409 bezahlten Bestellungen haben **244** eine gebuchte Provision, **104** den Vermerk „Direktzahler", **61 weder noch**. Bisher blieb das Feld in allen drei Fällen leer. Jetzt steht dort der Betrag, oder „Direktzahler — keine Provision", oder „kein Vermerk — bitte prüfen". Eine sichtbare Lücke ist ehrlich; eine gefüllte wäre eine Behauptung.
+
+### Wo zu finden
+
+| Datei | Zweck |
+|---|---|
+| `scripts/mess-doppelpraefix.ts` | Anzeigefehler und Datenfehler getrennt gemessen |
+| `scripts/doppelpraefix-bereinigen.ts` | Bestandslauf, Vorschau + `--schreiben`, Alias-Sicherung |
+| `scripts/pruef-inkasso-nummer.ts` | 40 Prüfungen an der echten Arbeitsliste |
+| `server/lib/fiaon-inkasso.ts` | `telefonFelder` — eine Normalisierung für Anzeige und Wahl |
+| `scripts/pruef-nicht-erschienen.ts` | 14 Prüfungen, ganzer Weg + Rot-Probe |
+| `scripts/mess-stufen-betreuer.ts` | Spalte gegen Ableitung, Betreuer-Lücken, Provisionslage |
+| `scripts/bezahlte-ohne-betreuer.ts` | Bestandslauf über `sofortZuteilen` (keine zweite Verteilung) |
+| `scripts/pruef-zuteilung-rollen.ts` | 21 Prüfungen — die Wand gegen die Rollenverwechslung |
+
+### Offen
+
+**Telefonie:** Blockier-Marke im Inkasso-Panel, Einweg-Audio (Mikrofonpegel, ICE/Codec-Log), Erreichbarkeits-Statistik und die Einstellung „max. Anrufe je Nummer je Tag". **Termine:** Termin-Art in jeder Anzeige, Slot-Reservierung für 10 Minuten. Die Fundstellen sind kartiert (u. a.: es gibt **keine** Reservierung, nur den Unique-Index auf `(agent_id, beginn)`; Buchungs-Fehlschläge werden **nirgends** in der Datenbank protokolliert, nur auf die Konsole — eine 7-Tage-Statistik ist ohne neue Tabelle nicht messbar). Ohne Messung wird dort nichts geändert.
+
+### Betreiber-TODOs
+
+1. **Nummern-Reputation prüfen** (tellows, CleverDialer), SHAKEN/CNAM beim Anbieter klären. Die Erreichbarkeits-Meldung (2 von 158) ist ohne die Anrufstatistik nicht zuzuordnen — sie steht noch aus.
+2. **Buchungs-Fehlschläge sind nicht protokolliert.** Für die Auswertung braucht es entweder eine Tabelle oder Zugriff auf die Server-Logs von Render.
+3. **188 Stufen sind gedriftet**, obwohl der Nachzug im Tageslauf liegt. Bitte beobachten, ob der Tageslauf in Produktion durchläuft.
+4. **Zwei echte Konten sind als Testkonto markiert** (`Justin Schwarzott`, ID 2 und 7) — sie fallen aus jeder Team-Ansicht heraus. Unverändert aus dem letzten Lauf.
+
+## 30.08.2026 — Teamfeedback: erst gemessen, dann repariert
+
+Dreizehn Meldungen aus dem Team. Der Auftrag lautete ausdrücklich: nichts anfassen, bevor die Ursache gemessen ist — mehrere Meldungen können dieselbe Wurzel haben. Genau das war der Fall.
+
+### Der Verdacht, der sich NICHT bestätigt hat
+
+Gemeldet war: *„Beim Öffnen/Anrufen verschiedener Kunden erscheinen dieselben Stammdaten (Adresse, E-Mail, Paket)."* Der Verdacht lag auf der Zusammenführung — sie habe über Platzhalter-Werte (0000, info@, Firmennummern) fremde Menschen verschmolzen.
+
+**Gemessen** (`scripts/mess-fehlmerges.ts`, nur lesend):
+
+| Frage | Messwert |
+|---|---|
+| Protokollierte Zusammenführungen | **742** (+55 aus der Zeit vor dem Protokoll) |
+| E-Mail-Werte bei mehr als 3 Personen | **0** |
+| Rufnummern bei mehr als 3 Personen | **61** |
+| … davon mit genau EINEM Nachnamen (Tippfehler zusammengefasst) | **58** — derselbe Mensch, mehrfach angelegt |
+| … davon echte Sammelwerte | **3** (zwei davon Datenmüll im Namensfeld, einer die Attrappe `0701234567`) |
+| Merges über die Attrappen-Nummer | **0** — `istAttrappenNummer` hält sie schon heute |
+| Merges mit gleichem Geburtsdatum auf beiden Seiten | **625** |
+| … Abweichung an einer Stelle (Tippfehler) | **11** |
+| … weitere Abweichung | **9**, davon 6 an einem Testnamen |
+| **Fehl-Merges (zwei verschiedene Menschen)** | **0** |
+
+Die drei Grenzfälle wurden einzeln nachgesehen (Lechner, Richter, Kremer): gleiche Adresse, gleiche Rufnummer, gleiche E-Mail — bei Richter unterscheidet sie sich nur um das abgeschnittene „m" in `outlook.co.`. Es sind dieselben Menschen mit einem vertippten Geburtsdatum.
+
+**Wichtig für die Einordnung:** Die Häufigkeitszählung war im ersten Entwurf wertlos. Sie zählte nur *lebende* Personen und meldete „kein Wert kommt öfter als zweimal vor" — was wie ein sauberer Bestand aussah und das Gegenteil eines Befundes war: Wenn ein Wert fünf Sätze verschmolzen hat, steht er danach an EINER lebenden Person. Die Zusammenführung löscht die Häufigkeit, die sie verursacht hat. Gezählt wird jetzt über alle Personensätze einschließlich der Wegweiser.
+
+**Es wurde deshalb nichts getrennt.** Ein Undo über 742 Merges hätte 742 Dubletten erzeugt, um ein Problem zu lösen, das es nicht gibt.
+
+### Die echte Ursache der Meldung
+
+Sie stand im Telefon-Panel (`client/src/components/Softphone.tsx`): Der Ladewächter für die Gesprächsdaten hieß `!gespraechsDaten`, und die Abhängigkeitsliste des Effekts nannte nur den Gesprächszustand. Nach dem **ersten** Anruf war das Feld gefüllt — damit war die Bedingung für jeden weiteren Anruf falsch, und es wurde nie wieder geladen. Zurückgesetzt hat es niemand: die Setz-Funktion kam im ganzen Bauteil genau einmal vor.
+
+**Jeder Anruf ab dem zweiten zeigte die Daten des ersten Kunden** — und zwar genau die fünf Felder aus der Meldung: Paket, Offen, Verwendungszweck, E-Mail, Ort.
+
+Der naheliegende Weg wäre gewesen, an alle acht Stellen, die den Kunden wechseln, ein Zurücksetzen zu hängen. Das ist die Regel, die drei Oberflächen einzeln kennen müssen — an der vierten wird sie vergessen. Stattdessen **trägt der Datensatz jetzt, zu wem er gehört**, und die Anzeige vergleicht das mit dem aktuellen Kunden. Ein vergessenes Zurücksetzen kann keine fremden Stammdaten mehr einblenden.
+
+### Zwei Meldungen, eine Zeile
+
+Gemeldet waren zwei verschiedene Dinge:
+
+- *„E-Mail ergänzt / Paket angelegt — der Zahlungsdaten-Versand bleibt trotzdem gesperrt."*
+- *„Produkt anlegen: keine Bestellung vorhanden."*
+
+Beide kamen aus **einer fehlenden Zeile**. Die Oberfläche leitet den Sperrgrund aus den Buchungen der Karte ab. Dieses Feld lieferte nur die *Listen*-Abfrage — die Antwort für die *einzelne* Karte kannte es nicht. Nach jeder Änderung lädt die Oberfläche die Karte einzeln nach und ersetzte damit eine gefüllte Buchungsliste durch `undefined`.
+
+**Die Aktualisierung hat die Daten nicht bloß nicht erneuert — sie hat sie gelöscht.** Deshalb wurde es schlimmer, je mehr der Agent tat: Wer die E-Mail nachtrug, sperrte sich damit den Versand. Und der Produkt-Dialog, der sich eine Referenz aus denselben Buchungen holt, meldete „keine Bestellung".
+
+`kartePayload` liefert die Buchungen jetzt durch **dieselbe** Aufbereitungsfunktion wie die Liste. `scripts/pruef-karte-buchungen.ts` prüft das über echtes HTTP mit einem Testkonto (10 Prüfungen). Die Rot-Probe: Ohne die Zeile werden genau 6 Prüfungen rot, darunter „Der Produkt-Dialog findet eine Referenz" — der Beweis, dass beide Meldungen dieselbe Wurzel hatten.
+
+### Ein Mensch, ein Forderungsmanager
+
+Gemeldet: *„Ein Kunde steht bei Hans UND bei Diana."* Das war kein Anzeigefehler, sondern ein Entwurfsfehler: Die Zuteilung verteilte pro **Rate** an den mit der kleinsten Last. Ein Kunde mit mehreren offenen Raten landete dadurch bei zwei Menschen.
+
+**Gemessen:** 7 Personen mit offenen Raten bei zwei Zuständigen — jedes Mal im Muster „Hans-Jürgen 1 Rate, Diana der Rest". Für den Kunden heißt das zwei Mahnanrufe von zwei Fremden, die nichts voneinander wissen.
+
+Die Regel gilt jetzt auf **Personen**-Ebene: Hat die Person schon einen Zuständigen, folgen alle weiteren Raten diesem Menschen; erst wenn sie niemanden hat, greift die kleinste Last. Und die Last wächst nur bei einer neuen Person — sonst würde ein Kunde mit zwölf Raten die Mannschaft zwölffach belasten. Die alte Regel steht im Wortlaut im Kommentar darüber; sie war nicht dumm, sie hatte eine Folge, die niemand wollte.
+
+`scripts/inkasso-eine-zustaendigkeit.ts` hat den Bestand nachgezogen: 7 Raten umgehängt, Zählprobe **0 Personen mit mehr als einem Zuständigen**, jede Akte mit Verlaufseintrag.
+
+### Zwei Zuständigkeiten, zwei Beschriftungen
+
+Gemeldet: *„Diana & Nikita gleichzeitig."* Beides stimmte — ein Mensch hat eine Betreuung im Vertrieb und ein Forderungsmanagement. Nur stand an sieben Stellen „betreut von X" ohne Rolle, und zwei Namen ohne Beschriftung lesen sich wie ein Widerspruch.
+
+Die Wörter stehen jetzt einmal in `shared/fiaon-zustaendigkeit-text.ts` und werden gelesen: **„Betreuung Vertrieb"** und **„Forderungsmanagement"**, beide immer beschriftet. Ein fehlender Name wird „niemand" — ein leeres Feld sieht wie ein Anzeigefehler aus, „niemand" ist eine Aussage. Die Kundenakte zeigt beide Felder nebeneinander; dafür liefert die Akten-Route den Inkasso-Zuständigen mit.
+
+### Die Regel für die Zusammenführung ist härter — aber nicht dümmer
+
+Beauftragt waren drei Verschärfungen. Eine davon wurde **nach Messung verworfen**: „Auto-Merge nur, wenn der Match-Wert im Bestand eindeutig ist" hätte 58 der 61 mehrfach belegten Rufnummern blockiert — also genau die Fälle, für die das Werkzeug gebaut wurde („Laschinger" liegt 20-mal mit derselben Nummer). Eine Bremse, die bei jedem zweiten Fall grundlos auslöst, schaltet nach dem zweiten Lauf jemand ab.
+
+Eingebaut ist die **Widerspruchs-Wand**: Vor allen Kriterien wird geprüft, ob ein hartes Zweitmerkmal *widerspricht* — Nachname, Geburtsdatum (ab zwei abweichenden Stellen; eine ist ein Tippfehler), oder Straße **und** PLZ gemeinsam. Trifft das zu, entsteht keine automatische Zusammenführung; das Paar bleibt Kandidat für einen Menschen und der Ausschlussgrund nennt das Merkmal.
+
+„Widerspricht" statt „muss übereinstimmen" ist gemessen: Die strenge Fassung hätte 27 Merges verhindert, 4 davon nur, weil ein Nachname *fehlte*. Eine Lücke ist keine Aussage — genau so behandelt die Maschine seit dem ersten Tag die Vornamen. Insgesamt macht die Wand **52 von 742** Merges (7 %) zu Kandidaten.
+
+Der Prüfstand fand dabei sofort eine eigene Lücke: „Wien Wien" (eine Stadt in beiden Namensfeldern) gegen „Milan Acimovic" ist derselbe Mensch, und der Lauf übernimmt danach ausdrücklich den saubereren Namen. Ein strenger Nachnamen-Vergleich hätte diese Reparatur verhindert — zwei Prüfungen, die es seit Wochen gibt, wurden rot. **Ein unbrauchbarer Name widerspricht deshalb nicht**; die Formbewertung, die es schon gab, entscheidet das.
+
+8 neue Prüfungen in `scripts/pruef-massen-merge.ts` (92 grün). Rot-Probe: Ohne die Wand werden 5 rot, und die drei „muss trotzdem zusammengeführt werden"-Prüfungen bleiben grün.
+
+### Was gemessen wurde und KEIN Fehler war
+
+*„Lucas sieht nur Leads."* Gemessen: Lucas hat **1.154 Kunden** zugewiesen, davon **879 in der Tagesliste** — dieselbe Größenordnung wie seine Kollegen (888, 945, 895). Sein Konto ist aktiv, nicht als Testkonto markiert, in der Verteilung. Die Standard-Sortierung stellt Leads ausdrücklich **nach hinten**.
+
+Was auffällt: **785 seiner 879** Tageslisten-Einträge sind Stufe C („nur Lead") — 89 %, der höchste Anteil im Team (Kollegen: 74–85 %). Das erklärt den Eindruck, beweist aber keinen Fehler im Sichtfeld. Für eine Ursache braucht es seinen Bildschirm: gespeicherte Filterwahl im Browser oder die Seite, die er benutzt. **Nicht geraten, nicht „reparieren"** — ein Fix ohne Ursache hätte hier 1.154 Kunden bewegt.
+
+### Nebenbefund für den Betreiber
+
+Zwei **echte** Konten sind als Testkonto markiert: `Justin Schwarzott` (ID 2 und 7). Jede Team-Ansicht filtert über `echteMitarbeiterSql()` — diese beiden fallen dort heraus. Das ist keine Änderung aus diesem Lauf, sondern ein Fund; die Marke gehört geprüft.
+
+### Wo zu finden
+
+| Datei | Zweck |
+|---|---|
+| `scripts/mess-fehlmerges.ts` | Audit aller Zusammenführungen, Häufigkeitsanalyse, CSV in `reports/` |
+| `scripts/mess-merge-regel.ts` | Wirkung der Regelverschärfung auf die 742 Merges (ruft die echte Funktion) |
+| `server/lib/fiaon-massen-merge.ts` | `harterWiderspruch` — die Widerspruchs-Wand |
+| `scripts/pruef-massen-merge.ts` | 92 Prüfungen, davon 8 neue für die Wand |
+| `client/src/components/Softphone.tsx` | Gesprächsdaten gehören zum Kunden, nicht zur Sitzung |
+| `server/routes/fiaon-agent-kunden.ts` | `kartePayload` liefert Buchungen |
+| `scripts/pruef-karte-buchungen.ts` | 10 Prüfungen über echtes HTTP |
+| `server/lib/fiaon-inkasso.ts` | Zuteilung auf Personen-Ebene |
+| `scripts/inkasso-eine-zustaendigkeit.ts` | Bestandslauf, Vorschau + `--schreiben` |
+| `shared/fiaon-zustaendigkeit-text.ts` | Die zwei Beschriftungen, an einem Ort |
+
+### Offen (nicht angefasst, weil nicht gemessen)
+
+Telefonie (Doppelpräfix im Inkasso, Blockier-Marke, Einweg-Audio, Erreichbarkeit 2/158), Termine (Buchungs-Fehlschläge, Termin-Art, „nicht erschienen"), Stufen-Erzwingung bei Zahlung und Betreuer-Lücken. Die Fundstellen sind kartiert, aber ohne Messung wird hier nichts geändert — das war die erste Regel dieses Auftrags.
+
 ## 23.08.2026 — Die Zweig-Prüfung hat Geduld gelernt
 
 ### Der Befund

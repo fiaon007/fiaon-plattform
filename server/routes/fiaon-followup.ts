@@ -293,16 +293,107 @@ export async function runFollowUpTageslauf(opts: { force?: boolean } = {}): Prom
 
   // Stunde in Europe/Vienna — NICHT die Serverzeit. Render läuft in UTC; ohne
   // Zeitzone wäre der Lauf im Sommer um 08:00 und im Winter um 07:00 Ortszeit.
+  //
+  // Sie ist seit dem 30.08.2026 keine SPERRE mehr, sondern nur noch die
+  // bevorzugte Zeit: Sie steht in der Meldung, damit im Protokoll erkennbar
+  // bleibt, ob der Lauf zur gewünschten Stunde kam oder nachgeholt wurde.
   const wienStunde = Number(
     new Intl.DateTimeFormat("de-AT", { timeZone: "Europe/Vienna", hour: "numeric", hour12: false })
       .format(new Date()),
   );
+  const zurGewuenschtenStunde = wienStunde === LAUF_STUNDE;
   const heute = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Vienna" }).format(new Date());
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIE EINSTUFUNG LÄUFT VOR DEN SPERREN — BEI JEDEM TAKT (30.08.2026)
+  //
+  // ── DER BEFUND ────────────────────────────────────────────────────────────
+  // Am 30.08.2026 wichen 188 gespeicherte Stufen von der Ableitung ab, darunter
+  // 142 Kunden mit OFFENER RECHNUNG im kalten Fach. Der Nachzug lag längst hier
+  // im Tageslauf — er ist nur nie gelaufen:
+  //
+  //   `followup_last_run` stand auf 2026-08-03, während der Kalender den
+  //   18.08.2026 zeigte. FÜNFZEHN TAGE.
+  //
+  // GEMESSEN, dass es nicht die Funktion war: `alleTierAktualisieren` direkt
+  // aufgerufen läuft durch und schreibt genau die abweichenden Zeilen. Der
+  // 20-Minuten-Takt lebt auch (`runVerpassteTermine` hat am 18.08. um 02:53
+  // Termine markiert). Es waren die drei Rückgaben ÜBER diesem Block: Der Lauf
+  // darf nur in der 6-Uhr-Stunde (Wien) weitermachen. Wer in dieser einen
+  // Stunde nicht läuft — Neustart, Deploy, ein schlafender Dienst —, hat den
+  // Tag verloren. Und mit ihm die Einstufung.
+  //
+  // ── DIE TRENNUNG ──────────────────────────────────────────────────────────
+  // Zwei Dinge waren in einem Zeitfenster zusammengebunden, die nicht
+  // zusammengehören:
+  //
+  //   · Die VERTEILUNG und die Mahn-Staffel dürfen genau einmal am Tag laufen.
+  //     Zweimal hieße zwei Mails an denselben Menschen. Das Fenster ist richtig.
+  //   · Die EINSTUFUNG ist eine Korrektur. Sie ist idempotent, sie schreibt nur
+  //     abweichende Zeilen, und sie kostet eine Abfrage. Sie an ein Tagesfenster
+  //     zu binden heißt: Ein verpasstes Fenster kostet einen Tag falscher
+  //     Arbeitslisten — und bei fünfzehn verpassten Fenstern liegen 142 Kunden
+  //     mit offener Rechnung im kalten Fach.
+  //
+  // Deshalb steht die Einstufung jetzt VOR den Sperren und läuft bei jedem
+  // Takt. Sie braucht den Lock nicht: Zwei gleichzeitige Läufe schreiben
+  // dasselbe Ergebnis.
+  //
+  // Der Fehler wird NICHT mehr verschluckt. Vorher hing ein `.catch()` daran,
+  // das nur auf die Konsole schrieb — ein stiller Programmfehler hätte genau
+  // diesen Schaden erzeugt, ohne dass jemand es merkt. Jetzt wird gezählt.
+  // ══════════════════════════════════════════════════════════════════════════
+  try {
+    const { alleTierAktualisieren } = await import("../lib/tier");
+    const t = await alleTierAktualisieren(sqlPool);
+    if (t.geaendert > 0) {
+      console.log(`[FIAON-FOLLOWUP] Einstufung nachgezogen: ${t.geaendert} Person(en).`);
+    }
+  } catch (e) {
+    // Ein Fehler hier ist ein FEHLER, keine Randnotiz: Ohne aktuelle Einstufung
+    // arbeitet das ganze Haus auf veralteten Listen.
+    console.error("[FIAON-FOLLOWUP] !! Einstufung fehlgeschlagen — Arbeitslisten "
+      + "veralten, bis das behoben ist:", e);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // FÄLLIGKEIT STATT UHRZEIT (30.08.2026)
+  //
+  // Hier stand:
+  //     if (wienStunde !== LAUF_STUNDE) return …
+  //
+  // Der Gedanke war richtig: Mahnungen und Zuteilungen sollen morgens laufen,
+  // nicht mitten am Tag. Die Folge war es nicht. Wer in dieser EINEN Stunde
+  // nicht lebt — Neustart, Deploy, ein schlafender Dienst —, hat den Tag
+  // verloren. Und den nächsten, und den übernächsten: GEMESSEN standen
+  // `followup_last_run` und der Kalender fünfzehn Tage auseinander.
+  //
+  // Ein Fenster ohne Nachhol-Logik ist eine Wette darauf, dass der Server zur
+  // richtigen Minute wach ist. Diese Wette hat das Haus fünfzehn Tage lang
+  // verloren, ohne es zu merken.
+  //
+  // ── DIE NEUE BEDINGUNG ────────────────────────────────────────────────────
+  // „Liegt der letzte ERFOLGREICHE Durchlauf mehr als 20 Stunden zurück?" Damit
+  // läuft er weiter einmal am Tag — aber wenn er den Morgen verpasst, holt der
+  // nächste Takt ihn nach, und zwar GENAU EINMAL.
+  //
+  // Die Morgenstunde bleibt als BEVORZUGUNG: Ist der letzte Erfolg noch keine
+  // 20 Stunden her, passiert nichts. Ist er älter und es ist die 6-Uhr-Stunde,
+  // läuft er sofort. Ist er älter und die Stunde ist vorbei, läuft er trotzdem
+  // — lieber um 14 Uhr als gar nicht.
+  //
+  // 20 statt 24 Stunden: Bei exakt 24 würde ein Lauf, der heute um 06:05
+  // erfolgreich war, morgen um 06:00 als „noch nicht fällig" gelten und erst
+  // übermorgen wieder laufen. Die Stunde wandert dann täglich nach hinten.
+  const FAELLIG_NACH_STUNDEN = 20;
   if (!opts.force) {
-    if (wienStunde !== LAUF_STUNDE) return { ...leer, grund: `nicht ${LAUF_STUNDE} Uhr (Wien: ${wienStunde})` };
-    const s = await getSettings();
-    if (s.followup_last_run === heute) return { ...leer, grund: "heute bereits gelaufen" };
+    const { istFaellig } = await import("../lib/fiaon-crons");
+    if (!(await istFaellig("followup-und-termine-tageswerk", FAELLIG_NACH_STUNDEN))) {
+      return { ...leer, grund: `noch nicht fällig (letzter Erfolg unter ${FAELLIG_NACH_STUNDEN} h)` };
+    }
+    // Der alte Merker bleibt bestehen und wird weiter geschrieben — die
+    // Zahlungsansicht und der Wächter lesen ihn. Er ist ab jetzt eine
+    // ABSCHRIFT der Historie, nicht mehr die Sperre.
   }
 
   if (!(await holeLock("followup_lock"))) {
@@ -310,14 +401,13 @@ export async function runFollowUpTageslauf(opts: { force?: boolean } = {}): Prom
   }
 
   try {
-    // 0 · Einstufung auf Stand bringen — VOR jeder Zuweisung.
+    // 0 · Die Einstufung ist oben schon gelaufen — VOR jeder Zuweisung.
     //
     // Der Tageslauf verteilt Tier-1-Personen. Läuft er auf veralteten Tiers, gibt
     // er bezahlte Kunden an Agenten weiter — genau das ist am 05.08.2026
     // passiert: Ein Kunde zahlte bei Daniel und landete anschließend in
-    // Florentines Liste. Die Einstufung MUSS also vor der Verteilung stehen.
-    const { alleTierAktualisieren } = await import("../lib/tier");
-    await alleTierAktualisieren(sqlPool).catch((e) => console.error("[FIAON-FOLLOWUP] Tier:", e));
+    // Florentines Liste. Die Reihenfolge „Einstufung vor Verteilung" gilt
+    // deshalb weiter; sie steht jetzt nur nicht mehr hinter dem Tagesfenster.
 
     // 1 · Auto-Assign für herrenlose Tier-1-Personen
     const herrenlos = (await sqlPool`
@@ -400,6 +490,23 @@ export async function runFollowUpTageslauf(opts: { force?: boolean } = {}): Prom
       ON CONFLICT (key) DO UPDATE SET value = ${heute}, updated_at = NOW()
     `;
 
+    // ── DER ERFOLG GEHT IN DIE HISTORIE ───────────────────────────────────
+    // Unter EIGENEM Namen, nicht unter „followup-und-termine": Dieser Name
+    // gehört dem 20-Minuten-Takt, der auch Termin-Erinnerungen und den Space
+    // bedient und alle 20 Minuten Erfolg meldet. Würde das Tageswerk denselben
+    // Namen benutzen, wäre es nach dem ersten Takt für 20 Stunden „nicht
+    // fällig" — und liefe nie wieder.
+    //
+    // Zwei Läufe, zwei Namen. Die Ampel zeigt beide getrennt, und genau das
+    // will man sehen: Der Takt kann laufen, während das Tageswerk steht.
+    await sqlPool`
+      INSERT INTO fiaon_lauf_historie (name, ergebnis, begonnen, beendet, dauer_ms, meldung)
+      VALUES ('followup-und-termine-tageswerk', 'erfolg', NOW(), NOW(), 0,
+              ${`${autoAssign} zugeteilt, ${eskaliert.length} eskaliert, `
+                + `Nachschub ${nach.tier1}/${nach.tier2}/${nach.tier3}`
+                + (zurGewuenschtenStunde ? "" : ` (nachgeholt um ${wienStunde} Uhr)`)})
+    `.catch((e) => console.error("[FIAON-FOLLOWUP] Historie:", e));
+
     const ergebnis: Tageslauf = {
       ausgefuehrt: true,
       heuteFaellig: z.heute_faellig,
@@ -449,12 +556,13 @@ export async function runTerminErinnerungen(): Promise<number> {
       WHERE t.status = 'gebucht' AND t.erinnert_am IS NULL
         AND t.beginn BETWEEN NOW() AND NOW() + INTERVAL '24 hours'
     )
-    RETURNING id, person_id, agent_id, beginn, storno_token
+    RETURNING id, person_id, agent_id, beginn, storno_token, quelle
   `) as any[];
   if (faellig.length === 0) return 0;
 
   const { versendenUndProtokollieren } = await import("../lib/fiaon-mail-log");
   const { berlinDatumText, berlinUhrzeit, stornoLink } = await import("../lib/fiaon-termine");
+  const { terminArtAusQuelle } = await import("../../shared/fiaon-termin-art");
   let versandt = 0;
   let fehlgeschlagen = 0;
   let nochmal = 0;
@@ -484,6 +592,10 @@ export async function runTerminErinnerungen(): Promise<number> {
         agent_vorname: String(p.agent_vorname || "Ihr Ansprechpartner"),
         termin_datum: berlinDatumText(t.beginn),
         termin_uhrzeit: berlinUhrzeit(t.beginn),
+        // Die Terminart, aus derselben Ableitung wie die Bestätigung und die
+        // Oberfläche. BETREIBER-TODO: als {{params.termin_art}} in die
+        // Brevo-Vorlage aufnehmen.
+        termin_art: terminArtAusQuelle(t.quelle).text,
         storno_link: t.storno_token ? stornoLink(String(t.storno_token)) : "",
         // Derselbe fertige Satz wie in der Bestätigung — für
         // {{params.hinweis_anruf}} in der Brevo-Vorlage. In der Erinnerung ist
@@ -562,6 +674,25 @@ import { tageslauf } from "../lib/fiaon-crons";
 // Eine Regel, die an fünf Stellen anders geschrieben ist, ist keine Regel. Ab
 // jetzt geht jeder Lauf durch `tageslauf` — dort steht die Bremse EINMAL, und
 // eine neue Aufrufstelle kann sie nicht vergessen.
+// ═══════════════════════════════════════════════════════════════════════════
+// DER WÄCHTER ÜBER DEN WÄCHTERN (30.08.2026)
+//
+// Er hängt am selben 20-Minuten-Takt wie der Folgelauf und prüft, ob ein
+// registrierter Lauf zu lange ausgeblieben ist. Bleibt einer aus, geht eine
+// Mail an den Betreiber und ein Eintrag ins Protokoll.
+//
+// ── WARUM ER NICHT SEIN EIGENER TAGESLAUF IST ─────────────────────────────
+// Ein Wächter, der sich selbst überwachen müsste, verschiebt das Problem nur um
+// eine Ebene. Er hängt deshalb an einem Takt, der ohnehin läuft — und wenn
+// DIESER Takt steht, steht die ganze Automatik, und das merkt man an allem
+// anderen. Ein eigener Lauf hätte genau dieselbe Ausfallart wie das, was er
+// bewacht.
+tageslauf("laeufe-ueberwachen", () => {
+  void import("../lib/fiaon-crons")
+    .then((m) => m.laeufeUeberwachen())
+    .catch((err) => console.error("[CRONS] Überwachung:", err));
+}, 20 * 60 * 1000);
+
 tageslauf("followup-und-termine", () => {
   runFollowUpTageslauf().catch((err) => console.error("[FIAON-FOLLOWUP] Tageslauf:", err));
   // Die Terminerinnerung hängt NICHT am 6-Uhr-Tageslauf: Ein Termin um 09:20

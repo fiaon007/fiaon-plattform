@@ -400,7 +400,12 @@ export async function personTierAktualisieren(
   //
   // Der dynamische Import hält den Kreis auf: fiaon-zuteilung liest keine
   // Einstufung, aber tier.ts wird von halb Haus importiert.
-  if ([1, 2].includes(Number(neu.priority_tier))) {
+  // Stufe 0 ist seit dem 30.08.2026 dabei: Wer ohne vorherige Stufe bezahlt
+  // (Direktzahler), wurde vorher NIE zugeteilt und danach nie wieder — gemessen
+  // 88 bezahlte Personen ohne Zuständigen. Die Entscheidung, wer davon eine
+  // Zuteilung verdient, steht in `sofortZuteilen`; hier steht nur, wann gefragt
+  // wird. Zwei Filter für dieselbe Frage wären zwei Wahrheiten.
+  if ([0, 1, 2].includes(Number(neu.priority_tier))) {
     const { sofortZuteilen } = await import("./fiaon-zuteilung");
     await sofortZuteilen(personId, sql);
   }

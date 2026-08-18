@@ -276,9 +276,56 @@ export function Softphone() {
   // ── DIE KUNDENDATEN FÜRS GESPRÄCH ──────────────────────────────────────
   // „Während des Anrufs kann ich die Stammdaten nicht vernünftig einsehen."
   // Erst beim Verbinden geholt, damit die Wähltastatur nicht wartet.
-  const [gespraechsDaten, setGespraechsDaten] = useState<any>(null);
+  //
+  // ── WARUM HIER EINE PERSONEN-KENNUNG DANEBEN STEHT (30.08.2026) ─────────
+  // Meldung des Teams: „Beim Öffnen/Anrufen verschiedener Kunden erscheinen
+  // dieselben Stammdaten (Adresse, E-Mail, Paket)." Der Verdacht lag auf einer
+  // Fehl-Zusammenführung. GEMESSEN: 742 Merges nachgerechnet, kein einziger
+  // hat zwei verschiedene Menschen verschmolzen. Die Ursache stand hier:
+  //
+  //   Der Ladewächter hieß `!gespraechsDaten` und die Abhängigkeitsliste des
+  //   Effekts nur `[zustand]`. Nach dem ERSTEN Gespräch war das Feld gefüllt —
+  //   damit war die Bedingung für jeden weiteren Anruf falsch, und es wurde
+  //   nie wieder geladen. Zurückgesetzt hat es niemand: `setGespraechsDaten`
+  //   kam im ganzen Bauteil genau einmal vor. Jeder Anruf ab dem zweiten zeigte
+  //   die Daten des ERSTEN Kunden — und zwar genau die fünf Felder aus der
+  //   Meldung (Paket, Offen, Verwendungszweck, E-Mail, Ort).
+  //
+  // Der naheliegende Weg wäre, an alle acht `setKunde`-Stellen ein Zurücksetzen
+  // zu hängen. Das ist die Regel, die drei Oberflächen einzeln kennen müssen —
+  // an der vierten wird sie vergessen. Stattdessen trägt der Datensatz, ZU WEM
+  // er gehört. Die Anzeige vergleicht das mit dem aktuellen Kunden: Passt es
+  // nicht, wird nichts gezeigt. Ein vergessenes Zurücksetzen kann damit keine
+  // fremden Stammdaten mehr einblenden.
+  const [gespraechsDaten, setGespraechsDaten] = useState<{ personId: number; kunde: any } | null>(null);
   // Der Stand des Mikrofonrechts. Wird VOR dem ersten Wählversuch geklärt.
   const [mikrofon, setMikrofon] = useState<"offen" | "erlaubt" | "verweigert">("offen");
+  // ══════════════════════════════════════════════════════════════════════════
+  // DER MIKROFONPEGEL — GEGEN „KUNDE NIMMT AB, HÖRT NICHTS"
+  //
+  // ── DIE MELDUNG (Team, 30.08.2026) ────────────────────────────────────────
+  // „Der Kunde nimmt ab, aber es spricht niemand."
+  //
+  // ── WARUM EIN BALKEN UND KEINE PRÜFUNG ───────────────────────────────────
+  // Das Panel wusste bisher nur, ob das Mikrofon ERLAUBT ist. Erlaubt heißt
+  // nicht, dass es liefert: Ein stummgeschaltetes Headset, ein falsch gewähltes
+  // Eingabegerät, ein Mikrofonschalter am Kabel — in allen drei Fällen sagt der
+  // Browser „erlaubt" und überträgt Stille. Der Agent merkt es erst, wenn der
+  // Kunde auflegt.
+  //
+  // Eine automatische Prüfung („ist das Mikro in Ordnung?") kann das nicht
+  // beantworten: Stille ist ein zulässiger Zustand, solange niemand spricht.
+  // Deshalb ein BALKEN — der Mensch sieht in einer halben Sekunde, ob sein
+  // Sprechen ankommt, und braucht dafür kein Urteil des Programms.
+  //
+  // ── UND EINE WARNUNG, DIE ZÄHLT ──────────────────────────────────────────
+  // Im GESPRÄCH wird gezählt, wie lange der Eingang bei null liegt. Zehn
+  // Sekunden Stille sind im Gespräch kein Zufall mehr — dann kommt die Warnung.
+  // Kürzer wäre ein Fehlalarm bei jeder Pause.
+  // ══════════════════════════════════════════════════════════════════════════
+  const [pegel, setPegel] = useState<number | null>(null);
+  const [stilleSek, setStilleSek] = useState(0);
+  const pegelKette = useRef<{ ctx: AudioContext; strom: MediaStream; timer: number } | null>(null);
   // Hat das SDK schon einen Fehler MIT Twilio-Code gemeldet? Dann bleibt der
   // stehen — ein Code ist genauer als jede Vermutung.
   const codeGesehen = useRef(false);
@@ -316,13 +363,27 @@ export function Softphone() {
     return () => window.removeEventListener("fiaon-anrufen", hoer);
   }, []);
 
+  // Die Stammdaten des Menschen, der GERADE in der Leitung ist. Die
+  // Abhängigkeitsliste nennt `kunde?.personId` ausdrücklich — ohne sie lief der
+  // Effekt beim Kundenwechsel nicht erneut (siehe die Begründung am Zustand).
+  const gespraechsPersonId = kunde?.personId ?? null;
   useEffect(() => {
-    if (zustand === "gespraech" && kunde?.personId && !gespraechsDaten) {
-      void fetch(`/api/fiaon/telefon/kunde/${kunde.personId}`, { credentials: "include" })
-        .then((r) => r.json())
-        .then((j) => { if (j?.ok) setGespraechsDaten(j.kunde); })
-        .catch(() => {});
-    }
+    if (zustand !== "gespraech" || !gespraechsPersonId) return;
+    // `abgebrochen` fängt den Wettlauf: Wechselt der Agent den Kunden, während
+    // die Antwort noch unterwegs ist, darf sie nicht mehr ankommen. Dasselbe
+    // Muster wie bei der Nummernauflösung weiter unten.
+    let abgebrochen = false;
+    void fetch(`/api/fiaon/telefon/kunde/${gespraechsPersonId}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (abgebrochen || !j?.ok) return;
+        setGespraechsDaten({ personId: gespraechsPersonId, kunde: j.kunde });
+      })
+      .catch(() => {});
+    return () => { abgebrochen = true; };
+  }, [zustand, gespraechsPersonId]);
+
+  useEffect(() => {
     if (zustand === "gespraech") {
       uhr.current = setInterval(() => setSekunden((s) => s + 1), 1000);
     } else if (uhr.current) {
@@ -331,6 +392,67 @@ export function Softphone() {
     }
     return () => { if (uhr.current) clearInterval(uhr.current); };
   }, [zustand]);
+
+  // ── DIE PEGELMESSUNG ──────────────────────────────────────────────────────
+  // Sie läuft, wenn das Panel offen ist und das Mikrofon erlaubt ist — also
+  // VOR dem ersten Anruf und während des Gesprächs. Nicht dauerhaft im
+  // Hintergrund: Ein offener Audiostrom zeigt in manchen Browsern ein
+  // Aufnahme-Symbol, und ein Symbol ohne Anlass beunruhigt.
+  useEffect(() => {
+    const aus = () => {
+      const k = pegelKette.current;
+      if (!k) return;
+      window.clearInterval(k.timer);
+      for (const t of k.strom.getTracks()) t.stop();
+      void k.ctx.close().catch(() => {});
+      pegelKette.current = null;
+      setPegel(null);
+      setStilleSek(0);
+    };
+
+    if (!offen || mikrofon !== "erlaubt") { aus(); return aus; }
+    if (pegelKette.current) return;
+
+    let abgebrochen = false;
+    void (async () => {
+      try {
+        const strom = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (abgebrochen) { for (const t of strom.getTracks()) t.stop(); return; }
+        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+        const ctx = new Ctx();
+        const quelle = ctx.createMediaStreamSource(strom);
+        const messer = ctx.createAnalyser();
+        messer.fftSize = 512;
+        quelle.connect(messer);
+        const daten = new Uint8Array(messer.frequencyBinCount);
+
+        const timer = window.setInterval(() => {
+          messer.getByteTimeDomainData(daten);
+          // Effektivwert (RMS) um die Mittellinie 128. Ein Spitzenwert würde bei
+          // jedem Tastenklick ausschlagen; der Effektivwert zeigt Sprache.
+          let summe = 0;
+          for (const v of Array.from(daten)) {
+            const a = (v - 128) / 128;
+            summe += a * a;
+          }
+          const rms = Math.sqrt(summe / daten.length);
+          // Auf 0–100 gedehnt: Sprache liegt roh bei 0,02–0,2, das wäre als
+          // Balken nicht zu sehen.
+          const wert = Math.min(100, Math.round(rms * 400));
+          setPegel(wert);
+          setStilleSek((s) => (wert <= 1 ? s + 0.2 : 0));
+        }, 200);
+
+        pegelKette.current = { ctx, strom, timer };
+      } catch {
+        // Kein Pegel ist kein Fehler, den der Agent lösen muss — der
+        // Mikrofon-Knopf daneben sagt schon, was zu tun ist.
+        setPegel(null);
+      }
+    })();
+
+    return () => { abgebrochen = true; aus(); };
+  }, [offen, mikrofon]);
 
   // ── HOOKS STEHEN VOR JEDEM RETURN ──────────────────────────────────────
   // Diese zwei Effekte standen zuerst weiter unten, hinter `if (!stand)
@@ -777,6 +899,54 @@ export function Softphone() {
       c.on("disconnect", () => { setZustand("ergebnis"); void laden(); });
       c.on("cancel", () => { setZustand("ergebnis"); void laden(); });
       c.on("reject", () => { setMeldung("Der Ruf wurde abgelehnt."); setZustand("ergebnis"); });
+
+      // ══════════════════════════════════════════════════════════════════════
+      // ICE- UND VERBINDUNGSSTATUS AM ANRUF PROTOKOLLIEREN (30.08.2026)
+      //
+      // ── WARUM ─────────────────────────────────────────────────────────────
+      // „Der Kunde nimmt ab, aber es spricht niemand." Der Mikrofonpegel deckt
+      // die eine Hälfte ab (unser Eingang). Die andere Hälfte ist der WEG: Bei
+      // Einweg-Audio ist typischerweise der Medienpfad in eine Richtung nicht
+      // aufgebaut — ein NAT/Firewall-Problem, das sich im ICE-Zustand zeigt und
+      // NUR dort.
+      //
+      // Diese Zustände sind flüchtig: Sie stehen für Sekunden in der
+      // Verbindung und sind nach dem Auflegen weg. Wer hinterher fragt „warum
+      // hat der Kunde nichts gehört?", hat keine Daten. Deshalb werden sie
+      // festgehalten — an den Anruf, nicht in die Browserkonsole.
+      //
+      // ── WAS DAS NICHT IST ─────────────────────────────────────────────────
+      // Keine Diagnose. Das Panel entscheidet nicht, WORAN es lag — es hält
+      // fest, was war. Die Deutung braucht Twilios Sicht dazu (Region, Codec),
+      // und die steht im Report als Betreiber-TODO.
+      const zustandMelden = (art: string, wert: string) => {
+        void fetch(`/api/fiaon/telefon/${j.callId}/verbindung`, {
+          method: "POST", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ art, wert, pegel }),
+        }).catch(() => { /* Diagnose darf ein Gespräch nie stören */ });
+      };
+      try {
+        const pc = (c as any).getRTCPeerConnection?.() as RTCPeerConnection | undefined;
+        if (pc) {
+          pc.addEventListener("iceconnectionstatechange", () => {
+            // Nur die aussagekräftigen Zustände: „checking" und „completed"
+            // kommen bei jedem gesunden Anruf und wären Rauschen.
+            const s = pc.iceConnectionState;
+            if (s === "failed" || s === "disconnected" || s === "connected") {
+              zustandMelden("ice", s);
+            }
+          });
+          pc.addEventListener("connectionstatechange", () => {
+            const s = pc.connectionState;
+            if (s === "failed" || s === "disconnected") zustandMelden("verbindung", s);
+          });
+        }
+      } catch { /* Ohne Zugriff auf die Verbindung gibt es keine Diagnose — kein Fehler. */ }
+      // Twilios eigene Warnungen (Paketverlust, kein Audio) — genau die
+      // Ereignisse, die bei Einweg-Audio feuern.
+      c.on("warning", (name: string) => zustandMelden("warnung", String(name)));
+      c.on("warning-cleared", (name: string) => zustandMelden("warnung_weg", String(name)));
       setZustand("gespraech");
     } catch (err) {
       // NICHT `err.message`: Twilio-Fehler SIND Error-Instanzen, tragen ihre
@@ -1235,6 +1405,27 @@ export function Softphone() {
             sucht — nicht in der Sekunde, in der er anrufen will. Wer
             erst beim Wählen gefragt wird, hat den Kunden im Kopf und
             klickt die Frage weg. */}
+        {/* ══════════════════════════════════════════════════════════════════
+            DER PEGELBALKEN — VOR DEM ERSTEN ANRUF
+            „Der Kunde nimmt ab, aber es spricht niemand." Erlaubt heißt nicht,
+            dass das Mikrofon liefert: stummes Headset, falsches Eingabegerät,
+            Schalter am Kabel. Der Agent sagt „Test" und SIEHT, ob es ankommt —
+            bevor ein Kunde in der Leitung ist.
+            ══════════════════════════════════════════════════════════════════ */}
+        {mikrofon === "erlaubt" && zustand === "bereit" && (
+          <div className="fi-tel-pegel" data-still={pegel != null && pegel <= 1 ? "1" : "0"}>
+            <span className="fi-tel-pegel-marke">Mikrofon</span>
+            <span className="fi-tel-pegel-bahn" aria-hidden="true">
+              <span className="fi-tel-pegel-fuellung" style={{ width: `${pegel ?? 0}%` }} />
+            </span>
+            <span className="fi-tel-pegel-text">
+              {pegel == null ? "wird gemessen …"
+                : pegel <= 1 ? "kein Signal — sag einmal etwas"
+                  : pegel < 8 ? "sehr leise" : "liefert"}
+            </span>
+          </div>
+        )}
+
         {mikrofon !== "erlaubt" && (
           <button type="button"
                   onClick={async () => {
@@ -1407,21 +1598,44 @@ export function Softphone() {
                 Verwendungszweck. Eingeklappt, damit die große Uhr bleibt: Wer
                 sie braucht, tippt einmal.
                 ══════════════════════════════════════════════════════════════ */}
-            {kunde && (
+            {/* ══════════════════════════════════════════════════════════════
+                DIE WARNUNG IM GESPRÄCH (30.08.2026)
+                Zehn Sekunden Stille am Eingang sind im laufenden Gespräch kein
+                Zufall. Kürzer wäre ein Fehlalarm bei jeder Sprechpause; länger
+                hätte der Kunde schon aufgelegt.
+                ══════════════════════════════════════════════════════════════ */}
+            {stilleSek >= 10 && (
+              <div className="fi-tel-stillwarnung" role="alert">
+                <b>Dein Mikrofon liefert kein Signal.</b> Seit {Math.floor(stilleSek)} Sekunden
+                kommt am Eingang nichts an — der Kunde hört dich vermutlich nicht.
+                Prüfe den Stummschalter am Headset und das Eingabegerät im Browser.
+              </div>
+            )}
+
+            {kunde && (() => {
+              // DIE WAND: Es werden nur Daten gezeigt, die zu DIESEM Kunden
+              // gehören. Solange die Kennung nicht übereinstimmt, steht
+              // „Wird geladen …" da — nie die Daten des vorigen Gesprächs.
+              // Fremde Stammdaten am Telefon sind schlimmer als eine Lücke:
+              // Der Agent liest dem Menschen dessen eigene Angaben falsch vor.
+              const daten = gespraechsDaten && gespraechsDaten.personId === kunde.personId
+                ? gespraechsDaten.kunde
+                : null;
+              return (
               <details className="fi-tel-daten">
                 <summary>Kundendaten</summary>
-                {!gespraechsDaten && <p className="fi-tel-daten-laedt">Wird geladen …</p>}
-                {gespraechsDaten && (
+                {!daten && <p className="fi-tel-daten-laedt">Wird geladen …</p>}
+                {daten && (
                   <div className="fi-tel-daten-raster">
                     {([
-                      ["Paket", gespraechsDaten.buchungen?.map((b: any) =>
+                      ["Paket", daten.buchungen?.map((b: any) =>
                         `${b.bezeichnung}${b.bezahlt ? " ✓" : ""}`).join(", ")],
-                      ["Offen", gespraechsDaten.offenCents
-                        ? `${(gespraechsDaten.offenCents / 100).toFixed(2).replace(".", ",")} €` : null],
-                      ["Verwendungszweck", gespraechsDaten.verwendungszweck],
-                      ["E-Mail", gespraechsDaten.email],
-                      ["Ort", gespraechsDaten.ort],
-                      ["Kunde seit", gespraechsDaten.kundeSeit],
+                      ["Offen", daten.offenCents
+                        ? `${(daten.offenCents / 100).toFixed(2).replace(".", ",")} €` : null],
+                      ["Verwendungszweck", daten.verwendungszweck],
+                      ["E-Mail", daten.email],
+                      ["Ort", daten.ort],
+                      ["Kunde seit", daten.kundeSeit],
                     ] as const).filter(([, w]) => w).map(([t, w]) => (
                       <div key={t}>
                         <span className="fi-tel-daten-marke">{t}</span>
@@ -1431,7 +1645,8 @@ export function Softphone() {
                   </div>
                 )}
               </details>
-            )}
+              );
+            })()}
 
             {!ohneAufnahme ? (
               <button type="button" onClick={() => void aufnahmeStoppen()} className="fi-tel-widerspruch">
@@ -1719,6 +1934,38 @@ const TELEFON_CSS = `
 }
 
 /* ── Mikrofon-Schritt ──────────────────────────────────────────────────── */
+/* ── DER PEGELBALKEN ───────────────────────────────────────────────────────
+   Bernstein bei Stille, nicht Rot: Stille ist ein HINWEIS, kein Fehler — es
+   könnte auch einfach niemand sprechen. Eine Farbe, die anklagt, wird
+   weggeklickt. */
+.fi-tel-pegel {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; margin-top: 8px;
+  border: 1px solid rgba(148,163,184,.35); border-radius: 10px;
+  background: rgba(248,250,252,.7);
+}
+.fi-tel-pegel-marke {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: #64748b; flex-shrink: 0;
+}
+.fi-tel-pegel-bahn {
+  position: relative; flex: 1; height: 6px; min-width: 40px;
+  border-radius: 999px; background: rgba(148,163,184,.25); overflow: hidden;
+}
+.fi-tel-pegel-fuellung {
+  display: block; height: 100%; border-radius: 999px;
+  background: #059669; transition: width .12s linear;
+}
+.fi-tel-pegel[data-still="1"] .fi-tel-pegel-fuellung { background: #b45309; }
+.fi-tel-pegel-text { font-size: 11px; color: #64748b; flex-shrink: 0; }
+.fi-tel-pegel[data-still="1"] .fi-tel-pegel-text { color: #92400e; font-weight: 600; }
+
+.fi-tel-stillwarnung {
+  margin: 8px 0; padding: 9px 11px; border-radius: 10px;
+  background: rgba(180,83,9,.1); border: 1px solid rgba(180,83,9,.3);
+  color: #92400e; font-size: 12px; line-height: 1.45;
+}
+
 .fi-tel-mikrofon {
   width: 100%; display: flex; align-items: center; gap: 12px;
   margin: 16px 0 0; padding: 13px 15px; border: 0; cursor: pointer; border-radius: 18px;

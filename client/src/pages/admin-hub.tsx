@@ -810,15 +810,21 @@ export default function AdminHubPage() {
   const [stand, setStand] = useState<Date | null>(null);
   // Welche Detailliste liegt gerade über der Seite? null = keine.
   const [fenster, setFenster] = useState<ListenArt | null>(null);
+  // ── DIE TAGESLÄUFE (30.08.2026) ─────────────────────────────────────────
+  // Der Folgelauf stand fünfzehn Tage still, und niemand hat es gemerkt. Es gab
+  // keine Stelle, an der man „läuft die Automatik?" hätte nachsehen können.
+  const [laeufe, setLaeufe] = useState<any>(null);
 
   const holen = useCallback(async () => {
     setLaedt(true);
     try {
-      const [l, b] = await Promise.all([
+      const [l, b, tl] = await Promise.all([
         fetch("/api/fiaon/admin/hub/lage", { credentials: "include" }).then((r) => r.json()).catch(() => null),
         fetch("/api/fiaon/admin/hub/badges", { credentials: "include" }).then((r) => r.json()).catch(() => null),
+        fetch("/api/fiaon/admin/hub/laeufe", { credentials: "include" }).then((r) => r.json()).catch(() => null),
       ]);
       if (l?.ok) setLage(l);
+      if (tl?.ok) setLaeufe(tl);
       if (b?.ok) {
         setBadges(b.badges || {}); setWarn(b.warn || null);
         setAufgabenZahlen(b.aufgaben || null); setZustellung(b.zustellung || null);
@@ -986,6 +992,68 @@ export default function AdminHubPage() {
           <RefreshCw size={13} className={laedt ? "animate-spin" : ""} /> Aktualisieren
         </button>
       </div>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          0. LÄUFT DIE AUTOMATIK? (30.08.2026)
+
+          Ganz oben und nur, wenn etwas nicht stimmt. Der Folgelauf stand
+          fünfzehn Tage still, und es gab keine Stelle, an der man es hätte
+          sehen können — gemerkt hat es jemand beiläufig, bei der Suche nach
+          der Ursache für 188 gedriftete Stufen.
+
+          Läuft alles, verschwindet die Karte. Eine Dauer-Anzeige „alles gut"
+          wird nach zwei Wochen nicht mehr gelesen, und dann wird auch die
+          Warnung nicht gelesen, die an ihrer Stelle steht.
+          ══════════════════════════════════════════════════════════════════ */}
+      {laeufe?.ok && laeufe.cronsAn && (laeufe.rot > 0 || laeufe.gelb > 0) && (
+        <section className="mb-4 rounded-2xl border p-4"
+                 style={{ borderColor: "rgba(185,28,28,.3)", background: "rgba(185,28,28,.05)" }}>
+          <h2 className="text-[14px] font-bold" style={{ color: "#b91c1c" }}>
+            {laeufe.rot > 0
+              ? `${laeufe.rot} ${laeufe.rot === 1 ? "Lauf steht" : "Läufe stehen"}`
+              : `${laeufe.gelb} ${laeufe.gelb === 1 ? "Lauf ist" : "Läufe sind"} überfällig`}
+          </h2>
+          <p className="text-[12px] text-slate-600 mt-0.5 mb-2.5">
+            Grün unter {laeufe.grenzen.gelb} h, gelb unter {laeufe.grenzen.rot} h, darüber rot.
+          </p>
+          {laeufe.laeufe
+            .filter((x: any) => x.ampel === "rot" || x.ampel === "gelb")
+            .map((x: any) => (
+              <div key={x.name} className="py-1.5 border-b last:border-0"
+                   style={{ borderColor: "rgba(185,28,28,.15)" }}>
+                <p className="text-[12.5px] font-bold text-slate-900">
+                  <span className="inline-block w-2 h-2 rounded-full mr-2"
+                        style={{ background: x.ampel === "rot" ? "#b91c1c" : "#b45309" }} />
+                  {x.name}
+                  <span className="ml-2 font-normal text-slate-500">
+                    {x.stundenHer == null ? "noch nie gelaufen" : `seit ${x.stundenHer} h nicht`}
+                  </span>
+                </p>
+                {/* Die Folge, nicht nur die Farbe: Wer nicht weiß, was liegen
+                    bleibt, priorisiert nicht. */}
+                <p className="text-[12px] text-slate-600 ml-4">{x.folge}</p>
+                {x.letzterFehler && (
+                  <p className="text-[11.5px] ml-4 mt-0.5" style={{ color: "#b91c1c" }}>
+                    Letzter Fehler: {x.letzterFehler}
+                  </p>
+                )}
+                {!x.registriert && (
+                  <p className="text-[11.5px] ml-4 mt-0.5" style={{ color: "#b91c1c" }}>
+                    Nicht registriert — der Dienst läuft nicht, oder CRONS ist aus.
+                  </p>
+                )}
+              </div>
+            ))}
+        </section>
+      )}
+      {/* Auf einem Entwicklungsrechner ist die Automatik ABSICHTLICH aus.
+          Ohne diesen Satz sucht dort jemand einen Fehler, den es nicht gibt. */}
+      {laeufe?.ok && !laeufe.cronsAn && (
+        <p className="mb-4 text-[12px] text-slate-400">
+          Tagesläufe sind in diesem Prozess abgeschaltet (kein Produktionsbetrieb) —
+          die Ampeln sagen hier nichts über die Produktion aus.
+        </p>
+      )}
 
       {/* 1. Geld */}
       <Geldtafel lage={lage} onZeigen={setFenster} />

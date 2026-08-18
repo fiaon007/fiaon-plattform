@@ -106,7 +106,28 @@ export async function sofortZuteilen(
     }
     if (p.is_blocked) return { zugeteilt: false, agentId: null, grund: "gesperrt" };
     if (p.ist_test_am) return { zugeteilt: false, agentId: null, grund: "Testeintrag" };
-    if (![1, 2].includes(Number(p.priority_tier))) {
+    // ── STUFE 0 GEHÖRT DAZU (30.08.2026) ────────────────────────────────
+    // Hier stand `![1, 2]`. Die Begründung war: Ein Bestandskunde ist aus dem
+    // Vertrieb heraus, also braucht er keine Zuteilung.
+    //
+    // Das Team meldete: „Bezahlte Kunden haben keinen Betreuer." GEMESSEN
+    // (scripts/mess-stufen-betreuer.ts): 88 bezahlte oder gemeldete Personen
+    // ohne Zuständigen — und nur EINE davon hatte einen Agenten an der
+    // Bestellung. Es fehlte also wirklich, es war nicht bloß falsch angezeigt.
+    //
+    // Der Weg dorthin: Wer als Stufe 1 oder 2 zugeteilt WÄRE, ist beim Bezahlen
+    // schon zugeteilt. Übrig bleiben die, die OHNE vorherige Stufe bezahlt haben
+    // — Direktzahler. Für die griff die Zuteilung nie, und danach nie wieder:
+    // Stufe 0 war ausgeschlossen.
+    //
+    // Ein bezahlter Kunde ohne Zuständigen hat niemanden, der sein Startgespräch
+    // führt, seine Rückfrage beantwortet oder seine Unterlagen anmahnt. „Aus dem
+    // Vertrieb heraus" heißt nicht „niemandem zugeordnet".
+    //
+    // Stufe 3 bleibt ausgeschlossen: Ein reiner Lead wird über die
+    // Lead-Verteilung vergeben, nicht hier. Zwei Verteilungen auf dieselbe
+    // Menge wären zwei Wahrheiten.
+    if (![0, 1, 2].includes(Number(p.priority_tier))) {
       return { zugeteilt: false, agentId: null, grund: `Stufe ${p.priority_tier} — keine Zuteilung nötig` };
     }
     // ── BESITZSCHUTZ ────────────────────────────────────────────────────
@@ -123,16 +144,65 @@ export async function sofortZuteilen(
     // Deshalb greift der Schutz nur, wenn der dokumentierte Betreuer ein
     // ECHTER, aktiver Mitarbeiter ist.
     if (p.betreuung_seit) {
-      const [echterBetreuer] = (await lauf`
-        SELECT 1 AS ok FROM fiaon_contact_log cl
-        JOIN fiaon_applications a ON a.ref = cl.ref
-        JOIN fiaon_agents ag ON ag.id = cl.agent_id
-        WHERE a.person_id = ${personId} AND ag.active AND NOT ag.is_test_account
-        LIMIT 1
-      `) as any[];
-      if (echterBetreuer) {
-        return { zugeteilt: false, agentId: null, grund: `betreut seit ${p.betreuung_seit} — Besitzschutz` };
+      // ── DER SCHUTZ MUSS DEN BETREUER AUCH EINTRAGEN (30.08.2026) ──────
+      // Hier wurde nur ABGELEHNT: „betreut seit … — Besitzschutz". Weil diese
+      // Stelle aber erst erreicht wird, wenn `assigned_agent_id` LEER ist,
+      // blieb die Person danach bei NIEMANDEM — geschützt für einen Betreuer,
+      // der nirgends eingetragen war.
+      //
+      // GEMESSEN am 30.08.2026: Von 88 bezahlten Personen ohne Zuständigen
+      // liefen 28 genau in diesen Zweig. Der Schutz hat sie aus der Verteilung
+      // gehalten und ihnen dabei den Menschen nicht gegeben, für den er sie
+      // hielt.
+      //
+      // Der Betreuer ist ABLEITBAR: `betreuerVon` liefert den Agenten mit dem
+      // jüngsten dokumentierten Kontakt — dieselbe Quelle, aus der auch die
+      // Provisionsfrage beantwortet wird. Also wird er eingetragen, nicht
+      // erfunden: Das ist keine Umverteilung, sondern das Nachtragen dessen,
+      // was der Verlauf ohnehin sagt.
+      //
+      // ── UND ZWAR NUR EIN VERTRIEBS-BETREUER ──────────────────────────
+      // Erster Entwurf fragte nur „aktiv und kein Testkonto". Ergebnis beim
+      // ersten Lauf: 28 bezahlte Kunden wurden Hans-Jürgen Gerhold und Diana
+      // Zeller zugeschrieben — dem FORDERUNGSMANAGEMENT. `betreuerVon` liest
+      // jeden dokumentierten Kontakt, und wer eine Rate eingetrieben hat, steht
+      // eben auch im Verlauf.
+      //
+      // Das wäre genau die Rollenverwechslung, die dieser Auftrag beseitigt —
+      // und sie widerspricht einer Regel, die seit dem 11.08.2026 weiter unten
+      // in dieser Datei steht: „Das Forderungsmanagement hat NUR die Kunden,
+      // die ihr Abo nicht bezahlt haben."
+      //
+      // Dieselbe Rollen-Bedingung wie in `agentMitKleinsterLast`. Ist der
+      // dokumentierte Kontakt kein Vertriebsmensch, gilt der Besitzschutz nicht
+      // — dann greift die normale Verteilung darunter.
+      const { betreuerVon } = await import("./tier");
+      const dokumentiert = await betreuerVon(lauf, personId).catch(() => null);
+      if (dokumentiert) {
+        const [ag] = (await lauf`
+          SELECT id, name FROM fiaon_agents
+          WHERE id = ${dokumentiert.agentId} AND active AND NOT is_test_account
+            AND COALESCE(rolle, 'agent') IN ('agent', 'vertriebsleiter')
+        `) as any[];
+        if (ag) {
+          const rows = (await lauf`
+            UPDATE fiaon_persons
+            SET assigned_agent_id = ${Number(ag.id)}, assigned_at = NOW(), updated_at = NOW()
+            WHERE id = ${personId} AND assigned_agent_id IS NULL
+            RETURNING id
+          `) as any[];
+          if (rows.length > 0) {
+            console.log(`[ZUTEILUNG] Person ${personId}: dokumentierter Betreuer ${ag.name} nachgetragen (Besitzschutz).`);
+            return {
+              zugeteilt: true, agentId: Number(ag.id),
+              grund: `dokumentierter Betreuer nachgetragen (betreut seit ${p.betreuung_seit})`,
+            };
+          }
+        }
       }
+      // Kein ableitbarer, echter Betreuer: Dann schützt der Schutz niemanden.
+      // Sandra Ulke-Züllich (Person 4310) lag so einen Monat lang brach —
+      // dokumentiert betreut von einem TESTKONTO.
       console.log(`[ZUTEILUNG] Person ${personId}: betreuung_seit gesetzt, aber kein echter Betreuer — wird verteilt.`);
     }
 
@@ -161,7 +231,10 @@ export async function sofortZuteilen(
       await lauf`
         INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
         VALUES (${ref.ref}, NULL, 'System', 'system',
-                ${`Neu bei dir: Der Kunde ist gerade auf Stufe ${Number(p.priority_tier) === 1 ? "A (Zahlung gemeldet)" : "B (Rechnung offen)"} gesprungen und hatte niemanden. Heute anrufen.`},
+                ${Number(p.priority_tier) === 0
+                  ? "Neu bei dir: Der Kunde hat BEZAHLT und hatte niemanden. Kein Verkaufsgespräch — "
+                    + "er braucht sein Startgespräch und einen Ansprechpartner für Rückfragen."
+                  : `Neu bei dir: Der Kunde ist gerade auf Stufe ${Number(p.priority_tier) === 1 ? "A (Zahlung gemeldet)" : "B (Rechnung offen)"} gesprungen und hatte niemanden. Heute anrufen.`},
                 NOW())
       `.catch(() => {});
     }

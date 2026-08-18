@@ -20,7 +20,9 @@ import {
   terminTokenPruefen, verfuegbarkeitSetzen, verfuegbarkeitVon,
   berlinDatumText, berlinUhrzeit, TerminFehler,
   HORIZONT_TAGE, SLOT_MINUTEN, VORLAUF_STUNDEN, dauerFuer,
+  versuchProtokollieren,
 } from "../lib/fiaon-termine";
+import { terminArtAusQuelle } from "../../shared/fiaon-termin-art";
 import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
 import { anrufHinweis, ABSAGE_HINWEIS } from "../../shared/fiaon-termin-text";
 
@@ -53,6 +55,15 @@ async function bestaetigungSenden(buchung: Awaited<ReturnType<typeof terminBuche
       agent_vorname: buchung.agentVorname,
       termin_datum: buchung.datumText,
       termin_uhrzeit: buchung.uhrzeit,
+      // ── DIE ART GEHT MIT IN DIE MAIL (30.08.2026) ──────────────────────
+      // Der Kunde soll in der Bestätigung lesen, um welches Gespräch es geht.
+      // Der Wert kommt aus derselben Ableitung wie die Marke in der
+      // Oberfläche — sonst steht in der Mail etwas anderes als auf der Seite.
+      //
+      // BETREIBER-TODO: In Brevo als {{params.termin_art}} einsetzen. Solange
+      // das nicht geschehen ist, wird das Feld übertragen und nicht angezeigt
+      // — es schadet nichts und wartet.
+      termin_art: terminArtAusQuelle(buchung.quelle).text,
       storno_link: stornoLink(buchung.stornoToken),
       // ── „WIR RUFEN AN" ALS FERTIGER SATZ (19.08.2026) ──────────────────
       // Der Kunde, der einen Videokonferenz-Link erwartet, sitzt zur
@@ -138,25 +149,65 @@ router.get("/termin/:token", async (req: Request, res: Response) => {
 
 /** POST /termin/:token/buchen — der Kunde bucht. */
 router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
+  // ══════════════════════════════════════════════════════════════════════════
+  // JEDER AUSGANG DIESER ROUTE WIRD PROTOKOLLIERT (30.08.2026)
+  //
+  // Die Meldung „Buchung funktioniert unabhängig von der Uhrzeit nicht
+  // zuverlässig" war nicht prüfbar: Ein Fehlschlag hinterließ nichts. Jetzt
+  // schreibt JEDER Weg eine Zeile — der erfolgreiche auch, sonst gibt es keine
+  // Quote.
+  //
+  // `ablehnen` bündelt beides: Protokollzeile und Antwort. Zwei getrennte
+  // Aufrufe je Ausgang wären die Gelegenheit, an einem davon das Protokoll zu
+  // vergessen — und dann fehlt genau der Fall, der die Meldung erklärt.
+  // ══════════════════════════════════════════════════════════════════════════
+  const { beginn, agentId, quelle } = req.body || {};
+  const gewuenscht = quelle === "onboarding_call" ? "onboarding_call"
+    : quelle === "onboarding" ? "onboarding" : "nichterreicht_mail";
+  let personId: number | null = null;
+
+  const ablehnen = async (grund: string, text: string, status = 409) => {
+    await versuchProtokollieren({
+      ergebnis: "abgelehnt", personId, slotBeginn: beginn ?? null,
+      agentId: agentId ? Number(agentId) : null, grund, quelle: gewuenscht, akteur: "kunde",
+    });
+    return res.status(status).json({ ok: false, error: text, grund });
+  };
+
   try {
     const geprueft = terminTokenPruefen(req.params.token);
     if (!geprueft || geprueft.abgelaufen) {
-      return res.status(404).json({ ok: false, error: "Dieser Link ist ungültig oder abgelaufen." });
+      return await ablehnen("link_ungueltig",
+        "Dieser Link ist ungültig oder abgelaufen. Melde dich bitte bei deinem "
+        + "Ansprechpartner — er schickt dir einen neuen.", 404);
     }
-    const { beginn, agentId, quelle } = req.body || {};
-    if (!beginn || !agentId) return res.status(400).json({ ok: false, error: "Bitte einen Termin auswählen." });
+    personId = geprueft.personId;
+
+    if (!beginn || !agentId) {
+      return await ablehnen("keine_auswahl", "Bitte wähle zuerst eine Zeit aus.", 400);
+    }
 
     // Der Kunde darf nur Slots buchen, die ihm auch angeboten wurden — sonst
     // ließe sich der Besitzschutz umgehen, indem man einen fremden Agenten
     // in die Anfrage schreibt.
-    const gewuenscht = quelle === "onboarding_call" ? "onboarding_call"
-      : quelle === "onboarding" ? "onboarding" : "nichterreicht_mail";
     const auskunft = await freieSlots(geprueft.personId, sqlPool, gewuenscht);
     const erlaubt = auskunft.slots.some(
       (s) => s.beginn === new Date(beginn).toISOString() && s.agentId === Number(agentId),
     );
     if (!erlaubt) {
-      return res.status(409).json({ ok: false, error: "Dieser Termin ist nicht mehr frei. Bitte wählen Sie einen anderen." });
+      // ── DER GRUND, DEN DER KUNDE VERSTEHT ────────────────────────────────
+      // „Dieser Termin ist nicht mehr frei" war richtig, aber unvollständig:
+      // Der Satz sagt nicht, was jetzt zu tun ist. Und er trifft zwei Lagen —
+      // der Slot wurde gerade vergeben, oder er ist aus dem Angebot gefallen
+      // (Vorlauf abgelaufen, während die Seite offen lag).
+      const nochFrei = auskunft.slots.length;
+      return await ablehnen("nicht_angeboten",
+        nochFrei > 0
+          ? "Dieser Termin wurde gerade vergeben — bitte wähle einen anderen. "
+            + `Es stehen noch ${nochFrei} Zeiten zur Auswahl.`
+          : "Dieser Termin wurde gerade vergeben, und im Moment sind alle anderen "
+            + "Zeiten belegt. Lade die Seite in ein paar Minuten neu oder melde dich "
+            + "bei deinem Ansprechpartner.");
     }
 
     const buchung = await terminBuchen({
@@ -168,6 +219,11 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
     await buchungAnwenden(buchung);
     await bestaetigungSenden(buchung);
 
+    await versuchProtokollieren({
+      ergebnis: "gebucht", personId: geprueft.personId, slotBeginn: beginn,
+      agentId: Number(agentId), quelle: gewuenscht, akteur: "kunde",
+    });
+
     res.json({
       ok: true,
       termin: {
@@ -176,9 +232,23 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
       },
     });
   } catch (err) {
-    if (err instanceof TerminFehler) return res.status(409).json({ ok: false, error: err.message, code: err.code });
+    if (err instanceof TerminFehler) {
+      // Der Code aus `TerminFehler` IST der Grund-Code — „belegt", „zu_frueh",
+      // „kein_slot" und die anderen. Er wird nicht neu erfunden.
+      return await ablehnen(err.code, err.message);
+    }
     console.error("[TERMIN] buchen:", err);
-    res.status(500).json({ ok: false, error: "Serverfehler" });
+    await versuchProtokollieren({
+      ergebnis: "abgelehnt", personId, slotBeginn: beginn ?? null,
+      agentId: agentId ? Number(agentId) : null, grund: "serverfehler",
+      quelle: gewuenscht, akteur: "kunde",
+    });
+    res.status(500).json({
+      ok: false,
+      error: "Da ist bei uns etwas schiefgelaufen — nicht bei dir. Bitte versuche "
+        + "es noch einmal; klappt es weiter nicht, melde dich bei deinem Ansprechpartner.",
+      grund: "serverfehler",
+    });
   }
 });
 
@@ -244,7 +314,11 @@ router.get("/agent/termine", requireAgent, async (req: AgentRequest, res: Respon
       FROM fiaon_termine t
       JOIN fiaon_persons p ON p.id = t.person_id
       WHERE t.agent_id = ${req.agent!.id} AND p.merged_into_person_id IS NULL
-        AND t.status IN ('gebucht', 'verpasst')
+        -- Dieselbe Grenze wie im Kalender (fiaon-agent.ts): Ein verpasster
+        -- Termin bleibt, SOLANGE ihn niemand abgearbeitet hat. Danach ist er
+        -- fertig. Zwei Listen mit zwei Auffassungen von „offen" wären genau
+        -- der Widerspruch, den das Team gemeldet hat.
+        AND (t.status = 'gebucht' OR (t.status = 'verpasst' AND t.erledigt_am IS NULL))
         AND t.beginn > NOW() - INTERVAL '14 days'
       ORDER BY t.beginn ASC
       LIMIT 200
@@ -392,8 +466,21 @@ router.post("/agent/termine", requireAgent, async (req: AgentRequest, res: Respo
     });
     await buchungAnwenden(buchung);
     await bestaetigungSenden(buchung);
+    // `akteur: "agent"` trennt die beiden Wege in der Statistik. Für den Agenten
+    // gilt kein Vorlauf — seine Ablehnungen haben andere Gründe, und beides in
+    // einen Topf zu zählen würde die Kundenquote verfälschen.
+    await versuchProtokollieren({
+      ergebnis: "gebucht", personId: Number(personId), slotBeginn: beginn,
+      agentId: req.agent!.id, quelle: "agent_manuell", akteur: "agent",
+    });
     res.json({ ok: true, termin: { datumText: buchung.datumText, uhrzeit: buchung.uhrzeit } });
   } catch (err) {
+    const grund = err instanceof TerminFehler ? err.code : "serverfehler";
+    await versuchProtokollieren({
+      ergebnis: "abgelehnt", personId: req.body?.personId ? Number(req.body.personId) : null,
+      slotBeginn: req.body?.beginn ?? null, agentId: req.agent!.id,
+      grund, quelle: "agent_manuell", akteur: "agent",
+    });
     if (err instanceof TerminFehler) return res.status(409).json({ ok: false, error: err.message, code: err.code });
     console.error("[TERMIN] agent buchen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

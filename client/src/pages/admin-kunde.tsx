@@ -10,6 +10,7 @@ import { FiaonEbene } from "@/components/FiaonEbene";
 import VermerkTafel from "@/components/admin/VermerkTafel";
 import ArchivDialog from "@/components/admin/ArchivDialog";
 import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
+import { LABEL_VERTRIEB, LABEL_FORDERUNG, zustaendigText } from "@shared/fiaon-zustaendigkeit-text";
 
 /** Klartext der Archivgründe — dieselbe Liste wie im Server (fiaon-antrag-archiv.ts). */
 const ARCHIV_GRUND_TEXT: Record<string, string> = {
@@ -492,7 +493,19 @@ export default function AdminKundeAktePage() {
               )}
               <p className="text-[12.5px] text-slate-500">
                 {head.email || "keine E-Mail"} · {head.phone || "kein Telefon"} · seit {fmtD(head.seit)}
-                {head.agentName ? <> · betreut von <b className="text-slate-700">{head.agentName}</b></> : " · kein Agent"}
+              </p>
+              {/* ── ZWEI ZUSTÄNDIGKEITEN, BESCHRIFTET (30.08.2026) ───────────
+                  Hier stand „· betreut von <b>Name</b>". Das Team meldete
+                  „bei dem Kunden stehen Diana UND Nikita gleichzeitig" — beides
+                  stimmte, aber ohne Beschriftung sah es wie ein Fehler aus.
+                  Die Wörter stehen in shared/fiaon-zustaendigkeit-text.ts,
+                  damit sie an allen Stellen dieselben sind. */}
+              <p className="text-[12.5px] text-slate-500">
+                <span className="text-slate-400">{LABEL_VERTRIEB}:</span>{" "}
+                <b className="text-slate-700">{zustaendigText(head.agentName)}</b>
+                {" · "}
+                <span className="text-slate-400">{LABEL_FORDERUNG}:</span>{" "}
+                <b className="text-slate-700">{zustaendigText(head.inkassoAgentName)}</b>
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">

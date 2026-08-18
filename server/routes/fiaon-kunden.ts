@@ -408,6 +408,22 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
           ORDER BY created_at ASC LIMIT 1000`
       : [];
 
+    // ── Das Forderungsmanagement dieses Menschen (30.08.2026) ──────────────
+    // Die Akte nannte bisher nur EINEN Namen, unbeschriftet („betreut von X").
+    // Ein Mensch hat aber zwei Zuständige, und das Team hielt das für einen
+    // Fehler, weil nirgends stand, welcher welcher ist. Seit dem 30.08.2026
+    // liegt genau EIN Inkasso-Zuständiger je Person fest
+    // (server/lib/fiaon-inkasso.ts) — deshalb genügt hier ein Name.
+    const inkassoZustaendig = familyRefs.length
+      ? await sqlPool`
+          SELECT ag.name
+          FROM fiaon_abo_raten r
+          JOIN fiaon_agents ag ON ag.id = r.inkasso_agent_id
+          WHERE r.ref = ANY(${familyRefs})
+            AND r.status <> 'bezahlt' AND r.storniert_am IS NULL
+          ORDER BY r.faellig_am ASC, r.id ASC LIMIT 1`
+      : [];
+
     // ── Bankeingänge (Kontoabgleich) der Familie ──
     const bankTxns = familyRefs.length
       ? await sqlPool`
@@ -611,6 +627,9 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
       agentName: primaryApp
         ? (family.find((f) => f.ref === primaryApp.ref)?.agent_name || null)
         : primaryLead?.agent_name || null,
+      // Der zweite Zuständige, ausdrücklich getrennt. Ist keine Rate offen,
+      // bleibt er null — die Anzeige schreibt dann „niemand", nicht nichts.
+      inkassoAgentName: (inkassoZustaendig as any[])[0]?.name ?? null,
       seit: primaryApp ? primaryApp.created_at : primaryLead?.erstellt_am,
       commissionBasis: primaryApp?.commission_basis || null,
       commissionBasisNote: primaryApp?.commission_basis_note || null,

@@ -1259,6 +1259,56 @@ export default function AdminTeamZentrale() {
                       {m.name}
                       {m.is_test_account && <span className="ml-2 text-[10px] font-bold uppercase text-slate-400">Testkonto</span>}
                     </p>
+                    {/* ══════════════════════════════════════════════════════
+                        DIE TESTKONTO-MARKE UMSCHALTEN (30.08.2026)
+
+                        GEMESSEN: „Justin Schwarzott" trägt sie zweimal (Agent 2
+                        und 7) — beides echte Konten des Betreibers. Da JEDE
+                        Team-Ansicht über `echteMitarbeiterSql()` filtert, fallen
+                        sie aus der Zentrale, aus den Kennzahlen und aus der
+                        Verteilung heraus. Sie existieren und kommen nirgends vor.
+
+                        Ein Skript hätte die zwei Zeilen korrigiert. Aber die
+                        Marke wird weiter gesetzt — von jedem Prüfstand, der ein
+                        Konto stilllegt —, und irgendwann trifft es wieder ein
+                        echtes Konto. Deshalb ein Schalter dort, wo der Betreiber
+                        das Konto sieht, und kein Skript zum Erinnern.
+
+                        `stopPropagation`: Die ganze Karte ist ein Knopf, der das
+                        Detailfenster öffnet. Ohne das würde jeder Klick hier
+                        zusätzlich das Fenster aufziehen. */}
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      title={m.is_test_account
+                        ? "Marke aufheben — das Konto zählt danach wieder als echter Mensch"
+                        : "Als Testkonto markieren — das Konto verschwindet aus allen Team-Ansichten"}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        if (!confirm(m.is_test_account
+                          ? `Die Testkonto-Marke von „${m.name}" aufheben?\n\n`
+                            + "Das Konto erscheint danach wieder in der Team-Zentrale und in den "
+                            + "Kennzahlen. Ein deaktiviertes Konto wird dadurch NICHT nutzbar — "
+                            + "dafür braucht es zusätzlich ein neues Passwort."
+                          : `„${m.name}" als Testkonto markieren?\n\n`
+                            + "Das Konto verschwindet aus der Team-Zentrale, aus allen Kennzahlen "
+                            + "und aus der Kundenverteilung. Provisionen und Verlauf bleiben.")) return;
+                        const r = await fetch(`/api/fiaon/admin/agents/${m.id}/testkonto`, {
+                          method: "POST", credentials: "include",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ ist: !m.is_test_account }),
+                        }).catch(() => null);
+                        const j = await r?.json().catch(() => null);
+                        alert(j?.ok ? j.hinweis : (j?.error || "Das hat nicht geklappt."));
+                        if (j?.ok) void laden();
+                      }}
+                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLElement).click(); }}
+                      className="inline-block mt-1 text-[10.5px] font-semibold underline cursor-pointer"
+                      style={{ color: m.is_test_account ? "#1d4ed8" : "#94a3b8" }}
+                    >
+                      {m.is_test_account ? "Testkonto-Marke aufheben" : "als Testkonto markieren"}
+                    </span>
                     <p className="text-[11.5px] text-slate-400">
                       {ROLLE_TEXT[m.rolle] ?? m.rolle}
                       {!m.active && " · deaktiviert"}

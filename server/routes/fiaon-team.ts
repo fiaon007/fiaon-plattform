@@ -17,7 +17,7 @@ import {
   eurToCents, commissionCents,
 } from "./fiaon-agent";
 import {
-  echteMitarbeiterSql, nurTestkontenSql, testkontenZaehlen,
+  echteMitarbeiterSql, nurTestkontenSql, testkontenZaehlen, istTestkontoSql,
 } from "../lib/fiaon-mitarbeiter-sicht";
 
 const router = Router();
@@ -439,6 +439,76 @@ router.post("/admin/agents/:id/loeschen", async (req, res) => {
     });
   } catch (err) {
     console.error("[FIAON-TEAM] loeschen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TESTKONTO-MARKE SETZEN ODER AUFHEBEN
+//
+// ── DER BEFUND (30.08.2026) ────────────────────────────────────────────────
+// Beim Aufräumen nach einem Prüfstandslauf fiel auf: `Justin Schwarzott` trägt
+// ZWEIMAL die Marke `is_test_account` (Agent 2 und 7) — beides echte Konten des
+// Betreibers, angelegt am 04.07.2026.
+//
+// Die Folge ist nicht harmlos: JEDE Team-Ansicht filtert über
+// `echteMitarbeiterSql()`. Diese beiden Konten fallen also aus der
+// Team-Zentrale, aus den Kennzahlen und aus der Verteilung heraus — sie
+// existieren, aber sie kommen nirgends vor.
+//
+// ── WARUM EIN SCHALTER UND KEIN SKRIPT ────────────────────────────────────
+// Ein Skript hätte die zwei Zeilen in einer Minute korrigiert. Aber die Marke
+// wird weiter gesetzt — von jedem Prüfstand, der ein Konto stilllegt — und
+// irgendwann trifft es wieder ein echtes Konto. Ein Skript, das ein Mensch
+// aufrufen muss, wird beim zweiten Mal vergessen (AGENTS.md).
+//
+// Deshalb entscheidet der Betreiber es selbst, in der Ansicht, in der er das
+// Konto sieht.
+//
+// ── WAS DER SCHALTER NICHT TUT ────────────────────────────────────────────
+// Er weckt kein stillgelegtes Konto auf. `testkontoStilllegen` setzt DREI
+// Dinge: die Marke, `active = FALSE` und ein gelöschtes Passwort. Nur die Marke
+// zurückzunehmen würde ein Konto in die Team-Zentrale holen, das niemand
+// benutzen kann — und das Passwort stellt dieser Schalter ausdrücklich nicht
+// wieder her. Wer das Konto wieder braucht, setzt danach ein Passwort über
+// „Passwort neu setzen".
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/admin/agents/:id/testkonto", async (req, res) => {
+  try {
+    await ensureAgentTables();
+    const ist = req.body?.ist === true;
+    const rows = await sqlPool`
+      UPDATE fiaon_agents SET is_test_account = ${ist}
+      WHERE id = ${Number(req.params.id)}
+      RETURNING id, name, email, active, is_test_account
+    `;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Konto nicht gefunden" });
+    const a = rows[0] as any;
+
+    // Das Namensmuster ist die zweite Erkennung (server/lib/fiaon-mitarbeiter-sicht.ts).
+    // Heißt das Konto „… Prüfstand …", bleibt es trotz gelöschter Marke ein
+    // Testkonto — und die Antwort sagt das, statt den Betreiber rätseln zu
+    // lassen, warum die Karte nicht auftaucht.
+    const [nochTest] = (await sqlPool.unsafe(`
+      SELECT ${istTestkontoSql("a")} AS ist_test FROM fiaon_agents a WHERE a.id = $1
+    `, [Number(req.params.id)])) as any[];
+
+    await logAgentEvent(a.id, "testkonto_marke", { ist, durch: "admin" });
+    res.json({
+      ok: true,
+      agent: { id: Number(a.id), name: a.name, istTestkonto: !!a.is_test_account, aktiv: !!a.active },
+      hinweis: ist
+        ? `„${a.name}“ ist jetzt als Testkonto markiert und aus allen Team-Ansichten ausgeblendet.`
+        : nochTest?.ist_test
+          ? `Die Marke ist weg — aber „${a.name}“ gilt weiter als Testkonto, weil `
+            + "Name oder E-Mail einem Prüfstands-Muster entsprechen. Umbenennen hilft."
+          : !a.active
+            ? `„${a.name}“ zählt wieder als echtes Konto, ist aber DEAKTIVIERT. `
+              + "Zum Benutzen: aktivieren und Passwort neu setzen."
+            : `„${a.name}“ zählt wieder als echtes Konto und erscheint in der Team-Zentrale.`,
+    });
+  } catch (err) {
+    console.error("[FIAON-TEAM] testkonto:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

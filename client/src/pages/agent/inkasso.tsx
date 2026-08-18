@@ -25,6 +25,8 @@ interface Fall {
   inkasso_versuche: number; eskaliert_am: string | null;
   person_id: number; name: string; email: string | null;
   phone: string | null; phone_country_code: string | null; paket: string | null;
+  // Aus `waehlbareNummer` — nie selbst zusammensetzen (siehe Begründung am Knopf).
+  telefonAnzeige: string | null; telefonWaehlbar: string | null; telefonHinweis: string | null;
   ueberfaellig: boolean; tage_ueberfaellig: number;
   anruf_pflicht: boolean; zusage_gebrochen: boolean;
   raten_bezahlt: number; raten_gesamt: number;
@@ -47,6 +49,9 @@ interface Mensch {
   email: string | null;
   phone: string | null;
   phoneCountryCode: string | null;
+  telefonAnzeige: string | null;
+  telefonWaehlbar: string | null;
+  telefonHinweis: string | null;
   raten: Fall[];
   anzahl: number;
   summeCents: number;
@@ -439,15 +444,31 @@ export default function AgentInkasso() {
               )}
 
               <div className="mt-3 flex flex-wrap gap-2">
-                {f.phone && (
+                {/* ── DIE NUMMER KOMMT FERTIG VOM SERVER (30.08.2026) ────────
+                    Hier stand:
+                      `${f.phone_country_code || "+49"}${String(f.phone).replace(/^0/, "")}`
+                    Trug `phone` schon ein „+" (z. B. „+436642204641") und
+                    danebenstand „+43", ergab das „+43+436642204641" — der
+                    gemeldete Doppelpräfix. GEMESSEN: 21 Zeilen der Arbeitsliste.
+                    Schlimmer noch: Der Rückfall „+49" hängte eine DEUTSCHE
+                    Vorwahl an österreichische Nummern. Wer das doppelte Plus
+                    entfernt hätte, wählte „+4943664…" — einen fremden Menschen.
+                    `telefonWaehlbar` kommt aus `waehlbareNummer` (server/lib/
+                    fiaon-telefon.ts), derselben Funktion wie im Vertrieb. Ist
+                    die Nummer nicht wählbar, steht der Grund da statt eines
+                    Knopfes, der ins Leere ruft. */}
+                {f.telefonWaehlbar && (
                   <button type="button"
-                          onClick={() => anrufStarten(
-                            `${f.phone_country_code || "+49"}${String(f.phone).replace(/^0/, "")}`,
-                            f.person_id, f.name,
-                          )}
+                          onClick={() => anrufStarten(f.telefonWaehlbar!, f.person_id, f.name)}
                           className="fi-primaerknopf inline-flex items-center gap-1.5 px-3.5 py-2 text-[12.5px] font-semibold">
                     <MarkeHoerer size={14} /> Anrufen
                   </button>
+                )}
+                {!f.telefonWaehlbar && f.telefonHinweis && (
+                  <span className="inline-flex items-center px-3 py-2 text-[12px] rounded-lg"
+                        style={{ background: "rgba(180,83,9,.08)", color: "#92400e" }}>
+                    {f.telefonAnzeige ? `${f.telefonAnzeige} — ` : ""}{f.telefonHinweis}
+                  </span>
                 )}
                 {/* ── DIE AKTE, NICHT DAS GESPRÄCHSBLATT ────────────────────
                     Der Vorgesetzte: „Der Inkasso-Mitarbeiter muss den
@@ -849,10 +870,16 @@ function InkassoAkte({
     fall.tage_ueberfaellig ?? k?.tage_offen
     ?? Math.max(0, Math.floor((Date.now() - new Date(fall.faellig_am).getTime()) / 86_400_000)),
   );
-  const rohNummer = fall.phone || k?.bestell_telefon || k?.primary_phone;
-  const sofortNummer = rohNummer
-    ? `${fall.phone_country_code || k?.vorwahl || "+49"}${String(rohNummer).replace(/^0/, "")}`
-    : null;
+  // ── DIE WÄHLBARE NUMMER, NICHT SELBST GEBAUT (30.08.2026) ────────────────
+  // Hier stand dieselbe Zusammensetzung wie oben in der Liste — und derselbe
+  // „+49"-Rückfall. Zwei Stellen, ein Fehler: genau die Lage, die AGENTS.md
+  // „zwei Fassungen derselben Regel" nennt. `telefonWaehlbar` kommt fertig
+  // aus der Arbeitsliste; die Akte darf keine andere Nummer wählen als die
+  // Zeile, aus der sie geöffnet wurde.
+  const sofortNummer: string | null = fall.telefonWaehlbar ?? k?.telefonWaehlbar ?? null;
+  const nummerHinweis: string | null = sofortNummer
+    ? null
+    : (fall.telefonHinweis ?? k?.telefonHinweis ?? null);
 
   return (
     <FiaonEbene
@@ -939,6 +966,15 @@ function InkassoAkte({
                       className="fi-primaerknopf inline-flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-semibold">
                 Anrufen · {sofortNummer}
               </button>
+            )}
+            {/* Kein Knopf ohne wählbare Nummer — aber auch kein stummes Nichts.
+                Der Grund steht als Text da (AGENTS.md: ein gesperrter Knopf
+                ohne sichtbaren Grund ist ein Rätsel). */}
+            {!sofortNummer && nummerHinweis && (
+              <span className="inline-flex items-center px-3.5 py-2.5 text-[12.5px] rounded-lg"
+                    style={{ background: "rgba(180,83,9,.08)", color: "#92400e" }}>
+                {nummerHinweis}
+              </span>
             )}
             <button type="button" onClick={() => void erinnerungSenden()} disabled={busy}
                     className="fi-zweitknopf px-3.5 py-2.5 text-[12.5px] font-semibold">

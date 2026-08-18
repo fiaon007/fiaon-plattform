@@ -40,6 +40,243 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-30-tageslauf-waechter",
+    date: "2026-08-30",
+    category: "Behoben",
+    title: "Die Automatik war 15 Tage aus — und niemand konnte es sehen",
+    summary:
+      "Der t\u00e4gliche Lauf, der Kunden verteilt und gebrochene Zahlungszusagen "
+      + "auf den Tisch legt, hat 15 Tage nicht gearbeitet. 96 \u00fcberf\u00e4llige Zusagen "
+      + "sind dadurch liegengeblieben. Beides ist behoben \u2014 und k\u00fcnftig f\u00e4llt es auf.",
+    changes: [
+      "WAS PASSIERT IST: Der Tageslauf durfte nur in der 6-Uhr-Stunde arbeiten. "
+      + "War der Server in genau dieser Stunde nicht wach, war der Tag verloren \u2014 "
+      + "und der n\u00e4chste, und der \u00fcbern\u00e4chste. Vom 03. bis zum 18.08. ist er kein "
+      + "einziges Mal durchgekommen.",
+
+      "WAS DADURCH LIEGENBLIEB: 96 \u00fcberf\u00e4llige Zahlungszusagen wurden nicht "
+      + "eskaliert \u2014 die \u00e4lteste 33 Tage alt. Das sind Kunden, die Zahlung "
+      + "versprochen haben und niemandem auf den Tisch gekommen sind. Sie stehen "
+      + "in deiner Liste unter „\u00dcberf\u00e4llig“ \u2014 bitte sieh dort nach. Dazu 4 Kunden "
+      + "ohne Zust\u00e4ndigen und 8 falsch eingestufte; beides ist nachgezogen.",
+
+      "WAS JETZT ANDERS IST: Der Lauf fragt nicht mehr „ist es 6 Uhr?“, sondern "
+      + "„ist der letzte erfolgreiche Durchlauf mehr als 20 Stunden her?“. Verpasst "
+      + "er den Morgen, holt er beim n\u00e4chsten Takt nach \u2014 genau EINMAL, nicht "
+      + "dreimal.",
+
+      "UND ES F\u00c4LLT AUF: Jeder Lauf schreibt jetzt mit, wann er lief, wie lange "
+      + "und mit welchem Ergebnis. Bleibt einer \u00fcber 26 Stunden aus, steht das mit "
+      + "Ampel auf dem Verwaltungs-Dashboard \u2014 samt dem Satz, WAS dadurch "
+      + "ausf\u00e4llt \u2014 und der Betreiber bekommt eine Mail.",
+
+      "KEINE NACHTR\u00c4GLICHEN MAILS: Es wurden KEINE Mahnungen oder Erinnerungen "
+      + "r\u00fcckwirkend verschickt. 15 Tage Mahnungen auf einmal w\u00e4ren f\u00fcr die Kunden "
+      + "eine Lawine \u2014 und danach landen auch unsere richtigen Mails im Spam. Die "
+      + "laufenden Mahnstufen holen die F\u00e4lle in den n\u00e4chsten Tagen von selbst ein.",
+    ],
+    howto: [
+      "Schau in deiner Kundenliste unter „\u00dcberf\u00e4llig“: Dort stehen die Kunden mit "
+      + "gebrochener Zahlungszusage. Bei Florentine 43, bei Daniel 27, bei Lucas 17, "
+      + "bei Nikita 9 \u2014 die \u00e4ltesten zuerst.",
+      "Wenn dir auff\u00e4llt, dass eine Automatik nicht arbeitet (keine Wiedervorlagen, "
+      + "keine neuen Zuteilungen), sag es bitte sofort. Auf dem Dashboard der "
+      + "Verwaltung steht jetzt, welcher Lauf steht.",
+    ],
+    important: true,
+  },
+  {
+    id: "2026-08-30-teamfeedback-3",
+    date: "2026-08-30",
+    category: "Neu",
+    title: "Euer Feedback, Teil 3: Termin-Art, Blockier-Knopf, Mikrofon-Balken",
+    summary:
+      "Ihr sieht jetzt bei jedem Termin, WAS f\u00fcr ein Gespr\u00e4ch es ist. Das "
+      + "Forderungsmanagement hat den Blockier-Knopf. Und das Telefon zeigt vor "
+      + "dem Anruf, ob dein Mikrofon liefert.",
+    changes: [
+      "TERMIN-ART \u00dcBERALL: Jeder Termin tr\u00e4gt eine Marke \u2014 „Onboarding“ "
+      + "(bezahlt, freischalten), „Vertrieb“ (noch nicht bezahlt, beraten) oder "
+      + "„R\u00fcckruf“ (selbst notiert). Im Kalender, in der oberen Leiste, in der "
+      + "Termin-Zentrale und in der Startgespr\u00e4ch-Liste. Vorher stand dort „Kunde "
+      + "hat gebucht“ \u2014 das sagt, WOHER der Termin kommt, aber nicht, worauf du "
+      + "dich einstellen musst.",
+
+      "BLOCKIER-KNOPF IM FORDERUNGSMANAGEMENT: Neues Ergebnis „Nummer blockiert "
+      + "uns“. Es markiert die Nummer und legt die Rate 30 Tage still. Vorher "
+      + "blieb dir nur „Nicht erreicht“ \u2014 und die Rate kam am n\u00e4chsten Tag "
+      + "wieder, also hast du dieselbe Nummer gew\u00e4hlt, die dich wegdr\u00fcckt. Die "
+      + "Mahnungen laufen weiter, nur der Anrufweg ist zu.",
+
+      "MIKROFON-BALKEN VOR DEM ANRUF: „Der Kunde nimmt ab, aber es spricht "
+      + "niemand“ \u2014 gemeldet und verstanden. Dass der Browser das Mikrofon "
+      + "ERLAUBT hat, hei\u00dft nicht, dass es liefert: stummes Headset, falsches "
+      + "Eingabeger\u00e4t, Schalter am Kabel. Sag einmal „Test“ und du SIEHST, ob es "
+      + "ankommt \u2014 bevor ein Kunde in der Leitung ist.",
+
+      "WARNUNG IM GESPR\u00c4CH: Liegt dein Eingang \u00fcber 10 Sekunden bei null, steht "
+      + "es im Gespr\u00e4chsblatt: „Dein Mikrofon liefert kein Signal.“ Zehn Sekunden, "
+      + "damit eine normale Sprechpause keinen Fehlalarm ausl\u00f6st.",
+
+      "SCHUTZ F\u00dcR UNSERE RUFNUMMER: Es gibt jetzt eine Tagesgrenze (Vorgabe 100 "
+      + "Anrufe je Nummer). Sehr viele Anrufe von einer Nummer f\u00fchren beim "
+      + "Netzbetreiber zu einer Spam-Markierung \u2014 danach klingelt sie bei "
+      + "NIEMANDEM mehr durch. Den Stand siehst du im Telefon-Panel, bevor der "
+      + "Knopf nicht mehr geht. Im Normalbetrieb erreicht das niemand.",
+
+      "VERST\u00c4NDLICHE ABLEHNUNG BEI DER TERMINBUCHUNG: Wenn ein Kunde einen Slot "
+      + "w\u00e4hlt, der gerade weg ist, steht jetzt da, wie viele Zeiten noch frei "
+      + "sind \u2014 statt nur „nicht mehr frei“. Und jeder Buchungsversuch wird "
+      + "protokolliert, auch der erfolgreiche. Damit l\u00e4sst sich die Meldung "
+      + "„Buchung klappt nicht zuverl\u00e4ssig“ endlich mit Zahlen pr\u00fcfen statt "
+      + "sch\u00e4tzen.",
+    ],
+    howto: [
+      "Telefon \u00f6ffnen \u2192 unter der Tastatur steht der Mikrofon-Balken. Sag etwas: "
+      + "Schl\u00e4gt er gr\u00fcn aus, liefert dein Mikro. Bleibt er bernstein bei „kein "
+      + "Signal“, pr\u00fcf den Stummschalter am Headset und das Eingabeger\u00e4t im Browser.",
+      "Forderungsmanagement \u2192 „Ergebnis festhalten“ \u2192 „Nummer blockiert uns“.",
+      "Kalender: Die Art steht als farbige Marke neben der Uhrzeit. Fahr mit der "
+      + "Maus dar\u00fcber, dann steht da, worauf du dich einstellst.",
+    ],
+    important: true,
+  },
+  {
+    id: "2026-08-30-teamfeedback-2",
+    date: "2026-08-30",
+    category: "Behoben",
+    title: "Euer Feedback, Teil 2: Rufnummern, verpasste Termine, Stufen und Betreuer",
+    summary:
+      "Das +49 +49 im Forderungsmanagement ist weg \u2014 und es war schlimmer als "
+      + "gedacht. Verpasste Termine lassen sich jetzt wirklich abschlie\u00dfen. Und "
+      + "142 Kunden mit offener Rechnung lagen im kalten Fach.",
+    changes: [
+      "GEMELDET: „+49 +49 vor der Nummer im Forderungsmanagement.“ \u2014 URSACHE: "
+      + "Der Vertrieb bekommt die Nummer fertig vom Server, das "
+      + "Forderungsmanagement setzte sie selbst zusammen. Stand vor der Nummer "
+      + "schon ein „+“, kam noch eins davor. GEMESSEN: 21 Zeilen. \u2014 SCHLIMMER: "
+      + "Bei \u00f6sterreichischen Nummern ohne getrennte Vorwahl wurde „+49“ "
+      + "davorgeh\u00e4ngt. H\u00e4tte man nur das doppelte Plus entfernt, h\u00e4ttet ihr einen "
+      + "FREMDEN Menschen angerufen. \u2014 JETZT: Eine einzige Stelle berechnet die "
+      + "Nummer, f\u00fcr Anzeige UND Wahl. 39 kaputte Nummern im Bestand sind "
+      + "bereinigt. Ist eine Nummer nicht w\u00e4hlbar, steht der GRUND da statt "
+      + "eines Knopfes, der ins Leere ruft.",
+
+      "GEMELDET: „‚Nicht erschienen \u2014 bitte abschlie\u00dfen‘ h\u00e4ngt.“ \u2014 URSACHE: Der "
+      + "Satz erschien bei JEDEM verpassten Termin, auch bei den l\u00e4ngst "
+      + "abgearbeiteten \u2014 und es gab kein „Abschlie\u00dfen“. Wer nochmal dr\u00fcckte, "
+      + "schrieb dasselbe nochmal: Die Karte verschwand kurz und war nach dem "
+      + "n\u00e4chsten Laden zur\u00fcck. GEMESSEN: 19 von 47 verpassten Terminen waren "
+      + "fertig und standen trotzdem da; bei einem Kollegen 26 St\u00fcck. \u2014 JETZT: "
+      + "Ein Klick auf „Nicht erschienen“ schlie\u00dft den Vorgang \u2014 Fehlversuch "
+      + "gez\u00e4hlt, Folge-Einladung l\u00e4uft, Karte weg. Stehen bleiben nur die, die "
+      + "der Nachlauf markiert hat und die noch niemand bearbeitet hat.",
+
+      "142 KUNDEN LAGEN IM FALSCHEN FACH: Gemeldet war „Kunden mit Zahlung "
+      + "stehen auf Stufe C“. Das gibt es nicht (gepr\u00fcft: 0 F\u00e4lle) \u2014 aber die "
+      + "gespeicherte Stufe wich bei 181 Menschen von der Berechnung ab. Bei 142 "
+      + "davon stand Stufe C, obwohl eine RECHNUNG OFFEN ist. Die haben in "
+      + "niemandes Arbeitsliste gelegen. Alle 188 sind nachgezogen \u2014 dein Bestand "
+      + "kann dadurch gewachsen sein.",
+
+      "88 BEZAHLTE HATTEN KEINEN ZUST\u00c4NDIGEN: Wer bezahlt hat, ohne vorher Stufe "
+      + "A oder B zu sein (Direktzahler), fiel aus der Verteilung \u2014 vorher zu "
+      + "fr\u00fch, nachher „ist ja schon Kunde“. Niemand f\u00fchrte sein Startgespr\u00e4ch. "
+      + "Alle 88 sind jetzt zugeteilt; wer dokumentiert betreut wurde, ist bei "
+      + "SEINEM Betreuer gelandet, nicht beim n\u00e4chstbesten.",
+
+      "„OHNE BETREUER“ WAR TEILS EIN ANZEIGEFEHLER: Die Zahlungsansicht las den "
+      + "Zust\u00e4ndigen von der BESTELLUNG statt von der Person. Nach "
+      + "Zusammenf\u00fchrungen laufen die auseinander \u2014 GEMESSEN: bei 36 bezahlten "
+      + "Bestellungen stand „ohne Betreuer“, obwohl einer eingetragen war. Jetzt "
+      + "gilt die Person, die Bestellung nur als R\u00fcckfall.",
+
+      "PROVISION: NIE MEHR EIN LEERES FELD. Wo eine Provision gebucht ist, steht "
+      + "der Betrag. Wo die Wand griff, steht „Direktzahler \u2014 keine Provision“. "
+      + "Wo beides fehlt (61 F\u00e4lle), steht „kein Vermerk \u2014 bitte pr\u00fcfen“. Ein "
+      + "leeres Feld hat bisher nicht unterschieden, ob es keine Provision gibt "
+      + "oder ob niemand nachgesehen hat.",
+    ],
+    howto: [
+      "Forderungsmanagement: Der Anruf-Knopf steht nur noch da, wo die Nummer "
+      + "wirklich w\u00e4hlbar ist. Fehlt die Vorwahl, steht das als Text daneben \u2014 "
+      + "dann bitte in der Akte erg\u00e4nzen, danach ist der Knopf da.",
+      "Kalender: Verpasste Termine mit „Nicht erschienen“ abschlie\u00dfen. Die Karte "
+      + "verschwindet danach. Kommt sie zur\u00fcck, ist das ein Fehler \u2014 bitte melden.",
+      "Deine Liste kann gewachsen sein: 142 Kunden mit offener Rechnung sind aus "
+      + "dem kalten Fach nach vorn gewandert, und 88 bezahlte Kunden haben einen "
+      + "Zust\u00e4ndigen bekommen.",
+    ],
+    important: true,
+  },
+  {
+    id: "2026-08-30-teamfeedback",
+    date: "2026-08-30",
+    category: "Behoben",
+    title: "Euer Feedback: was ihr gemeldet habt, was die Ursache war, was jetzt gilt",
+    summary:
+      "Dreizehn Meldungen. Zwei davon hatten dieselbe Ursache \u2014 eine einzige "
+      + "fehlende Zeile. Und der Verdacht auf falsch zusammengef\u00fchrte Kunden hat "
+      + "sich nach 742 nachgerechneten F\u00e4llen NICHT best\u00e4tigt.",
+    changes: [
+      "GEMELDET: „Bei verschiedenen Kunden erscheinen dieselben Stammdaten.“ — "
+      + "URSACHE: Nicht die Zusammenf\u00fchrung. Das Telefon-Panel hat die Kundendaten "
+      + "beim ERSTEN Anruf geladen und danach nie wieder. Ab dem zweiten Gespr\u00e4ch "
+      + "standen dort die Daten des ersten Kunden \u2014 genau Paket, Offen, "
+      + "Verwendungszweck, E-Mail und Ort. — JETZT: Die Daten geh\u00f6ren zum Kunden, "
+      + "nicht zum Gespr\u00e4ch. Passt die Kennung nicht, steht „Wird geladen …“ da "
+      + "statt fremder Angaben. Ein falscher Name am Telefon ist schlimmer als eine L\u00fccke.",
+
+      "GEMELDET: „E-Mail erg\u00e4nzt \u2014 Versand bleibt trotzdem gesperrt.“ UND "
+      + "„Produkt anlegen: keine Bestellung vorhanden.“ — URSACHE: Dasselbe Problem. "
+      + "Nach jeder \u00c4nderung holt die Karte sich frisch \u2014 und die Antwort enthielt "
+      + "die Bestellungen nicht. Die Karte hat sie dabei nicht nur nicht erneuert, "
+      + "sondern GEL\u00d6SCHT. Deshalb wurde es schlimmer, je mehr ihr getan habt: Wer "
+      + "die E-Mail nachtrug, sperrte sich damit den Versand. — JETZT: Die "
+      + "Bestellungen sind immer dabei. E-Mail erg\u00e4nzen \u2192 sofort senden. Produkt "
+      + "anlegen \u2192 sofort senden. Ohne Umweg.",
+
+      "GEMELDET: „Ein Kunde steht bei Hans UND bei Diana.“ — URSACHE: Die Zuteilung "
+      + "verteilte jede RATE einzeln an den mit der kleinsten Last. Wer mehrere "
+      + "offene Raten hatte, landete bei zwei Menschen. Gemessen: 7 Kunden. — "
+      + "JETZT: Ein Mensch, ein Zust\u00e4ndiger. Alle Raten eines Kunden geh\u00f6ren einem "
+      + "von euch; neue Raten folgen dem, der schon zust\u00e4ndig ist. Die 7 F\u00e4lle sind "
+      + "zusammengef\u00fchrt und stehen mit Begr\u00fcndung im Verlauf.",
+
+      "GEMELDET: „Diana & Nikita gleichzeitig.“ — URSACHE: Beides war richtig. Ein "
+      + "Kunde hat zwei Zust\u00e4ndige: einen im Vertrieb und einen im "
+      + "Forderungsmanagement. Es stand nur nirgends, welcher welcher ist. — JETZT: "
+      + "Zwei beschriftete Felder \u2014 „Betreuung Vertrieb“ und „Forderungsmanagement“. "
+      + "Nie mehr ein unbeschriftetes „betreut von“. Ist niemand zust\u00e4ndig, steht "
+      + "„niemand“ da statt eines leeren Feldes.",
+
+      "GEPR\u00dcFT UND NICHT BEST\u00c4TIGT: Der Verdacht, die automatische "
+      + "Zusammenf\u00fchrung habe \u00fcber Platzhalter (0000, info@, Firmennummern) fremde "
+      + "Menschen verschmolzen. Nachgerechnet wurden alle 742 Zusammenf\u00fchrungen: "
+      + "Kein einziger Fall betraf zwei verschiedene Menschen. Von 61 mehrfach "
+      + "belegten Rufnummern geh\u00f6ren 58 zu genau EINEM Nachnamen \u2014 das ist "
+      + "derselbe Mensch, mehrfach angelegt. Es wurde deshalb nichts getrennt: Ein "
+      + "Undo h\u00e4tte Dubletten erzeugt, um ein Problem zu l\u00f6sen, das es nicht gibt.",
+
+      "TROTZDEM H\u00c4RTER: K\u00fcnftig wird nicht mehr automatisch zusammengef\u00fchrt, wenn "
+      + "ein hartes Merkmal widerspricht \u2014 anderer Nachname, anderes Geburtsdatum "
+      + "oder Stra\u00dfe und PLZ gemeinsam abweichend. Solche Paare werden Kandidat und "
+      + "warten auf einen Menschen. Ein vertipptes Geburtsdatum (eine Stelle) bleibt "
+      + "zusammenf\u00fchrbar \u2014 sonst h\u00e4tte die Regel mehr kaputtgemacht als geholfen.",
+    ],
+    howto: [
+      "Zahlungsdaten senden: Kunde \u00f6ffnen \u2192 fehlt die E-Mail, tr\u00e4gst du sie direkt "
+      + "am Knopf ein \u2192 „Speichern“ \u2192 der Knopf ist sofort frei. Kein Neuladen n\u00f6tig.",
+      "Kunde ohne Bestellung: „Produkt anlegen“ \u2192 Paket w\u00e4hlen \u2192 danach Zahlungsdaten "
+      + "senden. Beides in einem Vorgang, ohne die Seite zu wechseln.",
+      "Am Telefon: Klapp „Kundendaten“ im Panel auf. Steht dort „Wird geladen …“, "
+      + "warte einen Moment \u2014 das ist die Absicherung, dass du NIE fremde Daten liest.",
+      "Im Forderungsmanagement: Du siehst jetzt alle Raten eines Menschen, wenn er "
+      + "dir geh\u00f6rt \u2014 nicht mehr einzelne Raten quer verteilt.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-30-schaubilder",
     date: "2026-08-30",
     category: "Neu",

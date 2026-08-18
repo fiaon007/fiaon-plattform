@@ -34,6 +34,7 @@ import { stufeAusTier } from "@shared/fiaon-kundenstatus";
 import { ruhtSql } from "../lib/fiaon-nicht-erreicht";
 import { terminLink } from "../lib/fiaon-termine";
 import { wartetSql, warteZahlen } from "../lib/fiaon-warten";
+import { terminArtAusQuelle, terminArtRueckruf } from "../../shared/fiaon-termin-art";
 
 const router = Router();
 
@@ -454,6 +455,7 @@ router.get("/agent/termine/faellig", requireAgent, async (req: AgentRequest, res
       // Und gebuchte Startgespräche.
       sqlPool`
         SELECT t.id AS log_id, t.person_id, t.beginn AS scheduled_at, NULL::text AS note,
+               t.quelle,
                COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                         p.company_name, p.contact_name, 'Ohne Namen') AS name
         FROM fiaon_termine t
@@ -465,15 +467,29 @@ router.get("/agent/termine/faellig", requireAgent, async (req: AgentRequest, res
       `.catch(() => [] as any[]),
     ]);
 
-    const bauen = (r: any, art: "rueckruf" | "startgespraech") => ({
-      logId: Number(r.log_id),
-      personId: Number(r.person_id),
-      name: String(r.name),
-      wann: new Date(r.scheduled_at).toISOString(),
-      inMinuten: Math.round((new Date(r.scheduled_at).getTime() - Date.now()) / 60_000),
-      notiz: r.note ? String(r.note).slice(0, 90) : null,
-      art,
-    });
+    const bauen = (r: any, art: "rueckruf" | "startgespraech") => {
+      // ── DIE TERMIN-ART AUS DER EINEN ABLEITUNG (30.08.2026) ─────────────
+      // Die obere Leiste hatte ihren eigenen Wortschatz („Startgespraech" /
+      // „Rueckruf") aus einem Feld, das nur sie kennt. Das war die dritte
+      // Fassung derselben Frage. `art` bleibt (die Leiste unterscheidet damit,
+      // welche Route der Klick anspricht), die ANZEIGE kommt aus
+      // shared/fiaon-termin-art.ts — dieselbe Quelle wie im Kalender und in
+      // der Termin-Zentrale.
+      const marke = art === "rueckruf" ? terminArtRueckruf() : terminArtAusQuelle(r.quelle);
+      return {
+        logId: Number(r.log_id),
+        personId: Number(r.person_id),
+        name: String(r.name),
+        wann: new Date(r.scheduled_at).toISOString(),
+        inMinuten: Math.round((new Date(r.scheduled_at).getTime() - Date.now()) / 60_000),
+        notiz: r.note ? String(r.note).slice(0, 90) : null,
+        art,
+        terminArt: marke.art,
+        terminArtText: marke.text,
+        terminArtTon: marke.ton,
+        terminArtErklaerung: marke.erklaerung,
+      };
+    };
 
     res.json({
       ok: true,

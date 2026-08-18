@@ -82,6 +82,7 @@ import AgentUpdatesPage from "@/pages/agent/updates";
 import AgentFeedbackPage from "@/pages/agent/feedback";
 import AgentMehrPage from "@/pages/agent/mehr";
 const AgentAcademyPage = lazy(() => import("@/pages/agent/academy"));
+const AgentSchulungPage = lazy(() => import("@/pages/agent/schulung"));
 const AdminAgentPortalPage = lazy(() => import("@/pages/admin-agent-portal"));
 const AdminLeadsPage = lazy(() => import("@/pages/admin-leads"));
 const AdminFinanzenPage = lazy(() => import("@/pages/admin-finanzen"));
@@ -297,6 +298,10 @@ function Router() {
           bekommt 404 — nicht die Reise. Das ist keine Geheimhaltung, sondern
           Klarheit: Wer die Inkasso-Reise durchklickt, hält sie hinterher für
           seine Aufgabe. */}
+      {/* ── DIE LEITUNGS-SCHULUNG (29.08.2026) ─────────────────────────────
+          Florentine und Daniel schulen selbst. Die Seite prüft `istLeitung`,
+          das der Server liefert — kein eigener Rollen-Vergleich in der Anzeige. */}
+      <Route path="/agent/schulung" component={AgentSchulungPage} />
       <Route path="/agent/academy" component={AgentAcademyPage} />
       <Route path="/agent/academy/:reise" component={AgentAcademyPage} />
       <Route path="/agent/dokumente" component={AgentDokumentePage} />

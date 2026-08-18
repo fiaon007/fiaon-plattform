@@ -445,6 +445,52 @@ Ort und behebt am falschen Fall.
 in den Bericht schreiben. Sie ist keine Kritik am Auftraggeber, sondern die
 Beschreibung des wirklichen Problems.
 
+## SVG schneidet stillschweigend ab — drei Screenshots für ein Schaubild
+
+Beim Bau der Academy-Schaubilder fand jeder Screenshot einen Fehler, den der
+Quelltext nicht verrät:
+
+1. Zwei Beschriftungen **überlappten** („336 warten hier“ und „Rate
+   offen → Forderungsmanagement“). Beide Koordinaten sahen einzeln plausibel
+   aus.
+2. Texte **links vom Kreis** liefen über den viewBox-Rand: Aus „Zahlung /
+   oder Sperre“ wurde „ung / erre“. SVG wirft keinen Fehler, es
+   schneidet ab.
+3. Ein Wert für **beide Achsen** (`M = 215` für cx UND cy) schob den Kreis nach
+   unten aus dem Feld. Die unteren zwei Marken fehlten.
+
+- **Ein Schaubild ohne angesehenen Screenshot ist nicht geliefert.** Bei Text in
+  SVG gilt das doppelt.
+- **Ebenen planen, nicht Koordinaten raten.** In den Quelltext gehört, welcher
+  y-Bereich wofür ist — sonst kollidiert die nächste Ergänzung wieder.
+- **Und der Prüfstand kann etwas messen, das das Auge nicht sieht:**
+  `strokeDashoffset === 0` beweist, dass die gezeichnete Linie fertig ist.
+  Bliebe der Offset stehen, wäre sie unsichtbar — auf einem statischen Bild
+  fällt das niemandem auf.
+
+## Zwei Ansichten desselben Katalogs: exportieren und filtern
+
+Die Vertriebsleitung braucht den Funktionskatalog aus `/admin/funktionen` — ohne
+die drei Einträge, die nur die Geschäftsführung entscheidet.
+
+- **Den Katalog EXPORTIEREN und filtern**, nicht kopieren. Eine zweite Fassung
+  läuft beim nächsten neuen Eintrag auseinander, und dann schult die Leitung
+  eine Funktion, die es nicht mehr gibt.
+- **Die Filterregel steht NEBEN dem Katalog**, nicht in der zweiten Ansicht: Wer
+  einen Eintrag hinzufügt, sieht die Liste der Ausnahmen und entscheidet mit.
+- **Leere Gruppen fallen heraus.** Eine Überschrift ohne Inhalt sieht nach einem
+  Fehler aus.
+
+## Eine Route ohne Anzeige ist eine halbe Funktion — zum zweiten Mal
+
+`/admin/academy/stand` lieferte „Academy: Kapitel x/y“ seit dem 28.08. Es
+gab nur keine Anzeige. Zwei Tage vorher hatte genau dieses Muster vier Tage
+Arbeit blockiert (der Produkt-Knopf).
+
+**Wenn eine Route Daten für eine Anzeige liefert, gehört die Anzeige in denselben
+Commit.** Sonst steht im Changelog „liefert die Daten“, und niemand merkt,
+dass niemand sie sieht.
+
 ## 50 grüne Prüfungen an einer Route beweisen nicht, dass ein Mensch sie erreicht
 
 Am 25.08. entstand die Route „Produkt an bestehende Akte“ mit 50

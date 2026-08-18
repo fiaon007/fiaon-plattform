@@ -535,6 +535,134 @@ function main(): void {
     "die Zuschauer sitzen weiter weg");
   pruef("Esc beendet ihn", /e\.key === "Escape" && praesentation/.test(teamSeite));
 
+  // ═════════════════════════════════════════════════════════════════════════
+  titel("12. DIE SCHAUBILDER — selbst gezeichnet, animiert, zugänglich");
+  // ═════════════════════════════════════════════════════════════════════════
+  const bilder = lies("client/src/components/AcademySchaubilder.tsx");
+  pruef("Es gibt drei Schaubilder",
+    /export function SchaubildKundenweg/.test(bilder)
+      && /export function SchaubildStufen/.test(bilder)
+      && /export function SchaubildAboZyklus/.test(bilder));
+  pruef("… als eigenes SVG, ohne Icon-Bibliothek",
+    /<svg viewBox/.test(bilder) && !/from "lucide-react"/.test(bilder),
+    "AGENTS.md: keine Icon-Bibliotheken");
+  pruef("… mit Haarlinien (1,5 px)", /const STRICH = 1\.5/.test(bilder));
+  pruef("Jedes Bild hat einen Alternativtext",
+    (bilder.match(/aria-label="/g) ?? []).length >= 3
+      && (bilder.match(/<title>/g) ?? []).length >= 3,
+    "ein Schaubild ohne Beschreibung ist für Vorleseprogramme eine leere Fläche");
+  pruef("… und eine Bildunterschrift, die die FORM erklärt",
+    (bilder.match(/<figcaption/g) ?? []).length >= 3);
+
+  // ── DER AUFBAU IST DIE ERKLÄRUNG ──────────────────────────────────────
+  pruef("Der Fluss zeichnet sich (stroke-dashoffset)",
+    /@keyframes fiFluss/.test(bilder) && /strokeDashoffset: 700/.test(bilder));
+  pruef("Der Kreis zeichnet sich ebenfalls",
+    /@keyframes fiKreis/.test(bilder) && /2 \* Math\.PI \* R/.test(bilder));
+  pruef("Die Teile erscheinen NACHEINANDER",
+    /animation: `fiZeig \.4s \$\{0\.25 \+ i \* 0\.16\}s/.test(bilder),
+    "ein Bild, das fertig da ist, wird überflogen");
+
+  // ── ZAHLEN STATT BEHAUPTUNGEN ─────────────────────────────────────────
+  pruef("Der Kundenweg nennt die 336 Wartenden", /336 warten hier/.test(bilder));
+  pruef("… und die 120 Termine aus Terminlinks", /120 von 120 Terminen/.test(bilder));
+  pruef("Der Abzweig ins Forderungsmanagement ist gestrichelt",
+    /strokeDasharray="5 5"/.test(bilder),
+    "eine durchgehende Linie würde den Ausnahmefall zur Fortsetzung machen");
+
+  // ── REDUCED MOTION: STATISCH UND SICHTBAR ─────────────────────────────
+  pruef("Bei reduced-motion ist alles statisch",
+    /animation: none !important/.test(bilder));
+  pruef("… UND vollständig sichtbar",
+    /opacity: 1 !important/.test(bilder) && /stroke-dashoffset: 0 !important/.test(bilder),
+    "wer den Eintritt über opacity: 0 baut und nur die Animation abschaltet, "
+      + "zeigt eine leere Fläche — der häufigste Fehler dabei");
+
+  // ── DIE ZUORDNUNG ─────────────────────────────────────────────────────
+  pruef("Die Zuordnung läuft über den Kapitel-SCHLÜSSEL",
+    /const ZUORDNUNG: Record<string,/.test(bilder),
+    "über die Position würde ein eingeschobenes Kapitel das Bild verschieben");
+  // Jeder zugeordnete Schlüssel muss existieren — sonst zeigt das Bild nie.
+  const zuordnung = Array.from(bilder.matchAll(/^  "([a-z-]+)": "(kundenweg|stufen|abo)",/gm))
+    .map((m) => m[1]);
+  const alleKeys = new Set(REISEN.flatMap((r) => r.kapitel.map((k) => k.key)));
+  const toteZuordnung = zuordnung.filter((z) => !alleKeys.has(z));
+  pruef("Jeder zugeordnete Kapitel-Schlüssel existiert", toteZuordnung.length === 0,
+    toteZuordnung.join(", ") || `${zuordnung.length} Zuordnungen geprüft`);
+  for (const datei of ["client/src/pages/admin-schulung.tsx",
+                       "client/src/pages/agent/academy.tsx"]) {
+    pruef(`${datei.split("/").pop()} zeigt die Schaubilder`,
+      /<SchaubildFuerKapitel/.test(lies(datei)));
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  titel("13. DIE MAIL-VORSCHAU: DESKTOP ODER HANDY");
+  // ═════════════════════════════════════════════════════════════════════════
+  pruef("Es gibt einen Umschalter",
+    /data-fiaon={`vorschau-\$\{wert\}`}/.test(seite)
+      && /setVorschauGeraet/.test(seite));
+  pruef("… und er ändert die Breite des Rahmens",
+    /vorschauGeraet === "handy" \? 360 : 620/.test(seite),
+    "360 px ist die Breite, an der eine Vorlage bricht, wenn sie es tut");
+  pruef("… und die Höhe mit",
+    /vorschauGeraet === "handy" \? 430 : 300/.test(seite),
+    "sonst sieht man am Telefon nur die Anrede");
+  pruef("Der aktive Zustand ist erkennbar",
+    /aria-pressed=\{vorschauGeraet === wert\}/.test(seite));
+
+  // ═════════════════════════════════════════════════════════════════════════
+  titel("14. DER ACADEMY-STAND IST SICHTBAR");
+  // ═════════════════════════════════════════════════════════════════════════
+  const teamZentrale = lies("client/src/pages/admin-team-zentrale.tsx");
+  pruef("Die Team-Zentrale zeigt den Stand je Mensch",
+    /data-fiaon="academy-stand"/.test(teamZentrale),
+    "die Route lieferte die Zahl seit dem 28.08. — es gab nur keine Anzeige");
+  pruef("… über EINE Abfrage für alle",
+    /admin\/academy\/stand/.test(teamZentrale)
+      && /new Map\(\(j\.mitarbeiter \?\? \[\]\)/.test(teamZentrale),
+    "sechs Aufrufe für eine Zahl wären Verschwendung");
+  pruef("… und benennt, wer nicht angefangen hat",
+    /noch nicht geöffnet/.test(teamZentrale));
+  pruef("Bernstein, nicht Rot",
+    /#92400e/.test(teamZentrale) && !/color: "#b91c1c"[^}]*academy/i.test(teamZentrale),
+    "eine Farbe, die anklagt, erzeugt Ausreden statt Gespräche");
+
+  // ═════════════════════════════════════════════════════════════════════════
+  titel("15. DIE LEITUNGS-SCHULUNG");
+  // ═════════════════════════════════════════════════════════════════════════
+  const leitung = lies("client/src/pages/agent/schulung.tsx");
+  const funktionen = lies("client/src/pages/admin-funktionen.tsx");
+  pruef("Es gibt die Leitungs-Seite", leitung.length > 0);
+  pruef("Der Katalog wird IMPORTIERT, nicht kopiert",
+    /import \{ katalogFuerLeitung, anzahlNurVerwaltung \}/.test(leitung)
+      && !/title: "Kundenakte"/.test(leitung),
+    "eine zweite Fassung würde beim nächsten neuen Eintrag auseinanderlaufen");
+  pruef("Die Filterregel steht NEBEN dem Katalog",
+    /const NUR_VERWALTUNG = new Set\(/.test(funktionen)
+      && /export function katalogFuerLeitung/.test(funktionen),
+    "wer einen Eintrag hinzufügt, sieht die Liste und entscheidet mit");
+  pruef("… und nennt die drei Verwaltungs-Themen",
+    /Auszahlung ablehnen/.test(funktionen) && /Provision nachbuchen/.test(funktionen)
+      && /Feedback beantworten \/ belohnen/.test(funktionen));
+  pruef("Leere Gruppen fallen heraus",
+    /\.filter\(\(g\) => g\.items\.length > 0\)/.test(funktionen),
+    "eine Überschrift ohne Inhalt sieht nach einem Fehler aus");
+  pruef("Die Seite prüft die Rolle über den SERVER",
+    /academy\.istLeitung/.test(leitung) && !/rolle === "vertriebsleiter"/.test(leitung),
+    "kein eigener Rollen-Vergleich in der Anzeige");
+  pruef("… und weist andere freundlich ab",
+    /Diese Seite ist für die Vertriebsleitung/.test(leitung));
+  pruef("Sie zeigt die Kernbotschaft ganz oben",
+    leitung.indexOf("<KernbotschaftKarte") < leitung.indexOf("Die Reisen"),
+    "sie kommt in jedem Gespräch vor");
+  pruef("… die Reisen zum Vorführen", /data-fiaon="leitung-reise"/.test(leitung));
+  pruef("… den Team-Stand", /data-fiaon="leitung-teamstand"/.test(leitung));
+  pruef("… und den gefilterten Katalog",
+    /data-fiaon="leitung-katalog-gruppe"/.test(leitung));
+  pruef("Der Menüpunkt erscheint NUR der Leitung",
+    /nurLeitung: true/.test(mehr)
+      && /AREAS\.filter\(\(a\) => !a\.nurLeitung \|\| istLeitung\)/.test(mehr));
+
   console.log(`\n${"═".repeat(72)}`);
   console.log(`  ${ok} ok · ${rot} rot`);
   if (rot > 0) console.log(`\n  ROT:\n${fehler.map((f) => `    · ${f}`).join("\n")}`);

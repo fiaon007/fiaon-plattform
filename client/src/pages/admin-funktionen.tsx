@@ -39,11 +39,19 @@ type FnEntry = {
   event?: string;
   button?: string;
 };
-type FnGroup = { title: string; intro: string; items: FnEntry[] };
+export type FnGroup = { title: string; intro: string; items: FnEntry[] };
 
 // ── Katalog (gruppiert nach Bereich). Typografische Quotes „…" bewusst,
 //    damit keine ASCII-Anführungszeichen die Strings zerbrechen. ──
-const CATALOG: FnGroup[] = [
+//
+// ── EXPORTIERT SEIT DEM 29.08.2026 ─────────────────────────────────────────
+// Die Vertriebsleitung schult die Mitarbeiter selbst und braucht dafür dieselbe
+// Übersicht — ohne die Themen, die nur die Verwaltung betreffen.
+//
+// Der Katalog wird EXPORTIERT und dort gefiltert, nicht kopiert: Eine zweite
+// Fassung würde beim nächsten neuen Eintrag auseinanderlaufen, und dann schult
+// die Leitung eine Funktion, die es nicht mehr gibt.
+export const CATALOG: FnGroup[] = [
   {
     title: "Kundenakte",
     intro: "Eine Seite pro Person — hier siehst, änderst und löst du alles aus.",
@@ -114,6 +122,43 @@ const CATALOG: FnGroup[] = [
     ],
   },
 ];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAS DIE LEITUNG NICHT BRAUCHT
+//
+// Der Auftrag: „gefiltert um Admin-only-Themen wie Gehälter/Wirtschaftlichkeit".
+// In diesem Katalog gibt es keine Gehälter — aber drei Einträge, die
+// ausschließlich die Verwaltung betreffen:
+//
+//   · Auszahlung ablehnen — eine Geldentscheidung der Geschäftsführung
+//   · Provision nachbuchen — greift in abgerechnete Zeiträume ein
+//   · Feedback beantworten / belohnen — vergibt Boni
+//
+// Die Grenze steht HIER, neben dem Katalog, nicht in der Leitungs-Seite: Wer
+// einen neuen Eintrag hinzufügt, sieht die Liste und entscheidet mit.
+// ═══════════════════════════════════════════════════════════════════════════
+const NUR_VERWALTUNG = new Set([
+  "Auszahlung ablehnen",
+  "Provision nachbuchen",
+  "Feedback beantworten / belohnen",
+]);
+
+/**
+ * Der Katalog für die Vertriebsleitung.
+ *
+ * Leere Gruppen fallen heraus — eine Überschrift ohne Inhalt sieht nach einem
+ * Fehler aus.
+ */
+export function katalogFuerLeitung(): FnGroup[] {
+  return CATALOG
+    .map((g) => ({ ...g, items: g.items.filter((i) => !NUR_VERWALTUNG.has(i.name)) }))
+    .filter((g) => g.items.length > 0);
+}
+
+/** Wie viele Einträge sind der Leitung vorenthalten? Für die Anzeige dort. */
+export function anzahlNurVerwaltung(): number {
+  return CATALOG.reduce((n, g) => n + g.items.filter((i) => NUR_VERWALTUNG.has(i.name)).length, 0);
+}
 
 // ── Phase-0 Verdrahtungs-Audit (Button → Event → verdrahtet?) ────────────────
 // Systematisch jeder Event-auslösende Button geprüft (server: sendMakeWebhook).

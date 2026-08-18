@@ -25,6 +25,7 @@
 // 380 px funktioniert alles, denn eine Einschulung passiert auch am Telefon.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SchaubildFuerKapitel } from "@/components/AcademySchaubilder";
 import { KernbotschaftKarte } from "@/components/KernbotschaftKarte";
 import { useRoute } from "wouter";
 import { REISEN, reise as reiseFinden, HANDELNDER_TEXT, type Kapitel } from "@shared/fiaon-academy";
@@ -327,6 +328,13 @@ function KapitelBuehne({ k, nummer, gesamt, aktiv, praesentation, ton }: {
 }) {
   const ruhe = nutztRuhe();
   const [warumOffen, setWarumOffen] = useState(false);
+  /**
+   * Desktop oder Handy in der Mail-Vorschau.
+   *
+   * Die meisten Kunden lesen am Telefon. Eine Vorlage, die nur breit geprüft
+   * wurde, bricht dort — und in der Schulung fällt es nicht auf.
+   */
+  const [vorschauGeraet, setVorschauGeraet] = useState<"desktop" | "handy">("desktop");
   // Die Mail-Vorschau wird erst geladen, wenn das Kapitel sichtbar ist —
   // sonst holt die Seite 13 Vorschauen beim Öffnen (LCP-Budget).
   const [vorschau, setVorschau] = useState<any>(null);
@@ -442,6 +450,12 @@ function KapitelBuehne({ k, nummer, gesamt, aktiv, praesentation, ton }: {
           </ul>
         )}
 
+        {/* ── DAS SCHAUBILD ────────────────────────────────────────────
+            Nur bei Kapiteln, für die es eines gibt (Zuordnung über den
+            Schlüssel, nicht über die Position — ein eingeschobenes Kapitel
+            würde sonst das Bild verschieben). */}
+        <SchaubildFuerKapitel kapitelKey={k.key} ton={ton.akzent} />
+
         {/* ── DIE ZAHLEN, DIE DEN SCHRITT BELEGEN ─────────────────────── */}
         {k.zahlen && k.zahlen.length > 0 && (
           <div style={{ marginTop: 22, display: "grid", gap: 8 }}>
@@ -469,10 +483,45 @@ function KapitelBuehne({ k, nummer, gesamt, aktiv, praesentation, ton }: {
             }}>
               Diese Mail geht raus
             </p>
+            {/* ══════════════════════════════════════════════════════════
+                UMSCHALTBAR: DESKTOP ODER HANDY
+
+                ── WARUM DAS NÖTIG IST ─────────────────────────────────────
+                Die meisten Kunden lesen ihre Mails am Telefon. Eine Vorlage,
+                die nur auf 620 px geprüft wurde, bricht dort — und niemand
+                merkt es, weil die Schulung sie breit zeigt.
+
+                Der Umschalter ändert nur die BREITE des Rahmens. Das genügt:
+                Brevos Vorlagen sind responsiv, und ein echtes Gerät zu
+                emulieren wäre eine Genauigkeit, die wir nicht halten können.
+                ══════════════════════════════════════════════════════════ */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              {([["desktop", "Desktop", 620], ["handy", "Handy", 360]] as const)
+                .map(([wert, beschriftung]) => (
+                <button key={wert} type="button"
+                        data-fiaon={`vorschau-${wert}`}
+                        onClick={() => setVorschauGeraet(wert)}
+                        aria-pressed={vorschauGeraet === wert}
+                        style={{
+                          padding: "7px 13px", borderRadius: 9, border: 0, cursor: "pointer",
+                          background: vorschauGeraet === wert
+                            ? "rgba(255,255,255,.16)" : "rgba(255,255,255,.055)",
+                          color: vorschauGeraet === wert ? HELL : LEISER,
+                          fontSize: 11.5, fontWeight: 700, minHeight: 36,
+                          boxShadow: vorschauGeraet === wert
+                            ? "inset 0 0 0 1px rgba(255,255,255,.24)" : "none",
+                        }}>
+                  {beschriftung}
+                </button>
+              ))}
+            </div>
             <div style={{
               borderRadius: 16, overflow: "hidden", background: "#fff",
               boxShadow: "0 18px 48px rgba(2,8,25,.44), inset 0 0 0 1px rgba(255,255,255,.14)",
-              maxWidth: 620,
+              // Der Handy-Rahmen ist 360 px breit — die verbreitete Breite, an
+              // der eine Vorlage bricht, wenn sie es tut.
+              maxWidth: vorschauGeraet === "handy" ? 360 : 620,
+              transition: ruhe ? "none" : "max-width .28s cubic-bezier(.22,1,.36,1)",
             }}>
               <div style={{
                 padding: "11px 14px", background: "#f1f5fb",
@@ -491,7 +540,15 @@ function KapitelBuehne({ k, nummer, gesamt, aktiv, praesentation, ton }: {
               {vorschau?.html ? (
                 <iframe title={`Vorschau ${k.mailEvent}`} srcDoc={vorschau.html}
                         sandbox="" loading="lazy"
-                        style={{ width: "100%", height: 300, border: 0, display: "block" }} />
+                        style={{
+                          width: "100%",
+                          // Auf 360 px braucht dieselbe Mail mehr Höhe — sonst
+                          // sieht man nur die Anrede und hält die Vorlage für
+                          // kurz.
+                          height: vorschauGeraet === "handy" ? 430 : 300,
+                          border: 0, display: "block",
+                          transition: ruhe ? "none" : "height .28s",
+                        }} />
               ) : (
                 <p style={{ margin: 0, padding: "22px 16px", fontSize: 12.5, color: "#64748b" }}>
                   {vorschauLaedt

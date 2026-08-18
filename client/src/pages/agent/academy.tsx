@@ -14,6 +14,7 @@
 // Wahrheit — und die Schulung würde nach der ersten Änderung auseinanderlaufen.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SchaubildFuerKapitel } from "@/components/AcademySchaubilder";
 import { KernbotschaftKarte } from "@/components/KernbotschaftKarte";
 import { Link, useRoute } from "wouter";
 import { HANDELNDER_TEXT, type Kapitel } from "@shared/fiaon-academy";
@@ -390,6 +391,9 @@ function TeamReise({ reiseKey }: { reiseKey: string }) {
             ))}
           </ul>
         )}
+
+        {/* Das Schaubild — dieselben Bilder wie in der Verwaltung. */}
+        <SchaubildFuerKapitel kapitelKey={jetzt.key} ton={ton.akzent} />
 
         {jetzt.zahlen && jetzt.zahlen.length > 0 && (
           <div style={{ display: "grid", gap: 8, marginTop: 16 }}>

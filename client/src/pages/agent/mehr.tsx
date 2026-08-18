@@ -14,11 +14,16 @@ import { getUnseenCount } from "./updates-data";
 // jetzt hier und verschwindet weiterhin von selbst, sobald sie erledigt ist.
 // ============================================================================
 
-const AREAS: { href: string; label: string; desc: string; icon: typeof FileText; badgeKey?: string }[] = [
+const AREAS: { href: string; label: string; desc: string; icon: typeof FileText; badgeKey?: string; nurLeitung?: boolean }[] = [
   // ── DIE ACADEMY (28.08.2026) ────────────────────────────────────────────
   // Sie steht GANZ OBEN: Ein neuer Mitarbeiter soll sie finden, ohne zu
   // scrollen — und ein alter soll daran erinnert werden, dass sie es gibt.
   { href: "/agent/academy", label: "Academy", desc: "Der Ablauf deines Bereichs, Kapitel für Kapitel — mit gespeichertem Fortschritt", icon: GraduationCap },
+  // ── NUR FÜR DIE LEITUNG (29.08.2026) ────────────────────────────────────
+  // `nurLeitung` blendet den Eintrag für alle anderen aus. Die Seite selbst
+  // prüft es ebenfalls (über `istLeitung` vom Server) — die Anzeige ist die
+  // Bequemlichkeit, die Wand steht dort.
+  { href: "/agent/schulung", label: "Schulung", desc: "Reisen zum Vorführen, Funktionskatalog und der Stand deines Teams", icon: GraduationCap, nurLeitung: true },
   { href: "/agent/skripte", label: "Skripte", desc: "Gesprächsvorlagen und Leitfäden für deine Telefonate", icon: FileText },
   { href: "/agent/updates", label: "Updates", desc: "Neuerungen an deinem Agent-Portal", icon: Sparkles, badgeKey: "updates" },
   { href: "/agent/feedback", label: "Feedback", desc: "Verbesserungen vorschlagen — Umsetzung wird belohnt", icon: MessageSquarePlus },
@@ -42,6 +47,16 @@ function MehrContent() {
   const { agent } = useAgentInfo();
   const [, navigate] = useLocation();
   const [unreadUpdates, setUnreadUpdates] = useState(0);
+  // ── IST DER NUTZER LEITUNG? ────────────────────────────────────────────
+  // Der SERVER sagt es (`istLeitung` aus /agent/academy) — kein Rollen-Vergleich
+  // hier. Eine zweite Fassung derselben Regel geht auseinander.
+  const [istLeitung, setIstLeitung] = useState(false);
+  useEffect(() => {
+    void fetch("/api/fiaon/agent/academy", { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => setIstLeitung(j?.istLeitung === true))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     setUnreadUpdates(getUnseenCount());
@@ -80,7 +95,7 @@ function MehrContent() {
       <FirstStepsPanel className="mb-4" />
 
       <div className="space-y-2.5">
-        {AREAS.map((a, i) => {
+        {AREAS.filter((a) => !a.nurLeitung || istLeitung).map((a, i) => {
           const Icon = a.icon;
           const badge = a.badgeKey === "updates" ? unreadUpdates : 0;
           return (

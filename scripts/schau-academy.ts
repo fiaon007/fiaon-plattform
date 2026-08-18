@@ -254,6 +254,105 @@ async function main(): Promise<void> {
     await ruhig.screenshot({ path: "reports/academy/reduced-motion.png", fullPage: false });
     console.log("        reports/academy/reduced-motion.png");
 
+    // ═══════════════════════════════════════════════════════════════════════
+    titel("DIE SCHAUBILDER");
+    // ═══════════════════════════════════════════════════════════════════════
+    const bildSeite = await kontext.newPage();
+    await bildSeite.route("**/admin/mail/vorschau/**", async (r) => {
+      await r.fulfill({ status: 200, contentType: "application/json",
+        body: JSON.stringify({ ok: true, absender: "FIAON", betreff: "Probe",
+          html: "<p style='font-family:sans-serif;padding:14px'>Probe-Mail</p>" }) });
+    });
+    await bildSeite.goto(`${BASIS}/admin/schulung/vertrieb`,
+      { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await bildSeite.locator('[data-fiaon="kapitel"]').first()
+      .waitFor({ state: "visible", timeout: 25_000 }).catch(() => {});
+
+    // Zum Kapitel mit dem Kundenweg springen.
+    await bildSeite.evaluate(() =>
+      document.getElementById("kapitel-lead-entsteht")?.scrollIntoView({ block: "start" }));
+    await bildSeite.waitForTimeout(2400);   // die Animation läuft 1,5 s + Marken
+
+    const fluss = bildSeite.locator('[data-fiaon="schaubild-kundenweg"]');
+    pruef("Das Kundenweg-Schaubild ist da", await fluss.count() > 0);
+    // ── DIE LINIE MUSS FERTIG GEZEICHNET SEIN ──────────────────────────
+    // `stroke-dashoffset` steht am Ende auf 0. Bliebe er auf 700, wäre die
+    // Linie unsichtbar — und niemand würde es am statischen Bild merken.
+    const gezeichnet = await bildSeite.evaluate(() => {
+      const pfad = document.querySelector('[data-fiaon="schaubild-kundenweg"] path');
+      if (!pfad) return null;
+      return Math.round(Number(getComputedStyle(pfad).strokeDashoffset.replace("px", "")));
+    });
+    pruef("Die Fluss-Linie ist fertig gezeichnet", gezeichnet === 0,
+      `strokeDashoffset = ${gezeichnet} (soll 0)`);
+    const bildText = await fluss.innerText().catch(() => "");
+    pruef("Die gemessenen Zahlen stehen im Bild",
+      /336 warten hier/.test(bildText) && /120 von 120/.test(bildText),
+      "ein Schaubild ohne Zahlen ist eine Behauptung mit Kästchen");
+    pruef("… und die Bildunterschrift erklärt die FORM",
+      /Abzweig nach unten ist der Ausnahmefall/.test(bildText));
+    await bildSeite.screenshot({ path: "reports/academy/schaubild-fluss.png", fullPage: false });
+    console.log("        reports/academy/schaubild-fluss.png");
+
+    // ── DER TRICHTER ────────────────────────────────────────────────────
+    await bildSeite.evaluate(() =>
+      document.getElementById("kapitel-stufen-abc")?.scrollIntoView({ block: "start" }));
+    await bildSeite.waitForTimeout(1600);
+    pruef("Das Stufen-Schaubild ist da",
+      await bildSeite.locator('[data-fiaon="schaubild-stufen"]').count() > 0);
+    await bildSeite.screenshot({ path: "reports/academy/schaubild-trichter.png", fullPage: false });
+    console.log("        reports/academy/schaubild-trichter.png");
+
+    // ── DER ABO-KREIS (andere Reise) ────────────────────────────────────
+    await bildSeite.goto(`${BASIS}/admin/schulung/inkasso`,
+      { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await bildSeite.locator('[data-fiaon="kapitel"]').first()
+      .waitFor({ state: "visible", timeout: 25_000 }).catch(() => {});
+    await bildSeite.waitForTimeout(2600);
+    pruef("Das Abo-Zyklus-Schaubild ist da",
+      await bildSeite.locator('[data-fiaon="schaubild-abo"]').count() > 0);
+    const kreis = await bildSeite.evaluate(() => {
+      const c = document.querySelector('[data-fiaon="schaubild-abo"] circle');
+      if (!c) return null;
+      return Math.round(Number(getComputedStyle(c).strokeDashoffset.replace("px", "")));
+    });
+    pruef("… und der Kreis ist geschlossen", kreis === 0,
+      `strokeDashoffset = ${kreis} (soll 0)`);
+    await bildSeite.screenshot({ path: "reports/academy/schaubild-abo.png", fullPage: false });
+    console.log("        reports/academy/schaubild-abo.png");
+
+    // ═══════════════════════════════════════════════════════════════════════
+    titel("DIE MAIL-VORSCHAU: DESKTOP UND HANDY");
+    // ═══════════════════════════════════════════════════════════════════════
+    await bildSeite.goto(`${BASIS}/admin/schulung/onboarding`,
+      { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await bildSeite.locator('[data-fiaon="kapitel"]').first()
+      .waitFor({ state: "visible", timeout: 25_000 }).catch(() => {});
+    await bildSeite.evaluate(() =>
+      document.getElementById("kapitel-erinnerung")?.scrollIntoView({ block: "start" }));
+    await bildSeite.waitForTimeout(1800);
+
+    const desktopKnopf = bildSeite.locator('[data-fiaon="vorschau-desktop"]').first();
+    const handyKnopf = bildSeite.locator('[data-fiaon="vorschau-handy"]').first();
+    pruef("Es gibt beide Umschalter",
+      await desktopKnopf.count() > 0 && await handyKnopf.count() > 0);
+    const breiteVorher = await bildSeite.evaluate(() => {
+      const el = document.querySelector("iframe[title^='Vorschau']")?.parentElement;
+      return el ? Math.round(el.getBoundingClientRect().width) : 0;
+    });
+    await handyKnopf.click();
+    await bildSeite.waitForTimeout(700);
+    const breiteNachher = await bildSeite.evaluate(() => {
+      const el = document.querySelector("iframe[title^='Vorschau']")?.parentElement;
+      return el ? Math.round(el.getBoundingClientRect().width) : 0;
+    });
+    pruef("Der Handy-Rahmen ist SCHMALER", breiteNachher < breiteVorher,
+      `${breiteVorher} px → ${breiteNachher} px`);
+    pruef("… und etwa 360 px breit", Math.abs(breiteNachher - 360) <= 8,
+      `${breiteNachher} px`);
+    await bildSeite.screenshot({ path: "reports/academy/vorschau-handy.png", fullPage: false });
+    console.log("        reports/academy/vorschau-handy.png");
+
   } finally {
     await browser.close();
   }

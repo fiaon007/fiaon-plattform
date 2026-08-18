@@ -48,6 +48,52 @@ Die Prüfung ist wieder entfernt, mit Begründung im Quelltext. **Der esbuild-Du
 
 **Teil 2 (Agent als Vollpfleger)** und **Teil 3** (Pflichtnotiz im Listen-Weg, 12 Wartezustände, Zustellprotokoll mit Filtern, Team-Kalender auf 380 px) sind offen.
 
+## 30.08.2026 — Die vier offenen Punkte, abgearbeitet
+
+### Die Schaubilder — selbst gezeichnet
+
+Drei SVGs, keine Icon-Bibliothek (AGENTS.md), Haarlinien 1,5 px:
+
+- **Der Kundenweg als Fluss:** Antrag → Zahlung → Gate → Gespräch → Frei → Abo, sechs Stationen an einer Linie, die sich **zeichnet** (`stroke-dashoffset`). Der Abzweig ins Forderungsmanagement geht **gestrichelt nach unten** weg — eine durchgehende Linie würde den Ausnahmefall zur Fortsetzung machen. Und die gemessenen Zahlen stehen im Bild: „336 warten hier" am Gate, „120 von 120 Terminen kamen aus einem verschickten Link" über dem Gespräch. Ein Schaubild ohne Zahlen ist eine Behauptung mit Kästchen.
+- **Die Stufen A/B/C als Trichter:** Die **Breite** zeigt die Menge, die Reihenfolge die Dringlichkeit — beides ohne ein Wort. Darunter: „Wer C zuerst anruft, arbeitet an der falschen Stelle."
+- **Der Abo-Zyklus als Kreis:** Jahrestag oben, Rechnung, T+1, Mahnstufen, Zahlung-oder-Sperre. Ein Kreis, keine Zeitleiste — eine Leiste hätte ein Ende, ein Abo hat nur einen Jahrestag. Der Pfeil von der Sperre führt **zurück** in den Kreis: „Gesperrt ≠ verloren."
+
+Die Teile erscheinen **nacheinander**, in der Reihenfolge des Ablaufs. Ein Bild, das fertig da ist, wird überflogen; ein Bild, das sich aufbaut, wird gelesen.
+
+**Bei `prefers-reduced-motion` ist alles statisch UND vollständig sichtbar** — `opacity: 1 !important` und `stroke-dashoffset: 0 !important`. Wer den Eintritt über `opacity: 0` baut und nur die Animation abschaltet, zeigt eine leere Fläche. Das ist der häufigste Fehler dabei.
+
+**Drei Screenshots, drei Fehler:**
+
+1. „336 warten hier" **überlappte** „Rate offen → Forderungsmanagement". Im Quelltext sah beides plausibel aus. Jetzt vier klar getrennte Ebenen.
+2. Die Beschriftungen **links vom Kreis** waren abgeschnitten: aus „Zahlung / oder Sperre" wurde „ung / erre". Das viewBox war 420 breit, der Text lief darüber hinaus — **SVG schneidet stillschweigend ab**.
+3. Ein Wert für **beide Achsen** (`M = 215`) schob den Kreis nach unten aus dem Feld: „T+1" und „Mahnstufen" fehlten. Jetzt `MX` und `MY` getrennt.
+
+### Die Mail-Vorschau: Desktop oder Handy
+
+Ein Umschalter über dem Geräterahmen. **360 px** ist die Handy-Breite — dort bricht eine Vorlage, wenn sie es tut. Die Höhe wächst mit (430 statt 300 px), sonst sieht man am Telefon nur die Anrede und hält die Vorlage für kurz.
+
+Die meisten Kunden lesen am Telefon. Eine Vorlage, die nur breit geprüft wurde, bricht dort — und in der Schulung fällt es nicht auf.
+
+### Der Academy-Stand ist sichtbar
+
+Die Route `/admin/academy/stand` lieferte die Zahl seit dem 28.08. — **es gab nur keine Anzeige.** Genau der Fehler, der beim Produkt-Knopf vier Tage Arbeit blockiert hat.
+
+Jetzt steht an jeder Mitarbeiterkarte in der Team-Zentrale „Academy: Kapitel x/y", und wer nicht angefangen hat, in **Bernstein** mit „— noch nicht geöffnet". Kein Rot: Eine Farbe, die anklagt, erzeugt Ausreden statt Gespräche. Eine Abfrage für alle, nicht eine je Karte.
+
+### Die Leitungs-Schulung (`/agent/schulung`)
+
+Für Florentine und Daniel, an einer Stelle: die **Kernbotschaft** ganz oben (sie kommt in jedem Gespräch vor), die **drei Reisen** zum Vorführen, der **Stand des Teams** und der **Funktionskatalog**.
+
+**Der Katalog wird importiert, nicht kopiert.** `katalogFuerLeitung()` filtert drei Einträge heraus, die nur die Geschäftsführung entscheidet: Auszahlung ablehnen, Provision nachbuchen, Feedback belohnen. Die Filterregel steht **neben dem Katalog** in `admin-funktionen.tsx` — wer einen Eintrag hinzufügt, sieht die Liste und entscheidet mit. Leere Gruppen fallen heraus; eine Überschrift ohne Inhalt sieht nach einem Fehler aus.
+
+Die Seite prüft die Rolle über **`istLeitung` vom Server** — kein eigener Rollen-Vergleich. Der Menüpunkt erscheint nur der Leitung, aber die Wand steht in der Route.
+
+### Geprüft
+
+`pruef-academy.ts` — **179 Prüfungen** (von 142). `schau-academy.ts` — **43** (von 33), darunter: Die Fluss-Linie ist **fertig gezeichnet** (`strokeDashoffset === 0`) und der Kreis **geschlossen**. Bliebe der Offset stehen, wäre die Linie unsichtbar — und am statischen Bild würde es niemand merken. Dazu: Jeder zugeordnete Kapitel-Schlüssel existiert (über die Position würde ein eingeschobenes Kapitel das Bild verschieben).
+
+Screenshots erzeugt und angesehen: `reports/academy/schaubild-*.png`, `vorschau-handy.png`.
+
 ## 29.08.2026 — „Produkt anlegen" repariert + die Kernbotschaft verankert
 
 ### Teil 1: Die Ursache war meine

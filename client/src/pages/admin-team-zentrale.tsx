@@ -1039,6 +1039,26 @@ function LohntSich({ agentId, name }: { agentId: number; name: string }) {
 }
 
 export default function AdminTeamZentrale() {
+
+  // ══════════════════════════════════════════════════════════════════════
+  // DER ACADEMY-STAND JE MENSCH
+  //
+  // Eine Abfrage für alle, nicht eine je Karte: Bei sechs Mitarbeitern wären das
+  // sechs Aufrufe für eine Zahl. Die Route liefert sie gebündelt.
+  //
+  // AGENTS.md: Haken stehen ÜBER dem ersten `return`.
+  // ══════════════════════════════════════════════════════════════════════
+  const [academyStand, setAcademyStand] = useState<Map<number, any>>(new Map());
+  useEffect(() => {
+    void fetch("/api/fiaon/admin/academy/stand", { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j?.ok) return;
+        setAcademyStand(new Map((j.mitarbeiter ?? [])
+          .map((x: any) => [Number(x.id), x])));
+      })
+      .catch(() => {});
+  }, []);
   const [team, setTeam] = useState<Mitglied[]>([]);
   const [laedt, setLaedt] = useState(true);
   const [offen, setOffen] = useState<number | null>(null);
@@ -1244,6 +1264,31 @@ export default function AdminTeamZentrale() {
                       {!m.active && " · deaktiviert"}
                       {m.active && !m.distribution_active && " · keine Verteilung"}
                     </p>
+                    {/* ══════════════════════════════════════════════════════
+                        DER ACADEMY-STAND (29.08.2026)
+
+                        Die Route `/admin/academy/stand` lieferte diese Zahl seit
+                        dem 28.08. — es gab nur keine Anzeige. Genau der Fehler,
+                        der beim Produkt-Knopf vier Tage Arbeit blockiert hat:
+                        „Die Route existiert" ist keine Funktion.
+
+                        Kein Urteil, nur ein Stand: Die Leitung sieht, mit wem
+                        sie noch einmal durchgehen sollte. Wer nichts angefangen
+                        hat, steht in Bernstein — nicht in Rot. Eine Farbe, die
+                        anklagt, erzeugt Ausreden statt Gespräche.
+                        ══════════════════════════════════════════════════════ */}
+                    {(() => {
+                      const ac = academyStand.get(Number(m.id));
+                      if (!ac) return null;
+                      return (
+                        <p className="text-[11.5px] mt-0.5"
+                           data-fiaon="academy-stand"
+                           style={{ color: ac.angefangen ? "#059669" : "#92400e" }}>
+                          {ac.kurz}
+                          {!ac.angefangen && " — noch nicht geöffnet"}
+                        </p>
+                      );
+                    })()}
                   </div>
                 </div>
 

@@ -40,6 +40,31 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-30-schaubilder",
+    date: "2026-08-30",
+    category: "Neu",
+    title: "Die Academy hat jetzt Schaubilder \u2014 und die Mails siehst du wie am Handy",
+    summary:
+      "Drei gezeichnete \u00dcbersichten: der Kundenweg, die Stufen A/B/C als Trichter "
+      + "und der Abo-Zyklus als Kreis. Dazu die Mail-Vorschau umschaltbar.",
+    changes: [
+      "DER KUNDENWEG ALS BILD: Antrag \u2192 Zahlung \u2192 Gate \u2192 Gespr\u00e4ch \u2192 Freischaltung \u2192 Abo, als eine Linie. Der Abzweig ins Forderungsmanagement geht gestrichelt nach unten \u2014 er ist der Ausnahmefall, nicht die Fortsetzung.",
+      "MIT DEN ECHTEN ZAHLEN: „336 warten hier“ steht am Gate (bezahlte Kunden ohne Termin), „120 von 120 Terminen kamen aus einem verschickten Link“ \u00fcber dem Gespr\u00e4ch.",
+      "DIE STUFEN A/B/C ALS TRICHTER: Die Breite zeigt die Menge, die Reihenfolge die Dringlichkeit. Darunter steht, warum: „Wer C zuerst anruft, arbeitet an der falschen Stelle.“",
+      "DER ABO-ZYKLUS ALS KREIS: Jahrestag, Rechnung, T+1, Mahnstufen, Zahlung oder Sperre \u2014 und zur\u00fcck. Ein Abo hat kein Ende, nur einen Jahrestag.",
+      "DIE MAIL-VORSCHAU IST UMSCHALTBAR: Desktop oder Handy. Die meisten Kunden lesen am Telefon \u2014 so siehst du, was sie sehen.",
+      "F\u00dcR DIE LEITUNG: Eine eigene Schulungsseite (Mehr \u2192 Schulung) mit den drei Reisen, der Kernbotschaft, dem Stand des Teams und dem Funktionskatalog.",
+      "UND IN DER TEAM-ZENTRALE steht bei jedem Menschen, wie weit er in der Academy ist \u2014 kein Urteil, nur ein Stand.",
+    ],
+    howto: [
+      "Mehr \u2192 Academy \u2192 Reise \u00f6ffnen. Die Schaubilder stehen in den Kapiteln, zu denen sie geh\u00f6ren.",
+      "Bei einer Mail: „Desktop“ / „Handy“ umschalten.",
+      "Wenn du Bewegung im System abgeschaltet hast, stehen die Bilder still \u2014 vollst\u00e4ndig sichtbar.",
+    ],
+    link: { href: "/agent/academy", label: "Zur Academy" },
+    important: false,
+  },
+  {
     id: "2026-08-29-produkt",
     date: "2026-08-29",
     category: "Behoben",

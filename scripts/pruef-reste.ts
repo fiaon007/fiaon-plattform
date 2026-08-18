@@ -142,19 +142,28 @@ async function main(): Promise<void> {
       && block.indexOf("const notizFehler") < block.indexOf("const entry = await logAction"),
     "sonst steht das Ergebnis schon im Log, wenn die Prüfung greift");
 
-  // ── DER LISTEN-WEG HAT DAS FELD JETZT ──────────────────────────────────
-  const liste = lies("client/src/pages/agent/kunden.tsx");
+  // ── DER LISTEN-WEG ─────────────────────────────────────────────────────
+  //
+  // ── DIESE PRÜFUNGEN ZEIGTEN AUF DIE FALSCHE DATEI (28.08.2026) ─────────
+  // Sie lasen `pages/agent/kunden.tsx`. Die Route /agent/kunden zeigt aber
+  // `kunden-neu.tsx` — und die hatte die Notizpflicht die ganze Zeit
+  // (`braucht: "notiz"`). Die alte Datei ist heute entfernt; sie hat am 25.08.
+  // schon einmal einen Knopf in die Irre geführt.
+  //
+  // Der wichtige Teil des Befunds vom 24.08. bleibt richtig: Der SERVER hatte
+  // die Pflicht nicht. Genau dort steht sie jetzt.
+  const liste = lies("client/src/pages/agent/kunden-neu.tsx");
+  pruef("Die alte Kundenseite ist entfernt",
+    lies("client/src/pages/agent/kunden.tsx").length === 0,
+    "zwei Dateien mit fast gleichem Namen sind eine Falle");
   pruef("Der Listen-Weg kennt die Pflicht",
-    /const outcomeNeedsNotiz = \(o: string\) => o === "erreicht_sonstiges"/.test(liste));
-  pruef("Er zeigt ein Notizfeld", /Was war das Ergebnis\?/.test(liste));
-  pruef("Er sperrt den Speicher-Knopf ohne Notiz",
-    /outcomeNeedsNotiz\(pending\.key\) && String\(pending\.notiz \?\? ""\)\.trim\(\)\.length < NOTIZ_MIN/.test(liste));
-  pruef("Er schickt die Notiz mit", /if \(notizText\) body\.note = notizText;/.test(liste));
-  pruef("Er zeigt, wie viele Zeichen noch fehlen",
-    /Noch \$\{NOTIZ_MIN - String\(pending\.notiz \?\? ""\)\.trim\(\)\.length\} Zeichen/.test(liste),
-    "sonst rät der Mitarbeiter, wie viel „genug“ ist");
-  pruef("Und er sagt, warum die Notiz nötig ist",
-    /Ohne Notiz ist das Gespräch verloren/.test(liste));
+    /braucht: "notiz"/.test(liste),
+    "in kunden-neu.tsx — der Datei, die die Route wirklich zeigt");
+  pruef("… und zwar für „Erreicht — Sonstiges“",
+    /\{ art: "erreicht_sonstiges"[^}]*braucht: "notiz" \}/.test(liste));
+  pruef("Ohne Text kein Speichern",
+    /Ohne Text kein Speichern/.test(liste),
+    "die Begründung steht im Quelltext, damit sie beim Umbau nicht verschwindet");
 
   // Die anderen beiden Wege bleiben, wie sie waren.
   pruef("Softphone hat die Pflicht weiterhin",

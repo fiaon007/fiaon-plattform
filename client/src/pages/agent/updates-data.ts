@@ -40,6 +40,31 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-28-academy-team",
+    date: "2026-08-28",
+    category: "Neu",
+    title: "Die Academy ist f\u00fcr euch offen \u2014 deine Reise unter „Mehr“",
+    summary:
+      "Der komplette Ablauf deines Bereichs, Kapitel f\u00fcr Kapitel. Dein Stand wird "
+      + "gespeichert \u2014 du kannst jederzeit aufh\u00f6ren und sp\u00e4ter weitermachen.",
+    changes: [
+      "MEHR \u2192 ACADEMY: Dort steht DEINE Reise. Vertrieb, Onboarding oder Forderungsmanagement \u2014 je nach Bereich. Die Leitung sieht alle drei.",
+      "JEDES KAPITEL ZEIGT: was passiert (ein Satz), wer handelt, den Ablauf, die Zahlen dahinter \u2014 und einen Knopf zur echten Seite im System.",
+      "„WARUM DIESER SCHRITT?“ steht bei jedem Kapitel zum Aufklappen. Nicht nur die Anleitung, sondern der Grund \u2014 fast jedes Kapitel gibt es, weil einmal etwas schiefging.",
+      "DEIN STAND BLEIBT: Wenn du bei Kapitel 6 aufh\u00f6rst, geht es dort weiter. Zur\u00fcckbl\u00e4ttern kostet nichts.",
+      "KEINE PR\u00dcFUNG, KEINE NOTE. Es steht nur da, wie weit du gekommen bist \u2014 damit die Leitung wei\u00df, mit wem sie noch einmal durchgehen sollte.",
+      "AM HANDY: Ein Kapitel je Seite, gro\u00dfe Kn\u00f6pfe, nichts verrutscht.",
+    ],
+    howto: [
+      "Mehr \u2192 Academy \u2192 Reise antippen \u2192 „Reise starten“.",
+      "Mit „Weiter“ durchbl\u00e4ttern \u2014 am Rechner gehen auch die Pfeiltasten.",
+      "Am Ende „Fertig“ \u2014 dann steht deine Reise als durchgearbeitet.",
+      "Wenn dir etwas fehlt oder falsch klingt: Mehr \u2192 Feedback. Die H\u00e4lfte dieser Kapitel gibt es, weil jemand etwas gemeldet hat.",
+    ],
+    link: { href: "/agent/academy", label: "Zur Academy" },
+    important: true,
+  },
+  {
     id: "2026-08-27-knopf",
     date: "2026-08-27",
     category: "Behoben",

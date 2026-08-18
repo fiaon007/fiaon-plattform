@@ -357,6 +357,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonTerminZentraleRoutes = await import('./routes/fiaon-termin-zentrale');
   app.use('/api/fiaon', fiaonTerminZentraleRoutes.default);
 
+  // ── DIE ACADEMY FÜR DAS TEAM (28.08.2026) ─────────────────────────────────
+  // Jede Rolle bekommt IHRE Reise, mit gespeichertem Fortschritt. Die
+  // Rollenfilterung lag seit dem 26.08. vorbereitet in shared/fiaon-academy.ts
+  // und wird hier zum ersten Mal benutzt.
+  const fiaonAcademyRoutes = await import('./routes/fiaon-academy');
+  app.use('/api/fiaon', fiaonAcademyRoutes.default);
+
   // 📅 FIAON Termine — oeffentliche Buchungsseite (signiertes Token, kein Login)
   //    und die Agentensicht. Regeln stehen in server/lib/fiaon-termine.ts.
   const fiaonTerminRoutes = await import('./routes/fiaon-termin');

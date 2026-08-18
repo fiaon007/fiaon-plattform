@@ -89,16 +89,30 @@ async function main() {
     const sqlText = fs.readFileSync(filePath, "utf8");
 
     // Safety: refuse destructive migrations
+    // ── DROP COLUMN GEHÖRT DAZU (28.08.2026) ────────────────────────────
+    // Die Liste kannte DROP TABLE, DROP DATABASE und TRUNCATE — aber nicht
+    // DROP COLUMN. Eine gelöschte Spalte ist genauso endgültig wie eine
+    // gelöschte Tabelle, nur unauffälliger: Der Deploy läuft durch, und der
+    // Fehler zeigt sich erst, wenn ein Kunde einen Antrag abschickt.
+    //
+    // Aufgefallen beim Vorbereiten des Kontakt-Spalten-DROPs: 397 Zugriffe in
+    // 62 Dateien lesen diese Spalten noch. Wäre der DROP versehentlich in eine
+    // Migration geraten, hätte ihn nichts gestoppt.
+    //
+    // ALTER … DROP CONSTRAINT bleibt erlaubt: Eine Bedingung zu lösen ist
+    // umkehrbar, Daten zu löschen nicht.
     const destructive = [
       /\bDROP\s+TABLE\b/i,
       /\bDROP\s+DATABASE\b/i,
       /\bTRUNCATE\b/i,
+      /\bDROP\s+COLUMN\b/i,
     ].some((re) => re.test(sqlText));
 
     if (destructive) {
       console.warn(
         `[MIGRATE] ⚠️  REFUSING destructive migration: ${file}\n` +
-          `    → contains DROP TABLE / DROP DATABASE / TRUNCATE. Review manually.`
+          `    → contains DROP TABLE / DROP DATABASE / TRUNCATE / DROP COLUMN. `
+          + `Review manually.`
       );
       failCount++;
       continue;

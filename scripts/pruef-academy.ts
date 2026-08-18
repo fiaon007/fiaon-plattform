@@ -349,6 +349,88 @@ function main(): void {
       `${letztes.text.slice(0, 50)} — erwartet ${r.kapitel.length}`);
   }
 
+  // ═════════════════════════════════════════════════════════════════════════
+  titel("9. DIE ACADEMY IM TEAM-PORTAL — jede Rolle ihre Reise");
+  // ═════════════════════════════════════════════════════════════════════════
+  const teamRoute = lies("server/routes/fiaon-academy.ts");
+  const teamSeite = lies("client/src/pages/agent/academy.tsx");
+
+  pruef("Es gibt eine Team-Route", teamRoute.length > 0);
+  pruef("… und sie benutzt die vorbereitete Rollenfilterung",
+    /reisenFuerRolle/.test(teamRoute),
+    "sie lag seit dem 26.08. bereit — eine Filterregel gehört an EINE Stelle");
+  // ── DIE WAND STEHT IM SERVER ───────────────────────────────────────────
+  pruef("Eine fremde Reise wird mit 404 abgelehnt",
+    /Diese Reise gehört zu einer anderen Abteilung/.test(teamRoute)
+      && /const erlaubt = reisenFuerRolle\(r\)\.some/.test(teamRoute),
+    "in der Anzeige zu filtern genügt nicht: Wer die Adresse eintippt, käme durch");
+  pruef("… und die Ablehnung nennt den Weg zur eigenen Reise",
+    /Mehr → Academy/.test(teamRoute));
+
+  // ── DIE ROLLEN-ZUORDNUNG, GEGEN DIE DATEN GEPRÜFT ─────────────────────
+  for (const [rolle, erwartet] of [
+    ["agent", ["vertrieb"]],
+    ["onboarding", ["onboarding"]],
+    ["inkasso", ["inkasso"]],
+    ["vertriebsleiter", ["vertrieb", "onboarding", "inkasso"]],
+    ["admin", ["vertrieb", "onboarding", "inkasso"]],
+  ] as [string, string[]][]) {
+    const ist = reisenFuerRolle(rolle).map((r) => r.key);
+    pruef(`Rolle „${rolle}“ sieht ${erwartet.join(" + ")}`,
+      ist.length === erwartet.length && erwartet.every((e) => ist.includes(e)),
+      ist.join(", ") || "keine");
+  }
+
+  // ── DER FORTSCHRITT ───────────────────────────────────────────────────
+  pruef("Der Fortschritt wird gespeichert",
+    /CREATE TABLE IF NOT EXISTS fiaon_academy_fortschritt/.test(teamRoute));
+  pruef("… nur nach VORN (GREATEST)",
+    /GREATEST\(fiaon_academy_fortschritt\.kapitel_max/.test(teamRoute),
+    "wer zurückblättert, darf seinen Stand nicht verlieren");
+  pruef("… und einmal fertig bleibt fertig",
+    /fertig_am = COALESCE\(fiaon_academy_fortschritt\.fertig_am/.test(teamRoute));
+  pruef("Die Seite speichert beim Verlassen",
+    /addEventListener\("pagehide", speichern\)/.test(teamSeite)
+      && /keepalive: true/.test(teamSeite),
+    "ein normales fetch bricht ab, wenn die Seite geht");
+  pruef("… und nicht bei jedem Kapitel",
+    /setInterval\(speichern, 30_000\)/.test(teamSeite),
+    "13 Schreibvorgänge für eine Zahl wären Verschwendung");
+
+  // ── DIE TEAM-ZENTRALE ─────────────────────────────────────────────────
+  pruef("Es gibt einen Stand für die Team-Zentrale",
+    /router\.get\("\/admin\/academy\/stand"/.test(teamRoute));
+  pruef("… mit „Academy: Kapitel x/y“ je Mensch",
+    /Academy: Kapitel \$\{summeIst\}\/\$\{summeSoll\}/.test(teamRoute));
+  pruef("… und der Liste, wer noch nicht angefangen hat",
+    /nichtAngefangen/.test(teamRoute),
+    "das ist die Zahl, die die Leitung interessiert");
+
+  // ── DER MENÜPUNKT ─────────────────────────────────────────────────────
+  const mehr = lies("client/src/pages/agent/mehr.tsx");
+  pruef("Der Menüpunkt steht unter „Mehr“",
+    /href: "\/agent\/academy", label: "Academy"/.test(mehr));
+  pruef("… und zwar ganz oben",
+    mehr.indexOf('href: "/agent/academy"') < mehr.indexOf('href: "/agent/skripte"'),
+    "ein neuer Mitarbeiter soll sie ohne Scrollen finden");
+
+  // ── DIE ADMIN-FASSUNG BLEIBT ──────────────────────────────────────────
+  pruef("Die Verwaltungs-Fassung existiert weiter",
+    /path="\/admin\/schulung"/.test(app),
+    "die Bühne zum Vorführen ist etwas anderes als die Fassung zum Selbstlesen");
+  pruef("Die Team-Fassung hat KEINEN Präsentationsmodus",
+    !/praesentieren/i.test(teamSeite),
+    "wer sich selbst einschult, präsentiert nicht");
+
+  // ── DIE ALTE KUNDENSEITE IST WEG ──────────────────────────────────────
+  pruef("pages/agent/kunden.tsx ist entfernt",
+    lies("client/src/pages/agent/kunden.tsx").length === 0,
+    "zwei Dateien mit fast gleichem Namen sind eine Falle — am 25.08. haben sie "
+      + "einen Knopf in die Irre geführt");
+  pruef("… und die alte Adresse leitet um",
+    /path="\/agent\/meine-kunden-alt"><Redirect to="\/agent\/kunden"/.test(app),
+    "ein Lesezeichen soll nicht ins Leere laufen");
+
   console.log(`\n${"═".repeat(72)}`);
   console.log(`  ${ok} ok · ${rot} rot`);
   if (rot > 0) console.log(`\n  ROT:\n${fehler.map((f) => `    · ${f}`).join("\n")}`);

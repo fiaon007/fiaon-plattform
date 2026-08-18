@@ -59,7 +59,6 @@ import AgentAuszahlungPage from "@/pages/agent/auszahlung";
 import AgentSkriptePage from "@/pages/agent/skripte";
 import AgentKalenderPage from "@/pages/agent/kalender";
 import AgentPartnerProgrammPage from "@/pages/agent/partner-programm";
-import AgentKundenPage from "@/pages/agent/kunden";
 // Nachgeladen statt statisch importiert: Die Seite wird nur von den Agenten
 // gebraucht und würde das Hauptbündel für alle anderen Besucher vergrössern.
 const TerminPage = lazy(() => import("@/pages/termin"));
@@ -82,6 +81,7 @@ import AgentVerdienstPage from "@/pages/agent/verdienst";
 import AgentUpdatesPage from "@/pages/agent/updates";
 import AgentFeedbackPage from "@/pages/agent/feedback";
 import AgentMehrPage from "@/pages/agent/mehr";
+const AgentAcademyPage = lazy(() => import("@/pages/agent/academy"));
 const AdminAgentPortalPage = lazy(() => import("@/pages/admin-agent-portal"));
 const AdminLeadsPage = lazy(() => import("@/pages/admin-leads"));
 const AdminFinanzenPage = lazy(() => import("@/pages/admin-finanzen"));
@@ -272,12 +272,33 @@ function Router() {
           Ansicht bleibt unter /agent/meine-kunden erreichbar, damit nichts
           verloren geht. */}
       <Route path="/agent/kunden" component={AgentKundenNeuPage} />
-      <Route path="/agent/meine-kunden-alt" component={AgentKundenPage} />
+      {/* ══════════════════════════════════════════════════════════════════
+          DIE ALTE KUNDENSEITE IST WEG (28.08.2026)
+
+          `pages/agent/kunden.tsx` lag hier unter /agent/meine-kunden-alt. Am
+          25.08. hat sie in die Irre geführt: Ein Knopf und eine Notizpflicht
+          wurden DORT eingebaut, während /agent/kunden längst `kunden-neu.tsx`
+          zeigt. Erst ein Screenshot verriet es.
+
+          Zwei Dateien mit fast gleichem Namen, von denen eine niemand mehr
+          braucht, sind eine Falle. Die Adresse leitet jetzt um — ein
+          Lesezeichen soll nicht ins Leere laufen, aber auch nicht auf einen
+          Stand von vor drei Wochen.
+          ══════════════════════════════════════════════════════════════════ */}
+      <Route path="/agent/meine-kunden-alt"><Redirect to="/agent/kunden" /></Route>
       <Route path="/agent/leads" component={AgentLeadsPage} />
       <Route path="/agent/verdienst" component={AgentVerdienstPage} />
       <Route path="/agent/updates" component={AgentUpdatesPage} />
       <Route path="/agent/feedback" component={AgentFeedbackPage} />
       <Route path="/agent/mehr" component={AgentMehrPage} />
+      {/* ── DIE ACADEMY FÜR DAS TEAM (28.08.2026) ──────────────────────────
+          Jede Rolle bekommt IHRE Reise. Die Filterung liegt im SERVER
+          (fiaon-academy.ts): Wer die Adresse einer fremden Reise eintippt,
+          bekommt 404 — nicht die Reise. Das ist keine Geheimhaltung, sondern
+          Klarheit: Wer die Inkasso-Reise durchklickt, hält sie hinterher für
+          seine Aufgabe. */}
+      <Route path="/agent/academy" component={AgentAcademyPage} />
+      <Route path="/agent/academy/:reise" component={AgentAcademyPage} />
       <Route path="/agent/dokumente" component={AgentDokumentePage} />
       <Route path="/admin/agent-portal" component={admin(AdminAgentPortalPage)} />
       <Route path="/admin/team" component={admin(AdminTeamZentralePage)} />

@@ -278,7 +278,14 @@ router.post("/agent/kunden/neu", requireAgent, async (req: AgentRequest, res: Re
       INSERT INTO fiaon_applications (
         ref, type, status, payment_status, current_step,
         pack_key, pack_name, amount_due, currency, payment_reference,
-        first_name, last_name, email, phone, phone_country_code,
+        -- ── OHNE phone_country_code (28.08.2026) ─────────────────────────
+        -- Diese Spalte ist eine Abschrift: Migration 059 schreibt jeden
+        -- Kontaktwert per Trigger an die Person durch, und die Landesvorwahl
+        -- steckt seit dem 25.08. ohnehin in der Spalte phone (+49…). Sie hier
+        -- mit einer leeren Zeichenkette zu füllen war eine leere Zeile in einer
+        -- Spalte, die verschwinden soll — die Wand hat sie gefunden.
+        -- (Und: KEINE Backticks in SQL-Kommentaren. Zwölfter Fall.)
+        first_name, last_name, email, phone,
         street, zip, city, birthdate,
         assigned_agent_id, created_at, updated_at
       ) VALUES (
@@ -294,7 +301,7 @@ router.post("/agent/kunden/neu", requireAgent, async (req: AgentRequest, res: Re
         -- Der Betrag kommt aus dem Katalog, nicht aus der Anfrage.
         ${p ? paketPreisEuro(paketKey) : null}, 'EUR',
         ${paketKey ? zahlungsreferenz : null},
-        ${vorname}, ${nachname}, ${mail}, ${nummer}, '',
+        ${vorname}, ${nachname}, ${mail}, ${nummer},
         ${String(b.street ?? "").trim().slice(0, 120) || null},
         ${String(b.zip ?? "").trim().slice(0, 12) || null},
         ${String(b.city ?? "").trim().slice(0, 80) || null},
@@ -400,7 +407,7 @@ router.post("/agent/customers/:ref/produkt", requireAgent, async (req: AgentRequ
 
     const [quelle] = (await sqlPool`
       SELECT ref, person_id, first_name, last_name, company_name, email, phone,
-             phone_country_code, street, zip, city, birthdate, type,
+             street, zip, city, birthdate, type,
              assigned_agent_id
       FROM fiaon_applications WHERE ref = ${quellRef} AND merged_into IS NULL
     `) as any[];
@@ -481,7 +488,8 @@ router.post("/agent/customers/:ref/produkt", requireAgent, async (req: AgentRequ
       INSERT INTO fiaon_applications (
         ref, type, status, payment_status, current_step,
         pack_key, pack_name, amount_due, currency, payment_reference,
-        first_name, last_name, company_name, email, phone, phone_country_code,
+        -- Ohne phone_country_code — dieselbe Begründung wie oben.
+        first_name, last_name, company_name, email, phone,
         street, zip, city, birthdate,
         person_id, assigned_agent_id, created_at, updated_at
       ) VALUES (
@@ -490,7 +498,7 @@ router.post("/agent/customers/:ref/produkt", requireAgent, async (req: AgentRequ
         'payment_pending', 'pending_payment', 5,
         ${p.key}, ${p.label}, ${paketPreisEuro(p.key)}, 'EUR', ${zahlungsreferenz},
         ${quelle.first_name}, ${quelle.last_name}, ${quelle.company_name},
-        ${quelle.email}, ${quelle.phone}, ${quelle.phone_country_code ?? ""},
+        ${quelle.email}, ${quelle.phone},
         ${quelle.street}, ${quelle.zip}, ${quelle.city}, ${quelle.birthdate},
         -- Dieselbe Person: Das Produkt gehört demselben Menschen, es entsteht
         -- KEIN zweiter Kunde. Genau daran ist der SCHUFA-Kauf einmal

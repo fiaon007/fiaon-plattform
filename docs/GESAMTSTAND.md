@@ -1,6 +1,6 @@
 # FIAON — Gesamtstand
 
-Die eine Seite, auf der steht, **was existiert und wo**. Stand: 11.08.2026.
+Die eine Seite, auf der steht, **was existiert und wo**. Stand: 28.08.2026.
 
 Wer wissen will, *warum* etwas so gebaut ist, liest die `CHANGELOG.md`. Wer
 wissen will, *wo* etwas liegt, liest hier.
@@ -18,6 +18,61 @@ wissen will, *wo* etwas liegt, liest hier.
 | **Twilio in Produktion prüfen** | `/admin/einstellungen` → Telefon | Lokal sind die sechs Werte nicht gesetzt, daher hier nicht messbar. Die Sperre „Testkonten können nicht telefonieren" ist aufgehoben. |
 | **Space-Dichte prüfen** | Einstellung `space_dichte` | Vorgabe 20 Beiträge pro Tag. Weniger als 10 lässt den Feed leer wirken, mehr als 40 wird zur Tapete. |
 | **Drei alte Pins lösen** | Space → angepinnte Beiträge | Sie stammen aus der Zeit vor der Zwei-Grenze. Die Grenze greift erst beim nächsten Anpinnen. |
+| **Zweig-Ampel einmal laufen lassen** | Verwaltung → E-Mail-Events → „Alle Zweige prüfen" | Seit 27.08. läuft die Zuordnung über Plus-Adressen (`dev+welcome@…`) statt über den Betreff. Der `BREVO_API_KEY` liegt nur in Produktion — der echte Lauf ist dort nötig. Danach steht der Endstand. |
+| **Prüfen, ob Plus-Adressen ankommen** | Postfach der Testadresse | Wenige Anbieter werfen sie weg. Dann wird die Ampel grün, während das Postfach leer bleibt — bitte melden, es gibt einen Rückfall. |
+| **336 Einladungen zum Startgespräch** | Verwaltung → Termin-Zentrale → Karte unten | Bezahlte Kunden ohne Termin, die ältesten seit 04.07.2026, nie eingeladen. Gestaffelt über „alle einladen", höchstens 50 am Tag. |
+| **Gespräch mit Nikita und Lucas** | Verwaltung → Termin-Zentrale → „Je Mitarbeiter" | Bei 50 vergangenen Terminen kein einziger als erledigt markiert (No-Show 64 % und 76 %), während zwei Kollegen 67 % und 78 % abschließen. Das klärt ein Gespräch, kein Programm. |
+| **Academy ansehen und ans Team geben** | Verwaltung → FIAON Academy | Drei Reisen (13/16/10 Kapitel). Das Team sieht seine eigene unter „Mehr → Academy". Wer noch nicht angefangen hat, steht in der Team-Zentrale. |
+
+---
+
+## Das Doppel-Datenmodell — der Stand der Amputation
+
+Die Spalten `email`, `phone`, `contact_email`, `billing_email`, `contact_phone`,
+`phone_country_code` an `fiaon_applications` und `email`/`telefon` an
+`fiaon_leads` sind seit **Migration 059** (20.08.2026) **Abschriften**: Ein
+Trigger schreibt jeden Wert an die Person durch. Die gültige Wahrheit steht an
+`fiaon_persons`.
+
+**Sie sind noch nicht gelöscht.** Stand 28.08.2026:
+
+| | |
+|---|---:|
+| Zugriffe insgesamt | **397** in 62 Dateien |
+| davon schreibend (die vier reinen Abschriften-Spalten) | **16** |
+| Bestellungen mit **abweichender** Adresse zur Person | **110** |
+
+Die 110 sind der Grund für das Archiv: Sie weichen ab, weil sie *vor* dem
+Trigger geschrieben und danach nie angefasst wurden. Ein DROP ohne Sicherung
+wäre für die ein Hard-Delete.
+
+**Was gebaut ist:**
+
+- `db/migrations/061_kontaktspalten_archiv.sql` — sichert **7.544** Bestellungen
+  und **3.841** Leads in `*_kontakt_archiv`. Sie **droppt nichts**; die
+  DROP-Anweisung steht als Kommentar darin, mit der Bedingung.
+- `scripts/pruef-eine-quelle-wand.ts` — hält die Zahlen fest
+  (`reports/eine-quelle-grenzen.json`). Wer eine **neue** schreibende Stelle
+  einbaut, bekommt einen roten Prüfstand. Der Bestand ist geduldet, das
+  Wachstum nicht. Eine Wand, die 397 Fehler meldet, wird abgeschaltet — deshalb
+  Obergrenze statt Verbot.
+- `scripts/run-migrations.mjs` verweigert jetzt auch **`DROP COLUMN`** (bisher
+  nur DROP TABLE / DROP DATABASE / TRUNCATE). Eine gelöschte Spalte ist genauso
+  endgültig, nur unauffälliger: Der Deploy läuft durch, und der Fehler zeigt
+  sich erst beim nächsten Antrag.
+
+**Die Reihenfolge bis zum DROP:**
+
+1. ✅ Archiv angelegt und gefüllt
+2. ⬜ Die **16 schreibenden** Stellen auf die Personen-Funktionen umziehen
+   (`server/routes/fiaon-antrag.ts` hat 11 davon)
+3. ⬜ Die lesenden Stellen nachziehen
+4. ⬜ Wand meldet 0 → **dann** Migration 062 mit dem DROP
+
+Schritt 2 und 3 sind mehrtägige Arbeit. **Ein halber Umzug ist der schlechteste
+Zustand:** Die umgezogenen Stellen schreiben an die Person, die anderen in die
+Spalte, und niemand weiß mehr, welcher Wert gilt. Genau diese Lage hat
+Migration 059 beendet.
 
 ---
 
@@ -129,7 +184,48 @@ npx tsx scripts/pruef-merge.ts           107   Zusammenführen
 npx tsx scripts/pruef-massen-merge.ts     84   Massen-Zusammenführung
 npx tsx scripts/pruef-fundament-b.ts      93   Fundament
 npx tsx scripts/pruef-schmal.ts           25   380-px-Ansicht
+npx tsx scripts/pruef-academy.ts          91   Academy: Kapitel, Registry-Abgleich, Kontrast
+npx tsx scripts/schau-academy.ts          33   Academy im Browser (Vollbild, 380 px)
+npx tsx scripts/pruef-vollpfleger.ts      50   Kunden anlegen, Produkt, die vier Wände
+npx tsx scripts/schau-termine.ts          13   Termin-Zentrale mit echten Zahlen
+npx tsx scripts/pruef-geduld.ts           34   Zweig-Ampel: Polling, Plus-Adressen
+npx tsx scripts/pruef-reste.ts            37   Wartezustand, Notizpflicht, Nachlauf
+npx tsx scripts/pruef-eine-quelle-wand.ts  6   Kontakt-Spalten: keine NEUEN Zugriffe
 ```
+
+### Die neueren Bereiche und wo sie liegen
+
+| Was | Oberfläche | Server | Prüfstand |
+|---|---|---|---|
+| Termin-Zentrale | `pages/admin-termine.tsx` | `routes/fiaon-termin-zentrale.ts` | `schau-termine.ts` |
+| FIAON Academy (Verwaltung) | `pages/admin-schulung.tsx` | — (Daten in `shared/fiaon-academy.ts`) | `pruef-academy.ts`, `schau-academy.ts` |
+| FIAON Academy (Team) | `pages/agent/academy.tsx` | `routes/fiaon-academy.ts` | `pruef-academy.ts` |
+| Kunden anlegen (Vollpfleger) | `components/agent/KundeAnlegen.tsx` | `routes/fiaon-agent-anlage.ts` | `pruef-vollpfleger.ts` |
+| Wartezustand | — | `lib/fiaon-warten.ts` | `pruef-reste.ts` |
+| Zweig-Ampel | `pages/admin-events.tsx` | `lib/fiaon-zustellung.ts` | `pruef-geduld.ts` |
+
+### Zwei Fundorte, die schon in die Irre geführt haben
+
+- **`/agent/kunden` zeigt `pages/agent/kunden-neu.tsx`**, nicht `kunden.tsx`.
+  Die alte Datei ist am 28.08.2026 **entfernt**; die Adresse
+  `/agent/meine-kunden-alt` leitet auf `/agent/kunden` um. Am 25.08. wurden ein
+  Knopf und eine Notizpflicht in die falsche Datei gebaut — erst ein Screenshot
+  verriet es.
+- **`team-calendar.tsx` (3.870 Zeilen) wird in keiner Seite eingebunden**, und
+  die Tabelle `team_calendar` dahinter hat 0 Einträge. Die echten Termine liegen
+  in `fiaon_termine`. Vor jeder Arbeit daran: `grep` auf den Komponentennamen.
+
+### Läufe, die NICHT im Tageslauf stehen
+
+- **`scripts/datenkosmetik-lauf.ts`** (Leerraum in Paketnamen und Namen). Er
+  läuft nicht automatisch — und findet auch nichts mehr: **0 von 11.578**
+  geprüften Feldern brauchen eine Reinigung (gemessen 28.08.2026). Der Leerraum
+  entstand an Formulareingaben, und dort wird jetzt getrimmt. Ein Tageslauf, der
+  11.578 Zeilen prüft und 0 findet, wäre tägliche Arbeit ohne Ergebnis; er
+  bleibt als Werkzeug für den Fall, dass wieder etwas anfällt.
+- **`scripts/warten-bestand.ts`** ist dagegen in den Tageslauf gewandert
+  (`nummernAnfragenNachtragen`, 27.08.2026): Er hatte am 24.08. sieben Fälle
+  nachgetragen, und drei Tage später standen zwei wieder da.
 
 **1.556 Prüfungen.** Alle laufen gegen die Produktionsdatenbank in einer
 Transaktion, die am Ende zurückgerollt wird — es bleibt nichts stehen.

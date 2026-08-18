@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { FileText, Sparkles, MessageSquarePlus, User, Wallet, Award, ChevronRight, LogOut, BarChart3 } from "lucide-react";
+import { FileText, Sparkles, MessageSquarePlus, User, Wallet, Award, ChevronRight, LogOut, BarChart3, GraduationCap } from "lucide-react";
 import { AgentShell, useAgentInfo, Avatar, ACCENT } from "./shared";
 import { Reveal } from "./motion";
 import { FirstStepsPanel } from "./motivation";
@@ -15,6 +15,10 @@ import { getUnseenCount } from "./updates-data";
 // ============================================================================
 
 const AREAS: { href: string; label: string; desc: string; icon: typeof FileText; badgeKey?: string }[] = [
+  // ── DIE ACADEMY (28.08.2026) ────────────────────────────────────────────
+  // Sie steht GANZ OBEN: Ein neuer Mitarbeiter soll sie finden, ohne zu
+  // scrollen — und ein alter soll daran erinnert werden, dass sie es gibt.
+  { href: "/agent/academy", label: "Academy", desc: "Der Ablauf deines Bereichs, Kapitel für Kapitel — mit gespeichertem Fortschritt", icon: GraduationCap },
   { href: "/agent/skripte", label: "Skripte", desc: "Gesprächsvorlagen und Leitfäden für deine Telefonate", icon: FileText },
   { href: "/agent/updates", label: "Updates", desc: "Neuerungen an deinem Agent-Portal", icon: Sparkles, badgeKey: "updates" },
   { href: "/agent/feedback", label: "Feedback", desc: "Verbesserungen vorschlagen — Umsetzung wird belohnt", icon: MessageSquarePlus },

@@ -445,6 +445,74 @@ Ort und behebt am falschen Fall.
 in den Bericht schreiben. Sie ist keine Kritik am Auftraggeber, sondern die
 Beschreibung des wirklichen Problems.
 
+## Ein halber Umzug ist schlechter als keiner
+
+Der Auftrag lautete: 397 Zugriffe auf die Kontakt-Abschriften abarbeiten, dann
+die Spalten droppen. Gemessen: 16 schreibende Anweisungen, elf davon in einer
+Datei, plus knapp 380 lesende — mehrtägige Arbeit.
+
+**Nicht getan, mit Absicht.** Bei einem halben Umzug schreiben die umgezogenen
+Stellen an die Person, die anderen in die Spalte, und niemand weiß mehr, welcher
+Wert gilt. Genau diese Lage hat Migration 059 beendet. Und der Fehler zeigt sich
+nicht beim Deploy, sondern erst, wenn ein Kunde einen Antrag abschickt.
+
+- **Wenn ein Umbau nicht in einem Zug geht: die WAND bauen, nicht die Hälfte.**
+  `pruef-eine-quelle-wand.ts` hält die Zahl fest — neue Stellen werden rot, der
+  Bestand ist geduldet.
+- **Obergrenze statt Verbot.** Eine Wand, die 397 Fehler meldet, wird nach dem
+  zweiten Lauf abgeschaltet — und fängt dann auch die 398. nicht.
+- **Und die DROP-Anweisung als Kommentar in die Migration**, mit der Bedingung
+  daneben. Dann muss sie niemand neu erfinden, und niemand führt sie zu früh aus.
+
+## Ein Prüfstand findet zuerst die eigenen Fehler
+
+Am ersten Tag nannte die neue Wand 18 schreibende Stellen — **zwei davon waren
+meine** aus der Woche davor (`phone_country_code: ''` in einer Spalte, die
+verschwinden soll).
+
+Wer eine Regel aufstellt, ist der erste, der sie bricht. Deshalb: **Die Wand
+sofort laufen lassen, nicht erst nach dem nächsten Umbau.**
+
+## `DROP COLUMN` gehört auf die Sperrliste
+
+Der Migrationsläufer verweigerte DROP TABLE, DROP DATABASE und TRUNCATE — aber
+nicht DROP COLUMN. Eine gelöschte Spalte ist genauso endgültig, nur
+unauffälliger: Der Deploy läuft durch, und der Fehler zeigt sich beim nächsten
+Kunden.
+
+`ALTER … DROP CONSTRAINT` bleibt erlaubt: Eine Bedingung zu lösen ist umkehrbar,
+Daten zu löschen nicht.
+
+## Zwei Dateien mit fast gleichem Namen: eine muss weg
+
+`pages/agent/kunden.tsx` lag unter `/agent/meine-kunden-alt`, während
+`/agent/kunden` längst `kunden-neu.tsx` zeigte. Am 25.08. wurden ein Knopf und
+eine Notizpflicht in die falsche gebaut — erst ein Screenshot verriet es.
+
+- **Die alte Datei entfernen, die Adresse umleiten.** Ein Lesezeichen soll nicht
+  ins Leere laufen, aber auch nicht auf einen Stand von vor drei Wochen.
+- **Und die Falle in `docs/GESAMTSTAND.md` vermerken**, solange sie besteht.
+
+## Eine Filterregel gehört in `shared/`, auch ohne Aufrufer
+
+`reisenFuerRolle` stand seit dem 26.08. in `shared/fiaon-academy.ts` und wurde
+nicht benutzt — der Auftrag lautete ausdrücklich „vorbereiten, nicht
+ausrollen“. Zwei Tage später brauchte die Team-Route sie, und es war eine
+Zeile.
+
+Wer die Regel in der Seite gebaut hätte, hätte sie beim Ausrollen ein zweites
+Mal geschrieben — und dann gehen zwei Fassungen auseinander.
+
+## Ein Tageslauf, der nichts findet, ist Arbeit ohne Ergebnis
+
+`datenkosmetik-lauf.ts` sollte in den Tageslauf. Gemessen: **0 von 11.578**
+Feldern brauchen eine Reinigung. Der Leerraum entstand an Formulareingaben, und
+dort wird jetzt getrimmt.
+
+**Erst messen, ob ein Automatismus etwas zu tun hätte.** Ein täglicher Lauf über
+11.578 Zeilen ohne Fund kostet Zeit und erzeugt Log-Rauschen, in dem echte
+Meldungen untergehen.
+
 ## Eine Zuordnung über einen Text, den wir nicht schreiben, ist eine Vermutung
 
 Die Zweig-Ampel ordnete Brevo-Ereignisse über den BETREFF einem Ereignis zu.

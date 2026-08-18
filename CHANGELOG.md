@@ -48,6 +48,61 @@ Die Prüfung ist wieder entfernt, mit Begründung im Quelltext. **Der esbuild-Du
 
 **Teil 2 (Agent als Vollpfleger)** und **Teil 3** (Pflichtnotiz im Listen-Weg, 12 Wartezustände, Zustellprotokoll mit Filtern, Team-Kalender auf 380 px) sind offen.
 
+## 28.08.2026 — Die Wand gegen das Doppel-Modell, Academy fürs Team, Gesamtstand
+
+### Teil 1: Der DROP ist vorbereitet — und findet NICHT statt
+
+Der Auftrag lautete: 397 Zugriffe abarbeiten, dann die Kontakt-Spalten droppen. **Das habe ich nicht getan, und zwar mit Absicht.**
+
+**Gemessen:** 397 Zugriffe in 62 Dateien, davon **16 schreibende** (nicht 36 — der Bericht vom 20.08. zählte `email`/`phone` mit, die überall gebraucht werden). Elf der 16 stecken allein in `fiaon-antrag.ts`.
+
+Das ist mehrtägige Arbeit. Und **ein halber Umzug ist der schlechteste Zustand:** Die umgezogenen Stellen schreiben an die Person, die anderen in die Spalte, und niemand weiß mehr, welcher Wert gilt — genau die Lage, die Migration 059 beendet hat. Der Fehler zeigt sich außerdem nicht beim Deploy, sondern erst, wenn ein Kunde einen Antrag abschickt.
+
+**Was stattdessen gebaut ist:**
+
+- **Die Wand gegen Wachstum** (`pruef-eine-quelle-wand.ts`): Sie hält die Zahlen in `reports/eine-quelle-grenzen.json` fest. Wer eine **neue** schreibende Stelle einbaut, bekommt einen roten Prüfstand. Der Bestand ist geduldet — eine Wand, die 397 Fehler meldet, wird nach dem zweiten Lauf abgeschaltet, und dann fängt sie auch die 398. nicht.
+- **Das Archiv** (Migration 061): **7.544 Bestellungen** und **3.841 Leads** gesichert. Der Grund steht in der Messung: **110 Bestellungen haben eine Adresse, die von der Person abweicht** — geschrieben *vor* dem Trigger und danach nie angefasst. Ein DROP ohne Archiv wäre für die ein Hard-Delete.
+- **`DROP COLUMN` wird jetzt verweigert.** Der Migrationsläufer sperrte DROP TABLE, DROP DATABASE und TRUNCATE — aber nicht DROP COLUMN. Eine gelöschte Spalte ist genauso endgültig, nur unauffälliger.
+
+**Ein ehrlicher Fund:** Zwei der 16 schreibenden Stellen waren **meine eigenen** vom 25.08. (`fiaon-agent-anlage.ts` schrieb `phone_country_code: ''` — eine leere Zeile in einer Spalte, die verschwinden soll). Die Wand hat sie am ersten Tag gefunden. 18 → 16.
+
+Die DROP-Anweisung steht als Kommentar in Migration 061, mit der Bedingung: **Wand meldet 0.**
+
+### Teil 2: Die Academy ist für das Team offen
+
+Jede Rolle bekommt **ihre** Reise unter „Mehr → Academy" — gemessen an echten Konten:
+
+| Rolle | sieht |
+|---|---|
+| agent | Vertrieb |
+| onboarding | Onboarding |
+| inkasso | Forderungsmanagement |
+| vertriebsleiter / admin | alle drei |
+
+**Die Filterung steht im Server.** Ruft ein Agent `/agent/academy/inkasso` auf, kommt **404** — nicht die Reise. Das ist keine Geheimhaltung, sondern Klarheit: Wer die Inkasso-Reise durchklickt, hält sie hinterher für seine Aufgabe.
+
+Die Rollenfilterung (`reisenFuerRolle`) lag seit dem 26.08. vorbereitet und wird hier zum ersten Mal benutzt — genau deshalb stand sie in `shared/`, auch als sie noch keinen Aufrufer hatte.
+
+**Der Fortschritt** wird je Mensch und Reise gespeichert: das **höchste** erreichte Kapitel (`GREATEST` — wer zurückblättert, verliert nichts), einmal fertig bleibt fertig. Gespeichert wird beim Verlassen (`pagehide` + `keepalive`) und alle 30 Sekunden, nicht bei jedem Kapitel.
+
+Die Team-Fassung hat **keinen** Präsentationsmodus: Wer sich selbst einschult, präsentiert nicht. Die Verwaltungs-Bühne bleibt, wie sie ist.
+
+### Teil 3: Gesamtstand und Aufräumen
+
+**`docs/GESAMTSTAND.md`** ist auf dem Stand vom 28.08. — mit einem eigenen Abschnitt zum Doppel-Datenmodell (die drei offenen Schritte bis zum DROP), einer Tabelle „was liegt wo" für die neuen Bereiche, und **zwei Fundorten, die schon in die Irre geführt haben**.
+
+**`pages/agent/kunden.tsx` ist entfernt.** Am 25.08. wurden ein Knopf und eine Notizpflicht dort eingebaut, während `/agent/kunden` längst `kunden-neu.tsx` zeigt — erst ein Screenshot verriet es. `/agent/meine-kunden-alt` leitet jetzt um.
+
+**Die Datenkosmetik läuft nicht im Tageslauf — und braucht es nicht:** **0 von 11.578** geprüften Feldern brauchen eine Reinigung. Der Leerraum entstand an Formulareingaben, und dort wird getrimmt. Ein Tageslauf, der 11.578 Zeilen prüft und nichts findet, wäre Arbeit ohne Ergebnis.
+
+### Geprüft
+
+`pruef-academy.ts` — **114 Prüfungen** (von 91), darunter die Rollen-Zuordnung gegen die Daten und die Server-Wand. **Rot-Probe: 2 rot** (Wand ausgeschaltet, `GREATEST` entfernt). Dazu `pruef-eine-quelle-wand.ts` als neue Dauerregel.
+
+### Was offen bleibt
+
+Die **16 schreibenden** und knapp 380 lesenden Stellen. Sie stehen einzeln im Prüfstand — er nennt Datei und Zeile. Und drei Punkte für Sie: der Ampel-Lauf, die 336 Einladungen, das Gespräch mit Nikita und Lucas. Alle in `docs/GESAMTSTAND.md`.
+
 ## 27.08.2026 — Plus-Adressen, Daniels Knopf, Academy V2, Nachlauf im Tageslauf
 
 ### Teil 1: Das Betreff-Matching ist abgeschafft

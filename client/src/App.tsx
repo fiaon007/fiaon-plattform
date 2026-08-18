@@ -71,6 +71,7 @@ const AgentAufgabenPage = lazy(() => import("@/pages/agent/aufgaben"));
 const AgentStartPage = lazy(() => import("@/pages/agent/start"));
 const AgentKundenNeuPage = lazy(() => import("@/pages/agent/kunden-neu"));
 const AdminTerminePage = lazy(() => import("@/pages/admin-termine"));
+const AdminSchulungPage = lazy(() => import("@/pages/admin-schulung"));
 const AgentSpacePage = lazy(() => import("@/pages/agent/space"));
 const AgentInkassoPage = lazy(() => import("@/pages/agent/inkasso"));
 const AdminTeamZentralePage = lazy(() => import("@/pages/admin-team-zentrale"));
@@ -187,6 +188,27 @@ function Router() {
           Alle Termine aller Mitarbeiter mit dem Quoten-Vergleich, der bisher
           in keiner Ansicht stand. */}
       <Route path="/admin/termine" component={admin(AdminTerminePage)} />
+      {/* ══════════════════════════════════════════════════════════════════
+          DIE FIAON ACADEMY (26.08.2026)
+
+          Die Einschulungs-Bühne: Der Betreiber teilt den Bildschirm und führt
+          neue Mitarbeiter durch den perfekten Ablauf ihrer Abteilung.
+
+          MIT `admin(...)`-Hülle, obwohl die Bühne bildschirmfüllend gedacht ist.
+
+          Der erste Entwurf wollte sie ohne Hülle zeigen — schöner, aber
+          UNGESCHÜTZT: Die Zugangsschleuse (Zahlencode) sitzt IN `AdminShell`
+          (dort, Zeile 286 ff.). Ohne sie wäre /admin/schulung für jeden offen.
+          Ein eigenes Gate daneben wäre die zweite Fassung derselben Wand —
+          AGENTS.md: „Eine Wand für zwei Dinge, nicht zwei Wände."
+
+          Vollflächig wird es beim Vorführen: Der Knopf „Präsentieren" geht in
+          echtes Vollbild, und dann ist die Navigation ohnehin weg.
+
+          Beide Adressen auf dieselbe Seite — sie entscheidet über den
+          Routen-Parameter, ob Übersicht oder Reise. */}
+      <Route path="/admin/schulung" component={admin(AdminSchulungPage)} />
+      <Route path="/admin/schulung/:reise" component={admin(AdminSchulungPage)} />
       <Route path="/admin/einstellungen" component={admin(AdminEinstellungenPage)} />
       <Route path="/admin/audit" component={admin(AdminAuditPage)} />
       <Route path="/admin/recht" component={admin(AdminRechtPage)} />

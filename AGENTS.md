@@ -445,6 +445,89 @@ Ort und behebt am falschen Fall.
 in den Bericht schreiben. Sie ist keine Kritik am Auftraggeber, sondern die
 Beschreibung des wirklichen Problems.
 
+## Eine Zahl, die niemand sieht, ändert nichts
+
+Die Termin-Zentrale zeigte am ersten Tag: Zwei Mitarbeiter hatten bei 50
+vergangenen Terminen KEINEN EINZIGEN als erledigt markiert (No-Show 64 %% und
+76 %%), zwei andere 67 %% und 78 %%. Die Daten lagen seit Wochen in
+`fiaon_termine` — es gab nur keine Ansicht.
+
+- **Eine Auswertung je Mensch, nebeneinander.** Eine Quote allein sagt wenig:
+  Sie kann niedrig sein, weil viele Termine in der Zukunft liegen. 0 %% neben
+  78 %% ist eine Aussage.
+- **Quoten nur über VERGANGENES rechnen.** Ein Termin morgen ist weder erledigt
+  noch verpasst.
+- **Bernstein, nicht Rot.** Eine Farbe, die anklagt, erzeugt Ausreden statt
+  Ursachen. Und der Text sagt ausdrücklich, dass ein Gespräch nötig ist, kein
+  Programm.
+
+## Ein Massenversand braucht die Grenze VOR dem Klick
+
+336 bezahlte Kunden ohne Termin. Der erste Entwurf nannte die Tagesgrenze von
+50 erst IN der Vorschau — wer einen Knopf „alle einladen“ sieht und 336
+Kunden kennt, rechnet mit 336 Mails und traut sich nicht zu drücken.
+
+- **Die Staffel und ihre Grenze stehen neben dem Knopf**, nicht dahinter.
+- **Vorschau mit Namen und Zahl**, erst dann der Versand.
+- Und der Beweis-Lauf fängt den Versand ab: Ein Screenshot-Lauf darf keine 50
+  echten Mails auslösen.
+
+## Ein Knopf mit 7 %% Deckkraft sieht deaktiviert aus
+
+Die Einladungsknöpfe standen auf `background: ACCENT12`. Im Screenshot wirkten
+alle 25 ausgegraut — ein Knopf, den man für inaktiv hält, wird nicht gedrückt,
+und die Funktion ist so gut wie nicht vorhanden.
+
+**Weißer Grund mit Rahmen in Akzentfarbe**: klarer Kontrast, ohne die Liste zu
+übertönen. Und `disabled` muss SICHTBAR anders sein als aktiv, nicht ähnlich.
+
+## Für eine Schulung: der Weg statt des Bildes
+
+Die Academy sollte die echte Oberfläche zeigen — eingebettet oder als
+Build-Screenshot. Beides verworfen:
+
+- **Einbettung** braucht Anmeldung, Kundendaten und Zustand. Ein Kapitel über
+  das Onboarding-Cockpit müsste einen echten Menschen ins Schulungsbild laden.
+  Und jede Änderung an der Komponente kann die Schulung weiß machen.
+- **Build-Screenshots** brauchen einen angemeldeten Server IM Build, veralten
+  lautlos und zeigen echte Kundennamen. Ein Bild, das seit drei Wochen falsch
+  ist, schult falsch — und niemand merkt es.
+- **Gewählt: die echte Route nennen und im neuen Tab öffnen.** Der Betreiber
+  führt am echten System vor. Der Prüfstand gleicht jeden genannten Weg gegen
+  `App.tsx` ab — drei tote Pfade fand er sofort.
+
+## Schulungstexte kommen aus derselben Datei wie die Oberfläche
+
+Die sieben Onboarding-Schritte in der Academy sind KEINE Kopie: Sie werden aus
+`shared/fiaon-onboarding-agenda.ts` importiert — derselben Datei, die das
+Cockpit benutzt. Der Prüfstand verbietet das Abschreiben ausdrücklich.
+
+Eine Schulung, die eine Kopie zeigt, schult nach der ersten Änderung den alten
+Stand. Und niemand merkt es, weil beide Texte „irgendwie richtig“ klingen.
+
+## Bewegung abschalten heißt abschalten, nicht drosseln
+
+Auf einer scroll-getriebenen Seite ist Bewegung ein Ausschlussgrund. Bei
+`prefers-reduced-motion` gilt deshalb:
+
+- `animation: none !important` und `transition: none !important` — keine
+  langsameren Animationen. Eine gedrosselte Animation ist immer noch Bewegung.
+- **Auch das Gleiten beim Springen**: `scrollIntoView` mit `behavior: "auto"`
+  statt `"smooth"`.
+- **Und die Inhalte müssen sichtbar bleiben.** Wer den Eintritt über `opacity: 0`
+  animiert und nur die Animation abschaltet, zeigt eine leere Seite.
+
+## Wer die Abwesenheit von Code prüft, schließt Kommentare UND Anzeigetext aus
+
+Zweimal in zwei Tagen: Eine Prüfung suchte „provision“ und traf den
+Kommentar, der erklärt, dass hier keine gebucht wird. Am nächsten Tag suchte
+eine nach „autoplay“ (mit `/i`) und traf den sichtbaren Satz „Kein Ton,
+kein Autoplay“ — also genau die Zusage, die sie prüfen sollte.
+
+- **Kommentarzeilen herausfiltern**, bevor man auf Abwesenheit prüft.
+- **Und auf die genaue Schreibweise achten:** JSX-Attribute sind camelCase
+  (`autoPlay`). Mit `/i` trifft man deutschen Anzeigetext mit.
+
 ## Zwei Dateien mit fast gleichem Namen — welche bedient die Route?
 
 Der Anlage-Knopf entstand in `client/src/pages/agent/kunden.tsx`. Die Route

@@ -48,6 +48,80 @@ Die Prüfung ist wieder entfernt, mit Begründung im Quelltext. **Der esbuild-Du
 
 **Teil 2 (Agent als Vollpfleger)** und **Teil 3** (Pflichtnotiz im Listen-Weg, 12 Wartezustände, Zustellprotokoll mit Filtern, Team-Kalender auf 380 px) sind offen.
 
+## 26.08.2026 — Termin-Zentrale und die FIAON Academy
+
+### Teil 1: Die Termin-Zentrale (`/admin/termine`)
+
+Zweimal geschoben, jetzt geliefert — mit Screenshot als Abnahme.
+
+**Der Befund, der in keiner Ansicht stand:**
+
+| Mitarbeiter | Termine | vergangen | erledigt | No-Show |
+|---|---:|---:|---:|---:|
+| Nikita Boychenko | 34 | 25 | **0 %** | **64 %** |
+| Lucas Böhnert | 30 | 25 | **0 %** | **76 %** |
+| Florentine Lombardi | 27 | 21 | 67 % | 19 % |
+| Daniel Stripling | 27 | 23 | 78 % | 9 % |
+
+Zwei Menschen haben bei 50 vergangenen Terminen **keinen einzigen** abgeschlossen, während zwei andere zwei Drittel bis vier Fünftel schaffen. Die Seite benennt das ausdrücklich: *„Zwei Möglichkeiten: Die Gespräche finden nicht statt — oder sie werden nicht abgeschlossen. Beides klärt ein Gespräch, kein Programm."*
+
+**Die Quoten rechnen nur über vergangene Termine.** Ein Termin morgen ist weder erledigt noch verpasst; ihn mitzuzählen macht jeden Vergleich falsch.
+
+**Und die 336:** Bezahlte Kunden ohne jeden Termin, die ältesten seit dem **04.07.2026** — und **nie eingeladen**. Die Karte zeigt sie (längst Bezahlte zuerst), mit Einladungsknopf je Zeile und einem für alle. Gestaffelt über die bestehende `onboarding_einladung`-Staffel: höchstens **50 am Tag**, mit Vorschau vor dem Versand. Ein Knopf, der 336 Mails auf einmal schickt, ruiniert die Zustellbarkeit aller anderen.
+
+Dazu: Heute/Woche/Monat, Filter (Mitarbeiter, Quelle, Status) in der Adresszeile, Zeile = Zeit · Kunde (verlinkt) · Mitarbeiter · Quelle · Status, stornierte sichtbar mit Zeitpunkt und Urheber. Auf 380 px als Kartenliste über das Schmal-Bauteil vom Vortag — jetzt an `fiaon_termine` angeschlossen.
+
+**Der Hebel-Messwert steht oben:** 120 von 120 Terminen entstanden über einen verschickten Terminlink. **Alle.**
+
+### Teil 2: Die FIAON Academy (`/admin/schulung`)
+
+Drei Reisen durch die drei Abteilungen — **12, 15 und 9 Kapitel**. Dunkle Navy-Bühne mit wanderndem Glanz, Karten mit Tiefe-Eintritt, scroll-getriebene Kapitel, Fortschrittsleiste, Kapitel-Punkte, Pfeiltasten und ein **Präsentationsmodus** (echtes Vollbild, größere Typo, Esc beendet).
+
+**Jedes Kapitel zeigt:** wer handelt (Rolle-Chip) · was passiert (ein Satz, groß) · den Ablauf · die belegenden Zahlen · die echte Mail-Vorschau im Geräterahmen · den Weg ins echte System · und „Warum dieser Schritt?" zum Aufklappen.
+
+#### Die Entscheidung: der Weg statt des Bildes
+
+Der Auftrag ließ die Wahl zwischen eingebetteten Komponenten und Build-Screenshots. **Beides verworfen:**
+
+- **Einbettung** braucht Anmeldung, Kundendaten und Zustand — ein Kapitel über das Onboarding-Cockpit müsste einen echten Menschen ins Schulungsbild laden. Und jede Änderung an der Komponente kann die Schulung weiß machen (der Haken-Fehler vom 16.08. hat genau das getan).
+- **Build-Screenshots** brauchen einen angemeldeten Server im Build, veralten lautlos und zeigen echte Kundennamen. Ein Bild, das seit drei Wochen falsch ist, schult falsch — und niemand merkt es.
+- **Gewählt:** Jedes Kapitel nennt die **echte Route** und öffnet sie auf Wunsch im neuen Tab. Der Betreiber führt am echten System vor — überzeugender als jedes Bild. Dazu die echten Texte aus dem Repo. **Wartbarkeit:** Eine geänderte Route fällt im Prüfstand auf; ein geänderter Agenda-Text wandert von selbst mit.
+
+#### Die sieben Onboarding-Schritte kommen aus der echten Datei
+
+`shared/fiaon-onboarding-agenda.ts` — dieselbe, die das Cockpit benutzt. Eine Kopie wäre die zweite Wahrheit: Ändert jemand einen Schritt, schulte die Academy weiter den alten. Der Prüfstand verbietet das Abschreiben ausdrücklich.
+
+#### Die Kapitel
+
+**Vertrieb (12):** Lead entsteht · ewige Strecke · Stufen A/B/C · Anruf mit Gesprächsblatt · Ergebnis dokumentieren · nicht erreicht → Terminlink · falsche Nummer → Wartezustand · Neukunde anlegen · Zahlungsdaten · Zahlung gemeldet · Verbuchung · Provisions-Wand
+
+**Onboarding (15):** Zahlung da · Erst-Login-Gate (beide Karten) · Buchung (5 Slots) · 24-h-Erinnerung · **die sieben Agenda-Schritte einzeln** · Abschluss · Freischaltung · 15-€-Gutschrift · No-Show-Weg
+
+**Forderungsmanagement (9):** Abo-Zyklus · T+1 · Zuteilung · Arbeitsliste nach Mahnstufe · Raten-Ergebnisse · Mahnstufen-Mails · würdevoller Ton · Vergütung · Sperre statt Löschung
+
+#### Zugänglichkeit
+
+`prefers-reduced-motion` schaltet Bewegung **hart** ab — keine gedrosselten Animationen, auch das Gleiten beim Springen wird zum Schnitt. Kein Autoplay, kein Ton. Alle Bedienelemente ≥ 44 px. Alle vier Textfarben auf Navy nachgerechnet: **14,0 · 6,2 · 4,6 · 4,6 zu 1**. Auf 380 px vollwertig; die Kapitel-Punkte verschwinden dort, weil sie Text überdecken würden.
+
+**Die Rollenfilterung ist vorbereitet, nicht ausgerollt** (`reisenFuerRolle`) — wie beauftragt.
+
+### Geprüft
+
+`pruef-academy.ts` — **61 Prüfungen**: Kapitel vollständig, jedes Mail-Kapitel gegen die 23 Registry-Ereignisse abgeglichen, jeder Weg gegen `App.tsx`, Agenda nicht kopiert, Kontrast nachgerechnet, reduced-motion, Zugriffsschutz. **Rot-Probe: 9 rot** (erfundenes Ereignis, toter Weg, Agenda-Import entfernt, Animation gedrosselt statt abgeschaltet).
+
+`schau-academy.ts` — **27 Prüfungen** im Browser: Bühne, Reise durchblättern, Pfeiltasten, „Warum dieser Schritt", Mail-Vorschau, Präsentationsmodus, Esc, 380 px, reduced-motion. `schau-termine.ts` — **13 Prüfungen** mit Screenshots.
+
+Screenshots erzeugt **und angesehen**: `reports/termine/`, `reports/academy/`.
+
+### Vier eigene Fehler
+
+1. **Die Academy sollte ohne Verwaltungshülle laufen** — schöner, aber **ungeschützt**: Die Zugangsschleuse sitzt *in* `AdminShell`. Ein eigenes Gate daneben wäre die zweite Fassung derselben Wand. Jetzt mit Hülle; vollflächig wird es im Präsentationsmodus.
+2. **Drei Wege zeigten auf Routen, die es nicht gibt** (`/kunde`, `/agent/onboarding`, `/admin/zahlungen-verbuchen`). Der Prüfstand fand alle drei — er gleicht gegen `App.tsx` ab.
+3. **Das Schmal-Bauteil ließ Vergangenes weg.** Richtig für einen Ausblick, falsch in der Zentrale: Dort sind die **43 verpassten** Termine die Arbeit.
+4. **Die Einladungsknöpfe hatten 7 % Deckkraft** und wirkten ausgegraut. Ein Knopf, den man für inaktiv hält, wird nicht gedrückt.
+
+Und zwei Prüfstands-Fehler mit Ansage: Die Suche nach „Montag" fand „MONTAG, 17. AUGUST" nicht (`uppercase`), und die Suche nach „autoplay" traf den Satz *„Kein Ton, kein Autoplay"* — also genau die Zusage, die sie prüfen sollte.
+
 ## 25.08.2026 — Der Agent legt Kunden an: anlegen → Produkt → Zahlung → Termin
 
 ### Die Rechte-Matrix vorher und nachher

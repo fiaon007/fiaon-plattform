@@ -132,6 +132,12 @@ export const ADMIN_NAV: NavGroup[] = [
     title: "System & Recht",
     items: [
       { path: "/admin/funktionen", label: "Funktionen & Schulung", desc: "Alle Funktionen mit Klartext + Direktlink, Selbsttest (Button → Event → Status), Schulungsmodus", icon: GraduationCap },
+      // ── DIE FIAON ACADEMY (26.08.2026) ────────────────────────────────
+      // Die Einschulungs-Bühne: Bildschirm teilen, Reise starten, vorführen.
+      // Drei Reisen (Vertrieb, Onboarding, Forderungsmanagement) mit 12, 15 und
+      // 9 Kapiteln — die sieben Onboarding-Schritte kommen aus derselben Datei
+      // wie das Cockpit, damit die Schulung nie den alten Text zeigt.
+      { path: "/admin/schulung", label: "FIAON Academy", desc: "Einschulung als Kapitel-Reise je Abteilung — mit Präsentationsmodus für den geteilten Bildschirm", icon: GraduationCap },
       { path: "/admin/diagnose", label: "System-Diagnose", desc: "Was klemmt gerade? Ereignis-Konsole, Rohdaten, KI-Auswertung", icon: Activity, badgeKey: "diagnose" },
       { path: "/admin/einstellungen", label: "Einstellungen", desc: "Provisionssatz, Auszahlung, Reminder-Engine, Diagnose", icon: Settings },
       { path: "/admin/mail-zentrale", label: "Mail-Zentrale", desc: "Freitext an Kunden und Gruppen — Bausteine, Vorschau, KI-Hilfe", icon: Send },

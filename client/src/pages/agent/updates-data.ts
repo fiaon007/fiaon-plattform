@@ -40,6 +40,32 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-26-academy",
+    date: "2026-08-26",
+    category: "Neu",
+    title: "Es gibt jetzt die FIAON Academy \u2014 so wird eingeschult",
+    summary:
+      "Drei Reisen durch die drei Abteilungen, Kapitel f\u00fcr Kapitel. Bildschirm teilen, "
+      + "Reise starten, vorf\u00fchren \u2014 mit den echten Wegen im System.",
+    changes: [
+      "VERWALTUNG \u2192 FIAON ACADEMY: Drei Reisen \u2014 Vertrieb (12 Kapitel), Onboarding (15) und Forderungsmanagement (9).",
+      "JEDES KAPITEL ZEIGT: was passiert (ein Satz, gro\u00df), wer handelt, den Ablauf, die Zahlen dahinter \u2014 und wenn eine Mail flie\u00dft, ihre echte Vorschau mit Absender und Betreff.",
+      "KNOPF „PR\u00c4SENTIEREN“: Vollbild, gro\u00dfe Schrift, nur Pfeiltasten. F\u00fcr den geteilten Bildschirm im Einschulungsgespr\u00e4ch. Esc beendet.",
+      "„WARUM DIESER SCHRITT?“ steht bei jedem Kapitel zum Aufklappen \u2014 die Begr\u00fcndung, nicht nur die Anleitung.",
+      "DIE SIEBEN SCHRITTE DES STARTGESPR\u00c4CHS sind einzelne Kapitel, mit den echten Stichpunkten aus dem Cockpit. Wenn sich dort etwas \u00e4ndert, \u00e4ndert sich die Schulung mit.",
+      "KEINE BILDER, SONDERN WEGE: Jedes Kapitel hat einen Knopf „live \u00f6ffnen“ zur echten Seite. So schult niemand veraltete Screenshots.",
+      "AU\u00dfERDEM NEU: Die Termin-Zentrale (Verwaltung \u2192 Termin-Zentrale) zeigt alle Termine aller Mitarbeiter \u2014 mit Erledigt- und No-Show-Quote je Mensch und den bezahlten Kunden, die noch keinen Termin haben.",
+    ],
+    howto: [
+      "Verwaltung \u2192 FIAON Academy \u2192 Reise w\u00e4hlen \u2192 „Reise starten“.",
+      "Zum Vorf\u00fchren: „Pr\u00e4sentieren“ dr\u00fccken, dann mit den Pfeiltasten bl\u00e4ttern.",
+      "Am Handy geht alles genauso \u2014 die Kapitel stapeln sich, nichts verrutscht.",
+      "Kein Ton, kein Video: Die Academy erz\u00e4hlt in Text und zeigt echte Oberfl\u00e4chen.",
+    ],
+    link: { href: "/admin/schulung", label: "Zur FIAON Academy" },
+    important: true,
+  },
+  {
     id: "2026-08-25-vollpfleger",
     date: "2026-08-25",
     category: "Neu",

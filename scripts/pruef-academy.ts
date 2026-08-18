@@ -55,7 +55,11 @@ function main(): void {
     // wird deshalb Text PLUS Punkte.
     const duenn = r.kapitel.filter((k) => {
       const inhalt = [k.text ?? "", ...(k.punkte ?? [])].join(" ");
-      return !k.was || k.was.length < 25 || inhalt.length < 80
+      // ── DER ABSCHLUSS DARF KURZ SEIN ─────────────────────────────────
+      // „Du bist bereit." sind 15 Zeichen — und das ist der Punkt. Ein
+      // Abschlusssatz, der einen Nebensatz braucht, ist kein Abschluss.
+      const mindestensWas = k.key === "bereit" ? 12 : 25;
+      return !k.was || k.was.length < mindestensWas || inhalt.length < 80
         || !k.warum || k.warum.length < 60 || !HANDELNDER_TEXT[k.wer];
     });
     pruef(`„${r.titel}“: jedes Kapitel hat Satz, Text, Warum und Rolle`,
@@ -263,6 +267,87 @@ function main(): void {
   pruef("Die Entscheidung „Weg statt Bild“ ist begründet",
     /WARUM KEINE EINGEBETTETEN KOMPONENTEN UND KEINE BUILD-SCREENSHOTS/.test(daten),
     "eine Entscheidung ohne Begründung wird beim nächsten Umbau umgedreht");
+
+  // ═════════════════════════════════════════════════════════════════════════
+  titel("8. VERSION 2 — ECHTES VOLLBILD, PARALLAX, ZÄHLENDE ZAHLEN");
+  // ═════════════════════════════════════════════════════════════════════════
+  pruef("Es gibt eine Vollbild-Klasse am Wurzelelement",
+    /const VOLLBILD_KLASSE = "fi-academy-vollbild"/.test(seite));
+  pruef("… sie versteckt Navigation UND Kopfleiste",
+    /html\.\$\{VOLLBILD_KLASSE\} aside/.test(seite)
+      && /html\.\$\{VOLLBILD_KLASSE\} header/.test(seite),
+    "nicht überdecken — aus dem Fluss nehmen");
+  // Die Bühne wird im Vollbild aus dem Fluss GELÖST (`position: fixed`), nicht
+  // nur entrandet: Ein erster Entwurf setzte Ränder zurück, und sie blieb
+  // trotzdem 1200 px breit bei 1440 px Fenster — der begrenzende Container war
+  // ein div dazwischen.
+  pruef("… und löst die Bühne aus der Hülle",
+    /position: fixed !important/.test(seite) && /width: 100vw !important/.test(seite),
+    "jeden Vorfahren einzeln zu treffen wäre ein Ratespiel über fremdes Markup");
+  pruef("… und versteckt auch das Softphone",
+    /\.fi-telefonknopf/.test(seite),
+    "ein Präsentationsmodus, in dem Bedienelemente herumliegen, ist keiner");
+  pruef("Die Fullscreen-API wird zusätzlich benutzt",
+    /wurzel\.requestFullscreen\?\.\(\)/.test(seite),
+    "nur die Klasse ließe die Browser-Leisten stehen");
+  pruef("Der Zustand folgt dem Browser (F11, Esc über die Leiste)",
+    /addEventListener\("fullscreenchange"/.test(seite),
+    "sonst steht der Knopf auf „beenden“, während die Seite normal ist");
+  pruef("Die Klasse wird beim Verlassen aufgeräumt",
+    /return \(\) => wurzel\.classList\.remove\(VOLLBILD_KLASSE\)/.test(seite),
+    "sonst bleibt die Verwaltung unsichtbar, wenn man die Seite wechselt");
+  // ── DER SCHUTZ BLEIBT, WO ER WAR ──────────────────────────────────────
+  pruef("Der Zugangsschutz ist NICHT angefasst",
+    /path="\/admin\/schulung" component=\{admin\(AdminSchulungPage\)\}/.test(app),
+    "die Entscheidung vom 26.08. bleibt: die Schleuse sitzt in AdminShell");
+
+  pruef("Der Kapitel-Eintritt ist versetzt (Parallax)",
+    /\.fi-academy-parallax > \*:nth-child\(1\)/.test(seite)
+      && /nth-child\(4\) \{ animation-delay: \.21s/.test(seite));
+  // ── DER REGEX DARF NICHT ÜBER ZEILENGRENZEN LAUFEN ────────────────────
+  // `[^;]*` frisst Zeilenumbrüche und traf damit das `width:` einer GANZ
+  // ANDEREN Regel zwei Zeilen weiter. Mit `[^;\n]*` bleibt er in seiner Zeile.
+  pruef("… und animiert nur opacity und transform",
+    /animation: fiAcademyTiefe/.test(seite)
+      && !/animation:[^;\n]*\b(top|left|height|width)\b/.test(seite),
+    "alles andere lässt bei jedem Bild neu umbrechen");
+  pruef("Die belegenden Zahlen zählen hoch",
+    /function ZaehlText/.test(seite) && /<ZaehlText text=\{zz\}/.test(seite));
+  pruef("… mit sanftem Auslauf, nicht linear",
+    /1 - \(1 - anteil\) \*\* 3/.test(seite),
+    "eine linear zählende Zahl wirkt wie ein Zähler, eine ausgebremste wie ein Ergebnis");
+  pruef("… und bei reduced-motion steht die Endzahl sofort",
+    /ruhe \|\| !Number\.isFinite\(ziel\) \? ziel : 0/.test(seite));
+  pruef("Es gibt den Licht-Wisch beim Kapitelwechsel",
+    /@keyframes fiAcademyWisch/.test(seite) && /key=\{aktiv\}/.test(seite),
+    "ohne den Schlüssel liefe die Animation nur einmal");
+  pruef("… und er läuft nicht bei reduced-motion", /\{!ruhe && \(/.test(seite));
+
+  // ── JE REISE EINE FARBE ───────────────────────────────────────────────
+  for (const r of REISEN) {
+    pruef(`„${r.titel}“ hat einen eigenen Akzent`,
+      !!r.ton?.akzent && !!r.ton?.hell && !!r.ton?.verlauf, JSON.stringify(r.ton));
+  }
+  const toene = REISEN.map((r) => r.ton.akzent);
+  pruef("Die drei Akzente sind verschieden", new Set(toene).size === 3, toene.join(", "));
+  pruef("Die Reise-Farbe wird ins Kapitel durchgereicht", /ton=\{r\.ton\}/.test(seite));
+  pruef("… und färbt den Rolle-Chip", /background: `\$\{ton\.akzent\}26`/.test(seite));
+  // Kontrast der Reise-Töne — dieselbe Rechnung wie oben.
+  for (const r of REISEN) {
+    const v = verhaeltnis(r.ton.akzent, "#0A1A3C");
+    pruef(`Kontrast „${r.titel}“ (${r.ton.akzent}) ist mindestens 4.5:1`, v >= 4.5,
+      `${v.toFixed(2)}:1`);
+  }
+
+  // ── DAS ABSCHLUSS-KAPITEL ─────────────────────────────────────────────
+  for (const r of REISEN) {
+    const letztes = r.kapitel[r.kapitel.length - 1];
+    pruef(`„${r.titel}“ endet mit „Du bist bereit“`,
+      letztes.key === "bereit" && /Du bist bereit/.test(letztes.was), letztes.was);
+    pruef(`… und nennt die richtige Kapitelzahl`,
+      letztes.text.includes(`${r.kapitel.length} Kapitel`),
+      `${letztes.text.slice(0, 50)} — erwartet ${r.kapitel.length}`);
+  }
 
   console.log(`\n${"═".repeat(72)}`);
   console.log(`  ${ok} ok · ${rot} rot`);

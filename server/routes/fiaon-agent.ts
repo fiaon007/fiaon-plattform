@@ -1353,6 +1353,24 @@ import("../lib/fiaon-crons").then(({ tageslauf }) => {
   tageslauf("agent-rueckruf-erinnerungen", () => {
     runCallbackReminders().catch((err) => console.error("[FIAON-AGENT] Reminder-Cron:", err));
   }, 60 * 60 * 1000);
+
+  // ── DIE NUMMERN-ANFRAGEN, TÄGLICH (27.08.2026) ──────────────────────────
+  // Der Bestandslauf hat am 24.08. sieben Fälle nachgetragen; drei Tage später
+  // standen ZWEI wieder da — ihre alte Wiedervorlage (+3 Tage aus der Zeit vor
+  // dem Wartezustand) war fällig geworden.
+  //
+  // Ein Bestandslauf, den ein Mensch aufrufen muss, wird beim dritten Mal
+  // vergessen. Die Funktion ist idempotent: Sie fasst nur an, wer keinen
+  // Wartezustand trägt und heute in der Tagesliste stünde. Ein zweiter Lauf
+  // findet niemanden.
+  //
+  // Einmal am Tag genügt — die Wiedervorlagen werden auf Tagesebene fällig.
+  // `beimStartNach` fängt die Fälle vom Vortag gleich beim Neustart ein.
+  tageslauf("warten-nummern-nachtragen", () => {
+    void import("../lib/fiaon-warten")
+      .then(({ nummernAnfragenNachtragen }) => nummernAnfragenNachtragen())
+      .catch((err) => console.error("[FIAON-AGENT] Warten-Nachlauf:", err));
+  }, 24 * 60 * 60 * 1000, { beimStartNach: 90_000 });
 });
 
 // ═══════════════ AGENT: Auth (Login + Setup + Reset) ═══════════════

@@ -48,6 +48,80 @@ Die Prüfung ist wieder entfernt, mit Begründung im Quelltext. **Der esbuild-Du
 
 **Teil 2 (Agent als Vollpfleger)** und **Teil 3** (Pflichtnotiz im Listen-Weg, 12 Wartezustände, Zustellprotokoll mit Filtern, Team-Kalender auf 380 px) sind offen.
 
+## 27.08.2026 — Plus-Adressen, Daniels Knopf, Academy V2, Nachlauf im Tageslauf
+
+### Teil 1: Das Betreff-Matching ist abgeschafft
+
+**Der Befund aus Produktion:** Brevo lieferte **305 Ereignisse** für die Testadresse, und der Lauf meldete *„keins passte zum Betreff dieses Ereignisses"*. Alle Mails waren angekommen.
+
+Die Zuordnung lief über den Betreff — der steht aber in der **Brevo-Vorlage**, deutsch und kundenfreundlich („Ihre Zahlungsdaten für FIAON"). Die Plattform kennt ihn nicht. Es war nie eine Zuordnung, immer eine Vermutung.
+
+**Jetzt bekommt jedes Ereignis seine eigene Adresse:**
+
+```
+dev@fiaon.com  →  dev+welcome@fiaon.com
+                  dev+payment_details@fiaon.com
+```
+
+Alles vor dem `+` bleibt das Postfach (RFC 5233), also landet jede Mail im selben Eingang. Aber Brevo protokolliert die **volle** Adresse — und damit ist die Zuordnung eine Gleichheit.
+
+**Ein Fallstrick dabei:** Brevos `?email=`-Filter vergleicht *exakt*. Eine Suche nach `dev@fiaon.com` hätte die Plus-Adressen **nicht gefunden**, und die Ampel wäre dauerhaft rot geblieben. Die Abfrage läuft deshalb ohne Adressfilter (eine Abfrage statt 35 — bei 35 käme die Bremse) und filtert lokal auf das Postfach vor dem Plus.
+
+**Und ein Hinweis in der Oberfläche:** Wirft der Mail-Anbieter Plus-Adressen weg (einzelne Exchange-Einstellungen), wird die Ampel grün, während das Postfach leer bleibt. Der Kasten sagt das ausdrücklich und nennt den Rückfall (`plusAdressen: false`, reines Zeitfenster-Matching ohne Einzelzuordnung).
+
+**Betreiber-TODO:** Der `BREVO_API_KEY` liegt nur in Produktion — der echte Lauf muss dort passieren. Nach dem Deploy einmal **„Alle Zweige prüfen"**; die Diagnose nennt bei einem Misserfolg jetzt die gesuchte Plus-Adresse statt eines Betreffs.
+
+### Teil 2: Daniels Zahlungsdaten-Knopf
+
+**Gemessen an 600 Personen der Tagesliste:**
+
+| | |
+|---|---:|
+| **sendbar** | **123** |
+| gesperrt: keine offene Bestellung | 219 |
+| gesperrt: keine E-Mail-Adresse | 165 |
+| gesperrt: schon bezahlt | 93 |
+
+**Der wichtigste Befund: `claimed_paid` war schon erlaubt.** Die Serverregel lässt `pending_payment`, `claimed_paid` und `expired` durch — betroffen sind **243 Personen**. Daniels Problem war nicht die Regel, sondern dass der Knopf grau war und **nicht sagte, warum**. Der Grund stand im Tooltip, und den sieht auf dem Telefon niemand.
+
+**Jetzt:** Der gesperrte Knopf zeigt den Grund als Text — und den nächsten Schritt. Bei fehlender E-Mail steht das **Eingabefeld direkt daneben** (das löst 165 der 477 Fälle mit einer Eingabe, über die bestehende Stammdaten-Route mit Verlaufseintrag und Alias-Ablage). Bei fehlender Bestellung führt ein Knopf zum Anlage-Fluss.
+
+### Teil 3: Academy V2
+
+**Echtes Vollbild:** Die Fullscreen-API *und* eine Klasse am `<html>`, die Navigation und Kopfleiste per CSS aus dem Fluss nimmt — nicht überdeckt, weg. Der Zugangsschutz bleibt unberührt: `AdminShell` rendert weiter und prüft weiter den Zahlencode, nur ihre Teile sind versteckt.
+
+**Ein Fehler dabei:** Ränder zurückzusetzen genügte nicht — die Bühne blieb 1200 px breit bei 1440 px Fenster, weil der begrenzende Container ein `div` *dazwischen* war. `position: fixed` löst sie aus dem Fluss; jeden Vorfahren einzeln zu treffen wäre ein Ratespiel über fremdes Markup. Auch das Softphone verschwindet jetzt — im Screenshot der ersten Fassung schwebte es über der Bühne.
+
+**Mehr Tiefe, konkret:**
+
+- **Parallax-Eintritt:** Rolle-Chip, Titel, Text, Zahlen und Mail-Rahmen kommen in 70-ms-Schritten aus der Tiefe. Das führt den Blick von oben nach unten; bei gleichzeitigem Eintritt springt er umher und liest den Titel zuletzt.
+- **Zählende Zahlen:** „43 von 120 verpasst" läuft sichtbar bis 43, mit sanftem Auslauf (`1-(1-t)³`) — eine linear zählende Zahl wirkt wie ein Zähler, eine ausgebremste wie ein Ergebnis.
+- **Eine Farbe je Reise:** Vertrieb `#5b8cff` (Blau), Onboarding `#3fd0d4` (Türkis), Forderungsmanagement `#9d8cff` (Violett). Wer drei Reisen hintereinander vorführt, weiß ohne ein Wort, wo er ist. Alle drei auf **4,5:1** gegen Navy geprüft.
+- **Licht-Wisch beim Kapitelwechsel** (0,9 s, einmal je Kapitel — ein dauerhafter Effekt wäre Kirmes).
+- **Abschluss-Kapitel „Du bist bereit"** je Reise, als echtes Kapitel (die Fortschrittsleiste zählt es mit). Aus 12/15/9 werden **13/16/10**.
+
+**380 px:** Die Karte war nur 298 px breit — 82 px Rand, weil eigener und Hüllen-Abstand sich addierten. Unter 640 px schrumpft er.
+
+`prefers-reduced-motion` schaltet alles ab: Animationen, Übergänge, das Gleiten beim Springen, den Licht-Wisch — und die Zahlen stehen sofort auf ihrem Endwert.
+
+### Teil 4: Der Nachlauf steht im Tageslauf
+
+Der Bestandslauf hat am 24.08. sieben Fälle nachgetragen. **Drei Tage später standen zwei wieder da:** Ihre alte Wiedervorlage (+3 Tage, aus der Zeit vor dem Wartezustand) war fällig geworden. Ein Lauf, den ein Mensch aufrufen muss, wird beim dritten Mal vergessen.
+
+`nummernAnfragenNachtragen()` läuft jetzt täglich über die Cron-Registratur (plus 90 Sekunden nach dem Start, für die Fälle vom Vortag). **Idempotent:** Der Prüfstand ruft sie zweimal in einer zurückgerollten Transaktion — der zweite Lauf setzt nichts.
+
+### Geprüft
+
+**268 Prüfungen** grün: `pruef-geduld` 34 (mit Rot-Probe „Ereignis auf falscher Plus-Adresse zählt nicht"), `pruef-academy` 91, `schau-academy` 33, `pruef-reste` 37, `schau-termine` 13, `pruef-zweigampel` 61.
+
+### Fünf eigene Fehler
+
+1. **Backticks in CSS-Kommentaren — zweimal im selben Lauf.** AGENTS.md nennt das als wiederkehrenden Fehler; hier war es der zehnte und elfte.
+2. **Der Fehlerzweig meldete eine andere URL als die gestellte.** Nach dem Umbau zeigte das Log `?email=dev@fiaon.com`, während die Abfrage längst ohne Adressfilter lief. Eine Diagnose, die in die falsche Richtung schickt, ist schlimmer als keine.
+3. **Drei Browserprüfungen schrieben „15 Kapitel" hinein.** Mit dem Abschluss-Kapitel wurden es 16 — die Zahl kommt jetzt aus den Daten.
+4. **Ein Regex lief über Zeilengrenzen** (`[^;]*` frisst Umbrüche) und traf das `width:` einer ganz anderen Regel.
+5. **Die Mindestlänge für Kapitel-Sätze war zu streng** für „Du bist bereit." — ein Abschlusssatz, der einen Nebensatz braucht, ist kein Abschluss.
+
 ## 26.08.2026 — Termin-Zentrale und die FIAON Academy
 
 ### Teil 1: Die Termin-Zentrale (`/admin/termine`)

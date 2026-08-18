@@ -166,6 +166,41 @@ function AlleZweigePruefen({ anzahl, testAdresse, onFertig }: {
         </div>
       </div>
 
+      {/* ══════════════════════════════════════════════════════════════════
+          DER HINWEIS ZU DEN PLUS-ADRESSEN (27.08.2026)
+
+          Die Zuordnung „welches Brevo-Ereignis gehört zu welchem Zweig?" lief
+          über den BETREFF. Der steht aber in der Brevo-Vorlage, deutsch und
+          kundenfreundlich — die Plattform kennt ihn nicht. GEMESSEN: Brevo
+          lieferte 305 Ereignisse für die Testadresse, und der Lauf meldete
+          „keins passte zum Betreff". Alle Mails waren angekommen.
+
+          Jetzt bekommt jedes Ereignis seine eigene Adresse. Das gehört erklärt:
+          Wer im Postfach plötzlich „dev+welcome@…" sieht, soll nicht rätseln —
+          und wer einen Anbieter hat, der Plus-Adressen wegwirft, muss wissen,
+          dass die Ampel grün wird, ohne dass etwas ankommt.
+          ══════════════════════════════════════════════════════════════════ */}
+      <div className="mt-4 px-3.5 py-3 rounded-xl text-[12.5px] leading-relaxed"
+           style={{ background: "rgba(29,78,216,.06)", color: "#1e3a8a",
+                    boxShadow: "inset 0 0 0 1px rgba(29,78,216,.18)" }}>
+        <b>Jede Probemail geht an ihre eigene Adresse.</b> Aus{" "}
+        <code>{testAdresse || "deine@adresse.de"}</code> wird{" "}
+        <code>{(testAdresse || "deine@adresse.de").replace(/^([^@+]+)(\+[^@]*)?@/, "$1+welcome@")}</code>,
+        dazu <code>…+payment_details@…</code> und so weiter. Alles landet in{" "}
+        <b>demselben Postfach</b> — aber Brevo protokolliert die volle Adresse,
+        und damit ist die Zuordnung eindeutig. Vorher wurde über den Betreff
+        geraten, und der steht in der Brevo-Vorlage: Bei 305 gefundenen
+        Ereignissen passte „keins".
+        <span className="block mt-1.5" style={{ color: "#92400e" }}>
+          <b>Wenn nach dem Lauf nichts im Postfach liegt, obwohl die Ampel grün
+          ist:</b> Dein Mail-Anbieter wirft Plus-Adressen weg (kommt bei
+          einzelnen Exchange-Einstellungen vor). Dann bitte melden — es gibt
+          einen Rückfall auf reines Zeitfenster-Matching. Der arbeitet ohne
+          Plus-Adressen, kann die Zweige dann aber nicht mehr einzeln
+          unterscheiden.
+        </span>
+      </div>
+
       {laeuft && (
         <div className="mt-4">
           <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(15,23,42,.07)" }}>

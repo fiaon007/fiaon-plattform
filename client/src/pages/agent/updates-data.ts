@@ -40,6 +40,31 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-27-knopf",
+    date: "2026-08-27",
+    category: "Behoben",
+    title: "Der Zahlungsdaten-Knopf sagt jetzt, warum er nicht geht \u2014 und was zu tun ist",
+    summary:
+      "Daniel hat gemeldet, dass sich die Zahlungsdaten nicht jedem schicken lassen. "
+      + "Gemessen: bei 477 von 600 Kunden war der Knopf gesperrt \u2014 ohne zu sagen, warum.",
+    changes: [
+      "DAS WAR DAS PROBLEM: Der Knopf war grau, und der Grund stand nur im Tooltip \u2014 den sieht am Handy niemand.",
+      "GEMESSEN an 600 Kunden der Tagesliste: 123 sendbar. Gesperrt: 219 ohne offene Bestellung, 165 ohne E-Mail-Adresse, 93 haben schon bezahlt. Meistens sperrt der Knopf also ZU RECHT \u2014 es fehlte die Auskunft.",
+      "JETZT STEHT DER GRUND ALS TEXT am Knopf, in Bernstein: „Keine E-Mail-Adresse“, „Keine offene Bestellung“ oder „Alles bezahlt“.",
+      "UND DER N\u00c4CHSTE SCHRITT DANEBEN: Fehlt die E-Mail, kannst du sie direkt dort eintippen und speichern \u2014 ohne die Seite zu wechseln. Danach ist der Knopf frei.",
+      "GUT ZU WISSEN: Bei „Zahlung gemeldet“ ging es immer schon \u2014 genau dann fragen Kunden am h\u00e4ufigsten nach den Daten. Das betrifft 243 Personen.",
+      "AU\u00dfERDEM: Die Zweig-Ampel in der Verwaltung ordnet Testmails jetzt \u00fcber eine eigene Adresse je Ereignis zu (dev+welcome@\u2026). Vorher wurde \u00fcber den Betreff geraten \u2014 bei 305 gefundenen Ereignissen passte „keins“.",
+      "UND: Kunden mit Nummern-Anfrage rutschen nicht mehr zur\u00fcck in die Tagesliste. Der Nachtrag l\u00e4uft ab jetzt t\u00e4glich von selbst.",
+    ],
+    howto: [
+      "Kundenkarte \u00f6ffnen. Ist der Zahlungsdaten-Knopf bernstein statt blau, steht der Grund darunter.",
+      "Fehlt die E-Mail: ins Feld daneben tippen, „Speichern“, dann senden.",
+      "Fehlt die Bestellung: „Produkt anlegen“ \u2192 f\u00fchrt in die Liste, dort „+ Kunde anlegen“.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
+    important: true,
+  },
+  {
     id: "2026-08-26-academy",
     date: "2026-08-26",
     category: "Neu",

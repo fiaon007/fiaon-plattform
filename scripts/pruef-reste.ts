@@ -162,6 +162,48 @@ async function main(): Promise<void> {
   pruef("kunden-neu hat sie weiterhin",
     /braucht: "notiz"/.test(lies("client/src/pages/agent/kunden-neu.tsx")));
 
+  // ═════════════════════════════════════════════════════════════════════════
+  titel("(c) DER NACHLAUF STEHT IM TAGESLAUF — und ist idempotent");
+  // ═════════════════════════════════════════════════════════════════════════
+  // ── WARUM (27.08.2026) ─────────────────────────────────────────────────
+  // Der Bestandslauf hat am 24.08. sieben Fälle nachgetragen. Drei Tage später
+  // standen ZWEI wieder da: alte Wiedervorlage fällig, kein Wartezustand
+  // gesetzt. Ein Lauf, den ein Mensch aufrufen muss, wird vergessen.
+  const agentRoute = lies("server/routes/fiaon-agent.ts");
+  pruef("Der Nachlauf ist als Tageslauf registriert",
+    /tageslauf\("warten-nummern-nachtragen"/.test(agentRoute));
+  pruef("… über die Registratur, nicht mit eigenem setInterval",
+    !/setInterval\([^)]*nummernAnfragen/.test(agentRoute),
+    "eine zweite Fassung der CRONS-Bremse war schon viermal im Haus");
+  pruef("… und läuft auch kurz nach dem Start",
+    /beimStartNach: 90_000/.test(agentRoute),
+    "sonst bleiben die Fälle vom Vortag bis morgen liegen");
+
+  const { nummernAnfragenNachtragen } = await import("../server/lib/fiaon-warten");
+  // ── DER DOPPELLAUF ERZEUGT NICHTS ──────────────────────────────────────
+  // Beide Läufe in EINER Transaktion, die zurückgerollt wird (AGENTS.md): So
+  // wird der Bestand nicht angefasst, und die Aussage stimmt trotzdem.
+  let ersteRunde = -1;
+  let zweiteRunde = -1;
+  await sqlPool.begin(async (tx) => {
+    ersteRunde = (await nummernAnfragenNachtragen(tx as any)).gesetzt;
+    zweiteRunde = (await nummernAnfragenNachtragen(tx as any)).gesetzt;
+    throw new Error("PRUEFSTAND_ROLLBACK");
+  }).catch((e) => {
+    if (!String(e?.message ?? e).includes("PRUEFSTAND_ROLLBACK")) throw e;
+  });
+  console.log(`        erster Lauf: ${ersteRunde} gesetzt · zweiter Lauf: ${zweiteRunde}`);
+  pruef("Der ZWEITE Lauf setzt nichts mehr", zweiteRunde === 0,
+    `${zweiteRunde} — ein Nachlauf, der bei jedem Aufruf schreibt, verschiebt `
+      + "Wiedervorlagen endlos nach hinten");
+  pruef("Und der Bestand blieb unangetastet (Transaktion zurückgerollt)",
+    Number(((await sqlPool`
+      SELECT COUNT(*)::int AS n FROM fiaon_contact_log
+      WHERE note ILIKE '%Wartezustand nachgetragen%'
+        AND created_at > NOW() - INTERVAL '2 minutes'
+    `) as any[])[0].n) === 0,
+    "ein Prüfstand darf keine echten Vorgänge erzeugen");
+
   console.log(`\n${"═".repeat(72)}`);
   console.log(`  ${ok} ok · ${rot} rot`);
   if (rot > 0) console.log(`\n  ROT:\n${fehler.map((f) => `    · ${f}`).join("\n")}`);

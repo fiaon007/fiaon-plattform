@@ -38,6 +38,71 @@ const LEISE = "#9fb3d9";
 const LEISER = "#7f97c4";
 const AKZENT = "#5b8cff";
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ECHTES VOLLBILD — DIE HÜLLE VERSCHWINDET, DER SCHUTZ BLEIBT
+//
+// ── DIE AUFGABE ────────────────────────────────────────────────────────────
+// Der Präsentationsmodus soll randlos sein. Die Verwaltungs-Navigation und die
+// Kopfleiste gehören weg — nicht überdeckt, sondern aus dem Fluss genommen.
+//
+// ── UND WARUM DAS NICHT HEISST, DIE HÜLLE ZU ENTFERNEN ────────────────────
+// Die Zugangsschleuse (Zahlencode) sitzt IN `AdminShell`. Die Seite ohne Hülle
+// zu rendern wäre ungeschützt — die Entscheidung vom 26.08. bleibt.
+//
+// Gelöst wird nur die OPTIK: Eine Klasse am `<html>` blendet Navigation und
+// Kopf per CSS aus. Der Schutz läuft weiter, das Bild ist randlos.
+//
+// Die Auswahl trifft bewusst STRUKTURELLE Kennzeichen der Hülle (`aside`,
+// `header`) statt eigener Attribute: Sonst müsste AdminShell für die Academy
+// geändert werden, und eine Schulungsseite hat keine Änderungen an der
+// Verwaltungshülle zu verlangen.
+// ═══════════════════════════════════════════════════════════════════════════
+const VOLLBILD_KLASSE = "fi-academy-vollbild";
+
+const VOLLBILD_CSS = `
+  html.${VOLLBILD_KLASSE} aside,
+  html.${VOLLBILD_KLASSE} header,
+  html.${VOLLBILD_KLASSE} nav[aria-label="Hauptnavigation"],
+  /* ── AUCH DAS SOFTPHONE ────────────────────────────────────────────────
+     Im Screenshot der ersten Fassung schwebte der Anruf-Knopf über der Bühne.
+     In einer Vorführung sieht das nach einem Versehen aus — und ein
+     Präsentationsmodus, in dem noch Bedienelemente herumliegen, ist keiner. */
+  /* Die echte Klasse heisst .fi-telefonknopf (Softphone.tsx, Zeile 1004) —
+     nachgesehen, nicht geraten. */
+  html.${VOLLBILD_KLASSE} .fi-telefonknopf,
+  html.${VOLLBILD_KLASSE} .fi-ein {
+    display: none !important;
+  }
+  /* ── DIE BÜHNE LÖST SICH AUS DER HÜLLE ──────────────────────────────
+     Erster Entwurf setzte nur „margin“/„max-width“ an „main“ und der Bühne
+     zurück. GEMESSEN blieb sie trotzdem 1200 px breit bei 1440 px Fenster: Der
+     begrenzende Container ist ein „div“ DAZWISCHEN, und jeden Vorfahren
+     einzeln zu treffen wäre ein Ratespiel über fremdes Markup.
+
+     „position: fixed“ löst das Element aus dem Fluss — dann ist jeder
+     Vorfahre gleichgültig. Genau das will ein Präsentationsmodus: die Bühne,
+     sonst nichts. */
+  html.${VOLLBILD_KLASSE} [data-fiaon="academy-reise"] {
+    position: fixed !important;
+    inset: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+    width: 100vw !important;
+    overflow-y: auto !important;
+    z-index: 60;
+  }
+  html.${VOLLBILD_KLASSE} main {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  html.${VOLLBILD_KLASSE}, html.${VOLLBILD_KLASSE} body {
+    overflow-x: hidden;
+    background: #0A1A3C;
+  }
+`;
+
 /** Läuft der Nutzer mit abgeschalteter Bewegung? */
 function nutztRuhe(): boolean {
   return typeof window !== "undefined"
@@ -71,7 +136,15 @@ function Buehne() {
         }} />
       </div>
 
-      <div style={{ position: "relative", maxWidth: 1120, margin: "0 auto", padding: "72px 20px 96px" }}>
+      {/* ── AUF 380 PX WENIGER RAND ────────────────────────────────────────
+          GEMESSEN: Die Reise-Karte war bei 380 px Fenster nur 298 px breit —
+          82 px Rand, also 21 % des Bildschirms. Das kam aus dem eigenen
+          Innenabstand PLUS dem der Verwaltungshülle.
+
+          Die Klasse zieht den Abstand unter 640 px zusammen. Auf dem Telefon
+          ist Weißraum am Rand kein Stilmittel, sondern verschenkte Zeile. */}
+      <div className="fi-academy-buehne"
+           style={{ position: "relative", maxWidth: 1120, margin: "0 auto", padding: "72px 20px 96px" }}>
         <p style={{
           color: AKZENT, fontSize: 12, fontWeight: 700, letterSpacing: ".18em",
           textTransform: "uppercase", margin: 0,
@@ -167,6 +240,14 @@ function Buehne() {
           from { opacity: 0; transform: perspective(900px) translate3d(0,26px,-90px) scale(.965); }
           to   { opacity: 1; transform: none; }
         }
+        /* ── SCHMALE GERÄTE: DER RAND SCHRUMPFT ──────────────────────────
+           Die Hülle bringt schon einen Abstand mit. Zwei Abstände übereinander
+           kosteten 82 der 380 px. */
+        @media (max-width: 640px) {
+          .fi-academy-buehne { padding: 40px 12px 64px !important; }
+          html.fi-academy-vollbild [data-fiaon="academy-reise"] { padding: 0 !important; }
+        }
+
         /* Wer Bewegung abgeschaltet hat, bekommt harte Schnitte — nicht
            langsamere Animationen. Eine gedrosselte Animation ist immer noch
            Bewegung. */
@@ -181,11 +262,67 @@ function Buehne() {
   );
 }
 
+/**
+ * Eine Zahl, die sichtbar hochzählt.
+ *
+ * ── WARUM ─────────────────────────────────────────────────────────────────
+ * „43 von 120 Terminen verpasst" liest man weg. Eine Zahl, die vor den Augen
+ * bis 43 läuft, hält den Blick — und in einer Vorführung ist genau das der
+ * Zweck: Der Betreiber will, dass die Zahl ankommt.
+ *
+ * ── UND WARUM NUR DIE ERSTE ZAHL ──────────────────────────────────────────
+ * Der Text bleibt Text. Nur die erste Zahl darin zählt hoch; alles andere
+ * animiert zu lassen wäre Unruhe ohne Aussage.
+ *
+ * Bei `reduced-motion` steht die Endzahl sofort da.
+ */
+function ZaehlText({ text, aktiv, ton }: { text: string; aktiv: boolean; ton: string }) {
+  const ruhe = nutztRuhe();
+  // ── OHNE `s`-Flag ─────────────────────────────────────────────────────
+  // Das Ziel des Projekts liegt vor ES2018; `/s` (dotAll) ist dort nicht
+  // erlaubt (TS1501). `[\s\S]` tut dasselbe und läuft überall.
+  const treffer = text.match(/^(\D*)([\d.]+)([\s\S]*)$/);
+  const ziel = treffer ? Number(treffer[2].replace(/\./g, "")) : NaN;
+  const [wert, setWert] = useState(ruhe || !Number.isFinite(ziel) ? ziel : 0);
+
+  useEffect(() => {
+    if (ruhe || !aktiv || !Number.isFinite(ziel)) { setWert(ziel); return; }
+    const dauer = 900;
+    const beginn = performance.now();
+    let laeuft = true;
+    const schritt = (jetzt: number) => {
+      if (!laeuft) return;
+      const anteil = Math.min(1, (jetzt - beginn) / dauer);
+      // Sanft auslaufen: Eine linear zählende Zahl wirkt wie ein Zähler,
+      // eine ausgebremste wie ein Ergebnis.
+      setWert(Math.round(ziel * (1 - (1 - anteil) ** 3)));
+      if (anteil < 1) requestAnimationFrame(schritt);
+    };
+    requestAnimationFrame(schritt);
+    return () => { laeuft = false; };
+  }, [aktiv, ziel, ruhe]);
+
+  if (!treffer || !Number.isFinite(ziel)) {
+    return <span style={{ color: ton }}>{text}</span>;
+  }
+  return (
+    <span style={{ color: ton }}>
+      {treffer[1]}
+      <b style={{ fontVariantNumeric: "tabular-nums" }}>
+        {wert.toLocaleString("de-DE")}
+      </b>
+      {treffer[3]}
+    </span>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // EIN KAPITEL
 // ═══════════════════════════════════════════════════════════════════════════
-function KapitelBuehne({ k, nummer, gesamt, aktiv, praesentation }: {
+function KapitelBuehne({ k, nummer, gesamt, aktiv, praesentation, ton }: {
   k: Kapitel; nummer: number; gesamt: number; aktiv: boolean; praesentation: boolean;
+  /** Die Akzentfarbe der Reise — damit man weiß, in welcher Abteilung man ist. */
+  ton: { akzent: string; hell: string; verlauf: string };
 }) {
   const ruhe = nutztRuhe();
   const [warumOffen, setWarumOffen] = useState(false);
@@ -225,16 +362,25 @@ function KapitelBuehne({ k, nummer, gesamt, aktiv, praesentation }: {
         scrollSnapAlign: "start",
       }}
     >
-      <div style={{
-        maxWidth: gross ? 1160 : 880, margin: "0 auto", width: "100%",
-        animation: ruhe || !aktiv ? "none" : "fiAcademyTiefe .6s cubic-bezier(.22,1,.36,1) both",
-      }}>
+      {/* ── PARALLAX-TIEFE: VERSETZTER EINTRITT ──────────────────────────
+          Rolle-Chip, Titel, Text, Zahlen und Mail-Rahmen kommen NICHT
+          gleichzeitig, sondern in 70-ms-Schritten aus der Tiefe. Das führt den
+          Blick von oben nach unten — bei einem gleichzeitigen Eintritt springt
+          er umher und liest den Titel zuletzt.
+
+          Die Verzögerungen stehen als CSS-Variable an den Kindern, damit nur
+          eine Animation existiert und die GPU sie zusammenfassen kann. */}
+      <div style={{ maxWidth: gross ? 1160 : 880, margin: "0 auto", width: "100%" }}
+           className={ruhe || !aktiv ? undefined : "fi-academy-parallax"}>
         {/* ── ROLLE UND ZÄHLER ───────────────────────────────────────── */}
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
           <span style={{
-            padding: "6px 12px", borderRadius: 999, background: "rgba(91,140,255,.16)",
-            color: "#c3d5ff", fontSize: gross ? 14 : 12, fontWeight: 700,
-            boxShadow: "inset 0 0 0 1px rgba(91,140,255,.3)",
+            // ── IN DER FARBE DER REISE ──────────────────────────────────
+            // Blau (Vertrieb), Türkis (Onboarding), Violett (Inkasso). Wer drei
+            // Reisen hintereinander vorführt, weiß so ohne ein Wort, wo er ist.
+            padding: "6px 12px", borderRadius: 999, background: `${ton.akzent}26`,
+            color: ton.hell, fontSize: gross ? 14 : 12, fontWeight: 700,
+            boxShadow: `inset 0 0 0 1px ${ton.akzent}4d`,
           }}>
             {HANDELNDER_TEXT[k.wer]}
           </span>
@@ -292,9 +438,12 @@ function KapitelBuehne({ k, nummer, gesamt, aktiv, praesentation }: {
               <p key={i} style={{
                 margin: 0, padding: "11px 14px", borderRadius: 12,
                 background: "rgba(16,185,129,.10)", boxShadow: "inset 0 0 0 1px rgba(16,185,129,.26)",
-                color: "#8ff0c8", fontSize: gross ? 15 : 13, fontWeight: 600, lineHeight: 1.5,
+                fontSize: gross ? 15 : 13, fontWeight: 600, lineHeight: 1.5,
               }}>
-                {zz}
+                {/* Die Zahl zählt sichtbar hoch — „43 von 120 verpasst" liest
+                    man weg, eine laufende Zahl hält den Blick. In einer
+                    Vorführung ist genau das der Zweck. */}
+                <ZaehlText text={zz} aktiv={aktiv} ton="#8ff0c8" />
               </p>
             ))}
           </div>
@@ -409,6 +558,43 @@ function Reise({ reiseKey }: { reiseKey: string }) {
     setAktiv(ziel);
   }, [r, ruhe]);
 
+  // ══════════════════════════════════════════════════════════════════════
+  // ECHTES VOLLBILD — KLASSE AM <html> UND FULLSCREEN-API
+  //
+  // Beides zusammen: Die API macht das Browserfenster randlos, die Klasse nimmt
+  // die Verwaltungs-Navigation aus dem Fluss. Nur die API würde die Navigation
+  // stehen lassen; nur die Klasse ließe die Browser-Leisten stehen.
+  //
+  // Der Zugangsschutz bleibt unberührt: `AdminShell` rendert weiter (und prüft
+  // weiter den Zahlencode), nur ihre Teile sind versteckt.
+  //
+  // Verlässt der Nutzer das Vollbild über F11 oder die Browser-Leiste, muss der
+  // Zustand mitkommen — sonst steht der Knopf auf „beenden", während die Seite
+  // längst normal ist.
+  // ══════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    const wurzel = document.documentElement;
+    if (praesentation) {
+      wurzel.classList.add(VOLLBILD_KLASSE);
+      void wurzel.requestFullscreen?.().catch(() => {
+        // Kein Vollbild erlaubt (manche Einstellungen)? Dann bleibt wenigstens
+        // die Hülle weg — besser als gar nichts, und der Nutzer merkt nichts
+        // von einem Fehler, den er nicht beheben kann.
+      });
+    } else {
+      wurzel.classList.remove(VOLLBILD_KLASSE);
+      if (document.fullscreenElement) void document.exitFullscreen?.().catch(() => {});
+    }
+    return () => wurzel.classList.remove(VOLLBILD_KLASSE);
+  }, [praesentation]);
+
+  // F11 oder Esc über die Browser-Leiste: Der Zustand folgt dem Browser.
+  useEffect(() => {
+    const auf = () => { if (!document.fullscreenElement) setPraesentation(false); };
+    document.addEventListener("fullscreenchange", auf);
+    return () => document.removeEventListener("fullscreenchange", auf);
+  }, []);
+
   // ── DIE TASTEN ──────────────────────────────────────────────────────────
   // Pfeile und Bild-auf/ab. Im Präsentationsmodus ist das der einzige Weg —
   // wer vorführt, hat keine Hand für die Maus.
@@ -419,8 +605,8 @@ function Reise({ reiseKey }: { reiseKey: string }) {
       } else if (e.key === "ArrowUp" || e.key === "ArrowLeft" || e.key === "PageUp") {
         e.preventDefault(); springe(aktiv - 1);
       } else if (e.key === "Escape" && praesentation) {
+        // Der Effekt oben nimmt die Klasse weg und verlässt das Vollbild.
         setPraesentation(false);
-        void document.exitFullscreen?.().catch(() => {});
       }
     };
     window.addEventListener("keydown", auf);
@@ -461,7 +647,38 @@ function Reise({ reiseKey }: { reiseKey: string }) {
 
   return (
     <div ref={behaelter} data-fiaon="academy-reise"
+         data-vollbild={praesentation ? "an" : undefined}
          style={{ background: GRUND, minHeight: "100vh", position: "relative" }}>
+      {/* ── DER GLANZ IN DER FARBE DER REISE ───────────────────────────────
+          Derselbe wandernde Verlauf wie auf der Bühne, aber im Ton der
+          Abteilung: Blau (Vertrieb), Türkis (Onboarding), Violett (Inkasso).
+          Wer drei Reisen hintereinander vorführt, weiß so ohne ein Wort, wo er
+          ist. */}
+      <div aria-hidden="true" style={{
+        position: "fixed", inset: 0, pointerEvents: "none", overflow: "hidden", zIndex: 0,
+      }}>
+        <div style={{
+          position: "absolute", width: 900, height: 900, left: "-18%", top: "-26%",
+          background: r.ton.verlauf, filter: "blur(40px)",
+          animation: ruhe ? "none" : "fiAcademyGlanz 28s ease-in-out infinite alternate",
+        }} />
+      </div>
+
+      {/* ── DER LICHT-WISCH BEIM KAPITELWECHSEL ────────────────────────────
+          Ein kurzer Schein, wenn ein neues Kapitel aktiv wird. `key={aktiv}`
+          startet die Animation neu — ohne den Schlüssel liefe sie nur einmal. */}
+      {!ruhe && (
+        <div key={aktiv} aria-hidden="true" style={{
+          position: "fixed", inset: 0, pointerEvents: "none", zIndex: 1,
+          overflow: "hidden",
+        }}>
+          <div style={{
+            position: "absolute", top: 0, bottom: 0, width: "42%",
+            background: `linear-gradient(90deg, transparent, ${r.ton.akzent}1f, transparent)`,
+            animation: "fiAcademyWisch .9s cubic-bezier(.22,1,.36,1) both",
+          }} />
+        </div>
+      )}
       {/* ── DIE FORTSCHRITTSLEISTE ─────────────────────────────────────── */}
       <div style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 30,
@@ -493,12 +710,7 @@ function Reise({ reiseKey }: { reiseKey: string }) {
           </span>
           <button type="button"
                   data-fiaon="praesentieren"
-                  onClick={() => {
-                    const an = !praesentation;
-                    setPraesentation(an);
-                    if (an) void document.documentElement.requestFullscreen?.().catch(() => {});
-                    else void document.exitFullscreen?.().catch(() => {});
-                  }}
+                  onClick={() => setPraesentation((v) => !v)}
                   style={{
                     marginLeft: "auto", padding: "10px 16px", borderRadius: 11,
                     background: praesentation ? AKZENT : "rgba(255,255,255,.09)",
@@ -535,7 +747,7 @@ function Reise({ reiseKey }: { reiseKey: string }) {
       <div style={{ paddingTop: 54 }}>
         {r.kapitel.map((k, i) => (
           <KapitelBuehne key={k.key} k={k} nummer={i + 1} gesamt={r.kapitel.length}
-                         aktiv={i === aktiv} praesentation={praesentation} />
+                         aktiv={i === aktiv} praesentation={praesentation} ton={r.ton} />
         ))}
 
         {/* ── DER ABSCHLUSS ─────────────────────────────────────────────── */}
@@ -570,10 +782,49 @@ function Reise({ reiseKey }: { reiseKey: string }) {
       </div>
 
       <style>{`
+        ${VOLLBILD_CSS}
+
         @keyframes fiAcademyTiefe {
           from { opacity: 0; transform: perspective(900px) translate3d(0,26px,-90px) scale(.965); }
           to   { opacity: 1; transform: none; }
         }
+        @keyframes fiAcademyGlanz {
+          0% { transform: translate3d(0,0,0) scale(1); }
+          100% { transform: translate3d(9%,7%,0) scale(1.12); }
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           PARALLAX: DIE TEILE TRETEN VERSETZT EIN
+
+           Rolle-Chip, Titel, Text, Zahlen und Mail-Rahmen kommen in
+           70-ms-Schritten. Das führt den Blick von oben nach unten; bei
+           gleichzeitigem Eintritt springt er umher und liest den Titel zuletzt.
+
+           Nur „opacity“ und „transform“ werden animiert — beides läuft auf der
+           GPU. Eine Animation auf „top“ oder „height“ würde bei jedem Bild neu
+           umbrechen lassen. (Und ja: KEINE Backticks in einem CSS-Kommentar
+           innerhalb eines Template-Literals — sie beenden es. AGENTS.md nennt
+           das als wiederkehrenden Fehler, hier war es der zehnte.)
+           ══════════════════════════════════════════════════════════════════ */
+        .fi-academy-parallax > * {
+          animation: fiAcademyTiefe .62s cubic-bezier(.22,1,.36,1) both;
+        }
+        .fi-academy-parallax > *:nth-child(1) { animation-delay: 0s; }
+        .fi-academy-parallax > *:nth-child(2) { animation-delay: .07s; }
+        .fi-academy-parallax > *:nth-child(3) { animation-delay: .14s; }
+        .fi-academy-parallax > *:nth-child(4) { animation-delay: .21s; }
+        .fi-academy-parallax > *:nth-child(5) { animation-delay: .28s; }
+        .fi-academy-parallax > *:nth-child(6) { animation-delay: .35s; }
+        .fi-academy-parallax > *:nth-child(n+7) { animation-delay: .42s; }
+
+        /* ── DER LICHT-WISCH BEIM KAPITELWECHSEL ─────────────────────────
+           Ein weicher, wandernder Schein über die neue Bühne. Kurz (0,9 s) und
+           nur einmal je Kapitel — ein dauerhafter Effekt wäre Kirmes. */
+        @keyframes fiAcademyWisch {
+          from { opacity: .5; transform: translateX(-30%) skewX(-12deg); }
+          to   { opacity: 0;  transform: translateX(130%) skewX(-12deg); }
+        }
+
         /* Auf schmalen Geräten verschwinden die Punkte: Sie überdecken sonst
            Text, und die Leiste oben sagt dasselbe. */
         @media (max-width: 767px) {

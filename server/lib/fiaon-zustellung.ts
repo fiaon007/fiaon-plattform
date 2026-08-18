@@ -151,21 +151,68 @@ export type ZweigZustand =
    */
   | "veraltet";
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ZUORDNUNG LÄUFT ÜBER DIE EMPFÄNGERADRESSE, NICHT ÜBER DEN BETREFF
+//
+// ── WARUM DAS BETREFF-MATCHING ABGESCHAFFT IST (27.08.2026) ────────────────
+// Es lautete: „Steht der Ereignisname oder die Beschriftung im Betreff, gehört
+// das Ereignis dazu." Das setzte voraus, dass die Brevo-Vorlage den Namen
+// trägt — und das tut sie nicht. Die Betreffs sind in Brevo geschrieben,
+// deutsch und kundenfreundlich („Ihre Zahlungsdaten für FIAON"), und die
+// Plattform kennt sie nicht.
+//
+// GEMESSEN in Produktion: Brevo lieferte 305 Ereignisse für die Testadresse,
+// und der Lauf meldete „keins passte zum Betreff dieses Ereignisses". Die Mails
+// waren alle angekommen. Nur unsere Zuordnung war eine Vermutung.
+//
+// ── DER ERSATZ: EINE EIGENE ADRESSE JE EREIGNIS ───────────────────────────
+// Jeder Testversand geht an eine PLUS-ADRESSE mit dem Ereignisnamen darin:
+//
+//   dev@fiaon.com  →  dev+welcome@fiaon.com
+//                     dev+payment_details@fiaon.com
+//
+// Alles vor dem `+` bleibt das Postfach (RFC 5233, „subaddressing"), also
+// landet jede Mail im selben Eingang. Aber Brevo protokolliert die VOLLE
+// Adresse — und damit ist die Zuordnung keine Vermutung mehr, sondern eine
+// Gleichheit.
+//
+// ── UND WENN DER ANBIETER KEINE PLUS-ADRESSEN ZUSTELLT? ───────────────────
+// Manche Postfächer (einige Exchange-Einstellungen, wenige Provider) werfen sie
+// weg. Dann kommt keine Mail an, und Brevo protokolliert die Plus-Adresse
+// trotzdem — die Ampel wird also GRÜN, obwohl der Betreiber nichts im Postfach
+// sieht. Deshalb steht in der Oberfläche ein Hinweis, und `plusAdressen: false`
+// schaltet auf reines Zeitfenster-Matching zurück.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Die Testadresse für ein Ereignis — mit dem Ereignisnamen als Plus-Teil.
+ *
+ * `dev@fiaon.com` + `welcome` → `dev+welcome@fiaon.com`
+ *
+ * Hat die Adresse schon einen Plus-Teil (`dev+alt@…`), wird er ERSETZT, nicht
+ * angehängt: `dev+alt+welcome@…` wäre bei manchen Anbietern ungültig.
+ */
+export function plusAdresse(basis: string, event: string): string {
+  const [lokal = "", domain = ""] = String(basis).trim().split("@");
+  if (!lokal || !domain) return String(basis).trim();
+  const ohnePlus = lokal.split("+")[0];
+  // Nur Zeichen, die in einem lokalen Teil unstrittig erlaubt sind. Die
+  // Ereignisnamen der Registry sind ohnehin `a-z0-9_`.
+  const marke = event.toLowerCase().replace(/[^a-z0-9_.-]/g, "");
+  return `${ohnePlus}+${marke}@${domain}`;
+}
+
 /**
  * Gehört dieses Brevo-Ereignis zu diesem Registry-Eintrag?
  *
- * Über den BETREFF, weil Make uns keine messageId zurückgibt. Der Betreff einer
- * Probemail trägt den Ereignisnamen oder die Beschriftung — je nachdem, welche
- * Brevo-Vorlage dranhängt. Beide werden geprüft.
+ * Über die EMPFÄNGERADRESSE. Der Betreff wird nicht mehr angesehen — siehe die
+ * Begründung darüber.
  */
-function passtZuEreignis(x: ZustellEreignis, e: { type: string; label?: string }): boolean {
-  const betreff = (x.betreff ?? "").toLowerCase();
-  if (!betreff) return false;
-  if (betreff.includes(e.type.toLowerCase())) return true;
-  const label = String(e.label ?? "").toLowerCase();
-  // Kurze Beschriftungen wie „Willkommen" passen zu vielen Betreffs — erst ab
-  // vier Zeichen zählt der Vergleich, sonst bestätigt ein Zufall den Zweig.
-  return label.length >= 4 && betreff.includes(label);
+function passtZuEreignis(
+  x: ZustellEreignis, e: { type: string }, basisAdresse: string,
+): boolean {
+  const gesucht = plusAdresse(basisAdresse, e.type).toLowerCase();
+  return String(x.email ?? "").trim().toLowerCase() === gesucht;
 }
 
 export interface SammelZweig {
@@ -219,6 +266,14 @@ export async function alleZweigePruefen(
     nurNachsehen?: boolean;
     /** Ab wann gesucht wird. Nur mit `nurNachsehen` sinnvoll. */
     suchAb?: Date;
+    /**
+     * Plus-Adressen je Ereignis benutzen (Vorgabe: ja).
+     *
+     * Auf `false` nur, wenn das Postfach des Betreibers Plus-Adressen
+     * wegwirft. Dann kann kein Ereignis einem einzelnen Zweig zugeordnet
+     * werden — der Lauf sagt das dann auch.
+     */
+    plusAdressen?: boolean;
     /**
      * NICHT in fiaon_mail_events schreiben.
      *
@@ -305,11 +360,22 @@ export async function alleZweigePruefen(
   // schicken. 35 unnötige Mails an die Testadresse sind kein Kavaliersdelikt —
   // sie kosten Zustellreputation und verwirren den Empfänger.
   // ══════════════════════════════════════════════════════════════════════════
+  // ── PLUS-ADRESSEN: AN, WENN NICHT AUSDRÜCKLICH ABGESCHALTET ──────────
+  // Der Rückfall existiert für Postfächer, die Plus-Adressen wegwerfen (einige
+  // Exchange-Einstellungen). Dann kommt beim Betreiber nichts an, während Brevo
+  // die Adresse protokolliert — die Ampel wäre grün und das Postfach leer.
+  const plusAdressenAn = opts.plusAdressen !== false;
   const versandFehler = new Map<string, string>();
   let versandt = 0;
   for (const e of opts.nurNachsehen ? [] : events) {
+    // ── JEDES EREIGNIS BEKOMMT SEINE EIGENE ADRESSE ─────────────────────
+    // `dev+welcome@…`, `dev+payment_details@…`. Alles landet im selben
+    // Postfach, aber Brevo protokolliert die volle Adresse — und damit ist die
+    // Zuordnung eine Gleichheit statt einer Vermutung über den Betreff.
+    const zielAdresse = plusAdressenAn
+      ? plusAdresse(testAdresse, e.type) : testAdresse;
     const v = await mailSenden({
-      event: e.type, akteur, test: true, testAdresse,
+      event: e.type, akteur, test: true, testAdresse: zielAdresse,
       zusatz: { pruef_marke: `fiaon-zweigpruefung-${e.type}-${start}` },
     }).catch((err) => ({ ok: false, grund: err instanceof Error ? err.message : String(err) }));
     if (!v.ok) versandFehler.set(e.type, String((v as any).grund ?? "unbekannt"));
@@ -405,7 +471,15 @@ export async function alleZweigePruefen(
     const frisch = nachschau.ereignisse.filter((x) =>
       x.am && new Date(x.am).getTime() >= start - 120_000);
     for (const e of nochOffen()) {
-      const meine = frisch.filter((x) => passtZuEreignis(x, e));
+      // ── OHNE PLUS-ADRESSEN BLEIBT NUR DAS ZEITFENSTER ────────────────
+      // Dann kann kein Ereignis einem einzelnen Zweig zugeordnet werden. Wir
+      // sagen das ehrlich: Alle lebenden gelten als bestätigt, WENN überhaupt
+      // Ereignisse im Fenster liegen — mehr ist ohne Kennzeichen nicht
+      // beweisbar, und eine erfundene Genauigkeit wäre schlimmer als eine
+      // eingestandene Unschärfe.
+      const meine = plusAdressenAn
+        ? frisch.filter((x) => passtZuEreignis(x, e, testAdresse))
+        : frisch;
       if (meine.length > 0) bestaetigteEreignisse.set(e.type, meine);
     }
 
@@ -484,11 +558,20 @@ export async function alleZweigePruefen(
       + `event_type = ${e.type}, oder er ist inaktiv. (2) Der Zweig existiert, aber die `
       + "verknüpfte Brevo-Vorlage ist nicht aktiv. Make hat die Anfrage angenommen, "
       + "danach verliert sich die Spur."
-      + `\n\nDiagnose: gesucht wurde „${testAdresse}“ ab ${suchAb.toLocaleTimeString("de-DE")}; `
-      + `Brevo lieferte ${gefundeneGesamt} Ereignisse für diese Adresse insgesamt`
+      + `\n\nDiagnose: gesucht wurde `
+      + (plusAdressenAn ? `„${plusAdresse(testAdresse, e.type)}“` : `„${testAdresse}“`)
+      + ` ab ${suchAb.toLocaleTimeString("de-DE")}; `
+      + `Brevo lieferte ${gefundeneGesamt} Ereignisse für das Postfach insgesamt`
       + (gefundeneGesamt === 0
         ? " — also NICHTS. Dann liegt es nicht am einzelnen Zweig, sondern am Versand oder an der Adresse."
-        : `, davon passte keins zum Betreff dieses Ereignisses.`);
+        // ── DIE DIAGNOSE NENNT JETZT DIE ADRESSE, NICHT DEN BETREFF ─────
+        // Vorher stand hier „davon passte keins zum Betreff dieses
+        // Ereignisses" — bei 305 gefundenen Ereignissen. Der Betreff war nie
+        // ein brauchbares Merkmal: Er steht in der Brevo-Vorlage, und die kennt
+        // die Plattform nicht.
+        : `, aber keins an genau diese Plus-Adresse. `
+          + `Entweder feuert der Zweig nicht — oder Make schickt die Probemail `
+          + `an die Basisadresse statt an die mitgegebene.`);
     if (!opts.nichtSpeichern) await verifikationSpeichern(e.type, false, text);
     zweige.push({ event: e.type, zustand: "zweig_fehlt", text, gesehenAm: null, brevoZustand: null });
   }

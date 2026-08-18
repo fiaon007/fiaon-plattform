@@ -83,8 +83,12 @@ async function main(): Promise<void> {
   // Auch diese Prüfung liest den kommentarfreien Text: Sonst genügt es, „days"
   // in einen Kommentar zu schreiben, damit sie grün wird. In der Rot-Probe
   // blieb sie deshalb grün, obwohl der Code das alte Datumsfenster hatte.
+  // Die URL wird seit dem 27.08. in einer Variablen gebaut (`const pfad = …`),
+  // damit der Fehlerzweig DIESELBE melden kann. Vorher stand dort ein zweiter,
+  // hartkodierter Pfad — und der zeigte nach dem Umbau auf Plus-Adressen eine
+  // URL, die so nie gestellt wurde.
   pruef("Die Abfrage benutzt „days“",
-    /&days=\$\{tage\}/.test(brevoCode),
+    /days=\$\{tage\}/.test(brevoCode),
     "Brevo-Referenz: „Number of days in the past including today“ — kann kein Zukunftsdatum enthalten");
   pruef("„days“ steht NICHT zusammen mit startDate/endDate",
     !/days=[^`]*startDate/.test(brevoCode) && !/startDate=[^`]*days=/.test(brevoCode),
@@ -105,8 +109,9 @@ async function main(): Promise<void> {
     /BREVO-NACHSCHAU\] Abfrage gescheitert/.test(brevo) && /antwort: r\.klartext\.roh/.test(brevo),
     "eine Fehlermeldung ohne die Antwort des Gegenübers schickt den nächsten Leser auf dieselbe Suche");
   pruef("… mit dem angefragten Pfad daneben",
-    /pfad: `\/smtp\/statistics\/events/.test(brevo),
-    "sonst weiß niemand, WAS Brevo beanstandet hat");
+    /pfad, gesuchtesPostfach: basis, plusAdressenMit: plusAuch,/.test(brevo),
+    "sonst weiß niemand, WAS Brevo beanstandet hat — und der Pfad muss der "
+      + "GESTELLTE sein, nicht ein zweiter hartkodierter");
 
   // ═════════════════════════════════════════════════════════════════════════
   titel("2. HTTP 400 HEISST: WIR HABEN DEN FEHLER");

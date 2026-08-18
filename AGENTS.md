@@ -445,6 +445,81 @@ Ort und behebt am falschen Fall.
 in den Bericht schreiben. Sie ist keine Kritik am Auftraggeber, sondern die
 Beschreibung des wirklichen Problems.
 
+## Eine Zuordnung über einen Text, den wir nicht schreiben, ist eine Vermutung
+
+Die Zweig-Ampel ordnete Brevo-Ereignisse über den BETREFF einem Ereignis zu.
+Der Betreff steht aber in der Brevo-Vorlage — deutsch, kundenfreundlich, von
+Hand gepflegt. GEMESSEN: 305 gefundene Ereignisse, „keins passte zum
+Betreff“, alle Mails angekommen.
+
+- **Ein eigenes Kennzeichen mitgeben, statt fremden Text zu deuten.** Hier:
+  eine Plus-Adresse je Ereignis (`dev+welcome@…`, RFC 5233). Alles landet im
+  selben Postfach, aber der Protokolleintrag ist eindeutig.
+- **Und prüfen, ob die Suche das Kennzeichen findet.** Brevos `?email=`-Filter
+  vergleicht EXAKT — die Suche nach der Basisadresse hätte keine einzige
+  Plus-Adresse geliefert, und die Ampel wäre dauerhaft rot geblieben.
+- **Wenn ein Kennzeichen Nebenwirkungen haben kann, gehört ein Hinweis in die
+  Oberfläche.** Manche Postfächer werfen Plus-Adressen weg: Dann wird die Ampel
+  grün, während nichts ankommt. Das muss dastehen, sonst sucht der Betreiber am
+  falschen Ende.
+
+## Ein gesperrter Knopf ohne sichtbaren Grund ist ein Rätsel
+
+Daniel Stripling: „Ich kann die Zahlungsdaten nicht jedem schicken.“
+GEMESSEN an 600 Personen: 123 sendbar, 477 gesperrt — und in den meisten Fällen
+ZU RECHT. Der Grund stand im `title`-Attribut, und einen Tooltip sieht auf dem
+Telefon niemand.
+
+- **Der Grund steht als TEXT am Knopf**, nicht im Tooltip.
+- **Und der nächste Schritt daneben.** Bei fehlender E-Mail das Eingabefeld
+  direkt dort: 165 der 477 Fälle lösen sich mit einer Eingabe. Ein
+  Seitenwechsel für ein Feld ist die häufigste Stelle, an der jemand aufgibt.
+- **Vor der Regeländerung messen.** Der Auftrag lautete „claimed_paid
+  freigeben“ — die Regel ließ es längst durch. Ohne Messung hätte ich eine
+  funktionierende Bedingung „reparieren“ können.
+
+## Ein Bestandslauf, den ein Mensch aufrufen muss, wird vergessen
+
+Der Wartezustand-Nachlauf hat am 24.08. sieben Fälle nachgetragen. Drei Tage
+später standen ZWEI wieder da: alte Wiedervorlage fällig, kein Wartezustand.
+
+- **Wiederkehrende Bestandskorrekturen gehören in den Tageslauf**, über die
+  Registratur (`tageslauf(...)`), nicht als Skript zum Erinnern.
+- **Und sie müssen idempotent sein** — der Prüfstand ruft sie ZWEIMAL in einer
+  zurückgerollten Transaktion. Ein Nachlauf, der bei jedem Aufruf schreibt,
+  verschiebt Wiedervorlagen endlos nach hinten.
+
+## Ränder zurücksetzen macht keine Seite randlos
+
+Der Präsentationsmodus sollte die Verwaltungshülle loswerden.
+`margin: 0; max-width: none` an `main` und der Bühne — und sie blieb 1200 px
+breit bei 1440 px Fenster. Der begrenzende Container war ein `div` DAZWISCHEN.
+
+- **`position: fixed; inset: 0`** löst das Element aus dem Fluss; dann ist jeder
+  Vorfahre gleichgültig. Jeden einzeln zu treffen wäre ein Ratespiel über
+  fremdes Markup.
+- **Und der Screenshot zeigt, was noch übrig ist.** Bei mir schwebte das
+  Softphone über der Bühne — ein Präsentationsmodus, in dem Bedienelemente
+  herumliegen, ist keiner.
+- **Die Optik lösen, den Schutz lassen:** Die Zugangsschleuse sitzt in
+  `AdminShell`. Sie rendert weiter und prüft weiter; nur ihre Teile sind per
+  CSS versteckt.
+
+## Ein Prüfstand darf keine Zahl abschreiben
+
+Drei Browserprüfungen enthielten „15 Kapitel“. Mit einem
+Abschluss-Kapitel wurden es 16 — drei rote Prüfungen, obwohl alles stimmte.
+
+**Die Zahl aus den DATEN holen** (`reise("onboarding").kapitel.length`). Eine
+Prüfung, die eine Zahl abschreibt, wird bei jeder Erweiterung rot — und dann
+schaltet sie jemand ab.
+
+## Ein `[^;]*` frisst Zeilenumbrüche
+
+Eine Prüfung suchte `animation:[^;]*\b(top|left|height|width)\b` und traf das
+`width:` einer ganz anderen CSS-Regel zwei Zeilen weiter. Wer innerhalb einer
+Zeile sucht, schreibt `[^;\n]*`.
+
 ## Eine Zahl, die niemand sieht, ändert nichts
 
 Die Termin-Zentrale zeigte am ersten Tag: Zwei Mitarbeiter hatten bei 50

@@ -95,6 +95,18 @@ export interface Kapitel {
 export interface Reise {
   key: "vertrieb" | "onboarding" | "inkasso";
   titel: string;
+  /**
+   * Die Akzentfarbe der Reise.
+   *
+   * ── WARUM JE REISE EINE EIGENE (27.08.2026) ─────────────────────────────
+   * Wer drei Reisen hintereinander vorführt, verliert sonst die Orientierung:
+   * Alles sieht gleich aus, und niemand weiß mehr, in welcher Abteilung er ist.
+   * Eine Farbe je Reise beantwortet das ohne ein Wort.
+   *
+   * Alle drei sind gegen den Navy-Grund (#0A1A3C) auf mindestens 4.5:1 geprüft
+   * — der Prüfstand rechnet sie nach.
+   */
+  ton: { akzent: string; hell: string; verlauf: string };
   /** Ein Satz, der die Abteilung erklärt. */
   unterzeile: string;
   /** Geschätzte Dauer der Vorführung. */
@@ -508,31 +520,77 @@ const INKASSO: Kapitel[] = [
   },
 ];
 
+/**
+ * Das Abschluss-Kapitel — „Du bist bereit".
+ *
+ * ── WARUM ES DIESELBE FORM HAT WIE DIE ANDEREN ────────────────────────────
+ * Es könnte ein Sonderfall in der Anzeige sein. Als Kapitel ist es besser: Die
+ * Fortschrittsleiste zählt es mit („Kapitel 13 / 13"), die Punkte-Navigation
+ * kennt es, und der Prüfstand prüft es wie jedes andere.
+ */
+function abschluss(r: { titel: string; kapitelZahl: number; dauerMin: number }): Kapitel {
+  return {
+    key: "bereit",
+    was: "Du bist bereit.",
+    wer: "leitung",
+    text: `${r.kapitelZahl} Kapitel, ${r.dauerMin} Minuten — das ist der ganze Ablauf `
+      + `im Bereich ${r.titel}. Nichts davon musst du auswendig können: Jeder Schritt `
+      + "steht im System an der Stelle, an der du ihn brauchst.",
+    warum: "Eine Einschulung ohne Abschluss endet mit dem Satz „so, das war's“ — und "
+      + "genau so bleibt sie im Gedächtnis. Wer weiß, dass er fertig ist, fängt an.",
+    punkte: [
+      "Was du nicht weißt, fragst du — lieber einmal zu oft als einen Kunden verlieren.",
+      "Jeder Schritt hier ist aus einem echten Fehler entstanden. Sie sind alle "
+        + "einmal teuer geworden.",
+      "Und: Was dir auffällt, meldest du. Die Hälfte dieser Kapitel gibt es, weil "
+        + "jemand etwas gemeldet hat.",
+    ],
+  };
+}
+
 export const REISEN: Reise[] = [
   {
     key: "vertrieb",
+        // Blau — die Farbe des Hauses.
+    ton: { akzent: "#5b8cff", hell: "#c3d5ff",
+           verlauf: "radial-gradient(circle, rgba(91,140,255,.22), transparent 62%)" },
     titel: "Vertrieb",
     unterzeile: "Vom Facebook-Formular bis zur verbuchten Zahlung — und was das System "
       + "dabei von selbst tut.",
     dauerMin: 12,
     fuerRollen: ["admin", "vertriebsleiter", "agent"],
-    kapitel: VERTRIEB,
+    // Das Abschluss-Kapitel wird angehängt, nicht abgeschrieben — so trägt es
+    // automatisch die richtige Kapitelzahl.
+    kapitel: [...VERTRIEB, abschluss({ titel: "Vertrieb", kapitelZahl: VERTRIEB.length + 1, dauerMin: 12 })],
   },
   {
     key: "onboarding",
+        // Türkis-Blau: Das Onboarding ist der Übergang vom Verkauf zur Betreuung —
+    // die Farbe liegt bewusst zwischen dem Vertriebsblau und dem Grün der
+    // bestätigten Zahlen.
+    ton: { akzent: "#3fd0d4", hell: "#a8f0f2",
+           verlauf: "radial-gradient(circle, rgba(63,208,212,.20), transparent 62%)" },
     titel: "Onboarding",
     unterzeile: "Die fünfzehn Minuten, die entscheiden, ob ein zahlender Kunde bleibt.",
     dauerMin: 15,
     fuerRollen: ["admin", "vertriebsleiter", "onboarding"],
-    kapitel: ONBOARDING,
+    // Das Abschluss-Kapitel wird angehängt, nicht abgeschrieben — so trägt es
+    // automatisch die richtige Kapitelzahl.
+    kapitel: [...ONBOARDING, abschluss({ titel: "Onboarding", kapitelZahl: ONBOARDING.length + 1, dauerMin: 15 })],
   },
   {
     key: "inkasso",
+        // Violett-Navy: ernst, aber nicht bedrohlich. Rot wäre falsch — wir
+    // sprechen mit Menschen, die Geld schulden, nicht mit Schuldnern.
+    ton: { akzent: "#9d8cff", hell: "#d6cdff",
+           verlauf: "radial-gradient(circle, rgba(157,140,255,.20), transparent 62%)" },
     titel: "Forderungsmanagement",
     unterzeile: "Offene Raten einziehen, ohne Menschen zu verlieren.",
     dauerMin: 10,
     fuerRollen: ["admin", "vertriebsleiter", "inkasso"],
-    kapitel: INKASSO,
+    // Das Abschluss-Kapitel wird angehängt, nicht abgeschrieben — so trägt es
+    // automatisch die richtige Kapitelzahl.
+    kapitel: [...INKASSO, abschluss({ titel: "Forderungsmanagement", kapitelZahl: INKASSO.length + 1, dauerMin: 10 })],
   },
 ];
 

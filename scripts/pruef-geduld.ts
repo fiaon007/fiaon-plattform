@@ -73,6 +73,8 @@ const echtesFetch = globalThis.fetch;
 // wirkungslos.
 
 let gesendet: string[] = [];
+/** An WELCHE Adresse ging jede Probemail? Für die Plus-Adressen-Prüfung. */
+let gesendeteAdressen: string[] = [];
 let abfragen = 0;
 /** Was Brevo beim nächsten Abruf antwortet. */
 let brevoAntwort: () => { status: number; koerper: unknown } =
@@ -85,6 +87,9 @@ globalThis.fetch = (async (url: any, init?: any) => {
     try {
       const body = JSON.parse(String(init?.body ?? "{}"));
       gesendet.push(String(body.event_type ?? body.event ?? "?"));
+      // Die Empfängeradresse steht im Payload als `email` — genau die, die
+      // fiaon-mail-senden.ts aus `testAdresse` setzt.
+      if (body.email) gesendeteAdressen.push(String(body.email).toLowerCase());
     } catch { gesendet.push("?"); }
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   }
@@ -108,9 +113,22 @@ const zustellModul = await import("../server/lib/fiaon-zustellung");
  * (`am`, `ereignis`, `betreff`). Sonst prüft der Stand die Attrappe statt der
  * Umrechnung.
  */
-function ereignis(typ: string, betreff: string) {
+/**
+ * Ein Ereignis auf der PLUS-ADRESSE des Ereignisses.
+ *
+ * ── DIE ZUORDNUNG LÄUFT NICHT MEHR ÜBER DEN BETREFF (27.08.2026) ──────────
+ * Vorher trug jedes Attrappen-Ereignis dieselbe Adresse und einen Betreff mit
+ * dem Ereignisnamen. In Produktion war das nie so: Die Betreffs stehen in
+ * Brevo-Vorlagen („Ihre Zahlungsdaten für FIAON"), und die Plattform kennt sie
+ * nicht. GEMESSEN: 305 gefundene Ereignisse, „keins passte zum Betreff".
+ *
+ * Jetzt geht jede Probemail an `probe+<event>@example.invalid`, und die
+ * Attrappe liefert genau diese Adresse zurück. Der Prüfstand prüft damit die
+ * ECHTE Zuordnung — und die Rot-Probe (falsche Plus-Adresse) muss scheitern.
+ */
+function ereignis(typ: string, betreff: string, adresse?: string) {
   return {
-    email: "probe@example.invalid",
+    email: adresse ?? `probe+${typ}@example.invalid`,
     event: "delivered",
     date: new Date().toISOString(),
     subject: betreff,
@@ -195,7 +213,11 @@ async function main(): Promise<void> {
 
   // ── DIE DIAGNOSE STEHT DABEI ───────────────────────────────────────────
   const text = nie.zweige.find((z) => z.event === "welcome")?.text ?? "";
-  pruef("Der Text nennt die gesuchte Adresse", text.includes("probe@example.invalid"), text.slice(0, 80));
+  // Seit dem 27.08. steht dort die PLUS-Adresse des Ereignisses, nicht die
+  // Basisadresse — genau die, nach der gesucht wurde. Wer im Postfach
+  // nachsehen will, braucht die vollständige.
+  pruef("Der Text nennt die gesuchte Plus-Adresse",
+    text.includes("probe+welcome@example.invalid"), text.slice(0, 90));
   pruef("… und die Zahl der gefundenen Brevo-Ereignisse", /Brevo lieferte 0 Ereignisse/.test(text));
   pruef("… und sagt bei 0, dass es NICHT am Zweig liegt",
     /nicht am einzelnen Zweig/.test(text),
@@ -266,6 +288,73 @@ async function main(): Promise<void> {
     nachsehenLeer.bestaetigt === 2
       && nachsehenLeer.zweige.some((z) => /keine neuen Probemails/.test(z.text)),
     nachsehenLeer.zweige[0]?.text?.slice(0, 70) ?? "");
+
+  // ═════════════════════════════════════════════════════════════════════════
+  titel("(e) DIE PLUS-ADRESSEN — die Zuordnung ist eine Gleichheit");
+  // ═════════════════════════════════════════════════════════════════════════
+  // ── DER BEFUND AUS PRODUKTION (27.08.2026) ─────────────────────────────
+  // Brevo lieferte 305 Ereignisse für die Testadresse, und der Lauf meldete
+  // „keins passte zum Betreff dieses Ereignisses". Die Mails waren alle
+  // angekommen — nur unsere Zuordnung war eine Vermutung über einen Betreff,
+  // der in einer Brevo-Vorlage steht.
+  const { plusAdresse } = zustellModul;
+  pruef("Die Plus-Adresse trägt den Ereignisnamen",
+    plusAdresse("dev@fiaon.com", "welcome") === "dev+welcome@fiaon.com",
+    plusAdresse("dev@fiaon.com", "welcome"));
+  pruef("Ein vorhandener Plus-Teil wird ERSETZT, nicht angehängt",
+    plusAdresse("dev+alt@fiaon.com", "welcome") === "dev+welcome@fiaon.com",
+    `${plusAdresse("dev+alt@fiaon.com", "welcome")} — dev+alt+welcome@… wäre bei manchen Anbietern ungültig`);
+  pruef("Unerlaubte Zeichen fallen heraus",
+    plusAdresse("dev@fiaon.com", "welcome!<>") === "dev+welcome@fiaon.com",
+    plusAdresse("dev@fiaon.com", "welcome!<>"));
+  pruef("Eine kaputte Adresse bleibt unverändert",
+    plusAdresse("keinemail", "welcome") === "keinemail");
+
+  // ── DER VERSAND GEHT AN DIE PLUS-ADRESSE ──────────────────────────────
+  gesendet = []; abfragen = 0;
+  gesendeteAdressen = [];
+  brevoAntwort = () => ({ status: 200, koerper: { events: [
+    ereignis("welcome", "irgendein Betreff, den wir nicht kennen"),
+    ereignis("payment_details", "und noch einer"),
+  ] } });
+  const plusLauf = await zustellModul.alleZweigePruefen("probe@example.invalid", AKTEUR, SCHNELL);
+  pruef("Jede Probemail ging an ihre eigene Plus-Adresse",
+    gesendeteAdressen.includes("probe+welcome@example.invalid")
+      && gesendeteAdressen.includes("probe+payment_details@example.invalid"),
+    gesendeteAdressen.slice(0, 3).join(", "));
+  pruef("Die beiden Zweige werden über die ADRESSE bestätigt",
+    plusLauf.bestaetigt === 2,
+    `bestaetigt=${plusLauf.bestaetigt} — die Betreffs waren absichtlich fremd`);
+
+  // ── DIE ROT-PROBE: FALSCHE PLUS-ADRESSE ZÄHLT NICHT ───────────────────
+  gesendet = []; abfragen = 0; gesendeteAdressen = [];
+  brevoAntwort = () => ({ status: 200, koerper: { events: [
+    // Dasselbe Postfach, aber die Marke gehört zu einem ANDEREN Ereignis.
+    ereignis("welcome", "Probemail", "probe+ganz_anderes_ereignis@example.invalid"),
+  ] } });
+  const falsch = await zustellModul.alleZweigePruefen("probe@example.invalid", AKTEUR, SCHNELL);
+  pruef("Ein Ereignis auf der FALSCHEN Plus-Adresse bestätigt nichts",
+    falsch.bestaetigt === 0,
+    `bestaetigt=${falsch.bestaetigt} — sonst würde ein fremdes Ereignis einen Zweig grün machen`);
+  pruef("… und die Diagnose nennt die gesuchte Adresse",
+    /probe\+welcome@example\.invalid/.test(
+      falsch.zweige.find((z) => z.event === "welcome")?.text ?? ""),
+    "sonst sucht der Betreiber wieder im Betreff");
+
+  // ── OHNE PLUS-ADRESSEN: DER EHRLICHE RÜCKFALL ─────────────────────────
+  gesendet = []; abfragen = 0; gesendeteAdressen = [];
+  brevoAntwort = () => ({ status: 200, koerper: { events: [
+    ereignis("welcome", "Probemail", "probe@example.invalid"),
+  ] } });
+  const ohnePlus = await zustellModul.alleZweigePruefen("probe@example.invalid", AKTEUR,
+    { ...SCHNELL, plusAdressen: false });
+  pruef("Ohne Plus-Adressen geht der Versand an die Basisadresse",
+    gesendeteAdressen.every((a) => a === "probe@example.invalid"),
+    gesendeteAdressen.slice(0, 2).join(", "));
+  pruef("… und das Zeitfenster allein bestätigt die lebenden Zweige",
+    ohnePlus.bestaetigt === ohnePlus.zweige.length - ohnePlus.veraltet,
+    `${ohnePlus.bestaetigt} von ${ohnePlus.zweige.length - ohnePlus.veraltet} — `
+      + "ohne Kennzeichen ist keine feinere Zuordnung beweisbar");
 
   console.log(`\n${"═".repeat(72)}`);
   console.log(`  ${ok} ok · ${rot} rot`);

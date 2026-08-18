@@ -183,28 +183,68 @@ export interface ZustellEreignis {
  */
 export async function ereignisseFuer(
   email: string, seit: Date, grenze = 500,
+  /**
+   * Auch Plus-Adressen desselben Postfachs mitholen.
+   *
+   * ── WARUM DIESE OPTION NÖTIG WURDE (27.08.2026) ─────────────────────────
+   * Die Zweig-Prüfung schickt seit heute an `dev+welcome@…`,
+   * `dev+payment_details@…` usw. — eine eigene Adresse je Ereignis, damit die
+   * Zuordnung eine Gleichheit ist und keine Vermutung über den Betreff.
+   *
+   * Brevos `?email=`-Filter vergleicht aber EXAKT. Eine Suche nach
+   * `dev@fiaon.com` findet die Plus-Adressen NICHT — die Ampel wäre danach
+   * dauerhaft rot, und der Grund („wir haben nach der falschen Adresse
+   * gefragt") stünde nirgends.
+   *
+   * Mit `plusAuch` entfällt der Adressfilter: Brevo liefert alle Ereignisse des
+   * Kontos im Zeitfenster, und wir filtern auf das Postfach VOR dem Plus. Das
+   * ist eine Abfrage statt 35 — bei 35 einzelnen Abfragen käme die Bremse
+   * (HTTP 429), und der Lauf dauerte Minuten.
+   */
+  plusAuch = false,
 ): Promise<{ ok: boolean; ereignisse: ZustellEreignis[]; grund?: string; klartext?: BrevoKlartext }> {
   // Ganze Tage zurück, mindestens 1 (= heute), höchstens 90 (Brevos Grenze).
   const tage = Math.min(90, Math.max(1,
     Math.ceil((Date.now() - seit.getTime()) / 86_400_000) + 1));
-  const r = await brevo<{ events?: any[] }>(
-    `/smtp/statistics/events?email=${encodeURIComponent(email)}`
-    + `&days=${tage}&limit=${Math.min(2500, grenze)}&sort=desc`,
-  );
+  // Das Postfach vor dem Plus — danach wird lokal gefiltert.
+  const postfach = String(email).trim().toLowerCase();
+  const [lokal = "", domain = ""] = postfach.split("@");
+  const basis = `${lokal.split("+")[0]}@${domain}`;
+  // ── DIE URL EINMAL BAUEN UND AUCH IM FEHLERFALL MELDEN ─────────────────
+  // Der Fehlerzweig unten hatte seinen eigenen, hartkodierten Pfad. Nach dem
+  // Umbau auf Plus-Adressen stimmte er nicht mehr: Das Log zeigte
+  // „?email=dev@fiaon.com", während die Abfrage längst ohne Adressfilter lief.
+  // Eine Diagnose, die eine andere URL nennt als die gestellte, schickt den
+  // nächsten Leser in die falsche Richtung.
+  const pfad = "/smtp/statistics/events?"
+    + (plusAuch ? "" : `email=${encodeURIComponent(email)}&`)
+    // Ohne Adressfilter kommen alle Ereignisse des Kontos — die Grenze muss
+    // dann höher liegen, sonst fehlen die älteren im Fenster.
+    + `days=${tage}&limit=${Math.min(2500, plusAuch ? Math.max(grenze, 2000) : grenze)}&sort=desc`;
+  const r = await brevo<{ events?: any[] }>(pfad);
   if (!r.ok) {
     // ── DIE VOLLE ANTWORT INS LOG ───────────────────────────────────────
     // Der Auftrag verlangt sie ausdrücklich. Eine Fehlermeldung ohne die
     // Antwort des Gegenübers schickt den nächsten Leser auf dieselbe Suche.
     console.error("[BREVO-NACHSCHAU] Abfrage gescheitert:",
       JSON.stringify({
-        pfad: `/smtp/statistics/events?email=${email}&days=${tage}&limit=${grenze}&sort=desc`,
+        pfad, gesuchtesPostfach: basis, plusAdressenMit: plusAuch,
         titel: r.grund, wer: r.klartext.wer, antwort: r.klartext.roh,
       }));
     return { ok: false, ereignisse: [], grund: r.grund, klartext: r.klartext };
   }
   return {
     ok: true,
-    ereignisse: (r.daten.events || []).map((e) => ({
+    ereignisse: (r.daten.events || [])
+      // Ohne Adressfilter: nur die Ereignisse dieses Postfachs behalten —
+      // `dev@…` und alle `dev+irgendwas@…`.
+      .filter((e: any) => {
+        if (!plusAuch) return true;
+        const a2 = String(e.email ?? "").trim().toLowerCase();
+        const [l2 = "", d2 = ""] = a2.split("@");
+        return `${l2.split("+")[0]}@${d2}` === basis;
+      })
+      .map((e: any) => ({
       email: String(e.email ?? email),
       ereignis: RANG[String(e.event)]?.name ?? String(e.event),
       am: String(e.date ?? ""),
@@ -245,7 +285,10 @@ export async function nachschauSammel(
   // Höheres Limit: 35 Mails erzeugen je mehrere Ereignisse (requests,
   // delivered, opened). Mit 100 wären es zu wenige, und fehlende Treffer sähen
   // wieder aus wie „Zweig fehlt".
-  return ereignisseFuer(email, seit, 1000);
+  // ── PLUS-ADRESSEN MITHOLEN ────────────────────────────────────────────
+  // Die Zweig-Prüfung schickt an `dev+welcome@…` usw. Ohne diese Angabe würde
+  // Brevos exakter Adressfilter keine einzige davon finden.
+  return ereignisseFuer(email, seit, 1000, true);
 }
 
 /** Aus mehreren Ereignissen den aussagekräftigsten Zustand wählen. */

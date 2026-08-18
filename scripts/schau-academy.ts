@@ -83,11 +83,17 @@ async function main(): Promise<void> {
     await seite.waitForURL(/\/admin\/schulung\/onboarding/, { timeout: 15_000 }).catch(() => {});
     await seite.locator('[data-fiaon="kapitel"]').first()
       .waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
+    // ── DIE ZAHL KOMMT AUS DEN DATEN ─────────────────────────────────────
+    // Ein erster Entwurf schrieb „15" hinein. Mit dem Abschluss-Kapitel wurden
+    // es 16, und drei Prüfungen wurden rot, obwohl alles stimmte. Eine
+    // Prüfung, die eine Zahl abschreibt, wird bei jeder Erweiterung rot.
+    const { reise: reiseDaten } = await import("../shared/fiaon-academy");
+    const soll = reiseDaten("onboarding")!.kapitel.length;
     const kapitel = seite.locator('[data-fiaon="kapitel"]');
-    pruef("Die Onboarding-Reise hat 15 Kapitel", await kapitel.count() === 15,
-      `${await kapitel.count()}`);
+    pruef(`Die Onboarding-Reise hat ${soll} Kapitel`, await kapitel.count() === soll,
+      `${await kapitel.count()} von ${soll}`);
     const t2 = (await seite.locator("body").innerText()).toLowerCase();
-    pruef("Die Fortschrittsleiste zählt", /kapitel 1 \/ 15/.test(t2),
+    pruef("Die Fortschrittsleiste zählt", t2.includes(`kapitel 1 / ${soll}`),
       t2.match(/kapitel \d+ \/ \d+/)?.[0] ?? "—");
     pruef("Die Rolle steht am Kapitel", t2.includes("die automatik") || t2.includes("der kunde"));
     pruef("Die sieben Agenda-Schritte sind da",
@@ -98,7 +104,8 @@ async function main(): Promise<void> {
     await seite.keyboard.press("ArrowDown");
     await seite.waitForTimeout(900);
     const t3 = (await seite.locator("body").innerText()).toLowerCase();
-    pruef("Die Pfeiltaste blättert weiter", /kapitel [2-9] \/ 15/.test(t3),
+    pruef("Die Pfeiltaste blättert weiter",
+      new RegExp(`kapitel [2-9] / ${soll}`).test(t3),
       t3.match(/kapitel \d+ \/ \d+/)?.[0] ?? "—");
 
     // ── „WARUM DIESER SCHRITT“ KLAPPT AUF ────────────────────────────────
@@ -125,6 +132,24 @@ async function main(): Promise<void> {
     pruef("… und der Rumpf steht in einem eigenen Rahmen",
       await seite.locator("iframe[srcdoc], iframe[title^='Vorschau']").count() > 0);
 
+    // ── PARALLAX UND ZÄHLENDE ZAHLEN ─────────────────────────────────────
+    const parallax = await seite.evaluate(() => {
+      const el = document.querySelector(".fi-academy-parallax");
+      if (!el) return { da: false, stufen: [] as string[] };
+      const stufen = Array.from(el.children).slice(0, 5)
+        .map((c) => getComputedStyle(c).animationDelay);
+      return { da: true, stufen };
+    });
+    pruef("Der Kapitel-Eintritt ist versetzt", parallax.da
+      && new Set(parallax.stufen).size >= 3,
+      parallax.stufen.join(", ") || "kein Parallax-Behälter");
+    // Die Zahl steht am Ende auf ihrem Endwert — der Weg dorthin ist Zierde,
+    // das ERGEBNIS ist die Zusage.
+    const zahlText = await seite.locator("text=/verpasst/").first().innerText()
+      .catch(() => "");
+    pruef("Die belegende Zahl steht am Ende richtig da",
+      /43/.test(zahlText), zahlText.slice(0, 70) || "keine Zahl gefunden");
+
     await seite.screenshot({ path: "reports/academy/kapitel.png", fullPage: false });
     console.log("        reports/academy/kapitel.png");
 
@@ -135,10 +160,37 @@ async function main(): Promise<void> {
     await seite.waitForTimeout(700);
     pruef("… und er schaltet um",
       /präsentation beenden/i.test(await seite.locator("body").innerText()));
+    // ── DAS ECHTE VOLLBILD: DIE HÜLLE IST WEG ────────────────────────────
+    const huelleWeg = await seite.evaluate(() => {
+      const wurzel = document.documentElement;
+      const hatKlasse = wurzel.classList.contains("fi-academy-vollbild");
+      // Sichtbarkeit prüfen, nicht nur die Klasse: `display: none` ist die
+      // Zusage, und nur eine gemessene Höhe von 0 beweist sie.
+      const seiten = Array.from(document.querySelectorAll("aside, header"));
+      const sichtbar = seiten.filter((e) => (e as HTMLElement).offsetHeight > 0).length;
+      return { hatKlasse, sichtbar, seiten: seiten.length };
+    });
+    pruef("Vollbild: die Klasse sitzt am <html>", huelleWeg.hatKlasse);
+    pruef("Vollbild: Navigation und Kopfleiste sind WEG",
+      huelleWeg.sichtbar === 0,
+      `${huelleWeg.sichtbar} von ${huelleWeg.seiten} noch sichtbar — nicht überdeckt, weg`);
+    const breiteVoll = await seite.evaluate(() => {
+      const el = document.querySelector('[data-fiaon="academy-reise"]') as HTMLElement | null;
+      return el ? Math.round(el.getBoundingClientRect().width) : 0;
+    });
+    pruef("Vollbild: die Bühne nimmt die ganze Breite",
+      breiteVoll >= 1400, `${breiteVoll} px von 1440`);
     await seite.screenshot({ path: "reports/academy/praesentation.png", fullPage: false });
     console.log("        reports/academy/praesentation.png");
     await seite.keyboard.press("Escape");
     await seite.waitForTimeout(500);
+    // Nach Esc muss die Hülle zurück sein — sonst bleibt die Verwaltung
+    // unsichtbar, und der Betreiber hält die Seite für kaputt.
+    const huelleZurueck = await seite.evaluate(() =>
+      !document.documentElement.classList.contains("fi-academy-vollbild")
+      && Array.from(document.querySelectorAll("aside, header"))
+           .some((e) => (e as HTMLElement).offsetHeight > 0));
+    pruef("Nach Esc ist die Verwaltung wieder da", huelleZurueck);
     pruef("Esc beendet ihn",
       /präsentieren/i.test(await seite.locator("body").innerText())
         && !/präsentation beenden/i.test(await seite.locator("body").innerText()));

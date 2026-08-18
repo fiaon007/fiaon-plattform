@@ -595,6 +595,16 @@ function KundenKarte({
   const { zeige } = useToast();
   const reduziert = useReduzierteBewegung();
   const [laeuft, setLaeuft] = useState<string | null>(null);
+  // ── DIE NACHGETRAGENE E-MAIL (27.08.2026) ────────────────────────────────
+  // 165 der 477 gesperrten Zahlungsdaten-Knöpfe scheitern an einer fehlenden
+  // Adresse. Das Feld steht deshalb direkt am gesperrten Knopf — ein
+  // Seitenwechsel für eine Eingabe ist die häufigste Stelle, an der jemand
+  // aufgibt.
+  //
+  // AGENTS.md: Haken stehen ÜBER dem ersten `return`, nicht dort, wo man sie
+  // braucht — sonst „Rendered more hooks than during the previous render".
+  const [mailNachtrag, setMailNachtrag] = useState("");
+
   const [feldOffen, setFeldOffen] = useState<"zusage" | "termin" | "notiz" | null>(null);
   const [datumWert, setDatumWert] = useState(tagPlus(1));
   const [zeitWert, setZeitWert] = useState("10:00");
@@ -889,6 +899,48 @@ function KundenKarte({
     onZaehler();
   };
 
+  /**
+   * Die fehlende E-Mail nachtragen — über die bestehende Stammdaten-Route.
+   *
+   * ── WARUM DIREKT HIER ─────────────────────────────────────────────────────
+   * GEMESSEN am 27.08.2026: 165 der 477 gesperrten Zahlungsdaten-Knöpfe
+   * scheitern an einer fehlenden Adresse. Ein Seitenwechsel für eine Eingabe
+   * ist die häufigste Stelle, an der jemand aufgibt — und dann bleibt der Kunde
+   * ohne Zahlungsdaten.
+   *
+   * Die Route (`POST /agent/customers/:ref/stammdaten`) schreibt über
+   * `updateCustomerContact`: ein Verlaufseintrag je Feld, und der alte Wert
+   * wandert als Alias an die Person. Eine eigene Fassung hier wäre die zweite
+   * Wahrheit über die Adresse eines Menschen.
+   */
+  const mailNachtragen = async () => {
+    const wert = mailNachtrag.trim();
+    // Eine lebende Bestellung als Aufsatzpunkt — die Route arbeitet auf `ref`.
+    const ref = (k.buchungen ?? []).find((b) => !b.erledigt)?.ref
+      ?? (k.buchungen ?? [])[0]?.ref;
+    if (!ref) {
+      zeige("fehler", "Keine Bestellung",
+        "Ohne Bestellung gibt es keine Akte, an der die Adresse hängt. "
+        + "Bitte erst ein Produkt anlegen.");
+      return;
+    }
+    setLaeuft("mailnachtrag");
+    const r = await api(`/agent/customers/${encodeURIComponent(ref)}/stammdaten`,
+      { method: "POST", body: JSON.stringify({ email: wert }) });
+    setLaeuft(null);
+    if (!r.ok) {
+      zeige("fehler", "Nicht gespeichert", r.json?.error || "Bitte erneut versuchen.");
+      return;
+    }
+    zeige("erfolg", "E-Mail gespeichert",
+      `${wert} steht jetzt an der Akte. Der Zahlungsdaten-Knopf ist frei.`);
+    setMailNachtrag("");
+    // Die Karte neu holen — sonst bleibt der Knopf gesperrt, obwohl die
+    // Adresse da ist.
+    const frisch = await api(`/agent/crm/kunden/${k.personId}`);
+    if (frisch.ok && frisch.json?.kunde) onNeu(frisch.json.kunde);
+  };
+
   const zahlungsdaten = async () => {
     setLaeuft("rechnung");
     const r = await api(`/agent/crm/kunden/${k.personId}/rechnung`, { method: "POST", body: JSON.stringify({}) });
@@ -1176,12 +1228,122 @@ function KundenKarte({
             </span>
           )}
 
-          <button type="button" onClick={() => void zahlungsdaten()} disabled={!!laeuft || !k.email}
-                  title={k.email ? `Zahlungsdaten und Rechnung an ${k.email}` : "Keine E-Mail hinterlegt"}
-                  className="fi-sendeknopf inline-flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold">
-            <ZeichenSenden size={15} />
-            {laeuft === "rechnung" ? "Sende …" : "Zahlungsdaten senden"}
-          </button>
+          {/* ══════════════════════════════════════════════════════════════
+              DER ZAHLUNGSDATEN-KNOPF SAGT, WARUM ER GESPERRT IST (27.08.2026)
+
+              ── DIE MELDUNG ────────────────────────────────────────────────
+              Daniel Stripling: „Ich kann die Zahlungsdaten nicht jedem
+              schicken." Der Knopf war grau, und im Tooltip stand höchstens
+              „Keine E-Mail hinterlegt" — ein Tooltip, den auf dem Telefon
+              niemand sieht.
+
+              GEMESSEN an 600 Personen der Tagesliste: 123 sendbar, 477
+              gesperrt. Die Gründe: 219× keine offene Bestellung, 165× keine
+              E-Mail, 93× schon bezahlt. In den meisten Fällen sperrt der Knopf
+              ZU RECHT — es fehlte nur die Auskunft, warum, und der Weg weiter.
+
+              ── UND claimed_paid IST SENDBAR ──────────────────────────────
+              Eine gemeldete Zahlung („ich habe überwiesen") gilt als OFFEN,
+              solange der Kontoabgleich sie nicht bestätigt hat. Genau dann
+              ruft der Kunde am häufigsten an und fragt nach den Daten. Die
+              Serverregel lässt das schon zu (`payment_status IN
+              ('pending_payment','claimed_paid','expired')`) — betroffen sind
+              243 Personen.
+              ══════════════════════════════════════════════════════════════ */}
+          {(() => {
+            // Der Grund wird aus den Buchungen abgeleitet, die die Karte schon
+            // hat — keine zweite Abfrage. Die WAHRHEIT bleibt der Server: Er
+            // lehnt ab, wenn etwas nicht passt. Diese Anzeige erklärt nur
+            // vorher, was sonst als 400er zurückkäme.
+            const buchungen = k.buchungen ?? [];
+            const hatOffene = buchungen.some((bu) => bu.offen);
+            const allesBezahlt = buchungen.length > 0 && buchungen.every((bu) => bu.bezahlt);
+            const sperre = !k.email
+              ? {
+                  grund: "Keine E-Mail-Adresse — ohne sie kann nichts rausgehen.",
+                  tat: "E-Mail nachtragen", ziel: "stammdaten" as const,
+                }
+              : buchungen.length === 0
+                ? {
+                    grund: "Keine Bestellung vorhanden — es gibt nichts zu bezahlen.",
+                    tat: "Produkt anlegen", ziel: "produkt" as const,
+                  }
+                : !hatOffene && allesBezahlt
+                  ? {
+                      grund: "Alles bezahlt. Eine Zahlungsaufforderung wäre falsch.",
+                      tat: null, ziel: null,
+                    }
+                  : !hatOffene
+                    ? {
+                        grund: "Keine offene Bestellung.",
+                        tat: "Produkt anlegen", ziel: "produkt" as const,
+                      }
+                    : null;
+
+            if (!sperre) {
+              return (
+                <button type="button" onClick={() => void zahlungsdaten()} disabled={!!laeuft}
+                        title={`Zahlungsdaten und Rechnung an ${k.email}`}
+                        className="fi-sendeknopf inline-flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold">
+                  <ZeichenSenden size={15} />
+                  {laeuft === "rechnung" ? "Sende …" : "Zahlungsdaten senden"}
+                </button>
+              );
+            }
+
+            // ── GESPERRT: GRUND SICHTBAR, NICHT IM TOOLTIP ────────────────
+            // Hausregel: Ein gesperrter Knopf sagt den Grund dort, wo der
+            // Finger hinzeigt. Ein Tooltip erreicht auf dem Telefon niemanden.
+            return (
+              <span className="inline-flex flex-col gap-1" style={{ maxWidth: 320 }}>
+                <span className="inline-flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold"
+                      style={{
+                        borderRadius: "var(--fi-radius-knopf)",
+                        background: "rgba(217,119,6,.10)", color: "#92400e",
+                        border: "1px solid rgba(217,119,6,.28)",
+                      }}>
+                  <ZeichenSenden size={15} />
+                  Zahlungsdaten: gesperrt
+                </span>
+                <span className="text-[11.5px] leading-snug" style={{ color: "#92400e" }}>
+                  {sperre.grund}
+                </span>
+                {/* ── DER NÄCHSTE SCHRITT, NICHT NUR DIE DIAGNOSE ──────────
+                    Bei fehlender E-Mail steht das Feld direkt hier: Das löst
+                    165 der 477 gesperrten Fälle mit einer Eingabe, ohne die
+                    Seite zu wechseln. Die Adresse geht über die bestehende
+                    Stammdaten-Route (mit Verlaufseintrag und Alias-Ablage). */}
+                {sperre.ziel === "stammdaten" && (
+                  <span className="inline-flex flex-wrap items-center gap-1.5">
+                    <input value={mailNachtrag}
+                           onChange={(e) => setMailNachtrag(e.target.value)}
+                           placeholder="E-Mail nachtragen"
+                           type="email" inputMode="email"
+                           className="px-2.5 py-2 text-[12.5px]"
+                           style={{
+                             borderRadius: "var(--fi-radius-knopf)",
+                             border: "1px solid var(--fi-linie)", minHeight: 40, minWidth: 190,
+                           }} />
+                    <button type="button"
+                            disabled={!!laeuft || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(mailNachtrag.trim())}
+                            onClick={() => void mailNachtragen()}
+                            className="fi-zweitknopf inline-flex items-center justify-center px-3 py-2 text-[12px] font-semibold"
+                            style={{ minHeight: 40 }}>
+                      {laeuft === "mailnachtrag" ? "Speichert …" : "Speichern"}
+                    </button>
+                  </span>
+                )}
+                {sperre.ziel === "produkt" && (
+                  <a href="/agent/kunden#anlegen"
+                     className="fi-zweitknopf inline-flex items-center justify-center px-3 py-2 text-[12px] font-semibold no-underline"
+                     style={{ minHeight: 40 }}
+                     title="Öffnet die Kundenliste — dort legst du über „+ Kunde anlegen“ ein Produkt an.">
+                     Produkt anlegen →
+                  </a>
+                )}
+              </span>
+            );
+          })()}
 
           {k.email && (
             <a href={`mailto:${k.email}`} className="fi-zweitknopf inline-flex items-center px-3 py-2.5 text-[12px] font-medium"

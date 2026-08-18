@@ -72,9 +72,19 @@ router.get("/agent/academy", requireAgent, async (req: AgentRequest, res: Respon
     `) as any[];
     const nachReise = new Map(stand.map((s) => [String(s.reise), s]));
 
+    // ── DIE LEITUNG SCHULT SELBST ─────────────────────────────────────────
+    // Florentine und Daniel führen die Mitarbeiter durch die Reisen. Dafür
+    // brauchen sie im TEAM-Portal dasselbe wie in der Verwaltung: alle drei
+    // Reisen (haben sie schon) und den Präsentationsmodus.
+    //
+    // Das Kennzeichen kommt vom SERVER, nicht aus einer Rollen-Prüfung in der
+    // Anzeige: Eine zweite Fassung derselben Regel geht auseinander.
+    const istLeitung = r === "vertriebsleiter" || r === "admin";
+
     res.json({
       ok: true,
       rolle: r,
+      istLeitung,
       reisen: meine.map((re) => {
         const s = nachReise.get(re.key);
         return {
@@ -134,6 +144,8 @@ router.get("/agent/academy/:reise", requireAgent, async (req: AgentRequest, res:
 
     res.json({
       ok: true,
+      // Die Leitung darf präsentieren — im Team-Portal wie in der Verwaltung.
+      istLeitung: r === "vertriebsleiter" || r === "admin",
       reise: {
         key: re.key, titel: re.titel, unterzeile: re.unterzeile,
         dauerMin: re.dauerMin, ton: re.ton, kapitel: re.kapitel,

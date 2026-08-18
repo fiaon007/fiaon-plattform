@@ -445,6 +445,55 @@ Ort und behebt am falschen Fall.
 in den Bericht schreiben. Sie ist keine Kritik am Auftraggeber, sondern die
 Beschreibung des wirklichen Problems.
 
+## 50 grüne Prüfungen an einer Route beweisen nicht, dass ein Mensch sie erreicht
+
+Am 25.08. entstand die Route „Produkt an bestehende Akte“ mit 50
+Prüfungen über echtes HTTP — alle grün. Am 29.08. meldete der Betreiber:
+„Agenten klicken auf ‚Produkt anlegen' — es erscheint NICHTS.“
+
+Es gab **keine Oberfläche**. Der Knopf, der zwei Tage später dazukam, war
+`<a href="/agent/kunden#anlegen">`: Der Anker existierte nicht, der Mitarbeiter
+stand schon auf dieser Seite, und „+ Kunde anlegen“ hätte einen NEUEN
+Kunden angelegt.
+
+Das ist wörtlich der Fehler vom 11.08.2026, der weiter oben in dieser Datei
+steht. Damals waren es vier Prüfungen. Diesmal fünfzig.
+
+- **Zu jeder Route, die ein Mensch benutzt, gehört im selben Commit ein
+  Browsertest, der den Knopf FINDET und DRÜCKT** — und danach am DOM misst, dass
+  etwas erscheint.
+- **Ein `<a href>` auf die eigene Seite mit einem Anker ist kein Knopf.** Wenn
+  etwas aufgehen soll, gehört ein `onClick` daran.
+- **Und die Rot-Probe macht die ÖFFNUNG kaputt**, nicht die Logik dahinter. Sonst
+  prüft man wieder nur, was schon geprüft war.
+
+## Ein Satz, der rechtlich zählt, steht genau einmal im Code
+
+Die Kernbotschaft über Bonität und SCHUFA-Meldung erscheint an drei Stellen: in
+zwei Academy-Reisen und im Onboarding-Cockpit. Als drei Textblöcke wären es
+irgendwann drei verschiedene Sätze — und bei einer Aussage über die SCHUFA ist
+das kein Schönheitsfehler.
+
+- **Der Wortlaut liegt in `shared/`**, die drei Stellen lesen ihn.
+- **Der Prüfstand vergleicht ihn buchstabengetreu** gegen eine ausgeschriebene
+  Kopie — nicht mit einem Regex, der Umformulierungen durchlässt.
+- **Und er prüft, dass der Satz NICHT in den Anzeige-Dateien steht.** Eine Kopie
+  dort wäre die zweite Wahrheit.
+- **Freigegebene Formulierungen werden nicht „verbessert“.** Wer sie ändern
+  will, ändert sie an der einen Stelle — mit derselben Freigabe.
+
+## Eine Prüfstands-Regel darf ersetzt werden, wenn der Betreiber entscheidet
+
+Der Prüfstand verlangte: „Die Team-Fassung der Academy hat KEINEN
+Präsentationsmodus — wer sich selbst einschult, präsentiert nicht.“ Richtig,
+solange nur Mitarbeiter sie benutzen. Dann entschied der Betreiber, dass die
+Vertriebsleitung selbst schult.
+
+- **Die Regel wird ERSETZT, nicht gelöscht** — mit dem alten Wortlaut im
+  Kommentar. Sonst hält der nächste Leser das Fehlen für ein Versehen.
+- **Und die neue Regel ist enger, nicht weiter:** Der Modus ist jetzt an
+  `istLeitung` gebunden, das der SERVER liefert. Ein Agent sieht den Knopf nicht.
+
 ## Ein halber Umzug ist schlechter als keiner
 
 Der Auftrag lautete: 397 Zugriffe auf die Kontakt-Abschriften abarbeiten, dann

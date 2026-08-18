@@ -14,6 +14,7 @@
 // Wahrheit — und die Schulung würde nach der ersten Änderung auseinanderlaufen.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { KernbotschaftKarte } from "@/components/KernbotschaftKarte";
 import { Link, useRoute } from "wouter";
 import { HANDELNDER_TEXT, type Kapitel } from "@shared/fiaon-academy";
 
@@ -172,7 +173,32 @@ function TeamReise({ reiseKey }: { reiseKey: string }) {
   const [laedt, setLaedt] = useState(true);
   const [fehler, setFehler] = useState<string | null>(null);
   const [aktiv, setAktiv] = useState(0);
+  /** Präsentationsmodus — nur für die Leitung, siehe unten. */
+  const [praesentation, setPraesentation] = useState(false);
   const ruhe = nutztRuhe();
+
+  // ── ECHTES VOLLBILD ────────────────────────────────────────────────────
+  // Dieselbe Technik wie in der Verwaltung (admin-schulung.tsx): Klasse am
+  // <html> plus Fullscreen-API. Die Klasse heißt hier anders, weil das
+  // Team-Portal eine andere Hülle hat — versteckt werden `nav` und die
+  // Fußleiste.
+  useEffect(() => {
+    const wurzel = document.documentElement;
+    if (praesentation) {
+      wurzel.classList.add("fi-team-academy-vollbild");
+      void wurzel.requestFullscreen?.().catch(() => {});
+    } else {
+      wurzel.classList.remove("fi-team-academy-vollbild");
+      if (document.fullscreenElement) void document.exitFullscreen?.().catch(() => {});
+    }
+    return () => wurzel.classList.remove("fi-team-academy-vollbild");
+  }, [praesentation]);
+
+  useEffect(() => {
+    const auf = () => { if (!document.fullscreenElement) setPraesentation(false); };
+    document.addEventListener("fullscreenchange", auf);
+    return () => document.removeEventListener("fullscreenchange", auf);
+  }, []);
   /** Das höchste erreichte Kapitel — wird beim Verlassen gespeichert. */
   const hoechstes = useRef(0);
 
@@ -239,10 +265,11 @@ function TeamReise({ reiseKey }: { reiseKey: string }) {
     const auf = (e: KeyboardEvent) => {
       if (e.key === "ArrowDown" || e.key === "ArrowRight") { e.preventDefault(); springe(aktiv + 1); }
       if (e.key === "ArrowUp" || e.key === "ArrowLeft") { e.preventDefault(); springe(aktiv - 1); }
+      if (e.key === "Escape" && praesentation) setPraesentation(false);
     };
     window.addEventListener("keydown", auf);
     return () => window.removeEventListener("keydown", auf);
-  }, [aktiv, springe]);
+  }, [aktiv, springe, praesentation]);
 
   const jetzt = kapitel[aktiv];
 
@@ -294,6 +321,29 @@ function TeamReise({ reiseKey }: { reiseKey: string }) {
           }}>
             {aktiv + 1} / {kapitel.length}
           </span>
+          {/* ══════════════════════════════════════════════════════════════
+              PRÄSENTIEREN — NUR FÜR DIE LEITUNG
+
+              Florentine und Daniel schulen die Mitarbeiter selbst. Dafür
+              brauchen sie hier dasselbe wie in der Verwaltung: Vollbild, große
+              Schrift, Navigation weg.
+
+              Das Kennzeichen `istLeitung` kommt vom SERVER — eine Rollen-Prüfung
+              in der Anzeige wäre die zweite Fassung derselben Regel.
+              ══════════════════════════════════════════════════════════════ */}
+          {daten?.istLeitung && (
+            <button type="button"
+                    data-fiaon="team-praesentieren"
+                    onClick={() => setPraesentation((v) => !v)}
+                    style={{
+                      padding: "9px 14px", borderRadius: 10, border: 0, cursor: "pointer",
+                      background: praesentation ? ton.akzent : "rgba(255,255,255,.09)",
+                      color: praesentation ? "#04102b" : HELL,
+                      fontSize: 12, fontWeight: 800, minHeight: 44,
+                    }}>
+              {praesentation ? "Beenden (Esc)" : "Präsentieren"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -315,11 +365,17 @@ function TeamReise({ reiseKey }: { reiseKey: string }) {
         }}>
           {jetzt.was}
         </h2>
-        <p style={{ color: LEISE, fontSize: 14.5, lineHeight: 1.62, margin: "14px 0 0" }}>
-          {jetzt.text}
-        </p>
+        {jetzt.hervorgehoben ? (
+          <div style={{ marginTop: 14 }}>
+            <KernbotschaftKarte dunkel />
+          </div>
+        ) : (
+          <p style={{ color: LEISE, fontSize: 14.5, lineHeight: 1.62, margin: "14px 0 0" }}>
+            {jetzt.text}
+          </p>
+        )}
 
-        {jetzt.punkte && jetzt.punkte.length > 0 && (
+        {jetzt.punkte && jetzt.punkte.length > 0 && !jetzt.hervorgehoben && (
           <ul style={{ listStyle: "none", padding: 0, margin: "16px 0 0", display: "grid", gap: 9 }}>
             {jetzt.punkte.map((pt, i) => (
               <li key={i} style={{
@@ -413,6 +469,32 @@ function TeamReise({ reiseKey }: { reiseKey: string }) {
       </div>
 
       <style>{`
+        /* ── VOLLBILD FÜR DIE SCHULENDE LEITUNG ──────────────────────────
+           Navigation und Fußleiste des Team-Portals aus dem Fluss nehmen —
+           nicht überdecken. Die Bühne löst sich mit „position: fixed", weil
+           ein begrenzender Container dazwischen liegen kann (gelernt am
+           27.08. in der Verwaltungs-Fassung: Ränder zurückzusetzen genügte
+           nicht, sie blieb 1200 px breit). */
+        html.fi-team-academy-vollbild nav,
+        html.fi-team-academy-vollbild header,
+        html.fi-team-academy-vollbild .fi-telefonknopf,
+        html.fi-team-academy-vollbild .agent-tabbar {
+          display: none !important;
+        }
+        html.fi-team-academy-vollbild [data-fiaon="team-academy"] {
+          position: fixed !important;
+          inset: 0 !important;
+          margin: 0 !important;
+          max-width: none !important;
+          width: 100vw !important;
+          overflow-y: auto !important;
+          z-index: 60;
+        }
+        /* Im Vollbild größere Schrift — der Raum ist da, und die Zuschauer
+           sitzen weiter weg. */
+        html.fi-team-academy-vollbild [data-fiaon="team-academy"] h2 {
+          font-size: clamp(26px,4vw,46px) !important;
+        }
         @media (prefers-reduced-motion: reduce) {
           [data-fiaon="team-academy"] * {
             animation: none !important; transition: none !important;

@@ -25,6 +25,7 @@
 // 380 px funktioniert alles, denn eine Einschulung passiert auch am Telefon.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { KernbotschaftKarte } from "@/components/KernbotschaftKarte";
 import { useRoute } from "wouter";
 import { REISEN, reise as reiseFinden, HANDELNDER_TEXT, type Kapitel } from "@shared/fiaon-academy";
 
@@ -401,18 +402,28 @@ function KapitelBuehne({ k, nummer, gesamt, aktiv, praesentation, ton }: {
           {k.was}
         </h2>
 
-        <p style={{
-          color: LEISE, lineHeight: 1.62, margin: "20px 0 0",
-          fontSize: gross ? "clamp(16px,1.8vw,22px)" : "clamp(14px,1.6vw,17px)",
-          maxWidth: gross ? 980 : 720,
-        }}>
-          {k.text}
-        </p>
+        {/* ── DIE KERNBOTSCHAFT BEKOMMT DIE KARTE, NICHT DEN FLIESSTEXT ──
+            `hervorgehoben` markiert genau ein Kapitel je Reise. Ein zweites
+            würde das erste entwerten: Wenn alles wichtig ist, ist nichts
+            wichtig. */}
+        {k.hervorgehoben ? (
+          <div style={{ marginTop: 20 }}>
+            <KernbotschaftKarte dunkel gross={gross} />
+          </div>
+        ) : (
+          <p style={{
+            color: LEISE, lineHeight: 1.62, margin: "20px 0 0",
+            fontSize: gross ? "clamp(16px,1.8vw,22px)" : "clamp(14px,1.6vw,17px)",
+            maxWidth: gross ? 980 : 720,
+          }}>
+            {k.text}
+          </p>
+        )}
 
         {/* ── DIE STICHPUNKTE ZUM VORLESEN ───────────────────────────
             Aus der Onboarding-Agenda: „Wer einen Absatz vorliest, klingt
             vorgelesen." Deshalb kurze Punkte, groß gesetzt. */}
-        {k.punkte && k.punkte.length > 0 && (
+        {k.punkte && k.punkte.length > 0 && !k.hervorgehoben && (
           <ul style={{
             listStyle: "none", padding: 0, margin: "22px 0 0", display: "grid", gap: 10,
           }}>

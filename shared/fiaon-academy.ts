@@ -50,6 +50,50 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { AGENDA } from "./fiaon-onboarding-agenda";
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE KERNBOTSCHAFT — DER WORTLAUT DER GESCHÄFTSFÜHRUNG
+//
+// ── WARUM SIE HIER STEHT UND NICHT IN EINER SEITE ─────────────────────────
+// Sie erscheint an DREI Stellen: als Kapitel in der Vertriebs-Reise, als
+// Kapitel in der Onboarding-Reise und als Einblendung im Onboarding-Cockpit
+// beim Schritt „Abo-Klarheit". Drei Kopien desselben Satzes wären drei Sätze,
+// die auseinanderlaufen — und bei einer Aussage über die SCHUFA wäre das kein
+// Schönheitsfehler.
+//
+// ── UND WARUM ER NICHT ABGESCHWÄCHT IST ───────────────────────────────────
+// Der Wortlaut ist von der Geschäftsführung freigegeben. Er steht hier
+// BUCHSTABENGETREU. Wer ihn ändern will, ändert ihn hier — und dann überall,
+// mit derselben Freigabe.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Der freigegebene Wortlaut. Nicht umformulieren. */
+export const KERNBOTSCHAFT = "Wenn jemand einen Vertrag mit uns hat, diesen "
+  + "pünktlich und positiv bezahlt UND unsere Empfehlungen in Anspruch nimmt, "
+  + "dann verbessert sich die Bonität. Nichtzahlungen werden an die SCHUFA "
+  + "gemeldet.";
+
+/** Die zwei Pfade — für die zweigeteilte Karte. */
+export const KERNBOTSCHAFT_PFADE = {
+  aufbau: {
+    titel: "Pünktlich + Empfehlungen = Aufbau",
+    punkte: [
+      "Vertrag läuft, Raten kommen pünktlich",
+      "Der Kunde nimmt unsere Empfehlungen in Anspruch",
+      "→ die Bonität verbessert sich",
+    ],
+  },
+  meldung: {
+    titel: "Nichtzahlung = Meldung",
+    punkte: [
+      "Raten bleiben offen",
+      "Mahnstufen laufen durch",
+      "→ Nichtzahlungen werden an die SCHUFA gemeldet",
+    ],
+  },
+} as const;
+
+export const KERNBOTSCHAFT_FUSSNOTE = "Wortlaut freigegeben durch die Geschäftsführung.";
+
 /** Wer in diesem Kapitel handelt. */
 export type Handelnder =
   | "kunde" | "agent" | "onboarding" | "inkasso" | "leitung" | "automatik";
@@ -82,6 +126,13 @@ export interface Kapitel {
   zahlen?: string[];
   /** Wo im Quelltext das steckt — für Rückfragen. */
   quelle?: string;
+  /**
+   * Hervorgehoben darstellen — zweigeteilte Karte, groß.
+   *
+   * Nur für die Kernbotschaft. Ein zweites hervorgehobenes Kapitel würde das
+   * erste entwerten: Wenn alles wichtig ist, ist nichts wichtig.
+   */
+  hervorgehoben?: boolean;
   /**
    * Stichpunkte zum VORLESEN — bewusst kurz.
    *
@@ -241,6 +292,12 @@ const VERTRIEB: Kapitel[] = [
     mailEvent: "payment_details",
     quelle: "shared/fiaon-pakete.ts",
   },
+  kernbotschaft("agent",
+    "Das ist der Satz, mit dem wir verkaufen — und deshalb der Satz, an dem wir "
+    + "gemessen werden. Wer mehr verspricht, erzeugt eine Rückbuchung und einen "
+    + "verlorenen Kunden. Wer die Konsequenz weglässt, erzeugt einen Menschen, "
+    + "der sich hinterher betrogen fühlt. Beides kostet mehr als ein ehrliches "
+    + "Nein im ersten Gespräch."),
   {
     key: "zahlung-gemeldet",
     was: "Der Kunde meldet seine Zahlung — und wir prüfen sie, statt sie zu glauben.",
@@ -363,6 +420,12 @@ const ONBOARDING: Kapitel[] = [
       ? ["Pflichtschritt — ohne Notiz lässt sich das Gespräch nicht abschließen"]
       : undefined,
   })),
+  kernbotschaft("onboarding",
+    "Im Startgespräch hört der Kunde diesen Satz zum ersten Mal von einem "
+    + "Menschen. Vorher stand er in einer Mail. Wer ihn hier klar sagt, "
+    + "verhindert den Anruf in drei Monaten: „Das wusste ich nicht.“ Und wer die "
+    + "Meldung an die SCHUFA verschweigt, macht aus einer offenen Rate einen "
+    + "Vorwurf gegen uns."),
   {
     key: "abschluss",
     was: "Erst wenn alle Pflichtschritte stehen, lässt sich das Gespräch abschließen.",
@@ -544,6 +607,33 @@ function abschluss(r: { titel: string; kapitelZahl: number; dauerMin: number }):
         + "einmal teuer geworden.",
       "Und: Was dir auffällt, meldest du. Die Hälfte dieser Kapitel gibt es, weil "
         + "jemand etwas gemeldet hat.",
+    ],
+  };
+}
+
+/**
+ * Das Kernbotschafts-Kapitel.
+ *
+ * Es steht in der Vertriebs- UND der Onboarding-Reise — an unterschiedlicher
+ * Stelle, weil es unterschiedlich gebraucht wird: Im Vertrieb ist es das
+ * VERSPRECHEN, das man gibt; im Onboarding ist es die KONSEQUENZ, die man
+ * erklären muss.
+ *
+ * `hervorgehoben` markiert es für die Anzeige: zweigeteilte Karte, groß,
+ * unübersehbar.
+ */
+function kernbotschaft(wer: Handelnder, warum: string): Kapitel {
+  return {
+    key: "versprechen",
+    was: "Das Versprechen — und die Konsequenz.",
+    wer,
+    // Der Wortlaut, unverändert. Er ist der Kapiteltext, nicht eine Zusammenfassung.
+    text: KERNBOTSCHAFT,
+    warum,
+    hervorgehoben: true,
+    punkte: [
+      ...KERNBOTSCHAFT_PFADE.aufbau.punkte,
+      ...KERNBOTSCHAFT_PFADE.meldung.punkte,
     ],
   };
 }

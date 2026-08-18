@@ -48,6 +48,71 @@ Die Prüfung ist wieder entfernt, mit Begründung im Quelltext. **Der esbuild-Du
 
 **Teil 2 (Agent als Vollpfleger)** und **Teil 3** (Pflichtnotiz im Listen-Weg, 12 Wartezustände, Zustellprotokoll mit Filtern, Team-Kalender auf 380 px) sind offen.
 
+## 29.08.2026 — „Produkt anlegen" repariert + die Kernbotschaft verankert
+
+### Teil 1: Die Ursache war meine
+
+**Meldung:** „Agenten klicken auf ‚Produkt anlegen' — es erscheint NICHTS." Damit stand die Kernarbeit.
+
+**Die Ursache, in drei Schichten:**
+
+1. Am 25.08. wurde die **Route** gebaut (`POST /agent/customers/:ref/produkt`, mit Katalog, Paket-Hygiene, SCHUFA-Kategoriegrenze) und mit **50 Prüfungen** grün gemeldet. Es gab nur **keine Oberfläche dafür**.
+2. Am 27.08. kam ein Knopf dazu — als `<a href="/agent/kunden#anlegen">`. Drei Fehler in einer Zeile: Der Anker existiert nicht (0 Treffer), der Mitarbeiter steht **schon** auf dieser Seite, und „+ Kunde anlegen" hätte einen **neuen** Kunden angelegt, kein Produkt an dieser Akte.
+3. Der Prüfstand prüfte die Route über **HTTP**, nicht über den Browser.
+
+Das ist wörtlich der Fehler vom 11.08., der in AGENTS.md steht: *„Die Route existiert"* war grün, während der Knopf fehlte. Damals waren es vier Prüfungen, diesmal fünfzig.
+
+**Was jetzt da ist:** `ProduktDialog.tsx` — ein Knopf, der **immer** an der Karte steht (nicht erst hinter einer Sperre), mit Beschriftung nach Lage: **„Produkt tauschen"**, wenn ein Paket offen ist, sonst „hinzufügen". Der Dialog nennt, was ersetzt wird, sperrt das schon offene Paket in der Auswahl, und die Bonitätsauskunft ist gesperrt, wenn sie offen oder bezahlt ist.
+
+**Der Tausch ist ein Klick:** neues Paket wählen → „Tauschen". Die alte offene Bestellung wird stillgelegt, der Verwendungszweck ist neu — beides steht in der Bestätigung.
+
+**Und die Mail trägt die neuen Werte.** Der Browsertest fängt den Aufruf ab und prüft **Feld für Feld**: neues Paket, neuer Betrag, neuer Verwendungszweck — und ausdrücklich, dass **kein alter Wert durchrutscht**. Der Dialog holt die Karte nach dem Speichern neu; ohne das stünde dort weiter das alte Paket.
+
+**Geprüft:** `schau-produkt.ts`, **32 Prüfungen** im Browser (Desktop + 380 px). **Rot-Probe:** Die Öffnung kaputt gemacht (`onClick` leer) → **5 rot**, beginnend mit *„DER KLICK ÖFFNET DEN DIALOG"*. Dieser Fehler kann nicht mehr still passieren.
+
+Nebenbei fand der Test einen zweiten: Der Knopf war **40 px** hoch statt 44. Das Auge sieht das nicht, die Fingerkuppe schon.
+
+### Teil 2: Die Kernbotschaft — im Wortlaut, an drei Stellen
+
+> Wenn jemand einen Vertrag mit uns hat, diesen pünktlich und positiv bezahlt UND unsere Empfehlungen in Anspruch nimmt, dann verbessert sich die Bonität. Nichtzahlungen werden an die SCHUFA gemeldet.
+
+Der Satz steht **an einer Stelle im Code** (`shared/fiaon-academy.ts`) und erscheint an dreien:
+
+- als hervorgehobenes Kapitel **„Das Versprechen — und die Konsequenz"** in der **Vertriebs-Reise** (Position 10 von 14)
+- als dasselbe Kapitel in der **Onboarding-Reise** (Position 12 von 17) — dort mit anderer Begründung: im Vertrieb ist es das Versprechen, im Onboarding die Konsequenz, die man erklären muss
+- als Einblendung im **Onboarding-Cockpit** beim Pflichtschritt „Abo-Klarheit", überschrieben mit *„Das sagst du dem Kunden — wörtlich"*
+
+**Die Karte ist zweigeteilt:** links grün „Pünktlich + Empfehlungen = Aufbau", rechts rot „Nichtzahlung = Meldung", die Folge jeweils fett. Auf 380 px stapeln sie sich — zwei Spalten à 170 px liest man als *einen* Pfad. Fußnote klein: „Wortlaut freigegeben durch die Geschäftsführung."
+
+**Der Prüfstand vergleicht den Satz buchstabengetreu** gegen eine ausgeschriebene Kopie und stellt sicher, dass er nur an einer Stelle steht. Eine Aussage über die SCHUFA darf sich nicht durch einen Umbau verändern.
+
+### Die Leitung schult selbst
+
+Florentine und Daniel sehen im **Team-Portal** alle drei Reisen (das galt schon) — und jetzt auch **„Präsentieren"**: echtes Vollbild, Navigation und Fußleiste weg, größere Schrift, Esc beendet.
+
+Das Kennzeichen `istLeitung` kommt vom **Server**. Ein Agent sieht den Knopf nicht — eine Rollen-Prüfung in der Anzeige wäre die zweite Fassung derselben Regel.
+
+**Eine Regel wurde dabei ersetzt, nicht gelöscht:** Der Prüfstand verlangte bisher *„Die Team-Fassung hat KEINEN Präsentationsmodus — wer sich selbst einschult, präsentiert nicht."* Das war richtig, solange nur Mitarbeiter sie benutzen. Jetzt prüft er, dass der Modus **an die Leitung gebunden** ist.
+
+### Die zwei unbestätigten Zweige
+
+Aus dem Ampel-Lauf sind **zwei** Ereignisse offen (das dritte, `followup_48h`, ist absichtlich abgeschafft):
+
+| Ereignis | Was es ist | Variablen zum Kopieren |
+|---|---|---|
+| `schufa_requested` | Neues SCHUFA-Dokument angefordert (Kunde) | `email`, `vorname`, `nachname`, `ref`, `login_url`, `hinweis` |
+| `commission_statement_issued` | Provisions-Abrechnung erstellt (Mitarbeiter) | `email`, `vorname`, `statement_no`, `betrag`, `doc_hash` |
+
+Beide brauchen einen Make-Zweig und ein Brevo-Template. Sie bleiben in `/admin/events` markiert.
+
+### Geprüft
+
+`pruef-academy.ts` — **142 Prüfungen** (von 114). `schau-produkt.ts` — **32**. Screenshots erzeugt und angesehen: `reports/produkt/`, `reports/kernbotschaft/`.
+
+### Nicht geliefert
+
+Die **SVG-Schaubilder** (Kundenweg als Fluss, Stufen A/B/C als Trichter, Abo-Zyklus als Kreis), die **Leitungs-Fassung von `/admin/funktionen`** als eigene Seite, die **umschaltbare Desktop/Handy-Ansicht** der Mail-Vorschau und die **Anzeige** des Academy-Stands in der Team-Zentrale (die Route `/admin/academy/stand` liefert die Daten, die Darstellung fehlt).
+
 ## 28.08.2026 — Die Wand gegen das Doppel-Modell, Academy fürs Team, Gesamtstand
 
 ### Teil 1: Der DROP ist vorbereitet — und findet NICHT statt

@@ -17,6 +17,10 @@ import "dotenv/config";
 import { readFileSync } from "node:fs";
 import {
   REISEN, HANDELNDER_TEXT, verwendeteMailEvents, reisenFuerRolle,
+  // Die Kernbotschaft — der Wortlaut der Geschäftsführung. Statisch importiert,
+  // weil `main()` synchron ist: Ein `await import` darin ist ein Syntaxfehler,
+  // und die Funktion für einen Import async zu machen wäre der falsche Hebel.
+  KERNBOTSCHAFT, KERNBOTSCHAFT_PFADE, KERNBOTSCHAFT_FUSSNOTE,
 } from "../shared/fiaon-academy";
 import { AGENDA } from "../shared/fiaon-onboarding-agenda";
 
@@ -418,9 +422,20 @@ function main(): void {
   pruef("Die Verwaltungs-Fassung existiert weiter",
     /path="\/admin\/schulung"/.test(app),
     "die Bühne zum Vorführen ist etwas anderes als die Fassung zum Selbstlesen");
-  pruef("Die Team-Fassung hat KEINEN Präsentationsmodus",
-    !/praesentieren/i.test(teamSeite),
-    "wer sich selbst einschult, präsentiert nicht");
+  // ── DIESE REGEL IST ERSETZT, NICHT GELÖSCHT (29.08.2026) ──────────────
+  // Hier stand: „Die Team-Fassung hat KEINEN Präsentationsmodus — wer sich
+  // selbst einschult, präsentiert nicht."
+  //
+  // Das war richtig, solange nur Mitarbeiter die Team-Fassung benutzen. Der
+  // Betreiber hat aber entschieden, dass Florentine und Daniel die Schulung
+  // SELBST machen — und die brauchen im Team-Portal dasselbe wie in der
+  // Verwaltung.
+  //
+  // Die Regel gilt weiter für alle ANDEREN: Der Knopf erscheint nur, wenn der
+  // Server `istLeitung` sagt. Ein Agent sieht ihn nicht.
+  pruef("Der Präsentationsmodus im Team-Portal ist an die Leitung gebunden",
+    /daten\?\.istLeitung && \(/.test(teamSeite),
+    "ein Agent, der präsentiert, präsentiert sich selbst");
 
   // ── DIE ALTE KUNDENSEITE IST WEG ──────────────────────────────────────
   pruef("pages/agent/kunden.tsx ist entfernt",
@@ -430,6 +445,95 @@ function main(): void {
   pruef("… und die alte Adresse leitet um",
     /path="\/agent\/meine-kunden-alt"><Redirect to="\/agent\/kunden"/.test(app),
     "ein Lesezeichen soll nicht ins Leere laufen");
+
+  // ═════════════════════════════════════════════════════════════════════════
+  titel("10. DIE KERNBOTSCHAFT — WORTLAUT DER GESCHÄFTSFÜHRUNG");
+  // ═════════════════════════════════════════════════════════════════════════
+  const karte = lies("client/src/components/KernbotschaftKarte.tsx");
+  const cockpit = lies("client/src/components/agent/OnboardingCockpit.tsx");
+
+  // ── DER WORTLAUT, BUCHSTABENGETREU ────────────────────────────────────
+  // Diese Prüfung ist die wichtigste der Datei: Eine Aussage über die SCHUFA
+  // darf sich nicht durch einen Umbau verändern. Der Satz steht hier VOLL
+  // ausgeschrieben, damit ein Vergleich möglich ist — nicht als Regex.
+  const SOLL = "Wenn jemand einen Vertrag mit uns hat, diesen pünktlich und "
+    + "positiv bezahlt UND unsere Empfehlungen in Anspruch nimmt, dann "
+    + "verbessert sich die Bonität. Nichtzahlungen werden an die SCHUFA "
+    + "gemeldet.";
+  pruef("Der Wortlaut ist UNVERÄNDERT", KERNBOTSCHAFT === SOLL,
+    KERNBOTSCHAFT === SOLL ? "" : `abweichend: „${KERNBOTSCHAFT.slice(0, 90)}…“`);
+  pruef("… und er steht an EINER Stelle",
+    /export const KERNBOTSCHAFT = /.test(daten)
+      && !/Wenn jemand einen Vertrag mit uns hat/.test(karte)
+      && !/Wenn jemand einen Vertrag mit uns hat/.test(cockpit),
+    "drei Kopien wären drei Sätze, die auseinanderlaufen");
+  pruef("Die Fußnote nennt die Freigabe",
+    /freigegeben durch die Geschäftsführung/.test(KERNBOTSCHAFT_FUSSNOTE));
+
+  // ── DIE ZWEI PFADE ────────────────────────────────────────────────────
+  pruef("Der grüne Pfad heißt „pünktlich + Empfehlungen = Aufbau“",
+    /pünktlich \+ Empfehlungen = Aufbau/i.test(KERNBOTSCHAFT_PFADE.aufbau.titel));
+  pruef("Der rote Pfad heißt „Nichtzahlung = Meldung“",
+    /Nichtzahlung = Meldung/i.test(KERNBOTSCHAFT_PFADE.meldung.titel));
+  pruef("… und nennt die SCHUFA-Meldung als Folge",
+    KERNBOTSCHAFT_PFADE.meldung.punkte.some((p) => /SCHUFA gemeldet/.test(p)),
+    "die Konsequenz darf nicht in einer Andeutung verschwinden");
+
+  // ── DIE KARTE ─────────────────────────────────────────────────────────
+  pruef("Die Karte ist zweigeteilt",
+    /KERNBOTSCHAFT_PFADE\[welcher\]/.test(karte)
+      && /grid-template|gridTemplateColumns/.test(karte));
+  pruef("… grün und rot", /#059669/.test(karte) && /#b91c1c/.test(karte));
+  pruef("… auf 380 px gestapelt",
+    /minmax\(240px,1fr\)/.test(karte),
+    "zwei Spalten à 170 px liest man als einen Pfad");
+  pruef("… und die Folge ist fett",
+    /fontWeight: i === pfad\.punkte\.length - 1 \? 700 : 400/.test(karte));
+
+  // ── DREI STELLEN, EIN BAUTEIL ─────────────────────────────────────────
+  for (const [wo, datei] of [
+    ["Academy (Verwaltung)", "client/src/pages/admin-schulung.tsx"],
+    ["Academy (Team)", "client/src/pages/agent/academy.tsx"],
+    ["Onboarding-Cockpit", "client/src/components/agent/OnboardingCockpit.tsx"],
+  ] as [string, string][]) {
+    pruef(`${wo} zeigt die Karte`, /<KernbotschaftKarte/.test(lies(datei)));
+  }
+  pruef("Im Cockpit erscheint sie beim Schritt „Abo-Klarheit“",
+    /a\.key === "abo_klarheit" && \(/.test(cockpit),
+    "dort erklärt der Mitarbeiter die laufenden Kosten");
+  pruef("… mit der Ansage, dass es der Wortlaut ist",
+    /Das sagst du dem Kunden — wörtlich/.test(cockpit));
+
+  // ── DAS KAPITEL IN BEIDEN REISEN ──────────────────────────────────────
+  for (const key of ["vertrieb", "onboarding"]) {
+    const re = REISEN.find((r) => r.key === key)!;
+    const k = re.kapitel.find((x) => x.key === "versprechen");
+    pruef(`„${re.titel}“ hat das Kapitel „Das Versprechen“`, !!k);
+    pruef(`… und es ist hervorgehoben`, k?.hervorgehoben === true);
+    pruef(`… und trägt den Wortlaut als Text`, k?.text === KERNBOTSCHAFT);
+  }
+  pruef("Nur EIN Kapitel je Reise ist hervorgehoben",
+    REISEN.every((r) => r.kapitel.filter((k) => k.hervorgehoben).length <= 1),
+    "wenn alles wichtig ist, ist nichts wichtig");
+
+  // ═════════════════════════════════════════════════════════════════════════
+  titel("11. DIE LEITUNG SCHULT SELBST");
+  // ═════════════════════════════════════════════════════════════════════════
+  pruef("Der Server sagt, wer Leitung ist",
+    /const istLeitung = r === "vertriebsleiter" \|\| r === "admin"/.test(teamRoute),
+    "eine Rollen-Prüfung in der Anzeige wäre die zweite Fassung derselben Regel");
+  pruef("… und liefert es bei der Einzelreise mit",
+    /istLeitung: r === "vertriebsleiter" \|\| r === "admin"/.test(teamRoute));
+  pruef("Die Team-Seite zeigt „Präsentieren“ NUR der Leitung",
+    /daten\?\.istLeitung && \(/.test(teamSeite)
+      && /data-fiaon="team-praesentieren"/.test(teamSeite));
+  pruef("… mit echtem Vollbild",
+    /fi-team-academy-vollbild/.test(teamSeite)
+      && /requestFullscreen/.test(teamSeite));
+  pruef("… und größerer Schrift darin",
+    /fi-team-academy-vollbild \[data-fiaon="team-academy"\] h2/.test(teamSeite),
+    "die Zuschauer sitzen weiter weg");
+  pruef("Esc beendet ihn", /e\.key === "Escape" && praesentation/.test(teamSeite));
 
   console.log(`\n${"═".repeat(72)}`);
   console.log(`  ${ok} ok · ${rot} rot`);

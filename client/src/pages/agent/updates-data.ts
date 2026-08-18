@@ -40,6 +40,31 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-29-produkt",
+    date: "2026-08-29",
+    category: "Behoben",
+    title: "„Produkt anlegen“ geht jetzt \u2014 und Tauschen ist ein Klick",
+    summary:
+      "Der Knopf hat nichts getan. Das war unser Fehler: Die Funktion war im Server "
+      + "fertig, aber es gab keinen Dialog dazu. Jetzt gibt es ihn.",
+    changes: [
+      "DAS WAR DER FEHLER: Der Knopf war ein Link auf eine Stelle, die es nicht gibt \u2014 deshalb passierte nichts. Die Funktion selbst war seit vier Tagen fertig, nur unerreichbar. Entschuldigung.",
+      "JETZT: In der Kundenkarte steht „Produkt tauschen“ (wenn ein Paket offen ist) oder „Produkt hinzuf\u00fcgen“. Ein Klick \u00f6ffnet die Auswahl.",
+      "TAUSCHEN IST EIN KLICK: Neues Paket w\u00e4hlen, „Tauschen“. Die alte offene Bestellung wird stillgelegt \u2014 der Kunde bekommt nur EINE Zahlungsaufforderung, mit neuem Verwendungszweck.",
+      "DAS SCHON OFFENE PAKET IST GESPERRT: Man kann Pro nicht gegen Pro tauschen. Und die Bonit\u00e4tsauskunft ist gesperrt, wenn sie schon offen oder bezahlt ist.",
+      "DIE ZAHLUNGSDATEN-MAIL TR\u00c4GT DIE NEUEN WERTE: neues Paket, neuer Betrag, neuer Verwendungszweck. Kein alter Wert bleibt stehen \u2014 das pr\u00fcfen wir jetzt Feld f\u00fcr Feld.",
+      "STAMMDATEN AN DERSELBEN KARTE: Fehlt die E-Mail, kannst du sie direkt am gesperrten Zahlungsdaten-Knopf eintippen und speichern.",
+      "UND F\u00dcR DIE LEITUNG: Florentine und Daniel k\u00f6nnen die Academy jetzt im Team-Portal pr\u00e4sentieren \u2014 Vollbild, gro\u00dfe Schrift, Pfeiltasten.",
+    ],
+    howto: [
+      "Kundenkarte \u2192 „Produkt tauschen“ bzw. „hinzuf\u00fcgen“ \u2192 Paket w\u00e4hlen \u2192 best\u00e4tigen.",
+      "Danach „Zahlungsdaten senden“ \u2014 die Mail hat automatisch die neuen Werte.",
+      "Wenn etwas nicht geht: Der Knopf sagt jetzt, warum. Steht dort nichts und passiert nichts, bitte melden \u2014 genau das war der Fehler.",
+    ],
+    link: { href: "/agent/kunden", label: "Zu meinen Kunden" },
+    important: true,
+  },
+  {
     id: "2026-08-28-academy-team",
     date: "2026-08-28",
     category: "Neu",

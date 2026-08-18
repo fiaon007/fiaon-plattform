@@ -21,6 +21,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { KernbotschaftKarte } from "@/components/KernbotschaftKarte";
 import { FiaonEbene } from "@/components/FiaonEbene";
 import {
   AGENDA, darfAbschliessen, fortschritt, type AgendaStand,
@@ -336,6 +337,34 @@ export function OnboardingCockpit({
                       <ul className="fi-ob-punkte">
                         {a.punkte.map((punkt) => <li key={punkt}>{punkt}</li>)}
                       </ul>
+                      {/* ══════════════════════════════════════════════════
+                          DIE KERNBOTSCHAFT — FÜR DAS KUNDENGESPRÄCH
+
+                          Genau an diesem Schritt („Abo-Klarheit") wird sie
+                          gebraucht: Der Mitarbeiter erklärt dem Kunden die
+                          laufenden Kosten, und dabei gehört der Satz über
+                          Bonität und SCHUFA-Meldung dazu — im freigegebenen
+                          Wortlaut, nicht in eigenen Worten.
+
+                          Sie steht hier eingeblendet und nicht als Link: Wer
+                          im Gespräch eine Seite wechseln muss, sagt den Satz
+                          aus dem Gedächtnis. Und dann fehlt die Hälfte.
+
+                          Dasselbe Bauteil wie in der Academy — eine zweite
+                          Fassung wären zwei Sätze, die auseinanderlaufen.
+                          ══════════════════════════════════════════════════ */}
+                      {a.key === "abo_klarheit" && (
+                        <div style={{ margin: "12px 0 14px" }}>
+                          <p style={{
+                            margin: "0 0 8px", fontSize: 11, fontWeight: 700,
+                            letterSpacing: ".1em", textTransform: "uppercase",
+                            color: "var(--fi-text-still)",
+                          }}>
+                            Das sagst du dem Kunden — wörtlich
+                          </p>
+                          <KernbotschaftKarte />
+                        </div>
+                      )}
                       <textarea
                         value={notiz}
                         onChange={(e) => notieren(a.key, e.target.value)}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ProduktDialog } from "@/components/agent/ProduktDialog";
 import { KundeAnlegen } from "@/components/agent/KundeAnlegen";
 import { AgentShell } from "./shared";
 import { Reveal } from "./motion";
@@ -604,6 +605,8 @@ function KundenKarte({
   // AGENTS.md: Haken stehen ÜBER dem ersten `return`, nicht dort, wo man sie
   // braucht — sonst „Rendered more hooks than during the previous render".
   const [mailNachtrag, setMailNachtrag] = useState("");
+  // Der Produkt-Dialog. AGENTS.md: Haken stehen ÜBER dem ersten `return`.
+  const [produktOffen, setProduktOffen] = useState(false);
 
   const [feldOffen, setFeldOffen] = useState<"zusage" | "termin" | "notiz" | null>(null);
   const [datumWert, setDatumWert] = useState(tagPlus(1));
@@ -1334,16 +1337,45 @@ function KundenKarte({
                   </span>
                 )}
                 {sperre.ziel === "produkt" && (
-                  <a href="/agent/kunden#anlegen"
-                     className="fi-zweitknopf inline-flex items-center justify-center px-3 py-2 text-[12px] font-semibold no-underline"
-                     style={{ minHeight: 40 }}
-                     title="Öffnet die Kundenliste — dort legst du über „+ Kunde anlegen“ ein Produkt an.">
-                     Produkt anlegen →
-                  </a>
+                  /* ── DER LINK WAR EIN BLINDGÄNGER (29.08.2026) ──────────
+                     Hier stand `<a href="/agent/kunden#anlegen">`. Drei Fehler
+                     in einer Zeile: Der Anker existiert nicht, der Mitarbeiter
+                     steht SCHON auf dieser Seite (ein Link auf dieselbe Seite
+                     mit unbekanntem Anker tut nichts), und „+ Kunde anlegen"
+                     hätte einen NEUEN Kunden angelegt, kein Produkt an dieser
+                     Akte. Der Betreiber meldete: „es erscheint NICHTS."
+                     Jetzt öffnet der Knopf den Produkt-Dialog. */
+                  <button type="button" onClick={() => setProduktOffen(true)}
+                          data-fiaon="produkt-oeffnen-sperre"
+                          className="fi-zweitknopf inline-flex items-center justify-center px-3 py-2 text-[12px] font-semibold"
+                          style={{ minHeight: 40 }}>
+                    Produkt anlegen →
+                  </button>
                 )}
               </span>
             );
           })()}
+
+          {/* ══════════════════════════════════════════════════════════════
+              PRODUKT HINZUFÜGEN / TAUSCHEN (29.08.2026)
+
+              Er steht IMMER da, nicht nur wenn eine Sperre ihn zeigt: Der
+              häufigste Fall am Telefon ist „Pro reicht mir nicht" — und dafür
+              muss niemand erst in eine Sperre laufen.
+
+              Beschriftung nach Lage: Ist ein Paket offen, heißt es „tauschen"
+              (dann ersetzt das neue das alte). Sonst „hinzufügen".
+              ══════════════════════════════════════════════════════════════ */}
+          <button type="button" onClick={() => setProduktOffen((v) => !v)}
+                  data-fiaon="produkt-oeffnen"
+                  className="fi-zweitknopf inline-flex items-center px-3 py-2.5 text-[12px] font-medium"
+                  /* 44 px ist die Fingerkuppe. `py-2.5` ergab gemessen 40 px —
+                     der Browsertest hat es gefunden, nicht das Auge. */
+                  style={{ minHeight: 44 }}
+                  title="Ein Paket aus dem Katalog an diese Akte hängen. Ein offenes Paket wird dabei ersetzt.">
+            {(k.buchungen ?? []).some((b) => b.offen && b.art === "paket")
+              ? "Produkt tauschen" : "Produkt hinzufügen"}
+          </button>
 
           {k.email && (
             <a href={`mailto:${k.email}`} className="fi-zweitknopf inline-flex items-center px-3 py-2.5 text-[12px] font-medium"
@@ -1357,6 +1389,31 @@ function KundenKarte({
             {laeuft === "nummer" ? "Sende …" : "Nummer korrigieren lassen"}
           </button>
         </div>
+
+        {/* ══════════════════════════════════════════════════════════════
+            DER PRODUKT-DIALOG
+
+            Er steht IN der Karte, nicht als Überlagerung: Auf 380 px verdeckt
+            ein Dialog den Kunden, um den es geht — und der Mitarbeiter hat ihn
+            am Telefon. Aufgeklappt schiebt er die Karte auseinander.
+            ══════════════════════════════════════════════════════════════ */}
+        <ProduktDialog
+          offen={produktOffen}
+          personId={k.personId}
+          buchungen={(k.buchungen ?? []) as any}
+          aufKlappen={setProduktOffen}
+          fertig={async (meldung) => {
+            zeige("erfolg", "Produkt gespeichert", meldung);
+            // ── DIE KARTE NEU HOLEN ────────────────────────────────────────
+            // Ohne dieses Nachladen zeigt die Karte das ALTE Paket, den alten
+            // Betrag und den alten Verwendungszweck — und die Zahlungsdaten-Mail
+            // ginge mit veralteten Werten raus. Genau das prüft der
+            // Browsertest Feld für Feld.
+            const frisch = await api(`/agent/crm/kunden/${k.personId}`);
+            if (frisch.ok && frisch.json?.kunde) onNeu(frisch.json.kunde);
+            onZaehler();
+          }}
+        />
 
         {/* Zweite Reihe: die sieben Ergebnisse */}
         <p className="mt-3.5 mb-1.5 text-[11px] font-semibold uppercase tracking-[.06em]"

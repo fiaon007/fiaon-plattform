@@ -20,6 +20,7 @@ import {
   echteMitarbeiterSql, nurTestkontenSql, testkontenZaehlen, istTestkontoSql,
 } from "../lib/fiaon-mitarbeiter-sicht";
 import { katalogpreisCents } from "../lib/fiaon-massgebliche-bestellung";
+import { BELEGT_GEFUEHRT_SQL, NUMMER_PASST_SQL } from "../lib/fiaon-anruf-pruefung";
 
 const router = Router();
 
@@ -2293,33 +2294,67 @@ router.get("/admin/team/:id/akte", async (req: Request, res: Response) => {
       // Die Twilio-URL geht NICHT mit: Sie ist unbefristet gültig und öffnet
       // mit den Konto-Zugangsdaten die Aufnahme. Nach außen geht nur, OB es
       // eine gibt — abgespielt wird über /telefon/:id/aufnahme.
-      sqlPool`
+      // ══════════════════════════════════════════════════════════════════════
+      // DER PROFIL-TAB ZEIGT NUR, WAS BELEGT IST (19.08.2026)
+      //
+      // ── DIE MELDUNG ─────────────────────────────────────────────────────
+      // „Gespräche-Tab zeigt fremde Anrufe." Bei Lucas Böhnert stand ein Anruf,
+      // in dem „Herr Boyschenko" spricht — Nikitas Gespräch in Lucas' Tab.
+      //
+      // ── WAS VORHER PASSIERTE ────────────────────────────────────────────
+      // Der Filter war richtig (`k.agent_id = id`) — aber `agent_id` selbst ist
+      // bei EINGEHENDEN Anrufen geraten: `zustaendigFuer()` leitet ihn aus
+      // Inkasso-Zuständigkeit, Termin, Betreuer und „wer zuletzt sprach" ab. Das
+      // beantwortet „wer sollte rangehen", nicht „wer hat gesprochen".
+      //
+      // Am 19.08. wurde die Herkunft nur SICHTBAR gemacht (Migration 066). Das
+      // genügt nicht: Eine Zeile mit Warnmarke im Profil eines Menschen wird
+      // trotzdem als seine Leistung gelesen — und der Betreiber musste bei jeder
+      // Zeile selbst entscheiden, ob er ihr glaubt.
+      //
+      // ── DIE REGEL JETZT, HART ───────────────────────────────────────────
+      // Der Profil-Tab zeigt AUSSCHLIESSLICH Anrufe, die diese Person selbst
+      // geführt hat: ausgehend (die Sitzung hat gewählt) oder eingehend MIT
+      // erfasstem Ergebnis (die Route lehnt fremde Anrufe ausdrücklich ab).
+      //
+      // Ein eingehender Anruf ohne Ergebnis erscheint in KEINEM Profil mehr —
+      // er bleibt an der Kundenakte sichtbar, wo er hingehört. GEMESSEN: 36
+      // Anrufe (Lucas 18, Hans-Jürgen 12, Nikita 6) verlassen damit die Profile.
+      //
+      // `unsafe` ist nötig, weil die Bedingung als SQL-Baustein aus
+      // `fiaon-anruf-pruefung.ts` kommt — interpoliert in ein Template würde sie
+      // zum Parameter statt zu SQL. Die Kennung ist eine geprüfte Zahl.
+      // ══════════════════════════════════════════════════════════════════════
+      sqlPool.unsafe(`
         SELECT k.id, k.person_id, k.ref, k.nummer, k.richtung, k.beginn, k.ende,
                k.dauer_sek, k.status, k.ergebnis, k.ergebnis_am,
                k.transkript_status, k.transkript_grund, k.zusammenfassung,
                (k.transkript IS NOT NULL) AS hat_transkript,
                (k.recording_url IS NOT NULL AND k.aufnahme_geloescht_am IS NULL) AS hat_aufnahme,
                k.aufnahme_geloescht_am, k.ohne_aufzeichnung_am,
-               -- ── WIE VERLÄSSLICH IST DIESE ZEILE? (19.08.2026) ─────────
-               -- „zustaendigkeit" heisst: aus der Zustaendigkeit abgeleitet,
-               -- NICHT belegt. Genau solche Zeilen standen im falschen Profil
-               -- (Nikitas Gespraech in Lucas Boehnerts Tab). Der COALESCE
-               -- leitet sie auch fuer Altzeilen ohne die Spalte ab, damit die
-               -- Ansicht nicht auf die Migration warten muss.
                COALESCE(k.zuordnung_herkunft,
                         CASE WHEN COALESCE(k.richtung, 'raus') <> 'eingehend' THEN 'gewaehlt'
                              WHEN k.ergebnis IS NOT NULL THEN 'ergebnis'
                              ELSE 'zustaendigkeit' END) AS zuordnung_herkunft,
+               k.zuordnung_unklar_am,
+               k.zuordnung_unklar_grund,
+               -- Passt die gewaehlte Nummer zur verknuepften Person? Die Anzeige
+               -- schreibt es an die Zeile, damit ein Widerspruch auffaellt,
+               -- bevor jemand die Aufnahme anhoert.
+               (${NUMMER_PASST_SQL("k", "p")}) AS nummer_passt,
                COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                         p.company_name, p.contact_name, k.nummer) AS kunde,
-               betreuer.name AS kunde_betreuer
+               betreuer.name AS kunde_betreuer,
+               gefuehrt.name AS gefuehrt_von
         FROM fiaon_calls k
         LEFT JOIN fiaon_persons p ON p.id = k.person_id
         LEFT JOIN fiaon_agents betreuer ON betreuer.id = p.assigned_agent_id
-        WHERE k.agent_id = ${id}
+        LEFT JOIN fiaon_agents gefuehrt ON gefuehrt.id = k.agent_id
+        WHERE k.agent_id = ${Number(id)}
+          AND ${BELEGT_GEFUEHRT_SQL("k")}
         ORDER BY k.beginn DESC
         LIMIT 120
-      `,
+      `),
 
       // ── AUSZAHLUNGEN ──────────────────────────────────────────────────
       sqlPool`
@@ -2348,16 +2383,29 @@ router.get("/admin/team/:id/akte", async (req: Request, res: Response) => {
       `,
 
       // ── DIE ZAHLEN ZU DEN GESPRÄCHEN ──────────────────────────────────
-      sqlPool`
+      // Sie zählen GENAU DIE MENGE, DIE DIE LISTE ZEIGT — dieselbe Bedingung,
+      // aus derselben Funktion. Vorher zählten sie alles mit `agent_id`, also
+      // auch die geratenen Zeilen: Die Kachel sagte 14, die Liste zeigte 12, und
+      // niemand konnte den Unterschied erklären. Eine Kennzahl, die eine andere
+      // Menge zählt als die Liste darunter, ist schlimmer als keine.
+      //
+      // NEU DABEI: `verbunden` — Anrufe mit Gesprächsdauer über null. Über die
+      // Hälfte der Zeilen sind Wahlversuche, die nie durchkamen (GEMESSEN:
+      // Lucas 404 von 784, Nikita 225 von 436). Sie als „Gespräche" zu zählen
+      // erklärt, warum eine Liste mit 14 Einträgen nach Verwechslung aussieht.
+      sqlPool.unsafe(`
         SELECT COUNT(*)::int AS anrufe,
-               COUNT(*) FILTER (WHERE dauer_sek >= 30)::int AS erreicht,
-               COALESCE(SUM(dauer_sek), 0)::int AS sekunden,
-               COUNT(*) FILTER (WHERE recording_url IS NOT NULL
-                                AND aufnahme_geloescht_am IS NULL)::int AS aufnahmen,
-               COUNT(*) FILTER (WHERE zusammenfassung IS NOT NULL)::int AS ausgewertet,
-               COUNT(*) FILTER (WHERE transkript_status = 'fehlgeschlagen')::int AS gescheitert
-        FROM fiaon_calls WHERE agent_id = ${id}
-      `,
+               COUNT(*) FILTER (WHERE COALESCE(k.dauer_sek, 0) > 0)::int AS verbunden,
+               COUNT(*) FILTER (WHERE k.dauer_sek >= 30)::int AS erreicht,
+               COALESCE(SUM(k.dauer_sek), 0)::int AS sekunden,
+               COUNT(*) FILTER (WHERE k.recording_url IS NOT NULL
+                                AND k.aufnahme_geloescht_am IS NULL)::int AS aufnahmen,
+               COUNT(*) FILTER (WHERE k.zusammenfassung IS NOT NULL)::int AS ausgewertet,
+               COUNT(*) FILTER (WHERE k.transkript_status = 'fehlgeschlagen')::int AS gescheitert
+        FROM fiaon_calls k
+        WHERE k.agent_id = ${Number(id)}
+          AND ${BELEGT_GEFUEHRT_SQL("k")}
+      `),
     ]);
 
     const p = provisionen as any[];

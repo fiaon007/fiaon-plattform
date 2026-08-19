@@ -102,7 +102,11 @@ function ZeichenDreiPunkte({ size = 18 }: { size?: number }) {
  * `stopPropagation` überall: Die ganze Karte ist ein Knopf, der das
  * Detailfenster öffnet.
  */
-function KartenMenue({ m, laden }: { m: any; laden: () => void }) {
+function KartenMenue({ m, laden, onProfil }: {
+  m: any; laden: () => void;
+  /** Öffnet die Akte-Schublade IN der Seite — sie ist keine eigene Adresse. */
+  onProfil: () => void;
+}) {
   const [offen, setOffen] = useState(false);
   const huelle = useRef<HTMLDivElement | null>(null);
 
@@ -170,10 +174,24 @@ function KartenMenue({ m, laden }: { m: any; laden: () => void }) {
         <div className="absolute right-0 mt-1 w-[232px] bg-white rounded-xl overflow-hidden"
              style={{ border: "1px solid #e2e8f0", boxShadow: "0 18px 40px -16px rgba(15,23,42,.28)" }}
              onClick={(e) => e.stopPropagation()}>
-          <a href={`/admin/agents/${m.id}`} className={`${eintrag} block text-slate-700`}
-             onClick={(e) => e.stopPropagation()}>
+          {/* ══════════════════════════════════════════════════════════════
+              „PROFIL ÖFFNEN" FÜHRTE INS LEERE (19.08.2026)
+
+              Hier stand `<a href="/admin/agents/{id}">`. Diese Adresse gibt es
+              nicht: Der Browsertest landete auf „Diese Seite existiert nicht —
+              /admin/agents/811 führt ins Leere".
+
+              Die Akte ist eine SCHUBLADE in dieser Seite (`MitgliedDetail`),
+              keine eigene Adresse. AGENTS.md, wörtlich: „Ein `<a href>` ist
+              kein Knopf. Wenn etwas aufgehen soll, gehört ein `onClick` daran."
+              Gefunden hat es der Browsertest, der den Reiter „Gespräche"
+              drücken wollte und nie dort ankam.
+              ══════════════════════════════════════════════════════════════ */}
+          <button type="button"
+                  onClick={(e) => { e.stopPropagation(); setOffen(false); onProfil(); }}
+                  className={`${eintrag} text-slate-700`}>
             Profil öffnen
-          </a>
+          </button>
           <button type="button" onClick={() => void alsMitarbeiterAnsehen()}
                   disabled={!m.active}
                   title={m.active ? undefined
@@ -1455,7 +1473,7 @@ export default function AdminTeamZentrale() {
                   Platz {i + 1}
                 </span>
               )}
-              <KartenMenue m={m} laden={laden} />
+              <KartenMenue m={m} laden={laden} onProfil={() => setOffen(m.id)} />
               <button type="button" onClick={() => setOffen(m.id)} className="w-full text-left">
                 <div className="flex items-start gap-3">
                   <Avatar src={m.avatar} name={m.name} />
@@ -1956,7 +1974,12 @@ function MitgliedDetail({
                 <div className="grid gap-2 mb-3.5"
                      style={{ gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))" }}>
                   {([
+                    // „Gespräche" zählt jetzt nur, was diese Person BELEGT
+                    // geführt hat — dieselbe Menge wie die Liste darunter.
+                    // „Verbunden" trennt Wahlversuche von Gesprächen: über die
+                    // Hälfte aller Zeilen kam nie durch.
                     ["Gespräche", String(akte.anrufZahlen.anrufe)],
+                    ["Verbunden", String(akte.anrufZahlen.verbunden ?? "—")],
                     ["Erreicht", `${akte.anrufZahlen.erreicht}`],
                     ["Gesprächszeit", `${Math.round(Number(akte.anrufZahlen.sekunden) / 60)} Min`],
                     ["Aufnahmen", String(akte.anrufZahlen.aufnahmen)],
@@ -2038,7 +2061,15 @@ function MitgliedDetail({
               {(akte?.anrufe ?? []).map((a: any) => (
                 <div key={a.id} className="py-2.5" style={{ borderBottom: "1px solid #f8fafc" }}>
                   <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 text-[12.5px]">
-                    <span className="font-semibold text-slate-800">{a.kunde}</span>
+                    {/* Ein Name, dem man nicht glauben darf, wird nicht gezeigt.
+                        AGENTS.md: „Eine sichtbare Lücke ist ehrlich; eine
+                        gefüllte Lücke ist eine Behauptung." Die Nummer steht
+                        stattdessen — die ist belegt. */}
+                    {a.zuordnung_unklar_am
+                      ? <span className="font-semibold" style={{ color: "#b45309" }}>
+                          Zuordnung unklar · {a.nummer}
+                        </span>
+                      : <span className="font-semibold text-slate-800">{a.kunde}</span>}
                     <span className="text-slate-400 tabular-nums">
                       {new Date(a.beginn).toLocaleString("de-DE", {
                         day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
@@ -2091,6 +2122,54 @@ function MitgliedDetail({
                       )}
                     </span>
                   </div>
+                  {/* ══════════════════════════════════════════════════════════
+                      WER · WEN · WELCHE NUMMER (19.08.2026)
+
+                      Der Betreiber: „Der Kundenname links passt oft nicht zum
+                      Gesprächsinhalt." Man hört eine Aufnahme und liest einen
+                      Namen daneben — und kann den Widerspruch erst NACH dem
+                      Anhören bemerken.
+
+                      Diese Zeile macht ihn vorher sichtbar: geführt von wem,
+                      welcher Kunde, welche Nummer wurde gewählt. Passt die
+                      Nummer nicht zur Person, steht es rot dabei statt als
+                      stiller Widerspruch.
+                      ══════════════════════════════════════════════════════════ */}
+                  <p className="text-[11px] mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5"
+                     data-fiaon="anruf-herkunft" style={{ color: "#94a3b8" }}>
+                    <span>geführt von <b style={{ color: "#64748b" }}>{a.gefuehrt_von ?? "—"}</b></span>
+                    <span>· Kunde <b style={{ color: "#64748b" }}>{a.kunde}</b></span>
+                    <span>· Nummer <span className="tabular-nums">{a.nummer ?? "—"}</span></span>
+                    {a.kunde_betreuer && (
+                      <span>· betreut von {a.kunde_betreuer}</span>
+                    )}
+                    {/* Ein Wahlversuch, der nie durchkam, ist kein Gespräch.
+                        GEMESSEN: über die Hälfte aller Zeilen. Ohne diese Marke
+                        liest man drei Zeilen „Klaus Peter Feltes" und hält die
+                        Liste für kaputt. */}
+                    {(a.dauer_sek ?? 0) === 0 && (
+                      <span className="px-1.5 py-0.5 rounded font-semibold"
+                            data-fiaon="anruf-nicht-verbunden"
+                            style={{ background: "#f1f5f9", color: "#64748b" }}>
+                        nicht verbunden
+                      </span>
+                    )}
+                    {a.nummer_passt === false && (
+                      <span className="px-1.5 py-0.5 rounded font-semibold"
+                            data-fiaon="anruf-nummer-passt-nicht"
+                            style={{ background: "rgba(185,28,28,.08)", color: "#b91c1c" }}>
+                        Nummer gehört nicht zu diesem Kunden
+                      </span>
+                    )}
+                    {a.zuordnung_unklar_am && (
+                      <span className="px-1.5 py-0.5 rounded font-semibold"
+                            data-fiaon="anruf-zuordnung-unklar"
+                            title={a.zuordnung_unklar_grund ?? undefined}
+                            style={{ background: "rgba(180,83,9,.10)", color: "#b45309" }}>
+                        Zuordnung unklar
+                      </span>
+                    )}
+                  </p>
                   {a.zusammenfassung && (
                     <p className="text-[12.5px] text-slate-600 leading-relaxed mt-1">{a.zusammenfassung}</p>
                   )}

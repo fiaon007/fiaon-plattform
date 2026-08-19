@@ -1599,4 +1599,42 @@ tageslauf("aufnahmen-aufraeumen", () => {
   }).catch((err) => console.error("[TELEFON] Tageslauf Aufnahmen:", err));
 }, 24 * 60 * 60 * 1000);
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TÄGLICH: GEHÖRT DER NAME ZUM GESPRÄCH?
+//
+// ── WARUM DAS EIN TAGESLAUF IST UND KEIN SKRIPT ZUM ERINNERN ──────────────
+// Der Fehler „Anruf hängt an der falschen Person" war am 17.08.2026 behoben und
+// am 19.08. wieder gemeldet — weil der Bestand nicht mitgeräumt war und niemand
+// ihn messen konnte. AGENTS.md: „Wiederkehrende Bestandskorrekturen gehören in
+// den Tageslauf, nicht als Skript zum Erinnern."
+//
+// Der Lauf KORRIGIERT nichts von selbst. Er ZÄHLT und meldet, wenn eine Zeile
+// einen fremden Namen trägt, ohne die Marke „Zuordnung unklar" zu haben. Ein
+// automatisches Umhängen wäre Raten — und ein geratener Anruf im Profil eines
+// Menschen wird als Leistungsnachweis gelesen.
+//
+// Nur bei einem Fund gibt es eine Zeile im Log. Ein täglicher Lauf, der „0 in
+// Ordnung" schreibt, erzeugt Rauschen, in dem echte Meldungen untergehen.
+// ═══════════════════════════════════════════════════════════════════════════
+tageslauf("anruf-zuordnung-pruefen", () => {
+  void (async () => {
+    const { NUMMER_PASST_SQL } = await import("../lib/fiaon-anruf-pruefung");
+    const [r] = (await sqlPool.unsafe(`
+      SELECT COUNT(*)::int AS offen,
+             MIN(k.id) AS erster,
+             MAX(k.beginn) AS juengster
+        FROM fiaon_calls k
+        LEFT JOIN fiaon_persons p ON p.id = k.person_id
+       WHERE k.person_id IS NOT NULL
+         AND (${NUMMER_PASST_SQL("k", "p")}) IS FALSE
+         AND k.zuordnung_unklar_am IS NULL
+    `)) as any[];
+    const n = Number(r?.offen ?? 0);
+    if (n === 0) return;
+    console.warn(`[TELEFON] ${n} Anruf(e) tragen einen Namen, dessen Nummer nicht `
+      + `die gewählte ist (ältester #${r.erster}, jüngster ${r.juengster}). `
+      + "Beheben: npx tsx scripts/anruf-zuordnung-bereinigen.ts --schreiben");
+  })().catch((err) => console.error("[TELEFON] Tageslauf Anruf-Zuordnung:", err));
+}, 24 * 60 * 60 * 1000, { beimStartNach: 90_000 });
+
 export default router;

@@ -84,6 +84,61 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-19-gespraeche-tab",
+    date: "2026-08-19",
+    category: "Behoben",
+    title: "Dein Gespräche-Tab zeigt jetzt nur noch DEINE Gespräche",
+    summary:
+      "Bei eingehenden Anrufen hat das System geraten, wer rangegangen ist — und "
+      + "die Zeile landete beim Betreuer des Kunden. Damit ist Schluss. Und an "
+      + "jeder Zeile steht jetzt, wer sie geführt hat und welche Nummer gewählt wurde.",
+    changes: [
+      "WAS FALSCH WAR: Bei einem ANKOMMENDEN Anruf konnte das System nicht "
+      + "wissen, wer abgenommen hat. Es hat den Anruf dem zugeordnet, der "
+      + "zuständig WÄRE — Betreuer, Termin, Inkasso. Bei einem Gespräch von "
+      + "Nikita stand deshalb Lucas' Name. GEMESSEN: 36 solche Zeilen "
+      + "(18 bei Lucas, 12 bei Hans-Jürgen, 6 bei Nikita).",
+
+      "WAS JETZT GILT: Dein Tab zeigt nur, was BELEGT ist — Anrufe, die du "
+      + "selbst gewählt hast, und ankommende, bei denen DU das Ergebnis "
+      + "festgehalten hast. Geratene Zeilen erscheinen in keinem Profil mehr. "
+      + "Sie sind nicht verloren: Sie stehen weiter in der Kundenakte.",
+
+      "DIE ZAHLEN OBEN PASSEN JETZT ZUR LISTE. „Gespräche“ zählt genau die "
+      + "Zeilen, die darunter stehen — vorher zählte die Kachel mehr als die "
+      + "Liste zeigte. Neu daneben: „Verbunden“. Über die Hälfte aller Zeilen "
+      + "sind Wahlversuche, bei denen niemand abgehoben hat; die zählen jetzt "
+      + "getrennt.",
+
+      "AN JEDER ZEILE STEHT, WER UND WEN: „geführt von [Name] · Kunde [Name] · "
+      + "Nummer [gewählt]“. Wenn dir da etwas widersprüchlich vorkommt, siehst "
+      + "du es SOFORT — und nicht erst, wenn du die Aufnahme angehört hast. "
+      + "Passt die Nummer nicht zum Kunden, steht das rot dabei.",
+
+      "WENN DER KUNDE EINEN FREMDEN BETREUER HAT, IST DAS NORMAL. Im "
+      + "Onboarding und im Forderungsmanagement rufst du fast immer Kunden an, "
+      + "die im Vertrieb jemand anderem gehören. In der Zeile steht deshalb "
+      + "„betreut von …“ — das ist kein Fehler, sondern die Auskunft, wen du "
+      + "bei Rückfragen ansprichst.",
+
+      "DREI ALTE ANRUFE TRAGEN KEINEN NAMEN MEHR. Bei ihnen gehörte die "
+      + "gewählte Nummer zu keinem Kunden im Bestand (10.–12.08., vor einem "
+      + "Fix vom 17.08.). Statt eines falschen Namens steht dort jetzt "
+      + "„Zuordnung unklar“ und die Nummer. Ein Name, dem man nicht glauben "
+      + "darf, ist schlimmer als eine sichtbare Lücke.",
+    ],
+    howto: [
+      "Wenn dir eine Zeile in deinem Tab fremd vorkommt: Lies die kleine Zeile "
+      + "darunter. Steht dort dein Name bei „geführt von“, ist es dein Anruf — "
+      + "auch wenn der Kunde einem Kollegen gehört.",
+      "Steht „nicht verbunden“, hat niemand abgehoben. Solche Zeilen haben "
+      + "keine Aufnahme und kein Transkript — das ist kein Fehler.",
+      "Steht „Nummer gehört nicht zu diesem Kunden“ oder „Zuordnung unklar“: "
+      + "bitte melden. Das sind die Fälle, die wir sehen wollen.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-19-neun-punkte",
     date: "2026-08-19",
     category: "Behoben",

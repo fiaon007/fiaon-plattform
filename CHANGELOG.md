@@ -5,6 +5,133 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.08.2026 (Nacht) — Gespräche-Tab: wessen Anruf, und wessen Name?
+
+Meldung: „Gespräche-Tab zeigt fremde Anrufe + Kundenname stimmt nicht zum
+Gespräch. Bei ALLEN Mitarbeitern sind die Telefongespräche vertauscht."
+
+### Die Messung widerspricht der Erwartung — in einem Punkt deutlich
+
+**GEMESSEN** über alle 1.608 Anrufe (`scripts/mess-anruf-vertauscht.ts`):
+
+| | |
+|---|---|
+| gewählte Nummer gehört zur verknüpften Person | **1.584** |
+| gehört NICHT dazu | **3** |
+| ohne Person (unbekannte Nummer, kein Fehler) | 19 |
+
+Erwartet war ein Massenbestand aus wochenlangem Stale-State. Die drei Fälle
+stammen vom 10., 11. und 12.08. — **vor** dem Fix vom 17.08.2026
+(Commit `7a91c8c`, „der Anruf folgt der gewählten Nummer"). Nach Tagen
+aufgeschlüsselt liegt die Abweichung ab dem 13.08. bei **0 %**. Der Fix wirkt,
+und der Auftrag nannte mit dem 19.08. ein Datum aus der Erinnerung.
+
+Und umhängen liesse sich keiner der drei: Zu keiner der drei Nummern gehört eine
+Person im Bestand. Sie tragen jetzt die Marke „Zuordnung unklar" und zeigen
+**keinen Namen mehr**, sondern die Nummer.
+
+### Rifkas 14 Einträge, Zeile für Zeile
+
+| Befund | Zahl |
+|---|---|
+| Einträge im Tab | 14 |
+| davon von ihrer Sitzung GEWÄHLT | **14** |
+| davon geraten (eingehend, aus der Zuständigkeit) | **0** |
+| davon mit Nummer, die nicht zur Person passt | **0** |
+| Kunden, die ein ANDERER betreut | **14** |
+| nie verbunden (0 Sekunden) | **4** |
+| unter 10 Sekunden | 3 |
+
+**Es sind alle ihre Anrufe, und alle Namen stimmen.** Der Eindruck „fremde
+Anrufe" hat zwei andere Ursachen:
+
+1. **Sie ist Onboarding.** 100 % ihrer Kunden werden von Daniel oder Florentine
+   betreut — normal für diese Rolle, genau wie im Forderungsmanagement
+   (Hans-Jürgen 99 %, Diana 100 %). In der Spalte „Betreuer" stehen also fremde
+   Namen, obwohl sie selbst telefoniert hat.
+2. **Die Hälfte der Zeilen sind Wahlversuche, keine Gespräche.** Bei ihr 4 von
+   14 mit null Sekunden (dreimal derselbe Mensch in vier Minuten), im Haus
+   insgesamt: Lucas 404 von 784, Nikita 225 von 436. Eine Liste, in der drei
+   inhaltsleere Zeilen mit demselben Namen über einem 19-Minuten-Gespräch mit
+   anderem Namen stehen, liest sich wie vertauscht.
+
+**Nicht bestätigen konnte ich einen systematischen Widerspruch zwischen Name und
+Inhalt.** Was auffällt: Die KI-Zusammenfassungen schreiben durchgehend „der
+Kunde", auch bei Ilijana, Aleksandra und Dagmar. Wer Name und Text vergleicht,
+findet dort einen Widerspruch, der keiner ist.
+
+### Teil 1 — Der Profil-Tab zeigt nur, was BELEGT ist
+
+`agent_id` ist bei EINGEHENDEN Anrufen geraten: `zustaendigFuer()` leitet sie aus
+Inkasso-Zuständigkeit, Termin, Betreuer und „wer zuletzt sprach" ab — das
+beantwortet „wer sollte rangehen", nicht „wer hat gesprochen". Am 19.08. wurde
+diese Herkunft nur SICHTBAR gemacht (Migration 066). Das genügte nicht: Eine
+Zeile mit Warnmarke im Profil eines Menschen wird trotzdem als seine Leistung
+gelesen.
+
+Neue Regel (`BELEGT_GEFUEHRT_SQL` in `server/lib/fiaon-anruf-pruefung.ts`): Der
+Tab zeigt ausgehende Anrufe (Sitzung hat gewählt) und eingehende **mit erfasstem
+Ergebnis** (die Route lehnt fremde Anrufe ausdrücklich ab). Alles andere
+erscheint in **keinem** Profil und bleibt an der Kundenakte.
+
+| Mitarbeiter | im Tab | ausgeblendet |
+|---|---|---|
+| Lucas Böhnert | 766 | **18** |
+| Nikita Boychenko | 430 | **6** |
+| Hans-Jürgen Gerhold | 177 | **12** |
+| Diana, Florentine, Daniel, Justin, Rifka | unverändert | 0 |
+
+Die **Kennzahlen zählen dieselbe Menge** — dieselbe Bedingung, aus derselben
+Funktion. Vorher zählte die Kachel alles mit `agent_id`, die Liste zeigte
+weniger, und niemand konnte den Unterschied erklären. Neu dazu: die Kachel
+**„Verbunden"**, die Wahlversuche von Gesprächen trennt.
+
+### Teil 3 — Wer · wen · welche Nummer
+
+Jede Zeile trägt jetzt klein darunter:
+
+> geführt von **Rifka Rovcanin** · Kunde **Dagmar Flora Gummelt** · Nummer
+> +4917666675983 · betreut von Daniel Stripling
+
+Dazu Marken, die einen Widerspruch zeigen, **bevor** jemand die Aufnahme
+anhört: „nicht verbunden" (Wahlversuch), „Nummer gehört nicht zu diesem Kunden"
+(rot), „Zuordnung unklar" (statt eines Namens).
+
+### Nebenbefund: „Profil öffnen" führte ins Leere
+
+Der Browsertest kam nie beim Tab an. Ursache: Im Drei-Punkte-Menü der
+Team-Zentrale stand `<a href="/admin/agents/:id">` — **eine Adresse, die es nicht
+gibt.** Der Screenshot zeigte „Diese Seite existiert nicht". Die Akte ist eine
+Schublade IN der Seite; jetzt öffnet ein `onClick` sie. AGENTS.md, wörtlich: „Ein
+`<a href>` ist kein Knopf." Dieselbe Klasse wie der Produkt-Knopf, der vier Tage
+gekostet hat — und ohne den Browsertest wäre sie nicht aufgefallen.
+
+### Die Wand
+
+- `pruef-anruf-zuordnung.ts` (**19 ok**): Regel an einer Stelle, Liste und
+  Kennzahlen mit derselben Bedingung, Zählprobe je Mitarbeiter, Altbestand ohne
+  fremde Namen, Wähl-Route folgt der Nummer, Anzeige nennt Wähler/Kunde/Nummer,
+  kein toter Menü-Link.
+- **Täglich** im Tageslauf `anruf-zuordnung-pruefen`: Meldet, wenn eine Zeile
+  einen fremden Namen ohne Marke trägt. Er korrigiert **nicht** von selbst —
+  automatisches Umhängen wäre Raten.
+- `schau-anruf-zuordnung.ts` (**12 ok**): echte Route, Reiter gedrückt,
+  Screenshot angesehen.
+
+**Rot-Proben:** Zuständigkeits-Filter zurückgebaut → Prüfstand rot. Marke bei
+einem Anruf entfernt → „Altbestand" rot; der Bereinigungslauf setzt sie wieder.
+
+### Drei Fehler in meinen eigenen Prüfständen (alle vom Screenshot gefunden)
+
+1. `/admin/team/811` gibt es nicht — die Akte ist eine Schublade in
+   `/admin/team`.
+2. Die Zugangsschleuse ist ein **Ziffernblock**, kein Eingabefeld; `fill()` fand
+   nichts und die Prüfung lief gegen die Anmeldeseite.
+3. Meine eigene Schreib-Attrappe schluckte den POST der Schleuse — sie antwortete
+   `ok: true` **ohne** `Set-Cookie`, und die Anmeldung scheiterte lautlos.
+
+---
+
 ## 19.08.2026 (Nacht, Nachtrag) — Stufe A ruht nie, sie wird entschieden
 
 **Entscheidung des Betreibers** zu Teil 4 des Feedbacks: „Kunden mit GEMELDETER

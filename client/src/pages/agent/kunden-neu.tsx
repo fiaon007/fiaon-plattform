@@ -9,6 +9,7 @@ import { statusAusTierGrund, STUFEN, type Stufe } from "@shared/fiaon-kundenstat
 import { MarkeBrief, SendeMenue } from "@/components/SendeMenue";
 import { Gespraechsblatt } from "@/components/Gespraechsblatt";
 import { MarkeFunke, anrufStarten } from "@/components/Softphone";
+import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/kunden — DIE EINE ARBEITSLISTE
@@ -47,6 +48,10 @@ interface Kunde {
   telefon: string | null;
   telefonWaehlbar: string | null;
   telefonHinweis: string | null;
+  /** Nummer national geschrieben, Land fehlt → nicht anrufbar (31.08.2026). */
+  nummerOhneLand?: boolean;
+  nummerRoh?: string | null;
+  landVorschlag?: { land: string | null; grund: string };
   email: string | null;
   tier: number;
   tierGrund: string;
@@ -126,6 +131,15 @@ const FILTER: { key: string; label: string; zaehler: string }[] = [
   { key: "wartend", label: "Wartend (Kunde)", zaehler: "wartend" },
   { key: "bezahlt", label: "Bezahlt (Bestand)", zaehler: "bezahlt" },
   { key: "gesperrt", label: "Gesperrt", zaehler: "gesperrt" },
+  // ── NUMMER OHNE LAND (31.08.2026) ───────────────────────────────────────
+  // Seit dem 31.08.2026 wird eine national geschriebene Nummer ohne Land
+  // ABGELEHNT statt geraten (Befund: Kunde Maurizio Pampanini, CH — dreimal
+  // wurde +49797435749 gewählt statt +41797435749, also eine fremde deutsche
+  // Nummer). Diese Kunden sind damit nicht anrufbar.
+  //
+  // Ein Filter mit Zähler und nicht eine CSV-Datei: Die Datei wäre nach zwei
+  // Tagen vergessen. Der Zähler wird leer, und das sieht man.
+  { key: "nummer_ohne_land", label: "Nummer nicht wählbar", zaehler: "nummer_ohne_land" },
 ];
 
 /**
@@ -944,9 +958,20 @@ function KundenKarte({
     if (frisch.ok && frisch.json?.kunde) onNeu(frisch.json.kunde);
   };
 
-  const zahlungsdaten = async () => {
+  // ── ERST BESTÄTIGEN, DANN SENDEN (31.08.2026) ───────────────────────────
+  // Vorher ging die Mail auf den ersten Klick raus, und der Agent sah erst
+  // hinterher, was drinstand. Florentine hat den falschen Paketnamen nur
+  // gefunden, weil der Kunde sich gemeldet hat — fünf Mails später.
+  const [bestaetigen, setBestaetigen] = useState(false);
+
+  const zahlungsdaten = async (ref: string | null = null) => {
     setLaeuft("rechnung");
-    const r = await api(`/agent/crm/kunden/${k.personId}/rechnung`, { method: "POST", body: JSON.stringify({}) });
+    // Die Referenz, die in der Vorschau STAND, geht mit: Der Server prüft sie
+    // gegen seine Auflösung und lehnt ab, wenn sie zwischenzeitlich getauscht
+    // wurde. Ein Client, dem man glaubt, ist eine Wand aus Papier.
+    const r = await api(`/agent/crm/kunden/${k.personId}/rechnung`,
+      { method: "POST", body: JSON.stringify({ ref }) });
+    setBestaetigen(false);
     setLaeuft(null);
     if (r.ok) {
       zeige(r.json.warnung ? "info" : "erfolg", "Zahlungsdaten versandt",
@@ -1213,14 +1238,19 @@ function KundenKarte({
               <ZeichenTelefon size={16} /> Anrufen
             </a>
           ) : k.telefon ? (
-            <span className="inline-flex flex-col px-3 py-2 text-[12px] font-medium"
-                  style={{
-                    borderRadius: "var(--fi-radius-knopf)", background: "var(--fi-flaeche-warnung, #fffbeb)",
-                    color: "var(--fi-tier2)", border: "1px solid var(--fi-tier2)",
-                  }}>
-              <span className="fi-zahl font-bold">{k.telefon}</span>
-              <span className="text-[10.5px] leading-tight">Ländervorwahl fehlt</span>
-            </span>
+            /* ══════════════════════════════════════════════════════════════
+               DIE LÄNDERVORWAHL AN DER STELLE ERGÄNZEN (31.08.2026)
+
+               Hier stand nur „Ländervorwahl fehlt" — richtig und eine
+               Sackgasse. Der Agent sah, dass er nicht anrufen kann, und hatte
+               keinen Weg, es zu ändern; die Akte liegt zwei Klicks weiter.
+
+               Jetzt: Auswahl, Vorschau der Wahlform, ein Klick speichert. Der
+               VORSCHLAG kommt aus PLZ und Ort und ist als Vorschlag markiert —
+               automatisch setzen wäre genau der Fehler, um den es geht (bei
+               Maurizio Pampanini wurde +49 geraten, richtig war +41).
+               ══════════════════════════════════════════════════════════════ */
+            <NummerLandNachtragen k={k} onFertig={onNeu} />
           ) : (
             <span className="px-3 py-2.5 text-[12px] font-medium"
                   style={{
@@ -1285,7 +1315,7 @@ function KundenKarte({
 
             if (!sperre) {
               return (
-                <button type="button" onClick={() => void zahlungsdaten()} disabled={!!laeuft}
+                <button type="button" onClick={() => setBestaetigen(true)} disabled={!!laeuft}
                         title={`Zahlungsdaten und Rechnung an ${k.email}`}
                         className="fi-sendeknopf inline-flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold">
                   <ZeichenSenden size={15} />
@@ -1795,9 +1825,147 @@ function KundenKarte({
           </div>
         )}
       </div>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          DIE BESTÄTIGUNG VOR DEM SENDEN (31.08.2026)
+          Ein Bauteil, drei Aufrufstellen — Kundenkarte, Vertriebsansicht und
+          Vollpfleger-Fluss. Drei eigene Dialoge waeren drei Wortlaute, und der
+          vierte Aufrufort bekaeme keinen.
+          ══════════════════════════════════════════════════════════════════ */}
+      {bestaetigen && (
+        <RechnungBestaetigung
+          personId={k.personId}
+          kundeName={k.name}
+          laeuft={laeuft === "rechnung"}
+          onAbbrechen={() => setBestaetigen(false)}
+          onSenden={(ref) => void zahlungsdaten(ref)}
+        />
+      )}
     </div>
   );
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NUMMER OHNE LAND — INLINE ERGÄNZEN
+//
+// ── DER ANLASS (31.08.2026) ────────────────────────────────────────────────
+// Seit heute verweigert der Server eine national geschriebene Nummer ohne Land,
+// statt „+49" zu raten. Bewiesen war der Schaden im Anrufprotokoll: Kunde
+// Maurizio Pampanini (Winkel, CH) hat die Nummer 0797435749 — eine gültige
+// SCHWEIZER Mobilnummer. Gewählt wurde dreimal +49797435749, also Deutschland.
+//
+// Die Verweigerung ist richtig und macht 18 Kunden unanrufbar. An dieser Stelle
+// stand vorher nur „Ländervorwahl fehlt": eine wahre Aussage und eine
+// Sackgasse.
+//
+// ── WARUM DER VORSCHLAG EIN VORSCHLAG BLEIBT ──────────────────────────────
+// Aus PLZ und Ort lässt sich das Land meist ableiten — aber „meist" ist genau
+// die Qualität, die diesen Fehler erzeugt hat. Der Vorschlag ist vorausgewählt
+// und muss BESTÄTIGT werden. Wer ihn übernimmt, hat ihn gelesen.
+// ═══════════════════════════════════════════════════════════════════════════
+function NummerLandNachtragen({ k, onFertig }: { k: Kunde; onFertig: (neu: any) => void }) {
+  const vorschlag = k.landVorschlag?.land ?? "";
+  const [land, setLand] = useState(vorschlag);
+  const [laeuft, setLaeuft] = useState(false);
+  const [meldung, setMeldung] = useState<string | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+
+  // Die Vorschau rechnet dieselbe Regel wie der Server: fuehrende 0 weg,
+  // Vorwahl davor. Sie ist eine ANZEIGE — gespeichert wird, was der Server
+  // daraus macht, und seine Antwort nennt die Wahlform noch einmal.
+  const VORWAHL: Record<string, string> = { DE: "+49", AT: "+43", CH: "+41", IT: "+39", RO: "+40", SK: "+421" };
+  const roh = String(k.nummerRoh ?? k.telefon ?? "").replace(/[\s()/.\-]/g, "");
+  const wird = land && VORWAHL[land] && roh.startsWith("0")
+    ? `${VORWAHL[land]}${roh.replace(/^0+/, "")}`
+    : null;
+
+  const speichern = async () => {
+    setLaeuft(true);
+    setFehler(null);
+    const r = await fetch(`/api/fiaon/agent/crm/kunden/${k.personId}/nummer-land`, {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ land }),
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setLaeuft(false);
+    if (j?.ok) {
+      setMeldung(j.meldung);
+      // Die Karte neu holen: Danach ist der Anrufknopf da, und der Zaehler im
+      // Filter sinkt um eins. Ohne das bliebe die Sackgasse sichtbar, obwohl
+      // sie behoben ist.
+      const n = await fetch(`/api/fiaon/agent/crm/kunden/${k.personId}`,
+        { credentials: "include" }).then((x) => x.json()).catch(() => null);
+      if (n?.ok && n.kunde) onFertig(n.kunde);
+    } else setFehler(j?.error || "Das hat nicht geklappt.");
+  };
+
+  if (meldung) {
+    return (
+      <span className="inline-flex flex-col px-3 py-2 text-[12px]"
+            style={{
+              borderRadius: "var(--fi-radius-knopf)", background: "rgba(5,150,105,.08)",
+              color: "#047857", border: "1px solid rgba(5,150,105,.3)",
+            }}>
+        <span className="font-semibold">{meldung}</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex flex-col gap-1.5 px-3 py-2"
+          data-fi="nummer-ohne-land"
+          style={{
+            borderRadius: "var(--fi-radius-knopf)", background: "var(--fi-flaeche-warnung, #fffbeb)",
+            border: "1px solid var(--fi-tier2)", maxWidth: 340,
+          }}>
+      <span className="fi-zahl font-bold text-[12.5px]" style={{ color: "var(--fi-tier2)" }}>
+        {k.telefon}
+      </span>
+      <span className="text-[10.5px] leading-tight" style={{ color: "var(--fi-tier2)" }}>
+        Ländervorwahl fehlt — nicht anrufbar. Woher kommt der Kunde?
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <select value={land} onChange={(e) => { setLand(e.target.value); setFehler(null); }}
+                aria-label="Land des Kunden"
+                className="text-[12px] px-2 py-1 rounded-lg border border-slate-300 bg-white">
+          <option value="">— Land wählen —</option>
+          <option value="AT">Österreich</option>
+          <option value="DE">Deutschland</option>
+          <option value="CH">Schweiz</option>
+          <option value="IT">Italien</option>
+          <option value="RO">Rumänien</option>
+          <option value="SK">Slowakei</option>
+        </select>
+        <button type="button" onClick={() => void speichern()} disabled={!land || laeuft}
+                className="text-[12px] font-bold px-2.5 py-1 rounded-lg text-white disabled:opacity-50"
+                style={{ background: "#1d4ed8" }}>
+          {laeuft ? "…" : "Speichern"}
+        </button>
+      </span>
+      {/* Die Vorschau: Der Agent sieht, was gewaehlt werden WIRD, bevor er
+          speichert. Genau das fehlte beim Raten. */}
+      {wird && (
+        <span className="text-[11px] fi-zahl" style={{ color: "#1e3a8a" }}>
+          {k.nummerRoh ?? k.telefon} + {land} → <b>{wird}</b>
+        </span>
+      )}
+      {vorschlag && (
+        <span className="text-[10.5px] text-slate-500">
+          Vorschlag {vorschlag} ({k.landVorschlag?.grund}) — bitte prüfen, nicht raten.
+        </span>
+      )}
+      {!vorschlag && k.landVorschlag?.grund && (
+        <span className="text-[10.5px] text-slate-500">
+          Kein Vorschlag: {k.landVorschlag.grund}.
+        </span>
+      )}
+      {fehler && <span className="text-[11px]" style={{ color: "#b91c1c" }}>{fehler}</span>}
+    </span>
+  );
+}
+
 
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -27,13 +27,14 @@ import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { aufbereiten } from "../lib/fiaon-buchungen";
 import { requireAgent, type AgentRequest, getSettings } from "./fiaon-agent";
-import { waehlbareNummer } from "../lib/fiaon-telefon";
+import { waehlbareNummer, nichtWaehlbarSql } from "../lib/fiaon-telefon";
 import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
 import { ensureBetreuungSpalte } from "../lib/tier";
 import { stufeAusTier } from "@shared/fiaon-kundenstatus";
 import { ruhtSql } from "../lib/fiaon-nicht-erreicht";
 import { terminLink } from "../lib/fiaon-termine";
 import { wartetSql, warteZahlen } from "../lib/fiaon-warten";
+import { landVorschlag } from "./fiaon-agent-kunden";
 import { terminArtAusQuelle, terminArtRueckruf } from "../../shared/fiaon-termin-art";
 
 const router = Router();
@@ -171,6 +172,19 @@ export function karte(p: any) {
     telefon: tel.anzeige,
     telefonWaehlbar: tel.waehlbar,
     telefonHinweis: tel.hinweis,
+    // ── DIE NUMMER OHNE LAND (31.08.2026) ────────────────────────────────
+    // Damit die Karte die Inline-Korrektur anbieten kann, statt den Agenten mit
+    // „nicht anrufbar" allein zu lassen. `landVorschlag` ist ein VORSCHLAG und
+    // wird nie automatisch gesetzt — eine geratene Vorwahl ist genau der
+    // Fehler, um den es hier geht (Maurizio Pampanini, dreimal +49 statt +41).
+    nummerOhneLand: !tel.waehlbar
+      && String(p.primary_phone ?? "").trim().startsWith("0")
+      && !String(p.primary_phone ?? "").trim().startsWith("00"),
+    nummerRoh: p.primary_phone ?? null,
+    // Die Abfrage benennt die Felder `plz` und `ort` (nicht zip/city) und fuellt
+    // sie aus der Person ODER der jüngsten Bestellung. Wer hier p.zip liest,
+    // bekommt immer `undefined` — und damit nie einen Vorschlag.
+    landVorschlag: landVorschlag({ zip: p.plz, city: p.ort }),
     email: p.primary_email || p.app_email || null,
     tier: Number(p.priority_tier),
     tierGrund: p.tier_reason,
@@ -260,7 +274,11 @@ router.get("/agent/start", requireAgent, async (req: AgentRequest, res: Response
         COUNT(*) FILTER (WHERE priority_tier = 0)::int AS bezahlt,
         COUNT(*) FILTER (WHERE promised_payment_date = ${sqlPool.unsafe(HEUTE)} AND NOT is_blocked)::int AS zusage_heute,
         COUNT(*) FILTER (WHERE promised_payment_date < ${sqlPool.unsafe(HEUTE)} AND priority_tier BETWEEN 1 AND 2
-                           AND NOT is_blocked)::int AS zusage_ueberfaellig
+                           AND NOT is_blocked)::int AS zusage_ueberfaellig,
+        -- Nummer ohne Land: nicht anrufbar, bis jemand die Vorwahl ergaenzt.
+        -- Der Zaehler macht die Abarbeitung sichtbar — eine Datei tut das nicht.
+        COUNT(*) FILTER (WHERE ${sqlPool.unsafe(nichtWaehlbarSql())}
+                           AND NOT is_blocked)::int AS nummer_ohne_land
       FROM fiaon_persons
       WHERE assigned_agent_id = ${me} AND merged_into_person_id IS NULL
     `,
@@ -606,6 +624,27 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
           WHERE a6.person_id = p.id AND cl.outcome = 'rueckruf_termin'
             AND cl.done_at IS NULL AND cl.voided_at IS NULL)`);
       } else if (filter === "nicht_erreicht") wo.push("p.unreachable_count > 0");
+      // ══════════════════════════════════════════════════════════════════════
+      // NUMMER OHNE LAND — EINE ARBEITSLISTE, KEINE DATEI (31.08.2026)
+      //
+      // ── DER BEFUND ───────────────────────────────────────────────────────
+      // Seit dem 31.08.2026 verweigert `wahlPruefen` eine national geschriebene
+      // Nummer (fuehrende 0) ohne Land in der Akte, statt „+49" zu raten. Das
+      // ist richtig: Eine geratene Vorwahl ergibt eine GUELTIGE Nummer in einem
+      // anderen Land — dann klingelt es bei einem Fremden. Bewiesen an Kunde
+      // Maurizio Pampanini (CH), bei dem dreimal +49797435749 gewaehlt wurde.
+      //
+      // Aber die betroffenen Kunden sind damit nicht anrufbar. GEMESSEN: 44
+      // nationale Nummern, 18 davon in einem anderen Land als Deutschland.
+      // Eine CSV-Datei haette niemand abgearbeitet — sie waere nach zwei Tagen
+      // vergessen. Ein FILTER mit Zaehler wird leer, und das sieht man.
+      //
+      // Die Bedingung ist dieselbe wie in `wahlPruefen`: fuehrende 0 (aber nicht
+      // 00, das ist die alte Auslandsschreibweise) und kein Land in der Akte,
+      // aus dem sich eine Vorwahl ableiten liesse.
+      else if (filter === "nummer_ohne_land") {
+        wo.push(nichtWaehlbarSql("p"));
+      }
       else if (filter === "ruhend") wo.push(ruhtSql("p"));
       // ── WARTET AUF DEN KUNDEN ────────────────────────────────────────────
       // GEMESSEN: 185 verschickte Nummern-Anfragen ohne Antwort, 120 davon
@@ -744,6 +783,13 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
           AND ist_test_am IS NULL)::int AS ueberfaellig,
         COUNT(*) FILTER (WHERE unreachable_count > 0 AND NOT is_blocked AND priority_tier BETWEEN 1 AND 3
           AND ist_test_am IS NULL)::int AS nicht_erreicht,
+        -- ── NUMMER OHNE LAND: NICHT ANRUFBAR ───────────────────────────────
+        -- Seit dem 31.08.2026 wird eine national geschriebene Nummer ohne Land
+        -- ABGELEHNT statt geraten (Befund Maurizio Pampanini: dreimal
+        -- +49797435749 statt +41797435749). Diese Kunden sind damit nicht
+        -- anrufbar — der Zaehler macht die Abarbeitung sichtbar.
+        COUNT(*) FILTER (WHERE ${sqlPool.unsafe(nichtWaehlbarSql())}
+          AND NOT is_blocked AND ist_test_am IS NULL)::int AS nummer_ohne_land,
         -- ── WER WARTET AUF SEINEN TERMIN? ──────────────────────────────────
         -- Die Zahl beantwortet die Frage, die entsteht, sobald Karten
         -- verschwinden: „Wo sind die Leute hin, die ich nicht erreicht habe?"
@@ -804,6 +850,7 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
         // Wartet auf den KUNDEN (Nummer oder Termin) — eigener Filter.
         wartend: z.wartend,
         bezahlt: z.bezahlt, gesperrt: z.gesperrt, ruhend: z.ruhend,
+        nummer_ohne_land: z.nummer_ohne_land,
       },
       // Der Vorrat je Stufe für den Kopf der Liste.
       vorrat: { A: Number(z.stufe_a || 0), B: Number(z.stufe_b || 0), C: Number(z.stufe_c || 0) },

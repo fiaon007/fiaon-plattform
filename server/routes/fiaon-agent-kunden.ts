@@ -837,23 +837,58 @@ export async function zahlungsdatenSenden(
   personId: number,
   agentId: number,
   agentName: string,
-  opts: { pruefeBesitz?: boolean } = {},
+  opts: { pruefeBesitz?: boolean; ref?: string | null } = {},
 ): Promise<{ ok: boolean; status?: number; error?: string; empfaenger?: string; warnung?: string | null; anzahl?: number }> {
   if (opts.pruefeBesitz) {
     const p = await meinePerson(personId, agentId);
     if (!p) return { ok: false, status: 404, error: "Kunde nicht gefunden" };
   }
 
-  // Die Bestellung, um die es geht: die jüngste noch offene.
-  let [bestellung] = await sqlPool`
-    SELECT ref, payment_reference, amount_due, first_name, last_name, contact_name,
-           email, contact_email, billing_email, pack_name, payment_status
-    FROM fiaon_applications
-    WHERE person_id = ${personId} AND merged_into IS NULL
-      AND payment_status IN ('pending_payment', 'claimed_paid', 'expired')
-    ORDER BY created_at DESC
-    LIMIT 1
-  `;
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIE BESTELLUNG KOMMT AUS DER EINEN AUFLÖSUNG (31.08.2026)
+  //
+  // ── HIER STAND DER FEHLER ─────────────────────────────────────────────────
+  //     WHERE person_id = … AND merged_into IS NULL
+  //       AND payment_status IN ('pending_payment','claimed_paid','expired')
+  //     ORDER BY created_at DESC LIMIT 1
+  //
+  // Ohne `archived_at IS NULL`. Die Abfrage dreißig Zeilen weiter unten hatte
+  // den Filter, diese nicht. Wer ein Paket „rausnimmt", archiviert die
+  // Bestellung — sie blieb in der Auswahl, und weil sie SPÄTER angelegt wurde
+  // als die gültige, gewann sie das `ORDER BY created_at DESC`.
+  //
+  // Florentine Lombardi am 19.08.2026: „Er wollte ein Pro-Paket. Das High End
+  // habe ich rausgenommen. Wenn ich auf Rechnung senden drücke, bekommt er aber
+  // eine E-Mail für das High-End-Paket." Im Zustellprotokoll stehen fünf solche
+  // Mails an Josef Rohrmoser (High End, 1,00 €) — gültig war Pro.
+  //
+  // Das war kein Anzeigefehler: Der Kunde überweist den falschen Betrag mit dem
+  // falschen Verwendungszweck, der Kontoabgleich findet ihn nicht, und die
+  // Abo-Rate entsteht auf dem falschen Preis.
+  //
+  // Die Auflösung steht jetzt in server/lib/fiaon-massgebliche-bestellung.ts und
+  // wird von allen Wegen benutzt. Wer hier wieder eine eigene Abfrage schreibt,
+  // baut den Fehler neu.
+  const { massgeblicheBestellung, bestellungPruefen } =
+    await import("../lib/fiaon-massgebliche-bestellung");
+
+  // Schickt der Client eine Referenz mit, wird sie GEPRÜFT und nicht geglaubt:
+  // Die Karte hält ihren Datenstand, bis sie neu geladen wird — nach einem
+  // Pakettausch kann die mitgeschickte Referenz auf das gerade archivierte
+  // Paket zeigen.
+  if (opts.ref) {
+    const geprueft = await bestellungPruefen(personId, opts.ref);
+    if (!geprueft.ok) return { ok: false, status: 409, error: geprueft.fehler };
+  }
+
+  const massgeblich = await massgeblicheBestellung(personId);
+  let [bestellung] = massgeblich
+    ? (await sqlPool`
+        SELECT ref, payment_reference, amount_due, first_name, last_name, contact_name,
+               email, contact_email, billing_email, pack_name, payment_status
+        FROM fiaon_applications WHERE ref = ${massgeblich.ref}
+      `) as any[]
+    : [undefined];
 
   // ══════════════════════════════════════════════════════════════════════════
   // NOCH KEINE RECHNUNG? DANN WIRD SIE JETZT GESTELLT.
@@ -975,11 +1010,19 @@ export async function nummerKorrekturSenden(
     const p = await meinePerson(personId, agentId);
     if (!p) return { ok: false, status: 404, error: "Kunde nicht gefunden" };
   }
+  // ── AUCH HIER FEHLTE `archived_at IS NULL` (31.08.2026) ─────────────────
+  // Dieselbe Lücke wie bei der Zahlungsdaten-Mail, nur harmloser: Eine Bitte um
+  // die Telefonnummer, die an einer archivierten Bestellung hängt, landet im
+  // Verlauf der falschen Zeile. Sie ist trotzdem falsch — und zwei Stellen mit
+  // demselben Fehler heißen, dass die Auflösung fehlte, nicht der Filter.
+  //
+  // Der Empfänger wird bewusst weiter aus der BESTELLUNG gelesen (nicht aus der
+  // Person): Die Mail gehört zu diesem Vorgang.
   const [b] = await sqlPool`
     SELECT ref, COALESCE(NULLIF(email,''), NULLIF(contact_email,''), NULLIF(billing_email,'')) AS email,
            COALESCE(first_name, contact_name) AS first_name
     FROM fiaon_applications
-    WHERE person_id = ${personId} AND merged_into IS NULL
+    WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
     ORDER BY created_at DESC LIMIT 1
   `;
   if (!b?.ref) return { ok: false, status: 400, error: "Keine Bestellung zu diesem Kunden" };
@@ -1017,10 +1060,225 @@ router.post("/agent/crm/kunden/:personId/nummer-korrektur", requireAgent, async 
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE LÄNDERVORWAHL NACHTRAGEN — INLINE, MIT VORSCHLAG
+//
+// ── DER ANLASS (31.08.2026) ────────────────────────────────────────────────
+// Seit heute verweigert `wahlPruefen` eine national geschriebene Nummer ohne
+// Land, statt „+49" zu raten. Bewiesen war der Schaden an Kunde Maurizio
+// Pampanini (country CH): Dreimal wurde +49797435749 gewählt statt
+// +41797435749 — eine deutsche Nummer, die ihm nicht gehört.
+//
+// Die Verweigerung ist richtig und macht 18 Kunden unanrufbar. Eine CSV-Datei
+// hätte das nicht gelöst: Sie wäre nach zwei Tagen vergessen. Deshalb ein
+// Filter mit Zähler in der Arbeitsliste und diese Route für die Korrektur an
+// der Stelle, an der der Agent den Kunden ohnehin sieht.
+//
+// ── WARUM NUR DAS LAND UND NICHT DIE NUMMER ───────────────────────────────
+// Die Rohnummer ist RICHTIG — sie ist nur unvollständig notiert. Wer sie
+// umschreibt, kann sich vertippen und hat dann eine falsche Nummer, die
+// aussieht wie eine gepflegte. Das Land ist die eine fehlende Angabe, und es
+// ist eine Auswahl aus vier Möglichkeiten statt einer freien Eingabe.
+//
+// ── DER VORSCHLAG IST EIN VORSCHLAG ───────────────────────────────────────
+// Aus PLZ und Ort lässt sich das Land oft ableiten. Automatisch setzen wäre
+// falsch: Eine geratene Vorwahl ist genau der Fehler, um den es hier geht. Der
+// Vorschlag wird ANGEZEIGT und muss bestätigt werden.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Ein Vorschlag für das Land — aus Postleitzahl und Ort.
+ *
+ * Bewusst zurückhaltend: Nur wo das Muster eindeutig ist. Eine vierstellige PLZ
+ * gibt es in Österreich UND der Schweiz — daraus allein folgt nichts. Erst der
+ * Ort entscheidet, und wenn der nichts sagt, gibt es keinen Vorschlag.
+ */
+export function landVorschlag(p: {
+  zip?: unknown; city?: unknown; street?: unknown;
+}): { land: string | null; grund: string } {
+  const zip = String(p.zip ?? "").trim();
+  const ort = String(p.city ?? "").trim().toLowerCase();
+
+  // Fünfstellig ist in DACH nur Deutschland.
+  if (/^\d{5}$/.test(zip)) return { land: "DE", grund: `PLZ ${zip} ist fünfstellig` };
+
+  // Bekannte Städte. Die Liste ist kurz und ehrlich unvollständig — sie deckt
+  // ab, was im Bestand vorkommt.
+  const AT = ["wien", "graz", "linz", "salzburg", "innsbruck", "klagenfurt", "villach",
+    "wels", "sankt pölten", "st. pölten", "dornbirn", "wiener neustadt", "steyr",
+    "feldkirch", "bregenz", "leonding", "klosterneuburg", "baden", "wolfsberg",
+    "krems", "traun", "amstetten", "kapfenberg", "lustenau", "hallein", "mödling",
+    "vösendorf", "langenzersdorf", "guntersdorf", "getzersdorf", "koblach",
+    "zwischenwasser", "piesendorf", "bergwerk"];
+  const CH = ["zürich", "zurich", "genf", "basel", "bern", "lausanne", "winterthur",
+    "luzern", "st. gallen", "sankt gallen", "lugano", "biel", "thun", "köniz",
+    "schaffhausen", "chur", "fribourg", "neuchâtel", "uster", "sion", "winkel",
+    "staufen", "schübelbach", "wetzikon", "zug", "baar", "kloten"];
+  if (AT.some((o) => ort === o || ort.includes(o))) return { land: "AT", grund: `Ort ${p.city}` };
+  if (CH.some((o) => ort === o || ort.includes(o))) return { land: "CH", grund: `Ort ${p.city}` };
+
+  // Vierstellig ohne erkennbaren Ort: AT oder CH, nicht entscheidbar.
+  if (/^\d{4}$/.test(zip)) {
+    return { land: null, grund: `PLZ ${zip} ist vierstellig — das gibt es in AT und CH` };
+  }
+  return { land: null, grund: "aus Adresse nicht ableitbar" };
+}
+
+router.post("/agent/crm/kunden/:personId/nummer-land", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const p = await meinePerson(personId, req.agent!.id);
+    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
+    const land = String(req.body?.land ?? "").trim().toUpperCase();
+    const { vorwahlFuerLand, nummerNormalisieren } = await import("../lib/fiaon-softphone");
+    const vorwahl = vorwahlFuerLand(land);
+    if (!vorwahl) {
+      return res.status(400).json({
+        ok: false,
+        error: `„${land}“ ist kein bekanntes Länderkürzel. Erlaubt sind DE, AT, CH und die `
+          + "übrigen Kürzel aus der Tafel in fiaon-softphone.ts.",
+      });
+    }
+
+    const [vorher] = (await sqlPool`
+      SELECT primary_phone, country FROM fiaon_persons WHERE id = ${personId}
+    `) as any[];
+    const roh = String(vorher?.primary_phone ?? "");
+    if (!roh) {
+      return res.status(400).json({ ok: false, error: "Dieser Kunde hat keine Telefonnummer." });
+    }
+
+    // Was WIRD daraus? Der Agent hat es in der Vorschau gesehen; der Server
+    // rechnet es erneut, damit die Antwort nicht vom Client kommt.
+    const wird = nummerNormalisieren(roh, vorwahl);
+    if (!wird) {
+      return res.status(400).json({
+        ok: false,
+        error: `Aus „${roh}“ und ${land} entsteht keine gültige Rufnummer. `
+          + "Die Nummer selbst ist unvollständig — bitte in der Akte prüfen.",
+      });
+    }
+
+    await sqlPool`
+      UPDATE fiaon_persons SET country = ${land}, updated_at = NOW() WHERE id = ${personId}
+    `;
+    // Alt UND neu ins Protokoll: Eine Änderung ohne den alten Wert ist nicht
+    // nachvollziehbar, sondern eine Behauptung.
+    await sqlPool`
+      INSERT INTO fiaon_agent_events (agent_id, type, meta, actor, reason)
+      VALUES (${req.agent!.id}, 'nummer_land_ergaenzt',
+              ${JSON.stringify({
+                person_id: personId, alt: vorher?.country ?? null, neu: land,
+                rohnummer: roh, waehlbar: wird,
+              })},
+              ${req.agent!.name},
+              ${`Ländervorwahl ergänzt: ${roh} + ${land} → ${wird}`})
+    `.catch(() => {});
+
+    res.json({
+      ok: true, land, waehlbar: wird,
+      meldung: `Gespeichert. ${roh} wird jetzt als ${wird} gewählt.`,
+    });
+  } catch (err) {
+    console.error("[AGENT] nummer-land:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAS BEKOMMT DER KUNDE? — DIE VORSCHAU VOR DEM SENDEN
+//
+// ── DER EIGENTLICHE SCHUTZ (31.08.2026) ────────────────────────────────────
+// Die Auflösung ist jetzt richtig. Das genügt nicht: Der Agent hat auf „senden"
+// gedrückt und WUSSTE NICHT, was rausgeht. Florentine hat den Fehler nur
+// gefunden, weil der Kunde sich gemeldet hat.
+//
+// Diese Route sagt vorher, was der Kunde bekommt — Paket, Betrag,
+// Verwendungszweck, Empfängeradresse. Und sie nennt es AUSDRÜCKLICH, wenn es
+// mehrere offene Bestellungen gibt: Eine stille Auswahl unter mehreren ist
+// genau das, was hier schiefgegangen ist. Gemessen: 57 Personen haben mehr als
+// eine offene Bestellung, eine davon zehn.
+//
+// Sie SENDET NICHTS. Ein Vorschau-Aufruf, der schon etwas auslöst, wäre eine
+// Falle — und der zweite Klick wäre eine Lüge.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/agent/crm/kunden/:personId/rechnung-vorschau", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const p = await meinePerson(personId, req.agent!.id);
+    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
+    const { massgeblicheBestellung } = await import("../lib/fiaon-massgebliche-bestellung");
+    const b = await massgeblicheBestellung(personId);
+    if (!b) {
+      // Kein Grund zur Panik und kein stilles Weiter: Der Sende-Weg legt in
+      // diesem Fall eine erste Rechnung an (siehe `zahlungsdatenSenden`). Das
+      // gehört in die Vorschau, sonst steht der Agent vor einem leeren Fenster.
+      const [reif] = (await sqlPool`
+        SELECT a.ref, a.pack_name, a.status,
+               COALESCE(NULLIF(a.email, ''), NULLIF(a.contact_email, ''),
+                        NULLIF(a.billing_email, '')) AS empfaenger
+        FROM fiaon_applications a
+        WHERE a.person_id = ${personId} AND a.merged_into IS NULL AND a.archived_at IS NULL
+          AND a.payment_status = 'pending'
+        ORDER BY a.created_at DESC LIMIT 1
+      `) as any[];
+      return res.json({
+        ok: true,
+        moeglich: !!reif?.empfaenger,
+        ersteRechnung: !!reif,
+        paket: reif?.pack_name ?? null,
+        betragCents: null,
+        verwendungszweck: null,
+        empfaenger: reif?.empfaenger ?? null,
+        weitereOffen: 0,
+        hinweis: reif?.empfaenger
+          ? "Für diesen Kunden wird jetzt die ERSTE Rechnung gestellt: Betrag aus dem "
+            + "Paket, sieben Tage Zahlungsfrist. Danach geht sie sofort raus."
+          : reif
+            ? "Für diesen Kunden ist keine E-Mail-Adresse hinterlegt."
+            : "Dieser Kunde hat keine offene Bestellung.",
+      });
+    }
+
+    const betrag = b.betragCents != null
+      ? `${(b.betragCents / 100).toFixed(2).replace(".", ",")} €` : null;
+    res.json({
+      ok: true,
+      moeglich: !!b.empfaenger,
+      ersteRechnung: false,
+      ref: b.ref,
+      paket: b.paket,
+      betragCents: b.betragCents,
+      betragText: betrag,
+      verwendungszweck: b.verwendungszweck ?? b.ref,
+      empfaenger: b.empfaenger,
+      weitereOffen: b.weitereOffen,
+      // Der Satz, den der Agent liest. Er steht HIER und nicht in drei
+      // Oberflächen: Kundenkarte, Akte und Vollpfleger-Fluss zeigen dieselbe
+      // Vorschau, also darf es auch nur einen Wortlaut geben.
+      hinweis: !b.empfaenger
+        ? "Für diesen Kunden ist keine E-Mail-Adresse hinterlegt — die Mail kann nicht raus."
+        : b.weitereOffen > 0
+          ? `Achtung: ${b.weitereOffen + 1} offene Buchungen. Gesendet wird die neueste: `
+            + `${b.paket ?? "ohne Paketnamen"}${betrag ? `, ${betrag}` : ""}.`
+          : null,
+    });
+  } catch (err) {
+    console.error("[AGENT] rechnung-vorschau:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.post("/agent/crm/kunden/:personId/rechnung", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const personId = Number(req.params.personId);
-    const erg = await zahlungsdatenSenden(personId, req.agent!.id, req.agent!.name, { pruefeBesitz: true });
+    // Die Referenz, die der Client gesehen hat — der Server prüft sie gegen die
+    // Auflösung und lehnt ab, wenn sie auf eine tote Bestellung zeigt.
+    const erg = await zahlungsdatenSenden(personId, req.agent!.id, req.agent!.name, {
+      pruefeBesitz: true, ref: req.body?.ref ?? null,
+    });
     if (!erg.ok) return res.status(erg.status || 400).json({ ok: false, error: erg.error });
     const neu = await meinePerson(personId, req.agent!.id);
     res.json({

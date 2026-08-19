@@ -113,6 +113,53 @@ export function geraetSpeichern(agentId: number | null | undefined, deviceId: st
   } catch { /* Privater Modus: dann gilt eben der Standard. */ }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE SPRECHPROBE BEIM ERSTEN MAL — EINMALIG ERZWUNGEN
+//
+// ── WARUM ERZWUNGEN ───────────────────────────────────────────────────────
+// Die Sperre bei fehlendem Pegel greift erst, wenn das Mikrofon NICHTS liefert.
+// Es gibt einen zweiten Fall, den kein Pegel zeigt: Das Mikrofon liefert, aber
+// der Ton geht in ein anderes Gerät als in die Telefonie — oder es ist so leise,
+// dass am anderen Ende nichts ankommt. Beides sieht am Balken gesund aus.
+//
+// Nur das eigene Ohr entscheidet das. Deshalb muss die Probe EINMAL durchlaufen
+// werden, bevor der erste Anruf möglich ist.
+//
+// ── UND WARUM NUR EINMAL ──────────────────────────────────────────────────
+// Eine Pflicht bei jedem Öffnen wäre eine Klickstrecke, die man wegdrückt, ohne
+// zuzuhören — dann prüft sie nichts mehr und nervt nur. Einmal je Mitarbeiter
+// (und erneut bei einem Gerätewechsel, denn dann ist die alte Probe wertlos).
+// ═══════════════════════════════════════════════════════════════════════════
+
+const probeSchluessel = (agentId: number | null | undefined) =>
+  `fiaon.sprechprobe.${agentId ?? "unbekannt"}`;
+
+/**
+ * Wurde die Sprechprobe für dieses Gerät schon bestanden?
+ *
+ * Gespeichert wird die GERÄTEKENNUNG, nicht ein Ja/Nein: Wer das Headset
+ * wechselt, hat eine unbestätigte Kette — und genau dann ist die Probe wieder
+ * nötig. Ein bloßes Ja würde nach dem Wechsel weiter gelten.
+ */
+export function probeBestanden(agentId: number | null | undefined, deviceId: string | null): boolean {
+  try {
+    const gemerkt = localStorage.getItem(probeSchluessel(agentId));
+    if (!gemerkt) return false;
+    return gemerkt === (deviceId || "standard");
+  } catch {
+    // Ohne Speicher keine Pflicht: Sonst wäre das Telefon im privaten Modus
+    // dauerhaft gesperrt, und eine Sperre, die man nicht auflösen kann, ist
+    // schlimmer als eine fehlende Prüfung.
+    return true;
+  }
+}
+
+export function probeMerken(agentId: number | null | undefined, deviceId: string | null): void {
+  try {
+    localStorage.setItem(probeSchluessel(agentId), deviceId || "standard");
+  } catch { /* siehe oben */ }
+}
+
 /**
  * Die Auflagen für `getUserMedia` — mit dem gewählten Gerät, wenn es eines gibt.
  *

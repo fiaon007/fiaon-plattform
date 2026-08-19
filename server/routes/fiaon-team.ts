@@ -66,9 +66,65 @@ router.get("/admin/agents", async (_req, res) => {
       WHERE ${sqlPool.unsafe(kontenGrenze)}
       ORDER BY a.created_at ASC
     `;
+    // ══════════════════════════════════════════════════════════════════════
+    // DER TELEFONIE-NACHWEIS JE MITARBEITER (31.08.2026)
+    //
+    // ── WOZU ──────────────────────────────────────────────────────────────
+    // Gemeldet war „von 158 Anrufen kamen 2 durch". Die 7-Tage-Messung ergab
+    // 55 bis 64 Prozent Annahmequote — die Meldung bestätigte sich NICHT. Sie
+    // ergab aber etwas anderes: Bei Nikita liegen 49 von 123 angenommenen
+    // Gesprächen unter fünf Sekunden (40 %), bei Daniel 14 von 24 (58 %), bei
+    // Lucas 17 von 357 (5 %).
+    //
+    // Zwei Erklärungen passen auf dieselbe Zahl: ein stummes Mikrofon oder ein
+    // Gesprächseinstieg, bei dem Menschen auflegen. Die Stumm-Marke
+    // (`transkript_grund LIKE '%stumm_verdacht%'`) läuft seit dem 31.08.2026 —
+    // in drei Tagen ist die Frage entschieden.
+    //
+    // ── WARUM HIER UND NICHT IN EINEM SKRIPT ──────────────────────────────
+    // Ein Skript, das ein Mensch aufrufen muss, wird beim zweiten Mal
+    // vergessen. Diese Zeile steht dort, wo die Leitung ihre Leute ohnehin
+    // ansieht.
+    const telefonie = (await sqlPool`
+      SELECT c.agent_id,
+             COUNT(*)::int AS versuche,
+             COUNT(*) FILTER (WHERE c.status = 'beendet')::int AS angenommen,
+             COUNT(*) FILTER (WHERE c.status = 'beendet'
+                                AND COALESCE(c.dauer_sek, 0) BETWEEN 1 AND 4)::int AS unter_5s,
+             COUNT(*) FILTER (WHERE c.transkript_grund LIKE '%stumm_verdacht%')::int AS stumm,
+             ROUND(AVG(c.dauer_sek) FILTER (WHERE c.status = 'beendet'
+                                              AND c.dauer_sek > 0))::int AS schnitt_sek
+      FROM fiaon_calls c
+      WHERE c.beginn > NOW() - INTERVAL '7 days' AND c.richtung = 'raus'
+      GROUP BY c.agent_id
+    `) as any[];
+    const telefonieJeAgent: Record<string, any> = {};
+    for (const t of telefonie) {
+      const versuche = Number(t.versuche);
+      const angenommen = Number(t.angenommen);
+      telefonieJeAgent[String(t.agent_id)] = {
+        versuche,
+        angenommen,
+        annahmeQuote: versuche > 0 ? Math.round((angenommen / versuche) * 100) : 0,
+        unter5s: Number(t.unter_5s),
+        // Die Quote der Kurzgespräche bezieht sich auf die ANGENOMMENEN, nicht
+        // auf die Versuche: Ein nicht angenommener Anruf kann nicht kurz sein.
+        unter5sQuote: angenommen > 0 ? Math.round((Number(t.unter_5s) / angenommen) * 100) : 0,
+        stumm: Number(t.stumm),
+        schnittSek: Number(t.schnitt_sek ?? 0),
+      };
+    }
+
     res.json({
       ok: true,
       data: agents,
+      telefonie: telefonieJeAgent,
+      // Ohne diesen Satz liest jemand „0 stumm" als „alles gut", obwohl es
+      // „wir zählen erst seit heute" heißt.
+      telefonieHinweis: "Die Stumm-Marke wird seit dem 31.08.2026 geschrieben. Eine 0 "
+        + "heißt hier „noch nicht gemessen“, nicht „kein stummer Anruf“. "
+        + "Kurzgespräche unter 5 s sind ein Hinweis, kein Beweis: Wer abhebt und "
+        + "sofort auflegt, sieht in den Daten genauso aus wie einer, der nichts hört.",
       // Damit die Zentrale einen Filter mit Zähler zeichnen kann.
       testkonten: await testkontenZaehlen(),
       nurTest,

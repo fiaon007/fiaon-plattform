@@ -1,6 +1,6 @@
 # FIAON — Gesamtstand
 
-Die eine Seite, auf der steht, **was existiert und wo**. Stand: 28.08.2026.
+Die eine Seite, auf der steht, **was existiert und wo**. Stand: 31.08.2026.
 
 Wer wissen will, *warum* etwas so gebaut ist, liest die `CHANGELOG.md`. Wer
 wissen will, *wo* etwas liegt, liest hier.
@@ -11,6 +11,12 @@ wissen will, *wo* etwas liegt, liest hier.
 
 | Was | Wo | Warum es wartet |
 |---|---|---|
+| **Eine Nummer ergänzen** (Person 11413, `6609360523`) | Kundenliste → Filter „Nummer nicht wählbar" | Kein Land und keine führende Null — nicht entscheidbar, wohin sie gehört. Inline im Filter erledigbar. Die zuvor genannten 18 brauchen NICHTS: Ihr Land steht in der Akte, sie werden seit 31.08. richtig gewählt (vorher `+49` geraten). |
+| **8 Kunden über falsche Rechnungsmails informieren?** | `reports/falsches-paket.csv` | In 14 Tagen gingen 8 Zahlungsdaten-Mails auf eine ARCHIVIERTE Bestellung — fünf davon an Josef Rohrmoser (High End 1,00 € statt Pro). Ursache behoben. Ob eine Korrekturmail rausgeht, entscheidet der Betreiber; der Lauf hat NICHTS versandt. |
+| **`BETREIBER_MAIL` setzen** | Umgebungsvariablen | Ohne sie geht keine Warnmail raus, wenn ein Tageslauf ausbleibt. Der Protokolleintrag entsteht trotzdem, aber niemand wird geweckt. |
+| **Render-Uptime prüfen** | Render → Dienst | Der Folgelauf stand vom 03. bis 18.08. still, weil der Dienst in der 6-Uhr-Stunde nicht lief. Die Läufe holen sich seit 30.08. selbst ein, brauchen aber einen laufenden Prozess. Bei Spin-down: externer Cron-Ping oder Plan ohne Spin-down. |
+| **Team die Sprechprobe machen lassen** | Telefon → „Sprechprobe" | Seit 31.08. einmalig erzwungen. Bei Nikita liegen 40 % der angenommenen Gespräche unter 5 Sekunden, bei Daniel 58 % — die Probe zeigt in fünf Sekunden, ob es am Mikrofon liegt. |
+| **`{{params.termin_art}}` in Brevo** | Vorlagen `termin_bestaetigung`, `termin_erinnerung` | Das Feld fährt seit 30.08. mit (Onboarding / Vertrieb / Rückruf) und wird bis dahin übertragen, aber nicht angezeigt. |
 | **Twilio einrichten** (6 Werte) | Einstellungen → Telefon | Ohne sie zeigt das Softphone einen Einrichtungs-Zustand. Alles andere ist gebaut. |
 | **OpenAI-Schlüssel erneuern** | `OPENAI_API_KEY` | Der hinterlegte Schlüssel antwortet mit HTTP 401. Gesprächsblatt und Anruf-Zusammenfassung fallen deshalb auf Rohdaten zurück. |
 | **Brevo-IP-Sperre ABSCHALTEN** | app.brevo.com/security/authorised_ips | Der echte Grund der fehlgeschlagenen Mails: `74.220.50.221` steht nicht auf der Liste. Diese Plattform bekommt bei jedem Neustart eine andere Adresse — eine Freigabeliste ist hier ein Fass ohne Boden. Diagnose → Ausgangsadressen zeigt alle gesehenen. |
@@ -23,6 +29,34 @@ wissen will, *wo* etwas liegt, liest hier.
 | **336 Einladungen zum Startgespräch** | Verwaltung → Termin-Zentrale → Karte unten | Bezahlte Kunden ohne Termin, die ältesten seit 04.07.2026, nie eingeladen. Gestaffelt über „alle einladen", höchstens 50 am Tag. |
 | **Gespräch mit Nikita und Lucas** | Verwaltung → Termin-Zentrale → „Je Mitarbeiter" | Bei 50 vergangenen Terminen kein einziger als erledigt markiert (No-Show 64 % und 76 %), während zwei Kollegen 67 % und 78 % abschließen. Das klärt ein Gespräch, kein Programm. |
 | **Academy ansehen und ans Team geben** | Verwaltung → FIAON Academy | Drei Reisen (13/16/10 Kapitel). Das Team sieht seine eigene unter „Mehr → Academy". Wer noch nicht angefangen hat, steht in der Team-Zentrale. |
+
+---
+
+## Was am 30./31.08.2026 dazugekommen ist
+
+| Was | Wo | Prüfstand |
+|---|---|---|
+| **Eine Auflösung „welche Bestellung gilt?"** | `lib/fiaon-massgebliche-bestellung.ts` | `pruef-massgebliche-bestellung.ts` (37) |
+| Bestätigung vor dem Senden (ein Bauteil, drei Orte) | `components/agent/RechnungBestaetigung.tsx` | ebd. + Vorschau-Route |
+| Filter „Nummer nicht wählbar" mit Inline-Korrektur | `pages/agent/kunden-neu.tsx`, `routes/fiaon-agent-kunden.ts` | `pruef-nummer-nachtrag.ts` (49) |
+| **Eine** Tafel der Landesvorwahlen (war zweimal da) | `lib/fiaon-telefon.ts` → `LAND_VORWAHL` | ebd., Gruppe 6 |
+| Telefon: Gerätewahl, Sprechprobe, Sperre bei stummem Mikro | `lib/fiaon-mikrofon.ts`, `components/Softphone.tsx` | `pruef-telefon-zustand.ts` (54), `pruef-telefon-bild.ts` (20) |
+| Vier Anrufzustände, Uhr erst beim Abheben | `components/Softphone.tsx` | ebd. |
+| Selbstüberwachung der Tagesläufe (Historie, Ampel, Warnmail) | `lib/fiaon-crons.ts`, Migration 064 | `pruef-lauf-ueberwachung.ts` (51) |
+| Buchungsversuche protokolliert | Migration 062, `lib/fiaon-termine.ts` | `pruef-termin-versuche.ts` (35) |
+| Termin-Art an einem Ort | `shared/fiaon-termin-art.ts` | — |
+| Tagesgrenze je Rufnummer | Migration 063, `lib/fiaon-softphone.ts` | — |
+
+---
+
+## Arbeitsvorrat — was bewusst offen ist
+
+| Was | Warum es liegt | Was zuerst passieren muss |
+|---|---|---|
+| **Kontaktspalten-DROP** (`email`, `phone`, `contact_email`, `billing_email`, `contact_phone`, `phone_country_code` an `fiaon_applications`; `email`/`telefon` an `fiaon_leads`) | 397 Zugriffe in 62 Dateien, und **110 Bestellungen** tragen eine ANDERE Adresse als die Person. Ein DROP wäre für diese 110 ein Hard-Delete. | Archivtabelle (Migration 061 liegt bereit), dann die 110 einzeln entscheiden, dann die lesenden Zugriffe auf die Person umstellen. `pruef-eine-quelle-wand.ts` verhindert bis dahin NEUE Zugriffe. |
+| **Klingeldauer messen** | `fiaon_calls` hat keinen Zeitstempel für „angenommen", und Twilios `no-answer` und `busy` landen auf demselben Wert. Eine erfundene Klingeldauer würde die Reputationsfrage falsch beantworten. | Zusätzliches Feld beim Status-Rückruf mitschreiben, oder Twilios eigene Sicht (Console) daneben legen. |
+| **Reputationsfrage der Rufnummer** | Die 7-Tage-Zahlen (55–64 % Annahme) sprechen GEGEN eine Spam-Markierung. Die Stumm-Marke läuft erst seit 31.08. | Drei Tage Daten sammeln, dann die Zeile je Mitarbeiter in der Team-Zentrale lesen. |
+| **Slot-Reservierung bei der Terminbuchung** | Gemessen: `slotsVerknappen` läuft auch beim Buchen, Anzeige und Prüfung sehen dieselbe Liste. Der vermutete Fensterfehler existiert nicht. | Erst die Ablehngründe aus `fiaon_termin_versuche` lesen — sie sagen, ob überhaupt ein Problem besteht. |
 
 ---
 
@@ -191,6 +225,28 @@ npx tsx scripts/schau-termine.ts          13   Termin-Zentrale mit echten Zahlen
 npx tsx scripts/pruef-geduld.ts           34   Zweig-Ampel: Polling, Plus-Adressen
 npx tsx scripts/pruef-reste.ts            37   Wartezustand, Notizpflicht, Nachlauf
 npx tsx scripts/pruef-eine-quelle-wand.ts  6   Kontakt-Spalten: keine NEUEN Zugriffe
+
+# ── Neu, 30./31.08.2026 ───────────────────────────────────────────────────
+npx tsx scripts/pruef-massgebliche-bestellung.ts 37  Rechnung traegt das richtige Paket
+npx tsx scripts/pruef-nummer-nachtrag.ts     49   Nummer nicht waehlbar: Sperre, Weg heraus, eine Tafel
+npx tsx scripts/pruef-telefon-zustand.ts     54   Zustandsfolge, Uhr, Nummernwahl
+npx tsx scripts/pruef-telefon-bild.ts        20   Browser: Sperre, Geraetewahl, SDK-Beweis
+npx tsx scripts/pruef-lauf-ueberwachung.ts   51   Tageslauf-Historie, Ampel, Nachholen
+npx tsx scripts/pruef-termin-versuche.ts     35   Buchungsversuche protokolliert
+npx tsx scripts/pruef-stufen-waechter.ts      7   TAEGLICH: Einstufung und Tageslauf
+npx tsx scripts/pruef-inkasso-nummer.ts      40   Inkasso: eine Zustaendigkeit, Blockier-Marke
+npx tsx scripts/pruef-nicht-erschienen.ts    14   „Nicht erschienen" haengt nicht mehr
+npx tsx scripts/pruef-zuteilung-rollen.ts    21   Zuteilung achtet die Rolle
+npx tsx scripts/pruef-karte-buchungen.ts     10   Karte traegt frische Buchungen
+```
+
+### Messläufe (nur lesend, für den Bestand)
+
+```
+npx tsx scripts/mess-falsches-paket.ts            Welche Bestellung landet in der Mail?
+npx tsx scripts/mess-stumme-anrufe.ts             Stumme Anrufe, Nummern-Abweichungen
+npx tsx scripts/mess-tageslaeufe.ts               Welcher Tageslauf steht, was blieb liegen?
+npx tsx scripts/tageslauf-nachholen.ts            Nachholen (Vorschau, dann --schreiben)
 ```
 
 ### Die neueren Bereiche und wo sie liegen

@@ -26,6 +26,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+// Die EINE Tafel der Landesvorwahlen — nicht noch eine hier (31.08.2026).
+import { LAND_VORWAHL } from "./fiaon-telefon";
 
 type Lauf = typeof sqlPool;
 
@@ -135,19 +137,21 @@ export function nummerNormalisieren(roh: string, vorwahlVorgabe = "+49"): string
  * zurück, und der Aufrufer verweigert dann — er rät nicht.
  */
 export function vorwahlFuerLand(land: unknown): string | null {
+  // ── EINE TAFEL, NICHT ZWEI (korrigiert am 31.08.2026) ──────────────────
+  // Hier stand eine eigene Liste. Sie ging sofort mit der in
+  // `fiaon-telefon.ts` auseinander: Diese kannte SK, jene RO — und keine von
+  // beiden TR. GEMESSEN waren genau drei Kunden dadurch nicht anrufbar, zwei
+  // davon NUR wegen der Doppelung.
+  //
+  // Die Tafel steht jetzt einmal, in `fiaon-telefon.ts`, und wird hier gelesen.
+  // Die Umrechnung auf die Plus-Form bleibt: `nummerNormalisieren` erwartet sie
+  // so, `waehlbareNummer` setzt das Plus selbst.
   const k = String(land ?? "").trim().toUpperCase();
-  const tafel: Record<string, string> = {
-    DE: "+49", AT: "+43", CH: "+41",
-    // Kommen im Bestand vor. Gewählt werden sie nicht (die DACH-Grenze steht in
-    // `wahlPruefen`), aber eine richtig zusammengesetzte Nummer soll auch dann
-    // entstehen, wenn sie anschließend abgelehnt wird — sonst steht in der Akte
-    // eine falsche Nummer, die irgendwann jemand freigibt.
-    IT: "+39", RO: "+40", SK: "+421", CZ: "+420", HU: "+36", SI: "+386",
-    PL: "+48", HR: "+385", NL: "+31", BE: "+32", FR: "+33", ES: "+34",
-    LI: "+423", LU: "+352", UA: "+380", US: "+1", GB: "+44",
-  };
-  return tafel[k] ?? null;
+  if (!k) return null;
+  const roh = LAND_VORWAHL[k];
+  return roh ? `+${roh}` : null;
 }
+
 
 export async function freiliste(lauf: Lauf = sqlPool): Promise<string[]> {
   const [r] = (await lauf`SELECT value FROM fiaon_settings WHERE key = 'telefon_freiliste'`) as any[];

@@ -3,6 +3,144 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 31.08.2026 — Die Rechnung trug das falsche Paket
+
+Florentine Lombardi am 19.08.: „Er wollte ein Pro-Paket. Das High End habe ich rausgenommen. Wenn ich auf Rechnung senden drücke, bekommt er aber eine E-Mail für das High-End-Paket."
+
+Das war kein Anzeigefehler. Der Kunde überweist den falschen Betrag mit dem falschen Verwendungszweck, der Kontoabgleich findet die Zahlung nicht, und die Abo-Rate entsteht auf dem falschen Preis. Die Provision ebenfalls.
+
+### Die Ursache — eine fehlende Zeile
+
+`zahlungsdatenSenden` löste die Bestellung so auf:
+
+```sql
+WHERE person_id = … AND merged_into IS NULL
+  AND payment_status IN ('pending_payment','claimed_paid','expired')
+ORDER BY created_at DESC LIMIT 1
+```
+
+Es fehlte `archived_at IS NULL`. Die Abfrage **dreißig Zeilen darunter** hatte den Filter — diese nicht. Wer ein Paket „rausnimmt", archiviert die Bestellung; sie blieb damit in der Auswahl. Und weil sie *später* angelegt wurde als die gültige, gewann sie das `ORDER BY created_at DESC`.
+
+**Bewiesen an Person 4254** (Gabor Toth, betreut von Florentine):
+
+| | angelegt | Paket | Betrag | |
+|---|---|---|---|---|
+| lebend | 02.07.2026 | FIAON Pro | 0,60 € | ← richtig |
+| **archiviert** | 16.07.2026 | FIAON Ultra | 0,80 € | ← **gewann** |
+| lebend | 06.08.2026 | FIAON Pro | 0,00 € | (noch keine Rechnung) |
+
+### Die Schadensbilanz
+
+| | |
+|---|---:|
+| Personen, bei denen die alte Auflösung eine **archivierte** Bestellung wählen würde | **37** |
+| davon mit abweichendem Betrag/Verwendungszweck | alle |
+| Zahlungsdaten-Mails der letzten 14 Tage auf eine archivierte Bestellung | 10 |
+| davon **nach** dem Archivieren versandt — echte Fehlversände | **8** |
+| Personen mit mehr als einer offenen Bestellung (stille Auswahl) | 57 |
+
+Die 8 Fehlversände gingen an **zwei** Menschen. Fünf davon am 18. und 19.08. an **Josef Rohrmoser**: „FIAON High End, 1,00 €", während seine gültige Bestellung Pro war — alle fünf von Florentine ausgelöst. Genau ihre Meldung, im Zustellprotokoll wiederzufinden.
+
+**Es wurde keine Korrekturmail versandt.** Die Liste steht in `reports/falsches-paket.csv`; die Entscheidung gehört dem Betreiber.
+
+### Der Fix: eine Auflösung, nicht ein Filter mehr
+
+Der naheliegende Weg wäre gewesen, `AND archived_at IS NULL` an die eine Abfrage zu hängen. Das behebt den gemeldeten Fall und lässt die Ursache stehen: **sechs Wege** beantworteten dieselbe Frage, jeder mit eigener Abfrage.
+
+`server/lib/fiaon-massgebliche-bestellung.ts` definiert „maßgebliche offene Bestellung" einmal: lebend (nicht archiviert, nicht zusammengeführt, nicht storniert, nicht ersetzt, nicht DSGVO-gelöscht), unbezahlt, bei mehreren die zuletzt angelegte.
+
+Beim Nachmessen der vier weiteren Wege (Auftragspunkt 1.d):
+
+| Weg | Eigene Auswahl? | Archiv-Filter? |
+|---|---|---|
+| Zahlungsdaten-Mail | ja | **nein** ← der Fehler |
+| Bitte um Telefonnummer | ja | **nein** ← dieselbe Lücke, harmloser |
+| Rechnung-PDF | nein, folgt der Referenz | — |
+| Zahlungsdaten/QR/Verwendungszweck (Karte) | ja | ja |
+| Abo-Ratenerzeugung | ja | ja |
+
+Zwei Stellen mit demselben Fehler heißen: Es fehlte die Auflösung, nicht der Filter.
+
+**Und der Server glaubt dem Client nicht mehr.** Die Karte hält ihren Datenstand, bis sie neu geladen wird — wer tauscht und sofort sendet, schickt möglicherweise die alte Referenz mit. `bestellungPruefen` lehnt ab, mit Klartext: „Diese Bestellung wurde archiviert. Es gilt jetzt: FIAON Pro, 59,99 €, Verwendungszweck …". Nicht stillschweigend korrigiert — der Agent soll sehen, dass sich etwas geändert hat.
+
+### Der eigentliche Schutz: erst sehen, dann senden
+
+Die richtige Auflösung genügt nicht. Der Agent hat gedrückt und **wusste nicht, was rausgeht** — gefunden wurde der Fehler, weil ein Kunde sich meldete, nach fünf Mails.
+
+`RechnungBestaetigung` zeigt vorher Paket, Betrag, Verwendungszweck und Empfänger. Bei mehreren offenen Buchungen steht es ausdrücklich da: „2 offene Buchungen — gesendet wird die neueste: Pro 59,99 €". **Ein Bauteil**, eingehängt in Kundenkarte und Vertriebsansicht; drei eigene Dialoge wären drei Wortlaute, und der vierte Aufrufort bekäme keinen.
+
+`pruef-massgebliche-bestellung.ts`: **37 Prüfungen.** Der Prüffall ist bewusst der ungünstigste — das archivierte High End ist *neuer* als das lebende Pro, und eine Gegenprobe belegt, dass die alte Abfrage hier High End gewählt hätte. Rot-Probe: ohne Archiv-Filter fallen 15 Prüfungen.
+
+### Teil 2 — Die Arbeitsliste, und eine Korrektur meiner eigenen Zahl
+
+Der Auftrag sprach von „den 18 Nummern, die derzeit nicht anrufbar sind". Beim Bauen der Liste habe ich nachgemessen, und **die Zahl war falsch — meine eigene aus dem Lauf davor.**
+
+Die 18 haben ihr Land in der Akte (12 AT, 4 CH, 1 RO, 1 SK). Sie wurden vorher *falsch* gewählt (`+49`), weil der Wählweg das Land nicht gelesen hat. Seit dieser Änderung liest er es — **sie sind wieder anrufbar, und zwar richtig.** Es war nie Handarbeit nötig.
+
+Tatsächlich nicht anrufbar waren **drei**. Und zwei davon aus einem Grund, den ich selbst am Vortag angelegt hatte:
+
+| Person | Nummer | Land | Grund |
+|---|---|---|---|
+| 11670 | `0766874041` | SK | **zweite Vorwahl-Tafel kannte SK nicht** |
+| 3744 | `17630522990` | TR | **keine der beiden Tafeln kannte TR** |
+| 11413 | `6609360523` | — | echte Datenlücke: kein Land, keine führende Null |
+
+`fiaon-telefon.ts` hatte seit Langem eine Tafel der Landesvorwahlen. Am Vortag habe ich in `fiaon-softphone.ts` eine **zweite** angelegt, weil dort eine gebraucht wurde. Sie gingen sofort auseinander: eine kannte SK, die andere RO, keine TR. Genau der Fall, vor dem AGENTS.md warnt — und er hat zwei Kunden unanrufbar gemacht. Jetzt gibt es **eine** Tafel, exportiert und um SK, SI, UA, TR, US, CA, RS ergänzt. **Übrig: ein Kunde.**
+
+**Und der Filter war auch falsch gebaut.** Der erste Entwurf fragte nach „führende Null ohne Land" — das beschreibt die *gemeldete* Menge, nicht die tatsächliche. Person 11413, der einzige echte Fall, hat gar keine führende Null; der Filter hätte ihn nicht gefunden. Er heißt jetzt **„Nummer nicht wählbar"** und benutzt `nichtWaehlbarSql` — dieselbe Entscheidung wie `waehlbareNummer` in der Oberfläche. Der Prüfstand vergleicht beide Wege und verlangt Deckungsgleichheit; sonst zeigt die Liste andere Leute als die Karte.
+
+Die Inline-Korrektur bleibt und ist richtig: An der Stelle, wo vorher nur „Ländervorwahl fehlt" stand — eine wahre Aussage und eine Sackgasse —, steht jetzt Länderauswahl, **Vorschau der Wahlform** („0797435749 + Schweiz → +41797435749"), ein Klick speichert.
+
+Der **Vorschlag** kommt aus PLZ und Ort (fünfstellig → DE; Winkel → CH; Wien → AT) und ist vorausgewählt, aber **nie automatisch gesetzt**: Eine geratene Vorwahl ist genau der Fehler, um den es geht. Wer ihn übernimmt, hat ihn gelesen.
+
+Nur das **Land** ist änderbar, nicht die Nummer: Die Rohnummer ist richtig, nur unvollständig notiert. Wer sie umschreibt, kann sich vertippen — und hat dann eine falsche Nummer, die aussieht wie eine gepflegte.
+
+`pruef-nummer-nachtrag.ts`: **49 Prüfungen** — ohne Land nicht wählbar (beide Wege), mit Land sofort und mit der *richtigen* Vorwahl, Vorschlag nie gespeichert, `00`- und `+43`-Nummern gehören nicht in den Filter, beide Vorwahl-Wege nennen für neun Länder dieselbe Zahl, und der SQL-Filter ist mit der TypeScript-Entscheidung deckungsgleich.
+
+### Teil 3 — Telefonie-Nachweis scharfgestellt
+
+**Eine Zeile je Mitarbeiter** in der Team-Zentrale: Versuche, Annahmequote, Gespräche unter 5 Sekunden, stumm-verdächtig. Bernstein ab einem Drittel Kurzgespräche — ein Hinweis, kein Urteil.
+
+| Mitarbeiter | Versuche | angenommen | < 5 s |
+|---|---|---|---|
+| Lucas Böhnert | 645 | 55 % | 17 (5 %) |
+| **Nikita Boychenko** | 217 | 57 % | **49 (40 %)** |
+| **Daniel Stripling** | 39 | 62 % | **14 (58 %)** |
+
+**Die Sprechprobe ist beim ersten Öffnen erzwungen**, einmalig je Mitarbeiter *und je Gerät* — nach einem Headset-Wechsel ist die alte Probe wertlos. Danach freiwillig: Eine Pflicht bei jedem Öffnen wäre eine Klickstrecke, die man wegdrückt, ohne zuzuhören.
+
+Zwei Sperrgründe, **zwei Aufschriften**: „Mikrofon prüfen" bei stummem Gerät, „Erst Sprechprobe" bei fehlendem Nachweis. Ein Knopf, der den falschen Grund nennt, schickt jemanden auf die falsche Suche.
+
+**Nutzt das SDK das gewählte Gerät?** Der Beweis läuft über den echten Wählweg: Gerät in der Oberfläche wählen, `getUserMedia` im Browser belauschen, auf „Anrufen" drücken. Beobachtet:
+
+```
+[{"audio":{"echoCancellation":true,"noiseSuppression":true,
+           "autoGainControl":true,"deviceId":{"exact":"default"}}}]
+```
+
+**Präzise, was das belegt und was nicht:** Es belegt, dass die Anwendung genau die gewählte Kennung an die Medienschicht übergibt — mit `exact`, also ohne stilles Ausweichen. Es belegt *nicht*, dass das SDK intern ein zweites Mal nach dem Gerät fragt: Es holt keinen eigenen Strom (0 fremde Aufrufe), `setInputDevice` übernimmt den, den es bekommt. Die Prüfung wird deshalb nur rot, wenn ein Aufruf ein *anderes* Gerät verlangt.
+
+Ein erster Entwurf lud das SDK im Prüfbrowser von Hand nach und scheiterte. Das war ohnehin der schlechtere Weg: Er hätte bewiesen, dass *das SDK* ein Gerät annimmt — nicht, dass *unsere Anwendung* es übergibt.
+
+### Wo zu finden
+
+| Datei | Zweck |
+|---|---|
+| `server/lib/fiaon-massgebliche-bestellung.ts` | die eine Auflösung + Referenzprüfung |
+| `client/src/components/agent/RechnungBestaetigung.tsx` | Bestätigung vor dem Senden |
+| `GET /agent/crm/kunden/:id/rechnung-vorschau` | was der Kunde bekommt (sendet nichts) |
+| `POST /agent/crm/kunden/:id/nummer-land` | Ländervorwahl nachtragen, mit Protokoll |
+| `scripts/mess-falsches-paket.ts` | die Messung samt 14-Tage-Bilanz |
+| `scripts/pruef-massgebliche-bestellung.ts` | 37 Prüfungen |
+| `scripts/pruef-nummer-nachtrag.ts` | 36 Prüfungen |
+
+### Betreiber-TODOs
+
+1. **Die 8 Fehlversände entscheiden** (`reports/falsches-paket.csv`). Fünf gingen an Josef Rohrmoser. Der Lauf hat nichts versandt.
+2. **Einen Kunden ergänzen** — Person 11413, Nummer `6609360523`, kein Land. Kundenliste → Filter „Nummer nicht wählbar". Die ursprünglich genannten 18 brauchen nichts: Ihr Land steht in der Akte, sie werden jetzt richtig gewählt.
+3. **Team die Sprechprobe machen lassen.** Bei Nikita 40 %, bei Daniel 58 % Kurzgespräche — die Probe zeigt in fünf Sekunden, ob es am Mikrofon liegt.
+4. **`BETREIBER_MAIL` setzen** — sonst weckt die Tageslauf-Warnung niemanden.
+
 ## 31.08.2026 — Telefonie: der Zustand log, und die Nummer war falsch
 
 Grundlage war die Videoauswertung eines echten Anrufs (Nikita, 19.08.). Vier abgelesene Befunde — und beim Nachmessen kam ein fünfter dazu, der schwerer wiegt als alle vier.

@@ -40,6 +40,63 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-31-richtiges-paket",
+    date: "2026-08-31",
+    category: "Behoben",
+    title: "Warum eure Rechnung jetzt immer das richtige Paket trägt",
+    summary:
+      "Florentine hat gemeldet, dass ein Kunde eine High-End-Rechnung bekam, "
+      + "obwohl sie das Paket rausgenommen und Pro eingetragen hatte. Sie hatte "
+      + "recht — und es lag nicht an ihr.",
+    changes: [
+      "WAS PASSIERT IST: Wenn du ein Paket rausnimmst, wird die Bestellung "
+      + "archiviert. Beim Senden der Zahlungsdaten hat das System die archivierte "
+      + "Bestellung trotzdem noch mitgezählt — und weil sie oft die zuletzt "
+      + "angelegte war, gewann sie. Der Kunde bekam Betrag und Verwendungszweck "
+      + "des Pakets, das gar nicht mehr gilt.",
+
+      "WARUM DAS SCHLIMM WAR: Der Kunde überweist dann den falschen Betrag mit "
+      + "dem falschen Verwendungszweck. Der Kontoabgleich findet das Geld nicht, "
+      + "die Abo-Rate entsteht auf dem falschen Preis — und die Provision auch. "
+      + "Betroffen waren 8 Mails in 14 Tagen, fünf davon an denselben Kunden.",
+
+      "NEU: DU SIEHST VORHER, WAS RAUSGEHT. „Zahlungsdaten senden“ öffnet jetzt "
+      + "ein kurzes Fenster mit Paket, Betrag, Verwendungszweck und "
+      + "Empfängeradresse. Erst der zweite Klick sendet. Wenn ein Kunde mehrere "
+      + "offene Buchungen hat, steht das ausdrücklich da: „2 offene Buchungen — "
+      + "gesendet wird die neueste: Pro 59,99 €.“",
+
+      "UND WENN DU GERADE GETAUSCHT HAST: Der Server prüft die Bestellung noch "
+      + "einmal, bevor er sendet. Zeigt deine Karte noch das alte Paket, wird der "
+      + "Versand ABGELEHNT mit dem Hinweis, was jetzt gilt — statt die falsche "
+      + "Mail rauszuschicken. Lade dann die Seite neu und sende erneut.",
+
+      "FALSCHE L\u00c4NDERVORWAHL BEHOBEN: Bei 18 Kunden aus \u00d6sterreich, der "
+      + "Schweiz, Rum\u00e4nien und der Slowakei wurde die Nummer als DEUTSCHE "
+      + "gew\u00e4hlt — da klingelte es bei einem Fremden. Das Land stand die ganze "
+      + "Zeit in der Akte, es wurde nur nicht gelesen. Diese 18 sind ohne dein "
+      + "Zutun wieder richtig anrufbar.",
+
+      "NEUER FILTER „NUMMER NICHT W\u00c4HLBAR“: Bleibt eine Nummer \u00fcbrig, bei der "
+      + "das System nicht wei\u00df, wohin sie geh\u00f6rt, steht sie in diesem Filter — "
+      + "aktuell genau eine. Dort erg\u00e4nzt du das Land direkt an der Karte: "
+      + "ausw\u00e4hlen, Vorschau lesen, speichern. Geraten wird nichts mehr: Eine "
+      + "geratene Vorwahl ergibt eine g\u00fcltige Nummer, die einem anderen Menschen "
+      + "geh\u00f6rt.",
+    ],
+    howto: [
+      "Kundenkarte → „Zahlungsdaten senden“ → im Fenster pr\u00fcfen, ob Paket und "
+      + "Betrag stimmen → „Jetzt senden“. Wenn dort etwas anderes steht, als du "
+      + "erwartest: NICHT senden, sondern die Seite neu laden.",
+      "Kundenliste → Filter „Nummer nicht w\u00e4hlbar“ → beim Kunden das Land "
+      + "w\u00e4hlen → die Vorschau zeigt dir die fertige Nummer → speichern. Der "
+      + "Z\u00e4hler im Filter geht um eins runter.",
+      "Der Vorschlag beim Land kommt aus PLZ und Ort. Bitte einmal pr\u00fcfen — er "
+      + "ist ein Vorschlag, kein Wissen.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-31-telefon-mikrofon",
     date: "2026-08-31",
     category: "Behoben",

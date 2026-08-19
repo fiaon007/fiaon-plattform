@@ -241,9 +241,27 @@ async function main(): Promise<void> {
     /sprich nicht ins Freizeichen/.test(q));
 
   // ── DER KNOPF IST GESPERRT ──────────────────────────────────────────────
+  // ── DIE PRÜFUNG WAR ZU ENG (aufgefallen am 31.08.2026) ──────────────────
+  // Sie verlangte die Sperrbedingung ZEICHENGENAU. Als die Probenpflicht
+  // dazukam (`|| probePflicht`), wurde sie rot — obwohl die Sperre nicht
+  // schwächer, sondern stärker geworden war.
+  //
+  // Eine Prüfung, die bei jeder Erweiterung rot wird, wird beim zweiten Mal
+  // angepasst, ohne sie zu lesen. Sie prüft jetzt, dass BEIDE Gründe im
+  // `disabled` stehen — nicht, in welcher Reihenfolge und mit welchem Abstand.
+  const knopf = ohneKommentar.slice(
+    ohneKommentar.indexOf("void waehlen()"),
+    ohneKommentar.indexOf("void waehlen()") + 700,
+  );
   ok("Der Anrufknopf kennt die Stumm-Sperre",
-    /disabled=\{nummer\.length < 4 \|\| mikrofon === "verweigert" \|\| stummVerdacht\}/
-      .test(ohneKommentar));
+    /disabled=\{[^}]*stummVerdacht/.test(knopf),
+    knopf.replace(/\s+/g, " ").slice(0, 160));
+  ok("… und die Pflicht zur Sprechprobe",
+    /disabled=\{[^}]*probePflicht/.test(knopf),
+    "ohne sie kann der erste Anruf ohne jeden Nachweis rausgehen");
+  ok("… und nennt beide Gründe getrennt",
+    /Mikrofon prüfen/.test(knopf) && /Erst Sprechprobe/.test(knopf),
+    "ein Knopf, der den falschen Grund nennt, schickt jemanden auf die falsche Suche");
   ok("Die Sperre braucht Zeit UND Pegel (kein Fehlalarm beim Öffnen)",
     /stummVerdacht\s*=[\s\S]{0,240}pegel != null[\s\S]{0,120}stilleSek >= SPERRE_NACH_SEKUNDEN/
       .test(ohneKommentar));

@@ -616,7 +616,11 @@ router.post("/agent/vertrieb/person/:id/zahlungsdaten", requireAgent, nurLeitung
   try {
     const id = Number(req.params.id);
     const { zahlungsdatenSenden } = await import("./fiaon-agent-kunden");
-    const erg = await zahlungsdatenSenden(id, req.agent!.id, `${req.agent!.name} (Vertriebsleitung)`);
+    // Die Referenz mitgeben, damit der Server sie gegen die Auflösung prüft:
+    // Auch die Vertriebsleitung sieht eine Karte, die nach einem Pakettausch
+    // veraltet sein kann (Befund vom 19.08.2026).
+    const erg = await zahlungsdatenSenden(id, req.agent!.id, `${req.agent!.name} (Vertriebsleitung)`,
+      { ref: req.body?.ref ?? null });
     if (!erg.ok) return res.status(erg.status || 400).json({ ok: false, error: erg.error });
     await protokoll(req.agent!.id, "vertrieb_zahlungsdaten", { person_id: id, empfaenger: erg.empfaenger });
     res.json({ ok: true, versandtAn: erg.empfaenger, warnung: erg.warnung });

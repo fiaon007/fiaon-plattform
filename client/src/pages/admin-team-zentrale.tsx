@@ -1098,6 +1098,7 @@ export default function AdminTeamZentrale() {
   // WEGGERÄUMT sind: Wer wissen will, was ein Prüfstand angelegt hat, sieht es.
   const [nurTest, setNurTest] = useState(false);
   const [testZahl, setTestZahl] = useState<{ test: number; echt: number; testAktiv: number } | null>(null);
+  const [telefonie, setTelefonie] = useState<Record<string, any> | null>(null);
 
   const laden = useCallback(async () => {
     setLaedt(true);
@@ -1110,7 +1111,14 @@ export default function AdminTeamZentrale() {
     const r = await fetch(`/api/fiaon/admin/zentrale/team${nurTest ? "?test=1" : ""}`,
       { credentials: "include" }).catch(() => null);
     const j = await r?.json().catch(() => null);
-    if (j?.ok) { setTeam(j.team || []); if (j.testkonten) setTestZahl(j.testkonten); }
+    if (j?.ok) {
+      setTeam(j.team || []);
+      if (j.testkonten) setTestZahl(j.testkonten);
+      // Der Telefonie-Nachweis je Mitarbeiter (31.08.2026): Versuche,
+      // Annahmequote, Kurzgespräche, Stumm-Verdacht. Damit ist in drei Tagen
+      // belegbar, ob Nikitas 40 % Kurzgespräche am Mikrofon lagen.
+      setTelefonie(j.telefonie || null);
+    }
     setLaedt(false);
   }, [nurTest]);
   useEffect(() => { void laden(); }, [laden]);
@@ -1314,6 +1322,34 @@ export default function AdminTeamZentrale() {
                       {!m.active && " · deaktiviert"}
                       {m.active && !m.distribution_active && " · keine Verteilung"}
                     </p>
+                    {/* ══════════════════════════════════════════════════════
+                        TELEFONIE, 7 TAGE (31.08.2026)
+
+                        Die gemeldete Quote „2 von 158" hat sich NICHT
+                        bestätigt (55–64 % Annahme). Aufgefallen ist etwas
+                        anderes: Kurzgespräche unter fünf Sekunden — bei einem
+                        Mitarbeiter 40 %, bei einem anderen 58 %, beim dritten
+                        5 %. Diese Zeile macht es vergleichbar.
+
+                        Bernstein ab einem Drittel Kurzgespräche: Das ist ein
+                        HINWEIS, kein Urteil. Wer abhebt und sofort auflegt,
+                        sieht genauso aus wie einer, der nichts hört.
+                        ══════════════════════════════════════════════════════ */}
+                    {(() => {
+                      const t = telefonie?.[String(m.id)];
+                      if (!t || t.versuche === 0) return null;
+                      const auffaellig = t.unter5sQuote >= 33;
+                      return (
+                        <p className="text-[11px] mt-0.5 tabular-nums"
+                           title={"7 Tage, ausgehend. Kurzgespräche = angenommen und unter 5 Sekunden."}
+                           style={{ color: auffaellig ? "#92400e" : "#64748b" }}>
+                          {t.versuche} Anrufe · {t.annahmeQuote} % angenommen ·{" "}
+                          <b>{t.unter5s} unter 5 s ({t.unter5sQuote} %)</b>
+                          {t.schnittSek > 0 && ` · Ø ${t.schnittSek} s`}
+                          {t.stumm > 0 && ` · ${t.stumm} stumm-verdächtig`}
+                        </p>
+                      );
+                    })()}
                     {/* ══════════════════════════════════════════════════════
                         DER ACADEMY-STAND (29.08.2026)
 

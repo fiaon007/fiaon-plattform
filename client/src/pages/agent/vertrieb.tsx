@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { KundenKopf } from "@/components/kunde/AblaufLeiste";
 import { anrufStarten } from "@/components/Softphone";
+import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
 import { AgentShell } from "./shared";
 import { Reveal } from "./motion";
 import { Skelett, eur, useReduzierteBewegung, useToast } from "@/lib/fiaon-ui";
@@ -781,16 +782,33 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
     else zeige("fehler", "Nicht gebucht", r.json?.error || "");
   };
 
-  const zahlungsdaten = async () => {
+  // ── ERST BESTÄTIGEN, DANN SENDEN (31.08.2026) ───────────────────────────
+  // Dasselbe Bauteil wie in der Kundenkarte. Die Vertriebsleitung sieht die
+  // gleiche Vorschau — sie trifft dieselbe Entscheidung und darf nicht weniger
+  // wissen als der Agent.
+  const [bestaetigen, setBestaetigen] = useState(false);
+
+  const zahlungsdaten = async (ref: string | null = null) => {
     setBusy(true);
-    const r = await api(`/agent/vertrieb/person/${p.personId}/zahlungsdaten`, { method: "POST", body: JSON.stringify({}) });
+    const r = await api(`/agent/vertrieb/person/${p.personId}/zahlungsdaten`,
+      { method: "POST", body: JSON.stringify({ ref }) });
     setBusy(false);
+    setBestaetigen(false);
     if (r.ok) zeige("erfolg", "Zahlungsdaten versandt", `An ${r.json.versandtAn}`);
     else zeige("fehler", "Nicht versandt", r.json?.error || "");
   };
 
   return (
     <>
+      {bestaetigen && (
+        <RechnungBestaetigung
+          personId={p.personId}
+          kundeName={p.name}
+          laeuft={busy}
+          onAbbrechen={() => setBestaetigen(false)}
+          onSenden={(ref) => void zahlungsdaten(ref)}
+        />
+      )}
       <div className="fixed inset-0 z-[100]" style={{ background: "rgba(7,11,22,.55)", backdropFilter: "blur(6px)" }}
            onClick={onSchliessen} />
       <div className="fixed inset-0 z-[101] flex items-stretch justify-end pointer-events-none">
@@ -856,7 +874,7 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
                     className="fi-zweitknopf px-3 py-2 text-[12.5px] font-semibold">
               Gesprächsblatt
             </button>
-            <button type="button" onClick={() => void zahlungsdaten()} disabled={busy}
+            <button type="button" onClick={() => setBestaetigen(true)} disabled={busy}
                     className="fi-sendeknopf inline-flex items-center gap-2 px-3.5 py-2 text-[12.5px] font-semibold">
               <ZeichenSenden size={14} /> Zahlungsdaten
             </button>
@@ -990,7 +1008,7 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
                   {p.ref && <p><b>Referenz:</b> <span className="font-mono">{p.ref}</span></p>}
                 </div>
 
-                <button type="button" onClick={() => void zahlungsdaten()} disabled={busy}
+                <button type="button" onClick={() => setBestaetigen(true)} disabled={busy}
                         className="fi-sendeknopf inline-flex items-center gap-2 px-3.5 py-2 text-[12.5px] font-semibold">
                   <ZeichenSenden size={14} /> Zahlungsdaten erneut schicken
                 </button>

@@ -8,7 +8,7 @@ import { FiaonEbene } from "./FiaonEbene";
 import {
   eingabegeraeteHolen, gewaehltesGeraet, geraetSpeichern, tonAuflagen,
   pegelAusZeitdaten, pegelText, HOERBAR_AB, SPERRE_NACH_SEKUNDEN,
-  WARNUNG_NACH_SEKUNDEN, type Eingabegeraet,
+  WARNUNG_NACH_SEKUNDEN, probeBestanden, probeMerken, type Eingabegeraet,
 } from "@/lib/fiaon-mikrofon";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -405,6 +405,13 @@ export function Softphone() {
   const stummVerdacht = mikrofon === "erlaubt"
     && pegel != null && pegel < HOERBAR_AB
     && stilleSek >= SPERRE_NACH_SEKUNDEN;
+
+  // ── DIE PROBENPFLICHT (31.08.2026) ──────────────────────────────────────
+  // Einmal je Mitarbeiter UND je Gerät. Zwei getrennte Gründe, den Knopf zu
+  // sperren — sie werden absichtlich NICHT zusammengeworfen: Der Agent muss
+  // wissen, ob sein Mikrofon stumm ist oder ob er nur noch die Probe braucht.
+  const probePflicht = mikrofon === "erlaubt" && geraete.length > 0
+    && !probeBestanden(stand?.agentId, geraetId) && probe !== "fertig";
   // Hat das SDK schon einen Fehler MIT Twilio-Code gemeldet? Dann bleibt der
   // stehen — ein Code ist genauer als jede Vermutung.
   const codeGesehen = useRef(false);
@@ -872,7 +879,12 @@ export function Softphone() {
         probeUrl.current = URL.createObjectURL(new Blob(teile, { type: rec.mimeType || "audio/webm" }));
         const ton = new Audio(probeUrl.current);
         setProbe("spielt");
-        ton.onended = () => setProbe("fertig");
+        ton.onended = () => {
+          setProbe("fertig");
+          // Erst wenn sie ABGESPIELT wurde, gilt sie als bestanden: Ein Klick
+          // auf „Sprechprobe" allein beweist nichts — gehört haben muss man sie.
+          probeMerken(stand?.agentId, geraetId);
+        };
         // Ein blockiertes Abspielen ist kein Fehler des Mikrofons — der Satz
         // muss das unterscheiden, sonst tauscht jemand ein gesundes Headset aus.
         ton.play().catch(() => {
@@ -1717,6 +1729,20 @@ export function Softphone() {
             )}
             {geraetFehler && <p className="fi-tel-mik-warnung" role="alert">{geraetFehler}</p>}
 
+            {/* ── DIE PROBENPFLICHT BEIM ERSTEN MAL (31.08.2026) ─────────
+                Ein leerer Balken zeigt nur den einen Fall: Das Mikrofon liefert
+                NICHTS. Es gibt einen zweiten, den kein Balken zeigt — der Ton
+                geht in ein anderes Gerät als in die Telefonie, oder er ist zu
+                leise, um am anderen Ende anzukommen. Beides sieht am Balken
+                gesund aus. Nur das eigene Ohr entscheidet das. */}
+            {probePflicht && !stummVerdacht && (
+              <p className="fi-tel-mik-hinweis">
+                <b>Einmal die Sprechprobe, bitte.</b> Ein Balken kann täuschen —
+                wenn du dich selbst hörst, kommt dein Ton auch beim Kunden an.
+                Danach ist sie freiwillig.
+              </p>
+            )}
+
             {/* ── (i) GERÄTEWAHL ─────────────────────────────────────────
                 Bis zum 31.08.2026 gab es sie NICHT: `getUserMedia({audio:true})`
                 und das SDK nahmen beide den Browser-Standard. Wer ein stummes
@@ -1926,12 +1952,22 @@ export function Softphone() {
                 wird als Fehler der Anwendung gemeldet, nicht als Hinweis gelesen.
                 ══════════════════════════════════════════════════════════════ */}
             <button type="button" onClick={() => void waehlen()}
-                    disabled={nummer.length < 4 || mikrofon === "verweigert" || stummVerdacht}
+                    disabled={nummer.length < 4 || mikrofon === "verweigert"
+                              || stummVerdacht || probePflicht}
                     title={stummVerdacht
                       ? "Dein Mikrofon liefert kein Signal — der Kunde würde dich nicht hören."
-                      : undefined}
+                      : probePflicht
+                        ? "Mach einmal die Sprechprobe. Wer sich selbst hört, ist sendebereit."
+                        : undefined}
                     className="fi-tel-gruen">
-              <MarkeHoerer size={19} /> {stummVerdacht ? "Mikrofon prüfen" : "Anrufen"}
+              {/* Zwei Sperrgründe, zwei Aufschriften. „Mikrofon prüfen" bei
+                  einem stummen Gerät wäre bei fehlender Probe falsch: Das Gerät
+                  ist in Ordnung, es fehlt nur der Nachweis. Ein Knopf, der den
+                  falschen Grund nennt, schickt jemanden auf die falsche Suche. */}
+              <MarkeHoerer size={19} />{" "}
+              {stummVerdacht ? "Mikrofon prüfen"
+                : probePflicht ? "Erst Sprechprobe"
+                : "Anrufen"}
             </button>
             {kunde && (
               <button type="button" onClick={() => { setKunde(null); setNummer(""); }}
@@ -2404,6 +2440,12 @@ const TELEFON_CSS = `
   margin: 8px 0 0; font-size: 12px; line-height: 1.5; color: #fecaca;
 }
 .fi-tel-mik-warnung b { color: #fff; }
+/* Der Probenhinweis: bernstein, nicht rot — es ist kein Defekt, sondern ein
+   fehlender Nachweis. */
+.fi-tel-mik-hinweis {
+  margin: 8px 0 0; font-size: 12px; line-height: 1.5; color: #fcd34d;
+}
+.fi-tel-mik-hinweis b { color: #fff; }
 .fi-tel-mik-wahl { display: flex; align-items: center; gap: 9px; margin-top: 10px; }
 .fi-tel-mik-wahl > span {
   font-size: 9.5px; font-weight: 700; letter-spacing: .14em;

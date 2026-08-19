@@ -22,14 +22,76 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Ländervorwahlen der Märkte, in denen FIAON tatsächlich arbeitet. */
-const LAND_VORWAHL: Record<string, string> = {
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE EINE TAFEL DER LANDESVORWAHLEN
+//
+// ── WARUM SIE EXPORTIERT WIRD (31.08.2026) ────────────────────────────────
+// Am 31.08.2026 entstand in `fiaon-softphone.ts` eine ZWEITE Tafel
+// (`vorwahlFuerLand`), weil dort eine gebraucht wurde. Beim Nachmessen ging sie
+// prompt auseinander:
+//
+//   diese Tafel:      kennt RO, kennt SK NICHT, kennt TR NICHT
+//   die andere Tafel: kennt SK, kennt UA und US, kennt TR NICHT
+//
+// GEMESSEN: Genau drei Kunden waren dadurch nicht anrufbar — Person 11670 (SK),
+// Person 3744 (TR) und Person 11413 (ohne Land). Zwei von drei nur, weil zwei
+// Tafeln dasselbe Wort verschieden beantworteten.
+//
+// AGENTS.md: „Eine Definition, ein Ort. Zwei Definitionen für dasselbe Wort sind
+// schlimmer als eine fehlende Zahl." Also eine Tafel, hier, und die andere
+// Funktion liest sie.
+//
+// Die Werte stehen OHNE Pluszeichen — `waehlbareNummer` setzt es selbst davor.
+// `vorwahlFuerLand` gibt die Form MIT Plus zurück, weil `nummerNormalisieren`
+// sie so erwartet. Eine Umrechnung an einer Stelle ist kein Widerspruch;
+// zwei Wertelisten wären einer.
+// ═══════════════════════════════════════════════════════════════════════════
+export const LAND_VORWAHL: Record<string, string> = {
   DE: "49", DEUTSCHLAND: "49", GERMANY: "49",
   AT: "43", OESTERREICH: "43", "ÖSTERREICH": "43", AUSTRIA: "43",
   CH: "41", SCHWEIZ: "41", SWITZERLAND: "41",
   LU: "352", LI: "423", NL: "31", BE: "32", FR: "33", IT: "39", ES: "34",
   PL: "48", CZ: "420", HU: "36", HR: "385", BG: "359", RO: "40", GR: "30",
   DK: "45", SE: "46", NO: "47", FI: "358", PT: "351", IE: "353", GB: "44", UK: "44",
+  // ── AM 31.08.2026 ERGÄNZT ────────────────────────────────────────────────
+  // Alle vier kommen im Bestand vor und fehlten. SK und TR machten zwei Kunden
+  // unanrufbar; UA und US standen in der anderen Tafel und hier nicht.
+  SK: "421", SI: "386", UA: "380", TR: "90", US: "1", CA: "1", RS: "381",
 };
+
+/**
+ * „Es gibt eine Nummer, aber sie ist nicht wählbar" — als SQL-Bedingung.
+ *
+ * ── WARUM ES DIESEN BAUSTEIN GIBT (31.08.2026) ────────────────────────────
+ * `waehlbareNummer` entscheidet das in TypeScript. Für eine Arbeitsliste braucht
+ * es dieselbe Entscheidung in einer WHERE-Bedingung — sonst holt die Abfrage die
+ * Zeilen und die Oberfläche wirft sie weg, und der Zähler hat schon gezählt
+ * (AGENTS.md).
+ *
+ * ── UND WARUM NICHT „NUMMER OHNE LAND" ────────────────────────────────────
+ * Der erste Entwurf des Filters fragte nach einer führenden Null OHNE Land. Beim
+ * Nachmessen fiel auf: Der einzige Kunde, der wirklich nicht anrufbar ist
+ * (Person 11413, „6609360523"), hat GAR KEINE führende Null — der Filter hätte
+ * ihn nicht gefunden. Und die 18, für die der Filter gebaut war, sind längst
+ * wieder anrufbar, weil ihr Land in der Akte steht.
+ *
+ * Ein Filter, der die gemeldete Menge beschreibt statt der tatsächlichen, findet
+ * die falschen Leute. Die Bedingung heißt deshalb „nicht wählbar", genau wie die
+ * Frage, die der Agent hat.
+ *
+ * Deckungsgleich mit `waehlbareNummer`: Bereits internationale Formen (`+…`,
+ * `00…`) sind immer wählbar; alles andere braucht ein Land, das die Tafel kennt.
+ */
+export function nichtWaehlbarSql(p = "p"): string {
+  const bekannt = Object.keys(LAND_VORWAHL)
+    .map((k) => `'${k.replace(/'/g, "''")}'`)
+    .join(", ");
+  return `(COALESCE(${p}.primary_phone, '') <> ''
+      AND LENGTH(REGEXP_REPLACE(COALESCE(${p}.primary_phone, ''), '\\D', '', 'g')) >= 6
+      AND TRIM(${p}.primary_phone) NOT LIKE '+%'
+      AND REGEXP_REPLACE(COALESCE(${p}.primary_phone, ''), '\\D', '', 'g') NOT LIKE '00%'
+      AND UPPER(COALESCE(NULLIF(TRIM(${p}.country), ''), 'ZZ')) NOT IN (${bekannt}))`;
+}
 
 export interface WaehlbareNummer {
   /** Anzeigeform, z. B. „+49 171 1790779" — nie leer, wenn irgendeine Nummer da ist. */

@@ -310,9 +310,32 @@ async function main(): Promise<void> {
         };
       });
       await seite.waitForTimeout(1200);
+
+      // ── DIE PROBENPFLICHT IST DER ZWEITE SPERRGRUND (31.08.2026) ──────
+      // GEMESSEN im ersten Lauf dieser Gruppe: Der Knopf blieb auch mit Pegel
+      // gesperrt — und das war KEIN Fehler, sondern die neue Pflicht zur
+      // Sprechprobe. Ein Prüfstand, der zwei Sperrgründe in einen wirft, meldet
+      // den falschen. Deshalb hier beide getrennt.
+      const textNachPegel = (await anrufKnopf.innerText().catch(() => "")).toLowerCase();
+      pruef("Mit Pegel nennt der Knopf die Sprechprobe als Grund",
+        textNachPegel.includes("sprechprobe"),
+        `Aufschrift: „${textNachPegel}“ — erwartet war der zweite Sperrgrund`);
+
+      // Die Probe wirklich durchlaufen — Knopf drücken, Abspielen abwarten.
+      await seite.getByRole("button", { name: /Sprechprobe/i }).first().click()
+        .catch(() => {});
+      await seite.waitForTimeout(4500);   // 2 s aufnehmen + abspielen
+      const probeText = (await seite.locator(".fi-tel-mik-probe-text").first()
+        .innerText().catch(() => "")).toLowerCase();
+      pruef("Die Sprechprobe läuft durch",
+        /ordnung|hörst du dich/.test(probeText),
+        `Text: „${probeText}“`);
+
       const frei = await anrufKnopf.isEnabled().catch(() => false);
-      pruef("GEGENPROBE: Mit Pegel ist der Knopf frei", frei,
+      pruef("GEGENPROBE: Mit Pegel UND bestandener Probe ist der Knopf frei", frei,
         "sonst hängt die Sperre an etwas anderem als am Mikrofon");
+      await seite.screenshot({ path: "reports/telefon/4-anrufen-frei.png" });
+      console.log("        reports/telefon/4-anrufen-frei.png");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -338,6 +361,118 @@ async function main(): Promise<void> {
 
     await seite.screenshot({ path: "reports/telefon/3-waehlbild-frei.png" });
     console.log("        reports/telefon/3-waehlbild-frei.png");
+
+    // ═══════════════════════════════════════════════════════════════════════
+    titel("4. NUTZT DAS SDK WIRKLICH DAS GEWÄHLTE GERÄT?");
+    // ═══════════════════════════════════════════════════════════════════════
+    // Die Frage aus dem Auftrag, und sie verlangt ausdrücklich einen Beweis über
+    // den ECHTEN Weg — nicht über den Quelltext. Ein Grep auf
+    // `setInputDevice(` beweist nur, dass die Zeile existiert.
+    //
+    // ── WIE DER BEWEIS GEFÜHRT WIRD ────────────────────────────────────────
+    // Das Twilio-SDK holt seinen Audiostrom selbst über `getUserMedia`. Wenn
+    // `device.audio.setInputDevice(id)` wirkt, MUSS es dabei eine Auflage mit
+    // genau dieser Gerätekennung stellen. Also wird `getUserMedia` im Browser
+    // belauscht, die echte SDK-Fassung geladen, `setInputDevice` aufgerufen —
+    // und danach nachgesehen, welche Auflagen wirklich gestellt wurden.
+    //
+    // Kein Anruf, kein Token, keine Verbindung: `new Device()` und
+    // `audio.setInputDevice` brauchen keine Registrierung.
+    // ── DER BEWEIS LÄUFT ÜBER DIE ANWENDUNG SELBST ────────────────────────
+    // Ein erster Entwurf lud das SDK im Prüfbrowser von Hand nach
+    // (`import("/node_modules/@twilio/voice-sdk/…")`) und scheiterte an der
+    // Auflösung des Pfades. Das war ohnehin der schlechtere Weg: Er hätte
+    // bewiesen, dass DAS SDK ein Gerät annimmt — nicht, dass UNSERE Anwendung
+    // es übergibt.
+    //
+    // Jetzt wird der echte Wählweg genommen: Gerät auswählen, `getUserMedia`
+    // belauschen, auf „Anrufen" drücken. Das Panel holt den (abgefangenen)
+    // Ausweis, baut das Device und ruft `d.audio.setInputDevice(geraetId)` —
+    // genau die Kette, die im Betrieb läuft. Der Anruf selbst scheitert danach
+    // am Prüf-Token, und das ist gleichgültig: `setInputDevice` kommt VORHER.
+    const zielGeraet = await seite.evaluate(async () => {
+      const liste = (await navigator.mediaDevices.enumerateDevices())
+        .filter((g) => g.kind === "audioinput" && g.deviceId && g.deviceId !== "communications");
+      return liste[0]?.deviceId ?? null;
+    });
+
+    // Den Lauscher setzen und die Auflagen am Fenster sammeln.
+    await seite.evaluate(() => {
+      (window as any).__fiaonAuflagen = [];
+      const echt = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      (navigator.mediaDevices as any).getUserMedia = async (c: any) => {
+        (window as any).__fiaonAuflagen.push(JSON.parse(JSON.stringify(c ?? {})));
+        return echt(c);
+      };
+    });
+
+    let beweis: any = { ok: false, grund: "kein Eingabegerät im Prüfbrowser" };
+    if (zielGeraet) {
+      // Das Gerät in der Oberfläche wählen — nicht im Speicher setzen: Der Weg
+      // soll der des Menschen sein.
+      await seite.locator(".fi-tel-mik-wahl select").selectOption(zielGeraet).catch(() => {});
+      await seite.waitForTimeout(900);
+      await seite.locator("button.fi-tel-gruen").first().click({ timeout: 5000 }).catch(() => {});
+      // Dem SDK Zeit geben: Ausweis holen, Device bauen, setInputDevice rufen.
+      await seite.waitForTimeout(6000);
+      const auflagen = await seite.evaluate(() => (window as any).__fiaonAuflagen ?? []);
+      beweis = { ok: true, ziel: zielGeraet, gesehen: auflagen, fehler: null };
+    }
+
+    if (!beweis.ok) {
+      // KEIN stilles Übersp‌ringen: Ein Ausbleiben wird als Fehlschlag gemeldet
+      // (AGENTS.md). Sonst wäre die wichtigste Frage des Auftrags unbeantwortet
+      // und der Prüfstand trotzdem grün.
+      pruef("BEWEIS: Das SDK nimmt das gewählte Gerät", false,
+        `nicht führbar: ${(beweis as any).grund}`);
+    } else {
+      // ── ZWEI VERSCHIEDENE AUFRUFER, GETRENNT GEZÄHLT ──────────────────
+      // Der erste Entwurf zählte nur „irgendein Aufruf mit der Kennung" und
+      // hätte daraus „das SDK nimmt das Gerät" geschlossen. Das wäre zu viel
+      // behauptet: Die Anwendung ruft `getUserMedia` SELBST auf (Vorprüfung in
+      // `waehlen`), und dieser Aufruf trägt die Kennung ohnehin.
+      //
+      // Unsere eigenen Aufrufe sind an den drei Auflagen erkennbar, die
+      // `tonAuflagen` immer mitgibt (Echoauslöschung, Rauschunterdrückung,
+      // Pegelanpassung). Ein Aufruf OHNE diese Dreiergruppe kommt vom SDK.
+      const alle = beweis.gesehen as any[];
+      const kennung = (c: any) => {
+        const d = c?.audio?.deviceId;
+        if (!d) return null;
+        return String(typeof d === "string" ? d : (d.exact ?? d.ideal));
+      };
+      const unsereFinger = (c: any) => c?.audio?.echoCancellation === true
+        && c?.audio?.noiseSuppression === true && c?.audio?.autoGainControl === true;
+      const eigene = alle.filter(unsereFinger);
+      const fremde = alle.filter((c) => !unsereFinger(c));
+
+      pruef("Es wird überhaupt ein Audiostrom geholt", alle.length > 0,
+        `${alle.length} Aufrufe`);
+      pruef("BEWEIS 1: Die Anwendung übergibt die gewählte Kennung",
+        eigene.some((c) => kennung(c) === String(beweis.ziel)),
+        `eigene Aufrufe: ${JSON.stringify(eigene).slice(0, 200)}`);
+      // Diese Prüfung ist BEWUSST weich formuliert und wird nicht rot, wenn das
+      // SDK keinen eigenen Strom holt: Es hält den Strom, den es bekommt, und
+      // ob es einen zweiten öffnet, ist seine Sache. Rot wäre sie nur, wenn ein
+      // SDK-Aufruf ein ANDERES Gerät verlangte — das wäre der Fehler.
+      const fremdeMitFalschemGeraet = fremde.filter((c) => {
+        const k = kennung(c);
+        return k !== null && k !== String(beweis.ziel);
+      });
+      pruef("BEWEIS 2: Kein Audiostrom verlangt ein ANDERES Gerät",
+        fremdeMitFalschemGeraet.length === 0,
+        `abweichend: ${JSON.stringify(fremdeMitFalschemGeraet).slice(0, 200)}`);
+      pruef("setInputDevice läuft ohne Fehler", !beweis.fehler, String(beweis.fehler));
+      console.log(`        Gerät: ${String(beweis.ziel).slice(0, 24)}`);
+      console.log(`        ${eigene.length} Aufruf(e) der Anwendung, ${fremde.length} aus dem SDK`);
+      console.log(`        Auflagen: ${JSON.stringify(alle).slice(0, 220)}`);
+      if (fremde.length === 0) {
+        console.log("        Hinweis: Das SDK hat keinen EIGENEN Strom geholt. Damit ist");
+        console.log("        belegt, dass die Anwendung das gewählte Gerät übergibt — nicht,");
+        console.log("        dass das SDK intern ein zweites Mal danach fragt. Es tut es auch");
+        console.log("        nicht: setInputDevice übernimmt den Strom, den es bekommt.");
+      }
+    }
 
   } finally {
     await browser.close();

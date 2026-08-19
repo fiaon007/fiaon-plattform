@@ -52,6 +52,63 @@ export async function htmlToPdf(html: string): Promise<Buffer> {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// EINE ECHTE LAUFENDE FUSSZEILE — MIT RESERVIERTEM RAND
+//
+// ── WARUM ES DIE ZWEITE FUNKTION BRAUCHT (19.08.2026) ─────────────────────
+// `htmlToPdf` druckt ohne Kopf-/Fußvorlage. Die Dokumente lösten das mit einem
+// `<footer style="position:fixed;bottom:0">` im HTML. Das ist im Seitendruck
+// NICHT dasselbe wie eine laufende Fußzeile:
+//
+//   · Chromium reserviert für ein fest positioniertes Element KEINEN Platz im
+//     Textfluss. Der Inhalt läuft darunter durch und über den Seitenrand hinaus.
+//   · GEMESSEN an FIAON-COM-2026-0010: vier Seiten für sechs Positionen, davon
+//     zwei Seiten mit je 82 Zeichen — nur die Firmenzeile. Genau dieser Effekt.
+//   · Und es gibt keine Seitenzahl: „Seite 2 von 4" ist mit einem fixen div
+//     nicht zu machen.
+//
+// Hier kommt sie über `footerTemplate`. Chromium zeichnet sie in den unteren
+// Rand — einmal je Seite, garantiert, mit `pageNumber` und `totalPages`.
+//
+// Die bestehende `htmlToPdf` bleibt unverändert: Verträge und Nachweise hängen
+// daran, und ein Beleg, der gestern anders aussah, ist ein Problem für sich.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function htmlZuPdfMitFusszeile(opts: {
+  html: string;
+  fusszeile: string;
+  rand: { oben: string; unten: string; links: string; rechts: string };
+}): Promise<Buffer> {
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  try {
+    await page.setContent(opts.html, { waitUntil: "networkidle" });
+    const pdf = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      displayHeaderFooter: true,
+      // Ein LEERER Kopf ist nötig: Ohne `headerTemplate` setzt Chromium seine
+      // Vorgabe (Titel und Datum) — das wäre eine zweite Datumsangabe auf jeder
+      // Seite, und genau die wurden am alten Dokument zehnmal gezählt.
+      headerTemplate: "<div></div>",
+      footerTemplate:
+        `<div style="width:100%;padding:0 16mm;font-family:Inter,Helvetica,Arial,sans-serif;`
+        + `font-size:6.5pt;color:#94a3b8;display:flex;justify-content:space-between;`
+        + `align-items:center;border-top:0.4pt solid #e2e8f0;padding-top:2mm;">`
+        + `<span>${escapeHtml(opts.fusszeile)}</span>`
+        + `<span style="white-space:nowrap;padding-left:6mm;">`
+        + `Seite <span class="pageNumber"></span> von <span class="totalPages"></span></span>`
+        + `</div>`,
+      margin: {
+        top: opts.rand.oben, bottom: opts.rand.unten,
+        left: opts.rand.links, right: opts.rand.rechts,
+      },
+    });
+    return Buffer.from(pdf);
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
 /** SHA-256-Hash (hex) über beliebigen String — Dokument-Fingerabdruck. */
 export function docHash(input: string): string {
   return createHash("sha256").update(input, "utf8").digest("hex");

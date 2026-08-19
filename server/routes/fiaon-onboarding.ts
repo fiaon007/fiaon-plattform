@@ -29,6 +29,7 @@ import { requireAgent, logAgentEvent, getSettings, type AgentRequest } from "./f
 import { sendMakeWebhook } from "../make-webhook";
 import { formatBerlin } from "../lib/fiaon-time";
 import { renderDocumentPdf, wrapFiaonDocument, docHash, escapeHtml } from "../lib/fiaon-html-pdf";
+import { abrechnungPdf, type AbrechnungDaten } from "../lib/fiaon-abrechnung-pdf";
 import { DEFAULT_CONTRACT_HTML, DEFAULT_CONTRACT_VERSION, ONBOARDING_DOCS, type OnboardingDoc } from "./fiaon-onboarding-content";
 
 const router = Router();
@@ -674,93 +675,82 @@ export async function generateCommissionStatement(payoutId: number): Promise<{ o
     ? `Reverse charge — Steuerschuldnerschaft des Leistungsempfängers (VAT-ID ${escapeHtml(agent.vat_id)}). No VAT is charged by FIAON LTD; the recipient accounts for VAT under the reverse-charge mechanism.`
     : `The Agent is a private individual / not VAT-registered for this activity. No VAT is charged; the Agent is responsible for its own taxation.`;
 
-  const rowsHtml = lines.map((l) => `
-    <tr class="${l.negative ? "negative" : ""}">
-      <td>${escapeHtml(formatBerlin(l.date, false))}</td>
-      <td>${escapeHtml(l.reference)}${l.pack ? `<div class="muted" style="font-size:8pt;">${escapeHtml(l.pack)}</div>` : ""}${l.note ? `<div class="muted" style="font-size:8pt;">${escapeHtml(l.note)}</div>` : ""}</td>
-      <td class="num">${l.saleCents ? fmtEurCents(l.saleCents) : "—"}</td>
-      <td class="num">${l.rateBp ? (l.rateBp / 100).toLocaleString("de-DE", { maximumFractionDigits: 2 }) + " %" : "—"}</td>
-      <td class="num">${fmtEurCents(l.commissionCents)}</td>
-    </tr>`).join("");
-
-  const agentBlock = [
-    escapeHtml(vars.AGENT_LEGAL_NAME),
-    escapeHtml(vars.AGENT_ADDRESS),
-    isCompany && agent.vat_id ? `VAT-ID: ${escapeHtml(agent.vat_id)}` : "",
-    agent.tax_id ? `Tax no.: ${escapeHtml(agent.tax_id)}` : "",
-    `Email: ${escapeHtml(agent.email)}`,
-  ].filter(Boolean).join("<br/>");
-
+  // ══════════════════════════════════════════════════════════════════════════
+  // DAS PDF KOMMT AUS EINEM RENDERER — FÜR ALLE WEGE (19.08.2026)
+  //
+  // ── WAS HIER VORHER STAND ────────────────────────────────────────────────
+  // Rund 70 Zeilen HTML im Fließtext dieser Funktion: eine Tabelle mit den
+  // Spalten „Sale value" und „Rate", Beschriftungen auf Englisch, und
+  // `markenzeile: fussZeile(firma), fusszeile: fussZeile(firma)` — dieselbe
+  // Firmenzeile an zwei Stellen.
+  //
+  // GEMESSEN am erzeugten Dokument (scripts/mess-abrechnung.ts,
+  // FIAON-COM-2026-0010): vier Seiten für sechs Positionen, zwei davon mit je
+  // 82 Zeichen; „FIAON LTD" sechsmal; 20 von 20 Beschriftungen englisch; das
+  // Datum zehnmal; alle sechs Positionen Pauschalen in einer Tabelle mit
+  // Prozentspalte.
+  //
+  // Jetzt baut `server/lib/fiaon-abrechnung-pdf.ts` das Dokument — durchgehend
+  // deutsch, zwei getrennte Positionstabellen, laufende Fußzeile aus Chromium.
+  // Freigabe, Abrechnungs-Zentrale und Mail-Anhang holen es aus DERSELBEN
+  // Funktion; `scripts/pruef-abrechnung.ts` prüft, dass es keine zweite gibt.
+  // ══════════════════════════════════════════════════════════════════════════
   // ── FIRMIERUNG UND STEUERHINWEIS AUS DEN EINSTELLUNGEN ─────────────────
-  // Beide standen hart im Code. Beim Umzug in ein anderes Büro hätte jemand
-  // eine TypeScript-Datei ändern müssen — für eine Hausnummer. Und der
-  // Steuerhinweis, dessen Wortlaut vom Steuerberater kommt, wäre nur von
-  // einem Entwickler änderbar gewesen. Ein solcher Text wird nicht geändert;
-  // er bleibt falsch stehen.
+  // Beide standen einmal hart im Code. Beim Umzug in ein anderes Büro hätte
+  // jemand eine TypeScript-Datei ändern müssen — für eine Hausnummer. Und der
+  // Steuerhinweis, dessen Wortlaut vom Steuerberater kommt, wäre nur von einem
+  // Entwickler änderbar gewesen. Ein solcher Text wird dann nicht geändert; er
+  // bleibt falsch stehen.
   const firma = await firmierung();
 
-  const bodyHtml = `
-    <table style="border:none;margin-bottom:14px;">
-      <tr style="border:none;">
-        <td style="border:none;width:50%;vertical-align:top;">
-          <div style="font-weight:700;">Issued by</div>
-          ${absenderBlock(firma)}
-        </td>
-        <td style="border:none;width:50%;vertical-align:top;">
-          <div style="font-weight:700;">Agent</div>
-          ${agentBlock}
-        </td>
-      </tr>
-    </table>
-    <div class="box" style="display:flex;justify-content:space-between;gap:10px;">
-      <div><span class="muted">Statement no.</span><br/><strong>${escapeHtml(statementNo)}</strong></div>
-      <div><span class="muted">Issue date</span><br/><strong>${escapeHtml(formatBerlin(issuedAt, false))}</strong></div>
-      <div><span class="muted">Period</span><br/><strong>${periodStart ? escapeHtml(formatBerlin(periodStart, false)) : "—"} – ${periodEnd ? escapeHtml(formatBerlin(periodEnd, false)) : "—"}</strong></div>
-    </div>
-    <h2>Commission items</h2>
-    <table>
-      <thead>
-        <tr><th>Date</th><th>Order / reference</th><th class="num">Sale value</th><th class="num">Rate</th><th class="num">Commission</th></tr>
-      </thead>
-      <tbody>${rowsHtml || `<tr><td colspan="5" class="muted">No items.</td></tr>`}</tbody>
-      <tfoot>
-        <tr><td colspan="4" class="num">Subtotal (gross commission)</td><td class="num">${fmtEurCents(grossCents)}</td></tr>
-        <tr><td colspan="4" class="num">Net amount paid out</td><td class="num">${fmtEurCents(netCents)}</td></tr>
-      </tfoot>
-    </table>
-    <div class="box">
-      <div style="font-weight:700;margin-bottom:4px;">VAT treatment</div>
-      <div class="muted">${vatNote}</div>
-    </div>
-    <p><span class="muted">Payout date:</span> <strong>${escapeHtml(formatBerlin(paidAt, false))}</strong>
-       &nbsp;·&nbsp; <span class="muted">Method:</span> bank transfer${payout.iban_masked ? ` (${escapeHtml(payout.iban_masked)})` : ""}
-       &nbsp;·&nbsp; <span class="muted">Reference:</span> ${escapeHtml(statementNo)}</p>
-    <p class="muted" style="font-size:8pt;margin-top:10px;">This is a commission statement / self-billed credit note serving as an accounting document. Figures are taken directly from the FIAON commission engine and the corresponding payout record (single source of truth). System-generated document — valid without signature.</p>
-  `;
+  const empfaengerAnschrift = [vars.AGENT_ADDRESS]
+    .map((x) => String(x ?? "").trim()).filter((x) => x.length > 0).join(", ") || null;
 
-  const hash = docHash(`${statementNo}|${payout.agent_id}|${grossCents}|${netCents}|${JSON.stringify(lines)}`);
+  const daten: AbrechnungDaten = {
+    nummer: statementNo,
+    ausstellungsdatum: issuedAt,
+    zeitraumVon: periodStart,
+    zeitraumBis: periodEnd,
+    firma,
+    empfaenger: {
+      name: String(vars.AGENT_LEGAL_NAME || agent.name || "—"),
+      rolle: agent.rolle ?? null,
+      email: String(agent.email ?? "—"),
+      anschrift: empfaengerAnschrift,
+      vatId: agent.vat_id ?? null,
+      steuerNr: agent.tax_id ?? null,
+      istFirma: isCompany,
+    },
+    // Die Positionen kommen unverändert aus dem Provisionsmotor. Ob eine Zeile
+    // in die Verkaufs- oder in die Pauschaltabelle geht, entscheidet der Satz —
+    // das ist keine Darstellungsfrage, sondern die Natur der Position.
+    positionen: lines.map((l) => ({
+      datum: l.date,
+      referenz: String(l.reference ?? ""),
+      paket: l.pack || null,
+      anlass: l.note || null,
+      grundlageCents: Number(l.saleCents) || 0,
+      satzBp: Number(l.rateBp) || 0,
+      betragCents: Number(l.commissionCents) || 0,
+    })),
+    auszahlungCents: netCents,
+    auszahlungsdatum: paidAt,
+    ibanMaskiert: payout.iban_masked ?? null,
+    verwendungszweck: statementNo,
+    auszahlungId: payoutId,
+  };
+
   let pdfBase64: string | null = null;
+  let hash = docHash(`${statementNo}|${payout.agent_id}|${grossCents}|${netCents}|${JSON.stringify(lines)}`);
   try {
-    const pdf = await renderDocumentPdf({
-      documentTitle: "Commission Statement",
-      subtitle: `${statementNo} · self-billed credit note`,
-      // Steuerhinweis und Gutschriftverfahren gehören AUF das Dokument, nicht
-      // in eine Fußnote im Portal: Wer die Abrechnung seinem Steuerberater
-      // vorlegt, legt ein PDF vor und nicht einen Bildschirm.
-      bodyHtml: bodyHtml
-        + `<div class="box" style="margin-top:16px;font-size:8.5pt;">`
-        + `<div style="font-weight:700;margin-bottom:4px;">Tax treatment</div>`
-        + `${escapeHtml(firma.steuerhinweis)}</div>`
-        + `<div class="box" style="font-size:8.5pt;">`
-        + `<div style="font-weight:700;margin-bottom:4px;">Status and self-billing</div>`
-        + `${escapeHtml(firma.gutschriftHinweis)}</div>`
-        + `<p class="hash" style="margin-top:14px;">Document hash (SHA-256): ${hash}</p>`,
-      markenzeile: fussZeile(firma),
-      fusszeile: fussZeile(firma),
-    });
-    pdfBase64 = pdf.toString("base64");
+    const erg = await abrechnungPdf(daten);
+    pdfBase64 = erg.pdf.toString("base64");
+    hash = erg.hash;
   } catch (e) {
-    console.error("[FIAON-ONBOARDING] statement PDF render failed:", e);
+    // Ein Beleg ohne PDF ist ein halber Beleg — der Fehler wird MITGESCHRIEBEN
+    // und nicht verschluckt. Die Zeile entsteht trotzdem, damit die Auszahlung
+    // nicht an der Druckmaschine hängt; die Zentrale kann sie neu erzeugen.
+    console.error(`[ABRECHNUNG] ${statementNo}: PDF konnte nicht erzeugt werden:`, e);
   }
 
   await sqlPool`

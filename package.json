@@ -149,6 +149,7 @@
     "@types/three": "^0.184.1",
     "@types/ws": "^8.5.13",
     "dependency-cruiser": "^17.3.6",
+    "pdfjs-dist": "^6.2.108",
     "tsx": "^4.19.1"
   },
   "optionalDependencies": {

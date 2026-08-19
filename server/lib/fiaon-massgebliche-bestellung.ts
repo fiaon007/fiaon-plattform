@@ -62,6 +62,9 @@
 // sind schlimmer als eine fehlende Zahl."
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
+import {
+  antragVollstaendigSql, fehlendeFelderAusdruckSql,
+} from "./fiaon-antrag-vollstaendig";
 import { paket, paketPreisCents } from "../../shared/fiaon-pakete";
 
 type Lauf = typeof sqlPool;
@@ -200,6 +203,37 @@ export function lebendeOffeneBestellungSql(a = "a"): string {
 const REIF_SQL = "'completed','approved','submitted','documents_submitted',"
   + "'verifying','processing','pending_payment'";
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DER ZUSTAND WIRD AUS DEM INHALT ABGELEITET, NICHT NUR AUS DEM LETZTEN KLICK
+//
+// ── DIE MELDUNG (Daniel Stripling, 19.08.2026) ─────────────────────────────
+// „Bei einigen Kunden wird angezeigt, dass sich der Antrag noch ‚im Formular'
+// befindet … Das Problem ist, dass der Antrag aus meiner Sicht bereits
+// vollständig ausgefüllt ist."
+//
+// ── DER BEFUND (scripts/mess-rechnung-blockade.ts) ─────────────────────────
+// 475 Anträge standen auf `antrag_unfertig`. 25 davon tragen JEDES Pflichtfeld
+// — alle drei Zusagen, E-Mail, Gehaltseingangstag, vollständige Stammdaten. Sie
+// sind fertig. Ihr Zustand sagte `started` oder `contract`.
+//
+// Die Ursache lag in `client/src/pages/antrag.tsx` (Rückfall auf den ERSTEN
+// Schritt bei Schritt 9, siehe `shared/fiaon-antrag-schritte.ts`). Sie ist
+// behoben — aber ein behobener Schreibfehler räumt den Bestand nicht auf, und
+// der nächste verlorene Schritt erzeugt denselben Zustand wieder.
+//
+// ── DESHALB ENTSCHEIDET DER INHALT MIT ────────────────────────────────────
+// AGENTS.md: „Zustände, die sich ausrechnen lassen, werden AUSGERECHNET." Der
+// Zustand ist ein Merker, den ein verlorenes Ereignis falsch stehen lässt — die
+// Felder sind die Tatsache. Wer alle Pflichtfelder trägt, ist rechnungsreif,
+// ganz gleich welcher Klick zuletzt angekommen ist.
+//
+// Die Liste der Pflichtfelder steht in `fiaon-antrag-vollstaendig.ts` — einmal,
+// mit einer TypeScript- und einer SQL-Fassung, die ein Prüfstand gegeneinander
+// hält.
+// ═══════════════════════════════════════════════════════════════════════════
+const REIF_ODER_VOLL = (a: string): string =>
+  `(${a}.status IN (${REIF_SQL}) OR ${antragVollstaendigSql(a)})`;
+
 /** Der Empfänger: Bestellung zuerst, Person als Rückfall. */
 const EMPFAENGER_SQL = (a: string, p: string) =>
   `COALESCE(NULLIF(TRIM(${a}.email),''), NULLIF(TRIM(${a}.contact_email),''),`
@@ -286,11 +320,11 @@ export function sendeGrundSql(p = "p"): string {
   const reif = `EXISTS (SELECT 1 FROM fiaon_applications a3
     WHERE a3.person_id = ${p}.id AND a3.merged_into IS NULL AND a3.archived_at IS NULL
       AND a3.gdpr_deleted_at IS NULL AND a3.payment_status = 'pending'
-      AND a3.status IN (${REIF_SQL}))`;
+      AND ${REIF_ODER_VOLL("a3")})`;
   const reifMitMail = `EXISTS (SELECT 1 FROM fiaon_applications a4
     WHERE a4.person_id = ${p}.id AND a4.merged_into IS NULL AND a4.archived_at IS NULL
       AND a4.gdpr_deleted_at IS NULL AND a4.payment_status = 'pending'
-      AND a4.status IN (${REIF_SQL}) AND ${EMPFAENGER_SQL("a4", p)} IS NOT NULL)`;
+      AND ${REIF_ODER_VOLL("a4")} AND ${EMPFAENGER_SQL("a4", p)} IS NOT NULL)`;
   const irgendeine = `EXISTS (SELECT 1 FROM fiaon_applications a5
     WHERE a5.person_id = ${p}.id AND a5.merged_into IS NULL AND a5.archived_at IS NULL
       AND a5.gdpr_deleted_at IS NULL)`;
@@ -327,12 +361,44 @@ export const SENDE_GRUND_TEXT: Record<string, { text: string; tat: string | null
     text: "Alles bezahlt. Eine Zahlungsaufforderung wäre falsch.",
     tat: null,
   },
+  // ── HIER STAND EIN PAUSCHALSATZ, UND DAS WAR DER FEHLER ─────────────────
+  // Wörtlich vorher: „Der Antrag steht noch im Formular — ruf an und hilf beim
+  // Fertigstellen." Daniel dazu: „Es ist nicht ersichtlich, welche Information
+  // noch fehlt oder an welcher Stelle der Antrag noch fertiggestellt werden
+  // soll."
+  //
+  // Er hat recht: Der Satz nennt eine Aufgabe („hilf beim Fertigstellen") ohne
+  // ihren Inhalt. Die Karte bekommt jetzt `fehlendeFelder` vom Server mit und
+  // schreibt „Es fehlt: Geburtsdatum, IBAN" — dieser Text ist nur noch der
+  // Rückfall, wenn die Liste leer bleibt.
   antrag_unfertig: {
-    text: "Der Antrag steht noch im Formular — ruf an und hilf beim Fertigstellen. "
-      + "Danach lässt sich eine Rechnung stellen.",
-    tat: null,
+    text: "Im Antrag fehlen noch Angaben — sie stehen unten. "
+      + "Sobald sie da sind, lässt sich eine Rechnung stellen.",
+    tat: "Fehlendes am Telefon ergänzen",
   },
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAS GENAU FEHLT — ALS SQL, FÜR DIE ARBEITSLISTE
+//
+// Ein pauschales „im Formular" schickt den Agenten auf die Suche. Diese Abfrage
+// liefert die fehlenden Felder der MASSGEBLICHEN Bestellung als Text, damit die
+// Karte sie benennen kann.
+//
+// Sie steht als SQL und nicht als Aufruf je Kunde, weil die Arbeitsliste über
+// 1.000 Karten in EINER Abfrage holt (dieselbe Begründung wie bei
+// `sendeGrundSql`). Die TypeScript-Fassung `fehlendeFelder` bewertet eine
+// einzelne Zeile für die Akte; `scripts/pruef-antrag-vollstaendig.ts` hält
+// beide gegeneinander.
+// ═══════════════════════════════════════════════════════════════════════════
+export function fehlendeFelderSql(p = "p"): string {
+  return `(SELECT ${fehlendeFelderAusdruckSql("af")}
+      FROM fiaon_applications af
+     WHERE af.person_id = ${p}.id AND af.merged_into IS NULL
+       AND af.archived_at IS NULL AND af.gdpr_deleted_at IS NULL
+       AND af.payment_status NOT IN ('paid', 'refunded')
+     ORDER BY af.created_at DESC LIMIT 1)`;
+}
 
 export async function massgeblicheBestellung(
   personId: number, lauf: Lauf = sqlPool,

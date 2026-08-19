@@ -176,7 +176,11 @@ async function main(): Promise<void> {
   // 166 waren es beim ersten Lauf; die Dateien dieses Auftrags sind schon
   // korrigiert. Die Grenze folgt dem Bestand nach UNTEN — sonst hält sie eine
   // Lücke offen, die gerade geschlossen wurde.
-  const BESTAND_KOMMENTARE = 164;
+  // 164 → 163 am 19.08.2026: Mit `pages/agent/heute.tsx` (tote Fassung, hing an
+  // keiner Route) ist eine Fundstelle weggefallen. Die Obergrenze wird
+  // NACHGEZOGEN, sobald sie sinkt — sonst hält die Wand die Lücke offen, die
+  // gerade geschlossen wurde.
+  const BESTAND_KOMMENTARE = 163;
   log("");
   for (const t of einmalig.slice(0, 15)) log(`     ${t}`);
   if (einmalig.length > 15) log(`     … und ${einmalig.length - 15} weitere`);

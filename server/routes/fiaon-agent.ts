@@ -2513,10 +2513,46 @@ router.post("/agent/customers/:ref/send-payment-email", requireAgent, requireEig
       agent_name: req.agent!.name,
       invoice_url: claimed[0].payment_reference ? signInvoiceUrl(claimed[0].payment_reference) : null,
     };
-    sendMakeWebhook("agent_payment_reminder", payload).catch(() => {});
-    await logAction(req.params.ref, req.agent!, "email_sent", { note: "Zahlungsdaten-Mail (Make: agent_payment_reminder) ausgelöst" });
+    // ══════════════════════════════════════════════════════════════════════
+    // HIER WURDE ERFOLG GEMELDET, OHNE ZU WISSEN, OB ETWAS RAUSGING
+    //
+    // ── DIE MELDUNG (Daniel Stripling, 19.08.2026) ───────────────────────
+    // „Es erscheint keine Fehlermeldung und es ist nicht ersichtlich, ob die
+    // Rechnung bzw. Zahlungsdaten tatsächlich versendet wurden. Teilweise
+    // kommt beim Kunden offenbar auch keine E-Mail an."
+    //
+    // ── WAS HIER STAND ───────────────────────────────────────────────────
+    //     sendMakeWebhook("agent_payment_reminder", payload).catch(() => {});
+    //     res.json({ ok: true, … });
+    //
+    // Zwei Fehler in einer Zeile: Der Aufruf wurde NICHT abgewartet, und sein
+    // Fehler wurde verworfen. Danach ging in JEDEM Fall ein „ok: true" an die
+    // Oberfläche — auch wenn Make nie geantwortet hat. Der Agent sah eine
+    // Bestätigung, der Kunde bekam nichts, und im Verlauf stand „ausgelöst".
+    //
+    // Jetzt: abwarten, den Grund übernehmen, und den Ausgang benennen.
+    // ══════════════════════════════════════════════════════════════════════
+    const { sendMakeWebhookMitGrund } = await import("../make-webhook");
+    const versand = await sendMakeWebhookMitGrund("agent_payment_reminder", payload as any);
+    await logAction(req.params.ref, req.agent!, "email_sent", {
+      note: versand.ok
+        ? `Zahlungsdaten-Mail an ${empfaenger} verschickt (agent_payment_reminder)`
+        : `Zahlungsdaten-Mail an ${empfaenger} FEHLGESCHLAGEN: ${versand.grund}`,
+    });
 
-    res.json({ ok: true, lockedUntil: new Date(Date.now() + EMAIL_LOCK_MS).toISOString() });
+    if (!versand.ok) {
+      // 502: Nicht wir haben falsch gefragt, die Gegenseite hat nicht geliefert
+      // (AGENTS.md: „Statuscodes nach VERURSACHER trennen").
+      return res.status(502).json({
+        ok: false,
+        error: `Die Mail ging nicht raus: ${versand.grund}. `
+          + "Der Vorgang steht im Verlauf — du kannst die Bankdaten am Telefon durchgeben.",
+      });
+    }
+    res.json({
+      ok: true, empfaenger,
+      lockedUntil: new Date(Date.now() + EMAIL_LOCK_MS).toISOString(),
+    });
   } catch (err) {
     console.error("[FIAON-AGENT] send-payment-email:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

@@ -368,22 +368,49 @@ router.get("/agent/termine", requireAgent, async (req: AgentRequest, res: Respon
     `) as any[];
     res.json({
       ok: true,
-      termine: rows.map((t) => ({
-        id: Number(t.id),
-        personId: Number(t.person_id),
-        name: t.name,
-        telefon: t.primary_phone,
-        beginn: t.beginn,
-        datumText: berlinDatumText(t.beginn),
-        uhrzeit: berlinUhrzeit(t.beginn),
-        dauerMin: Number(t.dauer_min),
-        status: t.status,
-        quelle: t.quelle,
-        notiz: t.notiz,
-        tier: Number(t.priority_tier),
-        tierGrund: t.tier_reason,
-        heute: berlinDatumText(t.beginn) === berlinDatumText(new Date()),
-      })),
+      termine: rows.map((t) => {
+        // ══════════════════════════════════════════════════════════════════
+        // DIE TERMIN-ART FEHLTE GENAU HIER (19.08.2026)
+        //
+        // ── DIE MELDUNG (Daniel Stripling) ───────────────────────────────
+        // „Bei mir werden teilweise Termine von Kunden angezeigt, die bereits
+        // bezahlt haben. Aktuell ist nicht eindeutig ersichtlich, welcher
+        // Bereich für den jeweiligen Termin zuständig ist. Eine eindeutige
+        // Kennzeichnung wie ‚Vertrieb' / ‚Onboarding' wäre hier sehr hilfreich."
+        //
+        // ── WARUM ER SIE NICHT SAH, OBWOHL ES SIE GIBT ───────────────────
+        // Die Ableitung `shared/fiaon-termin-art.ts` existiert seit dem
+        // 30.08.2026 und wird an FÜNF Stellen benutzt: Kalender, Termin-
+        // Zentrale, Startgespräch-Liste, fällige Rückrufe, Onboarding-Liste.
+        //
+        // Diese Route war die sechste — und die einzige, die das Feld NICHT
+        // mitschickte. Sie speist die obere Leiste auf `/agent/start`, also
+        // genau die Ansicht, die ein Vertriebsmitarbeiter den ganzen Tag
+        // offen hat. Der Fix von damals lag also im Code, war an fünf Stellen
+        // sichtbar — nur nicht an der, die das Team benutzt.
+        // ══════════════════════════════════════════════════════════════════
+        const art = terminArtAusQuelle(t.quelle);
+        return {
+          id: Number(t.id),
+          personId: Number(t.person_id),
+          name: t.name,
+          telefon: t.primary_phone,
+          beginn: t.beginn,
+          datumText: berlinDatumText(t.beginn),
+          uhrzeit: berlinUhrzeit(t.beginn),
+          dauerMin: Number(t.dauer_min),
+          status: t.status,
+          quelle: t.quelle,
+          notiz: t.notiz,
+          tier: Number(t.priority_tier),
+          tierGrund: t.tier_reason,
+          heute: berlinDatumText(t.beginn) === berlinDatumText(new Date()),
+          terminArt: art.art,
+          terminArtText: art.text,
+          terminArtTon: art.ton,
+          terminArtErklaerung: art.erklaerung,
+        };
+      }),
     });
   } catch (err) {
     console.error("[TERMIN] agent liste:", err);

@@ -44,7 +44,9 @@ import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
 import { sendMakeWebhook, sendMakeWebhookMitGrund, makePayloadFromRow } from "../make-webhook";
 import { signInvoiceUrl } from "../fiaon-invoice";
-import { sendeGrundSql, SENDE_GRUND_TEXT } from "../lib/fiaon-massgebliche-bestellung";
+import {
+  sendeGrundSql, SENDE_GRUND_TEXT, fehlendeFelderSql,
+} from "../lib/fiaon-massgebliche-bestellung";
 import { nachschub } from "./fiaon-followup";
 import { FIAON_BANK_DETAILS as BANK } from "./fiaon-antrag";
 import { zahlungstext } from "../lib/fiaon-verwendungszweck";
@@ -201,7 +203,11 @@ async function meinePerson(personId: number, agentId: number) {
            -- 18.08.2026 beim Knopf „Zahlungsdaten senden" schon einmal vier Tage
            -- gekostet hat (buchungen_roh fehlte in dieser Abfrage).
            -- ══════════════════════════════════════════════════════════════════
-           ${sqlPool.unsafe(sendeGrundSql("p"))} AS sende_grund
+           ${sqlPool.unsafe(sendeGrundSql("p"))} AS sende_grund,
+           -- Welche Pflichtfelder fehlen? Der Text steht danach WÖRTLICH in der
+           -- Karte („Es fehlt: Geburtsdatum, IBAN"). Ein pauschales „im
+           -- Formular" hat Daniel am 19.08.2026 auf die Suche geschickt.
+           ${sqlPool.unsafe(fehlendeFelderSql("p"))} AS fehlende_felder
     FROM fiaon_persons p
     WHERE p.id = ${personId}
       AND p.assigned_agent_id = ${agentId}
@@ -237,6 +243,10 @@ function kartePayload(p: any, letzteAktivitaet?: any) {
     sendeMoeglich: p.sende_grund === "frei" || p.sende_grund === "erste_rechnung",
     sendeText: p.sende_grund ? (SENDE_GRUND_TEXT[String(p.sende_grund)]?.text ?? null) : null,
     sendeTat: p.sende_grund ? (SENDE_GRUND_TEXT[String(p.sende_grund)]?.tat ?? null) : null,
+    // Die fehlenden Angaben im Klartext — nur bei `antrag_unfertig` sinnvoll,
+    // aber immer mitgeliefert: Ein Feld, das der Client manchmal bekommt und
+    // manchmal nicht, wird zur zweiten Ableitung in der Oberfläche.
+    fehlendeFelder: p.fehlende_felder ? String(p.fehlende_felder) : null,
     // `telefon` bleibt die Anzeige (abwärtskompatibel), `telefonWaehlbar` ist
     // die Form für den Anruf. Getrennt, weil eine Nummer ohne Vorwahl angezeigt
     // werden soll, aber NICHT gewählt.
@@ -1089,7 +1099,9 @@ export async function nummerKorrekturSenden(
     INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
     VALUES (${b.ref}, ${agentId}, ${agentName}, 'email_sent',
             ${`Bitte um Nummern-Korrektur versandt an ${b.email}`}, NOW())
-  `.catch(() => {});
+  // Kein stilles Schlucken: Ohne Verlaufseintrag klickt der naechste Agent
+  // denselben Knopf noch einmal.
+  `.catch((e) => console.error(`[AGENT-KUNDEN] Verlaufseintrag ${b.ref}:`, e));
   return { ok: true, empfaenger: b.email };
 }
 

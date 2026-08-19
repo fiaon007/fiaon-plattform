@@ -276,24 +276,26 @@ function HauptKnopf({
 
 // ── Zuordnungen: Codes UNVERÄNDERT, nur Reihenfolge und Klartext neu ──────
 
-/** Kunde (hat einen Antrag → kann zahlen). */
-export const KUNDE_GRUPPEN: ErgebnisGruppe = {
-  erreicht: [
-    { code: "erreicht_zahlt_gleich", label: "Zahlt sofort", hinweis: "Der Kunde überweist direkt im Anschluss." },
-    { code: "erreicht_zahlt_am", label: "Zahlt später am …", hinweis: "Mit Datum der Zusage (deutsche Zeit)." },
-    { code: "erreicht_abgelehnt", label: "Abgelehnt", hinweis: "Kein Interesse mehr — bleibt dokumentiert sichtbar." },
-  ],
-  nichtErreicht: [
-    { code: "nicht_erreicht", label: "Niemand ist rangegangen", hinweis: "Erneuter Versuch in rund vier Stunden." },
-    { code: "mailbox", label: "Mailbox besprochen", hinweis: "Nachricht hinterlassen." },
-    { code: "rueckruf_termin", label: "Rückruf vereinbart am …", hinweis: "Mit Datum und Uhrzeit (deutsche Zeit)." },
-    {
-      code: "nummer_falsch", label: "Nummer falsch",
-      hinweis: "Die Nummer stimmt nicht oder gehört jemand anderem.",
-      mail: "Der Kunde erhält eine E-Mail zur Nummern-Korrektur (max. 1×/Tag).",
-    },
-  ],
-};
+// ═══════════════════════════════════════════════════════════════════════════
+// `KUNDE_GRUPPEN` IST WEG (19.08.2026)
+//
+// Hier stand eine Fassung der Kunden-Ergebnisse mit SIEBEN Werten — und ohne
+// „erreicht_sonstiges". Sie wurde von NIEMANDEM importiert: Ihr einziger
+// Aufrufer war `pages/agent/kunden.tsx`, gelöscht am 28.08.2026.
+//
+// Sie ist der Grund, warum eine Recherche zu „Erreicht – Sonstiges funktioniert
+// nicht" auf die falsche Fährte führt: Man findet eine Liste, in der das
+// Ergebnis fehlt, hält das für die Ursache und ergänzt es — in einer Datei, die
+// keine Route lädt. Ein Befund an einer Datei, die niemand lädt, ist kein
+// Befund (AGENTS.md).
+//
+// Die gültige Liste steht in `shared/fiaon-kontakt-ergebnis-liste.ts`, die
+// Oberfläche dazu in `components/agent/ErgebnisWahl.tsx`.
+//
+// `LEAD_GRUPPEN` bleibt: `pages/agent/leads.tsx` benutzt es, und Leads haben
+// eigene Ergebniswerte (`erreicht_interesse`), die nichts mit den Kunden-
+// Ergebnissen zu tun haben.
+// ═══════════════════════════════════════════════════════════════════════════
 
 /** Lead (noch kein Antrag → kann nichts zahlen). */
 export const LEAD_GRUPPEN: ErgebnisGruppe = {

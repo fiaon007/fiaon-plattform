@@ -1242,6 +1242,57 @@ verlangten ausdrücklich die Sperre und waren grün — **eine Prüfung, die ein
 falsche Regel festschreibt, macht sie unantastbar.** Sie wurden ersetzt, mit dem
 alten Wortlaut im Kommentar.
 
+## Die Neubau-Checkliste — fünf Fragen vor jedem Commit
+
+Am 19.08.2026 kam ein Feedback mit neun Punkten. Drei davon waren
+**Wiedergänger**: schon einmal „behoben", vom Team nie gesehen. Die Ursachen
+lagen nicht in schwieriger Technik, sondern jedes Mal in derselben Lücke
+zwischen „Code existiert" und „ein Mensch kann es benutzen":
+
+- „Erreicht – Sonstiges" setzte einen Zustand (`feldOffen = "notiz"`), für den es
+  **kein Bauteil gab**. Kein Feld, keine Anfrage, keine Meldung — der Knopf war
+  tot. Der Fix davor lag in `kunden.tsx`, einer Datei, die keine Route mehr lud;
+  beim Aufräumen wurde er mitgelöscht.
+- Die Termin-Art war an fünf Anzeigen sichtbar — nur nicht an der sechsten, der
+  oberen Leiste auf `/agent/start`, die das Vertriebsteam den ganzen Tag offen
+  hat.
+- Die Kundenakte der Vertriebsleitung zeigte eine leere Fläche, weil **jeder
+  Lader im Fehlerfall still ausstieg** und ein Ladezustand ohne Ende zurückblieb.
+
+Deshalb bekommt jedes neue oder geänderte Bauteil diese fünf Fragen. Sie sind
+kurz, weil sie sonst niemand liest:
+
+1. **Empfänger nur über die zentrale Auflösung.** Wohin eine Mail geht,
+   entscheidet `empfaengerFuer` (`server/lib/fiaon-massgebliche-bestellung.ts`)
+   — nie eine eigene `COALESCE`-Kette. Zwei Auflösungen haben schon einmal fünf
+   falsche Mails an denselben Menschen geschickt.
+2. **Beträge nur über den einen Cent-Formatierer.** In der Datenbank steht
+   `amount_due` als EUR-Numerik, im Code wird in Cent gerechnet. Wer die
+   Umrechnung selbst schreibt, macht aus 79,99 € irgendwann „0,80 €".
+3. **Knopf-Zustand vom Server.** Ob gesendet werden darf, sagt `sendeGrundSql`,
+   nicht eine Ableitung in der Oberfläche. Bei 139 Kunden gab die Karte einmal
+   frei, was der Server ablehnte — der Agent drückt, und „nichts passiert".
+4. **Kein leerer `.catch`, kein stiller Ausstieg.** `catch(() => {})`,
+   `.catch(() => null)` und `if (r.ok) setDaten(…)` **ohne `else`** sind
+   dieselbe Fehlerklasse: Sie verwandeln einen Fehler in eine leere Fläche.
+   Jeder Ausgang ist sichtbar — Erfolg als Bestätigung mit Empfänger, Fehler als
+   roter Klartext, der STEHEN BLEIBT (nicht als Kurzhinweis, der nach vier
+   Sekunden geht, während der Agent dem Kunden zuhört).
+5. **Screenshot der echten Route angesehen.** Nicht der Komponente, nicht einer
+   Attrappe: die Adresse, die das Team aufruft, mit der Rolle, die das Team hat.
+   Wer ihn nicht angesehen hat, hat nicht geliefert.
+
+Und zwei Regeln, die aus denselben neun Punkten folgen:
+
+- **Für jeden Zustand, den ein Knopf setzen kann, muss es einen Render-Block
+  geben.** Ein Zustandswert ohne Anzeige ist ein toter Knopf. Wer einen Wert aus
+  der Anzeige entfernt, entfernt ihn auch aus dem Typ — sonst setzt ihn der
+  Nächste wieder.
+- **Ein Ladezustand braucht eine Zeitgrenze und einen Fehlerweg.** „Lädt noch"
+  und „hat nicht geklappt" sind zwei Zustände. Wer sie zusammenlegt, baut eine
+  Seite, die für immer leer bleibt — und für einen Menschen ist das kein
+  Ladezustand, sondern ein weißes Fenster.
+
 ## Bekannter Bestand, damit niemand erschrickt
 
 - `npx tsc --noEmit` meldet rund **240 Alt-Typfehler** (u. a. aus

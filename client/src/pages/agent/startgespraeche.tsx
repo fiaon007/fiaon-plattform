@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AgentShell, api } from "./shared";
 import { Reveal } from "./motion";
 import { Skelett, useToast } from "@/lib/fiaon-ui";
+import { ZeichenHaken } from "@/lib/fiaon-zeichen";
 import { LageTafel } from "./vertrieb-service";
 import { ZusageTafel } from "./vertrieb-zusage";
 import { OnboardingCockpit } from "@/components/agent/OnboardingCockpit";
@@ -34,6 +35,28 @@ interface Termin {
   notiz: string | null;
   heute: boolean;
   vorbei: boolean;
+  /** Wann wurde er abgeschlossen? Steht als Datum an der Erledigt-Marke. */
+  erledigtAm?: string | null;
+  quelle?: string | null;
+  /** Die Art aus `shared/fiaon-termin-art.ts` — Onboarding, Vertrieb, Rückruf. */
+  terminArt?: string | null;
+  terminArtText?: string | null;
+  terminArtTon?: string | null;
+}
+
+/** Uhrzeit in Europe/Berlin — nie über `toISOString` (AGENTS.md). */
+function uhrzeitVon(iso: string): string {
+  return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit",
+  }).format(new Date(iso));
+}
+
+/** Tag und Uhrzeit für den Verlauf — kurz, in Berliner Zeit. */
+function uhrzeitTag(iso: string): string {
+  return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+  }).format(new Date(iso));
 }
 
 interface Kennzahlen {
@@ -56,6 +79,8 @@ function Inhalt() {
   const [keinZugang, setKeinZugang] = useState(false);
   const [zusageOffen, setZusageOffen] = useState(false);
   const [ansicht, setAnsicht] = useState<"liste" | "kalender">("liste");
+  /** Offen oder erledigt — der Reiter, der Teil 9 beantwortet. */
+  const [reiter, setReiter] = useState<"offen" | "erledigt">("offen");
   const [offen, setOffen] = useState<number | null>(null);
   // ── DIE GESPRÄCHSBÜHNE ──────────────────────────────────────────────────
   // Ein Startgespräch wird GEFÜHRT, nicht abgehakt. Das Cockpit hat die Agenda,
@@ -73,16 +98,49 @@ function Inhalt() {
   }, []);
   useEffect(() => { void laden(); }, [laden]);
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // OFFEN UND ERLEDIGT SIND ZWEI LISTEN (19.08.2026)
+  //
+  // ── DIE MELDUNG (Onboarding) ────────────────────────────────────────────
+  // „Kunden, die ich bereits erreicht und vollständig bearbeitet habe, bleiben
+  // weiterhin in meiner Liste. Dadurch ist nicht eindeutig erkennbar, ob der
+  // Vorgang vom System tatsächlich als erledigt erfasst wurde."
+  //
+  // ── DER BEFUND ──────────────────────────────────────────────────────────
+  // Der Filter lautete `x.status === "gebucht" || x.heute`. Das zweite Glied
+  // holte JEDEN heutigen Termin zurück — auch den erledigten. Im Screenshot
+  // vom 19.08.2026 stand „Bereits Erledigt Testfall" mitten in der Liste
+  // „HEUTE", in derselben Karte, mit demselben Knopf wie der offene Termin.
+  // Ein graues Wort „erledigt" hinter der Rufnummer war der ganze Unterschied.
+  //
+  // GEMESSEN in `fiaon_termine` (30 Tage, Quelle onboarding_call): 13 gebucht,
+  // 7 erledigt, 2 verpasst, 2 abgesagt. Die 7 standen alle in der Tagesliste.
+  //
+  // Und es war schon einmal dieselbe Klasse: In der Termin-Leiste fehlte der
+  // `erledigt_am`-Filter. Deshalb steht die Trennung jetzt in EINER Ableitung,
+  // und ein Reiter macht sie sichtbar — ein Vorgang, der verschwindet, ohne
+  // irgendwo aufzutauchen, sieht wie Datenverlust aus.
+  // ══════════════════════════════════════════════════════════════════════════
+  const istErledigt = (t: Termin) =>
+    t.status === "erledigt" || t.status === "verpasst" || !!t.erledigtAm;
+
+  const offeneTermine = useMemo(() => termine.filter((t) => !istErledigt(t)), [termine]);
+  const erledigteTermine = useMemo(
+    () => termine.filter(istErledigt)
+      .sort((a, b) => +new Date(b.erledigtAm ?? b.beginn) - +new Date(a.erledigtAm ?? a.beginn)),
+    [termine],
+  );
+
   /** Nach Tagen gruppieren — der Kalenderblick ist eine Tagesspalte, keine Matrix. */
   const tage = useMemo(() => {
     const map = new Map<string, Termin[]>();
-    for (const t of termine.filter((x) => x.status === "gebucht" || x.heute)) {
+    for (const t of (reiter === "erledigt" ? erledigteTermine : offeneTermine)) {
       const l = map.get(t.datum) || [];
       l.push(t);
       map.set(t.datum, l);
     }
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [termine]);
+  }, [offeneTermine, erledigteTermine, reiter]);
 
   if (zusageOffen) {
     return (
@@ -160,16 +218,50 @@ function Inhalt() {
           </div>
         </Reveal>
 
+        {/* ══════════════════════════════════════════════════════════════════
+            DIE REITER — OFFEN UND ERLEDIGT
+
+            Erledigte verschwinden aus der Arbeitsliste, aber nicht aus dem
+            System. Der Reiter mit Zähler sagt beides: wie viele noch offen sind
+            und dass die anderen erfasst wurden.
+            ══════════════════════════════════════════════════════════════════ */}
+        <div className="mt-5 flex items-center gap-1.5" data-fiaon="onboarding-reiter">
+          {([
+            ["offen", "Offen", offeneTermine.length],
+            ["erledigt", "Erledigt", erledigteTermine.length],
+          ] as const).map(([k, label, n]) => (
+            <button key={k} type="button" onClick={() => setReiter(k)}
+                    data-fiaon={`reiter-${k}`}
+                    className="px-3 py-1.5 rounded-xl text-[12.5px] font-semibold"
+                    style={reiter === k
+                      ? { background: "var(--fi-primaer)", color: "#fff" }
+                      : { background: "#fff", border: "1px solid var(--fi-linie)", color: "var(--fi-text-leise)" }}>
+              {label} <span className="fi-zahl">{n}</span>
+            </button>
+          ))}
+        </div>
+
         {/* ── Termine ────────────────────────────────────────────────────── */}
-        <div className="mt-5 space-y-3">
+        <div className="mt-3 space-y-3">
           {laedt && [0, 1].map((i) => <div key={i} className="fi-karte p-4"><Skelett h={20} /></div>)}
 
-          {!laedt && tage.length === 0 && (
+          {!laedt && tage.length === 0 && reiter === "erledigt" && (
             <div className="fi-karte p-6 text-center">
-              <p className="text-[14px] font-semibold">Kein Startgespräch gebucht.</p>
+              <p className="text-[14px] font-semibold">Noch nichts abgeschlossen.</p>
+              <p className="text-[12.5px] mt-1" style={{ color: "var(--fi-text-still)" }}>
+                Geführte und verpasste Gespräche stehen hier — mit Häkchen und Uhrzeit.
+              </p>
+            </div>
+          )}
+
+          {!laedt && tage.length === 0 && reiter === "offen" && (
+            <div className="fi-karte p-6 text-center">
+              <p className="text-[14px] font-semibold">Kein offenes Startgespräch.</p>
               <p className="text-[12.5px] mt-1" style={{ color: "var(--fi-text-still)" }}>
                 Bezahlte Kunden werden beim ersten Login eingeladen und wählen ihre Zeit selbst.
                 Trag deine Erreichbarkeit unter „Mehr“ → „Profil“ ein, damit dort Zeiten stehen.
+                {erledigteTermine.length > 0
+                  && ` ${erledigteTermine.length} bereits bearbeitete stehen unter „Erledigt".`}
               </p>
             </div>
           )}
@@ -253,6 +345,51 @@ function TerminKarte({
 }) {
   const [notiz, setNotiz] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  /** Der Verlauf der PERSON — die eine Quelle für Notizen. */
+  const [verlauf, setVerlauf] = useState<any[] | null>(null);
+  const [notizFehler, setNotizFehler] = useState<string | null>(null);
+
+  // Der Verlauf kommt, sobald die Karte aufgeht. Alle Haken stehen ÜBER dem
+  // ersten `return` (AGENTS.md, zweimal in Softphone.tsx gelernt).
+  useEffect(() => {
+    if (!offen) return;
+    let weg = false;
+    void api(`/agent/onboarding/person/${termin.personId}/verlauf`).then((r) => {
+      if (!weg) setVerlauf(r.ok ? (r.json.verlauf ?? []) : []);
+    });
+    return () => { weg = true; };
+  }, [offen, termin.personId]);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIE NOTIZ SPEICHERT FÜR SICH — UND BLEIBT SICHTBAR (19.08.2026)
+  //
+  // Vorher ging das Textfeld nur ZUSAMMEN mit einem Ergebnis mit („Nachtragen:
+  // geführt" / „Nicht erschienen"). Wer nur etwas vermerken wollte, musste ein
+  // Ergebnis erfinden — oder die Notiz war weg.
+  //
+  // Jetzt: eigener Knopf, eigene Route, Ablage am MENSCHEN. Der Verlauf wird
+  // aus der Antwort übernommen, also steht der Satz sofort da. Und ein Fehler
+  // steht AM FELD, nicht in einem Kurzhinweis, der nach vier Sekunden geht.
+  // ══════════════════════════════════════════════════════════════════════════
+  const notizSpeichern = async () => {
+    const text = notiz.trim();
+    if (text.length < 2) { setNotizFehler("Bitte etwas mehr als ein Zeichen."); return; }
+    setBusy("notiz");
+    setNotizFehler(null);
+    const r = await api(`/agent/onboarding/person/${termin.personId}/notiz`, {
+      method: "POST", body: JSON.stringify({ notiz: text }),
+    });
+    setBusy(null);
+    if (!r.ok) {
+      const grund = r.json?.error || "Die Notiz wurde nicht gespeichert.";
+      setNotizFehler(grund);
+      zeige("fehler", "Nicht gespeichert", grund);
+      return;
+    }
+    setNotiz("");
+    setVerlauf(r.json.verlauf ?? []);
+    zeige("erfolg", "Notiz gespeichert", "Sie steht jetzt im Verlauf des Kunden.");
+  };
 
   const dokumentieren = async (ergebnis: "erledigt" | "verpasst") => {
     setBusy(ergebnis);
@@ -289,16 +426,80 @@ function TerminKarte({
             </span>
             <button type="button" onClick={onOeffnen} className="flex-1 min-w-0 text-left">
               <p className="text-[15.5px] font-bold leading-tight truncate">{termin.name}</p>
-              <p className="mt-0.5 text-[12.5px]" style={{ color: "var(--fi-text-still)" }}>
-                {termin.telefon || "keine Nummer hinterlegt"}
-                {termin.status !== "gebucht" && ` · ${termin.status === "erledigt" ? "erledigt" : "nicht erschienen"}`}
+              <p className="mt-0.5 text-[12.5px] flex flex-wrap items-center gap-x-1.5"
+                 style={{ color: "var(--fi-text-still)" }}>
+                {/* Die Art des Termins — dieselbe Ableitung wie überall sonst. */}
+                {termin.terminArtText && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md font-semibold"
+                        data-fiaon="termin-art"
+                        style={{
+                          background: `${termin.terminArtTon || "#64748b"}14`,
+                          color: termin.terminArtTon || "#64748b",
+                        }}>
+                    {termin.terminArtText}
+                  </span>
+                )}
+                <span>{termin.telefon || "keine Nummer hinterlegt"}</span>
+                {/* ── ERLEDIGT MIT HÄKCHEN UND DATUM ────────────────────────
+                    Daniel: „Dadurch ist nicht eindeutig erkennbar, ob der
+                    Vorgang vom System tatsächlich als erledigt erfasst wurde."
+                    Ein graues Wort „erledigt" hinter der Rufnummer war zu
+                    wenig — jetzt eine grüne Marke mit Haken und Uhrzeit. */}
+                {termin.status === "erledigt" && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-semibold"
+                        data-fiaon="termin-erledigt"
+                        style={{ background: "rgba(5,150,105,.10)", color: "#059669" }}>
+                    <ZeichenHaken size={11} />
+                    erledigt{termin.erledigtAm ? ` · ${uhrzeitVon(termin.erledigtAm)}` : ""}
+                  </span>
+                )}
+                {termin.status === "verpasst" && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md font-semibold"
+                        style={{ background: "rgba(180,83,9,.10)", color: "#b45309" }}>
+                    nicht erschienen
+                  </span>
+                )}
               </p>
             </button>
-            {termin.telefon && (
-              <a href={`tel:${termin.telefon}`} className="fi-primaerknopf shrink-0 px-3.5 py-2 text-[12.5px] font-semibold">
-                Anrufen
-              </a>
-            )}
+            {/* ══════════════════════════════════════════════════════════════
+                „GESPRÄCH FÜHREN" STEHT JETZT AUF DER KARTE (19.08.2026)
+
+                ── DIE MELDUNG (Onboarding) ────────────────────────────────
+                „Ich klicke auf ‚Gespräch führen', aber die Gesprächsführung
+                öffnet sich nicht. Nach dem Klick passiert einfach nichts."
+
+                ── WAS DER SCREENSHOT ZEIGTE ───────────────────────────────
+                Auf der zusammengeklappten Karte stand GENAU EIN Knopf:
+                „Anrufen". „Gespräch führen" lag zwei Klicks tief — man musste
+                erst den KUNDENNAMEN anklicken, der wie normaler Text aussieht,
+                und dort erschien es unter der Lage-Tafel.
+
+                Und „Anrufen" war ein `<a href="tel:…">`. Am Schreibtisch, ohne
+                Telefonie-Programm im Browser, tut dieser Link NICHTS — kein
+                Dialog, keine Meldung. Der auffälligste Knopf der Seite war der
+                einzige, der nichts sichtbar bewirkt.
+
+                Jetzt: „Gespräch führen" ist der Hauptknopf und steht sofort da.
+                Anrufen läuft über das EIGENE Softphone (`anrufStarten`) — der
+                Weg, den das Cockpit und das Forderungsmanagement auch nehmen.
+                ══════════════════════════════════════════════════════════════ */}
+            <span className="shrink-0 flex flex-wrap items-center gap-1.5 justify-end">
+              {termin.status === "gebucht" && (
+                <button type="button" onClick={onCockpit}
+                        data-fiaon="gespraech-fuehren"
+                        className="fi-primaerknopf px-3.5 py-2 text-[12.5px] font-semibold">
+                  Gespräch führen
+                </button>
+              )}
+              {termin.telefon && (
+                <button type="button"
+                        onClick={() => anrufStarten(termin.telefon!, termin.personId, termin.name)}
+                        data-fiaon="anrufen"
+                        className="fi-zweitknopf px-3.5 py-2 text-[12.5px] font-semibold">
+                  Anrufen
+                </button>
+              )}
+            </span>
           </div>
 
           {offen && (
@@ -313,10 +514,6 @@ function TerminKarte({
                      style={{ color: "var(--fi-text-still)" }}>
                     Ergebnis festhalten
                   </p>
-                  <textarea value={notiz} onChange={(e) => setNotiz(e.target.value)} rows={2}
-                            placeholder="Notiz zum Gespräch — landet im Verlauf des Kunden."
-                            className="w-full resize-none rounded-xl px-3 py-2 text-[13px] outline-none"
-                            style={{ border: "1px solid var(--fi-linie)", background: "var(--fi-seite)" }} />
                   <div className="mt-2.5 flex flex-wrap gap-2">
                     {/* ── DER WEG INS COCKPIT ──────────────────────────────
                         Der Hauptweg. „Gespräch geführt" daneben bleibt für
@@ -345,9 +542,75 @@ function TerminKarte({
                 </div>
               )}
 
+              {/* ══════════════════════════════════════════════════════════
+                  NOTIZ UND VERLAUF — AN DER PERSON, NICHT AM TERMIN
+
+                  Das Feld stand vorher unter „Ergebnis festhalten" und ging nur
+                  ZUSAMMEN mit einem Ergebnis mit. Wer nach dem Gespräch etwas
+                  vermerken wollte, hatte keinen Weg — und die Notiz landete am
+                  Termin, wo der nächste Aufruf sie auf NULL setzte.
+
+                  Jetzt: eigener Knopf, Ablage im Verlauf des KUNDEN, und der
+                  Verlauf steht direkt darunter. Auch bei erledigten Terminen —
+                  gerade dann trägt man nach.
+                  ══════════════════════════════════════════════════════════ */}
+              <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--fi-linie)" }}
+                   data-fiaon="onboarding-notiz">
+                <p className="text-[11px] font-semibold uppercase tracking-[.08em] mb-2"
+                   style={{ color: "var(--fi-text-still)" }}>
+                  Notiz zum Kunden
+                </p>
+                <textarea value={notiz} onChange={(e) => { setNotiz(e.target.value); setNotizFehler(null); }}
+                          rows={2}
+                          placeholder="Was ist zu wissen? Steht danach im Verlauf des Kunden."
+                          aria-label="Notiz zum Kunden"
+                          className="w-full resize-none rounded-xl px-3 py-2 text-[13px] outline-none"
+                          style={{ border: "1px solid var(--fi-linie)", background: "var(--fi-seite)" }} />
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={() => void notizSpeichern()}
+                          disabled={busy === "notiz" || notiz.trim().length < 2}
+                          data-fiaon="notiz-speichern"
+                          className="fi-zweitknopf px-3.5 py-2 text-[12.5px] font-semibold disabled:opacity-40">
+                    {busy === "notiz" ? "Speichert …" : "Notiz speichern"}
+                  </button>
+                  {notizFehler && (
+                    <span className="text-[11.5px] font-semibold" role="alert"
+                          data-fiaon="notiz-fehler" style={{ color: "#b91c1c" }}>
+                      {notizFehler}
+                    </span>
+                  )}
+                </div>
+
+                {/* Der Verlauf — der Beweis, dass die Notiz angekommen ist. */}
+                <div className="mt-3" data-fiaon="onboarding-verlauf">
+                  {!verlauf && <Skelett h={14} />}
+                  {verlauf && verlauf.length === 0 && (
+                    <p className="text-[12px]" style={{ color: "var(--fi-text-still)" }}>
+                      Noch kein Eintrag.
+                    </p>
+                  )}
+                  {verlauf && verlauf.length > 0 && (
+                    <ul className="space-y-1.5 max-h-[200px] overflow-y-auto">
+                      {verlauf.map((v: any, i: number) => (
+                        <li key={i} className="text-[12px] leading-snug">
+                          <span className="font-semibold">{uhrzeitTag(v.am)}</span>
+                          {" · "}
+                          <span style={{ color: "var(--fi-text-leise)" }}>
+                            {v.agent_name || "System"}
+                          </span>
+                          {v.notiz && (
+                            <span style={{ color: "var(--fi-text-still)" }}> — {v.notiz}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
               {termin.notiz && (
                 <p className="mt-4 text-[12.5px] leading-relaxed" style={{ color: "var(--fi-text-leise)" }}>
-                  Notiz: {termin.notiz}
+                  Gesprächsnotiz: {termin.notiz}
                 </p>
               )}
             </div>

@@ -135,7 +135,11 @@ export async function versendenUndProtokollieren(
     await lauf`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
       VALUES (${opts.verlaufRef}, NULL, 'System', 'system', ${text}, NOW())
-    `.catch(() => {});
+    // Ein verschluckter Fehler hier heißt: Die Mail ging raus (oder eben nicht),
+    // und im Verlauf steht davon nichts. Genau das erlebt ein Agent als
+    // „ich habe gedrückt und sehe keine Spur".
+    `.catch((e) => console.error(
+      `[MAIL-LOG] Verlaufseintrag ${opts.verlaufRef} nicht geschrieben:`, e));
   }
 
   return { status, grund };

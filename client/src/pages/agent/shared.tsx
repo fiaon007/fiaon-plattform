@@ -599,6 +599,50 @@ function AgentDrawer({
 }
 
 /**
+ * Die Ladefläche der Hülle — und ihr Ausweg.
+ *
+ * Solange geladen wird, dreht der Ring. Bleibt er stehen (`haengt`), tritt an
+ * seine Stelle eine Karte mit Klartext: Der Ring allein ist von einer leeren
+ * Seite nicht zu unterscheiden, und genau so wurde die Vertriebsleitung gemeldet
+ * („ein weißes Fenster").
+ */
+function Ladeflaeche({ haengt, was }: { haengt: boolean; was: string }) {
+  if (!haengt) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="agent-core opacity-70" style={{ width: 64, height: 64 }} aria-hidden="true">
+          <div className="agent-core__inner">
+            <span className="agent-core__ring" /><span className="agent-core__ring" /><span className="agent-core__ring" />
+            <span className="agent-core__ring" /><span className="agent-core__ring" /><span className="agent-core__glow" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="fi-karte p-5 w-full" style={{ maxWidth: 460 }} data-fiaon="shell-haengt">
+        <p className="text-[15px] font-bold">{was} lässt sich gerade nicht laden.</p>
+        <p className="text-[12.5px] mt-2 leading-relaxed" style={{ color: "var(--fi-text-still)" }}>
+          Der Server hat auf die Anfrage seit zwölf Sekunden nicht geantwortet.
+          Das ist keine leere Seite — es fehlt nur die Antwort. Meistens hilft
+          Neuladen; kommt es wieder, liegt es an der Verbindung oder am Server.
+        </p>
+        <div className="flex flex-wrap gap-2 mt-4">
+          <button type="button" onClick={() => window.location.reload()}
+                  className="fi-primaerknopf px-3 py-2.5 text-[13px] font-bold text-white">
+            Neu laden
+          </button>
+          <a href="/agent" className="fi-zweitknopf px-3 py-2.5 text-[13px] font-semibold">
+            Zur Anmeldung
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Shell: prüft die Anmeldung, zeigt Kopfzeile + Navigation (Desktop oben,
  * Mobile als Bottom-Bar). Nicht angemeldet ⇒ Redirect auf /agent (Login).
  */
@@ -636,6 +680,34 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
       .then((r) => setOnboardingComplete(r.ok ? !!r.json.status?.complete : true))
       .catch(() => setOnboardingComplete(true));
   }, [agent]);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // DER LADERING BRAUCHT EINE ZEITGRENZE (19.08.2026)
+  //
+  // ── DIE MELDUNG (Daniel Stripling) ──────────────────────────────────────
+  // „Wenn ich eine Kundenakte anklicke, öffnet sich lediglich ein weißes
+  // Fenster."
+  //
+  // ── WAS DIE NACHSTELLUNG ZEIGTE ─────────────────────────────────────────
+  // `scripts/schau-neun-punkte.ts` hat `/agent/vertrieb` aufgenommen: eine
+  // hellgraue Fläche mit einem blassen Ring in der Mitte, sechs Sekunden lang,
+  // ohne ein Wort Text. Der Ring steht unten bei `!checked` und bei
+  // `onboardingComplete === null` — und BEIDE hatten keine Zeitgrenze.
+  //
+  // Antwortet `/agent/me` oder `/agent/onboarding` nicht (langsam, 502 vom
+  // Zwischenserver, Netz weg), dreht der Ring für immer. Für einen Menschen ist
+  // das kein Ladezustand, sondern eine leere Seite.
+  //
+  // AGENTS.md: „Eine Anzeige, die stillsteht, wird abgebrochen" — und: Eine
+  // Anzeige muss zwischen „es ist kaputt" und „ich kann es nicht messen"
+  // unterscheiden. Nach zwölf Sekunden sagt sie es.
+  // ══════════════════════════════════════════════════════════════════════════
+  const [ladenZaeh, setLadenZaeh] = useState(false);
+  useEffect(() => {
+    if (checked && onboardingComplete !== null) { setLadenZaeh(false); return; }
+    const uhr = setTimeout(() => setLadenZaeh(true), 12_000);
+    return () => clearTimeout(uhr);
+  }, [checked, onboardingComplete]);
 
   // Ungelesene Space-Beiträge. Alle zwei Minuten — häufiger wäre Unruhe für
   // eine Zahl, die niemand sekundengenau braucht.
@@ -832,32 +904,14 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
   const menuBadge = Object.values(zaehler).reduce((s, n) => s + n, 0);
 
   if (!checked) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="agent-core opacity-70" style={{ width: 64, height: 64 }} aria-hidden="true">
-          <div className="agent-core__inner">
-            <span className="agent-core__ring" /><span className="agent-core__ring" /><span className="agent-core__ring" />
-            <span className="agent-core__ring" /><span className="agent-core__ring" /><span className="agent-core__glow" />
-          </div>
-        </div>
-      </div>
-    );
+    return <Ladeflaeche haengt={ladenZaeh} was="Deine Anmeldung" />;
   }
   if (!agent) return <>{children}</>; // Login-Ansicht rendert die Seite selbst
 
   // Onboarding-Status wird noch geladen → kurzer Ladezustand (kein Kurz-Aufblitzen
   // von Kundendaten, bevor das Gate greift).
   if (onboardingComplete === null) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="agent-core opacity-70" style={{ width: 64, height: 64 }} aria-hidden="true">
-          <div className="agent-core__inner">
-            <span className="agent-core__ring" /><span className="agent-core__ring" /><span className="agent-core__ring" />
-            <span className="agent-core__ring" /><span className="agent-core__ring" /><span className="agent-core__glow" />
-          </div>
-        </div>
-      </div>
-    );
+    return <Ladeflaeche haengt={ladenZaeh} was="Dein Zugang" />;
   }
   // Pflicht-Gate: kein Portal, bis Zustimmung + Vertrag erledigt sind.
   if (!onboardingComplete) {

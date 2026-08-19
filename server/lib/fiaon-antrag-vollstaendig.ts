@@ -1,0 +1,210 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// IST DER ANTRAG INHALTLICH FERTIG? — EINE DEFINITION, ZWEI FASSUNGEN
+//
+// ── DIE MELDUNG (Daniel Stripling, 19.08.2026) ─────────────────────────────
+// „Bei einigen Kunden wird angezeigt, dass sich der Antrag noch ‚im Formular'
+// befindet. Das Problem ist, dass der Antrag aus meiner Sicht bereits
+// vollständig ausgefüllt ist. Es ist nicht ersichtlich, welche Information noch
+// fehlt oder an welcher Stelle der Antrag noch ‚fertiggestellt' werden soll."
+//
+// ── DER BEFUND (gemessen am 19.08.2026, scripts/mess-rechnung-blockade.ts) ──
+// 402 Personen tragen den Sperrgrund `antrag_unfertig`. Aufgeteilt nach dem
+// Zustand in der Zeile:
+//
+//     Zustand            Schritt  Anzahl  inhaltlich
+//     started                  9      23  VOLLSTÄNDIG  ← Daniels Fälle
+//     payment_completed        9       1   VOLLSTÄNDIG  ← auch
+//     contract                 6     216  Schritt 6 fehlt (Mail, Zusagen)
+//     finances                 2     165  ab Schritt 2 leer
+//     config                   3      42  ab Schritt 3 leer
+//     personal_data            1      28  ab Schritt 1 leer
+//
+// Die 24 Fälle mit `current_step = 9` tragen ALLE drei Zusagen, eine
+// E-Mail-Adresse, den Gehaltseingangstag und vollständige Stammdaten. Sie sind
+// fertig. Der Zustand sagt „started" — der ERSTE Schritt.
+//
+// ── DIE URSACHE ────────────────────────────────────────────────────────────
+// `client/src/pages/antrag.tsx` schrieb den Zustand über einen Index:
+//
+//     ["started","personal_data","finances","config","verifying","approved",
+//      "contract","processing","completed"][step] || "started"
+//
+// Die Liste hat NEUN Einträge, also die Indizes 0 bis 8. Das Formular hat einen
+// Schritt 9 (Passwort, nach der Zahlung). `[9]` ist `undefined`, und dann
+// greift `|| "started"`: **Der letzte Schritt des Formulars schreibt den ersten
+// Zustand.** Ein Antrag, der ganz durchlaufen wurde, sieht danach aus wie einer,
+// der nie begonnen hat.
+//
+// ── WARUM DER INHALT ENTSCHEIDET, NICHT DER LETZTE KLICK ───────────────────
+// AGENTS.md: „Zustände, die sich ausrechnen lassen, werden AUSGERECHNET." Der
+// Zustand ist ein Merker, den ein verlorenes Ereignis falsch stehen lässt — die
+// Felder sind die Tatsache. Wer alle Pflichtfelder trägt, ist fertig, ganz
+// gleich welcher Klick zuletzt ankam.
+//
+// ── ZWEI FASSUNGEN, EIN PRÜFSTAND ─────────────────────────────────────────
+// Die Arbeitsliste holt über 1.000 Karten in EINER Abfrage — dort muss die
+// Regel als SQL stehen. Die Akte bewertet eine Zeile — dort als TypeScript.
+// AGENTS.md erlaubt das ausdrücklich nur, wenn ein Prüfstand beide
+// GEGENEINANDER hält: `scripts/pruef-antrag-vollstaendig.ts` tut das an jeder
+// Konstellation im Bestand.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface Pflichtfeld {
+  /** Die Spalte in `fiaon_applications`. */
+  spalte: string;
+  /** Was ein Mensch am Telefon fragen würde. Steht so in der Karte. */
+  name: string;
+  /** `text` = Zeichenkette, die nicht leer sein darf; `ja` = Boolean-Zusage. */
+  art: "text" | "ja";
+  /**
+   * Nur nötig, wenn diese Bedingung zutrifft (SQL-Ausdruck über `a`).
+   * Die IBAN braucht nur, wer per Lastschrift zahlt — genau wie im Formular
+   * (`if (d.billingMethod === "iban" && !d.iban)`).
+   */
+  nurWenn?: (zeile: Record<string, any>) => boolean;
+  nurWennSql?: (a: string) => string;
+}
+
+/**
+ * Die Pflichtfelder eines Privatantrags — in der Reihenfolge des Formulars.
+ *
+ * Abgeglichen mit `client/src/pages/antrag.tsx`, Funktion `next()`: Das sind
+ * genau die Felder, die das Formular selbst verlangt, bevor es weiterlässt. Ein
+ * Feld, das das Formular nicht erzwingt, darf hier nicht stehen — sonst
+ * verlangt die Karte etwas, das der Kunde nie gefragt wurde.
+ */
+export const PFLICHTFELDER: readonly Pflichtfeld[] = [
+  // Schritt 1 — persönliche Daten
+  { spalte: "first_name", name: "Vorname", art: "text" },
+  { spalte: "last_name", name: "Nachname", art: "text" },
+  { spalte: "birthdate", name: "Geburtsdatum", art: "text" },
+  { spalte: "phone", name: "Telefonnummer", art: "text" },
+  { spalte: "street", name: "Straße", art: "text" },
+  { spalte: "zip", name: "PLZ", art: "text" },
+  { spalte: "city", name: "Ort", art: "text" },
+  { spalte: "country", name: "Land", art: "text" },
+  { spalte: "nationality", name: "Staatsangehörigkeit", art: "text" },
+  // Schritt 2 — Beschäftigung
+  { spalte: "employment", name: "Beschäftigung", art: "text" },
+  { spalte: "employed_since", name: "beschäftigt seit", art: "text" },
+  { spalte: "housing", name: "Wohnsituation", art: "text" },
+  // Schritt 3 — Verwendung
+  { spalte: "purpose", name: "Verwendungszweck der Karte", art: "text" },
+  // Schritt 6 — Abschluss
+  { spalte: "email", name: "E-Mail-Adresse", art: "text" },
+  { spalte: "salary_receipt_day", name: "Tag des Gehaltseingangs", art: "text" },
+  {
+    spalte: "iban", name: "IBAN", art: "text",
+    nurWenn: (z) => String(z.billing_method ?? "") === "iban",
+    nurWennSql: (a) => `${a}.billing_method = 'iban'`,
+  },
+  { spalte: "consent_agb", name: "Zustimmung zu den AGB", art: "ja" },
+  { spalte: "consent_schufa", name: "SCHUFA-Einwilligung", art: "ja" },
+  { spalte: "consent_contract", name: "Zustimmung zum Vertrag", art: "ja" },
+] as const;
+
+/** Der Firmenantrag hat andere Pflichtfelder — dieselbe Bauform. */
+export const PFLICHTFELDER_FIRMA: readonly Pflichtfeld[] = [
+  { spalte: "company_name", name: "Firmenname", art: "text" },
+  { spalte: "contact_name", name: "Ansprechpartner", art: "text" },
+  { spalte: "contact_email", name: "E-Mail-Adresse", art: "text" },
+  { spalte: "contact_phone", name: "Telefonnummer", art: "text" },
+  { spalte: "consent_agb", name: "Zustimmung zu den AGB", art: "ja" },
+  { spalte: "consent_contract", name: "Zustimmung zum Vertrag", art: "ja" },
+] as const;
+
+export function pflichtfelderFuer(typ: unknown): readonly Pflichtfeld[] {
+  return String(typ ?? "private") === "business" ? PFLICHTFELDER_FIRMA : PFLICHTFELDER;
+}
+
+/** Trägt die Zeile dieses Feld? Leerraum zählt als „nein" (AGENTS.md). */
+function traegt(zeile: Record<string, any>, f: Pflichtfeld): boolean {
+  const w = zeile[f.spalte];
+  if (f.art === "ja") return w === true;
+  return String(w ?? "").trim().length > 0;
+}
+
+/**
+ * Welche Pflichtfelder fehlen? Klartext, in Formular-Reihenfolge.
+ *
+ * Der Rückgabewert wandert unverändert in die Karte: „Es fehlt: Geburtsdatum,
+ * IBAN". Deshalb sind es Namen und keine Spaltenbezeichner — ein Agent am
+ * Telefon liest keine `salary_receipt_day`.
+ */
+export function fehlendeFelder(zeile: Record<string, any>): string[] {
+  const fehlt: string[] = [];
+  for (const f of pflichtfelderFuer(zeile.type)) {
+    if (f.nurWenn && !f.nurWenn(zeile)) continue;
+    if (!traegt(zeile, f)) fehlt.push(f.name);
+  }
+  return fehlt;
+}
+
+/** Ist der Antrag inhaltlich fertig? */
+export function antragVollstaendig(zeile: Record<string, any>): boolean {
+  return fehlendeFelder(zeile).length === 0;
+}
+
+/**
+ * Dieselbe Regel als SQL-Ausdruck — für Abfragen über den ganzen Bestand.
+ *
+ * Sie muss buchstäblich dasselbe sagen wie `antragVollstaendig`. Der Prüfstand
+ * `scripts/pruef-antrag-vollstaendig.ts` vergleicht beide an jeder
+ * Konstellation im Bestand; weicht eine ab, wird er rot.
+ */
+export function antragVollstaendigSql(a = "a"): string {
+  const teil = (f: Pflichtfeld): string => {
+    const da = f.art === "ja"
+      ? `${a}.${f.spalte} IS TRUE`
+      : `NULLIF(TRIM(${a}.${f.spalte}::text), '') IS NOT NULL`;
+    return f.nurWennSql ? `(NOT (${f.nurWennSql(a)}) OR ${da})` : da;
+  };
+  const privat = PFLICHTFELDER.map(teil).join("\n      AND ");
+  const firma = PFLICHTFELDER_FIRMA.map(teil).join("\n      AND ");
+  return `(CASE WHEN ${a}.type = 'business'
+      THEN (${firma})
+      ELSE (${privat})
+    END)`;
+}
+
+/**
+ * Die fehlenden Felder als SQL-Ausdruck — ein Text wie
+ * „Geburtsdatum, IBAN" oder `NULL`, wenn nichts fehlt.
+ *
+ * Dieselbe Reihenfolge wie `fehlendeFelder`, damit Liste und Akte denselben Satz
+ * zeigen. Gebaut mit `concat_ws`, das NULL-Werte überspringt: Für jedes Feld
+ * steht dort entweder sein Name (fehlt) oder NULL (ist da).
+ */
+export function fehlendeFelderAusdruckSql(a = "a"): string {
+  const teil = (f: Pflichtfeld): string => {
+    const da = f.art === "ja"
+      ? `${a}.${f.spalte} IS TRUE`
+      : `NULLIF(TRIM(${a}.${f.spalte}::text), '') IS NOT NULL`;
+    // Ein Feld, das gar nicht nötig ist, gilt als vorhanden.
+    const noetig = f.nurWennSql ? `(${f.nurWennSql(a)})` : "TRUE";
+    // Der Name wird als Literal eingesetzt; er kommt aus dieser Datei und
+    // enthält keine Anführungszeichen — kein Platz für eine Einschleusung.
+    return `CASE WHEN ${noetig} AND NOT (${da}) THEN '${f.name}' END`;
+  };
+  const bau = (liste: readonly Pflichtfeld[]) =>
+    `NULLIF(CONCAT_WS(', ', ${liste.map(teil).join(", ")}), '')`;
+  return `(CASE WHEN ${a}.type = 'business'
+      THEN ${bau(PFLICHTFELDER_FIRMA)}
+      ELSE ${bau(PFLICHTFELDER)}
+    END)`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ZUSTÄNDE, DIE EIN FORMULARSCHRITT SIND
+//
+// Sie stehen hier und nicht als Literal in der Abfrage: Der Nachzieh-Lauf und
+// die Ableitung müssen dieselbe Menge meinen. `RECHNUNGSREIF` in
+// `fiaon-rechnung-stellen.ts` ist die Gegenmenge — beide Listen zusammen
+// müssen jeden Wert abdecken, der im Bestand vorkommt.
+// ═══════════════════════════════════════════════════════════════════════════
+export const FORMULAR_SCHRITTE = [
+  "started", "config", "personal_data", "contract", "finances",
+] as const;
+
+export const FORMULAR_SCHRITTE_SQL =
+  FORMULAR_SCHRITTE.map((s) => `'${s}'`).join(",");

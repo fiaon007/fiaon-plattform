@@ -10,6 +10,8 @@ import { MarkeBrief, SendeMenue } from "@/components/SendeMenue";
 import { Gespraechsblatt } from "@/components/Gespraechsblatt";
 import { MarkeFunke, anrufStarten } from "@/components/Softphone";
 import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
+import { ErgebnisWahl, type ErgebnisAusgang } from "@/components/agent/ErgebnisWahl";
+import { ERGEBNIS_TEXT, type Ergebnis } from "@shared/fiaon-kontakt-ergebnis-liste";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/kunden — DIE EINE ARBEITSLISTE
@@ -52,6 +54,8 @@ interface Kunde {
   nummerOhneLand?: boolean;
   /** Der Sperrgrund fuer „Zahlungsdaten senden" — vom Server, bei jedem Laden. */
   sendeGrund?: string | null;
+  /** Die fehlenden Pflichtfelder im Klartext („Geburtsdatum, IBAN"). */
+  fehlendeFelder?: string | null;
   sendeMoeglich?: boolean;
   sendeText?: string | null;
   sendeTat?: string | null;
@@ -213,42 +217,19 @@ const SORT: { key: string; label: string }[] = [
   { key: "name", label: "Nach Name" },
 ];
 
-/** Die Ergebnisse — dieselben Namen wie im Server. */
-const ERGEBNISSE: { art: string; label: string; braucht?: "zusage" | "termin" | "notiz" }[] = [
-  { art: "erreicht_zahlt_gleich", label: "Zahlt sofort" },
-  { art: "erreicht_zahlt_am", label: "Zahlt am …", braucht: "zusage" },
-  { art: "nicht_erreicht", label: "Nicht erreicht" },
-  { art: "mailbox", label: "Mailbox besprochen" },
-  { art: "rueckruf_termin", label: "Rückruf vereinbart", braucht: "termin" },
-  { art: "erreicht_abgelehnt", label: "Erreicht – abgelehnt" },
-  // ── ERREICHT, ABER NOCH OHNE ERGEBNIS ──────────────────────────────────
-  // Ein Agent: „Mir fehlt ein Status fuer Kunden, die ich erreicht habe, bei
-  // denen aber noch kein klares Ergebnis vorliegt. Wenn ich nur eine Notiz
-  // hinterlege, zaehlt der Kunde nicht als angerufen."
-  //
-  // `braucht: "notiz"` oeffnet beim Anklicken direkt das Notizfeld — genau
-  // wie er es vorgeschlagen hat. Ohne Text kein Speichern: Ein Gespraech ohne
-  // Ergebnis UND ohne Vermerk waere nur ein Haken.
-  { art: "erreicht_sonstiges", label: "Erreicht – Sonstiges", braucht: "notiz" },
-  { art: "nummer_falsch", label: "Falsche Nummer" },
-  // Gemeldet 06.08.2026: Manche Kunden blockieren die Nummer eines Agenten und
-  // gehen beim nächsten ran. Dieser Knopf gibt den Kunden weiter, statt ihn
-  // stumm in der Liste altern zu lassen.
-  { art: "nummer_blockiert", label: "Anrufer blockiert" },
-];
-
-/** Ergebnis-Kürzel in Klartext — im Verlauf soll niemand Feldnamen lesen. */
-const ERGEBNIS_TEXT: Record<string, string> = {
-  erreicht_zahlt_gleich: "Zahlt sofort",
-  erreicht_zahlt_am: "Zahlt am vereinbarten Datum",
-  erreicht_abgelehnt: "Erreicht – abgelehnt",
-  erreicht_sonstiges: "Erreicht – Sonstiges",
-  nicht_erreicht: "Nicht erreicht",
-  mailbox: "Mailbox besprochen",
-  rueckruf_termin: "Rückruf vereinbart",
-  nummer_falsch: "Falsche Nummer",
-  nummer_blockiert: "Anrufer blockiert — an Kollegen übergeben",
-};
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ERGEBNISLISTE STEHT NICHT MEHR HIER (19.08.2026)
+//
+// Hier lagen zwei Fassungen: `ERGEBNISSE` (neun Knöpfe mit `braucht`) und
+// `ERGEBNIS_TEXT` (neun Klartexte). Zwei weitere lagen in `Softphone.tsx` und
+// im Server, eine fünfte in `kontakt-ergebnis.tsx` — und DIE hatte
+// „Erreicht – Sonstiges" gar nicht.
+//
+// Fünf Fassungen einer Liste sind der Grund, warum dieselbe Meldung dreimal
+// kam. Sie stehen jetzt in `shared/fiaon-kontakt-ergebnis-liste.ts`, und die
+// Knöpfe rendert `components/agent/ErgebnisWahl.tsx` — ein Bauteil für alle
+// Wege.
+// ═══════════════════════════════════════════════════════════════════════════
 
 const TIER_FARBE: Record<number, string> = {
   0: "var(--fi-erfolg)", 1: "var(--fi-tier1)", 2: "var(--fi-tier2)", 3: "var(--fi-tier3)",
@@ -627,9 +608,13 @@ function KundenKarte({
   // Der Produkt-Dialog. AGENTS.md: Haken stehen ÜBER dem ersten `return`.
   const [produktOffen, setProduktOffen] = useState(false);
 
-  const [feldOffen, setFeldOffen] = useState<"zusage" | "termin" | "notiz" | null>(null);
-  const [datumWert, setDatumWert] = useState(tagPlus(1));
-  const [zeitWert, setZeitWert] = useState("10:00");
+  // ── `feldOffen` UND `zeitWert` SIND WEG (19.08.2026) ────────────────────
+  // `feldOffen` kannte drei Werte — „zusage", „termin", „notiz" — und angezeigt
+  // wurden zwei. Der dritte war der Fehler: ein Zustand ohne Bauteil. Er bleibt
+  // nicht als „vielleicht nützlich" stehen, sonst setzt ihn der Nächste wieder.
+  // Beides führt jetzt `ErgebnisWahl` selbst.
+  const [datumWert] = useState(tagPlus(1));
+  /** Die Notiz am Verlauf (unten in der Schublade) — NICHT die Pflichtnotiz. */
   const [notiz, setNotiz] = useState("");
   const [verlauf, setVerlauf] = useState<any[] | null>(null);
   // Das Sende-Menü gehört zur Karte und nicht zur Liste: Es zeigt den Zustand
@@ -759,21 +744,37 @@ function KundenKarte({
     }
   };
 
-  const ergebnis = async (art: string, zusatz: Record<string, unknown> = {}) => {
+  // ══════════════════════════════════════════════════════════════════════════
+  // DAS ERGEBNIS GIBT SEINEN AUSGANG ZURÜCK (19.08.2026)
+  //
+  // Vorher endete diese Funktion im Fehlerfall mit einem `return` — der Aufrufer
+  // erfuhr nichts. Das Ergebnis-Bauteil braucht die Antwort, um den Grund AM
+  // FELD anzuzeigen: Ein Kurzhinweis, der nach vier Sekunden verschwindet, ist
+  // bei einer abgelehnten Pflichtnotiz zu wenig — der Agent tippt gerade.
+  //
+  // Die Notiz kommt als Parameter und nicht mehr aus dem Zustand der Karte: Das
+  // Bauteil führt sein eigenes Feld, und zwei Quellen für denselben Text wären
+  // wieder die Fehlerklasse, die diesen Umbau ausgelöst hat.
+  // ══════════════════════════════════════════════════════════════════════════
+  const ergebnis = async (
+    art: string, zusatz: Record<string, unknown> = {},
+  ): Promise<ErgebnisAusgang> => {
     setLaeuft(art);
+    const eigeneNotiz = typeof zusatz.notiz === "string" ? zusatz.notiz.trim() : "";
     const r = await api(`/agent/crm/kunden/${k.personId}/aktivitaet`, {
-      method: "POST", body: JSON.stringify({ art, notiz: notiz.trim() || undefined, ...zusatz }),
+      method: "POST",
+      body: JSON.stringify({ art, ...zusatz, notiz: eigeneNotiz || notiz.trim() || undefined }),
     });
     setLaeuft(null);
     if (!r.ok) {
-      zeige("fehler", "Nicht gespeichert", r.json?.error || "Bitte erneut versuchen.");
-      return;
+      const grund = r.json?.error || "Nicht gespeichert. Bitte erneut versuchen.";
+      zeige("fehler", "Nicht gespeichert", grund);
+      return { ok: false, fehler: grund };
     }
     // Eine misslungene Übergabe ist kein Erfolg: Wenn jeder Kollege schon
     // blockiert wurde, muss der Agent das lesen und nicht ein grünes Häkchen.
     zeige(r.json.uebergabe && !r.json.uebergabe.ok ? "info" : "erfolg",
       r.json.meldung || "Gespeichert", k.name);
-    setFeldOffen(null);
     setNotiz("");
     // „Abgelehnt" nimmt den Kunden aus jeder Liste; eine geglückte Übergabe
     // ebenso — er gehört dann einem Kollegen. Alles andere bleibt sichtbar,
@@ -818,6 +819,7 @@ function KundenKarte({
       onErledigt();
     } else onErledigt();
     onZaehler();
+    return { ok: true };
   };
 
   /**
@@ -968,6 +970,8 @@ function KundenKarte({
   // hinterher, was drinstand. Florentine hat den falschen Paketnamen nur
   // gefunden, weil der Kunde sich gemeldet hat — fünf Mails später.
   const [bestaetigen, setBestaetigen] = useState(false);
+  /** Der Grund einer abgelehnten Sendung — er bleibt IM Dialog stehen. */
+  const [sendeFehler, setSendeFehler] = useState<string | null>(null);
 
   const zahlungsdaten = async (ref: string | null = null) => {
     setLaeuft("rechnung");
@@ -976,13 +980,44 @@ function KundenKarte({
     // wurde. Ein Client, dem man glaubt, ist eine Wand aus Papier.
     const r = await api(`/agent/crm/kunden/${k.personId}/rechnung`,
       { method: "POST", body: JSON.stringify({ ref }) });
-    setBestaetigen(false);
     setLaeuft(null);
-    if (r.ok) {
-      zeige(r.json.warnung ? "info" : "erfolg", "Zahlungsdaten versandt",
-        r.json.warnung || `An ${r.json.versandtAn} — mit Bankverbindung, Verwendungszweck und Rechnung.`);
-      if (r.json.kunde) onNeu(r.json.kunde);
-    } else zeige("fehler", "Nicht versandt", r.json?.error || "Bitte erneut versuchen.");
+    // ══════════════════════════════════════════════════════════════════════
+    // JEDER AUSGANG IST SICHTBAR (19.08.2026)
+    //
+    // ── DIE MELDUNG (Daniel Stripling) ──────────────────────────────────
+    // „Ich gehe auf ‚Zahlungsdaten senden' → ‚Rechnung stellen & senden'.
+    // Danach passiert teilweise gar nichts. Es erscheint keine Fehlermeldung
+    // und es ist nicht ersichtlich, ob die Rechnung tatsächlich versendet
+    // wurde."
+    //
+    // ── WAS HIER FALSCH WAR ─────────────────────────────────────────────
+    // `setBestaetigen(false)` stand VOR der Auswertung. Der Dialog schloss
+    // sich also in JEDEM Fall — auch im Fehlerfall. Zurück blieb die Karte
+    // und ein Kurzhinweis, der nach wenigen Sekunden verschwindet. Wer in
+    // dem Moment auf den Kunden am Telefon hört, sieht ihn nicht: „es
+    // passiert nichts".
+    //
+    // Jetzt: Bei einem FEHLER bleibt der Dialog offen und trägt den Grund
+    // (`sendeFehler`). Nur der ERFOLG schließt ihn — und dann steht der
+    // Vorgang sofort im Verlauf der Karte, nicht erst nach dem nächsten
+    // Aufklappen.
+    // ══════════════════════════════════════════════════════════════════════
+    if (!r.ok) {
+      const grund = r.json?.error || "Der Server hat den Versand abgelehnt, ohne einen Grund zu nennen.";
+      setSendeFehler(grund);
+      zeige("fehler", "Nicht versandt", grund);
+      return;
+    }
+    setSendeFehler(null);
+    setBestaetigen(false);
+    zeige(r.json.warnung ? "info" : "erfolg",
+      r.json.warnung ? "Versandt, mit Hinweis" : "Rechnung und Zahlungsdaten gesendet",
+      r.json.warnung
+        || `An ${r.json.versandtAn} — mit Bankverbindung, Verwendungszweck und Rechnung. `
+           + "Der Vorgang steht im Verlauf.");
+    if (r.json.kunde) onNeu(r.json.kunde);
+    // Der Beweis für den Agenten: sein Vorgang, sofort, in der Karte.
+    await verlaufNachladen();
   };
 
   const nummerKorrektur = async () => {
@@ -1022,6 +1057,19 @@ function KundenKarte({
     if (verlauf) return;
     const r = await api(`/agent/crm/kunden/${k.personId}`);
     setVerlauf(r.ok ? r.json.verlauf : []);
+  };
+
+  /**
+   * Den Verlauf ERNEUT holen, auch wenn schon einer geladen ist.
+   *
+   * `verlaufLaden` steigt bei vorhandenem Verlauf sofort aus (das ist als
+   * Sparmaßnahme richtig). Nach einem Versand ist das falsch: Der Agent soll
+   * seinen eigenen Vorgang im Verlauf SEHEN — „es ist nicht ersichtlich, ob die
+   * Rechnung tatsächlich versendet wurde" war genau diese Lücke.
+   */
+  const verlaufNachladen = async () => {
+    const r = await api(`/agent/crm/kunden/${k.personId}`);
+    if (r.ok) setVerlauf(r.json.verlauf ?? []);
   };
 
   useEffect(() => { if (offen) void verlaufLaden(); }, [offen]);
@@ -1371,6 +1419,32 @@ function KundenKarte({
                 <span className="text-[11.5px] leading-snug" style={{ color: "#92400e" }}>
                   {sperre.grund}
                 </span>
+                {/* ══════════════════════════════════════════════════════════
+                    WAS GENAU FEHLT — STATT „IM FORMULAR" (19.08.2026)
+
+                    Daniel: „Es ist nicht ersichtlich, welche Information noch
+                    fehlt oder an welcher Stelle der Antrag noch
+                    fertiggestellt werden soll." Der Server liefert die
+                    Pflichtfelder jetzt namentlich mit; hier stehen sie.
+                    ══════════════════════════════════════════════════════════ */}
+                {k.sendeGrund === "antrag_unfertig" && k.fehlendeFelder && (
+                  <span className="text-[11.5px] font-semibold leading-snug"
+                        data-fiaon="fehlende-felder"
+                        style={{ color: "#92400e" }}>
+                    Es fehlt: {k.fehlendeFelder}
+                  </span>
+                )}
+                {/* Der Knopf öffnet die Stammdaten-Felder in derselben Karte —
+                    ein Seitenwechsel für drei Felder ist die häufigste Stelle,
+                    an der jemand aufgibt (AGENTS.md). */}
+                {k.sendeGrund === "antrag_unfertig" && (
+                  <button type="button" onClick={onOeffnen}
+                          data-fiaon="fehlendes-ergaenzen"
+                          className="self-start text-[11.5px] font-bold underline decoration-dotted"
+                          style={{ color: "#92400e" }}>
+                    Fehlendes am Telefon ergänzen
+                  </button>
+                )}
                 {/* ── DER NÄCHSTE SCHRITT, NICHT NUR DIE DIAGNOSE ──────────
                     Bei fehlender E-Mail steht das Feld direkt hier: Das löst
                     165 der 477 gesperrten Fälle mit einer Eingabe, ohne die
@@ -1480,80 +1554,32 @@ function KundenKarte({
            style={{ color: "var(--fi-text-still)" }}>
           Ergebnis festhalten
         </p>
-        <div className="flex flex-wrap items-center gap-2">
-          {ERGEBNISSE.map((e) => (
-            <button key={e.art} type="button" disabled={!!laeuft}
-                    onClick={() => {
-                      if (e.braucht === "zusage") { setFeldOffen(feldOffen === "zusage" ? null : "zusage"); return; }
-                      if (e.braucht === "termin") { setFeldOffen(feldOffen === "termin" ? null : "termin"); return; }
-                      // ── „ERREICHT – SONSTIGES" ÖFFNET DIE NOTIZ ───────────
-                      // Der Vorschlag des Agenten wörtlich: „Beim Anklicken
-                      // öffnet sich direkt die Notiz, in der eingetragen werden
-                      // kann, was besprochen wurde und wie man verblieben ist."
-                      //
-                      // Ohne Text wird nicht gespeichert: Ein Gespräch ohne
-                      // Ergebnis UND ohne Vermerk wäre nur ein Haken, und in
-                      // drei Tagen weiß niemand mehr, worum es ging.
-                      if (e.braucht === "notiz") {
-                        if (!notiz.trim()) { setFeldOffen("notiz"); return; }
-                        void ergebnis(e.art);
-                        return;
-                      }
-                      // Die Übergabe ist die einzige Aktion hier, die den Kunden
-                      // aus der eigenen Hand gibt — und sie verschiebt damit auch
-                      // die Chance auf die Provision. Das gehört vor den Klick,
-                      // nicht in eine Meldung danach.
-                      if (e.art === "nummer_blockiert" && !confirm(
-                        `${k.name} hat deine Nummer blockiert?\n\n`
-                        + `Der Kunde geht sofort an den Kollegen mit dem kleinsten Bestand, der bei `
-                        + `ihm noch nicht blockiert wurde. Er verschwindet aus deiner Liste.\n\n`
-                        + `Wichtig: Die Provision folgt dem, der den Abschluss dokumentiert. `
-                        + `Macht der Kollege den Abschluss, gehört sie ihm.`,
-                      )) return;
-                      void ergebnis(e.art);
-                    }}
-                    className="fi-zweitknopf px-3 py-2.5 text-[12.5px] font-medium">
-              {laeuft === e.art ? "…" : e.label}
-            </button>
-          ))}
-          <span className="ml-auto text-[11.5px] fi-zahl" style={{ color: "var(--fi-text-still)" }}>
-            {k.nichtErreicht > 0 && `${k.nichtErreicht}× nicht erreicht`}
-            {k.nichtErreicht > 0 && k.rechnungVersandt > 0 && " · "}
-            {k.rechnungVersandt > 0 && `${k.rechnungVersandt}× Zahlungsdaten`}
-          </span>
-        </div>
+        {/* ══════════════════════════════════════════════════════════════
+            EIN BAUTEIL STATT NEUN HANDGESCHRIEBENER KNÖPFE (19.08.2026)
 
-        {/* Datumsfelder — nur eines gleichzeitig offen */}
-        {feldOffen === "zusage" && (
-          <div className="mt-2.5 p-3 rounded-xl flex flex-wrap items-center gap-2" style={{ background: "var(--fi-seite)" }}>
-            <label className="text-[12px] font-semibold" style={{ color: "var(--fi-text-leise)" }}>Zahlt am</label>
-            <input type="date" value={datumWert} min={heuteIso()} onChange={(e) => setDatumWert(e.target.value)}
-                   className="px-2.5 py-2 rounded-lg border text-[13px] outline-none bg-white"
-                   style={{ borderColor: "var(--fi-linie)" }} />
-            <button type="button" disabled={!datumWert || !!laeuft}
-                    onClick={() => void ergebnis("erreicht_zahlt_am", { zusageDatum: datumWert })}
-                    className="fi-primaerknopf px-3 py-2 text-[12px] font-bold text-white">
-              Zusage speichern
-            </button>
-          </div>
-        )}
-        {feldOffen === "termin" && (
-          <div className="mt-2.5 p-3 rounded-xl flex flex-wrap items-center gap-2" style={{ background: "var(--fi-seite)" }}>
-            <label className="text-[12px] font-semibold" style={{ color: "var(--fi-text-leise)" }}>Rückruf am</label>
-            <input type="date" value={datumWert} min={heuteIso()} onChange={(e) => setDatumWert(e.target.value)}
-                   className="px-2.5 py-2 rounded-lg border text-[13px] outline-none bg-white"
-                   style={{ borderColor: "var(--fi-linie)" }} />
-            <label className="text-[12px] font-semibold" style={{ color: "var(--fi-text-leise)" }}>um</label>
-            <input type="time" value={zeitWert} step={900} onChange={(e) => setZeitWert(e.target.value)}
-                   className="px-2.5 py-2 rounded-lg border text-[13px] outline-none bg-white"
-                   style={{ borderColor: "var(--fi-linie)" }} />
-            <button type="button" disabled={!datumWert || !!laeuft}
-                    onClick={() => void ergebnis("rueckruf_termin", { terminDatum: datumWert, terminZeit: zeitWert })}
-                    className="fi-primaerknopf px-3 py-2 text-[12px] font-bold text-white">
-              Termin speichern
-            </button>
-          </div>
-        )}
+            Hier standen die Knöpfe, die Datumsfelder — und der Zweig für
+            „Erreicht – Sonstiges", der `setFeldOffen("notiz")` setzte. Einen
+            Block, der „notiz" ANZEIGT, gab es nie. Der Knopf setzte also einen
+            Zustand, den nichts liest, und kehrte zurück: keine Anfrage, kein
+            Feld, keine Meldung — Daniels „es passiert nichts", wörtlich.
+
+            `ErgebnisWahl` bringt Knöpfe, Notizpflicht mit Zeichenzähler und
+            Datumsfelder mit. Softphone und Kundenkarte rendern dasselbe
+            Bauteil; ein neues Ergebnis ist eine Zeile in
+            `shared/fiaon-kontakt-ergebnis-liste.ts`.
+            ══════════════════════════════════════════════════════════════ */}
+        <ErgebnisWahl
+          onErgebnis={(art, zusatz) => ergebnis(art, zusatz)}
+          laeuft={laeuft}
+          kundeName={k.name}
+          heute={heuteIso()}
+          vorgabeDatum={datumWert}
+        />
+        <p className="mt-1.5 text-[11.5px] fi-zahl" style={{ color: "var(--fi-text-still)" }}>
+          {k.nichtErreicht > 0 && `${k.nichtErreicht}× nicht erreicht`}
+          {k.nichtErreicht > 0 && k.rechnungVersandt > 0 && " · "}
+          {k.rechnungVersandt > 0 && `${k.rechnungVersandt}× Zahlungsdaten`}
+        </p>
 
         {/* Detailansicht: Stammdaten und vollständiger Verlauf */}
         <button type="button" onClick={onOeffnen}
@@ -1797,7 +1823,11 @@ function KundenKarte({
                       <span className="font-semibold">{new Date(v.am).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
                       {" · "}
                       <span style={{ color: "var(--fi-text-leise)" }}>
-                        {v.agentName || v.agent || "System"}: {ERGEBNIS_TEXT[v.ergebnis] || (v.art === "note" ? "Notiz" : v.art)}
+                        {/* `v` kommt als `any` aus dem Verlauf; die geteilte Liste
+                            ist streng nach Ergebnis getippt. Der Zugriff wird
+                            deshalb ausdrücklich geweitet, statt die Liste
+                            aufzuweichen — der Typ ist dort die Wand. */}
+                        {v.agentName || v.agent || "System"}: {(ERGEBNIS_TEXT as Record<string, string>)[String(v.ergebnis)] || (v.art === "note" ? "Notiz" : v.art)}
                       </span>
                       {v.notiz && <span style={{ color: "var(--fi-text-still)" }}> — {v.notiz}</span>}
                     </li>
@@ -1867,8 +1897,9 @@ function KundenKarte({
           personId={k.personId}
           kundeName={k.name}
           laeuft={laeuft === "rechnung"}
-          onAbbrechen={() => setBestaetigen(false)}
+          onAbbrechen={() => { setBestaetigen(false); setSendeFehler(null); }}
           onSenden={(ref) => void zahlungsdaten(ref)}
+          sendeFehler={sendeFehler}
         />
       )}
     </div>

@@ -65,7 +65,23 @@ const TerminPage = lazy(() => import("@/pages/termin"));
 const TerminAbsagenPage = lazy(() => import("@/pages/termin").then((m) => ({ default: m.TerminAbsagenPage })));
 const AbmeldenPage = lazy(() => import("@/pages/abmelden"));
 const AlsKundePage = lazy(() => import("@/pages/als-kunde"));
-const AgentHeutePage = lazy(() => import("@/pages/agent/heute"));
+// ══════════════════════════════════════════════════════════════════════════
+// `pages/agent/heute.tsx` UND `pages/agent/meine-kunden.tsx` SIND WEG (19.08.2026)
+//
+// Beide hingen an KEINER Route mehr: `/agent/heute` leitet seit dem 05.08. auf
+// `/agent/start` um, `/agent/meine-kunden` auf `/agent/kunden`. `heute.tsx` war
+// hier noch lazy importiert — ein Import ohne Route, also toter Code mit
+// Verwechslungsgefahr.
+//
+// Das ist die Falle, die AGENTS.md zweimal beschreibt: Am 25.08. wurden ein
+// Knopf und eine Notizpflicht in `kunden.tsx` gebaut, während `/agent/kunden`
+// längst `kunden-neu.tsx` zeigte. Genau dieser Fix wurde beim Aufräumen am
+// 28.08. mitgelöscht — und „Erreicht – Sonstiges" ein drittes Mal gemeldet.
+//
+// `heute.tsx` trug eine eigene Fassung der Ergebnisliste (sieben Werte). Wer
+// dort gesucht hätte, hätte sie gefunden und geändert — ohne Wirkung.
+// `scripts/pruef-ergebnis-eine-liste.ts` hält die Zahl der Fassungen jetzt fest.
+// ══════════════════════════════════════════════════════════════════════════
 const AgentAufgabenPage = lazy(() => import("@/pages/agent/aufgaben"));
 const AgentStartPage = lazy(() => import("@/pages/agent/start"));
 const AgentKundenNeuPage = lazy(() => import("@/pages/agent/kunden-neu"));

@@ -84,6 +84,100 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-19-neun-punkte",
+    date: "2026-08-19",
+    category: "Behoben",
+    title: "Neun Meldungen aus Vertrieb und Onboarding — was jetzt anders ist",
+    summary:
+      "Der tote Knopf „Erreicht – Sonstiges“ geht wieder. Anträge, die fertig "
+      + "sind, gelten als fertig. Und wo etwas nicht klappt, steht ab jetzt "
+      + "warum — statt einer leeren Fläche.",
+    changes: [
+      "„ERREICHT – SONSTIGES“ ÖFFNET JETZT DAS NOTIZFELD. Es war dreimal "
+      + "gemeldet, und dreimal zu Recht: Der Klick setzte im Hintergrund einen "
+      + "Zustand, für den es kein Feld gab. Es ging also nicht einmal eine "
+      + "Anfrage raus — deshalb kam auch keine Fehlermeldung. Jetzt klappt "
+      + "direkt ein Textfeld auf, mit Zeichenzähler und vier antippbaren "
+      + "Vorlagen: „Rückzahlung erwartet“, „intern weitergegeben“, „überlegt "
+      + "noch“, „individuelle Absprache“. Ab 10 Zeichen wird gespeichert.",
+
+      "WARUM ES DREIMAL PASSIERT IST: Die Liste der Ergebnisse stand an fünf "
+      + "Stellen im Programm. Der Fix von letzter Woche landete in einer Datei, "
+      + "die keine Seite mehr lädt — und wurde beim Aufräumen mitgelöscht. "
+      + "Jetzt gibt es die Liste EINMAL und ein Bauteil, das alle Seiten "
+      + "benutzen. Ein neues Ergebnis ist eine Zeile, nicht fünf.",
+
+      "„ANTRAG STEHT NOCH IM FORMULAR“ BEI FERTIGEN ANTRÄGEN: GEMESSEN — 35 "
+      + "Anträge waren komplett ausgefüllt (alle Zustimmungen, E-Mail, "
+      + "Gehaltstag) und wurden trotzdem blockiert. Ursache war ein Zählfehler "
+      + "im Antragsformular: Der LETZTE Schritt schrieb den ERSTEN Status "
+      + "zurück. Alle 35 sind korrigiert und rechnungsreif — bei jedem von "
+      + "euch. Behoben ist auch die Ursache.",
+
+      "UND DIE KARTE SAGT JETZT, WAS FEHLT. Statt „ruf an und hilf beim "
+      + "Fertigstellen“ steht dort „Es fehlt: Geburtsdatum, IBAN“ — namentlich, "
+      + "mit einem Knopf „Fehlendes am Telefon ergänzen“. Kein Rätselraten mehr.",
+
+      "„RECHNUNG STELLEN & SENDEN“: Der Dialog schloss sich vorher SOFORT — "
+      + "auch wenn der Versand scheiterte. Jetzt bleibt er offen und zeigt den "
+      + "Grund in Rot. Klappt es, steht der Vorgang sofort im Verlauf der "
+      + "Karte, mit der Adresse. Du siehst also immer, was passiert ist. "
+      + "(Eine Mail wurde intern sogar als Erfolg gemeldet, ohne dass sie raus "
+      + "war — das ist behoben.)",
+
+      "KUNDEN, DIE NIEMAND ERREICHT, RUHEN JETZT. GEMESSEN: 26 Menschen mit "
+      + "9 bis 20 erfolglosen Anrufen standen weiter in den Tageslisten. Neue "
+      + "Staffel: ab dem 3. Versuch Wiedervorlage +3 Tage, ab dem 6. +7 Tage "
+      + "und Terminlink-Mail, ab dem 9. „Ruhend“ — raus aus der Liste, "
+      + "sichtbar im Filter „Ruhend“. Bucht der Kunde selbst einen Termin oder "
+      + "meldet er sich, ist er sofort wieder oben. 228 Wiedervorlagen wurden "
+      + "gestreckt: Deine Liste ist heute kürzer und enthält mehr Menschen, mit "
+      + "denen ein Gespräch möglich ist.",
+
+      "TERMINE ZEIGEN, WER ZUSTÄNDIG IST. Auf der Startseite steht an jedem "
+      + "Termin eine Marke: „Onboarding“ (der Kunde hat bezahlt und wird "
+      + "freigeschaltet), „Vertrieb“ (noch nicht bezahlt, beraten) oder "
+      + "„Rückruf“ (selbst notiert). Bisher gab es die Marke überall — nur "
+      + "nicht in der Leiste, die du den ganzen Tag offen hast.",
+
+      "VERTRIEBSLEITUNG: KEINE LEEREN FLÄCHEN MEHR. Die Kundenakte zeigte ein "
+      + "leeres Fenster, wenn eine Abfrage scheiterte — ohne ein Wort. Jetzt "
+      + "steht dort eine Karte mit dem Grund und „Neu laden“. Dasselbe für die "
+      + "ganze Seite: Lädt etwas nicht, sagt sie es, statt endlos graue Balken "
+      + "zu zeigen.",
+
+      "ONBOARDING — „GESPRÄCH FÜHREN“ STEHT JETZT AUF DER KARTE. Vorher lag "
+      + "der Knopf zwei Klicks tief: Man musste erst den Kundennamen anklicken. "
+      + "Sichtbar war nur „Anrufen“ — und das war ein Telefon-Link, der am "
+      + "Rechner nichts tut. Jetzt: „Gespräch führen“ als Hauptknopf, und "
+      + "„Anrufen“ öffnet das FIAON-Telefon.",
+
+      "ONBOARDING — NOTIZEN BLEIBEN. Sie ließen sich vorher nur zusammen mit "
+      + "einem Ergebnis speichern, landeten am Termin statt am Kunden, und der "
+      + "nächste Klick setzte sie auf leer. Jetzt: eigener Knopf „Notiz "
+      + "speichern“, Ablage im Verlauf des KUNDEN, sofort sichtbar.",
+
+      "ONBOARDING — ERLEDIGTE VERSCHWINDEN. Zwei Reiter mit Zählern: „Offen“ "
+      + "und „Erledigt“. Abgeschlossene Gespräche tragen ein grünes Häkchen mit "
+      + "Uhrzeit und stehen nicht mehr zwischen den offenen.",
+    ],
+    howto: [
+      "Erreicht – Sonstiges: Kundenkarte öffnen → „Erreicht – Sonstiges“ → das "
+      + "Feld klappt auf. Vorlage antippen oder frei tippen, ab 10 Zeichen wird "
+      + "der Knopf frei. Der Zähler sagt, wie viele Zeichen noch fehlen.",
+      "Antrag unvollständig: Steht am gesperrten Sende-Knopf „Es fehlt: …“, "
+      + "frag genau diese Angaben am Telefon ab und trag sie über „Fehlendes am "
+      + "Telefon ergänzen“ nach. Danach ist der Knopf frei.",
+      "Ruhende Kunden ansehen: In der Kundenliste auf den Filter „Ruhend“. "
+      + "Dort stehen die, die neunmal nicht erreichbar waren — sie sind nicht "
+      + "verloren, nur nicht mehr im Weg.",
+      "Onboarding: Startgespräche öffnen → beim Termin „Gespräch führen“ → die "
+      + "7 Schritte durchgehen und je Schritt notieren → „Gespräch abschließen "
+      + "& freischalten“.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-19-anrufgrenze-warnt",
     date: "2026-08-19",
     category: "Behoben",

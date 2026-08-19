@@ -35,7 +35,9 @@ import { ruhtSql } from "../lib/fiaon-nicht-erreicht";
 import { terminLink } from "../lib/fiaon-termine";
 import { wartetSql, warteZahlen } from "../lib/fiaon-warten";
 import { landVorschlag } from "./fiaon-agent-kunden";
-import { sendeGrundSql, SENDE_GRUND_TEXT } from "../lib/fiaon-massgebliche-bestellung";
+import {
+  sendeGrundSql, SENDE_GRUND_TEXT, fehlendeFelderSql,
+} from "../lib/fiaon-massgebliche-bestellung";
 import { terminArtAusQuelle, terminArtRueckruf } from "../../shared/fiaon-termin-art";
 
 const router = Router();
@@ -120,6 +122,8 @@ const KARTE_SQL = `
   -- Entwurf passiert — die Kundenliste antwortete mit HTTP 500. Der Ausdruck
   -- wird deshalb direkt eingesetzt.
   ${sendeGrundSql("p")} AS sende_grund,
+  -- Welche Pflichtfelder fehlen? Wörtlich in die Karte, statt „im Formular".
+  ${fehlendeFelderSql("p")} AS fehlende_felder,
   (SELECT a.amount_due FROM fiaon_applications a
     WHERE a.person_id = p.id AND a.merged_into IS NULL
     ORDER BY a.created_at DESC LIMIT 1) AS amount_due,
@@ -215,6 +219,7 @@ export function karte(p: any) {
     sendeMoeglich: p.sende_grund === "frei" || p.sende_grund === "erste_rechnung",
     sendeText: p.sende_grund ? (SENDE_GRUND_TEXT[String(p.sende_grund)]?.text ?? null) : null,
     sendeTat: p.sende_grund ? (SENDE_GRUND_TEXT[String(p.sende_grund)]?.tat ?? null) : null,
+    fehlendeFelder: p.fehlende_felder ? String(p.fehlende_felder) : null,
     betrag: p.amount_due != null ? Math.round(Number(p.amount_due) * 100) : null,
     zusagedatum: p.promised_payment_date,
     wiedervorlage: p.follow_up_date,
@@ -404,14 +409,25 @@ router.get("/agent/start", requireAgent, async (req: AgentRequest, res: Response
         zusageHeute: zahlen.zusage_heute, zusageUeberfaellig: zahlen.zusage_ueberfaellig,
       },
       zusagen: (zusagen as any[]).map(karte),
-      rueckrufe: (rueckrufe as any[]).map((r) => ({
-        personId: Number(r.person_id),
-        name: r.name,
-        am: r.scheduled_at,
-        notiz: r.note,
-        tier: Number(r.priority_tier),
-        tierGrund: r.tier_reason,
-      })).sort((a, b) => +new Date(a.am) - +new Date(b.am)),
+      // Auch hier die Art-Marke: Ein selbst notierter Rückruf ist grau und
+       // damit klar vom Onboarding-Termin unterscheidbar. Ohne sie stand in der
+       // Leiste nur ein Name und eine Uhrzeit — und Daniel musste raten, wer
+       // zuständig ist.
+      rueckrufe: (rueckrufe as any[]).map((r) => {
+        const marke = terminArtRueckruf();
+        return {
+          personId: Number(r.person_id),
+          name: r.name,
+          am: r.scheduled_at,
+          notiz: r.note,
+          tier: Number(r.priority_tier),
+          tierGrund: r.tier_reason,
+          terminArt: marke.art,
+          terminArtText: marke.text,
+          terminArtTon: marke.ton,
+          terminArtErklaerung: marke.erklaerung,
+        };
+      }).sort((a, b) => +new Date(a.am) - +new Date(b.am)),
     });
   } catch (err) {
     console.error("[AGENT-START] start:", err);

@@ -40,7 +40,11 @@ interface StartDaten {
     zusageHeute: number; zusageUeberfaellig: number;
   };
   zusagen: any[];
-  rueckrufe: { personId: number; name: string; am: string; notiz: string | null; tierGrund: string }[];
+  rueckrufe: {
+    personId: number; name: string; am: string; notiz: string | null; tierGrund: string;
+    terminArt?: string | null; terminArtText?: string | null;
+    terminArtTon?: string | null; terminArtErklaerung?: string | null;
+  }[];
 }
 
 async function api(pfad: string, init?: RequestInit) {
@@ -117,6 +121,11 @@ interface AgentTermin {
   id: number; personId: number; name: string; beginn: string;
   datumText: string; uhrzeit: string; dauerMin: number;
   status: string; quelle: string; heute: boolean;
+  /** Die Art aus `shared/fiaon-termin-art.ts` — Onboarding, Vertrieb, Rückruf. */
+  terminArt?: string | null;
+  terminArtText?: string | null;
+  terminArtTon?: string | null;
+  terminArtErklaerung?: string | null;
 }
 
 function Inhalt() {
@@ -573,8 +582,39 @@ function Inhalt() {
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-[13.5px] font-semibold truncate">{t.name}</span>
-                        <span className="block text-[11.5px] truncate" style={{ color: "var(--fi-text-still)" }}>
-                          {t.dauerMin} Minuten · {t.quelle === "agent_manuell" ? "von dir angelegt" : "vom Kunden gewählt"}
+                        <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px]"
+                              style={{ color: "var(--fi-text-still)" }}>
+                          {/* ══════════════════════════════════════════════════
+                              DIE ART DES TERMINS — VERTRIEB ODER ONBOARDING
+
+                              Daniel: „Bei mir werden teilweise Termine von
+                              Kunden angezeigt, die bereits bezahlt haben.
+                              Aktuell ist nicht eindeutig ersichtlich, welcher
+                              Bereich für den jeweiligen Termin zuständig ist."
+
+                              Die Marke kommt aus shared/fiaon-termin-art.ts —
+                              dieselbe Ableitung wie Kalender, Termin-Zentrale
+                              und Startgespräch-Liste. Diese Leiste war die
+                              einzige Anzeige ohne sie, und es ist die, die ein
+                              Vertriebsmitarbeiter den ganzen Tag offen hat.
+                              ══════════════════════════════════════════════════ */}
+                          {t.terminArtText && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md font-semibold"
+                                  data-fiaon="termin-art"
+                                  title={t.terminArtErklaerung || undefined}
+                                  style={{
+                                    background: `${t.terminArtTon || "#64748b"}14`,
+                                    color: t.terminArtTon || "#64748b",
+                                  }}>
+                              {t.terminArtText}
+                            </span>
+                          )}
+                          {/* Der WEG bleibt daneben stehen, nicht anstelle der Art:
+                              „vom Kunden gewählt" ist verbindlicher als ein selbst
+                              angelegter Termin. */}
+                          <span className="truncate">
+                            {t.dauerMin} Minuten · {t.quelle === "agent_manuell" ? "von dir angelegt" : "vom Kunden gewählt"}
+                          </span>
                         </span>
                       </span>
                       {t.heute && (
@@ -627,11 +667,21 @@ function Inhalt() {
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-[13.5px] font-semibold truncate">{r.name}</span>
-                        {r.notiz && (
-                          <span className="block text-[11.5px] truncate" style={{ color: "var(--fi-text-still)" }}>
-                            {r.notiz}
-                          </span>
-                        )}
+                        <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px]"
+                              style={{ color: "var(--fi-text-still)" }}>
+                          {r.terminArtText && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md font-semibold"
+                                  data-fiaon="termin-art"
+                                  title={r.terminArtErklaerung || undefined}
+                                  style={{
+                                    background: `${r.terminArtTon || "#64748b"}14`,
+                                    color: r.terminArtTon || "#64748b",
+                                  }}>
+                              {r.terminArtText}
+                            </span>
+                          )}
+                          {r.notiz && <span className="truncate">{r.notiz}</span>}
+                        </span>
                       </span>
                       {z.vorbei && (
                         <span className="shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded-md"

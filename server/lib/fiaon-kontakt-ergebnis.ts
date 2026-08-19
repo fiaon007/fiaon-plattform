@@ -52,107 +52,41 @@
 import { sqlPool } from "./db-pool";
 import { berlinPlusTage } from "./fiaon-time";
 
-export const ERGEBNISSE = [
-  "erreicht_zahlt_gleich",
-  "erreicht_zahlt_am",
-  "erreicht_abgelehnt",
-  // ══════════════════════════════════════════════════════════════════════════
-  // ERREICHT, ABER OHNE KLARES ERGEBNIS
-  //
-  // Ein Agent (11.08.2026): „Mir fehlt ein Status fuer Kunden, die ich erreicht
-  // habe, bei denen aber noch kein klares Ergebnis wie ‚Zahlt sofort', ‚Zahlt
-  // am …', ‚Rueckruf' oder ‚Abgelehnt' vorliegt. Es gibt zwar bereits die
-  // Notizfunktion, aber wenn ich nur eine Notiz hinterlege, zaehlt der Kunde
-  // nicht als angerufen/bearbeitet, obwohl ein Gespraech stattgefunden hat."
-  //
-  // Er hat recht: Eine Notiz ist ein Vermerk, kein Ergebnis. Der Zaehler
-  // „heute bearbeitet" sah sie nicht, und der Kunde stand morgen wieder oben.
-  //
-  // Dieses Ergebnis zaehlt als Gespraech, setzt aber KEINE Zusage und KEINE
-  // Sperre — nur eine Wiedervorlage in drei Tagen. Wer ein Gespraech ohne
-  // Ergebnis hatte, braucht Zeit, aber er darf nicht vergessen werden.
-  // ══════════════════════════════════════════════════════════════════════════
-  "erreicht_sonstiges",
-  "nicht_erreicht",
-  "mailbox",
-  "rueckruf_termin",
-  "nummer_falsch",
-  "nummer_blockiert",
-] as const;
-export type Ergebnis = (typeof ERGEBNISSE)[number];
-
-export function istErgebnis(v: unknown): v is Ergebnis {
-  return typeof v === "string" && (ERGEBNISSE as readonly string[]).includes(v);
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
-// WELCHE ERGEBNISSE EINE NOTIZ BRAUCHEN — UND ZWAR SERVERSEITIG
+// DIE LISTE STEHT IN `shared/` (19.08.2026)
 //
-// ── DER BEFUND (24.08.2026) ────────────────────────────────────────────────
-// „Erreicht — Sonstiges" heißt wörtlich: „Ich habe mit ihm gesprochen, aber es
-// passt in keine Schublade." Ohne Notiz ist das kein Ergebnis, sondern ein
-// verlorenes Gespräch — der nächste Anrufer fängt bei Null an.
+// Hier lag eine von FÜNF Fassungen: Server, Softphone, kunden-neu,
+// kontakt-ergebnis.tsx (ohne „Sonstiges") und kunden.tsx (gelöscht). Deshalb
+// kam dieselbe Meldung dreimal — jede Fassung kannte einen anderen Stand der
+// Notizpflicht.
 //
-// Die Pflicht stand in der OBERFLÄCHE, und zwar an zwei von drei Stellen:
-//   client/src/components/Softphone.tsx        notizPflicht: true   ✔
-//   client/src/pages/agent/kunden-neu.tsx      braucht: "notiz"     ✔
-//   client/src/pages/agent/kunden.tsx          — nichts —           ✘
+// Die Werte, die Beschriftungen, die Notizpflicht und ihre Prüfung stehen jetzt
+// EINMAL in `shared/fiaon-kontakt-ergebnis-liste.ts`. Diese Datei behält, was
+// nur der Server weiß: was ein Ergebnis für den ZUSTAND einer Person bedeutet.
 //
-// Der Listen-Weg kam also ohne Notiz durch. Und jeder direkte Aufruf der Route
-// ebenfalls.
-//
-// ── DIE REGEL AUS AGENTS.MD ────────────────────────────────────────────────
-// „Die Grenze steht in der WHERE-Bedingung, nicht in der Oberfläche." Eine
-// Pflicht, die drei Oberflächen einzeln kennen müssen, wird an der vierten
-// vergessen. Sie steht jetzt HIER, einmal — und die Oberflächen lesen sie.
+// Die Ausfuhr bleibt bestehen — 40 Stellen importieren `ERGEBNISSE` und
+// `ERGEBNIS_TEXT` von hier. Ein entfernter Export ließe Importe ins Leere
+// laufen (AGENTS.md).
 // ═══════════════════════════════════════════════════════════════════════════
+import {
+  ERGEBNISSE, ERGEBNIS_TEXT, BRAUCHT_NOTIZ, NOTIZ_MINDESTLAENGE,
+  brauchtDatum, istErgebnis, pruefeNotiz, type Ergebnis,
+} from "../../shared/fiaon-kontakt-ergebnis-liste";
 
-/** Mindestlänge einer Pflichtnotiz. Kürzer ist keine Auskunft, sondern ein Haken. */
-export const NOTIZ_MINDESTLAENGE = 10;
-
-/**
- * Ergebnisse, die ohne Notiz nichts aussagen.
- *
- * Bewusst KURZ gehalten: Jede weitere Pflicht ist eine Hürde, und Hürden
- * erzeugen Ausweichverhalten (dann klickt jemand „nicht erreicht", weil das
- * schneller geht — und die Statistik ist verdorben).
- */
-export const BRAUCHT_NOTIZ: ReadonlySet<Ergebnis> = new Set<Ergebnis>([
-  "erreicht_sonstiges",
-]);
-
-/**
- * Prüft die Notizpflicht. Gibt `null` zurück, wenn alles in Ordnung ist,
- * sonst den Satz, der dem Mitarbeiter angezeigt wird.
- */
-export function pruefeNotiz(ergebnis: string, notiz: unknown): string | null {
-  if (!BRAUCHT_NOTIZ.has(ergebnis as Ergebnis)) return null;
-  const text = String(notiz ?? "").trim();
-  if (text.length >= NOTIZ_MINDESTLAENGE) return null;
-  return `Für „${ERGEBNIS_TEXT[ergebnis as Ergebnis] ?? ergebnis}" braucht es eine Notiz `
-    + `(mindestens ${NOTIZ_MINDESTLAENGE} Zeichen). Ohne sie ist das Gespräch verloren — `
-    + "der nächste Anrufer fängt bei Null an.";
-}
-
-/** Klartext für Oberfläche, Protokoll und Meldungen — eine Quelle für alle. */
-export const ERGEBNIS_TEXT: Record<Ergebnis, string> = {
-  erreicht_zahlt_gleich: "Erreicht — zahlt sofort",
-  erreicht_zahlt_am: "Erreicht — zahlt am …",
-  erreicht_abgelehnt: "Erreicht — abgelehnt",
-  erreicht_sonstiges: "Erreicht — Sonstiges",
-  nicht_erreicht: "Nicht erreicht",
-  mailbox: "Mailbox besprochen",
-  rueckruf_termin: "Rückruf vereinbart",
-  nummer_falsch: "Falsche Nummer",
-  nummer_blockiert: "Anrufer blockiert",
+// Ein `export … from` allein reicht nicht: Die Namen kämen dann nicht in den
+// LOKALEN Sichtbereich, und `ERGEBNIS_TEXT[ergebnis]` weiter unten wäre
+// undefiniert. Also erst importieren, dann weiterreichen.
+export {
+  ERGEBNISSE, ERGEBNIS_TEXT, BRAUCHT_NOTIZ, NOTIZ_MINDESTLAENGE,
+  brauchtDatum, istErgebnis, pruefeNotiz, type Ergebnis,
 };
 
-/** Braucht dieses Ergebnis ein Datum? */
-export function brauchtDatum(e: Ergebnis): "zusage" | "termin" | null {
-  if (e === "erreicht_zahlt_am") return "zusage";
-  if (e === "rueckruf_termin") return "termin";
-  return null;
-}
+// ── DIE NOTIZPFLICHT GILT WEITER, UND ZWAR SERVERSEITIG ───────────────────
+// `pruefeNotiz` wird oben aus `shared/` durchgereicht und in jeder Route
+// aufgerufen, die ein Ergebnis annimmt. Die Oberfläche muss sie damit nicht
+// ERZWINGEN, aber SAGEN (Zeichenzähler, Begründung) — genau so steht es in
+// AGENTS.md. Der Unterschied ist nicht Bequemlichkeit: Ein direkter Aufruf der
+// Route kommt sonst ohne Notiz durch.
 
 export interface ErgebnisEingabe {
   /** Bestellung, an der der Verlauf hängt. */

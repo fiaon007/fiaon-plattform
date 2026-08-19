@@ -35,14 +35,78 @@ import { versendenUndProtokollieren, type VersandStatus } from "./fiaon-mail-log
 
 type Lauf = typeof sqlPool;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE STAFFEL — NEU GEFASST AM 19.08.2026
+//
+// ── DIE MELDUNG (Daniel Stripling) ─────────────────────────────────────────
+// „Kunden, die bereits mehrfach erfolglos angerufen wurden, teilweise 10–12 Mal
+// oder mehr, erscheinen trotzdem weiterhin weit oben. Dadurch werden immer
+// wieder dieselben nicht erreichbaren Kunden bearbeitet, während andere Kunden
+// noch gar nicht kontaktiert wurden."
+//
+// ── DER BEFUND (scripts/mess-ruhe-staffel.ts, 19.08.2026) ──────────────────
+// 26 Personen mit NEUN oder mehr erfolglosen Versuchen standen an diesem Tag in
+// der Arbeitsliste, Spitze 20 Versuche. Verteilung der Ruhe-Marke:
+//
+//     Versuche   Personen   davon mit ruhe_seit
+//        4          133            125
+//        5           15              9
+//        9           14              0
+//       10           15              1
+//       12            4              1
+//       20            1              1  (Wiedervorlage lief HEUTE ab)
+//
+// Bei vier Versuchen greift die Automatik fast immer. Ab neun praktisch nie.
+// Zwei Ursachen, beide in dieser Datei:
+//
+//   1. DIE RUHE WAR EIN EINMALIGER SCHLUMMER. Die Bedingung lautete
+//      `versuche >= SCHWELLE_RUHE && !p.ruhe_seit` — sie feuert also GENAU
+//      EINMAL. Nach 14 Tagen läuft die Wiedervorlage ab, der Fall kommt zurück,
+//      und weil `ruhe_seit` nun gesetzt IST, ruht er nie wieder. Jeder weitere
+//      Fehlversuch zählt hoch und ändert nichts.
+//   2. STUFE A WAR DAUERHAFT AUSGENOMMEN (`!istStufeA`). GEMESSEN: 77 der 221
+//      Personen mit vier und mehr Versuchen sind Stufe A — und genau 77 hatten
+//      keine Ruhe-Marke. Die Ausnahme war als Schutz gedacht („da hängt eine
+//      gemeldete Zahlung dran"), wurde aber zum Dauerzustand.
+//
+// ── DIE NEUE STAFFEL (mit dem Betreiber abgestimmt) ───────────────────────
+//   ab dem 3. Versuch   Wiedervorlage +3 Tage
+//   ab dem 6. Versuch   Wiedervorlage +7 Tage UND Terminlink-Mail
+//   ab dem 9. Versuch   „Ruhend" — raus aus der Tagesliste, sichtbar unter
+//                       dem Filter „Ruhend", ohne Ablaufdatum
+//
+// Sie greift bei JEDEM Fehlversuch neu, nicht einmalig. Und sie kennt keine
+// Ausnahme mehr: Wer neunmal nicht ans Telefon geht, wird vom zehnten Anruf
+// nicht erreicht — der gehört auf den Terminlink, nicht in die Tagesliste.
+//
+// ── WAS SIE NICHT TUT ─────────────────────────────────────────────────────
+// Sperren, löschen, die Stufe ändern. „Ruhend" ist eine Sichtbarkeitsfrage.
+// Bucht der Kunde einen Termin oder wird er erreicht, ist er sofort zurück
+// (`erreichtZuruecksetzen`) — das ist der Ausweg, der die Regel vertretbar
+// macht.
+// ═══════════════════════════════════════════════════════════════════════════
+
 /** Nach so vielen erfolglosen Versuchen geht der Terminlink raus. */
-export const SCHWELLE_MAIL = 2;
-/** Nach so vielen erfolglosen Versuchen beginnt die Ruhe. */
-export const SCHWELLE_RUHE = 4;
-/** So lange ruht ein Fall. */
-export const RUHE_TAGE = 14;
+export const SCHWELLE_MAIL = 6;
+/** Ab hier wird die Wiedervorlage gestreckt. */
+export const SCHWELLE_STRECKEN = 3;
+/** Ab hier ruht der Fall dauerhaft — raus aus der Tagesliste. */
+export const SCHWELLE_RUHEND = 9;
+/** Wiedervorlage ab dem 3. Versuch. */
+export const STRECKUNG_TAGE = 3;
+/** Wiedervorlage ab dem 6. Versuch. */
+export const STRECKUNG_TAGE_LANG = 7;
 /** Frühestens so viele Tage nach der letzten Terminlink-Mail wieder eine. */
 export const MAIL_SPERRE_TAGE = 30;
+
+// ── DIE ALTEN NAMEN BLEIBEN, MIT DEM ALTEN WORTLAUT IM KOMMENTAR ──────────
+// AGENTS.md: „Die Regel wird ERSETZT, nicht gelöscht — sonst hält der nächste
+// Leser das Fehlen für ein Versehen." Vorher: `SCHWELLE_MAIL = 2`,
+// `SCHWELLE_RUHE = 4`, `RUHE_TAGE = 14` („Ruhe-Pool: Wiedervorlage +14 Tage").
+/** @deprecated Ersetzt durch `SCHWELLE_RUHEND` (9) — siehe Staffel oben. */
+export const SCHWELLE_RUHE = SCHWELLE_RUHEND;
+/** @deprecated Die Ruhe hat kein Ablaufdatum mehr; der Kunde beendet sie. */
+export const RUHE_TAGE = 14;
 
 export interface AutomatikWirkung {
   /** Wurde eine Terminlink-Mail versendet (oder versucht)? */
@@ -137,28 +201,55 @@ export async function automatikNachFehlversuch(
           : `Terminlink konnte NICHT versendet werden (${ergebnis.grund}). Bitte den Link von Hand schicken.`;
     }
 
-    // ── Schwelle 2: der Ruhe-Pool ───────────────────────────────────────────
-    // Stufe A bleibt draußen: Dort hängt eine gemeldete Zahlung dran, die
-    // jemand verifizieren muss. Alles andere ruht 14 Tage.
-    const istStufeA = Number(p.priority_tier) === 1;
-    if (versuche >= SCHWELLE_RUHE && !istStufeA && !p.ruhe_seit) {
-      const bis = tagPlus(RUHE_TAGE);
+    // ── Schwelle 2: RUHEND (ab dem 9. Versuch, ohne Ablaufdatum) ────────────
+    // Kein `!p.ruhe_seit` mehr: Die alte Bedingung feuerte genau einmal und
+    // ließ danach jeden weiteren Fehlversuch wirkungslos. Und keine
+    // Stufe-A-Ausnahme mehr — sie war der Grund, dass 77 Personen NIE ruhten.
+    if (versuche >= SCHWELLE_RUHEND) {
       await lauf`
-        UPDATE fiaon_persons SET ruhe_seit = NOW(), follow_up_date = ${bis}::date, updated_at = NOW()
-        WHERE id = ${personId}
+        UPDATE fiaon_persons
+           SET ruhe_seit = COALESCE(ruhe_seit, NOW()),
+               -- Ohne Wiedervorlage: Der Kunde beendet die Ruhe, nicht der
+               -- Kalender. Ein Datum hier wäre wieder ein Schlummer, der
+               -- abläuft und den Fall zurückschiebt.
+               follow_up_date = NULL,
+               updated_at = NOW()
+         WHERE id = ${personId}
       `;
       wirkung.ruht = true;
-      wirkung.wiedervorlage = bis;
-      wirkung.hinweis = [wirkung.hinweis, `${versuche}× nicht erreicht — der Fall ruht jetzt ${RUHE_TAGE} Tage und ist am ${bis} wieder dran.`]
+      wirkung.wiedervorlage = null;
+      wirkung.hinweis = [wirkung.hinweis,
+        `${versuche}× nicht erreicht — der Fall ist jetzt RUHEND und verschwindet `
+        + "aus der Tagesliste. Er steht im Filter „Ruhend“ und kommt sofort zurück, "
+        + "wenn der Kunde einen Termin bucht oder sich meldet."]
         .filter(Boolean).join(" ");
       if (p.ref) {
         await lauf`
           INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
           VALUES (${p.ref}, NULL, 'System', 'system',
-                  ${`Ruhe-Pool: ${versuche}× nicht erreicht. Wiedervorlage auf ${bis} gesetzt — kein weiterer Anrufversuch bis dahin.`},
+                  ${`Ruhend: ${versuche}× nicht erreicht. Aus der Tagesliste genommen — `
+                    + `kein weiterer Anrufversuch, bis der Kunde sich meldet oder einen Termin bucht.`},
                   NOW())
-        `.catch(() => {});
+        `.catch((e) => console.error("[NICHT-ERREICHT] Verlaufseintrag Ruhend:", e));
       }
+    } else if (versuche >= SCHWELLE_STRECKEN) {
+      // ── Die Wiedervorlage strecken (3.–8. Versuch) ────────────────────────
+      // Nicht sperren, nur Abstand: Wer dreimal nicht dranging, ist nicht
+      // unerreichbar — aber morgen wieder anzurufen bringt nichts. Die
+      // Streckung wird NUR nach hinten verschoben, nie nach vorn, sonst zieht
+      // ein Lauf bestehende Zusagen zurück.
+      const tage = versuche >= SCHWELLE_MAIL ? STRECKUNG_TAGE_LANG : STRECKUNG_TAGE;
+      const bis = tagPlus(tage);
+      await lauf`
+        UPDATE fiaon_persons
+           SET follow_up_date = ${bis}::date, updated_at = NOW()
+         WHERE id = ${personId}
+           AND (follow_up_date IS NULL OR follow_up_date < ${bis}::date)
+      `;
+      wirkung.wiedervorlage = bis;
+      wirkung.hinweis = [wirkung.hinweis,
+        `${versuche}× nicht erreicht — Wiedervorlage auf ${bis} (+${tage} Tage).`]
+        .filter(Boolean).join(" ");
     }
 
     return wirkung;
@@ -189,6 +280,28 @@ export async function erreichtZuruecksetzen(personId: number, lauf: Lauf = sqlPo
  * auf — ohne Aufräumlauf, der vergessen werden kann.
  */
 export function ruhtSql(p = "p"): string {
-  return `(${p}.ruhe_seit IS NOT NULL AND ${p}.follow_up_date IS NOT NULL
-      AND ${p}.follow_up_date > CURRENT_DATE)`;
+  // ── ZWEI ARTEN VON RUHE, EINE BEDINGUNG ─────────────────────────────────
+  //
+  // 1. DAUERHAFT RUHEND (ab dem 9. Fehlversuch). Hier steht ABSICHTLICH die
+  //    Zahl der Versuche und nicht nur die Marke `ruhe_seit`: Der Beweis, den
+  //    der Auftrag verlangt, lautet „die Tagesliste enthält keinen Kunden mit
+  //    neun oder mehr Versuchen". Hinge die Bedingung an der Marke, würde eine
+  //    einzige nicht geschriebene Zeile den Kunden zurück in die Liste holen —
+  //    und genau das ist vorher passiert.
+  //
+  //    `unreachable_count` wird von `erreichtZuruecksetzen` auf 0 gesetzt,
+  //    sobald der Kunde erreicht wird oder einen Termin bucht. Der Ausweg
+  //    hängt also am Zähler, nicht an einem Aufräumlauf.
+  //
+  // 2. ZEITLICH RUHEND. Die bestehende Bedingung, WÖRTLICH unverändert: Marke
+  //    gesetzt und Wiedervorlage in der Zukunft.
+  //
+  //    Ein erster Entwurf hat sie mitgeändert (`follow_up_date IS NULL` sollte
+  //    auch als Ruhe gelten). Das hätte 8 Personen aus der Liste genommen, die
+  //    heute drinstehen — eine Nebenwirkung, die niemand bestellt hat. Fassung 1
+  //    deckt den einen gemessenen Fall (10 Versuche, Marke gesetzt, keine
+  //    Wiedervorlage) über den Zähler ohnehin ab.
+  return `((${p}.unreachable_count >= ${SCHWELLE_RUHEND})
+      OR (${p}.ruhe_seit IS NOT NULL AND ${p}.follow_up_date IS NOT NULL
+          AND ${p}.follow_up_date > CURRENT_DATE))`;
 }

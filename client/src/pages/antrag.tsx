@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import { paketNameFuerDaten } from "@shared/fiaon-paketname";
+import { zustandFuerSchritt } from "@shared/fiaon-antrag-schritte";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import { checkPhone } from "@/lib/phone";
@@ -691,10 +692,33 @@ export default function AntragPage() {
     }, 12000);
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // DER SCHRITT-ZUSTAND — HIER ENTSTAND „ANTRAG NOCH IM FORMULAR" (19.08.2026)
+  //
+  // Vorher stand hier ein Feldzugriff mit neun Einträgen und
+  // `|| "started"` als Rückfall. Bei Schritt 9 (Passwortseite) griff der
+  // Rückfall: Der LETZTE Schritt schrieb den ERSTEN Zustand — unmittelbar
+  // nachdem `handleProceedToPayment` korrekt `submitted` gespeichert hatte.
+  //
+  // GEMESSEN: 24 inhaltlich vollständige Anträge standen deshalb auf „started",
+  // und ihre Agenten wurden aufgefordert anzurufen und „beim Fertigstellen zu
+  // helfen". Die Zuordnung steht jetzt in `shared/fiaon-antrag-schritte.ts`.
+  //
+  // ── UND DER FEHLER WIRD NICHT MEHR VERSCHLUCKT ──────────────────────────
+  // Das `.catch(() => {})` machte aus einem fehlgeschlagenen Speichern ein
+  // stilles Nichts: Der Kunde füllt weiter aus, und der Zustand bleibt stehen.
+  // Ein Formular soll den Menschen nicht mit einer Fehlermeldung aufhalten —
+  // aber die Konsole und die Fehlerspur müssen es sehen (AGENTS.md: „Ein
+  // .catch() um eine Abfrage schreibt den Fehler mit").
+  // ══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
     if (step > 0) {
-      const status = ["started","personal_data","finances","config","verifying","approved","contract","processing","completed"][step] || "started";
-      fetch("/api/fiaon/application", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref, type: "private", status, currentStep: step, ...d, packKey: pack?.key, packName: pack ? (paketNameFuerDaten(pack.key) ?? pack.name) : null, approvedLimit: approved }) }).catch(() => {});
+      const status = zustandFuerSchritt(step);
+      fetch("/api/fiaon/application", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref, type: "private", status, currentStep: step, ...d, packKey: pack?.key, packName: pack ? (paketNameFuerDaten(pack.key) ?? pack.name) : null, approvedLimit: approved }) })
+        .then((r) => {
+          if (!r.ok) console.error(`[FIAON-ANTRAG] Schritt ${step} nicht gespeichert: HTTP ${r.status}`);
+        })
+        .catch((e) => console.error(`[FIAON-ANTRAG] Schritt ${step} nicht gespeichert:`, e));
     }
   }, [step]);
 

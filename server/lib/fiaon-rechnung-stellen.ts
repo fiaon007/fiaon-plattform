@@ -136,10 +136,23 @@ async function kandidatenLaden(
                     NULLIF(TRIM(a.billing_email), ''),
                     NULLIF(TRIM(p.primary_email), '')) AS email,
            p.assigned_agent_id,
+           -- ══════════════════════════════════════════════════════════════════
+           -- „ok“ GAB ES NIE (behoben 19.08.2026)
+           --
+           -- Hier stand „status = ok“. GEMESSEN über die ganze Tabelle:
+           -- 14.621 „versandt“, 215 „uebersprungen“, 141 „fehlgeschlagen“ —
+           -- und NULL Zeilen mit „ok“. Die Spalte trägt die vier Werte aus
+           -- Migration 041, und „ok“ ist keiner davon.
+           --
+           -- Folge: „letzteRechnung“ war IMMER leer. Der Agent sah nie, dass
+           -- einem Kunden schon eine Rechnung geschickt wurde — eine Abfrage,
+           -- die nichts findet, wo etwas ist, sieht aus wie „noch nichts
+           -- passiert“ (AGENTS.md nennt das die gefährlichste Sorte Fehler).
+           -- ══════════════════════════════════════════════════════════════════
            (SELECT MAX(l.created_at) FROM fiaon_mail_log l
              WHERE l.person_id = a.person_id
                AND l.event IN ('payment_details', 'agent_payment_reminder')
-               AND l.status = 'ok') AS letzte_rechnung
+               AND l.status = 'versandt') AS letzte_rechnung
     FROM fiaon_applications a
     LEFT JOIN fiaon_persons p ON p.id = a.person_id
     WHERE a.merged_into IS NULL
@@ -334,7 +347,12 @@ export async function rechnungStellen(
                 + `Verwendungszweck ${k.verwendungszweck}, fällig in ${ZAHLUNGSFRIST_TAGE} Tagen`
                 + `${versand.ok ? ` — verschickt an ${k.email}` : ` — MAIL FEHLGESCHLAGEN: ${versand.grund}`}.`},
               NOW())
-    `.catch(() => {});
+    // ── KEIN STILLES SCHLUCKEN MEHR (19.08.2026) ────────────────────────
+    // Hier stand `.catch(() => {})`. Wenn dieser Eintrag scheitert, fehlt der
+    // Vorgang im Verlauf der Akte — und der Agent, der „hab ich das schon
+    // geschickt?" nachsieht, findet nichts. Der Fehler gehört wenigstens ins
+    // Log (AGENTS.md: „Ein .catch() um eine Abfrage schreibt den Fehler mit").
+    `.catch((e) => console.error(`[RECHNUNG] Verlaufseintrag ${ref} nicht geschrieben:`, e));
   }
 
   return versand.ok

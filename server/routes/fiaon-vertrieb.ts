@@ -584,9 +584,24 @@ router.get("/agent/vertrieb/person/:id", requireAgent, nurLeitung, nurMitZusage,
       LEFT JOIN fiaon_agents vf ON vf.id = e.from_agent_id
       LEFT JOIN fiaon_agents vt ON vt.id = e.to_agent_id
       WHERE e.type IN ('person_owner_changed', 'vertrieb_zuweisung')
-        AND e.meta LIKE ${`%"person_id" : ${id}%`} OR e.meta LIKE ${`%"person_id":${id}%`}
+        -- ══════════════════════════════════════════════════════════════════
+        -- DIE KLAMMERN FEHLTEN (behoben 19.08.2026)
+        --
+        -- Vorher: type IN (…) AND meta LIKE a OR meta LIKE b. In SQL bindet AND
+        -- stärker als OR, das ergibt also (type IN … AND a) ODER b — der
+        -- zweite Zweig prüfte den Typ NICHT MEHR. Jedes Ereignis mit dieser
+        -- Personennummer im Rumpf landete in der Liste „Zuweisungen".
+        --
+        -- Aufgefallen beim Suchen nach der weißen Akte. Gedeckt war es von
+        -- einem catch, das im Fehlerfall eine leere Liste liefert — deshalb
+        -- ist es niemandem aufgefallen.
+        -- ══════════════════════════════════════════════════════════════════
+        AND (e.meta LIKE ${`%"person_id" : ${id}%`} OR e.meta LIKE ${`%"person_id":${id}%`})
       ORDER BY e.created_at DESC LIMIT 40
-    `.catch(() => [] as any[]);
+    `.catch((e) => {
+      console.error("[FIAON-VERTRIEB] Zuweisungen konnten nicht geladen werden:", e);
+      return [] as any[];
+    });
 
     const tel = waehlbareNummer([{ nummer: p.primary_phone }], p.country);
     res.json({

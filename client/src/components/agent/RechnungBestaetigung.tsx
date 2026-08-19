@@ -55,10 +55,16 @@ interface Props {
   onAbbrechen: () => void;
   /** Läuft der Versand gerade? Dann ist der Knopf gesperrt. */
   laeuft?: boolean;
+  /**
+   * Der Grund einer abgelehnten Sendung. Solange er steht, bleibt der Dialog
+   * OFFEN und zeigt ihn — ein Kurzhinweis, der nach vier Sekunden verschwindet,
+   * erreicht niemanden, der gerade mit dem Kunden telefoniert.
+   */
+  sendeFehler?: string | null;
 }
 
 export function RechnungBestaetigung({
-  personId, kundeName, onSenden, onAbbrechen, laeuft,
+  personId, kundeName, onSenden, onAbbrechen, laeuft, sendeFehler,
 }: Props) {
   const [v, setV] = useState<RechnungVorschau | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -71,23 +77,60 @@ export function RechnungBestaetigung({
   const [traegtNach, setTraegtNach] = useState(false);
   const [nachtragFehler, setNachtragFehler] = useState<string | null>(null);
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIE VORSCHAU SAGT, WARUM SIE NICHT KAM (19.08.2026)
+  //
+  // Vorher: `.catch(() => null)` am `fetch` UND am `json()`, danach ein
+  // Sammelsatz „Die Vorschau konnte nicht geladen werden." Drei völlig
+  // verschiedene Lagen sahen identisch aus:
+  //   · kein Netz            → der Agent soll die Verbindung prüfen
+  //   · HTTP 403/404         → er ist nicht (mehr) zuständig
+  //   · HTTP 500, HTML-Seite → unser Fehler, gehört gemeldet
+  //
+  // AGENTS.md: „Statuscodes nach VERURSACHER trennen, nicht nur nach Nummer."
+  // Ein Satz, der alles abdeckt, schickt jeden auf dieselbe falsche Suche.
+  // ══════════════════════════════════════════════════════════════════════════
+  const vorschauHolen = async (): Promise<{ v: RechnungVorschau | null; fehler: string | null }> => {
+    let r: Response;
+    try {
+      r = await fetch(`/api/fiaon/agent/crm/kunden/${personId}/rechnung-vorschau`,
+        { credentials: "include" });
+    } catch (e) {
+      console.error("[RECHNUNG-VORSCHAU] Netzfehler:", e);
+      return { v: null, fehler: "Keine Verbindung zum Server — Netz prüfen und erneut öffnen." };
+    }
+    let j: RechnungVorschau | null = null;
+    try {
+      j = await r.json();
+    } catch (e) {
+      console.error(`[RECHNUNG-VORSCHAU] HTTP ${r.status}, keine JSON-Antwort:`, e);
+      return {
+        v: null,
+        fehler: `Der Server hat mit HTTP ${r.status} geantwortet und keine `
+          + "auswertbare Antwort geschickt. Das ist ein Fehler bei uns — bitte melden.",
+      };
+    }
+    if (j?.ok) return { v: j, fehler: null };
+    return {
+      v: null,
+      fehler: j?.error
+        || (r.status === 403 || r.status === 404
+          ? "Dieser Kunde ist dir nicht (mehr) zugewiesen."
+          : `Die Vorschau konnte nicht geladen werden (HTTP ${r.status}).`),
+    };
+  };
+
   const laden = async () => {
-    const r = await fetch(`/api/fiaon/agent/crm/kunden/${personId}/rechnung-vorschau`,
-      { credentials: "include" }).catch(() => null);
-    const j = await r?.json().catch(() => null);
-    if (j?.ok) { setV(j); setFehler(null); }
-    else setFehler(j?.error || "Die Vorschau konnte nicht geladen werden.");
+    const { v: neu, fehler: f } = await vorschauHolen();
+    if (neu) { setV(neu); setFehler(null); } else setFehler(f);
   };
 
   useEffect(() => {
     let weg = false;
     void (async () => {
-      const r = await fetch(`/api/fiaon/agent/crm/kunden/${personId}/rechnung-vorschau`,
-        { credentials: "include" }).catch(() => null);
-      const j = await r?.json().catch(() => null);
+      const { v: neu, fehler: f } = await vorschauHolen();
       if (weg) return;
-      if (j?.ok) setV(j);
-      else setFehler(j?.error || "Die Vorschau konnte nicht geladen werden.");
+      if (neu) { setV(neu); setFehler(null); } else setFehler(f);
     })();
     return () => { weg = true; };
   }, [personId]);
@@ -120,10 +163,17 @@ export function RechnungBestaetigung({
       method: "POST", credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: adresse }),
-    }).catch(() => null);
-    const j = await r?.json().catch(() => null);
+    }).catch((e) => { console.error("[RECHNUNG-VORSCHAU] Nachtragen, Netzfehler:", e); return null; });
+    const j = await r?.json().catch((e) => {
+      console.error(`[RECHNUNG-VORSCHAU] Nachtragen, HTTP ${r?.status}:`, e); return null;
+    });
     setTraegtNach(false);
-    if (!j?.ok) { setNachtragFehler(j?.error || "Das Nachtragen hat nicht geklappt."); return; }
+    if (!j?.ok) {
+      setNachtragFehler(j?.error
+        || (r ? `Das Nachtragen hat nicht geklappt (HTTP ${r.status}).`
+              : "Keine Verbindung zum Server — Netz prüfen."));
+      return;
+    }
     setNeueMail("");
     // Die Vorschau neu holen, statt den Zustand von Hand zu setzen: Sonst
     // behauptet der Dialog eine Adresse, die der Server vielleicht anders
@@ -152,12 +202,22 @@ export function RechnungBestaetigung({
                 Wenn es mehrere offene Buchungen gibt, ist das die wichtigste
                 Zeile im Fenster — sie steht deshalb ÜBER den Angaben und nicht
                 als Fußnote darunter. */}
-            {v.hinweis && (
+            {/* ── EIN GESPERRTER KNOPF OHNE GRUND IST EIN RÄTSEL ───────────
+                Vorher hing dieser Absatz allein an `v.hinweis`. War
+                `moeglich: false` und `hinweis: null`, sah der Agent ein
+                Fenster mit den Angaben und einen grauen Knopf — ohne ein Wort
+                dazu. Der Grund stand im `title`, und einen Tooltip sieht auf
+                dem Telefon niemand (AGENTS.md). Jetzt gibt es in JEDEM
+                Sperrfall einen Satz. */}
+            {(v.hinweis || !v.moeglich) && (
               <p className="text-[12.5px] mt-2.5 px-3 py-2 rounded-xl leading-relaxed"
+                 data-fiaon="rechnung-hinweis"
                  style={v.weitereOffen > 0 || !v.moeglich
                    ? { background: "rgba(180,83,9,.09)", border: "1px solid rgba(180,83,9,.28)", color: "#92400e" }
                    : { background: "rgba(29,78,216,.06)", border: "1px solid rgba(29,78,216,.2)", color: "#1e3a8a" }}>
-                {v.hinweis}
+                {v.hinweis
+                  || "Senden ist gerade nicht möglich, und der Server hat keinen Grund "
+                     + "mitgeliefert. Bitte die Angaben oben prüfen und melden, wenn sie stimmen."}
               </p>
             )}
 
@@ -256,6 +316,20 @@ export function RechnungBestaetigung({
                 {laeuft ? "Sende …" : v.ersteRechnung ? "Rechnung stellen und senden" : "Jetzt senden"}
               </button>
             </div>
+            {/* ── DER ABGELEHNTE VERSAND BLEIBT STEHEN ────────────────────
+                Der Dialog schließt sich nur bei ERFOLG. Ein Fehler gehört
+                dorthin, wo der Finger war — nicht in einen Kurzhinweis, der
+                verschwindet, während der Agent dem Kunden zuhört. */}
+            {sendeFehler && (
+              <p className="text-[12.5px] mt-3 px-3 py-2 rounded-xl leading-relaxed font-semibold"
+                 data-fiaon="rechnung-sendefehler" role="alert"
+                 style={{
+                   background: "rgba(185,28,28,.08)",
+                   border: "1px solid rgba(185,28,28,.3)", color: "#b91c1c",
+                 }}>
+                Nicht versandt: {sendeFehler}
+              </p>
+            )}
             <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
               Der Server prüft die Bestellung noch einmal. Wurde sie zwischenzeitlich
               getauscht, wird der Versand abgelehnt statt falsch ausgeführt.

@@ -5,6 +5,347 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.08.2026 (Nacht) — Neun Punkte aus Vertrieb und Onboarding
+
+Ein Feedback mit neun Meldungen. Drei davon waren **Wiedergänger** — schon
+einmal „behoben", vom Team nie gesehen. Bei denen steht unten ausdrücklich, wo
+der alte Fix lag und warum er unsichtbar blieb.
+
+### Teil 1 — „Der Antrag steht noch im Formular", obwohl er fertig ist
+
+**Die Meldung:** „Es ist nicht ersichtlich, welche Information noch fehlt oder an
+welcher Stelle der Antrag noch fertiggestellt werden soll."
+
+**GEMESSEN** (`scripts/mess-rechnung-blockade.ts`): 402 Personen trugen den
+Sperrgrund „Antrag im Formular", 475 Anträge. Aufgeteilt nach Zustand:
+
+| Zustand | Schritt | Anzahl | inhaltlich |
+|---|---|---|---|
+| `started` | 9 | 23 | **VOLLSTÄNDIG** |
+| `payment_completed` | 9 | 1 | **VOLLSTÄNDIG** |
+| `contract` | 6 | 216 | Mail + Zusagen fehlen |
+| `finances` | 2 | 165 | ab Schritt 2 leer |
+| `config` | 3 | 42 | ab Schritt 3 leer |
+| `personal_data` | 1 | 28 | ab Schritt 1 leer |
+
+**25 Anträge tragen JEDES Pflichtfeld** — alle drei Zusagen, E-Mail,
+Gehaltseingangstag, vollständige Stammdaten — und wurden trotzdem blockiert. Das
+ist Daniels Meldung in einer Zahl.
+
+**Die Ursache** stand in `client/src/pages/antrag.tsx`, Zeile 696:
+
+```js
+["started","personal_data","finances","config","verifying",
+ "approved","contract","processing","completed"][step] || "started"
+```
+
+Die Liste hat NEUN Einträge, also die Indizes 0 bis 8. Das Formular hat einen
+Schritt 9 — die Passwortseite nach dem Absenden. `[9]` ist `undefined`, und dann
+greift `|| "started"`: **Der letzte Schritt des Formulars schrieb den ersten
+Zustand.** Und zwar unmittelbar nachdem `handleProceedToPayment` korrekt
+`submitted` gespeichert hatte — `setStep(9)` löste den Effekt aus, der es
+überschrieb. Ein Rückfallwert, der auf den ANFANG zeigt, ist bei einem
+Fortschritt immer falsch.
+
+**Behoben zweifach:**
+
+1. Die Zuordnung steht in `shared/fiaon-antrag-schritte.ts`, mit einem Zustand
+   für jeden Schritt und einem Rückfall auf den HÖCHSTEN statt den ersten. Der
+   Schreibfehler kann nicht wiederkommen. Das `.catch(() => {})` an dieser
+   Speicherung ist weg — ein verlorener Schritt landet jetzt in der Konsole.
+2. Der Zustand wird aus dem INHALT abgeleitet:
+   `server/lib/fiaon-antrag-vollstaendig.ts` führt die 19 Pflichtfelder des
+   Formulars in EINER Liste, mit einer TypeScript- und einer SQL-Fassung.
+   `sendeGrundSql` gilt damit auch als rechnungsreif, wenn alle Felder da sind —
+   egal welcher Klick zuletzt ankam.
+
+**Bestand nachgezogen** (`scripts/antrag-zustand-nachziehen.ts --schreiben`):
+**35 von 35** Anträge auf `submitted` gesetzt, alle bei `current_step = 9`, alle
+fünf Betreuer betroffen (einer davon der Betreiber selbst). Zählprobe vorher:
+TypeScript- und SQL-Fassung stimmten bei allen Treffern überein.
+
+**Und die Karte sagt jetzt, was fehlt:** statt „ruf an und hilf beim
+Fertigstellen" steht dort „Es fehlt: Geburtsdatum, IBAN" plus ein Knopf
+„Fehlendes am Telefon ergänzen". Die Namen sind Klartext, keine Spaltennamen.
+
+### Teil 2 — „Rechnung stellen & senden": nichts passiert, keine Meldung
+
+Vier Stellen, an denen ein Ausgang unsichtbar blieb:
+
+1. **`server/routes/fiaon-agent.ts`** sendete die Zahlungsdaten-Mail mit
+   `sendMakeWebhook(...).catch(() => {})` — **nicht abgewartet und Fehler
+   verworfen** — und antwortete danach in JEDEM Fall `ok: true`. Der Agent sah
+   eine Bestätigung, der Kunde bekam nichts. Jetzt wird abgewartet, der Grund
+   übernommen und im Fehlerfall HTTP 502 mit Klartext geantwortet.
+2. **Der Bestätigungsdialog schloss sich VOR der Auswertung.** `setBestaetigen(false)`
+   stand vor `if (r.ok)`. Bei einem Fehler verschwand das Fenster, und übrig
+   blieb ein Kurzhinweis, der nach Sekunden geht. Jetzt bleibt der Dialog OFFEN
+   und trägt den Grund; nur der Erfolg schließt ihn — und lädt den Verlauf
+   sofort nach, damit der Vorgang sichtbar in der Karte steht.
+3. **Ein gesperrter Sende-Knopf ohne Grund.** War `moeglich: false` und
+   `hinweis: null`, sah der Agent einen grauen Knopf ohne ein Wort dazu; der
+   Grund stand im `title`. Jetzt gibt es in jedem Sperrfall einen Satz.
+4. **`RechnungBestaetigung.tsx`** verschluckte drei verschiedene Lagen (kein
+   Netz, 403, HTTP 500 mit HTML) in einem Sammelsatz. Jetzt nach Verursacher
+   getrennt.
+
+**Ein Zähler, der nie zählte:** `fiaon-rechnung-stellen.ts` fragte
+`fiaon_mail_log` nach `status = 'ok'`. GEMESSEN über die ganze Tabelle: 14.621
+„versandt", 215 „uebersprungen", 141 „fehlgeschlagen" — und **null** „ok". Die
+Spalte kennt diesen Wert nicht. `letzteRechnung` war also immer leer; kein Agent
+hat je gesehen, dass einem Kunden schon eine Rechnung geschickt wurde.
+
+**Das Zustellprotokoll, sieben Tage:** 741 Zahlungsdaten-Mails und 63
+Erinnerungen angenommen, **2 fehlgeschlagen** (einmal fehlende
+`MAKE_WEBHOOK_URL`, einmal keine zustellbare Adresse). Der Verdacht „kommt beim
+Kunden nicht an" ist mit Versandfehlern **nicht** erklärbar. Wichtig zum
+Verständnis: „versandt" heißt, dass WIR übergeben haben — nicht, dass zugestellt
+wurde. Die verschluckten Fehler oben erklären, warum ein Klick ohne jede Spur
+bleiben konnte.
+
+### Teil 3 — „Erreicht – Sonstiges" (DRITTE Meldung) · WIEDERGÄNGER
+
+**Wo der alte Fix lag und warum das Team ihn nie sah:**
+
+| Commit | Datum | Was |
+|---|---|---|
+| `125d37b` | 24.08. | `braucht: "notiz"` + Klick-Zweig in `kunden-neu.tsx` (+25 Zeilen) |
+| `86106a3` | 25.08. | Notizpflicht in den Server **+ 58 Zeilen Oberfläche in `kunden.tsx`** |
+| `e71abfc` | 28.08. | `kunden.tsx` gelöscht — **mit den 58 Zeilen** |
+
+Der zweite Fix baute das Textfeld, den Zeichenzähler und die Sperre vollständig
+— in `client/src/pages/agent/kunden.tsx`. Diese Datei lag unter
+`/agent/meine-kunden-alt`; die Route `/agent/kunden` zeigt seit Wochen
+`kunden-neu.tsx`. Drei Tage später wurde sie beim Aufräumen entfernt, und der
+Fix ging mit ihr.
+
+In `kunden-neu.tsx` blieb der Klick-Zweig von Fix 1 stehen:
+
+```js
+if (e.braucht === "notiz") {
+  if (!notiz.trim()) { setFeldOffen("notiz"); return; }   // ← Zeile 1498
+  void ergebnis(e.art);
+}
+```
+
+`feldOffen` kannte den Wert „notiz" (Zeile 630). Gerendert wurden
+`feldOffen === "zusage"` (1527) und `=== "termin"` (1540) — **für „notiz" gab es
+keinen Block**. Der Klick setzte also einen Zustand, den kein Bauteil liest, und
+kehrte zurück: keine Anfrage, kein Feld, keine Meldung. Auch in der Konsole war
+nichts zu sehen, weil nie etwas ans Netz ging. Das einzige Notizfeld lag
+eingeklappt unter „Details, Stammdaten und Verlauf".
+
+Und die Liste der Ergebnisse stand an **fünf** Stellen, jede mit eigenem Stand —
+darunter `kontakt-ergebnis.tsx`, in der „erreicht_sonstiges" **gar nicht
+vorkam** (dieser Export wurde von niemandem importiert; eine Recherche findet
+ihn und reparariert ins Leere).
+
+**Die strukturelle Antwort:**
+
+- `shared/fiaon-kontakt-ergebnis-liste.ts` — Werte, Beschriftungen,
+  Notizpflicht, Mindestlänge und `pruefeNotiz` an EINER Stelle. Server und
+  Oberfläche lesen sie.
+- `client/src/components/agent/ErgebnisWahl.tsx` — EIN Bauteil mit Knöpfen,
+  Pflicht-Notizfeld, Zeichenzähler, den vier Beispiel-Vorlagen aus Daniels
+  Meldung und sichtbarem Fehler. Es verlangt vom Aufrufer einen **Ausgang**
+  (`Promise<ErgebnisAusgang>`), kein `void` — ein stiller Aufruf ist damit nicht
+  mehr baubar.
+- `feldOffen` ist entfernt, auch aus dem Typ: Ein Wert ohne Anzeige lädt den
+  nächsten Leser ein, ihn wieder zu setzen.
+- Das Softphone liest dieselbe Liste (es hatte acht statt neun Werte und die 10
+  als Zahl im Quelltext), behält aber seine Gerätedarstellung.
+
+### Teil 4 — Vielfach nicht erreichte Kunden bleiben oben
+
+**GEMESSEN** (`scripts/mess-ruhe-staffel.ts`): **26 Personen mit neun und mehr
+erfolglosen Versuchen** standen in der Arbeitsliste, Spitze 20.
+
+| Versuche | Personen | davon mit Ruhe-Marke |
+|---|---|---|
+| 4 | 133 | 125 |
+| 9 | 14 | 0 |
+| 10 | 15 | 1 |
+| 12 | 4 | 1 |
+
+Bei vier Versuchen greift die Automatik fast immer, ab neun praktisch nie. Zwei
+Ursachen in `server/lib/fiaon-nicht-erreicht.ts`:
+
+1. **Die Ruhe war ein einmaliger Schlummer.** Die Bedingung lautete
+   `versuche >= 4 && !p.ruhe_seit` — sie feuert also GENAU EINMAL. Nach 14 Tagen
+   lief die Wiedervorlage ab, der Fall kam zurück, und weil `ruhe_seit` nun
+   gesetzt war, ruhte er nie wieder. Jeder weitere Fehlversuch zählte hoch und
+   änderte nichts.
+2. **Stufe A war dauerhaft ausgenommen.** 77 der 221 Personen mit vier und mehr
+   Versuchen sind Stufe A — und genau 77 hatten keine Ruhe-Marke. Die Ausnahme
+   war als Schutz gedacht und wurde zum Dauerzustand.
+
+**Neue Staffel** (mit dem Betreiber abgestimmt): ab dem 3. Versuch +3 Tage, ab
+dem 6. +7 Tage und Terminlink-Mail, ab dem 9. **Ruhend** — ohne Ablaufdatum,
+raus aus der Tagesliste, sichtbar unter dem Filter „Ruhend" (existiert samt
+Zähler). Sie greift bei JEDEM Fehlversuch neu.
+
+**Der Ausweg ist verifiziert:** `buchungAnwenden`
+(`server/lib/fiaon-termine.ts`) setzt bei einer Terminbuchung
+`unreachable_count = 0, ruhe_seit = NULL` und die Wiedervorlage auf den Termin.
+Wer selbst bucht, ist sofort zurück.
+
+**Bestand nachgezogen** (`scripts/ruhe-staffel-nachziehen.ts --schreiben`): 228
+Wiedervorlagen gestreckt. **Zählprobe 0** — die Tagesliste enthält keinen Kunden
+mit neun oder mehr Versuchen ohne Termin.
+
+> **Hinweis an den Betreiber:** Die neue Regel nimmt auch Stufe-A-Kunden
+> (gemeldete Zahlung) nach neun Fehlversuchen aus der Tagesliste. Das ist die
+> Folge davon, die Ausnahme zu streichen, und es ist beabsichtigt — sie stehen
+> unter „Ruhend" und kommen bei jeder Meldung zurück. Wer das anders will, sagt
+> es; die Grenze steht an einer Stelle.
+
+### Teil 5 — Termin-Art fehlt in der Team-Ansicht · WIEDERGÄNGER
+
+**Wo der alte Fix lag:** `shared/fiaon-termin-art.ts` gibt es seit dem 30.08.,
+und die Marke ist an **fünf** Stellen sichtbar — Kalender, Termin-Zentrale,
+Startgespräch-Liste, fällige Rückrufe, Onboarding-Liste.
+
+**Warum das Team ihn nie sah:** Die sechste Anzeige ist die obere Leiste auf
+`/agent/start` — die Seite, die ein Vertriebsmitarbeiter den ganzen Tag offen
+hat. Ihre Route `GET /agent/termine` lieferte als einzige **kein Art-Feld**, nur
+die rohe `quelle`. Und die „Vereinbarten Rückrufe" daneben ebenfalls nicht.
+
+Behoben: Beide Routen liefern `terminArt`/`terminArtText`/`terminArtTon`, und
+`start.tsx` zeigt den Chip — Onboarding blau-türkis, Vertrieb blau, Rückruf
+grau. Der Weg („vom Kunden gewählt") bleibt daneben stehen, nicht anstelle der
+Art. GEMESSEN: In 60 Tagen tragen die Termine zwei Quellen,
+`nichterreicht_mail` (152 → Vertrieb) und `onboarding_call` (24 → Onboarding) —
+die Unterscheidung ist also genau die, die gefehlt hat.
+
+### Teil 6 — Kundenakte der Vertriebsleitung: weißes Fenster
+
+Im Browser als `vertriebsleiter` nachgestellt (`scripts/schau-neun-punkte.ts`).
+Der Screenshot zeigt keine weiße, sondern eine **hellgraue Fläche mit einem
+blassen Ring** — und später die Seite mit Titel, Reitern und Tabellenkopf, unter
+dem dauerhaft graue Balken stehen. Keine Meldung, kein Fehler in der Konsole.
+Vier Stellen, alle dieselbe Fehlerklasse:
+
+1. **`AgentShell`** zeigt diesen Ring, solange `onboardingComplete === null` ist
+   — **ohne Zeitgrenze und ohne Fehlerweg**. Antwortet `/agent/me` oder
+   `/agent/onboarding` nicht, dreht er für immer. Jetzt: nach zwölf Sekunden eine
+   Karte mit Klartext und zwei Knöpfen.
+2. **`useZusage`** rief `setGeprueft(true)` NACH dem `await` und ohne
+   Absicherung. Wirft `fetch`, bleibt `geprueft` für immer `false` — und die
+   Vertriebsseite lädt nur, wenn es wahr ist. Ein abgebrochener Aufruf legte die
+   ganze Seite still. Jetzt `finally`.
+3. **Jeder Lader in `vertrieb.tsx`** stieg im Fehlerfall still aus
+   (`if (r.ok) setZahlen(…)`, kein `else`). `null` heißt in dieser Anzeige „lädt
+   noch" — es gab keinen Zustand für „hat nicht geklappt". GEMESSEN gegen die
+   echten Routen: `/agent/vertrieb/personen` und `/service` antworten 403, wenn
+   die Verpflichtungserklärung offen ist, und `/agent/vertrieb/zusage` brauchte
+   **6,8 Sekunden**. Jetzt eine Meldung mit Grund und „Erneut versuchen".
+4. **Die Akte-Schublade** rendert bei `daten.laedt || !p` einen Skelettbalken.
+   Antwortet die Route `ok: true` ohne `person`, blieb genau diese leere Karte
+   stehen — für immer. Jetzt eine Fehlerkarte mit Grund; und `akteOeffnen`
+   schließt die Schublade nicht mehr weg, sondern zeigt den Grund darin.
+
+**Die Wand:** `client/src/components/agent/Fehlerrahmen.tsx` — ein örtlicher
+Fehlerrahmen um die Akte. Scheitert sie beim Zeichnen, erscheint eine Karte
+(„Die Kundenakte konnte nicht geladen werden — [Grund] — neu laden") statt einer
+leeren Fläche, und die Kundenliste dahinter bleibt heil. Nicht die vorhandene
+`ErrorBoundary` aus `main.tsx`: Die ersetzt die ganze Seite und zeichnet mit
+`lucide-react`, was AGENTS.md verbietet.
+
+**Nebenbefund:** Die Zuweisungs-Abfrage in `fiaon-vertrieb.ts` lautete
+`type IN (…) AND meta LIKE a OR meta LIKE b`. In SQL bindet `AND` stärker als
+`OR` — der zweite Zweig prüfte den Typ nicht mehr. Klammern gesetzt; das `catch`
+schreibt seinen Fehler jetzt mit.
+
+### Teil 7 — Onboarding: „Gespräch führen" öffnet nichts
+
+Im Browser als Onboarding-Rolle nachgestellt. Der Screenshot zeigt die Ursache:
+Auf der zusammengeklappten Terminkarte stand **genau ein Knopf: „Anrufen"**.
+„Gespräch führen" lag zwei Klicks tief — man musste erst den **Kundennamen**
+anklicken, der wie normaler Text aussieht, und es erschien unter der Lage-Tafel,
+zusätzlich nur bei `status === 'gebucht'`.
+
+Und „Anrufen" war ein `<a href="tel:…">`. Am Schreibtisch, ohne Telefonie im
+Browser, tut dieser Link **nichts** — kein Dialog, keine Meldung. Der
+auffälligste Knopf der Seite war der einzige, der nichts sichtbar bewirkt.
+
+Behoben: „Gespräch führen" ist der Hauptknopf und steht sofort auf der Karte.
+„Anrufen" läuft über das eigene Softphone (`anrufStarten`) — derselbe Weg, den
+Cockpit und Forderungsmanagement nehmen. **Browsertest:** Knopf gefunden,
+gedrückt, Cockpit offen, **7 von 7 Schritten** sichtbar, „Abschließen"
+vorhanden und korrekt gesperrt, solange Pflichtschritte offen sind.
+
+### Teil 8 — Onboarding-Notizen verschwinden nach dem Speichern
+
+Zwei Ursachen:
+
+1. **Es gab keinen Weg, NUR eine Notiz zu speichern.** Das Textfeld ging
+   ausschließlich zusammen mit einem Ergebnis mit („Nachtragen: geführt" /
+   „Nicht erschienen"). Wer nach dem Gespräch etwas vermerken wollte, musste ein
+   Ergebnis erfinden.
+2. **Das zweite Speichern löschte das erste.** Die Ergebnis-Route schrieb
+   `notiz = ${notiz ? … : null}` — dazu `agenda_stand` und `dauer_sek` genauso.
+   Drei Felder, die bei jedem Aufruf ohne Angabe auf NULL gingen. Wer erst eine
+   Notiz nachtrug und danach etwas anderes festhielt, löschte damit die eigene
+   Notiz und den ganzen Agenda-Stand. Jetzt `COALESCE`: Eine Angabe, die fehlt,
+   ist keine Anweisung zum Löschen.
+
+Und die Ablage war falsch: Eine Notiz am TERMIN sucht der nächste Kollege nicht.
+Neu: `POST /agent/onboarding/person/:id/notiz` schreibt einen Verlaufseintrag an
+die **Person**, in dieselbe Tabelle (`fiaon_contact_log`), die Kundenkarte,
+Vertriebsakte und Forderungsmanagement lesen. Die Route gibt den frischen
+Verlauf **zurück**, die Karte zeigt ihn ohne Neuladen — ein gespeicherter Satz,
+der erst nach F5 erscheint, gilt als verloren. Fehler stehen am Feld.
+
+### Teil 9 — Erledigte bleiben in der Onboarding-Liste
+
+Der Filter lautete `x.status === "gebucht" || x.heute`. Das zweite Glied holte
+JEDEN heutigen Termin zurück — auch den erledigten. Im Screenshot stand ein
+erledigter Termin mitten in der Liste „HEUTE", in derselben Karte, mit demselben
+Knopf wie der offene; ein graues Wort „erledigt" hinter der Rufnummer war der
+ganze Unterschied.
+
+GEMESSEN in `fiaon_termine` (30 Tage, `onboarding_call`): 13 gebucht, 7
+erledigt, 2 verpasst, 2 abgesagt — die 7 standen alle in der Tagesliste. Die
+Route lieferte `erledigt_am` gar nicht mit.
+
+Behoben: Die Route liefert `erledigt_am`, die Seite hat zwei Reiter mit Zählern
+(**Offen** / **Erledigt**), und erledigte Termine tragen eine grüne Marke mit
+Haken und Uhrzeit. **Browsertest:** Der erledigte Prüffall ist aus der aktiven
+Liste verschwunden.
+
+### Aufgeräumt: drei tote Fassungen
+
+`client/src/pages/agent/heute.tsx` (hing an keiner Route, war aber noch lazy
+importiert — und trug eine eigene Ergebnisliste mit sieben Werten),
+`client/src/pages/agent/meine-kunden.tsx` (kein Import) und der Export
+`KUNDE_GRUPPEN` (von niemandem importiert, ohne „erreicht_sonstiges"). Beide
+Adressen leiten schon um. Genau diese Falle hat den Wiedergänger in Teil 3
+erzeugt.
+
+### Prüfstände
+
+| Lauf | Ergebnis |
+|---|---|
+| `pruef-antrag-vollstaendig` | 17 ok — hält TypeScript- und SQL-Fassung an 4.000 Anträgen gegeneinander |
+| `pruef-ergebnis-eine-liste` | 31 ok — eine Liste, ein Notizfeld, keine sechste Fassung |
+| `pruef-neun-punkte-browser` | 30 ok — Knöpfe gefunden und GEDRÜCKT, Screenshots angesehen |
+| `schau-neun-punkte` | Nachstellung je Rolle, Konsole und Netz mitgelesen |
+| `pruef-backticks` | 438 Dateien übersetzen sich |
+
+**Rot-Proben:** Rückfall auf „started" wieder eingebaut → 4 rot. Render-Block
+für das Notizfeld entfernt (der Originalfehler) → der Browsertest wird rot mit
+„der Knopf tut nichts — genau die gemeldete Lage".
+
+### Betreiber-TODO
+
+1. **Nach dem Deploy** `npx tsx scripts/antrag-zustand-nachziehen.ts --schreiben`
+   ein zweites Mal laufen lassen: Bis die neue Fassung von `antrag.tsx`
+   ausgeliefert ist, erzeugt das Formular weiter Anträge mit zurückgefallenem
+   Zustand.
+2. Entscheiden, ob Stufe-A-Kunden nach neun Fehlversuchen ruhen dürfen (Teil 4).
+
+---
+
 ## 19.08.2026 (Abend) — Eine Schutzfunktion hat den Vertrieb angehalten
 
 Die Tagesgrenze je Absendernummer (100 Anrufe, HTTP 429 bei Erreichen) hat heute

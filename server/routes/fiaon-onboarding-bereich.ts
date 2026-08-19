@@ -120,6 +120,10 @@ router.get("/agent/onboarding/termine", requireAgent, nurOnboarding, nurMitZusag
   try {
     const rows = (await sqlPool`
       SELECT t.id, t.person_id, t.beginn, t.dauer_min, t.status, t.notiz, t.quelle,
+             -- Wann wurde er abgeschlossen? Ohne dieses Feld konnte die Liste
+             -- „erledigt" nicht von „offen" trennen, und alles Heutige stand
+             -- gemischt in einer Spalte (Teil 9 des Feedbacks, 19.08.2026).
+             t.erledigt_am,
              COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                       p.company_name, p.contact_name, p.primary_email) AS name,
              COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname,
@@ -149,6 +153,8 @@ router.get("/agent/onboarding/termine", requireAgent, nurOnboarding, nurMitZusag
         dauerMin: Number(t.dauer_min),
         status: t.status,
         notiz: t.notiz,
+        erledigtAm: t.erledigt_am ?? null,
+        quelle: t.quelle,
         // Die Art wird auch hier mitgeliefert. Diese Liste zeigt fast immer
         // Onboarding-Gespräche — aber „fast immer" ist der Grund, warum die
         // Marke dasteht: Eine Ausnahme ohne Kennzeichen sieht wie die Regel aus.
@@ -162,6 +168,106 @@ router.get("/agent/onboarding/termine", requireAgent, nurOnboarding, nurMitZusag
   } catch (err) {
     console.error("[ONBOARDING] termine:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE NOTIZ AN DER PERSON — EINE QUELLE, SOFORT SICHTBAR
+//
+// ── DIE MELDUNG (Onboarding, 19.08.2026) ───────────────────────────────────
+// „Wenn ich nach dem Gespräch bzw. außerhalb der Gesprächsführung eine
+// Information als Notiz beim Kunden hinterlege, wird diese nach dem Speichern
+// nicht übernommen. Dadurch gehen wichtige Informationen verloren."
+//
+// ── DER BEFUND ─────────────────────────────────────────────────────────────
+// Es gab überhaupt keinen Weg, NUR eine Notiz zu speichern. Das Textfeld auf
+// der Terminkarte ging ausschließlich mit „Nachtragen: geführt" oder „Nicht
+// erschienen" mit — also nur zusammen mit einem ERGEBNIS. Und dieses Ergebnis
+// schrieb die Notiz an den TERMIN (`fiaon_termine.notiz`), wo der nächste
+// Aufruf sie auf NULL setzte (siehe die Route weiter unten).
+//
+// Eine Notiz am Termin ist ohnehin die falsche Ablage: Sie gehört zum MENSCHEN.
+// Der nächste Kollege sucht sie in der Akte, nicht an einem Kalendereintrag von
+// vorletzter Woche.
+//
+// ── DIE ANTWORT ────────────────────────────────────────────────────────────
+// Diese Route schreibt einen Verlaufseintrag an die Person — in dieselbe
+// Tabelle (`fiaon_contact_log`), die Kundenkarte, Vertriebsakte und
+// Forderungsmanagement lesen. Eine Quelle, alle Leser. Und sie GIBT DEN
+// VERLAUF ZURÜCK, damit die Oberfläche ihn ohne Neuladen zeigen kann: Ein
+// gespeicherter Satz, der erst nach F5 erscheint, gilt als verloren.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Der Verlauf einer Person, wie die Onboarding-Karte ihn zeigt. */
+async function verlaufLesen(personId: number): Promise<any[]> {
+  return (await sqlPool`
+    SELECT cl.created_at AS am, cl.agent_name, cl.type, cl.outcome, cl.note AS notiz
+    FROM fiaon_contact_log cl
+    JOIN fiaon_applications a ON a.ref = cl.ref
+    WHERE a.person_id = ${personId} AND cl.voided_at IS NULL
+    ORDER BY cl.created_at DESC LIMIT 40
+  `) as any[];
+}
+
+router.get("/agent/onboarding/person/:id/verlauf", requireAgent, nurOnboarding, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const [erlaubt] = (await sqlPool`
+      SELECT 1 AS ok FROM fiaon_termine
+      WHERE person_id = ${id} AND agent_id = ${req.agent!.id} AND quelle = 'onboarding_call'
+      LIMIT 1
+    `) as any[];
+    if (!erlaubt) {
+      return res.status(404).json({ ok: false, error: "Zu diesem Kunden hast du kein Startgespräch." });
+    }
+    res.json({ ok: true, verlauf: await verlaufLesen(id) });
+  } catch (err) {
+    console.error("[ONBOARDING] verlauf:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/agent/onboarding/person/:id/notiz", requireAgent, nurOnboarding, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const text = String(req.body?.notiz ?? "").trim();
+    // Zwei Zeichen sind die Grenze zwischen „Vertipper" und „Vermerk". Mehr zu
+    // verlangen wäre eine Hürde ohne Zweck — hier ist die Notiz freiwillig.
+    if (text.length < 2) {
+      return res.status(400).json({ ok: false, error: "Die Notiz ist leer." });
+    }
+    const [erlaubt] = (await sqlPool`
+      SELECT 1 AS ok FROM fiaon_termine
+      WHERE person_id = ${id} AND agent_id = ${req.agent!.id} AND quelle = 'onboarding_call'
+      LIMIT 1
+    `) as any[];
+    if (!erlaubt) {
+      return res.status(404).json({ ok: false, error: "Zu diesem Kunden hast du kein Startgespräch." });
+    }
+    // Der Verlauf hängt an einer Bestellung (`ref`) — so liest ihn jede andere
+    // Ansicht auch. Ohne Bestellung gibt es keine Akte, an der die Notiz hängt;
+    // das wird GESAGT und nicht stillschweigend verschluckt.
+    const [ref] = (await sqlPool`
+      SELECT ref FROM fiaon_applications
+      WHERE person_id = ${id} AND merged_into IS NULL AND archived_at IS NULL
+      ORDER BY created_at DESC LIMIT 1
+    `) as any[];
+    if (!ref?.ref) {
+      return res.status(409).json({
+        ok: false,
+        error: "Zu diesem Kunden gibt es keine Bestellung — ohne sie hat die Notiz keine Akte.",
+      });
+    }
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+      VALUES (${ref.ref}, ${id}, ${req.agent!.id}, ${req.agent!.name}, 'note', ${text.slice(0, 4000)}, NOW())
+    `;
+    // Der frische Verlauf geht direkt zurück — die Karte zeigt die Notiz damit
+    // sofort, ohne einen zweiten Aufruf und ohne Neuladen.
+    res.json({ ok: true, meldung: "Notiz gespeichert.", verlauf: await verlaufLesen(id) });
+  } catch (err) {
+    console.error("[ONBOARDING] notiz:", err);
+    res.status(500).json({ ok: false, error: "Die Notiz konnte nicht gespeichert werden." });
   }
 });
 
@@ -244,11 +350,35 @@ router.post("/agent/onboarding/termine/:id/ergebnis", requireAgent, nurOnboardin
     `) as any[];
     if (!termin) return res.status(404).json({ ok: false, error: "Termin nicht gefunden." });
 
+    // ══════════════════════════════════════════════════════════════════════
+    // EINE LEERE ANGABE LÖSCHT NICHTS MEHR (19.08.2026)
+    //
+    // ── DIE MELDUNG (Onboarding) ─────────────────────────────────────────
+    // „Wenn ich nach dem Gespräch eine Information als Notiz beim Kunden
+    // hinterlege, wird diese nach dem Speichern nicht übernommen. Ich trage die
+    // Notiz ein, klicke auf Speichern, anschließend ist die Notiz jedoch nicht
+    // mehr vorhanden."
+    //
+    // ── WAS HIER STAND ───────────────────────────────────────────────────
+    //     notiz = ${notiz ? … : null}
+    //     agenda_stand = ${agendaStand ? … : null}
+    //     dauer_sek = ${dauerSek}
+    //
+    // Drei Felder, die bei JEDEM Aufruf ohne Angabe auf NULL gingen. Wer erst
+    // eine Notiz nachtrug und danach etwas anderes festhielt (oder das Cockpit
+    // ohne Notizen abschloss), löschte damit die eigene Notiz — und den ganzen
+    // Agenda-Stand dazu. Das Speichern war nicht das Problem; das ZWEITE
+    // Speichern war es.
+    //
+    // `COALESCE` schreibt nur, was mitkommt. Eine Angabe, die fehlt, ist keine
+    // Anweisung zum Löschen.
+    // ══════════════════════════════════════════════════════════════════════
     await sqlPool`
       UPDATE fiaon_termine SET status = ${String(ergebnis)}, erledigt_am = NOW(),
-             notiz = ${notiz ? String(notiz).slice(0, 4000) : null},
-             agenda_stand = ${agendaStand ? JSON.stringify(agendaStand) : null}::jsonb,
-             dauer_sek = ${dauerSek},
+             notiz = COALESCE(${notiz ? String(notiz).slice(0, 4000) : null}, notiz),
+             agenda_stand = COALESCE(
+               ${agendaStand ? JSON.stringify(agendaStand) : null}::jsonb, agenda_stand),
+             dauer_sek = COALESCE(${dauerSek}, dauer_sek),
              updated_at = NOW()
       WHERE id = ${id}
     `;

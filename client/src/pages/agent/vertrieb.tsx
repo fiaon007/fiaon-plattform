@@ -9,6 +9,7 @@ import { ZeichenSenden, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeiche
 import { VertriebZusage, useZusage } from "./vertrieb-zusage";
 import { VertriebZahlungen, VertriebDokumente, VertriebZugang, LageTafel, ServiceZahlen, PipelineZahlen } from "./vertrieb-service";
 import DublettenArbeitsplatz from "@/components/admin/DublettenArbeitsplatz";
+import { Fehlerrahmen } from "@/components/agent/Fehlerrahmen";
 import { statusAusTierGrund } from "@shared/fiaon-kundenstatus";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -131,13 +132,53 @@ function Inhalt() {
   const { zeige } = useToast();
   const reduziert = useReduzierteBewegung();
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // EINE FEHLGESCHLAGENE ABFRAGE SAGT ES — STATT EWIG ZU LADEN (19.08.2026)
+  //
+  // ── DIE MELDUNG (Daniel Stripling) ──────────────────────────────────────
+  // „Im Bereich ‚Vertriebsleitung' kann ich bei den Kunden die Kundenakte nicht
+  // öffnen … Dadurch kann ich weder die Kundendaten noch den bisherigen Verlauf
+  // einsehen."
+  //
+  // ── WAS DER SCREENSHOT ZEIGTE (scripts/schau-neun-punkte.ts) ────────────
+  // Die Seite baut sich auf — Titel, Reiter, Filter, Tabellenkopf — und darunter
+  // stehen graue Balken. Sechs Sekunden, zehn Sekunden, unbegrenzt. Kein
+  // Fehler in der Konsole, keine Meldung am Bildschirm.
+  //
+  // ── DIE URSACHE ─────────────────────────────────────────────────────────
+  // JEDER Lader hier stieg im Fehlerfall still aus: `if (r.ok) setZahlen(…)` —
+  // und sonst nichts. `zahlen` blieb `null`, und `null` heißt in dieser Anzeige
+  // „lädt noch". Es gab keinen Zustand für „hat nicht geklappt".
+  //
+  // GEMESSEN gegen die echten Routen: `/agent/vertrieb/personen` und
+  // `/agent/vertrieb/service` antworten mit HTTP 403, wenn die
+  // Verpflichtungserklärung offen ist — und `/agent/vertrieb/zusage` brauchte
+  // 6,8 Sekunden. In dieser Zeit ist die Seite vollständig leer.
+  //
+  // Jetzt trägt die Seite einen `fehler` und zeigt ihn. AGENTS.md: „Eine
+  // Anzeige muss zwischen ‚es ist kaputt' und ‚ich kann es nicht messen'
+  // unterscheiden."
+  // ══════════════════════════════════════════════════════════════════════════
+  const [fehler, setFehler] = useState<string | null>(null);
+
+  /** Der Klartext zu einer gescheiterten Abfrage — nach VERURSACHER getrennt. */
+  const grundVon = (r: { status: number; json: any }, was: string): string => {
+    if (r.status === 401) return "Deine Sitzung ist abgelaufen — bitte neu anmelden.";
+    if (r.status === 403) return r.json?.error || "Für diesen Bereich fehlt dir die Berechtigung.";
+    if (r.status >= 500) return `${was} konnte der Server nicht liefern (HTTP ${r.status}). `
+      + "Das ist unsere Seite — bitte melden.";
+    if (r.status === 0 || !r.status) return "Keine Verbindung zum Server — Netz prüfen.";
+    return r.json?.error || `${was} kam nicht (HTTP ${r.status}).`;
+  };
+
   const ladeKopf = useCallback(async () => {
     const r = await api("/agent/vertrieb/uebersicht");
     if (r.status === 404) { setKeinZugang(true); setLaedt(false); return; }
     // Erklärung noch offen (oder zwischenzeitlich neu gefasst): Tafel zeigen,
     // nicht eine leere Seite mit unerklärlichen Nullen.
     if (r.status === 403 && r.json?.code === "zusage_erforderlich") { void erneutPruefen(); setLaedt(false); return; }
-    if (r.ok) { setZahlen(r.json.zahlen); setAgenten(r.json.agenten); }
+    if (r.ok) { setZahlen(r.json.zahlen); setAgenten(r.json.agenten); setFehler(null); }
+    else setFehler(grundVon(r, "Die Übersicht"));
   }, [erneutPruefen]);
 
   const ladeListe = useCallback(async (leise = false) => {
@@ -148,7 +189,8 @@ function Inhalt() {
     const r = await api(`/agent/vertrieb/personen?${p.toString()}`);
     if (r.status === 404) { setKeinZugang(true); setLaedt(false); return; }
     if (r.status === 403 && r.json?.code === "zusage_erforderlich") { void erneutPruefen(); setLaedt(false); return; }
-    if (r.ok) setPersonen(r.json.personen);
+    if (r.ok) { setPersonen(r.json.personen); setFehler(null); }
+    else setFehler(grundVon(r, "Die Kundenliste"));
     setLaedt(false);
   }, [filter, agentFilter, suche, erneutPruefen]);
 
@@ -159,6 +201,9 @@ function Inhalt() {
   const ladeService = useCallback(async () => {
     const r = await api("/agent/vertrieb/service");
     if (r.ok) { setService(r.json.zahlen); setPipeline(r.json.pipeline || null); }
+    // Auch hier kein stilles Aussteigen mehr: „Bestand je Mitarbeiter" stand
+    // im Screenshot dauerhaft auf „Wird geladen …".
+    else setFehler(grundVon(r, "Die Service-Zahlen"));
   }, []);
   useEffect(() => { if (geprueft && !zusage) void ladeService(); }, [ladeService, geprueft, zusage]);
   useEffect(() => {
@@ -188,11 +233,42 @@ function Inhalt() {
     } else zeige("fehler", "Nicht möglich", r.json?.error || "Bitte erneut versuchen.");
   };
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIE AKTE MELDET, WARUM SIE NICHT KAM (19.08.2026)
+  //
+  // ── DIE MELDUNG (Daniel Stripling) ──────────────────────────────────────
+  // „Wenn ich eine Kundenakte anklicke, öffnet sich lediglich ein weißes
+  // Fenster. Die eigentliche Kundenakte wird nicht geladen."
+  //
+  // ── WAS HIER FALSCH WAR ─────────────────────────────────────────────────
+  // Zwei Wege endeten in einer weißen Fläche:
+  //
+  //   · `if (r.ok) setAkte({ ...r.json, personId })` — antwortet die Route mit
+  //     `ok: true`, aber OHNE `person`, dann ist `daten.laedt` undefiniert und
+  //     `daten.person` leer. Die Schublade rendert dann ihren Ladezustand:
+  //     eine leere Karte mit einem Skelettbalken. Für immer, ohne Meldung.
+  //   · Der Fehlerfall schloss die Schublade sofort wieder (`setAkte(null)`)
+  //     und zeigte nur einen Kurzhinweis. Wer in dem Moment auf den Kunden
+  //     hört, sieht ihn nicht — es sieht aus, als sei nichts passiert.
+  //
+  // Jetzt trägt der Zustand einen `fehler`, die Schublade bleibt OFFEN und
+  // zeigt ihn. Und `person` wird ausdrücklich geprüft: Eine Antwort ohne den
+  // Menschen, um den es geht, ist ein Fehler und kein Ladezustand.
+  // ══════════════════════════════════════════════════════════════════════════
   const akteOeffnen = async (personId: number) => {
     setAkte({ laedt: true, personId });
     const r = await api(`/agent/vertrieb/person/${personId}`);
-    if (r.ok) setAkte({ ...r.json, personId });
-    else { setAkte(null); zeige("fehler", "Akte nicht ladbar", r.json?.error || ""); }
+    if (r.ok && r.json?.person) { setAkte({ ...r.json, personId }); return; }
+    const grund = r.json?.error
+      || (r.ok
+        ? "Der Server hat geantwortet, aber keine Kundendaten mitgeschickt."
+        : r.status === 403
+          ? "Für diese Akte fehlt die Berechtigung (oder die Verpflichtungserklärung)."
+          : r.status === 404
+            ? "Diesen Kunden gibt es nicht mehr — vielleicht wurde er zusammengeführt."
+            : `Der Server hat mit HTTP ${r.status} geantwortet.`);
+    setAkte({ laedt: false, personId, fehler: grund });
+    zeige("fehler", "Akte nicht ladbar", grund);
   };
 
   const alleWaehlen = () => {
@@ -247,6 +323,36 @@ function Inhalt() {
                      style={{ borderColor: "var(--fi-linie)" }} />
             )}
           </div>
+
+          {/* ══════════════════════════════════════════════════════════════
+              WENN ETWAS NICHT KAM, STEHT DAS HIER
+
+              Vorher blieben die Kacheln und die Tabelle einfach als graue
+              Balken stehen — unbegrenzt, ohne ein Wort. „Es werden keine
+              Inhalte angezeigt" war wörtlich richtig.
+              ══════════════════════════════════════════════════════════════ */}
+          {fehler && (
+            <div className="mt-4 fi-karte p-4" data-fiaon="vertrieb-fehler" role="alert"
+                 style={{ borderColor: "rgba(185,28,28,.3)" }}>
+              <p className="text-[13.5px] font-bold" style={{ color: "#b91c1c" }}>
+                Diese Ansicht ist nicht vollständig geladen.
+              </p>
+              <p className="text-[12.5px] mt-1 leading-relaxed" style={{ color: "var(--fi-text-leise)" }}>
+                {fehler}
+              </p>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <button type="button"
+                        onClick={() => { setFehler(null); void ladeKopf(); void ladeService(); void ladeListe(); }}
+                        className="fi-zweitknopf px-3 py-2 text-[12.5px] font-semibold">
+                  Erneut versuchen
+                </button>
+                <button type="button" onClick={() => window.location.reload()}
+                        className="fi-zweitknopf px-3 py-2 text-[12.5px] font-semibold">
+                  Seite neu laden
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Bereichswahl — die vier Arbeiten der Vertriebsleitung. */}
           <div className="mt-4 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
@@ -615,8 +721,21 @@ function Inhalt() {
         </>}
       </div>
 
-      {akte && <Akte daten={akte} onSchliessen={() => setAkte(null)}
-                     onGeaendert={() => { void ladeListe(true); void ladeKopf(); }} />}
+      {/* ══════════════════════════════════════════════════════════════════
+          DIE WAND GEGEN DIE WEISSE FLÄCHE
+
+          Die zwei bekannten Ursachen sind behoben (fehlendes `person`, still
+          geschluckter Fehler). „Weiße Fläche" ist aber eine FEHLERKLASSE: ein
+          Haken hinter einem `return`, ein `.map` auf `undefined`, ein
+          umbenanntes Feld. Scheitert die Akte beim Zeichnen, zeigt der Rahmen
+          eine Karte mit dem Grund — und die Kundenliste dahinter bleibt heil.
+          ══════════════════════════════════════════════════════════════════ */}
+      {akte && (
+        <Fehlerrahmen was="Die Kundenakte" onSchliessen={() => setAkte(null)}>
+          <Akte daten={akte} onSchliessen={() => setAkte(null)}
+                onGeaendert={() => { void ladeListe(true); void ladeKopf(); }} />
+        </Fehlerrahmen>
+      )}
     </div>
   );
 }
@@ -678,6 +797,38 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
       street: p.strasse || "", zip: p.plz || "", city: p.ort || "",
     });
   }, [daten.personId, p?.personId]);
+
+  // ── LADEN UND SCHEITERN SIND ZWEI ZUSTÄNDE, NICHT EINER ─────────────────
+  // Vorher galt `daten.laedt || !p` als „lädt noch" und zeigte einen
+  // Skelettbalken. Fehlte `person`, blieb dieser Balken für immer stehen — das
+  // war das weiße Fenster. Jetzt: Ein Fehler ist ein Fehler und sagt es.
+  if (daten.fehler || (!daten.laedt && !p)) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+           style={{ background: "rgba(7,11,22,.55)", backdropFilter: "blur(6px)" }}
+           role="alertdialog" aria-label="Kundenakte konnte nicht geladen werden"
+           data-fiaon="akte-fehler">
+        <div className="fi-karte p-5 w-full" style={{ maxWidth: 440 }}
+             onClick={(e) => e.stopPropagation()}>
+          <p className="text-[15px] font-bold">Die Kundenakte konnte nicht geladen werden.</p>
+          <p className="text-[12.5px] mt-2 px-2.5 py-2 rounded-lg leading-relaxed"
+             style={{ background: "var(--fi-seite)", color: "#b91c1c" }}>
+            {daten.fehler || "Der Server hat keine Kundendaten mitgeschickt."}
+          </p>
+          <div className="flex flex-wrap gap-2 mt-4">
+            <button type="button" onClick={() => window.location.reload()}
+                    className="fi-primaerknopf px-3 py-2.5 text-[13px] font-bold text-white">
+              Neu laden
+            </button>
+            <button type="button" onClick={onSchliessen}
+                    className="fi-zweitknopf px-3 py-2.5 text-[13px] font-semibold">
+              Schließen
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (daten.laedt || !p) {
     return (

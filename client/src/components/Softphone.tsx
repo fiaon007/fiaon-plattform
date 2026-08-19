@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FiaonGeraet, FiaonTastatur } from "@/components/FiaonGeraet";
 import { telefonFehler, telefonFehlerText } from "@shared/fiaon-telefon-fehler";
+import { ERGEBNIS_LISTE, NOTIZ_MINDESTLAENGE } from "@shared/fiaon-kontakt-ergebnis-liste";
 import { FiaonEbene } from "./FiaonEbene";
 // Gerätewahl, Pegelrechnung und die Hörbarkeitsschwellen stehen an EINER Stelle:
 // Sie werden hier an vier Stellen gebraucht (Balken, Sperre, Sprechprobe,
@@ -68,23 +69,30 @@ interface Stand {
   } | null;
 }
 
-/** Die Ergebnisse — Wortlaut wie in der Kundenliste, damit nichts auseinanderläuft. */
-const ERGEBNISSE: {
-  art: string; label: string; braucht?: "zusage" | "termin";
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ERGEBNISSE KOMMEN AUS `shared/` (19.08.2026)
+//
+// Hier stand die VIERTE handgeschriebene Fassung derselben Liste — acht Werte
+// statt neun (`nummer_blockiert` fehlte), eigene Beschriftungen, eigenes
+// `notizPflicht` und die 10 als Zahl im Quelltext. Vier Fassungen sind der
+// Grund, warum „Erreicht – Sonstiges" dreimal gemeldet wurde.
+//
+// ── WARUM HIER KEIN `ErgebnisWahl` STEHT ──────────────────────────────────
+// Das Softphone rendert IN einem Telefongehäuse mit eigener Formsprache
+// (`fi-tel-*`). Ein Bauteil mit den Knopfklassen der Kundenkarte hineinzuwuchten
+// würde die Anzeige zerlegen — und der Screenshot müsste es beweisen. Geteilt
+// wird deshalb, was auseinanderlaufen KANN: die Liste, die Beschriftungen, die
+// Notizpflicht und ihre Mindestlänge. Die Darstellung bleibt gerätespezifisch.
+//
+// `scripts/pruef-ergebnis-eine-liste.ts` verbietet eine fünfte Fassung.
+// ═══════════════════════════════════════════════════════════════════════════
+const ERGEBNISSE = ERGEBNIS_LISTE.map((e) => ({
+  art: e.art,
+  label: e.knopf,
+  braucht: e.braucht === "zusage" || e.braucht === "termin" ? e.braucht : undefined,
   /** Notiz ist PFLICHT: Ohne sie sagt das Ergebnis dem nächsten Menschen nichts. */
-  notizPflicht?: boolean;
-}[] = [
-  { art: "erreicht_zahlt_gleich", label: "Zahlt sofort" },
-  { art: "erreicht_zahlt_am", label: "Zahlt am …", braucht: "zusage" },
-  { art: "nicht_erreicht", label: "Nicht erreicht" },
-  { art: "mailbox", label: "Mailbox besprochen" },
-  { art: "rueckruf_termin", label: "Rückruf vereinbart", braucht: "termin" },
-  { art: "erreicht_abgelehnt", label: "Erreicht – abgelehnt" },
-  // Erreicht, aber noch kein klares Ergebnis. Zaehlt als Gespraech, setzt
-  // keine Zusage und keine Sperre — nur eine Wiedervorlage in drei Tagen.
-  { art: "erreicht_sonstiges", label: "Erreicht – Sonstiges", notizPflicht: true },
-  { art: "nummer_falsch", label: "Falsche Nummer" },
-];
+  notizPflicht: e.braucht === "notiz" ? true : undefined,
+}));
 
 /** Hörer — 20×20, 1,5 px, currentColor. */
 export function MarkeHoerer({ size = 20 }: { size?: number }) {
@@ -2202,9 +2210,12 @@ export function Softphone() {
                           aria-label="Notiz zum Ergebnis"
                           className="fi-tel-notiz" />
                 <p className="fi-tel-notiz-fuss" data-fehler={notizFehler ? "ja" : undefined}>
+                  {/* Die Mindestlänge kommt aus `shared/` — hier stand die 10
+                      als Zahl, und der Server prüfte seine eigene. Zwei Zahlen
+                      für dieselbe Grenze gehen beim ersten Ändern auseinander. */}
                   {notizFehler
                     ?? (ERGEBNISSE.find((e) => e.art === notizFuer)?.notizPflicht
-                      ? `Pflicht — noch ${Math.max(0, 10 - notiz.trim().length)} Zeichen`
+                      ? `Pflicht — noch ${Math.max(0, NOTIZ_MINDESTLAENGE - notiz.trim().length)} Zeichen`
                       : "Freiwillig. Steht danach im Verlauf der Akte.")}
                 </p>
               </div>
@@ -2215,10 +2226,10 @@ export function Softphone() {
                         onClick={() => {
                           if (e.braucht && datumFeld !== e.braucht) { setDatumFeld(e.braucht); return; }
                           // Pflicht-Notiz: erst das Feld zeigen, dann senden.
-                          if (e.notizPflicht && notiz.trim().length < 10) {
+                          if (e.notizPflicht && notiz.trim().length < NOTIZ_MINDESTLAENGE) {
                             setNotizFuer(e.art);
                             setNotizFehler(notiz.trim().length > 0
-                              ? "Noch etwas ausführlicher, bitte (mindestens 10 Zeichen)."
+                              ? `Noch etwas ausführlicher, bitte (mindestens ${NOTIZ_MINDESTLAENGE} Zeichen).`
                               : null);
                             return;
                           }

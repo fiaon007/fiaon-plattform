@@ -329,10 +329,32 @@ export function useZusage(basis = "/agent/vertrieb/zusage") {
   const [daten, setDaten] = useState<ZusageDaten | null>(null);
   const [geprueft, setGeprueft] = useState(false);
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // `geprueft` WIRD IMMER GESETZT (19.08.2026)
+  //
+  // Vorher stand `setGeprueft(true)` NACH dem `await` und ohne Absicherung.
+  // Wirft `fetch` (Netz weg, Zwischenserver bricht ab), springt die Funktion
+  // heraus und `geprueft` bleibt für immer `false`.
+  //
+  // Die Vertriebsseite lädt aber NUR, wenn `geprueft` wahr ist
+  // (`if (geprueft && !zusage) void ladeKopf()`). Ein abgebrochener Aufruf hier
+  // legt also die ganze Seite still: Titel, Reiter und Tabellenkopf stehen da,
+  // darunter graue Balken — dauerhaft. Genau das hat die Vertriebsleitung als
+  // „weißes Fenster, es werden keine Inhalte angezeigt" gemeldet.
+  //
+  // `finally` ist die ganze Reparatur: Nach dem Versuch ist geprüft — ob er
+  // geklappt hat oder nicht. Der Fehlerfall zeigt dann die Meldung der Seite
+  // statt eines Ladezustands ohne Ende.
+  // ══════════════════════════════════════════════════════════════════════════
   const laden = useCallback(async () => {
-    const r = await api(basis);
-    if (r.ok) setDaten(r.json.offen ? (r.json as ZusageDaten) : null);
-    setGeprueft(true);
+    try {
+      const r = await api(basis);
+      if (r.ok) setDaten(r.json.offen ? (r.json as ZusageDaten) : null);
+    } catch (e) {
+      console.error(`[ZUSAGE] ${basis} konnte nicht geladen werden:`, e);
+    } finally {
+      setGeprueft(true);
+    }
   }, [basis]);
 
   useEffect(() => { void laden(); }, [laden]);

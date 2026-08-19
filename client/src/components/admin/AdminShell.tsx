@@ -90,6 +90,11 @@ export const ADMIN_NAV: NavGroup[] = [
       // Eigene Seite seit 04.08.2026 — war vorher eine Sektion der
       // Zahlungszentrale und damit unter den Kundenzahlungen versteckt.
       { path: "/admin/auszahlungen", label: "Auszahlungen", desc: "Provisions-Anforderungen der Mitarbeiter freigeben", icon: Banknote, badgeKey: "auszahlungen" },
+      // Neu am 19.08.2026: Die zehn erzeugten Provisionsabrechnungen lagen in
+      // der Datenbank, das PDF in der Zeile — und es gab keinen Ort, an dem der
+      // Betreiber sie sehen, prüfen oder senden konnte. Derselbe Fall wie
+      // „Alle prüfen" auf /admin/events: Der Server konnte es, es fehlte der Knopf.
+      { path: "/admin/abrechnungen", label: "Abrechnungen", desc: "Provisionsabrechnungen einsehen, als PDF ansehen, an den Mitarbeiter senden", icon: FileText, badgeKey: "abrechnungenOffen" },
       { path: "/admin/dubletten", label: "Dubletten", desc: "Mehrfach angelegte Personen erkennen und zusammenführen (füllt fehlende Felder, umkehrbar)", icon: Copy, badgeKey: "dubletten" },
       { path: "/admin/verbuchungen", label: "Verbuchungen", desc: "Bestätigte Zahlungen: Umsatz, Provisionen, Netto", icon: Wallet },
       { path: "/admin/buchhaltung", label: "Buchhaltung", desc: "Buchungsjournal und Ausbuchung (Ledger)", icon: Landmark },

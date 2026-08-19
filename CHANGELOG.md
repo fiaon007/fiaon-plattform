@@ -5,6 +5,138 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.08.2026 (Nacht) — Abrechnungs-Zentrale und ein Gehaltszettel als PDF
+
+Zwei Dinge: ein Ort für die Provisionsabrechnungen, und ein Dokument, das man
+einem Steuerberater vorlegen kann.
+
+### Teil 1 — Die Abrechnungs-Zentrale (`/admin/abrechnungen`)
+
+Zehn Provisionsabrechnungen lagen in `fiaon_commission_statements`, das PDF als
+base64 in der Zeile — und es gab **keinen Ort, an dem der Betreiber sie sehen
+konnte**. Der einzige Weg führte über das Portal des Mitarbeiters. Dieselbe
+Klasse wie „Alle prüfen" auf `/admin/events`: Der Server konnte es längst, es
+fehlte der Knopf.
+
+Neu unter *Umsatz & Zahlungen*: Liste mit Nummer, Mitarbeiter, Zeitraum, Betrag,
+Status und Erzeugungsdatum. Filter nach Mitarbeiter, Status und Zeitraum, Suche
+nach Nummer oder Name. Je Zeile vier Handlungen: **PDF ansehen** (neuer Tab),
+**Herunterladen**, **An Mitarbeiter senden**, **Neu erzeugen**.
+
+**Was ein Beleg ist:** Sobald die Auszahlung erfolgt ist, wird die Abrechnung
+nicht mehr neu erzeugt — auch nicht mit dem schöneren Layout. Die Sperre steht
+im **Server**, nicht nur im Knopf: Ein direkter Aufruf der Route antwortet mit
+HTTP 409 und dem Grund im Klartext (im Prüfstand als Rot-Probe belegt). Senden
+bleibt immer erlaubt, weil Menschen Mails verlieren; jede Sendung steht mit
+Datum und Adresse an der Zeile, ab der zweiten als „erneut gesendet am …".
+
+**Beide Wege:** zentral über `/admin/abrechnungen` **und** je Mensch in der
+Team-Zentrale → Profil → Reiter *Provisionen* → Unterbereich *Abrechnungen*
+(dieselben Felder, aus derselben Ableitung). Die Freigabe-Karte unter
+`/admin/auszahlungen` trägt die Abrechnungs-Nummer, die Zentrale verlinkt
+zurück auf *Zur Auszahlung #14*.
+
+**Mitarbeiter-Sicht:** Unter *Verdienst* sieht jeder seine **eigenen**
+Abrechnungen mit PDF. Die Grenze steht in der `WHERE`-Bedingung
+(`s.agent_id = eigene Kennung`), nicht in der Anzeige. **Rot-Probe:** Ein
+Testkonto ruft eine fremde Abrechnung ab → **HTTP 404**; die Zentrale selbst →
+**401**.
+
+### Teil 2 — Das PDF: gemessen, nicht vermutet
+
+**GEMESSEN am gespeicherten PDF** von `FIAON-COM-2026-0010` (nicht an der
+Vorlage — dafür entstand `server/lib/fiaon-pdf-lesen.ts`):
+
+| Befund | Zahl |
+|---|---|
+| Seiten für **sechs** Positionen | **4** |
+| Zeichen auf Seite 3 und 4 | **je 82** (nur die Firmenzeile) |
+| „FIAON LTD" im Dokument | **6×** (je Seite 2·2·1·1) |
+| englische Beschriftungen | **20 von 20** |
+| Datum 19.08.2026 | **10×** |
+| Positionen, die Pauschalen sind | **6 von 6** |
+
+**Die Ursache des doppelten Fußzeilen-Drucks, zweifach:**
+
+1. Der Aufrufer gab dieselbe Firmenzeile an **beide** Stellen — `markenzeile`
+   (unter dem Wortzeichen) **und** `fusszeile`. Dazu der Aussteller-Block: auf
+   Seite 1 dreimal dieselbe Adresse.
+2. Die Fußzeile war ein `<footer style="position:fixed">` **im** Dokument. Für
+   ein fest positioniertes Element reserviert Chromium **keinen Platz im
+   Textfluss** — der Inhalt läuft darunter durch und über den Seitenrand hinaus.
+   Daraus entstehen die Anhangsseiten mit 82 Zeichen.
+
+Die Reparatur ist deshalb kein Textwechsel, sondern ein anderes Verfahren: eine
+**echte laufende Fußzeile** aus Chromiums `footerTemplate`, genau einmal je
+Seite, mit „Seite n von m" und reserviertem Rand.
+
+**Der neue Aufbau** (`server/lib/fiaon-abrechnung-pdf.ts`, ein Renderer für
+Freigabe, Zentrale und Mail-Anhang): Kopfband Navy mit Wortmarke und
+Belegnummer · Stammdaten zweispaltig (Aussteller | Empfänger) · Meta-Zeile mit
+**jedem Datum einmal** · **zwei getrennte Positionstabellen** — „Provisionen aus
+Verkäufen" mit Bemessungsgrundlage und Satz, „Pauschalvergütungen" **ohne** diese
+Spalten · Summenblock rechts mit Zahlweg daneben · Rechtsblock einmal ·
+Prüfsumme einmal.
+
+**Ergebnis am gleichen Fall: 4 Seiten → 1 Seite.**
+
+| Muster | Positionen | Seiten |
+|---|---|---|
+| 01-position | 1 | 1 |
+| 10-positionen | 10 (7 Verkauf / 3 Pauschal) | **1** |
+| 40-positionen | 40 | 2 |
+| 0010-neu | 6 Pauschalen | **1** |
+
+Das ausgezahlte Original **bleibt unverändert** — die Neuerzeugung trägt eine
+eigene Nummer als Muster.
+
+### Vier Fehler, die nur der Screenshot gefunden hat
+
+1. **Die Beträge waren im PDF nicht auslesbar.** `font-variant-numeric:
+   tabular-nums` lässt Chromium einen anderen Glyphensatz einbetten — ohne
+   Unicode-Zuordnung. Im Bild stand alles richtig, in der Textebene stand
+   `FIAON High End      €     %      €`. Ein Buchungsbeleg, in dem der
+   Steuerberater die Zahlen nicht markieren, suchen oder auslesen kann.
+2. **Das Kopfband war ein leerer blauer Streifen.** Mit `margin-top: -18mm` saß
+   das Wortzeichen 11 mm über dem bedruckbaren Bereich. **Alle 55 Prüfungen
+   blieben grün**, weil der Text vorhanden, nur unsichtbar war.
+3. **Die Etiketten des Zahlwegs liefen über ihre Werte**
+   („VERWENDUNGSZWE**FIAON-COM-…**").
+4. **Mein eigener Rechtsblock druckte doppelt** — „selbstständig tätig" dreimal,
+   die 14-Tage-Frist zweimal, auf einer eigenen zweiten Seite. Also genau der
+   Doppeldruck, den dieser Auftrag beseitigen soll, an neuer Stelle. Jetzt gelten
+   die Einstellungstexte; die Konstanten bleiben als dokumentierter Rückfall.
+
+### Und zwei Messfehler in den Prüfständen selbst
+
+- **Der erste PDF-Leser las nichts.** Selbst geschrieben (zlib + `Tj`), lieferte
+  er null brauchbare Zeichen. Seine Notbremse hat einen Fehlbefund verhindert:
+  Statt „0× FIAON LTD gefunden" meldete der Lauf „**die Messung ist
+  unbrauchbar**". Ohne diese Bremse wäre der Schluss gewesen, die Fußzeile
+  fehle — das Gegenteil des Befunds. Jetzt `pdfjs-dist`.
+- **Der erste Bild-Erzeuger produzierte weiße PNGs.** Headless Chromium hat
+  keinen PDF-Betrachter. Vier leere Dateien hätten als „Beweis" im Ordner
+  gelegen. Jetzt `qlmanage` — mit Zeitgrenze, weil er hängen bleibt und den
+  ganzen Lauf angehalten hat.
+
+### Nebenbefund: die Verdienst-Seite drehte für immer
+
+`if (!earnings) return <skeleton/>` — ohne Fehlerweg. Antwortet die Route nicht,
+bleiben die grauen Balken unbegrenzt stehen; im Browsertest war die Seite nach
+vier Sekunden leer und nichts erklärte es. Jetzt eine Meldung mit Grund und
+„Erneut versuchen" — und die Abrechnungen erscheinen auch dann, weil ein Beleg
+für den Steuerberater nicht an den Kennzahlen hängen darf.
+
+### Prüfstände
+
+| Lauf | Ergebnis |
+|---|---|
+| `pruef-abrechnung` | **55 ok** — vier Muster gerendert, Seiten gezählt, keine Leerseite, Fußzeile genau 1× je Seite, durchgehend deutsch, PNGs angesehen |
+| `pruef-abrechnung-zentrale` | **42 ok** — Knöpfe gedrückt, Filter bedient, PDF abgerufen, 409-Wand und 404-Rot-Probe |
+| `mess-abrechnung` | der Befund am echten Dokument |
+
+---
+
 ## 19.08.2026 (Nacht) — Gespräche-Tab: wessen Anruf, und wessen Name?
 
 Meldung: „Gespräche-Tab zeigt fremde Anrufe + Kundenname stimmt nicht zum

@@ -180,7 +180,13 @@ async function main(): Promise<void> {
   // keiner Route) ist eine Fundstelle weggefallen. Die Obergrenze wird
   // NACHGEZOGEN, sobald sie sinkt — sonst hält die Wand die Lücke offen, die
   // gerade geschlossen wurde.
-  const BESTAND_KOMMENTARE = 163;
+  //
+  // 163 → 137 am 20.08.2026: Nicht durch Aufräumen, sondern durch den
+  // KALENDER — mit dem Datumswechsel liegen 26 Kommentare (die auf den 19. und
+  // 20.08. datierten) nicht mehr in der Zukunft. Die Zahl sinkt hier also von
+  // selbst, und das ist der Sinn: Sie ist eine Obergrenze für NEUE
+  // Zukunftsdaten, kein Zählwerk für Kommentare.
+  const BESTAND_KOMMENTARE = 137;
   log("");
   for (const t of einmalig.slice(0, 15)) log(`     ${t}`);
   if (einmalig.length > 15) log(`     … und ${einmalig.length - 15} weitere`);

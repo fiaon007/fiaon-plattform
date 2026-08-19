@@ -21,6 +21,7 @@ import {
 } from "../lib/fiaon-mitarbeiter-sicht";
 import { katalogpreisCents } from "../lib/fiaon-massgebliche-bestellung";
 import { BELEGT_GEFUEHRT_SQL, NUMMER_PASST_SQL } from "../lib/fiaon-anruf-pruefung";
+import { abrechnungZustand } from "./fiaon-abrechnungen";
 
 const router = Router();
 
@@ -1590,10 +1591,32 @@ router.get("/admin/payouts", async (_req, res) => {
     for (const e of entries) {
       (byPayout[e.payout_id] ||= []).push(e);
     }
+    // ── DIE ABRECHNUNG ZUR AUSZAHLUNG (19.08.2026) ─────────────────────────
+    // Bisher stand in der Freigabe-Karte nur der Satz „der Mitarbeiter bekommt
+    // eine Abrechnung als PDF". Ob sie entstanden ist, unter welcher Nummer und
+    // ob sie ankam, war von hier aus nicht zu sehen — man musste hoffen.
+    // Jetzt hängt die Nummer an der Karte und verlinkt in die
+    // Abrechnungs-Zentrale (und die Zentrale zurück auf die Auszahlung).
+    const abrechnungen = (await sqlPool`
+      SELECT payout_id, id, statement_no, gesendet_am, sende_anzahl,
+             (pdf_base64 IS NOT NULL) AS hat_pdf
+        FROM fiaon_commission_statements
+       WHERE payout_id IS NOT NULL
+    `) as any[];
+    const jeAuszahlung: Record<number, any> = {};
+    for (const a of abrechnungen) {
+      jeAuszahlung[Number(a.payout_id)] = {
+        id: Number(a.id), nummer: a.statement_no,
+        gesendetAm: a.gesendet_am ?? null,
+        sendeAnzahl: Number(a.sende_anzahl ?? 0),
+        hatPdf: a.hat_pdf === true,
+      };
+    }
     res.json({
       ok: true,
       data: payouts.map((p: any) => ({
         ...p,
+        abrechnung: jeAuszahlung[Number(p.id)] ?? null,
         // Volle IBAN NUR hier (Admin-Auszahlungsansicht), aus verschlüsseltem Snapshot
         iban_full: p.status === "angefordert" ? decryptSecret(p.bank_iban_enc) : null,
         holder: decryptSecret(p.bank_holder_enc),
@@ -2091,113 +2114,54 @@ router.post("/admin/team/firmierung", async (req: Request, res: Response) => {
  * Prüfstand vergleicht die Summen vorher und nachher.
  */
 router.post("/admin/team/abrechnung/:id/neu-erzeugen", async (req: Request, res: Response) => {
+  // ══════════════════════════════════════════════════════════════════════════
+  // ZWEITE FASSUNG DESSELBEN BELEGS — ENTFERNT (19.08.2026)
+  //
+  // Hier standen rund 80 Zeilen eigenes Dokument-HTML: „Issued by",
+  // „Recipient", „Sale value", „Rate", „Total", „Tax treatment" — eine
+  // vollstaendige zweite Fassung der Provisionsabrechnung, auf Englisch.
+  //
+  // Sie trug DENSELBEN Fehler wie die Erstausstellung:
+  //     markenzeile: fussZeile(firma), fusszeile: fussZeile(firma)
+  // also die Firmenzeile zweimal, plus den Aussteller-Block. Wer hier
+  // nachdruckte, bekam genau das Dokument zurueck, das der Betreiber gemeldet
+  // hat — vier Seiten, Fusszeile doppelt, Pauschalen mit leerer Prozentspalte.
+  //
+  // UND SIE HATTE KEINE BELEG-WAND: Ein ausgezahlter Beleg liess sich hier
+  // ueberschreiben. Genau das darf nicht sein.
+  //
+  // Gefunden hat es der Pruefstand, der nach einer zweiten Positionstabelle im
+  // Server suchte („Sale value"). Der Auftrag hat danach ausdruecklich verlangt:
+  // „EIN Renderer fuer alle Wege — Grep auf Alt-Fassungen."
+  //
+  // Die Route bleibt bestehen (die Team-Zentrale ruft sie), fuehrt aber jetzt
+  // durch dieselbe Tuer wie die Abrechnungs-Zentrale.
+  // ══════════════════════════════════════════════════════════════════════════
   try {
     const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ ok: false, error: "Ungueltige Kennung." });
+    }
     const [st] = (await sqlPool`
-      SELECT s.*, a.name AS agent_name, a.email AS agent_email,
-             a.legal_name, a.address_line, a.postal_code, a.city, a.country,
-             a.vat_id, a.tax_id, a.partner_type
-      FROM fiaon_commission_statements s
-      JOIN fiaon_agents a ON a.id = s.agent_id
-      WHERE s.id = ${id}
+      SELECT s.statement_no, s.gross_cents, s.lines_json, p.status AS auszahlung_status
+        FROM fiaon_commission_statements s
+        LEFT JOIN fiaon_payouts p ON p.id = s.payout_id
+       WHERE s.id = ${id}
     `) as any[];
     if (!st) return res.status(404).json({ ok: false, error: "Abrechnung nicht gefunden." });
 
-    const { renderDocumentPdf } = await import("../lib/fiaon-html-pdf");
-    const { absenderBlock, firmierung, fussZeile } = await import("../lib/fiaon-firmierung");
-    const firma = await firmierung();
-
-    const zeilen: any[] = (() => {
-      try { return typeof st.lines_json === "string" ? JSON.parse(st.lines_json) : (st.lines_json ?? []); }
-      catch { return []; }
-    })();
-    const cent = (c: number) => (Number(c) / 100).toLocaleString("de-DE",
-      { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
-    const esc = (t: unknown) => String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const tag = (d: unknown) => d
-      ? new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", dateStyle: "short" }).format(new Date(String(d)))
-      : "—";
-
-    const empfaenger = [
-      esc(st.legal_name || st.agent_name),
-      esc(st.address_line), esc([st.postal_code, st.city].filter(Boolean).join(" ")),
-      esc(st.country),
-      st.vat_id ? `VAT-ID: ${esc(st.vat_id)}` : "",
-      st.tax_id ? `Tax no.: ${esc(st.tax_id)}` : "",
-      `Email: ${esc(st.agent_email)}`,
-    ].filter(Boolean).join("<br/>");
-
-    const body = `
-      <table style="border:none;margin-bottom:14px;">
-        <tr style="border:none;">
-          <td style="border:none;width:50%;vertical-align:top;">
-            <div style="font-weight:700;">Issued by</div>${absenderBlock(firma)}
-          </td>
-          <td style="border:none;width:50%;vertical-align:top;">
-            <div style="font-weight:700;">Recipient</div>${empfaenger}
-          </td>
-        </tr>
-      </table>
-      <table style="border:none;margin-bottom:12px;">
-        <tr style="border:none;">
-          <td style="border:none;width:50%;"><b>Statement no.</b> ${esc(st.statement_no)}</td>
-          <td style="border:none;width:50%;"><b>Period</b> ${tag(st.period_start)} – ${tag(st.period_end)}</td>
-        </tr>
-        <tr style="border:none;">
-          <td style="border:none;"><b>Originally issued</b> ${tag(st.issued_at)}</td>
-          <td style="border:none;"><b>Reissued</b> ${tag(new Date())}</td>
-        </tr>
-      </table>
-      <table>
-        <thead><tr>
-          <th>Date</th><th>Order</th><th class="num">Sale value</th>
-          <th class="num">Rate</th><th class="num">Commission</th>
-        </tr></thead>
-        <tbody>${zeilen.map((l) => `
-          <tr${Number(l.commissionCents) < 0 ? ' class="negative"' : ""}>
-            <td>${tag(l.date)}</td>
-            <td>${esc(l.reference)}${l.pack ? `<div class="muted" style="font-size:8pt;">${esc(l.pack)}</div>` : ""}</td>
-            <td class="num">${l.saleCents ? cent(l.saleCents) : "—"}</td>
-            <td class="num">${l.rateBp ? (Number(l.rateBp) / 100).toLocaleString("de-DE", { maximumFractionDigits: 2 }) + " %" : "—"}</td>
-            <td class="num">${cent(l.commissionCents)}</td>
-          </tr>`).join("")}</tbody>
-        <tfoot><tr>
-          <td colspan="4">Total</td><td class="num">${cent(st.gross_cents)}</td>
-        </tr></tfoot>
-      </table>
-      <div class="box" style="font-size:8.5pt;">
-        <div style="font-weight:700;margin-bottom:4px;">Tax treatment</div>${esc(firma.steuerhinweis)}
-      </div>
-      <div class="box" style="font-size:8.5pt;">
-        <div style="font-weight:700;margin-bottom:4px;">Status and self-billing</div>${esc(firma.gutschriftHinweis)}
-      </div>
-      <p class="hash" style="margin-top:12px;">Document hash (SHA-256): ${esc(st.doc_hash)}</p>
-      <p class="meta">Reissued in the current layout. Amounts, positions and statement number are unchanged.</p>`;
-
-    const pdf = await renderDocumentPdf({
-      documentTitle: "Commission Statement",
-      subtitle: `${st.statement_no} · self-billed credit note`,
-      bodyHtml: body,
-      markenzeile: fussZeile(firma),
-      fusszeile: fussZeile(firma),
-    });
-
-    // NUR das PDF wird ersetzt. gross_cents, lines_json, statement_no und
-    // issued_at bleiben unangetastet — sonst wäre es eine neue Abrechnung.
-    await sqlPool`
-      UPDATE fiaon_commission_statements SET pdf_base64 = ${pdf.toString("base64")}
-      WHERE id = ${id}
-    `;
-    const { aktivitaetSchreiben } = await import("../lib/fiaon-aktivitaet");
-    await aktivitaetSchreiben({
-      typ: "commission_statement_issued", wer: "Vorgesetzter",
-      agentId: Number(st.agent_id), referenz: String(st.statement_no),
-      grund: "PDF im aktuellen Layout neu erzeugt; Inhalte unverändert.",
-    });
-
+    const { abrechnungNeuErzeugen } = await import("./fiaon-onboarding");
+    const erg = await abrechnungNeuErzeugen(id);
+    if (!erg.ok) {
+      // 409, nicht 500: Die Ablehnung eines Belegs ist kein Serverfehler,
+      // sondern eine Regel — und sie wird im Klartext genannt.
+      return res.status(409).json({ ok: false, error: erg.grund });
+    }
+    const zeilen = JSON.parse(String(st.lines_json || "[]"));
     res.json({
       ok: true,
-      meldung: `${st.statement_no} neu erzeugt. Summe unverändert: ${cent(st.gross_cents)}.`,
+      meldung: `${st.statement_no} neu erzeugt. Summe unveraendert: `
+        + `${(Number(st.gross_cents) / 100).toFixed(2)} EUR.`,
       summeCents: Number(st.gross_cents),
       positionen: zeilen.length,
     });
@@ -2265,7 +2229,7 @@ router.get("/admin/team/:id/akte", async (req: Request, res: Response) => {
     }
 
     const [
-      provisionen, anrufe, auszahlungen, kunden, ereignisse, zahlen,
+      provisionen, anrufe, auszahlungen, abrechnungen, kunden, ereignisse, zahlen,
     ] = await Promise.all([
       // ── PROVISIONSVERLAUF ─────────────────────────────────────────────
       // Der Reiter zeigte bisher NUR offene Nachbuchungen — also das, was
@@ -2363,6 +2327,21 @@ router.get("/admin/team/:id/akte", async (req: Request, res: Response) => {
         ORDER BY requested_at DESC LIMIT 40
       `.catch(() => [] as any[]),
 
+      // ── DIE ABRECHNUNGEN DIESES MENSCHEN (19.08.2026) ─────────────────
+      // Damit der Reiter „Provisionen" nicht nur zeigt, WAS verdient wurde,
+      // sondern auch WELCHER BELEG darüber existiert und ob er beim Menschen
+      // angekommen ist. Dieselben Felder wie in der Abrechnungs-Zentrale.
+      sqlPool`
+        SELECT s.id, s.statement_no, s.period_start, s.period_end, s.issued_at,
+               s.net_cents, s.gesendet_am, s.sende_anzahl,
+               (s.pdf_base64 IS NOT NULL) AS hat_pdf,
+               p.status AS auszahlung_status
+          FROM fiaon_commission_statements s
+          LEFT JOIN fiaon_payouts p ON p.id = s.payout_id
+         WHERE s.agent_id = ${id}
+         ORDER BY s.issued_at DESC LIMIT 60
+      `.catch(() => [] as any[]),
+
       // ── DIE ZEHN JÜNGSTEN KUNDENBEWEGUNGEN ────────────────────────────
       sqlPool`
         SELECT cl.id, cl.ref, cl.type, cl.outcome, cl.note, cl.created_at,
@@ -2428,6 +2407,20 @@ router.get("/admin/team/:id/akte", async (req: Request, res: Response) => {
       anrufe,
       anrufZahlen: (zahlen as any[])[0] ?? null,
       auszahlungen,
+      // Dieselbe Form wie in der Abrechnungs-Zentrale — der Zustand wird über
+      // DIESELBE Funktion abgeleitet, nicht hier zum zweiten Mal geraten.
+      abrechnungen: (abrechnungen as any[]).map((s) => ({
+        id: Number(s.id),
+        nummer: s.statement_no,
+        zeitraumVon: s.period_start ?? null,
+        zeitraumBis: s.period_end ?? null,
+        erzeugtAm: s.issued_at,
+        betragCents: Number(s.net_cents ?? 0),
+        hatPdf: s.hat_pdf === true,
+        gesendetAm: s.gesendet_am ?? null,
+        sendeAnzahl: Number(s.sende_anzahl ?? 0),
+        zustand: abrechnungZustand(s),
+      })),
       kunden,
       ereignisse,
     });

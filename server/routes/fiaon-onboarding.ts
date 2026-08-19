@@ -775,6 +775,91 @@ export async function generateCommissionStatement(payoutId: number): Promise<{ o
   return { ok: true, statementNo };
 }
 
+/**
+ * Eine bestehende Abrechnung mit dem AKTUELLEN Layout neu drucken.
+ *
+ * ── WARUM DAS EINE EIGENE FUNKTION IST ────────────────────────────────────
+ * `generateCommissionStatement` steigt bei einer vorhandenen Abrechnung sofort
+ * aus (`skipped: true`) — richtig so, sonst entstünden zwei Belege mit zwei
+ * Nummern für eine Auszahlung. Zum Nachdrucken braucht es deshalb einen zweiten
+ * Weg, der die NUMMER BEHÄLT und nur das PDF ersetzt.
+ *
+ * Die Grenze („nicht bei ausgezahlt") steht in der Route
+ * (`fiaon-abrechnungen.ts`) UND hier: Wer diese Funktion später von anderswo
+ * aufruft, soll nicht versehentlich einen Beleg überschreiben.
+ */
+export async function abrechnungNeuErzeugen(
+  statementId: number,
+): Promise<{ ok: boolean; grund?: string }> {
+  const [s] = (await sqlPool`
+    SELECT s.*, p.status AS auszahlung_status, p.amount_cents, p.processed_at, p.iban_masked,
+           ag.name, ag.rolle, ag.email, ag.partner_type, ag.vat_id, ag.tax_id, ag.first_name
+      FROM fiaon_commission_statements s
+      LEFT JOIN fiaon_payouts p ON p.id = s.payout_id
+      LEFT JOIN fiaon_agents ag ON ag.id = s.agent_id
+     WHERE s.id = ${statementId}
+  `) as any[];
+  if (!s) return { ok: false, grund: "Abrechnung nicht gefunden." };
+  if (String(s.auszahlung_status ?? "") === "ausgezahlt") {
+    return {
+      ok: false,
+      grund: "Die Auszahlung ist erfolgt — die Abrechnung ist ein Buchungsbeleg "
+        + "und wird nicht neu erzeugt.",
+    };
+  }
+
+  const firma = await firmierung();
+  const lines = JSON.parse(String(s.lines_json || "[]"));
+  const daten: AbrechnungDaten = {
+    nummer: String(s.statement_no),
+    ausstellungsdatum: new Date(s.issued_at),
+    zeitraumVon: s.period_start ? new Date(s.period_start) : null,
+    zeitraumBis: s.period_end ? new Date(s.period_end) : null,
+    firma,
+    empfaenger: {
+      name: String(s.name ?? "—"),
+      rolle: s.rolle ?? null,
+      email: String(s.email ?? "—"),
+      anschrift: null,
+      vatId: s.vat_id ?? null,
+      steuerNr: s.tax_id ?? null,
+      istFirma: String(s.partner_type || "private") === "company",
+    },
+    positionen: lines.map((l: any) => ({
+      datum: l.date,
+      referenz: String(l.reference ?? ""),
+      paket: l.pack || null,
+      anlass: l.note || null,
+      grundlageCents: Number(l.saleCents) || 0,
+      satzBp: Number(l.rateBp) || 0,
+      betragCents: Number(l.commissionCents) || 0,
+    })),
+    auszahlungCents: Number(s.net_cents),
+    auszahlungsdatum: s.processed_at ? new Date(s.processed_at) : null,
+    ibanMaskiert: s.iban_masked ?? null,
+    verwendungszweck: String(s.statement_no),
+    auszahlungId: s.payout_id != null ? Number(s.payout_id) : null,
+  };
+
+  try {
+    const erg = await abrechnungPdf(daten);
+    await sqlPool`
+      UPDATE fiaon_commission_statements
+         SET pdf_base64 = ${erg.pdf.toString("base64")},
+             doc_hash = ${erg.hash},
+             neu_erzeugt_am = NOW(),
+             neu_erzeugt_anzahl = COALESCE(neu_erzeugt_anzahl, 0) + 1
+       WHERE id = ${statementId}
+    `;
+    console.log(`[ABRECHNUNG] ${s.statement_no} neu erzeugt (${Math.round(erg.pdf.length / 1024)} kB).`);
+    return { ok: true };
+  } catch (e) {
+    const grund = e instanceof Error ? e.message : String(e);
+    console.error(`[ABRECHNUNG] ${s.statement_no} neu erzeugen fehlgeschlagen:`, e);
+    return { ok: false, grund: `Der Druck ist gescheitert: ${grund}` };
+  }
+}
+
 // ═══════════════ ADMIN: Vorlagen, Variablen, Vorschau, Nachweise ═══════════════
 
 router.get("/admin/contract-templates", async (_req, res) => {

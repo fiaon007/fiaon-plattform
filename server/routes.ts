@@ -430,6 +430,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonVermerkeRoutes = await import('./routes/fiaon-vermerke');
   app.use('/api/fiaon', fiaonVermerkeRoutes.default);
 
+  // 📄 Abrechnungs-Zentrale (19.08.2026) — Provisionsabrechnungen einsehen,
+  //    bereithalten, senden. Vorher lagen die PDFs in der Tabelle und es gab
+  //    keinen Ort, an dem der Betreiber sie sehen konnte; der einzige Weg führte
+  //    über das Portal des Mitarbeiters. Enthält auch /agent/abrechnungen —
+  //    dort begrenzt die WHERE-Bedingung auf die eigene Kennung.
+  const fiaonAbrechnungRoutes = await import('./routes/fiaon-abrechnungen');
+  app.use('/api/fiaon', fiaonAbrechnungRoutes.default);
+
   // ☎ FIAON Rückrufe — jeder Wunsch bekommt 24 Stunden Frist und einen
   //   Menschen. Reißt die Frist, eskaliert es sichtbar (Karte + Nachricht an
   //   die Leitung). Hintergrund: „Kunde rief an, wird notiert, niemand meldete

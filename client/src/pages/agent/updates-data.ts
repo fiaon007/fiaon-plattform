@@ -84,6 +84,54 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-19-abrechnungen",
+    date: "2026-08-19",
+    category: "Neu",
+    title: "Deine Provisionsabrechnungen liegen jetzt in deinem Portal",
+    summary:
+      "Zu jeder Auszahlung gehört ein Beleg. Bisher konntest du ihn nicht "
+      + "sehen — jetzt steht er unter „Verdienst“ zum Herunterladen, in einem "
+      + "Layout, das du deinem Steuerberater geben kannst.",
+    changes: [
+      "WO DU SIE FINDEST: Verdienst → ganz unten „Deine Abrechnungen“. Zu jeder "
+      + "freigegebenen Auszahlung liegt dort eine Provisionsabrechnung mit "
+      + "Nummer, Zeitraum, Betrag und einem Knopf „PDF ansehen“.",
+
+      "WOZU DU SIE BRAUCHST: Das ist dein BUCHUNGSBELEG. Du bist selbstständig — "
+      + "was du bei FIAON verdienst, musst du selbst versteuern. Die Abrechnung "
+      + "ist das Dokument, das dein Steuerberater dafür sehen will. Auf ihr "
+      + "stehen alle Positionen, der Auszahlungsbetrag, der Zahlweg und die "
+      + "steuerlichen Hinweise.",
+
+      "DAS DOKUMENT IST NEU GEMACHT — UND ZWAR DEUTSCH. Vorher waren die "
+      + "Beschriftungen englisch („Sale value“, „Rate“, „Subtotal“), das Datum "
+      + "stand zehnmal drauf und die Firmenanschrift dreimal. Ein Beleg mit vier "
+      + "Seiten für sechs Positionen, von denen zwei Seiten nur die Fußzeile "
+      + "trugen. Jetzt: eine Seite, alles auf Deutsch, aufgebaut wie ein "
+      + "Gehaltszettel.",
+
+      "PAUSCHALEN STEHEN JETZT RICHTIG DRIN. Startgespräche und andere "
+      + "Pauschalvergütungen standen vorher in derselben Tabelle wie "
+      + "Verkaufsprovisionen — mit leeren Spalten „Bemessungsgrundlage“ und "
+      + "„Satz“, weil eine Pauschale beides nicht hat. Das sah aus wie fehlende "
+      + "Daten. Jetzt gibt es zwei Tabellen: „Provisionen aus Verkäufen“ mit "
+      + "Satz und „Pauschalvergütungen“ ohne.",
+
+      "NUR DEINE. Du siehst ausschließlich deine eigenen Abrechnungen — die "
+      + "eines Kollegen sind für dich nicht abrufbar, auch nicht über einen "
+      + "Link. Das ist geprüft und mit einer Gegenprobe belegt.",
+    ],
+    howto: [
+      "Verdienst öffnen → nach unten zu „Deine Abrechnungen“ → „PDF ansehen“. "
+      + "Das PDF öffnet in einem neuen Tab; von dort kannst du es speichern.",
+      "Für die Steuer: Lade alle Abrechnungen eines Jahres herunter und gib sie "
+      + "gesammelt weiter. Jede trägt eine eigene Nummer und eine Prüfsumme.",
+      "Steht bei einer Abrechnung noch kein PDF, melde es — dann wird es neu "
+      + "erzeugt.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-19-gespraeche-tab",
     date: "2026-08-19",
     category: "Behoben",

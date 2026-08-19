@@ -242,9 +242,23 @@ async function main(): Promise<void> {
     ["server/routes/fiaon-onboarding.ts", "server/routes/fiaon-team.ts",
       "server/routes/fiaon-abrechnungen.ts"]
       .map((p) => { try { return readFileSync(p, "utf8"); } catch { return ""; } }).join("\n"));
+  // ── EIN RENDERER, BELIEBIG VIELE AUFRUFER ───────────────────────────────
+  // Ein erster Entwurf zählte die AUFRUFE von `abrechnungPdf` und verlangte
+  // genau einen. Das wurde rot, sobald „Neu erzeugen" dazukam — zu Recht zwei
+  // Aufrufer (Erstausstellung und Nachdruck), aber weiterhin EIN Renderer.
+  // Die Prüfung stellte also die falsche Frage. Gefragt ist: Baut irgendwer das
+  // Dokument SELBST, statt den Renderer zu rufen?
   const bauStellen = (alleServer.match(/abrechnungPdf\(/g) ?? []).length;
-  ok("Es gibt genau EINE Stelle, die das PDF baut", bauStellen === 1,
-    `${bauStellen} Fundstellen`);
+  ok("Alle Wege rufen den Renderer", bauStellen >= 1, `${bauStellen} Aufrufer`);
+  log(`        ${bauStellen} Aufrufer (Erstausstellung, Nachdruck) — ein Renderer.`);
+  // Niemand außer dem Renderer baut Statement-HTML: keine eigene Positionstabelle,
+  // kein eigener Aufruf von `renderDocumentPdf` für eine Abrechnung.
+  ok("Keine zweite Fassung des Dokuments im Server",
+    !/Commission items|Sale value|<th>Rate<\/th>/.test(alleServer),
+    "irgendwo steht wieder eine eigene Positionstabelle");
+  ok("Nur `fiaon-abrechnung-pdf.ts` kennt den Aufbau",
+    /export function abrechnungHtml/.test(
+      readFileSync("server/lib/fiaon-abrechnung-pdf.ts", "utf8")));
   ok("Die Rechtstexte stehen als Konstante mit offenem Vermerk",
     /WORTLAUT STEUERBERATER-FREIGABE AUSSTEHEND/.test(
       readFileSync("server/lib/fiaon-abrechnung-pdf.ts", "utf8")));

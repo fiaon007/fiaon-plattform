@@ -45,6 +45,7 @@ import NummerAktualisierenPage from "@/pages/nummer-aktualisieren";
 const AdminZahlungenPage = lazy(() => import("@/pages/admin-zahlungen"));
 const AdminHubPage = lazy(() => import("@/pages/admin-hub"));
 const AdminRechnungenPage = lazy(() => import("@/pages/admin-rechnungen"));
+const AdminAbrechnungenPage = lazy(() => import("@/pages/admin-abrechnungen"));
 const AdminVerbuchungenPage = lazy(() => import("@/pages/admin-verbuchungen"));
 const AdminEventsPage = lazy(() => import("@/pages/admin-events"));
 const AdminEinstellungenPage = lazy(() => import("@/pages/admin-einstellungen"));
@@ -198,6 +199,9 @@ function Router() {
       <Route path="/admin/kuendigungen" component={() => <Umleitung nach="/admin/kunden?kuendigungen=1" />} />
       <Route path="/admin/investoren" component={admin(AdminInvestorenPage)} />
       <Route path="/admin/rechnungen" component={admin(AdminRechnungenPage)} />
+      {/* Abrechnungs-Zentrale (19.08.2026) — die Provisionsabrechnungen lagen in
+          der Datenbank, ohne Ort zum Ansehen. */}
+      <Route path="/admin/abrechnungen" component={admin(AdminAbrechnungenPage)} />
       <Route path="/admin/verbuchungen" component={admin(AdminVerbuchungenPage)} />
       <Route path="/admin/buchhaltung" component={admin(AdminBuchhaltungPage)} />
       <Route path="/admin/events" component={admin(AdminEventsPage)} />

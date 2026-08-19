@@ -60,19 +60,84 @@ function Tile({ label, cents, sub, icon: Icon, accent }: {
   );
 }
 
+interface EigeneAbrechnung {
+  id: number; nummer: string; zeitraumVon: string | null; zeitraumBis: string | null;
+  erzeugtAm: string; betragCents: number; positionen: number; hatPdf: boolean;
+  zustand: "erzeugt" | "gesendet" | "ausgezahlt"; auszahlungAm: string | null;
+  ibanMaskiert: string | null; pruefsumme: string | null;
+}
+
 function VerdienstContent() {
   const [earnings, setEarnings] = useState<Earnings | null>(null);
+  // ── DEINE ABRECHNUNGEN (19.08.2026) ─────────────────────────────────────
+  // Der Mitarbeiter sieht hier seine EIGENEN Provisionsabrechnungen als PDF.
+  // Die Grenze steht im Server (WHERE agent_id = eigene Kennung), nicht hier —
+  // `scripts/pruef-abrechnung-zentrale.ts` prueft mit einer Rot-Probe, dass eine
+  // fremde Abrechnung 404 liefert.
+  const [abrechnungen, setAbrechnungen] = useState<EigeneAbrechnung[] | null>(null);
+
+  // ── „LÄDT NOCH" UND „HAT NICHT GEKLAPPT" SIND ZWEI ZUSTÄNDE ─────────────
+  // Vorher stand hier `if (!earnings) return <skeleton/>` — ohne Fehlerweg und
+  // ohne Zeitgrenze. Antwortet die Route nicht, drehen die grauen Balken für
+  // immer; im Browsertest war die Seite nach vier Sekunden noch leer und nichts
+  // erklärte es. Dieselbe Klasse wie das „weiße Fenster" der Vertriebsleitung.
+  const [ladeFehler, setLadeFehler] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    api("/agent/earnings").then((r) => { if (r.ok) setEarnings(r.json); });
+    setLadeFehler(null);
+    api("/agent/earnings").then((r) => {
+      if (r.ok) setEarnings(r.json);
+      else setLadeFehler(r.json?.error || "Deine Zahlen kamen nicht vom Server.");
+    }).catch(() => setLadeFehler("Keine Verbindung zum Server."));
+    api("/agent/abrechnungen").then((r) => setAbrechnungen(r.ok ? r.json.abrechnungen : []));
   }, []);
   useEffect(load, [load]);
 
   if (!earnings) {
     return (
       <div className="space-y-4">
-        <div className="agent-skeleton h-28 rounded-2xl" />
-        <div className="agent-skeleton h-64 rounded-2xl" />
+        {ladeFehler ? (
+          <div className="rounded-2xl p-5 bg-white" data-fiaon="verdienst-fehler" role="alert"
+               style={{ border: "1px solid rgba(185,28,28,.3)" }}>
+            <p className="text-[14px] font-bold" style={{ color: "#b91c1c" }}>
+              Deine Zahlen sind nicht geladen.
+            </p>
+            <p className="text-[12.5px] text-slate-600 mt-1 leading-relaxed">{ladeFehler}</p>
+            <button type="button" onClick={load}
+                    className="mt-3 px-3 py-2 rounded-lg border bg-white text-[12.5px] font-semibold"
+                    style={{ borderColor: "#e2e8f0" }}>
+              Erneut versuchen
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="agent-skeleton h-28 rounded-2xl" />
+            <div className="agent-skeleton h-64 rounded-2xl" />
+          </>
+        )}
+        {/* Die Abrechnungen hängen NICHT an den Zahlen: Wer seinen Beleg für den
+            Steuerberater braucht, soll ihn auch bekommen, wenn die Kennzahlen
+            gerade nicht laden. */}
+        {abrechnungen !== null && abrechnungen.length > 0 && (
+          <Card>
+            <h2 className="text-[15px] font-bold tracking-tight mb-2">Deine Abrechnungen</h2>
+            {abrechnungen.map((a) => (
+              <div key={a.id} data-fiaon="eigene-abrechnung"
+                   className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5"
+                   style={{ borderTop: "1px solid #f1f5f9" }}>
+                <span className="text-[12.5px] font-bold text-slate-900 tabular-nums">{a.nummer}</span>
+                <span className="text-[13.5px] font-bold tabular-nums text-slate-900">
+                  {fmtCents(a.betragCents)}
+                </span>
+                <a href={`/api/fiaon/agent/documents/statement/${a.id}.pdf`}
+                   target="_blank" rel="noreferrer" data-fiaon="eigene-abrechnung-pdf"
+                   className="ml-auto text-[11.5px] font-semibold" style={{ color: "var(--fi-primaer)" }}>
+                  PDF ansehen
+                </a>
+              </div>
+            ))}
+          </Card>
+        )}
       </div>
     );
   }
@@ -198,6 +263,60 @@ function VerdienstContent() {
           })}
         </Card>
       </Reveal>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          DEINE ABRECHNUNGEN
+
+          Bis zum 19.08.2026 gab es die Provisionsabrechnung nur als Zeile in
+          der Datenbank — kein Mitarbeiter konnte seinen eigenen Beleg sehen.
+          Wer ihn für die Steuer brauchte, musste danach fragen.
+          ══════════════════════════════════════════════════════════════════ */}
+      {abrechnungen !== null && (
+        <Reveal index={6}>
+          <Card>
+            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-1">
+              <h2 className="text-[15px] font-bold tracking-tight">Deine Abrechnungen</h2>
+              <span className="text-[11.5px] text-slate-400">{abrechnungen.length} Beleg(e)</span>
+            </div>
+            <p className="text-[12px] text-slate-400 mb-3 leading-relaxed">
+              Zu jeder Auszahlung gehört eine Provisionsabrechnung. Sie ist dein Buchungsbeleg —
+              du kannst sie herunterladen und deinem Steuerberater geben.
+            </p>
+            {abrechnungen.length === 0 && (
+              <p className="text-[12.5px] text-slate-500" data-fiaon="keine-abrechnungen">
+                Noch keine Abrechnung. Sie entsteht, sobald deine erste Auszahlung freigegeben ist.
+              </p>
+            )}
+            {abrechnungen.map((a) => (
+              <div key={a.id} data-fiaon="eigene-abrechnung"
+                   className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5"
+                   style={{ borderTop: "1px solid #f1f5f9" }}>
+                <span className="text-[12.5px] font-bold text-slate-900 tabular-nums">{a.nummer}</span>
+                <span className="text-[11.5px] text-slate-400">
+                  {a.zeitraumVon ? new Date(a.zeitraumVon).toLocaleDateString("de-DE") : "—"}
+                  {" · "}{a.positionen} Position(en)
+                </span>
+                <span className="text-[13.5px] font-bold tabular-nums text-slate-900">
+                  {fmtCents(a.betragCents)}
+                </span>
+                {a.zustand === "ausgezahlt" && (
+                  <span className="px-1.5 py-0.5 rounded border border-slate-300 text-[10px] font-semibold text-slate-500">
+                    ausgezahlt{a.auszahlungAm ? ` ${new Date(a.auszahlungAm).toLocaleDateString("de-DE")}` : ""}
+                  </span>
+                )}
+                <a href={`/api/fiaon/agent/documents/statement/${a.id}.pdf`}
+                   target="_blank" rel="noreferrer"
+                   data-fiaon="eigene-abrechnung-pdf"
+                   className="ml-auto text-[11.5px] font-semibold"
+                   style={{ color: "var(--fi-primaer)", opacity: a.hatPdf ? 1 : 0.4 }}>
+                  PDF ansehen
+                </a>
+              </div>
+            ))}
+          </Card>
+        </Reveal>
+      )}
+
     </div>
   );
 }

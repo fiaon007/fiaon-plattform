@@ -2189,6 +2189,59 @@ function MitgliedDetail({
           {reiter === "provision" && (
             <>
               {/* ══════════════════════════════════════════════════════════════
+                  UNTERBEREICH „ABRECHNUNGEN" (19.08.2026)
+
+                  Der Betreiber soll BEIDE Wege haben: zentral über
+                  /admin/abrechnungen und hier je Mensch. Dieselben Zeilen,
+                  gefiltert auf diese Person — nicht eine zweite Fassung der
+                  Liste, sondern derselbe Datensatz aus derselben Route.
+                  ══════════════════════════════════════════════════════════════ */}
+              {(akte?.abrechnungen ?? []).length > 0 && (
+                <div className="rounded-2xl p-4 mb-3.5" data-fiaon="profil-abrechnungen"
+                     style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+                  <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+                    <p className="text-[13px] font-bold text-slate-800">
+                      Abrechnungen ({(akte.abrechnungen ?? []).length})
+                    </p>
+                    <a href="/admin/abrechnungen" className="text-[11.5px] font-semibold"
+                       style={{ color: "var(--fi-primaer)" }}>
+                      Alle in der Abrechnungs-Zentrale
+                    </a>
+                  </div>
+                  {(akte.abrechnungen ?? []).map((s: any) => (
+                    <div key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2"
+                         style={{ borderTop: "1px solid #eef2f7" }}>
+                      <span className="text-[12.5px] font-bold text-slate-800 tabular-nums">{s.nummer}</span>
+                      <span className="text-[12px] text-slate-500 tabular-nums">
+                        {s.zeitraumVon ? new Date(s.zeitraumVon).toLocaleDateString("de-DE") : "—"}
+                      </span>
+                      <span className="text-[12.5px] font-bold text-slate-900 tabular-nums">
+                        {eur(s.betragCents)}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-bold"
+                            style={{
+                              background: s.zustand === "ausgezahlt" ? "rgba(4,120,87,.10)"
+                                : s.zustand === "gesendet" ? "rgba(29,78,216,.10)" : "rgba(180,83,9,.10)",
+                              color: s.zustand === "ausgezahlt" ? "#047857"
+                                : s.zustand === "gesendet" ? "#1d4ed8" : "#b45309",
+                            }}>{s.zustand}</span>
+                      {s.gesendetAm && (
+                        <span className="text-[11px] text-slate-400">
+                          {s.sendeAnzahl > 1 ? `erneut gesendet (${s.sendeAnzahl}×)` : "gesendet"}
+                        </span>
+                      )}
+                      <a href={`/api/fiaon/admin/abrechnungen/${s.id}.pdf`} target="_blank" rel="noreferrer"
+                         data-fiaon="profil-pdf"
+                         className="ml-auto text-[11.5px] font-semibold"
+                         style={{ color: "var(--fi-primaer)", opacity: s.hatPdf ? 1 : .4 }}>
+                        PDF ansehen
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ══════════════════════════════════════════════════════════════
                   DER VERLAUF — er fehlte ganz
 
                   „Unter ‚Provisionen' findet man keine Verläufe."

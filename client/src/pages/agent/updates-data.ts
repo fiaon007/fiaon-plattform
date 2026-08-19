@@ -84,6 +84,60 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-20-verguetungsmodell",
+    date: "2026-08-20",
+    category: "Neu",
+    title: "Deine Vergütung ist jetzt genau einstellbar — und du siehst sie",
+    summary:
+      "Bisher gab es zwei Felder für alle. Jetzt kann für dich einzeln "
+      + "festgelegt werden: Fixum, Provision in Prozent ODER als Festbetrag je "
+      + "Abschluss, Pauschalen je Tätigkeit, Stundensatz, Boni und Abzüge.",
+    changes: [
+      "WARUM DICH DAS BETRIFFT: Vorher konnte man je Mensch nur einen "
+      + "Stundensatz und eine Prämie je Rate einstellen. Alles andere war für "
+      + "alle gleich — der Provisionssatz und die 15 € fürs Startgespräch "
+      + "standen fest im Programm. Jetzt lässt sich eine Vereinbarung so "
+      + "abbilden, wie sie mit dir getroffen wurde.",
+
+      "WAS VEREINBART WERDEN KANN: ein monatliches Fixum · Provision als "
+      + "Prozent vom Abschluss oder als FESTBETRAG je Abschluss (z. B. 15 € pro "
+      + "Vertrag statt 20 %) · unterschiedliche Sätze je Paket · Pauschalen für "
+      + "Tätigkeiten wie ein geführtes Startgespräch · ein Stundensatz · "
+      + "einmalige Boni oder Abzüge.",
+
+      "ÄNDERUNGEN GELTEN NUR NACH VORNE. Wird an deinem Modell etwas geändert, "
+      + "betrifft das ausschließlich KÜNFTIGE Positionen. Was bereits gebucht "
+      + "ist, bleibt auf den Cent, wie es ist — auch wenn der Satz sich ändert. "
+      + "Das ist technisch abgesichert und wird bei jeder Auslieferung geprüft.",
+
+      "JEDE ÄNDERUNG STEHT MIT DATUM UND NAMEN IM PROTOKOLL. Wer wann was "
+      + "geändert hat, ist nachlesbar — mit dem alten UND dem neuen Wert. Ein "
+      + "Baustein wird nie überschrieben, sondern abgelöst; damit bleibt "
+      + "lesbar, was im Vormonat für dich galt.",
+
+      "EIN ABZUG BRAUCHT EINEN GRUND. Ohne Freitext lässt sich kein Abzug "
+      + "anlegen — und der Grund erscheint als eigene Zeile auf deiner "
+      + "Abrechnung. Du erfährst also immer, warum etwas abgezogen wurde.",
+
+      "WENN DU FESTANGESTELLT BIST: Ein Fixum wird dann NICHT als "
+      + "Provisionsgutschrift gebucht, sondern läuft über die Lohnabrechnung. "
+      + "Das System weist es getrennt aus, damit beides nicht vermischt wird.",
+
+      "BANKDATEN: Wenn keine hinterlegt sind, sieht die Verwaltung das jetzt "
+      + "sofort und kann dich mit einem Knopf erinnern. Ohne IBAN kann eine "
+      + "Provision entstehen und gebucht werden — aber nicht ausgezahlt.",
+    ],
+    howto: [
+      "Deine aktuelle Vergütung siehst du unter Verdienst. Was dort steht, "
+      + "kommt aus derselben Rechnung, aus der auch deine Abrechnung entsteht.",
+      "Bankdaten trägst du selbst ein: Profil → Bankdaten. Prüf sie einmal — "
+      + "ohne sie liegt deine Auszahlung fest.",
+      "Wenn eine Zahl nicht zu deiner Absprache passt: melden. Im Protokoll "
+      + "steht, was wann eingestellt wurde, und das lässt sich klären.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-19-abrechnungen",
     date: "2026-08-19",
     category: "Neu",

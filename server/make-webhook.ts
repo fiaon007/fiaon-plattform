@@ -23,6 +23,9 @@ export type MakeEventType =
   | "agent_payout_done"
   | "agent_payout_rejected"
   | "agent_callback_reminder"
+  // Erinnerung an fehlende Bankdaten (20.08.2026): Ohne IBAN kann der Betreiber
+  // nicht ueberweisen — und der Mensch wartet auf sein Geld, ohne zu wissen warum.
+  | "agent_bank_reminder"
   | "agent_feedback_rewarded"
   | "agent_feedback_reply"
   | "lead_followup"

@@ -5,6 +5,7 @@ import {
 import { FiaonEbene } from "@/components/FiaonEbene";
 import { NachbuchenTafel } from "@/components/admin/NachbuchenTafel";
 import { AnrufPlayer } from "@/components/AnrufPlayer";
+import VerguetungTafel from "@/components/admin/VerguetungTafel";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEAM-ZENTRALE — alles über einen Menschen an einem Ort
@@ -2548,166 +2549,17 @@ function NeuImTeam({ onNachricht }: { onNachricht: (id: number) => void }) {
 // wird KEINE Prämie gebucht und lassen sich KEINE Stunden abrechnen — ein
 // stiller Vorgabewert, den niemand prüft, wird sonst zur echten Abrechnung.
 // ═══════════════════════════════════════════════════════════════════════════
-function VerguetungTafel({ agentId, rolle }: { agentId: number; rolle: string }) {
-  const [daten, setDaten] = useState<any>(null);
-  const [satz, setSatz] = useState("");
-  const [art, setArt] = useState("euro");
-  const [wert, setWert] = useState("");
-  const [monat, setMonat] = useState(new Date().toISOString().slice(0, 7));
-  const [busy, setBusy] = useState<string | null>(null);
-  const [hinweis, setHinweis] = useState<string | null>(null);
-
-  const laden = useCallback(async () => {
-    const r = await fetch(`/api/fiaon/admin/inkasso/stunden/${agentId}`, { credentials: "include" }).catch(() => null);
-    const j = await r?.json().catch(() => null);
-    if (j?.ok) {
-      setDaten(j);
-      const v = j.verdienst ?? {};
-      setSatz(String((Number(v.stundensatzCents ?? 0) / 100).toFixed(2)).replace(".", ","));
-      setArt(String(v.praemieArt || "euro"));
-      setWert(String((Number(v.praemieWert ?? 0) / 100).toFixed(2)).replace(".", ","));
-    }
-  }, [agentId]);
-  useEffect(() => { void laden(); }, [laden]);
-
-  if (!daten) return <p className="text-[13px] text-slate-400">Wird geladen …</p>;
-  const v = daten.verdienst ?? {};
-  const offen = (daten.stunden ?? []).filter((s: any) => !s.bestaetigt_am);
-
-  const speichern = async () => {
-    setBusy("satz");
-    const r = await fetch(`/api/fiaon/admin/inkasso/verguetung/${agentId}`, {
-      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        stundensatzEuro: Number(satz.replace(",", ".")),
-        praemieArt: art,
-        praemieWert: Number(wert.replace(",", ".")),
-      }),
-    }).catch(() => null);
-    const j = await r?.json().catch(() => null);
-    setBusy(null);
-    setHinweis(j?.meldung || j?.error || "Fehler.");
-    void laden();
-  };
-
-  return (
-    <>
-      {hinweis && <p className="mb-3 text-[12.5px] font-semibold text-emerald-700">{hinweis}</p>}
-
-      {!v.verguetungBestaetigt && (
-        <p className="mb-3 px-3.5 py-2.5 rounded-xl text-[12.5px] leading-relaxed"
-           style={{ background: "rgba(217,119,6,.08)", color: "#b45309" }}>
-          <b>Vom Vorgesetzter zu bestätigen.</b> Die Werte unten sind Platzhalter. Solange du sie
-          nicht bestätigt hast, wird keine Prämie gebucht und lassen sich keine Stunden
-          abrechnen — die Arbeit wird aber vollständig festgehalten und ist nachträglich
-          abrechenbar.
-        </p>
-      )}
-
-      <div className="grid grid-cols-2 gap-2.5 mb-4">
-        <div>
-          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-            Stundensatz (€)
-          </label>
-          <input value={satz} onChange={(e) => setSatz(e.target.value)} inputMode="decimal"
-                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-[13.5px] tabular-nums" />
-        </div>
-        <div>
-          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-            Prämie je eingezogener Rate
-          </label>
-          <div className="flex gap-1.5">
-            <input value={wert} onChange={(e) => setWert(e.target.value)} inputMode="decimal"
-                   className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-slate-200 text-[13.5px] tabular-nums" />
-            <select value={art} onChange={(e) => setArt(e.target.value)}
-                    className="px-2.5 py-2.5 rounded-xl border border-slate-200 text-[13px]">
-              <option value="euro">€</option>
-              <option value="prozent">% der Rate</option>
-            </select>
-          </div>
-        </div>
-      </div>
-      <button type="button" onClick={() => void speichern()} disabled={busy === "satz"}
-              className="px-4 py-2.5 rounded-xl text-[13px] font-bold text-white bg-[#1d4ed8] disabled:opacity-40">
-        {busy === "satz" ? "…" : v.verguetungBestaetigt ? "Vergütung ändern" : "Vergütung bestätigen"}
-      </button>
-      <p className="mt-2 text-[11.5px] text-slate-400 leading-snug">
-        Änderungen wirken auf künftige Prämien und Abrechnungen. Bereits gebuchte bleiben, wie
-        sie sind. Eine Prämie entsteht nur, wenn eine Rate <b>bankbestätigt gebucht</b> wird und
-        vorher dokumentiert bearbeitet wurde — Selbstzahler erzeugen keine.
-      </p>
-
-      {/* ── Stunden bestätigen ────────────────────────────────────────── */}
-      <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mt-5 mb-2">
-        Stunden bestätigen
-      </p>
-      <div className="grid grid-cols-3 gap-2.5 mb-3">
-        {[
-          { t: "Offen", w: `${Math.floor(Number(v.offeneMinuten ?? 0) / 60)} Std ${Number(v.offeneMinuten ?? 0) % 60} Min` },
-          { t: "Bestätigt (Monat)", w: `${Math.floor(Number(v.bestaetigtMinuten ?? 0) / 60)} Std` },
-          { t: "Prämien (Monat)", w: `${(Number(v.praemienCents ?? 0) / 100).toFixed(2).replace(".", ",")} €` },
-        ].map((k) => (
-          <div key={k.t} className="p-3 rounded-xl bg-slate-50">
-            <p className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400">{k.t}</p>
-            <p className="text-[15px] font-bold tabular-nums text-slate-900 mt-0.5">{k.w}</p>
-          </div>
-        ))}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <input type="month" value={monat} onChange={(e) => setMonat(e.target.value)}
-               className="px-3 py-2.5 rounded-xl border border-slate-200 text-[13px]" />
-        <button type="button" disabled={busy === "best" || offen.length === 0}
-                onClick={async () => {
-                  setBusy("best");
-                  const r = await fetch(`/api/fiaon/admin/inkasso/stunden/${agentId}/bestaetigen`, {
-                    method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ monat }),
-                  }).catch(() => null);
-                  const j = await r?.json().catch(() => null);
-                  setBusy(null);
-                  setHinweis(j?.meldung || j?.error || "Fehler.");
-                  void laden();
-                }}
-                className="px-4 py-2.5 rounded-xl text-[13px] font-bold text-white bg-[#047857] disabled:opacity-30">
-          {busy === "best" ? "…" : "Monat bestätigen"}
-        </button>
-      </div>
-      <p className="mt-2 text-[11.5px] text-slate-400 leading-snug">
-        Bestätigen macht die Zeilen <b>unveränderlich</b> und legt sie als Position in den
-        Auszahlungsweg. Auch du kannst sie danach nicht mehr ändern — das schützt beide Seiten.
-      </p>
-
-      <div className="mt-4">
-        {(daten.stunden ?? []).slice(0, 30).map((s: any) => (
-          <div key={s.id} className="py-2 flex flex-wrap items-center gap-x-3 text-[12.5px]"
-               style={{ borderBottom: "1px solid #f8fafc" }}>
-            <span className="font-semibold tabular-nums text-slate-800">
-              {new Date(s.tag).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}
-            </span>
-            <span className="tabular-nums text-slate-500">
-              {String(s.von).slice(0, 5)}–{String(s.bis).slice(0, 5)}
-            </span>
-            <span className="font-bold tabular-nums text-slate-800">
-              {Math.floor(s.minuten / 60)}:{String(s.minuten % 60).padStart(2, "0")}
-            </span>
-            {s.notiz && <span className="text-[11.5px] text-slate-400 truncate">{s.notiz}</span>}
-            <span className="ml-auto text-[11.5px] font-semibold"
-                  style={{ color: s.bestaetigt_am ? "#047857" : "#b45309" }}>
-              {s.bestaetigt_am ? "bestätigt" : "wartet"}
-            </span>
-          </div>
-        ))}
-        {(daten.stunden ?? []).length === 0 && (
-          <p className="text-[13px] text-slate-400">
-            {rolle === "inkasso"
-              ? "Noch keine Zeiten erfasst."
-              : "Zeiterfassung nutzt bisher nur das Forderungsmanagement."}
-          </p>
-        )}
-      </div>
-    </>
-  );
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// VERGÜTUNG & STUNDEN — ausgezogen nach components/admin/VerguetungTafel.tsx
+//
+// Hier standen 160 Zeilen mit zwei Feldern und einem orangenen Kasten darüber.
+// Der Betreiber nannte den Reiter „völlig dumm“ — zu Recht: keine Überschriften,
+// keine Bankverbindung, ein Grammatikfehler im wichtigsten Satz und ein
+// Systemhinweis, der wie eine Fehlermeldung aussah.
+//
+// Die neue Fassung hat fünf Abschnitte und ist deshalb zu groß für diese Datei
+// (admin-team-zentrale.tsx hat bereits über 2900 Zeilen).
+// ═══════════════════════════════════════════════════════════════════════════
 
 
 // ═══════════════════════════════════════════════════════════════════════════

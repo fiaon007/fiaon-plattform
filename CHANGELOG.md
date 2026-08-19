@@ -5,6 +5,129 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 20.08.2026 — Vergütungs-Steuerung statt Mini-Formular, und die Bankdaten
+
+### Vorab: was von „Teil 2" des letzten Auftrags fehlte
+
+Der Betreiber hat per Screenshot belegt, dass der Reiter „Vergütung & Stunden"
+die Bankdaten nicht zeigt. **Gemessen** (`scripts/mess-verguetung.ts`), nicht
+erinnert:
+
+| | |
+|---|---|
+| Route `GET /admin/team/agents/:id/bank` | **existiert** |
+| liefert die vollständige IBAN | **ja** |
+| protokolliert jede Einsicht | **ja** |
+| Vergleich der letzten Bankänderung | **ja** |
+| Anzeige vorhanden | **ja — aber im Reiter „Verwaltung"** |
+| im Reiter „Vergütung & Stunden" | **nein** |
+
+Es war also **nicht nichts geliefert, sondern am falschen Ort** — hinter einem
+Knopf „Vollständig anzeigen", und ohne das, was man zum Überweisen braucht:
+Kopier-Knopf, Datum der letzten Änderung, Hinweis wenn sie fehlt. Der Server war
+fertig, der Weg dorthin nicht. Dieselbe Klasse wie „Alle prüfen" auf
+`/admin/events` (AGENTS.md: *„Eine Funktion ist erst geliefert, wenn ein Mensch
+sie anklicken kann"*).
+
+### Teil 1 — Bankverbindung, vollständig und zum Kopieren
+
+Erster Abschnitt im Reiter, weil es die Frage ist, die beim Überweisen zuerst
+kommt: **Kontoinhaber · IBAN im Klartext · BIC · zuletzt geändert · Kopier-Knopf.**
+Fehlt sie: eine deutliche Zeile plus **„Erinnerung senden"** (neues Make-Event
+`agent_bank_reminder`, als *recommendationOnly* registriert — der Make-Zweig ist
+noch anzulegen; solange er fehlt, meldet der Versand einen Fehler im Klartext).
+
+Auf der **Auszahlungs-Freigabe** ist die IBAN jetzt ebenfalls vollständig — vorher
+nur bei Status „angefordert", also gerade nicht, wenn der Betreiber eine
+freigegebene Zeile abgleicht.
+
+**Jede Einsicht wird an der Person protokolliert** (`bank_viewed_by_admin`). Nur
+Verwaltung: Vertriebsleitung bekommt **403** (Rot-Probe im Prüfstand).
+
+**Ein Befund, den erst der Prüfstand zutage brachte:** Die Bankdaten ließen sich
+lokal **nicht entschlüsseln**. Ursache ist keine Panne, sondern
+Schlüsseltrennung: `bankKey()` leitet sich aus `SESSION_SECRET` ab, das auf dem
+Entwicklungsrechner nicht gesetzt ist. Das ist richtig so — falsch war die
+Anzeige: Sie bekam `vorhanden: true` und `iban: null` und zeigte einen **leeren
+Kasten**. Der Betreiber hätte geschlossen, die Bankdaten seien weg. Jetzt gibt es
+dafür einen eigenen Zustand mit Erklärung und der maskierten Form.
+
+### Teil 2 — Vergütungsmodell: Bausteine statt zwei Felder
+
+**Was es vorher gab** (gemessen): fünf Spalten an `fiaon_agents` —
+`commission_rate_bp`, `override_rate_bp`, `stundensatz_cents`,
+`inkasso_praemie_art`, `inkasso_praemie_wert`. Kein Fixum, kein Festbetrag je
+Abschluss, keine Staffelung, keine konfigurierbare Pauschale (die 15 € für das
+Startgespräch standen **hart im Code**), keine Einmalzahlung, keine
+Gültigkeit-ab, kein Vermerk, keine Spur wer es geändert hat.
+
+**Neu:** `fiaon_verguetung_bausteine` (Migration 069) mit fünf Typen, jeder
+einzeln an- und abschaltbar, mehrere gleichzeitig:
+
+| Baustein | Was einstellbar ist |
+|---|---|
+| **Fixum** | Betrag/Monat · Auszahlungstag · **Rechtsgrund** |
+| **Provision** | Prozent **oder** Festbetrag je Abschluss · optional je Paket |
+| **Pauschale** | Betrag je Anlass (Startgespräch 15 €, eingezogene Rate 2 €) |
+| **Stundensatz** | Betrag je Stunde |
+| **Einmalig** | Gutschrift oder Abzug, Grund **Pflicht** |
+
+**Der Rechtsgrund ist keine Formalie:** Bei **Anstellung** läuft das Fixum über
+die Lohnabrechnung und wird **nur angezeigt, nicht gebucht** — sonst entstünde
+eine Gutschrift im Gutschriftverfahren für Arbeitslohn. Der Hinweis erscheint
+**sofort bei der Auswahl**, nicht erst nach dem Speichern.
+
+**Die Vorschau** — „So verdient dieser Mensch diesen Monat": Fixum · Provisionen
+(n Abschlüsse) · Pauschalen (n Positionen) · Stunden · Gutschriften/Abzüge =
+Summe. Sie liest die **gebuchten** Positionen aus `fiaon_commissions`, nicht eine
+eigene Rechnung. Geprüft: Vorschau und direkte Datenbankabfrage ergeben
+denselben Cent-Betrag.
+
+**Die Wände:**
+- Ein Baustein wird **nie überschrieben, sondern abgelöst** (`loest_ab_id`,
+  `entfernt_am`) — damit lesbar bleibt, was im Vormonat galt.
+- **Rückwirkende Gültigkeit wird abgelehnt** (HTTP 400 mit Begründung).
+- **Rot-Probe:** Ein Satz von 99 % angelegt → die Summe der bereits gebuchten
+  Provisionen bleibt **unverändert**. Das Einfrier-Prinzip hält.
+- Jede Änderung mit **Alt→Neu** ins Aktivitäts-Protokoll.
+- Der Rückfall auf die alten Felder ist **benannt** (`herkunft: person |
+  vorgabe`) und in der Maske sichtbar — kein stiller Umzug von
+  Vergütungsdaten neun echter Menschen.
+
+### Teil 3 — Die Maske
+
+- Der orangene Kasten steht **nicht mehr über allem**, sondern im Stunden-Block,
+  wohin er gehört. Und die Grammatik ist korrigiert: „Vom Vorgesetzter" →
+  **„Von dir noch zu bestätigen"**.
+- **Fünf Abschnitte mit Überschriften:** Bankverbindung · Vergütungsmodell ·
+  Vorschau · Stunden & Prämien · Verlauf der Änderungen.
+- „Zeiterfassung nutzt bisher nur das Forderungsmanagement" ist jetzt ein
+  **kleiner grauer Systemhinweis am Ende** des Stundenblocks statt eines
+  Satzes, der wie eine Fehlermeldung mitten in der Maske stand.
+- Desktop **und 380 px** angesehen: kein waagerechtes Scrollen, die IBAN bleibt
+  im Bild.
+
+### Drei Fehler, die nur der Screenshot gefunden hat
+
+1. **Das Vorgabedatum „Gültig ab" kam aus UTC.** Im Bild stand `08/19/2026`,
+   während in Berlin schon der 20. war — der Server hätte den Baustein zwei
+   Stunden jede Nacht als rückwirkend abgelehnt, mit einer Meldung, die niemand
+   erklären kann. AGENTS.md sagt es wörtlich; ich habe es trotzdem gemacht.
+2. **Die Bankdaten waren lokal nicht lesbar** (siehe oben) — der Prüfstand legt
+   jetzt seine eigenen, mit dem hier gültigen Schlüssel.
+3. **Der Prüffall war unsichtbar:** Testkonten sind aus der Team-Zentrale
+   gefiltert (richtig so). Der Prüfstand drückt jetzt erst den Filter
+   „Testkonten". Und der Kartenname enthält Klammern — `new RegExp(name)` deutete
+   sie als Gruppe, die Karte war „nicht gefunden" und stand die ganze Zeit oben
+   rechts im Bild.
+
+**Prüfstand:** `pruef-verguetung` **45 ok** — Reiter geöffnet, Abschnitte
+gemessen, Formular bedient, Rot-Proben (rückwirkend, Abzug ohne Grund, 99 %
+gegen gebuchte Zeilen, Vertriebsleitung 403), Vorschau gegen die Datenbank,
+Screenshots Desktop und 380 px angesehen.
+
+---
+
 ## 19.08.2026 (Nacht) — Abrechnungs-Zentrale und ein Gehaltszettel als PDF
 
 Zwei Dinge: ein Ort für die Provisionsabrechnungen, und ein Dokument, das man

@@ -438,6 +438,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonAbrechnungRoutes = await import('./routes/fiaon-abrechnungen');
   app.use('/api/fiaon', fiaonAbrechnungRoutes.default);
 
+  // 💶 Verguetungs-Steuerung je Mensch (20.08.2026) — Bausteine (Fixum,
+  //    Provision, Pauschalen, Stundensatz, Einmalzahlung) statt zwei Feldern,
+  //    plus die vollstaendige Bankverbindung fuer die manuelle Ueberweisung.
+  const fiaonVerguetungRoutes = await import('./routes/fiaon-verguetung');
+  app.use('/api/fiaon', fiaonVerguetungRoutes.default);
+
   // ☎ FIAON Rückrufe — jeder Wunsch bekommt 24 Stunden Frist und einen
   //   Menschen. Reißt die Frist, eskaliert es sichtbar (Karte + Nachricht an
   //   die Leitung). Hintergrund: „Kunde rief an, wird notiert, niemand meldete

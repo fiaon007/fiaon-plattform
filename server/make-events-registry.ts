@@ -272,6 +272,20 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     },
   },
   {
+    type: "agent_bank_reminder",
+    label: "Bankdaten fehlen (Mitarbeiter)",
+    description: "Der Betreiber loest sie im Reiter Verguetung & Stunden aus, wenn keine "
+      + "IBAN hinterlegt ist — ohne sie kann keine Auszahlung ueberwiesen werden.",
+    customerBound: false,
+    // Der Make-Zweig muss noch angelegt werden. Solange er fehlt, meldet der
+    // Versand einen Fehler im Klartext — er scheitert nicht stillschweigend.
+    recommendationOnly: true,
+    example: {
+      email: "anna.schmidt@example.com",
+      vorname: "Anna",
+    },
+  },
+  {
     type: "agent_callback_reminder",
     label: "Rückruf-Erinnerung (Mitarbeiter)",
     description: "Feuert 15 Minuten vor einem geplanten Rückruf-Termin an den zuständigen Mitarbeiter.",

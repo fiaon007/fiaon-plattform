@@ -1618,7 +1618,16 @@ router.get("/admin/payouts", async (_req, res) => {
         ...p,
         abrechnung: jeAuszahlung[Number(p.id)] ?? null,
         // Volle IBAN NUR hier (Admin-Auszahlungsansicht), aus verschlüsseltem Snapshot
-        iban_full: p.status === "angefordert" ? decryptSecret(p.bank_iban_enc) : null,
+        // ── DIE VOLLE IBAN, UNABHAENGIG VOM STATUS (20.08.2026) ─────────
+        // Vorher nur bei Status „angefordert". Der Betreiber ueberweist manuell
+        // ueber Wise und braucht sie zum KOPIEREN — auch beim zweiten Blick auf
+        // eine schon freigegebene Zeile, etwa wenn die Ueberweisung scheitert
+        // oder er den Beleg abgleicht. Eine maskierte IBAN ist dafuer wertlos.
+        //
+        // Die Einsicht ist ohnehin nur der Verwaltung moeglich
+        // (adminCodeGate + blockAgentsFromAdmin) und wird an der Person
+        // protokolliert, wenn sie ueber den Verguetungs-Reiter kommt.
+        iban_full: decryptSecret(p.bank_iban_enc),
         holder: decryptSecret(p.bank_holder_enc),
         bic: decryptSecret(p.bank_bic_enc),
         bank_holder_enc: undefined, bank_iban_enc: undefined, bank_bic_enc: undefined,

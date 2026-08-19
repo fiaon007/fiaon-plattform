@@ -293,7 +293,10 @@ async function main(): Promise<void> {
         (await mailSenden({ event: "gibtsnicht", personId: p2, akteur: { name: "P", agentId: null, rolle: "admin" }, lauf: tx as any })).status,
         "abgelehnt");
 
-      // Tageslimit.
+      // ── DAS TAGESLIMIT SPERRT NICHT MEHR (19.08.2026) ────────────────
+      // Hier stand: gleich(„Das 4. Mal am selben Tag: abgelehnt",
+      // viertes.status, „abgelehnt"). Seit dem Umbau von Sperre auf Warnung
+      // (AGENTS.md) darf der vierte Versand nicht mehr abgelehnt werden.
       for (let i = 0; i < 3; i++) {
         await tx`
           INSERT INTO fiaon_mail_log (event, person_id, empfaenger, status, ausgeloest_von, ausgeloest_agent_id)
@@ -304,8 +307,8 @@ async function main(): Promise<void> {
         event: "payment_details", personId: p2,
         akteur: { name: "Prüfstand", agentId: leer, rolle: "vertriebsleiter" }, lauf: tx as any,
       });
-      gleich("Das 4. Mal am selben Tag: abgelehnt", viertes.status, "abgelehnt");
-      ok("… wegen des Tageslimits", /Tageslimit/.test(viertes.grund || ""));
+      ok("Das 4. Mal am selben Tag wird NICHT wegen des Tageslimits abgelehnt",
+        !/Tageslimit/.test(viertes.grund || ""), `${viertes.status}: ${viertes.grund ?? "—"}`);
 
       // ═══════════════════════════════════════════════════════════════════
       gruppe("6. Zustell-Wahrheit ohne Brevo-Schlüssel");

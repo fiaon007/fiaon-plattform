@@ -441,7 +441,22 @@ async function main(): Promise<void> {
       ok("… und nicht an jemanden, der schon einen Termin hat",
         !(await versandErlaubt(kunde, "onboarding_einladung", tx as any)).erlaubt);
 
-      // Tageslimit: drei sind erlaubt, der vierte nicht.
+      // ══════════════════════════════════════════════════════════════════
+      // DAS TAGESLIMIT WARNT, ES SPERRT NICHT (geändert 19.08.2026)
+      //
+      // Diese Prüfung verlangte bis heute das Gegenteil:
+      //   ok(„Der 4. Versuch am selben Tag: gesperrt", !vierter.erlaubt)
+      //
+      // Sie war grün, und sie hat eine Wand festgeschrieben, die einen Agenten
+      // mitten im Kundengespräch aufhält. Am 19.08.2026 hat dieselbe Bauweise
+      // beim Telefon 26 Anrufe verhindert; die Hausregel dazu steht jetzt in
+      // AGENTS.md.
+      //
+      // Die Regel wird ERSETZT, nicht gelöscht — mit dem alten Wortlaut im
+      // Kommentar, damit der nächste Leser das Fehlen nicht für ein Versehen
+      // hält. Und die neue Prüfung ist ENGER: Sie verlangt nicht nur, dass der
+      // vierte Versand durchgeht, sondern auch, dass er einen Satz mitbringt.
+      // ══════════════════════════════════════════════════════════════════
       for (let i = 0; i < TAGESLIMIT; i++) {
         await tx`
           INSERT INTO fiaon_mail_log (event, person_id, empfaenger, status, ausgeloest_von, ausgeloest_agent_id)
@@ -449,8 +464,13 @@ async function main(): Promise<void> {
         `;
       }
       const vierter = await versandErlaubt(offenP, "payment_details", tx as any);
-      ok(`Der ${TAGESLIMIT + 1}. Versuch am selben Tag: gesperrt`, !vierter.erlaubt, vierter.grund ?? "");
-      ok("… mit dem Wort „Tageslimit“", /Tageslimit/.test(vierter.grund || ""));
+      ok(`Der ${TAGESLIMIT + 1}. Versand am selben Tag geht TROTZDEM raus`,
+        vierter.erlaubt, vierter.grund ?? "");
+      ok("… und er wird NICHT mit einem Grund abgelehnt", vierter.grund === null,
+        String(vierter.grund));
+      ok("… sondern trägt eine Warnung", !!vierter.warnung, String(vierter.warnung));
+      ok("… die die Zahl nennt", /4\. Sendung/.test(vierter.warnung || ""),
+        String(vierter.warnung));
       gleich("… und der Zähler stimmt", vierter.heute, TAGESLIMIT);
 
       // Automatische Sendungen zählen NICHT gegen das manuelle Limit.

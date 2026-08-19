@@ -14,7 +14,7 @@ import { ensureRolleSpalte } from "./fiaon-vertrieb";
 import {
   ansageText, aufnahmeFrist, aufnahmenAufraeumen, einrichtungsStand, MAX_MINUTEN, offeneAnrufe, telefonBereit,
   twimlAusgehend, wahlProtokoll, wahlPruefen, zugangsAusweis,
-  nummerKontingent,
+  nummerKontingent, nummerWarnungMelden,
 } from "../lib/fiaon-softphone";
 import { dokumentInhalt, dokumentStand, istDokumentArt } from "../lib/fiaon-dokumente";
 import { gespraechsblatt } from "../lib/fiaon-gespraechsblatt";
@@ -81,10 +81,15 @@ router.get("/telefon/stand", requireAgent, async (req: AgentRequest, res: Respon
       // gespeichert wuerde sie am zweiten Arbeitsplatz auf ein Geraet zeigen,
       // das es dort nicht gibt.
       agentId: req.agent!.id,
-      // ── DER TAGESSTAND DER RUFNUMMER (30.08.2026) ─────────────────────
-      // Sichtbar im Panel, nicht erst in der Ablehnung: Wer bei 98 von 100
-      // steht, soll es wissen, BEVOR der Knopf nicht mehr geht. Eine Grenze,
-      // die erst beim Anschlagen sichtbar wird, ist eine Überraschung.
+      // ── DER TAGESSTAND DER RUFNUMMER (19.08.2026) ─────────────────────
+      // Sichtbar im Panel — aber nur, wenn es etwas zu sagen gibt. Der Stand
+      // trägt seinen Satz selbst (`hinweis`); unter der Schwelle ist er `null`
+      // und das Panel zeigt nichts. Eine Zahl, die immer dasteht, liest
+      // niemand mehr.
+      //
+      // Hier stand früher „Wer bei 98 von 100 steht, soll es wissen, BEVOR der
+      // Knopf nicht mehr geht." Der Knopf geht jetzt immer — der Hinweis ist
+      // eine Information, keine Vorwarnung auf eine Sperre.
       kontingent: await nummerKontingent(process.env.TWILIO_CALLER_ID || ""),
     });
   } catch (err) {
@@ -234,34 +239,38 @@ router.post("/telefon/ausweis", requireAgent, async (req: AgentRequest, res: Res
     if (!pruefung.erlaubt) return ablehnen(pruefung.grund!, 400);
 
     // ══════════════════════════════════════════════════════════════════════
-    // DIE TAGESGRENZE JE ABSENDERNUMMER (30.08.2026)
+    // DER TAGESSTAND DER RUFNUMMER — WARNT, SPERRT NICHT (19.08.2026)
     //
-    // ── WARUM ──────────────────────────────────────────────────────────────
-    // Gemeldet: „Von 158 Anrufen kamen 2 durch." Eine der möglichen Ursachen
-    // ist ein Spam-Flag beim Netzbetreiber, und der entsteht unter anderem
-    // durch viele Anrufe von einer Nummer in kurzer Zeit. Eine verbrannte
-    // Rufnummer klingelt nirgends mehr durch — und das merkt niemand am Tag,
-    // an dem es passiert.
+    // ── HIER STAND EINE WAND, UND SIE HAT DEN VERTRIEB ANGEHALTEN ─────────
+    // Bis heute antwortete diese Stelle bei Erreichen der Grenze mit HTTP 429,
+    // und der Agent konnte nicht mehr wählen. Die Begründung von damals lautete
+    // ausdrücklich: „ein Schutz in der Oberfläche wäre eine Bitte, dieser hier
+    // ist eine Wand."
     //
-    // ── WARUM HIER UND NICHT IM CLIENT ────────────────────────────────────
-    // Diese Route stellt den Zugangsausweis aus. Ohne ihn kann der Browser
-    // nicht wählen — ein Schutz in der Oberfläche wäre eine Bitte, dieser hier
-    // ist eine Wand.
+    // Die Wand stand an der falschen Stelle. GEMESSEN am 19.08.2026
+    // (scripts/mess-anrufgrenze.ts): Zwischen 13:18 und 15:14 Uhr hat sie
+    // **26 Anrufe** verhindert — 18 bei Lucas Böhnert, 8 bei Nikita Boychenko,
+    // 9 Kunden waren nicht erreichbar. Die Grenze lag bei 100, der gemessene
+    // Normalbetrieb bei bis zu 252 Anrufen je Nummer und Tag. Der Betreiber
+    // musste die Einstellung auf 0 setzen, um weiterarbeiten zu lassen.
     //
-    // Die Grenze steht VOR der Ausweis-Ausstellung und NACH der Nummernprüfung:
-    // Eine ungültige Nummer soll ihren eigenen Grund bekommen und nicht das
-    // Kontingent verbrauchen.
+    // Der Schaden durch eine spam-markierte Rufnummer ist ein VERMUTETER
+    // Zukunftsschaden. Der Schaden durch ein blockiertes Vertriebsteam ist
+    // heute und zählbar. Deshalb gilt ab jetzt die Hausregel aus AGENTS.md:
+    // Schutzmechanismen warnen den Betreiber, sie halten die Kernarbeit nicht
+    // an. Hart gesperrt wird nur, was Sicherheit oder Recht verlangt — die
+    // Berechtigung (darfAnKunde), die Richtlinien-Zusage (darfWaehlen) und eine
+    // fehlende oder unwählbare Nummer (wahlPruefen). Alle drei stehen oben.
+    //
+    // Hier wird deshalb NUR GEZÄHLT: Der Stand geht an das Panel des Agenten
+    // (dezenter Hinweis) und, ab dem 1,5-fachen, als Warnung an den Betreiber.
+    // Es gibt in diesem Block keinen `return` mehr.
     const absender = process.env.TWILIO_CALLER_ID || "";
     const kontingent = await nummerKontingent(absender);
-    if (kontingent.erschoepft) {
-      return ablehnen(
-        `Die Tagesgrenze für diese Rufnummer ist erreicht: ${kontingent.heute} von `
-        + `${kontingent.grenze} Anrufen. Das ist ein Schutz — sehr viele Anrufe von `
-        + "einer Nummer führen beim Netzbetreiber zu einer Spam-Markierung, und danach "
-        + "klingelt sie bei niemandem mehr durch. Morgen ist das Kontingent wieder frei. "
-        + "Die Grenze steht in den Einstellungen unter „max. Anrufe je Nummer je Tag“.",
-        429,
-      );
+    if (kontingent.stufe === "warnung") {
+      // Fire-and-forget: Eine Warnung an den Betreiber darf einen Anruf nicht
+      // verzögern — und schon gar nicht verhindern, wenn sie selbst scheitert.
+      void nummerWarnungMelden(absender, kontingent).catch(() => {});
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -930,9 +939,24 @@ router.get("/telefon/person/:personId/anrufe", requireAgent, async (req: AgentRe
 router.get("/telefon/:id/aufnahme", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
+    // ── HERUNTERLADEN IST DERSELBE WEG (19.08.2026) ──────────────────────
+    // Der Auftrag nannte eine „signierte URL". Sie wäre hier ein Rückschritt:
+    // Eine signierte Adresse ist gültig, solange die Signatur gilt — auch für
+    // den, der sie aus dem Netzwerkprotokoll kopiert und weitergibt.
+    //
+    // Diese Route ist an die SITZUNG gebunden (`requireAgent`), prüft bei jedem
+    // Abruf die Zuständigkeit und reicht den Datenstrom serverseitig durch. Wer
+    // die Adresse weitergibt, gibt nichts weiter. Der Unterschied zum Abspielen
+    // ist deshalb nur die Kopfzeile — und der Protokolleintrag.
+    const laden = String(req.query.laden || "") === "1";
     const [c] = (await sqlPool`
-      SELECT c.id, c.recording_url, c.person_id, c.agent_id, c.aufnahme_geloescht_am
-      FROM fiaon_calls c WHERE c.id = ${id}
+      SELECT c.id, c.recording_url, c.person_id, c.agent_id, c.aufnahme_geloescht_am,
+             c.beginn,
+             COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
+                      p.company_name, p.contact_name) AS kunde
+      FROM fiaon_calls c
+      LEFT JOIN fiaon_persons p ON p.id = c.person_id
+      WHERE c.id = ${id}
     `) as any[];
     if (!c) return res.status(404).json({ ok: false, error: "Anruf nicht gefunden." });
     if (c.aufnahme_geloescht_am) {
@@ -973,13 +997,32 @@ router.get("/telefon/:id/aufnahme", requireAgent, async (req: AgentRequest, res:
     await sqlPool`
       INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, created_at)
       VALUES (${c.person_id ?? null}, ${req.agent!.id}, ${req.agent!.name}, 'system',
-              ${`Aufnahme von Anruf ${id} angehört.`}, NOW())
+              ${laden
+                ? `Aufnahme von Anruf ${id} HERUNTERGELADEN.`
+                : `Aufnahme von Anruf ${id} angehört.`}, NOW())
     `.catch(() => {});
 
     res.setHeader("Content-Type", "audio/mpeg");
     // Kein Zwischenspeichern: Die Aufnahme kann jederzeit gelöscht werden, und
     // ein Browser-Cache würde sie überleben.
     res.setHeader("Cache-Control", "no-store, private");
+
+    if (laden) {
+      // ── DER DATEINAME: kunde_datum.mp3 ────────────────────────────────
+      // Er landet im Download-Ordner eines Menschen, zwischen hundert anderen
+      // Dateien. „aufnahme.mp3" ist dort verloren; „mueller_2026-08-19.mp3"
+      // findet man wieder.
+      //
+      // Umlaute und Leerzeichen werden ersetzt, nicht gelöscht: Aus „Müller
+      // Schmidt" wird „mueller_schmidt" und nicht „mllerschmidt".
+      const roh = String(c.kunde || "kunde").toLowerCase()
+        .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+        .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "kunde";
+      const tag = new Date(c.beginn ?? Date.now())
+        .toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+      res.setHeader("Content-Disposition",
+        `attachment; filename="${roh}_${tag}.mp3"`);
+    }
     const { Readable } = await import("node:stream");
     Readable.fromWeb(r.body as any).pipe(res);
   } catch (err) {

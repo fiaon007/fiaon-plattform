@@ -12,9 +12,16 @@
 //      peinlich und teuer. Ein Terminlink an einen Gesperrten widerspricht
 //      seinem ausdrücklichen „nein". Was der Kundenzustand nicht hergibt, wird
 //      gar nicht erst angeboten.
-//   2. TAGESLIMIT. Höchstens drei manuelle Sendungen je Kunde, Ereignis und
-//      Tag. Ein Knopf, den man in Ruhe zwanzigmal drücken kann, wird zwanzigmal
-//      gedrückt — und der Kunde hält uns danach für einen Spam-Versender.
+//   2. TAGESLIMIT — seit dem 19.08.2026 eine WARNUNG, keine Wand. Höchstens
+//      drei manuelle Sendungen je Kunde, Ereignis und Tag waren gemeint als
+//      „ein Knopf, den man in Ruhe zwanzigmal drücken kann, wird zwanzigmal
+//      gedrückt". Der Satz stimmt — nur war die Folge falsch: Der vierte
+//      Versand wurde ABGELEHNT, und damit stand ein Agent mit dem Kunden am
+//      Telefon vor einem Knopf, der nicht mehr ging.
+//      Am selben Tag hat dieselbe Bauweise beim Telefon 26 Anrufe verhindert
+//      (siehe AGENTS.md, „Ein Schutzmechanismus, der die Kernarbeit anhält").
+//      Jetzt: Der vierte Versand geht raus, und der Agent liest, dass es der
+//      vierte ist.
 //   3. RECHTE. Teammitglied nur für eigene Kunden; die Leitung für alle;
 //      das Onboarding nur für Terminlink und Zugang.
 //
@@ -28,8 +35,34 @@ import { sqlPool } from "./db-pool";
 
 type Lauf = typeof sqlPool;
 
-/** Höchstens so viele manuelle Sendungen je Kunde, Ereignis und Tag. */
+/**
+ * Ab so vielen manuellen Sendungen je Kunde, Ereignis und Tag WARNT die
+ * Oberfläche. Sie sperrt nicht — siehe die Begründung im Kopf dieser Datei.
+ *
+ * Der Name bleibt `TAGESLIMIT`, weil ihn Prüfstände und Aufrufer kennen; was
+ * sich geändert hat, ist die FOLGE. Ein umbenannter Export hätte nur die
+ * Fundstellen verschoben, nicht die Regel erklärt.
+ */
 export const TAGESLIMIT = 3;
+
+/**
+ * Das Ergebnis einer Versandprüfung.
+ *
+ * ── ZWEI FELDER, WEIL ES ZWEI DINGE SIND (19.08.2026) ────────────────────
+ * `grund` beantwortet „warum geht das NICHT" — und wenn er gesetzt ist, geht es
+ * wirklich nicht: DSGVO-Löschung, keine Adresse, Kontaktsperre, falscher
+ * Zustand. Das sind Sicherheits- und Rechtsgründe, und die bleiben Wände.
+ *
+ * `warnung` beantwortet „was solltest du wissen, bevor du drückst". Sie hält
+ * niemanden auf. Vorher gab es dieses Feld nicht, und deshalb musste alles, was
+ * man sagen wollte, als Ablehnung gesagt werden.
+ */
+export interface VersandPruefung {
+  erlaubt: boolean;
+  grund: string | null;
+  warnung: string | null;
+  heute: number;
+}
 
 export type VersandArt =
   | "payment_details"          // Zahlungsdaten mit Verwendungszweck
@@ -44,8 +77,10 @@ export interface VersandKnopf {
   /** Warum man das schickt — ein Satz für den Knopf-Hinweis. */
   zweck: string;
   erlaubt: boolean;
-  /** Falls nicht erlaubt: warum nicht, im Klartext. */
+  /** Falls nicht erlaubt: warum nicht, im Klartext. Recht und Sicherheit. */
   grund: string | null;
+  /** Erlaubt, aber es gibt etwas zu wissen — hält niemanden auf. */
+  warnung: string | null;
   /** Wie viele Sendungen heute schon rausgingen. */
   heute: number;
 }
@@ -142,9 +177,9 @@ export async function heuteGesendet(personId: number, art: VersandArt, lauf: Lau
  */
 export async function versandErlaubt(
   personId: number, art: VersandArt, lauf: Lauf = sqlPool,
-): Promise<{ erlaubt: boolean; grund: string | null; heute: number }> {
+): Promise<VersandPruefung> {
   const z = await zustandVon(personId, lauf);
-  if (!z) return { erlaubt: false, grund: "Kunde nicht gefunden.", heute: 0 };
+  if (!z) return { erlaubt: false, grund: "Kunde nicht gefunden.", warnung: null, heute: 0 };
   return bewerten(z, art, await heuteGesendet(personId, art, lauf));
 }
 
@@ -157,35 +192,59 @@ export async function versandErlaubt(
  */
 function bewerten(
   z: NonNullable<Awaited<ReturnType<typeof zustandVon>>>, art: VersandArt, heute: number,
-): { erlaubt: boolean; grund: string | null; heute: number } {
-  if (z.gdpr) return { erlaubt: false, grund: "Für diesen Kunden liegt eine Löschung nach DSGVO vor.", heute };
-  if (!z.hatEmail) return { erlaubt: false, grund: "Keine E-Mail-Adresse hinterlegt.", heute };
+): VersandPruefung {
+  if (z.gdpr) return { erlaubt: false, grund: "Für diesen Kunden liegt eine Löschung nach DSGVO vor.", warnung: null, heute };
+  if (!z.hatEmail) return { erlaubt: false, grund: "Keine E-Mail-Adresse hinterlegt.", warnung: null, heute };
   if (z.gesperrt && art !== "welcome") {
-    return { erlaubt: false, grund: "Der Kunde hat abgelehnt oder eine Kontaktsperre — kein Versand.", heute };
+    return { erlaubt: false, grund: "Der Kunde hat abgelehnt oder eine Kontaktsperre — kein Versand.", warnung: null, heute };
   }
 
   if (art === "payment_details") {
     if (z.bezahlt && !z.offeneZahlung) {
-      return { erlaubt: false, grund: "Der Kunde hat bezahlt. Eine Zahlungsaufforderung wäre falsch.", heute };
+      return { erlaubt: false, grund: "Der Kunde hat bezahlt. Eine Zahlungsaufforderung wäre falsch.", warnung: null, heute };
     }
-    if (!z.offeneZahlung) return { erlaubt: false, grund: "Keine offene Zahlung.", heute };
+    if (!z.offeneZahlung) return { erlaubt: false, grund: "Keine offene Zahlung.", warnung: null, heute };
   }
   if (art === "welcome" && !z.bezahlt) {
-    return { erlaubt: false, grund: "Der Zugang wird erst nach der Zahlung freigeschaltet.", heute };
+    return { erlaubt: false, grund: "Der Zugang wird erst nach der Zahlung freigeschaltet.", warnung: null, heute };
   }
   if (art === "onboarding_einladung") {
-    if (!z.bezahlt) return { erlaubt: false, grund: "Startgespräche bekommen nur bezahlte Kunden.", heute };
-    if (z.hatTermin) return { erlaubt: false, grund: "Der Kunde hat bereits einen Termin.", heute };
+    if (!z.bezahlt) return { erlaubt: false, grund: "Startgespräche bekommen nur bezahlte Kunden.", warnung: null, heute };
+    if (z.hatTermin) return { erlaubt: false, grund: "Der Kunde hat bereits einen Termin.", warnung: null, heute };
   }
   if (art === "nicht_erreicht_termin" && z.hatTermin) {
-    return { erlaubt: false, grund: "Der Kunde hat bereits einen Termin.", heute };
+    return { erlaubt: false, grund: "Der Kunde hat bereits einen Termin.", warnung: null, heute };
   }
-  if (z.archiviert) return { erlaubt: false, grund: "Alle Bestellungen dieses Kunden sind archiviert.", heute };
+  if (z.archiviert) return { erlaubt: false, grund: "Alle Bestellungen dieses Kunden sind archiviert.", warnung: null, heute };
 
+  // ══════════════════════════════════════════════════════════════════════
+  // HIER STAND EINE WAND (bis 19.08.2026)
+  //
+  //     if (heute >= TAGESLIMIT) return { erlaubt: false, grund: „Tageslimit
+  //       erreicht (3 Sendungen). Morgen wieder möglich." }
+  //
+  // Der vierte Versand wurde abgelehnt. Ein Agent, der mit dem Kunden
+  // telefoniert („ich habe nichts bekommen"), stand damit vor einem Knopf, der
+  // nicht mehr geht — und die Begründung „morgen wieder" hilft in diesem
+  // Gespräch niemandem.
+  //
+  // Am selben Tag hat dieselbe Bauweise beim Telefon 26 Anrufe verhindert. Die
+  // Hausregel daraus steht in AGENTS.md: Ein Schutzmechanismus warnt, er hält
+  // die Kernarbeit nicht an. Gesperrt wird nur, was Recht oder Sicherheit
+  // verlangt — und genau das steht in den Prüfungen ÜBER dieser Zeile
+  // (DSGVO, Kontaktsperre, fehlende Adresse, falscher Zustand).
+  //
+  // Die Zahl bleibt, die Folge nicht: Ab dem Limit steht ein Satz am Knopf.
+  // ══════════════════════════════════════════════════════════════════════
   if (heute >= TAGESLIMIT) {
-    return { erlaubt: false, grund: `Tageslimit erreicht (${TAGESLIMIT} Sendungen). Morgen wieder möglich.`, heute };
+    return {
+      erlaubt: true, grund: null, heute,
+      warnung: `Das wäre die ${heute + 1}. Sendung heute (${art}). Mehr als `
+        + `${TAGESLIMIT} am Tag bringen erfahrungsgemäß nichts — und der Kunde `
+        + "hält uns für einen Spam-Versender. Wenn er sie wirklich nicht hat: anrufen.",
+    };
   }
-  return { erlaubt: true, grund: null, heute };
+  return { erlaubt: true, grund: null, warnung: null, heute };
 }
 
 /**
@@ -202,11 +261,11 @@ function bewerten(
  */
 export async function versandErlaubtViele(
   personId: number, arten: VersandArt[], lauf: Lauf = sqlPool,
-): Promise<Record<string, { erlaubt: boolean; grund: string | null; heute: number }>> {
+): Promise<Record<string, VersandPruefung>> {
   const z = await zustandVon(personId, lauf);
-  const aus: Record<string, { erlaubt: boolean; grund: string | null; heute: number }> = {};
+  const aus: Record<string, VersandPruefung> = {};
   if (!z) {
-    for (const a of arten) aus[a] = { erlaubt: false, grund: "Kunde nicht gefunden.", heute: 0 };
+    for (const a of arten) aus[a] = { erlaubt: false, grund: "Kunde nicht gefunden.", warnung: null, heute: 0 };
     return aus;
   }
   const zeilen = (await lauf`
@@ -235,6 +294,10 @@ export async function versandKnoepfe(
       zweck: VERSAND_TEXT[art].zweck,
       erlaubt: p.erlaubt,
       grund: p.grund,
+      // Die Warnung geht MIT an die Oberfläche. Ohne sie wäre der vierte
+      // Versand still — und still ist schlechter als gesperrt: Dann weiß
+      // niemand, dass es der vierte war.
+      warnung: p.warnung,
       heute: p.heute,
     });
   }

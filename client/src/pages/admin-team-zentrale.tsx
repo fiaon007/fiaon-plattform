@@ -4,6 +4,7 @@ import {
 } from "@/components/admin/TeamVerwaltung";
 import { FiaonEbene } from "@/components/FiaonEbene";
 import { NachbuchenTafel } from "@/components/admin/NachbuchenTafel";
+import { AnrufPlayer } from "@/components/AnrufPlayer";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEAM-ZENTRALE — alles über einen Menschen an einem Ort
@@ -2098,10 +2099,7 @@ function MitgliedDetail({
                   )}
                   {offenerAnruf === a.id && (
                     <div className="mt-2">
-                      <audio controls preload="none" className="w-full" style={{ height: 34 }}
-                             src={`/api/fiaon/telefon/${a.id}/aufnahme`}>
-                        Dein Browser kann kein Audio abspielen.
-                      </audio>
+                      <AnrufPlayer anrufId={a.id} kennzeichen="anruf-player-profil" />
                     </div>
                   )}
                 </div>

@@ -337,9 +337,20 @@ const SETTING_DEFAULTS: Record<string, string> = {
   // Betreibers ist. Grenzen 1–12 prüft `slotsProTag` — ein Tippfehler darf die
   // Terminwahl nicht unbrauchbar machen.
   slots_pro_tag: "5",
-  // Schutz gegen Carrier-Spamflags: höchstens so viele Anrufe je Absendernummer
-  // und Tag. 0 = keine Grenze. Begründung in server/lib/fiaon-softphone.ts.
-  max_anrufe_je_nummer_tag: "100",
+  // ── ÜBERHOLT SEIT 19.08.2026 ────────────────────────────────────────────
+  // Dieser Schlüssel war die SPERRE („höchstens so viele Anrufe je Nummer und
+  // Tag", 429 bei Erreichen). Sie hat am 19.08. 26 Anrufe des Vertriebs
+  // verhindert, und der Betreiber musste sie auf 0 stellen.
+  //
+  // Er wird nicht mehr gelesen. Er bleibt hier stehen, damit niemand ihn für
+  // einen vergessenen Wert hält und wieder auf 100 setzt — und weil ein
+  // gelöschter Schlüssel bei einem Bestand, der ihn noch trägt, wie ein Fehler
+  // aussieht. Die Nachfolge steht direkt darunter.
+  max_anrufe_je_nummer_tag: "0",
+  // Ab wie vielen Anrufen je Absendernummer und Tag erscheint ein HINWEIS?
+  // Ab dem 1,5-fachen wird der Betreiber gewarnt. Gesperrt wird NIE.
+  // 0 = keine Hinweise. Kalibrierung in server/lib/fiaon-softphone.ts.
+  anruf_hinweis_schwelle: "300",
 
   // ── DIE EWIGE LEAD-STRECKE (18.08.2026) ───────────────────────────────
   // „1" = die ewige Strecke fährt (Kadenz T+1,3,7,14,30, danach monatlich, ohne

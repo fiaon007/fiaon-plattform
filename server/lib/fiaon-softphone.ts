@@ -237,61 +237,134 @@ export async function wahlPruefen(
 export const MAX_MINUTEN = 60;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// WIE OFT DARF EINE NUMMER AM TAG GEWÄHLT WERDEN?
+// WIE VIELE ANRUFE GEHEN HEUTE ÜBER DIESE NUMMER? — EIN HINWEIS, KEINE SPERRE
 //
-// ── WARUM ES DIESE GRENZE GIBT ─────────────────────────────────────────────
+// ── WARUM ES DIESE ZAHL GIBT ───────────────────────────────────────────────
 // Gemeldet wurde: „Von 158 Anrufen kamen 2 durch." Eine der möglichen Ursachen
-// ist ein Spam-Flag beim Netzbetreiber — und die entsteht unter anderem durch
-// VIELE Anrufe von einer Nummer in kurzer Zeit. Wer das nicht drosselt, kann
-// eine Rufnummer verbrennen, und dann klingelt sie nirgends mehr durch.
+// ist ein Spam-Flag beim Netzbetreiber — und der entsteht unter anderem durch
+// VIELE Anrufe von einer Nummer in kurzer Zeit. Eine verbrannte Rufnummer
+// klingelt nirgends mehr durch, und das merkt niemand an dem Tag, an dem es
+// passiert.
 //
-// Die Grenze ist ein SCHUTZ, keine Arbeitsbremse: 100 Anrufe je Nummer und Tag
-// erreicht im Normalbetrieb niemand. Sie greift genau dann, wenn etwas aus dem
-// Ruder läuft — ein Wählautomat, ein Versehen, eine Schleife.
+// ── WARUM SIE AM 19.08.2026 VOM SPERREN AUFS WARNEN UMGEBAUT WURDE ────────
+// Hier stand eine WAND: Bei Erreichen der Grenze antwortete die Ausweis-Route
+// mit HTTP 429, und der Agent konnte nicht mehr wählen. Der Kommentar an dieser
+// Stelle behauptete:
+//
+//     „Die Grenze ist ein SCHUTZ, keine Arbeitsbremse: 100 Anrufe je Nummer
+//      und Tag erreicht im Normalbetrieb niemand."
+//
+// Das war eine Annahme, und sie war falsch. GEMESSEN
+// (scripts/mess-anrufgrenze.ts) über 14 Tage:
+//
+//     Spitze je Absendernummer und Tag   252   (12.08.2026)
+//     Spitze je Mitarbeiter und Tag      117   (Lucas Böhnert, 17.08.2026)
+//
+// Die Grenze lag also UNTER dem Normalbetrieb. Am 19.08. hat sie zwischen 13:18
+// und 15:14 Uhr **26 Anrufe** von zwei Mitarbeitern verhindert, 9 Kunden waren
+// nicht erreichbar. Der Betreiber musste die Einstellung auf 0 setzen, um den
+// Vertrieb weiterarbeiten zu lassen.
+//
+// Eine Schutzfunktion, die die Kernarbeit anhält, ist falsch gebaut — egal wie
+// gut sie gemeint ist. Der Schaden durch eine verbrannte Nummer ist ein
+// VERMUTETER Zukunftsschaden; der Schaden durch ein blockiertes Vertriebsteam
+// ist heute und messbar.
+//
+// ── DAS NEUE VERHALTEN: DREI STUFEN, KEINE SPERRE ─────────────────────────
+//   unter der Schwelle        → nichts. Kein Text, kein Hinweis, keine Marke.
+//   ab der Schwelle           → dezenter Hinweis im Telefon-Panel des Agenten.
+//   ab dem 1,5-fachen         → Warnung für den BETREIBER (Diagnose-Eintrag,
+//                               Dashboard-Marke, optional Mail). Der Agent
+//                               sieht weiter nur den dezenten Hinweis.
+//
+// Der Agent arbeitet in JEDER Stufe weiter. Diese Datei enthält keinen Pfad
+// mehr, der einen Anruf verhindert — `erschoepft` ist ABSICHTLICH entfernt und
+// nicht auf `false` gesetzt: Ein Feld, das es nicht gibt, kann niemand mehr
+// abfragen, und der Typcheck findet jede Stelle, die es versucht.
 //
 // ── WARUM JE NUMMER UND NICHT JE MITARBEITER ──────────────────────────────
 // Der Netzbetreiber sieht die ABSENDERNUMMER, nicht den Menschen. Vier
 // Mitarbeiter auf derselben Nummer sind für ihn ein Anrufer.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Vorgabe, wenn die Einstellung nicht gesetzt ist. */
-export const MAX_ANRUFE_JE_NUMMER_VORGABE = 100;
+/**
+ * Ab wie vielen Anrufen je Nummer und Tag erscheint der Hinweis?
+ *
+ * ── DIE KALIBRIERUNG (19.08.2026) ─────────────────────────────────────────
+ * 300, entschieden vom Betreiber und an den Zahlen geprüft: Die gemessene
+ * Spitze liegt bei 252 Anrufen je Nummer und Tag. 300 wird an starken Tagen
+ * also erreicht — und das ist in Ordnung, weil es nur einen Hinweis kostet.
+ * Die BETREIBER-Warnung steht bei 450 (1,5-fach) und damit klar über allem,
+ * was bisher je vorgekommen ist.
+ *
+ * Wer die Zahl senkt, verschenkt nichts; wer sie erhöht, verliert nur die
+ * Vorwarnung. Nichts davon hält jemanden auf.
+ */
+export const ANRUF_HINWEIS_SCHWELLE_VORGABE = 300;
 
-export async function maxAnrufeJeNummer(lauf: Lauf = sqlPool): Promise<number> {
+/** Ab dem Wievielfachen der Schwelle wird der BETREIBER gewarnt? */
+export const ANRUF_WARN_FAKTOR = 1.5;
+
+/**
+ * Die Schwelle aus den Einstellungen.
+ *
+ * ── EIN NEUER SCHLÜSSEL, UND WARUM ────────────────────────────────────────
+ * Der alte hieß `max_anrufe_je_nummer_tag` und steht heute auf **0**, weil der
+ * Betreiber die Sperre im Notfall abschalten musste. Läse die neue Logik
+ * denselben Schlüssel weiter, wären auch die harmlosen Hinweise stumm — die
+ * Notbremse von heute würde die Vorwarnung von morgen mit abschalten.
+ *
+ * Deshalb `anruf_hinweis_schwelle` mit eigener Vorgabe. Der alte Schlüssel wird
+ * nicht mehr gelesen; er bleibt in der Datenbank stehen (kein Hard-Delete) und
+ * ist als überholt vermerkt.
+ *
+ * 0 heißt weiterhin „aus" — dann erscheint kein Hinweis und keine Warnung.
+ * Sperren kann auch die 0 nichts, es gibt nichts mehr zu sperren.
+ */
+export async function anrufHinweisSchwelle(lauf: Lauf = sqlPool): Promise<number> {
   const [r] = (await lauf`
-    SELECT value FROM fiaon_settings WHERE key = 'max_anrufe_je_nummer_tag'
+    SELECT value FROM fiaon_settings WHERE key = 'anruf_hinweis_schwelle'
   `) as any[];
   const n = Number(r?.value);
-  // 0 heißt ausdrücklich „keine Grenze" — der Betreiber muss sie abschalten
-  // können, ohne einen Entwickler zu brauchen.
   if (Number.isFinite(n) && n >= 0) return Math.trunc(n);
-  return MAX_ANRUFE_JE_NUMMER_VORGABE;
+  return ANRUF_HINWEIS_SCHWELLE_VORGABE;
 }
+
+export type KontingentStufe = "ruhig" | "hinweis" | "warnung";
 
 export interface NummerKontingent {
   /** Wie viele Anrufe gingen heute schon über diese Absendernummer? */
   heute: number;
-  grenze: number;
-  /** Noch frei. Bei abgeschalteter Grenze: null (unbegrenzt). */
-  frei: number | null;
-  erschoepft: boolean;
+  /** Ab wann erscheint der Hinweis? 0 = abgeschaltet. */
+  schwelle: number;
+  /** Ab wann wird der Betreiber gewarnt? 0 = abgeschaltet. */
+  warnSchwelle: number;
+  stufe: KontingentStufe;
+  /**
+   * Der Satz für das Panel des Agenten — `null`, solange nichts zu sagen ist.
+   *
+   * Er steht HIER und nicht in der Oberfläche: Das Panel gibt es auf dem
+   * Desktop und auf 380 px, und zwei Fassungen desselben Satzes laufen
+   * auseinander.
+   */
+  hinweis: string | null;
 }
 
 /**
  * Der Tagesstand einer ABSENDERNUMMER.
  *
  * Gezählt werden ausgehende Anrufe ab Mitternacht Berliner Zeit — nicht die
- * letzten 24 Stunden. Ein Kontingent, das sich gleitend erneuert, kann ein
- * Mensch nicht im Kopf behalten; „ab morgen wieder 100" kann er.
+ * letzten 24 Stunden. Ein gleitendes Fenster kann ein Mensch nicht im Kopf
+ * behalten; „seit heute Morgen" kann er.
  */
 export async function nummerKontingent(
   absender: string, lauf: Lauf = sqlPool,
 ): Promise<NummerKontingent> {
-  const grenze = await maxAnrufeJeNummer(lauf);
+  const schwelle = await anrufHinweisSchwelle(lauf);
   // ── WARUM NULL MITGEZÄHLT WIRD ──────────────────────────────────────────
   // `von_nummer` gibt es erst seit Migration 063. Alle Zeilen davor sind NULL —
   // und liefen über die damals EINZIGE Absendernummer. Sie als „andere Nummer"
-  // zu behandeln würde den Schutz am ersten Tag um die halbe Zählung bringen.
+  // zu behandeln würde die Zählung am ersten Tag halbieren.
   //
   // Wird später eine zweite Nummer eingerichtet, trägt jede neue Zeile ihre
   // Absendernummer, und die Zählung trennt sauber. Nur die Altlast bleibt der
@@ -304,8 +377,135 @@ export async function nummerKontingent(
       AND beginn >= (NOW() AT TIME ZONE 'Europe/Berlin')::date
   `.catch(() => [{ n: 0 }])) as any[];
   const heute = Number(r?.n ?? 0);
-  if (grenze <= 0) return { heute, grenze: 0, frei: null, erschoepft: false };
-  return { heute, grenze, frei: Math.max(0, grenze - heute), erschoepft: heute >= grenze };
+
+  if (schwelle <= 0) {
+    return { heute, schwelle: 0, warnSchwelle: 0, stufe: "ruhig", hinweis: null };
+  }
+  const warnSchwelle = Math.round(schwelle * ANRUF_WARN_FAKTOR);
+  const stufe: KontingentStufe = heute >= warnSchwelle ? "warnung"
+    : heute >= schwelle ? "hinweis" : "ruhig";
+  return {
+    heute, schwelle, warnSchwelle, stufe,
+    // Derselbe Satz in beiden oberen Stufen: Der Agent muss nichts entscheiden
+    // und soll nicht erschrecken. Die Dringlichkeit gehört zum Betreiber.
+    hinweis: stufe === "ruhig" ? null
+      : `Heute bereits ${heute} Anrufe über diese Nummer. Du kannst normal `
+        + "weiterarbeiten — die Verwaltung prüft, ob eine zweite Rufnummer nötig ist.",
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE WARNUNG AN DEN BETREIBER
+//
+// Sie geht in die Diagnose (`fiaon_diagnostics`) — dieselbe Quelle, aus der die
+// Marke „Diagnose" im Verwaltungs-Menü zählt und die `/admin/events` anzeigt.
+// Eine eigene Warnfläche daneben wäre eine zweite Stelle, die man pflegen muss.
+//
+// ── HÖCHSTENS EINMAL AM TAG JE NUMMER ─────────────────────────────────────
+// Ohne Drossel entsteht ab dem 450. Anruf bei JEDEM weiteren Anruf ein Eintrag
+// und eine Mail — an einem starken Tag hundert Mails, und die 101. wird
+// ungelesen weggewischt (dieselbe Lehre wie bei den Lauf-Warnungen).
+//
+// Die Sperre gegen Wiederholung liegt in `fiaon_lauf_warnungen`: eine Tabelle
+// „wann wurde wegen X zuletzt gewarnt", die genau dafür gebaut ist. Der
+// Schlüssel trägt das Präfix `anrufgrenze:`, damit beide Nutzungen sichtbar
+// getrennt bleiben.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export async function nummerWarnungMelden(
+  absender: string, stand: NummerKontingent, lauf: Lauf = sqlPool,
+  /**
+   * `nichtSenden` unterdrückt die MAIL — der Diagnose-Eintrag und die
+   * Tagessperre entstehen trotzdem.
+   *
+   * ── WARUM ES DIESEN SCHALTER GIBT ─────────────────────────────────────
+   * Der Prüfstand ruft diese Funktion, um zu beweisen, dass gewarnt wird. Ohne
+   * den Schalter ginge dabei eine ECHTE Mail an den Betreiber — und der Lauf
+   * blieb beim ersten Versuch am HTTP-Aufruf zu Brevo hängen. AGENTS.md ist
+   * dazu eindeutig: „Ein Browser-Test erzeugt NIE eine echte Mail", und
+   * „Funktionen, die einen Zustand festschreiben, brauchen einen Schalter
+   * dagegen".
+   */
+  opts: { nichtSenden?: boolean } = {},
+): Promise<{ gewarnt: boolean; grund: string }> {
+  if (stand.stufe !== "warnung") return { gewarnt: false, grund: "keine Warnstufe" };
+
+  const schluessel = `anrufgrenze:${absender || "ohne-nummer"}`;
+  const [letzte] = (await lauf`
+    SELECT gewarnt_am FROM fiaon_lauf_warnungen WHERE name = ${schluessel}
+  `.catch(() => [])) as any[];
+  if (letzte?.gewarnt_am
+      && Date.now() - new Date(letzte.gewarnt_am).getTime() < 24 * 3_600_000) {
+    return { gewarnt: false, grund: "heute schon gewarnt" };
+  }
+
+  const nummer = absender || "(keine Absendernummer gesetzt)";
+  const text = `Nummer ${nummer}: ${stand.heute} Anrufe heute — Spam-Risiko prüfen, `
+    + "zweite Nummer erwägen.";
+
+  const { logDiagnostic } = await import("./fiaon-diagnostics");
+  logDiagnostic({
+    severity: "warnung",
+    category: "system",
+    code: "anrufe_je_nummer_hoch",
+    message: text,
+    hint: "Sehr viele Anrufe von einer Rufnummer können beim Netzbetreiber eine "
+      + "Spam-Markierung auslösen; danach klingelt die Nummer bei niemandem mehr "
+      + "durch. Das ist KEINE Sperre — es wurde und wird kein Anruf verhindert. "
+      + `Die Hinweisschwelle steht bei ${stand.schwelle}, die Warnung bei `
+      + `${stand.warnSchwelle} (Einstellung „anruf_hinweis_schwelle", 0 = aus).`,
+    context: { nummer, heute: stand.heute, schwelle: stand.schwelle, warnSchwelle: stand.warnSchwelle },
+  });
+
+  await lauf`
+    INSERT INTO fiaon_lauf_warnungen (name, gewarnt_am, stunden)
+    VALUES (${schluessel}, NOW(), ${stand.heute})
+    ON CONFLICT (name) DO UPDATE SET gewarnt_am = NOW(), stunden = ${stand.heute}
+  `.catch(() => {});
+
+  // Die Mail ist optional: Ohne BETREIBER_MAIL bleibt es beim Diagnose-Eintrag.
+  // „Konnte nicht warnen" ist etwas anderes als „musste nicht warnen" — deshalb
+  // die Meldung auf der Konsole.
+  if (opts.nichtSenden) {
+    return { gewarnt: true, grund: "Diagnose geschrieben, Mail unterdrückt (nichtSenden)" };
+  }
+  const an = process.env.BETREIBER_MAIL || process.env.ADMIN_EMAIL || "";
+  if (!an) {
+    console.warn("[TELEFON] Keine Betreiber-Adresse (BETREIBER_MAIL) — "
+      + "die Anruf-Warnung steht nur in der Diagnose.");
+    return { gewarnt: true, grund: "Diagnose ohne Mail (keine Adresse)" };
+  }
+  try {
+    const { eigeneMailSenden } = await import("./fiaon-brevo");
+    const versand = await eigeneMailSenden({
+      an,
+      betreff: `FIAON: ${stand.heute} Anrufe heute über ${nummer}`,
+      text: [
+        text,
+        "",
+        `Hinweisschwelle: ${stand.schwelle} · Warnschwelle: ${stand.warnSchwelle}`,
+        "",
+        "WAS DAS BEDEUTET: Sehr viele Anrufe von einer Nummer in kurzer Zeit können",
+        "beim Netzbetreiber eine Spam-Markierung auslösen. Danach klingelt die",
+        "Nummer bei niemandem mehr durch — und das merkt man erst Tage später.",
+        "",
+        "WAS NICHT PASSIERT IST: Es wurde kein Anruf verhindert. Diese Grenze",
+        "sperrt nichts mehr (Umbau vom 19.08.2026, nachdem eine Sperre bei 100",
+        "Anrufen 26 Gespräche des Vertriebs blockiert hat).",
+        "",
+        "MÖGLICHE SCHRITTE: eine zweite Absendernummer einrichten und die Last",
+        "verteilen; oder die Schwelle in den Einstellungen anpassen",
+        "(anruf_hinweis_schwelle, 0 = aus).",
+        "",
+        "Diagnose: /admin/events",
+      ].join("\n"),
+    });
+    if (!versand.ok) console.error(`[TELEFON] Warnmail an ${an} scheiterte: ${versand.grund}`);
+    return { gewarnt: true, grund: versand.ok ? "Diagnose und Mail" : `Diagnose, Mail scheiterte: ${versand.grund}` };
+  } catch (e) {
+    console.error("[TELEFON] Anruf-Warnmail konnte nicht raus:", e);
+    return { gewarnt: true, grund: "Diagnose, Mail warf" };
+  }
 }
 
 // ───────────────────────────────────────────────────────────────────────────

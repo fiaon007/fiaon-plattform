@@ -4,6 +4,7 @@ import { FiaonEbene } from "@/components/FiaonEbene";
 import { MarkeBrief, SendeMenue } from "@/components/SendeMenue";
 import { MarkeFunke, MarkeHoerer, anrufStarten } from "@/components/Softphone";
 import { ZusageTafel } from "./vertrieb-zusage";
+import { AnrufPlayer } from "@/components/AnrufPlayer";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FORDERUNGSMANAGEMENT — eine Liste, von oben nach unten
@@ -1099,8 +1100,7 @@ function InkassoAkte({
                     </div>
                     {g.zusammenfassung && <p className="fi-ak-fass">{g.zusammenfassung}</p>}
                     {player === g.id && (
-                      <audio controls preload="none" className="fi-ak-audio"
-                             src={`/api/fiaon/telefon/${g.id}/aufnahme`} />
+                      <AnrufPlayer anrufId={g.id} kennzeichen="anruf-player-inkasso" />
                     )}
                   </div>
                 ))}

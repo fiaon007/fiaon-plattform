@@ -1197,6 +1197,51 @@ Lock-Timeout lief.
 - Ist sie nicht transaktionsfähig, wird ihre Wirkung im Prüfstand
   nachgezogen und ihre Regel am Quelltext plus am echten Bestand geprüft.
 
+## Ein Schutzmechanismus, der die Kernarbeit anhält, ist falsch gebaut
+
+Am 19.08.2026 stand das Vertriebsteam still. Die Tagesgrenze je Absendernummer
+(Vorgabe 100, HTTP 429 bei Erreichen) hat zwischen 13:18 und 15:14 Uhr **26
+Anrufe** verhindert — 18 bei Lucas Böhnert, 8 bei Nikita Boychenko, 9 Kunden
+waren nicht erreichbar. Der Betreiber musste die Einstellung auf 0 setzen, um
+weiterarbeiten zu lassen.
+
+Der Kommentar an der Grenze behauptete:
+
+> „Die Grenze ist ein SCHUTZ, keine Arbeitsbremse: 100 Anrufe je Nummer und Tag
+> erreicht im Normalbetrieb niemand."
+
+GEMESSEN über 14 Tage: **252** Anrufe je Nummer und Tag als Spitze, 117 je
+Mitarbeiter. Die Grenze lag unter dem Normalbetrieb. Es war eine Annahme, als
+Tatsache formuliert — und niemand hat sie nachgerechnet, weil sie plausibel
+klang.
+
+**Die Regel:**
+
+- **Schutzmechanismen (Limits, Drosseln, Quoten) dürfen Kernarbeit (Anrufen,
+  Senden, Buchen) niemals hart blockieren.** Sie warnen den Betreiber und
+  protokollieren.
+- **Harte Sperren nur bei Sicherheit oder Recht**: fehlende Berechtigung,
+  fehlende Richtlinien-Zusage, DSGVO-Löschung, Kontaktsperre des Kunden,
+  fehlende oder unwählbare Nummer, ein Zustand, der die Handlung sinnlos macht
+  („hat schon bezahlt").
+- **Die Frage, die entscheidet: Hält es einen MENSCHEN auf?** Ein Tageslauf, der
+  um 3 Uhr nicht sendet und um 8 Uhr schon, blockiert niemanden — das ist ein
+  Zeitplan. Ein Agent, der mit dem Kunden am Telefon vor einem toten Knopf
+  steht, ist blockiert.
+- **Eine Zahl in einem Schutzmechanismus wird GEMESSEN, nicht geschätzt.** Wer
+  eine Obergrenze setzt, holt vorher das Maximum aus dem Bestand und schreibt
+  beides in den Kommentar: die Zahl und das Datum der Messung.
+- **Und die Vorwarnung braucht einen eigenen Schalter.** Der Betreiber hat die
+  Sperre über ihre Einstellung abgeschaltet. Läse die neue Warnung denselben
+  Schlüssel, wäre die Notbremse von heute die Blindheit von morgen — deshalb ein
+  neuer Schlüssel mit eigener Vorgabe.
+
+Dieselbe Bauweise stand am selben Tag im Versandzentrum (`TAGESLIMIT = 3`, der
+vierte Versand wurde abgelehnt) und ist mit umgebaut. Beide Prüfstände
+verlangten ausdrücklich die Sperre und waren grün — **eine Prüfung, die eine
+falsche Regel festschreibt, macht sie unantastbar.** Sie wurden ersetzt, mit dem
+alten Wortlaut im Kommentar.
+
 ## Bekannter Bestand, damit niemand erschrickt
 
 - `npx tsc --noEmit` meldet rund **240 Alt-Typfehler** (u. a. aus

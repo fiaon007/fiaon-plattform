@@ -11,6 +11,7 @@ import VermerkTafel from "@/components/admin/VermerkTafel";
 import ArchivDialog from "@/components/admin/ArchivDialog";
 import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 import { LABEL_VERTRIEB, LABEL_FORDERUNG, zustaendigText } from "@shared/fiaon-zustaendigkeit-text";
+import { AnrufPlayer } from "@/components/AnrufPlayer";
 
 /** Klartext der Archivgründe — dieselbe Liste wie im Server (fiaon-antrag-archiv.ts). */
 const ARCHIV_GRUND_TEXT: Record<string, string> = {
@@ -1410,10 +1411,9 @@ function AnrufeSektion({ personId }: { personId: number }) {
               wer zuhört. */}
           {offen === a.id && (
             <div className="mt-2">
-              <audio controls preload="none" className="w-full" style={{ height: 36 }}
-                     src={`/api/fiaon/telefon/${a.id}/aufnahme`}>
-                Dein Browser kann kein Audio abspielen.
-              </audio>
+              {/* Ein Bauteil für alle vier Abspielstellen (19.08.2026):
+                  Fortschritt, Zeit, 1×/1,5×/2× und Herunterladen. */}
+              <AnrufPlayer anrufId={a.id} kennzeichen="anruf-player-akte" />
               <p className="text-[10.5px] text-slate-400 mt-1">
                 Dass du diese Aufnahme angehört hast, steht im Kundenverlauf.
               </p>

@@ -77,7 +77,13 @@ async function attrappen(seite: Page): Promise<void> {
         // IST ein Testkonto und bleibt es. Hier wird nur die Anzeige geprüft.
         testkonto: false,
         agentId: testAgentId,
-        kontingent: { heute: 0, grenze: 100, frei: 100, erschoepft: false },
+        // ── DIE ATTRAPPE FOLGT DEM SERVER (19.08.2026) ──────────────────
+        // Hier stand die alte Form (`grenze`, `frei`, `erschoepft`) — also die
+        // Sperre, die es nicht mehr gibt. Eine Attrappe, die eine andere Form
+        // liefert als der Server, prüft eine andere Software (AGENTS.md).
+        kontingent: {
+          heute: 0, schwelle: 300, warnSchwelle: 450, stufe: "ruhig", hinweis: null,
+        },
       }),
     });
   });

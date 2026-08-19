@@ -48,6 +48,24 @@ interface Stand {
    * wuerde der zweite das Geraet des ersten erben.
    */
   agentId?: number | null;
+  /**
+   * Der Tagesstand der Absendernummer.
+   *
+   * ── EIN HINWEIS, KEINE SPERRE (19.08.2026) ──────────────────────────────
+   * Bis heute war das eine Grenze, die das Wählen ab 100 Anrufen verweigert hat
+   * — sie hat 26 Gespräche des Vertriebs blockiert. Jetzt zählt sie nur noch.
+   *
+   * `hinweis` ist `null`, solange nichts zu sagen ist. Der Satz kommt vom
+   * SERVER und wird hier nicht zusammengebaut: Das Panel gibt es auf dem
+   * Desktop und auf 380 px, und zwei Fassungen liefen auseinander.
+   */
+  kontingent?: {
+    heute: number;
+    schwelle: number;
+    warnSchwelle: number;
+    stufe: "ruhig" | "hinweis" | "warnung";
+    hinweis: string | null;
+  } | null;
 }
 
 /** Die Ergebnisse — Wortlaut wie in der Kundenliste, damit nichts auseinanderläuft. */
@@ -1852,6 +1870,32 @@ export function Softphone() {
         {/* ── Wählen ──────────────────────────────────────────────────── */}
         {stand.bereit && !stand.testkonto && zustand === "bereit" && !richtlinie?.offen && (
           <>
+            {/* ══════════════════════════════════════════════════════════════
+                DER TAGESSTAND DER NUMMER — DEZENT, UND OHNE FOLGEN
+
+                Er erscheint erst ab der Schwelle und sagt ausdrücklich, dass
+                weitergearbeitet werden kann. Grau, keine Farbe, kein Symbol:
+                Wer hier eine Warnfarbe sieht, hört auf zu wählen — und genau
+                das soll nicht passieren.
+
+                Rot ist Fehlern vorbehalten; hier ist kein Fehler. Die
+                Dringlichkeit gehört dem Betreiber (Diagnose + Mail), nicht dem
+                Menschen am Telefon.
+               ══════════════════════════════════════════════════════════════ */}
+            {stand.kontingent?.hinweis && (
+              <p data-fiaon="anruf-tagesstand"
+                 style={{
+                   margin: "0 0 12px", padding: "8px 11px",
+                   fontSize: 11.5, lineHeight: 1.5,
+                   color: "rgba(191,214,247,.62)",
+                   background: "rgba(191,214,247,.06)",
+                   border: "1px solid rgba(191,214,247,.12)",
+                   borderRadius: 12,
+                 }}>
+                {stand.kontingent.hinweis}
+              </p>
+            )}
+
             {/* ── DER NÄCHSTE AUS DER LISTE ─────────────────────────────────
                 Nach einem dokumentierten Ergebnis steht er hier schon: Name,
                 Nummer, ein Griff zum grünen Knopf. Die Marke sagt, woher er

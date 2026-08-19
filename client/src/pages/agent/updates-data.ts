@@ -84,6 +84,83 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-19-anrufgrenze-warnt",
+    date: "2026-08-19",
+    category: "Behoben",
+    title: "Die Anrufgrenze blockiert nicht mehr — sie warnt nur noch",
+    summary:
+      "Heute Mittag ging bei Lucas und Nikita das Wählen nicht mehr. Das war "
+      + "kein Fehler in der Technik, sondern eine Grenze, die zu niedrig stand. "
+      + "Sie sperrt ab jetzt nichts mehr.",
+    changes: [
+      "WAS PASSIERT IST: Es gab eine Tagesgrenze von 100 Anrufen je Rufnummer. "
+      + "Wer sie erreichte, konnte nicht mehr wählen. GEMESSEN: Zwischen 13:18 "
+      + "und 15:14 Uhr hat sie 26 Anrufe verhindert — 18 bei Lucas, 8 bei "
+      + "Nikita. 9 Kunden waren in dieser Zeit nicht erreichbar.",
+
+      "WARUM DIE ZAHL FALSCH WAR: Im Code stand „100 Anrufe am Tag erreicht "
+      + "niemand“. Das war geschätzt, nicht gemessen. Nachgezählt über 14 Tage: "
+      + "bis zu 252 Anrufe an einem Tag über eine Nummer, Spitze bei einem "
+      + "einzelnen Menschen 117 (Lucas am 17.08.). Die Grenze lag also unter "
+      + "dem, was ihr normal telefoniert.",
+
+      "WAS JETZT GILT: Die Grenze sperrt NIE mehr einen Anruf. Ab 300 Anrufen "
+      + "über eine Nummer steht ein grauer Satz im Telefon-Panel („Heute bereits "
+      + "N Anrufe über diese Nummer“) — und dabei steht ausdrücklich, dass ihr "
+      + "normal weiterarbeiten könnt. Ab 450 bekommt die Verwaltung eine "
+      + "Warnung, damit sie eine zweite Rufnummer einrichten kann. Euch betrifft "
+      + "das nicht.",
+
+      "WARUM ES DIESE ZAHL ÜBERHAUPT GIBT: Sehr viele Anrufe von einer Nummer "
+      + "können beim Netzbetreiber eine Spam-Markierung auslösen — danach "
+      + "klingelt die Nummer bei niemandem mehr durch. Das ist ein echtes "
+      + "Risiko. Aber es rechtfertigt nicht, dass ihr aufhören müsst zu "
+      + "arbeiten.",
+
+      "DASSELBE BEIM MAILVERSAND: Der vierte Versand derselben Mail an einen "
+      + "Kunden am selben Tag wurde bisher abgelehnt. Jetzt geht er raus, und du "
+      + "liest daneben, dass es der vierte ist. Was weiterhin gesperrt bleibt, "
+      + "ist nur, was gesperrt sein MUSS: keine Adresse, Kontaktsperre des "
+      + "Kunden, DSGVO-Löschung, schon bezahlt.",
+
+      "NEUE HAUSREGEL: Ein Schutzmechanismus warnt die Verwaltung, er hält "
+      + "eure Arbeit nicht an. Wenn dich noch irgendwo eine Zahl am Arbeiten "
+      + "hindert, ist das ein Fehler — melde ihn.",
+    ],
+    howto: [
+      "Telefon öffnen und wählen wie immer. Wenn ein grauer Satz über dem "
+      + "Wählfeld steht, ist das eine Information — kein Stopp.",
+      "Zahlungsdaten senden: Steht „Das wäre die 4. Sendung heute“, geht sie "
+      + "trotzdem raus. Überleg nur kurz, ob ein Anruf nicht besser wäre.",
+    ],
+    important: true,
+  },
+  {
+    id: "2026-08-19-anruf-player",
+    date: "2026-08-19",
+    category: "Verbessert",
+    title: "Aufnahmen: Fortschritt, Tempo 1,5×/2× und Herunterladen",
+    summary:
+      "Der Abspieler für Gesprächsaufnahmen ist überall derselbe und kann "
+      + "jetzt etwas.",
+    changes: [
+      "An allen vier Stellen, an denen Aufnahmen laufen (Mitarbeiter-Profil, "
+      + "Kundenakte, Forderungsmanagement), steht jetzt derselbe Abspieler.",
+      "NEU: Fortschrittsbalken zum Springen, Zeitanzeige, und Tempo 1× / 1,5× / "
+      + "2× — wer zwanzig Gespräche nachhört, spart damit eine Stunde.",
+      "NEU: Herunterladen als MP3. Der Dateiname trägt Kunde und Datum "
+      + "(mueller_2026-08-19.mp3), damit man die Datei später wiederfindet.",
+      "WICHTIG: Sowohl das Anhören ALS AUCH das Herunterladen steht im "
+      + "Kundenverlauf — mit deinem Namen. Das ist Absicht: Es sind Aufnahmen "
+      + "echter Gespräche mit echten Menschen.",
+    ],
+    howto: [
+      "Gespräche-Liste → „Anhören“ an der Zeile → der Abspieler klappt auf.",
+      "Das Feld mit „1×“ schaltet auf 1,5× und 2× durch.",
+      "Der Pfeil nach unten lädt die Aufnahme herunter.",
+    ],
+  },
+  {
     id: "2026-08-19-leeres-portal",
     date: "2026-08-19",
     category: "Behoben",

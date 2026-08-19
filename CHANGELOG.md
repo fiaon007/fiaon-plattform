@@ -5,6 +5,136 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.08.2026 (Abend) — Eine Schutzfunktion hat den Vertrieb angehalten
+
+Die Tagesgrenze je Absendernummer (100 Anrufe, HTTP 429 bei Erreichen) hat heute
+Mittag zwei Mitarbeiter am Arbeiten gehindert. Der Betreiber musste sie auf 0
+stellen.
+
+### Teil 1 — Die Zahl, die wir dem Betreiber schulden
+
+**GEMESSEN** (`scripts/mess-anrufgrenze.ts`, aus `fiaon_call_versuche` — jede
+Ablehnung steht dort mit Grund im Klartext):
+
+| | |
+|---|---|
+| **verhinderte Anrufe heute** | **26** |
+| betroffene Mitarbeiter | 2 |
+| nicht erreichbare Zielnummern | 9 |
+| erste Ablehnung | 13:18 Uhr |
+| letzte Ablehnung | 15:14 Uhr |
+
+Lucas Böhnert 18 Anrufe (14:00–15:14), Nikita Boychenko 8 (13:18–14:42).
+
+### Die Ursache war ein Satz, den niemand nachgerechnet hat
+
+Im Quelltext stand:
+
+> „Die Grenze ist ein SCHUTZ, keine Arbeitsbremse: 100 Anrufe je Nummer und Tag
+> erreicht im Normalbetrieb niemand."
+
+Nachgemessen über 14 Tage: **252** Anrufe je Absendernummer und Tag als Spitze
+(12.08.), **117** je Mitarbeiter (Lucas, 17.08.). Die Grenze lag **unter** dem
+Normalbetrieb — sie musste greifen.
+
+### Die Kalibrierung, begründet
+
+Hinweisschwelle **300**, Betreiber-Warnung ab dem 1,5-fachen (**450**).
+
+300 ist nur das 1,2-fache der gemessenen Spitze; die Schwelle wird an starken
+Tagen also erreicht. Das ist Absicht und harmlos, weil sie nur einen grauen Satz
+kostet. Die *Warnung* bei 450 liegt klar über allem, was je vorkam. Und der neue
+Schlüssel heißt `anruf_hinweis_schwelle` (Vorgabe 300) statt
+`max_anrufe_je_nummer_tag`: Letzterer steht auf 0, weil der Betreiber die Sperre
+im Notfall abschalten musste — würde die neue Warnung denselben Schlüssel lesen,
+wäre die Notbremse von heute die Blindheit von morgen.
+
+### Drei Stufen statt einer Wand
+
+| Stand | Agent | Betreiber |
+|---|---|---|
+| unter 300 | nichts | nichts |
+| ab 300 | grauer Satz im Panel, „du kannst normal weiterarbeiten" | — |
+| ab 450 | derselbe graue Satz | Diagnose-Eintrag, Dashboard-Marke, Mail an `BETREIBER_MAIL` (höchstens einmal je Nummer und Tag) |
+
+`erschoepft` ist aus der Schnittstelle **entfernt** und nicht auf `false`
+gesetzt: Ein Feld, das es nicht gibt, kann niemand mehr abfragen, und der
+Typcheck findet jede Stelle, die es versucht.
+
+### Teil 2 — Die Hausregel, und was der Bestand hergab
+
+Neu in AGENTS.md: *„Ein Schutzmechanismus, der die Kernarbeit anhält, ist falsch
+gebaut."* Die entscheidende Frage ist **hält es einen MENSCHEN auf?** — ein
+Tageslauf, der um 3 Uhr nicht sendet und um 8 Uhr schon, blockiert niemanden.
+
+Der Bestand, geprüft (18 Mechanismen):
+
+**Umgebaut:** `TAGESLIMIT = 3` in `server/lib/fiaon-versand.ts`. Der vierte
+manuelle Versand wurde abgelehnt — und traf damit genau den Agenten, der den
+Kunden am Telefon hat („ich habe nichts bekommen"). Jetzt geht er raus, mit einem
+Satz daneben. Neues Feld `warnung` neben `grund`: Vorher musste alles, was man
+sagen wollte, als Ablehnung gesagt werden.
+
+**Bewusst gelassen, mit Begründung:**
+
+| Mechanismus | Wert | Warum es bleibt |
+|---|---|---|
+| Versandfenster 08:00–20:00 (Mahnungen, Leads, Abo) | fest | Hintergrundlauf. Die Mail geht um 08:00 raus, niemand ist blockiert — das ist ein Zeitplan, und die Nachtruhe des Empfängers ist ein eigener Wert |
+| `max_reminders` / `max_lead_followups` | 6 | Hintergrundlauf, einstellbar, Schutz des Kunden vor Belästigung |
+| `PRO_STUNDE = 200`, Termin-Einladungen 50/Tag | fest | Staffelgröße, nicht Sperre: Der Rest geht in der nächsten Stunde bzw. am nächsten Tag. Die Grenze steht sichtbar VOR dem Klick |
+| Vorlauf 2 h / Horizont 14 Tage bei Terminen | fest | Definiert, welche Zeiten es gibt — ein Kunde sieht keinen Slot, den er nicht buchen kann |
+| 10-Minuten- und 8-Stunden-Sperren an Einzelknöpfen | fest | Doppelklick-Schutz (Idempotenz), keine Quote |
+| Berechtigung, Richtlinien-Zusage, DSGVO, Kontaktsperre, unwählbare Nummer | — | Sicherheit und Recht — ausdrücklich erlaubt |
+
+### Teil 3 — Die zwei Reste von gestern
+
+**Der Anruf-Player** (`client/src/components/AnrufPlayer.tsx`) ist ein Bauteil
+für alle vier Abspielstellen: Fortschrittsbalken (als `range`, also mit Tastatur
+bedienbar), Zeitanzeige, 1×/1,5×/2×, Download als `kunde_datum.mp3`. Der Download
+läuft über **dieselbe sitzungsgebundene Route** mit `?laden=1` und wird
+protokolliert („HERUNTERGELADEN"). Eine signierte URL wäre hier schwächer: Sie
+gilt, solange die Signatur gilt — auch für den, der sie weitergibt.
+
+**Die Team-Zentrale** von gestern ist jetzt im Browser angesehen, was gestern
+ausdrücklich nicht der Fall war. Vier Screenshots in `reports/bilder/`.
+
+### Zwei Fehlalarme, die nur der Screenshot verraten hat
+
+1. Der erste Browserlauf meldete **10 rote Prüfungen** („Die Team-Zentrale lädt:
+   ROT", „kein Drei-Punkte-Menü", „keine Academy-Zeile"). Der Screenshot zeigte
+   das **Zahlenfeld der Anmeldung** — die Seite war nie geladen, weil
+   `ADMIN_ACCESS_CODE` nicht gesetzt war. Der Rückfallwert steht im Quelltext
+   (`fiaon-admin-zugang.ts`) und ist jetzt dort gelesen, nicht geraten. Und der
+   Lauf **bricht ab**, wenn die Seite nicht lädt: Jede weitere Prüfung wäre ein
+   Fehlalarm.
+2. Danach blieb eine Prüfung rot: „Der Player war im Profil nicht erreichbar."
+   Der Screenshot zeigte den Knopf — er heißt **„Anhören"**, nicht „Aufnahme
+   anhören".
+
+### Prüfstände
+
+| Lauf | Ergebnis |
+|---|---|
+| `pruef-anrufgrenze.ts` | **35 ok** — Schwelle erreicht → Anruf geht trotzdem, Hinweis erscheint, Warnung genau einmal am Tag; die drei erlaubten Wände müssen weiter stehen |
+| Rot-Probe | Sperre wieder eingebaut → **2 rot**, mit der Fundstelle im Fehlertext |
+| `schau-player-team.ts` | **32 ok** — Menü geöffnet und gemessen, Tempo durchgeschaltet (1× → 1,5× → 2×), Desktop und 380 px |
+| `pruef-menschen.ts`, `pruef-mail.ts` | verlangten die Sperre ausdrücklich und waren grün — **eine Prüfung, die eine falsche Regel festschreibt, macht sie unantastbar**. Beide ersetzt, alter Wortlaut im Kommentar |
+
+Und eine Falle beim Bauen: Der Prüfstand hätte eine **echte Warnmail** an den
+Betreiber geschickt und blieb am HTTP-Aufruf zu Brevo hängen. `nummerWarnungMelden`
+hat jetzt `nichtSenden` — der Diagnose-Eintrag entsteht, die Mail nicht.
+
+### Betreiber-TODOs
+
+1. **`anruf_hinweis_schwelle` steht auf 300.** Wenn die Hinweise zu oft
+   erscheinen: hochsetzen. Sperren kann die Zahl nichts mehr.
+2. **`BETREIBER_MAIL` prüfen** — ohne die Adresse steht die Warnung nur in der
+   Diagnose (`/admin/events`).
+3. **107 Testkonten** stehen in der Team-Zentrale (2 davon aktiv). Nicht Teil
+   dieses Auftrags, aber im Bild aufgefallen.
+
+---
+
 ## 19.08.2026 (später) — Fünf Meldungen, fünf Ursachen: der Einheitenfehler, der leere Bildschirm und die Daten aus der Zukunft
 
 Ein Sammelauftrag aus dem Betrieb. Bei **drei von sieben Punkten war die gemeldete

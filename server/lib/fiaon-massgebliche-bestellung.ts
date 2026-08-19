@@ -100,19 +100,143 @@ export function lebendeOffeneBestellungSql(a = "a"): string {
       AND ${a}.payment_status IN ('pending_payment', 'claimed_paid', 'expired')`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DARF GESENDET WERDEN? — ALS SQL, FÜR DIE ARBEITSLISTE
+//
+// ── DIE MELDUNG (Florentine, 19.08.2026) ───────────────────────────────────
+// „Über 11 Kunden warten auf ihre Rechnung — ich kann ihnen keine Mail
+// schicken."
+//
+// ── DER STRUKTURELLE BEFUND ────────────────────────────────────────────────
+// Die Karte leitete den Sperrgrund SELBST ab, aus den `buchungen`, die sie
+// ohnehin hatte. Der Server entschied nach anderen Regeln. GEMESSEN bei
+// Florentine: Bei 139 Kunden gab die Karte den Knopf FREI und der Server lehnte
+// ab — genau das erlebt ein Agent als „ich drücke und nichts passiert".
+//
+// Zwei Ableitungen für dieselbe Frage. Der Kommentar in der Karte sagte sogar
+// „Die WAHRHEIT bleibt der Server" — und leitete danach trotzdem selbst ab.
+//
+// ── DIE ANTWORT KOMMT JETZT VOM SERVER ────────────────────────────────────
+// Als SQL-Ausdruck und nicht als Funktion je Kunde: Die Arbeitsliste holt 1.093
+// Karten in EINER Abfrage. Ein Aufruf je Kunde wären 1.093 Abfragen, und dann
+// baut jemand aus Not wieder eine Ableitung in der Oberfläche.
+//
+// Deckungsgleich mit dem Entscheidungsbaum in `zahlungsdatenSenden`:
+//   1. lebende offene Bestellung MIT Empfänger        → frei
+//   2. lebende offene Bestellung OHNE Empfänger       → keine_email
+//   3. rechnungsreife Bestellung MIT Empfänger        → erste_rechnung (frei)
+//   4. rechnungsreife OHNE Empfänger                  → keine_email
+//   5. Bestellung da, aber Antrag im Formular         → antrag_unfertig
+//   6. alles bezahlt                                  → alles_bezahlt
+//   7. gar keine lebende Bestellung                    → keine_bestellung
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Die Antragszustände, in denen eine erste Rechnung gestellt werden darf. */
+const REIF_SQL = "'completed','approved','submitted','documents_submitted',"
+  + "'verifying','processing','pending_payment'";
+
+/** Der Empfänger: Bestellung zuerst, Person als Rückfall. */
+const EMPFAENGER_SQL = (a: string, p: string) =>
+  `COALESCE(NULLIF(${a}.email,''), NULLIF(${a}.contact_email,''),`
+  + ` NULLIF(${a}.billing_email,''), NULLIF(${p}.primary_email,''))`;
+
+/**
+ * Der Grund-CODE als SQL-Ausdruck. Gibt `'frei'`, `'erste_rechnung'` oder einen
+ * Sperrgrund zurück.
+ *
+ * Codes, nicht Texte: Der Text gehört in die Oberfläche, der Code in die
+ * Statistik. Ein Text in einer WHERE-Bedingung bricht bei der ersten
+ * Umformulierung.
+ */
+export function sendeGrundSql(p = "p"): string {
+  const offen = `EXISTS (SELECT 1 FROM fiaon_applications a1
+    WHERE a1.person_id = ${p}.id AND ${lebendeOffeneBestellungSql("a1")})`;
+  const offenMitMail = `EXISTS (SELECT 1 FROM fiaon_applications a2
+    WHERE a2.person_id = ${p}.id AND ${lebendeOffeneBestellungSql("a2")}
+      AND ${EMPFAENGER_SQL("a2", p)} IS NOT NULL)`;
+  const reif = `EXISTS (SELECT 1 FROM fiaon_applications a3
+    WHERE a3.person_id = ${p}.id AND a3.merged_into IS NULL AND a3.archived_at IS NULL
+      AND a3.gdpr_deleted_at IS NULL AND a3.payment_status = 'pending'
+      AND a3.status IN (${REIF_SQL}))`;
+  const reifMitMail = `EXISTS (SELECT 1 FROM fiaon_applications a4
+    WHERE a4.person_id = ${p}.id AND a4.merged_into IS NULL AND a4.archived_at IS NULL
+      AND a4.gdpr_deleted_at IS NULL AND a4.payment_status = 'pending'
+      AND a4.status IN (${REIF_SQL}) AND ${EMPFAENGER_SQL("a4", p)} IS NOT NULL)`;
+  const irgendeine = `EXISTS (SELECT 1 FROM fiaon_applications a5
+    WHERE a5.person_id = ${p}.id AND a5.merged_into IS NULL AND a5.archived_at IS NULL
+      AND a5.gdpr_deleted_at IS NULL)`;
+  const bezahlt = `EXISTS (SELECT 1 FROM fiaon_applications a6
+    WHERE a6.person_id = ${p}.id AND a6.merged_into IS NULL AND a6.archived_at IS NULL
+      AND a6.gdpr_deleted_at IS NULL AND a6.payment_status = 'paid')`;
+  return `CASE
+    WHEN ${offenMitMail} THEN 'frei'
+    WHEN ${offen} THEN 'keine_email'
+    WHEN ${reifMitMail} THEN 'erste_rechnung'
+    WHEN ${reif} THEN 'keine_email'
+    WHEN ${bezahlt} THEN 'alles_bezahlt'
+    WHEN ${irgendeine} THEN 'antrag_unfertig'
+    ELSE 'keine_bestellung'
+  END`;
+}
+
+/** Der Klartext zu einem Grund-Code — an EINER Stelle, für alle Oberflächen. */
+export const SENDE_GRUND_TEXT: Record<string, { text: string; tat: string | null }> = {
+  frei: { text: "", tat: null },
+  erste_rechnung: {
+    text: "Noch keine Rechnung gestellt — beim Senden wird sie erzeugt (Betrag aus dem Paket, sieben Tage Frist).",
+    tat: null,
+  },
+  keine_email: {
+    text: "Keine E-Mail-Adresse — ohne sie kann nichts rausgehen.",
+    tat: "E-Mail nachtragen",
+  },
+  keine_bestellung: {
+    text: "Keine Bestellung vorhanden — es gibt nichts zu bezahlen.",
+    tat: "Produkt anlegen",
+  },
+  alles_bezahlt: {
+    text: "Alles bezahlt. Eine Zahlungsaufforderung wäre falsch.",
+    tat: null,
+  },
+  antrag_unfertig: {
+    text: "Der Antrag steht noch im Formular — ruf an und hilf beim Fertigstellen. "
+      + "Danach lässt sich eine Rechnung stellen.",
+    tat: null,
+  },
+};
+
 export async function massgeblicheBestellung(
   personId: number, lauf: Lauf = sqlPool,
 ): Promise<MassgeblicheBestellung | null> {
   const [b] = (await lauf.unsafe(`
     SELECT a.ref, a.person_id, a.pack_name, a.amount_due, a.payment_reference,
            a.payment_status, a.status, a.created_at,
+           -- ══════════════════════════════════════════════════════════════
+           -- DER EMPFÄNGER STEHT AN DER PERSON, NICHT NUR AN DER BESTELLUNG
+           --
+           -- ── DIE MELDUNG (Florentine, 19.08.2026) ──────────────────────
+           -- „Über 11 Kunden warten auf ihre Rechnung — ich kann ihnen keine
+           -- Mail schicken."
+           --
+           -- GEMESSEN: Bei 21 ihrer Kunden hat die BESTELLUNG keine Adresse,
+           -- die PERSON aber schon. Der Server las nur die Bestellung und
+           -- antwortete „Für diesen Kunden ist keine E-Mail-Adresse
+           -- hinterlegt" — während in der Karte eine stand. Genau das erlebt
+           -- ein Agent als „der Knopf tut nichts".
+           --
+           -- Seit Migration 059 ist die Person die gültige Wahrheit und die
+           -- Spalten an der Bestellung sind Abschriften (AGENTS.md). Ein
+           -- Leser, der nur die Abschrift liest, findet nichts, wenn sie
+           -- vor dem Trigger entstanden ist.
+           -- ══════════════════════════════════════════════════════════════
            COALESCE(NULLIF(a.email, ''), NULLIF(a.contact_email, ''),
-                    NULLIF(a.billing_email, '')) AS empfaenger,
+                    NULLIF(a.billing_email, ''), NULLIF(p.primary_email, '')) AS empfaenger,
            COALESCE(a.first_name, a.contact_name) AS vorname,
            a.last_name,
            (SELECT COUNT(*)::int - 1 FROM fiaon_applications w
              WHERE w.person_id = a.person_id AND ${lebendeOffeneBestellungSql("w")}) AS weitere
     FROM fiaon_applications a
+    JOIN fiaon_persons p ON p.id = a.person_id
     WHERE a.person_id = $1 AND ${lebendeOffeneBestellungSql("a")}
     ORDER BY a.created_at DESC
     LIMIT 1

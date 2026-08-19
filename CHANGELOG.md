@@ -3,6 +3,104 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+---
+
+## 19.08.2026 — Zwei Knöpfe, die „nicht gehen" — und beide Male derselbe Bauplan
+
+Zwei Meldungen an einem Tag. Florentine: „Über 11 Kunden warten auf ihre Rechnung — ich kann ihnen keine Mail schicken." Herr Hertel am Telefon: Er kann im Startgespräch-Kalender keine Zeit wählen.
+
+Es sind zwei verschiedene Bereiche. Die Ursache ist beide Male dieselbe: **Anzeige und Server beantworten dieselbe Frage mit verschiedenen Regeln.** Die Anzeige gibt frei, der Server lehnt ab — und der Mensch dazwischen erlebt einen Knopf, der nichts tut.
+
+### Teil 1 — Warum Florentine nichts senden konnte
+
+Der Verdacht lag bei mir: Ich hatte am Vortag die Bestellungs-Auflösung verschärft und eine Referenzprüfung eingebaut. Also zuerst gemessen, an ihren 1.093 echten Kunden, mit dem Entscheidungsbaum des Servers, ohne zu senden.
+
+**Der Verdacht war falsch.** 154 ihrer Kunden waren sendbar; die neue Auflösung blockierte nichts. Aber:
+
+| | |
+|---|---:|
+| Kunden, bei denen die **Karte** den Knopf freigab und der **Server** ablehnte | **139** |
+| Kunden, bei denen die Karte sperrte, obwohl der Server senden würde | 0 |
+
+Die 139 sind die Meldung. Zwei Ursachen, beide gemessen:
+
+**a) Die E-Mail stand an der Person, nicht an der Bestellung (21 Kunden).** Der Server las den Empfänger ausschließlich aus der Bestellung und antwortete „Für diesen Kunden ist keine E-Mail-Adresse hinterlegt" — während in der Karte eine stand. Seit Migration 059 ist die Person die gültige Wahrheit und die Spalten an der Bestellung sind Abschriften; wer nur die Abschrift liest, findet nichts, wenn sie vor dem Trigger entstand.
+
+**b) `pending_payment` fehlte in der Liste der rechnungsreifen Zustände (63 Kunden).** Der Status heißt wörtlich „Zahlung ausstehend". Er stand in **keiner** der beiden Listen — weder bei den erlaubten noch bei den ausdrücklich ausgeschlossenen Formularschritten. Eine Lücke, keine Absicht: `submitted` und `approved` sind drin, und `pending_payment` liegt hinter beiden. Die Bestellungen tragen Paket und Verwendungszweck, aber weder Betrag noch Frist — genau das, was der Rechnungslauf setzt. Die ältesten warten seit dem **2. Juli**.
+
+Der Agent sah „offen", drückte, und bekam „Der Antrag ist noch nicht abgeschlossen (Stand: pending_payment)" — ein Satz, der zum Anrufen auffordert, bei einem Kunden, der nur auf die Rechnung wartet.
+
+**Ergebnis: 154 → 245 sendbare Kunden bei Florentine. Bestandsweit 911.**
+
+**Und die Karte rät nicht mehr.** Sie leitete den Sperrgrund selbst aus den Buchungen ab — mit dem Kommentar „Die WAHRHEIT bleibt der Server" darüber und einer eigenen Regel darunter. Der Grund kommt jetzt bei **jedem** Laden vom Server (`sendeGrundSql`), in der Arbeitsliste wie in der Einzelkarte. Als SQL-Ausdruck, nicht als Aufruf je Kunde: Die Liste holt 1.093 Karten in einer Abfrage, und ein Aufruf je Kunde wären 1.093 Abfragen — dann baut jemand aus Not wieder eine Ableitung in die Oberfläche.
+
+**Zählprobe: 0.** Kein Kunde mit lebender offener Bestellung und zustellbarer Adresse wird noch gesperrt.
+
+### Teil 2 — Warum Herr Hertel keine Zeit wählen konnte
+
+Seit dem 30.08. wird jeder Buchungsversuch protokolliert. Also ausgelesen statt geraten:
+
+> **Jens Hertel, Person 4540: 38 Versuche. Alle abgelehnt. Alle mit demselben Grund: `falsche_rolle`.** Heute morgen um 08 Uhr.
+
+Bestandsweit: **220 von 222 Ablehnungen** tragen diesen Grund. Die gewählten Ansprechpartner waren Lucas (98×), Nikita (51×), Florentine (44×) und Daniel (27×) — alle aus Vertrieb und Leitung.
+
+Er hat die Zeiten **gesehen** und wurde bei jedem Klick abgewiesen. Der Kalender war nicht leer — es gab 55 freie Zeiten an 11 von 14 Tagen.
+
+**Die Ursache:** Ist kein Onboarding-Konto aktiv, bietet die Slot-Anzeige bewusst Zeiten aus Vertrieb und Leitung an — dafür ist `rollenMitRueckfall` gebaut, sie meldet den Rückfall sogar ins Log. Die Rollenprüfung beim Buchen kannte ihn **nicht** und verglich stur gegen die Sollrolle. Sie lehnte ab, was die Anzeige eine Zeile vorher angeboten hatte.
+
+Der alte Kommentar dort lautete: „Die Prüfung steht hier und nicht nur in der Slot-Anzeige — wer die Anfrage selbst baut, kommt sonst an der Anzeige vorbei." Richtig gedacht, aber mit einer **anderen** Regel als die Anzeige. Eine Wand, die etwas anderes prüft als das Angebot, ist kein Schutz, sondern eine Falle. Die Wand bleibt und benutzt jetzt dieselbe Funktion.
+
+**Zweiter Fund, aus dem Browsertest:** Die Terminseite hat den Anhang `?art=start` **nie gelesen**. Ein Kunde, der auf den Startgespräch-Link klickt, bekam „Wähl eine Zeit für ein **20-minütiges** Gespräch mit Nikita" — einen Vertriebsrückruf statt seines 15-minütigen Startgesprächs, von Menschen, die keine Startgespräche führen. Der Link verspricht das eine und liefert das andere.
+
+**Dritter Fund, ebenfalls im Browser:** Nach einer abgelehnten Buchung rief die Seite `laden()`. Das setzt den Ladezustand — und der ersetzte die ganze Seite samt der eben gesetzten Fehlermeldung. Der Kunde sah für einen Wimpernschlag den Grund, dann „Freie Zeiten werden geladen …", dann eine frische Liste. Ohne Erklärung, warum sein Klick nichts bewirkt hat. Wer zweimal klickt und zweimal nichts erfährt, ruft an.
+
+Dazu, unabhängig von der Meldung:
+
+- **Lücken werden benannt.** Tage ohne Zeiten wurden einfach nicht gezeichnet — keine leere Fläche, aber auch keine Auskunft. Jetzt: „An diesen Tagen ist nichts mehr frei: Samstag, Sonntag. Der nächste freie Tag ist Montag, 24. August."
+- **Bei null Zeiten in 14 Tagen entsteht eine Aufgabe** mit 24-Stunden-Frist, höchstens eine je Person und Tag. Vorher hätte der Kunde einen freundlichen Satz gesehen und sonst wäre nichts passiert — kein Mensch hätte davon erfahren.
+
+### Teil 3 — Damit es beim nächsten Mal die Anwendung meldet
+
+Zweimal hintereinander hat ein **Mensch** gemeldet, dass ein Knopf nicht geht. Die Karte „Kann das Team arbeiten?" im Verwaltungs-Dashboard dreht das um:
+
+- **Gesperrte Kernaktionen heute: n** — Kunden, die ihre Zahlungsdaten bekommen könnten und nicht bekommen, plus die nicht anrufbaren.
+- **Freie Onboarding-Zeiten: X in 14 Tagen** — rot unter 10, mit Hinweis, wenn der Rückfall greift.
+- **Buchungsversuche in 24 Stunden**, nach Ablehnungsgrund.
+
+Sie steht nur da, wenn etwas klemmt. Eine Dauer-Anzeige „alles gut" wird nach zwei Wochen nicht mehr gelesen — und dann auch die Warnung nicht, die an ihrer Stelle steht.
+
+### Was die Prüfstände können mussten
+
+Die erste Fassung des Rechnungs-Browsertests wählte ihre Prüffälle über **dieselbe Funktion, die sie prüft**. Bei der Rot-Probe blieb sie grün: Die Erwartung war mitgewandert. Ein Test, der seinen Sollwert vom Prüfling bezieht, prüft nichts.
+
+Die Erwartung steht jetzt unabhängig, als Satz über die Daten: *Wer eine lebende unbezahlte Bestellung und eine zustellbare Adresse hat, muss Zahlungsdaten bekommen können* — je einer für `pending_payment`, `claimed_paid` und `expired`. **Rot-Probe: 2 rot.**
+
+Beim Termin-Prüfstand dasselbe Problem in anderer Form: Heute sind zwei Onboarding-Kräfte aktiv, der Rückfall greift also nicht, und Hertels Fehler wäre gar nicht reproduzierbar. Der Prüfstand **legt die Konten in seiner Transaktion still** und stellt die Lage von heute morgen her. **Rot-Probe: 5 rot**, mit genau der Meldung `falsche_rolle`.
+
+| Prüfstand | | Rot-Probe |
+|---|---:|---|
+| `pruef-startgespraech-buchen.ts` | 26 | 5 rot |
+| `pruef-sendesperre-browser.ts` (Browser) | 36 | 2 rot |
+| `pruef-terminseite-kunde.ts` (Browser, 380 px) | 11 | — |
+
+### Wo zu finden
+
+| Datei | Zweck |
+|---|---|
+| `lib/fiaon-massgebliche-bestellung.ts` → `sendeGrundSql` | „Darf gesendet werden?" als SQL, für Liste und Karte |
+| `lib/fiaon-rechnung-stellen.ts` → `RECHNUNGSREIF` | `pending_payment` ergänzt |
+| `lib/fiaon-termine.ts` → `terminBuchen` | Rollenprüfung mit Rückfall |
+| `pages/termin.tsx` | liest `?art=start`, Fehler überlebt das Nachladen, Lücken benannt |
+| `routes/fiaon-termin.ts` | Aufgabe bei leerem Kalender |
+| `GET /admin/hub/knopfdurchgang` | die Zahlen für die Dashboard-Karte |
+| `scripts/mess-sendesperre.ts`, `scripts/mess-slots.ts` | die Messungen |
+
+### Betreiber-TODOs
+
+1. **Fünf zahlende Kunden haben keinen sichtbaren Betreuer.** Patrick Ellmer und Jennyfer Leis (bezahlt), Brigitte Ludl und Martin Ringk (Rechnung offen), Dzintars Auzins (Zahlung gemeldet) hängen an den Konten 2 und 7 — beide „Justin Schwarzott" und als **Testkonto** markiert. Damit fallen sie aus jeder Team-Ansicht. Nicht eigenmächtig umgehängt: Zuordnung heißt Provision.
+2. **Onboarding-Zeitfenster im Blick behalten.** Aktuell 55 freie Zeiten von Angelique und Rifka. Fallen beide aus, greift der Rückfall auf den Vertrieb — das funktioniert jetzt, sollte aber kein Dauerzustand sein. Die Dashboard-Karte wird bei unter 10 rot.
+3. **`BETREIBER_MAIL` setzen** (weiterhin offen) — sonst weckt die Tageslauf-Warnung niemanden.
+
 ## 31.08.2026 — Die Rechnung trug das falsche Paket
 
 Florentine Lombardi am 19.08.: „Er wollte ein Pro-Paket. Das High End habe ich rausgenommen. Wenn ich auf Rechnung senden drücke, bekommt er aber eine E-Mail für das High-End-Paket."

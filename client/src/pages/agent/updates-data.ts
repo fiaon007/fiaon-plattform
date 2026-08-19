@@ -40,6 +40,54 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-19-knopf-geht-wieder",
+    date: "2026-08-19",
+    category: "Behoben",
+    title: "„Ich kann keine Rechnung schicken“ — 91 Kunden mehr, die du erreichst",
+    summary:
+      "Florentine hat gemeldet, dass über 11 Kunden auf ihre Rechnung warten und "
+      + "nichts rausgeht. Sie hatte recht, und es waren mehr als 11.",
+    changes: [
+      "WAS LOS WAR: Bei 139 Kunden in Florentines Liste sah die Karte so aus, als "
+      + "ginge „Zahlungsdaten senden“ — und der Server hat trotzdem abgelehnt. Du "
+      + "dr\u00fcckst, und nichts passiert. Zwei Gr\u00fcnde:",
+
+      "1. DIE E-MAIL WURDE NICHT GEFUNDEN. Bei 21 Kunden stand die Adresse in den "
+      + "Stammdaten, aber nicht an der Bestellung — und der Server hat nur an der "
+      + "Bestellung nachgesehen. Er nimmt jetzt beide.",
+
+      "2. DER ANTRAG GALT ALS UNFERTIG. Bei 63 Kunden stand der Antrag auf "
+      + "„Zahlung ausstehend“ — also genau an der Stelle, wo eine Rechnung "
+      + "hingeh\u00f6rt. Das System hat diesen Stand nicht als rechnungsreif gez\u00e4hlt "
+      + "und geantwortet, der Antrag sei noch nicht fertig. Die \u00e4ltesten dieser "
+      + "Kunden warten seit dem 2. Juli.",
+
+      "DAS ERGEBNIS: Bei Florentine sind statt 154 jetzt 245 Kunden sendbar. Im "
+      + "ganzen Bestand 911. Wenn bei dir Kunden lagen, bei denen der Knopf "
+      + "„nichts getan“ hat — probier es noch einmal.",
+
+      "UND DIE KARTE R\u00c4T NICHT MEHR: Ob gesendet werden kann, sagt jetzt der "
+      + "Server, bei jedem \u00d6ffnen frisch. Steht ein Grund da, stimmt er auch — "
+      + "vorher konnte die Karte etwas freigeben, das der Server ablehnt.",
+
+      "STARTGESPR\u00c4CHE: Ein Kunde hat angerufen, weil er im Kalender keine Zeit "
+      + "w\u00e4hlen konnte. Im Protokoll standen 38 Versuche von ihm, alle abgelehnt. "
+      + "Die Seite bot Zeiten an, die Buchung wies sie ab. Behoben. Wenn ein Kunde "
+      + "dir sagt, der Terminlink gehe nicht: Er hat wahrscheinlich recht gehabt.",
+    ],
+    howto: [
+      "Kundenkarte → wenn „Zahlungsdaten senden“ da ist, geht es auch. Wenn ein "
+      + "Grund dasteht, ist er echt (keine Adresse, keine Bestellung, alles "
+      + "bezahlt oder Antrag noch im Formular).",
+      "Steht „Der Antrag steht noch im Formular“: Da hilft ein Anruf, keine "
+      + "Rechnung — der Kunde ist mitten in der Strecke stecken geblieben.",
+      "Terminlink f\u00fcr ein Startgespr\u00e4ch: Der Kunde sieht jetzt 15 Minuten und "
+      + "eine Onboarding-Kraft. Klappt eine Buchung nicht, steht der Grund auf der "
+      + "Seite und die anderen Zeiten bleiben w\u00e4hlbar.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-31-richtiges-paket",
     date: "2026-08-31",
     category: "Behoben",

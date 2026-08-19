@@ -696,11 +696,48 @@ export async function terminBuchen(
     FROM fiaon_agents WHERE id = ${eingabe.agentId}
   `) as any[];
   if (!agent || !agent.active) throw new TerminFehler("agent_unbekannt", "Dieser Ansprechpartner ist nicht verfügbar.");
-  // Ein Startgespräch bei jemandem ohne Onboarding-Rolle wäre kein
-  // Startgespräch. Die Prüfung steht hier und nicht nur in der Slot-Anzeige:
-  // Wer die Anfrage selbst baut, kommt sonst an der Anzeige vorbei.
-  if (nurRolle && String(agent.rolle || "agent") !== nurRolle) {
-    throw new TerminFehler("falsche_rolle", "Diese Person führt keine Startgespräche.");
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIE ROLLENPRÜFUNG KENNT DEN RÜCKFALL — SEIT DEM 19.08.2026
+  //
+  // ── DIE MELDUNG (Herr Hertel, telefonisch) ────────────────────────────────
+  // Ein Kunde kann im Startgespräch-Kalender keine Zeit auswählen.
+  //
+  // ── DER BEFUND, MIT 38 BELEGEN ────────────────────────────────────────────
+  // Jens Hertel (Person 4540) hat es heute um 08 Uhr ACHTUNDDREISSIG MAL
+  // versucht. Jeder einzelne Versuch steht im Protokoll, jeder mit demselben
+  // Grund: `falsche_rolle`. Er hat die Zeiten gesehen und wurde bei jedem Klick
+  // abgewiesen.
+  //
+  // Bestandsweit: 220 von 222 Ablehnungen tragen diesen Grund. Die gewählten
+  // Ansprechpartner waren Lucas (98×), Nikita (51×), Florentine (44×) und
+  // Daniel (27×) — alle aus Vertrieb und Leitung.
+  //
+  // ── DIE URSACHE: ZWEI REGELN FÜR DIESELBE FRAGE ───────────────────────────
+  // Ist kein Onboarding-Konto aktiv, bietet `freieSlots` bewusst Zeiten aus
+  // Vertrieb und Leitung an — `rollenMitRueckfall` ist genau dafür gebaut und
+  // meldet den Rückfall sogar ins Log.
+  //
+  // Diese Prüfung hier kannte den Rückfall NICHT. Sie verglich stur gegen
+  // `rolleFuerQuelle` und lehnte damit ab, was die Anzeige eine Zeile vorher
+  // angeboten hatte. Der alte Kommentar sagte „Die Prüfung steht hier und nicht
+  // nur in der Slot-Anzeige" — richtig gedacht, aber mit einer ANDEREN Regel als
+  // die Anzeige. Eine Wand, die etwas anderes prüft als das Angebot, ist kein
+  // Schutz, sondern eine Falle.
+  //
+  // Die Wand bleibt (wer die Anfrage selbst baut, kommt sonst an der Anzeige
+  // vorbei) — sie benutzt jetzt DIESELBE Funktion.
+  // ══════════════════════════════════════════════════════════════════════════
+  if (nurRolle) {
+    const { rollen } = await rollenMitRueckfall(eingabe.quelle, lauf);
+    const rolle = String(agent.rolle || "agent");
+    if (rollen && !rollen.includes(rolle)) {
+      throw new TerminFehler(
+        "falsche_rolle",
+        "Diese Person führt keine Startgespräche. Bitte wähl eine andere Zeit — "
+        + "die angebotenen Zeiten gehören zu Mitarbeitern, die Startgespräche führen.",
+      );
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════

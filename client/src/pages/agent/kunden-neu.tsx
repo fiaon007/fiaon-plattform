@@ -50,6 +50,11 @@ interface Kunde {
   telefonHinweis: string | null;
   /** Nummer national geschrieben, Land fehlt → nicht anrufbar (31.08.2026). */
   nummerOhneLand?: boolean;
+  /** Der Sperrgrund fuer „Zahlungsdaten senden" — vom Server, bei jedem Laden. */
+  sendeGrund?: string | null;
+  sendeMoeglich?: boolean;
+  sendeText?: string | null;
+  sendeTat?: string | null;
   nummerRoh?: string | null;
   landVorschlag?: { land: string | null; grund: string };
   email: string | null;
@@ -1284,34 +1289,59 @@ function KundenKarte({
               243 Personen.
               ══════════════════════════════════════════════════════════════ */}
           {(() => {
-            // Der Grund wird aus den Buchungen abgeleitet, die die Karte schon
-            // hat — keine zweite Abfrage. Die WAHRHEIT bleibt der Server: Er
-            // lehnt ab, wenn etwas nicht passt. Diese Anzeige erklärt nur
-            // vorher, was sonst als 400er zurückkäme.
+            // ══════════════════════════════════════════════════════════════
+            // DER SPERRGRUND KOMMT VOM SERVER (19.08.2026)
+            //
+            // ── DIE MELDUNG (Florentine) ─────────────────────────────────
+            // „Über 11 Kunden warten auf ihre Rechnung — ich kann ihnen keine
+            // Mail schicken."
+            //
+            // ── WAS HIER STAND ───────────────────────────────────────────
+            // Eine EIGENE Ableitung aus `k.buchungen`, mit dem Kommentar „Die
+            // WAHRHEIT bleibt der Server" darüber — und darunter wurde trotzdem
+            // selbst entschieden. Zwei Ableitungen für dieselbe Frage.
+            //
+            // GEMESSEN bei Florentine: Bei 139 Kunden gab diese Ableitung den
+            // Knopf FREI, während der Server ablehnte. Der Agent drückt, und
+            // nichts passiert. Zwei Ursachen:
+            //   · `offen` zählte hier JEDE unbezahlte Bestellung — auch eine
+            //     ohne gestellte Rechnung, für die der Server andere Regeln hat.
+            //   · Die E-Mail wurde an der PERSON geprüft, der Server las sie
+            //     aus der BESTELLUNG (behoben, aber die Lücke war real).
+            //
+            // Jetzt liefert der Server `sendeGrund` bei JEDEM Laden mit — in der
+            // Liste und in der Einzelkarte. Kein gemerkter Zustand, keine zweite
+            // Ableitung. Der Rückfall unten greift nur bei einer alten
+            // Server-Fassung, die das Feld nicht kennt.
+            // ══════════════════════════════════════════════════════════════
             const buchungen = k.buchungen ?? [];
-            const hatOffene = buchungen.some((bu) => bu.offen);
-            const allesBezahlt = buchungen.length > 0 && buchungen.every((bu) => bu.bezahlt);
-            const sperre = !k.email
-              ? {
-                  grund: "Keine E-Mail-Adresse — ohne sie kann nichts rausgehen.",
-                  tat: "E-Mail nachtragen", ziel: "stammdaten" as const,
-                }
-              : buchungen.length === 0
+            const sperre = k.sendeGrund
+              ? (k.sendeMoeglich
+                  ? null
+                  : {
+                      grund: k.sendeText || "Senden ist gerade nicht möglich.",
+                      tat: k.sendeTat ?? null,
+                      ziel: (k.sendeGrund === "keine_email" ? "stammdaten"
+                        : k.sendeGrund === "keine_bestellung" ? "produkt"
+                        : null) as "stammdaten" | "produkt" | null,
+                    })
+              // ── RÜCKFALL für eine Server-Fassung ohne `sendeGrund` ───────
+              // Bewusst SCHMAL: nur die zwei Fälle, in denen objektiv nichts zu
+              // senden ist. Alles andere gibt den Knopf frei und lässt den
+              // Server entscheiden — eine Oberfläche, die mehr sperrt als der
+              // Server, kostet Umsatz; eine, die zu viel freigibt, kostet einen
+              // Klick.
+              : !k.email
                 ? {
-                    grund: "Keine Bestellung vorhanden — es gibt nichts zu bezahlen.",
-                    tat: "Produkt anlegen", ziel: "produkt" as const,
+                    grund: "Keine E-Mail-Adresse — ohne sie kann nichts rausgehen.",
+                    tat: "E-Mail nachtragen", ziel: "stammdaten" as const,
                   }
-                : !hatOffene && allesBezahlt
+                : buchungen.length === 0
                   ? {
-                      grund: "Alles bezahlt. Eine Zahlungsaufforderung wäre falsch.",
-                      tat: null, ziel: null,
+                      grund: "Keine Bestellung vorhanden — es gibt nichts zu bezahlen.",
+                      tat: "Produkt anlegen", ziel: "produkt" as const,
                     }
-                  : !hatOffene
-                    ? {
-                        grund: "Keine offene Bestellung.",
-                        tat: "Produkt anlegen", ziel: "produkt" as const,
-                      }
-                    : null;
+                  : null;
 
             if (!sperre) {
               return (

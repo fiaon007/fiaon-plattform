@@ -345,6 +345,137 @@ router.get("/admin/hub/laeufe", async (_req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// KANN DAS TEAM ARBEITEN? — GESPERRTE KERNAKTIONEN UND FREIE ZEITEN
+//
+// ── DIE STRUKTURELLE LEHRE AUS ZWEI MELDUNGEN (19.08.2026) ─────────────────
+// Zweimal hintereinander meldete das Team einen Knopf, der „nicht geht":
+//
+//   Florentine: „Über 11 Kunden warten auf ihre Rechnung — ich kann ihnen
+//               keine Mail schicken." (139 Karten gaben den Knopf frei,
+//               während der Server ablehnte)
+//   Herr Hertel: „Ich kann keine Zeit wählen." (38 Versuche, alle abgelehnt,
+//               weil die Anzeige andere Regeln hatte als die Buchung)
+//
+// Beide Male stand die Ursache in den Daten, beide Male hat es ein MENSCH
+// gemeldet — nicht die Anwendung. Diese Karte dreht das um.
+//
+// ── WAS SIE ZÄHLT ─────────────────────────────────────────────────────────
+//   · Wie viele Kunden können ihre Zahlungsdaten NICHT bekommen, obwohl es
+//     objektiv etwas zu senden gäbe? (muss 0 sein)
+//   · Wie viele freie Onboarding-Zeiten gibt es in 14 Tagen? (rot unter 10)
+//   · Wie viele Buchungsversuche sind heute gescheitert, und woran?
+//
+// ── WARUM ZAHLEN UND KEINE AMPEL ALLEIN ───────────────────────────────────
+// „Alles in Ordnung" wird nach zwei Wochen nicht mehr gelesen. Eine Zahl, die
+// sich bewegt, schon. Und ein Sprung nach oben ist die Meldung, bevor das Team
+// schreibt.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/admin/hub/knopfdurchgang", async (_req, res) => {
+  try {
+    const { sendeGrundSql } = await import("../lib/fiaon-massgebliche-bestellung");
+
+    // ── 1. ZAHLUNGSDATEN: gesperrt, obwohl objektiv sendbar ───────────────
+    // Die Bedingung links ist die REGEL aus dem Auftrag („lebende offene
+    // Bestellung UND zustellbare Adresse"), rechts steht die Auflösung. Gehen
+    // sie auseinander, ist das der Fehler vom 19.08.2026.
+    const [zahlung] = (await sqlPool.unsafe(`
+      SELECT
+        COUNT(*) FILTER (WHERE ${sendeGrundSql("p")} IN ('frei', 'erste_rechnung'))::int AS sendbar,
+        COUNT(*) FILTER (WHERE
+          EXISTS (SELECT 1 FROM fiaon_applications a
+            WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
+              AND a.gdpr_deleted_at IS NULL AND a.cancelled_at IS NULL
+              AND a.payment_status IN ('pending_payment','claimed_paid','expired')
+              AND COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''),
+                           NULLIF(a.billing_email,''), NULLIF(p.primary_email,'')) IS NOT NULL)
+          AND ${sendeGrundSql("p")} NOT IN ('frei', 'erste_rechnung'))::int AS gesperrt_obwohl
+      FROM fiaon_persons p
+      WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT p.is_blocked
+    `)) as any[];
+
+    // ── 2. FREIE ONBOARDING-ZEITEN IN 14 TAGEN ────────────────────────────
+    // Der Messwert, der Herrn Hertels Anruf überflüssig gemacht hätte.
+    const { freieSlots, rollenMitRueckfall } = await import("../lib/fiaon-termine");
+    const [bezugskunde] = (await sqlPool`
+      SELECT p.id FROM fiaon_persons p
+      JOIN fiaon_applications a ON a.person_id = p.id AND a.merged_into IS NULL
+        AND a.payment_status = 'paid'
+      WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
+        AND NOT EXISTS (SELECT 1 FROM fiaon_termine t WHERE t.person_id = p.id)
+      ORDER BY a.paid_at ASC NULLS LAST LIMIT 1
+    `) as any[];
+    let slotsGesamt = 0;
+    let tageMitZeiten = 0;
+    let rueckfall = false;
+    if (bezugskunde) {
+      const r = await rollenMitRueckfall("onboarding_call");
+      rueckfall = r.rueckfall;
+      const a = await freieSlots(Number(bezugskunde.id), sqlPool, "onboarding_call");
+      slotsGesamt = a.slots.length;
+      tageMitZeiten = new Set(a.slots.map((s) => String(s.beginn).slice(0, 10))).size;
+    }
+
+    // ── 3. BUCHUNGSVERSUCHE HEUTE ─────────────────────────────────────────
+    const [versuche] = (await sqlPool`
+      SELECT COUNT(*)::int AS gesamt,
+             COUNT(*) FILTER (WHERE ergebnis = 'abgelehnt')::int AS abgelehnt
+      FROM fiaon_termin_versuche
+      WHERE versucht_am > NOW() - INTERVAL '24 hours'
+    `.catch(() => [{ gesamt: 0, abgelehnt: 0 }])) as any[];
+    const versuchGruende = (await sqlPool`
+      SELECT grund, COUNT(*)::int AS n FROM fiaon_termin_versuche
+      WHERE versucht_am > NOW() - INTERVAL '24 hours' AND ergebnis = 'abgelehnt'
+      GROUP BY grund ORDER BY n DESC
+    `.catch(() => [])) as any[];
+
+    // ── 4. NICHT ANRUFBAR ─────────────────────────────────────────────────
+    const { nichtWaehlbarSql } = await import("../lib/fiaon-telefon");
+    const [telefon] = (await sqlPool.unsafe(`
+      SELECT COUNT(*)::int AS n FROM fiaon_persons p
+      WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT p.is_blocked
+        AND ${nichtWaehlbarSql("p")}
+    `)) as any[];
+
+    const gesperrt = Number(zahlung?.gesperrt_obwohl ?? 0)
+      + Number(telefon?.n ?? 0);
+
+    res.json({
+      ok: true,
+      // Die eine Zahl für die Dashboard-Zeile.
+      gesperrteKernaktionen: gesperrt,
+      zahlungsdaten: {
+        sendbar: Number(zahlung?.sendbar ?? 0),
+        gesperrtObwohlSendbar: Number(zahlung?.gesperrt_obwohl ?? 0),
+      },
+      telefon: { nichtWaehlbar: Number(telefon?.n ?? 0) },
+      onboardingZeiten: {
+        frei: slotsGesamt,
+        tageMitZeiten,
+        rueckfall,
+        // Rot unter 10: Bei fünf Zeiten am Tag ist das weniger als eine
+        // Arbeitswoche Vorlauf — und der nächste Kunde steht vor einer Lücke.
+        ampel: slotsGesamt >= 10 ? "gruen" : slotsGesamt > 0 ? "gelb" : "rot",
+        hinweis: slotsGesamt === 0
+          ? "KEINE freien Zeiten. Kunden sehen einen leeren Kalender und rufen an — "
+            + "genau so ist der Fall Hertel aufgefallen."
+          : rueckfall
+            ? "Kein aktives Onboarding-Konto — die Zeiten kommen aus Vertrieb und "
+              + "Leitung (Rückfall). Das ist gewollt, sollte aber nicht der Dauerzustand sein."
+            : null,
+      },
+      buchungsversuche: {
+        gesamt: Number(versuche?.gesamt ?? 0),
+        abgelehnt: Number(versuche?.abgelehnt ?? 0),
+        gruende: versuchGruende.map((g) => ({ grund: g.grund, n: Number(g.n) })),
+      },
+    });
+  } catch (err) {
+    console.error("[HUB] knopfdurchgang:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.get("/admin/hub/badges", async (_req, res) => {
   try {
     if (badgeCache && Date.now() - badgeCache.at < BADGE_CACHE_MS) {

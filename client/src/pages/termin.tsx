@@ -74,9 +74,31 @@ export default function TerminPage() {
    */
   const [tageOffen, setTageOffen] = useState(3);
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIE TERMINART AUS DER ADRESSE — SIE WURDE IGNORIERT (19.08.2026)
+  //
+  // ── DER BEFUND ────────────────────────────────────────────────────────────
+  // Der Startgespräch-Banner verlinkt auf `/termin/<token>?art=start`. Diese
+  // Seite hat den Anhang NIE gelesen: Sie lud die Zeiten ohne ihn und buchte
+  // ohne ihn. Der Server fällt dann auf „nichterreicht_mail" zurück.
+  //
+  // GEMESSEN im Browser: Ein Kunde, der auf den Startgespräch-Link klickt,
+  // bekommt „Wähl eine Zeit für ein 20-minütiges Gespräch mit Nikita" — einen
+  // Vertriebsrückruf statt seines 15-minütigen Startgesprächs, und Zeiten von
+  // Menschen, die keine Startgespräche führen.
+  //
+  // Der Link verspricht das eine und liefert das andere. Ein Kunde, der ein
+  // Startgespräch erwartet und einen Verkäufer zugewiesen bekommt, hat keinen
+  // Grund, das zu verstehen — er ruft an.
+  // ══════════════════════════════════════════════════════════════════════════
+  const art = new URLSearchParams(window.location.search).get("art") === "start"
+    ? "start" : null;
+  const anhang = art ? "?art=start" : "";
+
   const laden = useCallback(async () => {
     setLaedt(true);
-    const res = await fetch(`/api/fiaon/termin/${encodeURIComponent(token)}`).catch(() => null);
+    const res = await fetch(`/api/fiaon/termin/${encodeURIComponent(token)}${anhang}`)
+      .catch(() => null);
     const json = await res?.json().catch(() => null);
     if (!res?.ok || !json?.ok) {
       setFehler(json?.hinweis || json?.error || "Dieser Link ist leider nicht mehr gültig.");
@@ -85,7 +107,7 @@ export default function TerminPage() {
     }
     setDaten(json);
     setLaedt(false);
-  }, [token]);
+  }, [token, anhang]);
 
   useEffect(() => { void laden(); }, [laden]);
 
@@ -101,13 +123,52 @@ export default function TerminPage() {
     return Array.from(map.entries()).map(([datum, slots]) => ({ datum, slots }));
   }, [daten]);
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIE LÜCKEN BENENNEN — NIE EINE FLÄCHE OHNE ERKLÄRUNG (19.08.2026)
+  //
+  // Tage ohne Zeiten wurden bisher einfach nicht gezeichnet. Das ist keine
+  // leere Fläche, aber auch keine Auskunft: Wer heute und morgen sieht und dann
+  // den Freitag, fragt sich, was mit Mittwoch und Donnerstag ist — und ob die
+  // Seite kaputt ist.
+  //
+  // Ein Satz beantwortet das: „Am Mittwoch und Donnerstag ist nichts mehr frei."
+  const luecken = useMemo(() => {
+    if (!daten || tage.length === 0) return null;
+    const vorhanden = new Set(tage.map((t) => t.datum));
+    const fehlend: string[] = [];
+    const heute = new Date();
+    const letzter = tage[tage.length - 1].datum;
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(heute.getTime() + i * 86_400_000);
+      const tag = d.toISOString().slice(0, 10);
+      if (tag > letzter) break;
+      if (!vorhanden.has(tag)) fehlend.push(tag);
+    }
+    if (fehlend.length === 0) return null;
+    const name = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("de-DE",
+      { weekday: "long", day: "numeric", month: "long" });
+    return {
+      anzahl: fehlend.length,
+      text: fehlend.length <= 3
+        ? fehlend.map(name).join(", ")
+        : `${fehlend.length} Tage dazwischen`,
+      naechster: tage[0] ? name(tage[0].datum) : null,
+    };
+  }, [daten, tage]);
+
   const buchen = async () => {
     if (!gewaehlt) return;
     setBucht(true);
     const res = await fetch(`/api/fiaon/termin/${encodeURIComponent(token)}/buchen`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ beginn: gewaehlt.beginn, agentId: gewaehlt.agentId }),
+      // Die Quelle MUSS mit: Ohne sie bucht der Server als „nichterreicht_mail",
+      // während die Zeiten als Startgespräch geladen wurden. Zwei Quellen in
+      // einem Vorgang — und die Rollenprüfung lehnt zu Recht ab.
+      body: JSON.stringify({
+        beginn: gewaehlt.beginn, agentId: gewaehlt.agentId,
+        ...(art ? { quelle: "onboarding_call" } : {}),
+      }),
     }).catch(() => null);
     const json = await res?.json().catch(() => null);
     setBucht(false);
@@ -132,6 +193,34 @@ export default function TerminPage() {
     <div className="min-h-screen bg-white text-slate-900">
       <GlassNav />
       <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-28 sm:pt-32 pb-16">
+
+        {/* ══════════════════════════════════════════════════════════════════
+            DER GRUND ÜBERLEBT DAS NACHLADEN (19.08.2026)
+
+            ── DER BEFUND (Browsertest aus Kundensicht) ────────────────────
+            Nach einem abgelehnten Termin rief die Seite `laden()`. Das setzt
+            `laedt = true`, und der Ladehinweis ersetzte die GANZE Seite —
+            samt der eben gesetzten Fehlermeldung. Der Kunde sah für einen
+            Wimpernschlag „Dieser Termin wurde gerade vergeben", dann „Freie
+            Zeiten werden geladen …", dann eine frische Liste. Ohne jede
+            Erklärung, warum sein Klick nichts bewirkt hat.
+
+            Wer zweimal klickt und zweimal nichts erfährt, ruft an. Genau das
+            hat Herr Hertel getan.
+
+            Der Fehler steht deshalb ÜBER dem Ladehinweis und bleibt stehen,
+            bis eine neue Zeit gewählt wird.
+            ══════════════════════════════════════════════════════════════════ */}
+        {fehler && !fertig && (
+          <div className="mb-5 px-4 py-3.5 rounded-2xl"
+               style={{ background: "rgba(180,83,9,.07)", border: "1px solid rgba(180,83,9,.3)" }}
+               role="alert">
+            <p className="text-[13.5px] leading-relaxed" style={{ color: "#92400e" }}>{fehler}</p>
+            <p className="text-[12.5px] mt-1.5 text-slate-600">
+              Wähl unten einfach eine andere Zeit — die Liste ist gerade neu geladen.
+            </p>
+          </div>
+        )}
 
         {laedt && (
           <div className="text-center py-16">
@@ -197,8 +286,20 @@ export default function TerminPage() {
           </div>
         )}
 
-        {/* ── Fehler ───────────────────────────────────────────────────────── */}
-        {!laedt && fehler && !daten?.termin && !fertig && (
+        {/* ══════════════════════════════════════════════════════════════════
+            DER GROSSE FEHLERBLOCK — NUR NOCH, WENN ES KEINE LISTE GIBT
+
+            Er stand vorher IMMER da, wenn ein Fehler gesetzt war. Zusammen mit
+            dem Streifen oben stand der Grund damit ZWEIMAL auf einer Seite
+            (gesehen im Screenshot der Abnahme). Zweimal derselbe Satz liest
+            sich wie zwei Fehler.
+
+            Jetzt: Gibt es Zeiten zur Auswahl, genügt der Streifen — der Kunde
+            soll weiterklicken, nicht erschrecken. Gibt es KEINE (abgelaufener
+            Link, kein Angebot), ist der große Block richtig: Dann ist der
+            Fehler die ganze Nachricht.
+            ══════════════════════════════════════════════════════════════════ */}
+        {!laedt && fehler && !daten?.termin && !fertig && !(daten?.slots?.length) && (
           <div className="text-center py-12">
             <h1 className="text-2xl font-bold tracking-tight mb-3">Das hat nicht geklappt</h1>
             <p className="text-[15px] text-slate-600 leading-relaxed max-w-md mx-auto">{fehler}</p>
@@ -245,6 +346,16 @@ export default function TerminPage() {
               </div>
             )}
 
+            {/* ── DIE LÜCKEN, IM KLARTEXT ────────────────────────────────
+                „Nie eine leere Fläche ohne Erklärung." Tage ohne Zeiten werden
+                nicht gezeichnet — dieser Satz sagt, dass das Absicht ist. */}
+            {luecken && (
+              <p className="text-[12.5px] text-slate-500 mb-4 text-center leading-relaxed">
+                An diesen Tagen ist nichts mehr frei: {luecken.text}.
+                {luecken.naechster && <> Der nächste freie Tag ist <b>{luecken.naechster}</b>.</>}
+              </p>
+            )}
+
             <div className="space-y-6">
               {tage.slice(0, tageOffen).map(({ datum, slots }) => (
                 <div key={datum}>
@@ -256,7 +367,7 @@ export default function TerminPage() {
                       const an = gewaehlt?.beginn === s.beginn && gewaehlt?.agentId === s.agentId;
                       return (
                         <button key={`${s.agentId}-${s.beginn}`} type="button"
-                                onClick={() => setGewaehlt(an ? null : s)}
+                                onClick={() => { setFehler(null); setGewaehlt(an ? null : s); }}
                                 className={`rounded-xl text-[14px] font-semibold transition-all ${
                                   an ? "bg-[#1d4ed8] text-white border border-[#1d4ed8]"
                                      : "bg-white text-slate-900 border border-slate-200 hover:border-slate-400"

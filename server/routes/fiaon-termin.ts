@@ -122,6 +122,49 @@ router.get("/termin/:token", async (req: Request, res: Response) => {
     // Token, weil sie keine Berechtigung ist, sondern eine Auskunft.
     const quelle = String(req.query.art) === "start" ? "onboarding_call" : "nichterreicht_mail";
     const auskunft = await freieSlots(person.id, sqlPool, quelle);
+
+    // ══════════════════════════════════════════════════════════════════════
+    // KEINE ZEIT IN 14 TAGEN? DANN MELDEN WIR UNS (19.08.2026)
+    //
+    // ── DIE MELDUNG (Herr Hertel, telefonisch) ──────────────────────────
+    // Ein Kunde kann keine Zeit wählen. Die Ursache war eine andere (die
+    // Rollenprüfung), aber sie hat eine zweite Lücke sichtbar gemacht: Wäre
+    // der Kalender WIRKLICH leer gewesen, hätte der Kunde einen freundlichen
+    // Satz gesehen — und sonst wäre nichts passiert. Kein Mensch hätte davon
+    // erfahren.
+    //
+    // Jetzt entsteht eine Aufgabe. Ein Kunde, der eine Zeit sucht und keine
+    // findet, ist ein Kunde, der gleich anruft — oder abspringt.
+    //
+    // ── HÖCHSTENS EINE JE PERSON UND TAG ────────────────────────────────
+    // Wer die Seite fünfmal neu lädt, erzeugt sonst fünf Aufgaben. Die
+    // Bedingung im INSERT prüft das in derselben Anweisung; zwei gleichzeitige
+    // Aufrufe können nicht beide gewinnen.
+    if (auskunft.slots.length === 0 && !bestehend) {
+      await sqlPool`
+        INSERT INTO fiaon_vermerke (art, ref, text, sicht, fuer_betreiber, dringend,
+                                    status, autor_art, autor_name, faellig_am)
+        SELECT 'aufgabe',
+               (SELECT a.ref FROM fiaon_applications a
+                 WHERE a.person_id = ${person.id} AND a.merged_into IS NULL
+                 ORDER BY a.created_at DESC LIMIT 1),
+               ${`Kunde ${person.vorname ?? ""} (Person ${person.id}) hat den Terminkalender `
+                 + `geöffnet und KEINE freie Zeit gefunden (${quelle}). `
+                 + "Bitte innerhalb von 24 Stunden telefonisch einen Termin vereinbaren — "
+                 + "oder Zeitfenster im Kalender freigeben, damit er selbst wählen kann."},
+               'betreiber', TRUE, TRUE, 'offen', 'system', 'Terminseite',
+               (NOW() + INTERVAL '24 hours')::date
+        WHERE NOT EXISTS (
+          SELECT 1 FROM fiaon_vermerke v
+          WHERE v.art = 'aufgabe' AND v.status = 'offen'
+            AND v.autor_name = 'Terminseite'
+            AND v.text LIKE ${`%Person ${person.id})%`}
+            AND v.created_at > NOW() - INTERVAL '24 hours'
+        )
+      `.catch((e) => console.error("[TERMIN] Aufgabe bei leerem Kalender:", e));
+      console.warn(`[TERMIN] Person ${person.id} sieht KEINE freie Zeit (${quelle}) — Aufgabe angelegt.`);
+    }
+
     res.json({
       ok: true,
       art: quelle,

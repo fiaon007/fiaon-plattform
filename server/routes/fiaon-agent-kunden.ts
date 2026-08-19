@@ -44,6 +44,7 @@ import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
 import { sendMakeWebhook, sendMakeWebhookMitGrund, makePayloadFromRow } from "../make-webhook";
 import { signInvoiceUrl } from "../fiaon-invoice";
+import { sendeGrundSql, SENDE_GRUND_TEXT } from "../lib/fiaon-massgebliche-bestellung";
 import { nachschub } from "./fiaon-followup";
 import { FIAON_BANK_DETAILS as BANK } from "./fiaon-antrag";
 import { zahlungstext } from "../lib/fiaon-verwendungszweck";
@@ -189,7 +190,18 @@ async function meinePerson(personId: number, agentId: number) {
                    ) ORDER BY a.created_at), '[]'::json)
               FROM fiaon_applications a
               WHERE a.person_id = p.id AND a.merged_into IS NULL
-                AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL) AS buchungen_roh
+                AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL) AS buchungen_roh,
+           -- ══════════════════════════════════════════════════════════════════
+           -- DER SPERRGRUND, FRISCH BEI JEDEM LADEN (19.08.2026)
+           --
+           -- Er MUSS auch hier stehen, nicht nur in der Listenabfrage: Nach
+           -- einer Inline-Aenderung (E-Mail nachgetragen, Produkt angelegt) holt
+           -- die Karte ihre Daten von HIER. Faehlt das Feld, faellt der Client
+           -- auf seinen alten Zustand zurueck — genau der Fehler, der am
+           -- 30.08.2026 beim Knopf „Zahlungsdaten senden" schon einmal vier Tage
+           -- gekostet hat (buchungen_roh fehlte in dieser Abfrage).
+           -- ══════════════════════════════════════════════════════════════════
+           ${sqlPool.unsafe(sendeGrundSql("p"))} AS sende_grund
     FROM fiaon_persons p
     WHERE p.id = ${personId}
       AND p.assigned_agent_id = ${agentId}
@@ -220,6 +232,11 @@ function kartePayload(p: any, letzteAktivitaet?: any) {
     // Karte und sperrte damit den Zahlungsdaten-Versand (Begründung an der
     // Abfrage oben). `aufbereiten` verträgt auch `undefined`.
     buchungen: aufbereiten(p.buchungen_roh),
+    // Der Sperrgrund vom Server — dieselbe Ableitung wie in der Arbeitsliste.
+    sendeGrund: p.sende_grund ?? null,
+    sendeMoeglich: p.sende_grund === "frei" || p.sende_grund === "erste_rechnung",
+    sendeText: p.sende_grund ? (SENDE_GRUND_TEXT[String(p.sende_grund)]?.text ?? null) : null,
+    sendeTat: p.sende_grund ? (SENDE_GRUND_TEXT[String(p.sende_grund)]?.tat ?? null) : null,
     // `telefon` bleibt die Anzeige (abwärtskompatibel), `telefonWaehlbar` ist
     // die Form für den Anruf. Getrennt, weil eine Nummer ohne Vorwahl angezeigt
     // werden soll, aber NICHT gewählt.
@@ -953,7 +970,16 @@ export async function zahlungsdatenSenden(
             + "Rechnung stellen.",
     };
   }
-  const empfaenger = bestellung.email || bestellung.contact_email || bestellung.billing_email;
+  // ── DER EMPFÄNGER KOMMT AUS DER AUFLÖSUNG (19.08.2026) ──────────────────
+  // Hier stand nur die Bestellung. GEMESSEN: Bei 21 von Florentines Kunden hat
+  // die Bestellung keine Adresse, die Person aber schon — der Server antwortete
+  // „keine E-Mail-Adresse hinterlegt", während in der Karte eine stand.
+  //
+  // `massgeblicheBestellung` liest beides und bevorzugt die Bestellung; die
+  // Person ist der Rückfall. Seit Migration 059 ist sie ohnehin die gültige
+  // Wahrheit (AGENTS.md).
+  const empfaenger = massgeblich?.empfaenger
+    || bestellung.email || bestellung.contact_email || bestellung.billing_email;
   if (!empfaenger) {
     return { ok: false, status: 400, error: "Für diesen Kunden ist keine E-Mail-Adresse hinterlegt." };
   }
@@ -965,6 +991,13 @@ export async function zahlungsdatenSenden(
   // später als Betreuungsnachweis für eine Provision gelesen.
   const versand = await sendMakeWebhookMitGrund("payment_details", {
     ...makePayloadFromRow(bestellung),
+    // ── DIE ADRESSE ÜBERSCHREIBEN, WENN SIE VON DER PERSON KOMMT ──────────
+    // `makePayloadFromRow` liest sie aus der BESTELLUNG. Stand sie nur an der
+    // Person, wäre `email` im Payload leer — die Prüfung oben hätte den Versand
+    // durchgelassen und Make hätte eine Mail ohne Empfänger bekommen. Aus einem
+    // „geht nicht" wäre ein „sagt es ging und kam nie an" geworden, und das ist
+    // schlimmer.
+    email: empfaenger,
     invoice_url: bestellung.payment_reference ? signInvoiceUrl(bestellung.payment_reference) : null,
   });
   if (!versand.ok) {

@@ -814,17 +814,23 @@ export default function AdminHubPage() {
   // Der Folgelauf stand fünfzehn Tage still, und niemand hat es gemerkt. Es gab
   // keine Stelle, an der man „läuft die Automatik?" hätte nachsehen können.
   const [laeufe, setLaeufe] = useState<any>(null);
+  // ── KANN DAS TEAM ARBEITEN? (19.08.2026) ────────────────────────────────
+  // Zweimal hintereinander meldete das Team einen Knopf, der „nicht geht" —
+  // beide Male hat es ein MENSCH gemeldet, nicht die Anwendung.
+  const [durchgang, setDurchgang] = useState<any>(null);
 
   const holen = useCallback(async () => {
     setLaedt(true);
     try {
-      const [l, b, tl] = await Promise.all([
+      const [l, b, tl, kd] = await Promise.all([
         fetch("/api/fiaon/admin/hub/lage", { credentials: "include" }).then((r) => r.json()).catch(() => null),
         fetch("/api/fiaon/admin/hub/badges", { credentials: "include" }).then((r) => r.json()).catch(() => null),
         fetch("/api/fiaon/admin/hub/laeufe", { credentials: "include" }).then((r) => r.json()).catch(() => null),
+        fetch("/api/fiaon/admin/hub/knopfdurchgang", { credentials: "include" }).then((r) => r.json()).catch(() => null),
       ]);
       if (l?.ok) setLage(l);
       if (tl?.ok) setLaeufe(tl);
+      if (kd?.ok) setDurchgang(kd);
       if (b?.ok) {
         setBadges(b.badges || {}); setWarn(b.warn || null);
         setAufgabenZahlen(b.aufgaben || null); setZustellung(b.zustellung || null);
@@ -1053,6 +1059,79 @@ export default function AdminHubPage() {
           Tagesläufe sind in diesem Prozess abgeschaltet (kein Produktionsbetrieb) —
           die Ampeln sagen hier nichts über die Produktion aus.
         </p>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════
+          0b. KANN DAS TEAM ARBEITEN? (19.08.2026)
+
+          Zweimal hintereinander meldete das Team einen Knopf, der „nicht
+          geht": Florentine konnte 139 Kunden keine Rechnung schicken, und
+          Herr Hertel scheiterte 38 Mal am Terminkalender. Beide Male hat es
+          ein MENSCH gemeldet, nicht die Anwendung.
+
+          Diese Zeile dreht das um. Sie steht nur da, wenn etwas klemmt —
+          eine Dauer-Anzeige „alles gut" wird nach zwei Wochen nicht mehr
+          gelesen, und dann auch die Warnung nicht, die an ihrer Stelle steht.
+          ══════════════════════════════════════════════════════════════════ */}
+      {durchgang?.ok && (durchgang.gesperrteKernaktionen > 0
+        || durchgang.onboardingZeiten?.ampel !== "gruen"
+        || durchgang.buchungsversuche?.abgelehnt > 0) && (
+        <section className="mb-4 rounded-2xl border p-4"
+                 style={{
+                   borderColor: durchgang.onboardingZeiten?.ampel === "rot"
+                     ? "rgba(185,28,28,.3)" : "rgba(180,83,9,.3)",
+                   background: durchgang.onboardingZeiten?.ampel === "rot"
+                     ? "rgba(185,28,28,.05)" : "rgba(180,83,9,.05)",
+                 }}>
+          <h2 className="text-[14px] font-bold" style={{ color: "#92400e" }}>
+            Kann das Team arbeiten?
+          </h2>
+
+          {/* Die Zahl, um die der Auftrag ausdrücklich bittet. */}
+          <p className="text-[12.5px] text-slate-700 mt-1.5">
+            <b className="tabular-nums">{durchgang.gesperrteKernaktionen}</b> gesperrte
+            Kernaktionen heute
+            {durchgang.zahlungsdaten?.gesperrtObwohlSendbar > 0 && (
+              <> — davon <b>{durchgang.zahlungsdaten.gesperrtObwohlSendbar}</b> Kunden,
+              die ihre Zahlungsdaten bekommen KÖNNTEN und nicht bekommen</>
+            )}
+            {durchgang.telefon?.nichtWaehlbar > 0 && (
+              <>, <b>{durchgang.telefon.nichtWaehlbar}</b> nicht anrufbar (Vorwahl fehlt)</>
+            )}
+            .
+          </p>
+
+          {/* ── FREIE ONBOARDING-ZEITEN — rot unter 10 ──────────────────── */}
+          <p className="text-[12.5px] mt-2 px-3 py-2 rounded-xl"
+             style={durchgang.onboardingZeiten?.ampel === "rot"
+               ? { background: "rgba(185,28,28,.09)", color: "#b91c1c" }
+               : durchgang.onboardingZeiten?.ampel === "gelb"
+                 ? { background: "rgba(180,83,9,.09)", color: "#92400e" }
+                 : { background: "rgba(5,150,105,.08)", color: "#047857" }}>
+            <b>Freie Onboarding-Zeiten: {durchgang.onboardingZeiten?.frei}</b> in den
+            nächsten 14 Tagen
+            {durchgang.onboardingZeiten?.tageMitZeiten > 0 && (
+              <> (an {durchgang.onboardingZeiten.tageMitZeiten} Tagen)</>
+            )}
+            {durchgang.onboardingZeiten?.hinweis && (
+              <span className="block mt-1 leading-relaxed">
+                {durchgang.onboardingZeiten.hinweis}
+              </span>
+            )}
+          </p>
+
+          {durchgang.buchungsversuche?.abgelehnt > 0 && (
+            <p className="text-[12px] text-slate-600 mt-2">
+              Buchungsversuche in 24 Stunden: {durchgang.buchungsversuche.gesamt} —
+              davon <b>{durchgang.buchungsversuche.abgelehnt} abgelehnt</b>
+              {durchgang.buchungsversuche.gruende?.length > 0 && (
+                <> ({durchgang.buchungsversuche.gruende
+                  .map((g: any) => `${g.grund}: ${g.n}`).join(", ")})</>
+              )}
+              . Jede Ablehnung ist ein Kunde, der keine Zeit wählen konnte.
+            </p>
+          )}
+        </section>
       )}
 
       {/* 1. Geld */}

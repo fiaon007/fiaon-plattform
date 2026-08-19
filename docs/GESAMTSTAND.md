@@ -1,6 +1,6 @@
 # FIAON — Gesamtstand
 
-Die eine Seite, auf der steht, **was existiert und wo**. Stand: 31.08.2026.
+Die eine Seite, auf der steht, **was existiert und wo**. Stand: 19.08.2026.
 
 Wer wissen will, *warum* etwas so gebaut ist, liest die `CHANGELOG.md`. Wer
 wissen will, *wo* etwas liegt, liest hier.
@@ -11,6 +11,8 @@ wissen will, *wo* etwas liegt, liest hier.
 
 | Was | Wo | Warum es wartet |
 |---|---|---|
+| **5 zahlende Kunden ohne sichtbaren Betreuer** | Konten 2 und 7 („Justin Schwarzott") | Beide sind als **Testkonto** markiert und fallen aus jeder Team-Ansicht. Daran hängen Patrick Ellmer und Jennyfer Leis (bezahlt), Brigitte Ludl und Martin Ringk (Rechnung offen), Dzintars Auzins (Zahlung gemeldet). Nicht eigenmächtig umgehängt: Zuordnung heißt Provision. |
+| **Onboarding-Zeitfenster im Blick** | Dashboard → „Kann das Team arbeiten?" | Aktuell 55 freie Zeiten von Angelique und Rifka. Fallen beide aus, greift der Rückfall auf den Vertrieb — das funktioniert seit 19.08., sollte aber kein Dauerzustand sein. Die Karte wird bei unter 10 rot. |
 | **Eine Nummer ergänzen** (Person 11413, `6609360523`) | Kundenliste → Filter „Nummer nicht wählbar" | Kein Land und keine führende Null — nicht entscheidbar, wohin sie gehört. Inline im Filter erledigbar. Die zuvor genannten 18 brauchen NICHTS: Ihr Land steht in der Akte, sie werden seit 31.08. richtig gewählt (vorher `+49` geraten). |
 | **8 Kunden über falsche Rechnungsmails informieren?** | `reports/falsches-paket.csv` | In 14 Tagen gingen 8 Zahlungsdaten-Mails auf eine ARCHIVIERTE Bestellung — fünf davon an Josef Rohrmoser (High End 1,00 € statt Pro). Ursache behoben. Ob eine Korrekturmail rausgeht, entscheidet der Betreiber; der Lauf hat NICHTS versandt. |
 | **`BETREIBER_MAIL` setzen** | Umgebungsvariablen | Ohne sie geht keine Warnmail raus, wenn ein Tageslauf ausbleibt. Der Protokolleintrag entsteht trotzdem, aber niemand wird geweckt. |
@@ -29,6 +31,30 @@ wissen will, *wo* etwas liegt, liest hier.
 | **336 Einladungen zum Startgespräch** | Verwaltung → Termin-Zentrale → Karte unten | Bezahlte Kunden ohne Termin, die ältesten seit 04.07.2026, nie eingeladen. Gestaffelt über „alle einladen", höchstens 50 am Tag. |
 | **Gespräch mit Nikita und Lucas** | Verwaltung → Termin-Zentrale → „Je Mitarbeiter" | Bei 50 vergangenen Terminen kein einziger als erledigt markiert (No-Show 64 % und 76 %), während zwei Kollegen 67 % und 78 % abschließen. Das klärt ein Gespräch, kein Programm. |
 | **Academy ansehen und ans Team geben** | Verwaltung → FIAON Academy | Drei Reisen (13/16/10 Kapitel). Das Team sieht seine eigene unter „Mehr → Academy". Wer noch nicht angefangen hat, steht in der Team-Zentrale. |
+
+---
+
+## Was am 19.08.2026 dazugekommen ist
+
+Zwei Meldungen, ein Bauplan: **Anzeige und Server beantworteten dieselbe Frage
+mit verschiedenen Regeln.** Die Anzeige gibt frei, der Server lehnt ab — und der
+Mensch dazwischen erlebt einen Knopf, der nichts tut.
+
+| Was | Wo | Prüfstand |
+|---|---|---|
+| „Darf gesendet werden?" als **SQL**, für Liste und Karte | `lib/fiaon-massgebliche-bestellung.ts` → `sendeGrundSql` | `pruef-sendesperre-browser.ts` (36) |
+| Empfänger: Bestellung zuerst, **Person als Rückfall** (+21 Kunden) | ebd. + `routes/fiaon-agent-kunden.ts` | ebd. |
+| `pending_payment` ist rechnungsreif (+63 Kunden) | `lib/fiaon-rechnung-stellen.ts` | ebd. |
+| Rollenprüfung beim Buchen kennt den **Rückfall** | `lib/fiaon-termine.ts` → `terminBuchen` | `pruef-startgespraech-buchen.ts` (26) |
+| Terminseite liest `?art=start` | `pages/termin.tsx` | `pruef-terminseite-kunde.ts` (11) |
+| Fehler überlebt das Nachladen, Lücken benannt | ebd. | ebd. |
+| Aufgabe bei leerem Kalender (24 h, einmal je Tag) | `routes/fiaon-termin.ts` | `pruef-startgespraech-buchen.ts` |
+| Karte „Kann das Team arbeiten?" | `GET /admin/hub/knopfdurchgang`, `pages/admin-hub.tsx` | — |
+
+**Die Zahlen:** 139 Karten gaben bei Florentine den Knopf frei, während der
+Server ablehnte — jetzt 0. Sendbar 154 → 245 (bestandsweit 911). Jens Hertel
+hatte 38 protokollierte Buchungsversuche, alle mit `falsche_rolle`;
+bestandsweit 220 von 222 Ablehnungen.
 
 ---
 
@@ -227,6 +253,9 @@ npx tsx scripts/pruef-reste.ts            37   Wartezustand, Notizpflicht, Nachl
 npx tsx scripts/pruef-eine-quelle-wand.ts  6   Kontakt-Spalten: keine NEUEN Zugriffe
 
 # ── Neu, 30./31.08.2026 ───────────────────────────────────────────────────
+npx tsx scripts/pruef-startgespraech-buchen.ts 26  Angebotene Zeit ist auch buchbar
+npx tsx scripts/pruef-sendesperre-browser.ts   36  Browser: Rechnungsknopf an echten Kunden
+npx tsx scripts/pruef-terminseite-kunde.ts     11  Browser: Kundensicht, Desktop + 380 px
 npx tsx scripts/pruef-massgebliche-bestellung.ts 37  Rechnung traegt das richtige Paket
 npx tsx scripts/pruef-nummer-nachtrag.ts     49   Nummer nicht waehlbar: Sperre, Weg heraus, eine Tafel
 npx tsx scripts/pruef-telefon-zustand.ts     54   Zustandsfolge, Uhr, Nummernwahl
@@ -243,6 +272,8 @@ npx tsx scripts/pruef-karte-buchungen.ts     10   Karte traegt frische Buchungen
 ### Messläufe (nur lesend, für den Bestand)
 
 ```
+npx tsx scripts/mess-sendesperre.ts               Warum geht keine Rechnung raus? (je Grund)
+npx tsx scripts/mess-slots.ts                     Buchungsversuche + freie Zeiten je Tag
 npx tsx scripts/mess-falsches-paket.ts            Welche Bestellung landet in der Mail?
 npx tsx scripts/mess-stumme-anrufe.ts             Stumme Anrufe, Nummern-Abweichungen
 npx tsx scripts/mess-tageslaeufe.ts               Welcher Tageslauf steht, was blieb liegen?

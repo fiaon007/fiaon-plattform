@@ -35,6 +35,7 @@ import { ruhtSql } from "../lib/fiaon-nicht-erreicht";
 import { terminLink } from "../lib/fiaon-termine";
 import { wartetSql, warteZahlen } from "../lib/fiaon-warten";
 import { landVorschlag } from "./fiaon-agent-kunden";
+import { sendeGrundSql, SENDE_GRUND_TEXT } from "../lib/fiaon-massgebliche-bestellung";
 import { terminArtAusQuelle, terminArtRueckruf } from "../../shared/fiaon-termin-art";
 
 const router = Router();
@@ -106,6 +107,19 @@ const KARTE_SQL = `
      FROM fiaon_applications a
      WHERE a.person_id = p.id AND a.merged_into IS NULL
        AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL) AS buchungen_roh,
+  -- ══════════════════════════════════════════════════════════════════════════
+  -- DARF GESENDET WERDEN? — DIE ANTWORT KOMMT VOM SERVER (19.08.2026)
+  --
+  -- Die Karte hat den Sperrgrund bisher SELBST abgeleitet. GEMESSEN bei
+  -- Florentine: Bei 139 Kunden gab sie den Knopf frei und der Server lehnte ab.
+  -- Zwei Ableitungen fuer dieselbe Frage — jetzt eine, hier.
+  -- ══════════════════════════════════════════════════════════════════════════
+  -- KARTE_SQL ist ein einfacher Textbaustein, KEIN sql-Template: Ein
+  -- sqlPool.unsafe(...) darin landet als „[object Object]“ in der Abfrage und
+  -- Postgres meldet „syntax error at or near [“. Genau das ist beim ersten
+  -- Entwurf passiert — die Kundenliste antwortete mit HTTP 500. Der Ausdruck
+  -- wird deshalb direkt eingesetzt.
+  ${sendeGrundSql("p")} AS sende_grund,
   (SELECT a.amount_due FROM fiaon_applications a
     WHERE a.person_id = p.id AND a.merged_into IS NULL
     ORDER BY a.created_at DESC LIMIT 1) AS amount_due,
@@ -195,6 +209,12 @@ export function karte(p: any) {
     // Damit der Agent sieht, was gebucht wurde, was bezahlt ist und was offen
     // — auch wenn es zwei Vorgänge sind (Paket + Bonitätsauskunft).
     buchungen: aufbereiten(p.buchungen_roh),
+    // Der Sperrgrund, frisch aus der Abfrage — nicht gemerkt und nicht in der
+    // Oberflaeche abgeleitet.
+    sendeGrund: p.sende_grund ?? null,
+    sendeMoeglich: p.sende_grund === "frei" || p.sende_grund === "erste_rechnung",
+    sendeText: p.sende_grund ? (SENDE_GRUND_TEXT[String(p.sende_grund)]?.text ?? null) : null,
+    sendeTat: p.sende_grund ? (SENDE_GRUND_TEXT[String(p.sende_grund)]?.tat ?? null) : null,
     betrag: p.amount_due != null ? Math.round(Number(p.amount_due) * 100) : null,
     zusagedatum: p.promised_payment_date,
     wiedervorlage: p.follow_up_date,

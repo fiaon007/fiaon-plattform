@@ -57,6 +57,32 @@ export const ZAHLUNGSFRIST_TAGE = 7;
 export const RECHNUNGSREIF = [
   "completed", "approved", "submitted", "documents_submitted",
   "verifying", "processing",
+  // ══════════════════════════════════════════════════════════════════════════
+  // `pending_payment` FEHLTE — UND DAS WAR KEINE ENTSCHEIDUNG (19.08.2026)
+  //
+  // ── DIE MELDUNG (Florentine) ────────────────────────────────────────────
+  // „Über 11 Kunden warten auf ihre Rechnung — ich kann ihnen keine Mail
+  // schicken."
+  //
+  // ── DER BEFUND ──────────────────────────────────────────────────────────
+  // Der Status heißt wörtlich „Zahlung ausstehend". Er stand in KEINER der
+  // beiden Listen: nicht in dieser, und nicht in der Aufzählung der
+  // Formularschritte darüber, die ausdrücklich ausgeschlossen sind. Eine Lücke,
+  // keine Absicht — `submitted` und `approved` sind drin, und `pending_payment`
+  // liegt hinter beiden.
+  //
+  // GEMESSEN: 63 von Florentines Kunden hängen genau daran. Die Bestellungen
+  // tragen ein Paket und einen Verwendungszweck, aber weder Betrag noch Frist —
+  // also genau das, was `rechnungStellen` setzt. Die ältesten warten seit dem
+  // 02. Juli.
+  //
+  // Der Agent sah in der Karte „offen" (die clientseitige Ableitung zählt jede
+  // unbezahlte Bestellung), drückte, und der Server antwortete „Der Antrag ist
+  // noch nicht abgeschlossen (Stand: pending_payment)". Ein Satz, der einem
+  // Menschen sagt, er solle anrufen — bei einem Kunden, der nur auf die
+  // Rechnung wartet.
+  // ══════════════════════════════════════════════════════════════════════════
+  "pending_payment",
 ] as const;
 
 export interface RechnungsKandidat {

@@ -297,10 +297,36 @@ router.get("/agent/start", requireAgent, async (req: AgentRequest, res: Response
                            AND NOT is_blocked)::int AS zusage_ueberfaellig,
         -- Nummer ohne Land: nicht anrufbar, bis jemand die Vorwahl ergaenzt.
         -- Der Zaehler macht die Abarbeitung sichtbar — eine Datei tut das nicht.
-        COUNT(*) FILTER (WHERE ${sqlPool.unsafe(nichtWaehlbarSql())}
-                           AND NOT is_blocked)::int AS nummer_ohne_land
-      FROM fiaon_persons
-      WHERE assigned_agent_id = ${me} AND merged_into_person_id IS NULL
+        --
+        -- ══════════════════════════════════════════════════════════════════
+        -- HIER STAND DER FEHLER, DER DAS GANZE PORTAL LEER MACHTE (19.08.2026)
+        --
+        -- Der Baustein heisst nichtWaehlbarSql(p = "p") und schreibt seine
+        -- Bedingungen auf den Alias p. Diese Abfrage hatte KEINEN Alias
+        -- (FROM fiaon_persons), also lief sie in
+        --
+        --     PostgresError 42P01: missing FROM-clause entry for table p
+        --
+        -- Die Route faengt jeden Fehler und antwortet mit HTTP 500. Auf dem
+        -- Bildschirm des Mitarbeiters stand daraufhin genau das, was Daniel,
+        -- Florentine, Lucas und Nikita gemeldet haben: „Verdienst konnte nicht
+        -- geladen werden", 0,00 EUR, „Bankdaten fehlen" (obwohl die IBAN
+        -- hinterlegt ist) und 0 Kunden.
+        --
+        -- Und weil die ROLLE aus derselben Antwort kommt, verschwand fuer
+        -- Daniel zusaetzlich der Menuepunkt „Vertrieb": Ohne Antwort bleibt
+        -- die Rolle im Client auf „agent", und der Punkt haengt an
+        -- nurRolle vertriebsleiter. Ein 500 an einer Stelle, vier Meldungen.
+        --
+        -- Eingefuehrt am 19.08.2026 um 11:42 (Commit e675efa), gemeldet am
+        -- selben Tag. Der Alias steht jetzt da; und weil ein Alias leicht
+        -- wieder verloren geht, wird er ausdruecklich uebergeben statt auf den
+        -- Standardwert vertraut.
+        -- ══════════════════════════════════════════════════════════════════
+        COUNT(*) FILTER (WHERE ${sqlPool.unsafe(nichtWaehlbarSql("p"))}
+                           AND NOT p.is_blocked)::int AS nummer_ohne_land
+      FROM fiaon_persons p
+      WHERE p.assigned_agent_id = ${me} AND p.merged_into_person_id IS NULL
     `,
       // ── Zahlungszusagen: die einzige echte Terminliste ───────────────────
       sqlPool.unsafe(`

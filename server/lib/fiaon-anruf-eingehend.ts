@@ -336,14 +336,37 @@ export async function eingehendProtokollieren(
   },
   lauf: Lauf = sqlPool,
 ): Promise<number | null> {
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIESE ZUORDNUNG IST EINE ABLEITUNG, KEIN NACHWEIS (19.08.2026)
+  //
+  // `zustaendigFuer()` beantwortet „wer SOLLTE rangehen": Inkasso-
+  // Zuständigkeit, Termin in den nächsten 24 Stunden, BETREUER des Kunden, wer
+  // zuletzt sprach. Wer tatsächlich abgenommen hat, weiß der Twilio-Webhook
+  // nicht — er hat keine Sitzung.
+  //
+  // Deshalb landete in Lucas Böhnerts Gespräche-Tab ein Anruf, in dem Nikita
+  // spricht: Der Kunde gehört Lucas, abgenommen hat Nikita.
+  //
+  // GEMESSEN: 149 eingehende Anrufe, bei 123 ist agent_id genau der Betreuer.
+  //
+  // Die Zuordnung bleibt (ohne sie fände niemand den Anruf), aber sie sagt ab
+  // jetzt, was sie ist. Die Ansicht kennzeichnet solche Zeilen, und sobald
+  // jemand das ERGEBNIS erfasst, wird die Herkunft auf „ergebnis" gehoben —
+  // dann ist der Bearbeiter belegt, denn die Ergebnis-Route lehnt fremde
+  // Anrufe ab.
+  // ══════════════════════════════════════════════════════════════════════════
   const [r] = (await lauf`
     INSERT INTO fiaon_calls
-      (person_id, agent_id, nummer, richtung, beginn, status, twilio_sid, created_at)
+      (person_id, agent_id, nummer, richtung, beginn, status, twilio_sid, created_at,
+       zuordnung_herkunft, zustaendig_agent_id)
     VALUES (${opts.personId}, ${opts.agentId}, ${opts.von}, 'eingehend', NOW(),
-            'laeuft', ${opts.twilioSid}, NOW())
+            'laeuft', ${opts.twilioSid}, NOW(),
+            'zustaendigkeit', ${opts.agentId})
     ON CONFLICT (twilio_sid) DO UPDATE
       SET person_id = COALESCE(EXCLUDED.person_id, fiaon_calls.person_id),
           agent_id = COALESCE(EXCLUDED.agent_id, fiaon_calls.agent_id),
+          zustaendig_agent_id = COALESCE(EXCLUDED.zustaendig_agent_id,
+                                         fiaon_calls.zustaendig_agent_id),
           updated_at = NOW()
     RETURNING id
   `.catch(() => [] as any[])) as any[];

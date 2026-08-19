@@ -40,7 +40,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
-import { PAKET_PREIS_CENTS } from "./fiaon-abo-pflicht";
+import { katalogpreisCents } from "./fiaon-massgebliche-bestellung";
 
 type Lauf = typeof sqlPool;
 
@@ -124,6 +124,10 @@ async function kandidatenLaden(
   const status = RECHNUNGSREIF as unknown as string[];
   return (await lauf`
     SELECT a.ref, a.person_id, a.pack_key, a.pack_name, a.amount_due,
+           -- Die Spalte type entscheidet über die Kategorie und damit über den
+           -- Preis: Eine Auskunft kostet 74,00 €, auch wenn im pack_key
+           -- „highend“ steht (der Dubletten-Merge trägt ihn dort ein).
+           a.type,
            a.payment_reference, a.status, a.created_at,
            a.first_name, a.last_name,
            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''),
@@ -152,7 +156,24 @@ async function kandidatenLaden(
 }
 
 function bauen(r: any): RechnungsKandidat {
-  const ausPaket = r.pack_key ? PAKET_PREIS_CENTS[String(r.pack_key)] : undefined;
+  // ══════════════════════════════════════════════════════════════════════════
+  // DER PREIS KOMMT AUS DER KATEGORIE, DANN AUS DEM PAKET (19.08.2026)
+  //
+  // Hier stand `PAKET_PREIS_CENTS[r.pack_key]`. Das ist für Stufenpakete
+  // richtig und für die Bonitätsauskunft falsch:
+  //
+  // GEMESSEN: Sechs Auskunfts-Bestellungen tragen im `pack_key` das
+  // STUFENPAKET ihres Kunden — der Dubletten-Merge hat es eingetragen
+  // („Gefüllte Felder: pack_key, …"). Für zwei davon hat diese Zeile
+  // 99,99 € statt 74,00 € berechnet und in `amount_due` geschrieben
+  // (Zeile mit SET amount_due weiter unten). Beide sind unbezahlt, beide
+  // Kunden wurden um 99,99 € für eine 74-€-Auskunft gebeten.
+  //
+  // `katalogpreisCents` entscheidet zuerst über `type`/Referenz-Präfix und
+  // erst danach über `pack_key` — dieselbe Reihenfolge wie beim Anlegen in
+  // `fiaon-agent-anlage.ts`.
+  // ══════════════════════════════════════════════════════════════════════════
+  const ausPaket = katalogpreisCents(r) ?? undefined;
   const ausBestellung = r.amount_due != null && Number(r.amount_due) > 0
     ? Math.round(Number(r.amount_due) * 100) : undefined;
   const betragCents = ausPaket ?? ausBestellung ?? 0;

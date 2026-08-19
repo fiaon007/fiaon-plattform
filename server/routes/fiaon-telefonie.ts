@@ -314,10 +314,16 @@ router.post("/telefon/ausweis", requireAgent, async (req: AgentRequest, res: Res
     // `ref` kommt aus der Zuordnung, nicht aus dem Body: Sonst hinge der
     // Verlaufseintrag weiter an der Bestellung der offenen Karte, während der
     // Anruf schon der richtigen Person gehört.
+    // ── DIE HERKUNFT DER ZUORDNUNG STEHT DABEI (19.08.2026) ───────────────
+    // Hier ist sie unstrittig: Diese Sitzung hat gewählt, also gehört ihr der
+    // Anruf. Der Wert wird trotzdem geschrieben — sonst ist „gewaehlt" nur die
+    // Abwesenheit von „zustaendigkeit", und eine Abwesenheit kann man nicht
+    // von einem Versehen unterscheiden.
     const [c] = (await sqlPool`
-      INSERT INTO fiaon_calls (person_id, ref, agent_id, nummer, status, von_nummer)
+      INSERT INTO fiaon_calls (person_id, ref, agent_id, nummer, status, von_nummer,
+                               zuordnung_herkunft)
       VALUES (${echtePersonId}, ${zuordnung.person?.ref ?? null}, ${req.agent!.id},
-              ${pruefung.nummer!}, 'gewaehlt', ${absender || null})
+              ${pruefung.nummer!}, 'gewaehlt', ${absender || null}, 'gewaehlt')
       RETURNING id
     `) as any[];
 
@@ -828,7 +834,14 @@ router.post("/telefon/:id/ergebnis", requireAgent, async (req: AgentRequest, res
           -- Ein Versuch, der auf „läuft" hängen blieb, ist mit dem Ergebnis
           -- beendet. Sonst steht er morgen noch in der Liste.
           status = CASE WHEN status = 'laeuft' THEN 'beendet' ELSE status END,
-          ende = COALESCE(ende, NOW())
+          ende = COALESCE(ende, NOW()),
+          -- ── DIE ZUORDNUNG IST JETZT BELEGT (19.08.2026) ────────────────
+          -- Diese Route hat oben geprueft, dass agent_id die eigene Kennung
+          -- ist („Das ist nicht dein Anruf"). Wer hier ein Ergebnis setzt, hat
+          -- das Gespraech also gefuehrt — aus der Ableitung wird ein Nachweis.
+          -- Eine Herkunft „gewaehlt" bleibt stehen; sie ist nicht schwaecher.
+          zuordnung_herkunft = CASE WHEN COALESCE(zuordnung_herkunft, '') = 'zustaendigkeit'
+                                    THEN 'ergebnis' ELSE zuordnung_herkunft END
       WHERE id = ${id}
          OR (
            ergebnis IS NULL

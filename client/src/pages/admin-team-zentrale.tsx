@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   InviteModal, MilestoneTasksCard, PartnerSuggestionsCard, ScriptsAdmin, SettingsCard,
 } from "@/components/admin/TeamVerwaltung";
@@ -66,6 +66,129 @@ function Avatar({ src, name, size = 40 }: { src: string | null; name: string; si
         {kuerzel}
       </span>
     );
+}
+
+/**
+ * Drei Punkte — 20×20, 1,5 px, `currentColor`. Selbst gezeichnet, wie es
+ * AGENTS.md verlangt (keine Icon-Bibliothek).
+ */
+function ZeichenDreiPunkte({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <circle cx="10" cy="4.5" r="1.5" fill="currentColor" />
+      <circle cx="10" cy="10" r="1.5" fill="currentColor" />
+      <circle cx="10" cy="15.5" r="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+/**
+ * Das Karten-Menü: die drei Handlungen je Mensch, die nicht ins Alltagsbild
+ * gehören.
+ *
+ * ── WARUM ES DAS GIBT (19.08.2026) ────────────────────────────────────────
+ * „als Testkonto markieren" stand als sichtbarer Link unter JEDEM Namen. Der
+ * Betreiber nennt das Verwaltungsmüll, und das ist es: Die Handlung, die man
+ * fast nie braucht, stand neben dem Menschen, den man täglich ansieht — und sie
+ * schrieb das Wort „Test" über einen echten Kollegen.
+ *
+ * ── UND WARUM HIER ZWEI DINGE DAZUKOMMEN ──────────────────────────────────
+ * „Profil öffnen" und „Als Mitarbeiter ansehen" gab es an der Karte GAR NICHT.
+ * Die Ansicht-Route (`POST /admin/team/ansicht/:id`) existierte seit Tagen und
+ * war von hier aus nicht erreichbar — genau das Muster, das AGENTS.md zweimal
+ * beschreibt: eine Route ohne Knopf ist eine halbe Funktion.
+ *
+ * `stopPropagation` überall: Die ganze Karte ist ein Knopf, der das
+ * Detailfenster öffnet.
+ */
+function KartenMenue({ m, laden }: { m: any; laden: () => void }) {
+  const [offen, setOffen] = useState(false);
+  const huelle = useRef<HTMLDivElement | null>(null);
+
+  // Haken stehen ÜBER dem ersten `return` (AGENTS.md, zweimal in Softphone.tsx
+  // gelernt).
+  useEffect(() => {
+    if (!offen) return;
+    const zu = (e: MouseEvent) => {
+      if (huelle.current && !huelle.current.contains(e.target as Node)) setOffen(false);
+    };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOffen(false); };
+    document.addEventListener("mousedown", zu);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", zu);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [offen]);
+
+  const testkontoUmschalten = async () => {
+    setOffen(false);
+    if (!confirm(m.is_test_account
+      ? `Die Testkonto-Marke von „${m.name}“ aufheben?\n\n`
+        + "Das Konto erscheint danach wieder in der Team-Zentrale und in den "
+        + "Kennzahlen. Ein deaktiviertes Konto wird dadurch NICHT nutzbar — "
+        + "dafür braucht es zusätzlich ein neues Passwort."
+      : `„${m.name}“ als Testkonto markieren?\n\n`
+        + "Das Konto verschwindet aus der Team-Zentrale, aus allen Kennzahlen "
+        + "und aus der Kundenverteilung. Provisionen und Verlauf bleiben.")) return;
+    const r = await fetch(`/api/fiaon/admin/agents/${m.id}/testkonto`, {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ist: !m.is_test_account }),
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    alert(j?.ok ? j.hinweis : (j?.error || "Das hat nicht geklappt."));
+    if (j?.ok) laden();
+  };
+
+  const alsMitarbeiterAnsehen = async () => {
+    setOffen(false);
+    const r = await fetch(`/api/fiaon/admin/team/ansicht/${m.id}`, {
+      method: "POST", credentials: "include",
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    if (!j?.ok) { alert(j?.error || "Die Ansicht konnte nicht gestartet werden."); return; }
+    // Der Zielweg kommt vom SERVER, nicht aus einem Literal hier: Sonst zeigen
+    // zwei Stellen auf verschiedene Seiten, sobald sich die Startseite ändert.
+    window.location.href = String(j.ziel || "/agent/start");
+  };
+
+  const eintrag = "w-full text-left px-3 py-2 text-[12.5px] hover:bg-slate-50";
+
+  return (
+    <div ref={huelle} className="absolute right-1.5 top-1.5 z-20" data-fiaon="karten-menue">
+      <button type="button"
+              aria-label={`Mehr zu ${m.name}`}
+              aria-expanded={offen}
+              title="Profil, Ansicht, Verwaltung"
+              onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOffen((o) => !o); }}
+              className="p-1.5 rounded-lg text-slate-300 hover:text-slate-600 hover:bg-slate-50">
+        <ZeichenDreiPunkte />
+      </button>
+      {offen && (
+        <div className="absolute right-0 mt-1 w-[232px] bg-white rounded-xl overflow-hidden"
+             style={{ border: "1px solid #e2e8f0", boxShadow: "0 18px 40px -16px rgba(15,23,42,.28)" }}
+             onClick={(e) => e.stopPropagation()}>
+          <a href={`/admin/agents/${m.id}`} className={`${eintrag} block text-slate-700`}
+             onClick={(e) => e.stopPropagation()}>
+            Profil öffnen
+          </a>
+          <button type="button" onClick={() => void alsMitarbeiterAnsehen()}
+                  disabled={!m.active}
+                  title={m.active ? undefined
+                    : "Das Konto ist deaktiviert — die Ansicht zeigte nur eine Anmeldeseite."}
+                  className={`${eintrag} text-slate-700 disabled:text-slate-300`}>
+            Als Mitarbeiter ansehen
+          </button>
+          <div style={{ borderTop: "1px solid #f1f5f9" }} />
+          <button type="button" onClick={() => void testkontoUmschalten()}
+                  className={`${eintrag} text-slate-500`}>
+            {m.is_test_account ? "Testkonto-Marke aufheben" : "Als Testkonto markieren"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -773,8 +896,13 @@ function TeamKosten() {
           Jetzt: eigene Klassen mit erzwungener Farbe, ein Deckungsbalken, der
           beim Erscheinen einläuft, gestaffelte Tiefe statt flacher Fläche.
           ══════════════════════════════════════════════════════════════════════ */}
-      <div className="fi-kosten" data-gut={gut ? "1" : "0"}>
+      <div className="fi-kosten" data-gut={gut ? "1" : "0"} data-fiaon="wirtschaftlichkeit">
         <div className="fi-kosten-glanz" aria-hidden="true" />
+
+        {/* Die Karte trägt jetzt eine Überschrift. Ohne sie war es „irgendeine
+            dunkle Leiste mit Zahlen" — als Karte im Kennzahlenbereich braucht
+            sie einen Namen, sonst weiß niemand, was er da liest. */}
+        <h3 className="fi-kosten-titel">Wirtschaftlichkeit</h3>
 
         <div className="fi-kosten-zahlen">
           <div className="fi-kosten-block">
@@ -806,6 +934,36 @@ function TeamKosten() {
 
         <p className="fi-kosten-satz">
           {d.satz} · {d.mitGehalt} {d.mitGehalt === 1 ? "Person" : "Personen"} mit Festgehalt.
+        </p>
+
+        {/* ══════════════════════════════════════════════════════════════════
+            WAS FLIESST DA EIGENTLICH EIN? (19.08.2026)
+
+            „Personalkosten" ist kein Begriff, den zwei Menschen gleich
+            verstehen — und die Zahl entscheidet mit, ob jemand eingestellt wird.
+            Deshalb steht die Zusammensetzung dabei, nicht in einer Dokumentation.
+
+            NACHGERECHNET (scripts/mess-wirtschaftlichkeit.ts):
+              Festgehälter anteilig   3.342,86 €
+              Provisionen des Monats  3.368,10 €
+              ────────────────────────────────
+              Personalkosten          6.710,96 €   → geht auf
+
+            Und eine Korrektur am Sprachgebrauch: Es sind NICHT die
+            „ausgezahlten" Provisionen. Die Abfrage nimmt jede nicht stornierte
+            Provision des Monats — auch bestätigte und beantragte. Das ist
+            richtig (die Verbindlichkeit entsteht mit dem Abschluss, nicht mit
+            der Überweisung), aber es heißt anders. Gemessen: von 3.368,10 €
+            sind 1.343,80 € wirklich überwiesen.
+
+            Stundenlöhne stecken als Provisionsart „stunden" mit drin; diesen
+            Monat sind es 0,00 €.
+            ══════════════════════════════════════════════════════════════════ */}
+        <p className="fi-kosten-erklaerung">
+          Personalkosten = Festgehälter (anteilig nach verstrichenen Arbeitstagen)
+          + alle gebuchten Provisionen und Stundenlöhne dieses Monats, auch die noch
+          nicht überwiesenen. Umsatz = Bemessungsgrundlage dieser Provisionen ohne
+          Stunden. Deckung = Umsatz ÷ Personalkosten.
         </p>
       </div>
     </>
@@ -908,6 +1066,28 @@ const KOSTEN_CSS = `
   position: relative; z-index: 1;
   font-size: 11.5px; line-height: 1.5;
   color: rgba(191,214,247,.74) !important;
+}
+/* ── DIE ÜBERSCHRIFT DER KARTE ─────────────────────────────────────────────
+   Ruhig, klein, in Versalien — die Karte lebt von den Zahlen, nicht vom Titel.
+   Farbe ausdrücklich (die Hausregel „inherit" verliert gegen Tailwind). */
+.fi-kosten-titel {
+  position: relative; z-index: 1;
+  margin: 0 0 10px;
+  font-size: 10.5px; font-weight: 700;
+  letter-spacing: .11em; text-transform: uppercase;
+  color: rgba(191,214,247,.66) !important;
+}
+/* ── DIE ERKLÄRZEILE ──────────────────────────────────────────────────────
+   Leiser als der Satz darüber: Sie wird einmal gelesen und danach nur noch
+   gebraucht, wenn jemand die Zahl anzweifelt. */
+.fi-kosten-erklaerung {
+  position: relative; z-index: 1;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(191,214,247,.14);
+  font-size: 10.5px; line-height: 1.55;
+  color: rgba(191,214,247,.52) !important;
+  max-width: 78ch;
 }
 /* ── PLATZ FÜR DEN TELEFONKNOPF ────────────────────────────────────────────
    Er schwebt rechts unten und überdeckte auf 390 px den Satz „2 Personen mit
@@ -1243,6 +1423,21 @@ export default function AdminTeamZentrale() {
         {reiter === "aktivitaet" && <AktivitaetTafel />}
         {reiter === "inkasso" && <InkassoZuteilung />}
 
+        {/* ══════════════════════════════════════════════════════════════════
+            DIE WIRTSCHAFTLICHKEIT STEHT OBEN, NICHT UNTEN (19.08.2026)
+
+            Die Personalkosten lagen als dunkle Leiste UNTER den Karten — nach
+            zwei Dutzend Menschen, dort, wo niemand hinsieht. Entscheidung des
+            Betreibers: keine Leiste mehr, sondern eine normale Karte im
+            Kennzahlenbereich.
+
+            Das ist mehr als Umstellen: Eine Zahl, die man nur beim Scrollen
+            findet, ändert nichts (AGENTS.md, „Eine Zahl, die niemand sieht").
+            Und die Erklärzeile darunter ist Pflicht — „Personalkosten" ist kein
+            Begriff, den zwei Menschen gleich verstehen.
+            ══════════════════════════════════════════════════════════════════ */}
+        {reiter === "menschen" && <TeamKosten />}
+
         {reiter === "menschen" && (
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
           {sortiert.map((m, i) => (
@@ -1254,11 +1449,12 @@ export default function AdminTeamZentrale() {
                    animation: `teamAuf 420ms cubic-bezier(.32,.72,0,1) ${Math.min(i, 8) * 45}ms both`,
                  }}>
               {rang && i < 3 && (
-                <span className="absolute right-0 top-0 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider"
-                      style={{ background: "rgba(29,78,216,.07)", color: "#1d4ed8", borderBottomLeftRadius: 10 }}>
+                <span className="absolute left-0 top-0 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider"
+                      style={{ background: "rgba(29,78,216,.07)", color: "#1d4ed8", borderBottomRightRadius: 10 }}>
                   Platz {i + 1}
                 </span>
               )}
+              <KartenMenue m={m} laden={laden} />
               <button type="button" onClick={() => setOffen(m.id)} className="w-full text-left">
                 <div className="flex items-start gap-3">
                   <Avatar src={m.avatar} name={m.name} />
@@ -1268,55 +1464,22 @@ export default function AdminTeamZentrale() {
                       {m.is_test_account && <span className="ml-2 text-[10px] font-bold uppercase text-slate-400">Testkonto</span>}
                     </p>
                     {/* ══════════════════════════════════════════════════════
-                        DIE TESTKONTO-MARKE UMSCHALTEN (30.08.2026)
+                        DIE VERWALTUNG STEHT IM DREI-PUNKTE-MENÜ (19.08.2026)
 
-                        GEMESSEN: „Justin Schwarzott" trägt sie zweimal (Agent 2
-                        und 7) — beides echte Konten des Betreibers. Da JEDE
-                        Team-Ansicht über `echteMitarbeiterSql()` filtert, fallen
-                        sie aus der Zentrale, aus den Kennzahlen und aus der
-                        Verteilung heraus. Sie existieren und kommen nirgends vor.
+                        Hier stand „als Testkonto markieren" als sichtbarer Link
+                        unter JEDEM Namen. Der Betreiber: „Verwaltungsmüll im
+                        Alltagsbild" — und er hat recht: Neben einem Menschen,
+                        den man jeden Tag ansieht, steht die eine Handlung, die
+                        man fast nie braucht, und sie sagt außerdem „Test" über
+                        einem echten Kollegen.
 
-                        Ein Skript hätte die zwei Zeilen korrigiert. Aber die
-                        Marke wird weiter gesetzt — von jedem Prüfstand, der ein
-                        Konto stilllegt —, und irgendwann trifft es wieder ein
-                        echtes Konto. Deshalb ein Schalter dort, wo der Betreiber
-                        das Konto sieht, und kein Skript zum Erinnern.
-
-                        `stopPropagation`: Die ganze Karte ist ein Knopf, der das
-                        Detailfenster öffnet. Ohne das würde jeder Klick hier
-                        zusätzlich das Fenster aufziehen. */}
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      title={m.is_test_account
-                        ? "Marke aufheben — das Konto zählt danach wieder als echter Mensch"
-                        : "Als Testkonto markieren — das Konto verschwindet aus allen Team-Ansichten"}
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        if (!confirm(m.is_test_account
-                          ? `Die Testkonto-Marke von „${m.name}" aufheben?\n\n`
-                            + "Das Konto erscheint danach wieder in der Team-Zentrale und in den "
-                            + "Kennzahlen. Ein deaktiviertes Konto wird dadurch NICHT nutzbar — "
-                            + "dafür braucht es zusätzlich ein neues Passwort."
-                          : `„${m.name}" als Testkonto markieren?\n\n`
-                            + "Das Konto verschwindet aus der Team-Zentrale, aus allen Kennzahlen "
-                            + "und aus der Kundenverteilung. Provisionen und Verlauf bleiben.")) return;
-                        const r = await fetch(`/api/fiaon/admin/agents/${m.id}/testkonto`, {
-                          method: "POST", credentials: "include",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ ist: !m.is_test_account }),
-                        }).catch(() => null);
-                        const j = await r?.json().catch(() => null);
-                        alert(j?.ok ? j.hinweis : (j?.error || "Das hat nicht geklappt."));
-                        if (j?.ok) void laden();
-                      }}
-                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLElement).click(); }}
-                      className="inline-block mt-1 text-[10.5px] font-semibold underline cursor-pointer"
-                      style={{ color: m.is_test_account ? "#1d4ed8" : "#94a3b8" }}
-                    >
-                      {m.is_test_account ? "Testkonto-Marke aufheben" : "als Testkonto markieren"}
-                    </span>
+                        Der Schalter bleibt (die Marke wird von jedem Prüfstand
+                        gesetzt und trifft irgendwann wieder ein echtes Konto —
+                        deshalb gehört er dorthin, wo der Betreiber das Konto
+                        sieht, und nicht in ein Skript). Er steht jetzt im Menü,
+                        zusammen mit den zwei Wegen, die es vorher an der Karte
+                        gar nicht gab: Profil öffnen und Als Mitarbeiter ansehen.
+                        ══════════════════════════════════════════════════════ */}
                     <p className="text-[11.5px] text-slate-400">
                       {ROLLE_TEXT[m.rolle] ?? m.rolle}
                       {!m.active && " · deaktiviert"}
@@ -1363,16 +1526,44 @@ export default function AdminTeamZentrale() {
                         hat, steht in Bernstein — nicht in Rot. Eine Farbe, die
                         anklagt, erzeugt Ausreden statt Gespräche.
                         ══════════════════════════════════════════════════════ */}
+                    {/* ── ROT IST FEHLERN VORBEHALTEN (19.08.2026) ──────────
+                        „Kapitel 0/14 — noch nicht geöffnet" stand in Bernstein
+                        (#92400e). Der Betreiber liest das als Fehlermeldung —
+                        und es ist keine: Ein Mensch, der die Academy noch nicht
+                        geöffnet hat, ist kein Defekt.
+
+                        Jetzt eine dezente graue Zeile mit kleinem Balken. Der
+                        Balken sagt mehr als die Farbe: 3/14 und 12/14 sehen
+                        verschieden aus, ohne dass eine Farbe jemanden anklagt.
+                        Grün bleibt für „durch" — das ist eine Auszeichnung,
+                        keine Anklage. */}
                     {(() => {
                       const ac = academyStand.get(Number(m.id));
                       if (!ac) return null;
+                      const soll = Number(ac.kapitelSoll ?? 0);
+                      const ist = Number(ac.kapitelIst ?? 0);
+                      const anteil = soll > 0 ? Math.min(1, Math.max(0, ist / soll)) : 0;
+                      const durch = soll > 0 && ist >= soll;
                       return (
-                        <p className="text-[11.5px] mt-0.5"
-                           data-fiaon="academy-stand"
-                           style={{ color: ac.angefangen ? "#059669" : "#92400e" }}>
-                          {ac.kurz}
-                          {!ac.angefangen && " — noch nicht geöffnet"}
-                        </p>
+                        <div className="mt-1" data-fiaon="academy-stand">
+                          <p className="text-[11px]" style={{ color: durch ? "#047857" : "#94a3b8" }}>
+                            {ac.kurz}
+                            {!ac.angefangen && soll > 0 && " · noch nicht geöffnet"}
+                          </p>
+                          {soll > 0 && (
+                            <div className="mt-1 h-[3px] w-full rounded-full overflow-hidden"
+                                 style={{ background: "#f1f5f9" }}
+                                 role="progressbar" aria-valuenow={ist} aria-valuemin={0}
+                                 aria-valuemax={soll}
+                                 aria-label={`Academy ${ist} von ${soll} Kapiteln`}>
+                              <div style={{
+                                width: `${Math.round(anteil * 100)}%`, height: "100%",
+                                background: durch ? "#047857" : "#cbd5e1",
+                                transition: "width 500ms cubic-bezier(.32,.72,0,1)",
+                              }} />
+                            </div>
+                          )}
+                        </div>
                       );
                     })()}
                   </div>
@@ -1437,8 +1628,6 @@ export default function AdminTeamZentrale() {
         <MitgliedDetail id={offen} team={team} onZu={() => setOffen(null)}
                         onNachricht={(id) => setNachrichtAn([id])} onAenderung={laden} />
       )}
-      <TeamKosten />
-
       {einladen && (
         <InviteModal
           defaults={{ commissionRateBp: 1500 }}

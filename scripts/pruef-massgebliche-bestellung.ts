@@ -79,7 +79,22 @@ async function main(): Promise<void> {
           INSERT INTO fiaon_applications
             (ref, person_id, pack_name, amount_due, payment_reference, payment_status,
              status, email, first_name, last_name, created_at, archived_at, cancelled_at)
-          VALUES (${ref}, ${personId}, ${o.paket}, ${o.cents},
+          -- ══════════════════════════════════════════════════════════════
+          -- DER PRÜFFALL SCHRIEB DIE EINHEIT FALSCH (19.08.2026)
+          --
+          -- Hier stand der Cent-Betrag DIREKT in amount_due: 5999 statt 59.99.
+          -- Die Spalte ist EURO-numeric — der Prüffall legte also eine
+          -- Bestellung über 5.999 € an.
+          --
+          -- Und genau deshalb war die Prüfung „Der Betrag ist 5999 Cent" grün,
+          -- OBWOHL die Auflösung die Einheit verwechselte: Sie las 5999 und gab
+          -- 5999 zurück. Zwei Fehler, die sich gegenseitig deckten.
+          --
+          -- Der Fehler war auf jedem Agenten-Bildschirm zu sehen („0,80 €"),
+          -- und dieser Prüfstand konnte ihn nicht finden. Ein Prüffall, der die
+          -- Einheit der Produktion nicht benutzt, prüft eine andere Software.
+          -- ══════════════════════════════════════════════════════════════
+          VALUES (${ref}, ${personId}, ${o.paket}, ${(o.cents / 100).toFixed(2)}::numeric,
                   ${`PMB${stempel}${o.marke}`}, ${o.status ?? "pending_payment"},
                   'completed', ${`pmb.${stempel.toLowerCase()}@example.invalid`},
                   'Prüf', ${`Paket${stempel}`},
@@ -105,7 +120,14 @@ async function main(): Promise<void> {
       ok("Es wird eine Bestellung gefunden", !!b);
       gleich("Es ist die PRO-Bestellung", b?.ref, refPro);
       gleich("Das Paket heißt Pro", b?.paket, "FIAON Pro (Standard)");
-      gleich("Der Betrag ist 5999 Cent", b?.betragCents, 5999);
+      // ── DIE EINHEIT IST DER PRÜFPUNKT ─────────────────────────────────
+      // In der Spalte stehen 59,99 EURO. Herauskommen müssen 5999 CENT. Wer
+      // hier 59,99 liest, hat den Fehler wieder eingebaut, der als „0,80 €"
+      // im Bestätigungs-Dialog stand.
+      gleich("Der Betrag ist 5999 Cent (59,99 € in der Spalte)", b?.betragCents, 5999);
+      ok("Der Betrag ist NICHT die Euro-Zahl aus der Spalte",
+        b?.betragCents !== 59.99 && b?.betragCents !== 5999.99,
+        `betragCents = ${b?.betragCents}`);
       gleich("Der Verwendungszweck ist der der Pro-Bestellung",
         b?.verwendungszweck, `PMB${stempel}PRO`);
       ok("NICHT die archivierte High-End-Bestellung", b?.ref !== refHigh,

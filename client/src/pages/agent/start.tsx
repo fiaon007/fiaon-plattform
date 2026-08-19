@@ -128,12 +128,44 @@ function Inhalt() {
 
   const [termine, setTermine] = useState<AgentTermin[]>([]);
   const [termineLaedt, setTermineLaedt] = useState(true);
+  /** Warum die Startzahlen fehlen — im Klartext, nicht als „bitte neu laden". */
+  const [startFehler, setStartFehler] = useState<
+    { code: number; text: string; server: string | null } | null>(null);
 
   const laden = useCallback(async () => {
     // Zwei unabhängige Auskünfte gleichzeitig — die Startseite hat sich einmal
     // fünf Sekunden Zeit gelassen, weil sie sie hintereinander geholt hat.
     const [r, t] = await Promise.all([api("/agent/start"), api("/agent/termine")]);
-    if (r.ok) setD(r.json);
+    if (r.ok) { setD(r.json); setStartFehler(null); }
+    // ══════════════════════════════════════════════════════════════════════
+    // DER GRUND WIRD FESTGEHALTEN, NICHT WEGGEWORFEN (19.08.2026)
+    //
+    // Vorher stand hier nur `if (r.ok) setD(...)`. Scheiterte der Aufruf, blieb
+    // `d` leer, die Karte fiel auf 0,00 € zurück und daneben stand „bitte neu
+    // laden" — ein Satz, der beim Neuladen dasselbe Ergebnis bringt.
+    //
+    // GEMESSEN am 19.08.2026: Die Route antwortete mit HTTP 500
+    // („missing FROM-clause entry for table p"). Vier Mitarbeiter haben ein
+    // leeres Portal gemeldet, und niemand konnte am Bildschirm sehen, warum.
+    // Die Antwort des Servers lag vor — sie wurde nur nicht angesehen.
+    //
+    // AGENTS.md: „Ein Zustand ‚konnte nicht prüfen‘ ist nicht derselbe wie
+    // ‚ist kaputt‘" und „Statuscodes nach VERURSACHER trennen".
+    // ══════════════════════════════════════════════════════════════════════
+    else {
+      const code = Number((r as any).status ?? 0);
+      const wer = code === 401 ? "Deine Sitzung ist abgelaufen — melde dich neu an."
+        : code === 403 ? "Für diese Zahlen fehlt dir die Berechtigung."
+        : code >= 500 ? "Der Server hat einen Fehler gemeldet. Das ist unsere Seite, "
+          + "nicht deine — die Verwaltung sieht es im Protokoll."
+        : code === 0 ? "Keine Verbindung zum Server. Prüf dein Netz."
+        : "Die Zahlen kamen nicht zurück.";
+      setStartFehler({
+        code,
+        text: wer,
+        server: String((r as any).json?.error ?? "").slice(0, 200) || null,
+      });
+    }
     if (t.ok) setTermine(t.json.termine || []);
     setLaedt(false);
     setTermineLaedt(false);
@@ -242,6 +274,45 @@ function Inhalt() {
             <Tilt max={reduziert ? 0 : 3}>
               <div className="fi-karte p-5 sm:p-6">
                 <Ebene z={1}>
+                  {/* ══════════════════════════════════════════════════════
+                      KEINE ZAHL, WENN ES KEINE ZAHL GIBT (19.08.2026)
+
+                      Hier stand „0,00 €" mit dem Warntext daneben. Das mischt
+                      zwei Aussagen, die nichts miteinander zu tun haben: „du
+                      hast nichts verdient" und „wir konnten es nicht laden".
+                      Der Mitarbeiter liest die Zahl und erschrickt.
+
+                      GEMESSEN am 19.08.2026 bei Daniel Stripling: 734,50 €
+                      Guthaben — angezeigt wurden 0,00 €, weil die Route mit
+                      HTTP 500 antwortete.
+
+                      Jetzt steht statt der Zahl ein Strich und darunter der
+                      GRUND. Eine sichtbare Lücke ist ehrlich; eine gefüllte
+                      Lücke ist eine Behauptung (AGENTS.md).
+                     ══════════════════════════════════════════════════════ */}
+                  {verdienstFehlt && startFehler && (
+                    <div className="mb-4 px-3.5 py-3 rounded-xl" data-fiaon="verdienst-grund"
+                         style={{ background: "rgba(180,83,9,.08)",
+                                  border: "1px solid rgba(180,83,9,.26)" }}>
+                      <p className="text-[12.5px] font-semibold" style={{ color: "#92400e" }}>
+                        Deine Zahlen konnten nicht geladen werden
+                        {startFehler.code > 0 ? ` (HTTP ${startFehler.code})` : ""}.
+                      </p>
+                      <p className="text-[12px] mt-0.5 leading-relaxed" style={{ color: "#92400e" }}>
+                        {startFehler.text}
+                      </p>
+                      {startFehler.server && (
+                        <p className="text-[11px] mt-1" style={{ color: "#a16207" }}>
+                          Meldung des Servers: {startFehler.server}
+                        </p>
+                      )}
+                      <button type="button" onClick={() => void laden()}
+                              className="mt-2 px-3 py-1.5 text-[12px] font-semibold rounded-lg bg-white"
+                              style={{ border: "1px solid rgba(180,83,9,.35)", color: "#92400e" }}>
+                        Noch einmal versuchen
+                      </button>
+                    </div>
+                  )}
                   <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
                     <div>
                       <p className="text-[11.5px] font-semibold uppercase tracking-[.07em]"
@@ -249,14 +320,15 @@ function Inhalt() {
                         Kontostand
                       </p>
                       {laedt ? <Skelett h={34} w={140} /> : (
-                        <p className="text-[30px] sm:text-[34px] font-bold leading-none mt-1 fi-zahl">
-                          {eur(v.guthabenCents)}
+                        <p className="text-[30px] sm:text-[34px] font-bold leading-none mt-1 fi-zahl"
+                           style={verdienstFehlt ? { color: "var(--fi-text-still)" } : undefined}>
+                          {verdienstFehlt ? "—" : eur(v.guthabenCents)}
                         </p>
                       )}
                       <p className="mt-1 text-[11.5px]"
                          style={{ color: verdienstFehlt ? "#b45309" : "var(--fi-text-still)" }}>
                         {verdienstFehlt
-                          ? "Die Verdienstzahlen konnten nicht geladen werden — bitte neu laden."
+                          ? "unbekannt — siehe den Grund oben"
                           : "bestätigt und auszahlbar"}
                       </p>
                     </div>
@@ -303,8 +375,14 @@ function Inhalt() {
                   </div>
                 ) : null}
 
-                {/* Auszahlung */}
-                {!laedt && (
+                {/* ── AUSZAHLUNG ─────────────────────────────────────────
+                    `verdienstFehlt` schließt diesen Block aus. Sonst stand
+                    hier „Für eine Auszahlung fehlen deine Bankdaten" bei
+                    Menschen, deren IBAN hinterlegt ist — der Rückfall setzt
+                    `bankHinterlegt: false`, und die Anzeige hielt das für eine
+                    Auskunft. Ein Satz über fehlende Bankdaten schickt jemanden
+                    ins Profil, um etwas nachzutragen, das längst dasteht. */}
+                {!laedt && !verdienstFehlt && (
                   <div className="mt-5 pt-5 flex flex-wrap items-center gap-3"
                        style={{ borderTop: "1px solid var(--fi-linie)" }}>
                     {!v.bankHinterlegt ? (

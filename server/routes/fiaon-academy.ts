@@ -252,6 +252,13 @@ router.get("/admin/academy/stand", async (_req, res: Response) => {
           : `Academy: Kapitel ${summeIst}/${summeSoll}`
             + (eigene.length > 0 && eigene.every((s: any) => s.fertig) ? " · durch" : ""),
         angefangen: eigene.length > 0,
+        // ── DIE ZAHLEN EINZELN, NICHT NUR IM SATZ (19.08.2026) ──────────────
+        // Die Team-Zentrale zeichnet daraus eine dezente Fortschrittszeile. Wer
+        // sie aus dem Text „Kapitel 0/14" zurückrechnen müsste, hätte eine
+        // zweite Ableitung derselben Zahl — und die geht beim nächsten
+        // Wortwechsel kaputt.
+        kapitelIst: summeIst,
+        kapitelSoll: summeSoll,
       };
     });
 

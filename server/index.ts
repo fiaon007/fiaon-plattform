@@ -616,5 +616,11 @@ async function seedSubscriptionPlans() {
       .then((m) => m.eigeneIPMerken())
       .then((ip) => { if (ip) log(`Ausgangsadresse: ${ip}`); })
       .catch(() => {});
+    // Die Preis-Abschrift für die Katalogpreis-Wand (Migration 065)
+    // nachziehen. Die eine Quelle bleibt shared/fiaon-pakete.ts; die Tabelle
+    // ist nur die Fassung, die ein Trigger lesen kann.
+    void import("./lib/fiaon-katalogpreise")
+      .then((m) => m.katalogpreiseEinmalSyncen())
+      .catch(() => {});
   });
 })();

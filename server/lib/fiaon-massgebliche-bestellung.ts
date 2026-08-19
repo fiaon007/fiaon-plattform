@@ -18,16 +18,31 @@
 // gültige, gewann sie das `ORDER BY created_at DESC`.
 //
 // BEWIESEN an Person 4254 (Gabor Toth, betreut von Florentine):
-//     lebend      02.07.2026   FIAON Pro     0,60 €   pending_payment  ← richtig
-//     ARCHIVIERT  16.07.2026   FIAON Ultra   0,80 €   pending_payment  ← gewann
-//     lebend      06.08.2026   FIAON Pro     0,00 €   pending
-//
-// Und im Zustellprotokoll: Josef Rohrmoser bekam am 18. und 19.08. FÜNF Mails
-// über „FIAON High End (1,00 €)", während seine gültige Bestellung Pro war —
-// alle fünf von Florentine ausgelöst. Genau ihre Meldung.
+//     lebend      02.07.2026   FIAON Pro     59,99 €   pending_payment  ← richtig
+//     ARCHIVIERT  16.07.2026   FIAON Ultra   79,99 €   pending_payment  ← gewann
+//     lebend      06.08.2026   FIAON Pro      0,00 €   pending
 //
 // GEMESSEN bestandsweit: 37 Personen, bei denen die alte Auflösung heute eine
 // archivierte Bestellung wählen würde. 8 echte Fehlversände in 14 Tagen.
+//
+// ── DIE BETRÄGE IN DIESEM KOMMENTAR WAREN FALSCH (19.08.2026) ─────────────
+// Hier stand „FIAON Pro 0,60 €", „Ultra 0,80 €" und der Satz, Josef Rohrmoser
+// habe FÜNF Mails über „FIAON High End (1,00 €)" bekommen.
+//
+// Keine dieser Zahlen existiert. Sie sind das Ergebnis des Einheitenfehlers
+// zwei Bildschirme weiter unten: `amount_due` steht in EURO, wurde aber in ein
+// Feld namens `betragCents` gelegt. 59,99 € als Cent gelesen ergibt 0,60 €,
+// 79,99 € ergibt 0,80 €, 99,99 € ergibt 1,00 €.
+//
+// GEGENGEPRÜFT im Zustellprotokoll (scripts/mess-muell-betraege.ts): Rohrmoser
+// bekam zehn Mails, jede über 99,99 € — den richtigen Betrag. In 4.132
+// Zahlungsmails der letzten 30 Tage steht KEIN einziger Betrag unter 5 €.
+//
+// Der Fehler traf nur den Bildschirm des Agenten. Der Kommentar behauptete
+// einen Kundenschaden, den es nicht gab — und ein Kommentar, der mehr behauptet
+// als der Code tut, ist eine Lüge (AGENTS.md). Deshalb steht er korrigiert da
+// und nicht gelöscht: Sonst hält der nächste Leser die Zahlen für plausibel und
+// schreibt sie wieder ab.
 //
 // ── WAS DAS KOSTET ────────────────────────────────────────────────────────
 // Der Kunde überweist den falschen Betrag mit dem falschen Verwendungszweck.
@@ -47,8 +62,36 @@
 // sind schlimmer als eine fehlende Zahl."
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
+import { paket, paketPreisCents } from "../../shared/fiaon-pakete";
 
 type Lauf = typeof sqlPool;
+
+/**
+ * Der Katalogpreis, den DIESE Bestellung haben müsste — in Cent.
+ *
+ * ── WARUM NICHT EINFACH `paketPreisCents(pack_key)` ──────────────────────
+ * GEMESSEN am 19.08.2026: Sechs Bonitätsauskünfte tragen im `pack_key` das
+ * STUFENPAKET ihres Kunden (highend, pro, ultra). Der Dubletten-Merge hat es
+ * dort eingetragen — `pack_key` steht in seiner Liste der gefüllten Felder.
+ *
+ * Wer den Preis danach am `pack_key` ausrechnet, verlangt für eine Auskunft
+ * 99,99 € statt 74,00 €. Bei zwei unbezahlten Bestellungen ist genau das
+ * passiert. Die KATEGORIE entscheidet also vor dem Paketschlüssel — und sie
+ * steht in `type` beziehungsweise im Präfix der Referenz, so wie es
+ * `fiaon-agent-anlage.ts` beim Anlegen schon prüft.
+ *
+ * Rückgabe `null` heißt „kein Katalogpreis bestimmbar" — dann darf niemand
+ * einen Betrag ableiten und schon gar nicht einen raten.
+ */
+export function katalogpreisCents(
+  zeile: { ref?: unknown; type?: unknown; pack_key?: unknown },
+): number | null {
+  const ref = String(zeile.ref ?? "");
+  if (String(zeile.type ?? "") === "schufa" || ref.startsWith("FIAON-SCHUFA-")) {
+    return paketPreisCents("schufa");
+  }
+  return paket(zeile.pack_key) ? paketPreisCents(zeile.pack_key) : null;
+}
 
 /**
  * Die maßgebliche OFFENE Bestellung einer Person.
@@ -72,7 +115,29 @@ export interface MassgeblicheBestellung {
   ref: string;
   personId: number;
   paket: string | null;
+  /**
+   * Der Betrag in CENT.
+   *
+   * ── HIER STAND DER EINHEITENFEHLER (19.08.2026) ────────────────────────
+   * `amount_due` ist eine EURO-Spalte (NUMERIC(10,2)) — der ganze Bestand
+   * bestätigt es: 7.99, 59.99, 79.99, 99.99, 249.99. Die Zeile lautete
+   *
+   *     betragCents: b.amount_due != null ? Number(b.amount_due) : null
+   *
+   * also 79,99 € = 79,99 Cent. Der Bestätigungs-Dialog teilt anschließend
+   * durch 100 und schrieb „0,80 €" — genau die Zahl aus dem Screenshot des
+   * Betreibers. High End wurde zu „1,00 €", Pro zu „0,60 €".
+   *
+   * Jede andere Stelle im Haus rechnet richtig (`Math.round(Number(…) * 100)`,
+   * neunmal). Nur diese eine, gestern neu gebaute, nicht — und weil sie die
+   * einzige Quelle des neuen Dialogs ist, war der Fehler sofort auf dem
+   * Bildschirm jedes Agenten.
+   */
   betragCents: number | null;
+  /** Was der Katalog für dieses Paket vorsieht — in Cent, `null` wenn unbekannt. */
+  katalogCents: number | null;
+  /** Weicht der gespeicherte Betrag vom Katalogpreis ab? (Toleranz 0) */
+  betragWeichtAb: boolean;
   verwendungszweck: string | null;
   zahlungsstatus: string;
   status: string | null;
@@ -137,8 +202,72 @@ const REIF_SQL = "'completed','approved','submitted','documents_submitted',"
 
 /** Der Empfänger: Bestellung zuerst, Person als Rückfall. */
 const EMPFAENGER_SQL = (a: string, p: string) =>
-  `COALESCE(NULLIF(${a}.email,''), NULLIF(${a}.contact_email,''),`
-  + ` NULLIF(${a}.billing_email,''), NULLIF(${p}.primary_email,''))`;
+  `COALESCE(NULLIF(TRIM(${a}.email),''), NULLIF(TRIM(${a}.contact_email),''),`
+  + ` NULLIF(TRIM(${a}.billing_email),''), NULLIF(TRIM(${p}.primary_email),''))`;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER EMPFÄNGER EINER PERSON — EINE AUFLÖSUNG FÜR ANZEIGE UND VERSAND
+//
+// ── DIE MELDUNG (Screenshot, 19.08.2026) ───────────────────────────────────
+// Der Bestätigungs-Dialog: „Das bekommt JOACHIM RECHTSTEINER — Für diesen
+// Kunden ist keine E-Mail-Adresse hinterlegt." In seiner Akte steht
+// euro-tec@t-online.de.
+//
+// ── DIE URSACHE ───────────────────────────────────────────────────────────
+// Der Dialog hängt an `/agent/crm/kunden/:id/rechnung-vorschau`. Diese Route
+// hat ZWEI Zweige. Der erste benutzt `massgeblicheBestellung` und liest die
+// Adresse richtig (Bestellung, dann Person). Der zweite — „noch keine Rechnung
+// gestellt" — hatte eine eigene Abfrage:
+//
+//     COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''),
+//              NULLIF(a.billing_email,''))
+//
+// Ohne `p.primary_email`. Wer nur an der PERSON eine Adresse hat, war für
+// diesen Zweig adressenlos. Seit Migration 059 ist die Person die gültige
+// Wahrheit und die Spalten an der Bestellung sind Abschriften (AGENTS.md) —
+// eine Abfrage, die nur die Abschrift liest, findet nichts, wenn die Abschrift
+// vor dem Trigger entstanden ist.
+//
+// Und der SERVER hätte gesendet: `rechnungStellen` liest über
+// `kandidatenLaden` ausdrücklich auch `p.primary_email`. Die Anzeige sagte
+// „geht nicht", der Versand hätte funktioniert. Zwei Ableitungen für dieselbe
+// Frage — dieselbe Fehlerklasse, die diese Datei beseitigen sollte.
+//
+// ── DESHALB EINE FUNKTION, KEIN FILTER MEHR ───────────────────────────────
+// Wer wissen will, wohin eine Mail an diesen Menschen geht, ruft das hier auf.
+// `quelle` sagt dazu, WOHER die Adresse kommt — sonst rätselt der nächste
+// Leser, ob die Bestellung oder die Person gewonnen hat.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface Empfaenger {
+  adresse: string | null;
+  /** „bestellung" oder „person" — leer, wenn es keine Adresse gibt. */
+  quelle: "bestellung" | "person" | null;
+}
+
+export async function empfaengerFuer(
+  personId: number, ref: string | null = null, lauf: Lauf = sqlPool,
+): Promise<Empfaenger> {
+  const [r] = (await lauf`
+    SELECT
+      (SELECT COALESCE(NULLIF(TRIM(a.email), ''), NULLIF(TRIM(a.contact_email), ''),
+                       NULLIF(TRIM(a.billing_email), ''))
+         FROM fiaon_applications a
+        WHERE a.person_id = ${personId}
+          AND a.merged_into IS NULL AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
+          AND (${ref}::text IS NULL OR a.ref = ${ref}::text)
+          AND COALESCE(NULLIF(TRIM(a.email), ''), NULLIF(TRIM(a.contact_email), ''),
+                       NULLIF(TRIM(a.billing_email), '')) IS NOT NULL
+        ORDER BY a.created_at DESC LIMIT 1) AS aus_bestellung,
+      (SELECT NULLIF(TRIM(p.primary_email), '') FROM fiaon_persons p
+        WHERE p.id = ${personId}) AS aus_person
+  `) as any[];
+  const b = r?.aus_bestellung ? String(r.aus_bestellung) : null;
+  const p = r?.aus_person ? String(r.aus_person) : null;
+  if (b) return { adresse: b, quelle: "bestellung" };
+  if (p) return { adresse: p, quelle: "person" };
+  return { adresse: null, quelle: null };
+}
 
 /**
  * Der Grund-CODE als SQL-Ausdruck. Gibt `'frei'`, `'erste_rechnung'` oder einen
@@ -209,8 +338,8 @@ export async function massgeblicheBestellung(
   personId: number, lauf: Lauf = sqlPool,
 ): Promise<MassgeblicheBestellung | null> {
   const [b] = (await lauf.unsafe(`
-    SELECT a.ref, a.person_id, a.pack_name, a.amount_due, a.payment_reference,
-           a.payment_status, a.status, a.created_at,
+    SELECT a.ref, a.person_id, a.pack_name, a.pack_key, a.type, a.amount_due,
+           a.payment_reference, a.payment_status, a.status, a.created_at,
            -- ══════════════════════════════════════════════════════════════
            -- DER EMPFÄNGER STEHT AN DER PERSON, NICHT NUR AN DER BESTELLUNG
            --
@@ -242,11 +371,16 @@ export async function massgeblicheBestellung(
     LIMIT 1
   `, [personId])) as any[];
   if (!b) return null;
+  // amount_due ist EURO — deshalb × 100. Siehe die Begründung an `betragCents`.
+  const betragCents = b.amount_due != null ? Math.round(Number(b.amount_due) * 100) : null;
+  const katalogCents = katalogpreisCents(b);
   return {
     ref: String(b.ref),
     personId: Number(b.person_id),
     paket: b.pack_name ?? null,
-    betragCents: b.amount_due != null ? Number(b.amount_due) : null,
+    betragCents,
+    katalogCents,
+    betragWeichtAb: betragCents != null && katalogCents != null && betragCents !== katalogCents,
     verwendungszweck: b.payment_reference ?? null,
     zahlungsstatus: String(b.payment_status),
     status: b.status ?? null,

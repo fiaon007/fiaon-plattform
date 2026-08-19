@@ -34,8 +34,14 @@ export interface RechnungVorschau {
   paket: string | null;
   betragCents: number | null;
   betragText?: string | null;
+  /** Was der Katalog für dieses Paket vorsieht — in Cent. */
+  katalogCents?: number | null;
+  /** Weicht der Betrag vom Katalogpreis ab? Dann steht eine Warnmarke daran. */
+  betragWeichtAb?: boolean;
   verwendungszweck: string | null;
   empfaenger: string | null;
+  /** „bestellung" oder „person" — woher die Adresse kommt. */
+  empfaengerQuelle?: "bestellung" | "person" | null;
   weitereOffen: number;
   hinweis: string | null;
   error?: string;
@@ -56,6 +62,22 @@ export function RechnungBestaetigung({
 }: Props) {
   const [v, setV] = useState<RechnungVorschau | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
+  // ── DAS FELD ZUM NACHTRAGEN STEHT IM DIALOG ─────────────────────────────
+  // AGENTS.md: „Bei fehlender E-Mail das Eingabefeld direkt dort — ein
+  // Seitenwechsel für ein Feld ist die häufigste Stelle, an der jemand
+  // aufgibt." Die Haken stehen ÜBER dem ersten `return` (auch das eine
+  // Hausregel, zweimal in Softphone.tsx gelernt).
+  const [neueMail, setNeueMail] = useState("");
+  const [traegtNach, setTraegtNach] = useState(false);
+  const [nachtragFehler, setNachtragFehler] = useState<string | null>(null);
+
+  const laden = async () => {
+    const r = await fetch(`/api/fiaon/agent/crm/kunden/${personId}/rechnung-vorschau`,
+      { credentials: "include" }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    if (j?.ok) { setV(j); setFehler(null); }
+    else setFehler(j?.error || "Die Vorschau konnte nicht geladen werden.");
+  };
 
   useEffect(() => {
     let weg = false;
@@ -72,6 +94,42 @@ export function RechnungBestaetigung({
 
   const geld = (c: number | null | undefined) =>
     c == null ? null : `${(c / 100).toFixed(2).replace(".", ",")} €`;
+
+  /**
+   * Die fehlende Adresse hier nachtragen — über die BESTEHENDE Stammdaten-Route.
+   *
+   * `POST /agent/customers/:ref/stammdaten` schreibt über
+   * `updateCustomerContact`: ein Verlaufseintrag je Feld, und der alte Wert
+   * wandert als Alias an die Person. Eine eigene Route für „nur die E-Mail"
+   * wäre die zweite Wahrheit über die Adresse eines Menschen — genau der
+   * Fehler, den dieser Dialog gerade behebt.
+   */
+  const nachtragen = async () => {
+    const adresse = neueMail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(adresse)) {
+      setNachtragFehler("Das sieht nicht wie eine E-Mail-Adresse aus.");
+      return;
+    }
+    if (!v?.ref) {
+      setNachtragFehler("Ohne Bestellung gibt es keine Akte, an der die Adresse hängt.");
+      return;
+    }
+    setTraegtNach(true);
+    setNachtragFehler(null);
+    const r = await fetch(`/api/fiaon/agent/customers/${encodeURIComponent(v.ref)}/stammdaten`, {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: adresse }),
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setTraegtNach(false);
+    if (!j?.ok) { setNachtragFehler(j?.error || "Das Nachtragen hat nicht geklappt."); return; }
+    setNeueMail("");
+    // Die Vorschau neu holen, statt den Zustand von Hand zu setzen: Sonst
+    // behauptet der Dialog eine Adresse, die der Server vielleicht anders
+    // normalisiert hat — und gesendet wird die des Servers.
+    await laden();
+  };
 
   return (
     <div className="fixed inset-0 z-[400] flex items-end sm:items-center justify-center p-3"
@@ -103,20 +161,73 @@ export function RechnungBestaetigung({
               </p>
             )}
 
-            {v.moeglich && (
-              <div className="mt-3 text-[13px]">
+            {/* ── DIE ANGABEN STEHEN IMMER DA ───────────────────────────────
+                Vorher waren sie an `v.moeglich` gehängt: Wer keine Adresse
+                hatte, sah ein Fenster mit einer Fehlermeldung und sonst nichts
+                — kein Paket, kein Betrag, keine Referenz. Genau so sah der
+                Screenshot bei Joachim Rechtsteiner aus. Was der Kunde bekommen
+                SOLL, gehört auch dann auf den Bildschirm, wenn es gerade nicht
+                rausgehen kann. */}
+            {(v.paket || v.betragCents != null || v.verwendungszweck || v.ref) && (
+              <div className="mt-3 text-[13px]" data-fiaon="rechnung-vorschau-angaben">
                 {([
-                  ["Paket", v.paket ?? "— ohne Paketnamen —"],
-                  ["Betrag", v.betragText ?? geld(v.betragCents) ?? "wird jetzt gesetzt"],
-                  ["Verwendungszweck", v.verwendungszweck ?? "wird jetzt erzeugt"],
-                  ["An", v.empfaenger ?? "—"],
-                ] as [string, string][]).map(([k, w]) => (
+                  ["Paket", v.paket ?? "— ohne Paketnamen —", null],
+                  ["Betrag", v.betragText ?? geld(v.betragCents) ?? "wird jetzt gesetzt",
+                    // ── DIE WARNMARKE AM BETRAG ──────────────────────────
+                    // Sie steht am Wert und nicht in einer Fußzeile: Wer die
+                    // Zahl liest, muss die Warnung im selben Blick sehen.
+                    v.betragWeichtAb
+                      ? `Ungewöhnlicher Betrag — Katalogpreis wäre ${geld(v.katalogCents)}`
+                      : null],
+                  ["Verwendungszweck", v.verwendungszweck ?? "wird jetzt erzeugt", null],
+                  ["An", v.empfaenger ?? "— keine Adresse —",
+                    v.empfaenger && v.empfaengerQuelle === "person"
+                      ? "aus den Stammdaten des Kunden" : null],
+                ] as [string, string, string | null][]).map(([k, w, marke]) => (
                   <div key={k}
                        className="flex items-baseline justify-between gap-3 py-1.5 border-b border-slate-100 last:border-0">
                     <span className="text-[11.5px] uppercase tracking-[.06em] text-slate-400 shrink-0">{k}</span>
-                    <span className="font-semibold text-slate-900 text-right break-all">{w}</span>
+                    <span className="text-right">
+                      <span className={`font-semibold break-all ${v.empfaenger || k !== "An" ? "text-slate-900" : ""}`}
+                            style={!v.empfaenger && k === "An" ? { color: "#b45309" } : undefined}>{w}</span>
+                      {marke && (
+                        <span className="block text-[11px] font-semibold mt-0.5"
+                              data-fiaon={k === "Betrag" ? "betrag-warnmarke" : "empfaenger-quelle"}
+                              style={{ color: k === "Betrag" ? "#b45309" : "#64748b" }}>
+                          {marke}
+                        </span>
+                      )}
+                    </span>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* ── OHNE ADRESSE: DAS FELD STATT EINER SACKGASSE ──────────────
+                Der Knopf ist gesperrt (siehe unten) — eine Sperre ohne den
+                nächsten Schritt ist eine Sackgasse (AGENTS.md). */}
+            {!v.empfaenger && v.ref && (
+              <div className="mt-3" data-fiaon="empfaenger-nachtragen">
+                <p className="text-[11.5px] text-slate-500 leading-relaxed">
+                  Trag die Adresse hier ein — sie wird in der Akte gespeichert,
+                  danach kann die Mail sofort raus.
+                </p>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  <input value={neueMail} onChange={(e) => setNeueMail(e.target.value)}
+                         placeholder="E-Mail nachtragen" type="email" inputMode="email"
+                         aria-label="E-Mail nachtragen"
+                         className="flex-1 min-w-[180px] px-2.5 py-2 text-[12.5px] rounded-xl border border-slate-200" />
+                  <button type="button"
+                          disabled={traegtNach
+                            || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(neueMail.trim())}
+                          onClick={() => void nachtragen()}
+                          className="px-3 py-2 rounded-xl text-[12px] font-semibold bg-white border border-slate-300 text-slate-700 disabled:opacity-40">
+                    {traegtNach ? "Speichert …" : "Speichern"}
+                  </button>
+                </div>
+                {nachtragFehler && (
+                  <p className="text-[11.5px] mt-1" style={{ color: "#b91c1c" }}>{nachtragFehler}</p>
+                )}
               </div>
             )}
 
@@ -125,11 +236,23 @@ export function RechnungBestaetigung({
                       className="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-semibold bg-white border border-slate-200 text-slate-600">
                 Abbrechen
               </button>
+              {/* ── DER GESPERRTE KNOPF MUSS GESPERRT AUSSEHEN ──────────────
+                  Er stand auf `disabled:opacity-50` über kräftigem Blau. Im
+                  Screenshot des Betreibers wirkte er aktiv, obwohl daneben
+                  „keine E-Mail-Adresse" stand — ein Klick hätte einen
+                  Serverfehler erzeugt. AGENTS.md: „disabled muss SICHTBAR
+                  anders sein als aktiv, nicht ähnlich." Also grau, mit Rahmen,
+                  ohne Schatten. */}
               <button type="button"
                       disabled={!v.moeglich || !!laeuft}
                       onClick={() => void onSenden(v.ref ?? null)}
-                      className="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-50"
-                      style={{ background: "#1d4ed8" }}>
+                      data-fiaon="rechnung-senden"
+                      title={v.moeglich ? undefined : (v.hinweis ?? "Senden ist nicht möglich.")}
+                      className="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-bold"
+                      style={v.moeglich && !laeuft
+                        ? { background: "#1d4ed8", color: "#fff" }
+                        : { background: "#f1f5f9", color: "#94a3b8",
+                            border: "1px solid #e2e8f0", cursor: "not-allowed" }}>
                 {laeuft ? "Sende …" : v.ersteRechnung ? "Rechnung stellen und senden" : "Jetzt senden"}
               </button>
             </div>

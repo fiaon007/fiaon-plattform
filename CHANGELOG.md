@@ -5,6 +5,235 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.08.2026 (später) — Fünf Meldungen, fünf Ursachen: der Einheitenfehler, der leere Bildschirm und die Daten aus der Zukunft
+
+Ein Sammelauftrag aus dem Betrieb. Bei **drei von sieben Punkten war die gemeldete
+Ursache falsch und der Kern richtig** — die Zahlen im Auftrag sind Hinweise, keine
+Messwerte (AGENTS.md). Deshalb steht hinter jedem Punkt zuerst die Messung.
+
+### Teil 1 — „Müll-Beträge im Bestand" waren ein Anzeigefehler
+
+Gemeldet: Bestellungen mit 0,80 € und 1,00 € im Bestand, ein Anlage-Weg schreibt sie.
+
+**Gemessen** (`scripts/mess-muell-betraege.ts`): In `fiaon_applications.amount_due`
+steht **kein einziger** Betrag unter 5 €. Die Spalte führt EURO: 7.99, 59.99, 79.99,
+99.99, 249.99. Die gemeldeten Zahlen entstanden hier:
+
+```
+server/lib/fiaon-massgebliche-bestellung.ts (gestern gebaut)
+    betragCents: b.amount_due != null ? Number(b.amount_due) : null
+```
+
+79,99 € als Cent gelesen ergibt 0,7999 € → angezeigt „0,80 €". High End ergibt
+„1,00 €", Pro „0,60 €". Neun andere Stellen im Haus rechnen `* 100`; nur diese eine
+nicht — und sie ist die einzige Quelle des neuen Bestätigungs-Dialogs.
+
+**Der Kunde war nie betroffen:** 4.132 Zahlungsmails in 30 Tagen, jede mit dem
+richtigen Betrag. Auch die Behauptung im Quelltext, Josef Rohrmoser habe fünf Mails
+über „High End (1,00 €)" bekommen, ist falsch — er bekam zehn Mails über 99,99 €.
+Der Kommentar war selbst ein Opfer des Einheitenfehlers und ist korrigiert.
+
+**Was WIRKLICH abweicht:** 6 von 1.284 lebenden Bestellungen, davon 4 bezahlt
+(bleiben unangetastet: Rechnung und Provision hängen daran) und 2 unbezahlt. Die
+zwei sind Bonitätsauskünfte mit 99,99 € statt 74,00 € — der Dubletten-Merge hatte
+`pack_key = highend` in eine Auskunft geschrieben, und `rechnungStellen` preiste
+danach. Beide sind auf 74,00 € korrigiert (`scripts/katalogpreis-lauf.ts`,
+Zählprobe 0). Zwei Kunden wurden vorher um 99,99 € gebeten
+(`reports/katalogpreis-korrekturmails.csv` → Betreiber-TODO).
+
+**Die Wurzeln, alle vier:**
+
+| Weg | Was er tat | Jetzt |
+|---|---|---|
+| Admin-Akte „Betrag (amount_due, €)" | freier Betrag, 0–50.000 € | nur der Katalogpreis |
+| Admin-Akte, Paket-Dropdown | Paket geändert, Betrag stehen gelassen | Betrag folgt dem Paket |
+| Nachbuchungs-Center | Betrag aus „manueller Eingabe"/Dublette geraten | Katalog zuerst |
+| `rechnungStellen` | preiste eine Auskunft nach `pack_key` | Kategorie vor Paketschlüssel |
+
+Und die **DB-Wand** (Migration 065): Ein Trigger lehnt bei unbezahlten Bestellungen
+jeden Betrag ab, der nicht dem Katalogpreis entspricht. Die Preise stehen dafür als
+ausdrückliche **Abschrift** in `fiaon_paketpreise`; `katalogpreiseSyncen()` zieht sie
+beim Serverstart aus `shared/fiaon-pakete.ts` nach, und der Prüfstand hält beide
+Seiten gegeneinander. Bezahltes wird nicht blockiert (vier Altfälle).
+
+### Teil 2 — Der Dialog las die falsche E-Mail-Quelle
+
+Screenshot: „Das bekommt JOACHIM RECHTSTEINER — Für diesen Kunden ist keine
+E-Mail-Adresse hinterlegt", während in seiner Akte euro-tec@t-online.de steht.
+
+Die Vorschau-Route hatte **zwei** Zweige. Der erste benutzte die zentrale Auflösung
+(richtig). Der zweite — „noch keine Rechnung gestellt" — hatte eine eigene Abfrage
+**ohne `p.primary_email`**. Rechtsteiner hat genau dort seine Adresse: an der Person,
+nicht an der Bestellung. Der Server hätte gesendet, die Anzeige sagte „geht nicht".
+
+Neu: `empfaengerFuer(personId, ref)` — eine Auflösung für Anzeige UND Versand, mit
+der Quelle im Ergebnis. Sie wird an drei Stellen benutzt (Vorschau, Zahlungsdaten-
+Versand, Nummern-Korrektur). Außerdem: „Senden" ist ohne Adresse **sichtbar** grau
+statt blassblau (vorher wirkte er aktiv), und daneben steht das Inline-Feld zum
+Nachtragen. Bewiesen in `scripts/pruef-rechtsteiner.ts` — 21 Prüfungen.
+
+### Teil 3 — Das leere Portal war KEIN Ansichts-Problem
+
+Gemeldet von vier Menschen: „Verdienst konnte nicht geladen werden", 0,00 €,
+„Bankdaten fehlen" (IBAN vorhanden), 0 Kunden. Verdacht: Die Nur-Lesen-Wand
+blockiert Lese-Routen.
+
+**Gemessen** (`scripts/mess-ansicht-leseroute.ts`, 16 Lese-Routen mit Ansichts-Token):
+Die Wand blockiert **nichts** Lesendes — sie lässt GET durch, wie gebaut. Genau eine
+Route antwortete mit **HTTP 500**: `/agent/start`.
+
+```
+PostgresError 42P01: missing FROM-clause entry for table "p"
+    server/routes/fiaon-agent-start.ts:288
+```
+
+`nichtWaehlbarSql()` schreibt seine Bedingungen auf den Alias `p`; die Abfrage hatte
+keinen (`FROM fiaon_persons`). Eingeführt heute um **11:42** (Commit e675efa),
+gemeldet am selben Tag. **Für alle Mitarbeiter, nicht nur in der Ansicht.**
+
+Und derselbe 500 erklärt Daniels zweite Meldung: Der Menüpunkt „Vertrieb" hängt an
+`nurRolle: "vertriebsleiter"`, und die Rolle kommt aus derselben Antwort. Ohne
+Antwort blieb sie auf „agent" — der Punkt verschwand lautlos, weil der Fehler in
+einem `.catch(() => {})` landete. Die Navigation holt die Rolle jetzt notfalls von
+`/agent/me` und schreibt eine Warnung ins Protokoll.
+
+Danach gemessen: 200, Rolle `vertriebsleiter`, `bankHinterlegt: true`, 1.012 offene
+Kunden, 734,50 € Guthaben.
+
+Dazu die Hausregel umgesetzt: Die Verdienst-Karte zeigt **keine 0,00 €** mehr, wenn
+sie nichts weiß — sie zeigt einen Strich, den Grund nach Verursacher getrennt
+(401 Sitzung / 403 Rechte / 5xx unsere Seite) und die Meldung des Servers.
+
+### Teil 4 — Anrufe im falschen Profil: gemessen, benannt, nicht geraten
+
+Screenshot: In Lucas Böhnerts Gespräche-Tab spricht „Herr Boyschenko".
+
+**Gemessen** (`scripts/mess-anruf-zuordnung.ts`): 1.552 Anrufe.
+
+* **Ausgehend (1.403): richtig.** `agent_id` ist die Sitzung, die gewählt hat. Die
+  186 Fälle, in denen sie vom Betreuer abweicht, sind Kollegen, die für jemanden
+  angerufen haben — kein Fehler.
+* **Eingehend (149): eine Vermutung.** `zustaendigFuer()` beantwortet „wer sollte
+  rangehen" (Inkasso, Termin, **Betreuer**, wer zuletzt sprach). Bei 123 der 149 ist
+  `agent_id` genau der Betreuer. Wer wirklich abgenommen hat, weiß der Twilio-Webhook
+  nicht — er hat keine Sitzung.
+
+**Der Bestand wird NICHT umgehängt**, und das ist die Entscheidung: Es gibt kein
+Ereignis „Anruf angenommen" und keine zweite Agenten-Spalte. Ein Umhängen wäre
+Raten, und ein geratener Anruf im Profil eines Menschen wird als Leistungsnachweis
+gelesen.
+
+Was sich belegen lässt, wird belegt (Migration 066): `zuordnung_herkunft` mit drei
+Werten — `gewaehlt` (Sitzung hat gewählt), `ergebnis` (Sitzung hat das Ergebnis
+erfasst; die Route lehnt fremde Anrufe ab) und `zustaendigkeit` (abgeleitet, NICHT
+belegt). Der Bestand ist ohne jede Vermutung eingeordnet: 27 Zeilen stehen auf
+`zustaendigkeit`. Die Gespräche-Ansicht liefert den Wert mit.
+
+### Teil 5 — Team-Zentrale
+
+* „als Testkonto markieren" stand als Link unter **jedem** Namen. Jetzt in einem
+  Drei-Punkte-Menü je Karte — zusammen mit **Profil öffnen** und **Als Mitarbeiter
+  ansehen**, die es an der Karte vorher gar nicht gab (die Route existierte).
+* Academy-Zeile: „Kapitel 0/14 — noch nicht geöffnet" stand in Bernstein und wirkte
+  wie ein Fehler. Jetzt eine graue Zeile mit dünnem Fortschrittsbalken; grün nur für
+  „durch". Rot bleibt Fehlern vorbehalten.
+* Die **Personalkosten-Leiste** liegt nicht mehr unter den Karten, sondern steht als
+  Karte **„Wirtschaftlichkeit" oben** im Kennzahlenbereich — Entscheidung des
+  Betreibers.
+* Mit **Erklärzeile**, weil „Personalkosten" kein Begriff ist, den zwei Menschen
+  gleich verstehen. Nachgerechnet (`scripts/mess-wirtschaftlichkeit.ts`):
+  Festgehälter anteilig 3.342,86 € + gebuchte Provisionen 3.368,10 € =
+  **6.710,96 €**; Umsatz 15.104,47 €; Deckung **225 %** — die Rechnung geht auf.
+  Eine Korrektur am Sprachgebrauch: Es sind **nicht** die „ausgezahlten"
+  Provisionen, sondern alle nicht stornierten des Monats (überwiesen sind
+  1.343,80 €). Stundenlöhne stecken als Provisionsart `stunden` mit drin.
+
+### Teil 6 — Die Daten aus der Zukunft: keine falsche Uhr, eine Gewohnheit
+
+`updates-data.ts` trug Einträge „Was am 30./31.08.2026 dazugekommen ist" — an einem
+19.08.2026.
+
+**Die Umgebung war nicht schuld.** Sie liefert den 19.08.2026, und der jüngste Commit
+trägt dasselbe Datum; beide kommen aus derselben Uhr. Auch kein Tippfehler: Der
+Versatz war nicht zufällig, sondern wuchs **monoton**
+(`scripts/mess-update-daten.ts`).
+
+```
+2026-08-17-betrieb        eingetragen 17.08.   Commit 17.08.    0 Tage
+2026-08-18-kundenweg      eingetragen 18.08.   Commit 17.08.   +1 Tag
+2026-08-19-kundensicht    eingetragen 19.08.   Commit 17.08.   +2 Tage
+2026-08-20-ablauf         eingetragen 20.08.   Commit 17.08.   +3 Tage
+…
+2026-08-31-richtiges-paket eingetragen 31.08.  Commit 19.08.  +12 Tage
+```
+
+Jede Sitzung hat auf den obersten Eintrag gesehen und **einen Tag dazugezählt**,
+statt die Uhr zu lesen. Am 17. und 18.08. liefen je mehrere Sitzungen — so wurde aus
+einem Tag Vorsprung ein knapper Monat.
+
+Korrigiert: 21 Einträge in `updates-data.ts` und 19 CHANGELOG-Überschriften, jeweils
+auf das Datum des Commits, der sie eingeführt hat. Die `id`-Felder behalten ihr altes
+Datum: Sie sind der stabile Schlüssel für den „gesehen"-Stand im Browser.
+
+Die Wand: `scripts/pruef-daten-zukunft.ts` prüft gegen die **Datenbankzeit** (nicht
+die lokale Uhr), dass kein Update-Datum und keine CHANGELOG-Überschrift in der
+Zukunft liegt — und dass die Liste absteigend sortiert bleibt (nach der Korrektur war
+genau das gebrochen). Geprüft wird die Überschrift, nicht jede Zahl im Text: „ab
+01.10.2026 geplant" ist ein Plan und darf in der Zukunft liegen. Für die 164
+Datumsangaben in Quelltext-Kommentaren gilt eine **Obergrenze** statt eines Verbots —
+eine Prüfung, die 164 Altfälle meldet, wird abgeschaltet.
+
+### Teil 7 — Termin-Buchung nach dem Deploy
+
+`falsche_rolle`: **220 Ablehnungen vor** dem Fix (Commit 759a47f, 13:58:53),
+**0 danach**. Reinhold Müller hat um 12:xx erfolgreich gebucht — seine abgelehnten
+Versuche liegen alle um 09:xx und 10:xx, also vor der Meldung von 12:06.
+
+Ehrlich dazu: Nach dem Commit fallen bisher nur **2** Buchungsversuche ins Fenster
+(beide erfolgreich). Eine 0 aus zwei Versuchen ist ein guter Anfang und kein Beweis —
+der Lauf gehört morgen wiederholt. Und: Commit-Zeit ist nicht Deploy-Zeit.
+
+Eine Messfalle dabei, die den Fix fast für kaputt erklärt hätte: Der Erfolgswert in
+`fiaon_termin_versuche.ergebnis` heißt `gebucht`, nicht `ok`. Der erste Entwurf
+filterte auf `<> 'ok'` und meldete 22 „Ablehnungen ohne Grund" — es waren gebuchte
+Termine.
+
+### Prüfstände
+
+| Lauf | Ergebnis |
+|---|---|
+| `pruef-katalogpreis-wand.ts` | 20 ok — spielt Migration 065 in einer zurückgerollten Transaktion ein und prüft die Wand von beiden Seiten |
+| `pruef-rechtsteiner.ts` | 21 ok — der Beweisfall Ende zu Ende |
+| `pruef-massgebliche-bestellung.ts` | 38 ok — **der Prüffall selbst war falsch**: Er schrieb `amount_due = 5999` (also 5.999 €) und war deshalb MIT dem Einheitenfehler grün. Jetzt 59.99 in der Spalte, 5999 Cent erwartet — und die Rot-Probe (Fix zurückgenommen) macht ihn rot |
+| `pruef-daten-zukunft.ts` | 9 ok |
+| `pruef-backticks.ts` | 421 Dateien, keine Fundstelle |
+
+### Wo zu finden
+
+* `shared/fiaon-pakete.ts` — der Katalog, unverändert die eine Quelle
+* `server/lib/fiaon-massgebliche-bestellung.ts` — `katalogpreisCents`, `empfaengerFuer`, Einheiten-Fix
+* `server/lib/fiaon-katalogpreise.ts` + `db/migrations/065_katalogpreis_wand.sql` — die Wand
+* `server/routes/fiaon-agent-start.ts:288` — der Alias, der das Portal leer machte
+* `db/migrations/066_anruf_zuordnung.sql` — die Herkunft der Anruf-Zuordnung
+* `client/src/components/agent/RechnungBestaetigung.tsx` — Warnmarke, gesperrter Knopf, Inline-Feld
+* `client/src/pages/admin-team-zentrale.tsx` — Drei-Punkte-Menü, Academy-Zeile, Karte „Wirtschaftlichkeit"
+
+### Betreiber-TODOs
+
+1. **Zwei Korrekturmails.** `arsen.tamiie@icloud.com` und
+   `natascha.branics@gmail.com` wurden um 99,99 € für eine Bonitätsauskunft gebeten;
+   richtig sind 74,00 €. Die Bestellungen stehen jetzt auf 74,00 €, die Mails sind
+   raus. Liste: `reports/katalogpreis-korrekturmails.csv`.
+2. **Godwin Uche hat 79,99 € für ein High-End-Paket bezahlt** (Katalog 99,99 €).
+   Bezahlt wird nicht angefasst — ob nachgefordert oder als Rabatt geführt wird, ist
+   eine kaufmännische Entscheidung. Ebenso Ilijana Weber (79,99 €), Silvana
+   Kammerzell (10,00 € statt 7,99 €), Daliborka Saratlija (10,00 € statt 59,99 €).
+3. **Teil 7 morgen erneut messen** — zwei Versuche sind keine Stichprobe.
+4. **164 Datumsangaben in Kommentaren** liegen weiter in der Zukunft. Die Wand hält
+   die Zahl fest; das Aufräumen braucht einen eigenen Termin.
+
+---
+
 ## 19.08.2026 — Zwei Knöpfe, die „nicht gehen" — und beide Male derselbe Bauplan
 
 Zwei Meldungen an einem Tag. Florentine: „Über 11 Kunden warten auf ihre Rechnung — ich kann ihnen keine Mail schicken." Herr Hertel am Telefon: Er kann im Startgespräch-Kalender keine Zeit wählen.
@@ -101,7 +330,7 @@ Beim Termin-Prüfstand dasselbe Problem in anderer Form: Heute sind zwei Onboard
 2. **Onboarding-Zeitfenster im Blick behalten.** Aktuell 55 freie Zeiten von Angelique und Rifka. Fallen beide aus, greift der Rückfall auf den Vertrieb — das funktioniert jetzt, sollte aber kein Dauerzustand sein. Die Dashboard-Karte wird bei unter 10 rot.
 3. **`BETREIBER_MAIL` setzen** (weiterhin offen) — sonst weckt die Tageslauf-Warnung niemanden.
 
-## 31.08.2026 — Die Rechnung trug das falsche Paket
+## 19.08.2026 — Die Rechnung trug das falsche Paket
 
 Florentine Lombardi am 19.08.: „Er wollte ein Pro-Paket. Das High End habe ich rausgenommen. Wenn ich auf Rechnung senden drücke, bekommt er aber eine E-Mail für das High-End-Paket."
 
@@ -239,7 +468,7 @@ Ein erster Entwurf lud das SDK im Prüfbrowser von Hand nach und scheiterte. Das
 3. **Team die Sprechprobe machen lassen.** Bei Nikita 40 %, bei Daniel 58 % Kurzgespräche — die Probe zeigt in fünf Sekunden, ob es am Mikrofon liegt.
 4. **`BETREIBER_MAIL` setzen** — sonst weckt die Tageslauf-Warnung niemanden.
 
-## 31.08.2026 — Telefonie: der Zustand log, und die Nummer war falsch
+## 19.08.2026 — Telefonie: der Zustand log, und die Nummer war falsch
 
 Grundlage war die Videoauswertung eines echten Anrufs (Nikita, 19.08.). Vier abgelesene Befunde — und beim Nachmessen kam ein fünfter dazu, der schwerer wiegt als alle vier.
 
@@ -346,7 +575,7 @@ Beim Bauen fielen drei eigene Fehler auf: die Telefon-Richtlinie steht in `fiaon
 2. **Team einmal die Sprechprobe machen lassen**, bevor der nächste Anruf rausgeht. Wenn Nikitas 49 Kurzgespräche am Mikrofon lagen, zeigt die Probe es in fünf Sekunden.
 3. **Reputationsfrage zurückstellen.** Die 7-Tage-Zahlen (55–64 % Annahme) sprechen gegen eine Spam-Markierung. Erst messen, wenn die Stumm-Marke ein paar Tage gelaufen ist.
 
-## 30.08.2026 — Der Tageslauf überwacht sich jetzt selbst
+## 18.08.2026 — Der Tageslauf überwacht sich jetzt selbst
 
 Der 15-Tage-Ausfall aus dem letzten Lauf war der Anlass. Ein stiller Ausfall dieser Läufe kostet direkt Geld, und es gab keine Stelle, an der man ihn sehen konnte.
 
@@ -440,7 +669,7 @@ Diese letzte Prüfung fand zwei eigene Lücken: Sie druckte im ersten Entwurf **
 3. **Die Karte einmal ansehen.** Am ersten Tag nach dem Deploy stehen alle Läufe auf „unbekannt", weil die Historie leer ist. Nach 24 Stunden muss jeder Lauf grün sein; steht dann einer auf rot, ist er wirklich tot.
 4. Der Wächter `pruef-stufen-waechter.ts` meldet weiter rot, solange `followup_last_run` alt ist. Er wird grün, sobald das Tageswerk in Produktion einmal durchgelaufen ist.
 
-## 30.08.2026 — Teamfeedback, Teil 3: messbar machen, statt zu raten
+## 18.08.2026 — Teamfeedback, Teil 3: messbar machen, statt zu raten
 
 Die letzten fünf Punkte. Zwei Messbefunde aus dem Vorlauf haben die Arbeit bestimmt: Es gibt **keine** Slot-Reservierung, und Buchungs-Fehlschläge werden **nirgends** gespeichert. Also wurde zuerst die Messbarkeit gebaut.
 
@@ -551,7 +780,7 @@ Er weckt **kein** stillgelegtes Konto auf: `testkontoStilllegen` setzt drei Ding
 4. **Zweite Absendernummer** erwägen. Die Tagesgrenze schützt eine Nummer, ersetzt sie aber nicht.
 5. **Agent 2 und 7** über den neuen Schalter entmarkieren, falls sie im Team erscheinen sollen.
 
-## 30.08.2026 — Teamfeedback, Teil 2: Telefonie, Termine, Stufen
+## 18.08.2026 — Teamfeedback, Teil 2: Telefonie, Termine, Stufen
 
 Fortsetzung des Feedback-Auftrags. Reihenfolge nach klarer Spur: erst das Doppelpräfix, dann der hängende Termin-Abschluss, dann Stufen und Betreuer.
 
@@ -660,7 +889,7 @@ Dazu die Provision: Von 409 bezahlten Bestellungen haben **244** eine gebuchte P
 3. **188 Stufen sind gedriftet**, obwohl der Nachzug im Tageslauf liegt. Bitte beobachten, ob der Tageslauf in Produktion durchläuft.
 4. **Zwei echte Konten sind als Testkonto markiert** (`Justin Schwarzott`, ID 2 und 7) — sie fallen aus jeder Team-Ansicht heraus. Unverändert aus dem letzten Lauf.
 
-## 30.08.2026 — Teamfeedback: erst gemessen, dann repariert
+## 18.08.2026 — Teamfeedback: erst gemessen, dann repariert
 
 Dreizehn Meldungen aus dem Team. Der Auftrag lautete ausdrücklich: nichts anfassen, bevor die Ursache gemessen ist — mehrere Meldungen können dieselbe Wurzel haben. Genau das war der Fall.
 
@@ -767,7 +996,7 @@ Zwei **echte** Konten sind als Testkonto markiert: `Justin Schwarzott` (ID 2 und
 
 Telefonie (Doppelpräfix im Inkasso, Blockier-Marke, Einweg-Audio, Erreichbarkeit 2/158), Termine (Buchungs-Fehlschläge, Termin-Art, „nicht erschienen"), Stufen-Erzwingung bei Zahlung und Betreuer-Lücken. Die Fundstellen sind kartiert, aber ohne Messung wird hier nichts geändert — das war die erste Regel dieses Auftrags.
 
-## 23.08.2026 — Die Zweig-Prüfung hat Geduld gelernt
+## 17.08.2026 — Die Zweig-Prüfung hat Geduld gelernt
 
 ### Der Befund
 
@@ -812,7 +1041,7 @@ Die Prüfung ist wieder entfernt, mit Begründung im Quelltext. **Der esbuild-Du
 
 **Teil 2 (Agent als Vollpfleger)** und **Teil 3** (Pflichtnotiz im Listen-Weg, 12 Wartezustände, Zustellprotokoll mit Filtern, Team-Kalender auf 380 px) sind offen.
 
-## 30.08.2026 — Die vier offenen Punkte, abgearbeitet
+## 18.08.2026 — Die vier offenen Punkte, abgearbeitet
 
 ### Die Schaubilder — selbst gezeichnet
 
@@ -858,7 +1087,7 @@ Die Seite prüft die Rolle über **`istLeitung` vom Server** — kein eigener Ro
 
 Screenshots erzeugt und angesehen: `reports/academy/schaubild-*.png`, `vorschau-handy.png`.
 
-## 29.08.2026 — „Produkt anlegen" repariert + die Kernbotschaft verankert
+## 18.08.2026 — „Produkt anlegen" repariert + die Kernbotschaft verankert
 
 ### Teil 1: Die Ursache war meine
 
@@ -923,7 +1152,7 @@ Beide brauchen einen Make-Zweig und ein Brevo-Template. Sie bleiben in `/admin/e
 
 Die **SVG-Schaubilder** (Kundenweg als Fluss, Stufen A/B/C als Trichter, Abo-Zyklus als Kreis), die **Leitungs-Fassung von `/admin/funktionen`** als eigene Seite, die **umschaltbare Desktop/Handy-Ansicht** der Mail-Vorschau und die **Anzeige** des Academy-Stands in der Team-Zentrale (die Route `/admin/academy/stand` liefert die Daten, die Darstellung fehlt).
 
-## 28.08.2026 — Die Wand gegen das Doppel-Modell, Academy fürs Team, Gesamtstand
+## 18.08.2026 — Die Wand gegen das Doppel-Modell, Academy fürs Team, Gesamtstand
 
 ### Teil 1: Der DROP ist vorbereitet — und findet NICHT statt
 
@@ -978,7 +1207,7 @@ Die Team-Fassung hat **keinen** Präsentationsmodus: Wer sich selbst einschult, 
 
 Die **16 schreibenden** und knapp 380 lesenden Stellen. Sie stehen einzeln im Prüfstand — er nennt Datei und Zeile. Und drei Punkte für Sie: der Ampel-Lauf, die 336 Einladungen, das Gespräch mit Nikita und Lucas. Alle in `docs/GESAMTSTAND.md`.
 
-## 27.08.2026 — Plus-Adressen, Daniels Knopf, Academy V2, Nachlauf im Tageslauf
+## 18.08.2026 — Plus-Adressen, Daniels Knopf, Academy V2, Nachlauf im Tageslauf
 
 ### Teil 1: Das Betreff-Matching ist abgeschafft
 
@@ -1052,7 +1281,7 @@ Der Bestandslauf hat am 24.08. sieben Fälle nachgetragen. **Drei Tage später s
 4. **Ein Regex lief über Zeilengrenzen** (`[^;]*` frisst Umbrüche) und traf das `width:` einer ganz anderen Regel.
 5. **Die Mindestlänge für Kapitel-Sätze war zu streng** für „Du bist bereit." — ein Abschlusssatz, der einen Nebensatz braucht, ist kein Abschluss.
 
-## 26.08.2026 — Termin-Zentrale und die FIAON Academy
+## 18.08.2026 — Termin-Zentrale und die FIAON Academy
 
 ### Teil 1: Die Termin-Zentrale (`/admin/termine`)
 
@@ -1126,7 +1355,7 @@ Screenshots erzeugt **und angesehen**: `reports/termine/`, `reports/academy/`.
 
 Und zwei Prüfstands-Fehler mit Ansage: Die Suche nach „Montag" fand „MONTAG, 17. AUGUST" nicht (`uppercase`), und die Suche nach „autoplay" traf den Satz *„Kein Ton, kein Autoplay"* — also genau die Zusage, die sie prüfen sollte.
 
-## 25.08.2026 — Der Agent legt Kunden an: anlegen → Produkt → Zahlung → Termin
+## 18.08.2026 — Der Agent legt Kunden an: anlegen → Produkt → Zahlung → Termin
 
 ### Die Rechte-Matrix vorher und nachher
 
@@ -1182,7 +1411,7 @@ Gesucht wird über E-Mail *und* Rufnummer, **inklusive Aliase** — wer früher 
 
 Screenshots: `reports/vollpfleger/` (Formular mit Dubletten-Hinweis, Abschluss mit drei Schritten, 380 px).
 
-## 24.08.2026 — Wartezustand, Notizpflicht, Protokoll-Filter
+## 18.08.2026 — Wartezustand, Notizpflicht, Protokoll-Filter
 
 ### Teil 2a: Sieben zahlende Kunden wurden täglich vergeblich angerufen
 
@@ -1262,7 +1491,7 @@ Nikita und Lucas haben bei 64 Terminen **keinen einzigen** als erledigt markiert
 
 **Teil 1 (Termin-Zentrale `/admin/termine`)** — die Zahlen sind gemessen, die Schmal-Ansicht ist gebaut, die Seite selbst fehlt.
 
-## 23.08.2026 (später) — Die Rechte-Matrix: was ein Agent heute kann
+## 18.08.2026 (später) — Die Rechte-Matrix: was ein Agent heute kann
 
 Vor dem Öffnen von Rechten muss dastehen, welche es gibt. `scripts/mess-agentenrechte.ts` liest die Routen aus fünf Dateien und ordnet sie nach Wache ein.
 
@@ -1294,7 +1523,7 @@ Die beiden Kern-Fähigkeiten (Neukunde anlegen, Produkt hinzufügen) **existiere
 | Zustellprotokoll: Zeitraum-, Event-, Empfänger-Filter, CSV | **fehlen** |
 | Team-Kalender | `grid-cols-7`, **keine** Schmal-Fassung — **3.870 Zeilen** |
 
-## 22.08.2026 — Eine Bonitäts-Wahrheit, und fünf Pakete zurück
+## 17.08.2026 — Eine Bonitäts-Wahrheit, und fünf Pakete zurück
 
 ### Teil 1: Drei Teilwahrheiten wurden eine Ableitung
 
@@ -1370,7 +1599,7 @@ Der Kern jeder Meldung war richtig — die Zahlen und Namen waren es nicht. Desh
 
 **Betreiber-TODO:** **35 Dokumente liegen ungeprüft.** Sie stehen jetzt mit „Ein Mitarbeiter muss das Dokument prüfen" in der Akte — vorher sah das niemand.
 
-## 21.08.2026 — Der HTTP 400, der 35 Make-Zweige zu Unrecht beschuldigte
+## 17.08.2026 — Der HTTP 400, der 35 Make-Zweige zu Unrecht beschuldigte
 
 ### Der Befund
 
@@ -1437,7 +1666,7 @@ Das Zustellprotokoll stand als **erstes** auf der Seite. Der Betreiber scrollte 
 
 **Betreiber-TODO:** Nach dem Deploy „Alle Zweige prüfen" erneut drücken — die Ampel sollte sich jetzt selbst bestätigen.
 
-## 20.08.2026 (später) — Eine Datenquelle: die Kontaktdaten gehören der Person
+## 17.08.2026 (später) — Eine Datenquelle: die Kontaktdaten gehören der Person
 
 ### Der Auftrag
 
@@ -1514,7 +1743,7 @@ Der Betreiber hat alle Make-Zweige von Hand geprüft, die Mails kommen an — un
 
 **Geprüft:** 36 Prüfungen in `scripts/pruef-eine-quelle.ts`, 12 im Browser (`scripts/pruef-ampel-browser.ts`), Screenshots in `reports/ampel/`.
 
-## 20.08.2026 — Ein Ablauf für alle: die Stufe wird abgeleitet, nicht geglaubt
+## 17.08.2026 — Ein Ablauf für alle: die Stufe wird abgeleitet, nicht geglaubt
 
 ### Der Screenshot-Fehler war der Normalzustand
 

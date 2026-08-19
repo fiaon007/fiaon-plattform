@@ -152,7 +152,7 @@ async function meinePerson(personId: number, agentId: number) {
              WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
              ORDER BY a.created_at DESC LIMIT 1) AS app_email,
            -- ══════════════════════════════════════════════════════════════════
-           -- DIE BUCHUNGEN GEHÖREN AN DIE KARTE (30.08.2026)
+           -- DIE BUCHUNGEN GEHÖREN AN DIE KARTE (18.08.2026)
            --
            -- ── DIE MELDUNGEN, DIE HIER ZUSAMMENLAUFEN ──────────────────────
            -- „E-Mail ergänzt — Versand bleibt trotzdem gesperrt."
@@ -198,7 +198,7 @@ async function meinePerson(personId: number, agentId: number) {
            -- einer Inline-Aenderung (E-Mail nachgetragen, Produkt angelegt) holt
            -- die Karte ihre Daten von HIER. Faehlt das Feld, faellt der Client
            -- auf seinen alten Zustand zurueck — genau der Fehler, der am
-           -- 30.08.2026 beim Knopf „Zahlungsdaten senden" schon einmal vier Tage
+           -- 18.08.2026 beim Knopf „Zahlungsdaten senden" schon einmal vier Tage
            -- gekostet hat (buchungen_roh fehlte in dieser Abfrage).
            -- ══════════════════════════════════════════════════════════════════
            ${sqlPool.unsafe(sendeGrundSql("p"))} AS sende_grund
@@ -862,7 +862,7 @@ export async function zahlungsdatenSenden(
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // DIE BESTELLUNG KOMMT AUS DER EINEN AUFLÖSUNG (31.08.2026)
+  // DIE BESTELLUNG KOMMT AUS DER EINEN AUFLÖSUNG (19.08.2026)
   //
   // ── HIER STAND DER FEHLER ─────────────────────────────────────────────────
   //     WHERE person_id = … AND merged_into IS NULL
@@ -886,7 +886,7 @@ export async function zahlungsdatenSenden(
   // Die Auflösung steht jetzt in server/lib/fiaon-massgebliche-bestellung.ts und
   // wird von allen Wegen benutzt. Wer hier wieder eine eigene Abfrage schreibt,
   // baut den Fehler neu.
-  const { massgeblicheBestellung, bestellungPruefen } =
+  const { massgeblicheBestellung, bestellungPruefen, empfaengerFuer } =
     await import("../lib/fiaon-massgebliche-bestellung");
 
   // Schickt der Client eine Referenz mit, wird sie GEPRÜFT und nicht geglaubt:
@@ -975,11 +975,12 @@ export async function zahlungsdatenSenden(
   // die Bestellung keine Adresse, die Person aber schon — der Server antwortete
   // „keine E-Mail-Adresse hinterlegt", während in der Karte eine stand.
   //
-  // `massgeblicheBestellung` liest beides und bevorzugt die Bestellung; die
-  // Person ist der Rückfall. Seit Migration 059 ist sie ohnehin die gültige
-  // Wahrheit (AGENTS.md).
-  const empfaenger = massgeblich?.empfaenger
-    || bestellung.email || bestellung.contact_email || bestellung.billing_email;
+  // `empfaengerFuer` liest beides und bevorzugt die Bestellung; die Person ist
+  // der Rückfall. Seit Migration 059 ist sie ohnehin die gültige Wahrheit
+  // (AGENTS.md). Der Dialog fragt DIESELBE Funktion — sonst zeigt die Anzeige
+  // eine andere Adresse als der Versand benutzt, und genau das war der Befund
+  // vom 19.08.2026 (Rechtsteiner).
+  const empfaenger = (await empfaengerFuer(personId, String(bestellung.ref))).adresse;
   if (!empfaenger) {
     return { ok: false, status: 400, error: "Für diesen Kunden ist keine E-Mail-Adresse hinterlegt." };
   }
@@ -1043,28 +1044,40 @@ export async function nummerKorrekturSenden(
     const p = await meinePerson(personId, agentId);
     if (!p) return { ok: false, status: 404, error: "Kunde nicht gefunden" };
   }
-  // ── AUCH HIER FEHLTE `archived_at IS NULL` (31.08.2026) ─────────────────
+  // ── AUCH HIER FEHLTE `archived_at IS NULL` (19.08.2026) ─────────────────
   // Dieselbe Lücke wie bei der Zahlungsdaten-Mail, nur harmloser: Eine Bitte um
   // die Telefonnummer, die an einer archivierten Bestellung hängt, landet im
   // Verlauf der falschen Zeile. Sie ist trotzdem falsch — und zwei Stellen mit
   // demselben Fehler heißen, dass die Auflösung fehlte, nicht der Filter.
-  //
-  // Der Empfänger wird bewusst weiter aus der BESTELLUNG gelesen (nicht aus der
-  // Person): Die Mail gehört zu diesem Vorgang.
   const [b] = await sqlPool`
-    SELECT ref, COALESCE(NULLIF(email,''), NULLIF(contact_email,''), NULLIF(billing_email,'')) AS email,
-           COALESCE(first_name, contact_name) AS first_name
+    SELECT ref, COALESCE(first_name, contact_name) AS first_name
     FROM fiaon_applications
     WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
     ORDER BY created_at DESC LIMIT 1
   `;
   if (!b?.ref) return { ok: false, status: 400, error: "Keine Bestellung zu diesem Kunden" };
-  if (!b.email) {
+
+  // ── AUCH DIESE ADRESSE KOMMT AUS DER EINEN AUFLÖSUNG ────────────────────
+  // Hier stand: „Der Empfänger wird bewusst weiter aus der BESTELLUNG gelesen
+  // (nicht aus der Person): Die Mail gehört zu diesem Vorgang."
+  //
+  // Die Begründung klingt sauber und ist falsch. Der Vorgang bestimmt, WAS in
+  // der Mail steht — nicht, ob der Mensch erreichbar ist. GEMESSEN am
+  // 19.08.2026: Bei 21 Kunden einer einzigen Agentin trägt die Bestellung keine
+  // Adresse, die Person aber schon. Für die hätte dieser Knopf „ohne E-Mail
+  // koennen wir nicht" geantwortet, obwohl eine Adresse in der Akte steht.
+  //
+  // Seit Migration 059 ist die Person die gültige Wahrheit. Zwei Leser mit zwei
+  // Regeln sind genau der Fehler, den `empfaengerFuer` beseitigt.
+  const { empfaengerFuer } = await import("../lib/fiaon-massgebliche-bestellung");
+  const empf = await empfaengerFuer(personId, String(b.ref));
+  if (!empf.adresse) {
     return {
       ok: false, status: 400,
       error: "Ohne E-Mail-Adresse koennen wir den Kunden nicht um seine Nummer bitten.",
     };
   }
+  b.email = empf.adresse;
   const { maybeSendNumberUpdateMail } = await import("../fiaon-number-update");
   const erg = await maybeSendNumberUpdateMail("app", b.ref, { email: b.email, firstName: b.first_name });
   if (!erg.sent) {
@@ -1096,7 +1109,7 @@ router.post("/agent/crm/kunden/:personId/nummer-korrektur", requireAgent, async 
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE LÄNDERVORWAHL NACHTRAGEN — INLINE, MIT VORSCHLAG
 //
-// ── DER ANLASS (31.08.2026) ────────────────────────────────────────────────
+// ── DER ANLASS (19.08.2026) ────────────────────────────────────────────────
 // Seit heute verweigert `wahlPruefen` eine national geschriebene Nummer ohne
 // Land, statt „+49" zu raten. Bewiesen war der Schaden an Kunde Maurizio
 // Pampanini (country CH): Dreimal wurde +49797435749 gewählt statt
@@ -1222,7 +1235,7 @@ router.post("/agent/crm/kunden/:personId/nummer-land", requireAgent, async (req:
 // ═══════════════════════════════════════════════════════════════════════════
 // WAS BEKOMMT DER KUNDE? — DIE VORSCHAU VOR DEM SENDEN
 //
-// ── DER EIGENTLICHE SCHUTZ (31.08.2026) ────────────────────────────────────
+// ── DER EIGENTLICHE SCHUTZ (19.08.2026) ────────────────────────────────────
 // Die Auflösung ist jetzt richtig. Das genügt nicht: Der Agent hat auf „senden"
 // gedrückt und WUSSTE NICHT, was rausgeht. Florentine hat den Fehler nur
 // gefunden, weil der Kunde sich gemeldet hat.
@@ -1242,61 +1255,99 @@ router.get("/agent/crm/kunden/:personId/rechnung-vorschau", requireAgent, async 
     const p = await meinePerson(personId, req.agent!.id);
     if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
 
-    const { massgeblicheBestellung } = await import("../lib/fiaon-massgebliche-bestellung");
+    const { massgeblicheBestellung, empfaengerFuer, katalogpreisCents } =
+      await import("../lib/fiaon-massgebliche-bestellung");
     const b = await massgeblicheBestellung(personId);
+
+    // ── DIE ADRESSE KOMMT AUS DER EINEN AUFLÖSUNG ─────────────────────────
+    // Auch für den Zweig „noch keine Rechnung". Hier stand eine eigene Abfrage
+    // OHNE `p.primary_email` — deshalb sagte der Dialog bei Joachim
+    // Rechtsteiner „keine E-Mail-Adresse hinterlegt", während in seiner Akte
+    // euro-tec@t-online.de steht und der Server sie gefunden HÄTTE.
+    const empf = await empfaengerFuer(personId, b?.ref ?? null);
+
     if (!b) {
       // Kein Grund zur Panik und kein stilles Weiter: Der Sende-Weg legt in
       // diesem Fall eine erste Rechnung an (siehe `zahlungsdatenSenden`). Das
       // gehört in die Vorschau, sonst steht der Agent vor einem leeren Fenster.
       const [reif] = (await sqlPool`
-        SELECT a.ref, a.pack_name, a.status,
-               COALESCE(NULLIF(a.email, ''), NULLIF(a.contact_email, ''),
-                        NULLIF(a.billing_email, '')) AS empfaenger
+        SELECT a.ref, a.pack_name, a.pack_key, a.type, a.status
         FROM fiaon_applications a
         WHERE a.person_id = ${personId} AND a.merged_into IS NULL AND a.archived_at IS NULL
           AND a.payment_status = 'pending'
         ORDER BY a.created_at DESC LIMIT 1
       `) as any[];
+      // Der Betrag der ERSTEN Rechnung kommt aus dem Katalog — genau das tut
+      // `rechnungStellen`. Er gehört deshalb in die Vorschau: „wird jetzt
+      // gesetzt" ist eine Auskunft, die niemandem hilft.
+      const katalog = reif ? katalogpreisCents(reif) : null;
       return res.json({
         ok: true,
-        moeglich: !!reif?.empfaenger,
+        moeglich: !!empf.adresse && !!reif,
         ersteRechnung: !!reif,
+        // Die Referenz geht MIT, auch in diesem Zweig: Das Inline-Feld zum
+        // Nachtragen der Adresse arbeitet auf `ref` (Stammdaten-Route). Ohne
+        // sie stünde im Dialog ein Feld, das nicht speichern kann.
+        ref: reif?.ref ?? undefined,
         paket: reif?.pack_name ?? null,
-        betragCents: null,
+        betragCents: katalog,
+        // `betragText` fehlte hier — der Dialog fiel auf seine eigene
+        // Formatierung zurück, und der Prüfstand fand ein `undefined`. Zwei
+        // Zweige derselben Route müssen dieselben Felder liefern, sonst rechnet
+        // die Oberfläche in einem Fall selbst (AGENTS.md: eine Attrappe, die
+        // WENIGER liefert, erzeugt Fehler, die es nicht gibt).
+        betragText: katalog != null
+          ? `${(katalog / 100).toFixed(2).replace(".", ",")} €` : null,
+        katalogCents: katalog,
+        betragWeichtAb: false,
         verwendungszweck: null,
-        empfaenger: reif?.empfaenger ?? null,
+        empfaenger: empf.adresse,
+        empfaengerQuelle: empf.quelle,
         weitereOffen: 0,
-        hinweis: reif?.empfaenger
-          ? "Für diesen Kunden wird jetzt die ERSTE Rechnung gestellt: Betrag aus dem "
-            + "Paket, sieben Tage Zahlungsfrist. Danach geht sie sofort raus."
-          : reif
-            ? "Für diesen Kunden ist keine E-Mail-Adresse hinterlegt."
-            : "Dieser Kunde hat keine offene Bestellung.",
+        hinweis: !reif
+          ? "Dieser Kunde hat keine offene Bestellung."
+          : empf.adresse
+            ? "Für diesen Kunden wird jetzt die ERSTE Rechnung gestellt: Betrag aus dem "
+              + "Paket, sieben Tage Zahlungsfrist. Danach geht sie sofort raus."
+            : "Für diesen Kunden ist keine E-Mail-Adresse hinterlegt — die Mail kann nicht raus.",
       });
     }
 
     const betrag = b.betragCents != null
       ? `${(b.betragCents / 100).toFixed(2).replace(".", ",")} €` : null;
+    const katalogText = b.katalogCents != null
+      ? `${(b.katalogCents / 100).toFixed(2).replace(".", ",")} €` : null;
     res.json({
       ok: true,
-      moeglich: !!b.empfaenger,
+      moeglich: !!empf.adresse,
       ersteRechnung: false,
       ref: b.ref,
       paket: b.paket,
       betragCents: b.betragCents,
       betragText: betrag,
+      // ── DIE WARNMARKE (19.08.2026) ────────────────────────────────────
+      // Ein Betrag, der nicht dem Katalogpreis entspricht, ist keine
+      // Kleinigkeit: Der Kunde überweist ihn, der Kontoabgleich sucht ihn, die
+      // Abo-Rate und die Provision rechnen damit. Deshalb steht er nicht
+      // stillschweigend im Dialog, sondern mit dem Katalogpreis daneben.
+      katalogCents: b.katalogCents,
+      betragWeichtAb: b.betragWeichtAb,
       verwendungszweck: b.verwendungszweck ?? b.ref,
-      empfaenger: b.empfaenger,
+      empfaenger: empf.adresse,
+      empfaengerQuelle: empf.quelle,
       weitereOffen: b.weitereOffen,
       // Der Satz, den der Agent liest. Er steht HIER und nicht in drei
       // Oberflächen: Kundenkarte, Akte und Vollpfleger-Fluss zeigen dieselbe
       // Vorschau, also darf es auch nur einen Wortlaut geben.
-      hinweis: !b.empfaenger
+      hinweis: !empf.adresse
         ? "Für diesen Kunden ist keine E-Mail-Adresse hinterlegt — die Mail kann nicht raus."
-        : b.weitereOffen > 0
-          ? `Achtung: ${b.weitereOffen + 1} offene Buchungen. Gesendet wird die neueste: `
-            + `${b.paket ?? "ohne Paketnamen"}${betrag ? `, ${betrag}` : ""}.`
-          : null,
+        : b.betragWeichtAb
+          ? `Ungewöhnlicher Betrag: ${betrag} — Katalogpreis wäre ${katalogText}. `
+            + "Prüf das, bevor der Kunde überweist."
+          : b.weitereOffen > 0
+            ? `Achtung: ${b.weitereOffen + 1} offene Buchungen. Gesendet wird die neueste: `
+              + `${b.paket ?? "ohne Paketnamen"}${betrag ? `, ${betrag}` : ""}.`
+            : null,
     });
   } catch (err) {
     console.error("[AGENT] rechnung-vorschau:", err);

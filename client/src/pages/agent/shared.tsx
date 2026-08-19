@@ -695,9 +695,44 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
 
   useEffect(() => {
     if (!agent) return;
-    api("/agent/start")
-      .then((r) => { if (r.ok) setRolle(String(r.json.agent?.rolle || "agent")); })
-      .catch(() => {});
+    // ══════════════════════════════════════════════════════════════════════
+    // DIE ROLLE HAT EINEN ZWEITEN WEG (19.08.2026)
+    //
+    // ── DER BEFUND ──────────────────────────────────────────────────────
+    // Daniel Stripling (Rolle vertriebsleiter): „Der Bereich Vertrieb ist
+    // weg." Der Menüpunkt war nicht entfernt — er hängt an
+    // `nurRolle: "vertriebsleiter"`, und die Rolle kam aus `/agent/start`.
+    //
+    // Diese Route antwortete an diesem Tag mit HTTP 500 (ein fehlender
+    // Tabellen-Alias in einer Unterabfrage). Der Fehler landete im
+    // `.catch(() => {})`, die Rolle blieb auf ihrem Anfangswert „agent", und
+    // damit verschwand der Punkt aus dem Menü — lautlos.
+    //
+    // ── WARUM ZWEI WEGE UND NICHT NUR DER FIX ───────────────────────────
+    // Der Alias ist behoben. Aber die Startseite ist die GRÖSSTE Abfrage im
+    // Portal (sieben Auskünfte in einer Welle) — sie wird wieder einmal
+    // scheitern. Dass dabei Menüpunkte verschwinden, ist ein
+    // Folgeschaden, der nichts mit der Rolle zu tun hat.
+    //
+    // `/agent/me` liefert dieselbe Rolle aus der Sitzung, ohne eine einzige
+    // Auswertung. Was die Navigation braucht, holt sie ab jetzt von dort,
+    // wenn der große Weg nicht antwortet.
+    // ══════════════════════════════════════════════════════════════════════
+    void (async () => {
+      const r = await api("/agent/start").catch(() => null);
+      if (r?.ok && r.json?.agent?.rolle) {
+        setRolle(String(r.json.agent.rolle));
+        return;
+      }
+      const m = await api("/agent/me").catch(() => null);
+      if (m?.ok && m.json?.agent?.rolle) {
+        setRolle(String(m.json.agent.rolle));
+        // Kein stilles Weiter: Wer im Protokoll sieht, dass der Rückfall
+        // gegriffen hat, weiß, dass die Startseite kaputt ist.
+        console.warn("[NAV] Rolle über /agent/me geholt — /agent/start hat nicht geantwortet "
+          + `(HTTP ${r?.status ?? "?"}). Die Startseite zeigt gerade keine Zahlen.`);
+      }
+    })();
   }, [agent]);
 
   // Zugewiesene Aufgaben: heute fällig + überfällig. Aktualisiert alle zwei

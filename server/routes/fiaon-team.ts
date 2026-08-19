@@ -19,6 +19,7 @@ import {
 import {
   echteMitarbeiterSql, nurTestkontenSql, testkontenZaehlen, istTestkontoSql,
 } from "../lib/fiaon-mitarbeiter-sicht";
+import { katalogpreisCents } from "../lib/fiaon-massgebliche-bestellung";
 
 const router = Router();
 
@@ -966,7 +967,7 @@ async function bookRef(ref: string, manualAmountCents?: number, agentIdOverride?
   if (existing.length > 0) return { ok: true, alreadyBooked: true };
 
   const apps = await sqlPool`
-    SELECT ref, amount_due, assigned_agent_id, email
+    SELECT ref, amount_due, assigned_agent_id, email, pack_key, type
     FROM fiaon_applications
     WHERE ref = ${ref} AND payment_status = 'paid' AND merged_into IS NULL
   `;
@@ -988,11 +989,33 @@ async function bookRef(ref: string, manualAmountCents?: number, agentIdOverride?
   }
   if (!app.assigned_agent_id) return { ok: false, error: "Bestellung ist keinem Agent zugewiesen — zuerst Zuordnung reparieren" };
 
-  // Betrag sicherstellen: vorhanden? sonst manuell? sonst Donor/Bank.
+  // ══════════════════════════════════════════════════════════════════════════
+  // BETRAG SICHERSTELLEN — DER KATALOG KOMMT VOR DEM RATEN (19.08.2026)
+  //
+  // Die Reihenfolge war: Bestellung → manuelle Eingabe → Dubletten-Bestellung
+  // → Bankeingang. Drei der vier bezahlten Bestellungen mit einem Betrag
+  // AUSSERHALB des Katalogs stammen aus genau hier:
+  //
+  //   Silvana Kammerzell    FIAON Start    10,00 €  („manueller Eingabe")
+  //   Daliborka Saratlija   FIAON Pro      10,00 €  („manueller Eingabe")
+  //   Ilijana Weber         High End       79,99 €  („Dubletten-Bestellung")
+  //
+  // Bei allen drei war das Paket bekannt und der Katalogpreis damit ebenfalls.
+  // Eine getippte Zehn und ein Betrag aus der Bestellung eines ANDEREN Pakets
+  // sind Schätzungen — und sie landen in der Provisionsrechnung.
+  //
+  // Der Katalog steht deshalb vor allen Schätzungen. Manuell, Dublette und
+  // Bankeingang bleiben für die Fälle, in denen es kein Katalogpaket gibt
+  // (gemessen: 103 lebende Bestellungen ohne `pack_key`).
+  // ══════════════════════════════════════════════════════════════════════════
   let amountCents = eurToCents(app.amount_due);
   let source = "order";
   if (amountCents <= 0) {
-    if (manualAmountCents && manualAmountCents > 0) {
+    const ausKatalog = katalogpreisCents(app);
+    if (ausKatalog != null && ausKatalog > 0) {
+      amountCents = ausKatalog;
+      source = "katalog";
+    } else if (manualAmountCents && manualAmountCents > 0) {
       amountCents = Math.round(manualAmountCents);
       source = "manuell";
     } else {
@@ -1015,7 +1038,9 @@ async function bookRef(ref: string, manualAmountCents?: number, agentIdOverride?
     if (amountCents <= 0) return { ok: false, error: "Betrag unklar — bitte manuell eingeben" };
     // Betrag am Antrag ergänzen (Buchhaltungs-Spur), damit onCustomerPaid + Anzeige stimmen.
     await sqlPool`UPDATE fiaon_applications SET amount_due = ${(amountCents / 100).toFixed(2)}::numeric, updated_at = NOW() WHERE ref = ${ref} AND amount_due IS NULL`;
-    const srcLabel = source === "manuell" ? "manueller Eingabe" : source === "donor" ? "Dubletten-Bestellung" : "Bankeingang";
+    const srcLabel = source === "katalog" ? "dem Paketkatalog"
+      : source === "manuell" ? "manueller Eingabe"
+      : source === "donor" ? "Dubletten-Bestellung" : "Bankeingang";
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
       VALUES (${ref}, NULL, 'Admin', 'system',
@@ -2275,10 +2300,22 @@ router.get("/admin/team/:id/akte", async (req: Request, res: Response) => {
                (k.transkript IS NOT NULL) AS hat_transkript,
                (k.recording_url IS NOT NULL AND k.aufnahme_geloescht_am IS NULL) AS hat_aufnahme,
                k.aufnahme_geloescht_am, k.ohne_aufzeichnung_am,
+               -- ── WIE VERLÄSSLICH IST DIESE ZEILE? (19.08.2026) ─────────
+               -- „zustaendigkeit" heisst: aus der Zustaendigkeit abgeleitet,
+               -- NICHT belegt. Genau solche Zeilen standen im falschen Profil
+               -- (Nikitas Gespraech in Lucas Boehnerts Tab). Der COALESCE
+               -- leitet sie auch fuer Altzeilen ohne die Spalte ab, damit die
+               -- Ansicht nicht auf die Migration warten muss.
+               COALESCE(k.zuordnung_herkunft,
+                        CASE WHEN COALESCE(k.richtung, 'raus') <> 'eingehend' THEN 'gewaehlt'
+                             WHEN k.ergebnis IS NOT NULL THEN 'ergebnis'
+                             ELSE 'zustaendigkeit' END) AS zuordnung_herkunft,
                COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
-                        p.company_name, p.contact_name, k.nummer) AS kunde
+                        p.company_name, p.contact_name, k.nummer) AS kunde,
+               betreuer.name AS kunde_betreuer
         FROM fiaon_calls k
         LEFT JOIN fiaon_persons p ON p.id = k.person_id
+        LEFT JOIN fiaon_agents betreuer ON betreuer.id = p.assigned_agent_id
         WHERE k.agent_id = ${id}
         ORDER BY k.beginn DESC
         LIMIT 120

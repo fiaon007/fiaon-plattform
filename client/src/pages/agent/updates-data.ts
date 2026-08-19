@@ -10,6 +10,50 @@
 // Jede Änderung, die im Agent-Portal SICHTBAR ist, bekommt im SELBEN Commit
 // einen Eintrag hier — genauso verbindlich wie der Eintrag im CHANGELOG.md.
 // Ein Update ohne Eintrag gilt als unfertig.
+//
+// ============================================================================
+// DAS DATUM WIRD GELESEN, NICHT WEITERGEZÄHLT (19.08.2026)
+//
+// ── DER BEFUND ─────────────────────────────────────────────────────────────
+// Diese Datei enthielt Einträge „Was am 30. und 31.08.2026 dazugekommen ist" —
+// an einem 19.08.2026. Achtzehn Einträge lagen in der Zukunft, der vorderste
+// zwölf Tage.
+//
+// ── DIE URSACHE, GEMESSEN (scripts/mess-update-daten.ts) ───────────────────
+// Nicht die Systemuhr: Sie liefert den 19.08.2026, und der jüngste Commit im
+// Repo trägt dasselbe Datum — beide kommen aus derselben Quelle. Auch kein
+// Tippfehler: Der Versatz war nicht zufällig, sondern wuchs MONOTON.
+//
+//     Eintrag                       eingetragen   Commit       Versatz
+//     2026-08-17-betrieb            17.08.        17.08.        0 Tage
+//     2026-08-18-kundenweg          18.08.        17.08.       +1 Tag
+//     2026-08-19-kundensicht        19.08.        17.08.       +2 Tage
+//     2026-08-20-ablauf             20.08.        17.08.       +3 Tage
+//     …
+//     2026-08-31-richtiges-paket    31.08.        19.08.      +12 Tage
+//
+// Das ist die Signatur einer Gewohnheit: Jede Sitzung hat auf den obersten
+// Eintrag gesehen und EINEN TAG DAZUGEZÄHLT, statt das Datum der Umgebung zu
+// lesen. Am 17. und 18.08. liefen je mehrere Sitzungen — jede zählte weiter,
+// und so wurde aus einem Tag Vorsprung ein knapper Monat.
+//
+// ── DIE KORREKTUR ──────────────────────────────────────────────────────────
+// Alle 21 betroffenen `date`-Felder stehen jetzt auf dem Datum des Commits, der
+// sie eingeführt hat. Dass mehrere Einträge denselben Tag tragen, ist richtig:
+// An einem Tag liefen wirklich mehrere Sitzungen.
+//
+// ── WARUM DIE `id` IHR ALTES DATUM BEHÄLT ──────────────────────────────────
+// Die `id` ist der stabile Schlüssel für den „gesehen"-Stand im Browser des
+// Agenten (`getUnseenCount` sucht sie). Wer sie ändert, macht bei jedem
+// Menschen alle Einträge wieder ungelesen. Sie ist ein SCHLÜSSEL, kein Datum —
+// wer ein Datum braucht, nimmt `date`. Aus einer `id` eines Datum ableiten wäre
+// derselbe Fehler wie oben, nur eine Ebene tiefer.
+//
+// ── DIE WAND ───────────────────────────────────────────────────────────────
+// `scripts/pruef-daten-zukunft.ts` prüft ab jetzt, dass hier und im
+// CHANGELOG.md kein Datum in der Zukunft liegt — gemessen gegen die ZEIT DER
+// DATENBANK, nicht gegen die lokale Uhr. Eine Regel, die man sich merken muss,
+// hat man schon vergessen.
 // ============================================================================
 
 export type UpdateCategory = "Neu" | "Verbessert" | "Behoben" | "Hintergrund";
@@ -39,6 +83,94 @@ export interface AgentUpdate {
 
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
+  {
+    id: "2026-08-19-leeres-portal",
+    date: "2026-08-19",
+    category: "Behoben",
+    title: "Warum euer Portal heute leer war — und warum bei Daniel „Vertrieb“ fehlte",
+    summary:
+      "Ein einziger Fehler in einer Datenbankabfrage hat heute Mittag die ganze "
+      + "Startseite abgeschaltet. Ihr habt es gemeldet, es lag nicht an euch.",
+    changes: [
+      "WAS IHR GESEHEN HABT: „Verdienst konnte nicht geladen werden“, 0,00 €, "
+      + "„Bankdaten fehlen“ (obwohl die IBAN drin steht) und 0 Kunden. Bei Daniel "
+      + "war zusätzlich der Menüpunkt „Vertrieb“ verschwunden.",
+
+      "DIE URSACHE: In der Abfrage, die eure Startseite füllt, fehlte ein einziges "
+      + "Kürzel für eine Tabelle. Die Datenbank hat die Abfrage abgelehnt, der "
+      + "Server hat mit einem Fehler geantwortet — und die Seite hat daraus 0,00 € "
+      + "gemacht. Der Fehler kam heute um 11:42 rein und ist jetzt behoben.",
+
+      "WARUM DER MENÜPUNKT MITGING: Eure Rolle kommt aus derselben Antwort. Kam "
+      + "keine Antwort, galt jeder als „agent“ — und „Vertrieb“ sehen nur "
+      + "Vertriebsleiter. Die Rolle hat jetzt einen zweiten Weg: Fällt die "
+      + "Startseite aus, bleibt das Menü trotzdem richtig.",
+
+      "UND: 0,00 € STEHT NICHT MEHR DA, WENN WIR ES NICHT WISSEN. Statt einer "
+      + "erfundenen Null seht ihr einen Strich, den GRUND im Klartext und einen "
+      + "Knopf „Noch einmal versuchen“. Ein Betrag, der falsch ist, ist schlimmer "
+      + "als ein Betrag, der fehlt.",
+
+      "ZUM VERGLEICH, was wirklich dastand: Daniel hatte in diesem Moment "
+      + "734,50 € Guthaben, 1.351,80 € diesen Monat und 1.012 offene Kunden.",
+    ],
+    howto: [
+      "Startseite öffnen. Wenn dort ein oranger Kasten steht, sagt er, was los "
+      + "ist — und der Knopf daneben versucht es neu.",
+      "Vertriebsleitung: Der Punkt „Vertrieb“ ist wieder im Menü. Wenn er einmal "
+      + "fehlt, melde es sofort — das heißt, dass eine Antwort ausgefallen ist.",
+    ],
+    important: true,
+  },
+  {
+    id: "2026-08-19-betrag-und-empfaenger",
+    date: "2026-08-19",
+    category: "Behoben",
+    title: "„0,80 €“ im Bestätigungsfenster — und der Kunde, dessen E-Mail nicht gefunden wurde",
+    summary:
+      "Zwei Fehler im Fenster „Das bekommt …“, das es seit gestern gibt. Beide "
+      + "betreffen Geld beziehungsweise den Versand — beide sind weg.",
+    changes: [
+      "DER BETRAG WAR UM DEN FAKTOR 100 FALSCH. Im Fenster stand „FIAON Ultra "
+      + "0,80 €“ statt 79,99 €, bei High End „1,00 €“ statt 99,99 €. Das war ein "
+      + "Rechenfehler in der ANZEIGE — in der Datenbank standen immer die "
+      + "richtigen Beträge, und jede Mail an einen Kunden trug ebenfalls den "
+      + "richtigen. Wir haben 4.132 Zahlungsmails der letzten 30 Tage geprüft: "
+      + "keine einzige mit einem falschen Betrag.",
+
+      "NEU: EINE WARNMARKE AM BETRAG. Weicht der Betrag einer Bestellung vom "
+      + "Katalogpreis ab, steht es jetzt im Fenster: „Ungewöhnlicher Betrag — "
+      + "Katalogpreis wäre 79,99 €“. Dann bitte nachsehen, bevor der Kunde "
+      + "überweist.",
+
+      "DIE E-MAIL WURDE IM FENSTER NICHT GEFUNDEN. Bei Kunden, deren Adresse nur "
+      + "in den Stammdaten steht (nicht an der Bestellung), sagte das Fenster "
+      + "„Für diesen Kunden ist keine E-Mail-Adresse hinterlegt“ — während in der "
+      + "Akte eine steht. Beweisfall Joachim Rechtsteiner: Das Fenster zeigt jetzt "
+      + "euro-tec@t-online.de und sagt dazu, dass sie aus den Stammdaten kommt.",
+
+      "OHNE ADRESSE IST „SENDEN“ JETZT SICHTBAR GESPERRT — grau statt blassblau. "
+      + "Vorher sah der Knopf aus, als ginge er, und ein Klick hätte einen "
+      + "Serverfehler erzeugt. Und direkt daneben steht ein Feld, in das ihr die "
+      + "Adresse eintragen könnt; sie wird in der Akte gespeichert, danach geht "
+      + "die Mail sofort raus.",
+
+      "PREISE KOMMEN NUR NOCH AUS DEM KATALOG. In der Akte ließ sich der Betrag "
+      + "früher frei eintippen, und ein Paketwechsel ließ den alten Betrag stehen "
+      + "(dann hatte ein High-End-Kunde 59,99 € offen). Beides geht nicht mehr: "
+      + "Der Betrag folgt dem Paket. Zwei Bonitätsauskünfte, die 99,99 € statt "
+      + "74,00 € offen hatten, sind korrigiert.",
+    ],
+    howto: [
+      "Kundenkarte → „Zahlungsdaten senden“ → das Fenster lesen, BEVOR ihr "
+      + "bestätigt: Paket, Betrag, Verwendungszweck, Empfänger.",
+      "Steht eine orange Marke am Betrag: nicht senden, sondern das Paket in der "
+      + "Akte prüfen.",
+      "Steht „keine Adresse“: das Feld im Fenster benutzen — kein Seitenwechsel "
+      + "nötig.",
+    ],
+    important: true,
+  },
   {
     id: "2026-08-19-knopf-geht-wieder",
     date: "2026-08-19",
@@ -89,7 +221,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-31-richtiges-paket",
-    date: "2026-08-31",
+    date: "2026-08-19",
     category: "Behoben",
     title: "Warum eure Rechnung jetzt immer das richtige Paket trägt",
     summary:
@@ -146,7 +278,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-31-telefon-mikrofon",
-    date: "2026-08-31",
+    date: "2026-08-19",
     category: "Behoben",
     title: "Vor dem ersten Anruf: Sprechprobe machen",
     summary:
@@ -203,7 +335,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-30-tageslauf-waechter",
-    date: "2026-08-30",
+    date: "2026-08-18",
     category: "Behoben",
     title: "Die Automatik war 15 Tage aus — und niemand konnte es sehen",
     summary:
@@ -249,7 +381,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-30-teamfeedback-3",
-    date: "2026-08-30",
+    date: "2026-08-18",
     category: "Neu",
     title: "Euer Feedback, Teil 3: Termin-Art, Blockier-Knopf, Mikrofon-Balken",
     summary:
@@ -305,7 +437,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-30-teamfeedback-2",
-    date: "2026-08-30",
+    date: "2026-08-18",
     category: "Behoben",
     title: "Euer Feedback, Teil 2: Rufnummern, verpasste Termine, Stufen und Betreuer",
     summary:
@@ -373,7 +505,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-30-teamfeedback",
-    date: "2026-08-30",
+    date: "2026-08-18",
     category: "Behoben",
     title: "Euer Feedback: was ihr gemeldet habt, was die Ursache war, was jetzt gilt",
     summary:
@@ -440,7 +572,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-30-schaubilder",
-    date: "2026-08-30",
+    date: "2026-08-18",
     category: "Neu",
     title: "Die Academy hat jetzt Schaubilder \u2014 und die Mails siehst du wie am Handy",
     summary:
@@ -465,7 +597,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-29-produkt",
-    date: "2026-08-29",
+    date: "2026-08-18",
     category: "Behoben",
     title: "„Produkt anlegen“ geht jetzt \u2014 und Tauschen ist ein Klick",
     summary:
@@ -490,7 +622,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-28-academy-team",
-    date: "2026-08-28",
+    date: "2026-08-18",
     category: "Neu",
     title: "Die Academy ist f\u00fcr euch offen \u2014 deine Reise unter „Mehr“",
     summary:
@@ -515,7 +647,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-27-knopf",
-    date: "2026-08-27",
+    date: "2026-08-18",
     category: "Behoben",
     title: "Der Zahlungsdaten-Knopf sagt jetzt, warum er nicht geht \u2014 und was zu tun ist",
     summary:
@@ -540,7 +672,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-26-academy",
-    date: "2026-08-26",
+    date: "2026-08-18",
     category: "Neu",
     title: "Es gibt jetzt die FIAON Academy \u2014 so wird eingeschult",
     summary:
@@ -566,7 +698,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-25-vollpfleger",
-    date: "2026-08-25",
+    date: "2026-08-18",
     category: "Neu",
     title: "Ihr k\u00f6nnt jetzt Kunden komplett anlegen \u2014 so geht's",
     summary:
@@ -593,7 +725,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-24-reste",
-    date: "2026-08-24",
+    date: "2026-08-18",
     category: "Behoben",
     title: "Sieben zahlende Kunden standen t\u00e4glich auf der Liste \u2014 ohne dass ihr etwas tun konntet",
     summary:
@@ -618,7 +750,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-23-geduld",
-    date: "2026-08-23",
+    date: "2026-08-17",
     category: "Behoben",
     title: "Die Zweig-Pr\u00fcfung gab zu fr\u00fch auf \u2014 34 Zweige waren zu Unrecht rot",
     summary:
@@ -643,7 +775,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-22-bonitaet",
-    date: "2026-08-22",
+    date: "2026-08-17",
     category: "Behoben",
     title: "Kunden wurden zum Kauf aufgefordert, obwohl sie schon bezahlt hatten",
     summary:
@@ -667,7 +799,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-21-zweigampel",
-    date: "2026-08-21",
+    date: "2026-08-17",
     category: "Behoben",
     title: "Die „35 Zweige fehlen“-Meldung war unser Fehler, nicht euer",
     summary:
@@ -690,7 +822,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-20-eine-quelle",
-    date: "2026-08-20",
+    date: "2026-08-17",
     category: "Behoben",
     title: "Warum eure E-Mail-Probleme jetzt vorbei sind",
     summary:
@@ -717,7 +849,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-20-ablauf",
-    date: "2026-08-20",
+    date: "2026-08-17",
     category: "Neu",
     title: "Der Kundenstatus stimmt jetzt · Kundenakte mit Ablauf-Leiste · 364 Kunden warten auf ihr Startgespräch",
     summary:
@@ -745,7 +877,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-19-datenkosmetik",
-    date: "2026-08-19",
+    date: "2026-08-17",
     category: "Behoben",
     title: "Paketnamen und Kundennamen werden jetzt richtig angezeigt",
     summary:
@@ -773,7 +905,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-19-kundensicht",
-    date: "2026-08-19",
+    date: "2026-08-17",
     category: "Neu",
     title: "Portal ansehen als Kunde (Leitung) · „Wir rufen an“ steht jetzt überall · Nummer groß im Cockpit",
     summary:
@@ -800,7 +932,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   },
   {
     id: "2026-08-18-kundenweg",
-    date: "2026-08-18",
+    date: "2026-08-17",
     category: "Neu",
     title: "Deine Leads bekommen jetzt dauerhaft Post · Nur noch 5 Termine je Tag · 15 € je Startgespräch",
     summary:

@@ -21,6 +21,8 @@ import { nummerAusZeile } from "../lib/fiaon-telefon";
 import { fristAbgelaufenSql, nichtArchiviertSql } from "../lib/fiaon-bestand-filter";
 import { statusFuerPerson, statusFuerBestellungen } from "../lib/fiaon-kundenstatus";
 import { produktstand, produktstandFuerBestellungen } from "../lib/fiaon-produktstand";
+import { PAKETE, paketPreisEuro } from "../../shared/fiaon-pakete";
+import { katalogpreisCents } from "../lib/fiaon-massgebliche-bestellung";
 
 const router = Router();
 
@@ -848,11 +850,21 @@ router.post("/admin/kunden/:ref/stammdaten", async (req: Request, res: Response)
 // Konditionen (sensibel, mit Bestätigung): Limit, Betrag, Zahlungsfrist, Paket.
 // Reine Feld-Updates mit Audit — KEIN Eingriff in Zahlungs-/Provisions-Hooks.
 // ═══════════════════════════════════════════════════════════════════
-const PACKS_ALLOWED: Record<string, string> = {
-  start: "FIAON Start", pro: "FIAON Pro (Standard)", ultra: "FIAON Ultra", highend: "FIAON High-End",
-  business_starter: "FIAON Business Starter", business_pro: "FIAON Business Pro",
-  business_ultra: "FIAON Business Ultra", business_enterprise: "FIAON Business Enterprise",
-};
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE PAKETLISTE KOMMT AUS DEM KATALOG (19.08.2026)
+//
+// Hier stand eine eigene, handgeschriebene Liste mit acht Bezeichnungen. Sie
+// war die dritte Preis- bzw. Paketquelle im Haus — und die einzige ohne Preis.
+// Genau deshalb konnte die Route darunter das Paket wechseln und den Betrag
+// stehen lassen („Betrag bewusst NICHT automatisch angepasst").
+//
+// AGENTS.md: „Eine Definition, ein Ort." Der Katalog liegt in
+// shared/fiaon-pakete.ts; die Bonitätsauskunft ist ausgenommen, weil sie kein
+// Stufenpaket ist und in der Akte nicht umgestellt wird.
+// ═══════════════════════════════════════════════════════════════════════════
+const PACKS_ALLOWED: Record<string, string> = Object.fromEntries(
+  PAKETE.filter((p) => p.key !== "schufa").map((p) => [p.key, p.label]),
+);
 router.post("/admin/kunden/:ref/konditionen", async (req: Request, res: Response) => {
   try {
     const ref = String(req.params.ref);
@@ -876,17 +888,55 @@ router.post("/admin/kunden/:ref/konditionen", async (req: Request, res: Response
         changes.push({ field: "Limit", from: `${from} €`, to: `${v} €` });
       }
     }
-    // Betrag (amount_due) — bei bezahlten Bestellungen gesperrt (Buchhaltungs-Spur)
+    // ══════════════════════════════════════════════════════════════════════
+    // BETRAG — NUR NOCH DER KATALOGPREIS (19.08.2026)
+    //
+    // ── DAS WAR DIE LETZTE OFFENE STELLE ────────────────────────────────
+    // Hier stand ein freies Feld: `Number(body.amountDue)`, geprüft auf
+    // „0 bis 50.000 €". In der Akte („Betrag (amount_due, €)",
+    // client/src/pages/admin-kunde.tsx) ließ sich damit jede Zahl eintippen.
+    //
+    // Die Antragsstrecke nimmt den Katalogpreis. Die Telefon-Anlage lehnt
+    // einen mitgeschickten Betrag ausdrücklich ab („Beträge werden nicht
+    // übernommen"). Die erste Rechnung rechnet aus dem Paket. Nur dieser Weg
+    // schrieb, was jemand tippte — GEMESSEN: zwei bezahlte Bestellungen
+    // stehen auf 10,00 € („Betrag ergänzt aus manueller Eingabe").
+    //
+    // Ein freier Betrag ist kein Komfort, sondern eine Zahlungsaufforderung
+    // über eine Summe, die niemand herleiten kann: Der Kontoabgleich findet
+    // sie nicht, die Abo-Rate und die Provision rechnen damit weiter.
+    //
+    // Bleibt erlaubt: den Betrag auf den Katalogpreis ZURÜCKSETZEN. Das ist
+    // die einzige Änderung, die ein Mensch hier braucht.
+    // ══════════════════════════════════════════════════════════════════════
     if (body.amountDue !== undefined) {
       if (cur.payment_status === "paid") {
         return res.status(409).json({ ok: false, error: "Betrag einer BEZAHLTEN Bestellung kann nicht geändert werden (Rechnung/Provision gebucht). Bei echtem Fehler: stornieren + neu anlegen." });
       }
       const v = Number(body.amountDue);
-      if (!Number.isFinite(v) || v < 0 || v > 50000) return res.status(400).json({ ok: false, error: "Betrag ungültig (0 – 50.000 €)" });
+      if (!Number.isFinite(v) || v < 0) return res.status(400).json({ ok: false, error: "Betrag ungültig" });
+      const sollCents = katalogpreisCents(cur);
+      if (sollCents == null) {
+        return res.status(409).json({
+          ok: false,
+          error: "Für diese Bestellung ist kein Katalogpaket hinterlegt — ohne Paket gibt es "
+            + "keinen Preis. Erst das Paket setzen, dann ergibt sich der Betrag von selbst.",
+        });
+      }
+      const soll = sollCents / 100;
+      if (Math.round(v * 100) !== sollCents) {
+        return res.status(409).json({
+          ok: false,
+          error: `Beträge kommen nur aus dem Katalog. Für dieses Paket sind es `
+            + `${soll.toFixed(2).replace(".", ",")} € — ein anderer Betrag lässt sich hier `
+            + `nicht setzen. Soll der Kunde etwas anderes zahlen, gehört das Paket geändert.`,
+          katalogEuro: soll,
+        });
+      }
       const from = cur.amount_due != null ? Number(cur.amount_due).toFixed(2) : "—";
       if (from !== v.toFixed(2)) {
         await sqlPool`UPDATE fiaon_applications SET amount_due = ${v.toFixed(2)}::numeric, updated_at = NOW() WHERE ref = ${ref}`;
-        await auditApp(ref, `Betrag (amount_due) geändert durch Admin: ${from} € → ${v.toFixed(2)} €`);
+        await auditApp(ref, `Betrag (amount_due) auf den Katalogpreis gesetzt durch Admin: ${from} € → ${v.toFixed(2)} €`);
         changes.push({ field: "Betrag", from: `${from} €`, to: `${v.toFixed(2)} €` });
       }
     }
@@ -910,15 +960,52 @@ router.post("/admin/kunden/:ref/konditionen", async (req: Request, res: Response
         changes.push({ field: "Zahlungsfrist", from, to: d });
       }
     }
-    // Paket — Anzeige-/Vertragsgröße; Betrag wird bewusst NICHT automatisch angepasst
+    // ══════════════════════════════════════════════════════════════════════
+    // PAKET — UND DER BETRAG GEHT MIT (19.08.2026)
+    //
+    // Hier stand wörtlich: „Betrag wird bewusst NICHT automatisch angepasst".
+    // Das war die zweite Hälfte desselben Fehlers: Wer im Dropdown von Pro auf
+    // High End stellte, hatte danach ein High-End-Paket zu 59,99 € — und die
+    // Zahlungsdaten-Mail verschickte genau das.
+    //
+    // Ein Paket OHNE seinen Preis zu ändern ist keine Vorsicht, sondern zwei
+    // Wahrheiten in einer Zeile. Bei einer BEZAHLTEN Bestellung ist beides
+    // gesperrt: Dort hängen Rechnung und Provision daran.
+    // ══════════════════════════════════════════════════════════════════════
     if (body.packKey !== undefined) {
       const key = String(body.packKey || "").trim();
       if (!PACKS_ALLOWED[key]) return res.status(400).json({ ok: false, error: "Unbekanntes Paket" });
       const from = cur.pack_name || cur.pack_key || "—";
       if (key !== cur.pack_key) {
-        await sqlPool`UPDATE fiaon_applications SET pack_key = ${key}, pack_name = ${PACKS_ALLOWED[key]}, updated_at = NOW() WHERE ref = ${ref}`;
-        await auditApp(ref, `Paket geändert durch Admin: ${from} → ${PACKS_ALLOWED[key]} (Betrag bewusst NICHT automatisch angepasst)`);
+        if (cur.payment_status === "paid") {
+          return res.status(409).json({
+            ok: false,
+            error: "Das Paket einer BEZAHLTEN Bestellung kann nicht geändert werden — daran "
+              + "hängen Rechnung und Provision. Bei echtem Fehler: stornieren und neu anlegen.",
+          });
+        }
+        const neuEuro = paketPreisEuro(key);
+        const altBetrag = cur.amount_due != null ? Number(cur.amount_due).toFixed(2) : "—";
+        await sqlPool`
+          UPDATE fiaon_applications
+          SET pack_key = ${key}, pack_name = ${PACKS_ALLOWED[key]},
+              -- Der Betrag folgt dem Paket. Nur wo schon einer stand: Ein
+              -- Entwurf ohne Betrag soll keinen bekommen, bloß weil jemand das
+              -- Paket gesetzt hat — die Rechnung entsteht später und holt ihn
+              -- sich dann aus demselben Katalog.
+              amount_due = CASE WHEN amount_due IS NULL THEN NULL
+                                ELSE ${neuEuro.toFixed(2)}::numeric END,
+              updated_at = NOW()
+          WHERE ref = ${ref}
+        `;
+        await auditApp(ref, `Paket geändert durch Admin: ${from} → ${PACKS_ALLOWED[key]}`
+          + (cur.amount_due != null
+            ? ` — Betrag mit dem Katalog nachgezogen: ${altBetrag} € → ${neuEuro.toFixed(2)} €`
+            : " — kein Betrag gesetzt (Entwurf); die Rechnung holt ihn aus dem Katalog"));
         changes.push({ field: "Paket", from: String(from), to: PACKS_ALLOWED[key] });
+        if (cur.amount_due != null) {
+          changes.push({ field: "Betrag", from: `${altBetrag} €`, to: `${neuEuro.toFixed(2)} €` });
+        }
       }
     }
     res.json({ ok: true, changes });
